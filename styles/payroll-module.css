@@ -633,6 +633,16 @@
   border-right: 1px solid var(--pay-edge);
   background: var(--pay-surface);
   border-radius: 0;
+  position: relative;
+  z-index: 2;
+}
+
+.payroll-studio #form-employee .payroll-wizard__panels {
+  position: relative;
+  z-index: 1;
+  isolation: isolate;
+  padding: 1rem 1.15rem 0.5rem;
+  min-width: 0;
 }
 
 .payroll-studio #form-employee .payroll-wizard__steps .hr-form-wizard-dot {
@@ -709,11 +719,6 @@
   border-color: var(--pay-danger);
   background: #fef2f2;
   color: var(--pay-danger);
-}
-
-.payroll-studio #form-employee .payroll-wizard__panels {
-  padding: 1rem 1.15rem 0.5rem;
-  min-width: 0;
 }
 
 /* Secciones del paso */
@@ -839,6 +844,7 @@
   border: 3px solid #fff;
   background: linear-gradient(135deg, var(--pay-blue), var(--primary-deeper));
   box-shadow: 0 0 0 2px rgba(var(--primary-rgb), 0.25), 0 10px 24px rgba(11, 33, 56, 0.15);
+  overflow: hidden;
 }
 
 .payroll-studio #form-employee .hr-employee-avatar-caption {

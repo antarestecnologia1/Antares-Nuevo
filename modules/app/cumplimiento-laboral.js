@@ -340,6 +340,14 @@ function bindLaborCompliancePortalControls() {
         onConfirm: async () => {
           const ok = await G.removeFromPortalListAwaitServer(KEYS.sstCompliance, id);
           if (!ok) return;
+          G.appendModuleAuditLog({
+            action: "delete",
+            moduleId: "sst",
+            moduleLabel: "Cumplimiento laboral y SST",
+            entityId: id,
+            entityLabel: `${String(target.employeeName || "Colaborador")} · ${String(target.recordType || "Control")}`,
+            summary: `${String(target.status || "Pendiente")} · vence ${String(target.dueDate || "—")}`
+          });
           G.notify("Control SST eliminado.", "success");
           G.renderPortalView();
         }

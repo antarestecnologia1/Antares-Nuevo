@@ -883,6 +883,18 @@ function transportTripsHtml() {
               notify(String(err?.message || "No se pudo actualizar las tarifas en el servidor."), "error");
               return;
             }
+            if (removed && typeof removed === "object") {
+              const parts = parseTripRateStorageKeyToRouteParts(key);
+              const routeLabel = `${String(parts.originCity || "?").trim()} → ${String(parts.destinationCity || "?").trim()}`;
+              appendModuleAuditLog({
+                action: "delete",
+                moduleId: "transport_trips",
+                moduleLabel: "Viajes",
+                entityId: String(removed.id || key),
+                entityLabel: routeLabel,
+                summary: `$${parseNum(removed.value).toLocaleString("es-CO")} · tarifa por trayecto eliminada`
+              });
+            }
             notify(userMessage("routeRateDeleted"), "success");
             renderPortalView();
           }

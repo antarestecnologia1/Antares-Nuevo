@@ -70,6 +70,15 @@ async function main() {
       liq.gross > liq.net && liq.employerContributions.total > 0
     );
 
+    const wh = window.calcColombiaWithholdingProcedimiento1Cop({
+      taxableIncomeCop: 10_000_000,
+      uvt: 49799,
+      healthDeduction: 400000,
+      pensionDeduction: 400000,
+      dependents: 0
+    });
+    record("Retención Proc. 1 tabla marginal", wh.withholdingCop > 0 && wh.procedure === "1");
+
     return out;
   }, SMMLV);
 

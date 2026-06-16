@@ -34,7 +34,10 @@ export {
   calcColombiaPensionSolidarityCop,
   calcColombiaPensionSubsistenceCop,
   calcColombiaEmployeeDeductionsCop,
+  calcColombiaWithholdingProcedimiento1Cop,
   calcColombiaWithholdingTaxOrientativeCop,
+  colombiaTransportAllowanceEligibleCop,
+  validateColombiaIntegralSalaryCop,
   calcColombiaEmployerContributionsCop,
   calcColombiaOvertimeBreakdownCop,
   calcColombiaIncapacityEpsDayAdjustmentCop,
@@ -56,6 +59,9 @@ export {
   calcColombiaTerminationCesantiasDaysYear,
   calcColombiaTerminationVacationDaysAccrued,
   calcColombiaIndemnizacionDespidoSinJustaCop,
+  calcColombiaFixedTermRemainingSalaryCop,
+  classifyColombiaTerminationTaxBases,
+  CO_LEGAL_FINIQUITO_CHECKLIST,
   CO_TERMINATION_CAUSE_LABELS
 } from "./payroll-colombia-termination.domain.js";
 

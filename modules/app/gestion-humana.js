@@ -323,6 +323,17 @@ function bindPayrollPortalControls() {
         persistHrWorkspace("payroll", "data");
         renderPortalView();
         notify(userMessage("payrollLegalVigenciaDeleted", year), "success");
+        appendModuleAuditLog({
+          action: "delete",
+          moduleId: "payroll",
+          moduleLabel: "Gestión humana",
+          entityId: String(year),
+          entityLabel: `Vigencia legal ${year}`,
+          summary:
+            affectedRuns > 0
+              ? `Parámetros legales ${year} eliminados · ${affectedRuns} liquidación(es) conservadas`
+              : `Parámetros legales ${year} eliminados`
+        });
       } catch (err) {
         notify(String(err?.message || userMessage("payrollLegalVigenciaDeleteFail")), "error");
       }
@@ -610,6 +621,7 @@ function bindPayrollPortalControls() {
           notify(userMessage("employeeSaveServerFail", err?.message), "error");
           return;
         }
+        appendPayrollEmployeeAuditLog("create", createdEmployee);
         const propagate = await propagateEmployeeChanges(createdEmployee, {
           license: payload.license,
           licenseCategory: payload.licenseCategory,
@@ -1003,6 +1015,7 @@ function bindPayrollPortalControls() {
           scheduleContractRenewalNotificationCheck();
           const refreshed = read(KEYS.payrollEmployees, []).find((empRow) => String(empRow.id) === String(target.id));
           if (refreshed) {
+            appendPayrollEmployeeAuditLog("update", refreshed);
             const propagate = await propagateEmployeeChanges(refreshed);
             if (!propagate.ok) {
               notify(propagate.message || userMessage("employeeCreatedDriverSyncFail"), "error");
@@ -1028,13 +1041,14 @@ function bindPayrollPortalControls() {
 
   nodes.viewRoot.querySelectorAll("[data-action='delete-employee']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      if (abortIfNotAdmin()) return;
+      if (abortUnlessCanManagePayroll()) return;
       openConfirmModal({
         title: "Eliminar empleado",
         message: "El empleado sera removido en cascada (nomina, ausencias, contratos y conductor relacionado).",
         confirmText: "Eliminar",
         onConfirm: async () => {
           const empId = String(btn.dataset.id || "");
+          const snapshot = read(KEYS.payrollEmployees, []).find((row) => String(row.id) === empId) || null;
           try {
             await postPortalAuthorized("/portal/admin-employee-delete", { employeeId: empId });
           } catch (err) {
@@ -1046,6 +1060,7 @@ function bindPayrollPortalControls() {
           } catch (err) {
             devWarn("deleteEmployeesCascade", err);
           }
+          if (snapshot) appendPayrollEmployeeAuditLog("delete", snapshot);
           if (portalCanRefreshFromApi()) await applyPortalBootstrapFromApi();
           notify(userMessage("employeeDeletedCascade"), "success");
           renderPortalView();
@@ -1075,10 +1090,7 @@ function bindPayrollPortalControls() {
   if (employeesDeleteSelected) {
     employeesDeleteSelected.addEventListener("click", (event) => {
       event.preventDefault();
-      if (!isAdminActor()) {
-        notify(userMessage("adminOnlyModule"), "error");
-        return;
-      }
+      if (abortUnlessCanManagePayroll()) return;
       const selectedIds = [
         ...new Set(
           [...nodes.viewRoot.querySelectorAll("[data-employee-select]:checked")].map((check) =>
@@ -1095,6 +1107,9 @@ function bindPayrollPortalControls() {
         message: `Se eliminaran ${selectedIds.length} empleados en cascada (nomina, ausencias, contratos y conductores asociados).`,
         confirmText: "Eliminar seleccionados",
         onConfirm: async () => {
+          const snapshots = selectedIds
+            .map((employeeId) => read(KEYS.payrollEmployees, []).find((row) => String(row.id) === employeeId))
+            .filter(Boolean);
           try {
             for (const employeeId of selectedIds) {
               await postPortalAuthorized("/portal/admin-employee-delete", { employeeId });
@@ -1108,6 +1123,7 @@ function bindPayrollPortalControls() {
           } catch (err) {
             devWarn("deleteEmployeesCascade bulk", err);
           }
+          snapshots.forEach((employee) => appendPayrollEmployeeAuditLog("delete", employee));
           if (portalCanRefreshFromApi()) await applyPortalBootstrapFromApi();
           notify(userMessage("employeesBulkRemoved", selectedIds.length), "success");
           renderPortalView();
@@ -1146,6 +1162,14 @@ function bindPayrollPortalControls() {
         });
         if (result && typeof result === "object") {
           await applyPortalBootstrapFromApi();
+          appendModuleAuditLog({
+            action: "create",
+            moduleId: "payroll",
+            moduleLabel: "Gestión humana",
+            entityId: String(result.periodKey || fechaReferencia),
+            entityLabel: "Liquidación masiva",
+            summary: `Cierre ${fechaReferencia}: ${parseNum(result.created ?? result.createdCount)} liquidación(es) generada(s)`
+          });
           presentPayrollBulkAutogenResult(result);
           state.payrollUi = { ...(state.payrollUi || { runSort: "recent" }), workspace: "data", dataSection: "runs" };
           persistHrWorkspace("payroll", "data");
@@ -1552,6 +1576,8 @@ function bindPayrollPortalControls() {
         pendingBonusCop: settlement.pendingBonusCop,
         indemnizacionDespido: settlement.indemnizacionDespido,
         indemnizacionAviso: settlement.indemnizacionAviso,
+        indemnizacionContratoFijo: settlement.indemnizacionContratoFijo,
+        renunciaAvisoDeduction: settlement.renunciaAvisoDeduction,
         indemnization: settlement.indemnizacionDespido + settlement.indemnizacionAviso,
         otrosSettlement: settlement.otrosSettlement,
         referenceDays360: settlement.cesantiasDaysYear,
@@ -1562,7 +1588,10 @@ function bindPayrollPortalControls() {
         eligibility: settlement.eligibility,
         integralSalaryApplied: settlement.integralSalaryApplied,
         indemnizacionFormula: settlement.indemnizacionFormula,
+        taxClassification: settlement.taxClassification,
         devengosLines: settlement.devengosLines,
+        deductionsLines: settlement.deductionsLines,
+        finiquitoChecklist: settlement.finiquitoChecklist,
         withholdingNote: settlement.withholdingNote,
         legalDisclaimer: settlement.legalDisclaimer
       };
@@ -1587,7 +1616,8 @@ function bindPayrollPortalControls() {
         interDepartmentTrips: 0,
         health: settlement.health,
         pension: settlement.pension,
-        solidarity: 0,
+        solidarity: settlement.solidarity,
+        subsistence: settlement.subsistence,
         withholding: settlement.withholding,
         deductions: settlement.deductions,
         net: settlement.net,
@@ -1707,15 +1737,32 @@ function bindPayrollPortalControls() {
         devRows += `<tr><td style="${cL}"><strong>Total devengos liquidación</strong></td><td style="${cR}"><strong>${fmtPay(run.gross)}</strong></td></tr>`;
 
         const ded = parseNum(run.deductions);
-        const dedRows =
-          ded > 0
-            ? `<tr><td style="${cL}">Salud empleado (sobre salario pendiente)</td><td style="${cR}">${fmtPay(run.health)}</td></tr>` +
-              `<tr><td style="${cL}">Pensión empleado</td><td style="${cR}">${fmtPay(run.pension)}</td></tr>` +
-              (parseNum(run.withholding) > 0
-                ? `<tr><td style="${cL}">Retención en la fuente (orientativa)</td><td style="${cR}">${fmtPay(run.withholding)}</td></tr>`
-                : "") +
-              `<tr><td style="${cL}"><strong>Total deducciones</strong></td><td style="${cR}"><strong>${fmtPay(ded)}</strong></td></tr>`
-            : `<tr><td colspan="2" style="padding:8px;color:#495057;font-size:0.88rem">Sin deducciones registradas. Informe embargos u obligaciones con su contador.</td></tr>`;
+        const dedLines = Array.isArray(sd.deductionsLines) ? sd.deductionsLines : [];
+        let dedRows = "";
+        if (dedLines.length) {
+          dedRows = dedLines
+            .map(
+              (L) =>
+                `<tr><td style="${cL}">${escapeHtml(String(L.label || L.code))}</td><td style="${cR}">${fmtPay(L.amount)}</td></tr>`
+            )
+            .join("");
+          dedRows += `<tr><td style="${cL}"><strong>Total deducciones</strong></td><td style="${cR}"><strong>${fmtPay(ded)}</strong></td></tr>`;
+        } else if (ded > 0) {
+          dedRows =
+            `<tr><td style="${cL}">Salud empleado</td><td style="${cR}">${fmtPay(run.health)}</td></tr>` +
+            `<tr><td style="${cL}">Pensión empleado</td><td style="${cR}">${fmtPay(run.pension)}</td></tr>` +
+            (parseNum(run.withholding) > 0
+              ? `<tr><td style="${cL}">Retención Proc. 1 (Art. 383)</td><td style="${cR}">${fmtPay(run.withholding)}</td></tr>`
+              : "") +
+            `<tr><td style="${cL}"><strong>Total deducciones</strong></td><td style="${cR}"><strong>${fmtPay(ded)}</strong></td></tr>`;
+        } else {
+          dedRows = `<tr><td colspan="2" style="padding:8px;color:#495057;font-size:0.88rem">Sin deducciones registradas.</td></tr>`;
+        }
+        const checklist = Array.isArray(sd.finiquitoChecklist) ? sd.finiquitoChecklist : [];
+        const checklistBlock = checklist.length
+          ? `<h2 style="font-size:1rem;margin:0.75rem 0 0.35rem">III. Checklist legal post-liquidación</h2>
+          <ul style="margin:0 0 1rem 1.1rem;font-size:0.86rem;color:#495057;line-height:1.5">${checklist.map((x) => `<li>${escapeHtml(String(x))}</li>`).join("")}</ul>`
+          : "";
 
         payslipBodyBlocks = `
           <h2 style="font-size:1rem;margin:1.25rem 0 0.35rem">I. Devengos (finiquito / liquidación)</h2>
@@ -1723,6 +1770,7 @@ function bindPayrollPortalControls() {
           <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:1rem">${theadP}<tbody>${devRows}</tbody></table>
           <h2 style="font-size:1rem;margin:0.75rem 0 0.35rem">II. Deducciones</h2>
           <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:1rem">${theadP}<tbody>${dedRows}</tbody></table>
+          ${checklistBlock}
           <table style="width:100%;border-collapse:collapse;font-size:0.95rem;margin-top:0.5rem"><tbody>
             <tr><td style="padding:12px 8px"><strong>Total neto a consignar / pagar</strong></td><td style="padding:12px 8px;text-align:right;font-size:1.12rem"><strong>${netStr}</strong></td></tr>
           </tbody></table>`;
@@ -2031,7 +2079,7 @@ function bindPayrollPortalControls() {
           appendModuleAuditLog({
             action: "delete",
             moduleId: "hr_absences",
-            moduleLabel: "Ausencias",
+            moduleLabel: "Gestión humana",
             entityId: id,
             entityLabel: removed
               ? `${String(removed.employeeName || "Colaborador")} · ${String(removed.startDate || "-")}`
@@ -2074,7 +2122,7 @@ function bindPayrollPortalControls() {
           appendModuleAuditLog({
             action: "delete",
             moduleId: "payroll",
-            moduleLabel: "Nómina laboral",
+            moduleLabel: "Gestión humana",
             entityId: id,
             entityLabel: run
               ? `${String(run.employeeName || "Colaborador")} · ${String(run.month || "-")}`

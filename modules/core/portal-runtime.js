@@ -92,6 +92,7 @@ const canDeleteVehicle = __pr.canDeleteVehicle;
 const canEditFleetDriverAsAdmin = __pr.canEditFleetDriverAsAdmin;
 const canEditVehicle = __pr.canEditVehicle;
 const canManageHiringModule = __pr.canManageHiringModule;
+const canManagePayrollModule = __pr.canManagePayrollModule;
 const canManageTransportTrips = __pr.canManageTransportTrips;
 const canPerformPermissionGatedAction = __pr.canPerformPermissionGatedAction;
 const canToggleVehicleStatus = __pr.canToggleVehicleStatus;
@@ -1561,6 +1562,12 @@ function canPerformHiringEditAction(action) {
   return HIRING_RRHH_EDIT_ACTIONS.has(String(action || "")) && canManageHiringModule();
 }
 
+const PAYROLL_RRHH_EDIT_ACTIONS = new Set(["delete-employee"]);
+
+function canPerformPayrollEditAction(action) {
+  return PAYROLL_RRHH_EDIT_ACTIONS.has(String(action || "")) && canManagePayrollModule();
+}
+
 function hiringPipelineStatusClass(status) {
   const s = String(status || "");
   if (s === "Contratado") return "status-viaje_asignado";
@@ -2339,6 +2346,28 @@ function appendModuleAuditLog(entry) {
     detailId: String(row.detailId || "").trim()
   });
   write(KEYS.moduleAuditLogs, list.slice(0, 600));
+}
+
+function payrollEmployeeAuditSummary(employee) {
+  const position = String(employee?.position || "Sin cargo").trim();
+  const doc = String(employee?.idDoc || "").trim();
+  return doc ? `${position} · Doc. ${doc}` : position;
+}
+
+function appendPayrollEmployeeAuditLog(action, employee, extra = {}) {
+  const emp = employee && typeof employee === "object" ? employee : {};
+  const entityId = String(extra.entityId || emp.id || "").trim();
+  appendModuleAuditLog({
+    action: String(action || "update"),
+    moduleId: "payroll",
+    moduleLabel: "Gestión humana",
+    entityId,
+    entityLabel: String(extra.entityLabel || emp.name || "Colaborador").trim(),
+    summary: String(extra.summary || payrollEmployeeAuditSummary(emp)).trim(),
+    actor: String(extra.actor || currentUser()?.email || currentUser()?.name || "—").trim(),
+    detailAction: String(extra.detailAction || ""),
+    detailId: String(extra.detailId || entityId)
+  });
 }
 
 function buildRouteRateEntry(value, companyIds, previousEntry = null, ts = nowIso()) {
@@ -6420,7 +6449,7 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = fa
       <button type="button" class="btn btn-sm btn-outline" data-action="view-employee" data-id="${escapeAttr(String(e.id))}">${IC.eye} Perfil</button>
       <button type="button" class="btn btn-sm btn-action" data-action="edit-employee" data-id="${escapeAttr(String(e.id))}">${IC.edit} Editar</button>
       <button type="button" class="btn btn-sm btn-outline" data-action="employee-generate-contract" data-id="${escapeAttr(String(e.id))}">${IC.file} Contrato</button>
-      ${hrAdminDeletes ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-employee" data-id="${escapeAttr(String(e.id))}" title="Solo administradores">${IC.trash}</button>` : ""}
+      ${hrAdminDeletes ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-employee" data-id="${escapeAttr(String(e.id))}" title="Eliminar colaborador">${IC.trash}</button>` : ""}
     </footer>
   </article>`;
 }
@@ -7057,7 +7086,7 @@ function buildHistoryAuditEntries() {
       id: `audit-request-create-${request.id}`,
       ts: String(request.createdAt || ""),
       action: "create",
-      moduleLabel: "Solicitudes",
+      moduleLabel: "Mis solicitudes",
       entityLabel: requestLabel,
       summary: `${String(request.clientName || "Cliente")} · ${formatRoute(request)}`
     });
@@ -7066,7 +7095,7 @@ function buildHistoryAuditEntries() {
         id: `audit-request-update-${request.id}`,
         ts: String(request.updatedAt),
         action: "update",
-        moduleLabel: "Solicitudes",
+        moduleLabel: "Mis solicitudes",
         entityLabel: requestLabel,
         summary: `${String(request.status || "Sin estado")} · ${String(request.serviceType || "Sin servicio")}`
       });
@@ -7080,7 +7109,7 @@ function buildHistoryAuditEntries() {
         id: `audit-request-mod-${request.id}-${logRow?.id || idx}`,
         ts: String(logRow?.at || ""),
         action: "update",
-        moduleLabel: "Solicitudes",
+        moduleLabel: "Mis solicitudes",
         entityLabel: requestLabel,
         summary: tripN
           ? `Modificación con viaje ${tripN}${changes ? ` (${changes})` : ""}: ${just}`
@@ -7158,6 +7187,110 @@ function buildHistoryAuditEntries() {
     }
   });
 
+  readArray(KEYS.payrollRuns).forEach((run) => {
+    const runLabel = `${String(run.employeeName || "Colaborador").trim()} · ${String(run.month || "-").trim()}`;
+    pushEntry({
+      id: `audit-payroll-run-create-${run.id}`,
+      ts: String(run.createdAt || ""),
+      action: "create",
+      moduleLabel: "Gestión humana",
+      entityLabel: runLabel,
+      summary: `${String(run.payrollKind || "mensual")} · $${parseNum(run.net).toLocaleString("es-CO")}`
+    });
+  });
+
+  readArray(KEYS.hrAbsences).forEach((absence) => {
+    pushEntry({
+      id: `audit-hr-absence-create-${absence.id}`,
+      ts: String(absence.createdAt || absence.approvedAt || ""),
+      action: "create",
+      moduleLabel: "Gestión humana",
+      entityLabel: `${String(absence.employeeName || "Colaborador").trim()} · ${String(absence.startDate || "-")}`,
+      summary: `${String(absence.absenceType || "Ausencia")} · ${parseNum(absence.days)} día(s)`
+    });
+  });
+
+  readArray(KEYS.positions).forEach((position) => {
+    const label = String(position.name || "Cargo").trim();
+    pushEntry({
+      id: `audit-position-create-${position.id}`,
+      ts: String(position.createdAt || ""),
+      action: "create",
+      moduleLabel: "Contratación",
+      entityLabel: label,
+      summary: `${String(position.workerRole || "empleado")} · $${parseNum(position.baseSalary).toLocaleString("es-CO")}`
+    });
+  });
+
+  readArray(KEYS.vacancies).forEach((vacancy) => {
+    pushEntry({
+      id: `audit-vacancy-create-${vacancy.id}`,
+      ts: String(vacancy.createdAt || ""),
+      action: "create",
+      moduleLabel: "Contratación",
+      entityLabel: String(vacancy.title || vacancy.positionName || "Vacante").trim(),
+      summary: `${String(vacancy.city || "Sin ciudad")} · ${String(vacancy.status || "Publicada")}`
+    });
+  });
+
+  readArray(KEYS.candidates).forEach((candidate) => {
+    pushEntry({
+      id: `audit-candidate-create-${candidate.id}`,
+      ts: String(candidate.createdAt || ""),
+      action: "create",
+      moduleLabel: "Contratación",
+      entityLabel: String(candidate.name || "Candidato").trim(),
+      summary: `${String(candidate.status || "En proceso")} · ${String(candidate.vacancyTitle || candidate.positionName || "Sin vacante")}`
+    });
+  });
+
+  readArray(KEYS.interviews).forEach((interview) => {
+    pushEntry({
+      id: `audit-interview-create-${interview.id}`,
+      ts: String(interview.createdAt || interview.when || ""),
+      action: "create",
+      moduleLabel: "Contratación",
+      entityLabel: String(interview.candidateName || "Entrevista").trim(),
+      summary: `${String(interview.modality || "Presencial")} · ${String(interview.interviewer || "Sin entrevistador")}`
+    });
+  });
+
+  readArray(KEYS.contracts).forEach((contract) => {
+    pushEntry({
+      id: `audit-contract-create-${contract.id}`,
+      ts: String(contract.createdAt || ""),
+      action: "create",
+      moduleLabel: "Contratación",
+      entityLabel: String(contract.candidateName || contract.employeeName || "Contrato").trim(),
+      summary: `${String(contract.position || contract.positionName || "Sin cargo")} · ${String(contract.contractType || "Contrato")}`
+    });
+  });
+
+  readArray(KEYS.sstCompliance).forEach((record) => {
+    pushEntry({
+      id: `audit-sst-create-${record.id}`,
+      ts: String(record.createdAt || ""),
+      action: "create",
+      moduleLabel: "Cumplimiento laboral y SST",
+      entityLabel: `${String(record.employeeName || "Colaborador").trim()} · ${String(record.recordType || "Control")}`,
+      summary: `${String(record.status || "Pendiente")} · vence ${String(record.dueDate || "—")}`
+    });
+  });
+
+  Object.entries(getTripRouteRatesNormalized()).forEach(([storageKey, entry]) => {
+    if (!entry || typeof entry !== "object") return;
+    const parts = parseTripRateStorageKeyToRouteParts(storageKey);
+    const routeLabel = `${String(parts.originCity || "?").trim()} → ${String(parts.destinationCity || "?").trim()}`;
+    pushEntry({
+      id: `audit-route-rate-create-${String(entry.id || storageKey)}`,
+      ts: String(entry.createdAt || ""),
+      action: "create",
+      moduleLabel: "Viajes",
+      entityLabel: routeLabel,
+      summary: `$${parseNum(entry.value).toLocaleString("es-CO")} · tarifa por trayecto`
+    });
+  });
+
   readModuleAuditLogs().forEach((row) => {
     pushEntry({
       id: `audit-explicit-${row.id}`,
@@ -7178,7 +7311,7 @@ function buildHistoryAuditEntries() {
       id: `audit-deleted-request-${row.id}`,
       ts: String(row.deletedAt || ""),
       action: "delete",
-      moduleLabel: "Solicitudes",
+      moduleLabel: "Mis solicitudes",
       entityLabel: String(row.requestNumber || row.requestId || "Solicitud"),
       summary: `${formatDeletedRequestSnapshotTableSummary(snap)} · Motivo: ${String(row.reason || "—")}`,
       actor: String(row.deletedByEmail || ""),
@@ -10594,8 +10727,8 @@ function buildPayrollEmployeeEditModalFields(emp) {
 <label for="emp-edit-modal-avatar-input" class="profile-avatar profile-avatar-lg profile-avatar-upload${editPhotoHasImage ? " has-image" : ""}" data-emp-edit-avatar-label style="${editPhotoHasImage ? `background-image:url('${editPhotoCss}');` : ""}" title="Foto del empleado">
 <span class="profile-avatar-initial">${editPhotoHasImage ? "" : editPhotoInitial}</span>
 <span class="profile-avatar-overlay"><span class="profile-avatar-overlay-inner">${IC.upload}<span>${editPhotoHasImage ? escapeHtml("Cambiar") : escapeHtml("Subir foto")}</span></span></span>
-</label>
 <input type="file" id="emp-edit-modal-avatar-input" name="avatarFile" accept="image/*" class="profile-avatar-file-input" aria-label="Foto del empleado" />
+</label>
 <input type="hidden" name="avatarUrlExisting" value="${existingAvatar}" />
 <p class="muted hr-employee-avatar-caption">${escapeHtml("Pulse el círculo. Si no elige archivo, se conserva la foto actual.")}</p>
 </div>
@@ -10798,6 +10931,7 @@ function portalNonAdminRestrictedCaptureClick(event) {
   }
   if (isAdminActor()) return;
   if (canPerformHiringEditAction(action)) return;
+  if (canPerformPayrollEditAction(action)) return;
   if (canPerformPermissionGatedAction(currentUser(), action, trigger)) return;
   if (!PORTAL_NON_ADMIN_BLOCKED_ACTIONS.has(action)) return;
   event.preventDefault();
@@ -10817,6 +10951,7 @@ function portalNonAdminRestrictedCaptureChange(event) {
   }
   if (isAdminActor()) return;
   if (canPerformHiringEditAction(action)) return;
+  if (canPerformPayrollEditAction(action)) return;
   if (canPerformPermissionGatedAction(currentUser(), action, trigger)) return;
   if (!PORTAL_NON_ADMIN_BLOCKED_ACTIONS.has(action)) return;
   event.preventDefault();
@@ -10856,6 +10991,12 @@ function abortUnlessCanManageTransportTrips(reason = "adminOnlyModule") {
 
 function abortUnlessCanManageHiring(reason = "adminOnlyModule") {
   if (canManageHiringModule()) return false;
+  notify(userMessage(reason), "error");
+  return true;
+}
+
+function abortUnlessCanManagePayroll(reason = "adminOnlyModule") {
+  if (canManagePayrollModule()) return false;
   notify(userMessage(reason), "error");
   return true;
 }
@@ -11250,6 +11391,7 @@ Object.assign(window, {
   abortUnlessCanDeleteVehicle,
   abortUnlessCanEditVehicle,
   abortUnlessCanManageHiring,
+  abortUnlessCanManagePayroll,
   abortUnlessCanManageTransportTrips,
   abortUnlessCanToggleVehicleStatus,
   addOneYearToYmd,
@@ -11257,6 +11399,7 @@ Object.assign(window, {
   adminUsersCollapsibleCardBody,
   appendFuelLogAwait,
   appendModuleAuditLog,
+  appendPayrollEmployeeAuditLog,
   appendVehicleTechnicalLogAwait,
   applyAdminUsersFormDraft,
   applyCandidateToEmployeeForm,
@@ -11296,6 +11439,7 @@ Object.assign(window, {
   calculateDriverTripReport,
   canAssignTripFromViajesModule,
   canPerformHiringEditAction,
+  canPerformPayrollEditAction,
   canViewAllTransportRequests,
   candidateCvDataUrlToBlob,
   candidateMayHaveCvInStorage,

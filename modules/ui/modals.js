@@ -619,8 +619,9 @@ export function bindHrFormWizard(form) {
                 : "Último paso: revise y guarde.";
       }
     }
-    window.AntaresValidation?.upgradePortalDateFields?.(form);
-    window.AntaresValidation?.resyncPortalDateValuesInRoot?.(form);
+    const activeStep = steps[idx] || form;
+    window.AntaresValidation?.upgradePortalDateFields?.(activeStep);
+    window.AntaresValidation?.resyncPortalDateValuesInRoot?.(activeStep);
   };
 
   prevBtn?.addEventListener("click", () => {

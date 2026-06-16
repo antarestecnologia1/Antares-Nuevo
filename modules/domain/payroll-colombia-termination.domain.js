@@ -4,7 +4,9 @@
  */
 import { CO_PAYROLL, CO_HR_RULES } from "../core/config.js";
 import {
-  calcColombiaWithholdingTaxOrientativeCop,
+  calcColombiaEmployeeDeductionsCop,
+  calcColombiaWithholdingProcedimiento1Cop,
+  colombiaTransportAllowanceEligibleCop,
   readActiveUvtCop,
   resolveIntegralSalaryFlag
 } from "./payroll-colombia-legal.domain.js";
@@ -41,6 +43,15 @@ function semesterBoundsForDate(dt) {
   return { start: new Date(y, 6, 1, 12, 0, 0, 0), end: new Date(y, 11, 31, 12, 0, 0, 0) };
 }
 
+export const CO_LEGAL_FINIQUITO_CHECKLIST = [
+  "Pago de todos los rubros acordados en finiquito firmado por las partes.",
+  "Entrega de certificado laboral (CST art. 57): tiempo de servicio, cargo, salario, causa de retiro.",
+  "Paz y salvo mutuo por obligaciones laborales pendientes.",
+  "Traslado de cesantías al fondo o pago directo según extracto y fecha de retiro.",
+  "Reporte de novedad de retiro en seguridad social (sin PILA automática en este sistema).",
+  "Entrega de dotación y elementos de trabajo devueltos por el trabajador.",
+  "Actualizar estado del empleado en el directorio y archivar soportes de terminación."
+];
 export const CO_TERMINATION_CAUSE_LABELS = {
   renuncia_voluntaria: "Renuncia voluntaria",
   despido_sin_justa: "Despido sin justa causa",
@@ -85,7 +96,8 @@ export function terminationCauseEligibility(cause) {
       ...base,
       indemnizacionDespido: false,
       indemnizacionAvisoPrevio: false,
-      note: "Renuncia: prestaciones sociales devengadas. Si no cumplió aviso previo al empleador, puede aplicar descuento pactado (no calculado aquí)."
+      renunciaAvisoDeduction: true,
+      note: "Renuncia: prestaciones devengadas. Si no dio aviso previo (15 días contrato indefinido), puede descontarse del finiquito (CST art. 62)."
     };
   }
   if (c === "vencimiento_contrato") {
@@ -204,6 +216,55 @@ export function calcColombiaAvisoPrevioEmpleadorCop(salaryMonthly, avisoDaysWork
   return Math.round((sal / 30) * missing);
 }
 
+/** Descuento por renuncia sin aviso previo al empleador (15 días — CST art. 62). */
+export function calcColombiaRenunciaAvisoPrevioDeductionCop(salaryMonthly, avisoDaysWorked = 0, contractIndefinite = true) {
+  const sal = Math.max(0, parseNum(salaryMonthly));
+  const worked = Math.max(0, parseNum(avisoDaysWorked));
+  const required = contractIndefinite ? 15 : 8;
+  const missing = Math.max(0, required - worked);
+  return Math.round((sal / 30) * missing);
+}
+
+/**
+ * Contrato a término fijo: salarios del tiempo restante si el empleador termina sin justa causa (Ley 50/1990 art. 7).
+ */
+export function calcColombiaFixedTermRemainingSalaryCop(salaryMonthly, terminationDateYmd, contractEndDateYmd) {
+  const sal = Math.max(0, parseNum(salaryMonthly));
+  const term = parseYmd(terminationDateYmd);
+  const end = parseYmd(contractEndDateYmd);
+  if (!term || !end || end <= term || sal <= 0) return { cop: 0, daysRemaining: 0 };
+  const daysRemaining = inclusiveDays(new Date(term.getTime() + 86400000), end);
+  return { cop: Math.round((sal / 30) * daysRemaining), daysRemaining };
+}
+
+/**
+ * Clasificación tributaria finiquito (sin DIAN): qué integra seguridad social y retención.
+ * Cesantías, intereses e indemnización despido: exentos de retención (doctrina laboral).
+ */
+export function classifyColombiaTerminationTaxBases({
+  salarioPendiente = 0,
+  auxilioPendiente = 0,
+  overtime = 0,
+  bonus = 0,
+  primaProporcional = 0,
+  vacaciones = 0
+}) {
+  const sal = Math.max(0, parseNum(salarioPendiente));
+  const ot = Math.max(0, parseNum(overtime));
+  const bo = Math.max(0, parseNum(bonus));
+  const prima = Math.max(0, parseNum(primaProporcional));
+  const vac = Math.max(0, parseNum(vacaciones));
+  const ibcSeguridadSocial = sal + ot + bo;
+  const baseRetencion = sal + ot + bo + prima + vac;
+  return {
+    ibcSeguridadSocial,
+    baseRetencion,
+    auxilioNoConstitutivo: Math.max(0, parseNum(auxilioPendiente)),
+    note:
+      "Seguridad social sobre salario y pagos salariales del último periodo. Retención Proc. 1 sobre salario, extras, prima y vacaciones en dinero. Cesantías, intereses e indemnizaciones excluidos de retención."
+  };
+}
+
 /** Salario y auxilio del mes de retiro (días 1 → fecha retiro). */
 export function calcColombiaTerminationPendingSalaryCop(salaryMonthly, terminationDateYmd, transportMonthlyCop = 0) {
   const term = parseYmd(terminationDateYmd);
@@ -228,8 +289,10 @@ export function computeColombiaTerminationSettlement({
   pendingOvertimeCop = 0,
   pendingBonusCop = 0,
   avisoPrevioDaysWorked = 0,
+  renunciaAvisoDaysWorked = 0,
   manualIndemnizationCop = 0,
   otrosSettlementCop = 0,
+  contractEndDateYmd = null,
   contractIndefinite = true,
   absencesAll = [],
   withholdingDependents = 0,
@@ -247,12 +310,11 @@ export function computeColombiaTerminationSettlement({
   const vacationTaken = sumVacationDaysTakenFromAbsences(employee?.id, absencesAll, hire, term);
   const vacationDaysAccrued = calcColombiaTerminationVacationDaysAccrued(employedDays, vacationTaken);
 
-  const transportRef =
-    parseNum(employee?.transportAllowance) > 0
+  const transportRef = colombiaTransportAllowanceEligibleCop(salary, smmlv)
+    ? parseNum(employee?.transportAllowance) > 0
       ? parseNum(employee.transportAllowance)
-      : salary > 0 && salary <= smmlv * 2
-        ? CO_HR_RULES.transportAllowance
-        : 0;
+      : CO_HR_RULES.transportAllowance
+    : 0;
   const pending = calcColombiaTerminationPendingSalaryCop(salary, term, transportRef);
 
   const cesantiasCausadas = eligibility.cesantias
@@ -288,11 +350,41 @@ export function computeColombiaTerminationSettlement({
     indemnizacionAviso = calcColombiaAvisoPrevioEmpleadorCop(salary, avisoPrevioDaysWorked, contractIndefinite);
   }
 
+  let indemnizacionContratoFijo = 0;
+  let fixedTermDays = 0;
+  if (
+    !contractIndefinite &&
+    terminationCause === "despido_sin_justa" &&
+    contractEndDateYmd
+  ) {
+    const ft = calcColombiaFixedTermRemainingSalaryCop(salary, term, contractEndDateYmd);
+    indemnizacionContratoFijo = ft.cop;
+    fixedTermDays = ft.daysRemaining;
+  }
+
+  let renunciaAvisoDeduction = 0;
+  if (eligibility.renunciaAvisoDeduction) {
+    renunciaAvisoDeduction = calcColombiaRenunciaAvisoPrevioDeductionCop(
+      salary,
+      renunciaAvisoDaysWorked || avisoPrevioDaysWorked,
+      contractIndefinite
+    );
+  }
+
   const salarioPendiente = eligibility.salarioPendiente ? pending.salarioCop : 0;
   const auxilioPendiente = eligibility.auxilioTransporte ? pending.auxilioCop : 0;
   const overtime = Math.max(0, parseNum(pendingOvertimeCop));
   const bonus = Math.max(0, parseNum(pendingBonusCop));
-  const otros = Math.max(0, parseNum(otrosSettlementCop));
+  const otros = Math.max(0, parseNum(otrosSettlementCop)) + indemnizacionContratoFijo;
+
+  const taxBases = classifyColombiaTerminationTaxBases({
+    salarioPendiente,
+    auxilioPendiente,
+    overtime,
+    bonus,
+    primaProporcional,
+    vacaciones
+  });
 
   const grossDevengos =
     salarioPendiente +
@@ -307,18 +399,20 @@ export function computeColombiaTerminationSettlement({
     indemnizacionAviso +
     otros;
 
-  const ibcRetencion = salarioPendiente + overtime + bonus;
-  const health = Math.round(ibcRetencion * CO_PAYROLL.healthEmployeeRate);
-  const pension = Math.round(ibcRetencion * CO_PAYROLL.pensionEmployeeRate);
+  const ded = calcColombiaEmployeeDeductionsCop({
+    ibc: taxBases.ibcSeguridadSocial,
+    smmlv,
+    contributorType: employee?.contributorType
+  });
   const uvt = readActiveUvtCop();
-  const withholding = calcColombiaWithholdingTaxOrientativeCop({
-    ibc: ibcRetencion,
+  const withholding = calcColombiaWithholdingProcedimiento1Cop({
+    taxableIncomeCop: taxBases.baseRetencion,
     uvt,
-    healthDeduction: health,
-    pensionDeduction: pension,
+    healthDeduction: ded.health,
+    pensionDeduction: ded.pension,
     dependents: withholdingDependents
   });
-  const totalDeductions = health + pension + withholding.withholdingCop;
+  const totalDeductions = ded.total + withholding.withholdingCop + renunciaAvisoDeduction;
   const net = grossDevengos - totalDeductions;
 
   const lines = [
@@ -357,8 +451,30 @@ export function computeColombiaTerminationSettlement({
       label: "Indemnización sustitutiva aviso previo (empleador)",
       amount: indemnizacionAviso
     },
-    { code: "OTROS", label: "Otros conceptos de finiquito", amount: otros }
+    ...(indemnizacionContratoFijo > 0
+      ? [
+          {
+            code: "INDEMN_FIJO",
+            label: `Salarios tiempo restante contrato fijo (${fixedTermDays} días — Ley 50/1990)`,
+            amount: indemnizacionContratoFijo
+          }
+        ]
+      : []),
+    { code: "OTROS", label: "Otros conceptos de finiquito", amount: Math.max(0, parseNum(otrosSettlementCop)) }
   ].filter((l) => parseNum(l.amount) > 0 || l.code === "SALARIO_PENDIENTE");
+
+  const deductionsLines = [
+    { code: "SALUD", label: "Aporte salud empleado (4%)", amount: ded.health },
+    { code: "PENSION", label: "Aporte pensión empleado (4%)", amount: ded.pension },
+    { code: "FSP", label: `Fondo solidaridad pensional (${ded.solidarityTramo || "—"})`, amount: ded.solidarity },
+    { code: "SUBSISTENCIA", label: "Subsistencia pensional (0,5%)", amount: ded.subsistence },
+    { code: "RETENCION", label: "Retención fuente Proc. 1 (Art. 383)", amount: withholding.withholdingCop },
+    {
+      code: "AVISO_RENUNCIA",
+      label: "Descuento aviso previo no cumplido (renuncia)",
+      amount: renunciaAvisoDeduction
+    }
+  ].filter((l) => parseNum(l.amount) > 0);
 
   return {
     terminationCause,
@@ -377,23 +493,31 @@ export function computeColombiaTerminationSettlement({
     vacaciones,
     indemnizacionDespido,
     indemnizacionAviso,
+    indemnizacionContratoFijo,
+    fixedTermRemainingDays: fixedTermDays,
+    renunciaAvisoDeduction,
     indemnizacionFormula,
+    taxClassification: taxBases,
     salarioPendiente,
     auxilioPendiente,
     pendingOvertimeCop: overtime,
     pendingBonusCop: bonus,
-    otrosSettlement: otros,
+    otrosSettlement: Math.max(0, parseNum(otrosSettlementCop)),
     gross: grossDevengos,
-    ibc: ibcRetencion,
-    health,
-    pension,
+    ibc: taxBases.ibcSeguridadSocial,
+    health: ded.health,
+    pension: ded.pension,
+    solidarity: ded.solidarity,
+    subsistence: ded.subsistence,
     withholding: withholding.withholdingCop,
     withholdingNote: withholding.note,
     deductions: totalDeductions,
+    deductionsLines,
+    finiquitoChecklist: CO_LEGAL_FINIQUITO_CHECKLIST,
     net,
     devengosLines: lines,
     legalDisclaimer:
-      "Liquidación contractual orientativa (Colombia). Causal, preaviso, saldo real en fondo de cesantías, retención certificada y paz y salvo deben validarse con abogado laboral y contador."
+      "Liquidación contractual Colombia (CST, Ley 50/1990, Ley 52/1975, Art. 383 ET). Sin transmisión PILA/DIAN. Validar finiquito firmado, extracto fondo de cesantías y certificado laboral con abogado y contador."
   };
 }
 
@@ -431,7 +555,11 @@ export function applyTerminationSettlementToForm(form, settlement) {
   set("indemnizacionDespidoCop", settlement.indemnizacionDespido);
   set("indemnizacionAvisoCop", settlement.indemnizacionAviso);
   set("indemnization", settlement.indemnizacionDespido + settlement.indemnizacionAviso);
-  set("otrosSettlement", settlement.otrosSettlement);
+  if (settlement.indemnizacionContratoFijo > 0) {
+    set("otrosSettlement", (parseNum(settlement.otrosSettlement) || 0) + settlement.indemnizacionContratoFijo);
+  } else {
+    set("otrosSettlement", settlement.otrosSettlement);
+  }
   const hint = form.querySelector("#settlement-cause-hint");
   if (hint && settlement.eligibility?.note) {
     hint.textContent = settlement.eligibility.note;
@@ -471,8 +599,10 @@ export function computeTerminationSettlementFromForm(form, { employee, position,
     pendingOvertimeCop: parseNum(data.pendingOvertimeCop),
     pendingBonusCop: parseNum(data.pendingBonusCop),
     avisoPrevioDaysWorked: parseNum(data.avisoPrevioDaysWorked),
+    renunciaAvisoDaysWorked: parseNum(data.renunciaAvisoDaysWorked || data.avisoPrevioDaysWorked),
     manualIndemnizationCop: elig.indemnizacionDespido === "manual" ? parseNum(data.indemnization) : 0,
     otrosSettlementCop: parseNum(data.otrosSettlement),
+    contractEndDateYmd: String(employee.contractEndDate || employee.endDate || data.contractEndDate || "").trim() || null,
     contractIndefinite: contractIndef,
     absencesAll,
     withholdingDependents: parseNum(data.withholdingDependents)

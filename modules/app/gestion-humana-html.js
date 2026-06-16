@@ -64,6 +64,7 @@ function payrollHtml() {
     .reduce((acc, run) => acc + parseNum(run.net), 0);
   const pendingAbsenceApprovals = readArray(KEYS.approvals).filter((a) => a.status === "pendiente" && a.type === "register_hr_absence").length;
   const hrAdminDeletes = currentUser()?.role === ROLES.ADMIN;
+  const canDeletePayrollEmployees = canManagePayrollModule(currentUser());
   const canEditLegalParameters = currentUser()?.role === ROLES.ADMIN;
   const legalHistory = laborSystemParametersHistoryRows();
   const legalSelectedYear = Number(state.payrollLegalUi?.year || legalHistory[0]?.year || now.getFullYear());
@@ -80,7 +81,7 @@ function payrollHtml() {
     (s) => s.contract.applies && (s.contract.statusSlug === "notice_window" || s.contract.statusSlug === "expired")
   ).length;
   const employeeCards = employeeSummaries
-    .map((item) => renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact: true }))
+    .map((item) => renderPayrollEmployeeDirectoryCard(item, canDeletePayrollEmployees, { compact: true }))
     .join("");
   const runRows = runsToRender
     .map((r) => {
@@ -169,8 +170,8 @@ function payrollHtml() {
             <label for="emp-create-avatar-input" class="profile-avatar profile-avatar-lg profile-avatar-upload" data-emp-create-avatar-label title="Foto del empleado">
               <span class="profile-avatar-initial" data-emp-avatar-initial>E</span>
               <span class="profile-avatar-overlay"><span class="profile-avatar-overlay-inner">${IC.upload}<span>Foto</span></span></span>
+              <input type="file" id="emp-create-avatar-input" name="avatarFile" accept="image/*" class="profile-avatar-file-input" aria-label="Foto del empleado" />
             </label>
-            <input type="file" id="emp-create-avatar-input" name="avatarFile" accept="image/*" class="profile-avatar-file-input" aria-label="Foto del empleado" />
             <p class="muted hr-employee-avatar-caption">JPG o PNG, opcional. Pulse el círculo para elegir archivo.</p>
           </div>
         </div>
@@ -478,7 +479,8 @@ function payrollHtml() {
         <label>${fieldLabel(IC.clock, "Días proporcional prima")}<input type="number" name="primaPropDays" min="0" max="360" value="0" /></label>
         <label>${fieldLabel(IC.calendar, "Días vacaciones pendientes")}<input type="number" name="vacationDays" min="0" max="366" step="0.01" value="0" /></label>
         <label>${fieldLabel(IC.dollar, "Saldo cesantías en fondo (COP)")}<input type="number" name="cesantiasFondoBalanceCop" min="0" step="100" value="0" /></label>
-        <label>${fieldLabel(IC.clock, "Días aviso previo cumplidos")}<input type="number" name="avisoPrevioDaysWorked" min="0" max="60" value="0" /></label>
+        <label>${fieldLabel(IC.clock, "Días aviso previo cumplidos")}<input type="number" name="avisoPrevioDaysWorked" min="0" max="60" value="0" title="Despido sin justa: 30 días si indefinido. Renuncia: 15 días al empleador." /></label>
+        <label>${fieldLabel(IC.clock, "Días aviso renuncia (trabajador)")}<input type="number" name="renunciaAvisoDaysWorked" min="0" max="60" value="0" title="Si renuncia y no cumplió 15 días de aviso, se descuenta del finiquito (CST art. 62)." /></label>
         <label>${fieldLabel(IC.dollar, "Horas extras pendientes (COP)")}<input type="number" name="pendingOvertimeCop" min="0" value="0" /></label>
         <label>${fieldLabel(IC.dollar, "Bonificaciones pendientes (COP)")}<input type="number" name="pendingBonusCop" min="0" value="0" /></label>
         <label>${fieldLabel(IC.user, "Dependientes retención")}<input type="number" name="withholdingDependents" min="0" max="10" value="0" /></label>
@@ -573,9 +575,9 @@ function payrollHtml() {
           <option value="active">Término fijo vigente</option>
         </select>
       </label>
-      ${hrAdminDeletes ? `<div class="payroll-employee-toolbar-actions toolbar">
+      ${canDeletePayrollEmployees ? `<div class="payroll-employee-toolbar-actions toolbar">
         <button type="button" id="employees-select-all" class="btn btn-sm btn-action">${IC.check} Seleccionar todo</button>
-        <button type="button" id="employees-delete-selected" class="btn btn-sm btn-reject" title="Solo administradores">${IC.trash} Eliminar seleccionados</button>
+        <button type="button" id="employees-delete-selected" class="btn btn-sm btn-reject" title="Eliminar colaboradores seleccionados">${IC.trash} Eliminar seleccionados</button>
       </div>` : ""}
     </div>`;
   const empTable = employeeCards

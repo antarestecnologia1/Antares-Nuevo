@@ -113,6 +113,40 @@ export function calcColombiaEmployeeDeductionsCop(opts: {
   };
 }
 
+export function calcColombiaWithholdingProcedimiento1Cop(opts: {
+  taxableIncomeCop: number;
+  uvt: number;
+  healthDeduction: number;
+  pensionDeduction: number;
+  dependents?: number;
+}): { withholdingCop: number; taxableUvt: number; procedure: string; note: string } {
+  const uvtVal = Math.max(0, Number(opts.uvt) || 0);
+  if (uvtVal <= 0) {
+    return { withholdingCop: 0, taxableUvt: 0, procedure: "1", note: "Sin UVT en parámetros legales." };
+  }
+  const gross = Math.max(0, Number(opts.taxableIncomeCop) || 0);
+  const ded = Math.max(0, Number(opts.healthDeduction) || 0) + Math.max(0, Number(opts.pensionDeduction) || 0);
+  const depDed = Math.max(0, Math.floor(Number(opts.dependents) || 0)) * 32 * uvtVal;
+  const taxable = Math.max(0, gross - ded - depDed);
+  const bgUvt = taxable / uvtVal;
+  if (bgUvt <= 95) {
+    return { withholdingCop: 0, taxableUvt: bgUvt, procedure: "1", note: "Base gravable ≤ 95 UVT: tarifa 0%." };
+  }
+  let taxUvt = 0;
+  if (bgUvt > 95) taxUvt += Math.min(bgUvt - 95, 55) * 0.19;
+  if (bgUvt > 150) taxUvt += Math.min(bgUvt - 150, 210) * 0.28;
+  if (bgUvt > 360) taxUvt += Math.min(bgUvt - 360, 280) * 0.33;
+  if (bgUvt > 640) taxUvt += Math.min(bgUvt - 640, 305) * 0.35;
+  if (bgUvt > 945) taxUvt += Math.min(bgUvt - 945, 1355) * 0.37;
+  if (bgUvt > 2300) taxUvt += (bgUvt - 2300) * 0.39;
+  return {
+    withholdingCop: Math.round(taxUvt * uvtVal),
+    taxableUvt: bgUvt,
+    procedure: "1",
+    note: "Procedimiento 1 Art. 383 ET (tabla marginal UVT)."
+  };
+}
+
 export function calcColombiaWithholdingTaxOrientativeCop(opts: {
   ibc: number;
   uvt: number;
@@ -120,24 +154,14 @@ export function calcColombiaWithholdingTaxOrientativeCop(opts: {
   pensionDeduction: number;
   dependents?: number;
 }): { withholdingCop: number; taxableUvt: number; note: string } {
-  const uvtVal = Math.max(0, Number(opts.uvt) || 0);
-  if (uvtVal <= 0) {
-    return { withholdingCop: 0, taxableUvt: 0, note: "Sin UVT en parámetros legales." };
-  }
-  const gross = Math.max(0, Number(opts.ibc) || 0);
-  const ded = Math.max(0, Number(opts.healthDeduction) || 0) + Math.max(0, Number(opts.pensionDeduction) || 0);
-  const depDed = Math.max(0, Math.floor(Number(opts.dependents) || 0)) * 32 * uvtVal;
-  const taxable = Math.max(0, gross - ded - depDed);
-  const taxableUvt = taxable / uvtVal;
-  if (taxableUvt <= 95) {
-    return { withholdingCop: 0, taxableUvt, note: "Base gravable ≤ 95 UVT: sin retención orientativa." };
-  }
-  const excessUvt = taxableUvt - 95;
-  return {
-    withholdingCop: Math.round(excessUvt * uvtVal * 0.19),
-    taxableUvt,
-    note: "Estimación orientativa 19% sobre excedente de 95 UVT."
-  };
+  const r = calcColombiaWithholdingProcedimiento1Cop({
+    taxableIncomeCop: opts.ibc,
+    uvt: opts.uvt,
+    healthDeduction: opts.healthDeduction,
+    pensionDeduction: opts.pensionDeduction,
+    dependents: opts.dependents
+  });
+  return { withholdingCop: r.withholdingCop, taxableUvt: r.taxableUvt, note: r.note };
 }
 
 export function calcColombiaEmployerContributionsCop(opts: {

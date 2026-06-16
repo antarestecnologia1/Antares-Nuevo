@@ -367,13 +367,19 @@ function bindAuthorizationsPortalControls() {
           payload.workerRole = pos.workerRole || payload.workerRole || "empleado";
           payload.contractType = payload.contractType || pos.contractTypeDefault || "Termino indefinido";
         }
-        employees.push({ id: newUuidV4(), workerRole: payload.workerRole || "empleado", ...payload });
+        const created = stampCreatedRecord({
+          id: newUuidV4(),
+          workerRole: payload.workerRole || "empleado",
+          ...payload
+        });
+        employees.push(created);
         try {
           await writeAwaitServer(KEYS.payrollEmployees, employees);
         } catch (err) {
           notify(String(err?.message || userMessage("genericError")), "error");
           return;
         }
+        appendPayrollEmployeeAuditLog("create", created);
       } else if (approval.type === "update_employee") {
         const employees = read(KEYS.payrollEmployees, []);
         const payload = { ...approval.payload };
@@ -408,6 +414,7 @@ function bindAuthorizationsPortalControls() {
           notify(String(err?.message || userMessage("genericError")), "error");
           return;
         }
+        appendPayrollEmployeeAuditLog("update", merged);
         const propagate = await propagateEmployeeChanges(merged, {
           license: merged.license,
           licenseCategory: merged.licenseCategory,

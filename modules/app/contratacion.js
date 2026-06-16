@@ -352,6 +352,7 @@ function bindHiringPortalControls() {
       }
       const id = String(btn.dataset.id || "").trim();
       if (!id) return;
+      const target = read(KEYS.vacancies, []).find((v) => String(v.id) === id);
       openConfirmModal({
         title: "Eliminar vacante",
         message:
@@ -360,6 +361,14 @@ function bindHiringPortalControls() {
         onConfirm: async () => {
           const ok = await removeFromPortalListAwaitServer(KEYS.vacancies, id);
           if (!ok) return;
+          appendModuleAuditLog({
+            action: "delete",
+            moduleId: "hiring",
+            moduleLabel: "Contratación",
+            entityId: id,
+            entityLabel: String(target?.title || target?.positionName || "Vacante").trim() || "Vacante",
+            summary: `${String(target?.city || "Sin ciudad")} · ${String(target?.status || "—")}`
+          });
           notify(userMessage("vacancyDeletedOk"), "success");
           renderPortalView();
         }
@@ -704,7 +713,8 @@ function bindHiringPortalControls() {
           return "Presencial";
         })(),
         locationOrLink: normalizeLatinUpperForDb(String(data.place || "").trim()),
-        notes: normalizeLatinUpperForDb(String(data.notes || "").trim())
+        notes: normalizeLatinUpperForDb(String(data.notes || "").trim()),
+        createdAt: nowIso()
       });
       write(KEYS.interviews, all, { skipSyncSchedule: true });
       try {
@@ -1348,6 +1358,14 @@ function bindHiringPortalControls() {
         onConfirm: async () => {
           const ok = await removeFromPortalListAwaitServer(KEYS.positions, id);
           if (!ok) return;
+          appendModuleAuditLog({
+            action: "delete",
+            moduleId: "hiring",
+            moduleLabel: "Contratación",
+            entityId: id,
+            entityLabel: String(target.name || "Cargo").trim(),
+            summary: `${String(target.workerRole || "empleado")} · $${parseNum(target.baseSalary).toLocaleString("es-CO")}`
+          });
           notify("Cargo eliminado.", "success");
           renderPortalView();
         }
@@ -1677,6 +1695,14 @@ function bindHiringPortalControls() {
               return;
             }
           }
+          appendModuleAuditLog({
+            action: "delete",
+            moduleId: "hiring",
+            moduleLabel: "Contratación",
+            entityId: id,
+            entityLabel: String(target.name || "Candidato").trim(),
+            summary: `${String(target.status || "En proceso")}${interviewIds.length ? ` · ${interviewIds.length} entrevista(s)` : ""}`
+          });
           notify("Candidato eliminado.", "success");
           renderPortalView();
         }
@@ -1796,6 +1822,14 @@ function bindHiringPortalControls() {
         onConfirm: async () => {
           const ok = await removeFromPortalListAwaitServer(KEYS.interviews, id);
           if (!ok) return;
+          appendModuleAuditLog({
+            action: "delete",
+            moduleId: "hiring",
+            moduleLabel: "Contratación",
+            entityId: id,
+            entityLabel: String(target.candidateName || "Entrevista").trim(),
+            summary: `${String(target.modality || "Presencial")} · ${String(target.when || "—")}`
+          });
           notify("Entrevista eliminada.", "success");
           renderPortalView();
         }
@@ -1863,6 +1897,14 @@ function bindHiringPortalControls() {
         onConfirm: async () => {
           const ok = await removeFromPortalListAwaitServer(KEYS.contracts, id);
           if (!ok) return;
+          appendModuleAuditLog({
+            action: "delete",
+            moduleId: "hiring",
+            moduleLabel: "Contratación",
+            entityId: id,
+            entityLabel: String(target.candidateName || target.employeeName || "Contrato").trim(),
+            summary: `${String(target.position || target.positionName || "Sin cargo")} · ${String(target.contractType || "Contrato")}`
+          });
           notify("Contrato eliminado.", "success");
           renderPortalView();
         }

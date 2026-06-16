@@ -154,33 +154,79 @@ export function calcColombiaEmployeeDeductionsCop({
 }
 
 /**
- * Retención en la fuente orientativa (procedimiento 1 simplificado con UVT).
- * Ingresos < 95 UVT/mes: 0. No reemplaza retención certificada DIAN.
+ * Retención en la fuente — Procedimiento 1 (Art. 383 ET, tabla marginal en UVT).
+ * Aplica sobre base gravable mensual en pesos. Sin transmisión DIAN.
  */
-export function calcColombiaWithholdingTaxOrientativeCop({
-  ibc,
+export function calcColombiaWithholdingProcedimiento1Cop({
+  taxableIncomeCop,
   uvt = 0,
   healthDeduction = 0,
   pensionDeduction = 0,
   dependents = 0
 }) {
   const uvtVal = Math.max(0, parseNum(uvt));
-  if (uvtVal <= 0) return { withholdingCop: 0, taxableUvt: 0, note: "Sin UVT configurada en parámetros legales." };
-  const gross = Math.max(0, parseNum(ibc));
+  if (uvtVal <= 0) {
+    return { withholdingCop: 0, taxableUvt: 0, procedure: "1", note: "Sin UVT en parámetros legales." };
+  }
+  const gross = Math.max(0, parseNum(taxableIncomeCop));
   const ded = Math.max(0, parseNum(healthDeduction)) + Math.max(0, parseNum(pensionDeduction));
   const depDed = Math.max(0, Math.floor(parseNum(dependents))) * 32 * uvtVal;
   const taxable = Math.max(0, gross - ded - depDed);
-  const taxableUvt = taxable / uvtVal;
-  if (taxableUvt <= 95) {
-    return { withholdingCop: 0, taxableUvt, note: "Base gravable ≤ 95 UVT (procedimiento 1 orientativo): sin retención." };
+  const bgUvt = taxable / uvtVal;
+  if (bgUvt <= 95) {
+    return {
+      withholdingCop: 0,
+      taxableUvt: bgUvt,
+      procedure: "1",
+      note: "Base gravable ≤ 95 UVT: tarifa 0% (Proc. 1)."
+    };
   }
-  const excessUvt = taxableUvt - 95;
-  const withholdingCop = Math.round(excessUvt * uvtVal * 0.19);
+  let taxUvt = 0;
+  if (bgUvt > 95) taxUvt += Math.min(bgUvt - 95, 55) * 0.19;
+  if (bgUvt > 150) taxUvt += Math.min(bgUvt - 150, 210) * 0.28;
+  if (bgUvt > 360) taxUvt += Math.min(bgUvt - 360, 280) * 0.33;
+  if (bgUvt > 640) taxUvt += Math.min(bgUvt - 640, 305) * 0.35;
+  if (bgUvt > 945) taxUvt += Math.min(bgUvt - 945, 1355) * 0.37;
+  if (bgUvt > 2300) taxUvt += (bgUvt - 2300) * 0.39;
+  const withholdingCop = Math.round(taxUvt * uvtVal);
   return {
     withholdingCop,
-    taxableUvt,
-    note: "Estimación orientativa 19% sobre excedente de 95 UVT. Validar tabla Art. 383 ET y dependientes."
+    taxableUvt: bgUvt,
+    procedure: "1",
+    note: "Procedimiento 1 Art. 383 ET (tabla marginal UVT). Sin certificación DIAN."
   };
+}
+
+/** @deprecated alias — usar calcColombiaWithholdingProcedimiento1Cop */
+export function calcColombiaWithholdingTaxOrientativeCop(opts) {
+  return calcColombiaWithholdingProcedimiento1Cop({
+    taxableIncomeCop: opts.ibc,
+    uvt: opts.uvt,
+    healthDeduction: opts.healthDeduction,
+    pensionDeduction: opts.pensionDeduction,
+    dependents: opts.dependents
+  });
+}
+
+/** Auxilio de transporte legal: solo si salario ≤ 2 SMMLV (Ley 15/1959, práctica vigente). */
+export function colombiaTransportAllowanceEligibleCop(baseSalaryMonthly, smmlv = CO_PAYROLL.smmlv) {
+  const sal = Math.max(0, parseNum(baseSalaryMonthly));
+  const sm = Math.max(0, parseNum(smmlv));
+  const limit = sm * 2;
+  return sal > 0 && sm > 0 && sal <= limit;
+}
+
+/** Valida salario integral mínimo 13 SMMLV (CST / práctica). */
+export function validateColombiaIntegralSalaryCop(baseSalaryMonthly, smmlv = CO_PAYROLL.smmlv) {
+  const sal = Math.max(0, parseNum(baseSalaryMonthly));
+  const floor = Math.max(0, parseNum(smmlv)) * 13;
+  if (sal < floor) {
+    return {
+      ok: false,
+      message: `Salario integral: mínimo orientativo 13 SMMLV ($${floor.toLocaleString("es-CO")}).`
+    };
+  }
+  return { ok: true };
 }
 
 /** Aportes patronales orientativos sobre IBC. */
@@ -393,14 +439,14 @@ export function buildColombiaPayrollLiquidation({
   });
   const uvt = readActiveUvtCop();
   const withholding = applyWithholding
-    ? calcColombiaWithholdingTaxOrientativeCop({
-        ibc,
+    ? calcColombiaWithholdingProcedimiento1Cop({
+        taxableIncomeCop: ibc,
         uvt,
         healthDeduction: ded.health,
         pensionDeduction: ded.pension,
         dependents: withholdingDependents
       })
-    : { withholdingCop: 0, taxableUvt: 0, note: "" };
+    : { withholdingCop: 0, taxableUvt: 0, procedure: "1", note: "" };
   const employer = calcColombiaEmployerContributionsCop({
     ibc,
     arlRiskLevel: employee?.arlRiskLevel || position?.arlRiskLevel,
@@ -436,6 +482,6 @@ export function buildColombiaPayrollLiquidation({
     totalDeductions,
     net,
     legalDisclaimer:
-      "Liquidación orientativa Colombia. Validar con contador, fondo de cesantías, EPS/ARL y DIAN antes de pagar o transmitir PILA."
+      "Liquidación laboral Colombia (CST, Ley 100, Ley 52, Art. 383 ET). Sin transmisión PILA ni DIAN; validar con contador y fondos antes de pagar."
   };
 }

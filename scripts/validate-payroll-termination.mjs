@@ -63,6 +63,13 @@ async function main() {
     const elig = window.terminationCauseEligibility("despido_sin_justa");
     record("Causal despido habilita indemnización", elig.indemnizacionDespido === true);
 
+    const tax = window.classifyColombiaTerminationTaxBases({
+      salarioPendiente: 1_000_000,
+      primaProporcional: 500_000,
+      vacaciones: 300_000
+    });
+    record("Clasificación tributaria finiquito", tax.baseRetencion > tax.ibcSeguridadSocial);
+
     return out;
   });
 
