@@ -286,6 +286,48 @@ function mountAuthorizationsTabs() {
 }
 
 
+function payrollDocDedupKeyForAuth(documentType, value) {
+  const dt = String(documentType || "CC").toUpperCase();
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (dt === "PAS" || dt === "PEP") return raw.replace(/[.\s]/g, "").toUpperCase();
+  return raw.replace(/\D/g, "");
+}
+
+function findPayrollEmployeeDuplicateForAuth(employees, documentType, idDoc, companyId) {
+  const docType = String(documentType || "CC").toUpperCase();
+  const needle = payrollDocDedupKeyForAuth(docType, idDoc);
+  if (!needle) return null;
+  const cid = String(companyId || "").trim();
+  const list = Array.isArray(employees) ? employees : [];
+  return (
+    list.find((row) => {
+      const rdt = String(row?.documentType || "CC").toUpperCase();
+      if (rdt !== docType) return false;
+      if (payrollDocDedupKeyForAuth(rdt, row?.idDoc) !== needle) return false;
+      if (cid && String(row?.companyId || "").trim() !== cid) return false;
+      return true;
+    }) || null
+  );
+}
+
+async function payrollEmployeeDuplicateBlocksAuthApproval(documentType, idDoc, companyId, employees) {
+  const local = findPayrollEmployeeDuplicateForAuth(employees, documentType, idDoc, companyId);
+  if (local) return local;
+  const queryFn =
+    typeof queryPayrollEmployeeDocumentDuplicateFromApi === "function"
+      ? queryPayrollEmployeeDocumentDuplicateFromApi
+      : typeof window.queryPayrollEmployeeDocumentDuplicateFromApi === "function"
+        ? window.queryPayrollEmployeeDocumentDuplicateFromApi
+        : null;
+  if (!queryFn) return null;
+  const remote = await queryFn({ documentType, idDoc, companyId });
+  if (remote?.found && remote?.blocking) {
+    return { name: remote.name || "", idDoc, id: remote.employeeId || "" };
+  }
+  return null;
+}
+
 function bindAuthorizationsPortalControls() {
   if (String(state.currentView || "") !== "authorizations" || !nodes.viewRoot) return;
   mountAuthorizationsTabs();
@@ -369,19 +411,33 @@ function bindAuthorizationsPortalControls() {
           payload.workerRole = pos.workerRole || payload.workerRole || "empleado";
           payload.contractType = payload.contractType || pos.contractTypeDefault || "Termino indefinido";
         }
-        const created = stampCreatedRecord({
-          id: newUuidV4(),
-          workerRole: payload.workerRole || "empleado",
-          ...payload
-        });
-        employees.push(created);
-        try {
-          await writeAwaitServer(KEYS.payrollEmployees, employees);
-        } catch (err) {
-          notify(String(err?.message || userMessage("genericError")), "error");
-          return;
+        const docType = String(payload.documentType || "CC").toUpperCase();
+        const idDoc = String(payload.idDoc || "").trim();
+        const companyId = String(payload.companyId || "").trim();
+        const existingEmployee = await payrollEmployeeDuplicateBlocksAuthApproval(
+          docType,
+          idDoc,
+          companyId,
+          employees
+        );
+        if (!existingEmployee) {
+          const created = stampCreatedRecord({
+            id: newUuidV4(),
+            workerRole: payload.workerRole || "empleado",
+            ...payload
+          });
+          const nextEmployees = [...employees, created];
+          try {
+            await writeAwaitServer(KEYS.payrollEmployees, nextEmployees, { notifyOnFailure: false });
+          } catch (err) {
+            write(KEYS.payrollEmployees, employees, { skipSyncSchedule: true });
+            notify(userMessage("employeeSaveServerFail", err?.message), "error");
+            return;
+          }
+          appendPayrollEmployeeAuditLog("create", created);
+        } else {
+          notify(userMessage("authApprovalEmployeeAlreadyExists", idDoc), "info");
         }
-        appendPayrollEmployeeAuditLog("create", created);
       } else if (approval.type === "update_employee") {
         const employees = read(KEYS.payrollEmployees, []);
         const payload = { ...approval.payload };

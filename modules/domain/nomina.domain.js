@@ -14,7 +14,15 @@ import {
 } from "../core/config.js";
 import { read } from "../core/data-io.js";
 import { state } from "../core/store.js";
-import { escapeAttr, escapeHtml, monthRange, normalizePayrollFrequencyJs, payrollPeriodCalendarYm } from "../core/utils.js";
+import {
+  escapeAttr,
+  escapeHtml,
+  fmtDate,
+  formatPayrollPeriodLabel,
+  monthRange,
+  normalizePayrollFrequencyJs,
+  payrollPeriodCalendarYm
+} from "../core/utils.js";
 import { notify, userMessage } from "../ui/modals.js";
 import {
   buildColombiaPayrollLiquidation,
@@ -230,6 +238,114 @@ export function payrollRunAlreadyExists(runs = [], employeeId, month, payrollKin
       String(run.month || "").trim() === ym &&
       String(run.payrollKind || "mensual").trim().toLowerCase() === kind
   );
+}
+
+/** Liquidaciones de un colaborador (nómina laboral, viajes o ambas). */
+export function listPayrollRunsForEmployee(employeeId, allRuns = [], opts = {}) {
+  const emp = String(employeeId || "").trim();
+  if (!emp) return [];
+  const scope = String(opts.scope || "all").trim().toLowerCase();
+  const limit = opts.limit != null ? Math.max(0, Number(opts.limit)) : 0;
+  let source = Array.isArray(allRuns) ? allRuns : [];
+  if (scope === "nomina") source = filterPayrollNominaRuns(source);
+  else if (scope === "driver") source = filterDriverTripPaymentRuns(source);
+  const filtered = source.filter((run) => String(run.employeeId || "").trim() === emp);
+  const sorted = sortPayrollRunsByUiState(filtered, "recent");
+  return limit > 0 ? sorted.slice(0, limit) : sorted;
+}
+
+/** Resumen de historial de pagos para ficha del colaborador. */
+export function summarizeEmployeePayrollHistory(employee, allRuns = []) {
+  const isDriver = employeeIsConductorServiceProvider(employee);
+  const scope = isDriver ? "driver" : "nomina";
+  const dataSection = isDriver ? "driverPayments" : "runs";
+  const all = listPayrollRunsForEmployee(employee?.id, allRuns, { scope });
+  const paid = all.filter((run) => Boolean(run.paid));
+  const pending = all.filter((run) => !run.paid);
+  return {
+    isDriver,
+    scope,
+    dataSection,
+    all,
+    paid,
+    pending,
+    total: all.length,
+    lastPaid: paid[0] || null,
+    lastRun: all[0] || null
+  };
+}
+
+/** Bloque HTML: últimas liquidaciones + acceso a consulta filtrada. */
+export function buildEmployeePayrollHistorySectionHtml(employee, allRuns = [], { previewLimit = 8 } = {}) {
+  if (!employee) return "";
+  const summary = summarizeEmployeePayrollHistory(employee, allRuns);
+  const { isDriver, dataSection, all, paid, pending } = summary;
+  const preview = previewLimit > 0 ? all.slice(0, previewLimit) : all;
+  const empId = escapeAttr(String(employee.id || ""));
+  const slipLabel = isDriver ? "Comprobante" : "Desprendible";
+  const sectionTitle = isDriver ? "Historial de pagos por viajes" : "Historial de liquidaciones";
+  const registerHint = isDriver ? "Pagos conductores" : "Liquidación de nómina";
+
+  if (!all.length) {
+    return `<section class="employee-profile-section employee-profile-section--payroll-history">
+      <div class="employee-payroll-history__head">
+        <h4 class="employee-profile-section-title">${escapeHtml(sectionTitle)}</h4>
+        <span class="muted employee-payroll-history__count">Sin registros</span>
+      </div>
+      <p class="muted employee-payroll-history__empty">Aún no hay liquidaciones guardadas para este colaborador. Genérelas en <strong>Registrar → ${escapeHtml(registerHint)}</strong>.</p>
+    </section>`;
+  }
+
+  const rows = preview
+    .map((run) => {
+      const monthLabel = formatPayrollPeriodLabel(run.month);
+      const typeLabel = payrollRunTypeLabel(run);
+      const isPaid = Boolean(run.paid);
+      const paidDate = run.paidAt ? fmtDate(run.paidAt) : "";
+      return `<tr class="employee-payroll-history__row employee-payroll-history__row--${isPaid ? "paid" : "pending"}">
+        <td>
+          <strong>${escapeHtml(monthLabel)}</strong>
+          <span class="muted employee-payroll-history__type">${escapeHtml(typeLabel)}</span>
+        </td>
+        <td class="employee-payroll-history__money">$${parseNum(run.gross).toLocaleString("es-CO")}</td>
+        <td class="employee-payroll-history__money"><strong>$${parseNum(run.net).toLocaleString("es-CO")}</strong></td>
+        <td>
+          <span class="status status-${isPaid ? "viaje_asignado" : "pendiente"}">${isPaid ? "Pagado" : "Pendiente"}</span>
+          ${isPaid && paidDate ? `<span class="muted employee-payroll-history__paid-date">${escapeHtml(paidDate)}</span>` : ""}
+        </td>
+        <td class="employee-payroll-history__actions">
+          <button type="button" class="btn btn-sm btn-action" data-action="payslip" data-id="${escapeAttr(String(run.id))}">${escapeHtml(slipLabel)}</button>
+        </td>
+      </tr>`;
+    })
+    .join("");
+
+  const moreNote =
+    all.length > preview.length
+      ? `<p class="muted employee-payroll-history__more-note">Mostrando ${preview.length} de ${all.length} liquidaciones.</p>`
+      : "";
+
+  return `<section class="employee-profile-section employee-profile-section--payroll-history" data-employee-payroll-history="${empId}">
+    <div class="employee-payroll-history__head">
+      <h4 class="employee-profile-section-title">${escapeHtml(sectionTitle)}</h4>
+      <span class="employee-payroll-history__stats muted">${all.length} registro${all.length === 1 ? "" : "s"} · ${paid.length} pagado${paid.length === 1 ? "" : "s"}${pending.length ? ` · ${pending.length} pendiente${pending.length === 1 ? "" : "s"}` : ""}</span>
+    </div>
+    <div class="table-wrap employee-payroll-history__table-wrap">
+      <table class="employee-payroll-history__table">
+        <thead><tr><th>Período</th><th>Devengado</th><th>Neto</th><th>Estado</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    ${moreNote}
+    <div class="employee-payroll-history__footer toolbar">
+      <button type="button" class="btn btn-sm btn-outline" data-action="payroll-focus-employee-runs" data-employee-id="${empId}" data-payroll-section="${escapeAttr(dataSection)}">Ver todas las liquidaciones</button>
+      ${
+        pending.length
+          ? `<button type="button" class="btn btn-sm btn-action" data-action="payroll-focus-employee-runs" data-employee-id="${empId}" data-payroll-section="${escapeAttr(dataSection)}" data-status="pending">Solo pendientes (${pending.length})</button>`
+          : ""
+      }
+    </div>
+  </section>`;
 }
 
 export function payrollMonthIsPrimaSemester(ym) {

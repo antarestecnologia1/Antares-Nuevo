@@ -1027,6 +1027,62 @@
   border: 1px solid var(--pay-edge);
 }
 
+/* Botonera inferior: evitar solapamiento por grid/min-width rígidos */
+.payroll-studio #form-employee .hr-form-wizard-footer .module-panel-actions__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.65rem 0.75rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.payroll-studio #form-employee .hr-form-wizard-footer .module-panel-actions__group {
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
+.payroll-studio #form-employee .hr-form-wizard-footer .module-panel-actions__group--secondary {
+  margin-inline-end: auto;
+}
+
+.payroll-studio #form-employee .hr-form-wizard-footer .module-panel-actions__group--tools .btn,
+.payroll-studio #form-employee .hr-form-wizard-footer .module-panel-actions__group--primary .btn,
+.payroll-studio #form-employee .hr-form-wizard-footer .module-panel-btn {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.payroll-studio #form-employee .hr-form-wizard-footer .module-panel-actions__group--tools .btn {
+  white-space: normal;
+  text-align: center;
+  line-height: 1.25;
+}
+
+@media (max-width: 900px) {
+  .payroll-studio #form-employee .hr-form-wizard-footer .module-panel-actions__bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .payroll-studio #form-employee .hr-form-wizard-footer .module-panel-actions__group--secondary {
+    margin-inline-end: 0;
+    width: 100%;
+  }
+
+  .payroll-studio #form-employee .hr-form-wizard-footer .module-panel-actions__group--tools,
+  .payroll-studio #form-employee .hr-form-wizard-footer .module-panel-actions__group--primary {
+    width: 100%;
+  }
+
+  .payroll-studio #form-employee .hr-form-wizard-footer .module-panel-actions__group .btn,
+  .payroll-studio #form-employee .hr-form-wizard-footer .module-panel-actions__group .module-panel-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
 /* Ocultar elementos legacy del wizard anterior */
 .payroll-studio #form-employee .hr-form-wizard-toolbar,
 .payroll-studio #form-employee .hr-form-wizard-kicker,

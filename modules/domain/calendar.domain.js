@@ -151,6 +151,13 @@ export function resourceDisplayInitials(label) {
   return String(parts[0] || "?").slice(0, 2).toUpperCase();
 }
 
+/** URL de foto de conductor si es válida (http/https o data:image). */
+export function resolveDriverPhotoUrl(driver) {
+  const url = String(driver?.photoUrl || driver?.avatarUrl || "").trim();
+  if (/^https?:\/\//i.test(url) || /^data:image\//i.test(url)) return url;
+  return "";
+}
+
 /** Resuelve si la vista recursos agrupa por conductor o por camión. */
 export function resolveCalendarResourceGroup(filters = {}, explicit = "auto") {
   const mode = String(explicit || "auto").trim().toLowerCase();
@@ -286,7 +293,8 @@ export function buildResourceTimelineLayout({
         id: forcedId,
         label: d?.name || "Conductor",
         subtitle: d?.phone || "",
-        kind: "driver"
+        kind: "driver",
+        photoUrl: resolveDriverPhotoUrl(d)
       });
     } else {
       const v = vehicleById.get(forcedId);
@@ -320,7 +328,8 @@ export function buildResourceTimelineLayout({
       id: did || "__unassigned__",
       label: d?.name || req.trip.driverName || "Sin conductor",
       subtitle: d?.phone || req.trip.driverPhone || "",
-      kind: "driver"
+      kind: "driver",
+      photoUrl: resolveDriverPhotoUrl(d)
     };
   };
 

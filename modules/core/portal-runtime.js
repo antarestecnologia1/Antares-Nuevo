@@ -1,5 +1,9 @@
 /** Imports ES: el runtime ya no depende del orden defer vs módulos en index.html. */
 import * as __pr from "./portal-runtime-env.mjs";
+import {
+  findPendingCreateEmployeeApproval,
+  listPendingCreateEmployeeApprovalsByDocument
+} from "../domain/pending-employee-approval.domain.js";
 
 // Enlaces léxicos (módulo estricto; `IC` sigue viniendo del script `portal-icons.js`).
 const ALL_PERMISSIONS = __pr.ALL_PERMISSIONS;
@@ -6464,6 +6468,7 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = fa
         <span class="directory-card__salary payroll-emp-salary">$${item.salaryCop.toLocaleString("es-CO")}</span>
       </div>
       <div class="directory-card__compact-actions toolbar">
+        <button type="button" class="btn btn-sm btn-action" data-action="payroll-employee-liquidations" data-id="${escapeAttr(String(e.id || ""))}" title="Historial de liquidaciones">${IC.dollar}${compact ? "" : " Nóminas"}</button>
         <button type="button" class="btn btn-sm btn-outline" data-action="view-employee" data-id="${escapeAttr(String(e.id))}" title="Perfil">${IC.eye}</button>
         <button type="button" class="btn btn-sm btn-action" data-action="edit-employee" data-id="${escapeAttr(String(e.id))}" title="Editar">${IC.edit}</button>
         <button type="button" class="btn btn-sm btn-outline" data-action="employee-generate-contract" data-id="${escapeAttr(String(e.id))}" title="Generar o descargar contrato Word">${IC.download}</button>
@@ -6504,6 +6509,7 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = fa
       ${contract.applies && contract.noticeDeadlineYmd ? directoryFactHtml("Aviso no renovación", fmtDateOr(contract.noticeDeadlineYmd), { tone: contract.statusSlug === "notice_window" ? "warn" : "neutral" }) : ""}
     </dl>
     <footer class="directory-card__actions">
+      <button type="button" class="btn btn-sm btn-action" data-action="payroll-employee-liquidations" data-id="${escapeAttr(String(e.id || ""))}" title="Historial de liquidaciones">${IC.dollar} Nóminas</button>
       <button type="button" class="btn btn-sm btn-outline" data-action="view-employee" data-id="${escapeAttr(String(e.id))}">${IC.eye} Perfil</button>
       <button type="button" class="btn btn-sm btn-action" data-action="edit-employee" data-id="${escapeAttr(String(e.id))}">${IC.edit} Editar</button>
       <button type="button" class="btn btn-sm btn-outline" data-action="employee-generate-contract" data-id="${escapeAttr(String(e.id))}">${IC.file} Contrato</button>
@@ -9353,7 +9359,7 @@ function wirePayrollEmployeeFormFieldSanitization(formEl) {
  * el servidor rechace el guardado.
  *
  * @param {HTMLFormElement} formEl
- * @param {{ storageKey?: string, useCompanyScope?: boolean, excludeId?: string, entityLabel?: string, serverCheck?: boolean }} [opts]
+ * @param {{ storageKey?: string, useCompanyScope?: boolean, excludeId?: string, entityLabel?: string, serverCheck?: boolean, pendingCreateApprovalCheck?: boolean }} [opts]
  * @returns {(opts?: { silent?: boolean }) => Promise<boolean>} `check`: true si NO hay duplicado bloqueante.
  */
 function wireFormDocDuplicateCheck(formEl, opts = {}) {
@@ -9543,6 +9549,44 @@ function wireFormDocDuplicateCheck(formEl, opts = {}) {
         clearBlock();
       }
     }
+    if (
+      opts.pendingCreateApprovalCheck &&
+      !excludeId &&
+      String(docInput.dataset.dupError || "") !== "1"
+    ) {
+      const pendingRows = listPendingCreateEmployeeApprovalsByDocument(
+        read(KEYS.approvals, []),
+        docType,
+        docVal.normalized
+      );
+      if (pendingRows.length) {
+        const blockingPending = useCompanyScope
+          ? companyId
+            ? pendingRows.find((row) => String(row?.payload?.companyId || "").trim() === companyId)
+            : null
+          : pendingRows[0];
+        if (blockingPending) {
+          const who = String(blockingPending.payload?.name || "").trim()
+            ? ` (${String(blockingPending.payload.name).trim()})`
+            : "";
+          const dupMsg = `${userMessage("employeePendingApprovalExists", needle)}${who}`;
+          applyDuplicateMessage(dupMsg, {
+            silent,
+            toastKey: `pending:${needle}:${companyId || "none"}`,
+            blocking: true,
+            fromSubmit
+          });
+        } else if (useCompanyScope && !companyId) {
+          const dupMsg = userMessage("employeePendingApprovalExistsSoft");
+          applyDuplicateMessage(dupMsg, {
+            silent,
+            toastKey: `pending-warn:${needle}`,
+            blocking: false,
+            fromSubmit
+          });
+        }
+      }
+    }
     if (serverCheck) {
       await runServerDuplicateCheck({ silent, docType, docVal, companyId, force: forceServer, fromSubmit });
     }
@@ -9580,7 +9624,8 @@ function wireEmployeePayrollDuplicateDocCheck(formEl, opts = {}) {
     useCompanyScope: true,
     entityLabel: "colaborador",
     excludeId: opts.excludeId,
-    serverCheck: true
+    serverCheck: true,
+    pendingCreateApprovalCheck: !String(opts.excludeId || "").trim()
   });
 }
 
@@ -10588,7 +10633,7 @@ function buildEmployeePayrollProfileBodyHtml(emp) {
       ${employeeProfileKvRow("Cesantías", e.severanceFund)}
       ${employeeProfileKvRow("Caja compensación", e.compensationFund)}
     </div></section>
-    <section class="employee-profile-section"><h4 class="employee-profile-section-title">Pagos</h4><div class="employee-profile-grid">
+    <section class="employee-profile-section"><h4 class="employee-profile-section-title">Datos bancarios</h4><div class="employee-profile-grid">
       ${employeeProfileKvRow("Banco", e.bankName)}
       ${employeeProfileKvRow("Tipo cuenta", e.bankAccountType)}
       ${employeeProfileKvRow("N° cuenta", e.bankAccount)}

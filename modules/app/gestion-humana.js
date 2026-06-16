@@ -62,6 +62,418 @@ function wirePayrollBulkPreview() {
   render();
 }
 
+function focusPayrollEmployeeLiquidations(employeeId, opts = {}) {
+  const empId = String(employeeId || "").trim();
+  if (!empId) return;
+  const section =
+    String(opts.dataSection || "runs").trim() === "driverPayments" ? "driverPayments" : "runs";
+  const status = String(opts.status || "all").trim().toLowerCase();
+  state.payrollFilters = {
+    ...defaultPayrollFilters(),
+    employee: empId,
+    status: status === "pending" ? "pending" : "all",
+    period: "all",
+    frequency: "all"
+  };
+  state.payrollUi = {
+    ...(state.payrollUi || { runSort: "recent" }),
+    workspace: "data",
+    dataSection: normalizePayrollDataSection(section)
+  };
+  state.payrollRunsRenderLimit = RENDER_WINDOW_SIZE;
+  persistHrWorkspace("payroll", "data");
+  document.getElementById("crud-modal")?.classList.add("hidden");
+  renderPortalView();
+  requestAnimationFrame(() => {
+    const pane = nodes.viewRoot?.querySelector(`[data-payroll-section="${section}"]`);
+    pane?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+}
+
+function wirePayrollEmployeeLiquidationActions(root) {
+  const scope = root || nodes.viewRoot;
+  if (!scope) return;
+  scope.querySelectorAll("[data-action='payroll-focus-employee-runs']").forEach((btn) => {
+    if (btn.dataset.payrollFocusBound === "1") return;
+    btn.dataset.payrollFocusBound = "1";
+    btn.addEventListener("click", () => {
+      focusPayrollEmployeeLiquidations(btn.dataset.employeeId, {
+        dataSection: btn.dataset.payrollSection || "runs",
+        status: btn.dataset.status || "all"
+      });
+    });
+  });
+  scope.querySelectorAll("[data-action='payroll-employee-liquidations']").forEach((btn) => {
+    if (btn.dataset.payrollFocusBound === "1") return;
+    btn.dataset.payrollFocusBound = "1";
+    btn.addEventListener("click", () => {
+      const emp = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === String(btn.dataset.id || ""));
+      const section = emp && employeeIsConductorServiceProvider(emp) ? "driverPayments" : "runs";
+      focusPayrollEmployeeLiquidations(btn.dataset.id, { dataSection: section });
+    });
+  });
+  scope.querySelectorAll("[data-action='payroll-clear-employee-filter']").forEach((btn) => {
+    if (btn.dataset.payrollClearBound === "1") return;
+    btn.dataset.payrollClearBound = "1";
+    btn.addEventListener("click", () => {
+      state.payrollFilters = { ...(state.payrollFilters || defaultPayrollFilters()), employee: "" };
+      state.payrollRunsRenderLimit = RENDER_WINDOW_SIZE;
+      renderPortalView();
+    });
+  });
+}
+
+function bindPayrollPayslipButtons(root) {
+  const scope = root || document;
+  scope.querySelectorAll("[data-action='payslip']").forEach((btn) => {
+    if (btn.dataset.payrollPayslipBound === "1") return;
+    btn.dataset.payrollPayslipBound = "1";
+    btn.addEventListener("click", () => void openPayrollRunPayslipById(String(btn.dataset.id || "")));
+  });
+}
+
+async function openPayrollRunPayslipById(runId) {
+  const id = String(runId || "").trim();
+  if (!id) return;
+  let run = read(KEYS.payrollRuns, []).find((r) => String(r.id) === id);
+  if (!run) return;
+  if (portalCanRefreshFromApi()) {
+    const hydrated = await ensurePayrollRunHeavyJsonLoaded(id);
+    if (hydrated) run = hydrated;
+  }
+  const employee = read(KEYS.payrollEmployees, []).find((e) => e.id === run.employeeId);
+  const company = employee ? getCompanyById(employee.companyId) : null;
+  const pop = window.open("", "_blank", "width=720,height=900");
+  if (!pop) return;
+  const netStr = `$${parseNum(run.net).toLocaleString("es-CO")}`;
+  const isTerm = String(run.payrollKind || "mensual") === "terminacion";
+  const workedDays = parseNum(
+    run.workedDays ??
+      run?.noveltiesDetail?.colillaPagoDiasLaborados?.diasLaborados ??
+      run?.noveltiesDetail?.diasServicioEnCorteCalendario ??
+      0
+  );
+  const workedDaysPaymentCop = parseNum(
+    run.workedDaysPaymentCop ?? run?.noveltiesDetail?.colillaPagoDiasLaborados?.pagoDiasLaboradosCop ?? 0
+  );
+  const paidAtLabel = run?.paidAt ? fmtDate(run.paidAt) : "-";
+  const logoSrc = payrollDocumentLogoUrl(company);
+  const logoAlt = `Logo de ${String(company?.name || "Transportes Antares")}`;
+  const cleanSlipText = (value) =>
+    String(value ?? "")
+      .replace(/^\s*[A-Z]?\d{4,}\s*[-.:]\s*/i, "")
+      .replace(/^\s*\d{4,}\s+/i, "")
+      .trim();
+  const causeLabels = {
+    renuncia_voluntaria: "Renuncia voluntaria",
+    despido_sin_justa: "Despido sin justa causa",
+    despido_justa: "Despido con justa causa",
+    mutuo_acuerdo: "Mutuo acuerdo",
+    vencimiento_contrato: "Vencimiento de contrato",
+    otro: "Otro"
+  };
+  const fmtPay = (v) => `$${parseNum(v).toLocaleString("es-CO")}`;
+  const cL = "padding:8px;border-bottom:1px solid #e9ecef";
+  const cR = "padding:8px;border-bottom:1px solid #e9ecef;text-align:right;font-variant-numeric:tabular-nums";
+  const theadP = `<thead><tr style="background:#E8EEF5"><th style="text-align:left;padding:8px">Concepto</th><th style="text-align:right;padding:8px">Valor (COP)</th></tr></thead>`;
+
+  let payslipBodyBlocks = "";
+  if (isTerm && run.settlementDetail && typeof run.settlementDetail === "object") {
+    const sd = run.settlementDetail;
+    const slipLines = Array.isArray(sd.devengosLines) ? sd.devengosLines : [];
+    let devRows = "";
+    if (slipLines.length) {
+      devRows = slipLines
+        .filter((L) => parseNum(L.amount) > 0 || L.code === "SALARIO_PENDIENTE")
+        .map(
+          (L) =>
+            `<tr><td style="${cL}">${escapeHtml(String(L.label || L.code || "Concepto"))}</td><td style="${cR}">${fmtPay(L.amount)}</td></tr>`
+        )
+        .join("");
+    } else {
+      const salP = parseNum(sd.salarioPendiente);
+      const auxP = parseNum(sd.auxilioPendiente);
+      devRows =
+        (salP > 0
+          ? `<tr><td style="${cL}">Salario pendiente mes de retiro</td><td style="${cR}">${fmtPay(salP)}</td></tr>`
+          : "") +
+        (auxP > 0
+          ? `<tr><td style="${cL}">Auxilio de transporte proporcional</td><td style="${cR}">${fmtPay(auxP)}</td></tr>`
+          : "") +
+        `<tr><td style="${cL}"><strong>Cesantías (causadas + fondo)</strong></td><td style="${cR}"><strong>${fmtPay(sd.cesantias)}</strong></td></tr>` +
+        `<tr><td style="${cL}">Intereses cesantías (${CO_CESANTIAS_INTERES_ANUAL_PCT}% Ley 52/1975)</td><td style="${cR}">${fmtPay(sd.interesesCesantias)}</td></tr>` +
+        `<tr><td style="${cL}">Prima proporcional (CST)</td><td style="${cR}">${fmtPay(sd.primaProporcional)}</td></tr>` +
+        `<tr><td style="${cL}">Vacaciones compensadas</td><td style="${cR}">${fmtPay(sd.vacaciones)}</td></tr>` +
+        (parseNum(sd.indemnizacionDespido) > 0
+          ? `<tr><td style="${cL}">Indemnización despido sin justa causa (CST art. 64)</td><td style="${cR}">${fmtPay(sd.indemnizacionDespido)}</td></tr>`
+          : "") +
+        (parseNum(sd.indemnizacionAviso) > 0
+          ? `<tr><td style="${cL}">Indemnización sustitutiva aviso previo</td><td style="${cR}">${fmtPay(sd.indemnizacionAviso)}</td></tr>`
+          : "") +
+        (parseNum(sd.otrosSettlement) > 0
+          ? `<tr><td style="${cL}">Otros conceptos</td><td style="${cR}">${fmtPay(sd.otrosSettlement)}</td></tr>`
+          : "");
+    }
+    devRows += `<tr><td style="${cL}"><strong>Total devengos liquidación</strong></td><td style="${cR}"><strong>${fmtPay(run.gross)}</strong></td></tr>`;
+
+    const ded = parseNum(run.deductions);
+    const dedLines = Array.isArray(sd.deductionsLines) ? sd.deductionsLines : [];
+    let dedRows = "";
+    if (dedLines.length) {
+      dedRows = dedLines
+        .map(
+          (L) =>
+            `<tr><td style="${cL}">${escapeHtml(String(L.label || L.code))}</td><td style="${cR}">${fmtPay(L.amount)}</td></tr>`
+        )
+        .join("");
+      dedRows += `<tr><td style="${cL}"><strong>Total deducciones</strong></td><td style="${cR}"><strong>${fmtPay(ded)}</strong></td></tr>`;
+    } else if (ded > 0) {
+      dedRows =
+        `<tr><td style="${cL}">Salud empleado</td><td style="${cR}">${fmtPay(run.health)}</td></tr>` +
+        `<tr><td style="${cL}">Pensión empleado</td><td style="${cR}">${fmtPay(run.pension)}</td></tr>` +
+        (parseNum(run.withholding) > 0
+          ? `<tr><td style="${cL}">Retención Proc. 1 (Art. 383)</td><td style="${cR}">${fmtPay(run.withholding)}</td></tr>`
+          : "") +
+        `<tr><td style="${cL}"><strong>Total deducciones</strong></td><td style="${cR}"><strong>${fmtPay(ded)}</strong></td></tr>`;
+    } else {
+      dedRows = `<tr><td colspan="2" style="padding:8px;color:#495057;font-size:0.88rem">Sin deducciones registradas.</td></tr>`;
+    }
+    const checklist = Array.isArray(sd.finiquitoChecklist) ? sd.finiquitoChecklist : [];
+    const checklistBlock = checklist.length
+      ? `<h2 style="font-size:1rem;margin:0.75rem 0 0.35rem">III. Checklist legal post-liquidación</h2>
+          <ul style="margin:0 0 1rem 1.1rem;font-size:0.86rem;color:#495057;line-height:1.5">${checklist.map((x) => `<li>${escapeHtml(String(x))}</li>`).join("")}</ul>`
+      : "";
+
+    payslipBodyBlocks = `
+          <h2 style="font-size:1rem;margin:1.25rem 0 0.35rem">I. Devengos (finiquito / liquidación)</h2>
+          <p style="margin:0 0 0.5rem;font-size:0.86rem;color:#495057">Ítems típicos por terminación conforme ordenamiento laboral colombiano (valores editables en el registro del sistema).</p>
+          <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:1rem">${theadP}<tbody>${devRows}</tbody></table>
+          <h2 style="font-size:1rem;margin:0.75rem 0 0.35rem">II. Deducciones</h2>
+          <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:1rem">${theadP}<tbody>${dedRows}</tbody></table>
+          ${checklistBlock}
+          <table style="width:100%;border-collapse:collapse;font-size:0.95rem;margin-top:0.5rem"><tbody>
+            <tr><td style="padding:12px 8px"><strong>Total neto a consignar / pagar</strong></td><td style="padding:12px 8px;text-align:right;font-size:1.12rem"><strong>${netStr}</strong></td></tr>
+          </tbody></table>`;
+  } else {
+    const linesFromRun = resolvePayrollDevengosLines(run);
+    const baseInt = parseNum(run.cesantiasInterestBaseCop);
+    const diasInt = run.cesantiasInterestDays != null ? run.cesantiasInterestDays : "—";
+    const intLabel =
+      baseInt > 0
+        ? `Intereses sobre cesantías (${CO_CESANTIAS_INTERES_ANUAL_PCT}% anual Ley 52/1975; base ref. ${fmtPay(baseInt)}, ${diasInt} días/360)`
+        : `Intereses sobre cesantías (${CO_CESANTIAS_INTERES_ANUAL_PCT}% anual Ley 52/1975)`;
+
+    let devRowsMes;
+    if (linesFromRun && linesFromRun.length) {
+      const showLine = (L) => {
+        const code = String(L.code || "");
+        if (code.startsWith("INCAPACIDAD")) return true;
+        const a = parseNum(L.amount);
+        return a > 0 || code === "SALARIO_ORDINARIO" || code === "AUXILIO_TRANSPORTE";
+      };
+      devRowsMes = linesFromRun
+        .filter(showLine)
+        .map((L) => {
+          let labelHtml = escapeHtml(cleanSlipText(String(L.label || L.code || "Concepto")));
+          if (L.code === "PRIMA_SERVICIOS") {
+            labelHtml = escapeHtml(
+              `Prima de servicios semestral (CST arts. 244–249 — ${run.primaServiciosDays ?? "—"} días semestre)`
+            );
+          }
+          if (L.code === "INT_CESANTIAS" && parseNum(L.amount) > 0) {
+            labelHtml = escapeHtml(intLabel);
+          }
+          if (L.incapacityNote) {
+            labelHtml += `<span style="font-size:0.82rem;color:#6c757d;display:block;margin-top:3px;line-height:1.35">${escapeHtml(String(L.incapacityNote))}</span>`;
+          }
+          return `<tr><td style="${cL}">${labelHtml}</td><td style="${cR}">${fmtPay(L.amount)}</td></tr>`;
+        })
+        .join("");
+      devRowsMes += `<tr><td style="${cL}"><strong>Total devengos del período</strong></td><td style="${cR}"><strong>${fmtPay(run.gross)}</strong></td></tr>`;
+    } else {
+      const ex = parseNum(run.extras);
+      const au = parseNum(run.aux);
+      const bo = parseNum(run.bonus);
+      const via = parseNum(run.travelAllowance);
+      const comb = parseNum(run.fuelReimbursement);
+      const prima = parseNum(run.primaServiciosCop);
+      const intCe = parseNum(run.interesesCesantiasCop);
+      const salarioBasicoDevengo = Math.max(0, parseNum(run.gross) - ex - au - bo - via - comb - prima - intCe);
+      devRowsMes =
+        `<tr><td style="${cL}">Salario básico mensual (devengo ordinario)</td><td style="${cR}">${fmtPay(salarioBasicoDevengo)}</td></tr>` +
+        (ex > 0
+          ? `<tr><td style="${cL}">Horas extras, dominicales o recargos nocturnos</td><td style="${cR}">${fmtPay(ex)}</td></tr>`
+          : "") +
+        `<tr><td style="${cL}">Auxilio legal de transporte (no constitutivo de salario)</td><td style="${cR}">${fmtPay(au)}</td></tr>` +
+        (bo > 0
+          ? `<tr><td style="${cL}">Bonificaciones y pagos ocasionales gravables (devengo)</td><td style="${cR}">${fmtPay(bo)}</td></tr>`
+          : "") +
+        `<tr><td style="${cL}">Viáticos y anticipos de viaje (reintegro / no salario)</td><td style="${cR}">${fmtPay(via)}</td></tr>` +
+        `<tr><td style="${cL}">Reembolso combustible y gastos de ruta deducibles</td><td style="${cR}">${fmtPay(comb)}</td></tr>` +
+        (prima > 0
+          ? `<tr><td style="${cL}">Prima de servicios semestral (CST arts. 244–249 — ${run.primaServiciosDays ?? "—"} días semestre)</td><td style="${cR}">${fmtPay(prima)}</td></tr>`
+          : "") +
+        (intCe > 0 ? `<tr><td style="${cL}">${escapeHtml(intLabel)}</td><td style="${cR}">${fmtPay(intCe)}</td></tr>` : "") +
+        `<tr><td style="${cL}"><strong>Total devengos del período</strong></td><td style="${cR}"><strong>${fmtPay(run.gross)}</strong></td></tr>`;
+    }
+
+    const isTripPrestacion = payrollRunFrequencyKind(run) === "prestacion_viajes";
+    const dedRowsMes = isTripPrestacion
+      ? `<tr><td style="${cL}" colspan="2">Prestación de servicios: sin aportes de salud, pensión ni FSP en este comprobante (pago por viajes).</td></tr>` +
+        `<tr><td style="${cL}"><strong>Total deducciones</strong></td><td style="${cR}"><strong>${fmtPay(run.deductions)}</strong></td></tr>`
+      : `<tr><td style="${cL}">Salario integral de cotización — IBC (base aportes empleador/empleado)</td><td style="${cR}">${fmtPay(run.ibc)}</td></tr>` +
+        `<tr><td style="${cL}">Aporte obligatorio salud — empleado (${(CO_PAYROLL.healthEmployeeRate * 100).toFixed(2).replace(/\.00$/, "")}% sobre IBC)</td><td style="${cR}">${fmtPay(run.health)}</td></tr>` +
+        `<tr><td style="${cL}">Aporte pensión obligatoria — empleado (${(CO_PAYROLL.pensionEmployeeRate * 100).toFixed(2).replace(/\.00$/, "")}% sobre IBC)</td><td style="${cR}">${fmtPay(run.pension)}</td></tr>` +
+        `<tr><td style="${cL}">Fondo de solidaridad pensional FSP (cuando aplique rangos Ley 797/2003)</td><td style="${cR}">${fmtPay(run.solidarity)}</td></tr>` +
+        `<tr><td style="${cL}"><strong>Total deducciones al empleado</strong></td><td style="${cR}"><strong>${fmtPay(run.deductions)}</strong></td></tr>`;
+    const workedDaysRows =
+      workedDays > 0 || workedDaysPaymentCop > 0
+        ? `<tr><td style="${cL}">Pago por días laborados (${workedDays.toLocaleString("es-CO")} días)</td><td style="${cR}">${fmtPay(workedDaysPaymentCop)}</td></tr>`
+        : `<tr><td style="${cL}" colspan="2">Sin detalle de días laborados para este comprobante.</td></tr>`;
+
+    payslipBodyBlocks = `
+          <h2 style="font-size:1rem;margin:1.25rem 0 0.35rem">I. Devengos e ingresos período</h2>
+          <p style="margin:0 0 0.45rem;font-size:0.86rem;color:#495057">${
+            isTripPrestacion
+              ? "Pago por prestación de servicios (viajes interdepartamentales y reembolsos de ruta)."
+              : "Ingresos y conceptos pagados por el empleador; prima e intereses de cesantías solo si se liquidaron en este comprobante."
+          }</p>
+          <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:1rem">${theadP}<tbody>${devRowsMes}</tbody></table>
+          <h2 style="font-size:1rem;margin:0.75rem 0 0.35rem">II. Deducciones (aportes del trabajador)</h2>
+          <p style="margin:0 0 0.45rem;font-size:0.86rem;color:#495057">Descuentos legales incidentes sobre nómina; prima e intereses de cesantías no integran habitualmente esta base de cotización en este modelo simplificado.</p>
+          <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:1rem">${theadP}<tbody>${dedRowsMes}</tbody></table>
+          <h2 style="font-size:1rem;margin:0.75rem 0 0.35rem">III. Resumen de días laborados</h2>
+          <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:1rem">${theadP}<tbody>${workedDaysRows}</tbody></table>
+          <table style="width:100%;border-collapse:collapse;font-size:0.95rem;margin-top:0.5rem"><tbody>
+            <tr><td style="padding:12px 8px"><strong>Neto pagado / a pagar al trabajador</strong></td><td style="padding:12px 8px;text-align:right;font-size:1.12rem"><strong>${netStr}</strong></td></tr>
+          </tbody></table>`;
+  }
+  const docTitle =
+    isTerm && run.settlementDetail && typeof run.settlementDetail === "object"
+      ? `Liquidación contractual ${run.employeeName}`
+      : `Desprendible ${run.employeeName}`;
+  const h1Title = isTerm ? "Liquidación contractual" : "Desprendible de nómina";
+  let metaExtra = "";
+  if (isTerm && run.settlementDetail && typeof run.settlementDetail === "object") {
+    const sd = run.settlementDetail;
+    metaExtra += `<tr><td style="padding:4px 0"><strong>Fecha terminación</strong></td><td>${escapeHtml(String(sd.terminationDate || "-"))}</td></tr>`;
+    metaExtra += `<tr><td style="padding:4px 0"><strong>Motivo</strong></td><td>${escapeHtml(String(causeLabels[sd.terminationCause] || sd.terminationCause || "-"))}</td></tr>`;
+  }
+  const absenceDetailRows = !isTerm ? resolvePayrollAbsenceSlipRows(run, read(KEYS.hrAbsences, [])) : [];
+  const absenceDetailBlock = absenceDetailRows.length
+    ? `
+          <h2 style="font-size:1rem;margin:0.75rem 0 0.35rem">IV. Detalle de ausentismo</h2>
+          <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:1rem">
+            <thead>
+              <tr style="background:#F5F7FA">
+                <th style="text-align:left;padding:8px">Ausentismo</th>
+                <th style="text-align:left;padding:8px">Concepto</th>
+                <th style="text-align:right;padding:8px">Cantidad</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${absenceDetailRows
+                .map(
+                  (row) =>
+                    `<tr><td style="${cL}">${escapeHtml(cleanSlipText(String(row.typeLabel || "Ausentismo")))}</td><td style="${cL}">${escapeHtml(cleanSlipText(String(row.conceptLabel || "")))}</td><td style="${cR}">${escapeHtml(payrollFormatAbsenceQuantity(row.quantity))}</td></tr>`
+                )
+                .join("")}
+            </tbody>
+          </table>`
+    : "";
+  const disclaimerPieces = [];
+  if (!isTerm) {
+    const ori = String(run.liquidacionOrigin || run.origenLiquidacion || "manual").toLowerCase();
+    if (ori === "masiva") {
+      disclaimerPieces.push(
+        "Liquidación generada por liquidación masiva (RRHH). Validar incapacidades, vacaciones, viáticos de ruta y bases de cotización con contador antes del pago."
+      );
+    } else if (ori === "automatica") {
+      disclaimerPieces.push(
+        "Liquidación generada automáticamente en servidor (cron diario, calendario Bogotá). Validar incapacidades, vacaciones y bases de cotización con RRHH y contador."
+      );
+      const nv = run.noveltiesDetail;
+      if (nv && typeof nv === "object" && Array.isArray(nv.disclaimers)) {
+        const top = nv.disclaimers.slice(0, 2).map((x) => String(x)).join(" ");
+        if (top) disclaimerPieces.push(top);
+      }
+    }
+    if (parseNum(run.primaServiciosCop) > 0)
+      disclaimerPieces.push("Prima de servicios (CST): cálculo orientativo; validar política empresarial y contador.");
+    if (parseNum(run.interesesCesantiasCop) > 0)
+      disclaimerPieces.push(
+        `Intereses de cesantías (Ley 52/1975, ${CO_CESANTIAS_INTERES_ANUAL_PCT}% anual): el texto legal establece que deben pagarse al trabajador en enero del año siguiente al período causado (y reglas especiales en retiros o ceses antes de ese cierre). Lo habitual es liquidarlos con la nómina de enero del año siguiente o, si su política lo retrasa hasta febrero, documente ese desfase con contador para no omitir obligaciones ya exigidas.`
+      );
+    const incNv = run.noveltiesDetail?.incapacity;
+    if (incNv && Array.isArray(incNv.episodes) && incNv.episodes.length) {
+      disclaimerPieces.push(
+        String(incNv.legalNote || "Incapacidad: montos orientativos en este comprobante; valide con EPS/ARL y contador.")
+      );
+    }
+  }
+  const disclaimer =
+    isTerm && run.settlementDetail && typeof run.settlementDetail === "object" && run.settlementDetail.legalDisclaimer
+      ? `<p style="font-size:0.82rem;color:#495057;margin-top:1rem;line-height:1.45">${escapeHtml(String(run.settlementDetail.legalDisclaimer))}</p>`
+      : disclaimerPieces.length
+        ? `<p style="font-size:0.82rem;color:#495057;margin-top:1rem;line-height:1.45">${escapeHtml(disclaimerPieces.join(" "))}</p>`
+        : "";
+  const employeeMetaRows = [
+    { label: "Tipo de contrato", value: String(employee?.contractType || "-") },
+    { label: "Periodicidad de pago", value: String(employee?.payFrequency || "-") },
+    { label: "Centro de costos", value: String(resolvePayrollEmployeeCostCenter(employee) || "-") },
+    {
+      label: "Banco",
+      value:
+        employee?.bankName && employee?.bankAccount
+          ? `${String(employee.bankName)} · ${String(employee.bankAccountType || "Cuenta")} ${String(employee.bankAccount)}`
+          : "-"
+    },
+    {
+      label: "Salario básico",
+      value: employee?.baseSalary != null ? `$${parseNum(employee.baseSalary).toLocaleString("es-CO")}` : "-"
+    },
+    { label: "IBC (base de cotización)", value: `$${parseNum(run.ibc || 0).toLocaleString("es-CO")}` }
+  ]
+    .map(
+      (row) =>
+        `<tr><td style="padding:4px 0"><strong>${escapeHtml(row.label)}</strong></td><td>${escapeHtml(
+          cleanSlipText(String(row.value || "-"))
+        )}</td></tr>`
+    )
+    .join("");
+  pop.document.write(`
+        <html><head><meta charset="utf-8"/><title>${escapeHtml(docTitle)}</title></head>
+        <body style="font-family:system-ui,Segoe UI,Arial,sans-serif;padding:28px;color:#0B1D33;line-height:1.5">
+          <div style="border-bottom:2px solid #0B1D33;padding-bottom:12px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;gap:18px">
+            <div style="min-width:0;flex:1 1 auto">
+              <h1 style="margin:0;font-size:1.35rem">${escapeHtml(h1Title)}</h1>
+              <p style="margin:0.35rem 0 0;font-size:0.9rem;color:#495057">${escapeHtml(String(company?.name || "Transportes Antares"))}</p>
+            </div>
+            <div style="width:94px;min-width:94px;height:94px;border-radius:18px;background:#fff;border:1px solid #d7e5f3;padding:10px;display:flex;align-items:center;justify-content:center;box-shadow:0 10px 24px rgba(11,33,56,0.10)">
+              <img src="${escapeAttr(logoSrc)}" alt="${escapeAttr(logoAlt)}" style="width:100%;height:100%;object-fit:contain;display:block" />
+            </div>
+          </div>
+          <table style="width:100%;font-size:0.92rem;margin-bottom:1.2rem">
+            <tr><td style="padding:4px 0"><strong>Empleador</strong></td><td>${escapeHtml(String(company?.name || "Antares"))}</td></tr>
+            <tr><td style="padding:4px 0"><strong>Trabajador</strong></td><td>${escapeHtml(String(run.employeeName || ""))}</td></tr>
+            <tr><td style="padding:4px 0"><strong>Documento</strong></td><td>${escapeHtml(String(employee?.idDoc || "-"))}</td></tr>
+            <tr><td style="padding:4px 0"><strong>Cargo</strong></td><td>${escapeHtml(String(employee?.position || "-"))}</td></tr>
+            <tr><td style="padding:4px 0"><strong>Periodo registrado</strong></td><td>${escapeHtml(String(run.month || ""))}</td></tr>
+            ${employeeMetaRows}
+            ${metaExtra}
+            <tr><td style="padding:4px 0"><strong>Estado</strong></td><td>${run.paid ? "Pagado" : "Pendiente de pago"}</td></tr>
+            <tr><td style="padding:4px 0"><strong>Fecha de pago</strong></td><td>${escapeHtml(String(paidAtLabel))}</td></tr>
+          </table>
+          <h2 style="font-size:1rem;margin:1.05rem 0 0">Comprobante de pago</h2>
+          ${payslipBodyBlocks}
+          ${absenceDetailBlock}
+          ${disclaimer}
+          <p style="margin-top:1.5rem"><button onclick="window.print()" style="padding:10px 18px;border-radius:8px;border:none;background:#0B1D33;color:#fff;cursor:pointer">Imprimir / PDF</button></p>
+        </body></html>
+      `);
+  pop.document.close();
+}
+
 function bindPayrollPortalControls() {
   if (String(state.currentView || "") !== "payroll" || !nodes.viewRoot) return;
 
@@ -644,13 +1056,17 @@ function bindPayrollPortalControls() {
         }
         const payload = packed.payload;
         if (!canManagePayrollModule(actor)) {
-          await queueApproval({
-            type: "create_employee",
-            title: `Creación de empleado ${payload.name}`,
-            payload,
-            requestedByUserId: actor?.id || "",
-            requestedByName: actor?.name || "Usuario"
-          });
+          try {
+            await queueApproval({
+              type: "create_employee",
+              title: `Creación de empleado ${payload.name}`,
+              payload,
+              requestedByUserId: actor?.id || "",
+              requestedByName: actor?.name || "Usuario"
+            });
+          } catch (_err) {
+            return;
+          }
           notify(userMessage("employeeRequestQueued"), "info");
           collapseCreatePanel("create-employee");
           renderPortalView();
@@ -865,13 +1281,24 @@ function bindPayrollPortalControls() {
         }
       }
       target = normalizePayrollEmployeeRowDates(target);
+      const payrollHistoryHtml =
+        typeof buildEmployeePayrollHistorySectionHtml === "function"
+          ? buildEmployeePayrollHistorySectionHtml(target, read(KEYS.payrollRuns, []))
+          : "";
+      const isDriverSvc = employeeIsConductorServiceProvider(target);
+      const liquidacionesSection = isDriverSvc ? "driverPayments" : "runs";
       const contractAction = `<button type="button" class="btn btn-action" data-action="employee-generate-contract" data-id="${escapeAttr(String(target.id || ""))}">${IC.download} Descargar contrato</button>`;
+      const liquidacionesAction = `<button type="button" class="btn btn-outline" data-action="payroll-focus-employee-runs" data-employee-id="${escapeAttr(String(target.id || ""))}" data-payroll-section="${escapeAttr(liquidacionesSection)}">${IC.dollar} Ver liquidaciones</button>`;
       openInfoModal({
         title: "Ficha del colaborador",
         subtitle: `${String(target.position || "Colaborador").trim()} · ${String(target.idDoc || "").trim()}`,
-        bodyHtml: buildEmployeePayrollProfileBodyHtml(target),
+        bodyHtml: `${buildEmployeePayrollProfileBodyHtml(target)}${payrollHistoryHtml}`,
         wide: true,
-        secondaryActionsHtml: contractAction
+        secondaryActionsHtml: `${liquidacionesAction}${contractAction}`,
+        afterMount: (content) => {
+          bindPayrollPayslipButtons(content);
+          wirePayrollEmployeeLiquidationActions(content);
+        }
       });
     });
   });
@@ -1750,358 +2177,9 @@ function bindPayrollPortalControls() {
     });
   }
 
-  nodes.viewRoot.querySelectorAll("[data-action='payslip']").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      let run = read(KEYS.payrollRuns, []).find((r) => r.id === btn.dataset.id);
-      if (!run) return;
-      if (portalCanRefreshFromApi()) {
-        const hydrated = await ensurePayrollRunHeavyJsonLoaded(String(btn.dataset.id || ""));
-        if (hydrated) run = hydrated;
-      }
-      const employee = read(KEYS.payrollEmployees, []).find((e) => e.id === run.employeeId);
-      const company = employee ? getCompanyById(employee.companyId) : null;
-      const pop = window.open("", "_blank", "width=720,height=900");
-      if (!pop) return;
-      const netStr = `$${parseNum(run.net).toLocaleString("es-CO")}`;
-      const isTerm = String(run.payrollKind || "mensual") === "terminacion";
-      const workedDays = parseNum(
-        run.workedDays ??
-          run?.noveltiesDetail?.colillaPagoDiasLaborados?.diasLaborados ??
-          run?.noveltiesDetail?.diasServicioEnCorteCalendario ??
-          0
-      );
-      const workedDaysPaymentCop = parseNum(
-        run.workedDaysPaymentCop ?? run?.noveltiesDetail?.colillaPagoDiasLaborados?.pagoDiasLaboradosCop ?? 0
-      );
-      const paidAtLabel = run?.paidAt ? fmtDate(run.paidAt) : "-";
-      const logoSrc = payrollDocumentLogoUrl(company);
-      const logoAlt = `Logo de ${String(company?.name || "Transportes Antares")}`;
-      const cleanSlipText = (value) =>
-        String(value ?? "")
-          .replace(/^\s*[A-Z]?\d{4,}\s*[-.:]\s*/i, "")
-          .replace(/^\s*\d{4,}\s+/i, "")
-          .trim();
-      const causeLabels = {
-        renuncia_voluntaria: "Renuncia voluntaria",
-        despido_sin_justa: "Despido sin justa causa",
-        despido_justa: "Despido con justa causa",
-        mutuo_acuerdo: "Mutuo acuerdo",
-        vencimiento_contrato: "Vencimiento de contrato",
-        otro: "Otro"
-      };
-      const fmtPay = (v) => `$${parseNum(v).toLocaleString("es-CO")}`;
-      const cL = "padding:8px;border-bottom:1px solid #e9ecef";
-      const cR = "padding:8px;border-bottom:1px solid #e9ecef;text-align:right;font-variant-numeric:tabular-nums";
-      const theadP = `<thead><tr style="background:#E8EEF5"><th style="text-align:left;padding:8px">Concepto</th><th style="text-align:right;padding:8px">Valor (COP)</th></tr></thead>`;
+  bindPayrollPayslipButtons(nodes.viewRoot);
+  wirePayrollEmployeeLiquidationActions(nodes.viewRoot);
 
-      let payslipBodyBlocks = "";
-      if (isTerm && run.settlementDetail && typeof run.settlementDetail === "object") {
-        const sd = run.settlementDetail;
-        const slipLines = Array.isArray(sd.devengosLines) ? sd.devengosLines : [];
-        let devRows = "";
-        if (slipLines.length) {
-          devRows = slipLines
-            .filter((L) => parseNum(L.amount) > 0 || L.code === "SALARIO_PENDIENTE")
-            .map(
-              (L) =>
-                `<tr><td style="${cL}">${escapeHtml(String(L.label || L.code || "Concepto"))}</td><td style="${cR}">${fmtPay(L.amount)}</td></tr>`
-            )
-            .join("");
-        } else {
-          const salP = parseNum(sd.salarioPendiente);
-          const auxP = parseNum(sd.auxilioPendiente);
-          devRows =
-            (salP > 0
-              ? `<tr><td style="${cL}">Salario pendiente mes de retiro</td><td style="${cR}">${fmtPay(salP)}</td></tr>`
-              : "") +
-            (auxP > 0
-              ? `<tr><td style="${cL}">Auxilio de transporte proporcional</td><td style="${cR}">${fmtPay(auxP)}</td></tr>`
-              : "") +
-            `<tr><td style="${cL}"><strong>Cesantías (causadas + fondo)</strong></td><td style="${cR}"><strong>${fmtPay(sd.cesantias)}</strong></td></tr>` +
-            `<tr><td style="${cL}">Intereses cesantías (${CO_CESANTIAS_INTERES_ANUAL_PCT}% Ley 52/1975)</td><td style="${cR}">${fmtPay(sd.interesesCesantias)}</td></tr>` +
-            `<tr><td style="${cL}">Prima proporcional (CST)</td><td style="${cR}">${fmtPay(sd.primaProporcional)}</td></tr>` +
-            `<tr><td style="${cL}">Vacaciones compensadas</td><td style="${cR}">${fmtPay(sd.vacaciones)}</td></tr>` +
-            (parseNum(sd.indemnizacionDespido) > 0
-              ? `<tr><td style="${cL}">Indemnización despido sin justa causa (CST art. 64)</td><td style="${cR}">${fmtPay(sd.indemnizacionDespido)}</td></tr>`
-              : "") +
-            (parseNum(sd.indemnizacionAviso) > 0
-              ? `<tr><td style="${cL}">Indemnización sustitutiva aviso previo</td><td style="${cR}">${fmtPay(sd.indemnizacionAviso)}</td></tr>`
-              : "") +
-            (parseNum(sd.otrosSettlement) > 0
-              ? `<tr><td style="${cL}">Otros conceptos</td><td style="${cR}">${fmtPay(sd.otrosSettlement)}</td></tr>`
-              : "");
-        }
-        devRows += `<tr><td style="${cL}"><strong>Total devengos liquidación</strong></td><td style="${cR}"><strong>${fmtPay(run.gross)}</strong></td></tr>`;
-
-        const ded = parseNum(run.deductions);
-        const dedLines = Array.isArray(sd.deductionsLines) ? sd.deductionsLines : [];
-        let dedRows = "";
-        if (dedLines.length) {
-          dedRows = dedLines
-            .map(
-              (L) =>
-                `<tr><td style="${cL}">${escapeHtml(String(L.label || L.code))}</td><td style="${cR}">${fmtPay(L.amount)}</td></tr>`
-            )
-            .join("");
-          dedRows += `<tr><td style="${cL}"><strong>Total deducciones</strong></td><td style="${cR}"><strong>${fmtPay(ded)}</strong></td></tr>`;
-        } else if (ded > 0) {
-          dedRows =
-            `<tr><td style="${cL}">Salud empleado</td><td style="${cR}">${fmtPay(run.health)}</td></tr>` +
-            `<tr><td style="${cL}">Pensión empleado</td><td style="${cR}">${fmtPay(run.pension)}</td></tr>` +
-            (parseNum(run.withholding) > 0
-              ? `<tr><td style="${cL}">Retención Proc. 1 (Art. 383)</td><td style="${cR}">${fmtPay(run.withholding)}</td></tr>`
-              : "") +
-            `<tr><td style="${cL}"><strong>Total deducciones</strong></td><td style="${cR}"><strong>${fmtPay(ded)}</strong></td></tr>`;
-        } else {
-          dedRows = `<tr><td colspan="2" style="padding:8px;color:#495057;font-size:0.88rem">Sin deducciones registradas.</td></tr>`;
-        }
-        const checklist = Array.isArray(sd.finiquitoChecklist) ? sd.finiquitoChecklist : [];
-        const checklistBlock = checklist.length
-          ? `<h2 style="font-size:1rem;margin:0.75rem 0 0.35rem">III. Checklist legal post-liquidación</h2>
-          <ul style="margin:0 0 1rem 1.1rem;font-size:0.86rem;color:#495057;line-height:1.5">${checklist.map((x) => `<li>${escapeHtml(String(x))}</li>`).join("")}</ul>`
-          : "";
-
-        payslipBodyBlocks = `
-          <h2 style="font-size:1rem;margin:1.25rem 0 0.35rem">I. Devengos (finiquito / liquidación)</h2>
-          <p style="margin:0 0 0.5rem;font-size:0.86rem;color:#495057">Ítems típicos por terminación conforme ordenamiento laboral colombiano (valores editables en el registro del sistema).</p>
-          <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:1rem">${theadP}<tbody>${devRows}</tbody></table>
-          <h2 style="font-size:1rem;margin:0.75rem 0 0.35rem">II. Deducciones</h2>
-          <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:1rem">${theadP}<tbody>${dedRows}</tbody></table>
-          ${checklistBlock}
-          <table style="width:100%;border-collapse:collapse;font-size:0.95rem;margin-top:0.5rem"><tbody>
-            <tr><td style="padding:12px 8px"><strong>Total neto a consignar / pagar</strong></td><td style="padding:12px 8px;text-align:right;font-size:1.12rem"><strong>${netStr}</strong></td></tr>
-          </tbody></table>`;
-      } else {
-        const linesFromRun = resolvePayrollDevengosLines(run);
-        const baseInt = parseNum(run.cesantiasInterestBaseCop);
-        const diasInt = run.cesantiasInterestDays != null ? run.cesantiasInterestDays : "—";
-        const intLabel =
-          baseInt > 0
-            ? `Intereses sobre cesantías (${CO_CESANTIAS_INTERES_ANUAL_PCT}% anual Ley 52/1975; base ref. ${fmtPay(baseInt)}, ${diasInt} días/360)`
-            : `Intereses sobre cesantías (${CO_CESANTIAS_INTERES_ANUAL_PCT}% anual Ley 52/1975)`;
-
-        let devRowsMes;
-        if (linesFromRun && linesFromRun.length) {
-          const showLine = (L) => {
-            const code = String(L.code || "");
-            if (code.startsWith("INCAPACIDAD")) return true;
-            const a = parseNum(L.amount);
-            return a > 0 || code === "SALARIO_ORDINARIO" || code === "AUXILIO_TRANSPORTE";
-          };
-          devRowsMes = linesFromRun
-            .filter(showLine)
-            .map((L) => {
-              let labelHtml = escapeHtml(cleanSlipText(String(L.label || L.code || "Concepto")));
-              if (L.code === "PRIMA_SERVICIOS") {
-                labelHtml = escapeHtml(
-                  `Prima de servicios semestral (CST arts. 244–249 — ${run.primaServiciosDays ?? "—"} días semestre)`
-                );
-              }
-              if (L.code === "INT_CESANTIAS" && parseNum(L.amount) > 0) {
-                labelHtml = escapeHtml(intLabel);
-              }
-              if (L.incapacityNote) {
-                labelHtml += `<span style="font-size:0.82rem;color:#6c757d;display:block;margin-top:3px;line-height:1.35">${escapeHtml(String(L.incapacityNote))}</span>`;
-              }
-              return `<tr><td style="${cL}">${labelHtml}</td><td style="${cR}">${fmtPay(L.amount)}</td></tr>`;
-            })
-            .join("");
-          devRowsMes += `<tr><td style="${cL}"><strong>Total devengos del período</strong></td><td style="${cR}"><strong>${fmtPay(run.gross)}</strong></td></tr>`;
-        } else {
-          const ex = parseNum(run.extras);
-          const au = parseNum(run.aux);
-          const bo = parseNum(run.bonus);
-          const via = parseNum(run.travelAllowance);
-          const comb = parseNum(run.fuelReimbursement);
-          const prima = parseNum(run.primaServiciosCop);
-          const intCe = parseNum(run.interesesCesantiasCop);
-          const salarioBasicoDevengo = Math.max(
-            0,
-            parseNum(run.gross) - ex - au - bo - via - comb - prima - intCe
-          );
-          devRowsMes =
-            `<tr><td style="${cL}">Salario básico mensual (devengo ordinario)</td><td style="${cR}">${fmtPay(salarioBasicoDevengo)}</td></tr>` +
-            (ex > 0
-              ? `<tr><td style="${cL}">Horas extras, dominicales o recargos nocturnos</td><td style="${cR}">${fmtPay(ex)}</td></tr>`
-              : "") +
-            `<tr><td style="${cL}">Auxilio legal de transporte (no constitutivo de salario)</td><td style="${cR}">${fmtPay(au)}</td></tr>` +
-            (bo > 0
-              ? `<tr><td style="${cL}">Bonificaciones y pagos ocasionales gravables (devengo)</td><td style="${cR}">${fmtPay(bo)}</td></tr>`
-              : "") +
-            `<tr><td style="${cL}">Viáticos y anticipos de viaje (reintegro / no salario)</td><td style="${cR}">${fmtPay(via)}</td></tr>` +
-            `<tr><td style="${cL}">Reembolso combustible y gastos de ruta deducibles</td><td style="${cR}">${fmtPay(comb)}</td></tr>` +
-            (prima > 0
-              ? `<tr><td style="${cL}">Prima de servicios semestral (CST arts. 244–249 — ${run.primaServiciosDays ?? "—"} días semestre)</td><td style="${cR}">${fmtPay(prima)}</td></tr>`
-              : "") +
-            (intCe > 0 ? `<tr><td style="${cL}">${escapeHtml(intLabel)}</td><td style="${cR}">${fmtPay(intCe)}</td></tr>` : "") +
-            `<tr><td style="${cL}"><strong>Total devengos del período</strong></td><td style="${cR}"><strong>${fmtPay(run.gross)}</strong></td></tr>`;
-        }
-
-        const isTripPrestacion = payrollRunFrequencyKind(run) === "prestacion_viajes";
-        const dedRowsMes = isTripPrestacion
-          ? `<tr><td style="${cL}" colspan="2">Prestación de servicios: sin aportes de salud, pensión ni FSP en este comprobante (pago por viajes).</td></tr>` +
-            `<tr><td style="${cL}"><strong>Total deducciones</strong></td><td style="${cR}"><strong>${fmtPay(run.deductions)}</strong></td></tr>`
-          : `<tr><td style="${cL}">Salario integral de cotización — IBC (base aportes empleador/empleado)</td><td style="${cR}">${fmtPay(run.ibc)}</td></tr>` +
-            `<tr><td style="${cL}">Aporte obligatorio salud — empleado (${(CO_PAYROLL.healthEmployeeRate * 100).toFixed(2).replace(/\.00$/, "")}% sobre IBC)</td><td style="${cR}">${fmtPay(run.health)}</td></tr>` +
-            `<tr><td style="${cL}">Aporte pensión obligatoria — empleado (${(CO_PAYROLL.pensionEmployeeRate * 100).toFixed(2).replace(/\.00$/, "")}% sobre IBC)</td><td style="${cR}">${fmtPay(run.pension)}</td></tr>` +
-            `<tr><td style="${cL}">Fondo de solidaridad pensional FSP (cuando aplique rangos Ley 797/2003)</td><td style="${cR}">${fmtPay(run.solidarity)}</td></tr>` +
-            `<tr><td style="${cL}"><strong>Total deducciones al empleado</strong></td><td style="${cR}"><strong>${fmtPay(run.deductions)}</strong></td></tr>`;
-        const workedDaysRows =
-          workedDays > 0 || workedDaysPaymentCop > 0
-            ? `<tr><td style="${cL}">Pago por días laborados (${workedDays.toLocaleString("es-CO")} días)</td><td style="${cR}">${fmtPay(workedDaysPaymentCop)}</td></tr>`
-            : `<tr><td style="${cL}" colspan="2">Sin detalle de días laborados para este comprobante.</td></tr>`;
-
-        payslipBodyBlocks = `
-          <h2 style="font-size:1rem;margin:1.25rem 0 0.35rem">I. Devengos e ingresos período</h2>
-          <p style="margin:0 0 0.45rem;font-size:0.86rem;color:#495057">${
-            isTripPrestacion
-              ? "Pago por prestación de servicios (viajes interdepartamentales y reembolsos de ruta)."
-              : "Ingresos y conceptos pagados por el empleador; prima e intereses de cesantías solo si se liquidaron en este comprobante."
-          }</p>
-          <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:1rem">${theadP}<tbody>${devRowsMes}</tbody></table>
-          <h2 style="font-size:1rem;margin:0.75rem 0 0.35rem">II. Deducciones (aportes del trabajador)</h2>
-          <p style="margin:0 0 0.45rem;font-size:0.86rem;color:#495057">Descuentos legales incidentes sobre nómina; prima e intereses de cesantías no integran habitualmente esta base de cotización en este modelo simplificado.</p>
-          <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:1rem">${theadP}<tbody>${dedRowsMes}</tbody></table>
-          <h2 style="font-size:1rem;margin:0.75rem 0 0.35rem">III. Resumen de días laborados</h2>
-          <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:1rem">${theadP}<tbody>${workedDaysRows}</tbody></table>
-          <table style="width:100%;border-collapse:collapse;font-size:0.95rem;margin-top:0.5rem"><tbody>
-            <tr><td style="padding:12px 8px"><strong>Neto pagado / a pagar al trabajador</strong></td><td style="padding:12px 8px;text-align:right;font-size:1.12rem"><strong>${netStr}</strong></td></tr>
-          </tbody></table>`;
-      }
-      const docTitle =
-        isTerm && run.settlementDetail && typeof run.settlementDetail === "object"
-          ? `Liquidación contractual ${run.employeeName}`
-          : `Desprendible ${run.employeeName}`;
-      const h1Title = isTerm ? "Liquidación contractual" : "Desprendible de nómina";
-      let metaExtra = "";
-      if (isTerm && run.settlementDetail && typeof run.settlementDetail === "object") {
-        const sd = run.settlementDetail;
-        metaExtra += `<tr><td style="padding:4px 0"><strong>Fecha terminación</strong></td><td>${escapeHtml(String(sd.terminationDate || "-"))}</td></tr>`;
-        metaExtra += `<tr><td style="padding:4px 0"><strong>Motivo</strong></td><td>${escapeHtml(String(causeLabels[sd.terminationCause] || sd.terminationCause || "-"))}</td></tr>`;
-      }
-      const absenceDetailRows = !isTerm ? resolvePayrollAbsenceSlipRows(run, read(KEYS.hrAbsences, [])) : [];
-      const absenceDetailBlock = absenceDetailRows.length
-        ? `
-          <h2 style="font-size:1rem;margin:0.75rem 0 0.35rem">IV. Detalle de ausentismo</h2>
-          <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:1rem">
-            <thead>
-              <tr style="background:#F5F7FA">
-                <th style="text-align:left;padding:8px">Ausentismo</th>
-                <th style="text-align:left;padding:8px">Concepto</th>
-                <th style="text-align:right;padding:8px">Cantidad</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${absenceDetailRows
-                .map(
-                  (row) =>
-                    `<tr><td style="${cL}">${escapeHtml(cleanSlipText(String(row.typeLabel || "Ausentismo")))}</td><td style="${cL}">${escapeHtml(cleanSlipText(String(row.conceptLabel || "")))}</td><td style="${cR}">${escapeHtml(payrollFormatAbsenceQuantity(row.quantity))}</td></tr>`
-                )
-                .join("")}
-            </tbody>
-          </table>`
-        : "";
-      const disclaimerPieces = [];
-      if (!isTerm) {
-        const ori = String(run.liquidacionOrigin || run.origenLiquidacion || "manual").toLowerCase();
-        if (ori === "masiva") {
-          disclaimerPieces.push(
-            "Liquidación generada por liquidación masiva (RRHH). Validar incapacidades, vacaciones, viáticos de ruta y bases de cotización con contador antes del pago."
-          );
-        } else if (ori === "automatica") {
-          disclaimerPieces.push(
-            "Liquidación generada automáticamente en servidor (cron diario, calendario Bogotá). Validar incapacidades, vacaciones y bases de cotización con RRHH y contador."
-          );
-          const nv = run.noveltiesDetail;
-          if (nv && typeof nv === "object" && Array.isArray(nv.disclaimers)) {
-            const top = nv.disclaimers.slice(0, 2).map((x) => String(x)).join(" ");
-            if (top) disclaimerPieces.push(top);
-          }
-        }
-        if (parseNum(run.primaServiciosCop) > 0)
-          disclaimerPieces.push(
-            "Prima de servicios (CST): cálculo orientativo; validar política empresarial y contador."
-          );
-        if (parseNum(run.interesesCesantiasCop) > 0)
-          disclaimerPieces.push(
-            `Intereses de cesantías (Ley 52/1975, ${CO_CESANTIAS_INTERES_ANUAL_PCT}% anual): el texto legal establece que deben pagarse al trabajador en enero del año siguiente al período causado (y reglas especiales en retiros o ceses antes de ese cierre). Lo habitual es liquidarlos con la nómina de enero del año siguiente o, si su política lo retrasa hasta febrero, documente ese desfase con contador para no omitir obligaciones ya exigidas.`
-          );
-        const incNv = run.noveltiesDetail?.incapacity;
-        if (incNv && Array.isArray(incNv.episodes) && incNv.episodes.length) {
-          disclaimerPieces.push(
-            String(
-              incNv.legalNote ||
-                "Incapacidad: montos orientativos en este comprobante; valide con EPS/ARL y contador."
-            )
-          );
-        }
-      }
-      const disclaimer =
-        isTerm &&
-        run.settlementDetail &&
-        typeof run.settlementDetail === "object" &&
-        run.settlementDetail.legalDisclaimer
-          ? `<p style="font-size:0.82rem;color:#495057;margin-top:1rem;line-height:1.45">${escapeHtml(String(run.settlementDetail.legalDisclaimer))}</p>`
-          : disclaimerPieces.length
-            ? `<p style="font-size:0.82rem;color:#495057;margin-top:1rem;line-height:1.45">${escapeHtml(disclaimerPieces.join(" "))}</p>`
-            : "";
-      const employeeMetaRows = [
-        { label: "Tipo de contrato", value: String(employee?.contractType || "-") },
-        { label: "Periodicidad de pago", value: String(employee?.payFrequency || "-") },
-        { label: "Centro de costos", value: String(resolvePayrollEmployeeCostCenter(employee) || "-") },
-        {
-          label: "Banco",
-          value:
-            employee?.bankName && employee?.bankAccount
-              ? `${String(employee.bankName)} · ${String(employee.bankAccountType || "Cuenta")} ${String(employee.bankAccount)}`
-              : "-"
-        },
-        {
-          label: "Salario básico",
-          value: employee?.baseSalary != null ? `$${parseNum(employee.baseSalary).toLocaleString("es-CO")}` : "-"
-        },
-        { label: "IBC (base de cotización)", value: `$${parseNum(run.ibc || 0).toLocaleString("es-CO")}` }
-      ]
-        .map(
-          (row) =>
-            `<tr><td style="padding:4px 0"><strong>${escapeHtml(row.label)}</strong></td><td>${escapeHtml(
-              cleanSlipText(String(row.value || "-"))
-            )}</td></tr>`
-        )
-        .join("");
-      pop.document.write(`
-        <html><head><meta charset="utf-8"/><title>${escapeHtml(docTitle)}</title></head>
-        <body style="font-family:system-ui,Segoe UI,Arial,sans-serif;padding:28px;color:#0B1D33;line-height:1.5">
-          <div style="border-bottom:2px solid #0B1D33;padding-bottom:12px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;gap:18px">
-            <div style="min-width:0;flex:1 1 auto">
-              <h1 style="margin:0;font-size:1.35rem">${escapeHtml(h1Title)}</h1>
-              <p style="margin:0.35rem 0 0;font-size:0.9rem;color:#495057">${escapeHtml(String(company?.name || "Transportes Antares"))}</p>
-            </div>
-            <div style="width:94px;min-width:94px;height:94px;border-radius:18px;background:#fff;border:1px solid #d7e5f3;padding:10px;display:flex;align-items:center;justify-content:center;box-shadow:0 10px 24px rgba(11,33,56,0.10)">
-              <img src="${escapeAttr(logoSrc)}" alt="${escapeAttr(logoAlt)}" style="width:100%;height:100%;object-fit:contain;display:block" />
-            </div>
-          </div>
-          <table style="width:100%;font-size:0.92rem;margin-bottom:1.2rem">
-            <tr><td style="padding:4px 0"><strong>Empleador</strong></td><td>${escapeHtml(String(company?.name || "Antares"))}</td></tr>
-            <tr><td style="padding:4px 0"><strong>Trabajador</strong></td><td>${escapeHtml(String(run.employeeName || ""))}</td></tr>
-            <tr><td style="padding:4px 0"><strong>Documento</strong></td><td>${escapeHtml(String(employee?.idDoc || "-"))}</td></tr>
-            <tr><td style="padding:4px 0"><strong>Cargo</strong></td><td>${escapeHtml(String(employee?.position || "-"))}</td></tr>
-            <tr><td style="padding:4px 0"><strong>Periodo registrado</strong></td><td>${escapeHtml(String(run.month || ""))}</td></tr>
-            ${employeeMetaRows}
-            ${metaExtra}
-            <tr><td style="padding:4px 0"><strong>Estado</strong></td><td>${run.paid ? "Pagado" : "Pendiente de pago"}</td></tr>
-            <tr><td style="padding:4px 0"><strong>Fecha de pago</strong></td><td>${escapeHtml(String(paidAtLabel))}</td></tr>
-          </table>
-          <h2 style="font-size:1rem;margin:1.05rem 0 0">Comprobante de pago</h2>
-          ${payslipBodyBlocks}
-          ${absenceDetailBlock}
-          ${disclaimer}
-          <p style="margin-top:1.5rem"><button onclick="window.print()" style="padding:10px 18px;border-radius:8px;border:none;background:#0B1D33;color:#fff;cursor:pointer">Imprimir / PDF</button></p>
-        </body></html>
-      `);
-      pop.document.close();
-    });
-  });
 
 
   nodes.viewRoot.querySelectorAll("[data-action='mark-payroll-paid']").forEach((btn) => {

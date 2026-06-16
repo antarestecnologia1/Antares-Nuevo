@@ -19005,10 +19005,13 @@ body[data-theme="dark"] .hr-enterprise-strip--hiring .hr-enterprise-strip-label 
 }
 
 .module-panel-actions--wizard .module-panel-actions__bar {
-  display: grid;
-  grid-template-columns: minmax(0, auto) minmax(0, 1fr) minmax(0, auto);
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.75rem 1rem;
+  justify-content: flex-end;
+  gap: 0.65rem 0.85rem;
+  width: 100%;
+  min-width: 0;
 }
 
 .module-panel-actions__group {
@@ -19044,12 +19047,21 @@ body[data-theme="dark"] .hr-enterprise-strip--hiring .hr-enterprise-strip-label 
   justify-content: flex-end;
 }
 
+.module-panel-actions--wizard .module-panel-actions__group {
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
+.module-panel-actions--wizard .module-panel-actions__group--secondary {
+  margin-inline-end: auto;
+}
+
 .module-panel-actions--wizard .module-panel-actions__group--primary {
   margin-inline-start: 0;
 }
 
 .module-panel-actions--wizard .module-panel-actions__group--tools {
-  justify-self: center;
+  justify-content: center;
 }
 
 .module-panel-btn__inner {
@@ -19183,18 +19195,25 @@ body[data-theme="dark"] .hr-enterprise-strip--hiring .hr-enterprise-strip-label 
 
 @media (max-width: 900px) {
   .module-panel-actions--wizard .module-panel-actions__bar {
-    grid-template-columns: 1fr;
-    justify-items: stretch;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .module-panel-actions--wizard .module-panel-actions__group--secondary {
+    margin-inline-end: 0;
+    width: 100%;
+    justify-content: stretch;
   }
 
   .module-panel-actions--wizard .module-panel-actions__group--tools,
   .module-panel-actions--wizard .module-panel-actions__group--primary {
-    justify-self: stretch;
+    width: 100%;
     justify-content: stretch;
   }
 
   .module-panel-actions--wizard .module-panel-actions__group--tools .btn,
-  .module-panel-actions--wizard .module-panel-actions__group--primary .btn {
+  .module-panel-actions--wizard .module-panel-actions__group--primary .btn,
+  .module-panel-actions--wizard .module-panel-actions__group--secondary .module-panel-btn {
     width: 100%;
     justify-content: center;
   }
@@ -19777,8 +19796,34 @@ body[data-theme="dark"] .hr-enterprise-strip--hiring .hr-enterprise-strip-label 
 }
 
 .hr-form-wizard-footer .module-panel-actions--wizard.form-flow-actions--wizard {
+  display: block;
   border-top: none;
   padding-top: 0;
+  width: 100%;
+  min-width: 0;
+}
+
+.hr-form-wizard-footer .module-panel-actions--wizard .module-panel-actions__bar {
+  justify-content: flex-end;
+}
+
+.hr-form-wizard-footer .module-panel-btn--minimize,
+.hr-form-wizard-footer .module-panel-btn--expand,
+.hr-form-wizard-footer .module-panel-btn--cancel {
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
+.hr-form-wizard-footer .module-panel-actions__group--tools .btn,
+.hr-form-wizard-footer .module-panel-actions__group--primary .btn {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.hr-form-wizard-footer .module-panel-actions__group--tools .btn {
+  white-space: normal;
+  text-align: center;
+  line-height: 1.25;
 }
 
 .hr-form-wizard-footer .module-panel-actions__group--primary .btn-primary,
@@ -25138,9 +25183,44 @@ body[data-theme="dark"] .admin-users-command-card__meta span {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
   background: linear-gradient(145deg, color-mix(in srgb, var(--res-accent, var(--primary)) 88%, #fff), var(--res-accent, var(--primary)));
   border: 2px solid color-mix(in srgb, var(--res-accent, var(--primary)) 35%, #fff);
   box-shadow: 0 6px 16px color-mix(in srgb, var(--res-accent, var(--primary)) 28%, transparent);
+}
+.cal-timeline-avatar--photo {
+  padding: 0;
+  background: #e2e8f0;
+}
+.cal-timeline-avatar--photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.cal-timeline-avatar--fallback {
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--res-accent, var(--primary)) 22%, #fff),
+    color-mix(in srgb, var(--res-accent, var(--primary)) 10%, #f8fafc)
+  );
+}
+.cal-timeline-avatar--driver .cal-timeline-avatar-icon,
+.cal-timeline-avatar--vehicle .cal-timeline-avatar-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  color: var(--res-accent, var(--primary));
+  opacity: 0.92;
+}
+.cal-timeline-avatar--driver .cal-timeline-avatar-icon .btn-icon,
+.cal-timeline-avatar--vehicle .cal-timeline-avatar-icon .btn-icon {
+  width: 100%;
+  height: 100%;
+  stroke-width: 2.1;
 }
 .cal-timeline-avatar-letter {
   color: #fff;
@@ -25786,6 +25866,21 @@ body[data-theme="dark"] .cal-timeline-empty {
   background: linear-gradient(180deg, rgba(var(--primary-rgb), 0.1), #122036);
   border-color: rgba(var(--primary-mid-rgb), 0.28);
 }
+body[data-theme="dark"] .cal-timeline-avatar--fallback {
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--res-accent, var(--primary)) 28%, #122036),
+    color-mix(in srgb, var(--res-accent, var(--primary)) 12%, #0e1a2e)
+  );
+}
+body[data-theme="dark"] .cal-timeline-avatar--photo {
+  background: #1e293b;
+}
+body[data-theme="dark"] .cal-timeline-avatar--driver .cal-timeline-avatar-icon,
+body[data-theme="dark"] .cal-timeline-avatar--vehicle .cal-timeline-avatar-icon {
+  color: color-mix(in srgb, var(--res-accent, #93c5fd) 78%, #fff);
+}
+
 body[data-theme="dark"] .cal-resource-group-toggle {
   background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.16), rgba(14, 28, 46, 0.96));
   border-color: rgba(var(--primary-mid-rgb), 0.28);
@@ -28391,6 +28486,99 @@ body[data-theme="dark"] .employee-profile-kv {
   font-weight: 600;
 }
 
+.employee-profile-section--payroll-history {
+  margin-top: 0.35rem;
+}
+
+.employee-payroll-history__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.35rem 0.75rem;
+  margin-bottom: 0.55rem;
+}
+
+.employee-payroll-history__stats {
+  font-size: 0.82rem;
+}
+
+.employee-payroll-history__table-wrap {
+  margin-bottom: 0.55rem;
+}
+
+.employee-payroll-history__table {
+  width: 100%;
+  font-size: 0.88rem;
+}
+
+.employee-payroll-history__table th,
+.employee-payroll-history__table td {
+  vertical-align: top;
+  padding: 0.55rem 0.45rem;
+}
+
+.employee-payroll-history__type {
+  display: block;
+  font-size: 0.78rem;
+  margin-top: 0.12rem;
+}
+
+.employee-payroll-history__money {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.employee-payroll-history__paid-date {
+  display: block;
+  font-size: 0.76rem;
+  margin-top: 0.15rem;
+}
+
+.employee-payroll-history__actions {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.employee-payroll-history__footer {
+  margin-top: 0.35rem;
+}
+
+.employee-payroll-history__empty,
+.employee-payroll-history__more-note {
+  margin: 0 0 0.55rem;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.payroll-employee-filter-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem 1rem;
+  margin: 0 0 0.85rem;
+  padding: 0.75rem 0.95rem;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: linear-gradient(135deg, rgba(55, 124, 192, 0.08), rgba(13, 148, 136, 0.06));
+}
+
+.payroll-employee-filter-banner__copy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.65rem;
+}
+
+.payroll-employee-filter-banner__label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
 .employee-edit-grid {
   gap: 0.78rem 1rem !important;
 }
@@ -29033,6 +29221,44 @@ body[data-theme="dark"] .request-company-hub-metrics small {
   min-height: 2.55rem;
   padding: 0.5rem 1.05rem;
   font-size: 0.86rem;
+}
+
+.payroll-shell .hr-form-wizard-footer .module-panel-actions__bar,
+.hiring-shell .hr-form-wizard-footer .module-panel-actions__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.65rem 0.75rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.payroll-shell .hr-form-wizard-footer .module-panel-actions__group,
+.hiring-shell .hr-form-wizard-footer .module-panel-actions__group {
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
+.payroll-shell .hr-form-wizard-footer .module-panel-actions__group--secondary,
+.hiring-shell .hr-form-wizard-footer .module-panel-actions__group--secondary {
+  margin-inline-end: auto;
+}
+
+.payroll-shell .hr-form-wizard-footer .module-panel-btn--minimize,
+.payroll-shell .hr-form-wizard-footer .module-panel-btn--cancel,
+.hiring-shell .hr-form-wizard-footer .module-panel-btn--minimize,
+.hiring-shell .hr-form-wizard-footer .module-panel-btn--cancel {
+  min-width: 0;
+}
+
+.payroll-shell .hr-form-wizard-footer .module-panel-actions__group--tools .btn,
+.hiring-shell .hr-form-wizard-footer .module-panel-actions__group--tools .btn {
+  white-space: normal;
+  text-align: center;
+  line-height: 1.25;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .payroll-shell .btn-outline,

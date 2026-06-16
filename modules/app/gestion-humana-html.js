@@ -592,6 +592,22 @@ function payrollHtml() {
   const employeeOpts = employees
     .map((e) => `<option value="${e.id}" ${filterEmployee === e.id ? "selected" : ""}>${e.name}</option>`)
     .join("");
+  const filteredEmployeeRecord = filterEmployee
+    ? employees.find((e) => String(e.id) === String(filterEmployee))
+    : null;
+  const employeeFilterBanner = filteredEmployeeRecord
+    ? `<div class="payroll-employee-filter-banner" role="status">
+        <div class="payroll-employee-filter-banner__copy">
+          <span class="payroll-employee-filter-banner__label">Colaborador</span>
+          <strong>${escapeHtml(String(filteredEmployeeRecord.name || "—"))}</strong>
+          <span class="muted">${escapeHtml(String(filteredEmployeeRecord.idDoc || ""))}</span>
+        </div>
+        <div class="toolbar">
+          <button type="button" class="btn btn-sm btn-outline" data-action="view-employee" data-id="${escapeAttr(String(filteredEmployeeRecord.id))}">${IC.eye} Perfil</button>
+          <button type="button" class="btn btn-sm btn-outline" data-action="payroll-clear-employee-filter">${IC.x} Quitar filtro</button>
+        </div>
+      </div>`
+    : "";
   const filtersHtml = `<details class="payroll-filters-advanced">
       <summary class="payroll-filters-advanced__summary">${IC.layers} Filtros avanzados</summary>
       <form id="payroll-filters" class="payroll-data-toolbar-filters">
@@ -832,6 +848,7 @@ function payrollHtml() {
     ? `<div class="payroll-run-cards-grid">${sortedDriverRuns.map((r) => renderPayrollRunCard(r, { compact: true })).join("")}</div>`
     : emptyState("Sin liquidaciones de viajes. Vaya a Registrar → Pagos conductores para liquidar el mes.");
   const driverPaymentsPane = `<div class="payroll-data-pane${payrollDataSection === "driverPayments" ? "" : " hidden"}" data-payroll-section="driverPayments">
+      ${employeeFilterBanner}
       ${pcardWrapPro(
         "truck",
         "Cuentas por pagar — conductores",
@@ -866,6 +883,7 @@ function payrollHtml() {
       <div class="payroll-table-shell">${absenceTable}</div>
     </div>`;
   const runsPane = `<div class="payroll-data-pane${payrollDataSection === "runs" ? "" : " hidden"}" data-payroll-section="runs">
+      ${employeeFilterBanner}
       <div class="payroll-runs-toolbar">
         <p class="payroll-result-meta muted">Mostrando <strong>${runs.length}</strong> de ${nominaRunsAll.length} liquidación${nominaRunsAll.length === 1 ? "" : "es"} de nómina laboral</p>
         <button type="button" class="btn btn-sm btn-outline" id="export-payroll">${IC.download} Exportar CSV</button>

@@ -524,6 +524,7 @@ import {
   devWarn
 } from "./utils.js";
 import { normalizeLatinForDb } from "../domain/payroll-catalog-sanitize.domain.js";
+import { findPendingCreateEmployeeApproval } from "../domain/pending-employee-approval.domain.js";
 import {
   decodeJwtPayload,
   upsertPortalUserStubFromJwtPayload,
@@ -1142,6 +1143,20 @@ export async function sanitizeApprovalPayloadForQueue(type, payload) {
 
 export async function queueApproval({ type, title, payload, requestedByUserId, requestedByName }) {
   const safePayload = await sanitizeApprovalPayloadForQueue(type, payload);
+  if (type === "create_employee") {
+    const pending = findPendingCreateEmployeeApproval(
+      read(KEYS.approvals, []),
+      safePayload.documentType,
+      safePayload.idDoc,
+      safePayload.companyId
+    );
+    if (pending) {
+      const msg = window.userMessage?.("employeePendingApprovalExists", safePayload.idDoc) ||
+        "Ya hay una solicitud de alta pendiente de autorización para este documento en esta empresa.";
+      window.notify?.(msg, "error");
+      throw new Error(msg);
+    }
+  }
   const approvals = read(KEYS.approvals, []);
   approvals.unshift({
     id: newUuidV4(),

@@ -218,6 +218,15 @@
     recruitSalaryMinRef: (formatted) =>
       `El salario no puede ser inferior al mínimo legal referenciado (${formatted}).`,
     employeeRequestQueued: "Solicitud de empleado enviada a autorizaciones.",
+    employeePendingApprovalExists: (idDoc) => {
+      const doc = String(idDoc || "").trim();
+      if (doc) {
+        return `Ya hay una solicitud de alta pendiente de autorización para el documento ${doc} en esta empresa. Revise Autorizaciones o espere la respuesta del administrador.`;
+      }
+      return "Ya hay una solicitud de alta pendiente de autorización para este documento en esta empresa. Revise Autorizaciones o espere la respuesta del administrador.";
+    },
+    employeePendingApprovalExistsSoft:
+      "Este documento tiene una solicitud de alta en bandeja. Al elegir la empresa se confirmará si aplica a la misma.",
     employeeUpdateRequestQueued:
       "Los cambios quedaron en bandeja de autorizaciones para validación del administrador.",
     employeeDriverFieldsRequired:
@@ -294,6 +303,13 @@
     authApprovalPendingManual:
       "Solicitud aprobada. Queda pendiente de asignación manual de viaje.",
     authApprovalOk: "Autorización aprobada.",
+    authApprovalEmployeeAlreadyExists: (idDoc) => {
+      const doc = String(idDoc || "").trim();
+      if (doc) {
+        return `El colaborador con documento ${doc} ya está registrado en la empresa; la solicitud se cierra sin crear duplicado.`;
+      }
+      return "El colaborador ya está registrado en la empresa; la solicitud se cierra sin crear duplicado.";
+    },
     authRejectOk: "Autorización rechazada.",
     wordTemplatesRedownloaded:
       "Se descargó de nuevo el Word usando las plantillas de documentación.",

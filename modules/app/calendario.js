@@ -22,6 +22,33 @@ function calendarTripStatusSlug(request) {
   return raw.toLowerCase().replace(/\s+/g, "_");
 }
 
+function calendarResourceAvatarHtml(res) {
+  const kind = String(res?.kind || "driver").toLowerCase();
+  const photoUrl = kind === "driver" ? String(res?.photoUrl || "").trim() : "";
+
+  if (photoUrl && (/^https?:\/\//i.test(photoUrl) || /^data:image\//i.test(photoUrl))) {
+    return `<div class="cal-timeline-avatar cal-timeline-avatar--photo" aria-hidden="true">
+      <img src="${escapeAttr(photoUrl)}" alt="" loading="lazy" decoding="async" />
+    </div>`;
+  }
+
+  if (kind === "vehicle") {
+    return `<div class="cal-timeline-avatar cal-timeline-avatar--fallback cal-timeline-avatar--vehicle" aria-hidden="true">
+      <span class="cal-timeline-avatar-icon">${IC.truck || ""}</span>
+    </div>`;
+  }
+
+  if (kind === "driver") {
+    return `<div class="cal-timeline-avatar cal-timeline-avatar--fallback cal-timeline-avatar--driver" aria-hidden="true">
+      <span class="cal-timeline-avatar-icon">${IC.user || ""}</span>
+    </div>`;
+  }
+
+  return `<div class="cal-timeline-avatar cal-timeline-avatar--fallback" aria-hidden="true">
+    <span class="cal-timeline-avatar-letter">${escapeHtml(res.initials || "?")}</span>
+  </div>`;
+}
+
 function buildCalendarResourceTimelineHtml({ allEvents, driversList, vehiclesList, filters, focus, today }) {
   const Cal = typeof AntaresCalendarDomain !== "undefined" ? AntaresCalendarDomain : null;
   const resourceGroup = Cal?.resolveCalendarResourceGroup
@@ -74,9 +101,7 @@ function buildCalendarResourceTimelineHtml({ allEvents, driversList, vehiclesLis
       const count = blocks.filter((b) => b.resourceId === res.id).length;
       const icon = res.kind === "vehicle" ? IC.truck : IC.user;
       return `<div class="cal-timeline-resource-head" style="--res-accent:${escapeAttr(res.accent)};grid-column:${colIndex + 2};grid-row:1">
-        <div class="cal-timeline-avatar" aria-hidden="true">
-          <span class="cal-timeline-avatar-letter">${escapeHtml(res.initials || "?")}</span>
-        </div>
+        ${calendarResourceAvatarHtml(res)}
         <div class="cal-timeline-resource-meta">
           <strong title="${escapeAttr(res.label)}">${escapeHtml(res.label)}</strong>
           <span class="muted">${escapeHtml(res.subtitle || (res.kind === "vehicle" ? "Vehículo" : "Conductor"))}</span>
