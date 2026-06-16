@@ -23,22 +23,31 @@ function escapeAttr(value) {
     .replace(/</g, "&lt;");
 }
 
-/** Paneles de creación abiertos por defecto hasta que el usuario los minimice. */
+/** Paneles de creación abiertos por defecto hasta que el usuario los minimice (solo flota/transporte). */
 export const DEFAULT_OPEN_CREATE_PANELS = new Set([
   "create-vehicle",
   "create-fuel-log",
   "create-technical-log",
-  "create-route-rate",
+  "create-route-rate"
+]);
+
+/** Paneles de alta en Gestión humana — uno por trámite del rail Registrar. */
+export const PAYROLL_OPERATE_CREATE_PANEL_IDS = [
   "create-employee",
   "create-payroll",
+  "create-driver-trip-payment",
   "create-payroll-settlement",
-  "create-hr-absence",
-  "create-position",
-  "create-vacancy",
-  "create-candidate",
-  "create-interview",
-  "create-contract"
-]);
+  "create-hr-absence"
+];
+
+/** Sección activa del rail → panel de formulario. */
+export const PAYROLL_OPERATE_SECTION_PANEL = {
+  employee: "create-employee",
+  payroll: "create-payroll",
+  driverPay: "create-driver-trip-payment",
+  settlement: "create-payroll-settlement",
+  absence: "create-hr-absence"
+};
 
 export const MODULE_PANEL_LABELS = {
   minimize: "Minimizar",

@@ -38,6 +38,7 @@ function payrollHtml() {
   const payrollWorkspace = normalizeHrWorkspace("payroll", payrollUi.workspace);
   const payrollDataSection = normalizePayrollDataSection(payrollUi.dataSection);
   const payrollOperateSection = normalizePayrollOperateSection(payrollUi.operateSection);
+  const payrollCreateUi = buildPayrollCreatePanelsState(payrollOperateSection, state.createPanels || {});
   const filterPeriod = String(filters.period || "all");
   const filterEmployee = String(filters.employee || "");
   const filterStatus = String(filters.status || "all");
@@ -346,7 +347,7 @@ function payrollHtml() {
       <div class="payroll-bulk-actions">
         <button type="button" class="btn btn-primary payroll-bulk-generate-btn" id="payroll-bulk-generate">${IC.dollar}<span>Generar liquidaciones</span></button>
       </div>
-    </section>`;
+    </form>`;
   const formPay = `<form id="form-payroll" class="p-form p-form-colored hr-form-flow hr-form-compact payroll-single-form payroll-liquidation-pane${payrollLiquidationMode === "single" ? "" : " hidden"}" data-payroll-liquidation-pane="single" role="tabpanel" aria-hidden="${payrollLiquidationMode === "single" ? "false" : "true"}">
     <fieldset class="form-section form-section-emerald full">
       <legend>${IC.user} Periodo y persona</legend>
@@ -633,27 +634,33 @@ function payrollHtml() {
     currentYm,
     contractNoticeCount
   });
-  const payrollOperateNav = renderModuleWindowTabs({
-    ariaLabel: "Flujos de Gestión humana",
-    activeId: payrollOperateSection,
-    action: "payroll-operate-section",
-    valueAttr: "section",
-    tabs: [
-      { id: "employee", label: "Empleado" },
-      { id: "payroll", label: "Nómina laboral" },
-      { id: "driverPay", label: "Pagos conductores" },
-      { id: "settlement", label: "Terminación" },
-      { id: "absence", label: "Ausencia" }
-    ]
-  });
-  const employeeOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "employee" ? "" : " hidden"}" data-payroll-operate-pane="employee">${createCollapsibleProCard("create-employee", "userPlus", "Nuevo colaborador", "Expediente de vinculación con contrato Word y seguridad social (Colombia)", formEmp, "admin-users-data-card hr-form-card payroll-form-card hr-form-card--xl", "Abrir expediente", { createPanels: state.createPanels })}</div>`;
-  const payrollOperatePaneBody = `<div class="auth-tab-panel${payrollOperateSection === "payroll" ? "" : " hidden"}" data-payroll-operate-pane="payroll">${createCollapsibleProCard("create-payroll", "dollar", "Liquidación de nómina", "Relación laboral — devengos, deducciones y aportes parafiscales", `${payrollLiquidationModeNav}${formPayBulk}${formPay}`, "admin-users-data-card hr-form-card payroll-form-card hr-form-card--lg hr-form-card--payroll-liquidation", "Abrir liquidación", { createPanels: state.createPanels })}</div>`;
-  const driverPayOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "driverPay" ? "" : " hidden"}" data-payroll-operate-pane="driverPay">${createCollapsibleProCard("create-driver-trip-payment", "truck", "Pago por viajes", "Prestación de servicios — viáticos interdepartamentales y combustible", formDriverTripPay, "admin-users-data-card hr-form-card payroll-form-card hr-form-card--md", "Abrir liquidación", { createPanels: state.createPanels })}</div>`;
-  const settlementOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "settlement" ? "" : " hidden"}" data-payroll-operate-pane="settlement">${createCollapsibleProCard("create-payroll-settlement", "hash", "Liquidación final", "Terminación contractual — cesantías, prima y vacaciones (CST)", formPayrollSettlement, "admin-users-data-card hr-form-card payroll-form-card hr-form-card--lg", "Abrir liquidación", { createPanels: state.createPanels })}</div>`;
-  const absenceOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "absence" ? "" : " hidden"}" data-payroll-operate-pane="absence">${createCollapsibleProCard("create-hr-absence", "calendar", "Ausencias e incapacidades", "Vacaciones, licencias, incapacidades y permisos remunerados", formAbsence, "admin-users-data-card hr-form-card payroll-form-card hr-form-card--md", "Registrar ausencia", { createPanels: state.createPanels })}</div>`;
+  const payrollOperateNav = renderPayrollOperateSectionNav(payrollOperateSection);
+  const payrollOperatePaneHidden = (section) => payrollOperateSection !== section;
+  const payrollOperatePane = (section, body) =>
+    `<div class="auth-tab-panel${payrollOperatePaneHidden(section) ? " hidden" : ""}" data-payroll-operate-pane="${section}"${payrollOperatePaneHidden(section) ? " hidden" : ""} aria-hidden="${payrollOperatePaneHidden(section) ? "true" : "false"}">${body}</div>`;
+  const employeeOperatePane = payrollOperatePane(
+    "employee",
+    createHrActionCard("create-employee", "userPlus", "Nuevo colaborador", "Expediente de vinculación con contrato Word y seguridad social (Colombia)", formEmp, "Abrir expediente", { createPanels: payrollCreateUi })
+  );
+  const payrollOperatePaneBody = payrollOperatePane(
+    "payroll",
+    createHrActionCard("create-payroll", "dollar", "Liquidación de nómina", "Relación laboral — devengos, deducciones y aportes parafiscales", `${payrollLiquidationModeNav}${formPayBulk}${formPay}`, "Abrir liquidación", { createPanels: payrollCreateUi })
+  );
+  const driverPayOperatePane = payrollOperatePane(
+    "driverPay",
+    createHrActionCard("create-driver-trip-payment", "truck", "Pago por viajes", "Prestación de servicios — viáticos interdepartamentales y combustible", formDriverTripPay, "Abrir liquidación", { createPanels: payrollCreateUi })
+  );
+  const settlementOperatePane = payrollOperatePane(
+    "settlement",
+    createHrActionCard("create-payroll-settlement", "hash", "Liquidación final", "Terminación contractual — cesantías, prima y vacaciones (CST)", formPayrollSettlement, "Abrir liquidación", { createPanels: payrollCreateUi })
+  );
+  const absenceOperatePane = payrollOperatePane(
+    "absence",
+    createHrActionCard("create-hr-absence", "calendar", "Ausencias e incapacidades", "Vacaciones, licencias, incapacidades y permisos remunerados", formAbsence, "Registrar ausencia", { createPanels: payrollCreateUi })
+  );
   const payrollExecutionBlock = `<section class="payroll-operate payroll-operate-panel">
-      <aside class="payroll-operate__rail" aria-label="Flujos de registro">
-        <span class="payroll-operate__rail-label">Registrar</span>
+      <aside class="payroll-operate__rail" aria-label="Trámites de registro">
+        <p class="payroll-operate__rail-label">Tipo de trámite</p>
         ${payrollOperateNav}
       </aside>
       <div class="payroll-operate__main auth-tab-panels">${employeeOperatePane}${payrollOperatePaneBody}${driverPayOperatePane}${settlementOperatePane}${absenceOperatePane}</div>

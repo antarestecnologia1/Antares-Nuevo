@@ -626,7 +626,11 @@ function bindDynamicEvents() {
       }
 
       if (payrollSet.has(panelId) && nextOpen) {
-        state.payrollUi = { ...(state.payrollUi || {}), workspace: "operate" };
+        state.payrollUi = {
+          ...(state.payrollUi || {}),
+          workspace: "operate",
+          operateSection: payrollOperateSectionForCreatePanel(panelId)
+        };
         persistHrWorkspace("payroll", "operate");
       }
       if (hiringSet.has(panelId) && nextOpen) {

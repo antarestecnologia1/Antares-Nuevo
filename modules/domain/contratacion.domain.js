@@ -28,7 +28,7 @@ import {
   getPositionById,
   isAdminActor
 } from "../core/auth.js";
-import { colombiaTodayIsoDate, escapeAttr, escapeHtml, normalizePortalDateYmd } from "../core/utils.js";
+import { buildPayrollCreatePanelsState, colombiaTodayIsoDate, escapeAttr, escapeHtml, normalizePortalDateYmd } from "../core/utils.js";
 import { notify, userMessage, ensureEmployeeContractFields, resolveEmployeeContractPlazoStartYmd, isFixedTermContractType, contractTypeRequiresDurationPlazo } from "../ui/modals.js";
 import { matchCatalogOptionValue, normalizeContractTemplateKind } from "./payroll-catalog-sanitize.domain.js";
 import { normalizeDocumentDigits } from "./payroll-identifiers.domain.js";
@@ -750,7 +750,7 @@ export function openPayrollEmployeeFromCandidate(candidateId) {
   if (!cid) return;
   state.hiringUi = { ...(state.hiringUi || {}), prefillEmployeeFromCandidateId: cid };
   state.payrollUi = { ...(state.payrollUi || {}), workspace: "operate", operateSection: "employee" };
-  state.createPanels = { ...(state.createPanels || {}), "create-employee": true };
+  state.createPanels = buildPayrollCreatePanelsState("employee", state.createPanels || {}, { expandActive: true });
   persistHrWorkspace("payroll", "operate");
   persistHrWorkspace("hiring", state.hiringUi?.workspace || "data");
   state.currentView = "payroll";

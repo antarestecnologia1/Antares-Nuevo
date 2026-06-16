@@ -261,7 +261,7 @@ export function createHrActionCard(panelId, iconKey, title, subtitle, bodyHtml, 
   const desc = subtitle
     ? `<p class="hr-action-card__desc">${escapeHtml(String(subtitle))}</p>`
     : "";
-  const cardBody = `<div class="hr-action-card__panel${expanded ? " is-open" : ""}" data-create-panel="${escapeAttr(panelId)}"${expanded ? "" : " hidden"}>
+  const cardBody = `<div class="hr-action-card__panel${expanded ? " is-open" : " hidden"}" data-create-panel="${escapeAttr(panelId)}"${expanded ? "" : " hidden"}>
     ${bodyHtml}
   </div>`;
   return `<article class="p-card hr-action-card hr-action-card--${escapeAttr(tone)} ${extraClass}" data-hr-panel="${escapeAttr(panelId)}">
@@ -434,6 +434,69 @@ export function renderHiringDataSectionNav(activeId, counts = {}, { minimal = fa
         const iconSvg = ic()[t.icon] ? `<span class="payroll-data-nav-ico" aria-hidden="true">${ic()[t.icon]}</span>` : "";
         const tip = escapeAttr(String(t.title || t.label || ""));
         return `<button type="button" role="tab" class="payroll-data-nav-tab${active ? " is-active" : ""}" aria-selected="${active ? "true" : "false"}" data-action="hiring-data-section" data-section="${escapeAttr(t.id)}" title="${tip}">${iconSvg}<span>${escapeHtml(t.label)}</span><span class="payroll-data-nav-count">${escapeHtml(String(t.count))}</span></button>`;
+      })
+      .join("")}
+  </nav>`;
+}
+
+/** Rail lateral de trámites en Gestión humana (Registrar). */
+export function renderPayrollOperateSectionNav(activeId) {
+  const tabs = [
+    {
+      id: "employee",
+      label: "Empleado",
+      title: "Alta y vinculación laboral",
+      hint: "Expediente, EPS, ARL y contrato Word",
+      norm: "Relación laboral",
+      icon: "userPlus"
+    },
+    {
+      id: "payroll",
+      label: "Nómina laboral",
+      title: "Liquidación de nómina",
+      hint: "Devengos, deducciones y parafiscales",
+      norm: "CST · Ley 50",
+      icon: "dollar"
+    },
+    {
+      id: "driverPay",
+      label: "Pagos conductores",
+      title: "Prestación de servicios",
+      hint: "Viáticos interdepartamentales y combustible",
+      norm: "Sin nómina",
+      icon: "truck"
+    },
+    {
+      id: "settlement",
+      label: "Terminación",
+      title: "Liquidación final",
+      hint: "Cesantías, prima y vacaciones",
+      norm: "CST art. 61",
+      icon: "hash"
+    },
+    {
+      id: "absence",
+      label: "Ausencia",
+      title: "Ausencias e incapacidades",
+      hint: "Vacaciones, licencias y permisos",
+      norm: "Novedades RH",
+      icon: "calendar"
+    }
+  ];
+  return `<nav class="payroll-operate-nav" role="tablist" aria-label="Trámites de gestión humana">
+    ${tabs
+      .map((t) => {
+        const active = activeId === t.id;
+        const iconSvg = ic()[t.icon] ? `<span class="payroll-operate-nav-ico" aria-hidden="true">${ic()[t.icon]}</span>` : "";
+        const tip = escapeAttr(`${t.title} — ${t.hint}`);
+        return `<button type="button" role="tab" class="payroll-operate-nav-tab${active ? " is-active" : ""}" aria-selected="${active ? "true" : "false"}" data-action="payroll-operate-section" data-section="${escapeAttr(t.id)}" title="${tip}">
+          ${iconSvg}
+          <span class="payroll-operate-nav-copy">
+            <strong class="payroll-operate-nav-label">${escapeHtml(t.label)}</strong>
+            <small class="payroll-operate-nav-hint">${escapeHtml(t.hint)}</small>
+            <span class="payroll-operate-nav-norm">${escapeHtml(t.norm)}</span>
+          </span>
+        </button>`;
       })
       .join("")}
   </nav>`;
@@ -627,6 +690,7 @@ export function switchModuleTabPanels({
       const panelVal = panel.getAttribute(name);
       const show = String(panelVal) === String(activeValue);
       panel.classList.toggle(panelHiddenClass, !show);
+      panel.toggleAttribute("hidden", !show);
       panel.setAttribute("aria-hidden", show ? "false" : "true");
       if (show) panel.classList.add("tab-switch-instant");
     });
@@ -665,21 +729,54 @@ export function switchHrWorkspacePanels({ root, moduleId, workspace, panelAttr, 
   return foundPanel;
 }
 
+/** Expande/colapsa una tarjeta de creación en el DOM (sin re-render). */
+function applyCreatePanelExpandedInDom(card, panelEl, panelId, open) {
+  if (!card && !panelEl) return;
+  const cardEl = card || panelEl?.closest?.(".p-card");
+  const panel = panelEl || cardEl?.querySelector?.(`[data-create-panel="${panelId}"]`);
+  if (cardEl) {
+    cardEl.classList.toggle("p-card--expanded", open);
+    cardEl.classList.toggle("p-card--collapsed", !open);
+    cardEl.classList.toggle("hr-action-card--open", open);
+  }
+  if (panel) {
+    panel.classList.toggle("hidden", !open);
+    panel.classList.toggle("is-open", open);
+    panel.toggleAttribute("hidden", !open);
+  }
+  const scope = cardEl || panel?.closest?.(".payroll-operate") || panel?.closest?.("[data-hr-workspace]") || document;
+  scope.querySelectorAll?.('[data-action="toggle-create-panel"]')?.forEach?.((btn) => {
+    if (String(btn.dataset.panel || "") !== String(panelId || "")) return;
+    btn.setAttribute("aria-expanded", open ? "true" : "false");
+    btn.classList.toggle("module-panel-btn--minimize", open);
+    btn.classList.toggle("module-panel-btn--expand", !open);
+  });
+  const collapsedToolbar = cardEl?.querySelector?.(".module-panel-toolbar");
+  if (collapsedToolbar) collapsedToolbar.classList.toggle("hidden", open);
+}
+
 /** Expande/colapsa tarjetas de creación en el DOM (sin re-render). */
 export function setCreatePanelExpandedInDom(root, panelId, expanded = true) {
   if (!root || !panelId) return;
-  root.querySelectorAll("[data-hr-panel]").forEach((card) => {
-    const isTarget = card.getAttribute("data-hr-panel") === panelId;
-    const open = isTarget && expanded;
-    card.classList.toggle("p-card--expanded", open);
-    card.classList.toggle("hr-action-card--open", open);
-    card.classList.toggle("p-card--collapsed", !open);
-    const panel = card.querySelector("[data-create-panel]");
-    if (panel) {
-      panel.classList.toggle("is-open", open);
-      panel.toggleAttribute("hidden", !open);
-    }
-    const toggleBtn = card.querySelector('[data-action="toggle-create-panel"]');
-    if (toggleBtn) toggleBtn.setAttribute("aria-expanded", open ? "true" : "false");
+  root.querySelectorAll(`[data-hr-panel="${panelId}"]`).forEach((card) => {
+    applyCreatePanelExpandedInDom(card, null, panelId, expanded);
+  });
+  root.querySelectorAll(`[data-create-panel="${panelId}"]`).forEach((panel) => {
+    applyCreatePanelExpandedInDom(panel.closest(".p-card"), panel, panelId, expanded);
+  });
+}
+
+/** Sincroniza los cinco formularios de alta de Gestión humana: solo uno abierto. */
+export function syncPayrollCreatePanelsInDom(root, activePanelId, { expandActive = true } = {}) {
+  if (!root) return;
+  const ids = [
+    "create-employee",
+    "create-payroll",
+    "create-driver-trip-payment",
+    "create-payroll-settlement",
+    "create-hr-absence"
+  ];
+  ids.forEach((id) => {
+    setCreatePanelExpandedInDom(root, id, Boolean(expandActive && id === activePanelId));
   });
 }

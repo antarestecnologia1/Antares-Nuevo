@@ -2,7 +2,14 @@
  * Utilidades puras (sin `state`, `nodes`, persistencia ni DOM).
  * Se exponen en `window` desde `index.html` junto con `config.js` para scripts clásicos.
  */
-import { CO_TIMEZONE, HR_VALID_HIRING_WS, HR_VALID_PAYROLL_WS, HR_VALID_REQUESTS_WS } from "./config.js";
+import {
+  CO_TIMEZONE,
+  HR_VALID_HIRING_WS,
+  HR_VALID_PAYROLL_WS,
+  HR_VALID_REQUESTS_WS,
+  PAYROLL_OPERATE_CREATE_PANEL_IDS,
+  PAYROLL_OPERATE_SECTION_PANEL
+} from "./config.js";
 import { normalizeLatinForDb, normalizePortalPhoneForStorage } from "../domain/payroll-catalog-sanitize.domain.js";
 
 /** Evita XSS cuando texto de usuario o BD se interpola en HTML. */
@@ -65,6 +72,35 @@ export function normalizePayrollDataSection(value) {
 export function normalizePayrollOperateSection(value) {
   const v = String(value || "employee");
   return PAYROLL_OPERATE_SECTIONS.has(v) ? v : "employee";
+}
+
+/** Estado de paneles de creación: solo el trámite activo queda expandido por defecto. */
+export function buildPayrollCreatePanelsState(activeSection, createPanels = {}, { expandActive = true } = {}) {
+  const section = normalizePayrollOperateSection(activeSection);
+  const activePanel = PAYROLL_OPERATE_SECTION_PANEL[section];
+  const source = createPanels && typeof createPanels === "object" ? createPanels : {};
+  const next = { ...source };
+  PAYROLL_OPERATE_CREATE_PANEL_IDS.forEach((id) => {
+    if (expandActive) {
+      next[id] = id === activePanel;
+      return;
+    }
+    if (!Object.prototype.hasOwnProperty.call(source, id)) {
+      next[id] = false;
+    }
+  });
+  return next;
+}
+
+export function payrollCreatePanelForSection(sectionLike) {
+  const section = normalizePayrollOperateSection(sectionLike);
+  return PAYROLL_OPERATE_SECTION_PANEL[section] || "create-employee";
+}
+
+export function payrollOperateSectionForCreatePanel(panelId) {
+  const id = String(panelId || "").trim();
+  const hit = Object.entries(PAYROLL_OPERATE_SECTION_PANEL).find(([, panel]) => panel === id);
+  return hit ? normalizePayrollOperateSection(hit[0]) : "employee";
 }
 
 export function normalizeHiringOperateSection(value) {

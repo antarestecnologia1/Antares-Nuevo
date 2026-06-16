@@ -132,7 +132,7 @@ function openPayrollEmployeeFromCandidate(candidateId) {
   if (!cid) return;
   state.hiringUi = { ...(state.hiringUi || {}), prefillEmployeeFromCandidateId: cid };
   state.payrollUi = { ...(state.payrollUi || {}), workspace: "operate", operateSection: "employee" };
-  state.createPanels = { ...(state.createPanels || {}), "create-employee": true };
+  state.createPanels = buildPayrollCreatePanelsState("employee", state.createPanels || {}, { expandActive: true });
   persistHrWorkspace("payroll", "operate");
   persistHrWorkspace("hiring", state.hiringUi?.workspace || "data");
   state.currentView = "payroll";

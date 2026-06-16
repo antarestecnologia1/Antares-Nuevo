@@ -201,7 +201,9 @@ function bindPayrollPortalControls() {
   nodes.viewRoot.querySelectorAll("[data-action='payroll-operate-section']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const section = normalizePayrollOperateSection(btn.dataset.section);
+      const panelId = payrollCreatePanelForSection(section);
       state.payrollUi = { ...(state.payrollUi || {}), operateSection: section, workspace: "operate" };
+      state.createPanels = buildPayrollCreatePanelsState(section, state.createPanels || {}, { expandActive: true });
       persistHrWorkspace("payroll", "operate");
       switchHrWorkspacePanels({
         root: nodes.viewRoot,
@@ -218,9 +220,12 @@ function bindPayrollPortalControls() {
           tabActiveClass: "is-active"
         })
       ) {
+        syncPayrollCreatePanelsInDom(nodes.viewRoot, panelId);
+        requestAnimationFrame(() => scrollToCreatePanelForm(panelId));
         return;
       }
       renderPortalView();
+      requestAnimationFrame(() => scrollToCreatePanelForm(panelId));
     });
   });
 

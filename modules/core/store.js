@@ -144,8 +144,10 @@ export let state = {
   /** Tras render, rellena el formulario colapsable de tarifa por trayecto (edición desde tabla). */
   pendingRouteRateEditKey: null,
   calendarFocus: null,
-  /** Vista del calendario de transporte: `month` | `week` | `day`. */
+  /** Vista del calendario de transporte: `month` | `week` | `day` | `resources`. */
   calendarViewMode: "month",
+  /** Agrupación en vista recursos: `auto` | `driver` | `vehicle`. */
+  calendarResourceGroup: "auto",
   calendarFilters: { driver: "", vehicle: "", status: "", kind: "" },
   payrollFilters: {
     period: "all",

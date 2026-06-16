@@ -2,6 +2,165 @@
  * Transporte · Calendario (`transport-calendar`): HTML y listeners del módulo.
  * Carga con `defer` después de `app.js`.
  */
+
+function calendarTripRangeFn(request) {
+  if (typeof AntaresViajesDomain !== "undefined" && AntaresViajesDomain.tripWindowRangeFromTransportRequest) {
+    return AntaresViajesDomain.tripWindowRangeFromTransportRequest(request);
+  }
+  const pickup = String(request?.trip?.etaPickup || request?.pickupAt || "").trim();
+  const delivery = String(request?.trip?.etaDelivery || request?.etaDelivery || pickup).trim();
+  const start = new Date(pickup).getTime();
+  const endRaw = new Date(delivery).getTime();
+  if (!Number.isFinite(start)) return null;
+  const end = Number.isFinite(endRaw) && endRaw > start ? endRaw : start + 60 * 60 * 1000;
+  return { start, end };
+}
+
+function calendarTripStatusSlug(request) {
+  const raw = String(request?.status || "").trim();
+  if (typeof slugStatus === "function") return slugStatus(raw);
+  return raw.toLowerCase().replace(/\s+/g, "_");
+}
+
+function buildCalendarResourceTimelineHtml({ allEvents, driversList, vehiclesList, filters, focus, today }) {
+  const Cal = typeof AntaresCalendarDomain !== "undefined" ? AntaresCalendarDomain : null;
+  const resourceGroup = Cal?.resolveCalendarResourceGroup
+    ? Cal.resolveCalendarResourceGroup(filters, state.calendarResourceGroup || "auto")
+    : String(filters.vehicle || "").trim()
+      ? "vehicle"
+      : "driver";
+
+  const layout = Cal?.buildResourceTimelineLayout
+    ? Cal.buildResourceTimelineLayout({
+        events: allEvents,
+        drivers: driversList,
+        vehicles: vehiclesList,
+        focusDate: focus,
+        resourceGroup,
+        filters,
+        opts: { tripRangeFn: calendarTripRangeFn }
+      })
+    : { resources: [], blocks: [], hourLabels: [], totalHeightPx: 0, isToday: false, nowTopPx: null, tripCount: 0 };
+
+  const { resources, blocks, hourLabels, totalHeightPx, isToday, nowTopPx, tripCount } = layout;
+  const groupLabel = resourceGroup === "vehicle" ? "camión" : "conductor";
+  const resourceGroupUi = String(state.calendarResourceGroup || "auto");
+
+  if (!resources.length) {
+    return `<div class="cal-timeline-empty">
+      <div class="cal-timeline-empty-icon">${IC.calendar || ""}</div>
+      <h3>Sin programación para este día</h3>
+      <p class="muted">No hay viajes asignados${filters.driver || filters.vehicle ? " con los filtros actuales" : ""} en la fecha seleccionada.</p>
+      <p class="muted cal-timeline-empty-hint">Prueba otro día o ajusta los filtros de conductor / camión.</p>
+    </div>`;
+  }
+
+  const timeGutter = hourLabels
+    .map(
+      (slot) =>
+        `<div class="cal-timeline-time-slot" style="top:${slot.topPx}px"><span>${escapeHtml(slot.label)}</span></div>`
+    )
+    .join("");
+
+  const hourBands = hourLabels
+    .map(
+      (slot, i) =>
+        `<div class="cal-timeline-hour-band${i % 2 ? " cal-timeline-hour-band--alt" : ""}" style="top:${slot.topPx}px;height:${layout.slotHeightPx}px"></div>`
+    )
+    .join("");
+
+  const resourceHeaders = resources
+    .map((res, colIndex) => {
+      const count = blocks.filter((b) => b.resourceId === res.id).length;
+      const icon = res.kind === "vehicle" ? IC.truck : IC.user;
+      return `<div class="cal-timeline-resource-head" style="--res-accent:${escapeAttr(res.accent)};grid-column:${colIndex + 2};grid-row:1">
+        <div class="cal-timeline-avatar" aria-hidden="true">
+          <span class="cal-timeline-avatar-letter">${escapeHtml(res.initials || "?")}</span>
+        </div>
+        <div class="cal-timeline-resource-meta">
+          <strong title="${escapeAttr(res.label)}">${escapeHtml(res.label)}</strong>
+          <span class="muted">${escapeHtml(res.subtitle || (res.kind === "vehicle" ? "Vehículo" : "Conductor"))}</span>
+        </div>
+        <span class="cal-timeline-resource-count" title="Viajes del día">${count}</span>
+        <span class="cal-timeline-resource-kind" aria-hidden="true">${icon || ""}</span>
+      </div>`;
+    })
+    .join("");
+
+  const resourceColumns = resources
+    .map((res, colIndex) => {
+      const colBlocks = blocks
+        .filter((b) => b.resourceId === res.id)
+        .map((b) => {
+          const evt = b.evt;
+          const range = calendarTripRangeFn(evt.request) || {
+            start: evt.start.getTime(),
+            end: evt.start.getTime() + 60 * 60 * 1000
+          };
+          const timeStart = new Date(range.start).toLocaleTimeString("es-CO", {
+            hour: "2-digit",
+            minute: "2-digit"
+          });
+          const timeEnd = new Date(range.end).toLocaleTimeString("es-CO", {
+            hour: "2-digit",
+            minute: "2-digit"
+          });
+          const statusSlug =
+            evt.kind === "trip" ? calendarTripStatusSlug(evt.request) : String(evt.kind || "trip");
+          const metaLine =
+            evt.kind === "trip" && evt.request?.trip
+              ? `${evt.request.trip.route || formatRoute(evt.request)}`
+              : String(evt.subtitle || "");
+          const compact = b.heightPx < 52;
+          return `<button type="button"
+            class="cal-timeline-block ${evt.dot} cal-timeline-block--${escapeAttr(evt.kind)} cal-timeline-block--status-${escapeAttr(statusSlug)}${b.clipped ? " cal-timeline-block--clipped" : ""}${compact ? " cal-timeline-block--compact" : ""}"
+            style="top:${b.topPx}px;height:${b.heightPx}px;left:calc(${b.leftPct}% + 4px);width:calc(${b.widthPct}% - 8px);--block-accent:${escapeAttr(res.accent)}"
+            data-action="cal-event" data-kind="${escapeAttr(evt.kind)}" data-id="${escapeAttr(evt.id)}"
+            title="${escapeAttr(`${evt.title} · ${timeStart} – ${timeEnd}`)}">
+            <span class="cal-timeline-block-time">${escapeHtml(timeStart)}${compact ? "" : ` – ${escapeHtml(timeEnd)}`}</span>
+            <strong class="cal-timeline-block-title">${escapeHtml(String(evt.title || "-"))}</strong>
+            ${compact ? "" : `<span class="cal-timeline-block-sub">${escapeHtml(metaLine)}</span>`}
+          </button>`;
+        })
+        .join("");
+      return `<div class="cal-timeline-col" style="--res-accent:${escapeAttr(res.accent)};grid-column:${colIndex + 2};grid-row:2">
+        <div class="cal-timeline-col-bands" style="height:${totalHeightPx}px">${hourBands}</div>
+        <div class="cal-timeline-col-events" style="height:${totalHeightPx}px">${colBlocks}</div>
+      </div>`;
+    })
+    .join("");
+
+  const nowLine =
+    isToday && nowTopPx != null
+      ? `<div class="cal-timeline-now" style="top:${nowTopPx}px" aria-hidden="true">
+          <span class="cal-timeline-now-label">Ahora</span>
+          <span class="cal-timeline-now-line"></span>
+        </div>`
+      : "";
+
+  const resourceGroupToggle = `<div class="cal-resource-group-toggle" role="group" aria-label="Agrupar programación por">
+    <button type="button" class="btn btn-sm btn-action${resourceGroupUi === "auto" ? " is-active" : ""}" data-action="cal-resource-group" data-group="auto">Auto</button>
+    <button type="button" class="btn btn-sm btn-action${resourceGroupUi === "driver" ? " is-active" : ""}" data-action="cal-resource-group" data-group="driver">${IC.user || ""} Conductor</button>
+    <button type="button" class="btn btn-sm btn-action${resourceGroupUi === "vehicle" ? " is-active" : ""}" data-action="cal-resource-group" data-group="vehicle">${IC.truck || ""} Camión</button>
+  </div>`;
+
+  return `<div class="cal-timeline-wrap">
+    <div class="cal-timeline-meta">
+      ${resourceGroupToggle}
+      <span class="cal-timeline-meta-pill">${resources.length} ${resources.length === 1 ? groupLabel : groupLabel + "es"} · ${tripCount} viaje${tripCount === 1 ? "" : "s"}</span>
+    </div>
+    <div class="cal-timeline-scroll" tabindex="0" aria-label="Programación por ${groupLabel}">
+      <div class="cal-timeline-grid" style="--cal-slot-h:${layout.slotHeightPx}px;--cal-timeline-h:${totalHeightPx}px;--cal-cols:${resources.length}">
+        <div class="cal-timeline-corner" aria-hidden="true"></div>
+        <div class="cal-timeline-resources-header">${resourceHeaders}</div>
+        <div class="cal-timeline-times" style="height:${totalHeightPx}px">${timeGutter}</div>
+        <div class="cal-timeline-columns">${resourceColumns}</div>
+        ${nowLine}
+      </div>
+    </div>
+  </div>`;
+}
+
 function transportCalendarHtml() {
   const filters = state.calendarFilters || { driver: "", vehicle: "", status: "", kind: "" };
   const allTrips = reqRead()
@@ -92,7 +251,8 @@ function transportCalendarHtml() {
   today.setHours(0, 0, 0, 0);
 
   const viewRaw = state.calendarViewMode;
-  const view = viewRaw === "week" || viewRaw === "day" ? viewRaw : "month";
+  const view =
+    viewRaw === "week" || viewRaw === "day" || viewRaw === "resources" ? viewRaw : "month";
 
   const year = focus.getFullYear();
   const month = focus.getMonth();
@@ -176,10 +336,35 @@ function transportCalendarHtml() {
     periodTitle = rangeStr.charAt(0).toUpperCase() + rangeStr.slice(1);
   } else {
     const d = new Date(focus.getFullYear(), focus.getMonth(), focus.getDate());
-    cells.push(buildCellFromDate(d, false));
-    const dayLong = d.toLocaleDateString("es-CO", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    if (view === "day") cells.push(buildCellFromDate(d, false));
+    const dayLong = d.toLocaleDateString("es-CO", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric"
+    });
     periodTitle = dayLong.charAt(0).toUpperCase() + dayLong.slice(1);
   }
+
+  const resourceTimelineHtml =
+    view === "resources"
+      ? buildCalendarResourceTimelineHtml({
+          allEvents,
+          driversList,
+          vehiclesList,
+          filters,
+          focus,
+          today
+        })
+      : "";
+
+  const mainCalendarHtml =
+    view === "resources"
+      ? `<div class="calendar-grid calendar-grid--timeline">${resourceTimelineHtml}</div>`
+      : `<div class="calendar-grid">
+      ${view === "day" ? "" : `<div class="cal-weekdays">${weekdayHeaders}</div>`}
+      <div class="cal-days cal-days--view-${view}">${cells.join("")}</div>
+    </div>`;
 
   const todayKey = `${today.getFullYear()}-${today.getMonth()}-${today.getDate()}`;
   const todayEvents = eventsByDay.get(todayKey) || [];
@@ -240,6 +425,7 @@ function transportCalendarHtml() {
         <button type="button" class="btn btn-action btn-sm${view === "month" ? " is-active" : ""}" data-action="cal-view" data-view="month">Mes</button>
         <button type="button" class="btn btn-action btn-sm${view === "week" ? " is-active" : ""}" data-action="cal-view" data-view="week">Semana</button>
         <button type="button" class="btn btn-action btn-sm${view === "day" ? " is-active" : ""}" data-action="cal-view" data-view="day">Día</button>
+        <button type="button" class="btn btn-action btn-sm${view === "resources" ? " is-active" : ""}" data-action="cal-view" data-view="resources">${IC.activity || ""} Recursos</button>
       </div>`;
 
   const calendarShell = `<section class="calendar-shell calendar-shell--view-${view}" data-cal-view="${view}">
@@ -265,12 +451,10 @@ function transportCalendarHtml() {
       <span class="cal-legend-item"><span class="cal-dot dot-trip"></span>Viajes</span>
       <span class="cal-legend-item"><span class="cal-dot dot-interview"></span>Entrevistas</span>
       <span class="cal-legend-item"><span class="cal-dot dot-absence"></span>Novedades</span>
+      ${view === "resources" ? '<span class="cal-legend-item cal-legend-item--hint muted">Bloques proporcionales a la ventana de recogida → entrega</span>' : ""}
     </div>
-    <div class="calendar-grid">
-      ${view === "day" ? "" : `<div class="cal-weekdays">${weekdayHeaders}</div>`}
-      <div class="cal-days cal-days--view-${view}">${cells.join("")}</div>
-    </div>
-    <div class="calendar-side-grid">
+    ${mainCalendarHtml}
+    <div class="calendar-side-grid${view === "resources" ? " calendar-side-grid--compact" : ""}">
       ${pcardWrap("clock", "Hoy", `${todayEvents.length} viajes programados`, `<div class="cal-day-list">${todayList}</div>`)}
       ${pcardWrapPro("calendar", "Próximas programaciones", upcoming.length + " viajes", `<div class="cal-upcoming-list">${upcomingList}</div>`)}
     </div>
@@ -307,6 +491,9 @@ function transportCalendarHtml() {
           const key = String(select.name || "");
           if (!key) return;
           state.calendarFilters[key] = String(select.value || "");
+          if ((key === "driver" || key === "vehicle") && state.calendarFilters[key]) {
+            state.calendarViewMode = "resources";
+          }
           renderPortalView();
         });
       });
@@ -326,7 +513,12 @@ function transportCalendarHtml() {
           ? new Date(state.calendarFocus)
           : new Date();
         base.setHours(12, 0, 0, 0);
-        const v = state.calendarViewMode === "week" || state.calendarViewMode === "day" ? state.calendarViewMode : "month";
+        const v =
+          state.calendarViewMode === "week" ||
+          state.calendarViewMode === "day" ||
+          state.calendarViewMode === "resources"
+            ? state.calendarViewMode
+            : "month";
         if (v === "month") {
           base.setMonth(base.getMonth() + step);
         } else if (v === "week") {
@@ -342,7 +534,17 @@ function transportCalendarHtml() {
     nodes.viewRoot.querySelectorAll("[data-action='cal-view']").forEach((btn) => {
       btn.addEventListener("click", () => {
         const next = String(btn.dataset.view || "month");
-        state.calendarViewMode = next === "week" || next === "day" ? next : "month";
+        state.calendarViewMode =
+          next === "week" || next === "day" || next === "resources" ? next : "month";
+        renderPortalView();
+      });
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='cal-resource-group']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const group = String(btn.dataset.group || "auto");
+        state.calendarResourceGroup =
+          group === "driver" || group === "vehicle" ? group : "auto";
         renderPortalView();
       });
     });
@@ -411,6 +613,13 @@ function transportCalendarHtml() {
         });
       });
     });
+
+    const timelineScroll = nodes.viewRoot.querySelector(".cal-timeline-scroll");
+    const nowMarker = nodes.viewRoot.querySelector(".cal-timeline-now");
+    if (timelineScroll && nowMarker) {
+      const top = parseFloat(nowMarker.style.top || "0") || 0;
+      timelineScroll.scrollTop = Math.max(0, top - timelineScroll.clientHeight * 0.35);
+    }
   }
 
   window.__portalModuleAfterRender = window.__portalModuleAfterRender || {};
