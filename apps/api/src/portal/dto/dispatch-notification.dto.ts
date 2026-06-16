@@ -2,6 +2,9 @@ import { Transform } from "class-transformer";
 import { IsArray, IsIn, IsOptional, IsString, IsUUID, MaxLength, MinLength } from "class-validator";
 import { transformStripMultiline, transformStripUpper } from "../../common/normalize-db-text";
 
+const NOTIFICATION_CATEGORIES = ["request", "authorization", "hr", "system"] as const;
+const NOTIFICATION_ENTITY_TYPES = ["request", "trip", "authorization", "employee", "payroll"] as const;
+
 export class DispatchNotificationDto {
   @Transform(transformStripUpper)
   @IsString()
@@ -25,4 +28,24 @@ export class DispatchNotificationDto {
   @IsOptional()
   @IsIn(["admins", "hr"])
   audience?: "admins" | "hr";
+
+  /** Categoría para filtros en bandeja (opcional). */
+  @IsOptional()
+  @IsIn(NOTIFICATION_CATEGORIES)
+  category?: (typeof NOTIFICATION_CATEGORIES)[number];
+
+  /** Enlace hash del portal, p. ej. `#portal/requests`. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  deepLink?: string;
+
+  @IsOptional()
+  @IsIn(NOTIFICATION_ENTITY_TYPES)
+  entityType?: (typeof NOTIFICATION_ENTITY_TYPES)[number];
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  entityId?: string;
 }

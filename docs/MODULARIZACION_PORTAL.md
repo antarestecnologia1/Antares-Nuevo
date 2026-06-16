@@ -125,8 +125,22 @@ Las vistas en `modules/app/*.js` usan imports ES (`data-io`, `config`, `utils`, 
 - **CSS:** `styles/notifications-module.css` (alcance `.notifications-studio` + `.sidebar-notif-group`).
 - **Sidebar:** prefs Timbre/Avisos fuera del botón de bandeja (`index.html`); handler en dominio, no en `events.js`.
 
-## FASE 15 — Dominios de soporte (vehículos, conductores, calendario, usuarios, autorizaciones, dashboard)
+## FASE 15 — Dominios de soporte
 
 - **Archivos:** `modules/domain/{vehicles,drivers,calendar,users,authorizations,dashboard}.domain.js`.
-- **Barrels:** `modules/{vehicles,drivers,trips,notifications,users,payroll}/index.js` delegan a dominios ES.
-- **HTML partido:** `gestion-humana-html.js`, `contratacion-html.js`, `solicitudes-html.js` (listeners en archivos hermanos).
+- **Barrels:** `modules/{vehicles,drivers,trips,notifications,users,payroll}/index.js`.
+- **HTML partido:** `gestion-humana-html.js`, `contratacion-html.js`, `solicitudes-html.js`.
+
+## FASE 16 — Modales extraídos del runtime
+
+- **Transporte:** `modules/app/portal-transport-modals.js`.
+- **RRHH:** `modules/app/portal-rrhh-modals.js`.
+- **Script:** `scripts/extract-portal-modals.mjs` (re-extraer tras cambios en runtime).
+- **Carga:** `index.html` inmediatamente después de `portal-runtime.js`.
+
+## FASE 17 — API notificaciones (metadatos)
+
+- **SQL:** `BD/postgres/tablas/32_notificaciones_metadata.sql`.
+- **DTO:** `category`, `deepLink`, `entityType`, `entityId` en `DispatchNotificationDto`.
+- **Servicio:** persistencia y lectura en `portal.service.ts`.
+

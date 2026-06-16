@@ -169,6 +169,10 @@
   function viewDashboard() {
     const user = currentUser();
     const list = getVisibleRequestsForUser(user);
+    const dashKpis =
+      typeof AntaresDashboardDomain !== "undefined" && typeof AntaresDashboardDomain.computeDashboardKpis === "function"
+        ? AntaresDashboardDomain.computeDashboardKpis()
+        : null;
     const byThermoking = {};
     list.forEach((r) => {
       const key = requestTermokingClientLabel(r);
@@ -300,6 +304,18 @@
         <span class="ops-dash-kpi-value">${completedToday}</span>
         <span class="ops-dash-kpi-label">Viajes cumplidos</span>
       </div>
+      ${
+        dashKpis
+          ? `<div class="ops-dash-kpi ops-dash-kpi--secondary" title="Totales en el sistema">
+        <span class="ops-dash-kpi-value">${dashKpis.activeTrips}</span>
+        <span class="ops-dash-kpi-label">Activos (global)</span>
+      </div>
+      <div class="ops-dash-kpi ops-dash-kpi--secondary" title="Solicitudes pendientes de aprobación">
+        <span class="ops-dash-kpi-value">${dashKpis.pendingRequests}</span>
+        <span class="ops-dash-kpi-label">Pendientes</span>
+      </div>`
+          : ""
+      }
       <div class="ops-dash-kpi ops-dash-kpi--ring">
         <div class="ops-dash-ring" style="--pct:${compliancePct}">
           <svg viewBox="0 0 36 36" aria-hidden="true">

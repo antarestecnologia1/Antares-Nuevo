@@ -335,6 +335,20 @@ function historyHtml() {
         state.historyRenderLimit = HISTORY_RENDER_WINDOW;
         state.historyFleetRenderLimit = HISTORY_RENDER_WINDOW;
         state.historyAuditRenderLimit = HISTORY_RENDER_WINDOW;
+        if (
+          switchModuleTabPanels({
+            root: nodes.viewRoot,
+            action: "history-workspace",
+            activeValue: next,
+            valueAttr: "workspace",
+            panelAttr: "data-history-panel",
+            tabActiveClass: "is-active"
+          })
+        ) {
+          const shell = nodes.viewRoot.querySelector("[data-history-workspace]");
+          if (shell) shell.setAttribute("data-history-workspace", next);
+          return;
+        }
         renderPortalView();
       });
     });
@@ -353,6 +367,18 @@ function historyHtml() {
         if (!["fuel", "technical"].includes(next)) return;
         state.historyUi = { ...(state.historyUi || { workspace: "fleet", quickFilter: "all" }), workspace: "fleet", fleetTab: next };
         state.historyFleetRenderLimit = HISTORY_RENDER_WINDOW;
+        if (
+          switchModuleTabPanels({
+            root: nodes.viewRoot,
+            action: "history-fleet-tab",
+            activeValue: next,
+            valueAttr: "fleetTab",
+            panelAttr: "data-fleet-panel",
+            tabActiveClass: "is-active"
+          })
+        ) {
+          return;
+        }
         renderPortalView();
       });
     });

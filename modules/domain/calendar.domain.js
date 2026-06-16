@@ -77,6 +77,36 @@ function readPortalRequestsFallback() {
   return read(KEYS.requests, []);
 }
 
+/** Convierte eventos de dominio al formato UI del calendario (con `Date` y `dot`). */
+export function calendarEventsToUiRows(events, { reqRead } = {}) {
+  const readReq =
+    typeof reqRead === "function"
+      ? reqRead
+      : typeof globalThis.reqRead === "function"
+        ? globalThis.reqRead
+        : () => [];
+  const dotByKind = { trip: "dot-trip", interview: "dot-interview", absence: "dot-absence" };
+  return (Array.isArray(events) ? events : [])
+    .map((ev) => {
+      const ts = new Date(String(ev.start || "")).getTime();
+      if (!Number.isFinite(ts)) return null;
+      const kind = String(ev.kind || "trip");
+      const row = {
+        kind,
+        id: String(ev.id || "").replace(/^(trip|interview|absence)-/, "") || String(ev.requestId || ev.interviewId || ev.absenceId || ""),
+        start: new Date(ts),
+        dot: dotByKind[kind] || "dot-trip",
+        title: String(ev.title || "Evento"),
+        subtitle: String(ev.subtitle || "")
+      };
+      if (kind === "trip" && ev.requestId) {
+        row.request = readReq().find((r) => String(r.id) === String(ev.requestId)) || null;
+      }
+      return row;
+    })
+    .filter(Boolean);
+}
+
 export function filterCalendarEvents(events, filters = {}) {
   const rows = Array.isArray(events) ? events : [];
   const driver = String(filters.driver || "").trim().toLowerCase();

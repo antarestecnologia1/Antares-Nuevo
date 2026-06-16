@@ -374,7 +374,9 @@ export function canDeleteVehicle(user) {
 export function canAccessAuthorizationSection(user, sectionKey) {
   if (!user) return false;
   if (hasAuthorizationManageAll(user)) return true;
-  const perm = AUTHORIZATION_SECTION_PERMISSIONS[String(sectionKey || "")];
+  const key = String(sectionKey || "");
+  if (key === "workforce" && canManagePayrollModule(user)) return true;
+  const perm = AUTHORIZATION_SECTION_PERMISSIONS[key];
   return perm ? hasPermission(user, perm) : false;
 }
 
@@ -412,6 +414,8 @@ export function canApproveInternalAuthorization(user, approvalType) {
   const u = user || currentUser();
   if (!u) return false;
   if (isAdminActor(u) || hasAuthorizationManageAll(u)) return true;
+  const type = String(approvalType || "");
+  if ((type === "create_employee" || type === "update_employee") && canManagePayrollModule(u)) return true;
   const sectionKey = approvalTypeToSectionKey(approvalType);
   if (sectionKey === "misc") return false;
   return canAccessAuthorizationSection(u, sectionKey);
@@ -430,6 +434,11 @@ export function canEditFleetDriverAsAdmin(user) {
 export function canManageHiringModule(user) {
   const actor = user || currentUser();
   return isAdminActor(actor) || hasPermission(actor, PERMISSIONS.HIRING_MANAGE);
+}
+
+export function canManagePayrollModule(user) {
+  const actor = user || currentUser();
+  return isAdminActor(actor) || hasPermission(actor, PERMISSIONS.PAYROLL_MANAGE);
 }
 
 export function canPerformPermissionGatedAction(user, action, trigger) {

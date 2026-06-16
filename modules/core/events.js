@@ -666,23 +666,6 @@ function bindDynamicEvents() {
     });
   });
 
-  nodes.viewRoot.querySelectorAll("[data-action='hr-workspace-tab'][data-module='payroll']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const tab = String(btn.dataset.tab || "");
-      if (!tab) return;
-      const ws = normalizeHrWorkspace("payroll", tab);
-      if (!HR_VALID_PAYROLL_WS.has(ws)) return;
-      state.payrollUi = { ...(state.payrollUi || {}), workspace: ws };
-      persistHrWorkspace("payroll", ws);
-      if (ws === "data" && portalCanRefreshFromApi()) {
-        void applyPortalBootstrapFromApi().then((ok) => {
-          if (ok) scheduleRenderPortalView();
-        });
-      }
-      renderPortalView();
-    });
-  });
-
   nodes.viewRoot.querySelectorAll("[data-action='toggle-admin-panel']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const panel = String(btn.dataset.panel || "");
@@ -786,6 +769,17 @@ function bindDynamicEvents() {
             scheduleRenderPortalView();
           }
         });
+        return;
+      }
+      if (
+        switchModuleTabPanels({
+          root: nodes.viewRoot,
+          action: "admin-users-section",
+          activeValue: section,
+          panelAttr: "data-admin-users-panel",
+          tabActiveClass: "is-active"
+        })
+      ) {
         return;
       }
       renderPortalView();

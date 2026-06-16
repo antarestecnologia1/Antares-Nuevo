@@ -435,6 +435,22 @@
         if (ws !== "operate" && ws !== "data") return;
         state.requestsUi = { ...(state.requestsUi || {}), workspace: ws };
         if (typeof persistHrWorkspace === "function") persistHrWorkspace("requests", ws);
+        if (
+          typeof switchHrWorkspacePanels === "function" &&
+          switchHrWorkspacePanels({
+            root: nodes.viewRoot,
+            moduleId: "requests",
+            workspace: ws,
+            panelAttr: "data-requests-panel"
+          })
+        ) {
+          if (ws === "data" && typeof portalCanRefreshFromApi === "function" && portalCanRefreshFromApi()) {
+            void applyPortalBootstrapFromApi().then((ok) => {
+              if (ok && typeof scheduleRenderPortalView === "function") scheduleRenderPortalView();
+            });
+          }
+          return;
+        }
         if (ws === "data" && typeof portalCanRefreshFromApi === "function" && portalCanRefreshFromApi()) {
           void applyPortalBootstrapFromApi().then((ok) => {
             if (ok && typeof scheduleRenderPortalView === "function") scheduleRenderPortalView();

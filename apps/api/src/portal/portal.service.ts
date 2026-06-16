@@ -1019,8 +1019,17 @@ export class PortalService implements OnModuleInit {
            ON notificaciones (audiencia, fecha_creacion DESC)
            WHERE audiencia IS NOT NULL`
       );
+      await this.pool.query(`ALTER TABLE notificaciones ADD COLUMN IF NOT EXISTS categoria VARCHAR(32)`);
+      await this.pool.query(`ALTER TABLE notificaciones ADD COLUMN IF NOT EXISTS deep_link VARCHAR(255)`);
+      await this.pool.query(`ALTER TABLE notificaciones ADD COLUMN IF NOT EXISTS tipo_entidad VARCHAR(32)`);
+      await this.pool.query(`ALTER TABLE notificaciones ADD COLUMN IF NOT EXISTS id_entidad VARCHAR(64)`);
+      await this.pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_notificaciones_categoria_fecha
+           ON notificaciones (categoria, fecha_creacion DESC)
+           WHERE categoria IS NOT NULL`
+      );
       await this.pruneDuplicateNotifications();
-      this.logger.log("notificaciones: columna audiencia verificada.");
+      this.logger.log("notificaciones: esquema (audiencia + metadatos) verificado.");
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.warn(`ensureNotificacionesSchema fallo no fatal: ${sanitizeLogText(msg)}`);
@@ -1093,6 +1102,10 @@ export class PortalService implements OnModuleInit {
     body: string;
     audience: string | null;
     windowSeconds?: number;
+    category?: string | null;
+    deepLink?: string | null;
+    entityType?: string | null;
+    entityId?: string | null;
   }): Promise<boolean> {
     const title = String(params.title || "").trim();
     const body = String(params.body || "").trim();
@@ -1115,8 +1128,18 @@ export class PortalService implements OnModuleInit {
     );
     if ((recent.rowCount ?? 0) > 0) return false;
     await this.pool.query(
-      `INSERT INTO notificaciones (id_usuario, titulo, cuerpo, audiencia) VALUES ($1::uuid, $2, $3, $4)`,
-      [userId, title, body, audience]
+      `INSERT INTO notificaciones (id_usuario, titulo, cuerpo, audiencia, categoria, deep_link, tipo_entidad, id_entidad)
+       VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        userId,
+        title,
+        body,
+        audience,
+        params.category ? String(params.category).trim() : null,
+        params.deepLink ? String(params.deepLink).trim() : null,
+        params.entityType ? String(params.entityType).trim() : null,
+        params.entityId ? String(params.entityId).trim() : null
+      ]
     );
     return true;
   }
@@ -1785,7 +1808,14 @@ export class PortalService implements OnModuleInit {
 
   private canReviewApprovalType(permissionSet: Set<string>, approvalType: string): boolean {
     if (permissionSet.has("authorizations_manage")) return true;
-    const perm = this.authorizationTypePermissions[String(approvalType || "").trim()];
+    const type = String(approvalType || "").trim();
+    if (
+      (type === "create_employee" || type === "update_employee") &&
+      permissionSet.has("payroll_manage")
+    ) {
+      return true;
+    }
+    const perm = this.authorizationTypePermissions[type];
     return Boolean(perm && permissionSet.has(perm));
   }
 
@@ -4522,11 +4552,26 @@ export class PortalService implements OnModuleInit {
   async dispatchNotification(
     actorUserId: string,
     actorRole: JwtRole,
-    dto: { title: string; body: string; userIds?: string[]; audience?: "admins" | "hr" }
+    dto: {
+      title: string;
+      body: string;
+      userIds?: string[];
+      audience?: "admins" | "hr";
+      category?: string;
+      deepLink?: string;
+      entityType?: string;
+      entityId?: string;
+    }
   ) {
     const title = String(dto.title || "").trim();
     const body = String(dto.body || "").trim();
     if (!title || !body) throw new BadRequestException("title y body son obligatorios");
+    const meta = {
+      category: dto.category ? String(dto.category).trim() : null,
+      deepLink: dto.deepLink ? String(dto.deepLink).trim() : null,
+      entityType: dto.entityType ? String(dto.entityType).trim() : null,
+      entityId: dto.entityId ? String(dto.entityId).trim() : null
+    };
 
     if (dto.audience === "admins" || dto.audience === "hr") {
       if (dto.audience === "hr" && !this.isAdmin(actorRole)) {
@@ -4536,7 +4581,8 @@ export class PortalService implements OnModuleInit {
         userId: null,
         title,
         body,
-        audience: dto.audience
+        audience: dto.audience,
+        ...meta
       });
       return { ok: true, count: inserted ? 1 : 0 };
     }
@@ -4576,7 +4622,8 @@ export class PortalService implements OnModuleInit {
         userId: uid,
         title,
         body,
-        audience: null
+        audience: null,
+        ...meta
       });
       if (ok) inserted += 1;
     }
@@ -4767,6 +4814,8 @@ export class PortalService implements OnModuleInit {
     const r = await this.pool.query(
       `SELECT id::text, id_usuario::text AS "userId", audiencia AS audience,
               titulo AS title, cuerpo AS body,
+              categoria AS category, deep_link AS "deepLink",
+              tipo_entidad AS "entityType", id_entidad AS "entityId",
               fecha_lectura AS readAt, fecha_creacion AS "createdAt"
        FROM notificaciones
        WHERE id_usuario = $1::uuid
@@ -4782,6 +4831,10 @@ export class PortalService implements OnModuleInit {
       audience: n.audience ?? null,
       title: n.title,
       body: n.body,
+      category: n.category ?? null,
+      deepLink: n.deepLink ?? null,
+      entityType: n.entityType ?? null,
+      entityId: n.entityId ?? null,
       readAt: n.readAt ? new Date(n.readAt).toISOString() : null,
       createdAt: n.createdAt ? new Date(n.createdAt).toISOString() : new Date().toISOString()
     }));

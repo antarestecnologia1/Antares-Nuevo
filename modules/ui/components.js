@@ -585,3 +585,100 @@ export function directoryOpsHtml(headline, detail = "", tone = "neutral") {
     : "";
   return `<div class="directory-card__ops${toneClass}"><span class="directory-card__ops-dot" aria-hidden="true"></span><div class="directory-card__ops-body"><strong>${escapeHtml(title)}</strong>${detailHtml}</div></div>`;
 }
+
+/**
+ * Alterna pestañas/paneles sin re-render completo (evita saltos de layout y clics fallidos).
+ * @returns {boolean}
+ */
+export function switchModuleTabPanels({
+  root,
+  action,
+  activeValue,
+  valueAttr = "section",
+  panelAttr,
+  panelAttrs,
+  tabSelector,
+  tabActiveClass = "is-active",
+  panelHiddenClass = "hidden"
+}) {
+  if (!root || activeValue == null || activeValue === "") return false;
+  const attr = String(valueAttr || "section").replace(/[^a-z0-9_-]/gi, "");
+  const dataAttr = `data-${attr}`;
+  const tabSel = tabSelector || `[data-action="${action}"]`;
+  const tabs = [...root.querySelectorAll(tabSel)];
+  if (!tabs.length) return false;
+
+  let matchedTab = false;
+  tabs.forEach((btn) => {
+    const val = btn.getAttribute(dataAttr) ?? btn.dataset[attr];
+    const active = String(val) === String(activeValue);
+    btn.classList.toggle(tabActiveClass, active);
+    btn.setAttribute("aria-selected", active ? "true" : "false");
+    if (typeof btn.setAttribute === "function" && btn.hasAttribute("aria-pressed")) {
+      btn.setAttribute("aria-pressed", active ? "true" : "false");
+    }
+    if (active) matchedTab = true;
+  });
+  if (!matchedTab) return false;
+
+  const panelAttrList = [...(Array.isArray(panelAttrs) ? panelAttrs : []), panelAttr].filter(Boolean);
+  panelAttrList.forEach((name) => {
+    root.querySelectorAll(`[${name}]`).forEach((panel) => {
+      const panelVal = panel.getAttribute(name);
+      const show = String(panelVal) === String(activeValue);
+      panel.classList.toggle(panelHiddenClass, !show);
+      if (show) panel.classList.add("tab-switch-instant");
+    });
+  });
+  return true;
+}
+
+/**
+ * Conmutador Registrar | Consultar sin re-render completo.
+ * @returns {boolean}
+ */
+export function switchHrWorkspacePanels({ root, moduleId, workspace, panelAttr, shellSelector }) {
+  if (!root || !moduleId || !workspace) return false;
+  const attr = panelAttr || `data-${moduleId}-panel`;
+  let foundPanel = false;
+  root.querySelectorAll(`[${attr}]`).forEach((panel) => {
+    const panelWs = panel.getAttribute(attr);
+    const show = panelWs === workspace;
+    panel.classList.toggle("hidden", !show);
+    if (show) {
+      panel.classList.add("tab-switch-instant");
+      foundPanel = true;
+    }
+  });
+  root.querySelectorAll(`[data-action="hr-workspace-tab"][data-module="${moduleId}"]`).forEach((btn) => {
+    const active = btn.dataset.tab === workspace;
+    btn.classList.toggle("is-active", active);
+    btn.setAttribute("aria-selected", active ? "true" : "false");
+  });
+  const shellSel = shellSelector || `[data-hr-workspace], [data-history-workspace]`;
+  const shell = root.querySelector(shellSel);
+  if (shell) {
+    if (shell.hasAttribute("data-hr-workspace")) shell.setAttribute("data-hr-workspace", workspace);
+    if (shell.hasAttribute("data-history-workspace")) shell.setAttribute("data-history-workspace", workspace);
+  }
+  return foundPanel;
+}
+
+/** Expande/colapsa tarjetas de creación en el DOM (sin re-render). */
+export function setCreatePanelExpandedInDom(root, panelId, expanded = true) {
+  if (!root || !panelId) return;
+  root.querySelectorAll("[data-hr-panel]").forEach((card) => {
+    const isTarget = card.getAttribute("data-hr-panel") === panelId;
+    const open = isTarget && expanded;
+    card.classList.toggle("p-card--expanded", open);
+    card.classList.toggle("hr-action-card--open", open);
+    card.classList.toggle("p-card--collapsed", !open);
+    const panel = card.querySelector("[data-create-panel]");
+    if (panel) {
+      panel.classList.toggle("is-open", open);
+      panel.toggleAttribute("hidden", !open);
+    }
+    const toggleBtn = card.querySelector('[data-action="toggle-create-panel"]');
+    if (toggleBtn) toggleBtn.setAttribute("aria-expanded", open ? "true" : "false");
+  });
+}

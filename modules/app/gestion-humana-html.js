@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Gestión humana — HTML de la vista (payrollHtml).
  * Carga con defer antes de gestion-humana.js.
  */
@@ -6,13 +6,13 @@ function payrollHtml() {
   const employees = readArray(KEYS.payrollEmployees);
   const companies = readArray(KEYS.companies);
   const rules = read(KEYS.travelAllowanceRules, { interDepartmentTripAmount: 85000 });
-  const rulesUpdatedLabel = fmtDateOr(rules.updatedAt || rules.createdAt, "â€”");
+  const rulesUpdatedLabel = fmtDateOr(rules.updatedAt || rules.createdAt, "�");
   const positions = getActivePositions();
   const hasActivePositions = positions.length > 0;
   const positionOpts = positions
     .map(
       (p) =>
-        `<option value="${escapeAttr(String(p.id))}">${escapeHtml(String(p.name || ""))} Â· $${parseNum(p.baseSalary).toLocaleString("es-CO")}</option>`
+        `<option value="${escapeAttr(String(p.id))}">${escapeHtml(String(p.name || ""))} · $${parseNum(p.baseSalary).toLocaleString("es-CO")}</option>`
     )
     .join("");
   const companyOptions = companies
@@ -29,7 +29,7 @@ function payrollHtml() {
   const payrollNominaEmployeeOptions = nominaEmployees
     .map(
       (e) =>
-        `<option value="${escapeAttr(String(e.id))}">${escapeHtml(String(e.name || ""))} Â· ${escapeHtml(String(e.idDoc || "â€”"))} Â· ${escapeHtml(String(e.payFrequency || "Mensual"))}</option>`
+        `<option value="${escapeAttr(String(e.id))}">${escapeHtml(String(e.name || ""))} · ${escapeHtml(String(e.idDoc || "�"))} · ${escapeHtml(String(e.payFrequency || "Mensual"))}</option>`
     )
     .join("");
   const absences = readArray(KEYS.hrAbsences);
@@ -88,22 +88,22 @@ function payrollHtml() {
       const monthLabel = formatPayrollPeriodLabel(r.month);
       const pk = String(r.payrollKind || "mensual");
       const typeCell = (() => {
-        if (pk === "terminacion") return '<span class="status status-viaje_asignado">TerminaciÃ³n</span>';
-        const bits = [escapeHtml(payrollRunTypeLabel(r).replace(/^NÃ³mina\s+/i, ""))];
+        if (pk === "terminacion") return '<span class="status status-viaje_asignado">Terminación</span>';
+        const bits = [escapeHtml(payrollRunTypeLabel(r).replace(/^Nómina\s+/i, ""))];
         const orig = String(r.liquidacionOrigin || r.origenLiquidacion || "manual").toLowerCase();
-        if (orig === "masiva") bits.push('<span class="status status-pendiente" title="Generada por liquidaciÃ³n masiva (RRHH)">Masiva</span>');
-        else if (orig === "automatica") bits.push('<span class="status status-pendiente" title="Generada por el servidor segÃºn periodicidad de pago">AutomÃ¡tica</span>');
+        if (orig === "masiva") bits.push('<span class="status status-pendiente" title="Generada por liquidación masiva (RRHH)">Masiva</span>');
+        else if (orig === "automatica") bits.push('<span class="status status-pendiente" title="Generada por el servidor según periodicidad de pago">Automática</span>');
         if (parseNum(r.primaServiciosCop) > 0) bits.push("Prima");
-        if (parseNum(r.interesesCesantiasCop) > 0) bits.push("Int. cesantÃ­as");
+        if (parseNum(r.interesesCesantiasCop) > 0) bits.push("Int. cesantías");
         if (String(r.payrollKind || "mensual") !== "terminacion" && payrollRunHasAbsenceDetail(r, read(KEYS.hrAbsences, []))) {
           bits.push("Ausentismo");
         }
-        return `<span class="muted">${bits.join(" Â· ")}</span>`;
+        return `<span class="muted">${bits.join(" · ")}</span>`;
       })();
       return `<tr data-payroll-state="${state}">
         <td><strong>${escapeHtml(monthLabel)}</strong></td>
         <td>${typeCell}</td>
-        <td>${escapeHtml(String(r.employeeName || "â€”"))}</td>
+        <td>${escapeHtml(String(r.employeeName || "�"))}</td>
         <td>$${parseNum(r.gross).toLocaleString("es-CO")}</td>
         <td>$${parseNum(r.travelAllowance || 0).toLocaleString("es-CO")}</td>
         <td>$${parseNum(r.fuelReimbursement || 0).toLocaleString("es-CO")}</td>
@@ -124,7 +124,7 @@ function payrollHtml() {
   const arlOptions = selectOptionsFromCatalog(CO_CATALOGS.arl);
   const bloodTypeOptions = selectOptionsFromCatalog(CO_CATALOGS.bloodTypes);
   const pensionFundOptions = selectOptionsFromCatalog(CO_CATALOGS.pensionFunds);
-  const docTypeOptions = CO_CATALOGS.documentTypes.map((d) => `<option value="${d}">${d === "CC" ? "CÃ©dula de ciudadanÃ­a" : d === "CE" ? "CÃ©dula de extranjerÃ­a" : d === "PAS" ? "Pasaporte" : d === "PEP" ? "Permiso especial (PEP)" : "Tarjeta de identidad"}</option>`).join("");
+  const docTypeOptions = CO_CATALOGS.documentTypes.map((d) => `<option value="${d}">${d === "CC" ? "Cédula de ciudadanía" : d === "CE" ? "Cédula de extranjería" : d === "PAS" ? "Pasaporte" : d === "PEP" ? "Permiso especial (PEP)" : "Tarjeta de identidad"}</option>`).join("");
   const contractTypeOpts = CO_CATALOGS.contractTypes.map((c) => `<option>${c}</option>`).join("");
   const severanceOpts = selectOptionsFromCatalog(CO_CATALOGS.severanceFunds);
   const compensationOpts = selectOptionsFromCatalog(CO_CATALOGS.compensationFunds);
@@ -140,9 +140,9 @@ function payrollHtml() {
     <div class="hr-form-wizard payroll-wizard" data-hr-wizard="employee" aria-label="Registro de empleado por pasos">
       <header class="payroll-wizard__head">
         <div class="payroll-wizard__head-copy">
-          <span class="payroll-wizard__eyebrow">VinculaciÃ³n laboral</span>
+          <span class="payroll-wizard__eyebrow">Vinculación laboral</span>
           <h3 class="payroll-wizard__title">Expediente del colaborador</h3>
-          <p class="payroll-wizard__desc">IdentificaciÃ³n, contrato, EPS, ARL, fondos de pensiones y cesantÃ­as, datos bancarios y requisitos de conductor segÃºn normativa colombiana.</p>
+          <p class="payroll-wizard__desc">Identificación, contrato, EPS, ARL, fondos de pensiones y cesantías, datos bancarios y requisitos de conductor según normativa colombiana.</p>
         </div>
         <div class="payroll-wizard__progress hr-form-wizard-meta">
           <div class="hr-wizard-progress-track" aria-hidden="true"><span class="hr-wizard-progress-fill" data-hr-wizard-progress-fill style="width:16.666667%"></span></div>
@@ -152,10 +152,10 @@ function payrollHtml() {
       <div class="payroll-wizard__layout">
         <nav class="payroll-wizard__steps hr-form-wizard-dots" role="tablist" aria-label="Secciones del formulario">
           <button type="button" class="hr-form-wizard-dot is-active" data-hr-wizard-dot="0" aria-label="Paso 1: identidad"><span class="hr-dot-num">1</span><span><small>Identidad</small><span class="payroll-wizard__step-hint">CC, datos personales</span></span></button>
-          <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="1" aria-label="Paso 2: contacto"><span class="hr-dot-num">2</span><span><small>Contacto</small><span class="payroll-wizard__step-hint">UbicaciÃ³n y emergencias</span></span></button>
+          <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="1" aria-label="Paso 2: contacto"><span class="hr-dot-num">2</span><span><small>Contacto</small><span class="payroll-wizard__step-hint">Ubicación y emergencias</span></span></button>
           <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="2" aria-label="Paso 3: contrato laboral"><span class="hr-dot-num">3</span><span><small>Contrato</small><span class="payroll-wizard__step-hint">Cargo, salario, plazo</span></span></button>
           <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="3" aria-label="Paso 4: seguridad social"><span class="hr-dot-num">4</span><span><small>Seg. social</small><span class="payroll-wizard__step-hint">EPS, ARL, fondos</span></span></button>
-          <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="4" aria-label="Paso 5: dispersiÃ³n nÃ³mina"><span class="hr-dot-num">5</span><span><small>NÃ³mina</small><span class="payroll-wizard__step-hint">Cuenta bancaria</span></span></button>
+          <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="4" aria-label="Paso 5: dispersión nómina"><span class="hr-dot-num">5</span><span><small>Nómina</small><span class="payroll-wizard__step-hint">Cuenta bancaria</span></span></button>
           <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="5" aria-label="Paso 6: conductor"><span class="hr-dot-num">6</span><span><small>Conductor</small><span class="payroll-wizard__step-hint">Licencia y SIMIT</span></span></button>
         </nav>
         <div class="payroll-wizard__panels">
@@ -171,22 +171,22 @@ function payrollHtml() {
               <span class="profile-avatar-overlay"><span class="profile-avatar-overlay-inner">${IC.upload}<span>Foto</span></span></span>
             </label>
             <input type="file" id="emp-create-avatar-input" name="avatarFile" accept="image/*" class="profile-avatar-file-input" aria-label="Foto del empleado" />
-            <p class="muted hr-employee-avatar-caption">JPG o PNG, opcional. Pulse el cÃ­rculo para elegir archivo.</p>
+            <p class="muted hr-employee-avatar-caption">JPG o PNG, opcional. Pulse el círculo para elegir archivo.</p>
           </div>
         </div>
         <label>${fieldLabel(IC.user, "Nombre completo")}<input name="name" required placeholder="Nombres y apellidos completos" data-antares-restrict="person-name" data-antares-field="person-name" /></label>
         <label>${fieldLabel(IC.file, "Tipo documento")}<select name="documentType" required>${docTypeOptions}</select></label>
         <label>${fieldLabel(IC.badge, "NÂ° documento")}<input name="idDoc" required data-antares-restrict="alnum-doc" data-antares-field="doc" /></label>
         <label>${fieldLabel(IC.cake, "Fecha de nacimiento")}<input type="date" name="birthDate" data-antares-validate-blur="date-iso" /></label>
-        <label>${fieldLabel(IC.users, "GÃ©nero")}<select name="gender">${genderOpts}</select></label>
+        <label>${fieldLabel(IC.users, "Género")}<select name="gender">${genderOpts}</select></label>
         <label>${fieldLabel(IC.heart, "Estado civil")}<select name="maritalStatus">${maritalOpts}</select></label>
         <label>${fieldLabel(IC.activity, "Tipo de sangre (RH)")}<select name="bloodType" required>${bloodTypeOptions}</select></label>
         <label>${fieldLabel(IC.graduation, "Nivel educativo")}<select name="educationLevel">${educationOpts}</select></label>
-        <label>${fieldLabel(IC.heart, "Â¿Sufre alguna enfermedad o condiciÃ³n mÃ©dica?")}<select name="hasIllness" id="emp-has-illness" required>
+        <label>${fieldLabel(IC.heart, "¿Sufre alguna enfermedad o condición médica?")}<select name="hasIllness" id="emp-has-illness" required>
           <option value="no">No</option>
-          <option value="si">SÃ­</option>
+          <option value="si">Sí</option>
         </select></label>
-        <label class="full hidden" id="emp-illness-detail-label">${fieldLabel(IC.alertTriangle, "Â¿CuÃ¡l? (descripciÃ³n libre)")}<textarea name="illnessDescription" id="emp-illness-detail" rows="2" placeholder="Detalle breve para uso mÃ©dico/HR (alergias, condiciones crÃ³nicas, medicaciÃ³n regular, etc.)" data-antares-validate-blur="db-upper-multiline" data-antares-field="db-upper-multiline"></textarea></label>
+        <label class="full hidden" id="emp-illness-detail-label">${fieldLabel(IC.alertTriangle, "¿Cuál? (descripción libre)")}<textarea name="illnessDescription" id="emp-illness-detail" rows="2" placeholder="Detalle breve para uso médico/HR (alergias, condiciones crónicas, medicación regular, etc.)" data-antares-validate-blur="db-upper-multiline" data-antares-field="db-upper-multiline"></textarea></label>
       </div>
     </fieldset>
       </div>
@@ -197,12 +197,12 @@ function payrollHtml() {
       <div class="form-section-grid">
         <label>${fieldLabel(IC.mapPin, "Departamento")}<select name="department" id="employee-department" required><option value="">Seleccione...</option>${departmentOptions()}</select></label>
         <label>${fieldLabel(IC.mapPin, "Ciudad")}<select name="city" id="employee-city" required><option value="">Seleccione un departamento...</option></select></label>
-        <label class="full">${fieldLabel(IC.compass, "DirecciÃ³n de residencia")}<input name="address" required placeholder="Carrera 15 # 6-56, Apto 302, Barrio La Floresta" data-antares-validate-blur="db-upper" data-antares-field="db-upper" /></label>
-        <label>${fieldLabel(IC.phone, "TelÃ©fono celular")}<input name="phone" required placeholder="3001234567" data-antares-restrict="digits" data-antares-validate-blur="phone-loose" /></label>
+        <label class="full">${fieldLabel(IC.compass, "Dirección de residencia")}<input name="address" required placeholder="Carrera 15 # 6-56, Apto 302, Barrio La Floresta" data-antares-validate-blur="db-upper" data-antares-field="db-upper" /></label>
+        <label>${fieldLabel(IC.phone, "Teléfono celular")}<input name="phone" required placeholder="3001234567" data-antares-restrict="digits" data-antares-validate-blur="phone-loose" /></label>
         <label>${fieldLabel(IC.mail, "Correo personal")}<input type="email" name="personalEmail" placeholder="empleado@correo.com" data-antares-validate-blur="email" data-antares-restrict="email-local" /></label>
         <label>${fieldLabel(IC.user, "Contacto de emergencia")}<input name="emergencyContact" required data-antares-restrict="person-name" data-antares-field="person-name" /></label>
-        <label>${fieldLabel(IC.phone, "TelÃ©fono emergencia")}<input name="emergencyPhone" required data-antares-restrict="digits" data-antares-validate-blur="phone-loose" /></label>
-        <label>${fieldLabel(IC.heart, "Parentesco emergencia")}<input name="emergencyRelation" placeholder="CÃ³nyuge, padre, hermano(a)..." data-antares-restrict="person-name" data-antares-field="person-name" /></label>
+        <label>${fieldLabel(IC.phone, "Teléfono emergencia")}<input name="emergencyPhone" required data-antares-restrict="digits" data-antares-validate-blur="phone-loose" /></label>
+        <label>${fieldLabel(IC.heart, "Parentesco emergencia")}<input name="emergencyRelation" placeholder="Cónyuge, padre, hermano(a)..." data-antares-restrict="person-name" data-antares-field="person-name" /></label>
       </div>
     </fieldset>
       </div>
@@ -212,50 +212,50 @@ function payrollHtml() {
       <legend>${IC.briefcase} Datos laborales</legend>
       <div class="form-section-grid">
         <label>${fieldLabel(IC.briefcase, "Empresa")}<select name="companyId" required><option value="">Seleccione</option>${companyOptions}</select></label>
-        <label>${fieldLabel(IC.briefcase, "Cargo (catÃ¡logo)")}<select name="positionId" id="emp-position-select" required${hasActivePositions ? "" : " disabled aria-disabled=\"true\""}><option value="">${hasActivePositions ? "Seleccione un cargo creado en ContrataciÃ³n" : "No hay cargos creados todavÃ­a"}</option>${positionOpts}</select></label>
+        <label>${fieldLabel(IC.briefcase, "Cargo (catálogo)")}<select name="positionId" id="emp-position-select" required${hasActivePositions ? "" : " disabled aria-disabled=\"true\""}><option value="">${hasActivePositions ? "Seleccione un cargo creado en Contratación" : "No hay cargos creados todavía"}</option>${positionOpts}</select></label>
         <p class="full ${hasActivePositions ? "muted" : "emp-position-empty-hint"}" id="emp-position-catalog-hint" style="font-size:0.82rem;line-height:1.45;margin:0">${
           hasActivePositions
-            ? "Solo aparecen los cargos creados y activos en ContrataciÃ³n. Al elegir uno se cargan salario, tipo de contrato, jornada, riesgo ARL y auxilio de transporte."
-            : "Primero cree el cargo en ContrataciÃ³n â€º Cargos. AquÃ­ solo se listan los cargos del catÃ¡logo, no se escriben a mano."
+            ? "Solo aparecen los cargos creados y activos en Contratación. Al elegir uno se cargan salario, tipo de contrato, jornada, riesgo ARL y auxilio de transporte."
+            : "Primero cree el cargo en Contratación ⬺ Cargos. Aquí solo se listan los cargos del catálogo, no se escriben a mano."
         }</p>
         <input type="hidden" name="workSchedule" id="emp-work-schedule" value="" />
         <label>${fieldLabel(IC.activity, "Tipo de contrato")}<select name="contractType" id="emp-contract-type" required>${contractTypeOpts}</select></label>
         <div id="emp-contract-duration-block" class="emp-contract-duration-panel full hidden" style="grid-column:1/-1" hidden aria-hidden="true">
-          <p class="emp-contract-duration-title">${fieldLabel(IC.calendar, "Plazo o duraciÃ³n del contrato")}</p>
-          <p class="muted emp-contract-duration-hint">Obligatorio solo para <strong>tÃ©rmino fijo</strong> o <strong>prestaciÃ³n de servicios</strong>. Elija meses, aÃ±os o texto libre (otro).</p>
+          <p class="emp-contract-duration-title">${fieldLabel(IC.calendar, "Plazo o duración del contrato")}</p>
+          <p class="muted emp-contract-duration-hint">Obligatorio solo para <strong>término fijo</strong> o <strong>prestación de servicios</strong>. Elija meses, años o texto libre (otro).</p>
           <div class="form-section-grid emp-contract-duration-fields">
             <label>${fieldLabel(IC.calendar, "Unidad de tiempo")}<select name="contractDurationUnit" id="emp-contract-duration-unit">
               <option value="">${escapeHtml("Seleccione...")}</option>
               <option value="meses">${escapeHtml("Meses")}</option>
-              <option value="anios">${escapeHtml("AÃ±os")}</option>
+              <option value="anios">${escapeHtml("Años")}</option>
               <option value="otro">${escapeHtml("Otro (texto libre)")}</option>
             </select></label>
             <div id="emp-contract-duration-qty-wrap" class="emp-contract-duration-branch hidden" hidden aria-hidden="true">
               <label>${fieldLabel(IC.hash, "Cantidad")}<input type="number" name="contractDurationAmount" id="emp-contract-duration-amount" min="1" max="600" placeholder="Ej.: 12" /></label>
             </div>
             <div id="emp-contract-duration-other-wrap" class="emp-contract-duration-branch full hidden" hidden aria-hidden="true">
-              <label>${fieldLabel(IC.file, "Describa la duraciÃ³n")}<textarea name="contractDurationOther" id="emp-contract-duration-other" rows="2" placeholder="Ej.: plazo legal o alcance del encargo"></textarea></label>
+              <label>${fieldLabel(IC.file, "Describa la duración")}<textarea name="contractDurationOther" id="emp-contract-duration-other" rows="2" placeholder="Ej.: plazo legal o alcance del encargo"></textarea></label>
             </div>
           </div>
         </div>
         <label>${fieldLabel(IC.calendar, "Fecha ingreso a la empresa")}<input type="date" name="startDate" id="emp-start-date" required /></label>
         <div id="emp-contract-vigente-start-wrap" class="emp-contract-vigente-start full hidden" style="grid-column:1/-1" hidden aria-hidden="true">
           <label>${fieldLabel(IC.calendar, "Fecha inicio contrato vigente")}<input type="date" name="contractVigenteStartDate" id="emp-contract-vigente-start-date" /></label>
-          <p class="muted" style="margin:0.35rem 0 0;font-size:0.82rem;line-height:1.45">Inicio del contrato a tÃ©rmino fijo o de la renovaciÃ³n actual. La antigÃ¼edad laboral sigue en Â«Fecha ingreso a la empresaÂ».</p>
+          <p class="muted" style="margin:0.35rem 0 0;font-size:0.82rem;line-height:1.45">Inicio del contrato a término fijo o de la renovación actual. La antigüedad laboral sigue en «Fecha ingreso a la empresa».</p>
         </div>
         <div id="emp-contract-end-wrap" class="emp-contract-end-preview full hidden" style="grid-column:1/-1" hidden aria-hidden="true">
           <label>${fieldLabel(IC.calendar, "Fecha fin del contrato")}<input type="date" name="contractEndDate" id="emp-contract-end-date" readonly tabindex="-1" aria-readonly="true" /></label>
           <p class="muted emp-contract-renewal-hint" id="emp-contract-renewal-hint" style="margin:0.35rem 0 0;font-size:0.82rem;line-height:1.45"></p>
         </div>
-        <label>${fieldLabel(IC.dollar, "Salario base mensual (COP)")}<input type="number" name="baseSalary" id="emp-base-salary" value="${CO_HR_RULES.minMonthlySalary}" min="${CO_HR_RULES.minMonthlySalary}" required placeholder="MÃ­n. SMMLV ${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}" data-antares-restrict="decimal" data-antares-validate-blur="decimal" /></label>
+        <label>${fieldLabel(IC.dollar, "Salario base mensual (COP)")}<input type="number" name="baseSalary" id="emp-base-salary" value="${CO_HR_RULES.minMonthlySalary}" min="${CO_HR_RULES.minMonthlySalary}" required placeholder="Mín. SMMLV ${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}" data-antares-restrict="decimal" data-antares-validate-blur="decimal" /></label>
         <label>${fieldLabel(IC.dollar, "Auxilio legal transporte / conectividad (COP)")}<input type="number" name="transportAllowance" id="emp-transport-allowance" value="${CO_HR_RULES.transportAllowance}" min="0" /></label>
         <p class="full muted" id="emp-legal-comp-hint" style="font-size:0.82rem;line-height:1.45;margin:0">${escapeHtml(employeeTransportAllowanceGuidance(CO_HR_RULES.minMonthlySalary))}</p>
         <label>${fieldLabel(IC.clock, "Periodicidad de pago")}<select name="payFrequency">${payFreqOpts}</select></label>
         <label>${fieldLabel(IC.layers, "Centro de costos")}<input name="costCenter" placeholder="Ej: CC-OPERACIONES-01" data-antares-validate-blur="db-upper" data-antares-field="db-upper" /></label>
         <label>${fieldLabel(IC.shield, "Tipo de cotizante")}<select name="contributorType">${contributorOpts}</select></label>
         <label>${fieldLabel(IC.alertTriangle, "Nivel de riesgo ARL")}<select name="arlRiskLevel" id="emp-arl-risk-level">${arlRiskOpts}</select></label>
-        <label>${fieldLabel(IC.heart, "Examen mÃ©dico ocupacional de ingreso")}<input type="date" name="occupationalExamDate" id="emp-occupational-exam-date" /></label>
-        <p class="full muted" style="grid-column:1/-1;font-size:0.82rem;line-height:1.45;margin:0">Obligatorio para todo trabajador, sin importar el cargo (evaluaciÃ³n mÃ©dica de ingreso, ResoluciÃ³n 2346 de 2007). La vigencia se guarda automÃ¡ticamente a un aÃ±o desde la fecha indicada.</p>
+        <label>${fieldLabel(IC.heart, "Examen médico ocupacional de ingreso")}<input type="date" name="occupationalExamDate" id="emp-occupational-exam-date" /></label>
+        <p class="full muted" style="grid-column:1/-1;font-size:0.82rem;line-height:1.45;margin:0">Obligatorio para todo trabajador, sin importar el cargo (evaluación médica de ingreso, Resolución 2346 de 2007). La vigencia se guarda automáticamente a un año desde la fecha indicada.</p>
         <label>${fieldLabel(IC.file, "Plantilla de contrato Word")}<select name="contractTemplateKind" id="emp-contract-template-kind" required>
           ${renderContractTemplateSelectOptions("", false)}
         </select></label>
@@ -268,10 +268,10 @@ function payrollHtml() {
       <legend>${IC.shield} Seguridad social y parafiscales</legend>
       <div class="form-section-grid">
         <label>${fieldLabel(IC.heart, "EPS")}<select name="eps" required>${epsOptions}</select></label>
-        <label>${fieldLabel(IC.shield, "Fondo de pensiÃ³n")}<select name="pensionFund" required>${pensionFundOptions}</select></label>
+        <label>${fieldLabel(IC.shield, "Fondo de pensión")}<select name="pensionFund" required>${pensionFundOptions}</select></label>
         <label>${fieldLabel(IC.shield, "ARL")}<select name="arl" required>${arlOptions}</select></label>
-        <label>${fieldLabel(IC.shield, "Fondo de cesantÃ­as")}<select name="severanceFund">${severanceOpts}</select></label>
-        <label>${fieldLabel(IC.users, "Caja de compensaciÃ³n")}<select name="compensationFund">${compensationOpts}</select></label>
+        <label>${fieldLabel(IC.shield, "Fondo de cesantías")}<select name="severanceFund">${severanceOpts}</select></label>
+        <label>${fieldLabel(IC.users, "Caja de compensación")}<select name="compensationFund">${compensationOpts}</select></label>
       </div>
     </fieldset>
       </div>
@@ -282,7 +282,7 @@ function payrollHtml() {
       <div class="form-section-grid">
         <label>${fieldLabel(IC.bank, "Banco")}<select name="bankName" required>${banksOpts}</select></label>
         <label>${fieldLabel(IC.card, "Tipo de cuenta")}<select name="bankAccountType">${accountTypeOpts}</select></label>
-        <label>${fieldLabel(IC.hash, "NÃºmero de cuenta")}<input name="bankAccount" required placeholder="Ej: 1234567890" /></label>
+        <label>${fieldLabel(IC.hash, "Número de cuenta")}<input name="bankAccount" required placeholder="Ej: 1234567890" /></label>
       </div>
     </fieldset>
       </div>
@@ -291,12 +291,12 @@ function payrollHtml() {
     <fieldset class="form-section form-section-rose full hr-conductor-fields" id="hr-conductor-fields">
       <legend>${IC.truck} Si el cargo es CONDUCTOR (datos adicionales)</legend>
       <div class="form-section-grid">
-        <label>${fieldLabel(IC.file, "NÂ° licencia de conducciÃ³n")}<input name="license" placeholder="Ej: 12C34567890" /></label>
-        <label>${fieldLabel(IC.activity, "CategorÃ­a licencia")}<select name="licenseCategory">${licenseCategoryOptions}</select></label>
+        <label>${fieldLabel(IC.file, "N° licencia de conducción")}<input name="license" placeholder="Ej: 12C34567890" /></label>
+        <label>${fieldLabel(IC.activity, "Categoría licencia")}<select name="licenseCategory">${licenseCategoryOptions}</select></label>
         <label>${fieldLabel(IC.calendar, "Vence licencia")}<input type="date" name="licenseExpiry" /></label>
         <label>${fieldLabel(IC.calendar, "Examen instruvial")}<input type="date" name="instruvialExamDate" /></label>
-        <p class="full muted" style="grid-column:1/-1;font-size:0.82rem;margin:0">La vigencia del examen instruvial se guarda automÃ¡ticamente a un aÃ±o desde la fecha indicada. El examen mÃ©dico ocupacional de ingreso se registra en el paso Â«LaboralÂ» (aplica a todos los cargos).</p>
-        <label>${fieldLabel(IC.award, "Curso conducciÃ³n defensiva (Res. 17220)")}<select name="defensiveCourse">
+        <p class="full muted" style="grid-column:1/-1;font-size:0.82rem;margin:0">La vigencia del examen instruvial se guarda automáticamente a un año desde la fecha indicada. El examen médico ocupacional de ingreso se registra en el paso «Laboral» (aplica a todos los cargos).</p>
+        <label>${fieldLabel(IC.award, "Curso conducción defensiva (Res. 17220)")}<select name="defensiveCourse">
           <option value="">Seleccione...</option>
           <option value="vigente">Vigente</option>
           <option value="vencido">Vencido</option>
@@ -304,7 +304,7 @@ function payrollHtml() {
         </select></label>
         <label>${fieldLabel(IC.calendar, "Vence curso defensivo")}<input type="date" name="defensiveCourseExpiry" /></label>
         <label>${fieldLabel(IC.alertTriangle, "Comparendos pendientes (SIMIT)")}<input type="number" name="comparendos" min="0" max="9999" value="0" /></label>
-        <label>${fieldLabel(IC.activity, "AÃ±os de experiencia conduciendo")}<input type="number" name="experienceYears" min="0" max="80" value="0" /></label>
+        <label>${fieldLabel(IC.activity, "Años de experiencia conduciendo")}<input type="number" name="experienceYears" min="0" max="80" value="0" /></label>
       </div>
     </fieldset>
 
@@ -322,22 +322,22 @@ function payrollHtml() {
     </div>
   </form>`;
   const todayYmdBulk = new Date().toISOString().slice(0, 10);
-  const payrollLiquidationModeNav = `<div class="payroll-liquidation-mode" role="tablist" aria-label="Modo de liquidaciÃ³n">
+  const payrollLiquidationModeNav = `<div class="payroll-liquidation-mode" role="tablist" aria-label="Modo de liquidación">
       <button type="button" class="payroll-liquidation-mode__btn${payrollLiquidationMode === "single" ? " is-active" : ""}" role="tab" aria-selected="${payrollLiquidationMode === "single" ? "true" : "false"}" data-action="payroll-liquidation-mode" data-mode="single">${IC.user} Un colaborador</button>
       <button type="button" class="payroll-liquidation-mode__btn${payrollLiquidationMode === "bulk" ? " is-active" : ""}" role="tab" aria-selected="${payrollLiquidationMode === "bulk" ? "true" : "false"}" data-action="payroll-liquidation-mode" data-mode="bulk">${IC.users} Todos (cascada)</button>
     </div>`;
   const formPayBulk = `<section class="payroll-bulk-panel payroll-liquidation-pane${payrollLiquidationMode === "bulk" ? "" : " hidden"}" data-payroll-liquidation-pane="bulk" aria-labelledby="payroll-bulk-title"${payrollLiquidationMode === "bulk" ? "" : " hidden"}>
       <div class="payroll-bulk-panel__intro">
-        <h4 id="payroll-bulk-title" class="payroll-bulk-title">${IC.users} LiquidaciÃ³n masiva</h4>
-        <p class="muted payroll-bulk-lead">Liquidaciones para todos los colaboradores segÃºn su periodicidad de pago (mensual, quincenal, etc.). En <strong>junio</strong> y <strong>diciembre</strong> incluye prima de servicios en el Ãºltimo corte del mes (2Âª quincena si es quincenal), salvo que ya se haya pagado en la 1Âª quincena del mismo mes. En <strong>enero</strong> o <strong>febrero</strong> puede incluir intereses de cesantÃ­as una sola vez por aÃ±o si configurÃ³ la base en el servidor. Quedan pendientes de pago.</p>
+        <h4 id="payroll-bulk-title" class="payroll-bulk-title">${IC.users} Liquidación masiva</h4>
+        <p class="muted payroll-bulk-lead">Liquidaciones para todos los colaboradores según su periodicidad de pago (mensual, quincenal, etc.). En <strong>junio</strong> y <strong>diciembre</strong> incluye prima de servicios en el último corte del mes (2ª quincena si es quincenal), salvo que ya se haya pagado en la 1ª quincena del mismo mes. En <strong>enero</strong> o <strong>febrero</strong> puede incluir intereses de cesantías una sola vez por año si configuró la base en el servidor. Quedan pendientes de pago.</p>
       </div>
       <div class="payroll-bulk-fields">
-        <label class="payroll-bulk-field">${fieldLabel(IC.calendar, "Fecha de cierre del perÃ­odo")}<input type="date" id="payroll-bulk-fecha" name="fechaReferencia" value="${escapeAttr(todayYmdBulk)}" required /></label>
+        <label class="payroll-bulk-field">${fieldLabel(IC.calendar, "Fecha de cierre del período")}<input type="date" id="payroll-bulk-fecha" name="fechaReferencia" value="${escapeAttr(todayYmdBulk)}" required /></label>
         <label class="payroll-bulk-option">
           <input type="checkbox" id="payroll-bulk-force" checked />
           <span class="payroll-bulk-option__copy">
-            <span class="payroll-bulk-option__label">Usar el Ãºltimo corte ya cerrado en esa fecha</span>
-            <span class="payroll-bulk-option__hint muted">Ãštil si hoy no es dÃ­a 15 ni fin de mes.</span>
+            <span class="payroll-bulk-option__label">Usar el último corte ya cerrado en esa fecha</span>
+            <span class="payroll-bulk-option__hint muted">�atil si hoy no es día 15 ni fin de mes.</span>
           </span>
         </label>
       </div>
@@ -351,18 +351,18 @@ function payrollHtml() {
       ${
         nominaEmployees.length
           ? ""
-          : `<p class="full payroll-single-empty muted">No hay colaboradores de nÃ³mina laboral en el directorio. Los conductores en prestaciÃ³n de servicios se liquidan en <strong>Pagos conductores</strong>.</p>`
+          : `<p class="full payroll-single-empty muted">No hay colaboradores de nómina laboral en el directorio. Los conductores en prestación de servicios se liquidan en <strong>Pagos conductores</strong>.</p>`
       }
       <div class="form-section-grid payroll-single-form__grid">
-        <label class="payroll-employee-picker">${fieldLabel(IC.user, "Empleado")}<select name="employeeId" id="payroll-employee-select" class="searchable-select-native" data-searchable-select="1" data-searchable-placeholder="Buscar por nombre, documento o periodicidadâ€¦" required${nominaEmployees.length ? "" : " disabled"}><option value="">Seleccione colaborador</option>${payrollNominaEmployeeOptions}</select></label>
+        <label class="payroll-employee-picker">${fieldLabel(IC.user, "Empleado")}<select name="employeeId" id="payroll-employee-select" class="searchable-select-native" data-searchable-select="1" data-searchable-placeholder="Buscar por nombre, documento o periodicidad⬦" required${nominaEmployees.length ? "" : " disabled"}><option value="">Seleccione colaborador</option>${payrollNominaEmployeeOptions}</select></label>
         <label>${fieldLabel(IC.dollar, "Salario base mensual (COP)")}<input type="text" id="payroll-monthly-base-salary" readonly tabindex="-1" aria-readonly="true" value="" placeholder="Seleccione empleado" /></label>
         <p class="full muted hidden" id="payroll-freq-hint" style="font-size:0.82rem;margin:0"></p>
         <p class="full muted hidden" id="payroll-cesantias-consign-alert" style="font-size:0.82rem;line-height:1.45;margin:0"></p>
         <label>${fieldLabel(IC.calendar, "Mes calendario")}<input type="month" name="month" required /></label>
         <label id="payroll-quincena-wrap" class="hidden" aria-hidden="true">${fieldLabel(IC.clock, "Quincena")}
           <select name="payrollQuincena" id="payroll-quincena-select">
-            <option value="Q1">1Âª quincena (dÃ­as 1â€“15)</option>
-            <option value="Q2">2Âª quincena (dÃ­as 16â€“fin de mes)</option>
+            <option value="Q1">1ª quincena (días 1�15)</option>
+            <option value="Q2">2ª quincena (días 16�fin de mes)</option>
           </select>
         </label>
       </div>
@@ -370,14 +370,14 @@ function payrollHtml() {
     <fieldset id="payroll-prima-fieldset" class="form-section form-section-amber full hidden" aria-hidden="true">
       <legend>${IC.award} Prima de servicios (semestral)</legend>
         <p class="muted" style="font-size:0.85rem;line-height:1.45;margin:0 0 0.65rem">
-        Junio y diciembre pueden incluir prima (una sola vez por mes del semestre). En nÃ³mina <strong>quincenal</strong> puede liquidarla en la 1Âª quincena (dÃ­a 15) o en la 2Âª (cierre de mes), pero <strong>no en ambas</strong>. CÃ¡lculo orientativo: (salario base Ã— dÃ­as trabajados en el semestre) Ã· 360 (CST). Revise siempre con contador antes de pagar.
+        Junio y diciembre pueden incluir prima (una sola vez por mes del semestre). En nómina <strong>quincenal</strong> puede liquidarla en la 1ª quincena (día 15) o en la 2ª (cierre de mes), pero <strong>no en ambas</strong>. Cálculo orientativo: (salario base � días trabajados en el semestre) ÷ 360 (CST). Revise siempre con contador antes de pagar.
       </p>
       <div class="form-section-grid">
         <label class="full" style="align-items:flex-start;display:flex;gap:0.5rem;flex-wrap:wrap">
           <input type="checkbox" name="payPrimaServicios" value="1" id="payroll-pay-prima" style="margin-top:0.2rem" />
-          <span>SÃ­, incluir prima de servicios en esta liquidaciÃ³n</span>
+          <span>Sí, incluir prima de servicios en esta liquidación</span>
         </label>
-        <label>${fieldLabel(IC.clock, "DÃ­as laborados en el semestre")}
+        <label>${fieldLabel(IC.clock, "Días laborados en el semestre")}
           <input type="number" name="primaServiciosDays" min="1" max="183" placeholder="Ej. 180" disabled /></label>
         <label>${fieldLabel(IC.dollar, "Valor prima (COP)")}
           <input type="number" name="primaServiciosCop" min="0" step="100" disabled /></label>
@@ -385,18 +385,18 @@ function payrollHtml() {
       </div>
     </fieldset>
     <fieldset id="payroll-cesantias-int-fieldset" class="form-section form-section-violet full hidden" aria-hidden="true">
-      <legend>${IC.dollar} Intereses sobre cesantÃ­as (enero o febrero)</legend>
+      <legend>${IC.dollar} Intereses sobre cesantías (enero o febrero)</legend>
       <p class="muted" style="font-size:0.85rem;line-height:1.45;margin:0 0 0.65rem">
-        <strong>Ley 52 de 1975:</strong> el trabajador tiene derecho a intereses del <strong>12% anual</strong> sobre sus cesantÃ­as; el legislador prevÃ© el pago al trabajador <strong>en enero</strong> del aÃ±o siguiente al causado. En nÃ³mina <strong>quincenal</strong> puede registrarse en enero o febrero, <strong>una sola vez por aÃ±o</strong> (no repetir en la 2Âª quincena si ya se pagÃ³ en la 1Âª). Coordine fecha y base con extracto del fondo o contador.
+        <strong>Ley 52 de 1975:</strong> el trabajador tiene derecho a intereses del <strong>12% anual</strong> sobre sus cesantías; el legislador prevé el pago al trabajador <strong>en enero</strong> del año siguiente al causado. En nómina <strong>quincenal</strong> puede registrarse en enero o febrero, <strong>una sola vez por año</strong> (no repetir en la 2ª quincena si ya se pagó en la 1ª). Coordine fecha y base con extracto del fondo o contador.
       </p>
       <div class="form-section-grid">
         <label class="full" style="align-items:flex-start;display:flex;gap:0.5rem;flex-wrap:wrap">
           <input type="checkbox" name="payInteresesCesantias" value="1" id="payroll-pay-int-cesantias" style="margin-top:0.2rem" />
-          <span>Incluir en esta liquidaciÃ³n el pago de intereses sobre cesantÃ­as</span>
+          <span>Incluir en esta liquidación el pago de intereses sobre cesantías</span>
         </label>
-        <label>${fieldLabel(IC.dollar, "Base cesantÃ­as (COP)")}
-          <input type="number" name="cesantiasInterestBaseCop" min="0" step="100" placeholder="Saldo/consignaciÃ³n aÃ±o referencia" disabled /></label>
-        <label>${fieldLabel(IC.clock, "DÃ­as (sobre 360 para proporcional)")}
+        <label>${fieldLabel(IC.dollar, "Base cesantías (COP)")}
+          <input type="number" name="cesantiasInterestBaseCop" min="0" step="100" placeholder="Saldo/consignación año referencia" disabled /></label>
+        <label>${fieldLabel(IC.clock, "Días (sobre 360 para proporcional)")}
           <input type="number" name="cesantiasInterestDays" min="1" max="366" value="360" disabled /></label>
         <label>${fieldLabel(IC.dollar, "Valor intereses (COP)")}
           <input type="number" name="interesesCesantiasCopMonthly" min="0" step="100" disabled /></label>
@@ -421,22 +421,22 @@ function payrollHtml() {
       </div>
       <p class="full muted" data-payroll-nomina-only="1" style="font-size:0.8rem;line-height:1.45;margin:0.35rem 0 0">Horas extras según CST (orientativo). IBC con salario integral al 70%. Solidaridad y subsistencia por tramos SMMLV. Retención estimada con UVT de parámetros legales.</p>
     </fieldset>
-    ${renderManagedCreateFormActions("create-payroll", `<button class="btn btn-primary" type="submit" id="payroll-submit-btn">${IC.dollar} Generar liquidaciÃ³n</button>`)}
+    ${renderManagedCreateFormActions("create-payroll", `<button class="btn btn-primary" type="submit" id="payroll-submit-btn">${IC.dollar} Generar liquidación</button>`)}
   </form>`;
   const conductorTripPayOpts = conductorEmployees
-    .map((e) => `<option value="${e.id}">${escapeHtml(e.name)} Â· ${escapeHtml(String(e.idDoc || ""))}</option>`)
+    .map((e) => `<option value="${e.id}">${escapeHtml(e.name)} · ${escapeHtml(String(e.idDoc || ""))}</option>`)
     .join("");
   const formDriverTripPay = `<form id="form-driver-trip-payment" class="p-form p-form-colored hr-form-flow hr-form-compact">
     <fieldset class="form-section form-section-cyan full">
-      <legend>${IC.truck} PrestaciÃ³n de servicios â€” pago por viajes</legend>
+      <legend>${IC.truck} Prestación de servicios � pago por viajes</legend>
       <p class="muted" style="font-size:0.85rem;line-height:1.45;margin:0 0 0.75rem">
-        Liquida viÃ¡ticos por viajes <strong>interdepartamentales</strong> completados en el mes y reembolsos de combustible registrados a nombre del conductor.
-        No genera salario ni aportes de nÃ³mina. Los datos se guardan en <code>liquidaciones_nomina</code> con tipo <strong>prestacion_viajes</strong>.
+        Liquida viáticos por viajes <strong>interdepartamentales</strong> completados en el mes y reembolsos de combustible registrados a nombre del conductor.
+        No genera salario ni aportes de nómina. Los datos se guardan en <code>liquidaciones_nomina</code> con tipo <strong>prestacion_viajes</strong>.
       </p>
       <div class="form-section-grid">
         <label>${fieldLabel(IC.user, "Conductor")}<select name="employeeId" required><option value="">Seleccione conductor</option>${conductorTripPayOpts}</select></label>
         <label>${fieldLabel(IC.calendar, "Mes de servicio")}<input type="month" name="month" required /></label>
-        <label>${fieldLabel(IC.dollar, "ViÃ¡ticos manuales (COP)")}<input type="number" name="travelAllowanceManual" value="0" min="0" /></label>
+        <label>${fieldLabel(IC.dollar, "Viáticos manuales (COP)")}<input type="number" name="travelAllowanceManual" value="0" min="0" /></label>
         <label>${fieldLabel(IC.dollar, "Reembolso combustible manual (COP)")}<input type="number" name="fuelReimbursementManual" value="0" min="0" /></label>
         <p class="full muted" style="margin:0;font-size:0.82rem">Tarifa interdepartamental vigente: <strong>$${parseNum(rules.interDepartmentTripAmount).toLocaleString("es-CO")}</strong> por viaje (tabla <code>reglas_viatico_interdepartamental</code>).</p>
       </div>
@@ -448,16 +448,16 @@ function payrollHtml() {
     .join("")}`;
   const formPayrollSettlement = `<form id="form-payroll-settlement" class="p-form p-form-colored hr-form-flow hr-form-compact">
     <fieldset class="form-section form-section-emerald full">
-      <legend>${IC.activity} LiquidaciÃ³n contractual (terminaciÃ³n)</legend>
+      <legend>${IC.activity} Liquidación contractual (terminación)</legend>
       <p class="muted" style="font-size:0.85rem;line-height:1.45;margin:0 0 0.75rem">
-        Para renuncia, despido u otras causas de terminaciÃ³n. Montos orientativos (cesantÃ­as, intereses proporcionales, prima proporcional, vacaciones segÃºn ordenamiento laboral colombiano). Ajuste cada rubro y consolide con contabilidad y fondos.
+        Para renuncia, despido u otras causas de terminación. Montos orientativos (cesantías, intereses proporcionales, prima proporcional, vacaciones según ordenamiento laboral colombiano). Ajuste cada rubro y consolide con contabilidad y fondos.
       </p>
       <div class="form-section-grid">
         <label>${fieldLabel(IC.user, "Empleado")}<select name="employeeId" required>${payrollEmpOptionsSettlement}</select></label>
         <label>${fieldLabel(IC.dollar, "Salario base mensual (COP)")}<input type="text" id="payroll-settlement-base-salary" readonly tabindex="-1" aria-readonly="true" value="" placeholder="Seleccione empleado" /></label>
         <label>${fieldLabel(IC.calendar, "Mes de retiro (periodo)")}<input type="month" name="month" required /></label>
-        <label>${fieldLabel(IC.calendar, "Fecha de terminaciÃ³n")}<input type="date" name="terminationDate" required /></label>
-        <label>${fieldLabel(IC.file, "Motivo de terminaciÃ³n")}
+        <label>${fieldLabel(IC.calendar, "Fecha de terminación")}<input type="date" name="terminationDate" required /></label>
+        <label>${fieldLabel(IC.file, "Motivo de terminación")}
           <select name="terminationCause" required>
             <option value="renuncia_voluntaria">Renuncia voluntaria</option>
             <option value="despido_sin_justa">Despido sin justa causa</option>
@@ -470,29 +470,42 @@ function payrollHtml() {
       </div>
     </fieldset>
     <fieldset class="form-section form-section-violet full">
-      <legend>${IC.clock} Referencias para el cÃ¡lculo</legend>
+      <legend>${IC.clock} Referencias para el cálculo</legend>
+      <p id="settlement-cause-hint" class="full muted hidden" style="font-size:0.82rem;line-height:1.45;margin:0 0 0.65rem"></p>
       <div class="form-section-grid">
-        <label>${fieldLabel(IC.clock, "DÃ­as (aÃ±o 360 â€” cesantÃ­as)")}<input type="number" name="days360Year" min="0" max="360" value="360" /></label>
-        <label>${fieldLabel(IC.clock, "DÃ­as proporcional prima")}<input type="number" name="primaPropDays" min="0" max="360" value="0" /></label>
-        <label>${fieldLabel(IC.calendar, "DÃ­as vacaciones a compensar (Ã·720)")}<input type="number" name="vacationDays" min="0" max="366" step="1" value="0" /></label>
-        <label>${fieldLabel(IC.dollar, "IndemnizaciÃ³n (COP)")}<input type="number" name="indemnization" min="0" value="0" /></label>
+        <label>${fieldLabel(IC.clock, "Días totales laborados")}<input type="number" name="employedDays" min="0" max="20000" readonly tabindex="-1" /></label>
+        <label>${fieldLabel(IC.clock, "Días año 360 (cesantías)")}<input type="number" name="days360Year" min="0" max="360" value="0" /></label>
+        <label>${fieldLabel(IC.clock, "Días proporcional prima")}<input type="number" name="primaPropDays" min="0" max="360" value="0" /></label>
+        <label>${fieldLabel(IC.calendar, "Días vacaciones pendientes")}<input type="number" name="vacationDays" min="0" max="366" step="0.01" value="0" /></label>
+        <label>${fieldLabel(IC.dollar, "Saldo cesantías en fondo (COP)")}<input type="number" name="cesantiasFondoBalanceCop" min="0" step="100" value="0" /></label>
+        <label>${fieldLabel(IC.clock, "Días aviso previo cumplidos")}<input type="number" name="avisoPrevioDaysWorked" min="0" max="60" value="0" /></label>
+        <label>${fieldLabel(IC.dollar, "Horas extras pendientes (COP)")}<input type="number" name="pendingOvertimeCop" min="0" value="0" /></label>
+        <label>${fieldLabel(IC.dollar, "Bonificaciones pendientes (COP)")}<input type="number" name="pendingBonusCop" min="0" value="0" /></label>
+        <label>${fieldLabel(IC.user, "Dependientes retención")}<input type="number" name="withholdingDependents" min="0" max="10" value="0" /></label>
+        <label>${fieldLabel(IC.dollar, "Indemnización pactada (COP)")}<input type="number" name="indemnization" min="0" value="0" /></label>
         <label>${fieldLabel(IC.dollar, "Otros conceptos (COP)")}<input type="number" name="otrosSettlement" min="0" value="0" /></label>
-        <div class="full toolbar" style="justify-content:flex-start">
-          <button type="button" class="btn btn-sm btn-outline" data-action="settlement-recalc">${IC.activity} Calcular rubros sugeridos</button>
+        <div class="full toolbar" style="justify-content:flex-start;align-items:center;gap:0.75rem;flex-wrap:wrap">
+          <button type="button" class="btn btn-sm btn-outline" data-action="settlement-recalc">${IC.activity} Calcular liquidación sugerida</button>
+          <strong id="settlement-preview-net" class="muted" style="font-size:0.9rem"></strong>
         </div>
-        <label>${fieldLabel(IC.dollar, "CesantÃ­as (COP)")}<input type="number" name="cesantiasCop" min="0" value="0" /></label>
-        <label>${fieldLabel(IC.dollar, "Intereses cesantÃ­as (COP)")}<input type="number" name="interesesCesantiasCop" min="0" value="0" /></label>
+        <label>${fieldLabel(IC.dollar, "Salario pendiente mes retiro (COP)")}<input type="number" name="salarioPendienteCop" min="0" value="0" /></label>
+        <label>${fieldLabel(IC.truck, "Auxilio transporte pendiente (COP)")}<input type="number" name="auxilioPendienteCop" min="0" value="0" /></label>
+        <label>${fieldLabel(IC.dollar, "Cesantías total (COP)")}<input type="number" name="cesantiasCop" min="0" value="0" /></label>
+        <label>${fieldLabel(IC.dollar, "Intereses cesantías (COP)")}<input type="number" name="interesesCesantiasCop" min="0" value="0" /></label>
         <label>${fieldLabel(IC.dollar, "Prima proporcional (COP)")}<input type="number" name="primaPropCop" min="0" value="0" /></label>
         <label>${fieldLabel(IC.dollar, "Vacaciones (COP)")}<input type="number" name="vacacionesCop" min="0" value="0" /></label>
+        <input type="hidden" name="indemnizacionDespidoCop" value="0" />
+        <input type="hidden" name="indemnizacionAvisoCop" value="0" />
       </div>
+      <p class="full muted" style="font-size:0.8rem;line-height:1.45;margin:0.35rem 0 0">Causal define indemnización (CST art. 64). Vacaciones: 15 días/año menos gozadas. Retención orientativa sobre salario pendiente.</p>
     </fieldset>
-    ${renderManagedCreateFormActions("create-payroll-settlement", `<button class="btn btn-primary" type="submit">${IC.save} Registrar liquidaciÃ³n contractual</button>`)}
+    ${renderManagedCreateFormActions("create-payroll-settlement", `<button class="btn btn-primary" type="submit">${IC.save} Registrar liquidación contractual</button>`)}
   </form>`;
   const formAbsence = `<form id="form-hr-absence" class="p-form p-form-colored hr-form-flow hr-form-compact">
     <fieldset class="form-section form-section-violet full">
       <legend>${IC.calendar} Datos de la novedad</legend>
       <div class="form-section-grid">
-        <label>${fieldLabel(IC.user, "Empleado")}<select name="employeeId" required><option value="">Seleccione</option>${employees.map((e) => `<option value="${e.id}">${e.name} Â· ${e.idDoc}</option>`).join("")}</select></label>
+        <label>${fieldLabel(IC.user, "Empleado")}<select name="employeeId" required><option value="">Seleccione</option>${employees.map((e) => `<option value="${e.id}">${e.name} · ${e.idDoc}</option>`).join("")}</select></label>
         <label>${fieldLabel(IC.activity, "Tipo de ausencia")}
           <select name="absenceType" required>${buildPayrollAbsenceTypeOptionsHtml("incapacidad_eps")}</select>
         </label>
@@ -501,7 +514,7 @@ function payrollHtml() {
         </label>
         <label>${fieldLabel(IC.calendar, "Desde")}<input type="date" name="startDate" required /></label>
         <label>${fieldLabel(IC.calendar, "Hasta")}<input type="date" name="endDate" required /></label>
-        <label>${fieldLabel(IC.hash, "DÃ­as reconocidos")}<input type="number" name="recognizedDays" min="0.5" step="0.5" value="1" required /></label>
+        <label>${fieldLabel(IC.hash, "Días reconocidos")}<input type="number" name="recognizedDays" min="0.5" step="0.5" value="1" required /></label>
         <p class="full muted" data-absence-recognition-hint style="margin:0;font-size:0.82rem"></p>
       </div>
     </fieldset>
@@ -509,7 +522,7 @@ function payrollHtml() {
       <legend>${IC.file} Soporte</legend>
       <div class="form-section-grid">
         <label class="full">${fieldLabel(IC.hash, "No. soporte o radicado")}<input name="supportNumber" placeholder="Radicado, acta, certificado o soporte" /></label>
-        <label class="full">${fieldLabel(IC.heart, "EPS / ARL / entidad")}<select name="epsEntity">${epsOptions}<option value="ARL">ARL</option><option value="Juzgado">Juzgado</option><option value="RegistradurÃ­a">RegistradurÃ­a</option><option value="Otra">Otra</option></select></label>
+        <label class="full">${fieldLabel(IC.heart, "EPS / ARL / entidad")}<select name="epsEntity">${epsOptions}<option value="ARL">ARL</option><option value="Juzgado">Juzgado</option><option value="Registraduría">Registraduría</option><option value="Otra">Otra</option></select></label>
         <p class="full muted" data-absence-support-hint style="margin:0;font-size:0.82rem"></p>
         <label class="full">${fieldLabel(IC.file, "Observaciones")}<textarea name="notes" rows="2" placeholder="Detalle para archivo de personal"></textarea></label>
       </div>
@@ -546,18 +559,18 @@ function payrollHtml() {
     })
     .join("");
   const absenceTable = absenceRows
-    ? `<div class="table-wrap"><table><thead><tr><th>Registro</th><th>Empleado</th><th>Tipo</th><th>Periodo</th><th>DÃ­as rec.</th><th>Soporte</th><th style="min-width:11rem">Acciones</th></tr></thead><tbody>${absenceRows}</tbody></table></div>`
+    ? `<div class="table-wrap"><table><thead><tr><th>Registro</th><th>Empleado</th><th>Tipo</th><th>Periodo</th><th>Días rec.</th><th>Soporte</th><th style="min-width:11rem">Acciones</th></tr></thead><tbody>${absenceRows}</tbody></table></div>`
     : emptyState("Sin ausencias laborales registradas.");
   const employeeToolbar = `<div class="payroll-employee-toolbar">
       <label class="payroll-employee-search">${fieldLabel(IC.search, "Buscar")}
-        <input type="search" id="payroll-employee-search" placeholder="Nombre, documento, cargo, centro de costosâ€¦" autocomplete="off" />
+        <input type="search" id="payroll-employee-search" placeholder="Nombre, documento, cargo, centro de costos⬦" autocomplete="off" />
       </label>
       <label class="payroll-employee-filter">${fieldLabel(IC.calendar, "Contrato")}
         <select id="payroll-employee-contract-filter">
           <option value="all">Todos</option>
-          <option value="notice_window">Aviso urgente (â‰¤30 dÃ­as)</option>
+          <option value="notice_window">Aviso urgente (�0�30 días)</option>
           <option value="expired">Vencidos</option>
-          <option value="active">TÃ©rmino fijo vigente</option>
+          <option value="active">Término fijo vigente</option>
         </select>
       </label>
       ${hrAdminDeletes ? `<div class="payroll-employee-toolbar-actions toolbar">
@@ -572,7 +585,7 @@ function payrollHtml() {
     ? `<div class="payroll-run-cards-grid">${runsToRender.map((r) => renderPayrollRunCard(r, { compact: true })).join("")}</div>${payrollRunsMoreBar}`
     : emptyState("Sin liquidaciones que coincidan con los filtros.");
   const runTableLegacy = runRows
-    ? `<details class="payroll-table-fallback"><summary class="btn btn-sm btn-outline">Ver como tabla</summary><div class="table-wrap payroll-table-wrap"><table><thead><tr><th>Mes</th><th>Tipo</th><th>Empleado</th><th>Devengado</th><th>ViÃ¡ticos</th><th>Combustible</th><th>Deducciones</th><th>Neto</th><th>Estado</th><th></th></tr></thead><tbody>${runRows}</tbody></table></div>${payrollRunsMoreBar}</details>`
+    ? `<details class="payroll-table-fallback"><summary class="btn btn-sm btn-outline">Ver como tabla</summary><div class="table-wrap payroll-table-wrap"><table><thead><tr><th>Mes</th><th>Tipo</th><th>Empleado</th><th>Devengado</th><th>Viáticos</th><th>Combustible</th><th>Deducciones</th><th>Neto</th><th>Estado</th><th></th></tr></thead><tbody>${runRows}</tbody></table></div>${payrollRunsMoreBar}</details>`
     : "";
   const runsPaneBody = `${runCardsGrid}${runTableLegacy}`;
   const employeeOpts = employees
@@ -586,13 +599,13 @@ function payrollHtml() {
         <option value="current" ${filterPeriod === "current" ? "selected" : ""}>Mes actual</option>
         <option value="previous" ${filterPeriod === "previous" ? "selected" : ""}>Mes anterior</option>
       </select></label>
-      <label class="payroll-filter-field">${fieldLabel(IC.clock, "Tipo de nÃ³mina")}<select name="frequency">
+      <label class="payroll-filter-field">${fieldLabel(IC.clock, "Tipo de nómina")}<select name="frequency">
         <option value="all" ${filterFrequency === "all" ? "selected" : ""}>Todos</option>
         <option value="mensual" ${filterFrequency === "mensual" ? "selected" : ""}>Solo mensual</option>
         <option value="quincenal" ${filterFrequency === "quincenal" ? "selected" : ""}>Solo quincenal</option>
         <option value="catorcenal" ${filterFrequency === "catorcenal" ? "selected" : ""}>Solo catorcenal</option>
         <option value="semanal" ${filterFrequency === "semanal" ? "selected" : ""}>Solo semanal</option>
-        <option value="terminacion" ${filterFrequency === "terminacion" ? "selected" : ""}>Solo terminaciÃ³n</option>
+        <option value="terminacion" ${filterFrequency === "terminacion" ? "selected" : ""}>Solo terminación</option>
         ${
           payrollDataSection === "driverPayments"
             ? `<option value="prestacion_viajes" ${filterFrequency === "prestacion_viajes" ? "selected" : ""}>Solo pago por viajes</option>`
@@ -621,22 +634,22 @@ function payrollHtml() {
     contractNoticeCount
   });
   const payrollOperateNav = renderModuleWindowTabs({
-    ariaLabel: "Flujos de GestiÃ³n humana",
+    ariaLabel: "Flujos de Gestión humana",
     activeId: payrollOperateSection,
     action: "payroll-operate-section",
     valueAttr: "section",
     tabs: [
       { id: "employee", label: "Empleado" },
-      { id: "payroll", label: "NÃ³mina laboral" },
+      { id: "payroll", label: "Nómina laboral" },
       { id: "driverPay", label: "Pagos conductores" },
-      { id: "settlement", label: "TerminaciÃ³n" },
+      { id: "settlement", label: "Terminación" },
       { id: "absence", label: "Ausencia" }
     ]
   });
-  const employeeOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "employee" ? "" : " hidden"}" data-payroll-operate-pane="employee">${createCollapsibleProCard("create-employee", "userPlus", "Nuevo colaborador", "Expediente de vinculaciÃ³n con contrato Word y seguridad social (Colombia)", formEmp, "admin-users-data-card hr-form-card payroll-form-card hr-form-card--xl", "Abrir expediente", { createPanels: state.createPanels })}</div>`;
-  const payrollOperatePaneBody = `<div class="auth-tab-panel${payrollOperateSection === "payroll" ? "" : " hidden"}" data-payroll-operate-pane="payroll">${createCollapsibleProCard("create-payroll", "dollar", "LiquidaciÃ³n de nÃ³mina", "RelaciÃ³n laboral â€” devengos, deducciones y aportes parafiscales", `${payrollLiquidationModeNav}${formPayBulk}${formPay}`, "admin-users-data-card hr-form-card payroll-form-card hr-form-card--lg hr-form-card--payroll-liquidation", "Abrir liquidaciÃ³n", { createPanels: state.createPanels })}</div>`;
-  const driverPayOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "driverPay" ? "" : " hidden"}" data-payroll-operate-pane="driverPay">${createCollapsibleProCard("create-driver-trip-payment", "truck", "Pago por viajes", "PrestaciÃ³n de servicios â€” viÃ¡ticos interdepartamentales y combustible", formDriverTripPay, "admin-users-data-card hr-form-card payroll-form-card hr-form-card--md", "Abrir liquidaciÃ³n", { createPanels: state.createPanels })}</div>`;
-  const settlementOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "settlement" ? "" : " hidden"}" data-payroll-operate-pane="settlement">${createCollapsibleProCard("create-payroll-settlement", "hash", "LiquidaciÃ³n final", "TerminaciÃ³n contractual â€” cesantÃ­as, prima y vacaciones (CST)", formPayrollSettlement, "admin-users-data-card hr-form-card payroll-form-card hr-form-card--lg", "Abrir liquidaciÃ³n", { createPanels: state.createPanels })}</div>`;
+  const employeeOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "employee" ? "" : " hidden"}" data-payroll-operate-pane="employee">${createCollapsibleProCard("create-employee", "userPlus", "Nuevo colaborador", "Expediente de vinculación con contrato Word y seguridad social (Colombia)", formEmp, "admin-users-data-card hr-form-card payroll-form-card hr-form-card--xl", "Abrir expediente", { createPanels: state.createPanels })}</div>`;
+  const payrollOperatePaneBody = `<div class="auth-tab-panel${payrollOperateSection === "payroll" ? "" : " hidden"}" data-payroll-operate-pane="payroll">${createCollapsibleProCard("create-payroll", "dollar", "Liquidación de nómina", "Relación laboral � devengos, deducciones y aportes parafiscales", `${payrollLiquidationModeNav}${formPayBulk}${formPay}`, "admin-users-data-card hr-form-card payroll-form-card hr-form-card--lg hr-form-card--payroll-liquidation", "Abrir liquidación", { createPanels: state.createPanels })}</div>`;
+  const driverPayOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "driverPay" ? "" : " hidden"}" data-payroll-operate-pane="driverPay">${createCollapsibleProCard("create-driver-trip-payment", "truck", "Pago por viajes", "Prestación de servicios � viáticos interdepartamentales y combustible", formDriverTripPay, "admin-users-data-card hr-form-card payroll-form-card hr-form-card--md", "Abrir liquidación", { createPanels: state.createPanels })}</div>`;
+  const settlementOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "settlement" ? "" : " hidden"}" data-payroll-operate-pane="settlement">${createCollapsibleProCard("create-payroll-settlement", "hash", "Liquidación final", "Terminación contractual � cesantías, prima y vacaciones (CST)", formPayrollSettlement, "admin-users-data-card hr-form-card payroll-form-card hr-form-card--lg", "Abrir liquidación", { createPanels: state.createPanels })}</div>`;
   const absenceOperatePane = `<div class="auth-tab-panel${payrollOperateSection === "absence" ? "" : " hidden"}" data-payroll-operate-pane="absence">${createCollapsibleProCard("create-hr-absence", "calendar", "Ausencias e incapacidades", "Vacaciones, licencias, incapacidades y permisos remunerados", formAbsence, "admin-users-data-card hr-form-card payroll-form-card hr-form-card--md", "Registrar ausencia", { createPanels: state.createPanels })}</div>`;
   const payrollExecutionBlock = `<section class="payroll-operate payroll-operate-panel">
       <aside class="payroll-operate__rail" aria-label="Flujos de registro">
@@ -655,20 +668,20 @@ function payrollHtml() {
           : filterPeriod === "current"
             ? "current"
             : "all";
-  const payrollQuickBar = `<div class="payroll-quick-bar" role="group" aria-label="Filtros rÃ¡pidos">
+  const payrollQuickBar = `<div class="payroll-quick-bar" role="group" aria-label="Filtros rápidos">
       <button type="button" class="payroll-quick-pill${payrollQuickActive === "all" ? " is-active" : ""}" data-action="payroll-quick-filter" data-quick="all">Todos</button>
       <button type="button" class="payroll-quick-pill${payrollQuickActive === "current" ? " is-active" : ""}" data-action="payroll-quick-filter" data-quick="current">Mes actual</button>
       <button type="button" class="payroll-quick-pill${payrollQuickActive === "pending" ? " is-active" : ""}" data-action="payroll-quick-filter" data-quick="pending">Pendientes</button>
       <button type="button" class="payroll-quick-pill${runSort === "pending_first" ? " is-active" : ""}" data-action="payroll-sort-runs" data-sort="pending_first">Orden: pendientes</button>
     </div>`;
   const legalHasSavedYear = legalHistory.some((row) => Number(row?.year) === Number(legalDraft.year));
-  const legalSummary = `<dl class="payroll-legal-summary" aria-label="ParÃ¡metros del aÃ±o seleccionado">
+  const legalSummary = `<dl class="payroll-legal-summary" aria-label="Parámetros del año seleccionado">
       <div><dt>SMMLV ${legalDraft.year}</dt><dd>$${parseNum(legalDraft.smmlvCop).toLocaleString("es-CO")}</dd></div>
       <div><dt>Auxilio transporte</dt><dd>$${parseNum(legalDraft.transportAllowanceCop).toLocaleString("es-CO")}</dd></div>
-      <div><dt>Salud / pensiÃ³n</dt><dd>${healthRatePct}% / ${pensionRatePct}%</dd></div>
+      <div><dt>Salud / pensión</dt><dd>${healthRatePct}% / ${pensionRatePct}%</dd></div>
       <div><dt>Horas semanales</dt><dd>${parseNum(legalDraft.legalWeeklyHours || CO_HR_RULES.legalWeeklyHours)}</dd></div>
       <div><dt>Tope auxilio (2 SMMLV)</dt><dd>$${legalCurrentCap.toLocaleString("es-CO")}</dd></div>
-      <div><dt>Modo plataforma</dt><dd><strong>${legalDraft.referenceMode === "manual" ? `Manual Â· ${escapeHtml(String(legalDraft.activeYear))}` : "AutomÃ¡tico"}</strong></dd></div>
+      <div><dt>Modo plataforma</dt><dd><strong>${legalDraft.referenceMode === "manual" ? `Manual · ${escapeHtml(String(legalDraft.activeYear))}` : "Automático"}</strong></dd></div>
     </dl>`;
   const legalYearOptionsHtml = legalYearOptions
     .map(
@@ -688,12 +701,12 @@ function payrollHtml() {
     ? `<div class="payroll-legal-vigencias-grid">${legalHistory
         .map((row) => renderPayrollLegalHistoryCard(row, allRuns, { canDelete: canEditLegalParameters }))
         .join("")}</div>`
-    : `<p class="payroll-legal-empty muted">AÃºn no hay vigencias guardadas en base de datos. Cree la primera con el formulario.</p>`;
+    : `<p class="payroll-legal-empty muted">Aún no hay vigencias guardadas en base de datos. Cree la primera con el formulario.</p>`;
   const legalReadOnlyNotice = canEditLegalParameters
     ? ""
-    : `<p class="payroll-legal-notice payroll-legal-notice--info muted">Solo administradores pueden editar o eliminar vigencias. RRHH consulta el histÃ³rico y los valores aplicados en nÃ³mina.</p>`;
+    : `<p class="payroll-legal-notice payroll-legal-notice--info muted">Solo administradores pueden editar o eliminar vigencias. RRHH consulta el histórico y los valores aplicados en nómina.</p>`;
   const legalPayrollWarning = payrollRunsForLegalYear
-    ? `<p class="payroll-legal-notice payroll-legal-notice--warn status status-pendiente">Advertencia: ${payrollRunsForLegalYear} liquidaciÃ³n${payrollRunsForLegalYear === 1 ? "" : "es"} del aÃ±o ${legalDraft.year} ya usan referencias de esta vigencia. Guardar actualiza parÃ¡metros; eliminar la vigencia no borra liquidaciones.</p>`
+    ? `<p class="payroll-legal-notice payroll-legal-notice--warn status status-pendiente">Advertencia: ${payrollRunsForLegalYear} liquidación${payrollRunsForLegalYear === 1 ? "" : "es"} del año ${legalDraft.year} ya usan referencias de esta vigencia. Guardar actualiza parámetros; eliminar la vigencia no borra liquidaciones.</p>`
     : "";
   const legalFormActions = canEditLegalParameters
     ? `<div class="payroll-legal-form-actions">
@@ -711,8 +724,8 @@ function payrollHtml() {
           <div class="payroll-legal-panel__brand">
             ${hrCardIconMarkup("hash")}
             <div>
-              <h2>ParÃ¡metros legales anuales</h2>
-              <p class="muted">SMMLV, auxilio, UVT, aportes y horas legales por vigencia. ContrataciÃ³n y nÃ³mina consumen la referencia activa.</p>
+              <h2>Parámetros legales anuales</h2>
+              <p class="muted">SMMLV, auxilio, UVT, aportes y horas legales por vigencia. Contratación y nómina consumen la referencia activa.</p>
             </div>
           </div>
         </header>
@@ -725,9 +738,9 @@ function payrollHtml() {
               ${legalPayrollWarning}
               <form id="form-payroll-legal-params" class="p-form p-form-colored hr-form-flow hr-form-compact payroll-legal-form">
                 <fieldset class="form-section form-section-violet full">
-                  <legend>${IC.hash} Valores del aÃ±o</legend>
+                  <legend>${IC.hash} Valores del año</legend>
                   <div class="form-section-grid">
-                    <label>${fieldLabel(IC.calendar, "AÃ±o de vigencia")}
+                    <label>${fieldLabel(IC.calendar, "Año de vigencia")}
                       <select name="year" data-action="payroll-legal-set-year">${legalYearOptionsHtml}</select>
                     </label>
                     <label>${fieldLabel(IC.dollar, "SMMLV (COP)")}
@@ -739,7 +752,7 @@ function payrollHtml() {
                     <label>${fieldLabel(IC.heart, "Salud empleado %")}
                       <input name="healthEmployeeRatePct" type="number" min="0" max="100" step="0.01" value="${escapeAttr(String(healthRatePct))}" ${canEditLegalParameters ? "" : "disabled"} />
                     </label>
-                    <label>${fieldLabel(IC.shield, "PensiÃ³n empleado %")}
+                    <label>${fieldLabel(IC.shield, "Pensión empleado %")}
                       <input name="pensionEmployeeRatePct" type="number" min="0" max="100" step="0.01" value="${escapeAttr(String(pensionRatePct))}" ${canEditLegalParameters ? "" : "disabled"} />
                     </label>
                     <label>${fieldLabel(IC.hash, "UVT (COP)")}
@@ -755,11 +768,11 @@ function payrollHtml() {
                   <div class="form-section-grid">
                     <label>${fieldLabel(IC.layers, "Modo de vigencia")}
                       <select name="platformReferenceMode" ${canEditLegalParameters ? "" : "disabled"}>
-                        <option value="automatic" ${legalDraft.referenceMode === "automatic" ? "selected" : ""}>AutomÃ¡tica por fecha actual</option>
+                        <option value="automatic" ${legalDraft.referenceMode === "automatic" ? "selected" : ""}>Automática por fecha actual</option>
                         <option value="manual" ${legalDraft.referenceMode === "manual" ? "selected" : ""}>Forzar vigencia manual</option>
                       </select>
                     </label>
-                    <label>${fieldLabel(IC.calendar, "AÃ±o aplicado globalmente")}
+                    <label>${fieldLabel(IC.calendar, "Año aplicado globalmente")}
                       <select name="platformReferenceYear" ${canEditLegalParameters ? "" : "disabled"}>${legalAppliedYearOptionsHtml}</select>
                     </label>
                     <p class="full muted payroll-legal-form-hint">El tope del auxilio de transporte se calcula con <strong>2 SMMLV</strong> ($${legalCurrentCap.toLocaleString("es-CO")} para ${legalDraft.year}).</p>
@@ -786,7 +799,7 @@ function payrollHtml() {
       const monthLabel = formatPayrollPeriodLabel(r.month);
       return `<tr data-payroll-state="${state}">
         <td><strong>${escapeHtml(monthLabel)}</strong></td>
-        <td>${escapeHtml(String(r.employeeName || "â€”"))}</td>
+        <td>${escapeHtml(String(r.employeeName || "�"))}</td>
         <td class="num">${parseNum(r.tripCount ?? nv.tripCount ?? 0)}</td>
         <td class="num">${parseNum(r.interDepartmentTrips ?? nv.interDepartmentTrips ?? 0)}</td>
         <td>$${parseNum(r.travelAllowance || 0).toLocaleString("es-CO")}</td>
@@ -803,7 +816,7 @@ function payrollHtml() {
     })
     .join("");
   const driverPaymentsSummary = `<dl class="payroll-driver-kpi" aria-label="Resumen pagos conductores">
-      <div><dt>Pendientes de pago</dt><dd><strong>${pendingDriverPayments}</strong> Â· $${pendingDriverCop.toLocaleString("es-CO")}</dd></div>
+      <div><dt>Pendientes de pago</dt><dd><strong>${pendingDriverPayments}</strong> · $${pendingDriverCop.toLocaleString("es-CO")}</dd></div>
       <div><dt>Neto conductores (${escapeHtml(currentYm)})</dt><dd><strong>$${totalDriverMonth.toLocaleString("es-CO")}</strong></dd></div>
       <div><dt>Fichas conductor</dt><dd><strong>${conductorEmployees.length}</strong></dd></div>
       <div><dt>Tarifa interdepartamental</dt><dd><strong>$${parseNum(rules.interDepartmentTripAmount).toLocaleString("es-CO")}</strong></dd></div>
@@ -814,11 +827,11 @@ function payrollHtml() {
   const driverPaymentsPane = `<div class="payroll-data-pane${payrollDataSection === "driverPayments" ? "" : " hidden"}" data-payroll-section="driverPayments">
       ${pcardWrapPro(
         "truck",
-        "Cuentas por pagar â€” conductores",
-        "PrestaciÃ³n de servicios Â· liquidaciones_nomina (prestacion_viajes)",
+        "Cuentas por pagar � conductores",
+        "Prestación de servicios · liquidaciones_nomina (prestacion_viajes)",
         `${driverPaymentsSummary}${driverPaymentsCards}${
           driverRunRows
-            ? `<details class="payroll-table-fallback"><summary class="btn btn-sm btn-outline">Ver como tabla</summary><div class="table-wrap payroll-table-wrap"><table><thead><tr><th>Periodo</th><th>Conductor</th><th>Viajes</th><th>Interdep.</th><th>ViÃ¡ticos</th><th>Combustible</th><th>Neto</th><th>Estado</th><th></th></tr></thead><tbody>${driverRunRows}</tbody></table></div></details>`
+            ? `<details class="payroll-table-fallback"><summary class="btn btn-sm btn-outline">Ver como tabla</summary><div class="table-wrap payroll-table-wrap"><table><thead><tr><th>Periodo</th><th>Conductor</th><th>Viajes</th><th>Interdep.</th><th>Viáticos</th><th>Combustible</th><th>Neto</th><th>Estado</th><th></th></tr></thead><tbody>${driverRunRows}</tbody></table></div></details>`
             : ""
         }`,
         "admin-users-data-card"
@@ -847,7 +860,7 @@ function payrollHtml() {
     </div>`;
   const runsPane = `<div class="payroll-data-pane${payrollDataSection === "runs" ? "" : " hidden"}" data-payroll-section="runs">
       <div class="payroll-runs-toolbar">
-        <p class="payroll-result-meta muted">Mostrando <strong>${runs.length}</strong> de ${nominaRunsAll.length} liquidaciÃ³n${nominaRunsAll.length === 1 ? "" : "es"} de nÃ³mina laboral</p>
+        <p class="payroll-result-meta muted">Mostrando <strong>${runs.length}</strong> de ${nominaRunsAll.length} liquidación${nominaRunsAll.length === 1 ? "" : "es"} de nómina laboral</p>
         <button type="button" class="btn btn-sm btn-outline" id="export-payroll">${IC.download} Exportar CSV</button>
       </div>
       ${runsPaneBody}
@@ -861,11 +874,11 @@ function payrollHtml() {
     </section>`;
   const payrollTabsNav = renderHrWorkspaceTabs({
     module: "payroll",
-    ariaLabel: "Secciones del mÃ³dulo Personal y nÃ³mina",
+    ariaLabel: "Secciones del módulo Personal y nómina",
     activeId: payrollWorkspace,
     variant: "switch",
     tabs: [
-      { id: "operate", label: "Registrar", icon: "plus", hint: "Altas, nÃ³mina y ausencias" },
+      { id: "operate", label: "Registrar", icon: "plus", hint: "Altas, nómina y ausencias" },
       { id: "data", label: "Consultar", icon: "eye", hint: "Expedientes y liquidaciones" }
     ]
   });

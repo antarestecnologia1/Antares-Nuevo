@@ -446,6 +446,16 @@ function vehiclesHtml() {
         state.vehiclesUi = { ...(state.vehiclesUi || {}), workspace: ws };
         if (ws === "data") state.vehiclesUi.section = "fleet";
         persistHrWorkspace("transport-vehicles", ws);
+        if (
+          switchHrWorkspacePanels({
+            root: nodes.viewRoot,
+            moduleId: "transport-vehicles",
+            workspace: ws,
+            panelAttr: "data-vehicle-panel"
+          })
+        ) {
+          return;
+        }
         renderPortalView();
       });
     });
@@ -456,6 +466,24 @@ function vehiclesHtml() {
         const ws = section === "fleet" ? "data" : "operate";
         state.vehiclesUi = { ...(state.vehiclesUi || {}), workspace: ws, section };
         persistHrWorkspace("transport-vehicles", ws);
+        switchHrWorkspacePanels({
+          root: nodes.viewRoot,
+          moduleId: "transport-vehicles",
+          workspace: ws,
+          panelAttr: "data-vehicle-panel"
+        });
+        const panelAttr = ws === "data" ? "data-vehicle-data-pane" : "data-vehicle-operate-pane";
+        if (
+          switchModuleTabPanels({
+            root: nodes.viewRoot,
+            action: "vehicles-section",
+            activeValue: section,
+            panelAttr,
+            tabActiveClass: "is-active"
+          })
+        ) {
+          return;
+        }
         renderPortalView();
       });
     });

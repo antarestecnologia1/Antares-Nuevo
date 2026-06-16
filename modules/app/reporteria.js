@@ -71,7 +71,29 @@ function bindReportsWorkspaceControls() {
     btn.addEventListener("click", () => {
       const tab = String(btn.dataset.tab || "export").trim();
       if (!["export", "bi"].includes(tab)) return;
+      const prevTab = String(state.reportsUi?.tab || "export");
       state.reportsUi = { ...state.reportsUi, tab };
+      if (
+        switchModuleTabPanels({
+          root,
+          action: "reports-set-tab",
+          activeValue: tab,
+          valueAttr: "tab",
+          panelAttr: "data-reports-panel",
+          tabActiveClass: "is-active"
+        })
+      ) {
+        if (prevTab === "bi" && tab !== "bi") destroyReportsCharts();
+        if (tab === "bi") {
+          const user = currentUser();
+          const layout = loadReportsBiLayout();
+          const snapshot = buildReportsAnalyticsSnapshot(user, state.reportsUi?.period || "90d");
+          loadChartJsLib()
+            .then(() => wireReportsCharts(snapshot, layout))
+            .catch(() => {});
+        }
+        return;
+      }
       destroyReportsCharts();
       renderPortalView();
     });

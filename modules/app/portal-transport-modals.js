@@ -1,118 +1,179 @@
 /**
- * Modales de transporte (solicitudes, viajes, tarifas, auditoría eliminados).
- * Extraído desde modules/core/portal-runtime.js.
+ * Modales de transporte (viajes, solicitudes, tarifas, auditoría).
+ * Carga con defer después de portal-runtime.js; registra en globalThis.__antaresPortalTransportModals
  */
-const G = globalThis;
+(function registerPortalModals() {
+  "use strict";
+  const G = globalThis;
+  const {
+    read, write, writeAwaitServer, KEYS, IC, STATUS, ROLES,
+    state, openInfoModal, openEditModal, escapeHtml, escapeAttr, fmtDate, fmtDateOr,
+    parseNum, notify, renderPortalView, reqRead, reqWriteAwait, canAdminEditTrip,
+    formatRoute, requestTruckRequirementSummaryHtml, prettyStatus, companyProfileLogoUrl,
+    getCompanyById, requestRequiresTermoking, requestTransportModeFromRequest,
+    renderRequestModificationLogSectionHtml, parsePortalJsonSnapshot, snapPick,
+    toInputDate, currentUser, nowIso, recalculateResourceAvailability,
+    getTripRouteRatesNormalized, parseTripRateStorageKeyToRouteParts,
+    formatRouteRateAuditSummary, buildRouteRateScopeStepInnerHtml, COLOMBIA_LOCATIONS,
+    setSelectValueInsensitive, attachDepartmentCitySelects, wireRouteRateScopeSection,
+    failPortalField, userMessage, buildTripRouteRateKey, tripRateStorageKey,
+    buildRouteRateEntry, humanTripRateRouteLabelFromStorageKey,
+    formatPayrollPeriodLabel, payrollRunTypeLabel, payrollRunIsDriverTripPayment,
+    payrollRunHasAbsenceDetail, ensureCrudModalElement, renderModalHead,
+    renderModalFooterActions, wireModalDismiss, scrollOpenCrudModalIntoView,
+    persistHrWorkspace, scrollToCreatePanelForm, colombiaTodayIsoDate
+  } = globalThis;
 
-/** Copia JSON de auditoría de viaje: bootstrap puede traer solo `snapshotSummary`. */
+function openAssignedTripInfoModal(req) {
+  if (!req?.trip) return;
+  const canEditTrip = canAdminEditTrip(req);
+  const secondaryActions = [
+    `<button type="button" class="btn btn-outline" data-trip-info-action="view-request">${IC.eye} Ver solicitud</button>`,
+    canEditTrip ? `<button type="button" class="btn btn-action" data-trip-info-action="edit-trip">${IC.edit} Editar viaje</button>` : ""
+  ].filter(Boolean).join("");
+  openInfoModal({
+    title: `Viaje ${req.trip.tripNumber}`,
+    subtitleHtml: prettyStatus(req.status, "trip"),
+    wide: true,
+    secondaryActionsHtml: secondaryActions,
+    afterMount: (contentEl) => {
+      contentEl
+        .querySelector("[data-trip-info-action='view-request']")
+        ?.addEventListener("click", () => {
+          /**
+           * Salta del detalle del viaje al detalle de la solicitud. Se hace
+           * fire-and-forget vía el handler global de `data-action=detail`.
+           * Como `data-action=detail` está en cards del módulo y aquí el
+           * botón es modal, abrimos el modal de info directamente.
+           */
+          openRequestDetailModal(req);
+        });
+      contentEl
+        .querySelector("[data-trip-info-action='edit-trip']")
+        ?.addEventListener("click", () => {
+          openEditTripModal(req);
+        });
+    },
+    bodyHtml: `
+          <div class="dash-grid">
+            <div><strong>Solicitud:</strong> ${escapeHtml(String(req.requestNumber || req.id))}</div>
+            <div><strong>Cliente:</strong> ${escapeHtml(String(req.clientName || "-"))}</div>
+            <div class="full"><strong>Ruta:</strong> ${escapeHtml(formatRoute(req))}</div>
+            <div><strong>Carga:</strong> ${escapeHtml(String(req.cargoDescription || "-"))} · ${requestTruckRequirementSummaryHtml(req)}</div>
+            <div><strong>Valor viaje:</strong> $${parseNum(req.tripValue || req.insuredValue || 0).toLocaleString("es-CO")}</div>
+            ${parseNum(req.insuredValue || 0) > 0 ? `<div><strong>Valor asegurado:</strong> $${parseNum(req.insuredValue).toLocaleString("es-CO")}</div>` : ""}
+            ${parseNum(req.distanceKm || 0) > 0 ? `<div><strong>Distancia estimada:</strong> ${parseNum(req.distanceKm).toLocaleString("es-CO")} km</div>` : ""}
+            <div><strong>Camión:</strong> ${escapeHtml(String(req.trip.vehiclePlate || ""))} (${escapeHtml(String(req.trip.vehicleType || "-"))})</div>
+            <div><strong>Conductor:</strong> ${escapeHtml(String(req.trip.driverName || ""))} · ${escapeHtml(String(req.trip.driverPhone || "-"))}</div>
+            <div><strong>Asignado por:</strong> ${escapeHtml(String(req.trip.assignedBy || req.approvedBy || "-"))}</div>
+            <div><strong>Fecha asignación:</strong> ${fmtDate(req.trip.assignedAt || req.approvedAt || req.createdAt)}</div>
+            <div><strong>Creado</strong> ${escapeHtml(fmtDateOr(req.trip.createdAt || req.createdAt, "—"))}</div>
+            <div><strong>Última actualización</strong> ${escapeHtml(fmtDateOr(req.trip.updatedAt || req.trip.createdAt || req.updatedAt, "—"))}</div>
+            ${req.autoApproved ? `<div><strong>Aprobación:</strong> Automática</div>` : ""}
+            <div><strong>Recogida:</strong> ${fmtDate(req.trip.etaPickup)}</div>
+            <div><strong>Entrega:</strong> ${fmtDate(req.trip.etaDelivery)}</div>
+            ${req.closedAt ? `<div><strong>Cierre:</strong> ${fmtDate(req.closedAt)}</div>` : ""}
+            ${req.trip.invoice ? `<div><strong>Factura:</strong> ${escapeHtml(String(req.trip.invoice.number))} · $${parseNum(req.trip.invoice.total).toLocaleString("es-CO")}</div>` : ""}
+          </div>
+          ${parseNum(req.standbyChargeTotal) > 0 ? `<p style="margin-top:0.6rem"><strong>Standby acumulado:</strong> $${parseNum(req.standbyChargeTotal).toLocaleString("es-CO")}</p>` : ""}
+        `
+  });
+}
+
+function openRequestDetailModal(req) {
+  if (!req) return;
+  const company = typeof getCompanyById === "function" ? getCompanyById(req.clientCompanyId) : null;
+  const clientLogoUrl =
+    companyProfileLogoUrl(company) || String(req.clientCompanyLogoUrl || "").trim();
+  const clientDisplayName = String(req.clientName || company?.name || "-").trim() || "-";
+  const clientBlock =
+    clientLogoUrl && !/^data:/i.test(clientLogoUrl)
+      ? `<div class="solicitud-detail-client-row"><span class="request-company-logo request-company-logo--sm" role="img" aria-label="Logo de ${escapeAttr(clientDisplayName)}"><img src="${escapeAttr(clientLogoUrl)}" alt="" loading="lazy" /></span><span class="muted">${escapeHtml(clientDisplayName)}</span></div>`
+      : `<span class="muted">${escapeHtml(clientDisplayName)}</span>`;
+  const thermokingReq = requestRequiresTermoking(req);
+  const obs = String(req.notes || req.observations || "").trim();
+  const origAddr = String(req.originAddress || "").trim();
+  const destAddr = String(req.destinationAddress || "").trim();
+  const modoTransporte = escapeHtml(requestTransportModeFromRequest(req));
+  const tripDetail = req.trip
+    ? `<div class="dash-grid solicitud-trip-summary">
+            <div class="full"><strong>Resumen del viaje asignado</strong></div>
+            <div><strong>Código:</strong> ${escapeHtml(String(req.trip.tripNumber || ""))}</div>
+            <div><strong>Camión:</strong> ${escapeHtml(String(req.trip.vehiclePlate || ""))} (${escapeHtml(String(req.trip.vehicleType || "-"))})</div>
+            <div><strong>Conductor:</strong> ${escapeHtml(String(req.trip.driverName || ""))} · ${escapeHtml(String(req.trip.driverPhone || "-"))}</div>
+            <div><strong>Recogida:</strong> ${fmtDate(req.trip.etaPickup)}</div>
+            <div><strong>Entrega:</strong> ${fmtDate(req.trip.etaDelivery)}</div>
+            <div class="full solicitud-trip-summary-actions">
+              <button type="button" class="btn btn-action" data-action="solicitud-trip-open">${IC.eye} Abrir detalle del viaje</button>
+            </div>
+          </div>`
+    : `<p class="muted" style="margin:0.35rem 0 0">Aún no tiene viaje asignado.</p>`;
+  openInfoModal({
+    title: `Solicitud ${req.requestNumber || req.id}`,
+    subtitleHtml: prettyStatus(req.status, "request"),
+    wide: true,
+    afterMount: req.trip
+      ? (contentEl) => {
+          contentEl.querySelector("[data-action='solicitud-trip-open']")?.addEventListener("click", () => {
+            openAssignedTripInfoModal(req);
+          });
+        }
+      : undefined,
+    bodyHtml: `
+      <section aria-label="Viaje asignado principal">
+        <h3 class="solicitud-detail-heading">Viaje asignado</h3>
+        ${tripDetail}
+      </section>
+      <hr style="border:0;border-top:1px solid var(--line);margin:1rem 0;" />
+      <section class="solicitud-detail-section" aria-label="Datos de la solicitud">
+        <h3 class="solicitud-detail-heading">Solicitud de transporte</h3>
+        <div class="dash-grid">
+          <div class="full"><strong>Cliente</strong><br />${clientBlock}</div>
+          <div><strong>Modo de transporte</strong><br /><span class="muted">${modoTransporte}</span></div>
+          <div><strong>Refrigeración Termoking</strong><br /><span class="muted">${thermokingReq ? "Sí, requerida" : "No"}</span></div>
+          <div><strong>Ruta</strong><br /><span class="muted">${escapeHtml(formatRoute(req))}</span></div>
+          ${origAddr ? `<div class="full"><strong>Origen (dirección)</strong><br /><span class="muted">${escapeHtml(origAddr)}</span></div>` : ""}
+          ${destAddr ? `<div class="full"><strong>Destino (dirección)</strong><br /><span class="muted">${escapeHtml(destAddr)}</span></div>` : ""}
+          <div><strong>Recogida programada</strong><br /><span class="muted">${fmtDate(req.pickupAt || `${req.pickupDate || ""}T${req.pickupTime || ""}`)}</span></div>
+          <div><strong>Entrega estimada</strong><br /><span class="muted">${fmtDate(req.etaDelivery || `${req.deliveryDate || ""}T${req.deliveryTime || ""}`)}</span></div>
+          <div><strong>Solicita</strong><br /><span class="muted">${escapeHtml(String(req.requestedByName || "-"))}</span></div>
+          <div><strong>Contacto en sitio</strong><br /><span class="muted">${escapeHtml(String(req.siteContactName || req.contactName || "-"))} · ${escapeHtml(String(req.siteContactPhone || req.contactPhone || "-"))}</span></div>
+          <div><strong>Carga</strong><br /><span class="muted">${escapeHtml(String(req.cargoDescription || "-"))}</span></div>
+          <div><strong>Requisitos de camión</strong><br /><span class="muted">${requestTruckRequirementSummaryHtml(req)}</span></div>
+          <div><strong>Valor del viaje</strong><br /><span class="muted">$${parseNum(req.tripValue || req.insuredValue || 0).toLocaleString("es-CO")}</span></div>
+          ${parseNum(req.insuredValue || 0) > 0 ? `<div><strong>Valor asegurado</strong><br /><span class="muted">$${parseNum(req.insuredValue).toLocaleString("es-CO")}</span></div>` : ""}
+          ${parseNum(req.distanceKm || 0) > 0 ? `<div><strong>Distancia estimada</strong><br /><span class="muted">${parseNum(req.distanceKm).toLocaleString("es-CO")} km</span></div>` : ""}
+          ${req.autoApproved ? `<div><strong>Aprobación</strong><br /><span class="muted">Automática</span></div>` : ""}
+          ${parseNum(req.standbyChargeTotal) > 0 ? `<div class="full"><strong>Standby</strong><br /><span class="muted">$${parseNum(req.standbyChargeTotal).toLocaleString("es-CO")}</span></div>` : ""}
+          ${req.rejectionReason ? `<div class="full"><strong>Motivo rechazo</strong><br /><span class="muted">${escapeHtml(String(req.rejectionReason))}</span></div>` : ""}
+        </div>
+        ${obs ? `<div class="solicitud-detail-notes full"><strong>Observaciones</strong><p class="detail-note" style="white-space:pre-wrap;margin:0.35rem 0 0">${escapeHtml(obs)}</p></div>` : ""}
+      </section>
+      ${renderRequestModificationLogSectionHtml(req)}
+    `
+  });
+}
+
 function deletedTripSnapshotForTableRow(row) {
-  const direct = G.parsePortalJsonSnapshot(row.snapshot);
+  const direct = parsePortalJsonSnapshot(row.snapshot);
   if (direct) return direct;
   const s = row.snapshotSummary;
   return s && typeof s === "object" ? s : null;
 }
 
-/** Copia JSON de auditoría de solicitud: bootstrap puede traer solo `snapshotSummary`. */
 function deletedRequestSnapshotForTableRow(row) {
-  const direct = G.parsePortalJsonSnapshot(row.snapshot);
+  const direct = parsePortalJsonSnapshot(row.snapshot);
   if (direct) return direct;
   const s = row.snapshotSummary;
   return s && typeof s === "object" ? s : null;
-}
-
-/**
- * Hidrata `noveltiesDetail` / `settlementDetail` desde el API si el bootstrap solo trajo la fila resumida.
- * @returns {object|null} fila fusionada o null si no hay sesión API
- */
-async function ensurePayrollRunHeavyJsonLoaded(runId) {
-  const id = String(runId || "").trim();
-  if (!id || !portalCanRefreshFromApi()) return null;
-  const runs = G.read(G.KEYS.payrollRuns, []);
-  const idx = runs.findIndex((r) => String(r.id) === id);
-  if (idx < 0) return null;
-  const cur = runs[idx];
-  if (cur.payrollRunHeavyOmitted !== true) return cur;
-  const api = window.AntaresApi;
-  if (!api || typeof api.getJson !== "function") return cur;
-  try {
-    const detail = await api.getJson(`/portal/payroll-runs/${encodeURIComponent(id)}`);
-    if (!detail || typeof detail !== "object") return cur;
-    const merged = {
-      ...cur,
-      settlementDetail: detail.settlementDetail ?? cur.settlementDetail ?? null,
-      noveltiesDetail: detail.noveltiesDetail ?? cur.noveltiesDetail ?? null,
-      workedDays: detail.workedDays != null ? detail.workedDays : cur.workedDays,
-      workedDaysPaymentCop:
-        detail.workedDaysPaymentCop != null ? detail.workedDaysPaymentCop : cur.workedDaysPaymentCop,
-      payrollRunHeavyOmitted: false
-    };
-    const next = [...runs];
-    next[idx] = merged;
-    write(G.KEYS.payrollRuns, next);
-    return merged;
-  } catch (err) {
-    G.devWarn("Portal: detalle de liquidación no disponible.", err?.message || err);
-    G.notify(String(err?.message || "No fue posible cargar el detalle de la liquidación."), "warn");
-    return cur;
-  }
-}
-
-async function ensureDeletedTransportTripAuditSnapshotLoaded(logId) {
-  const id = String(logId || "").trim();
-  if (!id || !portalCanRefreshFromApi()) return false;
-  const rows = G.read(G.KEYS.deletedTransportTripLogs, []);
-  const row = rows.find((r) => String(r.id) === id);
-  if (!row) return false;
-  if (G.parsePortalJsonSnapshot(row.snapshot)) return true;
-  const api = window.AntaresApi;
-  if (!api || typeof api.getJson !== "function") return false;
-  try {
-    const res = await api.getJson(`/portal/deleted-transport-trip-audit/${encodeURIComponent(id)}`);
-    const snap = res && typeof res === "object" ? res.snapshot : null;
-    const idx = rows.findIndex((r) => String(r.id) === id);
-    if (idx < 0) return false;
-    const next = [...rows];
-    next[idx] = { ...next[idx], snapshot: snap };
-    write(G.KEYS.deletedTransportTripLogs, next);
-    return true;
-  } catch (err) {
-    G.devWarn("Portal: snapshot de auditoría (viaje) no disponible.", err?.message || err);
-    G.notify(String(err?.message || "No fue posible cargar la copia del viaje."), "warn");
-    return false;
-  }
-}
-
-async function ensureDeletedTransportRequestAuditSnapshotLoaded(logId) {
-  const id = String(logId || "").trim();
-  if (!id || !portalCanRefreshFromApi()) return false;
-  const rows = G.read(G.KEYS.deletedTransportRequestLogs, []);
-  const row = rows.find((r) => String(r.id) === id);
-  if (!row) return false;
-  if (G.parsePortalJsonSnapshot(row.snapshot)) return true;
-  const api = window.AntaresApi;
-  if (!api || typeof api.getJson !== "function") return false;
-  try {
-    const res = await api.getJson(`/portal/deleted-transport-request-audit/${encodeURIComponent(id)}`);
-    const snap = res && typeof res === "object" ? res.snapshot : null;
-    const idx = rows.findIndex((r) => String(r.id) === id);
-    if (idx < 0) return false;
-    const next = [...rows];
-    next[idx] = { ...next[idx], snapshot: snap };
-    write(G.KEYS.deletedTransportRequestLogs, next);
-    return true;
-  } catch (err) {
-    G.devWarn("Portal: snapshot de auditoría (solicitud) no disponible.", err?.message || err);
-    G.notify(String(err?.message || "No fue posible cargar la copia de la solicitud."), "warn");
-    return false;
-  }
 }
 
 function formatDeletedRequestSnapshotRouteLine(snap) {
   if (!snap) return "Sin datos de ruta.";
-  const od = G.snapPick(snap, "departamento_origen", "originDepartment");
-  const oc = G.snapPick(snap, "ciudad_origen", "originCity");
-  const dd = G.snapPick(snap, "departamento_destino", "destinationDepartment");
-  const dc = G.snapPick(snap, "ciudad_destino", "destinationCity");
+  const od = snapPick(snap, "departamento_origen", "originDepartment");
+  const oc = snapPick(snap, "ciudad_origen", "originCity");
+  const dd = snapPick(snap, "departamento_destino", "destinationDepartment");
+  const dc = snapPick(snap, "ciudad_destino", "destinationCity");
   const left = [oc, od].filter(Boolean).join(", ") || oc || od || "";
   const right = [dc, dd].filter(Boolean).join(", ") || dc || dd || "";
   if (left && right) return `${left} → ${right}`;
@@ -122,25 +183,21 @@ function formatDeletedRequestSnapshotRouteLine(snap) {
 function formatDeletedRequestSnapshotTableSummary(snap) {
   if (!snap) return "—";
   const route = formatDeletedRequestSnapshotRouteLine(snap);
-  const cargo = G.snapPick(snap, "descripcion_carga", "cargoDescription");
+  const cargo = snapPick(snap, "descripcion_carga", "cargoDescription");
   if (!cargo) return route;
   const short = cargo.length > 90 ? `${cargo.slice(0, 87)}…` : cargo;
   return `${route} · ${short}`;
 }
 
-/**
- * Ficha de solo lectura desde la fila de `auditoria_solicitudes_eliminadas`
- * (copia JSON al momento de borrar).
- */
 function openDeletedTransportRequestAuditModal(logRow) {
   if (!logRow) return;
-  const snap = G.parsePortalJsonSnapshot(logRow.snapshot);
+  const snap = parsePortalJsonSnapshot(logRow.snapshot);
   const reqN = String(logRow.requestNumber || logRow.requestId || "-").trim();
-  const baseAuditSubtitle = `<span class="muted">Eliminada:</span> ${G.escapeHtml(G.fmtDate(logRow.deletedAt))}<br />
-    <span class="muted">Usuario:</span> ${G.escapeHtml(String(logRow.deletedByEmail || "—"))}<br />
-    <span class="muted">Motivo:</span> ${G.escapeHtml(String(logRow.reason || "—"))}`;
+  const baseAuditSubtitle = `<span class="muted">Eliminada:</span> ${escapeHtml(fmtDate(logRow.deletedAt))}<br />
+    <span class="muted">Usuario:</span> ${escapeHtml(String(logRow.deletedByEmail || "—"))}<br />
+    <span class="muted">Motivo:</span> ${escapeHtml(String(logRow.reason || "—"))}`;
   if (!snap) {
-    G.openInfoModal({
+    openInfoModal({
       title: `Solicitud eliminada ${reqN}`,
       subtitleHtml: `${baseAuditSubtitle}<br /><span class="muted">Estado al eliminar:</span> —`,
       wide: true,
@@ -149,39 +206,39 @@ function openDeletedTransportRequestAuditModal(logRow) {
     });
     return;
   }
-  const modo = G.escapeHtml(G.snapPick(snap, "tipo_servicio", "serviceType") || "—");
+  const modo = escapeHtml(snapPick(snap, "tipo_servicio", "serviceType") || "—");
   const tkRaw = snap.refrigeracion_termoking ?? snap.requiresThermoking;
   const thermoking =
     tkRaw === true ||
     String(tkRaw).toLowerCase() === "true" ||
     String(tkRaw).toLowerCase() === "yes";
-  const routeLine = G.escapeHtml(formatDeletedRequestSnapshotRouteLine(snap));
-  const origAddr = G.escapeHtml(G.snapPick(snap, "direccion_origen", "originAddress"));
-  const destAddr = G.escapeHtml(G.snapPick(snap, "direccion_destino", "destinationAddress"));
-  const pickupIso = G.snapPick(snap, "fecha_hora_recogida", "pickupAt");
-  const deliveryIso = G.snapPick(snap, "fecha_hora_entrega_estimada", "etaDelivery");
-  const requestedBy = G.escapeHtml(G.snapPick(snap, "nombre_quien_solicita", "requestedByName") || "—");
-  const contactName = G.escapeHtml(G.snapPick(snap, "nombre_contacto_en_sitio", "siteContactName", "contactName") || "—");
-  const contactPhone = G.escapeHtml(G.snapPick(snap, "telefono_contacto_en_sitio", "siteContactPhone", "contactPhone") || "—");
-  const cargo = G.escapeHtml(G.snapPick(snap, "descripcion_carga", "cargoDescription") || "—");
-  const peso = G.parseNum(snap.peso_kg ?? snap.weightKg);
-  const cajas = G.parseNum(snap.numero_cajas ?? snap.boxes ?? snap.boxesCount);
-  const estadoPlain = G.snapPick(snap, "estado", "status") || "—";
-  const estado = G.escapeHtml(estadoPlain);
-  const tipoVeh = G.escapeHtml(
-    G.snapPick(snap, "tipo_vehiculo_requerido", "tipo_vehiculo_solicitado", "vehicleType", "requiredTruckType") || "—"
+  const routeLine = escapeHtml(formatDeletedRequestSnapshotRouteLine(snap));
+  const origAddr = escapeHtml(snapPick(snap, "direccion_origen", "originAddress"));
+  const destAddr = escapeHtml(snapPick(snap, "direccion_destino", "destinationAddress"));
+  const pickupIso = snapPick(snap, "fecha_hora_recogida", "pickupAt");
+  const deliveryIso = snapPick(snap, "fecha_hora_entrega_estimada", "etaDelivery");
+  const requestedBy = escapeHtml(snapPick(snap, "nombre_quien_solicita", "requestedByName") || "—");
+  const contactName = escapeHtml(snapPick(snap, "nombre_contacto_en_sitio", "siteContactName", "contactName") || "—");
+  const contactPhone = escapeHtml(snapPick(snap, "telefono_contacto_en_sitio", "siteContactPhone", "contactPhone") || "—");
+  const cargo = escapeHtml(snapPick(snap, "descripcion_carga", "cargoDescription") || "—");
+  const peso = parseNum(snap.peso_kg ?? snap.weightKg);
+  const cajas = parseNum(snap.numero_cajas ?? snap.boxes ?? snap.boxesCount);
+  const estadoPlain = snapPick(snap, "estado", "status") || "—";
+  const estado = escapeHtml(estadoPlain);
+  const tipoVeh = escapeHtml(
+    snapPick(snap, "tipo_vehiculo_requerido", "tipo_vehiculo_solicitado", "vehicleType", "requiredTruckType") || "—"
   );
-  const obs = String(G.snapPick(snap, "observaciones", "notes") || "").trim();
+  const obs = String(snapPick(snap, "observaciones", "notes") || "").trim();
   const fullSubtitleHtml = `${baseAuditSubtitle}<br /><span class="muted">Estado al eliminar:</span> ${estado}`;
-  G.openInfoModal({
+  openInfoModal({
     title: `Solicitud eliminada ${reqN}`,
     subtitleHtml: fullSubtitleHtml,
     wide: true,
     bodyHtml: `
       <section class="solicitud-detail-section" aria-label="Copia de la solicitud eliminada">
         <div class="dash-grid">
-          <div class="full"><strong>Cliente</strong><br /><span class="muted">${G.escapeHtml(
-            G.snapPick(snap, "nombre_cliente", "clientName") || "—"
+          <div class="full"><strong>Cliente</strong><br /><span class="muted">${escapeHtml(
+            snapPick(snap, "nombre_cliente", "clientName") || "—"
           )}</span></div>
           <div><strong>Modo de transporte</strong><br /><span class="muted">${modo}</span></div>
           <div><strong>Refrigeración Termoking</strong><br /><span class="muted">${thermoking ? "Sí, requerida" : "No"}</span></div>
@@ -189,14 +246,14 @@ function openDeletedTransportRequestAuditModal(logRow) {
           <div><strong>Ruta (ciudad / depto.)</strong><br /><span class="muted">${routeLine}</span></div>
           ${origAddr ? `<div class="full"><strong>Origen (dirección)</strong><br /><span class="muted">${origAddr}</span></div>` : ""}
           ${destAddr ? `<div class="full"><strong>Destino (dirección)</strong><br /><span class="muted">${destAddr}</span></div>` : ""}
-          <div><strong>Recogida programada</strong><br /><span class="muted">${G.escapeHtml(G.fmtDate(pickupIso))}</span></div>
-          <div><strong>Entrega estimada</strong><br /><span class="muted">${G.escapeHtml(G.fmtDate(deliveryIso))}</span></div>
+          <div><strong>Recogida programada</strong><br /><span class="muted">${escapeHtml(fmtDate(pickupIso))}</span></div>
+          <div><strong>Entrega estimada</strong><br /><span class="muted">${escapeHtml(fmtDate(deliveryIso))}</span></div>
           <div><strong>Solicita</strong><br /><span class="muted">${requestedBy}</span></div>
           <div><strong>Contacto en sitio</strong><br /><span class="muted">${contactName} · ${contactPhone}</span></div>
           <div><strong>Carga</strong><br /><span class="muted">${cargo}</span></div>
           <div><strong>Peso / cajas</strong><br /><span class="muted">${peso.toLocaleString("es-CO")} kg · ${cajas.toLocaleString("es-CO")} cajas</span></div>
         </div>
-        ${obs ? `<div class="solicitud-detail-notes"><strong>Observaciones</strong><p class="detail-note" style="white-space:pre-wrap;margin:0.35rem 0 0">${G.escapeHtml(obs)}</p></div>` : ""}
+        ${obs ? `<div class="solicitud-detail-notes"><strong>Observaciones</strong><p class="detail-note" style="white-space:pre-wrap;margin:0.35rem 0 0">${escapeHtml(obs)}</p></div>` : ""}
       </section>
     `
   });
@@ -204,10 +261,10 @@ function openDeletedTransportRequestAuditModal(logRow) {
 
 function formatDeletedTripSnapshotTableSummary(snap) {
   if (!snap) return "—";
-  const num = G.snapPick(snap, "numero_viaje", "tripNumber");
-  const plate = G.snapPick(snap, "placa_vehiculo", "vehiclePlate");
-  const driver = G.snapPick(snap, "nombre_conductor", "driverName");
-  const route = G.snapPick(snap, "descripcion_ruta", "routeDescription", "notes");
+  const num = snapPick(snap, "numero_viaje", "tripNumber");
+  const plate = snapPick(snap, "placa_vehiculo", "vehiclePlate");
+  const driver = snapPick(snap, "nombre_conductor", "driverName");
+  const route = snapPick(snap, "descripcion_ruta", "routeDescription", "notes");
   const parts = [];
   if (num) parts.push(`Viaje ${num}`);
   if (plate) parts.push(plate);
@@ -220,21 +277,17 @@ function formatDeletedTripSnapshotTableSummary(snap) {
   return line;
 }
 
-/**
- * Ficha de solo lectura desde `auditoria_viajes_eliminados.datos_json`
- * (fila de viajes_transporte al momento de desasignar).
- */
 function openDeletedTransportTripAuditModal(logRow) {
   if (!logRow) return;
-  const snap = G.parsePortalJsonSnapshot(logRow.snapshot);
+  const snap = parsePortalJsonSnapshot(logRow.snapshot);
   const tripLabel = String(logRow.tripNumber || "").trim() || "—";
   const reqLabel = String(logRow.requestNumber || logRow.requestId || "").trim() || "—";
-  const baseAuditSubtitle = `<span class="muted">Registrado:</span> ${G.escapeHtml(G.fmtDate(logRow.deletedAt))}<br />
-    <span class="muted">Usuario:</span> ${G.escapeHtml(String(logRow.deletedByEmail || "—"))}<br />
-    <span class="muted">Motivo:</span> ${G.escapeHtml(String(logRow.reason || "—"))}<br />
-    <span class="muted">Solicitud:</span> ${G.escapeHtml(reqLabel)} · <span class="muted">Viaje:</span> ${G.escapeHtml(tripLabel)}`;
+  const baseAuditSubtitle = `<span class="muted">Registrado:</span> ${escapeHtml(fmtDate(logRow.deletedAt))}<br />
+    <span class="muted">Usuario:</span> ${escapeHtml(String(logRow.deletedByEmail || "—"))}<br />
+    <span class="muted">Motivo:</span> ${escapeHtml(String(logRow.reason || "—"))}<br />
+    <span class="muted">Solicitud:</span> ${escapeHtml(reqLabel)} · <span class="muted">Viaje:</span> ${escapeHtml(tripLabel)}`;
   if (!snap) {
-    G.openInfoModal({
+    openInfoModal({
       title: `Viaje desasignado ${tripLabel}`,
       subtitleHtml: baseAuditSubtitle,
       wide: true,
@@ -243,20 +296,20 @@ function openDeletedTransportTripAuditModal(logRow) {
     });
     return;
   }
-  const estadoOp = G.escapeHtml(G.snapPick(snap, "estado_operativo_en_vivo", "liveOperationalStatus") || "—");
+  const estadoOp = escapeHtml(snapPick(snap, "estado_operativo_en_vivo", "liveOperationalStatus") || "—");
   const fullSubtitleHtml = `${baseAuditSubtitle}<br /><span class="muted">Estado operativo (copia):</span> ${estadoOp}`;
-  const pickup = G.snapPick(snap, "fecha_hora_recogida_programada", "etaPickup");
-  const delivery = G.snapPick(snap, "fecha_hora_entrega_programada", "etaDelivery");
-  const assignedBy = G.escapeHtml(G.snapPick(snap, "asignado_por", "assignedBy") || "—");
-  const assignedAt = G.snapPick(snap, "fecha_hora_asignacion", "assignedAt");
-  const tipoVeh = G.escapeHtml(G.snapPick(snap, "tipo_vehiculo_asignado", "vehicleType") || "—");
-  const plate = G.escapeHtml(G.snapPick(snap, "placa_vehiculo", "vehiclePlate") || "—");
-  const driver = G.escapeHtml(G.snapPick(snap, "nombre_conductor", "driverName") || "—");
-  const driverPhone = G.escapeHtml(G.snapPick(snap, "telefono_conductor", "driverPhone") || "—");
-  const routeDesc = G.escapeHtml(G.snapPick(snap, "descripcion_ruta", "routeDescription") || "—");
-  const numViajeRaw = G.snapPick(snap, "numero_viaje", "tripNumber") || tripLabel;
-  const numViaje = G.escapeHtml(numViajeRaw);
-  const idSol = G.escapeHtml(G.snapPick(snap, "id_solicitud", "requestId") || String(logRow.requestId || "—"));
+  const pickup = snapPick(snap, "fecha_hora_recogida_programada", "etaPickup");
+  const delivery = snapPick(snap, "fecha_hora_entrega_programada", "etaDelivery");
+  const assignedBy = escapeHtml(snapPick(snap, "asignado_por", "assignedBy") || "—");
+  const assignedAt = snapPick(snap, "fecha_hora_asignacion", "assignedAt");
+  const tipoVeh = escapeHtml(snapPick(snap, "tipo_vehiculo_asignado", "vehicleType") || "—");
+  const plate = escapeHtml(snapPick(snap, "placa_vehiculo", "vehiclePlate") || "—");
+  const driver = escapeHtml(snapPick(snap, "nombre_conductor", "driverName") || "—");
+  const driverPhone = escapeHtml(snapPick(snap, "telefono_conductor", "driverPhone") || "—");
+  const routeDesc = escapeHtml(snapPick(snap, "descripcion_ruta", "routeDescription") || "—");
+  const numViajeRaw = snapPick(snap, "numero_viaje", "tripNumber") || tripLabel;
+  const numViaje = escapeHtml(numViajeRaw);
+  const idSol = escapeHtml(snapPick(snap, "id_solicitud", "requestId") || String(logRow.requestId || "—"));
   const invoiceRaw = snap.datos_factura_json ?? snap.invoiceData;
   let invoiceBlock = "";
   if (invoiceRaw != null && invoiceRaw !== "") {
@@ -264,12 +317,12 @@ function openDeletedTransportTripAuditModal(logRow) {
       const txt =
         typeof invoiceRaw === "string" ? invoiceRaw : JSON.stringify(invoiceRaw, null, 2);
       const short = txt.length > 1200 ? `${txt.slice(0, 1197)}…` : txt;
-      invoiceBlock = `<div class="solicitud-detail-notes"><strong>Datos facturación (JSON)</strong><pre class="detail-note" style="white-space:pre-wrap;margin:0.35rem 0 0;font-size:0.82em;max-height:14rem;overflow:auto">${G.escapeHtml(short)}</pre></div>`;
+      invoiceBlock = `<div class="solicitud-detail-notes"><strong>Datos facturación (JSON)</strong><pre class="detail-note" style="white-space:pre-wrap;margin:0.35rem 0 0;font-size:0.82em;max-height:14rem;overflow:auto">${escapeHtml(short)}</pre></div>`;
     } catch {
       invoiceBlock = "";
     }
   }
-  G.openInfoModal({
+  openInfoModal({
     title: `Viaje desasignado ${numViajeRaw}`,
     subtitleHtml: fullSubtitleHtml,
     wide: true,
@@ -283,10 +336,10 @@ function openDeletedTransportTripAuditModal(logRow) {
           <div><strong>Conductor</strong><br /><span class="muted">${driver}</span></div>
           <div><strong>Teléfono conductor</strong><br /><span class="muted">${driverPhone}</span></div>
           <div class="full"><strong>Descripción de ruta / observaciones</strong><br /><span class="muted">${routeDesc}</span></div>
-          <div><strong>Recogida programada</strong><br /><span class="muted">${G.escapeHtml(G.fmtDate(pickup))}</span></div>
-          <div><strong>Entrega programada</strong><br /><span class="muted">${G.escapeHtml(G.fmtDate(delivery))}</span></div>
+          <div><strong>Recogida programada</strong><br /><span class="muted">${escapeHtml(fmtDate(pickup))}</span></div>
+          <div><strong>Entrega programada</strong><br /><span class="muted">${escapeHtml(fmtDate(delivery))}</span></div>
           <div><strong>Asignado por</strong><br /><span class="muted">${assignedBy}</span></div>
-          <div><strong>Fecha de asignación</strong><br /><span class="muted">${G.escapeHtml(G.fmtDate(assignedAt))}</span></div>
+          <div><strong>Fecha de asignación</strong><br /><span class="muted">${escapeHtml(fmtDate(assignedAt))}</span></div>
         </div>
         ${invoiceBlock}
       </section>
@@ -294,20 +347,14 @@ function openDeletedTransportTripAuditModal(logRow) {
   });
 }
 
-/**
- * Editor del viaje (admin). Permite actualizar fechas estimadas, vehículo,
- * conductor y observaciones operativas. Las acciones destructivas como
- * cambiar el estado del viaje siguen ocurriendo a través del select de
- * estado en el card (transitionRequestStatus).
- */
 function openEditTripModal(req) {
   if (!req?.trip) return;
-  if (!G.canAdminEditTrip(req)) {
-    G.notify("Solo un administrador puede editar este viaje.", "error");
+  if (!canAdminEditTrip(req)) {
+    notify("Solo un administrador puede editar este viaje.", "error");
     return;
   }
-  const vehicles = G.read(G.KEYS.vehicles, []);
-  const drivers = G.read(G.KEYS.drivers, []);
+  const vehicles = read(KEYS.vehicles, []);
+  const drivers = read(KEYS.drivers, []);
   const vehicleOptions = [{ value: req.trip.vehicleId || "", label: `${req.trip.vehiclePlate || "—"} · ${req.trip.vehicleType || ""}` }]
     .concat(
       vehicles
@@ -320,9 +367,9 @@ function openEditTripModal(req) {
         .filter((d) => String(d.id || "") !== String(req.trip.driverId || ""))
         .map((d) => ({ value: String(d.id || ""), label: `${d.fullName || d.name || ""}${d.taxId ? ` · ${d.taxId}` : ""}` }))
     );
-  const etaPickupLocal = String(G.toInputDate(req.trip.etaPickup || "") || "").slice(0, 16);
-  const etaDeliveryLocal = String(G.toInputDate(req.trip.etaDelivery || "") || "").slice(0, 16);
-  G.openEditModal({
+  const etaPickupLocal = String(toInputDate(req.trip.etaPickup || "") || "").slice(0, 16);
+  const etaDeliveryLocal = String(toInputDate(req.trip.etaDelivery || "") || "").slice(0, 16);
+  openEditModal({
     title: `Editar viaje ${req.trip.tripNumber}`,
     subtitle: `Solicitud ${req.requestNumber || req.id} · ${req.clientName || ""}`,
     submitText: "Guardar cambios del viaje",
@@ -335,17 +382,17 @@ function openEditTripModal(req) {
       { name: "etaPickup", label: "Recogida (fecha y hora)", type: "datetime-local", value: etaPickupLocal, required: true },
       { name: "etaDelivery", label: "Entrega (fecha y hora)", type: "datetime-local", value: etaDeliveryLocal, required: true },
       { type: "section", id: "edit-trip-money", title: "Tarifa y observaciones", hint: "Ajustes manuales que no exigen cambiar el estado del viaje." },
-      { name: "tripValue", label: "Tarifa del viaje (COP)", type: "number", min: 0, value: G.parseNum(req.tripValue || 0), required: false },
+      { name: "tripValue", label: "Tarifa del viaje (COP)", type: "number", min: 0, value: parseNum(req.tripValue || 0), required: false },
       { name: "tripNotes", label: "Observaciones del viaje", type: "textarea", value: req.trip.notes || "", rows: 3 }
     ],
     onSubmit: async (form) => {
-      const requests = G.reqRead();
+      const requests = reqRead();
       const targetVehicle = vehicles.find((v) => String(v.id || "") === String(form.vehicleId || ""));
       const targetDriver = drivers.find((d) => String(d.id || "") === String(form.driverId || ""));
       const updates = {
-        tripValue: G.parseNum(form.tripValue) || G.parseNum(req.tripValue || 0),
-        updatedAt: G.nowIso(),
-        updatedBy: G.currentUser()?.name || "Admin",
+        tripValue: parseNum(form.tripValue) || parseNum(req.tripValue || 0),
+        updatedAt: nowIso(),
+        updatedBy: currentUser()?.name || "Admin",
         trip: {
           ...req.trip,
           vehicleId: String(form.vehicleId || req.trip.vehicleId || ""),
@@ -357,50 +404,46 @@ function openEditTripModal(req) {
           etaPickup: form.etaPickup ? new Date(form.etaPickup).toISOString() : req.trip.etaPickup,
           etaDelivery: form.etaDelivery ? new Date(form.etaDelivery).toISOString() : req.trip.etaDelivery,
           notes: String(form.tripNotes || "").trim(),
-          updatedAt: G.nowIso(),
-          updatedBy: G.currentUser()?.name || "Admin"
+          updatedAt: nowIso(),
+          updatedBy: currentUser()?.name || "Admin"
         }
       };
       const updated = requests.map((r) => (r.id === req.id ? { ...r, ...updates } : r));
       try {
-        await G.reqWriteAwait(updated);
+        await reqWriteAwait(updated);
       } catch (err) {
-        G.notify(String(err?.message || "No fue posible guardar los cambios del viaje."), "error");
+        notify(String(err?.message || "No fue posible guardar los cambios del viaje."), "error");
         return false;
       }
-      G.recalculateResourceAvailability();
-      G.notify("Viaje actualizado correctamente.", "success");
-      G.renderPortalView();
+      recalculateResourceAvailability();
+      notify("Viaje actualizado correctamente.", "success");
+      renderPortalView();
       return true;
     }
   });
 }
 
-/**
- * Edición de tarifa por trayecto (admin): mismo patrón visual que {@link openEditTripModal}
- * (secciones, `modal-card-edit--trip`), sin depender del formulario colapsable.
- */
 function openEditRouteRateModal(storageKey) {
   const key = String(storageKey || "").trim();
   if (!key) return;
-  const entry = G.getTripRouteRatesNormalized()[key];
+  const entry = getTripRouteRatesNormalized()[key];
   if (!entry) return;
-  const parts = G.parseTripRateStorageKeyToRouteParts(key);
-  const companies = G.read(G.KEYS.companies, []);
+  const parts = parseTripRateStorageKeyToRouteParts(key);
+  const companies = read(KEYS.companies, []);
   const selectedCompanyIds = (Array.isArray(entry.companyIds) ? entry.companyIds : [])
     .map((id) => String(id).trim())
     .filter(Boolean);
   const rateScopeValue = selectedCompanyIds.length ? "specific" : "all";
-  const auditSummary = G.formatRouteRateAuditSummary(entry);
-  const scopeStepHtml = G.buildRouteRateScopeStepInnerHtml(companies, {
+  const auditSummary = formatRouteRateAuditSummary(entry);
+  const scopeStepHtml = buildRouteRateScopeStepInnerHtml(companies, {
     scopeValue: rateScopeValue,
     selectedCompanyIds
   });
-  const deptOpts = [{ value: "", label: "Seleccione..." }, ...Object.keys(G.COLOMBIA_LOCATIONS).sort().map((d) => ({ value: d, label: d }))];
+  const deptOpts = [{ value: "", label: "Seleccione..." }, ...Object.keys(COLOMBIA_LOCATIONS).sort().map((d) => ({ value: d, label: d }))];
   const cityPlaceholder = [{ value: "", label: "Seleccione departamento..." }];
-  G.openEditModal({
+  openEditModal({
     title: "Editar tarifa de trayecto",
-    subtitle: G.humanTripRateRouteLabelFromStorageKey(key),
+    subtitle: humanTripRateRouteLabelFromStorageKey(key),
     submitText: "Guardar cambios de tarifa",
     extraModalCardClass: "modal-card-edit--trip",
     fields: [
@@ -412,8 +455,8 @@ function openEditRouteRateModal(storageKey) {
       { name: "destinationDepartment", label: "Departamento de destino", type: "select", value: parts.destinationDepartment, required: true, options: deptOpts },
       { name: "destinationCity", label: "Ciudad de destino", type: "select", value: parts.destinationCity, required: true, options: cityPlaceholder },
       { type: "section", id: "edit-rate-money", title: "Tarifa pactada", hint: "Valor en COP que se sugiere al asignar un viaje en esta ruta." },
-      { name: "tripRateCop", label: "Valor del viaje (COP)", type: "number", min: 1, step: 1, value: G.parseNum(entry.value), required: true },
-      { type: "custom", full: true, html: `<p class="muted" style="margin:0">${G.escapeHtml(auditSummary)}</p>` },
+      { name: "tripRateCop", label: "Valor del viaje (COP)", type: "number", min: 1, step: 1, value: parseNum(entry.value), required: true },
+      { type: "custom", full: true, html: `<p class="muted" style="margin:0">${escapeHtml(auditSummary)}</p>` },
       {
         type: "section",
         id: "edit-rate-scope",
@@ -428,23 +471,23 @@ function openEditRouteRateModal(storageKey) {
       const oc = formEl.querySelector("select[name='originCity']");
       const dd = formEl.querySelector("select[name='destinationDepartment']");
       const dc = formEl.querySelector("select[name='destinationCity']");
-      G.setSelectValueInsensitive(od, parts.originDepartment);
-      G.attachDepartmentCitySelects(formEl, {
+      setSelectValueInsensitive(od, parts.originDepartment);
+      attachDepartmentCitySelects(formEl, {
         departmentSelector: "select[name='originDepartment']",
         citySelector: "select[name='originCity']",
         initialDepartment: parts.originDepartment,
         initialCity: parts.originCity
       });
-      G.setSelectValueInsensitive(oc, parts.originCity);
-      G.setSelectValueInsensitive(dd, parts.destinationDepartment);
-      G.attachDepartmentCitySelects(formEl, {
+      setSelectValueInsensitive(oc, parts.originCity);
+      setSelectValueInsensitive(dd, parts.destinationDepartment);
+      attachDepartmentCitySelects(formEl, {
         departmentSelector: "select[name='destinationDepartment']",
         citySelector: "select[name='destinationCity']",
         initialDepartment: parts.destinationDepartment,
         initialCity: parts.destinationCity
       });
-      G.setSelectValueInsensitive(dc, parts.destinationCity);
-      G.wireRouteRateScopeSection(formEl);
+      setSelectValueInsensitive(dc, parts.destinationCity);
+      wireRouteRateScopeSection(formEl);
     },
     onSubmit: async (payload, formEl) => {
       const fd = new FormData(formEl);
@@ -456,63 +499,65 @@ function openEditRouteRateModal(storageKey) {
       const oc = String(payload.originCity || "").trim();
       const dd = String(payload.destinationDepartment || "").trim();
       const dc = String(payload.destinationCity || "").trim();
-      const tripRateCop = G.parseNum(payload.tripRateCop);
+      const tripRateCop = parseNum(payload.tripRateCop);
       if (!od) {
-        G.failPortalField(formEl, "originDepartment", G.userMessage("routeRateSelectRoute"));
+        failPortalField(formEl, "originDepartment", userMessage("routeRateSelectRoute"));
         return false;
       }
       if (!oc) {
-        G.failPortalField(formEl, "originCity", G.userMessage("routeRateSelectRoute"));
+        failPortalField(formEl, "originCity", userMessage("routeRateSelectRoute"));
         return false;
       }
       if (!dd) {
-        G.failPortalField(formEl, "destinationDepartment", G.userMessage("routeRateSelectRoute"));
+        failPortalField(formEl, "destinationDepartment", userMessage("routeRateSelectRoute"));
         return false;
       }
       if (!dc) {
-        G.failPortalField(formEl, "destinationCity", G.userMessage("routeRateSelectRoute"));
+        failPortalField(formEl, "destinationCity", userMessage("routeRateSelectRoute"));
         return false;
       }
       if (tripRateCop <= 0) {
-        G.failPortalField(formEl, "tripRateCop", G.userMessage("routeRateInvalidCop"));
+        failPortalField(formEl, "tripRateCop", userMessage("routeRateInvalidCop"));
         return false;
       }
       if (scope === "specific" && !companyIds.length) {
         const scopeEl =
           formEl.querySelector("[data-route-rate-companies-field]") || formEl.querySelector("[name='rateClientCompanies']");
-        G.failPortalField(formEl, scopeEl || "rateClientCompanies", "Selecciona al menos una empresa para una tarifa específica.");
+        failPortalField(formEl, scopeEl || "rateClientCompanies", "Selecciona al menos una empresa para una tarifa específica.");
         return false;
       }
-      const routeKey = G.buildTripRouteRateKey(od, oc, dd, dc);
-      const normalized = G.getTripRouteRatesNormalized();
-      const newStorageKey = G.tripRateStorageKey(routeKey, companyIds);
+      const routeKey = buildTripRouteRateKey(od, oc, dd, dc);
+      const normalized = getTripRouteRatesNormalized();
+      const newStorageKey = tripRateStorageKey(routeKey, companyIds);
       const editingKey = String(payload.editingRateKey || "").trim();
       const previousEntry = editingKey ? normalized[editingKey] : normalized[newStorageKey];
-      const next = { ...normalized, [newStorageKey]: G.buildRouteRateEntry(tripRateCop, companyIds, previousEntry) };
+      const next = { ...normalized, [newStorageKey]: buildRouteRateEntry(tripRateCop, companyIds, previousEntry) };
       if (editingKey && editingKey !== newStorageKey) delete next[editingKey];
       try {
-        await G.writeAwaitServer(G.KEYS.tripRouteRates, next);
+        await writeAwaitServer(KEYS.tripRouteRates, next);
       } catch (err) {
-        G.notify(String(err?.message || G.userMessage("genericError")), "error");
+        notify(String(err?.message || userMessage("genericError")), "error");
         return false;
       }
-      G.notify("Tarifa por trayecto actualizada.", "success");
-      G.renderPortalView();
+      notify("Tarifa por trayecto actualizada.", "success");
+      renderPortalView();
       return true;
     }
   });
 }
 
-export {
-  deletedTripSnapshotForTableRow,
-  deletedRequestSnapshotForTableRow,
-  formatDeletedRequestSnapshotRouteLine,
-  formatDeletedRequestSnapshotTableSummary,
-  formatDeletedTripSnapshotTableSummary,
-  openAssignedTripInfoModal,
-  openRequestDetailModal,
-  openDeletedTransportRequestAuditModal,
-  openDeletedTransportTripAuditModal,
-  openEditTripModal,
-  openEditRouteRateModal
-};
+  G.__antaresPortalTransportModals = {
+    openAssignedTripInfoModal,
+    openRequestDetailModal,
+    deletedTripSnapshotForTableRow,
+    deletedRequestSnapshotForTableRow,
+    formatDeletedRequestSnapshotRouteLine,
+    formatDeletedRequestSnapshotTableSummary,
+    openDeletedTransportRequestAuditModal,
+    formatDeletedTripSnapshotTableSummary,
+    openDeletedTransportTripAuditModal,
+    openEditTripModal,
+    openEditRouteRateModal
+  };
+  Object.assign(G, G.__antaresPortalTransportModals);
+})();

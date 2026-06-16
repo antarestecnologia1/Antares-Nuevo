@@ -186,8 +186,9 @@ export function syncNotificationPrefsSidebarUi() {
   }
   const soundBtn = group?.querySelector('[data-notif-pref="sound"]');
   if (soundBtn) {
-    soundBtn.textContent = soundOff ? "Sin timbre" : "Timbre";
+    soundBtn.textContent = "Timbre";
     soundBtn.setAttribute("aria-pressed", soundOff ? "false" : "true");
+    soundBtn.setAttribute("aria-label", soundOff ? "Timbre desactivado. Activar timbre al llegar avisos nuevos" : "Timbre activado. Silenciar solo el timbre");
     soundBtn.title = soundOff
       ? "Activar timbre al llegar avisos nuevos"
       : "Silenciar solo el timbre (la bandeja no cambia)";
@@ -195,8 +196,9 @@ export function syncNotificationPrefsSidebarUi() {
   }
   const alertsBtn = group?.querySelector('[data-notif-pref="alerts"]');
   if (alertsBtn) {
-    alertsBtn.textContent = alertsOff ? "Sin avisos" : "Avisos";
+    alertsBtn.textContent = "Avisos";
     alertsBtn.setAttribute("aria-pressed", alertsOff ? "false" : "true");
+    alertsBtn.setAttribute("aria-label", alertsOff ? "Avisos pausados. Activar avisos emergentes" : "Avisos activados. Pausar avisos emergentes");
     alertsBtn.title = alertsOff
       ? "Activar avisos emergentes y notificaciones del servidor"
       : "Pausar avisos emergentes y nuevas filas del servidor";
@@ -741,15 +743,18 @@ export function updateNotificationBadge() {
   const list = getCurrentNotifications();
   const unread = list.filter((n) => !notificationIsRead(n)).length;
   let badge = link.querySelector(".side-link-badge");
+  if (!badge) {
+    badge = document.createElement("span");
+    badge.className = "side-link-badge";
+    badge.setAttribute("aria-hidden", "true");
+    link.appendChild(badge);
+  }
   if (unread > 0) {
-    if (!badge) {
-      badge = document.createElement("span");
-      badge.className = "side-link-badge";
-      link.appendChild(badge);
-    }
+    badge.hidden = false;
     badge.textContent = unread > 99 ? "99+" : String(unread);
-  } else if (badge) {
-    badge.remove();
+  } else {
+    badge.hidden = true;
+    badge.textContent = "";
   }
   syncNotificationSoundMutedUi();
 }

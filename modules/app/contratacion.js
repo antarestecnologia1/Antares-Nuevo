@@ -101,6 +101,16 @@ function bindHiringPortalControls() {
       if (!HR_VALID_HIRING_WS.has(ws)) return;
       state.hiringUi = { ...(state.hiringUi || {}), workspace: ws, ...(ws === "operate" ? { dataListSearch: "" } : {}) };
       persistHrWorkspace("hiring", ws);
+      if (
+        switchHrWorkspacePanels({
+          root: nodes.viewRoot,
+          moduleId: "hiring",
+          workspace: ws,
+          panelAttr: "data-hiring-panel"
+        })
+      ) {
+        return;
+      }
       renderPortalView();
     });
   });
@@ -442,6 +452,27 @@ function bindHiringPortalControls() {
         });
       }
       persistHrWorkspace("hiring", "operate");
+      switchHrWorkspacePanels({
+        root: nodes.viewRoot,
+        moduleId: "hiring",
+        workspace: "operate",
+        panelAttr: "data-hiring-panel"
+      });
+      if (
+        switchModuleTabPanels({
+          root: nodes.viewRoot,
+          action: "hiring-operate-section",
+          activeValue: section,
+          panelAttr: "data-hiring-operate-pane",
+          tabActiveClass: "is-active"
+        })
+      ) {
+        if (panelId) {
+          setCreatePanelExpandedInDom(nodes.viewRoot, panelId, true);
+          requestAnimationFrame(() => scrollToCreatePanelForm(panelId));
+        }
+        return;
+      }
       renderPortalView();
       if (panelId) {
         requestAnimationFrame(() => scrollToCreatePanelForm(panelId));
@@ -466,6 +497,23 @@ function bindHiringPortalControls() {
       const section = normalizeHiringDataSection(btn.dataset.section);
       state.hiringUi = { ...(state.hiringUi || {}), dataSection: section, workspace: "data" };
       persistHrWorkspace("hiring", "data");
+      switchHrWorkspacePanels({
+        root: nodes.viewRoot,
+        moduleId: "hiring",
+        workspace: "data",
+        panelAttr: "data-hiring-panel"
+      });
+      if (
+        switchModuleTabPanels({
+          root: nodes.viewRoot,
+          action: "hiring-data-section",
+          activeValue: section,
+          panelAttr: "data-hiring-section",
+          tabActiveClass: "is-active"
+        })
+      ) {
+        return;
+      }
       renderPortalView();
     });
   });

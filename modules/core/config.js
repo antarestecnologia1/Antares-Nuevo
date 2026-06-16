@@ -257,7 +257,7 @@ export const PERMISSION_META = {
   },
   [PERMISSIONS.AUTHORIZATIONS_WORKFORCE]: {
     title: "Autorizar altas de colaborador",
-    desc: "Cola interna de empleados en gestión humana."
+    desc: "Cola interna de empleados registrados por perfiles sin gestión humana. Quien ya tiene ese módulo no requiere este permiso."
   },
   [PERMISSIONS.AUTHORIZATIONS_HR_ABSENCES]: {
     title: "Autorizar ausencias e incapacidades",

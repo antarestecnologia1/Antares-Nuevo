@@ -2596,7 +2596,7 @@ body.portal-drawer-open .portal-menu-line:nth-child(3) {
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  transition: all 0.2s ease;
+  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .side-link:hover {
@@ -17931,6 +17931,10 @@ body[data-theme="dark"] .payroll-data-nav-tab.is-active .payroll-data-nav-count 
   animation: hr-panel-in 0.22s ease-out;
 }
 
+.hr-workspace-panel.tab-switch-instant:not(.hidden) {
+  animation: none !important;
+}
+
 @keyframes hr-panel-in {
   from {
     opacity: 0;
@@ -21666,6 +21670,14 @@ body[data-theme="dark"] .hiring-shell--workspace .auth-tab-panels {
   animation: hr-panel-in 0.22s ease-out;
 }
 
+.auth-tab-panel.tab-switch-instant:not(.hidden),
+.hr-workspace-panel.tab-switch-instant:not(.hidden),
+.payroll-data-pane.tab-switch-instant:not(.hidden),
+.hist-panel.tab-switch-instant:not(.hidden),
+.hist-fleet-pane.tab-switch-instant:not(.hidden) {
+  animation: none !important;
+}
+
 .auth-tab-panel > .p-card,
 .auth-tab-panel > .ops-block {
   margin: 0;
@@ -23164,6 +23176,7 @@ body[data-theme="dark"] .portal-main .btn-action:hover {
 }
 .side-link-badge {
   margin-left: auto;
+  flex-shrink: 0;
   background: linear-gradient(135deg, #ef4444, #f97316);
   color: #fff;
   font-size: 0.68rem;
@@ -23171,8 +23184,14 @@ body[data-theme="dark"] .portal-main .btn-action:hover {
   border-radius: 999px;
   padding: 0.1rem 0.45rem;
   min-width: 1.3rem;
+  min-height: 1.15rem;
   text-align: center;
   box-shadow: 0 2px 8px rgba(239, 68, 68, 0.45);
+}
+
+.side-link--notif-inbox .side-link-badge:empty,
+.side-link--notif-inbox:not(:has(.side-link-badge))::before {
+  content: none;
 }
 
 /* Campana + «Sonido» / «Avisos»: clics independientes (ver app.js). */

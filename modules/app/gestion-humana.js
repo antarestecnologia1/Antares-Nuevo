@@ -13,6 +13,21 @@ function bindPayrollPortalControls() {
       if (!HR_VALID_PAYROLL_WS.has(ws)) return;
       state.payrollUi = { ...(state.payrollUi || {}), workspace: ws };
       persistHrWorkspace("payroll", ws);
+      if (
+        switchHrWorkspacePanels({
+          root: nodes.viewRoot,
+          moduleId: "payroll",
+          workspace: ws,
+          panelAttr: "data-payroll-panel"
+        })
+      ) {
+        if (ws === "data" && portalCanRefreshFromApi()) {
+          void applyPortalBootstrapFromApi().then((ok) => {
+            if (ok) scheduleRenderPortalView();
+          });
+        }
+        return;
+      }
       if (ws === "data" && portalCanRefreshFromApi()) {
         void applyPortalBootstrapFromApi().then((ok) => {
           if (ok) scheduleRenderPortalView();
@@ -101,6 +116,23 @@ function bindPayrollPortalControls() {
       const section = normalizePayrollDataSection(btn.dataset.section);
       state.payrollUi = { ...(state.payrollUi || {}), dataSection: section, workspace: "data" };
       persistHrWorkspace("payroll", "data");
+      switchHrWorkspacePanels({
+        root: nodes.viewRoot,
+        moduleId: "payroll",
+        workspace: "data",
+        panelAttr: "data-payroll-panel"
+      });
+      if (
+        switchModuleTabPanels({
+          root: nodes.viewRoot,
+          action: "payroll-data-section",
+          activeValue: section,
+          panelAttr: "data-payroll-section",
+          tabActiveClass: "is-active"
+        })
+      ) {
+        return;
+      }
       renderPortalView();
     });
   });
@@ -110,6 +142,23 @@ function bindPayrollPortalControls() {
       const section = normalizePayrollOperateSection(btn.dataset.section);
       state.payrollUi = { ...(state.payrollUi || {}), operateSection: section, workspace: "operate" };
       persistHrWorkspace("payroll", "operate");
+      switchHrWorkspacePanels({
+        root: nodes.viewRoot,
+        moduleId: "payroll",
+        workspace: "operate",
+        panelAttr: "data-payroll-panel"
+      });
+      if (
+        switchModuleTabPanels({
+          root: nodes.viewRoot,
+          action: "payroll-operate-section",
+          activeValue: section,
+          panelAttr: "data-payroll-operate-pane",
+          tabActiveClass: "is-active"
+        })
+      ) {
+        return;
+      }
       renderPortalView();
     });
   });
@@ -161,7 +210,7 @@ function bindPayrollPortalControls() {
       const year = clampLaborSystemParameterYear(fd.get("year"));
       const smmlvCop = parseNum(fd.get("smmlvCop"));
       if (smmlvCop <= 0) {
-        failPortalField(payrollLegalForm, "smmlvCop", "Indique un SMMLV vÃ¡lido mayor que cero.");
+        failPortalField(payrollLegalForm, "smmlvCop", "Indique un SMMLV válido mayor que cero.");
         return;
       }
       const transportAllowanceCop = parseNum(fd.get("transportAllowanceCop"));
@@ -185,7 +234,7 @@ function bindPayrollPortalControls() {
       }
       const pensionEmployeeRatePct = parseNum(fd.get("pensionEmployeeRatePct"));
       if (pensionEmployeeRatePct < 0 || pensionEmployeeRatePct > 100) {
-        failPortalField(payrollLegalForm, "pensionEmployeeRatePct", "La tarifa de pensiÃ³n debe estar entre 0 y 100 %.");
+        failPortalField(payrollLegalForm, "pensionEmployeeRatePct", "La tarifa de pensión debe estar entre 0 y 100 %.");
         return;
       }
       const uvtRaw = String(fd.get("uvtCop") || "").trim();
@@ -203,7 +252,7 @@ function bindPayrollPortalControls() {
         failPortalField(
           payrollLegalForm,
           "platformReferenceYear",
-          "Seleccione el aÃ±o de vigencia a aplicar globalmente en modo manual."
+          "Seleccione el año de vigencia a aplicar globalmente en modo manual."
         );
         return;
       }
@@ -230,8 +279,8 @@ function bindPayrollPortalControls() {
           renderPortalView();
           notify(
             saved?.affectedPayrollRuns
-              ? `Vigencia ${year} guardada. Se detectaron ${saved.affectedPayrollRuns} liquidaciones de ese aÃ±o.`
-              : `Vigencia ${year} guardada correctamente. Plataforma en ${body.platformReferenceYear ? `modo manual ${body.platformReferenceYear}` : "modo automÃ¡tico"}.`,
+              ? `Vigencia ${year} guardada. Se detectaron ${saved.affectedPayrollRuns} liquidaciones de ese año.`
+              : `Vigencia ${year} guardada correctamente. Plataforma en ${body.platformReferenceYear ? `modo manual ${body.platformReferenceYear}` : "modo automático"}.`,
             saved?.affectedPayrollRuns ? "warn" : "success"
           );
         } catch (err) {
@@ -242,20 +291,20 @@ function bindPayrollPortalControls() {
       if (affectedRuns > 0) {
         openConfirmModal({
           title: `Actualizar vigencia ${year}`,
-          message: `Este aÃ±o ya tiene ${affectedRuns} liquidacion${affectedRuns === 1 ? "" : "es"} registradas. Confirme para actualizar las referencias legales sin borrar el historico.`,
+          message: `Este año ya tiene ${affectedRuns} liquidacion${affectedRuns === 1 ? "" : "es"} registradas. Confirme para actualizar las referencias legales sin borrar el historico.`,
           confirmText: "Guardar vigencia",
           onConfirm: submit
         });
         return;
       }
       await submit();
-    }, { busyText: "Guardando vigenciaâ€¦" });
+    }, { busyText: "Guardando vigencia⬦" });
   }
 
   const runPayrollLegalDelete = async (yearLike) => {
     const year = clampLaborSystemParameterYear(yearLike);
     if (!year) {
-      notify("Indique un aÃ±o vÃ¡lido.", "error");
+      notify("Indique un año válido.", "error");
       return;
     }
     if (currentUser()?.role !== ROLES.ADMIN) {
@@ -282,8 +331,8 @@ function bindPayrollPortalControls() {
       title: `Eliminar vigencia ${year}`,
       message:
         affectedRuns > 0
-          ? `Se eliminarÃ¡n los parÃ¡metros legales del aÃ±o ${year} en base de datos. Las ${affectedRuns} liquidaciÃ³n${affectedRuns === 1 ? "" : "es"} de ese aÃ±o no se borran; solo dejan de tener esta vigencia como referencia guardada.`
-          : `Se eliminarÃ¡n todos los parÃ¡metros legales registrados para el aÃ±o ${year}. Esta acciÃ³n no se puede deshacer.`,
+          ? `Se eliminarán los parámetros legales del año ${year} en base de datos. Las ${affectedRuns} liquidación${affectedRuns === 1 ? "" : "es"} de ese año no se borran; solo dejan de tener esta vigencia como referencia guardada.`
+          : `Se eliminarán todos los parámetros legales registrados para el año ${year}. Esta acción no se puede deshacer.`,
       confirmText: "Eliminar vigencia",
       onConfirm: performDelete
     });
@@ -410,7 +459,7 @@ function bindPayrollPortalControls() {
         employeeCompRule.sync({ force: true });
         syncPlazoVisibility();
         syncFixedTermEnd();
-        notify(`Formulario precargado desde candidato Â«${String(prefillCandidate.name || "").trim()}Â». Complete seguridad social y banco.`, "info");
+        notify(`Formulario precargado desde candidato «${String(prefillCandidate.name || "").trim()}». Complete seguridad social y banco.`, "info");
       }
     }
     syncFixedTermEnd();
@@ -477,7 +526,7 @@ function bindPayrollPortalControls() {
               notify(String(err?.message || userMessage("genericError")), "error");
             }
           },
-          { busyText: "Generandoâ€¦", lockExtraButtons: employeeContractDraftLockButtons }
+          { busyText: "Generando⬦", lockExtraButtons: employeeContractDraftLockButtons }
         );
       });
     });
@@ -490,7 +539,7 @@ function bindPayrollPortalControls() {
         return;
       }
       if (!(await employeeDuplicateDocCheck({ forceServer: true, fromSubmit: true }))) {
-        /* wireFormDocDuplicateCheck ya notificÃ³ y marcÃ³ el campo con el duplicado. */
+        /* wireFormDocDuplicateCheck ya notificó y marcó el campo con el duplicado. */
         return;
       }
       const fileInput = employeeForm.querySelector("input[name='avatarFile']");
@@ -502,7 +551,7 @@ function bindPayrollPortalControls() {
       } catch (err) {
         devWarn?.("avatar-upload-failed", err);
       }
-      // Si el avatar terminÃ³ como `data:` URL (R2 no disponible), recortarlo
+      // Si el avatar terminó como `data:` URL (R2 no disponible), recortarlo
       // para no-admin para evitar colmar localStorage.
       const stripAvatar =
         actor?.role !== ROLES.ADMIN && String(resolvedAvatar || "").startsWith("data:");
@@ -516,7 +565,7 @@ function bindPayrollPortalControls() {
           return;
         }
         const payload = packed.payload;
-        if (actor?.role !== ROLES.ADMIN) {
+        if (!canManagePayrollModule(actor)) {
           await queueApproval({
             type: "create_employee",
             title: `Creacion de empleado ${payload.name}`,
@@ -604,7 +653,7 @@ function bindPayrollPortalControls() {
       };
       await saveEmployee(resolvedAvatar);
     }, {
-      busyText: "Guardando empleadoâ€¦",
+      busyText: "Guardando empleado⬦",
       submitButton: employeeForm.querySelector(".hr-form-wizard-submit"),
       lockExtraButtons: [
         employeeForm.querySelector("[data-hr-wizard-next]"),
@@ -729,7 +778,7 @@ function bindPayrollPortalControls() {
           await applyPortalBootstrapFromApi();
           target = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === empId) || target;
         } catch (_e) {
-          /* usar cachÃ© local */
+          /* usar caché local */
         } finally {
           btn.dataset.busy = "0";
           btn.disabled = false;
@@ -740,7 +789,7 @@ function bindPayrollPortalControls() {
       const contractAction = `<button type="button" class="btn btn-action" data-action="employee-generate-contract" data-id="${escapeAttr(String(target.id || ""))}">${IC.download} Descargar contrato</button>`;
       openInfoModal({
         title: "Ficha del colaborador",
-        subtitle: `${String(target.position || "Colaborador").trim()} Â· ${String(target.idDoc || "").trim()}`,
+        subtitle: `${String(target.position || "Colaborador").trim()} · ${String(target.idDoc || "").trim()}`,
         bodyHtml: buildEmployeePayrollProfileBodyHtml(target),
         wide: true,
         secondaryActionsHtml: contractAction
@@ -871,7 +920,7 @@ function bindPayrollPortalControls() {
           }
           const dupCheck = wireEmployeePayrollDuplicateDocCheck(formEl, { excludeId: target.id });
           if (!(await dupCheck({ forceServer: true, fromSubmit: true }))) {
-            /* wireFormDocDuplicateCheck ya notificÃ³ y marcÃ³ el campo con el duplicado. */
+            /* wireFormDocDuplicateCheck ya notificó y marcó el campo con el duplicado. */
             return false;
           }
           let nextAvatar = String(payload.avatarUrlExisting || "").trim();
@@ -912,7 +961,7 @@ function bindPayrollPortalControls() {
               return false;
             }
           }
-          if (actor?.role !== ROLES.ADMIN) {
+          if (!canManagePayrollModule(actor)) {
             const stripAvatar = String(nextAvatar || "").startsWith("data:");
             try {
               await queueApproval({
@@ -1073,14 +1122,14 @@ function bindPayrollPortalControls() {
       event.preventDefault();
       const actor = currentUser();
       if (!actor || ![ROLES.ADMIN, ROLES.RRHH].includes(actor.role)) {
-        notify("Solo administradores o recursos humanos pueden ejecutar liquidaciÃ³n masiva.", "error");
+        notify("Solo administradores o recursos humanos pueden ejecutar liquidación masiva.", "error");
         return;
       }
       const fechaEl = document.getElementById("payroll-bulk-fecha");
       const forceEl = document.getElementById("payroll-bulk-force");
       const fechaReferencia = readFormDateIso(document, "payroll-bulk-fecha") || readFormDateIso(document, "fechaReferencia");
       if (!fechaReferencia) {
-        failPortalField(fechaEl?.closest("form") || nodes.viewRoot, fechaEl || "fechaReferencia", "Indique una fecha de cierre vÃ¡lida (DD/MM/AAAA).");
+        failPortalField(fechaEl?.closest("form") || nodes.viewRoot, fechaEl || "fechaReferencia", "Indique una fecha de cierre válida (DD/MM/AAAA).");
         return;
       }
       const force = Boolean(forceEl?.checked);
@@ -1088,7 +1137,7 @@ function bindPayrollPortalControls() {
       const busyOrig = busyLabel?.textContent || "";
       payrollBulkBtn.disabled = true;
       payrollBulkBtn.setAttribute("aria-busy", "true");
-      if (busyLabel) busyLabel.textContent = "Generandoâ€¦";
+      if (busyLabel) busyLabel.textContent = "Generando⬦";
       try {
         const result = await postPortalAuthorized("/payroll/autogenerate-period", {
           fechaReferencia,
@@ -1103,7 +1152,7 @@ function bindPayrollPortalControls() {
           renderPortalView();
         }
       } catch (err) {
-        notify(String(err?.message || "No fue posible ejecutar la liquidaciÃ³n masiva."), "error");
+        notify(String(err?.message || "No fue posible ejecutar la liquidación masiva."), "error");
       } finally {
         payrollBulkBtn.disabled = false;
         payrollBulkBtn.removeAttribute("aria-busy");
@@ -1178,14 +1227,14 @@ function bindPayrollPortalControls() {
         failPortalField(
           payrollForm,
           "month",
-          "Los intereses sobre cesantÃ­as (Ley 52/1975) solo se parametrizan cuando el mes liquidado es enero (01) o febrero (02), perÃ­odos donde suele consignarse o pagarse ese concepto cercano al cierre legal de enero. Ajuste con su contador."
+          "Los intereses sobre cesantías (Ley 52/1975) solo se parametrizan cuando el mes liquidado es enero (01) o febrero (02), períodos donde suele consignarse o pagarse ese concepto cercano al cierre legal de enero. Ajuste con su contador."
         );
         return;
       }
       const primaDaysRounded = Math.floor(parseNum(data.primaServiciosDays));
       let primaServiciosCop = payPrima ? Math.max(0, parseNum(data.primaServiciosCop)) : 0;
       if (payPrima && (!Number.isFinite(primaDaysRounded) || primaDaysRounded < 1)) {
-        failPortalField(payrollForm, "primaServiciosDays", "Indique los dÃ­as laborados en el semestre para calcular o validar la prima de servicios.");
+        failPortalField(payrollForm, "primaServiciosDays", "Indique los días laborados en el semestre para calcular o validar la prima de servicios.");
         return;
       }
       if (payPrima && primaServiciosCop <= 0 && primaDaysRounded >= 1) {
@@ -1200,7 +1249,7 @@ function bindPayrollPortalControls() {
           : 360;
       let interesesCesantiasCop = payInteresesCesantias ? Math.max(0, parseNum(data.interesesCesantiasCopMonthly)) : 0;
       if (payInteresesCesantias && cesantiasInterestBaseCop <= 0) {
-        failPortalField(payrollForm, "cesantiasInterestBaseCop", "Indique la base en pesos de las cesantÃ­as (p. ej. consignaciones del aÃ±o anterior) para calcular o registrar los intereses.");
+        failPortalField(payrollForm, "cesantiasInterestBaseCop", "Indique la base en pesos de las cesantías (p. ej. consignaciones del año anterior) para calcular o registrar los intereses.");
         return;
       }
       if (
@@ -1277,7 +1326,7 @@ function bindPayrollPortalControls() {
         totalAdjustCop: incapacityAdjustCop,
         smmlvRef: incapacityCalc.smmlv,
         legalNote:
-          "Ajustes orientativos por ausencias con efecto en nÃ³mina (incapacidades y licencias no remuneradas). No sustituyen liquidaciÃ³n legal, soporte mÃ©dico, acto del empleador ni validaciÃ³n contable."
+          "Ajustes orientativos por ausencias con efecto en nómina (incapacidades y licencias no remuneradas). No sustituyen liquidación legal, soporte médico, acto del empleador ni validación contable."
       };
       const absenceSlipDetail = {
         rows: buildPayrollAbsenceSlipRowsForPeriod({
@@ -1330,7 +1379,7 @@ function bindPayrollPortalControls() {
         failPortalField(
           payrollForm,
           "month",
-          `Ya existe una liquidaciÃ³n (${payrollRunTypeLabel({ payrollKind, month: periodKey })}) para este empleado y periodo.`
+          `Ya existe una liquidación (${payrollRunTypeLabel({ payrollKind, month: periodKey })}) para este empleado y periodo.`
         );
         return;
       }
@@ -1338,7 +1387,7 @@ function bindPayrollPortalControls() {
       try {
         await writeAwaitServer(KEYS.payrollRuns, runs);
       } catch (err) {
-        notify(String(err?.message || "No fue posible guardar la nÃ³mina en el servidor."), "error");
+        notify(String(err?.message || "No fue posible guardar la nómina en el servidor."), "error");
         return;
       }
       state.payrollUi = { ...(state.payrollUi || { runSort: "recent" }), workspace: "data" };
@@ -1359,7 +1408,7 @@ function bindPayrollPortalControls() {
         return;
       }
       if (!employeeIsConductorServiceProvider(employee)) {
-        failPortalField(driverTripPayForm, "employeeId", "Seleccione un colaborador configurado como conductor en prestaciÃ³n de servicios.");
+        failPortalField(driverTripPayForm, "employeeId", "Seleccione un colaborador configurado como conductor en prestación de servicios.");
         return;
       }
       const periodYm = String(data.month || "").trim().slice(0, 7);
@@ -1369,7 +1418,7 @@ function bindPayrollPortalControls() {
       }
       if (!portalCanRefreshFromApi()) {
         notify(
-          "Para liquidar viajes en base de datos debe iniciar sesiÃ³n con el servidor (API). No se guardan solo en el navegador.",
+          "Para liquidar viajes en base de datos debe iniciar sesión con el servidor (API). No se guardan solo en el navegador.",
           "error"
         );
         return;
@@ -1414,7 +1463,7 @@ function bindPayrollPortalControls() {
         return;
       }
       if (!portalCanRefreshFromApi()) {
-        notify("ConÃ©ctese al servidor para recalcular desde viajes y combustible en base de datos.", "error");
+        notify("Conéctese al servidor para recalcular desde viajes y combustible en base de datos.", "error");
         return;
       }
       btn.disabled = true;
@@ -1449,7 +1498,7 @@ function bindPayrollPortalControls() {
         failPortalField(
           settlementForm,
           "employeeId",
-          "La liquidaciÃ³n contractual de terminaciÃ³n no aplica a conductores en prestaciÃ³n de servicios. Liquide viajes pendientes y cierre el contrato segÃºn su abogado laboral."
+          "La liquidación contractual de terminación no aplica a conductores en prestación de servicios. Liquide viajes pendientes y cierre el contrato según su abogado laboral."
         );
         return;
       }
@@ -1459,68 +1508,89 @@ function bindPayrollPortalControls() {
       }
       const termDate = String(data.terminationDate || "").trim();
       if (!termDate) {
-        failPortalField(settlementForm, "terminationDate", "Seleccione la fecha de terminaciÃ³n del contrato.");
+        failPortalField(settlementForm, "terminationDate", "Seleccione la fecha de terminación del contrato.");
         return;
       }
       const employeeStartDate = String(normalizePortalDateYmd(employee.startDate) || "").trim();
       if (employeeStartDate && termDate < employeeStartDate) {
-        failPortalField(settlementForm, "terminationDate", "La fecha de terminaciÃ³n no puede ser anterior al ingreso del colaborador.");
+        failPortalField(settlementForm, "terminationDate", "La fecha de terminación no puede ser anterior al ingreso del colaborador.");
         return;
       }
       if (String(data.month || "").trim() && String(termDate).slice(0, 7) !== String(data.month).trim()) {
-        failPortalField(settlementForm, "terminationDate", "La fecha de terminaciÃ³n debe corresponder al mes liquidado.");
+        failPortalField(settlementForm, "terminationDate", "La fecha de terminación debe corresponder al mes liquidado.");
         return;
       }
-      const cesantias = Math.max(0, parseNum(data.cesantiasCop));
-      const interesesCesantias = Math.max(0, parseNum(data.interesesCesantiasCop));
-      const primaProp = Math.max(0, parseNum(data.primaPropCop));
-      const vacaciones = Math.max(0, parseNum(data.vacacionesCop));
-      const indemnization = Math.max(0, parseNum(data.indemnization));
-      const otrosSettlement = Math.max(0, parseNum(data.otrosSettlement));
-      const gross =
-        cesantias + interesesCesantias + primaProp + vacaciones + indemnization + otrosSettlement;
-      if (gross <= 0) {
-        failPortalField(settlementForm, "cesantiasCop", "Ingrese valores en los rubros de liquidaciÃ³n; el total debe ser mayor que cero.");
+      const position =
+        typeof getPositionById === "function" ? getPositionById(String(employee.positionId || "")) : null;
+      const settlement = computeTerminationSettlementFromForm(settlementForm, {
+        employee,
+        position,
+        absencesAll: read(KEYS.hrAbsences, [])
+      });
+      if (!settlement || settlement.gross <= 0) {
+        failPortalField(
+          settlementForm,
+          "cesantiasCop",
+          "No fue posible calcular la liquidación. Use «Calcular liquidación sugerida» o revise fechas y rubros."
+        );
         return;
       }
       const settlementDetail = {
         terminationDate: termDate,
         terminationCause: String(data.terminationCause || ""),
-        cesantias,
-        interesesCesantias,
-        primaProporcional: primaProp,
-        vacaciones,
-        indemnization,
-        otrosSettlement,
-        referenceDays360: parseNum(data.days360Year),
-        primaPropDaysReference: parseNum(data.primaPropDays),
-        vacationDaysReference: parseNum(data.vacationDays),
-        legalDisclaimer:
-          "CÃ¡lculos orientativos conforme prÃ¡cticas usuales CST y normativa colombiana sobre cesantÃ­as, intereses proporcionales, prima y vacaciones. No sustituye asesorÃ­a legal ni contable."
+        employedDays: settlement.employedDays,
+        cesantiasDaysYear: settlement.cesantiasDaysYear,
+        cesantiasCausadas: settlement.cesantiasCausadas,
+        cesantiasFondoBalance: settlement.cesantiasFondoBalance,
+        cesantias: settlement.cesantias,
+        interesesCesantias: settlement.interesesCesantias,
+        primaProporcional: settlement.primaProporcional,
+        vacaciones: settlement.vacaciones,
+        salarioPendiente: settlement.salarioPendiente,
+        auxilioPendiente: settlement.auxilioPendiente,
+        pendingOvertimeCop: settlement.pendingOvertimeCop,
+        pendingBonusCop: settlement.pendingBonusCop,
+        indemnizacionDespido: settlement.indemnizacionDespido,
+        indemnizacionAviso: settlement.indemnizacionAviso,
+        indemnization: settlement.indemnizacionDespido + settlement.indemnizacionAviso,
+        otrosSettlement: settlement.otrosSettlement,
+        referenceDays360: settlement.cesantiasDaysYear,
+        primaPropDaysReference: settlement.primaSemesterDays,
+        vacationDaysReference: settlement.vacationDaysAccrued,
+        vacationDaysTaken: settlement.vacationDaysTaken,
+        primaSemesterDays: settlement.primaSemesterDays,
+        eligibility: settlement.eligibility,
+        integralSalaryApplied: settlement.integralSalaryApplied,
+        indemnizacionFormula: settlement.indemnizacionFormula,
+        devengosLines: settlement.devengosLines,
+        withholdingNote: settlement.withholdingNote,
+        legalDisclaimer: settlement.legalDisclaimer
       };
+      const gross = settlement.gross;
       const run = {
         id: newUuidV4(),
         employeeId: employee.id,
         employeeName: employee.name,
         month: data.month,
         gross,
-        ibc: 0,
+        ibc: settlement.ibc,
         travelAllowance: 0,
         fuelReimbursement: 0,
         travelAllowanceAuto: 0,
         fuelReimbursementAuto: 0,
         travelAllowanceManual: 0,
         fuelReimbursementManual: 0,
-        extras: 0,
-        aux: 0,
-        bonus: 0,
+        extras: settlement.pendingOvertimeCop,
+        aux: settlement.auxilioPendiente,
+        bonus: settlement.pendingBonusCop,
         tripCount: 0,
         interDepartmentTrips: 0,
-        health: 0,
-        pension: 0,
+        health: settlement.health,
+        pension: settlement.pension,
         solidarity: 0,
-        deductions: 0,
-        net: gross,
+        withholding: settlement.withholding,
+        deductions: settlement.deductions,
+        net: settlement.net,
         paid: false,
         createdAt: nowIso(),
         payrollKind: "terminacion",
@@ -1535,20 +1605,20 @@ function bindPayrollPortalControls() {
       };
       const runs = read(KEYS.payrollRuns, []);
       if (payrollRunAlreadyExists(runs, employee.id, data.month, "terminacion")) {
-        failPortalField(settlementForm, "month", "Ya existe una liquidaciÃ³n de terminaciÃ³n para este empleado y periodo.");
+        failPortalField(settlementForm, "month", "Ya existe una liquidación de terminación para este empleado y periodo.");
         return;
       }
       runs.unshift(run);
       try {
         await writeAwaitServer(KEYS.payrollRuns, runs);
       } catch (err) {
-        notify(String(err?.message || "No fue posible guardar la liquidaciÃ³n en el servidor."), "error");
+        notify(String(err?.message || "No fue posible guardar la liquidación en el servidor."), "error");
         return;
       }
       state.payrollUi = { ...(state.payrollUi || { runSort: "recent" }), workspace: "data" };
       persistHrWorkspace("payroll", "data");
       collapseCreatePanel("create-payroll-settlement");
-      notify("LiquidaciÃ³n contractual registrada. Revise montos antes de marcar pagado.", "success");
+      notify("Liquidación contractual registrada. Revise montos antes de marcar pagado.", "success");
       renderPortalView();
     });
   }
@@ -1600,34 +1670,56 @@ function bindPayrollPortalControls() {
       let payslipBodyBlocks = "";
       if (isTerm && run.settlementDetail && typeof run.settlementDetail === "object") {
         const sd = run.settlementDetail;
-        const c = parseNum(sd.cesantias);
-        const ic = parseNum(sd.interesesCesantias);
-        const pp = parseNum(sd.primaProporcional);
-        const vac = parseNum(sd.vacaciones);
-        const ind = parseNum(sd.indemnization);
-        const otros = parseNum(sd.otrosSettlement);
-        const devRows =
-          `<tr><td style="${cL}"><strong>CesantÃ­as definitivas / saldo a favor (referencia CST)</strong></td><td style="${cR}"><strong>${fmtPay(c)}</strong></td></tr>` +
-          `<tr><td style="${cL}">Intereses moratorios sobre cesantÃ­as (${CO_CESANTIAS_INTERES_ANUAL_PCT}% anual â€” Ley 52/1975, orientativo)</td><td style="${cR}">${fmtPay(ic)}</td></tr>` +
-          `<tr><td style="${cL}">Prima de servicios proporcional (CST)</td><td style="${cR}">${fmtPay(pp)}</td></tr>` +
-          `<tr><td style="${cL}">IndemnizaciÃ³n compensatoria de vacaciones u holgura (Ã·720 referencia)</td><td style="${cR}">${fmtPay(vac)}</td></tr>` +
-          (ind > 0
-            ? `<tr><td style="${cL}">IndemnizaciÃ³n sustitutiva u otros (orden judicial / pacto)</td><td style="${cR}">${fmtPay(ind)}</td></tr>`
-            : "") +
-          (otros > 0
-            ? `<tr><td style="${cL}">Otros conceptos de finiquito</td><td style="${cR}">${fmtPay(otros)}</td></tr>`
-            : "") +
-          `<tr><td style="${cL}"><strong>Total devengos liquidaciÃ³n</strong></td><td style="${cR}"><strong>${fmtPay(run.gross)}</strong></td></tr>`;
+        const slipLines = Array.isArray(sd.devengosLines) ? sd.devengosLines : [];
+        let devRows = "";
+        if (slipLines.length) {
+          devRows = slipLines
+            .filter((L) => parseNum(L.amount) > 0 || L.code === "SALARIO_PENDIENTE")
+            .map(
+              (L) =>
+                `<tr><td style="${cL}">${escapeHtml(String(L.label || L.code || "Concepto"))}</td><td style="${cR}">${fmtPay(L.amount)}</td></tr>`
+            )
+            .join("");
+        } else {
+          const salP = parseNum(sd.salarioPendiente);
+          const auxP = parseNum(sd.auxilioPendiente);
+          devRows =
+            (salP > 0
+              ? `<tr><td style="${cL}">Salario pendiente mes de retiro</td><td style="${cR}">${fmtPay(salP)}</td></tr>`
+              : "") +
+            (auxP > 0
+              ? `<tr><td style="${cL}">Auxilio de transporte proporcional</td><td style="${cR}">${fmtPay(auxP)}</td></tr>`
+              : "") +
+            `<tr><td style="${cL}"><strong>Cesantías (causadas + fondo)</strong></td><td style="${cR}"><strong>${fmtPay(sd.cesantias)}</strong></td></tr>` +
+            `<tr><td style="${cL}">Intereses cesantías (${CO_CESANTIAS_INTERES_ANUAL_PCT}% Ley 52/1975)</td><td style="${cR}">${fmtPay(sd.interesesCesantias)}</td></tr>` +
+            `<tr><td style="${cL}">Prima proporcional (CST)</td><td style="${cR}">${fmtPay(sd.primaProporcional)}</td></tr>` +
+            `<tr><td style="${cL}">Vacaciones compensadas</td><td style="${cR}">${fmtPay(sd.vacaciones)}</td></tr>` +
+            (parseNum(sd.indemnizacionDespido) > 0
+              ? `<tr><td style="${cL}">Indemnización despido sin justa causa (CST art. 64)</td><td style="${cR}">${fmtPay(sd.indemnizacionDespido)}</td></tr>`
+              : "") +
+            (parseNum(sd.indemnizacionAviso) > 0
+              ? `<tr><td style="${cL}">Indemnización sustitutiva aviso previo</td><td style="${cR}">${fmtPay(sd.indemnizacionAviso)}</td></tr>`
+              : "") +
+            (parseNum(sd.otrosSettlement) > 0
+              ? `<tr><td style="${cL}">Otros conceptos</td><td style="${cR}">${fmtPay(sd.otrosSettlement)}</td></tr>`
+              : "");
+        }
+        devRows += `<tr><td style="${cL}"><strong>Total devengos liquidación</strong></td><td style="${cR}"><strong>${fmtPay(run.gross)}</strong></td></tr>`;
 
         const ded = parseNum(run.deductions);
         const dedRows =
           ded > 0
-            ? `<tr><td style="${cL}">Retenciones y aportes asociados (detalle en nÃ³mina extraordinaria)</td><td style="${cR}">${fmtPay(ded)}</td></tr>`
-            : `<tr><td colspan="2" style="padding:8px;color:#495057;font-size:0.88rem">Sin deducciones registradas en esta liquidaciÃ³n. Informe retenciÃ³n en la fuente, embargos u obligaciones con su contador.</td></tr>`;
+            ? `<tr><td style="${cL}">Salud empleado (sobre salario pendiente)</td><td style="${cR}">${fmtPay(run.health)}</td></tr>` +
+              `<tr><td style="${cL}">Pensión empleado</td><td style="${cR}">${fmtPay(run.pension)}</td></tr>` +
+              (parseNum(run.withholding) > 0
+                ? `<tr><td style="${cL}">Retención en la fuente (orientativa)</td><td style="${cR}">${fmtPay(run.withholding)}</td></tr>`
+                : "") +
+              `<tr><td style="${cL}"><strong>Total deducciones</strong></td><td style="${cR}"><strong>${fmtPay(ded)}</strong></td></tr>`
+            : `<tr><td colspan="2" style="padding:8px;color:#495057;font-size:0.88rem">Sin deducciones registradas. Informe embargos u obligaciones con su contador.</td></tr>`;
 
         payslipBodyBlocks = `
-          <h2 style="font-size:1rem;margin:1.25rem 0 0.35rem">I. Devengos (finiquito / liquidaciÃ³n)</h2>
-          <p style="margin:0 0 0.5rem;font-size:0.86rem;color:#495057">Ãtems tÃ­picos por terminaciÃ³n conforme ordenamiento laboral colombiano (valores editables en el registro del sistema).</p>
+          <h2 style="font-size:1rem;margin:1.25rem 0 0.35rem">I. Devengos (finiquito / liquidación)</h2>
+          <p style="margin:0 0 0.5rem;font-size:0.86rem;color:#495057">Ítems típicos por terminación conforme ordenamiento laboral colombiano (valores editables en el registro del sistema).</p>
           <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:1rem">${theadP}<tbody>${devRows}</tbody></table>
           <h2 style="font-size:1rem;margin:0.75rem 0 0.35rem">II. Deducciones</h2>
           <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:1rem">${theadP}<tbody>${dedRows}</tbody></table>
@@ -1637,11 +1729,11 @@ function bindPayrollPortalControls() {
       } else {
         const linesFromRun = resolvePayrollDevengosLines(run);
         const baseInt = parseNum(run.cesantiasInterestBaseCop);
-        const diasInt = run.cesantiasInterestDays != null ? run.cesantiasInterestDays : "â€”";
+        const diasInt = run.cesantiasInterestDays != null ? run.cesantiasInterestDays : "�";
         const intLabel =
           baseInt > 0
-            ? `Intereses sobre cesantÃ­as (${CO_CESANTIAS_INTERES_ANUAL_PCT}% anual Ley 52/1975; base ref. ${fmtPay(baseInt)}, ${diasInt} dÃ­as/360)`
-            : `Intereses sobre cesantÃ­as (${CO_CESANTIAS_INTERES_ANUAL_PCT}% anual Ley 52/1975)`;
+            ? `Intereses sobre cesantías (${CO_CESANTIAS_INTERES_ANUAL_PCT}% anual Ley 52/1975; base ref. ${fmtPay(baseInt)}, ${diasInt} días/360)`
+            : `Intereses sobre cesantías (${CO_CESANTIAS_INTERES_ANUAL_PCT}% anual Ley 52/1975)`;
 
         let devRowsMes;
         if (linesFromRun && linesFromRun.length) {
@@ -1657,7 +1749,7 @@ function bindPayrollPortalControls() {
               let labelHtml = escapeHtml(cleanSlipText(String(L.label || L.code || "Concepto")));
               if (L.code === "PRIMA_SERVICIOS") {
                 labelHtml = escapeHtml(
-                  `Prima de servicios semestral (CST arts. 244â€“249 â€” ${run.primaServiciosDays ?? "â€”"} dÃ­as semestre)`
+                  `Prima de servicios semestral (CST arts. 244�249 � ${run.primaServiciosDays ?? "�"} días semestre)`
                 );
               }
               if (L.code === "INT_CESANTIAS" && parseNum(L.amount) > 0) {
@@ -1683,7 +1775,7 @@ function bindPayrollPortalControls() {
             parseNum(run.gross) - ex - au - bo - via - comb - prima - intCe
           );
           devRowsMes =
-            `<tr><td style="${cL}">Salario bÃ¡sico mensual (devengo ordinario)</td><td style="${cR}">${fmtPay(salarioBasicoDevengo)}</td></tr>` +
+            `<tr><td style="${cL}">Salario básico mensual (devengo ordinario)</td><td style="${cR}">${fmtPay(salarioBasicoDevengo)}</td></tr>` +
             (ex > 0
               ? `<tr><td style="${cL}">Horas extras, dominicales o recargos nocturnos</td><td style="${cR}">${fmtPay(ex)}</td></tr>`
               : "") +
@@ -1691,10 +1783,10 @@ function bindPayrollPortalControls() {
             (bo > 0
               ? `<tr><td style="${cL}">Bonificaciones y pagos ocasionales gravables (devengo)</td><td style="${cR}">${fmtPay(bo)}</td></tr>`
               : "") +
-            `<tr><td style="${cL}">ViÃ¡ticos y anticipos de viaje (reintegro / no salario)</td><td style="${cR}">${fmtPay(via)}</td></tr>` +
+            `<tr><td style="${cL}">Viáticos y anticipos de viaje (reintegro / no salario)</td><td style="${cR}">${fmtPay(via)}</td></tr>` +
             `<tr><td style="${cL}">Reembolso combustible y gastos de ruta deducibles</td><td style="${cR}">${fmtPay(comb)}</td></tr>` +
             (prima > 0
-              ? `<tr><td style="${cL}">Prima de servicios semestral (CST arts. 244â€“249 â€” ${run.primaServiciosDays ?? "â€”"} dÃ­as semestre)</td><td style="${cR}">${fmtPay(prima)}</td></tr>`
+              ? `<tr><td style="${cL}">Prima de servicios semestral (CST arts. 244�249 � ${run.primaServiciosDays ?? "�"} días semestre)</td><td style="${cR}">${fmtPay(prima)}</td></tr>`
               : "") +
             (intCe > 0 ? `<tr><td style="${cL}">${escapeHtml(intLabel)}</td><td style="${cR}">${fmtPay(intCe)}</td></tr>` : "") +
             `<tr><td style="${cL}"><strong>Total devengos del periodo</strong></td><td style="${cR}"><strong>${fmtPay(run.gross)}</strong></td></tr>`;
@@ -1702,30 +1794,30 @@ function bindPayrollPortalControls() {
 
         const isTripPrestacion = payrollRunFrequencyKind(run) === "prestacion_viajes";
         const dedRowsMes = isTripPrestacion
-          ? `<tr><td style="${cL}" colspan="2">PrestaciÃ³n de servicios: sin aportes de salud, pensiÃ³n ni FSP en este comprobante (pago por viajes).</td></tr>` +
+          ? `<tr><td style="${cL}" colspan="2">Prestación de servicios: sin aportes de salud, pensión ni FSP en este comprobante (pago por viajes).</td></tr>` +
             `<tr><td style="${cL}"><strong>Total deducciones</strong></td><td style="${cR}"><strong>${fmtPay(run.deductions)}</strong></td></tr>`
-          : `<tr><td style="${cL}">Salario integral de cotizaciÃ³n â€” IBC (base aportes empleador/empleado)</td><td style="${cR}">${fmtPay(run.ibc)}</td></tr>` +
-            `<tr><td style="${cL}">Aporte obligatorio salud â€” empleado (${(CO_PAYROLL.healthEmployeeRate * 100).toFixed(2).replace(/\.00$/, "")}% sobre IBC)</td><td style="${cR}">${fmtPay(run.health)}</td></tr>` +
-            `<tr><td style="${cL}">Aporte pensiÃ³n obligatoria â€” empleado (${(CO_PAYROLL.pensionEmployeeRate * 100).toFixed(2).replace(/\.00$/, "")}% sobre IBC)</td><td style="${cR}">${fmtPay(run.pension)}</td></tr>` +
+          : `<tr><td style="${cL}">Salario integral de cotización � IBC (base aportes empleador/empleado)</td><td style="${cR}">${fmtPay(run.ibc)}</td></tr>` +
+            `<tr><td style="${cL}">Aporte obligatorio salud � empleado (${(CO_PAYROLL.healthEmployeeRate * 100).toFixed(2).replace(/\.00$/, "")}% sobre IBC)</td><td style="${cR}">${fmtPay(run.health)}</td></tr>` +
+            `<tr><td style="${cL}">Aporte pensión obligatoria � empleado (${(CO_PAYROLL.pensionEmployeeRate * 100).toFixed(2).replace(/\.00$/, "")}% sobre IBC)</td><td style="${cR}">${fmtPay(run.pension)}</td></tr>` +
             `<tr><td style="${cL}">Fondo de solidaridad pensional FSP (cuando aplique rangos Ley 797/2003)</td><td style="${cR}">${fmtPay(run.solidarity)}</td></tr>` +
             `<tr><td style="${cL}"><strong>Total deducciones al empleado</strong></td><td style="${cR}"><strong>${fmtPay(run.deductions)}</strong></td></tr>`;
         const workedDaysRows =
           workedDays > 0 || workedDaysPaymentCop > 0
-            ? `<tr><td style="${cL}">Pago por dÃ­as laborados (${workedDays.toLocaleString("es-CO")} dÃ­as)</td><td style="${cR}">${fmtPay(workedDaysPaymentCop)}</td></tr>`
-            : `<tr><td style="${cL}" colspan="2">Sin detalle de dÃ­as laborados para este comprobante.</td></tr>`;
+            ? `<tr><td style="${cL}">Pago por días laborados (${workedDays.toLocaleString("es-CO")} días)</td><td style="${cR}">${fmtPay(workedDaysPaymentCop)}</td></tr>`
+            : `<tr><td style="${cL}" colspan="2">Sin detalle de días laborados para este comprobante.</td></tr>`;
 
         payslipBodyBlocks = `
-          <h2 style="font-size:1rem;margin:1.25rem 0 0.35rem">I. Devengos e ingresos perÃ­odo</h2>
+          <h2 style="font-size:1rem;margin:1.25rem 0 0.35rem">I. Devengos e ingresos período</h2>
           <p style="margin:0 0 0.45rem;font-size:0.86rem;color:#495057">${
             isTripPrestacion
-              ? "Pago por prestaciÃ³n de servicios (viajes interdepartamentales y reembolsos de ruta)."
-              : "Ingresos y conceptos pagados por el empleador; prima e intereses de cesantÃ­as solo si se liquidaron en este comprobante."
+              ? "Pago por prestación de servicios (viajes interdepartamentales y reembolsos de ruta)."
+              : "Ingresos y conceptos pagados por el empleador; prima e intereses de cesantías solo si se liquidaron en este comprobante."
           }</p>
           <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:1rem">${theadP}<tbody>${devRowsMes}</tbody></table>
           <h2 style="font-size:1rem;margin:0.75rem 0 0.35rem">II. Deducciones (aportes del trabajador)</h2>
-          <p style="margin:0 0 0.45rem;font-size:0.86rem;color:#495057">Descuentos legales incidentes sobre nÃ³mina; prima e intereses de cesantÃ­as no integran habitualmente esta base de cotizaciÃ³n en este modelo simplificado.</p>
+          <p style="margin:0 0 0.45rem;font-size:0.86rem;color:#495057">Descuentos legales incidentes sobre nómina; prima e intereses de cesantías no integran habitualmente esta base de cotización en este modelo simplificado.</p>
           <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:1rem">${theadP}<tbody>${dedRowsMes}</tbody></table>
-          <h2 style="font-size:1rem;margin:0.75rem 0 0.35rem">III. Resumen de dÃ­as laborados</h2>
+          <h2 style="font-size:1rem;margin:0.75rem 0 0.35rem">III. Resumen de días laborados</h2>
           <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:1rem">${theadP}<tbody>${workedDaysRows}</tbody></table>
           <table style="width:100%;border-collapse:collapse;font-size:0.95rem;margin-top:0.5rem"><tbody>
             <tr><td style="padding:12px 8px"><strong>Neto pagado / a pagar al trabajador</strong></td><td style="padding:12px 8px;text-align:right;font-size:1.12rem"><strong>${netStr}</strong></td></tr>
@@ -1735,11 +1827,11 @@ function bindPayrollPortalControls() {
         isTerm && run.settlementDetail && typeof run.settlementDetail === "object"
           ? `Liquidacion contractual ${run.employeeName}`
           : `Desprendible ${run.employeeName}`;
-      const h1Title = isTerm ? "LiquidaciÃ³n contractual" : "Desprendible de nÃ³mina";
+      const h1Title = isTerm ? "Liquidación contractual" : "Desprendible de nómina";
       let metaExtra = "";
       if (isTerm && run.settlementDetail && typeof run.settlementDetail === "object") {
         const sd = run.settlementDetail;
-        metaExtra += `<tr><td style="padding:4px 0"><strong>Fecha terminaciÃ³n</strong></td><td>${escapeHtml(String(sd.terminationDate || "-"))}</td></tr>`;
+        metaExtra += `<tr><td style="padding:4px 0"><strong>Fecha terminación</strong></td><td>${escapeHtml(String(sd.terminationDate || "-"))}</td></tr>`;
         metaExtra += `<tr><td style="padding:4px 0"><strong>Motivo</strong></td><td>${escapeHtml(String(causeLabels[sd.terminationCause] || sd.terminationCause || "-"))}</td></tr>`;
       }
       const absenceDetailRows = !isTerm ? resolvePayrollAbsenceSlipRows(run, read(KEYS.hrAbsences, [])) : [];
@@ -1769,11 +1861,11 @@ function bindPayrollPortalControls() {
         const ori = String(run.liquidacionOrigin || run.origenLiquidacion || "manual").toLowerCase();
         if (ori === "masiva") {
           disclaimerPieces.push(
-            "LiquidaciÃ³n generada por liquidaciÃ³n masiva (RRHH). Validar incapacidades, vacaciones, viÃ¡ticos de ruta y bases de cotizaciÃ³n con contador antes del pago."
+            "Liquidación generada por liquidación masiva (RRHH). Validar incapacidades, vacaciones, viáticos de ruta y bases de cotización con contador antes del pago."
           );
         } else if (ori === "automatica") {
           disclaimerPieces.push(
-            "LiquidaciÃ³n generada automÃ¡ticamente en servidor (cron diario, calendario BogotÃ¡). Validar incapacidades, vacaciones y bases de cotizaciÃ³n con RRHH y contador."
+            "Liquidación generada automáticamente en servidor (cron diario, calendario Bogotá). Validar incapacidades, vacaciones y bases de cotización con RRHH y contador."
           );
           const nv = run.noveltiesDetail;
           if (nv && typeof nv === "object" && Array.isArray(nv.disclaimers)) {
@@ -1783,11 +1875,11 @@ function bindPayrollPortalControls() {
         }
         if (parseNum(run.primaServiciosCop) > 0)
           disclaimerPieces.push(
-            "Prima de servicios (CST): cÃ¡lculo orientativo; validar polÃ­tica empresarial y contador."
+            "Prima de servicios (CST): cálculo orientativo; validar política empresarial y contador."
           );
         if (parseNum(run.interesesCesantiasCop) > 0)
           disclaimerPieces.push(
-            `Intereses de cesantÃ­as (Ley 52/1975, ${CO_CESANTIAS_INTERES_ANUAL_PCT}% anual): el texto legal establece que deben pagarse al trabajador en enero del aÃ±o siguiente al perÃ­odo causado (y reglas especiales en retiros o ceses antes de ese cierre). Lo habitual es liquidarlos con la nÃ³mina de enero del aÃ±o siguiente o, si su polÃ­tica lo retrasa hasta febrero, documente ese desfase con contador para no omitir obligaciones ya exigidas.`
+            `Intereses de cesantías (Ley 52/1975, ${CO_CESANTIAS_INTERES_ANUAL_PCT}% anual): el texto legal establece que deben pagarse al trabajador en enero del año siguiente al período causado (y reglas especiales en retiros o ceses antes de ese cierre). Lo habitual es liquidarlos con la nómina de enero del año siguiente o, si su política lo retrasa hasta febrero, documente ese desfase con contador para no omitir obligaciones ya exigidas.`
           );
         const incNv = run.noveltiesDetail?.incapacity;
         if (incNv && Array.isArray(incNv.episodes) && incNv.episodes.length) {
@@ -1816,14 +1908,14 @@ function bindPayrollPortalControls() {
           label: "Banco",
           value:
             employee?.bankName && employee?.bankAccount
-              ? `${String(employee.bankName)} Â· ${String(employee.bankAccountType || "Cuenta")} ${String(employee.bankAccount)}`
+              ? `${String(employee.bankName)} · ${String(employee.bankAccountType || "Cuenta")} ${String(employee.bankAccount)}`
               : "-"
         },
         {
-          label: "Salario bÃ¡sico",
+          label: "Salario básico",
           value: employee?.baseSalary != null ? `$${parseNum(employee.baseSalary).toLocaleString("es-CO")}` : "-"
         },
-        { label: "IBC (base de cotizaciÃ³n)", value: `$${parseNum(run.ibc || 0).toLocaleString("es-CO")}` }
+        { label: "IBC (base de cotización)", value: `$${parseNum(run.ibc || 0).toLocaleString("es-CO")}` }
       ]
         .map(
           (row) =>
@@ -1893,7 +1985,7 @@ function bindPayrollPortalControls() {
           btn.dataset.busy = "0";
           btn.disabled = false;
           btn.removeAttribute("aria-busy");
-          notify(String(err?.message || "No fue posible enviar la solicitud de aprobaciÃ³n."), "error");
+          notify(String(err?.message || "No fue posible enviar la solicitud de aprobación."), "error");
         }
         return;
       }
@@ -1930,8 +2022,8 @@ function bindPayrollPortalControls() {
       openConfirmReasonModal({
         title: "Eliminar ausencia",
         message: removed
-          ? `Se eliminarÃ¡ la ausencia de ${String(removed.employeeName || "colaborador")} (${String(removed.startDate || "-")} a ${String(removed.endDate || "-")}). Indique la justificaciÃ³n.`
-          : "Se eliminarÃ¡ este registro de ausencia del expediente digital. Indique la justificaciÃ³n.",
+          ? `Se eliminará la ausencia de ${String(removed.employeeName || "colaborador")} (${String(removed.startDate || "-")} a ${String(removed.endDate || "-")}). Indique la justificación.`
+          : "Se eliminará este registro de ausencia del expediente digital. Indique la justificación.",
         confirmText: "Eliminar",
         onConfirm: async (motivo) => {
           const ok = await removeFromPortalListAwaitServer(KEYS.hrAbsences, id);
@@ -1942,12 +2034,12 @@ function bindPayrollPortalControls() {
             moduleLabel: "Ausencias",
             entityId: id,
             entityLabel: removed
-              ? `${String(removed.employeeName || "Colaborador")} Â· ${String(removed.startDate || "-")}`
+              ? `${String(removed.employeeName || "Colaborador")} · ${String(removed.startDate || "-")}`
               : "Ausencia",
             summary: removed
-              ? `Ausencia eliminada (${String(removed.employeeName || "Colaborador")} Â· ${String(removed.startDate || "-")} a ${String(removed.endDate || "-")}). Motivo: ${String(motivo || "").trim()}`
+              ? `Ausencia eliminada (${String(removed.employeeName || "Colaborador")} · ${String(removed.startDate || "-")} a ${String(removed.endDate || "-")}). Motivo: ${String(motivo || "").trim()}`
               : `Ausencia eliminada. Motivo: ${String(motivo || "").trim()}`,
-            actor: String(currentUser()?.email || currentUser()?.name || "â€”").trim()
+            actor: String(currentUser()?.email || currentUser()?.name || "�").trim()
           });
           if (removed?.employeeId) {
             await refreshPayrollDraftsLinked(removed.employeeId, removed.startDate, removed.endDate, {
@@ -1973,7 +2065,7 @@ function bindPayrollPortalControls() {
       openConfirmReasonModal({
         title: "Eliminar liquidacion",
         message: run
-          ? `Eliminar el registro de liquidacion (${run.month} Â· ${run.employeeName}). Indique la justificaciÃ³n. Solo administradores; no hay deshacer automatico si ya se sincrono con servidor.`
+          ? `Eliminar el registro de liquidacion (${run.month} · ${run.employeeName}). Indique la justificación. Solo administradores; no hay deshacer automatico si ya se sincrono con servidor.`
           : "Eliminar este registro de liquidacion.",
         confirmText: "Eliminar liquidacion",
         onConfirm: async (motivo) => {
@@ -1982,15 +2074,15 @@ function bindPayrollPortalControls() {
           appendModuleAuditLog({
             action: "delete",
             moduleId: "payroll",
-            moduleLabel: "NÃ³mina laboral",
+            moduleLabel: "Nómina laboral",
             entityId: id,
             entityLabel: run
-              ? `${String(run.employeeName || "Colaborador")} Â· ${String(run.month || "-")}`
-              : "LiquidaciÃ³n",
+              ? `${String(run.employeeName || "Colaborador")} · ${String(run.month || "-")}`
+              : "Liquidación",
             summary: run
-              ? `LiquidaciÃ³n eliminada (${String(run.month || "-")} Â· ${String(run.employeeName || "Colaborador")}). Motivo: ${String(motivo || "").trim()}`
-              : `LiquidaciÃ³n eliminada. Motivo: ${String(motivo || "").trim()}`,
-            actor: String(currentUser()?.email || currentUser()?.name || "â€”").trim()
+              ? `Liquidación eliminada (${String(run.month || "-")} · ${String(run.employeeName || "Colaborador")}). Motivo: ${String(motivo || "").trim()}`
+              : `Liquidación eliminada. Motivo: ${String(motivo || "").trim()}`,
+            actor: String(currentUser()?.email || currentUser()?.name || "�").trim()
           });
           notify(userMessage("payrollRunDeleted"), "success");
           renderPortalView();
@@ -2019,7 +2111,7 @@ function bindPayrollPortalControls() {
       }
       const hrAbsences = read(KEYS.hrAbsences, []);
       const csv = [
-        "Mes,Tipo,Empleado,Devengado,IncapacidadAjusteCOP,IncapacidadResumen,AusentismosResumen,PrimaServicios,InteresesCesantias,BaseCesantÃ­asIntereses,DÃ­asInterÃ©s360,Viaticos,ReembolsoCombustible,IBC,Salud,Pension,Solidaridad,Deducciones,Neto,Estado"
+        "Mes,Tipo,Empleado,Devengado,IncapacidadAjusteCOP,IncapacidadResumen,AusentismosResumen,PrimaServicios,InteresesCesantias,BaseCesantíasIntereses,DíasInterés360,Viaticos,ReembolsoCombustible,IBC,Salud,Pension,Solidaridad,Deducciones,Neto,Estado"
       ]
         .concat(
           rows.map((r) => {
@@ -2032,7 +2124,7 @@ function bindPayrollPortalControls() {
             const incapacityAdjust = inc ? parseNum(inc.totalAdjustCop) : 0;
             const incapacitySummary =
               inc && Array.isArray(inc.episodes) && inc.episodes.length
-                ? inc.episodes.map((e) => `${e.days ?? "?"}dÂ·${parseNum(e.adjustCop)}`).join("|")
+                ? inc.episodes.map((e) => `${e.days ?? "?"}d·${parseNum(e.adjustCop)}`).join("|")
                 : "";
             const absenceSummary = buildPayrollAbsenceSummaryText(r, hrAbsences);
             return [
@@ -2074,7 +2166,7 @@ function bindPayrollPortalControls() {
 
   const renderDetailRows = portalDetailRenderRows;
   const buildDetailGrid = portalDetailBuildGrid;
-  const fmtDateOr = (val, fallback = "â€”") => {
+  const fmtDateOr = (val, fallback = "�") => {
     const y = normalizePortalDateYmd(val);
     return y ? escapeHtml(y) : fallback;
   };
@@ -2099,8 +2191,8 @@ function bindPayrollPortalControls() {
             ["Subtipo", escapeHtml(subtypeLabel || "No aplica")],
             ["Inicio", fmtDateOr(a.startDate)],
             ["Fin", fmtDateOr(a.endDate)],
-            ["DÃ­as calendario", String(parseNum(a.days || 0))],
-            ["DÃ­as reconocidos", payrollFormatAbsenceQuantity(a.recognizedDays ?? a.days)],
+            ["Días calendario", String(parseNum(a.days || 0))],
+            ["Días reconocidos", payrollFormatAbsenceQuantity(a.recognizedDays ?? a.days)],
             ["Soporte (NÂ°)", escapeHtml(String(a.supportNumber || "-"))],
             ["Entidad/EPS/ARL", escapeHtml(String(a.epsEntity || "-"))],
             ["Registrado", fmtDateOr(a.createdAt)]
@@ -2115,7 +2207,7 @@ function bindPayrollPortalControls() {
         }
       ];
       openInfoModal({
-        title: `Ausencia Â· ${typeLabel}`,
+        title: `Ausencia · ${typeLabel}`,
         subtitle: String(a.employeeName || ""),
         bodyHtml: `<div class="detail-grid">${buildDetailGrid(sections)}</div>`,
         wide: true
@@ -2153,7 +2245,7 @@ function bindPayrollPortalControls() {
           },
           { name: "startDate", label: "Fecha de inicio", type: "date", value: target.startDate || "", required: true },
           { name: "endDate", label: "Fecha de fin", type: "date", value: target.endDate || "", required: true },
-          { name: "recognizedDays", label: "DÃ­as reconocidos", type: "number", value: String(target.recognizedDays ?? target.days ?? 1), min: 0.5, step: 0.5 },
+          { name: "recognizedDays", label: "Días reconocidos", type: "number", value: String(target.recognizedDays ?? target.days ?? 1), min: 0.5, step: 0.5 },
           {
             type: "custom",
             html: `<p class="full muted" data-absence-recognition-hint style="margin:0;font-size:0.82rem"></p>`
@@ -2176,7 +2268,7 @@ function bindPayrollPortalControls() {
           const end = new Date(`${form.endDate}T12:00:00`);
           const absenceEditForm = document.getElementById("crud-form");
           if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) {
-            failPortalField(absenceEditForm, "startDate", "Fechas invÃ¡lidas.");
+            failPortalField(absenceEditForm, "startDate", "Fechas inválidas.");
             return false;
           }
           if (end.getTime() < start.getTime()) {

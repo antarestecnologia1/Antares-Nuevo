@@ -721,6 +721,16 @@ function transportTripsHtml() {
         if (!HR_VALID_TRANSPORT_TRIPS_WS.has(ws)) return;
         state.transportTripsUi = { ...(state.transportTripsUi || {}), workspace: ws };
         persistHrWorkspace("transport-trips", ws);
+        if (
+          switchHrWorkspacePanels({
+            root: nodes.viewRoot,
+            moduleId: "transport-trips",
+            workspace: ws,
+            panelAttr: "data-transport-trips-panel"
+          })
+        ) {
+          return;
+        }
         renderPortalView();
       });
     });
@@ -730,6 +740,17 @@ function transportTripsHtml() {
         const section = normalizeTransportTripsSection(btn.dataset.section);
         state.transportTripsUi = { ...(state.transportTripsUi || {}), section };
         persistHrWorkspace("transport-trips", state.transportTripsUi.workspace || "operate");
+        if (
+          switchModuleTabPanels({
+            root: nodes.viewRoot,
+            action: "transport-trips-section",
+            activeValue: section,
+            panelAttrs: ["data-transport-trips-operate-pane", "data-transport-trips-data-pane"],
+            tabActiveClass: "is-active"
+          })
+        ) {
+          return;
+        }
         renderPortalView();
       });
     });

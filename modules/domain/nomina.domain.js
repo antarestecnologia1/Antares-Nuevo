@@ -21,6 +21,12 @@ import {
   calcColombiaIncapacityEpsDayAdjustmentCop,
   payrollCesantiasConsignmentAlert
 } from "./payroll-colombia-legal.domain.js";
+import {
+  suggestTerminationReferenceDays,
+  computeTerminationSettlementFromForm,
+  applyTerminationSettlementToForm,
+  terminationCauseEligibility
+} from "./payroll-colombia-termination.domain.js";
 
 export {
   buildColombiaPayrollLiquidation,
@@ -40,6 +46,18 @@ export {
   CO_ARL_EMPLOYER_RATES,
   CO_OVERTIME_RATES
 } from "./payroll-colombia-legal.domain.js";
+export {
+  computeColombiaTerminationSettlement,
+  suggestTerminationReferenceDays,
+  applyTerminationSettlementToForm,
+  computeTerminationSettlementFromForm,
+  terminationCauseEligibility,
+  calcColombiaTerminationEmployedDays,
+  calcColombiaTerminationCesantiasDaysYear,
+  calcColombiaTerminationVacationDaysAccrued,
+  calcColombiaIndemnizacionDespidoSinJustaCop,
+  CO_TERMINATION_CAUSE_LABELS
+} from "./payroll-colombia-termination.domain.js";
 
 function parseNum(v) {
   const n = Number(v);
@@ -443,23 +461,18 @@ export function calcColombiaPrimaSemesterEmployedDays(hireDateYmd, monthYm) {
 }
 
 /**
- * Liquidación contractual por terminación (referencia orientativa — CST y normativa salarial colombiana).
- * Cesantías: salario × días ÷ 360. Intereses: 12% anual proporcional sobre cesantías calculadas (simplificado).
- * Prima proporcional: (salario × días proporcionales) ÷ 360. Vacaciones: (salario × días compensar) ÷ 720 (uso frecuente en nómina).
+ * @deprecated Use computeColombiaTerminationSettlement
  */
 export function calcColombiaTerminationLines({ baseSalary, days360Year, primaPropDays, vacationDays }) {
   const base = Math.max(0, parseNum(baseSalary));
-  const d360 = Math.max(0, parseNum(days360Year));
-  const dPrima = Math.max(0, parseNum(primaPropDays));
-  const dVac = Math.max(0, parseNum(vacationDays));
-  const cesantias = Math.round((base * d360) / 360);
-  const interesesCesantias = Math.round(((cesantias * 12) / 100) * (Math.min(d360, 360) / 360));
-  const primaProporcional = Math.round((base * dPrima) / 360);
-  const vacaciones = Math.round((base * dVac) / 720);
+  const cesantias = Math.round((base * Math.max(0, parseNum(days360Year))) / 360);
+  const interesesCesantias = Math.round(cesantias * 0.12 * (Math.min(parseNum(days360Year), 360) / 360));
+  const primaProporcional = Math.round((base * Math.max(0, parseNum(primaPropDays))) / 360);
+  const vacaciones = Math.round((base * Math.max(0, parseNum(vacationDays))) / 30);
   return { cesantias, interesesCesantias, primaProporcional, vacaciones };
 }
 
-/** Rellena rubros del formulario de liquidación contractual a partir del salario y días ingresados. */
+/** Rellena rubros del formulario de liquidación contractual (motor completo). */
 export function fillSettlementSuggestedAmounts(form) {
   if (!form) return;
   const employeeId = String(form.querySelector("[name='employeeId']")?.value || "");
@@ -468,19 +481,32 @@ export function fillSettlementSuggestedAmounts(form) {
     notify(userMessage("contractPickEmployee"), "error");
     return;
   }
-  const base = parseNum(employee.baseSalary);
-  const days360 = parseNum(form.querySelector("[name='days360Year']")?.value);
-  const primaPropDays = parseNum(form.querySelector("[name='primaPropDays']")?.value);
-  const vacationDays = parseNum(form.querySelector("[name='vacationDays']")?.value);
-  const lines = calcColombiaTerminationLines({ baseSalary: base, days360Year: days360, primaPropDays, vacationDays });
-  const c = form.querySelector("[name='cesantiasCop']");
-  const i = form.querySelector("[name='interesesCesantiasCop']");
-  const p = form.querySelector("[name='primaPropCop']");
-  const v = form.querySelector("[name='vacacionesCop']");
-  if (c) c.value = String(lines.cesantias);
-  if (i) i.value = String(lines.interesesCesantias);
-  if (p) p.value = String(lines.primaProporcional);
-  if (v) v.value = String(lines.vacaciones);
+  const termDate = String(form.querySelector("[name='terminationDate']")?.value || "").trim();
+  if (!termDate) {
+    notify("Indique la fecha de terminación antes de calcular.", "error");
+    return;
+  }
+  const refs = suggestTerminationReferenceDays({
+    employee,
+    terminationDateYmd: termDate,
+    absencesAll: read(KEYS.hrAbsences, [])
+  });
+  const d360 = form.querySelector("[name='days360Year']");
+  const dPrima = form.querySelector("[name='primaPropDays']");
+  const dVac = form.querySelector("[name='vacationDays']");
+  const dEmp = form.querySelector("[name='employedDays']");
+  if (d360) d360.value = String(refs.days360Year);
+  if (dPrima) dPrima.value = String(refs.primaPropDays);
+  if (dVac) dVac.value = String(refs.vacationDays);
+  if (dEmp) dEmp.value = String(refs.employedDays);
+  const position =
+    typeof getPositionById === "function" ? getPositionById(String(employee.positionId || "")) : null;
+  const settlement = computeTerminationSettlementFromForm(form, {
+    employee,
+    position,
+    absencesAll: read(KEYS.hrAbsences, [])
+  });
+  if (settlement) applyTerminationSettlementToForm(form, settlement);
 }
 
 /**

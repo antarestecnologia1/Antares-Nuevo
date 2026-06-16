@@ -4,70 +4,85 @@
  */
 function transportCalendarHtml() {
   const filters = state.calendarFilters || { driver: "", vehicle: "", status: "", kind: "" };
-  const allTrips = reqRead().filter((r) => r.trip);
-  const interviews = read(KEYS.interviews, []);
-  const absences = read(KEYS.hrAbsences, []);
-  const trips = allTrips
+  const allTrips = reqRead()
+    .filter((r) => r.trip)
     .filter((r) => {
       if (filters.driver && String(r.trip.driverId || "") !== filters.driver) return false;
       if (filters.vehicle && String(r.trip.vehicleId || "") !== filters.vehicle) return false;
       if (filters.status && String(r.status || "") !== filters.status) return false;
       return true;
-    })
-    .sort((a, b) => new Date(rSafePickup(a)).getTime() - new Date(rSafePickup(b)).getTime());
+    });
+  const interviews = read(KEYS.interviews, []);
+  const absences = read(KEYS.hrAbsences, []);
 
-  const interviewEvents = interviews
-    .map((i) => {
-      const ts = new Date(String(i.when || "")).getTime();
-      if (!Number.isFinite(ts)) return null;
-      return {
-        kind: "interview",
-        id: String(i.id || ""),
-        start: new Date(ts),
-        dot: "dot-interview",
-        title: `Entrevista · ${String(i.candidateName || "Candidato")}`,
-        subtitle: String(i.interviewer || "-")
-      };
-    })
-    .filter(Boolean);
-  const absenceEvents = absences
-    .map((a) => {
-      const ts = new Date(`${String(a.startDate || "")}T12:00:00`).getTime();
-      if (!Number.isFinite(ts)) return null;
-      const typeLabel = payrollAbsenceTypeLabel(a.absenceType);
-      return {
-        kind: "absence",
-        id: String(a.id || ""),
-        start: new Date(ts),
-        dot: "dot-absence",
-        title: `${typeLabel} · ${String(a.employeeName || "Colaborador")}`,
-        subtitle: `${String(a.startDate || "-")} → ${String(a.endDate || "-")}`
-      };
-    })
-    .filter(Boolean);
-  const tripEvents = trips
-    .map((r) => {
-      const ts = new Date(rSafePickup(r)).getTime();
-      if (!Number.isFinite(ts)) return null;
-      return {
-        kind: "trip",
-        id: String(r.id || ""),
-        start: new Date(ts),
-        dot: "dot-trip",
-        title: `${String(r.trip?.tripNumber || "-")} · ${String(r.clientName || "")}`,
-        subtitle: `${String(r.trip?.driverName || "-")} · ${String(r.trip?.vehiclePlate || "-")}`,
-        request: r
-      };
-    })
-    .filter(Boolean);
+  let allEvents = [];
+  if (typeof AntaresCalendarDomain !== "undefined") {
+    const merged = AntaresCalendarDomain.mergeCalendarEvents({
+      requests: allTrips,
+      interviews,
+      absences
+    });
+    const filtered = AntaresCalendarDomain.filterCalendarEvents(merged, { kind: filters.kind });
+    allEvents = AntaresCalendarDomain.calendarEventsToUiRows(filtered, { reqRead });
+  } else {
+    const trips = [...allTrips].sort(
+      (a, b) => new Date(rSafePickup(a)).getTime() - new Date(rSafePickup(b)).getTime()
+    );
+    const interviewEvents = interviews
+      .map((i) => {
+        const ts = new Date(String(i.when || "")).getTime();
+        if (!Number.isFinite(ts)) return null;
+        return {
+          kind: "interview",
+          id: String(i.id || ""),
+          start: new Date(ts),
+          dot: "dot-interview",
+          title: `Entrevista · ${String(i.candidateName || "Candidato")}`,
+          subtitle: String(i.interviewer || "-")
+        };
+      })
+      .filter(Boolean);
+    const absenceEvents = absences
+      .map((a) => {
+        const ts = new Date(`${String(a.startDate || "")}T12:00:00`).getTime();
+        if (!Number.isFinite(ts)) return null;
+        const typeLabel = payrollAbsenceTypeLabel(a.absenceType);
+        return {
+          kind: "absence",
+          id: String(a.id || ""),
+          start: new Date(ts),
+          dot: "dot-absence",
+          title: `${typeLabel} · ${String(a.employeeName || "Colaborador")}`,
+          subtitle: `${String(a.startDate || "-")} → ${String(a.endDate || "-")}`
+        };
+      })
+      .filter(Boolean);
+    const tripEvents = trips
+      .map((r) => {
+        const ts = new Date(rSafePickup(r)).getTime();
+        if (!Number.isFinite(ts)) return null;
+        return {
+          kind: "trip",
+          id: String(r.id || ""),
+          start: new Date(ts),
+          dot: "dot-trip",
+          title: `${String(r.trip?.tripNumber || "-")} · ${String(r.clientName || "")}`,
+          subtitle: `${String(r.trip?.driverName || "-")} · ${String(r.trip?.vehiclePlate || "-")}`,
+          request: r
+        };
+      })
+      .filter(Boolean);
+    allEvents = [...tripEvents, ...interviewEvents, ...absenceEvents]
+      .filter((evt) => !filters.kind || evt.kind === filters.kind)
+      .sort((a, b) => a.start.getTime() - b.start.getTime());
+  }
 
-  const allEvents = [...tripEvents, ...interviewEvents, ...absenceEvents]
-    .filter((evt) => !filters.kind || evt.kind === filters.kind)
-    .sort((a, b) => a.start.getTime() - b.start.getTime());
+  const interviewEvents = allEvents.filter((e) => e.kind === "interview");
+  const absenceEvents = allEvents.filter((e) => e.kind === "absence");
 
   const driversList = read(KEYS.drivers, []);
   const vehiclesList = read(KEYS.vehicles, []);
-  const statusList = [...new Set(allTrips.map((r) => r.status))];
+  const statusList = [...new Set(reqRead().filter((r) => r.trip).map((r) => r.status))];
 
   const focus = state.calendarFocus instanceof Date && !Number.isNaN(state.calendarFocus.getTime())
     ? new Date(state.calendarFocus)
@@ -262,7 +277,7 @@ function transportCalendarHtml() {
   </section>`;
 
   const calHero = moduleFleetHeroStrip([
-    { label: "Viajes en sistema", value: allTrips.length },
+    { label: "Viajes en sistema", value: typeof AntaresDashboardDomain !== "undefined" ? AntaresDashboardDomain.computeDashboardKpis().tripsTotal : reqRead().filter((r) => r.trip).length },
     { label: "Entrevistas", value: interviewEvents.length },
     { label: "Novedades", value: absenceEvents.length },
     { label: "Tras filtros", value: allEvents.length },
