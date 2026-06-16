@@ -4721,9 +4721,8 @@ body[data-theme="dark"] .modal-edit-section-title {
 .transport-trip-create-form > .create-trip-submit-wrap,
 .transport-trip-create-form > .assign-trip-footer,
 .transport-trip-create-form > .hr-form-wizard,
-.transport-trip-create-form > .gh-emp-wizard,
-.transport-trip-create-form > .gh-transport-wizard,
-.transport-trip-create-form > .gh-transport-form--single {
+.transport-trip-create-form > .transport-wizard,
+.transport-trip-create-form > .transport-form--single {
   grid-column: 1 / -1;
   width: 100%;
   min-width: 0;
@@ -25958,49 +25957,6 @@ body[data-theme="dark"] .directory-card__actions {
   align-items: start;
 }
 
-/* Formulario unificado (viajes/trayectos): un solo contenedor directo — ancho completo */
-.p-form-colored.transport-trip-create-form:has(> .gh-transport-wizard),
-.p-form-colored.transport-route-form:has(> .gh-transport-wizard),
-.p-form-colored.transport-trip-create-form:has(> .gh-transport-form--single),
-.p-form-colored.transport-route-form:has(> .gh-transport-form--single) {
-  grid-template-columns: minmax(0, 1fr) !important;
-}
-
-.gh-transport-form--single {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  border-radius: 20px;
-  border: 1px solid color-mix(in srgb, var(--primary) 14%, var(--line));
-  background: var(--white);
-  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.06);
-  overflow: hidden;
-}
-
-.gh-transport-form__body {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  padding: 1rem 1.1rem 0.35rem;
-  min-width: 0;
-}
-
-.gh-transport-form__footer {
-  display: flex;
-  flex-direction: column;
-  gap: 0.65rem;
-  padding: 0.75rem 1.1rem 1rem;
-  border-top: 1px solid color-mix(in srgb, var(--line) 88%, transparent);
-  background: color-mix(in srgb, var(--primary) 2%, var(--white));
-}
-
-.gh-transport-form__footer > .module-panel-actions {
-  margin: 0;
-  padding: 0;
-  border: none;
-  background: transparent;
-}
-
 .p-form-colored.transport-trip-create-form > .transport-trip-create-form__resources,
 .p-form-colored.transport-trip-create-form > .transport-trip-create-form__pricing {
   grid-column: 1 / -1;
@@ -26312,7 +26268,7 @@ body[data-theme="dark"] .field-label .field-required-mark {
   color: #f87171;
 }
 
-/* Crear empleado (#form-employee): estilos en styles/gh-module.css (.gh-studio) */
+/* Crear empleado (#form-employee): estilos en styles/payroll-module.css (.payroll-studio) */
 
 .btn-primary {
   background: linear-gradient(135deg, var(--brand-blue-mid), var(--primary), var(--primary-deeper)) !important;

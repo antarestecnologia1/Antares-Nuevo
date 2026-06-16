@@ -15,7 +15,7 @@ import {
 } from "../core/auth.js";
 import { nodes } from "../core/store.js";
 import { escapeAttr, escapeHtml, fieldLabel, fmtDate, newUuidV4, normalizePortalDateYmd, nowIso, nowLocalIso } from "../core/utils.js";
-import { notify, openEditModal, userMessage } from "../ui/modals.js";
+import { notify, openEditModal, userMessage, failPortalField } from "../ui/modals.js";
 import {
   readPortalTransportRequests,
   reqWriteAwait,
@@ -862,7 +862,7 @@ function refreshSearchableSelectPortal(selectEl) {
   if (typeof fn === "function") fn(selectEl);
 }
 
-export function notifyScheduleConflictIfAny(pickupAt, etaDelivery, currentRequestId, resourceLabel, tripMatches) {
+export function notifyScheduleConflictIfAny(pickupAt, etaDelivery, currentRequestId, resourceLabel, tripMatches, inline = null) {
   const conflict = findActiveTripScheduleConflict(pickupAt, etaDelivery, currentRequestId, tripMatches);
   if (!conflict) return false;
   const tripNum = String(conflict.trip?.tripNumber || conflict.requestNumber || "-").trim();
@@ -871,7 +871,12 @@ export function notifyScheduleConflictIfAny(pickupAt, etaDelivery, currentReques
     range && Number.isFinite(range.start) && Number.isFinite(range.end)
       ? `${fmtDate(new Date(range.start).toISOString())} – ${fmtDate(new Date(range.end).toISOString())}`
       : "";
-  notify(userMessage("scheduleConflict", resourceLabel, tripNum, windowLabel), "error");
+  const msg = userMessage("scheduleConflict", resourceLabel, tripNum, windowLabel);
+  if (inline?.form && inline?.field) {
+    failPortalField(inline.form, inline.field, msg);
+    return true;
+  }
+  notify(msg, "error");
   return true;
 }
 

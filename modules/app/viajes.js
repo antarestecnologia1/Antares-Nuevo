@@ -397,18 +397,18 @@ function transportTripsHtml() {
       : `<span class="create-trip-hero-badge create-trip-hero-badge--muted">Catálogo vacío</span>`;
   const routeRateForm = `<form id="form-route-rate" class="p-form p-form-colored hr-form-flow transport-trip-create-form transport-route-form transport-route-form--revamp" autocomplete="off">
     <input type="hidden" name="editingRateKey" id="route-rate-editing-key" value="" />
-    <div class="gh-transport-form gh-transport-form--single" data-transport-form="route-rate" aria-label="Configurar trayecto y tarifa">
-      <header class="gh-emp-wizard__head gh-transport-wizard__head">
-        <div class="gh-emp-wizard__head-copy">
-          <span class="gh-emp-wizard__eyebrow">Catálogo de transporte</span>
-          <h3 class="gh-emp-wizard__title">Trayecto y tarifa</h3>
-          <p class="gh-emp-wizard__desc">Defina origen, destino, valor pactado y alcance por cliente para autocompletar precios al asignar viajes.</p>
+    <div class="transport-form transport-form--single" data-transport-form="route-rate" aria-label="Configurar trayecto y tarifa">
+      <header class="transport-wizard__head">
+        <div class="transport-wizard__head-copy">
+          <span class="transport-wizard__eyebrow">Catálogo de transporte</span>
+          <h3 class="transport-wizard__title">Trayecto y tarifa</h3>
+          <p class="transport-wizard__desc">Defina origen, destino, valor pactado y alcance por cliente para autocompletar precios al asignar viajes.</p>
         </div>
-        <div class="gh-transport-wizard__meta">
+        <div class="transport-wizard__meta">
           ${routesCatalogBadge}
         </div>
       </header>
-      <div class="gh-transport-form__body">
+      <div class="transport-form__body">
         <fieldset class="form-section form-section-blue full transport-route-create-form__route transport-route-form-fieldset--origin">
           <legend>${IC.mapPin} Trayecto</legend>
           <p class="muted form-section-hint route-rate-block-lead">Defina origen y destino. La vista previa se actualiza al elegir ciudad.</p>
@@ -467,8 +467,8 @@ function transportTripsHtml() {
           <p class="route-rate-editing-hint muted" id="route-rate-editing-hint" hidden>Estás editando una tarifa existente. Al guardar se sobrescribirá el valor anterior.</p>
         </fieldset>
       </div>
-      <div class="gh-transport-form__footer">
-        <ul class="create-trip-readiness create-trip-readiness--bar gh-transport-readiness" data-route-rate-readiness aria-label="Requisitos para guardar"></ul>
+      <div class="transport-form__footer">
+        <ul class="create-trip-readiness create-trip-readiness--bar transport-readiness" data-route-rate-readiness aria-label="Requisitos para guardar"></ul>
         ${renderManagedCreateFormActions(
           "create-route-rate",
           `<button class="btn btn-primary" id="route-rate-submit-btn" type="submit" disabled aria-disabled="true">${IC.plus} Guardar tarifa de trayecto</button>`
@@ -548,18 +548,18 @@ function transportTripsHtml() {
     : `<div class="trip-request-picker-empty">${createTripEmptyHint("inbox", tripRequestPickerEmptyTitle, tripRequestPickerEmptyDetail)}</div>
       <select name="requestId" id="create-trip-request-select" disabled hidden aria-hidden="true"><option value=""></option></select>`;
   const createTripForm = `<form id="form-create-trip" class="p-form p-form-colored hr-form-flow transport-trip-create-form assign-trip-form assign-trip-form--revamp" autocomplete="off">
-    <div class="gh-transport-form gh-transport-form--single" data-transport-form="trip-assign" aria-label="Asignar viaje">
-      <header class="gh-emp-wizard__head gh-transport-wizard__head">
-        <div class="gh-emp-wizard__head-copy">
-          <span class="gh-emp-wizard__eyebrow">Operación de transporte</span>
-          <h3 class="gh-emp-wizard__title">Asignar viaje</h3>
-          <p class="gh-emp-wizard__desc">Seleccione la solicitud, asigne vehículo y conductor, y confirme la tarifa pactada para crear el viaje.</p>
+    <div class="transport-form transport-form--single" data-transport-form="trip-assign" aria-label="Asignar viaje">
+      <header class="transport-wizard__head">
+        <div class="transport-wizard__head-copy">
+          <span class="transport-wizard__eyebrow">Operación de transporte</span>
+          <h3 class="transport-wizard__title">Asignar viaje</h3>
+          <p class="transport-wizard__desc">Seleccione la solicitud, asigne vehículo y conductor, y confirme la tarifa pactada para crear el viaje.</p>
         </div>
-        <div class="gh-transport-wizard__meta">
+        <div class="transport-wizard__meta">
           ${pendingBadge}
         </div>
       </header>
-      <div class="gh-transport-form__body">
+      <div class="transport-form__body">
         <div class="assign-trip-block transport-trip-create-form__request">
           <div class="assign-trip-block-head">
             <h4 class="assign-trip-block-title">${IC.inbox} Elija la solicitud</h4>
@@ -600,8 +600,8 @@ function transportTripsHtml() {
           </div>
         </fieldset>
       </div>
-      <div class="gh-transport-form__footer">
-        <ul class="create-trip-readiness create-trip-readiness--bar gh-transport-readiness" data-create-trip-readiness aria-label="Requisitos para asignar"></ul>
+      <div class="transport-form__footer">
+        <ul class="create-trip-readiness create-trip-readiness--bar transport-readiness" data-create-trip-readiness aria-label="Requisitos para asignar"></ul>
         ${renderManagedCreateFormActions(
           "create-trip",
           `<button class="btn btn-primary create-trip-submit-btn" type="submit" disabled aria-disabled="true">${IC.check} Crear viaje</button>`
@@ -919,7 +919,7 @@ function transportTripsHtml() {
         const actor = currentUser();
         const request = reqRead().find((item) => item.id === requestId);
         if (!request) {
-          notify(userMessage("bulkRequestMissing"), "error");
+          failPortalField(createTripForm, "requestId", userMessage("bulkRequestMissing"));
           return;
         }
         if (!transportRequestBelongsToUserScope(request, actor) && !canViewAllTransportRequests(actor)) {
@@ -929,16 +929,17 @@ function transportTripsHtml() {
         const allowApproveAndAssign =
           request.status === STATUS.PENDIENTE && canApproveTransportRequests(actor);
         if (!canAssignTripFromViajesModule(request, actor)) {
-          notify(
+          failPortalField(
+            createTripForm,
+            "requestId",
             request.status === STATUS.PENDIENTE
               ? userMessage("requestMustBeApprovedBeforeAssign")
-              : userMessage("requestNotReadyForTripAssign"),
-            "error"
+              : userMessage("requestNotReadyForTripAssign")
           );
           return;
         }
         if (!isRequestPickupSameDayOrFuture(request)) {
-          notify(userMessage("assignPastRequestDate"), "error");
+          failPortalField(createTripForm, "requestId", userMessage("assignPastRequestDate"));
           return;
         }
         await refreshTransportScheduleBusyFromApi(request, requestId);
@@ -957,25 +958,39 @@ function transportTripsHtml() {
           return;
         }
         if (
-          notifyScheduleConflictIfAny(schedPickup, schedDelivery, requestId, "vehículo", (t) =>
-            String(t.vehicleId || "").trim() === vehicleId
+          notifyScheduleConflictIfAny(
+            schedPickup,
+            schedDelivery,
+            requestId,
+            "vehículo",
+            (t) => String(t.vehicleId || "").trim() === vehicleId,
+            { form: createTripForm, field: "vehicleId" }
           )
         ) {
           return;
         }
         if (
-          notifyScheduleConflictIfAny(schedPickup, schedDelivery, requestId, "conductor", (t) =>
-            String(t.driverId || "").trim() === driverId
+          notifyScheduleConflictIfAny(
+            schedPickup,
+            schedDelivery,
+            requestId,
+            "conductor",
+            (t) => String(t.driverId || "").trim() === driverId,
+            { form: createTripForm, field: "driverId" }
           )
         ) {
           return;
         }
         if (!compatibleVehicles.length || !compatibleDrivers.length) {
-          notify(userMessage("tripAssignNoMatch"), "error");
+          failPortalField(createTripForm, "requestId", userMessage("tripAssignNoMatch"));
           return;
         }
-        if (!compatibleVehicles.some((v) => v.id === vehicleId) || !compatibleDrivers.some((d) => d.id === driverId)) {
-          notify(userMessage("assignResourcesBusy"), "error");
+        if (!compatibleVehicles.some((v) => v.id === vehicleId)) {
+          failPortalField(createTripForm, "vehicleId", userMessage("assignResourcesBusy"));
+          return;
+        }
+        if (!compatibleDrivers.some((d) => d.id === driverId)) {
+          failPortalField(createTripForm, "driverId", userMessage("assignResourcesBusy"));
           return;
         }
         const tripValue = parseMoneyFieldValue(data.tripValue);

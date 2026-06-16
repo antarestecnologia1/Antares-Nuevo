@@ -127,7 +127,9 @@ const ghToPayroll = [
   [".gh-operate", ".payroll-operate"],
   [".gh-form-card", ".payroll-form-card"],
   [".gh-data-panel", ".payroll-data-panel"],
-  [".gh-emp-wizard", ".pay-emp-wizard"],
+  [".gh-emp-wizard", ".payroll-wizard"],
+  [".gh-emp-form", ".payroll-emp-form"],
+  [".gh-step-hint", ".payroll-wizard__step-hint"],
   ["gh-module.css", "payroll-module.css"],
   ["GH Studio", "Payroll Studio"],
   ["Gestión humana, Transporte, Solicitudes", "Gestión humana / nómina únicamente"]
@@ -180,7 +182,9 @@ const transportBlock = transformBlock(
     [".gh-form-card", ".transport-form-card"],
     [".gh-data-panel", ".transport-data-panel"],
     [".gh-transport-form", ".transport-form"],
-    [".gh-emp-wizard", ".trn-emp-wizard"]
+    [".gh-emp-wizard", ".transport-wizard"],
+    [".gh-step-hint", ".transport-wizard__step-hint"],
+    [".gh-transport-wizard__meta", ".transport-wizard__meta"]
   ]
 );
 

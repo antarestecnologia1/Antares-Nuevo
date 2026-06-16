@@ -1146,7 +1146,7 @@ function bindHiringPortalControls() {
         return;
       }
       if (!isVacancyAcceptingApplications(vac)) {
-        notify("La vacante seleccionada está cerrada o venció la fecha límite de postulación.", "error");
+        failPortalField(candidateForm, "vacancyId", "La vacante seleccionada está cerrada o venció la fecha límite de postulación.");
         return;
       }
       const filesFromInput = await readCandidateHrAttachmentsFromInput(candidateForm.querySelector("input[name='attachments']"));
@@ -1163,9 +1163,10 @@ function bindHiringPortalControls() {
       const expectedSalary = aspirationCheck.amount;
       const offerRef = parseNum(vac.salaryOffer);
       if (offerRef > 0 && expectedSalary < offerRef) {
-        notify(
-          `La aspiración salarial no puede ser inferior al salario ofrecido en la vacante ($${offerRef.toLocaleString("es-CO")}).`,
-          "error"
+        failPortalField(
+          candidateForm,
+          "expectedSalary",
+          `La aspiración salarial no puede ser inferior al salario ofrecido en la vacante ($${offerRef.toLocaleString("es-CO")}).`
         );
         return;
       }
@@ -1223,7 +1224,7 @@ function bindHiringPortalControls() {
       if (!currentCandidate) return;
       const statusValidation = validateCandidatePipelineTransition(currentCandidate, select.value);
       if (!statusValidation.ok) {
-        notify(statusValidation.message, "error");
+        failPortalField(select.closest("table") || nodes.viewRoot, select, statusValidation.message);
         renderPortalView();
         return;
       }
@@ -1271,7 +1272,7 @@ function bindHiringPortalControls() {
         return;
       }
       if (["Descartado", "Contratado"].includes(String(candidate.status || ""))) {
-        notify(userMessage("interviewInvalidCandidate"), "error");
+        failPortalField(interviewForm, "candidateId", userMessage("interviewInvalidCandidate"));
         return;
       }
       const all = read(KEYS.interviews, []);
@@ -1476,7 +1477,7 @@ function bindHiringPortalControls() {
       if (personMode === "candidate") {
         linkedCandidate = read(KEYS.candidates, []).find((c) => String(c.id) === String(data.candidateId || ""));
         if (!linkedCandidate) {
-          notify("Seleccione un candidato válido.", "error");
+          failPortalField(contractForm, "candidateId", "Seleccione un candidato válido.");
           return;
         }
         employee = findPayrollEmployeeByIdDoc(linkedCandidate.idDoc);
@@ -1491,17 +1492,21 @@ function bindHiringPortalControls() {
         employee = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === String(data.employeeId || ""));
       }
       if (!employee) {
-        notify(userMessage("contractPickEmployee"), "error");
+        failPortalField(contractForm, personMode === "candidate" ? "candidateId" : "employeeId", userMessage("contractPickEmployee"));
         return;
       }
       const missing = validateEmployeeContractDocFields(employee);
       if (missing.length) {
-        notify(userMessage("contractEmployeeMissingFields", missing.join(", ")), "error");
+        failPortalField(
+          contractForm,
+          firstEmployeeContractDocFieldFromMissing(missing),
+          userMessage("contractEmployeeMissingFields", missing.join(", "))
+        );
         return;
       }
       const signDate = String(data.signDate || "").trim();
       if (!signDate) {
-        notify(userMessage("contractSignDateRequired"), "error");
+        failPortalField(contractForm, "signDate", userMessage("contractSignDateRequired"));
         return;
       }
       const payload = buildEmployeeContractDocxPayload(employee, {
@@ -1684,13 +1689,14 @@ function bindHiringPortalControls() {
         ],
         onSubmit: async (form) => {
           const position = getPositionById(String(form.positionId || ""));
+          const vacancyEditForm = document.getElementById("crud-form");
           if (!position) {
-            notify(userMessage("vacancySelectPosition"), "error");
+            failPortalField(vacancyEditForm, "positionId", userMessage("vacancySelectPosition"));
             return false;
           }
           const salaryValidation = validateVacancySalaryOffer(form.salaryOffer, position);
           if (!salaryValidation.ok) {
-            notify(salaryValidation.message, "error");
+            failPortalField(vacancyEditForm, "salaryOffer", salaryValidation.message);
             return false;
           }
           const deadline = String(form.deadline || "").trim();
@@ -1704,17 +1710,17 @@ function bindHiringPortalControls() {
             return cand >= t0;
           })();
           if (!deadlineOk) {
-            notify(userMessage("vacancyDeadlineFuture"), "error");
+            failPortalField(vacancyEditForm, "deadline", userMessage("vacancyDeadlineFuture"));
             return false;
           }
           const pFrom = String(form.publishedFrom || "").trim();
           if (pFrom) {
             if (!publicVacancyYmdValid(pFrom)) {
-              notify("Indique una fecha válida en “Visible en web desde”, o déjela vacía.", "error");
+              failPortalField(vacancyEditForm, "publishedFrom", "Indique una fecha válida en “Visible en web desde”, o déjela vacía.");
               return false;
             }
             if (publicVacancyYmdValid(deadline) && publicVacancyYmdToMidnight(pFrom) > publicVacancyYmdToMidnight(deadline)) {
-              notify("“Visible desde” no puede ser posterior a la fecha límite de postulaciones.", "error");
+              failPortalField(vacancyEditForm, "publishedFrom", "“Visible desde” no puede ser posterior a la fecha límite de postulaciones.");
               return false;
             }
           }
@@ -1870,8 +1876,9 @@ function bindHiringPortalControls() {
             integralSalary: String(form.integralSalary || "false") === "true",
             transportAllowance: form.transportAllowance
           });
+          const positionEditForm = document.getElementById("crud-form");
           if (!comp.ok) {
-            notify(comp.message, "error");
+            failPortalField(positionEditForm, "baseSalary", comp.message);
             return false;
           }
           const freshAll = read(KEYS.positions, []);
@@ -2130,8 +2137,9 @@ function bindHiringPortalControls() {
         },
         onSubmit: async (form) => {
           const docValidation = validateColombianDocument(form.documentType, form.idDoc);
+          const candidateEditForm = document.getElementById("crud-form");
           if (!docValidation.ok) {
-            notify(docValidation.message, "error");
+            failPortalField(candidateEditForm, "idDoc", docValidation.message);
             return false;
           }
           const birthCand = String(form.birthDate || "")
@@ -2139,32 +2147,33 @@ function bindHiringPortalControls() {
             .slice(0, 10);
           const ageCheck = validateWorkerMinimumAge(birthCand, "candidato");
           if (!ageCheck.ok) {
-            notify(ageCheck.message, "error");
+            failPortalField(candidateEditForm, "birthDate", ageCheck.message);
             return false;
           }
           const aspirationCheck = validateColombiaMonthlySalaryCop(form.expectedSalary, "Aspiración salarial");
           if (!aspirationCheck.ok) {
-            notify(aspirationCheck.message, "error");
+            failPortalField(candidateEditForm, "expectedSalary", aspirationCheck.message);
             return false;
           }
           const expectedSalary = aspirationCheck.amount;
           const vac = read(KEYS.vacancies, []).find((v) => String(v.id) === String(form.vacancyId));
           if (!vac) {
-            notify(userMessage("hireSelectVacancy"), "error");
+            failPortalField(candidateEditForm, "vacancyId", userMessage("hireSelectVacancy"));
             return false;
           }
           if (
             String(form.vacancyId || "") !== String(target.vacancyId || "") &&
             !isVacancyAcceptingApplications(vac)
           ) {
-            notify("No puede asignar a una vacante cerrada o con fecha límite vencida.", "error");
+            failPortalField(candidateEditForm, "vacancyId", "No puede asignar a una vacante cerrada o con fecha límite vencida.");
             return false;
           }
           const offerRef = parseNum(vac.salaryOffer);
           if (offerRef > 0 && expectedSalary < offerRef) {
-            notify(
-              `La aspiración salarial no puede ser inferior al salario ofrecido ($${offerRef.toLocaleString("es-CO")}).`,
-              "error"
+            failPortalField(
+              candidateEditForm,
+              "expectedSalary",
+              `La aspiración salarial no puede ser inferior al salario ofrecido ($${offerRef.toLocaleString("es-CO")}).`
             );
             return false;
           }
@@ -2174,7 +2183,7 @@ function bindHiringPortalControls() {
             nextStatus
           );
           if (!statusValidation.ok) {
-            notify(statusValidation.message, "error");
+            failPortalField(candidateEditForm, "status", statusValidation.message);
             return false;
           }
           const freshCandidates = read(KEYS.candidates, []);
@@ -2326,8 +2335,9 @@ function bindHiringPortalControls() {
         ],
         onSubmit: async (form) => {
           const ts = new Date(String(form.when || "")).getTime();
+          const interviewEditForm = document.getElementById("crud-form");
           if (!Number.isFinite(ts)) {
-            notify("Fecha y hora inválidas.", "error");
+            failPortalField(interviewEditForm, "when", "Fecha y hora inválidas.");
             return false;
           }
           const freshInterviews = read(KEYS.interviews, []);

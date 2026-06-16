@@ -652,9 +652,23 @@ function driversHtml() {
             });
           },
           onSubmit: async (_form, formEl) => {
+            const getVal = (name) =>
+              formEl instanceof HTMLFormElement
+                ? String(new FormData(formEl).get(name) ?? "").trim()
+                : "";
+
+            if (!getVal("name")) {
+              failPortalField(formEl, "name", "Indique el nombre completo del conductor.");
+              return false;
+            }
+            if (!/^\d{10,15}$/.test(getVal("phone"))) {
+              failPortalField(formEl, "phone", userMessage("driverPhoneInvalid"));
+              return false;
+            }
+
             const expiryValue = String(formEl?.querySelector?.("input[name='licenseExpiry']")?.value ?? "").trim();
             if (expiryValue && new Date(expiryValue).getTime() <= Date.now()) {
-              notify(userMessage("driverLicenseFutureEdit"), "error");
+              failPortalField(formEl, "licenseExpiry", userMessage("driverLicenseFutureEdit"));
               return false;
             }
 
@@ -664,22 +678,18 @@ function driversHtml() {
               try {
                 photoUrl = await resolveEmployeeAvatarUrl(photoFile, photoUrl);
               } catch (_e) {
-                notify("No se pudo subir la imagen seleccionada.", "error");
+                failPortalField(formEl, "driverPhotoFile", "No se pudo subir la imagen seleccionada.");
                 return false;
               }
               if (/^data:image\//i.test(photoUrl)) {
-                notify(
-                  "Sin almacenamiento de fotos en el servidor (R2 / CF_R2_*), la imagen es demasiado grande para persistir aquí.",
-                  "error"
+                failPortalField(
+                  formEl,
+                  "driverPhotoFile",
+                  "Sin almacenamiento de fotos en el servidor (R2 / CF_R2_*), la imagen es demasiado grande para persistir aquí."
                 );
                 return false;
               }
             }
-
-            const getVal = (name) =>
-              formEl instanceof HTMLFormElement
-                ? String(new FormData(formEl).get(name) ?? "").trim()
-                : "";
 
             const licenseExpiryNorm = normalizePortalDateYmd(expiryValue);
             const occDate = normalizePortalDateYmd(getVal("occupationalExamDate"));

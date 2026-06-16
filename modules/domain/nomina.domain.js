@@ -865,7 +865,8 @@ export function payrollValidateAbsenceLegalRules({
   const entity = String(epsEntity || "").trim();
   const obs = String(notes || "").trim();
   if (!start || !end || !Number.isFinite(recognized) || recognized <= 0) {
-    return { ok: false, message: "Complete fechas válidas y días reconocidos mayores a cero." };
+    const field = !start ? "startDate" : !end ? "endDate" : "recognizedDays";
+    return { ok: false, message: "Complete fechas válidas y días reconocidos mayores a cero.", field };
   }
   if (payrollAbsenceRequiresSubtype(absenceType) && !subtype) {
     const labels = {
@@ -873,19 +874,31 @@ export function payrollValidateAbsenceLegalRules({
       licencia_maternidad: "En licencia de maternidad debe seleccionar el subtipo aplicable.",
       licencia_paternidad: "En licencia de paternidad debe seleccionar continua, flexible o parental compartida."
     };
-    return { ok: false, message: labels[typeKey] || "Debe seleccionar un subtipo válido." };
+    return { ok: false, message: labels[typeKey] || "Debe seleccionar un subtipo válido.", field: "absenceSubtype" };
   }
   const businessDays = payrollInclusiveBusinessDaysLocal(start, end);
   const calendarDays = payrollInclusiveCalendarDaysLocal(start, end);
   const supportRules = payrollGetAbsenceSupportRules(absenceType, subtype);
   if (supportRules.requiresSupportNumber && !support) {
-    return { ok: false, message: "Debe registrar el número de soporte o radicado para este tipo de ausencia." };
+    return {
+      ok: false,
+      message: "Debe registrar el número de soporte o radicado para este tipo de ausencia.",
+      field: "supportNumber"
+    };
   }
   if (supportRules.requiresEntity && !entity) {
-    return { ok: false, message: "Debe indicar la entidad (EPS, ARL, juzgado u otra) para este tipo de ausencia." };
+    return {
+      ok: false,
+      message: "Debe indicar la entidad (EPS, ARL, juzgado u otra) para este tipo de ausencia.",
+      field: "epsEntity"
+    };
   }
   if (supportRules.requiresNotes && !obs) {
-    return { ok: false, message: "Debe registrar observaciones que expliquen el caso y el soporte legal." };
+    return {
+      ok: false,
+      message: "Debe registrar observaciones que expliquen el caso y el soporte legal.",
+      field: "notes"
+    };
   }
   if (typeKey === "permiso_sufragio") {
     const expected = subtype === "jurado" ? 1 : 0.5;

@@ -136,29 +136,29 @@ function payrollHtml() {
   const maritalOpts = selectOptionsFromCatalog(CO_CATALOGS.maritalStatus);
   const genderOpts = selectOptionsFromCatalog(CO_CATALOGS.genders);
   const payFreqOpts = selectOptionsFromCatalog(CO_CATALOGS.payFrequency);
-  const formEmp = `<form id="form-employee" class="gh-emp-form p-form p-form-colored hr-form-flow">
-    <div class="hr-form-wizard gh-emp-wizard" data-hr-wizard="employee" aria-label="Registro de empleado por pasos">
-      <header class="gh-emp-wizard__head">
-        <div class="gh-emp-wizard__head-copy">
-          <span class="gh-emp-wizard__eyebrow">Vinculación laboral</span>
-          <h3 class="gh-emp-wizard__title">Expediente del colaborador</h3>
-          <p class="gh-emp-wizard__desc">Identificación, contrato, EPS, ARL, fondos de pensiones y cesantías, datos bancarios y requisitos de conductor según normativa colombiana.</p>
+  const formEmp = `<form id="form-employee" class="payroll-emp-form p-form p-form-colored hr-form-flow">
+    <div class="hr-form-wizard payroll-wizard" data-hr-wizard="employee" aria-label="Registro de empleado por pasos">
+      <header class="payroll-wizard__head">
+        <div class="payroll-wizard__head-copy">
+          <span class="payroll-wizard__eyebrow">Vinculación laboral</span>
+          <h3 class="payroll-wizard__title">Expediente del colaborador</h3>
+          <p class="payroll-wizard__desc">Identificación, contrato, EPS, ARL, fondos de pensiones y cesantías, datos bancarios y requisitos de conductor según normativa colombiana.</p>
         </div>
-        <div class="gh-emp-wizard__progress hr-form-wizard-meta">
+        <div class="payroll-wizard__progress hr-form-wizard-meta">
           <div class="hr-wizard-progress-track" aria-hidden="true"><span class="hr-wizard-progress-fill" data-hr-wizard-progress-fill style="width:16.666667%"></span></div>
           <span class="hr-wizard-progress-label" data-hr-wizard-progress>Paso 1 de 6</span>
         </div>
       </header>
-      <div class="gh-emp-wizard__layout">
-        <nav class="gh-emp-wizard__steps hr-form-wizard-dots" role="tablist" aria-label="Secciones del formulario">
-          <button type="button" class="hr-form-wizard-dot is-active" data-hr-wizard-dot="0" aria-label="Paso 1: identidad"><span class="hr-dot-num">1</span><span><small>Identidad</small><span class="gh-step-hint">CC, datos personales</span></span></button>
-          <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="1" aria-label="Paso 2: contacto"><span class="hr-dot-num">2</span><span><small>Contacto</small><span class="gh-step-hint">Ubicación y emergencias</span></span></button>
-          <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="2" aria-label="Paso 3: contrato laboral"><span class="hr-dot-num">3</span><span><small>Contrato</small><span class="gh-step-hint">Cargo, salario, plazo</span></span></button>
-          <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="3" aria-label="Paso 4: seguridad social"><span class="hr-dot-num">4</span><span><small>Seg. social</small><span class="gh-step-hint">EPS, ARL, fondos</span></span></button>
-          <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="4" aria-label="Paso 5: dispersión nómina"><span class="hr-dot-num">5</span><span><small>Nómina</small><span class="gh-step-hint">Cuenta bancaria</span></span></button>
-          <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="5" aria-label="Paso 6: conductor"><span class="hr-dot-num">6</span><span><small>Conductor</small><span class="gh-step-hint">Licencia y SIMIT</span></span></button>
+      <div class="payroll-wizard__layout">
+        <nav class="payroll-wizard__steps hr-form-wizard-dots" role="tablist" aria-label="Secciones del formulario">
+          <button type="button" class="hr-form-wizard-dot is-active" data-hr-wizard-dot="0" aria-label="Paso 1: identidad"><span class="hr-dot-num">1</span><span><small>Identidad</small><span class="payroll-wizard__step-hint">CC, datos personales</span></span></button>
+          <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="1" aria-label="Paso 2: contacto"><span class="hr-dot-num">2</span><span><small>Contacto</small><span class="payroll-wizard__step-hint">Ubicación y emergencias</span></span></button>
+          <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="2" aria-label="Paso 3: contrato laboral"><span class="hr-dot-num">3</span><span><small>Contrato</small><span class="payroll-wizard__step-hint">Cargo, salario, plazo</span></span></button>
+          <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="3" aria-label="Paso 4: seguridad social"><span class="hr-dot-num">4</span><span><small>Seg. social</small><span class="payroll-wizard__step-hint">EPS, ARL, fondos</span></span></button>
+          <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="4" aria-label="Paso 5: dispersión nómina"><span class="hr-dot-num">5</span><span><small>Nómina</small><span class="payroll-wizard__step-hint">Cuenta bancaria</span></span></button>
+          <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="5" aria-label="Paso 6: conductor"><span class="hr-dot-num">6</span><span><small>Conductor</small><span class="payroll-wizard__step-hint">Licencia y SIMIT</span></span></button>
         </nav>
-        <div class="gh-emp-wizard__panels">
+        <div class="payroll-wizard__panels">
 
       <div class="hr-form-step is-active" data-step-index="0">
     <fieldset class="form-section form-section-blue full">
@@ -1032,16 +1032,64 @@ function bindPayrollPortalControls() {
       }
       const fd = new FormData(payrollLegalForm);
       const year = clampLaborSystemParameterYear(fd.get("year"));
+      const smmlvCop = parseNum(fd.get("smmlvCop"));
+      if (smmlvCop <= 0) {
+        failPortalField(payrollLegalForm, "smmlvCop", "Indique un SMMLV válido mayor que cero.");
+        return;
+      }
+      const transportAllowanceCop = parseNum(fd.get("transportAllowanceCop"));
+      if (transportAllowanceCop < 0) {
+        failPortalField(payrollLegalForm, "transportAllowanceCop", "El auxilio de transporte no puede ser negativo.");
+        return;
+      }
+      const transportAllowanceCap = smmlvCop * CO_TRANSPORT_ALLOWANCE_MAX_SMMLV;
+      if (transportAllowanceCop > transportAllowanceCap) {
+        failPortalField(
+          payrollLegalForm,
+          "transportAllowanceCop",
+          `El auxilio de transporte no puede superar 2 SMMLV ($${transportAllowanceCap.toLocaleString("es-CO")}).`
+        );
+        return;
+      }
+      const healthEmployeeRatePct = parseNum(fd.get("healthEmployeeRatePct"));
+      if (healthEmployeeRatePct < 0 || healthEmployeeRatePct > 100) {
+        failPortalField(payrollLegalForm, "healthEmployeeRatePct", "La tarifa de salud debe estar entre 0 y 100 %.");
+        return;
+      }
+      const pensionEmployeeRatePct = parseNum(fd.get("pensionEmployeeRatePct"));
+      if (pensionEmployeeRatePct < 0 || pensionEmployeeRatePct > 100) {
+        failPortalField(payrollLegalForm, "pensionEmployeeRatePct", "La tarifa de pensión debe estar entre 0 y 100 %.");
+        return;
+      }
+      const uvtRaw = String(fd.get("uvtCop") || "").trim();
+      if (uvtRaw && parseNum(uvtRaw) <= 0) {
+        failPortalField(payrollLegalForm, "uvtCop", "Si indica UVT, debe ser un valor mayor que cero.");
+        return;
+      }
+      const legalWeeklyHours = parseNum(fd.get("legalWeeklyHours")) || CO_HR_RULES.legalWeeklyHours;
+      if (legalWeeklyHours < 1 || legalWeeklyHours > 168) {
+        failPortalField(payrollLegalForm, "legalWeeklyHours", "Indique horas semanales entre 1 y 168.");
+        return;
+      }
+      const platformReferenceMode = String(fd.get("platformReferenceMode") || "automatic");
+      if (platformReferenceMode === "manual" && !String(fd.get("platformReferenceYear") || "").trim()) {
+        failPortalField(
+          payrollLegalForm,
+          "platformReferenceYear",
+          "Seleccione el año de vigencia a aplicar globalmente en modo manual."
+        );
+        return;
+      }
       const body = {
         year,
-        smmlvCop: Math.max(1, parseNum(fd.get("smmlvCop"))),
-        transportAllowanceCop: Math.max(0, parseNum(fd.get("transportAllowanceCop"))),
-        healthEmployeeRate: Math.max(0, parseNum(fd.get("healthEmployeeRatePct")) / 100),
-        pensionEmployeeRate: Math.max(0, parseNum(fd.get("pensionEmployeeRatePct")) / 100),
-        uvtCop: String(fd.get("uvtCop") || "").trim() ? Math.max(0, parseNum(fd.get("uvtCop"))) : null,
-        legalWeeklyHours: Math.max(1, parseNum(fd.get("legalWeeklyHours")) || CO_HR_RULES.legalWeeklyHours),
+        smmlvCop,
+        transportAllowanceCop,
+        healthEmployeeRate: healthEmployeeRatePct / 100,
+        pensionEmployeeRate: pensionEmployeeRatePct / 100,
+        uvtCop: uvtRaw ? parseNum(uvtRaw) : null,
+        legalWeeklyHours,
         platformReferenceYear:
-          String(fd.get("platformReferenceMode") || "automatic") === "manual"
+          platformReferenceMode === "manual"
             ? clampLaborSystemParameterYear(fd.get("platformReferenceYear") || year)
             : null
       };
@@ -1254,7 +1302,7 @@ function bindPayrollPortalControls() {
             const raw = readFormEntriesNormalized(employeeForm);
             const docValidation = validateColombianDocument(raw.documentType, raw.idDoc);
             if (!docValidation.ok) {
-              notify(docValidation.message, "error");
+              failPortalField(employeeForm, "idDoc", docValidation.message);
               return;
             }
             const packed = buildPayrollEmployeePayloadFromWizard(raw, docValidation.normalized, {
@@ -1262,22 +1310,34 @@ function bindPayrollPortalControls() {
               stripLargeAvatar: false
             });
             if (!packed.ok) {
-              notify(packed.msg, "error");
+              failPortalField(employeeForm, packed.field || "name", packed.msg);
               return;
             }
             const payload = packed.payload;
             const miss = validateEmployeeContractDocFields(payload);
             if (miss.length) {
-              notify(userMessage("contractEmployeeMissingFields", miss.join(", ")), "error");
+              failPortalField(
+                employeeForm,
+                firstEmployeeContractDocFieldFromMissing(miss),
+                userMessage("contractEmployeeMissingFields", miss.join(", "))
+              );
               return;
             }
             if (payload.workerRole === "conductor") {
-              if (!payload.license || !payload.licenseCategory || !payload.licenseExpiry) {
-                notify(userMessage("employeeDriverFieldsRequired"), "error");
+              if (!payload.license) {
+                failPortalField(employeeForm, "license", userMessage("employeeDriverFieldsRequired"));
+                return;
+              }
+              if (!payload.licenseCategory) {
+                failPortalField(employeeForm, "licenseCategory", userMessage("employeeDriverFieldsRequired"));
+                return;
+              }
+              if (!payload.licenseExpiry) {
+                failPortalField(employeeForm, "licenseExpiry", userMessage("employeeDriverFieldsRequired"));
                 return;
               }
               if (new Date(payload.licenseExpiry).getTime() <= Date.now()) {
-                notify(userMessage("payrollLicenseExpired"), "error");
+                failPortalField(employeeForm, "licenseExpiry", userMessage("payrollLicenseExpired"));
                 return;
               }
             }
@@ -1325,7 +1385,7 @@ function bindPayrollPortalControls() {
           stripLargeAvatar: stripAvatar
         });
         if (!packed.ok) {
-          notify(packed.msg, "error");
+          failPortalField(employeeForm, packed.field || "name", packed.msg);
           return;
         }
         const payload = packed.payload;
@@ -1475,7 +1535,7 @@ function bindPayrollPortalControls() {
         notes: data.notes
       });
       if (!legalValidation.ok) {
-        notify(legalValidation.message, "error");
+        failPortalField(absenceForm, legalValidation.field || "startDate", legalValidation.message);
         return;
       }
       const list = read(KEYS.hrAbsences, []);
@@ -1679,7 +1739,7 @@ function bindPayrollPortalControls() {
           const actor = currentUser();
           const docValidation = validateColombianDocument(payload.documentType, payload.idDoc);
           if (!docValidation.ok) {
-            notify(docValidation.message, "error");
+            failPortalField(formEl, "idDoc", docValidation.message);
             return false;
           }
           const dupCheck = wireEmployeePayrollDuplicateDocCheck(formEl, { excludeId: target.id });
@@ -1703,17 +1763,25 @@ function bindPayrollPortalControls() {
             stripLargeAvatar: false
           });
           if (!packed.ok) {
-            notify(packed.msg, "error");
+            failPortalField(formEl, packed.field || "name", packed.msg);
             return false;
           }
           const nextPayload = packed.payload;
           if (nextPayload.workerRole === "conductor") {
-            if (!nextPayload.license || !nextPayload.licenseCategory || !nextPayload.licenseExpiry) {
-              notify(userMessage("employeeDriverFieldsRequired"), "error");
+            if (!nextPayload.license) {
+              failPortalField(formEl, "license", userMessage("employeeDriverFieldsRequired"));
+              return false;
+            }
+            if (!nextPayload.licenseCategory) {
+              failPortalField(formEl, "licenseCategory", userMessage("employeeDriverFieldsRequired"));
+              return false;
+            }
+            if (!nextPayload.licenseExpiry) {
+              failPortalField(formEl, "licenseExpiry", userMessage("employeeDriverFieldsRequired"));
               return false;
             }
             if (new Date(nextPayload.licenseExpiry).getTime() <= Date.now()) {
-              notify(userMessage("payrollLicenseExpired"), "error");
+              failPortalField(formEl, "licenseExpiry", userMessage("payrollLicenseExpired"));
               return false;
             }
           }
@@ -1885,7 +1953,7 @@ function bindPayrollPortalControls() {
       const forceEl = document.getElementById("payroll-bulk-force");
       const fechaReferencia = readFormDateIso(document, "payroll-bulk-fecha") || readFormDateIso(document, "fechaReferencia");
       if (!fechaReferencia) {
-        notify("Indique una fecha de cierre válida (DD/MM/AAAA).", "error");
+        failPortalField(fechaEl?.closest("form") || nodes.viewRoot, fechaEl || "fechaReferencia", "Indique una fecha de cierre válida (DD/MM/AAAA).");
         return;
       }
       const force = Boolean(forceEl?.checked);
@@ -1925,16 +1993,16 @@ function bindPayrollPortalControls() {
       const data = readFormEntriesNormalized(payrollForm);
       const employee = read(KEYS.payrollEmployees, []).find((e) => e.id === data.employeeId);
       if (!employee) {
-        notify(userMessage("contractPickEmployee"), "error");
+        failPortalField(payrollForm, "employeeId", userMessage("contractPickEmployee"));
         return;
       }
       if (!monthRange(data.month)) {
-        notify(userMessage("payrollSelectMonth"), "error");
+        failPortalField(payrollForm, "month", userMessage("payrollSelectMonth"));
         return;
       }
 
       if (employeeIsConductorServiceProvider(employee)) {
-        notify(userMessage("payrollConductorUseDriverForm"), "error");
+        failPortalField(payrollForm, "employeeId", userMessage("payrollConductorUseDriverForm"));
         return;
       }
 
@@ -1944,21 +2012,22 @@ function bindPayrollPortalControls() {
       const diasCorte = payrollDaysInManualCut(data.month, employee.payFrequency, data.payrollQuincena);
       const payPrima = Boolean(data.payPrimaServicios) && payFreqNorm === "mensual";
       if (payPrima && !payrollMonthIsPrimaSemester(data.month)) {
-        notify("La prima de servicios solo se parametriza cuando el mes liquidado es junio (06) o diciembre (12).", "error");
+        failPortalField(payrollForm, "month", "La prima de servicios solo se parametriza cuando el mes liquidado es junio (06) o diciembre (12).");
         return;
       }
       const payInteresesCesantias = Boolean(data.payInteresesCesantias);
       if (payInteresesCesantias && !payrollMonthIsCesantiasInterestMonth(data.month)) {
-        notify(
-          "Los intereses sobre cesantías (Ley 52/1975) solo se parametrizan cuando el mes liquidado es enero (01) o febrero (02), períodos donde suele consignarse o pagarse ese concepto cercano al cierre legal de enero. Ajuste con su contador.",
-          "error"
+        failPortalField(
+          payrollForm,
+          "month",
+          "Los intereses sobre cesantías (Ley 52/1975) solo se parametrizan cuando el mes liquidado es enero (01) o febrero (02), períodos donde suele consignarse o pagarse ese concepto cercano al cierre legal de enero. Ajuste con su contador."
         );
         return;
       }
       const primaDaysRounded = Math.floor(parseNum(data.primaServiciosDays));
       let primaServiciosCop = payPrima ? Math.max(0, parseNum(data.primaServiciosCop)) : 0;
       if (payPrima && (!Number.isFinite(primaDaysRounded) || primaDaysRounded < 1)) {
-        notify("Indique los días laborados en el semestre para calcular o validar la prima de servicios.", "error");
+        failPortalField(payrollForm, "primaServiciosDays", "Indique los días laborados en el semestre para calcular o validar la prima de servicios.");
         return;
       }
       if (payPrima && primaServiciosCop <= 0 && primaDaysRounded >= 1) {
@@ -1973,7 +2042,7 @@ function bindPayrollPortalControls() {
           : 360;
       let interesesCesantiasCop = payInteresesCesantias ? Math.max(0, parseNum(data.interesesCesantiasCopMonthly)) : 0;
       if (payInteresesCesantias && cesantiasInterestBaseCop <= 0) {
-        notify("Indique la base en pesos de las cesantías (p. ej. consignaciones del año anterior) para calcular o registrar los intereses.", "error");
+        failPortalField(payrollForm, "cesantiasInterestBaseCop", "Indique la base en pesos de las cesantías (p. ej. consignaciones del año anterior) para calcular o registrar los intereses.");
         return;
       }
       if (
@@ -2100,9 +2169,10 @@ function bindPayrollPortalControls() {
       };
       const runs = read(KEYS.payrollRuns, []);
       if (payrollRunAlreadyExists(runs, employee.id, periodKey, payrollKind)) {
-        notify(
-          `Ya existe una liquidación (${payrollRunTypeLabel({ payrollKind, month: periodKey })}) para este empleado y periodo.`,
-          "error"
+        failPortalField(
+          payrollForm,
+          "month",
+          `Ya existe una liquidación (${payrollRunTypeLabel({ payrollKind, month: periodKey })}) para este empleado y periodo.`
         );
         return;
       }
@@ -2127,16 +2197,16 @@ function bindPayrollPortalControls() {
       const data = readFormEntriesNormalized(driverTripPayForm);
       const employee = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === String(data.employeeId || ""));
       if (!employee) {
-        notify(userMessage("contractPickEmployee"), "error");
+        failPortalField(driverTripPayForm, "employeeId", userMessage("contractPickEmployee"));
         return;
       }
       if (!employeeIsConductorServiceProvider(employee)) {
-        notify("Seleccione un colaborador configurado como conductor en prestación de servicios.", "error");
+        failPortalField(driverTripPayForm, "employeeId", "Seleccione un colaborador configurado como conductor en prestación de servicios.");
         return;
       }
       const periodYm = String(data.month || "").trim().slice(0, 7);
       if (!/^\d{4}-\d{2}$/.test(periodYm)) {
-        notify(userMessage("payrollSelectMonth"), "error");
+        failPortalField(driverTripPayForm, "month", userMessage("payrollSelectMonth"));
         return;
       }
       if (!portalCanRefreshFromApi()) {
@@ -2214,32 +2284,33 @@ function bindPayrollPortalControls() {
       const data = readFormEntriesNormalized(settlementForm);
       const employee = read(KEYS.payrollEmployees, []).find((e) => e.id === data.employeeId);
       if (!employee) {
-        notify(userMessage("contractPickEmployee"), "error");
+        failPortalField(settlementForm, "employeeId", userMessage("contractPickEmployee"));
         return;
       }
       if (employeeIsConductorServiceProvider(employee)) {
-        notify(
-          "La liquidación contractual de terminación no aplica a conductores en prestación de servicios. Liquide viajes pendientes y cierre el contrato según su abogado laboral.",
-          "error"
+        failPortalField(
+          settlementForm,
+          "employeeId",
+          "La liquidación contractual de terminación no aplica a conductores en prestación de servicios. Liquide viajes pendientes y cierre el contrato según su abogado laboral."
         );
         return;
       }
       if (!monthRange(data.month)) {
-        notify(userMessage("payrollSelectMonth"), "error");
+        failPortalField(settlementForm, "month", userMessage("payrollSelectMonth"));
         return;
       }
       const termDate = String(data.terminationDate || "").trim();
       if (!termDate) {
-        notify("Seleccione la fecha de terminación del contrato.", "error");
+        failPortalField(settlementForm, "terminationDate", "Seleccione la fecha de terminación del contrato.");
         return;
       }
       const employeeStartDate = String(normalizePortalDateYmd(employee.startDate) || "").trim();
       if (employeeStartDate && termDate < employeeStartDate) {
-        notify("La fecha de terminación no puede ser anterior al ingreso del colaborador.", "error");
+        failPortalField(settlementForm, "terminationDate", "La fecha de terminación no puede ser anterior al ingreso del colaborador.");
         return;
       }
       if (String(data.month || "").trim() && String(termDate).slice(0, 7) !== String(data.month).trim()) {
-        notify("La fecha de terminación debe corresponder al mes liquidado.", "error");
+        failPortalField(settlementForm, "terminationDate", "La fecha de terminación debe corresponder al mes liquidado.");
         return;
       }
       const cesantias = Math.max(0, parseNum(data.cesantiasCop));
@@ -2251,7 +2322,7 @@ function bindPayrollPortalControls() {
       const gross =
         cesantias + interesesCesantias + primaProp + vacaciones + indemnization + otrosSettlement;
       if (gross <= 0) {
-        notify("Ingrese valores en los rubros de liquidación; el total debe ser mayor que cero.", "error");
+        failPortalField(settlementForm, "cesantiasCop", "Ingrese valores en los rubros de liquidación; el total debe ser mayor que cero.");
         return;
       }
       const settlementDetail = {
@@ -2306,7 +2377,7 @@ function bindPayrollPortalControls() {
       };
       const runs = read(KEYS.payrollRuns, []);
       if (payrollRunAlreadyExists(runs, employee.id, data.month, "terminacion")) {
-        notify("Ya existe una liquidación de terminación para este empleado y periodo.", "error");
+        failPortalField(settlementForm, "month", "Ya existe una liquidación de terminación para este empleado y periodo.");
         return;
       }
       runs.unshift(run);
@@ -2945,12 +3016,13 @@ function bindPayrollPortalControls() {
         onSubmit: async (form) => {
           const start = new Date(`${form.startDate}T12:00:00`);
           const end = new Date(`${form.endDate}T12:00:00`);
+          const absenceEditForm = document.getElementById("crud-form");
           if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) {
-            notify("Fechas inválidas.", "error");
+            failPortalField(absenceEditForm, "startDate", "Fechas inválidas.");
             return false;
           }
           if (end.getTime() < start.getTime()) {
-            notify(userMessage("absenceDateOrder"), "error");
+            failPortalField(absenceEditForm, "endDate", userMessage("absenceDateOrder"));
             return false;
           }
           const days = Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1;
@@ -2968,7 +3040,7 @@ function bindPayrollPortalControls() {
             notes: form.notes
           });
           if (!legalValidation.ok) {
-            notify(legalValidation.message, "error");
+            failPortalField(absenceEditForm, legalValidation.field || "startDate", legalValidation.message);
             return false;
           }
           const nextList = all.map((a) =>

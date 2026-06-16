@@ -256,6 +256,7 @@ const openEditModal = __pr.openEditModal;
 const openInfoModal = __pr.openInfoModal;
 const parseContractDurationText = __pr.parseContractDurationText;
 const readInlineOrNativeFieldError = __pr.readInlineOrNativeFieldError;
+const failPortalField = __pr.failPortalField;
 const releaseFormSubmitUi = __pr.releaseFormSubmitUi;
 const renderEditModalFieldRow = __pr.renderEditModalFieldRow;
 const resolveEmployeeContractEndDateYmd = __pr.resolveEmployeeContractEndDateYmd;
@@ -960,16 +961,30 @@ function openEditRouteRateModal(storageKey) {
       const dd = String(payload.destinationDepartment || "").trim();
       const dc = String(payload.destinationCity || "").trim();
       const tripRateCop = parseNum(payload.tripRateCop);
-      if (!od || !oc || !dd || !dc) {
-        notify(userMessage("routeRateSelectRoute"), "error");
+      if (!od) {
+        failPortalField(formEl, "originDepartment", userMessage("routeRateSelectRoute"));
+        return false;
+      }
+      if (!oc) {
+        failPortalField(formEl, "originCity", userMessage("routeRateSelectRoute"));
+        return false;
+      }
+      if (!dd) {
+        failPortalField(formEl, "destinationDepartment", userMessage("routeRateSelectRoute"));
+        return false;
+      }
+      if (!dc) {
+        failPortalField(formEl, "destinationCity", userMessage("routeRateSelectRoute"));
         return false;
       }
       if (tripRateCop <= 0) {
-        notify(userMessage("routeRateInvalidCop"), "error");
+        failPortalField(formEl, "tripRateCop", userMessage("routeRateInvalidCop"));
         return false;
       }
       if (scope === "specific" && !companyIds.length) {
-        notify("Selecciona al menos una empresa para una tarifa específica.", "error");
+        const scopeEl =
+          formEl.querySelector("[data-route-rate-companies-field]") || formEl.querySelector("[name='rateClientCompanies']");
+        failPortalField(formEl, scopeEl || "rateClientCompanies", "Selecciona al menos una empresa para una tarifa específica.");
         return false;
       }
       const routeKey = buildTripRouteRateKey(od, oc, dd, dc);
@@ -10523,21 +10538,21 @@ function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = 
   const avatarUrl = merged;
   const position = getPositionById(String(raw.positionId || ""));
   if (!position || position.active === false) {
-    return { ok: false, msg: userMessage("recruitSelectActivePosition") };
+    return { ok: false, msg: userMessage("recruitSelectActivePosition"), field: "positionId" };
   }
   const salaryCheck = validateColombiaMonthlySalaryCop(raw.baseSalary, "Salario base");
   if (!salaryCheck.ok) {
-    return { ok: false, msg: salaryCheck.message };
+    return { ok: false, msg: salaryCheck.message, field: "baseSalary" };
   }
   const baseSalary = salaryCheck.amount;
   const ageCheck = validateWorkerMinimumAge(raw.birthDate, "trabajador");
   if (!ageCheck.ok) {
-    return { ok: false, msg: ageCheck.message };
+    return { ok: false, msg: ageCheck.message, field: "birthDate" };
   }
   const posIntegral = position.integralSalary === true || String(position.integralSalary) === "true";
   const integralCheck = validateColombiaIntegralSalary(baseSalary, posIntegral);
   if (!integralCheck.ok) {
-    return { ok: false, msg: integralCheck.message };
+    return { ok: false, msg: integralCheck.message, field: "baseSalary" };
   }
   const effectiveContractType = String(
     raw.contractType || position.contractTypeDefault || "Termino indefinido"
@@ -10565,7 +10580,13 @@ function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = 
         : unitDur === "meses" || unitDur === "anios"
           ? "Indique la cantidad (número) de meses o de años."
           : "Complete la duración del contrato: unidad (meses o años) o texto en “Otro”.";
-    return { ok: false, msg };
+    const durationField =
+      unitDur === "otro"
+        ? "contractDurationOther"
+        : unitDur === "meses" || unitDur === "anios"
+          ? "contractDurationAmount"
+          : "contractDurationUnit";
+    return { ok: false, msg, field: durationField };
   }
   const resolvedWorkerRole = positionLooksLikeConductor(position)
     ? "conductor"
@@ -10647,6 +10668,33 @@ function validateEmployeeContractDocFields(emp) {
   if (!String(emp.position || "").trim() && !pos?.name) miss.push("cargo");
   if (!String(emp.companyId || "").trim()) miss.push("empresa");
   return miss;
+}
+
+/** Primer campo del wizard empleado asociado a una etiqueta de {@link validateEmployeeContractDocFields}. */
+function firstEmployeeContractDocFieldFromMissing(miss) {
+  const map = {
+    "nombre completo": "name",
+    "numero de documento": "idDoc",
+    "ciudad de residencia": "city",
+    banco: "bankName",
+    "numero de cuenta": "bankAccount",
+    "salario base (minimo legal)": "baseSalary",
+    "salario integral (minimo 13 smmlv)": "baseSalary",
+    "duracion del contrato": "contractDurationUnit",
+    "tipo de contrato": "contractType",
+    "fecha de ingreso": "startDate",
+    "fecha inicio contrato vigente": "contractVigenteStartDate",
+    eps: "eps",
+    "fondo de pension": "pensionFund",
+    arl: "arl",
+    cargo: "positionId",
+    empresa: "companyId"
+  };
+  for (const label of miss || []) {
+    const key = String(label || "").trim().toLowerCase();
+    if (map[key]) return map[key];
+  }
+  return "name";
 }
 
 function employeeAvatarCssUrl(av) {
@@ -12022,6 +12070,7 @@ Object.assign(window, {
   validateColombiaPositionCompensation,
   validateColombianDocument,
   validateEmployeeContractDocFields,
+  firstEmployeeContractDocFieldFromMissing,
   validatePasswordPolicy,
   validateVacancySalaryOffer,
   validateWorkerMinimumAge,

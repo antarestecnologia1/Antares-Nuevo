@@ -5,6 +5,7 @@
 
 .transport-studio {
   --trn-navy: #0b2138;
+  --trn-navy-mid: #123d6b;
   --trn-blue: var(--primary, #377cc0);
   --trn-blue-soft: var(--primary-light, #cce5f8);
   --trn-surface: #f4f8fc;
@@ -217,7 +218,34 @@ body[data-theme="dark"] .transport-studio .hr-workspace-tab--switch.is-active {
   color: #fff;
 }
 
-/* Viajes / trayectos — wizards con la misma interfaz que Gestión humana */
+/* Viajes / trayectos — layout de formulario unificado */
+.transport-studio .transport-trip-create-form > .transport-wizard,
+.transport-studio .transport-trip-create-form > .transport-form--single {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-width: 0;
+}
+
+.transport-studio .p-form-colored.transport-trip-create-form:has(> .transport-form--single),
+.transport-studio .p-form-colored.transport-route-form:has(> .transport-form--single) {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+.transport-studio .transport-form--single {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow: hidden;
+}
+
+.transport-studio .transport-form__footer > .module-panel-actions {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+/* Viajes / trayectos — wizards */
 .transport-studio #form-create-trip.transport-trip-create-form,
 .transport-studio #form-route-rate.transport-trip-create-form {
   display: grid;
@@ -228,8 +256,8 @@ body[data-theme="dark"] .transport-studio .hr-workspace-tab--switch.is-active {
 
 .transport-studio #form-create-trip .hr-form-wizard,
 .transport-studio #form-route-rate .hr-form-wizard,
-.transport-studio #form-create-trip .gh-transport-form--single,
-.transport-studio #form-route-rate .gh-transport-form--single {
+.transport-studio #form-create-trip .transport-form--single,
+.transport-studio #form-route-rate .transport-form--single {
   width: 100%;
   max-width: none;
   min-width: 0;
@@ -240,8 +268,8 @@ body[data-theme="dark"] .transport-studio .hr-workspace-tab--switch.is-active {
   overflow: visible;
 }
 
-.transport-studio #form-create-trip .gh-emp-wizard__head,
-.transport-studio #form-route-rate .gh-emp-wizard__head {
+.transport-studio #form-create-trip .transport-wizard__head,
+.transport-studio #form-route-rate .transport-wizard__head {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
@@ -252,8 +280,8 @@ body[data-theme="dark"] .transport-studio .hr-workspace-tab--switch.is-active {
   color: #e8f2fc;
 }
 
-.transport-studio #form-create-trip .gh-emp-wizard__eyebrow,
-.transport-studio #form-route-rate .gh-emp-wizard__eyebrow {
+.transport-studio #form-create-trip .transport-wizard__eyebrow,
+.transport-studio #form-route-rate .transport-wizard__eyebrow {
   display: inline-block;
   margin: 0 0 0.35rem;
   font-size: 0.62rem;
@@ -263,8 +291,8 @@ body[data-theme="dark"] .transport-studio .hr-workspace-tab--switch.is-active {
   color: rgba(174, 212, 248, 0.9);
 }
 
-.transport-studio #form-create-trip .gh-emp-wizard__title,
-.transport-studio #form-route-rate .gh-emp-wizard__title {
+.transport-studio #form-create-trip .transport-wizard__title,
+.transport-studio #form-route-rate .transport-wizard__title {
   margin: 0;
   font-family: var(--font-display, "Poppins", sans-serif);
   font-size: 1.15rem;
@@ -273,8 +301,8 @@ body[data-theme="dark"] .transport-studio .hr-workspace-tab--switch.is-active {
   color: #fff;
 }
 
-.transport-studio #form-create-trip .gh-emp-wizard__desc,
-.transport-studio #form-route-rate .gh-emp-wizard__desc {
+.transport-studio #form-create-trip .transport-wizard__desc,
+.transport-studio #form-route-rate .transport-wizard__desc {
   margin: 0.35rem 0 0;
   max-width: 32rem;
   font-size: 0.8rem;
@@ -282,7 +310,7 @@ body[data-theme="dark"] .transport-studio .hr-workspace-tab--switch.is-active {
   color: rgba(216, 232, 251, 0.88);
 }
 
-.gh-transport-wizard__meta {
+.transport-wizard__meta {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -321,8 +349,8 @@ body[data-theme="dark"] .transport-studio .hr-workspace-tab--switch.is-active {
   color: var(--muted, #64748b);
 }
 
-.transport-studio #form-create-trip .gh-emp-wizard__progress,
-.transport-studio #form-route-rate .gh-emp-wizard__progress {
+.transport-studio #form-create-trip .transport-wizard__progress,
+.transport-studio #form-route-rate .transport-wizard__progress {
   flex-shrink: 0;
   min-width: 9rem;
   padding: 0.55rem 0.75rem;
@@ -331,15 +359,15 @@ body[data-theme="dark"] .transport-studio .hr-workspace-tab--switch.is-active {
   border: 1px solid rgba(150, 200, 250, 0.2);
 }
 
-.transport-studio #form-create-trip .gh-emp-wizard__layout,
-.transport-studio #form-route-rate .gh-emp-wizard__layout {
+.transport-studio #form-create-trip .transport-wizard__layout,
+.transport-studio #form-route-rate .transport-wizard__layout {
   display: grid;
   grid-template-columns: minmax(11rem, 13.5rem) minmax(0, 1fr);
   min-height: 0;
 }
 
-.transport-studio #form-create-trip .gh-emp-wizard__steps,
-.transport-studio #form-route-rate .gh-emp-wizard__steps {
+.transport-studio #form-create-trip .transport-wizard__steps,
+.transport-studio #form-route-rate .transport-wizard__steps {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
@@ -349,17 +377,17 @@ body[data-theme="dark"] .transport-studio .hr-workspace-tab--switch.is-active {
   background: var(--trn-surface);
 }
 
-.transport-studio #form-create-trip .gh-emp-wizard__panels,
-.transport-studio #form-route-rate .gh-emp-wizard__panels,
-.transport-studio #form-create-trip .gh-transport-form__body,
-.transport-studio #form-route-rate .gh-transport-form__body {
+.transport-studio #form-create-trip .transport-wizard__panels,
+.transport-studio #form-route-rate .transport-wizard__panels,
+.transport-studio #form-create-trip .transport-form__body,
+.transport-studio #form-route-rate .transport-form__body {
   padding: 1rem 1.1rem 0.35rem;
   min-width: 0;
   overflow: visible;
 }
 
-.transport-studio #form-create-trip .gh-transport-form__footer,
-.transport-studio #form-route-rate .gh-transport-form__footer {
+.transport-studio #form-create-trip .transport-form__footer,
+.transport-studio #form-route-rate .transport-form__footer {
   padding: 0.75rem 1.1rem 1rem;
   border-top: 1px solid var(--trn-edge);
   background: var(--trn-surface);
@@ -396,8 +424,8 @@ body[data-theme="dark"] .transport-studio .hr-workspace-tab--switch.is-active {
   background: linear-gradient(145deg, #7c3aed, #4c1d95);
 }
 
-.transport-studio #form-create-trip .gh-emp-wizard__steps .hr-form-wizard-dot,
-.transport-studio #form-route-rate .gh-emp-wizard__steps .hr-form-wizard-dot {
+.transport-studio #form-create-trip .transport-wizard__steps .hr-form-wizard-dot,
+.transport-studio #form-route-rate .transport-wizard__steps .hr-form-wizard-dot {
   display: flex;
   align-items: center;
   gap: 0.6rem;
@@ -413,13 +441,13 @@ body[data-theme="dark"] .transport-studio .hr-workspace-tab--switch.is-active {
   cursor: pointer;
 }
 
-.transport-studio #form-create-trip .gh-emp-wizard__steps .hr-form-wizard-dot::before,
-.transport-studio #form-route-rate .gh-emp-wizard__steps .hr-form-wizard-dot::before {
+.transport-studio #form-create-trip .transport-wizard__steps .hr-form-wizard-dot::before,
+.transport-studio #form-route-rate .transport-wizard__steps .hr-form-wizard-dot::before {
   display: none;
 }
 
-.transport-studio #form-create-trip .gh-emp-wizard__steps .hr-dot-num,
-.transport-studio #form-route-rate .gh-emp-wizard__steps .hr-dot-num {
+.transport-studio #form-create-trip .transport-wizard__steps .hr-dot-num,
+.transport-studio #form-route-rate .transport-wizard__steps .hr-dot-num {
   flex-shrink: 0;
   width: 1.75rem;
   height: 1.75rem;
@@ -435,8 +463,8 @@ body[data-theme="dark"] .transport-studio .hr-workspace-tab--switch.is-active {
   transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
 }
 
-.transport-studio #form-create-trip .gh-emp-wizard__steps .hr-form-wizard-dot small,
-.transport-studio #form-route-rate .gh-emp-wizard__steps .hr-form-wizard-dot small {
+.transport-studio #form-create-trip .transport-wizard__steps .hr-form-wizard-dot small,
+.transport-studio #form-route-rate .transport-wizard__steps .hr-form-wizard-dot small {
   display: block;
   font-size: 0.78rem;
   font-weight: 650;
@@ -446,8 +474,8 @@ body[data-theme="dark"] .transport-studio .hr-workspace-tab--switch.is-active {
   opacity: 1;
 }
 
-.transport-studio #form-create-trip .gh-emp-wizard__steps .gh-step-hint,
-.transport-studio #form-route-rate .gh-emp-wizard__steps .gh-step-hint {
+.transport-studio #form-create-trip .transport-wizard__steps .transport-wizard__step-hint,
+.transport-studio #form-route-rate .transport-wizard__steps .transport-wizard__step-hint {
   display: block;
   font-size: 0.62rem;
   font-weight: 500;
@@ -456,16 +484,16 @@ body[data-theme="dark"] .transport-studio .hr-workspace-tab--switch.is-active {
   margin-top: 0.1rem;
 }
 
-.transport-studio #form-create-trip .gh-emp-wizard__steps .hr-form-wizard-dot:hover,
-.transport-studio #form-route-rate .gh-emp-wizard__steps .hr-form-wizard-dot:hover {
+.transport-studio #form-create-trip .transport-wizard__steps .hr-form-wizard-dot:hover,
+.transport-studio #form-route-rate .transport-wizard__steps .hr-form-wizard-dot:hover {
   background: rgba(var(--primary-rgb), 0.06);
   color: var(--trn-navy);
   transform: none;
   box-shadow: none;
 }
 
-.transport-studio #form-create-trip .gh-emp-wizard__steps .hr-form-wizard-dot.is-active,
-.transport-studio #form-route-rate .gh-emp-wizard__steps .hr-form-wizard-dot.is-active {
+.transport-studio #form-create-trip .transport-wizard__steps .hr-form-wizard-dot.is-active,
+.transport-studio #form-route-rate .transport-wizard__steps .hr-form-wizard-dot.is-active {
   background: rgba(var(--primary-rgb), 0.1);
   border-color: rgba(var(--primary-rgb), 0.22);
   color: var(--primary-dark);
@@ -473,17 +501,17 @@ body[data-theme="dark"] .transport-studio .hr-workspace-tab--switch.is-active {
   transform: none;
 }
 
-.transport-studio #form-create-trip .gh-emp-wizard__steps .hr-form-wizard-dot.is-done .hr-dot-num,
-.transport-studio #form-route-rate .gh-emp-wizard__steps .hr-form-wizard-dot.is-done .hr-dot-num,
-.transport-studio #form-create-trip .gh-emp-wizard__steps .hr-form-wizard-dot.is-active .hr-dot-num,
-.transport-studio #form-route-rate .gh-emp-wizard__steps .hr-form-wizard-dot.is-active .hr-dot-num {
+.transport-studio #form-create-trip .transport-wizard__steps .hr-form-wizard-dot.is-done .hr-dot-num,
+.transport-studio #form-route-rate .transport-wizard__steps .hr-form-wizard-dot.is-done .hr-dot-num,
+.transport-studio #form-create-trip .transport-wizard__steps .hr-form-wizard-dot.is-active .hr-dot-num,
+.transport-studio #form-route-rate .transport-wizard__steps .hr-form-wizard-dot.is-active .hr-dot-num {
   background: var(--trn-blue);
   border-color: var(--trn-blue);
   color: #fff;
 }
 
-.transport-studio #form-create-trip .gh-emp-wizard__steps .hr-form-wizard-dot.is-error .hr-dot-num,
-.transport-studio #form-route-rate .gh-emp-wizard__steps .hr-form-wizard-dot.is-error .hr-dot-num {
+.transport-studio #form-create-trip .transport-wizard__steps .hr-form-wizard-dot.is-error .hr-dot-num,
+.transport-studio #form-route-rate .transport-wizard__steps .hr-form-wizard-dot.is-error .hr-dot-num {
   border-color: var(--trn-danger);
   background: #fef2f2;
   color: var(--trn-danger);
@@ -534,34 +562,34 @@ body[data-theme="dark"] .transport-studio .hr-workspace-tab--switch.is-active {
   align-items: start;
 }
 
-.transport-studio #form-create-trip .gh-emp-wizard__progress .hr-wizard-progress-track,
-.transport-studio #form-route-rate .gh-emp-wizard__progress .hr-wizard-progress-track {
+.transport-studio #form-create-trip .transport-wizard__progress .hr-wizard-progress-track,
+.transport-studio #form-route-rate .transport-wizard__progress .hr-wizard-progress-track {
   height: 5px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.15);
   margin-bottom: 0.35rem;
 }
 
-.transport-studio #form-create-trip .gh-emp-wizard__progress .hr-wizard-progress-fill,
-.transport-studio #form-route-rate .gh-emp-wizard__progress .hr-wizard-progress-fill {
+.transport-studio #form-create-trip .transport-wizard__progress .hr-wizard-progress-fill,
+.transport-studio #form-route-rate .transport-wizard__progress .hr-wizard-progress-fill {
   background: linear-gradient(90deg, var(--brand-blue-mid), #7dd3fc);
 }
 
-.transport-studio #form-create-trip .gh-emp-wizard__progress .hr-wizard-progress-label,
-.transport-studio #form-route-rate .gh-emp-wizard__progress .hr-wizard-progress-label {
+.transport-studio #form-create-trip .transport-wizard__progress .hr-wizard-progress-label,
+.transport-studio #form-route-rate .transport-wizard__progress .hr-wizard-progress-label {
   font-size: 0.72rem;
   font-weight: 700;
   color: #eaf4ff;
 }
 
 @media (max-width: 900px) {
-  .transport-studio #form-create-trip .gh-emp-wizard__layout,
-  .transport-studio #form-route-rate .gh-emp-wizard__layout {
+  .transport-studio #form-create-trip .transport-wizard__layout,
+  .transport-studio #form-route-rate .transport-wizard__layout {
     grid-template-columns: 1fr;
   }
 
-  .transport-studio #form-create-trip .gh-emp-wizard__steps,
-  .transport-studio #form-route-rate .gh-emp-wizard__steps {
+  .transport-studio #form-create-trip .transport-wizard__steps,
+  .transport-studio #form-route-rate .transport-wizard__steps {
     flex-direction: row;
     flex-wrap: wrap;
     border-right: none;
