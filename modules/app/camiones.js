@@ -3,6 +3,9 @@
  * Carga con `defer` después de `app.js`.
  */
 function normalizeVehicleFleetLayout(raw) {
+  if (typeof AntaresVehiclesDomain !== "undefined" && AntaresVehiclesDomain.normalizeVehicleFleetLayout) {
+    return AntaresVehiclesDomain.normalizeVehicleFleetLayout(raw);
+  }
   return String(raw || "").trim().toLowerCase() === "list" ? "list" : "cards";
 }
 

@@ -162,7 +162,7 @@ window.PortalArchitecture = (() => {
       access: "permission-gated",
       shell: true,
       renderer: [{ module: "notificaciones", exportName: "notificationsHtml" }],
-      layoutPlan: [{ container: ".notifications-studio", order: [".fleet-hero-strip", ".toolbar", ".p-card", ".table-wrap", ".empty-state"] }]
+      layoutPlan: [{ container: ".notifications-studio", order: [".ntf-studio-head", ".ntf-operate", ".ntf-data-panel", ".ntf-list", ".empty-state"] }]
     }
   };
 

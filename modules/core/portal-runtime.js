@@ -1194,12 +1194,95 @@ function wireMonthlyPayrollConcepts(form) {
   const cbP = form.querySelector("#payroll-pay-prima");
   const daysP = form.querySelector('[name="primaServiciosDays"]');
   const copP = form.querySelector('[name="primaServiciosCop"]');
+  const primaDupHint = form.querySelector("#payroll-prima-dup-hint");
 
   const fsC = form.querySelector("#payroll-cesantias-int-fieldset");
   const cbC = form.querySelector("#payroll-pay-int-cesantias");
   const baseC = form.querySelector('[name="cesantiasInterestBaseCop"]');
   const daysC = form.querySelector('[name="cesantiasInterestDays"]');
   const copC = form.querySelector('[name="interesesCesantiasCopMonthly"]');
+  const intDupHint = form.querySelector("#payroll-int-ces-dup-hint");
+
+  const syncSemestralConceptEligibility = () => {
+    const emp = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === String(empEl.value || "").trim());
+    if (!emp || employeeIsConductorServiceProvider(emp)) return;
+    const monthYm = String(monthEl.value || "").trim().slice(0, 7);
+    const quincenaHalf = form.querySelector("#payroll-quincena-select")?.value;
+    const periodKey = buildPayrollPeriodKeyFromForm(monthYm, emp.payFrequency, quincenaHalf);
+    const runs = read(KEYS.payrollRuns, []);
+    const primaPaidFn = typeof payrollSemesterPrimaAlreadyPaidInMonth === "function"
+      ? payrollSemesterPrimaAlreadyPaidInMonth
+      : window.payrollSemesterPrimaAlreadyPaidInMonth;
+    const intPaidFn = typeof payrollCesantiasInterestAlreadyPaidInYear === "function"
+      ? payrollCesantiasInterestAlreadyPaidInYear
+      : window.payrollCesantiasInterestAlreadyPaidInYear;
+
+    if (cbP && payrollMonthIsPrimaSemester(monthYm)) {
+      const primaPaid = primaPaidFn?.(runs, emp.id, monthYm, periodKey);
+      if (primaPaid) {
+        cbP.checked = false;
+        cbP.disabled = true;
+        if (daysP) {
+          daysP.value = "";
+          daysP.disabled = true;
+        }
+        if (copP) {
+          copP.value = "";
+          copP.disabled = true;
+        }
+        if (primaDupHint) {
+          primaDupHint.textContent =
+            "La prima ya fue liquidada en otra quincena de este mes del semestre. Este corte solo incluye salario y demás rubros.";
+          primaDupHint.classList.remove("hidden");
+        }
+      } else {
+        cbP.disabled = false;
+        if (primaDupHint) {
+          primaDupHint.textContent = "";
+          primaDupHint.classList.add("hidden");
+        }
+        applyPrima();
+      }
+    } else if (primaDupHint) {
+      primaDupHint.textContent = "";
+      primaDupHint.classList.add("hidden");
+    }
+
+    if (cbC && payrollMonthIsCesantiasInterestMonth(monthYm)) {
+      const intPaid = intPaidFn?.(runs, emp.id, monthYm, periodKey);
+      if (intPaid) {
+        cbC.checked = false;
+        cbC.disabled = true;
+        if (baseC) {
+          baseC.value = "";
+          baseC.disabled = true;
+        }
+        if (daysC) {
+          daysC.value = "360";
+          daysC.disabled = true;
+        }
+        if (copC) {
+          copC.value = "";
+          copC.disabled = true;
+        }
+        if (intDupHint) {
+          intDupHint.textContent =
+            "Los intereses sobre cesantías ya fueron liquidados en otra nómina de enero o febrero de este año.";
+          intDupHint.classList.remove("hidden");
+        }
+      } else {
+        cbC.disabled = false;
+        if (intDupHint) {
+          intDupHint.textContent = "";
+          intDupHint.classList.add("hidden");
+        }
+        applyCesantias();
+      }
+    } else if (intDupHint) {
+      intDupHint.textContent = "";
+      intDupHint.classList.add("hidden");
+    }
+  };
 
   const applyPrima = () => {
     if (!fsP || !cbP || !daysP || !copP) return;
@@ -1269,6 +1352,19 @@ function wireMonthlyPayrollConcepts(form) {
     applyCesantias();
     recalcPrimaCop();
     recalcInteresesCop();
+    syncSemestralConceptEligibility();
+    const cesAlertEl = form.querySelector("#payroll-cesantias-consign-alert");
+    if (cesAlertEl && typeof payrollCesantiasConsignmentAlert === "function") {
+      const alert = payrollCesantiasConsignmentAlert(monthEl.value);
+      if (alert?.message) {
+        cesAlertEl.textContent = alert.message;
+        cesAlertEl.classList.remove("hidden");
+        cesAlertEl.style.color = alert.level === "warning" ? "#b45309" : "#495057";
+      } else {
+        cesAlertEl.textContent = "";
+        cesAlertEl.classList.add("hidden");
+      }
+    }
   };
 
   const quincenaWrap = form.querySelector("#payroll-quincena-wrap");
@@ -1352,6 +1448,7 @@ function wireMonthlyPayrollConcepts(form) {
     suggestPrimaDaysFromEmployee();
     recalcPrimaCop();
     recalcInteresesCop();
+    syncSemestralConceptEligibility();
   });
   form.querySelector("#payroll-quincena-select")?.addEventListener("change", onMonthChange);
   syncPayrollEmployeeSalaryReadonly(form, "payroll-monthly-base-salary");
@@ -9518,6 +9615,7 @@ if (typeof window.setBootstrapCallbacks === "function") {
     applySystemParametersToClientRules: window.applySystemParametersToClientRules,
     onNotificationPreferencesApplied: () => {
       try {
+        window.bindNotificationSidebarPrefs?.();
         window.syncNotificationPrefsSidebarUi?.();
       } catch (_e) {
         /* noop */

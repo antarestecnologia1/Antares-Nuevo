@@ -8085,6 +8085,47 @@ export class PortalService implements OnModuleInit {
     return Number.isFinite(n) ? n : fallback;
   }
 
+  /** Otra liquidación del mismo mes calendario (jun/dic) ya incluyó prima. */
+  private async payrollPrimaAlreadyPaidInMonth(
+    c: PoolClient,
+    employeeId: string,
+    calendarMonthYm: string,
+    excludePeriodKey: string
+  ): Promise<boolean> {
+    const ym = String(calendarMonthYm || "").trim().slice(0, 7);
+    const res = await c.query(
+      `SELECT 1 FROM liquidaciones_nomina
+       WHERE id_empleado = $1::uuid
+         AND periodo_mes <> $2
+         AND (periodo_mes = $3 OR periodo_mes LIKE $3 || '-%')
+         AND (incluye_prima_servicios = true OR COALESCE(prima_servicios_cop, 0) > 0)
+       LIMIT 1`,
+      [employeeId, excludePeriodKey, ym]
+    );
+    return (res.rowCount ?? 0) > 0;
+  }
+
+  /** Otra liquidación de ene/feb del mismo año ya incluyó intereses de cesantías. */
+  private async payrollCesantiasInterestAlreadyPaidInYear(
+    c: PoolClient,
+    employeeId: string,
+    calendarMonthYm: string,
+    excludePeriodKey: string
+  ): Promise<boolean> {
+    const ym = String(calendarMonthYm || "").trim().slice(0, 7);
+    const year = ym.slice(0, 4);
+    const res = await c.query(
+      `SELECT 1 FROM liquidaciones_nomina
+       WHERE id_empleado = $1::uuid
+         AND periodo_mes <> $2
+         AND (periodo_mes LIKE $3 || '-01%' OR periodo_mes LIKE $3 || '-02%')
+         AND (incluye_intereses_cesantias = true OR COALESCE(intereses_cesantias_cop, 0) > 0)
+       LIMIT 1`,
+      [employeeId, excludePeriodKey, year]
+    );
+    return (res.rowCount ?? 0) > 0;
+  }
+
   private payrollRunBaseParams(run: Record<string, unknown>): unknown[] {
     return [
       run.id,
@@ -8333,7 +8374,7 @@ export class PortalService implements OnModuleInit {
       const empRes = await client.query(`
         SELECT id, nombre_completo, salario_base, fecha_ingreso::text AS fecha_ingreso, COALESCE(auxilio_transporte, 0) AS auxilio_transporte,
                COALESCE(NULLIF(TRIM(periodicidad_pago), ''), 'Mensual') AS periodicidad_pago,
-               rol_trabajador, tipo_contrato
+               rol_trabajador, tipo_contrato, nivel_riesgo_arl, tipo_cotizante
         FROM empleados_nomina
         ORDER BY fecha_creacion ASC
       `);
@@ -8406,6 +8447,18 @@ export class PortalService implements OnModuleInit {
 
         let computed;
         try {
+          const primaAlreadyPaid = await this.payrollPrimaAlreadyPaidInMonth(
+            client,
+            employeeId,
+            cut.calendarMonthYm,
+            cut.periodKey
+          );
+          const cesantiasIntAlreadyPaid = await this.payrollCesantiasInterestAlreadyPaidInYear(
+            client,
+            employeeId,
+            cut.calendarMonthYm,
+            cut.periodKey
+          );
           computed = computeColombiaPayrollForPeriodCut({
             periodStorageKey: cut.periodKey,
             calendarMonthYm: cut.calendarMonthYm,
@@ -8418,7 +8471,13 @@ export class PortalService implements OnModuleInit {
             smmlv,
             healthEmployeeRate: laborRules.healthEmployeeRate,
             pensionEmployeeRate: laborRules.pensionEmployeeRate,
-            cesantiasBaseInteresOpcional: cesBaseOpt
+            cesantiasBaseInteresOpcional: cesBaseOpt,
+            payFrequencyNorm: freq,
+            primaAlreadyPaidInSemesterMonth: primaAlreadyPaid,
+            cesantiasInterestAlreadyPaidInYear: cesantiasIntAlreadyPaid,
+            arlRiskLevel: row.nivel_riesgo_arl != null ? String(row.nivel_riesgo_arl) : null,
+            contributorType: row.tipo_cotizante != null ? String(row.tipo_cotizante) : null,
+            uvtCop: laborRules.uvtCop ?? undefined
           });
         } catch (ex) {
           skipped += 1;
@@ -8478,7 +8537,9 @@ export class PortalService implements OnModuleInit {
           interDepartmentTrips: 0,
           health: computed.healthDeduction,
           pension: computed.pensionDeduction,
-          solidarity: computed.solidarityDeduction,
+          solidarity: computed.solidarityDeduction + computed.subsistenceDeduction,
+          subsistence: computed.subsistenceDeduction,
+          withholding: computed.withholdingDeduction,
           deductions: computed.totalDeducciones,
           net: gross - computed.totalDeducciones,
           paid: false,
@@ -8921,11 +8982,13 @@ export class PortalService implements OnModuleInit {
       periodicidad_pago: string;
       rol_trabajador: string;
       tipo_contrato: string;
+      nivel_riesgo_arl: string | null;
+      tipo_cotizante: string | null;
     }>(
       `SELECT id::text, nombre_completo, salario_base, fecha_ingreso::text AS fecha_ingreso,
               COALESCE(auxilio_transporte, 0) AS auxilio_transporte,
               COALESCE(NULLIF(TRIM(periodicidad_pago), ''), 'Mensual') AS periodicidad_pago,
-              rol_trabajador, tipo_contrato
+              rol_trabajador, tipo_contrato, nivel_riesgo_arl, tipo_cotizante
        FROM empleados_nomina WHERE id = $1::uuid LIMIT 1`,
       [employeeId]
     );
@@ -9075,6 +9138,18 @@ export class PortalService implements OnModuleInit {
 
       let computed;
       try {
+        const primaAlreadyPaid = await this.payrollPrimaAlreadyPaidInMonth(
+          c,
+          employeeId,
+          cut.calendarMonthYm,
+          cut.periodKey
+        );
+        const cesantiasIntAlreadyPaid = await this.payrollCesantiasInterestAlreadyPaidInYear(
+          c,
+          employeeId,
+          cut.calendarMonthYm,
+          cut.periodKey
+        );
         computed = computeColombiaPayrollForPeriodCut({
           periodStorageKey: cut.periodKey,
           calendarMonthYm: cut.calendarMonthYm,
@@ -9087,7 +9162,13 @@ export class PortalService implements OnModuleInit {
           smmlv,
           healthEmployeeRate: laborRules.healthEmployeeRate,
           pensionEmployeeRate: laborRules.pensionEmployeeRate,
-          cesantiasBaseInteresOpcional: cesBaseOpt
+          cesantiasBaseInteresOpcional: cesBaseOpt,
+          payFrequencyNorm: freq,
+          primaAlreadyPaidInSemesterMonth: primaAlreadyPaid,
+          cesantiasInterestAlreadyPaidInYear: cesantiasIntAlreadyPaid,
+          arlRiskLevel: row.nivel_riesgo_arl != null ? String(row.nivel_riesgo_arl) : null,
+          contributorType: row.tipo_cotizante != null ? String(row.tipo_cotizante) : null,
+          uvtCop: laborRules.uvtCop ?? undefined
         });
       } catch (err) {
         stats.skipped += 1;
@@ -9169,7 +9250,9 @@ export class PortalService implements OnModuleInit {
         interDepartmentTrips: 0,
         health: computed.healthDeduction,
         pension: computed.pensionDeduction,
-        solidarity: computed.solidarityDeduction,
+        solidarity: computed.solidarityDeduction + computed.subsistenceDeduction,
+        subsistence: computed.subsistenceDeduction,
+        withholding: computed.withholdingDeduction,
         deductions: computed.totalDeducciones,
         net,
         paid: false,

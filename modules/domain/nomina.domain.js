@@ -16,6 +16,30 @@ import { read } from "../core/data-io.js";
 import { state } from "../core/store.js";
 import { escapeAttr, escapeHtml, monthRange, normalizePayrollFrequencyJs, payrollPeriodCalendarYm } from "../core/utils.js";
 import { notify, userMessage } from "../ui/modals.js";
+import {
+  buildColombiaPayrollLiquidation,
+  calcColombiaIncapacityEpsDayAdjustmentCop,
+  payrollCesantiasConsignmentAlert
+} from "./payroll-colombia-legal.domain.js";
+
+export {
+  buildColombiaPayrollLiquidation,
+  calcColombiaPayrollIbcCop,
+  calcColombiaPensionSolidarityCop,
+  calcColombiaPensionSubsistenceCop,
+  calcColombiaEmployeeDeductionsCop,
+  calcColombiaWithholdingTaxOrientativeCop,
+  calcColombiaEmployerContributionsCop,
+  calcColombiaOvertimeBreakdownCop,
+  calcColombiaIncapacityEpsDayAdjustmentCop,
+  calcColombiaCesantiasMonthlyProvisionCop,
+  calcColombiaPrimaMonthlyProvisionCop,
+  calcColombiaVacationMonthlyProvisionCop,
+  payrollCesantiasConsignmentAlert,
+  resolveIntegralSalaryFlag,
+  CO_ARL_EMPLOYER_RATES,
+  CO_OVERTIME_RATES
+} from "./payroll-colombia-legal.domain.js";
 
 function parseNum(v) {
   const n = Number(v);
@@ -196,6 +220,180 @@ export function payrollMonthIsCesantiasInterestMonth(ym) {
   return /^(\d{4})-(01|02)(-|$)/.test(String(ym || "").trim());
 }
 
+/** Mitad quincenal en clave de período (`YYYY-MM-Q1` / `Q2`). */
+export function payrollQuincenaHalfFromPeriodKey(periodKey) {
+  const m = /-Q([12])$/i.exec(String(periodKey || "").trim());
+  return m ? `Q${m[1]}` : "";
+}
+
+/** ¿La liquidación incluyó prima de servicios? */
+export function payrollRunIncludesPrima(run) {
+  if (!run) return false;
+  if (run.payPrimaServicios === true) return true;
+  return parseNum(run.primaServiciosCop) > 0;
+}
+
+/** ¿La liquidación incluyó intereses sobre cesantías? */
+export function payrollRunIncludesCesantiasInterest(run) {
+  if (!run) return false;
+  if (run.payInteresesCesantias === true) return true;
+  return parseNum(run.interesesCesantiasCop) > 0;
+}
+
+/** ¿Otra liquidación del mismo mes (jun/dic) ya pagó prima? Excluye `excludePeriodKey` (edición). */
+export function payrollSemesterPrimaAlreadyPaidInMonth(
+  runs = [],
+  employeeId,
+  calendarMonthYm,
+  excludePeriodKey = ""
+) {
+  const emp = String(employeeId || "").trim();
+  const ym = String(calendarMonthYm || "").trim().slice(0, 7);
+  const exclude = String(excludePeriodKey || "").trim();
+  if (!emp || !payrollMonthIsPrimaSemester(ym)) return false;
+  return (Array.isArray(runs) ? runs : []).some((run) => {
+    if (String(run.employeeId || "").trim() !== emp) return false;
+    const key = String(run.month || "").trim();
+    if (exclude && key === exclude) return false;
+    if (!payrollRunIncludesPrima(run)) return false;
+    return payrollPeriodCalendarYm(key) === ym;
+  });
+}
+
+/** ¿Ya se liquidaron intereses de cesantías en enero/febrero del mismo año civil? */
+export function payrollCesantiasInterestAlreadyPaidInYear(
+  runs = [],
+  employeeId,
+  calendarMonthYm,
+  excludePeriodKey = ""
+) {
+  const emp = String(employeeId || "").trim();
+  const ym = String(calendarMonthYm || "").trim().slice(0, 7);
+  const exclude = String(excludePeriodKey || "").trim();
+  if (!emp || !payrollMonthIsCesantiasInterestMonth(ym)) return false;
+  const year = ym.slice(0, 4);
+  return (Array.isArray(runs) ? runs : []).some((run) => {
+    if (String(run.employeeId || "").trim() !== emp) return false;
+    const key = String(run.month || "").trim();
+    if (exclude && key === exclude) return false;
+    if (!payrollRunIncludesCesantiasInterest(run)) return false;
+    const runYm = payrollPeriodCalendarYm(key);
+    if (!payrollMonthIsCesantiasInterestMonth(runYm)) return false;
+    return runYm.slice(0, 4) === year;
+  });
+}
+
+/**
+ * ¿Este corte puede incluir prima manualmente? (jun/dic; una sola vez por mes calendario del semestre).
+ */
+export function payrollValidatePrimaForManualCut({
+  employeeId,
+  calendarMonthYm,
+  periodKey,
+  payFrequency,
+  existingRuns = [],
+  excludePeriodKey = ""
+}) {
+  const ym = String(calendarMonthYm || "").trim().slice(0, 7);
+  if (!payrollMonthIsPrimaSemester(ym)) {
+    return {
+      ok: false,
+      field: "month",
+      message: "La prima de servicios solo aplica en junio (06) o diciembre (12)."
+    };
+  }
+  const freq = normalizePayrollFrequencyJs(payFrequency);
+  if (freq === "quincenal" && !payrollQuincenaHalfFromPeriodKey(periodKey)) {
+    return {
+      ok: false,
+      field: "payrollQuincena",
+      message: "Seleccione la quincena (1ª o 2ª) del mes para liquidar la prima."
+    };
+  }
+  if (payrollSemesterPrimaAlreadyPaidInMonth(existingRuns, employeeId, ym, excludePeriodKey)) {
+    const mes = ym.slice(5, 7) === "06" ? "junio" : "diciembre";
+    return {
+      ok: false,
+      field: "payPrimaServicios",
+      message: `La prima de servicios ya fue liquidada en otra quincena de ${mes} ${ym.slice(0, 4)}. No puede repetirse en este corte (CST arts. 244–249).`
+    };
+  }
+  return { ok: true };
+}
+
+/**
+ * ¿Este corte puede incluir intereses de cesantías manualmente? (ene/feb; una sola vez por año).
+ */
+export function payrollValidateCesantiasInterestForManualCut({
+  employeeId,
+  calendarMonthYm,
+  periodKey,
+  payFrequency,
+  existingRuns = [],
+  excludePeriodKey = ""
+}) {
+  const ym = String(calendarMonthYm || "").trim().slice(0, 7);
+  if (!payrollMonthIsCesantiasInterestMonth(ym)) {
+    return {
+      ok: false,
+      field: "month",
+      message:
+        "Los intereses sobre cesantías (Ley 52/1975) solo se liquidan en enero (01) o febrero (02) del año de pago."
+    };
+  }
+  const freq = normalizePayrollFrequencyJs(payFrequency);
+  if (freq === "quincenal" && !payrollQuincenaHalfFromPeriodKey(periodKey)) {
+    return {
+      ok: false,
+      field: "payrollQuincena",
+      message: "Seleccione la quincena del mes para registrar intereses sobre cesantías."
+    };
+  }
+  if (payrollCesantiasInterestAlreadyPaidInYear(existingRuns, employeeId, ym, excludePeriodKey)) {
+    return {
+      ok: false,
+      field: "payInteresesCesantias",
+      message: `Los intereses sobre cesantías ya fueron liquidados en otra nómina de enero o febrero ${ym.slice(0, 4)}. No puede repetirse en este corte.`
+    };
+  }
+  return { ok: true };
+}
+
+/**
+ * Autogeneración masiva/API: ¿incluir prima en este corte?
+ * Quincenal: solo 2ª quincena (cierre de mes), salvo que la 1ª ya haya pagado prima (omitir).
+ */
+export function payrollAutogenShouldIncludePrima({
+  calendarMonthYm,
+  periodKey,
+  payFrequency,
+  periodEndIsMonthLastDay,
+  primaAlreadyPaidInSemesterMonth
+}) {
+  const ym = String(calendarMonthYm || "").trim().slice(0, 7);
+  if (!payrollMonthIsPrimaSemester(ym)) return false;
+  if (primaAlreadyPaidInSemesterMonth) return false;
+  const freq = normalizePayrollFrequencyJs(payFrequency);
+  if (freq === "mensual") return Boolean(periodEndIsMonthLastDay);
+  if (freq === "quincenal") return payrollQuincenaHalfFromPeriodKey(periodKey) === "Q2";
+  if (freq === "catorcenal") return /-C2$/i.test(String(periodKey || ""));
+  return Boolean(periodEndIsMonthLastDay);
+}
+
+/**
+ * Autogeneración: intereses de cesantías en cualquier corte ene/feb si aún no se pagaron en el año.
+ */
+export function payrollAutogenShouldIncludeCesantiasInterest({
+  calendarMonthYm,
+  cesantiasBaseCop,
+  cesantiasInterestAlreadyPaidInYear
+}) {
+  const ym = String(calendarMonthYm || "").trim().slice(0, 7);
+  if (parseNum(cesantiasBaseCop) <= 0) return false;
+  if (cesantiasInterestAlreadyPaidInYear) return false;
+  return payrollMonthIsCesantiasInterestMonth(ym);
+}
+
 /**
  * Intereses sobre cesantías (referencia Ley 52/1975): 12% anual.
  * Si `days360` > 0: proporcional (días/360). Si no, aplica tasa plena sobre la base (año completo orientativo).
@@ -299,7 +497,8 @@ export function buildPayrollMensualDevengosLines({
   primaServiciosCop,
   interesesCesantiasCop,
   empleadoAuxilioTransporteMensualCop,
-  incapacityEpisodes
+  incapacityEpisodes,
+  overtimeLines
 }) {
   const bs = Math.max(0, parseNum(baseSalary));
   const ex = Math.max(0, parseNum(extras));
@@ -319,7 +518,20 @@ export function buildPayrollMensualDevengosLines({
       empleadoAuxilioMensualRefCop: refAux > 0 ? refAux : null
     }
   ];
-  if (ex > 0) lines.push({ code: "EXTRAS", label: "Horas extras, dominicales o recargos nocturnos", amount: ex });
+  const otLines = Array.isArray(overtimeLines) ? overtimeLines : [];
+  if (otLines.length) {
+    otLines.forEach((line) => {
+      const amt = Math.round(parseNum(line.amount));
+      if (amt <= 0) return;
+      lines.push({
+        code: String(line.code || "EXTRA"),
+        label: String(line.label || "Horas extras / recargos"),
+        amount: amt
+      });
+    });
+  } else if (ex > 0) {
+    lines.push({ code: "EXTRAS", label: "Horas extras, dominicales o recargos nocturnos", amount: ex });
+  }
   if (bo > 0) lines.push({ code: "BONIFICACIONES", label: "Bonificaciones y pagos ocasionales gravables", amount: bo });
   if (via > 0) lines.push({ code: "VIATICOS", label: "Viáticos y anticipos de viaje (reintegro)", amount: via });
   if (comb > 0) lines.push({ code: "REEMBOLSO_COMBUSTIBLE", label: "Reembolso combustible y gastos de ruta", amount: comb });
@@ -1229,39 +1441,32 @@ export function computePayrollIncapacityColombiaForMonth({ employee, liquidacion
       continue;
     }
 
-    if (baseSalary > 0 && baseSalary <= smmlv) {
-      const days = payrollInclusiveCalendarDaysLocal(ov.s, ov.e);
-      episodes.push({
-        kind: "eps_smmlv",
-        absenceId: ab.id,
-        days,
-        adjustCop: 0,
-        label: baseLabel,
-        rangeLabel: `${payrollFmtYmdLocal(ov.s)} → ${payrollFmtYmdLocal(ov.e)}`,
-        note:
-          "Salario hasta SMMLV: sin ajuste automático en este motor. Verificar pago al trabajador según tablas EPS (100% en etapas iniciales) y soporte médico."
-      });
-      continue;
-    }
-
     let netIncap = 0;
     const msDay = 86400000;
+    const payerNotes = [];
     for (let cur = ov.s.getTime(); cur <= ov.e.getTime(); cur += msDay) {
       const dt = new Date(cur);
       const idx = payrollInclusiveCalendarDaysLocal(abStart, dt);
-      netIncap += -daily + (idx <= 2 ? (daily * 2) / 3 : 0);
+      const dayAdj = calcColombiaIncapacityEpsDayAdjustmentCop({
+        dailySalary: daily,
+        dayIndexInEpisode: idx,
+        monthlySalary: baseSalary,
+        smmlv
+      });
+      netIncap += dayAdj.adjustCop;
+      if (dayAdj.payer && !payerNotes.includes(dayAdj.payer)) payerNotes.push(dayAdj.payer);
     }
     const roundedIncap = Math.round(netIncap);
     salarioAjuste += roundedIncap;
     episodes.push({
-      kind: "eps",
+      kind: baseSalary > 0 && baseSalary <= smmlv ? "eps_smmlv" : "eps",
       absenceId: ab.id,
       days: payrollInclusiveCalendarDaysLocal(ov.s, ov.e),
       adjustCop: roundedIncap,
       label: baseLabel,
       rangeLabel: `${payrollFmtYmdLocal(ov.s)} → ${payrollFmtYmdLocal(ov.e)}`,
       note:
-        "Incapacidad común (EPS): sin salario empresa el día; complemento orientativo de ⅔ del salario diario en los dos primeros días corridos del episodio (Dec. 780/2016 / CST — validar año y liquidación en EPS)."
+        `Incapacidad común (EPS): tabla orientativa Dec. 780/2016 (${payerNotes.join("; ") || "validar etapa"}). No sustituye liquidación EPS ni soporte médico.`
     });
   }
 

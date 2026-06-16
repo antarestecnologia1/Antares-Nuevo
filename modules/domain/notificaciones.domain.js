@@ -173,40 +173,38 @@ export function toggleNotificationAlertsEnabled() {
 }
 
 export function syncNotificationPrefsSidebarUi() {
-  const link = document.querySelector('.side-link[data-view="notifications"]');
-  if (!link) return;
+  const group = document.querySelector(".sidebar-notif-group");
+  const link =
+    group?.querySelector('.side-link[data-view="notifications"]') ||
+    document.querySelector('.side-link[data-view="notifications"]');
+  if (!link && !group) return;
   const soundOff = !isSonidoNotificacionesHabilitado();
   const alertsOff = !isInAppNotificationAlertsEnabled();
-  link.classList.toggle("side-link--notif-sound-muted", soundOff);
-  link.classList.toggle("side-link--notif-alerts-off", alertsOff);
-  const soundPill = link.querySelector(".side-link-notif-sound-pill");
-  if (soundPill) {
-    soundPill.textContent = soundOff ? "Sin timbre" : "Timbre";
-    soundPill.title = soundOff
-      ? "Clic para volver a reproducir el timbre al llegar avisos nuevos"
-      : "Clic para silenciar solo el timbre (la bandeja y los avisos en pantalla siguen igual)";
+  if (link) {
+    link.classList.toggle("side-link--notif-sound-muted", soundOff);
+    link.classList.toggle("side-link--notif-alerts-off", alertsOff);
   }
-  const alertsPill = link.querySelector(".side-link-notif-alerts-pill");
-  if (alertsPill) {
-    alertsPill.textContent = alertsOff ? "Sin avisos" : "Avisos";
-    alertsPill.title = alertsOff
-      ? "Clic para volver a recibir avisos emergentes y notificaciones del servidor"
-      : "Clic para pausar avisos emergentes y dejar de recibir notificaciones nuevas en el servidor";
+  const soundBtn = group?.querySelector('[data-notif-pref="sound"]');
+  if (soundBtn) {
+    soundBtn.textContent = soundOff ? "Sin timbre" : "Timbre";
+    soundBtn.setAttribute("aria-pressed", soundOff ? "false" : "true");
+    soundBtn.title = soundOff
+      ? "Activar timbre al llegar avisos nuevos"
+      : "Silenciar solo el timbre (la bandeja no cambia)";
+    soundBtn.classList.toggle("sidebar-notif-pref-btn--off", soundOff);
   }
-  const control = link.querySelector(".side-link-notif-control");
-  if (control) {
-    let aria = "";
-    if (alertsOff && soundOff) {
-      aria =
-        "Preferencias: avisos emergentes desactivados y timbre silenciado. Use «Avisos» o «Timbre» para activar cada uno.";
-    } else if (alertsOff) {
-      aria = "Avisos emergentes desactivados (sin toasts ni notificaciones nuevas en servidor). «Timbre»: solo el audio.";
-    } else if (soundOff) {
-      aria = "Timbre silenciado; los avisos emergentes siguen activos si no los desactivó.";
-    } else {
-      aria = "«Timbre» controla el audio; «Avisos» controla ventanas emergentes y notificaciones nuevas del servidor.";
-    }
-    control.setAttribute("aria-label", aria);
+  const alertsBtn = group?.querySelector('[data-notif-pref="alerts"]');
+  if (alertsBtn) {
+    alertsBtn.textContent = alertsOff ? "Sin avisos" : "Avisos";
+    alertsBtn.setAttribute("aria-pressed", alertsOff ? "false" : "true");
+    alertsBtn.title = alertsOff
+      ? "Activar avisos emergentes y notificaciones del servidor"
+      : "Pausar avisos emergentes y nuevas filas del servidor";
+    alertsBtn.classList.toggle("sidebar-notif-pref-btn--off", alertsOff);
+  }
+  if (group) {
+    group.classList.toggle("sidebar-notif-group--sound-off", soundOff);
+    group.classList.toggle("sidebar-notif-group--alerts-off", alertsOff);
   }
 }
 
@@ -765,4 +763,124 @@ export function startNotificationsPolling() {
   if (typeof document !== "undefined") {
     document.addEventListener("visibilitychange", __onNotificationsVisibilityChange);
   }
+}
+
+/** Filtros de la bandeja (UI). */
+export const NOTIFICATION_UI_FILTERS = Object.freeze({
+  ALL: "all",
+  UNREAD: "unread",
+  REQUEST: "request",
+  AUTHORIZATION: "authorization",
+  HR: "hr",
+  SYSTEM: "system"
+});
+
+const __CATEGORY_LABELS = {
+  request: "Solicitud",
+  authorization: "Autorización",
+  hr: "RRHH",
+  system: "Sistema"
+};
+
+/** Categoría operativa: campo explícito del servidor o inferencia por título/cuerpo. */
+export function resolveNotificationCategory(n) {
+  const explicit = String(n?.category ?? n?.categoria ?? "").trim().toLowerCase();
+  if (explicit && __CATEGORY_LABELS[explicit]) return explicit;
+  const blob = `${String(n?.title ?? "")} ${String(n?.body ?? "")}`.toLowerCase();
+  if (blob.includes("solicitud")) return "request";
+  if (blob.includes("autoriza") || blob.includes("aprobación") || blob.includes("aprobacion")) return "authorization";
+  if (
+    blob.includes("contrato") ||
+    blob.includes("nómina") ||
+    blob.includes("nomina") ||
+    blob.includes("renovación") ||
+    blob.includes("renovacion") ||
+    blob.includes("empleado")
+  ) {
+    return "hr";
+  }
+  return "system";
+}
+
+export function notificationCategoryLabel(category) {
+  return __CATEGORY_LABELS[String(category || "").trim().toLowerCase()] || "Sistema";
+}
+
+/** Enlace hash del portal si existe metadata o se puede inferir la categoría. */
+export function resolveNotificationDeepLink(n) {
+  const explicit = String(n?.deepLink ?? n?.deep_link ?? "").trim();
+  if (explicit.startsWith("#portal/")) return explicit;
+  const entityType = String(n?.entityType ?? n?.entity_type ?? "").trim().toLowerCase();
+  if (entityType === "request" || entityType === "solicitud") return "#portal/requests";
+  if (entityType === "trip" || entityType === "viaje") return "#portal/transport-trips";
+  if (entityType === "authorization" || entityType === "aprobacion") return "#portal/authorizations";
+  if (entityType === "employee" || entityType === "payroll") return "#portal/payroll";
+  const cat = resolveNotificationCategory(n);
+  if (cat === "request") return "#portal/requests";
+  if (cat === "authorization") return "#portal/authorizations";
+  if (cat === "hr") return "#portal/payroll";
+  return "";
+}
+
+export function filterNotificationsByUiFilter(list, filter, isReadFn = notificationIsRead) {
+  const rows = Array.isArray(list) ? list : [];
+  const key = String(filter || NOTIFICATION_UI_FILTERS.ALL).trim().toLowerCase();
+  if (key === NOTIFICATION_UI_FILTERS.UNREAD) {
+    return rows.filter((n) => !isReadFn(n));
+  }
+  if (key === NOTIFICATION_UI_FILTERS.ALL) return rows;
+  return rows.filter((n) => resolveNotificationCategory(n) === key);
+}
+
+function __notificationDayKey(isoValue) {
+  const raw = String(isoValue ?? "").trim();
+  if (!raw) return "";
+  const d = new Date(raw);
+  if (!Number.isFinite(d.getTime())) return "";
+  return d.toLocaleDateString("en-CA", { timeZone: "America/Bogota" });
+}
+
+/** Agrupa notificaciones en Hoy / Ayer / Esta semana / Anteriores (zona Colombia). */
+export function groupNotificationsByDateBucket(list, nowMs = Date.now()) {
+  const rows = Array.isArray(list) ? [...list] : [];
+  const todayKey = new Date(nowMs).toLocaleDateString("en-CA", { timeZone: "America/Bogota" });
+  const yesterdayMs = nowMs - 86_400_000;
+  const yesterdayKey = new Date(yesterdayMs).toLocaleDateString("en-CA", { timeZone: "America/Bogota" });
+  const weekStartMs = nowMs - 6 * 86_400_000;
+  const buckets = [
+    { id: "today", label: "Hoy", items: [] },
+    { id: "yesterday", label: "Ayer", items: [] },
+    { id: "week", label: "Esta semana", items: [] },
+    { id: "older", label: "Anteriores", items: [] }
+  ];
+  const map = Object.fromEntries(buckets.map((b) => [b.id, b]));
+  rows.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  for (const n of rows) {
+    const dayKey = __notificationDayKey(n?.createdAt);
+    const createdMs = new Date(n?.createdAt ?? 0).getTime();
+    if (dayKey === todayKey) map.today.items.push(n);
+    else if (dayKey === yesterdayKey) map.yesterday.items.push(n);
+    else if (Number.isFinite(createdMs) && createdMs >= weekStartMs) map.week.items.push(n);
+    else map.older.items.push(n);
+  }
+  return buckets.filter((b) => b.items.length > 0);
+}
+
+/** Sidebar: timbre y avisos fuera del botón de navegación a la bandeja. */
+export function bindNotificationSidebarPrefs() {
+  if (typeof document === "undefined") return;
+  const group = document.querySelector(".sidebar-notif-group");
+  if (!group || group.dataset.notifPrefsBound === "1") return;
+  group.dataset.notifPrefsBound = "1";
+  group.querySelectorAll("[data-notif-pref]").forEach((btn) => {
+    btn.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const which = btn.getAttribute("data-notif-pref") || "";
+      if (which === "sound") toggleNotificationSoundMuted();
+      else if (which === "alerts") toggleNotificationAlertsEnabled();
+      syncNotificationPrefsSidebarUi();
+      if (typeof window.updateNotificationBadge === "function") window.updateNotificationBadge();
+    });
+  });
 }

@@ -5,156 +5,264 @@
 import { state, nodes } from "../core/store.js";
 import { read, write } from "../core/data-io.js";
 import { KEYS } from "../core/config.js";
-import { escapeAttr } from "../core/utils.js";
+import { escapeAttr, escapeHtml, fmtDate } from "../core/utils.js";
 import { currentUser } from "../core/auth.js";
+import {
+  NOTIFICATION_UI_FILTERS,
+  bindNotificationSidebarPrefs,
+  filterNotificationsByUiFilter,
+  getCurrentNotifications,
+  groupNotificationsByDateBucket,
+  isInAppNotificationAlertsEnabled,
+  isSonidoNotificacionesHabilitado,
+  notificationCategoryLabel,
+  notificationIsRead,
+  persistNotificationsReadState,
+  resolveNotificationCategory,
+  resolveNotificationDeepLink,
+  toggleNotificationAlertsEnabled,
+  toggleNotificationSoundMuted,
+  writeNotificationsAwaitServer
+} from "../domain/notificaciones.domain.js";
 
 const G = globalThis;
 
-(function installNotificacionesHtml() {
-  function notificationsHtml() {
-    const getCurrentNotifications = G.getCurrentNotifications;
-    const isInAppNotificationAlertsEnabled = G.isInAppNotificationAlertsEnabled;
-    const isSonidoNotificacionesHabilitado = G.isSonidoNotificacionesHabilitado;
-    const notificationIsRead = G.notificationIsRead;
-    const emptyState = G.emptyState;
-    const moduleFleetHeroStrip = G.moduleFleetHeroStrip;
-    const pcardWrap = G.pcardWrap;
-    const IC = G.IC || {};
-    /** @type {(d: unknown) => string} TODO FASE 2: importar fmtDate desde módulo dedicado (hoy en portal-runtime.js) */
-    const fmtDate = G.fmtDate;
+const FILTER_TABS = [
+  { id: NOTIFICATION_UI_FILTERS.ALL, label: "Todas" },
+  { id: NOTIFICATION_UI_FILTERS.UNREAD, label: "Sin leer" },
+  { id: NOTIFICATION_UI_FILTERS.REQUEST, label: "Solicitudes" },
+  { id: NOTIFICATION_UI_FILTERS.AUTHORIZATION, label: "Autorizaciones" },
+  { id: NOTIFICATION_UI_FILTERS.HR, label: "RRHH" },
+  { id: NOTIFICATION_UI_FILTERS.SYSTEM, label: "Sistema" }
+];
 
-    if (typeof getCurrentNotifications !== "function") return "";
+function ntfCategoryTone(category) {
+  const c = String(category || "").toLowerCase();
+  if (c === "request") return "blue";
+  if (c === "authorization") return "violet";
+  if (c === "hr") return "emerald";
+  return "slate";
+}
 
-    const list = getCurrentNotifications().sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
-    const alertsOn = isInAppNotificationAlertsEnabled();
-    const soundOn = isSonidoNotificacionesHabilitado();
-    const prefBanner =
-      !alertsOn || !soundOn
-        ? `<div class="notif-pref-banner" role="status">
-          <strong>Preferencias activas</strong>
-          <span class="muted">${
-            !alertsOn
-              ? "Avisos emergentes desactivados: no verás ventanas por avisos nuevos y el servidor no creará notificaciones para tu cuenta. "
-              : ""
-          }${
-            !soundOn && alertsOn
-              ? "Timbre silenciado; los avisos emergentes siguen llegando en pantalla. "
-              : ""
-          }${
-            !soundOn && !alertsOn
-              ? "El timbre permanece desactivado; al reactivar solo «Avisos», podrás activar el timbre de forma independiente. "
-              : ""
-          }</span>
-          <span class="muted">Use «Avisos» / «Timbre» junto a la campana del menú lateral.</span>
-        </div>`
-        : "";
-    const unread = list.filter((n) => !notificationIsRead(n)).length;
-    const items = list
-      .map((n) => {
-        const read = notificationIsRead(n);
-        const tag = String(n.title || "").toLowerCase().includes("solicitud")
-          ? '<span class="notif-tag notif-tag-blue">Solicitud</span>'
-          : String(n.title || "").toLowerCase().includes("autoriza")
-            ? '<span class="notif-tag notif-tag-violet">Autorización</span>'
-            : '<span class="notif-tag notif-tag-slate">Sistema</span>';
-        const dot = read ? "" : '<span class="notif-dot"></span>';
-        const safeId = escapeAttr(n.id);
-        return `<article class="notif-card ${read ? "" : "notif-card-unread"}">
-        <div class="notif-leading">${dot}<span class="notif-icon">${IC.bell}</span></div>
-        <div class="notif-content">
-          <div class="notif-head">${tag}<span class="muted notif-time">${fmtDate(n.createdAt)}</span></div>
-          <h4>${n.title || "Notificación"}</h4>
-          <p>${n.body || ""}</p>
-        </div>
-        <div class="notif-actions">
-          ${read ? '<span class="status status-completada">Leída</span>' : `<button type="button" class="btn btn-sm btn-action" data-action="notif-read" data-id="${safeId}">${IC.check} Marcar leída</button>`}
-          <button type="button" class="btn btn-sm btn-action btn-danger-soft" data-action="notif-delete" data-id="${safeId}" title="Eliminar notificación" aria-label="Eliminar notificación">${IC.trash} Eliminar</button>
-        </div>
-      </article>`;
-      })
-      .join("");
-    const readCount = list.length - unread;
-    const readPct = list.length ? Math.round((readCount / list.length) * 100) : 100;
-    const body = list.length
-      ? `${prefBanner}<div class="notif-toolbar">
-        <button type="button" class="btn btn-sm btn-action notif-pref-toolbar-btn" data-action="notif-toggle-alerts" title="Activa o desactiva ventanas emergentes y nuevas filas desde el servidor">
-          ${IC.bell} Avisos emergentes: ${alertsOn ? "activados" : "desactivados"}
-        </button>
-        <button type="button" class="btn btn-sm btn-action notif-pref-toolbar-btn" data-action="notif-toggle-sound" title="Solo el timbre; no afecta la bandeja">
-          ${soundOn ? "Silenciar timbre" : "Activar timbre"}
-        </button>
-        <button type="button" class="btn btn-sm btn-action" data-action="notif-read-all">${IC.check} Marcar todas como leídas</button>
-        <button type="button" class="btn btn-sm btn-action btn-danger-soft" data-action="notif-delete-all" title="Eliminar todas las notificaciones visibles">${IC.trash} Eliminar todas</button>
+function ntfFilterRailHtml(activeFilter) {
+  const items = FILTER_TABS.map((tab) => {
+    const active = tab.id === activeFilter;
+    return `<button type="button" class="ntf-filter-btn${active ? " ntf-filter-btn--active" : ""}" data-action="notif-filter" data-filter="${escapeAttr(tab.id)}" aria-pressed="${active ? "true" : "false"}">${escapeHtml(tab.label)}</button>`;
+  }).join("");
+  return `<nav class="ntf-filter-rail" aria-label="Filtrar notificaciones">${items}</nav>`;
+}
+
+function ntfPrefsRailHtml(alertsOn, soundOn) {
+  return `<div class="ntf-prefs-rail">
+    <span class="ntf-operate__rail-label">Preferencias</span>
+    <button type="button" class="ntf-pref-btn${alertsOn ? "" : " ntf-pref-btn--off"}" data-action="notif-toggle-alerts" aria-pressed="${alertsOn ? "true" : "false"}">
+      <span class="ntf-pref-btn__label">Avisos emergentes</span>
+      <span class="ntf-pref-btn__state">${alertsOn ? "Activos" : "Pausados"}</span>
+    </button>
+    <button type="button" class="ntf-pref-btn${soundOn ? "" : " ntf-pref-btn--off"}" data-action="notif-toggle-sound" aria-pressed="${soundOn ? "true" : "false"}">
+      <span class="ntf-pref-btn__label">Timbre</span>
+      <span class="ntf-pref-btn__state">${soundOn ? "Activo" : "Silenciado"}</span>
+    </button>
+  </div>`;
+}
+
+function ntfCardHtml(n, IC) {
+  const read = notificationIsRead(n);
+  const category = resolveNotificationCategory(n);
+  const tone = ntfCategoryTone(category);
+  const tag = `<span class="ntf-tag ntf-tag--${tone}">${escapeHtml(notificationCategoryLabel(category))}</span>`;
+  const deepLink = resolveNotificationDeepLink(n);
+  const safeId = escapeAttr(n.id);
+  const title = escapeHtml(String(n.title || "Notificación"));
+  const body = escapeHtml(String(n.body || ""));
+  const time = escapeHtml(fmtDate(n.createdAt));
+  const openBtn = deepLink
+    ? `<button type="button" class="btn btn-sm btn-action" data-action="notif-open" data-id="${safeId}" data-href="${escapeAttr(deepLink)}">${IC.externalLink || IC.eye || ""} Abrir</button>`
+    : "";
+  return `<article class="ntf-card${read ? "" : " ntf-card--unread"}" data-id="${safeId}" data-category="${escapeAttr(category)}">
+    <div class="ntf-card__leading">
+      ${read ? "" : '<span class="ntf-card__dot" aria-hidden="true"></span>'}
+      <span class="ntf-card__icon" aria-hidden="true">${IC.bell || ""}</span>
+    </div>
+    <div class="ntf-card__body">
+      <div class="ntf-card__meta">${tag}<time class="ntf-card__time" datetime="${escapeAttr(String(n.createdAt || ""))}">${time}</time></div>
+      <h3 class="ntf-card__title">${title}</h3>
+      ${body ? `<p class="ntf-card__text">${body}</p>` : ""}
+    </div>
+    <div class="ntf-card__actions">
+      ${openBtn}
+      ${
+        read
+          ? '<span class="ntf-card__read-badge">Leída</span>'
+          : `<button type="button" class="btn btn-sm btn-action" data-action="notif-read" data-id="${safeId}">${IC.check || ""} Marcar leída</button>`
+      }
+      <button type="button" class="btn btn-sm btn-action btn-danger-soft" data-action="notif-delete" data-id="${safeId}" title="Eliminar" aria-label="Eliminar notificación">${IC.trash || ""}</button>
+    </div>
+  </article>`;
+}
+
+function ntfGroupedListHtml(buckets, IC) {
+  return buckets
+    .map(
+      (bucket) => `<section class="ntf-date-group" aria-label="${escapeAttr(bucket.label)}">
+      <h3 class="ntf-date-group__title">${escapeHtml(bucket.label)}</h3>
+      <div class="ntf-list">${bucket.items.map((n) => ntfCardHtml(n, IC)).join("")}</div>
+    </section>`
+    )
+    .join("");
+}
+
+function notificationsHtml() {
+  const emptyState = G.emptyState;
+  const IC = G.IC || {};
+
+  const all = getCurrentNotifications().sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+  const activeFilter = String(state.notificationsUi?.filter || NOTIFICATION_UI_FILTERS.ALL).trim().toLowerCase();
+  const filtered = filterNotificationsByUiFilter(all, activeFilter, notificationIsRead);
+  const alertsOn = isInAppNotificationAlertsEnabled();
+  const soundOn = isSonidoNotificacionesHabilitado();
+  const unread = all.filter((n) => !notificationIsRead(n)).length;
+  const readCount = all.length - unread;
+  const readPct = all.length ? Math.round((readCount / all.length) * 100) : 100;
+
+  const prefHint =
+    !alertsOn || !soundOn
+      ? `<p class="ntf-pref-hint" role="status">${
+          !alertsOn
+            ? "Avisos emergentes pausados: sin ventanas ni notificaciones nuevas del servidor. "
+            : ""
+        }${!soundOn ? "Timbre silenciado." : ""}</p>`
+      : "";
+
+  const toolbar =
+    filtered.length || all.length
+      ? `<div class="ntf-toolbar">
+        <button type="button" class="btn btn-sm btn-action" data-action="notif-read-all"${unread ? "" : " disabled"}>${IC.check || ""} Marcar todas leídas</button>
+        <button type="button" class="btn btn-sm btn-action btn-danger-soft" data-action="notif-delete-all"${all.length ? "" : " disabled"}>${IC.trash || ""} Eliminar todas</button>
+      </div>`
+      : "";
+
+  const listBody = filtered.length
+    ? ntfGroupedListHtml(groupNotificationsByDateBucket(filtered), IC)
+    : all.length
+      ? typeof emptyState === "function"
+        ? emptyState("Ninguna notificación coincide con este filtro.")
+        : `<p class="muted">Ninguna notificación coincide con este filtro.</p>`
+      : typeof emptyState === "function"
+        ? emptyState("No tienes notificaciones.")
+        : `<p class="muted">No tienes notificaciones.</p>`;
+
+  const head = `<header class="ntf-studio-head notifications-studio-head">
+    <div class="ntf-studio-head__copy">
+      <p class="ntf-studio-head__kicker">Centro de avisos</p>
+      <h2 class="ntf-studio-head__title">Notificaciones</h2>
+      <p class="ntf-studio-head__sub">${all.length} mensaje${all.length === 1 ? "" : "s"} · ${unread} sin leer</p>
+    </div>
+    <dl class="ntf-studio-head__metrics">
+      <div class="ntf-metric"><dt>Total</dt><dd>${all.length}</dd></div>
+      <div class="ntf-metric ntf-metric--warn"><dt>Sin leer</dt><dd>${unread}</dd></div>
+      <div class="ntf-metric"><dt>Leídas</dt><dd>${readCount}</dd></div>
+      <div class="ntf-metric"><dt>% leídas</dt><dd>${readPct}%</dd></div>
+    </dl>
+  </header>`;
+
+  const operate = `<div class="ntf-operate">
+    <aside class="ntf-operate__rail">
+      <span class="ntf-operate__rail-label">Filtros</span>
+      ${ntfFilterRailHtml(activeFilter)}
+      ${ntfPrefsRailHtml(alertsOn, soundOn)}
+    </aside>
+    <div class="ntf-operate__main">
+      <div class="ntf-data-panel">
+        ${prefHint}
+        ${toolbar}
+        ${listBody}
       </div>
-      <div class="notif-list">${items}</div>`
-      : `${prefBanner}${emptyState("No tienes notificaciones.")}`;
-    const heroStrip = moduleFleetHeroStrip([
-      { label: "Total", value: list.length },
-      { label: "Sin leer", value: unread, tone: unread ? "warn" : undefined },
-      { label: "Leidas", value: readCount },
-      { label: "% leidas", value: `${readPct}%` }
-    ]);
-    return `<section class="notifications-studio">${heroStrip}${pcardWrap("bell", "Notificaciones", list.length + " mensajes · " + unread + " sin leer", body)}</section>`;
-  }
+    </div>
+  </div>`;
 
-  if (typeof window.registerLegacyPortalViews === "function") {
-    window.registerLegacyPortalViews({ notificationsHtml });
-  }
-})();
+  return `<section class="notifications-studio">${head}${operate}</section>`;
+}
+
+if (typeof window.registerLegacyPortalViews === "function") {
+  window.registerLegacyPortalViews({ notificationsHtml });
+}
 
 function bindNotificationsPortalControls() {
   if (String(state.currentView || "") !== "notifications" || !nodes.viewRoot) return;
+  const root = nodes.viewRoot;
 
-  const getCurrentNotifications = G.getCurrentNotifications;
-  const notificationIsRead = G.notificationIsRead;
+  root.querySelectorAll("[data-action='notif-filter']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const next = String(btn.dataset.filter || NOTIFICATION_UI_FILTERS.ALL).trim().toLowerCase();
+      state.notificationsUi = { ...(state.notificationsUi || {}), filter: next };
+      G.renderPortalView();
+    });
+  });
 
-  nodes.viewRoot.querySelectorAll("[data-action='notif-read']").forEach((btn) => {
+  root.querySelectorAll("[data-action='notif-open']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      void G.runWithBusyButton(btn, async () => {
+        const id = String(btn.dataset.id || "");
+        const href = String(btn.dataset.href || "").trim();
+        if (id && !notificationIsRead(getCurrentNotifications().find((n) => n.id === id) || {})) {
+          await persistNotificationsReadState([id]);
+        }
+        if (href.startsWith("#portal/")) {
+          const view = href.slice("#portal/".length).split("?")[0].trim();
+          if (view) G.setView(view);
+        }
+        G.refreshNotificationsUiAfterReadMutation?.();
+      });
+    });
+  });
+
+  root.querySelectorAll("[data-action='notif-read']").forEach((btn) => {
     btn.addEventListener("click", () => {
       void G.runWithBusyButton(btn, async () => {
         const id = String(btn.dataset.id || "");
         const visibleIds = new Set(getCurrentNotifications().map((n) => n.id));
         if (!visibleIds.has(id)) return;
-        const ok = await G.persistNotificationsReadState([id]);
+        const ok = await persistNotificationsReadState([id]);
         if (!ok) return;
         G.refreshNotificationsUiAfterReadMutation();
       });
     });
   });
 
-  nodes.viewRoot.querySelectorAll("[data-action='notif-toggle-alerts']").forEach((btn) => {
+  root.querySelectorAll("[data-action='notif-toggle-alerts']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      G.toggleNotificationAlertsEnabled();
+      toggleNotificationAlertsEnabled();
       G.renderPortalView();
       G.updateNotificationBadge();
     });
   });
 
-  nodes.viewRoot.querySelectorAll("[data-action='notif-toggle-sound']").forEach((btn) => {
+  root.querySelectorAll("[data-action='notif-toggle-sound']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      G.toggleNotificationSoundMuted();
+      toggleNotificationSoundMuted();
       G.renderPortalView();
       G.updateNotificationBadge();
     });
   });
 
-  nodes.viewRoot.querySelectorAll("[data-action='notif-read-all']").forEach((btn) => {
+  root.querySelectorAll("[data-action='notif-read-all']").forEach((btn) => {
     btn.addEventListener("click", () => {
       void G.runWithBusyButton(btn, async () => {
         const unreadIds = getCurrentNotifications()
           .filter((n) => !notificationIsRead(n))
           .map((n) => n.id);
         if (!unreadIds.length) return;
-        const ok = await G.persistNotificationsReadState(unreadIds);
+        const ok = await persistNotificationsReadState(unreadIds);
         if (!ok) return;
         G.refreshNotificationsUiAfterReadMutation();
       });
     });
   });
 
-  /** Eliminar todas las notificaciones visibles en la bandeja (mismo contrato que eliminar una). */
-  nodes.viewRoot.querySelectorAll("[data-action='notif-delete-all']").forEach((btn) => {
+  root.querySelectorAll("[data-action='notif-delete-all']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const visible = getCurrentNotifications();
       if (!visible.length) return;
@@ -168,7 +276,7 @@ function bindNotificationsPortalControls() {
           const nextList = list.filter((n) => !visibleIds.has(n.id));
           write(KEYS.notifications, nextList);
           try {
-            await G.writeNotificationsAwaitServer([...visibleIds]);
+            await writeNotificationsAwaitServer([...visibleIds]);
           } catch (err) {
             write(KEYS.notifications, list);
             G.notify(String(err?.message || "No fue posible eliminar las notificaciones en el servidor."), "error");
@@ -193,16 +301,16 @@ function bindNotificationsPortalControls() {
     });
   });
 
-  /** Eliminar una notificación de la bandeja (local + `deletedIds` en sync para PostgreSQL). */
-  nodes.viewRoot.querySelectorAll("[data-action='notif-delete']").forEach((btn) => {
-    btn.addEventListener("click", () => {
+  root.querySelectorAll("[data-action='notif-delete']").forEach((btn) => {
+    btn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
       const id = String(btn.dataset.id || "");
       if (!id) return;
-      G.openConfirmReasonModal({
+      G.openConfirmModal({
         title: "Eliminar notificación",
-        message: "¿Quieres eliminar esta notificación de tu bandeja? Indica la justificación. Esta acción no se puede deshacer.",
+        message: "¿Eliminar esta notificación de tu bandeja? Esta acción no se puede deshacer.",
         confirmText: "Eliminar",
-        onConfirm: async (motivo) => {
+        onConfirm: async () => {
           const visibleIds = new Set(getCurrentNotifications().map((n) => n.id));
           if (!visibleIds.has(id)) return;
           const list = read(KEYS.notifications, []);
@@ -210,7 +318,7 @@ function bindNotificationsPortalControls() {
           const nextList = list.filter((n) => n.id !== id);
           write(KEYS.notifications, nextList);
           try {
-            await G.writeNotificationsAwaitServer([id]);
+            await writeNotificationsAwaitServer([id]);
           } catch (err) {
             write(KEYS.notifications, list);
             G.notify(String(err?.message || "No fue posible eliminar la notificación en el servidor."), "error");
@@ -224,7 +332,7 @@ function bindNotificationsPortalControls() {
             moduleLabel: "Notificaciones",
             entityId: id,
             entityLabel: String(removedNotification?.title || "Notificación").trim() || "Notificación",
-            summary: `Notificación eliminada de bandeja. Motivo: ${String(motivo || "").trim()}`,
+            summary: "Notificación eliminada de bandeja.",
             actor: String(currentUser()?.email || currentUser()?.name || "—").trim()
           });
           G.notify("Notificación eliminada.", "success");
@@ -236,7 +344,7 @@ function bindNotificationsPortalControls() {
   });
 }
 
-(function registerNotificationsPortalBinds() {
-  window.__portalModuleAfterRender = window.__portalModuleAfterRender || {};
-  window.__portalModuleAfterRender.notifications = bindNotificationsPortalControls;
-})();
+window.__portalModuleAfterRender = window.__portalModuleAfterRender || {};
+window.__portalModuleAfterRender.notifications = bindNotificationsPortalControls;
+
+bindNotificationSidebarPrefs();

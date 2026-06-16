@@ -3030,18 +3030,7 @@ function initGlobalEvents() {
   }
 
   nodes.sideLinks.forEach((link) => {
-    link.addEventListener("click", (ev) => {
-      if (link.dataset.view === "notifications") {
-        const prefTarget = ev.target.closest("[data-notif-pref]");
-        if (prefTarget) {
-          ev.preventDefault();
-          ev.stopPropagation();
-          const which = prefTarget.getAttribute("data-notif-pref") || "";
-          if (which === "sound") toggleNotificationSoundMuted();
-          else if (which === "alerts") toggleNotificationAlertsEnabled();
-          return;
-        }
-      }
+    link.addEventListener("click", () => {
       setView(link.dataset.view);
       setPortalDrawerOpen(false);
     });

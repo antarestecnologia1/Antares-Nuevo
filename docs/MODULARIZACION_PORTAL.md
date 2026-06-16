@@ -117,3 +117,16 @@ Las vistas en `modules/app/*.js` usan imports ES (`data-io`, `config`, `utils`, 
 - Registro legacy: `registerLegacyPortalViews` en `modules/portal/legacy-views-bridge.js`.
 - Rehidratación empleados: `window.PayrollEmployeeListSync.refreshFromApi` en `modules/payroll/portal-employee-list-sync.js`.
 - Vista SST / cumplimiento laboral: `modules/app/cumplimiento-laboral.js`.
+
+## FASE 14 — Notificaciones (bandeja + sidebar)
+
+- **UI:** `modules/app/notificaciones.js` (studio `ntf-*`, filtros, agrupación por fecha).
+- **Dominio:** `modules/domain/notificaciones.domain.js` (`resolveNotificationCategory`, `resolveNotificationDeepLink`, `bindNotificationSidebarPrefs`).
+- **CSS:** `styles/notifications-module.css` (alcance `.notifications-studio` + `.sidebar-notif-group`).
+- **Sidebar:** prefs Timbre/Avisos fuera del botón de bandeja (`index.html`); handler en dominio, no en `events.js`.
+
+## FASE 15 — Dominios de soporte (vehículos, conductores, calendario, usuarios, autorizaciones, dashboard)
+
+- **Archivos:** `modules/domain/{vehicles,drivers,calendar,users,authorizations,dashboard}.domain.js`.
+- **Barrels:** `modules/{vehicles,drivers,trips,notifications,users,payroll}/index.js` delegan a dominios ES.
+- **HTML partido:** `gestion-humana-html.js`, `contratacion-html.js`, `solicitudes-html.js` (listeners en archivos hermanos).

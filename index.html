@@ -1074,21 +1074,16 @@
             <svg class="side-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             Mi perfil
           </button>
-          <button data-view="notifications" class="side-link" type="button">
-            <span
-              class="side-link-notif-control"
-              title="Campana o «Timbre»: solo el audio de aviso. «Avisos»: ventanas emergentes y nuevas notificaciones desde el servidor. El texto «Notificaciones» abre la bandeja completa."
-            >
-              <span class="side-link-notif-bell" data-notif-pref="sound" aria-hidden="true">
-                <svg class="side-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-              </span>
-              <span class="side-link-notif-pref-col">
-                <span class="side-link-notif-sound-pill" data-notif-pref="sound" aria-live="polite">Timbre</span>
-                <span class="side-link-notif-alerts-pill" data-notif-pref="alerts" aria-live="polite">Avisos</span>
-              </span>
-            </span>
-            Notificaciones
-          </button>
+          <div class="sidebar-notif-group">
+            <button data-view="notifications" class="side-link side-link--notif-inbox" type="button">
+              <svg class="side-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+              Notificaciones
+            </button>
+            <div class="sidebar-notif-prefs" role="group" aria-label="Preferencias de notificaciones">
+              <button type="button" class="sidebar-notif-pref-btn" data-notif-pref="sound" aria-pressed="true">Timbre</button>
+              <button type="button" class="sidebar-notif-pref-btn" data-notif-pref="alerts" aria-pressed="true">Avisos</button>
+            </div>
+          </div>
           <div class="sidebar-spacer"></div>
           <div class="sidebar-logout">
             <button id="logout" class="side-link sidebar-logout-btn" type="button">
@@ -1266,6 +1261,7 @@
     <script defer src="./modules/core/portal-data-layer.js"></script>
     <script defer src="./modules/core/portal-sync.js"></script>
     <!-- Vistas del portal estático (registran window.AppModules.*); Next.js vive en apps/web/app -->
+    <script defer src="./modules/portal/views/dashboard.js"></script>
     <script defer src="./modules/portal/views/solicitudes.js"></script>
     <script defer src="./modules/portal/views/transporte.js"></script>
     <script defer src="./modules/portal/views/rrhh.js"></script>
@@ -1309,10 +1305,17 @@
       import * as AntaresPayrollCatalogSanitize from "./modules/domain/payroll-catalog-sanitize.domain.js";
       import * as AntaresSolicitudesDomain from "./modules/domain/solicitudes.domain.js";
       import * as AntaresNotificacionesDomain from "./modules/domain/notificaciones.domain.js";
+      import * as AntaresDashboardDomain from "./modules/domain/dashboard.domain.js";
+      import * as AntaresVehiclesDomain from "./modules/domain/vehicles.domain.js";
+      import * as AntaresDriversDomain from "./modules/domain/drivers.domain.js";
+      import * as AntaresCalendarDomain from "./modules/domain/calendar.domain.js";
+      import * as AntaresUsersDomain from "./modules/domain/users.domain.js";
+      import * as AntaresAuthorizationsDomain from "./modules/domain/authorizations.domain.js";
       import * as AntaresViajesDomain from "./modules/domain/viajes.domain.js";
       import * as AntaresHistorialDomain from "./modules/domain/historial.domain.js";
       import * as AntaresReporteriaDomain from "./modules/domain/reporteria.domain.js";
       import * as AntaresNominaDomain from "./modules/domain/nomina.domain.js";
+      import * as AntaresPayrollColombiaLegal from "./modules/domain/payroll-colombia-legal.domain.js";
       import * as AntaresSstDomain from "./modules/domain/sst.domain.js";
       import * as AntaresContratacionDomain from "./modules/domain/contratacion.domain.js";
       import * as AntaresRouter from "./modules/core/router.js";
@@ -1330,6 +1333,18 @@
       Object.assign(window, AntaresSolicitudesDomain);
       window.AntaresNotificacionesDomain = AntaresNotificacionesDomain;
       Object.assign(window, AntaresNotificacionesDomain);
+      window.AntaresDashboardDomain = AntaresDashboardDomain;
+      Object.assign(window, AntaresDashboardDomain);
+      window.AntaresVehiclesDomain = AntaresVehiclesDomain;
+      Object.assign(window, AntaresVehiclesDomain);
+      window.AntaresDriversDomain = AntaresDriversDomain;
+      Object.assign(window, AntaresDriversDomain);
+      window.AntaresCalendarDomain = AntaresCalendarDomain;
+      Object.assign(window, AntaresCalendarDomain);
+      window.AntaresUsersDomain = AntaresUsersDomain;
+      Object.assign(window, AntaresUsersDomain);
+      window.AntaresAuthorizationsDomain = AntaresAuthorizationsDomain;
+      Object.assign(window, AntaresAuthorizationsDomain);
       window.AntaresViajesDomain = AntaresViajesDomain;
       Object.assign(window, AntaresViajesDomain);
       window.AntaresHistorialDomain = AntaresHistorialDomain;
@@ -1338,6 +1353,8 @@
       Object.assign(window, AntaresReporteriaDomain);
       window.AntaresNominaDomain = AntaresNominaDomain;
       Object.assign(window, AntaresNominaDomain);
+      window.AntaresPayrollColombiaLegal = AntaresPayrollColombiaLegal;
+      Object.assign(window, AntaresPayrollColombiaLegal);
       window.AntaresSstDomain = AntaresSstDomain;
       Object.assign(window, AntaresSstDomain);
       window.AntaresContratacionDomain = AntaresContratacionDomain;
@@ -1350,6 +1367,9 @@
       AntaresRouter.onPortalEvent("updateNotificationBadge", () => AntaresNotificacionesDomain.updateNotificationBadge());
       AntaresRouter.onPortalEvent("syncNotificationPrefsSidebarUi", () =>
         AntaresNotificacionesDomain.syncNotificationPrefsSidebarUi()
+      );
+      AntaresRouter.onPortalEvent("bindNotificationSidebarPrefs", () =>
+        AntaresNotificacionesDomain.bindNotificationSidebarPrefs()
       );
       AntaresRouter.onPortalEvent("scheduleRenderPortalView", () => AntaresRouter.scheduleRenderPortalView());
       try {
@@ -1368,14 +1388,17 @@
     <!-- Vistas legacy (`registerLegacyPortalViews`); deben ejecutarse antes de `app.js` para que el primer `renderPortal()` resuelva HTML. `viajes.js` antes de `mis-solicitudes.js` por `RENDER_WINDOW_SIZE`. -->
     <script defer src="./modules/app/dashboard.js"></script>
     <script defer src="./modules/app/viajes.js"></script>
+    <script defer src="./modules/app/solicitudes-html.js"></script>
     <script defer src="./modules/app/mis-solicitudes.js"></script>
     <script defer src="./modules/app/camiones.js"></script>
     <script defer src="./modules/app/conductores.js"></script>
     <script defer src="./modules/app/calendario.js"></script>
     <script defer src="./modules/app/historial.js"></script>
     <script defer src="./modules/app/reporteria.js"></script>
+    <script defer src="./modules/app/gestion-humana-html.js"></script>
     <script defer src="./modules/app/gestion-humana.js"></script>
     <script defer src="./modules/app/rrhh-candidate-attachments.js"></script>
+    <script defer src="./modules/app/contratacion-html.js"></script>
     <script defer src="./modules/app/contratacion.js"></script>
     <script type="module" src="./modules/app/cumplimiento-laboral.js"></script>
     <script defer src="./modules/app/contacto-b2b.js"></script>

@@ -4,6 +4,15 @@
  * Soporta cortes dentro del mes (quincena, etc.) mediante `periodStart` / `periodEnd` (fechas civiles).
  */
 
+import {
+  calcColombiaCesantiasMonthlyProvisionCop,
+  calcColombiaEmployeeDeductionsCop,
+  calcColombiaEmployerContributionsCop,
+  calcColombiaIncapacityEpsDayAdjustmentCop,
+  calcColombiaPayrollIbcCop,
+  calcColombiaWithholdingTaxOrientativeCop
+} from "./payroll-colombia-legal.js";
+
 export const HEALTH_EMPLOYEE_RATE = 0.04;
 export const PENSION_EMPLOYEE_RATE = 0.04;
 export const SOLIDARITY_RATE = 0.01;
@@ -249,6 +258,16 @@ export type ColombiaPayrollCutDeps = {
   healthEmployeeRate?: number;
   pensionEmployeeRate?: number;
   cesantiasBaseInteresOpcional?: number;
+  /** `mensual` | `quincenal` | … — define en qué corte del semestre va la prima automática. */
+  payFrequencyNorm?: string;
+  /** Otra liquidación del mismo mes (jun/dic) ya incluyó prima. */
+  primaAlreadyPaidInSemesterMonth?: boolean;
+  /** Otra liquidación de ene/feb del año ya incluyó intereses de cesantías. */
+  cesantiasInterestAlreadyPaidInYear?: boolean;
+  integralSalary?: boolean;
+  arlRiskLevel?: string | null;
+  contributorType?: string | null;
+  uvtCop?: number;
 };
 
 /** @deprecated Preferir computeColombiaPayrollForPeriodCut */
@@ -274,6 +293,8 @@ export type ColombiaAutoPayrollResult = {
   healthDeduction: number;
   pensionDeduction: number;
   solidarityDeduction: number;
+  subsistenceDeduction: number;
+  withholdingDeduction: number;
   totalDeducciones: number;
   payInteresesCesantias: boolean;
   interesesCesantiasCop: number;
@@ -318,6 +339,35 @@ function isUltimoDiaMesUtc(d: Date): boolean {
   return dom === ld;
 }
 
+function quincenaHalfFromPeriodKey(periodKey: string): "Q1" | "Q2" | "" {
+  const m = /-Q([12])$/i.exec(String(periodKey || "").trim());
+  return m ? (`Q${m[1]}` as "Q1" | "Q2") : "";
+}
+
+/** Prima automática: mensual al cierre; quincenal en 2ª quincena de jun/dic si no se pagó en la 1ª. */
+function shouldAutogenPrimaOnCut(d: ColombiaPayrollCutDeps): boolean {
+  const ym = String(d.calendarMonthYm || "").trim().slice(0, 7);
+  const m = Number(ym.slice(5, 7));
+  if (m !== 6 && m !== 12) return false;
+  if (d.primaAlreadyPaidInSemesterMonth) return false;
+  const freq = String(d.payFrequencyNorm || "mensual")
+    .trim()
+    .toLowerCase();
+  if (freq === "mensual") return isUltimoDiaMesUtc(d.periodEnd);
+  if (freq === "quincenal") return quincenaHalfFromPeriodKey(d.periodStorageKey) === "Q2";
+  if (freq === "catorcenal") return /-C2$/i.test(d.periodStorageKey);
+  return isUltimoDiaMesUtc(d.periodEnd);
+}
+
+/** Intereses cesantías: primer corte ene/feb del año sin pago previo (evita duplicar en 2ª quincena). */
+function shouldAutogenCesantiasInterestOnCut(d: ColombiaPayrollCutDeps): boolean {
+  const base = Math.max(0, d.cesantiasBaseInteresOpcional ?? 0);
+  if (base <= 0) return false;
+  if (d.cesantiasInterestAlreadyPaidInYear) return false;
+  const m = Number(String(d.calendarMonthYm || "").trim().slice(5, 7));
+  return m === 1 || m === 2;
+}
+
 export function computeColombiaPayrollForPeriodCut(d: ColombiaPayrollCutDeps): ColombiaAutoPayrollResult {
   const hire = d.fechaIngresoEmpresa;
   const p0 = d.periodStart;
@@ -349,7 +399,7 @@ export function computeColombiaPayrollForPeriodCut(d: ColombiaPayrollCutDeps): C
   let primaCop = 0;
 
   const primaMn = Number(d.calendarMonthYm.slice(5, 7));
-  if ((primaMn === 6 || primaMn === 12) && isUltimoDiaMesUtc(d.periodEnd)) {
+  if ((primaMn === 6 || primaMn === 12) && shouldAutogenPrimaOnCut(d)) {
     primaDays = semesterEmployedCalendarDays(hire, d.calendarMonthYm, d.periodEnd);
     payPrima = primaDays >= 1;
     if (payPrima) primaCop = calcPrimaServiciosCop(salMonthly, primaDays);
@@ -411,24 +461,18 @@ export function computeColombiaPayrollForPeriodCut(d: ColombiaPayrollCutDeps): C
     }
 
     const toleranciaMinimo = salMonthly > 0 && salMonthly <= d.smmlv;
-    if (toleranciaMinimo) {
-      incapEsp.push({
-        ausenciaId: ab.id,
-        tipo: cl.kind,
-        dias: inclusiveCalendarDays(ov.s, ov.e),
-        ajusteSalarioOrientativoCop: 0,
-        nota:
-          "Salario equivalente a SMMLV o inferior: no se prorratea negativamente en este motor (verificar pago 100% según normativa/EPS vigente)."
-      });
-      continue;
-    }
-
     let netIncap = 0;
     const msDay = 86_400_000;
     for (let cur = ov.s.getTime(); cur <= ov.e.getTime(); cur += msDay) {
       const dt = new Date(cur);
       const idx = episodeDayIndex(ab.fechaInicio, dt);
-      netIncap += -daily + (idx <= 2 ? (daily * 2) / 3 : 0);
+      const dayAdj = calcColombiaIncapacityEpsDayAdjustmentCop({
+        dailySalary: daily,
+        dayIndexInEpisode: idx,
+        monthlySalary: salMonthly,
+        smmlv: d.smmlv
+      });
+      netIncap += dayAdj.adjustCop;
     }
     const roundedIncap = Math.round(netIncap);
     salarioAjuste += roundedIncap;
@@ -437,33 +481,60 @@ export function computeColombiaPayrollForPeriodCut(d: ColombiaPayrollCutDeps): C
       tipo: cl.kind,
       dias: inclusiveCalendarDays(ov.s, ov.e),
       ajusteSalarioOrientativoCop: roundedIncap,
-      nota:
-        "Incapacidad origen común (EPS): se retira el día completo desde nómina empresa y se reintegra orientativamente ~⅔ del día en los dos primeros días corridos del episodio desde fecha_inicio; del día 3 en adelante el pago habitual lo liquida EPS/UPC según tabla (empleador suele consolidar/recuperar). Validar año y soporte médico."
+      nota: toleranciaMinimo
+        ? "Salario ≤ SMMLV: tabla EPS orientativa (100% empleador días 1-2; EPS etapas siguientes)."
+        : "Incapacidad origen común (EPS): tabla orientativa Dec. 780/2016 por día de episodio."
     });
+    continue;
   }
 
   const salarioProp = Math.max(0, salarioBaseProp + salarioAjuste);
-  const ibcComputed = Math.max(0, Math.round(daily * diasEnCorte));
+  const ibcComputed = calcColombiaPayrollIbcCop({
+    baseSalaryCop: salarioProp,
+    integralSalary: Boolean(d.integralSalary),
+    diasCorte: diasEnCorte,
+    smmlv: d.smmlv
+  });
 
   const baseCes = Math.max(0, d.cesantiasBaseInteresOpcional ?? 0);
-  const msIx = d.periodStart.getUTCMonth();
-  const payInt =
-    baseCes > 0 && (msIx === 0 || msIx === 1);
+  const payInt = shouldAutogenCesantiasInterestOnCut(d);
   const intDays = payInt ? 360 : null;
   const interesesCop = payInt ? Math.round(baseCes * CESANTIAS_INTERES_ANUAL) : 0;
 
-  const healthDeduction = ibcComputed * Math.max(0, d.healthEmployeeRate ?? HEALTH_EMPLOYEE_RATE);
-  const pensionDeduction = ibcComputed * Math.max(0, d.pensionEmployeeRate ?? PENSION_EMPLOYEE_RATE);
-  const solidarityDeduction =
-    ibcComputed > d.smmlv * SOLIDARITY_SMMLV_MULTIPLIER ? ibcComputed * SOLIDARITY_RATE : 0;
+  const ded = calcColombiaEmployeeDeductionsCop({
+    ibc: ibcComputed,
+    smmlv: d.smmlv,
+    healthRate: d.healthEmployeeRate ?? HEALTH_EMPLOYEE_RATE,
+    pensionRate: d.pensionEmployeeRate ?? PENSION_EMPLOYEE_RATE,
+    contributorType: d.contributorType
+  });
+  const withholding = calcColombiaWithholdingTaxOrientativeCop({
+    ibc: ibcComputed,
+    uvt: d.uvtCop ?? 0,
+    healthDeduction: ded.health,
+    pensionDeduction: ded.pension,
+    dependents: 0
+  });
+  const employer = calcColombiaEmployerContributionsCop({
+    ibc: ibcComputed,
+    arlRiskLevel: d.arlRiskLevel,
+    contributorType: d.contributorType
+  });
+  const provisions = {
+    cesantias: calcColombiaCesantiasMonthlyProvisionCop(salMonthly, diasEnCorte),
+    prima: calcColombiaCesantiasMonthlyProvisionCop(salMonthly, diasEnCorte),
+    vacaciones: Math.round((Math.max(0, salMonthly) * diasEnCorte) / 720)
+  };
 
   const grossTotal =
     salarioProp + auxProp + (payPrima ? primaCop : 0) + (payInt ? interesesCop : 0);
 
-  const h = Math.round(healthDeduction);
-  const pm = Math.round(pensionDeduction);
-  const s = Math.round(solidarityDeduction);
-  const totalDeducciones = h + pm + s;
+  const h = ded.health;
+  const pm = ded.pension;
+  const s = ded.solidarity;
+  const sub = ded.subsistence;
+  const wh = withholding.withholdingCop;
+  const totalDeducciones = ded.total + wh;
   const netOrientativo = Math.round(grossTotal - totalDeducciones);
 
   const novedadesJson: Record<string, unknown> = {
@@ -504,11 +575,16 @@ export function computeColombiaPayrollForPeriodCut(d: ColombiaPayrollCutDeps): C
     interesesCesantiasAutomatico: payInt
       ? { baseCesantias: baseCes, dias360: intDays, cop: interesesCop }
       : {
-          omitidoMotivo:
-            msIx !== 0 && msIx !== 1
-              ? "Este corte no inicia en enero ni febrero; intereses de cesantías suelen parametrizarse con nómina de esos meses."
-              : "Sin variable PAYROLL_AUTOGEN_CESANTIAS_INTERES_BASE_COP o base en 0."
-        }
+          omitidoMotivo: d.cesantiasInterestAlreadyPaidInYear
+            ? "Intereses de cesantías ya liquidados en otra nómina de enero o febrero del mismo año."
+            : baseCes <= 0
+              ? "Sin variable PAYROLL_AUTOGEN_CESANTIAS_INTERES_BASE_COP o base en 0."
+              : "Este corte no es de enero ni febrero; intereses suelen parametrizarse en esos meses."
+        },
+    integralSalaryApplied: Boolean(d.integralSalary),
+    employerContributionsOrientativo: employer,
+    provisionsOrientativo: provisions,
+    withholdingOrientativo: withholding
   };
 
   return {
@@ -521,6 +597,8 @@ export function computeColombiaPayrollForPeriodCut(d: ColombiaPayrollCutDeps): C
     healthDeduction: h,
     pensionDeduction: pm,
     solidarityDeduction: s,
+    subsistenceDeduction: sub,
+    withholdingDeduction: wh,
     totalDeducciones,
     payInteresesCesantias: payInt,
     interesesCesantiasCop: interesesCop,

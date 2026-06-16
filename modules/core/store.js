@@ -65,6 +65,8 @@ export let state = {
     createdAt: null,
     updatedAt: null
   },
+  /** Bandeja de notificaciones: filtro activo (`all` | `unread` | categoría). */
+  notificationsUi: { filter: "all" },
   theme: "light",
   publicLang: "es",
   authTab: "login",
