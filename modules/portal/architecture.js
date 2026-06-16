@@ -58,7 +58,7 @@ window.PortalArchitecture = (() => {
       layoutPlan: [{ container: ".calendar-studio", order: [".fleet-hero-strip", ".calendar-shell", ".toolbar", ".p-card", ".table-wrap", ".empty-state"] }]
     },
     history: {
-      title: "Transporte · Historial y reportes",
+      title: "Historial y trazabilidad",
       access: "permission-gated",
       shell: true,
       renderer: [{ module: "transporte", exportName: "historyHtml" }],
@@ -66,16 +66,11 @@ window.PortalArchitecture = (() => {
         {
           container: ".history-studio",
           order: [
-            ".history-studio-head",
-            ".hist-shell-body",
-            ".history-module",
-            ".history-workspace-nav",
-            ".history-panel",
-            ".history-cards-grid",
-            ".history-card",
-            ".dash-grid",
-            ".p-card",
-            "[id^='create-']"
+            ".hist-trace-hero",
+            ".hist-trace-workspace",
+            ".hist-trace-feed",
+            ".hist-trace-empty",
+            ".table-wrap"
           ]
         }
       ]

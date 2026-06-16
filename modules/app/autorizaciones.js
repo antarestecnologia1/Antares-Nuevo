@@ -349,7 +349,9 @@ function bindAuthorizationsPortalControls() {
             permissions: normalizeSavedUserPermissions(
               p.role,
               p.permissions || defaultPermissionsForRole(p.role)
-            )
+            ),
+            createdAt: nowIso(),
+            registeredAt: nowIso()
           });
           try {
             await writeAwaitServer(KEYS.users, users);
@@ -431,7 +433,13 @@ function bindAuthorizationsPortalControls() {
       } else if (approval.type === "create_driver") {
         const drivers = read(KEYS.drivers, []);
         const driverRow = normalizeDriverFormPayloadForStorage({ ...approval.payload });
-        drivers.push({ id: newUuidV4(), ...driverRow, available: true, hiredAt: nowIso() });
+        const createdDriver = stampCreatedRecord({
+          id: newUuidV4(),
+          ...driverRow,
+          available: true,
+          hiredAt: nowIso()
+        });
+        drivers.push(createdDriver);
         try {
           await writeAwaitServer(KEYS.drivers, drivers);
         } catch (err) {
@@ -441,7 +449,7 @@ function bindAuthorizationsPortalControls() {
         const employees = read(KEYS.payrollEmployees, []);
         const existsEmployee = employees.some((e) => String(e.idDoc || "") === String(approval.payload.idDoc || ""));
         if (!existsEmployee) {
-          employees.push({
+          const createdEmployee = stampCreatedRecord({
             id: newUuidV4(),
             name: normalizeLatinUpperForDb(approval.payload.name),
             idDoc: approval.payload.idDoc,
@@ -459,24 +467,31 @@ function bindAuthorizationsPortalControls() {
             payFrequency: "Mensual",
             startDate: approval.payload.startDate || nowIso().slice(0, 10)
           });
+          employees.push(createdEmployee);
           try {
             await writeAwaitServer(KEYS.payrollEmployees, employees);
           } catch (err) {
             notify(String(err?.message || userMessage("genericError")), "error");
             return;
           }
+          appendPayrollEmployeeAuditLog("create", createdEmployee, {
+            summary: "CONDUCTOR · vinculado desde aprobación de conductor",
+            actor: String(actor?.email || actor?.name || "—").trim()
+          });
         }
         try {
           if (portalCanRefreshFromApi()) await applyPortalBootstrapFromApi();
         } catch (_e) {}
       } else if (approval.type === "register_hr_absence") {
-        const absences = read(KEYS.hrAbsences, []);
-        absences.unshift({
+        const absenceRow = {
           ...approval.payload,
           id: isUuidString(approval.payload?.id) ? String(approval.payload.id).trim() : newUuidV4(),
+          createdAt: String(approval.payload?.createdAt || nowIso()),
           approvedBy: actor.name,
           approvedAt: nowIso()
-        });
+        };
+        const absences = read(KEYS.hrAbsences, []);
+        absences.unshift(absenceRow);
         try {
           await writeAwaitServer(KEYS.hrAbsences, absences);
         } catch (err) {

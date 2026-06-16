@@ -234,8 +234,8 @@
       "El empleado quedó guardado, pero no se pudo sincronizar la ficha de conductor. Revise licencia y conexión, luego edite el empleado.",
     employeeContractWordOk: "Contrato Word generado. Revise la carpeta de descargas.",
     hrAbsenceDeleted: "Ausencia eliminada del expediente digital.",
-    payrollRunDeleted: "Liquidacion eliminada del historial.",
-    adminOnlyDeleteHrPayrollRecord: "Solo los administradores pueden eliminar esta novedad o liquidacion.",
+    payrollRunDeleted: "Liquidación eliminada del historial.",
+    adminOnlyDeleteHrPayrollRecord: "Solo los administradores pueden eliminar esta novedad o liquidación.",
     employeeUpdatedOk: "Empleado actualizado correctamente.",
     employeeDeletedCascade: "Empleado eliminado en cascada.",
     employeeDeleteNotFound: "No se encontró el empleado a eliminar.",
@@ -253,7 +253,7 @@
       "Ausencia registrada. Conductor en prestación de servicios: el pago es por viajes liquidados en Nómina → Calcular (viáticos y reembolsos), no por nómina laboral.",
     payrollDraftLinked: "Nómina vinculada con la novedad registrada.",
     payrollConductorTripOnly:
-      "Conductor (prestación de servicios): liquide solo viajes del periodo. No aplica salario base ni aportes de nómina.",
+      "Conductor (prestación de servicios): liquide solo viajes del período. No aplica salario base ni aportes de nómina.",
     payrollConductorUseDriverForm:
       "Los conductores en prestación de servicios se liquidan en Registrar → Pagos conductores (no en nómina laboral).",
     payrollConductorNoTrips:

@@ -28,6 +28,16 @@ function renderPayrollRunCard(run, { compact = false } = {}) {
   const paid = Boolean(run.paid);
   const stateTone = paid ? "paid" : "pending";
   const monthLabel = formatPayrollPeriodLabel(run.month);
+  const periodRange =
+    typeof formatPayrollCutRangeLabel === "function" && typeof resolvePayrollCutForClosingDate === "function"
+      ? (() => {
+          const closeYmd =
+            typeof payrollPeriodClosingDateYmd === "function" ? payrollPeriodClosingDateYmd(run.month) : "";
+          if (!closeYmd) return "";
+          const cut = resolvePayrollCutForClosingDate(closeYmd, run.payrollKind || "mensual");
+          return cut ? formatPayrollCutRangeLabel(cut) : "";
+        })()
+      : "";
   const typeLabel = payrollRunTypeLabel(run);
   const orig = String(run.liquidacionOrigin || run.origenLiquidacion || "manual").toLowerCase();
   const isDriverRun = payrollRunIsDriverTripPayment(run);
@@ -87,6 +97,7 @@ function renderPayrollRunCard(run, { compact = false } = {}) {
       <div class="payroll-run-card-identity">
         <p class="payroll-run-card-kicker">${escapeHtml(typeLabel)}</p>
         <h4 class="payroll-run-card-title">${escapeHtml(monthLabel)}</h4>
+        ${periodRange ? `<p class="payroll-run-card-period muted">${escapeHtml(periodRange)}</p>` : ""}
         <p class="payroll-run-card-employee">${escapeHtml(String(run.employeeName || "—"))}</p>
       </div>
       ${statusHtml}

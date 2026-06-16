@@ -261,7 +261,7 @@ export function classifyColombiaTerminationTaxBases({
     baseRetencion,
     auxilioNoConstitutivo: Math.max(0, parseNum(auxilioPendiente)),
     note:
-      "Seguridad social sobre salario y pagos salariales del último periodo. Retención Proc. 1 sobre salario, extras, prima y vacaciones en dinero. Cesantías, intereses e indemnizaciones excluidos de retención."
+      "Seguridad social sobre salario y pagos salariales del último período. Retención Proc. 1 sobre salario, extras, prima y vacaciones en dinero. Cesantías, intereses e indemnizaciones excluidos de retención."
   };
 }
 

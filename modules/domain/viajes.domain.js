@@ -647,7 +647,7 @@ export function recordTransportRequestModification(request, { justification, act
   appendPortalModuleAuditLog({
     action: "update",
     moduleId: "requests",
-    moduleLabel: "Solicitudes",
+    moduleLabel: "Mis solicitudes",
     entityId: String(request?.id || ""),
     entityLabel: String(request?.requestNumber || request?.id || "Solicitud"),
     summary: auditSummary,

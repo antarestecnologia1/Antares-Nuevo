@@ -1,6 +1,67 @@
 ﻿/**
- * Gestión humana — listeners post-render (indPayrollPortalControls).
+ * Gestión humana — listeners post-render (bindPayrollPortalControls).
  */
+function switchPayrollLiquidationModePanels(root, mode) {
+  if (!root) return false;
+  const tabs = [...root.querySelectorAll("[data-action='payroll-liquidation-mode']")];
+  if (!tabs.length) return false;
+  const next = String(mode || "single").toLowerCase() === "bulk" ? "bulk" : "single";
+  tabs.forEach((btn) => {
+    const active = String(btn.dataset.mode || "") === next;
+    btn.classList.toggle("is-active", active);
+    btn.setAttribute("aria-selected", active ? "true" : "false");
+  });
+  let matched = false;
+  root.querySelectorAll("[data-payroll-liquidation-pane]").forEach((pane) => {
+    const paneMode = String(pane.getAttribute("data-payroll-liquidation-pane") || "");
+    const show = paneMode === next;
+    pane.classList.toggle("hidden", !show);
+    pane.toggleAttribute("hidden", !show);
+    pane.setAttribute("aria-hidden", show ? "false" : "true");
+    if (show) matched = true;
+  });
+  const visiblePane = root.querySelector(`[data-payroll-liquidation-pane="${next}"]:not(.hidden)`);
+  if (visiblePane) {
+    window.AntaresValidation?.upgradePortalDateFields?.(visiblePane);
+    window.AntaresValidation?.resyncPortalDateValuesInRoot?.(visiblePane);
+  }
+  if (next === "bulk") wirePayrollBulkPreview();
+  return matched;
+}
+
+function wirePayrollBulkPreview() {
+  const fechaEl = document.getElementById("payroll-bulk-fecha");
+  const forceEl = document.getElementById("payroll-bulk-force");
+  const previewEl = document.getElementById("payroll-bulk-preview");
+  if (!fechaEl || !previewEl || typeof previewPayrollBulkEligibility !== "function") return;
+
+  const render = () => {
+    const fechaReferencia = readFormDateIso(document, "payroll-bulk-fecha") || String(fechaEl.value || "").trim();
+    if (!fechaReferencia) {
+      previewEl.innerHTML = "";
+      return;
+    }
+    const force = Boolean(forceEl?.checked);
+    const employees = read(KEYS.payrollEmployees, []);
+    const runs = read(KEYS.payrollRuns, []);
+    const { eligible, skipped, total, details } = previewPayrollBulkEligibility(fechaReferencia, force, employees, runs);
+    const samples = (details || [])
+      .map((d) => `<li>${escapeHtml(d.name)} · ${escapeHtml(formatPayrollPeriodLabel(d.periodKey))}</li>`)
+      .join("");
+    previewEl.innerHTML = `<div class="payroll-bulk-preview__summary">
+      <strong>${eligible}</strong> de <strong>${total}</strong> colaborador${total === 1 ? "" : "es"} recibirán liquidación
+      ${skipped > 0 ? `<span class="muted">(${skipped} omitido${skipped === 1 ? "" : "s"}: sin corte en esa fecha o ya liquidados)</span>` : ""}
+    </div>${samples ? `<ul class="payroll-bulk-preview__list">${samples}</ul>` : ""}`;
+  };
+
+  if (fechaEl.dataset.bulkPreviewBound !== "1") {
+    fechaEl.dataset.bulkPreviewBound = "1";
+    fechaEl.addEventListener("change", render);
+    forceEl?.addEventListener("change", render);
+  }
+  render();
+}
+
 function bindPayrollPortalControls() {
   if (String(state.currentView || "") !== "payroll" || !nodes.viewRoot) return;
 
@@ -168,6 +229,7 @@ function bindPayrollPortalControls() {
       const mode = String(btn.dataset.mode || "single").toLowerCase() === "bulk" ? "bulk" : "single";
       state.payrollUi = { ...(state.payrollUi || {}), liquidationMode: mode, workspace: "operate", operateSection: "payroll" };
       persistHrWorkspace("payroll", "operate");
+      if (switchPayrollLiquidationModePanels(nodes.viewRoot, mode)) return;
       renderPortalView();
     });
   });
@@ -203,7 +265,7 @@ function bindPayrollPortalControls() {
     payrollLegalForm.setAttribute("data-antares-skip-validate", "1");
     wireFormSubmitGuard(payrollLegalForm, async () => {
       if (currentUser()?.role !== ROLES.ADMIN) {
-        notify("Solo administradores pueden editar los parametros legales.", "error");
+        notify("Solo administradores pueden editar los parámetros legales.", "error");
         return;
       }
       const fd = new FormData(payrollLegalForm);
@@ -284,21 +346,21 @@ function bindPayrollPortalControls() {
             saved?.affectedPayrollRuns ? "warn" : "success"
           );
         } catch (err) {
-          notify(err?.message || "No se pudieron guardar los parametros legales.", "error");
+          notify(err?.message || "No se pudieron guardar los parámetros legales.", "error");
         }
       };
       const affectedRuns = readArray(KEYS.payrollRuns).filter((run) => String(run.month || "").startsWith(`${year}`)).length;
       if (affectedRuns > 0) {
         openConfirmModal({
           title: `Actualizar vigencia ${year}`,
-          message: `Este año ya tiene ${affectedRuns} liquidacion${affectedRuns === 1 ? "" : "es"} registradas. Confirme para actualizar las referencias legales sin borrar el historico.`,
+          message: `Este año ya tiene ${affectedRuns} liquidación${affectedRuns === 1 ? "" : "es"} registradas. Confirme para actualizar las referencias legales sin borrar el histórico.`,
           confirmText: "Guardar vigencia",
           onConfirm: submit
         });
         return;
       }
       await submit();
-    }, { busyText: "Guardando vigencia⬦" });
+    }, { busyText: "Guardando vigencia…" });
   }
 
   const runPayrollLegalDelete = async (yearLike) => {
@@ -537,7 +599,7 @@ function bindPayrollPortalControls() {
               notify(String(err?.message || userMessage("genericError")), "error");
             }
           },
-          { busyText: "Generando⬦", lockExtraButtons: employeeContractDraftLockButtons }
+          { busyText: "Generando…", lockExtraButtons: employeeContractDraftLockButtons }
         );
       });
     });
@@ -579,7 +641,7 @@ function bindPayrollPortalControls() {
         if (!canManagePayrollModule(actor)) {
           await queueApproval({
             type: "create_employee",
-            title: `Creacion de empleado ${payload.name}`,
+            title: `Creación de empleado ${payload.name}`,
             payload,
             requestedByUserId: actor?.id || "",
             requestedByName: actor?.name || "Usuario"
@@ -665,7 +727,7 @@ function bindPayrollPortalControls() {
       };
       await saveEmployee(resolvedAvatar);
     }, {
-      busyText: "Guardando empleado⬦",
+      busyText: "Guardando empleado…",
       submitButton: employeeForm.querySelector(".hr-form-wizard-submit"),
       lockExtraButtons: [
         employeeForm.querySelector("[data-hr-wizard-next]"),
@@ -978,7 +1040,7 @@ function bindPayrollPortalControls() {
             try {
               await queueApproval({
                 type: "update_employee",
-                title: `Modificacion de colaborador ${nextPayload.name}`,
+                title: `Modificación de colaborador ${nextPayload.name}`,
                 payload: {
                   employeeId: target.id,
                   ...nextPayload,
@@ -1044,7 +1106,7 @@ function bindPayrollPortalControls() {
       if (abortUnlessCanManagePayroll()) return;
       openConfirmModal({
         title: "Eliminar empleado",
-        message: "El empleado sera removido en cascada (nomina, ausencias, contratos y conductor relacionado).",
+        message: "El empleado será removido en cascada (nómina, ausencias, contratos y conductor relacionado).",
         confirmText: "Eliminar",
         onConfirm: async () => {
           const empId = String(btn.dataset.id || "");
@@ -1104,7 +1166,7 @@ function bindPayrollPortalControls() {
       }
       openConfirmModal({
         title: "Eliminar empleados seleccionados",
-        message: `Se eliminaran ${selectedIds.length} empleados en cascada (nomina, ausencias, contratos y conductores asociados).`,
+        message: `Se eliminarán ${selectedIds.length} empleados en cascada (nómina, ausencias, contratos y conductores asociados).`,
         confirmText: "Eliminar seleccionados",
         onConfirm: async () => {
           const snapshots = selectedIds
@@ -1133,6 +1195,7 @@ function bindPayrollPortalControls() {
   }
 
   const payrollBulkBtn = document.getElementById("payroll-bulk-generate");
+  wirePayrollBulkPreview();
   if (payrollBulkBtn) {
     payrollBulkBtn.addEventListener("click", async (event) => {
       event.preventDefault();
@@ -1145,7 +1208,7 @@ function bindPayrollPortalControls() {
       const forceEl = document.getElementById("payroll-bulk-force");
       const fechaReferencia = readFormDateIso(document, "payroll-bulk-fecha") || readFormDateIso(document, "fechaReferencia");
       if (!fechaReferencia) {
-        failPortalField(fechaEl?.closest("form") || nodes.viewRoot, fechaEl || "fechaReferencia", "Indique una fecha de cierre válida (DD/MM/AAAA).");
+        failPortalField(document.getElementById("form-payroll-bulk") || fechaEl?.closest("form") || nodes.viewRoot, fechaEl || "fechaReferencia", "Indique una fecha de cierre válida (DD/MM/AAAA).");
         return;
       }
       const force = Boolean(forceEl?.checked);
@@ -1153,7 +1216,7 @@ function bindPayrollPortalControls() {
       const busyOrig = busyLabel?.textContent || "";
       payrollBulkBtn.disabled = true;
       payrollBulkBtn.setAttribute("aria-busy", "true");
-      if (busyLabel) busyLabel.textContent = "Generando⬦";
+      if (busyLabel) busyLabel.textContent = "Generando…";
       try {
         const result = await postPortalAuthorized("/payroll/autogenerate-period", {
           fechaReferencia,
@@ -1196,8 +1259,10 @@ function bindPayrollPortalControls() {
         failPortalField(payrollForm, "employeeId", userMessage("contractPickEmployee"));
         return;
       }
-      if (!monthRange(data.month)) {
-        failPortalField(payrollForm, "month", userMessage("payrollSelectMonth"));
+      const fechaCierre =
+        readFormDateIso(document, "payroll-fecha-cierre") || String(data.fechaCierre || "").trim();
+      if (!fechaCierre) {
+        failPortalField(payrollForm, "fechaCierre", "Indique la fecha de cierre del período (día 15, fin de mes, etc.).");
         return;
       }
 
@@ -1207,17 +1272,44 @@ function bindPayrollPortalControls() {
       }
 
       const payFreqNorm = normalizePayrollFrequencyJs(employee.payFrequency);
-      const periodKey = buildPayrollPeriodKeyFromForm(data.month, employee.payFrequency, data.payrollQuincena);
-      const payrollKind = payFreqNorm === "mensual" ? "mensual" : payFreqNorm;
-      const diasCorte = payrollDaysInManualCut(data.month, employee.payFrequency, data.payrollQuincena);
       const existingPayrollRuns = read(KEYS.payrollRuns, []);
+      const existingPeriodKeys = existingPayrollRuns
+        .filter((r) => String(r.employeeId || "") === String(employee.id || ""))
+        .map((r) => String(r.month || ""));
+      const cut = resolvePayrollCutForClosingDate(fechaCierre, payFreqNorm, { existingPeriodKeys });
+      if (!cut) {
+        const hint = payrollClosingDatesHint(payFreqNorm);
+        failPortalField(
+          payrollForm,
+          "fechaCierre",
+          `La fecha no es un día de cierre válido para nómina ${String(employee.payFrequency || "Mensual")}. Use ${hint}.`
+        );
+        return;
+      }
+      if (existingPeriodKeys.includes(cut.periodKey)) {
+        failPortalField(
+          payrollForm,
+          "fechaCierre",
+          `Ya existe una liquidación (${payrollRunTypeLabel({ payrollKind: payFreqNorm, month: cut.periodKey })}) para este empleado y período.`
+        );
+        return;
+      }
+
+      const dataMonth = cut.calendarMonthYm;
+      const periodKey = cut.periodKey;
+      const payrollKind = payFreqNorm === "mensual" ? "mensual" : payFreqNorm;
+      const diasCorte = payrollDaysInManualCut(
+        dataMonth,
+        employee.payFrequency,
+        /-Q2$/i.test(periodKey) ? "Q2" : "Q1"
+      );
       const primaRequested = Boolean(data.payPrimaServicios);
       const interesesRequested = Boolean(data.payInteresesCesantias);
       let payPrima = false;
       if (primaRequested) {
         const primaCheck = payrollValidatePrimaForManualCut({
           employeeId: employee.id,
-          calendarMonthYm: data.month,
+          calendarMonthYm: dataMonth,
           periodKey,
           payFrequency: employee.payFrequency,
           existingRuns: existingPayrollRuns
@@ -1228,15 +1320,15 @@ function bindPayrollPortalControls() {
         }
         payPrima = true;
       }
-      if (payPrima && !payrollMonthIsPrimaSemester(data.month)) {
-        failPortalField(payrollForm, "month", "La prima de servicios solo se parametriza cuando el mes liquidado es junio (06) o diciembre (12).");
+      if (payPrima && !payrollMonthIsPrimaSemester(dataMonth)) {
+        failPortalField(payrollForm, "fechaCierre", "La prima de servicios solo se parametriza cuando el mes liquidado es junio (06) o diciembre (12).");
         return;
       }
       let payInteresesCesantias = false;
       if (interesesRequested) {
         const intCheck = payrollValidateCesantiasInterestForManualCut({
           employeeId: employee.id,
-          calendarMonthYm: data.month,
+          calendarMonthYm: dataMonth,
           periodKey,
           payFrequency: employee.payFrequency,
           existingRuns: existingPayrollRuns
@@ -1247,10 +1339,10 @@ function bindPayrollPortalControls() {
         }
         payInteresesCesantias = true;
       }
-      if (payInteresesCesantias && !payrollMonthIsCesantiasInterestMonth(data.month)) {
+      if (payInteresesCesantias && !payrollMonthIsCesantiasInterestMonth(dataMonth)) {
         failPortalField(
           payrollForm,
-          "month",
+          "fechaCierre",
           "Los intereses sobre cesantías (Ley 52/1975) solo se parametrizan cuando el mes liquidado es enero (01) o febrero (02), períodos donde suele consignarse o pagarse ese concepto cercano al cierre legal de enero. Ajuste con su contador."
         );
         return;
@@ -1285,11 +1377,11 @@ function bindPayrollPortalControls() {
         interesesCesantiasCop = calcColombiaInteresesCesantiasCop(cesantiasInterestBaseCop, cesantiasInterestDays);
       }
       const linkedDriver = employee.workerRole === "conductor" ? resolveDriverForEmployee(employee) : null;
-      const monthlyDriver = linkedDriver ? calculateDriverTripReport(linkedDriver.id, data.month) : null;
+      const monthlyDriver = linkedDriver ? calculateDriverTripReport(linkedDriver.id, dataMonth) : null;
       let autoTravelAllowance = monthlyDriver ? monthlyDriver.viaticTotal : 0;
       let autoFuelReimbursement = linkedDriver
         ? readFuelLogs()
-            .filter((log) => String(log.driverId || "") === String(linkedDriver.id) && String(log.paidBy || "empresa") === "conductor" && dateInRange(log.date, monthRange(data.month)))
+            .filter((log) => String(log.driverId || "") === String(linkedDriver.id) && String(log.paidBy || "empresa") === "conductor" && dateInRange(log.date, monthRange(dataMonth)))
             .reduce((acc, log) => acc + parseNum(log.totalCost), 0)
         : 0;
       if (payFreqNorm === "quincenal" && diasCorte < 30) {
@@ -1317,7 +1409,7 @@ function bindPayrollPortalControls() {
       const payrollAbsencesAll = read(KEYS.hrAbsences, []);
       const incapacityCalc = computePayrollIncapacityColombiaForMonth({
         employee,
-        liquidacionMonthYm: data.month,
+        liquidacionMonthYm: dataMonth,
         absencesAll: payrollAbsencesAll
       });
       const incapacityAdjustCop = parseNum(incapacityCalc.adjustCop);
@@ -1355,8 +1447,8 @@ function bindPayrollPortalControls() {
       const absenceSlipDetail = {
         rows: buildPayrollAbsenceSlipRowsForPeriod({
           employeeId: employee.id,
-          periodStart: monthRange(data.month)?.start,
-          periodEnd: monthRange(data.month)?.end,
+          periodStart: cut.periodStart,
+          periodEnd: cut.periodEnd,
           absencesAll: payrollAbsencesAll
         })
       };
@@ -1403,7 +1495,7 @@ function bindPayrollPortalControls() {
         failPortalField(
           payrollForm,
           "month",
-          `Ya existe una liquidación (${payrollRunTypeLabel({ payrollKind, month: periodKey })}) para este empleado y periodo.`
+          `Ya existe una liquidación (${payrollRunTypeLabel({ payrollKind, month: periodKey })}) para este empleado y período.`
         );
         return;
       }
@@ -1635,7 +1727,7 @@ function bindPayrollPortalControls() {
       };
       const runs = read(KEYS.payrollRuns, []);
       if (payrollRunAlreadyExists(runs, employee.id, data.month, "terminacion")) {
-        failPortalField(settlementForm, "month", "Ya existe una liquidación de terminación para este empleado y periodo.");
+        failPortalField(settlementForm, "month", "Ya existe una liquidación de terminación para este empleado y período.");
         return;
       }
       runs.unshift(run);
@@ -1777,7 +1869,7 @@ function bindPayrollPortalControls() {
       } else {
         const linesFromRun = resolvePayrollDevengosLines(run);
         const baseInt = parseNum(run.cesantiasInterestBaseCop);
-        const diasInt = run.cesantiasInterestDays != null ? run.cesantiasInterestDays : "�";
+        const diasInt = run.cesantiasInterestDays != null ? run.cesantiasInterestDays : "—";
         const intLabel =
           baseInt > 0
             ? `Intereses sobre cesantías (${CO_CESANTIAS_INTERES_ANUAL_PCT}% anual Ley 52/1975; base ref. ${fmtPay(baseInt)}, ${diasInt} días/360)`
@@ -1797,7 +1889,7 @@ function bindPayrollPortalControls() {
               let labelHtml = escapeHtml(cleanSlipText(String(L.label || L.code || "Concepto")));
               if (L.code === "PRIMA_SERVICIOS") {
                 labelHtml = escapeHtml(
-                  `Prima de servicios semestral (CST arts. 244�249 � ${run.primaServiciosDays ?? "�"} días semestre)`
+                  `Prima de servicios semestral (CST arts. 244–249 — ${run.primaServiciosDays ?? "—"} días semestre)`
                 );
               }
               if (L.code === "INT_CESANTIAS" && parseNum(L.amount) > 0) {
@@ -1809,7 +1901,7 @@ function bindPayrollPortalControls() {
               return `<tr><td style="${cL}">${labelHtml}</td><td style="${cR}">${fmtPay(L.amount)}</td></tr>`;
             })
             .join("");
-          devRowsMes += `<tr><td style="${cL}"><strong>Total devengos del periodo</strong></td><td style="${cR}"><strong>${fmtPay(run.gross)}</strong></td></tr>`;
+          devRowsMes += `<tr><td style="${cL}"><strong>Total devengos del período</strong></td><td style="${cR}"><strong>${fmtPay(run.gross)}</strong></td></tr>`;
         } else {
           const ex = parseNum(run.extras);
           const au = parseNum(run.aux);
@@ -1834,19 +1926,19 @@ function bindPayrollPortalControls() {
             `<tr><td style="${cL}">Viáticos y anticipos de viaje (reintegro / no salario)</td><td style="${cR}">${fmtPay(via)}</td></tr>` +
             `<tr><td style="${cL}">Reembolso combustible y gastos de ruta deducibles</td><td style="${cR}">${fmtPay(comb)}</td></tr>` +
             (prima > 0
-              ? `<tr><td style="${cL}">Prima de servicios semestral (CST arts. 244�249 � ${run.primaServiciosDays ?? "�"} días semestre)</td><td style="${cR}">${fmtPay(prima)}</td></tr>`
+              ? `<tr><td style="${cL}">Prima de servicios semestral (CST arts. 244–249 — ${run.primaServiciosDays ?? "—"} días semestre)</td><td style="${cR}">${fmtPay(prima)}</td></tr>`
               : "") +
             (intCe > 0 ? `<tr><td style="${cL}">${escapeHtml(intLabel)}</td><td style="${cR}">${fmtPay(intCe)}</td></tr>` : "") +
-            `<tr><td style="${cL}"><strong>Total devengos del periodo</strong></td><td style="${cR}"><strong>${fmtPay(run.gross)}</strong></td></tr>`;
+            `<tr><td style="${cL}"><strong>Total devengos del período</strong></td><td style="${cR}"><strong>${fmtPay(run.gross)}</strong></td></tr>`;
         }
 
         const isTripPrestacion = payrollRunFrequencyKind(run) === "prestacion_viajes";
         const dedRowsMes = isTripPrestacion
           ? `<tr><td style="${cL}" colspan="2">Prestación de servicios: sin aportes de salud, pensión ni FSP en este comprobante (pago por viajes).</td></tr>` +
             `<tr><td style="${cL}"><strong>Total deducciones</strong></td><td style="${cR}"><strong>${fmtPay(run.deductions)}</strong></td></tr>`
-          : `<tr><td style="${cL}">Salario integral de cotización � IBC (base aportes empleador/empleado)</td><td style="${cR}">${fmtPay(run.ibc)}</td></tr>` +
-            `<tr><td style="${cL}">Aporte obligatorio salud � empleado (${(CO_PAYROLL.healthEmployeeRate * 100).toFixed(2).replace(/\.00$/, "")}% sobre IBC)</td><td style="${cR}">${fmtPay(run.health)}</td></tr>` +
-            `<tr><td style="${cL}">Aporte pensión obligatoria � empleado (${(CO_PAYROLL.pensionEmployeeRate * 100).toFixed(2).replace(/\.00$/, "")}% sobre IBC)</td><td style="${cR}">${fmtPay(run.pension)}</td></tr>` +
+          : `<tr><td style="${cL}">Salario integral de cotización — IBC (base aportes empleador/empleado)</td><td style="${cR}">${fmtPay(run.ibc)}</td></tr>` +
+            `<tr><td style="${cL}">Aporte obligatorio salud — empleado (${(CO_PAYROLL.healthEmployeeRate * 100).toFixed(2).replace(/\.00$/, "")}% sobre IBC)</td><td style="${cR}">${fmtPay(run.health)}</td></tr>` +
+            `<tr><td style="${cL}">Aporte pensión obligatoria — empleado (${(CO_PAYROLL.pensionEmployeeRate * 100).toFixed(2).replace(/\.00$/, "")}% sobre IBC)</td><td style="${cR}">${fmtPay(run.pension)}</td></tr>` +
             `<tr><td style="${cL}">Fondo de solidaridad pensional FSP (cuando aplique rangos Ley 797/2003)</td><td style="${cR}">${fmtPay(run.solidarity)}</td></tr>` +
             `<tr><td style="${cL}"><strong>Total deducciones al empleado</strong></td><td style="${cR}"><strong>${fmtPay(run.deductions)}</strong></td></tr>`;
         const workedDaysRows =
@@ -1873,7 +1965,7 @@ function bindPayrollPortalControls() {
       }
       const docTitle =
         isTerm && run.settlementDetail && typeof run.settlementDetail === "object"
-          ? `Liquidacion contractual ${run.employeeName}`
+          ? `Liquidación contractual ${run.employeeName}`
           : `Desprendible ${run.employeeName}`;
       const h1Title = isTerm ? "Liquidación contractual" : "Desprendible de nómina";
       let metaExtra = "";
@@ -2022,7 +2114,7 @@ function bindPayrollPortalControls() {
         try {
           await queueApproval({
             type: "mark_payroll_paid",
-            title: `Aprobar pago de nomina ${run.employeeName} (${run.month})`,
+            title: `Aprobar pago de nómina ${run.employeeName} (${run.month})`,
             payload: { payrollRunId: run.id, employeeName: run.employeeName, month: run.month },
             requestedByUserId: actor?.id || "",
             requestedByName: actor?.name || "Usuario"
@@ -2038,8 +2130,8 @@ function bindPayrollPortalControls() {
         return;
       }
       openConfirmModal({
-        title: "Confirmar pago de nomina",
-        message: `Marcar como pagada la liquidacion de ${run.employeeName} (${run.month}) por ${parseNum(run.net).toLocaleString("es-CO")} COP neto.`,
+        title: "Confirmar pago de nómina",
+        message: `Marcar como pagada la liquidación de ${run.employeeName} (${run.month}) por ${parseNum(run.net).toLocaleString("es-CO")} COP neto.`,
         confirmText: "Marcar pagado",
         onConfirm: async () => {
           try {
@@ -2087,7 +2179,7 @@ function bindPayrollPortalControls() {
             summary: removed
               ? `Ausencia eliminada (${String(removed.employeeName || "Colaborador")} · ${String(removed.startDate || "-")} a ${String(removed.endDate || "-")}). Motivo: ${String(motivo || "").trim()}`
               : `Ausencia eliminada. Motivo: ${String(motivo || "").trim()}`,
-            actor: String(currentUser()?.email || currentUser()?.name || "�").trim()
+            actor: String(currentUser()?.email || currentUser()?.name || "—").trim()
           });
           if (removed?.employeeId) {
             await refreshPayrollDraftsLinked(removed.employeeId, removed.startDate, removed.endDate, {
@@ -2111,11 +2203,11 @@ function bindPayrollPortalControls() {
       if (!id) return;
       const run = read(KEYS.payrollRuns, []).find((r) => String(r.id) === id);
       openConfirmReasonModal({
-        title: "Eliminar liquidacion",
+        title: "Eliminar liquidación",
         message: run
-          ? `Eliminar el registro de liquidacion (${run.month} · ${run.employeeName}). Indique la justificación. Solo administradores; no hay deshacer automatico si ya se sincrono con servidor.`
-          : "Eliminar este registro de liquidacion.",
-        confirmText: "Eliminar liquidacion",
+          ? `Eliminar el registro de liquidación (${run.month} · ${run.employeeName}). Indique la justificación. Solo administradores; no hay deshacer automático si ya se sincronó con servidor.`
+          : "Eliminar este registro de liquidación.",
+        confirmText: "Eliminar liquidación",
         onConfirm: async (motivo) => {
           const ok = await removeFromPortalListAwaitServer(KEYS.payrollRuns, id);
           if (!ok) return;
@@ -2130,7 +2222,7 @@ function bindPayrollPortalControls() {
             summary: run
               ? `Liquidación eliminada (${String(run.month || "-")} · ${String(run.employeeName || "Colaborador")}). Motivo: ${String(motivo || "").trim()}`
               : `Liquidación eliminada. Motivo: ${String(motivo || "").trim()}`,
-            actor: String(currentUser()?.email || currentUser()?.name || "�").trim()
+            actor: String(currentUser()?.email || currentUser()?.name || "—").trim()
           });
           notify(userMessage("payrollRunDeleted"), "success");
           renderPortalView();
@@ -2214,7 +2306,7 @@ function bindPayrollPortalControls() {
 
   const renderDetailRows = portalDetailRenderRows;
   const buildDetailGrid = portalDetailBuildGrid;
-  const fmtDateOr = (val, fallback = "�") => {
+  const fmtDateOr = (val, fallback = "—") => {
     const y = normalizePortalDateYmd(val);
     return y ? escapeHtml(y) : fallback;
   };
@@ -2241,7 +2333,7 @@ function bindPayrollPortalControls() {
             ["Fin", fmtDateOr(a.endDate)],
             ["Días calendario", String(parseNum(a.days || 0))],
             ["Días reconocidos", payrollFormatAbsenceQuantity(a.recognizedDays ?? a.days)],
-            ["Soporte (NÂ°)", escapeHtml(String(a.supportNumber || "-"))],
+            ["Soporte (N°)", escapeHtml(String(a.supportNumber || "-"))],
             ["Entidad/EPS/ARL", escapeHtml(String(a.epsEntity || "-"))],
             ["Registrado", fmtDateOr(a.createdAt)]
           ])
@@ -2298,7 +2390,7 @@ function bindPayrollPortalControls() {
             type: "custom",
             html: `<p class="full muted" data-absence-recognition-hint style="margin:0;font-size:0.82rem"></p>`
           },
-          { name: "supportNumber", label: "NÂ° soporte / radicado", value: target.supportNumber || "" },
+          { name: "supportNumber", label: "N° soporte / radicado", value: target.supportNumber || "" },
           { name: "epsEntity", label: "EPS / ARL / entidad", value: target.epsEntity || "" },
           {
             type: "custom",

@@ -77,11 +77,25 @@ export function wireModalDismiss(content, close, opts = {}) {
   }
 }
 
+function isHrWizardFieldVisible(el, stepEl) {
+  if (!el || el.disabled) return false;
+  let node = el.parentElement;
+  while (node && node !== stepEl) {
+    if (node.hidden) return false;
+    if (node.classList?.contains("hidden")) return false;
+    if (node.classList?.contains("emp-contract-duration-branch") && (node.hidden || node.classList.contains("hidden"))) {
+      return false;
+    }
+    node = node.parentElement;
+  }
+  return true;
+}
+
 export function hrWizardValidityTargets(stepEl) {
   if (!stepEl) return [];
   return [...stepEl.querySelectorAll("input, select, textarea")].filter((el) => {
     if (el.disabled || el.type === "hidden") return false;
-    return true;
+    return isHrWizardFieldVisible(el, stepEl);
   });
 }
 
@@ -577,6 +591,7 @@ export function bindHrFormWizard(form) {
       const on = i === idx;
       d.classList.toggle("is-active", on);
       d.classList.toggle("is-done", i < idx);
+      d.setAttribute("aria-selected", on ? "true" : "false");
       if (on) d.setAttribute("aria-current", "step");
       else d.removeAttribute("aria-current");
     });

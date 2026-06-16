@@ -1176,10 +1176,10 @@ export function payrollValidateAbsenceLegalRules({
     }
   }
   if (typeKey === "vacaciones" && recognized > businessDays) {
-    return { ok: false, message: "En vacaciones los días reconocidos no pueden superar los días hábiles del periodo." };
+    return { ok: false, message: "En vacaciones los días reconocidos no pueden superar los días hábiles del período." };
   }
   if ((typeKey === "incapacidad_eps" || typeKey === "incapacidad_arl") && recognized > calendarDays) {
-    return { ok: false, message: "En incapacidades los días reconocidos no pueden superar los días calendario del periodo." };
+    return { ok: false, message: "En incapacidades los días reconocidos no pueden superar los días calendario del período." };
   }
   return { ok: true, message: "" };
 }
@@ -1216,6 +1216,7 @@ export function wireHrAbsenceFormBehavior(form) {
     const showSubtype = payrollGetAbsenceSubtypeOptions(typeEl.value).length > 0;
     if (subtypeWrap) {
       subtypeWrap.classList.toggle("hidden", !showSubtype);
+      subtypeWrap.toggleAttribute("hidden", !showSubtype);
       subtypeWrap.setAttribute("aria-hidden", showSubtype ? "false" : "true");
     }
     subtypeEl.required = showSubtype;
@@ -1444,7 +1445,7 @@ export function computePayrollIncapacityColombiaForMonth({ employee, liquidacion
         adjustCop: ded,
         label: payrollAbsenceTypeLabel(ab.absenceType || ab.type),
         rangeLabel: `${payrollFmtYmdLocal(ov.s)} → ${payrollFmtYmdLocal(ov.e)}`,
-        note: "Licencia no remunerada: descuento orientativo de salario por días del periodo (salario÷30)."
+        note: "Licencia no remunerada: descuento orientativo de salario por días del período (salario÷30)."
       });
       continue;
     }
@@ -1468,7 +1469,7 @@ export function computePayrollIncapacityColombiaForMonth({ employee, liquidacion
         label: `${cl.label}`,
         rangeLabel: `${payrollFmtYmdLocal(ov.s)} → ${payrollFmtYmdLocal(ov.e)}`,
         note:
-          "Incapacidad laboral / ARL: descuento orientativo del salario por días en el periodo (pago a cargo de ARL según calificación). Validar dictamen y resolución."
+          "Incapacidad laboral / ARL: descuento orientativo del salario por días en el período (pago a cargo de ARL según calificación). Validar dictamen y resolución."
       });
       continue;
     }
@@ -1503,4 +1504,37 @@ export function computePayrollIncapacityColombiaForMonth({ employee, liquidacion
   }
 
   return { adjustCop: Math.round(salarioAjuste), episodes, smmlv };
+}
+
+export {
+  resolvePayrollCutForClosingDate,
+  formatPayrollCutRangeLabel,
+  payrollClosingDatesHint,
+  liquidationCutIfClosingToday,
+  liquidationLatestPendingCutAsOf,
+  parseIsoDateParts
+} from "./payroll-cut.domain.js";
+
+/** Vista previa cliente: cuántos colaboradores recibirían liquidación en cascada. */
+export function previewPayrollBulkEligibility(fechaReferencia, force, employees = [], runs = []) {
+  const nominaEmployees = listPayrollNominaEmployees(employees);
+  let eligible = 0;
+  let skipped = 0;
+  const details = [];
+  for (const emp of nominaEmployees) {
+    const freq = normalizePayrollFrequencyJs(emp.payFrequency);
+    const existing = (Array.isArray(runs) ? runs : [])
+      .filter((r) => String(r.employeeId || "") === String(emp.id || ""))
+      .map((r) => String(r.month || ""));
+    const cut = resolvePayrollCutForClosingDate(fechaReferencia, freq, { force, existingPeriodKeys: existing });
+    if (!cut || existing.includes(cut.periodKey)) {
+      skipped += 1;
+      continue;
+    }
+    eligible += 1;
+    if (details.length < 5) {
+      details.push({ name: String(emp.name || "Colaborador"), periodKey: cut.periodKey });
+    }
+  }
+  return { eligible, skipped, total: nominaEmployees.length, details };
 }

@@ -187,6 +187,30 @@ export function monthRange(month) {
   return null;
 }
 
+/** Fecha civil de cierre (YYYY-MM-DD) inferida desde `periodo_mes`. */
+export function payrollPeriodClosingDateYmd(periodKey) {
+  const key = String(periodKey || "").trim();
+  const ym = payrollPeriodCalendarYm(key);
+  if (!/^\d{4}-\d{2}$/.test(ym)) return "";
+  const [y, m] = ym.split("-").map(Number);
+  const ld = new Date(y, m, 0).getDate();
+  if (/-Q1$/i.test(key)) return `${ym}-15`;
+  if (/-Q2$/i.test(key)) return `${ym}-${pad2(ld)}`;
+  if (/-C1$/i.test(key)) return `${ym}-14`;
+  if (/-C2$/i.test(key)) return `${ym}-${pad2(ld)}`;
+  const sm = key.match(/-S(\d+)$/i);
+  if (sm) {
+    const seg = Number(sm[1]);
+    const end = Math.min((seg - 1) * 7 + 7, ld);
+    return `${ym}-${pad2(end)}`;
+  }
+  return `${ym}-${pad2(ld)}`;
+}
+
+function pad2(n) {
+  return String(n).padStart(2, "0");
+}
+
 export function formatPayrollPeriodLabel(periodKey) {
   const key = String(periodKey || "").trim();
   if (!key) return "—";
@@ -196,13 +220,18 @@ export function formatPayrollPeriodLabel(periodKey) {
     const [y, m] = ym.split("-").map(Number);
     monthTitle = new Date(y, m - 1, 15).toLocaleDateString("es-CO", { month: "long", year: "numeric" });
   }
-  if (/-Q1$/i.test(key)) return `${monthTitle} · 1ª quincena`;
-  if (/-Q2$/i.test(key)) return `${monthTitle} · 2ª quincena`;
-  if (/-C1$/i.test(key)) return `${monthTitle} · 1.er catorcenio`;
-  if (/-C2$/i.test(key)) return `${monthTitle} · 2.º catorcenio`;
+  const closeYmd = payrollPeriodClosingDateYmd(key);
+  const closeLabel = closeYmd
+    ? new Date(`${closeYmd}T12:00:00`).toLocaleDateString("es-CO", { day: "numeric", month: "short", year: "numeric" })
+    : "";
+  const closeSuffix = closeLabel ? ` · cierre ${closeLabel}` : "";
+  if (/-Q1$/i.test(key)) return `${monthTitle} · 1ª quincena${closeSuffix}`;
+  if (/-Q2$/i.test(key)) return `${monthTitle} · 2ª quincena${closeSuffix}`;
+  if (/-C1$/i.test(key)) return `${monthTitle} · 1.er catorcenio${closeSuffix}`;
+  if (/-C2$/i.test(key)) return `${monthTitle} · 2.º catorcenio${closeSuffix}`;
   const sm = key.match(/-S(\d+)$/i);
-  if (sm) return `${monthTitle} · semana ${sm[1]}`;
-  return key;
+  if (sm) return `${monthTitle} · semana ${sm[1]}${closeSuffix}`;
+  return `${monthTitle}${closeSuffix}`;
 }
 
 export function normalizeHrWorkspace(moduleId, workspace) {

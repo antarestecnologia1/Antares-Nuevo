@@ -527,6 +527,53 @@
   background: rgba(var(--primary-rgb), 0.04);
 }
 
+.payroll-studio .payroll-bulk-preview {
+  margin: 0.65rem 0 0.85rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: var(--pay-radius-sm);
+  background: rgba(var(--primary-rgb), 0.06);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.payroll-studio .payroll-bulk-preview__list {
+  margin: 0.45rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.8rem;
+}
+
+.payroll-studio .payroll-period-preview {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.payroll-studio .payroll-period-preview__card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--pay-radius-sm);
+  border: 1px solid rgba(var(--primary-rgb), 0.22);
+  background: rgba(var(--primary-rgb), 0.05);
+  font-size: 0.84rem;
+}
+
+.payroll-studio .payroll-period-preview--warn .payroll-period-preview__warn {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--warn-text, #9a6700);
+}
+
+.payroll-studio .payroll-run-card-period {
+  margin: 0.15rem 0 0;
+  font-size: 0.78rem;
+}
+
+.payroll-studio .payroll-liquidation-pane.hidden {
+  display: none !important;
+}
+
 .payroll-studio .payroll-legal-panel {
   border-radius: var(--pay-radius-sm);
 }
@@ -548,7 +595,7 @@
   border: 1px solid var(--pay-edge-strong);
   background: var(--pay-card);
   box-shadow: var(--pay-shadow);
-  overflow: hidden;
+  overflow: visible;
 }
 
 /* Cabecera del wizard */
@@ -561,6 +608,8 @@
   padding: 1.1rem 1.25rem;
   background: linear-gradient(135deg, var(--pay-navy) 0%, var(--pay-navy-mid) 62%, var(--primary-dark, #2a6399) 100%);
   color: #e8f2fc;
+  overflow: hidden;
+  border-radius: var(--pay-radius) var(--pay-radius) 0 0;
 }
 
 .payroll-studio #form-employee .payroll-wizard__eyebrow {
@@ -732,14 +781,12 @@
   box-shadow: var(--pay-shadow-sm);
 }
 
-.payroll-studio #form-employee .form-section-blue,
-.payroll-studio #form-employee .form-section-cyan,
-.payroll-studio #form-employee .form-section-violet,
-.payroll-studio #form-employee .form-section-emerald,
-.payroll-studio #form-employee .form-section-amber,
-.payroll-studio #form-employee .form-section-rose {
-  border-top-color: var(--pay-blue);
-}
+.payroll-studio #form-employee .form-section-blue { border-top-color: var(--primary, #377cc0); }
+.payroll-studio #form-employee .form-section-cyan { border-top-color: var(--brand-blue-mid, #5b9fd4); }
+.payroll-studio #form-employee .form-section-violet { border-top-color: var(--primary-dark, #2a6399); }
+.payroll-studio #form-employee .form-section-emerald { border-top-color: #10b981; }
+.payroll-studio #form-employee .form-section-amber { border-top-color: #f59e0b; }
+.payroll-studio #form-employee .form-section-rose { border-top-color: #f43f5e; }
 
 .payroll-studio #form-employee .form-section legend {
   display: flex;
@@ -861,6 +908,8 @@
   border-radius: 0;
   background: var(--pay-surface);
   box-shadow: none;
+  position: relative;
+  z-index: 3;
 }
 
 .payroll-studio #form-employee .hr-form-wizard-footer-nav {

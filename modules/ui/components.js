@@ -627,6 +627,7 @@ export function switchModuleTabPanels({
       const panelVal = panel.getAttribute(name);
       const show = String(panelVal) === String(activeValue);
       panel.classList.toggle(panelHiddenClass, !show);
+      panel.setAttribute("aria-hidden", show ? "false" : "true");
       if (show) panel.classList.add("tab-switch-instant");
     });
   });

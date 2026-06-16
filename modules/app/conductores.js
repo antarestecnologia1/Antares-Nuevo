@@ -500,7 +500,7 @@ function driversHtml() {
         const employees = read(KEYS.payrollEmployees, []);
         const existsEmployee = employees.some((e) => String(e.idDoc || "") === String(data.idDoc || ""));
         if (!existsEmployee) {
-          employees.push({
+          const createdEmployee = stampCreatedRecord({
             id: newUuidV4(),
             name: driverPayload.name || normalizeLatinUpperForDb(data.name),
             idDoc: data.idDoc,
@@ -519,8 +519,12 @@ function driversHtml() {
             baseSalary: parseNum(data.baseSalary),
             startDate: data.startDate || nowIso().slice(0, 10)
           });
+          employees.push(createdEmployee);
           try {
             await writeAwaitServer(KEYS.payrollEmployees, employees);
+            appendPayrollEmployeeAuditLog("create", createdEmployee, {
+              summary: "CONDUCTOR · vinculado al crear conductor en flota"
+            });
           } catch (err) {
             notify(String(err?.message || "Conductor guardado; no fue posible crear el vínculo de empleado en el servidor."), "error");
           }

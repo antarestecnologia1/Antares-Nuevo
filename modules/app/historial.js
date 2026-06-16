@@ -1,8 +1,7 @@
 /**
- * Transporte · Historial (`history`): HTML y listeners del módulo.
- * Carga con `defer` después de `app.js`.
+ * Transporte · Historial (`history`): trazabilidad unificada del portal.
  */
-const HISTORY_RENDER_WINDOW = 40;
+const HISTORY_RENDER_WINDOW = 50;
 
 function normalizeHistoryLayout(raw) {
   return String(raw || "").trim().toLowerCase() === "list" ? "list" : "cards";
@@ -10,9 +9,9 @@ function normalizeHistoryLayout(raw) {
 
 function historyViewToggleHtml(layout) {
   const viewLayout = normalizeHistoryLayout(layout);
-  return `<div class="transport-ops-layout hist-view-toggle" role="group" aria-label="Vista del historial">
-    <button type="button" class="btn btn-sm ${viewLayout === "cards" ? "btn-primary" : "btn-outline"}" data-action="history-layout" data-layout="cards">${IC.grid || IC.layers} Tarjetas</button>
-    <button type="button" class="btn btn-sm ${viewLayout === "list" ? "btn-primary" : "btn-outline"}" data-action="history-layout" data-layout="list">${IC.list || IC.file} Lista</button>
+  return `<div class="hist-trace-layout-toggle" role="group" aria-label="Formato de visualización">
+    <button type="button" class="btn btn-sm ${viewLayout === "cards" ? "btn-primary" : "btn-outline"}" data-action="history-layout" data-layout="cards">${IC.grid || IC.layers} Línea de tiempo</button>
+    <button type="button" class="btn btn-sm ${viewLayout === "list" ? "btn-primary" : "btn-outline"}" data-action="history-layout" data-layout="list">${IC.list || IC.file} Tabla</button>
   </div>`;
 }
 
@@ -27,293 +26,361 @@ function historyRenderWindowSlice(list, limit) {
 
 function historyRenderWindowMoreBar(total, shown, action) {
   if (total <= shown) return "";
-  return `<div class="render-window-more hist-render-more"><button type="button" class="btn btn-outline btn-sm" data-action="${escapeAttr(action)}">${IC.chevronDown || ""} Ver más · ${shown} de ${total}</button></div>`;
+  return `<div class="render-window-more hist-trace-more"><button type="button" class="btn btn-outline btn-sm" data-action="${escapeAttr(action)}">${IC.chevronDown || ""} Cargar más · ${shown} de ${total}</button></div>`;
 }
 
-function renderHistoryModuleHead(counts) {
-  const kpis = [
-    { label: "Registros", value: counts.all, tone: "neutral" },
-    { label: "Cerradas", value: counts.closed, tone: "ok" },
-    { label: "En operación", value: counts.active, tone: counts.active ? "warn" : "ok" },
-    { label: "Pend. viaje", value: counts.pending, tone: counts.pending ? "warn" : "ok" }
+function historyTraceHaystack(entry) {
+  return `${entry?.moduleLabel || ""} ${entry?.entityLabel || ""} ${entry?.summary || ""} ${entry?.actor || ""} ${entry?.action || ""}`
+    .toLowerCase();
+}
+
+function historyTraceDayKey(ts) {
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return "";
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function historyTraceDayLabel(dayKey) {
+  if (!dayKey) return "Sin fecha";
+  const [y, m, d] = dayKey.split("-").map(Number);
+  const date = new Date(y, (m || 1) - 1, d || 1);
+  if (Number.isNaN(date.getTime())) return dayKey;
+  const today = new Date();
+  const todayKey = historyTraceDayKey(today.toISOString());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayKey = historyTraceDayKey(yesterday.toISOString());
+  if (dayKey === todayKey) return "Hoy";
+  if (dayKey === yesterdayKey) return "Ayer";
+  return date.toLocaleDateString("es-CO", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+}
+
+function groupHistoryTraceByDay(entries) {
+  const map = new Map();
+  for (const entry of entries) {
+    const key = historyTraceDayKey(entry.ts);
+    if (!key) continue;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(entry);
+  }
+  return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+}
+
+function collectHistoryModuleOptions(entries) {
+  const set = new Set();
+  for (const entry of entries) {
+    const label = String(entry?.moduleLabel || "").trim();
+    if (label) set.add(label);
+  }
+  return [...set].sort((a, b) => a.localeCompare(b, "es"));
+}
+
+const HISTORY_TRACE_MODULE_ICONS = {
+  Dashboard: "grid",
+  "Mis solicitudes": "inbox",
+  Solicitudes: "inbox",
+  Viajes: "truck",
+  Camiones: "fuel",
+  Conductores: "user",
+  Calendario: "calendar",
+  Reportería: "activity",
+  "Centro de reportería": "activity",
+  "Gestión humana": "briefcase",
+  Contratación: "userPlus",
+  "Cumplimiento laboral y SST": "shield",
+  "Contacto web (B2B)": "globe",
+  "Usuarios y permisos": "users",
+  Autorizaciones: "check",
+  "Centro de aprobaciones": "check",
+  "Mi perfil": "badge",
+  Notificaciones: "bell",
+  Timbre: "bell",
+  Avisos: "alertTriangle"
+};
+
+function historyTraceModuleIconKey(moduleLabel) {
+  const label = String(moduleLabel || "").trim();
+  if (HISTORY_TRACE_MODULE_ICONS[label]) return HISTORY_TRACE_MODULE_ICONS[label];
+  const lower = label.toLowerCase();
+  if (lower.includes("solicitud")) return "inbox";
+  if (lower.includes("viaje")) return "truck";
+  if (lower.includes("camion") || lower.includes("flota") || lower.includes("combustible")) return "fuel";
+  if (lower.includes("conductor")) return "user";
+  if (lower.includes("nomina") || lower.includes("gestión humana") || lower.includes("gestion humana")) return "briefcase";
+  if (lower.includes("contrat")) return "userPlus";
+  if (lower.includes("sst") || lower.includes("cumplimiento")) return "shield";
+  if (lower.includes("usuario") || lower.includes("permiso")) return "users";
+  if (lower.includes("autoriz")) return "check";
+  if (lower.includes("notific")) return "bell";
+  return "layers";
+}
+
+function historyTraceModuleIconHtml(moduleLabel, className = "hist-trace-module-ico") {
+  const key = historyTraceModuleIconKey(moduleLabel);
+  const svg = IC[key] || IC.layers;
+  return `<span class="${escapeAttr(className)}" aria-hidden="true">${svg}</span>`;
+}
+
+globalThis.historyTraceModuleIconHtml = historyTraceModuleIconHtml;
+globalThis.historyTraceModuleIconKey = historyTraceModuleIconKey;
+
+function readHistoryTraceFilterInputs(formEl) {
+  const traceFilter = formEl || document.getElementById("history-trace-filter");
+  const data = traceFilter ? readFormEntriesNormalized(traceFilter) : {};
+  const histUi = state.historyUi || { actionFilter: "all", moduleFilter: "", layout: "cards" };
+  return {
+    actionFilter: String(histUi.actionFilter || "all"),
+    moduleFilter: String(data.module || histUi.moduleFilter || "").trim(),
+    q: data.q,
+    from: data.from,
+    to: data.to
+  };
+}
+
+function getHistoryTraceFilteredEntries(formEl) {
+  return applyHistoryTraceFilters(buildHistoryAuditEntries(), readHistoryTraceFilterInputs(formEl));
+}
+
+function historyTraceActionLabel(action) {
+  const fn = globalThis.historyAuditActionLabel;
+  return typeof fn === "function" ? fn(action) : String(action || "update");
+}
+
+function exportHistoryTraceCsv(entries) {
+  const list = Array.isArray(entries) ? entries : [];
+  if (!list.length) {
+    notify("No hay eventos para exportar con los filtros actuales.", "warn");
+    return;
+  }
+  const esc = (v) => `"${String(v ?? "").replaceAll('"', '""')}"`;
+  const columns = [
+    { key: "fecha", label: "Fecha y hora" },
+    { key: "accion", label: "Acción" },
+    { key: "modulo", label: "Módulo" },
+    { key: "entidad", label: "Entidad" },
+    { key: "resumen", label: "Resumen" },
+    { key: "usuario", label: "Usuario" }
   ];
-  const items = kpis
+  const rows = list.map((entry) => ({
+    fecha: fmtDate(entry.ts),
+    accion: historyTraceActionLabel(entry.action),
+    modulo: String(entry.moduleLabel || ""),
+    entidad: String(entry.entityLabel || ""),
+    resumen: String(entry.summary || ""),
+    usuario: String(entry.actor || "—")
+  }));
+  const header = columns.map((col) => esc(col.label)).join(",");
+  const body = rows.map((row) => columns.map((col) => esc(row[col.key])).join(",")).join("\n");
+  const csv = `\uFEFF${header}\n${body}`;
+  const stamp = new Date().toISOString().slice(0, 10);
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `trazabilidad_portal_${stamp}.csv`;
+  a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 400);
+  notify(`Exportados ${list.length} evento${list.length === 1 ? "" : "s"} a CSV.`, "success");
+}
+
+function historyTraceStats(entries) {
+  const list = Array.isArray(entries) ? entries : [];
+  const modules = new Set(list.map((e) => String(e.moduleLabel || "").trim()).filter(Boolean));
+  return {
+    total: list.length,
+    create: list.filter((e) => e.action === "create").length,
+    update: list.filter((e) => e.action === "update").length,
+    delete: list.filter((e) => e.action === "delete").length,
+    modules: modules.size
+  };
+}
+
+function applyHistoryTraceFilters(entries, opts = {}) {
+  let out = Array.isArray(entries) ? [...entries] : [];
+  const actionFilter = String(opts.actionFilter || "all").trim().toLowerCase();
+  const moduleFilter = String(opts.moduleFilter || "").trim();
+  const q = String(opts.q || "").trim().toLowerCase();
+  const from = String(opts.from || "").trim();
+  const to = String(opts.to || "").trim();
+
+  if (actionFilter && actionFilter !== "all") {
+    out = out.filter((e) => String(e.action || "") === actionFilter);
+  }
+  if (moduleFilter) {
+    out = out.filter((e) => String(e.moduleLabel || "") === moduleFilter);
+  }
+  if (from) {
+    out = out.filter((e) => String(e.ts || "").slice(0, 10) >= from);
+  }
+  if (to) {
+    out = out.filter((e) => String(e.ts || "").slice(0, 10) <= to);
+  }
+  if (q) {
+    out = out.filter((e) => historyTraceHaystack(e).includes(q));
+  }
+  return out.sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime());
+}
+
+function renderHistoryTraceKpis(stats) {
+  const items = [
+    { label: "Eventos", value: stats.total, tone: "primary" },
+    { label: "Creaciones", value: stats.create, tone: stats.create ? "ok" : "neutral" },
+    { label: "Actualizaciones", value: stats.update, tone: stats.update ? "warn" : "neutral" },
+    { label: "Eliminaciones", value: stats.delete, tone: stats.delete ? "danger" : "neutral" },
+    { label: "Módulos", value: stats.modules, tone: "neutral" }
+  ];
+  return `<dl class="hist-trace-kpis" aria-label="Resumen de trazabilidad">${items
     .map(({ label, value, tone }) => {
-      const toneClass = tone && tone !== "neutral" ? ` history-studio-kpi--${tone}` : "";
-      return `<div class="history-studio-kpi${toneClass}"><dt>${escapeHtml(label)}</dt><dd><strong>${escapeHtml(String(value))}</strong></dd></div>`;
+      const toneClass = tone && tone !== "neutral" ? ` hist-trace-kpi--${tone}` : "";
+      return `<div class="hist-trace-kpi${toneClass}"><dt>${escapeHtml(label)}</dt><dd><strong>${escapeHtml(String(value))}</strong></dd></div>`;
     })
-    .join("");
-  return `<header class="history-studio-head">
-    <div class="history-studio-head__brand">
-      <span class="history-studio-head__badge">Transporte · Consulta</span>
-      <h2>Historial operativo</h2>
-      <p class="history-studio-head__tagline">Consulte solicitudes, viajes, registros de flota y la bitácora de cambios del sistema.</p>
-    </div>
-    <dl class="history-studio-kpis" aria-label="Indicadores del historial">${items}</dl>
-  </header>`;
+    .join("")}</dl>`;
 }
 
-function renderHistorySectionNav(activeId, counts) {
-  const tabs = [
-    { id: "explore", label: "Solicitudes", icon: "clock", count: counts.all, title: "Solicitudes y viajes" },
-    { id: "fleet", label: "Flota técnica", icon: "fuel", count: counts.fleetLogs, title: "Combustible y taller" },
-    { id: "audit", label: "Trazabilidad", icon: "activity", count: counts.audit, title: "Bitácora de movimientos" }
-  ];
-  return `<nav class="payroll-data-nav payroll-data-nav--minimal history-section-nav" role="tablist" aria-label="Secciones del historial">
-    ${tabs
-      .map((t) => {
-        const active = activeId === t.id;
-        const iconSvg = IC[t.icon] ? `<span class="payroll-data-nav-ico" aria-hidden="true">${IC[t.icon]}</span>` : "";
-        return `<button type="button" role="tab" class="payroll-data-nav-tab${active ? " is-active" : ""}" aria-selected="${active ? "true" : "false"}" data-action="history-workspace" data-workspace="${escapeAttr(t.id)}" title="${escapeAttr(t.title)}">${iconSvg}<span>${escapeHtml(t.label)}</span><span class="payroll-data-nav-count">${escapeHtml(String(t.count))}</span></button>`;
-      })
-      .join("")}
-  </nav>`;
+function renderHistoryModuleFilterChips(allEntries, filterOpts, activeModule) {
+  const base = applyHistoryTraceFilters(allEntries, { ...filterOpts, moduleFilter: "" });
+  const counts = new Map();
+  for (const entry of base) {
+    const label = String(entry.moduleLabel || "").trim();
+    if (!label) continue;
+    counts.set(label, (counts.get(label) || 0) + 1);
+  }
+  const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "es"));
+  const active = String(activeModule || "");
+  const chip = (moduleId, labelHtml, count, title = "") => {
+    const isActive = moduleId === active || (!moduleId && !active);
+    return `<button type="button" class="hist-trace-module-chip${isActive ? " is-active" : ""}" data-action="history-module-filter" data-module="${escapeAttr(moduleId)}"${title ? ` title="${escapeAttr(title)}"` : ""}>
+      ${labelHtml}
+      <span class="hist-trace-module-chip__count">${count}</span>
+    </button>`;
+  };
+  const allLabel = `<span class="hist-trace-module-chip__ico" aria-hidden="true">${IC.layers}</span><span class="hist-trace-module-chip__label">Todos los módulos</span>`;
+  let html = `<div class="hist-trace-module-filters" role="group" aria-label="Filtrar por módulo">${chip("", allLabel, base.length, "Ver todos los módulos")}`;
+  for (const [label, count] of sorted) {
+    const labelHtml = `${historyTraceModuleIconHtml(label, "hist-trace-module-chip__ico")}<span class="hist-trace-module-chip__label">${escapeHtml(label)}</span>`;
+    html += chip(label, labelHtml, count, label);
+  }
+  html += `</div>`;
+  return html;
 }
 
-function renderHistoryQuickFilters(quickFilter, counts) {
+function renderHistoryActionFilters(active) {
+  const cur = String(active || "all");
   const pill = (key, label) =>
-    `<button type="button" class="ops-filter-pill${quickFilter === key ? " is-active" : ""}" data-action="history-quick-filter" data-filter="${escapeAttr(key)}"><span>${escapeHtml(label)}</span><strong>${counts[key] ?? 0}</strong></button>`;
-  return `<div class="hist-quick-filters ops-filters-bar" role="group" aria-label="Filtro rápido">
-    ${pill("all", "Todo")}
-    ${pill("active", "En ruta")}
-    ${pill("closed", "Cerradas")}
-    ${pill("pending", "Pend. viaje")}
-    ${pill("cancelled", "Anuladas")}
+    `<button type="button" class="hist-trace-action-pill${cur === key ? " is-active" : ""}" data-action="history-action-filter" data-filter="${escapeAttr(key)}">${escapeHtml(label)}</button>`;
+  return `<div class="hist-trace-action-filters" role="group" aria-label="Tipo de movimiento">
+    ${pill("all", "Todos")}
+    ${pill("create", "Creaciones")}
+    ${pill("update", "Actualizaciones")}
+    ${pill("delete", "Eliminaciones")}
   </div>`;
 }
 
-function renderHistoryExploreToolbar(viewLayout, clientOptions) {
-  return `<form id="history-filter" class="hist-filter-form" novalidate>
-    <div class="transport-ops-toolbar hist-toolbar">
-      <label class="transport-ops-search hist-search">
-        <span class="muted">${IC.search || IC.filter} Buscar</span>
-        <input type="search" name="q" placeholder="Solicitud, cliente, ruta, placa, viaje…" autocomplete="off" />
+function renderHistoryTraceToolbar(viewLayout, moduleOptions, moduleFilter) {
+  const moduleOpts = moduleOptions
+    .map((m) => `<option value="${escapeAttr(m)}"${moduleFilter === m ? " selected" : ""}>${escapeHtml(m)}</option>`)
+    .join("");
+  return `<form id="history-trace-filter" class="hist-trace-filter-form" novalidate>
+    <div class="hist-trace-toolbar">
+      <label class="hist-trace-search">
+        <span class="visually-hidden">Buscar en trazabilidad</span>
+        ${IC.search || IC.filter}
+        <input type="search" name="q" placeholder="Módulo, entidad, resumen, usuario…" autocomplete="off" />
       </label>
       ${historyViewToggleHtml(viewLayout)}
-      <details class="hist-advanced-filters">
-        <summary class="btn btn-sm btn-action">${IC.filter} Filtros</summary>
-        <div class="hist-advanced-filters-body">
+      <button type="button" class="btn btn-sm btn-action hist-trace-export-btn" data-action="history-export-csv">${IC.download || ""} Exportar CSV</button>
+      <details class="hist-trace-advanced">
+        <summary class="btn btn-sm btn-action">${IC.filter} Periodo</summary>
+        <div class="hist-trace-advanced-body">
           <label>${fieldLabel(IC.calendar, "Desde")}<input type="date" name="from" /></label>
           <label>${fieldLabel(IC.calendar, "Hasta")}<input type="date" name="to" /></label>
-          <label>${fieldLabel(IC.user, "Cliente")}<select name="client"><option value="">Todos</option>${clientOptions}</select></label>
-          <label>${fieldLabel(IC.activity, "Estado exacto")}<select name="status">${historyStatusFilterOptions()}</select></label>
-          <button class="btn btn-sm btn-action" type="reset">${IC.x} Limpiar</button>
+          <label class="hist-trace-module-select">${fieldLabel(IC.layers, "Módulo (lista)")}<select name="module"><option value="">Todos los módulos</option>${moduleOpts}</select></label>
+          <button class="btn btn-sm btn-action" type="reset">${IC.x} Limpiar filtros</button>
         </div>
       </details>
     </div>
   </form>`;
 }
 
-function renderHistoryInsightCards(topClientsList, topVehiclesList, rules, rulesUpdatedLabel) {
-  return renderHrAlertCards([
-    {
-      label: "Clientes frecuentes",
-      value: topClientsList.length ? topClientsList.join(" · ") : "Sin datos",
-      icon: IC.user,
-      tone: "info"
-    },
-    {
-      label: "Flota asignada",
-      value: topVehiclesList.length ? topVehiclesList.join(" · ") : "Sin datos",
-      icon: IC.truck,
-      tone: "info"
-    },
-    {
-      label: "Viático interdepartamental",
-      value: `$${parseNum(rules.interDepartmentTripAmount).toLocaleString("es-CO")} / viaje`,
-      help: `Actualizado: ${rulesUpdatedLabel}`,
-      icon: IC.dollar,
-      tone: "ok"
-    }
-  ]);
+function renderHistoryTraceFeedGrouped(entries) {
+  if (!entries.length) {
+    return `<div class="hist-trace-empty"><span class="hist-trace-empty__icon" aria-hidden="true">${IC.activity || IC.layers}</span><p>Sin eventos con los filtros actuales</p><p class="muted">Ajuste el periodo, el módulo o el tipo de movimiento.</p></div>`;
+  }
+  const groups = groupHistoryTraceByDay(entries);
+  return `<div class="hist-trace-feed" id="history-trace-results-grid">${groups
+    .map(([dayKey, items]) => {
+      const label = historyTraceDayLabel(dayKey);
+      return `<section class="hist-trace-day" aria-label="${escapeAttr(label)}">
+        <header class="hist-trace-day__head">
+          <h3 class="hist-trace-day__title"><time datetime="${escapeAttr(dayKey)}">${escapeHtml(label)}</time></h3>
+          <span class="hist-trace-day__count">${items.length} evento${items.length === 1 ? "" : "s"}</span>
+        </header>
+        <div class="hist-trace-day__body">${items.map((entry) => renderHistoryAuditCard(entry)).join("")}</div>
+      </section>`;
+    })
+    .join("")}</div>`;
 }
 
-function renderHistoryFleetSubNav(fleetTab, fuelCount, techCount) {
-  const tab = (id, label, iconKey, count) => {
-    const active = fleetTab === id;
-    return `<button type="button" role="tab" class="auth-tab-btn${active ? " is-active" : ""}" aria-selected="${active ? "true" : "false"}" data-action="history-fleet-tab" data-fleet-tab="${escapeAttr(id)}">${IC[iconKey] || ""}<span>${escapeHtml(label)}</span><span class="auth-tab-badge">${count}</span></button>`;
-  };
-  return `<div class="auth-tabs-layout hist-fleet-subnav"><nav class="auth-tabs-bar" role="tablist" aria-label="Combustible o taller">
-    ${tab("fuel", "Combustible", "fuel", fuelCount)}
-    ${tab("technical", "Taller", "activity", techCount)}
-  </nav></div>`;
+function renderHistoryTraceResults(entries, layout) {
+  const viewLayout = normalizeHistoryLayout(layout);
+  if (!entries.length) {
+    return `<div class="hist-trace-empty"><span class="hist-trace-empty__icon" aria-hidden="true">${IC.activity || IC.layers}</span><p>Sin eventos con los filtros actuales</p><p class="muted">Los movimientos del sistema aparecerán aquí conforme se registren.</p></div>`;
+  }
+  if (viewLayout === "list") {
+    return renderHistoryAuditList(entries, "list");
+  }
+  return renderHistoryTraceFeedGrouped(entries);
 }
 
 function historyHtml() {
-  const allRequests = reqRead();
-  const histUi = state.historyUi || { workspace: "explore", quickFilter: "all", fleetTab: "fuel", layout: "cards" };
-  histUi.workspace = normalizeHistoryWorkspace(histUi.workspace);
+  const histUi = state.historyUi || { layout: "cards", actionFilter: "all", moduleFilter: "" };
   state.historyUi = histUi;
-  const workspace = String(histUi.workspace || "explore");
-  const quickFilter = String(histUi.quickFilter || "all");
+  const actionFilter = String(histUi.actionFilter || "all");
+  const moduleFilter = String(histUi.moduleFilter || "");
   const viewLayout = normalizeHistoryLayout(histUi.layout);
-  const viewLayoutHint = viewLayout === "list" ? " · vista lista" : "";
-  const counts = historyQuickFilterCounts(allRequests);
-  const filteredExplore = applyHistoryFilters(allRequests, { quickFilter });
+  const viewLayoutHint = viewLayout === "list" ? " · vista tabla" : " · línea de tiempo";
+
+  const allEntries = buildHistoryAuditEntries();
+  const moduleOptions = collectHistoryModuleOptions(allEntries);
+  const chipFilterOpts = { actionFilter, q: "", from: "", to: "" };
+  const filtered = applyHistoryTraceFilters(allEntries, { actionFilter, moduleFilter });
+  const stats = historyTraceStats(filtered);
   const renderLimit = Number(state.historyRenderLimit) > 0 ? Number(state.historyRenderLimit) : HISTORY_RENDER_WINDOW;
-  const exploreShown = historyRenderWindowSlice(filteredExplore, renderLimit);
-  const users = readArray(KEYS.users);
-  const drivers = readArray(KEYS.drivers);
-  const vehicles = readArray(KEYS.vehicles);
-  const rules = read(KEYS.travelAllowanceRules, { interDepartmentTripAmount: 85000 });
-  const rulesUpdatedLabel = fmtDateOr(rules.updatedAt || rules.createdAt, "—");
-  const clientOptions = users
-    .filter((u) => u.role === ROLES.CLIENT)
-    .map((u) => `<option value="${u.id}">${escapeHtml(String(u.company || u.name || ""))}</option>`)
-    .join("");
-  const driverOptions = drivers.map((d) => `<option value="${d.id}">${escapeHtml(d.name)}</option>`).join("");
-  const vehicleOptions = vehicles
-    .map((v) => `<option value="${v.id}">${escapeHtml(`${v.plate} · ${v.type}`)}</option>`)
-    .join("");
+  const shown = historyRenderWindowSlice(filtered, renderLimit);
 
-  const fuelLogsAll = readFuelLogs();
-  const technicalLogsAll = readVehicleTechnicalLogs();
-  const auditEntries = buildHistoryAuditEntries();
-  const auditCreateCount = auditEntries.filter((entry) => entry.action === "create").length;
-  const auditUpdateCount = auditEntries.filter((entry) => entry.action === "update").length;
-  const auditDeleteCount = auditEntries.filter((entry) => entry.action === "delete").length;
-  const fleetTab = String(histUi.fleetTab || "fuel");
-  const fuelKpisAll = historyFleetFuelKpis(fuelLogsAll);
-  const techKpisAll = historyFleetTechnicalKpis(technicalLogsAll);
-  const fleetRenderLimit = Number(state.historyFleetRenderLimit) > 0 ? Number(state.historyFleetRenderLimit) : HISTORY_RENDER_WINDOW;
-  const auditRenderLimit = Number(state.historyAuditRenderLimit) > 0 ? Number(state.historyAuditRenderLimit) : HISTORY_RENDER_WINDOW;
-  const fuelShown = historyRenderWindowSlice(fuelLogsAll, fleetRenderLimit);
-  const techShown = historyRenderWindowSlice(technicalLogsAll, fleetRenderLimit);
-  const auditShown = historyRenderWindowSlice(auditEntries, auditRenderLimit);
-
-  const sectionCounts = {
-    all: allRequests.length,
-    fleetLogs: fuelLogsAll.length + technicalLogsAll.length,
-    audit: auditEntries.length
-  };
-
-  const fuelFilterFields = `
-    <label>${fieldLabel(IC.calendar, "Desde")}<input type="date" name="from" /></label>
-    <label>${fieldLabel(IC.calendar, "Hasta")}<input type="date" name="to" /></label>
-    <label>${fieldLabel(IC.truck, "Camión")}<select name="vehicleId"><option value="">Todos</option>${vehicleOptions}</select></label>
-    <label>${fieldLabel(IC.user, "Conductor")}<select name="driverId"><option value="">Todos</option>${driverOptions}</select></label>
-    <label>${fieldLabel(IC.briefcase, "Pagado por")}
-      <select name="paidBy">
-        <option value="">Todos</option>
-        <option value="empresa">Empresa</option>
-        <option value="conductor">Conductor (reembolso)</option>
-      </select>
-    </label>`;
-
-  const techFilterFields = `
-    <label>${fieldLabel(IC.calendar, "Desde")}<input type="date" name="from" /></label>
-    <label>${fieldLabel(IC.calendar, "Hasta")}<input type="date" name="to" /></label>
-    <label>${fieldLabel(IC.truck, "Camión")}<select name="vehicleId"><option value="">Todos</option>${vehicleOptions}</select></label>
-    <label>${fieldLabel(IC.activity, "Tipo")}
-      <select name="type">
-        <option value="">Todos</option>
-        <option value="preventivo">Preventivo</option>
-        <option value="correctivo">Correctivo</option>
-        <option value="falla">Falla técnica</option>
-      </select>
-    </label>
-    <label>${fieldLabel(IC.check, "Estado")}
-      <select name="status">
-        <option value="">Todos</option>
-        <option>Pendiente</option>
-        <option>En proceso</option>
-        <option>Resuelto</option>
-      </select>
-    </label>`;
-
-  const topClientsList = topClients(allRequests);
-  const topVehiclesList = topVehicles(allRequests);
-
-  const explorePanel = `<div class="hist-panel${workspace === "explore" ? "" : " hidden"}" data-history-panel="explore" role="tabpanel">
-    <section class="history-data-panel hist-data-panel">
-      ${renderHistoryQuickFilters(quickFilter, counts)}
-      ${renderHistoryInsightCards(topClientsList, topVehiclesList, rules, rulesUpdatedLabel)}
-      ${renderHistoryExploreToolbar(viewLayout, clientOptions)}
-      <div class="hist-result-bar">
-        <p class="hist-result-meta"><span id="history-result-count">${filteredExplore.length}</span> resultado${filteredExplore.length === 1 ? "" : "s"}${escapeHtml(viewLayoutHint)}</p>
-        <span class="muted hist-result-sort">Más recientes primero</span>
-      </div>
-      <div id="history-results">${renderHistoryResultsList(exploreShown, viewLayout)}</div>
-      ${historyRenderWindowMoreBar(filteredExplore.length, exploreShown.length, "history-render-more")}
-    </section>
-  </div>`;
-
-  const fuelKpiStrip = historyFleetKpiStrip([
-    { label: "Cargas", value: fuelKpisAll.count },
-    { label: "Litros", value: `${fuelKpisAll.liters.toLocaleString("es-CO", { maximumFractionDigits: 1 })} L` },
-    { label: "Costo total", value: `$${fuelKpisAll.cost.toLocaleString("es-CO")}` },
-    { label: "Promedio $/L", value: fuelKpisAll.avgPerLiter > 0 ? `$${fuelKpisAll.avgPerLiter.toLocaleString("es-CO")}` : "—" },
-    { label: "Reembolso", value: `$${fuelKpisAll.reimburse.toLocaleString("es-CO")}`, tone: fuelKpisAll.reimburse > 0 ? "warn" : undefined }
-  ]);
-
-  const techKpiStrip = historyFleetKpiStrip([
-    { label: "Novedades", value: techKpisAll.count },
-    { label: "Costo taller", value: `$${techKpisAll.cost.toLocaleString("es-CO")}` },
-    { label: "Horas inactivas", value: `${techKpisAll.downtime.toLocaleString("es-CO")} h` },
-    { label: "Abiertas", value: techKpisAll.open, tone: techKpisAll.open > 0 ? "warn" : "ok" }
-  ]);
-
-  const fleetPanel = `<div class="hist-panel${workspace === "fleet" ? "" : " hidden"}" data-history-panel="fleet" role="tabpanel">
-    <section class="history-data-panel hist-data-panel hist-data-panel--fleet">
-      <header class="payroll-panel-intro ops-block-head hist-panel-intro">
-        <h3>Flota técnica</h3>
-        <p class="ops-block-lead muted">Consulte cargas de combustible y novedades de taller. Los registros nuevos se crean desde <strong>Camiones</strong>.</p>
-      </header>
-      ${renderHistoryFleetSubNav(fleetTab, fuelLogsAll.length, technicalLogsAll.length)}
-      <div class="hist-fleet-pane${fleetTab === "fuel" ? "" : " hidden"}" data-fleet-panel="fuel" role="tabpanel">
-        ${fuelKpiStrip}
-        ${historyFleetFilterToolbar("history-fuel-filter", fuelFilterFields, viewLayout)}
-        <div class="hist-result-bar">
-          <p class="hist-result-meta"><span id="history-fuel-result-count">${fuelLogsAll.length}</span> carga${fuelLogsAll.length === 1 ? "" : "s"}${escapeHtml(viewLayoutHint)}</p>
-          <span class="muted hist-result-sort">Más recientes primero</span>
-        </div>
-        <div id="history-fuel-results">${renderHistoryFuelLogsList(fuelShown, viewLayout)}</div>
-        ${historyRenderWindowMoreBar(fuelLogsAll.length, fuelShown.length, "history-fuel-render-more")}
-      </div>
-      <div class="hist-fleet-pane${fleetTab === "technical" ? "" : " hidden"}" data-fleet-panel="technical" role="tabpanel">
-        ${techKpiStrip}
-        ${historyFleetFilterToolbar("history-technical-filter", techFilterFields, viewLayout)}
-        <div class="hist-result-bar">
-          <p class="hist-result-meta"><span id="history-technical-result-count">${technicalLogsAll.length}</span> novedad${technicalLogsAll.length === 1 ? "" : "es"}${escapeHtml(viewLayoutHint)}</p>
-          <span class="muted hist-result-sort">Más recientes primero</span>
-        </div>
-        <div id="history-technical-results">${renderHistoryTechnicalLogsList(techShown, viewLayout)}</div>
-        ${historyRenderWindowMoreBar(technicalLogsAll.length, techShown.length, "history-technical-render-more")}
-      </div>
-    </section>
-  </div>`;
-
-  const auditPanel = `<div class="hist-panel${workspace === "audit" ? "" : " hidden"}" data-history-panel="audit" role="tabpanel">
-    <section class="history-data-panel hist-data-panel hist-data-panel--audit">
-      <header class="payroll-panel-intro ops-block-head hist-panel-intro">
-        <h3>Trazabilidad</h3>
-        <p class="ops-block-lead muted">Bitácora de creaciones, actualizaciones y eliminaciones en usuarios, flota, solicitudes y viajes.</p>
-      </header>
-      ${historyFleetKpiStrip([
-        { label: "Eventos", value: auditEntries.length },
-        { label: "Creaciones", value: auditCreateCount, tone: auditCreateCount ? "ok" : undefined },
-        { label: "Actualizaciones", value: auditUpdateCount, tone: auditUpdateCount ? "warn" : undefined },
-        { label: "Eliminaciones", value: auditDeleteCount, tone: auditDeleteCount ? "warn" : undefined }
-      ])}
-      <div class="transport-ops-toolbar hist-toolbar hist-toolbar--audit">${historyViewToggleHtml(viewLayout)}</div>
-      <div class="hist-result-bar">
-        <p class="hist-result-meta"><span id="history-audit-result-count">${auditEntries.length}</span> evento${auditEntries.length === 1 ? "" : "s"}${escapeHtml(viewLayoutHint)}</p>
-        <span class="muted hist-result-sort">Más recientes primero</span>
-      </div>
-      <div id="history-audit-results">${renderHistoryAuditList(auditShown, viewLayout)}</div>
-      ${historyRenderWindowMoreBar(auditEntries.length, auditShown.length, "history-audit-render-more")}
-    </section>
-  </div>`;
-
-  const moduleHead = renderHistoryModuleHead(counts);
-  const sectionNav = renderHistorySectionNav(workspace, sectionCounts);
-
-  return `<section class="history-studio history-shell hr-flow-shell" data-history-workspace="${escapeAttr(workspace)}">
-    ${moduleHead}
-    <div class="hist-shell-body">
-      <div class="payroll-data-toolbar payroll-data-toolbar--compact hist-section-toolbar">${sectionNav}</div>
-      <div class="hist-panels">${explorePanel}${fleetPanel}${auditPanel}</div>
+  const hero = `<header class="hist-trace-hero">
+    <div class="hist-trace-hero__brand">
+      <span class="hist-trace-hero__badge">${IC.activity || ""} Trazabilidad</span>
+      <h2>Historial del sistema</h2>
+      <p class="hist-trace-hero__lead">Línea de tiempo unificada de creaciones, actualizaciones y eliminaciones en todos los módulos del portal.</p>
     </div>
+    ${renderHistoryTraceKpis(stats)}
+  </header>`;
+
+  const body = `<div class="hist-trace-workspace">
+    ${renderHistoryActionFilters(actionFilter)}
+    ${renderHistoryModuleFilterChips(allEntries, chipFilterOpts, moduleFilter)}
+    ${renderHistoryTraceToolbar(viewLayout, moduleOptions, moduleFilter)}
+    <div class="hist-trace-result-bar">
+      <p class="hist-trace-result-meta"><span id="history-trace-result-count">${filtered.length}</span> evento${filtered.length === 1 ? "" : "s"}${escapeHtml(viewLayoutHint)}</p>
+      <div class="hist-trace-result-actions">
+        <span class="muted hist-trace-result-sort">Más recientes primero</span>
+        <button type="button" class="btn btn-sm btn-outline hist-trace-export-btn hist-trace-export-btn--inline" data-action="history-export-csv"${filtered.length ? "" : " disabled"}>${IC.download || ""} CSV (${filtered.length})</button>
+      </div>
+    </div>
+    <div id="history-trace-results">${renderHistoryTraceResults(shown, viewLayout)}</div>
+    ${historyRenderWindowMoreBar(filtered.length, shown.length, "history-render-more")}
+  </div>`;
+
+  return `<section class="history-studio hist-trace-shell hr-flow-shell" data-history-trace="1">
+    ${hero}
+    ${body}
   </section>`;
 }
 
@@ -328,198 +395,138 @@ function historyHtml() {
   function bindHistoryPortalControls() {
     if (String(state.currentView || "") !== "history" || !nodes.viewRoot) return;
 
-    nodes.viewRoot.querySelectorAll("[data-action='history-workspace']").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const next = normalizeHistoryWorkspace(btn.dataset.workspace);
-        state.historyUi = { ...(state.historyUi || { quickFilter: "all", fleetTab: "fuel", layout: "cards" }), workspace: next };
-        state.historyRenderLimit = HISTORY_RENDER_WINDOW;
-        state.historyFleetRenderLimit = HISTORY_RENDER_WINDOW;
-        state.historyAuditRenderLimit = HISTORY_RENDER_WINDOW;
-        if (
-          switchModuleTabPanels({
-            root: nodes.viewRoot,
-            action: "history-workspace",
-            activeValue: next,
-            valueAttr: "workspace",
-            panelAttr: "data-history-panel",
-            tabActiveClass: "is-active"
-          })
-        ) {
-          const shell = nodes.viewRoot.querySelector("[data-history-workspace]");
-          if (shell) shell.setAttribute("data-history-workspace", next);
-          return;
-        }
-        renderPortalView();
-      });
-    });
-
     nodes.viewRoot.querySelectorAll("[data-action='history-layout']").forEach((btn) => {
       btn.addEventListener("click", () => {
         const layout = normalizeHistoryLayout(btn.dataset.layout);
-        state.historyUi = { ...(state.historyUi || { workspace: "explore", quickFilter: "all", fleetTab: "fuel" }), layout };
+        state.historyUi = { ...(state.historyUi || { actionFilter: "all", moduleFilter: "" }), layout };
         renderPortalView();
       });
     });
 
-    nodes.viewRoot.querySelectorAll("[data-action='history-fleet-tab']").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const next = String(btn.dataset.fleetTab || "fuel");
-        if (!["fuel", "technical"].includes(next)) return;
-        state.historyUi = { ...(state.historyUi || { workspace: "fleet", quickFilter: "all" }), workspace: "fleet", fleetTab: next };
-        state.historyFleetRenderLimit = HISTORY_RENDER_WINDOW;
-        if (
-          switchModuleTabPanels({
-            root: nodes.viewRoot,
-            action: "history-fleet-tab",
-            activeValue: next,
-            valueAttr: "fleetTab",
-            panelAttr: "data-fleet-panel",
-            tabActiveClass: "is-active"
-          })
-        ) {
-          return;
-        }
-        renderPortalView();
-      });
-    });
-
-    const bindRenderMore = (action, stateKey) => {
-      nodes.viewRoot.querySelectorAll(`[data-action='${action}']`).forEach((btn) => {
-        btn.addEventListener("click", () => {
-          state[stateKey] = (Number(state[stateKey]) || HISTORY_RENDER_WINDOW) + HISTORY_RENDER_WINDOW;
-          renderPortalView();
-        });
-      });
-    };
-    bindRenderMore("history-render-more", "historyRenderLimit");
-    bindRenderMore("history-fuel-render-more", "historyFleetRenderLimit");
-    bindRenderMore("history-technical-render-more", "historyFleetRenderLimit");
-    bindRenderMore("history-audit-render-more", "historyAuditRenderLimit");
-
-    const bindHistoryFleetFilters = (formId, applyFn, countSelector, resultsSelector, kpiSelector, kpiBuilder, renderListFn) => {
-      const form = document.getElementById(formId);
-      if (!form) return;
-      portalUpgradeDates(form);
-      const renderFn = typeof renderListFn === "function" ? renderListFn : renderHistoryFuelLogsList;
-      const refresh = () => {
-        const items = applyFn(readFormEntriesNormalized(form));
-        const layout = normalizeHistoryLayout((state.historyUi || {}).layout);
-        const limit = Number(state.historyFleetRenderLimit) > 0 ? Number(state.historyFleetRenderLimit) : HISTORY_RENDER_WINDOW;
-        const shown = historyRenderWindowSlice(items, limit);
-        const mount = document.querySelector(resultsSelector);
-        const countEl = document.querySelector(countSelector);
-        if (countEl) countEl.textContent = String(items.length);
-        if (mount) mount.innerHTML = renderFn(shown, layout);
-        if (typeof kpiBuilder === "function" && kpiSelector) {
-          refreshHistoryFleetKpiStrip(kpiSelector, kpiBuilder(items));
-        }
-      };
-      form.addEventListener("change", refresh);
-      form.addEventListener("input", (event) => {
-        if (event.target?.matches?.("input[type='search']")) {
-          state.historyFleetRenderLimit = HISTORY_RENDER_WINDOW;
-          refresh();
-        }
-      });
-      form.addEventListener("reset", () => {
-        state.historyFleetRenderLimit = HISTORY_RENDER_WINDOW;
-        setTimeout(refresh, 0);
-      });
-      refresh();
-    };
-
-    bindHistoryFleetFilters(
-      "history-fuel-filter",
-      (data) => applyHistoryFleetFuelFilters(readFuelLogs(), data),
-      "#history-fuel-result-count",
-      "#history-fuel-results",
-      '[data-fleet-panel="fuel"] .hist-kpi-strip',
-      (items) => {
-        const kpis = historyFleetFuelKpis(items);
-        return [
-          { label: "Cargas", value: kpis.count },
-          { label: "Litros", value: `${kpis.liters.toLocaleString("es-CO", { maximumFractionDigits: 1 })} L` },
-          { label: "Costo total", value: `$${kpis.cost.toLocaleString("es-CO")}` },
-          { label: "Promedio $/L", value: kpis.avgPerLiter > 0 ? `$${kpis.avgPerLiter.toLocaleString("es-CO")}` : "—" },
-          { label: "Reembolso", value: `$${kpis.reimburse.toLocaleString("es-CO")}`, tone: kpis.reimburse > 0 ? "warn" : undefined }
-        ];
-      },
-      renderHistoryFuelLogsList
-    );
-
-    bindHistoryFleetFilters(
-      "history-technical-filter",
-      (data) => applyHistoryFleetTechnicalFilters(readVehicleTechnicalLogs(), data),
-      "#history-technical-result-count",
-      "#history-technical-results",
-      '[data-fleet-panel="technical"] .hist-kpi-strip',
-      (items) => {
-        const kpis = historyFleetTechnicalKpis(items);
-        return [
-          { label: "Novedades", value: kpis.count },
-          { label: "Costo taller", value: `$${kpis.cost.toLocaleString("es-CO")}` },
-          { label: "Horas inactivas", value: `${kpis.downtime.toLocaleString("es-CO")} h` },
-          { label: "Abiertas", value: kpis.open, tone: kpis.open > 0 ? "warn" : "ok" }
-        ];
-      },
-      renderHistoryTechnicalLogsList
-    );
-
-    nodes.viewRoot.querySelectorAll("[data-action='history-quick-filter']").forEach((btn) => {
+    nodes.viewRoot.querySelectorAll("[data-action='history-action-filter']").forEach((btn) => {
       btn.addEventListener("click", () => {
         const next = String(btn.dataset.filter || "all");
-        state.historyUi = { ...(state.historyUi || { workspace: "explore" }), quickFilter: next };
+        state.historyUi = { ...(state.historyUi || { layout: "cards", moduleFilter: "" }), actionFilter: next };
         state.historyRenderLimit = HISTORY_RENDER_WINDOW;
-        document.querySelectorAll("[data-action='history-quick-filter']").forEach((pill) => {
-          pill.classList.toggle("is-active", String(pill.dataset.filter || "") === next);
-        });
-        const historyFilter = document.getElementById("history-filter");
-        if (typeof window.__historyApplyFilters === "function") window.__historyApplyFilters();
-        else if (historyFilter) historyFilter.dispatchEvent(new Event("change", { bubbles: true }));
+        renderPortalView();
       });
     });
 
-    const historyFilter = document.getElementById("history-filter");
-    if (historyFilter) {
-      portalUpgradeDates(historyFilter);
-      const refreshHistoryResults = () => {
-        const histUi = state.historyUi || { quickFilter: "all", layout: "cards" };
+    nodes.viewRoot.querySelectorAll("[data-action='history-module-filter']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const next = String(btn.dataset.module || "").trim();
+        state.historyUi = { ...(state.historyUi || { layout: "cards", actionFilter: "all" }), moduleFilter: next };
+        state.historyRenderLimit = HISTORY_RENDER_WINDOW;
+        const traceFilter = document.getElementById("history-trace-filter");
+        const moduleSelect = traceFilter?.querySelector("select[name='module']");
+        if (moduleSelect) moduleSelect.value = next;
+        renderPortalView();
+      });
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='history-export-csv']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (btn.disabled) return;
+        const entries = getHistoryTraceFilteredEntries(document.getElementById("history-trace-filter"));
+        exportHistoryTraceCsv(entries);
+      });
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='history-render-more']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.historyRenderLimit = (Number(state.historyRenderLimit) || HISTORY_RENDER_WINDOW) + HISTORY_RENDER_WINDOW;
+        renderPortalView();
+      });
+    });
+
+    const traceFilter = document.getElementById("history-trace-filter");
+    if (traceFilter) {
+      portalUpgradeDates(traceFilter);
+      const moduleSelect = traceFilter.querySelector("select[name='module']");
+      if (moduleSelect && state.historyUi?.moduleFilter) {
+        moduleSelect.value = String(state.historyUi.moduleFilter || "");
+      }
+
+      const refreshTraceResults = () => {
+        const histUi = state.historyUi || { actionFilter: "all", moduleFilter: "", layout: "cards" };
         const layout = normalizeHistoryLayout(histUi.layout);
-        const data = readFormEntriesNormalized(historyFilter);
-        const items = applyHistoryFilters(reqRead(), { quickFilter: histUi.quickFilter, formData: data });
+        const filterInputs = readHistoryTraceFilterInputs(traceFilter);
+        if (filterInputs.moduleFilter !== String(histUi.moduleFilter || "")) {
+          state.historyUi = { ...histUi, moduleFilter: filterInputs.moduleFilter };
+        }
+        const items = applyHistoryTraceFilters(buildHistoryAuditEntries(), filterInputs);
+        const chipOpts = { ...filterInputs, moduleFilter: "" };
         const limit = Number(state.historyRenderLimit) > 0 ? Number(state.historyRenderLimit) : HISTORY_RENDER_WINDOW;
-        const shown = historyRenderWindowSlice(items, limit);
-        const mount = document.getElementById("history-results");
-        const countEl = document.getElementById("history-result-count");
+        const shownItems = historyRenderWindowSlice(items, limit);
+        const mount = document.getElementById("history-trace-results");
+        const countEl = document.getElementById("history-trace-result-count");
+        const kpiRoot = nodes.viewRoot.querySelector(".hist-trace-kpis");
+        const chipRoot = nodes.viewRoot.querySelector(".hist-trace-module-filters");
         if (countEl) countEl.textContent = String(items.length);
-        if (mount) mount.innerHTML = renderHistoryResultsList(shown, layout);
+        nodes.viewRoot.querySelectorAll("[data-action='history-export-csv']").forEach((exportBtn) => {
+          exportBtn.disabled = items.length === 0;
+          if (exportBtn.classList.contains("hist-trace-export-btn--inline")) {
+            exportBtn.innerHTML = `${IC.download || ""} CSV (${items.length})`;
+          }
+        });
+        if (kpiRoot) {
+          const stats = historyTraceStats(items);
+          kpiRoot.outerHTML = renderHistoryTraceKpis(stats);
+        }
+        if (chipRoot) {
+          chipRoot.outerHTML = renderHistoryModuleFilterChips(buildHistoryAuditEntries(), chipOpts, filterInputs.moduleFilter);
+          nodes.viewRoot.querySelectorAll("[data-action='history-module-filter']").forEach((chipBtn) => {
+            chipBtn.addEventListener("click", () => {
+              const next = String(chipBtn.dataset.module || "").trim();
+              state.historyUi = { ...(state.historyUi || { layout: "cards", actionFilter: "all" }), moduleFilter: next };
+              state.historyRenderLimit = HISTORY_RENDER_WINDOW;
+              const sel = traceFilter?.querySelector("select[name='module']");
+              if (sel) sel.value = next;
+              renderPortalView();
+            });
+          });
+        }
+        if (mount) mount.innerHTML = renderHistoryTraceResults(shownItems, layout);
+        const moreBar = nodes.viewRoot.querySelector(".hist-trace-more");
+        if (moreBar) {
+          const parent = moreBar.parentElement;
+          const nextBar = historyRenderWindowMoreBar(items.length, shownItems.length, "history-render-more");
+          if (nextBar) moreBar.outerHTML = nextBar;
+          else moreBar.remove();
+        } else if (items.length > shownItems.length) {
+          const resultsMount = document.getElementById("history-trace-results");
+          if (resultsMount?.parentElement) {
+            resultsMount.insertAdjacentHTML("afterend", historyRenderWindowMoreBar(items.length, shownItems.length, "history-render-more"));
+            nodes.viewRoot.querySelector("[data-action='history-render-more']")?.addEventListener("click", () => {
+              state.historyRenderLimit = (Number(state.historyRenderLimit) || HISTORY_RENDER_WINDOW) + HISTORY_RENDER_WINDOW;
+              renderPortalView();
+            });
+          }
+        }
       };
-      window.__historyApplyFilters = refreshHistoryResults;
-      historyFilter.addEventListener("submit", (event) => {
+
+      window.__historyTraceApplyFilters = refreshTraceResults;
+
+      traceFilter.addEventListener("submit", (event) => {
         event.preventDefault();
         state.historyRenderLimit = HISTORY_RENDER_WINDOW;
-        refreshHistoryResults();
+        refreshTraceResults();
       });
-      historyFilter.addEventListener("change", () => {
+      traceFilter.addEventListener("change", () => {
         state.historyRenderLimit = HISTORY_RENDER_WINDOW;
-        refreshHistoryResults();
+        refreshTraceResults();
       });
-      historyFilter.querySelectorAll("select, input.portal-date-dmy, input[type='date']").forEach((field) => {
-        field.addEventListener("change", () => {
-          state.historyRenderLimit = HISTORY_RENDER_WINDOW;
-          refreshHistoryResults();
-        });
-      });
-      const liveSearch = historyFilter.querySelector("input[name='q']");
+      const liveSearch = traceFilter.querySelector("input[name='q']");
       if (liveSearch) {
         liveSearch.addEventListener("input", () => {
           state.historyRenderLimit = HISTORY_RENDER_WINDOW;
-          refreshHistoryResults();
+          refreshTraceResults();
         });
       }
-      historyFilter.addEventListener("reset", () => {
+      traceFilter.addEventListener("reset", () => {
+        state.historyUi = { ...(state.historyUi || {}), moduleFilter: "" };
         state.historyRenderLimit = HISTORY_RENDER_WINDOW;
-        window.requestAnimationFrame(() => refreshHistoryResults());
+        window.requestAnimationFrame(() => refreshTraceResults());
       });
     }
   }

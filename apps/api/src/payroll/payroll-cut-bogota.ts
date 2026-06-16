@@ -156,6 +156,26 @@ export function liquidationLatestClosedCutAsOf(
   return latest;
 }
 
+/**
+ * Último corte ya cerrado en o antes de la fecha que aún no tiene liquidación.
+ * Evita saltar la 1ª quincena si la 2ª ya cerró pero la 1ª sigue pendiente.
+ */
+export function liquidationLatestPendingCutAsOf(
+  frequency: PayrollFrequencyNorm,
+  y: number,
+  m0: number,
+  dom: number,
+  existingPeriodKeys: string[] = []
+): LiquidationCut | null {
+  const ref = dateOnlyUtcNoon(y, m0, dom);
+  const existing = new Set(existingPeriodKeys.map((k) => String(k || "").trim()).filter(Boolean));
+  const closed = listLiquidationCutsForMonth(frequency, y, m0).filter((c) => c.periodEnd.getTime() <= ref.getTime());
+  for (let i = closed.length - 1; i >= 0; i -= 1) {
+    if (!existing.has(closed[i].periodKey)) return closed[i];
+  }
+  return null;
+}
+
 /** Todos los cortes de liquidación de un mes civil para la periodicidad dada. */
 export function listLiquidationCutsForMonth(
   frequency: PayrollFrequencyNorm,

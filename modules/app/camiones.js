@@ -865,9 +865,9 @@ function vehiclesHtml() {
           return;
         }
         notify(userMessage("fuelLogged"), "success");
-        state.historyUi = { ...(state.historyUi || { quickFilter: "all" }), workspace: "fleet", fleetTab: "fuel" };
         collapseCreatePanel("create-fuel-log");
-        renderPortalView();
+        state.historyUi = { ...(state.historyUi || { layout: "cards", actionFilter: "all", moduleFilter: "" }), moduleFilter: "Camiones", actionFilter: "create" };
+        setView("history");
       });
     }
 
@@ -907,9 +907,9 @@ function vehiclesHtml() {
           return;
         }
         notify(userMessage("technicalLogged"), "success");
-        state.historyUi = { ...(state.historyUi || { quickFilter: "all" }), workspace: "fleet", fleetTab: "technical" };
         collapseCreatePanel("create-technical-log");
-        renderPortalView();
+        state.historyUi = { ...(state.historyUi || { layout: "cards", actionFilter: "all", moduleFilter: "" }), moduleFilter: "Camiones", actionFilter: "create" };
+        setView("history");
       });
     }
 

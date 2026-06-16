@@ -654,9 +654,65 @@ function wireMonthlyPayrollConcepts(form) {
   if (!form || form.dataset.monthlyPayrollConceptsBound === "1") return;
   form.dataset.monthlyPayrollConceptsBound = "1";
   const monthEl = form.querySelector('[name="month"]');
+  const fechaEl = form.querySelector('[name="fechaCierre"]');
+  const quincenaHidden = form.querySelector('[name="payrollQuincena"]');
+  const periodPreview = form.querySelector("#payroll-period-preview");
   const empEl = form.querySelector('[name="employeeId"]');
   const auxInput = form.querySelector('[name="aux"]');
-  if (!monthEl || !empEl) return;
+  if ((!monthEl && !fechaEl) || !empEl) return;
+
+  const getCalendarYm = () => String(monthEl?.value || "").trim().slice(0, 7);
+
+  const getQuincenaHalf = () => String(quincenaHidden?.value || "Q1").trim().toUpperCase();
+
+  const syncFromFechaCierre = () => {
+    if (!fechaEl || !monthEl) return;
+    const fecha = String(fechaEl.value || "").trim();
+    const emp = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === String(empEl.value || "").trim());
+    if (!fecha) {
+      monthEl.value = "";
+      if (periodPreview) periodPreview.innerHTML = "";
+      return;
+    }
+    if (!emp || employeeIsConductorServiceProvider(emp)) {
+      const ym = fecha.slice(0, 7);
+      monthEl.value = ym;
+      if (periodPreview) {
+        periodPreview.innerHTML = `<p class="muted" style="margin:0;font-size:0.82rem">Mes de servicio: <strong>${escapeHtml(ym)}</strong></p>`;
+      }
+      return;
+    }
+    const freq = normalizePayrollFrequencyJs(emp.payFrequency);
+    const existing = read(KEYS.payrollRuns, [])
+      .filter((r) => String(r.employeeId || "") === String(emp.id || ""))
+      .map((r) => String(r.month || ""));
+    const cut =
+      typeof resolvePayrollCutForClosingDate === "function"
+        ? resolvePayrollCutForClosingDate(fecha, freq, { existingPeriodKeys: existing })
+        : null;
+    if (cut) {
+      monthEl.value = cut.calendarMonthYm;
+      if (quincenaHidden) {
+        quincenaHidden.value = /-Q2$/i.test(cut.periodKey) ? "Q2" : /-Q1$/i.test(cut.periodKey) ? "Q1" : quincenaHidden.value;
+      }
+      const rangeLabel =
+        typeof formatPayrollCutRangeLabel === "function" ? formatPayrollCutRangeLabel(cut) : cut.periodKey;
+      const periodLabel =
+        typeof formatPayrollPeriodLabel === "function" ? formatPayrollPeriodLabel(cut.periodKey) : cut.periodKey;
+      if (periodPreview) {
+        periodPreview.innerHTML = `<div class="payroll-period-preview__card"><strong>${escapeHtml(periodLabel)}</strong><span class="muted">${escapeHtml(rangeLabel)}</span></div>`;
+        periodPreview.classList.remove("payroll-period-preview--warn");
+      }
+    } else {
+      monthEl.value = fecha.slice(0, 7);
+      const hint =
+        typeof payrollClosingDatesHint === "function" ? payrollClosingDatesHint(freq) : "día de cierre válido";
+      if (periodPreview) {
+        periodPreview.innerHTML = `<p class="payroll-period-preview__warn">La fecha no es un día de cierre para nómina ${escapeHtml(String(emp.payFrequency || "Mensual"))}. Use ${escapeHtml(hint)}.</p>`;
+        periodPreview.classList.add("payroll-period-preview--warn");
+      }
+    }
+  };
 
   const syncAuxTransportFromEmployee = () => {
     if (!auxInput || !empEl) return;
@@ -684,8 +740,8 @@ function wireMonthlyPayrollConcepts(form) {
   const syncSemestralConceptEligibility = () => {
     const emp = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === String(empEl.value || "").trim());
     if (!emp || employeeIsConductorServiceProvider(emp)) return;
-    const monthYm = String(monthEl.value || "").trim().slice(0, 7);
-    const quincenaHalf = form.querySelector("#payroll-quincena-select")?.value;
+    const monthYm = getCalendarYm();
+    const quincenaHalf = getQuincenaHalf();
     const periodKey = buildPayrollPeriodKeyFromForm(monthYm, emp.payFrequency, quincenaHalf);
     const runs = read(KEYS.payrollRuns, []);
     const primaPaidFn = typeof payrollSemesterPrimaAlreadyPaidInMonth === "function"
@@ -842,12 +898,12 @@ function wireMonthlyPayrollConcepts(form) {
     const emp = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === String(empEl.value || "").trim());
     const isDriver = Boolean(emp && employeeIsConductorServiceProvider(emp));
     const freq = normalizePayrollFrequencyJs(emp?.payFrequency);
-    const isQuinc = !isDriver && freq === "quincenal";
     if (quincenaWrap) {
-      quincenaWrap.classList.toggle("hidden", !isQuinc);
-      quincenaWrap.toggleAttribute("hidden", !isQuinc);
-      quincenaWrap.setAttribute("aria-hidden", isQuinc ? "false" : "true");
+      quincenaWrap.classList.add("hidden");
+      quincenaWrap.toggleAttribute("hidden", true);
+      quincenaWrap.setAttribute("aria-hidden", "true");
     }
+    syncFromFechaCierre();
     if (!emp || isDriver) {
       if (fsP) {
         fsP.classList.add("hidden");
@@ -888,9 +944,9 @@ function wireMonthlyPayrollConcepts(form) {
           "Mes calendario del servicio. Viáticos interdepartamentales y combustible pagado por el conductor se calculan desde viajes y flota.";
       } else {
         freqHint.classList.remove("hidden");
-        freqHint.textContent = isQuinc
-          ? "Periodicidad quincenal: liquide 1ª o 2ª quincena del mes. Salario y auxilio se prorratean (÷30 × días del corte)."
-          : `Periodicidad ${String(emp.payFrequency || "Mensual")}: liquidación del mes calendario completo.`;
+        const closeHint =
+          typeof payrollClosingDatesHint === "function" ? payrollClosingDatesHint(freq) : "día de cierre del período";
+        freqHint.textContent = `Periodicidad ${String(emp.payFrequency || "Mensual")}: indique la fecha de cierre (${closeHint}). Salario y auxilio se prorratean según los días del corte.`;
       }
     }
     if (submitBtn) {
@@ -899,14 +955,15 @@ function wireMonthlyPayrollConcepts(form) {
       if (span) span.textContent = label;
       else submitBtn.textContent = label;
     }
-    if (isQuinc) {
-      const qSel = form.querySelector("#payroll-quincena-select");
-      const dom = new Date().getDate();
-      if (qSel && dom >= 16) qSel.value = "Q2";
-    }
   };
 
-  monthEl.addEventListener("change", onMonthChange);
+  const onPeriodChange = () => {
+    syncFromFechaCierre();
+    onMonthChange();
+  };
+
+  if (fechaEl) fechaEl.addEventListener("change", onPeriodChange);
+  else if (monthEl) monthEl.addEventListener("change", onMonthChange);
   empEl.addEventListener("change", () => {
     syncPayrollEmployeeSalaryReadonly(form, "payroll-monthly-base-salary");
     syncAuxTransportFromEmployee();
@@ -916,10 +973,11 @@ function wireMonthlyPayrollConcepts(form) {
     recalcInteresesCop();
     syncSemestralConceptEligibility();
   });
-  form.querySelector("#payroll-quincena-select")?.addEventListener("change", onMonthChange);
   syncPayrollEmployeeSalaryReadonly(form, "payroll-monthly-base-salary");
   syncAuxTransportFromEmployee();
   syncPayFrequencyUi();
+
+  onPeriodChange();
 
   if (cbP && daysP && copP) {
     cbP.addEventListener("change", () => {
@@ -7335,9 +7393,12 @@ function buildHistoryAuditEntries() {
     });
   });
 
-  return entries
-    .sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime())
-    .slice(0, 180);
+  return entries.sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime());
+}
+
+function historyTraceHaystack(entry) {
+  return `${entry.moduleLabel || ""} ${entry.entityLabel || ""} ${entry.summary || ""} ${entry.actor || ""} ${entry.action || ""}`
+    .toLowerCase();
 }
 
 function renderHistoryAuditCard(entry) {
@@ -7348,20 +7409,24 @@ function renderHistoryAuditCard(entry) {
     entry.detailAction && entry.detailId
       ? `<button type="button" class="btn btn-sm btn-outline" data-action="${escapeAttr(entry.detailAction)}" data-id="${escapeAttr(entry.detailId)}">${IC.eye} Detalle</button>`
       : "";
-  return `<article class="hist-timeline-item hist-timeline-item--${escapeAttr(actionSlug)}" data-audit-row>
-    <div class="hist-timeline-marker" aria-hidden="true"></div>
-    <div class="hist-timeline-body">
-      <header class="hist-timeline-head">
-        <div>
-          <time class="hist-timeline-date" datetime="${escapeAttr(String(entry.ts || ""))}">${escapeHtml(fmtDate(entry.ts))}</time>
-          <h3 class="hist-timeline-title">${escapeHtml(entry.entityLabel)}</h3>
-          <p class="hist-timeline-module muted">${escapeHtml(entry.moduleLabel)}</p>
-        </div>
-        <span class="status ${escapeAttr(actionTone)}">${escapeHtml(actionLabel)}</span>
+  const haystack = historyTraceHaystack(entry);
+  const moduleIconFn = globalThis.historyTraceModuleIconHtml;
+  const moduleIcon =
+    typeof moduleIconFn === "function" ? moduleIconFn(entry.moduleLabel, "hist-trace-card__module-ico") : "";
+  return `<article class="hist-trace-card hist-trace-card--${escapeAttr(actionSlug)}" data-audit-row data-trace-haystack="${escapeAttr(haystack)}">
+    <div class="hist-trace-card__rail" aria-hidden="true"><span class="hist-trace-card__dot"></span></div>
+    <div class="hist-trace-card__body">
+      <header class="hist-trace-card__head">
+        <span class="hist-trace-card__module">${moduleIcon}<span>${escapeHtml(entry.moduleLabel)}</span></span>
+        <span class="status ${escapeAttr(actionTone)} hist-trace-card__action">${escapeHtml(actionLabel)}</span>
       </header>
-      <p class="hist-timeline-summary">${escapeHtml(entry.summary || "Sin resumen")}</p>
-      ${entry.actor ? `<p class="hist-timeline-actor muted">${IC.user} ${escapeHtml(entry.actor)}</p>` : ""}
-      ${detailButton ? `<footer class="hist-timeline-foot">${detailButton}</footer>` : ""}
+      <h3 class="hist-trace-card__title">${escapeHtml(entry.entityLabel)}</h3>
+      <p class="hist-trace-card__summary">${escapeHtml(entry.summary || "Sin resumen")}</p>
+      <footer class="hist-trace-card__foot">
+        <time class="hist-trace-card__time" datetime="${escapeAttr(String(entry.ts || ""))}">${escapeHtml(fmtDate(entry.ts))}</time>
+        ${entry.actor ? `<span class="hist-trace-card__actor">${IC.user}<span>${escapeHtml(entry.actor)}</span></span>` : ""}
+        ${detailButton ? `<span class="hist-trace-card__detail">${detailButton}</span>` : ""}
+      </footer>
     </div>
   </article>`;
 }
@@ -7369,6 +7434,9 @@ function renderHistoryAuditCard(entry) {
 function renderHistoryAuditRow(entry) {
   const actionLabel = historyAuditActionLabel(entry.action);
   const actionTone = historyAuditActionStatus(entry.action);
+  const moduleIconFn = globalThis.historyTraceModuleIconHtml;
+  const moduleIcon =
+    typeof moduleIconFn === "function" ? moduleIconFn(entry.moduleLabel, "hist-trace-table-module-ico") : "";
   const detailButton =
     entry.detailAction && entry.detailId
       ? `<button type="button" class="btn btn-sm btn-outline" data-action="${escapeAttr(entry.detailAction)}" data-id="${escapeAttr(entry.detailId)}">${IC.eye} Detalle</button>`
@@ -7378,7 +7446,7 @@ function renderHistoryAuditRow(entry) {
     : '<span class="muted">—</span>';
   return `<tr class="hist-table-row hist-table-row--audit" data-audit-row>
     <td data-label="Fecha"><time datetime="${escapeAttr(String(entry.ts || ""))}">${escapeHtml(fmtDate(entry.ts))}</time></td>
-    <td data-label="Módulo">${escapeHtml(entry.moduleLabel)}</td>
+    <td data-label="Módulo"><span class="hist-trace-table-module">${moduleIcon}<span>${escapeHtml(entry.moduleLabel)}</span></span></td>
     <td data-label="Entidad"><strong>${escapeHtml(entry.entityLabel)}</strong></td>
     <td data-label="Acción"><span class="status ${escapeAttr(actionTone)}">${escapeHtml(actionLabel)}</span></td>
     <td data-label="Resumen">${escapeHtml(entry.summary || "Sin resumen")}</td>
@@ -7405,7 +7473,7 @@ function renderHistoryAuditList(entries, layout = "cards") {
     <tbody>${entries.map(renderHistoryAuditRow).join("")}</tbody>
   </table></div>`;
   }
-  return `<div class="hist-timeline">${entries.map(renderHistoryAuditCard).join("")}</div>`;
+  return `<div class="hist-trace-stream">${entries.map(renderHistoryAuditCard).join("")}</div>`;
 }
 
 

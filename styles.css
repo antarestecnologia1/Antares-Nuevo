@@ -14034,6 +14034,599 @@ body[data-theme="dark"] tr[data-sst-state="pendiente"] {
   height: 2rem;
 }
 
+/* —— Historial unificado: trazabilidad —— */
+.hist-trace-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.hist-trace-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem 1.25rem;
+  padding: 1.15rem 1.25rem;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--primary) 16%, var(--line));
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--primary) 9%, #fff) 0%,
+    color-mix(in srgb, var(--primary) 3%, #fff) 55%,
+    #fff 100%
+  );
+  box-shadow: 0 8px 28px rgba(11, 63, 138, 0.06);
+}
+
+.hist-trace-hero__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 12%, #fff);
+  border: 1px solid color-mix(in srgb, var(--primary) 20%, transparent);
+}
+
+.hist-trace-hero__badge svg {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+.hist-trace-hero h2 {
+  margin: 0.45rem 0 0.2rem;
+  font-size: clamp(1.25rem, 2.2vw, 1.55rem);
+  font-weight: 800;
+  color: #0b3f8a;
+  letter-spacing: -0.02em;
+}
+
+.hist-trace-hero__lead {
+  margin: 0;
+  max-width: 42rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: #475569;
+}
+
+.hist-trace-kpis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hist-trace-kpi {
+  min-width: 5.5rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--primary) 10%, var(--line));
+  background: rgba(255, 255, 255, 0.88);
+  text-align: center;
+}
+
+.hist-trace-kpi dt {
+  margin: 0 0 0.15rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+}
+
+.hist-trace-kpi dd {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #0f3f75;
+}
+
+.hist-trace-kpi--ok dd {
+  color: #047857;
+}
+
+.hist-trace-kpi--warn dd {
+  color: #b45309;
+}
+
+.hist-trace-kpi--danger dd {
+  color: #b91c1c;
+}
+
+.hist-trace-kpi--primary dd {
+  color: var(--primary);
+}
+
+.hist-trace-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.hist-trace-action-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.hist-trace-module-filters {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.45rem;
+  overflow-x: auto;
+  padding: 0.15rem 0 0.35rem;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+.hist-trace-module-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  flex-shrink: 0;
+  max-width: 15rem;
+  padding: 0.42rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--primary) 14%, var(--line));
+  background: #fff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #334155;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
+}
+
+.hist-trace-module-chip:hover {
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--line));
+  color: var(--primary);
+}
+
+.hist-trace-module-chip.is-active {
+  background: color-mix(in srgb, var(--primary) 10%, #fff);
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--line));
+  color: #0b3f8a;
+  box-shadow: 0 3px 12px color-mix(in srgb, var(--primary) 18%, transparent);
+}
+
+.hist-trace-module-chip__ico,
+.hist-trace-module-ico,
+.hist-trace-card__module-ico,
+.hist-trace-table-module-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--primary);
+}
+
+.hist-trace-module-chip__ico svg,
+.hist-trace-module-ico svg,
+.hist-trace-card__module-ico svg,
+.hist-trace-table-module-ico svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+.hist-trace-module-chip__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 9.5rem;
+}
+
+.hist-trace-module-chip__count {
+  min-width: 1.35rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-align: center;
+  color: #475569;
+  background: color-mix(in srgb, var(--primary) 8%, #f1f5f9);
+}
+
+.hist-trace-module-chip.is-active .hist-trace-module-chip__count {
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 16%, #fff);
+}
+
+.hist-trace-export-btn[disabled] {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.hist-trace-result-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+.hist-trace-card__module {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.14rem 0.55rem 0.14rem 0.38rem;
+  border-radius: 999px;
+  font-size: 0.67rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #1d4ed8;
+  background: rgba(37, 99, 235, 0.1);
+}
+
+.hist-trace-table-module {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.hist-trace-action-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.38rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--primary) 14%, var(--line));
+  background: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #334155;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
+}
+
+.hist-trace-action-pill:hover {
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--line));
+  color: var(--primary);
+}
+
+.hist-trace-action-pill.is-active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--primary) 35%, transparent);
+}
+
+.hist-trace-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 0.75rem;
+}
+
+.hist-trace-search {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex: 1 1 14rem;
+  min-width: min(100%, 14rem);
+  padding: 0.35rem 0.65rem;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #fff;
+}
+
+.hist-trace-search svg {
+  width: 1rem;
+  height: 1rem;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.hist-trace-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font-size: 0.88rem;
+  padding: 0.25rem 0;
+}
+
+.hist-trace-search input:focus {
+  outline: none;
+}
+
+.hist-trace-layout-toggle {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.hist-trace-advanced summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.hist-trace-advanced summary::-webkit-details-marker {
+  display: none;
+}
+
+.hist-trace-advanced-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: 0.55rem 0.75rem;
+  margin-top: 0.55rem;
+  padding: 0.75rem;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--primary) 3%, #fff);
+}
+
+.hist-trace-result-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.35rem 0.75rem;
+}
+
+.hist-trace-result-meta {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.hist-trace-result-meta span {
+  color: var(--primary);
+  font-weight: 800;
+}
+
+.hist-trace-result-sort {
+  font-size: 0.78rem;
+}
+
+.hist-trace-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+}
+
+.hist-trace-day__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.55rem;
+  padding: 0 0.15rem;
+}
+
+.hist-trace-day__title {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-transform: capitalize;
+  color: #0b3f8a;
+}
+
+.hist-trace-day__count {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #64748b;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary) 8%, #fff);
+}
+
+.hist-trace-day__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.hist-trace-stream,
+.hist-trace-day__body {
+  position: relative;
+}
+
+.hist-trace-card {
+  display: grid;
+  grid-template-columns: 1.1rem minmax(0, 1fr);
+  gap: 0.65rem;
+  align-items: stretch;
+}
+
+.hist-trace-card__rail {
+  display: flex;
+  justify-content: center;
+  padding-top: 1.1rem;
+  position: relative;
+}
+
+.hist-trace-card__rail::after {
+  content: "";
+  position: absolute;
+  top: 1.65rem;
+  bottom: -0.55rem;
+  width: 2px;
+  background: color-mix(in srgb, var(--primary) 16%, var(--line));
+}
+
+.hist-trace-day__body .hist-trace-card:last-child .hist-trace-card__rail::after,
+.hist-trace-stream .hist-trace-card:last-child .hist-trace-card__rail::after {
+  display: none;
+}
+
+.hist-trace-card__dot {
+  width: 0.72rem;
+  height: 0.72rem;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  background: var(--primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 28%, transparent);
+  z-index: 1;
+}
+
+.hist-trace-card--create .hist-trace-card__dot {
+  background: #059669;
+  box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.28);
+}
+
+.hist-trace-card--delete .hist-trace-card__dot {
+  background: #dc2626;
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.28);
+}
+
+.hist-trace-card--update .hist-trace-card__dot {
+  background: #d97706;
+  box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.28);
+}
+
+.hist-trace-card__body {
+  padding: 0.8rem 0.95rem;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--primary) 11%, var(--line));
+  background: #fff;
+  box-shadow: 0 3px 12px rgba(15, 23, 42, 0.04);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.hist-trace-card__body:hover {
+  border-color: color-mix(in srgb, var(--primary) 28%, var(--line));
+  box-shadow: 0 6px 18px rgba(11, 63, 138, 0.08);
+}
+
+.hist-trace-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem 0.65rem;
+  margin-bottom: 0.35rem;
+}
+
+.hist-trace-card__action {
+  font-size: 0.72rem !important;
+}
+
+.hist-trace-card__title {
+  margin: 0 0 0.25rem;
+  font-size: 0.96rem;
+  font-weight: 800;
+  color: #0f3f75;
+  line-height: 1.3;
+}
+
+.hist-trace-card__summary {
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.hist-trace-card__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.85rem;
+  margin-top: 0.55rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid color-mix(in srgb, var(--primary) 8%, var(--line));
+  font-size: 0.76rem;
+  color: #64748b;
+}
+
+.hist-trace-card__time {
+  font-weight: 700;
+  color: #475569;
+}
+
+.hist-trace-card__actor {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+}
+
+.hist-trace-card__actor svg {
+  width: 0.82rem;
+  height: 0.82rem;
+}
+
+.hist-trace-card__detail {
+  margin-left: auto;
+}
+
+.hist-trace-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 2.5rem 1.25rem;
+  text-align: center;
+  border-radius: 16px;
+  border: 1px dashed color-mix(in srgb, var(--primary) 22%, var(--line));
+  background: color-mix(in srgb, var(--primary) 4%, #fff);
+}
+
+.hist-trace-empty p {
+  margin: 0;
+  font-weight: 600;
+}
+
+.hist-trace-empty__icon {
+  display: flex;
+  opacity: 0.45;
+}
+
+.hist-trace-empty__icon svg {
+  width: 2rem;
+  height: 2rem;
+}
+
+.hist-trace-more {
+  display: flex;
+  justify-content: center;
+  padding-top: 0.25rem;
+}
+
+body[data-theme="dark"] .hist-trace-hero {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 18%, var(--surface)) 0%, var(--surface) 100%);
+}
+
+body[data-theme="dark"] .hist-trace-kpi,
+body[data-theme="dark"] .hist-trace-card__body,
+body[data-theme="dark"] .hist-trace-search,
+body[data-theme="dark"] .hist-trace-action-pill {
+  background: var(--surface);
+}
+
+body[data-theme="dark"] .hist-trace-hero h2,
+body[data-theme="dark"] .hist-trace-card__title,
+body[data-theme="dark"] .hist-trace-kpi dd {
+  color: var(--text);
+}
+
+body[data-theme="dark"] .hist-trace-action-pill.is-active {
+  color: #fff;
+}
+
+@media (max-width: 720px) {
+  .hist-trace-hero {
+    padding: 0.95rem;
+  }
+
+  .hist-trace-kpis {
+    width: 100%;
+  }
+
+  .hist-trace-kpi {
+    flex: 1 1 calc(33% - 0.45rem);
+    min-width: 4.5rem;
+  }
+
+  .hist-trace-card__detail {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
 .history-fleet-money-wrap {
   display: flex;
   align-items: stretch;

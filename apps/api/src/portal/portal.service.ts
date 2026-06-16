@@ -27,6 +27,7 @@ import {
   liquidationCutIfClosingToday,
   liquidationCutsOverlappingRange,
   liquidationLatestClosedCutAsOf,
+  liquidationLatestPendingCutAsOf,
   resolveLiquidationCutFromPeriodKey,
   type LiquidationCut
 } from "../payroll/payroll-cut-bogota";
@@ -8453,20 +8454,47 @@ export class PortalService implements OnModuleInit {
         }
 
         const freq = normalizePayrollFrequency(String(row.periodicidad_pago));
+        const existingRes = await client.query<{ periodo_mes: string }>(
+          `SELECT periodo_mes FROM liquidaciones_nomina WHERE id_empleado = $1::uuid AND periodo_mes LIKE $2`,
+          [employeeId, `${by}-${String(bm0 + 1).padStart(2, "0")}%`]
+        );
+        const existingPeriodKeys = (existingRes.rows ?? []).map((r) => String(r.periodo_mes || ""));
         const cut = force
-          ? liquidationLatestClosedCutAsOf(freq, by, bm0, bdom)
+          ? liquidationLatestPendingCutAsOf(freq, by, bm0, bdom, existingPeriodKeys)
           : liquidationCutIfClosingToday(freq, by, bm0, bdom);
         if (!cut) {
           skipped += 1;
+          const freqLabel = canonicalPayFrequencyLabel(freq);
+          const refLabel = `${by}-${String(bm0 + 1).padStart(2, "0")}-${String(bdom).padStart(2, "0")}`;
+          if (force) {
+            const pendingClosed = liquidationLatestPendingCutAsOf(freq, by, bm0, bdom, []);
+            if (!pendingClosed) {
+              messages.push(
+                `${String(row.nombre_completo || "Colaborador").trim()}: en ${refLabel} no hay corte cerrado para nómina ${freqLabel}`
+              );
+            } else if (existingPeriodKeys.includes(pendingClosed.periodKey)) {
+              messages.push(
+                `${String(row.nombre_completo || "Colaborador").trim()}: ya tiene liquidación para ${pendingClosed.periodKey}`
+              );
+            } else {
+              messages.push(
+                `${String(row.nombre_completo || "Colaborador").trim()}: sin corte pendiente en ${refLabel} (${freqLabel})`
+              );
+            }
+          } else {
+            messages.push(
+              `${String(row.nombre_completo || "Colaborador").trim()}: ${refLabel} no es día de cierre para nómina ${freqLabel}`
+            );
+          }
           continue;
         }
 
-        const exists = await client.query(
-          `SELECT 1 FROM liquidaciones_nomina WHERE id_empleado = $1::uuid AND periodo_mes = $2 LIMIT 1`,
-          [employeeId, cut.periodKey]
-        );
-        if ((exists.rows?.length ?? 0) > 0) {
+        const exists = existingPeriodKeys.includes(cut.periodKey);
+        if (exists) {
           skipped += 1;
+          messages.push(
+            `${String(row.nombre_completo || "Colaborador").trim()}: ya tiene liquidación para ${cut.periodKey}`
+          );
           continue;
         }
 
