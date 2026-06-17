@@ -14,6 +14,7 @@ type AuthState = {
   userId: string;
   email: string;
   role: string;
+  lastActivityAt?: number;
 };
 
 type AuthContextValue = {
@@ -59,11 +60,23 @@ function normalizeStoredSession(raw: unknown): AuthState | null {
   const o = raw as Record<string, unknown>;
   const userId = String(o.userId || "").trim();
   if (!userId) return null;
+  const lastActivityAt =
+    typeof o.lastActivityAt === "number" && Number.isFinite(o.lastActivityAt)
+      ? o.lastActivityAt
+      : Date.now();
   return {
     userId,
     email: String(o.email || "").trim(),
-    role: String(o.role || "").trim()
+    role: String(o.role || "").trim(),
+    lastActivityAt
   };
+}
+
+function isStoredSessionWithinIdleWindow(stored: AuthState | null): boolean {
+  if (!stored) return false;
+  const last = typeof stored.lastActivityAt === "number" ? stored.lastActivityAt : 0;
+  if (!last) return true;
+  return Date.now() - last <= INACTIVITY_MS;
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -132,7 +145,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     if (!res.ok) {
-      logout("Tu sesión expiró. Inicia sesión nuevamente.");
+      const elapsed = Date.now() - lastActivityRef.current;
+      if (elapsed >= INACTIVITY_MS) {
+        logout("Tu sesión expiró. Inicia sesión nuevamente.");
+      }
       return false;
     }
 
@@ -147,13 +163,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const user = data?.user;
     if (!user?.userId) return false;
 
+    const now = Date.now();
     const nextSession: AuthState = {
       userId: String(user.userId),
       email: String(user.email ?? current.email),
-      role: String(user.role ?? current.role)
+      role: String(user.role ?? current.role),
+      lastActivityAt: now
     };
     setSession(nextSession);
     persistSession(nextSession);
+    lastActivityRef.current = now;
     return true;
   }, [logout, persistSession]);
 
@@ -180,8 +199,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (raw) {
       try {
         stored = normalizeStoredSession(JSON.parse(raw));
-        if (stored) setSession(stored);
-        else localStorage.removeItem(STORAGE_KEY);
+        if (stored) {
+          setSession(stored);
+          lastActivityRef.current =
+            typeof stored.lastActivityAt === "number" ? stored.lastActivityAt : Date.now();
+        } else localStorage.removeItem(STORAGE_KEY);
       } catch {
         localStorage.removeItem(STORAGE_KEY);
       }
@@ -202,20 +224,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           };
           if (data?.csrfToken) csrfRef.current = data.csrfToken;
           if (data?.user?.userId) {
+            const now = Date.now();
             const next: AuthState = {
               userId: String(data.user.userId),
               email: String(data.user.email ?? stored?.email ?? ""),
-              role: String(data.user.role ?? stored?.role ?? "")
+              role: String(data.user.role ?? stored?.role ?? ""),
+              lastActivityAt: now
             };
             setSession(next);
             persistSession(next);
+            lastActivityRef.current = now;
           }
-        } else if (stored) {
+        } else if (stored && !isStoredSessionWithinIdleWindow(stored)) {
           setSession(null);
           persistSession(null);
         }
       } catch {
-        if (stored) {
+        if (stored && !isStoredSessionWithinIdleWindow(stored)) {
           setSession(null);
           persistSession(null);
         }
@@ -307,7 +332,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const nextSession: AuthState = {
         userId: String(user.userId),
         email: String(user.email ?? email),
-        role: String(user.role)
+        role: String(user.role),
+        lastActivityAt: Date.now()
       };
 
       setSession(nextSession);

@@ -8,6 +8,8 @@ const CSRF_SKIP_PREFIXES = [
   "/api/auth/login",
   "/api/auth/register",
   "/api/auth/register-portal",
+  "/api/auth/refresh",
+  "/api/auth/logout",
   "/api/auth/password-recovery/request",
   "/api/auth/password-recovery/complete"
 ];

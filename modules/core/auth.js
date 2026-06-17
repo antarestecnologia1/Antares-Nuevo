@@ -181,6 +181,15 @@ export function resetSessionActivityMemory() {
 
 export { SESSION_IDLE_MS };
 
+/** True si hay sesión local y no han pasado 30 min desde la última actividad registrada. */
+export function isSessionWithinIdleWindow() {
+  const s = getSession();
+  if (!s) return false;
+  const last = getEffectiveLastActivityAt();
+  if (!last) return true;
+  return Date.now() - last <= SESSION_IDLE_MS;
+}
+
 export function readRememberedLoginCredentials() {
   try {
     const raw = localStorage.getItem(LOGIN_REMEMBER_STORAGE_KEY);
@@ -1528,7 +1537,10 @@ export async function tryApiRefreshBridge() {
   } catch (_netErr) {
     return { status: "network" };
   }
-  if (res.status === 401 || res.status === 403) {
+  if (res.status === 403) {
+    return { status: "network", httpStatus: res.status };
+  }
+  if (res.status === 401) {
     return { status: "invalid", httpStatus: res.status };
   }
   if (!res.ok) return { status: "network", httpStatus: res.status };

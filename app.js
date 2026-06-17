@@ -9,7 +9,9 @@ import {
   getSession,
   setAuthSuccessCallback,
   tryApiRefreshBridge,
-  clearSession
+  clearSession,
+  startSessionSecurityWatch,
+  isSessionWithinIdleWindow
 } from "./modules/core/auth.js";
 import { renderPortal, scheduleRenderPortalView } from "./modules/core/router.js";
 import {
@@ -67,6 +69,9 @@ initGlobalEvents();
 initPublicEffects();
 
 renderPortal();
+if (getSession()) {
+  startSessionSecurityWatch();
+}
 
 void (async function bootApplicationFromDatabaseThenUi() {
   const hadSessionAtBoot = Boolean(getSession());
@@ -85,7 +90,7 @@ void (async function bootApplicationFromDatabaseThenUi() {
   } catch (_e) {
     refreshOutcome = { status: "network" };
   }
-  if (refreshOutcome.status === "invalid") {
+  if (refreshOutcome.status === "invalid" && !isSessionWithinIdleWindow()) {
     try {
       clearSession();
     } catch (_e) {
