@@ -372,6 +372,158 @@ body[data-theme="dark"] .transport-studio #form-route-rate .create-trip-readines
 }
 
 /* —— 9. Gestión humana (nómina) —— */
+body[data-theme="dark"] .payroll-studio,
+body[data-theme="dark"] .payroll-shell,
+body[data-theme="dark"] .hr-module-pro--payroll {
+  --pr-stripe-pending: #fbbf24;
+  --pr-stripe-paid: #34d399;
+  --pr-color-net: #7cb3ff;
+  --pr-color-ded: #f87171;
+  --pr-chip-bg: rgba(55, 124, 192, 0.16);
+  --pr-chip-color: #93c5fd;
+  --pr-amt-border: rgba(148, 196, 255, 0.12);
+  --pr-amt-net-bg: rgba(55, 124, 192, 0.08);
+  --pr-av0-bg: rgba(59, 130, 246, 0.22);
+  --pr-av0-fg: #93c5fd;
+  --pr-av1-bg: rgba(16, 185, 129, 0.2);
+  --pr-av1-fg: #6ee7b7;
+  --pr-av2-bg: rgba(251, 191, 36, 0.18);
+  --pr-av2-fg: #fcd34d;
+  --pr-av3-bg: rgba(139, 92, 246, 0.2);
+  --pr-av3-fg: #c4b5fd;
+  --pr-badge-smmlv-bg: rgba(139, 92, 246, 0.18);
+  --pr-badge-smmlv-fg: #c4b5fd;
+  --pr-badge-driver-bg: rgba(251, 191, 36, 0.16);
+  --pr-badge-driver-fg: #fcd34d;
+  --pr-contract-alert-bg: rgba(251, 191, 36, 0.12);
+  --pr-contract-alert-fg: #fcd34d;
+  --pr-contract-alert-bd: rgba(251, 191, 36, 0.28);
+  --pr-contract-expired-bg: rgba(239, 68, 68, 0.14);
+  --pr-contract-expired-fg: #fca5a5;
+  --pr-contract-expired-bd: rgba(239, 68, 68, 0.28);
+}
+
+/* Barra de búsqueda / filtros de empleados */
+body[data-theme="dark"] .payroll-employee-toolbar {
+  background: linear-gradient(145deg, rgba(20, 36, 58, 0.97) 0%, rgba(13, 26, 44, 0.95) 100%);
+  border-color: rgba(74, 115, 153, 0.38);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+body[data-theme="dark"] .payroll-employee-toolbar label,
+body[data-theme="dark"] .payroll-employee-toolbar .field-label,
+body[data-theme="dark"] .payroll-employee-search,
+body[data-theme="dark"] .payroll-employee-filter {
+  color: #9ec1ec;
+}
+
+body[data-theme="dark"] .payroll-employee-toolbar input[type="search"],
+body[data-theme="dark"] .payroll-employee-toolbar select {
+  background: rgba(8, 18, 32, 0.88);
+  border-color: rgba(88, 130, 175, 0.42);
+  color: #e8f2fc;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.18);
+}
+
+body[data-theme="dark"] .payroll-employee-toolbar input[type="search"]::placeholder {
+  color: #6b8fad;
+}
+
+body[data-theme="dark"] .payroll-employee-toolbar-actions .btn-action {
+  box-shadow: 0 4px 14px rgba(37, 99, 180, 0.28);
+}
+
+body[data-theme="dark"] .payroll-employee-toolbar-actions .btn-reject {
+  box-shadow: 0 4px 14px rgba(185, 28, 28, 0.22);
+}
+
+/* Tarjetas compactas de empleados */
+body[data-theme="dark"] .payroll-studio .directory-card--compact,
+body[data-theme="dark"] .payroll-shell .directory-card--compact,
+body[data-theme="dark"] .hr-module-pro--payroll .payroll-employees-grid .directory-card--compact {
+  background: linear-gradient(165deg, rgba(22, 40, 64, 0.96) 0%, rgba(15, 28, 48, 0.98) 100%);
+  border-color: rgba(74, 115, 153, 0.3);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+}
+
+body[data-theme="dark"] .payroll-studio .directory-card--compact:hover,
+body[data-theme="dark"] .payroll-shell .directory-card--compact:hover,
+body[data-theme="dark"] .hr-module-pro--payroll .payroll-employees-grid .directory-card--compact:hover {
+  border-color: rgba(100, 160, 220, 0.42);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.3);
+  background: linear-gradient(165deg, rgba(26, 46, 72, 0.98) 0%, rgba(18, 32, 54, 0.99) 100%);
+}
+
+body[data-theme="dark"] .payroll-studio .directory-card--compact .directory-card__title,
+body[data-theme="dark"] .payroll-shell .directory-card--compact .directory-card__title {
+  color: #f0f7ff;
+  letter-spacing: 0.01em;
+}
+
+body[data-theme="dark"] .payroll-studio .directory-card--compact .directory-card__subline,
+body[data-theme="dark"] .payroll-shell .directory-card--compact .directory-card__subline {
+  color: #8fa8c4;
+}
+
+body[data-theme="dark"] .payroll-emp-role-chip {
+  background: rgba(55, 124, 192, 0.14);
+  color: #b8d4f0;
+  border: 1px solid rgba(88, 130, 175, 0.22);
+}
+
+body[data-theme="dark"] .payroll-emp-salary,
+body[data-theme="dark"] .directory-card__salary {
+  color: #e8f4ff;
+  font-weight: 700;
+}
+
+body[data-theme="dark"] .directory-card__select,
+body[data-theme="dark"] .directory-card__select .muted {
+  color: #9eb8d8 !important;
+}
+
+body[data-theme="dark"] .directory-card__compact-actions .btn-outline {
+  background: rgba(10, 22, 38, 0.72);
+  border-color: rgba(100, 150, 200, 0.32);
+  color: #c5daf0;
+}
+
+body[data-theme="dark"] .directory-card__compact-actions .btn-outline:hover {
+  background: rgba(55, 124, 192, 0.14);
+  border-color: rgba(120, 170, 220, 0.45);
+  color: #e8f4ff;
+}
+
+body[data-theme="dark"] .directory-card__compact-actions .btn-action {
+  border-color: rgba(120, 170, 230, 0.35);
+}
+
+body[data-theme="dark"] .directory-card__compact-actions .btn-reject {
+  border-color: rgba(248, 113, 113, 0.35);
+}
+
+body[data-theme="dark"] .payroll-run-card--compact {
+  background: linear-gradient(180deg, rgba(20, 36, 58, 0.96) 0%, rgba(14, 28, 48, 0.98) 100%);
+  border-color: rgba(74, 115, 153, 0.32);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+}
+
+body[data-theme="dark"] .payroll-run-card--compact:hover {
+  border-color: rgba(100, 160, 220, 0.4);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28);
+}
+
+body[data-theme="dark"] .payroll-run-card--compact .payroll-run-card-kicker {
+  color: #8fa8c4;
+}
+
+body[data-theme="dark"] .payroll-run-card--compact .payroll-run-card-title,
+body[data-theme="dark"] .payroll-run-card--compact .payroll-run-card-employee {
+  color: #f0f7ff;
+}
+
 body[data-theme="dark"] .payroll-studio #form-employee .form-section-grid input:focus,
 body[data-theme="dark"] .payroll-studio #form-employee .form-section-grid select:focus,
 body[data-theme="dark"] .payroll-studio #form-employee .form-section-grid textarea:focus {
@@ -396,6 +548,26 @@ body[data-theme="dark"] .payroll-studio .payroll-runs-view-toggle__btn:hover {
 body[data-theme="dark"] .payroll-studio .payroll-runs-list-view {
   background: rgba(14, 28, 46, 0.92);
   border-color: rgba(148, 196, 255, 0.14);
+}
+
+/* Tarjetas directorio compactas — estilo corporativo global (portal) */
+body[data-theme="dark"] .portal-main .directory-card--compact {
+  background: linear-gradient(165deg, rgba(22, 40, 64, 0.96) 0%, rgba(15, 28, 48, 0.98) 100%);
+  border-color: rgba(74, 115, 153, 0.3);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+}
+
+body[data-theme="dark"] .portal-main .directory-card--compact:hover {
+  border-color: rgba(100, 160, 220, 0.42);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.3);
+}
+
+body[data-theme="dark"] .portal-main .directory-card--compact .directory-card__title {
+  color: #f0f7ff;
+}
+
+body[data-theme="dark"] .portal-main .directory-card--compact .directory-card__subline {
+  color: #8fa8c4;
 }
 
 /* —— 10–12. Contratación, SST, B2B — tabs índigo —— */
