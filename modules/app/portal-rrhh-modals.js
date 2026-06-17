@@ -40,6 +40,7 @@ function renderPayrollRunCard(run, { compact = false } = {}) {
       : "";
   const typeLabel = payrollRunTypeLabel(run);
   const generatedBy = payrollRunGeneratedByLabel(run);
+  const approvedBy = run.paid ? String(run.approvedBy || "").trim() : "";
   const orig = String(run.liquidacionOrigin || run.origenLiquidacion || "manual").toLowerCase();
   const isDriverRun = payrollRunIsDriverTripPayment(run);
   const hasAbsenceDetail =
@@ -101,6 +102,7 @@ function renderPayrollRunCard(run, { compact = false } = {}) {
         ${periodRange ? `<p class="payroll-run-card-period muted">${escapeHtml(periodRange)}</p>` : ""}
         <p class="payroll-run-card-employee">${escapeHtml(String(run.employeeName || "—"))}</p>
         ${generatedBy ? `<p class="payroll-run-card-meta muted">Generado por ${escapeHtml(generatedBy)}</p>` : ""}
+        ${approvedBy ? `<p class="payroll-run-card-meta muted">Pagado · aprobado por ${escapeHtml(approvedBy)}</p>` : ""}
       </div>
       ${statusHtml}
     </header>

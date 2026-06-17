@@ -1204,5 +1204,121 @@ body[data-theme="dark"] .payroll-studio .hr-workspace-tab--switch.is-active {
     flex: 1 1 calc(50% - 0.25rem);
     min-width: 0;
   }
+
+  .payroll-studio .payroll-runs-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .payroll-studio .payroll-runs-toolbar__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .payroll-studio .payroll-runs-view-toggle {
+    width: 100%;
+  }
+
+  .payroll-studio .payroll-runs-view-toggle__btn {
+    flex: 1 1 50%;
+    justify-content: center;
+  }
+}
+
+/* ── Vista tarjetas / lista (liquidaciones) ── */
+.payroll-studio .payroll-runs-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  margin: 0 0 0.85rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: var(--pay-radius-sm);
+  border: 1px solid var(--pay-edge);
+  background: linear-gradient(180deg, rgba(55, 124, 192, 0.04) 0%, rgba(255, 255, 255, 0.92) 100%);
+}
+
+.payroll-studio .payroll-runs-toolbar--embedded {
+  margin-top: 0.75rem;
+}
+
+.payroll-studio .payroll-runs-toolbar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.65rem 1rem;
+  margin-left: auto;
+}
+
+.payroll-studio .payroll-runs-toolbar__meta {
+  margin: 0;
+  margin-left: auto;
+}
+
+.payroll-studio .payroll-runs-view-toggle {
+  display: inline-flex;
+  align-items: stretch;
+  padding: 0.2rem;
+  border-radius: 999px;
+  border: 1px solid var(--pay-edge-strong);
+  background: #fff;
+  box-shadow: var(--pay-shadow-sm);
+}
+
+.payroll-studio .payroll-runs-view-toggle__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.38rem 0.85rem;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: #64748b;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.payroll-studio .payroll-runs-view-toggle__btn:hover {
+  color: var(--pay-navy-mid);
+  background: rgba(55, 124, 192, 0.06);
+}
+
+.payroll-studio .payroll-runs-view-toggle__btn.is-active {
+  color: #fff;
+  background: linear-gradient(135deg, var(--pay-blue) 0%, var(--pay-navy-mid) 100%);
+  box-shadow: 0 4px 14px rgba(55, 124, 192, 0.28);
+}
+
+.payroll-studio .payroll-runs-view-toggle__btn .btn-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.payroll-studio .payroll-runs-body {
+  min-width: 0;
+}
+
+.payroll-studio .payroll-runs-list-view {
+  border-radius: var(--pay-radius-sm);
+  border: 1px solid var(--pay-edge);
+  overflow: auto;
+  background: #fff;
+  box-shadow: var(--pay-shadow-sm);
+}
+
+.payroll-studio .payroll-runs-list-view table {
+  margin: 0;
+}
+
+.payroll-studio .payroll-runs-list-view th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f8fafc;
+  white-space: nowrap;
 }
 

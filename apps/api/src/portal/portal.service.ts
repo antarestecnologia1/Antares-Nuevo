@@ -33,7 +33,11 @@ import {
 } from "../payroll/payroll-cut-bogota";
 import { buildDriverTripPaymentCompute } from "../payroll/driver-trip-payment";
 import { employeeIsConductorServiceProvider, employeeReceivesPayrollNomina } from "../payroll/payroll-employee-kind";
-import { canonicalPayFrequencyLabel, normalizePayrollFrequency } from "../payroll/payroll-frequency";
+import {
+  canonicalPayFrequencyLabel,
+  isPayrollAutogenFrequency,
+  normalizePayrollFrequency
+} from "../payroll/payroll-frequency";
 import {
   formatColombiaDateTimeDisplay,
   timestamptzStringColombiaNow,
@@ -3606,6 +3610,11 @@ export class PortalService implements OnModuleInit {
       }
 
       await client.query("COMMIT");
+      const actor = await this.resolvePortalActor(actorUserId);
+      this.logger.log(
+        `Empleado nómina eliminado (${eid}) por ${actor.name || actor.email || actorUserId}` +
+          (driversRemoved ? `; conductores vinculados removidos: ${driversRemoved}` : "")
+      );
       return {
         ok: true,
         employeeId: eid,
@@ -8024,9 +8033,11 @@ export class PortalService implements OnModuleInit {
         "periodicidadPago",
         "periodicidad_pago"
       );
-      const periodicidadPago = canonicalPayFrequencyLabel(
+      const periodicidadPago = isPayrollAutogenFrequency(
         periodicidadRaw != null ? String(periodicidadRaw) : undefined
-      );
+      )
+        ? canonicalPayFrequencyLabel(periodicidadRaw != null ? String(periodicidadRaw) : undefined)
+        : "Mensual";
 
       const occExam = portalDateOrNull(
         p(e, "occupationalExamDate", "psychoTestDate", "psychometricExamDate", "fecha_examen_ocupacional")
@@ -8372,12 +8383,15 @@ export class PortalService implements OnModuleInit {
       )
         .trim()
         .toLowerCase();
-      if (incomingOrigin !== "automatico") {
+      if (incomingOrigin !== "automatica" && incomingOrigin !== "automatico") {
         const existing = await c.query<{ origen_liquidacion: string }>(
           `SELECT origen_liquidacion::text FROM liquidaciones_nomina WHERE id = $1::uuid`,
           [runId]
         );
-        if (existing.rows[0]?.origen_liquidacion === "automatico") {
+        const existingOrigin = String(existing.rows[0]?.origen_liquidacion || "")
+          .trim()
+          .toLowerCase();
+        if (existingOrigin === "automatica" || existingOrigin === "automatico") {
           return;
         }
       }
@@ -8435,7 +8449,7 @@ export class PortalService implements OnModuleInit {
 
   /**
    * Inserta liquidaciones según periodicidad de pago y **fecha civil Colombia (Bogotá)**:
-   * quincena 1–15 y 16–fin, catorcenal 1–14 y 15–fin, mensual fin de mes, semanal cortes de 7 días.
+   * quincena 1–15 y 16–fin, mensual fin de mes (solo periodicidades mensual y quincenal).
    * Solo genera cuando `referenceDate` coincide con día de **cierre** del corte (`payroll-cut-bogota`),
    * salvo `force` (último corte cerrado en esa fecha).
    */
@@ -8502,6 +8516,10 @@ export class PortalService implements OnModuleInit {
         }
 
         const freq = normalizePayrollFrequency(String(row.periodicidad_pago));
+        if (!isPayrollAutogenFrequency(freq)) {
+          skipped += 1;
+          continue;
+        }
         const existingRes = await client.query<{ periodo_mes: string }>(
           `SELECT periodo_mes FROM liquidaciones_nomina WHERE id_empleado = $1::uuid AND periodo_mes LIKE $2`,
           [employeeId, `${by}-${String(bm0 + 1).padStart(2, "0")}%`]
@@ -9161,6 +9179,13 @@ export class PortalService implements OnModuleInit {
     }
 
     const freq = normalizePayrollFrequency(String(row.periodicidad_pago));
+    if (!isPayrollAutogenFrequency(freq)) {
+      stats.skipped += 1;
+      stats.messages.push(
+        `${String(row.nombre_completo || "Colaborador").trim()}: periodicidad ${canonicalPayFrequencyLabel(freq)} sin liquidación automática (solo Mensual o Quincenal)`
+      );
+      return;
+    }
     const name = String(row.nombre_completo || "Colaborador").trim();
 
     let cuts: LiquidationCut[] = [];

@@ -469,6 +469,7 @@ async function openPayrollRunPayslipById(runId) {
             ${metaExtra}
             <tr><td style="padding:4px 0"><strong>Estado</strong></td><td>${run.paid ? "Pagado" : "Pendiente de pago"}</td></tr>
             <tr><td style="padding:4px 0"><strong>Fecha de pago</strong></td><td>${escapeHtml(String(paidAtLabel))}</td></tr>
+            ${run.paid && run.approvedBy ? `<tr><td style="padding:4px 0"><strong>Aprobado por</strong></td><td>${escapeHtml(String(run.approvedBy))}</td></tr>` : ""}
           </table>
           <h2 style="font-size:1rem;margin:1.05rem 0 0">Comprobante de pago</h2>
           ${payslipBodyBlocks}
@@ -663,6 +664,21 @@ function bindPayrollPortalControls() {
       state.payrollUi.runSort = String(btn.dataset.sort || "recent");
       state.payrollUi.workspace = "data";
       state.payrollUi.dataSection = "runs";
+      persistHrWorkspace("payroll", "data");
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='payroll-runs-view']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const view = String(btn.dataset.view || "cards").toLowerCase() === "list" ? "list" : "cards";
+      const ctx = String(btn.dataset.context || "nomina").toLowerCase() === "driver" ? "driverPayments" : "runs";
+      state.payrollUi = {
+        ...(state.payrollUi || { runSort: "recent", workspace: "data", dataSection: "runs" }),
+        runsView: view,
+        workspace: "data",
+        dataSection: ctx
+      };
       persistHrWorkspace("payroll", "data");
       renderPortalView();
     });
@@ -1061,6 +1077,10 @@ function bindPayrollPortalControls() {
           return;
         }
         const payload = packed.payload;
+        if (!payrollIsAllowedPayFrequency(payload.payFrequency)) {
+          failPortalField(employeeForm, "payFrequency", "Seleccione periodicidad Mensual o Quincenal.");
+          return;
+        }
         if (!canManagePayrollModule(actor)) {
           try {
             await queueApproval({
@@ -1455,6 +1475,10 @@ function bindPayrollPortalControls() {
             return false;
           }
           const nextPayload = packed.payload;
+          if (!payrollIsAllowedPayFrequency(nextPayload.payFrequency)) {
+            failPortalField(formEl, "payFrequency", "Seleccione periodicidad Mensual o Quincenal.");
+            return false;
+          }
           if (nextPayload.workerRole === "conductor") {
             if (!nextPayload.license) {
               failPortalField(formEl, "license", userMessage("employeeDriverFieldsRequired"));
@@ -1708,6 +1732,14 @@ function bindPayrollPortalControls() {
         failPortalField(payrollForm, "employeeId", userMessage("payrollConductorUseDriverForm"));
         return;
       }
+      if (!payrollIsAllowedPayFrequency(employee.payFrequency)) {
+        failPortalField(
+          payrollForm,
+          "employeeId",
+          "Solo se liquidan colaboradores con periodicidad Mensual o Quincenal. Actualice la ficha del empleado."
+        );
+        return;
+      }
 
       const payFreqNorm = normalizePayrollFrequencyJs(employee.payFrequency);
       const existingPayrollRuns = read(KEYS.payrollRuns, []);
@@ -1943,6 +1975,9 @@ function bindPayrollPortalControls() {
         notify(String(err?.message || "No fue posible guardar la nómina en el servidor."), "error");
         return;
       }
+      appendPayrollRunAuditLog("create", run, {
+        summary: `Liquidación manual creada (${payrollRunTypeLabel(run)}) · neto $${parseNum(run.net).toLocaleString("es-CO")}`
+      });
       state.payrollUi = { ...(state.payrollUi || { runSort: "recent" }), workspace: "data" };
       persistHrWorkspace("payroll", "data");
       collapseCreatePanel("create-payroll");
@@ -2173,6 +2208,9 @@ function bindPayrollPortalControls() {
         notify(String(err?.message || "No fue posible guardar la liquidación en el servidor."), "error");
         return;
       }
+      appendPayrollRunAuditLog("create", run, {
+        summary: `Liquidación de terminación creada · neto $${parseNum(run.net).toLocaleString("es-CO")}`
+      });
       state.payrollUi = { ...(state.payrollUi || { runSort: "recent" }), workspace: "data" };
       persistHrWorkspace("payroll", "data");
       collapseCreatePanel("create-payroll-settlement");
@@ -2221,15 +2259,28 @@ function bindPayrollPortalControls() {
         message: `Marcar como pagada la liquidación de ${run.employeeName} (${run.month}) por ${parseNum(run.net).toLocaleString("es-CO")} COP neto.`,
         confirmText: "Marcar pagado",
         onConfirm: async () => {
+          const approver = payrollAuditActorLabel();
           try {
             await writeAwaitServer(
               KEYS.payrollRuns,
-              all.map((item) => (item.id === id ? { ...item, paid: true, paidAt: nowIso() } : item))
+              all.map((item) =>
+                item.id === id
+                  ? stampUpdatedRecord({
+                      ...item,
+                      paid: true,
+                      paidAt: nowIso(),
+                      approvedBy: approver
+                    })
+                  : item
+              )
             );
           } catch (err) {
             notify(String(err?.message || "No fue posible marcar el pago en el servidor."), "error");
             return;
           }
+          appendPayrollRunAuditLog("update", run, {
+            summary: `Liquidación marcada como pagada · aprobado por ${approver} · neto $${parseNum(run.net).toLocaleString("es-CO")}`
+          });
           notify(userMessage("payrollPaidMarked"), "success");
           renderPortalView();
         }
@@ -2298,19 +2349,13 @@ function bindPayrollPortalControls() {
         onConfirm: async (motivo) => {
           const ok = await removeFromPortalListAwaitServer(KEYS.payrollRuns, id);
           if (!ok) return;
-          appendModuleAuditLog({
-            action: "delete",
-            moduleId: "payroll",
-            moduleLabel: "Gestión humana",
-            entityId: id,
-            entityLabel: run
-              ? `${String(run.employeeName || "Colaborador")} · ${String(run.month || "-")}`
-              : "Liquidación",
-            summary: run
-              ? `Liquidación eliminada (${String(run.month || "-")} · ${String(run.employeeName || "Colaborador")}). Motivo: ${String(motivo || "").trim()}`
-              : `Liquidación eliminada. Motivo: ${String(motivo || "").trim()}`,
-            actor: String(currentUser()?.email || currentUser()?.name || "—").trim()
+          appendPayrollRunAuditLog("delete", run, {
+            summary: `Liquidación eliminada (${String(run?.month || "-")} · ${String(run?.employeeName || "Colaborador")})`,
+            motivo
           });
+          if (portalCanRefreshFromApi()) {
+            await applyPortalBootstrapFromApi();
+          }
           notify(userMessage("payrollRunDeleted"), "success");
           renderPortalView();
         }

@@ -2,6 +2,16 @@
  * Gestión humana — HTML de la vista (payrollHtml).
  * Carga con defer antes de gestion-humana.js.
  */
+function renderPayrollRunsViewToggle(activeView, context = "nomina") {
+  const view = String(activeView || "cards").toLowerCase() === "list" ? "list" : "cards";
+  const ctx = String(context || "nomina").toLowerCase() === "driver" ? "driver" : "nomina";
+  const mkBtn = (mode, icon, label) => {
+    const active = view === mode;
+    return `<button type="button" class="payroll-runs-view-toggle__btn${active ? " is-active" : ""}" role="tab" aria-selected="${active ? "true" : "false"}" data-action="payroll-runs-view" data-view="${mode}" data-context="${ctx}">${icon}<span>${escapeHtml(label)}</span></button>`;
+  };
+  return `<div class="payroll-runs-view-toggle" role="tablist" aria-label="Vista de liquidaciones">${mkBtn("cards", IC.grid, "Tarjetas")}${mkBtn("list", IC.list, "Lista")}</div>`;
+}
+
 function payrollHtml() {
   const employees = readArray(KEYS.payrollEmployees);
   const companies = readArray(KEYS.companies);
@@ -23,7 +33,7 @@ function payrollHtml() {
   const nominaRunsAll = filterPayrollNominaRuns(allRuns);
   const driverPaymentRunsAll = filterDriverTripPaymentRuns(allRuns);
   const conductorEmployees = listConductorServiceEmployees(employees);
-  const nominaEmployees = listPayrollNominaEmployees(employees);
+  const nominaEmployees = listPayrollLiquidationEmployees(employees);
   const payrollUi = state.payrollUi || { runSort: "recent", workspace: "operate", dataSection: "employees" };
   const payrollLiquidationMode = String(payrollUi.liquidationMode || "single").toLowerCase() === "bulk" ? "bulk" : "single";
   const payrollNominaEmployeeOptions = nominaEmployees
@@ -35,6 +45,7 @@ function payrollHtml() {
   const absences = readArray(KEYS.hrAbsences);
   const filters = state.payrollFilters || defaultPayrollFilters();
   const runSort = String(payrollUi.runSort || "recent");
+  const runsView = String(payrollUi.runsView || "cards").toLowerCase() === "list" ? "list" : "cards";
   const payrollWorkspace = normalizeHrWorkspace("payroll", payrollUi.workspace);
   const payrollDataSection = normalizePayrollDataSection(payrollUi.dataSection);
   const payrollOperateSection = normalizePayrollOperateSection(payrollUi.operateSection);
@@ -138,7 +149,7 @@ function payrollHtml() {
   const educationOpts = selectOptionsFromCatalog(CO_CATALOGS.educationLevel);
   const maritalOpts = selectOptionsFromCatalog(CO_CATALOGS.maritalStatus);
   const genderOpts = selectOptionsFromCatalog(CO_CATALOGS.genders);
-  const payFreqOpts = selectOptionsFromCatalog(CO_CATALOGS.payFrequency);
+  const payFreqOpts = payrollPayFrequencySelectOptions("Mensual");
   const formEmp = `<form id="form-employee" class="payroll-emp-form p-form p-form-colored hr-form-flow">
     <div class="hr-form-wizard payroll-wizard" data-hr-wizard="employee" aria-label="Registro de empleado por pasos">
       <header class="payroll-wizard__head">
@@ -332,7 +343,7 @@ function payrollHtml() {
   const formPayBulk = `<form id="form-payroll-bulk" class="payroll-bulk-panel payroll-liquidation-pane${payrollLiquidationMode === "bulk" ? "" : " hidden"}" data-payroll-liquidation-pane="bulk" role="tabpanel" aria-labelledby="payroll-bulk-title" aria-hidden="${payrollLiquidationMode === "bulk" ? "false" : "true"}">
       <div class="payroll-bulk-panel__intro">
         <h4 id="payroll-bulk-title" class="payroll-bulk-title">${IC.users} Liquidación masiva (cascada)</h4>
-        <p class="muted payroll-bulk-lead">Genera liquidaciones para <strong>todos los colaboradores de nómina laboral</strong> cuyo corte cierra en la fecha indicada. Cada persona se liquida según su periodicidad (quincenal, mensual, etc.). Los conductores en prestación de servicios se liquidan en <strong>Pagos conductores</strong>.</p>
+        <p class="muted payroll-bulk-lead">Genera liquidaciones para <strong>colaboradores de nómina laboral con periodicidad Mensual o Quincenal</strong> cuyo corte cierra en la fecha indicada. Los conductores en prestación de servicios se liquidan en <strong>Pagos conductores</strong>.</p>
       </div>
       <div class="payroll-bulk-fields">
         <label class="payroll-bulk-field">${fieldLabel(IC.calendar, "Fecha de cierre del período")}<input type="date" id="payroll-bulk-fecha" name="fechaReferencia" value="${escapeAttr(todayYmdBulk)}" required /></label>
@@ -585,11 +596,15 @@ function payrollHtml() {
     : emptyState("No hay empleados registrados.");
   const runCardsGrid = sortedRuns.length
     ? `<div class="payroll-run-cards-grid">${runsToRender.map((r) => renderPayrollRunCard(r, { compact: true })).join("")}</div>${payrollRunsMoreBar}`
-    : emptyState("Sin liquidaciones que coincidan con los filtros.");
-  const runTableLegacy = runRows
-    ? `<details class="payroll-table-fallback"><summary class="btn btn-sm btn-outline">Ver como tabla</summary><div class="table-wrap payroll-table-wrap"><table><thead><tr><th>Período</th><th>Tipo</th><th>Empleado</th><th>Devengado</th><th>Viáticos</th><th>Combustible</th><th>Deducciones</th><th>Neto</th><th>Estado</th><th></th></tr></thead><tbody>${runRows}</tbody></table></div>${payrollRunsMoreBar}</details>`
     : "";
-  const runsPaneBody = `${runCardsGrid}${runTableLegacy}`;
+  const runTableView = runRows
+    ? `<div class="table-wrap payroll-table-wrap payroll-runs-list-view"><table><thead><tr><th>Período</th><th>Tipo</th><th>Empleado</th><th>Devengado</th><th>Viáticos</th><th>Combustible</th><th>Deducciones</th><th>Neto</th><th>Estado</th><th></th></tr></thead><tbody>${runRows}</tbody></table></div>${payrollRunsMoreBar}`
+    : "";
+  const runsEmpty = emptyState("Sin liquidaciones que coincidan con los filtros.");
+  const runsPaneBody =
+    runsView === "list"
+      ? runTableView || runsEmpty
+      : runCardsGrid || runsEmpty;
   const employeeOpts = employees
     .map((e) => `<option value="${e.id}" ${filterEmployee === e.id ? "selected" : ""}>${e.name}</option>`)
     .join("");
@@ -621,8 +636,6 @@ function payrollHtml() {
         <option value="all" ${filterFrequency === "all" ? "selected" : ""}>Todos</option>
         <option value="mensual" ${filterFrequency === "mensual" ? "selected" : ""}>Solo mensual</option>
         <option value="quincenal" ${filterFrequency === "quincenal" ? "selected" : ""}>Solo quincenal</option>
-        <option value="catorcenal" ${filterFrequency === "catorcenal" ? "selected" : ""}>Solo catorcenal</option>
-        <option value="semanal" ${filterFrequency === "semanal" ? "selected" : ""}>Solo semanal</option>
         <option value="terminacion" ${filterFrequency === "terminacion" ? "selected" : ""}>Solo terminación</option>
         ${
           payrollDataSection === "driverPayments"
@@ -847,18 +860,26 @@ function payrollHtml() {
     </dl>`;
   const driverPaymentsCards = sortedDriverRuns.length
     ? `<div class="payroll-run-cards-grid">${sortedDriverRuns.map((r) => renderPayrollRunCard(r, { compact: true })).join("")}</div>`
-    : emptyState("Sin liquidaciones de viajes. Vaya a Registrar → Pagos conductores para liquidar el mes.");
+    : "";
+  const driverTableView = driverRunRows
+    ? `<div class="table-wrap payroll-table-wrap payroll-runs-list-view"><table><thead><tr><th>Periodo</th><th>Conductor</th><th>Viajes</th><th>Interdep.</th><th>Viáticos</th><th>Combustible</th><th>Neto</th><th>Estado</th><th></th></tr></thead><tbody>${driverRunRows}</tbody></table></div>`
+    : "";
+  const driverPaymentsEmpty = emptyState("Sin liquidaciones de viajes. Vaya a Registrar → Pagos conductores para liquidar el mes.");
+  const driverPaymentsBody =
+    runsView === "list"
+      ? driverTableView || driverPaymentsEmpty
+      : driverPaymentsCards || driverPaymentsEmpty;
+  const driverPaymentsToolbar = `<div class="payroll-runs-toolbar payroll-runs-toolbar--embedded">
+      ${renderPayrollRunsViewToggle(runsView, "driver")}
+      <p class="payroll-result-meta muted payroll-runs-toolbar__meta">${sortedDriverRuns.length} liquidación${sortedDriverRuns.length === 1 ? "" : "es"} de conductores</p>
+    </div>`;
   const driverPaymentsPane = `<div class="payroll-data-pane${payrollDataSection === "driverPayments" ? "" : " hidden"}" data-payroll-section="driverPayments">
       ${employeeFilterBanner}
       ${pcardWrapPro(
         "truck",
         "Cuentas por pagar — conductores",
         "Prestación de servicios · liquidaciones_nomina (prestacion_viajes)",
-        `${driverPaymentsSummary}${driverPaymentsCards}${
-          driverRunRows
-            ? `<details class="payroll-table-fallback"><summary class="btn btn-sm btn-outline">Ver como tabla</summary><div class="table-wrap payroll-table-wrap"><table><thead><tr><th>Periodo</th><th>Conductor</th><th>Viajes</th><th>Interdep.</th><th>Viáticos</th><th>Combustible</th><th>Neto</th><th>Estado</th><th></th></tr></thead><tbody>${driverRunRows}</tbody></table></div></details>`
-            : ""
-        }`,
+        `${driverPaymentsSummary}${driverPaymentsToolbar}<div class="payroll-runs-body">${driverPaymentsBody}</div>`,
         "admin-users-data-card"
       )}
     </div>`;
@@ -886,10 +907,13 @@ function payrollHtml() {
   const runsPane = `<div class="payroll-data-pane${payrollDataSection === "runs" ? "" : " hidden"}" data-payroll-section="runs">
       ${employeeFilterBanner}
       <div class="payroll-runs-toolbar">
-        <p class="payroll-result-meta muted">Mostrando <strong>${runs.length}</strong> de ${nominaRunsAll.length} liquidación${nominaRunsAll.length === 1 ? "" : "es"} de nómina laboral</p>
-        <button type="button" class="btn btn-sm btn-outline" id="export-payroll">${IC.download} Exportar CSV</button>
+        ${renderPayrollRunsViewToggle(runsView, "nomina")}
+        <div class="payroll-runs-toolbar__actions">
+          <p class="payroll-result-meta muted">Mostrando <strong>${runs.length}</strong> de ${nominaRunsAll.length} liquidación${nominaRunsAll.length === 1 ? "" : "es"} de nómina laboral</p>
+          <button type="button" class="btn btn-sm btn-outline" id="export-payroll">${IC.download} Exportar CSV</button>
+        </div>
       </div>
-      ${runsPaneBody}
+      <div class="payroll-runs-body">${runsPaneBody}</div>
     </div>`;
   const payrollDataBlock = `<section class="payroll-data-panel">
       <div class="payroll-data-toolbar payroll-data-toolbar--compact">

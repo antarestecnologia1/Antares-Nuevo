@@ -9,9 +9,11 @@
 import {
   KEYS,
   CO_PAYROLL,
+  CO_CATALOGS,
   CO_CESANTIAS_INTERES_ANUAL_PCT,
   PAYROLL_ABSENCE_LEGAL_LIMITS
 } from "../core/config.js";
+import { matchCatalogOptionValue } from "./payroll-catalog-sanitize.domain.js";
 import { read } from "../core/data-io.js";
 import { state } from "../core/store.js";
 import {
@@ -99,6 +101,56 @@ export function employeeReceivesPayrollNomina(employee) {
 
 export function listPayrollNominaEmployees(employees = []) {
   return (Array.isArray(employees) ? employees : []).filter((e) => employeeReceivesPayrollNomina(e));
+}
+
+/** Solo mensual y quincenal entran en liquidación automática, masiva y formulario individual. */
+export function payrollIsAllowedPayFrequency(raw) {
+  const norm = normalizePayrollFrequencyJs(raw);
+  return norm === "mensual" || norm === "quincenal";
+}
+
+/** Opciones de periodicidad (crear/editar): solo catálogo vigente, sin valores legacy. */
+export function payrollPayFrequencySelectOptions(selected = "", placeholder = "Seleccione...") {
+  const catalog = CO_CATALOGS.payFrequency;
+  const matched = matchCatalogOptionValue(catalog, selected);
+  const finalSelected = matched || "Mensual";
+  const options = catalog.map((value) => {
+    const safeValue = String(value || "").trim();
+    const sel =
+      safeValue.toLowerCase() === String(finalSelected).trim().toLowerCase() ? " selected" : "";
+    return `<option value="${escapeAttr(safeValue)}"${sel}>${escapeHtml(safeValue)}</option>`;
+  });
+  return `<option value="">${escapeHtml(placeholder)}</option>${options.join("")}`;
+}
+
+export function payrollAuditActorLabel() {
+  const user = typeof globalThis.currentUser === "function" ? globalThis.currentUser() : null;
+  return String(user?.name || user?.email || "—").trim();
+}
+
+export function appendPayrollRunAuditLog(action, run, { summary = "", motivo = "" } = {}) {
+  const logFn = globalThis.appendModuleAuditLog;
+  if (typeof logFn !== "function") return;
+  const actor = payrollAuditActorLabel();
+  const entityId = String(run?.id || "").trim();
+  const entityLabel = run
+    ? `${String(run.employeeName || "Colaborador")} · ${String(run.month || "-")}`
+    : "Liquidación";
+  const bits = [String(summary || "").trim()].filter(Boolean);
+  if (motivo) bits.push(`Motivo: ${String(motivo).trim()}`);
+  logFn({
+    action: String(action || "update"),
+    moduleId: "payroll",
+    moduleLabel: "Gestión humana",
+    entityId,
+    entityLabel,
+    summary: bits.join(" ") || entityLabel,
+    actor
+  });
+}
+
+export function listPayrollLiquidationEmployees(employees = []) {
+  return listPayrollNominaEmployees(employees).filter((e) => payrollIsAllowedPayFrequency(e.payFrequency));
 }
 
 export function payrollRunIsDriverTripPayment(run) {
@@ -1642,7 +1694,7 @@ export {
 
 /** Vista previa cliente: cuántos colaboradores recibirían liquidación en cascada. */
 export function previewPayrollBulkEligibility(fechaReferencia, force, employees = [], runs = []) {
-  const nominaEmployees = listPayrollNominaEmployees(employees);
+  const nominaEmployees = listPayrollLiquidationEmployees(employees);
   let eligible = 0;
   let skipped = 0;
   const details = [];

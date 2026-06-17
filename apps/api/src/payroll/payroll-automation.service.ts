@@ -15,7 +15,7 @@ export class PayrollAutomationService {
 
   /**
    * Diario 07:00 America/Bogotá: cada empleado se liquida si **hoy** es día de cierre de su periodicidad
-   * (quincena, catorcena, fin de mes, fin de intervalo semanal del mes).
+   * (quincena 1–15 y 16–fin, mensual fin de mes; solo colaboradores Mensual o Quincenal).
    */
   @Cron("0 7 * * *", { name: "payrollAutomaticDaily", timeZone: "America/Bogota" })
   async cronLiquidacionPorPeriodicidad(): Promise<void> {

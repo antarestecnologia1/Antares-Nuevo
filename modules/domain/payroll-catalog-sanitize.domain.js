@@ -124,7 +124,7 @@ export function sanitizePayrollEmployeeFieldsForPersist(fields) {
     workerRole: wr,
     contractType,
     costCenter: normalizeLatinUpperForDb(String(f.costCenter || "").trim()),
-    payFrequency: matchCatalogOptionValue(CO_CATALOGS.payFrequency, f.payFrequency) || String(f.payFrequency || "Mensual").trim(),
+    payFrequency: matchCatalogOptionValue(CO_CATALOGS.payFrequency, f.payFrequency) || "Mensual",
     arlRiskLevel: matchCatalogOptionValue(CO_CATALOGS.arlRiskLevels, f.arlRiskLevel),
     workSchedule: matchCatalogOptionValue(CO_CATALOGS.workSchedule, f.workSchedule),
     contributorType: matchCatalogOptionValue(CO_CATALOGS.contributorTypes, f.contributorType),

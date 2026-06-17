@@ -571,10 +571,23 @@ function bindAuthorizationsPortalControls() {
           return;
         }
         try {
+          const approver = String(actor?.name || actor?.email || "").trim();
           await writeAwaitServer(
             KEYS.payrollRuns,
-            runs.map((r) => (r.id === payrollRunId ? { ...r, paid: true, paidAt: nowIso(), paidApprovedBy: actor.name } : r))
+            runs.map((r) =>
+              r.id === payrollRunId
+                ? stampUpdatedRecord({
+                    ...r,
+                    paid: true,
+                    paidAt: nowIso(),
+                    approvedBy: approver
+                  })
+                : r
+            )
           );
+          appendPayrollRunAuditLog("update", targetRun, {
+            summary: `Pago aprobado vía autorizaciones · aprobado por ${approver} · neto $${parseNum(targetRun.net).toLocaleString("es-CO")}`
+          });
         } catch (err) {
           notify(String(err?.message || userMessage("genericError")), "error");
           return;

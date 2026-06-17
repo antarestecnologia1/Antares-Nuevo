@@ -2861,7 +2861,7 @@ function normalizePayrollEmployeeRowDates(emp) {
   e.bloodType = matchCatalogOptionValue(CO_CATALOGS.bloodTypes, e.bloodType);
   e.contractType = matchCatalogOptionValue(CO_CATALOGS.contractTypes, e.contractType) || String(e.contractType || "").trim();
   e.payFrequency =
-    matchCatalogOptionValue(CO_CATALOGS.payFrequency, e.payFrequency) || String(e.payFrequency || "Mensual").trim();
+    matchCatalogOptionValue(CO_CATALOGS.payFrequency, e.payFrequency) || "Mensual";
   e.arlRiskLevel = matchCatalogOptionValue(CO_CATALOGS.arlRiskLevels, e.arlRiskLevel);
   e.workSchedule = matchCatalogOptionValue(CO_CATALOGS.workSchedule, e.workSchedule);
   e.contributorType = matchCatalogOptionValue(CO_CATALOGS.contributorTypes, e.contributorType);
@@ -11035,7 +11035,7 @@ function buildPayrollEmployeeEditModalFields(emp) {
       `<option value="${escapeAttr(c)}" ${String(e.contractType || "").trim() === c ? "selected" : ""}>${escapeHtml(c)}</option>`
   ).join("");
   const tmplSel = renderContractTemplateSelectOptions(String(e.contractTemplateKind || "").trim().toLowerCase(), false);
-  const payFreqSel = selectOptionsFromCatalog(CO_CATALOGS.payFrequency, e.payFrequency || "Mensual", "Seleccione...");
+  const payFreqSel = payrollPayFrequencySelectOptions(e.payFrequency || "Mensual", "Seleccione...");
   const companyOptsInner = [`<option value="">${escapeHtml("Seleccione")}</option>`]
     .concat(
       read(KEYS.companies, [])

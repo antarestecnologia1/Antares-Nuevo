@@ -463,7 +463,8 @@ export const CO_CATALOGS = {
   /** Tipos con plantilla Word en documentacion/ (solo formulario de cargo). */
   positionContractTypes: ["Termino indefinido", "Termino fijo", "Prestacion de servicios"],
   workSchedule: ["Diurna", "Nocturna", "Mixta"],
-  payFrequency: ["Mensual", "Quincenal", "Semanal", "Catorcenal"],
+  /** Solo mensual y quincenal: liquidación automática (cron) y masiva. */
+  payFrequency: ["Mensual", "Quincenal"],
   contributorTypes: ["Dependiente", "Independiente", "Aprendiz SENA lectivo", "Aprendiz SENA productivo", "Pensionado activo"],
   banks: ["Bancolombia", "Davivienda", "BBVA", "Banco de Bogota", "Banco Popular", "Itau (Corpbanca)", "Banco Caja Social", "Banco AV Villas", "Banco Falabella", "Scotiabank Colpatria", "Banco Agrario", "Banco GNB Sudameris", "Nequi", "Daviplata"],
   accountTypes: ["Ahorros", "Corriente"],

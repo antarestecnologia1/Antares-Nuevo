@@ -28,3 +28,10 @@ export function normalizePayrollFrequency(raw: string | null | undefined): Payro
 export function canonicalPayFrequencyLabel(raw: string | null | undefined): string {
   return PAY_FREQUENCY_CANONICAL_LABELS[normalizePayrollFrequency(raw)];
 }
+
+/** Periodicidades con liquidación automática (cron) y masiva en portal. */
+export const PAYROLL_AUTOGEN_FREQUENCY_NORMS = new Set<PayrollFrequencyNorm>(["mensual", "quincenal"]);
+
+export function isPayrollAutogenFrequency(raw: string | null | undefined): boolean {
+  return PAYROLL_AUTOGEN_FREQUENCY_NORMS.has(normalizePayrollFrequency(raw));
+}
