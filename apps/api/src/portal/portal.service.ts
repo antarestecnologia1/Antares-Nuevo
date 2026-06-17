@@ -4295,6 +4295,7 @@ export class PortalService implements OnModuleInit {
               l.motivo AS "reason",
               l.eliminado_en AS "deletedAt",
               u.correo_electronico AS "deletedByEmail",
+              u.nombre_completo AS "deletedByName",
               COALESCE(l.datos_json->>'numero_viaje', l.datos_json->>'tripNumber', '') AS "_sum_trip",
               COALESCE(l.datos_json->>'placa_vehiculo', l.datos_json->>'vehiclePlate', '') AS "_sum_plate",
               COALESCE(l.datos_json->>'nombre_conductor', l.datos_json->>'driverName', '') AS "_sum_driver",
@@ -4318,6 +4319,7 @@ export class PortalService implements OnModuleInit {
         reason: row.reason,
         deletedAt: row.deletedAt ? new Date(row.deletedAt as string).toISOString() : null,
         deletedByEmail: maskPortalEmail(row.deletedByEmail),
+        deletedByName: String(row.deletedByName ?? "").trim() || null,
         snapshot: null,
         snapshotSummary: {
           tripNumber: trip || null,
@@ -4342,6 +4344,7 @@ export class PortalService implements OnModuleInit {
               l.motivo AS "reason",
               l.eliminado_en AS "deletedAt",
               u.correo_electronico AS "deletedByEmail",
+              u.nombre_completo AS "deletedByName",
               COALESCE(l.datos_json->>'departamento_origen', l.datos_json->>'originDepartment', '') AS "_sum_od",
               COALESCE(l.datos_json->>'ciudad_origen', l.datos_json->>'originCity', '') AS "_sum_oc",
               COALESCE(l.datos_json->>'departamento_destino', l.datos_json->>'destinationDepartment', '') AS "_sum_dd",
@@ -4366,6 +4369,7 @@ export class PortalService implements OnModuleInit {
         reason: row.reason,
         deletedAt: row.deletedAt ? new Date(row.deletedAt as string).toISOString() : null,
         deletedByEmail: maskPortalEmail(row.deletedByEmail),
+        deletedByName: String(row.deletedByName ?? "").trim() || null,
         snapshot: null,
         snapshotSummary: {
           departamento_origen: od || null,
@@ -5773,7 +5777,15 @@ export class PortalService implements OnModuleInit {
   }
 
   private async loadFuelLogs() {
-    const r = await this.pool.query(`SELECT * FROM registros_combustible ORDER BY fecha_registro DESC LIMIT 1000`);
+    const r = await this.pool.query(
+      `SELECT rc.*,
+              u.correo_electronico AS registered_by_email,
+              u.nombre_completo AS registered_by_name
+       FROM registros_combustible rc
+       LEFT JOIN usuarios u ON u.id = rc.id_usuario_registro
+       ORDER BY rc.fecha_registro DESC
+       LIMIT 1000`
+    );
     return r.rows.map((row) => {
       const plate = String(row.placa_vehiculo ?? "").trim().toUpperCase();
       return {
@@ -5791,6 +5803,9 @@ export class PortalService implements OnModuleInit {
         odometerKm: row.kilometraje_odometro != null ? Number(row.kilometraje_odometro) : null,
         station: row.estacion,
         paidBy: row.pagado_por,
+        registeredByUserId: row.id_usuario_registro != null ? String(row.id_usuario_registro) : null,
+        registeredByEmail: maskPortalEmail(row.registered_by_email),
+        registeredByName: String(row.registered_by_name ?? "").trim() || null,
         createdAt: row.fecha_registro ? new Date(row.fecha_registro).toISOString() : new Date().toISOString()
       };
     });
@@ -5798,7 +5813,13 @@ export class PortalService implements OnModuleInit {
 
   private async loadVehicleTechnicalLogs() {
     const r = await this.pool.query(
-      `SELECT * FROM registros_mantenimiento_vehiculo ORDER BY fecha_registro DESC LIMIT 1000`
+      `SELECT rm.*,
+              u.correo_electronico AS registered_by_email,
+              u.nombre_completo AS registered_by_name
+       FROM registros_mantenimiento_vehiculo rm
+       LEFT JOIN usuarios u ON u.id = rm.id_usuario_registro
+       ORDER BY rm.fecha_registro DESC
+       LIMIT 1000`
     );
     return r.rows.map((row) => {
       const plate = String(row.placa_vehiculo ?? "").trim().toUpperCase();
@@ -5817,6 +5838,9 @@ export class PortalService implements OnModuleInit {
         downtimeHours: Number(row.horas_inactividad),
         followUpStatus,
         status: followUpStatus,
+        registeredByUserId: row.id_usuario_registro != null ? String(row.id_usuario_registro) : null,
+        registeredByEmail: maskPortalEmail(row.registered_by_email),
+        registeredByName: String(row.registered_by_name ?? "").trim() || null,
         createdAt: row.fecha_registro ? new Date(row.fecha_registro).toISOString() : new Date().toISOString()
       };
     });

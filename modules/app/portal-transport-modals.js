@@ -194,7 +194,7 @@ function openDeletedTransportRequestAuditModal(logRow) {
   const snap = parsePortalJsonSnapshot(logRow.snapshot);
   const reqN = String(logRow.requestNumber || logRow.requestId || "-").trim();
   const baseAuditSubtitle = `<span class="muted">Eliminada:</span> ${escapeHtml(fmtDate(logRow.deletedAt))}<br />
-    <span class="muted">Usuario:</span> ${escapeHtml(String(logRow.deletedByEmail || "—"))}<br />
+    <span class="muted">Usuario:</span> ${escapeHtml(String(logRow.deletedByName || logRow.deletedByEmail || "—"))}<br />
     <span class="muted">Motivo:</span> ${escapeHtml(String(logRow.reason || "—"))}`;
   if (!snap) {
     openInfoModal({
@@ -283,7 +283,7 @@ function openDeletedTransportTripAuditModal(logRow) {
   const tripLabel = String(logRow.tripNumber || "").trim() || "—";
   const reqLabel = String(logRow.requestNumber || logRow.requestId || "").trim() || "—";
   const baseAuditSubtitle = `<span class="muted">Registrado:</span> ${escapeHtml(fmtDate(logRow.deletedAt))}<br />
-    <span class="muted">Usuario:</span> ${escapeHtml(String(logRow.deletedByEmail || "—"))}<br />
+    <span class="muted">Usuario:</span> ${escapeHtml(String(logRow.deletedByName || logRow.deletedByEmail || "—"))}<br />
     <span class="muted">Motivo:</span> ${escapeHtml(String(logRow.reason || "—"))}<br />
     <span class="muted">Solicitud:</span> ${escapeHtml(reqLabel)} · <span class="muted">Viaje:</span> ${escapeHtml(tripLabel)}`;
   if (!snap) {

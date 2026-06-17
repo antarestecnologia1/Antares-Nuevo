@@ -20,7 +20,7 @@ function buildDeletedTransportTripsLogSection() {
       const snap = deletedTripSnapshotForTableRow(row);
       const summary = escapeHtml(formatDeletedTripSnapshotTableSummary(snap));
       const reason = escapeHtml(String(row.reason || "").slice(0, 500));
-      const who = escapeHtml(String(row.deletedByEmail || "—"));
+      const who = escapeHtml(String(row.deletedByName || row.deletedByEmail || "—"));
       const rid = escapeAttr(String(row.id || ""));
       return `<tr><td>${escapeHtml(when)}</td><td>${reqN}</td><td>${tripN}</td><td class="muted" style="max-width:20rem;word-break:break-word;font-size:0.92em">${summary}</td><td>${reason}</td><td class="muted">${who}</td><td><button type="button" class="btn btn-sm btn-outline" data-action="deleted-trip-snapshot-detail" data-id="${rid}" title="Ver copia completa del viaje">${IC.eye} Detalle</button></td></tr>`;
     })
@@ -52,7 +52,7 @@ function buildDeletedTransportRequestsLogSection() {
       const snap = deletedRequestSnapshotForTableRow(row);
       const summary = escapeHtml(formatDeletedRequestSnapshotTableSummary(snap));
       const reason = escapeHtml(String(row.reason || "").slice(0, 500));
-      const who = escapeHtml(String(row.deletedByEmail || "—"));
+      const who = escapeHtml(String(row.deletedByName || row.deletedByEmail || "—"));
       const rid = escapeAttr(String(row.id || ""));
       return `<tr><td>${escapeHtml(when)}</td><td>${reqN}</td><td class="muted" style="max-width:22rem;word-break:break-word;font-size:0.92em">${summary}</td><td>${reason}</td><td class="muted">${who}</td><td><button type="button" class="btn btn-sm btn-outline" data-action="deleted-request-snapshot-detail" data-id="${rid}" title="Ver copia completa de la solicitud">${IC.eye} Detalle</button></td></tr>`;
     })

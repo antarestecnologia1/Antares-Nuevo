@@ -5129,6 +5129,12 @@ async function appendFuelLogAwait(row) {
   if (api?.isConfigured?.() && String(api.getAccessToken?.() || "").trim() && typeof api.postJson === "function") {
     const saved = await api.postJson("/portal/fleet/fuel-logs", fuelLogRowForServer(draft));
     const merged = normalizeFuelLogPortalRow(saved);
+    const actor = currentUser();
+    if (actor && !historyAuditFleetLogActor(merged)) {
+      merged.registeredByUserId = String(actor.id || "").trim() || merged.registeredByUserId;
+      merged.registeredByName = getPortalUserDisplayName(actor) || merged.registeredByName;
+      merged.registeredByEmail = String(actor.email || "").trim() || merged.registeredByEmail;
+    }
     const list = readFuelLogs().filter((l) => String(l.id) !== String(merged.id));
     list.unshift(merged);
     write(KEYS.fuelLogs, list);
@@ -5147,6 +5153,12 @@ async function appendVehicleTechnicalLogAwait(row) {
   if (api?.isConfigured?.() && String(api.getAccessToken?.() || "").trim() && typeof api.postJson === "function") {
     const saved = await api.postJson("/portal/fleet/maintenance-logs", vehicleTechnicalLogRowForServer(draft));
     const merged = normalizeVehicleTechnicalLogPortalRow(saved);
+    const actor = currentUser();
+    if (actor && !historyAuditFleetLogActor(merged)) {
+      merged.registeredByUserId = String(actor.id || "").trim() || merged.registeredByUserId;
+      merged.registeredByName = getPortalUserDisplayName(actor) || merged.registeredByName;
+      merged.registeredByEmail = String(actor.email || "").trim() || merged.registeredByEmail;
+    }
     const list = readVehicleTechnicalLogs().filter((l) => String(l.id) !== String(merged.id));
     list.unshift(merged);
     write(KEYS.vehicleTechnicalLogs, list);
@@ -7036,6 +7048,58 @@ function historyAuditActionStatus(action) {
   return "status-pendiente";
 }
 
+function historyAuditActorLabel(...candidates) {
+  for (const raw of candidates) {
+    const label = String(raw ?? "").trim();
+    if (label) return label;
+  }
+  return "";
+}
+
+function historyAuditUserLabelById(userId) {
+  const id = String(userId || "").trim();
+  if (!id) return "";
+  const user = readArray(KEYS.users).find((u) => String(u.id) === id);
+  if (!user) return "";
+  return getPortalUserDisplayName(user) || String(user.email || "").trim();
+}
+
+function historyAuditFleetLogActor(log) {
+  return historyAuditActorLabel(
+    log?.registeredByName,
+    log?.registeredByEmail,
+    historyAuditUserLabelById(log?.registeredByUserId)
+  );
+}
+
+function historyAuditRequestCreateActor(request) {
+  return historyAuditActorLabel(request?.requestedByName, historyAuditUserLabelById(request?.clientUserId));
+}
+
+function historyAuditRequestUpdateActor(request) {
+  const updatedAt = String(request?.updatedAt || "").trim();
+  const approvedBy = String(request?.approvedBy || "").trim();
+  const approvedAt = String(request?.approvedAt || "").trim();
+  if (approvedBy && approvedAt && approvedAt === updatedAt) return approvedBy;
+  const logs = Array.isArray(request?.modificationLog) ? request.modificationLog : [];
+  for (let i = logs.length - 1; i >= 0; i -= 1) {
+    const row = logs[i];
+    const who = historyAuditActorLabel(row?.actorEmail, row?.actorName);
+    if (!who) continue;
+    const at = String(row?.at || "").trim();
+    if (!updatedAt || at === updatedAt) return who;
+  }
+  return historyAuditActorLabel(request?.updatedBy, approvedBy);
+}
+
+function historyAuditTripActor(request) {
+  return historyAuditActorLabel(request?.trip?.assignedBy, request?.approvedBy);
+}
+
+function historyAuditDeletedByActor(row) {
+  return historyAuditActorLabel(row?.deletedByName, row?.deletedByEmail);
+}
+
 function buildHistoryAuditEntries() {
   const entries = [];
   const pushEntry = (entry) => {
@@ -7152,7 +7216,8 @@ function buildHistoryAuditEntries() {
       action: "create",
       moduleLabel: "Mis solicitudes",
       entityLabel: requestLabel,
-      summary: `${String(request.clientName || "Cliente")} · ${formatRoute(request)}`
+      summary: `${String(request.clientName || "Cliente")} · ${formatRoute(request)}`,
+      actor: historyAuditRequestCreateActor(request)
     });
     if (request.updatedAt && String(request.updatedAt) !== String(request.createdAt || "")) {
       pushEntry({
@@ -7161,7 +7226,8 @@ function buildHistoryAuditEntries() {
         action: "update",
         moduleLabel: "Mis solicitudes",
         entityLabel: requestLabel,
-        summary: `${String(request.status || "Sin estado")} · ${String(request.serviceType || "Sin servicio")}`
+        summary: `${String(request.status || "Sin estado")} · ${String(request.serviceType || "Sin servicio")}`,
+        actor: historyAuditRequestUpdateActor(request)
       });
     }
     (Array.isArray(request.modificationLog) ? request.modificationLog : []).forEach((logRow, idx) => {
@@ -7194,7 +7260,8 @@ function buildHistoryAuditEntries() {
         action: "create",
         moduleLabel: "Viajes",
         entityLabel: tripLabel,
-        summary: `${String(request.trip.vehiclePlate || "Sin camión")} · ${String(request.trip.driverName || "Sin conductor")}`
+        summary: `${String(request.trip.vehiclePlate || "Sin camión")} · ${String(request.trip.driverName || "Sin conductor")}`,
+        actor: historyAuditTripActor(request)
       });
       if (request.trip.updatedAt && String(request.trip.updatedAt) !== tripCreatedAt) {
         pushEntry({
@@ -7203,20 +7270,23 @@ function buildHistoryAuditEntries() {
           action: "update",
           moduleLabel: "Viajes",
           entityLabel: tripLabel,
-          summary: `${String(request.status || "Sin estado")} · ${String(request.clientName || "Cliente")}`
+          summary: `${String(request.status || "Sin estado")} · ${String(request.clientName || "Cliente")}`,
+          actor: historyAuditTripActor(request)
         });
       }
     }
   });
 
   readFuelLogs().forEach((log) => {
+    const fleetActor = historyAuditFleetLogActor(log);
     pushEntry({
       id: `audit-fuel-create-${log.id}`,
       ts: String(log.createdAt || log.date || ""),
       action: "create",
       moduleLabel: "Camiones",
       entityLabel: String(log.vehiclePlate || log.plate || "Combustible"),
-      summary: `${parseNum(log.liters).toLocaleString("es-CO", { maximumFractionDigits: 1 })} L · $${parseNum(log.totalCost).toLocaleString("es-CO")}`
+      summary: `${parseNum(log.liters).toLocaleString("es-CO", { maximumFractionDigits: 1 })} L · $${parseNum(log.totalCost).toLocaleString("es-CO")}`,
+      actor: fleetActor
     });
     if (log.updatedAt && String(log.updatedAt) !== String(log.createdAt || log.date || "")) {
       pushEntry({
@@ -7225,19 +7295,22 @@ function buildHistoryAuditEntries() {
         action: "update",
         moduleLabel: "Camiones",
         entityLabel: String(log.vehiclePlate || log.plate || "Combustible"),
-        summary: `${String(log.station || "Sin estación")} · ${String(log.paidBy || "empresa")}`
+        summary: `${String(log.station || "Sin estación")} · ${String(log.paidBy || "empresa")}`,
+        actor: fleetActor
       });
     }
   });
 
   readVehicleTechnicalLogs().forEach((log) => {
+    const fleetActor = historyAuditFleetLogActor(log);
     pushEntry({
       id: `audit-technical-create-${log.id}`,
       ts: String(log.createdAt || log.date || ""),
       action: "create",
       moduleLabel: "Camiones",
       entityLabel: String(log.vehiclePlate || log.plate || "Taller"),
-      summary: `${String(log.type || log.interventionType || "Novedad")} · ${String(log.description || "").trim() || "Sin descripción"}`
+      summary: `${String(log.type || log.interventionType || "Novedad")} · ${String(log.description || "").trim() || "Sin descripción"}`,
+      actor: fleetActor
     });
     if (log.updatedAt && String(log.updatedAt) !== String(log.createdAt || log.date || "")) {
       pushEntry({
@@ -7246,7 +7319,8 @@ function buildHistoryAuditEntries() {
         action: "update",
         moduleLabel: "Camiones",
         entityLabel: String(log.vehiclePlate || log.plate || "Taller"),
-        summary: `${String(log.status || log.followUpStatus || "Pendiente")} · $${parseNum(log.cost).toLocaleString("es-CO")}`
+        summary: `${String(log.status || log.followUpStatus || "Pendiente")} · $${parseNum(log.cost).toLocaleString("es-CO")}`,
+        actor: fleetActor
       });
     }
   });
@@ -7259,7 +7333,8 @@ function buildHistoryAuditEntries() {
       action: "create",
       moduleLabel: "Gestión humana",
       entityLabel: runLabel,
-      summary: `${String(run.payrollKind || "mensual")} · $${parseNum(run.net).toLocaleString("es-CO")}`
+      summary: `${String(run.payrollKind || "mensual")} · $${parseNum(run.net).toLocaleString("es-CO")}`,
+      actor: historyAuditActorLabel(run.approvedBy)
     });
   });
 
@@ -7270,7 +7345,8 @@ function buildHistoryAuditEntries() {
       action: "create",
       moduleLabel: "Gestión humana",
       entityLabel: `${String(absence.employeeName || "Colaborador").trim()} · ${String(absence.startDate || "-")}`,
-      summary: `${String(absence.absenceType || "Ausencia")} · ${parseNum(absence.days)} día(s)`
+      summary: `${String(absence.absenceType || "Ausencia")} · ${parseNum(absence.days)} día(s)`,
+      actor: historyAuditActorLabel(absence.approvedBy)
     });
   });
 
@@ -7315,7 +7391,8 @@ function buildHistoryAuditEntries() {
       action: "create",
       moduleLabel: "Contratación",
       entityLabel: String(interview.candidateName || "Entrevista").trim(),
-      summary: `${String(interview.modality || "Presencial")} · ${String(interview.interviewer || "Sin entrevistador")}`
+      summary: `${String(interview.modality || "Presencial")} · ${String(interview.interviewer || "Sin entrevistador")}`,
+      actor: historyAuditActorLabel(interview.interviewer)
     });
   });
 
@@ -7337,7 +7414,8 @@ function buildHistoryAuditEntries() {
       action: "create",
       moduleLabel: "Cumplimiento laboral y SST",
       entityLabel: `${String(record.employeeName || "Colaborador").trim()} · ${String(record.recordType || "Control")}`,
-      summary: `${String(record.status || "Pendiente")} · vence ${String(record.dueDate || "—")}`
+      summary: `${String(record.status || "Pendiente")} · vence ${String(record.dueDate || "—")}`,
+      actor: historyAuditActorLabel(record.createdBy)
     });
   });
 
@@ -7378,7 +7456,7 @@ function buildHistoryAuditEntries() {
       moduleLabel: "Mis solicitudes",
       entityLabel: String(row.requestNumber || row.requestId || "Solicitud"),
       summary: `${formatDeletedRequestSnapshotTableSummary(snap)} · Motivo: ${String(row.reason || "—")}`,
-      actor: String(row.deletedByEmail || ""),
+      actor: historyAuditDeletedByActor(row),
       detailAction: "deleted-request-snapshot-detail",
       detailId: String(row.id || "")
     });
@@ -7393,7 +7471,7 @@ function buildHistoryAuditEntries() {
       moduleLabel: "Viajes",
       entityLabel: String(row.tripNumber || row.requestNumber || row.requestId || "Viaje"),
       summary: `${formatDeletedTripSnapshotTableSummary(snap)} · Motivo: ${String(row.reason || "—")}`,
-      actor: String(row.deletedByEmail || ""),
+      actor: historyAuditDeletedByActor(row),
       detailAction: "deleted-trip-snapshot-detail",
       detailId: String(row.id || "")
     });
