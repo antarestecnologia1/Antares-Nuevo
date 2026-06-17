@@ -1209,8 +1209,8 @@ test("portal form smoke", async ({ page, context }) => {
 
   await record("Notificaciones:alerts-sound", async () => {
     await gotoView("notifications");
-    await clickDom("[data-action='notif-toggle-alerts']");
-    await clickDom("[data-action='notif-toggle-sound']");
+    await clickDom("[data-action='notif-toggle-master']");
+    await clickDom("[data-action='notif-toggle-master']");
     await clickDom("[data-action='notif-read-all']");
     await waitForStore(
       (key) => {

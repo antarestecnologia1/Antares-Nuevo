@@ -13,15 +13,13 @@ import {
   filterNotificationsByUiFilter,
   getCurrentNotifications,
   groupNotificationsByDateBucket,
-  isInAppNotificationAlertsEnabled,
-  isSonidoNotificacionesHabilitado,
+  isNotificationsEnabled,
   notificationCategoryLabel,
   notificationIsRead,
   persistNotificationsReadState,
   resolveNotificationCategory,
   resolveNotificationDeepLink,
-  toggleNotificationAlertsEnabled,
-  toggleNotificationSoundMuted,
+  toggleNotificationsEnabled,
   writeNotificationsAwaitServer
 } from "../domain/notificaciones.domain.js";
 
@@ -52,18 +50,18 @@ function ntfFilterRailHtml(activeFilter) {
   return `<nav class="ntf-filter-rail" aria-label="Filtrar notificaciones">${items}</nav>`;
 }
 
-function ntfPrefsRailHtml(alertsOn, soundOn) {
-  return `<div class="ntf-prefs-rail">
-    <span class="ntf-operate__rail-label">Preferencias</span>
-    <button type="button" class="ntf-pref-btn${alertsOn ? "" : " ntf-pref-btn--off"}" data-action="notif-toggle-alerts" aria-pressed="${alertsOn ? "true" : "false"}">
-      <span class="ntf-pref-btn__label">Avisos emergentes</span>
-      <span class="ntf-pref-btn__state">${alertsOn ? "Activos" : "Pausados"}</span>
-    </button>
-    <button type="button" class="ntf-pref-btn${soundOn ? "" : " ntf-pref-btn--off"}" data-action="notif-toggle-sound" aria-pressed="${soundOn ? "true" : "false"}">
-      <span class="ntf-pref-btn__label">Timbre</span>
-      <span class="ntf-pref-btn__state">${soundOn ? "Activo" : "Silenciado"}</span>
-    </button>
-  </div>`;
+function ntfBellToggleHtml(enabled) {
+  const on = Boolean(enabled);
+  return `<button
+    type="button"
+    class="ntf-bell-toggle${on ? "" : " ntf-bell-toggle--off"}"
+    data-action="notif-toggle-master"
+    aria-pressed="${on ? "true" : "false"}"
+    aria-label="${on ? "Notificaciones activadas. Pulsar para desactivar" : "Notificaciones desactivadas. Pulsar para activar"}"
+    title="${on ? "Desactivar notificaciones" : "Activar notificaciones"}"
+  >
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+  </button>`;
 }
 
 function ntfCardHtml(n, IC) {
@@ -121,20 +119,14 @@ function notificationsHtml() {
   );
   const activeFilter = String(state.notificationsUi?.filter || NOTIFICATION_UI_FILTERS.ALL).trim().toLowerCase();
   const filtered = filterNotificationsByUiFilter(all, activeFilter, notificationIsRead);
-  const alertsOn = isInAppNotificationAlertsEnabled();
-  const soundOn = isSonidoNotificacionesHabilitado();
+  const alertsOn = isNotificationsEnabled();
   const unread = all.filter((n) => !notificationIsRead(n)).length;
   const readCount = all.length - unread;
   const readPct = all.length ? Math.round((readCount / all.length) * 100) : 100;
 
-  const prefHint =
-    !alertsOn || !soundOn
-      ? `<p class="ntf-pref-hint" role="status">${
-          !alertsOn
-            ? "Avisos emergentes pausados: sin ventanas ni notificaciones nuevas del servidor. "
-            : ""
-        }${!soundOn ? "Timbre silenciado." : ""}</p>`
-      : "";
+  const prefHint = !alertsOn
+    ? `<p class="ntf-pref-hint" role="status">Notificaciones desactivadas: no recibirás avisos emergentes ni timbre. La bandeja conserva el historial.</p>`
+    : "";
 
   const toolbar =
     filtered.length || all.length
@@ -157,7 +149,10 @@ function notificationsHtml() {
   const head = `<header class="ntf-studio-head notifications-studio-head">
     <div class="ntf-studio-head__copy">
       <p class="ntf-studio-head__kicker">Centro de avisos</p>
-      <h2 class="ntf-studio-head__title">Notificaciones</h2>
+      <div class="ntf-studio-head__title-row">
+        <h2 class="ntf-studio-head__title">Notificaciones</h2>
+        ${ntfBellToggleHtml(alertsOn)}
+      </div>
       <p class="ntf-studio-head__sub">${all.length} mensaje${all.length === 1 ? "" : "s"} · ${unread} sin leer</p>
     </div>
     <dl class="ntf-studio-head__metrics">
@@ -172,7 +167,6 @@ function notificationsHtml() {
     <aside class="ntf-operate__rail">
       <span class="ntf-operate__rail-label">Filtros</span>
       ${ntfFilterRailHtml(activeFilter)}
-      ${ntfPrefsRailHtml(alertsOn, soundOn)}
     </aside>
     <div class="ntf-operate__main">
       <div class="ntf-data-panel">
@@ -232,18 +226,11 @@ function bindNotificationsPortalControls() {
     });
   });
 
-  root.querySelectorAll("[data-action='notif-toggle-alerts']").forEach((btn) => {
+  root.querySelectorAll("[data-action='notif-toggle-master']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      toggleNotificationAlertsEnabled();
+      toggleNotificationsEnabled();
       G.renderPortalView();
-      G.updateNotificationBadge();
-    });
-  });
-
-  root.querySelectorAll("[data-action='notif-toggle-sound']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      toggleNotificationSoundMuted();
-      G.renderPortalView();
+      G.syncNotificationPrefsSidebarUi?.();
       G.updateNotificationBadge();
     });
   });

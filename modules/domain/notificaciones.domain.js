@@ -126,6 +126,38 @@ export async function persistNotificationPreferencesToApi(partial) {
   }
 }
 
+export function setNotificationsEnabled(enabled) {
+  const on = Boolean(enabled);
+  state.notificationPreferences = {
+    ...getNotificationPreferencesNormalized(),
+    notificacionesHabilitadas: on,
+    sonidoNotificacionesHabilitadas: on,
+    updatedAt: nowIso()
+  };
+  syncNotificationPrefsSidebarUi();
+  if (on) primeInboxNotificationAudioFromUserGesture();
+  void persistNotificationPreferencesToApi({
+    notificacionesHabilitadas: on,
+    sonidoNotificacionesHabilitadas: on
+  });
+}
+
+export function isNotificationsEnabled() {
+  return isInAppNotificationAlertsEnabled();
+}
+
+export function toggleNotificationsEnabled() {
+  const next = !isNotificationsEnabled();
+  setNotificationsEnabled(next);
+  window.notify(
+    next
+      ? "Notificaciones activadas: avisos y timbre."
+      : "Notificaciones desactivadas. La bandeja sigue disponible.",
+    "info",
+    2600
+  );
+}
+
 export function setNotificationSoundMuted(muted) {
   const sonidoOn = !muted;
   state.notificationPreferences = {
@@ -178,35 +210,22 @@ export function syncNotificationPrefsSidebarUi() {
     group?.querySelector('.side-link[data-view="notifications"]') ||
     document.querySelector('.side-link[data-view="notifications"]');
   if (!link && !group) return;
-  const soundOff = !isSonidoNotificacionesHabilitado();
-  const alertsOff = !isInAppNotificationAlertsEnabled();
+  const off = !isNotificationsEnabled();
   if (link) {
-    link.classList.toggle("side-link--notif-sound-muted", soundOff);
-    link.classList.toggle("side-link--notif-alerts-off", alertsOff);
+    link.classList.toggle("side-link--notif-alerts-off", off);
   }
-  const soundBtn = group?.querySelector('[data-notif-pref="sound"]');
-  if (soundBtn) {
-    soundBtn.textContent = "Timbre";
-    soundBtn.setAttribute("aria-pressed", soundOff ? "false" : "true");
-    soundBtn.setAttribute("aria-label", soundOff ? "Timbre desactivado. Activar timbre al llegar avisos nuevos" : "Timbre activado. Silenciar solo el timbre");
-    soundBtn.title = soundOff
-      ? "Activar timbre al llegar avisos nuevos"
-      : "Silenciar solo el timbre (la bandeja no cambia)";
-    soundBtn.classList.toggle("sidebar-notif-pref-btn--off", soundOff);
-  }
-  const alertsBtn = group?.querySelector('[data-notif-pref="alerts"]');
-  if (alertsBtn) {
-    alertsBtn.textContent = "Avisos";
-    alertsBtn.setAttribute("aria-pressed", alertsOff ? "false" : "true");
-    alertsBtn.setAttribute("aria-label", alertsOff ? "Avisos pausados. Activar avisos emergentes" : "Avisos activados. Pausar avisos emergentes");
-    alertsBtn.title = alertsOff
-      ? "Activar avisos emergentes y notificaciones del servidor"
-      : "Pausar avisos emergentes y nuevas filas del servidor";
-    alertsBtn.classList.toggle("sidebar-notif-pref-btn--off", alertsOff);
+  const bellBtn = group?.querySelector('[data-notif-pref="master"]');
+  if (bellBtn) {
+    bellBtn.setAttribute("aria-pressed", off ? "false" : "true");
+    bellBtn.setAttribute(
+      "aria-label",
+      off ? "Notificaciones desactivadas. Pulsar para activar" : "Notificaciones activadas. Pulsar para desactivar"
+    );
+    bellBtn.title = off ? "Activar notificaciones" : "Desactivar notificaciones";
+    bellBtn.classList.toggle("sidebar-notif-bell-toggle--off", off);
   }
   if (group) {
-    group.classList.toggle("sidebar-notif-group--sound-off", soundOff);
-    group.classList.toggle("sidebar-notif-group--alerts-off", alertsOff);
+    group.classList.toggle("sidebar-notif-group--off", off);
   }
 }
 
@@ -871,7 +890,7 @@ export function groupNotificationsByDateBucket(list, nowMs = Date.now()) {
   return buckets.filter((b) => b.items.length > 0);
 }
 
-/** Sidebar: timbre y avisos fuera del botón de navegación a la bandeja. */
+/** Sidebar: campana única para activar o desactivar notificaciones. */
 export function bindNotificationSidebarPrefs() {
   if (typeof document === "undefined") return;
   const group = document.querySelector(".sidebar-notif-group");
@@ -882,8 +901,7 @@ export function bindNotificationSidebarPrefs() {
       ev.preventDefault();
       ev.stopPropagation();
       const which = btn.getAttribute("data-notif-pref") || "";
-      if (which === "sound") toggleNotificationSoundMuted();
-      else if (which === "alerts") toggleNotificationAlertsEnabled();
+      if (which === "master") toggleNotificationsEnabled();
       syncNotificationPrefsSidebarUi();
       if (typeof window.updateNotificationBadge === "function") window.updateNotificationBadge();
     });

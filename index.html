@@ -1075,13 +1075,20 @@
             Mi perfil
           </button>
           <div class="sidebar-notif-group">
-            <button data-view="notifications" class="side-link side-link--notif-inbox" type="button">
-              <svg class="side-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-              Notificaciones
-            </button>
-            <div class="sidebar-notif-prefs" role="group" aria-label="Preferencias de notificaciones">
-              <button type="button" class="sidebar-notif-pref-btn" data-notif-pref="sound" aria-pressed="true">Timbre</button>
-              <button type="button" class="sidebar-notif-pref-btn" data-notif-pref="alerts" aria-pressed="true">Avisos</button>
+            <div class="sidebar-notif-row">
+              <button
+                type="button"
+                class="sidebar-notif-bell-toggle"
+                data-notif-pref="master"
+                aria-pressed="true"
+                aria-label="Notificaciones activadas. Pulsar para desactivar"
+                title="Activar o desactivar notificaciones"
+              >
+                <svg class="side-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+              </button>
+              <button data-view="notifications" class="side-link side-link--notif-inbox" type="button">
+                Notificaciones
+              </button>
             </div>
           </div>
           <div class="sidebar-spacer"></div>
