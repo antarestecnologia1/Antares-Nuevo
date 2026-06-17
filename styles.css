@@ -14549,6 +14549,11 @@ body[data-theme="dark"] tr[data-sst-state="pendiente"] {
   height: 0.82rem;
 }
 
+.hist-trace-card__actor--empty {
+  opacity: 0.72;
+  color: #64748b;
+}
+
 .hist-trace-card__detail {
   margin-left: auto;
 }

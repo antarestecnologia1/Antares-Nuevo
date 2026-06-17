@@ -2432,6 +2432,22 @@ function appendPayrollEmployeeAuditLog(action, employee, extra = {}) {
   });
 }
 
+function appendPortalEntityAuditLog(action, moduleId, moduleLabel, entity, summary = "", extra = {}) {
+  const row = entity && typeof entity === "object" ? entity : {};
+  const entityId = String(extra.entityId || row.id || "").trim();
+  appendModuleAuditLog({
+    action: String(action || "update"),
+    moduleId: String(moduleId || "").trim(),
+    moduleLabel: String(moduleLabel || moduleId || "Módulo").trim(),
+    entityId,
+    entityLabel: String(extra.entityLabel || row.name || row.plate || row.title || "Registro").trim(),
+    summary: String(summary || extra.summary || "").trim(),
+    actor: String(extra.actor || currentUser()?.email || currentUser()?.name || "—").trim(),
+    detailAction: String(extra.detailAction || ""),
+    detailId: String(extra.detailId || entityId)
+  });
+}
+
 function buildRouteRateEntry(value, companyIds, previousEntry = null, ts = nowIso()) {
   const prev = previousEntry && typeof previousEntry === "object" ? previousEntry : {};
   const ids = Array.isArray(companyIds) ? companyIds.map(String).filter(Boolean) : [];
@@ -7100,12 +7116,104 @@ function historyAuditDeletedByActor(row) {
   return historyAuditActorLabel(row?.deletedByName, row?.deletedByEmail);
 }
 
+function historyAuditEntityActor(entity, action = "update") {
+  if (action === "create") {
+    return historyAuditActorLabel(
+      entity?.createdByEmail,
+      entity?.createdBy,
+      entity?.updatedByEmail,
+      entity?.updatedBy
+    );
+  }
+  return historyAuditActorLabel(entity?.updatedByEmail, entity?.updatedBy, entity?.createdByEmail, entity?.createdBy);
+}
+
+function historyAuditActorFromModuleLogs(moduleLabel, entityId, entityLabel, action, ts) {
+  const targetMs = new Date(ts).getTime();
+  if (Number.isNaN(targetMs)) return "";
+  const id = String(entityId || "").trim();
+  const label = String(entityLabel || "").trim();
+  let best = "";
+  let bestDelta = Infinity;
+  for (const row of readModuleAuditLogs()) {
+    if (String(row.moduleLabel || "") !== moduleLabel) continue;
+    if (String(row.action || "") !== action) continue;
+    const rowEntityId = String(row.entityId || "").trim();
+    const rowEntityLabel = String(row.entityLabel || "").trim();
+    if (id && rowEntityId && rowEntityId !== id) continue;
+    if (!id && label && rowEntityLabel && rowEntityLabel !== label) continue;
+    const rowMs = new Date(row.at || 0).getTime();
+    if (Number.isNaN(rowMs)) continue;
+    const delta = Math.abs(rowMs - targetMs);
+    if (delta > 5 * 60 * 1000) continue;
+    if (delta < bestDelta) {
+      bestDelta = delta;
+      best = String(row.actor || "").trim();
+    }
+  }
+  return best;
+}
+
+function resolveHistoryAuditActorForEntity({ moduleLabel, entityId, entityLabel, action, entity, ts }) {
+  const fromEntity = historyAuditEntityActor(entity, action);
+  if (fromEntity) return fromEntity;
+  return historyAuditActorFromModuleLogs(moduleLabel, entityId, entityLabel, action, ts);
+}
+
+function enrichHistoryAuditEntriesWithExplicitActors(entries) {
+  const explicit = entries.filter((e) => String(e.id || "").startsWith("audit-explicit-"));
+  if (!explicit.length) return entries;
+  for (const syn of entries) {
+    if (String(syn.id || "").startsWith("audit-explicit-") || syn.actor) continue;
+    const synMs = new Date(syn.ts).getTime();
+    if (Number.isNaN(synMs)) continue;
+    let bestActor = "";
+    let bestDelta = Infinity;
+    for (const ex of explicit) {
+      if (ex.moduleLabel !== syn.moduleLabel || ex.action !== syn.action) continue;
+      if (ex.entityLabel !== syn.entityLabel) continue;
+      const exMs = new Date(ex.at || ex.ts).getTime();
+      if (Number.isNaN(exMs)) continue;
+      const delta = Math.abs(exMs - synMs);
+      if (delta <= 120000 && delta < bestDelta) {
+        bestDelta = delta;
+        bestActor = String(ex.actor || "").trim();
+      }
+    }
+    if (bestActor) syn.actor = bestActor;
+  }
+  return entries;
+}
+
+function dedupeHistoryAuditEntries(entries) {
+  const dropExplicitIds = new Set();
+  for (const explicit of entries) {
+    if (!String(explicit.id || "").startsWith("audit-explicit-")) continue;
+    const explicitMs = new Date(explicit.ts).getTime();
+    if (Number.isNaN(explicitMs)) continue;
+    const hasSyntheticSibling = entries.some((other) => {
+      if (String(other.id || "").startsWith("audit-explicit-")) return false;
+      if (other.moduleLabel !== explicit.moduleLabel || other.action !== explicit.action) return false;
+      if (other.entityLabel !== explicit.entityLabel) return false;
+      const otherMs = new Date(other.ts).getTime();
+      return !Number.isNaN(otherMs) && Math.abs(otherMs - explicitMs) <= 120000;
+    });
+    if (hasSyntheticSibling) dropExplicitIds.add(explicit.id);
+  }
+  return dropExplicitIds.size ? entries.filter((e) => !dropExplicitIds.has(e.id)) : entries;
+}
+
 function buildHistoryAuditEntries() {
   const entries = [];
   const pushEntry = (entry) => {
     if (!entry || typeof entry !== "object") return;
     const ts = String(entry.ts || "").trim();
     if (!ts || Number.isNaN(new Date(ts).getTime())) return;
+    const auditCtx = entry.__auditContext;
+    let actor = String(entry.actor || "").trim();
+    if (!actor && auditCtx) {
+      actor = resolveHistoryAuditActorForEntity(auditCtx);
+    }
     entries.push({
       id: String(entry.id || newUuidV4()),
       ts,
@@ -7113,7 +7221,7 @@ function buildHistoryAuditEntries() {
       moduleLabel: String(entry.moduleLabel || "Módulo"),
       entityLabel: String(entry.entityLabel || "Registro"),
       summary: String(entry.summary || "").trim(),
-      actor: String(entry.actor || "").trim(),
+      actor,
       detailAction: String(entry.detailAction || "").trim(),
       detailId: String(entry.detailId || "").trim()
     });
@@ -7122,13 +7230,22 @@ function buildHistoryAuditEntries() {
   readArray(KEYS.users).forEach((user) => {
     const companyName = String(getCompanyById(user.companyId)?.name || user.company || "Sin empresa").trim();
     const userLabel = getPortalUserDisplayName(user) || String(user.email || "Usuario");
+    const userCreateTs = String(user.createdAt || user.registeredAt || user.systemJoinDate || "");
     pushEntry({
       id: `audit-user-create-${user.id}`,
-      ts: String(user.createdAt || user.registeredAt || user.systemJoinDate || ""),
+      ts: userCreateTs,
       action: "create",
       moduleLabel: "Usuarios y permisos",
       entityLabel: userLabel,
-      summary: `${formatPortalRoleLabel(user.role)} · ${companyName || "Sin empresa"}`
+      summary: `${formatPortalRoleLabel(user.role)} · ${companyName || "Sin empresa"}`,
+      __auditContext: {
+        moduleLabel: "Usuarios y permisos",
+        entityId: user.id,
+        entityLabel: userLabel,
+        action: "create",
+        entity: user,
+        ts: userCreateTs
+      }
     });
     if (user.updatedAt && String(user.updatedAt) !== String(user.createdAt || "")) {
       pushEntry({
@@ -7137,20 +7254,37 @@ function buildHistoryAuditEntries() {
         action: "update",
         moduleLabel: "Usuarios y permisos",
         entityLabel: userLabel,
-        summary: `${String(user.email || "Sin correo")} · ${String(user.city || "Sin ciudad")}`
+        summary: `${String(user.email || "Sin correo")} · ${String(user.city || "Sin ciudad")}`,
+        __auditContext: {
+          moduleLabel: "Usuarios y permisos",
+          entityId: user.id,
+          entityLabel: userLabel,
+          action: "update",
+          entity: user,
+          ts: String(user.updatedAt)
+        }
       });
     }
   });
 
   readArray(KEYS.companies).forEach((company) => {
     const companyLabel = String(company.name || "Empresa").trim();
+    const companyCreateTs = String(company.createdAt || "");
     pushEntry({
       id: `audit-company-create-${company.id}`,
-      ts: String(company.createdAt || ""),
+      ts: companyCreateTs,
       action: "create",
       moduleLabel: "Usuarios y permisos",
       entityLabel: companyLabel,
-      summary: `${String(company.taxId || company.nit || "Sin NIT")} · ${String(company.city || "Sin ciudad")}`
+      summary: `${String(company.taxId || company.nit || "Sin NIT")} · ${String(company.city || "Sin ciudad")}`,
+      __auditContext: {
+        moduleLabel: "Usuarios y permisos",
+        entityId: company.id,
+        entityLabel: companyLabel,
+        action: "create",
+        entity: company,
+        ts: companyCreateTs
+      }
     });
     if (company.updatedAt && String(company.updatedAt) !== String(company.createdAt || "")) {
       pushEntry({
@@ -7159,20 +7293,37 @@ function buildHistoryAuditEntries() {
         action: "update",
         moduleLabel: "Usuarios y permisos",
         entityLabel: companyLabel,
-        summary: `${companyKindLabel(company.companyKind) || "Sin clasificación"} · ${isCompanyRecordActive(company) ? "Activa" : "Inactiva"}`
+        summary: `${companyKindLabel(company.companyKind) || "Sin clasificación"} · ${isCompanyRecordActive(company) ? "Activa" : "Inactiva"}`,
+        __auditContext: {
+          moduleLabel: "Usuarios y permisos",
+          entityId: company.id,
+          entityLabel: companyLabel,
+          action: "update",
+          entity: company,
+          ts: String(company.updatedAt)
+        }
       });
     }
   });
 
   readArray(KEYS.vehicles).forEach((vehicle) => {
     const vehicleLabel = String(vehicle.plate || vehicle.id || "Camión").trim().toUpperCase();
+    const vehicleCreateTs = String(vehicle.createdAt || "");
     pushEntry({
       id: `audit-vehicle-create-${vehicle.id}`,
-      ts: String(vehicle.createdAt || ""),
+      ts: vehicleCreateTs,
       action: "create",
       moduleLabel: "Camiones",
       entityLabel: vehicleLabel,
-      summary: `${String(vehicle.type || "Vehículo")} · ${String(vehicle.brand || "")} ${String(vehicle.model || "")}`.trim()
+      summary: `${String(vehicle.type || "Vehículo")} · ${String(vehicle.brand || "")} ${String(vehicle.model || "")}`.trim(),
+      __auditContext: {
+        moduleLabel: "Camiones",
+        entityId: vehicle.id,
+        entityLabel: vehicleLabel,
+        action: "create",
+        entity: vehicle,
+        ts: vehicleCreateTs
+      }
     });
     if (vehicle.updatedAt && String(vehicle.updatedAt) !== String(vehicle.createdAt || "")) {
       pushEntry({
@@ -7181,20 +7332,37 @@ function buildHistoryAuditEntries() {
         action: "update",
         moduleLabel: "Camiones",
         entityLabel: vehicleLabel,
-        summary: `${vehicle.refrigerated ? "Termoking" : "Carga seca"} · ${parseNum(vehicle.capacityKg).toLocaleString("es-CO")} kg`
+        summary: `${vehicle.refrigerated ? "Termoking" : "Carga seca"} · ${parseNum(vehicle.capacityKg).toLocaleString("es-CO")} kg`,
+        __auditContext: {
+          moduleLabel: "Camiones",
+          entityId: vehicle.id,
+          entityLabel: vehicleLabel,
+          action: "update",
+          entity: vehicle,
+          ts: String(vehicle.updatedAt)
+        }
       });
     }
   });
 
   readArray(KEYS.drivers).forEach((driver) => {
     const driverLabel = String(driver.name || "Conductor").trim();
+    const driverCreateTs = String(driver.createdAt || driver.hiredAt || "");
     pushEntry({
       id: `audit-driver-create-${driver.id}`,
-      ts: String(driver.createdAt || driver.hiredAt || ""),
+      ts: driverCreateTs,
       action: "create",
       moduleLabel: "Conductores",
       entityLabel: driverLabel,
-      summary: `${String(driver.licenseCategory || "Sin categoría")} · ${String(driver.city || "Sin ciudad")}`
+      summary: `${String(driver.licenseCategory || "Sin categoría")} · ${String(driver.city || "Sin ciudad")}`,
+      __auditContext: {
+        moduleLabel: "Conductores",
+        entityId: driver.id,
+        entityLabel: driverLabel,
+        action: "create",
+        entity: driver,
+        ts: driverCreateTs
+      }
     });
     if (driver.updatedAt && String(driver.updatedAt) !== String(driver.createdAt || "")) {
       pushEntry({
@@ -7203,7 +7371,15 @@ function buildHistoryAuditEntries() {
         action: "update",
         moduleLabel: "Conductores",
         entityLabel: driverLabel,
-        summary: `${String(driver.phone || "Sin teléfono")} · ${String(getCompanyById(driver.companyId)?.name || "Sin empresa")}`
+        summary: `${String(driver.phone || "Sin teléfono")} · ${String(getCompanyById(driver.companyId)?.name || "Sin empresa")}`,
+        __auditContext: {
+          moduleLabel: "Conductores",
+          entityId: driver.id,
+          entityLabel: driverLabel,
+          action: "update",
+          entity: driver,
+          ts: String(driver.updatedAt)
+        }
       });
     }
   });
@@ -7477,7 +7653,9 @@ function buildHistoryAuditEntries() {
     });
   });
 
-  return entries.sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime());
+  return dedupeHistoryAuditEntries(enrichHistoryAuditEntriesWithExplicitActors(entries)).sort(
+    (a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime()
+  );
 }
 
 function historyTraceHaystack(entry) {
@@ -7508,7 +7686,7 @@ function renderHistoryAuditCard(entry) {
       <p class="hist-trace-card__summary">${escapeHtml(entry.summary || "Sin resumen")}</p>
       <footer class="hist-trace-card__foot">
         <time class="hist-trace-card__time" datetime="${escapeAttr(String(entry.ts || ""))}">${escapeHtml(fmtDate(entry.ts))}</time>
-        ${entry.actor ? `<span class="hist-trace-card__actor">${IC.user}<span>${escapeHtml(entry.actor)}</span></span>` : ""}
+        <span class="hist-trace-card__actor${entry.actor ? "" : " hist-trace-card__actor--empty"}">${IC.user}<span>${entry.actor ? escapeHtml(entry.actor) : "Sin registrar"}</span></span>
         ${detailButton ? `<span class="hist-trace-card__detail">${detailButton}</span>` : ""}
       </footer>
     </div>
@@ -7534,7 +7712,7 @@ function renderHistoryAuditRow(entry) {
     <td data-label="Entidad"><strong>${escapeHtml(entry.entityLabel)}</strong></td>
     <td data-label="Acción"><span class="status ${escapeAttr(actionTone)}">${escapeHtml(actionLabel)}</span></td>
     <td data-label="Resumen">${escapeHtml(entry.summary || "Sin resumen")}</td>
-    <td data-label="Usuario">${entry.actor ? escapeHtml(entry.actor) : '<span class="muted">—</span>'}</td>
+    <td data-label="Usuario">${entry.actor ? escapeHtml(entry.actor) : '<span class="muted">Sin registrar</span>'}</td>
     <td data-label="Acciones" class="hist-table-actions">${actions}</td>
   </tr>`;
 }
@@ -11591,6 +11769,7 @@ Object.assign(window, {
   appendFuelLogAwait,
   appendModuleAuditLog,
   appendPayrollEmployeeAuditLog,
+  appendPortalEntityAuditLog,
   appendVehicleTechnicalLogAwait,
   applyAdminUsersFormDraft,
   applyCandidateToEmployeeForm,

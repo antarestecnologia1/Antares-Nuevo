@@ -593,7 +593,7 @@ function vehiclesHtml() {
           techInspectionExpiryDate = addCalendarYearsIsoDate(techInspectionExpeditionDate, 1) || techInspectionExpiryDate;
         }
         const list = read(KEYS.vehicles, []);
-        list.push(stampCreatedRecord({
+        const createdVehicle = stampCreatedRecord({
           id: newUuidV4(),
           plate,
           brand: normalizeLatinUpperForDb(data.brand),
@@ -621,13 +621,22 @@ function vehiclesHtml() {
           satelliteProviderUser: String(data.satelliteProviderUser || "").trim(),
           satelliteProviderPassword: String(data.satelliteProviderPassword || ""),
           available: true
-        }));
+        });
+        list.push(createdVehicle);
         try {
           await writeAwaitServer(KEYS.vehicles, list);
         } catch (err) {
           notify(String(err?.message || "No fue posible guardar el vehículo en el servidor."), "error");
           return;
         }
+        appendPortalEntityAuditLog(
+          "create",
+          "vehicles",
+          "Camiones",
+          createdVehicle,
+          `${String(createdVehicle.type || "Vehículo")} · ${String(createdVehicle.brand || "")} ${String(createdVehicle.model || "")}`.trim(),
+          { entityLabel: String(createdVehicle.plate || "").toUpperCase() }
+        );
         notify(userMessage("vehicleRegistered"), "success");
         collapseCreatePanel("create-vehicle");
         renderPortalView();
@@ -790,6 +799,17 @@ function vehiclesHtml() {
             } catch (err) {
               notify(String(err?.message || "No fue posible guardar el vehículo en el servidor."), "error");
               return false;
+            }
+            const updatedVehicle = nextVehicles.find((row) => row.id === target.id);
+            if (updatedVehicle) {
+              appendPortalEntityAuditLog(
+                "update",
+                "vehicles",
+                "Camiones",
+                updatedVehicle,
+                `${updatedVehicle.refrigerated ? "Termoking" : "Carga seca"} · ${parseNum(updatedVehicle.capacityKg).toLocaleString("es-CO")} kg`,
+                { entityLabel: String(updatedVehicle.plate || "").toUpperCase() }
+              );
             }
             notify(userMessage("vehicleUpdated"), "success");
             renderPortalView();

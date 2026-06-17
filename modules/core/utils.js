@@ -449,17 +449,43 @@ export function nowIso() {
 }
 
 export function stampCreatedRecord(record, ts = nowIso()) {
+  const audit = portalRecordAuditActorFields("create");
   return {
     ...record,
     createdAt: record?.createdAt || ts,
-    updatedAt: record?.updatedAt || ts
+    updatedAt: record?.updatedAt || ts,
+    ...(record?.createdBy || record?.createdByEmail ? {} : audit)
   };
 }
 
 export function stampUpdatedRecord(record, ts = nowIso()) {
   return {
     ...record,
-    updatedAt: ts
+    updatedAt: ts,
+    ...portalRecordAuditActorFields("update")
+  };
+}
+
+function portalRecordAuditActorFields(action = "update") {
+  const user =
+    typeof globalThis.currentUser === "function"
+      ? globalThis.currentUser()
+      : null;
+  const name = String(user?.name || "").trim();
+  const email = String(user?.email || "").trim();
+  const label = email || name;
+  if (!label) return {};
+  if (action === "create") {
+    return {
+      createdBy: name || email,
+      createdByEmail: email,
+      updatedBy: name || email,
+      updatedByEmail: email
+    };
+  }
+  return {
+    updatedBy: name || email,
+    updatedByEmail: email
   };
 }
 

@@ -483,20 +483,20 @@ function driversHtml() {
         }
         const driverPayload = normalizeDriverFormPayloadForStorage(data);
         const list = read(KEYS.drivers, []);
-        list.push(
-          stampCreatedRecord({
-            id: newUuidV4(),
-            ...driverPayload,
-            available: true,
-            hiredAt: nowIso()
-          })
-        );
+        const createdDriver = stampCreatedRecord({
+          id: newUuidV4(),
+          ...driverPayload,
+          available: true,
+          hiredAt: nowIso()
+        });
+        list.push(createdDriver);
         try {
           await writeAwaitServer(KEYS.drivers, list);
         } catch (err) {
           notify(String(err?.message || "No fue posible guardar el conductor en el servidor."), "error");
           return;
         }
+        appendPortalEntityAuditLog("create", "drivers", "Conductores", createdDriver, `${String(createdDriver.licenseCategory || "Sin categoría")} · ${String(createdDriver.city || "Sin ciudad")}`);
         const employees = read(KEYS.payrollEmployees, []);
         const existsEmployee = employees.some((e) => String(e.idDoc || "") === String(data.idDoc || ""));
         if (!existsEmployee) {
@@ -740,6 +740,15 @@ function driversHtml() {
             const updatedDriver = nextDrivers.find(
               (row) => String(row.id ?? "").trim() === String(target.id ?? "").trim()
             );
+            if (updatedDriver) {
+              appendPortalEntityAuditLog(
+                "update",
+                "drivers",
+                "Conductores",
+                updatedDriver,
+                `${String(updatedDriver.phone || "Sin teléfono")} · ${String(getCompanyById(updatedDriver.companyId)?.name || "Sin empresa")}`
+              );
+            }
             const employeeForSync =
               linkedEmployee || findPayrollEmployeeByIdDoc(updatedDriver?.idDoc || target.idDoc);
             let hrSync = { ok: true };
