@@ -3,8 +3,10 @@ import type { NestExpressApplication } from "@nestjs/platform-express";
 import { ValidationPipe } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { NestFactory } from "@nestjs/core";
+import cookieParser from "cookie-parser";
 import type { NextFunction, Request, Response } from "express";
 import { antaresValidationExceptionFactory } from "./common/validation/validation-exception.factory";
+import { csrfProtectionMiddleware } from "./auth/csrf.middleware";
 import { AppModule } from "./app.module";
 
 function buildCorsOriginHandler(config: ConfigService) {
@@ -72,6 +74,8 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const config = app.get(ConfigService);
   app.setGlobalPrefix("api");
+  app.use(cookieParser());
+  app.use(csrfProtectionMiddleware);
   app.useBodyParser("json", { limit: "25mb" });
   app.useBodyParser("urlencoded", { extended: true, limit: "25mb" });
   app.use((_req: Request, res: Response, next: NextFunction) => {

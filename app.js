@@ -79,7 +79,7 @@ void (async function bootApplicationFromDatabaseThenUi() {
   let refreshOutcome = { status: "skipped" };
   try {
     const s0 = getSession();
-    if (s0?.refreshToken && window.AntaresApi?.getBase?.()) {
+    if (s0?.userId && window.AntaresApi?.getBase?.()) {
       refreshOutcome = (await tryApiRefreshBridge()) || { status: "skipped" };
     }
   } catch (_e) {

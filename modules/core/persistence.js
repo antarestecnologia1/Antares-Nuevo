@@ -3,7 +3,7 @@
  * viven en memoria (sesión) y se sincronizan vía GET /portal/bootstrap y POST /portal/sync-key.
  * No se vuelve a escribir JSON masivo en localStorage (evita cuota llena y lentitud).
  *
- * Solo queda en localStorage: sesión (antares_session_v2), preferencias de UI, y claves ajenas al portal.
+ * Solo queda en localStorage: metadatos de sesión (antares_session_v2, sin JWT), preferencias de UI, y claves ajenas al portal.
  */
 (function registerPersistenceLayer() {
   /** Claves cuyo contrato es apps/api (bootstrap + sync-key). Misma lista que en app.js KEYS (sin session). */

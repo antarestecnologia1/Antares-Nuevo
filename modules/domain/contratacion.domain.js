@@ -920,8 +920,8 @@ export async function resolveEmployeeAvatarUrl(file, fallbackDataUrl = "") {
     typeof api.postJson === "function" &&
     typeof api.getBase === "function" &&
     api.getBase() &&
-    typeof api.getAccessToken === "function" &&
-    api.getAccessToken();
+    typeof api.isConfigured === "function" &&
+    api.isConfigured();
 
   if (canUseBackend) {
     let publicFromPresign = "";

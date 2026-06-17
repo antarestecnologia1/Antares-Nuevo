@@ -1510,16 +1510,20 @@ export function checkSessionIdleAndLogout() {
 export async function tryApiRefreshBridge() {
   const api = window.AntaresApi;
   const session = getSession();
-  if (!api?.getBase?.() || !session?.userId || !session?.refreshToken) {
+  if (!api?.getBase?.() || !session?.userId) {
     return { status: "skipped" };
   }
   const base = String(api.getBase()).replace(/\/+$/, "");
+  const headers = { "Content-Type": "application/json", Accept: "application/json" };
+  const csrf = typeof api.getCsrfToken === "function" ? String(api.getCsrfToken() || "").trim() : "";
+  if (csrf) headers["X-CSRF-Token"] = csrf;
   let res;
   try {
     res = await fetch(`${base}/api/auth/refresh`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ userId: session.userId, refreshToken: session.refreshToken })
+      headers,
+      credentials: "include",
+      body: "{}"
     });
   } catch (_netErr) {
     return { status: "network" };
@@ -1534,13 +1538,13 @@ export async function tryApiRefreshBridge() {
   } catch (_jsonErr) {
     return { status: "network" };
   }
-  if (!body?.accessToken) return { status: "network" };
-  api.setAccessToken(body.accessToken);
+  if (!body?.ok && !body?.user?.userId) return { status: "network" };
+  if (body?.csrfToken && typeof api.setCsrfToken === "function") {
+    api.setCsrfToken(body.csrfToken);
+  }
   const now = Date.now();
   setSession({
     ...session,
-    accessToken: body.accessToken,
-    refreshToken: body.refreshToken || session.refreshToken,
     lastActivityAt: now
   });
   syncSessionProfileSnapshotFromCache();
@@ -1715,6 +1719,17 @@ export function clearSession() {
     localStorage.removeItem("antares_api_access_token");
   } catch (_e) {
     /* noop */
+  }
+  if (window.AntaresApi?.setCsrfToken) {
+    window.AntaresApi.setCsrfToken("");
+  }
+  const api = window.AntaresApi;
+  if (api?.getBase?.()) {
+    const base = String(api.getBase()).replace(/\/+$/, "");
+    const headers = { Accept: "application/json" };
+    const csrf = typeof api.getCsrfToken === "function" ? String(api.getCsrfToken() || "").trim() : "";
+    if (csrf) headers["X-CSRF-Token"] = csrf;
+    void fetch(`${base}/api/auth/logout`, { method: "POST", headers, credentials: "include" }).catch(() => {});
   }
 }
 
@@ -2283,14 +2298,17 @@ export function bindAuthForms() {
             const res = await fetch(`${base}/api/auth/login`, {
               method: "POST",
               headers: { "Content-Type": "application/json", Accept: "application/json" },
+              credentials: "include",
               body: JSON.stringify({ email: data.email, password: passwordRaw, turnstileToken })
             });
             const body = await res.json().catch(() => null);
-            if (res.ok && body?.accessToken) {
-              const refreshTok = String(body.refreshToken || "").trim();
-              window.AntaresApi.setAccessToken(body.accessToken);
-              const payload = decodeJwtPayload(body.accessToken);
-              const uid = payload?.sub;
+            const apiUser = body?.user;
+            if (res.ok && apiUser?.userId) {
+              if (body?.csrfToken && window.AntaresApi?.setCsrfToken) {
+                window.AntaresApi.setCsrfToken(body.csrfToken);
+              }
+              window.AntaresApi?.setAccessToken?.("");
+              const uid = apiUser.userId;
               let usersAfter = read(KEYS.users, []);
               let userApi = usersAfter.find((u) => String(u.id) === String(uid));
               if (!userApi) {
@@ -2302,11 +2320,15 @@ export function bindAuthForms() {
                     userApi = usersAfter.find((u) => String(u.id) === String(uid));
                   }
                 } catch (_meErr) {
-                  /* el stub del JWT rellena el minimo hasta que llegue bootstrap en segundo plano */
+                  /* perfil vía bootstrap en segundo plano */
                 }
               }
               if (!userApi) {
-                userApi = upsertPortalUserStubFromJwtPayload(payload);
+                userApi = upsertPortalUserStubFromJwtPayload({
+                  sub: uid,
+                  email: apiUser.email,
+                  role: apiUser.role
+                });
               }
               if (!userApi) {
                 window.notify(window.userMessage("authProfileLoadFailed"), "error");
@@ -2320,8 +2342,6 @@ export function bindAuthForms() {
                 userId: userApi.id,
                 role: userApi.role,
                 token: buildToken(userApi),
-                accessToken: body.accessToken,
-                refreshToken: refreshTok,
                 lastActivityAt: Date.now(),
                 tokenIssuedAt: Date.now(),
                 profileSnapshot: buildProfileSnapshotFromUserRow(userApi)

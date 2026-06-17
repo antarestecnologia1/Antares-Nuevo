@@ -18,7 +18,7 @@
     if (typeof window.portalCanRefreshFromApi === "function") {
       return window.portalCanRefreshFromApi();
     }
-    return Boolean(typeof a.getAccessToken === "function" && String(a.getAccessToken() || "").trim());
+    return Boolean(typeof a.isConfigured === "function" && a.isConfigured());
   }
 
   /**

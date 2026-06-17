@@ -217,7 +217,8 @@
       "Seleccione un cargo activo del catálogo (módulo Contratación).",
     recruitSalaryMinRef: (formatted) =>
       `El salario no puede ser inferior al mínimo legal referenciado (${formatted}).`,
-    employeeRequestQueued: "Solicitud de empleado enviada a autorizaciones.",
+    employeeRequestQueued:
+      "La solicitud de alta quedó en bandeja de autorizaciones. Un administrador debe aprobarla para que el empleado quede registrado.",
     employeePendingApprovalExists: (idDoc) => {
       const doc = String(idDoc || "").trim();
       if (doc) {

@@ -180,7 +180,7 @@ export async function writeFuelLogsAwait(list) {
   write(KEYS.fuelLogs, normalized);
   const sync = window.AntaresPortalSync;
   const api = window.AntaresApi;
-  if (sync?.flushEntityNow && api?.getBase?.() && String(api.getAccessToken?.() || "").trim()) {
+  if (sync?.flushEntityNow && api?.isConfigured?.()) {
     await sync.flushEntityNow("fuelLogs", normalized.map(fuelLogRowForServer));
     return;
   }
@@ -192,7 +192,7 @@ export async function writeVehicleTechnicalLogsAwait(list) {
   write(KEYS.vehicleTechnicalLogs, normalized);
   const sync = window.AntaresPortalSync;
   const api = window.AntaresApi;
-  if (sync?.flushEntityNow && api?.getBase?.() && String(api.getAccessToken?.() || "").trim()) {
+  if (sync?.flushEntityNow && api?.isConfigured?.()) {
     await sync.flushEntityNow("vehicleTechnicalLogs", normalized.map(vehicleTechnicalLogRowForServer));
     return;
   }
@@ -203,7 +203,7 @@ export async function writeVehicleTechnicalLogsAwait(list) {
 export async function appendFuelLogAwait(row) {
   const draft = normalizeFuelLogPortalRow(row);
   const api = window.AntaresApi;
-  if (api?.isConfigured?.() && String(api.getAccessToken?.() || "").trim() && typeof api.postJson === "function") {
+  if (api?.isConfigured?.() && typeof api.postJson === "function") {
     const saved = await api.postJson("/portal/fleet/fuel-logs", fuelLogRowForServer(draft));
     const merged = normalizeFuelLogPortalRow(saved);
     const list = readFuelLogs().filter((l) => String(l.id) !== String(merged.id));
@@ -221,7 +221,7 @@ export async function appendFuelLogAwait(row) {
 export async function appendVehicleTechnicalLogAwait(row) {
   const draft = normalizeVehicleTechnicalLogPortalRow(row);
   const api = window.AntaresApi;
-  if (api?.isConfigured?.() && String(api.getAccessToken?.() || "").trim() && typeof api.postJson === "function") {
+  if (api?.isConfigured?.() && typeof api.postJson === "function") {
     const saved = await api.postJson("/portal/fleet/maintenance-logs", vehicleTechnicalLogRowForServer(draft));
     const merged = normalizeVehicleTechnicalLogPortalRow(saved);
     const list = readVehicleTechnicalLogs().filter((l) => String(l.id) !== String(merged.id));

@@ -103,7 +103,7 @@ export function isInboxNotificationSoundEnabled() {
 export async function persistNotificationPreferencesToApi(partial) {
   const api = window.AntaresApi;
   if (!api?.getBase?.() || typeof api.postJson !== "function") return null;
-  if (!String(api.getAccessToken?.() || "").trim()) return null;
+  if (!api?.isConfigured?.()) return null;
   const body = {};
   if (partial.notificacionesHabilitadas !== undefined) {
     body.notificacionesHabilitadas = Boolean(partial.notificacionesHabilitadas);

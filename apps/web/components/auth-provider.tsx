@@ -11,8 +11,6 @@ import {
 } from "react";
 
 type AuthState = {
-  accessToken: string;
-  refreshToken: string;
   userId: string;
   email: string;
   role: string;
@@ -30,35 +28,50 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 const STORAGE_KEY = "antares_web_auth";
+const CSRF_COOKIE = "antares_csrf";
 const INACTIVITY_MS = 30 * 60 * 1000;
+const REFRESH_INTERVAL_MS = 12 * 60 * 1000;
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
 
-function parseJwtPayload(token: string): Record<string, unknown> | null {
-  try {
-    const payload = token.split(".")[1];
-    if (!payload) return null;
-    const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
-    const raw = atob(base64);
-    return JSON.parse(raw) as Record<string, unknown>;
-  } catch {
-    return null;
+function readCsrfFromDocumentCookie(): string {
+  if (typeof document === "undefined") return "";
+  const parts = String(document.cookie || "").split(";");
+  for (const chunk of parts) {
+    const trimmed = chunk.trim();
+    if (!trimmed.startsWith(`${CSRF_COOKIE}=`)) continue;
+    return decodeURIComponent(trimmed.slice(CSRF_COOKIE.length + 1));
   }
+  return "";
 }
 
-function getTokenExpiryMs(token: string): number {
-  const payload = parseJwtPayload(token);
-  const exp = payload?.exp;
-  if (typeof exp === "number") {
-    return exp * 1000;
-  }
-  return Date.now() + 15 * 60 * 1000;
+function buildMutationHeaders(csrfToken: string): HeadersInit {
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    "Content-Type": "application/json"
+  };
+  const csrf = String(csrfToken || readCsrfFromDocumentCookie() || "").trim();
+  if (csrf) headers["X-CSRF-Token"] = csrf;
+  return headers;
+}
+
+function normalizeStoredSession(raw: unknown): AuthState | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  const userId = String(o.userId || "").trim();
+  if (!userId) return null;
+  return {
+    userId,
+    email: String(o.email || "").trim(),
+    role: String(o.role || "").trim()
+  };
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<AuthState | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
-  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const csrfRef = useRef("");
+  const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const inactivityCheckRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastActivityRef = useRef<number>(Date.now());
   const sessionRef = useRef<AuthState | null>(null);
@@ -74,7 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const clearRefreshTimer = useCallback(() => {
     if (!refreshTimerRef.current) return;
-    clearTimeout(refreshTimerRef.current);
+    clearInterval(refreshTimerRef.current);
     refreshTimerRef.current = null;
   }, []);
 
@@ -88,6 +101,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     (reason?: string) => {
       clearRefreshTimer();
       clearInactivityTimer();
+      const headers = buildMutationHeaders(csrfRef.current);
+      void fetch(`${API_BASE}/auth/logout`, {
+        method: "POST",
+        headers,
+        credentials: "include"
+      }).catch(() => {});
+      void fetch(`${API_BASE}/portal/logout`, {
+        method: "POST",
+        headers,
+        credentials: "include"
+      }).catch(() => {});
+      csrfRef.current = "";
       setSession(null);
       persistSession(null);
       if (reason) setMessage(reason);
@@ -95,50 +120,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [clearInactivityTimer, clearRefreshTimer, persistSession]
   );
 
-  const refreshTokens = useCallback(async () => {
+  const refreshSession = useCallback(async () => {
     const current = sessionRef.current;
-    if (!current) return;
+    if (!current) return false;
 
     const res = await fetch(`${API_BASE}/auth/refresh`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        userId: current.userId,
-        refreshToken: current.refreshToken
-      })
+      headers: buildMutationHeaders(csrfRef.current),
+      credentials: "include",
+      body: "{}"
     });
 
     if (!res.ok) {
       logout("Tu sesión expiró. Inicia sesión nuevamente.");
-      return;
+      return false;
     }
 
     const data = (await res.json()) as {
-      accessToken: string;
-      refreshToken: string;
+      ok?: boolean;
+      csrfToken?: string;
+      user?: { userId?: string; email?: string; role?: string };
     };
 
-    const payload = parseJwtPayload(data.accessToken);
+    if (data?.csrfToken) csrfRef.current = data.csrfToken;
+
+    const user = data?.user;
+    if (!user?.userId) return false;
+
     const nextSession: AuthState = {
-      accessToken: data.accessToken,
-      refreshToken: data.refreshToken,
-      userId: String(payload?.sub ?? current.userId),
-      email: String(payload?.email ?? current.email),
-      role: String(payload?.role ?? current.role)
+      userId: String(user.userId),
+      email: String(user.email ?? current.email),
+      role: String(user.role ?? current.role)
     };
     setSession(nextSession);
     persistSession(nextSession);
+    return true;
   }, [logout, persistSession]);
 
   const scheduleRefresh = useCallback(() => {
     clearRefreshTimer();
     if (!session) return;
-    const expiresAt = getTokenExpiryMs(session.accessToken);
-    const refreshAt = Math.max(5_000, expiresAt - Date.now() - 60_000);
-    refreshTimerRef.current = setTimeout(() => {
-      void refreshTokens();
-    }, refreshAt);
-  }, [clearRefreshTimer, refreshTokens, session]);
+    refreshTimerRef.current = setInterval(() => {
+      void refreshSession();
+    }, REFRESH_INTERVAL_MS);
+  }, [clearRefreshTimer, refreshSession, session]);
 
   const markActivity = useCallback(() => {
     lastActivityRef.current = Date.now();
@@ -150,16 +175,56 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    let stored: AuthState | null = null;
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       try {
-        const parsed = JSON.parse(raw) as AuthState;
-        setSession(parsed);
+        stored = normalizeStoredSession(JSON.parse(raw));
+        if (stored) setSession(stored);
+        else localStorage.removeItem(STORAGE_KEY);
       } catch {
         localStorage.removeItem(STORAGE_KEY);
       }
     }
-    setIsLoading(false);
+    void (async () => {
+      try {
+        if (stored) sessionRef.current = stored;
+        const res = await fetch(`${API_BASE}/auth/refresh`, {
+          method: "POST",
+          headers: buildMutationHeaders(csrfRef.current),
+          credentials: "include",
+          body: "{}"
+        });
+        if (res.ok) {
+          const data = (await res.json()) as {
+            csrfToken?: string;
+            user?: { userId?: string; email?: string; role?: string };
+          };
+          if (data?.csrfToken) csrfRef.current = data.csrfToken;
+          if (data?.user?.userId) {
+            const next: AuthState = {
+              userId: String(data.user.userId),
+              email: String(data.user.email ?? stored?.email ?? ""),
+              role: String(data.user.role ?? stored?.role ?? "")
+            };
+            setSession(next);
+            persistSession(next);
+          }
+        } else if (stored) {
+          setSession(null);
+          persistSession(null);
+        }
+      } catch {
+        if (stored) {
+          setSession(null);
+          persistSession(null);
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+    // Solo al montar: validar cookies HttpOnly contra la API.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -201,18 +266,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     scheduleRefresh();
+    return () => clearRefreshTimer();
   }, [clearRefreshTimer, scheduleRefresh, session]);
 
   const login = useCallback(
     async (email: string, password: string) => {
       const res = await fetch(`${API_BASE}/auth/login`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ email, password })
       });
 
       const raw = await res.text();
-      let data: { accessToken?: string; refreshToken?: string; message?: string | string[] };
+      let data: {
+        user?: { userId?: string; email?: string; role?: string };
+        csrfToken?: string;
+        message?: string | string[];
+      };
       try {
         data = JSON.parse(raw) as typeof data;
       } catch {
@@ -226,24 +297,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error(msg);
       }
 
-      const accessToken = data.accessToken;
-      const refreshToken = data.refreshToken;
-      if (!accessToken || !refreshToken) {
+      const user = data.user;
+      if (!user?.userId || !user?.role) {
         throw new Error("Respuesta de login incompleta.");
       }
 
-      const payload = parseJwtPayload(accessToken);
-      const nextSession: AuthState = {
-        accessToken,
-        refreshToken,
-        userId: String(payload?.sub ?? ""),
-        email: String(payload?.email ?? email),
-        role: String(payload?.role ?? "")
-      };
+      if (data.csrfToken) csrfRef.current = data.csrfToken;
 
-      if (!nextSession.userId || !nextSession.role) {
-        throw new Error("No se pudo construir la sesión.");
-      }
+      const nextSession: AuthState = {
+        userId: String(user.userId),
+        email: String(user.email ?? email),
+        role: String(user.role)
+      };
 
       setSession(nextSession);
       persistSession(nextSession);

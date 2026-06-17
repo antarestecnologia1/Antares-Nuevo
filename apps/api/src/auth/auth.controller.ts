@@ -1,6 +1,24 @@
-import { Body, Controller, Headers, HttpCode, Post, UnauthorizedException } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Headers,
+  HttpCode,
+  Post,
+  Req,
+  Res,
+  UnauthorizedException
+} from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { Throttle } from "@nestjs/throttler";
+import type { Request, Response } from "express";
 import { AuthService } from "./auth.service";
+import {
+  AUTH_COOKIE_CSRF,
+  AUTH_COOKIE_REFRESH,
+  clearAuthCookies,
+  newCsrfToken,
+  setAuthCookies
+} from "./auth-cookies";
 import { CompletePasswordRecoveryDto } from "./dto/complete-password-recovery.dto";
 import { RequestPasswordRecoveryDto } from "./dto/request-password-recovery.dto";
 import { LoginDto } from "./dto/login.dto";
@@ -8,9 +26,28 @@ import { RegisterDto } from "./dto/register.dto";
 import { RegisterPortalDto } from "./dto/register-portal.dto";
 import { RefreshTokenDto } from "./dto/refresh-token.dto";
 
+type AuthUserPayload = { userId: string; email: string; role: string };
+
 @Controller("auth")
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(
+    private readonly auth: AuthService,
+    private readonly config: ConfigService
+  ) {}
+
+  private buildAuthUserResponse(accessToken: string): AuthUserPayload {
+    const decoded = this.auth.decodeTokenSubject(accessToken);
+    const payload = this.auth.decodeAccessPayload(accessToken);
+    const userId = decoded || String(payload?.sub || "").trim();
+    if (!userId) {
+      throw new UnauthorizedException("No fue posible establecer la sesión.");
+    }
+    return {
+      userId,
+      email: String(payload?.email || ""),
+      role: String(payload?.role || "")
+    };
+  }
 
   // Registro interno (admin): tope conservador por IP para frenar fuerza bruta.
   @Throttle({ default: { ttl: 60_000, limit: 5 } })
@@ -30,14 +67,53 @@ export class AuthController {
   @Throttle({ default: { ttl: 60_000, limit: 5 } })
   @HttpCode(200)
   @Post("login")
-  login(@Body() dto: LoginDto) {
-    return this.auth.login(dto);
+  async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
+    const tokens = await this.auth.login(dto);
+    const csrfToken = newCsrfToken();
+    setAuthCookies(res, this.config, tokens, csrfToken);
+    return {
+      user: this.buildAuthUserResponse(tokens.accessToken),
+      csrfToken
+    };
   }
 
   @HttpCode(200)
   @Post("refresh")
-  refresh(@Body() dto: RefreshTokenDto) {
-    return this.auth.refresh(dto.userId, dto.refreshToken);
+  async refresh(
+    @Body() dto: RefreshTokenDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response
+  ) {
+    const refreshToken = String(req.cookies?.[AUTH_COOKIE_REFRESH] || dto.refreshToken || "").trim();
+    if (!refreshToken) {
+      throw new UnauthorizedException("Sesión no válida. Inicie sesión nuevamente.");
+    }
+    const userId =
+      String(dto.userId || "").trim() || this.auth.decodeTokenSubject(refreshToken) || "";
+    if (!userId) {
+      throw new UnauthorizedException("Sesión no válida. Inicie sesión nuevamente.");
+    }
+    const tokens = await this.auth.refresh(userId, refreshToken);
+    const csrfToken = String(req.cookies?.[AUTH_COOKIE_CSRF] || "").trim() || newCsrfToken();
+    setAuthCookies(res, this.config, tokens, csrfToken);
+    return {
+      ok: true,
+      user: this.buildAuthUserResponse(tokens.accessToken),
+      csrfToken
+    };
+  }
+
+  /** Cierra sesión: borra cookies HttpOnly e invalida refresh en servidor si es posible. */
+  @HttpCode(200)
+  @Post("logout")
+  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    const refreshToken = String(req.cookies?.[AUTH_COOKIE_REFRESH] || "").trim();
+    if (refreshToken) {
+      const uid = this.auth.decodeTokenSubject(refreshToken);
+      if (uid) await this.auth.invalidateSession(uid);
+    }
+    clearAuthCookies(res, this.config);
+    return { ok: true };
   }
 
   /**

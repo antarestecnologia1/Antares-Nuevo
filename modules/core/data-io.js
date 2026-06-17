@@ -67,12 +67,8 @@ export async function writeAwaitServer(storageKeyLike, value, opts = {}) {
   if (!sync || typeof sync.flushStorageKeyNow !== "function") return;
   const hasApiBase = api && typeof api.getBase === "function" && Boolean(api.getBase());
   if (!hasApiBase) return;
-  const token =
-    typeof api.getAccessToken === "function"
-      ? String(api.getAccessToken() || "").trim() || String(getSession()?.accessToken || "").trim()
-      : "";
-  if (!token) {
-    throw new Error("Sesión sin token de API. Vuelva a iniciar sesión para guardar en el servidor.");
+  if (!api.isConfigured?.()) {
+    throw new Error("Sesión sin autenticación API. Vuelva a iniciar sesión para guardar en el servidor.");
   }
   const flushOpts = { notifyOnFailure: opts.notifyOnFailure !== false };
   if (opts.deletedIds && Array.isArray(opts.deletedIds) && opts.deletedIds.length > 0) {

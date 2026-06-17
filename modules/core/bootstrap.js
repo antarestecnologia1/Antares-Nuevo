@@ -397,27 +397,6 @@ export function materializePortalUserFromSession(session) {
     if (user && String(user.id) === String(session.userId)) return user;
   }
 
-  const token = String(session.accessToken || "").trim() || String(window.AntaresApi?.getAccessToken?.() || "").trim();
-  if (token) {
-    const payload = decodeJwtPayload(token);
-    if (payload && String(payload.sub || "").trim() === String(session.userId)) {
-      upsertPortalUserStubFromJwtPayload(payload);
-    }
-    user = currentUser();
-    if (user && String(user.id) === String(session.userId)) {
-      if (snap && Array.isArray(snap.permissions) && snap.permissions.length && (!user.permissions || !user.permissions.length)) {
-        const users2 = read(KEYS.users, []);
-        write(
-          KEYS.users,
-          users2.map((u) => (String(u.id) === String(session.userId) ? { ...u, permissions: snap.permissions } : u)),
-          { skipSyncSchedule: true }
-        );
-        user = currentUser();
-      }
-      return user;
-    }
-  }
-
   const fallbackRole = session.role || session.profileSnapshot?.role || ROLES.CLIENT;
   const usersFinal = read(KEYS.users, []);
   const prevFinal = usersFinal.find((u) => String(u.id) === String(session.userId));
@@ -679,21 +658,17 @@ export function savePortalSnapshotAfterBootstrap(opts = {}) {
 }
 
 export function portalEnsureApiTokensAligned() {
-  const api = window.AntaresApi;
-  if (!api || typeof api.getAccessToken !== "function" || typeof api.setAccessToken !== "function") return;
-  const s = getSession();
-  const fromSession = String(s?.accessToken || "").trim();
-  if (!fromSession) return;
-  const cur = String(api.getAccessToken() || "").trim();
-  if (fromSession !== cur) api.setAccessToken(fromSession);
+  if (window.AntaresApi?.purgeLegacyAuthTokens) {
+    window.AntaresApi.purgeLegacyAuthTokens();
+  }
 }
 
 export function portalCanRefreshFromApi() {
   portalEnsureApiTokensAligned();
   const api = window.AntaresApi;
   if (!api?.getBase?.()) return false;
-  const tok = String(api.getAccessToken?.() || "").trim() || String(getSession()?.accessToken || "").trim();
-  return Boolean(tok);
+  const s = getSession();
+  return Boolean(s?.userId);
 }
 
 const PORTAL_SNAPSHOT_FRESH_MS = 4 * 60 * 1000;

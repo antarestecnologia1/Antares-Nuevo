@@ -683,6 +683,35 @@ export class AuthService {
     return tokens;
   }
 
+  /** Decodifica `sub` de un JWT sin verificar firma (solo para resolver usuario en logout/refresh por cookie). */
+  decodeTokenSubject(token: string): string | null {
+    const decoded = this.jwt.decode(String(token || "").trim()) as { sub?: string } | null;
+    const sub = decoded?.sub;
+    return sub ? String(sub).trim() : null;
+  }
+
+  decodeAccessPayload(token: string): { sub?: string; email?: string; role?: string } | null {
+    const decoded = this.jwt.decode(String(token || "").trim()) as {
+      sub?: string;
+      email?: string;
+      role?: string;
+    } | null;
+    return decoded && typeof decoded === "object" ? decoded : null;
+  }
+
+  /** Invalida refresh en BD (equivalente a logout del portal). */
+  async invalidateSession(userId: string): Promise<void> {
+    const uid = String(userId || "").trim();
+    if (!uid) return;
+    try {
+      await this.pool.query(`DELETE FROM sesiones_usuario WHERE id_usuario = $1::uuid`, [uid]);
+    } catch (err: unknown) {
+      const code = String((err as { code?: string })?.code || "");
+      if (code !== "42P01") throw err;
+    }
+    await this.pool.query(`UPDATE usuarios SET refresh_token_hash = NULL WHERE id = $1::uuid`, [uid]);
+  }
+
   /**
    * Confirma recuperación iniciada por correo de Supabase Auth: valida el JWT de recuperación,
    * actualiza la contraseña en Auth (service role) y el bcrypt en `usuarios` (por `id`, o por correo como respaldo).

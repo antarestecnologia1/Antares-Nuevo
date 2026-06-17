@@ -1,16 +1,18 @@
 /**
  * Cliente HTTP mínimo para apps/api (prefijo global /api).
  * URL: localStorage.antares_api_base o window.__ANTARES_API_BASE__
- * Token: localStorage.antares_api_access_token o sesión antares_session_v2.accessToken
+ * Autenticación: cookies HttpOnly (antares_at / antares_rt) + CSRF en mutaciones.
  */
 (function registerApiClient() {
+  const CSRF_COOKIE = "antares_csrf";
+  const CSRF_HEADER = "X-CSRF-Token";
+  const SESSION_KEY = "antares_session_v2";
+
+  let csrfTokenMemory = "";
+
   function normalizeBase(url) {
     if (!url || typeof url !== "string") return "";
     let s = url.trim().replace(/\/+$/, "");
-    /*
-     * El cliente siempre concatena `${base}/api/...`. Si la base ya termina en `/api`
-     * (error frecuente en localStorage), la petición va a `/api/api/...` → 404.
-     */
     while (/\/api$/i.test(s)) {
       s = s.slice(0, -4).replace(/\/+$/, "");
     }
@@ -27,16 +29,52 @@
     }
   }
 
-  function getAccessToken() {
+  function readCsrfFromDocumentCookie() {
     try {
-      const direct = (localStorage.getItem("antares_api_access_token") || "").trim();
-      if (direct) return direct;
-      const sessionRaw = localStorage.getItem("antares_session_v2");
-      if (!sessionRaw) return "";
-      const session = JSON.parse(sessionRaw);
-      return String(session?.accessToken || "").trim();
+      const parts = String(document.cookie || "").split(";");
+      for (let i = 0; i < parts.length; i++) {
+        const chunk = parts[i].trim();
+        if (!chunk.startsWith(`${CSRF_COOKIE}=`)) continue;
+        return decodeURIComponent(chunk.slice(CSRF_COOKIE.length + 1));
+      }
+    } catch (_e) {
+      /* noop */
+    }
+    return "";
+  }
+
+  function getCsrfToken() {
+    const mem = String(csrfTokenMemory || "").trim();
+    if (mem) return mem;
+    return String(readCsrfFromDocumentCookie() || "").trim();
+  }
+
+  function setCsrfToken(token) {
+    csrfTokenMemory = String(token || "").trim();
+  }
+
+  function hasPortalSession() {
+    try {
+      const raw = localStorage.getItem(SESSION_KEY);
+      if (!raw) return false;
+      const session = JSON.parse(raw);
+      return Boolean(session && session.userId);
     } catch {
-      return "";
+      return false;
+    }
+  }
+
+  /** @deprecated Los JWT ya no viven en localStorage; se conserva por compatibilidad con código legado. */
+  function getAccessToken() {
+    return "";
+  }
+
+  /** @deprecated Los JWT ya no se guardan en el cliente. */
+  function setAccessToken(_token) {
+    try {
+      localStorage.removeItem("antares_api_access_token");
+    } catch (_e) {
+      /* noop */
     }
   }
 
@@ -45,14 +83,28 @@
   }
 
   function isConfigured() {
-    return Boolean(getBase() && getAccessToken());
+    return Boolean(getBase() && hasPortalSession());
   }
 
-  function setAccessToken(token) {
-    try {
-      if (token) localStorage.setItem("antares_api_access_token", String(token).trim());
-      else localStorage.removeItem("antares_api_access_token");
-    } catch (_) {}
+  function isMutatingMethod(method) {
+    const m = String(method || "GET").toUpperCase();
+    return m === "POST" || m === "PUT" || m === "PATCH" || m === "DELETE";
+  }
+
+  function buildFetchHeaders(method, extra) {
+    /** @type {Record<string, string>} */
+    const headers = { ...(extra || {}) };
+    if (isMutatingMethod(method)) {
+      const csrf = getCsrfToken();
+      if (csrf) headers[CSRF_HEADER] = csrf;
+    }
+    return headers;
+  }
+
+  function applyCsrfFromResponse(data) {
+    if (data && typeof data === "object" && data.csrfToken) {
+      setCsrfToken(data.csrfToken);
+    }
   }
 
   /** Convierte fallos de `fetch` (red, CORS, certificado, URL incorrecta) en mensaje legible. */
@@ -69,14 +121,12 @@
   async function request(method, path, body, reqOpts) {
     reqOpts = reqOpts && typeof reqOpts === "object" ? reqOpts : {};
     const base = getBase();
-    const auth = getAccessToken();
     if (!base) throw new Error("API: falta URL base (antares_api_base o __ANTARES_API_BASE__)");
-    if (!auth) throw new Error("API: falta token de acceso");
+    if (!hasPortalSession()) throw new Error("API: sesión no iniciada");
     const rel = path.startsWith("/") ? path : `/${path}`;
     const url = `${base}/api${rel}`;
-    /** @type {Record<string, string>} */
-    const headers = { Accept: "application/json", Authorization: `Bearer ${auth}` };
-    const opts = /** @type {RequestInit} */ ({ method, headers });
+    const headers = buildFetchHeaders(method, { Accept: "application/json" });
+    const opts = /** @type {RequestInit} */ ({ method, headers, credentials: "include" });
     if (body !== undefined && body !== null) {
       headers["Content-Type"] = "application/json";
       opts.body = JSON.stringify(body);
@@ -129,6 +179,7 @@
       err.status = res.status;
       throw err;
     }
+    applyCsrfFromResponse(data);
     return data;
   }
 
@@ -140,14 +191,13 @@
   async function getArrayBuffer(path) {
     const base = getBase();
     if (!base) throw new Error("API: falta URL base (antares_api_base o __ANTARES_API_BASE__)");
+    if (!hasPortalSession()) throw new Error("API: sesión no iniciada");
     const rel = path.startsWith("/") ? path : `/${path}`;
     const url = `${base}/api${rel}`;
-    const headers = { Accept: "application/octet-stream" };
-    const token = getAccessToken();
-    if (token) headers.Authorization = `Bearer ${token}`;
+    const headers = buildFetchHeaders("GET", { Accept: "application/octet-stream" });
     let res;
     try {
-      res = await fetch(url, { method: "GET", headers });
+      res = await fetch(url, { method: "GET", headers, credentials: "include" });
     } catch (err) {
       throwIfFetchNetworkError(err);
     }
@@ -163,16 +213,19 @@
     return request("POST", path, body);
   }
 
-  /** POST sin token (rutas públicas de la API). */
+  /** POST sin sesión (rutas públicas de la API). */
   async function postJsonPublic(path, body) {
     const base = getBase();
     if (!base) throw new Error("API: falta URL base (antares_api_base o __ANTARES_API_BASE__)");
     const rel = path.startsWith("/") ? path : `/${path}`;
     const url = `${base}/api${rel}`;
-    const headers = { Accept: "application/json", "Content-Type": "application/json" };
+    const headers = buildFetchHeaders("POST", {
+      Accept: "application/json",
+      "Content-Type": "application/json"
+    });
     let res;
     try {
-      res = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
+      res = await fetch(url, { method: "POST", headers, credentials: "include", body: JSON.stringify(body) });
     } catch (err) {
       throwIfFetchNetworkError(err);
     }
@@ -194,19 +247,20 @@
       err.status = res.status;
       throw err;
     }
+    applyCsrfFromResponse(data);
     return data;
   }
 
-  /** POST multipart/form-data sin token (no fijar Content-Type: el navegador añade boundary). */
+  /** POST multipart/form-data sin sesión (no fijar Content-Type: el navegador añade boundary). */
   async function postFormDataPublic(path, formData) {
     const base = getBase();
     if (!base) throw new Error("API: falta URL base (antares_api_base o __ANTARES_API_BASE__)");
     const rel = path.startsWith("/") ? path : `/${path}`;
     const url = `${base}/api${rel}`;
-    const headers = { Accept: "application/json" };
+    const headers = buildFetchHeaders("POST", { Accept: "application/json" });
     let res;
     try {
-      res = await fetch(url, { method: "POST", headers, body: formData });
+      res = await fetch(url, { method: "POST", headers, credentials: "include", body: formData });
     } catch (err) {
       throwIfFetchNetworkError(err);
     }
@@ -228,21 +282,21 @@
       err.status = res.status;
       throw err;
     }
+    applyCsrfFromResponse(data);
     return data;
   }
 
-  /** POST multipart con token (p. ej. subida de imagen vía API). */
+  /** POST multipart con sesión por cookie (p. ej. subida de imagen vía API). */
   async function postFormData(path, formData) {
     const base = getBase();
-    const auth = getAccessToken();
     if (!base) throw new Error("API: falta URL base (antares_api_base o __ANTARES_API_BASE__)");
-    if (!auth) throw new Error("API: falta token de acceso");
+    if (!hasPortalSession()) throw new Error("API: sesión no iniciada");
     const rel = path.startsWith("/") ? path : `/${path}`;
     const url = `${base}/api${rel}`;
-    const headers = { Accept: "application/json", Authorization: `Bearer ${auth}` };
+    const headers = buildFetchHeaders("POST", { Accept: "application/json" });
     let res;
     try {
-      res = await fetch(url, { method: "POST", headers, body: formData });
+      res = await fetch(url, { method: "POST", headers, credentials: "include", body: formData });
     } catch (err) {
       throwIfFetchNetworkError(err);
     }
@@ -264,10 +318,11 @@
       err.status = res.status;
       throw err;
     }
+    applyCsrfFromResponse(data);
     return data;
   }
 
-  /** GET sin token (rutas públicas de la API). */
+  /** GET sin sesión (rutas públicas de la API). */
   async function getJsonPublic(path) {
     const base = getBase();
     if (!base) throw new Error("API: falta URL base (antares_api_base o __ANTARES_API_BASE__)");
@@ -276,7 +331,7 @@
     const headers = { Accept: "application/json" };
     let res;
     try {
-      res = await fetch(url, { method: "GET", headers });
+      res = await fetch(url, { method: "GET", headers, credentials: "include" });
     } catch (err) {
       throwIfFetchNetworkError(err);
     }
@@ -301,12 +356,49 @@
     return data;
   }
 
+  /** Elimina tokens JWT legados del almacenamiento del navegador. */
+  function purgeLegacyAuthTokens() {
+    setAccessToken("");
+    try {
+      const raw = localStorage.getItem(SESSION_KEY);
+      if (!raw) return;
+      const session = JSON.parse(raw);
+      if (!session || typeof session !== "object") return;
+      if (!("accessToken" in session) && !("refreshToken" in session)) return;
+      const next = { ...session };
+      delete next.accessToken;
+      delete next.refreshToken;
+      localStorage.setItem(SESSION_KEY, JSON.stringify(next));
+    } catch (_e) {
+      /* noop */
+    }
+    try {
+      const webKey = "antares_web_auth";
+      const webRaw = localStorage.getItem(webKey);
+      if (!webRaw) return;
+      const web = JSON.parse(webRaw);
+      if (!web || typeof web !== "object") return;
+      if (!("accessToken" in web) && !("refreshToken" in web)) return;
+      const nextWeb = { ...web };
+      delete nextWeb.accessToken;
+      delete nextWeb.refreshToken;
+      localStorage.setItem(webKey, JSON.stringify(nextWeb));
+    } catch (_e2) {
+      /* noop */
+    }
+  }
+
+  purgeLegacyAuthTokens();
+
   window.AntaresApi = {
     getBase,
     getAccessToken,
+    getCsrfToken,
     hasBase,
     isConfigured,
     setAccessToken,
+    setCsrfToken,
+    purgeLegacyAuthTokens,
     request,
     getJson,
     getArrayBuffer,

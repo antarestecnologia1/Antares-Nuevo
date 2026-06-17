@@ -4880,6 +4880,9 @@ function initPortalClientStorage() {
     ensureUsersPermissions();
     ensureUsersAccountStatus();
     ensureVehicleDocs();
+    if (window.AntaresApi?.purgeLegacyAuthTokens) {
+      window.AntaresApi.purgeLegacyAuthTokens();
+    }
   } finally {
     if (PS?.endBootstrap) PS.endBootstrap();
   }
@@ -4893,17 +4896,16 @@ async function tryApiLoginBridge(user, password) {
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
+      credentials: "include",
       body: JSON.stringify({ email: user.email, password })
     });
     const body = res.ok ? await res.json() : null;
-    if (!body?.accessToken) return;
-    api.setAccessToken(body.accessToken);
+    if (!body?.user?.userId) return;
+    if (body?.csrfToken && api.setCsrfToken) api.setCsrfToken(body.csrfToken);
     const session = getSession();
     if (session) {
       setSession({
         ...session,
-        accessToken: body.accessToken,
-        refreshToken: body.refreshToken || "",
         lastActivityAt: Date.now()
       });
     }
@@ -5130,7 +5132,7 @@ async function writeFuelLogsAwait(list) {
   write(KEYS.fuelLogs, normalized);
   const sync = window.AntaresPortalSync;
   const api = window.AntaresApi;
-  if (sync?.flushEntityNow && api?.getBase?.() && String(api.getAccessToken?.() || "").trim()) {
+  if (sync?.flushEntityNow && api?.isConfigured?.()) {
     await sync.flushEntityNow("fuelLogs", normalized.map(fuelLogRowForServer));
     return;
   }
@@ -5142,7 +5144,7 @@ async function writeVehicleTechnicalLogsAwait(list) {
   write(KEYS.vehicleTechnicalLogs, normalized);
   const sync = window.AntaresPortalSync;
   const api = window.AntaresApi;
-  if (sync?.flushEntityNow && api?.getBase?.() && String(api.getAccessToken?.() || "").trim()) {
+  if (sync?.flushEntityNow && api?.isConfigured?.()) {
     await sync.flushEntityNow("vehicleTechnicalLogs", normalized.map(vehicleTechnicalLogRowForServer));
     return;
   }
@@ -5153,7 +5155,7 @@ async function writeVehicleTechnicalLogsAwait(list) {
 async function appendFuelLogAwait(row) {
   const draft = normalizeFuelLogPortalRow(row);
   const api = window.AntaresApi;
-  if (api?.isConfigured?.() && String(api.getAccessToken?.() || "").trim() && typeof api.postJson === "function") {
+  if (api?.isConfigured?.() && typeof api.postJson === "function") {
     const saved = await api.postJson("/portal/fleet/fuel-logs", fuelLogRowForServer(draft));
     const merged = normalizeFuelLogPortalRow(saved);
     const actor = currentUser();
@@ -5177,7 +5179,7 @@ async function appendFuelLogAwait(row) {
 async function appendVehicleTechnicalLogAwait(row) {
   const draft = normalizeVehicleTechnicalLogPortalRow(row);
   const api = window.AntaresApi;
-  if (api?.isConfigured?.() && String(api.getAccessToken?.() || "").trim() && typeof api.postJson === "function") {
+  if (api?.isConfigured?.() && typeof api.postJson === "function") {
     const saved = await api.postJson("/portal/fleet/maintenance-logs", vehicleTechnicalLogRowForServer(draft));
     const merged = normalizeVehicleTechnicalLogPortalRow(saved);
     const actor = currentUser();
@@ -10336,15 +10338,18 @@ async function fetchCandidateCvBlobFromApi(candidateId) {
   const id = String(candidateId || "").trim();
   if (!id || !portalCanRefreshFromApi()) return null;
   const api = window.AntaresApi;
-  if (!api?.getBase || !api?.getAccessToken) return null;
+  if (!api?.getBase || !api?.isConfigured?.()) return null;
   const base = api.getBase();
-  const auth = api.getAccessToken();
-  if (!base || !auth) return null;
+  if (!base) return null;
   const url = `${base}/api/portal/candidates/${encodeURIComponent(id)}/cv-file`;
+  const headers = { Accept: "application/octet-stream" };
+  const csrf = typeof api.getCsrfToken === "function" ? String(api.getCsrfToken() || "").trim() : "";
+  if (csrf) headers["X-CSRF-Token"] = csrf;
   try {
     const res = await fetch(url, {
       method: "GET",
-      headers: { Authorization: `Bearer ${auth}` }
+      headers,
+      credentials: "include"
     });
     if (!res.ok) return null;
     const blob = await res.blob();
@@ -10630,8 +10635,8 @@ async function resolveEmployeeAvatarUrl(file, fallbackDataUrl = "") {
     typeof api.postJson === "function" &&
     typeof api.getBase === "function" &&
     api.getBase() &&
-    typeof api.getAccessToken === "function" &&
-    api.getAccessToken();
+    typeof api.isConfigured === "function" &&
+    api.isConfigured();
 
   if (canUseBackend) {
     let publicFromPresign = "";

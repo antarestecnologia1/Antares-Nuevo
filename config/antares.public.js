@@ -18,8 +18,8 @@
  * modules/core/runtime-security.js para reducir fugas por DevTools; la validación y autorización reales
  * siguen en el servidor (Nest + PostgreSQL).
  *
- * Autenticación: con __ANTARES_API_BASE__ / antares_api_base el login y los datos van contra la API y PostgreSQL (Supabase).
- * Las claves en localStorage son caché del cliente y sincronización (portal/sync-key), no sustituyen la base de datos.
+ * Autenticación: con __ANTARES_API_BASE__ / antares_api_base el login usa cookies HttpOnly en el dominio
+ * de la API (no JWT en localStorage). Los datos de negocio en localStorage son caché de sesión + sync-key.
  */
 (function () {
   "use strict";

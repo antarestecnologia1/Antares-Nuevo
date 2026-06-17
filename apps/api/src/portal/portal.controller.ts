@@ -1,5 +1,7 @@
 import { Body, Controller, Get, Param, Post, Query, Req, Res, UseGuards } from "@nestjs/common";
-import type { Response } from "express";
+import { ConfigService } from "@nestjs/config";
+import type { Request, Response } from "express";
+import { clearAuthCookies } from "../auth/auth-cookies";
 import { JwtAuthGuard } from "../common/jwt-auth.guard";
 import { ApprovePendingUserDto } from "./dto/approve-pending-user.dto";
 import { AdminUserDeleteDto } from "./dto/admin-user-delete.dto";
@@ -29,7 +31,10 @@ type ReqUser = { userId: string; email: string; role: string };
 @UseGuards(JwtAuthGuard)
 @Controller("portal")
 export class PortalController {
-  constructor(private readonly portal: PortalService) {}
+  constructor(
+    private readonly portal: PortalService,
+    private readonly config: ConfigService
+  ) {}
 
   @Get("bootstrap")
   bootstrap(@Req() req: { user: ReqUser }) {
@@ -257,7 +262,8 @@ export class PortalController {
    * y la cuenta no quede "fantasma" activa en BD tras logout.
    */
   @Post("logout")
-  logout(@Req() req: { user: ReqUser }) {
+  logout(@Req() req: { user: ReqUser }, @Res({ passthrough: true }) res: Response) {
+    clearAuthCookies(res, this.config);
     return this.portal.logoutSelf(req.user.userId);
   }
 

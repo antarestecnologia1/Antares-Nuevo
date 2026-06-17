@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
-import { AUTH_COOKIE_ACCESS, AUTH_COOKIE_CSRF, CSRF_HEADER } from "./auth-cookies";
+import { AUTH_COOKIE_ACCESS, AUTH_COOKIE_CSRF, AUTH_COOKIE_REFRESH, CSRF_HEADER } from "./auth-cookies";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
@@ -9,8 +9,7 @@ const CSRF_SKIP_PREFIXES = [
   "/api/auth/register",
   "/api/auth/register-portal",
   "/api/auth/password-recovery/request",
-  "/api/auth/password-recovery/complete",
-  "/api/auth/logout"
+  "/api/auth/password-recovery/complete"
 ];
 
 function requestPath(req: Request): string {
@@ -39,8 +38,8 @@ export function csrfProtectionMiddleware(req: Request, res: Response, next: Next
     return;
   }
 
-  const hasAccessCookie = Boolean(req.cookies?.[AUTH_COOKIE_ACCESS]);
-  if (!hasAccessCookie) {
+  const hasAuthCookies = Boolean(req.cookies?.[AUTH_COOKIE_ACCESS] || req.cookies?.[AUTH_COOKIE_REFRESH]);
+  if (!hasAuthCookies) {
     next();
     return;
   }
