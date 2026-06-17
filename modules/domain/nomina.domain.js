@@ -117,6 +117,15 @@ export function listConductorServiceEmployees(employees = []) {
   return (Array.isArray(employees) ? employees : []).filter((e) => employeeIsConductorServiceProvider(e));
 }
 
+/** Usuario que generó la liquidación (persistido o inferido por origen). */
+export function payrollRunGeneratedByLabel(run) {
+  const by = String(run?.createdBy || run?.creadoPor || run?.creado_por || "").trim();
+  if (by) return by;
+  const orig = String(run?.liquidacionOrigin || run?.origenLiquidacion || "manual").toLowerCase();
+  if (orig === "automatica") return "Sistema";
+  return "";
+}
+
 export function payrollRunTypeLabel(run) {
   const pk = String(run?.payrollKind || "").trim().toLowerCase();
   if (pk === "prestacion_viajes" || pk === "conductor_viajes") return "Pago por viajes (prestación)";

@@ -18185,7 +18185,7 @@ body[data-theme="dark"] .payroll-data-nav-tab.is-active .payroll-data-nav-count 
 
 .payroll-run-cards-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr));
   gap: 0.75rem;
 }
 
@@ -30277,6 +30277,9 @@ body[data-theme="dark"] .hr-module-pro--hiring .payroll-data-nav-tab.is-active .
   overflow: hidden;     /* recorta la franja en las esquinas redondeadas */
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  container-type: inline-size;
+  container-name: payroll-run-card;
 }
 
 /* Franja lateral de estado (4 px, sin border-radius propio) */
@@ -30342,21 +30345,23 @@ body[data-theme="dark"] .hr-module-pro--hiring .payroll-data-nav-tab.is-active .
   font-weight: 500;
 }
 
-/* Grid de importes: 3 columnas (col1 | col2 | Neto) */
+/* Grid de importes: 3 columnas (col1 | col2 | Neto); se apila si la tarjeta es estrecha */
 .payroll-run-amounts {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   border-top: 1px solid var(--pr-amt-border);
   border-bottom: 1px solid var(--pr-amt-border);
+  min-width: 0;
 }
 .payroll-run-amount-col {
-  padding: 10px 13px 10px 20px; /* primer col: 20 px izquierda */
+  padding: 10px 10px 10px 16px;
   display: flex;
   flex-direction: column;
   gap: 3px;
+  min-width: 0;
 }
 .payroll-run-amount-col + .payroll-run-amount-col {
-  padding-left: 12px;
+  padding-left: 10px;
   border-left: 1px solid var(--pr-amt-border);
 }
 .payroll-run-amount-col--net {
@@ -30370,16 +30375,46 @@ body[data-theme="dark"] .hr-module-pro--hiring .payroll-data-nav-tab.is-active .
   font-weight: 600;
 }
 .payroll-run-amount-value {
-  font-size: 13px;
+  font-size: clamp(0.68rem, 3.2cqi, 0.8125rem);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .payroll-run-amount-value--ded { color: var(--pr-color-ded); }
 .payroll-run-amount-value--net {
-  font-size: 15px;
+  font-size: clamp(0.75rem, 3.6cqi, 0.9375rem);
   font-weight: 700;
   color: var(--pr-color-net);
   font-variant-numeric: tabular-nums;
+}
+
+/* Tarjeta estrecha: importes en filas (evita recorte de Neto) */
+@container payroll-run-card (max-width: 24.5rem) {
+  .payroll-run-amounts {
+    grid-template-columns: 1fr;
+  }
+  .payroll-run-amount-col {
+    padding: 8px 14px 8px 16px;
+  }
+  .payroll-run-amount-col + .payroll-run-amount-col {
+    padding-left: 16px;
+    border-left: none;
+    border-top: 1px solid var(--pr-amt-border);
+  }
+  .payroll-run-amount-value,
+  .payroll-run-amount-value--net {
+    font-size: 0.8125rem;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+    overflow-wrap: anywhere;
+  }
+  .payroll-run-amount-value--net {
+    font-size: 0.9375rem;
+  }
 }
 
 /* Acciones de la tarjeta */

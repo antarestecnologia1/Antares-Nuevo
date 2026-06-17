@@ -38,6 +38,7 @@ CREATE TABLE liquidaciones_nomina (
   dias_interes_cesantias          INTEGER,
   origen_liquidacion              VARCHAR(32) NOT NULL DEFAULT 'manual',
   novedades_liquidacion_json      JSONB,
+  creado_por                      VARCHAR(255),
   fecha_creacion                  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -70,6 +71,8 @@ COMMENT ON COLUMN liquidaciones_nomina.dias_interes_cesantias IS 'Días sobre 36
 COMMENT ON COLUMN liquidaciones_nomina.origen_liquidacion IS 'manual | automatica · liquida quien disparó la fila.';
 
 COMMENT ON COLUMN liquidaciones_nomina.novedades_liquidacion_json IS 'Resumen novedades (incap./vacaciones, proporcionalización, fecha ingreso).';
+
+COMMENT ON COLUMN liquidaciones_nomina.creado_por IS 'Usuario del sistema que generó la liquidación (nombre o correo).';
 
 -- Índices
 

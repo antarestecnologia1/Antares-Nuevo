@@ -6,9 +6,9 @@ export const LIQUIDACION_UPSERT = {
           viaticos_periodo, reembolso_combustible, viaticos_automaticos, reembolso_combustible_automatico,
           viaticos_manuales, reembolso_combustible_manual, horas_extras_cop, auxilios_nomina_formulario, bonificaciones_cop,
           cantidad_viajes_conductor, viajes_interdepartamentales, deduccion_salud, deduccion_pension, fondo_solidaridad_pensional,
-          total_deducciones, neto_a_pagar, liquidacion_pagada, fecha_pago, pago_aprobado_por
+          total_deducciones, neto_a_pagar, liquidacion_pagada, fecha_pago, pago_aprobado_por, creado_por
         ) VALUES (
-          $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24::timestamptz, $25
+          $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24::timestamptz, $25, $26
         )
         ON CONFLICT (id) DO UPDATE SET
           id_empleado = EXCLUDED.id_empleado,
@@ -34,7 +34,8 @@ export const LIQUIDACION_UPSERT = {
           neto_a_pagar = EXCLUDED.neto_a_pagar,
           liquidacion_pagada = EXCLUDED.liquidacion_pagada,
           fecha_pago = EXCLUDED.fecha_pago,
-          pago_aprobado_por = EXCLUDED.pago_aprobado_por`,
+          pago_aprobado_por = EXCLUDED.pago_aprobado_por,
+          creado_por = COALESCE(liquidaciones_nomina.creado_por, EXCLUDED.creado_por)`,
 
   legacyNov: `INSERT INTO liquidaciones_nomina (
           id, id_empleado, nombre_empleado, periodo_mes, devengado_total, base_cotizacion_ibc,
@@ -42,10 +43,10 @@ export const LIQUIDACION_UPSERT = {
           viaticos_manuales, reembolso_combustible_manual, horas_extras_cop, auxilios_nomina_formulario, bonificaciones_cop,
           cantidad_viajes_conductor, viajes_interdepartamentales, deduccion_salud, deduccion_pension, fondo_solidaridad_pensional,
           total_deducciones, neto_a_pagar, liquidacion_pagada, fecha_pago, pago_aprobado_por,
-          origen_liquidacion, novedades_liquidacion_json
+          origen_liquidacion, novedades_liquidacion_json, creado_por
         ) VALUES (
           $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24::timestamptz, $25,
-          $26, $27::jsonb
+          $26, $27::jsonb, $28
         )
         ON CONFLICT (id) DO UPDATE SET
           id_empleado = EXCLUDED.id_empleado,
@@ -73,7 +74,8 @@ export const LIQUIDACION_UPSERT = {
           fecha_pago = EXCLUDED.fecha_pago,
           pago_aprobado_por = EXCLUDED.pago_aprobado_por,
           origen_liquidacion = EXCLUDED.origen_liquidacion,
-          novedades_liquidacion_json = EXCLUDED.novedades_liquidacion_json`,
+          novedades_liquidacion_json = EXCLUDED.novedades_liquidacion_json,
+          creado_por = COALESCE(liquidaciones_nomina.creado_por, EXCLUDED.creado_por)`,
 
   m20: `INSERT INTO liquidaciones_nomina (
           id, id_empleado, nombre_empleado, periodo_mes, devengado_total, base_cotizacion_ibc,
@@ -81,10 +83,10 @@ export const LIQUIDACION_UPSERT = {
           viaticos_manuales, reembolso_combustible_manual, horas_extras_cop, auxilios_nomina_formulario, bonificaciones_cop,
           cantidad_viajes_conductor, viajes_interdepartamentales, deduccion_salud, deduccion_pension, fondo_solidaridad_pensional,
           total_deducciones, neto_a_pagar, liquidacion_pagada, fecha_pago, pago_aprobado_por,
-          tipo_registro, incluye_prima_servicios, prima_servicios_cop, prima_dias_semestre, liquidacion_terminacion_json
+          tipo_registro, incluye_prima_servicios, prima_servicios_cop, prima_dias_semestre, liquidacion_terminacion_json, creado_por
         ) VALUES (
           $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24::timestamptz, $25,
-          $26, $27, $28, $29, $30::jsonb
+          $26, $27, $28, $29, $30::jsonb, $31
         )
         ON CONFLICT (id) DO UPDATE SET
           id_empleado = EXCLUDED.id_empleado,
@@ -115,7 +117,8 @@ export const LIQUIDACION_UPSERT = {
           incluye_prima_servicios = EXCLUDED.incluye_prima_servicios,
           prima_servicios_cop = EXCLUDED.prima_servicios_cop,
           prima_dias_semestre = EXCLUDED.prima_dias_semestre,
-          liquidacion_terminacion_json = EXCLUDED.liquidacion_terminacion_json`,
+          liquidacion_terminacion_json = EXCLUDED.liquidacion_terminacion_json,
+          creado_por = COALESCE(liquidaciones_nomina.creado_por, EXCLUDED.creado_por)`,
 
   m20Nov: `INSERT INTO liquidaciones_nomina (
           id, id_empleado, nombre_empleado, periodo_mes, devengado_total, base_cotizacion_ibc,
@@ -124,10 +127,10 @@ export const LIQUIDACION_UPSERT = {
           cantidad_viajes_conductor, viajes_interdepartamentales, deduccion_salud, deduccion_pension, fondo_solidaridad_pensional,
           total_deducciones, neto_a_pagar, liquidacion_pagada, fecha_pago, pago_aprobado_por,
           tipo_registro, incluye_prima_servicios, prima_servicios_cop, prima_dias_semestre, liquidacion_terminacion_json,
-          origen_liquidacion, novedades_liquidacion_json
+          origen_liquidacion, novedades_liquidacion_json, creado_por
         ) VALUES (
           $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24::timestamptz, $25,
-          $26, $27, $28, $29, $30::jsonb, $31, $32::jsonb
+          $26, $27, $28, $29, $30::jsonb, $31, $32::jsonb, $33
         )
         ON CONFLICT (id) DO UPDATE SET
           id_empleado = EXCLUDED.id_empleado,
@@ -160,7 +163,8 @@ export const LIQUIDACION_UPSERT = {
           prima_dias_semestre = EXCLUDED.prima_dias_semestre,
           liquidacion_terminacion_json = EXCLUDED.liquidacion_terminacion_json,
           origen_liquidacion = EXCLUDED.origen_liquidacion,
-          novedades_liquidacion_json = EXCLUDED.novedades_liquidacion_json`,
+          novedades_liquidacion_json = EXCLUDED.novedades_liquidacion_json,
+          creado_por = COALESCE(liquidaciones_nomina.creado_por, EXCLUDED.creado_por)`,
 
   full: `INSERT INTO liquidaciones_nomina (
           id, id_empleado, nombre_empleado, periodo_mes, devengado_total, base_cotizacion_ibc,
@@ -169,10 +173,10 @@ export const LIQUIDACION_UPSERT = {
           cantidad_viajes_conductor, viajes_interdepartamentales, deduccion_salud, deduccion_pension, fondo_solidaridad_pensional,
           total_deducciones, neto_a_pagar, liquidacion_pagada, fecha_pago, pago_aprobado_por,
           tipo_registro, incluye_prima_servicios, prima_servicios_cop, prima_dias_semestre, liquidacion_terminacion_json,
-          incluye_intereses_cesantias, intereses_cesantias_cop, base_cesantias_interes_cop, dias_interes_cesantias
+          incluye_intereses_cesantias, intereses_cesantias_cop, base_cesantias_interes_cop, dias_interes_cesantias, creado_por
         ) VALUES (
           $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24::timestamptz, $25,
-          $26, $27, $28, $29, $30::jsonb, $31, $32, $33, $34
+          $26, $27, $28, $29, $30::jsonb, $31, $32, $33, $34, $35
         )
         ON CONFLICT (id) DO UPDATE SET
           id_empleado = EXCLUDED.id_empleado,
@@ -207,7 +211,8 @@ export const LIQUIDACION_UPSERT = {
           incluye_intereses_cesantias = EXCLUDED.incluye_intereses_cesantias,
           intereses_cesantias_cop = EXCLUDED.intereses_cesantias_cop,
           base_cesantias_interes_cop = EXCLUDED.base_cesantias_interes_cop,
-          dias_interes_cesantias = EXCLUDED.dias_interes_cesantias`,
+          dias_interes_cesantias = EXCLUDED.dias_interes_cesantias,
+          creado_por = COALESCE(liquidaciones_nomina.creado_por, EXCLUDED.creado_por)`,
 
   fullNov: `INSERT INTO liquidaciones_nomina (
           id, id_empleado, nombre_empleado, periodo_mes, devengado_total, base_cotizacion_ibc,
@@ -217,10 +222,10 @@ export const LIQUIDACION_UPSERT = {
           total_deducciones, neto_a_pagar, liquidacion_pagada, fecha_pago, pago_aprobado_por,
           tipo_registro, incluye_prima_servicios, prima_servicios_cop, prima_dias_semestre, liquidacion_terminacion_json,
           incluye_intereses_cesantias, intereses_cesantias_cop, base_cesantias_interes_cop, dias_interes_cesantias,
-          origen_liquidacion, novedades_liquidacion_json
+          origen_liquidacion, novedades_liquidacion_json, creado_por
         ) VALUES (
           $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24::timestamptz, $25,
-          $26, $27, $28, $29, $30::jsonb, $31, $32, $33, $34, $35, $36::jsonb
+          $26, $27, $28, $29, $30::jsonb, $31, $32, $33, $34, $35, $36::jsonb, $37
         )
         ON CONFLICT (id) DO UPDATE SET
           id_empleado = EXCLUDED.id_empleado,
@@ -257,5 +262,6 @@ export const LIQUIDACION_UPSERT = {
           base_cesantias_interes_cop = EXCLUDED.base_cesantias_interes_cop,
           dias_interes_cesantias = EXCLUDED.dias_interes_cesantias,
           origen_liquidacion = EXCLUDED.origen_liquidacion,
-          novedades_liquidacion_json = EXCLUDED.novedades_liquidacion_json`
+          novedades_liquidacion_json = EXCLUDED.novedades_liquidacion_json,
+          creado_por = COALESCE(liquidaciones_nomina.creado_por, EXCLUDED.creado_por)`
 } as const;

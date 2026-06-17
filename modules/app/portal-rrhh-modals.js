@@ -18,7 +18,7 @@
     setSelectValueInsensitive, attachDepartmentCitySelects, wireRouteRateScopeSection,
     failPortalField, userMessage, buildTripRouteRateKey, tripRateStorageKey,
     buildRouteRateEntry, humanTripRateRouteLabelFromStorageKey,
-    formatPayrollPeriodLabel, payrollRunTypeLabel, payrollRunIsDriverTripPayment,
+    formatPayrollPeriodLabel, payrollRunTypeLabel, payrollRunGeneratedByLabel, payrollRunIsDriverTripPayment,
     payrollRunHasAbsenceDetail, ensureCrudModalElement, renderModalHead,
     renderModalFooterActions, wireModalDismiss, scrollOpenCrudModalIntoView,
     persistHrWorkspace, scrollToCreatePanelForm, colombiaTodayIsoDate
@@ -39,6 +39,7 @@ function renderPayrollRunCard(run, { compact = false } = {}) {
         })()
       : "";
   const typeLabel = payrollRunTypeLabel(run);
+  const generatedBy = payrollRunGeneratedByLabel(run);
   const orig = String(run.liquidacionOrigin || run.origenLiquidacion || "manual").toLowerCase();
   const isDriverRun = payrollRunIsDriverTripPayment(run);
   const hasAbsenceDetail =
@@ -99,6 +100,7 @@ function renderPayrollRunCard(run, { compact = false } = {}) {
         <h4 class="payroll-run-card-title">${escapeHtml(monthLabel)}</h4>
         ${periodRange ? `<p class="payroll-run-card-period muted">${escapeHtml(periodRange)}</p>` : ""}
         <p class="payroll-run-card-employee">${escapeHtml(String(run.employeeName || "—"))}</p>
+        ${generatedBy ? `<p class="payroll-run-card-meta muted">Generado por ${escapeHtml(generatedBy)}</p>` : ""}
       </div>
       ${statusHtml}
     </header>

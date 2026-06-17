@@ -635,8 +635,19 @@ function vehiclesHtml() {
           "Camiones",
           createdVehicle,
           `${String(createdVehicle.type || "Vehículo")} · ${String(createdVehicle.brand || "")} ${String(createdVehicle.model || "")}`.trim(),
-          { entityLabel: String(createdVehicle.plate || "").toUpperCase() }
+          {
+            entityLabel: String(createdVehicle.plate || "").toUpperCase(),
+            actor: getPortalAuditActorLabel()
+          }
         );
+        if (createdVehicle.updatedAt) {
+          recordEntityHistoryActor(
+            "Camiones",
+            createdVehicle.id,
+            createdVehicle.updatedAt,
+            getPortalAuditActorLabel()
+          );
+        }
         notify(userMessage("vehicleRegistered"), "success");
         collapseCreatePanel("create-vehicle");
         renderPortalView();
@@ -801,6 +812,7 @@ function vehiclesHtml() {
               return false;
             }
             const updatedVehicle = nextVehicles.find((row) => row.id === target.id);
+            const vehicleActor = getPortalAuditActorLabel();
             if (updatedVehicle) {
               appendPortalEntityAuditLog(
                 "update",
@@ -808,8 +820,14 @@ function vehiclesHtml() {
                 "Camiones",
                 updatedVehicle,
                 `${updatedVehicle.refrigerated ? "Termoking" : "Carga seca"} · ${parseNum(updatedVehicle.capacityKg).toLocaleString("es-CO")} kg`,
-                { entityLabel: String(updatedVehicle.plate || "").toUpperCase() }
+                {
+                  entityLabel: String(updatedVehicle.plate || "").toUpperCase(),
+                  actor: vehicleActor
+                }
               );
+              if (updatedVehicle.updatedAt && vehicleActor) {
+                recordEntityHistoryActor("Camiones", updatedVehicle.id, updatedVehicle.updatedAt, vehicleActor);
+              }
             }
             notify(userMessage("vehicleUpdated"), "success");
             renderPortalView();

@@ -459,6 +459,12 @@ async function openPayrollRunPayslipById(runId) {
             <tr><td style="padding:4px 0"><strong>Documento</strong></td><td>${escapeHtml(String(employee?.idDoc || "-"))}</td></tr>
             <tr><td style="padding:4px 0"><strong>Cargo</strong></td><td>${escapeHtml(String(employee?.position || "-"))}</td></tr>
             <tr><td style="padding:4px 0"><strong>Periodo registrado</strong></td><td>${escapeHtml(String(run.month || ""))}</td></tr>
+            ${(() => {
+              const generatedBy = payrollRunGeneratedByLabel(run);
+              return generatedBy
+                ? `<tr><td style="padding:4px 0"><strong>Generado por</strong></td><td>${escapeHtml(generatedBy)}</td></tr>`
+                : "";
+            })()}
             ${employeeMetaRows}
             ${metaExtra}
             <tr><td style="padding:4px 0"><strong>Estado</strong></td><td>${run.paid ? "Pagado" : "Pendiente de pago"}</td></tr>
@@ -1884,7 +1890,7 @@ function bindPayrollPortalControls() {
           absencesAll: payrollAbsencesAll
         })
       };
-      const run = {
+      const run = stampCreatedRecord({
         id: newUuidV4(),
         employeeId: employee.id,
         employeeName: employee.name,
@@ -1911,7 +1917,6 @@ function bindPayrollPortalControls() {
         deductions,
         net,
         paid: false,
-        createdAt: nowIso(),
         payrollKind,
         payPrimaServicios: payPrima,
         primaServiciosDays: payPrima ? primaDaysRounded : null,
@@ -1921,7 +1926,7 @@ function bindPayrollPortalControls() {
         cesantiasInterestBaseCop: payInteresesCesantias ? cesantiasInterestBaseCop : null,
         cesantiasInterestDays: payInteresesCesantias ? cesantiasInterestDays : null,
         settlementDetail: null
-      };
+      });
       const runs = read(KEYS.payrollRuns, []);
       if (payrollRunAlreadyExists(runs, employee.id, periodKey, payrollKind)) {
         failPortalField(
@@ -2120,7 +2125,7 @@ function bindPayrollPortalControls() {
         legalDisclaimer: settlement.legalDisclaimer
       };
       const gross = settlement.gross;
-      const run = {
+      const run = stampCreatedRecord({
         id: newUuidV4(),
         employeeId: employee.id,
         employeeName: employee.name,
@@ -2146,7 +2151,6 @@ function bindPayrollPortalControls() {
         deductions: settlement.deductions,
         net: settlement.net,
         paid: false,
-        createdAt: nowIso(),
         payrollKind: "terminacion",
         payPrimaServicios: false,
         primaServiciosDays: null,
@@ -2156,7 +2160,7 @@ function bindPayrollPortalControls() {
         cesantiasInterestBaseCop: null,
         cesantiasInterestDays: null,
         settlementDetail
-      };
+      });
       const runs = read(KEYS.payrollRuns, []);
       if (payrollRunAlreadyExists(runs, employee.id, data.month, "terminacion")) {
         failPortalField(settlementForm, "month", "Ya existe una liquidación de terminación para este empleado y período.");

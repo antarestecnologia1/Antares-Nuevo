@@ -1192,7 +1192,8 @@ export class PortalService implements OnModuleInit {
       `ALTER TABLE public.liquidaciones_nomina ADD COLUMN IF NOT EXISTS base_cesantias_interes_cop NUMERIC(18,2)`,
       `ALTER TABLE public.liquidaciones_nomina ADD COLUMN IF NOT EXISTS dias_interes_cesantias INTEGER`,
       `ALTER TABLE public.liquidaciones_nomina ADD COLUMN IF NOT EXISTS origen_liquidacion VARCHAR(32) NOT NULL DEFAULT 'manual'`,
-      `ALTER TABLE public.liquidaciones_nomina ADD COLUMN IF NOT EXISTS novedades_liquidacion_json JSONB`
+      `ALTER TABLE public.liquidaciones_nomina ADD COLUMN IF NOT EXISTS novedades_liquidacion_json JSONB`,
+      `ALTER TABLE public.liquidaciones_nomina ADD COLUMN IF NOT EXISTS creado_por VARCHAR(255)`
     ];
     let ok = 0;
     for (const q of alters) {
@@ -5638,6 +5639,10 @@ export class PortalService implements OnModuleInit {
       paid: row.liquidacion_pagada,
       paidAt: row.fecha_pago ? new Date(row.fecha_pago as string | number | Date).toISOString() : null,
       approvedBy: row.pago_aprobado_por,
+      createdBy:
+        typeof row.creado_por === "string" && row.creado_por.trim()
+          ? String(row.creado_por).trim()
+          : null,
       createdAt: row.fecha_creacion
         ? new Date(row.fecha_creacion as string | number | Date).toISOString()
         : new Date().toISOString(),
@@ -5703,6 +5708,7 @@ export class PortalService implements OnModuleInit {
              ln.liquidacion_pagada,
              ln.fecha_pago,
              ln.pago_aprobado_por,
+             ln.creado_por,
              ln.fecha_creacion,
              ln.tipo_registro,
              ln.incluye_prima_servicios,
@@ -8204,6 +8210,12 @@ export class PortalService implements OnModuleInit {
     return (res.rowCount ?? 0) > 0;
   }
 
+  private payrollRunCreatedByParam(run: Record<string, unknown>): unknown[] {
+    const raw = pickPortalField(run, "createdBy", "createdByEmail", "creadoPor", "creado_por");
+    const label = raw != null ? String(raw).trim() : "";
+    return [label || null];
+  }
+
   private payrollRunBaseParams(run: Record<string, unknown>): unknown[] {
     return [
       run.id,
@@ -8371,16 +8383,22 @@ export class PortalService implements OnModuleInit {
       }
     }
     const base25 = this.payrollRunBaseParams(run);
+    const createdByExtra = this.payrollRunCreatedByParam(run);
     const novExtra = hasNov ? this.payrollRunNovedadesParams(run) : [];
     if (tier === 0) {
-      await c.query(hasNov ? LIQUIDACION_UPSERT.legacyNov : LIQUIDACION_UPSERT.legacy, [...base25, ...novExtra]);
+      await c.query(hasNov ? LIQUIDACION_UPSERT.legacyNov : LIQUIDACION_UPSERT.legacy, [
+        ...base25,
+        ...novExtra,
+        ...createdByExtra
+      ]);
       return;
     }
     if (tier === 1) {
       await c.query(hasNov ? LIQUIDACION_UPSERT.m20Nov : LIQUIDACION_UPSERT.m20, [
         ...base25,
         ...this.payrollRunExtM20(run),
-        ...novExtra
+        ...novExtra,
+        ...createdByExtra
       ]);
       return;
     }
@@ -8388,7 +8406,8 @@ export class PortalService implements OnModuleInit {
       ...base25,
       ...this.payrollRunExtM20(run),
       ...this.payrollRunExtIntereses(run),
-      ...novExtra
+      ...novExtra,
+      ...createdByExtra
     ]);
   }
 
@@ -8422,11 +8441,16 @@ export class PortalService implements OnModuleInit {
    */
   async generateAutomaticLiquidacionesForReferenceDate(
     reference: Date = new Date(),
-    options?: { force?: boolean; liquidacionOrigin?: "automatica" | "masiva" }
+    options?: { force?: boolean; liquidacionOrigin?: "automatica" | "masiva"; actorUserId?: string }
   ): Promise<{ created: number; skipped: number; messages: string[] }> {
     const force = options?.force === true;
     const liquidacionOrigin =
       options?.liquidacionOrigin === "masiva" ? "masiva" : "automatica";
+    let createdByLabel = "Sistema";
+    if (liquidacionOrigin === "masiva" && options?.actorUserId) {
+      const actor = await this.resolvePortalActor(options.actorUserId);
+      createdByLabel = actor.name || actor.email || "Sistema";
+    }
     const { y: by, m0: bm0, dom: bdom } = bogotaCalendarPartsFromInstant(reference);
     const cesBaseOptRaw = this.config.get<string>("PAYROLL_AUTOGEN_CESANTIAS_INTERES_BASE_COP");
     const cesBaseOpt =
@@ -8660,7 +8684,8 @@ export class PortalService implements OnModuleInit {
           cesantiasInterestBaseCop: payInt ? intBase : null,
           cesantiasInterestDays: payInt ? intDays : null,
           liquidacionOrigin,
-          noveltiesDetail: noveltyObj
+          noveltiesDetail: noveltyObj,
+          createdBy: createdByLabel
         };
 
         await this.payrollUpsertLiquidacionNomina(client, tier, hasNov, run);
@@ -8707,7 +8732,8 @@ export class PortalService implements OnModuleInit {
   async upsertDriverTripPaymentDraft(
     employeeId: string,
     periodYm: string,
-    options?: { travelAllowanceManualCop?: number; fuelReimbursementManualCop?: number }
+    options?: { travelAllowanceManualCop?: number; fuelReimbursementManualCop?: number },
+    actorUserId?: string
   ) {
     const eid = String(employeeId || "").trim();
     const ym = String(periodYm || "").trim();
@@ -8719,9 +8745,18 @@ export class PortalService implements OnModuleInit {
     if (!mb) throw new BadRequestException("periodYm inválido");
 
     const client = await this.pool.connect();
+    let createdByLabel: string | null = null;
+    if (actorUserId) {
+      const actor = await this.resolvePortalActor(actorUserId);
+      createdByLabel = actor.name || actor.email || null;
+    }
+    const txOptions = {
+      ...(options || {}),
+      ...(createdByLabel ? { createdBy: createdByLabel } : {})
+    };
     try {
       await client.query("BEGIN");
-      const result = await this.upsertDriverTripPaymentDraftTx(client, eid, ym, mb, options);
+      const result = await this.upsertDriverTripPaymentDraftTx(client, eid, ym, mb, txOptions);
       await client.query("COMMIT");
       const payrollRuns = await this.loadPayrollRunsForEmployee(eid);
       return { ...result, payrollRuns };
@@ -8738,7 +8773,7 @@ export class PortalService implements OnModuleInit {
     employeeId: string,
     periodYm: string,
     monthBounds: { monthStart: Date; monthEnd: Date },
-    options?: { travelAllowanceManualCop?: number; fuelReimbursementManualCop?: number }
+    options?: { travelAllowanceManualCop?: number; fuelReimbursementManualCop?: number; createdBy?: string }
   ) {
     const empRes = await c.query<{
       id: string;
@@ -8911,7 +8946,8 @@ export class PortalService implements OnModuleInit {
       cesantiasInterestDays: null,
       settlementDetail: null,
       liquidacionOrigin: "prestacion_viajes",
-      noveltiesDetail: computed.noveltiesDetail
+      noveltiesDetail: computed.noveltiesDetail,
+      ...(options?.createdBy ? { createdBy: options.createdBy } : {})
     };
 
     const isUpdate = Boolean(ex?.id);

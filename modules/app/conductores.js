@@ -496,7 +496,9 @@ function driversHtml() {
           notify(String(err?.message || "No fue posible guardar el conductor en el servidor."), "error");
           return;
         }
-        appendPortalEntityAuditLog("create", "drivers", "Conductores", createdDriver, `${String(createdDriver.licenseCategory || "Sin categoría")} · ${String(createdDriver.city || "Sin ciudad")}`);
+        appendPortalEntityAuditLog("create", "drivers", "Conductores", createdDriver, `${String(createdDriver.licenseCategory || "Sin categoría")} · ${String(createdDriver.city || "Sin ciudad")}`, {
+          actor: getPortalAuditActorLabel()
+        });
         const employees = read(KEYS.payrollEmployees, []);
         const existsEmployee = employees.some((e) => String(e.idDoc || "") === String(data.idDoc || ""));
         if (!existsEmployee) {
@@ -533,6 +535,11 @@ function driversHtml() {
         try {
           if (portalCanRefreshFromApi()) await applyPortalBootstrapFromApi();
         } catch (_e) {}
+        const refreshedCreate = read(KEYS.drivers, []).find((d) => String(d.id) === String(createdDriver.id));
+        const createActor = getPortalAuditActorLabel();
+        if (refreshedCreate?.updatedAt && createActor) {
+          recordEntityHistoryActor("Conductores", refreshedCreate.id, refreshedCreate.updatedAt, createActor);
+        }
         renderPortalView();
       }, { busyText: "Registrando conductor…" });
     }
@@ -740,13 +747,15 @@ function driversHtml() {
             const updatedDriver = nextDrivers.find(
               (row) => String(row.id ?? "").trim() === String(target.id ?? "").trim()
             );
+            const updateActor = getPortalAuditActorLabel();
             if (updatedDriver) {
               appendPortalEntityAuditLog(
                 "update",
                 "drivers",
                 "Conductores",
                 updatedDriver,
-                `${String(updatedDriver.phone || "Sin teléfono")} · ${String(getCompanyById(updatedDriver.companyId)?.name || "Sin empresa")}`
+                `${String(updatedDriver.phone || "Sin teléfono")} · ${String(getCompanyById(updatedDriver.companyId)?.name || "Sin empresa")}`,
+                { actor: updateActor }
               );
             }
             const employeeForSync =
@@ -759,6 +768,12 @@ function driversHtml() {
               try {
                 await applyPortalBootstrapFromApi();
               } catch (_e) {}
+            }
+            const refreshedUpdate = read(KEYS.drivers, []).find(
+              (row) => String(row.id ?? "").trim() === String(target.id ?? "").trim()
+            );
+            if (refreshedUpdate?.updatedAt && updateActor) {
+              recordEntityHistoryActor("Conductores", refreshedUpdate.id, refreshedUpdate.updatedAt, updateActor);
             }
             notify(
               hrSync.ok ? userMessage("driverUpdatedHrSynced") : userMessage("driverUpdatedHrSyncFailed"),

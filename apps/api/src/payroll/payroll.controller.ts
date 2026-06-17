@@ -1,4 +1,4 @@
-import { Body, Controller, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Post, Req, UseGuards } from "@nestjs/common";
 import { JwtAuthGuard } from "../common/jwt-auth.guard";
 import { Roles } from "../common/roles.decorator";
 import { RolesGuard } from "../common/roles.guard";
@@ -6,6 +6,8 @@ import { PortalService } from "../portal/portal.service";
 import { PayrollAutomationService } from "./payroll-automation.service";
 import { GenerateSlipDto } from "./dto/generate-slip.dto";
 import { PayrollService } from "./payroll.service";
+
+type ReqUser = { userId: string; email: string; role: string };
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller("payroll")
@@ -29,6 +31,7 @@ export class PayrollController {
   @Roles("admin", "rrhh")
   @Post("autogenerate-period")
   triggerAutogenerate(
+    @Req() req: { user: ReqUser },
     @Body()
     body: {
       fechaReferencia?: string;
@@ -38,7 +41,7 @@ export class PayrollController {
       origin?: "automatica" | "masiva";
     }
   ) {
-    return this.automation.triggerAutogeneration(body);
+    return this.automation.triggerAutogeneration({ ...body, actorUserId: req.user.userId });
   }
 
   /**
@@ -67,6 +70,7 @@ export class PayrollController {
   @Roles("admin", "rrhh")
   @Post("driver-trip-payment")
   upsertDriverTripPayment(
+    @Req() req: { user: ReqUser },
     @Body()
     body: {
       employeeId: string;
@@ -78,6 +82,6 @@ export class PayrollController {
     return this.portal.upsertDriverTripPaymentDraft(body.employeeId, body.periodYm, {
       travelAllowanceManualCop: body.travelAllowanceManualCop,
       fuelReimbursementManualCop: body.fuelReimbursementManualCop
-    });
+    }, req.user.userId);
   }
 }

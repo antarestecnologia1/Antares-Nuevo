@@ -46,10 +46,11 @@ export class PayrollAutomationService {
     periodoYm?: string;
     force?: boolean;
     origin?: "automatica" | "masiva";
+    actorUserId?: string;
   }) {
     const force = body?.force === true;
     const liquidacionOrigin: "automatica" | "masiva" = body?.origin === "masiva" ? "masiva" : "automatica";
-    const genOpts = { force, liquidacionOrigin };
+    const genOpts = { force, liquidacionOrigin, actorUserId: body?.actorUserId };
     const fr = body?.fechaReferencia?.trim();
     if (typeof fr === "string" && fr !== "") {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(fr)) throw new BadRequestException("fechaReferencia debe ser YYYY-MM-DD");

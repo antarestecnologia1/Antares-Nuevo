@@ -102,10 +102,11 @@ function payrollHtml() {
         }
         return `<span class="muted">${bits.join(" · ")}</span>`;
       })();
+      const generatedBy = payrollRunGeneratedByLabel(r);
       return `<tr data-payroll-state="${state}">
         <td><strong>${escapeHtml(monthLabel)}</strong></td>
         <td>${typeCell}</td>
-        <td>${escapeHtml(String(r.employeeName || "—"))}</td>
+        <td>${escapeHtml(String(r.employeeName || "—"))}${generatedBy ? `<div class="muted" style="font-size:0.82rem;margin-top:2px">Generado por ${escapeHtml(generatedBy)}</div>` : ""}</td>
         <td>$${parseNum(r.gross).toLocaleString("es-CO")}</td>
         <td>$${parseNum(r.travelAllowance || 0).toLocaleString("es-CO")}</td>
         <td>$${parseNum(r.fuelReimbursement || 0).toLocaleString("es-CO")}</td>

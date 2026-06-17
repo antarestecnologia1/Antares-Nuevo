@@ -2435,17 +2435,28 @@ function appendPayrollEmployeeAuditLog(action, employee, extra = {}) {
 function appendPortalEntityAuditLog(action, moduleId, moduleLabel, entity, summary = "", extra = {}) {
   const row = entity && typeof entity === "object" ? entity : {};
   const entityId = String(extra.entityId || row.id || "").trim();
+  const actor = historyAuditActorLabel(
+    extra.actor,
+    row.updatedByEmail,
+    row.updatedBy,
+    row.createdByEmail,
+    row.createdBy,
+    getPortalAuditActorLabel()
+  );
+  const at = String(extra.at || row.updatedAt || row.createdAt || nowIso()).trim();
   appendModuleAuditLog({
+    at,
     action: String(action || "update"),
     moduleId: String(moduleId || "").trim(),
     moduleLabel: String(moduleLabel || moduleId || "Módulo").trim(),
     entityId,
     entityLabel: String(extra.entityLabel || row.name || row.plate || row.title || "Registro").trim(),
     summary: String(summary || extra.summary || "").trim(),
-    actor: String(extra.actor || currentUser()?.email || currentUser()?.name || "—").trim(),
+    actor,
     detailAction: String(extra.detailAction || ""),
     detailId: String(extra.detailId || entityId)
   });
+  recordEntityHistoryActor(String(moduleLabel || moduleId || "Módulo").trim(), entityId, at, actor);
 }
 
 function buildRouteRateEntry(value, companyIds, previousEntry = null, ts = nowIso()) {
@@ -5532,16 +5543,40 @@ async function setDriverAvailability(driverId, available) {
   const key = String(driverId ?? "").trim();
   if (!key) return false;
   const drivers = read(KEYS.drivers, []);
-  const updatedTs = nowIso();
-  let found = false;
+  let updatedDriver = null;
   const next = drivers.map((d) => {
     if (String(d.id ?? "").trim() !== key) return d;
-    found = true;
-    return { ...d, available: Boolean(available), updatedAt: updatedTs };
+    updatedDriver = stampUpdatedRecord({
+      ...d,
+      available: Boolean(available)
+    });
+    return updatedDriver;
   });
-  if (!found) return false;
+  if (!updatedDriver) return false;
   try {
     await writeAwaitServer(KEYS.drivers, next);
+    appendPortalEntityAuditLog(
+      "update",
+      "drivers",
+      "Conductores",
+      updatedDriver,
+      `${updatedDriver.available ? "Disponible" : "No disponible"} · estado operativo`,
+      { entityLabel: String(updatedDriver.name || "Conductor").trim() }
+    );
+    if (portalCanRefreshFromApi()) {
+      try {
+        await applyPortalBootstrapFromApi();
+      } catch (_e) {}
+      const refreshed = read(KEYS.drivers, []).find((d) => String(d.id ?? "").trim() === key);
+      if (refreshed?.updatedAt) {
+        recordEntityHistoryActor(
+          "Conductores",
+          refreshed.id,
+          refreshed.updatedAt,
+          getPortalAuditActorLabel()
+        );
+      }
+    }
     recalculateResourceAvailability();
     return true;
   } catch (_e) {
@@ -7067,9 +7102,62 @@ function historyAuditActionStatus(action) {
 function historyAuditActorLabel(...candidates) {
   for (const raw of candidates) {
     const label = String(raw ?? "").trim();
-    if (label) return label;
+    if (!label || label === "—" || label === "-") continue;
+    return label;
   }
   return "";
+}
+
+function getPortalAuditActorLabel() {
+  const user = currentUser();
+  return historyAuditActorLabel(user?.email, getPortalUserDisplayName(user), user?.name);
+}
+
+function readEntityHistoryActors() {
+  const raw = read(KEYS.entityHistoryActors, {});
+  return raw && typeof raw === "object" ? raw : {};
+}
+
+function recordEntityHistoryActor(moduleLabel, entityId, ts, actor) {
+  const mod = String(moduleLabel || "").trim();
+  const id = String(entityId || "").trim();
+  const at = String(ts || "").trim();
+  const who = String(actor || "").trim();
+  if (!mod || !id || !at || !who) return;
+  const store = { ...readEntityHistoryActors() };
+  store[`${mod}|${id}|${at}`] = who;
+  const keys = Object.keys(store);
+  if (keys.length > 800) {
+    for (const key of keys.slice(0, keys.length - 700)) delete store[key];
+  }
+  write(KEYS.entityHistoryActors, store);
+}
+
+function historyAuditActorFromHistoryStore(moduleLabel, entityId, ts) {
+  const mod = String(moduleLabel || "").trim();
+  const id = String(entityId || "").trim();
+  const at = String(ts || "").trim();
+  if (!mod || !id || !at) return "";
+  const store = readEntityHistoryActors();
+  const exact = String(store[`${mod}|${id}|${at}`] || "").trim();
+  if (exact) return exact;
+  const targetMs = new Date(at).getTime();
+  if (Number.isNaN(targetMs)) return "";
+  let best = "";
+  let bestDelta = Infinity;
+  const prefix = `${mod}|${id}|`;
+  for (const [key, value] of Object.entries(store)) {
+    if (!key.startsWith(prefix)) continue;
+    const keyTs = key.slice(prefix.length);
+    const keyMs = new Date(keyTs).getTime();
+    if (Number.isNaN(keyMs)) continue;
+    const delta = Math.abs(keyMs - targetMs);
+    if (delta < bestDelta) {
+      bestDelta = delta;
+      best = String(value || "").trim();
+    }
+  }
+  return bestDelta <= 48 * 60 * 60 * 1000 ? best : "";
 }
 
 function historyAuditUserLabelById(userId) {
@@ -7130,33 +7218,50 @@ function historyAuditEntityActor(entity, action = "update") {
 
 function historyAuditActorFromModuleLogs(moduleLabel, entityId, entityLabel, action, ts) {
   const targetMs = new Date(ts).getTime();
-  if (Number.isNaN(targetMs)) return "";
   const id = String(entityId || "").trim();
   const label = String(entityLabel || "").trim();
   let best = "";
   let bestDelta = Infinity;
+  let onlyMatch = "";
+  let matchCount = 0;
   for (const row of readModuleAuditLogs()) {
     if (String(row.moduleLabel || "") !== moduleLabel) continue;
     if (String(row.action || "") !== action) continue;
     const rowEntityId = String(row.entityId || "").trim();
     const rowEntityLabel = String(row.entityLabel || "").trim();
-    if (id && rowEntityId && rowEntityId !== id) continue;
-    if (!id && label && rowEntityLabel && rowEntityLabel !== label) continue;
+    if (id && rowEntityId) {
+      if (rowEntityId !== id) continue;
+    } else if (label && rowEntityLabel) {
+      if (rowEntityLabel.toUpperCase() !== label.toUpperCase()) continue;
+    } else {
+      continue;
+    }
+    const actor = historyAuditActorLabel(row.actor);
+    if (!actor) continue;
+    matchCount += 1;
+    onlyMatch = actor;
+    if (Number.isNaN(targetMs)) {
+      best = actor;
+      break;
+    }
     const rowMs = new Date(row.at || 0).getTime();
     if (Number.isNaN(rowMs)) continue;
     const delta = Math.abs(rowMs - targetMs);
-    if (delta > 5 * 60 * 1000) continue;
     if (delta < bestDelta) {
       bestDelta = delta;
-      best = String(row.actor || "").trim();
+      best = actor;
     }
   }
-  return best;
+  if (best && bestDelta <= 48 * 60 * 60 * 1000) return best;
+  if (matchCount === 1 && onlyMatch) return onlyMatch;
+  return "";
 }
 
 function resolveHistoryAuditActorForEntity({ moduleLabel, entityId, entityLabel, action, entity, ts }) {
   const fromEntity = historyAuditEntityActor(entity, action);
   if (fromEntity) return fromEntity;
+  const fromStore = historyAuditActorFromHistoryStore(moduleLabel, entityId, ts);
+  if (fromStore) return fromStore;
   return historyAuditActorFromModuleLogs(moduleLabel, entityId, entityLabel, action, ts);
 }
 
@@ -7686,7 +7791,7 @@ function renderHistoryAuditCard(entry) {
       <p class="hist-trace-card__summary">${escapeHtml(entry.summary || "Sin resumen")}</p>
       <footer class="hist-trace-card__foot">
         <time class="hist-trace-card__time" datetime="${escapeAttr(String(entry.ts || ""))}">${escapeHtml(fmtDate(entry.ts))}</time>
-        <span class="hist-trace-card__actor${entry.actor ? "" : " hist-trace-card__actor--empty"}">${IC.user}<span>${entry.actor ? escapeHtml(entry.actor) : "Sin registrar"}</span></span>
+        <span class="hist-trace-card__actor${entry.actor ? "" : " hist-trace-card__actor--empty"}" title="${entry.actor ? "" : "No se guardó quién hizo este cambio (evento anterior o automático)"}">${IC.user}<span>${entry.actor ? escapeHtml(entry.actor) : "Usuario no identificado"}</span></span>
         ${detailButton ? `<span class="hist-trace-card__detail">${detailButton}</span>` : ""}
       </footer>
     </div>
@@ -7712,7 +7817,7 @@ function renderHistoryAuditRow(entry) {
     <td data-label="Entidad"><strong>${escapeHtml(entry.entityLabel)}</strong></td>
     <td data-label="Acción"><span class="status ${escapeAttr(actionTone)}">${escapeHtml(actionLabel)}</span></td>
     <td data-label="Resumen">${escapeHtml(entry.summary || "Sin resumen")}</td>
-    <td data-label="Usuario">${entry.actor ? escapeHtml(entry.actor) : '<span class="muted">Sin registrar</span>'}</td>
+    <td data-label="Usuario">${entry.actor ? escapeHtml(entry.actor) : '<span class="muted" title="No se guardó quién hizo este cambio">Usuario no identificado</span>'}</td>
     <td data-label="Acciones" class="hist-table-actions">${actions}</td>
   </tr>`;
 }
@@ -11770,6 +11875,8 @@ Object.assign(window, {
   appendModuleAuditLog,
   appendPayrollEmployeeAuditLog,
   appendPortalEntityAuditLog,
+  getPortalAuditActorLabel,
+  recordEntityHistoryActor,
   appendVehicleTechnicalLogAwait,
   applyAdminUsersFormDraft,
   applyCandidateToEmployeeForm,

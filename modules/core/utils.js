@@ -467,10 +467,13 @@ export function stampUpdatedRecord(record, ts = nowIso()) {
 }
 
 function portalRecordAuditActorFields(action = "update") {
-  const user =
+  const resolveUser =
     typeof globalThis.currentUser === "function"
-      ? globalThis.currentUser()
-      : null;
+      ? globalThis.currentUser
+      : typeof globalThis.window?.currentUser === "function"
+        ? globalThis.window.currentUser
+        : null;
+  const user = resolveUser ? resolveUser() : null;
   const name = String(user?.name || "").trim();
   const email = String(user?.email || "").trim();
   const label = email || name;

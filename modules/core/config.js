@@ -89,6 +89,8 @@ export const KEYS = {
   deletedTransportTripLogs: "antares_deleted_transport_trip_logs_v1",
   deletedTransportRequestLogs: "antares_deleted_transport_request_logs_v1",
   moduleAuditLogs: "antares_module_audit_logs_v1",
+  /** Mapa local entityId+timestamp → usuario que editó (sobrevive al bootstrap del servidor). */
+  entityHistoryActors: "antares_entity_history_actors_v1",
   session: "antares_session_v2"
 };
 
