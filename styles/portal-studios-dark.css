@@ -1,0 +1,503 @@
+/* ===================================================================
+   Portal — Tema oscuro para todos los módulos (studios)
+   Solo aplica con body[data-theme="dark"]
+   =================================================================== */
+
+/* —— Tokens de superficie compartidos —— */
+body[data-theme="dark"] .dashboard-studio {
+  --dash-surface: rgba(15, 28, 46, 0.65);
+  --dash-card: rgba(15, 28, 46, 0.92);
+  --dash-edge: rgba(148, 196, 255, 0.14);
+  --dash-edge-strong: rgba(148, 196, 255, 0.22);
+  --dash-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+  --dash-shadow-sm: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+body[data-theme="dark"] .requests-studio {
+  --req-surface: rgba(15, 28, 46, 0.65);
+  --req-card: rgba(15, 28, 46, 0.92);
+  --req-edge: rgba(148, 196, 255, 0.14);
+  --req-edge-strong: rgba(148, 196, 255, 0.22);
+  --req-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+  --req-shadow-sm: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+body[data-theme="dark"] .transport-studio {
+  --trn-surface: rgba(15, 28, 46, 0.65);
+  --trn-card: rgba(15, 28, 46, 0.92);
+  --trn-edge: rgba(148, 196, 255, 0.14);
+  --trn-edge-strong: rgba(148, 196, 255, 0.22);
+  --trn-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+  --trn-shadow-sm: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+body[data-theme="dark"] .vehicles-studio {
+  --veh-surface: rgba(15, 28, 46, 0.65);
+  --veh-card: rgba(15, 28, 46, 0.92);
+  --veh-edge: rgba(148, 196, 255, 0.14);
+  --veh-edge-strong: rgba(148, 196, 255, 0.22);
+  --veh-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+  --veh-shadow-sm: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+body[data-theme="dark"] .drivers-studio {
+  --drv-surface: rgba(15, 28, 46, 0.65);
+  --drv-card: rgba(15, 28, 46, 0.92);
+  --drv-edge: rgba(148, 196, 255, 0.14);
+  --drv-edge-strong: rgba(148, 196, 255, 0.22);
+  --drv-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+  --drv-shadow-sm: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+body[data-theme="dark"] .calendar-studio {
+  --cal-surface: rgba(15, 28, 46, 0.65);
+  --cal-card: rgba(15, 28, 46, 0.92);
+  --cal-edge: rgba(148, 196, 255, 0.14);
+  --cal-edge-strong: rgba(148, 196, 255, 0.22);
+  --cal-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+  --cal-shadow-sm: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+body[data-theme="dark"] .history-studio {
+  --hist-surface: rgba(15, 28, 46, 0.65);
+  --hist-card: rgba(15, 28, 46, 0.92);
+  --hist-edge: rgba(148, 196, 255, 0.14);
+  --hist-edge-strong: rgba(148, 196, 255, 0.22);
+  --hist-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+  --hist-shadow-sm: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+body[data-theme="dark"] .reports-studio {
+  --rpt-surface: rgba(15, 28, 46, 0.65);
+  --rpt-card: rgba(15, 28, 46, 0.92);
+  --rpt-edge: rgba(148, 196, 255, 0.14);
+  --rpt-edge-strong: rgba(148, 196, 255, 0.22);
+  --rpt-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+  --rpt-shadow-sm: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+body[data-theme="dark"] .sst-studio {
+  --sst-surface: rgba(15, 28, 46, 0.65);
+  --sst-card: rgba(15, 28, 46, 0.92);
+  --sst-edge: rgba(148, 196, 255, 0.14);
+  --sst-edge-strong: rgba(148, 196, 255, 0.22);
+  --sst-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+  --sst-shadow-sm: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+body[data-theme="dark"] .b2b-studio {
+  --b2b-surface: rgba(15, 28, 46, 0.65);
+  --b2b-card: rgba(15, 28, 46, 0.92);
+  --b2b-edge: rgba(148, 196, 255, 0.14);
+  --b2b-edge-strong: rgba(148, 196, 255, 0.22);
+  --b2b-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+  --b2b-shadow-sm: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+body[data-theme="dark"] .admin-users-studio {
+  --adm-surface: rgba(15, 28, 46, 0.65);
+  --adm-card: rgba(15, 28, 46, 0.92);
+  --adm-edge: rgba(148, 196, 255, 0.14);
+  --adm-edge-strong: rgba(148, 196, 255, 0.22);
+  --adm-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+  --adm-shadow-sm: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+body[data-theme="dark"] .authorizations-studio {
+  --aut-surface: rgba(15, 28, 46, 0.65);
+  --aut-card: rgba(15, 28, 46, 0.92);
+  --aut-edge: rgba(148, 196, 255, 0.14);
+  --aut-edge-strong: rgba(148, 196, 255, 0.22);
+  --aut-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+  --aut-shadow-sm: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+body[data-theme="dark"] .profile-studio {
+  --prf-surface: rgba(15, 28, 46, 0.65);
+  --prf-card: rgba(15, 28, 46, 0.92);
+  --prf-edge: rgba(148, 196, 255, 0.14);
+  --prf-edge-strong: rgba(148, 196, 255, 0.22);
+  --prf-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+  --prf-shadow-sm: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+body[data-theme="dark"] .notifications-studio {
+  --ntf-surface: rgba(15, 28, 46, 0.65);
+  --ntf-card: rgba(15, 28, 46, 0.92);
+  --ntf-edge: rgba(148, 196, 255, 0.14);
+  --ntf-edge-strong: rgba(148, 196, 255, 0.22);
+  --ntf-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+  --ntf-shadow-sm: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+/* Acento legible sobre fondos oscuros dentro de studios */
+body[data-theme="dark"] .portal-main [class$="-studio"] {
+  --primary-dark: #8ec5f0;
+}
+
+/* —— Tipografía general en studios —— */
+body[data-theme="dark"] .portal-main [class$="-studio"] h2,
+body[data-theme="dark"] .portal-main [class$="-studio"] h3,
+body[data-theme="dark"] .portal-main [class$="-studio"] h4,
+body[data-theme="dark"] .portal-main [class$="-studio"] [class*="studio-head__brand"] h2,
+body[data-theme="dark"] .portal-main [class$="-studio"] [class*="studio-head__title"],
+body[data-theme="dark"] .portal-main [class$="-studio"] [class*="studio-kpi"] dd,
+body[data-theme="dark"] .portal-main [class$="-studio"] .ntf-card__title,
+body[data-theme="dark"] .portal-main [class$="-studio"] strong {
+  color: #e8f2fc;
+}
+
+body[data-theme="dark"] .portal-main [class$="-studio"] [class*="tagline"],
+body[data-theme="dark"] .portal-main [class$="-studio"] [class*="studio-head__sub"],
+body[data-theme="dark"] .portal-main [class$="-studio"] [class*="studio-kpi"] dt,
+body[data-theme="dark"] .portal-main [class$="-studio"] .ntf-studio-head__kicker,
+body[data-theme="dark"] .portal-main [class$="-studio"] .ntf-metric dt,
+body[data-theme="dark"] .portal-main [class$="-studio"] .ntf-date-group__title {
+  color: #94a8c4;
+}
+
+body[data-theme="dark"] .portal-main [class$="-studio"] p,
+body[data-theme="dark"] .portal-main [class$="-studio"] li,
+body[data-theme="dark"] .portal-main [class$="-studio"] label,
+body[data-theme="dark"] .portal-main [class$="-studio"] td,
+body[data-theme="dark"] .portal-main [class$="-studio"] th,
+body[data-theme="dark"] .portal-main [class$="-studio"] .ntf-card__text,
+body[data-theme="dark"] .portal-main [class$="-studio"] .ntf-card__time {
+  color: #c5daf0;
+}
+
+/* KPIs semánticos — tonos más claros en oscuro */
+body[data-theme="dark"] .portal-main [class$="-studio"] [class*="studio-kpi--ok"] dd {
+  color: #34d399;
+}
+
+body[data-theme="dark"] .portal-main [class$="-studio"] [class*="studio-kpi--warn"] dd,
+body[data-theme="dark"] .portal-main [class$="-studio"] .ntf-metric--warn dd {
+  color: #fbbf24;
+}
+
+body[data-theme="dark"] .portal-main [class$="-studio"] [class*="studio-kpi--alert"] dd {
+  color: #f87171;
+}
+
+body[data-theme="dark"] .portal-main [class$="-studio"] [class*="studio-kpi--neutral"] dd {
+  color: #8ec5f0;
+}
+
+/* —— Formularios, inputs y tablas compartidas —— */
+body[data-theme="dark"] .portal-main [class$="-studio"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+body[data-theme="dark"] .portal-main [class$="-studio"] select,
+body[data-theme="dark"] .portal-main [class$="-studio"] textarea {
+  background: rgba(10, 22, 38, 0.9);
+  border-color: rgba(148, 196, 255, 0.18);
+  color: #e8f2fc;
+}
+
+body[data-theme="dark"] .portal-main [class$="-studio"] input::placeholder,
+body[data-theme="dark"] .portal-main [class$="-studio"] textarea::placeholder {
+  color: #7a9bb8;
+}
+
+body[data-theme="dark"] .portal-main [class$="-studio"] .hiring-data-search input[type="search"],
+body[data-theme="dark"] .portal-main [class$="-studio"] .hiring-table-wrap,
+body[data-theme="dark"] .portal-main [class$="-studio"] .hiring-table tbody td,
+body[data-theme="dark"] .portal-main [class$="-studio"] .hiring-candidate-card,
+body[data-theme="dark"] .portal-main [class$="-studio"] .form-section {
+  background: rgba(14, 28, 46, 0.92);
+  border-color: rgba(148, 196, 255, 0.14);
+  color: #e8f2fc;
+}
+
+body[data-theme="dark"] .portal-main [class$="-studio"] .hiring-table thead th {
+  background: rgba(10, 22, 38, 0.85);
+  color: #b8d4f0;
+  border-color: rgba(148, 196, 255, 0.12);
+}
+
+body[data-theme="dark"] .portal-main [class$="-studio"] .form-section legend {
+  color: #e8f2fc !important;
+}
+
+body[data-theme="dark"] .portal-main [class$="-studio"] .hr-workspace-tab--switch.is-active {
+  box-shadow: 0 6px 18px rgba(99, 102, 241, 0.35);
+}
+
+/* Pestañas / tabs con acento índigo */
+body[data-theme="dark"] .hiring-studio .hr-workspace-tab--switch,
+body[data-theme="dark"] .vehicles-studio .hr-workspace-tab--switch,
+body[data-theme="dark"] .history-studio .hr-workspace-tab--switch,
+body[data-theme="dark"] .transport-studio .hr-workspace-tab--switch {
+  color: #c7d2fe;
+}
+
+body[data-theme="dark"] .hiring-studio .hr-workspace-tab--switch.is-active,
+body[data-theme="dark"] .vehicles-studio .hr-workspace-tab--switch.is-active,
+body[data-theme="dark"] .history-studio .hr-workspace-tab--switch.is-active {
+  color: #fff;
+}
+
+/* —— 1. Dashboard —— */
+body[data-theme="dark"] .dashboard-studio .dash-operate__rail-label,
+body[data-theme="dark"] .dashboard-studio .dash-stat-label {
+  color: #94a8c4;
+}
+
+body[data-theme="dark"] .dashboard-studio .dash-stat-value,
+body[data-theme="dark"] .dashboard-studio .dash-stat-row strong {
+  color: #e8f2fc;
+}
+
+/* —— 2. Mis solicitudes —— */
+body[data-theme="dark"] .requests-studio .requests-company-directory__pending-only,
+body[data-theme="dark"] .requests-studio .requests-data-tab-btn:not(.is-active),
+body[data-theme="dark"] .requests-studio .requests-data-head__meta,
+body[data-theme="dark"] .requests-studio .requests-company-directory__empty {
+  color: #9eb8d8;
+}
+
+body[data-theme="dark"] .requests-studio .requests-company-directory__pending-only strong,
+body[data-theme="dark"] .requests-studio .requests-company-directory__meta strong,
+body[data-theme="dark"] .requests-studio .requests-company-row__count,
+body[data-theme="dark"] .requests-studio .requests-data-scope-label,
+body[data-theme="dark"] .requests-studio .requests-data-head__title,
+body[data-theme="dark"] .requests-studio .requests-data-head__eyebrow,
+body[data-theme="dark"] .requests-studio .requests-company-row__name {
+  color: #e8f2fc;
+}
+
+body[data-theme="dark"] .requests-studio .requests-company-row__logo {
+  background: rgba(10, 22, 38, 0.9);
+  border-color: rgba(148, 196, 255, 0.18);
+}
+
+body[data-theme="dark"] .requests-studio .requests-company-row__logo--fallback,
+body[data-theme="dark"] .requests-studio .requests-company-row__logo--all {
+  background: rgba(55, 124, 192, 0.18);
+  color: #8ec5f0;
+}
+
+body[data-theme="dark"] .requests-studio .requests-data-sidebar,
+body[data-theme="dark"] .requests-studio .requests-data-head {
+  background: linear-gradient(180deg, rgba(55, 124, 192, 0.08) 0%, transparent 42%), rgba(10, 22, 38, 0.72);
+}
+
+body[data-theme="dark"] .requests-studio .requests-company-row.is-active {
+  border-color: rgba(148, 196, 255, 0.28);
+  background: rgba(55, 124, 192, 0.14);
+}
+
+/* —— 6. Calendario —— */
+body[data-theme="dark"] .calendar-studio .cal-weekday,
+body[data-theme="dark"] .calendar-studio .cal-day,
+body[data-theme="dark"] .calendar-studio .cal-event,
+body[data-theme="dark"] .calendar-studio .cal-event-time {
+  color: #e8f2fc;
+}
+
+body[data-theme="dark"] .calendar-studio .cal-cell-other .cal-day {
+  color: #7a9bb8;
+}
+
+body[data-theme="dark"] .calendar-studio .cal-upcoming-item h4,
+body[data-theme="dark"] .calendar-studio .cal-upcoming-item p {
+  color: #c5daf0;
+}
+
+/* —— 7. Historial —— */
+body[data-theme="dark"] .history-studio .hiring-studio-head__chip,
+body[data-theme="dark"] .history-studio .hr-workspace-tab--switch:not(.is-active) {
+  color: #a5b4fc;
+}
+
+/* —— 4–5. Camiones y Conductores —— */
+body[data-theme="dark"] .vehicles-studio .vehicles-studio-head__chip,
+body[data-theme="dark"] .drivers-studio .driver-card-title h4,
+body[data-theme="dark"] .drivers-studio .driver-card-kicker {
+  color: #c5daf0;
+}
+
+/* —— 8. Reportería —— */
+body[data-theme="dark"] .reports-studio .driver-report-kpi h4,
+body[data-theme="dark"] .reports-studio .driver-report-kpi strong,
+body[data-theme="dark"] .reports-studio .report-value,
+body[data-theme="dark"] .reports-studio .report-note {
+  color: #e8f2fc;
+}
+
+body[data-theme="dark"] .reports-studio .report-empty {
+  color: #9eb8d8;
+}
+
+/* —— 3. Viajes —— */
+body[data-theme="dark"] .transport-studio #form-create-trip .form-section legend,
+body[data-theme="dark"] .transport-studio #form-route-rate .form-section legend,
+body[data-theme="dark"] .transport-studio .trip-request-card__ref,
+body[data-theme="dark"] .transport-studio .trip-request-card__client {
+  color: #e8f2fc !important;
+}
+
+body[data-theme="dark"] .transport-studio #form-create-trip .transport-wizard__steps .hr-form-wizard-dot:hover,
+body[data-theme="dark"] .transport-studio #form-route-rate .transport-wizard__steps .hr-form-wizard-dot:hover {
+  color: #c5daf0;
+}
+
+body[data-theme="dark"] .transport-studio #form-create-trip .transport-wizard__steps .hr-form-wizard-dot.is-active,
+body[data-theme="dark"] .transport-studio #form-route-rate .transport-wizard__steps .hr-form-wizard-dot.is-active {
+  color: #8ec5f0;
+}
+
+body[data-theme="dark"] .transport-studio #form-create-trip .transport-wizard__steps .hr-dot-num,
+body[data-theme="dark"] .transport-studio #form-route-rate .transport-wizard__steps .hr-dot-num {
+  background: rgba(10, 22, 38, 0.9);
+  border-color: rgba(148, 196, 255, 0.22);
+  color: #8ec5f0;
+}
+
+body[data-theme="dark"] .transport-studio .route-rate-preview-arrow {
+  color: #9eb8d8;
+}
+
+body[data-theme="dark"] .transport-studio .trip-request-card__status--pending {
+  color: #fbbf24;
+}
+
+body[data-theme="dark"] .transport-studio .trip-request-card__status--approved {
+  color: #34d399;
+}
+
+body[data-theme="dark"] .transport-studio #form-create-trip .create-trip-readiness--bar .create-trip-readiness-item.is-done,
+body[data-theme="dark"] .transport-studio #form-route-rate .create-trip-readiness--bar .create-trip-readiness-item.is-done {
+  color: #34d399;
+  background: color-mix(in srgb, #10b981 14%, rgba(15, 28, 46, 0.92));
+}
+
+/* —— 9. Gestión humana (nómina) —— */
+body[data-theme="dark"] .payroll-studio #form-employee .form-section-grid input:focus,
+body[data-theme="dark"] .payroll-studio #form-employee .form-section-grid select:focus,
+body[data-theme="dark"] .payroll-studio #form-employee .form-section-grid textarea:focus {
+  background: rgba(10, 22, 38, 0.95);
+  color: #e8f2fc;
+}
+
+body[data-theme="dark"] .payroll-studio .payroll-runs-view-toggle {
+  background: rgba(10, 22, 38, 0.85);
+  border-color: rgba(148, 196, 255, 0.18);
+}
+
+body[data-theme="dark"] .payroll-studio .payroll-runs-view-toggle__btn {
+  color: #9eb8d8;
+}
+
+body[data-theme="dark"] .payroll-studio .payroll-runs-view-toggle__btn:hover {
+  color: #c5daf0;
+  background: rgba(55, 124, 192, 0.1);
+}
+
+body[data-theme="dark"] .payroll-studio .payroll-runs-list-view {
+  background: rgba(14, 28, 46, 0.92);
+  border-color: rgba(148, 196, 255, 0.14);
+}
+
+/* —— 10–12. Contratación, SST, B2B — tabs índigo —— */
+body[data-theme="dark"] .hiring-studio .hr-workspace-tab--switch:not(.is-active),
+body[data-theme="dark"] .hiring-studio .hiring-studio-head__chip,
+body[data-theme="dark"] .sst-studio .hr-workspace-tab--switch:not(.is-active),
+body[data-theme="dark"] .b2b-studio .hr-workspace-tab--switch:not(.is-active) {
+  color: #a5b4fc;
+}
+
+/* —— 16–18. Notificaciones, timbre y avisos —— */
+body[data-theme="dark"] .notifications-studio .ntf-filter-btn {
+  color: #c5daf0;
+}
+
+body[data-theme="dark"] .notifications-studio .ntf-filter-btn--active {
+  color: #a5b4fc;
+  background: color-mix(in srgb, var(--ntf-accent) 14%, rgba(15, 28, 46, 0.92));
+}
+
+body[data-theme="dark"] .notifications-studio .ntf-bell-toggle--off {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.12);
+  border-color: rgba(251, 191, 36, 0.35);
+}
+
+body[data-theme="dark"] .notifications-studio .ntf-card__read-badge {
+  color: #34d399;
+  background: rgba(52, 211, 153, 0.14);
+}
+
+body[data-theme="dark"] .notifications-studio .ntf-tag--blue {
+  background: rgba(59, 130, 246, 0.18);
+  color: #93c5fd;
+}
+
+body[data-theme="dark"] .notifications-studio .ntf-tag--violet {
+  background: rgba(139, 92, 246, 0.18);
+  color: #c4b5fd;
+}
+
+body[data-theme="dark"] .notifications-studio .ntf-tag--emerald {
+  background: rgba(16, 185, 129, 0.18);
+  color: #6ee7b7;
+}
+
+body[data-theme="dark"] .notifications-studio .ntf-tag--slate {
+  background: rgba(148, 163, 184, 0.16);
+  color: #cbd5e1;
+}
+
+body[data-theme="dark"] .notifications-studio .ntf-pref-hint {
+  background: rgba(55, 124, 192, 0.12);
+  border-color: rgba(148, 196, 255, 0.2);
+  color: #b8d4f0;
+}
+
+body[data-theme="dark"] .ntf-card--unread {
+  background: linear-gradient(180deg, rgba(99, 102, 241, 0.14), rgba(15, 28, 46, 0.92));
+}
+
+/* Sidebar: timbre (campana) */
+body[data-theme="dark"] .sidebar-notif-bell-toggle {
+  color: rgba(232, 242, 252, 0.92);
+}
+
+body[data-theme="dark"] .sidebar-notif-bell-toggle:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+body[data-theme="dark"] .side-link--notif-inbox {
+  color: rgba(232, 242, 252, 0.9);
+}
+
+body[data-theme="dark"] .side-link--notif-alerts-off {
+  opacity: 0.72;
+  color: rgba(200, 215, 235, 0.75);
+}
+
+/* —— 15. Mi perfil —— */
+body[data-theme="dark"] .profile-studio .profile-hero-card-centered,
+body[data-theme="dark"] .profile-studio .profile-form-centered .form-section {
+  color: #e8f2fc;
+}
+
+body[data-theme="dark"] .profile-studio .profile-hero-chips .chip,
+body[data-theme="dark"] .profile-studio .profile-meta-item {
+  color: #c5daf0;
+}
+
+/* —— 13–14. Usuarios y Autorizaciones —— */
+body[data-theme="dark"] .admin-users-studio .user-card,
+body[data-theme="dark"] .admin-users-studio .users-hero-item,
+body[data-theme="dark"] .authorizations-studio .auth-card,
+body[data-theme="dark"] .authorizations-studio .auth-queue-item {
+  color: #e8f2fc;
+}
+
+/* Textos slate heredados del portal dentro de studios */
+body[data-theme="dark"] .portal-main [class$="-studio"] .muted,
+body[data-theme="dark"] .portal-main [class$="-studio"] [class*="__meta"],
+body[data-theme="dark"] .portal-main [class$="-studio"] [class*="__hint"],
+body[data-theme="dark"] .portal-main [class$="-studio"] [class*="__desc"] {
+  color: #9eb8d8;
+}
