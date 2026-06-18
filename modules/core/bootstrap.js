@@ -796,7 +796,7 @@ export async function applyPortalBootstrapFromApi(opts = {}) {
 }
 
 export async function startPortalBootstrapForInteractiveSession() {
-  if (!portalCanRefreshFromApi()) return;
+  if (!portalCanRefreshFromApi()) return false;
   const p = window.PortalDataLayer?.refreshCacheFromApi
     ? window.PortalDataLayer.refreshCacheFromApi()
     : applyPortalBootstrapFromApi();
@@ -806,7 +806,7 @@ export async function startPortalBootstrapForInteractiveSession() {
   });
   let ok = false;
   try {
-    ok = await tracked;
+    ok = Boolean(await tracked);
   } catch (_e) {
     /* fallo de red o 401: la vista usa proyección local hasta el próximo intento */
   }
@@ -817,6 +817,7 @@ export async function startPortalBootstrapForInteractiveSession() {
       /* noop */
     }
   }
+  return ok;
 }
 
 /**

@@ -18,9 +18,36 @@ export function jwtExpiresInToMs(raw: string | undefined, fallbackMs: number): n
   return n * mult;
 }
 
+/** Dominio registrable aproximado (suficiente para comparar portal vs API en .co / .com). */
+function siteRegistrableDomain(hostname: string): string {
+  const h = String(hostname || "")
+    .toLowerCase()
+    .replace(/:\d+$/, "");
+  const parts = h.split(".").filter(Boolean);
+  if (parts.length <= 2) return h;
+  return parts.slice(-2).join(".");
+}
+
 export function resolveAuthCookieSameSite(config: ConfigService): "lax" | "none" | "strict" {
   const env = String(config.get<string>("AUTH_COOKIE_SAME_SITE") || "").trim().toLowerCase();
   if (env === "none" || env === "strict" || env === "lax") return env;
+
+  const portalUrl = String(config.get<string>("PORTAL_PUBLIC_URL") || "").trim();
+  const apiUrl = String(
+    config.get<string>("API_PUBLIC_URL") || config.get<string>("RENDER_EXTERNAL_URL") || ""
+  ).trim();
+  if (portalUrl && apiUrl) {
+    try {
+      const portalHost = new URL(portalUrl).hostname;
+      const apiHost = new URL(apiUrl).hostname;
+      if (siteRegistrableDomain(portalHost) === siteRegistrableDomain(apiHost)) {
+        return "lax";
+      }
+    } catch {
+      /* comparación no disponible */
+    }
+  }
+
   return config.get<string>("NODE_ENV") === "production" ? "none" : "lax";
 }
 

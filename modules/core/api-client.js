@@ -7,8 +7,11 @@
   const CSRF_COOKIE = "antares_csrf";
   const CSRF_HEADER = "X-CSRF-Token";
   const SESSION_KEY = "antares_session_v2";
+  const ACCESS_TOKEN_SS_KEY = "antares_api_at";
+  const REFRESH_TOKEN_SS_KEY = "antares_api_rt";
 
   let csrfTokenMemory = "";
+  let accessTokenMemory = "";
 
   function normalizeBase(url) {
     if (!url || typeof url !== "string") return "";
@@ -64,18 +67,60 @@
     }
   }
 
-  /** @deprecated Los JWT ya no viven en localStorage; se conserva por compatibilidad con código legado. */
+  /**
+   * JWT de acceso en sessionStorage (no localStorage): respaldo cuando WebKit móvil bloquea cookies
+   * cross-site (iPhone Safari y Chrome). Las cookies HttpOnly siguen siendo la vía preferida en escritorio.
+   */
   function getAccessToken() {
-    return "";
+    const mem = String(accessTokenMemory || "").trim();
+    if (mem) return mem;
+    try {
+      return String(sessionStorage.getItem(ACCESS_TOKEN_SS_KEY) || "").trim();
+    } catch (_e) {
+      return "";
+    }
   }
 
-  /** @deprecated Los JWT ya no se guardan en el cliente. */
-  function setAccessToken(_token) {
+  function setAccessToken(token) {
+    const next = String(token || "").trim();
+    accessTokenMemory = next;
     try {
+      if (next) sessionStorage.setItem(ACCESS_TOKEN_SS_KEY, next);
+      else sessionStorage.removeItem(ACCESS_TOKEN_SS_KEY);
       localStorage.removeItem("antares_api_access_token");
     } catch (_e) {
       /* noop */
     }
+  }
+
+  function getRefreshToken() {
+    try {
+      return String(sessionStorage.getItem(REFRESH_TOKEN_SS_KEY) || "").trim();
+    } catch (_e) {
+      return "";
+    }
+  }
+
+  function setRefreshToken(token) {
+    const next = String(token || "").trim();
+    try {
+      if (next) sessionStorage.setItem(REFRESH_TOKEN_SS_KEY, next);
+      else sessionStorage.removeItem(REFRESH_TOKEN_SS_KEY);
+    } catch (_e) {
+      /* noop */
+    }
+  }
+
+  function clearBearerTokens() {
+    setAccessToken("");
+    setRefreshToken("");
+  }
+
+  function applyAuthTokensFromResponse(data) {
+    if (!data || typeof data !== "object") return;
+    if (data.csrfToken) setCsrfToken(data.csrfToken);
+    if (data.accessToken) setAccessToken(data.accessToken);
+    if (data.refreshToken) setRefreshToken(data.refreshToken);
   }
 
   function hasBase() {
@@ -94,6 +139,8 @@
   function buildFetchHeaders(method, extra) {
     /** @type {Record<string, string>} */
     const headers = { ...(extra || {}) };
+    const bearer = getAccessToken();
+    if (bearer) headers.Authorization = `Bearer ${bearer}`;
     if (isMutatingMethod(method)) {
       const csrf = getCsrfToken();
       if (csrf) headers[CSRF_HEADER] = csrf;
@@ -102,9 +149,7 @@
   }
 
   function applyCsrfFromResponse(data) {
-    if (data && typeof data === "object" && data.csrfToken) {
-      setCsrfToken(data.csrfToken);
-    }
+    applyAuthTokensFromResponse(data);
   }
 
   /** Convierte fallos de `fetch` (red, CORS, certificado, URL incorrecta) en mensaje legible. */
@@ -356,9 +401,13 @@
     return data;
   }
 
-  /** Elimina tokens JWT legados del almacenamiento del navegador. */
+  /** Elimina JWT embebidos en localStorage (legado). No borra sessionStorage (respaldo iOS). */
   function purgeLegacyAuthTokens() {
-    setAccessToken("");
+    try {
+      localStorage.removeItem("antares_api_access_token");
+    } catch (_rm) {
+      /* noop */
+    }
     try {
       const raw = localStorage.getItem(SESSION_KEY);
       if (!raw) return;
@@ -393,11 +442,15 @@
   window.AntaresApi = {
     getBase,
     getAccessToken,
+    getRefreshToken,
     getCsrfToken,
     hasBase,
     isConfigured,
     setAccessToken,
+    setRefreshToken,
     setCsrfToken,
+    clearBearerTokens,
+    applyAuthTokensFromResponse,
     purgeLegacyAuthTokens,
     request,
     getJson,

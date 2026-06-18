@@ -64,7 +64,15 @@
 
     "antares_approvals_v2",
 
-    "antares_positions_v2"
+    "antares_positions_v2",
+
+    "antares_vacancies_v2",
+
+    "antares_candidates_v2",
+
+    "antares_interviews_v2",
+
+    "antares_contracts_v2"
 
   ];
 
@@ -972,6 +980,34 @@
 
 
 
+  function notifyUiAfterDeferredRestore() {
+
+    try {
+
+      if (typeof window.portalRefreshAfterBootstrap === "function") {
+
+        window.portalRefreshAfterBootstrap();
+
+        return;
+
+      }
+
+      if (typeof window.scheduleRenderPortalView === "function") {
+
+        window.scheduleRenderPortalView();
+
+      }
+
+    } catch (_notifyUi) {
+
+      /* noop */
+
+    }
+
+  }
+
+
+
   function scheduleDeferredShardRestore(userId, meta, otherKeys, ticket) {
 
     var uid = String(userId || "").trim();
@@ -989,6 +1025,8 @@
       if (!restData || !Object.keys(restData).length) return;
 
       applyDataToMemory(restData);
+
+      notifyUiAfterDeferredRestore();
 
     }
 

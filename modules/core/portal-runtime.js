@@ -4901,7 +4901,11 @@ async function tryApiLoginBridge(user, password) {
     });
     const body = res.ok ? await res.json() : null;
     if (!body?.user?.userId) return;
-    if (body?.csrfToken && api.setCsrfToken) api.setCsrfToken(body.csrfToken);
+    if (typeof api.applyAuthTokensFromResponse === "function") {
+      api.applyAuthTokensFromResponse(body);
+    } else if (body?.csrfToken && api.setCsrfToken) {
+      api.setCsrfToken(body.csrfToken);
+    }
     const session = getSession();
     if (session) {
       setSession({

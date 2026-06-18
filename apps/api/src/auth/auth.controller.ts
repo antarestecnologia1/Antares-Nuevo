@@ -73,7 +73,10 @@ export class AuthController {
     setAuthCookies(res, this.config, tokens, csrfToken);
     return {
       user: this.buildAuthUserResponse(tokens.accessToken),
-      csrfToken
+      csrfToken,
+      /** Respaldo para WebKit móvil (iPhone: Safari y Chrome) cuando las cookies cross-site no persisten. */
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken
     };
   }
 
@@ -99,15 +102,23 @@ export class AuthController {
     return {
       ok: true,
       user: this.buildAuthUserResponse(tokens.accessToken),
-      csrfToken
+      csrfToken,
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken
     };
   }
 
   /** Cierra sesión: borra cookies HttpOnly e invalida refresh en servidor si es posible. */
   @HttpCode(200)
   @Post("logout")
-  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    const refreshToken = String(req.cookies?.[AUTH_COOKIE_REFRESH] || "").trim();
+  async logout(
+    @Req() req: Request,
+    @Body() body: { refreshToken?: string },
+    @Res({ passthrough: true }) res: Response
+  ) {
+    const refreshToken = String(
+      req.cookies?.[AUTH_COOKIE_REFRESH] || body?.refreshToken || ""
+    ).trim();
     if (refreshToken) {
       const uid = this.auth.decodeTokenSubject(refreshToken);
       if (uid) await this.auth.invalidateSession(uid);

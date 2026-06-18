@@ -37,6 +37,11 @@
    * vez verificado el dominio en Render, cambiar este default por la URL con marca. Mientras
    * tanto, la URL de Render funciona sola y NO requiere el Cloudflare Tunnel.
    *
+   * Móvil (Safari/iPhone): con portal en transportesantares.co y API en onrender.com las cookies
+   * de sesión son cross-site y Safari puede bloquearlas → el portal abre pero sin datos. Solución:
+   * activar `api.transportesantares.co` apuntando a Render, definir `API_PUBLIC_URL` en el servidor
+   * y usar esa URL aquí (mismo dominio registrable → cookies SameSite=Lax).
+   *
    * localhost / 127.0.0.1: vacío para que el portal caiga al modo offline o pueda sobreescribirse
    * manualmente con `localStorage.antares_api_base`.
    */

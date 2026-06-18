@@ -1526,13 +1526,18 @@ export async function tryApiRefreshBridge() {
   const headers = { "Content-Type": "application/json", Accept: "application/json" };
   const csrf = typeof api.getCsrfToken === "function" ? String(api.getCsrfToken() || "").trim() : "";
   if (csrf) headers["X-CSRF-Token"] = csrf;
+  const refreshToken =
+    typeof api.getRefreshToken === "function" ? String(api.getRefreshToken() || "").trim() : "";
+  const refreshBody = refreshToken
+    ? { refreshToken, userId: session.userId }
+    : { userId: session.userId };
   let res;
   try {
     res = await fetch(`${base}/api/auth/refresh`, {
       method: "POST",
       headers,
       credentials: "include",
-      body: "{}"
+      body: JSON.stringify(refreshBody)
     });
   } catch (_netErr) {
     return { status: "network" };
@@ -1551,7 +1556,9 @@ export async function tryApiRefreshBridge() {
     return { status: "network" };
   }
   if (!body?.ok && !body?.user?.userId) return { status: "network" };
-  if (body?.csrfToken && typeof api.setCsrfToken === "function") {
+  if (typeof api.applyAuthTokensFromResponse === "function") {
+    api.applyAuthTokensFromResponse(body);
+  } else if (body?.csrfToken && typeof api.setCsrfToken === "function") {
     api.setCsrfToken(body.csrfToken);
   }
   const now = Date.now();
@@ -1727,21 +1734,33 @@ export function clearSession() {
   if (typeof window.AntaresPersistence?.clearServerBackedMemory === "function") {
     window.AntaresPersistence.clearServerBackedMemory();
   }
-  try {
-    localStorage.removeItem("antares_api_access_token");
-  } catch (_e) {
-    /* noop */
-  }
-  if (window.AntaresApi?.setCsrfToken) {
-    window.AntaresApi.setCsrfToken("");
-  }
   const api = window.AntaresApi;
+  const storedRefresh =
+    api && typeof api.getRefreshToken === "function" ? String(api.getRefreshToken() || "").trim() : "";
   if (api?.getBase?.()) {
     const base = String(api.getBase()).replace(/\/+$/, "");
-    const headers = { Accept: "application/json" };
+    const headers = { Accept: "application/json", "Content-Type": "application/json" };
     const csrf = typeof api.getCsrfToken === "function" ? String(api.getCsrfToken() || "").trim() : "";
     if (csrf) headers["X-CSRF-Token"] = csrf;
-    void fetch(`${base}/api/auth/logout`, { method: "POST", headers, credentials: "include" }).catch(() => {});
+    const logoutBody = storedRefresh ? JSON.stringify({ refreshToken: storedRefresh }) : "{}";
+    void fetch(`${base}/api/auth/logout`, {
+      method: "POST",
+      headers,
+      credentials: "include",
+      body: logoutBody
+    }).catch(() => {});
+  }
+  if (api?.clearBearerTokens) {
+    api.clearBearerTokens();
+  } else {
+    try {
+      localStorage.removeItem("antares_api_access_token");
+    } catch (_e) {
+      /* noop */
+    }
+  }
+  if (api?.setCsrfToken) {
+    api.setCsrfToken("");
   }
 }
 
@@ -2316,10 +2335,11 @@ export function bindAuthForms() {
             const body = await res.json().catch(() => null);
             const apiUser = body?.user;
             if (res.ok && apiUser?.userId) {
-              if (body?.csrfToken && window.AntaresApi?.setCsrfToken) {
+              if (typeof window.AntaresApi?.applyAuthTokensFromResponse === "function") {
+                window.AntaresApi.applyAuthTokensFromResponse(body);
+              } else if (body?.csrfToken && window.AntaresApi?.setCsrfToken) {
                 window.AntaresApi.setCsrfToken(body.csrfToken);
               }
-              window.AntaresApi?.setAccessToken?.("");
               const uid = apiUser.userId;
               let usersAfter = read(KEYS.users, []);
               let userApi = usersAfter.find((u) => String(u.id) === String(uid));

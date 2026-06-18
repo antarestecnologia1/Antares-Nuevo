@@ -3,7 +3,7 @@
 //  Todo el código vive en modules/; este archivo solo orquesta.
 // ============================================================
 
-import "./modules/core/config.js";
+import { KEYS } from "./modules/core/config.js";
 import { state } from "./modules/core/store.js";
 import {
   getSession,
@@ -113,17 +113,33 @@ void (async function bootApplicationFromDatabaseThenUi() {
     }
     return;
   }
+  let bootstrapOk = false;
   try {
     if (portalSnapshotIsFresh()) {
       const deferBootstrapMs = 12000;
       setTimeout(() => {
         void startPortalBootstrapForInteractiveSession();
       }, deferBootstrapMs);
+      bootstrapOk = Boolean(state.portalSnapshotRestored);
     } else {
-      await startPortalBootstrapForInteractiveSession();
+      bootstrapOk = Boolean(await startPortalBootstrapForInteractiveSession());
     }
   } catch (_e) {
     /* startPortalBootstrapForInteractiveSession ya tolera fallos */
+  }
+  if (getSession() && window.AntaresApi?.isConfigured?.() && !bootstrapOk && !state.portalSnapshotRestored) {
+    const P = window.AntaresPersistence;
+    const companies = P?.read ? P.read(KEYS.companies, []) : [];
+    if (!Array.isArray(companies) || companies.length === 0) {
+      try {
+        notify(
+          "No se pudieron cargar los datos del servidor. Cierre sesión, vuelva a iniciar sesión y espere unos segundos.",
+          "warning"
+        );
+      } catch (_notify) {
+        /* noop */
+      }
+    }
   }
   try {
     await ensureUsersPasswordHashing();
