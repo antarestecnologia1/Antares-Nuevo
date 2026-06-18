@@ -1530,7 +1530,7 @@ export async function tryApiRefreshBridge() {
     typeof api.getRefreshToken === "function" ? String(api.getRefreshToken() || "").trim() : "";
   const refreshBody = refreshToken
     ? { refreshToken, userId: session.userId }
-    : { userId: session.userId };
+    : {};
   let res;
   try {
     res = await fetch(`${base}/api/auth/refresh`, {

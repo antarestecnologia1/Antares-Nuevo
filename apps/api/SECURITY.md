@@ -30,7 +30,7 @@
 ## Cliente (portal)
 
 - **No** guardar `accessToken` ni `refreshToken` en `localStorage`. La sesión del portal (`antares_session_v2`) solo conserva metadatos (`userId`, `role`, `profileSnapshot`, etc.).
-- En **iPhone** (Safari y Chrome usan WebKit) las cookies cross-site hacia `onrender.com` pueden no persistir. El login devuelve además `accessToken` y `refreshToken` en el JSON de respuesta; el cliente los guarda en **sessionStorage** y envía `Authorization: Bearer` como respaldo. El refresh token en cuerpo POST sustituye la cookie `antares_rt` cuando haga falta.
+- En **iPhone/iPad** (Safari y Chrome usan WebKit) las cookies cross-site hacia `onrender.com` pueden no persistir. El login devuelve además `accessToken` y `refreshToken` en el JSON; **solo en iOS** el cliente los guarda en `sessionStorage` y envía `Authorization: Bearer`. En **escritorio** se ignoran esos campos y la sesión sigue siendo solo por cookies HttpOnly + CSRF.
 - Depuración de sincronización (`portal-sync`): en producción los fallos de sync **no** imprimen detalle en consola. Para diagnosticar en local use `window.__ANTARES_DEBUG_SYNC__ = true` en la consola del navegador o trabaje en `localhost`.
 
 ## Row Level Security (Supabase)

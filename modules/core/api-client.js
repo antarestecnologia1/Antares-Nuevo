@@ -67,11 +67,25 @@
     }
   }
 
-  /**
-   * JWT de acceso en sessionStorage (no localStorage): respaldo cuando WebKit móvil bloquea cookies
-   * cross-site (iPhone Safari y Chrome). Las cookies HttpOnly siguen siendo la vía preferida en escritorio.
-   */
-  function getAccessToken() {
+  function isIosWebKitClient() {
+    try {
+      const ua = String(navigator.userAgent || "");
+      if (/iPad|iPhone|iPod/i.test(ua)) return true;
+      return navigator.platform === "MacIntel" && Number(navigator.maxTouchPoints || 0) > 1;
+    } catch (_e) {
+      return false;
+    }
+  }
+
+  /** Solo iPhone/iPad (WebKit). Escritorio sigue con cookies HttpOnly sin cambios. */
+  function bearerAuthFallbackEnabled() {
+    if (typeof window.__ANTARES_FORCE_BEARER_AUTH__ === "boolean") {
+      return window.__ANTARES_FORCE_BEARER_AUTH__;
+    }
+    return isIosWebKitClient();
+  }
+
+  function readStoredAccessToken() {
     const mem = String(accessTokenMemory || "").trim();
     if (mem) return mem;
     try {
@@ -81,7 +95,28 @@
     }
   }
 
+  function readStoredRefreshToken() {
+    try {
+      return String(sessionStorage.getItem(REFRESH_TOKEN_SS_KEY) || "").trim();
+    } catch (_e) {
+      return "";
+    }
+  }
+
+  /**
+   * JWT de acceso en sessionStorage (solo iOS): respaldo cuando WebKit bloquea cookies cross-site.
+   * En escritorio devuelve vacío; la autenticación sigue siendo solo por cookies HttpOnly.
+   */
+  function getAccessToken() {
+    if (!bearerAuthFallbackEnabled()) return "";
+    return readStoredAccessToken();
+  }
+
   function setAccessToken(token) {
+    if (!bearerAuthFallbackEnabled()) {
+      accessTokenMemory = "";
+      return;
+    }
     const next = String(token || "").trim();
     accessTokenMemory = next;
     try {
@@ -94,14 +129,12 @@
   }
 
   function getRefreshToken() {
-    try {
-      return String(sessionStorage.getItem(REFRESH_TOKEN_SS_KEY) || "").trim();
-    } catch (_e) {
-      return "";
-    }
+    if (!bearerAuthFallbackEnabled()) return "";
+    return readStoredRefreshToken();
   }
 
   function setRefreshToken(token) {
+    if (!bearerAuthFallbackEnabled()) return;
     const next = String(token || "").trim();
     try {
       if (next) sessionStorage.setItem(REFRESH_TOKEN_SS_KEY, next);
@@ -112,13 +145,20 @@
   }
 
   function clearBearerTokens() {
-    setAccessToken("");
-    setRefreshToken("");
+    accessTokenMemory = "";
+    try {
+      sessionStorage.removeItem(ACCESS_TOKEN_SS_KEY);
+      sessionStorage.removeItem(REFRESH_TOKEN_SS_KEY);
+      localStorage.removeItem("antares_api_access_token");
+    } catch (_e) {
+      /* noop */
+    }
   }
 
   function applyAuthTokensFromResponse(data) {
     if (!data || typeof data !== "object") return;
     if (data.csrfToken) setCsrfToken(data.csrfToken);
+    if (!bearerAuthFallbackEnabled()) return;
     if (data.accessToken) setAccessToken(data.accessToken);
     if (data.refreshToken) setRefreshToken(data.refreshToken);
   }
