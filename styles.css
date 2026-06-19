@@ -70,6 +70,7 @@ body[data-theme="light"] {
 
 body[data-theme="dark"] {
   --text: #e8f4fc;
+  --text-main: #e8f4fc;
   --text-soft: #9ec7e8;
   --line: #355a78;
   --white: #0f1c2e;
@@ -9104,6 +9105,37 @@ body[data-theme="dark"] .modal-card--discard .modal-edit-actions .modal-btn--saf
 
 .modal-edit-form option {
   font-size: 0.82rem;
+}
+
+body[data-theme="dark"] .modal-edit-form .form-section-grid label:not(.route-rate-company-item):not(.route-rate-company-item-text) {
+  background: rgba(15, 28, 46, 0.95);
+  border-color: rgba(148, 196, 255, 0.18);
+  color: #e2eaf6;
+  box-shadow: 0 4px 12px rgba(2, 8, 18, 0.2);
+}
+
+body[data-theme="dark"] .modal-edit-form .form-section-grid label:not(.route-rate-company-item):not(.route-rate-company-item-text):focus-within {
+  border-color: rgba(148, 196, 255, 0.35);
+  box-shadow: 0 0 0 3px rgba(99, 167, 247, 0.15);
+}
+
+body[data-theme="dark"] .modal-edit-form label > span,
+body[data-theme="dark"] .modal-edit-form .modal-field-label {
+  color: #b8d4f0;
+}
+
+body[data-theme="dark"] .modal-edit-form .form-section-grid input,
+body[data-theme="dark"] .modal-edit-form .form-section-grid select,
+body[data-theme="dark"] .modal-edit-form .form-section-grid textarea {
+  background: #1a314c;
+  border-color: #4f78a5;
+  color: #ecf4ff;
+}
+
+body[data-theme="dark"] #crud-form.p-form-colored.modal-edit-form > label:not(.route-rate-company-item):not(.route-rate-company-item-text) {
+  background: rgba(15, 28, 46, 0.95);
+  border-color: rgba(148, 196, 255, 0.18);
+  color: #e2eaf6;
 }
 
 .modal-file-attach-actions {
@@ -27412,7 +27444,7 @@ body[data-theme="dark"] .form-section {
   background: linear-gradient(180deg, #122036, #0e1a2c);
   border-color: #2b3e58;
 }
-body[data-theme="dark"] .form-section-grid label {
+body[data-theme="dark"] .form-section-grid label:not(.route-rate-company-item):not(.route-rate-company-item-text) {
   background: #0f1c30;
   border-color: #2b3e58;
   color: #e2eaf6;
