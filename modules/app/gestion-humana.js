@@ -1348,14 +1348,6 @@ function bindPayrollPortalControls() {
             initialCity: target.city || ""
           });
           applyDocumentFieldConstraints(formEl);
-          formEl.querySelector("input[name='phone']")?.setAttribute("pattern", "[0-9]{10,15}");
-          formEl.querySelector("input[name='phone']")?.setAttribute("minlength", "10");
-          formEl.querySelector("input[name='phone']")?.setAttribute("maxlength", "15");
-          formEl.querySelector("input[name='phone']")?.setAttribute("inputmode", "tel");
-          formEl.querySelector("input[name='emergencyPhone']")?.setAttribute("pattern", "[0-9]{10,15}");
-          formEl.querySelector("input[name='emergencyPhone']")?.setAttribute("minlength", "10");
-          formEl.querySelector("input[name='emergencyPhone']")?.setAttribute("maxlength", "15");
-          formEl.querySelector("input[name='emergencyPhone']")?.setAttribute("inputmode", "tel");
           formEl.querySelector("input[name='bankAccount']")?.setAttribute("minlength", "8");
           formEl.querySelector("input[name='bankAccount']")?.setAttribute("maxlength", "24");
           const pos = formEl.querySelector("#employee-modal-position");

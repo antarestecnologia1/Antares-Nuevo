@@ -199,6 +199,7 @@ const formatColombianPhone = __pr.formatColombianPhone;
 const formatGenericNationalDisplay = __pr.formatGenericNationalDisplay;
 const formatPayrollPeriodLabel = __pr.formatPayrollPeriodLabel;
 const formatPortalPhoneForDisplay = __pr.formatPortalPhoneForDisplay;
+const portalPhoneNationalDigitsForForm = __pr.portalPhoneNationalDigitsForForm;
 const getColombiaDateParts = __pr.getColombiaDateParts;
 const isAntaresDebugEnabled = __pr.isAntaresDebugEnabled;
 const isUuidString = __pr.isUuidString;
@@ -9905,7 +9906,7 @@ if (typeof window.hydrateSystemParametersFromCache === "function") {
   window.hydrateSystemParametersFromCache();
 }
 
-/** Aplica validación en vivo (mayúsculas / catálogo) a campos libres del formulario de empleado. */
+/** Aplica validación en vivo (mayúsculas / catálogo / teléfono) a campos del formulario de empleado. */
 function wirePayrollEmployeeFormFieldSanitization(formEl) {
   if (!formEl) return;
   const upperBlur = [
@@ -9924,6 +9925,20 @@ function wirePayrollEmployeeFormFieldSanitization(formEl) {
         : "db-upper";
     el.setAttribute("data-antares-validate-blur", mode);
     if (mode === "db-upper") el.setAttribute("data-antares-field", "db-upper");
+  });
+  ["input[name='phone']", "input[name='emergencyPhone']"].forEach((sel) => {
+    const el = formEl.querySelector(sel);
+    if (!el || el.dataset.payrollPhoneWired === "1") return;
+    el.dataset.payrollPhoneWired = "1";
+    const national = portalPhoneNationalDigitsForForm(el.value);
+    if (national) el.value = national;
+    el.setAttribute("data-antares-restrict", "digits");
+    el.setAttribute("data-antares-validate-blur", "phone-loose");
+    el.setAttribute("inputmode", "tel");
+    el.setAttribute("placeholder", "3001234567");
+    el.setAttribute("maxlength", "10");
+    el.removeAttribute("pattern");
+    el.removeAttribute("minlength");
   });
   window.AntaresValidation?.decorateFormFields?.(formEl);
 }
@@ -11315,10 +11330,10 @@ function buildPayrollEmployeeEditModalFields(emp) {
 <label><span>${escapeHtml("Departamento")}</span><select name="department" id="employee-modal-department" required>${deps}</select></label>
 <label><span>${escapeHtml("Ciudad")}</span><select name="city" id="employee-modal-city" required><option value="">${escapeHtml("Seleccione un departamento...")}</option></select></label>
 <label class="full"><span>${escapeHtml("Dirección")}</span><input name="address" required value="${escapeAttr(e.address || "")}" /></label>
-<label><span>${escapeHtml("Teléfono celular")}</span><input name="phone" required value="${escapeAttr(e.phone || "")}" /></label>
+<label><span>${escapeHtml("Teléfono celular")}</span><input name="phone" required value="${escapeAttr(portalPhoneNationalDigitsForForm(e.phone || ""))}" placeholder="3001234567" data-antares-restrict="digits" data-antares-validate-blur="phone-loose" maxlength="10" inputmode="tel" /></label>
 <label><span>${escapeHtml("Correo personal")}</span><input type="email" name="personalEmail" value="${escapeAttr(e.personalEmail || "")}" /></label>
 <label><span>${escapeHtml("Contacto emergencia")}</span><input name="emergencyContact" required value="${escapeAttr(e.emergencyContact || "")}" /></label>
-<label><span>${escapeHtml("Tel. emergencia")}</span><input name="emergencyPhone" required value="${escapeAttr(e.emergencyPhone || "")}" /></label>
+<label><span>${escapeHtml("Tel. emergencia")}</span><input name="emergencyPhone" required value="${escapeAttr(portalPhoneNationalDigitsForForm(e.emergencyPhone || ""))}" placeholder="3001234567" data-antares-restrict="digits" data-antares-validate-blur="phone-loose" maxlength="10" inputmode="tel" /></label>
 <label class="full"><span>${escapeHtml("Parentesco emergencia")}</span><input name="emergencyRelation" value="${escapeAttr(e.emergencyRelation || "")}" /></label>
 </div>`
     },

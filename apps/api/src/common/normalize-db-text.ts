@@ -150,6 +150,34 @@ export function transformStripPhoneDigits({ value }: { value: unknown }): unknow
   return value.replace(/\u0000/g, "").replace(/\D/g, "").trim();
 }
 
+/** Alineado con `normalizePortalPhoneForStorage` del portal (modules/domain/payroll-catalog-sanitize.domain.js). */
+export function normalizePortalPhoneForStorage(raw: unknown, fallback = "3000000000"): string {
+  const trimmed = String(raw ?? "").trim();
+  if (!trimmed) return fallback;
+  const d = trimmed.replace(/\D/g, "");
+  if (!d) return trimmed.replace(/\s+/g, " ").trim().slice(0, 32) || fallback;
+
+  let national = d;
+  if (d.startsWith("57") && d.length >= 11) {
+    national = d.slice(2);
+  }
+
+  if (/^\d{10}$/.test(national)) {
+    const n = national;
+    return `+57 ${n.slice(0, 3)} ${n.slice(3, 6)} ${n.slice(6, 8)} ${n.slice(8)}`;
+  }
+
+  if (d.startsWith("57")) {
+    return `+${d}`.slice(0, 32);
+  }
+
+  if (/^\d{11,15}$/.test(d)) {
+    return `+${d}`.slice(0, 32);
+  }
+
+  return trimmed.replace(/\s+/g, " ").trim().slice(0, 32) || fallback;
+}
+
 /** Documento alfanumérico compacto. */
 export function transformStripDoc({ value }: { value: unknown }): unknown {
   if (typeof value !== "string") return value;

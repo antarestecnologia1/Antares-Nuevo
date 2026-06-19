@@ -296,9 +296,16 @@ export function formatColombianPhone(value) {
   return `+57 ${segs.join(" ")}`.trim();
 }
 
+/** 10 dígitos nacionales para inputs de formulario (sin +57). */
+export function portalPhoneNationalDigitsForForm(raw) {
+  let d = String(raw ?? "").replace(/\D/g, "");
+  if (d.startsWith("57") && d.length >= 11) d = d.slice(2);
+  return d.slice(0, 10);
+}
+
 /** Solo parte nacional (10 dígitos), mismos grupos que formatColombianPhone sin +57. */
 export function formatColombianNationalDisplay(value) {
-  let d = String(value || "").replace(/\D/g, "").slice(0, 10);
+  let d = portalPhoneNationalDigitsForForm(value);
   if (!d) return "";
   const segs = [];
   segs.push(d.slice(0, Math.min(3, d.length)));

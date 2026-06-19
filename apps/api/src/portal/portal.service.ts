@@ -49,6 +49,7 @@ import {
   normalizeDbTextUpperOrNullFromUnknown,
   normalizeEmailFromUnknown,
   normalizeFreeTextPayloadRecord,
+  normalizePortalPhoneForStorage,
   sanitizeSyncKeyPayload,
   normalizePersonTypeForDb
 } from "../common/normalize-db-text";
@@ -7179,7 +7180,7 @@ export class PortalService implements OnModuleInit {
           .trim()
           .toUpperCase()
           .slice(0, 8) || "C2";
-      const phone = (nu(d.phone || "3000000000").slice(0, 32) || "3000000000");
+      const phone = normalizePortalPhoneForStorage(d.phone || "3000000000");
       const defCourseRaw = p(d, "defensiveDrivingCourse", "defensiveCourse", "curso_conduccion_defensiva");
       const defCourseSql =
         defCourseRaw != null && String(defCourseRaw).trim() !== ""
@@ -7267,7 +7268,9 @@ export class PortalService implements OnModuleInit {
           comparendosSql,
           anosSql,
           p(d, "emergencyContact") != null ? (nuN(p(d, "emergencyContact"))?.slice(0, 255) ?? null) : null,
-          p(d, "emergencyPhone") != null ? (nuN(p(d, "emergencyPhone"))?.slice(0, 32) ?? null) : null,
+          p(d, "emergencyPhone") != null
+            ? normalizePortalPhoneForStorage(p(d, "emergencyPhone"), "") || null
+            : null,
           d.available !== false,
           Boolean(d.autoBusy),
           d.contractType != null ? (nuN(d.contractType)?.slice(0, 80) ?? null) : null,
@@ -7362,7 +7365,7 @@ export class PortalService implements OnModuleInit {
       name: nu(e.name ?? "Conductor").slice(0, 255) || "CONDUCTOR",
       documentType: String(e.documentType || "CC").trim().toUpperCase().slice(0, 8) || "CC",
       idDoc,
-      phone: nu(p(e, "phone") ?? "3000000000").slice(0, 32) || "3000000000",
+      phone: normalizePortalPhoneForStorage(p(e, "phone") ?? "3000000000"),
       department: e.department != null ? (cat(p(e, "department"))?.slice(0, 120) ?? null) : null,
       city: cat(p(e, "city") ?? "Bogota") ?? "Bogota",
       address: nu(p(e, "address") ?? "N/D").slice(0, 2000) || "N/D",
@@ -7380,7 +7383,9 @@ export class PortalService implements OnModuleInit {
       eps: matchPayrollCatalogOption(PAYROLL_EMPLOYEE_CATALOG.eps, p(e, "eps")),
       arl: matchPayrollCatalogOption(PAYROLL_EMPLOYEE_CATALOG.arl, p(e, "arl")),
       emergencyContact: nuN(p(e, "emergencyContact")),
-      emergencyPhone: nuN(p(e, "emergencyPhone")),
+      emergencyPhone: p(e, "emergencyPhone") != null
+        ? normalizePortalPhoneForStorage(p(e, "emergencyPhone"), "") || null
+        : null,
       contractType: nuN(p(e, "contractType")),
       baseSalary: Number.isFinite(Number(p(e, "baseSalary"))) ? Number(p(e, "baseSalary")) : null,
       startDate: portalDateOrNull(p(e, "startDate")),
@@ -7421,7 +7426,7 @@ export class PortalService implements OnModuleInit {
       name: nu(row.nombre_completo ?? "Conductor").slice(0, 255) || "CONDUCTOR",
       documentType: String(row.tipo_documento || "CC").trim().toUpperCase().slice(0, 8) || "CC",
       idDoc,
-      phone: nu(row.telefono ?? "3000000000").slice(0, 32) || "3000000000",
+      phone: normalizePortalPhoneForStorage(row.telefono ?? "3000000000"),
       department: row.departamento != null ? (cat(row.departamento)?.slice(0, 120) ?? null) : null,
       city: cat(row.ciudad ?? "Bogota") ?? "Bogota",
       address: nu(row.direccion ?? "N/D").slice(0, 2000) || "N/D",
@@ -8068,9 +8073,9 @@ export class PortalService implements OnModuleInit {
       const idDoc = String(e.idDoc || "0").trim();
       const city = cat(p(e, "city") ?? "Bogota") ?? "Bogota";
       const address = nu(p(e, "address") ?? "N/D") || "N/D";
-      const phone = nu(p(e, "phone") ?? "3000000000") || "3000000000";
+      const phone = normalizePortalPhoneForStorage(p(e, "phone") ?? "3000000000");
       const emContact = nu(p(e, "emergencyContact") ?? "N/D") || "N/D";
-      const emPhone = nu(p(e, "emergencyPhone") ?? "3000000000") || "3000000000";
+      const emPhone = normalizePortalPhoneForStorage(p(e, "emergencyPhone") ?? "3000000000");
       const emRel = nu(p(e, "emergencyRelation", "emergencyRelationship") ?? "familiar") || "FAMILIAR";
       const posText = nu(p(e, "position") ?? "Empleado") || "EMPLEADO";
       const role = String(e.workerRole || "empleado").toLowerCase();
