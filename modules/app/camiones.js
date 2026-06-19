@@ -650,6 +650,19 @@ function vehiclesHtml() {
         }
         notify(userMessage("vehicleRegistered"), "success");
         collapseCreatePanel("create-vehicle");
+        try {
+          if (portalCanRefreshFromApi()) await applyPortalBootstrapFromApi();
+        } catch (_e) {}
+        const refreshedVehicle = read(KEYS.vehicles, []).find((v) => String(v.id) === String(createdVehicle.id));
+        const createActor = getPortalAuditActorLabel();
+        if (refreshedVehicle?.updatedAt && createActor) {
+          recordEntityHistoryActor(
+            "Camiones",
+            refreshedVehicle.id,
+            refreshedVehicle.updatedAt,
+            createActor
+          );
+        }
         renderPortalView();
       }, { busyText: "Registrando vehículo…" });
     }

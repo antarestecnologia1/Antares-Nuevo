@@ -473,9 +473,26 @@ function portalRecordAuditActorFields(action = "update") {
       : typeof globalThis.window?.currentUser === "function"
         ? globalThis.window.currentUser
         : null;
+  const resolveDisplayName =
+    typeof globalThis.getPortalUserDisplayName === "function"
+      ? globalThis.getPortalUserDisplayName
+      : typeof globalThis.window?.getPortalUserDisplayName === "function"
+        ? globalThis.window.getPortalUserDisplayName
+        : null;
   const user = resolveUser ? resolveUser() : null;
-  const name = String(user?.name || "").trim();
-  const email = String(user?.email || "").trim();
+  if (!user) return {};
+  const email = String(user.email || "").trim();
+  const rawName = String(user.name || "").trim();
+  const display =
+    resolveDisplayName && user
+      ? String(resolveDisplayName(user) || "").trim()
+      : "";
+  const name =
+    rawName && !rawName.includes("@")
+      ? rawName
+      : display && display !== "Usuario"
+        ? display
+        : rawName;
   const label = email || name;
   if (!label) return {};
   if (action === "create") {

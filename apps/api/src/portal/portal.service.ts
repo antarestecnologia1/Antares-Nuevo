@@ -377,6 +377,29 @@ function pickPortalField(obj: Record<string, unknown>, ...keys: string[]): unkno
   return undefined;
 }
 
+function pickPortalAuditActorLabel(rec: Record<string, unknown>, mode: "create" | "update" = "update"): string | null {
+  const order =
+    mode === "create"
+      ? ["createdBy", "createdByEmail", "updatedBy", "updatedByEmail", "creadoPor", "creado_por"]
+      : ["updatedBy", "updatedByEmail", "createdBy", "createdByEmail", "actualizadoPor", "actualizado_por"];
+  for (const key of order) {
+    const v = pickPortalField(rec, key);
+    if (v != null && String(v).trim()) return String(v).trim().slice(0, 255);
+  }
+  return null;
+}
+
+function portalAuditActorPairFromRecord(
+  rec: Record<string, unknown>
+): { createdBy: string | null; updatedBy: string | null } {
+  const createdBy = pickPortalAuditActorLabel(rec, "create");
+  const updatedBy = pickPortalAuditActorLabel(rec, "update");
+  return {
+    createdBy,
+    updatedBy: updatedBy || createdBy
+  };
+}
+
 /** Solo devuelve `YYYY-MM-DD` válido o null (evita 500 en columnas DATE de PostgreSQL). */
 function portalDateYmdOrNull(v: unknown): string | null {
   if (v === undefined || v === null || v === "") return null;
@@ -612,6 +635,7 @@ export class PortalService implements OnModuleInit {
     await this.ensureLiquidacionesNominaSchema();
     await this.ensureAusenciasLaboralesSchema();
     await this.ensureAuditoriaTransporteSchema();
+    await this.ensurePortalEntityAuditSchema();
     await this.ensureRegistrosFlotaSchema();
     await this.pruneTransportDeletionAudits().catch((err) => {
       const msg = err instanceof Error ? err.message : String(err);
@@ -1218,6 +1242,27 @@ export class PortalService implements OnModuleInit {
       this.logger.warn(`ensureLiquidacionesNominaSchema periodo_mes: ${sanitizeLogText(msg)}`);
     }
     this.logger.log(`liquidaciones_nomina: ${ok}/${alters.length} columnas verificadas.`);
+  }
+
+  /** Trazabilidad: quién creó/actualizó entidades de catálogo (vehículos, conductores, empresas). */
+  private async ensurePortalEntityAuditSchema() {
+    const tables = ["vehiculos", "conductores", "empresas"];
+    let ok = 0;
+    for (const table of tables) {
+      if (!(await this.tableExists(table))) continue;
+      for (const col of ["creado_por", "actualizado_por"]) {
+        try {
+          await this.pool.query(
+            `ALTER TABLE public.${table} ADD COLUMN IF NOT EXISTS ${col} VARCHAR(255)`
+          );
+          ok += 1;
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          this.logger.warn(`ensurePortalEntityAuditSchema ${table}.${col}: ${sanitizeLogText(msg)}`);
+        }
+      }
+    }
+    if (ok > 0) this.logger.log(`portal entity audit: ${ok} columnas verificadas.`);
   }
 
   /** Auditoría eliminaciones viajes/solicitudes (25). */
@@ -3767,7 +3812,9 @@ export class PortalService implements OnModuleInit {
                   tipo_relacion_empresa::text AS "companyKind",
                   COALESCE(activo, true) AS activo,
                   fecha_creacion AS "createdAt",
-                  fecha_actualizacion AS "updatedAt"
+                  fecha_actualizacion AS "updatedAt",
+                  creado_por AS "createdBy",
+                  actualizado_por AS "updatedBy"
            FROM empresas
            WHERE id = $1::uuid
            ORDER BY nombre`,
@@ -3784,7 +3831,9 @@ export class PortalService implements OnModuleInit {
                   tipo_relacion_empresa::text AS "companyKind",
                   COALESCE(activo, true) AS activo,
                   fecha_creacion AS "createdAt",
-                  fecha_actualizacion AS "updatedAt"
+                  fecha_actualizacion AS "updatedAt",
+                  creado_por AS "createdBy",
+                  actualizado_por AS "updatedBy"
            FROM empresas ORDER BY nombre`
         );
     return r.rows.map((row) => {
@@ -3826,6 +3875,8 @@ export class PortalService implements OnModuleInit {
         logoUrl,
         companyKind,
         active: rec.activo !== false,
+        createdBy: String(pickPortalField(rec, "createdBy", "creado_por") ?? "").trim() || null,
+        updatedBy: String(pickPortalField(rec, "updatedBy", "actualizado_por") ?? "").trim() || null,
         createdAt: createdAt ? new Date(createdAt as string | number | Date).toISOString() : new Date().toISOString(),
         updatedAt: updatedAt ? new Date(updatedAt as string | number | Date).toISOString() : null
       };
@@ -4481,6 +4532,8 @@ export class PortalService implements OnModuleInit {
       gpsProvider: v.proveedor_gps || "",
       satelliteProviderUser: v.usuario_proveedor_satelite || "",
       satelliteProviderPassword: v.password_proveedor_satelite || "",
+      createdBy: String((v as { creado_por?: unknown }).creado_por ?? "").trim() || null,
+      updatedBy: String((v as { actualizado_por?: unknown }).actualizado_por ?? "").trim() || null,
       createdAt: v.fecha_creacion ? new Date(v.fecha_creacion).toISOString() : new Date().toISOString(),
       updatedAt: v.fecha_actualizacion ? new Date(v.fecha_actualizacion).toISOString() : null
     }));
@@ -4554,6 +4607,8 @@ export class PortalService implements OnModuleInit {
         startDate: d.fecha_inicio,
         hiredAt: d.fecha_contratacion ? new Date(d.fecha_contratacion).toISOString() : null,
         photoUrl: String((d as { url_foto?: unknown }).url_foto ?? "").trim(),
+        createdBy: String(row.creado_por ?? "").trim() || null,
+        updatedBy: String(row.actualizado_por ?? "").trim() || null,
         createdAt: d.fecha_creacion ? new Date(d.fecha_creacion).toISOString() : new Date().toISOString(),
         updatedAt: d.fecha_actualizacion ? new Date(d.fecha_actualizacion).toISOString() : null
       };
@@ -6288,9 +6343,10 @@ export class PortalService implements OnModuleInit {
       const ciudad = ciudadRaw ? ciudadRaw.slice(0, 120) : null;
       const addrPick = pickPortalField(rec, "address", "direccion_operativa", "direccion");
       const direccionOp = nuN(addrPick);
+      const audit = portalAuditActorPairFromRecord(rec);
       await c.query(
-        `INSERT INTO empresas (id, nombre, nit, telefono, correo_empresarial, nombre_contacto, departamento, ciudad, direccion_operativa, tipo_relacion_empresa, activo, url_logo)
-         VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10::tipo_relacion_empresa, $11, $12)
+        `INSERT INTO empresas (id, nombre, nit, telefono, correo_empresarial, nombre_contacto, departamento, ciudad, direccion_operativa, tipo_relacion_empresa, activo, url_logo, creado_por, actualizado_por)
+         VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10::tipo_relacion_empresa, $11, $12, $13, $14)
          ON CONFLICT (id) DO UPDATE SET
            nombre = EXCLUDED.nombre,
            nit = EXCLUDED.nit,
@@ -6302,7 +6358,10 @@ export class PortalService implements OnModuleInit {
            direccion_operativa = EXCLUDED.direccion_operativa,
            tipo_relacion_empresa = EXCLUDED.tipo_relacion_empresa,
            activo = EXCLUDED.activo,
-           url_logo = EXCLUDED.url_logo`,
+           url_logo = EXCLUDED.url_logo,
+           creado_por = COALESCE(empresas.creado_por, EXCLUDED.creado_por),
+           actualizado_por = COALESCE(EXCLUDED.actualizado_por, empresas.actualizado_por),
+           fecha_actualizacion = now()`,
         [
           id,
           nu(nombre),
@@ -6315,7 +6374,9 @@ export class PortalService implements OnModuleInit {
           direccionOp,
           tipoRelacion,
           activo,
-          urlLogo
+          urlLogo,
+          audit.createdBy,
+          audit.updatedBy
         ]
       );
     }
@@ -6964,16 +7025,19 @@ export class PortalService implements OnModuleInit {
     for (const v of data) {
       if (!v?.id || !v.plate) continue;
       if (this.skipUnlessPersistUuid("syncVehicles", v.id)) continue;
+      const rec = v as Record<string, unknown>;
+      const audit = portalAuditActorPairFromRecord(rec);
       await c.query(
         `INSERT INTO vehiculos (
           id, placa, marca, linea_modelo, anio_modelo, color, tipo_vehiculo, capacidad_kg, refrigerado_termoking,
           tipo_carroceria, tipo_combustible, configuracion_ejes, numero_motor, numero_chasis_vin, numero_tarjeta_propiedad,
           fecha_expedicion_soat, fecha_vencimiento_soat, fecha_expedicion_tecnomecanica, fecha_vencimiento_tecnomecanica,
           numero_poliza_rc_contractual, numero_poliza_rc_extracontractual, fecha_vencimiento_polizas_rc,
-          tiene_gps, proveedor_gps, usuario_proveedor_satelite, password_proveedor_satelite, disponible, ocupado_por_sistema
+          tiene_gps, proveedor_gps, usuario_proveedor_satelite, password_proveedor_satelite, disponible, ocupado_por_sistema,
+          creado_por, actualizado_por
         ) VALUES (
           $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::date, $17::date, $18::date, $19::date,
-          $20, $21, $22::date, $23, $24, $25, $26, $27, $28
+          $20, $21, $22::date, $23, $24, $25, $26, $27, $28, $29, $30
         )
         ON CONFLICT (id) DO UPDATE SET
           placa = EXCLUDED.placa,
@@ -7002,7 +7066,10 @@ export class PortalService implements OnModuleInit {
           usuario_proveedor_satelite = EXCLUDED.usuario_proveedor_satelite,
           password_proveedor_satelite = EXCLUDED.password_proveedor_satelite,
           disponible = EXCLUDED.disponible,
-          ocupado_por_sistema = EXCLUDED.ocupado_por_sistema`,
+          ocupado_por_sistema = EXCLUDED.ocupado_por_sistema,
+          creado_por = COALESCE(vehiculos.creado_por, EXCLUDED.creado_por),
+          actualizado_por = COALESCE(EXCLUDED.actualizado_por, vehiculos.actualizado_por),
+          fecha_actualizacion = now()`,
         [
           v.id,
           String(v.plate).toUpperCase(),
@@ -7038,7 +7105,9 @@ export class PortalService implements OnModuleInit {
             ? String(v.satelliteProviderPassword)
             : null,
           v.available !== false,
-          Boolean(v.autoBusy)
+          Boolean(v.autoBusy),
+          audit.createdBy,
+          audit.updatedBy
         ]
       );
     }
@@ -7116,6 +7185,7 @@ export class PortalService implements OnModuleInit {
         defCourseRaw != null && String(defCourseRaw).trim() !== ""
           ? (nuN(defCourseRaw)?.slice(0, 32) ?? null)
           : null;
+      const audit = portalAuditActorPairFromRecord(d);
 
       try {
         await c.query(
@@ -7127,14 +7197,15 @@ export class PortalService implements OnModuleInit {
           curso_conduccion_defensiva,
           fecha_vencimiento_curso_defensivo, tipo_sangre, eps, arl, comparendos_pendientes, anos_experiencia_conduccion,
           contacto_emergencia, telefono_emergencia,
-          disponible, ocupado_por_sistema, tipo_contrato, salario_base, fecha_inicio, fecha_contratacion, url_foto
+          disponible, ocupado_por_sistema, tipo_contrato, salario_base, fecha_inicio, fecha_contratacion, url_foto,
+          creado_por, actualizado_por
         ) VALUES (
           $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::date,
           $13::date, $14::date, $15::date, $16::date, $17,
           $18::date, $19, $20, $21, $22, $23,
           $24, $25,
           $26, $27, $28, $29, $30, $31::date, $32::timestamptz,
-          $33
+          $33, $34, $35
         )
         ON CONFLICT (id) DO UPDATE SET
           id_empresa = EXCLUDED.id_empresa,
@@ -7167,7 +7238,10 @@ export class PortalService implements OnModuleInit {
           salario_base = EXCLUDED.salario_base,
           fecha_inicio = EXCLUDED.fecha_inicio,
           fecha_contratacion = EXCLUDED.fecha_contratacion,
-          url_foto = COALESCE(EXCLUDED.url_foto, conductores.url_foto)`,
+          url_foto = COALESCE(EXCLUDED.url_foto, conductores.url_foto),
+          creado_por = COALESCE(conductores.creado_por, EXCLUDED.creado_por),
+          actualizado_por = COALESCE(EXCLUDED.actualizado_por, conductores.actualizado_por),
+          fecha_actualizacion = now()`,
         [
           d.id,
           companyIdSql,
@@ -7200,7 +7274,9 @@ export class PortalService implements OnModuleInit {
           d.baseSalary != null && Number.isFinite(Number(d.baseSalary)) ? Number(d.baseSalary) : null,
           portalDateYmdOrNull(d.startDate),
           hiredOk,
-          urlFotoSql
+          urlFotoSql,
+          audit.createdBy,
+          audit.updatedBy
         ]
         );
       } catch (e) {

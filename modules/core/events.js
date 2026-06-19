@@ -1188,6 +1188,17 @@ function bindDynamicEvents() {
         $portal.notify(msg, "error");
         return;
       }
+      const createdCompany = companies[companies.length - 1];
+      if (createdCompany) {
+        $portal.appendPortalEntityAuditLog(
+          "create",
+          "companies",
+          "Usuarios y permisos",
+          createdCompany,
+          `${companyKindLabel(createdCompany.companyKind) || "Sin clasificación"} · ${$portal.isCompanyRecordActive(createdCompany) ? "Activa" : "Inactiva"}`,
+          { entityLabel: String(createdCompany.name || "Empresa").trim() }
+        );
+      }
       $portal.notify($portal.userMessage("companyCreated"), "success");
       $portal.clearAdminUsersDraft("createCompany");
       state.adminUsersUi = {
@@ -1305,6 +1316,17 @@ function bindDynamicEvents() {
         $portal.notify(String(err?.message || "La empresa no se pudo guardar en el servidor."), "error");
         return;
       }
+      const updatedCompany = nextCompanies.find((c) => String(c.id) === companyId);
+      if (updatedCompany) {
+        $portal.appendPortalEntityAuditLog(
+          "update",
+          "companies",
+          "Usuarios y permisos",
+          updatedCompany,
+          `${companyKindLabel(updatedCompany.companyKind) || "Sin clasificación"} · ${$portal.isCompanyRecordActive(updatedCompany) ? "Activa" : "Inactiva"}`,
+          { entityLabel: String(updatedCompany.name || "Empresa").trim() }
+        );
+      }
       $portal.notify($portal.userMessage("companyUpdated"), "success");
       state.adminUsersUi = { ...$portal.getAdminUsersUi(), panel: "", editUserId: "", editCompanyId: "", section: "actions" };
       renderPortalView();
@@ -1364,6 +1386,19 @@ function bindDynamicEvents() {
       } catch (err) {
         $portal.notify(String(err?.message || $portal.userMessage("genericError")), "error");
         return;
+      }
+      const updatedUser = nextUsers.find((user) => String(user.id) === userId);
+      if (updatedUser) {
+        $portal.appendPortalEntityAuditLog(
+          "update",
+          "users",
+          "Usuarios y permisos",
+          updatedUser,
+          `${formatPortalRoleLabel(updatedUser.role)} · permisos actualizados`,
+          {
+            entityLabel: getPortalUserDisplayName(updatedUser) || String(updatedUser.email || "Usuario")
+          }
+        );
       }
       if (state.session?.userId === userId) {
         const refreshed = read(KEYS.users, []).find((item) => String(item.id) === userId);

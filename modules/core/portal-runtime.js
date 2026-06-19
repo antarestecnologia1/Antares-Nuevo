@@ -2393,6 +2393,7 @@ function appendModuleAuditLog(entry) {
   const row = entry && typeof entry === "object" ? entry : {};
   const at = String(row.at || nowIso()).trim();
   if (!at) return;
+  const actor = historyAuditActorLabel(row.actor, getPortalAuditActorLabel());
   const list = readModuleAuditLogs();
   list.unshift({
     id: String(row.id || newUuidV4()),
@@ -2403,7 +2404,7 @@ function appendModuleAuditLog(entry) {
     entityId: String(row.entityId || "").trim(),
     entityLabel: String(row.entityLabel || "Registro").trim(),
     summary: String(row.summary || "").trim(),
-    actor: String(row.actor || currentUser()?.email || currentUser()?.name || "—").trim(),
+    actor: actor || "—",
     detailAction: String(row.detailAction || "").trim(),
     detailId: String(row.detailId || "").trim()
   });
@@ -2426,7 +2427,7 @@ function appendPayrollEmployeeAuditLog(action, employee, extra = {}) {
     entityId,
     entityLabel: String(extra.entityLabel || emp.name || "Colaborador").trim(),
     summary: String(extra.summary || payrollEmployeeAuditSummary(emp)).trim(),
-    actor: String(extra.actor || currentUser()?.email || currentUser()?.name || "—").trim(),
+    actor: historyAuditActorLabel(extra.actor, getPortalAuditActorLabel()),
     detailAction: String(extra.detailAction || ""),
     detailId: String(extra.detailId || entityId)
   });
@@ -7139,6 +7140,112 @@ function recordEntityHistoryActor(moduleLabel, entityId, ts, actor) {
   write(KEYS.entityHistoryActors, store);
 }
 
+function historyAuditTimestampMs(value) {
+  const ms = new Date(String(value || "").trim()).getTime();
+  return Number.isNaN(ms) ? NaN : ms;
+}
+
+function historyAuditEntityTimestampCandidates(entity) {
+  const stamps = new Set();
+  for (const key of ["updatedAt", "createdAt", "registeredAt", "hiredAt", "approvedAt"]) {
+    const raw = String(entity?.[key] || "").trim();
+    if (raw) stamps.add(raw);
+  }
+  return [...stamps];
+}
+
+function reindexEntityHistoryActorsFromCatalogs() {
+  const store = { ...readEntityHistoryActors() };
+  let changed = false;
+  const catalog = [];
+
+  const pushEntity = (moduleLabel, entity, entityLabel = "") => {
+    if (!entity || typeof entity !== "object") return;
+    const id = String(entity.id || "").trim();
+    if (!id) return;
+    for (const ts of historyAuditEntityTimestampCandidates(entity)) {
+      catalog.push({ moduleLabel, id, ts, entity, entityLabel });
+    }
+    const entityActor = historyAuditEntityActor(entity, "update") || historyAuditEntityActor(entity, "create");
+    if (entityActor) {
+      for (const ts of historyAuditEntityTimestampCandidates(entity)) {
+        const key = `${moduleLabel}|${id}|${ts}`;
+        if (!store[key]) {
+          store[key] = entityActor;
+          changed = true;
+        }
+      }
+    }
+  };
+
+  readArray(KEYS.users).forEach((user) =>
+    pushEntity("Usuarios y permisos", user, getPortalUserDisplayName(user) || String(user.email || "Usuario"))
+  );
+  readArray(KEYS.companies).forEach((company) =>
+    pushEntity("Usuarios y permisos", company, String(company.name || "Empresa"))
+  );
+  readArray(KEYS.vehicles).forEach((vehicle) =>
+    pushEntity("Camiones", vehicle, String(vehicle.plate || vehicle.id || "Camión").toUpperCase())
+  );
+  readArray(KEYS.drivers).forEach((driver) =>
+    pushEntity("Conductores", driver, String(driver.name || "Conductor"))
+  );
+  readArray(KEYS.positions).forEach((position) =>
+    pushEntity("Contratación", position, String(position.name || "Cargo"))
+  );
+  readArray(KEYS.vacancies).forEach((vacancy) =>
+    pushEntity("Contratación", vacancy, String(vacancy.title || vacancy.positionName || "Vacante"))
+  );
+  readArray(KEYS.candidates).forEach((candidate) =>
+    pushEntity("Contratación", candidate, String(candidate.name || "Candidato"))
+  );
+  readArray(KEYS.interviews).forEach((interview) =>
+    pushEntity("Contratación", interview, String(interview.candidateName || "Entrevista"))
+  );
+  readArray(KEYS.contracts).forEach((contract) =>
+    pushEntity(
+      "Contratación",
+      contract,
+      String(contract.candidateName || contract.employeeName || "Contrato")
+    )
+  );
+
+  const bindLogToCatalog = (row) => {
+    const actor = historyAuditActorLabel(row.actor);
+    if (!actor) return;
+    const moduleLabel = String(row.moduleLabel || "").trim();
+    const entityId = String(row.entityId || "").trim();
+    const entityLabel = String(row.entityLabel || "").trim();
+    const logMs = historyAuditTimestampMs(row.at);
+    if (!moduleLabel || Number.isNaN(logMs)) return;
+
+    let bestTs = "";
+    let bestDelta = Infinity;
+    for (const item of catalog) {
+      if (item.moduleLabel !== moduleLabel) continue;
+      if (entityId && String(item.id) !== entityId) continue;
+      if (!entityId && entityLabel && item.entityLabel.toUpperCase() !== entityLabel.toUpperCase()) continue;
+      const tsMs = historyAuditTimestampMs(item.ts);
+      if (Number.isNaN(tsMs)) continue;
+      const delta = Math.abs(tsMs - logMs);
+      if (delta < bestDelta) {
+        bestDelta = delta;
+        bestTs = item.ts;
+      }
+    }
+    if (!bestTs || bestDelta > 7 * 24 * 60 * 60 * 1000) return;
+    if (!entityId) return;
+    const properKey = `${moduleLabel}|${entityId}|${bestTs}`;
+    if (!store[properKey]) {
+      store[properKey] = actor;
+      changed = true;
+    }
+  };
+
+  for (const row of readModuleAuditLogs()) bindLogToCatalog(row);
+  if (changed) write(KEYS.entityHistoryActors, store);
+}
+
 function historyAuditActorFromHistoryStore(moduleLabel, entityId, ts) {
   const mod = String(moduleLabel || "").trim();
   const id = String(entityId || "").trim();
@@ -7147,7 +7254,7 @@ function historyAuditActorFromHistoryStore(moduleLabel, entityId, ts) {
   const store = readEntityHistoryActors();
   const exact = String(store[`${mod}|${id}|${at}`] || "").trim();
   if (exact) return exact;
-  const targetMs = new Date(at).getTime();
+  const targetMs = historyAuditTimestampMs(at);
   if (Number.isNaN(targetMs)) return "";
   let best = "";
   let bestDelta = Infinity;
@@ -7155,7 +7262,7 @@ function historyAuditActorFromHistoryStore(moduleLabel, entityId, ts) {
   for (const [key, value] of Object.entries(store)) {
     if (!key.startsWith(prefix)) continue;
     const keyTs = key.slice(prefix.length);
-    const keyMs = new Date(keyTs).getTime();
+    const keyMs = historyAuditTimestampMs(keyTs);
     if (Number.isNaN(keyMs)) continue;
     const delta = Math.abs(keyMs - targetMs);
     if (delta < bestDelta) {
@@ -7163,7 +7270,13 @@ function historyAuditActorFromHistoryStore(moduleLabel, entityId, ts) {
       best = String(value || "").trim();
     }
   }
-  return bestDelta <= 48 * 60 * 60 * 1000 ? best : "";
+  if (best && bestDelta <= 7 * 24 * 60 * 60 * 1000) return best;
+  const onlyKey = Object.keys(store).find((key) => key.startsWith(prefix));
+  if (onlyKey) {
+    const onlyActor = String(store[onlyKey] || "").trim();
+    if (onlyActor) return onlyActor;
+  }
+  return "";
 }
 
 function historyAuditUserLabelById(userId) {
@@ -7222,8 +7335,8 @@ function historyAuditEntityActor(entity, action = "update") {
   return historyAuditActorLabel(entity?.updatedByEmail, entity?.updatedBy, entity?.createdByEmail, entity?.createdBy);
 }
 
-function historyAuditActorFromModuleLogs(moduleLabel, entityId, entityLabel, action, ts) {
-  const targetMs = new Date(ts).getTime();
+function historyAuditActorFromModuleLogs(moduleLabel, entityId, entityLabel, action, ts, { strictAction = true } = {}) {
+  const targetMs = historyAuditTimestampMs(ts);
   const id = String(entityId || "").trim();
   const label = String(entityLabel || "").trim();
   let best = "";
@@ -7232,7 +7345,7 @@ function historyAuditActorFromModuleLogs(moduleLabel, entityId, entityLabel, act
   let matchCount = 0;
   for (const row of readModuleAuditLogs()) {
     if (String(row.moduleLabel || "") !== moduleLabel) continue;
-    if (String(row.action || "") !== action) continue;
+    if (strictAction && String(row.action || "") !== action) continue;
     const rowEntityId = String(row.entityId || "").trim();
     const rowEntityLabel = String(row.entityLabel || "").trim();
     if (id && rowEntityId) {
@@ -7250,7 +7363,7 @@ function historyAuditActorFromModuleLogs(moduleLabel, entityId, entityLabel, act
       best = actor;
       break;
     }
-    const rowMs = new Date(row.at || 0).getTime();
+    const rowMs = historyAuditTimestampMs(row.at);
     if (Number.isNaN(rowMs)) continue;
     const delta = Math.abs(rowMs - targetMs);
     if (delta < bestDelta) {
@@ -7258,7 +7371,7 @@ function historyAuditActorFromModuleLogs(moduleLabel, entityId, entityLabel, act
       best = actor;
     }
   }
-  if (best && bestDelta <= 48 * 60 * 60 * 1000) return best;
+  if (best && (Number.isNaN(targetMs) || bestDelta <= 7 * 24 * 60 * 60 * 1000)) return best;
   if (matchCount === 1 && onlyMatch) return onlyMatch;
   return "";
 }
@@ -7268,7 +7381,9 @@ function resolveHistoryAuditActorForEntity({ moduleLabel, entityId, entityLabel,
   if (fromEntity) return fromEntity;
   const fromStore = historyAuditActorFromHistoryStore(moduleLabel, entityId, ts);
   if (fromStore) return fromStore;
-  return historyAuditActorFromModuleLogs(moduleLabel, entityId, entityLabel, action, ts);
+  const fromLogs = historyAuditActorFromModuleLogs(moduleLabel, entityId, entityLabel, action, ts);
+  if (fromLogs) return fromLogs;
+  return historyAuditActorFromModuleLogs(moduleLabel, entityId, entityLabel, action, ts, { strictAction: false });
 }
 
 function enrichHistoryAuditEntriesWithExplicitActors(entries) {
@@ -7283,10 +7398,10 @@ function enrichHistoryAuditEntriesWithExplicitActors(entries) {
     for (const ex of explicit) {
       if (ex.moduleLabel !== syn.moduleLabel || ex.action !== syn.action) continue;
       if (ex.entityLabel !== syn.entityLabel) continue;
-      const exMs = new Date(ex.at || ex.ts).getTime();
+      const exMs = historyAuditTimestampMs(ex.at || ex.ts);
       if (Number.isNaN(exMs)) continue;
       const delta = Math.abs(exMs - synMs);
-      if (delta <= 120000 && delta < bestDelta) {
+      if (delta <= 10 * 60 * 1000 && delta < bestDelta) {
         bestDelta = delta;
         bestActor = String(ex.actor || "").trim();
       }
@@ -7307,7 +7422,7 @@ function dedupeHistoryAuditEntries(entries) {
       if (other.moduleLabel !== explicit.moduleLabel || other.action !== explicit.action) return false;
       if (other.entityLabel !== explicit.entityLabel) return false;
       const otherMs = new Date(other.ts).getTime();
-      return !Number.isNaN(otherMs) && Math.abs(otherMs - explicitMs) <= 120000;
+      return !Number.isNaN(otherMs) && Math.abs(otherMs - explicitMs) <= 10 * 60 * 1000;
     });
     if (hasSyntheticSibling) dropExplicitIds.add(explicit.id);
   }
@@ -7315,6 +7430,7 @@ function dedupeHistoryAuditEntries(entries) {
 }
 
 function buildHistoryAuditEntries() {
+  reindexEntityHistoryActorsFromCatalogs();
   const entries = [];
   const pushEntry = (entry) => {
     if (!entry || typeof entry !== "object") return;
@@ -7639,36 +7755,119 @@ function buildHistoryAuditEntries() {
 
   readArray(KEYS.positions).forEach((position) => {
     const label = String(position.name || "Cargo").trim();
+    const positionCreateTs = String(position.createdAt || "");
     pushEntry({
       id: `audit-position-create-${position.id}`,
-      ts: String(position.createdAt || ""),
+      ts: positionCreateTs,
       action: "create",
       moduleLabel: "Contratación",
       entityLabel: label,
-      summary: `${String(position.workerRole || "empleado")} · $${parseNum(position.baseSalary).toLocaleString("es-CO")}`
+      summary: `${String(position.workerRole || "empleado")} · $${parseNum(position.baseSalary).toLocaleString("es-CO")}`,
+      __auditContext: {
+        moduleLabel: "Contratación",
+        entityId: position.id,
+        entityLabel: label,
+        action: "create",
+        entity: position,
+        ts: positionCreateTs
+      }
     });
+    if (position.updatedAt && String(position.updatedAt) !== String(position.createdAt || "")) {
+      pushEntry({
+        id: `audit-position-update-${position.id}`,
+        ts: String(position.updatedAt),
+        action: "update",
+        moduleLabel: "Contratación",
+        entityLabel: label,
+        summary: `${String(position.workerRole || "empleado")} · $${parseNum(position.baseSalary).toLocaleString("es-CO")}`,
+        __auditContext: {
+          moduleLabel: "Contratación",
+          entityId: position.id,
+          entityLabel: label,
+          action: "update",
+          entity: position,
+          ts: String(position.updatedAt)
+        }
+      });
+    }
   });
 
   readArray(KEYS.vacancies).forEach((vacancy) => {
+    const vacancyLabel = String(vacancy.title || vacancy.positionName || "Vacante").trim();
+    const vacancyCreateTs = String(vacancy.createdAt || "");
     pushEntry({
       id: `audit-vacancy-create-${vacancy.id}`,
-      ts: String(vacancy.createdAt || ""),
+      ts: vacancyCreateTs,
       action: "create",
       moduleLabel: "Contratación",
-      entityLabel: String(vacancy.title || vacancy.positionName || "Vacante").trim(),
-      summary: `${String(vacancy.city || "Sin ciudad")} · ${String(vacancy.status || "Publicada")}`
+      entityLabel: vacancyLabel,
+      summary: `${String(vacancy.city || "Sin ciudad")} · ${String(vacancy.status || "Publicada")}`,
+      __auditContext: {
+        moduleLabel: "Contratación",
+        entityId: vacancy.id,
+        entityLabel: vacancyLabel,
+        action: "create",
+        entity: vacancy,
+        ts: vacancyCreateTs
+      }
     });
+    if (vacancy.updatedAt && String(vacancy.updatedAt) !== String(vacancy.createdAt || "")) {
+      pushEntry({
+        id: `audit-vacancy-update-${vacancy.id}`,
+        ts: String(vacancy.updatedAt),
+        action: "update",
+        moduleLabel: "Contratación",
+        entityLabel: vacancyLabel,
+        summary: `${String(vacancy.city || "Sin ciudad")} · ${String(vacancy.status || "Publicada")}`,
+        __auditContext: {
+          moduleLabel: "Contratación",
+          entityId: vacancy.id,
+          entityLabel: vacancyLabel,
+          action: "update",
+          entity: vacancy,
+          ts: String(vacancy.updatedAt)
+        }
+      });
+    }
   });
 
   readArray(KEYS.candidates).forEach((candidate) => {
+    const candidateLabel = String(candidate.name || "Candidato").trim();
+    const candidateCreateTs = String(candidate.createdAt || "");
     pushEntry({
       id: `audit-candidate-create-${candidate.id}`,
-      ts: String(candidate.createdAt || ""),
+      ts: candidateCreateTs,
       action: "create",
       moduleLabel: "Contratación",
-      entityLabel: String(candidate.name || "Candidato").trim(),
-      summary: `${String(candidate.status || "En proceso")} · ${String(candidate.vacancyTitle || candidate.positionName || "Sin vacante")}`
+      entityLabel: candidateLabel,
+      summary: `${String(candidate.status || "En proceso")} · ${String(candidate.vacancyTitle || candidate.positionName || "Sin vacante")}`,
+      __auditContext: {
+        moduleLabel: "Contratación",
+        entityId: candidate.id,
+        entityLabel: candidateLabel,
+        action: "create",
+        entity: candidate,
+        ts: candidateCreateTs
+      }
     });
+    if (candidate.updatedAt && String(candidate.updatedAt) !== String(candidate.createdAt || "")) {
+      pushEntry({
+        id: `audit-candidate-update-${candidate.id}`,
+        ts: String(candidate.updatedAt),
+        action: "update",
+        moduleLabel: "Contratación",
+        entityLabel: candidateLabel,
+        summary: `${String(candidate.status || "En proceso")} · ${String(candidate.vacancyTitle || candidate.positionName || "Sin vacante")}`,
+        __auditContext: {
+          moduleLabel: "Contratación",
+          entityId: candidate.id,
+          entityLabel: candidateLabel,
+          action: "update",
+          entity: candidate,
+          ts: String(candidate.updatedAt)
+        }
+      });
+    }
   });
 
   readArray(KEYS.interviews).forEach((interview) => {
@@ -7684,13 +7883,23 @@ function buildHistoryAuditEntries() {
   });
 
   readArray(KEYS.contracts).forEach((contract) => {
+    const contractLabel = String(contract.candidateName || contract.employeeName || "Contrato").trim();
+    const contractCreateTs = String(contract.createdAt || "");
     pushEntry({
       id: `audit-contract-create-${contract.id}`,
-      ts: String(contract.createdAt || ""),
+      ts: contractCreateTs,
       action: "create",
       moduleLabel: "Contratación",
-      entityLabel: String(contract.candidateName || contract.employeeName || "Contrato").trim(),
-      summary: `${String(contract.position || contract.positionName || "Sin cargo")} · ${String(contract.contractType || "Contrato")}`
+      entityLabel: contractLabel,
+      summary: `${String(contract.position || contract.positionName || "Sin cargo")} · ${String(contract.contractType || "Contrato")}`,
+      __auditContext: {
+        moduleLabel: "Contratación",
+        entityId: contract.id,
+        entityLabel: contractLabel,
+        action: "create",
+        entity: contract,
+        ts: contractCreateTs
+      }
     });
   });
 
