@@ -96,6 +96,8 @@
 
   var pendingFullSave = false;
 
+  var pendingForceSave = false;
+
   var debounceTimer = null;
 
   var idleHandle = null;
@@ -206,9 +208,29 @@
 
 
 
-  function valueFingerprint(val) {
+  function notificationsReadFingerprint(val) {
+    if (!Array.isArray(val) || !val.length) return "a:0:u0";
+    var unread = 0;
+    var readParts = [];
+    for (var i = 0; i < val.length; i += 1) {
+      var n = val[i];
+      if (!n || typeof n !== "object") continue;
+      var ra = n.readAt != null && n.readAt !== "" ? n.readAt : n.read_at;
+      if (ra == null || ra === "") {
+        unread += 1;
+        continue;
+      }
+      readParts.push(String(n.id || "") + ":" + String(ra).slice(0, 24));
+    }
+    readParts.sort();
+    return "a:" + val.length + ":u" + unread + ":r" + readParts.join(",");
+  }
 
+  function valueFingerprint(val, storageKey) {
     if (val == null) return "";
+    if (storageKey === "antares_notifications_v2" && Array.isArray(val)) {
+      return notificationsReadFingerprint(val);
+    }
 
     if (Array.isArray(val)) {
 
@@ -626,7 +648,7 @@
 
       if (onlyKeys && onlyKeys.indexOf(k) < 0) continue;
 
-      var fp = valueFingerprint(data[k]);
+      var fp = valueFingerprint(data[k], k);
 
       if (!opts.force && fp && fp === fps[k] && fp === lastShardFingerprints[k]) continue;
 
@@ -690,62 +712,41 @@
 
 
 
-  function saveNow(userId, extras) {
-
+  function saveNow(userId, extras, opts) {
+    opts = opts && typeof opts === "object" ? opts : {};
     var uid = String(userId || "").trim();
-
     if (!uid) return false;
-
     if (!window.AntaresPersistence) return false;
 
-
-
     var allKeys = allServerBackedKeys();
-
     var fullData = collectDataFromMemory(allKeys);
-
     if (!fullData || !Object.keys(fullData).length) return false;
 
-
-
-    if (persistShards(uid, fullData, extras)) return true;
-
-
+    if (persistShards(uid, fullData, extras, { force: opts.force === true })) return true;
 
     var essentialData = collectDataFromMemory(ESSENTIAL_STORAGE_KEYS);
-
     if (!essentialData || !Object.keys(essentialData).length) return false;
-
     return persistShards(uid, essentialData, extras, { force: true });
-
   }
 
 
 
-  function patchEnvelopeKeys(userId, dirtyKeyList, extras) {
-
+  function patchEnvelopeKeys(userId, dirtyKeyList, extras, opts) {
+    opts = opts && typeof opts === "object" ? opts : {};
     var uid = String(userId || "").trim();
-
     if (!uid || !dirtyKeyList || !dirtyKeyList.length) return false;
 
-
-
     var patchData = collectDataFromMemory(dirtyKeyList);
-
     if (!patchData || !Object.keys(patchData).length) return false;
 
-
-
     if (!readMeta(uid) && readLegacyEnvelope(uid)) {
-
-      return saveNow(uid, extras);
-
+      return saveNow(uid, extras, { force: opts.force === true });
     }
 
-
-
-    return persistShards(uid, patchData, extras, { onlyKeys: dirtyKeyList });
-
+    return persistShards(uid, patchData, extras, {
+      onlyKeys: dirtyKeyList,
+      force: opts.force === true
+    });
   }
 
 
@@ -775,37 +776,23 @@
 
 
   function flushPendingSave() {
-
     var uid = pendingUserId;
-
     var extras = pendingExtrasSet ? pendingExtras : undefined;
-
     var dirty = pendingDirtyKeys;
-
     var full = pendingFullSave;
-
+    var force = pendingForceSave;
     pendingUserId = null;
-
     pendingExtras = undefined;
-
     pendingExtrasSet = false;
-
     pendingDirtyKeys = null;
-
     pendingFullSave = false;
-
+    pendingForceSave = false;
     cancelScheduledSave();
-
     if (!uid) return false;
-
     if (!full && dirty && dirty.size > 0) {
-
-      return patchEnvelopeKeys(uid, Array.from(dirty), extras);
-
+      return patchEnvelopeKeys(uid, Array.from(dirty), extras, { force: force });
     }
-
-    return saveNow(uid, extras);
-
+    return saveNow(uid, extras, { force: force });
   }
 
 
@@ -839,24 +826,16 @@
     }
 
     if (opts.full) {
-
       pendingFullSave = true;
-
       pendingDirtyKeys = null;
-
     } else if (!pendingFullSave && opts.dirtyKeys && opts.dirtyKeys.length) {
-
       if (!pendingDirtyKeys) pendingDirtyKeys = new Set();
-
       for (var i = 0; i < opts.dirtyKeys.length; i += 1) {
-
         var k = String(opts.dirtyKeys[i] || "").trim();
-
         if (k) pendingDirtyKeys.add(k);
-
       }
-
     }
+    if (opts.force === true) pendingForceSave = true;
 
     cancelScheduledSave();
 
@@ -894,12 +873,9 @@
 
 
 
-  function save(userId, extras) {
-
+  function save(userId, extras, opts) {
     cancelScheduledSave();
-
-    return saveNow(userId, extras);
-
+    return saveNow(userId, extras, opts);
   }
 
 
@@ -913,6 +889,7 @@
     cancelScheduledSave();
 
     pendingFullSave = false;
+    pendingForceSave = false;
 
     lastShardFingerprints = {};
 

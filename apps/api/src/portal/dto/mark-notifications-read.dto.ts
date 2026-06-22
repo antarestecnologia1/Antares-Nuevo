@@ -2,6 +2,6 @@ import { IsArray, IsUUID } from "class-validator";
 
 export class MarkNotificationsReadDto {
   @IsArray()
-  @IsUUID("4", { each: true })
+  @IsUUID("all", { each: true })
   ids!: string[];
 }

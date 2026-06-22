@@ -1099,6 +1099,9 @@ export function openEditModal({
   introHtml = "",
   fields = [],
   submitText = "Guardar",
+  cancelLabel,
+  cancelBtnClass = "",
+  primaryBtnClass = "btn btn-primary module-panel-btn",
   onSubmit,
   afterMount,
   extraModalCardClass = ""
@@ -1127,7 +1130,9 @@ export function openEditModal({
       ${fieldsHtml}
       ${renderModalFooterActions({
         className: "full",
-        primaryHtml: `<button type="submit" class="btn btn-primary">${ic().save} ${escapeHtml(submitText)}</button>`
+        cancelLabel,
+        cancelBtnClass: cancelBtnClass || undefined,
+        primaryHtml: `<button type="submit" class="${escapeAttr(primaryBtnClass)}">${ic().save} ${escapeHtml(submitText)}</button>`
       })}
     </form>
   `;

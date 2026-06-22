@@ -5365,14 +5365,28 @@ export class PortalService implements OnModuleInit {
     const hrAudience = this.roleMayRunContractRenewalNotices(role);
     const now = new Date();
     const r = await this.pool.query(
-      `UPDATE notificaciones
-       SET fecha_lectura = COALESCE(fecha_lectura, $2::timestamptz)
-       WHERE id = ANY($1::uuid[])
-         AND fecha_lectura IS NULL
+      `WITH requested AS (
+         SELECT id, titulo, cuerpo, audiencia, id_usuario
+         FROM notificaciones
+         WHERE id = ANY($1::uuid[])
+       )
+       UPDATE notificaciones n
+       SET fecha_lectura = COALESCE(n.fecha_lectura, $2::timestamptz)
+       FROM requested src
+       WHERE n.fecha_lectura IS NULL
          AND (
-           id_usuario = $3::uuid
-           OR (audiencia = 'admins' AND $4::boolean)
-           OR (audiencia = 'hr' AND $5::boolean)
+           n.id = src.id
+           OR (
+             n.titulo = src.titulo
+             AND n.cuerpo = src.cuerpo
+             AND COALESCE(n.audiencia, '') = COALESCE(src.audiencia, '')
+             AND COALESCE(n.id_usuario::text, '') = COALESCE(src.id_usuario::text, '')
+           )
+         )
+         AND (
+           n.id_usuario = $3::uuid
+           OR (n.audiencia = 'admins' AND $4::boolean)
+           OR (n.audiencia = 'hr' AND $5::boolean)
          )`,
       [validIds, now, userId, adminAudience, hrAudience]
     );

@@ -6573,6 +6573,22 @@ function summarizePayrollEmployeeForDirectory(emp) {
   };
 }
 
+function renderPayrollContractActionButtons(e, contract, { compact = false } = {}) {
+  if (!contract?.applies || !isFixedTermContractType(e.contractType)) return "";
+  const canAct =
+    contract.statusSlug === "notice_window" ||
+    contract.statusSlug === "expired" ||
+    contract.statusSlug === "active";
+  if (!canAct) return "";
+  const id = escapeAttr(String(e.id || ""));
+  const renewLabel = compact ? "" : " Renovar";
+  const nonRenewLabel = compact ? "" : " No renovar";
+  return `<div class="payroll-contract-actions" role="group" aria-label="Acciones de contrato">
+    <button type="button" class="btn btn-sm payroll-contract-btn payroll-contract-btn--renew" data-action="renew-employee-contract" data-id="${id}" title="Renovar contrato">${IC.rotateCcw}${renewLabel}</button>
+    <button type="button" class="btn btn-sm payroll-contract-btn payroll-contract-btn--non-renew" data-action="non-renew-employee-contract" data-id="${id}" title="Carta de no renovación (CST art. 47)">${IC.mail}${nonRenewLabel}</button>
+  </div>`;
+}
+
 function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = false } = {}) {
   const e = item.raw;
   const contract = item.contract;
@@ -6624,13 +6640,6 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = fa
     const smmlvRef =
       typeof CO_PAYROLL !== "undefined" && CO_PAYROLL?.smmlv ? CO_PAYROLL.smmlv : 1300000;
     const isSmmlv = item.salaryCop > 0 && item.salaryCop <= smmlvRef;
-    const canRenew =
-      contract.applies &&
-      isFixedTermContractType(e.contractType) &&
-      (contract.statusSlug === "notice_window" ||
-        contract.statusSlug === "expired" ||
-        contract.statusSlug === "active");
-    const canNonRenew = canRenew;
     const contractAlertBar = showContractAlert
       ? `<div class="payroll-emp-contract-alert${contract.statusSlug === "expired" ? " payroll-emp-contract-alert--expired" : ""}">${escapeHtml(contract.headline || contract.pillLabel || "Contrato requiere atención")}</div>`
       : "";
@@ -6654,8 +6663,7 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = fa
         <button type="button" class="btn btn-sm btn-action" data-action="payroll-employee-liquidations" data-id="${escapeAttr(String(e.id || ""))}" title="Historial de liquidaciones">${IC.dollar}${compact ? "" : " Nóminas"}</button>
         <button type="button" class="btn btn-sm btn-outline" data-action="view-employee" data-id="${escapeAttr(String(e.id))}" title="Perfil">${IC.eye}</button>
         <button type="button" class="btn btn-sm btn-action" data-action="edit-employee" data-id="${escapeAttr(String(e.id))}" title="Editar">${IC.edit}</button>
-        ${canRenew ? `<button type="button" class="btn btn-sm btn-action" data-action="renew-employee-contract" data-id="${escapeAttr(String(e.id))}" title="Renovar contrato">${IC.rotateCcw}</button>` : ""}
-        ${canNonRenew ? `<button type="button" class="btn btn-sm btn-outline" data-action="non-renew-employee-contract" data-id="${escapeAttr(String(e.id))}" title="Carta no renovación">${IC.mail}</button>` : ""}
+        ${renderPayrollContractActionButtons(e, contract, { compact })}
         <button type="button" class="btn btn-sm btn-outline" data-action="employee-generate-contract" data-id="${escapeAttr(String(e.id))}" title="Generar o descargar contrato Word">${IC.download}</button>
         ${hrAdminDeletes ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-employee" data-id="${escapeAttr(String(e.id))}" title="Eliminar">${IC.trash}</button>` : ""}
         ${selectHtml}
@@ -6698,8 +6706,7 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = fa
       <button type="button" class="btn btn-sm btn-action" data-action="payroll-employee-liquidations" data-id="${escapeAttr(String(e.id || ""))}" title="Historial de liquidaciones">${IC.dollar} Nóminas</button>
       <button type="button" class="btn btn-sm btn-outline" data-action="view-employee" data-id="${escapeAttr(String(e.id))}">${IC.eye} Perfil</button>
       <button type="button" class="btn btn-sm btn-action" data-action="edit-employee" data-id="${escapeAttr(String(e.id))}">${IC.edit} Editar</button>
-      ${contract.applies && isFixedTermContractType(e.contractType) ? `<button type="button" class="btn btn-sm btn-action" data-action="renew-employee-contract" data-id="${escapeAttr(String(e.id))}">${IC.rotateCcw} Renovar</button>` : ""}
-      ${contract.applies && isFixedTermContractType(e.contractType) ? `<button type="button" class="btn btn-sm btn-outline" data-action="non-renew-employee-contract" data-id="${escapeAttr(String(e.id))}">${IC.mail} No renovar</button>` : ""}
+      ${renderPayrollContractActionButtons(e, contract)}
       <button type="button" class="btn btn-sm btn-outline" data-action="employee-generate-contract" data-id="${escapeAttr(String(e.id))}">${IC.file} Contrato</button>
       ${hrAdminDeletes ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-employee" data-id="${escapeAttr(String(e.id))}" title="Eliminar colaborador">${IC.trash}</button>` : ""}
     </footer>
@@ -6718,14 +6725,6 @@ function renderPayrollEmployeeDirectoryTableRow(item, hrAdminDeletes) {
       : contract.statusSlug === "unknown"
         ? "warn"
         : "ok";
-  const canRenew =
-    contract.applies &&
-    isFixedTermContractType(e.contractType) &&
-    (contract.statusSlug === "notice_window" || contract.statusSlug === "expired" || contract.statusSlug === "active");
-  const canNonRenew =
-    contract.applies &&
-    isFixedTermContractType(e.contractType) &&
-    (contract.statusSlug === "notice_window" || contract.statusSlug === "expired" || contract.statusSlug === "active");
   return `<tr class="payroll-employee-table-row payroll-employee-table-row--${escapeAttr(statusSlug)}" data-employee-id="${escapeAttr(String(e.id || ""))}" data-employee-search="${escapeAttr(item.searchBlob)}" data-employee-contract-filter="${escapeAttr(contract.applies ? contract.statusSlug : "all")}">
     <td class="payroll-employee-table-cell-main">
       <div class="hiring-table-primary"><strong>${escapeHtml(String(e.name || "Colaborador"))}</strong><span class="muted">${escapeHtml(docLine)}</span></div>
@@ -6740,8 +6739,7 @@ function renderPayrollEmployeeDirectoryTableRow(item, hrAdminDeletes) {
     <td class="payroll-employee-table-cell-actions"><div class="toolbar hiring-table-actions">
       <button type="button" class="btn btn-sm btn-outline" data-action="view-employee" data-id="${escapeAttr(String(e.id))}" title="Perfil">${IC.eye}</button>
       <button type="button" class="btn btn-sm btn-action" data-action="edit-employee" data-id="${escapeAttr(String(e.id))}" title="Editar">${IC.edit}</button>
-      ${canRenew ? `<button type="button" class="btn btn-sm btn-action" data-action="renew-employee-contract" data-id="${escapeAttr(String(e.id))}" title="Renovar contrato">${IC.rotateCcw} Renovar</button>` : ""}
-      ${canNonRenew ? `<button type="button" class="btn btn-sm btn-outline" data-action="non-renew-employee-contract" data-id="${escapeAttr(String(e.id))}" title="Carta de no renovación (CST art. 47)">${IC.mail} No renovar</button>` : ""}
+      ${renderPayrollContractActionButtons(e, contract, { compact: true })}
       <button type="button" class="btn btn-sm btn-outline" data-action="employee-generate-contract" data-id="${escapeAttr(String(e.id))}" title="Contrato Word">${IC.download}</button>
       ${hrAdminDeletes ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-employee" data-id="${escapeAttr(String(e.id))}" title="Eliminar">${IC.trash}</button>` : ""}
     </div></td>

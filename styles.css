@@ -30716,6 +30716,198 @@ body[data-theme="dark"] .hr-module-pro--hiring .payroll-data-nav-tab.is-active .
   border-top-color: var(--pr-contract-expired-bd);
 }
 
+/* Acciones Renovar / No renovar (tabla y tarjetas de empleados) */
+.payroll-contract-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.28rem;
+  padding: 0.18rem;
+  border-radius: 11px;
+  background: rgba(241, 245, 249, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+}
+
+.payroll-contract-btn {
+  min-height: 1.95rem;
+  padding: 0.28rem 0.62rem;
+  border-radius: 9px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  box-shadow: none;
+}
+
+.payroll-contract-btn .btn-icon {
+  width: 13px;
+  height: 13px;
+}
+
+.payroll-contract-btn--renew {
+  color: #1d4ed8;
+  background: linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%);
+  border: 1px solid rgba(59, 130, 246, 0.34);
+}
+
+.payroll-contract-btn--renew:hover {
+  color: #1e3a8a;
+  background: linear-gradient(180deg, #dbeafe 0%, #bfdbfe 100%);
+  border-color: rgba(37, 99, 235, 0.45);
+}
+
+.payroll-contract-btn--non-renew {
+  color: #92400e;
+  background: linear-gradient(180deg, #fffbeb 0%, #fef3c7 100%);
+  border: 1px solid rgba(245, 158, 11, 0.34);
+}
+
+.payroll-contract-btn--non-renew:hover {
+  color: #78350f;
+  background: linear-gradient(180deg, #fef3c7 0%, #fde68a 100%);
+  border-color: rgba(217, 119, 6, 0.42);
+}
+
+.directory-card__actions .payroll-contract-actions,
+.directory-card__compact-actions .payroll-contract-actions,
+.hiring-table-actions .payroll-contract-actions {
+  margin-inline: 0.12rem;
+}
+
+/* Modales renovación / no renovación */
+.modal-card-edit.modal-card-edit--employee-renewal,
+.modal-card-edit.modal-card-edit--employee-non-renewal {
+  width: min(560px, 97%);
+}
+
+.modal-card-edit--employee-renewal .modal-edit-form,
+.modal-card-edit--employee-non-renewal .modal-edit-form {
+  gap: 0.75rem;
+}
+
+.modal-card-edit--employee-renewal .modal-edit-actions,
+.modal-card-edit--employee-non-renewal .modal-edit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  padding-top: 0.85rem;
+  margin-top: 0.15rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.modal-card-edit--employee-renewal .module-panel-actions__group--secondary,
+.modal-card-edit--employee-non-renewal .module-panel-actions__group--secondary {
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+
+.modal-card-edit--employee-renewal .module-panel-actions__group--primary,
+.modal-card-edit--employee-non-renewal .module-panel-actions__group--primary {
+  margin-inline-start: auto;
+}
+
+.modal-card-edit--employee-renewal .module-panel-actions__group--primary .btn-primary,
+.modal-card-edit--employee-non-renewal .module-panel-actions__group--primary .btn-primary {
+  min-height: 2.5rem;
+  padding-inline: 1rem;
+  white-space: nowrap;
+}
+
+.modal-card-edit--employee-non-renewal .module-panel-actions__group--primary .btn-primary {
+  background: linear-gradient(180deg, #f59e0b 0%, #d97706 100%);
+  border-color: rgba(217, 119, 6, 0.55);
+  box-shadow: 0 6px 16px rgba(217, 119, 6, 0.22);
+}
+
+.modal-card-edit--employee-non-renewal .module-panel-actions__group--primary .btn-primary:hover {
+  background: linear-gradient(180deg, #fbbf24 0%, #d97706 100%);
+}
+
+.employee-contract-renewal-word {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0.55rem 0.65rem;
+  border-radius: 10px;
+  border: 1px dashed rgba(59, 130, 246, 0.28);
+  background: rgba(239, 246, 255, 0.65);
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+}
+
+.employee-contract-renewal-word input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.employee-contract-non-renewal-meta {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid rgba(245, 158, 11, 0.22);
+  background: linear-gradient(180deg, rgba(255, 251, 235, 0.95), rgba(255, 255, 255, 0.92));
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.employee-contract-non-renewal-meta p {
+  margin: 0;
+}
+
+.employee-contract-non-renewal-late {
+  margin: 0.15rem 0 0 !important;
+  color: #b45309;
+  font-weight: 600;
+}
+
+body[data-theme="dark"] .payroll-contract-actions {
+  background: rgba(15, 23, 42, 0.72);
+  border-color: rgba(148, 196, 255, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+body[data-theme="dark"] .payroll-contract-btn--renew {
+  color: #bfdbfe;
+  background: linear-gradient(180deg, rgba(30, 58, 138, 0.55), rgba(30, 64, 175, 0.38));
+  border-color: rgba(96, 165, 250, 0.35);
+}
+
+body[data-theme="dark"] .payroll-contract-btn--non-renew {
+  color: #fde68a;
+  background: linear-gradient(180deg, rgba(120, 53, 15, 0.45), rgba(146, 64, 14, 0.32));
+  border-color: rgba(251, 191, 36, 0.28);
+}
+
+body[data-theme="dark"] .employee-contract-renewal-word {
+  color: #dbeafe;
+  border-color: rgba(96, 165, 250, 0.28);
+  background: rgba(30, 58, 138, 0.22);
+}
+
+body[data-theme="dark"] .employee-contract-non-renewal-meta {
+  border-color: rgba(251, 191, 36, 0.2);
+  background: linear-gradient(180deg, rgba(120, 53, 15, 0.28), rgba(15, 23, 42, 0.55));
+}
+
+body[data-theme="dark"] .employee-contract-non-renewal-late {
+  color: #fcd34d;
+}
+
+body[data-theme="dark"] .modal-card-edit--employee-renewal .modal-edit-actions,
+body[data-theme="dark"] .modal-card-edit--employee-non-renewal .modal-edit-actions {
+  border-top-color: rgba(148, 196, 255, 0.14);
+}
+
 /* ─── CHIPS DE TIPO DE AUSENCIA (tabla de ausencias) ─────────────────── */
 
 .payroll-abs-chip {

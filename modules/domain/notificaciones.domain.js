@@ -420,18 +420,73 @@ function notificationDedupeKey(n) {
   return `${audience}\x1e${recipient}\x1e${String(n?.title ?? "").trim()}\x1e${String(n?.body ?? "").trim()}\x1e${createdMinute}`;
 }
 
+function __notificationReadAtEpochMs(v) {
+  if (v == null || v === "") return 0;
+  const t = new Date(v).getTime();
+  return Number.isFinite(t) ? t : 0;
+}
+
+/** True si la fila tiene `fecha_lectura` fiable (API camelCase o snake legacy). */
+export function notificationIsRead(n) {
+  if (!n || typeof n !== "object") return false;
+  const raw = n.readAt ?? n.read_at;
+  if (raw == null || raw === "") return false;
+  const ms = new Date(raw).getTime();
+  return Number.isFinite(ms);
+}
+
 /** Quita copias con mismo destino, título y cuerpo (p. ej. legacy «una por admin» o sync duplicado). */
 export function dedupeNotificationsList(list) {
   const rows = Array.isArray(list) ? list : [];
-  const seen = new Set();
-  const out = [];
+  const byKey = new Map();
   for (const n of rows) {
+    if (!n || typeof n !== "object") continue;
     const key = notificationDedupeKey(n);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(n);
+    const prev = byKey.get(key);
+    if (!prev) {
+      byKey.set(key, n);
+      continue;
+    }
+    const prevRead = notificationIsRead(prev);
+    const nextRead = notificationIsRead(n);
+    if (nextRead && !prevRead) {
+      byKey.set(key, n);
+      continue;
+    }
+    if (prevRead && !nextRead) continue;
+    const prevTs = new Date(prev.createdAt || 0).getTime();
+    const nextTs = new Date(n.createdAt || 0).getTime();
+    if (Number.isFinite(nextTs) && (!Number.isFinite(prevTs) || nextTs >= prevTs)) {
+      byKey.set(key, n);
+    }
   }
-  return out;
+  return [...byKey.values()];
+}
+
+function __expandNotificationReadTargetIds(ids, list) {
+  const rows = Array.isArray(list) ? list : [];
+  const normalized = [
+    ...new Set((Array.isArray(ids) ? ids : []).map((id) => String(id || "").trim()).filter(Boolean))
+  ];
+  if (!normalized.length) return [];
+  const dedupeKeys = new Set();
+  for (const id of normalized) {
+    const row = rows.find((n) => String(n?.id || "").trim() === id);
+    if (row) dedupeKeys.add(notificationDedupeKey(row));
+  }
+  const expanded = new Set(normalized);
+  for (const n of rows) {
+    const id = String(n?.id || "").trim();
+    if (!id) continue;
+    if (dedupeKeys.has(notificationDedupeKey(n))) expanded.add(id);
+  }
+  return [...expanded];
+}
+
+function __notificationIdSetIncludes(targetIds, notificationId) {
+  const id = String(notificationId || "").trim();
+  if (!id) return false;
+  return (Array.isArray(targetIds) ? targetIds : []).some((raw) => String(raw || "").trim() === id);
 }
 
 export function filterNotificationsForUser(user, list) {
@@ -530,21 +585,6 @@ export function reconcileNotificationsCacheForSession() {
   write(KEYS.notifications, filtered, { skipSyncSchedule: true });
 }
 
-function __notificationReadAtEpochMs(v) {
-  if (v == null || v === "") return 0;
-  const t = new Date(v).getTime();
-  return Number.isFinite(t) ? t : 0;
-}
-
-/** True si la fila tiene `fecha_lectura` fiable (API camelCase o snake legacy). */
-export function notificationIsRead(n) {
-  if (!n || typeof n !== "object") return false;
-  const raw = n.readAt ?? n.read_at;
-  if (raw == null || raw === "") return false;
-  const ms = new Date(raw).getTime();
-  return Number.isFinite(ms);
-}
-
 /**
  * GET /portal/notifications y el bootstrap pueden llegar antes de que sync-key persista `readAt`.
  * Fusionar evita que la caché (y un flush posterior) reviertan «leída» en UI y en PostgreSQL.
@@ -555,19 +595,33 @@ export function mergeNotificationsListPreserveReadAt(prevList, serverList) {
   const prevById = new Map(
     prev.map((n) => [String(n?.id || "").trim(), n]).filter(([id]) => Boolean(id))
   );
+  const prevReadAtByDedupe = new Map();
+  for (const p of prev) {
+    if (!p || typeof p !== "object") continue;
+    const pr = p.readAt ?? p.read_at;
+    const prMs = __notificationReadAtEpochMs(pr);
+    if (prMs <= 0) continue;
+    const dkey = notificationDedupeKey(p);
+    const existing = prevReadAtByDedupe.get(dkey);
+    const existingMs = __notificationReadAtEpochMs(existing);
+    if (!existing || prMs >= existingMs) prevReadAtByDedupe.set(dkey, pr);
+  }
   return server.map((n) => {
     const id = String(n?.id || "").trim();
     if (!id || !n || typeof n !== "object") return n;
     const p = prevById.get(id);
-    if (!p) return n;
-    const pr = p.readAt ?? p.read_at;
+    const pr = p?.readAt ?? p?.read_at;
     const sr = n.readAt ?? n.read_at;
     const prMs = __notificationReadAtEpochMs(pr);
     const srMs = __notificationReadAtEpochMs(sr);
-    if (prMs <= 0 && srMs <= 0) return n;
+    if (prMs <= 0 && srMs <= 0) {
+      const fromDedupe = prevReadAtByDedupe.get(notificationDedupeKey(n));
+      return fromDedupe ? { ...n, readAt: fromDedupe } : n;
+    }
     if (prMs >= srMs && prMs > 0) return { ...n, readAt: pr || sr || null };
     if (srMs > 0) return n;
-    return pr ? { ...n, readAt: pr } : n;
+    const fromDedupe = prevReadAtByDedupe.get(notificationDedupeKey(n));
+    return fromDedupe || pr ? { ...n, readAt: fromDedupe || pr } : n;
   });
 }
 
@@ -575,20 +629,34 @@ export function mergeNotificationsListPreserveReadAt(prevList, serverList) {
  * Persiste lecturas en PostgreSQL (endpoint dedicado) y alinea la caché local + snapshot de F5.
  * @returns {Promise<boolean>}
  */
+function __persistNotificationsSnapshotNow() {
+  savePortalSnapshotAfterBootstrap({
+    dirtyKeys: [KEYS.notifications],
+    immediate: true,
+    force: true
+  });
+}
+
 export async function persistNotificationsReadState(ids) {
   const normalized = [
     ...new Set((Array.isArray(ids) ? ids : []).map((id) => String(id || "").trim()).filter(Boolean))
   ];
   if (!normalized.length) return true;
-  const visibleIds = new Set(getCurrentNotifications().map((n) => n.id));
-  const targetIds = normalized.filter((id) => visibleIds.has(id));
+  const visible = getCurrentNotifications();
+  const visibleIdSet = new Set(visible.map((n) => String(n?.id || "").trim()).filter(Boolean));
+  const targetIds = __expandNotificationReadTargetIds(
+    normalized.filter((id) => visibleIdSet.has(id)),
+    read(KEYS.notifications, [])
+  );
   if (!targetIds.length) return true;
 
   const ts = nowIso();
   const list = read(KEYS.notifications, []);
   write(
     KEYS.notifications,
-    list.map((n) => (targetIds.includes(n.id) && !notificationIsRead(n) ? { ...n, readAt: ts } : n)),
+    list.map((n) =>
+      __notificationIdSetIncludes(targetIds, n.id) && !notificationIsRead(n) ? { ...n, readAt: ts } : n
+    ),
     { skipSyncSchedule: true }
   );
 
@@ -600,16 +668,18 @@ export async function persistNotificationsReadState(ids) {
       const merged = read(KEYS.notifications, []);
       write(
         KEYS.notifications,
-        merged.map((n) => (targetIds.includes(n.id) ? { ...n, readAt: n.readAt || readAt } : n)),
+        merged.map((n) =>
+          __notificationIdSetIncludes(targetIds, n.id) ? { ...n, readAt: n.readAt || readAt } : n
+        ),
         { skipSyncSchedule: true }
       );
-      savePortalSnapshotAfterBootstrap({ dirtyKeys: [KEYS.notifications] });
+      __persistNotificationsSnapshotNow();
       syncNotificationsInboxRenderSignature();
       return true;
     } catch (_apiErr) {
       try {
         await writeNotificationsAwaitServer();
-        savePortalSnapshotAfterBootstrap({ dirtyKeys: [KEYS.notifications] });
+        __persistNotificationsSnapshotNow();
         syncNotificationsInboxRenderSignature();
         return true;
       } catch (err) {
@@ -626,7 +696,7 @@ export async function persistNotificationsReadState(ids) {
 
   try {
     await writeNotificationsAwaitServer();
-    savePortalSnapshotAfterBootstrap({ dirtyKeys: [KEYS.notifications] });
+    __persistNotificationsSnapshotNow();
     syncNotificationsInboxRenderSignature();
     return true;
   } catch (err) {

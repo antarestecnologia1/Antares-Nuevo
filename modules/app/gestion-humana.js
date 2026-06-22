@@ -1634,23 +1634,64 @@ function bindPayrollPortalControls() {
         title: "Renovar contrato",
         subtitle: `${String(normalized.name || "").trim()} · ingreso ${fmtDateOr(normalized.startDate, "—")}`,
         submitText: "Confirmar renovación",
+        cancelBtnClass: "btn btn-sm btn-outline module-panel-btn module-panel-btn--cancel",
         extraModalCardClass: "modal-card-edit--employee-renewal",
         fields: [
-          `<p class="muted" style="margin:0 0 0.75rem;font-size:0.86rem;line-height:1.5">La <strong>fecha de ingreso</strong> no cambia. Se registrará un nuevo período contractual y la fecha de renovación en la tabla.</p>`,
-          `<label>${fieldLabel(IC.calendar, "Fecha renovación (firma / acta)")}<input type="date" name="renewalDate" value="${escapeAttr(renewalToday)}" required /></label>`,
-          `<label>${fieldLabel(IC.calendar, "Inicio nuevo período")}<input type="date" name="contractVigenteStartDate" id="renew-contract-vigente-start" value="${escapeAttr(periodStart)}" required /></label>`,
-          `<label>${fieldLabel(IC.clock, "Duración del período")}<input name="contractDuration" id="renew-contract-duration" value="${escapeAttr(duration)}" placeholder="Ej.: 1 año, 12 meses" required /></label>`,
-          `<label>${fieldLabel(IC.calendar, "Fin del período")}<input type="date" name="contractEndDate" id="renew-contract-end-date" value="${escapeAttr(endFromDuration || endPreview || "")}" readonly tabindex="-1" /></label>`,
-          `<label>${fieldLabel(IC.dollar, "Salario base (COP)")}<input type="number" name="baseSalary" min="0" value="${escapeAttr(String(normalized.baseSalary ?? ""))}" /></label>`,
-          `<label class="full" style="display:flex;align-items:center;gap:0.5rem"><input type="checkbox" name="generateWord" checked /> Generar contrato Word al confirmar</label>`
+          {
+            type: "section",
+            title: "Nuevo período contractual",
+            hint: "La fecha de ingreso no cambia. Se registrará un nuevo período y la fecha de renovación en la tabla."
+          },
+          {
+            name: "renewalDate",
+            label: "Fecha renovación (firma / acta)",
+            type: "date",
+            value: renewalToday,
+            required: true
+          },
+          {
+            name: "contractVigenteStartDate",
+            label: "Inicio nuevo período",
+            type: "date",
+            value: periodStart,
+            required: true
+          },
+          {
+            name: "contractDuration",
+            label: "Duración del período",
+            type: "text",
+            value: duration,
+            required: true
+          },
+          {
+            name: "contractEndDate",
+            label: "Fin del período",
+            type: "date",
+            value: endFromDuration || endPreview || ""
+          },
+          {
+            name: "baseSalary",
+            label: "Salario base (COP)",
+            type: "number",
+            min: 0,
+            value: String(normalized.baseSalary ?? "")
+          },
+          {
+            type: "custom",
+            full: true,
+            html: `<label class="employee-contract-renewal-word"><input type="checkbox" name="generateWord" checked /><span>Generar contrato Word al confirmar</span></label>`
+          }
         ],
         afterMount: (formEl) => {
+          const startEl = formEl.querySelector("[name='contractVigenteStartDate']");
+          const durEl = formEl.querySelector("[name='contractDuration']");
+          const endEl = formEl.querySelector("[name='contractEndDate']");
+          durEl?.setAttribute("placeholder", "Ej.: 1 año, 12 meses");
+          endEl?.setAttribute("readonly", "");
+          endEl?.setAttribute("tabindex", "-1");
           const syncRenewEnd = () => {
-            const start = normalizePortalDateYmd(
-              formEl.querySelector("#renew-contract-vigente-start")?.value || ""
-            );
-            const dur = String(formEl.querySelector("#renew-contract-duration")?.value || "").trim();
-            const endEl = formEl.querySelector("#renew-contract-end-date");
+            const start = normalizePortalDateYmd(startEl?.value || "");
+            const dur = String(durEl?.value || "").trim();
             if (!start || !endEl) return;
             const parsed = parseContractDurationText(dur || "1 año");
             const end = resolveEmployeeContractEndDateYmd(normalized.contractType, start, {
@@ -1659,8 +1700,8 @@ function bindPayrollPortalControls() {
             });
             endEl.value = end || "";
           };
-          formEl.querySelector("#renew-contract-vigente-start")?.addEventListener("change", syncRenewEnd);
-          formEl.querySelector("#renew-contract-duration")?.addEventListener("input", syncRenewEnd);
+          startEl?.addEventListener("change", syncRenewEnd);
+          durEl?.addEventListener("input", syncRenewEnd);
           syncRenewEnd();
         },
         onSubmit: async (payload, formEl) => {
@@ -1707,15 +1748,34 @@ function bindPayrollPortalControls() {
       openEditModal({
         title: "Aviso de no renovación",
         subtitle: `${String(normalized.name || "").trim()} · vence ${fmtDateOr(meta.endYmd, "—")}`,
-        submitText: "Generar carta y registrar aviso",
+        submitText: "Generar carta",
+        cancelBtnClass: "btn btn-sm btn-outline module-panel-btn module-panel-btn--cancel",
         extraModalCardClass: "modal-card-edit--employee-non-renewal",
         fields: [
-          `<p class="muted" style="margin:0 0 0.75rem;font-size:0.86rem;line-height:1.5">Carta conforme al <strong>CST art. 47</strong> (mínimo 30 días antes del vencimiento). La <strong>fecha de ingreso</strong> no se modifica.</p>`,
-          `<label>${fieldLabel(IC.calendar, "Fecha del aviso")}<input type="date" name="noticeDate" value="${escapeAttr(noticeToday)}" required /></label>`,
-          `<p class="muted" style="margin:0;font-size:0.82rem">Fin del contrato: <strong>${escapeHtml(meta.endLabel || "—")}</strong> · plazo máximo de aviso: <strong>${escapeHtml(meta.deadlineLabel || "—")}</strong></p>`,
-          meta.lateNotice
-            ? `<p class="muted" style="margin:0.35rem 0 0;color:#b45309;font-size:0.82rem">Hoy ya está dentro de los 30 días previos al vencimiento. Revise con asesoría laboral antes de enviar.</p>`
-            : ""
+          {
+            type: "section",
+            title: "Datos del aviso",
+            hint: "Carta conforme al CST art. 47 (mínimo 30 días antes del vencimiento). La fecha de ingreso no se modifica."
+          },
+          {
+            name: "noticeDate",
+            label: "Fecha del aviso",
+            type: "date",
+            value: noticeToday,
+            required: true
+          },
+          {
+            type: "custom",
+            full: true,
+            html: `<div class="employee-contract-non-renewal-meta">
+              <p class="muted">Fin del contrato: <strong>${escapeHtml(meta.endLabel || "—")}</strong></p>
+              <p class="muted">Plazo máximo de aviso: <strong>${escapeHtml(meta.deadlineLabel || "—")}</strong></p>${
+                meta.lateNotice
+                  ? `<p class="employee-contract-non-renewal-late">Hoy ya está dentro de los 30 días previos al vencimiento. Revise con asesoría laboral antes de enviar.</p>`
+                  : ""
+              }
+            </div>`
+          }
         ],
         onSubmit: async (payload, formEl) => {
           const check = validateNonRenewalNotice(normalized, {

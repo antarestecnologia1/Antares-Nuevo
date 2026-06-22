@@ -651,11 +651,11 @@ export function savePortalSnapshotAfterBootstrap(opts = {}) {
     const id = String(uid);
     const extras = portalSnapshotExtras();
     if (opts.immediate && typeof cache.save === "function") {
-      cache.save(id, extras);
+      cache.save(id, extras, { force: opts.force === true });
       return;
     }
     if (opts.dirtyKeys?.length && typeof cache.scheduleSave === "function") {
-      cache.scheduleSave(id, extras, { dirtyKeys: opts.dirtyKeys });
+      cache.scheduleSave(id, extras, { dirtyKeys: opts.dirtyKeys, force: opts.force === true });
       return;
     }
     if (opts.full && typeof cache.scheduleSave === "function") {
