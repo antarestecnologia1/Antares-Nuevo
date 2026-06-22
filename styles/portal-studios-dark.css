@@ -294,6 +294,12 @@ body[data-theme="dark"] .history-studio .hr-workspace-tab--switch.is-active {
 }
 
 /* —— 1. Dashboard —— */
+body[data-theme="dark"] .dashboard-studio .dash-panel {
+  background: rgba(14, 28, 46, 0.92);
+  border-color: rgba(148, 196, 255, 0.14);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+}
+
 body[data-theme="dark"] .dashboard-studio .dash-operate__rail-label,
 body[data-theme="dark"] .dashboard-studio .dash-stat-label {
   color: #94a8c4;
@@ -302,6 +308,48 @@ body[data-theme="dark"] .dashboard-studio .dash-stat-label {
 body[data-theme="dark"] .dashboard-studio .dash-stat-value,
 body[data-theme="dark"] .dashboard-studio .dash-stat-row strong {
   color: #e8f2fc;
+}
+
+body[data-theme="dark"] .dashboard-studio .dash-vehicle__head {
+  background: linear-gradient(180deg, rgba(12, 24, 40, 0.72), rgba(10, 22, 38, 0.55));
+  border-color: rgba(148, 196, 255, 0.12);
+}
+
+body[data-theme="dark"] .dashboard-studio .dash-vehicle__badge--en-ruta {
+  background: rgba(59, 130, 246, 0.18);
+  color: #93c5fd;
+}
+
+body[data-theme="dark"] .dashboard-studio .dash-vehicle__badge--programado {
+  background: rgba(148, 163, 184, 0.14);
+  color: #cbd5e1;
+}
+
+body[data-theme="dark"] .dashboard-studio .dash-vehicle__badge--cerrado {
+  background: rgba(16, 185, 129, 0.18);
+  color: #6ee7b7;
+}
+
+body[data-theme="dark"] .dashboard-studio .dash-vehicle__table th {
+  background: rgba(10, 22, 38, 0.35);
+  color: #b8d4f0;
+}
+
+body[data-theme="dark"] .dashboard-studio .dash-pulse-item__bar {
+  background: rgba(148, 163, 184, 0.2);
+}
+
+body[data-theme="dark"] .dashboard-studio .dash-pulse-item--warn .dash-pulse-item__value {
+  color: #fdba74;
+}
+
+body[data-theme="dark"] .dashboard-studio .dash-pulse-item--alert .dash-pulse-item__value {
+  color: #fca5a5;
+}
+
+body[data-theme="dark"] .dashboard-studio .dash-pulse-foot {
+  background: rgba(12, 24, 40, 0.45);
+  border-color: rgba(148, 196, 255, 0.1);
 }
 
 /* —— 2. Mis solicitudes —— */
@@ -420,6 +468,13 @@ body[data-theme="dark"] .transport-studio .trip-request-card__status--pending {
 
 body[data-theme="dark"] .transport-studio .trip-request-card__status--approved {
   color: #34d399;
+}
+
+body[data-theme="dark"] .transport-studio #form-create-trip .create-trip-readiness--bar .create-trip-readiness-item,
+body[data-theme="dark"] .transport-studio #form-route-rate .create-trip-readiness--bar .create-trip-readiness-item {
+  color: #c5daf0;
+  background: rgba(12, 24, 40, 0.55);
+  border-right-color: rgba(148, 196, 255, 0.12);
 }
 
 body[data-theme="dark"] .transport-studio #form-create-trip .create-trip-readiness--bar .create-trip-readiness-item.is-done,
@@ -722,6 +777,14 @@ body[data-theme="dark"] .b2b-studio .hr-workspace-tab--switch:not(.is-active) {
 }
 
 /* —— 16–18. Notificaciones, timbre y avisos —— */
+body[data-theme="dark"] .notifications-studio .ntf-studio-head,
+body[data-theme="dark"] .notifications-studio .ntf-operate__rail,
+body[data-theme="dark"] .notifications-studio .ntf-data-panel,
+body[data-theme="dark"] .notifications-studio .ntf-card {
+  background: rgba(14, 28, 46, 0.92);
+  border-color: rgba(148, 196, 255, 0.14);
+}
+
 body[data-theme="dark"] .notifications-studio .ntf-filter-btn {
   color: #c5daf0;
 }
@@ -785,9 +848,13 @@ body[data-theme="dark"] .side-link--notif-inbox {
   color: rgba(232, 242, 252, 0.9);
 }
 
-body[data-theme="dark"] .side-link--notif-alerts-off {
+body[data-theme="dark"] .sidebar-notif-group--off .side-link--notif-inbox {
   opacity: 0.72;
   color: rgba(200, 215, 235, 0.75);
+}
+
+body[data-theme="dark"] .sidebar-notif-bell-toggle--off {
+  color: rgba(251, 191, 36, 0.88);
 }
 
 /* —— 15. Mi perfil —— */
