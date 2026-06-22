@@ -1245,6 +1245,7 @@ export class PortalService implements OnModuleInit {
   private async ensureContratosSchema() {
     if (!(await this.tableExists("contratos"))) return;
     const alters = [
+      `ALTER TABLE public.contratos ADD COLUMN IF NOT EXISTS fecha_fin DATE`,
       `ALTER TABLE public.contratos ADD COLUMN IF NOT EXISTS fecha_renovacion DATE`
     ];
     for (const q of alters) {
@@ -8184,17 +8185,19 @@ export class PortalService implements OnModuleInit {
   private async resolvePayrollEmployeeSchemaTier(c: PoolClient): Promise<0 | 1 | 2 | 3> {
     if (this.payrollEmployeeSchemaTier !== undefined) return this.payrollEmployeeSchemaTier;
     try {
-      const { rows } = await c.query<{ n19: string; n45: string; n46: string }>(
+      const { rows } = await c.query<{ n19: string; n45: string; n46: string; n47: string }>(
         `SELECT COUNT(*) FILTER (WHERE column_name = 'tiene_condicion_medica')::text AS n19,
                 COUNT(*) FILTER (WHERE column_name = 'fecha_inicio_contrato_vigente')::text AS n45,
-                COUNT(*) FILTER (WHERE column_name = 'fecha_renovacion')::text AS n46
+                COUNT(*) FILTER (WHERE column_name = 'fecha_renovacion')::text AS n46,
+                COUNT(*) FILTER (WHERE column_name = 'fecha_aviso_no_renovacion')::text AS n47
         FROM information_schema.columns
         WHERE table_schema = 'public' AND table_name = 'empleados_nomina'`
       );
       const has19 = Number(rows[0]?.n19 ?? 0) > 0;
       const has45 = Number(rows[0]?.n45 ?? 0) > 0;
       const has46 = Number(rows[0]?.n46 ?? 0) > 0;
-      const t: 0 | 1 | 2 | 3 = has46 ? 3 : has45 ? 2 : has19 ? 1 : 0;
+      const has47 = Number(rows[0]?.n47 ?? 0) > 0;
+      const t: 0 | 1 | 2 | 3 = has46 && has47 ? 3 : has45 ? 2 : has19 ? 1 : 0;
       this.payrollEmployeeSchemaTier = t;
       if (!has19) {
         this.logger.warn(
@@ -8215,6 +8218,13 @@ export class PortalService implements OnModuleInit {
           "empleados_nomina: sin fecha_renovacion (migr. 46). " +
             "Ejecute npm run db:init o BD/postgres/tablas/13_empleados_nomina.sql (columna fecha_renovacion). " +
             "La fecha de renovación no se persistirá en servidor hasta aplicar la migración."
+        );
+      }
+      if (!has47) {
+        this.logger.warn(
+          "empleados_nomina: sin fecha_aviso_no_renovacion (migr. 47). " +
+            "Ejecute npm run db:init o BD/postgres/tablas/34_alter_renovacion_contrato.sql. " +
+            "El aviso de no renovación no se persistirá en servidor hasta aplicar la migración."
         );
       }
       return t;

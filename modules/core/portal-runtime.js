@@ -11774,6 +11774,9 @@ function bindEmployeeAvatarFilePreview(fileInput, labelEl) {
 /** Alta empleado (wizard): objeto listo para guardar Word o persistir (sin id). */
 function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = {}) {
   const stripLargeAvatar = Boolean(avatarOpts.stripLargeAvatar);
+  const preserve = avatarOpts.preserveEmployee && typeof avatarOpts.preserveEmployee === "object"
+    ? avatarOpts.preserveEmployee
+    : null;
   let merged = String(avatarOpts.avatarUrl ?? raw.avatarUrl ?? "").trim();
   if (merged.startsWith("data:")) merged = "";
   const avatarUrl = merged;
@@ -11883,8 +11886,16 @@ function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = 
       contractVigenteStartDate: isFixedTermContractType(effectiveContractType)
         ? contractVigenteStartDateYmd || startDateYmd
         : "",
-      renewalDate: normalizePortalDateYmd(raw.renewalDate),
-      nonRenewalNoticeDate: normalizePortalDateYmd(raw.nonRenewalNoticeDate),
+      renewalDate: normalizePortalDateYmd(
+        raw.renewalDate != null && String(raw.renewalDate).trim() !== ""
+          ? raw.renewalDate
+          : preserve?.renewalDate
+      ),
+      nonRenewalNoticeDate: normalizePortalDateYmd(
+        raw.nonRenewalNoticeDate != null && String(raw.nonRenewalNoticeDate).trim() !== ""
+          ? raw.nonRenewalNoticeDate
+          : preserve?.nonRenewalNoticeDate
+      ),
       license: String(raw.license || "").trim(),
       licenseExpiry: normalizePortalDateYmd(raw.licenseExpiry),
       occupationalExamDate: normalizePortalDateYmd(raw.occupationalExamDate),

@@ -1488,7 +1488,8 @@ function bindPayrollPortalControls() {
           const raw = { ...payload, avatarUrl: nextAvatar };
           const packed = buildPayrollEmployeePayloadFromWizard(raw, docValidation.normalized, {
             avatarUrl: nextAvatar,
-            stripLargeAvatar: false
+            stripLargeAvatar: false,
+            preserveEmployee: target
           });
           if (!packed.ok) {
             failPortalField(formEl, packed.field || "name", packed.msg);
@@ -1700,7 +1701,7 @@ function bindPayrollPortalControls() {
         notify("El aviso de no renovación solo aplica a contratos a término fijo.", "error");
         return;
       }
-      const normalized = normalizePayrollEmployeeRowDates(target);
+      const normalized = normalizePayrollEmployeeRowDates(ensureEmployeeContractFields(target));
       const meta = buildNonRenewalNoticeMeta(normalized);
       const noticeToday = colombiaTodayIsoDate();
       openEditModal({

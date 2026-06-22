@@ -33,3 +33,4 @@
 31_notificaciones_audiencia.sql
 32_notificaciones_metadata.sql
 33_auditoria_eventos_portal.sql
+34_alter_renovacion_contrato.sql

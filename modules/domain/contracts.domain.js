@@ -20,8 +20,14 @@ export function contractDedupKey(row) {
     String(row.candidateId || "").trim().toLowerCase();
   const tpl = String(row.contractTemplateKind || row.templateKind || "").trim().toLowerCase();
   const start = String(row.startDate || "").trim();
+  const tag = String(row.sourceTag || "").trim().toLowerCase();
+  const movement = /renovaci/.test(tag)
+    ? "renovacion"
+    : /aviso no renov/.test(tag)
+      ? "aviso_no_renovacion"
+      : "";
   if (!empKey) return "";
-  return `${empKey}::${tpl}::${start}`;
+  return movement ? `${empKey}::${tpl}::${start}::${movement}` : `${empKey}::${tpl}::${start}`;
 }
 
 export function dedupContracts(list) {
@@ -147,17 +153,26 @@ export function buildContractRecordFromEmployee(employee, opts = {}) {
   };
 }
 
+function contractMovementSlug(row) {
+  const tag = String(row?.sourceTag || "").trim().toLowerCase();
+  if (/renovaci/.test(tag)) return "renovacion";
+  if (/aviso no renov/.test(tag)) return "aviso_no_renovacion";
+  return "";
+}
+
 function findMatchingContractIndex(list, employee, partial) {
   const empId = String(employee.id || "").trim();
   const empDoc = String(employee.idDoc || "").trim();
   const tplKind = String(partial.contractTemplateKind || partial.templateKind || "").trim().toLowerCase();
   const signDate = String(partial.startDate || "").trim();
+  const partialMovement = contractMovementSlug(partial);
   return list.findIndex((row) => {
     if (!row) return false;
     const sameEmployee =
       (empId && String(row.employeeId || "") === empId) ||
       (empDoc && String(row.idDocSnapshot || "").trim() === empDoc);
     if (!sameEmployee) return false;
+    if (contractMovementSlug(row) !== partialMovement) return false;
     const sameTemplate =
       String(row.contractTemplateKind || row.templateKind || "").trim().toLowerCase() === tplKind;
     const sameStart = String(row.startDate || "").trim() === signDate;
