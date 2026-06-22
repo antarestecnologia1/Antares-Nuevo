@@ -1263,7 +1263,8 @@ export class PortalService implements OnModuleInit {
     const alters = [
       `ALTER TABLE public.empleados_nomina ADD COLUMN IF NOT EXISTS tiene_condicion_medica BOOLEAN NOT NULL DEFAULT false`,
       `ALTER TABLE public.empleados_nomina ADD COLUMN IF NOT EXISTS descripcion_condicion_medica TEXT`,
-      `ALTER TABLE public.empleados_nomina ADD COLUMN IF NOT EXISTS fecha_renovacion DATE`
+      `ALTER TABLE public.empleados_nomina ADD COLUMN IF NOT EXISTS fecha_renovacion DATE`,
+      `ALTER TABLE public.empleados_nomina ADD COLUMN IF NOT EXISTS fecha_aviso_no_renovacion DATE`
     ];
     for (const q of alters) {
       try {
@@ -6094,6 +6095,7 @@ export class PortalService implements OnModuleInit {
       startDate: this.sqlEmployeeDateToPortalYmd(e.fecha_ingreso),
       contractVigenteStartDate: this.sqlEmployeeDateToPortalYmd(e.fecha_inicio_contrato_vigente),
       renewalDate: this.sqlEmployeeDateToPortalYmd(e.fecha_renovacion),
+      nonRenewalNoticeDate: this.sqlEmployeeDateToPortalYmd(e.fecha_aviso_no_renovacion),
       baseSalary: Number(e.salario_base),
       transportAllowance: e.auxilio_transporte != null ? Number(e.auxilio_transporte) : null,
       payFrequency: e.periodicidad_pago,
@@ -8628,7 +8630,7 @@ export class PortalService implements OnModuleInit {
           departamento, ciudad, direccion, telefono, correo_personal,
           contacto_emergencia, telefono_emergencia, parentesco_emergencia,
           nombre_cargo_texto, tipo_contrato, duracion_contrato_texto,
-          fecha_ingreso, fecha_inicio_contrato_vigente, fecha_renovacion, salario_base, auxilio_transporte,
+          fecha_ingreso, fecha_inicio_contrato_vigente, fecha_renovacion, fecha_aviso_no_renovacion, salario_base, auxilio_transporte,
           periodicidad_pago, centro_costos, tipo_cotizante, nivel_riesgo_arl, tipo_plantilla_contrato,
           eps, fondo_pension, arl, fondo_cesantias, caja_compensacion,
           banco, tipo_cuenta_bancaria, numero_cuenta_bancaria, rol_trabajador,
@@ -8645,15 +8647,15 @@ export class PortalService implements OnModuleInit {
           $12, $13, $14, $15, $16,
           $17, $18, $19,
           $20, $21, $22,
-          $23::date, $24::date, $25::date, $26, $27,
-          $28, $29, $30, $31, $32,
-          $33, $34, $35, $36, $37,
-          $38, $39, $40, $41,
-          $42, $43, $44,
-          $45::date, $46::date, $47::date, $48::date, $49,
-          $50, $51, $52, $53, $54,
-          $55::boolean, $56,
-          COALESCE($57::timestamptz, now()), COALESCE($58::timestamptz, now())
+          $23::date, $24::date, $25::date, $26::date, $27, $28,
+          $29, $30, $31, $32, $33,
+          $34, $35, $36, $37, $38,
+          $39, $40, $41, $42,
+          $43, $44, $45,
+          $46::date, $47::date, $48::date, $49::date, $50,
+          $51, $52, $53, $54, $55,
+          $56::boolean, $57,
+          COALESCE($58::timestamptz, now()), COALESCE($59::timestamptz, now())
         )
         ON CONFLICT (id) DO UPDATE SET
           nombre_completo = EXCLUDED.nombre_completo,
@@ -8678,6 +8680,7 @@ export class PortalService implements OnModuleInit {
           fecha_ingreso = EXCLUDED.fecha_ingreso,
           fecha_inicio_contrato_vigente = EXCLUDED.fecha_inicio_contrato_vigente,
           fecha_renovacion = EXCLUDED.fecha_renovacion,
+          fecha_aviso_no_renovacion = EXCLUDED.fecha_aviso_no_renovacion,
           salario_base = EXCLUDED.salario_base,
           auxilio_transporte = EXCLUDED.auxilio_transporte,
           periodicidad_pago = EXCLUDED.periodicidad_pago,
@@ -8755,6 +8758,9 @@ export class PortalService implements OnModuleInit {
       const vigenteStart = isFixedTerm ? vigenteRaw ?? start : null;
       const renewalDate = isFixedTerm
         ? portalDateOrNull(p(e, "renewalDate", "fecha_renovacion"))
+        : null;
+      const nonRenewalNoticeDate = isFixedTerm
+        ? portalDateOrNull(p(e, "nonRenewalNoticeDate", "fecha_aviso_no_renovacion"))
         : null;
       const base = Number(p(e, "baseSalary")) || 0;
       const bank =
@@ -8885,6 +8891,7 @@ export class PortalService implements OnModuleInit {
         ...base52.slice(0, 23),
         vigenteStart,
         renewalDate,
+        nonRenewalNoticeDate,
         ...base52.slice(23)
       ];
 

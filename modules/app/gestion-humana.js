@@ -1690,6 +1690,63 @@ function bindPayrollPortalControls() {
     });
   });
 
+  nodes.viewRoot.querySelectorAll("[data-action='non-renew-employee-contract']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (abortUnlessCanManagePayroll()) return;
+      const all = read(KEYS.payrollEmployees, []);
+      const target = all.find((e) => String(e.id) === String(btn.dataset.id || ""));
+      if (!target) return;
+      if (!isFixedTermContractType(target.contractType)) {
+        notify("El aviso de no renovación solo aplica a contratos a término fijo.", "error");
+        return;
+      }
+      const normalized = normalizePayrollEmployeeRowDates(target);
+      const meta = buildNonRenewalNoticeMeta(normalized);
+      const noticeToday = colombiaTodayIsoDate();
+      openEditModal({
+        title: "Aviso de no renovación",
+        subtitle: `${String(normalized.name || "").trim()} · vence ${fmtDateOr(meta.endYmd, "—")}`,
+        submitText: "Generar carta y registrar aviso",
+        extraModalCardClass: "modal-card-edit--employee-non-renewal",
+        fields: [
+          `<p class="muted" style="margin:0 0 0.75rem;font-size:0.86rem;line-height:1.5">Carta conforme al <strong>CST art. 47</strong> (mínimo 30 días antes del vencimiento). La <strong>fecha de ingreso</strong> no se modifica.</p>`,
+          `<label>${fieldLabel(IC.calendar, "Fecha del aviso")}<input type="date" name="noticeDate" value="${escapeAttr(noticeToday)}" required /></label>`,
+          `<p class="muted" style="margin:0;font-size:0.82rem">Fin del contrato: <strong>${escapeHtml(meta.endLabel || "—")}</strong> · plazo máximo de aviso: <strong>${escapeHtml(meta.deadlineLabel || "—")}</strong></p>`,
+          meta.lateNotice
+            ? `<p class="muted" style="margin:0.35rem 0 0;color:#b45309;font-size:0.82rem">Hoy ya está dentro de los 30 días previos al vencimiento. Revise con asesoría laboral antes de enviar.</p>`
+            : ""
+        ],
+        onSubmit: async (payload, formEl) => {
+          const check = validateNonRenewalNotice(normalized, {
+            noticeDate: normalizePortalDateYmd(payload.noticeDate)
+          });
+          if (!check.ok) {
+            failPortalField(formEl, check.field || "noticeDate", check.message);
+            return false;
+          }
+          if (check.lateNotice) {
+            const proceed = window.confirm(
+              "El aviso se está generando después del plazo orientativo de 30 días de anticipación. ¿Desea continuar?"
+            );
+            if (!proceed) return false;
+          }
+          const result = await executeEmployeeContractNonRenewalNotice(
+            normalized,
+            { noticeDate: check.noticeDate },
+            { openLetter: true }
+          );
+          if (!result.ok) {
+            notify(String(result.message || "No se pudo registrar el aviso."), "error");
+            return false;
+          }
+          notify("Aviso de no renovación registrado. Revise la carta, imprímala y entréguela al colaborador.", "success");
+          renderPortalView();
+          return true;
+        }
+      });
+    });
+  });
+
   nodes.viewRoot.querySelectorAll("[data-action='delete-employee']").forEach((btn) => {
     btn.addEventListener("click", () => {
       if (abortUnlessCanManagePayroll()) return;

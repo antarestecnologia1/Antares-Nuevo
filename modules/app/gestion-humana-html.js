@@ -658,7 +658,7 @@ function payrollHtml() {
       </div>` : ""}
     </div>`;
   const employeeTable = employeeTableRows
-    ? `<div class="table-wrap payroll-table-wrap payroll-employees-list-view"><table class="payroll-employees-table"><thead><tr><th>Colaborador</th><th>Cargo</th><th>Ingreso</th><th>Inicio vigente</th><th>Renovación</th><th>Fin contrato</th><th>Estado</th><th style="min-width:12rem">Acciones</th></tr></thead><tbody>${employeeTableRows}</tbody></table></div>`
+    ? `<div class="table-wrap payroll-table-wrap payroll-employees-list-view"><table class="payroll-employees-table"><thead><tr><th>Colaborador</th><th>Cargo</th><th>Ingreso</th><th>Inicio vigente</th><th>Renovación</th><th>Aviso no renov.</th><th>Fin contrato</th><th>Estado</th><th style="min-width:14rem">Acciones</th></tr></thead><tbody>${employeeTableRows}</tbody></table></div>`
     : "";
   const empTable =
     employeesView === "list"

@@ -2867,6 +2867,9 @@ function normalizePayrollEmployeeRowDates(emp) {
     first(e.contractVigenteStartDate, e.fecha_inicio_contrato_vigente)
   );
   e.renewalDate = normalizePortalDateYmd(first(e.renewalDate, e.fecha_renovacion));
+  e.nonRenewalNoticeDate = normalizePortalDateYmd(
+    first(e.nonRenewalNoticeDate, e.fecha_aviso_no_renovacion)
+  );
   e.occupationalExamDate = normalizePortalDateYmd(
     first(
       e.occupationalExamDate,
@@ -6627,6 +6630,7 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = fa
       (contract.statusSlug === "notice_window" ||
         contract.statusSlug === "expired" ||
         contract.statusSlug === "active");
+    const canNonRenew = canRenew;
     const contractAlertBar = showContractAlert
       ? `<div class="payroll-emp-contract-alert${contract.statusSlug === "expired" ? " payroll-emp-contract-alert--expired" : ""}">${escapeHtml(contract.headline || contract.pillLabel || "Contrato requiere atención")}</div>`
       : "";
@@ -6651,6 +6655,7 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = fa
         <button type="button" class="btn btn-sm btn-outline" data-action="view-employee" data-id="${escapeAttr(String(e.id))}" title="Perfil">${IC.eye}</button>
         <button type="button" class="btn btn-sm btn-action" data-action="edit-employee" data-id="${escapeAttr(String(e.id))}" title="Editar">${IC.edit}</button>
         ${canRenew ? `<button type="button" class="btn btn-sm btn-action" data-action="renew-employee-contract" data-id="${escapeAttr(String(e.id))}" title="Renovar contrato">${IC.rotateCcw}</button>` : ""}
+        ${canNonRenew ? `<button type="button" class="btn btn-sm btn-outline" data-action="non-renew-employee-contract" data-id="${escapeAttr(String(e.id))}" title="Carta no renovación">${IC.mail}</button>` : ""}
         <button type="button" class="btn btn-sm btn-outline" data-action="employee-generate-contract" data-id="${escapeAttr(String(e.id))}" title="Generar o descargar contrato Word">${IC.download}</button>
         ${hrAdminDeletes ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-employee" data-id="${escapeAttr(String(e.id))}" title="Eliminar">${IC.trash}</button>` : ""}
         ${selectHtml}
@@ -6694,6 +6699,7 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = fa
       <button type="button" class="btn btn-sm btn-outline" data-action="view-employee" data-id="${escapeAttr(String(e.id))}">${IC.eye} Perfil</button>
       <button type="button" class="btn btn-sm btn-action" data-action="edit-employee" data-id="${escapeAttr(String(e.id))}">${IC.edit} Editar</button>
       ${contract.applies && isFixedTermContractType(e.contractType) ? `<button type="button" class="btn btn-sm btn-action" data-action="renew-employee-contract" data-id="${escapeAttr(String(e.id))}">${IC.rotateCcw} Renovar</button>` : ""}
+      ${contract.applies && isFixedTermContractType(e.contractType) ? `<button type="button" class="btn btn-sm btn-outline" data-action="non-renew-employee-contract" data-id="${escapeAttr(String(e.id))}">${IC.mail} No renovar</button>` : ""}
       <button type="button" class="btn btn-sm btn-outline" data-action="employee-generate-contract" data-id="${escapeAttr(String(e.id))}">${IC.file} Contrato</button>
       ${hrAdminDeletes ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-employee" data-id="${escapeAttr(String(e.id))}" title="Eliminar colaborador">${IC.trash}</button>` : ""}
     </footer>
@@ -6716,6 +6722,10 @@ function renderPayrollEmployeeDirectoryTableRow(item, hrAdminDeletes) {
     contract.applies &&
     isFixedTermContractType(e.contractType) &&
     (contract.statusSlug === "notice_window" || contract.statusSlug === "expired" || contract.statusSlug === "active");
+  const canNonRenew =
+    contract.applies &&
+    isFixedTermContractType(e.contractType) &&
+    (contract.statusSlug === "notice_window" || contract.statusSlug === "expired" || contract.statusSlug === "active");
   return `<tr class="payroll-employee-table-row payroll-employee-table-row--${escapeAttr(statusSlug)}" data-employee-id="${escapeAttr(String(e.id || ""))}" data-employee-search="${escapeAttr(item.searchBlob)}" data-employee-contract-filter="${escapeAttr(contract.applies ? contract.statusSlug : "all")}">
     <td class="payroll-employee-table-cell-main">
       <div class="hiring-table-primary"><strong>${escapeHtml(String(e.name || "Colaborador"))}</strong><span class="muted">${escapeHtml(docLine)}</span></div>
@@ -6724,12 +6734,14 @@ function renderPayrollEmployeeDirectoryTableRow(item, hrAdminDeletes) {
     <td>${fmtDateOr(e.startDate, "—")}</td>
     <td>${isFixedTermContractType(e.contractType) ? fmtDateOr(e.contractVigenteStartDate || e.startDate, "—") : "—"}</td>
     <td>${isFixedTermContractType(e.contractType) ? fmtDateOr(e.renewalDate, "—") : "—"}</td>
+    <td>${isFixedTermContractType(e.contractType) ? fmtDateOr(e.nonRenewalNoticeDate, "—") : "—"}</td>
     <td>${contract.applies ? fmtDateOr(contract.endYmd || e.contractEndDate, "—") : "—"}</td>
     <td><span class="payroll-emp-contract-status payroll-emp-contract-status--${escapeAttr(statusTone)}">${escapeHtml(statusLabel)}</span></td>
     <td class="payroll-employee-table-cell-actions"><div class="toolbar hiring-table-actions">
       <button type="button" class="btn btn-sm btn-outline" data-action="view-employee" data-id="${escapeAttr(String(e.id))}" title="Perfil">${IC.eye}</button>
       <button type="button" class="btn btn-sm btn-action" data-action="edit-employee" data-id="${escapeAttr(String(e.id))}" title="Editar">${IC.edit}</button>
       ${canRenew ? `<button type="button" class="btn btn-sm btn-action" data-action="renew-employee-contract" data-id="${escapeAttr(String(e.id))}" title="Renovar contrato">${IC.rotateCcw} Renovar</button>` : ""}
+      ${canNonRenew ? `<button type="button" class="btn btn-sm btn-outline" data-action="non-renew-employee-contract" data-id="${escapeAttr(String(e.id))}" title="Carta de no renovación (CST art. 47)">${IC.mail} No renovar</button>` : ""}
       <button type="button" class="btn btn-sm btn-outline" data-action="employee-generate-contract" data-id="${escapeAttr(String(e.id))}" title="Contrato Word">${IC.download}</button>
       ${hrAdminDeletes ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-employee" data-id="${escapeAttr(String(e.id))}" title="Eliminar">${IC.trash}</button>` : ""}
     </div></td>
@@ -11872,6 +11884,7 @@ function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = 
         ? contractVigenteStartDateYmd || startDateYmd
         : "",
       renewalDate: normalizePortalDateYmd(raw.renewalDate),
+      nonRenewalNoticeDate: normalizePortalDateYmd(raw.nonRenewalNoticeDate),
       license: String(raw.license || "").trim(),
       licenseExpiry: normalizePortalDateYmd(raw.licenseExpiry),
       occupationalExamDate: normalizePortalDateYmd(raw.occupationalExamDate),
@@ -12048,6 +12061,11 @@ function buildEmployeePayrollProfileBodyHtml(emp) {
       ${
         isFixedTermContractType(e.contractType)
           ? employeeProfileKvRow("Fecha renovación", e.renewalDate || "—")
+          : ""
+      }
+      ${
+        isFixedTermContractType(e.contractType)
+          ? employeeProfileKvRow("Aviso no renovación enviado", e.nonRenewalNoticeDate || "—")
           : ""
       }
       ${employeeProfileKvRow("Fecha fin contrato", e.contractEndDate)}

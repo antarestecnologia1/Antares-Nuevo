@@ -27,6 +27,7 @@ CREATE TABLE empleados_nomina (
   fecha_ingreso               DATE NOT NULL,
   fecha_inicio_contrato_vigente DATE,
   fecha_renovacion            DATE,
+  fecha_aviso_no_renovacion   DATE,
   salario_base                NUMERIC(14,2) NOT NULL CHECK (salario_base >= 0),
   auxilio_transporte          NUMERIC(14,2),
   periodicidad_pago           VARCHAR(64),
@@ -79,6 +80,8 @@ COMMENT ON COLUMN empleados_nomina.fecha_inicio_contrato_vigente IS
   'Inicio del contrato fijo o renovación vigente; fecha fin = esta fecha + plazo. Antigüedad en fecha_ingreso.';
 COMMENT ON COLUMN empleados_nomina.fecha_renovacion IS
   'Fecha en que RH formalizó la última renovación del contrato a término fijo (firma o acta). No modifica fecha_ingreso.';
+COMMENT ON COLUMN empleados_nomina.fecha_aviso_no_renovacion IS
+  'Fecha del aviso escrito de no renovación al trabajador (CST art. 47; mínimo 30 días antes del vencimiento).';
 
 CREATE TABLE liquidaciones_nomina (
   id                              UUID PRIMARY KEY DEFAULT gen_random_uuid(),

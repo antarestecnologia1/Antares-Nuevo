@@ -195,8 +195,8 @@
             </button>
           </td>
           <td>
-            <span class="dash-trip-client">${escapeHtml(String(r.clientName || "—"))}</span>
-            <span class="dash-trip-route muted">${escapeHtml(formatRoute(r))}</span>
+            <span class="dash-trip-client" title="${escapeAttr(String(r.clientName || "—"))}">${escapeHtml(String(r.clientName || "—"))}</span>
+            <span class="dash-trip-route muted" title="${escapeAttr(formatRoute(r))}">${escapeHtml(formatRoute(r))}</span>
           </td>
           <td>${dashStatusPill(r.status)}</td>
           <td class="dash-trip-eta">
@@ -347,7 +347,11 @@
       );
     }
     const rows = items
-      .filter((item) => Number.parseInt(String(item.value), 10) > 0 || ["Sin novedad", "Notificaciones"].includes(item.label))
+      .filter(
+        (item) =>
+          (Number.parseInt(String(item.value), 10) > 0 || ["Sin novedad", "Notificaciones"].includes(item.label)) &&
+          item.label !== "Con retraso"
+      )
       .map((item) => {
         const mod = item.tone ? ` dash-pulse-item--${item.tone}` : "";
         return `<li class="dash-pulse-item${mod}">
@@ -361,20 +365,14 @@
       ? `<p>Sus indicadores reflejan solo las solicitudes de su empresa.</p>`
       : `<p>Actualizado ${escapeHtml(fmtTimeOnly(snap.generatedAt) || "ahora")} · hora Colombia</p>`;
 
-    const complianceTone = snap.compliancePct >= 80 ? "ok" : snap.compliancePct >= 50 ? "warn" : "alert";
-
     return `<aside class="dash-panel dash-panel--pulse" aria-label="Pulso operativo del día">
       <header class="dash-panel__head">
         <div>
           <h3>Pulso operativo</h3>
-          <p>Desglose del día</p>
+          <p>Desglose complementario del día</p>
         </div>
       </header>
       <ul class="dash-pulse-list">${rows}</ul>
-      <div class="dash-metrics-rings dash-metrics-rings--compact">
-        ${dashBuildRing(snap.compliancePct, "Cumplimiento", complianceTone)}
-        ${!isPortalClientUser(user) ? dashBuildRing(snap.fleetUtilPct, "Utilización flota", "") : ""}
-      </div>
       <footer class="dash-pulse-foot">${foot}</footer>
     </aside>`;
   }
@@ -394,7 +392,7 @@
         const tone = dashRequestOutcomeTone(r.status);
         return `<li class="dash-activity-item dash-activity-item--${tone}">
           <time class="dash-activity-time">${escapeHtml(when)}</time>
-          <button type="button" class="dash-activity-link" data-action="detail" data-id="${escapeAttr(r.id)}">
+          <button type="button" class="dash-activity-link" data-action="detail" data-id="${escapeAttr(r.id)}" title="${escapeAttr(`${r.requestNumber || r.id} · ${r.clientName || "Cliente"} · ${formatRoute(r)}`)}">
             <strong>${escapeHtml(String(r.requestNumber || r.id))}</strong>
             <span>${escapeHtml(String(r.clientName || "Cliente"))} · ${escapeHtml(formatRoute(r))}</span>
           </button>
