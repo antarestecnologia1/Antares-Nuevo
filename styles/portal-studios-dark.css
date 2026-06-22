@@ -5,12 +5,42 @@
 
 /* —— Tokens de superficie compartidos —— */
 body[data-theme="dark"] .dashboard-studio {
-  --dash-surface: rgba(15, 28, 46, 0.65);
+  --dash-ink: #e8f2ff;
+  --dash-muted: #94a3b8;
+  --dash-line: rgba(148, 196, 255, 0.1);
+  --dash-line-strong: rgba(148, 196, 255, 0.18);
+  --dash-surface: rgba(12, 24, 40, 0.55);
   --dash-card: rgba(15, 28, 46, 0.92);
-  --dash-edge: rgba(148, 196, 255, 0.14);
-  --dash-edge-strong: rgba(148, 196, 255, 0.22);
-  --dash-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
-  --dash-shadow-sm: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+body[data-theme="dark"] .dashboard-studio .dash-alert--ok {
+  background: rgba(22, 163, 74, 0.14);
+  color: #86efac;
+  border-color: rgba(34, 197, 94, 0.25);
+}
+
+body[data-theme="dark"] .dashboard-studio .dash-alert--warn {
+  background: rgba(234, 88, 12, 0.12);
+  border-color: rgba(251, 146, 60, 0.35);
+  color: #fdba74;
+}
+
+body[data-theme="dark"] .dashboard-studio .dash-alert--alert {
+  background: rgba(220, 38, 38, 0.12);
+  border-color: rgba(248, 113, 113, 0.35);
+  color: #fca5a5;
+}
+
+body[data-theme="dark"] .dashboard-studio .dash-vehicle__head {
+  background: rgba(12, 24, 40, 0.45);
+}
+
+body[data-theme="dark"] .dashboard-studio .dash-vehicle__table th {
+  background: rgba(12, 24, 40, 0.35);
+}
+
+body[data-theme="dark"] .dashboard-studio .dash-client-stat {
+  background: rgba(12, 24, 40, 0.45);
 }
 
 body[data-theme="dark"] .requests-studio {

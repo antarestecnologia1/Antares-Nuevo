@@ -24,6 +24,7 @@ import {
 import { state, nodes } from "./store.js";
 import { devError, devWarn } from "./utils.js";
 import { notify, userMessage } from "../ui/modals.js";
+import { buildDashboardHeaderKpiCards } from "../domain/dashboard.domain.js";
 
 const W = /** @type {Record<string, unknown>} */ (typeof window !== "undefined" ? window : {});
 
@@ -375,8 +376,11 @@ export function renderPortal() {
 }
 
 export function buildHeaderKpiCardsForView(view, user) {
-  void view;
-  void user;
+  if (!user) return [];
+  if (String(view || "") === "dashboard") {
+    const icons = W.IC && typeof W.IC === "object" ? W.IC : {};
+    return buildDashboardHeaderKpiCards(user, icons);
+  }
   return [];
 }
 

@@ -6,19 +6,6 @@
 (function registerDashboardPortalModule() {
   "use strict";
 
-  function dashMinuteOfDayColombia(isoValue) {
-    const ts = new Date(isoValue).getTime();
-    if (!Number.isFinite(ts)) return null;
-    const p = getColombiaDateParts(new Date(ts));
-    return parseInt(p.hour, 10) * 60 + parseInt(p.minute, 10);
-  }
-
-  function dashTimelinePct(isoValue) {
-    const minutes = dashMinuteOfDayColombia(isoValue);
-    if (minutes == null) return null;
-    return Math.min(100, Math.max(0, (minutes / 1439) * 100));
-  }
-
   function dashRequestOutcomeTone(status) {
     const key = slugStatus(status);
     if (["completada", "cerrada"].includes(key)) return "ok";
@@ -28,115 +15,145 @@
     return "neutral";
   }
 
-  function dashBuildTimelineHtml(trips) {
-    const hourMarks = [0, 6, 12, 18, 23]
-      .map((h) => {
-        const label = h === 0 ? "12 AM" : h === 12 ? "12 PM" : h < 12 ? `${h} AM` : `${h - 12} PM`;
-        return `<span style="left:${(h / 23) * 100}%">${label}</span>`;
-      })
-      .join("");
-    const markers = [];
-    (trips || []).forEach((request) => {
-      const pickupPct = dashTimelinePct(request?.trip?.etaPickup || request?.pickupAt);
-      const deliveryPct = dashTimelinePct(request?.trip?.etaDelivery || request?.deliveryAt);
-      const tone = dashRequestOutcomeTone(request?.status);
-      if (pickupPct != null) {
-        markers.push(
-          `<span class="ops-dash-tl-marker ops-dash-tl-marker--start" style="left:${pickupPct}%" title="Recogida ${escapeAttr(request.requestNumber || "")}">${IC.mapPin}</span>`
-        );
-      }
-      if (deliveryPct != null) {
-        markers.push(
-          `<span class="ops-dash-tl-marker ops-dash-tl-marker--${tone}" style="left:${deliveryPct}%" title="Entrega ${escapeAttr(request.requestNumber || "")}">${IC.package}</span>`
-        );
-      }
-    });
-    const nowPct = dashTimelinePct(colombiaNowIso());
-    const nowMarker =
-      nowPct != null
-        ? `<span class="ops-dash-tl-marker ops-dash-tl-marker--now" style="left:${nowPct}%" title="Ahora">${IC.activity}</span>`
-        : "";
-    return `<div class="ops-dash-timeline" aria-hidden="true">
-    <div class="ops-dash-tl-track">${markers.join("")}${nowMarker}<i class="ops-dash-tl-progress"></i></div>
-    <div class="ops-dash-tl-hours">${hourMarks}</div>
-  </div>`;
-  }
-
-  function dashBuildVehicleCard(group, vehicleById) {
-    const vehicleId = String(group.vehicleId || "");
-    const vehicle = vehicleById.get(vehicleId) || {};
-    const plate = String(group.plate || vehicle.plate || "Sin placa").trim();
+  function dashBuildVehicleCard(group) {
+    const plate = String(group.plate || "Sin placa").trim();
     const driver = String(group.driverName || "Sin conductor").trim();
     const trips = group.trips || [];
-    const assigned = trips.length;
     const completed = trips.filter((r) => [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status)).length;
-    const okCount = trips.filter((r) => dashRequestOutcomeTone(r.status) === "ok").length;
-    const warnCount = trips.filter((r) => dashRequestOutcomeTone(r.status) === "warn").length;
-    const failCount = trips.filter((r) => dashRequestOutcomeTone(r.status) === "fail").length;
     const liveCount = trips.filter((r) => dashRequestOutcomeTone(r.status) === "live").length;
-    const totalValue = trips.reduce((acc, r) => acc + parseNum(r.tripValue || r.insuredValue || 0), 0);
-    const cardStatus = liveCount ? "en-ruta" : completed === assigned && assigned ? "cerrado" : assigned ? "programado" : "libre";
+    const cardStatus = liveCount ? "en-ruta" : completed === trips.length && trips.length ? "cerrado" : trips.length ? "programado" : "libre";
     const statusLabel =
-      cardStatus === "en-ruta" ? "En ruta" : cardStatus === "cerrado" ? "Cerrado hoy" : cardStatus === "programado" ? "Programado" : "Sin viaje";
+      cardStatus === "en-ruta" ? "En ruta" : cardStatus === "cerrado" ? "Cerrado" : cardStatus === "programado" ? "Programado" : "Libre";
     const rows = trips
       .map((r) => {
-        const arrival = fmtTimeOnly(r.trip?.etaPickup || r.pickupAt);
         const delivery = fmtTimeOnly(r.deliveredAt || r.trip?.etaDelivery || r.deliveryAt);
-        const recaudo = parseNum(r.tripValue || r.insuredValue || 0);
         return `<tr>
-        <td><strong>${escapeHtml(String(r.requestNumber || r.id))}</strong></td>
+        <td><button type="button" class="dash-trip-link" data-action="detail" data-id="${escapeAttr(r.id)}">${escapeHtml(String(r.requestNumber || r.id))}</button></td>
         <td>${escapeHtml(String(r.clientName || "—"))}<br><span class="muted">${escapeHtml(formatRoute(r))}</span></td>
-        <td>${arrival}</td>
-        <td>${delivery}</td>
         <td>${prettyStatus(r.status, "request")}</td>
-        <td><span class="muted">${escapeHtml(String(r.cancellationReason || r.rejectionReason || "—"))}</span></td>
-        <td>${recaudo > 0 ? `$${recaudo.toLocaleString("es-CO")}` : "—"}</td>
-        <td><span class="muted">${escapeHtml(String(r.notes || "—").slice(0, 80))}</span></td>
+        <td>${delivery}</td>
       </tr>`;
       })
       .join("");
     const table = rows
-      ? `<div class="table-wrap ops-dash-table-wrap"><table><thead><tr>
-        <th>Solicitud</th><th>Cliente / ruta</th><th>Recogida</th><th>Entrega</th><th>Estado</th><th>Motivo</th><th>Valor</th><th>Notas</th>
+      ? `<div class="dash-vehicle__table-wrap"><table class="dash-vehicle__table"><thead><tr>
+        <th>Solicitud</th><th>Cliente / ruta</th><th>Estado</th><th>Entrega</th>
       </tr></thead><tbody>${rows}</tbody></table></div>`
-      : emptyState("Sin solicitudes en este vehículo hoy.");
+      : `<p class="muted" style="padding:0.75rem 0.85rem;margin:0;font-size:0.82rem">Sin viajes en este vehículo.</p>`;
     const searchBlob = [plate, driver, ...trips.map((r) => `${r.requestNumber} ${r.clientName} ${formatRoute(r)}`)].join(" ");
-    return `<article class="ops-dash-vehicle-card" data-plate="${escapeAttr(plate)}" data-driver="${escapeAttr(driver)}" data-status="${escapeAttr(cardStatus)}" data-search="${escapeAttr(searchBlob)}">
-    <header class="ops-dash-vehicle-head">
-      <div class="ops-dash-vehicle-meta">
-        <span class="ops-dash-chip">${IC.truck}<strong>${escapeHtml(plate)}</strong></span>
-        <span class="ops-dash-chip">${IC.user}<span>${escapeHtml(driver)}</span></span>
-        <span class="ops-dash-chip">${IC.briefcase}<span>$${totalValue.toLocaleString("es-CO")}</span></span>
-      </div>
-      <span class="ops-dash-vehicle-status ops-dash-vehicle-status--${cardStatus}">${IC.compass}<span>${statusLabel}</span></span>
+    return `<article class="dash-vehicle" data-plate="${escapeAttr(plate)}" data-driver="${escapeAttr(driver)}" data-status="${escapeAttr(cardStatus)}" data-search="${escapeAttr(searchBlob)}">
+    <header class="dash-vehicle__head">
+      <div class="dash-vehicle__id"><strong>${escapeHtml(plate)}</strong><span>${escapeHtml(driver)} · ${trips.length} viaje${trips.length === 1 ? "" : "s"}</span></div>
+      <span class="dash-vehicle__badge dash-vehicle__badge--${cardStatus}">${escapeHtml(statusLabel)}</span>
     </header>
-    <div class="ops-dash-vehicle-summary">
-      <div>
-        <strong>${assigned}</strong><span>Viajes hoy</span>
-        <strong>${completed}</strong><span>Cumplidos</span>
-      </div>
-      <div class="ops-dash-mini-bars">
-        ${okCount ? `<span class="ops-dash-mini-bar ops-dash-mini-bar--ok" style="flex:${okCount}">${okCount} OK</span>` : ""}
-        ${warnCount ? `<span class="ops-dash-mini-bar ops-dash-mini-bar--warn" style="flex:${warnCount}">${warnCount} Standby</span>` : ""}
-        ${failCount ? `<span class="ops-dash-mini-bar ops-dash-mini-bar--fail" style="flex:${failCount}">${failCount} Incid.</span>` : ""}
-        ${liveCount && !okCount && !warnCount && !failCount ? `<span class="ops-dash-mini-bar ops-dash-mini-bar--live" style="flex:${liveCount}">${liveCount} En curso</span>` : ""}
-      </div>
-    </div>
-    ${dashBuildTimelineHtml(trips)}
     ${table}
-    <footer class="ops-dash-vehicle-foot">
-      <button type="button" class="btn btn-sm btn-action" data-action="detail" data-id="${escapeAttr(trips[0]?.id || "")}" ${trips[0]?.id ? "" : "disabled"}>${IC.eye} Ver solicitud</button>
-    </footer>
   </article>`;
+  }
+
+  function dashBuildAlerts(items) {
+    const attention = (items || []).filter((item) => Number(item?.value) > 0).slice(0, 4);
+    if (!attention.length) {
+      return `<p class="dash-alert dash-alert--ok" role="status">${IC.check} Operación al día</p>`;
+    }
+    return attention
+      .map((item) => {
+        const tone = item?.tone === "alert" ? "alert" : "warn";
+        const target = String(item?.targetView || "").trim();
+        const title = item?.help ? ` title="${escapeAttr(String(item.help))}"` : "";
+        return `<button type="button" class="dash-alert dash-alert--${tone}" data-action="dash-attention-nav" data-target-view="${escapeAttr(target)}"${title}><strong>${escapeHtml(String(item.value))}</strong> ${escapeHtml(String(item.label || ""))}</button>`;
+      })
+      .join("");
+  }
+
+  function dashBuildHeroNav(user) {
+    const links = [];
+    if (isViewAllowedForUser(user, "transport-trips")) {
+      links.push({ view: "transport-trips", label: "Asignar viajes" });
+    } else if (isViewAllowedForUser(user, "requests")) {
+      links.push({ view: "requests", label: "Mis solicitudes" });
+    }
+    if (isViewAllowedForUser(user, "reports")) links.push({ view: "reports", label: "Informes" });
+    else if (isViewAllowedForUser(user, "history")) links.push({ view: "history", label: "Historial" });
+    if (canAccessAuthorizationsView?.(user) && isViewAllowedForUser(user, "authorizations")) {
+      links.push({ view: "authorizations", label: "Autorizaciones" });
+    }
+    if (!links.length) return "";
+    return links
+      .map(
+        (l) =>
+          `<button type="button" class="dash-hero__link" data-action="dash-nav" data-target-view="${escapeAttr(l.view)}">${escapeHtml(l.label)}</button>`
+      )
+      .join("");
+  }
+
+  function dashBuildPulsePanel(snap, user) {
+    if (!snap) return "";
+    const items = [
+      {
+        label: "Cumplimiento de entregas",
+        value: `${snap.compliancePct}%`,
+        bar: snap.compliancePct,
+        tone: snap.compliancePct >= 80 ? "" : snap.compliancePct >= 50 ? "warn" : "alert"
+      },
+      { label: "Sin novedad", value: String(snap.okDeliveries), tone: "" },
+      { label: "Con incidencia", value: String(snap.issueDeliveries), tone: snap.issueDeliveries ? "warn" : "" },
+      { label: "En standby", value: String(snap.standbyToday), tone: snap.standbyToday ? "warn" : "" },
+      { label: "Con retraso", value: String(snap.delayedToday), tone: snap.delayedToday ? "alert" : "" }
+    ];
+    if (!isPortalClientUser(user)) {
+      items.push(
+        { label: "Utilización flota", value: `${snap.fleetUtilPct}%`, tone: "" },
+        { label: "Pendientes de asignar", value: String(snap.pendingAssignment), tone: snap.pendingAssignment ? "warn" : "" },
+        { label: "Alertas documentales", value: String(snap.docRisk), tone: snap.docRisk ? "warn" : "" }
+      );
+    }
+    const rows = items
+      .filter((item) => item.bar != null || Number.parseInt(String(item.value), 10) > 0 || String(item.label).includes("Utilización"))
+      .map((item) => {
+        const mod = item.tone ? ` dash-pulse-item--${item.tone}` : "";
+        const bar =
+          item.bar != null
+            ? `<div class="dash-pulse-item__bar" aria-hidden="true"><i style="width:${Math.min(100, Math.max(0, item.bar))}%"></i></div>`
+            : "";
+        return `<li class="dash-pulse-item${mod}"><span class="dash-pulse-item__label">${escapeHtml(item.label)}</span><span class="dash-pulse-item__value">${escapeHtml(item.value)}</span>${bar}</li>`;
+      })
+      .join("");
+  const foot = isPortalClientUser(user)
+      ? `<p>Sus indicadores reflejan solo las solicitudes de su empresa.</p>`
+      : `<p>Indicadores complementarios a las tarjetas del encabezado.</p>`;
+    return `<aside class="dash-panel dash-panel--pulse" aria-label="Pulso operativo del día">
+    <header class="dash-panel__head"><div><h3>Pulso del día</h3><p>Indicadores de seguimiento</p></div></header>
+    <ul class="dash-pulse-list">${rows}</ul>
+    <footer class="dash-pulse-foot">${foot}</footer>
+  </aside>`;
+  }
+
+  function dashBuildClientPanel(list, user) {
+    const pending = list.filter((r) => r.status === STATUS.PENDIENTE).length;
+    const active = list.filter((r) => r.trip && tripRequestStatusIsOperational(r.status)).length;
+    const done = list.filter((r) => [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status)).length;
+    const cta = isViewAllowedForUser(user, "requests")
+      ? `<footer class="dash-pulse-foot"><button type="button" class="btn btn-primary btn-sm" data-action="dash-nav" data-target-view="requests">${IC.plus || ""} Nueva solicitud</button></footer>`
+      : "";
+    return `<section class="dash-panel dash-panel--client">
+    <header class="dash-panel__head"><div><h3>Mi operación</h3><p>Resumen de sus solicitudes de transporte</p></div></header>
+    <dl class="dash-client-grid">
+      <div class="dash-client-stat"><dt>Activas</dt><dd>${active}</dd></div>
+      <div class="dash-client-stat"><dt>En revisión</dt><dd>${pending}</dd></div>
+      <div class="dash-client-stat"><dt>Completadas</dt><dd>${done}</dd></div>
+      <div class="dash-client-stat"><dt>Total</dt><dd>${list.length}</dd></div>
+    </dl>
+    ${cta}
+  </section>`;
   }
 
   function bindDashboardControls() {
     if (String(state.currentView || "") !== "dashboard" || !nodes.viewRoot) return;
-    const root = nodes.viewRoot.querySelector(".ops-dash");
+    const root = nodes.viewRoot.querySelector(".dashboard-studio");
     if (!root) return;
     const search = root.querySelector("#dash-search");
     const filter = root.querySelector("#dash-filter");
-    const cards = [...root.querySelectorAll(".ops-dash-vehicle-card")];
+    const cards = [...root.querySelectorAll(".dash-vehicle")];
     const countEl = root.querySelector("#dash-fleet-count");
     const apply = () => {
       const q = String(search?.value || "").trim().toLowerCase();
@@ -158,7 +175,7 @@
     search?.addEventListener("input", apply);
     filter?.addEventListener("change", apply);
     apply();
-    root.querySelectorAll("[data-action='dash-nav']").forEach((btn) => {
+    root.querySelectorAll("[data-action='dash-nav'], [data-action='dash-attention-nav']").forEach((btn) => {
       btn.addEventListener("click", () => {
         const target = String(btn.dataset.targetView || "").trim();
         if (target) setView(target);
@@ -169,94 +186,34 @@
   function viewDashboard() {
     const user = currentUser();
     const list = getVisibleRequestsForUser(user);
-    const dashKpis =
-      typeof AntaresDashboardDomain !== "undefined" && typeof AntaresDashboardDomain.computeDashboardKpis === "function"
-        ? AntaresDashboardDomain.computeDashboardKpis()
-        : null;
-    const byThermoking = {};
-    list.forEach((r) => {
-      const key = requestTermokingClientLabel(r);
-      byThermoking[key] = (byThermoking[key] || 0) + 1;
-    });
-    const thermokingColors = {
-      "Con Termoking": "#0EA5E9",
-      "Sin Termoking": "#94A3B8",
-      "—": "#CBD5E1"
-    };
-    const vehicleStats = Object.entries(byThermoking)
-      .map(([k, v]) => `<div class="dash-stat-row"><div class="dash-stat-label"><span class="dash-stat-dot" style="background:${thermokingColors[k] || "#94A3B8"}"></span>${k}</div><div class="dash-stat-value">${v}</div></div>`)
-      .join("");
+    const DD = typeof AntaresDashboardDomain !== "undefined" ? AntaresDashboardDomain : null;
+    const snap = DD?.computeTodayOperationsSnapshot ? DD.computeTodayOperationsSnapshot(user) : null;
+    const attentionItems = DD?.computeDashboardAttentionItems ? DD.computeDashboardAttentionItems(user) : [];
+    const scopeBar = isPortalClientUser(user) ? clientDataScopeBarHtml(getClientDataScope()) : "";
+    const longDate = formatColombiaLongDate(new Date());
+    const displayName = getPortalUserDisplayName(user) || user?.name || "Operador";
+    const firstName = escapeHtml(String(displayName).trim().split(/\s+/)[0] || displayName);
 
-    const byStatus = {};
-    list.forEach((r) => {
-      byStatus[r.status] = (byStatus[r.status] || 0) + 1;
-    });
-    const statusStats = Object.entries(byStatus)
-      .map(([k, v]) => `<div class="dash-stat-row"><div class="dash-stat-label">${prettyStatus(k)}</div><div class="dash-stat-value">${v}</div></div>`)
-      .join("");
+    const hero = `<header class="dash-hero">
+      <div class="dash-hero__main">
+        <p class="dash-hero__eyebrow">Dashboard operativo</p>
+        <h2>Buenos días, ${firstName}</h2>
+        <p class="dash-hero__meta">${escapeHtml(longDate)}</p>
+      </div>
+      <nav class="dash-hero__nav" aria-label="Accesos">${dashBuildHeroNav(user)}</nav>
+      <div class="dash-hero__alerts">${dashBuildAlerts(attentionItems)}</div>
+    </header>`;
 
-    const users =
-      user?.role === ROLES.CLIENT
-        ? read(KEYS.users, []).filter((u) => u.companyId === user.companyId)
-        : read(KEYS.users, []);
-    const drivers =
-      user?.role === ROLES.CLIENT
-        ? read(KEYS.drivers, []).filter((d) => d.companyId === user.companyId)
-        : read(KEYS.drivers, []);
-    const vehicles =
-      user?.role === ROLES.CLIENT
-        ? read(KEYS.vehicles, []).filter((vehicle) => {
-            const companyTrips = list.filter((request) => request.trip?.vehicleId === vehicle.id);
-            return companyTrips.length > 0;
-          })
-        : read(KEYS.vehicles, []);
-    const avg = (rows) => (rows.length ? Math.round(rows.reduce((acc, val) => acc + val, 0) / rows.length) : 0);
-    const userQuality = avg(
-      users.map((u) => {
-        const required = ["name", "email", "documentType", "taxId", "phone", "city", "address", "companyId"];
-        const done = required.filter((field) => String(u[field] ?? "").trim() !== "").length;
-        return Math.round((done / required.length) * 100);
-      })
-    );
-    const driverQuality = avg(
-      drivers.map((d) => {
-        const required = ["name", "documentType", "idDoc", "phone", "license", "licenseExpiry", "licenseCategory", "city", "companyId"];
-        const done = required.filter((field) => String(d[field] ?? "").trim() !== "").length;
-        return Math.round((done / required.length) * 100);
-      })
-    );
-    const vehicleQuality = avg(
-      vehicles.map((v) => {
-        const required = ["plate", "brand", "model", "year", "type", "capacityKg", "mileageKm", "soatExpeditionDate", "techInspectionExpeditionDate"];
-        const done = required.filter((field) => String(v[field] ?? "").trim() !== "").length;
-        return Math.round((done / required.length) * 100);
-      })
-    );
-    const qualityBody = `
-    <div class="quality-row"><span>Usuarios</span><div class="quality-bar"><i style="width:${userQuality}%"></i></div><b>${userQuality}%</b></div>
-    <div class="quality-row"><span>Conductores</span><div class="quality-bar"><i style="width:${driverQuality}%"></i></div><b>${driverQuality}%</b></div>
-    <div class="quality-row"><span>Vehiculos</span><div class="quality-bar"><i style="width:${vehicleQuality}%"></i></div><b>${vehicleQuality}%</b></div>
-  `;
+    if (isPortalClientUser(user)) {
+      return `${scopeBar}<section class="dashboard-studio">${hero}${dashBuildClientPanel(list, user)}</section>`;
+    }
 
-    const qualityCard = user?.role === ROLES.CLIENT ? "" : pcardWrap("shield", "Calidad de datos", "Completitud de registros", qualityBody);
-
-    const todayIso = colombiaTodayIsoDate();
+    const todayIso = snap?.todayIso || colombiaTodayIsoDate();
     const todayTrips = list.filter((r) => {
       const pickupDay = requestPickupIsoDate(r);
       if (pickupDay === todayIso) return true;
       return r.trip && tripRequestStatusIsOperational(r.status);
     });
-    const activeTrips = todayTrips.filter((r) => r.trip && tripRequestStatusIsOperational(r.status));
-    const vehicleIdsEnRuta = new Set(activeTrips.map((r) => String(r.trip?.vehicleId || "").trim()).filter(Boolean));
-    const assignedToday = todayTrips.filter((r) => r.trip).length;
-    const completedToday = todayTrips.filter((r) => [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status)).length;
-    const compliancePct = assignedToday ? Math.round((completedToday / assignedToday) * 100) : 0;
-    const okDeliveries = todayTrips.filter((r) => dashRequestOutcomeTone(r.status) === "ok").length;
-    const issueDeliveries = todayTrips.filter((r) => ["fail", "warn"].includes(dashRequestOutcomeTone(r.status))).length;
-    const deliveryBarPct = assignedToday ? Math.round((okDeliveries / assignedToday) * 100) : 0;
-
-    const allVehicles = read(KEYS.vehicles, []);
-    const vehicleById = new Map(allVehicles.map((v) => [String(v.id), v]));
     const groups = new Map();
     todayTrips
       .filter((r) => r.trip?.vehicleId)
@@ -274,92 +231,36 @@
       });
     const fleetCards = [...groups.values()]
       .sort((a, b) => String(a.plate).localeCompare(String(b.plate), "es"))
-      .map((g) => dashBuildVehicleCard(g, vehicleById))
+      .map((g) => dashBuildVehicleCard(g))
       .join("");
+    const fleetEmpty = fleetCards || `<div class="dash-empty"><p>No hay vehículos con viajes para hoy.</p><p class="muted" style="margin-top:0.35rem;font-size:0.82rem">Asigne rutas desde Transporte · Viajes.</p></div>`;
 
-    const scopeBar = isPortalClientUser(user) ? clientDataScopeBarHtml(getClientDataScope()) : "";
-    const canTrips = isViewAllowedForUser(user, "transport-trips");
-    const canReports = isViewAllowedForUser(user, "reports") || isViewAllowedForUser(user, "history");
-    const assignTarget = canTrips ? "transport-trips" : "requests";
-    const reportsTarget = isViewAllowedForUser(user, "reports") ? "reports" : "history";
-    const longDate = formatColombiaLongDate(new Date());
+    const body = `<div class="dash-layout">
+    <section class="dash-panel dash-panel--fleet" aria-label="Flota en operación">
+      <header class="dash-panel__head">
+        <div>
+          <h3>Flota en operación</h3>
+          <p>Vehículos con actividad programada para hoy</p>
+        </div>
+        <div class="dash-panel__tools">
+          <label class="dash-search">${IC.search}<input id="dash-search" type="search" placeholder="Buscar placa o conductor…" autocomplete="off" /></label>
+          <label class="dash-filter">Estado
+            <select id="dash-filter">
+              <option value="all">Todos</option>
+              <option value="en-ruta">En ruta</option>
+              <option value="programado">Programados</option>
+              <option value="cerrado">Cerrados</option>
+            </select>
+          </label>
+          <span class="dash-count" id="dash-fleet-count">${groups.size} vehículos</span>
+        </div>
+      </header>
+      <div class="dash-fleet-list">${fleetEmpty}</div>
+    </section>
+    ${dashBuildPulsePanel(snap, user)}
+  </div>`;
 
-    const opsDash = `<section class="ops-dash" aria-label="Torre de control operativa">
-    <nav class="ops-dash-tabs" aria-label="Accesos rápidos">
-      <button type="button" class="ops-dash-tab is-active" aria-current="page">${IC.truck} Vehículos en ruta</button>
-      <button type="button" class="ops-dash-tab" data-action="dash-nav" data-target-view="${escapeAttr(assignTarget)}">${IC.compass} Asignar rutas</button>
-      <button type="button" class="ops-dash-tab" data-action="dash-nav" data-target-view="${escapeAttr(canReports ? reportsTarget : "requests")}">${IC.file} Informes</button>
-    </nav>
-    <div class="ops-dash-kpis">
-      <div class="ops-dash-kpi ops-dash-kpi--primary">
-        <span class="ops-dash-kpi-value">${vehicleIdsEnRuta.size}</span>
-        <span class="ops-dash-kpi-label">Vehículos en ruta</span>
-        <span class="ops-dash-kpi-date">Hoy, ${escapeHtml(longDate)}</span>
-      </div>
-      <div class="ops-dash-kpi">
-        <span class="ops-dash-kpi-value">${assignedToday}</span>
-        <span class="ops-dash-kpi-label">Viajes asignados hoy</span>
-      </div>
-      <div class="ops-dash-kpi">
-        <span class="ops-dash-kpi-value">${completedToday}</span>
-        <span class="ops-dash-kpi-label">Viajes cumplidos</span>
-      </div>
-      ${
-        dashKpis
-          ? `<div class="ops-dash-kpi ops-dash-kpi--secondary" title="Totales en el sistema">
-        <span class="ops-dash-kpi-value">${dashKpis.activeTrips}</span>
-        <span class="ops-dash-kpi-label">Activos (global)</span>
-      </div>
-      <div class="ops-dash-kpi ops-dash-kpi--secondary" title="Solicitudes pendientes de aprobación">
-        <span class="ops-dash-kpi-value">${dashKpis.pendingRequests}</span>
-        <span class="ops-dash-kpi-label">Pendientes</span>
-      </div>`
-          : ""
-      }
-      <div class="ops-dash-kpi ops-dash-kpi--ring">
-        <div class="ops-dash-ring" style="--pct:${compliancePct}">
-          <svg viewBox="0 0 36 36" aria-hidden="true">
-            <path class="ops-dash-ring-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
-            <path class="ops-dash-ring-fg" stroke-dasharray="${compliancePct}, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
-          </svg>
-          <strong>${compliancePct}%</strong>
-        </div>
-        <span class="ops-dash-kpi-label">Cumplimiento</span>
-      </div>
-      <div class="ops-dash-kpi ops-dash-kpi--bar">
-        <span class="ops-dash-kpi-label">Entregas del día</span>
-        <div class="ops-dash-progress" role="progressbar" aria-valuenow="${deliveryBarPct}" aria-valuemin="0" aria-valuemax="100">
-          <i style="width:${deliveryBarPct}%"></i>
-        </div>
-        <div class="ops-dash-legend">
-          <span class="ops-dash-legend-item ops-dash-legend-item--ok">${okDeliveries} Sin novedad</span>
-          <span class="ops-dash-legend-item ops-dash-legend-item--warn">${issueDeliveries} Con incidencia</span>
-        </div>
-      </div>
-    </div>
-    <div class="ops-dash-toolbar">
-      <label class="ops-dash-search">${IC.search}<input id="dash-search" type="search" placeholder="Buscar vehículo, placa o conductor..." autocomplete="off" /></label>
-      <label class="ops-dash-filter">Filtrar por
-        <select id="dash-filter">
-          <option value="all">Todos</option>
-          <option value="en-ruta">En ruta</option>
-          <option value="programado">Programados</option>
-          <option value="cerrado">Cerrados hoy</option>
-        </select>
-      </label>
-      <span class="ops-dash-fleet-count" id="dash-fleet-count">${groups.size} vehículos</span>
-    </div>
-    <div class="ops-dash-fleet-list">
-      ${fleetCards || emptyState("No hay vehículos con viajes programados para hoy. Asigne rutas desde Transporte · Viajes.")}
-    </div>
-    <div class="dash-grid ops-dash-insights">
-      ${pcardWrap("truck", "Por Termoking", `${list.length} solicitudes`, vehicleStats || emptyState("Sin datos aún"))}
-      ${pcardWrapPro("activity", "Por estado", "Distribución general", statusStats || emptyState("Sin solicitudes aún"))}
-      ${qualityCard}
-    </div>
-  </section>`;
-
-    return `${scopeBar}<section class="dashboard-studio">${opsDash}</section>`;
+    return `${scopeBar}<section class="dashboard-studio">${hero}${body}</section>`;
   }
 
   if (typeof window.registerLegacyPortalViews === "function") {
