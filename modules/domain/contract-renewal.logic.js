@@ -35,13 +35,79 @@ export function isFixedTermContractType(contractType) {
   return String(contractType || "").trim() === "Termino fijo";
 }
 
+function parseContractRenewalDuration(raw) {
+  const text = String(
+    raw?.contractDuration ?? raw?.contractDurationText ?? raw?.duracion_contrato_texto ?? ""
+  ).trim();
+  const mMes = text.match(/^(\d+)\s*mes(es)?\s*$/i);
+  if (mMes) {
+    const n = parseInt(mMes[1], 10);
+    if (Number.isFinite(n) && n >= 1) return { unit: "meses", amount: n };
+  }
+  const mAn = text.match(/^(\d+)\s*(años|anos|año|ano)\s*$/i);
+  if (mAn) {
+    const n = parseInt(mAn[1], 10);
+    if (Number.isFinite(n) && n >= 1) return { unit: "anios", amount: n };
+  }
+  return { unit: "anios", amount: 1 };
+}
+
+function addMonthsToContractRenewalYmd(ymd, months) {
+  const n = normalizeContractRenewalYmd(ymd);
+  if (!n) return "";
+  const p = /^(\d{4})-(\d{2})-(\d{2})$/.exec(n);
+  if (!p) return "";
+  const d = new Date(Number(p[1]), Number(p[2]) - 1, Number(p[3]));
+  if (Number.isNaN(d.getTime())) return "";
+  d.setMonth(d.getMonth() + Math.trunc(months));
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** Fin del plazo contractual a partir del inicio del período y la duración guardada. */
+export function resolveContractEndFromPlazoStartYmd(employee, plazoStartYmd) {
+  const start = normalizeContractRenewalYmd(plazoStartYmd);
+  if (!start) return "";
+  const plazo = parseContractRenewalDuration(employee || {});
+  if (plazo.unit === "meses") return addMonthsToContractRenewalYmd(start, plazo.amount);
+  let cursor = start;
+  for (let i = 0; i < plazo.amount; i += 1) {
+    cursor = addYearsToContractRenewalYmd(cursor, 1);
+    if (!cursor) return "";
+  }
+  return cursor;
+}
+
+/**
+ * Sugiere el inicio del nuevo período: día siguiente al fin del período vigente.
+ * Si el fin ya venció hace varios ciclos (renovaciones no registradas), avanza hasta el período actual.
+ */
 export function suggestRenewalPeriodStartYmd(employee) {
   const e = employee || {};
-  const end = normalizeContractRenewalYmd(e.contractEndDate);
-  if (end) return addDaysToContractRenewalYmd(end, 1);
-  const vigente = normalizeContractRenewalYmd(e.contractVigenteStartDate || e.startDate);
-  if (!vigente) return colombiaTodayIsoDate();
-  return addYearsToContractRenewalYmd(vigente, 1);
+  const today = colombiaTodayIsoDate();
+  const plazoStart =
+    normalizeContractRenewalYmd(e.contractVigenteStartDate) || normalizeContractRenewalYmd(e.startDate);
+  let end = normalizeContractRenewalYmd(e.contractEndDate);
+  if (!end && plazoStart) {
+    end = resolveContractEndFromPlazoStartYmd(e, plazoStart);
+  }
+  if (!end) return today;
+  if (end >= today) return addDaysToContractRenewalYmd(end, 1);
+
+  const nextStart = addDaysToContractRenewalYmd(end, 1);
+  let nextEnd = resolveContractEndFromPlazoStartYmd(e, nextStart);
+  if (!nextEnd) return nextStart;
+  if (nextEnd >= today) return nextStart;
+
+  let cursorEnd = nextEnd;
+  let guard = 0;
+  while (cursorEnd < today && guard < 40) {
+    const cursorStart = addDaysToContractRenewalYmd(cursorEnd, 1);
+    const advanced = resolveContractEndFromPlazoStartYmd(e, cursorStart);
+    if (!advanced || advanced === cursorEnd) break;
+    cursorEnd = advanced;
+    guard += 1;
+  }
+  return addDaysToContractRenewalYmd(cursorEnd, 1);
 }
 
 export function validateContractRenewal(employee, fields) {

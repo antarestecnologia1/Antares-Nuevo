@@ -41,6 +41,17 @@ const emp = {
 
 ok(suggestRenewalPeriodStartYmd(emp) === "2026-01-01", "inicio renovación = día después del fin");
 
+const hireNeverRenewed = {
+  contractType: "Termino fijo",
+  startDate: "2022-08-18",
+  contractDuration: "1 año",
+  contractEndDate: "2023-08-18"
+};
+ok(
+  suggestRenewalPeriodStartYmd(hireNeverRenewed) === "2026-08-22",
+  "contrato vencido sin renovaciones previas → avanza al período actual"
+);
+
 const renewalOk = validateContractRenewal(emp, {
   renewalDate: "2026-01-10",
   contractVigenteStartDate: "2026-01-01",
