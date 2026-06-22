@@ -556,3 +556,904 @@ body[data-theme="dark"] .history-studio .hiring-candidate-card {
   background: rgba(14, 28, 46, 0.92);
   border-color: rgba(148, 196, 255, 0.16);
 }
+
+/* ===================================================================
+   Historial y trazabilidad — Audit Studio (2026)
+   Alcance: .history-studio.hist-trace-shell
+   =================================================================== */
+
+.history-studio.hist-trace-shell {
+  --trace-accent: #4338ca;
+  --trace-accent-soft: rgba(99, 102, 241, 0.1);
+  --trace-accent-border: rgba(99, 102, 241, 0.22);
+  --trace-create: #059669;
+  --trace-create-soft: rgba(5, 150, 105, 0.1);
+  --trace-update: #d97706;
+  --trace-update-soft: rgba(217, 119, 6, 0.1);
+  --trace-delete: #dc2626;
+  --trace-delete-soft: rgba(220, 38, 38, 0.1);
+  --trace-surface: var(--hist-surface, #f4f8fc);
+  --trace-card: var(--hist-card, #fff);
+  --trace-edge: var(--hist-edge, rgba(55, 124, 192, 0.14));
+  --trace-edge-strong: var(--hist-edge-strong, rgba(55, 124, 192, 0.22));
+  --trace-shadow: var(--hist-shadow-sm, 0 6px 20px rgba(11, 33, 56, 0.06));
+  --trace-radius: var(--hist-radius, 18px);
+  --trace-radius-sm: var(--hist-radius-sm, 12px);
+  gap: 1.15rem;
+}
+
+/* ── Hero ── */
+.history-studio.hist-trace-shell .hist-trace-hero {
+  padding: 1.2rem 1.35rem;
+  border-radius: var(--trace-radius);
+  border: 1px solid var(--trace-edge-strong);
+  background:
+    radial-gradient(ellipse 80% 60% at 100% 0%, rgba(99, 102, 241, 0.1), transparent 55%),
+    radial-gradient(ellipse 60% 50% at 0% 100%, rgba(55, 124, 192, 0.08), transparent 50%),
+    var(--trace-card);
+  box-shadow: var(--trace-shadow);
+  position: relative;
+  overflow: hidden;
+}
+
+.history-studio.hist-trace-shell .hist-trace-hero::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #4338ca 0%, #6366f1 50%, #818cf8 100%);
+  opacity: 0.85;
+}
+
+.history-studio.hist-trace-shell .hist-trace-hero__badge {
+  background: var(--trace-accent-soft);
+  border-color: var(--trace-accent-border);
+  color: var(--trace-accent);
+}
+
+.history-studio.hist-trace-shell .hist-trace-hero h2 {
+  font-family: var(--font-display, "Poppins", sans-serif);
+  font-size: clamp(1.3rem, 2.4vw, 1.6rem);
+  font-weight: 750;
+  letter-spacing: -0.03em;
+  color: var(--hist-navy, #0b2138);
+}
+
+.history-studio.hist-trace-shell .hist-trace-hero__lead {
+  font-size: 0.84rem;
+  line-height: 1.55;
+  color: var(--text-soft, #3a5a78);
+  max-width: 36rem;
+}
+
+/* ── KPIs ── */
+.history-studio.hist-trace-shell .hist-trace-kpis {
+  gap: 0.5rem;
+}
+
+.history-studio.hist-trace-shell .hist-trace-kpi {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 6.5rem;
+  padding: 0.55rem 0.8rem;
+  border-radius: var(--trace-radius-sm);
+  border: 1px solid var(--trace-edge);
+  background: var(--trace-surface);
+  box-shadow: 0 1px 3px rgba(11, 33, 56, 0.04);
+  text-align: left;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.history-studio.hist-trace-shell .hist-trace-kpi:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(11, 33, 56, 0.08);
+}
+
+.history-studio.hist-trace-shell .hist-trace-kpi__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 10px;
+  background: var(--trace-accent-soft);
+  color: var(--trace-accent);
+  flex-shrink: 0;
+}
+
+.history-studio.hist-trace-shell .hist-trace-kpi__icon svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.history-studio.hist-trace-shell .hist-trace-kpi__text {
+  min-width: 0;
+}
+
+.history-studio.hist-trace-shell .hist-trace-kpi dt {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-soft, #64748b);
+}
+
+.history-studio.hist-trace-shell .hist-trace-kpi dd {
+  font-size: 1.05rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--hist-navy, #0f3f75);
+}
+
+.history-studio.hist-trace-shell .hist-trace-kpi--ok {
+  border-color: rgba(5, 150, 105, 0.25);
+  background: linear-gradient(180deg, var(--trace-create-soft), var(--trace-surface));
+}
+.history-studio.hist-trace-shell .hist-trace-kpi--ok .hist-trace-kpi__icon {
+  background: var(--trace-create-soft);
+  color: var(--trace-create);
+}
+.history-studio.hist-trace-shell .hist-trace-kpi--ok dd { color: #047857; }
+
+.history-studio.hist-trace-shell .hist-trace-kpi--warn {
+  border-color: rgba(217, 119, 6, 0.28);
+  background: linear-gradient(180deg, var(--trace-update-soft), var(--trace-surface));
+}
+.history-studio.hist-trace-shell .hist-trace-kpi--warn .hist-trace-kpi__icon {
+  background: var(--trace-update-soft);
+  color: var(--trace-update);
+}
+.history-studio.hist-trace-shell .hist-trace-kpi--warn dd { color: #b45309; }
+
+.history-studio.hist-trace-shell .hist-trace-kpi--danger {
+  border-color: rgba(220, 38, 38, 0.25);
+  background: linear-gradient(180deg, var(--trace-delete-soft), var(--trace-surface));
+}
+.history-studio.hist-trace-shell .hist-trace-kpi--danger .hist-trace-kpi__icon {
+  background: var(--trace-delete-soft);
+  color: var(--trace-delete);
+}
+.history-studio.hist-trace-shell .hist-trace-kpi--danger dd { color: #b91c1c; }
+
+.history-studio.hist-trace-shell .hist-trace-kpi--primary .hist-trace-kpi__icon {
+  background: rgba(99, 102, 241, 0.14);
+  color: #4338ca;
+}
+.history-studio.hist-trace-shell .hist-trace-kpi--primary dd { color: #4338ca; }
+
+/* ── Control panel ── */
+.history-studio.hist-trace-shell .hist-trace-control-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border-radius: var(--trace-radius);
+  border: 1px solid var(--trace-edge-strong);
+  background: var(--trace-card);
+  box-shadow: var(--trace-shadow);
+  overflow: hidden;
+}
+
+.history-studio.hist-trace-shell .hist-trace-control-panel__section {
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--trace-edge);
+}
+
+.history-studio.hist-trace-shell .hist-trace-control-panel__section:last-child {
+  border-bottom: none;
+}
+
+.history-studio.hist-trace-shell .hist-trace-control-panel__section--toolbar {
+  padding: 0.75rem 1rem;
+  background: var(--trace-surface);
+}
+
+.history-studio.hist-trace-shell .hist-trace-control-panel__label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-soft, #64748b);
+}
+
+/* ── Action pills ── */
+.history-studio.hist-trace-shell .hist-trace-action-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.history-studio.hist-trace-shell .hist-trace-action-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  padding: 0.42rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--trace-edge);
+  background: var(--trace-surface);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #334155;
+  cursor: pointer;
+  transition: background 0.16s, border-color 0.16s, color 0.16s, box-shadow 0.16s, transform 0.12s;
+}
+
+.history-studio.hist-trace-shell .hist-trace-action-pill:hover {
+  border-color: var(--trace-accent-border);
+  color: var(--trace-accent);
+  transform: translateY(-1px);
+}
+
+.history-studio.hist-trace-shell .hist-trace-action-pill.is-active {
+  background: linear-gradient(135deg, #6366f1, #4338ca);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.32);
+}
+
+.history-studio.hist-trace-shell .hist-trace-action-pill__ico {
+  display: flex;
+  opacity: 0.85;
+}
+
+.history-studio.hist-trace-shell .hist-trace-action-pill__ico svg {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+.history-studio.hist-trace-shell .hist-trace-action-pill__count {
+  min-width: 1.25rem;
+  padding: 0.02rem 0.35rem;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.history-studio.hist-trace-shell .hist-trace-action-pill.is-active .hist-trace-action-pill__count {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+
+.history-studio.hist-trace-shell .hist-trace-action-pill--create.is-active {
+  background: linear-gradient(135deg, #10b981, #059669);
+  box-shadow: 0 4px 16px rgba(5, 150, 105, 0.3);
+}
+
+.history-studio.hist-trace-shell .hist-trace-action-pill--delete.is-active {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  box-shadow: 0 4px 16px rgba(220, 38, 38, 0.28);
+}
+
+.history-studio.hist-trace-shell .hist-trace-action-pill--update.is-active {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  box-shadow: 0 4px 16px rgba(217, 119, 6, 0.28);
+}
+
+/* ── Module chips ── */
+.history-studio.hist-trace-shell .hist-trace-module-filters {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.4rem;
+  overflow-x: auto;
+  padding-bottom: 0.15rem;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+  mask-image: linear-gradient(to right, #000 92%, transparent 100%);
+}
+
+.history-studio.hist-trace-shell .hist-trace-module-chip {
+  border-color: var(--trace-edge);
+  background: var(--trace-surface);
+  font-size: 0.76rem;
+  transition: all 0.16s ease;
+}
+
+.history-studio.hist-trace-shell .hist-trace-module-chip.is-active {
+  background: var(--trace-accent-soft);
+  border-color: var(--trace-accent-border);
+  color: var(--trace-accent);
+  box-shadow: 0 3px 12px rgba(99, 102, 241, 0.15);
+}
+
+/* ── Toolbar ── */
+.history-studio.hist-trace-shell .hist-trace-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.history-studio.hist-trace-shell .hist-trace-search {
+  flex: 1 1 16rem;
+  min-width: min(100%, 14rem);
+  padding: 0.4rem 0.75rem;
+  border-radius: var(--trace-radius-sm);
+  border: 1px solid var(--trace-edge-strong);
+  background: var(--trace-card);
+  box-shadow: inset 0 1px 2px rgba(11, 33, 56, 0.04);
+  transition: border-color 0.16s, box-shadow 0.16s;
+}
+
+.history-studio.hist-trace-shell .hist-trace-search:focus-within {
+  border-color: rgba(99, 102, 241, 0.45);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+
+.history-studio.hist-trace-shell .hist-trace-search__icon {
+  display: flex;
+  color: #94a3b8;
+}
+
+.history-studio.hist-trace-shell .hist-trace-search__icon svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.history-studio.hist-trace-shell .hist-trace-search input {
+  font-size: 0.86rem;
+}
+
+.history-studio.hist-trace-shell .hist-trace-toolbar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+/* ── Layout toggle (segmented) ── */
+.history-studio.hist-trace-shell .hist-trace-layout-toggle {
+  display: inline-flex;
+  padding: 0.22rem;
+  border-radius: 999px;
+  border: 1px solid var(--trace-edge-strong);
+  background: var(--trace-card);
+  gap: 0.15rem;
+  box-shadow: inset 0 1px 2px rgba(11, 33, 56, 0.04);
+}
+
+.history-studio.hist-trace-shell .hist-trace-layout-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+  padding: 0.38rem 0.75rem;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--text-soft, #64748b);
+  cursor: pointer;
+  transition: background 0.16s, color 0.16s, box-shadow 0.16s;
+}
+
+.history-studio.hist-trace-shell .hist-trace-layout-btn svg {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+.history-studio.hist-trace-shell .hist-trace-layout-btn.is-active {
+  background: linear-gradient(135deg, #6366f1, #4338ca);
+  color: #fff;
+  box-shadow: 0 3px 10px rgba(99, 102, 241, 0.28);
+}
+
+.history-studio.hist-trace-shell .hist-trace-advanced-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: var(--trace-radius-sm);
+  border: 1px solid var(--trace-edge);
+  background: var(--trace-card);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #475569;
+  cursor: pointer;
+  list-style: none;
+  transition: border-color 0.16s, color 0.16s;
+}
+
+.history-studio.hist-trace-shell .hist-trace-advanced-trigger::-webkit-details-marker {
+  display: none;
+}
+
+.history-studio.hist-trace-shell .hist-trace-advanced-trigger svg {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+.history-studio.hist-trace-shell .hist-trace-advanced[open] .hist-trace-advanced-trigger {
+  border-color: var(--trace-accent-border);
+  color: var(--trace-accent);
+}
+
+.history-studio.hist-trace-shell .hist-trace-advanced-body {
+  position: absolute;
+  z-index: 20;
+  margin-top: 0.4rem;
+  padding: 0.85rem;
+  border-radius: var(--trace-radius-sm);
+  border: 1px solid var(--trace-edge-strong);
+  background: var(--trace-card);
+  box-shadow: 0 12px 32px rgba(11, 33, 56, 0.12);
+  min-width: min(100%, 22rem);
+}
+
+.history-studio.hist-trace-shell .hist-trace-advanced {
+  position: relative;
+}
+
+/* ── Results panel ── */
+.history-studio.hist-trace-shell .hist-trace-results-panel {
+  border-radius: var(--trace-radius);
+  border: 1px solid var(--trace-edge);
+  background: var(--trace-card);
+  box-shadow: var(--trace-shadow);
+  overflow: hidden;
+}
+
+.history-studio.hist-trace-shell .hist-trace-result-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 0.85rem;
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid var(--trace-edge);
+  background: var(--trace-surface);
+}
+
+.history-studio.hist-trace-shell .hist-trace-result-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  margin: 0;
+  font-size: 0.88rem;
+}
+
+.history-studio.hist-trace-shell .hist-trace-result-meta__count {
+  font-size: 1.15rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--trace-accent);
+}
+
+.history-studio.hist-trace-shell .hist-trace-result-meta__label {
+  font-weight: 600;
+  color: #475569;
+}
+
+.history-studio.hist-trace-shell .hist-trace-result-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.74rem;
+  color: #64748b;
+}
+
+.history-studio.hist-trace-shell .hist-trace-result-sort svg {
+  width: 0.8rem;
+  height: 0.8rem;
+  opacity: 0.7;
+}
+
+.history-studio.hist-trace-shell .hist-trace-results-mount {
+  padding: 1rem;
+}
+
+.history-studio.hist-trace-shell .hist-trace-more {
+  padding: 0.75rem 1rem 1rem;
+  border-top: 1px solid var(--trace-edge);
+  background: var(--trace-surface);
+}
+
+/* ── Timeline feed ── */
+.history-studio.hist-trace-shell .hist-trace-feed {
+  gap: 1.35rem;
+}
+
+.history-studio.hist-trace-shell .hist-trace-day__head {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-bottom: 0.65rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: var(--trace-radius-sm);
+  background: var(--trace-surface);
+}
+
+.history-studio.hist-trace-shell .hist-trace-day.is-today .hist-trace-day__head {
+  background: linear-gradient(90deg, rgba(99, 102, 241, 0.12), transparent);
+  border: 1px solid rgba(99, 102, 241, 0.18);
+}
+
+.history-studio.hist-trace-shell .hist-trace-day.is-yesterday .hist-trace-day__head {
+  background: linear-gradient(90deg, rgba(55, 124, 192, 0.08), transparent);
+}
+
+.history-studio.hist-trace-shell .hist-trace-day__marker {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--trace-accent);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+  flex-shrink: 0;
+}
+
+.history-studio.hist-trace-shell .hist-trace-day.is-today .hist-trace-day__marker {
+  animation: hist-trace-pulse 2s ease-in-out infinite;
+}
+
+@keyframes hist-trace-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2); }
+  50% { box-shadow: 0 0 0 6px rgba(99, 102, 241, 0.08); }
+}
+
+.history-studio.hist-trace-shell .hist-trace-day__title {
+  flex: 1;
+  font-size: 0.84rem;
+  font-weight: 800;
+  text-transform: capitalize;
+  color: var(--hist-navy, #0b3f8a);
+}
+
+.history-studio.hist-trace-shell .hist-trace-day__count {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--trace-accent);
+}
+
+/* ── Timeline cards ── */
+.history-studio.hist-trace-shell .hist-trace-card {
+  grid-template-columns: 1.35rem minmax(0, 1fr);
+  gap: 0.75rem;
+}
+
+.history-studio.hist-trace-shell .hist-trace-card__rail {
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding-top: 1rem;
+}
+
+.history-studio.hist-trace-shell .hist-trace-card__action-ico {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 8px;
+  background: var(--trace-accent-soft);
+  color: var(--trace-accent);
+  opacity: 0.85;
+}
+
+.history-studio.hist-trace-shell .hist-trace-card__action-ico svg {
+  width: 0.72rem;
+  height: 0.72rem;
+}
+
+.history-studio.hist-trace-shell .hist-trace-card--create .hist-trace-card__action-ico {
+  background: var(--trace-create-soft);
+  color: var(--trace-create);
+}
+
+.history-studio.hist-trace-shell .hist-trace-card--delete .hist-trace-card__action-ico {
+  background: var(--trace-delete-soft);
+  color: var(--trace-delete);
+}
+
+.history-studio.hist-trace-shell .hist-trace-card--update .hist-trace-card__action-ico {
+  background: var(--trace-update-soft);
+  color: var(--trace-update);
+}
+
+.history-studio.hist-trace-shell .hist-trace-card__body {
+  border-radius: var(--trace-radius-sm);
+  border-left: 3px solid var(--trace-accent);
+  padding: 0.85rem 1rem;
+  transition: border-color 0.16s, box-shadow 0.16s, transform 0.16s;
+}
+
+.history-studio.hist-trace-shell .hist-trace-card__body:hover {
+  transform: translateX(2px);
+  box-shadow: 0 8px 24px rgba(11, 33, 56, 0.1);
+}
+
+.history-studio.hist-trace-shell .hist-trace-card--create .hist-trace-card__body {
+  border-left-color: var(--trace-create);
+}
+
+.history-studio.hist-trace-shell .hist-trace-card--delete .hist-trace-card__body {
+  border-left-color: var(--trace-delete);
+}
+
+.history-studio.hist-trace-shell .hist-trace-card--update .hist-trace-card__body {
+  border-left-color: var(--trace-update);
+}
+
+.history-studio.hist-trace-shell .hist-trace-card__module {
+  background: rgba(99, 102, 241, 0.1);
+  color: #4338ca;
+}
+
+.history-studio.hist-trace-shell .hist-trace-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.history-studio.hist-trace-shell .hist-trace-card__relative {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0.08rem 0.4rem;
+  border-radius: 999px;
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--trace-accent);
+}
+
+.history-studio.hist-trace-shell .hist-trace-card__avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 50%;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, #6366f1, #4338ca);
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.history-studio.hist-trace-shell .hist-trace-card__actor--empty .hist-trace-card__avatar {
+  background: #e2e8f0;
+  color: #94a3b8;
+}
+
+.history-studio.hist-trace-shell .hist-trace-card__actor {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.history-studio.hist-trace-shell .hist-trace-card__actor-name {
+  max-width: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-studio.hist-trace-shell .hist-trace-detail-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.74rem;
+}
+
+/* ── Empty state ── */
+.history-studio.hist-trace-shell .hist-trace-empty {
+  padding: 3rem 1.5rem;
+  border: none;
+  background: transparent;
+  border-radius: 0;
+}
+
+.history-studio.hist-trace-shell .hist-trace-empty__visual {
+  margin-bottom: 0.75rem;
+}
+
+.history-studio.hist-trace-shell .hist-trace-empty__ring {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 4rem;
+  height: 4rem;
+  border-radius: 50%;
+  background: var(--trace-accent-soft);
+  border: 2px dashed var(--trace-accent-border);
+  color: var(--trace-accent);
+  opacity: 0.75;
+}
+
+.history-studio.hist-trace-shell .hist-trace-empty__ring svg {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
+.history-studio.hist-trace-shell .hist-trace-empty__title {
+  margin: 0 0 0.35rem;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--hist-navy, #0b2138);
+}
+
+.history-studio.hist-trace-shell .hist-trace-empty__hint {
+  margin: 0 0 1rem;
+  font-size: 0.84rem;
+  max-width: 24rem;
+}
+
+.history-studio.hist-trace-shell .hist-trace-empty__tips {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.history-studio.hist-trace-shell .hist-trace-empty__tips li::before {
+  content: "→ ";
+  color: var(--trace-accent);
+  font-weight: 700;
+}
+
+/* ── Audit table ── */
+.history-studio.hist-trace-shell .hist-trace-table-wrap {
+  border-radius: var(--trace-radius-sm);
+  border: 1px solid var(--trace-edge);
+  overflow: hidden;
+}
+
+.history-studio.hist-trace-shell .hist-trace-table thead th {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-soft, #64748b);
+  background: var(--trace-surface);
+  border-bottom: 1px solid var(--trace-edge);
+  padding: 0.65rem 0.75rem;
+}
+
+.history-studio.hist-trace-shell .hist-trace-table tbody td {
+  padding: 0.65rem 0.75rem;
+  font-size: 0.84rem;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--trace-edge);
+  background: var(--trace-card);
+}
+
+.history-studio.hist-trace-shell .hist-trace-table tbody tr:hover td {
+  background: color-mix(in srgb, rgba(99, 102, 241, 0.08) 40%, var(--trace-card));
+}
+
+.history-studio.hist-trace-shell .hist-table-row--create td:first-child {
+  box-shadow: inset 3px 0 0 var(--trace-create);
+}
+
+.history-studio.hist-trace-shell .hist-table-row--delete td:first-child {
+  box-shadow: inset 3px 0 0 var(--trace-delete);
+}
+
+.history-studio.hist-trace-shell .hist-table-row--update td:first-child {
+  box-shadow: inset 3px 0 0 var(--trace-update);
+}
+
+.history-studio.hist-trace-shell .hist-trace-table-date {
+  white-space: nowrap;
+}
+
+.history-studio.hist-trace-shell .hist-trace-table-relative {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--trace-accent);
+  margin-top: 0.1rem;
+}
+
+.history-studio.hist-trace-shell .hist-trace-table-entity {
+  color: var(--hist-navy, #0f3f75);
+}
+
+.history-studio.hist-trace-shell .hist-trace-table-summary {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  max-width: 22rem;
+  line-height: 1.4;
+  color: #475569;
+}
+
+.history-studio.hist-trace-shell .hist-trace-table-actor {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.history-studio.hist-trace-shell .hist-trace-table-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  font-size: 0.55rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, #6366f1, #4338ca);
+  color: #fff;
+  flex-shrink: 0;
+}
+
+/* ── Dark theme ── */
+body[data-theme="dark"] .history-studio.hist-trace-shell {
+  --trace-surface: rgba(15, 28, 46, 0.65);
+  --trace-card: rgba(15, 28, 46, 0.92);
+  --trace-edge: rgba(148, 196, 255, 0.14);
+  --trace-edge-strong: rgba(148, 196, 255, 0.22);
+}
+
+body[data-theme="dark"] .history-studio.hist-trace-shell .hist-trace-hero h2,
+body[data-theme="dark"] .history-studio.hist-trace-shell .hist-trace-kpi dd,
+body[data-theme="dark"] .history-studio.hist-trace-shell .hist-trace-card__title,
+body[data-theme="dark"] .history-studio.hist-trace-shell .hist-trace-empty__title {
+  color: #e8f2fc;
+}
+
+body[data-theme="dark"] .history-studio.hist-trace-shell .hist-trace-search,
+body[data-theme="dark"] .history-studio.hist-trace-shell .hist-trace-action-pill,
+body[data-theme="dark"] .history-studio.hist-trace-shell .hist-trace-module-chip,
+body[data-theme="dark"] .history-studio.hist-trace-shell .hist-trace-layout-toggle,
+body[data-theme="dark"] .history-studio.hist-trace-shell .hist-trace-advanced-trigger {
+  background: rgba(10, 22, 38, 0.9);
+  border-color: rgba(148, 196, 255, 0.18);
+  color: #c8d8ec;
+}
+
+body[data-theme="dark"] .history-studio.hist-trace-shell .hist-trace-card__body,
+body[data-theme="dark"] .history-studio.hist-trace-shell .hist-trace-table tbody td {
+  background: rgba(14, 28, 46, 0.92);
+  border-color: rgba(148, 196, 255, 0.12);
+}
+
+body[data-theme="dark"] .history-studio.hist-trace-shell .hist-trace-card__actor--empty .hist-trace-card__avatar {
+  background: rgba(148, 196, 255, 0.12);
+  color: #94a8c4;
+}
+
+@media (max-width: 720px) {
+  .history-studio.hist-trace-shell .hist-trace-hero {
+    padding: 0.95rem;
+  }
+
+  .history-studio.hist-trace-shell .hist-trace-kpi {
+    flex: 1 1 calc(50% - 0.5rem);
+    min-width: 0;
+  }
+
+  .history-studio.hist-trace-shell .hist-trace-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .history-studio.hist-trace-shell .hist-trace-toolbar__actions {
+    justify-content: space-between;
+  }
+
+  .history-studio.hist-trace-shell .hist-trace-layout-btn span {
+    display: none;
+  }
+
+  .history-studio.hist-trace-shell .hist-trace-card__detail {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .history-studio.hist-trace-shell .hist-trace-results-mount {
+    padding: 0.65rem;
+  }
+}

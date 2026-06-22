@@ -1,0 +1,415 @@
+/* ═══════════════════════════════════════════════════════════════════
+   Portal & app — responsive + zoom
+   Capa final: adapta layout al espacio real (viewport, zoom, sidebar).
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Base: zoom del navegador y texto ── */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* ── Shell del portal ── */
+body.portal-mode {
+  overflow-x: clip;
+}
+
+body.portal-mode .portal-layout {
+  min-width: 0;
+  height: 100dvh;
+  min-height: 100dvh;
+}
+
+body.portal-mode .sidebar,
+body.portal-mode .portal-main,
+body.portal-mode .portal-header,
+body.portal-mode #view-root,
+body.portal-mode .kpi-grid {
+  min-width: 0;
+  max-width: 100%;
+}
+
+body.portal-mode .portal-main {
+  container-type: inline-size;
+  container-name: portal-main;
+  padding: clamp(0.85rem, 1.6vw, 1.8rem) clamp(0.85rem, 2.2vw, 2rem);
+}
+
+body.portal-mode .portal-header h1 {
+  font-size: clamp(1.15rem, 1rem + 0.9vw, 1.6rem);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+body.portal-mode .portal-header-bar {
+  flex-wrap: wrap;
+}
+
+body.portal-mode .kpi-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11.5rem), 1fr));
+}
+
+/* Sidebar fluido en escritorio (zoom / pantallas estrechas) */
+@media (min-width: 921px) {
+  body.portal-mode:not(.portal-sidebar-collapsed) {
+    --portal-sidebar-rail-width: clamp(220px, 17vw, var(--portal-sidebar-rail-width-expanded));
+  }
+
+  @media (max-width: 1280px) {
+    body.portal-mode:not(.portal-sidebar-collapsed) {
+      --portal-sidebar-rail-width: clamp(200px, 15vw, 260px);
+    }
+  }
+
+  /* Rail compacto automático: más espacio para contenido al hacer zoom */
+  @media (max-width: 1160px) {
+    body.portal-mode:not(.portal-sidebar-collapsed) {
+      --portal-sidebar-rail-width: var(--portal-sidebar-rail-width-collapsed);
+    }
+
+    body.portal-mode:not(.portal-sidebar-collapsed) #portal-sidebar .side-link {
+      justify-content: center;
+      padding: 0.38rem 0.35rem;
+      gap: 0;
+    }
+
+    body.portal-mode:not(.portal-sidebar-collapsed) #portal-sidebar .side-link__label,
+    body.portal-mode:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-logout-btn__label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    body.portal-mode:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-section-label,
+    body.portal-mode:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-user-text,
+    body.portal-mode:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-user-chevron,
+    body.portal-mode:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-account-divider {
+      display: none;
+    }
+
+    body.portal-mode:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-brand-logo--full {
+      display: none !important;
+    }
+
+    body.portal-mode:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-brand-logo--mark {
+      display: block !important;
+    }
+
+    body.portal-mode:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-brand-logo-wrap {
+      width: 54px;
+      height: 54px;
+      min-width: 54px;
+      padding: 0.35rem;
+    }
+
+    body.portal-mode:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-rail-head {
+      flex-direction: column;
+      align-items: center;
+    }
+
+    body.portal-mode:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-user-panel {
+      justify-content: center;
+      padding: 0.45rem;
+    }
+
+    body.portal-mode:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-account-dock {
+      align-items: center;
+    }
+
+    body.portal-mode:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-account-toolbar,
+    body.portal-mode:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-logout-btn {
+      justify-content: center;
+    }
+
+    body.portal-mode:not(.portal-sidebar-collapsed) #portal-sidebar .side-link:hover {
+      transform: none;
+    }
+  }
+}
+
+/* ── Contenedor principal: responde al ancho útil (sidebar incluido) ── */
+@container portal-main (max-width: 980px) {
+  .hr-workspace-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .hr-workspace-header__switch {
+    max-width: none;
+    width: 100%;
+  }
+
+  .dashboard-studio .dash-kpi-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .dashboard-studio .dash-command-center,
+  .dashboard-studio .dash-analytics,
+  .dashboard-studio .dash-layout,
+  .dashboard-studio .dash-layout--fleet {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-studio .dash-side {
+    position: static;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .hiring-executive-strip,
+  .payroll-executive-strip,
+  .module-shell-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .hiring-strip-metrics {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .requests-studio .requests-data-layout--admin {
+    grid-template-columns: 1fr;
+  }
+
+  .requests-studio .requests-data-sidebar {
+    position: static;
+    max-height: none;
+  }
+}
+
+@container portal-main (max-width: 720px) {
+  .hr-workspace-tab--switch .hr-workspace-tab-hint {
+    display: none;
+  }
+
+  .hr-workspace-tab--switch {
+    min-width: 0;
+    min-height: 2.55rem;
+  }
+
+  .dashboard-studio .dash-kpi-grid,
+  .dashboard-studio .dash-exec-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dashboard-studio .dash-side,
+  .dashboard-studio .dash-metrics-cards,
+  .dashboard-studio .dash-client-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-studio .dash-hero--tower {
+    grid-template-columns: 1fr;
+    grid-template-areas: "main" "aside";
+  }
+
+  .ops-command-bar,
+  .module-panel-toolbar,
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ops-command-cluster,
+  .module-panel-actions__bar {
+    width: 100%;
+  }
+
+  .users-hero {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container portal-main (max-width: 480px) {
+  .dashboard-studio .dash-kpi-grid,
+  .dashboard-studio .dash-exec-strip,
+  .users-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .hr-workspace-tabs--switch {
+    flex-direction: column;
+  }
+
+  .hr-workspace-tab--switch {
+    width: 100%;
+  }
+}
+
+/* ── Tablas y grids: scroll horizontal antes que desbordar ── */
+.portal-main .table-wrap,
+.portal-main .trips-table-wrap,
+.portal-main .transport-exec-table-wrap,
+.portal-main .route-rates-table-wrap,
+.portal-main .requests-table-wrap,
+.portal-main .vehicles-table-wrap,
+.portal-main .history-table-wrap,
+.portal-main .history-report-table-wrap,
+.payroll-shell .table-wrap,
+.hiring-shell .table-wrap {
+  overflow-x: auto;
+  overflow-y: visible;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+.portal-main .dash-grid,
+.portal-main .hiring-data-grid,
+.portal-main .hiring-actions-grid,
+.portal-main .payroll-data-grid,
+.portal-main .p-form,
+.profile-form {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17.5rem), 1fr));
+}
+
+.hiring-data-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+}
+
+/* ── Modales: zoom y safe-area ── */
+.modal {
+  padding: max(0.5rem, env(safe-area-inset-top, 0px))
+    max(0.5rem, env(safe-area-inset-right, 0px))
+    max(0.5rem, env(safe-area-inset-bottom, 0px))
+    max(0.5rem, env(safe-area-inset-left, 0px));
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.modal-card {
+  width: min(640px, calc(100vw - 1.5rem));
+  max-height: min(92dvh, calc(100dvh - 1.5rem));
+  overflow-y: auto;
+  margin: auto;
+}
+
+.modal-card-auth {
+  width: min(760px, calc(100vw - 1rem));
+  max-height: min(92dvh, calc(100dvh - 1rem));
+}
+
+.modal-card-edit,
+.modal-card--payroll-bulk-result,
+.modal-card-report-preview {
+  width: min(720px, calc(100vw - 1.25rem));
+  max-height: min(90dvh, calc(100dvh - 1.25rem));
+  overflow-y: auto;
+}
+
+.modal-edit-form,
+.modal-body-lead {
+  min-width: 0;
+}
+
+.modal-edit-form {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+}
+
+@media (max-width: 720px) {
+  .modal-card,
+  .modal-card-edit,
+  .modal-card--payroll-bulk-result,
+  .modal-card-report-preview {
+    width: 100%;
+    max-width: 100%;
+    border-radius: 14px;
+    padding: 1rem 0.85rem;
+  }
+
+  .modal-edit-actions.module-panel-actions,
+  .modal-edit-actions:not(.module-panel-actions) {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .modal-edit-actions .btn,
+  .modal-edit-actions .module-panel-actions__group {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+/* ── Formularios de creación ── */
+@container portal-main (max-width: 768px) {
+  .antares-create-form > .hr-form-hero,
+  .antares-create-form .transport-form--single > .hr-form-hero,
+  .antares-create-form .acf-schedule__grid,
+  .antares-create-form .datetime-group,
+  .create-trip-form-v2__request-grid,
+  .create-trip-form-v2__assign-row,
+  .create-trip-form-v2__milestones {
+    grid-template-columns: 1fr;
+  }
+
+  .create-trip-form-v2__preview-wrap {
+    position: static;
+    order: -1;
+  }
+
+  .antares-create-form .module-panel-actions__bar,
+  .create-trip-form-v2__footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .antares-create-form .antares-create-form__submit,
+  .antares-create-form .create-trip-submit-btn,
+  .create-trip-form-v2__submit {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+/* ── Sitio público: grids y navegación ── */
+.grid-2,
+.grid-3,
+.grid-4,
+.coverage-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+}
+
+@media (max-width: 920px) {
+  .portal-main {
+    padding: 1rem;
+  }
+
+  .portal-header-bar {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .hero-stats,
+  .grid-3,
+  .grid-4,
+  .coverage-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .users-hero {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Zoom alto: tipografía y controles más compactos ── */
+@media (max-width: 520px) {
+  .portal-main .btn,
+  .portal-main .btn-action,
+  .portal-main .btn-sm {
+    white-space: normal;
+    text-align: center;
+    line-height: 1.25;
+  }
+
+  .hr-workspace-jump-btn.btn-primary {
+    flex: 1 1 100%;
+  }
+}

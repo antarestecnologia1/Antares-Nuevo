@@ -2029,20 +2029,6 @@ function bindPayrollPortalControls() {
     document.getElementById("payroll-employee-search")?.dispatchEvent(new Event("input", { bubbles: true }));
   });
 
-  nodes.viewRoot.querySelectorAll("[data-action='payroll-goto-create-employee']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      state.payrollUi = {
-        ...(state.payrollUi || {}),
-        workspace: "operate",
-        operateSection: "employee",
-        dataSection: "employees"
-      };
-      state.createPanels = { ...(state.createPanels || {}), "create-employee": true };
-      persistHrWorkspace("payroll", "operate");
-      renderPortalView();
-    });
-  });
-
   document.getElementById("export-employees-contracts")?.addEventListener("click", () => {
     const rows = [...nodes.viewRoot.querySelectorAll(".payroll-employee-table-row:not(.is-filtered-out)")];
     if (!rows.length) {

@@ -643,6 +643,7 @@ export function bindHrFormWizard(form) {
   };
 
   prevBtn?.addEventListener("click", () => {
+    if (form.dataset.submitting === "1") return;
     if (idx > 0) {
       idx -= 1;
       sync();
@@ -650,6 +651,7 @@ export function bindHrFormWizard(form) {
   });
 
   nextBtn?.addEventListener("click", async () => {
+    if (form.dataset.submitting === "1") return;
     if (typeof form.__antaresDupDocCheck === "function") {
       await form.__antaresDupDocCheck({ silent: false, forceServer: true });
     }
@@ -669,6 +671,7 @@ export function bindHrFormWizard(form) {
 
   dots.forEach((dot) => {
     dot.addEventListener("click", async () => {
+      if (form.dataset.submitting === "1") return;
       const raw = dot.dataset.hrWizardDot;
       const targetIdx = Number.parseInt(String(raw ?? ""), 10);
       if (!Number.isFinite(targetIdx) || targetIdx < 0 || targetIdx >= steps.length) return;
@@ -851,6 +854,7 @@ function rememberButtonDisabledBeforeLock(btn) {
 function restoreButtonDisabledAfterLock(btn) {
   if (!btn) return;
   btn.removeAttribute("aria-busy");
+  btn.classList.remove("is-busy");
   if (btn.dataset.lockOrigDisabled != null) {
     btn.disabled = btn.dataset.lockOrigDisabled === "1";
     delete btn.dataset.lockOrigDisabled;
@@ -859,12 +863,31 @@ function restoreButtonDisabledAfterLock(btn) {
   btn.disabled = false;
 }
 
+function resolveDefaultSubmitButton(formEl, opts = {}) {
+  return (
+    opts.submitButton ??
+    formEl?.querySelector?.("button[type='submit']") ??
+    formEl?.querySelector?.("[data-step-submit]") ??
+    formEl?.querySelector?.(".hr-form-wizard-submit")
+  );
+}
+
+function collectFormActionLockRoots(formEl, triggerBtn) {
+  const roots = [];
+  if (formEl) roots.push(formEl);
+  const card = formEl?.closest?.("[data-hr-panel]") || triggerBtn?.closest?.("[data-hr-panel]");
+  if (card && !roots.includes(card)) roots.push(card);
+  const actionBar =
+    triggerBtn?.closest?.(".module-panel-actions, .hr-form-wizard-footer, .modal-edit-actions") ||
+    formEl?.querySelector?.(".module-panel-actions, .hr-form-wizard-footer, .modal-edit-actions");
+  if (actionBar && !roots.includes(actionBar)) roots.push(actionBar);
+  return roots;
+}
+
 /** Botones de pie de formularios de alta (cancelar, minimizar, wizard, etc.). */
 export function collectManagedCreateFormLockButtons(formEl, extraButtons = []) {
   if (!formEl) return [...extraButtons].filter(Boolean);
-  const roots = [formEl];
-  const card = formEl.closest("[data-hr-panel]");
-  if (card && card !== formEl) roots.push(card);
+  const roots = collectFormActionLockRoots(formEl);
   const selectors = [
     "[data-action='cancel-create-panel']",
     "[data-action='toggle-create-panel']",
@@ -874,7 +897,11 @@ export function collectManagedCreateFormLockButtons(formEl, extraButtons = []) {
     "[data-action='employee-form-save-draft']",
     "[data-action='employee-form-generate-contract-draft']",
     "[data-action='settlement-recalc']",
-    "[data-action='payroll-liquidation-mode']"
+    "[data-action='payroll-liquidation-mode']",
+    "#payroll-bulk-generate",
+    ".module-panel-actions button",
+    ".hr-form-wizard-footer-nav button",
+    ".modal-edit-actions button"
   ];
   const seen = new Set();
   const out = [];
@@ -888,6 +915,38 @@ export function collectManagedCreateFormLockButtons(formEl, extraButtons = []) {
   });
   extraButtons.forEach(push);
   return out;
+}
+
+/** Resuelve botón de envío y botones auxiliares a bloquear durante una acción. */
+export function resolveFormSubmitLockOpts(formEl, opts = {}) {
+  if (opts.lockRelatedActions === false) return { ...opts };
+  const submitBtn = resolveDefaultSubmitButton(formEl, opts);
+  const seen = new Set();
+  const extras = [];
+  const push = (btn) => {
+    if (!btn || btn === submitBtn || seen.has(btn)) return;
+    seen.add(btn);
+    extras.push(btn);
+  };
+  collectManagedCreateFormLockButtons(formEl, opts.lockExtraButtons || []).forEach(push);
+  (opts.lockExtraButtons || []).forEach(push);
+  return { ...opts, submitButton: submitBtn, lockExtraButtons: extras };
+}
+
+function markFormSubmitting(formEl, active) {
+  if (!formEl) return;
+  const targets = [formEl, ...formEl.querySelectorAll(".module-panel-actions, .hr-form-wizard-footer")];
+  targets.forEach((node) => {
+    if (!node) return;
+    node.classList.toggle("is-submitting", active);
+  });
+  if (active) formEl.dataset.submitting = "1";
+  else delete formEl.dataset.submitting;
+}
+
+export function isActionButtonBusy(btn) {
+  if (!btn) return false;
+  return btn.dataset.busy === "1" || btn.getAttribute("aria-busy") === "true";
 }
 
 /** Restaura habilitado/deshabilitado del botón «Guardar» en formularios por pasos. */
@@ -912,46 +971,47 @@ export function syncHrWizardSubmitDisabled(formEl) {
 
 /** Deshabilita el botón principal de envío y opcionalmente botones auxiliares del formulario. */
 export function lockFormSubmitUi(formEl, opts = {}) {
-  const submitBtn =
-    opts.submitButton ??
-    formEl?.querySelector?.("button[type='submit']") ??
-    formEl?.querySelector?.("[data-step-submit]");
-  if (!submitBtn) return;
-  if (!submitBtn.dataset.submitOrigHtml) submitBtn.dataset.submitOrigHtml = submitBtn.innerHTML;
-  const labelEl = submitBtn.querySelector(".auth-submit-label");
-  if (labelEl && !labelEl.dataset.submitOrigText) labelEl.dataset.submitOrigText = labelEl.textContent || "";
-  rememberButtonDisabledBeforeLock(submitBtn);
-  submitBtn.disabled = true;
-  submitBtn.setAttribute("aria-busy", "true");
-  if (opts.busyText) {
-    if (labelEl) labelEl.textContent = opts.busyText;
-    else if (!opts.busyHtml) submitBtn.textContent = opts.busyText;
+  const resolved = resolveFormSubmitLockOpts(formEl, opts);
+  const submitBtn = resolved.submitButton;
+  if (submitBtn) {
+    if (!submitBtn.dataset.submitOrigHtml) submitBtn.dataset.submitOrigHtml = submitBtn.innerHTML;
+    const labelEl = submitBtn.querySelector(".auth-submit-label");
+    if (labelEl && !labelEl.dataset.submitOrigText) labelEl.dataset.submitOrigText = labelEl.textContent || "";
+    rememberButtonDisabledBeforeLock(submitBtn);
+    submitBtn.disabled = true;
+    submitBtn.setAttribute("aria-busy", "true");
+    submitBtn.classList.add("is-busy");
+    if (resolved.busyText) {
+      if (labelEl) labelEl.textContent = resolved.busyText;
+      else if (!resolved.busyHtml) submitBtn.textContent = resolved.busyText;
+    }
+    if (resolved.busyHtml) submitBtn.innerHTML = resolved.busyHtml;
+    if (resolved.loadingClass) submitBtn.classList.add(resolved.loadingClass);
   }
-  if (opts.busyHtml) submitBtn.innerHTML = opts.busyHtml;
-  if (opts.loadingClass) submitBtn.classList.add(opts.loadingClass);
-  (opts.lockExtraButtons || []).forEach((btn) => {
-    if (!btn) return;
+  (resolved.lockExtraButtons || []).forEach((btn) => {
+    if (!btn || btn === submitBtn) return;
     rememberButtonDisabledBeforeLock(btn);
     btn.disabled = true;
     btn.setAttribute("aria-busy", "true");
+    btn.classList.add("is-busy");
   });
+  markFormSubmitting(formEl, true);
 }
 
 /** Restaura el estado del botón de envío tras `lockFormSubmitUi`. */
 export function releaseFormSubmitUi(formEl, opts = {}) {
-  if (formEl) formEl.dataset.submitting = "0";
-  const submitBtn =
-    opts.submitButton ??
-    formEl?.querySelector?.("button[type='submit']") ??
-    formEl?.querySelector?.("[data-step-submit]");
+  const resolved = resolveFormSubmitLockOpts(formEl, opts);
+  markFormSubmitting(formEl, false);
+  const submitBtn = resolved.submitButton;
   if (submitBtn) {
     if (submitBtn.dataset.submitOrigHtml) submitBtn.innerHTML = submitBtn.dataset.submitOrigHtml;
     const labelEl = submitBtn.querySelector(".auth-submit-label");
     if (labelEl?.dataset.submitOrigText) labelEl.textContent = labelEl.dataset.submitOrigText;
-    if (opts.loadingClass) submitBtn.classList.remove(opts.loadingClass);
+    if (resolved.loadingClass) submitBtn.classList.remove(resolved.loadingClass);
     restoreButtonDisabledAfterLock(submitBtn);
   }
-  (opts.lockExtraButtons || []).forEach((btn) => {
+  (resolved.lockExtraButtons || []).forEach((btn) => {
+    if (!btn || btn === submitBtn) return;
     restoreButtonDisabledAfterLock(btn);
   });
   if (formEl?.dataset?.hrWizardBound === "1") {
@@ -960,13 +1020,15 @@ export function releaseFormSubmitUi(formEl, opts = {}) {
 }
 
 export async function runWithBusyButton(btn, fn, opts = {}) {
-  if (!btn || typeof fn !== "function" || btn.dataset.busy === "1") return;
+  if (!btn || typeof fn !== "function" || isActionButtonBusy(btn)) return;
+  const formEl = btn.closest("form");
   btn.dataset.busy = "1";
-  lockFormSubmitUi(null, { ...opts, submitButton: btn });
+  const lockOpts = resolveFormSubmitLockOpts(formEl, { ...opts, submitButton: btn });
+  lockFormSubmitUi(formEl, lockOpts);
   try {
     await fn();
   } finally {
-    releaseFormSubmitUi(null, { ...opts, submitButton: btn });
+    releaseFormSubmitUi(formEl, lockOpts);
     btn.dataset.busy = "0";
   }
 }
@@ -986,15 +1048,15 @@ export function wireFormSubmitGuard(formEl, onSubmit, opts = {}) {
     event.preventDefault();
     if (formEl.dataset.submitting === "1") return;
     if (!runPrepareCreationForm(formEl, opts)) return;
-    formEl.dataset.submitting = "1";
-    lockFormSubmitUi(formEl, opts);
+    const lockOpts = resolveFormSubmitLockOpts(formEl, opts);
+    lockFormSubmitUi(formEl, lockOpts);
     try {
       await onSubmit(event);
     } catch (err) {
-      releaseFormSubmitUi(formEl, opts);
+      releaseFormSubmitUi(formEl, lockOpts);
       throw err;
     } finally {
-      releaseFormSubmitUi(formEl, opts);
+      releaseFormSubmitUi(formEl, lockOpts);
       opts.onFinally?.(formEl);
     }
   });
@@ -1320,14 +1382,19 @@ export function openConfirmModalAsync({
     wireModalDismiss(content, () => finish(false));
 
     const confirmBtn = content.querySelector("#crud-confirm");
+    const cancelBtn = content.querySelector("#crud-cancel, [data-action='crud-cancel']");
     let confirmConsumed = false;
     confirmBtn?.addEventListener(
       "click",
       async () => {
-        if (confirmConsumed) return;
+        if (confirmConsumed || isActionButtonBusy(confirmBtn)) return;
         confirmConsumed = true;
-        confirmBtn.disabled = true;
-        confirmBtn.setAttribute("aria-busy", "true");
+        const lockOpts = resolveFormSubmitLockOpts(null, {
+          submitButton: confirmBtn,
+          lockExtraButtons: [cancelBtn],
+          busyText: "Procesando…"
+        });
+        lockFormSubmitUi(null, lockOpts);
         try {
           let out = onConfirm?.();
           if (out && typeof out.then === "function") {
@@ -1345,8 +1412,7 @@ export function openConfirmModalAsync({
             if (msg) notify(msg, "error");
           } catch (_) {}
           confirmConsumed = false;
-          confirmBtn.disabled = false;
-          confirmBtn.removeAttribute("aria-busy");
+          releaseFormSubmitUi(null, lockOpts);
         }
       },
       { once: true }

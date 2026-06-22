@@ -566,67 +566,83 @@ function transportTripsHtml() {
       </div>`
     : `<div class="trip-request-picker-empty">${createTripEmptyHint("inbox", tripRequestPickerEmptyTitle, tripRequestPickerEmptyDetail)}</div>
       <select name="requestId" id="create-trip-request-select" disabled hidden aria-hidden="true"><option value=""></option></select>`;
-  const createTripForm = `<form id="form-create-trip" class="p-form p-form-colored hr-form-flow antares-create-form transport-assign-form transport-trip-create-form assign-trip-form assign-trip-form--revamp" autocomplete="off">
-    <div class="transport-form transport-form--single" data-transport-form="trip-assign" aria-label="Asignar viaje">
-      ${renderHrFormHero({
-        eyebrow: "Operación de transporte",
-        title: "Asignar viaje",
-        description: "Seleccione la solicitud, asigne vehículo y conductor, y confirme la tarifa pactada para crear el viaje.",
-        tone: "brand",
-        badges: [
-          pendingBadge,
-          renderHrFormHeroBadge("3 pasos", "asignación"),
-          renderHrFormHeroBadge("Tarifa", "COP pactada")
-        ]
-      })}
-      <div class="transport-form__body antares-create-form__sections">
-        <div class="assign-trip-block transport-trip-create-form__request">
-          <div class="assign-trip-block-head">
-            <h4 class="assign-trip-block-title">${IC.inbox} Elija la solicitud</h4>
-            <span class="muted trip-request-picker-count">${pendingForTrip.length} disponible${pendingForTrip.length === 1 ? "" : "s"}</span>
-          </div>
-          <p class="muted form-section-hint">Busque y seleccione una solicitud aprobada o pendiente de asignación.</p>
-          <div class="assign-trip-block-body">
-            ${tripRequestPickerBody}
-            <div id="trip-request-preview" class="assign-trip-preview create-trip-summary-panel" aria-live="polite">
-              ${createTripEmptyHint("inbox", "Seleccione una solicitud", "Al elegir una tarjeta verá el resumen de ruta, cliente y recogida.")}
-            </div>
-          </div>
+  const createTripForm = `<form id="form-create-trip" class="p-form p-form-colored hr-form-flow antares-create-form transport-assign-form transport-trip-create-form assign-trip-form assign-trip-form--revamp create-trip-form-v2" autocomplete="off">
+    <div class="transport-form transport-form--single create-trip-form-v2__shell" data-transport-form="trip-assign" aria-label="Asignar viaje">
+      <header class="transport-wizard__head create-trip-form-v2__head">
+        <div class="transport-wizard__head-copy">
+          <span class="transport-wizard__eyebrow">Operación de transporte</span>
+          <h3 class="transport-wizard__title">Asignar viaje</h3>
+          <p class="transport-wizard__desc">Seleccione la solicitud, asigne vehículo y conductor, y confirme la tarifa pactada para crear el viaje.</p>
         </div>
-        <div class="assign-trip-block transport-trip-create-form__resources">
-          <div class="assign-trip-block-head">
-            <h4 class="assign-trip-block-title">${IC.truck} Vehículo y conductor</h4>
-            <p class="muted form-section-hint create-trip-flag-legend assign-trip-flags" role="list" aria-label="Banderas en listas">
-              <span class="create-trip-flag create-trip-flag--busy" role="listitem"><span class="create-trip-flag-dot"></span>Ocupado</span>
-              <span class="create-trip-flag create-trip-flag--offline" role="listitem"><span class="create-trip-flag-dot"></span>No disponible</span>
-              <span class="create-trip-flag create-trip-flag--expired" role="listitem"><span class="create-trip-flag-dot"></span>Doc. vencida</span>
-            </p>
-          </div>
-          <div class="assign-trip-block-body">
-            <div id="create-trip-fleet-stats" class="create-trip-fleet-stats assign-trip-fleet-stats" aria-live="polite"></div>
-            <div class="assign-trip-fleet-grid create-trip-fleet-grid">
-              <label class="assign-trip-resource create-trip-fleet-field">${fieldLabel(IC.truck, "Vehículo", { required: true })}
-                <select name="vehicleId" id="create-trip-vehicle-select" class="create-trip-resource-select searchable-select-native" data-searchable-select="1" data-searchable-placeholder="Placa, tipo o capacidad…" disabled><option value="">Elija solicitud primero</option></select>
-              </label>
-              <label class="assign-trip-resource create-trip-fleet-field">${fieldLabel(IC.user, "Conductor", { required: true })}
-                <select name="driverId" id="create-trip-driver-select" class="create-trip-resource-select searchable-select-native" data-searchable-select="1" data-searchable-placeholder="Nombre, documento o teléfono…" disabled><option value="">Elija solicitud primero</option></select>
-              </label>
-            </div>
-          </div>
+        <div class="transport-wizard__meta create-trip-form-v2__meta">
+          ${pendingBadge}
+          ${renderHrFormHeroBadge("3 pasos", "asignación")}
+          ${renderHrFormHeroBadge("Tarifa", "COP pactada")}
         </div>
-        <fieldset class="form-section form-section-emerald full transport-trip-create-form__pricing">
-          <legend>${IC.dollar} Tarifa del viaje</legend>
-          <p class="muted form-section-hint">Confirme el valor pactado en COP. Se sugerirá automáticamente si existe tarifa de catálogo.</p>
-          <div id="create-trip-rate-fields" class="assign-trip-rate create-trip-rate-surface">
-            ${createTripEmptyHint("dollar", "Tarifa pendiente")}
-          </div>
-        </fieldset>
+      </header>
+      <div class="create-trip-form-v2__progress" aria-hidden="true">
+        <div class="create-trip-form-v2__progress-track">
+          <div class="create-trip-form-v2__progress-fill" data-create-trip-progress style="width:0%"></div>
+        </div>
+        <ol class="create-trip-form-v2__milestones">
+          <li class="create-trip-form-v2__milestone is-active" data-create-trip-milestone="request"><span class="create-trip-form-v2__milestone-num">1</span><span class="create-trip-form-v2__milestone-copy"><strong>Solicitud</strong><small>Elija la ruta</small></span></li>
+          <li class="create-trip-form-v2__milestone" data-create-trip-milestone="fleet"><span class="create-trip-form-v2__milestone-num">2</span><span class="create-trip-form-v2__milestone-copy"><strong>Flota</strong><small>Vehículo y conductor</small></span></li>
+          <li class="create-trip-form-v2__milestone" data-create-trip-milestone="rate"><span class="create-trip-form-v2__milestone-num">3</span><span class="create-trip-form-v2__milestone-copy"><strong>Tarifa</strong><small>Valor pactado</small></span></li>
+        </ol>
       </div>
-      <div class="transport-form__footer">
-        <ul class="create-trip-readiness create-trip-readiness--bar transport-readiness" data-create-trip-readiness aria-label="Requisitos para asignar"></ul>
+      <div class="transport-form__body antares-create-form__sections create-trip-form-v2__body">
+        <section class="assign-trip-block transport-trip-create-form__request create-trip-form-v2__request" aria-labelledby="create-trip-step-request">
+          <div class="assign-trip-block-head">
+            <h4 class="assign-trip-block-title" id="create-trip-step-request">${IC.inbox} Elija la solicitud</h4>
+            <span class="trip-request-picker-count create-trip-form-v2__count">${pendingForTrip.length} disponible${pendingForTrip.length === 1 ? "" : "s"}</span>
+          </div>
+          <p class="muted form-section-hint create-trip-form-v2__hint">Busque y seleccione una solicitud aprobada o pendiente de asignación.</p>
+          <div class="assign-trip-block-body create-trip-form-v2__request-grid">
+            <div class="create-trip-form-v2__picker">${tripRequestPickerBody}</div>
+            <div class="create-trip-form-v2__preview-wrap">
+              <p class="create-trip-form-v2__preview-label">Resumen de solicitud</p>
+              <aside id="trip-request-preview" class="assign-trip-preview create-trip-summary-panel create-trip-form-v2__preview" aria-live="polite">
+                ${createTripEmptyHint("inbox", "Seleccione una solicitud", "Al elegir una tarjeta verá el resumen de ruta, cliente y recogida.")}
+              </aside>
+            </div>
+          </div>
+        </section>
+        <div class="create-trip-form-v2__assign-row">
+          <section class="assign-trip-block transport-trip-create-form__resources create-trip-form-v2__resources" aria-labelledby="create-trip-step-fleet">
+            <div class="assign-trip-block-head">
+              <h4 class="assign-trip-block-title" id="create-trip-step-fleet">${IC.truck} Vehículo y conductor</h4>
+              <div class="create-trip-flag-legend assign-trip-flags create-trip-form-v2__flags" role="list" aria-label="Banderas en listas">
+                <span class="create-trip-flag create-trip-flag--busy" role="listitem"><span class="create-trip-flag-dot"></span>Ocupado</span>
+                <span class="create-trip-flag create-trip-flag--offline" role="listitem"><span class="create-trip-flag-dot"></span>No disponible</span>
+                <span class="create-trip-flag create-trip-flag--expired" role="listitem"><span class="create-trip-flag-dot"></span>Doc. vencida</span>
+              </div>
+            </div>
+            <div class="assign-trip-block-body">
+              <div id="create-trip-fleet-stats" class="create-trip-fleet-stats assign-trip-fleet-stats create-trip-form-v2__fleet-stats" aria-live="polite"></div>
+              <div class="assign-trip-fleet-grid create-trip-fleet-grid create-trip-form-v2__fleet-grid">
+                <label class="assign-trip-resource create-trip-fleet-field">${fieldLabel(IC.truck, "Vehículo", { required: true })}
+                  <select name="vehicleId" id="create-trip-vehicle-select" class="create-trip-resource-select searchable-select-native" data-searchable-select="1" data-searchable-placeholder="Placa, tipo o capacidad…" disabled><option value="">Elija solicitud primero</option></select>
+                </label>
+                <label class="assign-trip-resource create-trip-fleet-field">${fieldLabel(IC.user, "Conductor", { required: true })}
+                  <select name="driverId" id="create-trip-driver-select" class="create-trip-resource-select searchable-select-native" data-searchable-select="1" data-searchable-placeholder="Nombre, documento o teléfono…" disabled><option value="">Elija solicitud primero</option></select>
+                </label>
+              </div>
+            </div>
+          </section>
+          <fieldset class="form-section form-section-emerald full transport-trip-create-form__pricing create-trip-form-v2__pricing">
+            <legend>${IC.dollar} Tarifa del viaje</legend>
+            <p class="muted form-section-hint create-trip-form-v2__hint">Confirme el valor pactado en COP. Se sugerirá automáticamente si existe tarifa de catálogo.</p>
+            <div id="create-trip-rate-fields" class="assign-trip-rate create-trip-rate-surface create-trip-form-v2__rate-surface">
+              ${createTripEmptyHint("dollar", "Tarifa pendiente", "Complete los pasos anteriores para habilitar el precio.")}
+            </div>
+          </fieldset>
+        </div>
+      </div>
+      <div class="transport-form__footer create-trip-form-v2__footer">
+        <ul class="create-trip-readiness create-trip-readiness--bar transport-readiness create-trip-form-v2__readiness" data-create-trip-readiness aria-label="Requisitos para asignar"></ul>
         ${renderManagedCreateFormActions(
           "create-trip",
-          `<button class="btn btn-primary create-trip-submit-btn" type="submit" disabled aria-disabled="true">${IC.check} Crear viaje</button>`
+          `<button class="btn btn-primary create-trip-submit-btn create-trip-form-v2__submit" type="submit" disabled aria-disabled="true">${IC.check} Crear viaje</button>`
         )}
       </div>
     </div>
@@ -650,16 +666,7 @@ function transportTripsHtml() {
     ]
   });
   const transportWorkspaceHeader = renderHrWorkspaceHeader(transportModuleHead, transportTripsTabsNav, "payroll");
-  const transportOperateNav = renderModuleWindowTabs({
-    ariaLabel: "Flujos de registro de transporte",
-    activeId: transportTripsSection,
-    action: "transport-trips-section",
-    valueAttr: "section",
-    tabs: [
-      { id: "trips", label: "Asignar viaje" },
-      { id: "routes", label: "Trayecto y tarifa" }
-    ]
-  });
+  const transportOperateNav = renderTransportOperateSectionNav(transportTripsSection);
   const transportDataNav = renderModuleWindowTabs({
     ariaLabel: "Consultas de viajes y trayectos",
     activeId: transportTripsSection,
@@ -693,7 +700,7 @@ function transportTripsHtml() {
   const transportOperatePanel = `<div class="hr-workspace-panel transport-workspace-panel${transportTripsWorkspace === "operate" ? "" : " hidden"}" role="tabpanel" data-transport-trips-panel="operate">
       <section class="transport-operate transport-operate-panel">
         <aside class="transport-operate__rail" aria-label="Flujos de registro">
-          <span class="transport-operate__rail-label">Registrar</span>
+          <p class="transport-operate__rail-label">Tipo de trámite</p>
           ${transportOperateNav}
         </aside>
         <div class="transport-operate__main auth-tab-panels">${tripsOperatePane}${routesOperatePane}</div>

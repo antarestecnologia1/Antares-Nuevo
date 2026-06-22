@@ -523,6 +523,60 @@ export function renderPayrollOperateSectionNav(activeId) {
   </nav>`;
 }
 
+/** Rail lateral de flujos en Transporte · Viajes (Registrar). */
+export function renderTransportOperateSectionNav(activeId) {
+  const tabs = [
+    {
+      id: "trips",
+      label: "Asignar viaje",
+      title: "Crear viaje operativo",
+      hint: "Solicitud, flota y tarifa pactada",
+      norm: "Operación",
+      icon: "truck"
+    },
+    {
+      id: "routes",
+      label: "Trayecto y tarifa",
+      title: "Catálogo de rutas",
+      hint: "Precios por origen, destino y cliente",
+      norm: "Catálogo",
+      icon: "mapPin"
+    }
+  ];
+  return `<nav class="transport-operate-nav" role="tablist" aria-label="Flujos de registro de transporte">
+    ${tabs
+      .map((t) => {
+        const active = activeId === t.id;
+        const iconSvg = ic()[t.icon] ? `<span class="transport-operate-nav-ico" aria-hidden="true">${ic()[t.icon]}</span>` : "";
+        const tip = escapeAttr(`${t.title} — ${t.hint}`);
+        return `<button type="button" role="tab" class="transport-operate-nav-tab${active ? " is-active" : ""}" aria-selected="${active ? "true" : "false"}" data-action="transport-trips-section" data-section="${escapeAttr(t.id)}" title="${tip}">
+          ${iconSvg}
+          <span class="transport-operate-nav-copy">
+            <strong class="transport-operate-nav-label">${escapeHtml(t.label)}</strong>
+            <small class="transport-operate-nav-hint">${escapeHtml(t.hint)}</small>
+            <span class="transport-operate-nav-norm">${escapeHtml(t.norm)}</span>
+          </span>
+        </button>`;
+      })
+      .join("")}
+  </nav>`;
+}
+
+/** Rail lateral en Solicitudes (Registrar). */
+export function renderRequestsOperateSectionNav() {
+  const iconSvg = ic().plus ? `<span class="requests-operate-nav-ico" aria-hidden="true">${ic().plus}</span>` : "";
+  return `<nav class="requests-operate-nav" role="tablist" aria-label="Registro de solicitudes">
+    <button type="button" role="tab" class="requests-operate-nav-tab is-active" aria-selected="true" title="Nueva solicitud de viaje — ruta, carga y ventana de servicio">
+      ${iconSvg}
+      <span class="requests-operate-nav-copy">
+        <strong class="requests-operate-nav-label">Nueva solicitud</strong>
+        <small class="requests-operate-nav-hint">Ruta, carga y ventana de servicio</small>
+        <span class="requests-operate-nav-norm">Transporte</span>
+      </span>
+    </button>
+  </nav>`;
+}
+
 /** Rail lateral de trámites en Contratación (Registrar). */
 export function renderHiringOperateSectionNav(activeId) {
   const tabs = [

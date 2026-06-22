@@ -236,17 +236,6 @@ function hiringHtml() {
   const arlRiskOpts = selectOptionsFromCatalog(CO_CATALOGS.arlRiskLevels);
   const workScheduleOpts = selectOptionsFromCatalog(CO_CATALOGS.workSchedule);
   const fPosition = `<form id="form-position" class="p-form p-form-colored hr-form-flow hr-form-compact">
-    ${renderHrFormHero({
-      eyebrow: "Catálogo base",
-      title: "Defina el cargo con más contexto",
-      description: "Aproveche el panel independiente para comparar salario, jornada, riesgo y base legal sin que el formulario se sienta comprimido.",
-      tone: "hiring",
-      badges: [
-        renderHrFormHeroBadge("Cargo", "maestro"),
-        renderHrFormHeroBadge("ARL", "riesgo"),
-        renderHrFormHeroBadge("Contrato", "referencia")
-      ]
-    })}
     <fieldset class="form-section form-section-blue full">
       <legend>${IC.briefcase} Definición del cargo</legend>
       <div class="form-section-grid">
@@ -277,17 +266,6 @@ function hiringHtml() {
     ${renderManagedCreateFormActions("create-position", `<button class="btn btn-primary" type="submit">${IC.plus} Crear cargo</button>`)}
   </form>`;
   const fVac = `<form id="form-vacancy" class="p-form p-form-colored hr-form-flow hr-form-compact">
-    ${renderHrFormHero({
-      eyebrow: "Publicación",
-      title: "Vacantes con layout más amplio",
-      description: "Visualice cargo, ciudad, modalidad y requisitos en un bloque más cómodo para publicar sin repetir información.",
-      tone: "hiring",
-      badges: [
-        renderHrFormHeroBadge("Ubicación", "departamento y ciudad"),
-        renderHrFormHeroBadge("Cupos", "controlados"),
-        renderHrFormHeroBadge("Requisitos", "visibles")
-      ]
-    })}
     <fieldset class="form-section form-section-violet full">
       <legend>${IC.send} Publicación de la vacante</legend>
       <div class="form-section-grid">
@@ -309,23 +287,11 @@ function hiringHtml() {
   </form>`;
   const educationOptsCand = selectOptionsFromCatalog(CO_CATALOGS.educationLevel);
   const docTypeCand = CO_CATALOGS.documentTypes.map((d) => `<option value="${d}">${d === "CC" ? "Cédula de ciudadanía" : d === "CE" ? "Cédula de extranjería" : d === "PAS" ? "Pasaporte" : d === "PEP" ? "Permiso especial (PEP)" : "Tarjeta de identidad"}</option>`).join("");
-  const fCand = `<form id="form-candidate" class="p-form p-form-colored hr-form-flow">
-    ${renderHrFormHero({
-      eyebrow: "Pipeline de selección",
-      title: "Registro de candidato más cómodo",
-      description: "Divida identidad y perfil profesional en pasos claros, con más ancho para datos personales, vacante y hoja de vida.",
-      tone: "hiring",
-      badges: [
-        renderHrFormHeroBadge("2 pasos", "asistidos"),
-        renderHrFormHeroBadge("CV", "adjuntos"),
-        renderHrFormHeroBadge("Vacante", "relacionada")
-      ]
-    })}
+  const fCand = `<form id="form-candidate" class="p-form p-form-colored hr-form-flow hr-form-compact">
     <div class="hr-form-wizard" data-hr-wizard="candidate" aria-label="Registro de candidato por pasos">
       <div class="hr-form-wizard-toolbar">
         <div>
           <p class="hr-form-wizard-kicker">Registro en dos pasos</p>
-          <p class="hr-form-wizard-lead">Primero identidad y ubicación; luego perfil, vacante y adjuntos.</p>
         </div>
         <div class="hr-form-wizard-meta">
           <div class="hr-wizard-progress-track" aria-hidden="true"><span class="hr-wizard-progress-fill" data-hr-wizard-progress-fill style="width:50%"></span></div>
@@ -375,17 +341,6 @@ function hiringHtml() {
     </div>
   </form>`;
   const fInt = `<form id="form-interview" class="p-form p-form-colored hr-form-flow hr-form-compact">
-    ${renderHrFormHero({
-      eyebrow: "Agenda",
-      title: "Entrevistas rápidas de programar",
-      description: "Con el formulario aislado, los datos clave de cita, modalidad y lugar quedan visibles en un solo bloque.",
-      tone: "hiring",
-      badges: [
-        renderHrFormHeroBadge("Futura", "fecha y hora"),
-        renderHrFormHeroBadge("Modalidad", "presencial o virtual"),
-        renderHrFormHeroBadge("Notas", "previas")
-      ]
-    })}
     <fieldset class="form-section form-section-emerald full">
       <legend>${IC.calendar} Programación de entrevista</legend>
       <div class="form-section-grid">
@@ -410,23 +365,11 @@ function hiringHtml() {
   </form>`;
   const signDateDefault = colombiaTodayIsoDate();
   const candidatesForContractSelect = candidates.filter((c) => !["Descartado"].includes(String(c.status || "")));
-  const fCon = `<form id="form-contract" class="p-form p-form-colored hr-form-flow">
-    ${renderHrFormHero({
-      eyebrow: "Formalización",
-      title: "Generación de contrato con más aire visual",
-      description: "Seleccione empleado, fecha y plantilla con mejor jerarquía antes de pasar a pruebas y descarga del documento Word.",
-      tone: "hiring",
-      badges: [
-        renderHrFormHeroBadge("Empleado", "selección"),
-        renderHrFormHeroBadge("Plantilla", "Word"),
-        renderHrFormHeroBadge("2 pasos", "revisión")
-      ]
-    })}
+  const fCon = `<form id="form-contract" class="p-form p-form-colored hr-form-flow hr-form-compact">
     <div class="hr-form-wizard" data-hr-wizard="contract" aria-label="Generación de contrato por pasos">
       <div class="hr-form-wizard-toolbar">
         <div>
-          <p class="hr-form-wizard-kicker">Contrato Word</p>
-          <p class="hr-form-wizard-lead">Primero datos de firma; en el siguiente paso puede probar las plantillas.</p>
+          <p class="hr-form-wizard-kicker">Contrato Word · 2 pasos</p>
         </div>
         <div class="hr-form-wizard-meta">
           <div class="hr-wizard-progress-track" aria-hidden="true"><span class="hr-wizard-progress-fill" data-hr-wizard-progress-fill style="width:50%"></span></div>

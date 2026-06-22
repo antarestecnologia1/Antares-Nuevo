@@ -68,7 +68,7 @@ import {
 } from "./router.js";
 import { isCreatePanelExpanded } from "../ui/components.js";
 import { applyPublicLanguage, applyTheme } from "./i18n.js";
-import { failPortalField } from "../ui/modals.js";
+import { failPortalField, isActionButtonBusy } from "../ui/modals.js";
 
 /** Runtime clásico (`portal-runtime.js`) expuesto en `globalThis` antes que este módulo. */
 const $portal = typeof globalThis !== "undefined" ? /** @type {Record<string, any>} */ (globalThis) : /** @type {Record<string, any>} */ ({});
@@ -549,7 +549,8 @@ function enforceColombianFormStandards() {
   }
   const todayYmd = colombiaTodayIsoDate();
   ["pickup-date", "delivery-date"].forEach((id) => {
-    const el = $portal.queryPortalDateField(nodes.viewRoot || document, id);
+    const root = nodes.viewRoot || document;
+    const el = $portal.queryPortalDateField(root, id) || root.querySelector?.(`#${id}`);
     if (el) el.dataset.antaresDateMin = todayYmd;
   });
 }
@@ -663,7 +664,7 @@ function bindDynamicEvents() {
     btn.addEventListener("click", async () => {
       const panelId = String(btn.dataset.panel || "");
       const formEl = btn.closest("form");
-      if (!panelId || !formEl) return;
+      if (!panelId || !formEl || formEl.dataset.submitting === "1" || isActionButtonBusy(btn)) return;
       await $portal.resetCreatePanelForm(panelId, formEl);
     });
   });

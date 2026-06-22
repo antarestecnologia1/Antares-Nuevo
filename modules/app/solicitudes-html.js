@@ -32,11 +32,18 @@
 
   function acfScheduleDateField(inputId, inputName, label) {
     return `<div class="acf-schedule-field acf-schedule-field--date">
-      <label for="${escapeAttr(inputId)}">${fieldLabel(IC.calendar, label, { required: true })}
-        <div class="acf-date-shell">
-          <span class="acf-date-shell__icon" aria-hidden="true">${IC.calendar}</span>
-          <input type="date" name="${escapeAttr(inputName)}" id="${escapeAttr(inputId)}" lang="es-CO" required data-portal-date-enhanced="1" data-antares-validate-blur="date-iso" class="acf-date-input" />
-          <button type="button" class="acf-date-shell__trigger" data-acf-date-open="${escapeAttr(inputId)}" aria-label="Abrir calendario para ${escapeAttr(label)}">${IC.calendar}</button>
+      <label>${fieldLabel(IC.calendar, label, { required: true })}
+        <div class="acf-picker acf-picker--date" data-acf-picker="date" data-acf-picker-target="${escapeAttr(inputId)}">
+          <input type="hidden" name="${escapeAttr(inputName)}" id="${escapeAttr(inputId)}" required data-portal-date-enhanced="1" data-antares-validate-blur="date-iso" />
+          <div class="acf-date-shell acf-picker__shell">
+            <span class="acf-date-shell__icon" aria-hidden="true">${IC.calendar}</span>
+            <button type="button" class="acf-picker__trigger" data-acf-picker-open aria-haspopup="dialog" aria-expanded="false">
+              <span class="acf-picker__placeholder">Seleccione fecha</span>
+              <span class="acf-picker__value" data-acf-picker-display hidden></span>
+            </button>
+            <span class="acf-picker__chevron" aria-hidden="true">${IC.chevronDown}</span>
+          </div>
+          <div class="acf-picker__panel acf-picker__panel--date" data-acf-picker-panel hidden role="dialog" aria-label="Elegir ${escapeAttr(label)}"></div>
         </div>
       </label>
       ${inputId === "pickup-date" ? acfScheduleDatePresets(inputId) : ""}
@@ -45,11 +52,18 @@
 
   function acfScheduleTimeField(inputId, inputName, label, presetTimes) {
     return `<div class="acf-schedule-field acf-schedule-field--time">
-      <label for="${escapeAttr(inputId)}">${fieldLabel(IC.clock, label, { required: true })}
-        <div class="acf-time-shell">
-          <span class="acf-time-shell__icon" aria-hidden="true">${IC.clock}</span>
-          <input type="time" name="${escapeAttr(inputName)}" id="${escapeAttr(inputId)}" required class="acf-time-input" step="300" />
-          <button type="button" class="acf-time-shell__trigger" data-acf-time-open="${escapeAttr(inputId)}" aria-label="Abrir selector de hora para ${escapeAttr(label)}">${IC.clock}</button>
+      <label>${fieldLabel(IC.clock, label, { required: true })}
+        <div class="acf-picker acf-picker--time" data-acf-picker="time" data-acf-picker-target="${escapeAttr(inputId)}">
+          <input type="hidden" name="${escapeAttr(inputName)}" id="${escapeAttr(inputId)}" required class="acf-time-input" />
+          <div class="acf-time-shell acf-picker__shell">
+            <span class="acf-time-shell__icon" aria-hidden="true">${IC.clock}</span>
+            <button type="button" class="acf-picker__trigger" data-acf-picker-open aria-haspopup="dialog" aria-expanded="false">
+              <span class="acf-picker__placeholder">Seleccione hora</span>
+              <span class="acf-picker__value" data-acf-picker-display hidden></span>
+            </button>
+            <span class="acf-picker__chevron" aria-hidden="true">${IC.chevronDown}</span>
+          </div>
+          <div class="acf-picker__panel acf-picker__panel--time" data-acf-picker-panel hidden role="dialog" aria-label="Elegir ${escapeAttr(label)}"></div>
         </div>
       </label>
       ${acfScheduleTimePresets(inputId, presetTimes)}
@@ -829,7 +843,13 @@
     });
     const workspaceHeader = renderHrWorkspaceHeader(moduleHead, requestsTabsNav, "payroll");
     const operatePanel = `<div class="hr-workspace-panel requests-workspace-panel${requestsWorkspace === "operate" ? "" : " hidden"}" role="tabpanel" data-requests-panel="operate">
-      ${requestCreateFormPanelHtml()}
+      <section class="req-operate req-operate-panel">
+        <aside class="req-operate__rail" aria-label="Tipo de registro">
+          <p class="req-operate__rail-label">Tipo de trámite</p>
+          ${renderRequestsOperateSectionNav()}
+        </aside>
+        <div class="req-operate__main">${requestCreateFormPanelHtml()}</div>
+      </section>
     </div>`;
     const dataPanel = `<div class="hr-workspace-panel requests-workspace-panel${requestsWorkspace === "data" ? "" : " hidden"}" role="tabpanel" data-requests-panel="data">
       ${requestListClientHtml(user)}

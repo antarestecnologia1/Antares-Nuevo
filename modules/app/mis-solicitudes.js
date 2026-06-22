@@ -172,14 +172,11 @@
     const preview = schedule.querySelector("[data-request-schedule-preview]");
     const durationEl = schedule.querySelector("[data-request-schedule-duration]");
     const connector = schedule.querySelector(".acf-schedule__connector");
-    const V = window.AntaresValidation;
 
     const readDateIso = (fieldId) => {
-      const el =
-        (typeof queryPortalDateField === "function" ? queryPortalDateField(requestForm, fieldId) : null) ||
-        requestForm.querySelector(`#${fieldId}`);
+      const el = requestForm.querySelector(`#${fieldId}`);
       if (!el) return "";
-      return V?.portalDateInputValueIso?.(el) || normalizePortalDateYmd(el.value) || "";
+      return normalizePortalDateYmd(el.value) || "";
     };
 
     const readTime = (fieldId) => {
@@ -220,16 +217,10 @@
       const pickupIso = readDateIso("pickup-date");
       const today = colombiaTodayIsoDate();
       const minIso = pickupIso && pickupIso > today ? pickupIso : today;
-      const pickupVis =
-        (typeof queryPortalDateField === "function" ? queryPortalDateField(requestForm, "pickup-date") : null) ||
-        requestForm.querySelector("#pickup-date");
-      const deliveryVis =
-        (typeof queryPortalDateField === "function" ? queryPortalDateField(requestForm, "delivery-date") : null) ||
-        requestForm.querySelector("#delivery-date");
-      [pickupVis, deliveryVis].forEach((el) => {
+      ["pickup-date", "delivery-date"].forEach((id) => {
+        const el = requestForm.querySelector(`#${id}`);
         if (!el) return;
         el.dataset.antaresDateMin = minIso;
-        if (String(el.type || "").toLowerCase() === "date") el.min = minIso;
       });
     };
 
@@ -293,16 +284,23 @@
       const [y, m, d] = base.split("-").map((n) => parseInt(n, 10));
       const dt = new Date(y, m - 1, d + Number(dayOffset || 0));
       const iso = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
-      if (typeof setFormDateByName === "function") {
+      const hidden = requestForm.querySelector(`#${targetId}`);
+      if (hidden) {
+        hidden.value = iso;
+        hidden.dispatchEvent(new Event("input", { bubbles: true }));
+        hidden.dispatchEvent(new Event("change", { bubbles: true }));
+      } else if (typeof setFormDateByName === "function") {
         const name = targetId === "pickup-date" ? "pickupDate" : "deliveryDate";
         setFormDateByName(requestForm, name, iso);
-      } else {
-        const el = requestForm.querySelector(`#${targetId}`);
-        if (el) el.value = iso;
+      }
+      if (typeof refreshAntaresSchedulePickerDisplay === "function") {
+        refreshAntaresSchedulePickerDisplay(requestForm, targetId);
       }
       syncDeliveryMin();
       syncPreview();
     };
+
+    mountAntaresSchedulePickers?.(requestForm);
 
     schedule.querySelectorAll("[data-acf-time-preset]").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -313,6 +311,7 @@
         input.value = value;
         input.dispatchEvent(new Event("input", { bubbles: true }));
         input.dispatchEvent(new Event("change", { bubbles: true }));
+        refreshAntaresSchedulePickerDisplay?.(requestForm, targetId);
         syncPreview();
       });
     });
@@ -323,49 +322,17 @@
       });
     });
 
-    schedule.querySelectorAll("[data-acf-date-open]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const id = String(btn.dataset.acfDateOpen || "");
-        const el = requestForm.querySelector(`#${id}`);
-        if (!el) return;
-        if (typeof el.showPicker === "function") {
-          try {
-            el.showPicker();
-            return;
-          } catch (_pickerErr) {
-            /* showPicker puede fallar sin gesto de usuario */
-          }
-        }
-        el.focus();
-      });
-    });
-
-    schedule.querySelectorAll("[data-acf-time-open]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const id = String(btn.dataset.acfTimeOpen || "");
-        const el = requestForm.querySelector(`#${id}`);
-        if (!el) return;
-        if (typeof el.showPicker === "function") {
-          try {
-            el.showPicker();
-            return;
-          } catch (_pickerErr) {
-            /* noop */
-          }
-        }
-        el.focus();
-      });
-    });
-
     ["pickup-date", "delivery-date", "pickup-time", "delivery-time"].forEach((id) => {
       const el = requestForm.querySelector(`#${id}`);
       if (!el) return;
       el.addEventListener("input", () => {
         if (id.includes("date")) syncDeliveryMin();
+        refreshAntaresSchedulePickerDisplay?.(requestForm, id);
         syncPreview();
       });
       el.addEventListener("change", () => {
         if (id.includes("date")) syncDeliveryMin();
+        refreshAntaresSchedulePickerDisplay?.(requestForm, id);
         syncPreview();
       });
     });
@@ -404,19 +371,10 @@
     }
     if (pickupDate) {
       const today = colombiaTodayIsoDate();
-      const applyMin = (el) => {
-        if (!el) return;
-        el.dataset.antaresDateMin = today;
-        if (String(el.type || "").toLowerCase() === "date") el.min = today;
-      };
-      applyMin(
-        (typeof queryPortalDateField === "function" ? queryPortalDateField(requestForm, "pickup-date") : null) ||
-          pickupDate
-      );
-      applyMin(
-        (typeof queryPortalDateField === "function" ? queryPortalDateField(requestForm, "delivery-date") : null) ||
-          deliveryDate
-      );
+      ["pickup-date", "delivery-date"].forEach((id) => {
+        const el = requestForm.querySelector(`#${id}`);
+        if (el) el.dataset.antaresDateMin = today;
+      });
     }
 
     wireRequestScheduleUi(requestForm);

@@ -2,7 +2,7 @@
  * Transporte · Historial (`history`): trazabilidad unificada del portal.
  */
 const HISTORY_RENDER_WINDOW = 50;
-const HISTORY_DEFAULT_LAYOUT = "list";
+const HISTORY_DEFAULT_LAYOUT = "cards";
 
 function defaultHistoryUi() {
   return { layout: HISTORY_DEFAULT_LAYOUT, actionFilter: "all", moduleFilter: "" };
@@ -12,11 +12,42 @@ function normalizeHistoryLayout(raw) {
   return String(raw || "").trim().toLowerCase() === "cards" ? "cards" : HISTORY_DEFAULT_LAYOUT;
 }
 
+function historyTraceRelativeTime(ts) {
+  const t = new Date(ts).getTime();
+  if (!Number.isFinite(t)) return "";
+  const mins = Math.max(0, Math.round((Date.now() - t) / 60000));
+  if (mins < 1) return "ahora";
+  if (mins < 60) return `hace ${mins} min`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `hace ${hours} h`;
+  const days = Math.round(hours / 24);
+  if (days < 7) return `hace ${days} d`;
+  return "";
+}
+
+function historyTraceActionIcon(action) {
+  if (action === "create") return IC.plus || IC.check;
+  if (action === "delete") return IC.trash || IC.x;
+  return IC.edit || IC.activity;
+}
+
+function historyTraceActorInitials(label) {
+  const text = String(label || "").trim();
+  if (!text) return "?";
+  const parts = text.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return text.slice(0, 2).toUpperCase();
+}
+
+globalThis.historyTraceRelativeTime = historyTraceRelativeTime;
+globalThis.historyTraceActionIcon = historyTraceActionIcon;
+globalThis.historyTraceActorInitials = historyTraceActorInitials;
+
 function historyViewToggleHtml(layout) {
   const viewLayout = normalizeHistoryLayout(layout);
   return `<div class="hist-trace-layout-toggle" role="group" aria-label="Formato de visualización">
-    <button type="button" class="btn btn-sm ${viewLayout === "cards" ? "btn-primary" : "btn-outline"}" data-action="history-layout" data-layout="cards">${IC.grid || IC.layers} Línea de tiempo</button>
-    <button type="button" class="btn btn-sm ${viewLayout === "list" ? "btn-primary" : "btn-outline"}" data-action="history-layout" data-layout="list">${IC.list || IC.file} Tabla</button>
+    <button type="button" class="hist-trace-layout-btn${viewLayout === "cards" ? " is-active" : ""}" data-action="history-layout" data-layout="cards" aria-pressed="${viewLayout === "cards"}">${IC.grid || IC.layers}<span>Línea de tiempo</span></button>
+    <button type="button" class="hist-trace-layout-btn${viewLayout === "list" ? " is-active" : ""}" data-action="history-layout" data-layout="list" aria-pressed="${viewLayout === "list"}">${IC.list || IC.file}<span>Tabla</span></button>
   </div>`;
 }
 
@@ -257,16 +288,19 @@ function applyHistoryTraceFilters(entries, opts = {}) {
 
 function renderHistoryTraceKpis(stats) {
   const items = [
-    { label: "Eventos", value: stats.total, tone: "primary" },
-    { label: "Creaciones", value: stats.create, tone: stats.create ? "ok" : "neutral" },
-    { label: "Actualizaciones", value: stats.update, tone: stats.update ? "warn" : "neutral" },
-    { label: "Eliminaciones", value: stats.delete, tone: stats.delete ? "danger" : "neutral" },
-    { label: "Módulos", value: stats.modules, tone: "neutral" }
+    { label: "Eventos", value: stats.total, tone: "primary", icon: IC.activity || IC.layers },
+    { label: "Creaciones", value: stats.create, tone: stats.create ? "ok" : "neutral", icon: IC.plus || IC.check },
+    { label: "Actualizaciones", value: stats.update, tone: stats.update ? "warn" : "neutral", icon: IC.edit || IC.activity },
+    { label: "Eliminaciones", value: stats.delete, tone: stats.delete ? "danger" : "neutral", icon: IC.trash || IC.x },
+    { label: "Módulos", value: stats.modules, tone: "neutral", icon: IC.layers }
   ];
   return `<dl class="hist-trace-kpis" aria-label="Resumen de trazabilidad">${items
-    .map(({ label, value, tone }) => {
+    .map(({ label, value, tone, icon }) => {
       const toneClass = tone && tone !== "neutral" ? ` hist-trace-kpi--${tone}` : "";
-      return `<div class="hist-trace-kpi${toneClass}"><dt>${escapeHtml(label)}</dt><dd><strong>${escapeHtml(String(value))}</strong></dd></div>`;
+      return `<div class="hist-trace-kpi${toneClass}">
+        <span class="hist-trace-kpi__icon" aria-hidden="true">${icon}</span>
+        <div class="hist-trace-kpi__text"><dt>${escapeHtml(label)}</dt><dd><strong>${escapeHtml(String(value))}</strong></dd></div>
+      </div>`;
     })
     .join("")}</dl>`;
 }
@@ -298,15 +332,19 @@ function renderHistoryModuleFilterChips(allEntries, filterOpts, activeModule) {
   return html;
 }
 
-function renderHistoryActionFilters(active) {
+function renderHistoryActionFilters(active, stats = {}) {
   const cur = String(active || "all");
-  const pill = (key, label) =>
-    `<button type="button" class="hist-trace-action-pill${cur === key ? " is-active" : ""}" data-action="history-action-filter" data-filter="${escapeAttr(key)}">${escapeHtml(label)}</button>`;
+  const pill = (key, label, icon, count) =>
+    `<button type="button" class="hist-trace-action-pill hist-trace-action-pill--${escapeAttr(key)}${cur === key ? " is-active" : ""}" data-action="history-action-filter" data-filter="${escapeAttr(key)}" aria-pressed="${cur === key}">
+      <span class="hist-trace-action-pill__ico" aria-hidden="true">${icon}</span>
+      <span class="hist-trace-action-pill__label">${escapeHtml(label)}</span>
+      <span class="hist-trace-action-pill__count">${Number(count) || 0}</span>
+    </button>`;
   return `<div class="hist-trace-action-filters" role="group" aria-label="Tipo de movimiento">
-    ${pill("all", "Todos")}
-    ${pill("create", "Creaciones")}
-    ${pill("update", "Actualizaciones")}
-    ${pill("delete", "Eliminaciones")}
+    ${pill("all", "Todos", IC.layers, stats.total)}
+    ${pill("create", "Creaciones", IC.plus || IC.check, stats.create)}
+    ${pill("update", "Actualizaciones", IC.edit || IC.activity, stats.update)}
+    ${pill("delete", "Eliminaciones", IC.trash || IC.x, stats.delete)}
   </div>`;
 }
 
@@ -317,35 +355,56 @@ function renderHistoryTraceToolbar(viewLayout, moduleOptions, moduleFilter) {
   return `<form id="history-trace-filter" class="hist-trace-filter-form" novalidate>
     <div class="hist-trace-toolbar">
       <label class="hist-trace-search">
+        <span class="hist-trace-search__icon" aria-hidden="true">${IC.search || IC.filter}</span>
         <span class="visually-hidden">Buscar en trazabilidad</span>
-        ${IC.search || IC.filter}
-        <input type="search" name="q" placeholder="Módulo, entidad, resumen, usuario…" autocomplete="off" />
+        <input type="search" name="q" placeholder="Buscar por módulo, entidad, resumen o usuario…" autocomplete="off" />
       </label>
-      ${historyViewToggleHtml(viewLayout)}
-      <button type="button" class="btn btn-sm btn-action hist-trace-export-btn" data-action="history-export-csv">${IC.download || ""} Exportar CSV</button>
-      <details class="hist-trace-advanced">
-        <summary class="btn btn-sm btn-action">${IC.filter} Periodo</summary>
-        <div class="hist-trace-advanced-body">
-          <label>${fieldLabel(IC.calendar, "Desde")}<input type="date" name="from" /></label>
-          <label>${fieldLabel(IC.calendar, "Hasta")}<input type="date" name="to" /></label>
-          <label class="hist-trace-module-select">${fieldLabel(IC.layers, "Módulo (lista)")}<select name="module"><option value="">Todos los módulos</option>${moduleOpts}</select></label>
-          <button class="btn btn-sm btn-action" type="reset">${IC.x} Limpiar filtros</button>
-        </div>
-      </details>
+      <div class="hist-trace-toolbar__actions">
+        ${historyViewToggleHtml(viewLayout)}
+        <details class="hist-trace-advanced">
+          <summary class="hist-trace-advanced-trigger">${IC.filter}<span>Periodo</span></summary>
+          <div class="hist-trace-advanced-body">
+            <label>${fieldLabel(IC.calendar, "Desde")}<input type="date" name="from" /></label>
+            <label>${fieldLabel(IC.calendar, "Hasta")}<input type="date" name="to" /></label>
+            <label class="hist-trace-module-select">${fieldLabel(IC.layers, "Módulo (lista)")}<select name="module"><option value="">Todos los módulos</option>${moduleOpts}</select></label>
+            <button class="btn btn-sm btn-outline" type="reset">${IC.x} Limpiar filtros</button>
+          </div>
+        </details>
+        <button type="button" class="btn btn-sm btn-action hist-trace-export-btn" data-action="history-export-csv">${IC.download || ""}<span>Exportar</span></button>
+      </div>
     </div>
   </form>`;
 }
 
+function renderHistoryTraceEmptyState(hint = "Los movimientos del sistema aparecerán aquí conforme se registren.") {
+  return `<div class="hist-trace-empty">
+    <div class="hist-trace-empty__visual" aria-hidden="true">
+      <span class="hist-trace-empty__ring">${IC.activity || IC.layers}</span>
+    </div>
+    <h3 class="hist-trace-empty__title">Sin eventos que mostrar</h3>
+    <p class="hist-trace-empty__hint muted">${escapeHtml(hint)}</p>
+    <ul class="hist-trace-empty__tips">
+      <li>Pruebe ampliar el periodo de fechas</li>
+      <li>Seleccione otro módulo o tipo de movimiento</li>
+      <li>Limpie la búsqueda activa</li>
+    </ul>
+  </div>`;
+}
+
 function renderHistoryTraceFeedGrouped(entries) {
   if (!entries.length) {
-    return `<div class="hist-trace-empty"><span class="hist-trace-empty__icon" aria-hidden="true">${IC.activity || IC.layers}</span><p>Sin eventos con los filtros actuales</p><p class="muted">Ajuste el periodo, el módulo o el tipo de movimiento.</p></div>`;
+    return renderHistoryTraceEmptyState("Ajuste el periodo, el módulo o el tipo de movimiento.");
   }
   const groups = groupHistoryTraceByDay(entries);
   return `<div class="hist-trace-feed" id="history-trace-results-grid">${groups
     .map(([dayKey, items]) => {
       const label = historyTraceDayLabel(dayKey);
-      return `<section class="hist-trace-day" aria-label="${escapeAttr(label)}">
+      const isToday = label === "Hoy";
+      const isYesterday = label === "Ayer";
+      const dayTone = isToday ? " is-today" : isYesterday ? " is-yesterday" : "";
+      return `<section class="hist-trace-day${dayTone}" aria-label="${escapeAttr(label)}">
         <header class="hist-trace-day__head">
+          <div class="hist-trace-day__marker" aria-hidden="true"></div>
           <h3 class="hist-trace-day__title"><time datetime="${escapeAttr(dayKey)}">${escapeHtml(label)}</time></h3>
           <span class="hist-trace-day__count">${items.length} evento${items.length === 1 ? "" : "s"}</span>
         </header>
@@ -358,7 +417,7 @@ function renderHistoryTraceFeedGrouped(entries) {
 function renderHistoryTraceResults(entries, layout) {
   const viewLayout = normalizeHistoryLayout(layout);
   if (!entries.length) {
-    return `<div class="hist-trace-empty"><span class="hist-trace-empty__icon" aria-hidden="true">${IC.activity || IC.layers}</span><p>Sin eventos con los filtros actuales</p><p class="muted">Los movimientos del sistema aparecerán aquí conforme se registren.</p></div>`;
+    return renderHistoryTraceEmptyState();
   }
   if (viewLayout === "list") {
     return renderHistoryAuditList(entries, "list");
@@ -382,28 +441,45 @@ function historyHtml() {
   const renderLimit = Number(state.historyRenderLimit) > 0 ? Number(state.historyRenderLimit) : HISTORY_RENDER_WINDOW;
   const shown = historyRenderWindowSlice(filtered, renderLimit);
 
-  const hero = `<header class="hist-trace-hero">
-    <div class="hist-trace-hero__brand">
-      <span class="hist-trace-hero__badge">${IC.activity || ""} Trazabilidad</span>
-      <h2>Historial del sistema</h2>
-      <p class="hist-trace-hero__lead">Registro auditable en tabla con creaciones, actualizaciones y eliminaciones en todos los módulos del portal.</p>
+  const allStats = historyTraceStats(allEntries);
+
+  const hero = `<header class="hist-trace-hero history-studio-head">
+    <div class="hist-trace-hero__brand history-studio-head__brand">
+      <span class="hist-trace-hero__badge history-studio-head__badge">${IC.activity || ""} Auditoría</span>
+      <h2>Historial y trazabilidad</h2>
+      <p class="hist-trace-hero__lead history-studio-head__tagline">Registro auditable de creaciones, actualizaciones y eliminaciones en todos los módulos del portal. Cada evento incluye usuario, fecha y resumen del cambio.</p>
     </div>
     ${renderHistoryTraceKpis(stats)}
   </header>`;
 
   const body = `<div class="hist-trace-workspace">
-    ${renderHistoryActionFilters(actionFilter)}
-    ${renderHistoryModuleFilterChips(allEntries, chipFilterOpts, moduleFilter)}
-    ${renderHistoryTraceToolbar(viewLayout, moduleOptions, moduleFilter)}
-    <div class="hist-trace-result-bar">
-      <p class="hist-trace-result-meta"><span id="history-trace-result-count">${filtered.length}</span> evento${filtered.length === 1 ? "" : "s"}${escapeHtml(viewLayoutHint)}</p>
-      <div class="hist-trace-result-actions">
-        <span class="muted hist-trace-result-sort">Más recientes primero</span>
-        <button type="button" class="btn btn-sm btn-outline hist-trace-export-btn hist-trace-export-btn--inline" data-action="history-export-csv"${filtered.length ? "" : " disabled"}>${IC.download || ""} CSV (${filtered.length})</button>
+    <div class="hist-trace-control-panel">
+      <div class="hist-trace-control-panel__section">
+        <span class="hist-trace-control-panel__label">Tipo de movimiento</span>
+        ${renderHistoryActionFilters(actionFilter, allStats)}
+      </div>
+      <div class="hist-trace-control-panel__section hist-trace-control-panel__section--modules">
+        <span class="hist-trace-control-panel__label">Módulo</span>
+        ${renderHistoryModuleFilterChips(allEntries, chipFilterOpts, moduleFilter)}
+      </div>
+      <div class="hist-trace-control-panel__section hist-trace-control-panel__section--toolbar">
+        ${renderHistoryTraceToolbar(viewLayout, moduleOptions, moduleFilter)}
       </div>
     </div>
-    <div id="history-trace-results">${renderHistoryTraceResults(shown, viewLayout)}</div>
-    ${historyRenderWindowMoreBar(filtered.length, shown.length, "history-render-more")}
+    <div class="hist-trace-results-panel">
+      <div class="hist-trace-result-bar">
+        <p class="hist-trace-result-meta">
+          <span class="hist-trace-result-meta__count" id="history-trace-result-count">${filtered.length}</span>
+          <span class="hist-trace-result-meta__label">evento${filtered.length === 1 ? "" : "s"}${escapeHtml(viewLayoutHint)}</span>
+        </p>
+        <div class="hist-trace-result-actions">
+          <span class="hist-trace-result-sort">${IC.clock || ""}<span>Más recientes primero</span></span>
+          <button type="button" class="btn btn-sm btn-outline hist-trace-export-btn hist-trace-export-btn--inline" data-action="history-export-csv"${filtered.length ? "" : " disabled"}>${IC.download || ""}<span>CSV (${filtered.length})</span></button>
+        </div>
+      </div>
+      <div id="history-trace-results" class="hist-trace-results-mount">${renderHistoryTraceResults(shown, viewLayout)}</div>
+      ${historyRenderWindowMoreBar(filtered.length, shown.length, "history-render-more")}
+    </div>
   </div>`;
 
   return `<section class="history-studio hist-trace-shell hr-flow-shell" data-history-trace="1">
@@ -507,7 +583,7 @@ function historyHtml() {
         nodes.viewRoot.querySelectorAll("[data-action='history-export-csv']").forEach((exportBtn) => {
           exportBtn.disabled = items.length === 0;
           if (exportBtn.classList.contains("hist-trace-export-btn--inline")) {
-            exportBtn.innerHTML = `${IC.download || ""} CSV (${items.length})`;
+            exportBtn.innerHTML = `${IC.download || ""}<span>CSV (${items.length})</span>`;
           }
         });
         if (kpiRoot) {

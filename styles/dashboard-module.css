@@ -2860,16 +2860,16 @@ body[data-theme="dark"] .dashboard-studio .dash-exec-item {
   display: block;
   padding: 0;
   min-height: 100%;
-  background: var(--nx-void, #eef3f9);
+  background: var(--nx-void, #e4eef8);
   color: var(--nx-text, #0b2138);
   font-family: var(--font-body, "Montserrat", system-ui, sans-serif);
 }
 
 .portal-main:has(.dashboard-studio:has(.nx-ambient)) {
   padding-top: 0;
-  background: var(--nx-bg, #e4ecf5);
+  background: linear-gradient(180deg, var(--nx-bg, #d8e6f2) 0%, var(--nx-void, #e4eef8) 140px, var(--nx-void, #e4eef8) 100%);
 }
 
 body[data-theme="dark"] .portal-main:has(.dashboard-studio:has(.nx-ambient)) {
-  background: var(--nx-bg, #0e1520);
+  background: linear-gradient(180deg, #060c14 0%, var(--nx-bg, #0a1018) 140px, var(--nx-bg, #0a1018) 100%);
 }

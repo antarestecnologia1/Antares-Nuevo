@@ -3869,6 +3869,28 @@ function updateCreateTripStepper(formEl) {
     submitBtn.disabled = !ready;
     submitBtn.setAttribute("aria-disabled", ready ? "false" : "true");
   }
+
+  const stepRequestDone = !!requestId && assignable;
+  const stepFleetDone = !!vehicleId && !!driverId;
+  const stepRateDone = tripValue > 0;
+  const milestones = [
+    { key: "request", done: stepRequestDone },
+    { key: "fleet", done: stepFleetDone },
+    { key: "rate", done: stepRateDone }
+  ];
+  const doneSteps = milestones.filter((m) => m.done).length;
+  const progressFill = formEl.querySelector("[data-create-trip-progress]");
+  if (progressFill) {
+    progressFill.style.width = `${Math.round((doneSteps / milestones.length) * 100)}%`;
+  }
+  milestones.forEach(({ key, done }, idx) => {
+    const el = formEl.querySelector(`[data-create-trip-milestone="${key}"]`);
+    if (!el) return;
+    el.classList.toggle("is-done", done);
+    const prevDone = idx === 0 || milestones[idx - 1].done;
+    el.classList.toggle("is-active", !done && prevDone);
+    if (done) el.classList.remove("is-active");
+  });
 }
 
 /** Select con búsqueda por texto (listas largas de flota / conductores). */
@@ -8903,14 +8925,26 @@ function renderHistoryAuditCard(entry) {
     });
   const detailButton =
     entry.detailAction && entry.detailId
-      ? `<button type="button" class="btn btn-sm btn-outline" data-action="${escapeAttr(entry.detailAction)}" data-id="${escapeAttr(entry.detailId)}">${IC.eye} Detalle</button>`
+      ? `<button type="button" class="btn btn-sm btn-outline hist-trace-detail-btn" data-action="${escapeAttr(entry.detailAction)}" data-id="${escapeAttr(entry.detailId)}">${IC.eye}<span>Ver detalle</span></button>`
       : "";
   const haystack = historyTraceHaystack(entry);
   const moduleIconFn = globalThis.historyTraceModuleIconHtml;
   const moduleIcon =
     typeof moduleIconFn === "function" ? moduleIconFn(entry.moduleLabel, "hist-trace-card__module-ico") : "";
+  const actionIconFn = globalThis.historyTraceActionIcon;
+  const actionIcon = typeof actionIconFn === "function" ? actionIconFn(entry.action) : "";
+  const relativeFn = globalThis.historyTraceRelativeTime;
+  const relative = typeof relativeFn === "function" ? relativeFn(entry.ts) : "";
+  const initialsFn = globalThis.historyTraceActorInitials;
+  const initials = typeof initialsFn === "function" ? initialsFn(actorLabel) : "?";
+  const relativeHtml = relative
+    ? `<span class="hist-trace-card__relative" title="${escapeAttr(fmtDate(entry.ts))}">${escapeHtml(relative)}</span>`
+    : "";
   return `<article class="hist-trace-card hist-trace-card--${escapeAttr(actionSlug)}" data-audit-row data-trace-haystack="${escapeAttr(haystack)}">
-    <div class="hist-trace-card__rail" aria-hidden="true"><span class="hist-trace-card__dot"></span></div>
+    <div class="hist-trace-card__rail" aria-hidden="true">
+      <span class="hist-trace-card__dot"></span>
+      <span class="hist-trace-card__action-ico">${actionIcon}</span>
+    </div>
     <div class="hist-trace-card__body">
       <header class="hist-trace-card__head">
         <span class="hist-trace-card__module">${moduleIcon}<span>${escapeHtml(entry.moduleLabel)}</span></span>
@@ -8919,8 +8953,14 @@ function renderHistoryAuditCard(entry) {
       <h3 class="hist-trace-card__title">${escapeHtml(entry.entityLabel)}</h3>
       <p class="hist-trace-card__summary">${escapeHtml(entry.summary || "Sin resumen")}</p>
       <footer class="hist-trace-card__foot">
-        <time class="hist-trace-card__time" datetime="${escapeAttr(String(entry.ts || ""))}">${escapeHtml(fmtDate(entry.ts))}</time>
-        <span class="hist-trace-card__actor${actorLabel ? "" : " hist-trace-card__actor--empty"}" title="${actorLabel ? "" : "No se registró el usuario responsable de este cambio"}">${IC.user}<span>${actorLabel ? escapeHtml(actorLabel) : "Sin registrar"}</span></span>
+        <div class="hist-trace-card__meta">
+          <time class="hist-trace-card__time" datetime="${escapeAttr(String(entry.ts || ""))}">${escapeHtml(fmtDate(entry.ts))}</time>
+          ${relativeHtml}
+        </div>
+        <span class="hist-trace-card__actor${actorLabel ? "" : " hist-trace-card__actor--empty"}" title="${actorLabel ? "" : "No se registró el usuario responsable de este cambio"}">
+          <span class="hist-trace-card__avatar" aria-hidden="true">${escapeHtml(initials)}</span>
+          <span class="hist-trace-card__actor-name">${actorLabel ? escapeHtml(actorLabel) : "Sin registrar"}</span>
+        </span>
         ${detailButton ? `<span class="hist-trace-card__detail">${detailButton}</span>` : ""}
       </footer>
     </div>
@@ -8930,6 +8970,7 @@ function renderHistoryAuditCard(entry) {
 function renderHistoryAuditRow(entry) {
   const actionLabel = historyAuditActionLabel(entry.action);
   const actionTone = historyAuditActionStatus(entry.action);
+  const actionSlug = String(entry.action || "update");
   const actorLabel =
     String(entry.usuario || "").trim() ||
     historyAuditEnrichActorDisplay(entry.actor, {
@@ -8941,18 +8982,29 @@ function renderHistoryAuditRow(entry) {
     typeof moduleIconFn === "function" ? moduleIconFn(entry.moduleLabel, "hist-trace-table-module-ico") : "";
   const detailButton =
     entry.detailAction && entry.detailId
-      ? `<button type="button" class="btn btn-sm btn-outline" data-action="${escapeAttr(entry.detailAction)}" data-id="${escapeAttr(entry.detailId)}">${IC.eye} Detalle</button>`
+      ? `<button type="button" class="btn btn-sm btn-outline hist-trace-detail-btn" data-action="${escapeAttr(entry.detailAction)}" data-id="${escapeAttr(entry.detailId)}">${IC.eye}<span>Detalle</span></button>`
       : "";
   const actions = detailButton
     ? `<div class="toolbar history-list-actions">${detailButton}</div>`
     : '<span class="muted">—</span>';
-  return `<tr class="hist-table-row hist-table-row--audit" data-audit-row>
-    <td data-label="Fecha"><time datetime="${escapeAttr(String(entry.ts || ""))}">${escapeHtml(fmtDate(entry.ts))}</time></td>
+  const relativeFn = globalThis.historyTraceRelativeTime;
+  const relative = typeof relativeFn === "function" ? relativeFn(entry.ts) : "";
+  const initialsFn = globalThis.historyTraceActorInitials;
+  const initials = typeof initialsFn === "function" ? initialsFn(actorLabel) : "?";
+  const relativeHtml = relative ? `<span class="hist-trace-table-relative">${escapeHtml(relative)}</span>` : "";
+  const actorCell = actorLabel
+    ? `<span class="hist-trace-table-actor"><span class="hist-trace-table-avatar" aria-hidden="true">${escapeHtml(initials)}</span><span>${escapeHtml(actorLabel)}</span></span>`
+    : '<span class="muted" title="No se registró el usuario responsable">Sin registrar</span>';
+  return `<tr class="hist-table-row hist-table-row--audit hist-table-row--${escapeAttr(actionSlug)}" data-audit-row>
+    <td data-label="Fecha" class="hist-trace-table-date">
+      <time datetime="${escapeAttr(String(entry.ts || ""))}">${escapeHtml(fmtDate(entry.ts))}</time>
+      ${relativeHtml}
+    </td>
     <td data-label="Módulo"><span class="hist-trace-table-module">${moduleIcon}<span>${escapeHtml(entry.moduleLabel)}</span></span></td>
-    <td data-label="Entidad"><strong>${escapeHtml(entry.entityLabel)}</strong></td>
-    <td data-label="Acción"><span class="status ${escapeAttr(actionTone)}">${escapeHtml(actionLabel)}</span></td>
-    <td data-label="Resumen">${escapeHtml(entry.summary || "Sin resumen")}</td>
-    <td data-label="Usuario">${actorLabel ? escapeHtml(actorLabel) : '<span class="muted" title="No se registró el usuario responsable">Sin registrar</span>'}</td>
+    <td data-label="Entidad"><strong class="hist-trace-table-entity">${escapeHtml(entry.entityLabel)}</strong></td>
+    <td data-label="Acción"><span class="status ${escapeAttr(actionTone)} hist-trace-table-action">${escapeHtml(actionLabel)}</span></td>
+    <td data-label="Resumen"><span class="hist-trace-table-summary">${escapeHtml(entry.summary || "Sin resumen")}</span></td>
+    <td data-label="Usuario">${actorCell}</td>
     <td data-label="Acciones" class="hist-table-actions">${actions}</td>
   </tr>`;
 }
@@ -8968,9 +9020,9 @@ function renderHistoryAuditList(entries, layout = "list") {
     return `<div class="hist-empty"><span class="hist-empty__icon" aria-hidden="true">${IC.activity || IC.layers}</span><p>Sin movimientos auditables.</p><p class="muted">Los cambios del sistema aparecerán aquí conforme se registren.</p></div>`;
   }
   if (viewLayout === "list") {
-    return `<div class="table-wrap hist-table-wrap"><table class="vehicle-fleet-table hist-table" id="history-audit-results-grid">
+    return `<div class="table-wrap hist-table-wrap hist-trace-table-wrap"><table class="vehicle-fleet-table hist-table hist-trace-table" id="history-audit-results-grid">
     <thead><tr>
-      <th>Fecha</th><th>Módulo</th><th>Entidad</th><th>Acción</th><th>Resumen</th><th>Usuario</th><th>Acciones</th>
+      <th scope="col">Fecha</th><th scope="col">Módulo</th><th scope="col">Entidad</th><th scope="col">Acción</th><th scope="col">Resumen</th><th scope="col">Usuario</th><th scope="col">Acciones</th>
     </tr></thead>
     <tbody>${entries.map(renderHistoryAuditRow).join("")}</tbody>
   </table></div>`;
