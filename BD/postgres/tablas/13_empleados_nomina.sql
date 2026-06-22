@@ -26,6 +26,7 @@ CREATE TABLE empleados_nomina (
   duracion_contrato_texto     VARCHAR(120),
   fecha_ingreso               DATE NOT NULL,
   fecha_inicio_contrato_vigente DATE,
+  fecha_renovacion            DATE,
   salario_base                NUMERIC(14,2) NOT NULL CHECK (salario_base >= 0),
   auxilio_transporte          NUMERIC(14,2),
   periodicidad_pago           VARCHAR(64),
@@ -76,6 +77,8 @@ COMMENT ON COLUMN empleados_nomina.descripcion_condicion_medica IS
 
 COMMENT ON COLUMN empleados_nomina.fecha_inicio_contrato_vigente IS
   'Inicio del contrato fijo o renovación vigente; fecha fin = esta fecha + plazo. Antigüedad en fecha_ingreso.';
+COMMENT ON COLUMN empleados_nomina.fecha_renovacion IS
+  'Fecha en que RH formalizó la última renovación del contrato a término fijo (firma o acta). No modifica fecha_ingreso.';
 
 CREATE TABLE liquidaciones_nomina (
   id                              UUID PRIMARY KEY DEFAULT gen_random_uuid(),

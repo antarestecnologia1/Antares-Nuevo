@@ -361,6 +361,8 @@
       ? `<p>Sus indicadores reflejan solo las solicitudes de su empresa.</p>`
       : `<p>Actualizado ${escapeHtml(fmtTimeOnly(snap.generatedAt) || "ahora")} · hora Colombia</p>`;
 
+    const complianceTone = snap.compliancePct >= 80 ? "ok" : snap.compliancePct >= 50 ? "warn" : "alert";
+
     return `<aside class="dash-panel dash-panel--pulse" aria-label="Pulso operativo del día">
       <header class="dash-panel__head">
         <div>
@@ -369,6 +371,10 @@
         </div>
       </header>
       <ul class="dash-pulse-list">${rows}</ul>
+      <div class="dash-metrics-rings dash-metrics-rings--compact">
+        ${dashBuildRing(snap.compliancePct, "Cumplimiento", complianceTone)}
+        ${!isPortalClientUser(user) ? dashBuildRing(snap.fleetUtilPct, "Utilización flota", "") : ""}
+      </div>
       <footer class="dash-pulse-foot">${foot}</footer>
     </aside>`;
   }
@@ -489,13 +495,11 @@
     const quickActions = dashBuildQuickActions(user);
 
     /* ── Hero ── */
-    const hero = `<header class="dash-cc">
+    const hero = `<header class="dash-cc dash-hero">
       <div class="dash-cc__main">
         <div class="dash-cc__eyebrow">
-          <span class="dash-cc__status dash-cc__status--${opsTone}">
-            <span class="dash-cc__status-dot" aria-hidden="true"></span>
-            <span class="dash-cc__status-label">${escapeHtml(opsLabel)}</span>
-          </span>
+          <span class="dash-cc__status-dot dash-cc__status--${opsTone}" aria-hidden="true"></span>
+          <span class="dash-cc__status-label">${escapeHtml(opsLabel)}</span>
           <span class="dash-cc__sep" aria-hidden="true">·</span>
           <span class="dash-cc__date">${escapeHtml(longDate)}</span>
           ${snap?.generatedAt ? `<span class="dash-cc__sep" aria-hidden="true">·</span><span class="dash-cc__updated">Actualizado ${escapeHtml(fmtTimeOnly(snap.generatedAt))}</span>` : ""}

@@ -12,6 +12,15 @@ function renderPayrollRunsViewToggle(activeView, context = "nomina") {
   return `<div class="payroll-runs-view-toggle" role="tablist" aria-label="Vista de liquidaciones">${mkBtn("cards", IC.grid, "Tarjetas")}${mkBtn("list", IC.list, "Lista")}</div>`;
 }
 
+function renderPayrollEmployeesViewToggle(activeView) {
+  const view = String(activeView || "list").toLowerCase() === "cards" ? "cards" : "list";
+  const mkBtn = (mode, icon, label) => {
+    const active = view === mode;
+    return `<button type="button" class="payroll-runs-view-toggle__btn${active ? " is-active" : ""}" role="tab" aria-selected="${active ? "true" : "false"}" data-action="payroll-employees-view" data-view="${mode}">${icon}<span>${escapeHtml(label)}</span></button>`;
+  };
+  return `<div class="payroll-runs-view-toggle" role="tablist" aria-label="Vista de colaboradores">${mkBtn("list", IC.list, "Tabla")}${mkBtn("cards", IC.grid, "Tarjetas")}</div>`;
+}
+
 function payrollHtml() {
   const employees = readArray(KEYS.payrollEmployees);
   const companies = readArray(KEYS.companies);
@@ -46,6 +55,7 @@ function payrollHtml() {
   const filters = state.payrollFilters || defaultPayrollFilters();
   const runSort = String(payrollUi.runSort || "recent");
   const runsView = String(payrollUi.runsView || "cards").toLowerCase() === "list" ? "list" : "cards";
+  const employeesView = String(payrollUi.employeesView || "list").toLowerCase() === "cards" ? "cards" : "list";
   const payrollWorkspace = normalizeHrWorkspace("payroll", payrollUi.workspace);
   const payrollDataSection = normalizePayrollDataSection(payrollUi.dataSection);
   const payrollOperateSection = normalizePayrollOperateSection(payrollUi.operateSection);
@@ -94,6 +104,9 @@ function payrollHtml() {
   ).length;
   const employeeCards = employeeSummaries
     .map((item) => renderPayrollEmployeeDirectoryCard(item, canDeletePayrollEmployees, { compact: true }))
+    .join("");
+  const employeeTableRows = employeeSummaries
+    .map((item) => renderPayrollEmployeeDirectoryTableRow(item, canDeletePayrollEmployees))
     .join("");
   const runRows = runsToRender
     .map((r) => {
@@ -627,6 +640,7 @@ function payrollHtml() {
     ? `<div class="table-wrap"><table><thead><tr><th>Registro</th><th>Empleado</th><th>Tipo</th><th>Periodo</th><th>Días rec.</th><th>Soporte</th><th style="min-width:11rem">Acciones</th></tr></thead><tbody>${absenceRows}</tbody></table></div>`
     : emptyState("Sin ausencias laborales registradas.");
   const employeeToolbar = `<div class="payroll-employee-toolbar">
+      ${renderPayrollEmployeesViewToggle(employeesView)}
       <label class="payroll-employee-search">${fieldLabel(IC.search, "Buscar")}
         <input type="search" id="payroll-employee-search" placeholder="Nombre, documento, cargo, centro de costos…" autocomplete="off" />
       </label>
@@ -643,9 +657,17 @@ function payrollHtml() {
         <button type="button" id="employees-delete-selected" class="btn btn-sm btn-reject" title="Eliminar colaboradores seleccionados">${IC.trash} Eliminar seleccionados</button>
       </div>` : ""}
     </div>`;
-  const empTable = employeeCards
-    ? `${employeeToolbar}<div class="employees-grid directory-grid payroll-employees-grid">${employeeCards}</div>`
-    : emptyState("No hay empleados registrados.");
+  const employeeTable = employeeTableRows
+    ? `<div class="table-wrap payroll-table-wrap payroll-employees-list-view"><table class="payroll-employees-table"><thead><tr><th>Colaborador</th><th>Cargo</th><th>Ingreso</th><th>Inicio vigente</th><th>Renovación</th><th>Fin contrato</th><th>Estado</th><th style="min-width:12rem">Acciones</th></tr></thead><tbody>${employeeTableRows}</tbody></table></div>`
+    : "";
+  const empTable =
+    employeesView === "list"
+      ? employeeTableRows
+        ? `${employeeToolbar}${employeeTable}`
+        : emptyState("No hay empleados registrados.")
+      : employeeCards
+        ? `${employeeToolbar}<div class="employees-grid directory-grid payroll-employees-grid">${employeeCards}</div>`
+        : emptyState("No hay empleados registrados.");
   const runCardsGrid = sortedRuns.length
     ? `<div class="payroll-run-cards-grid">${runsToRender.map((r) => renderPayrollRunCard(r, { compact: true })).join("")}</div>${payrollRunsMoreBar}`
     : "";

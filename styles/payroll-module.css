@@ -534,6 +534,48 @@
   gap: 0.75rem;
 }
 
+.payroll-studio .payroll-employees-table {
+  width: 100%;
+  font-size: 0.88rem;
+}
+
+.payroll-studio .payroll-employees-table th,
+.payroll-studio .payroll-employees-table td {
+  vertical-align: middle;
+}
+
+.payroll-studio .payroll-employee-table-row.is-filtered-out {
+  display: none;
+}
+
+.payroll-studio .payroll-emp-contract-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.payroll-studio .payroll-emp-contract-status--ok {
+  background: rgba(16, 185, 129, 0.12);
+  color: #047857;
+}
+
+.payroll-studio .payroll-emp-contract-status--warn {
+  background: rgba(245, 158, 11, 0.14);
+  color: #b45309;
+}
+
+.payroll-studio .payroll-emp-contract-status--alert {
+  background: rgba(239, 68, 68, 0.12);
+  color: #b91c1c;
+}
+
+.payroll-studio .payroll-employee-toolbar .payroll-runs-view-toggle {
+  flex: 0 0 auto;
+}
+
 .payroll-studio .payroll-data-panel .payroll-quick-pill.is-active {
   background: linear-gradient(135deg, var(--pay-blue), var(--primary-dark));
   color: #fff;

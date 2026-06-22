@@ -5,7 +5,22 @@ window.PortalArchitecture = (() => {
       access: "permission-gated",
       shell: true,
       renderer: [{ module: "dashboard", exportName: "viewDashboard" }],
-      layoutPlan: [{ container: ".dashboard-studio", order: [".client-data-scope-bar", ".dash-hero", ".dash-layout", ".dash-panel--client", ".dash-pulse-foot", ".p-card", ".table-wrap", ".empty-state"] }]
+      layoutPlan: [{
+        container: ".dashboard-studio",
+        order: [
+          ".client-data-scope-bar",
+          ".dash-cc",
+          ".dash-hero",
+          ".dash-metrics",
+          ".dash-layout",
+          ".dash-client-layout",
+          ".dash-panel--client",
+          ".dash-pulse-foot",
+          ".p-card",
+          ".table-wrap",
+          ".empty-state"
+        ]
+      }]
     },
     requests: {
       title: "Solicitudes",

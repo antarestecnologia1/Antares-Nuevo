@@ -15,6 +15,7 @@ CREATE TABLE contratos (
   salario_pactado             NUMERIC(14,2) NOT NULL CHECK (salario_pactado >= 0),
   fecha_inicio                DATE NOT NULL,
   fecha_fin                   DATE,
+  fecha_renovacion            DATE,
   id_empresa                  UUID NOT NULL REFERENCES empresas (id) ON DELETE RESTRICT,
   nombre_empresa_denorm       VARCHAR(255) NOT NULL,
   tipo_contrato               VARCHAR(120) NOT NULL,

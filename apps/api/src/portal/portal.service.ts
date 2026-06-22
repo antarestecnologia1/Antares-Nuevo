@@ -475,7 +475,7 @@ export class PortalService implements OnModuleInit {
   /** Escaneo una vez por proceso: columnas opcionales en liquidaciones_nomina (migr. 20/21). */
   private payrollLiquSchemaTier: 0 | 1 | 2 | undefined;
   /** Escaneo una vez: condición médica en empleados_nomina (migr. 19). */
-  private payrollEmployeeSchemaTier: 0 | 1 | 2 | undefined;
+  private payrollEmployeeSchemaTier: 0 | 1 | 2 | 3 | undefined;
   /** Columnas origen_liquidacion / novedades_liquidacion_json (migr. 22). */
   private payrollLiquNovedadesCols: boolean | undefined;
   /**
@@ -698,6 +698,7 @@ export class PortalService implements OnModuleInit {
     await this.ensurePreferenciasNotificacionSchema();
     await this.ensureNotificacionesSchema();
     await this.ensureEmpleadosNominaSchema();
+    await this.ensureContratosSchema();
     await this.ensureLiquidacionesNominaSchema();
     await this.ensureAusenciasLaboralesSchema();
     await this.ensureAuditoriaTransporteSchema();
@@ -1240,12 +1241,29 @@ export class PortalService implements OnModuleInit {
     return true;
   }
 
+  /** Columnas de renovación en contratos (14_contratos.sql). */
+  private async ensureContratosSchema() {
+    if (!(await this.tableExists("contratos"))) return;
+    const alters = [
+      `ALTER TABLE public.contratos ADD COLUMN IF NOT EXISTS fecha_renovacion DATE`
+    ];
+    for (const q of alters) {
+      try {
+        await this.pool.query(q);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logger.warn(`ensureContratosSchema: ${sanitizeLogText(msg)}`);
+      }
+    }
+  }
+
   /** Condición médica empleados (19_empleados_condicion_medica.sql). */
   private async ensureEmpleadosNominaSchema() {
     if (!(await this.tableExists("empleados_nomina"))) return;
     const alters = [
       `ALTER TABLE public.empleados_nomina ADD COLUMN IF NOT EXISTS tiene_condicion_medica BOOLEAN NOT NULL DEFAULT false`,
-      `ALTER TABLE public.empleados_nomina ADD COLUMN IF NOT EXISTS descripcion_condicion_medica TEXT`
+      `ALTER TABLE public.empleados_nomina ADD COLUMN IF NOT EXISTS descripcion_condicion_medica TEXT`,
+      `ALTER TABLE public.empleados_nomina ADD COLUMN IF NOT EXISTS fecha_renovacion DATE`
     ];
     for (const q of alters) {
       try {
@@ -5877,6 +5895,7 @@ export class PortalService implements OnModuleInit {
       salary: Number(c.salario_pactado),
       startDate: c.fecha_inicio,
       endDate: c.fecha_fin,
+      renewalDate: c.fecha_renovacion,
       companyId: c.id_empresa,
       companyName: c.nombre_empresa_denorm,
       contractType: c.tipo_contrato,
@@ -6074,6 +6093,7 @@ export class PortalService implements OnModuleInit {
       contractDurationText: e.duracion_contrato_texto,
       startDate: this.sqlEmployeeDateToPortalYmd(e.fecha_ingreso),
       contractVigenteStartDate: this.sqlEmployeeDateToPortalYmd(e.fecha_inicio_contrato_vigente),
+      renewalDate: this.sqlEmployeeDateToPortalYmd(e.fecha_renovacion),
       baseSalary: Number(e.salario_base),
       transportAllowance: e.auxilio_transporte != null ? Number(e.auxilio_transporte) : null,
       payFrequency: e.periodicidad_pago,
@@ -8158,19 +8178,21 @@ export class PortalService implements OnModuleInit {
     }
   }
 
-  /** Detecta columnas migr. 19 (condición médica) y 45 (inicio contrato vigente). */
-  private async resolvePayrollEmployeeSchemaTier(c: PoolClient): Promise<0 | 1 | 2> {
+  /** Detecta columnas migr. 19 (condición médica), 45 (inicio contrato vigente) y 46 (fecha renovación). */
+  private async resolvePayrollEmployeeSchemaTier(c: PoolClient): Promise<0 | 1 | 2 | 3> {
     if (this.payrollEmployeeSchemaTier !== undefined) return this.payrollEmployeeSchemaTier;
     try {
-      const { rows } = await c.query<{ n19: string; n45: string }>(
+      const { rows } = await c.query<{ n19: string; n45: string; n46: string }>(
         `SELECT COUNT(*) FILTER (WHERE column_name = 'tiene_condicion_medica')::text AS n19,
-                COUNT(*) FILTER (WHERE column_name = 'fecha_inicio_contrato_vigente')::text AS n45
+                COUNT(*) FILTER (WHERE column_name = 'fecha_inicio_contrato_vigente')::text AS n45,
+                COUNT(*) FILTER (WHERE column_name = 'fecha_renovacion')::text AS n46
         FROM information_schema.columns
         WHERE table_schema = 'public' AND table_name = 'empleados_nomina'`
       );
       const has19 = Number(rows[0]?.n19 ?? 0) > 0;
       const has45 = Number(rows[0]?.n45 ?? 0) > 0;
-      const t: 0 | 1 | 2 = has45 ? 2 : has19 ? 1 : 0;
+      const has46 = Number(rows[0]?.n46 ?? 0) > 0;
+      const t: 0 | 1 | 2 | 3 = has46 ? 3 : has45 ? 2 : has19 ? 1 : 0;
       this.payrollEmployeeSchemaTier = t;
       if (!has19) {
         this.logger.warn(
@@ -8184,6 +8206,13 @@ export class PortalService implements OnModuleInit {
           "empleados_nomina: sin fecha_inicio_contrato_vigente (migr. 45). " +
             "Ejecute npm run db:init o BD/postgres/tablas/13_empleados_nomina.sql (columna fecha_inicio_contrato_vigente). " +
             "El inicio del contrato vigente no se persistirá en servidor hasta aplicar la migración."
+        );
+      }
+      if (!has46) {
+        this.logger.warn(
+          "empleados_nomina: sin fecha_renovacion (migr. 46). " +
+            "Ejecute npm run db:init o BD/postgres/tablas/13_empleados_nomina.sql (columna fecha_renovacion). " +
+            "La fecha de renovación no se persistirá en servidor hasta aplicar la migración."
         );
       }
       return t;
@@ -8254,12 +8283,14 @@ export class PortalService implements OnModuleInit {
 
   private async queryPayrollEmployeeUpsert(
     c: PoolClient,
-    tier: 0 | 1 | 2,
+    tier: 0 | 1 | 2 | 3,
     UPSERT_LEGACY: string,
     UPSERT_M19: string,
     UPSERT_M45: string,
+    UPSERT_M46: string,
     base52: unknown[],
     baseWithVigente: unknown[],
+    baseWithVigenteRenewal: unknown[],
     illnessFlag: boolean,
     illnessDesc: string | null,
     createdAtTs: string,
@@ -8273,8 +8304,18 @@ export class PortalService implements OnModuleInit {
       await c.query(UPSERT_M19, [...base52, illnessFlag, illnessDesc, createdAtTs, updatedAtTs]);
       return;
     }
-    await c.query(UPSERT_M45, [
-      ...baseWithVigente,
+    if (tier === 2) {
+      await c.query(UPSERT_M45, [
+        ...baseWithVigente,
+        illnessFlag,
+        illnessDesc,
+        createdAtTs,
+        updatedAtTs
+      ]);
+      return;
+    }
+    await c.query(UPSERT_M46, [
+      ...baseWithVigenteRenewal,
       illnessFlag,
       illnessDesc,
       createdAtTs,
@@ -8581,6 +8622,97 @@ export class PortalService implements OnModuleInit {
           url_avatar = EXCLUDED.url_avatar,
           fecha_actualizacion = COALESCE(EXCLUDED.fecha_actualizacion, empleados_nomina.fecha_actualizacion, now())`;
 
+    const UPSERT_M46 = `INSERT INTO empleados_nomina (
+          id, id_empresa, id_cargo, nombre_completo, tipo_documento, numero_documento,
+          fecha_nacimiento, genero, estado_civil, tipo_sangre, nivel_educativo,
+          departamento, ciudad, direccion, telefono, correo_personal,
+          contacto_emergencia, telefono_emergencia, parentesco_emergencia,
+          nombre_cargo_texto, tipo_contrato, duracion_contrato_texto,
+          fecha_ingreso, fecha_inicio_contrato_vigente, fecha_renovacion, salario_base, auxilio_transporte,
+          periodicidad_pago, centro_costos, tipo_cotizante, nivel_riesgo_arl, tipo_plantilla_contrato,
+          eps, fondo_pension, arl, fondo_cesantias, caja_compensacion,
+          banco, tipo_cuenta_bancaria, numero_cuenta_bancaria, rol_trabajador,
+          numero_licencia, categoria_licencia, fecha_vencimiento_licencia,
+          fecha_examen_ocupacional, fecha_vencimiento_examen_ocupacional,
+          fecha_examen_instruvial, fecha_vencimiento_examen_instruvial,
+          curso_conduccion_defensiva,
+          meses_prueba, fecha_fin_contrato, jornada_laboral, url_avatar, correo_corporativo,
+          tiene_condicion_medica, descripcion_condicion_medica,
+          fecha_creacion, fecha_actualizacion
+        ) VALUES (
+          $1::uuid, $2::uuid, $3::uuid, $4, $5, $6,
+          $7::date, $8, $9, $10, $11,
+          $12, $13, $14, $15, $16,
+          $17, $18, $19,
+          $20, $21, $22,
+          $23::date, $24::date, $25::date, $26, $27,
+          $28, $29, $30, $31, $32,
+          $33, $34, $35, $36, $37,
+          $38, $39, $40, $41,
+          $42, $43, $44,
+          $45::date, $46::date, $47::date, $48::date, $49,
+          $50, $51, $52, $53, $54,
+          $55::boolean, $56,
+          COALESCE($57::timestamptz, now()), COALESCE($58::timestamptz, now())
+        )
+        ON CONFLICT (id) DO UPDATE SET
+          nombre_completo = EXCLUDED.nombre_completo,
+          tipo_documento = EXCLUDED.tipo_documento,
+          numero_documento = EXCLUDED.numero_documento,
+          fecha_nacimiento = EXCLUDED.fecha_nacimiento,
+          genero = EXCLUDED.genero,
+          estado_civil = EXCLUDED.estado_civil,
+          tipo_sangre = EXCLUDED.tipo_sangre,
+          nivel_educativo = EXCLUDED.nivel_educativo,
+          departamento = EXCLUDED.departamento,
+          ciudad = EXCLUDED.ciudad,
+          direccion = EXCLUDED.direccion,
+          telefono = EXCLUDED.telefono,
+          correo_personal = EXCLUDED.correo_personal,
+          contacto_emergencia = EXCLUDED.contacto_emergencia,
+          telefono_emergencia = EXCLUDED.telefono_emergencia,
+          parentesco_emergencia = EXCLUDED.parentesco_emergencia,
+          nombre_cargo_texto = EXCLUDED.nombre_cargo_texto,
+          tipo_contrato = EXCLUDED.tipo_contrato,
+          duracion_contrato_texto = EXCLUDED.duracion_contrato_texto,
+          fecha_ingreso = EXCLUDED.fecha_ingreso,
+          fecha_inicio_contrato_vigente = EXCLUDED.fecha_inicio_contrato_vigente,
+          fecha_renovacion = EXCLUDED.fecha_renovacion,
+          salario_base = EXCLUDED.salario_base,
+          auxilio_transporte = EXCLUDED.auxilio_transporte,
+          periodicidad_pago = EXCLUDED.periodicidad_pago,
+          centro_costos = EXCLUDED.centro_costos,
+          tipo_cotizante = EXCLUDED.tipo_cotizante,
+          nivel_riesgo_arl = EXCLUDED.nivel_riesgo_arl,
+          tipo_plantilla_contrato = EXCLUDED.tipo_plantilla_contrato,
+          eps = EXCLUDED.eps,
+          fondo_pension = EXCLUDED.fondo_pension,
+          arl = EXCLUDED.arl,
+          fondo_cesantias = EXCLUDED.fondo_cesantias,
+          caja_compensacion = EXCLUDED.caja_compensacion,
+          banco = EXCLUDED.banco,
+          tipo_cuenta_bancaria = EXCLUDED.tipo_cuenta_bancaria,
+          numero_cuenta_bancaria = EXCLUDED.numero_cuenta_bancaria,
+          rol_trabajador = EXCLUDED.rol_trabajador,
+          numero_licencia = EXCLUDED.numero_licencia,
+          categoria_licencia = EXCLUDED.categoria_licencia,
+          fecha_vencimiento_licencia = EXCLUDED.fecha_vencimiento_licencia,
+          fecha_examen_ocupacional = EXCLUDED.fecha_examen_ocupacional,
+          fecha_vencimiento_examen_ocupacional = EXCLUDED.fecha_vencimiento_examen_ocupacional,
+          fecha_examen_instruvial = EXCLUDED.fecha_examen_instruvial,
+          fecha_vencimiento_examen_instruvial = EXCLUDED.fecha_vencimiento_examen_instruvial,
+          curso_conduccion_defensiva = EXCLUDED.curso_conduccion_defensiva,
+          id_empresa = EXCLUDED.id_empresa,
+          id_cargo = EXCLUDED.id_cargo,
+          meses_prueba = EXCLUDED.meses_prueba,
+          fecha_fin_contrato = EXCLUDED.fecha_fin_contrato,
+          jornada_laboral = EXCLUDED.jornada_laboral,
+          correo_corporativo = EXCLUDED.correo_corporativo,
+          tiene_condicion_medica = EXCLUDED.tiene_condicion_medica,
+          descripcion_condicion_medica = EXCLUDED.descripcion_condicion_medica,
+          url_avatar = EXCLUDED.url_avatar,
+          fecha_actualizacion = COALESCE(EXCLUDED.fecha_actualizacion, empleados_nomina.fecha_actualizacion, now())`;
+
     const syncErrors: string[] = [];
     let rowIndex = 0;
     let incomingWithIds = 0;
@@ -8621,6 +8753,9 @@ export class PortalService implements OnModuleInit {
         p(e, "contractVigenteStartDate", "fecha_inicio_contrato_vigente")
       );
       const vigenteStart = isFixedTerm ? vigenteRaw ?? start : null;
+      const renewalDate = isFixedTerm
+        ? portalDateOrNull(p(e, "renewalDate", "fecha_renovacion"))
+        : null;
       const base = Number(p(e, "baseSalary")) || 0;
       const bank =
         matchPayrollCatalogOption(PAYROLL_EMPLOYEE_CATALOG.banks, p(e, "bankName", "bank")) ||
@@ -8746,6 +8881,12 @@ export class PortalService implements OnModuleInit {
       const illnessFlag = String(p(e, "hasIllness") ?? "").toLowerCase() === "si";
       const illnessDesc = illnessFlag ? nuN(p(e, "illnessDescription")) : null;
       const baseWithVigente = [...base52.slice(0, 23), vigenteStart, ...base52.slice(23)];
+      const baseWithVigenteRenewal = [
+        ...base52.slice(0, 23),
+        vigenteStart,
+        renewalDate,
+        ...base52.slice(23)
+      ];
 
       const sp = `emp_sp_${rowIndex}`;
       try {
@@ -8757,8 +8898,10 @@ export class PortalService implements OnModuleInit {
             UPSERT_LEGACY,
             UPSERT_M19,
             UPSERT_M45,
+            UPSERT_M46,
             base52,
             baseWithVigente,
+            baseWithVigenteRenewal,
             illnessFlag,
             illnessDesc,
             createdAtTs,
@@ -8775,8 +8918,10 @@ export class PortalService implements OnModuleInit {
               UPSERT_LEGACY,
               UPSERT_M19,
               UPSERT_M45,
+              UPSERT_M46,
               base52,
               baseWithVigente,
+              baseWithVigenteRenewal,
               illnessFlag,
               illnessDesc,
               createdAtTs,
@@ -10683,12 +10828,12 @@ export class PortalService implements OnModuleInit {
         await c.query(
           `INSERT INTO contratos (
             id, etiqueta_origen, tipo_persona_origen, id_candidato, nombre_candidato_denorm, id_empleado, nombre_empleado_denorm,
-            rol_trabajador, id_cargo, nombre_cargo_denorm, salario_pactado, fecha_inicio, id_empresa, nombre_empresa_denorm,
+            rol_trabajador, id_cargo, nombre_cargo_denorm, salario_pactado, fecha_inicio, fecha_fin, fecha_renovacion, id_empresa, nombre_empresa_denorm,
             tipo_contrato, tipo_plantilla_word, documento_identidad_snapshot, eps, fondo_pension, arl, jornada_turno,
             auxilio_transporte, texto_contenido_resumen
           ) VALUES (
-            $1::uuid, $2, $3, $4::uuid, $5, $6::uuid, $7, $8, $9::uuid, $10, $11, $12::date, $13::uuid, $14,
-            $15, $16, $17, $18, $19, $20, $21, $22, $23
+            $1::uuid, $2, $3, $4::uuid, $5, $6::uuid, $7, $8, $9::uuid, $10, $11, $12::date, $13::date, $14::date, $15::uuid, $16,
+            $17, $18, $19, $20, $21, $22, $23, $24, $25
           )
           ON CONFLICT (id) DO UPDATE SET
             etiqueta_origen = EXCLUDED.etiqueta_origen,
@@ -10702,6 +10847,8 @@ export class PortalService implements OnModuleInit {
             nombre_cargo_denorm = EXCLUDED.nombre_cargo_denorm,
             salario_pactado = EXCLUDED.salario_pactado,
             fecha_inicio = EXCLUDED.fecha_inicio,
+            fecha_fin = EXCLUDED.fecha_fin,
+            fecha_renovacion = EXCLUDED.fecha_renovacion,
             id_empresa = EXCLUDED.id_empresa,
             nombre_empresa_denorm = EXCLUDED.nombre_empresa_denorm,
             tipo_contrato = EXCLUDED.tipo_contrato,
@@ -10726,6 +10873,8 @@ export class PortalService implements OnModuleInit {
             nu(pickPortalField(row, "positionName", "position") || ""),
             salaryPactado,
             pickPortalField(row, "startDate") || new Date().toISOString().slice(0, 10),
+            portalDateOrNull(pickPortalField(row, "endDate", "contractEndDate")),
+            portalDateOrNull(pickPortalField(row, "renewalDate", "fecha_renovacion")),
             companyId,
             nu(pickPortalField(row, "companyName") || ""),
             nu(pickPortalField(row, "contractType") || "Indefinido"),

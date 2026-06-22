@@ -219,9 +219,11 @@ function hiringHtml() {
       <td class="hiring-table-cell-main"><div class="hiring-table-primary"><strong>${escapeHtml(String(c.candidateName || c.employeeName || "-"))}</strong><span>${escapeHtml(String(c.source || c.sourceTag || (c.employeeId ? "Empleado" : "Candidato")))}</span></div></td>
       <td>${escapeHtml(String(c.position || c.positionName || ""))}</td>
       <td>$${parseNum(c.salary).toLocaleString("es-CO")}</td>
-      <td>${escapeHtml(String(c.contractType || "-"))}${c.endDate ? `<br><span class="muted">Fin: ${escapeHtml(String(c.endDate))}</span>` : ""}</td>
+      <td>${escapeHtml(String(c.contractType || "-"))}</td>
+      <td>${fmtDateOr(c.startDate, "—")}</td>
+      <td>${fmtDateOr(c.renewalDate, "—")}</td>
+      <td>${fmtDateOr(c.endDate, "—")}</td>
       <td>${escapeHtml(String(c.source || c.sourceTag || (c.employeeId ? "Empleado" : "Candidato")))}</td>
-      <td>${fmtDate(c.createdAt)}</td>
       <td class="hiring-table-cell-actions"><div class="toolbar hiring-table-actions">
         <button class="btn btn-sm btn-outline" data-action="view-contract-detail" data-id="${escapeAttr(String(c.id))}">${IC.eye} Ver</button>
         <button class="btn btn-sm btn-action" data-action="view-contract" data-id="${escapeAttr(String(c.id))}" title="Descargar Word">${IC.download} Word</button>
@@ -498,7 +500,7 @@ function hiringHtml() {
     ? `<div class="table-wrap hiring-table-wrap hiring-table-wrap--interviews"><table class="hiring-table hiring-table--interviews"><thead><tr><th>Candidato</th><th>Fecha y hora</th><th>Modalidad / lugar</th><th>Entrevistador</th><th>Acciones</th></tr></thead><tbody>${interviewRows}</tbody></table></div>`
     : hiringEmptyState("Sin entrevistas", { action: "hiring-operate-section", section: "interview", label: "Programar entrevista" });
   const tCon = contractRows
-    ? `<div class="table-wrap hiring-table-wrap hiring-table-wrap--contracts"><table class="hiring-table hiring-table--contracts"><thead><tr><th>Persona</th><th>Cargo</th><th>Salario</th><th>Tipo contrato</th><th>Origen</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>${contractRows}</tbody></table></div>`
+    ? `<div class="table-wrap hiring-table-wrap hiring-table-wrap--contracts"><table class="hiring-table hiring-table--contracts"><thead><tr><th>Persona</th><th>Cargo</th><th>Salario</th><th>Tipo contrato</th><th>Inicio</th><th>Renovación</th><th>Fin</th><th>Origen</th><th>Acciones</th></tr></thead><tbody>${contractRows}</tbody></table></div>`
     : hiringEmptyState("Sin contratos", { action: "hiring-operate-section", section: "contract", label: "Generar contrato" });
   const hiredCandidates = candidates.filter((c) => String(c.status || "") === "Contratado").length;
   const candidateConversion = computeHiringConversionPct(candidates);

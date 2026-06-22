@@ -77,7 +77,11 @@ function buildContractSummaryText(employee, docPayload, signDate) {
 export function buildContractRecordFromEmployee(employee, opts = {}) {
   if (!employee?.id) return null;
   const signDate = String(
-    opts.signDate || employee.startDate || employee.contractVigenteStartDate || colombiaTodayIsoDate()
+    opts.signDate || employee.contractVigenteStartDate || employee.startDate || colombiaTodayIsoDate()
+  ).trim();
+  const renewalDate = opts.renewalDate ? String(opts.renewalDate).trim() : "";
+  const endDate = String(
+    opts.endDate || employee.contractEndDate || ""
   ).trim();
   const companies = read(KEYS.companies, []);
   const positions = read(KEYS.positions, []);
@@ -122,6 +126,8 @@ export function buildContractRecordFromEmployee(employee, opts = {}) {
     salary: docPayload.salario ?? employee.baseSalary,
     transportAllowance: readEmployeeTransportAllowanceCop(employee),
     startDate: signDate,
+    endDate: endDate || undefined,
+    renewalDate: renewalDate || undefined,
     contractType: docPayload.contractType || employee.contractType || "Termino indefinido",
     contractTemplateKind: docPayload.contractTemplateKind,
     templateKind: docPayload.contractTemplateKind,

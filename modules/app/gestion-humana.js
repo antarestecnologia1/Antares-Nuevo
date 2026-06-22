@@ -687,6 +687,20 @@ function bindPayrollPortalControls() {
     });
   });
 
+  nodes.viewRoot.querySelectorAll("[data-action='payroll-employees-view']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const view = String(btn.dataset.view || "list").toLowerCase() === "cards" ? "cards" : "list";
+      state.payrollUi = {
+        ...(state.payrollUi || { runSort: "recent", workspace: "data", dataSection: "employees" }),
+        employeesView: view,
+        workspace: "data",
+        dataSection: "employees"
+      };
+      persistHrWorkspace("payroll", "data");
+      renderPortalView();
+    });
+  });
+
   nodes.viewRoot.querySelectorAll("[data-action='payroll-legal-set-year']").forEach((el) => {
     const applyYearSelection = (yearLike) => {
       const year = clampLaborSystemParameterYear(yearLike);
@@ -1584,6 +1598,91 @@ function bindPayrollPortalControls() {
             return true;
           }
           notify(userMessage("employeeUpdatedOk"), "success");
+          renderPortalView();
+          return true;
+        }
+      });
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='renew-employee-contract']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (abortUnlessCanManagePayroll()) return;
+      const all = read(KEYS.payrollEmployees, []);
+      const target = all.find((e) => String(e.id) === String(btn.dataset.id || ""));
+      if (!target) return;
+      if (!isFixedTermContractType(target.contractType)) {
+        notify("La renovación solo aplica a contratos a término fijo.", "error");
+        return;
+      }
+      const normalized = normalizePayrollEmployeeRowDates(target);
+      const renewalToday = colombiaTodayIsoDate();
+      const periodStart = suggestRenewalPeriodStartYmd(normalized);
+      const duration = String(normalized.contractDuration || normalized.contractDurationText || "1 año").trim();
+      const endPreview = resolveEmployeeContractEndDateYmd(
+        normalized.contractType,
+        periodStart,
+        { contractDurationUnit: "anios", contractDurationAmount: "1" }
+      );
+      const endFromDuration = ensureEmployeeContractFields({
+        ...normalized,
+        contractVigenteStartDate: periodStart,
+        contractDuration: duration
+      }).contractEndDate;
+      openEditModal({
+        title: "Renovar contrato",
+        subtitle: `${String(normalized.name || "").trim()} · ingreso ${fmtDateOr(normalized.startDate, "—")}`,
+        submitText: "Confirmar renovación",
+        extraModalCardClass: "modal-card-edit--employee-renewal",
+        fields: [
+          `<p class="muted" style="margin:0 0 0.75rem;font-size:0.86rem;line-height:1.5">La <strong>fecha de ingreso</strong> no cambia. Se registrará un nuevo período contractual y la fecha de renovación en la tabla.</p>`,
+          `<label>${fieldLabel(IC.calendar, "Fecha renovación (firma / acta)")}<input type="date" name="renewalDate" value="${escapeAttr(renewalToday)}" required /></label>`,
+          `<label>${fieldLabel(IC.calendar, "Inicio nuevo período")}<input type="date" name="contractVigenteStartDate" id="renew-contract-vigente-start" value="${escapeAttr(periodStart)}" required /></label>`,
+          `<label>${fieldLabel(IC.clock, "Duración del período")}<input name="contractDuration" id="renew-contract-duration" value="${escapeAttr(duration)}" placeholder="Ej.: 1 año, 12 meses" required /></label>`,
+          `<label>${fieldLabel(IC.calendar, "Fin del período")}<input type="date" name="contractEndDate" id="renew-contract-end-date" value="${escapeAttr(endFromDuration || endPreview || "")}" readonly tabindex="-1" /></label>`,
+          `<label>${fieldLabel(IC.dollar, "Salario base (COP)")}<input type="number" name="baseSalary" min="0" value="${escapeAttr(String(normalized.baseSalary ?? ""))}" /></label>`,
+          `<label class="full" style="display:flex;align-items:center;gap:0.5rem"><input type="checkbox" name="generateWord" checked /> Generar contrato Word al confirmar</label>`
+        ],
+        afterMount: (formEl) => {
+          const syncRenewEnd = () => {
+            const start = normalizePortalDateYmd(
+              formEl.querySelector("#renew-contract-vigente-start")?.value || ""
+            );
+            const dur = String(formEl.querySelector("#renew-contract-duration")?.value || "").trim();
+            const endEl = formEl.querySelector("#renew-contract-end-date");
+            if (!start || !endEl) return;
+            const parsed = parseContractDurationText(dur || "1 año");
+            const end = resolveEmployeeContractEndDateYmd(normalized.contractType, start, {
+              contractDurationUnit: parsed.unit === "otro" ? "anios" : parsed.unit,
+              contractDurationAmount: parsed.amount || "1"
+            });
+            endEl.value = end || "";
+          };
+          formEl.querySelector("#renew-contract-vigente-start")?.addEventListener("change", syncRenewEnd);
+          formEl.querySelector("#renew-contract-duration")?.addEventListener("input", syncRenewEnd);
+          syncRenewEnd();
+        },
+        onSubmit: async (payload, formEl) => {
+          const fields = {
+            renewalDate: normalizePortalDateYmd(payload.renewalDate),
+            contractVigenteStartDate: normalizePortalDateYmd(payload.contractVigenteStartDate),
+            contractEndDate: normalizePortalDateYmd(payload.contractEndDate),
+            contractDuration: String(payload.contractDuration || "").trim(),
+            baseSalary: payload.baseSalary
+          };
+          const check = validateContractRenewal(normalized, fields);
+          if (!check.ok) {
+            failPortalField(formEl, check.field || "renewalDate", check.message);
+            return false;
+          }
+          const result = await executeEmployeeContractRenewal(normalized, fields, {
+            generateWord: String(payload.generateWord || "").toLowerCase() === "on" || payload.generateWord === true
+          });
+          if (!result.ok) {
+            notify(String(result.message || "No se pudo completar la renovación."), "error");
+            return false;
+          }
+          notify("Contrato renovado. Fechas actualizadas sin modificar la fecha de ingreso.", "success");
           renderPortalView();
           return true;
         }
