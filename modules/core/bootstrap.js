@@ -779,7 +779,7 @@ export async function applyPortalBootstrapFromApi(opts = {}) {
           return false;
         }
       }
-      devWarn("Portal: no se pudo cargar /portal/bootstrap (se usa caché local si existe).", err?.message || err);
+      devWarn("Portal: no se pudo cargar /portal/bootstrap (se usan datos en memoria de sesión).", err?.message || err);
       if (typeof refreshPositionsCatalogFromApi === "function") {
         await refreshPositionsCatalogFromApi({ rerender: false });
       }

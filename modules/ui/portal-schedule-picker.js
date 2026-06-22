@@ -98,6 +98,16 @@ function closeOpenPicker() {
   openPickerEl = null;
 }
 
+/** Clic dentro del picker aunque el target ya no esté en el DOM (p. ej. tras `innerHTML`). */
+function clickInsideOpenPicker(ev) {
+  if (!openPickerEl) return false;
+  const path = typeof ev.composedPath === "function" ? ev.composedPath() : [];
+  if (path.includes(openPickerEl)) return true;
+  const target = ev.target;
+  if (target instanceof Node && openPickerEl.contains(target)) return true;
+  return false;
+}
+
 function setHiddenValue(hidden, value) {
   if (!hidden) return;
   hidden.value = value;
@@ -182,7 +192,8 @@ function mountDatePicker(wrap) {
     </div>`;
   };
 
-  trigger.addEventListener("click", () => {
+  trigger.addEventListener("click", (ev) => {
+    ev.stopPropagation();
     if (openPickerEl && openPickerEl !== wrap) closeOpenPicker();
     const isOpen = wrap.classList.contains("acf-picker--open");
     if (isOpen) {
@@ -197,6 +208,7 @@ function mountDatePicker(wrap) {
   });
 
   panel.addEventListener("click", (ev) => {
+    ev.stopPropagation();
     const btn = ev.target.closest("button");
     if (!btn || btn.disabled) return;
     const minIso = readMinIso(hidden);
@@ -270,30 +282,43 @@ function mountTimePicker(wrap) {
     panel.innerHTML = `<div class="acf-timepicker">
       <div class="acf-timepicker__preview" aria-live="polite">
         <span class="acf-timepicker__preview-label">Hora seleccionada</span>
-        <strong class="acf-timepicker__preview-value">${hour}:${minute}</strong>
-      </div>
-      <div class="acf-timepicker__section">
-        <p class="acf-timepicker__section-label">Hora</p>
-        <div class="acf-timepicker__grid acf-timepicker__grid--hours" role="listbox" aria-label="Hora">
-          ${HOUR_OPTIONS.map(
-            (h) =>
-              `<button type="button" class="acf-timepicker__cell${h === hour ? " is-selected" : ""}" data-acf-time-hour="${h}" role="option"${h === hour ? ' aria-selected="true"' : ""}>${h}</button>`
-          ).join("")}
+        <div class="acf-timepicker__preview-clock" aria-hidden="true">
+          <span class="acf-timepicker__preview-part">${hour}</span>
+          <span class="acf-timepicker__preview-sep">:</span>
+          <span class="acf-timepicker__preview-part">${minute}</span>
         </div>
+        <strong class="acf-timepicker__preview-value">${formatTimeDisplay(`${hour}:${minute}`) || `${hour}:${minute}`}</strong>
       </div>
-      <div class="acf-timepicker__section">
-        <p class="acf-timepicker__section-label">Minutos</p>
-        <div class="acf-timepicker__grid acf-timepicker__grid--minutes" role="listbox" aria-label="Minutos">
-          ${MINUTE_OPTIONS.map(
-            (m) =>
-              `<button type="button" class="acf-timepicker__cell${m === minute ? " is-selected" : ""}" data-acf-time-minute="${m}" role="option"${m === minute ? ' aria-selected="true"' : ""}>${m}</button>`
-          ).join("")}
+      <div class="acf-timepicker__columns">
+        <div class="acf-timepicker__section">
+          <p class="acf-timepicker__section-label">Hora</p>
+          <div class="acf-timepicker__scroll">
+            <div class="acf-timepicker__grid acf-timepicker__grid--hours" role="listbox" aria-label="Hora">
+              ${HOUR_OPTIONS.map(
+                (h) =>
+                  `<button type="button" class="acf-timepicker__cell${h === hour ? " is-selected" : ""}" data-acf-time-hour="${h}" role="option"${h === hour ? ' aria-selected="true"' : ""}>${h}</button>`
+              ).join("")}
+            </div>
+          </div>
+        </div>
+        <div class="acf-timepicker__section">
+          <p class="acf-timepicker__section-label">Minutos</p>
+          <div class="acf-timepicker__scroll">
+            <div class="acf-timepicker__grid acf-timepicker__grid--minutes" role="listbox" aria-label="Minutos">
+              ${MINUTE_OPTIONS.map(
+                (m) =>
+                  `<button type="button" class="acf-timepicker__cell${m === minute ? " is-selected" : ""}" data-acf-time-minute="${m}" role="option"${m === minute ? ' aria-selected="true"' : ""}>${m}</button>`
+              ).join("")}
+            </div>
+          </div>
         </div>
       </div>
       <footer class="acf-timepicker__foot">
         <button type="button" class="acf-timepicker__apply" data-acf-time-apply>Aplicar ${hour}:${minute}</button>
       </footer>
     </div>`;
+    const selectedCell = panel.querySelector(".acf-timepicker__cell.is-selected");
+    selectedCell?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
   };
 
   const applyTime = (h, m) => {
@@ -302,7 +327,8 @@ function mountTimePicker(wrap) {
     closeOpenPicker();
   };
 
-  trigger.addEventListener("click", () => {
+  trigger.addEventListener("click", (ev) => {
+    ev.stopPropagation();
     if (openPickerEl && openPickerEl !== wrap) closeOpenPicker();
     const isOpen = wrap.classList.contains("acf-picker--open");
     if (isOpen) {
@@ -317,6 +343,7 @@ function mountTimePicker(wrap) {
   });
 
   panel.addEventListener("click", (ev) => {
+    ev.stopPropagation();
     const btn = ev.target.closest("button");
     if (!btn) return;
     if (btn.hasAttribute("data-acf-time-hour")) {
@@ -347,7 +374,7 @@ export function mountAntaresSchedulePickers(root) {
 if (typeof document !== "undefined") {
   document.addEventListener("click", (ev) => {
     if (!openPickerEl) return;
-    if (openPickerEl.contains(ev.target)) return;
+    if (clickInsideOpenPicker(ev)) return;
     closeOpenPicker();
   });
   document.addEventListener("keydown", (ev) => {

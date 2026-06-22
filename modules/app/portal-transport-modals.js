@@ -387,6 +387,11 @@ function openEditTripModal(req) {
     ],
     onSubmit: async (form) => {
       const requests = reqRead();
+      const targetId = String(req.id);
+      if (!requests.some((r) => String(r.id) === targetId)) {
+        notify("La solicitud del viaje ya no está disponible. Actualice la página.", "error");
+        return false;
+      }
       const targetVehicle = vehicles.find((v) => String(v.id || "") === String(form.vehicleId || ""));
       const targetDriver = drivers.find((d) => String(d.id || "") === String(form.driverId || ""));
       const updates = {
@@ -408,8 +413,8 @@ function openEditTripModal(req) {
           updatedBy: currentUser()?.name || "Admin"
         }
       };
-      const updated = requests.map((r) => (r.id === req.id ? { ...r, ...updates } : r));
-      const updatedRow = updated.find((r) => r.id === req.id);
+      const updated = requests.map((r) => (String(r.id) === targetId ? { ...r, ...updates } : r));
+      const updatedRow = updated.find((r) => String(r.id) === targetId);
       try {
         await reqWriteAwait(updated, updatedRow);
       } catch (err) {

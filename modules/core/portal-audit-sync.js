@@ -68,28 +68,6 @@
     scheduleFlush();
   }
 
-  function mergeModuleAuditLogs(serverRows, localRows) {
-    var map = Object.create(null);
-    var all = []
-      .concat(Array.isArray(serverRows) ? serverRows : [])
-      .concat(Array.isArray(localRows) ? localRows : []);
-    all.forEach(function (row) {
-      if (!row || typeof row !== "object") return;
-      var id = String(row.id || "").trim();
-      if (!id) return;
-      var prev = map[id];
-      if (!prev || String(row.at || "") > String(prev.at || "")) map[id] = row;
-    });
-    return Object.keys(map)
-      .map(function (k) {
-        return map[k];
-      })
-      .sort(function (a, b) {
-        return String(b.at || "").localeCompare(String(a.at || ""));
-      })
-      .slice(0, 600);
-  }
-
   async function refreshModuleAuditLogsFromApi(opts) {
     if (!apiReady() || typeof window.AntaresApi.getJson !== "function") return false;
     var o = opts && typeof opts === "object" ? opts : {};
@@ -122,7 +100,6 @@
   window.AntaresPortalAuditSync = {
     enqueue: enqueue,
     flush: flush,
-    mergeModuleAuditLogs: mergeModuleAuditLogs,
     refreshModuleAuditLogsFromApi: refreshModuleAuditLogsFromApi
   };
 })();

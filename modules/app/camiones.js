@@ -800,8 +800,13 @@ function vehiclesHtml() {
               techInspectionExpiryDate =
                 addCalendarYearsIsoDate(form.techInspectionExpeditionDate, 1) || techInspectionExpiryDate;
             }
-            const nextVehicles = all.map((v) =>
-              v.id === target.id
+            const freshVehicles = read(KEYS.vehicles, []);
+            if (!freshVehicles.some((v) => String(v.id) === String(target.id))) {
+              notify("El vehículo ya no está disponible. Actualice la página.", "error");
+              return false;
+            }
+            const nextVehicles = freshVehicles.map((v) =>
+              String(v.id) === String(target.id)
                 ? stampUpdatedRecord({
                     ...v,
                     plate: String(form.plate || "").toUpperCase(),

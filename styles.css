@@ -19668,16 +19668,14 @@ body[data-theme="dark"] .hr-enterprise-strip--hiring .hr-enterprise-strip-label 
 }
 
 .module-panel-actions__group--secondary {
-  --mpa-segment-bg: color-mix(in srgb, #e2e8f0 38%, #fff);
-  --mpa-segment-edge: color-mix(in srgb, #94a3b8 22%, transparent);
   display: inline-flex;
   align-items: center;
-  gap: 0;
-  padding: 0.24rem;
-  border-radius: 999px;
-  background: var(--mpa-segment-bg);
-  border: 1px solid var(--mpa-segment-edge);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  gap: 0.4rem;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
 
 .module-panel-actions__group--tools {
@@ -19729,65 +19727,83 @@ body[data-theme="dark"] .hr-enterprise-strip--hiring .hr-enterprise-strip-label 
 
 .module-panel-actions--footer .module-panel-btn,
 .module-panel-toolbar .module-panel-btn {
+  --mpa-btn-bg: rgba(255, 255, 255, 0.82);
+  --mpa-btn-edge: color-mix(in srgb, #94a3b8 24%, transparent);
+  --mpa-btn-icon-bg: color-mix(in srgb, var(--primary) 12%, #fff);
+  --mpa-btn-shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 6px 16px rgba(15, 23, 42, 0.04);
   min-height: 2.55rem;
-  padding-inline: 1rem;
-  border-radius: 999px;
+  padding-inline: 0.85rem 1rem;
+  border-radius: 12px;
   font-size: 0.8125rem;
   font-weight: 650;
   letter-spacing: 0.01em;
+  border: 1px solid var(--mpa-btn-edge);
+  background: var(--mpa-btn-bg);
+  box-shadow: var(--mpa-btn-shadow);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   transition:
-    background 0.16s ease,
-    color 0.16s ease,
-    box-shadow 0.16s ease,
-    transform 0.14s ease;
+    background 0.18s ease,
+    color 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.16s ease;
+}
+
+.module-panel-toolbar .module-panel-btn {
+  min-height: 2.35rem;
+  padding-inline: 0.75rem 0.9rem;
+  border-radius: 11px;
+  font-size: 0.78rem;
 }
 
 .module-panel-actions--footer .module-panel-btn .btn-icon,
 .module-panel-toolbar .module-panel-btn .btn-icon {
-  width: 15px;
-  height: 15px;
+  width: 14px;
+  height: 14px;
   flex-shrink: 0;
-  opacity: 0.92;
+  padding: 0.28rem;
+  box-sizing: content-box;
+  border-radius: 999px;
+  background: var(--mpa-btn-icon-bg);
+  opacity: 1;
 }
 
 .module-panel-btn--minimize,
 .module-panel-btn--expand {
   min-width: 7.35rem;
+  color: #334155;
 }
 
 .module-panel-btn--cancel {
+  --mpa-btn-icon-bg: color-mix(in srgb, #ef4444 11%, #fff);
   min-width: 7.1rem;
   margin-inline-start: 0;
-  padding-inline-start: 1rem;
+  padding-inline: 0.85rem 1rem;
   position: relative;
-  border: none;
-  border-inline-start: none;
-  border-radius: 999px;
+  border-radius: 12px;
 }
 
 .module-panel-btn--cancel::before {
-  content: "";
-  position: absolute;
-  inset-block: 0.42rem;
-  inset-inline-start: 0;
-  width: 1px;
-  background: color-mix(in srgb, #94a3b8 28%, transparent);
-}
-
-.module-panel-btn--minimize,
-.module-panel-btn--expand {
-  color: #475569;
-  background: transparent;
-  border: none;
-  box-shadow: none;
+  display: none;
 }
 
 .module-panel-btn--minimize:hover,
 .module-panel-btn--expand:hover {
   color: #0f172a;
-  background: rgba(255, 255, 255, 0.88);
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
-  transform: none;
+  --mpa-btn-bg: #fff;
+  --mpa-btn-edge: color-mix(in srgb, var(--primary) 32%, #94a3b8);
+  --mpa-btn-icon-bg: color-mix(in srgb, var(--primary) 16%, #fff);
+  box-shadow:
+    0 2px 4px rgba(15, 23, 42, 0.06),
+    0 10px 24px rgba(var(--primary-rgb), 0.12);
+  transform: translateY(-1px);
+}
+
+.module-panel-btn--minimize:active,
+.module-panel-btn--expand:active,
+.module-panel-btn--cancel:active {
+  transform: translateY(0);
 }
 
 .module-panel-btn--minimize:focus-visible,
@@ -19799,16 +19815,19 @@ body[data-theme="dark"] .hr-enterprise-strip--hiring .hr-enterprise-strip-label 
 
 .module-panel-btn--cancel.btn-danger-soft {
   color: #dc2626;
-  background: transparent;
-  border: none;
-  box-shadow: none;
+  --mpa-btn-bg: rgba(255, 255, 255, 0.82);
+  --mpa-btn-edge: color-mix(in srgb, #fca5a5 38%, transparent);
 }
 
 .module-panel-btn--cancel.btn-danger-soft:hover {
   color: #b91c1c;
-  background: color-mix(in srgb, #fecaca 42%, #fff);
-  box-shadow: 0 1px 3px rgba(220, 38, 38, 0.08);
-  transform: none;
+  --mpa-btn-bg: color-mix(in srgb, #fecaca 28%, #fff);
+  --mpa-btn-edge: color-mix(in srgb, #f87171 42%, transparent);
+  --mpa-btn-icon-bg: color-mix(in srgb, #ef4444 16%, #fff);
+  box-shadow:
+    0 2px 4px rgba(220, 38, 38, 0.08),
+    0 10px 22px rgba(220, 38, 38, 0.12);
+  transform: translateY(-1px);
 }
 
 .module-panel-btn--cancel.btn-danger-soft .btn-icon {
@@ -27733,33 +27752,47 @@ body[data-theme="dark"] .module-panel-actions {
   color: #e8f1ff;
 }
 
-body[data-theme="dark"] .module-panel-btn--minimize,
-body[data-theme="dark"] .module-panel-btn--expand {
-  color: #cbd5e1;
+body[data-theme="dark"] .module-panel-actions__group--secondary {
   background: transparent;
   border: none;
   box-shadow: none;
 }
 
+body[data-theme="dark"] .module-panel-actions--footer .module-panel-btn,
+body[data-theme="dark"] .module-panel-toolbar .module-panel-btn {
+  --mpa-btn-bg: rgba(15, 28, 46, 0.82);
+  --mpa-btn-edge: rgba(148, 196, 255, 0.18);
+  --mpa-btn-icon-bg: rgba(var(--primary-rgb), 0.18);
+  --mpa-btn-shadow: 0 1px 2px rgba(0, 0, 0, 0.22), 0 8px 20px rgba(0, 0, 0, 0.18);
+}
+
+body[data-theme="dark"] .module-panel-btn--minimize,
+body[data-theme="dark"] .module-panel-btn--expand {
+  color: #e2e8f0;
+}
+
 body[data-theme="dark"] .module-panel-btn--minimize:hover,
 body[data-theme="dark"] .module-panel-btn--expand:hover {
   color: #f8fafc;
-  background: rgba(255, 255, 255, 0.08);
-  box-shadow: none;
-}
-
-body[data-theme="dark"] .module-panel-btn--cancel::before {
-  background: rgba(148, 196, 255, 0.14);
+  --mpa-btn-bg: rgba(30, 41, 59, 0.96);
+  --mpa-btn-edge: rgba(148, 196, 255, 0.28);
+  --mpa-btn-icon-bg: rgba(var(--primary-rgb), 0.24);
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.24),
+    0 10px 24px rgba(var(--primary-rgb), 0.14);
 }
 
 body[data-theme="dark"] .module-panel-btn--cancel.btn-danger-soft {
   color: #fca5a5;
-  background: transparent;
+  --mpa-btn-edge: rgba(248, 113, 113, 0.24);
+  --mpa-btn-icon-bg: rgba(239, 68, 68, 0.16);
 }
 
 body[data-theme="dark"] .module-panel-btn--cancel.btn-danger-soft:hover {
   color: #fecaca;
-  background: rgba(220, 38, 38, 0.16);
+  --mpa-btn-bg: rgba(127, 29, 29, 0.32);
+  --mpa-btn-edge: rgba(248, 113, 113, 0.34);
+  --mpa-btn-icon-bg: rgba(239, 68, 68, 0.22);
 }
 
 body[data-theme="dark"] .directory-card--user .directory-card__tags .perm-tag,

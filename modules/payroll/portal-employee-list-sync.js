@@ -9,10 +9,8 @@
     try {
       if (typeof window !== "undefined" && window.__ANTARES_DEBUG__ === true && console.warn) {
         console.warn(msg, err);
-        return;
       }
     } catch (_e) {}
-    if (typeof console !== "undefined" && console.warn) console.warn(msg, err);
   }
 
   /**

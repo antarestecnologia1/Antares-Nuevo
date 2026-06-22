@@ -85,16 +85,33 @@ export function renderModulePanelBtnInner(iconHtml, label) {
   return `<span class="module-panel-btn__inner">${icon}<span class="module-panel-btn__label">${text}</span></span>`;
 }
 
+function modulePanelToggleBtnContent(expanded, expandLabel) {
+  const label = expanded ? MODULE_PANEL_LABELS.minimize : String(expandLabel || MODULE_PANEL_LABELS.expand).trim();
+  const icon = expanded ? ic().chevronUp || ic().chevronDown : ic().plus;
+  return renderModulePanelBtnInner(icon, label);
+}
+
+function applyModulePanelToggleBtnState(btn, expanded) {
+  if (!btn) return;
+  const expandLabel = String(btn.dataset.expandLabel || MODULE_PANEL_LABELS.expand).trim();
+  btn.innerHTML = modulePanelToggleBtnContent(expanded, expandLabel);
+  btn.title = expanded ? MODULE_PANEL_BTN_TITLES.minimize : MODULE_PANEL_BTN_TITLES.expand;
+  btn.setAttribute("aria-expanded", expanded ? "true" : "false");
+  btn.classList.toggle("module-panel-btn--minimize", expanded);
+  btn.classList.toggle("module-panel-btn--expand", !expanded);
+}
+
 export function renderModulePanelToggleBtn(opts = {}) {
   const expanded = Boolean(opts.expanded);
   const toggleAction = String(opts.toggleAction || "toggle-create-panel").trim();
   const panelId = String(opts.panelId || "").trim();
   const panelAttr = panelId ? ` data-panel="${escapeAttr(panelId)}"` : "";
   const expandLabel = String(opts.expandLabel || MODULE_PANEL_LABELS.expand).trim();
-  if (expanded) {
-    return `<button type="button" class="btn btn-sm module-panel-btn module-panel-btn--minimize" data-action="${escapeAttr(toggleAction)}"${panelAttr} aria-expanded="true" title="${escapeAttr(MODULE_PANEL_BTN_TITLES.minimize)}">${renderModulePanelBtnInner(ic().chevronDown, MODULE_PANEL_LABELS.minimize)}</button>`;
-  }
-  return `<button type="button" class="btn btn-sm module-panel-btn module-panel-btn--expand" data-action="${escapeAttr(toggleAction)}"${panelAttr} aria-expanded="false" title="${escapeAttr(MODULE_PANEL_BTN_TITLES.expand)}">${renderModulePanelBtnInner(ic().plus, expandLabel)}</button>`;
+  const expandLabelAttr = ` data-expand-label="${escapeAttr(expandLabel)}"`;
+  const variant = expanded ? "minimize" : "expand";
+  const title = expanded ? MODULE_PANEL_BTN_TITLES.minimize : MODULE_PANEL_BTN_TITLES.expand;
+  const ariaExpanded = expanded ? "true" : "false";
+  return `<button type="button" class="btn btn-sm module-panel-btn module-panel-btn--${variant}" data-action="${escapeAttr(toggleAction)}"${panelAttr}${expandLabelAttr} aria-expanded="${ariaExpanded}" title="${escapeAttr(title)}">${modulePanelToggleBtnContent(expanded, expandLabel)}</button>`;
 }
 
 export function renderModulePanelCancelBtn(opts = {}) {
@@ -112,7 +129,7 @@ export function renderModulePanelToolbar(opts = {}) {
   const showWhen = String(opts.showWhen || "always").trim();
   if (showWhen === "collapsed" && expanded) return "";
   if (showWhen === "expanded" && !expanded) return "";
-  return `<div class="module-panel-toolbar" role="toolbar" aria-label="Controles del panel">${renderModulePanelToggleBtn(opts)}</div>`;
+  return `<div class="module-panel-toolbar" role="toolbar" aria-label="Controles del panel" data-show-when="${escapeAttr(showWhen)}">${renderModulePanelToggleBtn(opts)}</div>`;
 }
 
 export function renderManagedCreateFormActions(panelId, submitHtml, opts = {}) {
@@ -1008,12 +1025,12 @@ function applyCreatePanelExpandedInDom(card, panelEl, panelId, open) {
   const scope = cardEl || panel?.closest?.(".payroll-operate") || panel?.closest?.("[data-hr-workspace]") || document;
   scope.querySelectorAll?.('[data-action="toggle-create-panel"]')?.forEach?.((btn) => {
     if (String(btn.dataset.panel || "") !== String(panelId || "")) return;
-    btn.setAttribute("aria-expanded", open ? "true" : "false");
-    btn.classList.toggle("module-panel-btn--minimize", open);
-    btn.classList.toggle("module-panel-btn--expand", !open);
+    applyModulePanelToggleBtnState(btn, open);
   });
   const collapsedToolbar = cardEl?.querySelector?.(".module-panel-toolbar");
-  if (collapsedToolbar) collapsedToolbar.classList.toggle("hidden", open);
+  if (collapsedToolbar?.dataset?.showWhen === "collapsed") {
+    collapsedToolbar.classList.toggle("hidden", open);
+  }
 }
 
 /** Expande/colapsa tarjetas de creación en el DOM (sin re-render). */

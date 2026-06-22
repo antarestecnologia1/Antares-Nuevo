@@ -308,7 +308,12 @@ function bindLaborCompliancePortalControls() {
             G.failPortalField(document.getElementById("crud-form"), "dueDate", G.userMessage("sstDueDateRequired"));
             return false;
           }
-          const nextList = all.map((r) =>
+          const freshRecords = read(KEYS.sstCompliance, []);
+          if (!freshRecords.some((r) => String(r.id) === String(target.id))) {
+            G.notify("El control SST ya no está disponible. Actualice la página.", "error");
+            return false;
+          }
+          const nextList = freshRecords.map((r) =>
             String(r.id) !== String(target.id)
               ? r
               : G.stampUpdatedRecord({

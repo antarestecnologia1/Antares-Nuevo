@@ -66,7 +66,11 @@ import {
   viewFromPortalHash,
   syncPortalHash
 } from "./router.js";
-import { isCreatePanelExpanded } from "../ui/components.js";
+import {
+  isCreatePanelExpanded,
+  setCreatePanelExpandedInDom,
+  syncModuleCreatePanelsInDom
+} from "../ui/components.js";
 import { applyPublicLanguage, applyTheme } from "./i18n.js";
 import { failPortalField, isActionButtonBusy } from "../ui/modals.js";
 
@@ -653,7 +657,12 @@ function bindDynamicEvents() {
         };
         persistHrWorkspace("transport-vehicles", "operate");
       }
-      renderPortalView();
+      const root = nodes.viewRoot;
+      if (panelGroup) {
+        syncModuleCreatePanelsInDom(root, panelGroup, panelId, { expandActive: nextOpen });
+      } else {
+        setCreatePanelExpandedInDom(root, panelId, nextOpen);
+      }
       if (nextOpen) {
         $portal.scrollToCreatePanelForm(panelId);
       }
@@ -2343,7 +2352,12 @@ function bindDynamicEvents() {
             };
           }
           const allRequests = reqRead();
-          const updated = allRequests.map((r) => (r.id === req.id ? mergedRow : r));
+          const targetId = String(req.id);
+          if (!allRequests.some((r) => String(r.id) === targetId)) {
+            $portal.notify("La solicitud ya no está disponible. Actualice la página.", "error");
+            return false;
+          }
+          const updated = allRequests.map((r) => (String(r.id) === targetId ? mergedRow : r));
           try {
             await reqWriteAwait(updated, mergedRow);
           } catch (err) {
@@ -2362,16 +2376,17 @@ function bindDynamicEvents() {
   nodes.viewRoot.querySelectorAll("[data-action='cancel-request']").forEach((btn) => {
     btn.addEventListener("click", () => {
       void runWithBusyButton(btn, async () => {
-        const requests = reqRead();
-        const req = requests.find((r) => r.id === btn.dataset.id);
-        if (!req) return;
+      const requests = reqRead();
+      const targetId = String(btn.dataset.id || "");
+      const req = requests.find((r) => String(r.id) === targetId);
+      if (!req) return;
         const actor = currentUser();
         if (!actor || req.trip || !canPortalUserEditTransportRequest(req, actor)) {
           $portal.notify("No puede cancelar esta solicitud en el estado actual o ya tiene viaje asignado.", "error");
           return;
         }
         const updated = requests.map((r) =>
-          r.id === req.id
+          String(r.id) === targetId
             ? {
                 ...r,
                 status: STATUS.CANCELADA,
@@ -2747,8 +2762,13 @@ function bindDynamicEvents() {
               : req.trip
           };
           try {
+            const freshRequests = reqRead();
+            if (!freshRequests.some((r) => String(r.id) === String(req.id))) {
+              $portal.notify("La solicitud ya no está disponible. Actualice la página.", "error");
+              return false;
+            }
             await reqWriteAwait(
-              reqRead().map((r) => (r.id === req.id ? mergedRow : r)),
+              freshRequests.map((r) => (String(r.id) === String(req.id) ? mergedRow : r)),
               mergedRow
             );
           } catch (err) {

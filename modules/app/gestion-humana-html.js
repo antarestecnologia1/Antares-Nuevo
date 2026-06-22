@@ -495,150 +495,186 @@ function payrollHtml() {
     </div>
   </form>`;
   const todayYmdBulk = typeof colombiaTodayIsoDate === "function" ? colombiaTodayIsoDate() : new Date().toISOString().slice(0, 10);
-  const payrollLiquidationModeNav = `<div class="payroll-liquidation-mode payroll-liq-mode" role="tablist" aria-label="Modo de liquidación">
-      <button type="button" class="payroll-liquidation-mode__btn payroll-liq-mode__btn${payrollLiquidationMode === "single" ? " is-active" : ""}" role="tab" aria-selected="${payrollLiquidationMode === "single" ? "true" : "false"}" data-action="payroll-liquidation-mode" data-mode="single">
-        <span class="payroll-liq-mode__icon" aria-hidden="true">${IC.user}</span>
-        <span class="payroll-liq-mode__copy"><strong>Un colaborador</strong><small>Liquidación individual con variables</small></span>
-      </button>
-      <button type="button" class="payroll-liquidation-mode__btn payroll-liq-mode__btn${payrollLiquidationMode === "bulk" ? " is-active" : ""}" role="tab" aria-selected="${payrollLiquidationMode === "bulk" ? "true" : "false"}" data-action="payroll-liquidation-mode" data-mode="bulk">
-        <span class="payroll-liq-mode__icon" aria-hidden="true">${IC.users}</span>
-        <span class="payroll-liq-mode__copy"><strong>Todos (cascada)</strong><small>Generación masiva por fecha de cierre</small></span>
-      </button>
+  const payrollLiquidationModeNav = `<div class="payroll-liquidation-mode" role="tablist" aria-label="Modo de liquidación">
+      <button type="button" class="payroll-liquidation-mode__btn${payrollLiquidationMode === "single" ? " is-active" : ""}" role="tab" aria-selected="${payrollLiquidationMode === "single" ? "true" : "false"}" data-action="payroll-liquidation-mode" data-mode="single">${IC.user} Un colaborador</button>
+      <button type="button" class="payroll-liquidation-mode__btn${payrollLiquidationMode === "bulk" ? " is-active" : ""}" role="tab" aria-selected="${payrollLiquidationMode === "bulk" ? "true" : "false"}" data-action="payroll-liquidation-mode" data-mode="bulk">${IC.users} Todos (cascada)</button>
     </div>`;
-  const formPayBulk = `<form id="form-payroll-bulk" class="antares-create-form payroll-liq-bulk payroll-liquidation-pane${payrollLiquidationMode === "bulk" ? "" : " hidden"}" data-payroll-liquidation-pane="bulk" role="tabpanel" aria-labelledby="payroll-bulk-title" aria-hidden="${payrollLiquidationMode === "bulk" ? "false" : "true"}">
-      ${renderHrFormHero({
-        eyebrow: "Modo cascada",
-        title: "Liquidación masiva",
-        description: "Genera liquidaciones para colaboradores de nómina laboral (Mensual o Quincenal) cuyo corte cierra en la fecha indicada.",
-        tone: "brand",
-        badges: [
-          renderHrFormHeroBadge("Mensual / Quincenal", "periodicidad"),
-          renderHrFormHeroBadge("Conductores", "en Pagos conductores")
-        ]
-      })}
-      <div class="antares-create-form__sections">
-        <fieldset class="form-section form-section-blue full">
-          <legend id="payroll-bulk-title">${IC.calendar} Parámetros del cierre</legend>
-          <p class="muted form-section-hint">Indique la fecha de cierre y si debe incluir cortes pendientes por colaborador quincenal.</p>
-          <div class="form-section-grid payroll-liq-bulk__grid">
-            <label class="payroll-liq-field payroll-liq-field--date">${fieldLabel(IC.calendar, "Fecha de cierre del período")}<input type="date" id="payroll-bulk-fecha" name="fechaReferencia" value="${escapeAttr(todayYmdBulk)}" required /></label>
-            <label class="payroll-liq-option payroll-liq-option--card full">
-              <input type="checkbox" id="payroll-bulk-force" checked />
-              <span class="payroll-liq-option__panel">
-                <span class="payroll-liq-option__head">
-                  <span class="payroll-liq-option__switch" aria-hidden="true"></span>
-                  <span class="payroll-liq-option__title">Incluir el último corte pendiente por colaborador</span>
-                </span>
-                <span class="payroll-liq-option__hint muted">Si un colaborador quincenal aún no tiene la 1.ª quincena, la genera aunque la fecha sea fin de mes. Desmarque para exigir que la fecha sea exactamente el día de cierre (15, fin de mes, etc.).</span>
-              </span>
+  const formPayBulk = `<form id="form-payroll-bulk" class="payroll-bulk-panel payroll-liquidation-pane${payrollLiquidationMode === "bulk" ? "" : " hidden"}" data-payroll-liquidation-pane="bulk" role="tabpanel" aria-labelledby="payroll-bulk-title" aria-hidden="${payrollLiquidationMode === "bulk" ? "false" : "true"}">
+      <div class="payroll-bulk-panel__intro">
+        <h4 id="payroll-bulk-title" class="payroll-bulk-title">${IC.users} Liquidación masiva (cascada)</h4>
+        <p class="muted payroll-bulk-lead">Genera liquidaciones para <strong>colaboradores de nómina laboral con periodicidad Mensual o Quincenal</strong> cuyo corte cierra en la fecha indicada. Los conductores en prestación de servicios se liquidan en <strong>Pagos conductores</strong>.</p>
+      </div>
+      <div class="payroll-bulk-fields">
+        <label class="payroll-bulk-field">${fieldLabel(IC.calendar, "Fecha de cierre del período")}<input type="date" id="payroll-bulk-fecha" name="fechaReferencia" value="${escapeAttr(todayYmdBulk)}" required /></label>
+        <label class="payroll-bulk-option">
+          <input type="checkbox" id="payroll-bulk-force" checked />
+          <span class="payroll-bulk-option__copy">
+            <span class="payroll-bulk-option__label">Incluir el último corte pendiente por colaborador</span>
+            <span class="payroll-bulk-option__hint muted">Si un colaborador quincenal aún no tiene la 1.ª quincena, la genera aunque la fecha sea fin de mes. Desmarque para exigir que la fecha sea exactamente el día de cierre (15, fin de mes, etc.).</span>
+          </span>
+        </label>
+      </div>
+      <div id="payroll-bulk-preview" class="payroll-bulk-preview muted" role="status" aria-live="polite"></div>
+      <div class="payroll-bulk-actions">
+        <button type="button" class="btn btn-primary payroll-bulk-generate-btn" id="payroll-bulk-generate">${IC.dollar}<span>Generar liquidaciones</span></button>
+      </div>
+    </form>`;
+  const formPay = `<form id="form-payroll" class="p-form p-form-colored hr-form-flow payroll-liquidation-create-form payroll-single-form payroll-liquidation-pane${payrollLiquidationMode === "single" ? "" : " hidden"}" data-payroll-liquidation-pane="single" role="tabpanel" aria-hidden="${payrollLiquidationMode === "single" ? "false" : "true"}">
+    <div class="payroll-liq-form__body">
+      <section class="payroll-liq-section payroll-liq-section--period">
+        <header class="payroll-liq-section__head">
+          <span class="payroll-liq-section__icon" aria-hidden="true">${IC.user}</span>
+          <div class="payroll-liq-section__copy">
+            <h4 class="payroll-liq-section__title">Periodo y colaborador</h4>
+            <p class="payroll-liq-section__lead muted">Indique quién liquida y la fecha de cierre del corte de nómina.</p>
+          </div>
+        </header>
+        ${
+          nominaEmployees.length
+            ? ""
+            : `<p class="payroll-single-empty muted">No hay colaboradores de nómina laboral en el directorio. Los conductores en prestación de servicios se liquidan en <strong>Pagos conductores</strong>.</p>`
+        }
+        <div class="payroll-liq-grid payroll-liq-grid--period">
+          <div class="payroll-liq-field payroll-liq-field--employee">
+            <label>${fieldLabel(IC.user, "Colaborador", { required: true })}<select name="employeeId" id="payroll-employee-select" class="searchable-select-native" data-searchable-select="1" data-searchable-placeholder="Buscar por nombre, documento o periodicidad…" required${nominaEmployees.length ? "" : " disabled"}><option value="">Seleccione colaborador</option>${payrollNominaEmployeeOptions}</select></label>
+          </div>
+          <div class="payroll-liq-field payroll-liq-field--salary">
+            <label>${fieldLabel(IC.dollar, "Salario base mensual (COP)")}<input type="text" id="payroll-monthly-base-salary" class="payroll-liq-readonly" readonly tabindex="-1" aria-readonly="true" value="" placeholder="Seleccione colaborador" /></label>
+          </div>
+          <div class="payroll-liq-field payroll-liq-field--date">
+            <label>${fieldLabel(IC.calendar, "Fecha de cierre del período", { required: true })}<input type="date" name="fechaCierre" id="payroll-fecha-cierre" value="${escapeAttr(todayYmdBulk)}" required /></label>
+          </div>
+          <input type="hidden" name="month" id="payroll-month-hidden" value="" />
+          <input type="hidden" name="payrollQuincena" id="payroll-quincena-hidden" value="Q1" />
+          <p class="payroll-liq-hint muted hidden" id="payroll-freq-hint"></p>
+          <p class="payroll-liq-hint muted hidden" id="payroll-cesantias-consign-alert"></p>
+          <div id="payroll-period-preview" class="payroll-period-preview" role="status" aria-live="polite"></div>
+        </div>
+      </section>
+      <fieldset id="payroll-prima-fieldset" class="payroll-liq-section payroll-liq-section--prima hidden" aria-hidden="true">
+        <header class="payroll-liq-section__head">
+          <span class="payroll-liq-section__icon payroll-liq-section__icon--amber" aria-hidden="true">${IC.award}</span>
+          <div class="payroll-liq-section__copy">
+            <legend class="payroll-liq-section__title">Prima de servicios</legend>
+            <p class="payroll-liq-section__lead muted">Semestral (junio o diciembre). En nómina quincenal puede liquidarse en la 1.ª o 2.ª quincena, pero no en ambas.</p>
+          </div>
+        </header>
+        <label class="payroll-liq-check">
+          <input type="checkbox" name="payPrimaServicios" value="1" id="payroll-pay-prima" />
+          <span class="payroll-liq-check__copy">
+            <span class="payroll-liq-check__label">Incluir prima de servicios en esta liquidación</span>
+            <span class="payroll-liq-check__hint muted">Cálculo orientativo: (salario base × días del semestre) ÷ 360. Revise con contador.</span>
+          </span>
+        </label>
+        <div class="payroll-liq-grid payroll-liq-grid--2">
+          <div class="payroll-liq-field">
+            <label>${fieldLabel(IC.clock, "Días laborados en el semestre")}<input type="number" name="primaServiciosDays" min="1" max="183" placeholder="Ej. 180" disabled /></label>
+          </div>
+          <div class="payroll-liq-field">
+            <label>${fieldLabel(IC.dollar, "Valor prima (COP)")}<input type="number" name="primaServiciosCop" min="0" step="100" disabled /></label>
+          </div>
+        </div>
+        <p id="payroll-prima-dup-hint" class="payroll-liq-hint payroll-liq-hint--warn muted hidden"></p>
+      </fieldset>
+      <fieldset id="payroll-cesantias-int-fieldset" class="payroll-liq-section payroll-liq-section--cesantias hidden" aria-hidden="true">
+        <header class="payroll-liq-section__head">
+          <span class="payroll-liq-section__icon payroll-liq-section__icon--violet" aria-hidden="true">${IC.dollar}</span>
+          <div class="payroll-liq-section__copy">
+            <legend class="payroll-liq-section__title">Intereses sobre cesantías</legend>
+            <p class="payroll-liq-section__lead muted">Ley 52 de 1975: 12% anual, pago habitual en enero. En quincenal, una sola vez por año (enero o febrero).</p>
+          </div>
+        </header>
+        <label class="payroll-liq-check">
+          <input type="checkbox" name="payInteresesCesantias" value="1" id="payroll-pay-int-cesantias" />
+          <span class="payroll-liq-check__copy">
+            <span class="payroll-liq-check__label">Incluir intereses sobre cesantías</span>
+            <span class="payroll-liq-check__hint muted">Coordine la base con el extracto del fondo o contador.</span>
+          </span>
+        </label>
+        <div class="payroll-liq-grid payroll-liq-grid--3">
+          <div class="payroll-liq-field">
+            <label>${fieldLabel(IC.dollar, "Base cesantías (COP)")}<input type="number" name="cesantiasInterestBaseCop" min="0" step="100" placeholder="Saldo año referencia" disabled /></label>
+          </div>
+          <div class="payroll-liq-field">
+            <label>${fieldLabel(IC.clock, "Días (base 360)")}<input type="number" name="cesantiasInterestDays" min="1" max="366" value="360" disabled /></label>
+          </div>
+          <div class="payroll-liq-field">
+            <label>${fieldLabel(IC.dollar, "Valor intereses (COP)")}<input type="number" name="interesesCesantiasCopMonthly" min="0" step="100" disabled /></label>
+          </div>
+        </div>
+        <p id="payroll-int-ces-dup-hint" class="payroll-liq-hint payroll-liq-hint--warn muted hidden"></p>
+      </fieldset>
+      <fieldset id="payroll-variable-fieldset" class="payroll-liq-section payroll-liq-section--variables">
+        <header class="payroll-liq-section__head">
+          <span class="payroll-liq-section__icon payroll-liq-section__icon--cyan" aria-hidden="true">${IC.dollar}</span>
+          <div class="payroll-liq-section__copy">
+            <legend id="payroll-variable-legend" class="payroll-liq-section__title">Pagos y deducciones variables</legend>
+            <p class="payroll-liq-section__lead muted">Ajuste viáticos, horas extras, bonificaciones y retención del período.</p>
+          </div>
+        </header>
+        <p class="payroll-liq-hint muted hidden" id="payroll-conductor-trip-hint"></p>
+        <div class="payroll-liq-subgroup">
+          <h5 class="payroll-liq-subgroup__title">${IC.truck} Reembolsos y viáticos</h5>
+          <div class="payroll-liq-grid payroll-liq-grid--2">
+            <div class="payroll-liq-field">
+              <label>${fieldLabel(IC.dollar, "Viáticos manuales (COP)")}<input type="number" name="travelAllowanceManual" value="0" min="0" /></label>
+            </div>
+            <div class="payroll-liq-field">
+              <label>${fieldLabel(IC.dollar, "Reembolso combustible (COP)")}<input type="number" name="fuelReimbursementManual" value="0" min="0" /></label>
+            </div>
+          </div>
+        </div>
+        <div class="payroll-liq-subgroup" data-payroll-nomina-only="1">
+          <h5 class="payroll-liq-subgroup__title">${IC.clock} Horas extras y recargos</h5>
+          <div class="payroll-overtime-grid">
+            <label class="payroll-overtime-field" data-payroll-nomina-only="1">
+              <span class="payroll-overtime-field__badge payroll-overtime-field__badge--hed">HED</span>
+              <span class="payroll-overtime-field__meta">Diurna · +25%</span>
+              <input type="number" name="hedHours" value="0" min="0" step="0.5" title="Hora extra diurna (+25%)" aria-label="HED horas" />
+            </label>
+            <label class="payroll-overtime-field" data-payroll-nomina-only="1">
+              <span class="payroll-overtime-field__badge payroll-overtime-field__badge--hen">HEN</span>
+              <span class="payroll-overtime-field__meta">Nocturna · +75%</span>
+              <input type="number" name="henHours" value="0" min="0" step="0.5" title="Hora extra nocturna (+75%)" aria-label="HEN horas" />
+            </label>
+            <label class="payroll-overtime-field" data-payroll-nomina-only="1">
+              <span class="payroll-overtime-field__badge payroll-overtime-field__badge--hrdf">HRDF</span>
+              <span class="payroll-overtime-field__meta">Dom./festivo · +100%</span>
+              <input type="number" name="hrdfHours" value="0" min="0" step="0.5" title="Hora recargo dominical o festivo (+100%)" aria-label="HRDF horas" />
+            </label>
+            <label class="payroll-overtime-field" data-payroll-nomina-only="1">
+              <span class="payroll-overtime-field__badge payroll-overtime-field__badge--hrnf">HRNF</span>
+              <span class="payroll-overtime-field__meta">Noct. festivo · +75%</span>
+              <input type="number" name="hrnfHours" value="0" min="0" step="0.5" title="Hora recargo nocturno en festivo (+75%)" aria-label="HRNF horas" />
+            </label>
+            <label class="payroll-overtime-field payroll-overtime-field--wide" data-payroll-nomina-only="1">
+              <span class="payroll-overtime-field__badge payroll-overtime-field__badge--rn">RN</span>
+              <span class="payroll-overtime-field__meta">Recargo nocturno ordinario · +35%</span>
+              <input type="number" name="recargoNocturnoHoras" value="0" min="0" step="0.5" title="Recargo nocturno ordinario (+35%)" aria-label="Recargo nocturno horas" />
             </label>
           </div>
-        </fieldset>
-        <div id="payroll-bulk-preview" class="payroll-bulk-preview payroll-liq-preview-card" role="status" aria-live="polite"></div>
-      </div>
-      <footer class="antares-create-form__footer payroll-liq-bulk__footer">
-        <button type="button" class="btn btn-primary payroll-bulk-generate-btn payroll-liq-submit" id="payroll-bulk-generate">${IC.dollar}<span>Generar liquidaciones</span></button>
-      </footer>
-    </form>`;
-  const formPay = `<form id="form-payroll" class="p-form antares-create-form payroll-liq-form payroll-single-form payroll-liquidation-pane${payrollLiquidationMode === "single" ? "" : " hidden"}" data-payroll-liquidation-pane="single" role="tabpanel" aria-hidden="${payrollLiquidationMode === "single" ? "false" : "true"}">
-    <div class="antares-create-form__sections">
-    <fieldset class="form-section form-section-emerald full">
-      <legend>${IC.user} Colaborador y período</legend>
-      <p class="muted form-section-hint">Seleccione al colaborador, confirme el salario base y defina la fecha de cierre del período a liquidar.</p>
-      ${
-        nominaEmployees.length
-          ? ""
-          : `<p class="full payroll-single-empty payroll-liq-empty muted">No hay colaboradores de nómina laboral en el directorio. Los conductores en prestación de servicios se liquidan en <strong>Pagos conductores</strong>.</p>`
-      }
-      <div class="payroll-liq-identity">
-        <label class="payroll-employee-picker payroll-liq-field payroll-liq-field--wide">${fieldLabel(IC.user, "Empleado")}<select name="employeeId" id="payroll-employee-select" class="searchable-select-native" data-searchable-select="1" data-searchable-placeholder="Buscar por nombre, documento o periodicidad…" required${nominaEmployees.length ? "" : " disabled"}><option value="">Seleccione colaborador</option>${payrollNominaEmployeeOptions}</select></label>
-        <label class="payroll-liq-salary-chip">${fieldLabel(IC.dollar, "Salario base mensual (COP)")}<input type="text" id="payroll-monthly-base-salary" class="payroll-liq-salary-readonly" readonly tabindex="-1" aria-readonly="true" value="" placeholder="Seleccione empleado" /></label>
-      </div>
-      <div class="payroll-liq-context">
-        <p class="payroll-liq-hint muted hidden" id="payroll-freq-hint"></p>
-        <p class="payroll-liq-hint payroll-liq-hint--alert muted hidden" id="payroll-cesantias-consign-alert"></p>
-      </div>
-      <div class="payroll-liq-period">
-        <label class="payroll-liq-field payroll-liq-field--date">${fieldLabel(IC.calendar, "Fecha de cierre del período")}<input type="date" name="fechaCierre" id="payroll-fecha-cierre" value="${escapeAttr(todayYmdBulk)}" required /></label>
-        <div id="payroll-period-preview" class="payroll-period-preview payroll-liq-period-preview" role="status" aria-live="polite"></div>
-      </div>
-      <input type="hidden" name="month" id="payroll-month-hidden" value="" />
-      <input type="hidden" name="payrollQuincena" id="payroll-quincena-hidden" value="Q1" />
-    </fieldset>
-    <fieldset id="payroll-prima-fieldset" class="form-section form-section-amber full hidden" aria-hidden="true">
-      <legend>${IC.award} Prima de servicios (semestral)</legend>
-      <p class="muted form-section-hint">Junio y diciembre pueden incluir prima (una sola vez por mes del semestre). En nómina <strong>quincenal</strong> puede liquidarla en la 1ª quincena (día 15) o en la 2ª (cierre de mes), pero <strong>no en ambas</strong>. Cálculo orientativo: (salario base × días trabajados en el semestre) ÷ 360 (CST).</p>
-      <label class="payroll-liq-option payroll-liq-option--card full">
-        <input type="checkbox" name="payPrimaServicios" value="1" id="payroll-pay-prima" />
-        <span class="payroll-liq-option__panel">
-          <span class="payroll-liq-option__head">
-            <span class="payroll-liq-option__switch" aria-hidden="true"></span>
-            <span class="payroll-liq-option__title">Incluir prima de servicios en esta liquidación</span>
-          </span>
-          <span class="payroll-liq-option__hint muted">Active solo si corresponde al semestre y aún no fue liquidada en otra quincena del mes.</span>
-        </span>
-      </label>
-      <div class="form-section-grid payroll-liq-concept-grid">
-        <label>${fieldLabel(IC.clock, "Días laborados en el semestre")}<input type="number" name="primaServiciosDays" min="1" max="183" placeholder="Ej. 180" disabled /></label>
-        <label>${fieldLabel(IC.dollar, "Valor prima (COP)")}<input type="number" name="primaServiciosCop" min="0" step="100" disabled /></label>
-        <p id="payroll-prima-dup-hint" class="full payroll-liq-hint payroll-liq-hint--warn muted hidden"></p>
-      </div>
-    </fieldset>
-    <fieldset id="payroll-cesantias-int-fieldset" class="form-section form-section-violet full hidden" aria-hidden="true">
-      <legend>${IC.dollar} Intereses sobre cesantías (enero o febrero)</legend>
-      <p class="muted form-section-hint"><strong>Ley 52 de 1975:</strong> intereses del <strong>12% anual</strong> sobre cesantías, con pago habitual en <strong>enero</strong>. En nómina quincenal puede registrarse en enero o febrero, <strong>una sola vez por año</strong>. Coordine con extracto del fondo o contador.</p>
-      <label class="payroll-liq-option payroll-liq-option--card full">
-        <input type="checkbox" name="payInteresesCesantias" value="1" id="payroll-pay-int-cesantias" />
-        <span class="payroll-liq-option__panel">
-          <span class="payroll-liq-option__head">
-            <span class="payroll-liq-option__switch" aria-hidden="true"></span>
-            <span class="payroll-liq-option__title">Incluir pago de intereses sobre cesantías</span>
-          </span>
-          <span class="payroll-liq-option__hint muted">Registre la base de cesantías y el valor calculado o acordado con contabilidad.</span>
-        </span>
-      </label>
-      <div class="form-section-grid payroll-liq-concept-grid">
-        <label>${fieldLabel(IC.dollar, "Base cesantías (COP)")}<input type="number" name="cesantiasInterestBaseCop" min="0" step="100" placeholder="Saldo/consignación año referencia" disabled /></label>
-        <label>${fieldLabel(IC.clock, "Días (sobre 360)")}<input type="number" name="cesantiasInterestDays" min="1" max="366" value="360" disabled /></label>
-        <label>${fieldLabel(IC.dollar, "Valor intereses (COP)")}<input type="number" name="interesesCesantiasCopMonthly" min="0" step="100" disabled /></label>
-        <p id="payroll-int-ces-dup-hint" class="full payroll-liq-hint payroll-liq-hint--warn muted hidden"></p>
-      </div>
-    </fieldset>
-    <fieldset id="payroll-variable-fieldset" class="form-section form-section-cyan full">
-      <legend id="payroll-variable-legend">${IC.dollar} Pagos y deducciones variables</legend>
-      <p class="full muted hidden payroll-liq-hint" id="payroll-conductor-trip-hint"></p>
-      <div class="payroll-liq-subgroup">
-        <h4 class="payroll-liq-subgroup__title">${IC.truck} Viáticos y reembolsos</h4>
-        <div class="form-section-grid payroll-liq-vars-grid">
-          <label>${fieldLabel(IC.dollar, "Viáticos manuales (COP)")}<input type="number" name="travelAllowanceManual" value="0" min="0" /></label>
-          <label>${fieldLabel(IC.dollar, "Reembolso combustible (COP)")}<input type="number" name="fuelReimbursementManual" value="0" min="0" /></label>
         </div>
-      </div>
-      <div class="payroll-liq-subgroup" data-payroll-nomina-only="1">
-        <h4 class="payroll-liq-subgroup__title">${IC.clock} Horas extras y recargos</h4>
-        <div class="form-section-grid payroll-liq-hours-grid">
-          <label class="payroll-liq-hour-field" title="Hora extra diurna (+25%)">${fieldLabel(IC.clock, "HED")}<input type="number" name="hedHours" value="0" min="0" step="0.5" /><span class="payroll-liq-hour-field__meta muted">Extra diurna +25%</span></label>
-          <label class="payroll-liq-hour-field" title="Hora extra nocturna (+75%)">${fieldLabel(IC.clock, "HEN")}<input type="number" name="henHours" value="0" min="0" step="0.5" /><span class="payroll-liq-hour-field__meta muted">Extra nocturna +75%</span></label>
-          <label class="payroll-liq-hour-field" title="Hora recargo dominical o festivo (+100%)">${fieldLabel(IC.clock, "HRDF")}<input type="number" name="hrdfHours" value="0" min="0" step="0.5" /><span class="payroll-liq-hour-field__meta muted">Dom./festivo +100%</span></label>
-          <label class="payroll-liq-hour-field" title="Hora recargo nocturno en festivo (+75%)">${fieldLabel(IC.clock, "HRNF")}<input type="number" name="hrnfHours" value="0" min="0" step="0.5" /><span class="payroll-liq-hour-field__meta muted">Noct. festivo +75%</span></label>
-          <label class="payroll-liq-hour-field" title="Recargo nocturno ordinario (+35%)">${fieldLabel(IC.clock, "Rec. nocturno")}<input type="number" name="recargoNocturnoHoras" value="0" min="0" step="0.5" /><span class="payroll-liq-hour-field__meta muted">Ordinario +35%</span></label>
+        <div class="payroll-liq-subgroup" data-payroll-nomina-only="1">
+          <h5 class="payroll-liq-subgroup__title">${IC.award} Otros devengos y retención</h5>
+          <div class="payroll-liq-grid payroll-liq-grid--2">
+            <div class="payroll-liq-field" data-payroll-nomina-only="1">
+              <label>${fieldLabel(IC.dollar, "Otros extras gravables (COP)")}<input type="number" name="extras" value="0" min="0" title="Montos adicionales no desglosados en horas" /></label>
+            </div>
+            <div class="payroll-liq-field" data-payroll-nomina-only="1">
+              <label>${fieldLabel(IC.truck, "Auxilio transporte (COP)")}<input type="number" name="aux" value="${CO_HR_RULES.transportAllowance}" min="0" title="Se rellena con el subsidio registrado en la ficha del empleado." /></label>
+            </div>
+            <div class="payroll-liq-field" data-payroll-nomina-only="1">
+              <label>${fieldLabel(IC.award, "Bonificaciones (COP)")}<input type="number" name="bonus" value="0" min="0" /></label>
+            </div>
+            <div class="payroll-liq-field" data-payroll-nomina-only="1">
+              <label>${fieldLabel(IC.user, "Dependientes retención", { help: "Procedimiento 1: 32 UVT por dependiente." })}<input type="number" name="withholdingDependents" value="0" min="0" max="10" step="1" /></label>
+            </div>
+          </div>
+          <p class="payroll-liq-footnote muted" data-payroll-nomina-only="1">Horas extras según CST (orientativo). IBC con salario integral al 70%. Solidaridad y subsistencia por tramos SMMLV.</p>
         </div>
-      </div>
-      <div class="payroll-liq-subgroup" data-payroll-nomina-only="1">
-        <h4 class="payroll-liq-subgroup__title">${IC.award} Otros devengos y retención</h4>
-        <div class="form-section-grid payroll-liq-vars-grid">
-          <label>${fieldLabel(IC.dollar, "Otros extras gravables (COP)")}<input type="number" name="extras" value="0" min="0" title="Montos adicionales no desglosados en horas" /></label>
-          <label>${fieldLabel(IC.truck, "Auxilio transporte (COP)")}<input type="number" name="aux" value="${CO_HR_RULES.transportAllowance}" min="0" title="Se rellena con el subsidio registrado en la ficha del empleado; puede ajustarlo si aplica otro valor en el período." /></label>
-          <label>${fieldLabel(IC.award, "Bonificaciones (COP)")}<input type="number" name="bonus" value="0" min="0" /></label>
-          <label>${fieldLabel(IC.user, "Dependientes retención (N°)")}<input type="number" name="withholdingDependents" value="0" min="0" max="10" step="1" title="Procedimiento 1 orientativo: 32 UVT por dependiente" /></label>
-        </div>
-        <p class="payroll-liq-footnote muted">Horas extras según CST (orientativo). IBC con salario integral al 70%. Solidaridad y subsistencia por tramos SMMLV. Retención estimada con UVT de parámetros legales.</p>
-      </div>
-    </fieldset>
+      </fieldset>
     </div>
-    <footer class="antares-create-form__footer payroll-liq-form__footer">
-      ${renderManagedCreateFormActions("create-payroll", `<button class="btn btn-primary payroll-liq-submit antares-create-form__submit" type="submit" id="payroll-submit-btn">${IC.dollar}<span>Generar liquidación</span></button>`)}
-    </footer>
+    ${renderManagedCreateFormActions("create-payroll", `<button class="btn btn-primary payroll-liq-submit" type="submit" id="payroll-submit-btn">${IC.dollar}<span>Generar liquidación</span></button>`)}
   </form>`;
   const conductorTripPayOpts = conductorEmployees
     .map((e) => `<option value="${e.id}">${escapeHtml(e.name)} · ${escapeHtml(String(e.idDoc || "—"))}</option>`)
@@ -663,61 +699,129 @@ function payrollHtml() {
   const payrollEmpOptionsSettlement = `<option value="">Seleccione</option>${nominaEmployees
     .map((e) => `<option value="${escapeAttr(String(e.id))}">${escapeHtml(String(e.name || ""))}</option>`)
     .join("")}`;
-  const formPayrollSettlement = `<form id="form-payroll-settlement" class="p-form p-form-colored hr-form-flow hr-form-compact">
-    <fieldset class="form-section form-section-emerald full">
-      <legend>${IC.activity} Liquidación contractual (terminación)</legend>
-      <p class="muted" style="font-size:0.85rem;line-height:1.45;margin:0 0 0.75rem">
-        Para renuncia, despido u otras causas de terminación. Montos orientativos (cesantías, intereses proporcionales, prima proporcional, vacaciones según ordenamiento laboral colombiano). Ajuste cada rubro y consolide con contabilidad y fondos.
-      </p>
-      <div class="form-section-grid">
-        <label>${fieldLabel(IC.user, "Empleado")}<select name="employeeId" required>${payrollEmpOptionsSettlement}</select></label>
-        <label>${fieldLabel(IC.dollar, "Salario base mensual (COP)")}<input type="text" id="payroll-settlement-base-salary" readonly tabindex="-1" aria-readonly="true" value="" placeholder="Seleccione empleado" /></label>
-        <label>${fieldLabel(IC.calendar, "Mes de retiro (período)")}<input type="month" name="month" required /></label>
-        <label>${fieldLabel(IC.calendar, "Fecha de terminación")}<input type="date" name="terminationDate" required /></label>
-        <label>${fieldLabel(IC.file, "Motivo de terminación")}
-          <select name="terminationCause" required>
-            <option value="renuncia_voluntaria">Renuncia voluntaria</option>
-            <option value="despido_sin_justa">Despido sin justa causa</option>
-            <option value="despido_justa">Despido con justa causa</option>
-            <option value="mutuo_acuerdo">Mutuo acuerdo</option>
-            <option value="vencimiento_contrato">Vencimiento de contrato</option>
-            <option value="otro">Otro</option>
-          </select>
-        </label>
-      </div>
-    </fieldset>
-    <fieldset class="form-section form-section-violet full">
-      <legend>${IC.clock} Referencias para el cálculo</legend>
-      <p id="settlement-cause-hint" class="full muted hidden" style="font-size:0.82rem;line-height:1.45;margin:0 0 0.65rem"></p>
-      <div class="form-section-grid">
-        <label>${fieldLabel(IC.clock, "Días totales laborados")}<input type="number" name="employedDays" min="0" max="20000" readonly tabindex="-1" /></label>
-        <label>${fieldLabel(IC.clock, "Días año 360 (cesantías)")}<input type="number" name="days360Year" min="0" max="360" value="0" /></label>
-        <label>${fieldLabel(IC.clock, "Días proporcional prima")}<input type="number" name="primaPropDays" min="0" max="360" value="0" /></label>
-        <label>${fieldLabel(IC.calendar, "Días vacaciones pendientes")}<input type="number" name="vacationDays" min="0" max="366" step="0.01" value="0" /></label>
-        <label>${fieldLabel(IC.dollar, "Saldo cesantías en fondo (COP)")}<input type="number" name="cesantiasFondoBalanceCop" min="0" step="100" value="0" /></label>
-        <label>${fieldLabel(IC.clock, "Días aviso previo cumplidos")}<input type="number" name="avisoPrevioDaysWorked" min="0" max="60" value="0" title="Despido sin justa: 30 días si indefinido. Renuncia: 15 días al empleador." /></label>
-        <label>${fieldLabel(IC.clock, "Días aviso renuncia (trabajador)")}<input type="number" name="renunciaAvisoDaysWorked" min="0" max="60" value="0" title="Si renuncia y no cumplió 15 días de aviso, se descuenta del finiquito (CST art. 62)." /></label>
-        <label>${fieldLabel(IC.dollar, "Horas extras pendientes (COP)")}<input type="number" name="pendingOvertimeCop" min="0" value="0" /></label>
-        <label>${fieldLabel(IC.dollar, "Bonificaciones pendientes (COP)")}<input type="number" name="pendingBonusCop" min="0" value="0" /></label>
-        <label>${fieldLabel(IC.user, "Dependientes retención")}<input type="number" name="withholdingDependents" min="0" max="10" value="0" /></label>
-        <label>${fieldLabel(IC.dollar, "Indemnización pactada (COP)")}<input type="number" name="indemnization" min="0" value="0" /></label>
-        <label>${fieldLabel(IC.dollar, "Otros conceptos (COP)")}<input type="number" name="otrosSettlement" min="0" value="0" /></label>
-        <div class="full toolbar" style="justify-content:flex-start;align-items:center;gap:0.75rem;flex-wrap:wrap">
-          <button type="button" class="btn btn-sm btn-outline" data-action="settlement-recalc">${IC.activity} Calcular liquidación sugerida</button>
-          <strong id="settlement-preview-net" class="muted" style="font-size:0.9rem"></strong>
+  const formPayrollSettlement = `<form id="form-payroll-settlement" class="p-form p-form-colored hr-form-flow payroll-settlement-create-form">
+    <div class="payroll-liq-form__body">
+      <section class="payroll-liq-section payroll-liq-section--period">
+        <header class="payroll-liq-section__head">
+          <span class="payroll-liq-section__icon" aria-hidden="true">${IC.activity}</span>
+          <div class="payroll-liq-section__copy">
+            <h4 class="payroll-liq-section__title">Datos del retiro</h4>
+            <p class="payroll-liq-section__lead muted">Renuncia, despido u otras causas de terminación. Montos orientativos según ordenamiento laboral colombiano.</p>
+          </div>
+        </header>
+        <div class="payroll-liq-grid payroll-liq-grid--2">
+          <div class="payroll-liq-field payroll-liq-field--employee">
+            <label>${fieldLabel(IC.user, "Colaborador", { required: true })}<select name="employeeId" required>${payrollEmpOptionsSettlement}</select></label>
+          </div>
+          <div class="payroll-liq-field payroll-liq-field--salary">
+            <label>${fieldLabel(IC.dollar, "Salario base mensual (COP)")}<input type="text" id="payroll-settlement-base-salary" class="payroll-liq-readonly" readonly tabindex="-1" aria-readonly="true" value="" placeholder="Seleccione colaborador" /></label>
+          </div>
+          <div class="payroll-liq-field">
+            <label>${fieldLabel(IC.calendar, "Mes de retiro", { required: true })}<input type="month" name="month" required /></label>
+          </div>
+          <div class="payroll-liq-field">
+            <label>${fieldLabel(IC.calendar, "Fecha de terminación", { required: true })}<input type="date" name="terminationDate" required /></label>
+          </div>
+          <div class="payroll-liq-field payroll-liq-field--wide">
+            <label>${fieldLabel(IC.file, "Motivo de terminación", { required: true })}
+              <select name="terminationCause" required>
+                <option value="renuncia_voluntaria">Renuncia voluntaria</option>
+                <option value="despido_sin_justa">Despido sin justa causa</option>
+                <option value="despido_justa">Despido con justa causa</option>
+                <option value="mutuo_acuerdo">Mutuo acuerdo</option>
+                <option value="vencimiento_contrato">Vencimiento de contrato</option>
+                <option value="otro">Otro</option>
+              </select>
+            </label>
+          </div>
         </div>
-        <label>${fieldLabel(IC.dollar, "Salario pendiente mes retiro (COP)")}<input type="number" name="salarioPendienteCop" min="0" value="0" /></label>
-        <label>${fieldLabel(IC.truck, "Auxilio transporte pendiente (COP)")}<input type="number" name="auxilioPendienteCop" min="0" value="0" /></label>
-        <label>${fieldLabel(IC.dollar, "Cesantías total (COP)")}<input type="number" name="cesantiasCop" min="0" value="0" /></label>
-        <label>${fieldLabel(IC.dollar, "Intereses cesantías (COP)")}<input type="number" name="interesesCesantiasCop" min="0" value="0" /></label>
-        <label>${fieldLabel(IC.dollar, "Prima proporcional (COP)")}<input type="number" name="primaPropCop" min="0" value="0" /></label>
-        <label>${fieldLabel(IC.dollar, "Vacaciones (COP)")}<input type="number" name="vacacionesCop" min="0" value="0" /></label>
+      </section>
+      <section class="payroll-liq-section payroll-liq-section--refs">
+        <header class="payroll-liq-section__head">
+          <span class="payroll-liq-section__icon payroll-liq-section__icon--violet" aria-hidden="true">${IC.clock}</span>
+          <div class="payroll-liq-section__copy">
+            <h4 class="payroll-liq-section__title">Referencias para el cálculo</h4>
+            <p class="payroll-liq-section__lead muted">Días laborados, saldos en fondo y conceptos pendientes. Ajuste antes de calcular.</p>
+          </div>
+        </header>
+        <p id="settlement-cause-hint" class="payroll-liq-hint payroll-liq-hint--info muted hidden"></p>
+        <div class="payroll-liq-grid payroll-liq-grid--3">
+          <div class="payroll-liq-field">
+            <label>${fieldLabel(IC.clock, "Días totales laborados")}<input type="number" name="employedDays" min="0" max="20000" readonly tabindex="-1" class="payroll-liq-readonly" /></label>
+          </div>
+          <div class="payroll-liq-field">
+            <label>${fieldLabel(IC.clock, "Días año 360 (cesantías)")}<input type="number" name="days360Year" min="0" max="360" value="0" /></label>
+          </div>
+          <div class="payroll-liq-field">
+            <label>${fieldLabel(IC.clock, "Días proporcional prima")}<input type="number" name="primaPropDays" min="0" max="360" value="0" /></label>
+          </div>
+          <div class="payroll-liq-field">
+            <label>${fieldLabel(IC.calendar, "Días vacaciones pendientes")}<input type="number" name="vacationDays" min="0" max="366" step="0.01" value="0" /></label>
+          </div>
+          <div class="payroll-liq-field">
+            <label>${fieldLabel(IC.dollar, "Saldo cesantías en fondo (COP)")}<input type="number" name="cesantiasFondoBalanceCop" min="0" step="100" value="0" /></label>
+          </div>
+          <div class="payroll-liq-field">
+            <label>${fieldLabel(IC.clock, "Días aviso previo cumplidos", { help: "Despido sin justa: 30 días si indefinido." })}<input type="number" name="avisoPrevioDaysWorked" min="0" max="60" value="0" /></label>
+          </div>
+          <div class="payroll-liq-field">
+            <label>${fieldLabel(IC.clock, "Días aviso renuncia", { help: "Si no cumplió 15 días, se descuenta del finiquito (CST art. 62)." })}<input type="number" name="renunciaAvisoDaysWorked" min="0" max="60" value="0" /></label>
+          </div>
+          <div class="payroll-liq-field">
+            <label>${fieldLabel(IC.dollar, "Horas extras pendientes (COP)")}<input type="number" name="pendingOvertimeCop" min="0" value="0" /></label>
+          </div>
+          <div class="payroll-liq-field">
+            <label>${fieldLabel(IC.dollar, "Bonificaciones pendientes (COP)")}<input type="number" name="pendingBonusCop" min="0" value="0" /></label>
+          </div>
+          <div class="payroll-liq-field">
+            <label>${fieldLabel(IC.user, "Dependientes retención")}<input type="number" name="withholdingDependents" min="0" max="10" value="0" /></label>
+          </div>
+          <div class="payroll-liq-field">
+            <label>${fieldLabel(IC.dollar, "Indemnización pactada (COP)")}<input type="number" name="indemnization" min="0" value="0" /></label>
+          </div>
+          <div class="payroll-liq-field">
+            <label>${fieldLabel(IC.dollar, "Otros conceptos (COP)")}<input type="number" name="otrosSettlement" min="0" value="0" /></label>
+          </div>
+        </div>
+        <div class="payroll-settlement-calc-bar">
+          <button type="button" class="btn btn-outline payroll-settlement-calc-bar__btn" data-action="settlement-recalc">${IC.activity}<span>Calcular liquidación sugerida</span></button>
+          <div class="payroll-settlement-calc-bar__preview" id="settlement-preview-net" role="status" aria-live="polite"></div>
+        </div>
+      </section>
+      <section class="payroll-liq-section payroll-liq-section--amounts">
+        <header class="payroll-liq-section__head">
+          <span class="payroll-liq-section__icon payroll-liq-section__icon--emerald" aria-hidden="true">${IC.dollar}</span>
+          <div class="payroll-liq-section__copy">
+            <h4 class="payroll-liq-section__title">Montos de liquidación</h4>
+            <p class="payroll-liq-section__lead muted">Revise y ajuste cada rubro antes de registrar. Consolide con contabilidad y fondos.</p>
+          </div>
+        </header>
+        <div class="payroll-liq-grid payroll-liq-grid--2">
+          <div class="payroll-liq-field">
+            <label>${fieldLabel(IC.dollar, "Salario pendiente mes retiro (COP)")}<input type="number" name="salarioPendienteCop" min="0" value="0" /></label>
+          </div>
+          <div class="payroll-liq-field">
+            <label>${fieldLabel(IC.truck, "Auxilio transporte pendiente (COP)")}<input type="number" name="auxilioPendienteCop" min="0" value="0" /></label>
+          </div>
+          <div class="payroll-liq-field">
+            <label>${fieldLabel(IC.dollar, "Cesantías total (COP)")}<input type="number" name="cesantiasCop" min="0" value="0" /></label>
+          </div>
+          <div class="payroll-liq-field">
+            <label>${fieldLabel(IC.dollar, "Intereses cesantías (COP)")}<input type="number" name="interesesCesantiasCop" min="0" value="0" /></label>
+          </div>
+          <div class="payroll-liq-field">
+            <label>${fieldLabel(IC.dollar, "Prima proporcional (COP)")}<input type="number" name="primaPropCop" min="0" value="0" /></label>
+          </div>
+          <div class="payroll-liq-field">
+            <label>${fieldLabel(IC.dollar, "Vacaciones (COP)")}<input type="number" name="vacacionesCop" min="0" value="0" /></label>
+          </div>
+        </div>
         <input type="hidden" name="indemnizacionDespidoCop" value="0" />
         <input type="hidden" name="indemnizacionAvisoCop" value="0" />
-      </div>
-      <p class="full muted" style="font-size:0.8rem;line-height:1.45;margin:0.35rem 0 0">Causal define indemnización (CST art. 64). Vacaciones: 15 días/año menos gozadas. Retención orientativa sobre salario pendiente.</p>
-    </fieldset>
-    ${renderManagedCreateFormActions("create-payroll-settlement", `<button class="btn btn-primary" type="submit">${IC.save} Registrar liquidación contractual</button>`)}
+        <p class="payroll-liq-footnote muted">Causal define indemnización (CST art. 64). Vacaciones: 15 días/año menos gozadas. Retención orientativa sobre salario pendiente.</p>
+      </section>
+    </div>
+    ${renderManagedCreateFormActions("create-payroll-settlement", `<button class="btn btn-primary payroll-liq-submit" type="submit">${IC.save}<span>Registrar liquidación contractual</span></button>`)}
   </form>`;
   const formAbsence = `<form id="form-hr-absence" class="p-form p-form-colored hr-form-flow hr-absence-create-form">
     <header class="hr-absence-create-form__head">

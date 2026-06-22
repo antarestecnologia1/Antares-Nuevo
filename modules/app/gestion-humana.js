@@ -1655,7 +1655,12 @@ function bindPayrollPortalControls() {
               return false;
             }
           }
-          const nextEmployees = all.map((empRow) =>
+          const freshEmployees = read(KEYS.payrollEmployees, []);
+          if (!freshEmployees.some((empRow) => String(empRow.id) === String(target.id))) {
+            notify("El colaborador ya no está disponible. Actualice la página.", "error");
+            return false;
+          }
+          const nextEmployees = freshEmployees.map((empRow) =>
               String(empRow.id) !== String(target.id)
                 ? empRow
                 : stampUpdatedRecord({
@@ -3020,7 +3025,12 @@ function bindPayrollPortalControls() {
             failPortalField(absenceEditForm, legalValidation.field || "startDate", legalValidation.message);
             return false;
           }
-          const nextList = all.map((a) =>
+          const freshAbsences = read(KEYS.hrAbsences, []);
+          if (!freshAbsences.some((a) => String(a.id) === String(target.id))) {
+            notify("La ausencia ya no está disponible. Actualice la página.", "error");
+            return false;
+          }
+          const nextList = freshAbsences.map((a) =>
             String(a.id) !== String(target.id)
               ? a
               : stampUpdatedRecord({

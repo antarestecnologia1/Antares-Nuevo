@@ -118,6 +118,15 @@ export async function writeAwaitServerLatestQueuedEmail(opts = {}) {
  */
 export async function writeAwaitServerEdit(storageKeyLike, fullList, editedIdOrRecord, opts = {}) {
   const syncData = syncPayloadForEditedRow(fullList, editedIdOrRecord);
+  if (syncData === undefined) {
+    const editedId =
+      editedIdOrRecord != null && typeof editedIdOrRecord === "object" && !Array.isArray(editedIdOrRecord)
+        ? editedIdOrRecord.id
+        : editedIdOrRecord;
+    throw new Error(
+      `No se pudo localizar el registro a actualizar (${String(editedId ?? "").trim() || "sin id"}). Actualice la página e intente de nuevo.`
+    );
+  }
   return writeAwaitServer(storageKeyLike, fullList, { ...opts, syncData });
 }
 

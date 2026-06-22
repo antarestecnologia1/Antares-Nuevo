@@ -37,7 +37,12 @@
    * Caché solo en RAM (sesión): hidratación vía bootstrap / GET audit-events, sin localStorage.
    * Evita que datos legacy en disco tapen `auditoria_eventos_portal`.
    */
-  var SESSION_MEMORY_ONLY_KEYS = new Set(["antares_module_audit_logs_v1"]);
+  var SESSION_MEMORY_ONLY_KEYS = new Set([
+    "antares_module_audit_logs_v1",
+    "antares_deleted_transport_trip_logs_v1",
+    "antares_deleted_transport_request_logs_v1",
+    "antares_entity_history_actors_v1"
+  ]);
 
   /** Entradas más recientes primero (unshift); slice conserva el trozo inicial = más nuevos. */
   var CAP_ARRAY_ROWS_BY_KEY = {
@@ -59,6 +64,18 @@
     } catch (_e) {
       /* noop */
     }
+  }
+
+  function purgeAllSessionMemoryKeysFromDisk() {
+    SESSION_MEMORY_ONLY_KEYS.forEach(function (k) {
+      purgeSessionMemoryKeyFromDisk(k);
+    });
+  }
+
+  function clearSessionMemoryOnly() {
+    SESSION_MEMORY_ONLY_KEYS.forEach(function (k) {
+      delete sessionMemoryOnly[k];
+    });
   }
 
   function trimArrayRowsIfNeeded(key, value) {
@@ -206,6 +223,8 @@
 
     purgeServerBackedFromDisk,
     clearServerBackedMemory,
+    purgeAllSessionMemoryKeysFromDisk,
+    clearSessionMemoryOnly,
     /** @readonly */
     SERVER_BACKED_STORAGE_KEYS
   };
