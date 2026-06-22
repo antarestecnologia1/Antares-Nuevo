@@ -179,7 +179,7 @@
         </div>`
       : "";
     return `<section class="dash-metrics dash-metrics--tower" aria-label="Indicadores del día">
-      <div class="dash-metrics-cards dash-kpi-grid">${cards.join("")}</div>
+      <div class="dash-kpi-grid">${cards.join("")}</div>
       ${execRow}
     </section>`;
   }
@@ -663,8 +663,7 @@
     /* ── Hero Control Tower ── */
     const hero = `<header class="dash-cc dash-hero dash-hero--tower">
       <div class="dash-cc__main">
-        <p class="dash-cc__wave" aria-hidden="true">👋</p>
-        <h2 class="dash-cc__title">${escapeHtml(greeting)}, <span class="dash-cc__name">${firstName}</span></h2>
+        <h2 class="dash-cc__title"><span class="dash-cc__wave" aria-hidden="true">👋</span> ${escapeHtml(greeting)}, <span class="dash-cc__name">${firstName}</span></h2>
         <p class="dash-cc__subtitle">Centro Inteligente de Transporte</p>
         <p class="dash-cc__meta">
           <span>${escapeHtml(longDate)}</span>
