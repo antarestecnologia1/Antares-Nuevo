@@ -145,8 +145,8 @@ export function renderManagedCreateFormActions(panelId, submitHtml, opts = {}) {
 /** Anterior / Siguiente en formularios por pasos (RRHH, contratación). */
 export function renderHrWizardNavButtons() {
   return `<div class="hr-form-wizard-footer-nav" role="group" aria-label="Navegación entre pasos">
-    <button type="button" class="btn btn-outline btn-sm hr-wizard-nav-btn" data-hr-wizard-prev disabled>${renderModulePanelBtnInner(ic().chevronLeft, "Anterior")}</button>
-    <button type="button" class="btn btn-primary btn-sm hr-wizard-nav-btn" data-hr-wizard-next>${renderModulePanelBtnInner(ic().chevronRight, "Siguiente")}</button>
+    <button type="button" class="btn btn-outline btn-sm hr-wizard-nav-btn hr-wizard-nav-btn--prev" data-hr-wizard-prev disabled>${renderModulePanelBtnInner(ic().chevronLeft, "Anterior")}</button>
+    <button type="button" class="btn btn-outline btn-sm hr-wizard-nav-btn hr-wizard-nav-btn--next" data-hr-wizard-next>${renderModulePanelBtnInner(ic().chevronRight, "Siguiente")}</button>
   </div>`;
 }
 
@@ -261,6 +261,7 @@ export function createHrActionCard(panelId, iconKey, title, subtitle, bodyHtml, 
   const desc = subtitle
     ? `<p class="hr-action-card__desc">${escapeHtml(String(subtitle))}</p>`
     : "";
+  const toolbarExtras = String(opts.toolbarExtras || "").trim();
   const cardBody = `<div class="hr-action-card__panel${expanded ? " is-open" : " hidden"}" data-create-panel="${escapeAttr(panelId)}"${expanded ? "" : " hidden"}>
     ${bodyHtml}
   </div>`;
@@ -271,7 +272,10 @@ export function createHrActionCard(panelId, iconKey, title, subtitle, bodyHtml, 
         <h3>${escapeHtml(title)}</h3>
         ${desc}
       </div>
-      ${renderModulePanelToolbar({ expanded, toggleAction: "toggle-create-panel", panelId, expandLabel, showWhen: "always" })}
+      <div class="hr-action-card__toolbar">
+        ${toolbarExtras}
+        ${renderModulePanelToolbar({ expanded, toggleAction: "toggle-create-panel", panelId, expandLabel, showWhen: "always" })}
+      </div>
     </header>
     ${cardBody}
   </article>`;

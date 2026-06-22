@@ -793,11 +793,19 @@
 
 .payroll-studio #form-employee .payroll-wizard__progress {
   flex-shrink: 0;
-  min-width: 9rem;
+  min-width: 10.5rem;
   padding: 0.55rem 0.75rem;
   border-radius: var(--pay-radius-sm);
   background: rgba(8, 24, 44, 0.45);
   border: 1px solid rgba(150, 200, 250, 0.2);
+  display: grid;
+  gap: 0.28rem;
+}
+
+.payroll-studio #form-employee .payroll-wizard__progress-pct {
+  font-size: 0.68rem;
+  font-weight: 650;
+  color: rgba(216, 232, 251, 0.82);
 }
 
 .payroll-studio #form-employee .payroll-wizard__progress .hr-wizard-progress-track {
@@ -1069,6 +1077,188 @@
   border: 1px solid var(--pay-edge);
 }
 
+.payroll-studio #form-employee .hr-wizard-nav-btn--next {
+  color: var(--primary, #377cc0);
+  border-color: rgba(59, 130, 246, 0.42);
+  background: linear-gradient(180deg, #ffffff, #f8fbff);
+  font-weight: 750;
+}
+
+.payroll-studio #form-employee .hr-wizard-nav-btn--next:hover {
+  color: var(--primary-dark, #2a6399);
+  border-color: rgba(37, 99, 235, 0.5);
+  background: linear-gradient(180deg, #eff6ff, #dbeafe);
+}
+
+.payroll-studio .hr-action-card__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  margin-inline-start: auto;
+}
+
+.payroll-studio .hr-action-card--open .hr-action-card__head {
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--pay-edge);
+}
+
+.payroll-studio .hr-action-card--open .hr-action-card__copy h3 {
+  font-size: 1.2rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.payroll-studio .hr-action-card--open .hr-action-card__desc {
+  font-size: 0.86rem;
+  margin-top: 0.2rem;
+}
+
+.payroll-studio #form-employee .payroll-wizard__section {
+  margin: 0;
+}
+
+.payroll-studio #form-employee .payroll-wizard__section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0 0 0.85rem;
+  padding-bottom: 0.55rem;
+  border-bottom: 2px solid rgba(59, 130, 246, 0.22);
+  font-size: 0.98rem;
+  font-weight: 800;
+  color: var(--primary-dark, #2a6399);
+}
+
+.payroll-studio #form-employee .payroll-wizard__section-title .btn-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--primary);
+}
+
+.payroll-studio #form-employee .payroll-wizard__section-grid {
+  gap: 0.85rem 1rem;
+}
+
+.payroll-studio #form-employee .payroll-wizard-photo-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(12rem, 0.85fr);
+  gap: 0.85rem;
+  align-items: stretch;
+}
+
+.payroll-studio #form-employee .payroll-wizard-upload-zone {
+  position: relative;
+  display: grid;
+  place-items: center;
+  gap: 0.35rem;
+  min-height: 9.5rem;
+  padding: 1rem;
+  border: 2px dashed rgba(59, 130, 246, 0.28);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(239, 246, 255, 0.85), rgba(255, 255, 255, 0.95));
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  overflow: hidden;
+}
+
+.payroll-studio #form-employee .payroll-wizard-upload-zone:hover,
+.payroll-studio #form-employee .payroll-wizard-upload-zone.is-dragover {
+  border-color: rgba(37, 99, 235, 0.48);
+  background: linear-gradient(180deg, #eff6ff, #ffffff);
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.08);
+}
+
+.payroll-studio #form-employee .payroll-wizard-upload-zone .profile-avatar-file-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.payroll-studio #form-employee .payroll-wizard-upload-zone__icon .btn-icon {
+  width: 28px;
+  height: 28px;
+  color: var(--primary);
+}
+
+.payroll-studio #form-employee .payroll-wizard-upload-zone__title {
+  font-size: 0.88rem;
+  font-weight: 750;
+  color: var(--text-main, #0f172a);
+}
+
+.payroll-studio #form-employee .payroll-wizard-upload-zone__meta {
+  font-size: 0.76rem;
+  color: var(--muted, #64748b);
+  line-height: 1.4;
+  max-width: 18rem;
+}
+
+.payroll-studio #form-employee .payroll-wizard-upload-zone__preview {
+  display: none;
+  position: absolute;
+  inset: 0;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  font-weight: 800;
+  color: #fff;
+  background-size: cover;
+  background-position: center;
+}
+
+.payroll-studio #form-employee .payroll-wizard-upload-zone.has-image .payroll-wizard-upload-zone__icon,
+.payroll-studio #form-employee .payroll-wizard-upload-zone.has-image .payroll-wizard-upload-zone__title,
+.payroll-studio #form-employee .payroll-wizard-upload-zone.has-image .payroll-wizard-upload-zone__meta {
+  opacity: 0;
+}
+
+.payroll-studio #form-employee .payroll-wizard-upload-zone.has-image .payroll-wizard-upload-zone__preview {
+  display: flex;
+}
+
+.payroll-studio #form-employee .payroll-wizard-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.85rem 0.95rem;
+  border-radius: 12px;
+  border: 1px solid rgba(245, 158, 11, 0.22);
+  background: linear-gradient(180deg, rgba(255, 251, 235, 0.95), rgba(255, 255, 255, 0.92));
+}
+
+.payroll-studio #form-employee .payroll-wizard-tip__icon .btn-icon {
+  width: 18px;
+  height: 18px;
+  color: #d97706;
+  flex-shrink: 0;
+}
+
+.payroll-studio #form-employee .payroll-wizard-tip__copy strong {
+  display: block;
+  margin-bottom: 0.2rem;
+  font-size: 0.82rem;
+  color: #92400e;
+}
+
+.payroll-studio #form-employee .payroll-wizard-tip__copy p {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: #78350f;
+}
+
+.payroll-studio #form-employee .hr-employee-avatar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
 /* Botonera inferior: evitar solapamiento por grid/min-width rígidos */
 .payroll-studio #form-employee .hr-form-wizard-footer .module-panel-actions__bar {
   display: flex;
@@ -1122,6 +1312,10 @@
   .payroll-studio #form-employee .hr-form-wizard-footer .module-panel-actions__group .module-panel-btn {
     width: 100%;
     justify-content: center;
+  }
+
+  .payroll-studio #form-employee .payroll-wizard-photo-row {
+    grid-template-columns: 1fr;
   }
 }
 

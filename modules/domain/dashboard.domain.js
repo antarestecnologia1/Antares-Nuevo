@@ -299,3 +299,239 @@ export function groupRequestsByVehicleForDashboard(requests) {
   });
   return [...map.values()];
 }
+
+function parseMetricNum(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function docStatusLabel(days) {
+  if (days < 0) return "venció";
+  if (days === 0) return "vence hoy";
+  if (days === 1) return "vence mañana";
+  return `vence en ${days} días`;
+}
+
+/** Entregas agrupadas por hora (06:00–19:00) para gráfico operativo. */
+export function computeDeliveriesByHour(todayTrips) {
+  const buckets = Array.from({ length: 14 }, (_, i) => ({
+    hour: i + 6,
+    label: String(i + 6).padStart(2, "0"),
+    count: 0
+  }));
+  (Array.isArray(todayTrips) ? todayTrips : []).forEach((r) => {
+    const raw = r.deliveredAt || r.trip?.etaDelivery || r.deliveryAt || r.pickupAt || r.trip?.etaPickup;
+    const ts = new Date(raw).getTime();
+    if (!Number.isFinite(ts)) return;
+    const hour = new Date(raw).getHours();
+    if (hour < 6 || hour > 19) return;
+    buckets[hour - 6].count += 1;
+  });
+  const peak = Math.max(1, ...buckets.map((b) => b.count));
+  return buckets.map((b) => ({ ...b, pct: Math.round((b.count / peak) * 100) }));
+}
+
+/** Estado de flota para gráfico circular: activos, en espera, mantenimiento. */
+export function computeFleetStatusBreakdown(user, groupList = []) {
+  const vehicles = read(KEYS.vehicles, []);
+  const activeIds = new Set();
+  (Array.isArray(groupList) ? groupList : []).forEach((g) => {
+    const live = (g.trips || []).some((r) => requestOutcomeTone(r.status) === "live");
+    if (live) activeIds.add(String(g.vehicleId || ""));
+  });
+
+  if (isPortalClientUser(user)) {
+    const activos = activeIds.size;
+    const espera = Math.max(0, groupList.length - activos);
+    return { activos, espera, mantenimiento: 0, total: groupList.length || activos + espera };
+  }
+
+  let activos = 0;
+  let espera = 0;
+  let mantenimiento = 0;
+  vehicles.forEach((v) => {
+    const id = String(v.id || "");
+    const status = String(v.status || v.availability || v.fleetStatus || "").toLowerCase();
+    if (status.includes("manten") || status.includes("taller") || status.includes("repair")) {
+      mantenimiento += 1;
+      return;
+    }
+    if (activeIds.has(id)) activos += 1;
+    else espera += 1;
+  });
+  return { activos, espera, mantenimiento, total: vehicles.length };
+}
+
+/** Métricas ejecutivas del día (combustible, km, puntualidad). */
+export function computeTodayExecutiveMetrics(user) {
+  const snap = computeTodayOperationsSnapshot(user);
+  const todayIso = snap.todayIso || colombiaTodayIsoDate();
+  const fuelLogs = read(KEYS.fuelLogs, []).filter((log) => {
+    const day = String(log.date || log.createdAt || "").slice(0, 10);
+    return day === todayIso;
+  });
+  const fuelLiters = fuelLogs.reduce((acc, log) => acc + parseMetricNum(log.liters), 0);
+  const odometers = fuelLogs
+    .map((log) => parseMetricNum(log.odometerKm))
+    .filter((n) => n > 0)
+    .sort((a, b) => a - b);
+  const kmToday = odometers.length >= 2 ? odometers[odometers.length - 1] - odometers[0] : 0;
+  const punctualityPct = snap.assignedToday
+    ? Math.max(0, Math.round(((snap.assignedToday - snap.delayedToday) / snap.assignedToday) * 100))
+    : 100;
+
+  return {
+    activeVehicles: snap.vehicleIdsEnRuta,
+    compliancePct: snap.compliancePct,
+    punctualityPct,
+    fleetUtilPct: snap.fleetUtilPct,
+    fuelLiters: Math.round(fuelLiters * 10) / 10,
+    kmToday: Math.max(0, Math.round(kmToday))
+  };
+}
+
+/**
+ * Alertas críticas con mensaje descriptivo para el centro de alertas.
+ * @returns {Array<{ id: string, tone: string, message: string, targetView?: string, fleetTab?: string, help?: string }>}
+ */
+export function computeDashboardCriticalAlerts(user) {
+  if (!user) return [];
+  const alerts = [];
+  const list = getVisibleRequests(user);
+  const todayIso = colombiaTodayIsoDate();
+  const todayTrips = filterTodayTrips(list, todayIso);
+  const docFn = globalThis.docExpiryStatus;
+  const nowTs = Date.now();
+
+  todayTrips
+    .filter((r) => requestIsDelayed(r, nowTs))
+    .slice(0, 4)
+    .forEach((r) => {
+      const plate = String(r.trip?.vehiclePlate || "Vehículo").trim();
+      const eta = r.trip?.etaDelivery || r.deliveryAt || r.trip?.etaPickup;
+      const mins = eta ? Math.max(1, Math.round((nowTs - new Date(eta).getTime()) / 60000)) : 0;
+      alerts.push({
+        id: `delay-${r.id}`,
+        tone: "alert",
+        message: `Vehículo ${plate} retrasado ${mins} min`,
+        help: `${r.requestNumber || r.id} · ${r.clientName || "Cliente"}`,
+        targetView: "dashboard",
+        fleetTab: "en-ruta"
+      });
+    });
+
+  if (!isPortalClientUser(user) && typeof docFn === "function") {
+    const vehicles = read(KEYS.vehicles, []);
+    vehicles.forEach((v) => {
+      const plate = String(v.plate || "Sin placa").trim();
+      const soat = docFn(v.soatExpeditionDate, v.soatExpiryDate);
+      const tech = docFn(v.techInspectionExpeditionDate, v.techInspectionExpiryDate);
+      if (soat.days <= 30) {
+        alerts.push({
+          id: `soat-${v.id}`,
+          tone: soat.days < 0 ? "alert" : "warn",
+          message: `SOAT ${plate} ${docStatusLabel(soat.days)}`,
+          help: "Revise documentación en Transporte · Camiones",
+          targetView: "transport-vehicles"
+        });
+      }
+      if (tech.days <= 30) {
+        alerts.push({
+          id: `tech-${v.id}`,
+          tone: tech.days < 0 ? "alert" : "warn",
+          message: `Tecnomecánica ${plate} ${docStatusLabel(tech.days)}`,
+          help: "Revise documentación en Transporte · Camiones",
+          targetView: "transport-vehicles"
+        });
+      }
+    });
+
+    const drivers = read(KEYS.drivers, []);
+    drivers.forEach((d) => {
+      const expiry = String(d.licenseExpiry || "").trim();
+      if (!expiry) return;
+      const days = Math.ceil((new Date(expiry).getTime() - nowTs) / 86400000);
+      if (days > 7) return;
+      const name = String(d.name || d.fullName || "Conductor").trim().split(/\s+/)[0];
+      alerts.push({
+        id: `license-${d.id}`,
+        tone: days < 0 ? "alert" : "warn",
+        message: `Licencia ${name} ${docStatusLabel(days)}`,
+        help: "Revise en Transporte · Conductores",
+        targetView: "transport-drivers"
+      });
+    });
+  }
+
+  const snap = computeTodayOperationsSnapshot(user);
+  if (snap.pendingAssignment > 0 && isViewAllowedForUser(user, "transport-trips")) {
+    alerts.push({
+      id: "pending-assign",
+      tone: "warn",
+      message: `${snap.pendingAssignment} viaje${snap.pendingAssignment === 1 ? "" : "s"} sin asignar`,
+      help: "Solicitudes listas para programación",
+      targetView: "transport-trips"
+    });
+  }
+  if (snap.unreadNotifications > 0 && isViewAllowedForUser(user, "notifications")) {
+    alerts.push({
+      id: "notifications",
+      tone: "warn",
+      message: `${snap.unreadNotifications} notificación${snap.unreadNotifications === 1 ? "" : "es"} sin leer`,
+      targetView: "notifications"
+    });
+  }
+
+  const toneRank = { alert: 0, warn: 1, ok: 2 };
+  return alerts
+    .sort((a, b) => (toneRank[a.tone] ?? 9) - (toneRank[b.tone] ?? 9))
+    .slice(0, 8);
+}
+
+/** Puntos para mapa en vivo a partir de viajes activos del día. */
+export function computeDashboardMapMarkers(groupList = []) {
+  const cityCoords = {
+    Bogota: { lat: 4.711, lng: -74.072 },
+    Bogotá: { lat: 4.711, lng: -74.072 },
+    Medellin: { lat: 6.244, lng: -75.581 },
+    Medellín: { lat: 6.244, lng: -75.581 },
+    Cali: { lat: 3.451, lng: -76.532 },
+    Barranquilla: { lat: 10.963, lng: -74.796 },
+    Cartagena: { lat: 10.391, lng: -75.479 },
+    Bucaramanga: { lat: 7.119, lng: -73.123 },
+    Pereira: { lat: 4.813, lng: -75.696 },
+    Neiva: { lat: 2.935, lng: -75.282 },
+    "Santa Marta": { lat: 11.241, lng: -74.199 },
+    Manizales: { lat: 5.068, lng: -75.517 },
+    Armenia: { lat: 4.533, lng: -75.681 },
+    Ibague: { lat: 4.438, lng: -75.232 },
+    Ibagué: { lat: 4.438, lng: -75.232 },
+    Cucuta: { lat: 7.893, lng: -72.508 },
+    Cúcuta: { lat: 7.893, lng: -72.508 }
+  };
+
+  const project = (lat, lng) => ({
+    x: Math.min(94, Math.max(6, ((lng + 79) / 13) * 100)),
+    y: Math.min(90, Math.max(10, ((12.5 - lat) / 12.5) * 100))
+  });
+
+  const markers = [];
+  (Array.isArray(groupList) ? groupList : []).forEach((g, gi) => {
+    const liveTrips = (g.trips || []).filter((r) => requestOutcomeTone(r.status) === "live");
+    if (!liveTrips.length) return;
+    const trip = liveTrips[0];
+    const city = String(trip.destinationCity || trip.originCity || "").trim();
+    const coords = cityCoords[city];
+    const base = coords ? project(coords.lat, coords.lng) : project(4.7 + (gi % 5) * 0.4, -74.1 - (gi % 4) * 0.8);
+    markers.push({
+      id: String(g.vehicleId || gi),
+      plate: String(g.plate || "—"),
+      driver: String(g.driverName || ""),
+      city: city || "En ruta",
+      delayed: liveTrips.some((r) => requestIsDelayed(r)),
+      x: base.x,
+      y: base.y
+    });
+  });
+  return markers;
+}

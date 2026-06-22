@@ -12,6 +12,8 @@ window.PortalArchitecture = (() => {
           ".dash-cc",
           ".dash-hero",
           ".dash-metrics",
+          ".dash-command-center",
+          ".dash-analytics",
           ".dash-layout",
           ".dash-client-layout",
           ".dash-panel--client",

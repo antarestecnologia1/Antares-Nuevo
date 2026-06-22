@@ -958,6 +958,38 @@ function bindPayrollPortalControls() {
     const empCreateAvatarInput = employeeForm.querySelector("#emp-create-avatar-input");
     const empCreateAvatarLabel = employeeForm.querySelector("[data-emp-create-avatar-label]");
     bindEmployeeAvatarFilePreview(empCreateAvatarInput, empCreateAvatarLabel);
+    const empUploadZone = employeeForm.querySelector(".payroll-wizard-upload-zone");
+    if (empUploadZone && empCreateAvatarInput) {
+      ["dragenter", "dragover"].forEach((ev) => {
+        empUploadZone.addEventListener(ev, (e) => {
+          e.preventDefault();
+          empUploadZone.classList.add("is-dragover");
+        });
+      });
+      ["dragleave", "drop"].forEach((ev) => {
+        empUploadZone.addEventListener(ev, (e) => {
+          e.preventDefault();
+          empUploadZone.classList.remove("is-dragover");
+        });
+      });
+      empUploadZone.addEventListener("drop", (e) => {
+        const file = e.dataTransfer?.files?.[0];
+        if (!file || !String(file.type || "").startsWith("image/")) return;
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        empCreateAvatarInput.files = dt.files;
+        empCreateAvatarInput.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+    }
+    employeeForm.querySelector("[data-action='employee-form-save-draft']")?.addEventListener("click", () => {
+      try {
+        const raw = readFormEntriesNormalized(employeeForm);
+        localStorage.setItem("antares-employee-create-draft", JSON.stringify({ savedAt: Date.now(), fields: raw }));
+        notify("Borrador guardado en este navegador.", "success");
+      } catch (_err) {
+        notify("No se pudo guardar el borrador.", "error");
+      }
+    });
     const empNameForAvatar = employeeForm.querySelector("input[name='name']");
     const empAvatarInitialSpan = employeeForm.querySelector("[data-emp-avatar-initial]");
     const syncEmpCreateAvatarInitial = () => {
@@ -968,6 +1000,28 @@ function bindPayrollPortalControls() {
     };
     empNameForAvatar?.addEventListener("input", syncEmpCreateAvatarInitial);
     syncEmpCreateAvatarInitial();
+    try {
+      const draftRaw = localStorage.getItem("antares-employee-create-draft");
+      if (draftRaw) {
+        const draft = JSON.parse(draftRaw);
+        const fields = draft?.fields;
+        if (fields && typeof fields === "object") {
+          Object.entries(fields).forEach(([name, value]) => {
+            const el = employeeForm.querySelector(`[name="${name}"]`);
+            if (!el || el.type === "file") return;
+            if (el.tagName === "SELECT") el.value = String(value ?? "");
+            else el.value = String(value ?? "");
+          });
+          syncIllnessVisibility();
+          employeeCompRule.sync({ force: true });
+          syncPlazoVisibility();
+          syncFixedTermEnd();
+          syncEmpCreateAvatarInitial();
+        }
+      }
+    } catch (_draftErr) {
+      /* borrador opcional */
+    }
     bindHrFormWizard(employeeForm);
     applyDocumentFieldConstraints(employeeForm);
     const prefillCandidateId = String(state.hiringUi?.prefillEmployeeFromCandidateId || "").trim();

@@ -614,7 +614,10 @@ export function bindHrFormWizard(form) {
       });
     }
     const pct = steps.length ? ((idx + 1) / steps.length) * 100 : 0;
+    const pctRounded = Math.round(pct);
+    const pctEl = wizard.querySelector("[data-hr-wizard-progress-pct]");
     if (progressEl) progressEl.textContent = `Paso ${idx + 1} de ${steps.length}`;
+    if (pctEl) pctEl.textContent = `${pctRounded}% completado`;
     if (progressFill) progressFill.style.width = `${pct}%`;
     if (hintEl) {
       const wizKind = String(wizard.getAttribute("data-hr-wizard") || "");

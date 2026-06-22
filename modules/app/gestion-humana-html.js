@@ -292,8 +292,9 @@ function payrollHtml() {
           <p class="payroll-wizard__desc">Identificación, contrato, EPS, ARL, fondos de pensiones y cesantías, datos bancarios y requisitos de conductor según normativa colombiana.</p>
         </div>
         <div class="payroll-wizard__progress hr-form-wizard-meta">
-          <div class="hr-wizard-progress-track" aria-hidden="true"><span class="hr-wizard-progress-fill" data-hr-wizard-progress-fill style="width:16.666667%"></span></div>
           <span class="hr-wizard-progress-label" data-hr-wizard-progress>Paso 1 de 6</span>
+          <div class="hr-wizard-progress-track" aria-hidden="true"><span class="hr-wizard-progress-fill" data-hr-wizard-progress-fill style="width:16.666667%"></span></div>
+          <span class="payroll-wizard__progress-pct" data-hr-wizard-progress-pct>17% completado</span>
         </div>
       </header>
       <div class="payroll-wizard__layout">
@@ -301,41 +302,47 @@ function payrollHtml() {
           <button type="button" class="hr-form-wizard-dot is-active" data-hr-wizard-dot="0" aria-label="Paso 1: identidad"><span class="hr-dot-num">1</span><span><small>Identidad</small><span class="payroll-wizard__step-hint">CC, datos personales</span></span></button>
           <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="1" aria-label="Paso 2: contacto"><span class="hr-dot-num">2</span><span><small>Contacto</small><span class="payroll-wizard__step-hint">Ubicación y emergencias</span></span></button>
           <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="2" aria-label="Paso 3: contrato laboral"><span class="hr-dot-num">3</span><span><small>Contrato</small><span class="payroll-wizard__step-hint">Cargo, salario, plazo</span></span></button>
-          <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="3" aria-label="Paso 4: seguridad social"><span class="hr-dot-num">4</span><span><small>Seg. social</small><span class="payroll-wizard__step-hint">EPS, ARL, fondos</span></span></button>
-          <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="4" aria-label="Paso 5: dispersión nómina"><span class="hr-dot-num">5</span><span><small>Nómina</small><span class="payroll-wizard__step-hint">Cuenta bancaria</span></span></button>
-          <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="5" aria-label="Paso 6: conductor"><span class="hr-dot-num">6</span><span><small>Conductor</small><span class="payroll-wizard__step-hint">Licencia y SIMIT</span></span></button>
+          <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="3" aria-label="Paso 4: seguridad social"><span class="hr-dot-num">4</span><span><small>Seguridad social</small><span class="payroll-wizard__step-hint">EPS, ARL, fondos</span></span></button>
+          <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="4" aria-label="Paso 5: datos bancarios"><span class="hr-dot-num">5</span><span><small>Datos bancarios</small><span class="payroll-wizard__step-hint">Cuenta de pago</span></span></button>
+          <button type="button" class="hr-form-wizard-dot" data-hr-wizard-dot="5" aria-label="Paso 6: conductor"><span class="hr-dot-num">6</span><span><small>Conductor</small><span class="payroll-wizard__step-hint">Opcional si aplica</span></span></button>
         </nav>
         <div class="payroll-wizard__panels">
 
       <div class="hr-form-step is-active" data-step-index="0">
-    <fieldset class="form-section form-section-blue full">
-      <legend>${IC.user} Datos personales</legend>
-      <div class="form-section-grid">
-        <div class="full hr-employee-avatar-row" style="grid-column:1/-1">
-          <div class="hr-employee-avatar-inner">
-            <label for="emp-create-avatar-input" class="profile-avatar profile-avatar-lg profile-avatar-upload" data-emp-create-avatar-label title="Foto del empleado">
-              <span class="profile-avatar-initial" data-emp-avatar-initial>E</span>
-              <span class="profile-avatar-overlay"><span class="profile-avatar-overlay-inner">${IC.upload}<span>Foto</span></span></span>
-              <input type="file" id="emp-create-avatar-input" name="avatarFile" accept="image/*" class="profile-avatar-file-input" aria-label="Foto del empleado" />
-            </label>
-            <p class="muted hr-employee-avatar-caption">JPG o PNG, opcional. Pulse el círculo para elegir archivo.</p>
-          </div>
+    <div class="payroll-wizard__section">
+      <h4 class="payroll-wizard__section-title">${IC.user} Datos personales</h4>
+      <div class="form-section-grid payroll-wizard__section-grid">
+        <div class="full payroll-wizard-photo-row">
+          <label class="payroll-wizard-upload-zone" data-emp-create-avatar-label for="emp-create-avatar-input">
+            <input type="file" id="emp-create-avatar-input" name="avatarFile" accept="image/jpeg,image/png,image/webp" class="profile-avatar-file-input" aria-label="Foto del empleado" />
+            <span class="payroll-wizard-upload-zone__icon" aria-hidden="true">${IC.upload}</span>
+            <span class="payroll-wizard-upload-zone__title">Arrastra y suelta una imagen</span>
+            <span class="payroll-wizard-upload-zone__meta">o haz clic para seleccionar · JPG o PNG · Máx. 5 MB</span>
+            <span class="payroll-wizard-upload-zone__preview profile-avatar-initial" data-emp-avatar-initial aria-hidden="true">E</span>
+          </label>
+          <aside class="payroll-wizard-tip">
+            <span class="payroll-wizard-tip__icon" aria-hidden="true">${IC.activity}</span>
+            <div class="payroll-wizard-tip__copy">
+              <strong>Consejo</strong>
+              <p>Use una foto clara del rostro, fondo neutro y buena iluminación. Mejora la credencial interna y el contrato Word.</p>
+            </div>
+          </aside>
         </div>
-        <label>${fieldLabel(IC.user, "Nombre completo")}<input name="name" required placeholder="Nombres y apellidos completos" data-antares-restrict="person-name" data-antares-field="person-name" /></label>
-        <label>${fieldLabel(IC.file, "Tipo documento")}<select name="documentType" required>${docTypeOptions}</select></label>
-        <label>${fieldLabel(IC.badge, "N° documento")}<input name="idDoc" required data-antares-restrict="alnum-doc" data-antares-field="doc" /></label>
-        <label>${fieldLabel(IC.cake, "Fecha de nacimiento")}<input type="date" name="birthDate" data-antares-validate-blur="date-iso" /></label>
-        <label>${fieldLabel(IC.users, "Género")}<select name="gender">${genderOpts}</select></label>
+        <label>${fieldLabel(IC.user, "Nombre completo", { required: true })}<input name="name" required placeholder="Nombres y apellidos completos" data-antares-restrict="person-name" data-antares-field="person-name" /></label>
+        <label>${fieldLabel(IC.file, "Tipo de documento", { required: true })}<select name="documentType" required>${docTypeOptions}</select></label>
+        <label>${fieldLabel(IC.badge, "N° documento", { required: true })}<input name="idDoc" required placeholder="Ej.: 1036785371" data-antares-restrict="alnum-doc" data-antares-field="doc" /></label>
+        <label>${fieldLabel(IC.cake, "Fecha de nacimiento", { required: true })}<input type="date" name="birthDate" required data-antares-validate-blur="date-iso" /></label>
+        <label>${fieldLabel(IC.users, "Género", { required: true })}<select name="gender" required><option value="">Seleccionar…</option>${genderOpts}</select></label>
         <label>${fieldLabel(IC.heart, "Estado civil")}<select name="maritalStatus">${maritalOpts}</select></label>
-        <label>${fieldLabel(IC.activity, "Tipo de sangre (RH)")}<select name="bloodType" required>${bloodTypeOptions}</select></label>
+        <label>${fieldLabel(IC.activity, "Tipo de sangre (RH)", { required: true })}<select name="bloodType" required>${bloodTypeOptions}</select></label>
         <label>${fieldLabel(IC.graduation, "Nivel educativo")}<select name="educationLevel">${educationOpts}</select></label>
-        <label>${fieldLabel(IC.heart, "¿Sufre alguna enfermedad o condición médica?")}<select name="hasIllness" id="emp-has-illness" required>
+        <label>${fieldLabel(IC.heart, "¿Sufre alguna enfermedad o condición médica?", { required: true })}<select name="hasIllness" id="emp-has-illness" required>
           <option value="no">No</option>
           <option value="si">Sí</option>
         </select></label>
         <label class="full hidden" id="emp-illness-detail-label">${fieldLabel(IC.alertTriangle, "¿Cuál? (descripción libre)")}<textarea name="illnessDescription" id="emp-illness-detail" rows="2" placeholder="Detalle breve para uso médico/HR (alergias, condiciones crónicas, medicación regular, etc.)" data-antares-validate-blur="db-upper-multiline" data-antares-field="db-upper-multiline"></textarea></label>
       </div>
-    </fieldset>
+    </div>
       </div>
 
       <div class="hr-form-step hidden" data-step-index="1">
@@ -862,7 +869,10 @@ function payrollHtml() {
     `<div class="auth-tab-panel${payrollOperatePaneHidden(section) ? " hidden" : ""}" data-payroll-operate-pane="${section}"${payrollOperatePaneHidden(section) ? " hidden" : ""} aria-hidden="${payrollOperatePaneHidden(section) ? "true" : "false"}">${body}</div>`;
   const employeeOperatePane = payrollOperatePane(
     "employee",
-    createHrActionCard("create-employee", "userPlus", "Nuevo colaborador", "Expediente de vinculación con contrato Word y seguridad social (Colombia)", formEmp, "Abrir expediente", { createPanels: payrollCreateUi })
+    createHrActionCard("create-employee", "userPlus", "Nuevo colaborador", "Expediente de vinculación con contrato Word y seguridad social (Colombia)", formEmp, "Abrir expediente", {
+      createPanels: payrollCreateUi,
+      toolbarExtras: `<button type="button" class="btn btn-sm btn-outline module-panel-btn" data-action="employee-form-save-draft" title="Guardar borrador en este navegador">${IC.save} Guardar borrador</button>`
+    })
   );
   const payrollOperatePaneBody = payrollOperatePane(
     "payroll",
