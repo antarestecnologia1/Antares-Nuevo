@@ -5,9 +5,9 @@ import { KEYS, STATUS } from "../core/config.js";
 import { read } from "../core/data-io.js";
 import {
   canAccessAuthorizationsView,
-  isPortalClientUser,
   isViewAllowedForUser
 } from "../core/auth.js";
+import { isPortalClientUser } from "../core/client-data-scope-ui.js";
 import { colombiaNowIso, colombiaTodayIsoDate } from "../core/utils.js";
 import { requestPickupIsoDate, tripRequestStatusIsOperational } from "./viajes.domain.js";
 import { filterPendingApprovalsForActor, readApprovalsSync, readPendingPortalRegistrationsSync } from "./authorizations.domain.js";
