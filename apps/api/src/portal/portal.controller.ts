@@ -18,6 +18,7 @@ import { AdminUserStatusDto } from "./dto/admin-user-status.dto";
 import { SyncKeyDto } from "./dto/sync-key.dto";
 import { DispatchNotificationDto } from "./dto/dispatch-notification.dto";
 import { MarkNotificationsReadDto } from "./dto/mark-notifications-read.dto";
+import { DeleteNotificationsDto } from "./dto/delete-notifications.dto";
 import { NotificationPreferencesDto } from "./dto/notification-preferences.dto";
 import { TransportScheduleBusyDto } from "./dto/transport-schedule-busy.dto";
 import { CreateFleetFuelLogDto } from "./dto/create-fleet-fuel-log.dto";
@@ -55,6 +56,12 @@ export class PortalController {
   @Post("notifications/mark-read")
   markNotificationsRead(@Req() req: { user: ReqUser }, @Body() dto: MarkNotificationsReadDto) {
     return this.portal.markNotificationsRead(req.user.userId, req.user.role, dto.ids);
+  }
+
+  /** Elimina notificaciones de la bandeja en PostgreSQL (payload liviano; evita sync-key masivo). */
+  @Post("notifications/delete")
+  deleteNotifications(@Req() req: { user: ReqUser }, @Body() dto: DeleteNotificationsDto) {
+    return this.portal.deleteNotifications(req.user.userId, req.user.role, dto.ids);
   }
 
   /** Catálogo de cargos (Contratación / nómina). Lectura directa en PostgreSQL. */

@@ -5448,6 +5448,47 @@ export class PortalService implements OnModuleInit {
     return { ok: true, updated, readAt: now.toISOString() };
   }
 
+  /**
+   * Borra notificaciones visibles para el actor sin depender de sync-key (evita 500 al
+   * re-procesar lecturas o filas ajenas en el payload).
+   */
+  async deleteNotifications(userId: string, role: JwtRole, ids: string[]) {
+    const validIds = (Array.isArray(ids) ? ids : [])
+      .map((raw) => String(raw ?? "").trim())
+      .filter((id) => PG_UUID_V4_RE.test(id));
+    if (!validIds.length) {
+      return { ok: true, deleted: 0 };
+    }
+    const adminAudience = this.isAdmin(role);
+    const hrAudience = this.roleMayRunContractRenewalNotices(role);
+    const r = await this.pool.query(
+      `WITH requested AS (
+         SELECT id, titulo, cuerpo, audiencia, id_usuario
+         FROM notificaciones
+         WHERE id = ANY($1::uuid[])
+       )
+       DELETE FROM notificaciones n
+       USING requested src
+       WHERE (
+         n.id = src.id
+         OR (
+           n.titulo = src.titulo
+           AND n.cuerpo = src.cuerpo
+           AND COALESCE(n.audiencia, '') = COALESCE(src.audiencia, '')
+           AND COALESCE(n.id_usuario::text, '') = COALESCE(src.id_usuario::text, '')
+         )
+       )
+       AND (
+         n.id_usuario = $2::uuid
+         OR (n.audiencia = 'admins' AND $3::boolean)
+         OR (n.audiencia = 'hr' AND $4::boolean)
+       )`,
+      [validIds, userId, adminAudience, hrAudience]
+    );
+    const deleted = Number(r.rowCount) || 0;
+    return { ok: true, deleted };
+  }
+
   private async loadNotifications(userId: string, role: JwtRole) {
     const adminAudience = this.isAdmin(role);
     const hrAudience = this.roleMayRunContractRenewalNotices(role);
@@ -8211,6 +8252,11 @@ export class PortalService implements OnModuleInit {
       if (readAtRaw == null || readAtRaw === "") continue;
       const readAtParam = String(readAtRaw).trim() ? (readAtRaw as string | Date) : null;
       if (!readAtParam) continue;
+      const readAtMs =
+        readAtParam instanceof Date
+          ? readAtParam.getTime()
+          : new Date(String(readAtParam)).getTime();
+      if (!Number.isFinite(readAtMs)) continue;
       const exists = await c.query(`SELECT 1 AS ok FROM notificaciones WHERE id = $1::uuid LIMIT 1`, [n.id]);
       if (!(exists.rowCount ?? 0)) continue;
       await c.query(

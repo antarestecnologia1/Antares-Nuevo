@@ -40,7 +40,7 @@
       media="print"
       onload="this.onload=null;this.media='all'"
     />
-    <link rel="stylesheet" href="./styles/..dashboard-module.css?v=20260622-analytics" media="print" onload="this.onload=null;this.media='all'" />
+    <link rel="stylesheet" href="./styles/dashboard-module.css?v=20260622-nexus" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/requests-module.css?v=20260611-portal-modules" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/transport-module.css?v=20260611-portal-modules" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/vehicles-module.css?v=20260611-portal-modules" media="print" onload="this.onload=null;this.media='all'" />
@@ -56,11 +56,11 @@
     <link rel="stylesheet" href="./styles/authorizations-module.css?v=20260611-portal-modules" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/profile-module.css?v=20260611-portal-modules" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/notifications-module.css?v=20260611-portal-modules" media="print" onload="this.onload=null;this.media='all'" />
-    <link rel="stylesheet" href="./styles/portal-sidebar.css?v=20260622-logout-ui" media="print" onload="this.onload=null;this.media='all'" />
+    <link rel="stylesheet" href="./styles/portal-sidebar.css?v=20260622-account-dock" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/portal-studios-dark.css?v=20260622-dash-cc-dark" media="print" onload="this.onload=null;this.media='all'" />
     <noscript>
       <link rel="stylesheet" href="./styles.css?v=20260622-toast-ui" />
-      <link rel="stylesheet" href="./styles/..dashboard-module.css?v=20260622-analytics" />
+      <link rel="stylesheet" href="./styles/dashboard-module.css?v=20260622-nexus" />
       <link rel="stylesheet" href="./styles/requests-module.css?v=20260611-portal-modules" />
       <link rel="stylesheet" href="./styles/transport-module.css?v=20260611-portal-modules" />
       <link rel="stylesheet" href="./styles/vehicles-module.css?v=20260611-portal-modules" />
@@ -76,7 +76,7 @@
       <link rel="stylesheet" href="./styles/authorizations-module.css?v=20260611-portal-modules" />
       <link rel="stylesheet" href="./styles/profile-module.css?v=20260611-portal-modules" />
       <link rel="stylesheet" href="./styles/notifications-module.css?v=20260611-portal-modules" />
-      <link rel="stylesheet" href="./styles/portal-sidebar.css?v=20260622-logout-ui" />
+      <link rel="stylesheet" href="./styles/portal-sidebar.css?v=20260622-account-dock" />
       <link rel="stylesheet" href="./styles/portal-studios-dark.css?v=20260622-dash-cc-dark" />
     </noscript>
     <script>
@@ -1111,35 +1111,50 @@
           </div>
           </nav>
           <div class="sidebar-rail-foot">
-            <button type="button" data-view="profile" class="sidebar-user-panel">
-              <span class="sidebar-session-avatar-wrap" id="sidebar-session-avatar-wrap" aria-hidden="true">
-                <span class="sidebar-session-avatar-initial" id="sidebar-session-avatar-initial">A</span>
-                <img
-                  class="sidebar-session-avatar-img"
-                  id="sidebar-session-avatar-img"
-                  alt=""
-                  width="36"
-                  height="36"
-                  decoding="async"
-                  hidden
-                />
-              </span>
-              <span class="sidebar-user-text">
-                <strong id="sidebar-session-display-name">Transportes Antares</strong>
-                <span id="session-meta"></span>
-              </span>
-            </button>
-            <div class="sidebar-logout">
-              <button id="logout" class="side-link sidebar-logout-btn" type="button" aria-label="Cerrar sesión">
-                <span class="side-link__icon-wrap" aria-hidden="true"><svg class="side-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></span>
-                <span class="side-link__label">Cerrar sesión</span>
+            <div class="sidebar-account-dock">
+              <button type="button" data-view="profile" class="sidebar-user-panel">
+                <span class="sidebar-session-avatar-wrap" id="sidebar-session-avatar-wrap" aria-hidden="true">
+                  <span class="sidebar-session-avatar-initial" id="sidebar-session-avatar-initial">A</span>
+                  <img
+                    class="sidebar-session-avatar-img"
+                    id="sidebar-session-avatar-img"
+                    alt=""
+                    width="36"
+                    height="36"
+                    decoding="async"
+                    hidden
+                  />
+                </span>
+                <span class="sidebar-user-text">
+                  <span class="sidebar-user-eyebrow">Mi perfil</span>
+                  <strong id="sidebar-session-display-name">Transportes Antares</strong>
+                  <span id="session-meta"></span>
+                </span>
+                <span class="sidebar-user-chevron" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                </span>
               </button>
-              <div class="sidebar-theme-box">
-                <p class="sidebar-theme-title">Tema</p>
-                <div class="theme-toggle theme-toggle--compact" id="theme-toggle-portal" role="group" aria-label="Tema portal">
-                  <button type="button" class="theme-option" data-theme-option="light" aria-label="Modo claro">☀️</button>
-                  <button type="button" class="theme-option" data-theme-option="dark" aria-label="Modo oscuro">🌙</button>
+              <div class="sidebar-account-divider" aria-hidden="true"></div>
+              <div class="sidebar-account-toolbar">
+                <div class="sidebar-theme-box">
+                  <span class="sidebar-theme-title">Apariencia</span>
+                  <div class="theme-toggle theme-toggle--portal-sidebar" id="theme-toggle-portal" role="group" aria-label="Tema del portal">
+                    <button type="button" class="theme-option" data-theme-option="light" aria-label="Modo claro" title="Modo claro">
+                      <svg class="sidebar-theme-option-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+                      <span class="sidebar-theme-option-label">Claro</span>
+                    </button>
+                    <button type="button" class="theme-option" data-theme-option="dark" aria-label="Modo oscuro" title="Modo oscuro">
+                      <svg class="sidebar-theme-option-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                      <span class="sidebar-theme-option-label">Oscuro</span>
+                    </button>
+                  </div>
                 </div>
+                <button id="logout" class="sidebar-logout-btn" type="button" aria-label="Cerrar sesión">
+                  <span class="sidebar-logout-btn__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                  </span>
+                  <span class="sidebar-logout-btn__label">Cerrar sesión</span>
+                </button>
               </div>
             </div>
           </div>

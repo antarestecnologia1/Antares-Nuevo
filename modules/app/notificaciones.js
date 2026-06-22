@@ -21,7 +21,7 @@ import {
   resolveNotificationDeepLink,
   sanitizeNotificationBodyForDisplay,
   toggleNotificationsEnabled,
-  writeNotificationsAwaitServer
+  deleteNotificationsFromServer
 } from "../domain/notificaciones.domain.js";
 
 const G = globalThis;
@@ -262,11 +262,11 @@ function bindNotificationsPortalControls() {
           const visibleIds = new Set(visible.map((n) => n.id));
           const list = read(KEYS.notifications, []);
           const nextList = list.filter((n) => !visibleIds.has(n.id));
-          write(KEYS.notifications, nextList);
+          write(KEYS.notifications, nextList, { skipSyncSchedule: true });
           try {
-            await writeNotificationsAwaitServer([...visibleIds]);
+            await deleteNotificationsFromServer([...visibleIds]);
           } catch (err) {
-            write(KEYS.notifications, list);
+            write(KEYS.notifications, list, { skipSyncSchedule: true });
             G.notify(String(err?.message || "No fue posible eliminar las notificaciones en el servidor."), "error");
             G.renderPortalView();
             G.updateNotificationBadge();
@@ -300,11 +300,11 @@ function bindNotificationsPortalControls() {
           const list = read(KEYS.notifications, []);
           const removedNotification = list.find((n) => n.id === id) || null;
           const nextList = list.filter((n) => n.id !== id);
-          write(KEYS.notifications, nextList);
+          write(KEYS.notifications, nextList, { skipSyncSchedule: true });
           try {
-            await writeNotificationsAwaitServer([id]);
+            await deleteNotificationsFromServer([id]);
           } catch (err) {
-            write(KEYS.notifications, list);
+            write(KEYS.notifications, list, { skipSyncSchedule: true });
             G.notify(String(err?.message || "No fue posible eliminar la notificación en el servidor."), "error");
             G.renderPortalView();
             G.updateNotificationBadge();

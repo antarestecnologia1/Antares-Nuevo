@@ -92,7 +92,7 @@ export function tPublic(textEs) {
 export function setElementTextPreserveChildren(selector, text) {
   const el = document.querySelector(selector);
   if (!el) return;
-  if (el.matches(".side-link__label, [data-i18n-label]")) {
+  if (el.matches(".side-link__label, .sidebar-logout-btn__label, [data-i18n-label]")) {
     el.textContent = text;
     return;
   }
@@ -122,12 +122,12 @@ export function applyPublicLanguage(lang = "es") {
     es: {
       "#open-auth": "Portal",
       "#open-auth-hero": "Ingresar al portal",
-      "#logout .side-link__label": "Cerrar sesión"
+      "#logout .sidebar-logout-btn__label": "Cerrar sesión"
     },
     en: {
       "#open-auth": "Portal",
       "#open-auth-hero": "Enter portal",
-      "#logout .side-link__label": "Sign out"
+      "#logout .sidebar-logout-btn__label": "Sign out"
     }
   };
   const attrs = attrMap[lang] || attrMap.es;

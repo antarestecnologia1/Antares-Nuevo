@@ -577,6 +577,38 @@ export async function writeNotificationsAwaitServer(deletedIds) {
   savePortalSnapshotAfterBootstrap({ dirtyKeys: [KEYS.notifications] });
 }
 
+/**
+ * Elimina notificaciones en PostgreSQL vía endpoint dedicado (sin sync-key masivo).
+ * Expande IDs duplicados (misma lógica que marcar leída).
+ */
+export async function deleteNotificationsFromServer(ids) {
+  const normalized = [
+    ...new Set(
+      (Array.isArray(ids) ? ids : [ids])
+        .map((id) => String(id || "").trim())
+        .filter(Boolean)
+    )
+  ];
+  if (!normalized.length) return { ok: true, deleted: 0 };
+
+  const visible = getCurrentNotifications();
+  const visibleIdSet = new Set(visible.map((n) => String(n?.id || "").trim()).filter(Boolean));
+  const targetIds = __expandNotificationReadTargetIds(
+    normalized.filter((id) => visibleIdSet.has(id)),
+    read(KEYS.notifications, [])
+  );
+  if (!targetIds.length) return { ok: true, deleted: 0 };
+
+  const api = window.AntaresApi;
+  if (!api?.postJson || !portalCanRefreshFromApi()) {
+    throw new Error("Sesión sin autenticación API. Vuelva a iniciar sesión para guardar en el servidor.");
+  }
+
+  const res = await api.postJson("/portal/notifications/delete", { ids: targetIds });
+  savePortalSnapshotAfterBootstrap({ dirtyKeys: [KEYS.notifications] });
+  return res;
+}
+
 /** Quita de la caché local notificaciones ajenas (p. ej. tras crear solicitud antes del filtro). */
 export function reconcileNotificationsCacheForSession() {
   const user = currentUser();

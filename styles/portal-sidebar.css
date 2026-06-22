@@ -550,57 +550,369 @@ body.portal-sidebar-collapsed #portal-sidebar .side-link--notif-inbox {
   padding: 0.38rem 0.35rem !important;
 }
 
-/* ── Footer / usuario ── */
+/* ── Footer: dock de cuenta ── */
 #portal-sidebar .sidebar-rail-foot {
-  margin-top: 0.45rem;
-  padding-top: 0.75rem;
-  border-top: 1px solid color-mix(in srgb, var(--portal-sidebar-border) 80%, transparent);
-  gap: 0.5rem;
+  margin-top: 0.55rem;
+  padding-top: 0;
+  border-top: none;
+  gap: 0;
+}
+
+#portal-sidebar .sidebar-account-dock {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0.55rem;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--portal-sidebar-border) 70%, rgba(var(--primary-rgb), 0.2));
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, 0.92) 0%, rgba(247, 251, 255, 0.78) 100%);
+  box-shadow:
+    0 10px 28px rgba(var(--primary-rgb), 0.1),
+    0 0 0 1px rgba(255, 255, 255, 0.65) inset,
+    0 1px 0 rgba(255, 255, 255, 0.9) inset;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 #portal-sidebar .sidebar-user-panel {
+  display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 0.7rem;
+  gap: 0.72rem;
   width: 100%;
-  padding: 0.55rem 0.6rem;
-  border-radius: var(--portal-sidebar-item-radius);
-  border: 1px solid rgba(var(--primary-rgb), 0.1);
-  background: rgba(255, 255, 255, 0.55);
+  padding: 0.5rem 0.55rem;
+  border: none;
+  border-radius: 14px;
+  background: transparent;
   text-align: left;
-  box-shadow: 0 4px 14px rgba(var(--primary-rgb), 0.07);
+  cursor: pointer;
   transition:
     background var(--portal-sidebar-transition),
-    border-color var(--portal-sidebar-transition),
-    box-shadow var(--portal-sidebar-transition);
+    transform var(--portal-sidebar-transition);
 }
 
 #portal-sidebar .sidebar-user-panel:hover {
-  background: rgba(255, 255, 255, 0.88);
-  border-color: rgba(var(--primary-rgb), 0.2);
-  box-shadow: 0 8px 20px rgba(var(--primary-rgb), 0.12);
+  background: rgba(var(--primary-rgb), 0.07);
+  transform: translateY(-1px);
 }
 
 #portal-sidebar .sidebar-user-panel.active {
-  border-color: rgba(var(--primary-rgb), 0.28);
+  background: rgba(var(--primary-rgb), 0.1);
+}
+
+#portal-sidebar .sidebar-user-panel:focus-visible {
+  outline: 2px solid rgba(var(--primary-rgb), 0.45);
+  outline-offset: 2px;
+}
+
+#portal-sidebar .sidebar-session-avatar-wrap {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.95),
+    0 0 0 3px rgba(var(--primary-rgb), 0.18),
+    0 6px 16px rgba(var(--primary-rgb), 0.28);
+}
+
+#portal-sidebar .sidebar-session-avatar-wrap::after {
+  content: "";
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #22c55e;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.35);
+}
+
+#portal-sidebar .sidebar-user-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.08rem;
+  flex: 1;
+  min-width: 0;
+}
+
+#portal-sidebar .sidebar-user-eyebrow {
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--primary) 72%, var(--portal-sidebar-link));
+}
+
+#portal-sidebar .sidebar-user-text strong,
+#portal-sidebar .sidebar-user-text #sidebar-session-display-name {
+  font-size: 0.9rem;
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#portal-sidebar .sidebar-user-text span,
+#portal-sidebar .sidebar-user-text #session-meta {
+  font-size: 0.74rem;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--portal-sidebar-link-hover);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#portal-sidebar .sidebar-user-chevron {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  color: var(--portal-sidebar-link);
+  background: rgba(var(--primary-rgb), 0.06);
+  border: 1px solid rgba(var(--primary-rgb), 0.1);
+  transition:
+    background var(--portal-sidebar-transition),
+    color var(--portal-sidebar-transition),
+    transform var(--portal-sidebar-transition);
+}
+
+#portal-sidebar .sidebar-user-chevron svg {
+  width: 16px;
+  height: 16px;
+}
+
+#portal-sidebar .sidebar-user-panel:hover .sidebar-user-chevron {
+  color: var(--primary);
+  background: rgba(var(--primary-rgb), 0.12);
+  border-color: rgba(var(--primary-rgb), 0.2);
+  transform: translateX(2px);
+}
+
+#portal-sidebar .sidebar-account-divider {
+  height: 1px;
+  margin: 0.35rem 0.45rem;
   background: linear-gradient(
-    95deg,
-    rgba(var(--primary-rgb), 0.12),
-    rgba(255, 255, 255, 0.75)
+    90deg,
+    transparent,
+    rgba(var(--primary-rgb), 0.18) 20%,
+    rgba(var(--primary-rgb), 0.18) 80%,
+    transparent
   );
 }
 
-body[data-theme="dark"] #portal-sidebar .sidebar-user-panel {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(var(--primary-mid-rgb), 0.16);
+#portal-sidebar .sidebar-account-toolbar {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.45rem;
+  padding: 0 0.15rem 0.15rem;
+}
+
+/* Tema */
+#portal-sidebar .sidebar-theme-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.55rem 0.6rem;
+  border-radius: 13px;
+  background: rgba(var(--primary-rgb), 0.05);
+  border: 1px solid rgba(var(--primary-rgb), 0.1);
+}
+
+#portal-sidebar .sidebar-theme-title {
+  display: block;
+  margin: 0;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--portal-sidebar-link-hover) 88%, var(--text));
+}
+
+#portal-sidebar .theme-toggle--portal-sidebar {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem;
+  width: 100%;
+  padding: 0.28rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(var(--primary-rgb), 0.12);
+  transform: none;
+}
+
+#portal-sidebar .theme-toggle--portal-sidebar .theme-option {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  width: 100%;
+  height: auto;
+  min-height: 36px;
+  padding: 0.4rem 0.5rem;
+  border-radius: 9px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--portal-sidebar-link-hover);
+  transition:
+    background var(--portal-sidebar-transition),
+    color var(--portal-sidebar-transition),
+    box-shadow var(--portal-sidebar-transition),
+    transform var(--portal-sidebar-transition);
+}
+
+#portal-sidebar .theme-toggle--portal-sidebar .theme-option:hover {
+  background: rgba(var(--primary-rgb), 0.08);
+  color: var(--primary);
+}
+
+#portal-sidebar .theme-toggle--portal-sidebar .theme-option.active {
+  background: linear-gradient(145deg, var(--primary) 0%, var(--primary-mid) 100%);
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(var(--primary-rgb), 0.32);
+}
+
+#portal-sidebar .sidebar-theme-option-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+#portal-sidebar .sidebar-theme-option-label {
+  line-height: 1;
+}
+
+/* Cerrar sesión */
+#portal-sidebar .sidebar-logout-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  width: 100%;
+  min-height: 46px;
+  padding: 0.55rem 0.85rem;
+  border: 1px solid rgba(214, 40, 40, 0.2);
+  border-radius: 13px;
+  background: linear-gradient(
+    180deg,
+    rgba(254, 242, 242, 0.95) 0%,
+    rgba(254, 226, 226, 0.88) 100%
+  );
+  color: #b91c1c;
+  font-family: var(--font-display);
+  font-size: 0.88rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition:
+    background var(--portal-sidebar-transition),
+    border-color var(--portal-sidebar-transition),
+    color var(--portal-sidebar-transition),
+    box-shadow var(--portal-sidebar-transition),
+    transform var(--portal-sidebar-transition);
+}
+
+#portal-sidebar .sidebar-logout-btn__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: rgba(214, 40, 40, 0.12);
+  border: 1px solid rgba(214, 40, 40, 0.18);
+  color: #dc2626;
+  flex-shrink: 0;
+  transition:
+    background var(--portal-sidebar-transition),
+    transform var(--portal-sidebar-transition);
+}
+
+#portal-sidebar .sidebar-logout-btn__icon svg {
+  width: 17px;
+  height: 17px;
+}
+
+#portal-sidebar .sidebar-logout-btn__label {
+  flex: 1;
+  text-align: left;
+}
+
+#portal-sidebar .sidebar-logout-btn:hover {
+  background: linear-gradient(
+    180deg,
+    rgba(254, 226, 226, 1) 0%,
+    rgba(252, 165, 165, 0.35) 100%
+  );
+  border-color: rgba(220, 38, 38, 0.35);
+  color: #991b1b;
+  box-shadow: 0 6px 18px rgba(214, 40, 40, 0.16);
+  transform: translateY(-1px);
+}
+
+#portal-sidebar .sidebar-logout-btn:hover .sidebar-logout-btn__icon {
+  background: rgba(214, 40, 40, 0.18);
+  transform: scale(1.05);
+}
+
+#portal-sidebar .sidebar-logout-btn:active {
+  transform: translateY(0);
+}
+
+#portal-sidebar .sidebar-logout-btn:focus-visible {
+  outline: 2px solid rgba(220, 38, 38, 0.45);
+  outline-offset: 2px;
+}
+
+/* Colapsado */
+body.portal-sidebar-collapsed #portal-sidebar .sidebar-account-dock {
+  padding: 0.45rem 0.35rem;
+  align-items: center;
 }
 
 body.portal-sidebar-collapsed #portal-sidebar .sidebar-user-panel {
   justify-content: center;
-  padding: 0.5rem;
+  padding: 0.4rem;
 }
 
-body.portal-sidebar-collapsed #portal-sidebar .sidebar-user-text {
+body.portal-sidebar-collapsed #portal-sidebar .sidebar-user-text,
+body.portal-sidebar-collapsed #portal-sidebar .sidebar-user-chevron {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+body.portal-sidebar-collapsed #portal-sidebar .sidebar-account-divider {
+  width: 70%;
+  margin: 0.3rem auto;
+}
+
+body.portal-sidebar-collapsed #portal-sidebar .sidebar-account-toolbar {
+  width: 100%;
+  padding: 0;
+}
+
+body.portal-sidebar-collapsed #portal-sidebar .sidebar-theme-box {
+  padding: 0.35rem;
+  align-items: center;
+}
+
+body.portal-sidebar-collapsed #portal-sidebar .sidebar-theme-title,
+body.portal-sidebar-collapsed #portal-sidebar .sidebar-theme-option-label {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -608,122 +920,81 @@ body.portal-sidebar-collapsed #portal-sidebar .sidebar-user-text {
   clip: rect(0, 0, 0, 0);
 }
 
-#portal-sidebar .sidebar-user-text strong,
-#portal-sidebar .sidebar-user-text #sidebar-session-display-name {
-  font-size: 0.86rem;
-  font-weight: 700;
-  color: var(--text);
+body.portal-sidebar-collapsed #portal-sidebar .theme-toggle--portal-sidebar {
+  grid-template-columns: 1fr;
+  gap: 0.28rem;
+  padding: 0.22rem;
 }
 
-#portal-sidebar .sidebar-user-text span,
-#portal-sidebar .sidebar-user-text #session-meta {
-  font-size: 0.72rem;
-  color: var(--portal-sidebar-link);
+body.portal-sidebar-collapsed #portal-sidebar .theme-toggle--portal-sidebar .theme-option {
+  min-height: 34px;
+  padding: 0.35rem;
 }
 
-#portal-sidebar .sidebar-session-avatar-wrap {
-  width: 40px;
-  height: 40px;
-  min-width: 40px;
-  box-shadow:
-    0 0 0 2px rgba(255, 255, 255, 0.9),
-    0 4px 12px rgba(var(--primary-rgb), 0.28);
-}
-
-#portal-sidebar .sidebar-logout {
-  align-items: stretch;
-  gap: 0.5rem;
-  padding-top: 0.15rem;
-}
-
-#portal-sidebar .side-link.sidebar-logout-btn {
-  min-height: 44px;
-  background: linear-gradient(
-    95deg,
-    rgba(214, 40, 40, 0.07) 0%,
-    rgba(214, 40, 40, 0.03) 100%
-  );
-  border: 1px solid rgba(214, 40, 40, 0.16);
-  color: #b42318;
-  font-size: 0.9rem;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-}
-
-#portal-sidebar .side-link.sidebar-logout-btn .side-link__label {
-  color: inherit;
-  font-weight: 700;
-}
-
-#portal-sidebar .side-link.sidebar-logout-btn .side-link__icon-wrap {
-  background: rgba(214, 40, 40, 0.12);
-  border-color: rgba(214, 40, 40, 0.2);
-  color: #c92a2a;
-}
-
-#portal-sidebar .side-link.sidebar-logout-btn:hover {
-  background: linear-gradient(
-    95deg,
-    rgba(214, 40, 40, 0.14) 0%,
-    rgba(214, 40, 40, 0.08) 100%
-  );
-  border-color: rgba(214, 40, 40, 0.28);
-  color: #991b1b;
-  transform: none;
-  box-shadow: 0 4px 14px rgba(214, 40, 40, 0.12);
-}
-
-#portal-sidebar .side-link.sidebar-logout-btn:hover .side-link__icon-wrap {
-  background: rgba(214, 40, 40, 0.18);
-  border-color: rgba(214, 40, 40, 0.32);
-  color: #991b1b;
-  transform: scale(1.04);
-}
-
-body.portal-sidebar-collapsed #portal-sidebar .side-link.sidebar-logout-btn {
+body.portal-sidebar-collapsed #portal-sidebar .sidebar-logout-btn {
   justify-content: center;
+  padding: 0.45rem;
+  min-height: 42px;
 }
 
-body:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-theme-box {
-  padding: 0.6rem 0.65rem;
-  border-radius: 13px;
-  background: rgba(var(--primary-rgb), 0.06);
-  border: 1px solid rgba(var(--primary-rgb), 0.12);
+body.portal-sidebar-collapsed #portal-sidebar .sidebar-logout-btn__label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
 }
 
-body:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-theme-title {
-  display: block;
-  margin: 0 0 0.5rem;
-  font-size: 0.64rem;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: color-mix(in srgb, var(--portal-sidebar-link-hover) 85%, var(--text));
+/* Dark */
+body[data-theme="dark"] #portal-sidebar .sidebar-account-dock {
+  background: linear-gradient(165deg, rgba(22, 38, 58, 0.95) 0%, rgba(15, 28, 44, 0.88) 100%);
+  border-color: rgba(var(--primary-mid-rgb), 0.18);
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset;
 }
 
-body[data-theme="dark"] #portal-sidebar .side-link.sidebar-logout-btn {
-  color: #fca5a5;
-  background: linear-gradient(
-    95deg,
-    rgba(214, 40, 40, 0.16) 0%,
-    rgba(214, 40, 40, 0.08) 100%
-  );
-  border-color: rgba(248, 113, 113, 0.24);
+body[data-theme="dark"] #portal-sidebar .sidebar-user-text strong,
+body[data-theme="dark"] #portal-sidebar .sidebar-user-text #sidebar-session-display-name {
+  color: #e8f2fc;
 }
 
-body[data-theme="dark"] #portal-sidebar .side-link.sidebar-logout-btn .side-link__icon-wrap {
-  background: rgba(214, 40, 40, 0.2);
-  border-color: rgba(248, 113, 113, 0.28);
-  color: #f87171;
+body[data-theme="dark"] #portal-sidebar .theme-toggle--portal-sidebar {
+  background: rgba(0, 0, 0, 0.22);
+  border-color: rgba(var(--primary-mid-rgb), 0.16);
 }
 
-body[data-theme="dark"] #portal-sidebar .side-link.sidebar-logout-btn:hover {
+body[data-theme="dark"] #portal-sidebar .theme-toggle--portal-sidebar .theme-option {
+  color: #9fb8d4;
+}
+
+body[data-theme="dark"] #portal-sidebar .theme-toggle--portal-sidebar .theme-option.active {
+  color: #ffffff;
+}
+
+body[data-theme="dark"] #portal-sidebar .sidebar-logout-btn {
   color: #fecaca;
-  border-color: rgba(248, 113, 113, 0.38);
   background: linear-gradient(
-    95deg,
-    rgba(214, 40, 40, 0.24) 0%,
-    rgba(214, 40, 40, 0.12) 100%
+    180deg,
+    rgba(127, 29, 29, 0.45) 0%,
+    rgba(69, 10, 10, 0.55) 100%
+  );
+  border-color: rgba(248, 113, 113, 0.28);
+}
+
+body[data-theme="dark"] #portal-sidebar .sidebar-logout-btn__icon {
+  background: rgba(214, 40, 40, 0.22);
+  border-color: rgba(248, 113, 113, 0.3);
+  color: #fca5a5;
+}
+
+body[data-theme="dark"] #portal-sidebar .sidebar-logout-btn:hover {
+  color: #fff1f2;
+  border-color: rgba(248, 113, 113, 0.45);
+  background: linear-gradient(
+    180deg,
+    rgba(153, 27, 27, 0.65) 0%,
+    rgba(127, 29, 29, 0.75) 100%
   );
 }
 
@@ -759,6 +1030,20 @@ body[data-theme="dark"] #portal-sidebar .side-link.sidebar-logout-btn:hover {
 
   #portal-sidebar .sidebar-brand-logo--mark {
     display: none !important;
+  }
+
+  #portal-sidebar .sidebar-account-dock {
+    padding: 0.65rem;
+  }
+
+  #portal-sidebar .sidebar-user-text strong,
+  #portal-sidebar .sidebar-user-text #sidebar-session-display-name {
+    font-size: 0.94rem;
+  }
+
+  #portal-sidebar .sidebar-logout-btn {
+    min-height: 48px;
+    font-size: 0.92rem;
   }
 
   #portal-sidebar .side-link {
@@ -850,6 +1135,7 @@ body[data-theme="dark"] #portal-sidebar.sidebar--rail {
   #portal-sidebar .side-link__icon-wrap,
   #portal-sidebar .sidebar-notif-bell-toggle,
   #portal-sidebar .sidebar-user-panel,
+  #portal-sidebar .sidebar-logout-btn,
   #portal-sidebar .sidebar-brand-logo-wrap,
   #portal-sidebar .sidebar-brand-logo {
     transition: none !important;

@@ -2854,3 +2854,23 @@ body[data-theme="dark"] .dashboard-studio .dash-exec-item {
 .module-shell[data-module-view="dashboard"] .kpi-grid {
   display: none;
 }
+
+/* ══ Antares Nexus 2026 — coexistencia con shell legacy v2 ══ */
+.dashboard-studio:has(.nx-ambient) {
+  display: block;
+  padding: 0;
+  min-height: 100vh;
+  background: #030306;
+  color: #f4f4f8;
+  font-family: "Outfit", system-ui, sans-serif;
+}
+
+.portal-main:has(.dashboard-studio:has(.nx-ambient)) {
+  padding-top: 0;
+  background: #030306;
+}
+
+body[data-theme="dark"] .portal-main:has(.dashboard-studio:has(.nx-ambient)),
+body[data-theme="light"] .portal-main:has(.dashboard-studio:has(.nx-ambient)) {
+  background: #030306;
+}
