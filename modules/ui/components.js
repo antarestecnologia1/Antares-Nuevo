@@ -345,12 +345,16 @@ export function renderPayrollModuleHead({
   pendingAbsenceApprovals,
   totalPayrollMonth,
   currentYm,
-  contractNoticeCount = 0
+  contractNoticeCount = 0,
+  workspace = "operate"
 }) {
-  const items = [
-    `<div class="payroll-module-kpi__item payroll-module-kpi__item--ok" title="Fichas activas en el directorio"><dt>Equipo</dt><dd><strong>${escapeHtml(String(employees))}</strong></dd></div>`,
-    `<div class="payroll-module-kpi__item payroll-module-kpi__item--neutral" title="Suma neta del mes ${escapeHtml(currentYm)}"><dt>Nómina neta</dt><dd><strong>$${parseNum(totalPayrollMonth).toLocaleString("es-CO")}</strong></dd></div>`
-  ];
+  const consultMode = String(workspace || "operate") === "data";
+  const items = consultMode
+    ? []
+    : [
+        `<div class="payroll-module-kpi__item payroll-module-kpi__item--ok" title="Fichas activas en el directorio"><dt>Equipo</dt><dd><strong>${escapeHtml(String(employees))}</strong></dd></div>`,
+        `<div class="payroll-module-kpi__item payroll-module-kpi__item--neutral" title="Suma neta del mes ${escapeHtml(currentYm)}"><dt>Nómina neta</dt><dd><strong>$${parseNum(totalPayrollMonth).toLocaleString("es-CO")}</strong></dd></div>`
+      ];
   if (pending > 0) {
     items.push(
       `<div class="payroll-module-kpi__item payroll-module-kpi__item--warn" title="Liquidaciones laborales sin marcar como pagadas"><dt>Pendientes</dt><dd><strong>${escapeHtml(String(pending))}</strong></dd></div>`
@@ -366,7 +370,7 @@ export function renderPayrollModuleHead({
       `<div class="payroll-module-kpi__item payroll-module-kpi__item--alert" title="Solicitudes en bandeja de aprobaciones"><dt>Ausencias</dt><dd><strong>${escapeHtml(String(pendingAbsenceApprovals))}</strong></dd></div>`
     );
   }
-  if (contractNoticeCount > 0) {
+  if (!consultMode && contractNoticeCount > 0) {
     items.push(
       `<div class="payroll-module-kpi__item payroll-module-kpi__item--alert" title="Término fijo en ventana de 30 días o vencido"><dt>Contratos</dt><dd><strong>${escapeHtml(String(contractNoticeCount))}</strong></dd></div>`
     );
@@ -378,13 +382,18 @@ export function renderPayrollModuleHead({
         .replace(/payroll-module-kpi__item/g, "payroll-studio-kpi")
     )
     .join("");
-  return `<header class="payroll-studio-head payroll-module-head payroll-module-head--compact">
+  const headModeClass = consultMode ? " payroll-module-head--consult" : "";
+  const headAlertsClass = consultMode && items.length ? " payroll-module-head--consult-alerts" : "";
+  const kpiHtml = payItems
+    ? `<dl class="payroll-studio-kpis payroll-module-head__kpi payroll-module-kpi" aria-label="Indicadores de gestión humana">${payItems}</dl>`
+    : "";
+  return `<header class="payroll-studio-head payroll-module-head payroll-module-head--compact${headModeClass}${headAlertsClass}">
       <div class="payroll-studio-head__brand payroll-module-head__title">
-        <span class="payroll-studio-head__badge">RRHH · Colombia</span>
+        ${consultMode ? "" : `<span class="payroll-studio-head__badge">RRHH · Colombia</span>`}
         <h2>Gestión humana</h2>
-        <p class="payroll-studio-head__tagline">Nómina, seguridad social y talento humano conforme al CST, Ley 50 y normativa vigente.</p>
+        ${consultMode ? "" : `<p class="payroll-studio-head__tagline">Nómina, seguridad social y talento humano conforme al CST, Ley 50 y normativa vigente.</p>`}
       </div>
-      <dl class="payroll-studio-kpis payroll-module-head__kpi payroll-module-kpi" aria-label="Indicadores de gestión humana">${payItems}</dl>
+      ${kpiHtml}
     </header>`;
 }
 

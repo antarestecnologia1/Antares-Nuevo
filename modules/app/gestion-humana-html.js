@@ -31,20 +31,28 @@ function computePayrollContractDashboardStats(summaries) {
   };
 }
 
-function renderPayrollContractsDashboardHeader(stats, totalEmployees) {
+function renderPayrollEmployeesConsultAlerts(stats) {
   const s = stats || { total: 0, expired: 0, notice: 0, active: 0 };
-  return `<header class="payroll-contracts-head">
-    <div class="payroll-contracts-head__copy">
-      <h3 class="payroll-contracts-head__title">Contratos</h3>
-      <p class="payroll-contracts-head__subtitle muted">Gestiona y consulta todos los contratos del equipo.</p>
-    </div>
-    <dl class="payroll-contracts-kpis" aria-label="Resumen de contratos">
-      <div class="payroll-contracts-kpi payroll-contracts-kpi--total"><dt>${IC.file} Total</dt><dd><strong>${escapeHtml(String(s.total))}</strong></dd></div>
-      <div class="payroll-contracts-kpi payroll-contracts-kpi--expired"><dt>${IC.alertTriangle} Vencidos</dt><dd><strong>${escapeHtml(String(s.expired))}</strong></dd></div>
-      <div class="payroll-contracts-kpi payroll-contracts-kpi--notice"><dt>${IC.clock} Por vencer</dt><dd><strong>${escapeHtml(String(s.notice))}</strong></dd></div>
-      <div class="payroll-contracts-kpi payroll-contracts-kpi--active"><dt>${IC.check} Vigentes</dt><dd><strong>${escapeHtml(String(s.active))}</strong></dd></div>
-    </dl>
-  </header>`;
+  const chips = [];
+  if (s.expired > 0) {
+    chips.push(
+      `<span class="payroll-consult-alert payroll-consult-alert--expired">${IC.alertTriangle} ${escapeHtml(String(s.expired))} vencido${s.expired === 1 ? "" : "s"}</span>`
+    );
+  }
+  if (s.notice > 0) {
+    chips.push(
+      `<span class="payroll-consult-alert payroll-consult-alert--notice">${IC.clock} ${escapeHtml(String(s.notice))} por vencer</span>`
+    );
+  }
+  if (!chips.length) return "";
+  return `<div class="payroll-consult-alerts" role="status" aria-label="Alertas de contratos">${chips.join("")}</div>`;
+}
+
+function renderPayrollEmployeesConsultToolbar(stats, canDeletePayrollEmployees) {
+  return `<div class="payroll-consult-toolbar">
+    ${renderPayrollEmployeesConsultAlerts(stats)}
+    ${renderPayrollContractsFilterBar(canDeletePayrollEmployees)}
+  </div>`;
 }
 
 function renderPayrollContractsFilterBar(canDeletePayrollEmployees) {
@@ -289,12 +297,12 @@ function payrollHtml() {
         <div class="payroll-wizard__head-copy">
           <span class="payroll-wizard__eyebrow">Vinculación laboral</span>
           <h3 class="payroll-wizard__title">Expediente del colaborador</h3>
-          <p class="payroll-wizard__desc">Identificación, contrato, EPS, ARL, fondos de pensiones y cesantías, datos bancarios y requisitos de conductor según normativa colombiana.</p>
+          <p class="payroll-wizard__desc">Complete la información del colaborador y genere el expediente de vinculación con contrato Word.</p>
         </div>
         <div class="payroll-wizard__progress hr-form-wizard-meta">
           <span class="hr-wizard-progress-label" data-hr-wizard-progress>Paso 1 de 6</span>
           <div class="hr-wizard-progress-track" aria-hidden="true"><span class="hr-wizard-progress-fill" data-hr-wizard-progress-fill style="width:16.666667%"></span></div>
-          <span class="payroll-wizard__progress-pct" data-hr-wizard-progress-pct>17% completado</span>
+          <span class="payroll-wizard__progress-pct" data-hr-wizard-progress-pct>16% completado</span>
         </div>
       </header>
       <div class="payroll-wizard__layout">
@@ -321,16 +329,16 @@ function payrollHtml() {
             <span class="payroll-wizard-upload-zone__preview profile-avatar-initial" data-emp-avatar-initial aria-hidden="true">E</span>
           </label>
           <aside class="payroll-wizard-tip">
-            <span class="payroll-wizard-tip__icon" aria-hidden="true">${IC.activity}</span>
+            <span class="payroll-wizard-tip__icon" aria-hidden="true"><svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg></span>
             <div class="payroll-wizard-tip__copy">
               <strong>Consejo</strong>
               <p>Use una foto clara del rostro, fondo neutro y buena iluminación. Mejora la credencial interna y el contrato Word.</p>
             </div>
           </aside>
         </div>
-        <label>${fieldLabel(IC.user, "Nombre completo", { required: true })}<input name="name" required placeholder="Nombres y apellidos completos" data-antares-restrict="person-name" data-antares-field="person-name" /></label>
+        <label class="full">${fieldLabel(IC.user, "Nombre completo", { required: true })}<input name="name" required placeholder="Nombres y apellidos completos" data-antares-restrict="person-name" data-antares-field="person-name" /></label>
         <label>${fieldLabel(IC.file, "Tipo de documento", { required: true })}<select name="documentType" required>${docTypeOptions}</select></label>
-        <label>${fieldLabel(IC.badge, "N° documento", { required: true })}<input name="idDoc" required placeholder="Ej.: 1036785371" data-antares-restrict="alnum-doc" data-antares-field="doc" /></label>
+        <label>${fieldLabel(IC.badge, "Número de documento", { required: true })}<input name="idDoc" required placeholder="Ej.: 1036785371" data-antares-restrict="alnum-doc" data-antares-field="doc" /></label>
         <label>${fieldLabel(IC.cake, "Fecha de nacimiento", { required: true })}<input type="date" name="birthDate" required data-antares-validate-blur="date-iso" /></label>
         <label>${fieldLabel(IC.users, "Género", { required: true })}<select name="gender" required><option value="">Seleccionar…</option>${genderOpts}</select></label>
         <label>${fieldLabel(IC.heart, "Estado civil")}<select name="maritalStatus">${maritalOpts}</select></label>
@@ -769,8 +777,7 @@ function payrollHtml() {
   const employeeSelectHeader = canDeletePayrollEmployees
     ? `<th class="payroll-contracts-table__check"><input type="checkbox" id="employees-select-all-header" aria-label="Seleccionar todos" /></th>`
     : "";
-  const employeeContractsDashboard = `${renderPayrollContractsDashboardHeader(contractDashboardStats, employeesTotal)}
-    ${renderPayrollContractsFilterBar(canDeletePayrollEmployees)}`;
+  const employeeContractsDashboard = renderPayrollEmployeesConsultToolbar(contractDashboardStats, canDeletePayrollEmployees);
   const employeeTableToolbar = renderPayrollContractsTableToolbar(employeesView, canDeletePayrollEmployees);
   const employeePagination = renderPayrollContractsPagination(employeesTotal, employeesSafePage, employeesPageSize);
   const employeeTable = employeeTableRows
@@ -861,7 +868,8 @@ function payrollHtml() {
     pendingAbsenceApprovals,
     totalPayrollMonth,
     currentYm,
-    contractNoticeCount
+    contractNoticeCount,
+    workspace: payrollWorkspace
   });
   const payrollOperateNav = renderPayrollOperateSectionNav(payrollOperateSection);
   const payrollOperatePaneHidden = (section) => payrollOperateSection !== section;
@@ -1054,12 +1062,10 @@ function payrollHtml() {
       </tr>`;
     })
     .join("");
-  const driverPaymentsSummary = `<dl class="payroll-driver-kpi" aria-label="Resumen pagos conductores">
-      <div><dt>Pendientes de pago</dt><dd><strong>${pendingDriverPayments}</strong> · $${pendingDriverCop.toLocaleString("es-CO")}</dd></div>
-      <div><dt>Neto conductores (${escapeHtml(currentYm)})</dt><dd><strong>$${totalDriverMonth.toLocaleString("es-CO")}</strong></dd></div>
-      <div><dt>Fichas conductor</dt><dd><strong>${conductorEmployees.length}</strong></dd></div>
-      <div><dt>Tarifa interdepartamental</dt><dd><strong>$${parseNum(rules.interDepartmentTripAmount).toLocaleString("es-CO")}</strong></dd></div>
-    </dl>`;
+  const driverPaymentsMeta =
+    pendingDriverPayments > 0
+      ? `<p class="payroll-consult-meta muted" role="status">${pendingDriverPayments} pendiente${pendingDriverPayments === 1 ? "" : "s"} · $${pendingDriverCop.toLocaleString("es-CO")}</p>`
+      : `<p class="payroll-consult-meta muted" role="status">${sortedDriverRuns.length} liquidación${sortedDriverRuns.length === 1 ? "" : "es"} · tarifa $${parseNum(rules.interDepartmentTripAmount).toLocaleString("es-CO")}</p>`;
   const driverPaymentsCards = sortedDriverRuns.length
     ? `<div class="payroll-run-cards-grid">${sortedDriverRuns.map((r) => renderPayrollRunCard(r, { compact: true })).join("")}</div>`
     : "";
@@ -1071,19 +1077,16 @@ function payrollHtml() {
     runsView === "list"
       ? driverTableView || driverPaymentsEmpty
       : driverPaymentsCards || driverPaymentsEmpty;
-  const driverPaymentsToolbar = `<div class="payroll-runs-toolbar payroll-runs-toolbar--embedded">
+  const driverPaymentsToolbar = `<div class="payroll-runs-toolbar payroll-runs-toolbar--embedded payroll-consult-toolbar-row">
       ${renderPayrollRunsViewToggle(runsView, "driver")}
-      <p class="payroll-result-meta muted payroll-runs-toolbar__meta">${sortedDriverRuns.length} liquidación${sortedDriverRuns.length === 1 ? "" : "es"} de conductores</p>
+      ${driverPaymentsMeta}
     </div>`;
   const driverPaymentsPane = `<div class="payroll-data-pane${payrollDataSection === "driverPayments" ? "" : " hidden"}" data-payroll-section="driverPayments">
       ${employeeFilterBanner}
-      ${pcardWrapPro(
-        "truck",
-        "Cuentas por pagar — conductores",
-        "Prestación de servicios · liquidaciones_nomina (prestacion_viajes)",
-        `${driverPaymentsSummary}${driverPaymentsToolbar}<div class="payroll-runs-body">${driverPaymentsBody}</div>`,
-        "admin-users-data-card"
-      )}
+      <div class="payroll-consult-section">
+        ${driverPaymentsToolbar}
+        <div class="payroll-runs-body">${driverPaymentsBody}</div>
+      </div>
     </div>`;
   const payrollDataNav = renderPayrollDataSectionNav(
     payrollDataSection,
@@ -1108,11 +1111,11 @@ function payrollHtml() {
     </div>`;
   const runsPane = `<div class="payroll-data-pane${payrollDataSection === "runs" ? "" : " hidden"}" data-payroll-section="runs">
       ${employeeFilterBanner}
-      <div class="payroll-runs-toolbar">
+      <div class="payroll-runs-toolbar payroll-consult-toolbar-row">
         ${renderPayrollRunsViewToggle(runsView, "nomina")}
         <div class="payroll-runs-toolbar__actions">
-          <p class="payroll-result-meta muted">Mostrando <strong>${runs.length}</strong> de ${nominaRunsAll.length} liquidación${nominaRunsAll.length === 1 ? "" : "es"} de nómina laboral</p>
-          <button type="button" class="btn btn-sm btn-outline" id="export-payroll">${IC.download} Exportar CSV</button>
+          <p class="payroll-consult-meta muted"><strong>${runs.length}</strong> de ${nominaRunsAll.length}</p>
+          <button type="button" class="btn btn-sm btn-outline" id="export-payroll">${IC.download} Exportar</button>
         </div>
       </div>
       <div class="payroll-runs-body">${runsPaneBody}</div>
@@ -1141,7 +1144,8 @@ function payrollHtml() {
   const payrollDataPanel = `<div class="hr-workspace-panel payroll-workspace-panel${payrollWorkspace === "data" ? "" : " hidden"}" role="tabpanel" data-payroll-panel="data">
       ${payrollDataBlock}
     </div>`;
-  return `<section class="payroll-studio payroll-shell payroll-shell--workspace hr-flow-shell" data-hr-workspace="${escapeAttr(payrollWorkspace)}">${payrollWorkspaceHeader}
+  const payrollStudioClass = `payroll-studio payroll-shell payroll-shell--workspace hr-flow-shell${payrollWorkspace === "data" ? " payroll-module--clean payroll-studio--consult" : ""}`;
+  return `<section class="${payrollStudioClass}" data-hr-workspace="${escapeAttr(payrollWorkspace)}">${payrollWorkspaceHeader}
       <div class="hr-workspace-panels">
         ${payrollOperatePanel}
         ${payrollDataPanel}
