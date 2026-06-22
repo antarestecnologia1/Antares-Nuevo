@@ -30,7 +30,7 @@ function historyRenderWindowMoreBar(total, shown, action) {
 }
 
 function historyTraceHaystack(entry) {
-  return `${entry?.moduleLabel || ""} ${entry?.entityLabel || ""} ${entry?.summary || ""} ${entry?.actor || ""} ${entry?.action || ""}`
+  return `${entry?.moduleLabel || ""} ${entry?.entityLabel || ""} ${entry?.summary || ""} ${entry?.usuario || entry?.actor || ""} ${entry?.action || ""}`
     .toLowerCase();
 }
 
@@ -180,12 +180,14 @@ function exportHistoryTraceCsv(entries) {
     entidad: String(entry.entityLabel || ""),
     resumen: String(entry.summary || ""),
     usuario: String(
-      (typeof historyAuditEnrichActorDisplay === "function"
-        ? historyAuditEnrichActorDisplay(entry.actor, {
-            actorEmail: entry.actorEmail,
-            actorUserId: entry.actorUserId
-          })
-        : entry.actor) || "Sin registrar"
+      entry.usuario ||
+        (typeof historyAuditEnrichActorDisplay === "function"
+          ? historyAuditEnrichActorDisplay(entry.actor, {
+              actorEmail: entry.actorEmail,
+              actorUserId: entry.actorUserId
+            })
+          : entry.actor) ||
+        "Sin registrar"
     )
   }));
   const header = columns.map((col) => esc(col.label)).join(",");

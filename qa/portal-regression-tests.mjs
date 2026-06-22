@@ -128,7 +128,7 @@ function run() {
       '"transport-calendar":',
       'title: "Transporte · Calendario"',
       "history:",
-      'title: "Transporte · Historial y reportes"',
+      'title: "Historial y trazabilidad"',
       "reports:",
       'title: "Centro de reporteria"',
       "payroll:",

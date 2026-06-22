@@ -2805,6 +2805,15 @@ function bindDynamicEvents() {
           const nextRequests = reqRead().filter((r) => String(r.id) !== requestId);
           await reqWriteAwait(nextRequests, undefined, requestId);
           $portal.recalculateResourceAvailability();
+          const actor = currentUser();
+          $portal.logPortalAuditEvent?.("requests", "delete", {
+            entityId: requestId,
+            entityLabel: String(reqSnapshot?.requestNumber || requestId),
+            summary: `Solicitud eliminada (admin) · Motivo: ${String(motivo || "").trim()}`,
+            actor: String(actor?.email || actor?.name || ""),
+            actorEmail: String(actor?.email || ""),
+            actorUserId: String(actor?.id || "")
+          });
           try {
             await applyPortalBootstrapFromApi();
           } catch (_e) {
@@ -2849,6 +2858,14 @@ function bindDynamicEvents() {
           const nextRequests = reqRead().filter((r) => String(r.id) !== requestId);
           await reqWriteAwait(nextRequests, undefined, requestId);
           $portal.recalculateResourceAvailability();
+          $portal.logPortalAuditEvent?.("requests", "delete", {
+            entityId: requestId,
+            entityLabel: String(req?.requestNumber || requestId),
+            summary: `Solicitud eliminada (cliente) · Motivo: ${String(motivo || "").trim()}`,
+            actor: String(actor?.email || actor?.name || ""),
+            actorEmail: String(actor?.email || ""),
+            actorUserId: String(actor?.id || "")
+          });
           try {
             await applyPortalBootstrapFromApi();
           } catch (_e) {}

@@ -38,6 +38,7 @@ import { normalizeDocumentDigits } from "./payroll-identifiers.domain.js";
 import { payrollNormalizeAbsenceTypeKey, payrollNormalizeAbsenceSubtype } from "./nomina.domain.js";
 import { buildEmployeeBasicPatchFromDriver, syncDriverFromEmployee } from "./reporteria.domain.js";
 import { reqRead, reqWriteAwait } from "./solicitudes.domain.js";
+import { upsertContractRecordForEmployee } from "./contracts.domain.js";
 import { writeFuelLogsAwait } from "./historial.domain.js";
 import { recalculateResourceAvailability } from "./viajes.domain.js";
 import { userMessage } from "../ui/modals.js";
@@ -191,6 +192,36 @@ export async function propagateEmployeeChanges(employee, extraDriverData = {}) {
   if (String(employee.workerRole || "") === "conductor") {
     driverResult = await syncDriverFromEmployee(employee, extraDriverData);
     if (!driverResult.ok) return driverResult;
+  }
+
+  if (extraDriverData.isNewHire) {
+    let linkedCandidate = null;
+    const candidateId = String(extraDriverData.candidateId || "").trim();
+    if (candidateId) {
+      linkedCandidate = read(KEYS.candidates, []).find((row) => String(row.id) === candidateId);
+    }
+    if (!linkedCandidate && empDoc) {
+      const empDocDigits = normalizeDocumentDigits(empDoc);
+      linkedCandidate = read(KEYS.candidates, []).find(
+        (row) => normalizeDocumentDigits(row.idDoc || row.documentNumber) === empDocDigits
+      );
+    }
+    const hireContract = await upsertContractRecordForEmployee(employee, {
+      candidateId: linkedCandidate?.id,
+      candidateName: linkedCandidate?.name,
+      sourceTag: linkedCandidate
+        ? "Generado al contratar desde candidato"
+        : "Generado al contratar empleado",
+      notifyOnFailure: false
+    });
+    if (!hireContract.ok && !hireContract.skipped) {
+      return {
+        ok: false,
+        message:
+          hireContract.message ||
+          "Empleado guardado, pero no fue posible registrar el contrato en el servidor."
+      };
+    }
   }
 
   const readTransport =

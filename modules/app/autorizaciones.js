@@ -438,6 +438,16 @@ function bindAuthorizationsPortalControls() {
             return;
           }
           appendPayrollEmployeeAuditLog("create", created);
+          const propagate = await propagateEmployeeChanges(created, {
+            license: created.license,
+            licenseCategory: created.licenseCategory,
+            licenseExpiry: created.licenseExpiry,
+            isNewHire: true
+          });
+          if (!propagate.ok) {
+            notify(propagate.message || userMessage("employeeCreatedDriverSyncFail"), "error");
+            return;
+          }
         } else {
           notify(userMessage("authApprovalEmployeeAlreadyExists", idDoc), "info");
         }
@@ -537,6 +547,19 @@ function bindAuthorizationsPortalControls() {
             summary: "CONDUCTOR · vinculado desde aprobación de conductor",
             actor: String(actor?.email || actor?.name || "—").trim()
           });
+          const propagate = await propagateEmployeeChanges(createdEmployee, {
+            license: createdEmployee.license,
+            licenseCategory: createdEmployee.licenseCategory,
+            licenseExpiry: createdEmployee.licenseExpiry,
+            isNewHire: true
+          });
+          if (!propagate.ok) {
+            notify(
+              propagate.message ||
+                "Conductor aprobado; no fue posible registrar el contrato del empleado vinculado.",
+              "error"
+            );
+          }
         }
         try {
           if (portalCanRefreshFromApi()) await applyPortalBootstrapFromApi();

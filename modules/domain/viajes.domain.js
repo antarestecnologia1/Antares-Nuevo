@@ -604,11 +604,23 @@ function appendPortalModuleAuditLog(entry) {
 
 export function mergeTransportRequestModificationLog(request, entry) {
   const prev = Array.isArray(request?.modificationLog) ? request.modificationLog : [];
+  const actorEmail = String(entry?.actorEmail || "").trim();
+  const actorUserId = String(entry?.actorUserId || "").trim();
+  const actorName = String(entry?.actorName || "").trim();
+  const actor = actorEmail || actorName;
+  const usuarioFn = globalThis.historyAuditFormatStoredUsuario;
+  const usuario =
+    String(entry?.usuario || "").trim() ||
+    (typeof usuarioFn === "function"
+      ? usuarioFn(actor, actorEmail, actorUserId)
+      : actorEmail || actorName);
   const row = {
     id: String(entry?.id || newUuidV4()),
     at: String(entry?.at || nowIso()),
-    actorName: String(entry?.actorName || "").trim(),
-    actorEmail: String(entry?.actorEmail || "").trim(),
+    actorName,
+    actorEmail,
+    actorUserId,
+    usuario,
     justification: String(entry?.justification || "").trim(),
     tripNumber: String(entry?.tripNumber || request?.trip?.tripNumber || "").trim(),
     changesSummary: String(entry?.changesSummary || "").trim()
@@ -648,20 +660,31 @@ export function recordTransportRequestModification(request, { justification, act
   const user = actor || currentUser();
   const actorName = String(user?.name || user?.email || "Usuario").trim();
   const actorEmail = String(user?.email || "").trim();
+  const actorUserId = String(user?.id || "").trim();
   const tripNumber = String(request?.trip?.tripNumber || "").trim();
   const just = String(justification || "").trim();
   const summary = String(changesSummary || "").trim();
-  const modificationLog = mergeTransportRequestModificationLog(request, {
+  const modEntry = {
     justification: just,
     actorName,
     actorEmail,
+    actorUserId,
     tripNumber,
     changesSummary: summary
-  });
+  };
+  const modificationLog = mergeTransportRequestModificationLog(request, modEntry);
+  const latest = modificationLog[0];
   const auditSummary = tripNumber
     ? `Viaje ${tripNumber}${summary ? ` · ${summary}` : ""}: ${just}`
     : `${summary ? `${summary}: ` : ""}${just}`;
+  const usuarioFn = globalThis.historyAuditFormatStoredUsuario;
+  const usuario =
+    String(latest?.usuario || "").trim() ||
+    (typeof usuarioFn === "function"
+      ? usuarioFn(actorEmail || actorName, actorEmail, actorUserId)
+      : actorEmail || actorName);
   appendPortalModuleAuditLog({
+    id: latest?.id ? `transport-request-mod-${String(request?.id || "")}-${String(latest.id)}` : undefined,
     action: "update",
     moduleId: "requests",
     moduleLabel: "Mis solicitudes",
@@ -669,6 +692,9 @@ export function recordTransportRequestModification(request, { justification, act
     entityLabel: String(request?.requestNumber || request?.id || "Solicitud"),
     summary: auditSummary,
     actor: actorEmail || actorName,
+    actorEmail,
+    actorUserId,
+    usuario,
     detailAction: "detail",
     detailId: String(request?.id || "")
   });
@@ -681,7 +707,9 @@ export function renderRequestModificationLogSectionHtml(request) {
   const items = rows
     .map((row) => {
       const when = fmtDate(row.at);
-      const who = escapeHtml(String(row.actorName || row.actorEmail || "—"));
+      const who = escapeHtml(
+        String(row.usuario || row.actorName || row.actorEmail || "Sin registrar").trim() || "Sin registrar"
+      );
       const trip = row.tripNumber ? ` · Viaje ${escapeHtml(String(row.tripNumber))}` : "";
       const changes = row.changesSummary
         ? `<p class="muted" style="margin:0.25rem 0 0;font-size:0.88em">Campos: ${escapeHtml(String(row.changesSummary))}</p>`

@@ -179,6 +179,7 @@ export function logPortalAuditEvent(moduleKey, action, detail = {}) {
   const moduleLabel = normalizePortalAuditModuleLabel(moduleId);
   const row = detail && typeof detail === "object" ? detail : {};
   fn({
+    id: String(row.id || "").trim() || undefined,
     action: String(action || "update"),
     moduleId,
     moduleLabel,
@@ -189,6 +190,7 @@ export function logPortalAuditEvent(moduleKey, action, detail = {}) {
     actor: row.actor,
     actorEmail: row.actorEmail,
     actorUserId: row.actorUserId,
+    usuario: row.usuario,
     detailAction: String(row.detailAction || "").trim(),
     detailId: String(row.detailId || row.entityId || "").trim()
   });

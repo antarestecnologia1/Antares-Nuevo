@@ -1134,7 +1134,8 @@ function bindPayrollPortalControls() {
         const propagate = await propagateEmployeeChanges(createdEmployee, {
           license: payload.license,
           licenseCategory: payload.licenseCategory,
-          licenseExpiry: payload.licenseExpiry
+          licenseExpiry: payload.licenseExpiry,
+          isNewHire: true
         });
         if (!propagate.ok) {
           notify(propagate.message || userMessage("employeeCreatedDriverSyncFail"), "error");

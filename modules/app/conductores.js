@@ -527,6 +527,19 @@ function driversHtml() {
             appendPayrollEmployeeAuditLog("create", createdEmployee, {
               summary: "CONDUCTOR · vinculado al crear conductor en flota"
             });
+            const propagate = await propagateEmployeeChanges(createdEmployee, {
+              license: createdEmployee.license,
+              licenseCategory: createdEmployee.licenseCategory,
+              licenseExpiry: createdEmployee.licenseExpiry,
+              isNewHire: true
+            });
+            if (!propagate.ok) {
+              notify(
+                propagate.message ||
+                  "Conductor guardado; no fue posible registrar el contrato del empleado vinculado.",
+                "error"
+              );
+            }
           } catch (err) {
             notify(String(err?.message || "Conductor guardado; no fue posible crear el vínculo de empleado en el servidor."), "error");
           }

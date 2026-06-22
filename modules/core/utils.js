@@ -508,13 +508,16 @@ function portalRecordAuditActorFields(action = "update") {
     return {
       createdBy: name || email,
       createdByEmail: email,
+      createdByUserId: String(user.id || "").trim(),
       updatedBy: name || email,
-      updatedByEmail: email
+      updatedByEmail: email,
+      updatedByUserId: String(user.id || "").trim()
     };
   }
   return {
     updatedBy: name || email,
-    updatedByEmail: email
+    updatedByEmail: email,
+    updatedByUserId: String(user.id || "").trim()
   };
 }
 

@@ -392,6 +392,26 @@
           notify(String(err?.message || "No fue posible guardar la solicitud en el servidor."), "error");
           return;
         }
+        const actingUser = currentUser();
+        if (actingUser) {
+          const actorEmail = String(actingUser.email || "").trim();
+          const actorUserId = String(actingUser.id || "").trim();
+          const actor = String(actingUser.name || actorEmail || "Usuario").trim();
+          const usuarioFn = globalThis.historyAuditFormatStoredUsuario;
+          const usuario =
+            typeof usuarioFn === "function"
+              ? usuarioFn(actor, actorEmail, actorUserId)
+              : actorEmail || actor;
+          globalThis.logPortalAuditEvent?.("requests", "create", {
+            entityId: String(rowToSave.id || ""),
+            entityLabel: String(rowToSave.requestNumber || "Solicitud"),
+            summary: `${String(rowToSave.clientName || "Cliente")} · ${String(rowToSave.originCity || "")} → ${String(rowToSave.destinationCity || "")}`,
+            actor,
+            actorEmail,
+            actorUserId,
+            usuario
+          });
+        }
 
         notifyAdminUsers(
           "Nueva solicitud pendiente",
@@ -409,7 +429,6 @@
             });
         }
 
-        const actingUser = currentUser();
         if (actingUser?.role === ROLES.ADMIN) {
           suppressSelfInboxPollToastIfRecipientIsCurrentUser(actingUser.id);
         }
