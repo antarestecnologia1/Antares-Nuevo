@@ -208,6 +208,17 @@ function bindHiringPortalControls() {
         notify(String(err?.message || "No fue posible guardar la vacante en el servidor."), "error");
         return;
       }
+      const createdVacancy = all[0];
+      if (createdVacancy) {
+        appendPortalEntityAuditLog(
+          "create",
+          "hiring",
+          "Contratación",
+          createdVacancy,
+          `${String(createdVacancy.city || "Sin ciudad")} · ${String(createdVacancy.status || "Publicada")}`,
+          { entityLabel: String(createdVacancy.title || createdVacancy.positionName || "Vacante").trim() }
+        );
+      }
       state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
       state.hiringUi.vacancyFilter = "open";
       state.hiringUi.workspace = "data";
@@ -272,6 +283,17 @@ function bindHiringPortalControls() {
       // carrera entre el sync de cargos y el de empleados.
       const ok = await persistPositionsCatalog(all, { optimistic: false });
       if (!ok) return;
+      const createdPosition = all[0];
+      if (createdPosition) {
+        appendPortalEntityAuditLog(
+          "create",
+          "hiring",
+          "Contratación",
+          createdPosition,
+          `${String(createdPosition.workerRole || "empleado")} · $${parseNum(createdPosition.baseSalary).toLocaleString("es-CO")}`,
+          { entityLabel: String(createdPosition.name || "Cargo").trim() }
+        );
+      }
       state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
       state.hiringUi.workspace = "data";
       persistHrWorkspace("hiring", "data");
@@ -626,6 +648,17 @@ function bindHiringPortalControls() {
       } catch (err) {
         notify(String(err?.message || "No fue posible guardar el candidato en el servidor."), "error");
         return;
+      }
+      const createdCandidate = all[0];
+      if (createdCandidate) {
+        appendPortalEntityAuditLog(
+          "create",
+          "hiring",
+          "Contratación",
+          createdCandidate,
+          `${String(createdCandidate.status || "En proceso")} · ${String(createdCandidate.vacancyTitle || "Sin vacante")}`,
+          { entityLabel: String(createdCandidate.name || "Candidato").trim() }
+        );
       }
       sendEmail({ to: data.email, subject: "Registro recibido", body: "Gracias por aplicar." });
       try {
@@ -1177,6 +1210,17 @@ function bindHiringPortalControls() {
           } catch (err) {
             notify(String(err?.message || "No fue posible guardar la vacante en el servidor."), "error");
             return false;
+          }
+          const updatedVacancy = nextVacancies.find((v) => String(v.id) === String(target.id));
+          if (updatedVacancy) {
+            appendPortalEntityAuditLog(
+              "update",
+              "hiring",
+              "Contratación",
+              updatedVacancy,
+              `${String(updatedVacancy.city || "Sin ciudad")} · ${String(updatedVacancy.status || "Publicada")}`,
+              { entityLabel: String(updatedVacancy.title || updatedVacancy.positionName || "Vacante").trim() }
+            );
           }
           notify("Vacante actualizada.", "success");
           renderPortalView();

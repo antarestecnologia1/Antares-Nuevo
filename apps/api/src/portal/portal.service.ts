@@ -7715,51 +7715,89 @@ export class PortalService implements OnModuleInit {
     }
   }
 
-  private mapPayrollEmployeeSyncDbError(err: unknown, idDoc: string): never {
+  private describePayrollEmployeeSyncDbError(err: unknown, idDoc: string): string {
     const code = (err as { code?: string } | null)?.code || "";
     const msg = err instanceof Error ? err.message : String(err);
     if (code === "23505" && /numero_documento|documento|uq_empleado/i.test(msg)) {
-      throw new BadRequestException(
-        `Ya existe un colaborador con el documento ${idDoc} en esta empresa. Revise la ficha o use otro número.`
-      );
+      return `Ya existe un colaborador con el documento ${idDoc} en esta empresa. Revise la ficha o use otro número.`;
     }
     if (code === "22007" || /invalid input syntax for type date/i.test(msg)) {
-      throw new BadRequestException(
-        "Alguna fecha del colaborador no es válida (ingreso, inicio contrato vigente, nacimiento o fin de contrato). Revise el formulario."
-      );
+      return "Alguna fecha del colaborador no es válida (ingreso, inicio contrato vigente, nacimiento o fin de contrato). Revise el formulario.";
     }
     if (code === "23503" || /violates foreign key|foreign key constraint/i.test(msg)) {
       if (/id_empresa|empresas/i.test(msg)) {
-        throw new BadRequestException("La empresa seleccionada no existe en el servidor.");
+        return "La empresa seleccionada no existe en el servidor.";
       }
       if (/id_cargo|cargos/i.test(msg)) {
-        throw new BadRequestException(
-          "El cargo del formulario no coincide con un registro en la tabla de cargos. Recargue el portal e intente de nuevo."
-        );
+        return "El cargo del formulario no coincide con un registro en la tabla de cargos. Recargue el portal e intente de nuevo.";
       }
-      throw new BadRequestException(
-        "No se pudo guardar el colaborador: hay una referencia inválida en el servidor."
-      );
+      return "No se pudo guardar el colaborador: hay una referencia inválida en el servidor.";
     }
     if (code === "23514" || /check constraint|chk_empleados/i.test(msg)) {
-      throw new BadRequestException(
-        "Datos médicos o de contrato no cumplen las reglas de la base de datos. Revise enfermedad/condición y fechas."
-      );
+      return "Datos médicos o de contrato no cumplen las reglas de la base de datos. Revise enfermedad/condición y fechas.";
     }
     if (code === "22001" || /value too long|too long for type/i.test(msg)) {
-      throw new BadRequestException(
-        "Algún texto del colaborador supera el tamaño permitido (nombre, dirección, cuenta bancaria, etc.)."
-      );
+      return "Algún texto del colaborador supera el tamaño permitido (nombre, dirección, cuenta bancaria, etc.).";
     }
-    if (code === "42703" || /column .* does not exist/i.test(msg)) {
-      throw new BadRequestException(
-        "El servidor no tiene el esquema de empleados actualizado. Ejecute npm run db:init o alinee la tabla empleados_nomina."
-      );
+    if (
+      code === "42703" ||
+      code === "08P01" ||
+      /column .* does not exist|bind message supplies|does not match/i.test(msg)
+    ) {
+      return "El servidor no tiene el esquema de empleados actualizado o hubo un desajuste interno. Ejecute npm run db:init, reinicie la API y vuelva a intentar.";
+    }
+    if (code === "22P02" || /invalid input syntax for type/i.test(msg)) {
+      return "Algún valor numérico o de fecha del colaborador no es válido. Revise salario, plazos y fechas.";
     }
     this.logger.error(`syncPayrollEmployees documento ${idDoc}: ${sanitizeLogText(msg)}`);
-    throw new BadRequestException(
-      `No se pudo guardar el colaborador (documento ${idDoc}). Revise fechas, empresa y datos obligatorios.`
-    );
+    return `No se pudo guardar el colaborador (documento ${idDoc}). Revise fechas, empresa y datos obligatorios.`;
+  }
+
+  private mapPayrollEmployeeSyncDbError(err: unknown, idDoc: string): never {
+    throw new BadRequestException(this.describePayrollEmployeeSyncDbError(err, idDoc));
+  }
+
+  private payrollEmployeeOptionalInt(raw: unknown): number | null {
+    if (raw == null || raw === "") return null;
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return null;
+    return Math.floor(n);
+  }
+
+  private payrollEmployeeOptionalAmount(raw: unknown): number | null {
+    if (raw == null || raw === "") return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  private async queryPayrollEmployeeUpsert(
+    c: PoolClient,
+    tier: 0 | 1 | 2,
+    UPSERT_LEGACY: string,
+    UPSERT_M19: string,
+    UPSERT_M45: string,
+    base52: unknown[],
+    baseWithVigente: unknown[],
+    illnessFlag: boolean,
+    illnessDesc: string | null,
+    createdAtTs: string,
+    updatedAtTs: string
+  ): Promise<void> {
+    if (tier === 0) {
+      await c.query(UPSERT_LEGACY, [...base52, createdAtTs, updatedAtTs]);
+      return;
+    }
+    if (tier === 1) {
+      await c.query(UPSERT_M19, [...base52, illnessFlag, illnessDesc, createdAtTs, updatedAtTs]);
+      return;
+    }
+    await c.query(UPSERT_M45, [
+      ...baseWithVigente,
+      illnessFlag,
+      illnessDesc,
+      createdAtTs,
+      updatedAtTs
+    ]);
   }
 
   private async syncPayrollEmployees(
@@ -7768,7 +7806,8 @@ export class PortalService implements OnModuleInit {
     deletedIds?: string[]
   ) {
     if (!Array.isArray(data)) throw new ForbiddenException();
-    const tier = await this.resolvePayrollEmployeeSchemaTier(c);
+    this.payrollEmployeeSchemaTier = undefined;
+    let tier = await this.resolvePayrollEmployeeSchemaTier(c);
     await this.syncListWithPruning(c, "empleados_nomina", data, deletedIds);
 
     /**
@@ -8060,7 +8099,10 @@ export class PortalService implements OnModuleInit {
           url_avatar = EXCLUDED.url_avatar,
           fecha_actualizacion = COALESCE(EXCLUDED.fecha_actualizacion, empleados_nomina.fecha_actualizacion, now())`;
 
+    const syncErrors: string[] = [];
+    let rowIndex = 0;
     for (const raw of data) {
+      rowIndex += 1;
       const e = raw as Record<string, unknown>;
       if (!e?.id || !e.companyId) continue;
       if (this.skipUnlessPersistUuid("syncPayrollEmployees", e.id)) continue;
@@ -8084,9 +8126,10 @@ export class PortalService implements OnModuleInit {
         "Termino indefinido";
       const start = portalDateOrNull(p(e, "startDate"));
       if (!start) {
-        throw new BadRequestException(
+        syncErrors.push(
           `Fecha de ingreso inválida o vacía para ${name} (documento ${idDoc}).`
         );
+        continue;
       }
       const isFixedTerm = String(contract || "").trim() === "Termino fijo";
       const vigenteRaw = portalDateOrNull(
@@ -8163,7 +8206,7 @@ export class PortalService implements OnModuleInit {
         nuN(p(e, "contractDuration", "contractDurationText")),
         start,
         base,
-        p(e, "transportAllowance") != null ? Number(p(e, "transportAllowance")) : null,
+        this.payrollEmployeeOptionalAmount(p(e, "transportAllowance")),
         periodicidadPago,
         nuN(p(e, "costCenter", "centro_costos", "centroCostos")),
         matchPayrollCatalogOption(PAYROLL_EMPLOYEE_CATALOG.contributorTypes, p(e, "contributorType")),
@@ -8193,7 +8236,7 @@ export class PortalService implements OnModuleInit {
         intraExam,
         intraExpiry,
         normalizeDefensiveCourseForDb(p(e, "defensiveCourse", "defensiveDrivingCourse")),
-        p(e, "probationMonths") != null ? Math.floor(Number(p(e, "probationMonths"))) : null,
+        this.payrollEmployeeOptionalInt(p(e, "probationMonths")),
         portalDateOrNull(p(e, "contractEndDate")),
         matchPayrollCatalogOption(PAYROLL_EMPLOYEE_CATALOG.workSchedule, p(e, "workSchedule")),
         (() => {
@@ -8219,33 +8262,67 @@ export class PortalService implements OnModuleInit {
       const illnessDesc = illnessFlag ? nuN(p(e, "illnessDescription")) : null;
       const baseWithVigente = [...base52.slice(0, 23), vigenteStart, ...base52.slice(23)];
 
+      const sp = `emp_sp_${rowIndex}`;
       try {
-        if (tier === 0) await c.query(UPSERT_LEGACY, [...base52, createdAtTs, updatedAtTs]);
-        else if (tier === 1) {
-          await c.query(UPSERT_M19, [...base52, illnessFlag, illnessDesc, createdAtTs, updatedAtTs]);
-        } else {
-          await c.query(UPSERT_M45, [
-            ...baseWithVigente,
+        await c.query(`SAVEPOINT ${sp}`);
+        try {
+          await this.queryPayrollEmployeeUpsert(
+            c,
+            tier,
+            UPSERT_LEGACY,
+            UPSERT_M19,
+            UPSERT_M45,
+            base52,
+            baseWithVigente,
             illnessFlag,
             illnessDesc,
             createdAtTs,
             updatedAtTs
-          ]);
-        }
-      } catch (err) {
-        this.mapPayrollEmployeeSyncDbError(err, idDoc);
-      }
-
-      if (role === "conductor") {
-        try {
-          await this.upsertConductorFromPayrollEmployeePayload(c, e);
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          this.logger.warn(
-            `upsertConductorFromPayrollEmployeePayload id=${String(e.id)}: ${sanitizeLogText(msg)}`
           );
+        } catch (err) {
+          const code = (err as { code?: string } | null)?.code || "";
+          if (code === "42703" || code === "08P01") {
+            this.payrollEmployeeSchemaTier = undefined;
+            tier = await this.resolvePayrollEmployeeSchemaTier(c);
+            await this.queryPayrollEmployeeUpsert(
+              c,
+              tier,
+              UPSERT_LEGACY,
+              UPSERT_M19,
+              UPSERT_M45,
+              base52,
+              baseWithVigente,
+              illnessFlag,
+              illnessDesc,
+              createdAtTs,
+              updatedAtTs
+            );
+          } else {
+            throw err;
+          }
         }
+
+        if (role === "conductor") {
+          try {
+            await this.upsertConductorFromPayrollEmployeePayload(c, e);
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            this.logger.warn(
+              `upsertConductorFromPayrollEmployeePayload id=${String(e.id)}: ${sanitizeLogText(msg)}`
+            );
+          }
+        }
+        await c.query(`RELEASE SAVEPOINT ${sp}`);
+      } catch (err) {
+        await c.query(`ROLLBACK TO SAVEPOINT ${sp}`).catch(() => undefined);
+        await c.query(`RELEASE SAVEPOINT ${sp}`).catch(() => undefined);
+        syncErrors.push(this.describePayrollEmployeeSyncDbError(err, idDoc));
       }
+    }
+    if (syncErrors.length > 0) {
+      throw new BadRequestException(
+        syncErrors.length === 1 ? syncErrors[0] : syncErrors.join(" ")
+      );
     }
     try {
       await this.runFixedTermContractRenewalNotifications();

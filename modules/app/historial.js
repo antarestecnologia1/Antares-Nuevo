@@ -170,7 +170,7 @@ function exportHistoryTraceCsv(entries) {
     modulo: String(entry.moduleLabel || ""),
     entidad: String(entry.entityLabel || ""),
     resumen: String(entry.summary || ""),
-    usuario: String(entry.actor || "—")
+    usuario: String(formatHistoryAuditActorDisplay(entry.actor, { actorEmail: entry.actorEmail }) || "Sin registrar")
   }));
   const header = columns.map((col) => esc(col.label)).join(",");
   const body = rows.map((row) => columns.map((col) => esc(row[col.key])).join(",")).join("\n");

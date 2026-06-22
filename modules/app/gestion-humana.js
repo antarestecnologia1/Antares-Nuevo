@@ -1526,8 +1526,13 @@ function bindPayrollPortalControls() {
                         : empRow.avatarUrl || nextPayload.avatarUrl
                   })
             );
+          const updatedEmployee = nextEmployees.find(
+            (empRow) => String(empRow.id) === String(target.id)
+          );
           try {
-            await writeAwaitServer(KEYS.payrollEmployees, nextEmployees);
+            await writeAwaitServer(KEYS.payrollEmployees, nextEmployees, {
+              syncData: updatedEmployee ? [updatedEmployee] : undefined
+            });
           } catch (err) {
             notify(userMessage("employeeSaveServerFail", err?.message), "error");
             return false;

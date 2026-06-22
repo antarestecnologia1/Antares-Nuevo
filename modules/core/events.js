@@ -1056,7 +1056,7 @@ function bindDynamicEvents() {
         return;
       }
       const registrationKindCreate = normalizeRegistrationKindForDb(data.registrationKind);
-      users.push({
+      users.push(stampCreatedRecord({
         id: newUuidV4(),
         name: $portal.normalizeLatinUpperForDb(data.name),
         email: $portal.normalizeEmail(data.email),
@@ -1079,10 +1079,22 @@ function bindDynamicEvents() {
         },
         twoFactorEnabled: String(data.twoFactorEnabled || "false") === "true",
         systemJoinDate: data.systemJoinDate || nowIso().slice(0, 10),
-        createdAt: nowIso(),
         permissions: normalizeSavedUserPermissions(data.role, permissions)
-      });
+      }));
       await writeAwaitServer(KEYS.users, users);
+      const createdUser = users[users.length - 1];
+      if (createdUser) {
+        $portal.appendPortalEntityAuditLog(
+          "create",
+          "users",
+          "Usuarios y permisos",
+          createdUser,
+          `${formatPortalRoleLabel(createdUser.role)} · ${String(company.name || "Sin empresa")}`,
+          {
+            entityLabel: getPortalUserDisplayName(createdUser) || String(createdUser.email || "Usuario")
+          }
+        );
+      }
       $portal.notify($portal.userMessage("userCreated"), "success");
       $portal.clearAdminUsersDraft("createUser");
       state.adminUsersUi = {
@@ -1589,6 +1601,19 @@ function bindDynamicEvents() {
       } catch (err) {
         $portal.notify(String(err?.message || $portal.userMessage("genericError")), "error");
         return;
+      }
+      const updatedUser = nextEdited.find((user) => String(user.id) === userId);
+      if (updatedUser) {
+        $portal.appendPortalEntityAuditLog(
+          "update",
+          "users",
+          "Usuarios y permisos",
+          updatedUser,
+          `${formatPortalRoleLabel(updatedUser.role)} · ${String(updatedUser.email || "Sin correo")}`,
+          {
+            entityLabel: getPortalUserDisplayName(updatedUser) || String(updatedUser.email || "Usuario")
+          }
+        );
       }
       $portal.notify($portal.userMessage("userUpdated"), "success");
       $portal.setAdminUsersUi({

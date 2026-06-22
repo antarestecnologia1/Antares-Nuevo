@@ -213,7 +213,10 @@
     var stalePending = pending[storageKey];
     delete pending[storageKey];
 
-    var data = resolveSyncPayloadForStorageKey(storageKey, stalePending);
+    var data =
+      opts && opts.syncData !== undefined && opts.syncData !== null
+        ? opts.syncData
+        : resolveSyncPayloadForStorageKey(storageKey, stalePending);
     if (data === undefined || data === null) return;
 
     await flush(entity, data, opts);

@@ -71,6 +71,9 @@ export async function writeAwaitServer(storageKeyLike, value, opts = {}) {
     throw new Error("Sesión sin autenticación API. Vuelva a iniciar sesión para guardar en el servidor.");
   }
   const flushOpts = { notifyOnFailure: opts.notifyOnFailure !== false };
+  if (opts.syncData !== undefined && opts.syncData !== null) {
+    flushOpts.syncData = opts.syncData;
+  }
   if (opts.deletedIds && Array.isArray(opts.deletedIds) && opts.deletedIds.length > 0) {
     flushOpts.deletedIds = opts.deletedIds.map((id) => String(id || "").trim()).filter(Boolean);
   }
