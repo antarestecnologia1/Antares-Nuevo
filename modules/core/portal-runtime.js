@@ -2423,7 +2423,7 @@ function appendModuleAuditLog(entry) {
     String(row.usuario || "").trim() ||
     historyAuditFormatStoredUsuario(actor, actorEmail, actorUserId);
   const list = readModuleAuditLogs();
-  list.unshift({
+  const stored = {
     id: String(row.id || newUuidV4()),
     at,
     action: String(row.action || "update"),
@@ -2438,8 +2438,14 @@ function appendModuleAuditLog(entry) {
     usuario,
     detailAction: String(row.detailAction || "").trim(),
     detailId: String(row.detailId || "").trim()
-  });
+  };
+  list.unshift(stored);
   write(KEYS.moduleAuditLogs, list.slice(0, 600));
+  try {
+    globalThis.AntaresPortalAuditSync?.enqueue?.(stored);
+  } catch (_auditSync) {
+    /* noop */
+  }
 }
 
 function payrollEmployeeAuditSummary(employee) {

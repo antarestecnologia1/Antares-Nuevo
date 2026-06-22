@@ -423,6 +423,19 @@ function historyHtml() {
   function bindHistoryPortalControls() {
     if (String(state.currentView || "") !== "history" || !nodes.viewRoot) return;
 
+    if (!state.__historyAuditHydratedFromApi) {
+      state.__historyAuditHydratedFromApi = true;
+      void (typeof AntaresPortalAuditSync !== "undefined"
+        ? AntaresPortalAuditSync.refreshModuleAuditLogsFromApi({ limit: 5000 })
+        : Promise.resolve(false)
+      ).then((ok) => {
+        if (ok) {
+          if (typeof scheduleRenderPortalView === "function") scheduleRenderPortalView();
+          else if (typeof renderPortalView === "function") renderPortalView();
+        }
+      });
+    }
+
     nodes.viewRoot.querySelectorAll("[data-action='history-layout']").forEach((btn) => {
       btn.addEventListener("click", () => {
         const layout = normalizeHistoryLayout(btn.dataset.layout);

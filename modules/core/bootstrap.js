@@ -452,6 +452,18 @@ export function __applyPortalBootstrapPayloadInner(p) {
   if (p.contacts !== undefined) {
     state.portalContacts = Array.isArray(p.contacts) ? p.contacts : [];
   }
+  if (p.portalAuditEvents !== undefined) {
+    const prev = read(KEYS.moduleAuditLogs, []);
+    const mergeFn =
+      typeof globalThis !== "undefined" && globalThis.AntaresPortalAuditSync?.mergeModuleAuditLogs;
+    const merged =
+      typeof mergeFn === "function"
+        ? mergeFn(p.portalAuditEvents, prev)
+        : Array.isArray(p.portalAuditEvents)
+          ? p.portalAuditEvents
+          : prev;
+    write(KEYS.moduleAuditLogs, merged, { skipSyncSchedule: true });
+  }
   const map = [
     ["users", KEYS.users],
     ["companies", KEYS.companies],

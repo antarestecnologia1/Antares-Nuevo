@@ -24,6 +24,7 @@ import { CreateFleetFuelLogDto } from "./dto/create-fleet-fuel-log.dto";
 import { CreateFleetMaintenanceLogDto } from "./dto/create-fleet-maintenance-log.dto";
 import { DeleteLaborSystemParametersDto } from "./dto/delete-labor-system-parameters.dto";
 import { UpsertLaborSystemParametersDto } from "./dto/upsert-labor-system-parameters.dto";
+import { AppendPortalAuditEventsDto } from "./dto/portal-audit-events.dto";
 import { PortalService } from "./portal.service";
 
 type ReqUser = { userId: string; email: string; role: string };
@@ -161,6 +162,33 @@ export class PortalController {
   @Get("deleted-transport-request-audit/:id")
   deletedTransportRequestAudit(@Req() req: { user: ReqUser }, @Param("id") logId: string) {
     return this.portal.getDeletedTransportRequestAuditSnapshot(req.user.userId, req.user.role, logId);
+  }
+
+  /** Bitácora central del portal (PostgreSQL · auditoría a largo plazo). */
+  @Get("audit-events")
+  listPortalAuditEvents(
+    @Req() req: { user: ReqUser },
+    @Query("from") from?: string,
+    @Query("to") to?: string,
+    @Query("limit") limit?: string,
+    @Query("offset") offset?: string
+  ) {
+    return this.portal.listPortalAuditEvents(req.user.userId, req.user.role, {
+      from,
+      to,
+      limit: limit != null ? Number(limit) : undefined,
+      offset: offset != null ? Number(offset) : undefined
+    });
+  }
+
+  @Post("audit-events")
+  appendPortalAuditEvents(@Req() req: { user: ReqUser }, @Body() dto: AppendPortalAuditEventsDto) {
+    return this.portal.appendPortalAuditEvents(
+      req.user.userId,
+      req.user.email,
+      req.user.role,
+      dto.events as unknown as Array<Record<string, unknown>>
+    );
   }
 
   @Post("notification-preferences")

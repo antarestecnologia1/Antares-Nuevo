@@ -93,6 +93,7 @@ ALTER TABLE public.registros_combustible ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.registros_mantenimiento_vehiculo ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.auditoria_viajes_eliminados ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.auditoria_solicitudes_eliminadas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.auditoria_eventos_portal ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE public.cargos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.vacantes ENABLE ROW LEVEL SECURITY;
@@ -500,3 +501,11 @@ CREATE POLICY auditoria_solicitudes_eliminadas_admin
   ON public.auditoria_solicitudes_eliminadas FOR ALL TO authenticated
   USING (public.es_administrador_global() OR public.es_equipo_rrhh())
   WITH CHECK (public.es_administrador_global() OR public.es_equipo_rrhh());
+
+CREATE POLICY auditoria_eventos_portal_lectura
+  ON public.auditoria_eventos_portal FOR SELECT TO authenticated
+  USING (public.es_administrador_global() OR public.es_equipo_rrhh());
+
+CREATE POLICY auditoria_eventos_portal_insert
+  ON public.auditoria_eventos_portal FOR INSERT TO authenticated
+  WITH CHECK (id_usuario = auth.uid());

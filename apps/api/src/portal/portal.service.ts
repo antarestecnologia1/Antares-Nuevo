@@ -198,6 +198,9 @@ const PG_UUID_V4_RE =
 const PORTAL_DELETION_AUDIT_RETENTION_DAYS = 180;
 const PORTAL_DELETION_AUDIT_BOOTSTRAP_LIMIT = 120;
 const PORTAL_DELETION_AUDIT_MAX_ROWS = 2000;
+/** Bitácora central del portal: sin poda automática (auditoría a largo plazo). */
+const PORTAL_AUDIT_EVENTS_BOOTSTRAP_LIMIT = 800;
+const PORTAL_AUDIT_EVENTS_QUERY_MAX = 10000;
 
 /** Igual que `defaultPermissionsForRole` / ALL_PERMISSIONS en app.js */
 const ALL_PORTAL_PERMISSIONS: string[] = [
@@ -638,6 +641,7 @@ export class PortalService implements OnModuleInit {
     await this.ensureLiquidacionesNominaSchema();
     await this.ensureAusenciasLaboralesSchema();
     await this.ensureAuditoriaTransporteSchema();
+    await this.ensurePortalAuditEventsSchema();
     await this.ensurePortalEntityAuditSchema();
     await this.ensureRegistrosFlotaSchema();
     await this.pruneTransportDeletionAudits().catch((err) => {
@@ -1306,6 +1310,252 @@ export class PortalService implements OnModuleInit {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.warn(`ensureAuditoriaTransporteSchema fallo no fatal: ${sanitizeLogText(msg)}`);
     }
+  }
+
+  /** Bitácora append-only del portal (Historial · trazabilidad a largo plazo). */
+  private async ensurePortalAuditEventsSchema() {
+    try {
+      await this.pool.query(`
+        CREATE TABLE IF NOT EXISTS auditoria_eventos_portal (
+          id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          id_evento_cliente   UUID,
+          accion              VARCHAR(32) NOT NULL,
+          modulo_id           VARCHAR(64) NOT NULL,
+          modulo_etiqueta     VARCHAR(120) NOT NULL,
+          entidad_id          VARCHAR(64),
+          entidad_etiqueta    TEXT,
+          resumen             TEXT,
+          id_usuario          UUID REFERENCES usuarios (id) ON DELETE SET NULL,
+          usuario_email       VARCHAR(255),
+          usuario_etiqueta    TEXT,
+          detalle_accion      VARCHAR(64),
+          detalle_id          VARCHAR(64),
+          metadata_json       JSONB NOT NULL DEFAULT '{}'::jsonb,
+          registrado_en       TIMESTAMPTZ NOT NULL DEFAULT now(),
+          CONSTRAINT uq_auditoria_evento_cliente UNIQUE (id_evento_cliente)
+        )
+      `);
+      await this.pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_aud_portal_registrado_en ON auditoria_eventos_portal (registrado_en DESC)`
+      );
+      await this.pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_aud_portal_modulo_en ON auditoria_eventos_portal (modulo_id, registrado_en DESC)`
+      );
+      await this.pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_aud_portal_usuario_en ON auditoria_eventos_portal (id_usuario, registrado_en DESC)`
+      );
+      this.logger.log("auditoria_eventos_portal: tabla verificada.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`ensurePortalAuditEventsSchema fallo no fatal: ${sanitizeLogText(msg)}`);
+    }
+  }
+
+  private mapPortalAuditEventRowToClient(row: Record<string, unknown>) {
+    const clientId = String(row.clientEventId || row.id || "").trim();
+    const at = row.registeredAt ? new Date(row.registeredAt as string).toISOString() : null;
+    const actorLabel = String(row.actorLabel || row.actorEmail || "").trim();
+    const actorEmail = maskPortalEmail(row.actorEmail);
+    const actorUserId = String(row.actorUserId ?? "").trim() || null;
+    return {
+      id: clientId,
+      at,
+      action: String(row.action || "update"),
+      moduleId: String(row.moduleId || ""),
+      moduleLabel: String(row.moduleLabel || ""),
+      entityId: String(row.entityId || "").trim() || "",
+      entityLabel: String(row.entityLabel || "Registro").trim(),
+      summary: String(row.summary || "").trim(),
+      actor: actorLabel,
+      actorEmail,
+      actorUserId,
+      usuario: String(row.usuario || actorLabel || actorEmail || "").trim(),
+      detailAction: String(row.detailAction || "").trim(),
+      detailId: String(row.detailId || "").trim()
+    };
+  }
+
+  private async loadPortalAuditEvents(limit = PORTAL_AUDIT_EVENTS_BOOTSTRAP_LIMIT) {
+    if (!(await this.tableExists("auditoria_eventos_portal"))) return [];
+    const cap = Math.min(Math.max(Number(limit) || PORTAL_AUDIT_EVENTS_BOOTSTRAP_LIMIT, 1), PORTAL_AUDIT_EVENTS_QUERY_MAX);
+    const r = await this.pool.query(
+      `SELECT COALESCE(a.id_evento_cliente, a.id)::text AS "clientEventId",
+              a.id::text AS id,
+              a.accion AS action,
+              a.modulo_id AS "moduleId",
+              a.modulo_etiqueta AS "moduleLabel",
+              a.entidad_id AS "entityId",
+              a.entidad_etiqueta AS "entityLabel",
+              a.resumen AS summary,
+              a.id_usuario::text AS "actorUserId",
+              a.usuario_email AS "actorEmail",
+              COALESCE(NULLIF(trim(a.usuario_etiqueta), ''), u.nombre_completo, a.usuario_email) AS "actorLabel",
+              COALESCE(NULLIF(trim(a.usuario_etiqueta), ''), u.nombre_completo, a.usuario_email) AS usuario,
+              a.detalle_accion AS "detailAction",
+              a.detalle_id AS "detailId",
+              a.registrado_en AS "registeredAt"
+         FROM auditoria_eventos_portal a
+         LEFT JOIN usuarios u ON u.id = a.id_usuario
+        ORDER BY a.registrado_en DESC
+        LIMIT $1`,
+      [cap]
+    );
+    return r.rows.map((row) => this.mapPortalAuditEventRowToClient(row as Record<string, unknown>));
+  }
+
+  private canReadPortalAuditEvents(permissionSet: ReadonlySet<string>, admin: boolean) {
+    return (
+      admin ||
+      this.hasPortalPermission(permissionSet, "transport_history") ||
+      this.hasPortalPermission(permissionSet, "users_manage")
+    );
+  }
+
+  async appendPortalAuditEvents(
+    actorUserId: string,
+    actorEmail: string,
+    role: JwtRole,
+    events: Array<Record<string, unknown>>
+  ) {
+    void role;
+    if (!(await this.tableExists("auditoria_eventos_portal"))) {
+      return { inserted: 0, skipped: Array.isArray(events) ? events.length : 0 };
+    }
+    const list = Array.isArray(events) ? events : [];
+    if (!list.length) return { inserted: 0, skipped: 0 };
+
+    const actorId = String(actorUserId || "").trim();
+    if (!PG_UUID_V4_RE.test(actorId)) throw new BadRequestException("Sesión inválida.");
+
+    const profile = await this.pool.query<{ nombre_completo: string | null }>(
+      `SELECT nombre_completo FROM usuarios WHERE id = $1::uuid LIMIT 1`,
+      [actorId]
+    );
+    const actorLabel = String(profile.rows[0]?.nombre_completo || actorEmail || "").trim();
+
+    let inserted = 0;
+    let skipped = 0;
+    for (const raw of list.slice(0, 80)) {
+      const row = raw && typeof raw === "object" ? raw : {};
+      const action = String(row.action || "update").toLowerCase();
+      if (!["create", "update", "delete"].includes(action)) {
+        skipped += 1;
+        continue;
+      }
+      const moduleId = String(row.moduleId || "").trim().slice(0, 64);
+      const moduleLabel = String(row.moduleLabel || moduleId || "Módulo").trim().slice(0, 120);
+      if (!moduleId) {
+        skipped += 1;
+        continue;
+      }
+      let clientEventId: string | null = String(row.id || "").trim();
+      if (clientEventId && !PG_UUID_V4_RE.test(clientEventId)) clientEventId = null;
+
+      const atRaw = String(row.at || "").trim();
+      const registeredAt =
+        atRaw && !Number.isNaN(new Date(atRaw).getTime()) ? new Date(atRaw).toISOString() : null;
+
+      const result = await this.pool.query(
+        `INSERT INTO auditoria_eventos_portal (
+            id_evento_cliente, accion, modulo_id, modulo_etiqueta,
+            entidad_id, entidad_etiqueta, resumen,
+            id_usuario, usuario_email, usuario_etiqueta,
+            detalle_accion, detalle_id, registrado_en
+          )
+          VALUES (
+            $1::uuid, $2, $3, $4,
+            $5, $6, $7,
+            $8::uuid, $9, $10,
+            $11, $12, COALESCE($13::timestamptz, now())
+          )
+          ON CONFLICT (id_evento_cliente) DO NOTHING
+          RETURNING id`,
+        [
+          clientEventId,
+          action,
+          moduleId,
+          moduleLabel,
+          String(row.entityId || "").trim().slice(0, 64) || null,
+          String(row.entityLabel || "").trim().slice(0, 500) || null,
+          String(row.summary || "").trim().slice(0, 2000) || null,
+          actorId,
+          String(actorEmail || "").trim().slice(0, 255) || null,
+          actorLabel || null,
+          String(row.detailAction || "").trim().slice(0, 64) || null,
+          String(row.detailId || "").trim().slice(0, 64) || null,
+          registeredAt
+        ]
+      );
+      if (result.rowCount) inserted += 1;
+      else skipped += 1;
+    }
+    return { inserted, skipped };
+  }
+
+  async listPortalAuditEvents(
+    userId: string,
+    role: JwtRole,
+    opts: { from?: string; to?: string; limit?: number; offset?: number } = {}
+  ) {
+    const permissionSet = await this.resolveEffectivePermissionSet(userId, role);
+    const admin = this.isAdmin(role);
+    if (!this.canReadPortalAuditEvents(permissionSet, admin)) throw new ForbiddenException();
+
+    if (!(await this.tableExists("auditoria_eventos_portal"))) {
+      return { total: 0, items: [] as Record<string, unknown>[] };
+    }
+
+    const limit = Math.min(Math.max(Number(opts.limit) || 2000, 1), PORTAL_AUDIT_EVENTS_QUERY_MAX);
+    const offset = Math.max(Number(opts.offset) || 0, 0);
+    const from = String(opts.from || "").trim();
+    const to = String(opts.to || "").trim();
+    const clauses: string[] = [];
+    const params: unknown[] = [];
+    let idx = 1;
+    if (from) {
+      clauses.push(`a.registrado_en >= $${idx++}::timestamptz`);
+      params.push(new Date(from).toISOString());
+    }
+    if (to) {
+      clauses.push(`a.registrado_en <= $${idx++}::timestamptz`);
+      params.push(new Date(`${to}T23:59:59.999Z`).toISOString());
+    }
+    const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+
+    const countR = await this.pool.query<{ c: string }>(
+      `SELECT COUNT(*)::text AS c FROM auditoria_eventos_portal a ${where}`,
+      params
+    );
+    const total = Number(countR.rows[0]?.c || 0);
+
+    params.push(limit, offset);
+    const r = await this.pool.query(
+      `SELECT COALESCE(a.id_evento_cliente, a.id)::text AS "clientEventId",
+              a.id::text AS id,
+              a.accion AS action,
+              a.modulo_id AS "moduleId",
+              a.modulo_etiqueta AS "moduleLabel",
+              a.entidad_id AS "entityId",
+              a.entidad_etiqueta AS "entityLabel",
+              a.resumen AS summary,
+              a.id_usuario::text AS "actorUserId",
+              a.usuario_email AS "actorEmail",
+              COALESCE(NULLIF(trim(a.usuario_etiqueta), ''), u.nombre_completo, a.usuario_email) AS "actorLabel",
+              COALESCE(NULLIF(trim(a.usuario_etiqueta), ''), u.nombre_completo, a.usuario_email) AS usuario,
+              a.detalle_accion AS "detailAction",
+              a.detalle_id AS "detailId",
+              a.registrado_en AS "registeredAt"
+         FROM auditoria_eventos_portal a
+         LEFT JOIN usuarios u ON u.id = a.id_usuario
+        ${where}
+        ORDER BY a.registrado_en DESC
+        LIMIT $${idx++} OFFSET $${idx}`,
+      params
+    );
+    return {
+      total,
+      items: r.rows.map((row) => this.mapPortalAuditEventRowToClient(row as Record<string, unknown>))
+    };
   }
 
   /** Ausencias laborales: subtipos y días reconocidos (40). */
@@ -2691,7 +2941,10 @@ export class PortalService implements OnModuleInit {
         : Promise.resolve([]),
       this.loadApprovals(admin, userId, empresaId),
       admin ? this.loadDeletedTransportTripLogs() : Promise.resolve([]),
-      admin ? this.loadDeletedTransportRequestLogs() : Promise.resolve([])
+      admin ? this.loadDeletedTransportRequestLogs() : Promise.resolve([]),
+      this.canReadPortalAuditEvents(permissionSet, admin)
+        ? this.loadPortalAuditEvents()
+        : Promise.resolve([])
     ]);
 
     const [independent, dependent] = await Promise.all([independentPromise, dependentPromise]);
@@ -2720,7 +2973,7 @@ export class PortalService implements OnModuleInit {
       sstCompliance
     ] = independent;
 
-    const [usersRaw, requests, payrollEmployees, approvals, deletedTransportTripLogs, deletedTransportRequestLogs] =
+    const [usersRaw, requests, payrollEmployees, approvals, deletedTransportTripLogs, deletedTransportRequestLogs, portalAuditEvents] =
       dependent;
 
     const users = await Promise.all(
@@ -2759,6 +3012,7 @@ export class PortalService implements OnModuleInit {
       approvals,
       deletedTransportTripLogs,
       deletedTransportRequestLogs,
+      portalAuditEvents,
       notificationPreferences
     };
   }
