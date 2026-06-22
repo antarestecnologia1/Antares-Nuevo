@@ -5,7 +5,7 @@
 import { state, nodes } from "../core/store.js";
 import { read, writeAwaitServer } from "../core/data-io.js";
 import { KEYS } from "../core/config.js";
-import { escapeHtml, escapeAttr } from "../core/utils.js";
+import { escapeHtml, escapeAttr, buildModuleCreatePanelsState } from "../core/utils.js";
 import { currentUser } from "../core/auth.js";
 
 const G = globalThis;
@@ -18,7 +18,7 @@ const G = globalThis;
     const renderHrAlertCards = G.renderHrAlertCards;
     const emptyState = G.emptyState;
     const renderManagedCreateFormActions = G.renderManagedCreateFormActions;
-    const createCollapsibleCard = G.createCollapsibleCard;
+    const createHrActionCard = G.createHrActionCard;
     const moduleFleetHeroStrip = G.moduleFleetHeroStrip;
     const pcardWrap = G.pcardWrap;
     const isAdminActor = G.isAdminActor;
@@ -164,7 +164,8 @@ const G = globalThis;
         tone: expiringLicenses.length ? "warn" : undefined
       }
     ]);
-    return `<section class="sst-studio">${laborHero}${pcardWrap("activity", "Alertas", null, alertsBody)}${createCollapsibleCard("create-sst-control", "shield", "Nuevo control SST / legal", null, complianceForm, "Registrar", { createPanels: state.createPanels })}${pcardWrap("file", "Auditoria documental", `${records.length} registros`, recordsTable)}</section>`;
+    const sstCreateUi = buildModuleCreatePanelsState(["create-sst-control"], "create-sst-control", state.createPanels || {});
+    return `<section class="sst-studio">${laborHero}${pcardWrap("activity", "Alertas", null, alertsBody)}${createHrActionCard("create-sst-control", "shield", "Nuevo control SST / legal", "Registre obligaciones, vencimientos y evidencias de cumplimiento", complianceForm, "Abrir formulario", { createPanels: sstCreateUi })}${pcardWrap("file", "Auditoria documental", `${records.length} registros`, recordsTable)}</section>`;
   }
 
   if (typeof window.registerLegacyPortalViews === "function") {

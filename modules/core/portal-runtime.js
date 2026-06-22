@@ -3319,11 +3319,7 @@ function openRouteRateInlineEdit(storageKey) {
     section: "routes"
   };
   persistHrWorkspace("transport-trips", "operate");
-  state.createPanels = {
-    ...(state.createPanels || {}),
-    "create-trip": false,
-    "create-route-rate": true
-  };
+  state.createPanels = __pr.buildTransportTripsCreatePanelsState("routes", state.createPanels || {}, { expandActive: true });
   state.pendingRouteRateEditKey = key;
   renderPortalView();
   requestAnimationFrame(() => scrollToCreatePanelForm("create-route-rate"));
@@ -4610,27 +4606,11 @@ async function resetCreatePanelForm(panelId, formEl) {
   if (!id || !formEl) return false;
   if (!(await confirmDiscardCreateFormAsync(formEl))) return false;
   prepareCancelCreatePanel(id);
-  const PAYROLL_CREATE_IDS = [
-    "create-employee",
-    "create-payroll",
-    "create-driver-trip-payment",
-    "create-payroll-settlement",
-    "create-hr-absence"
-  ];
-  const HIRING_CREATE_IDS = ["create-position", "create-vacancy", "create-candidate", "create-interview", "create-contract"];
-  const payrollSet = new Set(PAYROLL_CREATE_IDS);
-  const hiringSet = new Set(HIRING_CREATE_IDS);
-  state.createPanels = { ...(state.createPanels || {}) };
-  if (payrollSet.has(id)) {
-    PAYROLL_CREATE_IDS.forEach((pid) => {
-      state.createPanels[pid] = pid === id;
-    });
-  } else if (hiringSet.has(id)) {
-    HIRING_CREATE_IDS.forEach((pid) => {
-      state.createPanels[pid] = pid === id;
-    });
+  const panelGroup = __pr.createPanelIdsForModule(id);
+  if (panelGroup) {
+    state.createPanels = __pr.buildModuleCreatePanelsState(panelGroup, id, state.createPanels || {}, { expandActive: true });
   } else {
-    state.createPanels[id] = true;
+    state.createPanels = { ...(state.createPanels || {}), [id]: true };
   }
   renderPortalView();
   requestAnimationFrame(() => {

@@ -28,7 +28,7 @@ import {
   getPositionById,
   isAdminActor
 } from "../core/auth.js";
-import { buildPayrollCreatePanelsState, colombiaTodayIsoDate, escapeAttr, escapeHtml, normalizePortalDateYmd } from "../core/utils.js";
+import { buildHiringCreatePanelsState, buildPayrollCreatePanelsState, colombiaTodayIsoDate, escapeAttr, escapeHtml, normalizePortalDateYmd } from "../core/utils.js";
 import { notify, userMessage, ensureEmployeeContractFields, resolveEmployeeContractPlazoStartYmd, isFixedTermContractType, contractTypeRequiresDurationPlazo } from "../ui/modals.js";
 import { matchCatalogOptionValue, normalizeContractTemplateKind } from "./payroll-catalog-sanitize.domain.js";
 import { normalizeDocumentDigits } from "./payroll-identifiers.domain.js";
@@ -769,7 +769,7 @@ export function openHiringContractFromCandidate(candidateId) {
     workspace: "operate",
     operateSection: "contract"
   };
-  state.createPanels = { ...(state.createPanels || {}), "create-contract": true };
+  state.createPanels = buildHiringCreatePanelsState("contract", state.createPanels || {}, { expandActive: true });
   persistHrWorkspace("hiring", "operate");
   globalThis.renderPortalView?.();
   requestAnimationFrame(() => {

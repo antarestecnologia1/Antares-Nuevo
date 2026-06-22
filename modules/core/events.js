@@ -29,7 +29,8 @@ import {
   ALL_PERMISSIONS,
   PERMISSION_META,
   COLOMBIA_LOCATIONS,
-  PIPELINE
+  PIPELINE,
+  createPanelIdsForModule
 } from "./config.js";
 import { portalCanRefreshFromApi, applyPortalBootstrapFromApi } from "./bootstrap.js";
 import {
@@ -43,7 +44,11 @@ import {
   escapeHtml,
   normalizeHrWorkspace,
   normalizePortalDateYmd,
-  nowIso
+  nowIso,
+  hiringOperateSectionForCreatePanel,
+  payrollOperateSectionForCreatePanel,
+  transportTripsOperateSectionForCreatePanel,
+  vehiclesOperateSectionForCreatePanel
 } from "./utils.js";
 import { read, write, writeAwaitServer, writeAwaitServerEdit, writeAwaitServerCreate, writeAwaitServerLatestQueuedEmail } from "./data-io.js";
 import {
@@ -602,45 +607,20 @@ function bindDynamicEvents() {
     btn.addEventListener("click", () => {
       const panelId = String(btn.dataset.panel || "");
       if (!panelId) return;
-      const PAYROLL_CREATE_IDS = [
-    "create-employee",
-    "create-payroll",
-    "create-driver-trip-payment",
-    "create-payroll-settlement",
-    "create-hr-absence"
-  ];
-      const HIRING_CREATE_IDS = ["create-position", "create-vacancy", "create-candidate", "create-interview", "create-contract"];
-      const TRANSPORT_TRIPS_CREATE_IDS = ["create-trip", "create-route-rate"];
-      const VEHICLES_CREATE_IDS = ["create-vehicle", "create-fuel-log", "create-technical-log"];
-      const payrollSet = new Set(PAYROLL_CREATE_IDS);
-      const hiringSet = new Set(HIRING_CREATE_IDS);
-      const transportTripsSet = new Set(TRANSPORT_TRIPS_CREATE_IDS);
-      const vehiclesSet = new Set(VEHICLES_CREATE_IDS);
+      const panelGroup = createPanelIdsForModule(panelId);
       const wasOpen = isCreatePanelExpanded(panelId, false, state.createPanels || {});
       const nextOpen = !wasOpen;
       state.createPanels = { ...(state.createPanels || {}) };
 
-      if (payrollSet.has(panelId)) {
-        PAYROLL_CREATE_IDS.forEach((id) => {
-          state.createPanels[id] = nextOpen && id === panelId;
-        });
-      } else if (hiringSet.has(panelId)) {
-        HIRING_CREATE_IDS.forEach((id) => {
-          state.createPanels[id] = nextOpen && id === panelId;
-        });
-      } else if (transportTripsSet.has(panelId)) {
-        TRANSPORT_TRIPS_CREATE_IDS.forEach((id) => {
-          state.createPanels[id] = nextOpen && id === panelId;
-        });
-      } else if (vehiclesSet.has(panelId)) {
-        VEHICLES_CREATE_IDS.forEach((id) => {
+      if (panelGroup) {
+        panelGroup.forEach((id) => {
           state.createPanels[id] = nextOpen && id === panelId;
         });
       } else {
         state.createPanels[panelId] = nextOpen;
       }
 
-      if (payrollSet.has(panelId) && nextOpen) {
+      if (panelGroup === createPanelIdsForModule("create-employee") && nextOpen) {
         state.payrollUi = {
           ...(state.payrollUi || {}),
           workspace: "operate",
@@ -648,24 +628,27 @@ function bindDynamicEvents() {
         };
         persistHrWorkspace("payroll", "operate");
       }
-      if (hiringSet.has(panelId) && nextOpen) {
-        state.hiringUi = { ...(state.hiringUi || {}), workspace: "operate" };
+      if (panelGroup === createPanelIdsForModule("create-position") && nextOpen) {
+        state.hiringUi = {
+          ...(state.hiringUi || {}),
+          workspace: "operate",
+          operateSection: hiringOperateSectionForCreatePanel(panelId)
+        };
         persistHrWorkspace("hiring", "operate");
       }
-      if (transportTripsSet.has(panelId) && nextOpen) {
+      if (panelGroup === createPanelIdsForModule("create-trip") && nextOpen) {
         state.transportTripsUi = {
           ...(state.transportTripsUi || {}),
           workspace: "operate",
-          section: panelId === "create-route-rate" ? "routes" : "trips"
+          section: transportTripsOperateSectionForCreatePanel(panelId)
         };
         persistHrWorkspace("transport-trips", "operate");
       }
-      if (vehiclesSet.has(panelId) && nextOpen) {
+      if (panelGroup === createPanelIdsForModule("create-vehicle") && nextOpen) {
         state.vehiclesUi = {
           ...(state.vehiclesUi || {}),
           workspace: "operate",
-          section:
-            panelId === "create-fuel-log" ? "fuel" : panelId === "create-technical-log" ? "technical" : "create"
+          section: vehiclesOperateSectionForCreatePanel(panelId)
         };
         persistHrWorkspace("transport-vehicles", "operate");
       }

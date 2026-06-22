@@ -502,9 +502,22 @@
           <input value="${escapeHtml(companyName)}" disabled />
           <input type="hidden" name="companyId" value="${escapeAttr(user?.companyId || "")}" />
         </label>`;
-    return `<form id="form-request" class="p-form p-form-colored">
+    return `<form id="form-request" class="p-form p-form-colored hr-form-flow antares-create-form requests-create-form" autocomplete="off">
+    ${renderHrFormHero({
+      eyebrow: "Solicitudes de transporte",
+      title: "Nueva solicitud de viaje",
+      description: "Registre la ruta, ventanas de servicio y especificaciones de carga. La solicitud quedará pendiente de aprobación operativa.",
+      tone: "brand",
+      badges: [
+        renderHrFormHeroBadge("4 pasos", "guiados"),
+        renderHrFormHeroBadge("Ruta", "origen y destino"),
+        renderHrFormHeroBadge("Carga", "especificaciones")
+      ]
+    })}
+    <div class="antares-create-form__sections">
     <fieldset class="form-section form-section-blue full">
       <legend>${IC.briefcase} Empresa y ruta</legend>
+      <p class="muted form-section-hint">Identifique el cliente y la ruta completa del servicio de transporte.</p>
       <div class="form-section-grid">
         ${companyField}
         <label>${fieldLabel(IC.mapPin, "Departamento origen")}<select name="originDepartment" id="origin-department" required><option value="">Seleccione...</option>${departments}</select></label>
@@ -517,6 +530,7 @@
     </fieldset>
     <fieldset class="form-section form-section-violet full">
       <legend>${IC.calendar} Ventanas de servicio</legend>
+      <p class="muted form-section-hint">Indique fecha y hora estimadas de recogida y entrega de la mercancía.</p>
       <div class="form-section-grid datetime-group">
         <label>${fieldLabel(IC.calendar, "Fecha de recogida")}<input type="date" name="pickupDate" id="pickup-date" lang="es-CO" required data-antares-validate-blur="date-iso" /></label>
         <label>${fieldLabel(IC.clock, "Hora de recogida")}<input type="time" name="pickupTime" id="pickup-time" required /></label>
@@ -526,6 +540,7 @@
     </fieldset>
     <fieldset class="form-section form-section-emerald full">
       <legend>${IC.truck} Carga y servicio</legend>
+      <p class="muted form-section-hint">Defina el tipo de servicio, refrigeración y vehículo requerido para la operación.</p>
       <div class="form-section-grid">
         <label class="full">${fieldLabel(IC.briefcase, "Modo de transporte", { required: true })}<select name="serviceType" id="request-service-type" required><option value="">Seleccione...</option><option value="Transporte nacional">Transporte nacional</option><option value="Transporte entre sedes del cliente">Transporte entre sedes del cliente</option></select></label>
         <label>${fieldLabel(IC.file, "Descripcion carga")}<input name="cargoDescription" required data-antares-field="db-upper" data-antares-validate-blur="db-upper" /></label>
@@ -537,27 +552,36 @@
     </fieldset>
     <fieldset class="form-section form-section-amber full">
       <legend>${IC.user} Contacto en sitio</legend>
+      <p class="muted form-section-hint">Persona de referencia en el punto de recogida o entrega.</p>
       <div class="form-section-grid">
         <label>${fieldLabel(IC.user, "Contacto en sitio")}<input name="siteContactName" required data-antares-restrict="person-name" data-antares-field="person-name" /></label>
         <label>${fieldLabel(IC.phone, "Telefono contacto")}<input name="siteContactPhone" required data-antares-restrict="digits" data-antares-validate-blur="phone-loose" /></label>
       </div>
     </fieldset>
-    <label class="full">Observaciones <textarea name="notes" rows="3" data-antares-field="db-upper-multiline" data-antares-validate-blur="db-upper-multiline"></textarea></label>
-    <button class="btn btn-primary full" type="submit">${IC.send} Crear solicitud</button>
+    <fieldset class="form-section form-section-slate full antares-create-form__notes">
+      <legend>${IC.file} Observaciones</legend>
+      <p class="muted form-section-hint">Información adicional para el equipo de operaciones (opcional).</p>
+      <label class="full"><textarea name="notes" rows="3" placeholder="Instrucciones especiales, restricciones de acceso, etc." data-antares-field="db-upper-multiline" data-antares-validate-blur="db-upper-multiline"></textarea></label>
+    </fieldset>
+    </div>
+    <footer class="antares-create-form__footer">
+      ${renderManagedCreateFormActions("create-request", `<button class="btn btn-primary antares-create-form__submit" type="submit">${IC.send} Crear solicitud</button>`)}
+    </footer>
   </form>`;
   }
 
   /** Pantalla Registrar: formulario de alta (siempre visible). */
   function requestCreateFormPanelHtml() {
-    return `<section id="create-request" class="requests-operate-panel requests-operate-panel" data-create-panel="create-request">
-      ${pcardWrapPro(
-        "plus",
-        "Nueva solicitud de viaje",
-        "Selecciona origen, destino, fecha y hora de forma guiada",
-        requestCreateFormBodyHtml(),
-        "admin-users-data-card hr-form-card requests-form-card hr-form-card--xl"
-      )}
-    </section>`;
+    const requestsCreateUi = buildModuleCreatePanelsState(["create-request"], "create-request", state.createPanels || {});
+    return createHrActionCard(
+      "create-request",
+      "plus",
+      "Nueva solicitud de viaje",
+      "Selecciona origen, destino, fecha y hora de forma guiada",
+      requestCreateFormBodyHtml(),
+      "Abrir formulario",
+      { createPanels: requestsCreateUi }
+    );
   }
 
   /** Compatibilidad: solo el panel de creación. */

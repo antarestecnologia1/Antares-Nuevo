@@ -3,7 +3,15 @@
  * `IC` proviene de `window.IC` (portal-icons).
  * `isCreatePanelExpanded` / `createHrActionCard`: pasar `opts.createPanels` desde quien renderiza (sin importar `store`).
  */
-import { MODULE_PANEL_LABELS, MODULE_PANEL_BTN_TITLES, DEFAULT_OPEN_CREATE_PANELS } from "../core/config.js";
+import {
+  HIRING_OPERATE_CREATE_PANEL_IDS,
+  MODULE_PANEL_LABELS,
+  MODULE_PANEL_BTN_TITLES,
+  DEFAULT_OPEN_CREATE_PANELS,
+  PAYROLL_OPERATE_CREATE_PANEL_IDS,
+  TRANSPORT_TRIPS_OPERATE_CREATE_PANEL_IDS,
+  VEHICLES_OPERATE_CREATE_PANEL_IDS
+} from "../core/config.js";
 import { escapeHtml, escapeAttr } from "../core/utils.js";
 
 function ic() {
@@ -902,17 +910,32 @@ export function setCreatePanelExpandedInDom(root, panelId, expanded = true) {
   });
 }
 
-/** Sincroniza los cinco formularios de alta de Gestión humana: solo uno abierto. */
-export function syncPayrollCreatePanelsInDom(root, activePanelId, { expandActive = true } = {}) {
+/** Expande/colapsa tarjetas de creación en el DOM (sin re-render). */
+export function syncModuleCreatePanelsInDom(root, panelIds, activePanelId, { expandActive = true } = {}) {
   if (!root) return;
-  const ids = [
-    "create-employee",
-    "create-payroll",
-    "create-driver-trip-payment",
-    "create-payroll-settlement",
-    "create-hr-absence"
-  ];
+  const ids = Array.isArray(panelIds) ? panelIds : [];
+  const active = String(activePanelId || "").trim();
   ids.forEach((id) => {
-    setCreatePanelExpandedInDom(root, id, Boolean(expandActive && id === activePanelId));
+    setCreatePanelExpandedInDom(root, id, Boolean(expandActive && String(id) === active));
   });
+}
+
+/** Sincroniza los formularios de alta de Gestión humana: solo uno abierto. */
+export function syncPayrollCreatePanelsInDom(root, activePanelId, { expandActive = true } = {}) {
+  syncModuleCreatePanelsInDom(root, PAYROLL_OPERATE_CREATE_PANEL_IDS, activePanelId, { expandActive });
+}
+
+/** Sincroniza los formularios de alta de Contratación: solo uno abierto. */
+export function syncHiringCreatePanelsInDom(root, activePanelId, { expandActive = true } = {}) {
+  syncModuleCreatePanelsInDom(root, HIRING_OPERATE_CREATE_PANEL_IDS, activePanelId, { expandActive });
+}
+
+/** Sincroniza los formularios de alta de Camiones: solo uno abierto. */
+export function syncVehiclesCreatePanelsInDom(root, activePanelId, { expandActive = true } = {}) {
+  syncModuleCreatePanelsInDom(root, VEHICLES_OPERATE_CREATE_PANEL_IDS, activePanelId, { expandActive });
+}
+
+/** Sincroniza los formularios de alta de Viajes: solo uno abierto. */
+export function syncTransportTripsCreatePanelsInDom(root, activePanelId, { expandActive = true } = {}) {
+  syncModuleCreatePanelsInDom(root, TRANSPORT_TRIPS_OPERATE_CREATE_PANEL_IDS, activePanelId, { expandActive });
 }

@@ -484,21 +484,9 @@ function bindHiringPortalControls() {
   nodes.viewRoot.querySelectorAll("[data-action='hiring-operate-section']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const section = normalizeHiringOperateSection(btn.dataset.section);
+      const panelId = hiringCreatePanelForSection(section);
       state.hiringUi = { ...(state.hiringUi || {}), operateSection: section, workspace: "operate" };
-      const panelBySection = {
-        position: "create-position",
-        vacancy: "create-vacancy",
-        candidate: "create-candidate",
-        interview: "create-interview",
-        contract: "create-contract"
-      };
-      const panelId = panelBySection[section];
-      if (panelId) {
-        state.createPanels = { ...(state.createPanels || {}) };
-        ["create-position", "create-vacancy", "create-candidate", "create-interview", "create-contract"].forEach((id) => {
-          state.createPanels[id] = id === panelId;
-        });
-      }
+      state.createPanels = buildHiringCreatePanelsState(section, state.createPanels || {}, { expandActive: true });
       persistHrWorkspace("hiring", "operate");
       switchHrWorkspacePanels({
         root: nodes.viewRoot,
@@ -516,7 +504,7 @@ function bindHiringPortalControls() {
         })
       ) {
         if (panelId) {
-          setCreatePanelExpandedInDom(nodes.viewRoot, panelId, true);
+          syncHiringCreatePanelsInDom(nodes.viewRoot, panelId);
           requestAnimationFrame(() => scrollToCreatePanelForm(panelId));
         }
         return;
@@ -1485,12 +1473,9 @@ function bindHiringPortalControls() {
         return;
       }
       state.hiringUi = { ...(state.hiringUi || {}), scheduleInterviewOpenForCandidateId: cid };
-      state.createPanels = { ...(state.createPanels || {}) };
-      const HIRING_CREATE_IDS = ["create-position", "create-vacancy", "create-candidate", "create-interview", "create-contract"];
-      HIRING_CREATE_IDS.forEach((id) => {
-        state.createPanels[id] = id === "create-interview";
-      });
       state.hiringUi.workspace = "operate";
+      state.hiringUi.operateSection = "interview";
+      state.createPanels = buildHiringCreatePanelsState("interview", state.createPanels || {}, { expandActive: true });
       persistHrWorkspace("hiring", "operate");
       renderPortalView();
       requestAnimationFrame(() => {

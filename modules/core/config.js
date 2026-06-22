@@ -23,13 +23,8 @@ function escapeAttr(value) {
     .replace(/</g, "&lt;");
 }
 
-/** Paneles de creación abiertos por defecto hasta que el usuario los minimice (solo flota/transporte). */
-export const DEFAULT_OPEN_CREATE_PANELS = new Set([
-  "create-vehicle",
-  "create-fuel-log",
-  "create-technical-log",
-  "create-route-rate"
-]);
+/** Paneles de creación abiertos por defecto (ninguno: cada módulo controla su estado con `build*CreatePanelsState`). */
+export const DEFAULT_OPEN_CREATE_PANELS = new Set([]);
 
 /** Paneles de alta en Gestión humana — uno por trámite del rail Registrar. */
 export const PAYROLL_OPERATE_CREATE_PANEL_IDS = [
@@ -48,6 +43,58 @@ export const PAYROLL_OPERATE_SECTION_PANEL = {
   settlement: "create-payroll-settlement",
   absence: "create-hr-absence"
 };
+
+/** Paneles de alta en Contratación. */
+export const HIRING_OPERATE_CREATE_PANEL_IDS = [
+  "create-position",
+  "create-vacancy",
+  "create-candidate",
+  "create-interview",
+  "create-contract"
+];
+
+export const HIRING_OPERATE_SECTION_PANEL = {
+  position: "create-position",
+  vacancy: "create-vacancy",
+  candidate: "create-candidate",
+  interview: "create-interview",
+  contract: "create-contract"
+};
+
+/** Paneles de alta en Transporte · Camiones. */
+export const VEHICLES_OPERATE_CREATE_PANEL_IDS = ["create-vehicle", "create-fuel-log", "create-technical-log"];
+
+export const VEHICLES_OPERATE_SECTION_PANEL = {
+  create: "create-vehicle",
+  fuel: "create-fuel-log",
+  technical: "create-technical-log"
+};
+
+/** Paneles de alta en Transporte · Viajes. */
+export const TRANSPORT_TRIPS_OPERATE_CREATE_PANEL_IDS = ["create-trip", "create-route-rate"];
+
+export const TRANSPORT_TRIPS_OPERATE_SECTION_PANEL = {
+  trips: "create-trip",
+  routes: "create-route-rate"
+};
+
+/** Grupos mutuamente excluyentes de paneles de creación (un módulo por grupo). */
+export const MODULE_CREATE_PANEL_GROUPS = [
+  PAYROLL_OPERATE_CREATE_PANEL_IDS,
+  HIRING_OPERATE_CREATE_PANEL_IDS,
+  TRANSPORT_TRIPS_OPERATE_CREATE_PANEL_IDS,
+  VEHICLES_OPERATE_CREATE_PANEL_IDS
+];
+
+/** Devuelve el grupo de paneles al que pertenece `panelId`, o `null`. */
+export function createPanelIdsForModule(panelId) {
+  const id = String(panelId || "").trim();
+  if (!id) return null;
+  for (const group of MODULE_CREATE_PANEL_GROUPS) {
+    if (group.includes(id)) return group;
+  }
+  return null;
+}
 
 export const MODULE_PANEL_LABELS = {
   minimize: "Minimizar",

@@ -70,6 +70,7 @@ function vehiclesHtml() {
     }
   }
   if (vehicleWorkspace === "data") vehicleSection = "fleet";
+  const vehiclesCreateUi = buildVehiclesCreatePanelsState(vehicleSection, state.createPanels || {});
   state.vehiclesUi = {
     ...vehiclesUi,
     workspace: vehicleWorkspace,
@@ -388,13 +389,13 @@ function vehiclesHtml() {
     tabs: [{ id: "fleet", label: "Flota", count: vehicles.length }]
   });
   const createPanel = canCreateVeh
-    ? `<div class="auth-tab-panel${vehicleSection === "create" ? "" : " hidden"}" data-vehicle-operate-pane="create">${createCollapsibleProCard("create-vehicle", "plus", "Registrar vehículo", "Alta de flota", formBody, "admin-users-data-card hr-form-card vehicles-form-card", "Abrir formulario", { createPanels: state.createPanels })}</div>`
+    ? `<div class="auth-tab-panel${vehicleSection === "create" ? "" : " hidden"}" data-vehicle-operate-pane="create">${createHrActionCard("create-vehicle", "plus", "Registrar vehículo", "Alta de flota", formBody, "Abrir formulario", { createPanels: vehiclesCreateUi })}</div>`
     : "";
   const fuelPanel = canFuelLogs
-    ? `<div class="auth-tab-panel${vehicleSection === "fuel" ? "" : " hidden"}" data-vehicle-operate-pane="fuel">${createCollapsibleProCard("create-fuel-log", "fuel", "Combustible", `${fuelLogsCount} carga${fuelLogsCount === 1 ? "" : "s"} registrada${fuelLogsCount === 1 ? "" : "s"}`, historyFleetFuelFormHtml(todayIsoDate, vehicleSelectOptions, driverSelectOptions), "admin-users-data-card hr-form-card vehicles-form-card", "Abrir formulario", { createPanels: state.createPanels })}</div>`
+    ? `<div class="auth-tab-panel${vehicleSection === "fuel" ? "" : " hidden"}" data-vehicle-operate-pane="fuel">${createHrActionCard("create-fuel-log", "fuel", "Combustible", `${fuelLogsCount} carga${fuelLogsCount === 1 ? "" : "s"} registrada${fuelLogsCount === 1 ? "" : "s"}`, historyFleetFuelFormHtml(todayIsoDate, vehicleSelectOptions, driverSelectOptions), "Abrir formulario", { createPanels: vehiclesCreateUi })}</div>`
     : "";
   const technicalPanel = canTechnicalLogs
-    ? `<div class="auth-tab-panel${vehicleSection === "technical" ? "" : " hidden"}" data-vehicle-operate-pane="technical">${createCollapsibleProCard("create-technical-log", "activity", "Taller", `${technicalLogsCount} novedad${technicalLogsCount === 1 ? "" : "es"} de mantenimiento`, historyFleetTechnicalFormHtml(todayIsoDate, vehicleSelectOptions), "admin-users-data-card hr-form-card vehicles-form-card", "Abrir formulario", { createPanels: state.createPanels })}</div>`
+    ? `<div class="auth-tab-panel${vehicleSection === "technical" ? "" : " hidden"}" data-vehicle-operate-pane="technical">${createHrActionCard("create-technical-log", "activity", "Taller", `${technicalLogsCount} novedad${technicalLogsCount === 1 ? "" : "es"} de mantenimiento`, historyFleetTechnicalFormHtml(todayIsoDate, vehicleSelectOptions), "Abrir formulario", { createPanels: vehiclesCreateUi })}</div>`
     : "";
   const vehicleOperatePanel =
     vehicleOperateTabs.length > 0
@@ -463,8 +464,12 @@ function vehiclesHtml() {
     nodes.viewRoot.querySelectorAll("[data-action='vehicles-section']").forEach((btn) => {
       btn.addEventListener("click", () => {
         const section = normalizeVehicleSection(btn.dataset.section);
+        const panelId = vehiclesCreatePanelForSection(section);
         const ws = section === "fleet" ? "data" : "operate";
         state.vehiclesUi = { ...(state.vehiclesUi || {}), workspace: ws, section };
+        if (ws === "operate" && panelId) {
+          state.createPanels = buildVehiclesCreatePanelsState(section, state.createPanels || {}, { expandActive: true });
+        }
         persistHrWorkspace("transport-vehicles", ws);
         switchHrWorkspacePanels({
           root: nodes.viewRoot,
@@ -482,9 +487,16 @@ function vehiclesHtml() {
             tabActiveClass: "is-active"
           })
         ) {
+          if (ws === "operate" && panelId) {
+            syncVehiclesCreatePanelsInDom(nodes.viewRoot, panelId);
+            requestAnimationFrame(() => scrollToCreatePanelForm(panelId));
+          }
           return;
         }
         renderPortalView();
+        if (ws === "operate" && panelId) {
+          requestAnimationFrame(() => scrollToCreatePanelForm(panelId));
+        }
       });
     });
 

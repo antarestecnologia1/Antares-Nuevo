@@ -1,0 +1,689 @@
+/* ===================================================================
+   Antares — Formularios de creación unificados
+   Alcance: #form-request, #form-create-trip (.antares-create-form)
+   Tema claro + oscuro · colores corporativos
+   =================================================================== */
+
+.antares-create-form {
+  --acf-navy: #0b2138;
+  --acf-blue: var(--primary, #377cc0);
+  --acf-blue-soft: var(--primary-light, #cce5f8);
+  --acf-surface: #f4f8fc;
+  --acf-card: #ffffff;
+  --acf-edge: rgba(55, 124, 192, 0.14);
+  --acf-edge-strong: rgba(55, 124, 192, 0.22);
+  --acf-shadow: 0 16px 40px rgba(11, 33, 56, 0.08);
+  --acf-shadow-sm: 0 8px 22px rgba(11, 33, 56, 0.06);
+  --acf-radius: 18px;
+  --acf-radius-sm: 14px;
+  display: grid;
+  gap: 1rem;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+}
+
+/* Ocultar cabecera duplicada del card contenedor */
+.requests-studio .requests-form-card:has(.antares-create-form) .hr-data-card__head,
+.transport-studio .hr-form-card--transport-trip:has(.antares-create-form) .hr-data-card__head {
+  display: none;
+}
+
+.requests-studio .requests-form-card:has(.antares-create-form) .hr-data-card__body,
+.transport-studio .hr-form-card--transport-trip:has(.antares-create-form) .hr-data-card__body {
+  padding: 0;
+}
+
+.requests-studio .requests-form-card:has(.antares-create-form),
+.transport-studio .hr-form-card--transport-trip:has(.antares-create-form) {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+}
+
+/* ── Hero unificado ── */
+.antares-create-form > .hr-form-hero,
+.antares-create-form .transport-form--single > .hr-form-hero {
+  margin: 0;
+  padding: 1.15rem 1.25rem;
+  border-radius: var(--acf-radius);
+  border: 1px solid var(--acf-edge-strong);
+  background:
+    linear-gradient(135deg, rgba(var(--primary-rgb), 0.1) 0%, transparent 52%),
+    linear-gradient(160deg, rgba(var(--brand-blue-soft-rgb, 204, 229, 248), 0.35), rgba(255, 255, 255, 0.98));
+  box-shadow: var(--acf-shadow-sm);
+}
+
+.antares-create-form .hr-form-hero__eyebrow {
+  color: color-mix(in srgb, var(--primary-dark) 70%, #64748b);
+}
+
+.antares-create-form .hr-form-hero__title {
+  color: var(--acf-navy);
+}
+
+.antares-create-form .hr-form-hero__text {
+  color: #466883;
+}
+
+.antares-create-form .hr-form-hero__badges {
+  align-items: stretch;
+}
+
+.antares-create-form .hr-form-hero-badge {
+  min-width: 7.5rem;
+  border-color: var(--acf-edge);
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.antares-create-form .create-trip-hero-badge {
+  align-self: stretch;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 3.1rem;
+  padding: 0.55rem 0.9rem;
+  border-radius: var(--acf-radius-sm);
+  font-size: 0.82rem;
+  font-weight: 750;
+  border: 1px solid var(--acf-edge);
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: var(--acf-shadow-sm);
+}
+
+.antares-create-form .create-trip-hero-badge--ok {
+  color: #047857;
+  border-color: color-mix(in srgb, #10b981 35%, var(--acf-edge));
+  background: color-mix(in srgb, #10b981 10%, #fff);
+}
+
+.antares-create-form .create-trip-hero-badge--muted {
+  color: #64748b;
+}
+
+/* ── Contenedor de secciones ── */
+.antares-create-form__sections,
+.antares-create-form .transport-form__body.antares-create-form__sections {
+  display: grid;
+  gap: 0.85rem;
+  padding: 0;
+}
+
+/* ── Fieldsets empresariales ── */
+.antares-create-form .form-section {
+  margin: 0;
+  padding: 1rem 1.1rem 1.05rem;
+  border-radius: var(--acf-radius-sm);
+  border: 1px solid var(--acf-edge);
+  border-top: 3px solid var(--acf-blue);
+  background: var(--acf-card);
+  box-shadow: var(--acf-shadow-sm);
+  position: relative;
+  overflow: visible;
+}
+
+.antares-create-form .form-section-blue { border-top-color: var(--primary, #377cc0); }
+.antares-create-form .form-section-violet { border-top-color: var(--primary-dark, #2a6399); }
+.antares-create-form .form-section-emerald { border-top-color: #10b981; }
+.antares-create-form .form-section-amber { border-top-color: #f59e0b; }
+.antares-create-form .form-section-slate { border-top-color: #64748b; }
+
+.antares-create-form .form-section legend {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: auto;
+  margin: 0 0 0.35rem;
+  padding: 0;
+  background: transparent !important;
+  border: none;
+  box-shadow: none !important;
+  font-family: var(--font-display, "Poppins", sans-serif);
+  font-size: 0.96rem;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+  color: var(--acf-navy) !important;
+  text-transform: none;
+}
+
+.antares-create-form .form-section legend svg {
+  width: 1.15rem;
+  height: 1.15rem;
+  padding: 0.2rem;
+  border-radius: 7px;
+  background: rgba(var(--primary-rgb), 0.12);
+  color: var(--primary-dark);
+  flex-shrink: 0;
+}
+
+.antares-create-form .form-section-hint {
+  margin: 0 0 0.85rem;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: #64748b;
+}
+
+.antares-create-form .form-section-grid {
+  gap: 0.75rem 0.9rem;
+  align-items: start;
+}
+
+.antares-create-form .form-section-grid label:not(.route-rate-company-item):not(.profile-avatar) {
+  min-height: 0;
+  align-self: start;
+  padding: 0.72rem 0.82rem;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--primary) 10%, var(--acf-edge));
+  background: color-mix(in srgb, var(--primary) 2%, var(--acf-card));
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.04);
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+
+.antares-create-form .form-section-grid label:not(.route-rate-company-item):not(.profile-avatar):hover,
+.antares-create-form .form-section-grid label:not(.route-rate-company-item):not(.profile-avatar):focus-within {
+  border-color: color-mix(in srgb, var(--primary) 28%, var(--acf-edge));
+  box-shadow: 0 8px 20px rgba(var(--primary-rgb), 0.08);
+  background: color-mix(in srgb, var(--primary) 4%, var(--acf-card));
+}
+
+.antares-create-form .field-label {
+  font-size: 0.76rem;
+  font-weight: 650;
+  color: #475569;
+  margin-bottom: 0.3rem;
+}
+
+.antares-create-form .form-section-grid input,
+.antares-create-form .form-section-grid select,
+.antares-create-form .form-section-grid textarea {
+  min-height: 2.5rem;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--primary) 14%, var(--line, #e2e8f0));
+  background: var(--acf-card);
+  font-size: 0.88rem;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.antares-create-form .form-section-grid input:focus,
+.antares-create-form .form-section-grid select:focus,
+.antares-create-form .form-section-grid textarea:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--primary) 50%, var(--line, #e2e8f0));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 12%, transparent);
+}
+
+.antares-create-form .datetime-group {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 0.9rem;
+}
+
+/* ── Empresa preview (solicitud) ── */
+.antares-create-form .request-company-preview {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.55rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 12px;
+  border: 1px dashed var(--acf-edge-strong);
+  background: color-mix(in srgb, var(--primary) 3%, var(--acf-surface));
+}
+
+/* ── Bloques asignar viaje (pasos numerados) ── */
+.antares-create-form .assign-trip-block {
+  margin: 0;
+  padding: 1rem 1.05rem 1.05rem;
+  border-radius: var(--acf-radius-sm);
+  border: 1px solid var(--acf-edge);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 3%, var(--acf-card)), var(--acf-card));
+  box-shadow: var(--acf-shadow-sm);
+  counter-increment: acf-step;
+}
+
+.antares-create-form .assign-trip-block-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem 0.75rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--acf-edge) 80%, transparent);
+}
+
+.antares-create-form .assign-trip-block-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-family: var(--font-display, "Poppins", sans-serif);
+  font-size: 0.94rem;
+  font-weight: 750;
+  color: var(--acf-navy);
+}
+
+.antares-create-form .assign-trip-block-title::before {
+  content: counter(acf-step);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(135deg, var(--acf-blue), var(--primary-dark, #2a6399));
+  box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.25);
+  flex-shrink: 0;
+}
+
+.antares-create-form .transport-form__body {
+  counter-reset: acf-step;
+}
+
+.antares-create-form .trip-request-picker-count {
+  font-size: 0.78rem;
+  font-weight: 650;
+  padding: 0.22rem 0.55rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary) 8%, var(--acf-surface));
+  border: 1px solid var(--acf-edge);
+}
+
+/* Preview / resumen */
+.antares-create-form .assign-trip-preview,
+.antares-create-form .create-trip-summary-panel {
+  padding: 0.85rem 0.95rem;
+  border-radius: 12px;
+  border: 1px dashed color-mix(in srgb, var(--primary) 22%, var(--acf-edge));
+  background: color-mix(in srgb, var(--primary) 4%, var(--acf-surface));
+}
+
+.antares-create-form .assign-trip-preview--filled,
+.antares-create-form .create-trip-summary-panel--active {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--primary) 32%, var(--acf-edge));
+  background: color-mix(in srgb, var(--primary) 7%, var(--acf-card));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.antares-create-form .create-trip-empty-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+}
+
+.antares-create-form .create-trip-empty-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 10px;
+  background: rgba(var(--primary-rgb), 0.1);
+  color: var(--primary-dark);
+  flex-shrink: 0;
+}
+
+.antares-create-form .create-trip-empty-icon svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.antares-create-form .create-trip-empty-title {
+  margin: 0;
+  font-weight: 700;
+  color: var(--acf-navy);
+  font-size: 0.88rem;
+}
+
+.antares-create-form .create-trip-empty-detail {
+  margin: 0.2rem 0 0;
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+/* Tarjetas solicitud (picker) */
+.antares-create-form .trip-request-card {
+  border-radius: 13px;
+  border-color: var(--acf-edge);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+
+.antares-create-form .trip-request-card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--acf-shadow-sm);
+}
+
+.antares-create-form .trip-request-card.is-selected {
+  border-color: color-mix(in srgb, var(--primary) 50%, var(--acf-edge));
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--primary) 14%, transparent);
+}
+
+/* Flota / tarifa */
+.antares-create-form .create-trip-fleet-stats,
+.antares-create-form .assign-trip-fleet-stats {
+  margin-bottom: 0.65rem;
+}
+
+.antares-create-form .create-trip-flag-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.75rem;
+  font-size: 0.74rem;
+}
+
+.antares-create-form .create-trip-rate-surface {
+  padding: 0.15rem 0;
+}
+
+/* ── Footer acciones ── */
+.antares-create-form__footer,
+.antares-create-form .transport-form__footer {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0.95rem 1.05rem 1.05rem;
+  border-radius: var(--acf-radius-sm);
+  border: 1px solid var(--acf-edge);
+  background: linear-gradient(180deg, var(--acf-surface), var(--acf-card));
+  box-shadow: var(--acf-shadow-sm);
+}
+
+.antares-create-form .create-trip-readiness--bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: none;
+  background: transparent;
+}
+
+.antares-create-form .create-trip-readiness-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.32rem 0.62rem;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 650;
+  border: 1px solid var(--acf-edge);
+  background: var(--acf-card);
+  color: #64748b;
+}
+
+.antares-create-form .create-trip-readiness-item.is-done {
+  color: #047857;
+  border-color: color-mix(in srgb, #10b981 35%, var(--acf-edge));
+  background: color-mix(in srgb, #10b981 10%, var(--acf-card));
+}
+
+.antares-create-form .module-panel-actions {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.antares-create-form .module-panel-actions__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.55rem;
+}
+
+.antares-create-form .antares-create-form__submit,
+.antares-create-form .create-trip-submit-btn {
+  min-width: 12rem;
+  min-height: 2.65rem;
+  padding: 0.55rem 1.25rem;
+  border-radius: 12px;
+  font-weight: 750;
+  letter-spacing: 0.01em;
+  box-shadow: 0 8px 20px rgba(var(--primary-rgb), 0.22);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, opacity 0.16s ease;
+}
+
+.antares-create-form .create-trip-submit-btn--ready,
+.antares-create-form .antares-create-form__submit:not(:disabled) {
+  box-shadow: 0 10px 26px rgba(var(--primary-rgb), 0.28);
+}
+
+.antares-create-form .create-trip-submit-btn--ready:hover:not(:disabled),
+.antares-create-form .antares-create-form__submit:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.antares-create-form.transport-assign-form .transport-form--single {
+  border: 1px solid var(--acf-edge);
+  border-radius: var(--acf-radius);
+  background: var(--acf-card);
+  box-shadow: var(--acf-shadow);
+  overflow: hidden;
+}
+
+.transport-studio #form-create-trip.antares-create-form .transport-form--single {
+  border: 1px solid var(--acf-edge);
+  border-radius: var(--acf-radius);
+  background: var(--acf-card);
+  box-shadow: var(--acf-shadow);
+}
+
+.transport-studio #form-create-trip.antares-create-form .transport-wizard__head {
+  display: none;
+}
+
+.antares-create-form.transport-assign-form .transport-form--single > .hr-form-hero {
+  border-radius: 0;
+  border: none;
+  border-bottom: 1px solid var(--acf-edge);
+  box-shadow: none;
+}
+
+.antares-create-form .transport-form__body {
+  padding: 1rem 1.05rem 0.35rem;
+}
+
+.transport-studio #form-create-trip.antares-create-form .transport-form__body {
+  padding: 1rem 1.05rem 0.35rem;
+  border: none;
+  background: transparent;
+}
+
+.transport-studio #form-create-trip.antares-create-form .transport-form__footer {
+  padding: 0.95rem 1.05rem 1.05rem;
+  border-top: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+.requests-studio #form-request.antares-create-form .antares-create-form__footer {
+  margin-top: 0.15rem;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   TEMA OSCURO
+   ═══════════════════════════════════════════════════════════════════ */
+
+body[data-theme="dark"] .antares-create-form {
+  --acf-navy: #e8f2fc;
+  --acf-surface: rgba(10, 22, 38, 0.72);
+  --acf-card: rgba(12, 26, 44, 0.92);
+  --acf-edge: rgba(148, 196, 255, 0.14);
+  --acf-edge-strong: rgba(148, 196, 255, 0.22);
+  --acf-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+  --acf-shadow-sm: 0 8px 22px rgba(0, 0, 0, 0.2);
+}
+
+body[data-theme="dark"] .antares-create-form > .hr-form-hero,
+body[data-theme="dark"] .antares-create-form .transport-form--single > .hr-form-hero {
+  border-color: rgba(148, 196, 255, 0.18);
+  background:
+    linear-gradient(135deg, rgba(var(--primary-rgb), 0.16) 0%, transparent 55%),
+    linear-gradient(160deg, rgba(10, 22, 38, 0.95), rgba(14, 30, 52, 0.98));
+  box-shadow: var(--acf-shadow-sm);
+}
+
+body[data-theme="dark"] .antares-create-form .hr-form-hero__title {
+  color: #e8f2fc;
+}
+
+body[data-theme="dark"] .antares-create-form .hr-form-hero__text {
+  color: #9eb8d8;
+}
+
+body[data-theme="dark"] .antares-create-form .hr-form-hero-badge,
+body[data-theme="dark"] .antares-create-form .create-trip-hero-badge {
+  background: rgba(10, 22, 38, 0.75);
+  border-color: rgba(148, 196, 255, 0.16);
+  color: #d7e8fb;
+}
+
+body[data-theme="dark"] .antares-create-form .create-trip-hero-badge--ok {
+  color: #6ee7b7;
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.28);
+}
+
+body[data-theme="dark"] .antares-create-form .form-section {
+  background: var(--acf-card);
+  border-color: var(--acf-edge);
+  box-shadow: var(--acf-shadow-sm);
+}
+
+body[data-theme="dark"] .antares-create-form .form-section legend {
+  color: #e8f2fc !important;
+}
+
+body[data-theme="dark"] .antares-create-form .form-section-hint {
+  color: #9eb8d8;
+}
+
+body[data-theme="dark"] .antares-create-form .form-section-grid label:not(.route-rate-company-item):not(.profile-avatar) {
+  background: rgba(10, 22, 38, 0.55);
+  border-color: rgba(148, 196, 255, 0.12);
+}
+
+body[data-theme="dark"] .antares-create-form .form-section-grid label:not(.route-rate-company-item):not(.profile-avatar):hover,
+body[data-theme="dark"] .antares-create-form .form-section-grid label:not(.route-rate-company-item):not(.profile-avatar):focus-within {
+  background: rgba(14, 30, 52, 0.82);
+  border-color: rgba(148, 196, 255, 0.24);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+}
+
+body[data-theme="dark"] .antares-create-form .field-label {
+  color: #b8cfe8;
+}
+
+body[data-theme="dark"] .antares-create-form .form-section-grid input,
+body[data-theme="dark"] .antares-create-form .form-section-grid select,
+body[data-theme="dark"] .antares-create-form .form-section-grid textarea {
+  background: rgba(8, 18, 32, 0.85);
+  border-color: rgba(148, 196, 255, 0.16);
+  color: #e8f2fc;
+}
+
+body[data-theme="dark"] .antares-create-form .form-section-grid input:focus,
+body[data-theme="dark"] .antares-create-form .form-section-grid select:focus,
+body[data-theme="dark"] .antares-create-form .form-section-grid textarea:focus {
+  border-color: rgba(148, 196, 255, 0.38);
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.18);
+}
+
+body[data-theme="dark"] .antares-create-form .request-company-preview {
+  background: rgba(10, 22, 38, 0.55);
+  border-color: rgba(148, 196, 255, 0.16);
+}
+
+body[data-theme="dark"] .antares-create-form .assign-trip-block {
+  background: linear-gradient(180deg, rgba(var(--primary-rgb), 0.08), var(--acf-card));
+  border-color: var(--acf-edge);
+}
+
+body[data-theme="dark"] .antares-create-form .assign-trip-block-title {
+  color: #e8f2fc;
+}
+
+body[data-theme="dark"] .antares-create-form .assign-trip-preview,
+body[data-theme="dark"] .antares-create-form .create-trip-summary-panel {
+  background: rgba(10, 22, 38, 0.55);
+  border-color: rgba(148, 196, 255, 0.16);
+}
+
+body[data-theme="dark"] .antares-create-form .assign-trip-preview--filled,
+body[data-theme="dark"] .antares-create-form .create-trip-summary-panel--active {
+  background: rgba(var(--primary-rgb), 0.1);
+  border-color: rgba(148, 196, 255, 0.24);
+}
+
+body[data-theme="dark"] .antares-create-form .create-trip-empty-title {
+  color: #e8f2fc;
+}
+
+body[data-theme="dark"] .antares-create-form .create-trip-empty-detail {
+  color: #9eb8d8;
+}
+
+body[data-theme="dark"] .antares-create-form .trip-request-card {
+  background: rgba(10, 22, 38, 0.72);
+  border-color: rgba(148, 196, 255, 0.14);
+}
+
+body[data-theme="dark"] .antares-create-form .trip-request-card__ref,
+body[data-theme="dark"] .antares-create-form .trip-request-card__client {
+  color: #e8f2fc;
+}
+
+body[data-theme="dark"] .antares-create-form__footer,
+body[data-theme="dark"] .antares-create-form .transport-form__footer {
+  background: linear-gradient(180deg, rgba(10, 22, 38, 0.72), rgba(12, 26, 44, 0.92));
+  border-color: rgba(148, 196, 255, 0.14);
+}
+
+body[data-theme="dark"] .antares-create-form .create-trip-readiness-item {
+  background: rgba(10, 22, 38, 0.72);
+  border-color: rgba(148, 196, 255, 0.14);
+  color: #9eb8d8;
+}
+
+body[data-theme="dark"] .antares-create-form .create-trip-readiness-item.is-done {
+  color: #6ee7b7;
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.28);
+}
+
+body[data-theme="dark"] .antares-create-form .transport-form--single {
+  background: rgba(12, 26, 44, 0.92);
+  border-color: rgba(148, 196, 255, 0.14);
+}
+
+@media (max-width: 768px) {
+  .antares-create-form > .hr-form-hero,
+  .antares-create-form .transport-form--single > .hr-form-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .antares-create-form .hr-form-hero__badges {
+    justify-content: flex-start;
+  }
+
+  .antares-create-form .datetime-group {
+    grid-template-columns: 1fr;
+  }
+
+  .antares-create-form .module-panel-actions__bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .antares-create-form .antares-create-form__submit,
+  .antares-create-form .create-trip-submit-btn {
+    width: 100%;
+    min-width: 0;
+  }
+}

@@ -4,11 +4,17 @@
  */
 import {
   CO_TIMEZONE,
+  HIRING_OPERATE_CREATE_PANEL_IDS,
+  HIRING_OPERATE_SECTION_PANEL,
   HR_VALID_HIRING_WS,
   HR_VALID_PAYROLL_WS,
   HR_VALID_REQUESTS_WS,
   PAYROLL_OPERATE_CREATE_PANEL_IDS,
-  PAYROLL_OPERATE_SECTION_PANEL
+  PAYROLL_OPERATE_SECTION_PANEL,
+  TRANSPORT_TRIPS_OPERATE_CREATE_PANEL_IDS,
+  TRANSPORT_TRIPS_OPERATE_SECTION_PANEL,
+  VEHICLES_OPERATE_CREATE_PANEL_IDS,
+  VEHICLES_OPERATE_SECTION_PANEL
 } from "./config.js";
 import {
   extractColombianPhoneNationalDigits,
@@ -79,14 +85,16 @@ export function normalizePayrollOperateSection(value) {
 }
 
 /** Estado de paneles de creación: solo el trámite activo queda expandido por defecto. */
-export function buildPayrollCreatePanelsState(activeSection, createPanels = {}, { expandActive = true } = {}) {
-  const section = normalizePayrollOperateSection(activeSection);
-  const activePanel = PAYROLL_OPERATE_SECTION_PANEL[section];
+export function buildModuleCreatePanelsState(panelIds, activePanelId, createPanels = {}, { expandActive = true } = {}) {
+  const ids = Array.isArray(panelIds) ? panelIds : [];
+  const active = String(activePanelId || "").trim();
   const source = createPanels && typeof createPanels === "object" ? createPanels : {};
   const next = { ...source };
-  PAYROLL_OPERATE_CREATE_PANEL_IDS.forEach((id) => {
+  ids.forEach((rawId) => {
+    const id = String(rawId || "").trim();
+    if (!id) return;
     if (expandActive) {
-      next[id] = id === activePanel;
+      next[id] = id === active;
       return;
     }
     if (!Object.prototype.hasOwnProperty.call(source, id)) {
@@ -94,6 +102,32 @@ export function buildPayrollCreatePanelsState(activeSection, createPanels = {}, 
     }
   });
   return next;
+}
+
+export function buildPayrollCreatePanelsState(activeSection, createPanels = {}, { expandActive = true } = {}) {
+  const section = normalizePayrollOperateSection(activeSection);
+  const activePanel = PAYROLL_OPERATE_SECTION_PANEL[section];
+  return buildModuleCreatePanelsState(PAYROLL_OPERATE_CREATE_PANEL_IDS, activePanel, createPanels, { expandActive });
+}
+
+export function buildHiringCreatePanelsState(activeSection, createPanels = {}, { expandActive = true } = {}) {
+  const section = normalizeHiringOperateSection(activeSection);
+  const activePanel = HIRING_OPERATE_SECTION_PANEL[section];
+  return buildModuleCreatePanelsState(HIRING_OPERATE_CREATE_PANEL_IDS, activePanel, createPanels, { expandActive });
+}
+
+export function buildVehiclesCreatePanelsState(activeSection, createPanels = {}, { expandActive = true } = {}) {
+  const section = normalizeVehicleSection(activeSection);
+  const activePanel = VEHICLES_OPERATE_SECTION_PANEL[section] || "create-vehicle";
+  return buildModuleCreatePanelsState(VEHICLES_OPERATE_CREATE_PANEL_IDS, activePanel, createPanels, { expandActive });
+}
+
+export function buildTransportTripsCreatePanelsState(activeSection, createPanels = {}, { expandActive = true } = {}) {
+  const section = normalizeTransportTripsSection(activeSection);
+  const activePanel = TRANSPORT_TRIPS_OPERATE_SECTION_PANEL[section];
+  return buildModuleCreatePanelsState(TRANSPORT_TRIPS_OPERATE_CREATE_PANEL_IDS, activePanel, createPanels, {
+    expandActive
+  });
 }
 
 export function payrollCreatePanelForSection(sectionLike) {
@@ -105,6 +139,39 @@ export function payrollOperateSectionForCreatePanel(panelId) {
   const id = String(panelId || "").trim();
   const hit = Object.entries(PAYROLL_OPERATE_SECTION_PANEL).find(([, panel]) => panel === id);
   return hit ? normalizePayrollOperateSection(hit[0]) : "employee";
+}
+
+export function hiringCreatePanelForSection(sectionLike) {
+  const section = normalizeHiringOperateSection(sectionLike);
+  return HIRING_OPERATE_SECTION_PANEL[section] || "create-position";
+}
+
+export function hiringOperateSectionForCreatePanel(panelId) {
+  const id = String(panelId || "").trim();
+  const hit = Object.entries(HIRING_OPERATE_SECTION_PANEL).find(([, panel]) => panel === id);
+  return hit ? normalizeHiringOperateSection(hit[0]) : "position";
+}
+
+export function vehiclesCreatePanelForSection(sectionLike) {
+  const section = normalizeVehicleSection(sectionLike);
+  return VEHICLES_OPERATE_SECTION_PANEL[section] || "create-vehicle";
+}
+
+export function vehiclesOperateSectionForCreatePanel(panelId) {
+  const id = String(panelId || "").trim();
+  const hit = Object.entries(VEHICLES_OPERATE_SECTION_PANEL).find(([, panel]) => panel === id);
+  return hit ? normalizeVehicleSection(hit[0]) : "create";
+}
+
+export function transportTripsCreatePanelForSection(sectionLike) {
+  const section = normalizeTransportTripsSection(sectionLike);
+  return TRANSPORT_TRIPS_OPERATE_SECTION_PANEL[section] || "create-trip";
+}
+
+export function transportTripsOperateSectionForCreatePanel(panelId) {
+  const id = String(panelId || "").trim();
+  const hit = Object.entries(TRANSPORT_TRIPS_OPERATE_SECTION_PANEL).find(([, panel]) => panel === id);
+  return hit ? normalizeTransportTripsSection(hit[0]) : "trips";
 }
 
 export function normalizeHiringOperateSection(value) {

@@ -30110,6 +30110,48 @@ body[data-theme="dark"] .hiring-shell .btn-outline:hover {
   display: none !important;
 }
 
+/* Tarjetas de creación dentro del rail Registrar (patrón Gestión humana, por módulo) */
+[class$="-operate__main"] .hr-action-card,
+.requests-workspace-panel[data-requests-panel="operate"] .hr-action-card,
+.sst-studio > .hr-action-card {
+  margin: 0;
+  transform: none;
+}
+
+[class$="-operate__main"] .hr-action-card:hover,
+.requests-workspace-panel[data-requests-panel="operate"] .hr-action-card:hover,
+.sst-studio > .hr-action-card:hover {
+  transform: none;
+}
+
+[class$="-operate__main"] .hr-action-card__head,
+.requests-workspace-panel[data-requests-panel="operate"] .hr-action-card__head,
+.sst-studio > .hr-action-card .hr-action-card__head {
+  padding: 1.2rem 1.45rem 1rem;
+}
+
+[class$="-operate__main"] .hr-action-card__panel,
+.requests-workspace-panel[data-requests-panel="operate"] .hr-action-card__panel,
+.sst-studio > .hr-action-card .hr-action-card__panel {
+  padding: 0 1.45rem 1.35rem;
+}
+
+[class$="-operate__main"] .auth-tab-panel.hidden {
+  display: none !important;
+}
+
+[class$="-operate__main"] .auth-tab-panel:not(.hidden) {
+  min-width: 0;
+}
+
+.hr-action-card__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+
 .hr-data-card {
   border-radius: 18px;
   border: 1px solid rgba(15, 23, 42, 0.09);
