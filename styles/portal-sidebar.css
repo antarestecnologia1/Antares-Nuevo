@@ -65,7 +65,7 @@ body:not(.portal-sidebar-collapsed) #portal-sidebar.sidebar--rail {
   padding: 1rem 0.85rem 0.9rem;
 }
 
-/* ── Header ── */
+/* ── Header / marca ── */
 #portal-sidebar .sidebar-rail-head {
   padding: 0.25rem 0.35rem 0.85rem;
   margin-bottom: 0.25rem;
@@ -73,27 +73,131 @@ body:not(.portal-sidebar-collapsed) #portal-sidebar.sidebar--rail {
 }
 
 body:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-rail-head {
-  padding: 0.15rem 0.2rem 1rem;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 0.15rem 0.15rem 1rem;
   margin-bottom: 0.35rem;
   border-bottom: 1px solid color-mix(in srgb, var(--portal-sidebar-border) 75%, transparent);
 }
 
 #portal-sidebar .sidebar-brand-logo-wrap {
-  width: 48px;
-  height: 48px;
-  min-width: 48px;
-  padding: 7px;
-  border-radius: 15px;
-  background: #ffffff;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  height: 56px;
+  min-height: 56px;
+  padding: 0.55rem 0.7rem;
+  border-radius: 16px;
+  overflow: hidden;
+  isolation: isolate;
+  background: linear-gradient(
+    128deg,
+    #071525 0%,
+    #0f2844 38%,
+    #1a4470 72%,
+    #2a6399 100%
+  );
   box-shadow:
-    0 6px 18px rgba(var(--primary-rgb), 0.16),
-    0 0 0 1px rgba(var(--primary-rgb), 0.1);
+    0 10px 28px rgba(var(--primary-rgb), 0.28),
+    0 0 0 1px rgba(255, 255, 255, 0.12) inset,
+    0 0 0 1px rgba(var(--primary-rgb), 0.18),
+    0 0 24px rgba(var(--primary-mid-rgb), 0.2);
+  transition:
+    box-shadow var(--portal-sidebar-transition),
+    transform var(--portal-sidebar-transition);
 }
 
-body:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-brand-logo-wrap {
-  width: 44px;
-  height: 44px;
-  min-width: 44px;
+#portal-sidebar .sidebar-brand-logo-wrap::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 90% 140% at 8% 50%, rgba(var(--primary-mid-rgb), 0.38), transparent 62%),
+    radial-gradient(ellipse 60% 80% at 92% 20%, rgba(255, 255, 255, 0.08), transparent 55%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+#portal-sidebar .sidebar-brand-logo-wrap::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.22), transparent);
+  pointer-events: none;
+  z-index: 2;
+}
+
+#portal-sidebar .sidebar-brand-logo-wrap:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 14px 32px rgba(var(--primary-rgb), 0.34),
+    0 0 0 1px rgba(255, 255, 255, 0.16) inset,
+    0 0 0 1px rgba(var(--primary-mid-rgb), 0.28),
+    0 0 32px rgba(var(--primary-mid-rgb), 0.28);
+}
+
+#portal-sidebar .sidebar-brand-logo {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 40px;
+  object-fit: contain;
+  object-position: left center;
+  user-select: none;
+  -webkit-user-drag: none;
+  mix-blend-mode: screen;
+  filter:
+    contrast(1.34)
+    saturate(1.22)
+    brightness(1.14)
+    drop-shadow(0 3px 10px rgba(0, 0, 0, 0.42))
+    drop-shadow(0 0 16px rgba(184, 228, 255, 0.38))
+    drop-shadow(0 0 28px rgba(var(--primary-mid-rgb), 0.32));
+  transition: filter var(--portal-sidebar-transition), transform var(--portal-sidebar-transition);
+}
+
+#portal-sidebar .sidebar-brand-logo-wrap:hover .sidebar-brand-logo {
+  filter:
+    contrast(1.38)
+    saturate(1.26)
+    brightness(1.18)
+    drop-shadow(0 4px 12px rgba(0, 0, 0, 0.45))
+    drop-shadow(0 0 22px rgba(210, 238, 255, 0.48))
+    drop-shadow(0 0 36px rgba(var(--primary-mid-rgb), 0.4));
+  transform: scale(1.02);
+}
+
+/* Rail colapsado: solo el isotipo (alas) */
+body.portal-sidebar-collapsed #portal-sidebar .sidebar-brand-logo-wrap {
+  flex: 0 0 54px;
+  width: 54px;
+  min-width: 54px;
+  height: 54px;
+  min-height: 54px;
+  padding: 0.45rem;
+  justify-content: center;
+}
+
+body.portal-sidebar-collapsed #portal-sidebar .sidebar-brand-logo {
+  width: 220%;
+  max-width: none;
+  max-height: none;
+  height: 100%;
+  object-fit: cover;
+  object-position: left center;
+}
+
+body.portal-sidebar-collapsed #portal-sidebar .sidebar-rail-head {
+  align-items: center;
 }
 
 #portal-sidebar .sidebar-expand-toggle {
@@ -552,6 +656,25 @@ body:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-theme-title {
       1px 0 0 rgba(255, 255, 255, 0.5) inset;
   }
 
+  #portal-sidebar .sidebar-rail-head {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.55rem;
+  }
+
+  #portal-sidebar .sidebar-brand-logo-wrap {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+    height: 58px;
+    min-height: 58px;
+    padding: 0.6rem 0.75rem;
+  }
+
+  #portal-sidebar .sidebar-brand-logo {
+    max-height: 44px;
+  }
+
   #portal-sidebar .side-link {
     padding: 0.55rem 0.65rem;
     font-size: 0.9rem;
@@ -604,6 +727,31 @@ body[data-theme="dark"] #portal-sidebar .sidebar-notif-bell-toggle {
   border-color: rgba(var(--primary-mid-rgb), 0.14);
 }
 
+body[data-theme="dark"] #portal-sidebar .sidebar-brand-logo-wrap {
+  background: linear-gradient(
+    128deg,
+    #050d18 0%,
+    #0c1e34 40%,
+    #163a5e 78%,
+    #245f96 100%
+  );
+  box-shadow:
+    0 12px 30px rgba(0, 0, 0, 0.42),
+    0 0 0 1px rgba(var(--primary-mid-rgb), 0.22) inset,
+    0 0 0 1px rgba(var(--primary-mid-rgb), 0.16),
+    0 0 28px rgba(var(--primary-mid-rgb), 0.18);
+}
+
+body[data-theme="dark"] #portal-sidebar .sidebar-brand-logo {
+  filter:
+    contrast(1.36)
+    saturate(1.24)
+    brightness(1.16)
+    drop-shadow(0 3px 12px rgba(0, 0, 0, 0.55))
+    drop-shadow(0 0 20px rgba(184, 228, 255, 0.42))
+    drop-shadow(0 0 34px rgba(var(--primary-mid-rgb), 0.36));
+}
+
 body[data-theme="dark"] #portal-sidebar.sidebar--rail {
   box-shadow:
     1px 0 0 rgba(255, 255, 255, 0.04) inset,
@@ -614,11 +762,15 @@ body[data-theme="dark"] #portal-sidebar.sidebar--rail {
   #portal-sidebar .side-link,
   #portal-sidebar .side-link__icon-wrap,
   #portal-sidebar .sidebar-notif-bell-toggle,
-  #portal-sidebar .sidebar-user-panel {
+  #portal-sidebar .sidebar-user-panel,
+  #portal-sidebar .sidebar-brand-logo-wrap,
+  #portal-sidebar .sidebar-brand-logo {
     transition: none !important;
   }
 
-  #portal-sidebar .side-link:hover {
+  #portal-sidebar .side-link:hover,
+  #portal-sidebar .sidebar-brand-logo-wrap:hover,
+  #portal-sidebar .sidebar-brand-logo-wrap:hover .sidebar-brand-logo {
     transform: none;
   }
 }

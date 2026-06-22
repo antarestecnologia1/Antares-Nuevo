@@ -1,9 +1,7 @@
 /**
- * Portal — Dashboard (torre operativa y estadísticas).
- * Módulo autocontenido: helpers, vista HTML y listeners post-render.
- * Carga con `defer` después de `app.js` (depende de estado global del portal).
- *
- * Rediseño visual completo — Antares Portal v2
+ * Portal — Dashboard (Torre de Control · Antares v3)
+ * Rediseño visual completo. Módulo autocontenido.
+ * Carga con `defer` después de `app.js`.
  */
 (function registerDashboardPortalModule() {
   "use strict";
@@ -26,14 +24,6 @@
     return typeof fn === "function" ? fn(request) : false;
   }
 
-  function dashOpsStatusLabel(snap) {
-    if (!snap) return "Operación";
-    if (snap.delayedToday > 0) return "Atención requerida";
-    if (snap.standbyToday > 0 || snap.pendingAssignment > 0) return "Seguimiento activo";
-    if (snap.vehicleIdsEnRuta > 0) return "Operación en curso";
-    return "Operación al día";
-  }
-
   function dashOpsStatusTone(snap) {
     if (!snap) return "neutral";
     if (snap.delayedToday > 0) return "alert";
@@ -44,13 +34,9 @@
 
   function dashActivitySortKey(request) {
     const candidates = [
-      request?.updatedAt,
-      request?.deliveredAt,
-      request?.trip?.etaDelivery,
-      request?.deliveryAt,
-      request?.trip?.etaPickup,
-      request?.pickupAt,
-      request?.createdAt
+      request?.updatedAt, request?.deliveredAt,
+      request?.trip?.etaDelivery, request?.deliveryAt,
+      request?.trip?.etaPickup, request?.pickupAt, request?.createdAt
     ];
     for (const value of candidates) {
       const ts = new Date(value).getTime();
@@ -65,45 +51,12 @@
       const trips = g.trips || [];
       const liveCount = trips.filter((r) => dashRequestOutcomeTone(r.status) === "live").length;
       const completed = trips.filter((r) => [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status)).length;
-      const status = liveCount
-        ? "en-ruta"
-        : completed === trips.length && trips.length
-          ? "cerrado"
-          : trips.length
-            ? "programado"
-            : "libre";
+      const status = liveCount ? "en-ruta"
+        : completed === trips.length && trips.length ? "cerrado"
+        : trips.length ? "programado" : "libre";
       if (status in counts) counts[status] += 1;
     });
     return counts;
-  }
-
-  /* ─────────────────────────────────────────────────────────────
-     COMPONENTES ATOM
-  ───────────────────────────────────────────────────────────── */
-
-  function dashStatusPill(status) {
-    const tone = dashRequestOutcomeTone(status);
-    return `<span class="dash-pill dash-pill--${tone}">${prettyStatus(status, "request")}</span>`;
-  }
-
-  /** Anillo SVG de cumplimiento */
-  function dashBuildRing(pct, label, tone) {
-    const safe = Math.min(100, Math.max(0, Number(pct) || 0));
-    const r = 20;
-    const c = 2 * Math.PI * r;
-    const offset = c - (safe / 100) * c;
-    const mod = tone ? ` dash-ring--${tone}` : "";
-    return `<div class="dash-ring${mod}" role="img" aria-label="${escapeAttr(label)}: ${safe}%">
-      <svg viewBox="0 0 48 48" aria-hidden="true">
-        <circle class="dash-ring__bg" cx="24" cy="24" r="${r}"></circle>
-        <circle class="dash-ring__fg" cx="24" cy="24" r="${r}"
-          stroke-dasharray="${c.toFixed(2)}" stroke-dashoffset="${offset.toFixed(2)}"></circle>
-      </svg>
-      <div class="dash-ring__inner">
-        <strong class="dash-ring__pct">${safe}%</strong>
-        <span class="dash-ring__label">${escapeHtml(label)}</span>
-      </div>
-    </div>`;
   }
 
   function dashFormatTimeAgo(iso) {
@@ -112,290 +65,1637 @@
     const mins = Math.max(0, Math.round((Date.now() - ts) / 60000));
     if (mins < 1) return "ahora";
     if (mins < 60) return `hace ${mins} min`;
-    const hrs = Math.round(mins / 60);
-    return `hace ${hrs} h`;
-  }
-
-  /** KPI premium con gradiente y jerarquía visual */
-  function dashBuildPremiumKpi(icon, label, value, sub, tone, hero, staggerIdx) {
-    const mod = tone ? ` dash-kpi--${tone}` : "";
-    const heroMod = hero ? " dash-kpi--hero" : "";
-    const display = String(value);
-    const rawNum = display.replace(/[^\d.-]/g, "");
-    const countAttr =
-      rawNum !== "" && Number.isFinite(Number(rawNum))
-        ? ` data-dash-count="${escapeAttr(rawNum)}" data-dash-display="${escapeAttr(display)}"`
-        : "";
-    const stagger = Number.isFinite(staggerIdx) ? staggerIdx : 0;
-    return `<article class="dash-kpi dash-reveal${mod}${heroMod}" style="--dash-stagger:${stagger}"${countAttr}>
-      <div class="dash-kpi__glow" aria-hidden="true"></div>
-      <div class="dash-kpi__icon" aria-hidden="true">${icon}</div>
-      <strong class="dash-kpi__value">${escapeHtml(display)}</strong>
-      <span class="dash-kpi__label">${escapeHtml(label)}</span>
-      ${sub ? `<span class="dash-kpi__sub">${escapeHtml(sub)}</span>` : ""}
-    </article>`;
-  }
-
-  /** Tarjeta de métrica superior (legacy / cliente) */
-  function dashBuildMetricCard(icon, label, value, sub, tone) {
-    const mod = tone ? ` dash-metric--${tone}` : "";
-    return `<article class="dash-metric${mod}">
-      <div class="dash-metric__top">
-        <span class="dash-metric__label">${escapeHtml(label)}</span>
-        <span class="dash-metric__icon" aria-hidden="true">${icon}</span>
-      </div>
-      <strong class="dash-metric__value">${escapeHtml(String(value))}</strong>
-      ${sub ? `<span class="dash-metric__sub">${escapeHtml(sub)}</span>` : ""}
-    </article>`;
+    return `hace ${Math.round(mins / 60)} h`;
   }
 
   /* ─────────────────────────────────────────────────────────────
-     STRIP DE MÉTRICAS
+     CSS INLINE — variables de diseño y estilos completos
   ───────────────────────────────────────────────────────────── */
 
-  function dashBuildMetricsStrip(snap, user, exec) {
-    if (!snap) return "";
-    const complianceSub =
-      snap.compliancePct >= 80 ? "Meta alcanzada" : snap.compliancePct >= 50 ? "Seguimiento activo" : "Bajo objetivo";
-    const cards = [
-      dashBuildPremiumKpi(IC.truck || "🚚", "En ruta", snap.vehicleIdsEnRuta, "Vehículos activos", "live", false, 0),
-      dashBuildPremiumKpi(IC.compass || "📋", "Asignados", snap.assignedToday, "Programados hoy", "blue", false, 1),
-      dashBuildPremiumKpi(IC.check || "✅", "Completados", snap.completedToday, "Entregas cerradas", "purple", false, 2),
-      dashBuildPremiumKpi(
-        IC.alertTriangle || "⚠️",
-        "Retrasos",
-        snap.delayedToday,
-        snap.delayedToday ? "Requieren acción" : "Sin desvíos",
-        snap.delayedToday ? "alert" : "muted",
-        false,
-        3
-      ),
-      dashBuildPremiumKpi(
-        IC.activity || "🎯",
-        "Cumplimiento SLA",
-        `${snap.compliancePct}%`,
-        complianceSub,
-        snap.compliancePct >= 80 ? "hero-ok" : snap.compliancePct >= 50 ? "hero-warn" : "hero-alert",
-        true,
-        4
-      )
-    ];
-    const execItems = exec
-      ? [
-          { label: "Puntualidad", value: `${exec.punctualityPct}%` },
-          { label: "Utilización flota", value: `${exec.fleetUtilPct}%` },
-          { label: "Combustible hoy", value: exec.fuelLiters > 0 ? `${exec.fuelLiters} L` : "—" },
-          { label: "Km recorridos", value: exec.kmToday > 0 ? `${exec.kmToday.toLocaleString("es-CO")} km` : "—" }
-        ]
-      : [];
-    const execRow = execItems.length
-      ? `<div class="dash-exec-strip" aria-label="Métricas ejecutivas">
-          ${execItems
-            .map(
-              (item, i) =>
-                `<div class="dash-exec-item dash-reveal" style="--dash-stagger:${6 + i}"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong></div>`
-            )
-            .join("")}
-        </div>`
-      : "";
-    return `<section class="dash-metrics dash-metrics--tower" aria-label="Indicadores del día">
-      <div class="dash-kpi-grid">${cards.join("")}</div>
-      ${execRow}
-    </section>`;
+  const DASH_STYLES = `
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+/* ══════════════════════════════════════════════════════════
+   VARIABLES DE DISEÑO — ANTARES TOWER v3
+══════════════════════════════════════════════════════════ */
+.dashboard-studio {
+  /* Superficies */
+  --at-bg:          #09090E;
+  --at-surface:     #111318;
+  --at-surface-2:   #191C23;
+  --at-surface-3:   #1E2229;
+  --at-border:      rgba(255,255,255,0.07);
+  --at-border-2:    rgba(255,255,255,0.12);
+
+  /* Acento primario — cian radar */
+  --at-cyan:        #00D4FF;
+  --at-cyan-mid:    rgba(0,212,255,0.18);
+  --at-cyan-low:    rgba(0,212,255,0.07);
+  --at-cyan-glow:   0 0 20px rgba(0,212,255,0.3);
+
+  /* Semáforos */
+  --at-green:       #10B981;
+  --at-green-mid:   rgba(16,185,129,0.15);
+  --at-green-low:   rgba(16,185,129,0.07);
+  --at-amber:       #F59E0B;
+  --at-amber-mid:   rgba(245,158,11,0.15);
+  --at-amber-low:   rgba(245,158,11,0.07);
+  --at-red:         #EF4444;
+  --at-red-mid:     rgba(239,68,68,0.15);
+  --at-red-low:     rgba(239,68,68,0.07);
+
+  /* Texto */
+  --at-text:        #E8EAF0;
+  --at-text-2:      #9CA3AF;
+  --at-text-3:      #6B7280;
+
+  /* Tipografía */
+  --at-font-ui:     'Inter', system-ui, sans-serif;
+  --at-font-data:   'JetBrains Mono', 'SF Mono', monospace;
+
+  /* Radio */
+  --at-r-sm:        6px;
+  --at-r:           10px;
+  --at-r-lg:        14px;
+
+  /* Sombras */
+  --at-shadow:      0 1px 3px rgba(0,0,0,0.4), 0 4px 12px rgba(0,0,0,0.3);
+  --at-shadow-lg:   0 4px 24px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.4);
+}
+
+/* ══════════════════════════════════════════════════════════
+   RESET & BASE
+══════════════════════════════════════════════════════════ */
+.dashboard-studio *,
+.dashboard-studio *::before,
+.dashboard-studio *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+.dashboard-studio {
+  font-family: var(--at-font-ui);
+  background: var(--at-bg);
+  color: var(--at-text);
+  min-height: 100vh;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.dashboard-studio button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: inherit;
+}
+
+.dashboard-studio a { color: inherit; text-decoration: none; }
+
+/* ══════════════════════════════════════════════════════════
+   REVEAL ANIMATION
+══════════════════════════════════════════════════════════ */
+@keyframes at-fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.at-reveal {
+  opacity: 0;
+  animation: at-fade-up 0.45s cubic-bezier(0.22,1,0.36,1) both;
+  animation-delay: calc(var(--at-stagger, 0) * 55ms);
+}
+
+.dashboard-studio--mounted .at-reveal { opacity: 1; }
+
+/* ══════════════════════════════════════════════════════════
+   HERO — COMANDO CENTRAL
+══════════════════════════════════════════════════════════ */
+.at-hero {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: start;
+  gap: 24px;
+  padding: 28px 32px 24px;
+  border-bottom: 1px solid var(--at-border);
+  position: relative;
+  overflow: hidden;
+}
+
+.at-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 60% 100% at 0% 0%, rgba(0,212,255,0.05) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.at-hero__eyebrow {
+  font-family: var(--at-font-data);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--at-cyan);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.at-hero__eyebrow::before {
+  content: '';
+  display: block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--at-cyan);
+  box-shadow: 0 0 8px var(--at-cyan);
+  animation: at-pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes at-pulse-dot {
+  0%, 100% { opacity: 1; box-shadow: 0 0 8px var(--at-cyan); }
+  50%       { opacity: 0.6; box-shadow: 0 0 16px var(--at-cyan); }
+}
+
+.at-hero__title {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--at-text);
+  line-height: 1.2;
+}
+
+.at-hero__name { color: var(--at-cyan); }
+
+.at-hero__meta {
+  font-family: var(--at-font-data);
+  font-size: 11px;
+  color: var(--at-text-3);
+  margin-top: 6px;
+  display: flex;
+  gap: 12px;
+}
+
+.at-hero__meta span + span::before {
+  content: '·';
+  margin-right: 12px;
+  opacity: 0.4;
+}
+
+.at-hero__aside {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+/* Status chips */
+.at-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.at-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.at-chip--warn   { background: var(--at-amber-low); border-color: rgba(245,158,11,0.3); color: var(--at-amber); }
+.at-chip--doc    { background: var(--at-cyan-low);  border-color: rgba(0,212,255,0.25); color: var(--at-cyan); }
+.at-chip--live   { background: var(--at-green-low); border-color: rgba(16,185,129,0.3); color: var(--at-green); }
+.at-chip--ok     { background: var(--at-green-low); border-color: rgba(16,185,129,0.3); color: var(--at-green); }
+.at-chip--alert  { background: var(--at-red-low);   border-color: rgba(239,68,68,0.3);  color: var(--at-red); }
+.at-chip--neutral { background: var(--at-surface-2); border-color: var(--at-border-2);   color: var(--at-text-2); }
+
+.at-chip__dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.at-chip--live .at-chip__dot,
+.at-chip--ok .at-chip__dot { animation: at-pulse-dot 2s infinite; }
+
+/* Acciones rápidas */
+.at-quick-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.at-qa-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: var(--at-r-sm);
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--at-surface-2);
+  border: 1px solid var(--at-border-2);
+  color: var(--at-text-2);
+  transition: all 0.15s;
+}
+
+.at-qa-btn:hover { background: var(--at-surface-3); color: var(--at-text); border-color: var(--at-border-2); }
+.at-qa-btn--primary { background: var(--at-cyan-mid); border-color: rgba(0,212,255,0.4); color: var(--at-cyan); }
+.at-qa-btn--primary:hover { background: rgba(0,212,255,0.25); }
+
+/* ══════════════════════════════════════════════════════════
+   KPI STRIP
+══════════════════════════════════════════════════════════ */
+.at-kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 1px;
+  background: var(--at-border);
+  border-bottom: 1px solid var(--at-border);
+}
+
+.at-kpi {
+  background: var(--at-surface);
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  position: relative;
+  overflow: hidden;
+  transition: background 0.2s;
+}
+
+.at-kpi:hover { background: var(--at-surface-2); }
+
+.at-kpi::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--at-kpi-accent, transparent);
+}
+
+.at-kpi--live   { --at-kpi-accent: var(--at-cyan); }
+.at-kpi--blue   { --at-kpi-accent: #6366F1; }
+.at-kpi--purple { --at-kpi-accent: #A855F7; }
+.at-kpi--alert  { --at-kpi-accent: var(--at-red); }
+.at-kpi--ok     { --at-kpi-accent: var(--at-green); }
+.at-kpi--warn   { --at-kpi-accent: var(--at-amber); }
+.at-kpi--muted  { --at-kpi-accent: var(--at-border-2); }
+
+.at-kpi__icon {
+  font-size: 16px;
+  margin-bottom: 8px;
+  opacity: 0.7;
+}
+
+.at-kpi__value {
+  font-family: var(--at-font-data);
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--at-text);
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.at-kpi--live .at-kpi__value   { color: var(--at-cyan); }
+.at-kpi--alert .at-kpi__value  { color: var(--at-red); }
+
+.at-kpi__label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--at-text-2);
+  margin-top: 4px;
+}
+
+.at-kpi__sub {
+  font-family: var(--at-font-data);
+  font-size: 10px;
+  color: var(--at-text-3);
+  letter-spacing: 0.03em;
+}
+
+/* Exec strip */
+.at-exec-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: var(--at-border);
+  border-bottom: 1px solid var(--at-border);
+}
+
+.at-exec-item {
+  background: var(--at-bg);
+  padding: 12px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.at-exec-item span {
+  font-size: 11px;
+  color: var(--at-text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 500;
+}
+
+.at-exec-item strong {
+  font-family: var(--at-font-data);
+  font-size: 13px;
+  color: var(--at-text);
+}
+
+/* ══════════════════════════════════════════════════════════
+   COMMAND CENTER — MAPA + ALERTAS
+══════════════════════════════════════════════════════════ */
+.at-command {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 1px;
+  background: var(--at-border);
+  border-bottom: 1px solid var(--at-border);
+}
+
+/* MAPA */
+.at-map {
+  background: var(--at-surface);
+  position: relative;
+  min-height: 260px;
+  overflow: hidden;
+}
+
+.at-map__head {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 2;
+  background: linear-gradient(to bottom, rgba(17,19,24,0.9) 60%, transparent);
+}
+
+.at-map__title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--at-text-2);
+}
+
+.at-live-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--at-font-data);
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  color: var(--at-green);
+  font-weight: 700;
+}
+
+.at-live-pulse {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--at-green);
+  animation: at-pulse-dot 1.5s infinite;
+  box-shadow: 0 0 6px var(--at-green);
+}
+
+/* Terrain SVG */
+.at-map__terrain {
+  position: absolute;
+  inset: 0;
+}
+
+/* Grid radar */
+.at-map__grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--at-border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--at-border) 1px, transparent 1px);
+  background-size: 40px 40px;
+  opacity: 0.5;
+}
+
+.at-map__coords {
+  position: absolute;
+  bottom: 12px; left: 16px;
+  font-family: var(--at-font-data);
+  font-size: 9px;
+  color: var(--at-text-3);
+  letter-spacing: 0.08em;
+  z-index: 2;
+}
+
+/* Pins */
+.at-map-pin {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  transition: transform 0.2s;
+}
+
+.at-map-pin:hover { transform: translate(-50%, -50%) scale(1.15); z-index: 10; }
+
+.at-map-pin__ico {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  border: 2px solid;
+  position: relative;
+}
+
+.at-map-pin--live .at-map-pin__ico {
+  background: var(--at-cyan-mid);
+  border-color: var(--at-cyan);
+  box-shadow: 0 0 16px rgba(0,212,255,0.4);
+}
+
+.at-map-pin--alert .at-map-pin__ico {
+  background: var(--at-red-mid);
+  border-color: var(--at-red);
+  box-shadow: 0 0 12px rgba(239,68,68,0.4);
+}
+
+/* Radar ring effect */
+.at-map-pin--live .at-map-pin__ico::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 1.5px solid var(--at-cyan);
+  opacity: 0;
+  animation: at-radar-ring 2.4s ease-out infinite;
+}
+
+@keyframes at-radar-ring {
+  0%   { transform: scale(1); opacity: 0.8; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+
+.at-map-pin__label {
+  font-family: var(--at-font-data);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  background: rgba(17,19,24,0.9);
+  border: 1px solid var(--at-border-2);
+  padding: 2px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.at-map-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--at-text-3);
+  font-size: 13px;
+}
+
+.at-map-empty__icon { font-size: 28px; opacity: 0.3; }
+
+/* ALERTAS */
+.at-alerts-panel {
+  background: var(--at-surface);
+  display: flex;
+  flex-direction: column;
+}
+
+.at-panel-head {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--at-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.at-panel-head__kicker {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--at-text-3);
+  font-weight: 600;
+  display: block;
+  margin-bottom: 3px;
+  font-family: var(--at-font-data);
+}
+
+.at-panel-head h3 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--at-text);
+}
+
+.at-alert-count {
+  font-family: var(--at-font-data);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--at-red);
+  min-width: 28px;
+  text-align: right;
+}
+
+.at-alert-ok-badge {
+  font-family: var(--at-font-data);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--at-green);
+  letter-spacing: 0.1em;
+  background: var(--at-green-low);
+  border: 1px solid rgba(16,185,129,0.3);
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.at-alert-list {
+  list-style: none;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.at-alert-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--at-border);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+  width: 100%;
+  text-align: left;
+}
+
+.at-alert-item:hover { background: var(--at-surface-2); }
+
+.at-alert-item__bar {
+  width: 3px;
+  height: 32px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.at-alert-item--alert .at-alert-item__bar { background: var(--at-red); box-shadow: 0 0 6px rgba(239,68,68,0.5); }
+.at-alert-item--warn  .at-alert-item__bar { background: var(--at-amber); }
+
+.at-alert-item__ico { font-size: 14px; flex-shrink: 0; }
+.at-alert-item__text { flex: 1; color: var(--at-text-2); line-height: 1.3; }
+.at-alert-ok { padding: 20px; font-size: 12px; color: var(--at-green); text-align: center; }
+
+/* ══════════════════════════════════════════════════════════
+   ANALYTICS ROW
+══════════════════════════════════════════════════════════ */
+.at-analytics {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr 1fr;
+  gap: 1px;
+  background: var(--at-border);
+  border-bottom: 1px solid var(--at-border);
+}
+
+.at-panel {
+  background: var(--at-surface);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Compliance */
+.at-compliance-wrap {
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex: 1;
+}
+
+.at-compliance-ring-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.at-compliance-ring-wrap svg {
+  width: 88px; height: 88px;
+  transform: rotate(-90deg);
+}
+
+.at-ring-bg   { fill: none; stroke: var(--at-surface-3); stroke-width: 7; }
+.at-ring-fg   { fill: none; stroke-width: 7; stroke-linecap: round; transition: stroke-dashoffset 0.9s cubic-bezier(0.22,1,0.36,1); }
+.at-ring-fg--ok    { stroke: var(--at-green); filter: drop-shadow(0 0 4px rgba(16,185,129,0.5)); }
+.at-ring-fg--warn  { stroke: var(--at-amber); filter: drop-shadow(0 0 4px rgba(245,158,11,0.5)); }
+.at-ring-fg--alert { stroke: var(--at-red);   filter: drop-shadow(0 0 4px rgba(239,68,68,0.5)); }
+
+.at-ring-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.at-ring-pct {
+  font-family: var(--at-font-data);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.at-ring-lbl {
+  font-size: 9px;
+  color: var(--at-text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.at-compliance-body { flex: 1; }
+
+.at-compliance-body h4 {
+  font-size: 22px;
+  font-family: var(--at-font-data);
+  font-weight: 700;
+  color: var(--at-text);
+  letter-spacing: -0.02em;
+}
+
+.at-compliance-caption { font-size: 11px; color: var(--at-text-3); margin-top: 2px; }
+
+.at-compliance-bar-wrap {
+  margin-top: 14px;
+  background: var(--at-surface-3);
+  border-radius: 3px;
+  height: 5px;
+  overflow: hidden;
+}
+
+.at-compliance-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.9s cubic-bezier(0.22,1,0.36,1);
+}
+
+.at-compliance-bar-fill--ok    { background: var(--at-green); box-shadow: 0 0 6px rgba(16,185,129,0.5); }
+.at-compliance-bar-fill--warn  { background: var(--at-amber); }
+.at-compliance-bar-fill--alert { background: var(--at-red); }
+
+.at-chart-badge {
+  font-family: var(--at-font-data);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  padding: 4px 9px;
+  border-radius: 4px;
+}
+
+.at-chart-badge--ok    { background: var(--at-green-low);  color: var(--at-green);  border: 1px solid rgba(16,185,129,0.3); }
+.at-chart-badge--warn  { background: var(--at-amber-low);  color: var(--at-amber);  border: 1px solid rgba(245,158,11,0.3); }
+.at-chart-badge--alert { background: var(--at-red-low);    color: var(--at-red);    border: 1px solid rgba(239,68,68,0.3); }
+
+/* Hourly */
+.at-hourly-wrap { padding: 16px 20px; flex: 1; overflow: hidden; }
+
+.at-hour-row {
+  display: grid;
+  grid-template-columns: 38px 1fr 28px;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 9px;
+}
+
+.at-hour-label {
+  font-family: var(--at-font-data);
+  font-size: 10px;
+  color: var(--at-text-3);
+  text-align: right;
+}
+
+.at-hour-track {
+  background: var(--at-surface-3);
+  border-radius: 3px;
+  height: 6px;
+  overflow: hidden;
+}
+
+.at-hour-fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--at-cyan) 0%, rgba(0,212,255,0.6) 100%);
+  border-radius: 3px;
+  transition: width 0.7s cubic-bezier(0.22,1,0.36,1);
+}
+
+.at-hour-val {
+  font-family: var(--at-font-data);
+  font-size: 10px;
+  color: var(--at-text-2);
+  text-align: right;
+}
+
+.at-chart-total {
+  font-family: var(--at-font-data);
+  font-size: 12px;
+  color: var(--at-text-3);
+}
+
+/* Fleet Pie */
+.at-fleet-pie-wrap {
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex: 1;
+}
+
+.at-fleet-pie {
+  width: 90px; height: 90px;
+  border-radius: 50%;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.at-fleet-pie__hole {
+  position: absolute;
+  inset: 16px;
+  background: var(--at-surface);
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.at-fleet-pie__hole strong {
+  font-family: var(--at-font-data);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.at-fleet-pie__hole span {
+  font-size: 8px;
+  color: var(--at-text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.at-fleet-legend { list-style: none; font-size: 12px; }
+.at-fleet-legend li { display: flex; align-items: center; gap: 7px; margin-bottom: 7px; color: var(--at-text-2); }
+.at-fleet-legend strong { font-family: var(--at-font-data); font-size: 13px; color: var(--at-text); margin-left: auto; padding-left: 8px; }
+
+.at-legend-dot {
+  width: 8px; height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.at-legend-dot--live  { background: var(--at-cyan); }
+.at-legend-dot--warn  { background: var(--at-amber); }
+.at-legend-dot--alert { background: var(--at-red); }
+
+/* ══════════════════════════════════════════════════════════
+   FLEET TOWER
+══════════════════════════════════════════════════════════ */
+.at-fleet-section {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 1px;
+  background: var(--at-border);
+}
+
+.at-fleet-panel { background: var(--at-bg); }
+
+/* Fleet panel head */
+.at-fleet-head {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--at-border);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--at-surface);
+}
+
+.at-fleet-head__info { flex: 1; }
+.at-fleet-head__info h3 { font-size: 14px; font-weight: 600; }
+.at-fleet-head__info p  { font-size: 11px; color: var(--at-text-3); margin-top: 1px; }
+
+.at-search-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--at-surface-2);
+  border: 1px solid var(--at-border-2);
+  border-radius: var(--at-r-sm);
+  padding: 6px 10px;
+}
+
+.at-search-wrap input {
+  background: none;
+  border: none;
+  outline: none;
+  font-size: 12px;
+  color: var(--at-text);
+  font-family: var(--at-font-ui);
+  width: 180px;
+}
+
+.at-search-wrap input::placeholder { color: var(--at-text-3); }
+.at-search-wrap svg { color: var(--at-text-3); }
+
+.at-fleet-count {
+  font-family: var(--at-font-data);
+  font-size: 11px;
+  color: var(--at-text-3);
+  white-space: nowrap;
+}
+
+/* Tabs */
+.at-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--at-border);
+  background: var(--at-surface);
+}
+
+.at-tab {
+  flex: 1;
+  padding: 10px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--at-text-3);
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s;
+  text-align: center;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.at-tab:hover { color: var(--at-text); background: var(--at-surface-2); }
+
+.at-tab.is-active {
+  color: var(--at-cyan);
+  border-bottom-color: var(--at-cyan);
+  background: var(--at-surface-2);
+}
+
+.at-tab em {
+  font-style: normal;
+  font-family: var(--at-font-data);
+  font-size: 10px;
+  background: var(--at-surface-3);
+  border-radius: 10px;
+  padding: 1px 6px;
+  color: var(--at-text-3);
+}
+
+.at-tab.is-active em { background: var(--at-cyan-low); color: var(--at-cyan); }
+
+/* Fleet list */
+.at-fleet-list {
+  overflow-y: auto;
+  max-height: 600px;
+}
+
+/* Vehicle card */
+.at-vehicle {
+  border-bottom: 1px solid var(--at-border);
+  transition: background 0.15s;
+}
+
+.at-vehicle:hover { background: var(--at-surface); }
+
+.at-vehicle__head {
+  padding: 14px 20px 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.at-vehicle__status-bar {
+  width: 4px;
+  height: 40px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.at-vehicle--en-ruta .at-vehicle__status-bar   { background: var(--at-cyan); box-shadow: 0 0 8px rgba(0,212,255,0.5); }
+.at-vehicle--programado .at-vehicle__status-bar { background: #6366F1; }
+.at-vehicle--cerrado .at-vehicle__status-bar    { background: var(--at-surface-3); }
+.at-vehicle--libre .at-vehicle__status-bar      { background: var(--at-surface-3); }
+
+.at-vehicle__plate {
+  font-family: var(--at-font-data);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.at-vehicle__driver { font-size: 11px; color: var(--at-text-3); margin-top: 1px; }
+
+.at-vehicle__badge {
+  margin-left: auto;
+  font-family: var(--at-font-data);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 4px 9px;
+  border-radius: 4px;
+}
+
+.at-vehicle--en-ruta   .at-vehicle__badge { background: var(--at-cyan-mid);  color: var(--at-cyan);  border: 1px solid rgba(0,212,255,0.35); }
+.at-vehicle--programado .at-vehicle__badge { background: rgba(99,102,241,0.15); color: #818CF8; border: 1px solid rgba(99,102,241,0.3); }
+.at-vehicle--cerrado   .at-vehicle__badge { background: var(--at-surface-3); color: var(--at-text-3); border: 1px solid var(--at-border); }
+.at-vehicle--libre     .at-vehicle__badge { background: var(--at-surface-3); color: var(--at-text-3); border: 1px solid var(--at-border); }
+
+/* Mini bars */
+.at-mini-bars {
+  display: flex;
+  gap: 3px;
+  padding: 0 20px 10px;
+}
+
+.at-mini-bar {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  min-width: 8px;
+}
+
+.at-mini-bar--live    { background: var(--at-cyan); }
+.at-mini-bar--ok      { background: var(--at-green); }
+.at-mini-bar--warn    { background: var(--at-amber); }
+.at-mini-bar--alert   { background: var(--at-red); }
+.at-mini-bar--neutral { background: var(--at-surface-3); }
+
+/* Trip table */
+.at-trip-table-wrap { overflow-x: auto; }
+
+.at-trip-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.at-trip-table thead th {
+  padding: 6px 20px;
+  text-align: left;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--at-text-3);
+  font-weight: 600;
+  font-family: var(--at-font-data);
+  background: var(--at-bg);
+  border-top: 1px solid var(--at-border);
+  border-bottom: 1px solid var(--at-border);
+}
+
+.at-trip-table tbody td {
+  padding: 9px 20px;
+  border-bottom: 1px solid var(--at-border);
+  vertical-align: middle;
+}
+
+.at-trip-table tbody tr:hover td { background: rgba(255,255,255,0.02); }
+
+.at-trip-table tr.at-row--delayed td { background: rgba(239,68,68,0.04); }
+
+.at-trip-link {
+  font-family: var(--at-font-data);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--at-cyan);
+  transition: color 0.15s;
+}
+
+.at-trip-link:hover { color: white; }
+
+.at-trip-client {
+  display: block;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+
+.at-trip-route {
+  display: block;
+  font-size: 10px;
+  color: var(--at-text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+  margin-top: 1px;
+}
+
+.at-trip-eta {
+  font-family: var(--at-font-data);
+  font-size: 12px;
+}
+
+.at-delay-tag {
+  margin-left: 4px;
+  color: var(--at-red);
+  font-size: 11px;
+}
+
+.at-vehicle__empty {
+  padding: 16px 20px;
+  font-size: 12px;
+  color: var(--at-text-3);
+}
+
+/* Pill */
+.at-pill {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--at-font-data);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  padding: 3px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.at-pill--live    { background: var(--at-cyan-low);  color: var(--at-cyan);  border: 1px solid rgba(0,212,255,0.25); }
+.at-pill--ok      { background: var(--at-green-low); color: var(--at-green); border: 1px solid rgba(16,185,129,0.25); }
+.at-pill--warn    { background: var(--at-amber-low); color: var(--at-amber); border: 1px solid rgba(245,158,11,0.25); }
+.at-pill--alert   { background: var(--at-red-low);   color: var(--at-red);   border: 1px solid rgba(239,68,68,0.25); }
+.at-pill--neutral { background: var(--at-surface-2); color: var(--at-text-3); border: 1px solid var(--at-border); }
+
+/* Fleet empty */
+.at-fleet-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 60px 40px;
+  text-align: center;
+  color: var(--at-text-3);
+}
+
+.at-fleet-empty__icon { font-size: 36px; opacity: 0.2; }
+.at-fleet-empty strong { color: var(--at-text-2); }
+
+/* ══════════════════════════════════════════════════════════
+   ACTIVITY FEED
+══════════════════════════════════════════════════════════ */
+.at-activity-panel {
+  background: var(--at-surface);
+  display: flex;
+  flex-direction: column;
+}
+
+.at-activity-list { list-style: none; overflow-y: auto; flex: 1; }
+
+.at-activity-item {
+  display: grid;
+  grid-template-columns: 40px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--at-border);
+  position: relative;
+}
+
+.at-activity-item::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+}
+
+.at-activity-item--live::before  { background: var(--at-cyan); }
+.at-activity-item--ok::before    { background: var(--at-green); }
+.at-activity-item--warn::before  { background: var(--at-amber); }
+.at-activity-item--alert::before { background: var(--at-red); }
+
+.at-activity-time {
+  font-family: var(--at-font-data);
+  font-size: 10px;
+  color: var(--at-text-3);
+  text-align: right;
+}
+
+.at-activity-link {
+  font-size: 12px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  transition: color 0.15s;
+}
+
+.at-activity-link:hover { color: var(--at-cyan); }
+
+.at-activity-link strong {
+  font-family: var(--at-font-data);
+  font-size: 12px;
+}
+
+.at-activity-link span { font-size: 10px; color: var(--at-text-3); }
+.at-activity-empty { padding: 20px 16px; font-size: 12px; color: var(--at-text-3); text-align: center; }
+
+/* ══════════════════════════════════════════════════════════
+   PULSE PANEL
+══════════════════════════════════════════════════════════ */
+.at-pulse-list { list-style: none; padding: 8px 0; }
+
+.at-pulse-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 9px 20px;
+  border-bottom: 1px solid var(--at-border);
+  font-size: 12px;
+}
+
+.at-pulse-item__label { color: var(--at-text-2); }
+.at-pulse-item__value {
+  font-family: var(--at-font-data);
+  font-weight: 600;
+  color: var(--at-text);
+}
+
+.at-pulse-item--warn .at-pulse-item__value  { color: var(--at-amber); }
+.at-pulse-item--alert .at-pulse-item__value { color: var(--at-red); }
+
+.at-pulse-foot {
+  padding: 10px 20px;
+  font-size: 10px;
+  color: var(--at-text-3);
+  font-family: var(--at-font-data);
+  border-top: 1px solid var(--at-border);
+}
+
+/* ══════════════════════════════════════════════════════════
+   SCOPE BAR
+══════════════════════════════════════════════════════════ */
+.at-scope-bar {
+  padding: 8px 32px;
+  background: rgba(245,158,11,0.08);
+  border-bottom: 1px solid rgba(245,158,11,0.2);
+  font-size: 12px;
+  color: var(--at-amber);
+  font-family: var(--at-font-data);
+}
+
+/* ══════════════════════════════════════════════════════════
+   CLIENT VIEW
+══════════════════════════════════════════════════════════ */
+.at-client-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--at-border);
+}
+
+.at-client-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--at-border);
+  margin: 0;
+  border-top: 1px solid var(--at-border);
+}
+
+.at-client-stat {
+  background: var(--at-surface);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.at-client-stat dt { font-size: 11px; color: var(--at-text-3); text-transform: uppercase; letter-spacing: 0.08em; }
+.at-client-stat dd {
+  font-family: var(--at-font-data);
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--at-text);
+  line-height: 1;
+}
+
+.at-client-stat--live dd  { color: var(--at-cyan); }
+.at-client-stat--ok dd    { color: var(--at-green); }
+.at-client-stat--warn dd  { color: var(--at-amber); }
+
+/* ══════════════════════════════════════════════════════════
+   RESPONSIVE
+══════════════════════════════════════════════════════════ */
+@media (max-width: 1100px) {
+  .at-kpi-strip { grid-template-columns: repeat(3, 1fr); }
+  .at-exec-strip { grid-template-columns: repeat(2, 1fr); }
+  .at-analytics { grid-template-columns: 1fr 1fr; }
+  .at-analytics > :last-child { grid-column: 1 / -1; }
+  .at-fleet-section { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 720px) {
+  .at-hero { grid-template-columns: 1fr; }
+  .at-hero__aside { align-items: flex-start; }
+  .at-kpi-strip { grid-template-columns: repeat(2, 1fr); }
+  .at-exec-strip { grid-template-columns: 1fr; }
+  .at-command { grid-template-columns: 1fr; }
+  .at-analytics { grid-template-columns: 1fr; }
+  .at-client-layout { grid-template-columns: 1fr; }
+  .at-hero { padding: 20px 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .at-reveal { animation: none; opacity: 1; }
+  .at-pulse-dot, .at-live-pulse, .at-radar-ring { animation: none; }
+  .at-fleet-pie, .at-ring-fg, .at-hour-fill,
+  .at-compliance-bar-fill { transition: none; }
+}
+  `;
+
+  /* ─────────────────────────────────────────────────────────────
+     INYECTAR CSS UNA VEZ
+  ───────────────────────────────────────────────────────────── */
+
+  function dashInjectStyles() {
+    if (document.getElementById("at-dash-styles")) return;
+    const style = document.createElement("style");
+    style.id = "at-dash-styles";
+    style.textContent = DASH_STYLES;
+    document.head.appendChild(style);
   }
 
-  function dashBuildStatusChips(snap, attentionItems) {
+  /* ─────────────────────────────────────────────────────────────
+     COMPONENTES ATOM
+  ───────────────────────────────────────────────────────────── */
+
+  function dashStatusPill(status) {
+    const tone = dashRequestOutcomeTone(status);
+    return `<span class="at-pill at-pill--${tone}">${prettyStatus(status, "request")}</span>`;
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     HERO
+  ───────────────────────────────────────────────────────────── */
+
+  function dashBuildHero(snap, user, attentionItems) {
+    const longDate = formatColombiaLongDate(new Date());
+    const greeting = colombiaTimeOfDayGreeting(new Date());
+    const displayName = getPortalUserDisplayName(user) || user?.name || "Operador";
+    const firstName = escapeHtml(String(displayName).trim().split(/\s+/)[0] || displayName);
+    const updatedAgo = snap?.generatedAt ? dashFormatTimeAgo(snap.generatedAt) : "ahora";
+
     const alertCount =
       (snap?.unreadNotifications || 0) +
       (attentionItems || []).reduce((acc, item) => acc + (Number(item?.value) > 0 ? Number(item.value) : 0), 0);
     const docCount = snap?.docRisk || 0;
     const opsTone = dashOpsStatusTone(snap);
     const opsLabels = { live: "Operación en curso", ok: "Sistema operativo", warn: "Seguimiento activo", alert: "Atención requerida", neutral: "Operación" };
-    return `<div class="dash-cc__rail dash-cc__rail--status">
-      <span class="dash-cc__rail-label">Estado en vivo</span>
-      <div class="dash-cc__chips" role="status">
-      <button type="button" class="dash-chip dash-chip--warn" data-action="dash-nav" data-target-view="notifications">
-        <span class="dash-chip__ico" aria-hidden="true">🔔</span>
+
+    const chips = `
+      <button type="button" class="at-chip at-chip--warn" data-action="dash-nav" data-target-view="notifications">
+        <span>🔔</span>
         <span>${alertCount} alerta${alertCount === 1 ? "" : "s"}</span>
       </button>
-      ${docCount > 0 ? `<button type="button" class="dash-chip dash-chip--doc" data-action="dash-nav" data-target-view="transport-vehicles">
-        <span class="dash-chip__ico" aria-hidden="true">📄</span>
-        <span>${docCount} doc${docCount === 1 ? "" : "s"} por vencer</span>
+      ${docCount > 0 ? `<button type="button" class="at-chip at-chip--doc" data-action="dash-nav" data-target-view="transport-vehicles">
+        <span>📄</span>
+        <span>${docCount} doc${docCount === 1 ? "" : "s"}</span>
       </button>` : ""}
-      <span class="dash-chip dash-chip--${opsTone}">
-        <span class="dash-chip__dot" aria-hidden="true"></span>
+      <span class="at-chip at-chip--${opsTone}">
+        <span class="at-chip__dot"></span>
         <span>${escapeHtml(opsLabels[opsTone] || "Operación")}</span>
-      </span>
+      </span>`;
+
+    const quickActions = dashBuildQuickActions(user);
+
+    return `<header class="at-hero">
+      <div class="at-hero__main">
+        <div class="at-hero__eyebrow">TORRE DE CONTROL · ANTARES</div>
+        <h2 class="at-hero__title">${escapeHtml(greeting)}, <span class="at-hero__name">${firstName}</span></h2>
+        <div class="at-hero__meta">
+          <span>${escapeHtml(longDate)}</span>
+          <span>Actualizado ${escapeHtml(updatedAgo)}</span>
+        </div>
       </div>
-    </div>`;
+      <div class="at-hero__aside">
+        <div class="at-chips">${chips}</div>
+        ${quickActions ? `<div class="at-quick-actions">${quickActions}</div>` : ""}
+      </div>
+    </header>`;
   }
+
+  /* ─────────────────────────────────────────────────────────────
+     KPI STRIP
+  ───────────────────────────────────────────────────────────── */
+
+  function dashBuildKpiStrip(snap, exec) {
+    if (!snap) return "";
+    const complianceSub = snap.compliancePct >= 80 ? "Meta alcanzada" : snap.compliancePct >= 50 ? "Seguimiento" : "Bajo objetivo";
+    const complianceTone = snap.compliancePct >= 80 ? "ok" : snap.compliancePct >= 50 ? "warn" : "alert";
+
+    function kpi(icon, label, value, sub, tone, idx) {
+      const display = String(value);
+      const rawNum = display.replace(/[^\d.-]/g, "");
+      const countAttr = rawNum !== "" && Number.isFinite(Number(rawNum))
+        ? ` data-at-count="${escapeAttr(rawNum)}" data-at-display="${escapeAttr(display)}"` : "";
+      return `<div class="at-kpi at-kpi--${tone} at-reveal" style="--at-stagger:${idx}"${countAttr}>
+        <div class="at-kpi__icon">${icon}</div>
+        <strong class="at-kpi__value">${escapeHtml(display)}</strong>
+        <div class="at-kpi__label">${escapeHtml(label)}</div>
+        <div class="at-kpi__sub">${escapeHtml(sub)}</div>
+      </div>`;
+    }
+
+    const kpis = [
+      kpi(IC.truck || "🚚", "En ruta", snap.vehicleIdsEnRuta, "Vehículos activos", "live", 0),
+      kpi(IC.compass || "📋", "Asignados", snap.assignedToday, "Programados hoy", "blue", 1),
+      kpi(IC.check || "✅", "Completados", snap.completedToday, "Entregas cerradas", "purple", 2),
+      kpi(IC.alertTriangle || "⚠️", "Retrasos", snap.delayedToday,
+        snap.delayedToday ? "Requieren acción" : "Sin desvíos",
+        snap.delayedToday ? "alert" : "muted", 3),
+      kpi(IC.activity || "🎯", "Cumplimiento SLA", `${snap.compliancePct}%`, complianceSub, complianceTone, 4),
+    ];
+
+    const execItems = exec ? [
+      { label: "Puntualidad",      value: `${exec.punctualityPct}%` },
+      { label: "Utilización flota", value: `${exec.fleetUtilPct}%` },
+      { label: "Combustible hoy",  value: exec.fuelLiters > 0 ? `${exec.fuelLiters} L` : "—" },
+      { label: "Km recorridos",    value: exec.kmToday > 0 ? `${exec.kmToday.toLocaleString("es-CO")} km` : "—" },
+    ] : [];
+
+    const execRow = execItems.length
+      ? `<div class="at-exec-strip">
+          ${execItems.map((item, i) =>
+            `<div class="at-exec-item at-reveal" style="--at-stagger:${6 + i}">
+              <span>${escapeHtml(item.label)}</span>
+              <strong>${escapeHtml(item.value)}</strong>
+            </div>`).join("")}
+        </div>`
+      : "";
+
+    return `<section class="at-kpi-strip">${kpis.join("")}</section>${execRow}`;
+  }
+
+  /* ─────────────────────────────────────────────────────────────
+     MAPA EN VIVO
+  ───────────────────────────────────────────────────────────── */
 
   function dashBuildLiveMap(markers) {
     const list = Array.isArray(markers) ? markers : [];
-    const pins = list
-      .map(
-        (m) => `<button type="button" class="dash-map-pin dash-map-pin--${m.delayed ? "alert" : "live"}" style="left:${m.x}%;top:${m.y}%" title="${escapeAttr(`${m.plate} · ${m.city}`)}" data-action="dash-focus-fleet" data-dash-tab="en-ruta">
-          <span class="dash-map-pin__ico" aria-hidden="true">🚚</span>
-          <span class="dash-map-pin__label">${escapeHtml(m.plate)}</span>
-        </button>`
-      )
-      .join("");
+
+    const pins = list.map((m) =>
+      `<button type="button"
+        class="at-map-pin at-map-pin--${m.delayed ? "alert" : "live"}"
+        style="left:${m.x}%;top:${m.y}%"
+        title="${escapeAttr(`${m.plate} · ${m.city}`)}"
+        data-action="dash-focus-fleet"
+        data-dash-tab="en-ruta">
+        <div class="at-map-pin__ico">🚚</div>
+        <div class="at-map-pin__label">${escapeHtml(m.plate)}</div>
+      </button>`
+    ).join("");
+
     const empty = !list.length
-      ? `<div class="dash-map-empty">
-          <span aria-hidden="true">📡</span>
+      ? `<div class="at-map-empty">
+          <div class="at-map-empty__icon">📡</div>
           <p>Sin unidades en movimiento</p>
-          <span class="dash-map-empty__hint">Los vehículos activos aparecerán aquí en tiempo real</span>
-        </div>`
-      : "";
-    return `<section class="dash-panel dash-panel--map dash-reveal" style="--dash-stagger:10" aria-label="Mapa en vivo">
-      <header class="dash-panel__head dash-panel__head--compact dash-panel__head--map">
-        <div>
-          <span class="dash-panel__kicker">Geolocalización</span>
-          <h3>Mapa en vivo</h3>
-          <p>${list.length} vehículo${list.length === 1 ? "" : "s"} en operación</p>
-        </div>
-        <span class="dash-live-badge"><span class="dash-live-pulse" aria-hidden="true"></span> LIVE</span>
-      </header>
-      <div class="dash-map-stage">
-        <div class="dash-map-vignette" aria-hidden="true"></div>
-        <div class="dash-map-radar" aria-hidden="true"></div>
-        <div class="dash-map-grid" aria-hidden="true"></div>
-        <div class="dash-map-terrain" aria-hidden="true"></div>
-        <div class="dash-map-coords" aria-hidden="true">4.7110° N · 74.0721° W · CO</div>
-        ${pins}
-        ${empty}
+        </div>` : "";
+
+    return `<section class="at-map at-reveal" style="--at-stagger:10" aria-label="Mapa en vivo">
+      <div class="at-map__head">
+        <span class="at-map__title">Geolocalización · ${list.length} unidad${list.length === 1 ? "" : "es"}</span>
+        <span class="at-live-badge"><span class="at-live-pulse"></span>LIVE</span>
       </div>
+      <div class="at-map__grid" aria-hidden="true"></div>
+      <div class="at-map__coords">4.7110° N · 74.0721° W · CO</div>
+      ${pins}
+      ${empty}
     </section>`;
   }
+
+  /* ─────────────────────────────────────────────────────────────
+     ALERTAS CRÍTICAS
+  ───────────────────────────────────────────────────────────── */
 
   function dashBuildCriticalAlertsPanel(alerts) {
     const items = Array.isArray(alerts) ? alerts : [];
     const body = items.length
-      ? `<ul class="dash-critical-list">${items
-          .map((a) => {
-            const navAttrs = a.targetView
-              ? `data-action="${a.fleetTab ? "dash-focus-fleet" : "dash-attention-nav"}" data-target-view="${escapeAttr(a.targetView)}"${a.fleetTab ? ` data-dash-tab="${escapeAttr(a.fleetTab)}"` : ""}`
-              : "";
-            const title = a.help ? ` title="${escapeAttr(String(a.help))}"` : "";
-            return `<li>
-              <button type="button" class="dash-critical-item dash-critical-item--${escapeAttr(a.tone || "warn")}" ${navAttrs}${title}>
-                <span class="dash-critical-item__ico" aria-hidden="true">⚠️</span>
-                <span class="dash-critical-item__text">${escapeHtml(String(a.message || ""))}</span>
-              </button>
-            </li>`;
-          })
-          .join("")}</ul>`
-      : `<p class="dash-critical-ok" role="status">${IC.check || "✓"} Operación al día — sin alertas críticas</p>`;
-    return `<aside class="dash-panel dash-panel--critical dash-reveal" style="--dash-stagger:11" aria-label="Alertas críticas">
-      <header class="dash-panel__head dash-panel__head--compact dash-panel__head--critical">
+      ? `<ul class="at-alert-list">${items.map((a) => {
+          const navAttrs = a.targetView
+            ? `data-action="${a.fleetTab ? "dash-focus-fleet" : "dash-attention-nav"}" data-target-view="${escapeAttr(a.targetView)}"${a.fleetTab ? ` data-dash-tab="${escapeAttr(a.fleetTab)}"` : ""}`
+            : "";
+          return `<li><button type="button" class="at-alert-item at-alert-item--${escapeAttr(a.tone || "warn")}" ${navAttrs}>
+            <div class="at-alert-item__bar"></div>
+            <span class="at-alert-item__ico">⚠️</span>
+            <span class="at-alert-item__text">${escapeHtml(String(a.message || ""))}</span>
+          </button></li>`;
+        }).join("")}</ul>`
+      : `<p class="at-alert-ok">✓ Sin alertas críticas activas</p>`;
+
+    return `<aside class="at-alerts-panel at-reveal" style="--at-stagger:11" aria-label="Alertas críticas">
+      <div class="at-panel-head">
         <div>
-          <span class="dash-panel__kicker">Prioridad alta</span>
+          <span class="at-panel-head__kicker">Prioridad alta</span>
           <h3>Alertas críticas</h3>
-          <p>Requieren acción inmediata</p>
         </div>
-        ${items.length ? `<span class="dash-critical-count">${items.length}</span>` : `<span class="dash-critical-ok-badge">OK</span>`}
-      </header>
+        ${items.length
+          ? `<span class="at-alert-count">${items.length}</span>`
+          : `<span class="at-alert-ok-badge">OK</span>`}
+      </div>
       ${body}
     </aside>`;
   }
 
+  /* ─────────────────────────────────────────────────────────────
+     ANALYTICS ROW
+  ───────────────────────────────────────────────────────────── */
+
   function dashBuildAnalyticsRow(snap, hourly, fleetPie) {
     if (!snap) return "";
     const complianceTone = snap.compliancePct >= 80 ? "ok" : snap.compliancePct >= 50 ? "warn" : "alert";
+    const complianceBadge = complianceTone === "ok" ? "En meta" : complianceTone === "warn" ? "Seguimiento" : "Crítico";
+
+    // SVG ring
+    const r = 38, c = 2 * Math.PI * r;
+    const offset = c - (snap.compliancePct / 100) * c;
+
+    // Hourly bars
     const hourlyList = Array.isArray(hourly) ? hourly : [];
-    const hourlyBars = hourlyList
-      .map(
-        (b, i) => `<div class="dash-hour-row dash-reveal" style="--dash-stagger:${i}">
-          <span class="dash-hour-label">${escapeHtml(b.label)}</span>
-          <div class="dash-hour-track"><i class="dash-hour-fill dash-bar-fill" data-dash-width="${Number(b.pct) || 0}"></i></div>
-          <span class="dash-hour-val">${escapeHtml(String(b.count))}</span>
-        </div>`
-      )
-      .join("");
-    const pieTotal = Math.max(1, fleetPie?.total || fleetPie?.activos + fleetPie?.espera + fleetPie?.mantenimiento || 1);
+    const maxH = Math.max(1, ...hourlyList.map((b) => Number(b.count) || 0));
+    const hourlyBars = hourlyList.map((b, i) => {
+      const pct = Math.round(((Number(b.count) || 0) / maxH) * 100);
+      return `<div class="at-hour-row at-reveal" style="--at-stagger:${i}">
+        <span class="at-hour-label">${escapeHtml(b.label)}</span>
+        <div class="at-hour-track"><i class="at-hour-fill" style="width:0%" data-at-width="${pct}"></i></div>
+        <span class="at-hour-val">${escapeHtml(String(b.count))}</span>
+      </div>`;
+    }).join("");
+
+    // Pie
+    const pieTotal = Math.max(1, fleetPie?.total || (fleetPie?.activos + fleetPie?.espera + fleetPie?.mantenimiento) || 1);
     const aPct = Math.round(((fleetPie?.activos || 0) / pieTotal) * 100);
     const ePct = Math.round(((fleetPie?.espera || 0) / pieTotal) * 100);
     const mPct = Math.max(0, 100 - aPct - ePct);
-    const pieStyle = `conic-gradient(var(--dash-live-mid) 0% ${aPct}%, var(--dash-warn-mid) ${aPct}% ${aPct + ePct}%, var(--dash-alert-mid) ${aPct + ePct}% 100%)`;
-    const complianceBadge =
-      complianceTone === "ok" ? "En meta" : complianceTone === "warn" ? "Seguimiento" : "Crítico";
-    return `<section class="dash-analytics dash-analytics--premium" aria-label="Análisis operativo del día">
-      <article class="dash-panel dash-panel--chart dash-panel--compliance dash-reveal" style="--dash-stagger:14">
-        <header class="dash-panel__head dash-panel__head--compact dash-panel__head--chart">
+    const finalPie = `conic-gradient(var(--at-cyan) 0% ${aPct}%, var(--at-amber) ${aPct}% ${aPct + ePct}%, var(--at-red) ${aPct + ePct}% 100%)`;
+
+    return `<section class="at-analytics" aria-label="Análisis operativo">
+
+      <article class="at-panel at-reveal" style="--at-stagger:14">
+        <div class="at-panel-head">
           <div>
-            <span class="dash-panel__kicker">Performance</span>
+            <span class="at-panel-head__kicker">Performance</span>
             <h3>Cumplimiento diario</h3>
-            <p>Entregas cerradas vs programadas</p>
           </div>
-          <span class="dash-chart-badge dash-chart-badge--${complianceTone}">${escapeHtml(complianceBadge)}</span>
-        </header>
-        <div class="dash-compliance-block dash-compliance-block--${complianceTone}">
-          <div class="dash-compliance-ring" aria-hidden="true">
-            <svg viewBox="0 0 44 44"><circle class="dash-compliance-ring__bg" cx="22" cy="22" r="18"/><circle class="dash-compliance-ring__fg dash-ring-animate" cx="22" cy="22" r="18" data-dash-ring-pct="${snap.compliancePct}"/></svg>
-          </div>
-          <div class="dash-compliance-body">
-            <div class="dash-compliance-bar" role="progressbar" aria-valuenow="${snap.compliancePct}" aria-valuemin="0" aria-valuemax="100">
-              <i class="dash-bar-fill" data-dash-width="${snap.compliancePct}"></i>
+          <span class="at-chart-badge at-chart-badge--${complianceTone}">${escapeHtml(complianceBadge)}</span>
+        </div>
+        <div class="at-compliance-wrap">
+          <div class="at-compliance-ring-wrap">
+            <svg viewBox="0 0 88 88" aria-hidden="true">
+              <circle class="at-ring-bg" cx="44" cy="44" r="${r}"/>
+              <circle class="at-ring-fg at-ring-fg--${complianceTone} at-ring-anim"
+                cx="44" cy="44" r="${r}"
+                stroke-dasharray="${c.toFixed(2)}"
+                stroke-dashoffset="${c.toFixed(2)}"
+                data-at-ring-offset="${offset.toFixed(2)}"/>
+            </svg>
+            <div class="at-ring-center">
+              <span class="at-ring-pct" data-at-count="${snap.compliancePct}" data-at-display="${snap.compliancePct}%">0%</span>
+              <span class="at-ring-lbl">SLA</span>
             </div>
-            <div class="dash-compliance-meta">
-              <strong class="dash-compliance-pct" data-dash-count="${snap.compliancePct}" data-dash-display="${snap.compliancePct}%">0%</strong>
-              <span class="dash-compliance-caption">del objetivo diario</span>
+          </div>
+          <div class="at-compliance-body">
+            <h4 data-at-count="${snap.compliancePct}" data-at-display="${snap.compliancePct}%">0%</h4>
+            <p class="at-compliance-caption">del objetivo diario</p>
+            <div class="at-compliance-bar-wrap" style="margin-top:14px">
+              <div class="at-compliance-bar-fill at-compliance-bar-fill--${complianceTone}"
+                   style="width:0%"
+                   data-at-width="${snap.compliancePct}"></div>
             </div>
           </div>
         </div>
       </article>
-      <article class="dash-panel dash-panel--chart dash-panel--hourly dash-reveal" style="--dash-stagger:15">
-        <header class="dash-panel__head dash-panel__head--compact dash-panel__head--chart">
+
+      <article class="at-panel at-reveal" style="--at-stagger:15">
+        <div class="at-panel-head">
           <div>
-            <span class="dash-panel__kicker">Distribución</span>
+            <span class="at-panel-head__kicker">Distribución</span>
             <h3>Entregas por hora</h3>
-            <p>Ritmo operativo del día</p>
           </div>
-          <span class="dash-chart-stat">${hourlyList.reduce((n, b) => n + (Number(b.count) || 0), 0)} total</span>
-        </header>
-        <div class="dash-hour-chart">${hourlyBars || '<p class="muted dash-chart-empty">Sin entregas registradas hoy.</p>'}</div>
+          <span class="at-chart-total">${hourlyList.reduce((n, b) => n + (Number(b.count) || 0), 0)} total</span>
+        </div>
+        <div class="at-hourly-wrap">
+          ${hourlyBars || '<p style="font-size:12px;color:var(--at-text-3);text-align:center;padding:20px 0">Sin entregas registradas hoy.</p>'}
+        </div>
       </article>
-      <article class="dash-panel dash-panel--chart dash-panel--fleet-pie dash-reveal" style="--dash-stagger:16">
-        <header class="dash-panel__head dash-panel__head--compact dash-panel__head--chart">
+
+      <article class="at-panel at-reveal" style="--at-stagger:16">
+        <div class="at-panel-head">
           <div>
-            <span class="dash-panel__kicker">Inventario</span>
+            <span class="at-panel-head__kicker">Inventario</span>
             <h3>Estado de flota</h3>
-            <p>Activos · Espera · Mantenimiento</p>
           </div>
-        </header>
-        <div class="dash-fleet-pie-wrap">
-          <div class="dash-fleet-pie dash-fleet-pie--animate" data-pie-a="${aPct}" data-pie-e="${ePct}" data-pie-m="${mPct}" data-pie-final="${escapeAttr(pieStyle)}" style="background: conic-gradient(var(--dash-border-strong) 0% 100%)" role="img" aria-label="Flota: ${fleetPie?.activos || 0} activos, ${fleetPie?.espera || 0} en espera, ${fleetPie?.mantenimiento || 0} en mantenimiento">
-            <div class="dash-fleet-pie__hole"><strong data-dash-count="${pieTotal}" data-dash-display="${String(pieTotal)}">0</strong><span>Total</span></div>
+        </div>
+        <div class="at-fleet-pie-wrap">
+          <div class="at-fleet-pie at-fleet-pie--anim"
+            data-pie-a="${aPct}" data-pie-e="${ePct}" data-pie-m="${mPct}"
+            data-pie-final="${escapeAttr(finalPie)}"
+            style="background: var(--at-surface-3)"
+            role="img" aria-label="Flota: ${fleetPie?.activos || 0} activos, ${fleetPie?.espera || 0} espera, ${fleetPie?.mantenimiento || 0} mantenimiento">
+            <div class="at-fleet-pie__hole">
+              <strong data-at-count="${pieTotal}" data-at-display="${pieTotal}">0</strong>
+              <span>Total</span>
+            </div>
           </div>
-          <ul class="dash-fleet-legend">
-            <li class="dash-reveal" style="--dash-stagger:0"><i class="dash-legend-dot dash-legend-dot--live"></i>Activos <strong>${fleetPie?.activos || 0}</strong></li>
-            <li class="dash-reveal" style="--dash-stagger:1"><i class="dash-legend-dot dash-legend-dot--warn"></i>Espera <strong>${fleetPie?.espera || 0}</strong></li>
-            <li class="dash-reveal" style="--dash-stagger:2"><i class="dash-legend-dot dash-legend-dot--alert"></i>Mantenimiento <strong>${fleetPie?.mantenimiento || 0}</strong></li>
+          <ul class="at-fleet-legend">
+            <li><span class="at-legend-dot at-legend-dot--live"></span>Activos <strong>${fleetPie?.activos || 0}</strong></li>
+            <li><span class="at-legend-dot at-legend-dot--warn"></span>Espera <strong>${fleetPie?.espera || 0}</strong></li>
+            <li><span class="at-legend-dot at-legend-dot--alert"></span>Mantenimiento <strong>${fleetPie?.mantenimiento || 0}</strong></li>
           </ul>
         </div>
       </article>
+
     </section>`;
   }
 
   /* ─────────────────────────────────────────────────────────────
-     MINI BARRAS DE ESTADO
+     PULSE PANEL
   ───────────────────────────────────────────────────────────── */
 
-  function dashBuildVehicleMiniBars(trips) {
-    if (!trips.length) return "";
-    const segments = trips
-      .map((r) => {
-        const tone = dashRequestOutcomeTone(r.status);
-        const title = `${r.requestNumber || r.id}: ${prettyStatus(r.status, "request")}`;
-        return `<i class="dash-mini-bar dash-mini-bar--${tone}" title="${escapeAttr(title)}"></i>`;
-      })
-      .join("");
-    return `<div class="dash-mini-bars" aria-hidden="true">${segments}</div>`;
+  function dashBuildPulsePanel(snap, user) {
+    if (!snap) return "";
+    const items = [
+      { label: "Sin novedad",    value: snap.okDeliveries,      tone: "" },
+      { label: "Con incidencia", value: snap.issueDeliveries,   tone: snap.issueDeliveries ? "warn" : "" },
+      { label: "En standby",     value: snap.standbyToday,      tone: snap.standbyToday ? "warn" : "" },
+    ];
+    if (!isPortalClientUser(user)) {
+      items.push(
+        { label: "Pendientes de asignar", value: snap.pendingAssignment, tone: snap.pendingAssignment ? "warn" : "" },
+        { label: "Alertas documentales",  value: snap.docRisk,           tone: snap.docRisk ? "warn" : "" },
+        { label: "Notificaciones",        value: snap.unreadNotifications, tone: snap.unreadNotifications ? "warn" : "" },
+      );
+    }
+    const rows = items.filter((item) => Number.parseInt(String(item.value), 10) > 0 || item.label === "Sin novedad")
+      .map((item) => `<li class="at-pulse-item${item.tone ? ` at-pulse-item--${item.tone}` : ""}">
+        <span class="at-pulse-item__label">${escapeHtml(item.label)}</span>
+        <span class="at-pulse-item__value">${escapeHtml(String(item.value))}</span>
+      </li>`).join("");
+
+    return `<div class="at-panel">
+      <div class="at-panel-head">
+        <div>
+          <span class="at-panel-head__kicker">Desglose</span>
+          <h3>Pulso operativo</h3>
+        </div>
+      </div>
+      <ul class="at-pulse-list">${rows}</ul>
+      <div class="at-pulse-foot">
+        ${isPortalClientUser(user)
+          ? "Sus indicadores reflejan solo sus solicitudes."
+          : `Actualizado ${escapeHtml(fmtTimeOnly(snap.generatedAt) || "ahora")} · hora Colombia`}
+      </div>
+    </div>`;
   }
 
   /* ─────────────────────────────────────────────────────────────
-     TARJETA DE VEHÍCULO
+     FLEET CARDS
   ───────────────────────────────────────────────────────────── */
+
+  function dashBuildMiniBarsFn(trips) {
+    if (!trips.length) return "";
+    const bars = trips.map((r) => {
+      const tone = dashRequestOutcomeTone(r.status);
+      return `<i class="at-mini-bar at-mini-bar--${tone}" title="${escapeAttr(`${r.requestNumber || r.id}: ${prettyStatus(r.status, "request")}`)}" aria-hidden="true"></i>`;
+    }).join("");
+    return `<div class="at-mini-bars" aria-hidden="true">${bars}</div>`;
+  }
 
   function dashBuildVehicleCard(group, staggerIdx) {
     const plate = String(group.plate || "Sin placa").trim();
@@ -403,134 +1703,97 @@
     const trips = group.trips || [];
     const completed = trips.filter((r) => [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status)).length;
     const liveCount = trips.filter((r) => dashRequestOutcomeTone(r.status) === "live").length;
-    const cardStatus = liveCount
-      ? "en-ruta"
-      : completed === trips.length && trips.length
-        ? "cerrado"
-        : trips.length
-          ? "programado"
-          : "libre";
+    const cardStatus = liveCount ? "en-ruta"
+      : completed === trips.length && trips.length ? "cerrado"
+      : trips.length ? "programado" : "libre";
 
     const statusLabel = { "en-ruta": "En ruta", cerrado: "Cerrado", programado: "Programado", libre: "Libre" }[cardStatus] || cardStatus;
 
-    const rows = trips
-      .map((r) => {
-        const delivery = fmtTimeOnly(r.deliveredAt || r.trip?.etaDelivery || r.deliveryAt);
-        const delayed = dashTripIsDelayed(r);
-        return `<tr class="${delayed ? "dash-row--delayed" : ""}">
-          <td>
-            <button type="button" class="dash-trip-link" data-action="detail" data-id="${escapeAttr(r.id)}">
-              ${escapeHtml(String(r.requestNumber || r.id))}
-            </button>
-          </td>
-          <td>
-            <span class="dash-trip-client" title="${escapeAttr(String(r.clientName || "—"))}">${escapeHtml(String(r.clientName || "—"))}</span>
-            <span class="dash-trip-route muted" title="${escapeAttr(formatRoute(r))}">${escapeHtml(formatRoute(r))}</span>
-          </td>
-          <td>${dashStatusPill(r.status)}</td>
-          <td class="dash-trip-eta">
-            ${delivery}
-            ${delayed ? `<span class="dash-delay-tag" title="Fuera de ventana">${IC.alertTriangle || "!"}</span>` : ""}
-          </td>
-        </tr>`;
-      })
-      .join("");
+    const rows = trips.map((r) => {
+      const delivery = fmtTimeOnly(r.deliveredAt || r.trip?.etaDelivery || r.deliveryAt);
+      const delayed = dashTripIsDelayed(r);
+      return `<tr class="${delayed ? "at-row--delayed" : ""}">
+        <td><button type="button" class="at-trip-link" data-action="detail" data-id="${escapeAttr(r.id)}">${escapeHtml(String(r.requestNumber || r.id))}</button></td>
+        <td>
+          <span class="at-trip-client" title="${escapeAttr(String(r.clientName || "—"))}">${escapeHtml(String(r.clientName || "—"))}</span>
+          <span class="at-trip-route" title="${escapeAttr(formatRoute(r))}">${escapeHtml(formatRoute(r))}</span>
+        </td>
+        <td>${dashStatusPill(r.status)}</td>
+        <td class="at-trip-eta">${delivery}${delayed ? `<span class="at-delay-tag">⚠</span>` : ""}</td>
+      </tr>`;
+    }).join("");
 
     const table = rows
-      ? `<div class="dash-vehicle__table-wrap">
-          <table class="dash-vehicle__table">
-            <thead>
-              <tr>
-                <th>Solicitud</th>
-                <th>Cliente / ruta</th>
-                <th>Estado</th>
-                <th>Entrega</th>
-              </tr>
-            </thead>
+      ? `<div class="at-trip-table-wrap">
+          <table class="at-trip-table">
+            <thead><tr><th>Solicitud</th><th>Cliente / ruta</th><th>Estado</th><th>Entrega</th></tr></thead>
             <tbody>${rows}</tbody>
           </table>
          </div>`
-      : `<p class="muted dash-vehicle__empty">Sin viajes en este vehículo.</p>`;
+      : `<p class="at-vehicle__empty">Sin viajes asignados.</p>`;
 
     const searchBlob = [plate, driver, ...trips.map((r) => `${r.requestNumber} ${r.clientName} ${formatRoute(r)}`)].join(" ");
-    const pulse = cardStatus === "en-ruta" ? `<span class="dash-live-pulse" aria-hidden="true"></span>` : "";
+    const pulse = cardStatus === "en-ruta" ? `<span class="at-live-pulse" style="margin-right:4px"></span>` : "";
 
-    const stagger = 19 + (Number.isFinite(staggerIdx) ? staggerIdx : 0);
-    return `<article
-      class="dash-vehicle dash-vehicle--${cardStatus} dash-reveal"
-      style="--dash-stagger:${stagger}"
+    return `<article class="at-vehicle at-vehicle--${cardStatus}"
       data-plate="${escapeAttr(plate)}"
       data-driver="${escapeAttr(driver)}"
       data-status="${escapeAttr(cardStatus)}"
       data-search="${escapeAttr(searchBlob)}">
-      <header class="dash-vehicle__head">
-        <div class="dash-vehicle__id">
-          <div class="dash-vehicle__plate">${pulse}<strong>${escapeHtml(plate)}</strong></div>
-          <span class="muted">${escapeHtml(driver)} · ${trips.length} viaje${trips.length === 1 ? "" : "s"}</span>
+      <div class="at-vehicle__head">
+        <div class="at-vehicle__status-bar"></div>
+        <div>
+          <div class="at-vehicle__plate">${pulse}<strong>${escapeHtml(plate)}</strong></div>
+          <div class="at-vehicle__driver">${escapeHtml(driver)} · ${trips.length} viaje${trips.length === 1 ? "" : "s"}</div>
         </div>
-        <span class="dash-vehicle__badge dash-vehicle__badge--${cardStatus}">${escapeHtml(statusLabel)}</span>
-      </header>
-      ${dashBuildVehicleMiniBars(trips)}
+        <span class="at-vehicle__badge">${escapeHtml(statusLabel)}</span>
+      </div>
+      ${dashBuildMiniBarsFn(trips)}
       ${table}
     </article>`;
   }
 
   /* ─────────────────────────────────────────────────────────────
-     TABS DE FLOTA
+     FLEET TABS
   ───────────────────────────────────────────────────────────── */
 
   function dashBuildFleetTabs(counts, activeTab = "all") {
     const tabs = [
-      { id: "all", label: "Todos" },
-      { id: "en-ruta", label: "En ruta" },
+      { id: "all",        label: "Todos" },
+      { id: "en-ruta",    label: "En ruta" },
       { id: "programado", label: "Programados" },
-      { id: "cerrado", label: "Cerrados" }
+      { id: "cerrado",    label: "Cerrados" },
     ];
-    return tabs
-      .map((t) => {
-        const n = counts[t.id] ?? 0;
-        const active = t.id === activeTab;
-        return `<button type="button" role="tab" class="dash-tab${active ? " is-active" : ""}" data-dash-tab="${escapeAttr(t.id)}" aria-selected="${active ? "true" : "false"}" tabindex="${active ? "0" : "-1"}">${escapeHtml(t.label)}<em>${n}</em></button>`;
-      })
-      .join("");
+    return tabs.map((t) => {
+      const n = counts[t.id] ?? 0;
+      const active = t.id === activeTab;
+      return `<button type="button" role="tab" class="at-tab${active ? " is-active" : ""}"
+        data-dash-tab="${escapeAttr(t.id)}"
+        aria-selected="${active}"
+        tabindex="${active ? "0" : "-1"}">${escapeHtml(t.label)}<em>${n}</em></button>`;
+    }).join("");
   }
 
   /* ─────────────────────────────────────────────────────────────
-     PANEL ALERTAS
+     ACTIVITY FEED
   ───────────────────────────────────────────────────────────── */
 
-  function dashBuildAlerts(items) {
-    const attention = (items || []).filter((item) => Number(item?.value) > 0).slice(0, 5);
-    if (!attention.length) {
-      return `<p class="dash-alert dash-alert--ok" role="status">${IC.check || ""} Operación al día — sin pendientes críticos</p>`;
-    }
-    return attention
-      .map((item) => {
-        const tone = item?.tone === "alert" ? "alert" : "warn";
-        const target = String(item?.targetView || "").trim();
-        const title = item?.help ? ` title="${escapeAttr(String(item.help))}"` : "";
-        const fleetFocus = target === "dashboard";
-        const fleetTab = item?.id === "delayed" ? "en-ruta" : "all";
-        if (fleetFocus) {
-          return `<button type="button"
-            class="dash-alert dash-alert--${tone}"
-            data-action="dash-focus-fleet"
-            data-dash-tab="${escapeAttr(fleetTab)}"
-            ${title}>
-            <strong>${escapeHtml(String(item.value))}</strong>
-            ${escapeHtml(String(item.label || ""))}
-          </button>`;
-        }
-        return `<button type="button"
-          class="dash-alert dash-alert--${tone}"
-          data-action="dash-attention-nav"
-          data-target-view="${escapeAttr(target)}"
-          ${title}>
-          <strong>${escapeHtml(String(item.value))}</strong>
-          ${escapeHtml(String(item.label || ""))}
-        </button>`;
-      })
-      .join("");
+  function dashBuildActivityFeed(trips) {
+    const recent = [...(trips || [])].sort((a, b) => dashActivitySortKey(b) - dashActivitySortKey(a)).slice(0, 10);
+    if (!recent.length) return `<p class="at-activity-empty">Sin movimientos recientes hoy.</p>`;
+
+    return `<ul class="at-activity-list">${recent.map((r) => {
+      const when = fmtTimeOnly(r.updatedAt || r.deliveredAt || r.trip?.etaDelivery || r.pickupAt) || "—";
+      const tone = dashRequestOutcomeTone(r.status);
+      return `<li class="at-activity-item at-activity-item--${tone}">
+        <time class="at-activity-time">${escapeHtml(when)}</time>
+        <button type="button" class="at-activity-link" data-action="detail" data-id="${escapeAttr(r.id)}">
+          <strong>${escapeHtml(String(r.requestNumber || r.id))}</strong>
+          <span>${escapeHtml(String(r.clientName || "Cliente"))} · ${escapeHtml(formatRoute(r))}</span>
+        </button>
+        ${dashStatusPill(r.status)}
+      </li>`;
+    }).join("")}</ul>`;
   }
 
   /* ─────────────────────────────────────────────────────────────
@@ -540,167 +1803,78 @@
   function dashBuildQuickActions(user) {
     const actions = [];
     if (isViewAllowedForUser(user, "transport-trips"))
-      actions.push({ view: "transport-trips", label: "Asignar viajes", icon: IC.truck });
+      actions.push({ view: "transport-trips", label: "Asignar viajes",  icon: IC.truck });
     if (isViewAllowedForUser(user, "requests"))
-      actions.push({ view: "requests", label: "Solicitudes", icon: IC.inbox });
+      actions.push({ view: "requests",        label: "Solicitudes",     icon: IC.inbox });
     if (isViewAllowedForUser(user, "calendar"))
-      actions.push({ view: "calendar", label: "Calendario", icon: IC.calendar });
+      actions.push({ view: "calendar",        label: "Calendario",      icon: IC.calendar });
     if (isViewAllowedForUser(user, "reports"))
-      actions.push({ view: "reports", label: "Informes", icon: IC.file });
+      actions.push({ view: "reports",         label: "Informes",        icon: IC.file });
     if (canAccessAuthorizationsView?.(user) && isViewAllowedForUser(user, "authorizations"))
-      actions.push({ view: "authorizations", label: "Autorizaciones", icon: IC.shield });
+      actions.push({ view: "authorizations",  label: "Autorizaciones",  icon: IC.shield });
     if (!actions.length) return "";
-    return actions
-      .map(
-        (a, i) =>
-          `<button type="button" class="dash-action${i === 0 ? " dash-action--primary" : ""}" data-action="dash-nav" data-target-view="${escapeAttr(a.view)}">${a.icon}<span>${escapeHtml(a.label)}</span></button>`
-      )
-      .join("");
+    return actions.map((a, i) =>
+      `<button type="button" class="at-qa-btn${i === 0 ? " at-qa-btn--primary" : ""}"
+        data-action="dash-nav" data-target-view="${escapeAttr(a.view)}">
+        ${a.icon}<span>${escapeHtml(a.label)}</span>
+      </button>`
+    ).join("");
   }
 
   /* ─────────────────────────────────────────────────────────────
-     PANEL PULSO OPERATIVO
+     CLIENT VIEW
   ───────────────────────────────────────────────────────────── */
-
-  function dashBuildPulsePanel(snap, user) {
-    if (!snap) return "";
-    const items = [
-      { label: "Sin novedad", value: String(snap.okDeliveries), tone: "" },
-      { label: "Con incidencia", value: String(snap.issueDeliveries), tone: snap.issueDeliveries ? "warn" : "" },
-      { label: "En standby", value: String(snap.standbyToday), tone: snap.standbyToday ? "warn" : "" },
-      { label: "Con retraso", value: String(snap.delayedToday), tone: snap.delayedToday ? "alert" : "" }
-    ];
-    if (!isPortalClientUser(user)) {
-      items.push(
-        { label: "Pendientes de asignar", value: String(snap.pendingAssignment), tone: snap.pendingAssignment ? "warn" : "" },
-        { label: "Alertas documentales", value: String(snap.docRisk), tone: snap.docRisk ? "warn" : "" },
-        { label: "Notificaciones", value: String(snap.unreadNotifications), tone: snap.unreadNotifications ? "warn" : "" }
-      );
-    }
-    const rows = items
-      .filter(
-        (item) =>
-          (Number.parseInt(String(item.value), 10) > 0 || ["Sin novedad", "Notificaciones"].includes(item.label)) &&
-          item.label !== "Con retraso"
-      )
-      .map((item) => {
-        const mod = item.tone ? ` dash-pulse-item--${item.tone}` : "";
-        return `<li class="dash-pulse-item${mod}">
-          <span class="dash-pulse-item__label">${escapeHtml(item.label)}</span>
-          <span class="dash-pulse-item__value">${escapeHtml(item.value)}</span>
-        </li>`;
-      })
-      .join("");
-
-    const foot = isPortalClientUser(user)
-      ? `<p>Sus indicadores reflejan solo las solicitudes de su empresa.</p>`
-      : `<p>Actualizado ${escapeHtml(fmtTimeOnly(snap.generatedAt) || "ahora")} · hora Colombia</p>`;
-
-    return `<aside class="dash-panel dash-panel--pulse" aria-label="Pulso operativo del día">
-      <header class="dash-panel__head">
-        <div>
-          <h3>Pulso operativo</h3>
-          <p>Desglose complementario del día</p>
-        </div>
-      </header>
-      <ul class="dash-pulse-list">${rows}</ul>
-      <footer class="dash-pulse-foot">${foot}</footer>
-    </aside>`;
-  }
-
-  /* ─────────────────────────────────────────────────────────────
-     FEED DE ACTIVIDAD RECIENTE
-  ───────────────────────────────────────────────────────────── */
-
-  function dashBuildActivityFeed(trips) {
-    const recent = [...(trips || [])].sort((a, b) => dashActivitySortKey(b) - dashActivitySortKey(a)).slice(0, 8);
-    if (!recent.length) {
-      return `<p class="dash-activity-empty muted">Sin movimientos recientes hoy.</p>`;
-    }
-    return `<ul class="dash-activity-list">${recent
-      .map((r) => {
-        const when = fmtTimeOnly(r.updatedAt || r.deliveredAt || r.trip?.etaDelivery || r.pickupAt) || "—";
-        const tone = dashRequestOutcomeTone(r.status);
-        return `<li class="dash-activity-item dash-activity-item--${tone}">
-          <time class="dash-activity-time">${escapeHtml(when)}</time>
-          <button type="button" class="dash-activity-link" data-action="detail" data-id="${escapeAttr(r.id)}" title="${escapeAttr(`${r.requestNumber || r.id} · ${r.clientName || "Cliente"} · ${formatRoute(r)}`)}">
-            <strong>${escapeHtml(String(r.requestNumber || r.id))}</strong>
-            <span>${escapeHtml(String(r.clientName || "Cliente"))} · ${escapeHtml(formatRoute(r))}</span>
-          </button>
-          ${dashStatusPill(r.status)}
-        </li>`;
-      })
-      .join("")}</ul>`;
-  }
-
-  /* ─────────────────────────────────────────────────────────────
-     VISTA CLIENTE
-  ───────────────────────────────────────────────────────────── */
-
-  function dashBuildClientRecentTable(list) {
-    const recent = [...list].sort((a, b) => dashActivitySortKey(b) - dashActivitySortKey(a)).slice(0, 6);
-    if (!recent.length) {
-      return `<p class="muted dash-client-empty">Aún no tiene solicitudes registradas.</p>`;
-    }
-    const rows = recent
-      .map(
-        (r) => `<tr>
-          <td><button type="button" class="dash-trip-link" data-action="detail" data-id="${escapeAttr(r.id)}">${escapeHtml(String(r.requestNumber || r.id))}</button></td>
-          <td>${escapeHtml(formatRoute(r))}</td>
-          <td>${dashStatusPill(r.status)}</td>
-          <td>${fmtTimeOnly(r.pickupAt || r.trip?.etaPickup)}</td>
-        </tr>`
-      )
-      .join("");
-    return `<div class="dash-vehicle__table-wrap">
-      <table class="dash-vehicle__table dash-client-table">
-        <thead>
-          <tr><th>Solicitud</th><th>Ruta</th><th>Estado</th><th>Recogida</th></tr>
-        </thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>`;
-  }
 
   function dashBuildClientPanel(list, user, snap) {
-    const pending = list.filter((r) => r.status === STATUS.PENDIENTE).length;
-    const active = list.filter((r) => r.trip && tripRequestStatusIsOperational(r.status)).length;
-    const done = list.filter((r) => [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status)).length;
+    const pending   = list.filter((r) => r.status === STATUS.PENDIENTE).length;
+    const active    = list.filter((r) => r.trip && tripRequestStatusIsOperational(r.status)).length;
+    const done      = list.filter((r) => [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status)).length;
     const inTransit = list.filter((r) => String(r.status) === STATUS.EN_TRANSITO).length;
+
     const stats = [
       { label: "En tránsito", value: inTransit, tone: "live" },
-      { label: "Activas", value: active, tone: "" },
-      { label: "En revisión", value: pending, tone: pending ? "warn" : "" },
-      { label: "Completadas", value: done, tone: "ok" }
+      { label: "Activas",     value: active,    tone: "" },
+      { label: "En revisión", value: pending,   tone: pending ? "warn" : "" },
+      { label: "Completadas", value: done,      tone: "ok" },
     ];
-    const statCards = stats
-      .map(
-        (s) =>
-          `<div class="dash-client-stat dash-client-stat--${s.tone || "neutral"}">
-            <dt>${escapeHtml(s.label)}</dt>
-            <dd>${s.value}</dd>
-          </div>`
-      )
-      .join("");
+
+    const recent = [...list].sort((a, b) => dashActivitySortKey(b) - dashActivitySortKey(a)).slice(0, 6);
+    const tableRows = recent.map((r) =>
+      `<tr>
+        <td><button type="button" class="at-trip-link" data-action="detail" data-id="${escapeAttr(r.id)}">${escapeHtml(String(r.requestNumber || r.id))}</button></td>
+        <td>${escapeHtml(formatRoute(r))}</td>
+        <td>${dashStatusPill(r.status)}</td>
+        <td>${fmtTimeOnly(r.pickupAt || r.trip?.etaPickup)}</td>
+      </tr>`
+    ).join("");
+
     const cta = isViewAllowedForUser(user, "requests")
-      ? `<button type="button" class="btn btn-primary" data-action="dash-nav" data-target-view="requests">${IC.plus || ""} Nueva solicitud</button>`
-      : "";
-    const compliance = snap ? dashBuildRing(snap.compliancePct, "Cumplimiento entregas", snap.compliancePct >= 80 ? "ok" : "warn") : "";
-    return `<div class="dash-client-layout">
-      <section class="dash-panel dash-panel--client">
-        <header class="dash-panel__head">
-          <div><h3>Mi operación</h3><p>Resumen de sus solicitudes de transporte refrigerado</p></div>
-          ${cta ? `<div class="dash-panel__tools">${cta}</div>` : ""}
-        </header>
-        <dl class="dash-client-grid">${statCards}</dl>
+      ? `<button type="button" class="at-qa-btn at-qa-btn--primary" data-action="dash-nav" data-target-view="requests">
+          ${IC.plus || ""} Nueva solicitud</button>` : "";
+
+    return `<div class="at-client-layout">
+      <section class="at-panel">
+        <div class="at-panel-head">
+          <div><span class="at-panel-head__kicker">Mi operación</span><h3>Resumen de solicitudes</h3></div>
+          ${cta ? `<div>${cta}</div>` : ""}
+        </div>
+        <dl class="at-client-grid">
+          ${stats.map((s) => `<div class="at-client-stat at-client-stat--${s.tone || "neutral"}">
+            <dt>${escapeHtml(s.label)}</dt><dd>${s.value}</dd>
+          </div>`).join("")}
+        </dl>
       </section>
-      <section class="dash-panel dash-panel--client-recent">
-        <header class="dash-panel__head">
-          <div><h3>Actividad reciente</h3><p>Últimas solicitudes y su estado</p></div>
-        </header>
-        ${dashBuildClientRecentTable(list)}
+      <section class="at-panel">
+        <div class="at-panel-head">
+          <div><span class="at-panel-head__kicker">Timeline</span><h3>Actividad reciente</h3></div>
+        </div>
+        ${recent.length ? `<div class="at-trip-table-wrap">
+          <table class="at-trip-table">
+            <thead><tr><th>Solicitud</th><th>Ruta</th><th>Estado</th><th>Recogida</th></tr></thead>
+            <tbody>${tableRows}</tbody>
+          </table></div>`
+          : `<p style="padding:20px;font-size:12px;color:var(--at-text-3)">Aún no tiene solicitudes registradas.</p>`}
       </section>
-      ${compliance ? `<aside class="dash-panel dash-panel--client-ring">${compliance}</aside>` : ""}
     </div>`;
   }
 
@@ -709,39 +1883,17 @@
   ───────────────────────────────────────────────────────────── */
 
   function viewDashboard() {
-    const user = currentUser();
-    const list = getVisibleRequestsForUser(user);
-    const DD = dashDomain();
-    const snap = DD?.computeTodayOperationsSnapshot ? DD.computeTodayOperationsSnapshot(user) : null;
-    const attentionItems = DD?.computeDashboardAttentionItems ? DD.computeDashboardAttentionItems(user) : [];
-    const scopeBar = isPortalClientUser(user) ? clientDataScopeBarHtml(getClientDataScope()) : "";
-    const longDate = formatColombiaLongDate(new Date());
-    const greeting = colombiaTimeOfDayGreeting(new Date());
-    const displayName = getPortalUserDisplayName(user) || user?.name || "Operador";
-    const firstName = escapeHtml(String(displayName).trim().split(/\s+/)[0] || displayName);
-    const quickActions = dashBuildQuickActions(user);
-    const updatedAgo = snap?.generatedAt ? dashFormatTimeAgo(snap.generatedAt) : "ahora";
+    dashInjectStyles();
 
-    /* ── Hero Control Tower ── */
-    const hero = `<header class="dash-cc dash-hero dash-hero--tower">
-      <div class="dash-cc__glow" aria-hidden="true"></div>
-      <div class="dash-cc__main">
-        <div class="dash-cc__brand">
-          <span class="dash-cc__kicker">Torre de control</span>
-          <h2 class="dash-cc__title"><span class="dash-cc__wave" aria-hidden="true">👋</span> ${escapeHtml(greeting)}, <span class="dash-cc__name">${firstName}</span></h2>
-        </div>
-        <p class="dash-cc__subtitle">Centro Inteligente de Transporte</p>
-        <p class="dash-cc__meta">
-          <span>${escapeHtml(longDate)}</span>
-          <span class="dash-cc__sep" aria-hidden="true">·</span>
-          <span>Actualizado ${escapeHtml(updatedAgo)}</span>
-        </p>
-      </div>
-      <div class="dash-cc__aside">
-        ${dashBuildStatusChips(snap, attentionItems)}
-        ${quickActions ? `<div class="dash-cc__rail dash-cc__rail--actions"><span class="dash-cc__rail-label">Accesos rápidos</span><nav class="dash-cc__actions" aria-label="Accesos rápidos">${quickActions}</nav></div>` : ""}
-      </div>
-    </header>`;
+    const user           = currentUser();
+    const list           = getVisibleRequestsForUser(user);
+    const DD             = dashDomain();
+    const snap           = DD?.computeTodayOperationsSnapshot?.(user) ?? null;
+    const attentionItems = DD?.computeDashboardAttentionItems?.(user) ?? [];
+    const scopeBar       = isPortalClientUser(user)
+      ? `<div class="at-scope-bar">${clientDataScopeBarHtml(getClientDataScope())}</div>` : "";
+
+    const hero = dashBuildHero(snap, user, attentionItems);
 
     /* ── Vista cliente ── */
     if (isPortalClientUser(user)) {
@@ -749,133 +1901,109 @@
     }
 
     /* ── Vista operacional ── */
-    const todayIso = snap?.todayIso || colombiaTodayIsoDate();
+    const todayIso   = snap?.todayIso || colombiaTodayIsoDate();
     const todayTrips = list.filter((r) => {
       const pickupDay = requestPickupIsoDate(r);
       if (pickupDay === todayIso) return true;
       return r.trip && tripRequestStatusIsOperational(r.status);
     });
 
-    const groupList = (DD?.groupRequestsByVehicleForDashboard
-      ? DD.groupRequestsByVehicleForDashboard(todayTrips.filter((r) => r.trip?.vehicleId))
-      : []
+    const groupList = (
+      DD?.groupRequestsByVehicleForDashboard
+        ? DD.groupRequestsByVehicleForDashboard(todayTrips.filter((r) => r.trip?.vehicleId))
+        : []
     ).sort((a, b) => String(a.plate).localeCompare(String(b.plate), "es"));
+
     const fleetCards = groupList.map((g, i) => dashBuildVehicleCard(g, i)).join("");
+    const fleetContent = fleetCards || `<div class="at-fleet-empty">
+      <div class="at-fleet-empty__icon">${IC.truck || "🚚"}</div>
+      <p><strong>Sin vehículos activos hoy</strong></p>
+      <p style="font-size:12px;color:var(--at-text-3);margin-top:4px">Asigne rutas desde Transporte · Viajes para ver la flota en tiempo real.</p>
+      ${isViewAllowedForUser(user, "transport-trips")
+        ? `<button type="button" class="at-qa-btn at-qa-btn--primary" style="margin-top:14px" data-action="dash-nav" data-target-view="transport-trips">Ir a asignación</button>` : ""}
+    </div>`;
 
-    const fleetContent =
-      fleetCards ||
-      `<div class="dash-empty">
-        <div class="dash-empty__icon" aria-hidden="true">${IC.truck || ""}</div>
-        <p><strong>Sin vehículos activos hoy</strong></p>
-        <p class="muted">Asigne rutas desde Transporte · Viajes para ver la flota en tiempo real.</p>
-        ${isViewAllowedForUser(user, "transport-trips")
-          ? `<button type="button" class="btn btn-primary btn-sm" data-action="dash-nav" data-target-view="transport-trips">${IC.truck || ""} Ir a asignación</button>`
-          : ""}
-      </div>`;
+    const tabCounts     = dashCountFleetByStatus(groupList);
+    const exec          = DD?.computeTodayExecutiveMetrics?.(user) ?? null;
+    const hourly        = DD?.computeDeliveriesByHour?.(todayTrips) ?? [];
+    const fleetPie      = DD?.computeFleetStatusBreakdown?.(user, groupList) ?? null;
+    const mapMarkers    = DD?.computeDashboardMapMarkers?.(groupList) ?? [];
+    const criticalAlerts = DD?.computeDashboardCriticalAlerts?.(user) ?? [];
 
-    const tabCounts = dashCountFleetByStatus(groupList);
-    const exec = DD?.computeTodayExecutiveMetrics ? DD.computeTodayExecutiveMetrics(user) : null;
-    const hourly = DD?.computeDeliveriesByHour ? DD.computeDeliveriesByHour(todayTrips) : [];
-    const fleetPie = DD?.computeFleetStatusBreakdown ? DD.computeFleetStatusBreakdown(user, groupList) : null;
-    const mapMarkers = DD?.computeDashboardMapMarkers ? DD.computeDashboardMapMarkers(groupList) : [];
-    const criticalAlerts = DD?.computeDashboardCriticalAlerts ? DD.computeDashboardCriticalAlerts(user) : [];
-
-    const body = `
-      ${dashBuildMetricsStrip(snap, user, exec)}
-      <div class="dash-command-center">
+    return `${scopeBar}<section class="dashboard-studio" id="dashboard-root">
+      ${hero}
+      ${dashBuildKpiStrip(snap, exec)}
+      <div class="at-command">
         ${dashBuildLiveMap(mapMarkers)}
         ${dashBuildCriticalAlertsPanel(criticalAlerts)}
       </div>
       ${dashBuildAnalyticsRow(snap, hourly, fleetPie)}
-      <div class="dash-layout dash-layout--fleet">
-        <section class="dash-panel dash-panel--fleet dash-reveal" id="dash-fleet-panel" style="--dash-stagger:17" aria-label="Torre de flota">
-          <header class="dash-panel__head dash-panel__head--fleet">
-            <div>
-              <span class="dash-panel__kicker">Operaciones · Hoy</span>
+      <div class="at-fleet-section">
+        <div class="at-fleet-panel at-reveal" id="dash-fleet-panel" style="--at-stagger:17">
+          <div class="at-fleet-head">
+            <div class="at-fleet-head__info">
+              <span style="font-size:9px;text-transform:uppercase;letter-spacing:0.14em;color:var(--at-text-3);font-family:var(--at-font-data);display:block;margin-bottom:3px">Operaciones · Hoy</span>
               <h3>Torre de flota</h3>
-              <p>Seguimiento en vivo de vehículos programados para hoy</p>
+              <p>Seguimiento en vivo de vehículos programados</p>
             </div>
-            <div class="dash-panel__tools">
-              <label class="dash-search">
-                ${IC.search || ""}
-                <input id="dash-search" type="search" placeholder="Buscar placa, conductor o cliente…" autocomplete="off" />
-              </label>
-              <label class="dash-filter visually-hidden">Estado
-                <select id="dash-filter" aria-hidden="true" tabindex="-1">
-                  <option value="all">Todos</option>
-                  <option value="en-ruta">En ruta</option>
-                  <option value="programado">Programados</option>
-                  <option value="cerrado">Cerrados</option>
-                </select>
-              </label>
-              <span class="dash-count" id="dash-fleet-count">${groupList.length} vehículo${groupList.length === 1 ? "" : "s"}</span>
+            <label class="at-search-wrap">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+              <input id="dash-search" type="search" placeholder="Buscar placa, conductor…" autocomplete="off"/>
+            </label>
+            <span class="at-fleet-count" id="dash-fleet-count">${groupList.length} veh.</span>
+          </div>
+          <div class="at-tabs" role="tablist" id="dash-tablist">${dashBuildFleetTabs(tabCounts)}</div>
+          <div class="at-fleet-list" id="dash-fleet-list">${fleetContent}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:1px;background:var(--at-border)">
+          <aside class="at-activity-panel at-reveal" style="--at-stagger:18;flex:1" aria-label="Actividad reciente">
+            <div class="at-panel-head">
+              <div>
+                <span class="at-panel-head__kicker">Timeline</span>
+                <h3>Últimos movimientos</h3>
+              </div>
             </div>
-          </header>
-          <div class="dash-tabs" role="tablist" aria-label="Filtrar flota">${dashBuildFleetTabs(tabCounts)}</div>
-          <div class="dash-fleet-list">${fleetContent}</div>
-        </section>
-        <aside class="dash-panel dash-panel--activity dash-reveal" style="--dash-stagger:18" aria-label="Actividad reciente">
-          <header class="dash-panel__head dash-panel__head--compact dash-panel__head--activity">
-            <div>
-              <span class="dash-panel__kicker">Timeline</span>
-              <h3>Últimos movimientos</h3>
-              <p>Actualizaciones del día</p>
-            </div>
-          </header>
-          ${dashBuildActivityFeed(todayTrips)}
-        </aside>
-      </div>`;
-
-    return `${scopeBar}<section class="dashboard-studio">${hero}${body}</section>`;
+            ${dashBuildActivityFeed(todayTrips)}
+          </aside>
+          ${dashBuildPulsePanel(snap, user)}
+        </div>
+      </div>
+    </section>`;
   }
 
   /* ─────────────────────────────────────────────────────────────
-     CONTROLES POST-RENDER
+     ANIMACIONES POST-RENDER
   ───────────────────────────────────────────────────────────── */
 
-  function dashAnimateCountEl(el, delayMs, sourceEl) {
-    const source = sourceEl || el;
-    const target = Number(source.dataset.dashCount);
-    const display = String(source.dataset.dashDisplay || "");
-    if (!el || !Number.isFinite(target)) return;
-    const hasPct = display.includes("%");
-    const duration = 820;
-    const startAt = performance.now() + delayMs;
-
+  function dashAnimateCount(el, delay, sourceEl) {
+    const src     = sourceEl || el;
+    const target  = Number(src.dataset.atCount);
+    const display = String(src.dataset.atDisplay || "");
+    if (!Number.isFinite(target)) return;
+    const hasPct  = display.includes("%");
+    const dur     = 820;
+    const startAt = performance.now() + delay;
     const tick = (now) => {
-      if (now < startAt) {
-        requestAnimationFrame(tick);
-        return;
-      }
-      const t = Math.min(1, (now - startAt) / duration);
-      const eased = 1 - Math.pow(1 - t, 3);
-      const current = Math.round(target * eased);
-      el.textContent = hasPct ? `${current}%` : String(current);
+      if (now < startAt) { requestAnimationFrame(tick); return; }
+      const t = Math.min(1, (now - startAt) / dur);
+      const ease = 1 - Math.pow(1 - t, 3);
+      el.textContent = hasPct ? `${Math.round(target * ease)}%` : String(Math.round(target * ease));
       if (t < 1) requestAnimationFrame(tick);
       else el.textContent = display;
     };
     requestAnimationFrame(tick);
   }
 
-  function dashAnimateBarFills(root, baseDelay) {
-    root.querySelectorAll(".dash-bar-fill[data-dash-width]").forEach((bar, i) => {
-      const target = Number(bar.dataset.dashWidth);
+  function dashAnimateBars(root, baseDelay) {
+    root.querySelectorAll(".at-hour-fill[data-at-width], .at-compliance-bar-fill[data-at-width]").forEach((bar, i) => {
+      const target  = Number(bar.dataset.atWidth);
       if (!Number.isFinite(target)) return;
-      const row = bar.closest(".dash-hour-row");
-      const stagger = row
-        ? Number.parseInt(getComputedStyle(row).getPropertyValue("--dash-stagger"), 10) || i
-        : i;
-      const startAt = performance.now() + baseDelay + stagger * 55;
+      const startAt = performance.now() + baseDelay + i * 55;
       bar.style.width = "0%";
-
       const tick = (now) => {
-        if (now < startAt) {
-          requestAnimationFrame(tick);
-          return;
-        }
+        if (now < startAt) { requestAnimationFrame(tick); return; }
         const t = Math.min(1, (now - startAt) / 720);
-        const eased = 1 - Math.pow(1 - t, 3);
-        bar.style.width = `${target * eased}%`;
+        bar.style.width = `${target * (1 - Math.pow(1 - t, 3))}%`;
         if (t < 1) requestAnimationFrame(tick);
         else bar.style.width = `${target}%`;
       };
@@ -883,54 +2011,40 @@
     });
   }
 
-  function dashAnimateComplianceRing(root, delayMs) {
-    root.querySelectorAll(".dash-ring-animate[data-dash-ring-pct]").forEach((ring) => {
-      const target = Number(ring.dataset.dashRingPct);
-      if (!Number.isFinite(target)) return;
-      const r = 18;
-      const c = 2 * Math.PI * r;
-      ring.style.strokeDasharray = `${c}`;
+  function dashAnimateRing(root, delay) {
+    root.querySelectorAll(".at-ring-anim[data-at-ring-offset]").forEach((ring) => {
+      const finalOffset = Number(ring.dataset.atRingOffset);
+      const r           = 38;
+      const c           = 2 * Math.PI * r;
+      ring.style.strokeDasharray  = `${c}`;
       ring.style.strokeDashoffset = `${c}`;
-      const startAt = performance.now() + delayMs;
+      const startAt = performance.now() + delay;
       const tick = (now) => {
-        if (now < startAt) {
-          requestAnimationFrame(tick);
-          return;
-        }
+        if (now < startAt) { requestAnimationFrame(tick); return; }
         const t = Math.min(1, (now - startAt) / 900);
-        const eased = 1 - Math.pow(1 - t, 3);
-        const pct = target * eased;
-        ring.style.strokeDashoffset = `${c - (pct / 100) * c}`;
+        const ease = 1 - Math.pow(1 - t, 3);
+        ring.style.strokeDashoffset = `${c + (finalOffset - c) * ease}`;
         if (t < 1) requestAnimationFrame(tick);
-        else ring.style.strokeDashoffset = `${c - (target / 100) * c}`;
+        else ring.style.strokeDashoffset = `${finalOffset}`;
       };
       requestAnimationFrame(tick);
     });
   }
 
-  function dashAnimateFleetPie(root, delayMs) {
-    root.querySelectorAll(".dash-fleet-pie--animate[data-pie-a]").forEach((pie) => {
-      const a = Number(pie.dataset.pieA) || 0;
-      const e = Number(pie.dataset.pieE) || 0;
-      const m = Number(pie.dataset.pieM) || 0;
+  function dashAnimatePie(root, delay) {
+    root.querySelectorAll(".at-fleet-pie--anim[data-pie-a]").forEach((pie) => {
+      const a     = Number(pie.dataset.pieA);
+      const e     = Number(pie.dataset.pieE);
+      const m     = Number(pie.dataset.pieM);
       const final = String(pie.dataset.pieFinal || "");
-      const startAt = performance.now() + delayMs;
-
+      const startAt = performance.now() + delay;
       const tick = (now) => {
-        if (now < startAt) {
-          requestAnimationFrame(tick);
-          return;
-        }
-        const t = Math.min(1, (now - startAt) / 950);
-        const eased = 1 - Math.pow(1 - t, 3);
-        const aa = a * eased;
-        const ee = e * eased;
-        const mm = m * eased;
-        const used = aa + ee + mm;
+        if (now < startAt) { requestAnimationFrame(tick); return; }
+        const t    = Math.min(1, (now - startAt) / 950);
+        const ease = 1 - Math.pow(1 - t, 3);
+        const aa   = a * ease, ee = e * ease, mm = m * ease, used = aa + ee + mm;
         if (used >= 99.5) pie.style.background = final;
-        else {
-          pie.style.background = `conic-gradient(var(--dash-live-mid) 0% ${aa}%, var(--dash-warn-mid) ${aa}% ${aa + ee}%, var(--dash-alert-mid) ${aa + ee}% ${used}%, var(--dash-border-strong) ${used}% 100%)`;
-        }
+        else pie.style.background = `conic-gradient(var(--at-cyan) 0% ${aa}%, var(--at-amber) ${aa}% ${aa + ee}%, var(--at-red) ${aa + ee}% ${used}%, var(--at-surface-3) ${used}% 100%)`;
         if (t < 1) requestAnimationFrame(tick);
         else if (final) pie.style.background = final;
       };
@@ -942,45 +2056,51 @@
     if (!root || root.dataset.motionInit === "1") return;
     root.dataset.motionInit = "1";
 
-    const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     root.classList.add("dashboard-studio--mounted");
 
-    if (prefersReduced) {
-      root.querySelectorAll(".dash-bar-fill[data-dash-width]").forEach((bar) => {
-        bar.style.width = `${bar.dataset.dashWidth}%`;
+    if (reduced) {
+      root.querySelectorAll("[data-at-count]").forEach((el) => {
+        if (el.dataset.atDisplay) el.textContent = el.dataset.atDisplay;
       });
-      root.querySelectorAll(".dash-fleet-pie--animate[data-pie-final]").forEach((pie) => {
-        pie.style.background = pie.dataset.pieFinal;
+      root.querySelectorAll(".at-hour-fill[data-at-width], .at-compliance-bar-fill[data-at-width]").forEach((b) => {
+        b.style.width = `${b.dataset.atWidth}%`;
       });
-      root.querySelectorAll("[data-dash-count]").forEach((el) => {
-        if (el.dataset.dashDisplay) el.textContent = el.dataset.dashDisplay;
+      root.querySelectorAll(".at-fleet-pie--anim[data-pie-final]").forEach((p) => {
+        p.style.background = p.dataset.pieFinal;
       });
-      root.querySelectorAll(".dash-ring-animate[data-dash-ring-pct]").forEach((ring) => {
-        const target = Number(ring.dataset.dashRingPct);
-        const r = 18;
-        const c = 2 * Math.PI * r;
-        ring.style.strokeDasharray = `${c}`;
-        ring.style.strokeDashoffset = `${c - (target / 100) * c}`;
+      root.querySelectorAll(".at-ring-anim[data-at-ring-offset]").forEach((ring) => {
+        const r = 38, c = 2 * Math.PI * r;
+        ring.style.strokeDasharray  = `${c}`;
+        ring.style.strokeDashoffset = `${ring.dataset.atRingOffset}`;
       });
       return;
     }
 
-    root.querySelectorAll(".dash-kpi[data-dash-count]").forEach((card) => {
-      const stagger =
-        Number.parseInt(getComputedStyle(card).getPropertyValue("--dash-stagger"), 10) || 0;
-      const valueEl = card.querySelector(".dash-kpi__value");
-      if (valueEl) dashAnimateCountEl(valueEl, 120 + stagger * 70, card);
+    // KPI counters
+    root.querySelectorAll(".at-kpi[data-at-count]").forEach((card) => {
+      const stagger   = Number.parseInt(getComputedStyle(card).getPropertyValue("--at-stagger"), 10) || 0;
+      const valueEl   = card.querySelector(".at-kpi__value");
+      if (valueEl) dashAnimateCount(valueEl, 120 + stagger * 70, card);
     });
 
-    const compliancePct = root.querySelector(".dash-compliance-pct");
-    if (compliancePct) dashAnimateCountEl(compliancePct, 520);
+    // Compliance pct text
+    root.querySelectorAll("[data-at-count][data-at-display]").forEach((el) => {
+      if (!el.closest(".at-kpi")) dashAnimateCount(el, 520);
+    });
 
-    const pieTotalEl = root.querySelector(".dash-fleet-pie__hole strong[data-dash-count]");
-    if (pieTotalEl) dashAnimateCountEl(pieTotalEl, 680);
-    dashAnimateBarFills(root, 480);
-    dashAnimateComplianceRing(root, 500);
-    dashAnimateFleetPie(root, 620);
+    // Pie hole
+    const pieTotalEl = root.querySelector(".at-fleet-pie__hole strong[data-at-count]");
+    if (pieTotalEl) dashAnimateCount(pieTotalEl, 680);
+
+    dashAnimateBars(root, 480);
+    dashAnimateRing(root, 500);
+    dashAnimatePie(root, 620);
   }
+
+  /* ─────────────────────────────────────────────────────────────
+     CONTROLES POST-RENDER
+  ───────────────────────────────────────────────────────────── */
 
   function bindDashboardControls() {
     if (String(state.currentView || "") !== "dashboard" || !nodes.viewRoot) return;
@@ -989,89 +2109,83 @@
 
     initDashboardMotion(root);
 
-    const search = root.querySelector("#dash-search");
-    const filter = root.querySelector("#dash-filter");
-    const cards = [...root.querySelectorAll(".dash-vehicle")];
-    const countEl = root.querySelector("#dash-fleet-count");
-    const tablist = root.querySelector(".dash-tabs");
-    let activeTab = "all";
+    const search   = root.querySelector("#dash-search");
+    const cards    = [...root.querySelectorAll(".at-vehicle")];
+    const countEl  = root.querySelector("#dash-fleet-count");
+    const tablist  = root.querySelector("#dash-tablist");
+    let activeTab  = "all";
 
-    const syncTabA11y = (tabId) => {
-      root.querySelectorAll(".dash-tab").forEach((tab) => {
-        const isActive = tab.dataset.dashTab === tabId;
-        tab.classList.toggle("is-active", isActive);
-        tab.setAttribute("aria-selected", isActive ? "true" : "false");
-        tab.tabIndex = isActive ? 0 : -1;
+    const syncTabs = (tabId) => {
+      root.querySelectorAll(".at-tab").forEach((tab) => {
+        const active = tab.dataset.dashTab === tabId;
+        tab.classList.toggle("is-active", active);
+        tab.setAttribute("aria-selected", active);
+        tab.tabIndex = active ? 0 : -1;
       });
     };
 
     const selectTab = (tabId) => {
       activeTab = String(tabId || "all");
-      if (filter) filter.value = activeTab;
-      syncTabA11y(activeTab);
-      apply();
+      syncTabs(activeTab);
+      applyFilter();
     };
 
-    const apply = () => {
+    const applyFilter = () => {
       const q = String(search?.value || "").trim().toLowerCase();
-      const f = String(filter?.value || activeTab || "all");
       let visible = 0;
       cards.forEach((card) => {
-        const blob = String(card.dataset.search || "").toLowerCase();
-        const plate = String(card.dataset.plate || "").toLowerCase();
-        const driver = String(card.dataset.driver || "").toLowerCase();
+        const blob   = String(card.dataset.search || "").toLowerCase();
         const status = String(card.dataset.status || "");
-        const matchQ = !q || plate.includes(q) || driver.includes(q) || blob.includes(q);
-        const matchF = f === "all" || status === f;
-        const show = matchQ && matchF;
-        card.hidden = !show;
-        if (show) visible += 1;
+        const matchQ = !q || blob.includes(q);
+        const matchF = activeTab === "all" || status === activeTab;
+        const show   = matchQ && matchF;
+        card.hidden  = !show;
+        if (show) visible++;
       });
-      if (countEl) countEl.textContent = `${visible} vehículo${visible === 1 ? "" : "s"}`;
+      if (countEl) countEl.textContent = `${visible} veh.`;
     };
 
-    search?.addEventListener("input", apply);
-    filter?.addEventListener("change", () => selectTab(filter.value));
+    search?.addEventListener("input", applyFilter);
 
-    root.querySelectorAll(".dash-tab").forEach((tab) => {
-      tab.addEventListener("click", () => selectTab(tab.dataset.dashTab));
+    tablist?.addEventListener("click", (event) => {
+      const tab = event.target.closest(".at-tab[data-dash-tab]");
+      if (tab) selectTab(tab.dataset.dashTab);
     });
 
     tablist?.addEventListener("keydown", (event) => {
-      const tabs = [...root.querySelectorAll(".dash-tab")];
+      const tabs = [...root.querySelectorAll(".at-tab")];
       if (!tabs.length) return;
-      const currentIdx = tabs.findIndex((tab) => tab.classList.contains("is-active"));
-      let nextIdx = currentIdx;
-      if (event.key === "ArrowRight") nextIdx = (currentIdx + 1) % tabs.length;
-      else if (event.key === "ArrowLeft") nextIdx = (currentIdx - 1 + tabs.length) % tabs.length;
-      else if (event.key === "Home") nextIdx = 0;
-      else if (event.key === "End") nextIdx = tabs.length - 1;
+      const ci = tabs.findIndex((t) => t.classList.contains("is-active"));
+      let ni   = ci;
+      if      (event.key === "ArrowRight") ni = (ci + 1) % tabs.length;
+      else if (event.key === "ArrowLeft")  ni = (ci - 1 + tabs.length) % tabs.length;
+      else if (event.key === "Home")       ni = 0;
+      else if (event.key === "End")        ni = tabs.length - 1;
       else return;
       event.preventDefault();
-      const nextTab = tabs[nextIdx];
+      const nextTab = tabs[ni];
       selectTab(nextTab.dataset.dashTab);
       nextTab.focus();
     });
 
-    apply();
+    applyFilter();
 
-    root.querySelectorAll("[data-action='dash-nav'], [data-action='dash-attention-nav']").forEach((btn) => {
-      btn.addEventListener("click", () => {
+    root.addEventListener("click", (event) => {
+      const btn = event.target.closest("[data-action]");
+      if (!btn) return;
+      const action = btn.dataset.action;
+      if (action === "dash-nav" || action === "dash-attention-nav") {
         const target = String(btn.dataset.targetView || "").trim();
         if (target) setView(target);
-      });
-    });
-
-    root.querySelectorAll("[data-action='dash-focus-fleet']").forEach((btn) => {
-      btn.addEventListener("click", () => {
+      } else if (action === "dash-focus-fleet") {
         selectTab(btn.dataset.dashTab || "all");
         root.querySelector("#dash-fleet-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
-      });
+      }
     });
   }
 
   /* ─────────────────────────────────────────────────────────────
-     REGISTRO DE MÓDULO
+     REGISTRO
   ───────────────────────────────────────────────────────────── */
 
   if (typeof window.registerLegacyPortalViews === "function") {
