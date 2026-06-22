@@ -9937,7 +9937,7 @@ function wirePayrollEmployeeFormFieldSanitization(formEl) {
     el.setAttribute("inputmode", "tel");
     el.setAttribute("placeholder", "3001234567");
     el.setAttribute("maxlength", "10");
-    el.removeAttribute("pattern");
+    el.setAttribute("pattern", "[0-9]{10}");
     el.removeAttribute("minlength");
   });
   window.AntaresValidation?.decorateFormFields?.(formEl);
@@ -11010,6 +11010,22 @@ function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = 
         ? window.RecruitmentDomain.inferTemplateKind(effectiveContractType, resolvedWorkerRole)
         : "oficina")
   });
+  const phoneNat = portalPhoneNationalDigitsForForm(sanitized.phone);
+  if (!/^\d{10}$/.test(phoneNat)) {
+    return {
+      ok: false,
+      msg: "Ingrese el celular de 10 dígitos sin el +57 (ej.: 3001234567).",
+      field: "phone"
+    };
+  }
+  const emergencyNat = portalPhoneNationalDigitsForForm(sanitized.emergencyPhone);
+  if (!/^\d{10}$/.test(emergencyNat)) {
+    return {
+      ok: false,
+      msg: "Ingrese el teléfono de emergencia de 10 dígitos sin el +57.",
+      field: "emergencyPhone"
+    };
+  }
   return {
     ok: true,
     payload: {
@@ -11235,6 +11251,15 @@ function buildEmployeePayrollProfileBodyHtml(emp) {
     ${driverBlock}</article>`;
 }
 
+function employeeNationalPhoneFieldHtml(name, label, rawValue) {
+  const national = portalPhoneNationalDigitsForForm(rawValue || "");
+  return `<label><span>${escapeHtml(label)}</span>
+<div class="phone-input-professional" role="group" aria-label="${escapeAttr(label)}">
+<span class="phone-cc-badge" aria-hidden="true"><span class="phone-dial-code">+57</span></span>
+<input class="phone-national-input" name="${escapeAttr(name)}" required value="${escapeAttr(national)}" placeholder="3001234567" data-antares-restrict="digits" data-antares-validate-blur="phone-loose" maxlength="10" inputmode="tel" />
+</div></label>`;
+}
+
 function buildPayrollEmployeeEditModalFields(emp) {
   const e = normalizePayrollEmployeeRowDates(emp || {});
   const empId = escapeAttr(String(e.id || ""));
@@ -11330,10 +11355,10 @@ function buildPayrollEmployeeEditModalFields(emp) {
 <label><span>${escapeHtml("Departamento")}</span><select name="department" id="employee-modal-department" required>${deps}</select></label>
 <label><span>${escapeHtml("Ciudad")}</span><select name="city" id="employee-modal-city" required><option value="">${escapeHtml("Seleccione un departamento...")}</option></select></label>
 <label class="full"><span>${escapeHtml("Dirección")}</span><input name="address" required value="${escapeAttr(e.address || "")}" /></label>
-<label><span>${escapeHtml("Teléfono celular")}</span><input name="phone" required value="${escapeAttr(portalPhoneNationalDigitsForForm(e.phone || ""))}" placeholder="3001234567" data-antares-restrict="digits" data-antares-validate-blur="phone-loose" maxlength="10" inputmode="tel" /></label>
+${employeeNationalPhoneFieldHtml("phone", "Teléfono celular", e.phone)}
 <label><span>${escapeHtml("Correo personal")}</span><input type="email" name="personalEmail" value="${escapeAttr(e.personalEmail || "")}" /></label>
 <label><span>${escapeHtml("Contacto emergencia")}</span><input name="emergencyContact" required value="${escapeAttr(e.emergencyContact || "")}" /></label>
-<label><span>${escapeHtml("Tel. emergencia")}</span><input name="emergencyPhone" required value="${escapeAttr(portalPhoneNationalDigitsForForm(e.emergencyPhone || ""))}" placeholder="3001234567" data-antares-restrict="digits" data-antares-validate-blur="phone-loose" maxlength="10" inputmode="tel" /></label>
+${employeeNationalPhoneFieldHtml("emergencyPhone", "Tel. emergencia", e.emergencyPhone)}
 <label class="full"><span>${escapeHtml("Parentesco emergencia")}</span><input name="emergencyRelation" value="${escapeAttr(e.emergencyRelation || "")}" /></label>
 </div>`
     },

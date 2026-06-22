@@ -1205,13 +1205,13 @@ function bindPayrollPortalControls() {
         return;
       }
       const days = Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1;
-      const absenceType = payrollNormalizeAbsenceTypeKey(data.absenceType);
-      const absenceSubtype = payrollNormalizeAbsenceSubtype(absenceType, data.absenceSubtype);
+      const { absenceType, absenceSubtype } = payrollResolveAbsenceFormType(data);
       const recognizedDays = Math.max(
         0.5,
         Number(
           parseNum(
-            data.recognizedDays ||
+            data.requestAmount ||
+              data.recognizedDays ||
               payrollComputeAbsenceSuggestedRecognizedDays({
                 absenceType,
                 absenceSubtype,
@@ -1221,6 +1221,10 @@ function bindPayrollPortalControls() {
           )
         )
       );
+      const notesBase = normalizeLatinUpperForDb(data.notes || "");
+      const notes = data.periodicAbsence
+        ? normalizeLatinUpperForDb(`[PERIÓDICA] ${notesBase}`.trim())
+        : notesBase;
       const legalValidation = payrollValidateAbsenceLegalRules({
         absenceType,
         absenceSubtype,
@@ -1249,7 +1253,7 @@ function bindPayrollPortalControls() {
         recognizedUnit: payrollAbsenceRecognizedUnit(absenceType, absenceSubtype),
         supportNumber: normalizeLatinUpperForDb(data.supportNumber || ""),
         epsEntity: normalizeLatinUpperForDb(data.epsEntity || ""),
-        notes: normalizeLatinUpperForDb(data.notes || ""),
+        notes,
         createdAt: nowIso()
       };
       if (requiresAdminHrApproval(actor?.role || "")) {
@@ -1525,7 +1529,7 @@ function bindPayrollPortalControls() {
           try {
             await writeAwaitServer(KEYS.payrollEmployees, nextEmployees);
           } catch (err) {
-            notify(String(err?.message || "No fue posible guardar el empleado en el servidor."), "error");
+            notify(userMessage("employeeSaveServerFail", err?.message), "error");
             return false;
           }
           scheduleContractRenewalNotificationCheck();

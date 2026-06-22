@@ -212,10 +212,18 @@ function payrollHtml() {
         <label>${fieldLabel(IC.mapPin, "Departamento")}<select name="department" id="employee-department" required><option value="">Seleccione...</option>${departmentOptions()}</select></label>
         <label>${fieldLabel(IC.mapPin, "Ciudad")}<select name="city" id="employee-city" required><option value="">Seleccione un departamento...</option></select></label>
         <label class="full">${fieldLabel(IC.compass, "Dirección de residencia")}<input name="address" required placeholder="Carrera 15 # 6-56, Apto 302, Barrio La Floresta" data-antares-validate-blur="db-upper" data-antares-field="db-upper" /></label>
-        <label>${fieldLabel(IC.phone, "Teléfono celular")}<input name="phone" required placeholder="3001234567" data-antares-restrict="digits" data-antares-validate-blur="phone-loose" /></label>
+        <label>${fieldLabel(IC.phone, "Teléfono celular")}
+        <div class="phone-input-professional" role="group" aria-label="Teléfono celular">
+        <span class="phone-cc-badge" aria-hidden="true"><span class="phone-dial-code">+57</span></span>
+        <input class="phone-national-input" name="phone" required placeholder="3001234567" data-antares-restrict="digits" data-antares-validate-blur="phone-loose" maxlength="10" inputmode="tel" pattern="[0-9]{10}" />
+        </div></label>
         <label>${fieldLabel(IC.mail, "Correo personal")}<input type="email" name="personalEmail" placeholder="empleado@correo.com" data-antares-validate-blur="email" data-antares-restrict="email-local" /></label>
         <label>${fieldLabel(IC.user, "Contacto de emergencia")}<input name="emergencyContact" required data-antares-restrict="person-name" data-antares-field="person-name" /></label>
-        <label>${fieldLabel(IC.phone, "Teléfono emergencia")}<input name="emergencyPhone" required data-antares-restrict="digits" data-antares-validate-blur="phone-loose" /></label>
+        <label>${fieldLabel(IC.phone, "Teléfono emergencia")}
+        <div class="phone-input-professional" role="group" aria-label="Teléfono emergencia">
+        <span class="phone-cc-badge" aria-hidden="true"><span class="phone-dial-code">+57</span></span>
+        <input class="phone-national-input" name="emergencyPhone" required placeholder="3001234567" data-antares-restrict="digits" data-antares-validate-blur="phone-loose" maxlength="10" inputmode="tel" pattern="[0-9]{10}" />
+        </div></label>
         <label>${fieldLabel(IC.heart, "Parentesco emergencia")}<input name="emergencyRelation" placeholder="Cónyuge, padre, hermano(a)..." data-antares-restrict="person-name" data-antares-field="person-name" /></label>
       </div>
     </fieldset>
@@ -514,32 +522,74 @@ function payrollHtml() {
     </fieldset>
     ${renderManagedCreateFormActions("create-payroll-settlement", `<button class="btn btn-primary" type="submit">${IC.save} Registrar liquidación contractual</button>`)}
   </form>`;
-  const formAbsence = `<form id="form-hr-absence" class="p-form p-form-colored hr-form-flow hr-form-compact">
-    <fieldset class="form-section form-section-violet full">
-      <legend>${IC.calendar} Datos de la novedad</legend>
-      <div class="form-section-grid">
-        <label>${fieldLabel(IC.user, "Empleado")}<select name="employeeId" required><option value="">Seleccione</option>${employees.map((e) => `<option value="${escapeAttr(String(e.id))}">${escapeHtml(String(e.name || ""))} · ${escapeHtml(String(e.idDoc || "—"))}</option>`).join("")}</select></label>
-        <label>${fieldLabel(IC.activity, "Tipo de ausencia")}
-          <select name="absenceType" required>${buildPayrollAbsenceTypeOptionsHtml("incapacidad_eps")}</select>
-        </label>
-        <label class="hidden" data-absence-subtype-wrap aria-hidden="true">${fieldLabel(IC.layers, "Subtipo")}
-          <select name="absenceSubtype">${buildPayrollAbsenceSubtypeOptionsHtml("incapacidad_eps", "")}</select>
-        </label>
-        <label>${fieldLabel(IC.calendar, "Desde")}<input type="date" name="startDate" required /></label>
-        <label>${fieldLabel(IC.calendar, "Hasta")}<input type="date" name="endDate" required /></label>
-        <label>${fieldLabel(IC.hash, "Días reconocidos")}<input type="number" name="recognizedDays" min="0.5" step="0.5" value="1" required /></label>
-        <p class="full muted" data-absence-recognition-hint style="margin:0;font-size:0.82rem"></p>
+  const formAbsence = `<form id="form-hr-absence" class="p-form p-form-colored hr-form-flow hr-absence-create-form">
+    <header class="hr-absence-create-form__head">
+      <h3 class="hr-absence-create-form__title">Crear ausencia</h3>
+      <p class="muted hr-absence-create-form__lead">Vacaciones, licencias, incapacidades, compensatorios y suspensiones con validación legal Colombia.</p>
+    </header>
+    <div class="hr-absence-create-form__body">
+      <div class="hr-absence-field hr-absence-field--employee full">
+        <label>${fieldLabel(IC.user, "Colaborador", { required: true })}<select name="employeeId" required><option value="">Seleccione colaborador</option>${employees.map((e) => `<option value="${escapeAttr(String(e.id))}">${escapeHtml(String(e.name || ""))} · ${escapeHtml(String(e.idDoc || "—"))}</option>`).join("")}</select></label>
       </div>
-    </fieldset>
-    <fieldset class="form-section form-section-amber full">
-      <legend>${IC.file} Soporte</legend>
-      <div class="form-section-grid">
-        <label class="full">${fieldLabel(IC.hash, "N.º soporte o radicado")}<input name="supportNumber" placeholder="Radicado, acta, certificado o soporte" /></label>
-        <label class="full">${fieldLabel(IC.heart, "EPS / ARL / entidad")}<select name="epsEntity">${epsOptions}<option value="ARL">ARL</option><option value="Juzgado">Juzgado</option><option value="Registraduría">Registraduría</option><option value="Otra">Otra</option></select></label>
-        <p class="full muted" data-absence-support-hint style="margin:0;font-size:0.82rem"></p>
-        <label class="full">${fieldLabel(IC.file, "Observaciones")}<textarea name="notes" rows="2" placeholder="Detalle para archivo de personal"></textarea></label>
+      <div class="hr-absence-field full">
+        <label>${fieldLabel(IC.activity, "Tipo de tiempo", { required: true, help: "Clasificación de la ausencia para nómina y archivo de personal." })}
+          <select name="absenceType" class="hr-absence-type-select" required>${buildPayrollAbsencePortalTypeOptionsHtml("vacaciones")}</select>
+        </label>
       </div>
-    </fieldset>
+      <div class="hr-absence-field full hidden" data-incapacity-origin-wrap aria-hidden="true">
+        <label>${fieldLabel(IC.heart, "Origen de incapacidad", { required: true })}
+          <select name="incapacityOrigin">
+            <option value="incapacidad_eps">Enfermedad general (EPS)</option>
+            <option value="incapacidad_arl">Accidente o enfermedad laboral (ARL)</option>
+          </select>
+        </label>
+      </div>
+      <div class="hr-absence-field full hidden" data-absence-subtype-wrap aria-hidden="true">
+        <label>${fieldLabel(IC.layers, "Detalle")}
+          <select name="absenceSubtype">${buildPayrollAbsenceSubtypeOptionsHtml("permiso_sufragio", "votante")}</select>
+        </label>
+      </div>
+      <div class="hr-absence-dates-row">
+        <div class="hr-absence-field">
+          <label>${fieldLabel(IC.calendar, "Fecha de inicio", { required: true })}<input type="date" name="startDate" required /></label>
+        </div>
+        <div class="hr-absence-field">
+          <label>${fieldLabel(IC.calendar, "Fecha de finalización", { required: true })}<input type="date" name="endDate" required /></label>
+        </div>
+      </div>
+      <div class="hr-absence-field">
+        <label>${fieldLabel(IC.clock, "Solicitud", { help: "Cantidad de días o jornadas reconocidas según el tipo y el periodo." })}
+          <select name="requestAmount" data-absence-request-select></select>
+          <input type="hidden" name="recognizedDays" value="1" />
+        </label>
+        <p class="hr-absence-hint muted" data-absence-recognition-hint></p>
+      </div>
+      <label class="hr-absence-check">
+        <input type="checkbox" name="periodicAbsence" value="1" />
+        <span>${fieldLabel(IC.rotateCcw, "Ausencia periódica")}</span>
+      </label>
+      <section class="hr-absence-team-panel" aria-labelledby="hr-absence-team-title">
+        <h4 id="hr-absence-team-title" class="hr-absence-team-panel__title">${fieldLabel(IC.users, "Ausencias de equipo")}</h4>
+        <div class="hr-absence-team-panel__body" data-absence-team-body>
+          <p class="hr-absence-team-panel__empty">Seleccione colaborador y fechas para ver ausencias del equipo.</p>
+        </div>
+      </section>
+      <div class="hr-absence-field full">
+        <label>${fieldLabel(IC.file, "Comentario")}<textarea name="notes" rows="3" placeholder="Motivo, contexto o detalle adicional"></textarea></label>
+      </div>
+      <details class="hr-absence-support-details">
+        <summary class="hr-absence-support-details__summary">${IC.file} Soporte documental</summary>
+        <div class="hr-absence-support-details__body">
+          <div class="hr-absence-field full">
+            <label>${fieldLabel(IC.hash, "N.º soporte o radicado")}<input name="supportNumber" placeholder="Radicado, acta, certificado o soporte" /></label>
+          </div>
+          <div class="hr-absence-field full">
+            <label>${fieldLabel(IC.heart, "EPS / ARL / entidad")}<select name="epsEntity">${epsOptions}<option value="ARL">ARL</option><option value="Juzgado">Juzgado</option><option value="Registraduría">Registraduría</option><option value="Otra">Otra</option></select></label>
+          </div>
+          <p class="hr-absence-hint muted" data-absence-support-hint></p>
+        </div>
+      </details>
+    </div>
     ${renderManagedCreateFormActions("create-hr-absence", `<button class="btn btn-primary" type="submit">${IC.save} Registrar ausencia</button>`)}
   </form>`;
   const absenceRows = absences
@@ -555,7 +605,9 @@ function payrollHtml() {
             ? "ok"
             : absKey === "licencia_maternidad" || absKey === "licencia_paternidad"
               ? "info"
-              : "neutral";
+              : absKey === "suspension" || absKey === "licencia_no_remunerada"
+                ? "neutral"
+                : "neutral";
       return `<tr>
       <td>${fmtDate(a.createdAt)}</td>
       <td>${escapeHtml(a.employeeName)}</td>
@@ -686,7 +738,7 @@ function payrollHtml() {
   );
   const absenceOperatePane = payrollOperatePane(
     "absence",
-    createHrActionCard("create-hr-absence", "calendar", "Ausencias e incapacidades", "Vacaciones, licencias, incapacidades y permisos remunerados", formAbsence, "Registrar ausencia", { createPanels: payrollCreateUi })
+    createHrActionCard("create-hr-absence", "calendar", "Crear ausencia", "Vacaciones, licencias, incapacidades, compensatorios y suspensiones", formAbsence, "Abrir formulario", { createPanels: payrollCreateUi })
   );
   const payrollExecutionBlock = `<section class="payroll-operate payroll-operate-panel">
       <aside class="payroll-operate__rail" aria-label="Trámites de registro">

@@ -483,8 +483,21 @@ function enforceColombianFormStandards() {
   setAttr("#form-admin-user-create input[name='phone']", { maxlength: "32", inputmode: "tel", autocomplete: "tel", placeholder: "+57 300 000 0000" });
   setAttr("#form-admin-user-edit input[name='phone']", { maxlength: "32", inputmode: "tel", autocomplete: "tel", placeholder: "+57 300 000 0000" });
 
-  setAttr("#form-employee input[name='phone']", { pattern: "[0-9]{10,15}", minlength: "10", maxlength: "15" });
-  setAttr("#form-employee input[name='emergencyPhone']", { pattern: "[0-9]{10,15}", minlength: "10", maxlength: "15" });
+  setAttr("#form-employee input[name='phone']", {
+    maxlength: "10",
+    inputmode: "tel",
+    placeholder: "3001234567",
+    pattern: "[0-9]{10}"
+  });
+  setAttr("#form-employee input[name='emergencyPhone']", {
+    maxlength: "10",
+    inputmode: "tel",
+    placeholder: "3001234567",
+    pattern: "[0-9]{10}"
+  });
+  ["#form-employee input[name='phone']", "#form-employee input[name='emergencyPhone']"].forEach((sel) => {
+    document.querySelector(sel)?.removeAttribute("minlength");
+  });
   setAttr("#form-employee input[name='bankAccount']", { minlength: "8", maxlength: "24", placeholder: "Cuenta bancaria del trabajador" });
   ensureSelectOptions("#form-employee select[name='bloodType']", CO_CATALOGS.bloodTypes, "Seleccione tipo de sangre...");
   ensureSelectOptions("#form-employee select[name='licenseCategory']", CO_CATALOGS.licenseCategories, "Seleccione categoria...");

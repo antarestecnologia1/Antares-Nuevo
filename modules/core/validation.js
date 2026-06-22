@@ -63,6 +63,16 @@
     return t ? t.toUpperCase() : "";
   }
 
+  function extractColombianPhoneNationalDigits(raw) {
+    let d = String(raw ?? "").replace(/\D/g, "");
+    if (d.startsWith("57") && d.length > 10) d = d.slice(2);
+    return d.slice(0, 10);
+  }
+
+  function normalizePhonePayloadValue(raw) {
+    return extractColombianPhoneNationalDigits(raw);
+  }
+
   const PRESERVE_CASE_PAYLOAD_KEYS = new Set([
     "reason",
     "motivo",
@@ -169,6 +179,10 @@
       }
       if (keyLc === "email" || keyLc.endsWith("email")) {
         out[k] = normalizeEmail(v);
+        continue;
+      }
+      if (keyLc === "phone" || keyLc === "emergencyphone") {
+        out[k] = normalizePhonePayloadValue(v);
         continue;
       }
       if (
@@ -1214,10 +1228,21 @@
       return true;
     }
     if (check === "phone-loose") {
-      const d = raw.replace(/\D/g, "");
-      if (raw && (d.length < 7 || d.length > 15)) {
-        setFieldError(el, MSG.phoneLoose);
+      const national = extractColombianPhoneNationalDigits(raw);
+      const maxLen = Number(el.getAttribute("maxlength") || 0);
+      const minDigits = maxLen === 10 ? 10 : 7;
+      const maxDigits = maxLen === 10 ? 10 : 15;
+      if (raw && (national.length < minDigits || national.length > maxDigits)) {
+        setFieldError(
+          el,
+          maxLen === 10
+            ? "Ingrese el celular de 10 dígitos sin el +57 (ej.: 3001234567)."
+            : MSG.phoneLoose
+        );
         return false;
+      }
+      if (national !== String(el.value ?? "").replace(/\D/g, "")) {
+        el.value = national;
       }
       clearFieldError(el);
       return true;
@@ -1314,9 +1339,21 @@
       return { ok: true, message: "", patchValue: String(n) };
     }
     if (kind === "phone-loose") {
-      const d = raw.replace(/\D/g, "");
-      if (d.length < 7 || d.length > 15) return { ok: false, message: MSG.phoneLoose, patchValue: undefined };
-      return { ok: true, message: "", patchValue: raw };
+      const national = extractColombianPhoneNationalDigits(raw);
+      const maxLen = Number(el.getAttribute("maxlength") || 0);
+      const minDigits = maxLen === 10 ? 10 : 7;
+      const maxDigits = maxLen === 10 ? 10 : 15;
+      if (national.length < minDigits || national.length > maxDigits) {
+        return {
+          ok: false,
+          message:
+            maxLen === 10
+              ? "Ingrese el celular de 10 dígitos sin el +57 (ej.: 3001234567)."
+              : MSG.phoneLoose,
+          patchValue: undefined
+        };
+      }
+      return { ok: true, message: "", patchValue: national };
     }
     if (kind === "alnum-doc") {
       const s = sanitizeOneLineText(raw, 64);

@@ -841,6 +841,7 @@ export function payrollNormalizeAbsenceTypeKey(absenceType) {
   if (t.includes("judic")) return "permiso_citacion_judicial";
   if (t.includes("sufrag") || t.includes("vot")) return "permiso_sufragio";
   if (t.includes("sin goce") || t.includes("no remuner") || t.includes("no_remuner")) return "licencia_no_remunerada";
+  if (t.includes("suspens")) return "suspension";
   if (t === "incapacidad") return "incapacidad_eps";
   if (t === "licencia") return "licencia_remunerada";
   if (t === "calamidad") return "calamidad_domestica";
@@ -856,7 +857,7 @@ export function payrollAbsenceVisualKind(absenceType) {
   if (k === "licencia_maternidad") return "maternity";
   if (k === "licencia_paternidad") return "paternity";
   if (k === "licencia_luto" || k === "calamidad_domestica") return "sensitive";
-  if (k === "licencia_no_remunerada") return "unpaid";
+  if (k === "licencia_no_remunerada" || k === "suspension") return "unpaid";
   if (k.startsWith("permiso_")) return "permit";
   return "other";
 }
@@ -1028,6 +1029,15 @@ export function payrollGetAbsenceSupportRules(absenceType, absenceSubtype = "") 
       entityHint: "Opcional."
     };
   }
+  if (typeKey === "suspension") {
+    return {
+      ...base,
+      requiresSupportNumber: true,
+      requiresNotes: true,
+      supportHint: "Obligatorio: acto administrativo o soporte de la suspensión.",
+      entityHint: "Opcional."
+    };
+  }
   return base;
 }
 
@@ -1127,8 +1137,14 @@ export function payrollGetAbsenceTypeMeta(absenceType, absenceSubtype = "") {
     },
     licencia_no_remunerada: {
       label: "Licencia no remunerada",
-      optionLabel: "Licencia no remunerada / suspensión autorizada",
+      optionLabel: "Licencia no remunerada",
       conceptLabel: "Días de licencia no remunerada",
+      quantityKind: "calendar"
+    },
+    suspension: {
+      label: "Suspensión",
+      optionLabel: "Suspensión disciplinaria o contractual",
+      conceptLabel: "Días de suspensión sin remuneración",
       quantityKind: "calendar"
     }
   };
@@ -1169,11 +1185,157 @@ export function payrollAbsenceSelectOptions() {
     "permiso_citacion_judicial",
     "permiso_sufragio",
     "licencia_remunerada",
-    "licencia_no_remunerada"
+    "licencia_no_remunerada",
+    "suspension"
   ].map((value) => ({
     value,
     label: payrollGetAbsenceTypeMeta(value).optionLabel
   }));
+}
+
+/** Opciones simplificadas del formulario «Crear ausencia» (portal RRHH). */
+export function payrollAbsencePortalSelectOptions() {
+  return [
+    { value: "vacaciones", label: "Vacaciones" },
+    { value: "calamidad_domestica", label: "Calamidad doméstica" },
+    { value: "licencia_luto", label: "Licencia por luto" },
+    { value: "licencia_no_remunerada", label: "Licencia no remunerada" },
+    { value: "licencia_paternidad", label: "Licencia de paternidad" },
+    { value: "licencia_maternidad", label: "Licencia de maternidad" },
+    { value: "incapacidad", label: "Incapacidad" },
+    { value: "permiso_sufragio", label: "Compensatorio por votación" },
+    { value: "suspension", label: "Suspensión" }
+  ];
+}
+
+export function buildPayrollAbsencePortalTypeOptionsHtml(selectedValue = "") {
+  const normalized = String(selectedValue || "").trim();
+  return payrollAbsencePortalSelectOptions()
+    .map((opt) => {
+      const selected =
+        opt.value === normalized ||
+        (opt.value === "incapacidad" &&
+          (normalized === "incapacidad_eps" || normalized === "incapacidad_arl"))
+          ? " selected"
+          : "";
+      return `<option value="${escapeAttr(opt.value)}"${selected}>${escapeHtml(opt.label)}</option>`;
+    })
+    .join("");
+}
+
+export function payrollResolveAbsenceFormType(data = {}) {
+  const portalType = String(data.absenceType || "").trim();
+  if (portalType === "incapacidad") {
+    const resolved = payrollNormalizeAbsenceTypeKey(data.incapacityOrigin || "incapacidad_eps");
+    return {
+      absenceType: resolved,
+      absenceSubtype: payrollNormalizeAbsenceSubtype(resolved, data.absenceSubtype)
+    };
+  }
+  const absenceType = payrollNormalizeAbsenceTypeKey(portalType);
+  return {
+    absenceType,
+    absenceSubtype: payrollNormalizeAbsenceSubtype(absenceType, data.absenceSubtype)
+  };
+}
+
+export function payrollFormatAbsenceRequestLabel(days, unit = "calendario") {
+  const num = Number(days);
+  if (!Number.isFinite(num) || num <= 0) return "0 días";
+  const qty = payrollFormatAbsenceQuantity(num);
+  const noun =
+    unit === "jornada"
+      ? num === 1
+        ? "jornada"
+        : "jornadas"
+      : unit === "habil"
+        ? num === 1
+          ? "día hábil"
+          : "días hábiles"
+        : num === 1
+          ? "día"
+          : "días";
+  return `${qty} ${noun}`;
+}
+
+export function payrollBuildAbsenceRequestOptions({
+  absenceType,
+  absenceSubtype = "",
+  incapacityOrigin = "",
+  startDate = "",
+  endDate = ""
+} = {}) {
+  const portalType = String(absenceType || "").trim();
+  const resolvedType =
+    portalType === "incapacidad"
+      ? payrollNormalizeAbsenceTypeKey(incapacityOrigin || "incapacidad_eps")
+      : payrollNormalizeAbsenceTypeKey(portalType);
+  const subtype = payrollNormalizeAbsenceSubtype(resolvedType, absenceSubtype);
+  const suggested = payrollComputeAbsenceSuggestedRecognizedDays({
+    absenceType: resolvedType,
+    absenceSubtype: subtype,
+    startDate,
+    endDate
+  });
+  const unit = payrollAbsenceRecognizedUnit(resolvedType, subtype);
+  if (resolvedType === "permiso_sufragio") {
+    if (subtype === "jurado") {
+      return [{ value: "1", label: payrollFormatAbsenceRequestLabel(1, "jornada") }];
+    }
+    return [{ value: "0.5", label: payrollFormatAbsenceRequestLabel(0.5, "jornada") }];
+  }
+  const max = Math.max(suggested, 0.5);
+  const cap = Math.min(Math.ceil(max * 2) / 2, 60);
+  const values = [];
+  for (let v = 0.5; v <= cap + 0.001; v += 0.5) values.push(Math.round(v * 100) / 100);
+  if (!values.includes(suggested)) values.push(suggested);
+  values.sort((a, b) => a - b);
+  const unique = [...new Set(values.map((v) => String(v)))];
+  return unique.map((value) => ({
+    value,
+    label: payrollFormatAbsenceRequestLabel(Number(value), unit === "habil" ? "habil" : unit === "jornada" ? "jornada" : "calendario")
+  }));
+}
+
+export function payrollFindTeamAbsencesOverlap({
+  employeeId,
+  startDate,
+  endDate,
+  employees = [],
+  absences = []
+} = {}) {
+  if (!employeeId || !startDate || !endDate) return [];
+  const employee = employees.find((e) => String(e.id) === String(employeeId));
+  if (!employee) return [];
+  const companyId = String(employee.companyId || "").trim();
+  const costCenter = String(employee.costCenter || employee.costCenterName || "").trim();
+  const mateIds = new Set(
+    employees
+      .filter((e) => {
+        if (String(e.id) === String(employeeId)) return false;
+        if (companyId && String(e.companyId || "") === companyId) return true;
+        if (costCenter && String(e.costCenter || e.costCenterName || "") === costCenter) return true;
+        return false;
+      })
+      .map((e) => String(e.id))
+  );
+  if (!mateIds.size) return [];
+  const start = payrollParseLocalYmd(startDate);
+  const end = payrollParseLocalYmd(endDate) || start;
+  if (!start || !end) return [];
+  return absences
+    .filter((row) => {
+      if (!mateIds.has(String(row.employeeId))) return false;
+      const aStart = payrollParseLocalYmd(row.startDate);
+      const aEnd = payrollParseLocalYmd(row.endDate) || aStart;
+      if (!aStart || !aEnd) return false;
+      return payrollOverlapInclusiveLocal(start, end, aStart, aEnd) !== null;
+    })
+    .map((row) => ({
+      ...row,
+      typeLabel: payrollAbsenceTypeLabel(row.absenceType)
+    }))
+    .sort((a, b) => String(a.startDate).localeCompare(String(b.startDate), "es"));
 }
 
 export function buildPayrollAbsenceTypeOptionsHtml(selectedValue = "") {
@@ -1375,49 +1537,134 @@ export function wireHrAbsenceFormBehavior(form) {
   form.dataset.hrAbsenceBehaviorBound = "1";
   const typeEl = form.querySelector('[name="absenceType"]');
   const subtypeEl = form.querySelector('[name="absenceSubtype"]');
+  const incapacityEl = form.querySelector('[name="incapacityOrigin"]');
   const subtypeWrap =
     form.querySelector("[data-absence-subtype-wrap]") ||
-    (subtypeEl?.closest("label") ?? null);
+    (subtypeEl?.closest("label, .hr-absence-field") ?? null);
+  const incapacityWrap =
+    form.querySelector("[data-incapacity-origin-wrap]") ||
+    (incapacityEl?.closest("label, .hr-absence-field") ?? null);
+  const employeeEl = form.querySelector('[name="employeeId"]');
   const startEl = form.querySelector('[name="startDate"]');
   const endEl = form.querySelector('[name="endDate"]');
+  const requestEl = form.querySelector('[name="requestAmount"]');
   const recognizedEl = form.querySelector('[name="recognizedDays"]');
   const supportEl = form.querySelector('[name="supportNumber"]');
   const entityEl = form.querySelector('[name="epsEntity"]');
   const notesEl = form.querySelector('[name="notes"]');
   const hintEl = form.querySelector("[data-absence-recognition-hint]");
   const supportHintEl = form.querySelector("[data-absence-support-hint]");
-  if (!typeEl || !subtypeEl || !recognizedEl) return;
+  const teamBodyEl = form.querySelector("[data-absence-team-body]");
+  if (!typeEl || !recognizedEl) return;
+
+  const readTeamData = () => ({
+    employees: read(KEYS.payrollEmployees, []),
+    absences: read(KEYS.hrAbsences, [])
+  });
+
+  const resolvedTypeForUi = () => {
+    const portalType = String(typeEl.value || "").trim();
+    if (portalType === "incapacidad") {
+      return payrollNormalizeAbsenceTypeKey(incapacityEl?.value || "incapacidad_eps");
+    }
+    return payrollNormalizeAbsenceTypeKey(portalType);
+  };
+
+  const syncRequestOptions = (preferredValue = "") => {
+    if (!requestEl) return;
+    const options = payrollBuildAbsenceRequestOptions({
+      absenceType: typeEl.value,
+      absenceSubtype: subtypeEl?.value || "",
+      incapacityOrigin: incapacityEl?.value || "",
+      startDate: startEl?.value || "",
+      endDate: endEl?.value || ""
+    });
+    const current = preferredValue || requestEl.value || recognizedEl.value || "";
+    requestEl.innerHTML = options
+      .map((opt) => {
+        const selected = String(opt.value) === String(current) ? " selected" : "";
+        return `<option value="${escapeAttr(opt.value)}"${selected}>${escapeHtml(opt.label)}</option>`;
+      })
+      .join("");
+    if (!requestEl.value && options.length) requestEl.value = options[options.length - 1].value;
+    if (requestEl.value) recognizedEl.value = requestEl.value;
+  };
+
+  const syncTeamPanel = () => {
+    if (!teamBodyEl) return;
+    const employeeId = employeeEl?.value || "";
+    const startDate = startEl?.value || "";
+    const endDate = endEl?.value || endEl?.value || startDate;
+    if (!employeeId || !startDate || !endDate) {
+      teamBodyEl.innerHTML =
+        '<p class="hr-absence-team-panel__empty">Seleccione colaborador y fechas para ver ausencias del equipo.</p>';
+      return;
+    }
+    const { employees, absences } = readTeamData();
+    const overlaps = payrollFindTeamAbsencesOverlap({
+      employeeId,
+      startDate,
+      endDate,
+      employees,
+      absences
+    });
+    if (!overlaps.length) {
+      teamBodyEl.innerHTML =
+        '<p class="hr-absence-team-panel__empty">No hay ningún miembro del equipo ausente en esas fechas.</p>';
+      return;
+    }
+    teamBodyEl.innerHTML = `<ul class="hr-absence-team-list">${overlaps
+      .map(
+        (row) =>
+          `<li><strong>${escapeHtml(String(row.employeeName || "—"))}</strong> · ${escapeHtml(row.typeLabel)} · ${escapeHtml(String(row.startDate))} → ${escapeHtml(String(row.endDate))}</li>`
+      )
+      .join("")}</ul>`;
+  };
 
   const sync = () => {
-    subtypeEl.innerHTML = buildPayrollAbsenceSubtypeOptionsHtml(typeEl.value, subtypeEl.value);
-    const showSubtype = payrollGetAbsenceSubtypeOptions(typeEl.value).length > 0;
-    if (subtypeWrap) {
-      subtypeWrap.classList.toggle("hidden", !showSubtype);
-      subtypeWrap.toggleAttribute("hidden", !showSubtype);
-      subtypeWrap.setAttribute("aria-hidden", showSubtype ? "false" : "true");
+    const portalType = String(typeEl.value || "").trim();
+    const resolvedType = resolvedTypeForUi();
+    if (subtypeEl) {
+      subtypeEl.innerHTML = buildPayrollAbsenceSubtypeOptionsHtml(resolvedType, subtypeEl.value);
+      const showSubtype = payrollGetAbsenceSubtypeOptions(resolvedType).length > 0;
+      if (subtypeWrap) {
+        subtypeWrap.classList.toggle("hidden", !showSubtype);
+        subtypeWrap.toggleAttribute("hidden", !showSubtype);
+        subtypeWrap.setAttribute("aria-hidden", showSubtype ? "false" : "true");
+      }
+      subtypeEl.required = showSubtype;
+      if (showSubtype && !subtypeEl.value) {
+        const defaultOpts = payrollGetAbsenceSubtypeOptions(resolvedType);
+        if (defaultOpts.length) subtypeEl.value = defaultOpts[0].value;
+      }
+      if (!showSubtype) subtypeEl.value = "";
     }
-    subtypeEl.required = showSubtype;
-    if (showSubtype && !subtypeEl.value) {
-      const defaultOpts = payrollGetAbsenceSubtypeOptions(typeEl.value);
-      if (defaultOpts.length) subtypeEl.value = defaultOpts[0].value;
+    if (incapacityWrap) {
+      const showIncapacity = portalType === "incapacidad";
+      incapacityWrap.classList.toggle("hidden", !showIncapacity);
+      incapacityWrap.toggleAttribute("hidden", !showIncapacity);
+      incapacityWrap.setAttribute("aria-hidden", showIncapacity ? "false" : "true");
+      if (incapacityEl) incapacityEl.required = showIncapacity;
     }
-    if (!showSubtype) subtypeEl.value = "";
     const suggested = payrollComputeAbsenceSuggestedRecognizedDays({
-      absenceType: typeEl.value,
-      absenceSubtype: subtypeEl.value,
+      absenceType: resolvedType,
+      absenceSubtype: subtypeEl?.value || "",
       startDate: startEl?.value,
       endDate: endEl?.value
     });
-    if (!recognizedEl.dataset.userEdited || !String(recognizedEl.value || "").trim()) {
+    if (requestEl) {
+      if (!requestEl.dataset.userEdited) syncRequestOptions(String(suggested));
+      else if (requestEl.value) recognizedEl.value = requestEl.value;
+    } else if (!recognizedEl.dataset.userEdited || !String(recognizedEl.value || "").trim()) {
       recognizedEl.value = String(suggested);
     }
     if (hintEl) {
-      const unit = payrollAbsenceRecognizedUnit(typeEl.value, subtypeEl.value);
-      const subtypeLabel = payrollAbsenceSubtypeLabel(typeEl.value, subtypeEl.value);
-      const legalHint = payrollAbsenceLegalHint(typeEl.value, subtypeEl.value);
+      const unit = payrollAbsenceRecognizedUnit(resolvedType, subtypeEl?.value || "");
+      const subtypeLabel = payrollAbsenceSubtypeLabel(resolvedType, subtypeEl?.value || "");
+      const legalHint = payrollAbsenceLegalHint(resolvedType, subtypeEl?.value || "");
       hintEl.textContent = `Sugerido: ${payrollFormatAbsenceQuantity(suggested)} ${unit === "habil" ? "días hábiles" : unit === "jornada" ? "jornadas" : "días calendario"}${subtypeLabel ? ` · ${subtypeLabel}` : ""}.${legalHint ? ` ${legalHint}` : ""}`;
     }
-    const supportRules = payrollGetAbsenceSupportRules(typeEl.value, subtypeEl.value);
+    const supportRules = payrollGetAbsenceSupportRules(resolvedType, subtypeEl?.value || "");
     if (supportEl) supportEl.required = !!supportRules.requiresSupportNumber;
     if (entityEl) entityEl.required = !!supportRules.requiresEntity;
     if (notesEl) notesEl.required = !!supportRules.requiresNotes;
@@ -1430,23 +1677,39 @@ export function wireHrAbsenceFormBehavior(form) {
       if (supportRules.requiresNotes) parts.push("Observaciones obligatorias para este caso.");
       supportHintEl.textContent = parts.filter(Boolean).join(" ");
     }
+    syncTeamPanel();
   };
 
   typeEl.addEventListener("change", () => {
     delete recognizedEl.dataset.userEdited;
+    if (requestEl) delete requestEl.dataset.userEdited;
     sync();
   });
-  subtypeEl.addEventListener("change", () => {
+  subtypeEl?.addEventListener("change", () => {
     delete recognizedEl.dataset.userEdited;
+    if (requestEl) delete requestEl.dataset.userEdited;
+    sync();
+  });
+  incapacityEl?.addEventListener("change", () => {
+    delete recognizedEl.dataset.userEdited;
+    if (requestEl) delete requestEl.dataset.userEdited;
     sync();
   });
   startEl?.addEventListener("change", () => {
     delete recognizedEl.dataset.userEdited;
+    if (requestEl) delete requestEl.dataset.userEdited;
     sync();
   });
   endEl?.addEventListener("change", () => {
     delete recognizedEl.dataset.userEdited;
+    if (requestEl) delete requestEl.dataset.userEdited;
     sync();
+  });
+  employeeEl?.addEventListener("change", sync);
+  requestEl?.addEventListener("change", () => {
+    requestEl.dataset.userEdited = "1";
+    recognizedEl.value = requestEl.value;
+    recognizedEl.dataset.userEdited = "1";
   });
   recognizedEl.addEventListener("input", () => {
     recognizedEl.dataset.userEdited = "1";

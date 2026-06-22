@@ -10,7 +10,11 @@ import {
   PAYROLL_OPERATE_CREATE_PANEL_IDS,
   PAYROLL_OPERATE_SECTION_PANEL
 } from "./config.js";
-import { normalizeLatinForDb, normalizePortalPhoneForStorage } from "../domain/payroll-catalog-sanitize.domain.js";
+import {
+  extractColombianPhoneNationalDigits,
+  normalizeLatinForDb,
+  normalizePortalPhoneForStorage
+} from "../domain/payroll-catalog-sanitize.domain.js";
 
 /** Evita XSS cuando texto de usuario o BD se interpola en HTML. */
 export function escapeHtml(value) {
@@ -298,9 +302,7 @@ export function formatColombianPhone(value) {
 
 /** 10 dígitos nacionales para inputs de formulario (sin +57). */
 export function portalPhoneNationalDigitsForForm(raw) {
-  let d = String(raw ?? "").replace(/\D/g, "");
-  if (d.startsWith("57") && d.length >= 11) d = d.slice(2);
-  return d.slice(0, 10);
+  return extractColombianPhoneNationalDigits(raw);
 }
 
 /** Solo parte nacional (10 dígitos), mismos grupos que formatColombianPhone sin +57. */
@@ -603,7 +605,11 @@ export function fieldLabel(icon, text, opts) {
   const mark = o.required
     ? '<span class="field-required-mark" aria-hidden="true" title="Obligatorio">*</span>'
     : "";
-  return `<span class="field-label">${icon}<span>${text}</span>${mark}</span>`;
+  const help =
+    o.help
+      ? `<span class="field-help" tabindex="0" role="note" title="${escapeAttr(String(o.help))}" aria-label="${escapeAttr(String(o.help))}">?</span>`
+      : "";
+  return `<span class="field-label">${icon}<span>${text}</span>${mark}${help}</span>`;
 }
 
 export function snapPick(obj, ...keys) {

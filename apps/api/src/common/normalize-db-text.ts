@@ -150,6 +150,13 @@ export function transformStripPhoneDigits({ value }: { value: unknown }): unknow
   return value.replace(/\u0000/g, "").replace(/\D/g, "").trim();
 }
 
+/** Solo dígitos nacionales CO (máx. 10); quita prefijo 57 si sobra. */
+export function extractColombianPhoneNationalDigits(raw: unknown): string {
+  let d = String(raw ?? "").replace(/\D/g, "");
+  if (d.startsWith("57") && d.length > 10) d = d.slice(2);
+  return d.slice(0, 10);
+}
+
 /** Alineado con `normalizePortalPhoneForStorage` del portal (modules/domain/payroll-catalog-sanitize.domain.js). */
 export function normalizePortalPhoneForStorage(raw: unknown, fallback = "3000000000"): string {
   const trimmed = String(raw ?? "").trim();
@@ -157,10 +164,7 @@ export function normalizePortalPhoneForStorage(raw: unknown, fallback = "3000000
   const d = trimmed.replace(/\D/g, "");
   if (!d) return trimmed.replace(/\s+/g, " ").trim().slice(0, 32) || fallback;
 
-  let national = d;
-  if (d.startsWith("57") && d.length >= 11) {
-    national = d.slice(2);
-  }
+  const national = extractColombianPhoneNationalDigits(trimmed);
 
   if (/^\d{10}$/.test(national)) {
     const n = national;

@@ -21,16 +21,20 @@ export function normalizeLatinForDb(value) {
     .replace(/Ñ/g, "N");
 }
 
+/** Solo dígitos nacionales CO (máx. 10) para inputs; quita prefijo 57 si sobra. */
+export function extractColombianPhoneNationalDigits(raw) {
+  let d = String(raw ?? "").replace(/\D/g, "");
+  if (d.startsWith("57") && d.length > 10) d = d.slice(2);
+  return d.slice(0, 10);
+}
+
 export function normalizePortalPhoneForStorage(raw) {
   const trimmed = String(raw ?? "").trim();
   if (!trimmed) return "";
   const d = trimmed.replace(/\D/g, "");
   if (!d) return trimmed.replace(/\s+/g, " ").trim();
 
-  let national = d;
-  if (d.startsWith("57") && d.length >= 11) {
-    national = d.slice(2);
-  }
+  const national = extractColombianPhoneNationalDigits(trimmed);
 
   if (/^\d{10}$/.test(national)) {
     const n = national;
