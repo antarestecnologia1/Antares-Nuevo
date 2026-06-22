@@ -874,10 +874,10 @@ function transportTripsHtml() {
               removed && typeof removed === "object" ? String(removed.id || "").trim() : "";
             delete rates[key];
             try {
-              await writeAwaitServer(
+              await writeAwaitServerDelete(
                 KEYS.tripRouteRates,
                 rates,
-                removedId ? { deletedIds: [removedId] } : {}
+                removedId ? [removedId] : undefined
               );
             } catch (err) {
               notify(String(err?.message || "No se pudo actualizar las tarifas en el servidor."), "error");
@@ -1237,7 +1237,17 @@ function transportTripsHtml() {
         const next = { ...normalized, [storageKey]: buildRouteRateEntry(tripRateCop, companyIds, previousEntry) };
         if (editingKey && editingKey !== storageKey) delete next[editingKey];
         try {
-          await writeAwaitServer(KEYS.tripRouteRates, next);
+          await writeAwaitServer(KEYS.tripRouteRates, next, {
+            syncData: syncPayloadForEditedObjectKeys(next, storageKey),
+            deletedIds:
+              editingKey &&
+              editingKey !== storageKey &&
+              previousEntry &&
+              typeof previousEntry === "object" &&
+              String(previousEntry.id || "").trim()
+                ? [String(previousEntry.id).trim()]
+                : undefined
+          });
         } catch (err) {
           notify(String(err?.message || userMessage("genericError")), "error");
           return;
@@ -1316,8 +1326,7 @@ function transportTripsHtml() {
               notify(String(err?.message || "No fue posible quitar el viaje en el servidor."), "error");
               return;
             }
-            await reqWriteAwait(
-              reqRead().map((request) =>
+            const cleared = reqRead().map((request) =>
                 request.id === requestId
                   ? {
                       ...request,
@@ -1327,8 +1336,9 @@ function transportTripsHtml() {
                       closedAt: null
                     }
                   : request
-              )
-            );
+              );
+            const clearedRow = cleared.find((request) => request.id === requestId);
+            await reqWriteAwait(cleared, clearedRow);
             recalculateResourceAvailability();
             try {
               await applyPortalBootstrapFromApi();

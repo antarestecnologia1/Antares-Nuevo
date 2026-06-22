@@ -387,7 +387,7 @@
         }
         all.unshift(rowToSave);
         try {
-          await reqWriteAwait(all);
+          await reqWriteAwait(all, rowToSave);
         } catch (err) {
           notify(String(err?.message || "No fue posible guardar la solicitud en el servidor."), "error");
           return;

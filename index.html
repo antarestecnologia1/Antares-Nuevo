@@ -1307,7 +1307,7 @@
       import * as AntaresStore from "./modules/core/store.js";
       import * as AntaresAuth from "./modules/core/auth.js";
       import * as AntaresBootstrap from "./modules/core/bootstrap.js";
-      import { writeAwaitServer } from "./modules/core/data-io.js";
+      import { writeAwaitServer, writeAwaitServerEdit, writeAwaitServerCreate, writeAwaitServerDelete, writeAwaitServerLatestQueuedEmail, syncPayloadForEditedRow, syncPayloadForEditedObjectKeys, syncPayloadForChangedRows } from "./modules/core/data-io.js";
       import * as AntaresPublicI18n from "./modules/domain/public-site.i18n.js";
       import * as AntaresContractsDomain from "./modules/domain/contracts.domain.js";
       import * as AntaresPayrollIdentifiers from "./modules/domain/payroll-identifiers.domain.js";
@@ -1326,9 +1326,19 @@
       import * as AntaresNominaDomain from "./modules/domain/nomina.domain.js";
       import * as AntaresSstDomain from "./modules/domain/sst.domain.js";
       import * as AntaresContratacionDomain from "./modules/domain/contratacion.domain.js";
+      import * as AntaresAuditTrail from "./modules/core/audit-trail.js";
       import * as AntaresRouter from "./modules/core/router.js";
       Object.assign(window, AntaresConfig, AntaresUtils, AntaresStore, AntaresAuth, AntaresBootstrap);
+      window.AntaresAuditTrail = AntaresAuditTrail;
+      Object.assign(window, AntaresAuditTrail);
       window.writeAwaitServer = writeAwaitServer;
+      window.writeAwaitServerEdit = writeAwaitServerEdit;
+      window.writeAwaitServerCreate = writeAwaitServerCreate;
+      window.writeAwaitServerDelete = writeAwaitServerDelete;
+      window.writeAwaitServerLatestQueuedEmail = writeAwaitServerLatestQueuedEmail;
+      window.syncPayloadForEditedRow = syncPayloadForEditedRow;
+      window.syncPayloadForEditedObjectKeys = syncPayloadForEditedObjectKeys;
+      window.syncPayloadForChangedRows = syncPayloadForChangedRows;
       window.AntaresPublicI18n = AntaresPublicI18n;
       Object.assign(window, AntaresPublicI18n);
       window.AntaresContractsDomain = AntaresContractsDomain;

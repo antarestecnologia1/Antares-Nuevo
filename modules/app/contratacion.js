@@ -182,7 +182,7 @@ function bindHiringPortalControls() {
         return;
       }
       const all = read(KEYS.vacancies, []);
-      all.unshift(stampCreatedRecord({
+      const createdVacancy = stampCreatedRecord({
         id: newUuidV4(),
         positionId: data.positionId,
         title: normalizeLatinUpperForDb(data.title || `Vacante ${position.name}`),
@@ -201,14 +201,14 @@ function bindHiringPortalControls() {
         ),
         requirements: normalizeLatinUpperForDb(data.requirements || ""),
         status: "Publicada"
-      }));
+      });
+      all.unshift(createdVacancy);
       try {
-        await writeAwaitServer(KEYS.vacancies, all);
+        await writeAwaitServerCreate(KEYS.vacancies, all, createdVacancy);
       } catch (err) {
         notify(String(err?.message || "No fue posible guardar la vacante en el servidor."), "error");
         return;
       }
-      const createdVacancy = all[0];
       if (createdVacancy) {
         appendPortalEntityAuditLog(
           "create",
@@ -264,7 +264,7 @@ function bindHiringPortalControls() {
         return;
       }
       const all = read(KEYS.positions, []);
-      all.unshift(stampCreatedRecord({
+      const createdPosition = stampCreatedRecord({
         id: newUuidV4(),
         name: normalizeLatinUpperForDb(String(data.name || "").trim()),
         workerRole: String(data.workerRole || "empleado"),
@@ -276,14 +276,14 @@ function bindHiringPortalControls() {
         integralSalary: String(data.integralSalary || "false") === "true",
         legalBasis: normalizeLatinUpperForDb(data.legalBasis || "CST art. 45-46 y normatividad laboral vigente"),
         active: true
-      }));
+      });
+      all.unshift(createdPosition);
       // optimistic:false → esperamos confirmación del servidor antes de cerrar el panel.
       // Así el cargo queda realmente en la BD (tabla cargos) antes de que cualquier alta de
       // empleado lo referencie por id_cargo, evitando que el colaborador no se guarde por una
       // carrera entre el sync de cargos y el de empleados.
-      const ok = await persistPositionsCatalog(all, { optimistic: false });
+      const ok = await persistPositionsCatalog(all, { optimistic: false, editedRow: createdPosition });
       if (!ok) return;
-      const createdPosition = all[0];
       if (createdPosition) {
         appendPortalEntityAuditLog(
           "create",
@@ -312,8 +312,16 @@ function bindHiringPortalControls() {
         const nextPositions = all.map((p) =>
           p.id === target.id ? { ...p, active: target.active === false, updatedAt: nowIso() } : p
         );
-        const ok = await persistPositionsCatalog(nextPositions, { optimistic: true });
+        const updatedPosition = nextPositions.find((p) => p.id === target.id);
+        const ok = await persistPositionsCatalog(nextPositions, { optimistic: true, editedRow: updatedPosition });
         if (!ok) return;
+        if (updatedPosition) {
+          logPortalAuditEvent?.("hiring", "update", {
+            entityId: String(updatedPosition.id || ""),
+            entityLabel: String(updatedPosition.name || "Cargo").trim(),
+            summary: updatedPosition.active === false ? "Cargo desactivado" : "Cargo activado"
+          });
+        }
         notify(target.active === false ? userMessage("positionActivated") : userMessage("positionDeactivated"), "info");
         renderPortalView();
       });
@@ -324,14 +332,23 @@ function bindHiringPortalControls() {
     btn.addEventListener("click", () => {
       void runWithBusyButton(btn, async () => {
         const all = read(KEYS.vacancies, []);
+        const vacancyId = btn.dataset.id;
         const nextVacancies = all.map((v) =>
-          v.id === btn.dataset.id ? { ...v, status: "Cerrada", updatedAt: nowIso() } : v
+          v.id === vacancyId ? { ...v, status: "Cerrada", updatedAt: nowIso() } : v
         );
         try {
-          await writeAwaitServer(KEYS.vacancies, nextVacancies);
+          await writeAwaitServerEdit(KEYS.vacancies, nextVacancies, vacancyId);
         } catch (err) {
           notify(String(err?.message || "No fue posible cerrar la vacante en el servidor."), "error");
           return;
+        }
+        const closedVacancy = nextVacancies.find((v) => String(v.id) === String(vacancyId));
+        if (closedVacancy) {
+          logPortalAuditEvent?.("hiring", "update", {
+            entityId: vacancyId,
+            entityLabel: String(closedVacancy.title || closedVacancy.positionName || "Vacante").trim(),
+            summary: `Vacante cerrada · ${String(closedVacancy.city || "Sin ciudad")}`
+          });
         }
         notify(userMessage("vacancyClosed"), "success");
         renderPortalView();
@@ -622,7 +639,7 @@ function bindHiringPortalControls() {
         return;
       }
       const all = read(KEYS.candidates, []);
-      all.unshift(stampCreatedRecord({
+      const createdCandidate = stampCreatedRecord({
         id: newUuidV4(),
         name: normalizeLatinUpperForDb(data.name),
         email: normalizeEmail(data.email),
@@ -642,14 +659,14 @@ function bindHiringPortalControls() {
         status: PIPELINE[0],
         attachments: attachmentList,
         source: "Portal RRHH"
-      }));
+      });
+      all.unshift(createdCandidate);
       try {
-        await writeAwaitServer(KEYS.candidates, all);
+        await writeAwaitServerCreate(KEYS.candidates, all, createdCandidate);
       } catch (err) {
         notify(String(err?.message || "No fue posible guardar el candidato en el servidor."), "error");
         return;
       }
-      const createdCandidate = all[0];
       if (createdCandidate) {
         appendPortalEntityAuditLog(
           "create",
@@ -662,7 +679,7 @@ function bindHiringPortalControls() {
       }
       sendEmail({ to: data.email, subject: "Registro recibido", body: "Gracias por aplicar." });
       try {
-        await writeAwaitServer(KEYS.emails, read(KEYS.emails, []));
+        await writeAwaitServerLatestQueuedEmail();
       } catch (_e) {}
       state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
       state.hiringUi.candidateFilter = "active";
@@ -689,7 +706,7 @@ function bindHiringPortalControls() {
         c.id === select.dataset.id ? { ...c, status: select.value, updatedAt: nowIso() } : c
       );
       try {
-        await writeAwaitServer(KEYS.candidates, updated);
+        await writeAwaitServerEdit(KEYS.candidates, updated, select.dataset.id);
       } catch (err) {
         notify(String(err?.message || "No fue posible actualizar el candidato en el servidor."), "error");
         renderPortalView();
@@ -697,13 +714,18 @@ function bindHiringPortalControls() {
       }
       const current = updated.find((c) => c.id === select.dataset.id);
       if (current) {
+        logPortalAuditEvent?.("hiring", "update", {
+          entityId: String(current.id || ""),
+          entityLabel: String(current.name || "Candidato").trim(),
+          summary: `Estado del pipeline · ${String(current.status || "En proceso")}`
+        });
         sendEmail({
           to: current.email,
           subject: "Actualizacion de proceso",
           body: `Tu estado cambio a: ${current.status}`
         });
         try {
-          await writeAwaitServer(KEYS.emails, read(KEYS.emails, []));
+          await writeAwaitServerLatestQueuedEmail();
         } catch (_e) {}
       }
       notify(userMessage("candidateUpdated"), "success");
@@ -733,7 +755,7 @@ function bindHiringPortalControls() {
         return;
       }
       const all = read(KEYS.interviews, []);
-      all.unshift({
+      const createdInterview = stampCreatedRecord({
         id: newUuidV4(),
         candidateId: candidate.id,
         candidateName: candidate.name,
@@ -746,12 +768,12 @@ function bindHiringPortalControls() {
           return "Presencial";
         })(),
         locationOrLink: normalizeLatinUpperForDb(String(data.place || "").trim()),
-        notes: normalizeLatinUpperForDb(String(data.notes || "").trim()),
-        createdAt: nowIso()
+        notes: normalizeLatinUpperForDb(String(data.notes || "").trim())
       });
+      all.unshift(createdInterview);
       write(KEYS.interviews, all, { skipSyncSchedule: true });
       try {
-        await writeAwaitServer(KEYS.interviews, all);
+        await writeAwaitServerCreate(KEYS.interviews, all, createdInterview);
       } catch (err) {
         notify(String(err?.message || "No fue posible guardar la entrevista en el servidor."), "error");
         return;
@@ -766,7 +788,7 @@ function bindHiringPortalControls() {
       });
       write(KEYS.candidates, nextCandidates, { skipSyncSchedule: true });
       try {
-        await writeAwaitServer(KEYS.candidates, nextCandidates);
+        await writeAwaitServerEdit(KEYS.candidates, nextCandidates, candidate.id);
       } catch (err) {
         notify(String(err?.message || "Entrevista guardada; no fue posible actualizar el estado del candidato en el servidor."), "error");
         renderPortalView();
@@ -778,8 +800,16 @@ function bindHiringPortalControls() {
         body: `Fecha y hora: ${formatInterviewWhenDisplay(data.when)} (ajuste según su zona horaria).`
       });
       try {
-        await writeAwaitServer(KEYS.emails, read(KEYS.emails, []));
+        await writeAwaitServerLatestQueuedEmail();
       } catch (_e) {}
+      appendPortalEntityAuditLog(
+        "create",
+        "hiring",
+        "Contratación",
+        createdInterview,
+        `${String(createdInterview.modality || "Presencial")} · ${formatInterviewWhenDisplay(data.when)}`,
+        { entityLabel: String(createdInterview.candidateName || "Entrevista").trim() }
+      );
       state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
       state.hiringUi.workspace = "data";
       persistHrWorkspace("hiring", "data");
@@ -1027,28 +1057,40 @@ function bindHiringPortalControls() {
           source: linkedCandidate ? "Candidato" : "Empleado",
           content: contractText
         };
+        let savedContract;
         if (existingIdx >= 0) {
           const previous = all[existingIdx];
-          all.splice(existingIdx, 1, {
+          savedContract = stampUpdatedRecord({
             ...previous,
             ...recordBase,
-            id: previous.id,
-            createdAt: previous.createdAt || nowIso(),
-            updatedAt: nowIso()
+            id: previous.id
           });
+          all.splice(existingIdx, 1, savedContract);
           notify("Contrato actualizado (mismo empleado, plantilla y fecha).", "info");
         } else {
-          all.unshift({
+          savedContract = stampCreatedRecord({
             id: newUuidV4(),
-            ...recordBase,
-            createdAt: nowIso()
+            ...recordBase
           });
+          all.unshift(savedContract);
           notify(userMessage("contractWordSaved"), "success");
         }
         const deduped =
           typeof window.dedupContracts === "function" ? window.dedupContracts(all) : all;
         try {
-          await writeAwaitServer(KEYS.contracts, deduped);
+          await writeAwaitServerCreate(KEYS.contracts, deduped, savedContract);
+          appendPortalEntityAuditLog(
+            existingIdx >= 0 ? "update" : "create",
+            "hiring",
+            "Contratación",
+            savedContract,
+            `${String(savedContract.contractType || "Contrato")} · ${String(savedContract.position || savedContract.positionName || "Sin cargo")}`,
+            {
+              entityLabel: String(
+                savedContract.candidateName || savedContract.employeeName || employee.name || "Contrato"
+              ).trim()
+            }
+          );
           if (linkedCandidate) {
             const statusValidation = validateCandidatePipelineTransition(linkedCandidate, "Contratado");
             if (statusValidation.ok) {
@@ -1058,7 +1100,7 @@ function bindHiringPortalControls() {
                   : c
               );
               try {
-                await writeAwaitServer(KEYS.candidates, nextCandidates);
+                await writeAwaitServerEdit(KEYS.candidates, nextCandidates, linkedCandidate.id);
               } catch (_candErr) {
                 /* contrato ya guardado */
               }
@@ -1206,7 +1248,7 @@ function bindHiringPortalControls() {
           );
           write(KEYS.vacancies, nextVacancies, { skipSyncSchedule: true });
           try {
-            await writeAwaitServer(KEYS.vacancies, nextVacancies);
+            await writeAwaitServerEdit(KEYS.vacancies, nextVacancies, target.id);
           } catch (err) {
             notify(String(err?.message || "No fue posible guardar la vacante en el servidor."), "error");
             return false;
@@ -1369,8 +1411,19 @@ function bindHiringPortalControls() {
                     legalBasis: normalizeLatinUpperForDb(String(form.legalBasis || p.legalBasis || "").trim())
                   })
             );
-          const ok = await persistPositionsCatalog(nextPos, { optimistic: true });
+          const updatedPosition = nextPos.find((p) => String(p.id) === String(target.id));
+          const ok = await persistPositionsCatalog(nextPos, { optimistic: true, editedRow: updatedPosition });
           if (!ok) return false;
+          if (updatedPosition) {
+            appendPortalEntityAuditLog(
+              "update",
+              "hiring",
+              "Contratación",
+              updatedPosition,
+              `${String(updatedPosition.workerRole || "empleado")} · $${parseNum(updatedPosition.baseSalary).toLocaleString("es-CO")}`,
+              { entityLabel: String(updatedPosition.name || "Cargo").trim() }
+            );
+          }
           notify("Cargo actualizado.", "success");
           renderPortalView();
           return true;
@@ -1690,10 +1743,21 @@ function bindHiringPortalControls() {
             );
           write(KEYS.candidates, nextCandidates, { skipSyncSchedule: true });
           try {
-            await writeAwaitServer(KEYS.candidates, nextCandidates);
+            await writeAwaitServerEdit(KEYS.candidates, nextCandidates, target.id);
           } catch (err) {
             notify(String(err?.message || "No fue posible guardar el candidato en el servidor."), "error");
             return false;
+          }
+          const updatedCandidate = nextCandidates.find((c) => String(c.id) === String(target.id));
+          if (updatedCandidate) {
+            appendPortalEntityAuditLog(
+              "update",
+              "hiring",
+              "Contratación",
+              updatedCandidate,
+              `${String(updatedCandidate.status || "En proceso")} · ${String(updatedCandidate.vacancyTitle || "Sin vacante")}`,
+              { entityLabel: String(updatedCandidate.name || "Candidato").trim() }
+            );
           }
           notify("Candidato actualizado.", "success");
           renderPortalView();
@@ -1840,10 +1904,21 @@ function bindHiringPortalControls() {
             );
           write(KEYS.interviews, nextInterviews, { skipSyncSchedule: true });
           try {
-            await writeAwaitServer(KEYS.interviews, nextInterviews);
+            await writeAwaitServerEdit(KEYS.interviews, nextInterviews, target.id);
           } catch (err) {
             notify(String(err?.message || "No fue posible guardar la entrevista en el servidor."), "error");
             return false;
+          }
+          const updatedInterview = nextInterviews.find((i) => String(i.id) === String(target.id));
+          if (updatedInterview) {
+            appendPortalEntityAuditLog(
+              "update",
+              "hiring",
+              "Contratación",
+              updatedInterview,
+              `${String(updatedInterview.modality || "Presencial")} · ${formatInterviewWhenDisplay(updatedInterview.when)}`,
+              { entityLabel: String(updatedInterview.candidateName || "Entrevista").trim() }
+            );
           }
           notify("Entrevista actualizada.", "success");
           renderPortalView();

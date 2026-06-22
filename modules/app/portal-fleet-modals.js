@@ -205,7 +205,7 @@ async function setDriverAvailability(driverId, available) {
   });
   if (!found) return false;
   try {
-    await G.writeAwaitServer(G.KEYS.drivers, next);
+    await G.writeAwaitServerEdit(G.KEYS.drivers, next, key);
     G.recalculateResourceAvailability();
     return true;
   } catch (_e) {

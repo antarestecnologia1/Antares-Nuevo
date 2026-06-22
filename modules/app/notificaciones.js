@@ -271,14 +271,10 @@ function bindNotificationsPortalControls() {
             G.updateNotificationBadge();
             return;
           }
-          G.appendModuleAuditLog({
-            action: "delete",
-            moduleId: "notifications",
-            moduleLabel: "Notificaciones",
+          G.logPortalAuditEvent?.("notifications", "delete", {
             entityId: "bulk",
             entityLabel: "Bandeja (eliminar todas)",
-            summary: `${visible.length} notificación(es) eliminadas. Motivo: ${String(motivo || "").trim()}`,
-            actor: String(currentUser()?.email || currentUser()?.name || "—").trim()
+            summary: `${visible.length} notificación(es) eliminadas. Motivo: ${String(motivo || "").trim()}`
           });
           G.notify("Notificaciones eliminadas.", "success");
           G.renderPortalView();
@@ -313,14 +309,10 @@ function bindNotificationsPortalControls() {
             G.updateNotificationBadge();
             return;
           }
-          G.appendModuleAuditLog({
-            action: "delete",
-            moduleId: "notifications",
-            moduleLabel: "Notificaciones",
+          G.logPortalAuditEvent?.("notifications", "delete", {
             entityId: id,
             entityLabel: String(removedNotification?.title || "Notificación").trim() || "Notificación",
-            summary: "Notificación eliminada de bandeja.",
-            actor: String(currentUser()?.email || currentUser()?.name || "—").trim()
+            summary: "Notificación eliminada de bandeja."
           });
           G.notify("Notificación eliminada.", "success");
           G.renderPortalView();

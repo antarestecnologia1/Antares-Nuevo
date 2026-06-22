@@ -15,6 +15,7 @@ import {
 } from "./config.js";
 import { state } from "./store.js";
 import { failPortalField } from "../ui/modals.js";
+import { syncPayloadForEditedRow } from "./data-io.js";
 
 const SESSION_IDLE_MS = 30 * 60 * 1000;
 const SESSION_ACTIVITY_THROTTLE_MS = 30 * 1000;
@@ -950,11 +951,17 @@ export function refreshPositionSelectsInDocument() {
 export async function persistPositionsCatalog(nextList, opts = {}) {
   const optimistic = opts.optimistic !== false;
   const prev = read(KEYS.positions, []);
+  const syncData =
+    opts.syncData !== undefined
+      ? opts.syncData
+      : syncPayloadForEditedRow(nextList, opts.editedRow ?? opts.syncRow);
+  const serverOpts = { notifyOnFailure: opts.notifyOnFailure };
+  if (syncData !== undefined) serverOpts.syncData = syncData;
   write(KEYS.positions, nextList, { skipSyncSchedule: true });
   dispatchPositionsCatalogUpdated();
   if (!optimistic) {
     try {
-      await window.writeAwaitServer(KEYS.positions, nextList, { notifyOnFailure: opts.notifyOnFailure });
+      await window.writeAwaitServer(KEYS.positions, nextList, serverOpts);
       return true;
     } catch (err) {
       write(KEYS.positions, prev, { skipSyncSchedule: true });
@@ -967,7 +974,7 @@ export async function persistPositionsCatalog(nextList, opts = {}) {
   }
   void (async () => {
     try {
-      await window.writeAwaitServer(KEYS.positions, nextList, { notifyOnFailure: false });
+      await window.writeAwaitServer(KEYS.positions, nextList, { notifyOnFailure: false, ...serverOpts });
     } catch (err) {
       write(KEYS.positions, prev, { skipSyncSchedule: true });
       dispatchPositionsCatalogUpdated();
@@ -1167,7 +1174,7 @@ export async function queueApproval({ type, title, payload, requestedByUserId, r
     }
   }
   const approvals = read(KEYS.approvals, []);
-  approvals.unshift({
+  const createdApproval = {
     id: newUuidV4(),
     type,
     title,
@@ -1179,9 +1186,10 @@ export async function queueApproval({ type, title, payload, requestedByUserId, r
     reviewedAt: null,
     reviewedBy: null,
     rejectionReason: ""
-  });
+  };
+  approvals.unshift(createdApproval);
   try {
-    await window.writeAwaitServer(KEYS.approvals, approvals);
+    await window.writeAwaitServerCreate(KEYS.approvals, approvals, createdApproval);
   } catch (err) {
     const msg = String(err?.message || window.userMessage?.("genericError") || "No se pudo enviar la solicitud de autorización.").trim();
     window.notify(msg, "error");

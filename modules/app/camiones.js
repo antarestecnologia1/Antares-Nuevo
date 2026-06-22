@@ -543,20 +543,22 @@ function vehiclesHtml() {
                 summary: `${String(snapshotVehicle.type || "Vehículo")} · ${String(snapshotVehicle.brand || "")} ${String(snapshotVehicle.model || "")}`.trim()
               });
             }
-            await reqWriteAwait(
-              reqRead().map((request) => {
-                if (!request.trip || String(request.trip.vehicleId || "") !== vehicleId) return request;
-                return {
-                  ...request,
-                  trip: {
-                    ...request.trip,
-                    vehicleId: null,
-                    vehiclePlate: "CAMION ELIMINADO",
-                    updatedAt: nowIso()
-                  }
-                };
-              })
-            );
+            const changedRequests = [];
+            const nextRequests = reqRead().map((request) => {
+              if (!request.trip || String(request.trip.vehicleId || "") !== vehicleId) return request;
+              const nextRequest = {
+                ...request,
+                trip: {
+                  ...request.trip,
+                  vehicleId: null,
+                  vehiclePlate: "CAMION ELIMINADO",
+                  updatedAt: nowIso()
+                }
+              };
+              changedRequests.push(nextRequest);
+              return nextRequest;
+            });
+            await reqWriteAwait(nextRequests, changedRequests);
             recalculateResourceAvailability();
             notify(userMessage("vehicleDeleted"), "success");
             renderPortalView();
@@ -624,7 +626,7 @@ function vehiclesHtml() {
         });
         list.push(createdVehicle);
         try {
-          await writeAwaitServer(KEYS.vehicles, list);
+          await writeAwaitServerCreate(KEYS.vehicles, list, createdVehicle);
         } catch (err) {
           notify(String(err?.message || "No fue posible guardar el vehículo en el servidor."), "error");
           return;
@@ -819,7 +821,7 @@ function vehiclesHtml() {
                 : v
             );
             try {
-              await writeAwaitServer(KEYS.vehicles, nextVehicles);
+              await writeAwaitServerEdit(KEYS.vehicles, nextVehicles, target.id);
             } catch (err) {
               notify(String(err?.message || "No fue posible guardar el vehículo en el servidor."), "error");
               return false;

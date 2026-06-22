@@ -190,7 +190,7 @@ function bindLaborCompliancePortalControls() {
         return;
       }
       const list = read(KEYS.sstCompliance, []);
-      list.unshift({
+      const createdRecord = G.stampCreatedRecord({
         id: G.newUuidV4(),
         employeeId: employee.id,
         employeeName: employee.name,
@@ -199,15 +199,22 @@ function bindLaborCompliancePortalControls() {
         dueDate,
         status: String(data.status || "Pendiente"),
         documentCode: String(data.documentCode || "").trim().toUpperCase(),
-        notes: String(data.notes || "").trim(),
-        createdAt: G.nowIso(),
-        createdBy: currentUser()?.name || "Sistema"
+        notes: String(data.notes || "").trim()
       });
+      list.unshift(createdRecord);
       try {
-        await writeAwaitServer(KEYS.sstCompliance, list);
+        await writeAwaitServerCreate(KEYS.sstCompliance, list, createdRecord);
       } catch (err) {
         G.notify(String(err?.message || "No fue posible guardar el registro SST en el servidor."), "error");
         return;
+      }
+      if (typeof G.logPortalAuditEvent === "function") {
+        G.logPortalAuditEvent("sst", "create", {
+          entityId: createdRecord.id,
+          entityLabel: `${String(createdRecord.employeeName || "Colaborador")} · ${String(createdRecord.recordType || "Control")}`,
+          summary: `${String(createdRecord.status || "Pendiente")} · vence ${String(createdRecord.dueDate || "—")}`,
+          at: createdRecord.createdAt
+        });
       }
       G.notify(G.userMessage("sstRecorded"), "success");
       G.collapseCreatePanel("create-sst-control");
@@ -303,7 +310,7 @@ function bindLaborCompliancePortalControls() {
           const nextList = all.map((r) =>
             String(r.id) !== String(target.id)
               ? r
-              : {
+              : G.stampUpdatedRecord({
                   ...r,
                   recordType: String(form.recordType || r.recordType || "").trim(),
                   provider: String(form.provider || "").trim(),
@@ -311,13 +318,22 @@ function bindLaborCompliancePortalControls() {
                   status: String(form.status || "Pendiente"),
                   documentCode: String(form.documentCode || "").trim().toUpperCase(),
                   notes: String(form.notes || "").trim()
-                }
+                })
           );
           try {
-            await writeAwaitServer(KEYS.sstCompliance, nextList);
+            await writeAwaitServerEdit(KEYS.sstCompliance, nextList, target.id);
           } catch (err) {
             G.notify(String(err?.message || "No fue posible guardar el control SST en el servidor."), "error");
             return false;
+          }
+          const updatedRecord = nextList.find((r) => String(r.id) === String(target.id));
+          if (updatedRecord && typeof G.logPortalAuditEvent === "function") {
+            G.logPortalAuditEvent("sst", "update", {
+              entityId: updatedRecord.id,
+              entityLabel: `${String(updatedRecord.employeeName || "Colaborador")} · ${String(updatedRecord.recordType || "Control")}`,
+              summary: `${String(updatedRecord.status || "Pendiente")} · ${String(updatedRecord.provider || "Sin entidad")}`,
+              at: updatedRecord.updatedAt || G.nowIso()
+            });
           }
           G.notify("Control SST actualizado.", "success");
           G.renderPortalView();
@@ -340,10 +356,7 @@ function bindLaborCompliancePortalControls() {
         onConfirm: async () => {
           const ok = await G.removeFromPortalListAwaitServer(KEYS.sstCompliance, id);
           if (!ok) return;
-          G.appendModuleAuditLog({
-            action: "delete",
-            moduleId: "sst",
-            moduleLabel: "Cumplimiento laboral y SST",
+          G.logPortalAuditEvent?.("sst", "delete", {
             entityId: id,
             entityLabel: `${String(target.employeeName || "Colaborador")} · ${String(target.recordType || "Control")}`,
             summary: `${String(target.status || "Pendiente")} · vence ${String(target.dueDate || "—")}`

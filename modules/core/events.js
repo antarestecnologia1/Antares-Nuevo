@@ -45,7 +45,7 @@ import {
   normalizePortalDateYmd,
   nowIso
 } from "./utils.js";
-import { read, write, writeAwaitServer } from "./data-io.js";
+import { read, write, writeAwaitServer, writeAwaitServerEdit, writeAwaitServerCreate, writeAwaitServerLatestQueuedEmail } from "./data-io.js";
 import {
   registerBindEventsCallback,
   scheduleRenderPortalView,
@@ -927,7 +927,7 @@ function bindDynamicEvents() {
           const next = companies.map((c) =>
             String(c.id) === companyId ? { ...c, active: !active, updatedAt: updatedTs } : c
           );
-          await writeAwaitServer(KEYS.companies, next);
+          await writeAwaitServerEdit(KEYS.companies, next, companyId);
           $portal.notify($portal.userMessage(active ? "companyDeactivated" : "companyActivated"), "success");
           renderPortalView();
         }
@@ -1081,8 +1081,8 @@ function bindDynamicEvents() {
         systemJoinDate: data.systemJoinDate || nowIso().slice(0, 10),
         permissions: normalizeSavedUserPermissions(data.role, permissions)
       }));
-      await writeAwaitServer(KEYS.users, users);
       const createdUser = users[users.length - 1];
+      await writeAwaitServerCreate(KEYS.users, users, createdUser);
       if (createdUser) {
         $portal.appendPortalEntityAuditLog(
           "create",
@@ -1202,8 +1202,13 @@ function bindDynamicEvents() {
         companyKind: kind,
         active: true
       }));
+      const createdCompany = companies[companies.length - 1];
       try {
-        await writeAwaitServer(KEYS.companies, $portal.normalizeCompaniesForSync(companies));
+        await writeAwaitServerCreate(
+          KEYS.companies,
+          $portal.normalizeCompaniesForSync(companies),
+          createdCompany
+        );
       } catch (err) {
         const raw = String(err?.message || "");
         const msg =
@@ -1213,7 +1218,6 @@ function bindDynamicEvents() {
         $portal.notify(msg, "error");
         return;
       }
-      const createdCompany = companies[companies.length - 1];
       if (createdCompany) {
         $portal.appendPortalEntityAuditLog(
           "create",
@@ -1336,7 +1340,9 @@ function bindDynamicEvents() {
           : c
       );
       try {
-        await writeAwaitServer(KEYS.companies, $portal.normalizeCompaniesForSync(nextCompanies));
+        await writeAwaitServer(KEYS.companies, $portal.normalizeCompaniesForSync(nextCompanies), {
+          syncData: syncPayloadForEditedRow(nextCompanies, companyId)
+        });
       } catch (err) {
         $portal.notify(String(err?.message || "La empresa no se pudo guardar en el servidor."), "error");
         return;
@@ -1407,7 +1413,7 @@ function bindDynamicEvents() {
           : user
       );
       try {
-        await writeAwaitServer(KEYS.users, nextUsers);
+        await writeAwaitServerEdit(KEYS.users, nextUsers, userId);
       } catch (err) {
         $portal.notify(String(err?.message || $portal.userMessage("genericError")), "error");
         return;
@@ -1597,7 +1603,7 @@ function bindDynamicEvents() {
           : u
       );
       try {
-        await writeAwaitServer(KEYS.users, nextEdited);
+        await writeAwaitServerEdit(KEYS.users, nextEdited, userId);
       } catch (err) {
         $portal.notify(String(err?.message || $portal.userMessage("genericError")), "error");
         return;
@@ -2045,7 +2051,7 @@ function bindDynamicEvents() {
           );
         });
         try {
-          await writeAwaitServer(KEYS.users, read(KEYS.users, []));
+          await writeAwaitServerEdit(KEYS.users, read(KEYS.users, []), userId);
         } catch (_e) {
           return;
         }
@@ -2353,7 +2359,7 @@ function bindDynamicEvents() {
           const allRequests = reqRead();
           const updated = allRequests.map((r) => (r.id === req.id ? mergedRow : r));
           try {
-            await reqWriteAwait(updated);
+            await reqWriteAwait(updated, mergedRow);
           } catch (err) {
             $portal.notify(String(err?.message || "No fue posible guardar los cambios en el servidor."), "error");
             return false;
@@ -2389,7 +2395,8 @@ function bindDynamicEvents() {
             : r
         );
         try {
-          await reqWriteAwait(updated);
+          const cancelledRow = updated.find((r) => r.id === req.id);
+          await reqWriteAwait(updated, cancelledRow);
         } catch (err) {
           $portal.notify(String(err?.message || "No fue posible cancelar la solicitud en el servidor."), "error");
           return;
@@ -2608,6 +2615,11 @@ function bindDynamicEvents() {
           return;
         }
         await exportCatalogReport(report, format === "excel" ? "excel" : "pdf");
+        $portal.logPortalAuditEvent?.("reports", "update", {
+          entityId: reportId,
+          entityLabel: String(report?.title || reportId || "Reporte").trim(),
+          summary: `Exportación ${format === "excel" ? "Excel" : "PDF"} · período ${String(exportFilters.period || "90d")}`
+        });
         $portal.notify($portal.userMessage(format === "excel" ? "reportExcelExported" : "reportPdfOk"), "success");
       } catch (_e) {
         $portal.notify($portal.userMessage("reportExportError"), "error");
@@ -2749,7 +2761,10 @@ function bindDynamicEvents() {
               : req.trip
           };
           try {
-            await reqWriteAwait(reqRead().map((r) => (r.id === req.id ? mergedRow : r)));
+            await reqWriteAwait(
+              reqRead().map((r) => (r.id === req.id ? mergedRow : r)),
+              mergedRow
+            );
           } catch (err) {
             $portal.notify(String(err?.message || "No fue posible guardar los cambios en el servidor."), "error");
             return false;
@@ -2787,7 +2802,8 @@ function bindDynamicEvents() {
             $portal.notify(String(err?.message || "No fue posible eliminar la solicitud en el servidor."), "error");
             return;
           }
-          await reqWriteAwait(reqRead().filter((r) => String(r.id) !== requestId));
+          const nextRequests = reqRead().filter((r) => String(r.id) !== requestId);
+          await reqWriteAwait(nextRequests, undefined, requestId);
           $portal.recalculateResourceAvailability();
           try {
             await applyPortalBootstrapFromApi();
@@ -2830,7 +2846,8 @@ function bindDynamicEvents() {
             $portal.notify(String(err?.message || "No fue posible eliminar la solicitud en el servidor."), "error");
             return;
           }
-          await reqWriteAwait(reqRead().filter((r) => String(r.id) !== requestId));
+          const nextRequests = reqRead().filter((r) => String(r.id) !== requestId);
+          await reqWriteAwait(nextRequests, undefined, requestId);
           $portal.recalculateResourceAvailability();
           try {
             await applyPortalBootstrapFromApi();
@@ -3693,7 +3710,7 @@ function openPublicVacancyApplyModal(vacancy) {
       if (cvPieces === null) return false;
       const nm = String(fd.get("name") || "").trim();
       const all = read(KEYS.candidates, []);
-      all.unshift({
+      const createdCandidate = {
         id: newUuidV4(),
         name: $portal.normalizeLatinUpperForDb(nm),
         email: $portal.normalizeEmail(String(fd.get("email") || "")),
@@ -3713,9 +3730,10 @@ function openPublicVacancyApplyModal(vacancy) {
         attachments: cvPieces,
         source: "Sitio web",
         createdAt: nowIso()
-      });
+      };
+      all.unshift(createdCandidate);
       try {
-        await writeAwaitServer(KEYS.candidates, all);
+        await writeAwaitServerCreate(KEYS.candidates, all, createdCandidate);
       } catch (err) {
         const raw = String(err?.message || "No fue posible registrar la postulación en el servidor.");
         const msg = /failed to fetch/i.test(raw)
@@ -3730,7 +3748,7 @@ function openPublicVacancyApplyModal(vacancy) {
         body: `Hola ${nm}, registramos tu postulacion a "${vacLocal.title}". Nuestro equipo de seleccion revisara tu perfil.`
       });
       try {
-        await writeAwaitServer(KEYS.emails, read(KEYS.emails, []));
+        await writeAwaitServerLatestQueuedEmail();
       } catch (_e) {}
       $portal.notifyHrUsers(
         "Nueva postulacion (web)",

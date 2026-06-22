@@ -491,7 +491,7 @@ function driversHtml() {
         });
         list.push(createdDriver);
         try {
-          await writeAwaitServer(KEYS.drivers, list);
+          await writeAwaitServerCreate(KEYS.drivers, list, createdDriver);
         } catch (err) {
           notify(String(err?.message || "No fue posible guardar el conductor en el servidor."), "error");
           return;
@@ -523,7 +523,7 @@ function driversHtml() {
           });
           employees.push(createdEmployee);
           try {
-            await writeAwaitServer(KEYS.payrollEmployees, employees);
+            await writeAwaitServerCreate(KEYS.payrollEmployees, employees, createdEmployee);
             appendPayrollEmployeeAuditLog("create", createdEmployee, {
               summary: "CONDUCTOR · vinculado al crear conductor en flota"
             });
@@ -739,7 +739,7 @@ function driversHtml() {
                 : d
             );
             try {
-              await writeAwaitServer(KEYS.drivers, nextDrivers);
+              await writeAwaitServerEdit(KEYS.drivers, nextDrivers, target.id);
             } catch (err) {
               notify(String(err?.message || "No fue posible guardar el conductor en el servidor."), "error");
               return false;

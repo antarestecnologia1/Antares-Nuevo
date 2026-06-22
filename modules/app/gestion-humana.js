@@ -1121,7 +1121,7 @@ function bindPayrollPortalControls() {
         const all = read(KEYS.payrollEmployees, []);
         all.push(createdEmployee);
         try {
-          await writeAwaitServer(KEYS.payrollEmployees, all, { notifyOnFailure: false });
+          await writeAwaitServerCreate(KEYS.payrollEmployees, all, createdEmployee, { notifyOnFailure: false });
         } catch (err) {
           const rolledBack = read(KEYS.payrollEmployees, []).filter(
             (row) => String(row.id) !== newEmployeeId
@@ -1271,11 +1271,17 @@ function bindPayrollPortalControls() {
       }
       list.unshift(absencePayload);
       try {
-        await writeAwaitServer(KEYS.hrAbsences, list);
+        await writeAwaitServerCreate(KEYS.hrAbsences, list, absencePayload);
       } catch (err) {
         notify(String(err?.message || "No fue posible registrar la ausencia en el servidor."), "error");
         return;
       }
+      logPortalAuditEvent?.("payroll", "create", {
+        entityId: absencePayload.id,
+        entityLabel: `${String(employee.name || "Colaborador")} · ${String(data.startDate || "-")}`,
+        summary: `${String(absenceType || "Ausencia")} · ${days} día(s)`,
+        at: absencePayload.createdAt
+      });
       const linkResult = await refreshPayrollDraftsLinked(employee.id, data.startDate, data.endDate, {
         notifyOnError: false
       });
@@ -1513,6 +1519,20 @@ function bindPayrollPortalControls() {
             notify(userMessage("employeeUpdateRequestQueued"), "info");
             return true;
           }
+          const apiOn =
+            window.AntaresApi?.isConfigured?.() &&
+            typeof window.AntaresApi?.getBase === "function" &&
+            Boolean(window.AntaresApi.getBase());
+          if (apiOn) {
+            if (!isUuidString(String(target.id || ""))) {
+              notify(userMessage("employeeServerUuidRequired"), "error");
+              return false;
+            }
+            if (!isUuidString(String(nextPayload.companyId || ""))) {
+              notify(userMessage("employeeServerCompanyUuidRequired"), "error");
+              return false;
+            }
+          }
           const nextEmployees = all.map((empRow) =>
               String(empRow.id) !== String(target.id)
                 ? empRow
@@ -1530,9 +1550,7 @@ function bindPayrollPortalControls() {
             (empRow) => String(empRow.id) === String(target.id)
           );
           try {
-            await writeAwaitServer(KEYS.payrollEmployees, nextEmployees, {
-              syncData: updatedEmployee ? [updatedEmployee] : undefined
-            });
+            await writeAwaitServerEdit(KEYS.payrollEmployees, nextEmployees, target.id);
           } catch (err) {
             notify(userMessage("employeeSaveServerFail", err?.message), "error");
             return false;
@@ -1552,7 +1570,12 @@ function bindPayrollPortalControls() {
                 await applyPortalBootstrapFromApi();
               } catch (_e) {}
             }
-            notify(userMessage("employeeUpdatedDriverSynced"), "success");
+            notify(
+              nextPayload.workerRole === "conductor"
+                ? userMessage("employeeUpdatedDriverSynced")
+                : userMessage("employeeUpdatedOk"),
+              "success"
+            );
             renderPortalView();
             return true;
           }
@@ -1971,7 +1994,7 @@ function bindPayrollPortalControls() {
       }
       runs.unshift(run);
       try {
-        await writeAwaitServer(KEYS.payrollRuns, runs);
+        await writeAwaitServerCreate(KEYS.payrollRuns, runs, run);
       } catch (err) {
         notify(String(err?.message || "No fue posible guardar la nómina en el servidor."), "error");
         return;
@@ -2204,7 +2227,7 @@ function bindPayrollPortalControls() {
       }
       runs.unshift(run);
       try {
-        await writeAwaitServer(KEYS.payrollRuns, runs);
+        await writeAwaitServerCreate(KEYS.payrollRuns, runs, run);
       } catch (err) {
         notify(String(err?.message || "No fue posible guardar la liquidación en el servidor."), "error");
         return;
@@ -2261,10 +2284,7 @@ function bindPayrollPortalControls() {
         confirmText: "Marcar pagado",
         onConfirm: async () => {
           const approver = payrollAuditActorLabel();
-          try {
-            await writeAwaitServer(
-              KEYS.payrollRuns,
-              all.map((item) =>
+          const nextRuns = all.map((item) =>
                 item.id === id
                   ? stampUpdatedRecord({
                       ...item,
@@ -2273,8 +2293,9 @@ function bindPayrollPortalControls() {
                       approvedBy: approver
                     })
                   : item
-              )
-            );
+              );
+          try {
+            await writeAwaitServerEdit(KEYS.payrollRuns, nextRuns, id);
           } catch (err) {
             notify(String(err?.message || "No fue posible marcar el pago en el servidor."), "error");
             return;
@@ -2309,8 +2330,7 @@ function bindPayrollPortalControls() {
           if (!ok) return;
           appendModuleAuditLog({
             action: "delete",
-            moduleId: "hr_absences",
-            moduleLabel: "Gestión humana",
+            moduleId: "payroll",
             entityId: id,
             entityLabel: removed
               ? `${String(removed.employeeName || "Colaborador")} · ${String(removed.startDate || "-")}`
@@ -2569,7 +2589,7 @@ function bindPayrollPortalControls() {
           const nextList = all.map((a) =>
             String(a.id) !== String(target.id)
               ? a
-              : {
+              : stampUpdatedRecord({
                   ...a,
                   absenceType: normalizedType,
                   absenceSubtype: normalizedSubtype || null,
@@ -2581,13 +2601,22 @@ function bindPayrollPortalControls() {
                   supportNumber: String(form.supportNumber || "").trim(),
                   epsEntity: String(form.epsEntity || "").trim(),
                   notes: String(form.notes || "").trim()
-                }
+                })
           );
           try {
-            await writeAwaitServer(KEYS.hrAbsences, nextList);
+            await writeAwaitServerEdit(KEYS.hrAbsences, nextList, target.id);
           } catch (err) {
             notify(String(err?.message || "No fue posible actualizar la ausencia en el servidor."), "error");
             return false;
+          }
+          const updatedAbsence = nextList.find((a) => String(a.id) === String(target.id));
+          if (updatedAbsence) {
+            logPortalAuditEvent?.("payroll", "update", {
+              entityId: updatedAbsence.id,
+              entityLabel: `${String(updatedAbsence.employeeName || "Colaborador")} · ${String(updatedAbsence.startDate || "-")}`,
+              summary: `${String(updatedAbsence.absenceType || "Ausencia")} · ${parseNum(updatedAbsence.days)} día(s)`,
+              at: updatedAbsence.updatedAt || nowIso()
+            });
           }
           const linkResult = await refreshPayrollDraftsLinked(
             target.employeeId,

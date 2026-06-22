@@ -149,6 +149,11 @@ export function isNotificationsEnabled() {
 export function toggleNotificationsEnabled() {
   const next = !isNotificationsEnabled();
   setNotificationsEnabled(next);
+  globalThis.logPortalAuditEvent?.("bell", "update", {
+    entityId: String(globalThis.currentUser?.()?.id || "prefs"),
+    entityLabel: "Timbre",
+    summary: next ? "Notificaciones activadas (timbre y avisos)" : "Notificaciones desactivadas"
+  });
   window.notify(
     next
       ? "Notificaciones activadas: avisos y timbre."
@@ -183,7 +188,12 @@ export function setNotificationAlertsEnabled(enabled) {
 export function toggleNotificationSoundMuted() {
   const wasSoundOn = isSonidoNotificacionesHabilitado();
   setNotificationSoundMuted(wasSoundOn);
-    window.notify(
+  globalThis.logPortalAuditEvent?.("bell", "update", {
+    entityId: String(globalThis.currentUser?.()?.id || "prefs"),
+    entityLabel: "Timbre",
+    summary: wasSoundOn ? "Timbre silenciado" : "Timbre activado"
+  });
+  window.notify(
     wasSoundOn
       ? "Timbre silenciado (solo audio). Los avisos en pantalla no cambian si los tienes activos."
       : "Timbre activado.",
@@ -195,6 +205,11 @@ export function toggleNotificationSoundMuted() {
 export function toggleNotificationAlertsEnabled() {
   const next = !isInAppNotificationAlertsEnabled();
   setNotificationAlertsEnabled(next);
+  globalThis.logPortalAuditEvent?.("alerts", "update", {
+    entityId: String(globalThis.currentUser?.()?.id || "prefs"),
+    entityLabel: "Avisos",
+    summary: next ? "Avisos emergentes activados" : "Avisos emergentes desactivados"
+  });
   window.notify(
     next
       ? "Avisos emergentes activados. Verás mensajes al instante cuando lleguen avisos nuevos."

@@ -292,31 +292,41 @@ export function recalculateResourceAvailability() {
   const drivers = read(KEYS.drivers, []);
 
   let vehiclesChanged = false;
+  const changedVehicles = [];
   const nextVehicles = vehicles.map((vehicle) => {
     const liveBusy = activeTrips.some((r) => activeTripOccupiesVehicleAtInstant(r, vehicle, nowTs));
     if (liveBusy) {
       if (vehicle.available === false && vehicle.autoBusy === true) return vehicle;
       vehiclesChanged = true;
-      return { ...vehicle, available: false, autoBusy: true };
+      const next = { ...vehicle, available: false, autoBusy: true };
+      changedVehicles.push(next);
+      return next;
     }
     if (vehicle.autoBusy) {
       vehiclesChanged = true;
-      return { ...vehicle, available: true, autoBusy: false };
+      const next = { ...vehicle, available: true, autoBusy: false };
+      changedVehicles.push(next);
+      return next;
     }
     return vehicle;
   });
 
   let driversChanged = false;
+  const changedDrivers = [];
   const nextDrivers = drivers.map((driver) => {
     const liveBusy = activeTrips.some((r) => activeTripOccupiesDriverAtInstant(r, driver, nowTs));
     if (liveBusy) {
       if (driver.available === false && driver.autoBusy === true) return driver;
       driversChanged = true;
-      return { ...driver, available: false, autoBusy: true };
+      const next = { ...driver, available: false, autoBusy: true };
+      changedDrivers.push(next);
+      return next;
     }
     if (driver.autoBusy) {
       driversChanged = true;
-      return { ...driver, available: true, autoBusy: false };
+      const next = { ...driver, available: true, autoBusy: false };
+      changedDrivers.push(next);
+      return next;
     }
     return driver;
   });
@@ -324,8 +334,12 @@ export function recalculateResourceAvailability() {
   if (vehiclesChanged || driversChanged) {
     void (async () => {
       try {
-        if (vehiclesChanged) await writeAwaitServer(KEYS.vehicles, nextVehicles);
-        if (driversChanged) await writeAwaitServer(KEYS.drivers, nextDrivers);
+        if (vehiclesChanged) {
+          await writeAwaitServer(KEYS.vehicles, nextVehicles, { syncData: changedVehicles });
+        }
+        if (driversChanged) {
+          await writeAwaitServer(KEYS.drivers, nextDrivers, { syncData: changedDrivers });
+        }
       } catch {
         /* noop */
       }
@@ -361,12 +375,13 @@ export function closeCompletedTripsAndGenerateInvoices() {
   let changed = false;
   const oneHourMs = 60 * 60 * 1000;
   const now = Date.now();
+  const changedRows = [];
   const next = requests.map((request) => {
     if (!request?.trip || request.status !== VIAJES_STATUS.COMPLETADA || !request.deliveredAt) return request;
     const deliveredTs = new Date(request.deliveredAt).getTime();
     if (!Number.isFinite(deliveredTs) || now - deliveredTs < oneHourMs) return request;
     changed = true;
-    return {
+    const updated = {
       ...request,
       status: VIAJES_STATUS.CERRADA,
       closedAt: domainNowLocalIso(),
@@ -377,11 +392,13 @@ export function closeCompletedTripsAndGenerateInvoices() {
         updatedAt: domainNowIso()
       }
     };
+    changedRows.push(updated);
+    return updated;
   });
   if (changed) {
     void (async () => {
       try {
-        await reqWriteAwait(next);
+        await reqWriteAwait(next, changedRows);
       } catch {
         /* noop */
       }
@@ -811,9 +828,10 @@ export async function transitionRequestStatus(requestId, nextStatus, actorName =
         }
       : request
   );
+  const updatedRow = updated.find((request) => request.id === requestId);
   void (async () => {
     try {
-      await reqWriteAwait(updated);
+      await reqWriteAwait(updated, updatedRow);
     } catch (_e) {}
     recalculateResourceAvailability();
   })();

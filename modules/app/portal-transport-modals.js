@@ -409,8 +409,9 @@ function openEditTripModal(req) {
         }
       };
       const updated = requests.map((r) => (r.id === req.id ? { ...r, ...updates } : r));
+      const updatedRow = updated.find((r) => r.id === req.id);
       try {
-        await reqWriteAwait(updated);
+        await reqWriteAwait(updated, updatedRow);
       } catch (err) {
         notify(String(err?.message || "No fue posible guardar los cambios del viaje."), "error");
         return false;
@@ -534,7 +535,17 @@ function openEditRouteRateModal(storageKey) {
       const next = { ...normalized, [newStorageKey]: buildRouteRateEntry(tripRateCop, companyIds, previousEntry) };
       if (editingKey && editingKey !== newStorageKey) delete next[editingKey];
       try {
-        await writeAwaitServer(KEYS.tripRouteRates, next);
+        await writeAwaitServer(KEYS.tripRouteRates, next, {
+          syncData: syncPayloadForEditedObjectKeys(next, newStorageKey),
+          deletedIds:
+            editingKey &&
+            editingKey !== newStorageKey &&
+            previousEntry &&
+            typeof previousEntry === "object" &&
+            String(previousEntry.id || "").trim()
+              ? [String(previousEntry.id).trim()]
+              : undefined
+        });
       } catch (err) {
         notify(String(err?.message || userMessage("genericError")), "error");
         return false;

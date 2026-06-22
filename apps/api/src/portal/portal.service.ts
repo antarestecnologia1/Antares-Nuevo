@@ -8101,10 +8101,13 @@ export class PortalService implements OnModuleInit {
 
     const syncErrors: string[] = [];
     let rowIndex = 0;
+    let incomingWithIds = 0;
+    let persistedCount = 0;
     for (const raw of data) {
       rowIndex += 1;
       const e = raw as Record<string, unknown>;
       if (!e?.id || !e.companyId) continue;
+      incomingWithIds += 1;
       if (this.skipUnlessPersistUuid("syncPayrollEmployees", e.id)) continue;
       if (this.skipUnlessPersistUuid("syncPayrollEmployees.companyId", e.companyId)) continue;
       const p = pickPortalField;
@@ -8313,6 +8316,7 @@ export class PortalService implements OnModuleInit {
           }
         }
         await c.query(`RELEASE SAVEPOINT ${sp}`);
+        persistedCount += 1;
       } catch (err) {
         await c.query(`ROLLBACK TO SAVEPOINT ${sp}`).catch(() => undefined);
         await c.query(`RELEASE SAVEPOINT ${sp}`).catch(() => undefined);
@@ -8322,6 +8326,11 @@ export class PortalService implements OnModuleInit {
     if (syncErrors.length > 0) {
       throw new BadRequestException(
         syncErrors.length === 1 ? syncErrors[0] : syncErrors.join(" ")
+      );
+    }
+    if (incomingWithIds > 0 && persistedCount === 0) {
+      throw new BadRequestException(
+        "Ningún colaborador del lote pudo guardarse en el servidor. Verifique que el empleado y la empresa tengan identificador UUID válido (registros de solo navegador o semillas QA como emp-1 no se sincronizan con PostgreSQL)."
       );
     }
     try {

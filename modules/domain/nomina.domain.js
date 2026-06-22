@@ -124,13 +124,27 @@ export function payrollPayFrequencySelectOptions(selected = "", placeholder = "S
 }
 
 export function payrollAuditActorLabel() {
+  const snapshotFn = globalThis.buildPortalAuditActorSnapshot;
+  if (typeof snapshotFn === "function") {
+    const snapshot = snapshotFn();
+    const label = String(snapshot?.label || snapshot?.email || snapshot?.name || "").trim();
+    if (label) return label;
+  }
   const user = typeof globalThis.currentUser === "function" ? globalThis.currentUser() : null;
-  return String(user?.name || user?.email || "—").trim();
+  const displayFn = globalThis.getPortalUserDisplayName;
+  const display =
+    typeof displayFn === "function" && user ? String(displayFn(user) || "").trim() : "";
+  return String(user?.email || display || user?.name || "").trim();
 }
 
 export function appendPayrollRunAuditLog(action, run, { summary = "", motivo = "" } = {}) {
   const logFn = globalThis.appendModuleAuditLog;
   if (typeof logFn !== "function") return;
+  const snapshotFn = globalThis.buildPortalAuditActorSnapshot;
+  const snapshot =
+    typeof snapshotFn === "function"
+      ? snapshotFn()
+      : { label: payrollAuditActorLabel(), email: "", userId: "", name: "" };
   const actor = payrollAuditActorLabel();
   const entityId = String(run?.id || "").trim();
   const entityLabel = run
@@ -145,7 +159,10 @@ export function appendPayrollRunAuditLog(action, run, { summary = "", motivo = "
     entityId,
     entityLabel,
     summary: bits.join(" ") || entityLabel,
-    actor
+    actor,
+    actorEmail: String(snapshot.email || "").trim(),
+    actorUserId: String(snapshot.userId || "").trim(),
+    at: String(run?.createdAt || run?.updatedAt || "").trim() || undefined
   });
 }
 

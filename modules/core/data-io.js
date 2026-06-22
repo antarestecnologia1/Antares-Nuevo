@@ -55,8 +55,94 @@ export function write(key, value, opts = {}) {
   }
 }
 
+export function syncPayloadForEditedRow(fullList, editedIdOrRecord) {
+  if (editedIdOrRecord == null) return undefined;
+  if (typeof editedIdOrRecord === "object" && !Array.isArray(editedIdOrRecord)) {
+    if (editedIdOrRecord.id != null && String(editedIdOrRecord.id).trim() !== "") {
+      return [editedIdOrRecord];
+    }
+    return undefined;
+  }
+  const id = String(editedIdOrRecord).trim();
+  if (!id || !Array.isArray(fullList)) return undefined;
+  const row = fullList.find((r) => String(r?.id ?? "") === id);
+  return row ? [row] : undefined;
+}
+
+/** Para mapas (p. ej. tarifas por trayecto): solo las claves tocadas en el guardado. */
+export function syncPayloadForEditedObjectKeys(fullObject, keysOrKey) {
+  if (!fullObject || typeof fullObject !== "object" || Array.isArray(fullObject)) return undefined;
+  const keys = Array.isArray(keysOrKey) ? keysOrKey : [keysOrKey];
+  const out = {};
+  keys.forEach((rawKey) => {
+    const key = String(rawKey ?? "").trim();
+    if (key && Object.prototype.hasOwnProperty.call(fullObject, key)) {
+      out[key] = fullObject[key];
+    }
+  });
+  return Object.keys(out).length ? out : undefined;
+}
+
+/** Filas cuyo objeto cambió (misma referencia en listas antes/después del map). */
+export function syncPayloadForChangedRows(beforeList, afterList) {
+  if (!Array.isArray(beforeList) || !Array.isArray(afterList)) return undefined;
+  const beforeById = new Map(beforeList.map((row) => [String(row?.id ?? ""), row]));
+  const changed = afterList.filter((row) => {
+    const prev = beforeById.get(String(row?.id ?? ""));
+    return prev && prev !== row;
+  });
+  return changed.length ? changed : undefined;
+}
+
+/** Correo recién encolado por `sendEmail` (siempre al inicio del outbox). */
+export function syncPayloadForLatestOutboxRow(outbox) {
+  const row = Array.isArray(outbox) ? outbox[0] : null;
+  return row ? [row] : undefined;
+}
+
+/** Sincroniza solo el último correo encolado en memoria. */
+export async function writeAwaitServerLatestQueuedEmail(opts = {}) {
+  const outbox = read(KEYS.emails, []);
+  return writeAwaitServer(KEYS.emails, outbox, {
+    ...opts,
+    syncData: syncPayloadForLatestOutboxRow(outbox)
+  });
+}
+
 /**
- * Igual que `write` pero espera POST /portal/sync-key (PostgreSQL) cuando hay sesión API.
+ * Persiste la lista completa en memoria pero sincroniza con el servidor solo la fila editada.
+ * @param {string} storageKeyLike
+ * @param {unknown[]} fullList
+ * @param {string|object} editedIdOrRecord id o fila ya mergeada
+ * @param {object} [opts]
+ */
+export async function writeAwaitServerEdit(storageKeyLike, fullList, editedIdOrRecord, opts = {}) {
+  const syncData = syncPayloadForEditedRow(fullList, editedIdOrRecord);
+  return writeAwaitServer(storageKeyLike, fullList, { ...opts, syncData });
+}
+
+/** Alias semántico: alta de un solo registro en listas del portal. */
+export async function writeAwaitServerCreate(storageKeyLike, fullList, createdIdOrRecord, opts = {}) {
+  return writeAwaitServerEdit(storageKeyLike, fullList, createdIdOrRecord, opts);
+}
+
+/**
+ * Borrado en servidor sin re-enviar todo el catálogo: `deletedIds` + payload vacío.
+ * La lista `nextList` sigue guardándose solo en memoria local.
+ */
+export async function writeAwaitServerDelete(storageKeyLike, nextList, deletedIds, opts = {}) {
+  const ids = (Array.isArray(deletedIds) ? deletedIds : [deletedIds])
+    .map((id) => String(id || "").trim())
+    .filter(Boolean);
+  return writeAwaitServer(storageKeyLike, nextList, {
+    ...opts,
+    syncData: [],
+    deletedIds: ids.length ? ids : undefined
+  });
+}
+
+/**
+ * Igual que `writeAwaitServer` pero espera POST /portal/sync-key (PostgreSQL) cuando hay sesión API.
  * En modo sólo navegador (sin URL de API/token) sólo persiste la proyección en memoria.
  * @throws Las mismas errores que `AntaresPortalSync.flushStorageKeyNow` cuando el servidor rechaza tras reintentos.
  */

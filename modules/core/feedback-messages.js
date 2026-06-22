@@ -240,6 +240,10 @@
       if (msg && !/^internal server error$/i.test(msg)) return msg;
       return "No se pudo confirmar el guardado en el servidor. El colaborador no quedó persistido; revise conexión, sesión y datos del formulario e intente de nuevo.";
     },
+    employeeServerUuidRequired:
+      "Este colaborador no tiene un identificador válido en el servidor (UUID). Recargue el portal desde la API o vuelva a crear el registro con sesión activa.",
+    employeeServerCompanyUuidRequired:
+      "La empresa seleccionada no está registrada en el servidor (falta UUID). Elija una empresa sincronizada con PostgreSQL o recargue el portal.",
     employeeCreatedDriverSyncFail:
       "El empleado quedó guardado, pero no se pudo sincronizar la ficha de conductor. Revise licencia y conexión, luego edite el empleado.",
     employeeContractWordOk: "Contrato Word generado. Revise la carpeta de descargas.",

@@ -10,7 +10,7 @@ import {
   REPORT_RULES,
   REPORT_BRAND_LOGO_PATH
 } from "../core/config.js";
-import { read, writeAwaitServer } from "../core/data-io.js";
+import { read, writeAwaitServer, writeAwaitServerCreate, syncPayloadForEditedRow } from "../core/data-io.js";
 import { state, nodes } from "../core/store.js";
 import { currentUser, hasPermission, canAccessRRHH } from "../core/auth.js";
 import {
@@ -1388,23 +1388,22 @@ export async function syncDriverFromEmployee(employee, extraDriverData = {}) {
             })
           : d
       );
-      await writeAwaitServer(KEYS.drivers, nextDrivers, { notifyOnFailure: false });
+      await writeAwaitServer(KEYS.drivers, nextDrivers, {
+        notifyOnFailure: false,
+        syncData: syncPayloadForEditedRow(nextDrivers, existing.id)
+      });
       return { ok: true, driverId: existing.id };
     }
     const newId = newUuidV4();
-    await writeAwaitServer(
-      KEYS.drivers,
-      [
-        stampCreatedRecord({
-          id: newId,
-          ...driverPatch,
-          available: true,
-          hiredAt: employee.hiredAt || employee.startDate || nowIso()
-        }),
-        ...drivers
-      ],
-      { notifyOnFailure: false }
-    );
+    const createdDriver = stampCreatedRecord({
+      id: newId,
+      ...driverPatch,
+      available: true,
+      hiredAt: employee.hiredAt || employee.startDate || nowIso()
+    });
+    await writeAwaitServerCreate(KEYS.drivers, [createdDriver, ...drivers], createdDriver, {
+      notifyOnFailure: false
+    });
     return { ok: true, driverId: newId };
   } catch (err) {
     return {

@@ -175,28 +175,36 @@ export function readVehicleTechnicalLogs() {
   return normalizeVehicleTechnicalLogsList(read(KEYS.vehicleTechnicalLogs, []));
 }
 
-export async function writeFuelLogsAwait(list) {
+export async function writeFuelLogsAwait(list, syncRow = null) {
   const normalized = normalizeFuelLogsList(list);
   write(KEYS.fuelLogs, normalized);
+  const syncData =
+    syncRow != null
+      ? (Array.isArray(syncRow) ? syncRow : [syncRow]).map(fuelLogRowForServer)
+      : normalized.map(fuelLogRowForServer);
   const sync = window.AntaresPortalSync;
   const api = window.AntaresApi;
   if (sync?.flushEntityNow && api?.isConfigured?.()) {
-    await sync.flushEntityNow("fuelLogs", normalized.map(fuelLogRowForServer));
+    await sync.flushEntityNow("fuelLogs", syncData);
     return;
   }
-  await writeAwaitServer(KEYS.fuelLogs, normalized.map(fuelLogRowForServer));
+  await writeAwaitServer(KEYS.fuelLogs, normalized, { syncData });
 }
 
-export async function writeVehicleTechnicalLogsAwait(list) {
+export async function writeVehicleTechnicalLogsAwait(list, syncRow = null) {
   const normalized = normalizeVehicleTechnicalLogsList(list);
   write(KEYS.vehicleTechnicalLogs, normalized);
+  const syncData =
+    syncRow != null
+      ? (Array.isArray(syncRow) ? syncRow : [syncRow]).map(vehicleTechnicalLogRowForServer)
+      : normalized.map(vehicleTechnicalLogRowForServer);
   const sync = window.AntaresPortalSync;
   const api = window.AntaresApi;
   if (sync?.flushEntityNow && api?.isConfigured?.()) {
-    await sync.flushEntityNow("vehicleTechnicalLogs", normalized.map(vehicleTechnicalLogRowForServer));
+    await sync.flushEntityNow("vehicleTechnicalLogs", syncData);
     return;
   }
-  await writeAwaitServer(KEYS.vehicleTechnicalLogs, normalized.map(vehicleTechnicalLogRowForServer));
+  await writeAwaitServer(KEYS.vehicleTechnicalLogs, normalized, { syncData });
 }
 
 /** Alta de combustible: INSERT en registros_combustible y actualiza caché del portal. */
@@ -213,7 +221,7 @@ export async function appendFuelLogAwait(row) {
   }
   const list = readFuelLogs();
   list.unshift(draft);
-  await writeFuelLogsAwait(list);
+  await writeFuelLogsAwait(list, draft);
   return draft;
 }
 
@@ -231,7 +239,7 @@ export async function appendVehicleTechnicalLogAwait(row) {
   }
   const list = readVehicleTechnicalLogs();
   list.unshift(draft);
-  await writeVehicleTechnicalLogsAwait(list);
+  await writeVehicleTechnicalLogsAwait(list, draft);
   return draft;
 }
 
@@ -253,13 +261,13 @@ export function openTripInvoicePdf(requestId) {
   }
   const invoice = request.trip.invoice || buildTripInvoice(request);
   const requests = reqRead();
+  const nextRequests = requests.map((r) =>
+    r.id === requestId ? { ...r, trip: { ...r.trip, invoice, updatedAt: nowIso() }, updatedAt: nowIso() } : r
+  );
+  const updatedRow = nextRequests.find((r) => r.id === requestId);
   void (async () => {
     try {
-      await reqWriteAwait(
-        requests.map((r) =>
-          r.id === requestId ? { ...r, trip: { ...r.trip, invoice, updatedAt: nowIso() }, updatedAt: nowIso() } : r
-        )
-      );
+      await reqWriteAwait(nextRequests, updatedRow);
     } catch (_e) {
       /* noop */
     }

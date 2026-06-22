@@ -73,9 +73,21 @@ export function reqWrite(next) {
   }
 }
 
-export async function reqWriteAwait(next) {
+export async function reqWriteAwait(next, syncRows, deleteIds) {
   reqWrite(next);
-  await writeAwaitServer(KEYS.requests, read(KEYS.requests, []));
+  const opts = {};
+  if (deleteIds != null && deleteIds !== false) {
+    const ids = (Array.isArray(deleteIds) ? deleteIds : [deleteIds])
+      .map((id) => String(id || "").trim())
+      .filter(Boolean);
+    if (ids.length) {
+      opts.syncData = [];
+      opts.deletedIds = ids;
+    }
+  } else if (syncRows != null) {
+    opts.syncData = Array.isArray(syncRows) ? syncRows : [syncRows];
+  }
+  await writeAwaitServer(KEYS.requests, read(KEYS.requests, []), opts);
 }
 
 export function readPortalTransportRequests() {

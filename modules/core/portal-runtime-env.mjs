@@ -6,4 +6,5 @@ export * from "./config.js";
 export * from "./auth.js";
 export * from "./store.js";
 export * from "./utils.js";
+export * from "./audit-trail.js";
 export * from "../ui/modals.js";

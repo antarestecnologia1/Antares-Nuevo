@@ -208,11 +208,16 @@ function bindProfilePortalControls() {
             : u
         );
         try {
-          await writeAwaitServer(KEYS.users, nextUsers);
+          await writeAwaitServerEdit(KEYS.users, nextUsers, actor.id);
         } catch (err) {
           notify(String(err?.message || "No fue posible guardar el perfil en el servidor."), "error");
           return;
         }
+        logPortalAuditEvent?.("profile", "update", {
+          entityId: String(actor.id || ""),
+          entityLabel: getPortalUserDisplayName(actor) || String(actor.email || "Usuario"),
+          summary: "Datos de perfil actualizados"
+        });
         notify(userMessage("profileUpdatedOk"), "success");
         syncSessionProfileSnapshotFromCache();
         updatePortalSidebarSessionMeta();

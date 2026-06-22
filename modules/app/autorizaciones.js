@@ -395,8 +395,9 @@ function bindAuthorizationsPortalControls() {
             createdAt: nowIso(),
             registeredAt: nowIso()
           });
+          const createdUser = users[users.length - 1];
           try {
-            await writeAwaitServer(KEYS.users, users);
+            await writeAwaitServerCreate(KEYS.users, users, createdUser);
           } catch (err) {
             notify(String(err?.message || userMessage("genericError")), "error");
             return;
@@ -428,7 +429,9 @@ function bindAuthorizationsPortalControls() {
           });
           const nextEmployees = [...employees, created];
           try {
-            await writeAwaitServer(KEYS.payrollEmployees, nextEmployees, { notifyOnFailure: false });
+            await writeAwaitServerCreate(KEYS.payrollEmployees, nextEmployees, created, {
+              notifyOnFailure: false
+            });
           } catch (err) {
             write(KEYS.payrollEmployees, employees, { skipSyncSchedule: true });
             notify(userMessage("employeeSaveServerFail", err?.message), "error");
@@ -467,7 +470,7 @@ function bindAuthorizationsPortalControls() {
         });
         employees[idx] = merged;
         try {
-          await writeAwaitServer(KEYS.payrollEmployees, employees);
+          await writeAwaitServerEdit(KEYS.payrollEmployees, employees, employeeId, { notifyOnFailure: false });
         } catch (err) {
           notify(String(err?.message || userMessage("genericError")), "error");
           return;
@@ -497,7 +500,7 @@ function bindAuthorizationsPortalControls() {
         });
         drivers.push(createdDriver);
         try {
-          await writeAwaitServer(KEYS.drivers, drivers);
+          await writeAwaitServerCreate(KEYS.drivers, drivers, createdDriver);
         } catch (err) {
           notify(String(err?.message || userMessage("genericError")), "error");
           return;
@@ -525,7 +528,7 @@ function bindAuthorizationsPortalControls() {
           });
           employees.push(createdEmployee);
           try {
-            await writeAwaitServer(KEYS.payrollEmployees, employees);
+            await writeAwaitServerCreate(KEYS.payrollEmployees, employees, createdEmployee);
           } catch (err) {
             notify(String(err?.message || userMessage("genericError")), "error");
             return;
@@ -549,7 +552,7 @@ function bindAuthorizationsPortalControls() {
         const absences = read(KEYS.hrAbsences, []);
         absences.unshift(absenceRow);
         try {
-          await writeAwaitServer(KEYS.hrAbsences, absences);
+          await writeAwaitServerCreate(KEYS.hrAbsences, absences, absenceRow, { notifyOnFailure: false });
         } catch (err) {
           notify(String(err?.message || userMessage("genericError")), "error");
           return;
@@ -572,9 +575,7 @@ function bindAuthorizationsPortalControls() {
         }
         try {
           const approver = String(actor?.name || actor?.email || "").trim();
-          await writeAwaitServer(
-            KEYS.payrollRuns,
-            runs.map((r) =>
+          const nextRuns = runs.map((r) =>
               r.id === payrollRunId
                 ? stampUpdatedRecord({
                     ...r,
@@ -583,8 +584,8 @@ function bindAuthorizationsPortalControls() {
                     approvedBy: approver
                   })
                 : r
-            )
-          );
+            );
+          await writeAwaitServerEdit(KEYS.payrollRuns, nextRuns, payrollRunId);
           appendPayrollRunAuditLog("update", targetRun, {
             summary: `Pago aprobado vía autorizaciones · aprobado por ${approver} · neto $${parseNum(targetRun.net).toLocaleString("es-CO")}`
           });
@@ -727,11 +728,12 @@ function bindAuthorizationsPortalControls() {
 
             const latestApprovals = read(KEYS.approvals, []);
             try {
-              await writeAwaitServer(
+              await writeAwaitServerEdit(
                 KEYS.approvals,
                 latestApprovals.map((a) =>
                   a.id === id ? { ...a, status: "aprobado", reviewedAt: nowIso(), reviewedBy: actor.name } : a
-                )
+                ),
+                id
               );
             } catch (err) {
               notify(String(err?.message || "No fue posible guardar la autorización en el servidor."), "error");
@@ -751,17 +753,24 @@ function bindAuthorizationsPortalControls() {
       }
 
       try {
-        await writeAwaitServer(
+        await writeAwaitServerEdit(
           KEYS.approvals,
           approvals.map((a) =>
             a.id === id ? { ...a, status: "aprobado", reviewedAt: nowIso(), reviewedBy: actor.name } : a
-          )
+          ),
+          id
         );
       } catch (err) {
         notify(String(err?.message || "No fue posible guardar la autorización en el servidor."), "error");
         return;
       }
       notify(userMessage("authApprovalOk"), "success");
+      logPortalAuditEvent?.("authorizations", "update", {
+        entityId: id,
+        entityLabel: String(approval.title || approval.type || "Autorización"),
+        summary: `Autorización aprobada · ${String(approval.type || "interna")}`,
+        actor: String(actor?.email || actor?.name || "")
+      });
       renderPortalView();
       } finally {
         btn.dataset.busy = "0";
@@ -787,19 +796,26 @@ function bindAuthorizationsPortalControls() {
           const actor = currentUser();
           const approvals = read(KEYS.approvals, []);
           try {
-            await writeAwaitServer(
+            await writeAwaitServerEdit(
               KEYS.approvals,
               approvals.map((a) =>
                 a.id === id
                   ? { ...a, status: "rechazado", reviewedAt: nowIso(), reviewedBy: actor?.name || "Admin", rejectionReason: reason }
                   : a
-              )
+              ),
+              id
             );
           } catch (err) {
             notify(String(err?.message || "No fue posible guardar el rechazo en el servidor."), "error");
             return false;
           }
           notify(userMessage("authRejectOk"), "success");
+          logPortalAuditEvent?.("authorizations", "delete", {
+            entityId: id,
+            entityLabel: String(approval.title || approval.type || "Autorización"),
+            summary: `Autorización rechazada · ${reason}`,
+            actor: String(actor?.email || actor?.name || "")
+          });
           renderPortalView();
           return true;
         }

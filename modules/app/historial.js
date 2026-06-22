@@ -71,6 +71,12 @@ function groupHistoryTraceByDay(entries) {
 
 function collectHistoryModuleOptions(entries) {
   const set = new Set();
+  const listFn = globalThis.listPortalAuditModuleLabels;
+  if (typeof listFn === "function") {
+    for (const label of listFn()) {
+      if (label) set.add(label);
+    }
+  }
   for (const entry of entries) {
     const label = String(entry?.moduleLabel || "").trim();
     if (label) set.add(label);
@@ -86,6 +92,7 @@ const HISTORY_TRACE_MODULE_ICONS = {
   Camiones: "fuel",
   Conductores: "user",
   Calendario: "calendar",
+  Historial: "layers",
   Reportería: "activity",
   "Centro de reportería": "activity",
   "Gestión humana": "briefcase",
@@ -102,6 +109,8 @@ const HISTORY_TRACE_MODULE_ICONS = {
 };
 
 function historyTraceModuleIconKey(moduleLabel) {
+  const fn = globalThis.portalAuditModuleIconKey;
+  if (typeof fn === "function") return fn(moduleLabel);
   const label = String(moduleLabel || "").trim();
   if (HISTORY_TRACE_MODULE_ICONS[label]) return HISTORY_TRACE_MODULE_ICONS[label];
   const lower = label.toLowerCase();
@@ -170,7 +179,14 @@ function exportHistoryTraceCsv(entries) {
     modulo: String(entry.moduleLabel || ""),
     entidad: String(entry.entityLabel || ""),
     resumen: String(entry.summary || ""),
-    usuario: String(formatHistoryAuditActorDisplay(entry.actor, { actorEmail: entry.actorEmail }) || "Sin registrar")
+    usuario: String(
+      (typeof historyAuditEnrichActorDisplay === "function"
+        ? historyAuditEnrichActorDisplay(entry.actor, {
+            actorEmail: entry.actorEmail,
+            actorUserId: entry.actorUserId
+          })
+        : entry.actor) || "Sin registrar"
+    )
   }));
   const header = columns.map((col) => esc(col.label)).join(",");
   const body = rows.map((row) => columns.map((col) => esc(row[col.key])).join(",")).join("\n");
@@ -187,6 +203,11 @@ function exportHistoryTraceCsv(entries) {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 400);
   notify(`Exportados ${list.length} evento${list.length === 1 ? "" : "s"} a CSV.`, "success");
+  globalThis.logPortalAuditEvent?.("history", "update", {
+    entityId: `csv-${stamp}`,
+    entityLabel: "Trazabilidad",
+    summary: `Exportación CSV · ${list.length} evento${list.length === 1 ? "" : "s"}`
+  });
 }
 
 function historyTraceStats(entries) {

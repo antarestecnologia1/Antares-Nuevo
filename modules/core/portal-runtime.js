@@ -219,6 +219,12 @@ const normalizePayrollFrequencyJs = __pr.normalizePayrollFrequencyJs;
 const normalizePayrollOperateSection = __pr.normalizePayrollOperateSection;
 const normalizePersonTypeForDb = __pr.normalizePersonTypeForDb;
 const normalizePortalDateYmd = __pr.normalizePortalDateYmd;
+const listPortalAuditModuleLabels = __pr.listPortalAuditModuleLabels;
+const logPortalAuditEvent = __pr.logPortalAuditEvent;
+const normalizePortalAuditModuleLabel = __pr.normalizePortalAuditModuleLabel;
+const portalAuditModuleIconKey = __pr.portalAuditModuleIconKey;
+const resolvePortalAuditModuleId = __pr.resolvePortalAuditModuleId;
+const PORTAL_AUDIT_MODULE_REGISTRY = __pr.PORTAL_AUDIT_MODULE_REGISTRY;
 const normalizeRegistrationKindForDb = __pr.normalizeRegistrationKindForDb;
 const normalizeTransportTripsLayout = __pr.normalizeTransportTripsLayout;
 const normalizeTransportTripsSort = __pr.normalizeTransportTripsSort;
@@ -278,6 +284,9 @@ const wireModalDismiss = __pr.wireModalDismiss;
 const IC = globalThis.IC;
 /** Asignado en index.html (data-io); no forma parte del bundle `portal-runtime-env`. */
 const writeAwaitServer = globalThis.writeAwaitServer;
+const writeAwaitServerEdit = globalThis.writeAwaitServerEdit;
+const writeAwaitServerDelete = globalThis.writeAwaitServerDelete;
+const writeAwaitServerLatestQueuedEmail = globalThis.writeAwaitServerLatestQueuedEmail;
 /** Expuesto desde `payroll-catalog-sanitize.domain` vía `Object.assign(window, …)` en index. */
 const normalizeLatinForDb = globalThis.normalizeLatinForDb;
 
@@ -1806,8 +1815,7 @@ async function writePortalListPrunedAwaitServer(storageKey, nextList, deletedIds
     )
   ];
   try {
-    await writeAwaitServer(storageKey, nextList, {
-      deletedIds: normalizedDeleted.length ? normalizedDeleted : undefined,
+    await writeAwaitServerDelete(storageKey, nextList, normalizedDeleted, {
       notifyOnFailure: opts.notifyOnFailure
     });
     return true;
@@ -2394,19 +2402,25 @@ function appendModuleAuditLog(entry) {
   const row = entry && typeof entry === "object" ? entry : {};
   const at = String(row.at || nowIso()).trim();
   if (!at) return;
+  const rawModule = String(row.moduleId || row.moduleLabel || "").trim();
+  const moduleId = resolvePortalAuditModuleId(rawModule) || rawModule || "dashboard";
+  const moduleLabel = normalizePortalAuditModuleLabel(row.moduleLabel || moduleId);
   const snapshot = buildPortalAuditActorSnapshot();
-  const actor = historyAuditActorFromLogRow({
-    actor: row.actor,
-    actorEmail: row.actorEmail,
-    actorUserId: row.actorUserId
-  }, snapshot);
+  const actor = historyAuditActorFromLogRow(
+    {
+      actor: row.actor,
+      actorEmail: row.actorEmail,
+      actorUserId: row.actorUserId
+    },
+    { fallbackToSession: true, sessionSnapshot: snapshot }
+  );
   const list = readModuleAuditLogs();
   list.unshift({
     id: String(row.id || newUuidV4()),
     at,
     action: String(row.action || "update"),
-    moduleId: String(row.moduleId || "").trim(),
-    moduleLabel: String(row.moduleLabel || row.moduleId || "Módulo").trim(),
+    moduleId,
+    moduleLabel,
     entityId: String(row.entityId || "").trim(),
     entityLabel: String(row.entityLabel || "Registro").trim(),
     summary: String(row.summary || "").trim(),
@@ -2428,22 +2442,32 @@ function payrollEmployeeAuditSummary(employee) {
 function appendPayrollEmployeeAuditLog(action, employee, extra = {}) {
   const emp = employee && typeof employee === "object" ? employee : {};
   const entityId = String(extra.entityId || emp.id || "").trim();
+  const snapshot = buildPortalAuditActorSnapshot();
+  const at = String(extra.at || emp.updatedAt || emp.createdAt || nowIso()).trim();
+  const actor = historyAuditActorLabel(extra.actor, snapshot.label, snapshot.email, snapshot.name);
   appendModuleAuditLog({
+    at,
     action: String(action || "update"),
     moduleId: "payroll",
     moduleLabel: "Gestión humana",
     entityId,
     entityLabel: String(extra.entityLabel || emp.name || "Colaborador").trim(),
     summary: String(extra.summary || payrollEmployeeAuditSummary(emp)).trim(),
-    actor: historyAuditActorFromLogRow({ actor: extra.actor }, buildPortalAuditActorSnapshot()),
+    actor,
+    actorEmail: String(extra.actorEmail || snapshot.email || "").trim(),
+    actorUserId: String(extra.actorUserId || snapshot.userId || "").trim(),
     detailAction: String(extra.detailAction || ""),
     detailId: String(extra.detailId || entityId)
   });
+  if (actor) recordEntityHistoryActor("Gestión humana", entityId, at, actor);
 }
 
 function appendPortalEntityAuditLog(action, moduleId, moduleLabel, entity, summary = "", extra = {}) {
   const row = entity && typeof entity === "object" ? entity : {};
   const entityId = String(extra.entityId || row.id || "").trim();
+  const rawModule = String(moduleId || moduleLabel || "").trim();
+  const canonModuleId = resolvePortalAuditModuleId(rawModule) || rawModule || "dashboard";
+  const canonModuleLabel = normalizePortalAuditModuleLabel(moduleLabel || canonModuleId);
   const snapshot = buildPortalAuditActorSnapshot();
   const actor = historyAuditActorFromLogRow(
     {
@@ -2457,14 +2481,14 @@ function appendPortalEntityAuditLog(action, moduleId, moduleLabel, entity, summa
       actorEmail: extra.actorEmail || row.updatedByEmail || row.createdByEmail,
       actorUserId: extra.actorUserId
     },
-    snapshot
+    { fallbackToSession: true, sessionSnapshot: snapshot }
   );
   const at = String(extra.at || row.updatedAt || row.createdAt || nowIso()).trim();
   appendModuleAuditLog({
     at,
     action: String(action || "update"),
-    moduleId: String(moduleId || "").trim(),
-    moduleLabel: String(moduleLabel || moduleId || "Módulo").trim(),
+    moduleId: canonModuleId,
+    moduleLabel: canonModuleLabel,
     entityId,
     entityLabel: String(extra.entityLabel || row.name || row.plate || row.title || "Registro").trim(),
     summary: String(summary || extra.summary || "").trim(),
@@ -2474,7 +2498,7 @@ function appendPortalEntityAuditLog(action, moduleId, moduleLabel, entity, summa
     detailAction: String(extra.detailAction || ""),
     detailId: String(extra.detailId || entityId)
   });
-  recordEntityHistoryActor(String(moduleLabel || moduleId || "Módulo").trim(), entityId, at, actor);
+  recordEntityHistoryActor(canonModuleLabel, entityId, at, actor);
 }
 
 function buildRouteRateEntry(value, companyIds, previousEntry = null, ts = nowIso()) {
@@ -5149,28 +5173,36 @@ function readVehicleTechnicalLogs() {
   return normalizeVehicleTechnicalLogsList(read(KEYS.vehicleTechnicalLogs, []));
 }
 
-async function writeFuelLogsAwait(list) {
+async function writeFuelLogsAwait(list, syncRow = null) {
   const normalized = normalizeFuelLogsList(list);
   write(KEYS.fuelLogs, normalized);
+  const syncData =
+    syncRow != null
+      ? (Array.isArray(syncRow) ? syncRow : [syncRow]).map(fuelLogRowForServer)
+      : normalized.map(fuelLogRowForServer);
   const sync = window.AntaresPortalSync;
   const api = window.AntaresApi;
   if (sync?.flushEntityNow && api?.isConfigured?.()) {
-    await sync.flushEntityNow("fuelLogs", normalized.map(fuelLogRowForServer));
+    await sync.flushEntityNow("fuelLogs", syncData);
     return;
   }
-  await writeAwaitServer(KEYS.fuelLogs, normalized.map(fuelLogRowForServer));
+  await writeAwaitServer(KEYS.fuelLogs, normalized, { syncData });
 }
 
-async function writeVehicleTechnicalLogsAwait(list) {
+async function writeVehicleTechnicalLogsAwait(list, syncRow = null) {
   const normalized = normalizeVehicleTechnicalLogsList(list);
   write(KEYS.vehicleTechnicalLogs, normalized);
+  const syncData =
+    syncRow != null
+      ? (Array.isArray(syncRow) ? syncRow : [syncRow]).map(vehicleTechnicalLogRowForServer)
+      : normalized.map(vehicleTechnicalLogRowForServer);
   const sync = window.AntaresPortalSync;
   const api = window.AntaresApi;
   if (sync?.flushEntityNow && api?.isConfigured?.()) {
-    await sync.flushEntityNow("vehicleTechnicalLogs", normalized.map(vehicleTechnicalLogRowForServer));
+    await sync.flushEntityNow("vehicleTechnicalLogs", syncData);
     return;
   }
-  await writeAwaitServer(KEYS.vehicleTechnicalLogs, normalized.map(vehicleTechnicalLogRowForServer));
+  await writeAwaitServer(KEYS.vehicleTechnicalLogs, normalized, { syncData });
 }
 
 /** Alta de combustible: INSERT en registros_combustible y actualiza caché del portal. */
@@ -5193,7 +5225,7 @@ async function appendFuelLogAwait(row) {
   }
   const list = readFuelLogs();
   list.unshift(draft);
-  await writeFuelLogsAwait(list);
+  await writeFuelLogsAwait(list, draft);
   return draft;
 }
 
@@ -5237,13 +5269,13 @@ function openTripInvoicePdf(requestId) {
   }
   const invoice = request.trip.invoice || buildTripInvoice(request);
   const requests = reqRead();
+  const nextRequests = requests.map((r) =>
+    r.id === requestId ? { ...r, trip: { ...r.trip, invoice, updatedAt: nowIso() }, updatedAt: nowIso() } : r
+  );
+  const updatedRow = nextRequests.find((r) => r.id === requestId);
   void (async () => {
     try {
-      await reqWriteAwait(
-        requests.map((r) =>
-          r.id === requestId ? { ...r, trip: { ...r.trip, invoice, updatedAt: nowIso() }, updatedAt: nowIso() } : r
-        )
-      );
+      await reqWriteAwait(nextRequests, updatedRow);
     } catch (_e) {}
   })();
 
@@ -5327,7 +5359,7 @@ async function setVehicleAvailability(vehicleId, available) {
   const next = vehicles.map((v) =>
     String(v.id || "").trim() === id ? { ...v, available: Boolean(available), updatedAt: updatedTs } : v
   );
-  await writeAwaitServer(KEYS.vehicles, next);
+  await writeAwaitServerEdit(KEYS.vehicles, next, id);
 }
 
 function findPortalVehicleById(vehicleId) {
@@ -5578,7 +5610,7 @@ async function setDriverAvailability(driverId, available) {
   });
   if (!updatedDriver) return false;
   try {
-    await writeAwaitServer(KEYS.drivers, next);
+    await writeAwaitServerEdit(KEYS.drivers, next, key);
     appendPortalEntityAuditLog(
       "update",
       "drivers",
@@ -5988,7 +6020,8 @@ function approveRequest(
     );
     void (async () => {
       try {
-        await reqWriteAwait(mapped);
+        const updatedRow = mapped.find((r) => r.id === requestId);
+        await reqWriteAwait(mapped, updatedRow);
       } catch (err) {
         if (typeof notify === "function") {
           notify(
@@ -6121,7 +6154,8 @@ function approveRequest(
   );
   void (async () => {
     try {
-      await reqWriteAwait(next);
+      const updatedRow = next.find((r) => r.id === requestId);
+      await reqWriteAwait(next, updatedRow);
     } catch (_e) {}
 
     const users = read(KEYS.users, []);
@@ -6139,7 +6173,7 @@ function approveRequest(
       });
       try {
         await writeNotificationsAwaitServer();
-        await writeAwaitServer(KEYS.emails, read(KEYS.emails, []));
+        await writeAwaitServerLatestQueuedEmail();
       } catch (_e) {}
     }
   })();
@@ -6155,7 +6189,8 @@ async function rejectRequest(requestId, reason, actorName) {
       ? { ...r, status: STATUS.RECHAZADA, approvedAt: nowIso(), approvedBy: actorName, rejectionReason: reason }
       : r
   );
-  await reqWriteAwait(next);
+  const updatedRow = next.find((r) => r.id === requestId);
+  await reqWriteAwait(next, updatedRow);
 
   const user = read(KEYS.users, []).find((u) => u.id === current.clientUserId);
   if (user) {
@@ -6163,7 +6198,7 @@ async function rejectRequest(requestId, reason, actorName) {
     sendEmail({ to: user.email, subject: "Solicitud rechazada", body: reason });
     try {
       await writeNotificationsAwaitServer();
-      await writeAwaitServer(KEYS.emails, read(KEYS.emails, []));
+      await writeAwaitServerLatestQueuedEmail();
     } catch (_e) {}
   }
 }
@@ -7111,6 +7146,12 @@ function historyFleetTechnicalFormHtml(todayIsoDate, vehicleOptions) {
   </form>`;
 }
 
+function readPortalB2bContactLeads() {
+  const fromStore = readArray(KEYS.contacts);
+  if (fromStore.length) return fromStore;
+  return Array.isArray(state.portalContacts) ? state.portalContacts : [];
+}
+
 function historyAuditActionLabel(action) {
   if (action === "create") return "Creación";
   if (action === "delete") return "Eliminación";
@@ -7158,16 +7199,48 @@ function getPortalAuditActorLabel() {
   return buildPortalAuditActorSnapshot().label;
 }
 
-function historyAuditActorFromLogRow(row = {}, sessionFallback = null) {
-  const snapshot = sessionFallback && typeof sessionFallback === "object" ? sessionFallback : buildPortalAuditActorSnapshot();
-  return historyAuditActorLabel(
+function historyAuditActorFromLogRow(row = {}, options = {}) {
+  const opts = options && typeof options === "object" ? options : {};
+  const fromRow = historyAuditActorLabel(
     row?.actor,
     row?.actorEmail,
-    historyAuditUserLabelById(row?.actorUserId),
-    snapshot.label,
-    snapshot.email,
-    snapshot.name
+    historyAuditUserLabelById(row?.actorUserId)
   );
+  if (fromRow) return fromRow;
+  if (!opts.fallbackToSession) return "";
+  const snapshot =
+    opts.sessionSnapshot && typeof opts.sessionSnapshot === "object"
+      ? opts.sessionSnapshot
+      : buildPortalAuditActorSnapshot();
+  return historyAuditActorLabel(snapshot.label, snapshot.email, snapshot.name);
+}
+
+function historyAuditEnrichActorDisplay(label, meta = {}) {
+  const direct = formatHistoryAuditActorDisplay(label, meta);
+  if (direct) return direct;
+  const userId = String(meta.actorUserId || "").trim();
+  if (userId) {
+    const user = readArray(KEYS.users).find((u) => String(u.id) === userId);
+    if (user) {
+      return formatHistoryAuditActorDisplay(getPortalUserDisplayName(user) || user.email, {
+        actorEmail: user.email,
+        actorName: getPortalUserDisplayName(user)
+      });
+    }
+  }
+  const email = String(meta.actorEmail || label || "").trim();
+  if (email.includes("@")) {
+    const user = readArray(KEYS.users).find(
+      (u) => normalizeEmail(u.email) === normalizeEmail(email)
+    );
+    if (user) {
+      return formatHistoryAuditActorDisplay(getPortalUserDisplayName(user) || email, {
+        actorEmail: user.email,
+        actorName: getPortalUserDisplayName(user)
+      });
+    }
+  }
+  return historyAuditActorLabel(label);
 }
 
 function formatHistoryAuditActorDisplay(actor, meta = {}) {
@@ -7288,6 +7361,40 @@ function reindexEntityHistoryActorsFromCatalogs() {
       String(contract.candidateName || contract.employeeName || "Contrato")
     )
   );
+  readArray(KEYS.payrollEmployees).forEach((employee) =>
+    pushEntity("Gestión humana", employee, String(employee.name || "Colaborador"))
+  );
+  readArray(KEYS.payrollRuns).forEach((run) =>
+    pushEntity(
+      "Gestión humana",
+      run,
+      `${String(run.employeeName || "Colaborador").trim()} · ${String(run.month || "-").trim()}`
+    )
+  );
+  readArray(KEYS.hrAbsences).forEach((absence) =>
+    pushEntity(
+      "Gestión humana",
+      absence,
+      `${String(absence.employeeName || "Colaborador").trim()} · ${String(absence.startDate || "-")}`
+    )
+  );
+  readArray(KEYS.sstCompliance).forEach((record) =>
+    pushEntity(
+      "Cumplimiento laboral y SST",
+      record,
+      `${String(record.employeeName || "Colaborador").trim()} · ${String(record.recordType || "Control")}`
+    )
+  );
+  readPortalB2bContactLeads().forEach((contact) =>
+    pushEntity(
+      "Contacto web (B2B)",
+      contact,
+      String(contact.contactName || contact.companyName || "Prospecto B2B").trim()
+    )
+  );
+  readArray(KEYS.approvals).forEach((approval) =>
+    pushEntity("Autorizaciones", approval, String(approval.title || approval.type || "Autorización").trim())
+  );
 
   const bindLogToCatalog = (row) => {
     const actor = historyAuditActorFromLogRow(row);
@@ -7295,8 +7402,19 @@ function reindexEntityHistoryActorsFromCatalogs() {
     const moduleLabel = String(row.moduleLabel || "").trim();
     const entityId = String(row.entityId || "").trim();
     const entityLabel = String(row.entityLabel || "").trim();
-    const logMs = historyAuditTimestampMs(row.at);
-    if (!moduleLabel || Number.isNaN(logMs)) return;
+    const logAt = String(row.at || "").trim();
+    const logMs = historyAuditTimestampMs(logAt);
+    if (!moduleLabel) return;
+
+    if (entityId && logAt) {
+      const logKey = `${moduleLabel}|${entityId}|${logAt}`;
+      if (!store[logKey]) {
+        store[logKey] = actor;
+        changed = true;
+      }
+    }
+
+    if (!entityId || Number.isNaN(logMs)) return;
 
     let bestTs = "";
     let bestDelta = Infinity;
@@ -7535,7 +7653,11 @@ function enrichHistoryAuditEntriesWithExplicitActors(entries) {
         bestActor = historyAuditActorFromLogRow(ex);
       }
     }
-    if (bestActor) syn.actor = bestActor;
+    if (bestActor) {
+      syn.actor = bestActor;
+      if (!syn.actorUserId && ex.actorUserId) syn.actorUserId = String(ex.actorUserId).trim();
+      if (!syn.actorEmail && ex.actorEmail) syn.actorEmail = String(ex.actorEmail).trim();
+    }
   }
   return entries;
 }
@@ -7554,13 +7676,55 @@ function dedupeHistoryAuditEntries(entries) {
     });
     if (!sibling) continue;
     const explicitActor = historyAuditActorFromLogRow(explicit);
-    if (explicitActor && !sibling.actor) sibling.actor = explicitActor;
+    if (explicitActor && !sibling.actor) {
+      sibling.actor = explicitActor;
+      if (!sibling.actorUserId && explicit.actorUserId) {
+        sibling.actorUserId = String(explicit.actorUserId).trim();
+      }
+      if (!sibling.actorEmail && explicit.actorEmail) {
+        sibling.actorEmail = String(explicit.actorEmail).trim();
+      }
+    }
     if (sibling.actor || explicitActor) dropExplicitIds.add(explicit.id);
   }
   return dropExplicitIds.size ? entries.filter((e) => !dropExplicitIds.has(e.id)) : entries;
 }
 
+function backfillModuleAuditLogActors() {
+  const list = readModuleAuditLogs();
+  if (!list.length) return;
+  let changed = false;
+  const next = list.map((row) => {
+    let actorUserId = String(row.actorUserId || "").trim();
+    let actorEmail = String(row.actorEmail || "").trim();
+    let actor = historyAuditActorFromLogRow(row);
+    if (!actorUserId && (actorEmail || actor)) {
+      const user = readArray(KEYS.users).find(
+        (u) => normalizeEmail(u.email) === normalizeEmail(actorEmail || actor)
+      );
+      if (user) actorUserId = String(user.id || "").trim();
+    }
+    if (!actorEmail && actorUserId) {
+      const user = readArray(KEYS.users).find((u) => String(u.id) === actorUserId);
+      if (user?.email) actorEmail = String(user.email).trim();
+    }
+    if (!actor && actorUserId) actor = historyAuditUserLabelById(actorUserId);
+    if (!actor && actorEmail) actor = actorEmail;
+    if (
+      actor !== String(row.actor || "").trim() ||
+      actorUserId !== String(row.actorUserId || "").trim() ||
+      actorEmail !== String(row.actorEmail || "").trim()
+    ) {
+      changed = true;
+      return { ...row, actor: actor || row.actor, actorUserId, actorEmail };
+    }
+    return row;
+  });
+  if (changed) write(KEYS.moduleAuditLogs, next);
+}
+
 function buildHistoryAuditEntries() {
+  backfillModuleAuditLogActors();
   reindexEntityHistoryActorsFromCatalogs();
   const entries = [];
   const pushEntry = (entry) => {
@@ -7584,12 +7748,13 @@ function buildHistoryAuditEntries() {
       id: String(entry.id || newUuidV4()),
       ts,
       action: String(entry.action || "update"),
-      moduleLabel: String(entry.moduleLabel || "Módulo"),
+      moduleLabel: normalizePortalAuditModuleLabel(entry.moduleLabel || auditCtx?.moduleLabel || "Módulo"),
       entityLabel: String(entry.entityLabel || "Registro"),
       entityId: String(entry.entityId || auditCtx?.entityId || "").trim(),
       summary: String(entry.summary || "").trim(),
       actor,
       actorEmail: String(entry.actorEmail || "").trim(),
+      actorUserId: String(entry.actorUserId || "").trim(),
       detailAction: String(entry.detailAction || "").trim(),
       detailId: String(entry.detailId || "").trim()
     });
@@ -7871,26 +8036,94 @@ function buildHistoryAuditEntries() {
 
   readArray(KEYS.payrollRuns).forEach((run) => {
     const runLabel = `${String(run.employeeName || "Colaborador").trim()} · ${String(run.month || "-").trim()}`;
+    const runCreateTs = String(run.createdAt || "");
+    const generatedBy = historyAuditActorLabel(
+      run.createdBy,
+      run.creadoPor,
+      run.creado_por,
+      run.approvedBy
+    );
     pushEntry({
       id: `audit-payroll-run-create-${run.id}`,
-      ts: String(run.createdAt || ""),
+      ts: runCreateTs,
       action: "create",
       moduleLabel: "Gestión humana",
+      entityId: String(run.id || ""),
       entityLabel: runLabel,
       summary: `${String(run.payrollKind || "mensual")} · $${parseNum(run.net).toLocaleString("es-CO")}`,
-      actor: historyAuditActorLabel(run.approvedBy)
+      actor: generatedBy,
+      __auditContext: {
+        moduleLabel: "Gestión humana",
+        entityId: run.id,
+        entityLabel: runLabel,
+        action: "create",
+        entity: run,
+        ts: runCreateTs
+      }
     });
   });
 
-  readArray(KEYS.hrAbsences).forEach((absence) => {
+  readArray(KEYS.payrollEmployees).forEach((employee) => {
+    const empLabel = String(employee.name || "Colaborador").trim();
+    const empCreateTs = String(employee.createdAt || employee.startDate || "");
     pushEntry({
-      id: `audit-hr-absence-create-${absence.id}`,
-      ts: String(absence.createdAt || absence.approvedAt || ""),
+      id: `audit-employee-create-${employee.id}`,
+      ts: empCreateTs,
       action: "create",
       moduleLabel: "Gestión humana",
-      entityLabel: `${String(absence.employeeName || "Colaborador").trim()} · ${String(absence.startDate || "-")}`,
+      entityId: String(employee.id || ""),
+      entityLabel: empLabel,
+      summary: payrollEmployeeAuditSummary(employee),
+      __auditContext: {
+        moduleLabel: "Gestión humana",
+        entityId: employee.id,
+        entityLabel: empLabel,
+        action: "create",
+        entity: employee,
+        ts: empCreateTs
+      }
+    });
+    if (employee.updatedAt && String(employee.updatedAt) !== String(employee.createdAt || "")) {
+      pushEntry({
+        id: `audit-employee-update-${employee.id}`,
+        ts: String(employee.updatedAt),
+        action: "update",
+        moduleLabel: "Gestión humana",
+        entityId: String(employee.id || ""),
+        entityLabel: empLabel,
+        summary: payrollEmployeeAuditSummary(employee),
+        __auditContext: {
+          moduleLabel: "Gestión humana",
+          entityId: employee.id,
+          entityLabel: empLabel,
+          action: "update",
+          entity: employee,
+          ts: String(employee.updatedAt)
+        }
+      });
+    }
+  });
+
+  readArray(KEYS.hrAbsences).forEach((absence) => {
+    const absenceLabel = `${String(absence.employeeName || "Colaborador").trim()} · ${String(absence.startDate || "-")}`;
+    const absenceTs = String(absence.createdAt || absence.approvedAt || "");
+    pushEntry({
+      id: `audit-hr-absence-create-${absence.id}`,
+      ts: absenceTs,
+      action: "create",
+      moduleLabel: "Gestión humana",
+      entityId: String(absence.id || ""),
+      entityLabel: absenceLabel,
       summary: `${String(absence.absenceType || "Ausencia")} · ${parseNum(absence.days)} día(s)`,
-      actor: historyAuditActorLabel(absence.approvedBy)
+      actor: historyAuditActorLabel(absence.approvedBy, absence.createdBy),
+      __auditContext: {
+        moduleLabel: "Gestión humana",
+        entityId: absence.id,
+        entityLabel: absenceLabel,
+        action: "create",
+        entity: absence,
+        ts: absenceTs
+      }
     });
   });
 
@@ -8045,14 +8278,81 @@ function buildHistoryAuditEntries() {
   });
 
   readArray(KEYS.sstCompliance).forEach((record) => {
+    const sstLabel = `${String(record.employeeName || "Colaborador").trim()} · ${String(record.recordType || "Control")}`;
+    const sstCreateTs = String(record.createdAt || "");
     pushEntry({
       id: `audit-sst-create-${record.id}`,
-      ts: String(record.createdAt || ""),
+      ts: sstCreateTs,
       action: "create",
       moduleLabel: "Cumplimiento laboral y SST",
-      entityLabel: `${String(record.employeeName || "Colaborador").trim()} · ${String(record.recordType || "Control")}`,
+      entityId: String(record.id || ""),
+      entityLabel: sstLabel,
       summary: `${String(record.status || "Pendiente")} · vence ${String(record.dueDate || "—")}`,
-      actor: historyAuditActorLabel(record.createdBy)
+      actor: historyAuditActorLabel(record.createdBy, record.createdByEmail),
+      __auditContext: {
+        moduleLabel: "Cumplimiento laboral y SST",
+        entityId: record.id,
+        entityLabel: sstLabel,
+        action: "create",
+        entity: record,
+        ts: sstCreateTs
+      }
+    });
+    if (record.updatedAt && String(record.updatedAt) !== sstCreateTs) {
+      pushEntry({
+        id: `audit-sst-update-${record.id}`,
+        ts: String(record.updatedAt),
+        action: "update",
+        moduleLabel: "Cumplimiento laboral y SST",
+        entityId: String(record.id || ""),
+        entityLabel: sstLabel,
+        summary: `${String(record.status || "Pendiente")} · ${String(record.provider || "Sin entidad")}`,
+        __auditContext: {
+          moduleLabel: "Cumplimiento laboral y SST",
+          entityId: record.id,
+          entityLabel: sstLabel,
+          action: "update",
+          entity: record,
+          ts: String(record.updatedAt)
+        }
+      });
+    }
+  });
+
+  readPortalB2bContactLeads().forEach((contact) => {
+    const contactLabel = String(contact.contactName || contact.companyName || "Prospecto B2B").trim();
+    const contactTs = String(contact.createdAt || "");
+    if (!contactTs) return;
+    pushEntry({
+      id: `audit-b2b-contact-create-${contact.id}`,
+      ts: contactTs,
+      action: "create",
+      moduleLabel: "Contacto web (B2B)",
+      entityId: String(contact.id || ""),
+      entityLabel: contactLabel,
+      summary: `${String(contact.companyName || "Sin empresa").trim()} · ${String(contact.serviceType || "Servicio web")}`,
+      actor: String(contact.contactName || "Prospecto web").trim()
+    });
+  });
+
+  readArray(KEYS.approvals).forEach((approval) => {
+    const status = String(approval.status || "").trim().toLowerCase();
+    if (status !== "aprobado" && status !== "rechazado") return;
+    const ts = String(approval.reviewedAt || approval.updatedAt || approval.createdAt || "");
+    if (!ts) return;
+    const approvalLabel = String(approval.title || approval.type || "Autorización").trim();
+    pushEntry({
+      id: `audit-approval-${status}-${approval.id}`,
+      ts,
+      action: status === "rechazado" ? "delete" : "update",
+      moduleLabel: "Autorizaciones",
+      entityId: String(approval.id || ""),
+      entityLabel: approvalLabel,
+      summary:
+        status === "rechazado"
+          ? `Rechazada${approval.rejectionReason ? ` · ${String(approval.rejectionReason).trim()}` : ""}`
+          : `Aprobada · ${String(approval.type || "interna")}`,
+      actor: historyAuditActorLabel(approval.reviewedBy, approval.requestedByName)
     });
   });
 
@@ -8081,6 +8381,7 @@ function buildHistoryAuditEntries() {
       summary: String(row.summary || ""),
       actor: historyAuditActorFromLogRow(row),
       actorEmail: String(row.actorEmail || "").trim(),
+      actorUserId: String(row.actorUserId || "").trim(),
       at: String(row.at || ""),
       detailAction: String(row.detailAction || ""),
       detailId: String(row.detailId || "")
@@ -8117,9 +8418,12 @@ function buildHistoryAuditEntries() {
     });
   });
 
-  return dedupeHistoryAuditEntries(enrichHistoryAuditEntriesWithExplicitActors(entries)).sort(
-    (a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime()
-  );
+  return dedupeHistoryAuditEntries(enrichHistoryAuditEntriesWithExplicitActors(entries))
+    .map((entry) => ({
+      ...entry,
+      moduleLabel: normalizePortalAuditModuleLabel(entry.moduleLabel)
+    }))
+    .sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime());
 }
 
 function historyTraceHaystack(entry) {
@@ -8131,7 +8435,10 @@ function renderHistoryAuditCard(entry) {
   const actionLabel = historyAuditActionLabel(entry.action);
   const actionTone = historyAuditActionStatus(entry.action);
   const actionSlug = String(entry.action || "update");
-  const actorLabel = formatHistoryAuditActorDisplay(entry.actor, { actorEmail: entry.actorEmail });
+  const actorLabel = historyAuditEnrichActorDisplay(entry.actor, {
+    actorEmail: entry.actorEmail,
+    actorUserId: entry.actorUserId
+  });
   const detailButton =
     entry.detailAction && entry.detailId
       ? `<button type="button" class="btn btn-sm btn-outline" data-action="${escapeAttr(entry.detailAction)}" data-id="${escapeAttr(entry.detailId)}">${IC.eye} Detalle</button>`
@@ -8161,7 +8468,10 @@ function renderHistoryAuditCard(entry) {
 function renderHistoryAuditRow(entry) {
   const actionLabel = historyAuditActionLabel(entry.action);
   const actionTone = historyAuditActionStatus(entry.action);
-  const actorLabel = formatHistoryAuditActorDisplay(entry.actor, { actorEmail: entry.actorEmail });
+  const actorLabel = historyAuditEnrichActorDisplay(entry.actor, {
+    actorEmail: entry.actorEmail,
+    actorUserId: entry.actorUserId
+  });
   const moduleIconFn = globalThis.historyTraceModuleIconHtml;
   const moduleIcon =
     typeof moduleIconFn === "function" ? moduleIconFn(entry.moduleLabel, "hist-trace-table-module-ico") : "";
@@ -12280,8 +12590,15 @@ Object.assign(window, {
   appendPortalEntityAuditLog,
   buildPortalAuditActorSnapshot,
   formatHistoryAuditActorDisplay,
+  historyAuditEnrichActorDisplay,
   getPortalAuditActorLabel,
   historyAuditActorFromLogRow,
+  logPortalAuditEvent,
+  listPortalAuditModuleLabels,
+  normalizePortalAuditModuleLabel,
+  portalAuditModuleIconKey,
+  resolvePortalAuditModuleId,
+  PORTAL_AUDIT_MODULE_REGISTRY,
   recordEntityHistoryActor,
   appendVehicleTechnicalLogAwait,
   applyAdminUsersFormDraft,

@@ -11,7 +11,7 @@ import {
   SST_COMPLIANCE_RECORD_TYPES,
   SST_COMPLIANCE_STATUSES
 } from "../core/config.js";
-import { read, write, writeAwaitServer } from "../core/data-io.js";
+import { read, write, writeAwaitServer, writeAwaitServerEdit } from "../core/data-io.js";
 import { state } from "../core/store.js";
 import {
   escapeAttr,
@@ -220,49 +220,65 @@ export async function propagateEmployeeChanges(employee, extraDriverData = {}) {
   const contracts = read(KEYS.contracts, []);
   const empDocDigits = normalizeDocumentDigits(empDoc);
   let contractsChanged = false;
+  const changedContracts = [];
   const nextContracts = contracts.map((row) => {
     const linkedById = String(row.employeeId || "") === empId;
     const linkedByDoc =
       !linkedById && empDocDigits && normalizeDocumentDigits(row.idDocSnapshot || row.employeeIdDoc) === empDocDigits;
     if (!linkedById && !linkedByDoc) return row;
     contractsChanged = true;
-    return stampUpdatedRecord({
+    const next = stampUpdatedRecord({
       ...row,
       ...contractFields,
       id: row.id,
       employeeId: row.employeeId || empId
     });
+    changedContracts.push(next);
+    return next;
   });
 
   const payrollRuns = read(KEYS.payrollRuns, []);
   let runsChanged = false;
+  const changedRuns = [];
   const nextRuns = payrollRuns.map((row) => {
     if (String(row.employeeId || "") !== empId) return row;
     runsChanged = true;
-    return stampUpdatedRecord({ ...row, employeeName: empName, id: row.id });
+    const next = stampUpdatedRecord({ ...row, employeeName: empName, id: row.id });
+    changedRuns.push(next);
+    return next;
   });
 
   const absences = read(KEYS.hrAbsences, []);
   let absencesChanged = false;
+  const changedAbsences = [];
   const nextAbsences = absences.map((row) => {
     if (String(row.employeeId || "") !== empId) return row;
     absencesChanged = true;
-    return stampUpdatedRecord({ ...row, employeeName: empName, id: row.id });
+    const next = stampUpdatedRecord({ ...row, employeeName: empName, id: row.id });
+    changedAbsences.push(next);
+    return next;
   });
 
   const sstRecords = read(KEYS.sstCompliance, []);
   let sstChanged = false;
+  const changedSst = [];
   const nextSst = sstRecords.map((row) => {
     if (String(row.employeeId || "") !== empId) return normalizeSstComplianceRow(row);
     sstChanged = true;
-    return normalizeSstComplianceRow(stampUpdatedRecord({ ...row, employeeName: empName, id: row.id }));
+    const next = normalizeSstComplianceRow(stampUpdatedRecord({ ...row, employeeName: empName, id: row.id }));
+    changedSst.push(next);
+    return next;
   });
 
   const approvals = read(KEYS.approvals, []);
   let approvalsChanged = false;
+  const changedApprovals = [];
   const nextApprovals = approvals.map((row) => {
     const patched = patchApprovalRowForEmployee(row, employee, empId, empName);
-    if (patched !== row) approvalsChanged = true;
+    if (patched !== row) {
+      approvalsChanged = true;
+      changedApprovals.push(patched);
+    }
     return patched;
   });
 
@@ -274,6 +290,7 @@ export async function propagateEmployeeChanges(employee, extraDriverData = {}) {
   const driverPhone = normalizePortalPhoneForStorage(String(driver?.phone || employee.phone || ""));
 
   let tripsChanged = false;
+  const changedTrips = [];
   let nextRequests = reqRead();
   if (driverId || empName) {
     const nameLower = empName.toLowerCase();
@@ -285,7 +302,7 @@ export async function propagateEmployeeChanges(employee, extraDriverData = {}) {
         !tripDriverId && empName && String(req.trip.driverName || "").trim().toLowerCase() === nameLower;
       if (!matchById && !matchByName) return req;
       tripsChanged = true;
-      return {
+      const next = {
         ...req,
         trip: stampUpdatedRecord({
           ...req.trip,
@@ -293,30 +310,48 @@ export async function propagateEmployeeChanges(employee, extraDriverData = {}) {
           driverPhone: driverPhone || req.trip.driverPhone
         })
       };
+      changedTrips.push(next);
+      return next;
     });
   }
 
   const fuelLogs = read(KEYS.fuelLogs, []);
   let fuelChanged = false;
+  const changedFuel = [];
   const nextFuel = fuelLogs.map((row) => {
     if (!driverId || String(row.driverId || "") !== driverId) return row;
     fuelChanged = true;
-    return stampUpdatedRecord({
+    const next = stampUpdatedRecord({
       ...row,
       driverName: empName,
       driverPhone,
       id: row.id
     });
+    changedFuel.push(next);
+    return next;
   });
 
   try {
-    if (contractsChanged) await writeAwaitServer(KEYS.contracts, nextContracts, { notifyOnFailure: false });
-    if (runsChanged) await writeAwaitServer(KEYS.payrollRuns, nextRuns, { notifyOnFailure: false });
-    if (absencesChanged) await writeAwaitServer(KEYS.hrAbsences, nextAbsences, { notifyOnFailure: false });
-    if (sstChanged) await writeAwaitServer(KEYS.sstCompliance, nextSst, { notifyOnFailure: false });
-    if (approvalsChanged) await writeAwaitServer(KEYS.approvals, nextApprovals, { notifyOnFailure: false });
-    if (tripsChanged) await reqWriteAwait(nextRequests);
-    if (fuelChanged) await writeFuelLogsAwait(nextFuel);
+    if (contractsChanged) {
+      await writeAwaitServer(KEYS.contracts, nextContracts, {
+        notifyOnFailure: false,
+        syncData: changedContracts
+      });
+    }
+    if (runsChanged) {
+      await writeAwaitServer(KEYS.payrollRuns, nextRuns, { notifyOnFailure: false, syncData: changedRuns });
+    }
+    if (absencesChanged) {
+      await writeAwaitServer(KEYS.hrAbsences, nextAbsences, { notifyOnFailure: false, syncData: changedAbsences });
+    }
+    if (sstChanged) {
+      await writeAwaitServer(KEYS.sstCompliance, nextSst, { notifyOnFailure: false, syncData: changedSst });
+    }
+    if (approvalsChanged) {
+      await writeAwaitServer(KEYS.approvals, nextApprovals, { notifyOnFailure: false, syncData: changedApprovals });
+    }
+    if (tripsChanged) await reqWriteAwait(nextRequests, changedTrips);
+    if (fuelChanged) await writeFuelLogsAwait(nextFuel, changedFuel);
     if (tripsChanged) recalculateResourceAvailability();
   } catch (err) {
     return {
@@ -343,7 +378,7 @@ export async function syncEmployeeFromDriver(employee, driverPatch) {
   try {
     const employees = read(KEYS.payrollEmployees, []);
     const next = employees.map((row) => (String(row.id) === String(employee.id) ? merged : row));
-    await writeAwaitServer(KEYS.payrollEmployees, next, { notifyOnFailure: false });
+    await writeAwaitServerEdit(KEYS.payrollEmployees, next, employee.id, { notifyOnFailure: false });
     return { ok: true };
   } catch (err) {
     return {
