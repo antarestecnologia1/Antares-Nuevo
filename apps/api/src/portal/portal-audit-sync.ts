@@ -195,6 +195,17 @@ async function auditTableReady(c: PoolClient): Promise<boolean> {
   return Boolean(r.rows[0]?.reg);
 }
 
+/** Evita 500 por FK/UUID inválido: solo persiste id_usuario si existe en `usuarios`. */
+async function resolvePortalAuditUserIdForInsert(
+  c: PoolClient,
+  userId: string | null | undefined
+): Promise<string | null> {
+  const raw = String(userId || "").trim();
+  if (!raw || !PG_UUID_V4_RE.test(raw)) return null;
+  const exists = await c.query(`SELECT 1 FROM usuarios WHERE id = $1::uuid LIMIT 1`, [raw]);
+  return exists.rowCount ? raw : null;
+}
+
 export async function insertPortalAuditEventTx(
   c: PoolClient,
   actor: PortalAuditActor,
@@ -215,6 +226,7 @@ export async function insertPortalAuditEventTx(
   const moduleLabel = String(event.moduleLabel || moduleId).trim().slice(0, 120);
   let clientEventId: string | null = String(event.clientEventId || "").trim();
   if (clientEventId && !PG_UUID_V4_RE.test(clientEventId)) clientEventId = null;
+  const actorUserId = await resolvePortalAuditUserIdForInsert(c, actor.userId);
 
   await c.query(
     `INSERT INTO auditoria_eventos_portal (
@@ -232,7 +244,7 @@ export async function insertPortalAuditEventTx(
       String(event.entityId || "").trim().slice(0, 64) || null,
       String(event.entityLabel || "Registro").trim().slice(0, 500) || null,
       String(event.summary || "").trim().slice(0, 2000) || null,
-      actor.userId,
+      actorUserId,
       String(actor.email || "").trim().slice(0, 255) || null,
       String(actor.label || "").trim().slice(0, 500) || null
     ]

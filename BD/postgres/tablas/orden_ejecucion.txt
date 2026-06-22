@@ -34,3 +34,4 @@
 32_notificaciones_metadata.sql
 33_auditoria_eventos_portal.sql
 34_alter_renovacion_contrato.sql
+35_alter_parametros_sistema_vigencia.sql

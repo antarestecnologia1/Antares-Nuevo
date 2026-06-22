@@ -56,6 +56,8 @@ import {
   syncPublicNavDrawer,
   closePublicNavDrawer,
   setPortalDrawerOpen,
+  initPortalSidebarExpanded,
+  togglePortalSidebarExpanded,
   viewFromPortalHash,
   syncPortalHash
 } from "./router.js";
@@ -2943,6 +2945,13 @@ function initGlobalEvents() {
 
   const portalMenuBtn = document.getElementById("portal-menu-btn");
   const portalBackdrop = document.getElementById("portal-nav-backdrop");
+  const portalSidebarToggle = document.getElementById("portal-sidebar-toggle");
+  if (portalSidebarToggle) {
+    portalSidebarToggle.addEventListener("click", (event) => {
+      event.stopPropagation();
+      togglePortalSidebarExpanded();
+    });
+  }
   if (portalMenuBtn && portalBackdrop) {
     portalMenuBtn.addEventListener("click", (event) => {
       event.stopPropagation();

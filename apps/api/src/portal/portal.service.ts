@@ -2710,6 +2710,12 @@ export class PortalService implements OnModuleInit {
 
   async upsertLaborSystemParameters(userId: string, role: JwtRole, dto: UpsertLaborSystemParametersDto) {
     if (!this.isAdmin(role)) throw new ForbiddenException();
+    await this.ensureSystemParametersSchema();
+    if (!(await this.tableExists("parametros_sistema"))) {
+      throw new BadRequestException(
+        "La tabla parametros_sistema no está disponible. Ejecute las migraciones BD/postgres (02_parametros_sistema.sql y 35_alter_parametros_sistema_vigencia.sql)."
+      );
+    }
     const year = normalizeLaborSystemParameterYear(dto.year);
     if (year == null) {
       throw new BadRequestException(`Indique un año válido para la vigencia (${LABOR_SYSTEM_PARAMETERS_MIN_YEAR}–${LABOR_SYSTEM_PARAMETERS_MAX_YEAR}).`);
@@ -2827,7 +2833,7 @@ export class PortalService implements OnModuleInit {
       };
     } catch (e) {
       await client.query("ROLLBACK");
-      throw e;
+      throw this.mapLaborSystemParametersPersistenceError(e, "guardar");
     } finally {
       client.release();
     }
@@ -2848,6 +2854,7 @@ export class PortalService implements OnModuleInit {
 
   async deleteLaborSystemParameters(userId: string, role: JwtRole, yearLike: number) {
     if (!this.isAdmin(role)) throw new ForbiddenException();
+    await this.ensureSystemParametersSchema();
     const year = normalizeLaborSystemParameterYear(yearLike);
     if (year == null) {
       throw new BadRequestException(`Indique un año válido para eliminar la vigencia (${LABOR_SYSTEM_PARAMETERS_MIN_YEAR}–${LABOR_SYSTEM_PARAMETERS_MAX_YEAR}).`);
@@ -2910,10 +2917,50 @@ export class PortalService implements OnModuleInit {
       };
     } catch (e) {
       await client.query("ROLLBACK");
-      throw e;
+      throw this.mapLaborSystemParametersPersistenceError(e, "eliminar");
     } finally {
       client.release();
     }
+  }
+
+  private mapLaborSystemParametersPersistenceError(err: unknown, action: "guardar" | "eliminar"): BadRequestException {
+    const pg = err as { code?: string; message?: string; detail?: string; constraint?: string };
+    const code = String(pg?.code || "");
+    const detail = String(pg?.detail || pg?.message || err || "").trim();
+    this.logger.error(
+      `labor-system-parameters ${action} falló (${code || "sin-código"}): ${sanitizeLogText(detail.slice(0, 240))}`
+    );
+    if (code === "23503") {
+      return new BadRequestException(
+        "No se pudo completar la operación por una referencia inválida en base de datos. Verifique su sesión e intente de nuevo."
+      );
+    }
+    if (code === "23505") {
+      return new BadRequestException(
+        "Ya existe una vigencia registrada para ese año y parámetro. Recargue la página y edite la vigencia existente."
+      );
+    }
+    if (code === "22P02") {
+      return new BadRequestException("Formato de datos inválido al procesar parámetros legales.");
+    }
+    if (code === "42P01") {
+      return new BadRequestException(
+        "Falta la tabla parametros_sistema. Ejecute las migraciones de BD/postgres en el servidor PostgreSQL."
+      );
+    }
+    if (code === "42703") {
+      return new BadRequestException(
+        "El esquema de parametros_sistema está desactualizado. Ejecute 35_alter_parametros_sistema_vigencia.sql y reinicie la API."
+      );
+    }
+    if (detail) {
+      return new BadRequestException(
+        `No se pudieron ${action === "guardar" ? "guardar" : "eliminar"} los parámetros legales: ${detail.slice(0, 180)}`
+      );
+    }
+    return new BadRequestException(
+      `No se pudieron ${action === "guardar" ? "guardar" : "eliminar"} los parámetros legales. Revise la base de datos e intente nuevamente.`
+    );
   }
 
   /**
@@ -3164,7 +3211,14 @@ export class PortalService implements OnModuleInit {
          id, clave, valor_numerico, valor_texto, vigente_desde, vigente_hasta, descripcion
        ) VALUES (
          gen_random_uuid(), $1, $2, NULL, $3::date, $4::date, $5
-       )`,
+       )
+       ON CONFLICT ((lower(trim(clave))), vigente_desde)
+       DO UPDATE SET
+         clave = EXCLUDED.clave,
+         valor_numerico = EXCLUDED.valor_numerico,
+         valor_texto = NULL,
+         vigente_hasta = EXCLUDED.vigente_hasta,
+         descripcion = EXCLUDED.descripcion`,
       [dbKey, value, effectiveFrom, effectiveTo, description]
     );
   }

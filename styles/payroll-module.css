@@ -218,6 +218,221 @@
   display: none;
 }
 
+/* ── Cabecera modo Consultar (referencia empleados) ── */
+.payroll-studio > .hr-workspace-header--consult {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding: 1.1rem 1.25rem 1rem;
+  border-radius: var(--pay-radius);
+  border: 1px solid var(--pay-edge-strong);
+  background: var(--pay-card);
+  box-shadow: var(--pay-shadow-sm);
+}
+
+.payroll-consult-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  width: 100%;
+}
+
+.payroll-consult-head__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem 1.25rem;
+}
+
+.payroll-consult-head__title h2 {
+  margin: 0;
+  font-family: var(--font-display, "Poppins", sans-serif);
+  font-size: 1.55rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  color: var(--pay-navy);
+}
+
+.payroll-consult-head__subtitle {
+  margin: 0.3rem 0 0;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: var(--text-soft, #64748b);
+}
+
+.payroll-consult-head__actions,
+.payroll-workspace-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.payroll-workspace-actions__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 2.35rem;
+  padding-inline: 0.95rem;
+  font-weight: 700;
+  border-radius: 10px;
+}
+
+.payroll-workspace-actions__btn .btn-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.payroll-workspace-actions__btn.is-active.btn-outline {
+  border-color: var(--pay-blue);
+  color: var(--pay-blue);
+  background: rgba(var(--primary-rgb), 0.06);
+}
+
+.payroll-workspace-actions__btn.is-active.btn-primary {
+  box-shadow: 0 6px 18px rgba(var(--primary-rgb), 0.28);
+}
+
+.payroll-studio .hr-workspace-header__switch--actions {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  max-width: none;
+  min-width: 0;
+}
+
+/* Tarjetas de sección (Empleados, Ausencias, Nómina…) */
+.payroll-section-cards {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0;
+}
+
+.payroll-section-card {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+  padding: 0.62rem 0.75rem;
+  border: 1px solid var(--pay-edge);
+  border-radius: var(--pay-radius-sm);
+  background: var(--pay-card);
+  box-shadow: var(--pay-shadow-sm);
+  color: var(--pay-navy);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.18s ease,
+    transform 0.14s ease;
+}
+
+.payroll-section-card:hover {
+  border-color: rgba(var(--primary-rgb), 0.35);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+  transform: translateY(-1px);
+}
+
+.payroll-section-card.is-active {
+  border-color: rgba(var(--primary-rgb), 0.45);
+  background: linear-gradient(180deg, rgba(var(--primary-rgb), 0.06), var(--pay-card));
+  box-shadow: 0 8px 20px rgba(var(--primary-rgb), 0.12);
+}
+
+.payroll-section-card__ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 10px;
+  background: rgba(var(--primary-rgb), 0.1);
+  color: var(--primary-dark, #2a6399);
+}
+
+.payroll-section-card__ico .btn-icon {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+.payroll-section-card.is-active .payroll-section-card__ico {
+  background: linear-gradient(135deg, var(--pay-blue), var(--primary-dark, #2a6399));
+  color: #fff;
+}
+
+.payroll-section-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  min-width: 0;
+}
+
+.payroll-section-card__label {
+  font-size: 0.72rem;
+  font-weight: 650;
+  color: var(--text-soft, #64748b);
+  line-height: 1.2;
+}
+
+.payroll-section-card__count {
+  font-size: 1.05rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--pay-navy);
+  line-height: 1.1;
+}
+
+.payroll-section-card.is-active .payroll-section-card__label {
+  color: var(--primary-dark);
+}
+
+.payroll-section-card.is-active .payroll-section-card__count {
+  color: var(--primary-dark);
+}
+
+.payroll-consult-head__alerts .payroll-consult-alerts {
+  margin: 0;
+}
+
+@media (max-width: 1100px) {
+  .payroll-section-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .payroll-section-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .payroll-consult-head__top {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .payroll-consult-head__actions,
+  .payroll-workspace-actions {
+    width: 100%;
+  }
+
+  .payroll-workspace-actions__btn {
+    flex: 1 1 0;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .payroll-section-cards {
+    grid-template-columns: 1fr;
+  }
+}
+
 .payroll-studio .hr-workspace-panels {
   gap: 1rem;
 }
@@ -2329,7 +2544,14 @@ body[data-theme="dark"] .payroll-studio .payroll-contracts-table tbody tr:hover 
   background: rgba(30, 58, 138, 0.18);
 }
 
-/* ── Modo Consultar: menos capas y KPIs duplicados ── */
+/* ── Modo Consultar: cabecera unificada ── */
+.payroll-studio--consult > .hr-workspace-header--payroll {
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
 .payroll-studio--consult > .hr-workspace-header--payroll .payroll-module-head--consult {
   padding: 0.2rem 0 0.55rem;
   border: none;
@@ -2364,8 +2586,8 @@ body[data-theme="dark"] .payroll-studio .payroll-contracts-table tbody tr:hover 
 }
 
 .payroll-studio--consult .payroll-data-panel {
-  padding: 0.75rem 0.85rem 0.9rem;
-  border-color: var(--pay-edge);
+  padding: 0.75rem 0 0.9rem;
+  border: none;
   box-shadow: none;
   background: transparent;
 }
@@ -2483,6 +2705,49 @@ body[data-theme="dark"] .payroll-studio--consult .payroll-consult-alert--notice 
   background: rgba(245, 158, 11, 0.14);
   border-color: rgba(251, 191, 36, 0.28);
   color: #fcd34d;
+}
+
+body[data-theme="dark"] .payroll-studio > .hr-workspace-header--consult {
+  background: rgba(15, 23, 42, 0.72);
+  border-color: rgba(148, 196, 255, 0.14);
+}
+
+body[data-theme="dark"] .payroll-consult-head__title h2 {
+  color: #e2e8f0;
+}
+
+body[data-theme="dark"] .payroll-consult-head__subtitle {
+  color: #94a3b8;
+}
+
+body[data-theme="dark"] .payroll-section-card {
+  background: rgba(15, 23, 42, 0.85);
+  border-color: rgba(148, 196, 255, 0.14);
+  color: #e2e8f0;
+}
+
+body[data-theme="dark"] .payroll-section-card:hover {
+  border-color: rgba(96, 165, 250, 0.35);
+}
+
+body[data-theme="dark"] .payroll-section-card.is-active {
+  background: linear-gradient(180deg, rgba(37, 99, 235, 0.18), rgba(15, 23, 42, 0.92));
+  border-color: rgba(96, 165, 250, 0.4);
+}
+
+body[data-theme="dark"] .payroll-section-card__ico {
+  background: rgba(37, 99, 235, 0.18);
+  color: #93c5fd;
+}
+
+body[data-theme="dark"] .payroll-section-card__count {
+  color: #e2e8f0;
+}
+
+body[data-theme="dark"] .payroll-workspace-actions__btn.is-active.btn-outline {
+  border-color: rgba(96, 165, 250, 0.55);
+  color: #93c5fd;
+  background: rgba(37, 99, 235, 0.12);
 }
 
 /* ===================================================================

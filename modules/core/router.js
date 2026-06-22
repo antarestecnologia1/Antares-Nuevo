@@ -313,6 +313,7 @@ export function renderPortal() {
   closePublicNavDrawer();
   document.body.classList.add("portal-mode");
   setPortalDrawerOpen(false);
+  initPortalSidebarExpanded();
   nodes.publicApp.classList.add("hidden");
   nodes.portalApp.classList.remove("hidden");
   document.documentElement.classList.remove("antares-booting-portal");
@@ -508,6 +509,46 @@ export function setPortalDrawerOpen(open) {
     btn.setAttribute("aria-label", on ? "Cerrar menu de modulos" : "Abrir menu de modulos");
   }
   if (bd) bd.setAttribute("aria-hidden", on ? "false" : "true");
+}
+
+const PORTAL_SIDEBAR_EXPANDED_KEY = "antares_portal_sidebar_expanded";
+
+export function readPortalSidebarExpandedPref() {
+  try {
+    const raw = localStorage.getItem(PORTAL_SIDEBAR_EXPANDED_KEY);
+    if (raw === null) return true;
+    return raw === "1" || raw === "true";
+  } catch (_e) {
+    return true;
+  }
+}
+
+export function setPortalSidebarExpanded(expanded, { persist = true } = {}) {
+  if (typeof document === "undefined") return;
+  const on = Boolean(expanded);
+  document.body.classList.toggle("portal-sidebar-collapsed", !on);
+  const btn = document.getElementById("portal-sidebar-toggle");
+  if (btn) {
+    btn.setAttribute("aria-expanded", on ? "true" : "false");
+    const label = on ? "Contraer menú lateral" : "Ampliar menú lateral";
+    btn.setAttribute("aria-label", label);
+    btn.title = on ? "Contraer menú" : "Ampliar menú";
+  }
+  if (persist) {
+    try {
+      localStorage.setItem(PORTAL_SIDEBAR_EXPANDED_KEY, on ? "1" : "0");
+    } catch (_e2) {
+      /* noop */
+    }
+  }
+}
+
+export function togglePortalSidebarExpanded() {
+  setPortalSidebarExpanded(document.body.classList.contains("portal-sidebar-collapsed"));
+}
+
+export function initPortalSidebarExpanded() {
+  setPortalSidebarExpanded(readPortalSidebarExpandedPref(), { persist: false });
 }
 
 /** Los módulos del portal registran `window.__portalModuleAfterRender[viewId]`. */

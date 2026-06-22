@@ -515,14 +515,42 @@ export function renderPayrollOperateSectionNav(activeId) {
   </nav>`;
 }
 
-export function renderPayrollDataSectionNav(activeId, counts = {}, { minimal = false } = {}) {
-  const tabs = [
+function payrollDataSectionTabs(counts = {}, { cards = false } = {}) {
+  return [
     { id: "employees", label: "Empleados", title: "Directorio de empleados", count: counts.employees ?? 0, icon: "user" },
     { id: "absences", label: "Ausencias", title: "Ausencias e incapacidades", count: counts.absences ?? 0, icon: "calendar" },
     { id: "runs", label: "Nómina", title: "Nómina laboral y liquidaciones", count: counts.runs ?? 0, icon: "dollar" },
     { id: "driverPayments", label: "Viajes", title: "Pagos conductores — prestación de servicios", count: counts.driverPayments ?? 0, icon: "truck" },
-    { id: "legal", label: "Legal", title: "Parámetros legales anuales (SMMLV, auxilio…)", count: counts.legal ?? 0, icon: "hash" }
+    {
+      id: "legal",
+      label: "Legal",
+      title: "Parámetros legales anuales (SMMLV, auxilio…)",
+      count: counts.legal ?? 0,
+      icon: cards ? "shield" : "hash"
+    }
   ];
+}
+
+export function renderPayrollDataSectionNav(activeId, counts = {}, { minimal = false, cards = false } = {}) {
+  const tabs = payrollDataSectionTabs(counts, { cards });
+  if (cards) {
+    return `<nav class="payroll-section-cards" role="tablist" aria-label="Secciones de gestión humana">
+    ${tabs
+      .map((t) => {
+        const active = activeId === t.id;
+        const iconSvg = ic()[t.icon] ? `<span class="payroll-section-card__ico" aria-hidden="true">${ic()[t.icon]}</span>` : "";
+        const tip = escapeAttr(String(t.title || t.label || ""));
+        return `<button type="button" role="tab" class="payroll-section-card${active ? " is-active" : ""}" aria-selected="${active ? "true" : "false"}" data-action="payroll-data-section" data-section="${escapeAttr(t.id)}" title="${tip}">
+          ${iconSvg}
+          <span class="payroll-section-card__body">
+            <span class="payroll-section-card__label">${escapeHtml(t.label)}</span>
+            <strong class="payroll-section-card__count">${escapeHtml(String(t.count))}</strong>
+          </span>
+        </button>`;
+      })
+      .join("")}
+  </nav>`;
+  }
   const navClass = minimal ? "payroll-data-nav payroll-data-nav--minimal" : "payroll-data-nav";
   return `<nav class="${navClass}" role="tablist" aria-label="Listas de personal y nómina">
     ${tabs
@@ -534,6 +562,97 @@ export function renderPayrollDataSectionNav(activeId, counts = {}, { minimal = f
       })
       .join("")}
   </nav>`;
+}
+
+/** Botones Registrar / Consultar al estilo de la cabecera de empleados. */
+export function renderPayrollWorkspaceActionButtons(module, activeId) {
+  const safeModule = escapeAttr(module);
+  const tabs = [
+    { id: "operate", label: "Registrar", icon: "plus", primary: false },
+    { id: "data", label: "Consultar", icon: "eye", primary: true }
+  ];
+  return `<div class="payroll-workspace-actions" role="tablist" aria-label="Modo del módulo de gestión humana">
+    ${tabs
+      .map((t) => {
+        const active = activeId === t.id;
+        const filled = active && (t.id === "operate" || t.primary);
+        const btnClass = filled
+          ? "btn btn-sm btn-primary payroll-workspace-actions__btn is-active"
+          : active
+            ? "btn btn-sm btn-outline payroll-workspace-actions__btn is-active"
+            : "btn btn-sm btn-outline payroll-workspace-actions__btn";
+        const icon = ic()[t.icon] || "";
+        return `<button type="button" role="tab" aria-selected="${active ? "true" : "false"}" class="${btnClass}" data-action="hr-workspace-tab" data-module="${safeModule}" data-tab="${escapeAttr(t.id)}">${icon}<span>${escapeHtml(t.label)}</span></button>`;
+      })
+      .join("")}
+  </div>`;
+}
+
+const PAYROLL_CONSULT_SECTION_META = {
+  employees: {
+    label: "Empleados",
+    subtitle: "Administra colaboradores y su información"
+  },
+  absences: {
+    label: "Ausencias",
+    subtitle: "Vacaciones, licencias e incapacidades registradas"
+  },
+  runs: {
+    label: "Nómina",
+    subtitle: "Liquidaciones y pagos de nómina laboral"
+  },
+  driverPayments: {
+    label: "Viajes",
+    subtitle: "Pagos a conductores por prestación de servicios"
+  },
+  legal: {
+    label: "Legal",
+    subtitle: "Parámetros legales anuales (SMMLV, auxilio y aportes)"
+  }
+};
+
+/** Cabecera del modo Consultar: título, acciones, tarjetas de sección y alertas. */
+export function renderPayrollConsultWorkspaceHeader({
+  dataSection,
+  counts = {},
+  contractAlertsHtml = "",
+  actionsHtml = ""
+}) {
+  const sectionId = String(dataSection || "employees");
+  const meta = PAYROLL_CONSULT_SECTION_META[sectionId] || PAYROLL_CONSULT_SECTION_META.employees;
+  const navHtml = renderPayrollDataSectionNav(sectionId, counts, { cards: true });
+  const alertsBlock =
+    sectionId === "employees" && String(contractAlertsHtml || "").trim()
+      ? `<div class="payroll-consult-head__alerts">${contractAlertsHtml}</div>`
+      : "";
+  return `<header class="hr-workspace-header hr-workspace-header--payroll hr-workspace-header--consult">
+    <div class="payroll-consult-head">
+      <div class="payroll-consult-head__top">
+        <div class="payroll-consult-head__title">
+          <h2>${escapeHtml(meta.label)}</h2>
+          <p class="payroll-consult-head__subtitle">${escapeHtml(meta.subtitle)}</p>
+        </div>
+        <div class="payroll-consult-head__actions">${actionsHtml}</div>
+      </div>
+      ${navHtml}
+      ${alertsBlock}
+    </div>
+  </header>`;
+}
+
+/** Actualiza título y alertas de la cabecera Consultar sin re-render completo. */
+export function syncPayrollConsultHeaderDom(root, dataSection) {
+  const header = root?.querySelector?.(".hr-workspace-header--consult");
+  if (!header) return false;
+  const sectionId = String(dataSection || "employees");
+  const meta = PAYROLL_CONSULT_SECTION_META[sectionId] || PAYROLL_CONSULT_SECTION_META.employees;
+  const titleEl = header.querySelector(".payroll-consult-head__title h2");
+  const subtitleEl = header.querySelector(".payroll-consult-head__subtitle");
+  if (titleEl) titleEl.textContent = meta.label;
+  if (subtitleEl) subtitleEl.textContent = meta.subtitle;
+  const alertsWrap = header.querySelector(".payroll-consult-head__alerts");
+  if (alertsWrap) alertsWrap.hidden = sectionId !== "employees";
+  return true;
 }
 
 export function renderModuleWindowTabs({ ariaLabel, activeId, action, valueAttr = "section", tabs = [] }) {
@@ -602,9 +721,13 @@ export function renderHrWorkspaceTabs({ module, ariaLabel, activeId, tabs, varia
 /** Cabecera del módulo RRHH / Contratación: título + KPIs + conmutador Registrar | Consultar. */
 export function renderHrWorkspaceHeader(moduleHeadHtml, tabsNavHtml, tone = "payroll") {
   const toneClass = tone === "hiring" ? "hr-workspace-header--hiring" : "hr-workspace-header--payroll";
+  const switchClass =
+    String(tabsNavHtml || "").includes("payroll-workspace-actions")
+      ? "hr-workspace-header__switch hr-workspace-header__switch--actions"
+      : "hr-workspace-header__switch";
   return `<header class="hr-workspace-header ${toneClass}">
     ${moduleHeadHtml}
-    <div class="hr-workspace-header__switch">${tabsNavHtml}</div>
+    <div class="${switchClass}">${tabsNavHtml}</div>
   </header>`;
 }
 

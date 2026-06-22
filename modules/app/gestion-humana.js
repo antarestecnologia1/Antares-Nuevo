@@ -494,23 +494,9 @@ function bindPayrollPortalControls() {
       if (!tab) return;
       const ws = normalizeHrWorkspace("payroll", tab);
       if (!HR_VALID_PAYROLL_WS.has(ws)) return;
+      if (normalizeHrWorkspace("payroll", state.payrollUi?.workspace) === ws) return;
       state.payrollUi = { ...(state.payrollUi || {}), workspace: ws };
       persistHrWorkspace("payroll", ws);
-      if (
-        switchHrWorkspacePanels({
-          root: nodes.viewRoot,
-          moduleId: "payroll",
-          workspace: ws,
-          panelAttr: "data-payroll-panel"
-        })
-      ) {
-        if (ws === "data" && portalCanRefreshFromApi()) {
-          void applyPortalBootstrapFromApi().then((ok) => {
-            if (ok) scheduleRenderPortalView();
-          });
-        }
-        return;
-      }
       if (ws === "data" && portalCanRefreshFromApi()) {
         void applyPortalBootstrapFromApi().then((ok) => {
           if (ok) scheduleRenderPortalView();
@@ -614,6 +600,7 @@ function bindPayrollPortalControls() {
           tabActiveClass: "is-active"
         })
       ) {
+        syncPayrollConsultHeaderDom(nodes.viewRoot, section);
         return;
       }
       renderPortalView();
@@ -832,13 +819,13 @@ function bindPayrollPortalControls() {
         return;
       }
       const body = {
-        year,
-        smmlvCop,
-        transportAllowanceCop,
+        year: Math.trunc(year),
+        smmlvCop: Math.trunc(smmlvCop),
+        transportAllowanceCop: Math.trunc(transportAllowanceCop),
         healthEmployeeRate: healthEmployeeRatePct / 100,
         pensionEmployeeRate: pensionEmployeeRatePct / 100,
-        uvtCop: uvtRaw ? parseNum(uvtRaw) : null,
-        legalWeeklyHours,
+        uvtCop: uvtRaw ? Math.trunc(parseNum(uvtRaw)) : null,
+        legalWeeklyHours: Math.trunc(legalWeeklyHours),
         platformReferenceYear:
           platformReferenceMode === "manual"
             ? clampLaborSystemParameterYear(fd.get("platformReferenceYear") || year)

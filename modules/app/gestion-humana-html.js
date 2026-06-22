@@ -48,11 +48,8 @@ function renderPayrollEmployeesConsultAlerts(stats) {
   return `<div class="payroll-consult-alerts" role="status" aria-label="Alertas de contratos">${chips.join("")}</div>`;
 }
 
-function renderPayrollEmployeesConsultToolbar(stats, canDeletePayrollEmployees) {
-  return `<div class="payroll-consult-toolbar">
-    ${renderPayrollEmployeesConsultAlerts(stats)}
-    ${renderPayrollContractsFilterBar(canDeletePayrollEmployees)}
-  </div>`;
+function renderPayrollEmployeesConsultToolbar(canDeletePayrollEmployees) {
+  return `<div class="payroll-consult-toolbar">${renderPayrollContractsFilterBar(canDeletePayrollEmployees)}</div>`;
 }
 
 function renderPayrollContractsFilterBar(canDeletePayrollEmployees) {
@@ -784,7 +781,7 @@ function payrollHtml() {
   const employeeSelectHeader = canDeletePayrollEmployees
     ? `<th class="payroll-contracts-table__check"><input type="checkbox" id="employees-select-all-header" aria-label="Seleccionar todos" /></th>`
     : "";
-  const employeeContractsDashboard = renderPayrollEmployeesConsultToolbar(contractDashboardStats, canDeletePayrollEmployees);
+  const employeeContractsDashboard = renderPayrollEmployeesConsultToolbar(canDeletePayrollEmployees);
   const employeeTableToolbar = renderPayrollContractsTableToolbar(employeesView, canDeletePayrollEmployees);
   const employeePagination = renderPayrollContractsPagination(employeesTotal, employeesSafePage, employeesPageSize);
   const employeeTable = employeeTableRows
@@ -1167,17 +1164,13 @@ function payrollHtml() {
         <div class="payroll-runs-body">${driverPaymentsBody}</div>
       </div>
     </div>`;
-  const payrollDataNav = renderPayrollDataSectionNav(
-    payrollDataSection,
-    {
-      employees: employees.length,
-      absences: absences.length,
-      runs: nominaRunsAll.length,
-      driverPayments: driverPaymentRunsAll.length,
-      legal: legalHistory.length || 1
-    },
-    { minimal: true }
-  );
+  const payrollDataCounts = {
+    employees: employees.length,
+    absences: absences.length,
+    runs: nominaRunsAll.length,
+    driverPayments: driverPaymentRunsAll.length,
+    legal: legalHistory.length || 1
+  };
   const payrollRunFilters =
     payrollDataSection === "runs" || payrollDataSection === "driverPayments"
       ? `<div class="payroll-data-toolbar__filters">${payrollQuickBar}${filtersHtml}</div>`
@@ -1200,23 +1193,20 @@ function payrollHtml() {
       <div class="payroll-runs-body">${runsPaneBody}</div>
     </div>`;
   const payrollDataBlock = `<section class="payroll-data-panel">
-      <div class="payroll-data-toolbar payroll-data-toolbar--compact">
-        ${payrollDataNav}
-        ${payrollRunFilters}
-      </div>
+      ${payrollRunFilters ? `<div class="payroll-data-toolbar payroll-data-toolbar--compact">${payrollRunFilters}</div>` : ""}
       <div class="payroll-data-panes">${employeesPane}${absencesPane}${runsPane}${driverPaymentsPane}${legalPane}</div>
     </section>`;
-  const payrollTabsNav = renderHrWorkspaceTabs({
-    module: "payroll",
-    ariaLabel: "Secciones del módulo Personal y nómina",
-    activeId: payrollWorkspace,
-    variant: "switch",
-    tabs: [
-      { id: "operate", label: "Registrar", icon: "plus", hint: "Altas, nómina y ausencias" },
-      { id: "data", label: "Consultar", icon: "eye", hint: "Expedientes y liquidaciones" }
-    ]
-  });
-  const payrollWorkspaceHeader = renderHrWorkspaceHeader(payrollModuleHead, payrollTabsNav, "payroll");
+  const payrollWorkspaceActions = renderPayrollWorkspaceActionButtons("payroll", payrollWorkspace);
+  const payrollContractAlerts = renderPayrollEmployeesConsultAlerts(contractDashboardStats);
+  const payrollWorkspaceHeader =
+    payrollWorkspace === "data"
+      ? renderPayrollConsultWorkspaceHeader({
+          dataSection: payrollDataSection,
+          counts: payrollDataCounts,
+          contractAlertsHtml: payrollContractAlerts,
+          actionsHtml: payrollWorkspaceActions
+        })
+      : renderHrWorkspaceHeader(payrollModuleHead, payrollWorkspaceActions, "payroll");
   const payrollOperatePanel = `<div class="hr-workspace-panel payroll-workspace-panel${payrollWorkspace === "operate" ? "" : " hidden"}" role="tabpanel" data-payroll-panel="operate">
       ${payrollExecutionBlock}
     </div>`;

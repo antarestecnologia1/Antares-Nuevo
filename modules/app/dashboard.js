@@ -117,13 +117,20 @@
   }
 
   /** KPI premium con gradiente y jerarquía visual */
-  function dashBuildPremiumKpi(icon, label, value, sub, tone, hero) {
+  function dashBuildPremiumKpi(icon, label, value, sub, tone, hero, staggerIdx) {
     const mod = tone ? ` dash-kpi--${tone}` : "";
     const heroMod = hero ? " dash-kpi--hero" : "";
-    return `<article class="dash-kpi${mod}${heroMod}">
+    const display = String(value);
+    const rawNum = display.replace(/[^\d.-]/g, "");
+    const countAttr =
+      rawNum !== "" && Number.isFinite(Number(rawNum))
+        ? ` data-dash-count="${escapeAttr(rawNum)}" data-dash-display="${escapeAttr(display)}"`
+        : "";
+    const stagger = Number.isFinite(staggerIdx) ? staggerIdx : 0;
+    return `<article class="dash-kpi dash-reveal${mod}${heroMod}" style="--dash-stagger:${stagger}"${countAttr}>
       <div class="dash-kpi__glow" aria-hidden="true"></div>
       <div class="dash-kpi__icon" aria-hidden="true">${icon}</div>
-      <strong class="dash-kpi__value">${escapeHtml(String(value))}</strong>
+      <strong class="dash-kpi__value">${escapeHtml(display)}</strong>
       <span class="dash-kpi__label">${escapeHtml(label)}</span>
       ${sub ? `<span class="dash-kpi__sub">${escapeHtml(sub)}</span>` : ""}
     </article>`;
@@ -151,15 +158,17 @@
     const complianceSub =
       snap.compliancePct >= 80 ? "Meta alcanzada" : snap.compliancePct >= 50 ? "Seguimiento activo" : "Bajo objetivo";
     const cards = [
-      dashBuildPremiumKpi(IC.truck || "🚚", "En ruta", snap.vehicleIdsEnRuta, "Vehículos activos", "live"),
-      dashBuildPremiumKpi(IC.compass || "📋", "Asignados", snap.assignedToday, "Programados hoy", "blue"),
-      dashBuildPremiumKpi(IC.check || "✅", "Completados", snap.completedToday, "Entregas cerradas", "purple"),
+      dashBuildPremiumKpi(IC.truck || "🚚", "En ruta", snap.vehicleIdsEnRuta, "Vehículos activos", "live", false, 0),
+      dashBuildPremiumKpi(IC.compass || "📋", "Asignados", snap.assignedToday, "Programados hoy", "blue", false, 1),
+      dashBuildPremiumKpi(IC.check || "✅", "Completados", snap.completedToday, "Entregas cerradas", "purple", false, 2),
       dashBuildPremiumKpi(
         IC.alertTriangle || "⚠️",
         "Retrasos",
         snap.delayedToday,
         snap.delayedToday ? "Requieren acción" : "Sin desvíos",
-        snap.delayedToday ? "alert" : "muted"
+        snap.delayedToday ? "alert" : "muted",
+        false,
+        3
       ),
       dashBuildPremiumKpi(
         IC.activity || "🎯",
@@ -167,15 +176,26 @@
         `${snap.compliancePct}%`,
         complianceSub,
         snap.compliancePct >= 80 ? "hero-ok" : snap.compliancePct >= 50 ? "hero-warn" : "hero-alert",
-        true
+        true,
+        4
       )
     ];
-    const execRow = exec
+    const execItems = exec
+      ? [
+          { label: "Puntualidad", value: `${exec.punctualityPct}%` },
+          { label: "Utilización flota", value: `${exec.fleetUtilPct}%` },
+          { label: "Combustible hoy", value: exec.fuelLiters > 0 ? `${exec.fuelLiters} L` : "—" },
+          { label: "Km recorridos", value: exec.kmToday > 0 ? `${exec.kmToday.toLocaleString("es-CO")} km` : "—" }
+        ]
+      : [];
+    const execRow = execItems.length
       ? `<div class="dash-exec-strip" aria-label="Métricas ejecutivas">
-          <div class="dash-exec-item"><span>Puntualidad</span><strong>${exec.punctualityPct}%</strong></div>
-          <div class="dash-exec-item"><span>Utilización flota</span><strong>${exec.fleetUtilPct}%</strong></div>
-          <div class="dash-exec-item"><span>Combustible hoy</span><strong>${exec.fuelLiters > 0 ? `${exec.fuelLiters} L` : "—"}</strong></div>
-          <div class="dash-exec-item"><span>Km recorridos</span><strong>${exec.kmToday > 0 ? `${exec.kmToday.toLocaleString("es-CO")} km` : "—"}</strong></div>
+          ${execItems
+            .map(
+              (item, i) =>
+                `<div class="dash-exec-item dash-reveal" style="--dash-stagger:${6 + i}"><span>${escapeHtml(item.label)}</span><strong>${escapeHtml(item.value)}</strong></div>`
+            )
+            .join("")}
         </div>`
       : "";
     return `<section class="dash-metrics dash-metrics--tower" aria-label="Indicadores del día">
@@ -191,7 +211,9 @@
     const docCount = snap?.docRisk || 0;
     const opsTone = dashOpsStatusTone(snap);
     const opsLabels = { live: "Operación en curso", ok: "Sistema operativo", warn: "Seguimiento activo", alert: "Atención requerida", neutral: "Operación" };
-    return `<div class="dash-cc__chips" role="status">
+    return `<div class="dash-cc__rail dash-cc__rail--status">
+      <span class="dash-cc__rail-label">Estado en vivo</span>
+      <div class="dash-cc__chips" role="status">
       <button type="button" class="dash-chip dash-chip--warn" data-action="dash-nav" data-target-view="notifications">
         <span class="dash-chip__ico" aria-hidden="true">🔔</span>
         <span>${alertCount} alerta${alertCount === 1 ? "" : "s"}</span>
@@ -204,6 +226,7 @@
         <span class="dash-chip__dot" aria-hidden="true"></span>
         <span>${escapeHtml(opsLabels[opsTone] || "Operación")}</span>
       </span>
+      </div>
     </div>`;
   }
 
@@ -219,19 +242,26 @@
       .join("");
     const empty = !list.length
       ? `<div class="dash-map-empty">
-          <span aria-hidden="true">🗺️</span>
+          <span aria-hidden="true">📡</span>
           <p>Sin unidades en movimiento</p>
-          <span class="muted">Los vehículos activos aparecerán aquí en tiempo real</span>
+          <span class="dash-map-empty__hint">Los vehículos activos aparecerán aquí en tiempo real</span>
         </div>`
       : "";
-    return `<section class="dash-panel dash-panel--map" aria-label="Mapa en vivo">
-      <header class="dash-panel__head dash-panel__head--compact">
-        <div><h3>Mapa en vivo</h3><p>${list.length} vehículo${list.length === 1 ? "" : "s"} en operación</p></div>
+    return `<section class="dash-panel dash-panel--map dash-reveal" style="--dash-stagger:10" aria-label="Mapa en vivo">
+      <header class="dash-panel__head dash-panel__head--compact dash-panel__head--map">
+        <div>
+          <span class="dash-panel__kicker">Geolocalización</span>
+          <h3>Mapa en vivo</h3>
+          <p>${list.length} vehículo${list.length === 1 ? "" : "s"} en operación</p>
+        </div>
         <span class="dash-live-badge"><span class="dash-live-pulse" aria-hidden="true"></span> LIVE</span>
       </header>
       <div class="dash-map-stage">
+        <div class="dash-map-vignette" aria-hidden="true"></div>
+        <div class="dash-map-radar" aria-hidden="true"></div>
         <div class="dash-map-grid" aria-hidden="true"></div>
         <div class="dash-map-terrain" aria-hidden="true"></div>
+        <div class="dash-map-coords" aria-hidden="true">4.7110° N · 74.0721° W · CO</div>
         ${pins}
         ${empty}
       </div>
@@ -256,9 +286,14 @@
           })
           .join("")}</ul>`
       : `<p class="dash-critical-ok" role="status">${IC.check || "✓"} Operación al día — sin alertas críticas</p>`;
-    return `<aside class="dash-panel dash-panel--critical" aria-label="Alertas críticas">
-      <header class="dash-panel__head dash-panel__head--compact">
-        <div><h3>Alertas críticas</h3><p>Requieren acción inmediata</p></div>
+    return `<aside class="dash-panel dash-panel--critical dash-reveal" style="--dash-stagger:11" aria-label="Alertas críticas">
+      <header class="dash-panel__head dash-panel__head--compact dash-panel__head--critical">
+        <div>
+          <span class="dash-panel__kicker">Prioridad alta</span>
+          <h3>Alertas críticas</h3>
+          <p>Requieren acción inmediata</p>
+        </div>
+        ${items.length ? `<span class="dash-critical-count">${items.length}</span>` : `<span class="dash-critical-ok-badge">OK</span>`}
       </header>
       ${body}
     </aside>`;
@@ -267,12 +302,13 @@
   function dashBuildAnalyticsRow(snap, hourly, fleetPie) {
     if (!snap) return "";
     const complianceTone = snap.compliancePct >= 80 ? "ok" : snap.compliancePct >= 50 ? "warn" : "alert";
-    const hourlyBars = (hourly || [])
+    const hourlyList = Array.isArray(hourly) ? hourly : [];
+    const hourlyBars = hourlyList
       .map(
-        (b) => `<div class="dash-hour-row">
+        (b, i) => `<div class="dash-hour-row dash-reveal" style="--dash-stagger:${i}">
           <span class="dash-hour-label">${escapeHtml(b.label)}</span>
-          <div class="dash-hour-track"><i class="dash-hour-fill" style="width:${b.pct}%"></i></div>
-          <span class="dash-hour-val">${b.count}</span>
+          <div class="dash-hour-track"><i class="dash-hour-fill dash-bar-fill" data-dash-width="${Number(b.pct) || 0}"></i></div>
+          <span class="dash-hour-val">${escapeHtml(String(b.count))}</span>
         </div>`
       )
       .join("");
@@ -280,37 +316,61 @@
     const aPct = Math.round(((fleetPie?.activos || 0) / pieTotal) * 100);
     const ePct = Math.round(((fleetPie?.espera || 0) / pieTotal) * 100);
     const mPct = Math.max(0, 100 - aPct - ePct);
-    const pieStyle = `background: conic-gradient(var(--dash-live-mid) 0% ${aPct}%, var(--dash-warn-mid) ${aPct}% ${aPct + ePct}%, var(--dash-alert-mid) ${aPct + ePct}% 100%)`;
-    return `<section class="dash-analytics" aria-label="Análisis operativo del día">
-      <article class="dash-panel dash-panel--chart">
-        <header class="dash-panel__head dash-panel__head--compact">
-          <div><h3>Cumplimiento diario</h3><p>Entregas cerradas vs programadas</p></div>
+    const pieStyle = `conic-gradient(var(--dash-live-mid) 0% ${aPct}%, var(--dash-warn-mid) ${aPct}% ${aPct + ePct}%, var(--dash-alert-mid) ${aPct + ePct}% 100%)`;
+    const complianceBadge =
+      complianceTone === "ok" ? "En meta" : complianceTone === "warn" ? "Seguimiento" : "Crítico";
+    return `<section class="dash-analytics dash-analytics--premium" aria-label="Análisis operativo del día">
+      <article class="dash-panel dash-panel--chart dash-panel--compliance dash-reveal" style="--dash-stagger:14">
+        <header class="dash-panel__head dash-panel__head--compact dash-panel__head--chart">
+          <div>
+            <span class="dash-panel__kicker">Performance</span>
+            <h3>Cumplimiento diario</h3>
+            <p>Entregas cerradas vs programadas</p>
+          </div>
+          <span class="dash-chart-badge dash-chart-badge--${complianceTone}">${escapeHtml(complianceBadge)}</span>
         </header>
         <div class="dash-compliance-block dash-compliance-block--${complianceTone}">
-          <div class="dash-compliance-bar" role="progressbar" aria-valuenow="${snap.compliancePct}" aria-valuemin="0" aria-valuemax="100">
-            <i style="width:${snap.compliancePct}%"></i>
+          <div class="dash-compliance-ring" aria-hidden="true">
+            <svg viewBox="0 0 44 44"><circle class="dash-compliance-ring__bg" cx="22" cy="22" r="18"/><circle class="dash-compliance-ring__fg dash-ring-animate" cx="22" cy="22" r="18" data-dash-ring-pct="${snap.compliancePct}"/></svg>
           </div>
-          <strong class="dash-compliance-pct">${snap.compliancePct}%</strong>
+          <div class="dash-compliance-body">
+            <div class="dash-compliance-bar" role="progressbar" aria-valuenow="${snap.compliancePct}" aria-valuemin="0" aria-valuemax="100">
+              <i class="dash-bar-fill" data-dash-width="${snap.compliancePct}"></i>
+            </div>
+            <div class="dash-compliance-meta">
+              <strong class="dash-compliance-pct" data-dash-count="${snap.compliancePct}" data-dash-display="${snap.compliancePct}%">0%</strong>
+              <span class="dash-compliance-caption">del objetivo diario</span>
+            </div>
+          </div>
         </div>
       </article>
-      <article class="dash-panel dash-panel--chart">
-        <header class="dash-panel__head dash-panel__head--compact">
-          <div><h3>Entregas por hora</h3><p>Distribución del día</p></div>
+      <article class="dash-panel dash-panel--chart dash-panel--hourly dash-reveal" style="--dash-stagger:15">
+        <header class="dash-panel__head dash-panel__head--compact dash-panel__head--chart">
+          <div>
+            <span class="dash-panel__kicker">Distribución</span>
+            <h3>Entregas por hora</h3>
+            <p>Ritmo operativo del día</p>
+          </div>
+          <span class="dash-chart-stat">${hourlyList.reduce((n, b) => n + (Number(b.count) || 0), 0)} total</span>
         </header>
         <div class="dash-hour-chart">${hourlyBars || '<p class="muted dash-chart-empty">Sin entregas registradas hoy.</p>'}</div>
       </article>
-      <article class="dash-panel dash-panel--chart">
-        <header class="dash-panel__head dash-panel__head--compact">
-          <div><h3>Estado de flota</h3><p>Activos · Espera · Mantenimiento</p></div>
+      <article class="dash-panel dash-panel--chart dash-panel--fleet-pie dash-reveal" style="--dash-stagger:16">
+        <header class="dash-panel__head dash-panel__head--compact dash-panel__head--chart">
+          <div>
+            <span class="dash-panel__kicker">Inventario</span>
+            <h3>Estado de flota</h3>
+            <p>Activos · Espera · Mantenimiento</p>
+          </div>
         </header>
         <div class="dash-fleet-pie-wrap">
-          <div class="dash-fleet-pie" style="${pieStyle}" role="img" aria-label="Flota: ${fleetPie?.activos || 0} activos, ${fleetPie?.espera || 0} en espera, ${fleetPie?.mantenimiento || 0} en mantenimiento">
-            <div class="dash-fleet-pie__hole"><strong>${pieTotal}</strong><span>Total</span></div>
+          <div class="dash-fleet-pie dash-fleet-pie--animate" data-pie-a="${aPct}" data-pie-e="${ePct}" data-pie-m="${mPct}" data-pie-final="${escapeAttr(pieStyle)}" style="background: conic-gradient(var(--dash-border-strong) 0% 100%)" role="img" aria-label="Flota: ${fleetPie?.activos || 0} activos, ${fleetPie?.espera || 0} en espera, ${fleetPie?.mantenimiento || 0} en mantenimiento">
+            <div class="dash-fleet-pie__hole"><strong data-dash-count="${pieTotal}" data-dash-display="${String(pieTotal)}">0</strong><span>Total</span></div>
           </div>
           <ul class="dash-fleet-legend">
-            <li><i class="dash-legend-dot dash-legend-dot--live"></i>Activos <strong>${fleetPie?.activos || 0}</strong></li>
-            <li><i class="dash-legend-dot dash-legend-dot--warn"></i>Espera <strong>${fleetPie?.espera || 0}</strong></li>
-            <li><i class="dash-legend-dot dash-legend-dot--alert"></i>Mantenimiento <strong>${fleetPie?.mantenimiento || 0}</strong></li>
+            <li class="dash-reveal" style="--dash-stagger:0"><i class="dash-legend-dot dash-legend-dot--live"></i>Activos <strong>${fleetPie?.activos || 0}</strong></li>
+            <li class="dash-reveal" style="--dash-stagger:1"><i class="dash-legend-dot dash-legend-dot--warn"></i>Espera <strong>${fleetPie?.espera || 0}</strong></li>
+            <li class="dash-reveal" style="--dash-stagger:2"><i class="dash-legend-dot dash-legend-dot--alert"></i>Mantenimiento <strong>${fleetPie?.mantenimiento || 0}</strong></li>
           </ul>
         </div>
       </article>
@@ -337,7 +397,7 @@
      TARJETA DE VEHÍCULO
   ───────────────────────────────────────────────────────────── */
 
-  function dashBuildVehicleCard(group) {
+  function dashBuildVehicleCard(group, staggerIdx) {
     const plate = String(group.plate || "Sin placa").trim();
     const driver = String(group.driverName || "Sin conductor").trim();
     const trips = group.trips || [];
@@ -395,8 +455,10 @@
     const searchBlob = [plate, driver, ...trips.map((r) => `${r.requestNumber} ${r.clientName} ${formatRoute(r)}`)].join(" ");
     const pulse = cardStatus === "en-ruta" ? `<span class="dash-live-pulse" aria-hidden="true"></span>` : "";
 
+    const stagger = 19 + (Number.isFinite(staggerIdx) ? staggerIdx : 0);
     return `<article
-      class="dash-vehicle dash-vehicle--${cardStatus}"
+      class="dash-vehicle dash-vehicle--${cardStatus} dash-reveal"
+      style="--dash-stagger:${stagger}"
       data-plate="${escapeAttr(plate)}"
       data-driver="${escapeAttr(driver)}"
       data-status="${escapeAttr(cardStatus)}"
@@ -490,8 +552,8 @@
     if (!actions.length) return "";
     return actions
       .map(
-        (a) =>
-          `<button type="button" class="dash-action" data-action="dash-nav" data-target-view="${escapeAttr(a.view)}">${a.icon}<span>${escapeHtml(a.label)}</span></button>`
+        (a, i) =>
+          `<button type="button" class="dash-action${i === 0 ? " dash-action--primary" : ""}" data-action="dash-nav" data-target-view="${escapeAttr(a.view)}">${a.icon}<span>${escapeHtml(a.label)}</span></button>`
       )
       .join("");
   }
@@ -662,8 +724,12 @@
 
     /* ── Hero Control Tower ── */
     const hero = `<header class="dash-cc dash-hero dash-hero--tower">
+      <div class="dash-cc__glow" aria-hidden="true"></div>
       <div class="dash-cc__main">
-        <h2 class="dash-cc__title"><span class="dash-cc__wave" aria-hidden="true">👋</span> ${escapeHtml(greeting)}, <span class="dash-cc__name">${firstName}</span></h2>
+        <div class="dash-cc__brand">
+          <span class="dash-cc__kicker">Torre de control</span>
+          <h2 class="dash-cc__title"><span class="dash-cc__wave" aria-hidden="true">👋</span> ${escapeHtml(greeting)}, <span class="dash-cc__name">${firstName}</span></h2>
+        </div>
         <p class="dash-cc__subtitle">Centro Inteligente de Transporte</p>
         <p class="dash-cc__meta">
           <span>${escapeHtml(longDate)}</span>
@@ -673,7 +739,7 @@
       </div>
       <div class="dash-cc__aside">
         ${dashBuildStatusChips(snap, attentionItems)}
-        ${quickActions ? `<nav class="dash-cc__actions" aria-label="Accesos rápidos">${quickActions}</nav>` : ""}
+        ${quickActions ? `<div class="dash-cc__rail dash-cc__rail--actions"><span class="dash-cc__rail-label">Accesos rápidos</span><nav class="dash-cc__actions" aria-label="Accesos rápidos">${quickActions}</nav></div>` : ""}
       </div>
     </header>`;
 
@@ -694,7 +760,7 @@
       ? DD.groupRequestsByVehicleForDashboard(todayTrips.filter((r) => r.trip?.vehicleId))
       : []
     ).sort((a, b) => String(a.plate).localeCompare(String(b.plate), "es"));
-    const fleetCards = groupList.map((g) => dashBuildVehicleCard(g)).join("");
+    const fleetCards = groupList.map((g, i) => dashBuildVehicleCard(g, i)).join("");
 
     const fleetContent =
       fleetCards ||
@@ -722,9 +788,10 @@
       </div>
       ${dashBuildAnalyticsRow(snap, hourly, fleetPie)}
       <div class="dash-layout dash-layout--fleet">
-        <section class="dash-panel dash-panel--fleet" id="dash-fleet-panel" aria-label="Torre de flota">
-          <header class="dash-panel__head">
+        <section class="dash-panel dash-panel--fleet dash-reveal" id="dash-fleet-panel" style="--dash-stagger:17" aria-label="Torre de flota">
+          <header class="dash-panel__head dash-panel__head--fleet">
             <div>
+              <span class="dash-panel__kicker">Operaciones · Hoy</span>
               <h3>Torre de flota</h3>
               <p>Seguimiento en vivo de vehículos programados para hoy</p>
             </div>
@@ -747,9 +814,13 @@
           <div class="dash-tabs" role="tablist" aria-label="Filtrar flota">${dashBuildFleetTabs(tabCounts)}</div>
           <div class="dash-fleet-list">${fleetContent}</div>
         </section>
-        <aside class="dash-panel dash-panel--activity" aria-label="Actividad reciente">
-          <header class="dash-panel__head dash-panel__head--compact">
-            <div><h3>Últimos movimientos</h3><p>Actualizaciones del día</p></div>
+        <aside class="dash-panel dash-panel--activity dash-reveal" style="--dash-stagger:18" aria-label="Actividad reciente">
+          <header class="dash-panel__head dash-panel__head--compact dash-panel__head--activity">
+            <div>
+              <span class="dash-panel__kicker">Timeline</span>
+              <h3>Últimos movimientos</h3>
+              <p>Actualizaciones del día</p>
+            </div>
           </header>
           ${dashBuildActivityFeed(todayTrips)}
         </aside>
@@ -762,10 +833,161 @@
      CONTROLES POST-RENDER
   ───────────────────────────────────────────────────────────── */
 
+  function dashAnimateCountEl(el, delayMs, sourceEl) {
+    const source = sourceEl || el;
+    const target = Number(source.dataset.dashCount);
+    const display = String(source.dataset.dashDisplay || "");
+    if (!el || !Number.isFinite(target)) return;
+    const hasPct = display.includes("%");
+    const duration = 820;
+    const startAt = performance.now() + delayMs;
+
+    const tick = (now) => {
+      if (now < startAt) {
+        requestAnimationFrame(tick);
+        return;
+      }
+      const t = Math.min(1, (now - startAt) / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      const current = Math.round(target * eased);
+      el.textContent = hasPct ? `${current}%` : String(current);
+      if (t < 1) requestAnimationFrame(tick);
+      else el.textContent = display;
+    };
+    requestAnimationFrame(tick);
+  }
+
+  function dashAnimateBarFills(root, baseDelay) {
+    root.querySelectorAll(".dash-bar-fill[data-dash-width]").forEach((bar, i) => {
+      const target = Number(bar.dataset.dashWidth);
+      if (!Number.isFinite(target)) return;
+      const row = bar.closest(".dash-hour-row");
+      const stagger = row
+        ? Number.parseInt(getComputedStyle(row).getPropertyValue("--dash-stagger"), 10) || i
+        : i;
+      const startAt = performance.now() + baseDelay + stagger * 55;
+      bar.style.width = "0%";
+
+      const tick = (now) => {
+        if (now < startAt) {
+          requestAnimationFrame(tick);
+          return;
+        }
+        const t = Math.min(1, (now - startAt) / 720);
+        const eased = 1 - Math.pow(1 - t, 3);
+        bar.style.width = `${target * eased}%`;
+        if (t < 1) requestAnimationFrame(tick);
+        else bar.style.width = `${target}%`;
+      };
+      requestAnimationFrame(tick);
+    });
+  }
+
+  function dashAnimateComplianceRing(root, delayMs) {
+    root.querySelectorAll(".dash-ring-animate[data-dash-ring-pct]").forEach((ring) => {
+      const target = Number(ring.dataset.dashRingPct);
+      if (!Number.isFinite(target)) return;
+      const r = 18;
+      const c = 2 * Math.PI * r;
+      ring.style.strokeDasharray = `${c}`;
+      ring.style.strokeDashoffset = `${c}`;
+      const startAt = performance.now() + delayMs;
+      const tick = (now) => {
+        if (now < startAt) {
+          requestAnimationFrame(tick);
+          return;
+        }
+        const t = Math.min(1, (now - startAt) / 900);
+        const eased = 1 - Math.pow(1 - t, 3);
+        const pct = target * eased;
+        ring.style.strokeDashoffset = `${c - (pct / 100) * c}`;
+        if (t < 1) requestAnimationFrame(tick);
+        else ring.style.strokeDashoffset = `${c - (target / 100) * c}`;
+      };
+      requestAnimationFrame(tick);
+    });
+  }
+
+  function dashAnimateFleetPie(root, delayMs) {
+    root.querySelectorAll(".dash-fleet-pie--animate[data-pie-a]").forEach((pie) => {
+      const a = Number(pie.dataset.pieA) || 0;
+      const e = Number(pie.dataset.pieE) || 0;
+      const m = Number(pie.dataset.pieM) || 0;
+      const final = String(pie.dataset.pieFinal || "");
+      const startAt = performance.now() + delayMs;
+
+      const tick = (now) => {
+        if (now < startAt) {
+          requestAnimationFrame(tick);
+          return;
+        }
+        const t = Math.min(1, (now - startAt) / 950);
+        const eased = 1 - Math.pow(1 - t, 3);
+        const aa = a * eased;
+        const ee = e * eased;
+        const mm = m * eased;
+        const used = aa + ee + mm;
+        if (used >= 99.5) pie.style.background = final;
+        else {
+          pie.style.background = `conic-gradient(var(--dash-live-mid) 0% ${aa}%, var(--dash-warn-mid) ${aa}% ${aa + ee}%, var(--dash-alert-mid) ${aa + ee}% ${used}%, var(--dash-border-strong) ${used}% 100%)`;
+        }
+        if (t < 1) requestAnimationFrame(tick);
+        else if (final) pie.style.background = final;
+      };
+      requestAnimationFrame(tick);
+    });
+  }
+
+  function initDashboardMotion(root) {
+    if (!root || root.dataset.motionInit === "1") return;
+    root.dataset.motionInit = "1";
+
+    const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    root.classList.add("dashboard-studio--mounted");
+
+    if (prefersReduced) {
+      root.querySelectorAll(".dash-bar-fill[data-dash-width]").forEach((bar) => {
+        bar.style.width = `${bar.dataset.dashWidth}%`;
+      });
+      root.querySelectorAll(".dash-fleet-pie--animate[data-pie-final]").forEach((pie) => {
+        pie.style.background = pie.dataset.pieFinal;
+      });
+      root.querySelectorAll("[data-dash-count]").forEach((el) => {
+        if (el.dataset.dashDisplay) el.textContent = el.dataset.dashDisplay;
+      });
+      root.querySelectorAll(".dash-ring-animate[data-dash-ring-pct]").forEach((ring) => {
+        const target = Number(ring.dataset.dashRingPct);
+        const r = 18;
+        const c = 2 * Math.PI * r;
+        ring.style.strokeDasharray = `${c}`;
+        ring.style.strokeDashoffset = `${c - (target / 100) * c}`;
+      });
+      return;
+    }
+
+    root.querySelectorAll(".dash-kpi[data-dash-count]").forEach((card) => {
+      const stagger =
+        Number.parseInt(getComputedStyle(card).getPropertyValue("--dash-stagger"), 10) || 0;
+      const valueEl = card.querySelector(".dash-kpi__value");
+      if (valueEl) dashAnimateCountEl(valueEl, 120 + stagger * 70, card);
+    });
+
+    const compliancePct = root.querySelector(".dash-compliance-pct");
+    if (compliancePct) dashAnimateCountEl(compliancePct, 520);
+
+    const pieTotalEl = root.querySelector(".dash-fleet-pie__hole strong[data-dash-count]");
+    if (pieTotalEl) dashAnimateCountEl(pieTotalEl, 680);
+    dashAnimateBarFills(root, 480);
+    dashAnimateComplianceRing(root, 500);
+    dashAnimateFleetPie(root, 620);
+  }
+
   function bindDashboardControls() {
     if (String(state.currentView || "") !== "dashboard" || !nodes.viewRoot) return;
     const root = nodes.viewRoot.querySelector(".dashboard-studio");
     if (!root) return;
+
+    initDashboardMotion(root);
 
     const search = root.querySelector("#dash-search");
     const filter = root.querySelector("#dash-filter");
