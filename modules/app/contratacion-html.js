@@ -516,27 +516,33 @@ function hiringHtml() {
     hiredCandidates,
     totalCandidates: candidates.length
   });
-  const hiringOperateNav = renderModuleWindowTabs({
-    ariaLabel: "Flujos de Contratación",
-    activeId: hiringOperateSection,
-    action: "hiring-operate-section",
-    valueAttr: "section",
-    tabs: [
-      { id: "position", label: "Cargo" },
-      { id: "vacancy", label: "Vacante" },
-      { id: "candidate", label: "Candidato" },
-      { id: "interview", label: "Entrevista" },
-      { id: "contract", label: "Contrato" }
-    ]
-  });
-  const hiringOperatePositionPane = `<div class="auth-tab-panel${hiringOperateSection === "position" ? "" : " hidden"}" data-hiring-operate-pane="position"${hiringOperateSection === "position" ? "" : " hidden"}>${createHrActionCard("create-position", "briefcase", "Definir cargo", "Catálogo salarial, jornada y plantilla de contrato sugerida", fPosition, "Abrir formulario", { createPanels: hiringCreateUi })}</div>`;
-  const hiringOperateVacancyPane = `<div class="auth-tab-panel${hiringOperateSection === "vacancy" ? "" : " hidden"}" data-hiring-operate-pane="vacancy"${hiringOperateSection === "vacancy" ? "" : " hidden"}>${createHrActionCard("create-vacancy", "plus", "Publicar vacante", "Vacante visible para postulaciones internas o externas", fVac, "Abrir formulario", { createPanels: hiringCreateUi })}</div>`;
-  const hiringOperateCandidatePane = `<div class="auth-tab-panel${hiringOperateSection === "candidate" ? "" : " hidden"}" data-hiring-operate-pane="candidate"${hiringOperateSection === "candidate" ? "" : " hidden"}>${createHrActionCard("create-candidate", "userPlus", "Agregar candidato", "Hoja de vida, vacante y seguimiento del pipeline", fCand, "Abrir formulario", { createPanels: hiringCreateUi })}</div>`;
-  const hiringOperateInterviewPane = `<div class="auth-tab-panel${hiringOperateSection === "interview" ? "" : " hidden"}" data-hiring-operate-pane="interview"${hiringOperateSection === "interview" ? "" : " hidden"}>${createHrActionCard("create-interview", "calendar", "Programar entrevista", "Fecha, hora y responsable del proceso", fInt, "Abrir formulario", { createPanels: hiringCreateUi })}</div>`;
-  const hiringOperateContractPane = `<div class="auth-tab-panel${hiringOperateSection === "contract" ? "" : " hidden"}" data-hiring-operate-pane="contract"${hiringOperateSection === "contract" ? "" : " hidden"}>${createHrActionCard("create-contract", "file", "Generar contrato (Word)", "Plantilla según cargo y tipo de vinculación colombiana", fCon, "Abrir formulario", { createPanels: hiringCreateUi })}</div>`;
+  const hiringOperateNav = renderHiringOperateSectionNav(hiringOperateSection);
+  const hiringOperatePaneHidden = (section) => hiringOperateSection !== section;
+  const hiringOperatePane = (section, body) =>
+    `<div class="auth-tab-panel${hiringOperatePaneHidden(section) ? " hidden" : ""}" data-hiring-operate-pane="${section}"${hiringOperatePaneHidden(section) ? " hidden" : ""} aria-hidden="${hiringOperatePaneHidden(section) ? "true" : "false"}">${body}</div>`;
+  const hiringOperatePositionPane = hiringOperatePane(
+    "position",
+    createHrActionCard("create-position", "briefcase", "Definir cargo", "Catálogo salarial, jornada y plantilla de contrato sugerida", fPosition, "Abrir formulario", { createPanels: hiringCreateUi })
+  );
+  const hiringOperateVacancyPane = hiringOperatePane(
+    "vacancy",
+    createHrActionCard("create-vacancy", "plus", "Publicar vacante", "Vacante visible para postulaciones internas o externas", fVac, "Abrir formulario", { createPanels: hiringCreateUi })
+  );
+  const hiringOperateCandidatePane = hiringOperatePane(
+    "candidate",
+    createHrActionCard("create-candidate", "userPlus", "Agregar candidato", "Hoja de vida, vacante y seguimiento del pipeline", fCand, "Abrir formulario", { createPanels: hiringCreateUi })
+  );
+  const hiringOperateInterviewPane = hiringOperatePane(
+    "interview",
+    createHrActionCard("create-interview", "calendar", "Programar entrevista", "Fecha, hora y responsable del proceso", fInt, "Abrir formulario", { createPanels: hiringCreateUi })
+  );
+  const hiringOperateContractPane = hiringOperatePane(
+    "contract",
+    createHrActionCard("create-contract", "file", "Generar contrato (Word)", "Plantilla según cargo y tipo de vinculación colombiana", fCon, "Abrir formulario", { createPanels: hiringCreateUi })
+  );
   const hiringExecutionBlock = `<section class="hiring-operate hiring-operate-panel">
-      <aside class="hiring-operate__rail" aria-label="Flujos de registro">
-        <span class="hiring-operate__rail-label">Registrar</span>
+      <aside class="hiring-operate__rail" aria-label="Trámites de registro">
+        <p class="hiring-operate__rail-label">Tipo de trámite</p>
         ${hiringOperateNav}
       </aside>
       <div class="hiring-operate__main auth-tab-panels">${hiringOperatePositionPane}${hiringOperateVacancyPane}${hiringOperateCandidatePane}${hiringOperateInterviewPane}${hiringOperateContractPane}</div>

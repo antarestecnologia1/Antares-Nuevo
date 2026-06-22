@@ -165,6 +165,215 @@
     });
   }
 
+  function wireRequestScheduleUi(requestForm) {
+    const schedule = requestForm.querySelector("[data-request-schedule]");
+    if (!schedule) return;
+
+    const preview = schedule.querySelector("[data-request-schedule-preview]");
+    const durationEl = schedule.querySelector("[data-request-schedule-duration]");
+    const connector = schedule.querySelector(".acf-schedule__connector");
+    const V = window.AntaresValidation;
+
+    const readDateIso = (fieldId) => {
+      const el =
+        (typeof queryPortalDateField === "function" ? queryPortalDateField(requestForm, fieldId) : null) ||
+        requestForm.querySelector(`#${fieldId}`);
+      if (!el) return "";
+      return V?.portalDateInputValueIso?.(el) || normalizePortalDateYmd(el.value) || "";
+    };
+
+    const readTime = (fieldId) => {
+      const el = requestForm.querySelector(`#${fieldId}`);
+      return String(el?.value || "").trim().slice(0, 5);
+    };
+
+    const formatScheduleStamp = (isoDate, time) => {
+      if (!isoDate || !time) return "";
+      const dt = new Date(`${isoDate}T${time}:00`);
+      if (Number.isNaN(dt.getTime())) return "";
+      return dt.toLocaleString("es-CO", {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+    };
+
+    const formatDuration = (pickupIso, pickupTime, deliveryIso, deliveryTime) => {
+      if (!pickupIso || !pickupTime || !deliveryIso || !deliveryTime) return "";
+      const start = new Date(`${pickupIso}T${pickupTime}:00`).getTime();
+      const end = new Date(`${deliveryIso}T${deliveryTime}:00`).getTime();
+      if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return "";
+      const mins = Math.round((end - start) / 60000);
+      const days = Math.floor(mins / 1440);
+      const hours = Math.floor((mins % 1440) / 60);
+      const rem = mins % 60;
+      const parts = [];
+      if (days) parts.push(`${days} d`);
+      if (hours) parts.push(`${hours} h`);
+      if (rem && !days) parts.push(`${rem} min`);
+      return parts.length ? parts.join(" ") : "< 1 h";
+    };
+
+    const syncDeliveryMin = () => {
+      const pickupIso = readDateIso("pickup-date");
+      const today = colombiaTodayIsoDate();
+      const minIso = pickupIso && pickupIso > today ? pickupIso : today;
+      const pickupVis =
+        (typeof queryPortalDateField === "function" ? queryPortalDateField(requestForm, "pickup-date") : null) ||
+        requestForm.querySelector("#pickup-date");
+      const deliveryVis =
+        (typeof queryPortalDateField === "function" ? queryPortalDateField(requestForm, "delivery-date") : null) ||
+        requestForm.querySelector("#delivery-date");
+      [pickupVis, deliveryVis].forEach((el) => {
+        if (!el) return;
+        el.dataset.antaresDateMin = minIso;
+        if (String(el.type || "").toLowerCase() === "date") el.min = minIso;
+      });
+    };
+
+    const syncPreview = () => {
+      const pickupIso = readDateIso("pickup-date");
+      const pickupTime = readTime("pickup-time");
+      const deliveryIso = readDateIso("delivery-date");
+      const deliveryTime = readTime("delivery-time");
+      const pickupLabel = formatScheduleStamp(pickupIso, pickupTime);
+      const deliveryLabel = formatScheduleStamp(deliveryIso, deliveryTime);
+      const duration = formatDuration(pickupIso, pickupTime, deliveryIso, deliveryTime);
+
+      schedule.querySelectorAll(".acf-time-preset").forEach((btn) => {
+        const target = String(btn.dataset.acfTimeTarget || "");
+        const val = String(btn.dataset.acfTimePreset || "");
+        const input = requestForm.querySelector(`#${target}`);
+        btn.classList.toggle("is-active", Boolean(input?.value && String(input.value).slice(0, 5) === val));
+      });
+
+      if (durationEl) durationEl.textContent = duration || "—";
+      if (!preview) return;
+
+      const startMs = pickupIso && pickupTime ? new Date(`${pickupIso}T${pickupTime}:00`).getTime() : NaN;
+      const endMs = deliveryIso && deliveryTime ? new Date(`${deliveryIso}T${deliveryTime}:00`).getTime() : NaN;
+      const invalidOrder = Number.isFinite(startMs) && Number.isFinite(endMs) && endMs <= startMs;
+      connector?.classList.toggle("acf-schedule__connector--warn", invalidOrder);
+      preview.classList.toggle("acf-schedule__preview--ready", Boolean(pickupLabel && deliveryLabel && !invalidOrder));
+      preview.classList.toggle("acf-schedule__preview--warn", invalidOrder);
+
+      if (!pickupLabel && !deliveryLabel) {
+        preview.innerHTML = `<span class="acf-schedule__preview-icon" aria-hidden="true">${IC.calendar}</span>
+          <div class="acf-schedule__preview-copy">
+            <strong class="acf-schedule__preview-title">Defina recogida y entrega</strong>
+            <p class="acf-schedule__preview-detail muted">Elija fecha y hora estimadas; puede usar los accesos rápidos debajo.</p>
+          </div>`;
+        return;
+      }
+
+      if (invalidOrder) {
+        preview.innerHTML = `<span class="acf-schedule__preview-icon acf-schedule__preview-icon--warn" aria-hidden="true">${IC.alertTriangle || IC.x}</span>
+          <div class="acf-schedule__preview-copy">
+            <strong class="acf-schedule__preview-title">Revise las ventanas</strong>
+            <p class="acf-schedule__preview-detail muted">La entrega debe ser posterior a la recogida.</p>
+          </div>`;
+        return;
+      }
+
+      preview.innerHTML = `<div class="acf-schedule__preview-leg">
+          <span class="acf-schedule__preview-eyebrow">Recogida</span>
+          <strong>${escapeHtml(pickupLabel || "Pendiente")}</strong>
+        </div>
+        <span class="acf-schedule__preview-arrow" aria-hidden="true">${IC.chevronRight || "→"}</span>
+        <div class="acf-schedule__preview-leg">
+          <span class="acf-schedule__preview-eyebrow">Entrega</span>
+          <strong>${escapeHtml(deliveryLabel || "Pendiente")}</strong>
+        </div>`;
+    };
+
+    const setDateOffset = (targetId, dayOffset) => {
+      const base = colombiaTodayIsoDate();
+      const [y, m, d] = base.split("-").map((n) => parseInt(n, 10));
+      const dt = new Date(y, m - 1, d + Number(dayOffset || 0));
+      const iso = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+      if (typeof setFormDateByName === "function") {
+        const name = targetId === "pickup-date" ? "pickupDate" : "deliveryDate";
+        setFormDateByName(requestForm, name, iso);
+      } else {
+        const el = requestForm.querySelector(`#${targetId}`);
+        if (el) el.value = iso;
+      }
+      syncDeliveryMin();
+      syncPreview();
+    };
+
+    schedule.querySelectorAll("[data-acf-time-preset]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const targetId = String(btn.dataset.acfTimeTarget || "");
+        const value = String(btn.dataset.acfTimePreset || "");
+        const input = requestForm.querySelector(`#${targetId}`);
+        if (!input || !value) return;
+        input.value = value;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+        syncPreview();
+      });
+    });
+
+    schedule.querySelectorAll("[data-acf-date-offset]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        setDateOffset(String(btn.dataset.acfDateTarget || ""), Number(btn.dataset.acfDateOffset || 0));
+      });
+    });
+
+    schedule.querySelectorAll("[data-acf-date-open]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = String(btn.dataset.acfDateOpen || "");
+        const el = requestForm.querySelector(`#${id}`);
+        if (!el) return;
+        if (typeof el.showPicker === "function") {
+          try {
+            el.showPicker();
+            return;
+          } catch (_pickerErr) {
+            /* showPicker puede fallar sin gesto de usuario */
+          }
+        }
+        el.focus();
+      });
+    });
+
+    schedule.querySelectorAll("[data-acf-time-open]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = String(btn.dataset.acfTimeOpen || "");
+        const el = requestForm.querySelector(`#${id}`);
+        if (!el) return;
+        if (typeof el.showPicker === "function") {
+          try {
+            el.showPicker();
+            return;
+          } catch (_pickerErr) {
+            /* noop */
+          }
+        }
+        el.focus();
+      });
+    });
+
+    ["pickup-date", "delivery-date", "pickup-time", "delivery-time"].forEach((id) => {
+      const el = requestForm.querySelector(`#${id}`);
+      if (!el) return;
+      el.addEventListener("input", () => {
+        if (id.includes("date")) syncDeliveryMin();
+        syncPreview();
+      });
+      el.addEventListener("change", () => {
+        if (id.includes("date")) syncDeliveryMin();
+        syncPreview();
+      });
+    });
+
+    syncDeliveryMin();
+    syncPreview();
+  }
+
   function wireRequestCreateForm() {
     const requestForm = document.getElementById("form-request");
     if (!requestForm) return;
@@ -195,9 +404,22 @@
     }
     if (pickupDate) {
       const today = colombiaTodayIsoDate();
-      pickupDate.min = today;
-      if (deliveryDate) deliveryDate.min = today;
+      const applyMin = (el) => {
+        if (!el) return;
+        el.dataset.antaresDateMin = today;
+        if (String(el.type || "").toLowerCase() === "date") el.min = today;
+      };
+      applyMin(
+        (typeof queryPortalDateField === "function" ? queryPortalDateField(requestForm, "pickup-date") : null) ||
+          pickupDate
+      );
+      applyMin(
+        (typeof queryPortalDateField === "function" ? queryPortalDateField(requestForm, "delivery-date") : null) ||
+          deliveryDate
+      );
     }
+
+    wireRequestScheduleUi(requestForm);
     if (requestCompanySelect && requestCompanyPreview) {
       const refreshCompanyPreview = () => {
         const selectedOption = requestCompanySelect.options[requestCompanySelect.selectedIndex] || null;

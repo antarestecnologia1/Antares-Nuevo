@@ -439,6 +439,7 @@
     if (!el) return false;
     if (String(el.dataset?.portalDateDmy || "") === "1") return false;
     if (String(el.dataset?.portalDateNative || "") === "1") return true;
+    if (String(el.dataset?.portalDateEnhanced || "") === "1") return true;
     const n = String(el.name || "").trim().toLowerCase();
     const i = String(el.id || "").trim().toLowerCase();
     if (n === "pickupdate" || n === "deliverydate" || i === "pickup-date" || i === "delivery-date") return true;

@@ -29,6 +29,20 @@ function switchPayrollLiquidationModePanels(root, mode) {
   return matched;
 }
 
+function payrollCreateFormSubmitOpts(formEl, { busyText, submitButton, extra = [], wireKey } = {}) {
+  const collectFn =
+    typeof collectManagedCreateFormLockButtons === "function"
+      ? collectManagedCreateFormLockButtons
+      : (el, extras) => [...extras].filter(Boolean);
+  const opts = {
+    busyText: String(busyText || "").trim(),
+    lockExtraButtons: collectFn(formEl, extra)
+  };
+  if (submitButton) opts.submitButton = submitButton;
+  if (wireKey) opts.wireKey = wireKey;
+  return opts;
+}
+
 function wirePayrollBulkPreview() {
   const fechaEl = document.getElementById("payroll-bulk-fecha");
   const forceEl = document.getElementById("payroll-bulk-force");
@@ -630,6 +644,11 @@ function bindPayrollPortalControls() {
         })
       ) {
         syncPayrollCreatePanelsInDom(nodes.viewRoot, panelId);
+        const activePane = nodes.viewRoot.querySelector(
+          `[data-payroll-operate-pane="${section}"]:not(.hidden)`
+        );
+        window.AntaresValidation?.upgradePortalDateFields?.(activePane || nodes.viewRoot);
+        window.AntaresValidation?.resyncPortalDateValuesInRoot?.(activePane || nodes.viewRoot);
         requestAnimationFrame(() => scrollToCreatePanelForm(panelId));
         return;
       }
@@ -1090,13 +1109,6 @@ function bindPayrollPortalControls() {
       }
     }
     syncFixedTermEnd();
-    const employeeContractDraftLockButtons = [
-      employeeForm.querySelector(".hr-form-wizard-submit"),
-      employeeForm.querySelector("[data-hr-wizard-next]"),
-      employeeForm.querySelector("[data-hr-wizard-prev]"),
-      employeeForm.querySelector("[data-action='cancel-create-panel']"),
-      employeeForm.querySelector("[data-action='toggle-create-panel']")
-    ].filter(Boolean);
     employeeForm.querySelectorAll("[data-action='employee-form-generate-contract-draft']").forEach((btn) => {
       btn.addEventListener("click", async () => {
         await runWithBusyButton(
@@ -1153,7 +1165,7 @@ function bindPayrollPortalControls() {
               notify(String(err?.message || userMessage("genericError")), "error");
             }
           },
-          { busyText: "Generando…", lockExtraButtons: employeeContractDraftLockButtons }
+          payrollCreateFormSubmitOpts(employeeForm, { busyText: "Generando…" })
         );
       });
     });
@@ -1289,18 +1301,11 @@ function bindPayrollPortalControls() {
         scheduleContractRenewalNotificationCheck();
       };
       await saveEmployee(resolvedAvatar);
-    }, {
+    }, payrollCreateFormSubmitOpts(employeeForm, {
       busyText: "Guardando empleado…",
       submitButton: employeeForm.querySelector(".hr-form-wizard-submit"),
-      lockExtraButtons: [
-        employeeForm.querySelector("[data-hr-wizard-next]"),
-        employeeForm.querySelector("[data-hr-wizard-prev]"),
-        ...employeeForm.querySelectorAll("[data-action='employee-form-generate-contract-draft']"),
-        employeeForm.querySelector("[data-action='cancel-create-panel']"),
-        employeeForm.querySelector("[data-action='toggle-create-panel']")
-      ].filter(Boolean),
       wireKey: "employeeSubmitGuardWired"
-    });
+    }));
   }
 
   const absenceForm = document.getElementById("form-hr-absence");
@@ -1406,7 +1411,7 @@ function bindPayrollPortalControls() {
       collapseCreatePanel("create-hr-absence");
       notify(payrollDraftLinkSuccessMessage(linkResult), "success");
       renderPortalView();
-    });
+    }, payrollCreateFormSubmitOpts(absenceForm, { busyText: "Registrando ausencia…" }));
   }
 
   nodes.viewRoot.querySelectorAll("[data-action='view-employee']").forEach((btn) => {
@@ -2123,7 +2128,8 @@ function bindPayrollPortalControls() {
 
   const payrollBulkBtn = document.getElementById("payroll-bulk-generate");
   wirePayrollBulkPreview();
-  if (payrollBulkBtn) {
+  if (payrollBulkBtn && payrollBulkBtn.dataset.payrollBulkBound !== "1") {
+    payrollBulkBtn.dataset.payrollBulkBound = "1";
     payrollBulkBtn.addEventListener("click", async (event) => {
       event.preventDefault();
       const actor = currentUser();
@@ -2131,47 +2137,45 @@ function bindPayrollPortalControls() {
         notify("Solo administradores o recursos humanos pueden ejecutar liquidación masiva.", "error");
         return;
       }
+      const bulkForm = document.getElementById("form-payroll-bulk");
       const fechaEl = document.getElementById("payroll-bulk-fecha");
       const forceEl = document.getElementById("payroll-bulk-force");
       const fechaReferencia = readFormDateIso(document, "payroll-bulk-fecha") || readFormDateIso(document, "fechaReferencia");
       if (!fechaReferencia) {
-        failPortalField(document.getElementById("form-payroll-bulk") || fechaEl?.closest("form") || nodes.viewRoot, fechaEl || "fechaReferencia", "Indique una fecha de cierre válida (DD/MM/AAAA).");
+        failPortalField(bulkForm || fechaEl?.closest("form") || nodes.viewRoot, fechaEl || "fechaReferencia", "Indique una fecha de cierre válida (DD/MM/AAAA).");
         return;
       }
       const force = Boolean(forceEl?.checked);
-      const busyLabel = payrollBulkBtn.querySelector("span");
-      const busyOrig = busyLabel?.textContent || "";
-      payrollBulkBtn.disabled = true;
-      payrollBulkBtn.setAttribute("aria-busy", "true");
-      if (busyLabel) busyLabel.textContent = "Generando…";
-      try {
-        const result = await postPortalAuthorized("/payroll/autogenerate-period", {
-          fechaReferencia,
-          force,
-          origin: "masiva"
-        });
-        if (result && typeof result === "object") {
-          await applyPortalBootstrapFromApi();
-          appendModuleAuditLog({
-            action: "create",
-            moduleId: "payroll",
-            moduleLabel: "Gestión humana",
-            entityId: String(result.periodKey || fechaReferencia),
-            entityLabel: "Liquidación masiva",
-            summary: `Cierre ${fechaReferencia}: ${parseNum(result.created ?? result.createdCount)} liquidación(es) generada(s)`
-          });
-          presentPayrollBulkAutogenResult(result);
-          state.payrollUi = { ...(state.payrollUi || { runSort: "recent" }), workspace: "data", dataSection: "runs" };
-          persistHrWorkspace("payroll", "data");
-          renderPortalView();
-        }
-      } catch (err) {
-        notify(String(err?.message || "No fue posible ejecutar la liquidación masiva."), "error");
-      } finally {
-        payrollBulkBtn.disabled = false;
-        payrollBulkBtn.removeAttribute("aria-busy");
-        if (busyLabel) busyLabel.textContent = busyOrig || "Generar liquidaciones";
-      }
+      await runWithBusyButton(
+        payrollBulkBtn,
+        async () => {
+          try {
+            const result = await postPortalAuthorized("/payroll/autogenerate-period", {
+              fechaReferencia,
+              force,
+              origin: "masiva"
+            });
+            if (result && typeof result === "object") {
+              await applyPortalBootstrapFromApi();
+              appendModuleAuditLog({
+                action: "create",
+                moduleId: "payroll",
+                moduleLabel: "Gestión humana",
+                entityId: String(result.periodKey || fechaReferencia),
+                entityLabel: "Liquidación masiva",
+                summary: `Cierre ${fechaReferencia}: ${parseNum(result.created ?? result.createdCount)} liquidación(es) generada(s)`
+              });
+              presentPayrollBulkAutogenResult(result);
+              state.payrollUi = { ...(state.payrollUi || { runSort: "recent" }), workspace: "data", dataSection: "runs" };
+              persistHrWorkspace("payroll", "data");
+              renderPortalView();
+            }
+          } catch (err) {
+            notify(String(err?.message || "No fue posible ejecutar la liquidación masiva."), "error");
+          }
+        },
+        payrollCreateFormSubmitOpts(bulkForm, { busyText: "Generando…" })
+      );
     });
   }
 
@@ -2448,7 +2452,10 @@ function bindPayrollPortalControls() {
       collapseCreatePanel("create-payroll");
       notify(userMessage("payrollSaved"), "success");
       renderPortalView();
-    });
+    }, payrollCreateFormSubmitOpts(payrollForm, {
+      busyText: "Generando liquidación…",
+      submitButton: payrollForm.querySelector("#payroll-submit-btn")
+    }));
   }
 
   const driverTripPayForm = document.getElementById("form-driver-trip-payment");
@@ -2504,7 +2511,7 @@ function bindPayrollPortalControls() {
       } catch (err) {
         notify(String(err?.message || userMessage("payrollConductorNoTrips")), "error");
       }
-    });
+    }, payrollCreateFormSubmitOpts(driverTripPayForm, { busyText: "Liquidando viajes…" }));
   }
 
   nodes.viewRoot.querySelectorAll("[data-action='recalc-driver-trip']").forEach((btn) => {
@@ -2681,7 +2688,7 @@ function bindPayrollPortalControls() {
       collapseCreatePanel("create-payroll-settlement");
       notify("Liquidación contractual registrada. Revise montos antes de marcar pagado.", "success");
       renderPortalView();
-    });
+    }, payrollCreateFormSubmitOpts(settlementForm, { busyText: "Registrando liquidación…" }));
   }
 
   bindPayrollPayslipButtons(nodes.viewRoot);

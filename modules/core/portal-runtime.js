@@ -1043,7 +1043,28 @@ function wireTerminationSettlementForm(form) {
     fillSettlementSuggestedAmounts(form);
   };
   const btn = form.querySelector('[data-action="settlement-recalc"]');
-  if (btn) btn.addEventListener("click", () => fillSettlementSuggestedAmounts(form));
+  if (btn && btn.dataset.settlementRecalcBound !== "1") {
+    btn.dataset.settlementRecalcBound = "1";
+    btn.addEventListener("click", () => {
+      void runWithBusyButton(
+        btn,
+        async () => {
+          fillSettlementSuggestedAmounts(form);
+        },
+        {
+          busyText: "Calculando…",
+          lockExtraButtons:
+            typeof collectManagedCreateFormLockButtons === "function"
+              ? collectManagedCreateFormLockButtons(form)
+              : [
+                  form.querySelector("[data-action='cancel-create-panel']"),
+                  form.querySelector("[data-action='toggle-create-panel']"),
+                  form.querySelector("button[type='submit']")
+                ].filter(Boolean)
+        }
+      );
+    });
+  }
   const empSel = form.querySelector('[name="employeeId"]');
   if (empSel) {
     empSel.addEventListener("change", () => {

@@ -11,6 +11,91 @@
     return String(raw || "").trim().toLowerCase() === "list" ? "list" : "cards";
   }
 
+  function acfScheduleTimePresets(targetId, times) {
+    return `<div class="acf-time-presets" role="group" aria-label="Horas sugeridas">
+      ${times
+        .map(
+          (t) =>
+            `<button type="button" class="acf-time-preset" data-acf-time-preset="${escapeAttr(t)}" data-acf-time-target="${escapeAttr(targetId)}" aria-label="Usar ${escapeAttr(t)}">${escapeHtml(t)}</button>`
+        )
+        .join("")}
+    </div>`;
+  }
+
+  function acfScheduleDatePresets(targetId) {
+    return `<div class="acf-date-presets" role="group" aria-label="Fechas rápidas">
+      <button type="button" class="acf-date-preset" data-acf-date-offset="0" data-acf-date-target="${escapeAttr(targetId)}">Hoy</button>
+      <button type="button" class="acf-date-preset" data-acf-date-offset="1" data-acf-date-target="${escapeAttr(targetId)}">Mañana</button>
+      <button type="button" class="acf-date-preset" data-acf-date-offset="2" data-acf-date-target="${escapeAttr(targetId)}">+2 días</button>
+    </div>`;
+  }
+
+  function acfScheduleDateField(inputId, inputName, label) {
+    return `<div class="acf-schedule-field acf-schedule-field--date">
+      <label for="${escapeAttr(inputId)}">${fieldLabel(IC.calendar, label, { required: true })}
+        <div class="acf-date-shell">
+          <span class="acf-date-shell__icon" aria-hidden="true">${IC.calendar}</span>
+          <input type="date" name="${escapeAttr(inputName)}" id="${escapeAttr(inputId)}" lang="es-CO" required data-portal-date-enhanced="1" data-antares-validate-blur="date-iso" class="acf-date-input" />
+          <button type="button" class="acf-date-shell__trigger" data-acf-date-open="${escapeAttr(inputId)}" aria-label="Abrir calendario para ${escapeAttr(label)}">${IC.calendar}</button>
+        </div>
+      </label>
+      ${inputId === "pickup-date" ? acfScheduleDatePresets(inputId) : ""}
+    </div>`;
+  }
+
+  function acfScheduleTimeField(inputId, inputName, label, presetTimes) {
+    return `<div class="acf-schedule-field acf-schedule-field--time">
+      <label for="${escapeAttr(inputId)}">${fieldLabel(IC.clock, label, { required: true })}
+        <div class="acf-time-shell">
+          <span class="acf-time-shell__icon" aria-hidden="true">${IC.clock}</span>
+          <input type="time" name="${escapeAttr(inputName)}" id="${escapeAttr(inputId)}" required class="acf-time-input" step="300" />
+          <button type="button" class="acf-time-shell__trigger" data-acf-time-open="${escapeAttr(inputId)}" aria-label="Abrir selector de hora para ${escapeAttr(label)}">${IC.clock}</button>
+        </div>
+      </label>
+      ${acfScheduleTimePresets(inputId, presetTimes)}
+    </div>`;
+  }
+
+  function requestScheduleWindowsHtml() {
+    return `<div class="acf-schedule" data-request-schedule>
+      <div class="acf-schedule__preview" data-request-schedule-preview role="status" aria-live="polite">
+        <span class="acf-schedule__preview-icon" aria-hidden="true">${IC.calendar}</span>
+        <div class="acf-schedule__preview-copy">
+          <strong class="acf-schedule__preview-title">Defina recogida y entrega</strong>
+          <p class="acf-schedule__preview-detail muted">Elija fecha y hora estimadas; puede usar los accesos rápidos debajo.</p>
+        </div>
+      </div>
+      <div class="acf-schedule__grid">
+        <article class="acf-schedule-card acf-schedule-card--pickup">
+          <header class="acf-schedule-card__head">
+            <span class="acf-schedule-card__badge acf-schedule-card__badge--pickup">${IC.mapPin} Recogida</span>
+            <span class="acf-schedule-card__step">Inicio del servicio</span>
+          </header>
+          <div class="acf-schedule-card__body">
+            ${acfScheduleDateField("pickup-date", "pickupDate", "Fecha de recogida")}
+            ${acfScheduleTimeField("pickup-time", "pickupTime", "Hora de recogida", ["06:00", "08:00", "10:00", "12:00", "14:00"])}
+          </div>
+        </article>
+        <div class="acf-schedule__connector" aria-hidden="true">
+          <span class="acf-schedule__connector-line"></span>
+          <span class="acf-schedule__connector-chip" data-request-schedule-duration>—</span>
+          <span class="acf-schedule__connector-arrow">${IC.chevronRight || "→"}</span>
+        </div>
+        <article class="acf-schedule-card acf-schedule-card--delivery">
+          <header class="acf-schedule-card__head">
+            <span class="acf-schedule-card__badge acf-schedule-card__badge--delivery">${IC.compass || IC.mapPin} Entrega</span>
+            <span class="acf-schedule-card__step">Fin del servicio</span>
+          </header>
+          <div class="acf-schedule-card__body">
+            ${acfScheduleDateField("delivery-date", "deliveryDate", "Fecha de entrega")}
+            ${acfScheduleTimeField("delivery-time", "deliveryTime", "Hora de entrega", ["10:00", "12:00", "14:00", "16:00", "18:00"])}
+          </div>
+        </article>
+      </div>
+      <p class="acf-schedule__footnote muted">La entrega debe ser posterior a la recogida. Horario referencial en zona Colombia (COT).</p>
+    </div>`;
+  }
+
   /** Logo cliente: prioriza caché de empresa (logo actualizado), luego URL del JOIN en API. */
   function resolveRequestCompanyLogoUrl(r, company) {
     const fromCompany =
@@ -528,15 +613,10 @@
         <label class="full">${fieldLabel(IC.compass, "Destino direccion")}<input name="destinationAddress" required data-antares-field="db-upper" data-antares-validate-blur="db-upper" /></label>
       </div>
     </fieldset>
-    <fieldset class="form-section form-section-violet full">
+    <fieldset class="form-section form-section-violet full acf-schedule-fieldset">
       <legend>${IC.calendar} Ventanas de servicio</legend>
-      <p class="muted form-section-hint">Indique fecha y hora estimadas de recogida y entrega de la mercancía.</p>
-      <div class="form-section-grid datetime-group">
-        <label>${fieldLabel(IC.calendar, "Fecha de recogida")}<input type="date" name="pickupDate" id="pickup-date" lang="es-CO" required data-antares-validate-blur="date-iso" /></label>
-        <label>${fieldLabel(IC.clock, "Hora de recogida")}<input type="time" name="pickupTime" id="pickup-time" required /></label>
-        <label>${fieldLabel(IC.calendar, "Fecha de entrega")}<input type="date" name="deliveryDate" id="delivery-date" lang="es-CO" required data-antares-validate-blur="date-iso" /></label>
-        <label>${fieldLabel(IC.clock, "Hora de entrega")}<input type="time" name="deliveryTime" id="delivery-time" required /></label>
-      </div>
+      <p class="muted form-section-hint">Programe cuándo debe recogerse y entregarse la carga. Use el calendario o los accesos rápidos.</p>
+      ${requestScheduleWindowsHtml()}
     </fieldset>
     <fieldset class="form-section form-section-emerald full">
       <legend>${IC.truck} Carga y servicio</legend>

@@ -523,6 +523,69 @@ export function renderPayrollOperateSectionNav(activeId) {
   </nav>`;
 }
 
+/** Rail lateral de trámites en Contratación (Registrar). */
+export function renderHiringOperateSectionNav(activeId) {
+  const tabs = [
+    {
+      id: "position",
+      label: "Cargo",
+      title: "Definir cargo en catálogo",
+      hint: "Salario base, jornada y plantilla sugerida",
+      norm: "Catálogo RH",
+      icon: "briefcase"
+    },
+    {
+      id: "vacancy",
+      label: "Vacante",
+      title: "Publicar vacante",
+      hint: "Oferta visible para postulaciones",
+      norm: "Selección",
+      icon: "plus"
+    },
+    {
+      id: "candidate",
+      label: "Candidato",
+      title: "Registrar candidato",
+      hint: "Hoja de vida y pipeline de selección",
+      norm: "Pipeline",
+      icon: "userPlus"
+    },
+    {
+      id: "interview",
+      label: "Entrevista",
+      title: "Programar entrevista",
+      hint: "Fecha, hora y responsable del proceso",
+      norm: "Agenda",
+      icon: "calendar"
+    },
+    {
+      id: "contract",
+      label: "Contrato",
+      title: "Generar contrato Word",
+      hint: "Plantilla según cargo y vinculación",
+      norm: "CST · Word",
+      icon: "file"
+    }
+  ];
+  return `<nav class="hiring-operate-nav" role="tablist" aria-label="Trámites de contratación">
+    ${tabs
+      .map((t) => {
+        const active = activeId === t.id;
+        const iconSvg = ic()[t.icon] ? `<span class="hiring-operate-nav-ico" aria-hidden="true">${ic()[t.icon]}</span>` : "";
+        const tip = escapeAttr(`${t.title} — ${t.hint}`);
+        return `<button type="button" role="tab" class="hiring-operate-nav-tab${active ? " is-active" : ""}" aria-selected="${active ? "true" : "false"}" data-action="hiring-operate-section" data-section="${escapeAttr(t.id)}" title="${tip}">
+          ${iconSvg}
+          <span class="hiring-operate-nav-copy">
+            <strong class="hiring-operate-nav-label">${escapeHtml(t.label)}</strong>
+            <small class="hiring-operate-nav-hint">${escapeHtml(t.hint)}</small>
+            <span class="hiring-operate-nav-norm">${escapeHtml(t.norm)}</span>
+          </span>
+        </button>`;
+      })
+      .join("")}
+  </nav>`;
+}
+
 function payrollDataSectionTabs(counts = {}, { cards = false } = {}) {
   return [
     { id: "employees", label: "Empleados", title: "Directorio de empleados", count: counts.employees ?? 0, icon: "user" },

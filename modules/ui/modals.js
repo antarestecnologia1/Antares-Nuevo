@@ -843,6 +843,73 @@ export function suppressSelfInboxPollToastIfRecipientIsCurrentUser(recipientUser
   state.portalSuppressSelfPollToastUntil = Date.now() + 5200;
 }
 
+function rememberButtonDisabledBeforeLock(btn) {
+  if (!btn || btn.dataset.lockOrigDisabled != null) return;
+  btn.dataset.lockOrigDisabled = btn.disabled ? "1" : "0";
+}
+
+function restoreButtonDisabledAfterLock(btn) {
+  if (!btn) return;
+  btn.removeAttribute("aria-busy");
+  if (btn.dataset.lockOrigDisabled != null) {
+    btn.disabled = btn.dataset.lockOrigDisabled === "1";
+    delete btn.dataset.lockOrigDisabled;
+    return;
+  }
+  btn.disabled = false;
+}
+
+/** Botones de pie de formularios de alta (cancelar, minimizar, wizard, etc.). */
+export function collectManagedCreateFormLockButtons(formEl, extraButtons = []) {
+  if (!formEl) return [...extraButtons].filter(Boolean);
+  const roots = [formEl];
+  const card = formEl.closest("[data-hr-panel]");
+  if (card && card !== formEl) roots.push(card);
+  const selectors = [
+    "[data-action='cancel-create-panel']",
+    "[data-action='toggle-create-panel']",
+    "[data-hr-wizard-prev]",
+    "[data-hr-wizard-next]",
+    "[data-hr-wizard-submit-sync]",
+    "[data-action='employee-form-save-draft']",
+    "[data-action='employee-form-generate-contract-draft']",
+    "[data-action='settlement-recalc']",
+    "[data-action='payroll-liquidation-mode']"
+  ];
+  const seen = new Set();
+  const out = [];
+  const push = (btn) => {
+    if (!btn || seen.has(btn)) return;
+    seen.add(btn);
+    out.push(btn);
+  };
+  selectors.forEach((sel) => {
+    roots.forEach((root) => root.querySelectorAll(sel).forEach(push));
+  });
+  extraButtons.forEach(push);
+  return out;
+}
+
+/** Restaura habilitado/deshabilitado del botón «Guardar» en formularios por pasos. */
+export function syncHrWizardSubmitDisabled(formEl) {
+  if (!formEl) return;
+  const wizard = formEl.querySelector("[data-hr-wizard]");
+  if (!wizard) return;
+  const steps = [...wizard.querySelectorAll(".hr-form-step")];
+  const submitBtn = formEl.querySelector(".hr-form-wizard-submit");
+  if (!submitBtn || !steps.length) return;
+  const activeIdx = steps.findIndex((s) => s.classList.contains("is-active"));
+  const idx = activeIdx >= 0 ? activeIdx : 0;
+  const wizKind = String(wizard.getAttribute("data-hr-wizard") || "");
+  const enableSubmit = wizKind === "contract" || idx >= steps.length - 1;
+  submitBtn.disabled = !enableSubmit;
+  submitBtn.setAttribute("aria-disabled", enableSubmit ? "false" : "true");
+  formEl.querySelectorAll("[data-hr-wizard-submit-sync]").forEach((btn) => {
+    btn.disabled = !enableSubmit;
+    btn.setAttribute("aria-disabled", enableSubmit ? "false" : "true");
+  });
+}
+
 /** Deshabilita el botón principal de envío y opcionalmente botones auxiliares del formulario. */
 export function lockFormSubmitUi(formEl, opts = {}) {
   const submitBtn =
@@ -853,6 +920,7 @@ export function lockFormSubmitUi(formEl, opts = {}) {
   if (!submitBtn.dataset.submitOrigHtml) submitBtn.dataset.submitOrigHtml = submitBtn.innerHTML;
   const labelEl = submitBtn.querySelector(".auth-submit-label");
   if (labelEl && !labelEl.dataset.submitOrigText) labelEl.dataset.submitOrigText = labelEl.textContent || "";
+  rememberButtonDisabledBeforeLock(submitBtn);
   submitBtn.disabled = true;
   submitBtn.setAttribute("aria-busy", "true");
   if (opts.busyText) {
@@ -863,6 +931,7 @@ export function lockFormSubmitUi(formEl, opts = {}) {
   if (opts.loadingClass) submitBtn.classList.add(opts.loadingClass);
   (opts.lockExtraButtons || []).forEach((btn) => {
     if (!btn) return;
+    rememberButtonDisabledBeforeLock(btn);
     btn.disabled = true;
     btn.setAttribute("aria-busy", "true");
   });
@@ -876,18 +945,18 @@ export function releaseFormSubmitUi(formEl, opts = {}) {
     formEl?.querySelector?.("button[type='submit']") ??
     formEl?.querySelector?.("[data-step-submit]");
   if (submitBtn) {
-    submitBtn.disabled = false;
-    submitBtn.removeAttribute("aria-busy");
     if (submitBtn.dataset.submitOrigHtml) submitBtn.innerHTML = submitBtn.dataset.submitOrigHtml;
     const labelEl = submitBtn.querySelector(".auth-submit-label");
     if (labelEl?.dataset.submitOrigText) labelEl.textContent = labelEl.dataset.submitOrigText;
     if (opts.loadingClass) submitBtn.classList.remove(opts.loadingClass);
+    restoreButtonDisabledAfterLock(submitBtn);
   }
   (opts.lockExtraButtons || []).forEach((btn) => {
-    if (!btn) return;
-    btn.disabled = false;
-    btn.removeAttribute("aria-busy");
+    restoreButtonDisabledAfterLock(btn);
   });
+  if (formEl?.dataset?.hrWizardBound === "1") {
+    syncHrWizardSubmitDisabled(formEl);
+  }
 }
 
 export async function runWithBusyButton(btn, fn, opts = {}) {
