@@ -8801,7 +8801,7 @@ function renderHistoryAuditRow(entry) {
   </tr>`;
 }
 
-function renderHistoryAuditList(entries, layout = "cards") {
+function renderHistoryAuditList(entries, layout = "list") {
   const viewLayout =
     typeof globalThis.normalizeHistoryLayout === "function"
       ? globalThis.normalizeHistoryLayout(layout)

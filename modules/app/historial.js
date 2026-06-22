@@ -2,9 +2,14 @@
  * Transporte · Historial (`history`): trazabilidad unificada del portal.
  */
 const HISTORY_RENDER_WINDOW = 50;
+const HISTORY_DEFAULT_LAYOUT = "list";
+
+function defaultHistoryUi() {
+  return { layout: HISTORY_DEFAULT_LAYOUT, actionFilter: "all", moduleFilter: "" };
+}
 
 function normalizeHistoryLayout(raw) {
-  return String(raw || "").trim().toLowerCase() === "list" ? "list" : "cards";
+  return String(raw || "").trim().toLowerCase() === "cards" ? "cards" : HISTORY_DEFAULT_LAYOUT;
 }
 
 function historyViewToggleHtml(layout) {
@@ -139,7 +144,7 @@ globalThis.historyTraceModuleIconKey = historyTraceModuleIconKey;
 function readHistoryTraceFilterInputs(formEl) {
   const traceFilter = formEl || document.getElementById("history-trace-filter");
   const data = traceFilter ? readFormEntriesNormalized(traceFilter) : {};
-  const histUi = state.historyUi || { actionFilter: "all", moduleFilter: "", layout: "cards" };
+  const histUi = state.historyUi || defaultHistoryUi();
   return {
     actionFilter: String(histUi.actionFilter || "all"),
     moduleFilter: String(data.module || histUi.moduleFilter || "").trim(),
@@ -362,7 +367,7 @@ function renderHistoryTraceResults(entries, layout) {
 }
 
 function historyHtml() {
-  const histUi = state.historyUi || { layout: "cards", actionFilter: "all", moduleFilter: "" };
+  const histUi = state.historyUi || defaultHistoryUi();
   state.historyUi = histUi;
   const actionFilter = String(histUi.actionFilter || "all");
   const moduleFilter = String(histUi.moduleFilter || "");
@@ -381,7 +386,7 @@ function historyHtml() {
     <div class="hist-trace-hero__brand">
       <span class="hist-trace-hero__badge">${IC.activity || ""} Trazabilidad</span>
       <h2>Historial del sistema</h2>
-      <p class="hist-trace-hero__lead">Línea de tiempo unificada de creaciones, actualizaciones y eliminaciones en todos los módulos del portal.</p>
+      <p class="hist-trace-hero__lead">Registro auditable en tabla con creaciones, actualizaciones y eliminaciones en todos los módulos del portal.</p>
     </div>
     ${renderHistoryTraceKpis(stats)}
   </header>`;
@@ -421,7 +426,7 @@ function historyHtml() {
     nodes.viewRoot.querySelectorAll("[data-action='history-layout']").forEach((btn) => {
       btn.addEventListener("click", () => {
         const layout = normalizeHistoryLayout(btn.dataset.layout);
-        state.historyUi = { ...(state.historyUi || { actionFilter: "all", moduleFilter: "" }), layout };
+        state.historyUi = { ...(state.historyUi || defaultHistoryUi()), layout };
         renderPortalView();
       });
     });
@@ -429,7 +434,7 @@ function historyHtml() {
     nodes.viewRoot.querySelectorAll("[data-action='history-action-filter']").forEach((btn) => {
       btn.addEventListener("click", () => {
         const next = String(btn.dataset.filter || "all");
-        state.historyUi = { ...(state.historyUi || { layout: "cards", moduleFilter: "" }), actionFilter: next };
+        state.historyUi = { ...(state.historyUi || defaultHistoryUi()), actionFilter: next };
         state.historyRenderLimit = HISTORY_RENDER_WINDOW;
         renderPortalView();
       });
@@ -438,7 +443,7 @@ function historyHtml() {
     nodes.viewRoot.querySelectorAll("[data-action='history-module-filter']").forEach((btn) => {
       btn.addEventListener("click", () => {
         const next = String(btn.dataset.module || "").trim();
-        state.historyUi = { ...(state.historyUi || { layout: "cards", actionFilter: "all" }), moduleFilter: next };
+        state.historyUi = { ...(state.historyUi || defaultHistoryUi()), moduleFilter: next };
         state.historyRenderLimit = HISTORY_RENDER_WINDOW;
         const traceFilter = document.getElementById("history-trace-filter");
         const moduleSelect = traceFilter?.querySelector("select[name='module']");
@@ -471,7 +476,7 @@ function historyHtml() {
       }
 
       const refreshTraceResults = () => {
-        const histUi = state.historyUi || { actionFilter: "all", moduleFilter: "", layout: "cards" };
+        const histUi = state.historyUi || defaultHistoryUi();
         const layout = normalizeHistoryLayout(histUi.layout);
         const filterInputs = readHistoryTraceFilterInputs(traceFilter);
         if (filterInputs.moduleFilter !== String(histUi.moduleFilter || "")) {
@@ -501,7 +506,7 @@ function historyHtml() {
           nodes.viewRoot.querySelectorAll("[data-action='history-module-filter']").forEach((chipBtn) => {
             chipBtn.addEventListener("click", () => {
               const next = String(chipBtn.dataset.module || "").trim();
-              state.historyUi = { ...(state.historyUi || { layout: "cards", actionFilter: "all" }), moduleFilter: next };
+              state.historyUi = { ...(state.historyUi || defaultHistoryUi()), moduleFilter: next };
               state.historyRenderLimit = HISTORY_RENDER_WINDOW;
               const sel = traceFilter?.querySelector("select[name='module']");
               if (sel) sel.value = next;
