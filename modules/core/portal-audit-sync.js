@@ -104,18 +104,15 @@
       var KEYS = window.KEYS;
       var P = window.AntaresPersistence;
       var key = KEYS && KEYS.moduleAuditLogs ? KEYS.moduleAuditLogs : "antares_module_audit_logs_v1";
-      var prev = [];
-      if (P && typeof P.read === "function") prev = P.read(key, []);
+      var serverRows = Array.isArray(items) ? items : [];
+      if (P && typeof P.write === "function") P.write(key, serverRows, { skipSyncSchedule: true });
       else {
         try {
-          prev = JSON.parse(localStorage.getItem(key) || "[]");
-        } catch (_e) {
-          prev = [];
+          localStorage.removeItem(key);
+        } catch (_rm) {
+          /* noop */
         }
       }
-      var merged = mergeModuleAuditLogs(items, prev);
-      if (P && typeof P.write === "function") P.write(key, merged, { skipSyncSchedule: true });
-      else localStorage.setItem(key, JSON.stringify(merged));
       return true;
     } catch (_err) {
       return false;

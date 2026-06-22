@@ -33,14 +33,33 @@
     "antares_approvals_v2"
   ]);
 
+  /**
+   * Caché solo en RAM (sesión): hidratación vía bootstrap / GET audit-events, sin localStorage.
+   * Evita que datos legacy en disco tapen `auditoria_eventos_portal`.
+   */
+  var SESSION_MEMORY_ONLY_KEYS = new Set(["antares_module_audit_logs_v1"]);
+
   /** Entradas más recientes primero (unshift); slice conserva el trozo inicial = más nuevos. */
   var CAP_ARRAY_ROWS_BY_KEY = {
     antares_notifications_v2: 500,
-    antares_emails_v2: 400
+    antares_emails_v2: 400,
+    antares_module_audit_logs_v1: 600
   };
 
   /** @type {Record<string, unknown>} */
   var serverBackedMemory = {};
+
+  /** @type {Record<string, unknown>} */
+  var sessionMemoryOnly = {};
+
+  function purgeSessionMemoryKeyFromDisk(key) {
+    if (!SESSION_MEMORY_ONLY_KEYS.has(key)) return;
+    try {
+      localStorage.removeItem(key);
+    } catch (_e) {
+      /* noop */
+    }
+  }
 
   function trimArrayRowsIfNeeded(key, value) {
     var max = CAP_ARRAY_ROWS_BY_KEY[key];
@@ -113,6 +132,13 @@
 
   window.AntaresPersistence = {
     read(key, fallback) {
+      if (SESSION_MEMORY_ONLY_KEYS.has(key)) {
+        purgeSessionMemoryKeyFromDisk(key);
+        if (Object.prototype.hasOwnProperty.call(sessionMemoryOnly, key)) {
+          return sessionMemoryOnly[key];
+        }
+        return fallback;
+      }
       if (SERVER_BACKED_STORAGE_KEYS.has(key)) {
         if (Object.prototype.hasOwnProperty.call(serverBackedMemory, key)) {
           return serverBackedMemory[key];
@@ -131,6 +157,11 @@
     write(key, value, opts) {
       opts = opts && typeof opts === "object" ? opts : {};
       var skipSyncSchedule = opts.skipSyncSchedule === true;
+      if (SESSION_MEMORY_ONLY_KEYS.has(key)) {
+        sessionMemoryOnly[key] = trimArrayRowsIfNeeded(key, value);
+        purgeSessionMemoryKeyFromDisk(key);
+        return;
+      }
       if (SERVER_BACKED_STORAGE_KEYS.has(key)) {
         var stored = trimArrayRowsIfNeeded(key, value);
         serverBackedMemory[key] = stored;
@@ -156,6 +187,11 @@
     },
 
     remove(key) {
+      if (SESSION_MEMORY_ONLY_KEYS.has(key)) {
+        delete sessionMemoryOnly[key];
+        purgeSessionMemoryKeyFromDisk(key);
+        return;
+      }
       if (SERVER_BACKED_STORAGE_KEYS.has(key)) {
         delete serverBackedMemory[key];
         try {

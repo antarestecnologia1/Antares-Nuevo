@@ -4939,6 +4939,14 @@ function initPortalClientStorage() {
       localStorage.setItem("antares_users_storage_ver", "v5-memory");
     }
 
+    if (localStorage.getItem("antares_module_audit_logs_ver") !== "v1-api-table") {
+      localStorage.removeItem(KEYS.moduleAuditLogs);
+      localStorage.setItem("antares_module_audit_logs_ver", "v1-api-table");
+      if (typeof window.AntaresPersistence?.remove === "function") {
+        window.AntaresPersistence.remove(KEYS.moduleAuditLogs);
+      }
+    }
+
     ensureCompaniesAndUserMapping();
     ensureRequestsCompanyMapping();
     ensureRequestAndTripIdentifiers();
