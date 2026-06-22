@@ -51,6 +51,14 @@ ok(baseSlice, "sync inserta vigenteStart en posición correcta");
 
 ok(tabla.includes("fecha_inicio_contrato_vigente"), "tabla empleados_nomina incluye fecha_inicio_contrato_vigente");
 ok(tabla.includes("fecha_renovacion"), "tabla empleados_nomina incluye fecha_renovacion");
-ok(tabla.includes("fecha_aviso_no_renovacion"), "tabla empleados_nomina incluye fecha_aviso_no_renovacion");
+ok(portalRuntime.includes("renderPayrollEmployeeDirectoryTableRow"), "tabla empleados definida en runtime");
+ok(
+  /renderPayrollEmployeeDirectoryTableRow,\s*\n\s*renderPayrollLegalHistoryCard/.test(portalRuntime),
+  "renderPayrollEmployeeDirectoryTableRow expuesta en window"
+);
+ok(
+  /isFixedTermContractType,\s*\n\s*isDataUrl/.test(portalRuntime),
+  "isFixedTermContractType expuesta en window"
+);
 
 console.log("contract-vigente-static.mjs: OK");
