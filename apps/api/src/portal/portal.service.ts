@@ -71,6 +71,14 @@ import {
   contractNoticeRefToken
 } from "./employee-contract-renewal";
 import type { PortalSyncKey } from "./dto/sync-key.dto";
+import {
+  flushPortalSyncUpsertAudits,
+  insertPortalAuditEventTx,
+  preparePortalSyncUpsertAudits,
+  recordPortalAdminDeleteAudit,
+  recordPortalSyncDeleteAudits,
+  type PortalAuditActor
+} from "./portal-audit-sync";
 import type { CreateFleetFuelLogDto } from "./dto/create-fleet-fuel-log.dto";
 import type { CreateFleetMaintenanceLogDto } from "./dto/create-fleet-maintenance-log.dto";
 import type { TransportScheduleBusyDto } from "./dto/transport-schedule-busy.dto";
@@ -512,6 +520,58 @@ export class PortalService implements OnModuleInit {
       name: String(row?.nombre_completo || "").trim() || "Administrador",
       email: String(row?.correo_electronico || "").trim().toLowerCase()
     };
+  }
+
+  private async portalAuditActor(userId: string): Promise<PortalAuditActor> {
+    const profile = await this.resolvePortalActor(userId);
+    return {
+      userId,
+      email: profile.email,
+      label: profile.name || profile.email || "Usuario"
+    };
+  }
+
+  private async writeAdminDeleteAudit(
+    actorUserId: string,
+    moduleId: string,
+    moduleLabel: string,
+    entityId: string,
+    entityLabel: string,
+    summary?: string
+  ): Promise<void> {
+    const c = await this.pool.connect();
+    try {
+      await recordPortalAdminDeleteAudit(
+        c,
+        await this.portalAuditActor(actorUserId),
+        moduleId,
+        moduleLabel,
+        entityId,
+        entityLabel,
+        summary
+      );
+    } finally {
+      c.release();
+    }
+  }
+
+  private async writePortalAuditEvent(
+    actorUserId: string,
+    event: {
+      action: "create" | "update" | "delete";
+      moduleId: string;
+      moduleLabel: string;
+      entityId?: string;
+      entityLabel?: string;
+      summary?: string;
+    }
+  ): Promise<void> {
+    const c = await this.pool.connect();
+    try {
+      await insertPortalAuditEventTx(c, await this.portalAuditActor(actorUserId), event);
+    } finally {
+      c.release();
+    }
   }
 
   private buildAccountActionAudit(actor: { name: string; email: string }, reason?: string) {
@@ -2650,6 +2710,14 @@ export class PortalService implements OnModuleInit {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
+      const hadPrior = await client.query<{ total: string }>(
+        `SELECT COUNT(*)::text AS total
+           FROM parametros_sistema
+          WHERE vigente_desde = $1::date
+            AND lower(trim(clave)) = lower(trim($2))`,
+        [startDate, LABOR_SYSTEM_PARAMETER_DEFS.smmlvCop.dbKey]
+      );
+      const laborAction: "create" | "update" = Number(hadPrior.rows[0]?.total || 0) > 0 ? "update" : "create";
       await this.upsertLaborSystemParameterValueTx(
         client,
         LABOR_SYSTEM_PARAMETER_DEFS.smmlvCop.dbKey,
@@ -2720,6 +2788,14 @@ export class PortalService implements OnModuleInit {
       }
       const activeRules = await this.loadLaborSystemRules(new Date(), client);
       const history = await this.loadLaborSystemParametersHistory(new Date(), client);
+      await insertPortalAuditEventTx(client, await this.portalAuditActor(userId), {
+        action: laborAction,
+        moduleId: "payroll",
+        moduleLabel: "Gestión humana",
+        entityId: `labor-${year}`,
+        entityLabel: `Parámetros laborales ${year}`,
+        summary: `SMMLV ${smmlvCop.toLocaleString("es-CO")} · Aux. transporte ${transportAllowanceCop.toLocaleString("es-CO")}`
+      });
       await client.query("COMMIT");
       return {
         ok: true,
@@ -2796,6 +2872,14 @@ export class PortalService implements OnModuleInit {
       }
       const activeRules = await this.loadLaborSystemRules(new Date(), client);
       const history = await this.loadLaborSystemParametersHistory(new Date(), client);
+      await insertPortalAuditEventTx(client, await this.portalAuditActor(userId), {
+        action: "delete",
+        moduleId: "payroll",
+        moduleLabel: "Gestión humana",
+        entityId: `labor-${year}`,
+        entityLabel: `Parámetros laborales ${year}`,
+        summary: `Vigencia ${year} eliminada`
+      });
       await client.query("COMMIT");
       return {
         ok: true,
@@ -3099,7 +3183,16 @@ export class PortalService implements OnModuleInit {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
+      const actorProfile = await this.resolvePortalActor(userId);
+      const actor: PortalAuditActor = {
+        userId,
+        email: actorProfile.email,
+        label: actorProfile.name || actorProfile.email || "Usuario"
+      };
+      const pendingUpserts = await preparePortalSyncUpsertAudits(client, key, data);
+      await recordPortalSyncDeleteAudits(client, actor, key, deletedIds, data);
       await this.syncKeyTx(client, key, data, userId, role, deletedIds);
+      await flushPortalSyncUpsertAudits(client, actor, key, pendingUpserts);
       await client.query("COMMIT");
     } catch (e) {
       await client.query("ROLLBACK");
@@ -3206,6 +3299,21 @@ export class PortalService implements OnModuleInit {
         );
       }
 
+      const nameRes = await client.query<{ nombre_completo: string | null; correo_electronico: string | null }>(
+        `SELECT nombre_completo, correo_electronico FROM usuarios WHERE id = $1::uuid`,
+        [tid]
+      );
+      const approvedLabel =
+        String(nameRes.rows[0]?.nombre_completo || nameRes.rows[0]?.correo_electronico || tid).trim();
+      await insertPortalAuditEventTx(client, await this.portalAuditActor(actorUserId), {
+        action: "update",
+        moduleId: "authorizations",
+        moduleLabel: "Autorizaciones",
+        entityId: tid,
+        entityLabel: approvedLabel,
+        summary: `Cuenta aprobada · Rol ${rolDb} · ${empresaNombre}`
+      });
+
       await client.query("COMMIT");
     } catch (e) {
       await client.query("ROLLBACK");
@@ -3289,6 +3397,18 @@ export class PortalService implements OnModuleInit {
        WHERE id = $1::uuid`,
       [tid, accountStatus]
     );
+    const userLabel = String(target.nombre_completo || target.correo_electronico || tid).trim();
+    await this.writePortalAuditEvent(actorUserId, {
+      action: "update",
+      moduleId: "users",
+      moduleLabel: "Usuarios y permisos",
+      entityId: tid,
+      entityLabel: userLabel,
+      summary:
+        accountStatus === "rechazado" || accountStatus === "pendiente"
+          ? `Estado de cuenta: ${accountStatus}${reason ? ` · Motivo: ${reason}` : ""}`
+          : `Estado de cuenta: ${accountStatus}`
+    });
     if (target.correo_electronico && target.estado_cuenta !== accountStatus) {
       const portalUrl = this.resolvePortalPublicUrl();
       const actor = await this.resolvePortalActor(actorUserId);
@@ -3327,7 +3447,6 @@ export class PortalService implements OnModuleInit {
     emailRaw?: string,
     passwordRaw?: string
   ) {
-    void actorUserId;
     if (!this.isAdmin(actorRole)) throw new ForbiddenException();
     const tid = String(targetUserId || "").trim();
     if (!tid) throw new BadRequestException("Usuario objetivo obligatorio");
@@ -3405,6 +3524,19 @@ export class PortalService implements OnModuleInit {
           .catch(() => null);
       }
     }
+
+    const userLabel = String(targetRes.rows[0].nombre_completo || targetRes.rows[0].correo_electronico || tid).trim();
+    const changeParts: string[] = [];
+    if (email) changeParts.push("correo actualizado");
+    if (password) changeParts.push("contraseña actualizada");
+    await this.writePortalAuditEvent(actorUserId, {
+      action: "update",
+      moduleId: "users",
+      moduleLabel: "Usuarios y permisos",
+      entityId: tid,
+      entityLabel: userLabel,
+      summary: changeParts.join(" · ") || "Credenciales actualizadas"
+    });
 
     return { ok: true, userId: tid, emailUpdated: Boolean(email), passwordUpdated: Boolean(password) };
   }
@@ -3518,6 +3650,14 @@ export class PortalService implements OnModuleInit {
     }
 
     await this.pool.query(`DELETE FROM usuarios WHERE id = $1::uuid`, [tid]);
+    await this.writeAdminDeleteAudit(
+      actorUserId,
+      "users",
+      "Usuarios y permisos",
+      tid,
+      userName,
+      `Motivo: ${motivo}`
+    );
     await this.deleteSupabaseAuthUser(tid);
     return { ok: true, userId: tid };
   }
@@ -3550,8 +3690,21 @@ export class PortalService implements OnModuleInit {
     }
 
     try {
+      const nameRes = await this.pool.query<{ nombre: string | null }>(
+        `SELECT nombre FROM empresas WHERE id = $1::uuid`,
+        [cid]
+      );
+      const companyName = String(nameRes.rows[0]?.nombre || "Empresa").trim();
       const del = await this.pool.query(`DELETE FROM empresas WHERE id = $1::uuid`, [cid]);
       if (del.rowCount === 0) throw new BadRequestException("Empresa no encontrada");
+      await this.writeAdminDeleteAudit(
+        actorUserId,
+        "users",
+        "Usuarios y permisos",
+        cid,
+        companyName,
+        "Eliminación de empresa"
+      );
     } catch (e) {
       if (e instanceof BadRequestException) throw e;
       const msg = e instanceof Error ? e.message : String(e);
@@ -3610,6 +3763,15 @@ export class PortalService implements OnModuleInit {
         await this.pruneDeletionAuditTableTx(client, "auditoria_solicitudes_eliminadas");
       }
       await client.query(`DELETE FROM solicitudes_transporte WHERE id = $1::uuid`, [rid]);
+      await recordPortalAdminDeleteAudit(
+        client,
+        await this.portalAuditActor(actorUserId),
+        "requests",
+        "Mis solicitudes",
+        rid,
+        String(srow.numero_solicitud || rid),
+        `Motivo: ${motivoTrim}`
+      );
       await client.query("COMMIT");
     } catch (e) {
       await client.query("ROLLBACK").catch(() => null);
@@ -3686,6 +3848,15 @@ export class PortalService implements OnModuleInit {
         await this.pruneDeletionAuditTableTx(client, "auditoria_solicitudes_eliminadas");
       }
       await client.query(`DELETE FROM solicitudes_transporte WHERE id = $1::uuid`, [rid]);
+      await recordPortalAdminDeleteAudit(
+        client,
+        await this.portalAuditActor(actorUserId),
+        "requests",
+        "Mis solicitudes",
+        rid,
+        String(srow.numero_solicitud || rid),
+        `Eliminación por cliente · Motivo: ${motivoTrim}`
+      );
       await client.query("COMMIT");
     } catch (e) {
       await client.query("ROLLBACK").catch(() => null);
@@ -3709,8 +3880,21 @@ export class PortalService implements OnModuleInit {
     const vid = String(vehicleId || "").trim();
     if (!vid || !PG_UUID_V4_RE.test(vid)) throw new BadRequestException("ID de vehiculo invalido");
     try {
+      const plateRes = await this.pool.query<{ placa: string | null }>(
+        `SELECT placa FROM vehiculos WHERE id = $1::uuid`,
+        [vid]
+      );
+      const plate = String(plateRes.rows[0]?.placa || vid).trim();
       const del = await this.pool.query(`DELETE FROM vehiculos WHERE id = $1::uuid`, [vid]);
       if ((del.rowCount ?? 0) === 0) throw new BadRequestException("Vehiculo no encontrado.");
+      await this.writeAdminDeleteAudit(
+        actorUserId,
+        "vehicles",
+        "Camiones",
+        vid,
+        plate,
+        "Eliminación de vehículo"
+      );
     } catch (e) {
       if (e instanceof BadRequestException || e instanceof ForbiddenException) throw e;
       const msg = e instanceof Error ? e.message : String(e);
@@ -3794,6 +3978,15 @@ export class PortalService implements OnModuleInit {
         await client.query("ROLLBACK");
         throw new BadRequestException("Solicitud no encontrada.");
       }
+      await recordPortalAdminDeleteAudit(
+        client,
+        await this.portalAuditActor(actorUserId),
+        "trips",
+        "Viajes",
+        String(row.id || rid),
+        String(row.numero_viaje || row.sol_numero_solicitud || rid),
+        `Desasignación de viaje · Motivo: ${motivoTrim}`
+      );
       await client.query("COMMIT");
     } catch (e) {
       await client.query("ROLLBACK").catch(() => null);
@@ -3821,8 +4014,8 @@ export class PortalService implements OnModuleInit {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
-      const empRes = await client.query<{ numero_documento: string | null; rol_trabajador: string | null }>(
-        `SELECT numero_documento, rol_trabajador FROM empleados_nomina WHERE id = $1::uuid`,
+      const empRes = await client.query<{ numero_documento: string | null; rol_trabajador: string | null; nombre_completo: string | null }>(
+        `SELECT numero_documento, rol_trabajador, nombre_completo FROM empleados_nomina WHERE id = $1::uuid`,
         [eid]
       );
       if (!empRes.rows.length) {
@@ -3830,6 +4023,7 @@ export class PortalService implements OnModuleInit {
         throw new BadRequestException("Empleado no encontrado.");
       }
       const doc = String(empRes.rows[0]?.numero_documento ?? "").trim();
+      const empName = String(empRes.rows[0]?.nombre_completo ?? "").trim();
       const workerRole = String(empRes.rows[0]?.rol_trabajador ?? "")
         .trim()
         .toLowerCase();
@@ -3906,6 +4100,16 @@ export class PortalService implements OnModuleInit {
         await client.query("ROLLBACK");
         throw new BadRequestException("Empleado no encontrado.");
       }
+
+      await recordPortalAdminDeleteAudit(
+        client,
+        await this.portalAuditActor(actorUserId),
+        "payroll",
+        "Gestión humana",
+        eid,
+        empName || (doc ? `Doc. ${doc}` : "Colaborador"),
+        "Eliminación de colaborador en nómina"
+      );
 
       await client.query("COMMIT");
       const actor = await this.resolvePortalActor(actorUserId);
@@ -9907,6 +10111,14 @@ export class PortalService implements OnModuleInit {
         body as unknown as Record<string, unknown>,
         userId
       );
+      await insertPortalAuditEventTx(client, await this.portalAuditActor(userId), {
+        action: "create",
+        moduleId: "vehicles",
+        moduleLabel: "Camiones",
+        entityId: String((saved as { id?: string })?.id || ""),
+        entityLabel: String((saved as { vehiclePlate?: string })?.vehiclePlate || "Registro combustible"),
+        summary: "Alta de registro de combustible"
+      });
       await client.query("COMMIT");
       return saved;
     } catch (e) {
@@ -9935,6 +10147,14 @@ export class PortalService implements OnModuleInit {
         body as unknown as Record<string, unknown>,
         userId
       );
+      await insertPortalAuditEventTx(client, await this.portalAuditActor(userId), {
+        action: "create",
+        moduleId: "vehicles",
+        moduleLabel: "Camiones",
+        entityId: String((saved as { id?: string })?.id || ""),
+        entityLabel: String((saved as { vehiclePlate?: string })?.vehiclePlate || "Registro mantenimiento"),
+        summary: "Alta de registro de mantenimiento"
+      });
       await client.query("COMMIT");
       return saved;
     } catch (e) {

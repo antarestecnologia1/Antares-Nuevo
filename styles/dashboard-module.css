@@ -95,6 +95,54 @@
   animation: dash-pulse-dot 1.2s ease-in-out infinite;
 }
 
+.dashboard-studio .dash-cc__status--neutral {
+  color: var(--dash-muted);
+  border-color: var(--dash-line-strong);
+  background: var(--dash-card);
+}
+
+.dashboard-studio .dash-cc__main {
+  min-width: 0;
+}
+
+.dashboard-studio .dash-cc__eyebrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  margin-bottom: 0.45rem;
+}
+
+.dashboard-studio .dash-cc__eyebrow .dash-cc__status {
+  margin: 0;
+}
+
+.dashboard-studio .dash-cc__status-label {
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+
+.dashboard-studio .dash-cc__sep {
+  color: var(--dash-muted);
+  opacity: 0.55;
+  user-select: none;
+}
+
+.dashboard-studio .dash-cc__date,
+.dashboard-studio .dash-cc__updated {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--dash-muted);
+}
+
+.dashboard-studio .dash-cc__name {
+  color: var(--dash-accent);
+}
+
 @keyframes dash-pulse-dot {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.45; transform: scale(0.85); }
@@ -830,6 +878,12 @@
 
 .dashboard-studio .dash-activity-empty {
   padding: 1.2rem;
+  margin: 0;
+  font-size: 0.84rem;
+}
+
+.dashboard-studio .dash-client-empty {
+  padding: 1rem;
   margin: 0;
   font-size: 0.84rem;
 }

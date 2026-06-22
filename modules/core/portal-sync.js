@@ -141,6 +141,13 @@
           }).filter(Boolean);
         }
         await api.postJson("/portal/sync-key", body);
+        try {
+          if (window.AntaresPortalAuditSync && typeof window.AntaresPortalAuditSync.refreshModuleAuditLogsFromApi === "function") {
+            void window.AntaresPortalAuditSync.refreshModuleAuditLogsFromApi({ limit: 800 });
+          }
+        } catch (_auditRefresh) {
+          /* noop */
+        }
         if (window.__ANTARES_DEBUG_SYNC__ === true) {
           try {
             var okHint = "";

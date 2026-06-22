@@ -12,22 +12,18 @@
      HELPERS DE TONO Y ESTADO
   ───────────────────────────────────────────────────────────── */
 
+  function dashDomain() {
+    return typeof AntaresDashboardDomain !== "undefined" ? AntaresDashboardDomain : null;
+  }
+
   function dashRequestOutcomeTone(status) {
-    const key = slugStatus(status);
-    if (["completada", "cerrada"].includes(key)) return "ok";
-    if (["cancelada", "rechazada"].includes(key)) return "fail";
-    if (["espera_standby"].includes(key)) return "warn";
-    if (["en_transito", "viaje_asignado"].includes(key)) return "live";
-    return "neutral";
+    const fn = dashDomain()?.requestOutcomeTone;
+    return typeof fn === "function" ? fn(status) : "neutral";
   }
 
   function dashTripIsDelayed(request) {
-    if (!request || !tripRequestStatusIsOperational(request.status)) return false;
-    const eta = String(
-      request?.trip?.etaDelivery || request?.deliveryAt || request?.trip?.etaPickup || request?.pickupAt || ""
-    ).trim();
-    const ts = new Date(eta).getTime();
-    return Number.isFinite(ts) && ts < Date.now();
+    const fn = dashDomain()?.requestIsDelayed;
+    return typeof fn === "function" ? fn(request) : false;
   }
 
   function dashOpsStatusLabel(snap) {
@@ -252,7 +248,7 @@
      TABS DE FLOTA
   ───────────────────────────────────────────────────────────── */
 
-  function dashBuildFleetTabs(counts) {
+  function dashBuildFleetTabs(counts, activeTab = "all") {
     const tabs = [
       { id: "all", label: "Todos" },
       { id: "en-ruta", label: "En ruta" },
@@ -262,8 +258,8 @@
     return tabs
       .map((t) => {
         const n = counts[t.id] ?? 0;
-        const active = t.id === "all" ? " is-active" : "";
-        return `<button type="button" class="dash-tab${active}" data-dash-tab="${escapeAttr(t.id)}">${escapeHtml(t.label)}<em>${n}</em></button>`;
+        const active = t.id === activeTab;
+        return `<button type="button" role="tab" class="dash-tab${active ? " is-active" : ""}" data-dash-tab="${escapeAttr(t.id)}" aria-selected="${active ? "true" : "false"}" tabindex="${active ? "0" : "-1"}">${escapeHtml(t.label)}<em>${n}</em></button>`;
       })
       .join("");
   }
@@ -282,6 +278,18 @@
         const tone = item?.tone === "alert" ? "alert" : "warn";
         const target = String(item?.targetView || "").trim();
         const title = item?.help ? ` title="${escapeAttr(String(item.help))}"` : "";
+        const fleetFocus = target === "dashboard";
+        const fleetTab = item?.id === "delayed" ? "en-ruta" : "all";
+        if (fleetFocus) {
+          return `<button type="button"
+            class="dash-alert dash-alert--${tone}"
+            data-action="dash-focus-fleet"
+            data-dash-tab="${escapeAttr(fleetTab)}"
+            ${title}>
+            <strong>${escapeHtml(String(item.value))}</strong>
+            ${escapeHtml(String(item.label || ""))}
+          </button>`;
+        }
         return `<button type="button"
           class="dash-alert dash-alert--${tone}"
           data-action="dash-attention-nav"
@@ -353,8 +361,6 @@
       ? `<p>Sus indicadores reflejan solo las solicitudes de su empresa.</p>`
       : `<p>Actualizado ${escapeHtml(fmtTimeOnly(snap.generatedAt) || "ahora")} · hora Colombia</p>`;
 
-    const complianceTone = snap.compliancePct >= 80 ? "ok" : snap.compliancePct >= 50 ? "warn" : "alert";
-
     return `<aside class="dash-panel dash-panel--pulse" aria-label="Pulso operativo del día">
       <header class="dash-panel__head">
         <div>
@@ -363,10 +369,6 @@
         </div>
       </header>
       <ul class="dash-pulse-list">${rows}</ul>
-      <div class="dash-metrics-rings dash-metrics-rings--compact">
-        ${dashBuildRing(snap.compliancePct, "Cumplimiento", complianceTone)}
-        ${!isPortalClientUser(user) ? dashBuildRing(snap.fleetUtilPct, "Utilización flota", "") : ""}
-      </div>
       <footer class="dash-pulse-foot">${foot}</footer>
     </aside>`;
   }
@@ -403,7 +405,7 @@
   function dashBuildClientRecentTable(list) {
     const recent = [...list].sort((a, b) => dashActivitySortKey(b) - dashActivitySortKey(a)).slice(0, 6);
     if (!recent.length) {
-      return `<p class="muted" style="padding:1rem">Aún no tiene solicitudes registradas.</p>`;
+      return `<p class="muted dash-client-empty">Aún no tiene solicitudes registradas.</p>`;
     }
     const rows = recent
       .map(
@@ -474,7 +476,7 @@
   function viewDashboard() {
     const user = currentUser();
     const list = getVisibleRequestsForUser(user);
-    const DD = typeof AntaresDashboardDomain !== "undefined" ? AntaresDashboardDomain : null;
+    const DD = dashDomain();
     const snap = DD?.computeTodayOperationsSnapshot ? DD.computeTodayOperationsSnapshot(user) : null;
     const attentionItems = DD?.computeDashboardAttentionItems ? DD.computeDashboardAttentionItems(user) : [];
     const scopeBar = isPortalClientUser(user) ? clientDataScopeBarHtml(getClientDataScope()) : "";
@@ -490,8 +492,10 @@
     const hero = `<header class="dash-cc">
       <div class="dash-cc__main">
         <div class="dash-cc__eyebrow">
-          <span class="dash-cc__status-dot dash-cc__status--${opsTone}" aria-hidden="true"></span>
-          <span class="dash-cc__status-label">${escapeHtml(opsLabel)}</span>
+          <span class="dash-cc__status dash-cc__status--${opsTone}">
+            <span class="dash-cc__status-dot" aria-hidden="true"></span>
+            <span class="dash-cc__status-label">${escapeHtml(opsLabel)}</span>
+          </span>
           <span class="dash-cc__sep" aria-hidden="true">·</span>
           <span class="dash-cc__date">${escapeHtml(longDate)}</span>
           ${snap?.generatedAt ? `<span class="dash-cc__sep" aria-hidden="true">·</span><span class="dash-cc__updated">Actualizado ${escapeHtml(fmtTimeOnly(snap.generatedAt))}</span>` : ""}
@@ -515,26 +519,13 @@
       return r.trip && tripRequestStatusIsOperational(r.status);
     });
 
-    const groups = new Map();
-    todayTrips
-      .filter((r) => r.trip?.vehicleId)
-      .forEach((r) => {
-        const vid = String(r.trip.vehicleId);
-        if (!groups.has(vid)) {
-          groups.set(vid, {
-            vehicleId: vid,
-            plate: r.trip.vehiclePlate,
-            driverName: r.trip.driverName,
-            trips: []
-          });
-        }
-        groups.get(vid).trips.push(r);
-      });
-
-    const groupList = [...groups.values()].sort((a, b) => String(a.plate).localeCompare(String(b.plate), "es"));
+    const groupList = (DD?.groupRequestsByVehicleForDashboard
+      ? DD.groupRequestsByVehicleForDashboard(todayTrips.filter((r) => r.trip?.vehicleId))
+      : []
+    ).sort((a, b) => String(a.plate).localeCompare(String(b.plate), "es"));
     const fleetCards = groupList.map((g) => dashBuildVehicleCard(g)).join("");
 
-    const fleetEmpty =
+    const fleetContent =
       fleetCards ||
       `<div class="dash-empty">
         <div class="dash-empty__icon" aria-hidden="true">${IC.truck || ""}</div>
@@ -550,7 +541,7 @@
     const body = `
       ${dashBuildMetricsStrip(snap, user)}
       <div class="dash-layout">
-        <section class="dash-panel dash-panel--fleet" aria-label="Flota en operación">
+        <section class="dash-panel dash-panel--fleet" id="dash-fleet-panel" aria-label="Flota en operación">
           <header class="dash-panel__head">
             <div>
               <h3>Torre de flota</h3>
@@ -569,11 +560,11 @@
                   <option value="cerrado">Cerrados</option>
                 </select>
               </label>
-              <span class="dash-count" id="dash-fleet-count">${groups.size} vehículo${groups.size === 1 ? "" : "s"}</span>
+              <span class="dash-count" id="dash-fleet-count">${groupList.length} vehículo${groupList.length === 1 ? "" : "s"}</span>
             </div>
           </header>
           <div class="dash-tabs" role="tablist" aria-label="Filtrar flota">${dashBuildFleetTabs(tabCounts)}</div>
-          <div class="dash-fleet-list">${fleetEmpty}</div>
+          <div class="dash-fleet-list">${fleetContent}</div>
         </section>
         <div class="dash-side">
           ${dashBuildPulsePanel(snap, user)}
@@ -602,7 +593,24 @@
     const filter = root.querySelector("#dash-filter");
     const cards = [...root.querySelectorAll(".dash-vehicle")];
     const countEl = root.querySelector("#dash-fleet-count");
+    const tablist = root.querySelector(".dash-tabs");
     let activeTab = "all";
+
+    const syncTabA11y = (tabId) => {
+      root.querySelectorAll(".dash-tab").forEach((tab) => {
+        const isActive = tab.dataset.dashTab === tabId;
+        tab.classList.toggle("is-active", isActive);
+        tab.setAttribute("aria-selected", isActive ? "true" : "false");
+        tab.tabIndex = isActive ? 0 : -1;
+      });
+    };
+
+    const selectTab = (tabId) => {
+      activeTab = String(tabId || "all");
+      if (filter) filter.value = activeTab;
+      syncTabA11y(activeTab);
+      apply();
+    };
 
     const apply = () => {
       const q = String(search?.value || "").trim().toLowerCase();
@@ -623,21 +631,26 @@
     };
 
     search?.addEventListener("input", apply);
-    filter?.addEventListener("change", () => {
-      activeTab = String(filter.value || "all");
-      root.querySelectorAll(".dash-tab").forEach((tab) => {
-        tab.classList.toggle("is-active", tab.dataset.dashTab === activeTab);
-      });
-      apply();
-    });
+    filter?.addEventListener("change", () => selectTab(filter.value));
 
     root.querySelectorAll(".dash-tab").forEach((tab) => {
-      tab.addEventListener("click", () => {
-        activeTab = String(tab.dataset.dashTab || "all");
-        if (filter) filter.value = activeTab;
-        root.querySelectorAll(".dash-tab").forEach((t) => t.classList.toggle("is-active", t === tab));
-        apply();
-      });
+      tab.addEventListener("click", () => selectTab(tab.dataset.dashTab));
+    });
+
+    tablist?.addEventListener("keydown", (event) => {
+      const tabs = [...root.querySelectorAll(".dash-tab")];
+      if (!tabs.length) return;
+      const currentIdx = tabs.findIndex((tab) => tab.classList.contains("is-active"));
+      let nextIdx = currentIdx;
+      if (event.key === "ArrowRight") nextIdx = (currentIdx + 1) % tabs.length;
+      else if (event.key === "ArrowLeft") nextIdx = (currentIdx - 1 + tabs.length) % tabs.length;
+      else if (event.key === "Home") nextIdx = 0;
+      else if (event.key === "End") nextIdx = tabs.length - 1;
+      else return;
+      event.preventDefault();
+      const nextTab = tabs[nextIdx];
+      selectTab(nextTab.dataset.dashTab);
+      nextTab.focus();
     });
 
     apply();
@@ -646,6 +659,13 @@
       btn.addEventListener("click", () => {
         const target = String(btn.dataset.targetView || "").trim();
         if (target) setView(target);
+      });
+    });
+
+    root.querySelectorAll("[data-action='dash-focus-fleet']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        selectTab(btn.dataset.dashTab || "all");
+        root.querySelector("#dash-fleet-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
       });
     });
   }
@@ -663,9 +683,4 @@
 
   window.__portalModuleAfterRender = window.__portalModuleAfterRender || {};
   window.__portalModuleAfterRender.dashboard = bindDashboardControls;
-
-  if (!window.AppModules) window.AppModules = {};
-  window.AppModules.dashboard = {
-    viewDashboard: (...args) => window.AppLegacyViews?.viewDashboard?.(...args) || ""
-  };
 })();

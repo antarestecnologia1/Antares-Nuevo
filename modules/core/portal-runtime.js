@@ -2442,7 +2442,11 @@ function appendModuleAuditLog(entry) {
   list.unshift(stored);
   write(KEYS.moduleAuditLogs, list.slice(0, 600));
   try {
-    globalThis.AntaresPortalAuditSync?.enqueue?.(stored);
+    const apiConfigured =
+      typeof globalThis.AntaresApi?.isConfigured === "function" && globalThis.AntaresApi.isConfigured();
+    if (!apiConfigured) {
+      globalThis.AntaresPortalAuditSync?.enqueue?.(stored);
+    }
   } catch (_auditSync) {
     /* noop */
   }

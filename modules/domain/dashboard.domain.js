@@ -68,7 +68,7 @@ function countFleetDocRisk(user) {
   return vehicles.filter((v) => vehicleDocIsAtRisk(v)).length;
 }
 
-function requestOutcomeTone(status) {
+export function requestOutcomeTone(status) {
   const key = String(status || "")
     .toLowerCase()
     .replace(/\s+/g, "_");
@@ -79,7 +79,7 @@ function requestOutcomeTone(status) {
   return "neutral";
 }
 
-function requestIsDelayed(request, nowTs = Date.now()) {
+export function requestIsDelayed(request, nowTs = Date.now()) {
   if (!request || !tripRequestStatusIsOperational(request.status)) return false;
   const eta = String(request?.trip?.etaDelivery || request?.deliveryAt || request?.trip?.etaPickup || request?.pickupAt || "").trim();
   const ts = new Date(eta).getTime();
