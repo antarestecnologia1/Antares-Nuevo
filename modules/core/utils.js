@@ -423,6 +423,14 @@ export function colombiaTodayIsoDate() {
   return `${p.year}-${p.month}-${p.day}`;
 }
 
+/** Saludo según hora en America/Bogota: mañana antes de mediodía, tarde hasta las 19:00, noche después. */
+export function colombiaTimeOfDayGreeting(dateValue = new Date()) {
+  const hour = parseInt(getColombiaDateParts(dateValue).hour, 10);
+  if (!Number.isFinite(hour) || hour < 12) return "Buenos días";
+  if (hour < 19) return "Buenas tardes";
+  return "Buenas noches";
+}
+
 /** Año calendario después de una fecha `YYYY-MM-DD` (p. ej. vencimiento SOAT un año tras expedición). */
 export function addCalendarYearsIsoDate(isoDateStr, years = 1) {
   const raw = String(isoDateStr || "").trim();

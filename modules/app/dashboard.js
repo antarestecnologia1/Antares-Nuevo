@@ -191,13 +191,14 @@
     const attentionItems = DD?.computeDashboardAttentionItems ? DD.computeDashboardAttentionItems(user) : [];
     const scopeBar = isPortalClientUser(user) ? clientDataScopeBarHtml(getClientDataScope()) : "";
     const longDate = formatColombiaLongDate(new Date());
+    const greeting = colombiaTimeOfDayGreeting(new Date());
     const displayName = getPortalUserDisplayName(user) || user?.name || "Operador";
     const firstName = escapeHtml(String(displayName).trim().split(/\s+/)[0] || displayName);
 
     const hero = `<header class="dash-hero">
       <div class="dash-hero__main">
         <p class="dash-hero__eyebrow">Dashboard operativo</p>
-        <h2>Buenos días, ${firstName}</h2>
+        <h2>${escapeHtml(greeting)}, ${firstName}</h2>
         <p class="dash-hero__meta">${escapeHtml(longDate)}</p>
       </div>
       <nav class="dash-hero__nav" aria-label="Accesos">${dashBuildHeroNav(user)}</nav>
