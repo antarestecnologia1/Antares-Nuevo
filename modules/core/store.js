@@ -364,7 +364,7 @@ export const nodes = {
   b2bForm: document.getElementById("b2b-form"),
   publicApp: document.getElementById("public-app"),
   portalApp: document.getElementById("portal-app"),
-  sideLinks: [...document.querySelectorAll(".side-link[data-view]")],
+  sideLinks: [...document.querySelectorAll(".side-link[data-view], .sidebar-user-panel[data-view]")],
   logout: document.getElementById("logout"),
   viewTitle: document.getElementById("view-title"),
   viewRoot: document.getElementById("view-root"),

@@ -788,9 +788,7 @@
   display: none !important;
 }
 
-.payroll-studio .payroll-legal-panel {
-  border-radius: var(--pay-radius-sm);
-}
+/* Parámetros legales — ver bloque al final del archivo */
 
 /* ===================================================================
    Expediente empleado — wizard profesional con rail vertical
@@ -2485,5 +2483,566 @@ body[data-theme="dark"] .payroll-studio--consult .payroll-consult-alert--notice 
   background: rgba(245, 158, 11, 0.14);
   border-color: rgba(251, 191, 36, 0.28);
   color: #fcd34d;
+}
+
+/* ===================================================================
+   Parámetros legales anuales — interfaz profesional (Gestión humana)
+   =================================================================== */
+.payroll-studio .payroll-legal-panel {
+  border-radius: var(--pay-radius);
+  border: 1px solid var(--pay-edge-strong);
+  background: var(--pay-card);
+  box-shadow: var(--pay-shadow-sm);
+  overflow: hidden;
+}
+
+.payroll-studio .payroll-legal-panel__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.85rem 1.25rem;
+  padding: 1.15rem 1.35rem;
+  border-bottom: 1px solid var(--pay-edge);
+  background:
+    radial-gradient(ellipse 70% 90% at 100% 0%, rgba(var(--primary-rgb, 55, 124, 192), 0.08), transparent 55%),
+    linear-gradient(180deg, #ffffff 0%, var(--pay-surface) 100%);
+}
+
+.payroll-studio .payroll-legal-panel__head h2 {
+  margin: 0 0 0.2rem;
+  font-family: var(--font-display, "Poppins", sans-serif);
+  font-size: 1.22rem;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  color: var(--pay-navy);
+}
+
+.payroll-studio .payroll-legal-panel__head p {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.payroll-studio .payroll-legal-panel__brand {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  min-width: 0;
+  flex: 1 1 16rem;
+}
+
+.payroll-studio .payroll-legal-panel__actions {
+  flex: 0 0 auto;
+  align-self: center;
+  gap: 0.45rem;
+}
+
+.payroll-studio .payroll-legal-panel__body {
+  padding: 1rem 1.35rem 1.25rem;
+  background: var(--pay-surface);
+}
+
+.payroll-studio .payroll-legal-kpi-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  gap: 0.55rem;
+  margin: 0 0 1rem;
+}
+
+.payroll-studio .payroll-legal-kpi {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+  padding: 0.62rem 0.75rem;
+  border-radius: var(--pay-radius-sm);
+  border: 1px solid var(--pay-edge);
+  background: var(--pay-card);
+  box-shadow: 0 1px 3px rgba(11, 33, 56, 0.04);
+}
+
+.payroll-studio .payroll-legal-kpi__ico {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 10px;
+}
+
+.payroll-studio .payroll-legal-kpi__ico .btn-icon,
+.payroll-studio .payroll-legal-kpi__ico svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.payroll-studio .payroll-legal-kpi__body {
+  min-width: 0;
+}
+
+.payroll-studio .payroll-legal-kpi dt {
+  margin: 0;
+  font-size: 0.66rem;
+  font-weight: 650;
+  color: var(--text-soft, #64748b);
+  letter-spacing: 0.02em;
+  line-height: 1.25;
+}
+
+.payroll-studio .payroll-legal-kpi dd {
+  margin: 0.08rem 0 0;
+  font-size: 0.86rem;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  color: var(--pay-navy);
+  line-height: 1.2;
+}
+
+.payroll-studio .payroll-legal-kpi--ok {
+  border-color: rgba(13, 148, 136, 0.24);
+  background: linear-gradient(180deg, rgba(13, 148, 136, 0.07), var(--pay-card));
+}
+.payroll-studio .payroll-legal-kpi--ok .payroll-legal-kpi__ico {
+  background: rgba(13, 148, 136, 0.12);
+  color: #0f766e;
+}
+
+.payroll-studio .payroll-legal-kpi--neutral .payroll-legal-kpi__ico {
+  background: rgba(var(--primary-rgb, 55, 124, 192), 0.12);
+  color: var(--primary-dark, #2a6399);
+}
+
+.payroll-studio .payroll-legal-kpi--violet {
+  border-color: rgba(99, 102, 241, 0.22);
+}
+.payroll-studio .payroll-legal-kpi--violet .payroll-legal-kpi__ico {
+  background: rgba(99, 102, 241, 0.12);
+  color: #4f46e5;
+}
+
+.payroll-studio .payroll-legal-kpi--rose {
+  border-color: rgba(244, 63, 94, 0.2);
+}
+.payroll-studio .payroll-legal-kpi--rose .payroll-legal-kpi__ico {
+  background: rgba(244, 63, 94, 0.1);
+  color: #e11d48;
+}
+
+.payroll-studio .payroll-legal-kpi--warn {
+  border-color: rgba(245, 158, 11, 0.28);
+}
+.payroll-studio .payroll-legal-kpi--warn .payroll-legal-kpi__ico {
+  background: rgba(245, 158, 11, 0.12);
+  color: #d97706;
+}
+
+.payroll-studio .payroll-legal-notice {
+  margin: 0 0 0.85rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 10px;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.payroll-studio .payroll-legal-notice--info {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--pay-edge);
+}
+
+.payroll-studio .payroll-legal-notice--warn {
+  display: block;
+}
+
+.payroll-studio .payroll-legal-form {
+  margin: 0;
+}
+
+.payroll-studio .payroll-legal-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.payroll-studio .payroll-legal-card {
+  padding: 1rem 1.1rem;
+  border-radius: var(--pay-radius-sm);
+  border: 1px solid var(--pay-edge);
+  background: var(--pay-card);
+  box-shadow: var(--pay-shadow-sm);
+}
+
+.payroll-studio .payroll-legal-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+.payroll-studio .payroll-legal-section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0 0 0.85rem;
+  font-size: 0.92rem;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+  color: var(--pay-navy);
+}
+
+.payroll-studio .payroll-legal-section-num {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 50%;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(145deg, var(--pay-blue), var(--primary-dark, #2a6399));
+  box-shadow: 0 3px 10px rgba(var(--primary-rgb, 55, 124, 192), 0.28);
+}
+
+.payroll-studio .payroll-legal-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 0.85rem;
+}
+
+.payroll-studio .payroll-legal-form-grid--stack {
+  grid-template-columns: 1fr;
+}
+
+.payroll-studio .payroll-legal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.32rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.payroll-studio .payroll-legal-field .field-label {
+  font-size: 0.76rem;
+  font-weight: 650;
+  color: #475569;
+}
+
+.payroll-studio .payroll-legal-field input,
+.payroll-studio .payroll-legal-field select {
+  width: 100%;
+  min-height: 2.55rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid var(--pay-edge);
+  background: var(--pay-card);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.payroll-studio .payroll-legal-field input:focus,
+.payroll-studio .payroll-legal-field select:focus {
+  outline: none;
+  border-color: rgba(var(--primary-rgb, 55, 124, 192), 0.55);
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb, 55, 124, 192), 0.12);
+}
+
+.payroll-studio .payroll-legal-input-wrap {
+  position: relative;
+  display: block;
+}
+
+.payroll-studio .payroll-legal-input-wrap input {
+  padding-right: 2.75rem;
+}
+
+.payroll-studio .payroll-legal-input-suffix {
+  position: absolute;
+  top: 50%;
+  right: 0.65rem;
+  transform: translateY(-50%);
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--text-soft, #64748b);
+  pointer-events: none;
+}
+
+.payroll-studio .payroll-legal-form-footer {
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--pay-edge);
+}
+
+.payroll-studio .payroll-legal-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.payroll-studio .payroll-legal-form-actions__delete {
+  margin-left: auto;
+}
+
+.payroll-studio .payroll-legal-form-note {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.55rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.payroll-studio .payroll-legal-form-note .btn-icon,
+.payroll-studio .payroll-legal-form-note svg {
+  width: 0.9rem;
+  height: 0.9rem;
+  flex-shrink: 0;
+  opacity: 0.72;
+}
+
+.payroll-studio .payroll-legal-form-hint {
+  margin: 0.75rem 0 0;
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  background: rgba(var(--primary-rgb, 55, 124, 192), 0.07);
+  border: 1px solid rgba(var(--primary-rgb, 55, 124, 192), 0.14);
+}
+
+.payroll-studio .payroll-legal-history__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.15rem;
+}
+
+.payroll-studio .payroll-legal-history__head .payroll-legal-section-title {
+  margin-bottom: 0;
+}
+
+.payroll-studio .payroll-legal-history__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-size: 0.76rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.payroll-studio .payroll-legal-vigencias-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  max-height: min(42vh, 420px);
+  overflow: auto;
+  padding-right: 0.1rem;
+  margin-top: 0.65rem;
+}
+
+.payroll-studio .payroll-legal-vigencia-card {
+  border: 1px solid var(--pay-edge);
+  border-radius: 10px;
+  padding: 0.7rem 0.8rem;
+  background: var(--pay-surface);
+}
+
+.payroll-studio .payroll-legal-vigencia-card.is-current {
+  border-color: rgba(13, 148, 136, 0.35);
+  background: linear-gradient(180deg, rgba(13, 148, 136, 0.08), var(--pay-card));
+}
+
+.payroll-studio .payroll-legal-vigencia-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.payroll-studio .payroll-legal-vigencia-card__year {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--pay-navy);
+}
+
+.payroll-studio .payroll-legal-vigencia-card__range {
+  margin: 0.12rem 0 0;
+  font-size: 0.72rem;
+}
+
+.payroll-studio .payroll-legal-vigencia-card__metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem 0.55rem;
+  margin: 0 0 0.55rem;
+}
+
+.payroll-studio .payroll-legal-vigencia-card__metrics dt {
+  margin: 0;
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-soft);
+}
+
+.payroll-studio .payroll-legal-vigencia-card__metrics dd {
+  margin: 0.06rem 0 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--pay-navy);
+}
+
+.payroll-studio .payroll-legal-vigencia-card__actions {
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+
+.payroll-studio .payroll-legal-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.65rem;
+  margin-top: 0.65rem;
+  padding: 1.15rem 0.85rem;
+  text-align: center;
+  border: 1px dashed var(--pay-edge-strong);
+  border-radius: 10px;
+  background: var(--pay-surface);
+}
+
+.payroll-studio .payroll-legal-empty p {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.payroll-studio .payroll-legal-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  margin-top: 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--pay-radius-sm);
+  border: 1px solid rgba(var(--primary-rgb, 55, 124, 192), 0.18);
+  background: linear-gradient(135deg, rgba(var(--primary-rgb, 55, 124, 192), 0.08), rgba(var(--primary-rgb, 55, 124, 192), 0.03));
+}
+
+.payroll-studio .payroll-legal-tip .btn-icon,
+.payroll-studio .payroll-legal-tip svg {
+  flex-shrink: 0;
+  width: 1.15rem;
+  height: 1.15rem;
+  margin-top: 0.1rem;
+  color: var(--primary-dark, #2a6399);
+}
+
+.payroll-studio .payroll-legal-tip strong {
+  display: block;
+  margin-bottom: 0.15rem;
+  font-size: 0.84rem;
+  color: var(--pay-navy);
+}
+
+.payroll-studio .payroll-legal-tip p {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+@media (max-width: 1024px) {
+  .payroll-studio .payroll-legal-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .payroll-studio .payroll-legal-vigencias-grid {
+    max-height: none;
+  }
+
+  .payroll-studio .payroll-legal-form-actions__delete {
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .payroll-studio .payroll-legal-panel__head {
+    padding: 1rem;
+  }
+
+  .payroll-studio .payroll-legal-panel__body {
+    padding: 0.85rem 1rem 1rem;
+  }
+
+  .payroll-studio .payroll-legal-kpi-bar {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .payroll-studio .payroll-legal-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .payroll-studio .payroll-legal-panel__actions {
+    width: 100%;
+  }
+
+  .payroll-studio .payroll-legal-panel__actions .btn {
+    flex: 1 1 auto;
+  }
+}
+
+body[data-theme="dark"] .payroll-studio .payroll-legal-panel {
+  border-color: rgba(148, 196, 255, 0.16);
+  background: rgba(12, 24, 40, 0.92);
+}
+
+body[data-theme="dark"] .payroll-studio .payroll-legal-panel__head {
+  background:
+    radial-gradient(ellipse 70% 90% at 100% 0%, rgba(var(--primary-rgb, 55, 124, 192), 0.14), transparent 55%),
+    linear-gradient(180deg, rgba(15, 28, 46, 0.96) 0%, rgba(10, 22, 38, 0.92) 100%);
+  border-bottom-color: rgba(148, 196, 255, 0.12);
+}
+
+body[data-theme="dark"] .payroll-studio .payroll-legal-panel__body {
+  background: rgba(8, 18, 32, 0.55);
+}
+
+body[data-theme="dark"] .payroll-studio .payroll-legal-card,
+body[data-theme="dark"] .payroll-studio .payroll-legal-kpi {
+  background: rgba(14, 28, 46, 0.85);
+  border-color: rgba(148, 196, 255, 0.14);
+}
+
+body[data-theme="dark"] .payroll-studio .payroll-legal-vigencia-card {
+  background: rgba(10, 22, 38, 0.72);
+}
+
+body[data-theme="dark"] .payroll-studio .payroll-legal-vigencia-card.is-current {
+  background: linear-gradient(180deg, rgba(13, 148, 136, 0.12), rgba(14, 28, 46, 0.88));
+  border-color: rgba(52, 211, 153, 0.28);
+}
+
+body[data-theme="dark"] .payroll-studio .payroll-legal-form-hint,
+body[data-theme="dark"] .payroll-studio .payroll-legal-tip {
+  background: rgba(var(--primary-rgb, 55, 124, 192), 0.12);
+  border-color: rgba(148, 196, 255, 0.16);
+}
+
+body[data-theme="dark"] .payroll-studio .payroll-legal-field input,
+body[data-theme="dark"] .payroll-studio .payroll-legal-field select {
+  background: rgba(10, 22, 38, 0.72);
+  border-color: rgba(148, 196, 255, 0.16);
+  color: var(--text);
 }
 

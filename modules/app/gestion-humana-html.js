@@ -211,7 +211,14 @@ function payrollHtml() {
   const canEditLegalParameters = currentUser()?.role === ROLES.ADMIN;
   const legalHistory = laborSystemParametersHistoryRows();
   const legalSelectedYear = Number(state.payrollLegalUi?.year || legalHistory[0]?.year || now.getFullYear());
-  const legalDraft = laborSystemParametersDraftForYear(legalSelectedYear, legalHistory);
+  const legalDraftBase = laborSystemParametersDraftForYear(legalSelectedYear, legalHistory);
+  const legalDraftOverride =
+    state.payrollLegalUi?.draftOverride && typeof state.payrollLegalUi.draftOverride === "object"
+      ? state.payrollLegalUi.draftOverride
+      : null;
+  const legalDraft = legalDraftOverride
+    ? { ...legalDraftBase, ...legalDraftOverride, year: legalSelectedYear }
+    : legalDraftBase;
   const legalYearOptions = laborSystemParametersSelectableYears(legalHistory);
   const legalAppliedYearOptions = [...new Set([legalDraft.year, ...legalYearOptions])].sort((a, b) => b - a);
   const payrollRunsForLegalYear = allRuns.filter((run) => String(run.month || "").startsWith(`${legalDraft.year}`)).length;
@@ -922,14 +929,47 @@ function payrollHtml() {
       <button type="button" class="payroll-quick-pill${runSort === "pending_first" ? " is-active" : ""}" data-action="payroll-sort-runs" data-sort="pending_first">Orden: pendientes</button>
     </div>`;
   const legalHasSavedYear = legalHistory.some((row) => Number(row?.year) === Number(legalDraft.year));
-  const legalSummary = `<dl class="payroll-legal-summary" aria-label="Parámetros del año seleccionado">
-      <div><dt>SMMLV ${legalDraft.year}</dt><dd>$${parseNum(legalDraft.smmlvCop).toLocaleString("es-CO")}</dd></div>
-      <div><dt>Auxilio transporte</dt><dd>$${parseNum(legalDraft.transportAllowanceCop).toLocaleString("es-CO")}</dd></div>
-      <div><dt>Salud / pensión</dt><dd>${healthRatePct}% / ${pensionRatePct}%</dd></div>
-      <div><dt>Horas semanales</dt><dd>${parseNum(legalDraft.legalWeeklyHours || CO_HR_RULES.legalWeeklyHours)}</dd></div>
-      <div><dt>Tope auxilio (2 SMMLV)</dt><dd>$${legalCurrentCap.toLocaleString("es-CO")}</dd></div>
-      <div><dt>Modo plataforma</dt><dd><strong>${legalDraft.referenceMode === "manual" ? `Manual · ${escapeHtml(String(legalDraft.activeYear))}` : "Automático"}</strong></dd></div>
-    </dl>`;
+  const legalActiveRow = legalHistory.find((row) => row.isCurrent) || legalHistory[0] || null;
+  const legalActiveYear = Number(legalActiveRow?.year || legalDraft.activeYear || legalDraft.year);
+  const legalLastSavedYear = legalHistory.reduce((max, row) => Math.max(max, Number(row?.year) || 0), 0);
+  const legalSuggestedNewYear = clampLaborSystemParameterYear(Math.max(now.getFullYear(), legalLastSavedYear + 1));
+  const legalKpi = (tone, icon, label, valueHtml) =>
+    `<div class="payroll-legal-kpi payroll-legal-kpi--${tone}">
+      <span class="payroll-legal-kpi__ico" aria-hidden="true">${icon || ""}</span>
+      <div class="payroll-legal-kpi__body"><dt>${escapeHtml(label)}</dt><dd>${valueHtml}</dd></div>
+    </div>`;
+  const legalSummary = `<div class="payroll-legal-kpi-bar" aria-label="Resumen de la vigencia seleccionada">
+      ${legalKpi(
+        "ok",
+        IC.check,
+        `Vigencia activa (${legalActiveYear})`,
+        `<strong>${escapeHtml(String(legalActiveYear))}</strong>`
+      )}
+      ${legalKpi(
+        "neutral",
+        IC.dollar,
+        "SMMLV",
+        `<strong>$${parseNum(legalDraft.smmlvCop).toLocaleString("es-CO")}</strong>`
+      )}
+      ${legalKpi(
+        "violet",
+        IC.truck,
+        "Auxilio transporte",
+        `<strong>$${parseNum(legalDraft.transportAllowanceCop).toLocaleString("es-CO")}</strong>`
+      )}
+      ${legalKpi(
+        "rose",
+        IC.heart,
+        "Salud / Pensión",
+        `<strong>${healthRatePct}% / ${pensionRatePct}%</strong>`
+      )}
+      ${legalKpi(
+        "warn",
+        IC.clock,
+        "Horas semanales",
+        `<strong>${parseNum(legalDraft.legalWeeklyHours || CO_HR_RULES.legalWeeklyHours)}</strong>`
+      )}
+    </div>`;
   const legalYearOptionsHtml = legalYearOptions
     .map(
       (year) =>
@@ -948,7 +988,14 @@ function payrollHtml() {
     ? `<div class="payroll-legal-vigencias-grid">${legalHistory
         .map((row) => renderPayrollLegalHistoryCard(row, allRuns, { canDelete: canEditLegalParameters }))
         .join("")}</div>`
-    : `<p class="payroll-legal-empty muted">Aún no hay vigencias guardadas en base de datos. Cree la primera con el formulario.</p>`;
+    : `<div class="payroll-legal-empty">
+        <p class="muted">Aún no hay vigencias registradas en base de datos. Cree la primera con el formulario.</p>
+        ${
+          canEditLegalParameters
+            ? `<button type="button" class="btn btn-outline btn-sm" data-action="payroll-legal-new">${IC.plus} Crear primera vigencia</button>`
+            : ""
+        }
+      </div>`;
   const legalReadOnlyNotice = canEditLegalParameters
     ? ""
     : `<p class="payroll-legal-notice payroll-legal-notice--info muted">Solo administradores pueden editar o eliminar vigencias. RRHH consulta el histórico y los valores aplicados en nómina.</p>`;
@@ -956,86 +1003,118 @@ function payrollHtml() {
     ? `<p class="payroll-legal-notice payroll-legal-notice--warn status status-pendiente">Advertencia: ${payrollRunsForLegalYear} liquidación${payrollRunsForLegalYear === 1 ? "" : "es"} del año ${legalDraft.year} ya usan referencias de esta vigencia. Guardar actualiza parámetros; eliminar la vigencia no borra liquidaciones.</p>`
     : "";
   const legalFormActions = canEditLegalParameters
-    ? `<div class="payroll-legal-form-actions">
-        <button type="submit" class="btn btn-primary">${IC.check} Guardar vigencia ${escapeHtml(String(legalDraft.year))}</button>
-        ${
-          legalHasSavedYear
-            ? `<button type="button" class="btn btn-outline btn-reject" data-action="payroll-legal-delete" data-year="${escapeAttr(String(legalDraft.year))}">${IC.trash} Eliminar vigencia ${escapeHtml(String(legalDraft.year))}</button>`
-            : ""
-        }
+    ? `<footer class="payroll-legal-form-footer">
+        <div class="payroll-legal-form-actions">
+          <button type="submit" class="btn btn-primary">${IC.save} Guardar vigencia</button>
+          <button type="button" class="btn btn-outline" data-action="payroll-legal-reset">${IC.x} Cancelar cambios</button>
+          ${
+            legalHasSavedYear
+              ? `<button type="button" class="btn btn-outline btn-reject payroll-legal-form-actions__delete" data-action="payroll-legal-delete" data-year="${escapeAttr(String(legalDraft.year))}">${IC.trash} Eliminar</button>`
+              : ""
+          }
+        </div>
+        <p class="payroll-legal-form-note muted">${IC.lock} Los cambios aplicarán a toda la plataforma una vez guardados.</p>
+      </footer>`
+    : "";
+  const legalHeaderActions = canEditLegalParameters
+    ? `<div class="payroll-legal-panel__actions toolbar">
+        <button type="button" class="btn btn-outline btn-sm" data-action="payroll-legal-duplicate"${legalHistory.length ? "" : " disabled"}>${IC.layers} Duplicar última vigencia</button>
+        <button type="button" class="btn btn-primary btn-sm" data-action="payroll-legal-new" data-year="${escapeAttr(String(legalSuggestedNewYear))}">${IC.plus} Nueva vigencia</button>
       </div>`
     : "";
+  const legalInputSuffix = (inputHtml, suffix) =>
+    `<span class="payroll-legal-input-wrap">${inputHtml}<span class="payroll-legal-input-suffix" aria-hidden="true">${escapeHtml(String(suffix))}</span></span>`;
   const legalPane = `<div class="payroll-data-pane${payrollDataSection === "legal" ? "" : " hidden"}" data-payroll-section="legal">
-      <div class="payroll-legal-panel admin-users-data-card hr-form-card hr-form-card--xl hr-form-card--payroll">
+      <div class="payroll-legal-panel">
         <header class="payroll-legal-panel__head">
           <div class="payroll-legal-panel__brand">
             ${hrCardIconMarkup("hash")}
             <div>
               <h2>Parámetros legales anuales</h2>
-              <p class="muted">SMMLV, auxilio, UVT, aportes y horas legales por vigencia. Contratación y nómina consumen la referencia activa.</p>
+              <p class="muted">SMMLV, auxilio, UVT, aportes y horas legales por vigencia.</p>
             </div>
           </div>
+          ${legalHeaderActions}
         </header>
         <div class="payroll-legal-panel__body">
           ${legalReadOnlyNotice}
-          <div class="payroll-legal-layout">
-            <section class="payroll-legal-editor" aria-labelledby="payroll-legal-editor-title">
-              <h3 id="payroll-legal-editor-title" class="payroll-legal-section-title">${IC.edit} Editar vigencia <span class="payroll-legal-editor-year">${escapeHtml(String(legalDraft.year))}</span></h3>
-              ${legalSummary}
-              ${legalPayrollWarning}
-              <form id="form-payroll-legal-params" class="p-form p-form-colored hr-form-flow hr-form-compact payroll-legal-form">
-                <fieldset class="form-section form-section-violet full">
-                  <legend>${IC.hash} Valores del año</legend>
-                  <div class="form-section-grid">
-                    <label>${fieldLabel(IC.calendar, "Año de vigencia")}
-                      <select name="year" data-action="payroll-legal-set-year">${legalYearOptionsHtml}</select>
-                    </label>
-                    <label>${fieldLabel(IC.dollar, "SMMLV (COP)")}
-                      <input name="smmlvCop" type="number" min="1" step="1" value="${escapeAttr(String(parseNum(legalDraft.smmlvCop)))}" ${canEditLegalParameters ? "" : "disabled"} />
-                    </label>
-                    <label>${fieldLabel(IC.activity, "Auxilio transporte (COP)")}
-                      <input name="transportAllowanceCop" type="number" min="0" step="1" value="${escapeAttr(String(parseNum(legalDraft.transportAllowanceCop)))}" ${canEditLegalParameters ? "" : "disabled"} />
-                    </label>
-                    <label>${fieldLabel(IC.heart, "Salud empleado %")}
-                      <input name="healthEmployeeRatePct" type="number" min="0" max="100" step="0.01" value="${escapeAttr(String(healthRatePct))}" ${canEditLegalParameters ? "" : "disabled"} />
-                    </label>
-                    <label>${fieldLabel(IC.shield, "Pensión empleado %")}
-                      <input name="pensionEmployeeRatePct" type="number" min="0" max="100" step="0.01" value="${escapeAttr(String(pensionRatePct))}" ${canEditLegalParameters ? "" : "disabled"} />
-                    </label>
-                    <label>${fieldLabel(IC.hash, "UVT (COP)")}
-                      <input name="uvtCop" type="number" min="0" step="1" value="${escapeAttr(String(parseNum(legalDraft.uvtCop || 0) || ""))}" placeholder="Opcional" ${canEditLegalParameters ? "" : "disabled"} />
-                    </label>
-                    <label>${fieldLabel(IC.clock, "Horas legales semanales")}
-                      <input name="legalWeeklyHours" type="number" min="1" max="168" step="1" value="${escapeAttr(String(parseNum(legalDraft.legalWeeklyHours || CO_HR_RULES.legalWeeklyHours)))}" ${canEditLegalParameters ? "" : "disabled"} />
-                    </label>
+          ${legalSummary}
+          ${legalPayrollWarning}
+          <form id="form-payroll-legal-params" class="p-form payroll-legal-form">
+            <div class="payroll-legal-layout">
+              <section class="payroll-legal-editor payroll-legal-card" aria-labelledby="payroll-legal-editor-title">
+                <h3 id="payroll-legal-editor-title" class="payroll-legal-section-title">
+                  <span class="payroll-legal-section-num">1</span>
+                  Datos de la vigencia
+                </h3>
+                <div class="payroll-legal-form-grid">
+                  <label class="payroll-legal-field">${fieldLabel(IC.calendar, "Año de vigencia")}
+                    <select name="year" data-action="payroll-legal-set-year">${legalYearOptionsHtml}</select>
+                  </label>
+                  <label class="payroll-legal-field">${fieldLabel(IC.dollar, "SMMLV (COP)")}
+                    <input name="smmlvCop" type="number" min="1" step="1" value="${escapeAttr(String(parseNum(legalDraft.smmlvCop)))}" ${canEditLegalParameters ? "" : "disabled"} />
+                  </label>
+                  <label class="payroll-legal-field">${fieldLabel(IC.truck, "Auxilio de transporte (COP)")}
+                    <input name="transportAllowanceCop" type="number" min="0" step="1" value="${escapeAttr(String(parseNum(legalDraft.transportAllowanceCop)))}" ${canEditLegalParameters ? "" : "disabled"} />
+                  </label>
+                  <label class="payroll-legal-field">${fieldLabel(IC.hash, "UVT (COP)")}
+                    <input name="uvtCop" type="number" min="0" step="1" value="${escapeAttr(String(parseNum(legalDraft.uvtCop || 0) || ""))}" placeholder="Opcional" ${canEditLegalParameters ? "" : "disabled"} />
+                  </label>
+                  <label class="payroll-legal-field">${fieldLabel(IC.heart, "Salud empleado (%)")}
+                    ${legalInputSuffix(`<input name="healthEmployeeRatePct" type="number" min="0" max="100" step="0.01" value="${escapeAttr(String(healthRatePct))}" ${canEditLegalParameters ? "" : "disabled"} />`, "%")}
+                  </label>
+                  <label class="payroll-legal-field">${fieldLabel(IC.shield, "Pensión empleado (%)")}
+                    ${legalInputSuffix(`<input name="pensionEmployeeRatePct" type="number" min="0" max="100" step="0.01" value="${escapeAttr(String(pensionRatePct))}" ${canEditLegalParameters ? "" : "disabled"} />`, "%")}
+                  </label>
+                  <label class="payroll-legal-field">${fieldLabel(IC.clock, "Horas legales semanales")}
+                    ${legalInputSuffix(`<input name="legalWeeklyHours" type="number" min="1" max="168" step="1" value="${escapeAttr(String(parseNum(legalDraft.legalWeeklyHours || CO_HR_RULES.legalWeeklyHours)))}" ${canEditLegalParameters ? "" : "disabled"} />`, "horas")}
+                  </label>
+                </div>
+                ${legalFormActions}
+              </section>
+              <aside class="payroll-legal-sidebar">
+                <section class="payroll-legal-history payroll-legal-card" aria-labelledby="payroll-legal-history-title">
+                  <div class="payroll-legal-history__head">
+                    <h3 id="payroll-legal-history-title" class="payroll-legal-section-title">
+                      <span class="payroll-legal-section-num">2</span>
+                      Historial de vigencias
+                    </h3>
+                    ${
+                      legalHistory.length
+                        ? `<button type="button" class="payroll-legal-history__link muted" data-action="payroll-legal-set-year" data-year="${escapeAttr(String(legalHistory[0]?.year || legalDraft.year))}">Ver todas ${IC.chevronRight}</button>`
+                        : ""
+                    }
                   </div>
-                </fieldset>
-                <fieldset class="form-section form-section-cyan full">
-                  <legend>${IC.layers} Referencia global en plataforma</legend>
-                  <div class="form-section-grid">
-                    <label>${fieldLabel(IC.layers, "Modo de vigencia")}
+                  ${legalHistoryCards}
+                </section>
+                <section class="payroll-legal-global payroll-legal-card" aria-labelledby="payroll-legal-global-title">
+                  <h3 id="payroll-legal-global-title" class="payroll-legal-section-title">
+                    <span class="payroll-legal-section-num">3</span>
+                    Referencia global
+                  </h3>
+                  <div class="payroll-legal-form-grid payroll-legal-form-grid--stack">
+                    <label class="payroll-legal-field">${fieldLabel(IC.layers, "Modo de vigencia")}
                       <select name="platformReferenceMode" ${canEditLegalParameters ? "" : "disabled"}>
-                        <option value="automatic" ${legalDraft.referenceMode === "automatic" ? "selected" : ""}>Automática por fecha actual</option>
+                        <option value="automatic" ${legalDraft.referenceMode === "automatic" ? "selected" : ""}>Automática por defecto</option>
                         <option value="manual" ${legalDraft.referenceMode === "manual" ? "selected" : ""}>Forzar vigencia manual</option>
                       </select>
                     </label>
-                    <label>${fieldLabel(IC.calendar, "Año aplicado globalmente")}
+                    <label class="payroll-legal-field">${fieldLabel(IC.calendar, "Año aplicado globalmente")}
                       <select name="platformReferenceYear" ${canEditLegalParameters ? "" : "disabled"}>${legalAppliedYearOptionsHtml}</select>
                     </label>
-                    <p class="full muted payroll-legal-form-hint">El tope del auxilio de transporte se calcula con <strong>2 SMMLV</strong> ($${legalCurrentCap.toLocaleString("es-CO")} para ${legalDraft.year}).</p>
                   </div>
-                </fieldset>
-                ${legalFormActions}
-              </form>
-            </section>
-            <section class="payroll-legal-history" aria-labelledby="payroll-legal-history-title">
-              <div class="payroll-legal-history__head">
-                <h3 id="payroll-legal-history-title" class="payroll-legal-section-title">${IC.layers} Historial de vigencias</h3>
-                <span class="payroll-legal-history__count muted">${legalHistory.length} registro${legalHistory.length === 1 ? "" : "s"}</span>
-              </div>
-              ${legalHistoryCards}
-            </section>
-          </div>
+                  <p class="payroll-legal-form-hint muted">El tope del auxilio de transporte se calcula con <strong>2 SMMLV</strong> ($${legalCurrentCap.toLocaleString("es-CO")} para ${legalDraft.year}). Contratación y nómina consumen la referencia activa.</p>
+                </section>
+              </aside>
+            </div>
+          </form>
+          <aside class="payroll-legal-tip" aria-label="Consejo">
+            ${IC.compass}
+            <div>
+              <strong>Consejo</strong>
+              <p class="muted">Mantenga actualizados los valores legales al inicio de cada año para que nómina, contratos y liquidaciones calculen correctamente SMMLV, auxilio, UVT y aportes.</p>
+            </div>
+          </aside>
         </div>
       </div>
     </div>`;

@@ -704,7 +704,7 @@ function bindPayrollPortalControls() {
   nodes.viewRoot.querySelectorAll("[data-action='payroll-legal-set-year']").forEach((el) => {
     const applyYearSelection = (yearLike) => {
       const year = clampLaborSystemParameterYear(yearLike);
-      state.payrollLegalUi = { ...(state.payrollLegalUi || {}), year: String(year) };
+      state.payrollLegalUi = { ...(state.payrollLegalUi || {}), year: String(year), draftOverride: null };
       state.payrollUi = { ...(state.payrollUi || {}), workspace: "data", dataSection: "legal" };
       persistHrWorkspace("payroll", "data");
       renderPortalView();
@@ -714,6 +714,63 @@ function bindPayrollPortalControls() {
       return;
     }
     el.addEventListener("click", () => applyYearSelection(el.dataset.year));
+  });
+
+  const navigatePayrollLegalYear = (yearLike, { draftOverride = null } = {}) => {
+    const year = clampLaborSystemParameterYear(yearLike);
+    state.payrollLegalUi = {
+      ...(state.payrollLegalUi || {}),
+      year: String(year),
+      draftOverride: draftOverride && typeof draftOverride === "object" ? draftOverride : null
+    };
+    state.payrollUi = { ...(state.payrollUi || {}), workspace: "data", dataSection: "legal" };
+    persistHrWorkspace("payroll", "data");
+    renderPortalView();
+  };
+
+  nodes.viewRoot.querySelectorAll("[data-action='payroll-legal-new']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const history = laborSystemParametersHistoryRows();
+      const lastSaved = history.reduce((max, row) => Math.max(max, Number(row?.year) || 0), 0);
+      const year = clampLaborSystemParameterYear(
+        Number(btn.dataset.year) || Math.max(new Date().getFullYear(), lastSaved + 1)
+      );
+      navigatePayrollLegalYear(year);
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='payroll-legal-duplicate']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (abortIfNotAdmin()) return;
+      const history = laborSystemParametersHistoryRows();
+      if (!history.length) {
+        notify("No hay vigencias previas para duplicar.", "warn");
+        return;
+      }
+      const source = history[0];
+      const lastSaved = history.reduce((max, row) => Math.max(max, Number(row?.year) || 0), 0);
+      const year = clampLaborSystemParameterYear(lastSaved + 1);
+      navigatePayrollLegalYear(year, {
+        draftOverride: {
+          smmlvCop: parseNum(source.smmlvCop),
+          transportAllowanceCop: parseNum(source.transportAllowanceCop),
+          healthEmployeeRate: parseNum(source.healthEmployeeRate),
+          pensionEmployeeRate: parseNum(source.pensionEmployeeRate),
+          uvtCop: parseNum(source.uvtCop || 0) || null,
+          legalWeeklyHours: parseNum(source.legalWeeklyHours || CO_HR_RULES.legalWeeklyHours)
+        }
+      });
+      notify(`Vigencia ${year} preparada con los valores de ${source.year}. Revise y guarde.`, "info");
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='payroll-legal-reset']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.payrollLegalUi = { ...(state.payrollLegalUi || {}), draftOverride: null };
+      state.payrollUi = { ...(state.payrollUi || {}), workspace: "data", dataSection: "legal" };
+      persistHrWorkspace("payroll", "data");
+      renderPortalView();
+    });
   });
 
   const payrollLegalForm = nodes.viewRoot.querySelector("#form-payroll-legal-params");
@@ -791,7 +848,7 @@ function bindPayrollPortalControls() {
         try {
           const saved = await postPortalAuthorized("/portal/labor-system-parameters", body);
           applyLaborSystemParametersApiResponse(saved);
-          state.payrollLegalUi = { ...(state.payrollLegalUi || {}), year: String(year) };
+          state.payrollLegalUi = { ...(state.payrollLegalUi || {}), year: String(year), draftOverride: null };
           state.payrollUi = { ...(state.payrollUi || {}), workspace: "data", dataSection: "legal" };
           persistHrWorkspace("payroll", "data");
           renderPortalView();
@@ -836,7 +893,7 @@ function bindPayrollPortalControls() {
         applyLaborSystemParametersApiResponse(result);
         const remaining = laborSystemParametersHistoryRows();
         const fallbackYear = remaining[0]?.year ?? new Date().getFullYear();
-        state.payrollLegalUi = { ...(state.payrollLegalUi || {}), year: String(fallbackYear) };
+        state.payrollLegalUi = { ...(state.payrollLegalUi || {}), year: String(fallbackYear), draftOverride: null };
         state.payrollUi = { ...(state.payrollUi || {}), workspace: "data", dataSection: "legal" };
         persistHrWorkspace("payroll", "data");
         renderPortalView();

@@ -36,11 +36,11 @@
     <link rel="stylesheet" href="./styles.landing.css?v=20260609-css-split" />
     <link
       rel="stylesheet"
-      href="./styles.css?v=20260622-toast-ui"
+      href="./styles.css?v=20260622-sidebar-rail"
       media="print"
       onload="this.onload=null;this.media='all'"
     />
-    <link rel="stylesheet" href="./styles/dashboard-module.css?v=20260622-sizes" media="print" onload="this.onload=null;this.media='all'" />
+    <link rel="stylesheet" href="./styles/dashboard-module.css?v=20260622-hero-layout" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/requests-module.css?v=20260611-portal-modules" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/transport-module.css?v=20260611-portal-modules" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/vehicles-module.css?v=20260611-portal-modules" media="print" onload="this.onload=null;this.media='all'" />
@@ -48,7 +48,7 @@
     <link rel="stylesheet" href="./styles/calendar-module.css?v=20260611-portal-modules" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/history-module.css?v=20260611-portal-modules" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/reports-module.css?v=20260611-portal-modules" media="print" onload="this.onload=null;this.media='all'" />
-    <link rel="stylesheet" href="./styles/payroll-module.css?v=20260622-create-ui" media="print" onload="this.onload=null;this.media='all'" />
+    <link rel="stylesheet" href="./styles/payroll-module.css?v=20260622-legal-ui" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/hiring-module.css?v=20260611-portal-modules" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/sst-module.css?v=20260611-portal-modules" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/b2b-module.css?v=20260611-portal-modules" media="print" onload="this.onload=null;this.media='all'" />
@@ -59,7 +59,7 @@
     <link rel="stylesheet" href="./styles/portal-studios-dark.css?v=20260622-dash-cc-dark" media="print" onload="this.onload=null;this.media='all'" />
     <noscript>
       <link rel="stylesheet" href="./styles.css?v=20260622-toast-ui" />
-      <link rel="stylesheet" href="./styles/dashboard-module.css?v=20260622-sizes" />
+      <link rel="stylesheet" href="./styles/dashboard-module.css?v=20260622-hero-layout" />
       <link rel="stylesheet" href="./styles/requests-module.css?v=20260611-portal-modules" />
       <link rel="stylesheet" href="./styles/transport-module.css?v=20260611-portal-modules" />
       <link rel="stylesheet" href="./styles/vehicles-module.css?v=20260611-portal-modules" />
@@ -67,7 +67,7 @@
       <link rel="stylesheet" href="./styles/calendar-module.css?v=20260611-portal-modules" />
       <link rel="stylesheet" href="./styles/history-module.css?v=20260611-portal-modules" />
       <link rel="stylesheet" href="./styles/reports-module.css?v=20260611-portal-modules" />
-      <link rel="stylesheet" href="./styles/payroll-module.css?v=20260622-create-ui" />
+      <link rel="stylesheet" href="./styles/payroll-module.css?v=20260622-legal-ui" />
       <link rel="stylesheet" href="./styles/hiring-module.css?v=20260611-portal-modules" />
       <link rel="stylesheet" href="./styles/sst-module.css?v=20260611-portal-modules" />
       <link rel="stylesheet" href="./styles/b2b-module.css?v=20260611-portal-modules" />
@@ -994,23 +994,21 @@
     <section id="portal-app" class="hidden">
       <div class="portal-layout">
         <div id="portal-nav-backdrop" class="portal-nav-backdrop" aria-hidden="true"></div>
-        <aside class="sidebar" id="portal-sidebar">
-          <div class="sidebar-brand">
-            <span class="sidebar-session-avatar-wrap" id="sidebar-session-avatar-wrap" aria-hidden="true">
-              <span class="sidebar-session-avatar-initial" id="sidebar-session-avatar-initial">A</span>
+        <aside class="sidebar sidebar--rail" id="portal-sidebar">
+          <div class="sidebar-rail-head">
+            <div class="sidebar-brand-logo-wrap" title="Transportes Antares">
               <img
-                class="sidebar-session-avatar-img"
-                id="sidebar-session-avatar-img"
-                alt=""
-                width="44"
-                height="44"
+                class="sidebar-brand-logo"
+                src="./imagenes%20empresa/logo-recortado.png"
+                alt="Transportes Antares"
+                width="800"
+                height="241"
                 decoding="async"
-                hidden
               />
-            </span>
-            <div><h2 id="sidebar-session-display-name">Transportes Antares</h2><p id="session-meta"></p></div>
+            </div>
+            <p class="sidebar-drawer-tagline" aria-hidden="true">Módulos del portal</p>
           </div>
-          <p class="sidebar-drawer-tagline" aria-hidden="true">Módulos del portal</p>
+          <nav class="sidebar-rail-scroll" aria-label="Módulos del portal">
           <p class="sidebar-section-label">General</p>
           <button type="button" data-view="dashboard" class="side-link active">
             <svg class="side-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
@@ -1071,11 +1069,6 @@
             <svg class="side-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
             Autorizaciones
           </button>
-          <p class="sidebar-section-label">Mi cuenta</p>
-          <button type="button" data-view="profile" class="side-link">
-            <svg class="side-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-            Mi perfil
-          </button>
           <div class="sidebar-notif-group">
             <div class="sidebar-notif-row">
               <button
@@ -1093,17 +1086,37 @@
               </button>
             </div>
           </div>
-          <div class="sidebar-spacer"></div>
-          <div class="sidebar-logout">
-            <button id="logout" class="side-link sidebar-logout-btn" type="button">
-              <svg class="side-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-              Cerrar sesión
+          </nav>
+          <div class="sidebar-rail-foot">
+            <button type="button" data-view="profile" class="sidebar-user-panel">
+              <span class="sidebar-session-avatar-wrap" id="sidebar-session-avatar-wrap" aria-hidden="true">
+                <span class="sidebar-session-avatar-initial" id="sidebar-session-avatar-initial">A</span>
+                <img
+                  class="sidebar-session-avatar-img"
+                  id="sidebar-session-avatar-img"
+                  alt=""
+                  width="36"
+                  height="36"
+                  decoding="async"
+                  hidden
+                />
+              </span>
+              <span class="sidebar-user-text">
+                <strong id="sidebar-session-display-name">Transportes Antares</strong>
+                <span id="session-meta"></span>
+              </span>
             </button>
-            <div class="sidebar-theme-box">
-              <p class="sidebar-theme-title">Tema</p>
-              <div class="theme-toggle" id="theme-toggle-portal" role="group" aria-label="Tema portal">
-                <button type="button" class="theme-option" data-theme-option="light" aria-label="Modo claro">☀️</button>
-                <button type="button" class="theme-option" data-theme-option="dark" aria-label="Modo oscuro">🌙</button>
+            <div class="sidebar-logout">
+              <button id="logout" class="side-link sidebar-logout-btn" type="button">
+                <svg class="side-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                Salir
+              </button>
+              <div class="sidebar-theme-box">
+                <p class="sidebar-theme-title">Tema</p>
+                <div class="theme-toggle theme-toggle--compact" id="theme-toggle-portal" role="group" aria-label="Tema portal">
+                  <button type="button" class="theme-option" data-theme-option="light" aria-label="Modo claro">☀️</button>
+                  <button type="button" class="theme-option" data-theme-option="dark" aria-label="Modo oscuro">🌙</button>
+                </div>
               </div>
             </div>
           </div>
