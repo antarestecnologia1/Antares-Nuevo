@@ -1546,3 +1546,453 @@ body[data-theme="dark"] .payroll-studio .hr-workspace-tab--switch.is-active {
   }
 }
 
+/* ── Dashboard de contratos (empleados / consultar) ── */
+.payroll-contracts-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.payroll-contracts-head__title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text-main, #0f172a);
+}
+
+.payroll-contracts-head__subtitle {
+  margin: 0.25rem 0 0;
+  font-size: 0.88rem;
+}
+
+.payroll-contracts-kpis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin: 0;
+}
+
+.payroll-contracts-kpi {
+  min-width: 7.5rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 12px;
+  border: 1px solid var(--pay-edge, rgba(148, 163, 184, 0.22));
+  background: var(--pay-card, #fff);
+  box-shadow: var(--pay-shadow-sm, 0 4px 12px rgba(15, 23, 42, 0.05));
+}
+
+.payroll-contracts-kpi dt {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0 0 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--muted, #64748b);
+}
+
+.payroll-contracts-kpi dt .btn-icon {
+  width: 13px;
+  height: 13px;
+}
+
+.payroll-contracts-kpi dd {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--text-main, #0f172a);
+}
+
+.payroll-contracts-kpi--expired {
+  border-color: rgba(239, 68, 68, 0.22);
+  background: linear-gradient(180deg, #fff5f5, #fff);
+}
+
+.payroll-contracts-kpi--expired dd {
+  color: #b91c1c;
+}
+
+.payroll-contracts-kpi--notice {
+  border-color: rgba(245, 158, 11, 0.24);
+  background: linear-gradient(180deg, #fffbeb, #fff);
+}
+
+.payroll-contracts-kpi--notice dd {
+  color: #b45309;
+}
+
+.payroll-contracts-kpi--active {
+  border-color: rgba(16, 185, 129, 0.22);
+  background: linear-gradient(180deg, #ecfdf5, #fff);
+}
+
+.payroll-contracts-kpi--active dd {
+  color: #047857;
+}
+
+.payroll-contracts-filterbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.65rem 0.75rem;
+  padding: 0.85rem 0.95rem;
+  margin-bottom: 0.85rem;
+  border: 1px solid var(--pay-edge, rgba(148, 163, 184, 0.22));
+  border-radius: 14px;
+  background: var(--pay-card, #fff);
+  box-shadow: var(--pay-shadow-sm, 0 4px 12px rgba(15, 23, 42, 0.05));
+}
+
+.payroll-contracts-search {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex: 1 1 16rem;
+  min-width: 0;
+  padding: 0.45rem 0.75rem;
+  border: 1px solid var(--pay-edge, rgba(148, 163, 184, 0.28));
+  border-radius: 11px;
+  background: #fff;
+}
+
+.payroll-contracts-search .btn-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--muted, #64748b);
+  flex-shrink: 0;
+}
+
+.payroll-contracts-search input {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0.15rem 0;
+  font-size: 0.86rem;
+  outline: none;
+}
+
+.payroll-contracts-filter {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--muted, #64748b);
+}
+
+.payroll-contracts-filter select {
+  min-width: 9rem;
+  min-height: 2.15rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 10px;
+  border: 1px solid var(--pay-edge, rgba(148, 163, 184, 0.28));
+  background: #fff;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-main, #0f172a);
+}
+
+.payroll-contracts-filterbar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  margin-inline-start: auto;
+}
+
+.payroll-contracts-table-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  margin-bottom: 0.65rem;
+}
+
+.payroll-contracts-bulk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.payroll-contracts-bulk__count {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.28rem 0.65rem;
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 0.12);
+  color: #1d4ed8;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.payroll-contracts-table-shell {
+  border: 1px solid var(--pay-edge, rgba(148, 163, 184, 0.22));
+  border-radius: 14px;
+  background: var(--pay-card, #fff);
+  padding: 0.85rem;
+  box-shadow: var(--pay-shadow-sm, 0 4px 12px rgba(15, 23, 42, 0.05));
+}
+
+.payroll-contracts-table-wrap {
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+}
+
+.payroll-studio .payroll-contracts-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.payroll-studio .payroll-contracts-table thead th {
+  padding: 0.65rem 0.75rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted, #64748b);
+  border-bottom: 1px solid var(--pay-edge, rgba(148, 163, 184, 0.22));
+  background: rgba(248, 250, 252, 0.85);
+}
+
+.payroll-studio .payroll-contracts-table tbody td {
+  padding: 0.72rem 0.75rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  vertical-align: middle;
+}
+
+.payroll-studio .payroll-contracts-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.payroll-studio .payroll-contracts-table tbody tr:hover td {
+  background: rgba(239, 246, 255, 0.45);
+}
+
+.payroll-contracts-table__check {
+  width: 2.5rem;
+  text-align: center;
+}
+
+.payroll-contracts-table__actions {
+  min-width: 11rem;
+}
+
+.payroll-contracts-person {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.payroll-contracts-person__avatar {
+  width: 2.15rem;
+  height: 2.15rem;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #1d4ed8;
+  background: linear-gradient(180deg, #eff6ff, #dbeafe);
+  border: 1px solid rgba(59, 130, 246, 0.18);
+  background-size: cover;
+  background-position: center;
+}
+
+.payroll-contracts-person__avatar--photo {
+  color: transparent;
+}
+
+.payroll-contracts-person__copy {
+  min-width: 0;
+}
+
+.payroll-contracts-person__copy strong {
+  display: block;
+  font-size: 0.88rem;
+  line-height: 1.25;
+}
+
+.payroll-contracts-person__copy .muted {
+  display: block;
+  font-size: 0.76rem;
+  line-height: 1.25;
+}
+
+.payroll-contracts-icon-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+}
+
+.payroll-contracts-icon-btn {
+  width: 2rem;
+  height: 2rem;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 9px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: #fff;
+  color: #475569;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+}
+
+.payroll-contracts-icon-btn .btn-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.payroll-contracts-icon-btn:hover {
+  transform: translateY(-1px);
+}
+
+.payroll-contracts-icon-btn--view {
+  color: #2563eb;
+  border-color: rgba(59, 130, 246, 0.28);
+  background: #f8fbff;
+}
+
+.payroll-contracts-icon-btn--edit {
+  color: #2563eb;
+  border-color: rgba(59, 130, 246, 0.28);
+  background: #f8fbff;
+}
+
+.payroll-contracts-icon-btn--renew {
+  color: #2563eb;
+  border-color: rgba(59, 130, 246, 0.28);
+  background: #f8fbff;
+}
+
+.payroll-contracts-icon-btn--notify {
+  color: #b45309;
+  border-color: rgba(245, 158, 11, 0.32);
+  background: #fffbeb;
+}
+
+.payroll-contracts-icon-btn--delete {
+  color: #dc2626;
+  border-color: rgba(239, 68, 68, 0.28);
+  background: #fff5f5;
+}
+
+.payroll-studio .payroll-emp-contract-status--neutral {
+  background: rgba(148, 163, 184, 0.14);
+  color: #475569;
+}
+
+.payroll-contracts-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-top: 0.85rem;
+  margin-top: 0.35rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.payroll-contracts-pagination__meta {
+  margin: 0;
+  font-size: 0.82rem;
+}
+
+.payroll-contracts-pagination__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.payroll-contracts-page-size select {
+  min-height: 2rem;
+  padding: 0.25rem 0.55rem;
+  border-radius: 9px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.payroll-contracts-page-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+}
+
+.payroll-contracts-page-btn {
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 0.45rem;
+  border-radius: 9px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: #fff;
+  color: #475569;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.payroll-contracts-page-btn.is-active {
+  background: linear-gradient(180deg, #3b82f6, #2563eb);
+  border-color: rgba(37, 99, 235, 0.55);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+}
+
+.payroll-contracts-page-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.payroll-contracts-view-toggle .payroll-runs-view-toggle__btn.is-active {
+  border-color: rgba(59, 130, 246, 0.45);
+  color: #1d4ed8;
+  background: rgba(239, 246, 255, 0.95);
+}
+
+@media (max-width: 900px) {
+  .payroll-contracts-filterbar__actions {
+    width: 100%;
+    margin-inline-start: 0;
+  }
+
+  .payroll-contracts-head {
+    flex-direction: column;
+  }
+}
+
+body[data-theme="dark"] .payroll-contracts-filterbar,
+body[data-theme="dark"] .payroll-contracts-table-shell,
+body[data-theme="dark"] .payroll-contracts-kpi {
+  background: rgba(15, 23, 42, 0.72);
+  border-color: rgba(148, 196, 255, 0.12);
+}
+
+body[data-theme="dark"] .payroll-contracts-search,
+body[data-theme="dark"] .payroll-contracts-filter select,
+body[data-theme="dark"] .payroll-contracts-icon-btn,
+body[data-theme="dark"] .payroll-contracts-page-btn {
+  background: rgba(15, 23, 42, 0.85);
+  border-color: rgba(148, 196, 255, 0.14);
+  color: #dbeafe;
+}
+
+body[data-theme="dark"] .payroll-studio .payroll-contracts-table thead th {
+  background: rgba(15, 23, 42, 0.55);
+  color: #94a3b8;
+}
+
+body[data-theme="dark"] .payroll-studio .payroll-contracts-table tbody tr:hover td {
+  background: rgba(30, 58, 138, 0.18);
+}
+

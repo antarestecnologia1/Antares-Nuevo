@@ -6581,6 +6581,66 @@ function summarizePayrollEmployeeForDirectory(emp) {
   };
 }
 
+function payrollEmployeeContractTypeKey(employee) {
+  const e = employee || {};
+  if (isFixedTermContractType(e.contractType)) return "fixed";
+  if (employeeIsConductorServiceProvider?.(e)) return "services";
+  if (/indefinid/i.test(String(e.contractType || ""))) return "indefinite";
+  return "other";
+}
+
+function payrollEmployeeContractStatusDisplay(contract) {
+  if (!contract?.applies) {
+    return { label: "Indefinido", tone: "neutral", slug: "indefinite" };
+  }
+  const slug = String(contract.statusSlug || "");
+  if (slug === "expired") return { label: "Vencido", tone: "alert", slug };
+  if (slug === "notice_window") return { label: "Por vencer", tone: "warn", slug };
+  if (slug === "active") return { label: "Vigente", tone: "ok", slug };
+  if (slug === "unknown") return { label: "Sin fecha", tone: "warn", slug };
+  return { label: String(contract.pillLabel || "—"), tone: "neutral", slug: slug || "all" };
+}
+
+function renderPayrollEmployeeTableIdentity(item) {
+  const e = item.raw;
+  const avCss = employeeAvatarCssUrl(e.avatarUrl);
+  const initials = String(e.name || "E")
+    .split(/\s+/)
+    .map((part) => part.charAt(0).toUpperCase())
+    .slice(0, 2)
+    .join("");
+  const docLine = `${String(e.documentType || "").trim()} ${String(e.idDoc || "").trim()}`.trim() || "—";
+  const avatarStyle = avCss ? ` style="background-image:url('${avCss}')"` : "";
+  return `<div class="payroll-contracts-person">
+    <div class="payroll-contracts-person__avatar${avCss ? " payroll-contracts-person__avatar--photo" : ""}"${avatarStyle} aria-hidden="true">${avCss ? "" : escapeHtml(initials)}</div>
+    <div class="payroll-contracts-person__copy">
+      <strong>${escapeHtml(String(e.name || "Colaborador"))}</strong>
+      <span class="muted">${escapeHtml(docLine)}</span>
+    </div>
+  </div>`;
+}
+
+function renderPayrollEmployeeContractIconActions(e, contract, hrAdminDeletes) {
+  const id = escapeAttr(String(e.id || ""));
+  const canAct =
+    contract?.applies &&
+    isFixedTermContractType(e.contractType) &&
+    (contract.statusSlug === "notice_window" ||
+      contract.statusSlug === "expired" ||
+      contract.statusSlug === "active");
+  return `<div class="payroll-contracts-icon-actions">
+    <button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--view" data-action="view-employee" data-id="${id}" title="Ver perfil">${IC.eye}</button>
+    <button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--edit" data-action="edit-employee" data-id="${id}" title="Editar">${IC.edit}</button>
+    ${
+      canAct
+        ? `<button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--renew" data-action="renew-employee-contract" data-id="${id}" title="Renovar contrato">${IC.rotateCcw}</button>
+    <button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--notify" data-action="non-renew-employee-contract" data-id="${id}" title="Aviso de no renovación">${IC.mail}</button>`
+        : ""
+    }
+    ${hrAdminDeletes ? `<button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--delete" data-action="delete-employee" data-id="${id}" title="Eliminar">${IC.trash}</button>` : ""}
+  </div>`;
+}
+
 function renderPayrollContractActionButtons(e, contract, { compact = false } = {}) {
   if (!contract?.applies || !isFixedTermContractType(e.contractType)) return "";
   const canAct =
@@ -6724,59 +6784,77 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = fa
 function renderPayrollEmployeeDirectoryTableRow(item, hrAdminDeletes) {
   const e = item.raw;
   const contract = item.contract;
-  const docLine = `${String(e.documentType || "").trim()} ${String(e.idDoc || "").trim()}`.trim() || "—";
+  const status = payrollEmployeeContractStatusDisplay(contract);
   const statusSlug = contract.applies ? contract.statusSlug : "indefinite";
-  const statusLabel = contract.applies ? contract.pillLabel || "—" : "Indefinido";
-  const statusTone =
-    contract.statusSlug === "notice_window" || contract.statusSlug === "expired"
-      ? "alert"
-      : contract.statusSlug === "unknown"
-        ? "warn"
-        : "ok";
-  return `<tr class="payroll-employee-table-row payroll-employee-table-row--${escapeAttr(statusSlug)}" data-employee-id="${escapeAttr(String(e.id || ""))}" data-employee-search="${escapeAttr(item.searchBlob)}" data-employee-contract-filter="${escapeAttr(contract.applies ? contract.statusSlug : "all")}">
-    <td class="payroll-employee-table-cell-main">
-      <div class="hiring-table-primary"><strong>${escapeHtml(String(e.name || "Colaborador"))}</strong><span class="muted">${escapeHtml(docLine)}</span></div>
-    </td>
+  const contractTypeKey = payrollEmployeeContractTypeKey(e);
+  const endYmd = normalizePortalDateYmd(contract.endYmd || e.contractEndDate || "");
+  const selectCell = hrAdminDeletes
+    ? `<td class="payroll-contracts-table__check"><input type="checkbox" data-employee-select value="${escapeAttr(String(e.id || ""))}" aria-label="Seleccionar ${escapeAttr(String(e.name || "colaborador"))}" /></td>`
+    : "";
+  return `<tr class="payroll-employee-table-row payroll-employee-table-row--${escapeAttr(statusSlug)}" data-employee-id="${escapeAttr(String(e.id || ""))}" data-employee-search="${escapeAttr(item.searchBlob)}" data-employee-contract-filter="${escapeAttr(contract.applies ? contract.statusSlug : "all")}" data-employee-contract-type="${escapeAttr(contractTypeKey)}" data-employee-contract-end="${escapeAttr(endYmd)}">
+    ${selectCell}
+    <td class="payroll-employee-table-cell-main">${renderPayrollEmployeeTableIdentity(item)}</td>
     <td>${escapeHtml(String(e.position || "—"))}</td>
     <td>${fmtDateOr(e.startDate, "—")}</td>
     <td>${isFixedTermContractType(e.contractType) ? fmtDateOr(e.contractVigenteStartDate || e.startDate, "—") : "—"}</td>
     <td>${isFixedTermContractType(e.contractType) ? fmtDateOr(e.renewalDate, "—") : "—"}</td>
     <td>${isFixedTermContractType(e.contractType) ? fmtDateOr(e.nonRenewalNoticeDate, "—") : "—"}</td>
     <td>${contract.applies ? fmtDateOr(contract.endYmd || e.contractEndDate, "—") : "—"}</td>
-    <td><span class="payroll-emp-contract-status payroll-emp-contract-status--${escapeAttr(statusTone)}">${escapeHtml(statusLabel)}</span></td>
-    <td class="payroll-employee-table-cell-actions"><div class="toolbar hiring-table-actions">
-      <button type="button" class="btn btn-sm btn-outline" data-action="view-employee" data-id="${escapeAttr(String(e.id))}" title="Perfil">${IC.eye}</button>
-      <button type="button" class="btn btn-sm btn-action" data-action="edit-employee" data-id="${escapeAttr(String(e.id))}" title="Editar">${IC.edit}</button>
-      ${renderPayrollContractActionButtons(e, contract, { compact: true })}
-      <button type="button" class="btn btn-sm btn-outline" data-action="employee-generate-contract" data-id="${escapeAttr(String(e.id))}" title="Contrato Word">${IC.download}</button>
-      ${hrAdminDeletes ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-employee" data-id="${escapeAttr(String(e.id))}" title="Eliminar">${IC.trash}</button>` : ""}
-    </div></td>
+    <td><span class="payroll-emp-contract-status payroll-emp-contract-status--${escapeAttr(status.tone)}">${escapeHtml(status.label)}</span></td>
+    <td class="payroll-employee-table-cell-actions">${renderPayrollEmployeeContractIconActions(e, contract, hrAdminDeletes)}</td>
   </tr>`;
 }
 
 function wirePayrollEmployeeDirectoryFilters() {
   const searchEl = document.getElementById("payroll-employee-search");
   const filterEl = document.getElementById("payroll-employee-contract-filter");
+  const typeEl = document.getElementById("payroll-employee-contract-type-filter");
+  const dateEl = document.getElementById("payroll-employee-contract-date-filter");
   const rows = [
     ...document.querySelectorAll(".directory-card--employee"),
     ...document.querySelectorAll(".payroll-employee-table-row")
   ];
   if (!rows.length) return;
+  const today = colombiaTodayIsoDate();
+  const monthPrefix = today.slice(0, 7);
   const apply = () => {
     const q = String(searchEl?.value || "")
       .trim()
       .toLowerCase();
     const cf = String(filterEl?.value || "all");
+    const tf = String(typeEl?.value || "all");
+    const df = String(dateEl?.value || "all");
     rows.forEach((row) => {
       const blob = String(row.getAttribute("data-employee-search") || "");
       const slug = String(row.getAttribute("data-employee-contract-filter") || "all");
+      const typeKey = String(row.getAttribute("data-employee-contract-type") || "all");
+      const endYmd = normalizePortalDateYmd(row.getAttribute("data-employee-contract-end") || "");
       const matchQ = !q || blob.includes(q);
       const matchC = cf === "all" || slug === cf;
-      row.classList.toggle("is-filtered-out", !(matchQ && matchC));
+      const matchT = tf === "all" || typeKey === tf;
+      let matchD = true;
+      if (df !== "all" && endYmd) {
+        if (df === "ends_month") matchD = endYmd.slice(0, 7) === monthPrefix;
+        else if (df === "ends_30") {
+          const a = new Date(`${today}T12:00:00`);
+          const b = new Date(`${endYmd}T12:00:00`);
+          const days =
+            Number.isFinite(a.getTime()) && Number.isFinite(b.getTime())
+              ? Math.round((b.getTime() - a.getTime()) / 86400000)
+              : null;
+          matchD = days != null && days >= 0 && days <= 30;
+        } else matchD = false;
+      } else if (df !== "all" && !endYmd) {
+        matchD = false;
+      }
+      row.classList.toggle("is-filtered-out", !(matchQ && matchC && matchT && matchD));
     });
+    window.syncPayrollEmployeeSelectionBadge?.();
   };
   searchEl?.addEventListener("input", apply);
   filterEl?.addEventListener("change", apply);
+  typeEl?.addEventListener("change", apply);
+  dateEl?.addEventListener("change", apply);
   apply();
 }
 

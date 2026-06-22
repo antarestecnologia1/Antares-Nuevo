@@ -18,7 +18,120 @@ function renderPayrollEmployeesViewToggle(activeView) {
     const active = view === mode;
     return `<button type="button" class="payroll-runs-view-toggle__btn${active ? " is-active" : ""}" role="tab" aria-selected="${active ? "true" : "false"}" data-action="payroll-employees-view" data-view="${mode}">${icon}<span>${escapeHtml(label)}</span></button>`;
   };
-  return `<div class="payroll-runs-view-toggle" role="tablist" aria-label="Vista de colaboradores">${mkBtn("list", IC.list, "Tabla")}${mkBtn("cards", IC.grid, "Tarjetas")}</div>`;
+  return `<div class="payroll-runs-view-toggle payroll-contracts-view-toggle" role="tablist" aria-label="Vista de colaboradores">${mkBtn("list", IC.list, "Tabla")}${mkBtn("cards", IC.grid, "Tarjetas")}</div>`;
+}
+
+function computePayrollContractDashboardStats(summaries) {
+  const fixed = (summaries || []).filter((s) => isFixedTermContractType(s.raw?.contractType));
+  return {
+    total: fixed.length,
+    expired: fixed.filter((s) => s.contract?.statusSlug === "expired").length,
+    notice: fixed.filter((s) => s.contract?.statusSlug === "notice_window").length,
+    active: fixed.filter((s) => s.contract?.statusSlug === "active").length
+  };
+}
+
+function renderPayrollContractsDashboardHeader(stats, totalEmployees) {
+  const s = stats || { total: 0, expired: 0, notice: 0, active: 0 };
+  return `<header class="payroll-contracts-head">
+    <div class="payroll-contracts-head__copy">
+      <h3 class="payroll-contracts-head__title">Contratos</h3>
+      <p class="payroll-contracts-head__subtitle muted">Gestiona y consulta todos los contratos del equipo.</p>
+    </div>
+    <dl class="payroll-contracts-kpis" aria-label="Resumen de contratos">
+      <div class="payroll-contracts-kpi payroll-contracts-kpi--total"><dt>${IC.file} Total</dt><dd><strong>${escapeHtml(String(s.total))}</strong></dd></div>
+      <div class="payroll-contracts-kpi payroll-contracts-kpi--expired"><dt>${IC.alertTriangle} Vencidos</dt><dd><strong>${escapeHtml(String(s.expired))}</strong></dd></div>
+      <div class="payroll-contracts-kpi payroll-contracts-kpi--notice"><dt>${IC.clock} Por vencer</dt><dd><strong>${escapeHtml(String(s.notice))}</strong></dd></div>
+      <div class="payroll-contracts-kpi payroll-contracts-kpi--active"><dt>${IC.check} Vigentes</dt><dd><strong>${escapeHtml(String(s.active))}</strong></dd></div>
+    </dl>
+  </header>`;
+}
+
+function renderPayrollContractsFilterBar(canDeletePayrollEmployees) {
+  return `<div class="payroll-contracts-filterbar">
+    <label class="payroll-contracts-search">
+      <span class="visually-hidden">Buscar</span>
+      ${IC.search}
+      <input type="search" id="payroll-employee-search" placeholder="Buscar colaborador, documento o cargo…" autocomplete="off" />
+    </label>
+    <label class="payroll-contracts-filter">
+      <span>Contrato</span>
+      <select id="payroll-employee-contract-type-filter">
+        <option value="all">Todos</option>
+        <option value="fixed">Término fijo</option>
+        <option value="indefinite">Indefinido</option>
+        <option value="services">Prestación de servicios</option>
+      </select>
+    </label>
+    <label class="payroll-contracts-filter">
+      <span>Estado</span>
+      <select id="payroll-employee-contract-filter">
+        <option value="all">Todos</option>
+        <option value="notice_window">Por vencer (30 días)</option>
+        <option value="expired">Vencidos</option>
+        <option value="active">Vigentes</option>
+      </select>
+    </label>
+    <label class="payroll-contracts-filter">
+      <span>Fecha</span>
+      <select id="payroll-employee-contract-date-filter">
+        <option value="all">Todas</option>
+        <option value="ends_30">Vence en 30 días</option>
+        <option value="ends_month">Vence este mes</option>
+      </select>
+    </label>
+    <div class="payroll-contracts-filterbar__actions">
+      <button type="button" class="btn btn-sm btn-outline" id="payroll-contracts-clear-filters">${IC.rotateCcw} Limpiar</button>
+      <button type="button" class="btn btn-sm btn-primary" data-action="payroll-goto-create-employee">${IC.plus} Nuevo colaborador</button>
+    </div>
+  </div>`;
+}
+
+function renderPayrollContractsTableToolbar(activeView, canDeletePayrollEmployees) {
+  const bulk = canDeletePayrollEmployees
+    ? `<div class="payroll-contracts-bulk toolbar">
+        <span class="payroll-contracts-bulk__count" id="employees-selected-count" hidden>0 seleccionados</span>
+        <button type="button" class="btn btn-sm btn-outline" id="export-employees-contracts">${IC.download} Exportar</button>
+        <button type="button" class="btn btn-sm btn-outline btn-reject" id="employees-delete-selected">${IC.trash} Eliminar seleccionados</button>
+      </div>`
+    : `<div class="payroll-contracts-bulk toolbar">
+        <button type="button" class="btn btn-sm btn-outline" id="export-employees-contracts">${IC.download} Exportar</button>
+      </div>`;
+  return `<div class="payroll-contracts-table-toolbar">
+    ${renderPayrollEmployeesViewToggle(activeView)}
+    ${bulk}
+  </div>`;
+}
+
+function renderPayrollContractsPagination(total, page, pageSize) {
+  const safeSize = Math.max(5, Number(pageSize) || 10);
+  const totalPages = Math.max(1, Math.ceil(total / safeSize));
+  const safePage = Math.min(Math.max(1, Number(page) || 1), totalPages);
+  const start = total === 0 ? 0 : (safePage - 1) * safeSize + 1;
+  const end = Math.min(total, safePage * safeSize);
+  const pages = [];
+  const windowStart = Math.max(1, safePage - 2);
+  const windowEnd = Math.min(totalPages, safePage + 2);
+  for (let p = windowStart; p <= windowEnd; p++) {
+    pages.push(
+      `<button type="button" class="payroll-contracts-page-btn${p === safePage ? " is-active" : ""}" data-action="payroll-employees-page" data-page="${p}" aria-label="Página ${p}"${p === safePage ? ' aria-current="page"' : ""}>${p}</button>`
+    );
+  }
+  return `<footer class="payroll-contracts-pagination">
+    <p class="payroll-contracts-pagination__meta muted">Mostrando <strong>${start}</strong> a <strong>${end}</strong> de <strong>${total}</strong> colaborador${total === 1 ? "" : "es"}</p>
+    <div class="payroll-contracts-pagination__controls">
+      <label class="payroll-contracts-page-size">
+        <select id="payroll-employees-page-size" data-action="payroll-employees-page-size">
+          ${[5, 10, 20, 50].map((n) => `<option value="${n}"${n === safeSize ? " selected" : ""}>${n} por página</option>`).join("")}
+        </select>
+      </label>
+      <div class="payroll-contracts-page-nav">
+        <button type="button" class="payroll-contracts-page-btn" data-action="payroll-employees-page" data-page="${Math.max(1, safePage - 1)}" aria-label="Anterior"${safePage <= 1 ? " disabled" : ""}>${IC.chevronLeft || "‹"}</button>
+        ${pages.join("")}
+        <button type="button" class="payroll-contracts-page-btn" data-action="payroll-employees-page" data-page="${Math.min(totalPages, safePage + 1)}" aria-label="Siguiente"${safePage >= totalPages ? " disabled" : ""}>${IC.chevronRight || "›"}</button>
+      </div>
+    </div>
+  </footer>`;
 }
 
 function payrollHtml() {
@@ -98,14 +211,21 @@ function payrollHtml() {
   const healthRatePct = (parseNum(legalDraft.healthEmployeeRate) * 100).toFixed(2).replace(/\.00$/, "");
   const pensionRatePct = (parseNum(legalDraft.pensionEmployeeRate) * 100).toFixed(2).replace(/\.00$/, "");
   const employeeSummaries = employees.map((e) => summarizePayrollEmployeeForDirectory(e));
-  const fixedTermCount = employeeSummaries.filter((s) => isFixedTermContractType(s.raw.contractType)).length;
   const contractNoticeCount = employeeSummaries.filter(
     (s) => s.contract.applies && (s.contract.statusSlug === "notice_window" || s.contract.statusSlug === "expired")
   ).length;
-  const employeeCards = employeeSummaries
+  const contractDashboardStats = computePayrollContractDashboardStats(employeeSummaries);
+  const employeesPageSize = Math.max(5, Number(payrollUi.employeesPageSize) || 10);
+  const employeesPage = Math.max(1, Number(payrollUi.employeesPage) || 1);
+  const employeesTotal = employeeSummaries.length;
+  const employeesPageCount = Math.max(1, Math.ceil(employeesTotal / employeesPageSize));
+  const employeesSafePage = Math.min(employeesPage, employeesPageCount);
+  const employeesPageStart = (employeesSafePage - 1) * employeesPageSize;
+  const employeeSummariesPage = employeeSummaries.slice(employeesPageStart, employeesPageStart + employeesPageSize);
+  const employeeCards = employeeSummariesPage
     .map((item) => renderPayrollEmployeeDirectoryCard(item, canDeletePayrollEmployees, { compact: true }))
     .join("");
-  const employeeTableRows = employeeSummaries
+  const employeeTableRows = employeeSummariesPage
     .map((item) => renderPayrollEmployeeDirectoryTableRow(item, canDeletePayrollEmployees))
     .join("");
   const runRows = runsToRender
@@ -639,35 +759,33 @@ function payrollHtml() {
   const absenceTable = absenceRows
     ? `<div class="table-wrap"><table><thead><tr><th>Registro</th><th>Empleado</th><th>Tipo</th><th>Periodo</th><th>Días rec.</th><th>Soporte</th><th style="min-width:11rem">Acciones</th></tr></thead><tbody>${absenceRows}</tbody></table></div>`
     : emptyState("Sin ausencias laborales registradas.");
-  const employeeToolbar = `<div class="payroll-employee-toolbar">
-      ${renderPayrollEmployeesViewToggle(employeesView)}
-      <label class="payroll-employee-search">${fieldLabel(IC.search, "Buscar")}
-        <input type="search" id="payroll-employee-search" placeholder="Nombre, documento, cargo, centro de costos…" autocomplete="off" />
-      </label>
-      <label class="payroll-employee-filter">${fieldLabel(IC.calendar, "Contrato")}
-        <select id="payroll-employee-contract-filter">
-          <option value="all">Todos</option>
-          <option value="notice_window">Aviso urgente (≤30 días)</option>
-          <option value="expired">Vencidos</option>
-          <option value="active">Término fijo vigente</option>
-        </select>
-      </label>
-      ${canDeletePayrollEmployees ? `<div class="payroll-employee-toolbar-actions toolbar">
-        <button type="button" id="employees-select-all" class="btn btn-sm btn-action">${IC.check} Seleccionar todo</button>
-        <button type="button" id="employees-delete-selected" class="btn btn-sm btn-reject" title="Eliminar colaboradores seleccionados">${IC.trash} Eliminar seleccionados</button>
-      </div>` : ""}
-    </div>`;
+  const employeeSelectHeader = canDeletePayrollEmployees
+    ? `<th class="payroll-contracts-table__check"><input type="checkbox" id="employees-select-all-header" aria-label="Seleccionar todos" /></th>`
+    : "";
+  const employeeContractsDashboard = `${renderPayrollContractsDashboardHeader(contractDashboardStats, employeesTotal)}
+    ${renderPayrollContractsFilterBar(canDeletePayrollEmployees)}`;
+  const employeeTableToolbar = renderPayrollContractsTableToolbar(employeesView, canDeletePayrollEmployees);
+  const employeePagination = renderPayrollContractsPagination(employeesTotal, employeesSafePage, employeesPageSize);
   const employeeTable = employeeTableRows
-    ? `<div class="table-wrap payroll-table-wrap payroll-employees-list-view"><table class="payroll-employees-table"><thead><tr><th>Colaborador</th><th>Cargo</th><th>Ingreso</th><th>Inicio vigente</th><th>Renovación</th><th>Aviso no renov.</th><th>Fin contrato</th><th>Estado</th><th style="min-width:14rem">Acciones</th></tr></thead><tbody>${employeeTableRows}</tbody></table></div>`
+    ? `<div class="payroll-contracts-table-shell">
+        ${employeeTableToolbar}
+        <div class="table-wrap payroll-table-wrap payroll-employees-list-view payroll-contracts-table-wrap">
+          <table class="payroll-employees-table payroll-contracts-table">
+            <thead><tr>${employeeSelectHeader}<th>Colaborador</th><th>Cargo</th><th>Ingreso</th><th>Inicio vigente</th><th>Renovación</th><th>Aviso no renov.</th><th>Fin contrato</th><th>Estado</th><th class="payroll-contracts-table__actions">Acciones</th></tr></thead>
+            <tbody>${employeeTableRows}</tbody>
+          </table>
+        </div>
+        ${employeePagination}
+      </div>`
     : "";
   const empTable =
     employeesView === "list"
       ? employeeTableRows
-        ? `${employeeToolbar}${employeeTable}`
-        : emptyState("No hay empleados registrados.")
+        ? `${employeeContractsDashboard}${employeeTable}`
+        : `${employeeContractsDashboard}${emptyState("No hay empleados registrados.")}`
       : employeeCards
-        ? `${employeeToolbar}<div class="employees-grid directory-grid payroll-employees-grid">${employeeCards}</div>`
-        : emptyState("No hay empleados registrados.");
+        ? `${employeeContractsDashboard}${employeeTableToolbar}<div class="employees-grid directory-grid payroll-employees-grid">${employeeCards}</div>${employeePagination}`
+        : `${employeeContractsDashboard}${emptyState("No hay empleados registrados.")}`;
   const runCardsGrid = sortedRuns.length
     ? `<div class="payroll-run-cards-grid">${runsToRender.map((r) => renderPayrollRunCard(r, { compact: true })).join("")}</div>${payrollRunsMoreBar}`
     : "";

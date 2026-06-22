@@ -1840,6 +1840,34 @@ function bindPayrollPortalControls() {
 
   wirePayrollEmployeeDirectoryFilters();
 
+  function syncPayrollEmployeeSelectionBadge() {
+    const badge = document.getElementById("employees-selected-count");
+    if (!badge) return;
+    const selected = [...nodes.viewRoot.querySelectorAll("[data-employee-select]:checked")].filter(
+      (el) => !el.closest(".is-filtered-out")
+    );
+    const count = selected.length;
+    badge.textContent = `${count} seleccionado${count === 1 ? "" : "s"}`;
+    badge.hidden = count <= 0;
+  }
+  window.syncPayrollEmployeeSelectionBadge = syncPayrollEmployeeSelectionBadge;
+
+  nodes.viewRoot.querySelectorAll("[data-employee-select]").forEach((check) => {
+    check.addEventListener("change", syncPayrollEmployeeSelectionBadge);
+  });
+
+  const employeesSelectAllHeader = document.getElementById("employees-select-all-header");
+  const toggleEmployeeSelectAll = (checked) => {
+    const checks = [...nodes.viewRoot.querySelectorAll(".payroll-employee-table-row:not(.is-filtered-out) [data-employee-select]")];
+    checks.forEach((el) => {
+      el.checked = checked;
+    });
+    syncPayrollEmployeeSelectionBadge();
+  };
+  employeesSelectAllHeader?.addEventListener("change", () => {
+    toggleEmployeeSelectAll(Boolean(employeesSelectAllHeader.checked));
+  });
+
   const employeesSelectAll = document.getElementById("employees-select-all");
   if (employeesSelectAll) {
     employeesSelectAll.addEventListener("click", (event) => {
@@ -1847,13 +1875,107 @@ function bindPayrollPortalControls() {
       const checks = [
         ...nodes.viewRoot.querySelectorAll(".directory-card--employee [data-employee-select]"),
         ...nodes.viewRoot.querySelectorAll("[data-employee-select]")
-      ];
+      ].filter((el) => !el.closest(".is-filtered-out"));
       const allSelected = checks.length > 0 && checks.every((check) => check.checked);
       checks.forEach((check) => {
         check.checked = !allSelected;
       });
+      if (employeesSelectAllHeader) employeesSelectAllHeader.checked = !allSelected && checks.length > 0;
+      syncPayrollEmployeeSelectionBadge();
     });
   }
+  syncPayrollEmployeeSelectionBadge();
+
+  nodes.viewRoot.querySelectorAll("[data-action='payroll-employees-page']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (btn.disabled) return;
+      const page = Math.max(1, Number(btn.dataset.page) || 1);
+      state.payrollUi = {
+        ...(state.payrollUi || { runSort: "recent", workspace: "data", dataSection: "employees" }),
+        employeesPage: page,
+        workspace: "data",
+        dataSection: "employees"
+      };
+      persistHrWorkspace("payroll", "data");
+      renderPortalView();
+    });
+  });
+
+  const employeesPageSizeEl = document.getElementById("payroll-employees-page-size");
+  employeesPageSizeEl?.addEventListener("change", () => {
+    state.payrollUi = {
+      ...(state.payrollUi || { runSort: "recent", workspace: "data", dataSection: "employees" }),
+      employeesPageSize: Math.max(5, Number(employeesPageSizeEl.value) || 10),
+      employeesPage: 1,
+      workspace: "data",
+      dataSection: "employees"
+    };
+    persistHrWorkspace("payroll", "data");
+    renderPortalView();
+  });
+
+  document.getElementById("payroll-contracts-clear-filters")?.addEventListener("click", () => {
+    ["payroll-employee-search", "payroll-employee-contract-filter", "payroll-employee-contract-type-filter", "payroll-employee-contract-date-filter"].forEach(
+      (id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (el.tagName === "SELECT") el.value = "all";
+        else el.value = "";
+      }
+    );
+    document.getElementById("payroll-employee-search")?.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='payroll-goto-create-employee']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.payrollUi = {
+        ...(state.payrollUi || {}),
+        workspace: "operate",
+        operateSection: "employee",
+        dataSection: "employees"
+      };
+      state.createPanels = { ...(state.createPanels || {}), "create-employee": true };
+      persistHrWorkspace("payroll", "operate");
+      renderPortalView();
+    });
+  });
+
+  document.getElementById("export-employees-contracts")?.addEventListener("click", () => {
+    const rows = [...nodes.viewRoot.querySelectorAll(".payroll-employee-table-row:not(.is-filtered-out)")];
+    if (!rows.length) {
+      notify("No hay filas visibles para exportar.", "error");
+      return;
+    }
+    const lines = [
+      ["Nombre", "Documento", "Cargo", "Ingreso", "Inicio vigente", "Renovación", "Aviso no renov.", "Fin contrato", "Estado"].join(";")
+    ];
+    rows.forEach((row) => {
+      const cells = [...row.querySelectorAll("td")];
+      const offset = cells[0]?.querySelector("[data-employee-select]") ? 1 : 0;
+      const personCell = cells[offset];
+      const strong = personCell?.querySelector("strong");
+      const muted = personCell?.querySelector(".muted");
+      const values = [
+        strong?.textContent || "",
+        muted?.textContent || "",
+        cells[offset + 1]?.textContent || "",
+        cells[offset + 2]?.textContent || "",
+        cells[offset + 3]?.textContent || "",
+        cells[offset + 4]?.textContent || "",
+        cells[offset + 5]?.textContent || "",
+        cells[offset + 6]?.textContent || "",
+        cells[offset + 7]?.textContent || ""
+      ].map((t) => `"${String(t).trim().replace(/"/g, '""')}"`);
+      lines.push(values.join(";"));
+    });
+    const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `contratos-${colombiaTodayIsoDate()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
 
   const employeesDeleteSelected = document.getElementById("employees-delete-selected");
   if (employeesDeleteSelected) {
