@@ -92,6 +92,10 @@ export function tPublic(textEs) {
 export function setElementTextPreserveChildren(selector, text) {
   const el = document.querySelector(selector);
   if (!el) return;
+  if (el.matches(".side-link__label, [data-i18n-label]")) {
+    el.textContent = text;
+    return;
+  }
   const textNodes = [...el.childNodes].filter(
     (node) => node.nodeType === Node.TEXT_NODE && String(node.nodeValue || "").trim()
   );
@@ -118,12 +122,12 @@ export function applyPublicLanguage(lang = "es") {
     es: {
       "#open-auth": "Portal",
       "#open-auth-hero": "Ingresar al portal",
-      "#logout": "Cerrar sesión"
+      "#logout .side-link__label": "Cerrar sesión"
     },
     en: {
       "#open-auth": "Portal",
       "#open-auth-hero": "Enter portal",
-      "#logout": "Sign out"
+      "#logout .side-link__label": "Sign out"
     }
   };
   const attrs = attrMap[lang] || attrMap.es;
