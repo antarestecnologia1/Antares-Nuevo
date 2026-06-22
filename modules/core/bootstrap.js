@@ -546,6 +546,9 @@ export function __applyPortalBootstrapPayloadInner(p) {
       const prev = read(KEYS.notifications, []);
       const merged = hooks.mergeNotificationsListPreserveReadAt(prev, filtered);
       write(KEYS.notifications, merged, { skipSyncSchedule: true });
+      hooks.markInboxNotificationsAsToastSeen?.(
+        merged.map((n) => n?.id).filter(Boolean)
+      );
       continue;
     }
     if (prop === "payrollEmployees") {

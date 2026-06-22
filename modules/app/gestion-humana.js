@@ -482,6 +482,9 @@ async function openPayrollRunPayslipById(runId) {
 }
 
 function bindPayrollPortalControls() {
+  if (typeof scheduleContractRenewalNotificationCheck === "function") {
+    scheduleContractRenewalNotificationCheck();
+  }
   if (String(state.currentView || "") !== "payroll" || !nodes.viewRoot) return;
 
 

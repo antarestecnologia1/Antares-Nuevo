@@ -10658,6 +10658,7 @@ if (typeof window.setBootstrapCallbacks === "function") {
       canViewAllNotifications: window.canViewAllNotifications,
       filterNotificationsForUser: window.filterNotificationsForUser,
       mergeNotificationsListPreserveReadAt: window.mergeNotificationsListPreserveReadAt,
+      markInboxNotificationsAsToastSeen: window.markInboxNotificationsAsToastSeen,
       sanitizePayrollEmployeeFieldsForPersist,
       normalizePayrollEmployeeRowDates,
       normalizeSstComplianceRow: window.normalizeSstComplianceRow,

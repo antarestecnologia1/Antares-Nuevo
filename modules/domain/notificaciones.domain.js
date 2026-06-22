@@ -32,13 +32,85 @@ import {
 let __notifInboxAudioCtx = null;
 let __notifInboxAudioUnlockInstalled = false;
 
-/** Edad de una notificación respecto al reloj local; 0 si no hay fecha fiable (se trata como recién vista). */
+/** Edad de una notificación respecto al reloj local; sin fecha fiable → antigua (no re-toast). */
 function __notificationPollAgeMs(n, nowMs) {
   const raw = n?.createdAt;
-  if (raw === undefined || raw === null || String(raw).trim() === "") return 0;
+  if (raw === undefined || raw === null || String(raw).trim() === "") return Number.POSITIVE_INFINITY;
   const createdTs = new Date(raw).getTime();
-  if (!Number.isFinite(createdTs)) return 0;
+  if (!Number.isFinite(createdTs)) return Number.POSITIVE_INFINITY;
   return nowMs - createdTs;
+}
+
+const __NOTIF_TOAST_SEEN_LS_PREFIX = "antares_notif_toast_seen:";
+const __NOTIF_TOAST_SEEN_MAX = 500;
+
+function __toastSeenStorageKey(userId) {
+  return `${__NOTIF_TOAST_SEEN_LS_PREFIX}${String(userId || "").trim()}`;
+}
+
+function __loadPersistedToastSeenIds(userId) {
+  const uid = String(userId || "").trim();
+  if (!uid || typeof localStorage === "undefined") return new Set();
+  try {
+    const raw = localStorage.getItem(__toastSeenStorageKey(uid));
+    if (!raw) return new Set();
+    const arr = JSON.parse(raw);
+    return new Set(
+      (Array.isArray(arr) ? arr : [])
+        .map((id) => String(id || "").trim())
+        .filter(Boolean)
+    );
+  } catch (_e) {
+    return new Set();
+  }
+}
+
+function __persistToastSeenIds(userId, idSet) {
+  const uid = String(userId || "").trim();
+  if (!uid || typeof localStorage === "undefined") return;
+  try {
+    const arr = [...idSet].slice(-__NOTIF_TOAST_SEEN_MAX);
+    localStorage.setItem(__toastSeenStorageKey(uid), JSON.stringify(arr));
+  } catch (_e) {
+    /* noop */
+  }
+}
+
+function __ensureLastSeenNotificationIds() {
+  if (!__lastSeenNotificationIds) __lastSeenNotificationIds = new Set();
+  return __lastSeenNotificationIds;
+}
+
+/**
+ * Marca avisos como ya «mostrados» (toast/timbre) para no repetirlos en cada ingreso.
+ * Persiste por usuario en localStorage.
+ */
+export function markInboxNotificationsAsToastSeen(ids) {
+  const user = currentUser();
+  const uid = String(user?.id ?? "").trim();
+  const normalized = [
+    ...new Set(
+      (Array.isArray(ids) ? ids : [ids])
+        .map((id) => String(id || "").trim())
+        .filter(Boolean)
+    )
+  ];
+  if (!normalized.length) return;
+  const seen = __ensureLastSeenNotificationIds();
+  for (const id of normalized) seen.add(id);
+  if (!uid) return;
+  const persisted = __loadPersistedToastSeenIds(uid);
+  for (const id of normalized) persisted.add(id);
+  __persistToastSeenIds(uid, persisted);
+}
+
+function __notificationAlreadySurfacedToUser(n) {
+  const id = String(n?.id || "").trim();
+  if (!id) return true;
+  if (__lastSeenNotificationIds?.has(id)) return true;
+  const user = currentUser();
+  if (!user) return false;
+  return __loadPersistedToastSeenIds(user.id).has(id);
 }
 
 /**
@@ -384,7 +456,7 @@ async function refreshNotificationsBellFromApi() {
     write(KEYS.notifications, merged, { skipSyncSchedule: true });
     reconcileNotificationsCacheForSession();
     updateNotificationBadge();
-    return true;
+    return merged;
   } catch (_e) {
     return false;
   }
@@ -400,8 +472,18 @@ export async function refreshContractRenewalNotificationsFromServer() {
   if (now - __contractRenewalNoticeCheckWallMs < 45000) return false;
   __contractRenewalNoticeCheckWallMs = now;
   try {
+    const prevIds = new Set(read(KEYS.notifications, []).map((n) => String(n?.id || "").trim()));
     await api.postJson("/portal/hr/contract-renewal-notices/run", {});
-    await refreshNotificationsBellFromApi();
+    const merged = await refreshNotificationsBellFromApi();
+    if (Array.isArray(merged) && merged.length) {
+      const brandNew = merged.filter((n) => {
+        const id = String(n?.id || "").trim();
+        return id && !prevIds.has(id);
+      });
+      if (!brandNew.length) {
+        markInboxNotificationsAsToastSeen(merged.map((n) => n.id));
+      }
+    }
     return true;
   } catch (err) {
     try {
@@ -640,18 +722,13 @@ export function runAsSilentSystemNotifications(callback) {
     const before = new Set(read(KEYS.notifications, []).map((n) => n.id));
     result = typeof callback === "function" ? callback() : undefined;
     const after = read(KEYS.notifications, []);
-    let added = false;
-    for (const n of after) {
-      if (before.has(n.id)) continue;
+    const newIds = after.filter((n) => !before.has(n.id)).map((n) => n.id);
+    if (newIds.length) {
       if (!__lastSeenNotificationIds) {
-        __lastSeenNotificationIds = new Set(after.map((m) => m.id));
-        added = true;
-        break;
+        markInboxNotificationsAsToastSeen(after.map((m) => m.id));
+      } else {
+        markInboxNotificationsAsToastSeen(newIds);
       }
-      __lastSeenNotificationIds.add(n.id);
-      added = true;
-    }
-    if (added) {
       try { updateNotificationBadge(); } catch (_e) {}
     }
   } catch (_err) {
@@ -724,9 +801,10 @@ function __tickNotificationsPoll() {
   /** Solo avisar en toast/timbre las notificaciones nuevas dirigidas al usuario de la sesión. */
   const suppressUntil = Number(state.portalSuppressSelfPollToastUntil || 0);
   const now = Date.now();
-  const selfNew = current.filter((n) => !seen.has(n.id) && notificationTargetsUser(n, user));
+  const selfNew = current.filter(
+    (n) => !seen.has(n.id) && !__notificationAlreadySurfacedToUser(n) && notificationTargetsUser(n, user)
+  );
   const toToast = [];
-  /** Timbre ante cualquier fila nueva para el usuario en este tick (desacoplado de la ventana de toast). */
   let toSound = false;
   /**
    * Solo se notifica en toast lo que ocurre en tiempo real (≤ 30s). Las notificaciones
@@ -740,21 +818,22 @@ function __tickNotificationsPoll() {
     const ageMs = __notificationPollAgeMs(n, now);
     const skipDuplicateExplicitSuccess = suppressUntil > now && ageMs < 6500;
     if (skipDuplicateExplicitSuccess) continue;
+    if (!__inboxNotificationIsFreshForPoll(n, now, FRESH_TOAST_WINDOW_MS)) continue;
     toSound = true;
-    if (__inboxNotificationIsFreshForPoll(n, now, FRESH_TOAST_WINDOW_MS)) {
-      toToast.push(n);
-    }
+    toToast.push(n);
   }
   if (toSound) playInboxNotificationSound();
   if (toToast.length && isInAppNotificationAlertsEnabled()) {
     toToast.forEach((n) => {
       if (typeof notify === "function") {
-        const message = `${n.title}${n.body ? " — " + n.body : ""}`;
+        const message = `${n.title}${n.body ? " — " + sanitizeNotificationBodyForDisplay(n.body) : ""}`;
         window.notify(message, "info");
       }
     });
+    markInboxNotificationsAsToastSeen(toToast.map((n) => n.id));
   }
   if (selfNew.length) {
+    markInboxNotificationsAsToastSeen(selfNew.map((n) => n.id));
     __lastSeenNotificationIds = new Set(current.map((n) => n.id));
     updateNotificationBadge();
     if (state.currentView === "notifications") {
@@ -796,7 +875,13 @@ export function updateNotificationBadge() {
 export function startNotificationsPolling() {
   if (__notificationsPollHandle != null) return;
   ensureInboxNotificationAudioUnlocked();
+  const user = currentUser();
   __lastSeenNotificationIds = new Set(getCurrentNotifications().map((n) => n.id));
+  if (user?.id) {
+    for (const id of __loadPersistedToastSeenIds(user.id)) {
+      __lastSeenNotificationIds.add(id);
+    }
+  }
   __lastNotificationsSilentBootstrapWallMs = Date.now();
   __notificationsPollHandle = setInterval(__tickNotificationsPoll, __notificationsPollIntervalMs());
   if (typeof document !== "undefined") {
@@ -845,6 +930,14 @@ export function notificationCategoryLabel(category) {
   return __CATEGORY_LABELS[String(category || "").trim().toLowerCase()] || "Sistema";
 }
 
+/** Quita tokens internos de deduplicación u otros metadatos técnicos del cuerpo visible. */
+export function sanitizeNotificationBodyForDisplay(body) {
+  return String(body ?? "")
+    .replace(/\[ref:[^\]]+\]\s*/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
 /** Enlace hash del portal si existe metadata o se puede inferir la categoría. */
 export function resolveNotificationDeepLink(n) {
   const explicit = String(n?.deepLink ?? n?.deep_link ?? "").trim();
@@ -853,7 +946,13 @@ export function resolveNotificationDeepLink(n) {
   if (entityType === "request" || entityType === "solicitud") return "#portal/requests";
   if (entityType === "trip" || entityType === "viaje") return "#portal/transport-trips";
   if (entityType === "authorization" || entityType === "aprobacion") return "#portal/authorizations";
-  if (entityType === "employee" || entityType === "payroll") return "#portal/payroll";
+  if (
+    entityType === "employee" ||
+    entityType === "payroll" ||
+    entityType === "contract_notice"
+  ) {
+    return "#portal/payroll";
+  }
   const cat = resolveNotificationCategory(n);
   if (cat === "request") return "#portal/requests";
   if (cat === "authorization") return "#portal/authorizations";

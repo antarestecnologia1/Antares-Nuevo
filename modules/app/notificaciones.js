@@ -19,6 +19,7 @@ import {
   persistNotificationsReadState,
   resolveNotificationCategory,
   resolveNotificationDeepLink,
+  sanitizeNotificationBodyForDisplay,
   toggleNotificationsEnabled,
   writeNotificationsAwaitServer
 } from "../domain/notificaciones.domain.js";
@@ -72,7 +73,7 @@ function ntfCardHtml(n, IC) {
   const deepLink = resolveNotificationDeepLink(n);
   const safeId = escapeAttr(n.id);
   const title = escapeHtml(String(n.title || "Notificación"));
-  const body = escapeHtml(String(n.body || ""));
+  const body = escapeHtml(sanitizeNotificationBodyForDisplay(n.body || ""));
   const time = escapeHtml(fmtDate(n.createdAt));
   const openBtn = deepLink
     ? `<button type="button" class="btn btn-sm btn-action" data-action="notif-open" data-id="${safeId}" data-href="${escapeAttr(deepLink)}">${IC.externalLink || IC.eye || ""} Abrir</button>`

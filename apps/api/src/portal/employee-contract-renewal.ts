@@ -192,10 +192,72 @@ export function computeEmployeeContractRenewalMeta(emp: {
   };
 }
 
+const __CONTRACT_NOTICE_MONTHS_ES = [
+  "enero",
+  "febrero",
+  "marzo",
+  "abril",
+  "mayo",
+  "junio",
+  "julio",
+  "agosto",
+  "septiembre",
+  "octubre",
+  "noviembre",
+  "diciembre"
+] as const;
+
+/** Fecha ISO (YYYY-MM-DD) en texto legible para avisos de contrato. */
+export function formatContractNoticeDateYmd(ymd: string): string {
+  const n = normalizePortalYmd(ymd);
+  if (!n) return "";
+  const p = /^(\d{4})-(\d{2})-(\d{2})$/.exec(n);
+  if (!p) return n;
+  const day = Number(p[3]);
+  const month = __CONTRACT_NOTICE_MONTHS_ES[Number(p[2]) - 1];
+  if (!month || !Number.isFinite(day)) return n;
+  return `${day} de ${month} de ${p[1]}`;
+}
+
+/** Clave interna de deduplicación (no mostrar al usuario). */
+export function contractNoticeDedupeKey(
+  employeeId: string,
+  endYmd: string,
+  statusSlug: string
+): string {
+  return `${String(employeeId).trim()}:${normalizePortalYmd(endYmd)}:${String(statusSlug).trim()}`;
+}
+
+/** Formato legado embebido en cuerpo; solo para detectar avisos ya enviados. */
 export function contractNoticeRefToken(
   employeeId: string,
   endYmd: string,
   statusSlug: string
 ): string {
-  return `[ref:CONTRACT_NOTICE:${String(employeeId).trim()}:${endYmd}:${statusSlug}]`;
+  return `[ref:CONTRACT_NOTICE:${contractNoticeDedupeKey(employeeId, endYmd, statusSlug)}]`;
+}
+
+export function buildContractNoticeNotificationBody(params: {
+  name: string;
+  idDoc?: string;
+  meta: Pick<ContractRenewalMeta, "endYmd" | "noticeDeadlineYmd" | "daysToEnd">;
+  statusSlug: "notice_window" | "expired";
+}): string {
+  const name = String(params.name || "el colaborador").trim();
+  const doc = String(params.idDoc || "").trim();
+  const docHint = doc ? ` (documento ${doc})` : "";
+  const endLabel = formatContractNoticeDateYmd(params.meta.endYmd) || params.meta.endYmd;
+
+  if (params.statusSlug === "expired") {
+    return `El contrato a término fijo de ${name}${docHint} finalizó el ${endLabel}. Revise en Gestión humana si corresponde renovación o terminación laboral.`;
+  }
+
+  const deadlineLabel =
+    formatContractNoticeDateYmd(params.meta.noticeDeadlineYmd) || params.meta.noticeDeadlineYmd;
+  const days = params.meta.daysToEnd;
+  const urgency =
+    days != null && days >= 0 && days <= 7
+      ? " Es un aviso urgente."
+      : "";
+  return `El contrato a término fijo de ${name}${docHint} vence el ${endLabel}. Si no planea renovarlo, notifique por escrito al colaborador antes del ${deadlineLabel} (30 días de anticipación, según CST).${urgency} Consulte el expediente en Gestión humana → Colaboradores.`;
 }

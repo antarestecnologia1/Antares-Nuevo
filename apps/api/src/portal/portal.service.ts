@@ -65,7 +65,9 @@ const nuN = normalizeDbTextUpperOrNullFromUnknown;
 const cat = normalizeCatalogTextFromUnknown;
 const em = normalizeEmailFromUnknown;
 import {
+  buildContractNoticeNotificationBody,
   computeEmployeeContractRenewalMeta,
+  contractNoticeDedupeKey,
   contractNoticeRefToken
 } from "./employee-contract-renewal";
 import type { PortalSyncKey } from "./dto/sync-key.dto";
@@ -2652,10 +2654,6 @@ export class PortalService implements OnModuleInit {
     const laborSystemHistoryPromise =
       canPayroll || canHiring ? this.loadLaborSystemParametersHistory() : Promise.resolve([]);
 
-    if (canPayroll) {
-      this.maybeRunFixedTermContractRenewalNotifications();
-    }
-
     const independentPromise = Promise.all([
       this.loadCompanies(canSeeAllCompanies ? null : empresaId),
       admin ? this.loadCounters() : Promise.resolve({}),
@@ -4709,26 +4707,47 @@ export class PortalService implements OnModuleInit {
    * Inserta notificaciones in-app para RRHH/administración (sin actor JWT).
    * Usado por avisos automáticos de contratos a término fijo.
    */
-  private async dispatchHrNotificationFromSystem(title: string, body: string): Promise<number> {
+  private async dispatchHrNotificationFromSystem(
+    title: string,
+    body: string,
+    meta?: {
+      category?: string | null;
+      deepLink?: string | null;
+      entityType?: string | null;
+      entityId?: string | null;
+    }
+  ): Promise<number> {
     const ok = await this.insertNotificationIfNotDuplicate({
       userId: null,
       title,
       body,
-      audience: "hr"
+      audience: "hr",
+      category: meta?.category ?? "hr",
+      deepLink: meta?.deepLink ?? "#portal/payroll",
+      entityType: meta?.entityType ?? null,
+      entityId: meta?.entityId ?? null
     });
     return ok ? 1 : 0;
   }
 
-  private async contractRenewalNoticeRecentlySent(refToken: string, withinDays = 7): Promise<boolean> {
-    const ref = String(refToken || "").trim();
-    if (!ref) return false;
+  private async contractRenewalNoticeRecentlySent(
+    dedupeKey: string,
+    legacyRefToken: string,
+    withinDays = 7
+  ): Promise<boolean> {
+    const key = String(dedupeKey || "").trim();
+    const legacyRef = String(legacyRefToken || "").trim();
+    if (!key && !legacyRef) return false;
     const days = Math.max(1, Math.min(30, Math.floor(withinDays)));
     const r = await this.pool.query<{ ok: number }>(
       `SELECT 1 AS ok FROM notificaciones
-       WHERE cuerpo LIKE $1
-         AND fecha_creacion > now() - ($2::text || ' days')::interval
+       WHERE fecha_creacion > now() - ($3::text || ' days')::interval
+         AND (
+           ($1::text <> '' AND tipo_entidad = 'contract_notice' AND id_entidad = $1)
+           OR ($2::text <> '' AND cuerpo LIKE $2)
+         )
        LIMIT 1`,
-      [`%${ref}%`, String(days)]
+      [key, legacyRef ? `%${legacyRef}%` : "", String(days)]
     );
     return (r.rowCount ?? 0) > 0;
   }
@@ -4750,9 +4769,11 @@ export class PortalService implements OnModuleInit {
       if (!meta.applies) continue;
       if (meta.statusSlug !== "notice_window" && meta.statusSlug !== "expired") continue;
 
-      const ref = contractNoticeRefToken(String(emp.id ?? ""), meta.endYmd, meta.statusSlug);
+      const employeeId = String(emp.id ?? "").trim();
+      const dedupeKey = contractNoticeDedupeKey(employeeId, meta.endYmd, meta.statusSlug);
+      const legacyRef = contractNoticeRefToken(employeeId, meta.endYmd, meta.statusSlug);
       const dedupeDays = meta.statusSlug === "expired" ? 14 : 7;
-      if (await this.contractRenewalNoticeRecentlySent(ref, dedupeDays)) continue;
+      if (await this.contractRenewalNoticeRecentlySent(dedupeKey, legacyRef, dedupeDays)) continue;
 
       const name = String(emp.name || "Colaborador").trim();
       const doc = String(emp.idDoc || "").trim();
@@ -4760,20 +4781,19 @@ export class PortalService implements OnModuleInit {
         meta.statusSlug === "expired"
           ? `Contrato vencido · ${name}`
           : `Aviso no renovación · ${name}`;
-      const body = [
-        ref,
-        meta.detail,
-        doc ? `Documento: ${doc}.` : "",
-        `Vencimiento: ${meta.endYmd}.`,
-        meta.noticeDeadlineYmd && meta.statusSlug === "notice_window"
-          ? `Notificar no renovación a más tardar el ${meta.noticeDeadlineYmd}.`
-          : "",
-        "Revise Gestión humana → Consultar datos → Colaboradores."
-      ]
-        .filter(Boolean)
-        .join(" ");
+      const body = buildContractNoticeNotificationBody({
+        name,
+        idDoc: doc,
+        meta,
+        statusSlug: meta.statusSlug
+      });
 
-      const count = await this.dispatchHrNotificationFromSystem(title, body.slice(0, 4000));
+      const count = await this.dispatchHrNotificationFromSystem(title, body.slice(0, 4000), {
+        category: "hr",
+        deepLink: "#portal/payroll",
+        entityType: "contract_notice",
+        entityId: dedupeKey
+      });
       if (count > 0) notices += 1;
     }
     return { ok: true, notices };
