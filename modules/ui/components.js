@@ -140,7 +140,7 @@ export function renderModulePanelCancelBtn(opts = {}) {
   const panelAttr = panelId ? ` data-panel="${escapeAttr(panelId)}"` : "";
   const cancelLabel = String(opts.cancelLabel || MODULE_PANEL_LABELS.cancel).trim();
   const title = String(opts.title || MODULE_PANEL_BTN_TITLES.cancel).trim();
-  return `<button type="button" class="btn btn-sm btn-action btn-danger-soft module-panel-btn module-panel-btn--cancel" data-action="${escapeAttr(cancelAction)}"${panelAttr} title="${escapeAttr(title)}">${renderModulePanelBtnInner(ic().rotateCcw, cancelLabel)}</button>`;
+  return `<button type="button" class="btn btn-sm module-panel-btn module-panel-btn--cancel" data-action="${escapeAttr(cancelAction)}"${panelAttr} title="${escapeAttr(title)}">${renderModulePanelBtnInner(ic().rotateCcw, cancelLabel)}</button>`;
 }
 
 /** Barra superior: expandir (colapsado) o minimizar (expandido) — misma posición en todos los módulos. */
@@ -252,7 +252,7 @@ export function renderModalCancelBtn(id = "crud-cancel", label = MODULE_PANEL_LA
   const safeLabel = String(label || MODULE_PANEL_LABELS.cancel).trim();
   const classes =
     String(btnClass || "").trim() ||
-    "btn btn-sm btn-action btn-danger-soft module-panel-btn module-panel-btn--cancel";
+    "btn btn-sm module-panel-btn module-panel-btn--cancel";
   return `<button type="button" id="${escapeAttr(safeId)}" class="${escapeAttr(classes)}" title="${escapeAttr(MODULE_PANEL_BTN_TITLES.cancel)}">${renderModulePanelBtnInner(ic().rotateCcw, safeLabel)}</button>`;
 }
 
