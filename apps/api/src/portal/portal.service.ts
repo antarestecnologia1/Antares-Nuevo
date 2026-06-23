@@ -1565,7 +1565,7 @@ export class PortalService implements OnModuleInit {
         continue;
       }
       let clientEventId: string | null = String(row.id || "").trim();
-      if (clientEventId && !PG_UUID_V4_RE.test(clientEventId)) clientEventId = null;
+      if (!clientEventId || !PG_UUID_V4_RE.test(clientEventId)) clientEventId = null;
 
       const atRaw = String(row.at || "").trim();
       const registeredAt =

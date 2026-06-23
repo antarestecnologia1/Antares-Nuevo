@@ -340,7 +340,8 @@ body[data-theme="dark"].portal-sidebar-collapsed #portal-sidebar .sidebar-expand
 /* ── Scroll area ── */
 #portal-sidebar .sidebar-rail-scroll {
   gap: 0.2rem;
-  padding: 0.15rem 0.1rem 0.35rem;
+  padding: 0.15rem 0.5rem 0.35rem 0.1rem;
+  scrollbar-gutter: stable;
 }
 
 /* ── Section labels ── */
@@ -516,6 +517,7 @@ body:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-section-label {
   right: auto;
   flex-shrink: 0;
   margin-left: auto;
+  margin-right: 0.05rem;
   min-width: 1.35rem;
   padding: 0.12rem 0.42rem;
   border-radius: 999px;
@@ -573,7 +575,7 @@ body.portal-sidebar-collapsed #portal-sidebar .side-link.active::before {
   flex-direction: row;
   align-items: center;
   gap: 0.35rem;
-  padding: 0.2rem 0.12rem;
+  padding: 0.2rem 0.2rem 0.2rem 0.12rem;
   border-radius: calc(var(--portal-sidebar-item-radius) + 2px);
   border: 1px solid transparent;
   overflow: visible;
@@ -1238,13 +1240,14 @@ body[data-theme="dark"] #portal-sidebar.sidebar--rail {
     flex: 1;
     min-width: 0;
     min-height: 44px;
-    padding: 0.62rem 0.75rem !important;
+    padding: 0.62rem 0.85rem 0.62rem 0.75rem !important;
     margin: 0 0 2px;
     align-items: center;
     gap: 0.65rem;
     border-radius: 12px;
     background: rgba(var(--primary-rgb), 0.03);
     border: 1px solid transparent;
+    overflow: visible;
   }
 
   body.portal-drawer-open #portal-sidebar .side-link--notif-inbox .side-link__label {
@@ -1265,7 +1268,12 @@ body[data-theme="dark"] #portal-sidebar.sidebar--rail {
   body.portal-drawer-open #portal-sidebar .side-link--notif-inbox .side-link-badge {
     position: static;
     margin-left: auto;
+    margin-right: 0;
     flex-shrink: 0;
+  }
+
+  body.portal-drawer-open #portal-sidebar .sidebar-rail-scroll {
+    padding-right: 0.65rem;
   }
 }
 

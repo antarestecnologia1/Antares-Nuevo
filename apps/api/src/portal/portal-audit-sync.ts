@@ -262,7 +262,7 @@ export async function insertPortalAuditEventTx(
   const moduleId = String(event.moduleId || "dashboard").trim().slice(0, 64);
   const moduleLabel = String(event.moduleLabel || moduleId).trim().slice(0, 120);
   let clientEventId: string | null = String(event.clientEventId || "").trim();
-  if (clientEventId && !PG_UUID_V4_RE.test(clientEventId)) clientEventId = null;
+  if (!clientEventId || !PG_UUID_V4_RE.test(clientEventId)) clientEventId = null;
   const actorUserId = await resolvePortalAuditUserIdWithEmailFallback(
     c,
     actor.email,
