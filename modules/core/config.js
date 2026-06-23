@@ -532,6 +532,8 @@ export const HIRING_RRHH_EDIT_ACTIONS = new Set([
   "toggle-position"
 ]);
 
+export const SST_RRHH_EDIT_ACTIONS = new Set(["edit-sst-record", "delete-sst-record"]);
+
 export const TRIP_RATE_SCOPE_SEP = "@@";
 
 export const SEARCHABLE_SELECT_MIN_OPTIONS = 8;

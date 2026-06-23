@@ -96,6 +96,7 @@
   display: flex;
   flex-direction: column;
   height: 100%;
+  margin-top: 0;
   border-radius: var(--cal-radius);
   border-color: var(--cal-edge);
   box-shadow: var(--cal-shadow-sm);

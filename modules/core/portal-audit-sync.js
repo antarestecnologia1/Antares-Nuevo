@@ -15,6 +15,10 @@
 
   function mapRow(row) {
     var r = row && typeof row === "object" ? row : {};
+    var snapshot =
+      typeof window.buildPortalAuditActorSnapshot === "function" ? window.buildPortalAuditActorSnapshot() : {};
+    var actorUserId = String(r.actorUserId || snapshot.userId || "").trim() || undefined;
+    var actorEmail = String(r.actorEmail || snapshot.email || "").trim() || undefined;
     return {
       id: String(r.id || "").trim() || undefined,
       action: String(r.action || "update"),
@@ -24,6 +28,8 @@
       entityLabel: String(r.entityLabel || "").trim() || undefined,
       summary: String(r.summary || "").trim() || undefined,
       at: String(r.at || "").trim() || undefined,
+      actorUserId: actorUserId,
+      actorEmail: actorEmail,
       detailAction: String(r.detailAction || "").trim() || undefined,
       detailId: String(r.detailId || "").trim() || undefined
     };

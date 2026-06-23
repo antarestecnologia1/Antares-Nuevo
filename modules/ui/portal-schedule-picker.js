@@ -20,7 +20,13 @@ const MONTHS_ES = [
 ];
 const WEEKDAYS_ES = ["Lu", "Ma", "Mi", "Ju", "Vi", "Sa", "Do"];
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
-const MINUTE_OPTIONS = ["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"];
+const MINUTE_OPTIONS = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, "0"));
+const DRUM_PAD_ROWS = 2;
+
+function snapMinuteValue(rawMinute) {
+  const m = Math.min(59, Math.max(0, parseInt(String(rawMinute || "0"), 10) || 0));
+  return String(m).padStart(2, "0");
+}
 
 function parsePickerTimeParts(raw) {
   const s = String(raw || "").trim();
@@ -34,13 +40,57 @@ function parsePickerTimeParts(raw) {
     minute = String(m).padStart(2, "0");
   }
   if (!HOUR_OPTIONS.includes(hour)) hour = HOUR_OPTIONS[0];
-  if (!MINUTE_OPTIONS.includes(minute)) {
-    const mNum = parseInt(minute, 10);
-    minute =
-      MINUTE_OPTIONS.find((m) => parseInt(m, 10) >= mNum) ||
-      MINUTE_OPTIONS[MINUTE_OPTIONS.length - 1];
-  }
+  minute = snapMinuteValue(minute);
   return { hour, minute };
+}
+
+function drumSpacerHtml() {
+  return Array.from({ length: DRUM_PAD_ROWS }, () => '<div class="acf-drum__spacer" aria-hidden="true"></div>').join("");
+}
+
+function renderDrumColumn(kind, options, selected) {
+  const label = kind === "hour" ? "Hora" : "Minutos";
+  const items = options
+    .map(
+      (v) =>
+        `<button type="button" class="acf-drum__item${v === selected ? " is-selected" : ""}" data-acf-drum-kind="${kind}" data-acf-drum-value="${v}" role="option"${v === selected ? ' aria-selected="true"' : ""}>${v}</button>`
+    )
+    .join("");
+  return `<div class="acf-drum__column" data-acf-drum-column="${kind}" tabindex="0" role="listbox" aria-label="${label}">${drumSpacerHtml()}${items}${drumSpacerHtml()}</div>`;
+}
+
+function scrollDrumColumnToValue(column, value) {
+  if (!column) return;
+  const item = column.querySelector(`[data-acf-drum-value="${value}"]`);
+  if (!item) return;
+  column.scrollTop = item.offsetTop - (column.clientHeight - item.clientHeight) / 2;
+}
+
+function nearestDrumValue(column) {
+  if (!column) return "";
+  const centerY = column.scrollTop + column.clientHeight / 2;
+  let best = null;
+  let bestDist = Infinity;
+  column.querySelectorAll(".acf-drum__item").forEach((btn) => {
+    const mid = btn.offsetTop + btn.clientHeight / 2;
+    const dist = Math.abs(mid - centerY);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = btn;
+    }
+  });
+  return best ? String(best.dataset.acfDrumValue || "") : "";
+}
+
+function highlightDrumColumn(column) {
+  if (!column) return "";
+  const value = nearestDrumValue(column);
+  column.querySelectorAll(".acf-drum__item").forEach((btn) => {
+    const match = String(btn.dataset.acfDrumValue || "") === value;
+    btn.classList.toggle("is-selected", match);
+    btn.setAttribute("aria-selected", match ? "true" : "false");
+  });
+  return value;
 }
 
 let openPickerEl = null;
@@ -305,46 +355,71 @@ function mountTimePicker(wrap) {
   };
 
   const renderPanel = () => {
-    panel.innerHTML = `<div class="acf-timepicker">
-      <div class="acf-timepicker__preview" aria-live="polite">
-        <span class="acf-timepicker__preview-label">Hora seleccionada</span>
-        <div class="acf-timepicker__preview-clock" aria-hidden="true">
-          <span class="acf-timepicker__preview-part">${hour}</span>
-          <span class="acf-timepicker__preview-sep">:</span>
-          <span class="acf-timepicker__preview-part">${minute}</span>
-        </div>
-        <strong class="acf-timepicker__preview-value">${formatTimeDisplay(`${hour}:${minute}`) || `${hour}:${minute}`}</strong>
-      </div>
-      <div class="acf-timepicker__columns">
-        <div class="acf-timepicker__section">
-          <p class="acf-timepicker__section-label">Hora</p>
-          <div class="acf-timepicker__scroll">
-            <div class="acf-timepicker__grid acf-timepicker__grid--hours" role="listbox" aria-label="Hora">
-              ${HOUR_OPTIONS.map(
-                (h) =>
-                  `<button type="button" class="acf-timepicker__cell${h === hour ? " is-selected" : ""}" data-acf-time-hour="${h}" role="option"${h === hour ? ' aria-selected="true"' : ""}>${h}</button>`
-              ).join("")}
-            </div>
+    panel.innerHTML = `<div class="acf-timepicker acf-timepicker--drum">
+      <p class="acf-timepicker__drum-hint muted">Deslice o toque para elegir hora y minutos</p>
+      <div class="acf-drum">
+        <div class="acf-drum__frame">
+          <div class="acf-drum__highlight" aria-hidden="true"></div>
+          <div class="acf-drum__columns">
+            ${renderDrumColumn("hour", HOUR_OPTIONS, hour)}
+            <span class="acf-drum__colon" aria-hidden="true">:</span>
+            ${renderDrumColumn("minute", MINUTE_OPTIONS, minute)}
           </div>
         </div>
-        <div class="acf-timepicker__section">
-          <p class="acf-timepicker__section-label">Minutos</p>
-          <div class="acf-timepicker__scroll">
-            <div class="acf-timepicker__grid acf-timepicker__grid--minutes" role="listbox" aria-label="Minutos">
-              ${MINUTE_OPTIONS.map(
-                (m) =>
-                  `<button type="button" class="acf-timepicker__cell${m === minute ? " is-selected" : ""}" data-acf-time-minute="${m}" role="option"${m === minute ? ' aria-selected="true"' : ""}>${m}</button>`
-              ).join("")}
-            </div>
-          </div>
+        <div class="acf-drum__readout" aria-live="polite">
+          <span class="acf-drum__readout-label">Hora seleccionada</span>
+          <strong>${formatTimeDisplay(`${hour}:${minute}`) || `${hour}:${minute}`}</strong>
         </div>
       </div>
       <footer class="acf-timepicker__foot">
         <button type="button" class="acf-timepicker__apply" data-acf-time-apply>Aplicar ${hour}:${minute}</button>
       </footer>
     </div>`;
-    const selectedCell = panel.querySelector(".acf-timepicker__cell.is-selected");
-    selectedCell?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+
+    const hourCol = panel.querySelector('[data-acf-drum-column="hour"]');
+    const minCol = panel.querySelector('[data-acf-drum-column="minute"]');
+    scrollDrumColumnToValue(hourCol, hour);
+    scrollDrumColumnToValue(minCol, minute);
+    highlightDrumColumn(hourCol);
+    highlightDrumColumn(minCol);
+
+    const syncDrumReadout = () => {
+      const readout = panel.querySelector(".acf-drum__readout strong");
+      const applyBtn = panel.querySelector("[data-acf-time-apply]");
+      const label = formatTimeDisplay(`${hour}:${minute}`) || `${hour}:${minute}`;
+      if (readout) readout.textContent = label;
+      if (applyBtn) applyBtn.textContent = `Aplicar ${hour}:${minute}`;
+    };
+
+    let scrollTimer = null;
+    const onDrumScroll = (col, isHour) => {
+      clearTimeout(scrollTimer);
+      scrollTimer = setTimeout(() => {
+        const val = highlightDrumColumn(col);
+        if (val) {
+          if (isHour) hour = val;
+          else minute = val;
+        }
+        syncDrumReadout();
+      }, 72);
+    };
+
+    hourCol?.addEventListener("scroll", () => onDrumScroll(hourCol, true), { passive: true });
+    minCol?.addEventListener("scroll", () => onDrumScroll(minCol, false), { passive: true });
+
+    panel.querySelectorAll(".acf-drum__item").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const col = btn.closest(".acf-drum__column");
+        const kind = String(btn.dataset.acfDrumKind || "");
+        const val = String(btn.dataset.acfDrumValue || "");
+        if (!col || !val) return;
+        if (kind === "hour") hour = val;
+        else minute = val;
+        scrollDrumColumnToValue(col, val);
+        highlightDrumColumn(col);
+        syncDrumReadout();
+      });
+    });
   };
 
   const applyTime = (h, m) => {
@@ -373,16 +448,6 @@ function mountTimePicker(wrap) {
     ev.stopPropagation();
     const btn = ev.target.closest("button");
     if (!btn) return;
-    if (btn.hasAttribute("data-acf-time-hour")) {
-      hour = String(btn.dataset.acfTimeHour || "08");
-      renderPanel();
-      return;
-    }
-    if (btn.hasAttribute("data-acf-time-minute")) {
-      minute = String(btn.dataset.acfTimeMinute || "00");
-      renderPanel();
-      return;
-    }
     if (btn.hasAttribute("data-acf-time-apply")) {
       applyTime(hour, minute);
     }

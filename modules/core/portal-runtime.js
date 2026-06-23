@@ -24,6 +24,7 @@ const CO_TRANSPORT_ALLOWANCE_MAX_SMMLV = __pr.CO_TRANSPORT_ALLOWANCE_MAX_SMMLV;
 const DEFAULT_OPEN_CREATE_PANELS = __pr.DEFAULT_OPEN_CREATE_PANELS;
 const FLEET_DRIVER_EDIT_ACTIONS = __pr.FLEET_DRIVER_EDIT_ACTIONS;
 const HIRING_RRHH_EDIT_ACTIONS = __pr.HIRING_RRHH_EDIT_ACTIONS;
+const SST_RRHH_EDIT_ACTIONS = __pr.SST_RRHH_EDIT_ACTIONS;
 const PORTAL_NON_ADMIN_BLOCKED_ACTIONS = __pr.PORTAL_NON_ADMIN_BLOCKED_ACTIONS;
 const HISTORY_FLEET_TECH_LABELS = __pr.HISTORY_FLEET_TECH_LABELS;
 const HR_VALID_HIRING_WS = __pr.HR_VALID_HIRING_WS;
@@ -97,6 +98,7 @@ const canEditFleetDriverAsAdmin = __pr.canEditFleetDriverAsAdmin;
 const canEditVehicle = __pr.canEditVehicle;
 const canManageHiringModule = __pr.canManageHiringModule;
 const canManagePayrollModule = __pr.canManagePayrollModule;
+const canManageSstModule = __pr.canManageSstModule;
 const canManageTransportTrips = __pr.canManageTransportTrips;
 const canPerformPermissionGatedAction = __pr.canPerformPermissionGatedAction;
 const canToggleVehicleStatus = __pr.canToggleVehicleStatus;
@@ -1659,6 +1661,10 @@ const PAYROLL_RRHH_EDIT_ACTIONS = new Set(["delete-employee"]);
 
 function canPerformPayrollEditAction(action) {
   return PAYROLL_RRHH_EDIT_ACTIONS.has(String(action || "")) && canManagePayrollModule();
+}
+
+function canPerformSstEditAction(action) {
+  return SST_RRHH_EDIT_ACTIONS.has(String(action || "")) && canManageSstModule();
 }
 
 function hiringPipelineStatusClass(status) {
@@ -7427,20 +7433,35 @@ function historyAuditActorLabel(...candidates) {
 }
 
 function buildPortalAuditActorSnapshot() {
-  const user = currentUser();
-  if (!user) return { label: "", userId: "", email: "", name: "" };
-  const email = String(user.email || "").trim();
-  const displayName = getPortalUserDisplayName(user);
+  const session = getSession();
+  const sessionUserId = String(session?.userId || state.session?.userId || "").trim();
+  let user = currentUser();
+  if (!user && sessionUserId) {
+    const snap = session?.profileSnapshot;
+    if (snap && String(snap.id || "") === sessionUserId) {
+      user = {
+        id: snap.id,
+        email: snap.email,
+        name: snap.name
+      };
+    } else {
+      user = { id: sessionUserId, email: "", name: "" };
+    }
+  }
+  if (!user && !sessionUserId) return { label: "", userId: "", email: "", name: "" };
+  const email = String(user?.email || session?.profileSnapshot?.email || "").trim();
+  const displayName = user ? getPortalUserDisplayName(user) : "";
   const name =
     displayName && displayName !== "Usuario"
       ? displayName
-      : String(user.name || "").trim() && !String(user.name || "").includes("@")
-        ? String(user.name || "").trim()
+      : String(user?.name || session?.profileSnapshot?.name || "").trim() &&
+          !String(user?.name || session?.profileSnapshot?.name || "").includes("@")
+        ? String(user?.name || session?.profileSnapshot?.name || "").trim()
         : "";
-  const label = historyAuditActorLabel(email, name, displayName, user.name);
+  const label = historyAuditActorLabel(email, name, displayName, user?.name);
   return {
     label,
-    userId: String(user.id || "").trim(),
+    userId: String(user?.id || sessionUserId || "").trim(),
     email,
     name
   };
@@ -11997,6 +12018,7 @@ function portalNonAdminRestrictedCaptureClick(event) {
   if (isAdminActor()) return;
   if (canPerformHiringEditAction(action)) return;
   if (canPerformPayrollEditAction(action)) return;
+  if (canPerformSstEditAction(action)) return;
   if (canPerformPermissionGatedAction(currentUser(), action, trigger)) return;
   if (!PORTAL_NON_ADMIN_BLOCKED_ACTIONS.has(action)) return;
   event.preventDefault();
@@ -12017,6 +12039,7 @@ function portalNonAdminRestrictedCaptureChange(event) {
   if (isAdminActor()) return;
   if (canPerformHiringEditAction(action)) return;
   if (canPerformPayrollEditAction(action)) return;
+  if (canPerformSstEditAction(action)) return;
   if (canPerformPermissionGatedAction(currentUser(), action, trigger)) return;
   if (!PORTAL_NON_ADMIN_BLOCKED_ACTIONS.has(action)) return;
   event.preventDefault();
@@ -12062,6 +12085,12 @@ function abortUnlessCanManageHiring(reason = "adminOnlyModule") {
 
 function abortUnlessCanManagePayroll(reason = "adminOnlyModule") {
   if (canManagePayrollModule()) return false;
+  notify(userMessage(reason), "error");
+  return true;
+}
+
+function abortUnlessCanManageSst(reason = "adminOnlyModule") {
+  if (canManageSstModule()) return false;
   notify(userMessage(reason), "error");
   return true;
 }
@@ -12457,6 +12486,7 @@ Object.assign(window, {
   abortUnlessCanEditVehicle,
   abortUnlessCanManageHiring,
   abortUnlessCanManagePayroll,
+  abortUnlessCanManageSst,
   abortUnlessCanManageTransportTrips,
   abortUnlessCanToggleVehicleStatus,
   addOneYearToYmd,
@@ -12521,6 +12551,7 @@ Object.assign(window, {
   canAssignTripFromViajesModule,
   canPerformHiringEditAction,
   canPerformPayrollEditAction,
+  canPerformSstEditAction,
   canViewAllTransportRequests,
   candidateCvDataUrlToBlob,
   candidateMayHaveCvInStorage,

@@ -1298,8 +1298,9 @@ export function openEditModal({
         const domVal = V.validateDomForm(currentForm);
         if (!domVal.ok) {
           V.focusInvalidField?.(domVal.firstInvalid, { pulse: true });
-          const msg = userMessage("validationStep");
-          notify(msg, "error");
+          if (typeof window.notify === "function") {
+            window.notify(userMessage("validationStep"), "error");
+          }
           return false;
         }
         V.applyDomFormPatch?.(currentForm, domVal.patch);

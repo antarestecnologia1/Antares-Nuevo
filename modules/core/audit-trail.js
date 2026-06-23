@@ -182,6 +182,17 @@ export function logPortalAuditEvent(moduleKey, action, detail = {}) {
   const moduleId = resolvePortalAuditModuleId(moduleKey) || String(moduleKey || "").trim() || "dashboard";
   const moduleLabel = normalizePortalAuditModuleLabel(moduleId);
   const row = detail && typeof detail === "object" ? detail : {};
+  const snapshot =
+    typeof globalThis.buildPortalAuditActorSnapshot === "function"
+      ? globalThis.buildPortalAuditActorSnapshot()
+      : {};
+  const actorUserId = String(row.actorUserId || snapshot.userId || "").trim();
+  const actorEmail = String(row.actorEmail || snapshot.email || "").trim();
+  const actor = String(row.actor || snapshot.label || actorEmail || "").trim();
+  const usuarioFn = globalThis.historyAuditFormatStoredUsuario;
+  const usuario =
+    String(row.usuario || "").trim() ||
+    (typeof usuarioFn === "function" ? usuarioFn(actor, actorEmail, actorUserId) : actor || actorEmail);
   fn({
     id: String(row.id || "").trim() || undefined,
     action: String(action || "update"),
@@ -191,10 +202,10 @@ export function logPortalAuditEvent(moduleKey, action, detail = {}) {
     entityLabel: String(row.entityLabel || "Registro").trim(),
     summary: String(row.summary || "").trim(),
     at: row.at,
-    actor: row.actor,
-    actorEmail: row.actorEmail,
-    actorUserId: row.actorUserId,
-    usuario: row.usuario,
+    actor,
+    actorEmail,
+    actorUserId,
+    usuario,
     detailAction: String(row.detailAction || "").trim(),
     detailId: String(row.detailId || row.entityId || "").trim()
   });

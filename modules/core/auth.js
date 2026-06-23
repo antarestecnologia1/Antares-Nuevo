@@ -451,6 +451,11 @@ export function canManagePayrollModule(user) {
   return isAdminActor(actor) || hasPermission(actor, PERMISSIONS.PAYROLL_MANAGE);
 }
 
+export function canManageSstModule(user) {
+  const actor = user || currentUser();
+  return isAdminActor(actor) || hasPermission(actor, PERMISSIONS.SST_COMPLIANCE);
+}
+
 export function canPerformPermissionGatedAction(user, action, trigger) {
   if (!user || isAdminActor(user)) return true;
   if (action === "approve" || action === "reject") return canApproveTransportRequests(user);

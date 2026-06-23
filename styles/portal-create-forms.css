@@ -1010,7 +1010,137 @@
   color: #64748b;
 }
 
-/* Selector de hora */
+/* Selector de hora (tambor hora + minuto) */
+.antares-create-form .acf-timepicker--drum {
+  padding: 0.15rem 0 0;
+}
+
+.antares-create-form .acf-timepicker__drum-hint {
+  margin: 0 0 0.55rem;
+  font-size: 0.74rem;
+  text-align: center;
+}
+
+.antares-create-form .acf-drum__frame {
+  position: relative;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--acf-schedule-accent) 22%, var(--acf-edge));
+  background: color-mix(in srgb, var(--primary) 4%, var(--acf-card));
+  overflow: hidden;
+}
+
+.antares-create-form .acf-drum__highlight {
+  position: absolute;
+  left: 0.65rem;
+  right: 0.65rem;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 2.65rem;
+  border-radius: 11px;
+  border: 2px solid var(--acf-schedule-accent);
+  background: color-mix(in srgb, var(--acf-schedule-accent) 14%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--acf-schedule-accent) 10%, transparent);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.antares-create-form .acf-drum__columns {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 0 0.45rem;
+}
+
+.antares-create-form .acf-drum__colon {
+  align-self: center;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--acf-schedule-accent-deep);
+  padding: 0 0.1rem;
+  z-index: 2;
+}
+
+.antares-create-form .acf-drum__column {
+  position: relative;
+  z-index: 2;
+  flex: 1 1 0;
+  max-width: 5.5rem;
+  height: 11.5rem;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #000 18%,
+    #000 82%,
+    transparent 100%
+  );
+}
+
+.antares-create-form .acf-drum__column::-webkit-scrollbar {
+  display: none;
+}
+
+.antares-create-form .acf-drum__spacer {
+  height: 4.4rem;
+  flex-shrink: 0;
+}
+
+.antares-create-form .acf-drum__item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 2.65rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #64748b;
+  font-size: 1.05rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  scroll-snap-align: center;
+  cursor: pointer;
+  transition: color 0.12s ease, transform 0.12s ease;
+}
+
+.antares-create-form .acf-drum__item:hover {
+  color: var(--acf-schedule-accent-deep);
+}
+
+.antares-create-form .acf-drum__item.is-selected {
+  color: var(--acf-navy);
+  transform: scale(1.04);
+}
+
+.antares-create-form .acf-drum__readout {
+  margin-top: 0.65rem;
+  text-align: center;
+  display: grid;
+  gap: 0.1rem;
+}
+
+.antares-create-form .acf-drum__readout-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--acf-schedule-accent);
+}
+
+.antares-create-form .acf-drum__readout strong {
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--acf-navy);
+  font-variant-numeric: tabular-nums;
+}
+
 .antares-create-form .acf-timepicker__preview {
   display: grid;
   gap: 0.15rem;
@@ -1840,6 +1970,24 @@ body[data-theme="dark"] .antares-create-form .acf-cal__day,
 body[data-theme="dark"] .antares-create-form .acf-picker__value,
 body[data-theme="dark"] .antares-create-form .acf-timepicker__preview-value {
   color: #e8f2fc;
+}
+
+body[data-theme="dark"] .antares-create-form .acf-drum__frame {
+  background: rgba(10, 22, 38, 0.82);
+  border-color: rgba(var(--primary-rgb), 0.28);
+}
+
+body[data-theme="dark"] .antares-create-form .acf-drum__item {
+  color: #94a8c4;
+}
+
+body[data-theme="dark"] .antares-create-form .acf-drum__item.is-selected,
+body[data-theme="dark"] .antares-create-form .acf-drum__readout strong {
+  color: #e8f2fc;
+}
+
+body[data-theme="dark"] .antares-create-form .acf-drum__colon {
+  color: color-mix(in srgb, var(--acf-schedule-accent) 80%, #fff);
 }
 
 body[data-theme="dark"] .antares-create-form .acf-cal__nav,

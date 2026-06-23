@@ -73,9 +73,9 @@ export function reqWrite(next) {
   }
 }
 
-export async function reqWriteAwait(next, syncRows, deleteIds) {
+export async function reqWriteAwait(next, syncRows, deleteIds, extraOpts = {}) {
   reqWrite(next);
-  const opts = {};
+  const opts = { ...(extraOpts && typeof extraOpts === "object" ? extraOpts : {}) };
   if (deleteIds != null && deleteIds !== false) {
     const ids = (Array.isArray(deleteIds) ? deleteIds : [deleteIds])
       .map((id) => String(id || "").trim())

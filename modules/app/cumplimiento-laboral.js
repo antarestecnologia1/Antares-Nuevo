@@ -21,9 +21,9 @@ const G = globalThis;
     const createHrActionCard = G.createHrActionCard;
     const moduleFleetHeroStrip = G.moduleFleetHeroStrip;
     const pcardWrap = G.pcardWrap;
-    const isAdminActor = G.isAdminActor;
+    const canManageSstModule = G.canManageSstModule;
 
-    if (typeof fieldLabel !== "function" || typeof isAdminActor !== "function") return "";
+    if (typeof fieldLabel !== "function" || typeof canManageSstModule !== "function") return "";
 
     const employees = read(KEYS.payrollEmployees, []);
     const contracts = read(KEYS.contracts, []);
@@ -57,7 +57,7 @@ const G = globalThis;
       }
       return `<span class="status status-pendiente">Pendiente</span>`;
     };
-    const sstAdminMutates = isAdminActor();
+    const sstCanMutate = canManageSstModule();
     const recordRows = records
       .map((record) => {
         const employee = employees.find((item) => String(item.id) === String(record.employeeId || ""));
@@ -71,8 +71,8 @@ const G = globalThis;
         <td>${escapeHtml(String(record.notes || "-"))}</td>
         <td><div class="toolbar">
           <button class="btn btn-sm btn-outline" data-action="view-sst-record" data-id="${escapeAttr(String(record.id))}">${IC.eye} Ver</button>
-          ${sstAdminMutates ? `<button class="btn btn-sm btn-action" data-action="edit-sst-record" data-id="${escapeAttr(String(record.id))}">${IC.edit} Editar</button>` : ""}
-          ${sstAdminMutates ? `<button class="btn btn-sm btn-reject" data-action="delete-sst-record" data-id="${escapeAttr(String(record.id))}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
+          ${sstCanMutate ? `<button class="btn btn-sm btn-action" data-action="edit-sst-record" data-id="${escapeAttr(String(record.id))}">${IC.edit} Editar</button>` : ""}
+          ${sstCanMutate ? `<button class="btn btn-sm btn-reject" data-action="delete-sst-record" data-id="${escapeAttr(String(record.id))}" title="Eliminar control SST">${IC.trash} Eliminar</button>` : ""}
         </div></td>
       </tr>`;
       })
@@ -179,6 +179,7 @@ function bindLaborCompliancePortalControls() {
   const sstComplianceForm = document.getElementById("form-sst-compliance");
   if (sstComplianceForm) {
     G.wireFormSubmitGuard(sstComplianceForm, async (event) => {
+      if (G.abortUnlessCanManageSst?.()) return;
       const data = G.readFormEntriesNormalized(sstComplianceForm);
       const employee = read(KEYS.payrollEmployees, []).find((item) => String(item.id) === String(data.employeeId || ""));
       if (!employee) {
@@ -272,7 +273,7 @@ function bindLaborCompliancePortalControls() {
 
   nodes.viewRoot.querySelectorAll("[data-action='edit-sst-record']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      if (G.abortIfNotAdmin()) return;
+      if (G.abortUnlessCanManageSst?.()) return;
       const all = read(KEYS.sstCompliance, []);
       const target = G.normalizeSstComplianceRow(all.find((x) => String(x.id) === String(btn.dataset.id || "")));
       if (!target) return;
@@ -351,7 +352,7 @@ function bindLaborCompliancePortalControls() {
 
   nodes.viewRoot.querySelectorAll("[data-action='delete-sst-record']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      if (G.abortIfNotAdmin()) return;
+      if (G.abortUnlessCanManageSst?.()) return;
       const id = String(btn.dataset.id || "");
       const target = read(KEYS.sstCompliance, []).find((r) => String(r.id) === id);
       if (!target) return;

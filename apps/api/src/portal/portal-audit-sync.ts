@@ -19,6 +19,9 @@ export type PortalSyncUpsertAudit = {
   entityId: string;
   entityLabel: string;
   summary: string;
+  moduleId?: string;
+  moduleLabel?: string;
+  actorUserIdCandidates?: string[];
 };
 
 type SyncAuditMeta = {
@@ -195,15 +198,45 @@ async function auditTableReady(c: PoolClient): Promise<boolean> {
   return Boolean(r.rows[0]?.reg);
 }
 
+function portalRowActorUserIdCandidates(row: Record<string, unknown>): string[] {
+  const keys = ["updatedByUserId", "createdByUserId", "updated_by_user_id", "created_by_user_id", "actorUserId"];
+  const out: string[] = [];
+  for (const key of keys) {
+    const raw = String(row[key] ?? "").trim();
+    if (raw && PG_UUID_V4_RE.test(raw) && !out.includes(raw)) out.push(raw);
+  }
+  return out;
+}
+
 /** Evita 500 por FK/UUID inválido: solo persiste id_usuario si existe en `usuarios`. */
-async function resolvePortalAuditUserIdForInsert(
+export async function resolvePortalAuditUserIdForInsert(
   c: PoolClient,
-  userId: string | null | undefined
+  ...candidates: Array<string | null | undefined>
 ): Promise<string | null> {
-  const raw = String(userId || "").trim();
-  if (!raw || !PG_UUID_V4_RE.test(raw)) return null;
-  const exists = await c.query(`SELECT 1 FROM usuarios WHERE id = $1::uuid LIMIT 1`, [raw]);
-  return exists.rowCount ? raw : null;
+  for (const candidate of candidates) {
+    const raw = String(candidate || "").trim();
+    if (!raw || !PG_UUID_V4_RE.test(raw)) continue;
+    const exists = await c.query(`SELECT 1 FROM usuarios WHERE id = $1::uuid LIMIT 1`, [raw]);
+    if (exists.rowCount) return raw;
+  }
+  return null;
+}
+
+async function resolvePortalAuditUserIdWithEmailFallback(
+  c: PoolClient,
+  email: string | null | undefined,
+  ...candidates: Array<string | null | undefined>
+): Promise<string | null> {
+  const fromIds = await resolvePortalAuditUserIdForInsert(c, ...candidates);
+  if (fromIds) return fromIds;
+  const em = String(email || "").trim().toLowerCase();
+  if (!em) return null;
+  const r = await c.query<{ id: string }>(
+    `SELECT id::text AS id FROM usuarios WHERE lower(trim(correo_electronico)) = $1 LIMIT 1`,
+    [em]
+  );
+  const id = String(r.rows[0]?.id || "").trim();
+  return id && PG_UUID_V4_RE.test(id) ? id : null;
 }
 
 export async function insertPortalAuditEventTx(
@@ -217,25 +250,40 @@ export async function insertPortalAuditEventTx(
     entityLabel?: string;
     summary?: string;
     clientEventId?: string;
+    detailAction?: string;
+    detailId?: string;
+    registeredAt?: string | null;
+    actorUserIdCandidates?: string[];
   }
-): Promise<void> {
-  if (!(await auditTableReady(c))) return;
+): Promise<boolean> {
+  if (!(await auditTableReady(c))) return false;
   const action = String(event.action || "update").toLowerCase();
-  if (!["create", "update", "delete"].includes(action)) return;
+  if (!["create", "update", "delete"].includes(action)) return false;
   const moduleId = String(event.moduleId || "dashboard").trim().slice(0, 64);
   const moduleLabel = String(event.moduleLabel || moduleId).trim().slice(0, 120);
   let clientEventId: string | null = String(event.clientEventId || "").trim();
   if (clientEventId && !PG_UUID_V4_RE.test(clientEventId)) clientEventId = null;
-  const actorUserId = await resolvePortalAuditUserIdForInsert(c, actor.userId);
+  const actorUserId = await resolvePortalAuditUserIdWithEmailFallback(
+    c,
+    actor.email,
+    actor.userId,
+    ...(event.actorUserIdCandidates || [])
+  );
 
-  await c.query(
+  const atRaw = String(event.registeredAt || "").trim();
+  const registeredAt =
+    atRaw && !Number.isNaN(new Date(atRaw).getTime()) ? new Date(atRaw).toISOString() : null;
+
+  const result = await c.query(
     `INSERT INTO auditoria_eventos_portal (
         id_evento_cliente, accion, modulo_id, modulo_etiqueta,
         entidad_id, entidad_etiqueta, resumen,
-        id_usuario, usuario_email, usuario_etiqueta
+        id_usuario, usuario_email, usuario_etiqueta,
+        detalle_accion, detalle_id, registrado_en
       )
-      VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8::uuid, $9, $10)
-      ON CONFLICT (id_evento_cliente) DO NOTHING`,
+      VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8::uuid, $9, $10, $11, $12, COALESCE($13::timestamptz, now()))
+      ON CONFLICT (id_evento_cliente) DO NOTHING
+      RETURNING id`,
     [
       clientEventId,
       action,
@@ -246,9 +294,67 @@ export async function insertPortalAuditEventTx(
       String(event.summary || "").trim().slice(0, 2000) || null,
       actorUserId,
       String(actor.email || "").trim().slice(0, 255) || null,
-      String(actor.label || "").trim().slice(0, 500) || null
+      String(actor.label || "").trim().slice(0, 500) || null,
+      String(event.detailAction || "").trim().slice(0, 64) || null,
+      String(event.detailId || "").trim().slice(0, 64) || null,
+      registeredAt
     ]
   );
+  return Boolean(result.rowCount);
+}
+
+async function preparePortalSyncRequestsAudits(c: PoolClient, data: unknown): Promise<PortalSyncUpsertAudit[]> {
+  const meta = PORTAL_SYNC_AUDIT_META.requests;
+  if (!meta || !Array.isArray(data)) return [];
+  const pending: PortalSyncUpsertAudit[] = [];
+  for (const raw of data) {
+    const row = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : null;
+    if (!row) continue;
+    const entityId = String(row.id ?? "").trim();
+    if (!PG_UUID_V4_RE.test(entityId)) continue;
+    const actorUserIdCandidates = portalRowActorUserIdCandidates(row);
+    const exists = await c.query(`SELECT 1 FROM ${meta.table} WHERE id = $1::uuid LIMIT 1`, [entityId]);
+    const action: "create" | "update" = exists.rowCount ? "update" : "create";
+    pending.push({
+      action,
+      entityId,
+      entityLabel: portalRowEntityLabel(row),
+      summary: portalRowEntitySummary(row, action),
+      actorUserIdCandidates
+    });
+
+    const trip = row.trip;
+    if (!trip || typeof trip !== "object" || Array.isArray(trip)) continue;
+    const tripRow = trip as Record<string, unknown>;
+    const tripNumber = String(tripRow.tripNumber ?? "").trim();
+    if (!tripNumber) continue;
+    let tripEntityId = String(tripRow.id ?? "").trim();
+    if (!PG_UUID_V4_RE.test(tripEntityId)) {
+      const lookup = await c.query<{ id: string }>(
+        `SELECT id::text AS id FROM viajes_transporte WHERE id_solicitud = $1::uuid LIMIT 1`,
+        [entityId]
+      );
+      tripEntityId = String(lookup.rows[0]?.id || "").trim();
+    }
+    if (!PG_UUID_V4_RE.test(tripEntityId)) continue;
+    const tripExists = await c.query(`SELECT 1 FROM viajes_transporte WHERE id = $1::uuid LIMIT 1`, [tripEntityId]);
+    const tripAction: "create" | "update" = tripExists.rowCount ? "update" : "create";
+    const plate = String(tripRow.vehiclePlate ?? "").trim();
+    const driver = String(tripRow.driverName ?? "").trim();
+    const tripSummary = [plate ? `Placa ${plate}` : "", driver ? `Conductor ${driver}` : ""]
+      .filter(Boolean)
+      .join(" · ");
+    pending.push({
+      action: tripAction,
+      entityId: tripEntityId,
+      entityLabel: tripNumber.slice(0, 500),
+      summary: tripSummary || `Viaje ${tripNumber}`,
+      moduleId: "trips",
+      moduleLabel: "Viajes",
+      actorUserIdCandidates
+    });
+  }
+  return pending;
 }
 
 export async function preparePortalSyncUpsertAudits(
@@ -258,6 +364,9 @@ export async function preparePortalSyncUpsertAudits(
 ): Promise<PortalSyncUpsertAudit[]> {
   if (key === "tripRouteRates") {
     return preparePortalSyncTripRouteRatesAudits(c, data);
+  }
+  if (key === "requests") {
+    return preparePortalSyncRequestsAudits(c, data);
   }
   const meta = PORTAL_SYNC_AUDIT_META[key];
   if (!meta || !Array.isArray(data)) return [];
@@ -273,7 +382,8 @@ export async function preparePortalSyncUpsertAudits(
       action,
       entityId,
       entityLabel: portalRowEntityLabel(row),
-      summary: portalRowEntitySummary(row, action)
+      summary: portalRowEntitySummary(row, action),
+      actorUserIdCandidates: portalRowActorUserIdCandidates(row)
     });
   }
   return pending;
@@ -326,11 +436,12 @@ export async function flushPortalSyncUpsertAudits(
   for (const item of pending) {
     await insertPortalAuditEventTx(c, actor, {
       action: item.action,
-      moduleId: meta.moduleId,
-      moduleLabel: meta.moduleLabel,
+      moduleId: item.moduleId || meta.moduleId,
+      moduleLabel: item.moduleLabel || meta.moduleLabel,
       entityId: item.entityId,
       entityLabel: item.entityLabel,
-      summary: item.summary
+      summary: item.summary,
+      actorUserIdCandidates: item.actorUserIdCandidates
     });
   }
 }

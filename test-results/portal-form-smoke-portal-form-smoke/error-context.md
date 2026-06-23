@@ -43,9 +43,13 @@ Error: [
     "ok": true
   },
   {
-    "name": "Historial:fuel-technical",
+    "name": "Camiones:combustible-taller",
     "ok": false,
-    "error": "page.waitForSelector: Timeout 4000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-action=\\'hr-workspace-tab\\'][data-module=\\'transport-vehicles\\'][data-tab=\\'operate\\']')\u001b[22m\n"
+    "error": "page.waitForSelector: Timeout 4000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-action=\\'vehicles-section\\'][data-section=\\'technical\\']')\u001b[22m\n"
+  },
+  {
+    "name": "Historial:trazabilidad",
+    "ok": true
   },
   {
     "name": "Reporteria:bi-layout",
@@ -58,7 +62,7 @@ Error: [
   {
     "name": "Contratación:position-vacancy-candidate-interview",
     "ok": false,
-    "error": "Contratación:edit candidate. Toast: sin toast"
+    "error": "Contratación:edit vacancy. Toast: sin toast"
   },
   {
     "name": "Cumplimiento laboral y SST:create-edit",
@@ -102,13 +106,13 @@ expect(received).toEqual(expected) // deep equality
 +   Object {
 +     "error": "page.waitForSelector: Timeout 4000ms exceeded.
 + Call log:
-+   - waiting for locator('[data-action=\\'hr-workspace-tab\\'][data-module=\\'transport-vehicles\\'][data-tab=\\'operate\\']')
++   - waiting for locator('[data-action=\\'vehicles-section\\'][data-section=\\'technical\\']')
 + ",
-+     "name": "Historial:fuel-technical",
++     "name": "Camiones:combustible-taller",
 +     "ok": false,
 +   },
 +   Object {
-+     "error": "Contratación:edit candidate. Toast: sin toast",
++     "error": "Contratación:edit vacancy. Toast: sin toast",
 +     "name": "Contratación:position-vacancy-candidate-interview",
 +     "ok": false,
 +   },
@@ -252,7 +256,7 @@ expect(received).toEqual(expected) // deep equality
                   - generic [ref=e202]:
                     - generic [ref=e203]:
                       - generic [ref=e204]: Sistema
-                      - time [ref=e205]: 22/6/2026, 8:52:00 p. m.
+                      - time [ref=e205]: 22/6/2026, 9:23:51 p. m.
                     - heading "Aviso" [level=3] [ref=e206]
                     - paragraph [ref=e207]: Prueba bandeja
                   - generic [ref=e208]:
@@ -264,7 +268,7 @@ expect(received).toEqual(expected) // deep equality
                   - generic [ref=e219]:
                     - generic [ref=e220]:
                       - generic [ref=e221]: Sistema
-                      - time [ref=e222]: 22/6/2026, 8:52:00 p. m.
+                      - time [ref=e222]: 22/6/2026, 9:23:51 p. m.
                     - heading "Leída" [level=3] [ref=e223]
                     - paragraph [ref=e224]: Prueba leída
                   - generic [ref=e225]:
@@ -333,108 +337,108 @@ expect(received).toEqual(expected) // deep equality
 # Test source
 
 ```ts
-  1206 |     await ensureAdminPanel("create-user");
-  1207 |     const before = await arrayLen(KEYS.users);
-  1208 |     await submitForm("#form-admin-user-create", [
-  1209 |       ["name", "Usuario Smoke"],
-  1210 |       ["email", "usuario.smoke@test.com"],
-  1211 |       ["password", "QaPass!2026"],
-  1212 |       ["documentType", "CC"],
-  1213 |       ["taxId", "7788990011"],
-  1214 |       ["phone", "3009990011"],
-  1215 |       ["role", "client"],
-  1216 |       ["registrationKind", "cliente"],
-  1217 |       ["companyId", "co-flores"],
-  1218 |       ["twoFactorEnabled", "false"],
-  1219 |       ["systemJoinDate", ymd(now)],
-  1220 |       ["department", "Bogota"],
-  1221 |       ["city", "Bogota D.C."],
-  1222 |       ["address", "Carrera smoke"],
-  1223 |       ["company", "Flores del Valle"]
-  1224 |     ]);
-  1225 |     await waitForArrayLength(KEYS.users, before + 1, "Usuarios:create");
-  1226 |     await clickDom("[data-action='open-edit-user'][data-id='client-1']");
-  1227 |     await page.waitForSelector("#form-admin-user-edit", { state: "attached" });
-  1228 |     await submitForm("#form-admin-user-edit", [["phone", "3002223300"]]);
-  1229 |     await waitForStore(
-  1230 |       (key) => {
-  1231 |         const rows = window.AntaresPersistence?.read
-  1232 |           ? window.AntaresPersistence.read(key, [])
-  1233 |           : JSON.parse(localStorage.getItem(key) || "[]");
-  1234 |         return rows.some((row) => row.id === "client-1" && row.phone === "+57 300 222 33 00");
-  1235 |       },
-  1236 |       KEYS.users,
-  1237 |       "Usuarios:edit"
-  1238 |     );
-  1239 |     await ensureAdminPanel("set-permissions");
-  1240 |     await submitForm("#form-admin-user-permissions", [["userId", "client-1"]]);
-  1241 |   });
-  1242 | 
-  1243 |   await record("Autorizaciones:approve", async () => {
-  1244 |     await gotoView("authorizations");
-  1245 |     await ensureAuthTab("transport_fleet");
-  1246 |     const before = await arrayLen(KEYS.approvals);
-  1247 |     await clickDom("[data-action='approval-approve'][data-id='app-1']");
-  1248 |     await waitForStore(
-  1249 |       (key) => {
-  1250 |         const rows = window.AntaresPersistence?.read
-  1251 |           ? window.AntaresPersistence.read(key, [])
-  1252 |           : JSON.parse(localStorage.getItem(key) || "[]");
-  1253 |         return rows.some((row) => row.id === "app-1" && row.status === "aprobado");
-  1254 |       },
-  1255 |       KEYS.approvals,
-  1256 |       "Autorizaciones:approve"
-  1257 |     );
-  1258 |     const after = await arrayLen(KEYS.approvals);
-  1259 |     if (after !== before) throw new Error("La fila de aprobación no se conservó tras aprobar");
-  1260 |   });
-  1261 | 
-  1262 |   await record("Mi perfil:edit", async () => {
-  1263 |     await gotoView("profile");
-  1264 |     await submitForm("#form-profile", [
-  1265 |       ["name", "Admin QA Perfil"],
-  1266 |       ["phone", "3001112200"],
-  1267 |       ["documentType", "CC"],
-  1268 |       ["taxId", "1010101010"],
-  1269 |       ["birthDate", "1990-01-01"],
-  1270 |       ["emergencyContact", "Sofía"],
-  1271 |       ["emergencyPhone", "3001112201"],
-  1272 |       ["emergencyRelation", "Hermana"],
-  1273 |       ["companyId", "co-antares"]
-  1274 |     ]);
-  1275 |     await waitForStore(
-  1276 |       (key) => {
-  1277 |         const rows = window.AntaresPersistence?.read
-  1278 |           ? window.AntaresPersistence.read(key, [])
-  1279 |           : JSON.parse(localStorage.getItem(key) || "[]");
-  1280 |         return rows.some((row) => row.id === "admin-1" && row.name === "ADMIN QA PERFIL");
-  1281 |       },
-  1282 |       KEYS.users,
-  1283 |       "Mi perfil:edit"
-  1284 |     );
-  1285 |   });
-  1286 | 
-  1287 |   await record("Notificaciones:alerts-sound", async () => {
-  1288 |     await gotoView("notifications");
-  1289 |     await clickDom("[data-action='notif-toggle-master']");
-  1290 |     await clickDom("[data-action='notif-toggle-master']");
-  1291 |     await clickDom("[data-action='notif-read-all']");
-  1292 |     await waitForStore(
-  1293 |       (key) => {
-  1294 |         const rows = window.AntaresPersistence?.read
-  1295 |           ? window.AntaresPersistence.read(key, [])
-  1296 |           : JSON.parse(localStorage.getItem(key) || "[]");
-  1297 |         return rows.every((row) => row.readAt);
-  1298 |       },
-  1299 |       KEYS.notifications,
-  1300 |       "Notificaciones:read all"
-  1301 |     );
-  1302 |   });
-  1303 | 
-  1304 |   console.log(JSON.stringify(results, null, 2));
-  1305 |   const failed = results.filter((item) => !item.ok);
-> 1306 |   expect(failed, JSON.stringify(results, null, 2)).toEqual([]);
+  1155 |     await submitForm("#form-admin-user-create", [
+  1156 |       ["name", "Usuario Smoke"],
+  1157 |       ["email", "usuario.smoke@test.com"],
+  1158 |       ["password", "QaPass!2026"],
+  1159 |       ["documentType", "CC"],
+  1160 |       ["taxId", "7788990011"],
+  1161 |       ["phone", "3009990011"],
+  1162 |       ["role", "client"],
+  1163 |       ["registrationKind", "cliente"],
+  1164 |       ["companyId", "co-flores"],
+  1165 |       ["twoFactorEnabled", "false"],
+  1166 |       ["systemJoinDate", ymd(now)],
+  1167 |       ["department", "Bogota"],
+  1168 |       ["city", "Bogota D.C."],
+  1169 |       ["address", "Carrera smoke"],
+  1170 |       ["company", "Flores del Valle"]
+  1171 |     ]);
+  1172 |     await waitForArrayLength(KEYS.users, before + 1, "Usuarios:create");
+  1173 |     await clickDom("[data-action='open-edit-user'][data-id='client-1']");
+  1174 |     await page.waitForSelector("#form-admin-user-edit", { state: "attached" });
+  1175 |     await submitForm("#form-admin-user-edit", [["phone", "3002223300"]]);
+  1176 |     await waitForStore(
+  1177 |       (key) => {
+  1178 |         const rows = window.AntaresPersistence?.read
+  1179 |           ? window.AntaresPersistence.read(key, [])
+  1180 |           : JSON.parse(localStorage.getItem(key) || "[]");
+  1181 |         return rows.some((row) => row.id === "client-1" && row.phone === "+57 300 222 33 00");
+  1182 |       },
+  1183 |       KEYS.users,
+  1184 |       "Usuarios:edit"
+  1185 |     );
+  1186 |     await ensureAdminPanel("set-permissions");
+  1187 |     await submitForm("#form-admin-user-permissions", [["userId", "client-1"]]);
+  1188 |   });
+  1189 | 
+  1190 |   await record("Autorizaciones:approve", async () => {
+  1191 |     await gotoView("authorizations");
+  1192 |     await ensureAuthTab("transport_fleet");
+  1193 |     const before = await arrayLen(KEYS.approvals);
+  1194 |     await clickDom("[data-action='approval-approve'][data-id='app-1']");
+  1195 |     await waitForStore(
+  1196 |       (key) => {
+  1197 |         const rows = window.AntaresPersistence?.read
+  1198 |           ? window.AntaresPersistence.read(key, [])
+  1199 |           : JSON.parse(localStorage.getItem(key) || "[]");
+  1200 |         return rows.some((row) => row.id === "app-1" && row.status === "aprobado");
+  1201 |       },
+  1202 |       KEYS.approvals,
+  1203 |       "Autorizaciones:approve"
+  1204 |     );
+  1205 |     const after = await arrayLen(KEYS.approvals);
+  1206 |     if (after !== before) throw new Error("La fila de aprobación no se conservó tras aprobar");
+  1207 |   });
+  1208 | 
+  1209 |   await record("Mi perfil:edit", async () => {
+  1210 |     await gotoView("profile");
+  1211 |     await submitForm("#form-profile", [
+  1212 |       ["name", "Admin QA Perfil"],
+  1213 |       ["phone", "3001112200"],
+  1214 |       ["documentType", "CC"],
+  1215 |       ["taxId", "1010101010"],
+  1216 |       ["birthDate", "1990-01-01"],
+  1217 |       ["emergencyContact", "Sofía"],
+  1218 |       ["emergencyPhone", "3001112201"],
+  1219 |       ["emergencyRelation", "Hermana"],
+  1220 |       ["companyId", "co-antares"]
+  1221 |     ]);
+  1222 |     await waitForStore(
+  1223 |       (key) => {
+  1224 |         const rows = window.AntaresPersistence?.read
+  1225 |           ? window.AntaresPersistence.read(key, [])
+  1226 |           : JSON.parse(localStorage.getItem(key) || "[]");
+  1227 |         return rows.some(
+  1228 |           (row) => row.id === "admin-1" && String(row.name || "").toUpperCase() === "ADMIN QA PERFIL"
+  1229 |         );
+  1230 |       },
+  1231 |       KEYS.users,
+  1232 |       "Mi perfil:edit"
+  1233 |     );
+  1234 |   });
+  1235 | 
+  1236 |   await record("Notificaciones:alerts-sound", async () => {
+  1237 |     await gotoView("notifications");
+  1238 |     await clickDom("[data-action='notif-toggle-master']");
+  1239 |     await clickDom("[data-action='notif-toggle-master']");
+  1240 |     await clickDom("[data-action='notif-read-all']");
+  1241 |     await waitForStore(
+  1242 |       (key) => {
+  1243 |         const rows = window.AntaresPersistence?.read
+  1244 |           ? window.AntaresPersistence.read(key, [])
+  1245 |           : JSON.parse(localStorage.getItem(key) || "[]");
+  1246 |         return rows.every((row) => row.readAt);
+  1247 |       },
+  1248 |       KEYS.notifications,
+  1249 |       "Notificaciones:read all"
+  1250 |     );
+  1251 |   });
+  1252 | 
+  1253 |   console.log(JSON.stringify(results, null, 2));
+  1254 |   const failed = results.filter((item) => !item.ok);
+> 1255 |   expect(failed, JSON.stringify(results, null, 2)).toEqual([]);
        |                                                    ^ Error: [
-  1307 | });
-  1308 | 
+  1256 | });
+  1257 | 
 ```

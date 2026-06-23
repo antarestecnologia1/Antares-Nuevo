@@ -1007,6 +1007,14 @@ export class PortalService implements OnModuleInit {
         `ALTER TABLE solicitudes_transporte
            ADD COLUMN IF NOT EXISTS refrigeracion_termoking BOOLEAN NOT NULL DEFAULT false`
       );
+      await this.pool.query(
+        `ALTER TABLE solicitudes_transporte
+           ADD COLUMN IF NOT EXISTS numero_fuelles INTEGER`
+      );
+      await this.pool.query(
+        `ALTER TABLE solicitudes_transporte
+           ADD COLUMN IF NOT EXISTS tipo_servicio VARCHAR(80) NOT NULL DEFAULT 'Transporte nacional'`
+      );
       await this.pool.query(`
         UPDATE solicitudes_transporte
         SET refrigeracion_termoking = CASE
@@ -1037,7 +1045,9 @@ export class PortalService implements OnModuleInit {
         WHERE lower(tipo_servicio) LIKE '%entre sedes%'
            OR lower(tipo_servicio) LIKE '%sedes del cliente%'
       `);
-      this.logger.log("solicitudes_transporte: columna refrigeracion_termoking verificada.");
+      this.logger.log(
+        "solicitudes_transporte: columnas refrigeracion_termoking, numero_fuelles y tipo_servicio verificadas."
+      );
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.warn(`ensureSolicitudesTransporteSchema fallo no fatal: ${sanitizeLogText(msg)}`);
@@ -3057,7 +3067,7 @@ export class PortalService implements OnModuleInit {
 
     const independentPromise = Promise.all([
       this.loadCompanies(canSeeAllCompanies ? null : empresaId),
-      this.loadCounters(),
+      admin ? this.loadCounters() : Promise.resolve({}),
       canPayroll ? this.loadTravelAllowanceRules() : Promise.resolve({ interDepartmentTripAmount: 85000 }),
       laborSystemRulesPromise,
       laborSystemHistoryPromise,
@@ -7082,6 +7092,24 @@ export class PortalService implements OnModuleInit {
 
   private static readonly SOLICITUD_TIPOS_CAMION_CLIENTE = new Set(["Turbo", "Camión", "Tractomula"]);
 
+  private static readonly SOLICITUD_ESTADOS_VALIDOS = new Set([
+    "Pendiente",
+    "Aprobada pendiente asignacion",
+    "Viaje asignado",
+    "En transito",
+    "Espera standby",
+    "Completada",
+    "Cerrada",
+    "Cancelada",
+    "Rechazada"
+  ]);
+
+  private solicitudEstadoFromPayload(req: unknown): string {
+    const raw = String((req as { status?: unknown })?.status ?? "Pendiente").trim();
+    if (PortalService.SOLICITUD_ESTADOS_VALIDOS.has(raw)) return raw;
+    return "Pendiente";
+  }
+
   /** `tipo_vehiculo_solicitado`: tipo de camión pedido por el cliente (o "Por definir" si legacy). */
   private solicitudTipoCamionFromPayload(req: Record<string, unknown>): string {
     const raw = String(req["vehicleType"] ?? req["requiredTruckType"] ?? "").trim();
@@ -7500,36 +7528,50 @@ export class PortalService implements OnModuleInit {
     return `SOL-${String(next).padStart(6, "0")}`;
   }
 
-  private describeRequestSyncDbError(err: unknown): string {
+  private describeRequestSyncDbError(err: unknown, requestNumber = ""): string {
     const code = (err as { code?: string } | null)?.code || "";
     const msg = err instanceof Error ? err.message : String(err);
-    if (code === "23505" && /numero_solicitud|uq_solicitudes_transporte_numero/i.test(msg)) {
-      return "Ya existe una solicitud con ese número en el servidor. Recargue el portal e intente de nuevo.";
+    if (code === "23505" && /numero_solicitud|uq_solicitudes/i.test(msg)) {
+      return `Ya existe una solicitud con el número ${requestNumber || "indicado"}. Recargue el portal e intente de nuevo.`;
     }
     if (code === "23503" || /violates foreign key|foreign key constraint/i.test(msg)) {
       if (/id_usuario_solicitante|usuarios/i.test(msg)) {
-        return "Su usuario no está registrado en el servidor. Cierre sesión e inicie de nuevo.";
+        return "Su usuario no está registrado en el servidor. Cierre sesión, vuelva a entrar o pida al administrador que sincronice su cuenta.";
       }
       if (/id_empresa_cliente|empresas/i.test(msg)) {
-        return "La empresa seleccionada no existe en el servidor. Recargue el portal o elija otra empresa registrada.";
+        return "La empresa seleccionada no existe en el servidor. Recargue el portal o regístrela de nuevo en Administración · Usuarios.";
       }
       return "No se pudo guardar la solicitud: hay una referencia inválida en el servidor.";
     }
-    if (code === "23514" && /chk_solicitudes_entrega/i.test(msg)) {
+    if (code === "23514" || /check constraint|chk_solicitudes_entrega/i.test(msg)) {
       return "La fecha de entrega debe ser posterior a la de recogida.";
+    }
+    if (code === "23502" || /not-null constraint|violates not-null/i.test(msg)) {
+      return "Faltan datos obligatorios en la solicitud (ruta, carga, contacto o fechas). Revise el formulario.";
     }
     if (code === "22P02" || /invalid input syntax for type uuid/i.test(msg)) {
       return "Algún identificador de la solicitud no es válido para el servidor (UUID). Recargue el portal e intente de nuevo.";
     }
-    if (code === "42703" || /column .* does not exist/i.test(msg)) {
-      return "El servidor no tiene el esquema de solicitudes actualizado. Ejecute las migraciones de BD e reinicie la API.";
+    if (code === "22P02" && /estado_solicitud_transporte/i.test(msg)) {
+      return "El estado de la solicitud no es válido para el servidor.";
     }
-    this.logger.error(`syncRequests: ${sanitizeLogText(msg)}`);
-    return "No se pudo guardar la solicitud en el servidor. Revise empresa, contacto en sitio y fechas e intente de nuevo.";
+    if (
+      code === "42703" ||
+      code === "08P01" ||
+      /column .* does not exist|bind message supplies|does not match/i.test(msg)
+    ) {
+      return "El servidor no tiene el esquema de solicitudes actualizado. Reinicie la API o ejecute npm run db:init e intente de nuevo.";
+    }
+    if (code === "22007" || /invalid input syntax for type/i.test(msg)) {
+      return "Alguna fecha u hora de la solicitud no es válida. Revise recogida y entrega.";
+    }
+    this.logger.error(`syncRequests ${requestNumber || "?"}: ${sanitizeLogText(msg)}`);
+    return "No se pudo guardar la solicitud en el servidor. Revise fechas, empresa, contacto y datos obligatorios e intente de nuevo.";
   }
 
-  private mapRequestSyncDbError(err: unknown): never {
-    throw new BadRequestException(this.describeRequestSyncDbError(err));
+  private mapRequestSyncDbError(err: unknown, requestNumber = ""): never {
+    if (err instanceof BadRequestException || err instanceof ForbiddenException) throw err;
+    throw new BadRequestException(this.describeRequestSyncDbError(err, requestNumber));
   }
 
   private async syncRequests(c: PoolClient, data: unknown, userId: string, role: JwtRole) {
@@ -7571,7 +7613,7 @@ export class PortalService implements OnModuleInit {
       const userExists = await c.query(`SELECT 1 FROM usuarios WHERE id = $1::uuid LIMIT 1`, [clientUserIdSql]);
       if (!userExists.rowCount) {
         throw new BadRequestException(
-          "Su usuario no está registrado en el servidor. Cierre sesión e inicie de nuevo."
+          "Su usuario no está registrado en el servidor. Cierre sesión, vuelva a entrar o pida al administrador que sincronice su cuenta."
         );
       }
       if (clientCompanyIdSql) {
@@ -7580,18 +7622,19 @@ export class PortalService implements OnModuleInit {
         ]);
         if (!companyExists.rowCount) {
           throw new BadRequestException(
-            "La empresa seleccionada no existe en el servidor. Recargue el portal o elija otra empresa registrada."
+            "La empresa seleccionada no existe en el servidor. Recargue el portal o regístrela de nuevo en Administración · Usuarios."
           );
         }
       }
 
       const contactName = nu(req.contactName ?? req.siteContactName);
-      const contactPhone = nu(req.contactPhone ?? req.siteContactPhone);
-      if (!contactName || !contactPhone) {
+      const contactPhoneRaw = String(req.contactPhone ?? req.siteContactPhone ?? "").trim();
+      if (!contactName || !contactPhoneRaw) {
         throw new BadRequestException(
           "Faltan contacto en sitio y/o teléfono en una solicitud (nombre y teléfono son obligatorios en base de datos)."
         );
       }
+      const contactPhone = normalizePortalPhoneForStorage(contactPhoneRaw);
       const boxesNum = Math.max(0, Number(req.boxesCount ?? req.boxes ?? 0) || 0);
       const reqRec = req as Record<string, unknown>;
       const vehicleType = this.solicitudTipoCamionFromPayload(reqRec);
@@ -7623,13 +7666,40 @@ export class PortalService implements OnModuleInit {
 
       const pickupAtSql = this.portalTimestamptzOrThrow(req.pickupAt, "fecha de recogida");
       const etaDeliverySql = this.portalTimestamptzOrThrow(req.etaDelivery, "fecha de entrega estimada");
-      const pickupMs = new Date(pickupAtSql).getTime();
-      const etaMs = new Date(etaDeliverySql).getTime();
-      if (!Number.isFinite(pickupMs) || !Number.isFinite(etaMs) || etaMs <= pickupMs) {
-        throw new BadRequestException(
-          "La fecha de entrega estimada debe ser posterior a la fecha y hora de recogida."
-        );
+
+      const originCitySql = cat(req.originCity);
+      const destinationCitySql = cat(req.destinationCity);
+      const originAddressSql = nu(req.originAddress);
+      const destinationAddressSql = nu(req.destinationAddress);
+      const cargoDescriptionSql = nu(req.cargoDescription);
+      if (!originCitySql) {
+        throw new BadRequestException("Falta la ciudad de origen en la solicitud.");
       }
+      if (!destinationCitySql) {
+        throw new BadRequestException("Falta la ciudad de destino en la solicitud.");
+      }
+      if (!originAddressSql) {
+        throw new BadRequestException("Falta la dirección de origen en la solicitud.");
+      }
+      if (!destinationAddressSql) {
+        throw new BadRequestException("Falta la dirección de destino en la solicitud.");
+      }
+      if (!cargoDescriptionSql) {
+        throw new BadRequestException("Falta la descripción de la carga en la solicitud.");
+      }
+      if ((vehicleType === "Turbo" || vehicleType === "Camión") && numeroFuelles == null) {
+        throw new BadRequestException("Indique la cantidad de fuelles para Turbo o Camión.");
+      }
+      if (vehicleType === "Tractomula" && weightKg <= 0) {
+        throw new BadRequestException("Indique el peso en kg para tractomula.");
+      }
+      const pickupMs = new Date(pickupAtSql).getTime();
+      const deliveryMs = new Date(etaDeliverySql).getTime();
+      if (!Number.isFinite(pickupMs) || !Number.isFinite(deliveryMs) || deliveryMs <= pickupMs) {
+        throw new BadRequestException("La fecha de entrega debe ser posterior a la de recogida.");
+      }
+
+      const estadoSql = this.solicitudEstadoFromPayload(req);
 
       const existingReq = await c.query(`SELECT numero_solicitud FROM solicitudes_transporte WHERE id = $1::uuid LIMIT 1`, [
         idStr
@@ -7640,7 +7710,7 @@ export class PortalService implements OnModuleInit {
           : await this.ensureUniqueRequestNumberTx(c, req.requestNumber);
 
       try {
-        await c.query(
+      await c.query(
         `INSERT INTO solicitudes_transporte (
           id, numero_solicitud, id_usuario_solicitante, id_empresa_cliente, nombre_cliente, nombre_quien_solicita,
           departamento_origen, ciudad_origen, direccion_origen, departamento_destino, ciudad_destino, direccion_destino,
@@ -7698,15 +7768,15 @@ export class PortalService implements OnModuleInit {
           nu(req.clientName),
           nu(req.requestedByName),
           cat(req.originDepartment),
-          cat(req.originCity),
-          nu(req.originAddress),
+          originCitySql,
+          originAddressSql,
           cat(req.destinationDepartment),
-          cat(req.destinationCity),
-          nu(req.destinationAddress),
+          destinationCitySql,
+          destinationAddressSql,
           pickupAtSql,
           etaDeliverySql,
           vehicleType,
-          nu(req.cargoDescription),
+          cargoDescriptionSql,
           tipoServicio,
           refrigeracionTermoking,
           boxesNum,
@@ -7715,7 +7785,7 @@ export class PortalService implements OnModuleInit {
           contactName,
           contactPhone,
           observations,
-          req.status,
+          estadoSql,
           Number(req.tripValue) || 0,
           insuredValue,
           Number(req.standbyChargeTotal) || 0,
@@ -7730,7 +7800,7 @@ export class PortalService implements OnModuleInit {
         ]
       );
       } catch (insertErr) {
-        this.mapRequestSyncDbError(insertErr);
+        this.mapRequestSyncDbError(insertErr, requestNumber);
       }
 
       if (req.trip && req.trip.tripNumber) {

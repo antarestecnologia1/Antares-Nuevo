@@ -186,20 +186,20 @@
       return String(el?.value || "").trim().slice(0, 5);
     };
 
-    /** Misma regla que al guardar: fecha+hora en Colombia (-05:00) → instante UTC en `fecha_hora_*` de PostgreSQL. */
+    const formatScheduleStamp = (isoDate, time) => {
+      const built =
+        typeof buildColombiaOffsetDateTime === "function" ? buildColombiaOffsetDateTime(isoDate, time) : "";
+      if (!built) return "";
+      return typeof fmtDate === "function" ? fmtDate(built) : built;
+    };
+
+    /** Misma regla que al guardar: fecha+hora en Colombia (-05:00). */
     const scheduleInstantMs = (isoDate, time) => {
       const built =
         typeof buildColombiaOffsetDateTime === "function" ? buildColombiaOffsetDateTime(isoDate, time) : "";
       if (!built) return NaN;
       const ms = new Date(built).getTime();
       return Number.isFinite(ms) ? ms : NaN;
-    };
-
-    const formatScheduleStamp = (isoDate, time) => {
-      const built =
-        typeof buildColombiaOffsetDateTime === "function" ? buildColombiaOffsetDateTime(isoDate, time) : "";
-      if (!built) return "";
-      return typeof fmtDate === "function" ? fmtDate(built) : built;
     };
 
     const formatDuration = (pickupIso, pickupTime, deliveryIso, deliveryTime) => {
@@ -610,10 +610,12 @@
             return;
           }
         }
-        all.unshift(rowToSave);
+        const prevRequests = reqRead();
+        const nextRequests = [rowToSave, ...prevRequests];
         try {
-          await reqWriteAwait(all, rowToSave);
+          await reqWriteAwait(nextRequests, rowToSave, undefined, { notifyOnFailure: false });
         } catch (err) {
+          reqWrite(prevRequests);
           const msg = String(err?.message || "").trim();
           notify(userMessage("requestSaveServerFail", msg), "error");
           return;

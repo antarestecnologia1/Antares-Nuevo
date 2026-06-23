@@ -14,8 +14,7 @@ export default {
   webServer: {
     command: "node scripts/portal-static-server.mjs",
     url: "http://127.0.0.1:4173/",
-    // No reutilizar servidores ajenos (p. ej. `python -m http.server` sirve .js como text/plain).
-    reuseExistingServer: false,
+    reuseExistingServer: !process.env.CI,
     timeout: 60_000
   },
   reporter: [["list"]]

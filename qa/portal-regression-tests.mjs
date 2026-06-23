@@ -32,6 +32,7 @@ function run() {
   const portalAuthJs = read("modules/core/auth.js");
   const portalConfigJs = read("modules/core/config.js");
   const contratacionJs = read("modules/app/contratacion.js");
+  const contratacionHtmlJs = read("modules/app/contratacion-html.js");
   const gestionHumanaJs = read("modules/app/gestion-humana.js");
   const stylesCss = read("styles.css");
   const portalControllerTs = read("apps/api/src/portal/portal.controller.ts");
@@ -46,6 +47,7 @@ function run() {
     portalAuthJs,
     portalConfigJs,
     contratacionJs,
+    contratacionHtmlJs,
     gestionHumanaJs
   ].join("\n\n");
 

@@ -3189,7 +3189,8 @@ body.portal-drawer-open .portal-menu-line:nth-child(3) {
 .hiring-data-grid > .p-card,
 .payroll-actions-grid > .p-card,
 .payroll-actions-grid > .hr-action-card,
-.hiring-actions-grid > .hr-action-card {
+.hiring-actions-grid > .hr-action-card,
+.calendar-side-grid > .p-card {
   margin-top: 0;
 }
 

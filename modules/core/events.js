@@ -11,6 +11,7 @@ import {
   wireSupabasePasswordRecoveryUi,
   canEditFleetDriverAsAdmin,
   canManageHiringModule,
+  canManageSstModule,
   canPerformPermissionGatedAction,
   ACCOUNT_STATUS
 } from "./auth.js";
@@ -25,6 +26,7 @@ import {
   HR_VALID_PAYROLL_WS,
   FLEET_DRIVER_EDIT_ACTIONS,
   HIRING_RRHH_EDIT_ACTIONS,
+  SST_RRHH_EDIT_ACTIONS,
   PORTAL_NON_ADMIN_BLOCKED_ACTIONS,
   ALL_PERMISSIONS,
   PERMISSION_META,
@@ -564,6 +566,7 @@ function bindDynamicEvents() {
   const isAdmin = actor?.role === ROLES.ADMIN;
   const fleetDriverEditor = canEditFleetDriverAsAdmin(actor);
   const hiringEditor = canManageHiringModule(actor);
+  const sstEditor = canManageSstModule(actor);
   const restrictedActions = PORTAL_NON_ADMIN_BLOCKED_ACTIONS;
 
   if (!fleetDriverEditor) {
@@ -579,6 +582,7 @@ function bindDynamicEvents() {
       const action = String(node.dataset.action || "");
       if (FLEET_DRIVER_EDIT_ACTIONS.has(action) && fleetDriverEditor) return;
       if (HIRING_RRHH_EDIT_ACTIONS.has(action) && hiringEditor) return;
+      if (SST_RRHH_EDIT_ACTIONS.has(action) && sstEditor) return;
       if (canPerformPermissionGatedAction(actor, action, node)) return;
       if (!restrictedActions.has(action)) return;
       if (node.matches("button")) node.classList.add("hidden");
