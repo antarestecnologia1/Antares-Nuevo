@@ -1275,6 +1275,66 @@ body[data-theme="dark"] #portal-sidebar.sidebar--rail {
   body.portal-drawer-open #portal-sidebar .sidebar-rail-scroll {
     padding-right: 0.65rem;
   }
+
+  /* Cuando el drawer móvil está abierto y el sidebar estaba colapsado (estado persistido),
+     restaurar el layout expandido para que todos los ítems muestren ícono + etiqueta. */
+  body.portal-drawer-open.portal-sidebar-collapsed #portal-sidebar .side-link {
+    justify-content: flex-start;
+    gap: 0.72rem;
+    padding: 0.55rem 0.65rem;
+  }
+
+  body.portal-drawer-open.portal-sidebar-collapsed #portal-sidebar .side-link__label {
+    position: static;
+    width: auto;
+    height: auto;
+    padding: 0;
+    margin: 0;
+    overflow: hidden;
+    clip: auto;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    border: 0;
+    flex: 1;
+    min-width: 0;
+  }
+
+  body.portal-drawer-open.portal-sidebar-collapsed #portal-sidebar .sidebar-section-label {
+    display: flex;
+  }
+
+  body.portal-drawer-open.portal-sidebar-collapsed #portal-sidebar .sidebar-user-text,
+  body.portal-drawer-open.portal-sidebar-collapsed #portal-sidebar .sidebar-user-chevron {
+    position: static;
+    width: auto;
+    height: auto;
+    padding: 0;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+    border: 0;
+  }
+
+  body.portal-drawer-open.portal-sidebar-collapsed #portal-sidebar .sidebar-account-divider {
+    display: block;
+    width: auto;
+    margin: 0.28rem 0.35rem;
+  }
+
+  body.portal-drawer-open.portal-sidebar-collapsed #portal-sidebar .sidebar-logout-btn__label {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip: auto;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  body.portal-drawer-open.portal-sidebar-collapsed #portal-sidebar .side-link:hover {
+    transform: translateX(3px);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

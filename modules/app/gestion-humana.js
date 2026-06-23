@@ -24,6 +24,24 @@ function switchPayrollLiquidationModePanels(root, mode) {
   if (visiblePane) {
     window.AntaresValidation?.upgradePortalDateFields?.(visiblePane);
     window.AntaresValidation?.resyncPortalDateValuesInRoot?.(visiblePane);
+    if (next === "single") {
+      state.createPanels = { ...(state.createPanels || {}), "create-payroll": true };
+      if (typeof syncPayrollCreatePanelsInDom === "function") {
+        syncPayrollCreatePanelsInDom(root, "create-payroll", { expandActive: true });
+      }
+      const payrollForm =
+        visiblePane.id === "form-payroll" ? visiblePane : visiblePane.querySelector("#form-payroll");
+      if (payrollForm && typeof enhancePayrollLiquidationSelects === "function") {
+        enhancePayrollLiquidationSelects(payrollForm);
+      }
+      if (typeof commitSearchableSelectInputsInForm === "function") {
+        commitSearchableSelectInputsInForm(visiblePane);
+      }
+      const fechaVis =
+        payrollForm?.querySelector("#payroll-fecha-cierre") ||
+        payrollForm?.querySelector(".portal-date-dmy");
+      fechaVis?.dispatchEvent?.(new Event("change", { bubbles: true }));
+    }
   }
   if (next === "bulk") wirePayrollBulkPreview();
   return matched;
@@ -36,7 +54,21 @@ function payrollCreateFormSubmitOpts(formEl, { busyText, submitButton, extra = [
       : (el, extras) => [...extras].filter(Boolean);
   const opts = {
     busyText: String(busyText || "").trim(),
-    lockExtraButtons: collectFn(formEl, extra)
+    lockExtraButtons: collectFn(formEl, extra),
+    prepareForm: (form) => {
+      const panel = form?.closest?.('[data-create-panel="create-payroll"]');
+      if (panel && (panel.classList.contains("hidden") || panel.hasAttribute("hidden"))) {
+        const root = panel.closest(".payroll-operate") || nodes.viewRoot || document;
+        if (typeof syncPayrollCreatePanelsInDom === "function") {
+          syncPayrollCreatePanelsInDom(root, "create-payroll", { expandActive: true });
+        }
+        state.createPanels = { ...(state.createPanels || {}), "create-payroll": true };
+      }
+      if (form?.id === "form-payroll" && typeof commitSearchableSelectInputsInForm === "function") {
+        commitSearchableSelectInputsInForm(form);
+      }
+      return typeof prepareCreationFormForSubmit === "function" ? prepareCreationFormForSubmit(form) !== false : true;
+    }
   };
   if (submitButton) opts.submitButton = submitButton;
   if (wireKey) opts.wireKey = wireKey;
@@ -649,6 +681,12 @@ function bindPayrollPortalControls() {
         );
         window.AntaresValidation?.upgradePortalDateFields?.(activePane || nodes.viewRoot);
         window.AntaresValidation?.resyncPortalDateValuesInRoot?.(activePane || nodes.viewRoot);
+        if (section === "payroll") {
+          const payrollForm = document.getElementById("form-payroll");
+          if (payrollForm && typeof enhancePayrollLiquidationSelects === "function") {
+            enhancePayrollLiquidationSelects(payrollForm);
+          }
+        }
         requestAnimationFrame(() => scrollToCreatePanelForm(panelId));
         return;
       }
@@ -2172,6 +2210,8 @@ function bindPayrollPortalControls() {
 
   const payrollForm = document.getElementById("form-payroll");
   if (payrollForm) {
+    window.AntaresValidation?.upgradePortalDateFields?.(payrollForm);
+    window.AntaresValidation?.resyncPortalDateValuesInRoot?.(payrollForm);
     enhancePayrollLiquidationSelects(payrollForm);
     wireMonthlyPayrollConcepts(payrollForm);
     wireFormSubmitGuard(payrollForm, async (event) => {
@@ -2184,7 +2224,26 @@ function bindPayrollPortalControls() {
       const fechaCierre =
         readFormDateIso(document, "payroll-fecha-cierre") || String(data.fechaCierre || "").trim();
       if (!fechaCierre) {
-        failPortalField(payrollForm, "fechaCierre", "Indique la fecha de cierre del período (día 15, fin de mes, etc.).");
+        failPortalField(
+          payrollForm,
+          "payroll-fecha-cierre",
+          "Indique la fecha de cierre del período (día 15, fin de mes, etc.)."
+        );
+        return;
+      }
+      if (!portalCanRefreshFromApi()) {
+        notify(
+          "Para guardar la liquidación en base de datos debe iniciar sesión con el servidor (API). No se guardan solo en el navegador.",
+          "error"
+        );
+        return;
+      }
+      if (!isUuidString(String(employee.id || ""))) {
+        failPortalField(
+          payrollForm,
+          "employeeId",
+          "El colaborador no tiene un identificador válido en el servidor. Actualice la ficha o sincronice el directorio de empleados."
+        );
         return;
       }
 
@@ -2211,7 +2270,7 @@ function bindPayrollPortalControls() {
         const hint = payrollClosingDatesHint(payFreqNorm);
         failPortalField(
           payrollForm,
-          "fechaCierre",
+          "payroll-fecha-cierre",
           `La fecha no es un día de cierre válido para nómina ${String(employee.payFrequency || "Mensual")}. Use ${hint}.`
         );
         return;
@@ -2219,7 +2278,7 @@ function bindPayrollPortalControls() {
       if (existingPeriodKeys.includes(cut.periodKey)) {
         failPortalField(
           payrollForm,
-          "fechaCierre",
+          "payroll-fecha-cierre",
           `Ya existe una liquidación (${payrollRunTypeLabel({ payrollKind: payFreqNorm, month: cut.periodKey })}) para este empleado y período.`
         );
         return;
@@ -2251,7 +2310,11 @@ function bindPayrollPortalControls() {
         payPrima = true;
       }
       if (payPrima && !payrollMonthIsPrimaSemester(dataMonth)) {
-        failPortalField(payrollForm, "fechaCierre", "La prima de servicios solo se parametriza cuando el mes liquidado es junio (06) o diciembre (12).");
+        failPortalField(
+          payrollForm,
+          "payroll-fecha-cierre",
+          "La prima de servicios solo se parametriza cuando el mes liquidado es junio (06) o diciembre (12)."
+        );
         return;
       }
       let payInteresesCesantias = false;
@@ -2272,8 +2335,8 @@ function bindPayrollPortalControls() {
       if (payInteresesCesantias && !payrollMonthIsCesantiasInterestMonth(dataMonth)) {
         failPortalField(
           payrollForm,
-          "fechaCierre",
-          "Los intereses sobre cesantías (Ley 52/1975) solo se parametrizan cuando el mes liquidado es enero (01) o febrero (02), períodos donde suele consignarse o pagarse ese concepto cercano al cierre legal de enero. Ajuste con su contador."
+          "payroll-fecha-cierre",
+          "Los intereses sobre cesantías (Ley 52/1975) solo se parametriazan cuando el mes liquidado es enero (01) o febrero (02), períodos donde suele consignarse o pagarse ese concepto cercano al cierre legal de enero. Ajuste con su contador."
         );
         return;
       }
@@ -2423,7 +2486,7 @@ function bindPayrollPortalControls() {
       if (payrollRunAlreadyExists(runs, employee.id, periodKey, payrollKind)) {
         failPortalField(
           payrollForm,
-          "month",
+          "payroll-fecha-cierre",
           `Ya existe una liquidación (${payrollRunTypeLabel({ payrollKind, month: periodKey })}) para este empleado y período.`
         );
         return;
@@ -2432,13 +2495,25 @@ function bindPayrollPortalControls() {
       try {
         await writeAwaitServerCreate(KEYS.payrollRuns, runs, run);
       } catch (err) {
+        runs.shift();
         notify(String(err?.message || "No fue posible guardar la nómina en el servidor."), "error");
         return;
+      }
+      if (portalCanRefreshFromApi()) {
+        try {
+          await applyPortalBootstrapFromApi();
+        } catch (_refreshErr) {
+          /* la liquidación ya está en servidor; la vista local sigue con el run creado */
+        }
       }
       appendPayrollRunAuditLog("create", run, {
         summary: `Liquidación manual creada (${payrollRunTypeLabel(run)}) · neto $${parseNum(run.net).toLocaleString("es-CO")}`
       });
-      state.payrollUi = { ...(state.payrollUi || { runSort: "recent" }), workspace: "data" };
+      state.payrollUi = {
+        ...(state.payrollUi || { runSort: "recent" }),
+        workspace: "data",
+        dataSection: "runs"
+      };
       persistHrWorkspace("payroll", "data");
       collapseCreatePanel("create-payroll");
       notify(userMessage("payrollSaved"), "success");

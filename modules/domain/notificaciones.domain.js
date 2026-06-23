@@ -31,6 +31,19 @@ import {
 let __notifInboxAudioCtx = null;
 let __notifInboxAudioUnlockInstalled = false;
 
+/** IDs eliminados recientemente: evita que un GET obsoleto del poll los restaure. */
+const __pendingDeletionIds = new Set();
+let __pendingDeletionClearTimeout = null;
+
+function __markPendingDeletion(ids) {
+  for (const id of Array.isArray(ids) ? ids : []) {
+    const n = String(id || "").trim();
+    if (n) __pendingDeletionIds.add(n);
+  }
+  clearTimeout(__pendingDeletionClearTimeout);
+  __pendingDeletionClearTimeout = setTimeout(() => __pendingDeletionIds.clear(), 30000);
+}
+
 /** Edad de una notificación respecto al reloj local; sin fecha fiable → antigua (no re-toast). */
 function __notificationPollAgeMs(n, nowMs) {
   const raw = n?.createdAt;
@@ -533,9 +546,12 @@ let __contractRenewalNoticeCheckWallMs = 0;
 /** Aplica la lista devuelta por PostgreSQL como única fuente de verdad en RAM de sesión. */
 function applyNotificationsServerList(serverList) {
   const actor = currentUser();
-  const filtered = actor
+  let filtered = actor
     ? filterNotificationsForUser(actor, Array.isArray(serverList) ? serverList : [])
     : [];
+  if (__pendingDeletionIds.size) {
+    filtered = filtered.filter((n) => !__pendingDeletionIds.has(String(n?.id || "").trim()));
+  }
   write(KEYS.notifications, filtered, { skipSyncSchedule: true });
   reconcileNotificationsCacheForSession();
   return filtered;
@@ -633,8 +649,10 @@ export async function deleteNotificationsFromServer(ids) {
 
   __cancelNotificationsSyncSchedule();
   const res = await api.postJson("/portal/notifications/delete", { ids: idsToDelete });
+  __markPendingDeletion(idsToDelete);
   __removeNotificationsFromSessionCache(idsToDelete);
   await refreshNotificationsFromServer();
+  __lastNotificationsLightRefreshWallMs = Date.now();
   syncNotificationsInboxRenderSignature();
   return res;
 }

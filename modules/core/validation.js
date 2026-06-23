@@ -1074,6 +1074,12 @@
     field.classList.remove("field-invalid");
     field.removeAttribute("aria-invalid");
     if (typeof field.setCustomValidity === "function") field.setCustomValidity("");
+    const mirror = resolveSearchableSelectMirror(field);
+    if (mirror && mirror !== field) {
+      mirror.classList.remove("field-invalid");
+      mirror.removeAttribute("aria-invalid");
+      if (typeof mirror.setCustomValidity === "function") mirror.setCustomValidity("");
+    }
     const mount = findFieldErrorMount(field);
     const error = mount?.querySelector(".field-error");
     if (error) error.remove();
@@ -1089,6 +1095,12 @@
     field.classList.add("field-invalid");
     field.setAttribute("aria-invalid", "true");
     if (typeof field.setCustomValidity === "function") field.setCustomValidity(msg);
+    const mirror = resolveSearchableSelectMirror(field);
+    if (mirror && mirror !== field) {
+      mirror.classList.add("field-invalid");
+      mirror.setAttribute("aria-invalid", "true");
+      if (typeof mirror.setCustomValidity === "function") mirror.setCustomValidity(msg);
+    }
     const hint = document.createElement("small");
     hint.className = field.closest(".antares-create-form")
       ? "field-error field-error--portal"
@@ -1098,38 +1110,65 @@
     mount.appendChild(hint);
   }
 
+  function resolvePortalDateVisibleForField(el) {
+    if (!el) return null;
+    if (el.classList?.contains("portal-date-dmy")) return el;
+    if (String(el.type || "").toLowerCase() === "hidden" && el.dataset?.portalDateIso === "1") {
+      const vis = el.previousElementSibling;
+      if (vis?.classList?.contains("portal-date-dmy")) return vis;
+    }
+    return el;
+  }
+
   function resolveFormField(form, fieldRef) {
     if (!fieldRef) return null;
-    if (fieldRef instanceof Element) return fieldRef;
+    if (fieldRef instanceof Element) return resolvePortalDateVisibleForField(fieldRef);
     const ref = String(fieldRef).trim();
     if (!ref) return null;
     const scope = form && form.querySelector ? form : document;
+    const finalize = (el) => resolvePortalDateVisibleForField(el);
+    const portalDateVis =
+      typeof findPortalDateVisibleInForm === "function" ? findPortalDateVisibleInForm(scope, ref) : null;
+    if (portalDateVis) return portalDateVis;
     if (form?.elements?.namedItem) {
       const named = form.elements.namedItem(ref);
-      if (named instanceof Element) return named;
-      if (named instanceof RadioNodeList && named[0] instanceof Element) return named[0];
+      if (named instanceof Element) return finalize(named);
+      if (named instanceof RadioNodeList && named[0] instanceof Element) return finalize(named[0]);
     }
     if (typeof CSS !== "undefined" && typeof CSS.escape === "function") {
       const byName = scope.querySelector(`[name="${CSS.escape(ref)}"]`);
-      if (byName) return byName;
+      if (byName) return finalize(byName);
     } else {
       const byName = scope.querySelector(`[name="${ref.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"]`);
-      if (byName) return byName;
+      if (byName) return finalize(byName);
     }
     if (ref.includes("[") || ref.includes("=") || ref.startsWith("#") || ref.startsWith(".")) {
       try {
         const bySelector = scope.querySelector(ref);
-        if (bySelector) return bySelector;
+        if (bySelector) return finalize(bySelector);
       } catch (_e) {
         /* selector inválido */
       }
     }
-    return scope.querySelector(`#${ref}`) || null;
+    return finalize(scope.querySelector(`#${ref}`) || null);
   }
 
   /** Control visible al que desplazar/enfocar cuando el input real está oculto (p. ej. pickers ACF). */
+  function resolveSearchableSelectMirror(field) {
+    if (!field) return null;
+    if (field.tagName === "SELECT" && field.classList?.contains("searchable-select-native")) {
+      return field.closest(".searchable-select")?.querySelector(".searchable-select-input") || null;
+    }
+    if (field.classList?.contains("searchable-select-input")) {
+      return field;
+    }
+    return null;
+  }
+
   function resolveFieldFocusTarget(field) {
     if (!field) return null;
+    const searchableInput = resolveSearchableSelectMirror(field);
+    if (searchableInput) return searchableInput;
     if (String(field.type || "").toLowerCase() === "hidden") {
       const picker = field.closest(".acf-picker");
       if (picker) {

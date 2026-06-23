@@ -670,20 +670,43 @@ function wireMonthlyPayrollConcepts(form) {
   if (!form || form.dataset.monthlyPayrollConceptsBound === "1") return;
   form.dataset.monthlyPayrollConceptsBound = "1";
   const monthEl = form.querySelector('[name="month"]');
-  const fechaEl = form.querySelector('[name="fechaCierre"]');
+  const fechaEl =
+    (typeof queryPortalDateField === "function"
+      ? queryPortalDateField(form, "payroll-fecha-cierre")
+      : null) ||
+    form.querySelector("#payroll-fecha-cierre") ||
+    form.querySelector('[name="fechaCierre"]');
   const quincenaHidden = form.querySelector('[name="payrollQuincena"]');
   const periodPreview = form.querySelector("#payroll-period-preview");
   const empEl = form.querySelector('[name="employeeId"]');
   const auxInput = form.querySelector('[name="aux"]');
-  if ((!monthEl && !fechaEl) || !empEl) return;
+  const hasFechaField = Boolean(
+    fechaEl || form.querySelector('input[type="hidden"][name="fechaCierre"]')
+  );
+  if ((!monthEl && !hasFechaField) || !empEl) return;
 
   const getCalendarYm = () => String(monthEl?.value || "").trim().slice(0, 7);
 
   const getQuincenaHalf = () => String(quincenaHidden?.value || "Q1").trim().toUpperCase();
 
+  const readFechaCierreIso = () => {
+    if (typeof readFormDateIso === "function") {
+      const byId = readFormDateIso(form, "payroll-fecha-cierre");
+      if (byId) return byId;
+      const byName = readFormDateIso(form, "fechaCierre");
+      if (byName) return byName;
+    }
+    const hidden = form.querySelector('input[type="hidden"][name="fechaCierre"]');
+    const hiddenIso = String(hidden?.value || "").trim();
+    if (hiddenIso) return hiddenIso;
+    const raw = String(fechaEl?.value || "").trim();
+    if (!raw) return "";
+    return typeof normalizePortalDateYmd === "function" ? normalizePortalDateYmd(raw) || raw : raw;
+  };
+
   const syncFromFechaCierre = () => {
-    if (!fechaEl || !monthEl) return;
-    const fecha = String(fechaEl.value || "").trim();
+    if (!monthEl) return;
+    const fecha = readFechaCierreIso();
     const emp = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === String(empEl.value || "").trim());
     if (!fecha) {
       monthEl.value = "";
@@ -978,8 +1001,17 @@ function wireMonthlyPayrollConcepts(form) {
     onMonthChange();
   };
 
-  if (fechaEl) fechaEl.addEventListener("change", onPeriodChange);
-  else if (monthEl) monthEl.addEventListener("change", onMonthChange);
+  const bindFechaFieldListeners = (el) => {
+    if (!el) return;
+    el.addEventListener("change", onPeriodChange);
+    el.addEventListener("input", onPeriodChange);
+  };
+  bindFechaFieldListeners(fechaEl);
+  const hiddenFechaEl = form.querySelector('input[type="hidden"][name="fechaCierre"]');
+  if (hiddenFechaEl && hiddenFechaEl !== fechaEl) {
+    hiddenFechaEl.addEventListener("change", onPeriodChange);
+  }
+  if (!fechaEl && !hiddenFechaEl && monthEl) monthEl.addEventListener("change", onMonthChange);
   empEl.addEventListener("change", () => {
     syncPayrollEmployeeSalaryReadonly(form, "payroll-monthly-base-salary");
     syncAuxTransportFromEmployee();
@@ -2647,6 +2679,8 @@ function isPasswordPayloadKey(key) {
 function prepareCreationFormForSubmit(formEl) {
   const V = window.AntaresValidation;
   if (!V || !formEl) return true;
+  commitSearchableSelectInputsInForm(formEl);
+  V.resyncPortalDateValuesInRoot?.(formEl);
   V.decorateFormFields?.(formEl);
   const domVal = V.validateDomForm(formEl);
   if (!domVal.ok) {
@@ -3689,7 +3723,7 @@ function wireTripRateChoiceSelect(formEl) {
   if (num.dataset.tripMoneyInput !== "1") {
     num.addEventListener("input", () => updateCreateTripStepper(formEl));
   }
-  renderMeta(String(sel.value || "").trim());
+  onRateChange();
 }
 
 function createTripSummaryTile(iconKey, label, valueHtml) {
@@ -3926,6 +3960,31 @@ function syncSearchableSelectInputFromValue(selectEl) {
   if (!parts?.input) return;
   const opt = selectEl.options[selectEl.selectedIndex];
   parts.input.value = opt && String(opt.value || "").trim() ? String(opt.textContent || "").trim() : "";
+}
+
+/** Antes de validar/enviar: si el usuario escribió en el buscador pero no eligió opción, intenta emparejar. */
+function commitSearchableSelectInputsInForm(rootEl) {
+  const root = rootEl && rootEl.querySelectorAll ? rootEl : document;
+  const norm = (s) =>
+    String(s || "")
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+  root.querySelectorAll("select.searchable-select-native[data-searchable-mounted='1']").forEach((sel) => {
+    if (String(sel.value || "").trim()) return;
+    const parts = getSearchableSelectParts(sel);
+    const typed = String(parts?.input?.value || "").trim();
+    if (!typed) return;
+    const needle = norm(typed);
+    const opts = [...sel.options].filter((o) => String(o.value || "").trim() && !o.disabled);
+    const exact = opts.find((o) => norm(o.textContent) === needle);
+    const partial = exact || opts.find((o) => norm(o.textContent).includes(needle));
+    if (!partial) return;
+    sel.value = String(partial.value);
+    syncSearchableSelectInputFromValue(sel);
+    sel.dispatchEvent(new Event("change", { bubbles: true }));
+  });
 }
 
 function renderSearchableSelectDropdown(selectEl, filterText = "") {
@@ -4525,13 +4584,16 @@ function refreshCreateTripModuleForm(formEl) {
     rateMount.innerHTML = `<div class="create-trip-rate-mount">${buildTripRateInlineFieldsHtml(request, { required: true })}</div>`;
     wireTripRateChoiceSelect(formEl);
     const rateChoiceSel = formEl.querySelector("select[name='tripRateChoice']");
-    restoreSelectValue(rateChoiceSel, prevRateChoice);
-    if (rateChoiceSel && prevRateChoice) {
-      rateChoiceSel.dispatchEvent(new Event("change", { bubbles: true }));
-    }
     const tripValueInput = formEl.querySelector("input[name='tripValue']");
-    if (tripValueInput && prevTripValue) {
-      tripValueInput.value = prevTripValue;
+    restoreSelectValue(rateChoiceSel, prevRateChoice);
+    const rateKey = String(rateChoiceSel?.value || "").trim();
+    if (rateKey) {
+      rateChoiceSel.dispatchEvent(new Event("change", { bubbles: true }));
+    } else {
+      const prevTripValueNum = parseMoneyFieldValue(prevTripValue);
+      if (tripValueInput && prevTripValueNum > 0) {
+        tripValueInput.value = formatMoneyFieldValue(prevTripValueNum);
+      }
     }
   }
   enhanceTripAssignmentSelects(formEl);
@@ -12567,6 +12629,7 @@ Object.assign(window, {
   clearAdminUsersDraft,
   clearFieldError,
   clearFormDateInput,
+  commitSearchableSelectInputsInForm,
   closeReportPreviewModal,
   closeSearchableSelectDropdown,
   collapseCreatePanel,
