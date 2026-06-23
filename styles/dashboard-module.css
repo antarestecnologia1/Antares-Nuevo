@@ -35,8 +35,8 @@
   --dash-bg: #8fa8c0;
   --dash-bg-accent: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(55, 138, 221, 0.28), transparent 60%),
     radial-gradient(ellipse 60% 40% at 100% 80%, rgba(29, 158, 117, 0.14), transparent 55%);
-  --dash-border: rgba(0, 0, 0, 0.08);
-  --dash-border-strong: rgba(0, 0, 0, 0.14);
+  --dash-border: rgba(55, 124, 192, 0.28);
+  --dash-border-strong: rgba(55, 124, 192, 0.42);
   --dash-text-primary: #1a1a18;
   --dash-text-secondary: rgba(0, 0, 0, 0.48);
   --dash-text-muted: rgba(0, 0, 0, 0.32);
@@ -45,11 +45,11 @@
   --dash-radius-lg: 14px;
   --dash-radius-xl: 18px;
   --dash-radius-pill: 999px;
-  --dash-shadow-card: 0 2px 8px rgba(15, 43, 74, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
-  --dash-shadow-hover: 0 12px 32px rgba(15, 43, 74, 0.12), 0 4px 10px rgba(0, 0, 0, 0.06);
-  --dash-shadow-hero: 0 20px 50px rgba(55, 124, 192, 0.14), 0 4px 16px rgba(15, 43, 74, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  --dash-shadow-card: 0 2px 8px rgba(15, 43, 74, 0.12), 0 10px 28px rgba(55, 124, 192, 0.14);
+  --dash-shadow-hover: 0 12px 32px rgba(15, 43, 74, 0.16), 0 4px 12px rgba(55, 124, 192, 0.12);
+  --dash-shadow-hero: 0 20px 50px rgba(55, 124, 192, 0.18), 0 4px 16px rgba(15, 43, 74, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.14);
   --dash-shadow-glow-live: 0 0 0 1px rgba(29, 158, 117, 0.25), 0 10px 28px rgba(29, 158, 117, 0.2);
-  --dash-shadow-kpi: 0 4px 14px rgba(15, 43, 74, 0.07), 0 1px 0 rgba(255, 255, 255, 0.9) inset;
+  --dash-shadow-kpi: 0 4px 14px rgba(15, 43, 74, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12);
   --dash-brand-gradient: linear-gradient(135deg, #377cc0 0%, #1d9e75 100%);
   --dash-hero-surface: linear-gradient(145deg, rgba(151, 175, 198, 0.96) 0%, rgba(139, 163, 187, 0.92) 48%, rgba(128, 152, 176, 0.88) 100%);
   --dash-hero-mesh: radial-gradient(ellipse 90% 80% at 100% 0%, rgba(55, 138, 221, 0.14), transparent 55%),
@@ -127,7 +127,24 @@ body[data-theme="dark"] .dashboard-studio {
 
 .portal-main:has(.dashboard-studio) {
   padding-top: 0;
-  background: linear-gradient(180deg, #a8bfd8 0%, #b4c9df 160px, #b0c5dc 100%);
+  background: linear-gradient(180deg, #849eb8 0%, #8fa8c0 140px, #879fb7 100%);
+}
+
+.portal-main:has(.dashboard-studio)::before {
+  opacity: 0.22;
+}
+
+.portal-layout:has(.dashboard-studio) {
+  background: linear-gradient(160deg, #7f98b2 0%, #8fa8c0 45%, #849eb8 100%);
+}
+
+.module-shell[data-module-view="dashboard"],
+.module-shell[data-module-view="dashboard"] .module-shell-body,
+#view-root:has(.dashboard-studio) {
+  background: transparent;
+  gap: 0;
+  margin: 0;
+  padding: 0;
 }
 
 body[data-theme="dark"] .portal-main:has(.dashboard-studio) {
@@ -241,7 +258,7 @@ body[data-theme="dark"] .portal-main:has(.dashboard-studio:has(.nx-ambient)) {
   border-radius: var(--dash-radius-pill);
   background: color-mix(in srgb, var(--dash-blue-mid) 12%, transparent);
   border: 1px solid color-mix(in srgb, var(--dash-blue-mid) 28%, transparent);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.6) inset;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.14) inset;
 }
 
 .dashboard-studio .dash-cc__kicker::before {
@@ -361,7 +378,7 @@ body[data-theme="dark"] .portal-main:has(.dashboard-studio:has(.nx-ambient)) {
   border: 1px solid var(--dash-border);
   background: var(--dash-surface-raised);
   color: var(--dash-text-primary);
-  box-shadow: 0 2px 6px rgba(15, 43, 74, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.75);
+  box-shadow: 0 2px 6px rgba(15, 43, 74, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.12);
   white-space: nowrap;
   font: inherit;
   cursor: default;
@@ -379,20 +396,20 @@ body[data-theme="dark"] .portal-main:has(.dashboard-studio:has(.nx-ambient)) {
 }
 
 .dashboard-studio .dash-chip--warn {
-  background: linear-gradient(135deg, var(--dash-warn-bg), color-mix(in srgb, var(--dash-warn-mid) 8%, #fff));
+  background: linear-gradient(135deg, var(--dash-warn-bg), color-mix(in srgb, var(--dash-warn-mid) 8%, var(--dash-surface-raised)));
   border-color: color-mix(in srgb, var(--dash-warn-mid) 45%, transparent);
   color: var(--dash-warn-hue);
 }
 
 .dashboard-studio .dash-chip--doc {
-  background: linear-gradient(135deg, var(--dash-alert-bg), color-mix(in srgb, var(--dash-alert-mid) 8%, #fff));
+  background: linear-gradient(135deg, var(--dash-alert-bg), color-mix(in srgb, var(--dash-alert-mid) 8%, var(--dash-surface-raised)));
   border-color: color-mix(in srgb, var(--dash-alert-mid) 40%, transparent);
   color: var(--dash-alert-hue);
 }
 
 .dashboard-studio .dash-chip--live,
 .dashboard-studio .dash-chip--ok {
-  background: linear-gradient(135deg, var(--dash-live-bg-solid), color-mix(in srgb, var(--dash-live-mid) 10%, #fff));
+  background: linear-gradient(135deg, var(--dash-live-bg-solid), color-mix(in srgb, var(--dash-live-mid) 10%, var(--dash-surface-raised)));
   border-color: color-mix(in srgb, var(--dash-live-mid) 45%, transparent);
   color: var(--dash-live-hue);
 }
@@ -506,7 +523,7 @@ body[data-theme="dark"] .portal-main:has(.dashboard-studio:has(.nx-ambient)) {
   border-radius: var(--dash-radius-lg);
   background: color-mix(in srgb, var(--dash-bg) 55%, transparent);
   border: 1px solid var(--dash-border);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
 .dashboard-studio .dash-action {
@@ -665,7 +682,7 @@ body[data-theme="dark"] .portal-main:has(.dashboard-studio:has(.nx-ambient)) {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.55) 0%, transparent 42%);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.12) 0%, transparent 42%);
   pointer-events: none;
   opacity: 0.7;
 }
@@ -2565,7 +2582,7 @@ body[data-theme="dark"] .dashboard-studio .dash-vehicle__table tbody tr:hover td
 
 .dashboard-studio .dash-fleet-pie__hole {
   background: var(--dash-surface-raised);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
 .dashboard-studio .dash-fleet-pie__hole strong {
@@ -2785,14 +2802,14 @@ body[data-theme="dark"] .dashboard-studio .dash-exec-item {
   display: block;
   padding: 0;
   min-height: 100%;
-  background: var(--nx-void, #c2d4e8);
-  color: var(--nx-text, #0b2138);
+  background: var(--nx-void, #96afc6);
+  color: var(--nx-text, #071828);
   font-family: var(--font-body, "Montserrat", system-ui, sans-serif);
 }
 
 .portal-main:has(.dashboard-studio:has(.nx-ambient)) {
   padding-top: 0;
-  background: linear-gradient(180deg, #a8bfd8 0%, var(--nx-bg, #b4c9df) 140px, var(--nx-void, #c2d4e8) 100%);
+  background: linear-gradient(180deg, #849eb8 0%, var(--nx-bg, #8fa8c0) 140px, var(--nx-void, #96afc6) 100%);
 }
 
 body[data-theme="dark"] .portal-main:has(.dashboard-studio:has(.nx-ambient)) {

@@ -22782,6 +22782,13 @@ body[data-theme="dark"] .profile-form-centered {
 .module-shell[data-module-view="dashboard"] {
   --module-accent-start: var(--brand-blue-deep);
   --module-accent-end: var(--brand-blue-mid);
+  gap: 0;
+  background: transparent;
+}
+
+.module-shell[data-module-view="dashboard"] .module-shell-body {
+  gap: 0;
+  background: transparent;
 }
 
 .module-shell[data-module-view^="transport-"],
