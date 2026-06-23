@@ -1230,41 +1230,82 @@ body[data-theme="dark"] #portal-sidebar.sidebar--rail {
 
 /* Drawer móvil (≤920px): notificaciones alineadas con el resto de enlaces */
 @media (max-width: 920px) {
+  #portal-sidebar .sidebar-notif-group {
+    width: 100%;
+    overflow: visible;
+  }
+
+  #portal-sidebar .sidebar-notif-row {
+    flex-direction: row !important;
+    align-items: stretch;
+    gap: 0.45rem;
+    padding: 0;
+    width: 100%;
+    min-width: 0;
+    overflow: visible;
+  }
+
+  #portal-sidebar .sidebar-notif-bell-toggle {
+    flex: 0 0 44px;
+    flex-shrink: 0;
+    align-self: stretch;
+    width: 44px !important;
+    min-width: 44px !important;
+    max-width: 44px;
+    min-height: 44px;
+    height: auto;
+    margin: 0;
+    border-width: 1px;
+    box-sizing: border-box;
+  }
+
+  #portal-sidebar .sidebar-notif-bell-toggle .side-icon,
+  #portal-sidebar .sidebar-notif-bell-toggle svg {
+    width: 20px !important;
+    height: 20px !important;
+    min-width: 20px !important;
+    max-width: 20px !important;
+    max-height: 20px !important;
+  }
+
   body.portal-drawer-open #portal-sidebar .sidebar-notif-group {
     width: 100%;
   }
 
   body.portal-drawer-open #portal-sidebar .sidebar-notif-row,
   body.portal-drawer-open.portal-sidebar-collapsed #portal-sidebar .sidebar-notif-row {
-    flex-direction: row;
+    flex-direction: row !important;
     align-items: stretch;
-    gap: 0.35rem;
+    gap: 0.45rem;
     padding: 0;
     width: 100%;
   }
 
   body.portal-drawer-open #portal-sidebar .sidebar-notif-bell-toggle {
+    flex: 0 0 44px;
     align-self: stretch;
-    width: var(--portal-sidebar-icon-size) !important;
-    min-width: var(--portal-sidebar-icon-size);
+    width: 44px !important;
+    min-width: 44px !important;
+    max-width: 44px;
     min-height: 44px;
     height: auto;
     margin: 0;
   }
 
+  #portal-sidebar .sidebar-notif-row .side-link--notif-inbox,
   body.portal-drawer-open #portal-sidebar .sidebar-notif-row .side-link--notif-inbox {
     flex: 1 1 0;
     min-width: 0;
     width: auto;
     min-height: 44px;
-    padding: 0.62rem 0.85rem 0.62rem 0.75rem !important;
+    padding: 0.62rem 0.75rem 0.62rem 0.65rem !important;
     margin: 0 0 2px;
     align-items: center;
-    gap: 0.65rem;
+    gap: 0.55rem;
     border-radius: 12px;
     background: rgba(var(--primary-rgb), 0.03);
     border: 1px solid transparent;
-    overflow: visible;
+    overflow: hidden;
   }
 
   body.portal-drawer-open #portal-sidebar .side-link--notif-inbox .side-link__label {
