@@ -70,7 +70,9 @@ function vehiclesHtml() {
     }
   }
   if (vehicleWorkspace === "data") vehicleSection = "fleet";
-  const vehiclesCreateUi = buildVehiclesCreatePanelsState(vehicleSection, state.createPanels || {});
+  const vehiclesCreateUi = buildVehiclesCreatePanelsState(vehicleSection, state.createPanels || {}, {
+    expandActive: false
+  });
   state.vehiclesUi = {
     ...vehiclesUi,
     workspace: vehicleWorkspace,
@@ -404,6 +406,25 @@ function vehiclesHtml() {
         if (!HR_VALID_TRANSPORT_VEHICLES_WS.has(ws)) return;
         state.vehiclesUi = { ...(state.vehiclesUi || {}), workspace: ws };
         if (ws === "data") state.vehiclesUi.section = "fleet";
+        if (ws === "operate") {
+          const section = resolveVehicleSection(state.vehiclesUi);
+          const panelId = vehiclesCreatePanelForSection(section);
+          state.createPanels = buildVehiclesCreatePanelsState(section, state.createPanels || {}, { expandActive: false });
+          persistHrWorkspace("transport-vehicles", ws);
+          if (
+            switchHrWorkspacePanels({
+              root: nodes.viewRoot,
+              moduleId: "transport-vehicles",
+              workspace: ws,
+              panelAttr: "data-vehicle-panel"
+            })
+          ) {
+            if (panelId) syncVehiclesCreatePanelsInDom(nodes.viewRoot, panelId, { expandActive: false });
+            return;
+          }
+          renderPortalView();
+          return;
+        }
         persistHrWorkspace("transport-vehicles", ws);
         if (
           switchHrWorkspacePanels({
@@ -426,7 +447,7 @@ function vehiclesHtml() {
         const ws = section === "fleet" ? "data" : "operate";
         state.vehiclesUi = { ...(state.vehiclesUi || {}), workspace: ws, section };
         if (ws === "operate" && panelId) {
-          state.createPanels = buildVehiclesCreatePanelsState(section, state.createPanels || {}, { expandActive: true });
+          state.createPanels = buildVehiclesCreatePanelsState(section, state.createPanels || {}, { expandActive: false });
         }
         persistHrWorkspace("transport-vehicles", ws);
         switchHrWorkspacePanels({
@@ -446,15 +467,11 @@ function vehiclesHtml() {
           })
         ) {
           if (ws === "operate" && panelId) {
-            syncVehiclesCreatePanelsInDom(nodes.viewRoot, panelId);
-            requestAnimationFrame(() => scrollToCreatePanelForm(panelId));
+            syncVehiclesCreatePanelsInDom(nodes.viewRoot, panelId, { expandActive: false });
           }
           return;
         }
         renderPortalView();
-        if (ws === "operate" && panelId) {
-          requestAnimationFrame(() => scrollToCreatePanelForm(panelId));
-        }
       });
     });
 
