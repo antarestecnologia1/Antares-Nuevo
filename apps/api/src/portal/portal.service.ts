@@ -3057,7 +3057,7 @@ export class PortalService implements OnModuleInit {
 
     const independentPromise = Promise.all([
       this.loadCompanies(canSeeAllCompanies ? null : empresaId),
-      admin ? this.loadCounters() : Promise.resolve({}),
+      this.loadCounters(),
       canPayroll ? this.loadTravelAllowanceRules() : Promise.resolve({ interDepartmentTripAmount: 85000 }),
       laborSystemRulesPromise,
       laborSystemHistoryPromise,
@@ -7441,6 +7441,97 @@ export class PortalService implements OnModuleInit {
     };
   }
 
+  private static readonly SOLICITUD_NUMERO_RE = /^SOL-(\d{1,6})$/i;
+
+  /** Alinea contador `request` con el mayor SOL-###### ya persistido (clientes sin sync de counters). */
+  private async syncRequestCounterFromExistingTx(c: PoolClient): Promise<void> {
+    if (!(await this.tableExists("contadores_secuencia"))) return;
+    const r = await c.query<{ max_n: string | null }>(
+      `SELECT MAX(
+         CAST(NULLIF(regexp_replace(upper(numero_solicitud), '^SOL-', ''), '') AS INTEGER)
+       )::text AS max_n
+       FROM solicitudes_transporte
+       WHERE upper(numero_solicitud) LIKE 'SOL-%'`
+    );
+    const maxN = Math.max(0, Math.floor(Number(r.rows[0]?.max_n) || 0));
+    if (maxN > 0) {
+      await this.bumpCounterAtLeastTx(c, "request", maxN);
+    }
+  }
+
+  private async bumpCounterTx(c: PoolClient, prefijo: string): Promise<number> {
+    const r = await c.query<{ ultimo_valor: string | number }>(
+      `INSERT INTO contadores_secuencia (prefijo, ultimo_valor) VALUES ($1, 1)
+       ON CONFLICT (prefijo) DO UPDATE SET ultimo_valor = contadores_secuencia.ultimo_valor + 1
+       RETURNING ultimo_valor`,
+      [prefijo]
+    );
+    return Math.max(1, Math.floor(Number(r.rows[0]?.ultimo_valor) || 1));
+  }
+
+  private async bumpCounterAtLeastTx(c: PoolClient, prefijo: string, minValue: number): Promise<void> {
+    const min = Math.max(0, Math.floor(Number(minValue) || 0));
+    await c.query(
+      `INSERT INTO contadores_secuencia (prefijo, ultimo_valor) VALUES ($1, $2)
+       ON CONFLICT (prefijo) DO UPDATE SET ultimo_valor = GREATEST(contadores_secuencia.ultimo_valor, EXCLUDED.ultimo_valor)`,
+      [prefijo, min]
+    );
+  }
+
+  /** Evita 500 por `uq_solicitudes_transporte_numero` cuando el portal no tiene contadores sincronizados. */
+  private async ensureUniqueRequestNumberTx(c: PoolClient, proposed: unknown): Promise<string> {
+    await this.syncRequestCounterFromExistingTx(c);
+    const raw = String(proposed ?? "").trim().toUpperCase();
+    if (PortalService.SOLICITUD_NUMERO_RE.test(raw)) {
+      const taken = await c.query(
+        `SELECT 1 FROM solicitudes_transporte WHERE upper(numero_solicitud) = $1 LIMIT 1`,
+        [raw]
+      );
+      if (!taken.rowCount) {
+        const m = PortalService.SOLICITUD_NUMERO_RE.exec(raw);
+        const n = m ? Number(m[1]) : 0;
+        if (Number.isFinite(n) && n > 0) {
+          await this.bumpCounterAtLeastTx(c, "request", n);
+        }
+        return `SOL-${String(m ? m[1] : raw.replace(/^SOL-/, "")).padStart(6, "0")}`;
+      }
+    }
+    const next = await this.bumpCounterTx(c, "request");
+    return `SOL-${String(next).padStart(6, "0")}`;
+  }
+
+  private describeRequestSyncDbError(err: unknown): string {
+    const code = (err as { code?: string } | null)?.code || "";
+    const msg = err instanceof Error ? err.message : String(err);
+    if (code === "23505" && /numero_solicitud|uq_solicitudes_transporte_numero/i.test(msg)) {
+      return "Ya existe una solicitud con ese número en el servidor. Recargue el portal e intente de nuevo.";
+    }
+    if (code === "23503" || /violates foreign key|foreign key constraint/i.test(msg)) {
+      if (/id_usuario_solicitante|usuarios/i.test(msg)) {
+        return "Su usuario no está registrado en el servidor. Cierre sesión e inicie de nuevo.";
+      }
+      if (/id_empresa_cliente|empresas/i.test(msg)) {
+        return "La empresa seleccionada no existe en el servidor. Recargue el portal o elija otra empresa registrada.";
+      }
+      return "No se pudo guardar la solicitud: hay una referencia inválida en el servidor.";
+    }
+    if (code === "23514" && /chk_solicitudes_entrega/i.test(msg)) {
+      return "La fecha de entrega debe ser posterior a la de recogida.";
+    }
+    if (code === "22P02" || /invalid input syntax for type uuid/i.test(msg)) {
+      return "Algún identificador de la solicitud no es válido para el servidor (UUID). Recargue el portal e intente de nuevo.";
+    }
+    if (code === "42703" || /column .* does not exist/i.test(msg)) {
+      return "El servidor no tiene el esquema de solicitudes actualizado. Ejecute las migraciones de BD e reinicie la API.";
+    }
+    this.logger.error(`syncRequests: ${sanitizeLogText(msg)}`);
+    return "No se pudo guardar la solicitud en el servidor. Revise empresa, contacto en sitio y fechas e intente de nuevo.";
+  }
+
+  private mapRequestSyncDbError(err: unknown): never {
+    throw new BadRequestException(this.describeRequestSyncDbError(err));
+  }
+
   private async syncRequests(c: PoolClient, data: unknown, userId: string, role: JwtRole) {
     if (!Array.isArray(data)) throw new ForbiddenException();
     const admin = this.isAdmin(role);
@@ -7476,6 +7567,23 @@ export class PortalService implements OnModuleInit {
         );
       }
       const clientCompanyIdSql = portalUuidOrNull(req.clientCompanyId);
+
+      const userExists = await c.query(`SELECT 1 FROM usuarios WHERE id = $1::uuid LIMIT 1`, [clientUserIdSql]);
+      if (!userExists.rowCount) {
+        throw new BadRequestException(
+          "Su usuario no está registrado en el servidor. Cierre sesión e inicie de nuevo."
+        );
+      }
+      if (clientCompanyIdSql) {
+        const companyExists = await c.query(`SELECT 1 FROM empresas WHERE id = $1::uuid LIMIT 1`, [
+          clientCompanyIdSql
+        ]);
+        if (!companyExists.rowCount) {
+          throw new BadRequestException(
+            "La empresa seleccionada no existe en el servidor. Recargue el portal o elija otra empresa registrada."
+          );
+        }
+      }
 
       const contactName = nu(req.contactName ?? req.siteContactName);
       const contactPhone = nu(req.contactPhone ?? req.siteContactPhone);
@@ -7515,8 +7623,24 @@ export class PortalService implements OnModuleInit {
 
       const pickupAtSql = this.portalTimestamptzOrThrow(req.pickupAt, "fecha de recogida");
       const etaDeliverySql = this.portalTimestamptzOrThrow(req.etaDelivery, "fecha de entrega estimada");
+      const pickupMs = new Date(pickupAtSql).getTime();
+      const etaMs = new Date(etaDeliverySql).getTime();
+      if (!Number.isFinite(pickupMs) || !Number.isFinite(etaMs) || etaMs <= pickupMs) {
+        throw new BadRequestException(
+          "La fecha de entrega estimada debe ser posterior a la fecha y hora de recogida."
+        );
+      }
 
-      await c.query(
+      const existingReq = await c.query(`SELECT numero_solicitud FROM solicitudes_transporte WHERE id = $1::uuid LIMIT 1`, [
+        idStr
+      ]);
+      const requestNumber =
+        existingReq.rowCount && existingReq.rows[0]?.numero_solicitud
+          ? String(existingReq.rows[0].numero_solicitud)
+          : await this.ensureUniqueRequestNumberTx(c, req.requestNumber);
+
+      try {
+        await c.query(
         `INSERT INTO solicitudes_transporte (
           id, numero_solicitud, id_usuario_solicitante, id_empresa_cliente, nombre_cliente, nombre_quien_solicita,
           departamento_origen, ciudad_origen, direccion_origen, departamento_destino, ciudad_destino, direccion_destino,
@@ -7568,7 +7692,7 @@ export class PortalService implements OnModuleInit {
           distancia_km = EXCLUDED.distancia_km`,
         [
           req.id,
-          req.requestNumber,
+          requestNumber,
           clientUserIdSql,
           clientCompanyIdSql,
           nu(req.clientName),
@@ -7605,6 +7729,9 @@ export class PortalService implements OnModuleInit {
           distanceKm
         ]
       );
+      } catch (insertErr) {
+        this.mapRequestSyncDbError(insertErr);
+      }
 
       if (req.trip && req.trip.tripNumber) {
         const t = req.trip as Record<string, unknown>;

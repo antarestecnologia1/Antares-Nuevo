@@ -346,6 +346,11 @@ body[data-theme="dark"] .transport-studio .trip-request-card__client {
   color: #e8f2fc !important;
 }
 
+body[data-theme="dark"] .transport-studio .trip-request-card__route,
+body[data-theme="dark"] .transport-studio .trip-request-card__meta {
+  color: rgba(174, 212, 248, 0.82) !important;
+}
+
 body[data-theme="dark"] .transport-studio #form-create-trip .transport-wizard__steps .hr-form-wizard-dot:hover,
 body[data-theme="dark"] .transport-studio #form-route-rate .transport-wizard__steps .hr-form-wizard-dot:hover {
   color: #c5daf0;

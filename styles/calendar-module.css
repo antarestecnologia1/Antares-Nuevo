@@ -102,16 +102,39 @@
 }
 
 .calendar-studio .calendar-side-grid > .p-card .hr-data-card__head {
-  min-height: 4.25rem;
+  box-sizing: border-box;
+  min-height: 5rem;
+  height: 5rem;
   padding: 0.95rem 1.15rem;
   align-items: center;
 }
 
 .calendar-studio .calendar-side-grid > .p-card .hr-data-card__brand {
   align-items: center;
+  min-width: 0;
+}
+
+.calendar-studio .calendar-side-grid > .p-card .hr-data-card__titles {
+  min-width: 0;
+}
+
+.calendar-studio .calendar-side-grid > .p-card .hr-data-card__titles h2 {
+  line-height: 1.25;
 }
 
 .calendar-studio .calendar-side-grid > .p-card .hr-data-card__body {
   flex: 1;
+  padding: 1rem 1.15rem 1.15rem;
+}
+
+.calendar-studio .cal-day-list,
+.calendar-studio .cal-upcoming-list {
+  align-content: start;
+}
+
+.calendar-studio .cal-day-list > .muted,
+.calendar-studio .cal-upcoming-list > .muted,
+.calendar-studio .cal-side-empty {
+  margin: 0;
 }
 

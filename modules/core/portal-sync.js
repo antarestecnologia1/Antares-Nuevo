@@ -180,7 +180,7 @@
         lastErr && typeof lastErr === "object" && lastErr.message
           ? String(lastErr.message).trim()
           : "";
-      if (errStatus >= 400 && errStatus < 500 && apiMsg && !/^internal server error$/i.test(apiMsg)) {
+      if (apiMsg && !/^internal server error$/i.test(apiMsg)) {
         try {
           if (typeof window.notify === "function") {
             window.notify(apiMsg, "error");

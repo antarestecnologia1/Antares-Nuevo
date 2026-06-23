@@ -585,6 +585,59 @@ export function renderPayrollOperateSectionNav(activeId) {
   </nav>`;
 }
 
+/** Rail lateral de flujos en Transporte · Camiones (Registrar). */
+export function renderVehiclesOperateSectionNav(activeId, opts = {}) {
+  const enabled = new Set(
+    Array.isArray(opts.enabledSections) && opts.enabledSections.length
+      ? opts.enabledSections.map((s) => String(s))
+      : ["create", "fuel", "technical"]
+  );
+  const allTabs = [
+    {
+      id: "create",
+      label: "Vehículo",
+      title: "Registrar vehículo en flota",
+      hint: "Ficha técnica, documentación y GPS",
+      norm: "Catálogo",
+      icon: "truck"
+    },
+    {
+      id: "fuel",
+      label: "Combustible",
+      title: "Registro de combustible",
+      hint: "Litros, costo, estación y odómetro",
+      norm: "Historial",
+      icon: "fuel"
+    },
+    {
+      id: "technical",
+      label: "Taller",
+      title: "Novedad de mantenimiento",
+      hint: "Preventivo, correctivo o parada",
+      norm: "Mantenimiento",
+      icon: "activity"
+    }
+  ];
+  const tabs = allTabs.filter((t) => enabled.has(t.id));
+  return `<nav class="vehicles-operate-nav" role="tablist" aria-label="Trámites de camiones">
+    ${tabs
+      .map((t) => {
+        const active = activeId === t.id;
+        const iconSvg = ic()[t.icon] ? `<span class="vehicles-operate-nav-ico" aria-hidden="true">${ic()[t.icon]}</span>` : "";
+        const tip = escapeAttr(`${t.title} — ${t.hint}`);
+        return `<button type="button" role="tab" class="vehicles-operate-nav-tab${active ? " is-active" : ""}" aria-selected="${active ? "true" : "false"}" data-action="vehicles-section" data-section="${escapeAttr(t.id)}" title="${tip}">
+          ${iconSvg}
+          <span class="vehicles-operate-nav-copy">
+            <strong class="vehicles-operate-nav-label">${escapeHtml(t.label)}</strong>
+            <small class="vehicles-operate-nav-hint">${escapeHtml(t.hint)}</small>
+            <span class="vehicles-operate-nav-norm">${escapeHtml(t.norm)}</span>
+          </span>
+        </button>`;
+      })
+      .join("")}
+  </nav>`;
+}
+
 /** Rail lateral de flujos en Transporte · Viajes (Registrar). */
 export function renderTransportOperateSectionNav(activeId) {
   const tabs = [

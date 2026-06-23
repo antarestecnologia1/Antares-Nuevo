@@ -16,6 +16,7 @@
   --veh-edge-strong: rgba(55, 124, 192, 0.22);
   --veh-shadow: 0 16px 48px rgba(11, 33, 56, 0.07);
   --veh-shadow-sm: 0 6px 20px rgba(11, 33, 56, 0.06);
+  --veh-shadow-nav: 0 2px 8px rgba(11, 33, 56, 0.06);
   --veh-radius: 18px;
   --veh-radius-sm: 12px;
   --veh-co-gold: #f59e0b;
@@ -221,74 +222,202 @@
   gap: 1rem;
 }
 
-/* ── Panel Registrar: rail lateral + contenido ── */
+/* ── Panel Registrar: rail lateral + contenido (patrón Gestión humana) ── */
 .vehicles-studio .vehicles-operate {
   display: grid;
-  grid-template-columns: minmax(10.5rem, 13rem) minmax(0, 1fr);
-  gap: 1rem;
+  grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr);
+  gap: 1.25rem;
   align-items: start;
+}
+
+.vehicles-studio .vehicles-operate__main .auth-tab-panel.hidden {
+  display: none !important;
+}
+
+.vehicles-studio .vehicles-operate__main .auth-tab-panel:not(.hidden) {
+  min-width: 0;
+}
+
+.vehicles-studio .vehicles-operate__main .hr-action-card {
+  margin: 0;
+  border-radius: var(--veh-radius);
+  border: 1px solid var(--veh-edge);
+  background: var(--veh-card);
+  box-shadow: var(--veh-shadow);
+  overflow: visible;
+  transform: none;
+}
+
+.vehicles-studio .vehicles-operate__main .hr-action-card:hover {
+  transform: none;
+  box-shadow: var(--veh-shadow);
+}
+
+.vehicles-studio .vehicles-operate__main .hr-action-card--open,
+.vehicles-studio .vehicles-operate__main .hr-action-card.p-card--expanded {
+  border-color: #cbd5e1;
+  box-shadow:
+    0 1px 3px rgba(15, 23, 42, 0.05),
+    0 10px 28px rgba(15, 23, 42, 0.09);
+}
+
+.vehicles-studio .vehicles-operate__main .hr-action-card__head {
+  padding: 1.2rem 1.45rem 1rem;
+  border-bottom: 1px solid var(--veh-edge);
+  background: var(--veh-card);
+}
+
+.vehicles-studio .vehicles-operate__main .hr-action-card__head .hr-card-icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 11px;
+  background: linear-gradient(145deg, #2563eb, #1d4ed8);
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.28);
+}
+
+.vehicles-studio .vehicles-operate__main .hr-action-card--fuel .hr-card-icon {
+  background: linear-gradient(145deg, #d97706, #b45309);
+  box-shadow: 0 6px 16px rgba(217, 119, 6, 0.28);
+}
+
+.vehicles-studio .vehicles-operate__main .hr-action-card--activity .hr-card-icon {
+  background: linear-gradient(145deg, #0d9488, #0f766e);
+  box-shadow: 0 6px 16px rgba(13, 148, 136, 0.28);
+}
+
+.vehicles-studio .vehicles-operate__main .hr-action-card__panel {
+  padding: 0 1.45rem 1.35rem;
+}
+
+.vehicles-studio .vehicles-operate-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+}
+
+.vehicles-studio .vehicles-operate-nav-tab {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.72rem 0.8rem;
+  border-radius: var(--veh-radius-sm);
+  border: 1px solid var(--veh-edge);
+  background: var(--veh-card);
+  text-align: left;
+  color: #475569;
+  box-shadow: var(--veh-shadow-nav);
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+}
+
+.vehicles-studio .vehicles-operate-nav-tab:hover {
+  border-color: #cbd5e1;
+  color: var(--veh-navy);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+  transform: translateY(-1px);
+}
+
+.vehicles-studio .vehicles-operate-nav-tab.is-active {
+  background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%);
+  border-color: rgba(59, 130, 246, 0.32);
+  color: #1e40af;
+  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.14);
+  transform: none;
+}
+
+.vehicles-studio .vehicles-operate-nav-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 1.65rem;
+  height: 1.65rem;
+  margin-top: 0.05rem;
+  border-radius: 8px;
+  background: rgba(var(--primary-rgb), 0.1);
+  color: var(--primary-dark);
+}
+
+.vehicles-studio .vehicles-operate-nav-tab.is-active .vehicles-operate-nav-ico {
+  background: rgba(var(--primary-rgb), 0.18);
+}
+
+.vehicles-studio .vehicles-operate-nav-ico svg {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.vehicles-studio .vehicles-operate-nav-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.vehicles-studio .vehicles-operate-nav-label {
+  font-size: 0.82rem;
+  font-weight: 750;
+  line-height: 1.25;
+  color: inherit;
+}
+
+.vehicles-studio .vehicles-operate-nav-hint {
+  font-size: 0.68rem;
+  line-height: 1.35;
+  color: var(--text-soft);
+}
+
+.vehicles-studio .vehicles-operate-nav-tab.is-active .vehicles-operate-nav-hint {
+  color: color-mix(in srgb, var(--primary-dark) 72%, var(--text-soft));
+}
+
+.vehicles-studio .vehicles-operate-nav-norm {
+  display: inline-block;
+  margin-top: 0.15rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.56rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  width: fit-content;
+}
+
+.vehicles-studio .vehicles-operate-nav-tab[data-section="create"] .vehicles-operate-nav-norm {
+  background: rgba(37, 99, 235, 0.1);
+  color: #1d4ed8;
+}
+
+.vehicles-studio .vehicles-operate-nav-tab[data-section="fuel"] .vehicles-operate-nav-norm {
+  background: rgba(245, 158, 11, 0.14);
+  color: #b45309;
+}
+
+.vehicles-studio .vehicles-operate-nav-tab[data-section="technical"] .vehicles-operate-nav-norm {
+  background: rgba(16, 185, 129, 0.12);
+  color: #047857;
 }
 
 .vehicles-studio .vehicles-operate__rail {
   position: sticky;
   top: 0.75rem;
-  padding: 0.65rem;
+  padding: 0.85rem 0.75rem;
   border-radius: var(--veh-radius);
-  border: 1px solid var(--veh-edge);
-  background: var(--veh-card);
-  box-shadow: var(--veh-shadow-sm);
-}
-
-.vehicles-studio .vehicles-operate__rail .auth-tabs-layout {
-  margin: 0;
-  padding: 0;
+  border: none;
+  background: var(--veh-surface);
+  box-shadow: none;
 }
 
 .vehicles-studio .vehicles-operate__rail-label {
   display: block;
-  margin: 0 0 0.5rem 0.55rem;
+  margin: 0 0 0.55rem 0.55rem;
   font-size: 0.62rem;
   font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--text-soft);
-}
-
-.vehicles-studio .vehicles-operate .auth-tabs-bar {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-  margin: 0;
-  padding: 0;
-  border: none;
-}
-
-.vehicles-studio .vehicles-operate .auth-tab-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  width: 100%;
-  padding: 0.62rem 0.75rem;
-  border-radius: var(--veh-radius-sm);
-  border: 1px solid transparent;
-  background: transparent;
-  font-size: 0.82rem;
-  font-weight: 650;
-  color: var(--text-soft);
-  text-align: left;
-  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
-}
-
-.vehicles-studio .vehicles-operate .auth-tab-btn:hover {
-  background: rgba(99, 102, 241, 0.06);
-  color: var(--veh-navy);
-}
-
-.vehicles-studio .vehicles-operate .auth-tab-btn.is-active {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(67, 56, 202, 0.08));
-  border-color: rgba(99, 102, 241, 0.22);
-  color: #4338ca;
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.1);
 }
 
 .vehicles-studio .vehicles-operate__main {
@@ -507,9 +636,18 @@
     position: static;
   }
 
-  .vehicles-studio .vehicles-operate .auth-tabs-bar {
+  .vehicles-studio .vehicles-operate-nav {
     flex-direction: row;
     flex-wrap: wrap;
+  }
+
+  .vehicles-studio .vehicles-operate-nav-tab {
+    flex: 1 1 calc(50% - 0.35rem);
+  }
+
+  .vehicles-studio .vehicles-operate-nav-hint,
+  .vehicles-studio .vehicles-operate-nav-norm {
+    display: none;
   }
 }
 
@@ -534,6 +672,22 @@ body[data-theme="dark"] .vehicles-studio .vehicles-studio-head__tagline {
 
 body[data-theme="dark"] .vehicles-studio .hr-workspace-tab--switch.is-active {
   box-shadow: 0 6px 18px rgba(99, 102, 241, 0.35);
+}
+
+body[data-theme="dark"] .vehicles-studio .vehicles-operate-nav-tab {
+  background: rgba(15, 28, 46, 0.92);
+  border-color: rgba(148, 196, 255, 0.14);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+body[data-theme="dark"] .vehicles-studio .vehicles-operate-nav-tab.is-active {
+  background: linear-gradient(135deg, rgba(30, 58, 138, 0.45), rgba(15, 28, 46, 0.9));
+  border-color: rgba(96, 165, 250, 0.35);
+}
+
+body[data-theme="dark"] .vehicles-studio .vehicles-operate__main .hr-action-card {
+  background: rgba(12, 26, 44, 0.92);
+  border-color: rgba(148, 196, 255, 0.14);
 }
 
 body[data-theme="dark"] .vehicles-studio .hiring-data-search input[type="search"] {

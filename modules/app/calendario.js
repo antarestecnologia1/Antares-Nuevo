@@ -417,7 +417,7 @@ function transportCalendarHtml() {
           </div>`;
         })
         .join("")
-    : `<p class="muted">Sin eventos para hoy.</p>`;
+    : `<p class="muted cal-side-empty">Sin eventos para hoy.</p>`;
 
   const upcomingList = upcoming.length
     ? upcoming
@@ -444,7 +444,7 @@ function transportCalendarHtml() {
           </div>`;
         })
         .join("")
-    : `<p class="muted">No hay programación próxima.</p>`;
+    : `<p class="muted cal-side-empty">No hay programación próxima.</p>`;
 
   const viewToggle = `<div class="calendar-view-toggle" role="group" aria-label="Vista del calendario">
         <button type="button" class="btn btn-action btn-sm${view === "month" ? " is-active" : ""}" data-action="cal-view" data-view="month">Mes</button>

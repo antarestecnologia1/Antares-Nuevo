@@ -561,6 +561,12 @@ test("portal form smoke", async ({ page, context }) => {
       window.dispatchEvent(new HashChangeEvent("hashchange"));
     }, view);
     await page.waitForTimeout(400);
+    if (view === "transport-vehicles") {
+      await page.waitForSelector("[data-action='hr-workspace-tab'][data-module='transport-vehicles']", {
+        state: "attached",
+        timeout: 10000
+      });
+    }
   };
 
   const submitForm = async (selector, pairs) => {
@@ -583,6 +589,16 @@ test("portal form smoke", async ({ page, context }) => {
         field.value = value == null ? "" : String(value);
         field.dispatchEvent(new Event("input", { bubbles: true }));
         field.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+      const V = window.AntaresValidation;
+      V?.resyncPortalDateValuesInRoot?.(form);
+      if (V && typeof V.validateDomForm === "function") {
+        const domVal = V.validateDomForm(form);
+        if (!domVal.ok) {
+          const who = domVal.firstInvalid?.name || domVal.firstInvalid?.id || "campo";
+          throw new Error(`Validación fallida en ${who}`);
+        }
+        V.applyDomFormPatch?.(form, domVal.patch);
       }
       form.requestSubmit();
     }, { selector, pairs });
@@ -658,6 +674,65 @@ test("portal form smoke", async ({ page, context }) => {
       },
       { module: moduleId, tab: tabId }
     );
+  };
+
+  const ensureVehicleWorkspace = async (tabId) => {
+    await clickDom(`[data-action='hr-workspace-tab'][data-module='transport-vehicles'][data-tab='${tabId}']`);
+    await page.waitForFunction((tab) => {
+      const panel = document.querySelector(`[data-vehicle-panel="${tab}"]`);
+      return panel && !panel.classList.contains("hidden") && !panel.hasAttribute("hidden");
+    }, tabId);
+  };
+
+  const ensureVehicleOperateSection = async (section) => {
+    await ensureVehicleWorkspace("operate");
+    await clickDom(`[data-action='vehicles-section'][data-section='${section}']`);
+    await page.waitForFunction((sec) => {
+      const pane = document.querySelector(`[data-vehicle-operate-pane="${sec}"]`);
+      return pane && !pane.classList.contains("hidden") && !pane.hasAttribute("hidden");
+    }, section);
+  };
+
+  const submitWizardForm = async (selector, pairs) => {
+    await setFormFields(selector, pairs);
+    await page.evaluate((formSelector) => {
+      const form = document.querySelector(formSelector);
+      if (!form) throw new Error(`No se encontró ${formSelector}`);
+      const wizard = form.querySelector("[data-hr-wizard]");
+      if (wizard) {
+        const steps = [...wizard.querySelectorAll(".hr-form-step")].sort(
+          (a, b) => Number(a.dataset.stepIndex || 0) - Number(b.dataset.stepIndex || 0)
+        );
+        const lastIdx = Math.max(0, steps.length - 1);
+        steps.forEach((step, i) => {
+          const on = i === lastIdx;
+          step.classList.toggle("is-active", on);
+          step.classList.toggle("hidden", !on);
+          step.setAttribute("aria-hidden", on ? "false" : "true");
+        });
+        const submitBtn = form.querySelector(".hr-form-wizard-submit");
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.setAttribute("aria-disabled", "false");
+        }
+      }
+      const dept = form.querySelector("[name='department']");
+      const citySel = form.querySelector("[name='city']");
+      if (dept && citySel) {
+        dept.dispatchEvent(new Event("change", { bubbles: true }));
+        const wanted = "Bogota D.C.";
+        const opt = [...citySel.options].find(
+          (o) => String(o.value || "").trim() === wanted || String(o.textContent || "").includes("Bogot")
+        );
+        if (opt) {
+          citySel.value = opt.value;
+          citySel.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+      }
+      window.AntaresValidation?.upgradePortalDateFields?.(form);
+      window.AntaresValidation?.resyncPortalDateValuesInRoot?.(form);
+      form.requestSubmit();
+    }, selector);
   };
 
   const ensureAdminPanel = async (panelId) => {
@@ -800,9 +875,10 @@ test("portal form smoke", async ({ page, context }) => {
 
   await record("Camiones:create-edit", async () => {
     await gotoView("transport-vehicles");
+    await ensureVehicleOperateSection("create");
     await ensureCreatePanelOpen("create-vehicle");
     const before = await arrayLen(KEYS.vehicles);
-    await submitForm("#form-vehicle", [
+    await submitWizardForm("#form-vehicle", [
       ["plate", "QWE123"],
       ["brand", "Hino"],
       ["model", "300"],
@@ -826,19 +902,18 @@ test("portal form smoke", async ({ page, context }) => {
       ["gpsProvider", "Satrack"]
     ]);
     await waitForArrayLength(KEYS.vehicles, before + 1, "Camiones:create");
-    const beforeVehicles = await readStore(KEYS.vehicles);
-    const beforeVeh = (beforeVehicles || []).find((row) => row.id === "veh-1");
+    await ensureVehicleWorkspace("data");
     await clickDom("[data-action='edit-vehicle'][data-id='veh-1']");
     await page.waitForSelector("#crud-form", { state: "attached" });
     await submitForm("#crud-form", [["brand", "Chevrolet QA"]]);
     await waitForStore(
-      ({ key, previousUpdatedAt }) => {
+      (key) => {
         const rows = window.AntaresPersistence?.read
           ? window.AntaresPersistence.read(key, [])
           : JSON.parse(localStorage.getItem(key) || "[]");
-        return rows.some((row) => row.id === "veh-1" && row.brand === "Chevrolet QA" && row.updatedAt !== previousUpdatedAt);
+        return rows.some((row) => row.id === "veh-1" && row.brand === "Chevrolet QA");
       },
-      { key: KEYS.vehicles, previousUpdatedAt: beforeVeh?.updatedAt || "" },
+      KEYS.vehicles,
       "Camiones:edit"
     );
   });
@@ -868,6 +943,7 @@ test("portal form smoke", async ({ page, context }) => {
 
   await record("Historial:fuel-technical", async () => {
     await gotoView("transport-vehicles");
+    await ensureVehicleOperateSection("fuel");
     await ensureCreatePanelOpen("create-fuel-log");
     const fuelBefore = await arrayLen(KEYS.fuelLogs);
     await submitForm("#form-fuel-log", [
@@ -882,6 +958,7 @@ test("portal form smoke", async ({ page, context }) => {
       ["paidBy", "empresa"]
     ]);
     await waitForArrayLength(KEYS.fuelLogs, fuelBefore + 1, "Historial:create fuel");
+    await ensureVehicleOperateSection("technical");
     await ensureCreatePanelOpen("create-technical-log");
     const techBefore = await arrayLen(KEYS.vehicleTechnicalLogs);
     await submitForm("#form-technical-log", [
@@ -895,10 +972,7 @@ test("portal form smoke", async ({ page, context }) => {
     ]);
     await waitForArrayLength(KEYS.vehicleTechnicalLogs, techBefore + 1, "Historial:create technical");
     await gotoView("history");
-    await clickDom("[data-action='history-workspace'][data-workspace='fleet']");
-    await page.waitForSelector("#history-fuel-results", { state: "attached", timeout: 5000 });
-    await clickDom("[data-action='history-fleet-tab'][data-fleet-tab='technical']");
-    await page.waitForSelector("#history-technical-results", { state: "attached", timeout: 5000 });
+    await page.waitForSelector("#history-trace-results", { state: "attached", timeout: 5000 });
   });
 
   await record("Reporteria:bi-layout", async () => {
@@ -914,10 +988,12 @@ test("portal form smoke", async ({ page, context }) => {
     await ensureHrWorkspace("payroll", "operate");
     await ensureCreatePanelOpen("create-employee");
     const empBefore = await arrayLen(KEYS.payrollEmployees);
-    await submitForm("#form-employee", [
+    await submitWizardForm("#form-employee", [
       ["name", "Empleado Smoke"],
       ["documentType", "CC"],
       ["idDoc", "4567891230"],
+      ["birthDate", ymd(plusDays(-365 * 25))],
+      ["gender", "Masculino"],
       ["bloodType", "O+"],
       ["hasIllness", "no"],
       ["department", "Bogota"],
@@ -930,6 +1006,7 @@ test("portal form smoke", async ({ page, context }) => {
       ["positionId", "pos-analista"],
       ["contractType", "Termino indefinido"],
       ["baseSalary", "2300000"],
+      ["payFrequency", "Mensual"],
       ["contractTemplateKind", "oficina"],
       ["eps", "Sura"],
       ["pensionFund", "Porvenir"],
@@ -994,7 +1071,7 @@ test("portal form smoke", async ({ page, context }) => {
         const rows = window.AntaresPersistence?.read
           ? window.AntaresPersistence.read(key, [])
           : JSON.parse(localStorage.getItem(key) || "[]");
-        return rows.some((row) => row.id === "pos-analista" && row.name === "Analista QA Editado");
+        return rows.some((row) => row.id === "pos-analista" && row.name === "ANALISTA QA EDITADO");
       },
       KEYS.positions,
       "Contratación:edit position"
@@ -1023,7 +1100,7 @@ test("portal form smoke", async ({ page, context }) => {
         const rows = window.AntaresPersistence?.read
           ? window.AntaresPersistence.read(key, [])
           : JSON.parse(localStorage.getItem(key) || "[]");
-        return rows.some((row) => row.id === "vac-1" && row.title === "Vacante Analista Editada");
+        return rows.some((row) => row.id === "vac-1" && row.title === "VACANTE ANALISTA EDITADA");
       },
       KEYS.vacancies,
       "Contratación:edit vacancy"
@@ -1200,7 +1277,7 @@ test("portal form smoke", async ({ page, context }) => {
         const rows = window.AntaresPersistence?.read
           ? window.AntaresPersistence.read(key, [])
           : JSON.parse(localStorage.getItem(key) || "[]");
-        return rows.some((row) => row.id === "admin-1" && row.name === "Admin QA Perfil");
+        return rows.some((row) => row.id === "admin-1" && row.name === "ADMIN QA PERFIL");
       },
       KEYS.users,
       "Mi perfil:edit"

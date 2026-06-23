@@ -1265,19 +1265,107 @@
 
 /* Tarjetas solicitud (picker) */
 .antares-create-form .trip-request-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto auto;
+  gap: 0.12rem 0.65rem;
+  align-items: center;
+  width: 100%;
+  margin: 0;
+  padding: 0.72rem 0.85rem;
+  border: 1px solid var(--acf-edge);
   border-radius: 13px;
-  border-color: var(--acf-edge);
-  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+  background: var(--acf-card);
+  color: var(--acf-navy);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  appearance: none;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+
+.antares-create-form .trip-request-card__head {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.antares-create-form .trip-request-card__ref {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.84rem;
+  font-weight: 800;
+  color: var(--acf-navy);
+}
+
+.antares-create-form .trip-request-card__status {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.14rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border: 1px solid var(--acf-edge);
+  white-space: nowrap;
+}
+
+.antares-create-form .trip-request-card__client {
+  grid-column: 1;
+  grid-row: 2;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--acf-navy);
+  line-height: 1.35;
+}
+
+.antares-create-form .trip-request-card__route {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: #64748b;
+}
+
+.antares-create-form .trip-request-card__meta {
+  grid-column: 2;
+  grid-row: 2;
+  justify-self: end;
+  align-self: start;
+  font-size: 0.72rem;
+  color: #64748b;
+  text-align: right;
+  white-space: nowrap;
 }
 
 .antares-create-form .trip-request-card:hover {
   transform: translateY(-1px);
   box-shadow: var(--acf-shadow-sm);
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--acf-edge));
+  background: color-mix(in srgb, var(--primary) 4%, var(--acf-card));
 }
 
 .antares-create-form .trip-request-card.is-selected {
   border-color: color-mix(in srgb, var(--primary) 50%, var(--acf-edge));
   box-shadow: 0 10px 24px color-mix(in srgb, var(--primary) 14%, transparent);
+  background: color-mix(in srgb, var(--primary) 7%, var(--acf-card));
+}
+
+.antares-create-form .trip-request-card__status--pending {
+  color: #b45309;
+  background: color-mix(in srgb, #f59e0b 14%, var(--acf-card));
+  border-color: color-mix(in srgb, #f59e0b 30%, var(--acf-edge));
+}
+
+.antares-create-form .trip-request-card__status--approved {
+  color: #047857;
+  background: color-mix(in srgb, #10b981 14%, var(--acf-card));
+  border-color: color-mix(in srgb, #10b981 30%, var(--acf-edge));
 }
 
 /* Flota / tarifa */
@@ -1652,6 +1740,19 @@ body[data-theme="dark"] .antares-create-form .trip-request-card {
 body[data-theme="dark"] .antares-create-form .trip-request-card__ref,
 body[data-theme="dark"] .antares-create-form .trip-request-card__client {
   color: #e8f2fc;
+}
+
+body[data-theme="dark"] .antares-create-form .trip-request-card__route,
+body[data-theme="dark"] .antares-create-form .trip-request-card__meta {
+  color: rgba(174, 212, 248, 0.82);
+}
+
+body[data-theme="dark"] .antares-create-form .trip-request-card__status--pending {
+  color: #fbbf24;
+}
+
+body[data-theme="dark"] .antares-create-form .trip-request-card__status--approved {
+  color: #34d399;
 }
 
 body[data-theme="dark"] .antares-create-form__footer,

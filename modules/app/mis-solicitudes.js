@@ -186,23 +186,26 @@
       return String(el?.value || "").trim().slice(0, 5);
     };
 
+    /** Misma regla que al guardar: fecha+hora en Colombia (-05:00) → instante UTC en `fecha_hora_*` de PostgreSQL. */
+    const scheduleInstantMs = (isoDate, time) => {
+      const built =
+        typeof buildColombiaOffsetDateTime === "function" ? buildColombiaOffsetDateTime(isoDate, time) : "";
+      if (!built) return NaN;
+      const ms = new Date(built).getTime();
+      return Number.isFinite(ms) ? ms : NaN;
+    };
+
     const formatScheduleStamp = (isoDate, time) => {
-      if (!isoDate || !time) return "";
-      const dt = new Date(`${isoDate}T${time}:00`);
-      if (Number.isNaN(dt.getTime())) return "";
-      return dt.toLocaleString("es-CO", {
-        weekday: "short",
-        day: "numeric",
-        month: "short",
-        hour: "2-digit",
-        minute: "2-digit"
-      });
+      const built =
+        typeof buildColombiaOffsetDateTime === "function" ? buildColombiaOffsetDateTime(isoDate, time) : "";
+      if (!built) return "";
+      return typeof fmtDate === "function" ? fmtDate(built) : built;
     };
 
     const formatDuration = (pickupIso, pickupTime, deliveryIso, deliveryTime) => {
       if (!pickupIso || !pickupTime || !deliveryIso || !deliveryTime) return "";
-      const start = new Date(`${pickupIso}T${pickupTime}:00`).getTime();
-      const end = new Date(`${deliveryIso}T${deliveryTime}:00`).getTime();
+      const start = scheduleInstantMs(pickupIso, pickupTime);
+      const end = scheduleInstantMs(deliveryIso, deliveryTime);
       if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return "";
       const mins = Math.round((end - start) / 60000);
       const days = Math.floor(mins / 1440);
@@ -245,8 +248,8 @@
       if (durationEl) durationEl.textContent = duration || "—";
       if (!preview) return;
 
-      const startMs = pickupIso && pickupTime ? new Date(`${pickupIso}T${pickupTime}:00`).getTime() : NaN;
-      const endMs = deliveryIso && deliveryTime ? new Date(`${deliveryIso}T${deliveryTime}:00`).getTime() : NaN;
+      const startMs = pickupIso && pickupTime ? scheduleInstantMs(pickupIso, pickupTime) : NaN;
+      const endMs = deliveryIso && deliveryTime ? scheduleInstantMs(deliveryIso, deliveryTime) : NaN;
       const invalidOrder = Number.isFinite(startMs) && Number.isFinite(endMs) && endMs <= startMs;
       connector?.classList.toggle("acf-schedule__connector--warn", invalidOrder);
       preview.classList.toggle("acf-schedule__preview--ready", Boolean(pickupLabel && deliveryLabel && !invalidOrder));
@@ -437,6 +440,10 @@
           notify(userMessage("requestCompanyServerUuidRequired"), "error");
           return;
         }
+        if (window.AntaresApi?.isConfigured?.() && typeof isUuidString === "function" && !isUuidString(String(user?.id || ""))) {
+          notify(userMessage("requestUserServerUuidRequired"), "error");
+          return;
+        }
         if (user?.role === ROLES.CLIENT) {
           const ucid = String(user.companyId || "").trim();
           if (ucid && ucid !== requestCompanyId) {
@@ -578,6 +585,10 @@
           vehicleType: requiredTruckType,
           fuelles: requestRequiredTruckTypeShowsFuelles(requiredTruckType) ? fuellesVal : null,
           weightKg: requestRequiredTruckTypeShowsTractomulaKg(requiredTruckType) ? weightKgVal : 0,
+          pickupDate: pickupDateValue,
+          pickupTime: pickupTimeValue,
+          deliveryDate: deliveryDateValue,
+          deliveryTime: deliveryTimeValue,
           pickupAt,
           etaDelivery,
           status: STATUS.PENDIENTE,

@@ -334,12 +334,9 @@ function vehiclesHtml() {
     tabs: vehiclesHrTabs
   });
   const vehiclesWorkspaceHeader = renderHrWorkspaceHeader(heroStrip, vehiclesTabsNav, "payroll");
-  const vehicleOperateNav = renderModuleWindowTabs({
-    ariaLabel: "Flujos de registro de camiones",
-    activeId: vehicleSection,
-    action: "vehicles-section",
-    valueAttr: "section",
-    tabs: vehicleOperateTabs
+  const vehiclesEnabledSections = vehicleOperateTabs.map((tab) => String(tab.id || ""));
+  const vehicleOperateNav = renderVehiclesOperateSectionNav(vehicleSection, {
+    enabledSections: vehiclesEnabledSections
   });
   const vehicleDataNav = renderModuleWindowTabs({
     ariaLabel: "Consultas de flota",
@@ -349,20 +346,20 @@ function vehiclesHtml() {
     tabs: [{ id: "fleet", label: "Flota", count: vehicles.length }]
   });
   const createPanel = canCreateVeh
-    ? `<div class="auth-tab-panel${vehicleSection === "create" ? "" : " hidden"}" data-vehicle-operate-pane="create">${createHrActionCard("create-vehicle", "plus", "Registrar vehículo", "Ficha técnica en 4 pasos guiados", formBody, "Abrir formulario", { createPanels: vehiclesCreateUi })}</div>`
+    ? `<div class="auth-tab-panel${vehicleSection === "create" ? "" : " hidden"}" data-vehicle-operate-pane="create">${createHrActionCard("create-vehicle", "truck", "Registrar vehículo", "Ficha técnica, documentación legal y trazabilidad GPS (Colombia)", formBody, "Abrir ficha", { createPanels: vehiclesCreateUi })}</div>`
     : "";
   const fuelPanel = canFuelLogs
-    ? `<div class="auth-tab-panel${vehicleSection === "fuel" ? "" : " hidden"}" data-vehicle-operate-pane="fuel">${createHrActionCard("create-fuel-log", "fuel", "Combustible", `${fuelLogsCount} carga${fuelLogsCount === 1 ? "" : "s"} registrada${fuelLogsCount === 1 ? "" : "s"}`, historyFleetFuelFormHtml(todayIsoDate, vehicleSelectOptions, driverSelectOptions), "Abrir formulario", { createPanels: vehiclesCreateUi })}</div>`
+    ? `<div class="auth-tab-panel${vehicleSection === "fuel" ? "" : " hidden"}" data-vehicle-operate-pane="fuel">${createHrActionCard("create-fuel-log", "fuel", "Combustible", `${fuelLogsCount} carga${fuelLogsCount === 1 ? "" : "s"} registrada${fuelLogsCount === 1 ? "" : "s"} — litros, costo y estación`, historyFleetFuelFormHtml(todayIsoDate, vehicleSelectOptions, driverSelectOptions), "Abrir registro", { createPanels: vehiclesCreateUi })}</div>`
     : "";
   const technicalPanel = canTechnicalLogs
-    ? `<div class="auth-tab-panel${vehicleSection === "technical" ? "" : " hidden"}" data-vehicle-operate-pane="technical">${createHrActionCard("create-technical-log", "activity", "Taller", `${technicalLogsCount} novedad${technicalLogsCount === 1 ? "" : "es"} de mantenimiento`, historyFleetTechnicalFormHtml(todayIsoDate, vehicleSelectOptions), "Abrir formulario", { createPanels: vehiclesCreateUi })}</div>`
+    ? `<div class="auth-tab-panel${vehicleSection === "technical" ? "" : " hidden"}" data-vehicle-operate-pane="technical">${createHrActionCard("create-technical-log", "activity", "Taller", `${technicalLogsCount} novedad${technicalLogsCount === 1 ? "" : "es"} de mantenimiento — preventivo o correctivo`, historyFleetTechnicalFormHtml(todayIsoDate, vehicleSelectOptions), "Abrir formulario", { createPanels: vehiclesCreateUi })}</div>`
     : "";
   const vehicleOperatePanel =
     vehicleOperateTabs.length > 0
       ? `<div class="hr-workspace-panel vehicles-workspace-panel${vehicleWorkspace === "operate" ? "" : " hidden"}" role="tabpanel" data-vehicle-panel="operate">
       <section class="vehicles-operate vehicles-operate-panel">
-        <aside class="vehicles-operate__rail" aria-label="Flujos de registro">
-          <span class="vehicles-operate__rail-label">Registrar</span>
+        <aside class="vehicles-operate__rail" aria-label="Trámites de registro">
+          <p class="vehicles-operate__rail-label">Tipo de trámite</p>
           ${vehicleOperateNav}
         </aside>
         <div class="vehicles-operate__main auth-tab-panels">${createPanel}${fuelPanel}${technicalPanel}</div>
