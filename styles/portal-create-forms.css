@@ -1061,6 +1061,20 @@
   z-index: 2;
 }
 
+.antares-create-form .acf-drum__columns--three {
+  gap: 0.15rem;
+}
+
+.antares-create-form .acf-drum__column--period {
+  flex: 0 0 3.35rem;
+  max-width: 3.35rem;
+}
+
+.antares-create-form .acf-drum__column--period .acf-drum__item {
+  font-size: 0.82rem;
+  letter-spacing: 0.01em;
+}
+
 .antares-create-form .acf-drum__column {
   position: relative;
   z-index: 2;

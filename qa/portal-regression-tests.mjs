@@ -34,6 +34,7 @@ function run() {
   const contratacionJs = read("modules/app/contratacion.js");
   const contratacionHtmlJs = read("modules/app/contratacion-html.js");
   const gestionHumanaJs = read("modules/app/gestion-humana.js");
+  const gestionHumanaHtmlJs = read("modules/app/gestion-humana-html.js");
   const stylesCss = read("styles.css");
   const portalControllerTs = read("apps/api/src/portal/portal.controller.ts");
   const portalServiceTs = read("apps/api/src/portal/portal.service.ts");
@@ -48,7 +49,8 @@ function run() {
     portalConfigJs,
     contratacionJs,
     contratacionHtmlJs,
-    gestionHumanaJs
+    gestionHumanaJs,
+    gestionHumanaHtmlJs
   ].join("\n\n");
 
   // 1) Index integrity

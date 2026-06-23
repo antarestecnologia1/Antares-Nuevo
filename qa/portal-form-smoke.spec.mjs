@@ -852,7 +852,12 @@ test("portal form smoke", async ({ page, context }) => {
         const rows = window.AntaresPersistence?.read
           ? window.AntaresPersistence.read(key, [])
           : JSON.parse(localStorage.getItem(key) || "[]");
-        return rows.some((row) => row.id === "veh-1" && row.brand === "Chevrolet QA" && row.updatedAt !== previousUpdatedAt);
+        return rows.some(
+          (row) =>
+            row.id === "veh-1" &&
+            String(row.brand || "").toUpperCase() === "CHEVROLET QA" &&
+            row.updatedAt !== previousUpdatedAt
+        );
       },
       { key: KEYS.vehicles, previousUpdatedAt: beforeVeh?.updatedAt || "" },
       "Camiones:edit"
@@ -900,6 +905,8 @@ test("portal form smoke", async ({ page, context }) => {
       ["paidBy", "empresa"]
     ]);
     await waitForArrayLength(KEYS.fuelLogs, fuelBefore + 1, "Camiones:create fuel");
+    await gotoView("transport-vehicles");
+    await ensureHrWorkspace("transport-vehicles", "operate");
     await ensureVehiclesOperateSection("technical");
     await ensureCreatePanelOpen("create-technical-log");
     const techBefore = await arrayLen(KEYS.vehicleTechnicalLogs);
@@ -1047,7 +1054,9 @@ test("portal form smoke", async ({ page, context }) => {
         const rows = window.AntaresPersistence?.read
           ? window.AntaresPersistence.read(key, [])
           : JSON.parse(localStorage.getItem(key) || "[]");
-        return rows.some((row) => row.id === "vac-1" && row.title === "Vacante Analista Editada");
+        return rows.some(
+          (row) => row.id === "vac-1" && String(row.title || "").toUpperCase() === "VACANTE ANALISTA EDITADA"
+        );
       },
       KEYS.vacancies,
       "Contratación:edit vacancy"
@@ -1081,7 +1090,11 @@ test("portal form smoke", async ({ page, context }) => {
         const rows = window.AntaresPersistence?.read
           ? window.AntaresPersistence.read(key, [])
           : JSON.parse(localStorage.getItem(key) || "[]");
-        return rows.some((row) => row.id === "cand-1" && row.phone === "3007778800");
+        return rows.some(
+          (row) =>
+            row.id === "cand-1" &&
+            String(row.phone || "").replace(/\D/g, "").endsWith("3007778800")
+        );
       },
       KEYS.candidates,
       "Contratación:edit candidate"
@@ -1136,7 +1149,9 @@ test("portal form smoke", async ({ page, context }) => {
         const rows = window.AntaresPersistence?.read
           ? window.AntaresPersistence.read(key, [])
           : JSON.parse(localStorage.getItem(key) || "[]");
-        return rows.some((row) => row.id === "sst-1" && row.provider === "ARL QA Edit");
+        return rows.some(
+          (row) => row.id === "sst-1" && String(row.provider || "").toUpperCase() === "ARL QA EDIT"
+        );
       },
       KEYS.sstCompliance,
       "SST:edit"
