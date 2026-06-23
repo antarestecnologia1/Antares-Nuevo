@@ -246,6 +246,31 @@ export function renderModalCloseBtn(id = "crud-close") {
   return `<button type="button" id="${escapeAttr(safeId)}" class="btn btn-sm btn-outline module-panel-btn module-panel-btn--close" aria-label="Cerrar">${ic().x}</button>`;
 }
 
+/** Modal de confirmación «descartar cambios» (Cancelar en formularios de alta). */
+export function renderConfirmDiscardModalBody(opts = {}) {
+  const title = String(opts.title ?? "").trim();
+  const message = String(opts.message ?? "").trim();
+  const cancelLabel = String(opts.cancelLabel || "Seguir editando").trim();
+  const confirmText = String(opts.confirmText || "Sí, descartar").trim();
+  const confirmIconKey = String(opts.confirmIcon || "x").trim();
+  const confirmIconHtml = ic()[confirmIconKey] || ic().x || "";
+  const keepIconHtml = ic().edit || ic().rotateCcw || "";
+  return `<div class="modal-discard">
+    <div class="modal-discard__top">
+      ${renderModalCloseBtn("crud-close")}
+    </div>
+    <div class="modal-discard__hero">
+      <div class="modal-discard__icon" aria-hidden="true">${ic().alertTriangle || ""}</div>
+      <h2 class="modal-discard__title">${escapeHtml(title)}</h2>
+      <p class="modal-discard__message">${escapeHtml(message)}</p>
+    </div>
+    <div class="modal-discard__actions">
+      <button type="button" id="crud-confirm" class="btn modal-discard__btn modal-discard__btn--discard">${confirmIconHtml}<span>${escapeHtml(confirmText)}</span></button>
+      <button type="button" id="crud-cancel" class="btn modal-discard__btn modal-discard__btn--keep btn-primary">${keepIconHtml}<span>${escapeHtml(cancelLabel)}</span></button>
+    </div>
+  </div>`;
+}
+
 /** Cancelar en pie de modal (mismo estilo que módulos). */
 export function renderModalCancelBtn(id = "crud-cancel", label = MODULE_PANEL_LABELS.cancel, btnClass = "") {
   const safeId = String(id || "crud-cancel").trim() || "crud-cancel";

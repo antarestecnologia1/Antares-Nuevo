@@ -444,10 +444,24 @@
           failPortalField(requestForm, "deliveryTime", userMessage("requestDatetimeMissing"));
           return;
         }
-        const pickupAt = buildColombiaOffsetDateTime(pickupDateValue, pickupTimeValue);
-        const etaDelivery = buildColombiaOffsetDateTime(deliveryDateValue, deliveryTimeValue);
-        const pickupDateTime = new Date(pickupAt);
-        const deliveryDateTime = new Date(etaDelivery);
+        const pickupAtBuilt = buildColombiaOffsetDateTime(pickupDateValue, pickupTimeValue);
+        const etaDeliveryBuilt = buildColombiaOffsetDateTime(deliveryDateValue, deliveryTimeValue);
+        if (!pickupAtBuilt || !etaDeliveryBuilt) {
+          failPortalField(
+            requestForm,
+            !pickupAtBuilt ? "pickupDate" : "deliveryDate",
+            userMessage("requestDatetimeMissing")
+          );
+          return;
+        }
+        const pickupDateTime = new Date(pickupAtBuilt);
+        const deliveryDateTime = new Date(etaDeliveryBuilt);
+        if (!Number.isFinite(pickupDateTime.getTime()) || !Number.isFinite(deliveryDateTime.getTime())) {
+          failPortalField(requestForm, "pickupDate", userMessage("requestDatetimeMissing"));
+          return;
+        }
+        const pickupAt = pickupDateTime.toISOString();
+        const etaDelivery = deliveryDateTime.toISOString();
         if (pickupDateTime.getTime() < Date.now()) {
           failPortalField(requestForm, "pickupDate", userMessage("requestPastDatetime"));
           return;
@@ -569,7 +583,13 @@
         try {
           await reqWriteAwait(all, rowToSave);
         } catch (err) {
-          notify(String(err?.message || "No fue posible guardar la solicitud en el servidor."), "error");
+          const msg = String(err?.message || "").trim();
+          notify(
+            /^internal server error$/i.test(msg)
+              ? "No fue posible guardar la solicitud en el servidor. Revise fechas, empresa y datos obligatorios e intente de nuevo."
+              : msg || "No fue posible guardar la solicitud en el servidor.",
+            "error"
+          );
           return;
         }
         const actingUser = currentUser();

@@ -19,6 +19,7 @@
     personName: "Use solo letras, espacios y caracteres habituales en nombres (sin números ni símbolos raros).",
     alnumDoc: "Use solo letras, números y los separadores permitidos para documentos.",
     date: "Ingrese una fecha válida (formato DD/MM/AAAA).",
+    time: "Seleccione una hora válida (formato HH:MM).",
     nit: "El NIT debe tener formato 900123456 o 900123456-7.",
     cc: "La cédula CC debe tener entre 6 y 10 dígitos.",
     ce: "La cédula CE debe tener entre 6 y 12 dígitos.",
@@ -320,6 +321,27 @@
     if (!ymd) return "";
     const [y, mo, d] = ymd.split("-");
     return `${d}/${mo}/${y}`;
+  }
+
+  function normalizeTimeHhmm(raw) {
+    const s = String(raw ?? "").trim();
+    if (!s) return "";
+    if (/^\d{1,2}:\d{2}$/.test(s)) {
+      const [h, m] = s.split(":");
+      return `${String(Number(h)).padStart(2, "0")}:${String(Number(m)).padStart(2, "0")}`;
+    }
+    if (/^\d{1,2}:\d{2}:\d{2}$/.test(s)) {
+      const [h, m] = s.split(":");
+      return `${String(Number(h)).padStart(2, "0")}:${String(Number(m)).padStart(2, "0")}`;
+    }
+    return "";
+  }
+
+  function isValidTimeHhmm(raw) {
+    const norm = normalizeTimeHhmm(raw);
+    if (!norm) return false;
+    const [h, m] = norm.split(":").map((x) => Number(x));
+    return h >= 0 && h <= 23 && m >= 0 && m <= 59;
   }
 
   function parseDmyToIsoDate(raw) {
@@ -1274,6 +1296,16 @@
         setFieldError(el, `La fecha no puede ser posterior a ${formatIsoDateToDmy(maxIso)}.`);
         return false;
       }
+      clearFieldError(el);
+      return true;
+    }
+    if (check === "time-hhmm") {
+      const norm = normalizeTimeHhmm(raw);
+      if (raw && !isValidTimeHhmm(norm)) {
+        setFieldError(el, MSG.time);
+        return false;
+      }
+      if (norm && norm !== raw) el.value = norm;
       clearFieldError(el);
       return true;
     }

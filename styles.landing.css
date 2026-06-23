@@ -2465,22 +2465,22 @@ body[data-theme="dark"] .trips-table-wrap table tbody td:last-child {
   justify-content: center;
 }
 
-body[data-theme="dark"] .modal-card--discard .modal-body-lead {
-  border-color: rgba(251, 191, 36, 0.28);
-  background: linear-gradient(180deg, rgba(120, 53, 15, 0.35) 0%, rgba(15, 23, 42, 0.5) 100%);
-  color: #fde68a;
+body[data-theme="dark"] .modal-discard__icon {
+  background: linear-gradient(145deg, rgba(120, 53, 15, 0.55) 0%, rgba(69, 26, 3, 0.35) 100%);
+  border-color: rgba(251, 191, 36, 0.3);
+  color: #fbbf24;
 }
 
-body[data-theme="dark"] .modal-card--discard .modal-edit-actions .modal-btn--safe {
-  color: #dbeafe;
-  background: linear-gradient(180deg, #1e293b, #0f172a);
-  border-color: rgba(148, 163, 184, 0.35);
+body[data-theme="dark"] .modal-discard__btn--discard {
+  background: linear-gradient(180deg, rgba(127, 29, 29, 0.35) 0%, rgba(69, 10, 10, 0.45) 100%);
+  color: #fca5a5;
+  border-color: rgba(248, 113, 113, 0.32);
 }
 
-body[data-theme="dark"] .modal-card--discard .modal-edit-actions .modal-btn--safe:hover {
-  color: #ffffff;
-  border-color: rgba(148, 196, 255, 0.45);
-  background: linear-gradient(180deg, #334155, #1e293b);
+body[data-theme="dark"] .modal-discard__btn--discard:hover {
+  background: linear-gradient(180deg, rgba(153, 27, 27, 0.45) 0%, rgba(127, 29, 29, 0.5) 100%);
+  color: #fecaca;
+  border-color: rgba(248, 113, 113, 0.45);
 }
 
 body[data-theme="dark"] .session-idle-banner {

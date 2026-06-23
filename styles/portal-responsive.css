@@ -296,6 +296,7 @@ body.portal-mode .kpi-grid {
 }
 
 .modal-card-edit,
+.modal-card--discard,
 .modal-card--payroll-bulk-result,
 .modal-card-report-preview {
   width: min(720px, calc(100vw - 1.25rem));
@@ -315,12 +316,27 @@ body.portal-mode .kpi-grid {
 @media (max-width: 720px) {
   .modal-card,
   .modal-card-edit,
+  .modal-card--discard,
   .modal-card--payroll-bulk-result,
   .modal-card-report-preview {
     width: 100%;
     max-width: 100%;
     border-radius: 14px;
+  }
+
+  .modal-card:not(.modal-card--discard),
+  .modal-card-edit:not(.modal-card--discard),
+  .modal-card--payroll-bulk-result,
+  .modal-card-report-preview {
     padding: 1rem 0.85rem;
+  }
+
+  .modal-card--discard {
+    padding: 0;
+  }
+
+  .modal-discard {
+    padding: 0.25rem 1rem 1.1rem;
   }
 
   .modal-edit-actions.module-panel-actions,
@@ -346,6 +362,38 @@ body.portal-mode .kpi-grid {
   .create-trip-form-v2__assign-row,
   .create-trip-form-v2__milestones {
     grid-template-columns: 1fr;
+  }
+
+  .antares-create-form .acf-schedule__grid {
+    grid-template-rows: none;
+  }
+
+  .antares-create-form .acf-schedule-card {
+    grid-row: auto;
+    grid-template-rows: none;
+  }
+
+  .antares-create-form .acf-schedule-card__body {
+    display: grid;
+    gap: 0.7rem;
+  }
+
+  .antares-create-form .acf-schedule-field--date,
+  .antares-create-form .acf-schedule-field--time {
+    grid-row: auto;
+  }
+
+  .antares-create-form .acf-schedule__connector {
+    grid-row: auto;
+    flex-direction: row;
+    padding: 0.5rem 0;
+  }
+
+  .antares-create-form .acf-schedule__connector-line {
+    width: auto;
+    height: 2px;
+    min-height: 0;
+    flex: 1 1 auto;
   }
 
   .create-trip-form-v2__preview-wrap {

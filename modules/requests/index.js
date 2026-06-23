@@ -136,15 +136,11 @@ window.DomainModules = window.DomainModules || {};
     return false;
   }
 
-  async function createViaApi(portalRow, pickupAtIso) {
+  async function createViaApi(portalRow, _pickupAtIso) {
     const api = window.AntaresApi;
     if (!api?.isConfigured?.()) throw new Error("API no configurada");
-    if (typeof window.applyPortalBootstrapFromApi === "function") {
-      return { ...portalRow, apiSynced: false };
-    }
-    const dto = portalToCreateDto(portalRow, pickupAtIso);
-    const created = await api.postJson("/requests", dto);
-    return mapApiRowToPortal(created, portalRow);
+    /** apps/api persiste solicitudes solo vía POST /portal/sync-key (no hay POST /requests). */
+    return { ...portalRow, apiSynced: false };
   }
 
   async function approveViaApi(requestId) {

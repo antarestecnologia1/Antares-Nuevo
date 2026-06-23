@@ -4358,6 +4358,18 @@ function refreshCreateTripModuleForm(formEl) {
   const request = requestId ? reqRead().find((r) => r.id === requestId) : null;
 
   const fleetStats = formEl.querySelector("#create-trip-fleet-stats");
+  const requestGrid = formEl.querySelector(".create-trip-form-v2__request-grid");
+  const previewWrap = formEl.querySelector(".create-trip-form-v2__preview-wrap");
+  const assignRow = formEl.querySelector(".create-trip-form-v2__assign-row");
+  if (requestGrid) {
+    requestGrid.classList.toggle("has-request-selected", Boolean(request));
+  }
+  if (previewWrap) {
+    previewWrap.setAttribute("aria-hidden", request ? "false" : "true");
+  }
+  if (assignRow) {
+    assignRow.classList.toggle("is-locked", !request);
+  }
 
   const tripFormUser = currentUser();
   if (request && !canAssignTripFromViajesModule(request, tripFormUser)) {
@@ -4796,10 +4808,6 @@ function confirmDiscardCreateFormAsync(formEl, opts = {}) {
       "Se perderán los cambios no guardados de este formulario. Los datos que escribió no se guardarán.",
     confirmText: opts.confirmText || "Sí, descartar",
     cancelText: opts.cancelText || "Seguir editando",
-    confirmBtnClass: opts.confirmBtnClass || "btn-reject",
-    cancelBtnClass:
-      opts.cancelBtnClass ||
-      "btn btn-sm btn-outline module-panel-btn module-panel-btn--cancel modal-btn--safe",
     confirmIcon: opts.confirmIcon || "x",
     cardClass: "modal-card-edit modal-card--discard"
   });

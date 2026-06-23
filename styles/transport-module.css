@@ -786,14 +786,19 @@ body[data-theme="dark"] .transport-studio .hr-workspace-tab--switch.is-active {
 .transport-studio .trip-request-picker__list {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  max-height: min(22rem, 52vh);
+  gap: 0.85rem;
+  max-height: min(26rem, 58vh);
   overflow-y: auto;
-  padding-right: 0.1rem;
+  padding-right: 0.15rem;
+  scrollbar-gutter: stable;
 }
 
 .transport-studio .trip-request-picker__group-label {
-  margin: 0 0 0.35rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0 0 0.4rem;
   font-size: 0.68rem;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -801,26 +806,102 @@ body[data-theme="dark"] .transport-studio .hr-workspace-tab--switch.is-active {
   color: var(--text-soft);
 }
 
+.transport-studio .trip-request-picker__group-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.35rem;
+  padding: 0.08rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--trn-navy);
+  background: color-mix(in srgb, var(--trn-blue) 10%, var(--trn-card));
+  border: 1px solid color-mix(in srgb, var(--trn-blue) 22%, var(--trn-edge));
+}
+
 .transport-studio .trip-request-picker__group-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
-  gap: 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
 }
 
 .transport-studio .trip-request-card {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.28rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto auto;
+  gap: 0.12rem 0.65rem;
+  align-items: center;
   width: 100%;
   margin: 0;
-  padding: 0.7rem 0.8rem;
-  border-radius: 13px;
+  padding: 0.72rem 0.85rem;
+  border-radius: 12px;
   border: 1px solid var(--trn-edge);
   background: var(--trn-card);
   text-align: left;
   cursor: pointer;
-  transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease, transform 0.12s ease;
+}
+
+.transport-studio .trip-request-card:active {
+  transform: scale(0.995);
+}
+
+.transport-studio .trip-request-card__head {
+  display: contents;
+}
+
+.transport-studio .trip-request-card__ref {
+  grid-column: 1;
+  grid-row: 1;
+  font-size: 0.84rem;
+  font-weight: 800;
+  color: var(--trn-navy);
+}
+
+.transport-studio .trip-request-card__status {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.14rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border: 1px solid var(--trn-edge);
+  white-space: nowrap;
+}
+
+.transport-studio .trip-request-card__client {
+  grid-column: 1;
+  grid-row: 2;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--trn-navy);
+  line-height: 1.35;
+}
+
+.transport-studio .trip-request-card__route {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--text-soft);
+}
+
+.transport-studio .trip-request-card__meta {
+  grid-column: 2;
+  grid-row: 2;
+  justify-self: end;
+  align-self: start;
+  font-size: 0.72rem;
+  color: var(--text-soft);
+  text-align: right;
+  white-space: nowrap;
 }
 
 .transport-studio .trip-request-card:hover {
@@ -835,34 +916,12 @@ body[data-theme="dark"] .transport-studio .hr-workspace-tab--switch.is-active {
   box-shadow: 0 10px 24px color-mix(in srgb, var(--trn-blue) 14%, transparent);
 }
 
+.transport-studio .trip-request-card.is-selected .trip-request-card__ref {
+  color: color-mix(in srgb, var(--trn-blue) 85%, var(--trn-navy));
+}
+
 .transport-studio .trip-request-card.hidden {
   display: none;
-}
-
-.transport-studio .trip-request-card__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.45rem;
-  width: 100%;
-}
-
-.transport-studio .trip-request-card__ref {
-  font-size: 0.86rem;
-  font-weight: 800;
-  color: var(--trn-navy);
-}
-
-.transport-studio .trip-request-card__status {
-  display: inline-flex;
-  align-items: center;
-  padding: 0.14rem 0.45rem;
-  border-radius: 999px;
-  font-size: 0.66rem;
-  font-weight: 800;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  border: 1px solid var(--trn-edge);
 }
 
 .transport-studio .trip-request-card__status--pending {
@@ -875,24 +934,6 @@ body[data-theme="dark"] .transport-studio .hr-workspace-tab--switch.is-active {
   color: #047857;
   background: color-mix(in srgb, #10b981 14%, var(--trn-card));
   border-color: color-mix(in srgb, #10b981 30%, var(--trn-edge));
-}
-
-.transport-studio .trip-request-card__client {
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: var(--trn-navy);
-  line-height: 1.35;
-}
-
-.transport-studio .trip-request-card__route {
-  font-size: 0.8rem;
-  line-height: 1.4;
-  color: var(--text-soft);
-}
-
-.transport-studio .trip-request-card__meta {
-  font-size: 0.74rem;
-  color: var(--text-soft);
 }
 
 .transport-studio #form-create-trip .assign-trip-block,
@@ -910,5 +951,415 @@ body[data-theme="dark"] .transport-studio .hr-workspace-tab--switch.is-active {
 
 .transport-studio #trip-request-preview .create-trip-empty-detail {
   display: block;
+}
+
+/* ── Hero KPIs ── */
+.transport-studio .fleet-hero-strip {
+  border-radius: var(--trn-radius);
+  border: 1px solid var(--trn-edge-strong);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--trn-blue) 6%, var(--trn-card)), var(--trn-card));
+  box-shadow: var(--trn-shadow-sm);
+}
+
+.transport-studio .fleet-hero-metric {
+  border-color: var(--trn-edge);
+}
+
+.transport-studio .fleet-hero-metric-warn strong {
+  color: #b45309;
+}
+
+/* ── Alerta de solicitudes por asignar ── */
+.transport-studio .transport-pending-alert {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+  margin-bottom: 0.15rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--trn-radius-sm);
+  border: 1px solid color-mix(in srgb, #f59e0b 35%, var(--trn-edge));
+  background: linear-gradient(135deg, color-mix(in srgb, #fef3c7 70%, var(--trn-card)), var(--trn-card));
+  box-shadow: var(--trn-shadow-sm);
+}
+
+.transport-studio .transport-pending-alert__icon {
+  display: grid;
+  place-items: center;
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: 11px;
+  color: #b45309;
+  background: color-mix(in srgb, #f59e0b 16%, var(--trn-card));
+  flex-shrink: 0;
+}
+
+.transport-studio .transport-pending-alert__icon svg {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.transport-studio .transport-pending-alert__copy {
+  display: grid;
+  gap: 0.15rem;
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.transport-studio .transport-pending-alert__copy strong {
+  font-size: 0.92rem;
+  color: var(--trn-navy);
+}
+
+.transport-studio .transport-pending-alert__copy .muted {
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.transport-studio .transport-pending-alert__cta {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* ── Formularios dentro de tarjeta de acción (sin doble marco) ── */
+.transport-studio .transport-operate__main .hr-action-card__panel {
+  padding: 0;
+}
+
+.transport-studio .transport-operate__main .hr-action-card__panel .p-form,
+.transport-studio .transport-operate__main .hr-action-card__panel form {
+  margin: 0;
+}
+
+.transport-studio .transport-operate__main .hr-action-card__panel .transport-form--single,
+.transport-studio .transport-operate__main .hr-action-card__panel #form-create-trip.create-trip-form-v2 .create-trip-form-v2__shell,
+.transport-studio .transport-operate__main .hr-action-card__panel #form-route-rate .transport-form--single {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
+.transport-studio .transport-operate__main .hr-action-card--open .create-trip-form-v2__head,
+.transport-studio .transport-operate__main .hr-action-card--open #form-route-rate .transport-wizard__head {
+  border-radius: 0;
+}
+
+/* ── Asignar viaje v2 — bloqueo visual pasos 2 y 3 ── */
+.transport-studio .create-trip-form-v2__assign-row.is-locked {
+  opacity: 0.58;
+  filter: saturate(0.88);
+  pointer-events: none;
+  user-select: none;
+}
+
+.transport-studio .create-trip-form-v2__assign-row.is-locked .assign-trip-block {
+  border-style: dashed;
+}
+
+.transport-studio .create-trip-form-v2__preview {
+  border-radius: var(--trn-radius-sm);
+  border: 1px dashed color-mix(in srgb, var(--trn-blue) 28%, var(--trn-edge));
+  background: color-mix(in srgb, var(--trn-blue) 4%, var(--trn-surface));
+}
+
+.transport-studio .create-trip-form-v2__request-grid.has-request-selected .create-trip-form-v2__preview {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--trn-blue) 32%, var(--trn-edge));
+  background: color-mix(in srgb, var(--trn-blue) 7%, var(--trn-card));
+}
+
+/* ── Panel Consultar ── */
+.transport-studio .transport-data-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.transport-studio .transport-data-toolbar.payroll-data-toolbar--compact {
+  margin-bottom: 0.15rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.transport-studio .transport-data-toolbar.payroll-data-toolbar--compact .auth-tabs-layout {
+  width: 100%;
+}
+
+.transport-studio .transport-data-toolbar .auth-tabs-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 0.28rem;
+  border-radius: 999px;
+  border: 1px solid var(--trn-edge-strong);
+  background: var(--trn-surface);
+}
+
+.transport-studio .transport-data-toolbar .auth-tab-btn {
+  min-height: 2.35rem;
+  padding: 0.45rem 0.95rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-soft);
+  font-weight: 700;
+  font-size: 0.84rem;
+  box-shadow: none;
+}
+
+.transport-studio .transport-data-toolbar .auth-tab-btn:hover {
+  color: var(--trn-navy);
+  background: color-mix(in srgb, var(--trn-blue) 6%, var(--trn-card));
+}
+
+.transport-studio .transport-data-toolbar .auth-tab-btn.is-active {
+  color: #fff;
+  background: linear-gradient(135deg, var(--trn-blue), var(--primary-dark, #2a6399));
+  border-color: transparent;
+  box-shadow: 0 6px 16px rgba(55, 124, 192, 0.28);
+}
+
+.transport-studio .transport-data-toolbar .auth-tab-badge {
+  margin-left: 0.35rem;
+  padding: 0.1rem 0.42rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.transport-studio .transport-data-toolbar .auth-tab-btn:not(.is-active) .auth-tab-badge {
+  background: color-mix(in srgb, var(--trn-blue) 12%, var(--trn-surface));
+  color: var(--trn-navy);
+}
+
+.transport-studio .transport-data-panes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.transport-studio .transport-data-pane__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.65rem 1rem;
+  padding-bottom: 0.15rem;
+}
+
+.transport-studio .transport-data-pane__title {
+  margin: 0;
+  font-family: var(--font-display, "Poppins", sans-serif);
+  font-size: 1.05rem;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  color: var(--trn-navy);
+}
+
+.transport-studio .transport-data-pane__lead {
+  margin: 0.2rem 0 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.transport-studio .transport-data-pane__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+.transport-studio .transport-data-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.85rem 0.95rem;
+  border-radius: var(--trn-radius-sm);
+  border: 1px solid var(--trn-edge);
+  background: var(--trn-surface);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+.transport-studio .transport-data-filters.ops-filters-bar {
+  margin: 0;
+  padding: 0;
+  gap: 0.42rem;
+}
+
+.transport-studio .transport-data-filters .ops-filter-pill {
+  border-radius: 999px;
+  padding: 0.38rem 0.72rem;
+  font-size: 0.78rem;
+  border: 1px solid var(--trn-edge);
+  background: var(--trn-card);
+  box-shadow: none;
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.transport-studio .transport-data-filters .ops-filter-pill:hover {
+  border-color: color-mix(in srgb, var(--trn-blue) 30%, var(--trn-edge));
+}
+
+.transport-studio .transport-data-filters .ops-filter-pill.is-active {
+  background: linear-gradient(135deg, var(--trn-blue), var(--primary-dark, #2a6399));
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 6px 14px rgba(55, 124, 192, 0.22);
+}
+
+.transport-studio .transport-data-filters .ops-filter-pill.is-active strong {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+
+.transport-studio .transport-data-toolbar__tools.transport-ops-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto;
+  gap: 0.65rem;
+  align-items: end;
+  margin: 0;
+}
+
+.transport-studio .transport-data-search,
+.transport-studio .transport-data-sort {
+  display: grid;
+  gap: 0.28rem;
+  min-width: 0;
+}
+
+.transport-studio .transport-data-search__label,
+.transport-studio .transport-data-sort__label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.transport-studio .transport-data-search input[type="search"],
+.transport-studio .transport-data-sort select {
+  width: 100%;
+  min-height: 2.4rem;
+  padding: 0.48rem 0.75rem;
+  border-radius: 12px;
+  border: 1px solid var(--trn-edge-strong);
+  background: var(--trn-card);
+  font-size: 0.88rem;
+}
+
+.transport-studio .transport-data-search input[type="search"]:focus,
+.transport-studio .transport-data-sort select:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--trn-blue) 45%, var(--trn-edge));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--trn-blue) 12%, transparent);
+}
+
+.transport-studio .transport-data-layout {
+  display: inline-flex;
+  align-items: end;
+  gap: 0.35rem;
+}
+
+/* ── Tarjetas operativas de viajes ── */
+.transport-studio .trip-ops-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));
+  gap: 0.85rem;
+}
+
+.transport-studio .trip-ops-card {
+  border-radius: var(--trn-radius-sm);
+  border: 1px solid var(--trn-edge);
+  background: var(--trn-card);
+  box-shadow: var(--trn-shadow-sm);
+}
+
+.transport-studio .trip-ops-card:hover {
+  border-color: color-mix(in srgb, var(--trn-blue) 32%, var(--trn-edge));
+  box-shadow: 0 10px 26px rgba(11, 33, 56, 0.08);
+}
+
+.transport-studio .trip-ops-card::before {
+  background: linear-gradient(180deg, var(--trn-blue), var(--primary-dark, #2a6399));
+}
+
+.transport-studio .trip-ops-fleet-table {
+  border-radius: var(--trn-radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--trn-edge);
+}
+
+.transport-studio .route-rates-intro {
+  padding: 0.85rem 1rem;
+  border-radius: var(--trn-radius-sm);
+  border: 1px solid var(--trn-edge);
+  background: color-mix(in srgb, var(--trn-blue) 4%, var(--trn-surface));
+}
+
+.transport-studio .route-rates-table-wrap {
+  border-radius: var(--trn-radius-sm);
+  border: 1px solid var(--trn-edge);
+}
+
+@media (max-width: 960px) {
+  .transport-studio .transport-data-toolbar__tools.transport-ops-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .transport-studio .transport-pending-alert__cta {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .transport-studio .trip-ops-cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+body[data-theme="dark"] .transport-studio .transport-pending-alert {
+  background: linear-gradient(135deg, rgba(120, 53, 15, 0.35), rgba(12, 26, 44, 0.92));
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+body[data-theme="dark"] .transport-studio .transport-pending-alert__copy strong {
+  color: #fde68a;
+}
+
+body[data-theme="dark"] .transport-studio .transport-data-toolbar {
+  background: rgba(10, 22, 38, 0.72);
+  border-color: rgba(148, 196, 255, 0.14);
+}
+
+body[data-theme="dark"] .transport-studio .transport-data-filters .ops-filter-pill {
+  background: rgba(12, 26, 44, 0.92);
+  border-color: rgba(148, 196, 255, 0.14);
+}
+
+body[data-theme="dark"] .transport-studio .transport-data-search input[type="search"],
+body[data-theme="dark"] .transport-studio .transport-data-sort select {
+  background: rgba(12, 26, 44, 0.92);
+  border-color: rgba(148, 196, 255, 0.18);
+  color: #e8f2fc;
+}
+
+body[data-theme="dark"] .transport-studio .transport-data-pane__title {
+  color: #e8f2fc;
+}
+
+body[data-theme="dark"] .transport-studio .trip-ops-card {
+  background: rgba(12, 26, 44, 0.92);
+  border-color: rgba(148, 196, 255, 0.14);
+}
+
+body[data-theme="dark"] .transport-studio .transport-data-toolbar .auth-tabs-bar {
+  background: rgba(10, 22, 38, 0.72);
+  border-color: rgba(148, 196, 255, 0.14);
+}
+
+body[data-theme="dark"] .transport-studio .create-trip-form-v2__preview {
+  background: rgba(10, 22, 38, 0.55);
+  border-color: rgba(148, 196, 255, 0.18);
 }
 

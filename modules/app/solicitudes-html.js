@@ -46,7 +46,7 @@
           <div class="acf-picker__panel acf-picker__panel--date" data-acf-picker-panel hidden role="dialog" aria-label="Elegir ${escapeAttr(label)}"></div>
         </div>
       </label>
-      ${inputId === "pickup-date" ? acfScheduleDatePresets(inputId) : ""}
+      ${acfScheduleDatePresets(inputId)}
     </div>`;
   }
 
@@ -54,7 +54,7 @@
     return `<div class="acf-schedule-field acf-schedule-field--time">
       <label>${fieldLabel(IC.clock, label, { required: true })}
         <div class="acf-picker acf-picker--time" data-acf-picker="time" data-acf-picker-target="${escapeAttr(inputId)}">
-          <input type="hidden" name="${escapeAttr(inputName)}" id="${escapeAttr(inputId)}" required class="acf-time-input" />
+          <input type="hidden" name="${escapeAttr(inputName)}" id="${escapeAttr(inputId)}" required class="acf-time-input" data-antares-validate-blur="time-hhmm" />
           <div class="acf-time-shell acf-picker__shell">
             <span class="acf-time-shell__icon" aria-hidden="true">${IC.clock}</span>
             <button type="button" class="acf-picker__trigger" data-acf-picker-open aria-haspopup="dialog" aria-expanded="false">

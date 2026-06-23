@@ -2,7 +2,7 @@
  * Enrutamiento del portal (hash, vista actual) y orquestación del render central.
  * Los bindings DOM pesados viven en `modules/core/events.js` (registrado vía `registerBindEventsCallback`).
  */
-import { PERMISSIONS, KEYS, ROLES } from "./config.js";
+import { PERMISSIONS, KEYS, ROLES, TRANSPORT_TRIPS_OPERATE_CREATE_PANEL_IDS } from "./config.js";
 import { readArray } from "./data-io.js";
 import {
   currentUser,
@@ -21,7 +21,7 @@ import {
   dismissSessionIdlePublicNotice,
   announceSessionClosedByIdle
 } from "./auth.js";
-import { state, nodes } from "./store.js";
+import { state, nodes, persistHrWorkspace } from "./store.js";
 import { devError, devWarn } from "./utils.js";
 import { notify, userMessage } from "../ui/modals.js";
 
@@ -706,6 +706,17 @@ export function renderPortalViewImpl() {
   }
   if (view === "transport-trips" && prevPortalView !== "transport-trips") {
     state.deletedTransportTripsLogMinimized = true;
+    state.transportTripsUi = {
+      ...(state.transportTripsUi || {}),
+      workspace: "operate",
+      section: "trips"
+    };
+    const nextCreatePanels = { ...(state.createPanels || {}) };
+    TRANSPORT_TRIPS_OPERATE_CREATE_PANEL_IDS.forEach((panelId) => {
+      nextCreatePanels[panelId] = false;
+    });
+    state.createPanels = nextCreatePanels;
+    persistHrWorkspace("transport-trips", "operate");
   }
   const viewTitle = PortalArch.getTitle(view);
   nodes.viewTitle.textContent = viewTitle;

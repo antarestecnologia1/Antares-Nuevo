@@ -460,12 +460,15 @@
 .antares-create-form .acf-schedule__grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto;
   gap: 0.75rem 0.65rem;
-  align-items: stretch;
+  align-items: start;
 }
 
 .antares-create-form .acf-schedule-card {
   display: grid;
+  grid-row: 1 / -1;
+  grid-template-rows: subgrid;
   gap: 0.75rem;
   padding: 0.9rem 0.95rem 1rem;
   border-radius: 16px;
@@ -488,6 +491,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.35rem 0.65rem;
+  grid-row: 1;
+  align-self: start;
 }
 
 .antares-create-form .acf-schedule-card__badge {
@@ -525,8 +530,17 @@
 }
 
 .antares-create-form .acf-schedule-card__body {
-  display: grid;
-  gap: 0.7rem;
+  display: contents;
+}
+
+.antares-create-form .acf-schedule-field--date {
+  grid-row: 2;
+  align-self: start;
+}
+
+.antares-create-form .acf-schedule-field--time {
+  grid-row: 3;
+  align-self: start;
 }
 
 .antares-create-form .acf-schedule-field label {
@@ -679,6 +693,8 @@
   gap: 0.35rem;
   padding: 0.35rem 0.15rem;
   min-width: 3.25rem;
+  grid-row: 1 / -1;
+  align-self: stretch;
 }
 
 .antares-create-form .acf-schedule__connector-line {
@@ -1910,9 +1926,17 @@ body[data-theme="dark"] .antares-create-form .acf-timepicker__preview {
 
 .create-trip-form-v2__request-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(14rem, 0.8fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.85rem;
   align-items: start;
+}
+
+.create-trip-form-v2__request-grid.has-request-selected {
+  grid-template-columns: minmax(0, 1.15fr) minmax(13rem, 0.85fr);
+}
+
+.create-trip-form-v2__request-grid:not(.has-request-selected) .create-trip-form-v2__preview-wrap {
+  display: none;
 }
 
 .create-trip-form-v2__preview-wrap {
@@ -1942,6 +1966,7 @@ body[data-theme="dark"] .antares-create-form .acf-timepicker__preview {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.85rem;
   align-items: stretch;
+  transition: opacity 0.22s ease, filter 0.22s ease;
 }
 
 .create-trip-form-v2__resources,
@@ -1992,11 +2017,12 @@ body[data-theme="dark"] .antares-create-form .acf-timepicker__preview {
 }
 
 @media (max-width: 960px) {
-  .create-trip-form-v2__request-grid {
+  .create-trip-form-v2__request-grid,
+  .create-trip-form-v2__request-grid.has-request-selected {
     grid-template-columns: 1fr;
   }
 
-  .create-trip-form-v2__preview-wrap {
+  .create-trip-form-v2__request-grid.has-request-selected .create-trip-form-v2__preview-wrap {
     position: static;
     order: -1;
   }

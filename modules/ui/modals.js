@@ -11,6 +11,7 @@ import {
   pcardWrapPro,
   renderModalHead,
   renderModalFooterActions,
+  renderConfirmDiscardModalBody,
   renderModulePanelToolbar,
   isCreatePanelExpanded
 } from "./components.js";
@@ -1359,10 +1360,21 @@ export function openConfirmModalAsync({
     const card = modal.querySelector(".modal-card");
     if (card) card.className = `modal-card ${cardClass}`.trim();
     const content = modal.querySelector("#crud-modal-content");
-    const safeConfirmClass = String(confirmBtnClass || "btn-primary").trim() || "btn-primary";
-    const confirmIconHtml = ic()[String(confirmIcon || "check")] || ic().check;
-    const safeCancelBtnClass = String(cancelBtnClass || "").trim();
-    content.innerHTML = `
+    const safeCardClass = String(cardClass || "modal-card-edit").trim();
+    const isDiscardModal = safeCardClass.includes("modal-card--discard");
+    if (isDiscardModal) {
+      content.innerHTML = renderConfirmDiscardModalBody({
+        title,
+        message,
+        cancelLabel: cancelText,
+        confirmText,
+        confirmIcon
+      });
+    } else {
+      const safeConfirmClass = String(confirmBtnClass || "btn-primary").trim() || "btn-primary";
+      const confirmIconHtml = ic()[String(confirmIcon || "check")] || ic().check;
+      const safeCancelBtnClass = String(cancelBtnClass || "").trim();
+      content.innerHTML = `
     ${renderModalHead(title)}
     <p class="modal-body-lead">${escapeHtml(message)}</p>
     ${renderModalFooterActions({
@@ -1371,6 +1383,7 @@ export function openConfirmModalAsync({
       primaryHtml: `<button type="button" id="crud-confirm" class="btn ${escapeAttr(safeConfirmClass)}">${confirmIconHtml} ${escapeHtml(confirmText)}</button>`
     })}
   `;
+    }
     let settled = false;
     const finish = (confirmed) => {
       if (settled) return;

@@ -7235,6 +7235,19 @@ export class PortalService implements OnModuleInit {
     return d;
   }
 
+  /** Evita 500 en PostgreSQL cuando el portal envía timestamp vacío o inválido. */
+  private portalTimestamptzOrThrow(v: unknown, label: string): string {
+    const raw = String(v ?? "").trim();
+    if (!raw) {
+      throw new BadRequestException(`Falta ${label} en la solicitud.`);
+    }
+    const d = v instanceof Date ? v : new Date(raw);
+    if (Number.isNaN(d.getTime())) {
+      throw new BadRequestException(`${label} no es una fecha y hora válida.`);
+    }
+    return d.toISOString();
+  }
+
   /**
    * Viaje: valida contra `solicitudes_transporte`, `vehiculos` y `conductores` ya persistidos.
    * Devuelve placa, tipo asignado, nombre/tel conductor y ventana programada leídos de tablas (no del payload).
@@ -7492,6 +7505,9 @@ export class PortalService implements OnModuleInit {
           ? req.autoApproved
           : String(req.autoApproved || "").trim().toLowerCase() === "true";
 
+      const pickupAtSql = this.portalTimestamptzOrThrow(req.pickupAt, "fecha de recogida");
+      const etaDeliverySql = this.portalTimestamptzOrThrow(req.etaDelivery, "fecha de entrega estimada");
+
       await c.query(
         `INSERT INTO solicitudes_transporte (
           id, numero_solicitud, id_usuario_solicitante, id_empresa_cliente, nombre_cliente, nombre_quien_solicita,
@@ -7555,8 +7571,8 @@ export class PortalService implements OnModuleInit {
           cat(req.destinationDepartment),
           cat(req.destinationCity),
           nu(req.destinationAddress),
-          req.pickupAt,
-          req.etaDelivery,
+          pickupAtSql,
+          etaDeliverySql,
           vehicleType,
           nu(req.cargoDescription),
           tipoServicio,
