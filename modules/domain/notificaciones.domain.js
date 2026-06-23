@@ -767,6 +767,7 @@ export async function persistNotificationsReadState(ids) {
       { skipSyncSchedule: true }
     );
     await refreshNotificationsFromServer();
+    __lastNotificationsLightRefreshWallMs = Date.now();
     syncNotificationsInboxRenderSignature();
     refreshNotificationsUiAfterReadMutation();
     return true;

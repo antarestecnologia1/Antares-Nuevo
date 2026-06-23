@@ -4962,8 +4962,25 @@ async function dispatchPortalNotification(payload) {
   const api = window.AntaresApi;
   if (!api?.getBase?.() || typeof api.postJson !== "function") return false;
   if (!portalCanRefreshFromApi()) return false;
+  const prevIds = new Set(
+    (typeof window.getCurrentNotifications === "function" ? window.getCurrentNotifications() : [])
+      .map((n) => String(n?.id || "")).filter(Boolean)
+  );
   try {
     await api.postJson("/portal/notifications/dispatch", payload);
+    try {
+      const list = typeof window.refreshNotificationsFromServer === "function"
+        ? await window.refreshNotificationsFromServer()
+        : null;
+      if (Array.isArray(list) && typeof window.markInboxNotificationsAsToastSeen === "function") {
+        const newIds = list
+          .filter((n) => n?.id && !prevIds.has(String(n.id)))
+          .map((n) => String(n.id));
+        if (newIds.length) window.markInboxNotificationsAsToastSeen(newIds);
+      }
+    } catch (_e) {
+      /* noop */
+    }
     return true;
   } catch (_e) {
     return false;
@@ -4982,18 +4999,7 @@ async function saveNotification({ userId, title, body, category, deepLink, entit
     ...(entityType ? { entityType: String(entityType) } : {}),
     ...(entityId ? { entityId: String(entityId) } : {})
   };
-  const ok = await dispatchPortalNotification(payload);
-  if (!ok) return;
-  const actor = currentUser();
-  if (actor && String(actor.id ?? "") === targetId) {
-    try {
-      if (typeof globalThis.refreshNotificationsFromServer === "function") {
-        await globalThis.refreshNotificationsFromServer();
-      }
-    } catch (_e) {
-      /* noop */
-    }
-  }
+  await dispatchPortalNotification(payload);
 }
 
 function notifyAdminUsers(title, body) {
