@@ -120,6 +120,13 @@
     accountRejected: (name) => `Solicitud de ${name} rechazada.`,
     userSelfDelete: "No puede eliminar su propio usuario.",
     userDeleted: "Usuario eliminado correctamente.",
+    requestSaveServerFail: (detail) => {
+      const msg = String(detail || "").trim();
+      if (msg && !/^internal server error$/i.test(msg)) return msg;
+      return "No fue posible guardar la solicitud en el servidor. Revise fechas, empresa, contacto en sitio y datos obligatorios e intente de nuevo.";
+    },
+    requestCompanyServerUuidRequired:
+      "La empresa seleccionada no está sincronizada con el servidor (falta UUID). Elija una empresa registrada en PostgreSQL o recargue el portal.",
     requestDatetimeMissing: "Seleccione fecha y hora de recogida y de entrega.",
     requestPastDatetime: "No puede programar solicitudes en fecha u hora ya pasada.",
     requestDeliveryAfterPickup: "La entrega estimada debe ser posterior a la recogida.",

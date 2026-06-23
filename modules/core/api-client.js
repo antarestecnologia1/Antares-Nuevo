@@ -203,6 +203,18 @@
     throw err instanceof Error ? err : new Error(raw || "Error de red");
   }
 
+  /** Evita mostrar "Internal Server Error" crudo en formularios del portal. */
+  function sanitizeApiErrorMessage(msg, status) {
+    const s = String(msg || "").trim();
+    if (!s || /^internal server error$/i.test(s)) {
+      if (Number(status) >= 500) {
+        return "El servidor no pudo procesar la solicitud. Revise los datos del formulario, la sesión y la conexión e intente de nuevo.";
+      }
+      return s || "Error en la solicitud al servidor.";
+    }
+    return s;
+  }
+
   async function request(method, path, body, reqOpts) {
     reqOpts = reqOpts && typeof reqOpts === "object" ? reqOpts : {};
     const base = getBase();
@@ -260,7 +272,7 @@
       if (res.status === 404 && /cannot post\b/i.test(String(msg))) {
         msg = `${msg} Revise antares_api_base (o __ANTARES_API_BASE__): debe ser la URL raíz del servidor Nest sin sufijo /api; no use la URL del sitio estático ni Live Server.`;
       }
-      const err = new Error(msg || `HTTP ${res.status}`);
+      const err = new Error(sanitizeApiErrorMessage(msg, res.status) || `HTTP ${res.status}`);
       err.status = res.status;
       throw err;
     }
@@ -287,7 +299,7 @@
       throwIfFetchNetworkError(err);
     }
     if (!res.ok) {
-      const err = new Error(res.statusText || `HTTP ${res.status}`);
+      const err = new Error(sanitizeApiErrorMessage(res.statusText, res.status) || `HTTP ${res.status}`);
       err.status = res.status;
       throw err;
     }
@@ -328,7 +340,7 @@
       if (typeof data === "object" && data && data.message) {
         msg = Array.isArray(data.message) ? data.message.join(", ") : String(data.message);
       }
-      const err = new Error(msg || `HTTP ${res.status}`);
+      const err = new Error(sanitizeApiErrorMessage(msg, res.status) || `HTTP ${res.status}`);
       err.status = res.status;
       throw err;
     }
@@ -363,7 +375,7 @@
       if (typeof data === "object" && data && data.message) {
         msg = Array.isArray(data.message) ? data.message.join(", ") : String(data.message);
       }
-      const err = new Error(msg || `HTTP ${res.status}`);
+      const err = new Error(sanitizeApiErrorMessage(msg, res.status) || `HTTP ${res.status}`);
       err.status = res.status;
       throw err;
     }
@@ -399,7 +411,7 @@
       if (typeof data === "object" && data && data.message) {
         msg = Array.isArray(data.message) ? data.message.join(", ") : String(data.message);
       }
-      const err = new Error(msg || `HTTP ${res.status}`);
+      const err = new Error(sanitizeApiErrorMessage(msg, res.status) || `HTTP ${res.status}`);
       err.status = res.status;
       throw err;
     }
@@ -434,7 +446,7 @@
       if (typeof data === "object" && data && data.message) {
         msg = Array.isArray(data.message) ? data.message.join(", ") : String(data.message);
       }
-      const err = new Error(msg || `HTTP ${res.status}`);
+      const err = new Error(sanitizeApiErrorMessage(msg, res.status) || `HTTP ${res.status}`);
       err.status = res.status;
       throw err;
     }

@@ -556,3 +556,396 @@ body[data-theme="dark"] .vehicles-studio .hiring-candidate-card {
   background: rgba(14, 28, 46, 0.92);
   border-color: rgba(148, 196, 255, 0.16);
 }
+
+/* ===================================================================
+   Alta de vehículo — wizard (mismo patrón que Gestión humana)
+   Alcance: .vehicles-studio #form-vehicle
+   =================================================================== */
+
+.vehicles-studio #form-vehicle.vehicles-create-form {
+  max-width: none;
+}
+
+.vehicles-studio #form-vehicle .payroll-wizard {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  max-width: none;
+  border-radius: var(--veh-radius-sm);
+  border: 1px solid var(--veh-edge);
+  background: var(--veh-card);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 2px 8px rgba(15, 23, 42, 0.04);
+  overflow: hidden;
+}
+
+.vehicles-studio #form-vehicle .payroll-wizard__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.85rem 1.25rem;
+  padding: 1.15rem 1.35rem;
+  background: linear-gradient(135deg, #0f3d6e 0%, var(--veh-navy-mid) 52%, var(--veh-blue) 100%);
+  color: #e8f2fc;
+  overflow: hidden;
+}
+
+.vehicles-studio #form-vehicle .payroll-wizard__eyebrow {
+  display: inline-block;
+  margin: 0 0 0.35rem;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(174, 212, 248, 0.9);
+}
+
+.vehicles-studio #form-vehicle .payroll-wizard__title {
+  margin: 0;
+  font-family: var(--font-display, "Poppins", sans-serif);
+  font-size: 1.15rem;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+.vehicles-studio #form-vehicle .payroll-wizard__desc {
+  margin: 0.35rem 0 0;
+  max-width: 34rem;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: rgba(216, 232, 251, 0.88);
+}
+
+.vehicles-studio #form-vehicle .payroll-wizard__progress {
+  flex-shrink: 0;
+  min-width: 10.5rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--veh-radius-sm);
+  background: rgba(8, 24, 44, 0.45);
+  border: 1px solid rgba(150, 200, 250, 0.2);
+  display: grid;
+  gap: 0.28rem;
+}
+
+.vehicles-studio #form-vehicle .payroll-wizard__progress-pct {
+  font-size: 0.68rem;
+  font-weight: 650;
+  color: rgba(216, 232, 251, 0.82);
+}
+
+.vehicles-studio #form-vehicle .payroll-wizard__progress .hr-wizard-progress-track {
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  overflow: hidden;
+}
+
+.vehicles-studio #form-vehicle .payroll-wizard__progress .hr-wizard-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #7dd3fc, #38bdf8);
+}
+
+.vehicles-studio #form-vehicle .payroll-wizard__progress .hr-wizard-progress-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #eaf4ff;
+}
+
+.vehicles-studio #form-vehicle .payroll-wizard__layout {
+  display: grid;
+  grid-template-columns: minmax(11rem, 13.5rem) minmax(0, 1fr);
+  min-height: 0;
+}
+
+.vehicles-studio #form-vehicle .payroll-wizard__steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin: 0;
+  padding: 1rem 0.75rem;
+  border-right: 1px solid var(--veh-edge);
+  background: #f8fafc;
+  position: relative;
+  z-index: 2;
+}
+
+.vehicles-studio #form-vehicle .payroll-wizard__steps::before {
+  content: "";
+  position: absolute;
+  left: 1.62rem;
+  top: 2.1rem;
+  bottom: 2.1rem;
+  width: 2px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.vehicles-studio #form-vehicle .payroll-wizard__panels {
+  position: relative;
+  z-index: 1;
+  isolation: isolate;
+  padding: 1.15rem 1.35rem 0.65rem;
+  min-width: 0;
+  background: var(--veh-card);
+}
+
+.vehicles-studio #form-vehicle .payroll-wizard__steps .hr-form-wizard-dot {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  padding: 0.58rem 0.7rem;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: #64748b;
+  text-align: left;
+  box-shadow: none;
+  transform: none;
+  position: relative;
+  z-index: 1;
+}
+
+.vehicles-studio #form-vehicle .payroll-wizard__steps .hr-form-wizard-dot::before {
+  display: none;
+}
+
+.vehicles-studio #form-vehicle .payroll-wizard__steps .hr-dot-num {
+  flex-shrink: 0;
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.8rem;
+  font-weight: 800;
+  border: 2px solid #cbd5e1;
+  background: var(--veh-card);
+  color: #64748b;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.vehicles-studio #form-vehicle .payroll-wizard__steps .hr-form-wizard-dot small {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: inherit;
+}
+
+.vehicles-studio #form-vehicle .payroll-wizard__steps .payroll-wizard__step-hint {
+  display: none;
+}
+
+.vehicles-studio #form-vehicle .payroll-wizard__steps .hr-form-wizard-dot:hover {
+  background: rgba(var(--primary-rgb), 0.06);
+  color: var(--primary-dark);
+}
+
+.vehicles-studio #form-vehicle .payroll-wizard__steps .hr-form-wizard-dot.is-active {
+  background: rgba(var(--primary-rgb), 0.1);
+  border-color: rgba(var(--primary-rgb), 0.22);
+  color: var(--primary-dark);
+  box-shadow: 0 2px 8px rgba(var(--primary-rgb), 0.08);
+}
+
+.vehicles-studio #form-vehicle .payroll-wizard__steps .hr-form-wizard-dot.is-active .hr-dot-num,
+.vehicles-studio #form-vehicle .payroll-wizard__steps .hr-form-wizard-dot.is-done .hr-dot-num {
+  background: linear-gradient(145deg, var(--veh-blue), var(--primary-dark));
+  border-color: var(--primary-dark);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.32);
+}
+
+.vehicles-studio #form-vehicle .payroll-wizard__section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.35rem;
+  font-family: var(--font-display, "Poppins", sans-serif);
+  font-size: 0.96rem;
+  font-weight: 750;
+  color: var(--veh-navy);
+}
+
+.vehicles-studio #form-vehicle .form-section {
+  margin: 0;
+  padding: 1rem 1.1rem;
+  border-radius: var(--veh-radius-sm);
+  border: 1px solid var(--veh-edge);
+  border-top: 3px solid var(--veh-blue);
+  background: var(--veh-card);
+  box-shadow: var(--veh-shadow-sm);
+}
+
+.vehicles-studio #form-vehicle .form-section-blue { border-top-color: var(--primary, #377cc0); }
+.vehicles-studio #form-vehicle .form-section-violet { border-top-color: var(--primary-dark, #2a6399); }
+.vehicles-studio #form-vehicle .form-section-emerald { border-top-color: #10b981; }
+.vehicles-studio #form-vehicle .form-section-amber { border-top-color: #f59e0b; }
+
+.vehicles-studio #form-vehicle .form-section legend {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: auto;
+  margin: 0 0 0.35rem;
+  padding: 0;
+  background: transparent !important;
+  border: none;
+  box-shadow: none !important;
+  font-size: 0.95rem;
+  font-weight: 750;
+  color: var(--veh-navy) !important;
+  text-transform: none;
+}
+
+.vehicles-studio #form-vehicle .form-section-hint {
+  margin: 0 0 0.85rem;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: #64748b;
+}
+
+.vehicles-studio #form-vehicle.antares-create-form .form-section-grid label:not(.route-rate-company-item):not(.profile-avatar) {
+  min-height: 0;
+  align-self: start;
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.vehicles-studio #form-vehicle.antares-create-form .form-section-grid label:not(.route-rate-company-item):not(.profile-avatar):hover,
+.vehicles-studio #form-vehicle.antares-create-form .form-section-grid label:not(.route-rate-company-item):not(.profile-avatar):focus-within {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+}
+
+.vehicles-studio #form-vehicle.antares-create-form .form-section-grid input,
+.vehicles-studio #form-vehicle.antares-create-form .form-section-grid select,
+.vehicles-studio #form-vehicle.antares-create-form .form-section-grid textarea {
+  min-height: 2.55rem;
+  border-radius: 8px;
+  border: 1px solid var(--veh-edge);
+  background: var(--veh-card);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.vehicles-studio #form-vehicle .payroll-wizard-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.9rem 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(var(--primary-rgb), 0.18);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--veh-blue-soft) 55%, #fff) 0%, #f8fafc 100%);
+  box-shadow: 0 2px 8px rgba(var(--primary-rgb), 0.06);
+}
+
+.vehicles-studio #form-vehicle .payroll-wizard-tip__icon .btn-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--primary-dark);
+  flex-shrink: 0;
+}
+
+.vehicles-studio #form-vehicle .payroll-wizard-tip__copy strong {
+  display: block;
+  margin-bottom: 0.2rem;
+  font-size: 0.82rem;
+  color: var(--primary-dark);
+}
+
+.vehicles-studio #form-vehicle .payroll-wizard-tip__copy p {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: #475569;
+}
+
+.vehicles-studio #form-vehicle .hr-form-wizard-footer {
+  margin: 0;
+  padding: 0.9rem 1.35rem;
+  border-top: 1px solid var(--veh-edge);
+  background: #f8fafc;
+  position: relative;
+  z-index: 3;
+}
+
+.vehicles-studio #form-vehicle .hr-form-wizard-footer-nav {
+  background: color-mix(in srgb, #e2e8f0 38%, #fff);
+  border: 1px solid color-mix(in srgb, #94a3b8 22%, transparent);
+  padding: 0.24rem;
+  gap: 0.18rem;
+  border-radius: 999px;
+}
+
+.vehicles-studio #form-vehicle .hr-wizard-nav-btn--next:not(:disabled) {
+  color: var(--primary-dark);
+  background: #fff;
+  font-weight: 700;
+}
+
+.vehicles-studio .hr-action-card--open[data-hr-panel="create-vehicle"] .hr-action-card__copy h3 {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--veh-navy);
+}
+
+.vehicles-studio .hr-action-card--open[data-hr-panel="create-vehicle"] .hr-action-card__head {
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--veh-edge);
+}
+
+@media (max-width: 860px) {
+  .vehicles-studio #form-vehicle .payroll-wizard__layout {
+    grid-template-columns: 1fr;
+  }
+
+  .vehicles-studio #form-vehicle .payroll-wizard__steps {
+    flex-direction: row;
+    flex-wrap: wrap;
+    border-right: none;
+    border-bottom: 1px solid var(--veh-edge);
+    padding: 0.75rem;
+  }
+
+  .vehicles-studio #form-vehicle .payroll-wizard__steps::before {
+    display: none;
+  }
+
+  .vehicles-studio #form-vehicle .payroll-wizard__steps .hr-form-wizard-dot {
+    flex: 1 1 calc(50% - 0.35rem);
+    min-width: 8.5rem;
+  }
+}
+
+body[data-theme="dark"] .vehicles-studio #form-vehicle .payroll-wizard {
+  background: rgba(14, 28, 46, 0.95);
+  border-color: rgba(148, 196, 255, 0.14);
+}
+
+body[data-theme="dark"] .vehicles-studio #form-vehicle .payroll-wizard__steps,
+body[data-theme="dark"] .vehicles-studio #form-vehicle .hr-form-wizard-footer {
+  background: rgba(10, 22, 38, 0.88);
+  border-color: rgba(148, 196, 255, 0.12);
+}
+
+body[data-theme="dark"] .vehicles-studio #form-vehicle .payroll-wizard__panels,
+body[data-theme="dark"] .vehicles-studio #form-vehicle .form-section {
+  background: rgba(14, 28, 46, 0.92);
+}
+
+body[data-theme="dark"] .vehicles-studio #form-vehicle .payroll-wizard-tip {
+  background: linear-gradient(180deg, rgba(var(--primary-rgb), 0.12) 0%, rgba(10, 22, 38, 0.9) 100%);
+  border-color: rgba(148, 196, 255, 0.16);
+}
+

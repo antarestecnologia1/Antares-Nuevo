@@ -1,6 +1,6 @@
 /* ===================================================================
    Antares — Formularios de creación unificados
-   Alcance: #form-request, #form-create-trip (.antares-create-form)
+   Alcance: #form-request, #form-create-trip, #form-vehicle (.antares-create-form)
    Tema claro + oscuro · colores corporativos
    =================================================================== */
 
@@ -769,6 +769,51 @@
   cursor: pointer;
   font: inherit;
   color: var(--acf-navy);
+}
+
+.antares-create-form .acf-picker__input {
+  min-height: 2.35rem;
+  width: 100%;
+  min-width: 0;
+  padding: 0.35rem 0.15rem;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  font-size: 0.92rem;
+  font-weight: 750;
+  color: var(--acf-navy);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.antares-create-form .acf-picker__input::placeholder {
+  color: #94a3b8;
+  font-weight: 550;
+}
+
+.antares-create-form .acf-picker__input:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.antares-create-form .acf-picker__open-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.15rem;
+  height: 2.15rem;
+  flex-shrink: 0;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--acf-schedule-accent) 18%, var(--acf-edge));
+  background: color-mix(in srgb, var(--acf-schedule-accent) 8%, var(--acf-card));
+  color: var(--acf-schedule-accent-deep);
+  cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+}
+
+.antares-create-form .acf-picker__open-btn:hover {
+  background: color-mix(in srgb, var(--acf-schedule-accent) 14%, var(--acf-card));
+  transform: translateY(-1px);
 }
 
 .antares-create-form .acf-picker__placeholder {

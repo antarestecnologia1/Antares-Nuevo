@@ -89,11 +89,11 @@ const PORTAL_AUDIT_MODULE_ALIASES = {
 const PORTAL_AUDIT_MODULE_ICON_KEYS = {
   dashboard: "grid",
   requests: "inbox",
-  trips: "truck",
-  vehicles: "fuel",
+  trips: "map",
+  vehicles: "truck",
   drivers: "user",
   calendar: "calendar",
-  history: "layers",
+  history: "log",
   reports: "activity",
   payroll: "briefcase",
   hiring: "userPlus",
@@ -147,8 +147,12 @@ export function portalAuditModuleIconKey(moduleIdOrLabel = "") {
   if (id && PORTAL_AUDIT_MODULE_ICON_KEYS[id]) return PORTAL_AUDIT_MODULE_ICON_KEYS[id];
   const label = String(moduleIdOrLabel || "").toLowerCase();
   if (label.includes("solicitud")) return "inbox";
-  if (label.includes("viaje")) return "truck";
-  if (label.includes("camion") || label.includes("flota") || label.includes("combustible")) return "fuel";
+  if (label.includes("viaje")) return "map";
+  if (label.includes("camion") || label.includes("vehiculo") || label.includes("vehículo") || label.includes("flota")) {
+    return "truck";
+  }
+  if (label.includes("combustible")) return "fuel";
+  if (label.includes("historial") || label.includes("trazabilidad") || label.includes("auditor")) return "log";
   if (label.includes("conductor")) return "user";
   if (label.includes("nomina") || label.includes("gestión humana") || label.includes("gestion humana")) {
     return "briefcase";

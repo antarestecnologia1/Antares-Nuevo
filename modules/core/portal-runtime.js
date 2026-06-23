@@ -7453,6 +7453,7 @@ function getPortalAuditActorLabel() {
 function historyAuditActorFromLogRow(row = {}, options = {}) {
   const opts = options && typeof options === "object" ? options : {};
   const fromRow = historyAuditActorLabel(
+    row?.usuario,
     row?.actor,
     row?.actorEmail,
     historyAuditUserLabelById(row?.actorUserId)
@@ -7464,6 +7465,39 @@ function historyAuditActorFromLogRow(row = {}, options = {}) {
       ? opts.sessionSnapshot
       : buildPortalAuditActorSnapshot();
   return historyAuditActorLabel(snapshot.label, snapshot.email, snapshot.name);
+}
+
+/** Usuario desde `auditoria_eventos_portal` (fila en memoria); sin entityHistoryActors ni localStorage. */
+function historyAuditUsuarioFromLogRow(row = {}, options = {}) {
+  const opts = options && typeof options === "object" ? options : {};
+  const fromTable = String(row.usuario || "").trim();
+  if (fromTable) return fromTable;
+  const actorEmail = String(row.actorEmail || "").trim();
+  const actorUserId = String(row.actorUserId || "").trim();
+  const actor = historyAuditActorFromLogRow(row, { fallbackToSession: false });
+  if (actor) {
+    const name = historyAuditUserLabelById(actorUserId);
+    const enriched = formatHistoryAuditActorDisplay(actor, {
+      actorEmail,
+      actorName: name || actor
+    });
+    if (enriched) return enriched;
+    return actor;
+  }
+  if (actorUserId) {
+    const label = historyAuditUserLabelById(actorUserId);
+    if (label) {
+      return formatHistoryAuditActorDisplay(label, { actorEmail, actorName: label }) || label;
+    }
+  }
+  if (actorEmail) return actorEmail;
+  if (opts.fallbackToSession) {
+    const snapshot = buildPortalAuditActorSnapshot();
+    if (snapshot.label) {
+      return historyAuditFormatStoredUsuario(snapshot.label, snapshot.email, snapshot.userId);
+    }
+  }
+  return "";
 }
 
 function historyAuditEnrichActorDisplay(label, meta = {}) {
@@ -8099,7 +8133,10 @@ function enrichHistoryAuditEntriesWithExplicitActors(entries) {
       if (delta <= HISTORY_AUDIT_ACTOR_MATCH_MS && delta < bestDelta) {
         bestDelta = delta;
         bestEx = ex;
-        bestActor = String(ex.usuario || "").trim() || historyAuditActorFromLogRow(ex);
+        bestActor =
+          String(ex.usuario || "").trim() ||
+          historyAuditUsuarioFromLogRow(ex, { fallbackToSession: false }) ||
+          historyAuditActorFromLogRow(ex, { fallbackToSession: false });
       }
     }
     if (bestActor && bestEx) {
@@ -8125,8 +8162,11 @@ function dedupeHistoryAuditEntries(entries) {
       return !Number.isNaN(otherMs) && Math.abs(otherMs - explicitMs) <= HISTORY_AUDIT_ACTOR_MATCH_MS;
     });
     if (!sibling) continue;
-    const explicitActor = historyAuditActorFromLogRow(explicit);
-    const explicitUsuario = String(explicit.usuario || explicitActor || "").trim();
+    const explicitActor = historyAuditActorFromLogRow(explicit, { fallbackToSession: false });
+    const explicitUsuario =
+      historyAuditUsuarioFromLogRow(explicit, { fallbackToSession: false }) ||
+      explicitActor ||
+      "";
     if (explicitUsuario && !sibling.actor) {
       sibling.actor = explicitActor || explicitUsuario;
       sibling.usuario = explicitUsuario;
@@ -8179,68 +8219,20 @@ function backfillModuleAuditLogActors() {
 }
 
 function buildHistoryAuditEntries() {
-  /** Fuente: auditoria_eventos_portal (API). Sin inferencias desde caché/localStorage. */
-  backfillModuleAuditLogActors();
+  /** Fuente: auditoria_eventos_portal (GET bootstrap / audit-events). Sin entityHistoryActors ni localStorage. */
   const entries = [];
-  const pushEntry = (entry) => {
-    if (!entry || typeof entry !== "object") return;
-    const ts = String(entry.ts || "").trim();
-    if (!ts || Number.isNaN(new Date(ts).getTime())) return;
-    const auditCtx = entry.__auditContext;
-    const entryAction = String(entry.action || auditCtx?.action || "update");
-    let actor = historyAuditActorLabel(entry.actor);
-    let actorEmail = String(entry.actorEmail || "").trim();
-    let actorUserId = String(entry.actorUserId || "").trim();
-    let usuario = String(entry.usuario || "").trim();
-    if (auditCtx?.entity) {
-      const fields = historyAuditEntityActorFields(auditCtx.entity, entryAction);
-      if (!actor) actor = fields.actor;
-      if (!actorEmail) actorEmail = fields.actorEmail;
-      if (!actorUserId) actorUserId = fields.actorUserId;
-      if (!usuario) usuario = fields.usuario;
-    }
-    if (!actor && auditCtx) {
-      actor = resolveHistoryAuditActorForEntity(auditCtx);
-    }
-    if (!actor && entry.entityId) {
-      actor = historyAuditLatestActorFromModuleLogs(
-        String(entry.moduleLabel || ""),
-        String(entry.entityId || ""),
-        String(entry.entityLabel || ""),
-        String(entry.action || "")
-      );
-    }
-    if (!usuario) {
-      usuario = historyAuditFormatStoredUsuario(actor, actorEmail, actorUserId);
-    }
-    entries.push({
-      id: String(entry.id || newUuidV4()),
-      ts,
-      action: entryAction,
-      moduleLabel: normalizePortalAuditModuleLabel(entry.moduleLabel || auditCtx?.moduleLabel || "Módulo"),
-      entityLabel: String(entry.entityLabel || "Registro"),
-      entityId: String(entry.entityId || auditCtx?.entityId || "").trim(),
-      summary: String(entry.summary || "").trim(),
-      actor,
-      actorEmail,
-      actorUserId,
-      usuario,
-      detailAction: String(entry.detailAction || "").trim(),
-      detailId: String(entry.detailId || "").trim()
-    });
-  };
-
   readModuleAuditLogs().forEach((row) => {
-    const actor = historyAuditActorFromLogRow(row);
+    const ts = String(row.at || "").trim();
+    if (!ts || Number.isNaN(new Date(ts).getTime())) return;
     const actorEmail = String(row.actorEmail || "").trim();
     const actorUserId = String(row.actorUserId || "").trim();
-    const usuario =
-      String(row.usuario || "").trim() || historyAuditFormatStoredUsuario(actor, actorEmail, actorUserId);
-    pushEntry({
-      id: `audit-explicit-${row.id}`,
-      ts: String(row.at || ""),
-      action: String(row.action || "delete"),
-      moduleLabel: String(row.moduleLabel || row.moduleId || "Módulo"),
+    const actor = historyAuditActorFromLogRow(row, { fallbackToSession: false });
+    const usuario = historyAuditUsuarioFromLogRow(row, { fallbackToSession: false });
+    entries.push({
+      id: `audit-explicit-${String(row.id || newUuidV4())}`,
+      ts,
+      action: String(row.action || "update"),
+      moduleLabel: normalizePortalAuditModuleLabel(row.moduleLabel || row.moduleId || "Módulo"),
       entityId: String(row.entityId || ""),
       entityLabel: String(row.entityLabel || "Registro"),
       summary: String(row.summary || ""),
@@ -8248,23 +8240,17 @@ function buildHistoryAuditEntries() {
       actorEmail,
       actorUserId,
       usuario,
-      at: String(row.at || ""),
       detailAction: String(row.detailAction || ""),
       detailId: String(row.detailId || "")
     });
   });
 
   return dedupeHistoryAuditEntries(enrichHistoryAuditEntriesWithExplicitActors(entries))
-    .map((entry) => {
-      const usuario =
-        String(entry.usuario || "").trim() ||
-        historyAuditFormatStoredUsuario(entry.actor, entry.actorEmail, entry.actorUserId);
-      return {
-        ...entry,
-        moduleLabel: normalizePortalAuditModuleLabel(entry.moduleLabel),
-        usuario
-      };
-    })
+    .map((entry) => ({
+      ...entry,
+      moduleLabel: normalizePortalAuditModuleLabel(entry.moduleLabel),
+      usuario: historyAuditUsuarioFromLogRow(entry, { fallbackToSession: false })
+    }))
     .sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime());
 }
 
@@ -8278,11 +8264,7 @@ function renderHistoryAuditCard(entry) {
   const actionTone = historyAuditActionStatus(entry.action);
   const actionSlug = String(entry.action || "update");
   const actorLabel =
-    String(entry.usuario || "").trim() ||
-    historyAuditEnrichActorDisplay(entry.actor, {
-      actorEmail: entry.actorEmail,
-      actorUserId: entry.actorUserId
-    });
+    historyAuditUsuarioFromLogRow(entry, { fallbackToSession: false }) || "Sin registrar";
   const detailButton =
     entry.detailAction && entry.detailId
       ? `<button type="button" class="btn btn-sm btn-outline hist-trace-detail-btn" data-action="${escapeAttr(entry.detailAction)}" data-id="${escapeAttr(entry.detailId)}">${IC.eye}<span>Ver detalle</span></button>`
@@ -8332,11 +8314,7 @@ function renderHistoryAuditRow(entry) {
   const actionTone = historyAuditActionStatus(entry.action);
   const actionSlug = String(entry.action || "update");
   const actorLabel =
-    String(entry.usuario || "").trim() ||
-    historyAuditEnrichActorDisplay(entry.actor, {
-      actorEmail: entry.actorEmail,
-      actorUserId: entry.actorUserId
-    });
+    historyAuditUsuarioFromLogRow(entry, { fallbackToSession: false }) || "Sin registrar";
   const moduleIconFn = globalThis.historyTraceModuleIconHtml;
   const moduleIcon =
     typeof moduleIconFn === "function" ? moduleIconFn(entry.moduleLabel, "hist-trace-table-module-ico") : "";
@@ -12491,6 +12469,7 @@ Object.assign(window, {
   buildPortalAuditActorSnapshot,
   formatHistoryAuditActorDisplay,
   historyAuditEnrichActorDisplay,
+  historyAuditUsuarioFromLogRow,
   historyAuditFormatStoredUsuario,
   formatTransportDeletionAuditUsuario,
   getPortalAuditActorLabel,

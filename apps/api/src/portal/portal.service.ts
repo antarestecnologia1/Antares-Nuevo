@@ -7469,6 +7469,14 @@ export class PortalService implements OnModuleInit {
       }
       if (!ownerOk) throw new ForbiddenException();
 
+      const clientUserIdSql = portalUuidOrNull(req.clientUserId);
+      if (!clientUserIdSql) {
+        throw new BadRequestException(
+          "La solicitud no tiene un identificador válido de usuario solicitante (UUID requerido por el servidor)."
+        );
+      }
+      const clientCompanyIdSql = portalUuidOrNull(req.clientCompanyId);
+
       const contactName = nu(req.contactName ?? req.siteContactName);
       const contactPhone = nu(req.contactPhone ?? req.siteContactPhone);
       if (!contactName || !contactPhone) {
@@ -7561,8 +7569,8 @@ export class PortalService implements OnModuleInit {
         [
           req.id,
           req.requestNumber,
-          req.clientUserId,
-          req.clientCompanyId || null,
+          clientUserIdSql,
+          clientCompanyIdSql,
           nu(req.clientName),
           nu(req.requestedByName),
           cat(req.originDepartment),

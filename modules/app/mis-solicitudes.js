@@ -22,6 +22,8 @@
       }
       const c = getCompanyById(cid);
       const label = c?.name || user.company || "Mi empresa";
+      const nit = String(c?.taxId || c?.nit || "").trim();
+      const nitLine = nit ? `NIT ${escapeHtml(nit)}` : "Sin NIT registrado.";
       const logoUrl = companyProfileLogoUrl(c);
       const logoPreview = logoUrl
         ? `<span class="request-company-logo" role="img" aria-label="Logo de ${escapeAttr(label)}"><img src="${escapeAttr(logoUrl)}" alt="Logo de ${escapeAttr(label)}" loading="lazy" /></span>`
@@ -30,7 +32,7 @@
       <select name="companyId" id="request-company-id" required>
         <option value="${escapeAttr(cid)}">${escapeHtml(label)}</option>
       </select>
-      <div class="request-company-preview">${logoPreview}<div><strong>${escapeHtml(label)}</strong><p class="muted">Empresa asociada al usuario autenticado.</p></div></div>
+      <div class="request-company-preview">${logoPreview}<div><strong>${escapeHtml(label)}</strong><p class="muted">${nitLine}</p></div></div>
     </label>`;
     }
     if (!companies.length) {
@@ -42,7 +44,7 @@
     const opts = companies
       .map((c) => {
         const id = String(c.id || "");
-        return `<option value="${escapeAttr(id)}" data-company-logo="${escapeAttr(companyProfileLogoUrl(c))}" data-company-name="${escapeAttr(String(c.name || ""))}">${escapeHtml(String(c.name || ""))}${c.taxId ? ` (${escapeHtml(String(c.taxId))})` : ""}</option>`;
+        return `<option value="${escapeAttr(id)}" data-company-logo="${escapeAttr(companyProfileLogoUrl(c))}" data-company-name="${escapeAttr(String(c.name || ""))}" data-company-nit="${escapeAttr(String(c.taxId || c.nit || ""))}">${escapeHtml(String(c.name || ""))}${c.taxId ? ` (${escapeHtml(String(c.taxId))})` : ""}</option>`;
       })
       .join("");
     return `<label class="full">${fieldLabel(IC.briefcase, "Empresa asociada", { required: true })}
@@ -50,7 +52,7 @@
       <option value="">Seleccione empresa...</option>
       ${opts}
     </select>
-    <div class="request-company-preview" id="request-company-preview"><span class="request-company-logo request-company-logo--fallback" aria-hidden="true">?</span><div><strong>Sin empresa seleccionada</strong><p class="muted">Seleccione una empresa para cargar su imagen en la solicitud.</p></div></div>
+    <div class="request-company-preview" id="request-company-preview"><span class="request-company-logo request-company-logo--fallback" aria-hidden="true">?</span><div><strong>Sin empresa seleccionada</strong><p class="muted">Seleccione una empresa para continuar.</p></div></div>
   </label>`;
   }
 
@@ -300,6 +302,15 @@
       syncPreview();
     };
 
+    const clearScheduleFieldErrors = () => {
+      const V = window.AntaresValidation;
+      if (!V?.clearFieldError) return;
+      ["pickup-date", "delivery-date", "pickup-time", "delivery-time"].forEach((id) => {
+        const el = requestForm.querySelector(`#${id}`);
+        if (el) V.clearFieldError(el);
+      });
+    };
+
     mountAntaresSchedulePickers?.(requestForm);
 
     schedule.querySelectorAll("[data-acf-time-preset]").forEach((btn) => {
@@ -308,6 +319,7 @@
         const value = String(btn.dataset.acfTimePreset || "");
         const input = requestForm.querySelector(`#${targetId}`);
         if (!input || !value) return;
+        clearScheduleFieldErrors();
         input.value = value;
         input.dispatchEvent(new Event("input", { bubbles: true }));
         input.dispatchEvent(new Event("change", { bubbles: true }));
@@ -326,11 +338,13 @@
       const el = requestForm.querySelector(`#${id}`);
       if (!el) return;
       el.addEventListener("input", () => {
+        clearScheduleFieldErrors();
         if (id.includes("date")) syncDeliveryMin();
         refreshAntaresSchedulePickerDisplay?.(requestForm, id);
         syncPreview();
       });
       el.addEventListener("change", () => {
+        clearScheduleFieldErrors();
         if (id.includes("date")) syncDeliveryMin();
         refreshAntaresSchedulePickerDisplay?.(requestForm, id);
         syncPreview();
@@ -383,16 +397,18 @@
         const selectedOption = requestCompanySelect.options[requestCompanySelect.selectedIndex] || null;
         const name = String(selectedOption?.dataset.companyName || selectedOption?.textContent || "").trim();
         const logoUrl = String(selectedOption?.dataset.companyLogo || "").trim();
+        const nit = String(selectedOption?.dataset.companyNit || "").trim();
+        const nitLine = nit ? `NIT ${escapeHtml(nit)}` : "Sin NIT registrado.";
         if (!requestCompanySelect.value || !name) {
           requestCompanyPreview.innerHTML =
-            '<span class="request-company-logo request-company-logo--fallback" aria-hidden="true">?</span><div><strong>Sin empresa seleccionada</strong><p class="muted">Seleccione una empresa para cargar su imagen en la solicitud.</p></div>';
+            '<span class="request-company-logo request-company-logo--fallback" aria-hidden="true">?</span><div><strong>Sin empresa seleccionada</strong><p class="muted">Seleccione una empresa para continuar.</p></div>';
           return;
         }
         const initial = escapeHtml(String(name || "E").charAt(0).toUpperCase());
         const logoHtml = logoUrl
           ? `<span class="request-company-logo" role="img" aria-label="Logo de ${escapeAttr(name)}"><img src="${escapeAttr(logoUrl)}" alt="Logo de ${escapeAttr(name)}" loading="lazy" /></span>`
           : `<span class="request-company-logo request-company-logo--fallback" aria-hidden="true">${initial}</span>`;
-        requestCompanyPreview.innerHTML = `${logoHtml}<div><strong>${escapeHtml(name)}</strong><p class="muted">${logoUrl ? "Logo cargado automáticamente para esta empresa." : "Empresa sin logo registrado."}</p></div>`;
+        requestCompanyPreview.innerHTML = `${logoHtml}<div><strong>${escapeHtml(name)}</strong><p class="muted">${nitLine}</p></div>`;
       };
       requestCompanySelect.addEventListener("change", refreshCompanyPreview);
       refreshCompanyPreview();
@@ -415,6 +431,10 @@
         const reqCompany = reqCompanyRaw ? normalizePortalBootstrapCompanyRow(reqCompanyRaw) : null;
         if (!reqCompany) {
           notify("La empresa seleccionada no es válida.", "error");
+          return;
+        }
+        if (window.AntaresApi?.isConfigured?.() && typeof isUuidString === "function" && !isUuidString(String(reqCompany.id || ""))) {
+          notify(userMessage("requestCompanyServerUuidRequired"), "error");
           return;
         }
         if (user?.role === ROLES.CLIENT) {
@@ -584,12 +604,7 @@
           await reqWriteAwait(all, rowToSave);
         } catch (err) {
           const msg = String(err?.message || "").trim();
-          notify(
-            /^internal server error$/i.test(msg)
-              ? "No fue posible guardar la solicitud en el servidor. Revise fechas, empresa y datos obligatorios e intente de nuevo."
-              : msg || "No fue posible guardar la solicitud en el servidor.",
-            "error"
-          );
+          notify(userMessage("requestSaveServerFail", msg), "error");
           return;
         }
         const actingUser = currentUser();

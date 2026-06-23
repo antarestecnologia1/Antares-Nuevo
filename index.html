@@ -43,7 +43,7 @@
     <link rel="stylesheet" href="./styles/dashboard-module.css?v=20260622-slate" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/requests-module.css?v=20260622-schedule-blue" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/transport-module.css?v=20260622-viajes-ui" media="print" onload="this.onload=null;this.media='all'" />
-    <link rel="stylesheet" href="./styles/vehicles-module.css?v=20260611-portal-modules" media="print" onload="this.onload=null;this.media='all'" />
+    <link rel="stylesheet" href="./styles/vehicles-module.css?v=20260622-vehicle-create-wizard" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/drivers-module.css?v=20260611-portal-modules" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/calendar-module.css?v=20260611-portal-modules" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/history-module.css?v=20260622-trace-ui" media="print" onload="this.onload=null;this.media='all'" />
@@ -57,7 +57,7 @@
     <link rel="stylesheet" href="./styles/profile-module.css?v=20260611-portal-modules" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/notifications-module.css?v=20260611-portal-modules" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/portal-sidebar.css?v=20260622-toggle-inset" media="print" onload="this.onload=null;this.media='all'" />
-    <link rel="stylesheet" href="./styles/portal-create-forms.css?v=20260622-schedule-blue" media="print" onload="this.onload=null;this.media='all'" />
+    <link rel="stylesheet" href="./styles/portal-create-forms.css?v=20260622-schedule-time-input" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/portal-studios-dark.css?v=20260622-dash-cc-dark" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/portal-responsive.css?v=20260622-responsive-zoom" media="print" onload="this.onload=null;this.media='all'" />
     <noscript>
@@ -65,7 +65,7 @@
       <link rel="stylesheet" href="./styles/dashboard-module.css?v=20260622-slate" />
       <link rel="stylesheet" href="./styles/requests-module.css?v=20260622-schedule-blue" />
       <link rel="stylesheet" href="./styles/transport-module.css?v=20260622-viajes-ui" />
-      <link rel="stylesheet" href="./styles/vehicles-module.css?v=20260611-portal-modules" />
+      <link rel="stylesheet" href="./styles/vehicles-module.css?v=20260622-vehicle-create-wizard" />
       <link rel="stylesheet" href="./styles/drivers-module.css?v=20260611-portal-modules" />
       <link rel="stylesheet" href="./styles/calendar-module.css?v=20260611-portal-modules" />
       <link rel="stylesheet" href="./styles/history-module.css?v=20260622-trace-ui" />
@@ -79,7 +79,7 @@
       <link rel="stylesheet" href="./styles/profile-module.css?v=20260611-portal-modules" />
       <link rel="stylesheet" href="./styles/notifications-module.css?v=20260611-portal-modules" />
       <link rel="stylesheet" href="./styles/portal-sidebar.css?v=20260622-toggle-inset" />
-      <link rel="stylesheet" href="./styles/portal-create-forms.css?v=20260622-schedule-blue" />
+      <link rel="stylesheet" href="./styles/portal-create-forms.css?v=20260622-schedule-time-input" />
       <link rel="stylesheet" href="./styles/portal-studios-dark.css?v=20260622-dash-cc-dark" />
       <link rel="stylesheet" href="./styles/portal-responsive.css?v=20260622-responsive-zoom" />
     </noscript>
@@ -1048,11 +1048,11 @@
           </button>
           <p class="sidebar-section-label">Transporte</p>
           <button type="button" data-view="transport-trips" class="side-link">
-            <span class="side-link__icon-wrap" aria-hidden="true"><svg class="side-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"/><path d="M16 8h4l3 4v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></span>
+            <span class="side-link__icon-wrap" aria-hidden="true"><svg class="side-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg></span>
             <span class="side-link__label">Viajes</span>
           </button>
           <button type="button" data-view="transport-vehicles" class="side-link">
-            <span class="side-link__icon-wrap" aria-hidden="true"><svg class="side-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="22" x2="15" y2="22"/><line x1="4" y1="9" x2="14" y2="9"/><path d="M14 22V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v18"/><path d="M14 13h2a2 2 0 0 1 2 2v2a2 2 0 0 0 2 2v0a2 2 0 0 0 2-2V9.83a2 2 0 0 0-.59-1.42L18 5"/></svg></span>
+            <span class="side-link__icon-wrap" aria-hidden="true"><svg class="side-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"/><path d="M16 8h4l3 4v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></span>
             <span class="side-link__label">Camiones</span>
           </button>
           <button type="button" data-view="transport-drivers" class="side-link">
@@ -1064,7 +1064,7 @@
             <span class="side-link__label">Calendario</span>
           </button>
           <button type="button" data-view="history" class="side-link">
-            <span class="side-link__icon-wrap" aria-hidden="true"><svg class="side-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></span>
+            <span class="side-link__icon-wrap" aria-hidden="true"><svg class="side-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></span>
             <span class="side-link__label">Historial</span>
           </button>
           <button type="button" data-view="reports" class="side-link">
@@ -1454,7 +1454,7 @@
       import * as AntaresUIComponents from "./modules/ui/components.js";
       import * as AntaresUIModals from "./modules/ui/modals.js?v=20260622-action-lock";
       import * as AntaresI18n from "./modules/core/i18n.js";
-      import * as AntaresSchedulePicker from "./modules/ui/portal-schedule-picker.js";
+      import * as AntaresSchedulePicker from "./modules/ui/portal-schedule-picker.js?v=20260622-schedule-time-input";
       Object.assign(window, AntaresUIComponents, AntaresUIModals, AntaresI18n, AntaresSchedulePicker);
     </script>
     <script type="module" src="./modules/core/portal-runtime.js?v=20260610-conductor-fields"></script>
@@ -1463,8 +1463,9 @@
     <!-- Vistas legacy (`registerLegacyPortalViews`); deben ejecutarse antes de `app.js` para que el primer `renderPortal()` resuelva HTML. `viajes.js` antes de `mis-solicitudes.js` por `RENDER_WINDOW_SIZE`. -->
     <script defer src="./modules/app/dashboard.js"></script>
     <script defer src="./modules/app/viajes.js"></script>
-    <script defer src="./modules/app/solicitudes-html.js"></script>
-    <script defer src="./modules/app/mis-solicitudes.js"></script>
+    <script defer src="./modules/app/solicitudes-html.js?v=20260622-schedule-time-input"></script>
+    <script defer src="./modules/app/mis-solicitudes.js?v=20260622-schedule-time-input"></script>
+    <script defer src="./modules/app/camiones-html.js?v=20260622-vehicle-create-wizard"></script>
     <script defer src="./modules/app/camiones.js"></script>
     <script defer src="./modules/app/conductores.js"></script>
     <script defer src="./modules/app/calendario.js"></script>

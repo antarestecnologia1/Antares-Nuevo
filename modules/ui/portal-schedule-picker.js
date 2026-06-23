@@ -19,8 +19,29 @@ const MONTHS_ES = [
   "Diciembre"
 ];
 const WEEKDAYS_ES = ["Lu", "Ma", "Mi", "Ju", "Vi", "Sa", "Do"];
-const HOUR_OPTIONS = Array.from({ length: 18 }, (_, i) => String(6 + i).padStart(2, "0"));
+const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
 const MINUTE_OPTIONS = ["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"];
+
+function parsePickerTimeParts(raw) {
+  const s = String(raw || "").trim();
+  let hour = "08";
+  let minute = "00";
+  const match = s.match(/^(\d{1,2}):(\d{1,2})/);
+  if (match) {
+    const h = Math.min(23, Math.max(0, parseInt(match[1], 10)));
+    const m = Math.min(59, Math.max(0, parseInt(match[2], 10)));
+    hour = String(h).padStart(2, "0");
+    minute = String(m).padStart(2, "0");
+  }
+  if (!HOUR_OPTIONS.includes(hour)) hour = HOUR_OPTIONS[0];
+  if (!MINUTE_OPTIONS.includes(minute)) {
+    const mNum = parseInt(minute, 10);
+    minute =
+      MINUTE_OPTIONS.find((m) => parseInt(m, 10) >= mNum) ||
+      MINUTE_OPTIONS[MINUTE_OPTIONS.length - 1];
+  }
+  return { hour, minute };
+}
 
 let openPickerEl = null;
 
@@ -60,11 +81,16 @@ function readMinIso(input) {
 function syncPickerDisplay(wrap) {
   const targetId = String(wrap.dataset.acfPickerTarget || "");
   const hidden = wrap.closest("form")?.querySelector(`#${CSS.escape(targetId)}`) || document.getElementById(targetId);
-  const display = wrap.querySelector("[data-acf-picker-display]");
-  const placeholder = wrap.querySelector(".acf-picker__placeholder");
-  if (!display || !hidden) return;
+  if (!hidden) return;
   const kind = String(wrap.dataset.acfPicker || "");
   const value = String(hidden.value || "").trim();
+  if (kind === "time" && hidden.type !== "hidden") {
+    wrap.classList.toggle("acf-picker--filled", Boolean(value));
+    return;
+  }
+  const display = wrap.querySelector("[data-acf-picker-display]");
+  const placeholder = wrap.querySelector(".acf-picker__placeholder");
+  if (!display) return;
   let label = "";
   if (kind === "date") label = formatDateDisplay(value);
   else if (kind === "time") label = formatTimeDisplay(value);
@@ -272,13 +298,13 @@ function mountTimePicker(wrap) {
   let hour = "08";
   let minute = "00";
 
-  const paint = () => {
-    const current = String(hidden.value || "").trim().slice(0, 5);
-    if (/^\d{2}:\d{2}$/.test(current)) {
-      [hour, minute] = current.split(":");
-      if (!HOUR_OPTIONS.includes(hour)) hour = HOUR_OPTIONS[0];
-      if (!MINUTE_OPTIONS.includes(minute)) minute = "00";
-    }
+  const seedFromInput = () => {
+    const next = parsePickerTimeParts(hidden.value);
+    hour = next.hour;
+    minute = next.minute;
+  };
+
+  const renderPanel = () => {
     panel.innerHTML = `<div class="acf-timepicker">
       <div class="acf-timepicker__preview" aria-live="polite">
         <span class="acf-timepicker__preview-label">Hora seleccionada</span>
@@ -335,7 +361,8 @@ function mountTimePicker(wrap) {
       closeOpenPicker();
       return;
     }
-    paint();
+    seedFromInput();
+    renderPanel();
     panel.removeAttribute("hidden");
     trigger.setAttribute("aria-expanded", "true");
     wrap.classList.add("acf-picker--open");
@@ -348,12 +375,12 @@ function mountTimePicker(wrap) {
     if (!btn) return;
     if (btn.hasAttribute("data-acf-time-hour")) {
       hour = String(btn.dataset.acfTimeHour || "08");
-      paint();
+      renderPanel();
       return;
     }
     if (btn.hasAttribute("data-acf-time-minute")) {
       minute = String(btn.dataset.acfTimeMinute || "00");
-      paint();
+      renderPanel();
       return;
     }
     if (btn.hasAttribute("data-acf-time-apply")) {
@@ -361,6 +388,7 @@ function mountTimePicker(wrap) {
     }
   });
 
+  hidden.addEventListener("input", () => syncPickerDisplay(wrap));
   hidden.addEventListener("change", () => syncPickerDisplay(wrap));
   syncPickerDisplay(wrap);
 }

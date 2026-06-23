@@ -227,58 +227,16 @@ function vehiclesHtml() {
   const todayIsoDate = nowIso().slice(0, 10);
   const fuelLogsCount = readFuelLogs().length;
   const technicalLogsCount = readVehicleTechnicalLogs().length;
-  const formBody = `<form id="form-vehicle" class="p-form p-form-colored">
-    <fieldset class="form-section form-section-blue full">
-      <legend>${IC.truck} Identificación del vehículo</legend>
-      <div class="form-section-grid">
-        <label>${fieldLabel(IC.truck, "Placa")}<input name="plate" required placeholder="ABC123" data-antares-restrict="alnum-doc" maxlength="6" /></label>
-        <label>${fieldLabel(IC.briefcase, "Marca")}<input name="brand" required placeholder="Ej: Kenworth, Chevrolet, Hino" /></label>
-        <label>${fieldLabel(IC.grid, "Línea / Modelo")}<input name="model" required placeholder="Ej: T800, NPR" /></label>
-        <label>${fieldLabel(IC.calendar, "Año modelo")}<input type="number" min="1990" max="2100" name="year" required placeholder="Ej: ${new Date().getFullYear()}" /></label>
-        <label>${fieldLabel(IC.palette, "Color")}<select name="color" required>${colorOptions}</select></label>
-        <label>${fieldLabel(IC.truck, "Tipo")}<select name="type" required><option value="">Seleccione...</option><option>Camion</option><option>Turbo</option><option>Tractomula</option><option>Bus</option></select></label>
-      </div>
-    </fieldset>
-
-    <fieldset class="form-section form-section-violet full">
-      <legend>${IC.layers} Características del vehículo</legend>
-      <div class="form-section-grid">
-        <label>${fieldLabel(IC.package, "Tipo de carrocería")}<select name="bodyType" required>${bodyTypeOptions}</select></label>
-        <label>${fieldLabel(IC.activity, "Termoking (refrigerado)")}<select name="refrigerated" required><option value="true">Sí, equipo Termoking</option><option value="false">No, carga seca</option></select></label>
-        <label>${fieldLabel(IC.scale, "Capacidad (kg)")}<input type="number" min="1" name="capacityKg" required placeholder="Ej: 18000" /></label>
-        <label>${fieldLabel(IC.fuel, "Tipo de combustible")}<select name="fuelType" required>${fuelTypeOptions}</select></label>
-        <label>${fieldLabel(IC.layers, "Configuración de ejes")}<select name="axleConfig" required>${axleOptions}</select></label>
-        <label>${fieldLabel(IC.hash, "Número de motor")}<input name="engineNumber" required placeholder="Ej: 6BT5.9" /></label>
-        <label>${fieldLabel(IC.hash, "Número de chasis (VIN)")}<input name="vin" required maxlength="17" minlength="11" placeholder="17 caracteres" style="text-transform:uppercase" data-antares-restrict="alnum-doc" /></label>
-      </div>
-    </fieldset>
-
-    <fieldset class="form-section form-section-amber full">
-      <legend>${IC.shield} Documentación legal vigente (Colombia)</legend>
-      <div class="form-section-grid">
-        <label>${fieldLabel(IC.card, "Tarjeta de propiedad N°")}<input name="ownershipCard" required placeholder="Ej: 12345678" /></label>
-        <label>${fieldLabel(IC.calendar, "Expedición SOAT")}<input type="date" name="soatExpeditionDate" required /></label>
-        <label>${fieldLabel(IC.calendar, "Vence SOAT")}<input type="date" name="soatExpiryDate" required /></label>
-        <label>${fieldLabel(IC.calendar, "Expedición tecnomecánica")}<input type="date" name="techInspectionExpeditionDate" required /></label>
-        <label>${fieldLabel(IC.calendar, "Vence tecnomecánica")}<input type="date" name="techInspectionExpiryDate" required /></label>
-        <label>${fieldLabel(IC.shield, "Póliza RC contractual N°")}<input name="rcPolicyContract" placeholder="Ej: 0123456" /></label>
-        <label>${fieldLabel(IC.shield, "Póliza RC extracontractual N°")}<input name="rcPolicyExtra" placeholder="Ej: 0654321" /></label>
-        <label>${fieldLabel(IC.calendar, "Vence pólizas RCP")}<input type="date" name="rcPolicyExpiry" /></label>
-      </div>
-    </fieldset>
-
-    <fieldset class="form-section form-section-emerald full">
-      <legend>${IC.satellite} Equipos y trazabilidad</legend>
-      <div class="form-section-grid">
-        <label>${fieldLabel(IC.satellite, "GPS satelital")}<select name="hasGps"><option value="true">Sí, GPS activo</option><option value="false">Sin GPS</option></select></label>
-        <label>${fieldLabel(IC.briefcase, "Proveedor GPS")}<input name="gpsProvider" placeholder="Ej: Detektor, Skyangel, Geolocator" /></label>
-        <label>${fieldLabel(IC.user, "Usuario proveedor satélite")}<input type="text" name="satelliteProviderUser" placeholder="Usuario en el portal del GPS" autocomplete="off" /></label>
-        <label>${fieldLabel(IC.lock, "Contraseña proveedor satélite")}<input type="text" name="satelliteProviderPassword" placeholder="Contraseña en el portal del GPS" autocomplete="off" /></label>
-      </div>
-    </fieldset>
-
-    ${renderManagedCreateFormActions("create-vehicle", `<button class="btn btn-primary" type="submit">${IC.plus} Registrar vehículo</button>`)}
-  </form>`;
+  const formBody =
+    typeof window.AppModules?.vehicles?.vehicleCreateFormBodyHtml === "function"
+      ? window.AppModules.vehicles.vehicleCreateFormBodyHtml({
+          bodyTypeOptions,
+          fuelTypeOptions,
+          axleOptions,
+          colorOptions,
+          currentYear: new Date().getFullYear()
+        })
+      : "";
   const vehicleListRows = filteredVehicles
     .map((v) => {
       const soat = docExpiryStatus(v.soatExpeditionDate, v.soatExpiryDate);
@@ -389,7 +347,7 @@ function vehiclesHtml() {
     tabs: [{ id: "fleet", label: "Flota", count: vehicles.length }]
   });
   const createPanel = canCreateVeh
-    ? `<div class="auth-tab-panel${vehicleSection === "create" ? "" : " hidden"}" data-vehicle-operate-pane="create">${createHrActionCard("create-vehicle", "plus", "Registrar vehículo", "Alta de flota", formBody, "Abrir formulario", { createPanels: vehiclesCreateUi })}</div>`
+    ? `<div class="auth-tab-panel${vehicleSection === "create" ? "" : " hidden"}" data-vehicle-operate-pane="create">${createHrActionCard("create-vehicle", "plus", "Registrar vehículo", "Ficha técnica en 4 pasos guiados", formBody, "Abrir formulario", { createPanels: vehiclesCreateUi })}</div>`
     : "";
   const fuelPanel = canFuelLogs
     ? `<div class="auth-tab-panel${vehicleSection === "fuel" ? "" : " hidden"}" data-vehicle-operate-pane="fuel">${createHrActionCard("create-fuel-log", "fuel", "Combustible", `${fuelLogsCount} carga${fuelLogsCount === 1 ? "" : "s"} registrada${fuelLogsCount === 1 ? "" : "s"}`, historyFleetFuelFormHtml(todayIsoDate, vehicleSelectOptions, driverSelectOptions), "Abrir formulario", { createPanels: vehiclesCreateUi })}</div>`
@@ -581,6 +539,7 @@ function vehiclesHtml() {
 
     const vehicleForm = document.getElementById("form-vehicle");
     if (vehicleForm) {
+      bindHrFormWizard(vehicleForm);
       bindVehicleDocExpiryAutoFill(vehicleForm);
       wireFormSubmitGuard(vehicleForm, async (event) => {
         if (abortUnlessCanCreateVehicle()) return;

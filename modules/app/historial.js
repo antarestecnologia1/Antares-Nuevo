@@ -216,14 +216,9 @@ function exportHistoryTraceCsv(entries) {
     entidad: String(entry.entityLabel || ""),
     resumen: String(entry.summary || ""),
     usuario: String(
-      entry.usuario ||
-        (typeof historyAuditEnrichActorDisplay === "function"
-          ? historyAuditEnrichActorDisplay(entry.actor, {
-              actorEmail: entry.actorEmail,
-              actorUserId: entry.actorUserId
-            })
-          : entry.actor) ||
-        "Sin registrar"
+      (typeof historyAuditUsuarioFromLogRow === "function"
+        ? historyAuditUsuarioFromLogRow(entry, { fallbackToSession: false })
+        : entry.usuario) || "Sin registrar"
     )
   }));
   const header = columns.map((col) => esc(col.label)).join(",");
@@ -499,13 +494,15 @@ function historyHtml() {
   function bindHistoryPortalControls() {
     if (String(state.currentView || "") !== "history" || !nodes.viewRoot) return;
 
-    if (!state.__historyAuditHydratedFromApi) {
-      state.__historyAuditHydratedFromApi = true;
+    if (!state.__historyAuditHydratedFromApi && !state.__historyAuditHydrating) {
+      state.__historyAuditHydrating = true;
       void (typeof AntaresPortalAuditSync !== "undefined"
         ? AntaresPortalAuditSync.refreshModuleAuditLogsFromApi({ limit: 5000 })
         : Promise.resolve(false)
       ).then((ok) => {
+        state.__historyAuditHydrating = false;
         if (ok) {
+          state.__historyAuditHydratedFromApi = true;
           if (typeof scheduleRenderPortalView === "function") scheduleRenderPortalView();
           else if (typeof renderPortalView === "function") renderPortalView();
         }

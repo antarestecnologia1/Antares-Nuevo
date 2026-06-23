@@ -54,14 +54,25 @@
     return `<div class="acf-schedule-field acf-schedule-field--time">
       <label>${fieldLabel(IC.clock, label, { required: true })}
         <div class="acf-picker acf-picker--time" data-acf-picker="time" data-acf-picker-target="${escapeAttr(inputId)}">
-          <input type="hidden" name="${escapeAttr(inputName)}" id="${escapeAttr(inputId)}" required class="acf-time-input" data-antares-validate-blur="time-hhmm" />
           <div class="acf-time-shell acf-picker__shell">
             <span class="acf-time-shell__icon" aria-hidden="true">${IC.clock}</span>
-            <button type="button" class="acf-picker__trigger" data-acf-picker-open aria-haspopup="dialog" aria-expanded="false">
-              <span class="acf-picker__placeholder">Seleccione hora</span>
-              <span class="acf-picker__value" data-acf-picker-display hidden></span>
+            <input
+              type="text"
+              name="${escapeAttr(inputName)}"
+              id="${escapeAttr(inputId)}"
+              required
+              class="acf-time-input acf-picker__input"
+              inputmode="numeric"
+              placeholder="HH:MM"
+              autocomplete="off"
+              spellcheck="false"
+              maxlength="5"
+              aria-label="${escapeAttr(label)}"
+              data-antares-validate-blur="time-hhmm"
+            />
+            <button type="button" class="acf-picker__open-btn" data-acf-picker-open aria-haspopup="dialog" aria-expanded="false" aria-label="Abrir selector de ${escapeAttr(label)}">
+              <span class="acf-picker__chevron" aria-hidden="true">${IC.chevronDown}</span>
             </button>
-            <span class="acf-picker__chevron" aria-hidden="true">${IC.chevronDown}</span>
           </div>
           <div class="acf-picker__panel acf-picker__panel--time" data-acf-picker-panel hidden role="dialog" aria-label="Elegir ${escapeAttr(label)}"></div>
         </div>
@@ -666,7 +677,11 @@
 
   /** Pantalla Registrar: formulario de alta (siempre visible). */
   function requestCreateFormPanelHtml() {
-    const requestsCreateUi = buildModuleCreatePanelsState(["create-request"], "create-request", state.createPanels || {});
+    const createPanelsSeed = { ...(state.createPanels || {}) };
+    if (!Object.prototype.hasOwnProperty.call(createPanelsSeed, "create-request")) {
+      createPanelsSeed["create-request"] = true;
+    }
+    const requestsCreateUi = buildModuleCreatePanelsState(["create-request"], "create-request", createPanelsSeed);
     return createHrActionCard(
       "create-request",
       "plus",
