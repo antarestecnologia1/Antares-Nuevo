@@ -547,11 +547,9 @@ export function __applyPortalBootstrapPayloadInner(p) {
       const raw = Array.isArray(p.notifications) ? p.notifications : [];
       const actor = currentUser();
       const filtered = actor ? hooks.filterNotificationsForUser(actor, raw) : [];
-      const prev = read(KEYS.notifications, []);
-      const merged = hooks.mergeNotificationsListPreserveReadAt(prev, filtered);
-      write(KEYS.notifications, merged, { skipSyncSchedule: true });
+      write(KEYS.notifications, filtered, { skipSyncSchedule: true });
       hooks.markInboxNotificationsAsToastSeen?.(
-        merged.map((n) => n?.id).filter(Boolean)
+        filtered.map((n) => n?.id).filter(Boolean)
       );
       continue;
     }

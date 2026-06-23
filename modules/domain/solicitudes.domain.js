@@ -74,18 +74,56 @@ function portalIsoOrNull(value) {
   return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
 }
 
-/** Alinea ids y fechas opcionales antes de POST /portal/sync-key (evita 22P02 por caché legacy). */
-export function sanitizePortalRequestRowForServer(row) {
-  if (!row || typeof row !== "object") return row;
-  const out = { ...row };
-  const sessionUid = String(getSession()?.userId || "").trim();
+function portalRequestIsoOrThrow(value, label) {
+  const raw = String(value ?? "").trim();
+  if (!raw) {
+    throw new Error(`Falta ${label} en la solicitud. Revise fecha y hora en el formulario.`);
+  }
+  const ms = new Date(raw).getTime();
+  if (!Number.isFinite(ms)) {
+    throw new Error(`${label} no es válida. Revise fecha y hora en el formulario.`);
+  }
+  return new Date(ms).toISOString();
+}
 
-  if (!isUuidString(out.id)) {
-    out.id = newUuidV4();
+/** Payload mínimo y estable para POST /portal/sync-key (solo filas tocadas, sin campos de UI). */
+export function buildPortalRequestSyncPayload(row) {
+  const normalized = normalizePortalTransportRequestRow(row);
+  if (!normalized || typeof normalized !== "object") return normalized;
+
+  const sessionUid = String(getSession()?.userId || "").trim();
+  const truckType = normalizeRequestRequiredTruckType(
+    normalized.vehicleType || normalized.requiredTruckType
+  );
+  const contactName = String(
+    normalized.contactName ?? normalized.siteContactName ?? ""
+  ).trim();
+  const contactPhone = String(
+    normalized.contactPhone ?? normalized.siteContactPhone ?? ""
+  ).trim();
+  const observationsRaw = String(
+    normalized.observations ?? normalized.notes ?? ""
+  ).trim();
+
+  let pickupAt = String(normalized.pickupAt ?? "").trim();
+  let etaDelivery = String(normalized.etaDelivery ?? "").trim();
+  if (!pickupAt && normalized.pickupDate && normalized.pickupTime) {
+    const built =
+      typeof window.buildColombiaOffsetDateTime === "function"
+        ? window.buildColombiaOffsetDateTime(normalized.pickupDate, normalized.pickupTime)
+        : "";
+    if (built) pickupAt = new Date(built).toISOString();
+  }
+  if (!etaDelivery && normalized.deliveryDate && normalized.deliveryTime) {
+    const built =
+      typeof window.buildColombiaOffsetDateTime === "function"
+        ? window.buildColombiaOffsetDateTime(normalized.deliveryDate, normalized.deliveryTime)
+        : "";
+    if (built) etaDelivery = new Date(built).toISOString();
   }
 
-  const clientUid = isUuidString(out.clientUserId)
-    ? String(out.clientUserId).trim()
+  const clientUid = isUuidString(normalized.clientUserId)
+    ? String(normalized.clientUserId).trim()
     : isUuidString(sessionUid)
       ? sessionUid
       : "";
@@ -94,36 +132,110 @@ export function sanitizePortalRequestRowForServer(row) {
       "Su sesión no tiene un identificador válido en el servidor. Cierre sesión, vuelva a entrar y cree la solicitud de nuevo."
     );
   }
-  out.clientUserId = clientUid;
 
-  const companyCandidate = String(out.clientCompanyId || out.companyId || "").trim();
-  out.clientCompanyId = isUuidString(companyCandidate) ? companyCandidate : null;
-  delete out.companyId;
-
-  if (window.AntaresApi?.isConfigured?.() && !out.clientCompanyId) {
+  const companyCandidate = String(
+    normalized.clientCompanyId || normalized.companyId || ""
+  ).trim();
+  const clientCompanyId = isUuidString(companyCandidate) ? companyCandidate : null;
+  if (window.AntaresApi?.isConfigured?.() && !clientCompanyId) {
     throw new Error(
       "La empresa seleccionada no está registrada en el servidor (falta UUID). Elija una empresa del listado o pida al administrador que la cree en Administración · Usuarios."
     );
   }
 
-  out.approvedAt = portalIsoOrNull(out.approvedAt);
-  out.deliveredAt = portalIsoOrNull(out.deliveredAt);
-  out.closedAt = portalIsoOrNull(out.closedAt);
-  if (out.approvedBy != null && String(out.approvedBy).trim() === "") {
-    out.approvedBy = null;
+  const payload = {
+    id: isUuidString(normalized.id) ? String(normalized.id).trim() : newUuidV4(),
+    requestNumber: String(normalized.requestNumber || "").trim(),
+    clientUserId: clientUid,
+    clientCompanyId,
+    clientName: String(normalized.clientName || "").trim(),
+    requestedByName: String(normalized.requestedByName || "").trim(),
+    originDepartment: String(normalized.originDepartment || "").trim(),
+    originCity: String(normalized.originCity || "").trim(),
+    originAddress: String(normalized.originAddress || "").trim(),
+    destinationDepartment: String(normalized.destinationDepartment || "").trim(),
+    destinationCity: String(normalized.destinationCity || "").trim(),
+    destinationAddress: String(normalized.destinationAddress || "").trim(),
+    pickupAt: portalRequestIsoOrThrow(pickupAt, "la fecha de recogida"),
+    etaDelivery: portalRequestIsoOrThrow(etaDelivery, "la fecha de entrega"),
+    vehicleType: truckType,
+    requiredTruckType: truckType,
+    serviceType: String(normalized.serviceType || "").trim(),
+    refrigeracionTermoking:
+      typeof normalized.refrigeracionTermoking === "boolean"
+        ? normalized.refrigeracionTermoking
+        : false,
+    cargoDescription: String(normalized.cargoDescription || "").trim(),
+    contactName,
+    contactPhone,
+    siteContactName: contactName,
+    siteContactPhone: contactPhone,
+    boxesCount: Math.max(0, Number(normalized.boxesCount ?? normalized.boxes ?? 0) || 0),
+    insuredValue:
+      normalized.insuredValue != null && String(normalized.insuredValue).trim() !== ""
+        ? Math.max(0, Number(normalized.insuredValue) || 0)
+        : null,
+    distanceKm:
+      normalized.distanceKm != null && String(normalized.distanceKm).trim() !== ""
+        ? Math.max(0, Number(normalized.distanceKm) || 0)
+        : null,
+    observations: observationsRaw || null,
+    status: String(normalized.status || "Pendiente").trim() || "Pendiente",
+    tripValue: Math.max(0, Number(normalized.tripValue) || 0),
+    standbyChargeTotal: Math.max(0, Number(normalized.standbyChargeTotal) || 0),
+    standbyEvents: Array.isArray(normalized.standbyEvents) ? normalized.standbyEvents : [],
+    rejectionReason: String(normalized.rejectionReason || "").trim(),
+    approvedAt: portalIsoOrNull(normalized.approvedAt),
+    approvedBy:
+      normalized.approvedBy != null && String(normalized.approvedBy).trim() !== ""
+        ? String(normalized.approvedBy).trim()
+        : null,
+    autoApproved: Boolean(normalized.autoApproved),
+    deliveredAt: portalIsoOrNull(normalized.deliveredAt),
+    closedAt: portalIsoOrNull(normalized.closedAt),
+    trip: null
+  };
+
+  if (requestRequiredTruckTypeShowsFuelles(truckType)) {
+    const fuellesRaw = normalized.fuelles;
+    const fuellesNum =
+      typeof fuellesRaw === "number" ? fuellesRaw : Number(String(fuellesRaw ?? "").trim());
+    if (!Number.isFinite(fuellesNum) || fuellesNum < 0) {
+      throw new Error("Indique la cantidad de fuelles para Turbo o Camión.");
+    }
+    payload.fuelles = Math.floor(fuellesNum);
+    payload.weightKg = 0;
+  } else if (truckType === "Tractomula") {
+    payload.fuelles = null;
+    payload.weightKg = Math.max(0, Number(normalized.weightKg) || 0);
+    if (payload.weightKg <= 0) {
+      throw new Error("Indique el peso en kg para tractomula.");
+    }
+  } else {
+    payload.fuelles = null;
+    payload.weightKg = Math.max(0, Number(normalized.weightKg) || 0);
   }
 
-  if (out.trip && typeof out.trip === "object" && !Array.isArray(out.trip)) {
-    const trip = { ...out.trip };
+  if (normalized.trip && typeof normalized.trip === "object" && !Array.isArray(normalized.trip)) {
+    const trip = { ...normalized.trip };
     if (!isUuidString(trip.id)) delete trip.id;
     if (!isUuidString(trip.vehicleId)) delete trip.vehicleId;
     if (!isUuidString(trip.driverId)) delete trip.driverId;
-    out.trip = String(trip.tripNumber || "").trim() ? trip : null;
-  } else {
-    out.trip = null;
+    payload.trip = String(trip.tripNumber || "").trim() ? trip : null;
   }
 
-  return out;
+  const pickupMs = new Date(payload.pickupAt).getTime();
+  const deliveryMs = new Date(payload.etaDelivery).getTime();
+  if (!Number.isFinite(pickupMs) || !Number.isFinite(deliveryMs) || deliveryMs <= pickupMs) {
+    throw new Error("La fecha de entrega debe ser posterior a la de recogida.");
+  }
+
+  return payload;
+}
+
+/** @deprecated alias interno; usar buildPortalRequestSyncPayload. */
+export function sanitizePortalRequestRowForServer(row) {
+  return buildPortalRequestSyncPayload(row);
 }
 
 export function reqWrite(next) {
@@ -135,7 +247,8 @@ export function reqWrite(next) {
 }
 
 export async function reqWriteAwait(next, syncRows, deleteIds, extraOpts = {}) {
-  reqWrite(next);
+  /** No programar sync-key del array completo; solo la fila editada vía writeAwaitServer. */
+  write(KEYS.requests, next, { skipSyncSchedule: true });
   const opts = { ...(extraOpts && typeof extraOpts === "object" ? extraOpts : {}) };
   if (deleteIds != null && deleteIds !== false) {
     const ids = (Array.isArray(deleteIds) ? deleteIds : [deleteIds])
@@ -148,7 +261,7 @@ export async function reqWriteAwait(next, syncRows, deleteIds, extraOpts = {}) {
   } else if (syncRows != null) {
     const rows = Array.isArray(syncRows) ? syncRows : [syncRows];
     const apiOn = typeof window !== "undefined" && window.AntaresApi?.isConfigured?.();
-    opts.syncData = apiOn ? rows.map((r) => sanitizePortalRequestRowForServer(r)) : rows;
+    opts.syncData = apiOn ? rows.map((r) => buildPortalRequestSyncPayload(r)) : rows;
   }
   await writeAwaitServer(KEYS.requests, read(KEYS.requests, []), opts);
 }
@@ -269,7 +382,9 @@ export function nextCounter(prefix) {
   const counters = readCounters();
   const current = Number(counters[prefix] || 0) + 1;
   counters[prefix] = current;
-  write(KEYS.counters, counters);
+  const skipSync =
+    typeof window !== "undefined" && window.AntaresApi?.isConfigured?.();
+  write(KEYS.counters, counters, { skipSyncSchedule: skipSync });
   return current;
 }
 

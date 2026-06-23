@@ -16,7 +16,9 @@
   function logPortalSyncFailure(entity, err) {
     try {
       if (window.__ANTARES_DEBUG_SYNC__ !== true && window.__ANTARES_ALLOW_DEV_CONSOLE__ !== true) return;
-      console.warn("[Antares] portal sync-key", entity, err);
+      const status =
+        err && typeof err === "object" && typeof err.status === "number" ? err.status : "";
+      console.warn("[Antares] portal sync-key", entity, status ? `HTTP ${status}` : "", err);
     } catch (_e) {
       /* noop */
     }

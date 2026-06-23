@@ -54,8 +54,6 @@
 
     "antares_drivers_v2",
 
-    "antares_notifications_v2",
-
     "antares_counters_v2",
 
     "antares_payroll_employees_v2",
@@ -79,6 +77,18 @@
 
 
   var ESSENTIAL_STORAGE_KEY_SET = new Set(ESSENTIAL_STORAGE_KEYS);
+
+  /**
+   * Bandeja de notificaciones: lectura/borrado solo en PostgreSQL.
+   * No se guarda ni restaura en snapshot de sesión (sessionStorage).
+   */
+  var SNAPSHOT_EXCLUDED_STORAGE_KEYS = new Set(["antares_notifications_v2"]);
+
+
+
+  function isSnapshotPersistedKey(key) {
+    return isServerBackedKey(key) && !SNAPSHOT_EXCLUDED_STORAGE_KEYS.has(key);
+  }
 
 
 
@@ -194,7 +204,7 @@
 
       var key = keys[i];
 
-      if (!isServerBackedKey(key)) continue;
+      if (!isSnapshotPersistedKey(key)) continue;
 
       var val = P.read(key, null);
 
@@ -568,7 +578,7 @@
 
       var storageKey = keyList[i];
 
-      if (!isServerBackedKey(storageKey)) continue;
+      if (!isSnapshotPersistedKey(storageKey)) continue;
 
       var raw = readShardRaw(userId, storageKey);
 
@@ -612,7 +622,7 @@
 
 
 
-    var keys = Object.keys(data).filter(isServerBackedKey);
+    var keys = Object.keys(data).filter(isSnapshotPersistedKey);
 
     if (!keys.length) return false;
 
@@ -718,7 +728,9 @@
     if (!uid) return false;
     if (!window.AntaresPersistence) return false;
 
-    var allKeys = allServerBackedKeys();
+    var allKeys = allServerBackedKeys().filter(function (k) {
+      return isSnapshotPersistedKey(k);
+    });
     var fullData = collectDataFromMemory(allKeys);
     if (!fullData || !Object.keys(fullData).length) return false;
 

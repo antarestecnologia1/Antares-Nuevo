@@ -557,6 +557,28 @@
         const insuredValueNum = Math.max(0, parseNum(payloadRest.insuredValue));
         const distanceKmNum = Math.max(0, parseNum(payloadRest.distanceKm));
         const all = reqRead();
+        const all = reqRead();
+        
+        // ─── DIAGNÓSTICO TEMPORAL UUID ───────────────────────────────────────
+        const _UUID_RE_DIAG = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        const _diagFields = {
+          "actorUserId":       actorUserId,
+          "reqCompany.id":     reqCompany?.id,
+          "sessionUserId":     sessionUserId,
+        };
+        const _invalidos = Object.entries(_diagFields)
+          .filter(([, v]) => !_UUID_RE_DIAG.test(String(v ?? "")))
+          .map(([k, v]) => `${k} = "${v}"`);
+        if (_invalidos.length) {
+          console.error("[sync-key 400] UUIDs inválidos →", _invalidos.join(" | "));
+          notify(`UUID inválido detectado: ${_invalidos.join(", ")}. Recrea la empresa/usuario desde el portal.`, "error");
+          return;
+        } else {
+          console.log("[sync-key] UUIDs OK →", _diagFields);
+        }
+        // ─── FIN DIAGNÓSTICO ─────────────────────────────────────────────────
+        
+        const usedRequestNumbers = new Set(all.map((r) => String(r.requestNumber || "").trim()).filter(Boolean));
         const usedRequestNumbers = new Set(all.map((r) => String(r.requestNumber || "").trim()).filter(Boolean));
         const requestNumber = makeRequestNumber(usedRequestNumbers);
         const localRow = {
@@ -608,6 +630,21 @@
         };
         delete localRow.companyId;
         let rowToSave = localRow;
+        if (window.AntaresApi?.isConfigured?.()) {
+          const usersCache = read(KEYS.users, []);
+          const companiesCache = read(KEYS.companies, []);
+          const uidOk = usersCache.some((u) => String(u?.id || "").trim() === actorUserId);
+          const companyOk = companiesCache.some(
+            (c) => String(c?.id || "").trim() === String(reqCompany.id || "").trim()
+          );
+          if ((!uidOk || !companyOk) && typeof applyPortalBootstrapFromApi === "function") {
+            try {
+              await applyPortalBootstrapFromApi();
+            } catch (_bootstrap) {
+              /* continuar; el servidor devolverá mensaje explícito */
+            }
+          }
+        }
         if (window.AntaresApi?.isConfigured?.() && window.DomainModules?.requests?.createViaApi) {
           try {
             rowToSave = await window.DomainModules.requests.createViaApi(localRow, pickupAt);

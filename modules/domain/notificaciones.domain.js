@@ -2,8 +2,8 @@
  * Dominio de notificaciones del portal: preferencias y audio, bandeja / lectura, polling de campana.
  * Extraído desde modules/core/portal-runtime.js (FASE 7).
  *
- * Persistencia: `read` / `write` / `writeAwaitServer` desde `../core/data-io.js` (mismo contrato
- * que la capa `persistence.js` del navegador vía `window.AntaresPersistence`).
+ * Persistencia bandeja: lectura y borrado solo vía PostgreSQL (`POST mark-read`, `POST delete`,
+ * `GET /portal/notifications`). La RAM de sesión se reemplaza con la respuesta del servidor.
  */
 import {
   KEYS,
@@ -20,7 +20,6 @@ import {
   applyPortalBootstrapFromApi,
   portalCanRefreshFromApi,
   portalSnapshotIsFresh,
-  savePortalSnapshotAfterBootstrap,
   syncSessionProfileSnapshotFromCache
 } from "../core/bootstrap.js";
 
@@ -497,24 +496,35 @@ export function filterNotificationsForUser(user, list) {
 
 let __contractRenewalNoticeCheckWallMs = 0;
 
-/** Refresco liviano de la bandeja (sin bootstrap completo). */
-async function refreshNotificationsBellFromApi() {
+/** Aplica la lista devuelta por PostgreSQL como única fuente de verdad en RAM de sesión. */
+function applyNotificationsServerList(serverList) {
+  const actor = currentUser();
+  const filtered = actor
+    ? filterNotificationsForUser(actor, Array.isArray(serverList) ? serverList : [])
+    : [];
+  write(KEYS.notifications, filtered, { skipSyncSchedule: true });
+  reconcileNotificationsCacheForSession();
+  return filtered;
+}
+
+/** GET /portal/notifications → reemplaza la bandeja en RAM (sin fusionar estado local). */
+export async function refreshNotificationsFromServer() {
   const api = window.AntaresApi;
   if (!api?.getJson || !portalCanRefreshFromApi()) return false;
   try {
     const res = await api.getJson("/portal/notifications");
     const raw = Array.isArray(res?.notifications) ? res.notifications : [];
-    const actor = currentUser();
-    const filtered = actor ? filterNotificationsForUser(actor, raw) : [];
-    const prev = read(KEYS.notifications, []);
-    const merged = mergeNotificationsListPreserveReadAt(prev, filtered);
-    write(KEYS.notifications, merged, { skipSyncSchedule: true });
-    reconcileNotificationsCacheForSession();
+    const applied = applyNotificationsServerList(raw);
     updateNotificationBadge();
-    return merged;
+    return applied;
   } catch (_e) {
     return false;
   }
+}
+
+/** Refresco liviano de la bandeja (sin bootstrap completo). */
+async function refreshNotificationsBellFromApi() {
+  return refreshNotificationsFromServer();
 }
 
 /** Pide al servidor crear notificaciones de aviso de no renovación (término fijo) y refresca la bandeja. */
@@ -573,15 +583,10 @@ export async function writeNotificationsAwaitServer(deletedIds) {
   await writeAwaitServer(KEYS.notifications, payload, {
     deletedIds: normalizedDeleted.length ? normalizedDeleted : undefined
   });
-  /** Parche solo notificaciones (idle): evita serializar todo el portal en cada lectura/borrado. */
-  savePortalSnapshotAfterBootstrap({ dirtyKeys: [KEYS.notifications] });
 }
 
-/** IDs en borrado en curso: el poll GET no debe reponerlos si la caché ya se podó. */
-let __pendingNotificationDeleteIds = new Set();
-
 /**
- * Elimina notificaciones en PostgreSQL vía endpoint dedicado (sin sync-key masivo).
+ * Elimina notificaciones en PostgreSQL vía endpoint dedicado y refresca la bandeja desde el servidor.
  * Expande IDs duplicados (misma lógica que marcar leída).
  */
 export async function deleteNotificationsFromServer(ids) {
@@ -603,18 +608,10 @@ export async function deleteNotificationsFromServer(ids) {
     throw new Error("Sesión sin autenticación API. Vuelva a iniciar sesión para guardar en el servidor.");
   }
 
-  for (const id of idsToDelete) __pendingNotificationDeleteIds.add(id);
-  try {
-    const res = await api.postJson("/portal/notifications/delete", { ids: idsToDelete });
-    const pruned = read(KEYS.notifications, []).filter(
-      (n) => !__notificationIdSetIncludes(idsToDelete, n.id)
-    );
-    write(KEYS.notifications, pruned, { skipSyncSchedule: true });
-    savePortalSnapshotAfterBootstrap({ dirtyKeys: [KEYS.notifications] });
-    return res;
-  } finally {
-    for (const id of idsToDelete) __pendingNotificationDeleteIds.delete(id);
-  }
+  const res = await api.postJson("/portal/notifications/delete", { ids: idsToDelete });
+  await refreshNotificationsFromServer();
+  syncNotificationsInboxRenderSignature();
+  return res;
 }
 
 /** Quita de la caché local notificaciones ajenas (p. ej. tras crear solicitud antes del filtro). */
@@ -626,127 +623,45 @@ export function reconcileNotificationsCacheForSession() {
 }
 
 /**
- * GET /portal/notifications y el bootstrap pueden llegar antes de que sync-key persista `readAt`.
- * Fusionar evita que la caché (y un flush posterior) reviertan «leída» en UI y en PostgreSQL.
+ * Bootstrap y poll: PostgreSQL es la fuente de verdad (`fecha_lectura`, borrados).
+ * No se fusiona estado de lectura ni borrados desde RAM de sesión.
  */
-export function mergeNotificationsListPreserveReadAt(prevList, serverList) {
-  const prev = Array.isArray(prevList) ? prevList : [];
-  let server = Array.isArray(serverList) ? serverList : [];
-  if (__pendingNotificationDeleteIds.size) {
-    server = server.filter((n) => {
-      const id = String(n?.id || "").trim();
-      return id && !__pendingNotificationDeleteIds.has(id);
-    });
-  }
-  const prevById = new Map(
-    prev.map((n) => [String(n?.id || "").trim(), n]).filter(([id]) => Boolean(id))
-  );
-  const prevReadAtByDedupe = new Map();
-  for (const p of prev) {
-    if (!p || typeof p !== "object") continue;
-    const pr = p.readAt ?? p.read_at;
-    const prMs = __notificationReadAtEpochMs(pr);
-    if (prMs <= 0) continue;
-    const dkey = notificationDedupeKey(p);
-    const existing = prevReadAtByDedupe.get(dkey);
-    const existingMs = __notificationReadAtEpochMs(existing);
-    if (!existing || prMs >= existingMs) prevReadAtByDedupe.set(dkey, pr);
-  }
-  return server.map((n) => {
-    const id = String(n?.id || "").trim();
-    if (!id || !n || typeof n !== "object") return n;
-    const p = prevById.get(id);
-    const pr = p?.readAt ?? p?.read_at;
-    const sr = n.readAt ?? n.read_at;
-    const prMs = __notificationReadAtEpochMs(pr);
-    const srMs = __notificationReadAtEpochMs(sr);
-    if (prMs <= 0 && srMs <= 0) {
-      const fromDedupe = prevReadAtByDedupe.get(notificationDedupeKey(n));
-      return fromDedupe ? { ...n, readAt: fromDedupe } : n;
-    }
-    if (prMs >= srMs && prMs > 0) return { ...n, readAt: pr || sr || null };
-    if (srMs > 0) return n;
-    const fromDedupe = prevReadAtByDedupe.get(notificationDedupeKey(n));
-    return fromDedupe || pr ? { ...n, readAt: fromDedupe || pr } : n;
-  });
+export function mergeNotificationsListPreserveReadAt(_prevList, serverList) {
+  return Array.isArray(serverList) ? serverList : [];
 }
 
 /**
- * Persiste lecturas en PostgreSQL (endpoint dedicado) y alinea la caché local + snapshot de F5.
+ * Persiste lecturas en PostgreSQL (endpoint dedicado) y alinea la bandeja con GET /portal/notifications.
  * @returns {Promise<boolean>}
  */
-function __persistNotificationsSnapshotNow() {
-  savePortalSnapshotAfterBootstrap({
-    dirtyKeys: [KEYS.notifications],
-    immediate: true,
-    force: true
-  });
-}
-
 export async function persistNotificationsReadState(ids) {
   const normalized = [
     ...new Set((Array.isArray(ids) ? ids : []).map((id) => String(id || "").trim()).filter(Boolean))
   ];
   if (!normalized.length) return true;
-  const visible = getCurrentNotifications();
-  const visibleIdSet = new Set(visible.map((n) => String(n?.id || "").trim()).filter(Boolean));
-  const targetIds = __expandNotificationReadTargetIds(
-    normalized.filter((id) => visibleIdSet.has(id)),
-    read(KEYS.notifications, [])
-  );
+
+  const list = read(KEYS.notifications, []);
+  const targetIds = __expandNotificationReadTargetIds(normalized, list);
   if (!targetIds.length) return true;
 
-  const ts = nowIso();
-  const list = read(KEYS.notifications, []);
-  write(
-    KEYS.notifications,
-    list.map((n) =>
-      __notificationIdSetIncludes(targetIds, n.id) && !notificationIsRead(n) ? { ...n, readAt: ts } : n
-    ),
-    { skipSyncSchedule: true }
-  );
-
   const api = window.AntaresApi;
-  if (api?.postJson && portalCanRefreshFromApi()) {
-    try {
-      const res = await api.postJson("/portal/notifications/mark-read", { ids: targetIds });
-      const readAt = String(res?.readAt || ts).trim() || ts;
-      const merged = read(KEYS.notifications, []);
-      write(
-        KEYS.notifications,
-        merged.map((n) =>
-          __notificationIdSetIncludes(targetIds, n.id) ? { ...n, readAt: n.readAt || readAt } : n
-        ),
-        { skipSyncSchedule: true }
+  if (!api?.postJson || !portalCanRefreshFromApi()) {
+    if (typeof window.notify === "function") {
+      window.notify(
+        "Sesión sin autenticación API. Vuelva a iniciar sesión para guardar en el servidor.",
+        "error"
       );
-      __persistNotificationsSnapshotNow();
-      syncNotificationsInboxRenderSignature();
-      return true;
-    } catch (_apiErr) {
-      try {
-        await writeNotificationsAwaitServer();
-        __persistNotificationsSnapshotNow();
-        syncNotificationsInboxRenderSignature();
-        return true;
-      } catch (err) {
-        if (typeof notify === "function") {
-          window.notify(
-            String(err?.message || "No fue posible guardar las notificaciones leídas en el servidor."),
-            "error"
-          );
-        }
-        return false;
-      }
     }
+    return false;
   }
 
   try {
-    await writeNotificationsAwaitServer();
-    __persistNotificationsSnapshotNow();
+    await api.postJson("/portal/notifications/mark-read", { ids: targetIds });
+    await refreshNotificationsFromServer();
     syncNotificationsInboxRenderSignature();
     return true;
   } catch (err) {
-    if (typeof notify === "function") {
+    if (typeof window.notify === "function") {
       window.notify(
         String(err?.message || "No fue posible guardar las notificaciones leídas en el servidor."),
         "error"
@@ -866,19 +781,9 @@ async function __refreshNotificationsBellIfStale() {
   const now = Date.now();
   if (now - __lastNotificationsLightRefreshWallMs < NOTIF_LIGHT_REFRESH_MIN_MS) return;
   __lastNotificationsLightRefreshWallMs = now;
-  const api = window.AntaresApi;
-  if (!api || typeof api.getJson !== "function") return;
   try {
-    const res = await api.getJson("/portal/notifications");
-    const raw = Array.isArray(res?.notifications) ? res.notifications : [];
-    const actor = currentUser();
-    const filtered = actor ? filterNotificationsForUser(actor, raw) : [];
-    const prev = read(KEYS.notifications, []);
-    const merged = mergeNotificationsListPreserveReadAt(prev, filtered);
-    write(KEYS.notifications, merged, { skipSyncSchedule: true });
+    await refreshNotificationsFromServer();
     if (!getSession()) return;
-    reconcileNotificationsCacheForSession();
-    updateNotificationBadge();
     scheduleNotificationsViewRenderIfChanged();
   } catch (_e) {
     /* noop: la campana se reintenta en el próximo tick */
