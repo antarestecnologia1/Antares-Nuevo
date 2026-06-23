@@ -123,8 +123,8 @@ export function filterCalendarEvents(events, filters = {}) {
 }
 
 export const CAL_TIMELINE_DEFAULTS = {
-  dayStartHour: 5,
-  dayEndHour: 22,
+  dayStartHour: 0,
+  dayEndHour: 24,
   slotHeightPx: 56,
   minBlockPx: 32
 };
