@@ -55,8 +55,8 @@
     <link rel="stylesheet" href="./styles/admin-users-module.css?v=20260611-portal-modules" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/authorizations-module.css?v=20260611-portal-modules" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/profile-module.css?v=20260611-portal-modules" media="print" onload="this.onload=null;this.media='all'" />
-    <link rel="stylesheet" href="./styles/notifications-module.css?v=20260611-portal-modules" media="print" onload="this.onload=null;this.media='all'" />
-    <link rel="stylesheet" href="./styles/portal-sidebar.css?v=20260623-drawer-collapsed-fix" media="print" onload="this.onload=null;this.media='all'" />
+    <link rel="stylesheet" href="./styles/notifications-module.css?v=20260623-notif-row-width" media="print" onload="this.onload=null;this.media='all'" />
+    <link rel="stylesheet" href="./styles/portal-sidebar.css?v=20260623-notif-row-width" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/portal-create-forms.css?v=20260622-schedule-time-input" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/portal-studios-dark.css?v=20260622-dash-cc-dark" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/portal-responsive.css?v=20260622-responsive-zoom" media="print" onload="this.onload=null;this.media='all'" />
@@ -77,8 +77,8 @@
       <link rel="stylesheet" href="./styles/admin-users-module.css?v=20260611-portal-modules" />
       <link rel="stylesheet" href="./styles/authorizations-module.css?v=20260611-portal-modules" />
       <link rel="stylesheet" href="./styles/profile-module.css?v=20260611-portal-modules" />
-      <link rel="stylesheet" href="./styles/notifications-module.css?v=20260611-portal-modules" />
-      <link rel="stylesheet" href="./styles/portal-sidebar.css?v=20260623-drawer-collapsed-fix" />
+      <link rel="stylesheet" href="./styles/notifications-module.css?v=20260623-notif-row-width" />
+      <link rel="stylesheet" href="./styles/portal-sidebar.css?v=20260623-notif-row-width" />
       <link rel="stylesheet" href="./styles/portal-create-forms.css?v=20260622-schedule-time-input" />
       <link rel="stylesheet" href="./styles/portal-studios-dark.css?v=20260622-dash-cc-dark" />
       <link rel="stylesheet" href="./styles/portal-responsive.css?v=20260622-responsive-zoom" />
@@ -1366,7 +1366,7 @@
       import * as AntaresContractRenewal from "./modules/domain/contract-renewal.domain.js";
       import * as AntaresPayrollIdentifiers from "./modules/domain/payroll-identifiers.domain.js";
       import * as AntaresPayrollCatalogSanitize from "./modules/domain/payroll-catalog-sanitize.domain.js";
-      import * as AntaresSolicitudesDomain from "./modules/domain/solicitudes.domain.js?v=20260623-sync-fix3";
+      import * as AntaresSolicitudesDomain from "./modules/domain/solicitudes.domain.js?v=20260623-trip-sync-await";
       import * as AntaresNotificacionesDomain from "./modules/domain/notificaciones.domain.js";
       import * as AntaresDashboardDomain from "./modules/domain/dashboard.domain.js";
       import * as AntaresVehiclesDomain from "./modules/domain/vehicles.domain.js";
@@ -1457,12 +1457,12 @@
       import * as AntaresSchedulePicker from "./modules/ui/portal-schedule-picker.js?v=20260622-time-slots";
       Object.assign(window, AntaresUIComponents, AntaresUIModals, AntaresI18n, AntaresSchedulePicker);
     </script>
-    <script type="module" src="./modules/core/portal-runtime.js?v=20260623-trip-sync-error"></script>
+    <script type="module" src="./modules/core/portal-runtime.js?v=20260623-trip-sync-await"></script>
     <script defer src="./modules/app/portal-transport-modals.js"></script>
     <script defer src="./modules/app/portal-rrhh-modals.js"></script>
     <!-- Vistas legacy (`registerLegacyPortalViews`); deben ejecutarse antes de `app.js` para que el primer `renderPortal()` resuelva HTML. `viajes.js` antes de `mis-solicitudes.js` por `RENDER_WINDOW_SIZE`. -->
     <script defer src="./modules/app/dashboard.js"></script>
-    <script defer src="./modules/app/viajes.js"></script>
+    <script defer src="./modules/app/viajes.js?v=20260623-trip-sync-await"></script>
     <script defer src="./modules/app/solicitudes-html.js?v=20260622-time-slots"></script>
     <script defer src="./modules/app/mis-solicitudes.js?v=20260623-sync-fix3"></script>
     <script defer src="./modules/app/camiones-html.js?v=20260622-vehicle-create-wizard"></script>

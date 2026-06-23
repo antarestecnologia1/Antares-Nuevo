@@ -6134,7 +6134,7 @@ function togglePortalDriverManualAvailability(driverId) {
 }
 
 
-function approveRequest(
+async function approveRequest(
   requestId,
   actorName = "Sistema",
   auto = false,
@@ -6166,35 +6166,30 @@ function approveRequest(
           }
         : r
     );
-    void (async () => {
+    try {
+      const updatedRow = mapped.find((r) => r.id === requestId);
+      await reqWriteAwait(mapped, updatedRow);
+    } catch (err) {
+      if (typeof notify === "function") {
+        notify(String(err?.message || "No fue posible guardar la aprobación en el servidor."), "error");
+      }
+      return false;
+    }
+    const targetUser = read(KEYS.users, []).find((u) => u.id === current.clientUserId);
+    if (targetUser) {
+      saveNotification({
+        userId: targetUser.id,
+        title: systemTimerApprove ? "Solicitud aprobada automáticamente" : "Solicitud aprobada",
+        body: systemTimerApprove
+          ? `Su solicitud ${current.requestNumber || current.id} fue aprobada por el tiempo de respuesta configurado y queda pendiente de asignación de viaje.`
+          : `Su solicitud ${current.requestNumber || current.id} fue aprobada y queda pendiente de asignación de viaje.`
+      });
       try {
-        const updatedRow = mapped.find((r) => r.id === requestId);
-        await reqWriteAwait(mapped, updatedRow);
-      } catch (err) {
-        if (typeof notify === "function") {
-          notify(
-            String(err?.message || "No fue posible guardar la aprobación en el servidor."),
-            "error"
-          );
+        if (typeof globalThis.refreshNotificationsFromServer === "function") {
+          await globalThis.refreshNotificationsFromServer();
         }
-        return;
-      }
-      const targetUser = read(KEYS.users, []).find((u) => u.id === current.clientUserId);
-      if (targetUser) {
-        saveNotification({
-          userId: targetUser.id,
-          title: systemTimerApprove ? "Solicitud aprobada automáticamente" : "Solicitud aprobada",
-          body: systemTimerApprove
-            ? `Su solicitud ${current.requestNumber || current.id} fue aprobada por el tiempo de respuesta configurado y queda pendiente de asignación de viaje.`
-            : `Su solicitud ${current.requestNumber || current.id} fue aprobada y queda pendiente de asignación de viaje.`
-        });
-        try {
-          if (typeof globalThis.refreshNotificationsFromServer === "function") {
-            await globalThis.refreshNotificationsFromServer();
-          }
-        } catch (_e) {}
-      }
-    })();
+      } catch (_e) {}
+    }
     return true;
   }
 
@@ -6282,7 +6277,7 @@ function approveRequest(
     etaPickup: schedPickup || current.pickupAt || "",
     etaDelivery: schedDelivery || current.etaDelivery || current.pickupAt || "",
     assignedBy: actorName,
-    assignedAt: nowLocalIso(),
+    assignedAt: nowIso(),
     realtimeStatus: STATUS.VIAJE_ASIGNADO,
     createdAt: nowIso(),
     updatedAt: nowIso()
@@ -6294,7 +6289,7 @@ function approveRequest(
           ...r,
           tripValue: parseNum(selectedTripValue ?? r.tripValue),
           status: STATUS.VIAJE_ASIGNADO,
-          approvedAt: nowLocalIso(),
+          approvedAt: nowIso(),
           approvedBy: actorName,
           autoApproved: auto,
           rejectionReason: "",
@@ -6302,59 +6297,64 @@ function approveRequest(
         }
       : r
   );
-  void (async () => {
-    try {
-      const updatedRow = next.find((r) => r.id === requestId);
-      await reqWriteAwait(next, updatedRow);
-      const tripFields = historyAuditTripAssignFields(current, actorName);
-      logPortalAuditEvent("trips", "create", {
-        entityId: String(requestId),
-        entityLabel: String(trip.tripNumber || "Viaje"),
-        summary: `${String(trip.vehiclePlate || "Sin camión")} · ${String(trip.driverName || "Sin conductor")}`,
-        actor: tripFields.actor,
-        actorEmail: tripFields.actorEmail,
-        actorUserId: tripFields.actorUserId,
-        usuario: tripFields.usuario
-      });
-      logPortalAuditEvent("requests", "update", {
-        entityId: String(requestId),
-        entityLabel: String(current.requestNumber || requestId),
-        summary: `Viaje asignado · ${String(trip.tripNumber || "")}`,
-        actor: tripFields.actor,
-        actorEmail: tripFields.actorEmail,
-        actorUserId: tripFields.actorUserId,
-        usuario: tripFields.usuario
-      });
-    } catch (_e) {
-      if (typeof notify === "function") {
-        notify(
-          String(_e?.message || "No fue posible guardar el viaje en el servidor. Recargue y verifique."),
-          "error"
-        );
-      }
+  const updatedRow = next.find((r) => r.id === requestId);
+  try {
+    await reqWriteAwait(next, updatedRow);
+  } catch (_e) {
+    globalThis.reqWrite?.(requests);
+    if (typeof notify === "function") {
+      notify(
+        String(_e?.message || "No fue posible guardar el viaje en el servidor. Recargue y verifique."),
+        "error"
+      );
     }
+    return false;
+  }
 
-    const users = read(KEYS.users, []);
-    const target = users.find((u) => u.id === current.clientUserId);
-    if (target) {
-      saveNotification({
-        userId: target.id,
-        title: "Viaje asignado",
-        body: `Se asignó el viaje ${trip.tripNumber} a su solicitud ${current.requestNumber || current.id}. Vehículo ${trip.vehiclePlate} · Conductor ${trip.driverName}.`
-      });
-      sendEmail({
-        to: target.email,
-        subject: "Viaje asignado - Antares",
-        body: `Viaje ${trip.tripNumber} · Vehículo ${trip.vehiclePlate} · Conductor ${trip.driverName}`
-      });
-      try {
-        if (typeof globalThis.refreshNotificationsFromServer === "function") {
-          await globalThis.refreshNotificationsFromServer();
-        }
-        await writeAwaitServerLatestQueuedEmail();
-      } catch (_e) {}
-    }
-  })();
+  try {
+    const tripFields = historyAuditTripAssignFields(current, actorName);
+    logPortalAuditEvent("trips", "create", {
+      entityId: String(requestId),
+      entityLabel: String(trip.tripNumber || "Viaje"),
+      summary: `${String(trip.vehiclePlate || "Sin camión")} · ${String(trip.driverName || "Sin conductor")}`,
+      actor: tripFields.actor,
+      actorEmail: tripFields.actorEmail,
+      actorUserId: tripFields.actorUserId,
+      usuario: tripFields.usuario
+    });
+    logPortalAuditEvent("requests", "update", {
+      entityId: String(requestId),
+      entityLabel: String(current.requestNumber || requestId),
+      summary: `Viaje asignado · ${String(trip.tripNumber || "")}`,
+      actor: tripFields.actor,
+      actorEmail: tripFields.actorEmail,
+      actorUserId: tripFields.actorUserId,
+      usuario: tripFields.usuario
+    });
+  } catch (_audit) {
+    /* noop */
+  }
+
+  const users = read(KEYS.users, []);
+  const target = users.find((u) => u.id === current.clientUserId);
+  if (target) {
+    saveNotification({
+      userId: target.id,
+      title: "Viaje asignado",
+      body: `Se asignó el viaje ${trip.tripNumber} a su solicitud ${current.requestNumber || current.id}. Vehículo ${trip.vehiclePlate} · Conductor ${trip.driverName}.`
+    });
+    sendEmail({
+      to: target.email,
+      subject: "Viaje asignado - Antares",
+      body: `Viaje ${trip.tripNumber} · Vehículo ${trip.vehiclePlate} · Conductor ${trip.driverName}`
+    });
+    try {
+      if (typeof globalThis.refreshNotificationsFromServer === "function") {
+        await globalThis.refreshNotificationsFromServer();
+      }
+      await writeAwaitServerLatestQueuedEmail();
+    } catch (_e) {}
+  }
   return true;
 }
 
@@ -6395,7 +6395,7 @@ async function rejectRequest(requestId, reason, actorName) {
   }
 }
 
-function updateAutoApprove() {
+async function updateAutoApprove() {
   return window.AntaresViajesDomain.runPendingTransportAutoApprove(approveRequest, { PENDIENTE: STATUS.PENDIENTE });
 }
 

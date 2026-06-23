@@ -543,18 +543,20 @@ function __removeNotificationsFromSessionCache(ids) {
 
 let __contractRenewalNoticeCheckWallMs = 0;
 
-/** Aplica la lista devuelta por PostgreSQL como única fuente de verdad en RAM de sesión. */
+/** Aplica la lista devuelta por PostgreSQL en RAM, fusionando lecturas locales recientes. */
 function applyNotificationsServerList(serverList) {
   const actor = currentUser();
+  const prev = read(KEYS.notifications, []);
   let filtered = actor
     ? filterNotificationsForUser(actor, Array.isArray(serverList) ? serverList : [])
     : [];
   if (__pendingDeletionIds.size) {
     filtered = filtered.filter((n) => !__pendingDeletionIds.has(String(n?.id || "").trim()));
   }
-  write(KEYS.notifications, filtered, { skipSyncSchedule: true });
+  const merged = mergeNotificationsListPreserveReadAt(prev, filtered);
+  write(KEYS.notifications, merged, { skipSyncSchedule: true });
   reconcileNotificationsCacheForSession();
-  return filtered;
+  return merged;
 }
 
 /** GET /portal/notifications → reemplaza la bandeja en RAM (sin fusionar estado local). */
@@ -647,14 +649,21 @@ export async function deleteNotificationsFromServer(ids) {
     throw new Error("Sesión sin autenticación API. Vuelva a iniciar sesión para guardar en el servidor.");
   }
 
-  __cancelNotificationsSyncSchedule();
-  const res = await api.postJson("/portal/notifications/delete", { ids: idsToDelete });
   __markPendingDeletion(idsToDelete);
   __removeNotificationsFromSessionCache(idsToDelete);
-  await refreshNotificationsFromServer();
-  __lastNotificationsLightRefreshWallMs = Date.now();
-  syncNotificationsInboxRenderSignature();
-  return res;
+
+  __cancelNotificationsSyncSchedule();
+  try {
+    const res = await api.postJson("/portal/notifications/delete", { ids: idsToDelete });
+    await refreshNotificationsFromServer();
+    __lastNotificationsLightRefreshWallMs = Date.now();
+    syncNotificationsInboxRenderSignature();
+    return res;
+  } catch (err) {
+    for (const id of idsToDelete) __pendingDeletionIds.delete(id);
+    await refreshNotificationsFromServer();
+    throw err;
+  }
 }
 
 /** Quita de la caché local notificaciones ajenas (p. ej. tras crear solicitud antes del filtro). */
@@ -666,11 +675,49 @@ export function reconcileNotificationsCacheForSession() {
 }
 
 /**
- * Bootstrap y poll: PostgreSQL es la fuente de verdad (`fecha_lectura`, borrados).
- * No se fusiona estado de lectura ni borrados desde RAM de sesión.
+ * Fusiona bandeja del servidor con lecturas/borrados recientes en RAM.
+ * Evita que un bootstrap o GET en vuelo revierta «leída» antes de que PostgreSQL responda.
  */
-export function mergeNotificationsListPreserveReadAt(_prevList, serverList) {
-  return Array.isArray(serverList) ? serverList : [];
+export function mergeNotificationsListPreserveReadAt(prevList, serverList) {
+  const prev = Array.isArray(prevList) ? prevList : [];
+  let server = Array.isArray(serverList) ? serverList : [];
+  if (__pendingDeletionIds.size) {
+    server = server.filter((n) => {
+      const id = String(n?.id || "").trim();
+      return id && !__pendingDeletionIds.has(id);
+    });
+  }
+  const prevById = new Map(
+    prev.map((n) => [String(n?.id || "").trim(), n]).filter(([id]) => Boolean(id))
+  );
+  const prevReadAtByDedupe = new Map();
+  for (const p of prev) {
+    if (!p || typeof p !== "object") continue;
+    const pr = p.readAt ?? p.read_at;
+    const prMs = __notificationReadAtEpochMs(pr);
+    if (prMs <= 0) continue;
+    const dkey = notificationDedupeKey(p);
+    const existing = prevReadAtByDedupe.get(dkey);
+    const existingMs = __notificationReadAtEpochMs(existing);
+    if (!existing || prMs >= existingMs) prevReadAtByDedupe.set(dkey, pr);
+  }
+  return server.map((n) => {
+    const id = String(n?.id || "").trim();
+    if (!id || !n || typeof n !== "object") return n;
+    const p = prevById.get(id);
+    const pr = p?.readAt ?? p?.read_at;
+    const sr = n.readAt ?? n.read_at;
+    const prMs = __notificationReadAtEpochMs(pr);
+    const srMs = __notificationReadAtEpochMs(sr);
+    if (prMs <= 0 && srMs <= 0) {
+      const fromDedupe = prevReadAtByDedupe.get(notificationDedupeKey(n));
+      return fromDedupe ? { ...n, readAt: fromDedupe } : n;
+    }
+    if (prMs >= srMs && prMs > 0) return { ...n, readAt: pr || sr || null };
+    if (srMs > 0) return n;
+    const fromDedupe = prevReadAtByDedupe.get(notificationDedupeKey(n));
+    return fromDedupe || pr ? { ...n, readAt: fromDedupe || pr } : n;
+  });
 }
 
 /**
@@ -687,6 +734,15 @@ export async function persistNotificationsReadState(ids) {
   const targetIds = __expandNotificationReadTargetIds(normalized, list);
   if (!targetIds.length) return true;
 
+  const ts = nowIso();
+  write(
+    KEYS.notifications,
+    list.map((n) =>
+      __notificationIdSetIncludes(targetIds, n.id) && !notificationIsRead(n) ? { ...n, readAt: ts } : n
+    ),
+    { skipSyncSchedule: true }
+  );
+
   const api = window.AntaresApi;
   if (!api?.postJson || !portalCanRefreshFromApi()) {
     if (typeof window.notify === "function") {
@@ -700,9 +756,19 @@ export async function persistNotificationsReadState(ids) {
 
   try {
     __cancelNotificationsSyncSchedule();
-    await api.postJson("/portal/notifications/mark-read", { ids: targetIds });
+    const res = await api.postJson("/portal/notifications/mark-read", { ids: targetIds });
+    const readAt = String(res?.readAt || ts).trim() || ts;
+    const merged = read(KEYS.notifications, []);
+    write(
+      KEYS.notifications,
+      merged.map((n) =>
+        __notificationIdSetIncludes(targetIds, n.id) ? { ...n, readAt: n.readAt || readAt } : n
+      ),
+      { skipSyncSchedule: true }
+    );
     await refreshNotificationsFromServer();
     syncNotificationsInboxRenderSignature();
+    refreshNotificationsUiAfterReadMutation();
     return true;
   } catch (err) {
     if (typeof window.notify === "function") {
@@ -719,7 +785,11 @@ export function refreshNotificationsUiAfterReadMutation() {
   updateNotificationBadge();
   if (state.currentView !== "notifications") return;
   state.__skipModuleAnimationsOnce = true;
-  window.scheduleRenderPortalView();
+  if (typeof window.renderPortalView === "function") {
+    window.renderPortalView();
+  } else {
+    window.scheduleRenderPortalView?.();
+  }
 }
 
 /** Evita repintar la bandeja (y re-disparar micro-animaciones) si el poll no cambió el inbox. */
@@ -812,7 +882,7 @@ export function runAsSilentSystemNotifications(callback) {
       try { result = callback(); } catch (_e) {}
     }
   }
-  return result;
+  return Promise.resolve(result);
 }
 
 /** Mínimo entre refrescos LIGEROS de la campana (GET /portal/notifications, sin re-descargar todo). */

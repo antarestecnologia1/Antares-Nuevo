@@ -170,9 +170,11 @@ void (async function bootApplicationFromDatabaseThenUi() {
   window.PortalDataLayer?.enableVisibilityRefresh?.();
   setInterval(() => {
     if (!state.session) return;
-    const changed = runAsSilentSystemNotifications(() => updateAutoApprove());
-    if (changed && !hasUnsavedPortalFormData()) {
-      scheduleRenderPortalView();
-    }
+    void (async () => {
+      const changed = await runAsSilentSystemNotifications(() => updateAutoApprove());
+      if (changed && !hasUnsavedPortalFormData()) {
+        scheduleRenderPortalView();
+      }
+    })();
   }, 30000);
 })();

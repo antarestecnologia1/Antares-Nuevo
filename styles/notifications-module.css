@@ -31,8 +31,9 @@
 }
 
 .sidebar-notif-row .side-link--notif-inbox {
-  flex: 1;
+  flex: 1 1 0;
   min-width: 0;
+  width: auto;
 }
 
 .side-link--notif-inbox {

@@ -1120,7 +1120,7 @@ function transportTripsHtml() {
           failPortalField(createTripForm, "tripValue", userMessage("assignPriceRequired"));
           return;
         }
-        const ok = approveRequest(requestId, actor?.name || "Administrador", false, vehicleId, driverId, tripValue, {
+        const ok = await approveRequest(requestId, actor?.name || "Administrador", false, vehicleId, driverId, tripValue, {
           allowApproveAndAssign
         });
         if (!ok) return;

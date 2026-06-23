@@ -575,11 +575,22 @@ body.portal-sidebar-collapsed #portal-sidebar .side-link.active::before {
   flex-direction: row;
   align-items: center;
   gap: 0.35rem;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
   padding: 0.2rem 0.2rem 0.2rem 0.12rem;
   border-radius: calc(var(--portal-sidebar-item-radius) + 2px);
   border: 1px solid transparent;
   overflow: visible;
   transition: background var(--portal-sidebar-transition), border-color var(--portal-sidebar-transition);
+}
+
+/* En fila: la bandeja comparte ancho con la campana (no width:100% del enlace base). */
+#portal-sidebar .sidebar-notif-row .side-link--notif-inbox {
+  flex: 1 1 0;
+  min-width: 0;
+  width: auto;
 }
 
 #portal-sidebar .sidebar-notif-row:has(.side-link--notif-inbox.active) {
@@ -652,6 +663,11 @@ body.portal-sidebar-collapsed #portal-sidebar .sidebar-notif-row {
 body.portal-sidebar-collapsed #portal-sidebar .side-link--notif-inbox {
   justify-content: center;
   padding: 0.38rem 0.35rem !important;
+}
+
+body.portal-sidebar-collapsed #portal-sidebar .sidebar-notif-row .side-link--notif-inbox {
+  flex: 0 0 auto;
+  width: 100%;
 }
 
 /* ── Footer: dock de cuenta ── */
@@ -1237,8 +1253,9 @@ body[data-theme="dark"] #portal-sidebar.sidebar--rail {
   }
 
   body.portal-drawer-open #portal-sidebar .sidebar-notif-row .side-link--notif-inbox {
-    flex: 1;
+    flex: 1 1 0;
     min-width: 0;
+    width: auto;
     min-height: 44px;
     padding: 0.62rem 0.85rem 0.62rem 0.75rem !important;
     margin: 0 0 2px;

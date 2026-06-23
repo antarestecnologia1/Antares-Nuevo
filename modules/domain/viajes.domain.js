@@ -1455,16 +1455,15 @@ export function getDriverCandidatesForRequest(request, currentRequestId = null) 
  * @param {(requestId: string, actorName?: string, auto?: boolean, ...rest: unknown[]) => boolean} approveRequestFn
  * @param {{ PENDIENTE?: string }} [statusRef] — mismos literales que `STATUS` global en app.js
  */
-export function runPendingTransportAutoApprove(approveRequestFn, statusRef = {}) {
+export async function runPendingTransportAutoApprove(approveRequestFn, statusRef = {}) {
   const PEND = statusRef.PENDIENTE || VIAJES_STATUS.PENDIENTE;
   const requests = readPortalTransportRequests();
   let changed = false;
-  requests
-    .filter((r) => r.status === PEND)
-    .forEach((r) => {
-      if (diffMinutes(r.createdAt) >= AUTO_APPROVE_MINUTES) {
-        if (approveRequestFn(r.id, "Sistema", true)) changed = true;
-      }
-    });
+  for (const r of requests) {
+    if (r.status !== PEND) continue;
+    if (diffMinutes(r.createdAt) >= AUTO_APPROVE_MINUTES) {
+      if (await approveRequestFn(r.id, "Sistema", true)) changed = true;
+    }
+  }
   return changed;
 }

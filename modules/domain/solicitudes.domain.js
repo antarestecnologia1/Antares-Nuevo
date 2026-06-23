@@ -218,10 +218,24 @@ export function buildPortalRequestSyncPayload(row) {
 
   if (normalized.trip && typeof normalized.trip === "object" && !Array.isArray(normalized.trip)) {
     const trip = { ...normalized.trip };
+    const tripNumber = String(trip.tripNumber || "").trim();
+    if (tripNumber) {
+      const apiOn = typeof window !== "undefined" && window.AntaresApi?.isConfigured?.();
+      if (apiOn && !isUuidString(trip.vehicleId)) {
+        throw new Error(
+          "El vehículo seleccionado no está registrado en el servidor (UUID). Recargue el portal o sincronice la flota en Camiones."
+        );
+      }
+      if (apiOn && !isUuidString(trip.driverId)) {
+        throw new Error(
+          "El conductor seleccionado no está registrado en el servidor (UUID). Recargue el portal o sincronice conductores."
+        );
+      }
+    }
     if (!isUuidString(trip.id)) delete trip.id;
     if (!isUuidString(trip.vehicleId)) delete trip.vehicleId;
     if (!isUuidString(trip.driverId)) delete trip.driverId;
-    payload.trip = String(trip.tripNumber || "").trim() ? trip : null;
+    payload.trip = tripNumber ? trip : null;
   }
 
   const pickupMs = new Date(payload.pickupAt).getTime();

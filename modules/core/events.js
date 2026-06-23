@@ -2574,11 +2574,12 @@ function bindDynamicEvents() {
             $portal.notify($portal.userMessage("assignResourcesBusy"), "error");
             return false;
           }
-          const ok = mode === "assign_now"
-            ? $portal.approveRequest(requestId, actor?.name || "Administrador", false, vehicleId, driverId, tripValue, {
-                allowApproveAndAssign: true
-              })
-            : $portal.approveRequest(requestId, actor?.name || "Administrador", true);
+          const ok =
+            mode === "assign_now"
+              ? await $portal.approveRequest(requestId, actor?.name || "Administrador", false, vehicleId, driverId, tripValue, {
+                  allowApproveAndAssign: true
+                })
+              : await $portal.approveRequest(requestId, actor?.name || "Administrador", true);
           if (!ok) return false;
           suppressSelfInboxPollToastIfRecipientIsCurrentUser(request.clientUserId);
           $portal.notify(

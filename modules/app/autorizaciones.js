@@ -738,11 +738,12 @@ function bindAuthorizationsPortalControls() {
               return false;
             }
 
-            const ok = vehicleId && driverId
-              ? approveRequest(requestId, actor.name, false, vehicleId, driverId, tripValue, {
-                  allowApproveAndAssign: true
-                })
-              : approveRequest(requestId, actor.name, true);
+            const ok =
+              vehicleId && driverId
+                ? await approveRequest(requestId, actor.name, false, vehicleId, driverId, tripValue, {
+                    allowApproveAndAssign: true
+                  })
+                : await approveRequest(requestId, actor.name, true);
 
             if (!ok) {
               notify(userMessage("approvalResourcesFailed"), "error");
