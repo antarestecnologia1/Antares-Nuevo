@@ -278,6 +278,15 @@ export async function reqWriteAwait(next, syncRows, deleteIds, extraOpts = {}) {
     opts.syncData = apiOn ? rows.map((r) => buildPortalRequestSyncPayload(r)) : rows;
   }
   await writeAwaitServer(KEYS.requests, read(KEYS.requests, []), opts);
+  if (typeof window !== "undefined" && window.AntaresApi?.isConfigured?.()) {
+    try {
+      if (typeof window.savePortalSnapshotAfterBootstrap === "function") {
+        window.savePortalSnapshotAfterBootstrap({ dirtyKeys: [KEYS.requests], immediate: true });
+      }
+    } catch (_snap) {
+      /* noop */
+    }
+  }
 }
 
 export function readPortalTransportRequests() {

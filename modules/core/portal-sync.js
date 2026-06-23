@@ -220,17 +220,31 @@
    * @throws {Error} si fallan los reintentos al servidor y la sesión API está configurada.
    */
   async function flushStorageKeyNow(storageKey, opts) {
-    if (bootstrapDepth > 0) return;
+    opts = opts && typeof opts === "object" ? opts : {};
     if (EXCLUDED_STORAGE_KEYS.has(storageKey)) return;
-    if (NO_BULK_AUTO_SYNC_STORAGE_KEYS.has(storageKey)) {
-      const hasExplicitSync =
-        opts &&
-        ((opts.syncData !== undefined && opts.syncData !== null) ||
-          (Array.isArray(opts.deletedIds) && opts.deletedIds.length > 0));
+    const hasExplicitSync =
+      (opts.syncData !== undefined && opts.syncData !== null) ||
+      (Array.isArray(opts.deletedIds) && opts.deletedIds.length > 0);
+    if (NO_BULK_AUTO_SYNC_STORAGE_KEYS.has(storageKey) && !hasExplicitSync) return;
+    /** Sync puntual (reqWriteAwait): no descartar durante hidratación; esperar bootstrap en red si aplica. */
+    if (bootstrapDepth > 0) {
       if (!hasExplicitSync) return;
+      const boot = window.__portalBootstrapInFlight;
+      if (boot && typeof boot.then === "function") {
+        try {
+          await boot;
+        } catch (_bootWait) {
+          /* continuar; el POST puede fallar con 401 y el caller mostrará error */
+        }
+      }
     }
     const entity = STORAGE_TO_ENTITY[storageKey];
-    if (!entity) return;
+    if (!entity) {
+      if (hasExplicitSync) {
+        throw new Error("No se pudo sincronizar: clave de almacenamiento no reconocida por el servidor.");
+      }
+      return;
+    }
 
     clearTimeout(timers[storageKey]);
     delete timers[storageKey];
@@ -243,7 +257,12 @@
       opts && opts.syncData !== undefined && opts.syncData !== null
         ? opts.syncData
         : resolveSyncPayloadForStorageKey(storageKey, stalePending);
-    if (data === undefined || data === null) return;
+    if (data === undefined || data === null) {
+      if (hasExplicitSync) {
+        throw new Error("No hay datos para sincronizar con el servidor. Actualice la página e intente de nuevo.");
+      }
+      return;
+    }
 
     await flush(entity, data, opts);
   }

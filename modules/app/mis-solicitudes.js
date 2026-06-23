@@ -692,7 +692,7 @@
         const prevRequests = reqRead();
         const nextRequests = [localRow, ...prevRequests];
         try {
-          await reqWriteAwait(nextRequests, localRow, undefined, { notifyOnFailure: false });
+          await reqWriteAwait(nextRequests, localRow);
         } catch (err) {
           reqWrite(prevRequests);
           const msg = String(err?.message || "").trim();
