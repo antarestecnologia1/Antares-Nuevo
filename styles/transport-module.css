@@ -962,14 +962,52 @@ body[data-theme="dark"] .transport-studio .hr-workspace-tab--switch.is-active {
   border: 1px solid var(--trn-edge-strong);
   background: linear-gradient(135deg, color-mix(in srgb, var(--trn-blue) 6%, var(--trn-card)), var(--trn-card));
   box-shadow: var(--trn-shadow-sm);
+  color: var(--trn-navy);
+}
+
+.transport-studio .fleet-hero-strip.fleet-hero-strip--hr-payroll {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--trn-blue) 6%, var(--trn-card)), var(--trn-card));
+  box-shadow: var(--trn-shadow-sm);
 }
 
 .transport-studio .fleet-hero-metric {
+  background: color-mix(in srgb, var(--trn-blue) 5%, var(--trn-card));
   border-color: var(--trn-edge);
+  backdrop-filter: none;
+}
+
+.transport-studio .fleet-hero-metric span {
+  color: color-mix(in srgb, var(--trn-navy) 62%, var(--text-soft, #64748b));
+}
+
+.transport-studio .fleet-hero-metric strong {
+  color: var(--trn-navy);
+}
+
+.transport-studio .fleet-hero-metric-warn {
+  background: linear-gradient(135deg, color-mix(in srgb, #fef3c7 85%, var(--trn-card)), color-mix(in srgb, #fde68a 40%, var(--trn-card)));
+  border-color: color-mix(in srgb, #f59e0b 35%, var(--trn-edge));
+}
+
+.transport-studio .fleet-hero-metric-warn span {
+  color: #92400e;
 }
 
 .transport-studio .fleet-hero-metric-warn strong {
   color: #b45309;
+}
+
+.transport-studio .fleet-hero-metric-alert {
+  background: linear-gradient(135deg, color-mix(in srgb, #fee2e2 85%, var(--trn-card)), color-mix(in srgb, #fecaca 35%, var(--trn-card)));
+  border-color: color-mix(in srgb, #ef4444 30%, var(--trn-edge));
+}
+
+.transport-studio .fleet-hero-metric-alert span {
+  color: #991b1b;
+}
+
+.transport-studio .fleet-hero-metric-alert strong {
+  color: #b91c1c;
 }
 
 /* ── Alerta de solicitudes por asignar ── */
@@ -1346,6 +1384,56 @@ body[data-theme="dark"] .transport-studio .hr-workspace-tab--switch.is-active {
   .transport-studio .trip-ops-cards {
     grid-template-columns: 1fr;
   }
+}
+
+body[data-theme="dark"] .transport-studio .fleet-hero-strip {
+  background: linear-gradient(135deg, rgba(12, 26, 44, 0.95), rgba(10, 22, 38, 0.92));
+  border-color: rgba(148, 196, 255, 0.14);
+  color: #e8f2fc;
+}
+
+body[data-theme="dark"] .transport-studio .fleet-hero-strip.fleet-hero-strip--hr-payroll {
+  background: linear-gradient(135deg, rgba(12, 26, 44, 0.95), rgba(10, 22, 38, 0.92));
+  box-shadow: var(--trn-shadow-sm);
+}
+
+body[data-theme="dark"] .transport-studio .fleet-hero-metric {
+  background: rgba(148, 196, 255, 0.08);
+  border-color: rgba(148, 196, 255, 0.14);
+}
+
+body[data-theme="dark"] .transport-studio .fleet-hero-metric span {
+  color: rgba(174, 212, 248, 0.85);
+}
+
+body[data-theme="dark"] .transport-studio .fleet-hero-metric strong {
+  color: #e8f2fc;
+}
+
+body[data-theme="dark"] .transport-studio .fleet-hero-metric-warn {
+  background: linear-gradient(135deg, rgba(120, 53, 15, 0.45), rgba(12, 26, 44, 0.92));
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+body[data-theme="dark"] .transport-studio .fleet-hero-metric-warn span {
+  color: #fde68a;
+}
+
+body[data-theme="dark"] .transport-studio .fleet-hero-metric-warn strong {
+  color: #fbbf24;
+}
+
+body[data-theme="dark"] .transport-studio .fleet-hero-metric-alert {
+  background: linear-gradient(135deg, rgba(127, 29, 29, 0.45), rgba(12, 26, 44, 0.92));
+  border-color: rgba(248, 113, 113, 0.35);
+}
+
+body[data-theme="dark"] .transport-studio .fleet-hero-metric-alert span {
+  color: #fecaca;
+}
+
+body[data-theme="dark"] .transport-studio .fleet-hero-metric-alert strong {
+  color: #f87171;
 }
 
 body[data-theme="dark"] .transport-studio .transport-pending-alert {

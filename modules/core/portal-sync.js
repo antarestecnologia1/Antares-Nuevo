@@ -33,8 +33,14 @@
   let bootstrapDepth = 0;
 
   const EXCLUDED_STORAGE_KEYS = new Set(["antares_session_v2"]);
-  /** Solicitudes: nunca sync-key masivo del array en RAM (solo filas vía reqWriteAwait.syncData). */
-  const NO_BULK_AUTO_SYNC_STORAGE_KEYS = new Set(["antares_requests_v2"]);
+  /**
+   * Solicitudes: nunca sync-key masivo del array en RAM (solo filas vía reqWriteAwait.syncData).
+   * Notificaciones: lectura/borrado solo vía POST mark-read, POST delete y GET /portal/notifications.
+   */
+  const NO_BULK_AUTO_SYNC_STORAGE_KEYS = new Set([
+    "antares_requests_v2",
+    "antares_notifications_v2"
+  ]);
 
   const STORAGE_TO_ENTITY = {
     antares_users_v2: "users",
@@ -128,6 +134,7 @@
 
   async function flush(entity, data, opts) {
     opts = opts && typeof opts === "object" ? opts : {};
+    if (entity === "notifications") return;
     const notifyOnFailure = opts.notifyOnFailure !== false;
     const api = window.AntaresApi;
     if (!api?.isConfigured?.()) return;
@@ -215,6 +222,7 @@
   async function flushStorageKeyNow(storageKey, opts) {
     if (bootstrapDepth > 0) return;
     if (EXCLUDED_STORAGE_KEYS.has(storageKey)) return;
+    if (NO_BULK_AUTO_SYNC_STORAGE_KEYS.has(storageKey)) return;
     const entity = STORAGE_TO_ENTITY[storageKey];
     if (!entity) return;
 

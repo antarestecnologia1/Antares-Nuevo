@@ -4908,37 +4908,30 @@ async function dispatchPortalNotification(payload) {
   }
 }
 
-function saveNotification({ userId, title, body, category, deepLink, entityType, entityId }) {
-  const actor = currentUser();
+async function saveNotification({ userId, title, body, category, deepLink, entityType, entityId }) {
   const targetId = String(userId ?? "").trim();
   if (!targetId) return;
-  const row = {
-    id: newUuidV4(),
-    userId: targetId,
+  const payload = {
+    userIds: [targetId],
     title: String(title ?? ""),
     body: String(body ?? ""),
-    createdAt: nowIso(),
-    readAt: null,
     ...(category ? { category: String(category) } : {}),
     ...(deepLink ? { deepLink: String(deepLink) } : {}),
     ...(entityType ? { entityType: String(entityType) } : {}),
     ...(entityId ? { entityId: String(entityId) } : {})
   };
+  const ok = await dispatchPortalNotification(payload);
+  if (!ok) return;
+  const actor = currentUser();
   if (actor && String(actor.id ?? "") === targetId) {
-    const all = read(KEYS.notifications, []);
-    all.unshift(row);
-    write(KEYS.notifications, all);
-    return;
+    try {
+      if (typeof globalThis.refreshNotificationsFromServer === "function") {
+        await globalThis.refreshNotificationsFromServer();
+      }
+    } catch (_e) {
+      /* noop */
+    }
   }
-  void dispatchPortalNotification({
-    userIds: [targetId],
-    title: row.title,
-    body: row.body,
-    category: row.category,
-    deepLink: row.deepLink,
-    entityType: row.entityType,
-    entityId: row.entityId
-  });
 }
 
 function notifyAdminUsers(title, body) {
@@ -6134,7 +6127,9 @@ function approveRequest(
             : `Su solicitud ${current.requestNumber || current.id} fue aprobada y queda pendiente de asignación de viaje.`
         });
         try {
-          await writeNotificationsAwaitServer();
+          if (typeof globalThis.refreshNotificationsFromServer === "function") {
+            await globalThis.refreshNotificationsFromServer();
+          }
         } catch (_e) {}
       }
     })();
@@ -6284,7 +6279,9 @@ function approveRequest(
         body: `Viaje ${trip.tripNumber} · Vehículo ${trip.vehiclePlate} · Conductor ${trip.driverName}`
       });
       try {
-        await writeNotificationsAwaitServer();
+        if (typeof globalThis.refreshNotificationsFromServer === "function") {
+          await globalThis.refreshNotificationsFromServer();
+        }
         await writeAwaitServerLatestQueuedEmail();
       } catch (_e) {}
     }
@@ -6321,7 +6318,9 @@ async function rejectRequest(requestId, reason, actorName) {
     saveNotification({ userId: user.id, title: "Solicitud rechazada", body: `Su solicitud fue rechazada. Motivo: ${reason}` });
     sendEmail({ to: user.email, subject: "Solicitud rechazada", body: reason });
     try {
-      await writeNotificationsAwaitServer();
+      if (typeof globalThis.refreshNotificationsFromServer === "function") {
+        await globalThis.refreshNotificationsFromServer();
+      }
       await writeAwaitServerLatestQueuedEmail();
     } catch (_e) {}
   }

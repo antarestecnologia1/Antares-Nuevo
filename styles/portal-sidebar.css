@@ -511,6 +511,9 @@ body:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-section-label {
 }
 
 #portal-sidebar .side-link-badge {
+  position: static;
+  top: auto;
+  right: auto;
   flex-shrink: 0;
   margin-left: auto;
   min-width: 1.35rem;
@@ -524,7 +527,14 @@ body:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-section-label {
   box-shadow: 0 2px 8px rgba(var(--primary-rgb), 0.35);
 }
 
-/* Collapsed rail: solo iconos centrados */
+#portal-sidebar .side-link--notif-inbox {
+  flex: 1;
+  min-width: 0;
+  overflow: visible;
+  padding: 0.42rem 0.55rem 0.42rem 0.5rem !important;
+  margin: 0;
+}
+
 body.portal-sidebar-collapsed #portal-sidebar .side-link {
   justify-content: center;
   padding: 0.38rem 0.35rem;
@@ -555,6 +565,7 @@ body.portal-sidebar-collapsed #portal-sidebar .side-link.active::before {
 /* ── Notificaciones ── */
 #portal-sidebar .sidebar-notif-group {
   margin-top: 0.15rem;
+  overflow: visible;
 }
 
 #portal-sidebar .sidebar-notif-row {
@@ -562,9 +573,10 @@ body.portal-sidebar-collapsed #portal-sidebar .side-link.active::before {
   flex-direction: row;
   align-items: center;
   gap: 0.35rem;
-  padding: 0.2rem;
+  padding: 0.2rem 0.12rem;
   border-radius: calc(var(--portal-sidebar-item-radius) + 2px);
   border: 1px solid transparent;
+  overflow: visible;
   transition: background var(--portal-sidebar-transition), border-color var(--portal-sidebar-transition);
 }
 
@@ -609,13 +621,6 @@ body.portal-sidebar-collapsed #portal-sidebar .side-link.active::before {
 #portal-sidebar .sidebar-notif-bell-toggle .side-icon {
   width: 18px !important;
   height: 18px !important;
-}
-
-#portal-sidebar .side-link--notif-inbox {
-  flex: 1;
-  min-width: 0;
-  padding: 0.42rem 0.5rem !important;
-  margin: 0;
 }
 
 #portal-sidebar .side-link--notif-inbox.active {

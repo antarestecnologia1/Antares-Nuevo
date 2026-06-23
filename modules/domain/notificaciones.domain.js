@@ -12,7 +12,7 @@ import {
   PERMISSIONS,
   ROLES
 } from "../core/config.js";
-import { read, write, writeAwaitServer } from "../core/data-io.js";
+import { read, write } from "../core/data-io.js";
 import { state } from "../core/store.js";
 import { nowIso } from "../core/utils.js";
 import { currentUser, getSession, isAdminActor, hasPermission } from "../core/auth.js";
@@ -494,6 +494,40 @@ export function filterNotificationsForUser(user, list) {
   return dedupeNotificationsList(rows.filter((n) => notificationTargetsUser(n, user)));
 }
 
+function __cancelNotificationsSyncSchedule() {
+  try {
+    window.AntaresPortalSync?.cancelScheduled?.(KEYS.notifications);
+  } catch (_e) {
+    /* noop */
+  }
+}
+
+/** Quita de RAM las filas cuyo id (o duplicado lógico) fue borrado en servidor. */
+function __removeNotificationsFromSessionCache(ids) {
+  const idSet = new Set(
+    (Array.isArray(ids) ? ids : [])
+      .map((id) => String(id || "").trim())
+      .filter(Boolean)
+  );
+  if (!idSet.size) return;
+  const list = read(KEYS.notifications, []);
+  const dedupeKeys = new Set();
+  for (const id of idSet) {
+    const row = list.find((n) => String(n?.id || "").trim() === id);
+    if (row) dedupeKeys.add(notificationDedupeKey(row));
+  }
+  const actor = currentUser();
+  const remaining = list.filter((n) => {
+    const id = String(n?.id || "").trim();
+    if (id && idSet.has(id)) return false;
+    if (dedupeKeys.size && dedupeKeys.has(notificationDedupeKey(n))) return false;
+    return true;
+  });
+  write(KEYS.notifications, actor ? filterNotificationsForUser(actor, remaining) : remaining, {
+    skipSyncSchedule: true
+  });
+}
+
 let __contractRenewalNoticeCheckWallMs = 0;
 
 /** Aplica la lista devuelta por PostgreSQL como única fuente de verdad en RAM de sesión. */
@@ -569,20 +603,9 @@ export function scheduleContractRenewalNotificationCheck() {
   void refreshContractRenewalNotificationsFromServer();
 }
 
-export async function writeNotificationsAwaitServer(deletedIds) {
-  const user = currentUser();
-  const all = read(KEYS.notifications, []);
-  const payload = user ? filterNotificationsForUser(user, all) : [];
-  const normalizedDeleted = [
-    ...new Set(
-      (Array.isArray(deletedIds) ? deletedIds : [deletedIds])
-        .map((id) => String(id || "").trim())
-        .filter(Boolean)
-    )
-  ];
-  await writeAwaitServer(KEYS.notifications, payload, {
-    deletedIds: normalizedDeleted.length ? normalizedDeleted : undefined
-  });
+export async function writeNotificationsAwaitServer(_deletedIds) {
+  __cancelNotificationsSyncSchedule();
+  return refreshNotificationsFromServer();
 }
 
 /**
@@ -608,7 +631,9 @@ export async function deleteNotificationsFromServer(ids) {
     throw new Error("Sesión sin autenticación API. Vuelva a iniciar sesión para guardar en el servidor.");
   }
 
+  __cancelNotificationsSyncSchedule();
   const res = await api.postJson("/portal/notifications/delete", { ids: idsToDelete });
+  __removeNotificationsFromSessionCache(idsToDelete);
   await refreshNotificationsFromServer();
   syncNotificationsInboxRenderSignature();
   return res;
@@ -656,6 +681,7 @@ export async function persistNotificationsReadState(ids) {
   }
 
   try {
+    __cancelNotificationsSyncSchedule();
     await api.postJson("/portal/notifications/mark-read", { ids: targetIds });
     await refreshNotificationsFromServer();
     syncNotificationsInboxRenderSignature();

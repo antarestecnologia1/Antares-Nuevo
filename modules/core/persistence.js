@@ -87,7 +87,11 @@
   /**
    * Una sola vez por clave: si había JSON viejo en localStorage, se sube a memoria y se borra del disco.
    */
+  /** Bandeja: PostgreSQL vía endpoints dedicados; no re-subir JSON legacy al sync-key. */
+  var NO_LIFT_SYNC_STORAGE_KEYS = new Set(["antares_notifications_v2"]);
+
   function scheduleLiftedKeySync(key) {
+    if (NO_LIFT_SYNC_STORAGE_KEYS.has(key)) return;
     try {
       var api = window.AntaresApi;
       var sync = window.AntaresPortalSync;
@@ -113,6 +117,14 @@
   }
 
   function liftLegacyLocalStorageOnce(key, fallback) {
+    if (NO_LIFT_SYNC_STORAGE_KEYS.has(key)) {
+      try {
+        localStorage.removeItem(key);
+      } catch (_purgeNtf) {
+        /* noop */
+      }
+      return fallback;
+    }
     try {
       var raw = localStorage.getItem(key);
       if (raw === null || raw === undefined) return fallback;
@@ -187,7 +199,12 @@
         } catch (_e) {
           /* noop */
         }
-        if (!skipSyncSchedule && window.AntaresPortalSync && typeof window.AntaresPortalSync.schedule === "function") {
+        if (
+          !skipSyncSchedule &&
+          !NO_LIFT_SYNC_STORAGE_KEYS.has(key) &&
+          window.AntaresPortalSync &&
+          typeof window.AntaresPortalSync.schedule === "function"
+        ) {
           window.AntaresPortalSync.schedule(key, stored);
         }
         return;

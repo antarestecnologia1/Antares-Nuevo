@@ -34,6 +34,23 @@ export function readArray(key) {
 }
 
 export function write(key, value, opts = {}) {
+  if (key === KEYS.notifications) {
+    const forceSkip = { ...opts, skipSyncSchedule: true };
+    const P = window.AntaresPersistence;
+    if (P && typeof P.write === "function") {
+      P.write(key, value, forceSkip);
+    } else {
+      const stored = capStoredArrayRows(key, value);
+      localStorage.setItem(key, JSON.stringify(stored));
+    }
+    try {
+      const sess = typeof window.getSession === "function" ? window.getSession() : null;
+      if (sess && typeof window.updateNotificationBadge === "function") window.updateNotificationBadge();
+    } catch (_e) {
+      /* DOM aún sin portal o función no inicializada */
+    }
+    return;
+  }
   const skipSyncSchedule = opts?.skipSyncSchedule === true;
   const P = window.AntaresPersistence;
   if (P && typeof P.write === "function") {
@@ -43,14 +60,6 @@ export function write(key, value, opts = {}) {
     localStorage.setItem(key, JSON.stringify(stored));
     if (!skipSyncSchedule && window.AntaresPortalSync && typeof window.AntaresPortalSync.schedule === "function") {
       window.AntaresPortalSync.schedule(key, stored);
-    }
-  }
-  if (key === KEYS.notifications) {
-    try {
-      const sess = typeof window.getSession === "function" ? window.getSession() : null;
-      if (sess && typeof window.updateNotificationBadge === "function") window.updateNotificationBadge();
-    } catch (_e) {
-      /* DOM aún sin portal o función no inicializada */
     }
   }
 }
