@@ -990,12 +990,15 @@ export function updateNotificationBadge() {
   if (!link) return;
   const list = getCurrentNotifications();
   const unread = list.filter((n) => !notificationIsRead(n)).length;
+  const iconWrap = link.querySelector(".side-link__icon-wrap");
   let badge = link.querySelector(".side-link-badge");
   if (!badge) {
     badge = document.createElement("span");
     badge.className = "side-link-badge";
     badge.setAttribute("aria-hidden", "true");
-    link.appendChild(badge);
+    (iconWrap || link).appendChild(badge);
+  } else if (iconWrap && badge.parentElement !== iconWrap) {
+    iconWrap.appendChild(badge);
   }
   if (unread > 0) {
     badge.hidden = false;

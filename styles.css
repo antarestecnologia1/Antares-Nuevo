@@ -2547,35 +2547,30 @@ body:not(.portal-sidebar-collapsed) .sidebar-expand-toggle-icon--expand {
     transform: none;
   }
 
-  body:not(.portal-sidebar-collapsed) .sidebar-notif-row {
+  body:not(.portal-sidebar-collapsed) .sidebar-notif-hub {
     flex-direction: row;
     align-items: stretch;
-    gap: 0.2rem;
   }
 
-  body:not(.portal-sidebar-collapsed) .sidebar-notif-bell-toggle {
-    width: 2.4rem;
-    margin: 0.12rem 0;
+  body:not(.portal-sidebar-collapsed) .sidebar-notif-hub .sidebar-notif-bell-toggle {
+    width: 2.65rem !important;
+    min-width: 2.65rem !important;
+    margin: 0;
     padding: 0;
   }
 
-  body:not(.portal-sidebar-collapsed) .sidebar-notif-row .side-link--notif-inbox {
+  body:not(.portal-sidebar-collapsed) .sidebar-notif-hub .side-link--notif-inbox {
     padding-left: 0.65rem;
-    padding-right: 0.75rem;
+    padding-right: 0.45rem;
     padding-top: 0.62rem;
   }
 
-  body:not(.portal-sidebar-collapsed) .sidebar-notif-row:has(.side-link--notif-inbox.active)::after {
+  body:not(.portal-sidebar-collapsed) .sidebar-notif-hub:has(.side-link--notif-inbox.active)::after {
     display: none;
   }
 
   body:not(.portal-sidebar-collapsed) .side-link--notif-inbox.active {
     background: var(--portal-sidebar-active-bg);
-  }
-
-  body:not(.portal-sidebar-collapsed) .side-link-badge {
-    position: static;
-    margin-left: auto;
   }
 }
 

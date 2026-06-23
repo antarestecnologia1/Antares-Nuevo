@@ -55,8 +55,8 @@
     <link rel="stylesheet" href="./styles/admin-users-module.css?v=20260611-portal-modules" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/authorizations-module.css?v=20260611-portal-modules" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/profile-module.css?v=20260611-portal-modules" media="print" onload="this.onload=null;this.media='all'" />
-    <link rel="stylesheet" href="./styles/notifications-module.css?v=20260623-notif-bell-size" media="print" onload="this.onload=null;this.media='all'" />
-    <link rel="stylesheet" href="./styles/portal-sidebar.css?v=20260623-notif-bell-size" media="print" onload="this.onload=null;this.media='all'" />
+    <link rel="stylesheet" href="./styles/notifications-module.css?v=20260623-notif-hub" media="print" onload="this.onload=null;this.media='all'" />
+    <link rel="stylesheet" href="./styles/portal-sidebar.css?v=20260623-notif-hub" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/portal-create-forms.css?v=20260622-schedule-time-input" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/portal-studios-dark.css?v=20260622-dash-cc-dark" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/portal-responsive.css?v=20260622-responsive-zoom" media="print" onload="this.onload=null;this.media='all'" />
@@ -77,8 +77,8 @@
       <link rel="stylesheet" href="./styles/admin-users-module.css?v=20260611-portal-modules" />
       <link rel="stylesheet" href="./styles/authorizations-module.css?v=20260611-portal-modules" />
       <link rel="stylesheet" href="./styles/profile-module.css?v=20260611-portal-modules" />
-      <link rel="stylesheet" href="./styles/notifications-module.css?v=20260623-notif-bell-size" />
-      <link rel="stylesheet" href="./styles/portal-sidebar.css?v=20260623-notif-bell-size" />
+      <link rel="stylesheet" href="./styles/notifications-module.css?v=20260623-notif-hub" />
+      <link rel="stylesheet" href="./styles/portal-sidebar.css?v=20260623-notif-hub" />
       <link rel="stylesheet" href="./styles/portal-create-forms.css?v=20260622-schedule-time-input" />
       <link rel="stylesheet" href="./styles/portal-studios-dark.css?v=20260622-dash-cc-dark" />
       <link rel="stylesheet" href="./styles/portal-responsive.css?v=20260622-responsive-zoom" />
@@ -1098,7 +1098,12 @@
             <span class="side-link__label">Autorizaciones</span>
           </button>
           <div class="sidebar-notif-group">
-            <div class="sidebar-notif-row">
+            <div class="sidebar-notif-hub" role="group" aria-label="Notificaciones">
+              <button data-view="notifications" class="side-link side-link--notif-inbox" type="button">
+                <span class="side-link__icon-wrap" aria-hidden="true"><svg class="side-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></span>
+                <span class="side-link__label">Notificaciones</span>
+              </button>
+              <span class="sidebar-notif-hub__divider" aria-hidden="true"></span>
               <button
                 type="button"
                 class="sidebar-notif-bell-toggle"
@@ -1108,10 +1113,6 @@
                 title="Activar o desactivar notificaciones"
               >
                 <svg class="side-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-              </button>
-              <button data-view="notifications" class="side-link side-link--notif-inbox" type="button">
-                <span class="side-link__icon-wrap" aria-hidden="true"><svg class="side-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></span>
-                <span class="side-link__label">Notificaciones</span>
               </button>
             </div>
           </div>
