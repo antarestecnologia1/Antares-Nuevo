@@ -2644,9 +2644,19 @@ function prepareCreationFormForSubmit(formEl) {
   V.decorateFormFields?.(formEl);
   const domVal = V.validateDomForm(formEl);
   if (!domVal.ok) {
+    V.showFormValidationAlert?.(formEl);
+    const banner = formEl.querySelector("[data-antares-form-validation-alert]");
+    if (banner && !banner.classList.contains("hidden")) {
+      try {
+        banner.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      } catch (_e) {
+        /* noop */
+      }
+    }
     V.focusInvalidField?.(domVal.firstInvalid, { pulse: true });
     return false;
   }
+  V.clearFormValidationAlert?.(formEl);
   V.applyDomFormPatch?.(formEl, domVal.patch);
   return true;
 }

@@ -601,7 +601,7 @@
           <input value="${escapeHtml(companyName)}" disabled />
           <input type="hidden" name="companyId" value="${escapeAttr(user?.companyId || "")}" />
         </label>`;
-    return `<form id="form-request" class="p-form p-form-colored hr-form-flow antares-create-form requests-create-form" autocomplete="off">
+    return `<form id="form-request" class="p-form p-form-colored hr-form-flow antares-create-form requests-create-form" autocomplete="off" novalidate lang="es">
     ${renderHrFormHero({
       eyebrow: "Solicitudes de transporte",
       title: "Nueva solicitud de viaje",

@@ -100,14 +100,14 @@
   --nx-cyan:         var(--nx-accent);
   --nx-cyan-mid:     var(--nx-accent-mid);
   --nx-cyan-low:     var(--nx-accent-low);
-  --nx-bg:           #8fa8c0;
-  --nx-void:         #96afc6;
-  --nx-surface:      #9eb5ca;
-  --nx-surface-2:    #92a9c0;
-  --nx-surface-3:    #869fb8;
-  --nx-glass:        rgba(158, 181, 202, 0.96);
-  --nx-card-bg:      #a3bad0;
-  --nx-card-bg-soft: linear-gradient(148deg, #97afc6 0%, #8ba3bb 48%, #8098b0 100%);
+  --nx-bg:           #ffffff;
+  --nx-void:         #f8fafc;
+  --nx-surface:      #ffffff;
+  --nx-surface-2:    #f4f7fb;
+  --nx-surface-3:    #eef2f7;
+  --nx-glass:        rgba(255, 255, 255, 0.96);
+  --nx-card-bg:      #ffffff;
+  --nx-card-bg-soft: linear-gradient(148deg, #ffffff 0%, #f8fafc 48%, #f1f5f9 100%);
   --nx-brand-gradient: linear-gradient(135deg, var(--primary, #377cc0) 0%, var(--success, #1b8e5f) 100%);
   --nx-hero-accent: linear-gradient(180deg, var(--primary, #377cc0) 0%, var(--success, #1b8e5f) 100%);
   --nx-border:       rgba(var(--primary-rgb, 55, 124, 192), 0.28);
@@ -119,13 +119,13 @@
   --nx-font-ui:      var(--font-body, 'Montserrat', system-ui, sans-serif);
   --nx-font-data:    var(--font-tertiary, 'Roboto', monospace);
   --nx-r-sm: 8px; --nx-r: 12px; --nx-r-lg: 16px; --nx-r-xl: 18px;
-  --nx-card-shadow: 0 2px 8px rgba(15, 43, 74, 0.14), 0 14px 40px rgba(55, 124, 192, 0.18);
-  --nx-card-shadow-hover: 0 8px 20px rgba(15, 43, 74, 0.18), 0 24px 52px rgba(55, 124, 192, 0.26);
+  --nx-card-shadow: 0 1px 3px rgba(15, 43, 74, 0.08), 0 8px 24px rgba(15, 43, 74, 0.06);
+  --nx-card-shadow-hover: 0 4px 12px rgba(15, 43, 74, 0.1), 0 16px 40px rgba(55, 124, 192, 0.12);
   --nx-shadow: var(--nx-card-shadow);
   --nx-glow-teal: 0 8px 24px rgba(23, 133, 100, 0.28);
   --nx-glow-blue: 0 8px 24px rgba(55, 124, 192, 0.32);
-  --nx-ambient-opacity: 1;
-  --nx-card-inset: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  --nx-ambient-opacity: 0;
+  --nx-card-inset: inset 0 1px 0 rgba(255, 255, 255, 0.8);
   --at-bg: var(--nx-bg); --at-surface: var(--nx-glass); --at-surface-2: var(--nx-surface-2);
   --at-surface-3: var(--nx-surface-3); --at-border: var(--nx-border); --at-border-2: var(--nx-border-hi);
   --at-cyan: var(--nx-accent); --at-cyan-mid: var(--nx-cyan-mid); --at-cyan-low: var(--nx-cyan-low);
@@ -174,11 +174,7 @@ body[data-theme="dark"] .dashboard-studio {
 
 .dashboard-studio {
   font-family: var(--nx-font-ui);
-  background:
-    radial-gradient(ellipse 110% 65% at 50% -18%, rgba(var(--primary-rgb, 55, 124, 192), 0.32), transparent 58%),
-    radial-gradient(ellipse 70% 55% at 100% 40%, rgba(27, 142, 95, 0.18), transparent 52%),
-    radial-gradient(ellipse 60% 45% at 0% 80%, rgba(var(--primary-mid-rgb, 131, 190, 233), 0.22), transparent 50%),
-    linear-gradient(180deg, #849eb8 0%, var(--nx-bg) 45%, var(--nx-void) 100%);
+  background: var(--nx-bg);
   color: var(--nx-text);
   min-height: 100%;
   line-height: 1.55;
@@ -198,16 +194,15 @@ body[data-theme="dark"] .dashboard-studio {
 
 .portal-main:has(.dashboard-studio) {
   padding: 0;
-  background: linear-gradient(180deg, #849eb8 0%, var(--nx-bg, #8fa8c0) 140px, #879fb7 100%);
+  background: var(--nx-bg, #ffffff);
 }
 
 .portal-main:has(.dashboard-studio)::before {
-  opacity: 0.22;
-  background-size: 52px 52px;
+  opacity: 0;
 }
 
 .portal-layout:has(.dashboard-studio) {
-  background: linear-gradient(160deg, #7f98b2 0%, #8fa8c0 45%, #849eb8 100%);
+  background: var(--nx-bg, #ffffff);
 }
 
 body[data-theme="dark"] .portal-main:has(.dashboard-studio) {

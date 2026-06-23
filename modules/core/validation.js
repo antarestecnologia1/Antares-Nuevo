@@ -28,6 +28,35 @@
     numberRange: "El valor numérico no está en el rango permitido."
   };
 
+  /** Mensajes específicos por nombre de campo (formulario de solicitudes y similares). */
+  const REQUIRED_FIELD_LABELS = {
+    companyId: "Seleccione la empresa asociada.",
+    originDepartment: "Seleccione el departamento de origen.",
+    originCity: "Seleccione la ciudad de origen.",
+    originAddress: "Indique la dirección de origen.",
+    destinationDepartment: "Seleccione el departamento de destino.",
+    destinationCity: "Seleccione la ciudad de destino.",
+    destinationAddress: "Indique la dirección de destino.",
+    pickupDate: "Seleccione la fecha de recogida.",
+    pickupTime: "Seleccione la hora de recogida.",
+    deliveryDate: "Seleccione la fecha de entrega.",
+    deliveryTime: "Seleccione la hora de entrega.",
+    serviceType: "Seleccione el modo de transporte.",
+    cargoDescription: "Indique la descripción de la carga.",
+    requiresThermoking: "Indique si la carga requiere Termoking o es carga seca.",
+    requiredTruckType: "Seleccione el tipo de camión requerido.",
+    fuelles: "Indique la cantidad de fuelles.",
+    weightKg: "Indique el peso en kilogramos para tractomula.",
+    siteContactName: "Indique el nombre del contacto en sitio.",
+    siteContactPhone: "Indique el teléfono del contacto en sitio."
+  };
+
+  function requiredMessageForField(el) {
+    const name = String(el?.name || el?.id || "").trim();
+    if (name && REQUIRED_FIELD_LABELS[name]) return REQUIRED_FIELD_LABELS[name];
+    return MSG.required;
+  }
+
   const RE_EMAIL =
     /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/i;
 
@@ -888,6 +917,11 @@
       }
     });
     upgradePortalDateFields(form);
+    if (!form.hasAttribute("novalidate")) {
+      form.setAttribute("novalidate", "");
+      form.noValidate = true;
+    }
+    if (!form.getAttribute("lang")) form.setAttribute("lang", "es");
     form.setAttribute("data-antares-decorated", "1");
   }
 
@@ -958,13 +992,70 @@
     );
   }
 
+  function countFormInvalidFields(form) {
+    if (!form?.querySelectorAll) return 0;
+    return form.querySelectorAll(".field-invalid").length;
+  }
+
+  function ensureFormValidationAlertMount(form) {
+    if (!form?.querySelector) return null;
+    let el = form.querySelector("[data-antares-form-validation-alert]");
+    if (el) return el;
+    el = document.createElement("div");
+    el.setAttribute("data-antares-form-validation-alert", "1");
+    el.className = "antares-form-validation-alert hidden";
+    el.setAttribute("role", "alert");
+    el.setAttribute("aria-live", "polite");
+    const sections = form.querySelector(".antares-create-form__sections");
+    const hero = form.querySelector(".hr-form-hero");
+    if (sections) sections.insertAdjacentElement("beforebegin", el);
+    else if (hero) hero.insertAdjacentElement("afterend", el);
+    else form.insertBefore(el, form.firstChild);
+    return el;
+  }
+
+  function clearFormValidationAlert(form) {
+    const el = form?.querySelector?.("[data-antares-form-validation-alert]");
+    if (!el) return;
+    el.classList.add("hidden");
+    el.innerHTML = "";
+  }
+
+  function showFormValidationAlert(form) {
+    if (!form) return;
+    const count = countFormInvalidFields(form);
+    if (count <= 0) {
+      clearFormValidationAlert(form);
+      return;
+    }
+    const el = ensureFormValidationAlertMount(form);
+    if (!el) return;
+    const detail =
+      count === 1
+        ? "Falta 1 campo obligatorio. Complete el dato marcado en rojo antes de continuar."
+        : `Faltan ${count} campos obligatorios. Complete los datos marcados en rojo antes de continuar.`;
+    el.classList.remove("hidden");
+    el.innerHTML = `<span class="antares-form-validation-alert__icon" aria-hidden="true">!</span>
+      <div class="antares-form-validation-alert__copy">
+        <strong class="antares-form-validation-alert__title">Revise el formulario</strong>
+        <p class="antares-form-validation-alert__text">${detail}</p>
+      </div>`;
+  }
+
+  function maybeClearFormValidationAlert(form) {
+    if (!form || countFormInvalidFields(form) > 0) return;
+    clearFormValidationAlert(form);
+  }
+
   function clearFieldError(field) {
     if (!field) return;
     field.classList.remove("field-invalid");
     field.removeAttribute("aria-invalid");
+    if (typeof field.setCustomValidity === "function") field.setCustomValidity("");
     const mount = findFieldErrorMount(field);
     const error = mount?.querySelector(".field-error");
     if (error) error.remove();
+    maybeClearFormValidationAlert(field.closest("form"));
   }
 
   function setFieldError(field, message) {
@@ -972,12 +1063,16 @@
     const mount = findFieldErrorMount(field);
     if (!mount) return;
     clearFieldError(field);
+    const msg = String(message || MSG.required).trim() || MSG.required;
     field.classList.add("field-invalid");
     field.setAttribute("aria-invalid", "true");
+    if (typeof field.setCustomValidity === "function") field.setCustomValidity(msg);
     const hint = document.createElement("small");
-    hint.className = "field-error";
+    hint.className = field.closest(".antares-create-form")
+      ? "field-error field-error--portal"
+      : "field-error";
     hint.setAttribute("role", "alert");
-    hint.textContent = message;
+    hint.textContent = msg;
     mount.appendChild(hint);
   }
 
@@ -1010,19 +1105,70 @@
     return scope.querySelector(`#${ref}`) || null;
   }
 
+  /** Control visible al que desplazar/enfocar cuando el input real está oculto (p. ej. pickers ACF). */
+  function resolveFieldFocusTarget(field) {
+    if (!field) return null;
+    if (String(field.type || "").toLowerCase() === "hidden") {
+      const picker = field.closest(".acf-picker");
+      if (picker) {
+        return (
+          picker.querySelector("[data-acf-picker-open]") ||
+          picker.querySelector(".acf-picker__shell") ||
+          picker
+        );
+      }
+    }
+    return field;
+  }
+
+  function shouldValidateAntaresPickerHiddenField(el, form) {
+    if (!el || el.disabled) return false;
+    if (String(el.type || "").toLowerCase() !== "hidden") return false;
+    if (!el.closest(".acf-picker")) return false;
+    if (el.closest("[data-antares-skip-validate]")) return false;
+    if (isInsideHiddenSection(el, form)) return false;
+    return Boolean(el.required);
+  }
+
+  /** Valida inputs ocultos de pickers personalizados (fecha/hora en solicitudes). */
+  function validateAntaresPickerHiddenFields(form, firstInvalid) {
+    if (!form?.querySelectorAll) return firstInvalid;
+    let first = firstInvalid || null;
+    form.querySelectorAll('.acf-picker input[type="hidden"]').forEach((el) => {
+      if (!shouldValidateAntaresPickerHiddenField(el, form)) return;
+      if (el.validity?.customError && String(el.validationMessage || "").trim()) {
+        setFieldError(el, String(el.validationMessage || "").trim());
+        if (!first) first = el;
+        return;
+      }
+      clearFieldError(el);
+      if (!String(el.value || "").trim()) {
+        setFieldError(el, requiredMessageForField(el));
+        if (!first) first = el;
+        return;
+      }
+      const blurCheck = el.getAttribute("data-antares-validate-blur");
+      if (blurCheck && !runBlurValidation(el, blurCheck) && !first) {
+        first = el;
+      }
+    });
+    return first;
+  }
+
   /** Desplaza y enfoca el primer campo inválido (uso en guardar / siguiente paso). */
   function focusInvalidField(field, opts = {}) {
     if (!field) return;
+    const target = resolveFieldFocusTarget(field) || field;
     const block = opts.block || "center";
     try {
-      field.scrollIntoView?.({ behavior: opts.behavior || "smooth", block });
+      target.scrollIntoView?.({ behavior: opts.behavior || "smooth", block });
     } catch (_e) {
       /* noop */
     }
     try {
-      field.focus?.({ preventScroll: true });
+      target.focus?.({ preventScroll: true });
     } catch (_e) {
-      field.focus?.();
+      target.focus?.();
     }
     if (opts.pulse !== false) {
       field.classList.remove("field-invalid-attention");
@@ -1258,7 +1404,7 @@
     const kind = String(el.getAttribute("data-antares-field") || "").trim().toLowerCase();
     if (!kind) return { ok: true, message: "", patchValue: undefined };
     const raw = String(el.value ?? "").trim();
-    if (el.required && !raw) return { ok: false, message: MSG.required, patchValue: undefined };
+    if (el.required && !raw) return { ok: false, message: requiredMessageForField(el), patchValue: undefined };
     if (!raw) return { ok: true, message: "", patchValue: "" };
     if (kind === "email") {
       if (!isValidEmail(raw)) return { ok: false, message: MSG.email, patchValue: undefined };
@@ -1381,7 +1527,7 @@
       }
     }
     if (el.required && !raw && type !== "number") {
-      return { ok: false, message: MSG.required, patchValue: undefined };
+      return { ok: false, message: requiredMessageForField(el), patchValue: undefined };
     }
     if (type === "email" && raw) {
       if (!isValidEmail(raw)) return { ok: false, message: MSG.email, patchValue: undefined };
@@ -1438,7 +1584,7 @@
       clearFieldError(el);
 
       if (el.tagName === "SELECT" && el.required && !String(el.value || "").trim()) {
-        setFieldError(el, MSG.required);
+        setFieldError(el, requiredMessageForField(el));
         if (!firstInvalid) firstInvalid = el;
         continue;
       }
@@ -1480,6 +1626,9 @@
         }
       }
     }
+    firstInvalid = validateAntaresPickerHiddenFields(form, firstInvalid);
+    if (firstInvalid) showFormValidationAlert(form);
+    else clearFormValidationAlert(form);
     return { ok: !firstInvalid, firstInvalid, patch };
   }
 
@@ -1745,6 +1894,9 @@
     resolveFormField,
     focusInvalidField,
     failField,
+    showFormValidationAlert,
+    clearFormValidationAlert,
+    requiredMessageForField,
     validatePortalForm,
     validateAuthLogin,
     validateB2bProspectClient,
