@@ -8,6 +8,8 @@
   --acf-navy: #0b2138;
   --acf-blue: var(--primary, #377cc0);
   --acf-blue-soft: var(--primary-light, #cce5f8);
+  --acf-schedule-accent: var(--acf-blue);
+  --acf-schedule-accent-deep: var(--primary-dark, #2a6399);
   --acf-surface: #f4f8fc;
   --acf-card: #ffffff;
   --acf-edge: rgba(55, 124, 192, 0.14);
@@ -220,9 +222,9 @@
 
 /* ── Ventanas de servicio (solicitud) ── */
 .antares-create-form .acf-schedule-fieldset {
-  border-top-color: #7c3aed;
+  border-top-color: var(--acf-schedule-accent);
   background:
-    linear-gradient(165deg, color-mix(in srgb, #7c3aed 5%, var(--acf-card)) 0%, var(--acf-card) 42%),
+    linear-gradient(165deg, color-mix(in srgb, var(--acf-schedule-accent) 5%, var(--acf-card)) 0%, var(--acf-card) 42%),
     var(--acf-card);
 }
 
@@ -238,15 +240,15 @@
   gap: 0.85rem 1rem;
   padding: 0.9rem 1rem;
   border-radius: 14px;
-  border: 1px dashed color-mix(in srgb, #7c3aed 24%, var(--acf-edge));
-  background: color-mix(in srgb, #7c3aed 4%, var(--acf-surface));
+  border: 1px dashed color-mix(in srgb, var(--acf-schedule-accent) 24%, var(--acf-edge));
+  background: color-mix(in srgb, var(--acf-schedule-accent) 4%, var(--acf-surface));
   transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
 }
 
 .antares-create-form .acf-schedule__preview--ready {
   border-style: solid;
-  border-color: color-mix(in srgb, #7c3aed 32%, var(--acf-edge));
-  background: linear-gradient(135deg, color-mix(in srgb, #7c3aed 8%, var(--acf-card)), color-mix(in srgb, var(--primary) 4%, var(--acf-surface)));
+  border-color: color-mix(in srgb, var(--acf-schedule-accent) 32%, var(--acf-edge));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--acf-schedule-accent) 8%, var(--acf-card)), color-mix(in srgb, var(--primary) 4%, var(--acf-surface)));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
 }
 
@@ -262,8 +264,8 @@
   width: 2.35rem;
   height: 2.35rem;
   border-radius: 12px;
-  background: color-mix(in srgb, #7c3aed 12%, var(--acf-card));
-  color: #6d28d9;
+  background: color-mix(in srgb, var(--acf-schedule-accent) 12%, var(--acf-card));
+  color: var(--acf-schedule-accent-deep);
   flex-shrink: 0;
 }
 
@@ -306,7 +308,7 @@
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #7c3aed;
+  color: var(--acf-schedule-accent);
 }
 
 .antares-create-form .acf-schedule__preview-leg strong {
@@ -323,8 +325,8 @@
   width: 1.75rem;
   height: 1.75rem;
   border-radius: 999px;
-  background: color-mix(in srgb, #7c3aed 10%, var(--acf-card));
-  color: #6d28d9;
+  background: color-mix(in srgb, var(--acf-schedule-accent) 10%, var(--acf-card));
+  color: var(--acf-schedule-accent-deep);
   flex-shrink: 0;
 }
 
@@ -437,16 +439,16 @@
 
 .antares-create-form .acf-schedule-field:focus-within .acf-date-shell,
 .antares-create-form .acf-schedule-field:focus-within .acf-time-shell {
-  border-color: color-mix(in srgb, #7c3aed 42%, var(--acf-edge));
+  border-color: color-mix(in srgb, var(--acf-schedule-accent) 42%, var(--acf-edge));
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.7),
-    0 0 0 3px color-mix(in srgb, #7c3aed 12%, transparent);
+    0 0 0 3px color-mix(in srgb, var(--acf-schedule-accent) 12%, transparent);
 }
 
 .antares-create-form .acf-date-shell__icon,
 .antares-create-form .acf-time-shell__icon {
   display: inline-flex;
-  color: #7c3aed;
+  color: var(--acf-schedule-accent);
   opacity: 0.9;
 }
 
@@ -493,16 +495,16 @@
   width: 2.15rem;
   height: 2.15rem;
   border-radius: 10px;
-  border: 1px solid color-mix(in srgb, #7c3aed 18%, var(--acf-edge));
-  background: color-mix(in srgb, #7c3aed 8%, var(--acf-card));
-  color: #6d28d9;
+  border: 1px solid color-mix(in srgb, var(--acf-schedule-accent) 18%, var(--acf-edge));
+  background: color-mix(in srgb, var(--acf-schedule-accent) 8%, var(--acf-card));
+  color: var(--acf-schedule-accent-deep);
   cursor: pointer;
   transition: background 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
 }
 
 .antares-create-form .acf-date-shell__trigger:hover,
 .antares-create-form .acf-time-shell__trigger:hover {
-  background: color-mix(in srgb, #7c3aed 14%, var(--acf-card));
+  background: color-mix(in srgb, var(--acf-schedule-accent) 14%, var(--acf-card));
   transform: translateY(-1px);
 }
 
@@ -535,16 +537,16 @@
 
 .antares-create-form .acf-date-preset:hover,
 .antares-create-form .acf-time-preset:hover {
-  border-color: color-mix(in srgb, #7c3aed 28%, var(--acf-edge));
-  color: #6d28d9;
+  border-color: color-mix(in srgb, var(--acf-schedule-accent) 28%, var(--acf-edge));
+  color: var(--acf-schedule-accent-deep);
   transform: translateY(-1px);
 }
 
 .antares-create-form .acf-time-preset.is-active {
   color: #fff;
-  border-color: #7c3aed;
-  background: linear-gradient(135deg, #7c3aed, #6d28d9);
-  box-shadow: 0 6px 16px color-mix(in srgb, #7c3aed 28%, transparent);
+  border-color: var(--acf-schedule-accent);
+  background: linear-gradient(135deg, var(--acf-schedule-accent), var(--acf-schedule-accent-deep));
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--acf-schedule-accent) 28%, transparent);
 }
 
 .antares-create-form .acf-schedule__connector {
@@ -562,7 +564,7 @@
   flex: 1 1 auto;
   min-height: 1.5rem;
   border-radius: 999px;
-  background: linear-gradient(180deg, var(--primary), #7c3aed, #10b981);
+  background: linear-gradient(180deg, var(--primary), var(--acf-schedule-accent), #10b981);
   opacity: 0.45;
 }
 
@@ -576,9 +578,9 @@
   font-size: 0.68rem;
   font-weight: 800;
   letter-spacing: 0.02em;
-  color: #6d28d9;
-  background: color-mix(in srgb, #7c3aed 10%, var(--acf-card));
-  border: 1px solid color-mix(in srgb, #7c3aed 22%, var(--acf-edge));
+  color: var(--acf-schedule-accent-deep);
+  background: color-mix(in srgb, var(--acf-schedule-accent) 10%, var(--acf-card));
+  border: 1px solid color-mix(in srgb, var(--acf-schedule-accent) 22%, var(--acf-edge));
   white-space: nowrap;
 }
 
@@ -590,7 +592,7 @@
 
 .antares-create-form .acf-schedule__connector-arrow {
   display: inline-flex;
-  color: #7c3aed;
+  color: var(--acf-schedule-accent);
   opacity: 0.75;
 }
 
@@ -645,12 +647,12 @@
 }
 
 .antares-create-form .acf-picker--filled .acf-picker__shell {
-  border-color: color-mix(in srgb, #7c3aed 28%, var(--acf-edge));
+  border-color: color-mix(in srgb, var(--acf-schedule-accent) 28%, var(--acf-edge));
 }
 
 .antares-create-form .acf-picker__chevron {
   display: inline-flex;
-  color: #7c3aed;
+  color: var(--acf-schedule-accent);
   opacity: 0.85;
   transition: transform 0.18s ease;
 }
@@ -672,11 +674,11 @@
   z-index: 40;
   padding: 0.75rem;
   border-radius: 16px;
-  border: 1px solid color-mix(in srgb, #7c3aed 22%, var(--acf-edge));
+  border: 1px solid color-mix(in srgb, var(--acf-schedule-accent) 22%, var(--acf-edge));
   background: var(--acf-card);
   box-shadow:
     0 18px 44px rgba(15, 23, 42, 0.14),
-    0 4px 14px rgba(124, 58, 237, 0.08);
+    0 4px 14px rgba(var(--primary-rgb), 0.08);
   animation: acf-picker-in 0.18s ease-out;
 }
 
@@ -732,8 +734,8 @@
 }
 
 .antares-create-form .acf-cal__nav:hover {
-  border-color: color-mix(in srgb, #7c3aed 30%, var(--acf-edge));
-  background: color-mix(in srgb, #7c3aed 8%, var(--acf-card));
+  border-color: color-mix(in srgb, var(--acf-schedule-accent) 30%, var(--acf-edge));
+  background: color-mix(in srgb, var(--acf-schedule-accent) 8%, var(--acf-card));
 }
 
 .antares-create-form .acf-cal__weekdays {
@@ -774,8 +776,8 @@
 }
 
 .antares-create-form .acf-cal__day:not(.acf-cal__day--empty):not(.is-disabled):hover {
-  background: color-mix(in srgb, #7c3aed 10%, var(--acf-surface));
-  border-color: color-mix(in srgb, #7c3aed 18%, transparent);
+  background: color-mix(in srgb, var(--acf-schedule-accent) 10%, var(--acf-surface));
+  border-color: color-mix(in srgb, var(--acf-schedule-accent) 18%, transparent);
 }
 
 .antares-create-form .acf-cal__day--today {
@@ -786,9 +788,9 @@
 
 .antares-create-form .acf-cal__day.is-selected {
   color: #fff;
-  border-color: #7c3aed;
-  background: linear-gradient(135deg, #7c3aed, #6d28d9);
-  box-shadow: 0 6px 16px color-mix(in srgb, #7c3aed 32%, transparent);
+  border-color: var(--acf-schedule-accent);
+  background: linear-gradient(135deg, var(--acf-schedule-accent), var(--acf-schedule-accent-deep));
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--acf-schedule-accent) 32%, transparent);
 }
 
 .antares-create-form .acf-cal__day.is-disabled {
@@ -817,8 +819,8 @@
 }
 
 .antares-create-form .acf-cal__today {
-  color: #6d28d9;
-  border-color: color-mix(in srgb, #7c3aed 24%, var(--acf-edge));
+  color: var(--acf-schedule-accent-deep);
+  border-color: color-mix(in srgb, var(--acf-schedule-accent) 24%, var(--acf-edge));
 }
 
 .antares-create-form .acf-cal__clear {
@@ -832,8 +834,8 @@
   margin-bottom: 0.75rem;
   padding: 0.7rem 0.85rem;
   border-radius: 12px;
-  background: linear-gradient(135deg, color-mix(in srgb, #7c3aed 10%, var(--acf-surface)), color-mix(in srgb, var(--primary) 5%, var(--acf-card)));
-  border: 1px solid color-mix(in srgb, #7c3aed 18%, var(--acf-edge));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--acf-schedule-accent) 10%, var(--acf-surface)), color-mix(in srgb, var(--primary) 5%, var(--acf-card)));
+  border: 1px solid color-mix(in srgb, var(--acf-schedule-accent) 18%, var(--acf-edge));
   text-align: center;
 }
 
@@ -842,7 +844,7 @@
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: #7c3aed;
+  color: var(--acf-schedule-accent);
 }
 
 .antares-create-form .acf-timepicker__preview-value {
@@ -893,15 +895,15 @@
 }
 
 .antares-create-form .acf-timepicker__cell:hover {
-  border-color: color-mix(in srgb, #7c3aed 28%, var(--acf-edge));
-  color: #6d28d9;
+  border-color: color-mix(in srgb, var(--acf-schedule-accent) 28%, var(--acf-edge));
+  color: var(--acf-schedule-accent-deep);
 }
 
 .antares-create-form .acf-timepicker__cell.is-selected {
   color: #fff;
-  border-color: #7c3aed;
-  background: linear-gradient(135deg, #7c3aed, #6d28d9);
-  box-shadow: 0 4px 12px color-mix(in srgb, #7c3aed 28%, transparent);
+  border-color: var(--acf-schedule-accent);
+  background: linear-gradient(135deg, var(--acf-schedule-accent), var(--acf-schedule-accent-deep));
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--acf-schedule-accent) 28%, transparent);
 }
 
 .antares-create-form .acf-timepicker__foot {
@@ -947,8 +949,8 @@
 }
 
 .requests-create-form .acf-schedule-fieldset legend::before {
-  background: linear-gradient(135deg, #7c3aed, #6d28d9);
-  box-shadow: 0 4px 10px color-mix(in srgb, #7c3aed 28%, transparent);
+  background: linear-gradient(135deg, var(--acf-schedule-accent), var(--acf-schedule-accent-deep));
+  box-shadow: 0 4px 10px color-mix(in srgb, var(--acf-schedule-accent) 28%, transparent);
 }
 
 /* ── Empresa preview (solicitud) ── */
@@ -1412,18 +1414,18 @@ body[data-theme="dark"] .antares-create-form .transport-form--single {
 
 body[data-theme="dark"] .antares-create-form .acf-schedule-fieldset {
   background:
-    linear-gradient(165deg, rgba(124, 58, 237, 0.1) 0%, rgba(12, 26, 44, 0.92) 48%),
+    linear-gradient(165deg, rgba(var(--primary-rgb), 0.1) 0%, rgba(12, 26, 44, 0.92) 48%),
     rgba(12, 26, 44, 0.92);
 }
 
 body[data-theme="dark"] .antares-create-form .acf-schedule__preview {
-  border-color: rgba(167, 139, 250, 0.22);
-  background: rgba(124, 58, 237, 0.08);
+  border-color: rgba(var(--primary-rgb), 0.22);
+  background: rgba(var(--primary-rgb), 0.08);
 }
 
 body[data-theme="dark"] .antares-create-form .acf-schedule__preview--ready {
-  border-color: rgba(167, 139, 250, 0.32);
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.14), rgba(var(--primary-rgb), 0.08));
+  border-color: rgba(var(--primary-rgb), 0.32);
+  background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.14), rgba(var(--primary-rgb), 0.08));
 }
 
 body[data-theme="dark"] .antares-create-form .acf-schedule__preview-title,
@@ -1457,13 +1459,13 @@ body[data-theme="dark"] .antares-create-form .acf-time-preset {
 
 body[data-theme="dark"] .antares-create-form .acf-time-preset.is-active {
   color: #fff;
-  border-color: #a78bfa;
-  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+  border-color: color-mix(in srgb, var(--acf-schedule-accent) 65%, #fff);
+  background: linear-gradient(135deg, var(--acf-schedule-accent), var(--acf-schedule-accent-deep));
 }
 
 body[data-theme="dark"] .antares-create-form .acf-picker__panel {
   background: rgba(12, 26, 44, 0.98);
-  border-color: rgba(167, 139, 250, 0.24);
+  border-color: rgba(var(--primary-rgb), 0.24);
   box-shadow: 0 18px 44px rgba(0, 0, 0, 0.35);
 }
 
@@ -1482,8 +1484,8 @@ body[data-theme="dark"] .antares-create-form .acf-timepicker__cell {
 }
 
 body[data-theme="dark"] .antares-create-form .acf-timepicker__preview {
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.16), rgba(var(--primary-rgb), 0.1));
-  border-color: rgba(167, 139, 250, 0.22);
+  background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.16), rgba(var(--primary-rgb), 0.1));
+  border-color: rgba(var(--primary-rgb), 0.22);
 }
 
 @media (max-width: 768px) {

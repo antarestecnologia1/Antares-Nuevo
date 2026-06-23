@@ -480,7 +480,7 @@ function transportCalendarHtml() {
     </div>
     ${mainCalendarHtml}
     <div class="calendar-side-grid${view === "resources" ? " calendar-side-grid--compact" : ""}">
-      ${pcardWrap("clock", "Hoy", `${todayEvents.length} viajes programados`, `<div class="cal-day-list">${todayList}</div>`)}
+      ${pcardWrapPro("clock", "Hoy", `${todayEvents.length} viajes programados`, `<div class="cal-day-list">${todayList}</div>`)}
       ${pcardWrapPro("calendar", "Próximas programaciones", upcoming.length + " viajes", `<div class="cal-upcoming-list">${upcomingList}</div>`)}
     </div>
   </section>`;

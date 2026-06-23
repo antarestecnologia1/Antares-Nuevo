@@ -84,8 +84,8 @@ export function normalizePayrollOperateSection(value) {
   return PAYROLL_OPERATE_SECTIONS.has(v) ? v : "employee";
 }
 
-/** Estado de paneles de creación: solo el trámite activo queda expandido por defecto. */
-export function buildModuleCreatePanelsState(panelIds, activePanelId, createPanels = {}, { expandActive = true } = {}) {
+/** Estado de paneles de creación. Por defecto respeta `createPanels`; use `expandActive: true` al cambiar de trámite. */
+export function buildModuleCreatePanelsState(panelIds, activePanelId, createPanels = {}, { expandActive = false } = {}) {
   const ids = Array.isArray(panelIds) ? panelIds : [];
   const active = String(activePanelId || "").trim();
   const source = createPanels && typeof createPanels === "object" ? createPanels : {};
@@ -104,25 +104,25 @@ export function buildModuleCreatePanelsState(panelIds, activePanelId, createPane
   return next;
 }
 
-export function buildPayrollCreatePanelsState(activeSection, createPanels = {}, { expandActive = true } = {}) {
+export function buildPayrollCreatePanelsState(activeSection, createPanels = {}, { expandActive = false } = {}) {
   const section = normalizePayrollOperateSection(activeSection);
   const activePanel = PAYROLL_OPERATE_SECTION_PANEL[section];
   return buildModuleCreatePanelsState(PAYROLL_OPERATE_CREATE_PANEL_IDS, activePanel, createPanels, { expandActive });
 }
 
-export function buildHiringCreatePanelsState(activeSection, createPanels = {}, { expandActive = true } = {}) {
+export function buildHiringCreatePanelsState(activeSection, createPanels = {}, { expandActive = false } = {}) {
   const section = normalizeHiringOperateSection(activeSection);
   const activePanel = HIRING_OPERATE_SECTION_PANEL[section];
   return buildModuleCreatePanelsState(HIRING_OPERATE_CREATE_PANEL_IDS, activePanel, createPanels, { expandActive });
 }
 
-export function buildVehiclesCreatePanelsState(activeSection, createPanels = {}, { expandActive = true } = {}) {
+export function buildVehiclesCreatePanelsState(activeSection, createPanels = {}, { expandActive = false } = {}) {
   const section = normalizeVehicleSection(activeSection);
   const activePanel = VEHICLES_OPERATE_SECTION_PANEL[section] || "create-vehicle";
   return buildModuleCreatePanelsState(VEHICLES_OPERATE_CREATE_PANEL_IDS, activePanel, createPanels, { expandActive });
 }
 
-export function buildTransportTripsCreatePanelsState(activeSection, createPanels = {}, { expandActive = true } = {}) {
+export function buildTransportTripsCreatePanelsState(activeSection, createPanels = {}, { expandActive = false } = {}) {
   const section = normalizeTransportTripsSection(activeSection);
   const activePanel = TRANSPORT_TRIPS_OPERATE_SECTION_PANEL[section];
   return buildModuleCreatePanelsState(TRANSPORT_TRIPS_OPERATE_CREATE_PANEL_IDS, activePanel, createPanels, {

@@ -88,3 +88,30 @@
   .calendar-studio .cal-operate__rail { position: static; }
 }
 
+.calendar-studio .calendar-side-grid {
+  align-items: stretch;
+}
+
+.calendar-studio .calendar-side-grid > .p-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border-radius: var(--cal-radius);
+  border-color: var(--cal-edge);
+  box-shadow: var(--cal-shadow-sm);
+}
+
+.calendar-studio .calendar-side-grid > .p-card .hr-data-card__head {
+  min-height: 4.25rem;
+  padding: 0.95rem 1.15rem;
+  align-items: center;
+}
+
+.calendar-studio .calendar-side-grid > .p-card .hr-data-card__brand {
+  align-items: center;
+}
+
+.calendar-studio .calendar-side-grid > .p-card .hr-data-card__body {
+  flex: 1;
+}
+

@@ -79,6 +79,26 @@ export function isCreatePanelExpanded(panelId, fallbackExpanded = false, createP
   return DEFAULT_OPEN_CREATE_PANELS.has(id) || Boolean(fallbackExpanded);
 }
 
+/** Lee si un panel de alta está expandido en el DOM (fuente de verdad al minimizar sin re-render). */
+export function readCreatePanelExpandedInDom(root, panelId) {
+  const id = String(panelId || "").trim();
+  if (!root || !id) return null;
+  const panel = root.querySelector(`[data-create-panel="${id}"]`);
+  if (panel) {
+    if (panel.hasAttribute("hidden")) return false;
+    if (panel.classList.contains("hidden")) return false;
+    return true;
+  }
+  const card = root.querySelector(`[data-hr-panel="${id}"]`);
+  if (!card) return null;
+  if (card.classList.contains("p-card--expanded") || card.classList.contains("hr-action-card--open")) return true;
+  if (card.classList.contains("p-card--collapsed")) return false;
+  const nested = card.querySelector("[data-create-panel]");
+  if (!nested) return null;
+  if (nested.hasAttribute("hidden") || nested.classList.contains("hidden")) return false;
+  return true;
+}
+
 export function renderModulePanelBtnInner(iconHtml, label) {
   const icon = String(iconHtml || "").trim();
   const text = escapeHtml(String(label || "").trim());

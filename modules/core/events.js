@@ -68,6 +68,7 @@ import {
 } from "./router.js";
 import {
   isCreatePanelExpanded,
+  readCreatePanelExpandedInDom,
   setCreatePanelExpandedInDom,
   syncModuleCreatePanelsInDom
 } from "../ui/components.js";
@@ -613,7 +614,9 @@ function bindDynamicEvents() {
       const panelId = String(btn.dataset.panel || "");
       if (!panelId) return;
       const panelGroup = createPanelIdsForModule(panelId);
-      const wasOpen = isCreatePanelExpanded(panelId, false, state.createPanels || {});
+      const domOpen = readCreatePanelExpandedInDom(nodes.viewRoot, panelId);
+      const wasOpen =
+        domOpen != null ? domOpen : isCreatePanelExpanded(panelId, false, state.createPanels || {});
       const nextOpen = !wasOpen;
       state.createPanels = { ...(state.createPanels || {}) };
 
