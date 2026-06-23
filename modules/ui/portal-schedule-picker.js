@@ -20,13 +20,23 @@ const MONTHS_ES = [
 ];
 const WEEKDAYS_ES = ["Lu", "Ma", "Mi", "Ju", "Vi", "Sa", "Do"];
 const HOUR12_OPTIONS = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, "0"));
-const MINUTE_OPTIONS = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, "0"));
+const MINUTE_QUARTER_OPTIONS = ["00", "15", "30", "45"];
 const PERIOD_OPTIONS = ["AM", "PM"];
 const DRUM_PAD_ROWS = 2;
 
 function snapMinuteValue(rawMinute) {
   const m = Math.min(59, Math.max(0, parseInt(String(rawMinute || "0"), 10) || 0));
-  return String(m).padStart(2, "0");
+  let best = MINUTE_QUARTER_OPTIONS[0];
+  let bestDist = Infinity;
+  for (const q of MINUTE_QUARTER_OPTIONS) {
+    const qn = parseInt(q, 10);
+    const dist = Math.abs(m - qn);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = q;
+    }
+  }
+  return best;
 }
 
 function parsePickerTimeParts(raw) {
@@ -185,26 +195,25 @@ function syncPickerDisplay(wrap) {
   if (!hidden) return;
   const kind = String(wrap.dataset.acfPicker || "");
   const value = String(hidden.value || "").trim();
-  if (kind === "time" && hidden.type !== "hidden") {
-    wrap.classList.toggle("acf-picker--filled", Boolean(value));
-    return;
-  }
   const display = wrap.querySelector("[data-acf-picker-display]");
   const placeholder = wrap.querySelector(".acf-picker__placeholder");
-  if (!display) return;
-  let label = "";
-  if (kind === "date") label = formatDateDisplay(value);
-  else if (kind === "time") label = formatTimeDisplay(value);
-  if (label) {
-    display.textContent = label;
-    display.hidden = false;
-    if (placeholder) placeholder.hidden = true;
-    wrap.classList.add("acf-picker--filled");
-  } else {
-    display.textContent = "";
-    display.hidden = true;
-    if (placeholder) placeholder.hidden = false;
-    wrap.classList.remove("acf-picker--filled");
+  if (kind === "date" || kind === "time") {
+    if (!display) return;
+    let label = "";
+    if (kind === "date") label = formatDateDisplay(value);
+    else if (kind === "time") label = formatTimeDisplay(value);
+    if (label) {
+      display.textContent = label;
+      display.hidden = false;
+      if (placeholder) placeholder.hidden = true;
+      wrap.classList.add("acf-picker--filled");
+    } else {
+      display.textContent = "";
+      display.hidden = true;
+      if (placeholder) placeholder.hidden = false;
+      wrap.classList.remove("acf-picker--filled");
+    }
+    return;
   }
 }
 
@@ -422,7 +431,7 @@ function mountTimePicker(wrap) {
           <div class="acf-drum__columns acf-drum__columns--three">
             ${renderDrumColumn("hour", HOUR12_OPTIONS, hour12)}
             <span class="acf-drum__colon" aria-hidden="true">:</span>
-            ${renderDrumColumn("minute", MINUTE_OPTIONS, minute)}
+            ${renderDrumColumn("minute", MINUTE_QUARTER_OPTIONS, minute)}
             ${renderDrumColumn("period", periodDrumOptions, period)}
           </div>
         </div>
@@ -432,6 +441,7 @@ function mountTimePicker(wrap) {
         </div>
       </div>
       <footer class="acf-timepicker__foot">
+        <button type="button" class="acf-timepicker__now" data-acf-time-now>Ahora</button>
         <button type="button" class="acf-timepicker__apply" data-acf-time-apply>Aplicar ${readoutLabel}</button>
       </footer>
     </div>`;
@@ -513,6 +523,17 @@ function mountTimePicker(wrap) {
     ev.stopPropagation();
     const btn = ev.target.closest("button");
     if (!btn) return;
+    if (btn.hasAttribute("data-acf-time-now")) {
+      const now = new Date();
+      const next = hhmm24ToPickerState(
+        `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`
+      );
+      hour12 = next.hour12;
+      minute = next.minute;
+      period = next.period;
+      renderPanel();
+      return;
+    }
     if (btn.hasAttribute("data-acf-time-apply")) {
       applyTime();
     }

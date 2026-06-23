@@ -11,12 +11,21 @@
     return String(raw || "").trim().toLowerCase() === "list" ? "list" : "cards";
   }
 
+  function formatTimePresetLabel(hhmm) {
+    const t = String(hhmm || "").trim().slice(0, 5);
+    if (!/^\d{1,2}:\d{2}$/.test(t)) return t;
+    const [h, m] = t.split(":").map((n) => parseInt(n, 10));
+    const dt = new Date(2000, 0, 1, h, m);
+    if (Number.isNaN(dt.getTime())) return t;
+    return dt.toLocaleTimeString("es-CO", { hour: "numeric", minute: "2-digit", hour12: true });
+  }
+
   function acfScheduleTimePresets(targetId, times) {
     return `<div class="acf-time-presets" role="group" aria-label="Horas sugeridas">
       ${times
         .map(
           (t) =>
-            `<button type="button" class="acf-time-preset" data-acf-time-preset="${escapeAttr(t)}" data-acf-time-target="${escapeAttr(targetId)}" aria-label="Usar ${escapeAttr(t)}">${escapeHtml(t)}</button>`
+            `<button type="button" class="acf-time-preset" data-acf-time-preset="${escapeAttr(t)}" data-acf-time-target="${escapeAttr(targetId)}" aria-label="Usar ${escapeAttr(formatTimePresetLabel(t))}">${escapeHtml(formatTimePresetLabel(t))}</button>`
         )
         .join("")}
     </div>`;
@@ -54,25 +63,20 @@
     return `<div class="acf-schedule-field acf-schedule-field--time">
       <label>${fieldLabel(IC.clock, label, { required: true })}
         <div class="acf-picker acf-picker--time" data-acf-picker="time" data-acf-picker-target="${escapeAttr(inputId)}">
+          <input
+            type="hidden"
+            name="${escapeAttr(inputName)}"
+            id="${escapeAttr(inputId)}"
+            required
+            data-antares-validate-blur="time-hhmm"
+          />
           <div class="acf-time-shell acf-picker__shell">
             <span class="acf-time-shell__icon" aria-hidden="true">${IC.clock}</span>
-            <input
-              type="text"
-              name="${escapeAttr(inputName)}"
-              id="${escapeAttr(inputId)}"
-              required
-              class="acf-time-input acf-picker__input"
-              inputmode="numeric"
-              placeholder="HH:MM"
-              autocomplete="off"
-              spellcheck="false"
-              maxlength="5"
-              aria-label="${escapeAttr(label)}"
-              data-antares-validate-blur="time-hhmm"
-            />
-            <button type="button" class="acf-picker__open-btn" data-acf-picker-open aria-haspopup="dialog" aria-expanded="false" aria-label="Abrir selector de ${escapeAttr(label)}">
-              <span class="acf-picker__chevron" aria-hidden="true">${IC.chevronDown}</span>
+            <button type="button" class="acf-picker__trigger" data-acf-picker-open aria-haspopup="dialog" aria-expanded="false" aria-label="Abrir selector de ${escapeAttr(label)}">
+              <span class="acf-picker__placeholder">Seleccione hora</span>
+              <span class="acf-picker__value" data-acf-picker-display hidden></span>
             </button>
+            <span class="acf-picker__chevron" aria-hidden="true">${IC.chevronDown}</span>
           </div>
           <div class="acf-picker__panel acf-picker__panel--time" data-acf-picker-panel hidden role="dialog" aria-label="Elegir ${escapeAttr(label)}"></div>
         </div>

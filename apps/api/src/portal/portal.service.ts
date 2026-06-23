@@ -694,6 +694,7 @@ export class PortalService implements OnModuleInit {
     await this.ensureSystemParametersSchema();
     await this.ensureProspectosContactoB2bSchema();
     await this.ensureSolicitudesTransporteSchema();
+    await this.ensureContadoresSequenciaSchema();
     await this.ensureViajesTransporteSchema();
     await this.ensurePreferenciasNotificacionSchema();
     await this.ensureNotificacionesSchema();
@@ -1051,6 +1052,22 @@ export class PortalService implements OnModuleInit {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.warn(`ensureSolicitudesTransporteSchema fallo no fatal: ${sanitizeLogText(msg)}`);
+    }
+  }
+
+  /** Evita 500 al generar SOL-###### si falta la tabla de contadores en BD antigua. */
+  private async ensureContadoresSequenciaSchema() {
+    try {
+      await this.pool.query(`
+        CREATE TABLE IF NOT EXISTS contadores_secuencia (
+          prefijo       VARCHAR(32) PRIMARY KEY,
+          ultimo_valor  BIGINT NOT NULL DEFAULT 0 CHECK (ultimo_valor >= 0)
+        )
+      `);
+      this.logger.log("contadores_secuencia: tabla verificada.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`ensureContadoresSequenciaSchema fallo no fatal: ${sanitizeLogText(msg)}`);
     }
   }
 
@@ -3280,6 +3297,10 @@ export class PortalService implements OnModuleInit {
       await client.query("COMMIT");
     } catch (e) {
       await client.query("ROLLBACK");
+      if (e instanceof BadRequestException || e instanceof ForbiddenException) throw e;
+      if (key === "requests") {
+        throw new BadRequestException(this.describeRequestSyncDbError(e));
+      }
       throw e;
     } finally {
       client.release();
@@ -7562,6 +7583,9 @@ export class PortalService implements OnModuleInit {
     ) {
       return "El servidor no tiene el esquema de solicitudes actualizado. Reinicie la API o ejecute npm run db:init e intente de nuevo.";
     }
+    if (code === "42P01" || /relation "contadores_secuencia" does not exist/i.test(msg)) {
+      return "El servidor no tiene la tabla de contadores de solicitudes. Reinicie la API o ejecute npm run db:init.";
+    }
     if (code === "22007" || /invalid input syntax for type/i.test(msg)) {
       return "Alguna fecha u hora de la solicitud no es válida. Revise recogida y entrega.";
     }
@@ -7704,10 +7728,15 @@ export class PortalService implements OnModuleInit {
       const existingReq = await c.query(`SELECT numero_solicitud FROM solicitudes_transporte WHERE id = $1::uuid LIMIT 1`, [
         idStr
       ]);
-      const requestNumber =
-        existingReq.rowCount && existingReq.rows[0]?.numero_solicitud
-          ? String(existingReq.rows[0].numero_solicitud)
-          : await this.ensureUniqueRequestNumberTx(c, req.requestNumber);
+      let requestNumber = "";
+      try {
+        requestNumber =
+          existingReq.rowCount && existingReq.rows[0]?.numero_solicitud
+            ? String(existingReq.rows[0].numero_solicitud)
+            : await this.ensureUniqueRequestNumberTx(c, req.requestNumber);
+      } catch (numErr) {
+        this.mapRequestSyncDbError(numErr, String(req.requestNumber || ""));
+      }
 
       try {
       await c.query(
@@ -7807,6 +7836,7 @@ export class PortalService implements OnModuleInit {
         const t = req.trip as Record<string, unknown>;
         const tripIdRaw = t.id != null ? String(t.id).trim() : "";
         const tripId = PG_UUID_V4_RE.test(tripIdRaw) ? tripIdRaw : null;
+        try {
         const tripDb = await this.resolveTripRowFromDatabase(c, idStr, t);
         await c.query(
           `INSERT INTO viajes_transporte (
@@ -7852,6 +7882,9 @@ export class PortalService implements OnModuleInit {
             t.invoice ? JSON.stringify(t.invoice) : null
           ]
         );
+        } catch (tripErr) {
+          this.mapRequestSyncDbError(tripErr, requestNumber);
+        }
       }
     }
   }

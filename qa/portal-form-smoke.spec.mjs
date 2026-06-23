@@ -43,6 +43,11 @@ function ymdhm(date) {
   return date.toISOString().slice(0, 16);
 }
 
+function ymdhmLocal(date) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 const now = new Date();
 const nextWeek = plusDays(7);
 const nextWeek2 = plusDays(8);
@@ -568,22 +573,39 @@ test("portal form smoke", async ({ page, context }) => {
     await page.evaluate(({ selector: formSelector, pairs: entries }) => {
       const form = document.querySelector(formSelector);
       if (!form) throw new Error(`No se encontró ${formSelector}`);
-      const resolveField = (key) => {
-        if (/[\[\]#.: >]/.test(key)) return form.querySelector(key) || document.querySelector(key);
-        return form.querySelector(`[name="${key}"]`);
-      };
-      for (const [key, value] of entries) {
+      const assignFieldValue = (key, value) => {
+        const resolveField = (fieldKey) => {
+          if (/[\[\]#.: >]/.test(fieldKey)) return form.querySelector(fieldKey) || document.querySelector(fieldKey);
+          return form.querySelector(`[name="${fieldKey}"]`);
+        };
         const field = resolveField(key);
         if (!field) throw new Error(`Campo no encontrado: ${key}`);
         if (field.type === "checkbox") {
           field.checked = Boolean(value);
           field.dispatchEvent(new Event("change", { bubbles: true }));
-          continue;
+          return;
         }
-        field.value = value == null ? "" : String(value);
+        const raw = value == null ? "" : String(value);
+        const V = window.AntaresValidation;
+        const datetimeWrap =
+          field.closest?.(".portal-datetime-dmy-row") ||
+          form
+            .querySelector(`input[type="hidden"][name="${key}"][data-portal-datetime-iso="1"]`)
+            ?.closest?.(".portal-datetime-dmy-row");
+        if (datetimeWrap && typeof V?.portalDatetimeInputSetIso === "function") {
+          V.portalDatetimeInputSetIso(datetimeWrap, raw.slice(0, 16));
+          return;
+        }
+        const dateHidden = form.querySelector(`input[type="hidden"][name="${key}"][data-portal-date-iso="1"]`);
+        if (dateHidden && typeof V?.setPortalFormDateByName === "function") {
+          V.setPortalFormDateByName(form, key, raw.slice(0, 10));
+          return;
+        }
+        field.value = raw;
         field.dispatchEvent(new Event("input", { bubbles: true }));
         field.dispatchEvent(new Event("change", { bubbles: true }));
-      }
+      };
+      for (const [key, value] of entries) assignFieldValue(key, value);
       form.requestSubmit();
     }, { selector, pairs });
   };
@@ -593,22 +615,39 @@ test("portal form smoke", async ({ page, context }) => {
     await page.evaluate(({ selector: formSelector, pairs: entries }) => {
       const form = document.querySelector(formSelector);
       if (!form) throw new Error(`No se encontró ${formSelector}`);
-      const resolveField = (key) => {
-        if (/[\[\]#.: >]/.test(key)) return form.querySelector(key) || document.querySelector(key);
-        return form.querySelector(`[name="${key}"]`);
-      };
-      for (const [key, value] of entries) {
+      const assignFieldValue = (key, value) => {
+        const resolveField = (fieldKey) => {
+          if (/[\[\]#.: >]/.test(fieldKey)) return form.querySelector(fieldKey) || document.querySelector(fieldKey);
+          return form.querySelector(`[name="${fieldKey}"]`);
+        };
         const field = resolveField(key);
         if (!field) throw new Error(`Campo no encontrado: ${key}`);
         if (field.type === "checkbox") {
           field.checked = Boolean(value);
           field.dispatchEvent(new Event("change", { bubbles: true }));
-          continue;
+          return;
         }
-        field.value = value == null ? "" : String(value);
+        const raw = value == null ? "" : String(value);
+        const V = window.AntaresValidation;
+        const datetimeWrap =
+          field.closest?.(".portal-datetime-dmy-row") ||
+          form
+            .querySelector(`input[type="hidden"][name="${key}"][data-portal-datetime-iso="1"]`)
+            ?.closest?.(".portal-datetime-dmy-row");
+        if (datetimeWrap && typeof V?.portalDatetimeInputSetIso === "function") {
+          V.portalDatetimeInputSetIso(datetimeWrap, raw.slice(0, 16));
+          return;
+        }
+        const dateHidden = form.querySelector(`input[type="hidden"][name="${key}"][data-portal-date-iso="1"]`);
+        if (dateHidden && typeof V?.setPortalFormDateByName === "function") {
+          V.setPortalFormDateByName(form, key, raw.slice(0, 10));
+          return;
+        }
+        field.value = raw;
         field.dispatchEvent(new Event("input", { bubbles: true }));
         field.dispatchEvent(new Event("change", { bubbles: true }));
-      }
+      };
+      for (const [key, value] of entries) assignFieldValue(key, value);
     }, { selector, pairs });
   };
 
@@ -1104,7 +1143,7 @@ test("portal form smoke", async ({ page, context }) => {
     const intBefore = await arrayLen(KEYS.interviews);
     await submitForm("#form-interview", [
       ["candidateId", "cand-1"],
-      ["when", ymdhm(plusDays(12))],
+      ["when", ymdhmLocal(plusDays(12))],
       ["interviewer", "Lina QA"],
       ["mode", "virtual"],
       ["place", "https://meet.test/qa"],
@@ -1120,7 +1159,9 @@ test("portal form smoke", async ({ page, context }) => {
         const rows = window.AntaresPersistence?.read
           ? window.AntaresPersistence.read(key, [])
           : JSON.parse(localStorage.getItem(key) || "[]");
-        return rows.some((row) => row.id === "int-1" && row.interviewer === "Lina QA Edit");
+        return rows.some(
+          (row) => row.id === "int-1" && String(row.interviewer || "").toUpperCase() === "LINA QA EDIT"
+        );
       },
       KEYS.interviews,
       "Contratación:edit interview"
