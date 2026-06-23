@@ -231,6 +231,14 @@
     await flush(entity, data, opts);
   }
 
+  /** Cancela un sync-key aplazado para esta clave (p. ej. antes de vaciar caché local). */
+  function cancelScheduled(storageKey) {
+    clearTimeout(timers[storageKey]);
+    delete timers[storageKey];
+    delete pending[storageKey];
+    scheduleGeneration[storageKey] = (scheduleGeneration[storageKey] || 0) + 1;
+  }
+
   /** Envía un payload explícito (p. ej. filas ya mapeadas para PostgreSQL) sin leer de memoria. */
   async function flushEntityNow(entity, data) {
     if (bootstrapDepth > 0) return;
@@ -247,6 +255,7 @@
 
   window.AntaresPortalSync = {
     schedule,
+    cancelScheduled,
     STORAGE_TO_ENTITY,
     EXCLUDED_STORAGE_KEYS,
     flushStorageKeyNow,

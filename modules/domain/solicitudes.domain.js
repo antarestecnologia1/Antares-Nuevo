@@ -403,3 +403,51 @@ export function makeTripNumber(existingNumbers = new Set()) {
   }
   return code;
 }
+
+/**
+ * Vacía la caché local de solicitudes (RAM, localStorage legacy y snapshot en sessionStorage)
+ * y repuebla desde GET /portal/bootstrap. No borra filas en PostgreSQL.
+ * @returns {Promise<unknown[]>} solicitudes tras la rehidratación
+ */
+export async function clearPortalRequestsLocalAndResyncFromServer(opts = {}) {
+  if (typeof window === "undefined") return [];
+
+  const storageKey = KEYS.requests;
+  const PS = window.AntaresPortalSync;
+  if (PS?.cancelScheduled) PS.cancelScheduled(storageKey);
+  if (PS?.beginBootstrap) PS.beginBootstrap();
+  try {
+    try {
+      localStorage.removeItem(storageKey);
+    } catch (_e) {
+      /* noop */
+    }
+    if (window.AntaresPersistence?.remove) {
+      window.AntaresPersistence.remove(storageKey);
+    } else {
+      write(storageKey, [], { skipSyncSchedule: true });
+    }
+    const uid = String(getSession()?.userId || "").trim();
+    if (uid && window.PortalBootstrapCache?.removeStorageKey) {
+      window.PortalBootstrapCache.removeStorageKey(uid, storageKey);
+    }
+  } finally {
+    if (PS?.endBootstrap) PS.endBootstrap();
+  }
+
+  if (window.AntaresApi?.isConfigured?.()) {
+    const { applyPortalBootstrapFromApi } = await import("../core/bootstrap.js");
+    await applyPortalBootstrapFromApi({ skipSecondaryHydration: opts.skipSecondaryHydration === true });
+  }
+
+  if (opts.rerender !== false) {
+    if (typeof window.scheduleRenderPortalView === "function") {
+      window.scheduleRenderPortalView();
+    } else {
+      const { scheduleRenderPortalView } = await import("../core/router.js");
+      scheduleRenderPortalView();
+    }
+  }
+
+  return reqRead();
+}

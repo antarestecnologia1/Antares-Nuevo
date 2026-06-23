@@ -10,13 +10,82 @@
     return typeof RENDER_WINDOW_SIZE !== "undefined" ? RENDER_WINDOW_SIZE : 30;
   }
 
+  function portalUuidOk(value) {
+    return typeof window.isUuidString === "function" && window.isUuidString(String(value || ""));
+  }
+
+  /** Con API activa prioriza `session.userId` (JWT); evita ids legacy tipo `client-1`. */
+  function resolveRequestActorUserId(user) {
+    const sessionUserId = String((typeof getSession === "function" ? getSession()?.userId : "") || "").trim();
+    if (window.AntaresApi?.isConfigured?.()) {
+      if (portalUuidOk(sessionUserId)) return sessionUserId;
+      const fromUser = String(user?.id || "").trim();
+      if (portalUuidOk(fromUser)) return fromUser;
+      return "";
+    }
+    return String(user?.id || sessionUserId || "").trim();
+  }
+
+  /** Rehidrata bootstrap si usuario/empresa no están en caché RAM (evita sync-key con UUID huérfano). */
+  async function ensureRequestCreateCacheHasRefs(actorUserId, companyId) {
+    if (!window.AntaresApi?.isConfigured?.()) return { ok: true, uidOk: true, companyOk: true };
+    const uid = String(actorUserId || "").trim();
+    const cid = String(companyId || "").trim();
+    if (!portalUuidOk(uid) || !portalUuidOk(cid)) {
+      return { ok: false, uidOk: portalUuidOk(uid), companyOk: portalUuidOk(cid) };
+    }
+
+    const checkRefs = () => {
+      const usersCache = read(KEYS.users, []);
+      const companiesCache = read(KEYS.companies, []);
+      const uidOk = usersCache.some((u) => String(u?.id || "").trim() === uid);
+      const companyOk = companiesCache.some((c) => String(c?.id || "").trim() === cid);
+      return { uidOk, companyOk, ok: uidOk && companyOk };
+    };
+
+    let refs = checkRefs();
+    if (refs.ok) return refs;
+    if (typeof applyPortalBootstrapFromApi === "function") {
+      try {
+        await applyPortalBootstrapFromApi({ skipSecondaryHydration: true });
+      } catch (_bootstrap) {
+        /* continuar; el servidor devolverá mensaje explícito */
+      }
+    }
+    return checkRefs();
+  }
+
+  function buildPortalRequestSyncPayloadSafe(row) {
+    const fn =
+      typeof buildPortalRequestSyncPayload === "function"
+        ? buildPortalRequestSyncPayload
+        : typeof window.buildPortalRequestSyncPayload === "function"
+          ? window.buildPortalRequestSyncPayload
+          : typeof window.AntaresSolicitudesDomain?.buildPortalRequestSyncPayload === "function"
+            ? window.AntaresSolicitudesDomain.buildPortalRequestSyncPayload
+            : null;
+    return fn ? fn(row) : row;
+  }
+
+  function readRequestFormCompanies() {
+    const all = read(KEYS.companies, []);
+    if (!window.AntaresApi?.isConfigured?.()) return all;
+    return all.filter((c) => portalUuidOk(c?.id));
+  }
+
   function buildRequestCompanySelectHtml(user) {
-    const companies = read(KEYS.companies, []);
+    const companies = readRequestFormCompanies();
     if (user?.role === ROLES.CLIENT) {
       const cid = String(user?.companyId || "").trim();
       if (!cid) {
         return `<div class="full">
         <p class="muted" role="alert">Su cuenta no tiene empresa asociada. Solicite al administrador que vincule su usuario a una empresa antes de crear solicitudes.</p>
+        <input type="hidden" name="companyId" value="" />
+      </div>`;
+      }
+      if (window.AntaresApi?.isConfigured?.() && !portalUuidOk(cid)) {
+        return `<div class="full">
+        <p class="muted" role="alert">Su empresa no está sincronizada con el servidor (falta UUID). Cierre sesión, vuelva a entrar o pida al administrador que sincronice su cuenta.</p>
         <input type="hidden" name="companyId" value="" />
       </div>`;
       }
@@ -436,16 +505,13 @@
           notify("La empresa seleccionada no es válida.", "error");
           return;
         }
-        const uuidOk =
-          typeof window.isUuidString === "function" ? (v) => window.isUuidString(String(v || "")) : () => true;
-        const sessionUserId = String((typeof getSession === "function" ? getSession()?.userId : "") || "").trim();
-        const actorUserId =
-          window.AntaresApi?.isConfigured?.() && uuidOk(sessionUserId) ? sessionUserId : String(user?.id || "").trim();
-        if (window.AntaresApi?.isConfigured?.() && !uuidOk(actorUserId)) {
+        const actorUserId = resolveRequestActorUserId(user);
+        if (window.AntaresApi?.isConfigured?.() && !portalUuidOk(actorUserId)) {
           notify(userMessage("requestUserServerUuidRequired"), "error");
           return;
         }
-        if (window.AntaresApi?.isConfigured?.() && !uuidOk(String(reqCompany.id || ""))) {
+        const clientCompanyId = String(reqCompany.id || "").trim();
+        if (window.AntaresApi?.isConfigured?.() && !portalUuidOk(clientCompanyId)) {
           notify(userMessage("requestCompanyServerUuidRequired"), "error");
           return;
         }
@@ -557,28 +623,6 @@
         const insuredValueNum = Math.max(0, parseNum(payloadRest.insuredValue));
         const distanceKmNum = Math.max(0, parseNum(payloadRest.distanceKm));
         const all = reqRead();
-        const all = reqRead();
-        
-        // ─── DIAGNÓSTICO TEMPORAL UUID ───────────────────────────────────────
-        const _UUID_RE_DIAG = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-        const _diagFields = {
-          "actorUserId":       actorUserId,
-          "reqCompany.id":     reqCompany?.id,
-          "sessionUserId":     sessionUserId,
-        };
-        const _invalidos = Object.entries(_diagFields)
-          .filter(([, v]) => !_UUID_RE_DIAG.test(String(v ?? "")))
-          .map(([k, v]) => `${k} = "${v}"`);
-        if (_invalidos.length) {
-          console.error("[sync-key 400] UUIDs inválidos →", _invalidos.join(" | "));
-          notify(`UUID inválido detectado: ${_invalidos.join(", ")}. Recrea la empresa/usuario desde el portal.`, "error");
-          return;
-        } else {
-          console.log("[sync-key] UUIDs OK →", _diagFields);
-        }
-        // ─── FIN DIAGNÓSTICO ─────────────────────────────────────────────────
-        
-        const usedRequestNumbers = new Set(all.map((r) => String(r.requestNumber || "").trim()).filter(Boolean));
         const usedRequestNumbers = new Set(all.map((r) => String(r.requestNumber || "").trim()).filter(Boolean));
         const requestNumber = makeRequestNumber(usedRequestNumbers);
         const localRow = {
@@ -586,10 +630,9 @@
           requestNumber,
           clientUserId: actorUserId,
           clientName: normalizeLatinUpperForDb(reqCompany.name || user.company || ""),
-          clientCompanyId: reqCompany.id,
+          clientCompanyId,
           clientCompanyLogoUrl: companyProfileLogoUrl(reqCompany),
           requestedByName: normalizeLatinUpperForDb(user.name),
-          ...payloadRest,
           originDepartment: normalizeLatinForDb(payloadRest.originDepartment || ""),
           originCity: normalizeLatinForDb(payloadRest.originCity || ""),
           originAddress: normalizeLatinUpperForDb(payloadRest.originAddress || ""),
@@ -628,50 +671,44 @@
           standbyEvents: [],
           rejectionReason: ""
         };
-        delete localRow.companyId;
-        let rowToSave = localRow;
         if (window.AntaresApi?.isConfigured?.()) {
-          const usersCache = read(KEYS.users, []);
-          const companiesCache = read(KEYS.companies, []);
-          const uidOk = usersCache.some((u) => String(u?.id || "").trim() === actorUserId);
-          const companyOk = companiesCache.some(
-            (c) => String(c?.id || "").trim() === String(reqCompany.id || "").trim()
-          );
-          if ((!uidOk || !companyOk) && typeof applyPortalBootstrapFromApi === "function") {
-            try {
-              await applyPortalBootstrapFromApi();
-            } catch (_bootstrap) {
-              /* continuar; el servidor devolverá mensaje explícito */
-            }
+          const cacheRefs = await ensureRequestCreateCacheHasRefs(actorUserId, clientCompanyId);
+          if (!cacheRefs.ok) {
+            notify(
+              userMessage(
+                !cacheRefs.uidOk ? "requestUserServerUuidRequired" : "requestCompanyServerUuidRequired"
+              ),
+              "error"
+            );
+            return;
           }
-        }
-        if (window.AntaresApi?.isConfigured?.() && window.DomainModules?.requests?.createViaApi) {
           try {
-            rowToSave = await window.DomainModules.requests.createViaApi(localRow, pickupAt);
+            buildPortalRequestSyncPayloadSafe(localRow);
           } catch (err) {
-            notify(String(err?.message || userMessage("genericError")), "error");
+            notify(String(err?.message || userMessage("requestCreateError")), "error");
             return;
           }
         }
         const prevRequests = reqRead();
-        const nextRequests = [rowToSave, ...prevRequests];
+        const nextRequests = [localRow, ...prevRequests];
         try {
-          await reqWriteAwait(nextRequests, rowToSave, undefined, { notifyOnFailure: false });
+          await reqWriteAwait(nextRequests, localRow, undefined, { notifyOnFailure: false });
         } catch (err) {
           reqWrite(prevRequests);
           const msg = String(err?.message || "").trim();
           notify(userMessage("requestSaveServerFail", msg), "error");
           return;
         }
+        const rowToSave = localRow;
         const actingUser = currentUser();
         if (actingUser) {
           const actorEmail = String(actingUser.email || "").trim();
-          const actorUserId = String(actingUser.id || "").trim();
+          const auditActorUserId = String(actingUser.id || "").trim();
           const actor = String(actingUser.name || actorEmail || "Usuario").trim();
           const usuarioFn = globalThis.historyAuditFormatStoredUsuario;
           const usuario =
             typeof usuarioFn === "function"
-              ? usuarioFn(actor, actorEmail, actorUserId)
+              ? usuarioFn(actor, actorEmail, auditActorUserId)
               : actorEmail || actor;
           globalThis.logPortalAuditEvent?.("requests", "create", {
             entityId: String(rowToSave.id || ""),
@@ -679,7 +716,7 @@
             summary: `${String(rowToSave.clientName || "Cliente")} · ${String(rowToSave.originCity || "")} → ${String(rowToSave.destinationCity || "")}`,
             actor,
             actorEmail,
-            actorUserId,
+            actorUserId: auditActorUserId,
             usuario
           });
         }

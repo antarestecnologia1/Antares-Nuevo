@@ -1243,6 +1243,24 @@
 
 
 
+  function removeStorageKey(userId, storageKey) {
+    var uid = String(userId || "").trim();
+    var key = String(storageKey || "").trim();
+    if (!uid || !key) return;
+    removeShard(uid, key);
+    var meta = readMeta(uid);
+    if (meta && Array.isArray(meta.keys)) {
+      var nextKeys = meta.keys.filter(function (k) {
+        return String(k) !== key;
+      });
+      if (nextKeys.length !== meta.keys.length) {
+        writeMeta(uid, { keys: nextKeys, savedAt: meta.savedAt, version: meta.version });
+      }
+    }
+  }
+
+
+
   window.PortalBootstrapCache = {
 
     save: save,
@@ -1252,6 +1270,8 @@
     flush: flushPendingSave,
 
     clear: clear,
+
+    removeStorageKey: removeStorageKey,
 
     tryRestore: tryRestore,
 

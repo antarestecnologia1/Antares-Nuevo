@@ -127,6 +127,8 @@
     },
     requestCompanyServerUuidRequired:
       "La empresa seleccionada no está sincronizada con el servidor (falta UUID). Elija una empresa registrada en PostgreSQL o recargue el portal.",
+    requestUserServerUuidRequired:
+      "Su sesión no tiene un identificador válido en el servidor. Cierre sesión, vuelva a entrar y cree la solicitud de nuevo.",
     requestDatetimeMissing: "Seleccione fecha y hora de recogida y de entrega.",
     requestPastDatetime: "No puede programar solicitudes en fecha u hora ya pasada.",
     requestDeliveryAfterPickup: "La entrega estimada debe ser posterior a la recogida.",
