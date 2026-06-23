@@ -7600,7 +7600,17 @@ export class PortalService implements OnModuleInit {
       if (/id_empresa|empresa_cliente/i.test(msg)) {
         return "La empresa seleccionada no tiene un UUID válido en PostgreSQL. Regístrela o elíjala desde el listado del portal (Administración · Usuarios).";
       }
-      return "Algún identificador interno (usuario, empresa o solicitud) no es un UUID válido. Cierre sesión, recargue el portal e intente de nuevo.";
+      if (/id_vehiculo|vehiculo/i.test(msg)) {
+        return "El viaje asociado tiene un vehículo con identificador inválido. Quite el viaje o asigne recursos desde el portal.";
+      }
+      if (/id_conductor|conductor/i.test(msg)) {
+        return "El viaje asociado tiene un conductor con identificador inválido. Quite el viaje o asigne recursos desde el portal.";
+      }
+      if (/id_solicitud/i.test(msg)) {
+        return "La solicitud tiene un identificador interno inválido. Recargue el portal (Ctrl+F5) o ejecute clearPortalRequestsLocalAndResyncFromServer() en consola.";
+      }
+      const detail = sanitizeLogText(msg).slice(0, 220);
+      return `Algún identificador no es un UUID válido (${detail}). Cierre sesión, recargue el portal e intente de nuevo.`;
     }
     if (code === "22P02") {
       return "Algún dato de la solicitud no tiene el formato esperado en el servidor. Revise fechas, empresa y contacto.";

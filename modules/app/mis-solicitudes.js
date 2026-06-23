@@ -696,7 +696,11 @@
         } catch (err) {
           reqWrite(prevRequests);
           const msg = String(err?.message || "").trim();
-          notify(userMessage("requestSaveServerFail", msg), "error");
+          const hint =
+            /uuid|identificador/i.test(msg) && typeof clearPortalRequestsLocalAndResyncFromServer === "function"
+              ? " Si el error continúa, abra la consola (F12) y ejecute: await clearPortalRequestsLocalAndResyncFromServer()"
+              : "";
+          notify(userMessage("requestSaveServerFail", msg) + hint, "error");
           return;
         }
         const rowToSave = localRow;

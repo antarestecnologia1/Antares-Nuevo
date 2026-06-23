@@ -9,6 +9,7 @@ import {
   normalizeUserAccountStatus,
   setSession
 } from "./auth.js";
+import { filterPortalRequestsForServerCache } from "../domain/solicitudes.domain.js";
 import { state } from "./store.js";
 import { scheduleRenderPortalView } from "./router.js";
 
@@ -533,14 +534,12 @@ export function __applyPortalBootstrapPayloadInner(p) {
     }
     if (prop === "requests") {
       const raw = Array.isArray(p.requests) ? p.requests : [];
-      write(
-        KEYS.requests,
-        raw.map((row) => {
-          if (!row || typeof row !== "object") return row;
-          const { attachments: _attachments, ...rest } = row;
-          return rest;
-        })
-      );
+      const normalized = raw.map((row) => {
+        if (!row || typeof row !== "object") return row;
+        const { attachments: _attachments, ...rest } = row;
+        return rest;
+      });
+      write(KEYS.requests, filterPortalRequestsForServerCache(normalized), { skipSyncSchedule: true });
       continue;
     }
     if (prop === "notifications") {

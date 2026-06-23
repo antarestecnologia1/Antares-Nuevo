@@ -242,8 +242,22 @@ export function reqWrite(next) {
   if (typeof window !== "undefined" && window.DomainModules?.requests?.writeAllSync === "function") {
     window.DomainModules.requests.writeAllSync(next);
   } else {
-    write(KEYS.requests, next);
+    write(KEYS.requests, next, { skipSyncSchedule: true });
   }
+}
+
+/** Quita filas legacy (ids no UUID) que rompen POST /portal/sync-key si se envían en bloque. */
+export function filterPortalRequestsForServerCache(rows) {
+  if (!Array.isArray(rows)) return [];
+  const apiOn = typeof window !== "undefined" && window.AntaresApi?.isConfigured?.();
+  return rows.filter((row) => {
+    if (!row || typeof row !== "object") return false;
+    if (!apiOn) return true;
+    if (!isUuidString(row.id) || !isUuidString(row.clientUserId)) return false;
+    const companyRaw = String(row.clientCompanyId || row.companyId || "").trim();
+    if (companyRaw && !isUuidString(companyRaw)) return false;
+    return true;
+  });
 }
 
 export async function reqWriteAwait(next, syncRows, deleteIds, extraOpts = {}) {
@@ -438,6 +452,8 @@ export async function clearPortalRequestsLocalAndResyncFromServer(opts = {}) {
   if (window.AntaresApi?.isConfigured?.()) {
     const { applyPortalBootstrapFromApi } = await import("../core/bootstrap.js");
     await applyPortalBootstrapFromApi({ skipSecondaryHydration: opts.skipSecondaryHydration === true });
+    const cleaned = filterPortalRequestsForServerCache(reqRead());
+    write(KEYS.requests, cleaned, { skipSyncSchedule: true });
   }
 
   if (opts.rerender !== false) {

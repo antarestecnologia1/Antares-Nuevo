@@ -1321,7 +1321,7 @@
     <script defer src="./modules/core/api-client.js?v=20260515-fetch-errors"></script>
     <script defer src="./modules/core/portal-audit-sync.js?v=20260622-audit-pg"></script>
     <script defer src="./modules/core/portal-data-layer.js"></script>
-    <script defer src="./modules/core/portal-sync.js"></script>
+    <script defer src="./modules/core/portal-sync.js?v=20260623-sync-fix"></script>
     <!-- Vistas del portal estático (registran window.AppModules.*); Next.js vive en apps/web/app -->
     <script defer src="./modules/portal/views/dashboard.js"></script>
     <script defer src="./modules/portal/views/solicitudes.js"></script>
@@ -1366,7 +1366,7 @@
       import * as AntaresContractRenewal from "./modules/domain/contract-renewal.domain.js";
       import * as AntaresPayrollIdentifiers from "./modules/domain/payroll-identifiers.domain.js";
       import * as AntaresPayrollCatalogSanitize from "./modules/domain/payroll-catalog-sanitize.domain.js";
-      import * as AntaresSolicitudesDomain from "./modules/domain/solicitudes.domain.js?v=20260623-clear-requests";
+      import * as AntaresSolicitudesDomain from "./modules/domain/solicitudes.domain.js?v=20260623-sync-fix";
       import * as AntaresNotificacionesDomain from "./modules/domain/notificaciones.domain.js";
       import * as AntaresDashboardDomain from "./modules/domain/dashboard.domain.js";
       import * as AntaresVehiclesDomain from "./modules/domain/vehicles.domain.js";
@@ -1464,7 +1464,7 @@
     <script defer src="./modules/app/dashboard.js"></script>
     <script defer src="./modules/app/viajes.js"></script>
     <script defer src="./modules/app/solicitudes-html.js?v=20260622-time-slots"></script>
-    <script defer src="./modules/app/mis-solicitudes.js?v=20260623-validate-uuid"></script>
+    <script defer src="./modules/app/mis-solicitudes.js?v=20260623-sync-fix"></script>
     <script defer src="./modules/app/camiones-html.js?v=20260622-vehicle-create-wizard"></script>
     <script defer src="./modules/app/camiones.js"></script>
     <script defer src="./modules/app/conductores.js"></script>

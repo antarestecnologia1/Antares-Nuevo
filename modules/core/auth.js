@@ -522,7 +522,7 @@ export function isViewAllowedForUser(user, view) {
 
 
 
-import { reqRead, reqWrite } from "../domain/solicitudes.domain.js";
+import { reqRead, reqWrite, filterPortalRequestsForServerCache } from "../domain/solicitudes.domain.js";
 import { nodes } from "./store.js";
 import {
   escapeHtml,
@@ -1039,7 +1039,7 @@ export function ensureRequestsCompanyMapping() {
       requestedByName: request.requestedByName || owner?.name || request.clientName
     };
   });
-  reqWrite(mapped);
+  reqWrite(filterPortalRequestsForServerCache(mapped));
 }
 
 export function ensureRequestAndTripIdentifiers() {
@@ -1064,7 +1064,7 @@ export function ensureRequestAndTripIdentifiers() {
     }
     return next;
   });
-  if (changed) reqWrite(mapped);
+  if (changed) reqWrite(filterPortalRequestsForServerCache(mapped));
 }
 
 /** Permisos guardados desde formulario: respeta lo marcado; si queda vacío, defaults del rol (no re-expandir admin). */

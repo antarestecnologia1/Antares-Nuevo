@@ -43,7 +43,7 @@ window.DomainModules = window.DomainModules || {};
 
   function writeAllSync(arr) {
     if (!ctx) return;
-    ctx.write(ctx.KEYS.requests, arr);
+    ctx.write(ctx.KEYS.requests, arr, { skipSyncSchedule: true });
   }
 
   function mapApiStatus(s) {

@@ -33,6 +33,8 @@
   let bootstrapDepth = 0;
 
   const EXCLUDED_STORAGE_KEYS = new Set(["antares_session_v2"]);
+  /** Solicitudes: nunca sync-key masivo del array en RAM (solo filas vía reqWriteAwait.syncData). */
+  const NO_BULK_AUTO_SYNC_STORAGE_KEYS = new Set(["antares_requests_v2"]);
 
   const STORAGE_TO_ENTITY = {
     antares_users_v2: "users",
@@ -63,6 +65,7 @@
   function schedule(storageKey, value) {
     if (bootstrapDepth > 0) return;
     if (EXCLUDED_STORAGE_KEYS.has(storageKey)) return;
+    if (NO_BULK_AUTO_SYNC_STORAGE_KEYS.has(storageKey)) return;
     const entity = STORAGE_TO_ENTITY[storageKey];
     if (!entity) return;
     const api = window.AntaresApi;
