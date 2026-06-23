@@ -19,140 +19,27 @@ const MONTHS_ES = [
   "Diciembre"
 ];
 const WEEKDAYS_ES = ["Lu", "Ma", "Mi", "Ju", "Vi", "Sa", "Do"];
-const HOUR12_OPTIONS = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, "0"));
-const MINUTE_QUARTER_OPTIONS = ["00", "15", "30", "45"];
-const PERIOD_OPTIONS = ["AM", "PM"];
-const DRUM_PAD_ROWS = 2;
 
-function snapMinuteValue(rawMinute) {
-  const m = Math.min(59, Math.max(0, parseInt(String(rawMinute || "0"), 10) || 0));
-  let best = MINUTE_QUARTER_OPTIONS[0];
-  let bestDist = Infinity;
-  for (const q of MINUTE_QUARTER_OPTIONS) {
-    const qn = parseInt(q, 10);
-    const dist = Math.abs(m - qn);
-    if (dist < bestDist) {
-      bestDist = dist;
-      best = q;
-    }
+/** Franjas operativas (COT) cada 30 min — un toque para elegir. */
+const TIME_SLOT_GROUPS = [
+  { label: "Madrugada", slots: ["05:00", "05:30", "06:00", "06:30", "07:00", "07:30"] },
+  {
+    label: "Mañana",
+    slots: ["08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30"]
+  },
+  {
+    label: "Mediodía",
+    slots: ["12:00", "12:30", "13:00", "13:30", "14:00", "14:30"]
+  },
+  {
+    label: "Tarde",
+    slots: ["15:00", "15:30", "16:00", "16:30", "17:00", "17:30"]
+  },
+  {
+    label: "Noche",
+    slots: ["18:00", "18:30", "19:00", "19:30", "20:00", "20:30"]
   }
-  return best;
-}
-
-function parsePickerTimeParts(raw) {
-  const s = String(raw || "").trim();
-  let hour24 = 8;
-  let minute = "00";
-  const match = s.match(/^(\d{1,2}):(\d{1,2})/);
-  if (match) {
-    hour24 = Math.min(23, Math.max(0, parseInt(match[1], 10)));
-    minute = snapMinuteValue(match[2]);
-  }
-  return hhmm24ToPickerState(`${String(hour24).padStart(2, "0")}:${minute}`);
-}
-
-/** Convierte HH:MM (24 h, almacenamiento/API) a estado del tambor 12 h. */
-function hhmm24ToPickerState(hhmm) {
-  const s = String(hhmm || "").trim();
-  let hour24 = 8;
-  let minute = "00";
-  const match = s.match(/^(\d{1,2}):(\d{1,2})/);
-  if (match) {
-    hour24 = Math.min(23, Math.max(0, parseInt(match[1], 10)));
-    minute = snapMinuteValue(match[2]);
-  }
-  let period = "AM";
-  let hour12 = 12;
-  if (hour24 === 0) {
-    hour12 = 12;
-    period = "AM";
-  } else if (hour24 < 12) {
-    hour12 = hour24;
-    period = "AM";
-  } else if (hour24 === 12) {
-    hour12 = 12;
-    period = "PM";
-  } else {
-    hour12 = hour24 - 12;
-    period = "PM";
-  }
-  return {
-    hour12: String(hour12).padStart(2, "0"),
-    minute,
-    period
-  };
-}
-
-/** Estado del tambor → HH:MM 24 h para el input y PostgreSQL. */
-function pickerStateToHhmm24(hour12, minute, period) {
-  const h12 = Math.min(12, Math.max(1, parseInt(String(hour12 || "12"), 10) || 12));
-  const m = snapMinuteValue(minute);
-  const p = String(period || "AM").toUpperCase() === "PM" ? "PM" : "AM";
-  let h24;
-  if (p === "AM") {
-    h24 = h12 === 12 ? 0 : h12;
-  } else {
-    h24 = h12 === 12 ? 12 : h12 + 12;
-  }
-  return `${String(h24).padStart(2, "0")}:${m}`;
-}
-
-function formatPickerStateLabel(hour12, minute, period) {
-  const hhmm = pickerStateToHhmm24(hour12, minute, period);
-  return formatTimeDisplay(hhmm) || `${hour12}:${minute} ${period === "PM" ? "p. m." : "a. m."}`;
-}
-
-function drumSpacerHtml() {
-  return Array.from({ length: DRUM_PAD_ROWS }, () => '<div class="acf-drum__spacer" aria-hidden="true"></div>').join("");
-}
-
-function renderDrumColumn(kind, options, selected) {
-  const label =
-    kind === "hour" ? "Hora" : kind === "minute" ? "Minutos" : kind === "period" ? "a. m. / p. m." : "Valor";
-  const items = options
-    .map((opt) => {
-      const value = typeof opt === "object" && opt != null ? String(opt.value ?? "") : String(opt);
-      const text = typeof opt === "object" && opt != null ? String(opt.label ?? opt.value ?? "") : String(opt);
-      const sel = value === selected;
-      return `<button type="button" class="acf-drum__item${sel ? " is-selected" : ""}" data-acf-drum-kind="${kind}" data-acf-drum-value="${value}" role="option"${sel ? ' aria-selected="true"' : ""}>${text}</button>`;
-    })
-    .join("");
-  return `<div class="acf-drum__column acf-drum__column--${kind}" data-acf-drum-column="${kind}" tabindex="0" role="listbox" aria-label="${label}">${drumSpacerHtml()}${items}${drumSpacerHtml()}</div>`;
-}
-
-function scrollDrumColumnToValue(column, value) {
-  if (!column) return;
-  const item = column.querySelector(`[data-acf-drum-value="${value}"]`);
-  if (!item) return;
-  column.scrollTop = item.offsetTop - (column.clientHeight - item.clientHeight) / 2;
-}
-
-function nearestDrumValue(column) {
-  if (!column) return "";
-  const centerY = column.scrollTop + column.clientHeight / 2;
-  let best = null;
-  let bestDist = Infinity;
-  column.querySelectorAll(".acf-drum__item").forEach((btn) => {
-    const mid = btn.offsetTop + btn.clientHeight / 2;
-    const dist = Math.abs(mid - centerY);
-    if (dist < bestDist) {
-      bestDist = dist;
-      best = btn;
-    }
-  });
-  return best ? String(best.dataset.acfDrumValue || "") : "";
-}
-
-function highlightDrumColumn(column) {
-  if (!column) return "";
-  const value = nearestDrumValue(column);
-  column.querySelectorAll(".acf-drum__item").forEach((btn) => {
-    const match = String(btn.dataset.acfDrumValue || "") === value;
-    btn.classList.toggle("is-selected", match);
-    btn.setAttribute("aria-selected", match ? "true" : "false");
-  });
-  return value;
-}
+];
 
 let openPickerEl = null;
 
@@ -176,12 +63,43 @@ function formatDateDisplay(iso) {
   return dt.toLocaleDateString("es-CO", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
 }
 
-function formatTimeDisplay(hhmm) {
+export function formatTimeDisplay(hhmm) {
   const t = String(hhmm || "").trim().slice(0, 5);
-  if (!/^\d{2}:\d{2}$/.test(t)) return "";
-  const [h, m] = t.split(":").map((n) => parseInt(n, 10));
+  const match = t.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return "";
+  const h = Math.min(23, Math.max(0, parseInt(match[1], 10)));
+  const m = Math.min(59, Math.max(0, parseInt(match[2], 10)));
   const dt = new Date(2000, 0, 1, h, m);
-  return dt.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", hour12: true });
+  if (Number.isNaN(dt.getTime())) return "";
+  return dt.toLocaleTimeString("es-CO", { hour: "numeric", minute: "2-digit", hour12: true });
+}
+
+function normalizeHhmm(raw) {
+  const match = String(raw || "").trim().match(/^(\d{1,2}):(\d{2})/);
+  if (!match) return "";
+  const h = Math.min(23, Math.max(0, parseInt(match[1], 10)));
+  const m = Math.min(59, Math.max(0, parseInt(match[2], 10)));
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+function snapToNearestSlot(hhmm) {
+  const norm = normalizeHhmm(hhmm);
+  if (!norm) return "";
+  const all = TIME_SLOT_GROUPS.flatMap((g) => g.slots);
+  if (all.includes(norm)) return norm;
+  const [h, m] = norm.split(":").map((n) => parseInt(n, 10));
+  const total = h * 60 + m;
+  let best = all[0];
+  let bestDist = Infinity;
+  for (const slot of all) {
+    const [sh, sm] = slot.split(":").map((n) => parseInt(n, 10));
+    const dist = Math.abs(sh * 60 + sm - total);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = slot;
+    }
+  }
+  return best;
 }
 
 function readMinIso(input) {
@@ -234,7 +152,6 @@ function closeOpenPicker() {
   openPickerEl = null;
 }
 
-/** Clic dentro del picker aunque el target ya no esté en el DOM (p. ej. tras `innerHTML`). */
 function clickInsideOpenPicker(ev) {
   if (!openPickerEl) return false;
   const path = typeof ev.composedPath === "function" ? ev.composedPath() : [];
@@ -395,6 +312,24 @@ function mountDatePicker(wrap) {
   syncPickerDisplay(wrap);
 }
 
+function renderTimeSlotGroups(selectedHhmm) {
+  const selected = normalizeHhmm(selectedHhmm);
+  return TIME_SLOT_GROUPS.map(
+    (group) => `<section class="acf-time-slots__group">
+      <h4 class="acf-time-slots__heading">${group.label}</h4>
+      <div class="acf-time-slots__grid" role="listbox" aria-label="${group.label}">
+        ${group.slots
+          .map((slot) => {
+            const label = formatTimeDisplay(slot) || slot;
+            const sel = slot === selected;
+            return `<button type="button" class="acf-time-slot${sel ? " is-selected" : ""}" data-acf-time-slot="${slot}" role="option"${sel ? ' aria-selected="true"' : ""} aria-label="${label}">${label}</button>`;
+          })
+          .join("")}
+      </div>
+    </section>`
+  ).join("");
+}
+
 function mountTimePicker(wrap) {
   if (!wrap || wrap.dataset.acfPickerMounted === "1") return;
   wrap.dataset.acfPickerMounted = "1";
@@ -405,100 +340,33 @@ function mountTimePicker(wrap) {
   const trigger = wrap.querySelector("[data-acf-picker-open]");
   if (!hidden || !panel || !trigger) return;
 
-  let hour12 = "08";
-  let minute = "00";
-  let period = "AM";
-
-  const seedFromInput = () => {
-    const next = hhmm24ToPickerState(hidden.value);
-    hour12 = next.hour12;
-    minute = next.minute;
-    period = next.period;
-  };
-
-  const periodDrumOptions = PERIOD_OPTIONS.map((p) => ({
-    value: p,
-    label: p === "PM" ? "p. m." : "a. m."
-  }));
-
-  const renderPanel = () => {
-    const readoutLabel = formatPickerStateLabel(hour12, minute, period);
-    panel.innerHTML = `<div class="acf-timepicker acf-timepicker--drum">
-      <p class="acf-timepicker__drum-hint muted">Deslice o toque hora, minutos y a. m. / p. m.</p>
-      <div class="acf-drum">
-        <div class="acf-drum__frame">
-          <div class="acf-drum__highlight" aria-hidden="true"></div>
-          <div class="acf-drum__columns acf-drum__columns--three">
-            ${renderDrumColumn("hour", HOUR12_OPTIONS, hour12)}
-            <span class="acf-drum__colon" aria-hidden="true">:</span>
-            ${renderDrumColumn("minute", MINUTE_QUARTER_OPTIONS, minute)}
-            ${renderDrumColumn("period", periodDrumOptions, period)}
-          </div>
-        </div>
-        <div class="acf-drum__readout" aria-live="polite">
-          <span class="acf-drum__readout-label">Hora seleccionada</span>
-          <strong>${readoutLabel}</strong>
-        </div>
+  const paint = () => {
+    const current = normalizeHhmm(hidden.value) || snapToNearestSlot("08:00");
+    const nativeValue = normalizeHhmm(hidden.value) || "";
+    panel.innerHTML = `<div class="acf-timepicker acf-timepicker--slots">
+      <p class="acf-timepicker__slots-hint muted">Toque una franja horaria. Horario referencial Colombia (COT).</p>
+      <div class="acf-time-slots">${renderTimeSlotGroups(current)}</div>
+      <div class="acf-time-custom">
+        <label class="acf-time-custom__label">
+          <span>Otra hora exacta</span>
+          <input type="time" class="acf-time-custom__input" data-acf-time-native step="900" value="${nativeValue}" />
+        </label>
+        <button type="button" class="acf-time-custom__apply" data-acf-time-native-apply>Usar hora personalizada</button>
       </div>
-      <footer class="acf-timepicker__foot">
+      <footer class="acf-timepicker__foot acf-timepicker__foot--slots">
         <button type="button" class="acf-timepicker__now" data-acf-time-now>Ahora</button>
-        <button type="button" class="acf-timepicker__apply" data-acf-time-apply>Aplicar ${readoutLabel}</button>
+        <button type="button" class="acf-timepicker__clear" data-acf-time-clear>Borrar</button>
       </footer>
     </div>`;
 
-    const hourCol = panel.querySelector('[data-acf-drum-column="hour"]');
-    const minCol = panel.querySelector('[data-acf-drum-column="minute"]');
-    const periodCol = panel.querySelector('[data-acf-drum-column="period"]');
-    scrollDrumColumnToValue(hourCol, hour12);
-    scrollDrumColumnToValue(minCol, minute);
-    scrollDrumColumnToValue(periodCol, period);
-    highlightDrumColumn(hourCol);
-    highlightDrumColumn(minCol);
-    highlightDrumColumn(periodCol);
-
-    const syncDrumReadout = () => {
-      const readout = panel.querySelector(".acf-drum__readout strong");
-      const applyBtn = panel.querySelector("[data-acf-time-apply]");
-      const label = formatPickerStateLabel(hour12, minute, period);
-      if (readout) readout.textContent = label;
-      if (applyBtn) applyBtn.textContent = `Aplicar ${label}`;
-    };
-
-    let scrollTimer = null;
-    const onDrumScroll = (col, kind) => {
-      clearTimeout(scrollTimer);
-      scrollTimer = setTimeout(() => {
-        const val = highlightDrumColumn(col);
-        if (!val) return;
-        if (kind === "hour") hour12 = val;
-        else if (kind === "minute") minute = val;
-        else if (kind === "period") period = val;
-        syncDrumReadout();
-      }, 72);
-    };
-
-    hourCol?.addEventListener("scroll", () => onDrumScroll(hourCol, "hour"), { passive: true });
-    minCol?.addEventListener("scroll", () => onDrumScroll(minCol, "minute"), { passive: true });
-    periodCol?.addEventListener("scroll", () => onDrumScroll(periodCol, "period"), { passive: true });
-
-    panel.querySelectorAll(".acf-drum__item").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const col = btn.closest(".acf-drum__column");
-        const kind = String(btn.dataset.acfDrumKind || "");
-        const val = String(btn.dataset.acfDrumValue || "");
-        if (!col || !val) return;
-        if (kind === "hour") hour12 = val;
-        else if (kind === "minute") minute = val;
-        else if (kind === "period") period = val;
-        scrollDrumColumnToValue(col, val);
-        highlightDrumColumn(col);
-        syncDrumReadout();
-      });
-    });
+    const selectedBtn = panel.querySelector(`.acf-time-slot[data-acf-time-slot="${current}"]`);
+    selectedBtn?.scrollIntoView({ block: "nearest", inline: "nearest" });
   };
 
-  const applyTime = () => {
-    setHiddenValue(hidden, pickerStateToHhmm24(hour12, minute, period));
+  const pickSlot = (hhmm) => {
+    const norm = normalizeHhmm(hhmm);
+    if (!norm) return;
+    setHiddenValue(hidden, norm);
     syncPickerDisplay(wrap);
     closeOpenPicker();
   };
@@ -511,8 +379,7 @@ function mountTimePicker(wrap) {
       closeOpenPicker();
       return;
     }
-    seedFromInput();
-    renderPanel();
+    paint();
     panel.removeAttribute("hidden");
     trigger.setAttribute("aria-expanded", "true");
     wrap.classList.add("acf-picker--open");
@@ -522,21 +389,30 @@ function mountTimePicker(wrap) {
   panel.addEventListener("click", (ev) => {
     ev.stopPropagation();
     const btn = ev.target.closest("button");
-    if (!btn) return;
-    if (btn.hasAttribute("data-acf-time-now")) {
-      const now = new Date();
-      const next = hhmm24ToPickerState(
-        `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`
-      );
-      hour12 = next.hour12;
-      minute = next.minute;
-      period = next.period;
-      renderPanel();
+    if (btn?.hasAttribute("data-acf-time-slot")) {
+      pickSlot(btn.getAttribute("data-acf-time-slot"));
       return;
     }
-    if (btn.hasAttribute("data-acf-time-apply")) {
-      applyTime();
+    if (btn?.hasAttribute("data-acf-time-now")) {
+      const now = new Date();
+      pickSlot(`${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`);
+      return;
     }
+    if (btn?.hasAttribute("data-acf-time-clear")) {
+      setHiddenValue(hidden, "");
+      syncPickerDisplay(wrap);
+      closeOpenPicker();
+      return;
+    }
+    if (btn?.hasAttribute("data-acf-time-native-apply")) {
+      const native = panel.querySelector("[data-acf-time-native]");
+      pickSlot(native?.value || "");
+    }
+  });
+
+  panel.addEventListener("change", (ev) => {
+    const native = ev.target.closest?.("[data-acf-time-native]");
+    if (native) pickSlot(native.value);
   });
 
   hidden.addEventListener("input", () => syncPickerDisplay(wrap));

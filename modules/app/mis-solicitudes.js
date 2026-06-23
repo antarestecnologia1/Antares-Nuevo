@@ -436,12 +436,16 @@
           notify("La empresa seleccionada no es válida.", "error");
           return;
         }
-        if (window.AntaresApi?.isConfigured?.() && typeof isUuidString === "function" && !isUuidString(String(reqCompany.id || ""))) {
-          notify(userMessage("requestCompanyServerUuidRequired"), "error");
+        const uuidOk =
+          typeof window.isUuidString === "function" ? (v) => window.isUuidString(String(v || "")) : () => true;
+        const sessionUserId = String((typeof getSession === "function" ? getSession()?.userId : "") || "").trim();
+        const actorUserId = window.AntaresApi?.isConfigured?.() && uuidOk(sessionUserId) ? sessionUserId : String(user?.id || "").trim();
+        if (window.AntaresApi?.isConfigured?.() && !uuidOk(actorUserId)) {
+          notify(userMessage("requestUserServerUuidRequired"), "error");
           return;
         }
-        if (window.AntaresApi?.isConfigured?.() && typeof isUuidString === "function" && !isUuidString(String(user?.id || ""))) {
-          notify(userMessage("requestUserServerUuidRequired"), "error");
+        if (window.AntaresApi?.isConfigured?.() && !uuidOk(String(reqCompany.id || ""))) {
+          notify(userMessage("requestCompanyServerUuidRequired"), "error");
           return;
         }
         if (user?.role === ROLES.CLIENT) {
@@ -555,9 +559,9 @@
         const usedRequestNumbers = new Set(all.map((r) => String(r.requestNumber || "").trim()).filter(Boolean));
         const requestNumber = makeRequestNumber(usedRequestNumbers);
         const localRow = {
-          id: newUuidV4(),
+          id: typeof window.newUuidV4 === "function" ? window.newUuidV4() : crypto.randomUUID(),
           requestNumber,
-          clientUserId: user.id,
+          clientUserId: actorUserId,
           clientName: normalizeLatinUpperForDb(reqCompany.name || user.company || ""),
           clientCompanyId: reqCompany.id,
           clientCompanyLogoUrl: companyProfileLogoUrl(reqCompany),

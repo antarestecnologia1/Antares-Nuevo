@@ -1029,7 +1029,135 @@
   color: #64748b;
 }
 
-/* Selector de hora (tambor hora + minuto) */
+/* Selector de hora — franjas horarias (un toque) */
+.antares-create-form .acf-timepicker--slots {
+  padding: 0.1rem 0 0;
+  max-height: min(22rem, 62vh);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.antares-create-form .acf-timepicker__slots-hint {
+  margin: 0;
+  font-size: 0.74rem;
+  text-align: center;
+}
+
+.antares-create-form .acf-time-slots {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 0 0.15rem 0.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.antares-create-form .acf-time-slots__heading {
+  margin: 0 0 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--acf-schedule-accent-deep);
+}
+
+.antares-create-form .acf-time-slots__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.antares-create-form .acf-time-slot {
+  min-height: 2.35rem;
+  padding: 0.35rem 0.4rem;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--acf-schedule-accent) 16%, var(--acf-edge));
+  background: color-mix(in srgb, var(--primary) 3%, var(--acf-card));
+  color: var(--acf-navy);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.14s ease, background 0.14s ease, transform 0.14s ease;
+}
+
+.antares-create-form .acf-time-slot:hover {
+  border-color: color-mix(in srgb, var(--acf-schedule-accent) 38%, var(--acf-edge));
+  transform: translateY(-1px);
+}
+
+.antares-create-form .acf-time-slot.is-selected {
+  color: #fff;
+  border-color: var(--acf-schedule-accent);
+  background: linear-gradient(135deg, var(--acf-schedule-accent), var(--acf-schedule-accent-deep));
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--acf-schedule-accent) 28%, transparent);
+}
+
+.antares-create-form .acf-time-custom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.5rem 0;
+  border-top: 1px dashed var(--acf-edge);
+}
+
+.antares-create-form .acf-time-custom__label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  flex: 1 1 8rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.antares-create-form .acf-time-custom__input {
+  min-height: 2.35rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: 10px;
+  border: 1px solid var(--acf-edge);
+  background: var(--acf-card);
+  font-size: 0.9rem;
+  font-weight: 650;
+  color: var(--acf-navy);
+  color-scheme: light;
+}
+
+.antares-create-form .acf-time-custom__apply {
+  flex: 0 0 auto;
+  min-height: 2.35rem;
+  padding: 0 0.75rem;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--acf-schedule-accent) 22%, var(--acf-edge));
+  background: color-mix(in srgb, var(--acf-schedule-accent) 8%, var(--acf-card));
+  color: var(--acf-schedule-accent-deep);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.antares-create-form .acf-timepicker__foot--slots {
+  display: flex;
+  gap: 0.45rem;
+  margin-top: 0;
+  padding-top: 0.45rem;
+  border-top: 1px solid var(--acf-edge);
+}
+
+.antares-create-form .acf-timepicker__clear {
+  flex: 1 1 auto;
+  min-height: 2.2rem;
+  border-radius: 10px;
+  border: 1px solid var(--acf-edge);
+  background: transparent;
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* Selector de hora (tambor — legacy) */
 .antares-create-form .acf-timepicker--drum {
   padding: 0.15rem 0 0;
 }

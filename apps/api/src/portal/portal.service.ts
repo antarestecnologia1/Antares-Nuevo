@@ -7297,6 +7297,14 @@ export class PortalService implements OnModuleInit {
     return d.toISOString();
   }
 
+  private portalTimestamptzOrNull(v: unknown): string | null {
+    const raw = String(v ?? "").trim();
+    if (!raw) return null;
+    const d = v instanceof Date ? v : new Date(raw);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toISOString();
+  }
+
   /**
    * Viaje: valida contra `solicitudes_transporte`, `vehiculos` y `conductores` ya persistidos.
    * Devuelve placa, tipo asignado, nombre/tel conductor y ventana programada leídos de tablas (no del payload).
@@ -7570,11 +7578,17 @@ export class PortalService implements OnModuleInit {
     if (code === "23502" || /not-null constraint|violates not-null/i.test(msg)) {
       return "Faltan datos obligatorios en la solicitud (ruta, carga, contacto o fechas). Revise el formulario.";
     }
-    if (code === "22P02" || /invalid input syntax for type uuid/i.test(msg)) {
-      return "Algún identificador de la solicitud no es válido para el servidor (UUID). Recargue el portal e intente de nuevo.";
-    }
     if (code === "22P02" && /estado_solicitud_transporte/i.test(msg)) {
       return "El estado de la solicitud no es válido para el servidor.";
+    }
+    if (code === "22P02" && /invalid input syntax for type (timestamp|timestamptz)/i.test(msg)) {
+      return "Alguna fecha u hora de la solicitud no es válida. Revise recogida y entrega.";
+    }
+    if (code === "22P02" && /invalid input syntax for type uuid/i.test(msg)) {
+      return "Algún identificador de la solicitud no es válido para el servidor (UUID). Cierre sesión, recargue el portal e intente de nuevo.";
+    }
+    if (code === "22P02") {
+      return "Algún dato de la solicitud no tiene el formato esperado en el servidor. Revise fechas, empresa y contacto.";
     }
     if (
       code === "42703" ||
@@ -7820,11 +7834,11 @@ export class PortalService implements OnModuleInit {
           Number(req.standbyChargeTotal) || 0,
           JSON.stringify(Array.isArray(req.standbyEvents) ? req.standbyEvents : []),
           nuN(req.rejectionReason),
-          req.approvedAt || null,
+          this.portalTimestamptzOrNull(req.approvedAt),
           req.approvedBy || null,
           autoApproved,
-          req.deliveredAt || null,
-          req.closedAt || null,
+          this.portalTimestamptzOrNull(req.deliveredAt),
+          this.portalTimestamptzOrNull(req.closedAt),
           distanceKm
         ]
       );

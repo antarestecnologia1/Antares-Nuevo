@@ -12,6 +12,10 @@
   }
 
   function formatTimePresetLabel(hhmm) {
+    if (typeof window.formatTimeDisplay === "function") {
+      const label = window.formatTimeDisplay(hhmm);
+      if (label) return label;
+    }
     const t = String(hhmm || "").trim().slice(0, 5);
     if (!/^\d{1,2}:\d{2}$/.test(t)) return t;
     const [h, m] = t.split(":").map((n) => parseInt(n, 10));

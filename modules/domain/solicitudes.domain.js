@@ -4,8 +4,10 @@
  * Permisos globales (`canViewAllTransportRequests`, `canApproveTransportRequests`) se inyectan
  * desde `portal-runtime.js` para no acoplar este módulo a `state` ni a listas de permisos extensas.
  */
+import { getSession } from "../core/auth.js";
 import { CLIENT_DATA_SCOPE, KEYS, ROLES } from "../core/config.js";
 import { read, readArray, write, writeAwaitServer } from "../core/data-io.js";
+import { isUuidString, newUuidV4 } from "../core/utils.js";
 
 const REQUEST_REQUIRED_TRUCK_TYPES = ["Turbo", "Camión", "Tractomula"];
 
@@ -65,6 +67,58 @@ export function normalizePortalTransportRequestRow(row) {
   return normalized;
 }
 
+function portalIsoOrNull(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  const ms = new Date(raw).getTime();
+  return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
+}
+
+/** Alinea ids y fechas opcionales antes de POST /portal/sync-key (evita 22P02 por caché legacy). */
+export function sanitizePortalRequestRowForServer(row) {
+  if (!row || typeof row !== "object") return row;
+  const out = { ...row };
+  const sessionUid = String(getSession()?.userId || "").trim();
+
+  if (!isUuidString(out.id)) {
+    out.id = newUuidV4();
+  }
+
+  const clientUid = isUuidString(out.clientUserId)
+    ? String(out.clientUserId).trim()
+    : isUuidString(sessionUid)
+      ? sessionUid
+      : "";
+  if (!clientUid) {
+    throw new Error(
+      "Su sesión no tiene un identificador válido en el servidor. Cierre sesión, vuelva a entrar y cree la solicitud de nuevo."
+    );
+  }
+  out.clientUserId = clientUid;
+
+  const companyCandidate = String(out.clientCompanyId || out.companyId || "").trim();
+  out.clientCompanyId = isUuidString(companyCandidate) ? companyCandidate : null;
+
+  out.approvedAt = portalIsoOrNull(out.approvedAt);
+  out.deliveredAt = portalIsoOrNull(out.deliveredAt);
+  out.closedAt = portalIsoOrNull(out.closedAt);
+  if (out.approvedBy != null && String(out.approvedBy).trim() === "") {
+    out.approvedBy = null;
+  }
+
+  if (out.trip && typeof out.trip === "object" && !Array.isArray(out.trip)) {
+    const trip = { ...out.trip };
+    if (!isUuidString(trip.id)) delete trip.id;
+    if (!isUuidString(trip.vehicleId)) delete trip.vehicleId;
+    if (!isUuidString(trip.driverId)) delete trip.driverId;
+    out.trip = String(trip.tripNumber || "").trim() ? trip : null;
+  } else {
+    out.trip = null;
+  }
+
+  return out;
+}
+
 export function reqWrite(next) {
   if (typeof window !== "undefined" && window.DomainModules?.requests?.writeAllSync === "function") {
     window.DomainModules.requests.writeAllSync(next);
@@ -85,7 +139,9 @@ export async function reqWriteAwait(next, syncRows, deleteIds, extraOpts = {}) {
       opts.deletedIds = ids;
     }
   } else if (syncRows != null) {
-    opts.syncData = Array.isArray(syncRows) ? syncRows : [syncRows];
+    const rows = Array.isArray(syncRows) ? syncRows : [syncRows];
+    const apiOn = typeof window !== "undefined" && window.AntaresApi?.isConfigured?.();
+    opts.syncData = apiOn ? rows.map((r) => sanitizePortalRequestRowForServer(r)) : rows;
   }
   await writeAwaitServer(KEYS.requests, read(KEYS.requests, []), opts);
 }

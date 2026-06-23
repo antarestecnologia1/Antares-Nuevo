@@ -1366,7 +1366,7 @@
       import * as AntaresContractRenewal from "./modules/domain/contract-renewal.domain.js";
       import * as AntaresPayrollIdentifiers from "./modules/domain/payroll-identifiers.domain.js";
       import * as AntaresPayrollCatalogSanitize from "./modules/domain/payroll-catalog-sanitize.domain.js";
-      import * as AntaresSolicitudesDomain from "./modules/domain/solicitudes.domain.js";
+      import * as AntaresSolicitudesDomain from "./modules/domain/solicitudes.domain.js?v=20260622-uuid-sync";
       import * as AntaresNotificacionesDomain from "./modules/domain/notificaciones.domain.js";
       import * as AntaresDashboardDomain from "./modules/domain/dashboard.domain.js";
       import * as AntaresVehiclesDomain from "./modules/domain/vehicles.domain.js";
@@ -1454,7 +1454,7 @@
       import * as AntaresUIComponents from "./modules/ui/components.js";
       import * as AntaresUIModals from "./modules/ui/modals.js?v=20260622-action-lock";
       import * as AntaresI18n from "./modules/core/i18n.js";
-      import * as AntaresSchedulePicker from "./modules/ui/portal-schedule-picker.js?v=20260622-drum-12h";
+      import * as AntaresSchedulePicker from "./modules/ui/portal-schedule-picker.js?v=20260622-time-slots";
       Object.assign(window, AntaresUIComponents, AntaresUIModals, AntaresI18n, AntaresSchedulePicker);
     </script>
     <script type="module" src="./modules/core/portal-runtime.js?v=20260610-conductor-fields"></script>
@@ -1463,8 +1463,8 @@
     <!-- Vistas legacy (`registerLegacyPortalViews`); deben ejecutarse antes de `app.js` para que el primer `renderPortal()` resuelva HTML. `viajes.js` antes de `mis-solicitudes.js` por `RENDER_WINDOW_SIZE`. -->
     <script defer src="./modules/app/dashboard.js"></script>
     <script defer src="./modules/app/viajes.js"></script>
-    <script defer src="./modules/app/solicitudes-html.js?v=20260622-schedule-time-input"></script>
-    <script defer src="./modules/app/mis-solicitudes.js?v=20260622-schedule-time-input"></script>
+    <script defer src="./modules/app/solicitudes-html.js?v=20260622-time-slots"></script>
+    <script defer src="./modules/app/mis-solicitudes.js?v=20260622-time-slots"></script>
     <script defer src="./modules/app/camiones-html.js?v=20260622-vehicle-create-wizard"></script>
     <script defer src="./modules/app/camiones.js"></script>
     <script defer src="./modules/app/conductores.js"></script>
