@@ -577,6 +577,9 @@ export async function writeNotificationsAwaitServer(deletedIds) {
   savePortalSnapshotAfterBootstrap({ dirtyKeys: [KEYS.notifications] });
 }
 
+/** IDs en borrado en curso: el poll GET no debe reponerlos si la caché ya se podó. */
+let __pendingNotificationDeleteIds = new Set();
+
 /**
  * Elimina notificaciones en PostgreSQL vía endpoint dedicado (sin sync-key masivo).
  * Expande IDs duplicados (misma lógica que marcar leída).
@@ -591,22 +594,27 @@ export async function deleteNotificationsFromServer(ids) {
   ];
   if (!normalized.length) return { ok: true, deleted: 0 };
 
-  const visible = getCurrentNotifications();
-  const visibleIdSet = new Set(visible.map((n) => String(n?.id || "").trim()).filter(Boolean));
-  const targetIds = __expandNotificationReadTargetIds(
-    normalized.filter((id) => visibleIdSet.has(id)),
-    read(KEYS.notifications, [])
-  );
-  if (!targetIds.length) return { ok: true, deleted: 0 };
+  const list = read(KEYS.notifications, []);
+  const targetIds = __expandNotificationReadTargetIds(normalized, list);
+  const idsToDelete = targetIds.length ? targetIds : normalized;
 
   const api = window.AntaresApi;
   if (!api?.postJson || !portalCanRefreshFromApi()) {
     throw new Error("Sesión sin autenticación API. Vuelva a iniciar sesión para guardar en el servidor.");
   }
 
-  const res = await api.postJson("/portal/notifications/delete", { ids: targetIds });
-  savePortalSnapshotAfterBootstrap({ dirtyKeys: [KEYS.notifications] });
-  return res;
+  for (const id of idsToDelete) __pendingNotificationDeleteIds.add(id);
+  try {
+    const res = await api.postJson("/portal/notifications/delete", { ids: idsToDelete });
+    const pruned = read(KEYS.notifications, []).filter(
+      (n) => !__notificationIdSetIncludes(idsToDelete, n.id)
+    );
+    write(KEYS.notifications, pruned, { skipSyncSchedule: true });
+    savePortalSnapshotAfterBootstrap({ dirtyKeys: [KEYS.notifications] });
+    return res;
+  } finally {
+    for (const id of idsToDelete) __pendingNotificationDeleteIds.delete(id);
+  }
 }
 
 /** Quita de la caché local notificaciones ajenas (p. ej. tras crear solicitud antes del filtro). */
@@ -623,7 +631,13 @@ export function reconcileNotificationsCacheForSession() {
  */
 export function mergeNotificationsListPreserveReadAt(prevList, serverList) {
   const prev = Array.isArray(prevList) ? prevList : [];
-  const server = Array.isArray(serverList) ? serverList : [];
+  let server = Array.isArray(serverList) ? serverList : [];
+  if (__pendingNotificationDeleteIds.size) {
+    server = server.filter((n) => {
+      const id = String(n?.id || "").trim();
+      return id && !__pendingNotificationDeleteIds.has(id);
+    });
+  }
   const prevById = new Map(
     prev.map((n) => [String(n?.id || "").trim(), n]).filter(([id]) => Boolean(id))
   );

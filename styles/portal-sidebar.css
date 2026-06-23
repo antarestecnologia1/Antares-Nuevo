@@ -1205,6 +1205,65 @@ body[data-theme="dark"] #portal-sidebar.sidebar--rail {
     4px 0 28px rgba(0, 0, 0, 0.28);
 }
 
+/* Drawer móvil (≤920px): notificaciones alineadas con el resto de enlaces */
+@media (max-width: 920px) {
+  body.portal-drawer-open #portal-sidebar .sidebar-notif-group {
+    width: 100%;
+  }
+
+  body.portal-drawer-open #portal-sidebar .sidebar-notif-row,
+  body.portal-drawer-open.portal-sidebar-collapsed #portal-sidebar .sidebar-notif-row {
+    flex-direction: row;
+    align-items: stretch;
+    gap: 0.35rem;
+    padding: 0;
+    width: 100%;
+  }
+
+  body.portal-drawer-open #portal-sidebar .sidebar-notif-bell-toggle {
+    align-self: stretch;
+    width: var(--portal-sidebar-icon-size) !important;
+    min-width: var(--portal-sidebar-icon-size);
+    min-height: 44px;
+    height: auto;
+    margin: 0;
+  }
+
+  body.portal-drawer-open #portal-sidebar .sidebar-notif-row .side-link--notif-inbox {
+    flex: 1;
+    min-width: 0;
+    min-height: 44px;
+    padding: 0.62rem 0.75rem !important;
+    margin: 0 0 2px;
+    align-items: center;
+    gap: 0.65rem;
+    border-radius: 12px;
+    background: rgba(var(--primary-rgb), 0.03);
+    border: 1px solid transparent;
+  }
+
+  body.portal-drawer-open #portal-sidebar .side-link--notif-inbox .side-link__label {
+    position: static;
+    width: auto;
+    height: auto;
+    padding: 0;
+    margin: 0;
+    overflow: hidden;
+    clip: auto;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    border: 0;
+    flex: 1;
+    min-width: 0;
+  }
+
+  body.portal-drawer-open #portal-sidebar .side-link--notif-inbox .side-link-badge {
+    position: static;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   #portal-sidebar .side-link,
   #portal-sidebar .side-link__icon-wrap,

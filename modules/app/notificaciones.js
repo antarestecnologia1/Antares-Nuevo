@@ -259,14 +259,10 @@ function bindNotificationsPortalControls() {
         message: `¿Eliminar ${visible.length} notificación${visible.length === 1 ? "" : "es"} de tu bandeja? Indica la justificación. Esta acción no se puede deshacer.`,
         confirmText: "Eliminar todas",
         onConfirm: async (motivo) => {
-          const visibleIds = new Set(visible.map((n) => n.id));
-          const list = read(KEYS.notifications, []);
-          const nextList = list.filter((n) => !visibleIds.has(n.id));
-          write(KEYS.notifications, nextList, { skipSyncSchedule: true });
+          const visibleIds = [...new Set(visible.map((n) => n.id).filter(Boolean))];
           try {
-            await deleteNotificationsFromServer([...visibleIds]);
+            await deleteNotificationsFromServer(visibleIds);
           } catch (err) {
-            write(KEYS.notifications, list, { skipSyncSchedule: true });
             G.notify(String(err?.message || "No fue posible eliminar las notificaciones en el servidor."), "error");
             G.renderPortalView();
             G.updateNotificationBadge();
@@ -297,14 +293,11 @@ function bindNotificationsPortalControls() {
         onConfirm: async () => {
           const visibleIds = new Set(getCurrentNotifications().map((n) => n.id));
           if (!visibleIds.has(id)) return;
-          const list = read(KEYS.notifications, []);
-          const removedNotification = list.find((n) => n.id === id) || null;
-          const nextList = list.filter((n) => n.id !== id);
-          write(KEYS.notifications, nextList, { skipSyncSchedule: true });
+          const removedNotification =
+            read(KEYS.notifications, []).find((n) => n.id === id) || null;
           try {
             await deleteNotificationsFromServer([id]);
           } catch (err) {
-            write(KEYS.notifications, list, { skipSyncSchedule: true });
             G.notify(String(err?.message || "No fue posible eliminar la notificación en el servidor."), "error");
             G.renderPortalView();
             G.updateNotificationBadge();
