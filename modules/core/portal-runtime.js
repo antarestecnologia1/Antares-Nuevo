@@ -6263,7 +6263,14 @@ function approveRequest(
         actorUserId: tripFields.actorUserId,
         usuario: tripFields.usuario
       });
-    } catch (_e) {}
+    } catch (_e) {
+      if (typeof notify === "function") {
+        notify(
+          String(_e?.message || "No fue posible guardar el viaje en el servidor. Recargue y verifique."),
+          "error"
+        );
+      }
+    }
 
     const users = read(KEYS.users, []);
     const target = users.find((u) => u.id === current.clientUserId);

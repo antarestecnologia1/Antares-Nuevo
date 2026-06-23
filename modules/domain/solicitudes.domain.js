@@ -239,7 +239,7 @@ export function sanitizePortalRequestRowForServer(row) {
 }
 
 export function reqWrite(next) {
-  if (typeof window !== "undefined" && window.DomainModules?.requests?.writeAllSync === "function") {
+  if (typeof window !== "undefined" && typeof window.DomainModules?.requests?.writeAllSync === "function") {
     window.DomainModules.requests.writeAllSync(next);
   } else {
     write(KEYS.requests, next, { skipSyncSchedule: true });
@@ -282,7 +282,7 @@ export async function reqWriteAwait(next, syncRows, deleteIds, extraOpts = {}) {
 
 export function readPortalTransportRequests() {
   const rows =
-    typeof window !== "undefined" && window.DomainModules?.requests?.readAllSync === "function"
+    typeof window !== "undefined" && typeof window.DomainModules?.requests?.readAllSync === "function"
       ? window.DomainModules.requests.readAllSync()
       : readArray(KEYS.requests);
   return Array.isArray(rows) ? rows.map(normalizePortalTransportRequestRow) : [];

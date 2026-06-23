@@ -222,7 +222,13 @@
   async function flushStorageKeyNow(storageKey, opts) {
     if (bootstrapDepth > 0) return;
     if (EXCLUDED_STORAGE_KEYS.has(storageKey)) return;
-    if (NO_BULK_AUTO_SYNC_STORAGE_KEYS.has(storageKey)) return;
+    if (NO_BULK_AUTO_SYNC_STORAGE_KEYS.has(storageKey)) {
+      const hasExplicitSync =
+        opts &&
+        ((opts.syncData !== undefined && opts.syncData !== null) ||
+          (Array.isArray(opts.deletedIds) && opts.deletedIds.length > 0));
+      if (!hasExplicitSync) return;
+    }
     const entity = STORAGE_TO_ENTITY[storageKey];
     if (!entity) return;
 

@@ -495,6 +495,14 @@ function payrollHtml() {
     </div>
   </form>`;
   const todayYmdBulk = typeof colombiaTodayIsoDate === "function" ? colombiaTodayIsoDate() : new Date().toISOString().slice(0, 10);
+  const defaultSingleFechaCierre = (() => {
+    const today = todayYmdBulk;
+    const parts = today.split("-").map(Number);
+    if (parts.length < 3 || !parts[0] || !parts[1]) return today;
+    const [y, m] = parts;
+    const ld = typeof lastDayOfMonth === "function" ? lastDayOfMonth(y, m - 1) : new Date(y, m, 0).getDate();
+    return `${y}-${String(m).padStart(2, "0")}-${String(ld).padStart(2, "0")}`;
+  })();
   const payrollLiquidationModeNav = `<div class="payroll-liquidation-mode" role="tablist" aria-label="Modo de liquidación">
       <button type="button" class="payroll-liquidation-mode__btn${payrollLiquidationMode === "single" ? " is-active" : ""}" role="tab" aria-selected="${payrollLiquidationMode === "single" ? "true" : "false"}" data-action="payroll-liquidation-mode" data-mode="single">${IC.user} Un colaborador</button>
       <button type="button" class="payroll-liquidation-mode__btn${payrollLiquidationMode === "bulk" ? " is-active" : ""}" role="tab" aria-selected="${payrollLiquidationMode === "bulk" ? "true" : "false"}" data-action="payroll-liquidation-mode" data-mode="bulk">${IC.users} Todos (cascada)</button>
@@ -542,7 +550,7 @@ function payrollHtml() {
             <label>${fieldLabel(IC.dollar, "Salario base mensual (COP)")}<input type="text" id="payroll-monthly-base-salary" class="payroll-liq-readonly" readonly tabindex="-1" aria-readonly="true" value="" placeholder="Seleccione colaborador" /></label>
           </div>
           <div class="payroll-liq-field payroll-liq-field--date">
-            <label>${fieldLabel(IC.calendar, "Fecha de cierre del período", { required: true })}<input type="date" name="fechaCierre" id="payroll-fecha-cierre" value="${escapeAttr(todayYmdBulk)}" required /></label>
+            <label>${fieldLabel(IC.calendar, "Fecha de cierre del período", { required: true })}<input type="date" name="fechaCierre" id="payroll-fecha-cierre" value="${escapeAttr(defaultSingleFechaCierre)}" required /></label>
           </div>
           <input type="hidden" name="month" id="payroll-month-hidden" value="" />
           <input type="hidden" name="payrollQuincena" id="payroll-quincena-hidden" value="Q1" />
