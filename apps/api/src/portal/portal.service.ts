@@ -511,9 +511,13 @@ export class PortalService implements OnModuleInit {
   }
 
   private async resolvePortalActor(actorUserId: string): Promise<{ name: string; email: string }> {
+    const uid = String(actorUserId || "").trim();
+    if (!PG_UUID_V4_RE.test(uid)) {
+      return { name: "Usuario", email: "" };
+    }
     const r = await this.pool.query<{ nombre_completo: string | null; correo_electronico: string | null }>(
       `SELECT nombre_completo, correo_electronico FROM usuarios WHERE id = $1::uuid`,
-      [actorUserId]
+      [uid]
     );
     const row = r.rows[0];
     return {
@@ -1064,7 +1068,12 @@ export class PortalService implements OnModuleInit {
           ultimo_valor  BIGINT NOT NULL DEFAULT 0 CHECK (ultimo_valor >= 0)
         )
       `);
-      this.logger.log("contadores_secuencia: tabla verificada.");
+      /** Primera solicitud en BD vacía → SOL-000001 (bumpCounterTx suma 1). */
+      await this.pool.query(
+        `INSERT INTO contadores_secuencia (prefijo, ultimo_valor) VALUES ('request', 0), ('trip', 0)
+         ON CONFLICT (prefijo) DO NOTHING`
+      );
+      this.logger.log("contadores_secuencia: tabla verificada (request/trip desde 0).");
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.warn(`ensureContadoresSequenciaSchema fallo no fatal: ${sanitizeLogText(msg)}`);
@@ -7585,7 +7594,13 @@ export class PortalService implements OnModuleInit {
       return "Alguna fecha u hora de la solicitud no es válida. Revise recogida y entrega.";
     }
     if (code === "22P02" && /invalid input syntax for type uuid/i.test(msg)) {
-      return "Algún identificador de la solicitud no es válido para el servidor (UUID). Cierre sesión, recargue el portal e intente de nuevo.";
+      if (/id_usuario|usuario_solicitante/i.test(msg)) {
+        return "El usuario solicitante no está vinculado a un UUID válido en PostgreSQL. Cierre sesión, vuelva a entrar o pida al administrador que sincronice su cuenta.";
+      }
+      if (/id_empresa|empresa_cliente/i.test(msg)) {
+        return "La empresa seleccionada no tiene un UUID válido en PostgreSQL. Regístrela o elíjala desde el listado del portal (Administración · Usuarios).";
+      }
+      return "Algún identificador interno (usuario, empresa o solicitud) no es un UUID válido. Cierre sesión, recargue el portal e intente de nuevo.";
     }
     if (code === "22P02") {
       return "Algún dato de la solicitud no tiene el formato esperado en el servidor. Revise fechas, empresa y contacto.";
@@ -7620,33 +7635,39 @@ export class PortalService implements OnModuleInit {
     const empresaId = await this.getUserCompany(userId);
     const isClient = this.isPortalClientRole(role);
     for (const req of data) {
-      if (!req?.id) continue;
-      const idStr = String(req.id).trim();
-      if (!PG_UUID_V4_RE.test(idStr)) {
+      if (!req || typeof req !== "object") continue;
+      const reqRec = req as Record<string, unknown>;
+      const idRaw = String(req.id ?? "").trim();
+      const rowId = PG_UUID_V4_RE.test(idRaw) ? idRaw : randomUUID();
+      if (!PG_UUID_V4_RE.test(idRaw)) {
         this.logger.warn(
-          `syncRequests: omitiendo fila con id no UUID (requerido por PostgreSQL): ${idStr.slice(0, 36)}`
+          `syncRequests: id del portal no es UUID (${idRaw.slice(0, 24)}); se asignó ${rowId.slice(0, 8)}…`
         );
-        continue;
       }
+
+      let clientUserIdSql = portalUuidOrNull(req.clientUserId);
+      if (!clientUserIdSql && PG_UUID_V4_RE.test(String(userId).trim())) {
+        clientUserIdSql = String(userId).trim();
+      }
+      const clientCompanyIdSql = portalUuidOrNull(reqRec.clientCompanyId ?? reqRec.companyId);
+
       let ownerOk =
         admin ||
         transport ||
-        String(req.clientUserId) === userId ||
-        (empresaId && String(req.clientCompanyId || "") === String(empresaId));
+        (clientUserIdSql && clientUserIdSql === userId) ||
+        (empresaId && clientCompanyIdSql && clientCompanyIdSql === String(empresaId));
       if (isClient) {
         ownerOk =
-          String(req.clientUserId) === userId &&
-          (!empresaId || String(req.clientCompanyId || "") === String(empresaId));
+          Boolean(clientUserIdSql && clientUserIdSql === userId) &&
+          (!empresaId || !clientCompanyIdSql || clientCompanyIdSql === String(empresaId));
       }
       if (!ownerOk) throw new ForbiddenException();
 
-      const clientUserIdSql = portalUuidOrNull(req.clientUserId);
       if (!clientUserIdSql) {
         throw new BadRequestException(
           "La solicitud no tiene un identificador válido de usuario solicitante (UUID requerido por el servidor)."
         );
       }
-      const clientCompanyIdSql = portalUuidOrNull(req.clientCompanyId);
 
       const userExists = await c.query(`SELECT 1 FROM usuarios WHERE id = $1::uuid LIMIT 1`, [clientUserIdSql]);
       if (!userExists.rowCount) {
@@ -7674,7 +7695,6 @@ export class PortalService implements OnModuleInit {
       }
       const contactPhone = normalizePortalPhoneForStorage(contactPhoneRaw);
       const boxesNum = Math.max(0, Number(req.boxesCount ?? req.boxes ?? 0) || 0);
-      const reqRec = req as Record<string, unknown>;
       const vehicleType = this.solicitudTipoCamionFromPayload(reqRec);
       const numeroFuelles = this.solicitudNumeroFuellesFromPayload(reqRec, vehicleType);
       let weightKg = 0;
@@ -7740,7 +7760,7 @@ export class PortalService implements OnModuleInit {
       const estadoSql = this.solicitudEstadoFromPayload(req);
 
       const existingReq = await c.query(`SELECT numero_solicitud FROM solicitudes_transporte WHERE id = $1::uuid LIMIT 1`, [
-        idStr
+        rowId
       ]);
       let requestNumber = "";
       try {
@@ -7804,7 +7824,7 @@ export class PortalService implements OnModuleInit {
           fecha_cierre = EXCLUDED.fecha_cierre,
           distancia_km = EXCLUDED.distancia_km`,
         [
-          req.id,
+          rowId,
           requestNumber,
           clientUserIdSql,
           clientCompanyIdSql,
@@ -7851,7 +7871,7 @@ export class PortalService implements OnModuleInit {
         const tripIdRaw = t.id != null ? String(t.id).trim() : "";
         const tripId = PG_UUID_V4_RE.test(tripIdRaw) ? tripIdRaw : null;
         try {
-        const tripDb = await this.resolveTripRowFromDatabase(c, idStr, t);
+        const tripDb = await this.resolveTripRowFromDatabase(c, rowId, t);
         await c.query(
           `INSERT INTO viajes_transporte (
             id, id_solicitud, numero_viaje, id_vehiculo, id_conductor, placa_vehiculo, tipo_vehiculo_asignado,
@@ -7879,7 +7899,7 @@ export class PortalService implements OnModuleInit {
             fecha_actualizacion = now()`,
           [
             tripId,
-            req.id,
+            rowId,
             t.tripNumber,
             tripDb.vehicleId,
             tripDb.driverId,

@@ -98,6 +98,13 @@ export function sanitizePortalRequestRowForServer(row) {
 
   const companyCandidate = String(out.clientCompanyId || out.companyId || "").trim();
   out.clientCompanyId = isUuidString(companyCandidate) ? companyCandidate : null;
+  delete out.companyId;
+
+  if (window.AntaresApi?.isConfigured?.() && !out.clientCompanyId) {
+    throw new Error(
+      "La empresa seleccionada no está registrada en el servidor (falta UUID). Elija una empresa del listado o pida al administrador que la cree en Administración · Usuarios."
+    );
+  }
 
   out.approvedAt = portalIsoOrNull(out.approvedAt);
   out.deliveredAt = portalIsoOrNull(out.deliveredAt);

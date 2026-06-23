@@ -439,7 +439,8 @@
         const uuidOk =
           typeof window.isUuidString === "function" ? (v) => window.isUuidString(String(v || "")) : () => true;
         const sessionUserId = String((typeof getSession === "function" ? getSession()?.userId : "") || "").trim();
-        const actorUserId = window.AntaresApi?.isConfigured?.() && uuidOk(sessionUserId) ? sessionUserId : String(user?.id || "").trim();
+        const actorUserId =
+          window.AntaresApi?.isConfigured?.() && uuidOk(sessionUserId) ? sessionUserId : String(user?.id || "").trim();
         if (window.AntaresApi?.isConfigured?.() && !uuidOk(actorUserId)) {
           notify(userMessage("requestUserServerUuidRequired"), "error");
           return;
@@ -605,6 +606,7 @@
           standbyEvents: [],
           rejectionReason: ""
         };
+        delete localRow.companyId;
         let rowToSave = localRow;
         if (window.AntaresApi?.isConfigured?.() && window.DomainModules?.requests?.createViaApi) {
           try {
