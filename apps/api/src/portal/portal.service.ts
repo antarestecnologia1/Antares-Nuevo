@@ -1270,7 +1270,6 @@ export class PortalService implements OnModuleInit {
              OR id_usuario = $5::uuid
            )
            AND fecha_creacion > now() - interval '30 days'
-           AND eliminado = false
          LIMIT 1`,
         [entityType, entityId, title, audience, userId]
       );
@@ -1286,7 +1285,6 @@ export class PortalService implements OnModuleInit {
            OR id_usuario = $4::uuid
          )
          AND fecha_creacion > now() - ($5::text || ' seconds')::interval
-         AND eliminado = false
        LIMIT 1`,
       [title, body, audience, userId, String(windowSeconds)]
     );
@@ -5504,14 +5502,12 @@ export class PortalService implements OnModuleInit {
          SELECT id, titulo, cuerpo, audiencia, id_usuario, tipo_entidad, id_entidad
          FROM notificaciones
          WHERE id = ANY($1::uuid[])
-           AND eliminado = false
        )
        UPDATE notificaciones n
        SET fecha_lectura = COALESCE(n.fecha_lectura, $2::timestamptz),
            leido = true
        FROM requested src
        WHERE n.fecha_lectura IS NULL
-         AND n.eliminado = false
          AND (
            n.id = src.id
            OR (

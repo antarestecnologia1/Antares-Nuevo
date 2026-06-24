@@ -31852,3 +31852,295 @@ body[data-theme="dark"] .modal-card-edit--employee-non-renewal .modal-edit-actio
 .payroll-abs-chip--ok      { background: var(--pr-abs-ok-bg);      color: var(--pr-abs-ok-fg);      }
 .payroll-abs-chip--info    { background: var(--pr-abs-info-bg);    color: var(--pr-abs-info-fg);    }
 .payroll-abs-chip--neutral { background: var(--pr-abs-neutral-bg); color: var(--pr-abs-neutral-fg); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MEJORAS UI — Botones Cancelar/Guardar · Vistas detalle · Reportes
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. Botón CANCELAR: identidad visual más fuerte ─────────────────────── */
+.module-panel-actions--footer .module-panel-btn--cancel {
+  --mpa-btn-bg: linear-gradient(180deg, #fff5f6 0%, #fff0f1 100%);
+  --mpa-btn-edge: rgba(244, 63, 94, 0.32);
+  --mpa-btn-icon-bg: color-mix(in srgb, #f43f5e 16%, #fff);
+  color: #b91c1c;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  border-width: 1.5px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 2px 6px rgba(225, 29, 72, 0.1),
+    0 1px 2px rgba(225, 29, 72, 0.06);
+}
+
+.module-panel-actions--footer .module-panel-btn--cancel:hover {
+  --mpa-btn-bg: linear-gradient(180deg, #ffe4e6 0%, #fecdd3 100%);
+  --mpa-btn-edge: rgba(251, 113, 133, 0.48);
+  --mpa-btn-icon-bg: color-mix(in srgb, #f43f5e 22%, #fff1f2);
+  color: #9f1239;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 4px 12px rgba(225, 29, 72, 0.18),
+    0 8px 22px rgba(225, 29, 72, 0.12);
+  transform: translateY(-1.5px);
+}
+
+/* Contenedor secundario: tinte rosado cuando hay cancelar */
+.module-panel-actions--footer .module-panel-actions__group--secondary:has(.module-panel-btn--cancel) {
+  background: color-mix(in srgb, #fff5f6 70%, rgba(241, 245, 249, 0.85));
+  border-color: color-mix(in srgb, #fda4af 26%, rgba(148, 163, 184, 0.16));
+}
+
+/* ── 2. Botón GUARDAR: más prominente ───────────────────────────────────── */
+.module-panel-actions--footer .module-panel-actions__group--primary > .btn-primary {
+  background: linear-gradient(180deg, #4293de 0%, #2872c0 46%, #1d5ea8 100%) !important;
+  border-color: rgba(18, 68, 138, 0.42) !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.025em !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 4px 14px rgba(var(--primary-rgb), 0.34),
+    0 10px 30px rgba(var(--primary-rgb), 0.22) !important;
+}
+
+.module-panel-actions--footer .module-panel-actions__group--primary > .btn-primary:hover:not(:disabled) {
+  background: linear-gradient(180deg, #54a2e8 0%, #3882d0 46%, #2870b8 100%) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 6px 18px rgba(var(--primary-rgb), 0.4),
+    0 16px 36px rgba(var(--primary-rgb), 0.28) !important;
+  transform: translateY(-2px) !important;
+}
+
+/* Barra de acciones: separador superior visible */
+.module-panel-actions--footer.modal-edit-actions {
+  border-top: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
+  padding-top: 0.75rem;
+  margin-top: 0.65rem !important;
+  background: linear-gradient(180deg, rgba(var(--brand-blue-soft-rgb), 0.08), transparent);
+  border-radius: 0 0 14px 14px;
+}
+
+/* Dark theme – cancelar */
+body[data-theme="dark"] .module-panel-actions--footer .module-panel-btn--cancel {
+  --mpa-btn-bg: linear-gradient(180deg, rgba(136, 19, 55, 0.42) 0%, rgba(127, 15, 50, 0.34) 100%);
+  --mpa-btn-edge: rgba(251, 113, 133, 0.32);
+  --mpa-btn-icon-bg: color-mix(in srgb, #f43f5e 18%, #1e293b);
+  color: #fda4af;
+}
+body[data-theme="dark"] .module-panel-actions--footer .module-panel-btn--cancel:hover {
+  --mpa-btn-bg: linear-gradient(180deg, rgba(159, 18, 57, 0.52) 0%, rgba(136, 15, 45, 0.46) 100%);
+  --mpa-btn-edge: rgba(251, 113, 133, 0.46);
+  color: #fecdd3;
+}
+body[data-theme="dark"] .module-panel-actions--footer .module-panel-actions__group--secondary:has(.module-panel-btn--cancel) {
+  background: color-mix(in srgb, rgba(136, 19, 55, 0.22) 70%, rgba(15, 23, 42, 0.85));
+  border-color: rgba(251, 113, 133, 0.2);
+}
+body[data-theme="dark"] .module-panel-actions--footer.modal-edit-actions {
+  border-top-color: rgba(148, 196, 255, 0.14);
+  background: linear-gradient(180deg, rgba(20, 37, 59, 0.32), transparent);
+}
+
+/* ── 3. Vista detalle VIAJE y SOLICITUD: tiles de información ────────────── */
+
+/* Sección informativa del modal: espaciado y estructura */
+.modal-info-body {
+  padding: 0.2rem 0 0.4rem;
+}
+
+/* Ítems del dash-grid dentro de modales de info → tiles visuales */
+.modal-info-body .dash-grid > div,
+.modal-info-body .dash-grid > p {
+  padding: 0.7rem 0.9rem;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--primary) 12%, var(--line));
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  box-shadow: 0 2px 8px rgba(var(--primary-rgb), 0.05);
+  line-height: 1.55;
+  font-size: 0.9rem;
+}
+
+.modal-info-body .dash-grid > div strong,
+.modal-info-body .dash-grid > p strong {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--primary-dark);
+  margin-bottom: 0.2rem;
+}
+
+.modal-info-body .dash-grid > div.full {
+  grid-column: 1 / -1;
+}
+
+/* Cabeceras de sección dentro del modal de detalle */
+.solicitud-detail-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0 0 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid color-mix(in srgb, var(--primary) 22%, var(--line));
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: var(--primary-deeper, #1e4a73);
+}
+
+.solicitud-detail-heading::before {
+  content: "";
+  display: inline-block;
+  width: 4px;
+  height: 1.1em;
+  border-radius: 3px;
+  background: linear-gradient(180deg, var(--primary), var(--primary-dark));
+  flex-shrink: 0;
+}
+
+/* Resumen del viaje asignado dentro de solicitud */
+.solicitud-trip-summary {
+  padding: 0.9rem 1.05rem;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--primary) 22%, var(--line));
+  background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.07), rgba(var(--brand-blue-soft-rgb), 0.22));
+  box-shadow: 0 4px 14px rgba(var(--primary-rgb), 0.08);
+}
+
+.solicitud-trip-summary-actions {
+  margin-top: 0.55rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid color-mix(in srgb, var(--primary) 16%, var(--line));
+}
+
+/* dash-grid en la sección detalle de solicitud: gap específico */
+.solicitud-detail-section .dash-grid {
+  gap: 0.6rem 0.9rem;
+}
+
+/* Dark – tiles de información */
+body[data-theme="dark"] .modal-info-body .dash-grid > div,
+body[data-theme="dark"] .modal-info-body .dash-grid > p {
+  background: linear-gradient(180deg, rgba(20, 37, 59, 0.85) 0%, rgba(12, 27, 44, 0.9) 100%);
+  border-color: rgba(148, 196, 255, 0.18);
+  box-shadow: 0 2px 8px rgba(2, 8, 20, 0.22);
+  color: #e2eaf6;
+}
+body[data-theme="dark"] .modal-info-body .dash-grid > div strong,
+body[data-theme="dark"] .modal-info-body .dash-grid > p strong {
+  color: #83bee9;
+}
+body[data-theme="dark"] .solicitud-detail-heading {
+  color: #b8d9f5;
+  border-bottom-color: rgba(131, 190, 233, 0.28);
+}
+body[data-theme="dark"] .solicitud-trip-summary {
+  background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.18), rgba(15, 28, 46, 0.72));
+  border-color: rgba(131, 190, 233, 0.22);
+}
+
+/* ── 4. Modal REPORTES: más profundidad y contraste ─────────────────────── */
+
+/* Tarjeta principal del modal de reporte */
+.modal-card-report-preview {
+  background: linear-gradient(180deg, #eaf4ff 0%, #f0f7ff 30%, #e8f2fd 100%) !important;
+  border-color: color-mix(in srgb, var(--primary) 28%, var(--line)) !important;
+  box-shadow:
+    0 28px 56px rgba(var(--primary-rgb), 0.18),
+    0 8px 24px rgba(15, 23, 42, 0.12) !important;
+}
+
+/* Cabecera del reporte: más saturada */
+.report-preview-head {
+  background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.18), rgba(var(--brand-blue-soft-rgb), 0.42)) !important;
+  border-color: color-mix(in srgb, var(--primary) 28%, var(--line)) !important;
+  box-shadow: 0 8px 20px rgba(var(--primary-rgb), 0.14) !important;
+}
+
+/* Encabezado del reporte */
+.report-preview-head h2 {
+  color: var(--primary-deeper);
+  font-weight: 800;
+}
+
+.report-preview-kicker {
+  color: var(--primary-dark);
+  font-weight: 800;
+}
+
+/* Cuerpo de la tabla: fondo más diferenciado */
+.report-preview-body {
+  background: #f0f7ff;
+  border: 1px solid color-mix(in srgb, var(--primary) 20%, var(--line));
+  border-radius: 14px;
+}
+
+/* Filas pares: franja más visible */
+.report-preview-table tbody tr:nth-child(even) td {
+  background: rgba(var(--brand-blue-soft-rgb), 0.38) !important;
+}
+
+/* Hover en filas */
+.report-preview-table tbody tr:hover td {
+  background: rgba(var(--primary-rgb), 0.11) !important;
+}
+
+/* Celdas base: fondo ligeramente azulado en vez de blanco puro */
+.report-preview-table tbody td {
+  background: rgba(240, 247, 255, 0.92) !important;
+}
+
+/* Pie del modal de reporte */
+.report-preview-copy {
+  background: linear-gradient(180deg, rgba(var(--primary-rgb), 0.08), rgba(var(--brand-blue-soft-rgb), 0.24)) !important;
+  border-color: color-mix(in srgb, var(--primary) 18%, var(--line)) !important;
+  color: var(--primary-dark);
+  font-weight: 500;
+}
+
+/* Botones de acción del reporte */
+.report-preview-actions .btn {
+  min-width: 9rem;
+  font-weight: 700;
+}
+
+/* Dark theme – modal reporte */
+body[data-theme="dark"] .modal-card-report-preview {
+  background: linear-gradient(180deg, #0d1e32 0%, #0f2238 30%, #091827 100%) !important;
+  border-color: rgba(131, 190, 233, 0.26) !important;
+  box-shadow: 0 32px 64px rgba(0, 0, 0, 0.52) !important;
+}
+
+body[data-theme="dark"] .report-preview-head {
+  background: linear-gradient(135deg, rgba(55, 124, 192, 0.22), rgba(15, 30, 50, 0.88)) !important;
+  border-color: rgba(131, 190, 233, 0.24) !important;
+}
+
+body[data-theme="dark"] .report-preview-head h2 {
+  color: #b8d9f5;
+}
+
+body[data-theme="dark"] .report-preview-body {
+  background: rgba(8, 18, 30, 0.92) !important;
+  border-color: rgba(131, 190, 233, 0.18) !important;
+}
+
+body[data-theme="dark"] .report-preview-table tbody td {
+  background: rgba(12, 24, 40, 0.88) !important;
+  color: #dbeafe;
+}
+
+body[data-theme="dark"] .report-preview-table tbody tr:nth-child(even) td {
+  background: rgba(30, 52, 80, 0.72) !important;
+}
+
+body[data-theme="dark"] .report-preview-table tbody tr:hover td {
+  background: rgba(55, 124, 192, 0.18) !important;
+}
+
+body[data-theme="dark"] .report-preview-copy {
+  background: linear-gradient(180deg, rgba(20, 40, 66, 0.72), rgba(10, 22, 38, 0.88)) !important;
+  border-color: rgba(131, 190, 233, 0.16) !important;
+  color: #9ec7e8;
+}
