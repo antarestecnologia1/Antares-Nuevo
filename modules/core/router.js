@@ -15,6 +15,7 @@ import {
   getEffectiveLastActivityAt,
   SESSION_IDLE_MS,
   getPortalUserDisplayName,
+  getPortalUserFirstName,
   getCompanyById,
   canAccessRRHH,
   mountSessionIdlePublicNoticeIfNeeded,
@@ -200,7 +201,7 @@ export function updatePortalSidebarSessionMeta() {
     }
     return;
   }
-  const displayName = getPortalUserDisplayName(user);
+  const displayName = getPortalUserFirstName(user);
   const roleLabel = getPortalSidebarSessionSubtitle(user);
   if (nameEl) nameEl.textContent = displayName;
   if (meta) meta.textContent = roleLabel;

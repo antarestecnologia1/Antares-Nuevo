@@ -296,6 +296,14 @@ export function getPortalUserDisplayName(user) {
   return "Usuario";
 }
 
+export function getPortalUserFirstName(user) {
+  if (!user) return "Usuario";
+  const firstName = String(user.firstName ?? "").trim();
+  if (firstName) return firstName;
+  const displayName = getPortalUserDisplayName(user);
+  return String(displayName).trim().split(/\s+/)[0] || displayName;
+}
+
 export function defaultPermissionsForRole(role) {
   if (role === ROLES.ADMIN) return [...ALL_PERMISSIONS];
   if ([ROLES.RRHH, ROLES.ADMINISTRACION, ROLES.LIDER_ADMINISTRATIVO].includes(role)) {
