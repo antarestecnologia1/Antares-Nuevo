@@ -9640,6 +9640,74 @@ body[data-theme="dark"] #crud-form.p-form-colored.modal-edit-form > label:not(.r
   color: #e2eaf6;
 }
 
+/* ── Mejoras visuales formularios editar / visualizar ── */
+#crud-form.p-form-colored.modal-edit-form .form-section {
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--primary, #377cc0) 14%, #e2e8f0);
+  background: linear-gradient(145deg, rgba(255,255,255,0.99), rgba(248,250,252,0.95));
+  box-shadow: 0 2px 8px rgba(15,23,42,0.04), 0 1px 2px rgba(15,23,42,0.05);
+  overflow: hidden;
+  transition: box-shadow 0.2s ease;
+  margin: 0;
+}
+
+#crud-form.p-form-colored.modal-edit-form .form-section:hover {
+  box-shadow: 0 4px 16px rgba(15,23,42,0.06), 0 2px 4px rgba(55,124,192,0.08);
+}
+
+#crud-form.p-form-colored.modal-edit-form .form-section legend {
+  font-size: 0.71rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--primary, #377cc0);
+  padding: 0.6rem 1rem 0.45rem;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--primary, #377cc0) 8%, transparent), transparent 85%);
+  width: 100%;
+  border-bottom: 1px solid color-mix(in srgb, var(--primary, #377cc0) 10%, #e2e8f0);
+  margin: 0;
+}
+
+.modal-edit-form label > span:first-child {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #64748b;
+  margin-bottom: 0.28rem;
+}
+
+.modal-edit-form label:focus-within > span:first-child {
+  color: var(--primary, #377cc0);
+}
+
+.modal-edit-form input:not([type="checkbox"]):not([type="radio"]),
+.modal-edit-form select,
+.modal-edit-form textarea {
+  border-radius: 9px;
+  border: 1.5px solid #e2e8f0;
+  background: rgba(255,255,255,0.94);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+.modal-edit-form input:not([type="checkbox"]):not([type="radio"]):focus,
+.modal-edit-form select:focus,
+.modal-edit-form textarea:focus {
+  border-color: var(--primary, #377cc0);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary, #377cc0) 16%, transparent);
+  background: #fff;
+  outline: none;
+}
+
+.modal-edit-form input[readonly],
+.modal-edit-form input[disabled],
+.modal-edit-form select[disabled] {
+  background: color-mix(in srgb, #f1f5f9 88%, transparent);
+  color: #94a3b8;
+  cursor: not-allowed;
+  border-color: #e2e8f0;
+}
+
 .modal-file-attach-actions {
   display: flex;
   flex-wrap: wrap;
@@ -19896,31 +19964,56 @@ body[data-theme="dark"] .hr-enterprise-strip--hiring .hr-enterprise-strip-label 
   white-space: nowrap;
 }
 
+/* ── Footer actions bar: separador visual elevado ── */
+.module-panel-actions--footer .module-panel-actions__bar {
+  position: relative;
+  padding: 0.85rem 1rem 0.8rem;
+  margin-top: 0.5rem;
+  border-top: 2px solid color-mix(in srgb, var(--primary, #377cc0) 14%, #e2e8f0);
+  border-radius: 0 0 14px 14px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--primary, #377cc0) 4%, #f8fafc) 0%,
+    #f1f5f9 100%
+  );
+}
+
+body[data-theme="dark"] .module-panel-actions--footer .module-panel-actions__bar {
+  border-top-color: color-mix(in srgb, var(--primary, #377cc0) 22%, rgba(255,255,255,0.06));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--primary, #377cc0) 8%, rgba(15, 23, 42, 0.6)) 0%,
+    rgba(15, 23, 42, 0.4) 100%
+  );
+}
+
 .module-panel-actions--footer .module-panel-btn,
 .module-panel-toolbar .module-panel-btn {
-  --mpa-btn-bg: color-mix(in srgb, #fff 92%, transparent);
-  --mpa-btn-edge: color-mix(in srgb, #cbd5e1 42%, transparent);
+  --mpa-btn-bg: rgba(255, 255, 255, 0.92);
+  --mpa-btn-edge: color-mix(in srgb, #94a3b8 28%, transparent);
   --mpa-btn-icon-bg: color-mix(in srgb, var(--primary) 9%, #f8fafc);
   --mpa-btn-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.88),
-    0 1px 2px rgba(15, 23, 42, 0.04);
-  min-height: 2.6rem;
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 1px 3px rgba(15, 23, 42, 0.05),
+    0 2px 6px rgba(15, 23, 42, 0.04);
+  min-height: 2.45rem;
   padding-inline: 0.9rem 1.05rem;
   border-radius: 10px;
   font-size: 0.8rem;
   font-weight: 600;
-  letter-spacing: 0.025em;
+  letter-spacing: 0.015em;
+  color: #475569;
   border: 1px solid var(--mpa-btn-edge);
   background: var(--mpa-btn-bg);
   box-shadow: var(--mpa-btn-shadow);
-  backdrop-filter: blur(14px) saturate(1.12);
-  -webkit-backdrop-filter: blur(14px) saturate(1.12);
+  backdrop-filter: blur(10px) saturate(1.1);
+  -webkit-backdrop-filter: blur(10px) saturate(1.1);
   transition:
-    background 0.22s cubic-bezier(0.4, 0, 0.2, 1),
-    color 0.22s cubic-bezier(0.4, 0, 0.2, 1),
-    border-color 0.22s cubic-bezier(0.4, 0, 0.2, 1),
-    box-shadow 0.22s cubic-bezier(0.4, 0, 0.2, 1),
-    transform 0.18s cubic-bezier(0.34, 1.2, 0.64, 1);
+    background 0.2s ease,
+    color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.16s cubic-bezier(0.34, 1.2, 0.64, 1);
 }
 
 .module-panel-toolbar .module-panel-btn {
@@ -19945,28 +20038,45 @@ body[data-theme="dark"] .hr-enterprise-strip--hiring .hr-enterprise-strip-label 
 
 .module-panel-btn--minimize,
 .module-panel-btn--expand {
-  min-width: 7.1rem;
-  color: #475569;
+  min-width: 7rem;
+  color: #64748b;
 }
 
+/* ── Cancel button: destructivo claramente visible ── */
 .module-panel-btn--cancel {
-  --mpa-btn-icon-bg: color-mix(in srgb, #f43f5e 10%, #fff);
+  --mpa-btn-bg: color-mix(in srgb, #fff1f2 60%, rgba(255,255,255,0.9));
+  --mpa-btn-edge: color-mix(in srgb, #fca5a5 38%, transparent);
+  --mpa-btn-icon-bg: color-mix(in srgb, #f87171 12%, #fff);
   min-width: 6.9rem;
   margin-inline-start: 0;
   padding-inline: 0.9rem 1.05rem;
   position: relative;
   border-radius: 10px;
+  color: #b91c1c;
+  font-weight: 650;
 }
 
 .module-panel-btn--cancel::before {
   display: none;
 }
 
+.module-panel-btn--cancel:hover {
+  color: #991b1b;
+  --mpa-btn-bg: color-mix(in srgb, #fee2e2 75%, #fff);
+  --mpa-btn-edge: color-mix(in srgb, #f87171 45%, transparent);
+  --mpa-btn-icon-bg: color-mix(in srgb, #ef4444 16%, #fff1f2);
+  --mpa-btn-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.88),
+    0 2px 6px rgba(220, 38, 38, 0.12),
+    0 8px 18px rgba(220, 38, 38, 0.16);
+  transform: translateY(-1px);
+}
+
 .module-panel-btn--minimize:hover,
 .module-panel-btn--expand:hover {
-  color: #0f172a;
+  color: #334155;
   --mpa-btn-bg: #fff;
-  --mpa-btn-edge: color-mix(in srgb, var(--primary) 28%, #cbd5e1);
+  --mpa-btn-edge: color-mix(in srgb, var(--primary) 28%, #94a3b8);
   --mpa-btn-icon-bg: color-mix(in srgb, var(--primary) 14%, #f1f5f9);
   --mpa-btn-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 1),
@@ -19976,8 +20086,9 @@ body[data-theme="dark"] .hr-enterprise-strip--hiring .hr-enterprise-strip-label 
 }
 
 .module-panel-btn--minimize:hover .btn-icon,
-.module-panel-btn--expand:hover .btn-icon {
-  transform: scale(1.06);
+.module-panel-btn--expand:hover .btn-icon,
+.module-panel-btn--cancel:hover .btn-icon {
+  transform: scale(1.08);
 }
 
 .module-panel-btn--minimize:active,
@@ -19994,36 +20105,40 @@ body[data-theme="dark"] .hr-enterprise-strip--hiring .hr-enterprise-strip-label 
 }
 
 .module-panel-btn--cancel.btn-danger-soft {
-  color: #be123c;
-  --mpa-btn-bg: color-mix(in srgb, #fff1f2 52%, #fff);
-  --mpa-btn-edge: color-mix(in srgb, #fda4af 34%, transparent);
-  --mpa-btn-icon-bg: color-mix(in srgb, #f43f5e 11%, #fff);
+  color: #b91c1c;
+  --mpa-btn-bg: color-mix(in srgb, #fff1f2 60%, rgba(255,255,255,0.9));
+  --mpa-btn-edge: color-mix(in srgb, #fca5a5 38%, transparent);
+  --mpa-btn-icon-bg: color-mix(in srgb, #f87171 12%, #fff);
 }
 
 .module-panel-btn--cancel.btn-danger-soft:hover {
-  color: #9f1239;
-  --mpa-btn-bg: color-mix(in srgb, #ffe4e6 58%, #fff);
-  --mpa-btn-edge: color-mix(in srgb, #fb7185 38%, transparent);
-  --mpa-btn-icon-bg: color-mix(in srgb, #f43f5e 16%, #fff1f2);
+  color: #991b1b;
+  --mpa-btn-bg: color-mix(in srgb, #fee2e2 75%, #fff);
+  --mpa-btn-edge: color-mix(in srgb, #f87171 45%, transparent);
+  --mpa-btn-icon-bg: color-mix(in srgb, #ef4444 16%, #fff1f2);
   --mpa-btn-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    0 2px 6px rgba(225, 29, 72, 0.08),
-    0 8px 20px rgba(225, 29, 72, 0.12);
+    0 2px 6px rgba(220, 38, 38, 0.1),
+    0 8px 20px rgba(220, 38, 38, 0.14);
   transform: translateY(-1px);
 }
 
 .module-panel-btn--cancel.btn-danger-soft:hover .btn-icon {
-  transform: scale(1.06);
+  transform: scale(1.08);
 }
 
 .module-panel-btn--cancel.btn-danger-soft .btn-icon {
-  color: currentColor;
+  background: color-mix(in srgb, #f87171 12%, #fff);
 }
 
+/* ── Cancel-edit: neutro, para formularios inline ── */
 .module-panel-btn--cancel-edit {
   margin-inline-start: 0;
   padding-inline-start: 0.85rem;
   border-inline-start: 0;
+  color: #64748b;
+  --mpa-btn-bg: rgba(255, 255, 255, 0.88);
+  --mpa-btn-edge: color-mix(in srgb, #94a3b8 25%, transparent);
 }
 
 .hr-action-card__head .module-panel-toolbar {

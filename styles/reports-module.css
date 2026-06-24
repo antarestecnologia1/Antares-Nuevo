@@ -88,3 +88,99 @@
   .reports-studio .rpt-operate__rail { position: static; }
 }
 
+/* ── Mejoras visualización de reportes 2026 ── */
+
+/* Cabecera del estudio de reportes con acento visual */
+.reports-studio .rpt-studio-head::after,
+.reports-studio .reports-studio-head::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--rpt-accent, #0369a1) 0%, color-mix(in srgb, var(--rpt-accent, #0369a1) 60%, #1d9e75) 100%);
+  pointer-events: none;
+}
+
+/* Filtros de reportes mejorados */
+.reports-studio .rpt-operate__rail {
+  background: linear-gradient(160deg, rgba(255,255,255,0.99), rgba(248,250,252,0.94));
+  border: 1.5px solid color-mix(in srgb, var(--rpt-accent, #0369a1) 14%, #e2e8f0);
+  box-shadow: 0 2px 8px rgba(15,23,42,0.05), 0 8px 24px rgba(15,23,42,0.04);
+}
+
+/* Panel de datos más definido */
+.reports-studio .rpt-data-panel {
+  border: 1.5px solid color-mix(in srgb, var(--rpt-accent, #0369a1) 12%, #e2e8f0);
+  box-shadow: 0 4px 16px rgba(15,23,42,0.05), 0 1px 3px rgba(15,23,42,0.04);
+}
+
+/* Tablas de reportes */
+.reports-studio table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.reports-studio table thead th {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--rpt-accent, #0369a1) 9%, #f8fafc), #f1f5f9);
+  border-bottom: 2px solid color-mix(in srgb, var(--rpt-accent, #0369a1) 20%, #e2e8f0);
+  padding: 0.72rem 1rem;
+  font-size: 0.69rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--rpt-accent, #0369a1) 75%, #475569);
+  white-space: nowrap;
+}
+
+.reports-studio table tbody tr {
+  transition: background 0.14s ease;
+}
+
+.reports-studio table tbody tr:nth-child(even) {
+  background: rgba(241,245,249,0.5);
+}
+
+.reports-studio table tbody tr:hover {
+  background: color-mix(in srgb, var(--rpt-accent, #0369a1) 5%, rgba(255,255,255,0.96));
+}
+
+.reports-studio table tbody td {
+  padding: 0.68rem 1rem;
+  border-bottom: 1px solid rgba(226,232,240,0.6);
+  font-size: 0.86rem;
+  color: #334155;
+  vertical-align: middle;
+}
+
+.reports-studio table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Filtros rail activos */
+.reports-studio .rpt-filter-btn.is-active,
+.reports-studio .rpt-filter-btn--active {
+  background: linear-gradient(135deg, var(--rpt-accent, #0369a1), color-mix(in srgb, var(--rpt-accent, #0369a1) 80%, #1d9e75));
+  color: #fff;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--rpt-accent, #0369a1) 35%, transparent);
+}
+
+/* Tarjetas de métricas en reportes */
+.reports-studio .rpt-metric,
+.reports-studio .rpt-kpi {
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  background: linear-gradient(145deg, rgba(255,255,255,0.98), rgba(248,250,252,0.92));
+  border: 1px solid color-mix(in srgb, var(--rpt-accent, #0369a1) 12%, #e2e8f0);
+  box-shadow: 0 2px 8px rgba(15,23,42,0.05);
+  transition: box-shadow 0.2s ease, transform 0.16s ease;
+}
+
+.reports-studio .rpt-metric:hover,
+.reports-studio .rpt-kpi:hover {
+  box-shadow: 0 6px 20px rgba(15,23,42,0.08);
+  transform: translateY(-1px);
+}
+

@@ -2813,3 +2813,171 @@ body[data-theme="dark"] .dashboard-studio .dash-exec-item {
 body[data-theme="dark"] .portal-main:has(.dashboard-studio:has(.nx-ambient)) {
   background: linear-gradient(180deg, #060c14 0%, var(--nx-bg, #0a1018) 140px, var(--nx-bg, #0a1018) 100%);
 }
+
+/* ── Dashboard UI Improvements 2026 ── */
+
+/* Hero con efectos de fondo mejorados */
+.dashboard-studio .dash-hero {
+  position: relative;
+  overflow: hidden;
+}
+
+.dashboard-studio .dash-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 60% 80% at 80% -10%, color-mix(in srgb, var(--primary, #377cc0) 16%, transparent), transparent 65%),
+    radial-gradient(ellipse 50% 60% at 0% 100%, color-mix(in srgb, #1d9e75 12%, transparent), transparent 60%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.dashboard-studio .dash-hero > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* KPI Cards más impactantes */
+.dashboard-studio .dash-kpi,
+.dashboard-studio .kpi-card {
+  border-radius: var(--dash-radius-lg, 14px);
+  border: 1.5px solid var(--dash-border, rgba(55,124,192,0.28));
+  background: var(--dash-surface, #fff);
+  box-shadow: var(--dash-shadow-card);
+  padding: 1rem 1.15rem;
+  transition:
+    box-shadow var(--dash-t, 200ms ease),
+    transform var(--dash-t-spring, 320ms cubic-bezier(0.34, 1.2, 0.64, 1)),
+    border-color var(--dash-t, 200ms ease);
+  position: relative;
+  overflow: hidden;
+}
+
+.dashboard-studio .dash-kpi:hover,
+.dashboard-studio .kpi-card:hover {
+  box-shadow: var(--dash-shadow-hover);
+  transform: translateY(-3px);
+  border-color: var(--dash-border-strong, rgba(55,124,192,0.42));
+}
+
+/* Valores numéricos KPI: gradiente de texto */
+.dashboard-studio .dash-kpi__value,
+.dashboard-studio .kpi-card__value,
+.dashboard-studio .dash-stat-value {
+  font-size: 2.1rem;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  background: linear-gradient(135deg, var(--primary, #377cc0) 0%, color-mix(in srgb, var(--primary, #377cc0) 70%, #1d9e75) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Labels de KPI */
+.dashboard-studio .dash-kpi__label,
+.dashboard-studio .kpi-card__label,
+.dashboard-studio .dash-stat-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--dash-text-secondary, rgba(0,0,0,0.48));
+  margin-bottom: 0.4rem;
+}
+
+/* Iconos de tarjetas KPI */
+.dashboard-studio .dash-kpi__icon,
+.dashboard-studio .kpi-card__icon {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.9rem;
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--primary, #377cc0) 15%, rgba(255,255,255,0.9)),
+    color-mix(in srgb, var(--primary, #377cc0) 8%, rgba(255,255,255,0.95))
+  );
+  border: 1px solid color-mix(in srgb, var(--primary, #377cc0) 18%, rgba(255,255,255,0.5));
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--primary, #377cc0) 20%, transparent);
+}
+
+/* Pulsación "en vivo" */
+.dashboard-studio .dash-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.dashboard-studio .dash-status-dot--live {
+  background: var(--dash-live-hue, #0f6e56);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--dash-live-hue, #0f6e56) 25%, transparent);
+  animation: dash-pulse 2s ease-in-out infinite;
+}
+
+@keyframes dash-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--dash-live-hue, #0f6e56) 25%, transparent); }
+  50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--dash-live-hue, #0f6e56) 10%, transparent); }
+}
+
+/* Tablas internas del dashboard */
+.dashboard-studio table thead th {
+  background: color-mix(in srgb, var(--primary, #377cc0) 6%, #f8fafc);
+  border-bottom: 2px solid color-mix(in srgb, var(--primary, #377cc0) 15%, #e2e8f0);
+  padding: 0.62rem 0.9rem;
+  font-size: 0.69rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: color-mix(in srgb, var(--primary, #377cc0) 70%, #475569);
+}
+
+.dashboard-studio table tbody tr:nth-child(even) {
+  background: rgba(241,245,249,0.45);
+}
+
+.dashboard-studio table tbody tr:hover {
+  background: color-mix(in srgb, var(--primary, #377cc0) 5%, rgba(255,255,255,0.92));
+}
+
+.dashboard-studio table tbody td {
+  padding: 0.6rem 0.9rem;
+  border-bottom: 1px solid rgba(226,232,240,0.55);
+  font-size: 0.855rem;
+}
+
+/* Áreas de gráficos */
+.dashboard-studio .dash-chart-area,
+.dashboard-studio .dash-chart-wrap {
+  border-radius: var(--dash-radius-lg, 14px);
+  border: 1.5px solid var(--dash-border, rgba(55,124,192,0.28));
+  background: var(--dash-surface, #fff);
+  padding: 1.25rem 1.35rem;
+  box-shadow: var(--dash-shadow-card);
+}
+
+/* Títulos de sección del dashboard */
+.dashboard-studio .dash-section-title,
+.dashboard-studio .dash-panel-title {
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: color-mix(in srgb, var(--primary, #377cc0) 80%, #334155);
+  margin-bottom: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.dashboard-studio .dash-section-title::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--primary, #377cc0) 22%, #e2e8f0), transparent);
+  margin-left: 0.5rem;
+}

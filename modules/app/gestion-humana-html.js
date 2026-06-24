@@ -527,7 +527,7 @@ function payrollHtml() {
         <button type="button" class="btn btn-primary payroll-bulk-generate-btn" id="payroll-bulk-generate">${IC.dollar}<span>Generar liquidaciones</span></button>
       </div>
     </form>`;
-  const formPay = `<form id="form-payroll" class="p-form p-form-colored hr-form-flow payroll-liquidation-create-form payroll-single-form payroll-liquidation-pane${payrollLiquidationMode === "single" ? "" : " hidden"}" data-payroll-liquidation-pane="single" role="tabpanel" aria-hidden="${payrollLiquidationMode === "single" ? "false" : "true"}">
+  const formPay = `<form id="form-payroll" novalidate class="p-form p-form-colored hr-form-flow payroll-liquidation-create-form payroll-single-form payroll-liquidation-pane${payrollLiquidationMode === "single" ? "" : " hidden"}" data-payroll-liquidation-pane="single" role="tabpanel" aria-hidden="${payrollLiquidationMode === "single" ? "false" : "true"}">
     <div class="payroll-liq-form__body">
       <section class="payroll-liq-section payroll-liq-section--period">
         <header class="payroll-liq-section__head">

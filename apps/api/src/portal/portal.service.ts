@@ -5554,26 +5554,23 @@ export class PortalService implements OnModuleInit {
          SELECT id, titulo, cuerpo, audiencia, id_usuario
          FROM notificaciones
          WHERE id = ANY($1::uuid[])
-           AND eliminado = false
        )
-       UPDATE notificaciones n
-       SET eliminado = true
-       FROM requested src
-       WHERE n.eliminado = false
-         AND (
-           n.id = src.id
-           OR (
-             n.titulo = src.titulo
-             AND n.cuerpo = src.cuerpo
-             AND COALESCE(n.audiencia, '') = COALESCE(src.audiencia, '')
-             AND COALESCE(n.id_usuario::text, '') = COALESCE(src.id_usuario::text, '')
-           )
+       DELETE FROM notificaciones n
+       USING requested src
+       WHERE (
+         n.id = src.id
+         OR (
+           n.titulo = src.titulo
+           AND n.cuerpo = src.cuerpo
+           AND COALESCE(n.audiencia, '') = COALESCE(src.audiencia, '')
+           AND COALESCE(n.id_usuario::text, '') = COALESCE(src.id_usuario::text, '')
          )
-         AND (
-           n.id_usuario = $2::uuid
-           OR (n.audiencia = 'admins' AND $3::boolean)
-           OR (n.audiencia = 'hr' AND $4::boolean)
-         )`,
+       )
+       AND (
+         n.id_usuario = $2::uuid
+         OR (n.audiencia = 'admins' AND $3::boolean)
+         OR (n.audiencia = 'hr' AND $4::boolean)
+       )`,
       [validIds, userId, adminAudience, hrAudience]
     );
     const deleted = Number(r.rowCount) || 0;
@@ -5592,9 +5589,12 @@ export class PortalService implements OnModuleInit {
               fecha_lectura AS "readAt", fecha_creacion AS "createdAt",
               leido
        FROM notificaciones
-       WHERE id_usuario = $1::uuid
-          OR (audiencia = 'admins' AND $2::boolean)
-          OR (audiencia = 'hr' AND $3::boolean)
+       WHERE (
+         id_usuario = $1::uuid
+         OR (audiencia = 'admins' AND $2::boolean)
+         OR (audiencia = 'hr' AND $3::boolean)
+       )
+       AND COALESCE(eliminado, false) = false
        ORDER BY fecha_creacion DESC
        LIMIT ${limit}`,
       [userId, adminAudience, hrAudience]
@@ -8577,10 +8577,8 @@ export class PortalService implements OnModuleInit {
       .filter((id) => PG_UUID_V4_RE.test(id));
     if (explicitDeleteIds.length > 0) {
       await c.query(
-        `UPDATE notificaciones
-         SET eliminado = true
+        `DELETE FROM notificaciones
          WHERE id = ANY($1::uuid[])
-           AND eliminado = false
            AND (
              id_usuario = $2::uuid
              OR (audiencia = 'admins' AND $3::boolean)
@@ -8611,7 +8609,7 @@ export class PortalService implements OnModuleInit {
           : new Date(String(readAtParam)).getTime();
       if (!Number.isFinite(readAtMs)) continue;
       const exists = await c.query(
-        `SELECT 1 AS ok FROM notificaciones WHERE id = $1::uuid AND eliminado = false LIMIT 1`,
+        `SELECT 1 AS ok FROM notificaciones WHERE id = $1::uuid LIMIT 1`,
         [n.id]
       );
       if (!(exists.rowCount ?? 0)) continue;
@@ -8622,8 +8620,7 @@ export class PortalService implements OnModuleInit {
                ELSE GREATEST(fecha_lectura, $2::timestamptz)
              END,
              leido = true
-         WHERE id = $1::uuid
-           AND eliminado = false`,
+         WHERE id = $1::uuid`,
         [n.id, readAtParam]
       );
     }
