@@ -18,7 +18,7 @@
     setSelectValueInsensitive, attachDepartmentCitySelects, wireRouteRateScopeSection,
     failPortalField, userMessage, buildTripRouteRateKey, tripRateStorageKey,
     buildRouteRateEntry, humanTripRateRouteLabelFromStorageKey,
-    formatPayrollPeriodLabel, payrollRunTypeLabel, payrollRunGeneratedByLabel, payrollRunIsDriverTripPayment,
+    formatPayrollPeriodLabel, payrollDisplayLabelUpper, payrollRunTypeLabel, payrollRunGeneratedByLabel, payrollRunIsDriverTripPayment,
     payrollRunHasAbsenceDetail, ensureCrudModalElement, renderModalHead,
     renderModalFooterActions, wireModalDismiss, scrollOpenCrudModalIntoView,
     persistHrWorkspace, scrollToCreatePanelForm, colombiaTodayIsoDate
@@ -38,7 +38,10 @@ function renderPayrollRunCard(run, { compact = false } = {}) {
           return cut ? formatPayrollCutRangeLabel(cut) : "";
         })()
       : "";
-  const typeLabel = payrollRunTypeLabel(run);
+  const typeLabel =
+    typeof payrollDisplayLabelUpper === "function"
+      ? payrollDisplayLabelUpper(payrollRunTypeLabel(run))
+      : payrollRunTypeLabel(run);
   const generatedBy = payrollRunGeneratedByLabel(run);
   const approvedBy = run.paid ? String(run.approvedBy || "").trim() : "";
   const orig = String(run.liquidacionOrigin || run.origenLiquidacion || "manual").toLowerCase();

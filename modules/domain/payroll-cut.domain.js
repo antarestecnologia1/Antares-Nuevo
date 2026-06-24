@@ -2,6 +2,8 @@
  * Cortes de liquidación según periodicidad (calendario Colombia).
  * Espejo de `apps/api/src/payroll/payroll-cut-bogota.ts` para el portal.
  */
+import { CO_TIMEZONE } from "../core/config.js";
+import { payrollDisplayLabelUpper } from "../core/utils.js";
 
 function pad2(n) {
   return String(n).padStart(2, "0");
@@ -201,8 +203,13 @@ export function resolvePayrollCutForClosingDate(fechaYmd, payFrequency, { force 
 export function formatPayrollCutRangeLabel(cut) {
   if (!cut) return "";
   const fmt = (d) =>
-    d.toLocaleDateString("es-CO", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
-  return `${fmt(cut.periodStart)} – ${fmt(cut.periodEnd)}`;
+    d.toLocaleDateString("es-CO", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      timeZone: CO_TIMEZONE
+    });
+  return payrollDisplayLabelUpper(`${fmt(cut.periodStart)} – ${fmt(cut.periodEnd)}`);
 }
 
 export function payrollClosingDatesHint(frequency) {

@@ -73,6 +73,8 @@ const LABEL_FIELDS = [
   "fullName",
   "nombre_completo",
   "nombre",
+  "employeeName",
+  "nombre_empleado",
   "title",
   "plate",
   "placa",
@@ -91,13 +93,47 @@ const LABEL_FIELDS = [
   "nombre_contacto",
   "periodKey",
   "periodo_mes",
+  "month",
   "subject",
   "asunto",
   "idDoc",
   "numero_documento"
 ];
 
+function portalPayrollRunParts(row: Record<string, unknown>) {
+  const emp = String(row.employeeName ?? row.nombre_empleado ?? "").trim();
+  const period = String(row.month ?? row.periodo_mes ?? row.periodKey ?? "").trim();
+  return { emp, period };
+}
+
+function portalPayrollRunEntityLabel(row: Record<string, unknown>): string | null {
+  const { emp, period } = portalPayrollRunParts(row);
+  if (emp && period) return `${emp} · ${period}`;
+  if (emp) return emp;
+  if (period) return `Periodo ${period}`;
+  return null;
+}
+
+function portalPayrollRunSummaryParts(row: Record<string, unknown>): string[] {
+  const parts: string[] = [];
+  const { emp, period } = portalPayrollRunParts(row);
+  if (period) parts.push(`Periodo ${period}`);
+  const netRaw = row.net ?? row.neto_a_pagar;
+  if (netRaw != null && netRaw !== "") {
+    const net = Number(netRaw);
+    if (Number.isFinite(net)) {
+      parts.push(`Neto ${Math.round(net).toLocaleString("es-CO")} COP`);
+    }
+  }
+  const payrollKind = String(row.payrollKind ?? row.tipo_registro ?? "").trim();
+  if (payrollKind && payrollKind !== "mensual") parts.push(`Tipo ${payrollKind}`);
+  if (emp && !portalPayrollRunEntityLabel(row)?.includes(emp)) parts.push(emp);
+  return parts;
+}
+
 export function portalRowEntityLabel(row: Record<string, unknown>): string {
+  const payrollLabel = portalPayrollRunEntityLabel(row);
+  if (payrollLabel) return payrollLabel.slice(0, 500);
   for (const key of LABEL_FIELDS) {
     const value = String(row[key] ?? "").trim();
     if (value) return value.slice(0, 500);
@@ -107,21 +143,24 @@ export function portalRowEntityLabel(row: Record<string, unknown>): string {
 }
 
 export function portalRowEntitySummary(row: Record<string, unknown>, action: string): string {
-  const parts: string[] = [];
+  const parts: string[] = portalPayrollRunSummaryParts(row);
   const status = String(row.status ?? row.estado ?? "").trim();
   if (status) parts.push(`Estado: ${status}`);
   const doc = String(row.idDoc ?? row.numero_documento ?? "").trim();
   if (doc) parts.push(`Doc. ${doc}`);
   const plate = String(row.plate ?? row.placa ?? "").trim();
   if (plate) parts.push(`Placa ${plate}`);
-  const period = String(row.periodKey ?? row.periodo_mes ?? "").trim();
-  if (period) parts.push(`Periodo ${period}`);
+  const period = String(row.periodKey ?? row.periodo_mes ?? row.month ?? "").trim();
+  if (period && !parts.some((p) => p.includes(period))) parts.push(`Periodo ${period}`);
   const motivo = String(row.reason ?? row.motivo ?? "").trim();
   if (motivo && action === "delete") parts.push(`Motivo: ${motivo}`);
   if (!parts.length) {
     parts.push(
       action === "create" ? "Alta en servidor" : action === "delete" ? "Baja en servidor" : "Actualización en servidor"
     );
+  }
+  if (action === "delete" && portalPayrollRunParts(row).period) {
+    return `Liquidación eliminada · ${parts.join(" · ")}`.slice(0, 2000);
   }
   return parts.join(" · ").slice(0, 2000);
 }
@@ -389,6 +428,26 @@ export async function preparePortalSyncUpsertAudits(
   return pending;
 }
 
+async function lookupPortalSyncDeleteRows(
+  c: PoolClient,
+  table: string,
+  ids: string[]
+): Promise<Map<string, Record<string, unknown>>> {
+  const out = new Map<string, Record<string, unknown>>();
+  if (!ids.length) return out;
+  try {
+    const r = await c.query(`SELECT * FROM ${table} WHERE id = ANY($1::uuid[])`, [ids]);
+    for (const raw of r.rows) {
+      const row = raw as Record<string, unknown>;
+      const id = String(row.id ?? "").trim();
+      if (id) out.set(id, row);
+    }
+  } catch {
+    /* fila ya ausente o tabla no disponible */
+  }
+  return out;
+}
+
 export async function recordPortalSyncDeleteAudits(
   c: PoolClient,
   actor: PortalAuditActor,
@@ -403,24 +462,27 @@ export async function recordPortalSyncDeleteAudits(
     .filter((id) => PG_UUID_V4_RE.test(id));
   if (!ids.length) return;
 
-  const payloadById = new Map<string, string>();
+  const payloadRowsById = new Map<string, Record<string, unknown>>();
   if (Array.isArray(data)) {
     for (const raw of data) {
       const row = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : null;
       if (!row) continue;
       const id = String(row.id ?? "").trim();
-      if (id) payloadById.set(id, portalRowEntityLabel(row));
+      if (id) payloadRowsById.set(id, row);
     }
   }
 
+  const dbRowsById = await lookupPortalSyncDeleteRows(c, meta.table, ids);
+
   for (const entityId of ids) {
+    const row = payloadRowsById.get(entityId) || dbRowsById.get(entityId) || null;
     await insertPortalAuditEventTx(c, actor, {
       action: "delete",
       moduleId: meta.moduleId,
       moduleLabel: meta.moduleLabel,
       entityId,
-      entityLabel: payloadById.get(entityId) || `Registro ${entityId.slice(0, 8)}`,
-      summary: "Eliminación confirmada en servidor"
+      entityLabel: row ? portalRowEntityLabel(row) : `Registro ${entityId.slice(0, 8)}`,
+      summary: row ? portalRowEntitySummary(row, "delete") : "Eliminación confirmada en servidor"
     });
   }
 }

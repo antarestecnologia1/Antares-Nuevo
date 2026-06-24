@@ -318,6 +318,17 @@ function pad2(n) {
   return String(n).padStart(2, "0");
 }
 
+function payrollCalendarDateUtcNoonFromYmd(ymd) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(ymd || "").trim());
+  if (!m) return null;
+  return new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12, 0, 0, 0));
+}
+
+/** Etiquetas de nómina en tarjetas y tablas: mayúsculas con reglas es-CO. */
+export function payrollDisplayLabelUpper(text) {
+  return String(text || "").trim().toLocaleUpperCase("es-CO");
+}
+
 export function formatPayrollPeriodLabel(periodKey) {
   const key = String(periodKey || "").trim();
   if (!key) return "—";
@@ -325,20 +336,34 @@ export function formatPayrollPeriodLabel(periodKey) {
   let monthTitle = ym;
   if (monthRange(ym)) {
     const [y, m] = ym.split("-").map(Number);
-    monthTitle = new Date(y, m - 1, 15).toLocaleDateString("es-CO", { month: "long", year: "numeric" });
+    monthTitle = new Date(Date.UTC(y, m - 1, 15, 12, 0, 0, 0)).toLocaleDateString("es-CO", {
+      month: "long",
+      year: "numeric",
+      timeZone: CO_TIMEZONE
+    });
   }
   const closeYmd = payrollPeriodClosingDateYmd(key);
-  const closeLabel = closeYmd
-    ? new Date(`${closeYmd}T12:00:00`).toLocaleDateString("es-CO", { day: "numeric", month: "short", year: "numeric" })
-    : "";
+  const closeDate = closeYmd ? payrollCalendarDateUtcNoonFromYmd(closeYmd) : null;
+  const closeLabel =
+    closeDate && !Number.isNaN(closeDate.getTime())
+      ? closeDate.toLocaleDateString("es-CO", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+          timeZone: CO_TIMEZONE
+        })
+      : "";
   const closeSuffix = closeLabel ? ` · cierre ${closeLabel}` : "";
-  if (/-Q1$/i.test(key)) return `${monthTitle} · 1ª quincena${closeSuffix}`;
-  if (/-Q2$/i.test(key)) return `${monthTitle} · 2ª quincena${closeSuffix}`;
-  if (/-C1$/i.test(key)) return `${monthTitle} · 1.er catorcenio${closeSuffix}`;
-  if (/-C2$/i.test(key)) return `${monthTitle} · 2.º catorcenio${closeSuffix}`;
-  const sm = key.match(/-S(\d+)$/i);
-  if (sm) return `${monthTitle} · semana ${sm[1]}${closeSuffix}`;
-  return `${monthTitle}${closeSuffix}`;
+  let label = monthTitle;
+  if (/-Q1$/i.test(key)) label = `${monthTitle} · 1ª quincena${closeSuffix}`;
+  else if (/-Q2$/i.test(key)) label = `${monthTitle} · 2ª quincena${closeSuffix}`;
+  else if (/-C1$/i.test(key)) label = `${monthTitle} · 1.er catorcenio${closeSuffix}`;
+  else if (/-C2$/i.test(key)) label = `${monthTitle} · 2.º catorcenio${closeSuffix}`;
+  else {
+    const sm = key.match(/-S(\d+)$/i);
+    label = sm ? `${monthTitle} · semana ${sm[1]}${closeSuffix}` : `${monthTitle}${closeSuffix}`;
+  }
+  return payrollDisplayLabelUpper(label);
 }
 
 export function normalizeHrWorkspace(moduleId, workspace) {
