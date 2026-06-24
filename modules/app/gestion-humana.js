@@ -56,15 +56,16 @@ function payrollCreateFormSubmitOpts(formEl, { busyText, submitButton, extra = [
     busyText: String(busyText || "").trim(),
     lockExtraButtons: collectFn(formEl, extra),
     prepareForm: (form) => {
-      const panel = form?.closest?.('[data-create-panel="create-payroll"]');
-      if (panel && (panel.classList.contains("hidden") || panel.hasAttribute("hidden"))) {
+      const panel = form?.closest?.('[data-create-panel]');
+      const panelId = panel?.dataset?.createPanel || "";
+      if (panel && panelId && (panel.classList.contains("hidden") || panel.hasAttribute("hidden"))) {
         const root = panel.closest(".payroll-operate") || nodes.viewRoot || document;
         if (typeof syncPayrollCreatePanelsInDom === "function") {
-          syncPayrollCreatePanelsInDom(root, "create-payroll", { expandActive: true });
+          syncPayrollCreatePanelsInDom(root, panelId, { expandActive: true });
         }
-        state.createPanels = { ...(state.createPanels || {}), "create-payroll": true };
+        state.createPanels = { ...(state.createPanels || {}), [panelId]: true };
       }
-      if (form?.id === "form-payroll" && typeof commitSearchableSelectInputsInForm === "function") {
+      if (typeof commitSearchableSelectInputsInForm === "function") {
         commitSearchableSelectInputsInForm(form);
       }
       return typeof prepareCreationFormForSubmit === "function" ? prepareCreationFormForSubmit(form) !== false : true;
@@ -183,14 +184,19 @@ async function openPayrollRunPayslipById(runId) {
   if (!id) return;
   let run = read(KEYS.payrollRuns, []).find((r) => String(r.id) === id);
   if (!run) return;
+  // Abrir la ventana de forma SÍNCRONA dentro del evento de clic para evitar el bloqueo de
+  // popups del navegador. window.open() después de un await pierde el contexto del gesto.
+  const pop = window.open("", "_blank", "width=720,height=900");
+  if (!pop) {
+    notify("El navegador bloqueó la ventana del desprendible. Permite las ventanas emergentes para este sitio.", "warn");
+    return;
+  }
   if (portalCanRefreshFromApi()) {
     const hydrated = await ensurePayrollRunHeavyJsonLoaded(id);
     if (hydrated) run = hydrated;
   }
   const employee = read(KEYS.payrollEmployees, []).find((e) => e.id === run.employeeId);
   const company = employee ? getCompanyById(employee.companyId) : null;
-  const pop = window.open("", "_blank", "width=720,height=900");
-  if (!pop) return;
   const netStr = `$${parseNum(run.net).toLocaleString("es-CO")}`;
   const isTerm = String(run.payrollKind || "mensual") === "terminacion";
   const workedDays = parseNum(
@@ -2169,9 +2175,12 @@ function bindPayrollPortalControls() {
       const bulkForm = document.getElementById("form-payroll-bulk");
       const fechaEl = document.getElementById("payroll-bulk-fecha");
       const forceEl = document.getElementById("payroll-bulk-force");
-      const fechaReferencia = readFormDateIso(document, "payroll-bulk-fecha") || readFormDateIso(document, "fechaReferencia");
+      const fechaReferencia =
+        readFormDateIso(document, "payroll-bulk-fecha") ||
+        readFormDateIso(document, "fechaReferencia") ||
+        String(fechaEl?.value || "").trim();
       if (!fechaReferencia) {
-        failPortalField(bulkForm || fechaEl?.closest("form") || nodes.viewRoot, fechaEl || "fechaReferencia", "Indique una fecha de cierre válida (DD/MM/AAAA).");
+        failPortalField(bulkForm || fechaEl?.closest("form") || nodes.viewRoot, fechaEl || "fechaReferencia", "Indique una fecha de cierre válida.");
         return;
       }
       const force = Boolean(forceEl?.checked);

@@ -3772,3 +3772,72 @@ body[data-theme="dark"] .payroll-studio .payroll-legal-field select {
   color: var(--text);
 }
 
+/* ── Mejoras UI liquidación contractual (settlement) ── */
+.payroll-studio p.payroll-liq-subgroup__title {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0 0 0.65rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 8px;
+  background: rgba(var(--primary-rgb, 55, 124, 192), 0.06);
+  border-left: 3px solid rgba(var(--primary-rgb, 55, 124, 192), 0.35);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--pay-navy-mid, #123d6b);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.payroll-studio .payroll-liq-section--refs .payroll-liq-grid + p.payroll-liq-subgroup__title {
+  margin-top: 0.75rem;
+}
+
+/* Botón Calcular con estilo primario */
+.payroll-studio .payroll-settlement-calc-bar .btn-primary.payroll-settlement-calc-bar__btn {
+  gap: 0.5rem;
+  min-height: 2.4rem;
+  padding-inline: 1.1rem;
+  font-weight: 700;
+}
+
+/* Campo auto-calculado (placeholder "Auto") */
+.payroll-studio .payroll-liq-field input[placeholder="Auto"] {
+  background: rgba(15, 23, 42, 0.035) !important;
+  color: var(--text-soft, #64748b);
+  font-style: italic;
+}
+
+/* Sección de montos con borde verde cuando tiene valores */
+.payroll-studio .payroll-liq-section--amounts {
+  position: relative;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.payroll-studio .payroll-liq-section--amounts:has(input[value]:not([value="0"])) {
+  border-color: rgba(16, 185, 129, 0.38);
+  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.12), 0 2px 8px rgba(16, 185, 129, 0.06);
+}
+
+/* Nota de pie de página de liquidación con icono */
+.payroll-studio .payroll-liq-footnote svg,
+.payroll-studio .payroll-liq-footnote .btn-icon {
+  width: 0.85rem;
+  height: 0.85rem;
+  vertical-align: middle;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+/* Dark mode */
+body[data-theme="dark"] .payroll-studio p.payroll-liq-subgroup__title {
+  background: rgba(148, 196, 255, 0.08);
+  border-left-color: rgba(148, 196, 255, 0.35);
+  color: rgba(203, 225, 255, 0.9);
+}
+
+body[data-theme="dark"] .payroll-studio .payroll-liq-field input[placeholder="Auto"] {
+  background: rgba(10, 22, 38, 0.55) !important;
+  color: rgba(148, 163, 184, 0.8);
+}
+

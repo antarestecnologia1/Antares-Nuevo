@@ -294,7 +294,7 @@ function payrollHtml() {
   const maritalOpts = selectOptionsFromCatalog(CO_CATALOGS.maritalStatus);
   const genderOpts = selectOptionsFromCatalog(CO_CATALOGS.genders);
   const payFreqOpts = payrollPayFrequencySelectOptions("Mensual");
-  const formEmp = `<form id="form-employee" class="payroll-emp-form p-form p-form-colored hr-form-flow">
+  const formEmp = `<form id="form-employee" novalidate class="payroll-emp-form p-form p-form-colored hr-form-flow">
     <div class="hr-form-wizard payroll-wizard" data-hr-wizard="employee" aria-label="Registro de empleado por pasos">
       <header class="payroll-wizard__head">
         <div class="payroll-wizard__head-copy">
@@ -687,7 +687,7 @@ function payrollHtml() {
   const conductorTripPayOpts = conductorEmployees
     .map((e) => `<option value="${e.id}">${escapeHtml(e.name)} · ${escapeHtml(String(e.idDoc || "—"))}</option>`)
     .join("");
-  const formDriverTripPay = `<form id="form-driver-trip-payment" class="p-form p-form-colored hr-form-flow hr-form-compact">
+  const formDriverTripPay = `<form id="form-driver-trip-payment" novalidate class="p-form p-form-colored hr-form-flow hr-form-compact">
     <fieldset class="form-section form-section-cyan full">
       <legend>${IC.truck} Prestación de servicios — pago por viajes</legend>
       <p class="muted" style="font-size:0.85rem;line-height:1.45;margin:0 0 0.75rem">
@@ -707,7 +707,7 @@ function payrollHtml() {
   const payrollEmpOptionsSettlement = `<option value="">Seleccione</option>${nominaEmployees
     .map((e) => `<option value="${escapeAttr(String(e.id))}">${escapeHtml(String(e.name || ""))}</option>`)
     .join("")}`;
-  const formPayrollSettlement = `<form id="form-payroll-settlement" class="p-form p-form-colored hr-form-flow payroll-settlement-create-form">
+  const formPayrollSettlement = `<form id="form-payroll-settlement" novalidate class="p-form p-form-colored hr-form-flow payroll-settlement-create-form">
     <div class="payroll-liq-form__body">
       <section class="payroll-liq-section payroll-liq-section--period">
         <header class="payroll-liq-section__head">
@@ -749,31 +749,35 @@ function payrollHtml() {
           <span class="payroll-liq-section__icon payroll-liq-section__icon--violet" aria-hidden="true">${IC.clock}</span>
           <div class="payroll-liq-section__copy">
             <h4 class="payroll-liq-section__title">Referencias para el cálculo</h4>
-            <p class="payroll-liq-section__lead muted">Días laborados, saldos en fondo y conceptos pendientes. Ajuste antes de calcular.</p>
+            <p class="payroll-liq-section__lead muted">Complete colaborador y fecha de terminación arriba, luego pulse <strong>Calcular</strong> para auto-rellenar los rubros.</p>
           </div>
         </header>
         <p id="settlement-cause-hint" class="payroll-liq-hint payroll-liq-hint--info muted hidden"></p>
+        <p class="payroll-liq-subgroup__title">${IC.clock} Tiempos laborados</p>
         <div class="payroll-liq-grid payroll-liq-grid--3">
           <div class="payroll-liq-field">
-            <label>${fieldLabel(IC.clock, "Días totales laborados")}<input type="number" name="employedDays" min="0" max="20000" readonly tabindex="-1" class="payroll-liq-readonly" /></label>
+            <label>${fieldLabel(IC.clock, "Días totales laborados")}<input type="number" name="employedDays" min="0" max="20000" readonly tabindex="-1" class="payroll-liq-readonly" placeholder="Auto" /></label>
           </div>
           <div class="payroll-liq-field">
-            <label>${fieldLabel(IC.clock, "Días año 360 (cesantías)")}<input type="number" name="days360Year" min="0" max="360" value="0" /></label>
+            <label>${fieldLabel(IC.clock, "Días año 360 (cesantías)")}<input type="number" name="days360Year" min="0" max="360" value="0" placeholder="Auto" /></label>
           </div>
           <div class="payroll-liq-field">
-            <label>${fieldLabel(IC.clock, "Días proporcional prima")}<input type="number" name="primaPropDays" min="0" max="360" value="0" /></label>
+            <label>${fieldLabel(IC.clock, "Días proporcional prima")}<input type="number" name="primaPropDays" min="0" max="360" value="0" placeholder="Auto" /></label>
           </div>
           <div class="payroll-liq-field">
-            <label>${fieldLabel(IC.calendar, "Días vacaciones pendientes")}<input type="number" name="vacationDays" min="0" max="366" step="0.01" value="0" /></label>
+            <label>${fieldLabel(IC.calendar, "Días vacaciones pendientes")}<input type="number" name="vacationDays" min="0" max="366" step="0.01" value="0" placeholder="Auto" /></label>
           </div>
           <div class="payroll-liq-field">
             <label>${fieldLabel(IC.dollar, "Saldo cesantías en fondo (COP)")}<input type="number" name="cesantiasFondoBalanceCop" min="0" step="100" value="0" /></label>
           </div>
+        </div>
+        <p class="payroll-liq-subgroup__title" style="margin-top:0.65rem">${IC.dollar} Conceptos pendientes y novedades</p>
+        <div class="payroll-liq-grid payroll-liq-grid--3">
           <div class="payroll-liq-field">
-            <label>${fieldLabel(IC.clock, "Días aviso previo cumplidos", { help: "Despido sin justa: 30 días si indefinido." })}<input type="number" name="avisoPrevioDaysWorked" min="0" max="60" value="0" /></label>
+            <label>${fieldLabel(IC.clock, "Días aviso previo cumplidos", { help: "Despido sin justa causa: 30 días si indefinido (CST art. 64)." })}<input type="number" name="avisoPrevioDaysWorked" min="0" max="60" value="0" /></label>
           </div>
           <div class="payroll-liq-field">
-            <label>${fieldLabel(IC.clock, "Días aviso renuncia", { help: "Si no cumplió 15 días, se descuenta del finiquito (CST art. 62)." })}<input type="number" name="renunciaAvisoDaysWorked" min="0" max="60" value="0" /></label>
+            <label>${fieldLabel(IC.clock, "Días aviso renuncia", { help: "Si no cumplió 15 días, puede descontarse del finiquito (CST art. 62)." })}<input type="number" name="renunciaAvisoDaysWorked" min="0" max="60" value="0" /></label>
           </div>
           <div class="payroll-liq-field">
             <label>${fieldLabel(IC.dollar, "Horas extras pendientes (COP)")}<input type="number" name="pendingOvertimeCop" min="0" value="0" /></label>
@@ -782,17 +786,17 @@ function payrollHtml() {
             <label>${fieldLabel(IC.dollar, "Bonificaciones pendientes (COP)")}<input type="number" name="pendingBonusCop" min="0" value="0" /></label>
           </div>
           <div class="payroll-liq-field">
-            <label>${fieldLabel(IC.user, "Dependientes retención")}<input type="number" name="withholdingDependents" min="0" max="10" value="0" /></label>
+            <label>${fieldLabel(IC.user, "Dependientes para retención", { help: "Procedimiento 1: 32 UVT por dependiente (Art. 383 ET)." })}<input type="number" name="withholdingDependents" min="0" max="10" value="0" /></label>
           </div>
           <div class="payroll-liq-field">
-            <label>${fieldLabel(IC.dollar, "Indemnización pactada (COP)")}<input type="number" name="indemnization" min="0" value="0" /></label>
+            <label>${fieldLabel(IC.dollar, "Indemnización pactada (COP)", { help: "Solo si la causal requiere monto manual. El sistema calcula la legal automáticamente." })}<input type="number" name="indemnization" min="0" value="0" /></label>
           </div>
           <div class="payroll-liq-field">
             <label>${fieldLabel(IC.dollar, "Otros conceptos (COP)")}<input type="number" name="otrosSettlement" min="0" value="0" /></label>
           </div>
         </div>
         <div class="payroll-settlement-calc-bar">
-          <button type="button" class="btn btn-outline payroll-settlement-calc-bar__btn" data-action="settlement-recalc">${IC.activity}<span>Calcular liquidación sugerida</span></button>
+          <button type="button" class="btn btn-primary payroll-settlement-calc-bar__btn" data-action="settlement-recalc">${IC.activity}<span>Calcular liquidación sugerida</span></button>
           <div class="payroll-settlement-calc-bar__preview" id="settlement-preview-net" role="status" aria-live="polite"></div>
         </div>
       </section>
@@ -801,7 +805,7 @@ function payrollHtml() {
           <span class="payroll-liq-section__icon payroll-liq-section__icon--emerald" aria-hidden="true">${IC.dollar}</span>
           <div class="payroll-liq-section__copy">
             <h4 class="payroll-liq-section__title">Montos de liquidación</h4>
-            <p class="payroll-liq-section__lead muted">Revise y ajuste cada rubro antes de registrar. Consolide con contabilidad y fondos.</p>
+            <p class="payroll-liq-section__lead muted">Valores orientativos sugeridos por el sistema. Revise, ajuste y confirme con contador antes de registrar.</p>
           </div>
         </header>
         <div class="payroll-liq-grid payroll-liq-grid--2">
@@ -821,17 +825,17 @@ function payrollHtml() {
             <label>${fieldLabel(IC.dollar, "Prima proporcional (COP)")}<input type="number" name="primaPropCop" min="0" value="0" /></label>
           </div>
           <div class="payroll-liq-field">
-            <label>${fieldLabel(IC.dollar, "Vacaciones (COP)")}<input type="number" name="vacacionesCop" min="0" value="0" /></label>
+            <label>${fieldLabel(IC.dollar, "Vacaciones compensadas (COP)")}<input type="number" name="vacacionesCop" min="0" value="0" /></label>
           </div>
         </div>
         <input type="hidden" name="indemnizacionDespidoCop" value="0" />
         <input type="hidden" name="indemnizacionAvisoCop" value="0" />
-        <p class="payroll-liq-footnote muted">Causal define indemnización (CST art. 64). Vacaciones: 15 días/año menos gozadas. Retención orientativa sobre salario pendiente.</p>
+        <p class="payroll-liq-footnote muted">${IC.alertTriangle} Indemnización por causal (CST art. 64) se calcula automáticamente al calcular. Vacaciones: 15 días/año proporcionales. Sin transmisión PILA/DIAN — consolide con contador.</p>
       </section>
     </div>
     ${renderManagedCreateFormActions("create-payroll-settlement", `<button class="btn btn-primary payroll-liq-submit" type="submit">${IC.save}<span>Registrar liquidación contractual</span></button>`)}
   </form>`;
-  const formAbsence = `<form id="form-hr-absence" class="p-form p-form-colored hr-form-flow hr-absence-create-form">
+  const formAbsence = `<form id="form-hr-absence" novalidate class="p-form p-form-colored hr-form-flow hr-absence-create-form">
     <header class="hr-absence-create-form__head">
       <h3 class="hr-absence-create-form__title">Crear ausencia</h3>
       <p class="muted hr-absence-create-form__lead">Vacaciones, licencias, incapacidades, compensatorios y suspensiones con validación legal Colombia.</p>
