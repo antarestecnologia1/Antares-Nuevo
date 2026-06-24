@@ -428,8 +428,12 @@ function notificationDedupeKey(n) {
   const audience = getNotificationAudience(n) || "_personal";
   const recipient =
     audience === "admins" || audience === "hr" ? audience : getNotificationRecipientId(n) || "_none";
-  const createdMinute = String(n?.createdAt ?? "").slice(0, 16);
-  return `${audience}\x1e${recipient}\x1e${String(n?.title ?? "").trim()}\x1e${String(n?.body ?? "").trim()}\x1e${createdMinute}`;
+  const entityType = String(n?.entityType ?? n?.tipo_entidad ?? "").trim();
+  const entityId = String(n?.entityId ?? n?.id_entidad ?? "").trim();
+  if (entityType && entityId) {
+    return `${audience}\x1e${recipient}\x1e${entityType}\x1e${entityId}\x1e${String(n?.title ?? "").trim()}`;
+  }
+  return `${audience}\x1e${recipient}\x1e${String(n?.title ?? "").trim()}\x1e${String(n?.body ?? "").trim()}`;
 }
 
 function __notificationReadAtEpochMs(v) {

@@ -6159,6 +6159,12 @@ async function approveRequest(
   }
 
   if (auto) {
+    if (
+      current.status === STATUS.APROBADA_PENDIENTE_ASIGNACION ||
+      String(current.approvedAt || "").trim()
+    ) {
+      return true;
+    }
     const systemTimerApprove = String(actorName || "").trim() === "Sistema";
     const mapped = requests.map((r) =>
       r.id === requestId
@@ -6188,7 +6194,11 @@ async function approveRequest(
         title: systemTimerApprove ? "Solicitud aprobada automáticamente" : "Solicitud aprobada",
         body: systemTimerApprove
           ? `Su solicitud ${current.requestNumber || current.id} fue aprobada por el tiempo de respuesta configurado y queda pendiente de asignación de viaje.`
-          : `Su solicitud ${current.requestNumber || current.id} fue aprobada y queda pendiente de asignación de viaje.`
+          : `Su solicitud ${current.requestNumber || current.id} fue aprobada y queda pendiente de asignación de viaje.`,
+        category: "authorization",
+        deepLink: "#portal/requests",
+        entityType: "transport_request",
+        entityId: String(current.id || requestId)
       });
       try {
         if (typeof globalThis.refreshNotificationsFromServer === "function") {

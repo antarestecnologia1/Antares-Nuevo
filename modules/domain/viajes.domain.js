@@ -1461,6 +1461,7 @@ export async function runPendingTransportAutoApprove(approveRequestFn, statusRef
   let changed = false;
   for (const r of requests) {
     if (r.status !== PEND) continue;
+    if (String(r.approvedAt || "").trim()) continue;
     if (diffMinutes(r.createdAt) >= AUTO_APPROVE_MINUTES) {
       if (await approveRequestFn(r.id, "Sistema", true)) changed = true;
     }
