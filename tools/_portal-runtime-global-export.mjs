@@ -116,6 +116,7 @@ Object.assign(globalThis, {
   fetchCandidateCvBlobFromApi,
   fetchCandidateCvDownloadFromApi,
   findPayrollEmployeeByIdDoc,
+  resolveDriverForEmployee,
   findPortalDriverById,
   findPortalVehicleById,
   flattenCandidateAttachmentsForCv,

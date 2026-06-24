@@ -6642,6 +6642,18 @@ function findPayrollEmployeeByIdDoc(idDoc) {
   );
 }
 
+/** Empleado GH → conductor de flota vinculado por número de documento (misma regla que API y syncDriverFromEmployee). */
+function resolveDriverForEmployee(employee) {
+  if (!employee) return null;
+  const docDigits = normalizeDocumentDigits(employee.idDoc);
+  if (!docDigits) return null;
+  return (
+    read(KEYS.drivers, []).find(
+      (driver) => normalizeDocumentDigits(driver?.idDoc) === docDigits
+    ) || null
+  );
+}
+
 function abortUnlessAdminForFleetDriverEdit(reason = "driversManageForbidden") {
   if (canEditFleetDriverAsAdmin()) return false;
   notify(userMessage(reason), "error");
@@ -12697,6 +12709,7 @@ Object.assign(window, {
   fetchCandidateCvBlobFromApi,
   fetchCandidateCvDownloadFromApi,
   findPayrollEmployeeByIdDoc,
+  resolveDriverForEmployee,
   findPortalDriverById,
   findPortalVehicleById,
   flattenCandidateAttachmentsForCv,
