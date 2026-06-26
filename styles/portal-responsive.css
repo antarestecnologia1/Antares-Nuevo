@@ -20,18 +20,13 @@ body.portal-mode .portal-layout {
   min-height: 100dvh;
 }
 
+body.portal-mode .sidebar,
 body.portal-mode .portal-main,
 body.portal-mode .portal-header,
 body.portal-mode #view-root,
 body.portal-mode .kpi-grid {
   min-width: 0;
   max-width: 100%;
-}
-
-/* No limitar el ancho del sidebar al rail de la grilla: evita etiquetas truncadas. */
-body.portal-mode #portal-sidebar.sidebar {
-  min-width: 0;
-  max-width: none;
 }
 
 body.portal-mode .portal-main {
@@ -66,10 +61,74 @@ body.portal-mode .kpi-grid {
     }
   }
 
-  /* Escritorio estrecho: mantener sidebar legible (icono + texto), no rail de iconos. */
+  /* Rail compacto automático: más espacio para contenido al hacer zoom */
   @media (max-width: 1160px) {
     body.portal-mode:not(.portal-sidebar-collapsed) {
-      --portal-sidebar-rail-width: clamp(248px, 24vw, var(--portal-sidebar-rail-width-expanded));
+      --portal-sidebar-rail-width: var(--portal-sidebar-rail-width-collapsed);
+    }
+
+    body.portal-mode:not(.portal-sidebar-collapsed) #portal-sidebar .side-link {
+      justify-content: center;
+      padding: 0.38rem 0.35rem;
+      gap: 0;
+    }
+
+    body.portal-mode:not(.portal-sidebar-collapsed) #portal-sidebar .side-link__label,
+    body.portal-mode:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-logout-btn__label {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    body.portal-mode:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-section-label,
+    body.portal-mode:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-user-text,
+    body.portal-mode:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-user-chevron,
+    body.portal-mode:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-account-divider {
+      display: none;
+    }
+
+    body.portal-mode:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-brand-logo--full {
+      display: none !important;
+    }
+
+    body.portal-mode:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-brand-logo--mark {
+      display: block !important;
+    }
+
+    body.portal-mode:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-brand-logo-wrap {
+      width: 54px;
+      height: 54px;
+      min-width: 54px;
+      padding: 0.35rem;
+    }
+
+    body.portal-mode:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-rail-head {
+      flex-direction: column;
+      align-items: center;
+    }
+
+    body.portal-mode:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-user-panel {
+      justify-content: center;
+      padding: 0.45rem;
+    }
+
+    body.portal-mode:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-account-dock {
+      align-items: center;
+    }
+
+    body.portal-mode:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-account-toolbar,
+    body.portal-mode:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-logout-btn {
+      justify-content: center;
+    }
+
+    body.portal-mode:not(.portal-sidebar-collapsed) #portal-sidebar .side-link:hover {
+      transform: none;
     }
   }
 }
@@ -133,8 +192,8 @@ body.portal-mode .kpi-grid {
   .portal-main .drivers-ops-cards,
   .portal-main .employees-grid,
   .portal-main .hiring-cards.hiring-cards--candidates {
-    --ops-cards-min: 16rem;
-    --ops-cards-max: 100%;
+    grid-template-columns: var(--ops-tile-grid, repeat(auto-fill, minmax(min(100%, 17.5rem), 20rem)));
+    justify-content: start;
   }
 
   .payroll-studio .payroll-section-cards {
@@ -204,8 +263,8 @@ body.portal-mode .kpi-grid {
   .portal-main .drivers-ops-cards,
   .portal-main .employees-grid,
   .portal-main .hiring-cards.hiring-cards--candidates {
-    --ops-cards-min: 100%;
-    --ops-cards-max: 100%;
+    grid-template-columns: var(--ops-tile-grid, repeat(auto-fill, minmax(min(100%, 17.5rem), 20rem)));
+    justify-content: start;
   }
 
   .dashboard-studio .dash-metrics-cards,
@@ -576,40 +635,4 @@ body.portal-mode .kpi-grid {
   .hr-workspace-jump-btn.btn-primary {
     flex: 1 1 100%;
   }
-}
-
-/* ── Módulos: fichas compactas (todos los studios) ── */
-.requests-studio .requests-data-results .request-ops-cards,
-.requests-studio .requests-data-results .trip-ops-cards,
-.transport-studio .transport-data-pane__body .request-ops-cards,
-.transport-studio .transport-data-pane__body .trip-ops-cards,
-.vehicles-studio .vehicle-ops-cards,
-.vehicles-studio .trip-ops-cards.portal-ops-cards,
-.vehicles-studio .trip-ops-cards.vehicle-ops-cards,
-.drivers-studio .drivers-ops-cards,
-.drivers-studio .trip-ops-cards.portal-ops-cards,
-.drivers-studio .trip-ops-cards.drivers-ops-cards,
-.payroll-studio .payroll-run-cards-grid,
-.payroll-studio .employees-grid,
-.payroll-studio .payroll-employees-grid,
-.payroll-studio .directory-grid.portal-ops-cards,
-.hiring-studio .hiring-cards.hiring-cards--candidates,
-.hiring-studio .hiring-cards--candidates.portal-ops-cards,
-.b2b-studio .b2b-operate__main .b2b-leads-mosaic,
-.b2b-studio .b2b-leads-mosaic,
-.admin-users-studio .user-grid,
-.admin-users-studio .admin-users-list-shell .user-grid,
-.admin-users-studio .admin-users-insights-grid,
-.admin-users-studio .admin-users-command-grid,
-.history-studio .history-fleet-log-grid,
-.reports-studio .reports-export-grid,
-.calendar-studio .calendar-side-grid {
-  grid-template-columns: var(--ops-tile-grid, repeat(auto-fill, minmax(min(100%, 17.25rem), 19.5rem)));
-  justify-content: start;
-  gap: var(--ops-cards-gap, 0.75rem);
-}
-
-.profile-studio .profile-stats-strip {
-  grid-template-columns: var(--ops-tile-grid-kpi, repeat(auto-fill, minmax(min(100%, 11rem), 14rem)));
-  justify-content: start;
 }

@@ -499,37 +499,9 @@ export function closePublicNavDrawer() {
   syncPublicNavDrawer();
 }
 
-let __portalDrawerSidebarWasCollapsed = null;
-
-function isPortalDrawerMobileViewport() {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
-  return window.matchMedia("(max-width: 920px)").matches;
-}
-
 export function setPortalDrawerOpen(open) {
   if (typeof document === "undefined") return;
   const on = Boolean(open);
-  const isMobile = isPortalDrawerMobileViewport();
-  const sidebar = document.getElementById("portal-sidebar");
-
-  if (on && isMobile) {
-    __portalDrawerSidebarWasCollapsed = document.body.classList.contains("portal-sidebar-collapsed");
-    setPortalSidebarExpanded(true, { persist: false });
-    if (sidebar) {
-      sidebar.style.width = "min(320px, 92vw)";
-      sidebar.style.maxWidth = "none";
-    }
-  } else if (!on && isMobile) {
-    if (__portalDrawerSidebarWasCollapsed !== null) {
-      setPortalSidebarExpanded(!__portalDrawerSidebarWasCollapsed, { persist: false });
-      __portalDrawerSidebarWasCollapsed = null;
-    }
-    if (sidebar) {
-      sidebar.style.removeProperty("width");
-      sidebar.style.removeProperty("max-width");
-    }
-  }
-
   document.body.classList.toggle("portal-drawer-open", on);
   const btn = document.getElementById("portal-menu-btn");
   const bd = document.getElementById("portal-nav-backdrop");

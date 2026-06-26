@@ -4,8 +4,8 @@
    =================================================================== */
 
 :root {
-  --ops-cards-min: 17.25rem;
-  --ops-cards-max: 19.5rem;
+  --ops-cards-min: 17.5rem;
+  --ops-cards-max: 20rem;
   --ops-cards-gap: 0.75rem;
   --ops-card-accent: #1d63d3;
   --ops-tile-grid: repeat(auto-fill, minmax(min(100%, var(--ops-cards-min)), var(--ops-cards-max)));
@@ -80,31 +80,58 @@
   border-color: #d4e0ef;
 }
 
-/* ── Cabecera ── */
+/* ── Cabecera tipo ficha: logo | info | badges ── */
 .trip-ops-card-head,
 .directory-card__head,
 .hiring-candidate-card__head {
-  display: flex;
-  flex-wrap: nowrap;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 0.45rem;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  column-gap: 0.45rem;
+  row-gap: 0.28rem;
+  align-items: start;
   min-width: 0;
 }
 
-.trip-ops-card-head-main,
-.directory-card__identity {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.7rem;
+.portal-ops-card .trip-ops-card-head-main,
+.portal-ops-card .directory-card__identity {
+  display: contents;
+}
+
+.portal-ops-card .trip-ops-card-head-info,
+.portal-ops-card .directory-card__heading {
+  grid-column: 2;
+  grid-row: 1;
   min-width: 0;
-  flex: 1 1 12rem;
+}
+
+.portal-ops-card .portal-ops-card-avatar,
+.portal-ops-card .request-ops-card-company-logo,
+.portal-ops-card .driver-avatar,
+.portal-ops-card .directory-card__avatar {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: start;
+}
+
+.portal-ops-card .portal-ops-card-badges,
+.portal-ops-card .directory-card__status-stack {
+  grid-column: 3;
+  grid-row: 1;
+  align-self: start;
+}
+
+.portal-ops-card .trip-ops-card-head--driver .trip-ops-card-head-main,
+.portal-ops-card .trip-ops-card-head--vehicle .trip-ops-card-head-main {
+  display: contents;
+}
+
+.trip-ops-card-head-main {
+  min-width: 0;
 }
 
 .trip-ops-card-head-info,
 .directory-card__heading {
   min-width: 0;
-  flex: 1 1 auto;
   width: 100%;
 }
 
@@ -122,24 +149,22 @@
 }
 
 .portal-ops-card-refs {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.35rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.22rem;
   margin: 0 0 0.28rem;
   min-width: 0;
 }
 
 .portal-ops-card-ref {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  max-width: 100%;
+  display: grid;
+  gap: 0.04rem;
+  align-content: start;
   min-width: 0;
-  padding: 0.18rem 0.5rem;
-  border-radius: 7px;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
+  padding: 0.24rem 0.34rem;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #edf1f5;
 }
 
 .portal-ops-card-ref-label {
@@ -147,34 +172,42 @@
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: #6b7f96;
-  flex: 0 0 auto;
+  color: #8a96a8;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .portal-ops-card-ref-value {
-  font-size: 0.68rem;
+  font-size: 0.72rem;
   font-weight: 800;
-  letter-spacing: 0.02em;
-  color: #1e3a5f;
+  letter-spacing: 0.01em;
+  color: #152a44;
+  line-height: 1.2;
   min-width: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
   word-break: break-word;
 }
 
 .portal-ops-card-status-pill__text {
   min-width: 0;
-  max-width: 8.5rem;
+  max-width: 6.5rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   line-height: 1.2;
 }
 
-.trip-ops-card-title,
-.directory-card__title,
-.hiring-candidate-card__head h4 {
+.portal-ops-card.trip-ops-card .trip-ops-card-title,
+.portal-ops-card .directory-card__title,
+.portal-ops-card .hiring-candidate-card__head h4 {
   margin: 0;
-  font-size: 0.92rem;
-  line-height: 1.15;
+  font-size: 0.88rem;
+  line-height: 1.18;
   font-weight: 800;
   color: #0d2f5c;
   display: -webkit-box;
@@ -182,6 +215,16 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
   word-break: break-word;
+}
+
+.request-ops-card-meta,
+.portal-ops-card .muted.request-ops-card-meta {
+  margin: 0.12rem 0 0;
+  font-size: 0.68rem;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .portal-ops-card-badges,
@@ -385,13 +428,10 @@
 .request-ops-card .request-ops-card-trip,
 .trip-ops-card-standby.request-ops-card-trip {
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 0.45rem;
-}
-
-.request-ops-card-trip-ico {
-  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.38rem;
+  min-width: 0;
 }
 
 .request-ops-card .request-ops-card-trip > span:not(.request-ops-card-trip-ico),
@@ -401,6 +441,26 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: 1.2;
+  font-size: 0.72rem;
+}
+
+.request-ops-card-company-logo,
+.request-ops-card-company-logo img {
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: 10px;
+  object-fit: contain;
+}
+
+.request-ops-card-trip-ico {
+  flex: 0 0 auto;
+}
+
+.portal-ops-card-actions-grid .trip-ops-card-btn--danger:last-child {
+  grid-column: 1 / -1;
+  max-width: 50%;
+  justify-self: start;
 }
 
 .driver-trip-bar__copy span,
@@ -548,7 +608,7 @@
 }
 
 .trip-ops-card-item-value {
-  font-size: 0.8rem;
+  font-size: 0.72rem;
   font-weight: 700;
   color: #152a44;
   white-space: nowrap;
@@ -557,6 +617,14 @@
   min-width: 0;
   flex: 1 1 auto;
   line-height: 1.2;
+}
+
+.portal-ops-card .trip-ops-card-item-body {
+  font-size: 0.72rem;
+}
+
+.portal-ops-card .trip-ops-card-route-node strong {
+  font-size: 0.72rem;
 }
 
 .trip-ops-card-item-value--ok { color: #16a34a !important; }

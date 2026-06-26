@@ -1258,7 +1258,7 @@ export function buildPortalOpsCardRefs(items = []) {
 export function buildPortalOpsCardStatusPill(label, slug) {
   const text = portalOpsCardPlainLabel(label);
   const key = escapeAttr(String(slug || "neutral").trim() || "neutral");
-  return `<span class="portal-ops-card-status-pill portal-ops-card-status-pill--${key}" role="status">
+  return `<span class="portal-ops-card-status-pill portal-ops-card-status-pill--${key}" role="status" title="${escapeAttr(text)}">
     <span class="portal-ops-card-status-pill__dot" aria-hidden="true"></span>
     <span class="portal-ops-card-status-pill__text">${escapeHtml(text)}</span>
   </span>`;

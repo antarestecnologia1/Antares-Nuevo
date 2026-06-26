@@ -1292,14 +1292,8 @@ body[data-theme="dark"] #portal-sidebar.sidebar--rail {
     4px 0 28px rgba(0, 0, 0, 0.28);
 }
 
-/* Drawer móvil (≤920px): layout expandido completo al abrir el menú hamburguesa */
+/* Drawer móvil (≤920px): hub de notificaciones a ancho completo */
 @media (max-width: 920px) {
-  body.portal-drawer-open #portal-sidebar.sidebar--rail {
-    width: min(320px, 92vw) !important;
-    min-width: min(280px, 88vw);
-    max-width: none !important;
-  }
-
   #portal-sidebar .sidebar-notif-group,
   #portal-sidebar .sidebar-notif-hub {
     width: 100%;
@@ -1323,39 +1317,58 @@ body[data-theme="dark"] #portal-sidebar.sidebar--rail {
     min-height: 44px;
   }
 
+  #portal-sidebar .side-link--notif-inbox .side-link__label {
+    position: static;
+    width: auto;
+    height: auto;
+    padding: 0;
+    margin: 0;
+    overflow: hidden;
+    clip: auto;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    border: 0;
+    flex: 1;
+    min-width: 0;
+  }
+
+  body.portal-drawer-open.portal-sidebar-collapsed #portal-sidebar .sidebar-notif-hub {
+    flex-direction: row !important;
+  }
+
   body.portal-drawer-open #portal-sidebar .sidebar-rail-scroll {
     padding-right: 0.65rem;
   }
 
-  /* Restaurar layout expandido (ícono + etiqueta) aunque el rail estuviera colapsado */
-  body.portal-drawer-open #portal-sidebar .side-link {
+  /* Cuando el drawer móvil está abierto y el sidebar estaba colapsado (estado persistido),
+     restaurar el layout expandido para que todos los ítems muestren ícono + etiqueta. */
+  body.portal-drawer-open.portal-sidebar-collapsed #portal-sidebar .side-link {
     justify-content: flex-start;
     gap: 0.72rem;
     padding: 0.55rem 0.65rem;
   }
 
-  body.portal-drawer-open #portal-sidebar .side-link__label,
-  body.portal-drawer-open #portal-sidebar .side-link--notif-inbox .side-link__label {
+  body.portal-drawer-open.portal-sidebar-collapsed #portal-sidebar .side-link__label {
     position: static;
     width: auto;
     height: auto;
     padding: 0;
     margin: 0;
-    overflow: visible;
+    overflow: hidden;
     clip: auto;
-    white-space: normal;
-    text-overflow: unset;
+    white-space: nowrap;
+    text-overflow: ellipsis;
     border: 0;
     flex: 1;
     min-width: 0;
   }
 
-  body.portal-drawer-open #portal-sidebar .sidebar-section-label {
+  body.portal-drawer-open.portal-sidebar-collapsed #portal-sidebar .sidebar-section-label {
     display: flex;
   }
 
-  body.portal-drawer-open #portal-sidebar .sidebar-user-text,
-  body.portal-drawer-open #portal-sidebar .sidebar-user-chevron {
+  body.portal-drawer-open.portal-sidebar-collapsed #portal-sidebar .sidebar-user-text,
+  body.portal-drawer-open.portal-sidebar-collapsed #portal-sidebar .sidebar-user-chevron {
     position: static;
     width: auto;
     height: auto;
@@ -1364,78 +1377,26 @@ body[data-theme="dark"] #portal-sidebar.sidebar--rail {
     overflow: visible;
     clip: auto;
     white-space: normal;
-    text-overflow: unset;
     border: 0;
   }
 
-  body.portal-drawer-open #portal-sidebar .sidebar-user-text strong,
-  body.portal-drawer-open #portal-sidebar .sidebar-user-text #sidebar-session-display-name,
-  body.portal-drawer-open #portal-sidebar .sidebar-user-text span,
-  body.portal-drawer-open #portal-sidebar .sidebar-user-text #session-meta {
-    overflow: visible;
-    text-overflow: unset;
-    white-space: normal;
-  }
-
-  body.portal-drawer-open #portal-sidebar .sidebar-account-divider {
+  body.portal-drawer-open.portal-sidebar-collapsed #portal-sidebar .sidebar-account-divider {
     display: block;
     width: auto;
     margin: 0.28rem 0.35rem;
   }
 
-  body.portal-drawer-open #portal-sidebar .sidebar-logout-btn__label {
+  body.portal-drawer-open.portal-sidebar-collapsed #portal-sidebar .sidebar-logout-btn__label {
     position: static;
     width: auto;
     height: auto;
     overflow: visible;
     clip: auto;
-    white-space: normal;
-    text-overflow: unset;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
 
-  body.portal-drawer-open #portal-sidebar .sidebar-user-panel {
-    justify-content: flex-start;
-    padding: 0.4rem 0.45rem;
-  }
-
-  body.portal-drawer-open #portal-sidebar .sidebar-account-toolbar {
-    flex-direction: row;
-    width: 100%;
-    padding: 0 0.1rem 0.1rem;
-    gap: 0.4rem;
-  }
-
-  body.portal-drawer-open #portal-sidebar .sidebar-logout-btn {
-    justify-content: flex-start;
-    padding: 0.38rem 0.55rem;
-    min-height: 38px;
-    width: auto;
-    flex: 1;
-  }
-
-  body.portal-drawer-open #portal-sidebar .sidebar-brand-logo--full {
-    display: block !important;
-  }
-
-  body.portal-drawer-open #portal-sidebar .sidebar-brand-logo--mark {
-    display: none !important;
-  }
-
-  body.portal-drawer-open #portal-sidebar .sidebar-brand-logo-wrap {
-    width: 100%;
-    min-width: 0;
-    height: 58px;
-    min-height: 58px;
-    padding: 0.6rem 0.75rem;
-  }
-
-  body.portal-drawer-open #portal-sidebar .sidebar-rail-head {
-    flex-direction: column;
-    align-items: stretch;
-    width: 100%;
-  }
-
-  body.portal-drawer-open #portal-sidebar .side-link:hover {
+  body.portal-drawer-open.portal-sidebar-collapsed #portal-sidebar .side-link:hover {
     transform: translateX(3px);
   }
 }
