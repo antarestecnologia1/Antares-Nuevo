@@ -1639,6 +1639,105 @@
   display: none !important;
 }
 
+/* ── Pulido de UI del expediente (pasos completados, transiciones y foco) ── */
+.payroll-studio #form-employee .payroll-wizard__steps .hr-form-wizard-dot {
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+}
+
+.payroll-studio #form-employee .payroll-wizard__steps .hr-form-wizard-dot:hover {
+  transform: translateX(2px);
+}
+
+/* Paso completado: marca de verificación en verde */
+.payroll-studio #form-employee .payroll-wizard__steps .hr-form-wizard-dot.is-done {
+  color: #15803d;
+}
+
+.payroll-studio #form-employee .payroll-wizard__steps .hr-form-wizard-dot.is-done .hr-dot-num {
+  font-size: 0;
+  background: linear-gradient(145deg, #22c55e, #16a34a);
+  border-color: #16a34a;
+  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3);
+}
+
+.payroll-studio #form-employee .payroll-wizard__steps .hr-form-wizard-dot.is-done .hr-dot-num::after {
+  content: "";
+  width: 0.6rem;
+  height: 0.32rem;
+  border-left: 2.5px solid #fff;
+  border-bottom: 2.5px solid #fff;
+  transform: rotate(-45deg) translateY(-1px);
+}
+
+/* Transición suave al cambiar de paso */
+@keyframes hrEmployeeStepIn {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.payroll-studio #form-employee .hr-form-step.is-active {
+  animation: hrEmployeeStepIn 0.26s ease;
+}
+
+/* La barra de progreso del encabezado se anima al avanzar */
+.payroll-studio #form-employee .payroll-wizard__progress .hr-wizard-progress-fill {
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Zona de carga de foto con realce al pasar el cursor */
+.payroll-studio #form-employee .payroll-wizard-upload-zone {
+  transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.payroll-studio #form-employee .payroll-wizard-upload-zone:hover,
+.payroll-studio #form-employee .payroll-wizard-upload-zone.is-dragover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.14);
+}
+
+/* Foco accesible y vistoso en los campos */
+.payroll-studio #form-employee .form-section-grid input:focus-visible,
+.payroll-studio #form-employee .form-section-grid select:focus-visible,
+.payroll-studio #form-employee .form-section-grid textarea:focus-visible {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+}
+
+/* Icono de la sección heredando el color de su acento */
+.payroll-studio #form-employee .form-section-emerald legend svg {
+  background: rgba(16, 185, 129, 0.14);
+  color: #047857;
+}
+.payroll-studio #form-employee .form-section-amber legend svg {
+  background: rgba(245, 158, 11, 0.16);
+  color: #b45309;
+}
+.payroll-studio #form-employee .form-section-rose legend svg {
+  background: rgba(244, 63, 94, 0.14);
+  color: #be123c;
+}
+.payroll-studio #form-employee .form-section-cyan legend svg {
+  background: rgba(91, 159, 212, 0.18);
+  color: #1d4ed8;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .payroll-studio #form-employee .hr-form-step.is-active {
+    animation: none;
+  }
+}
+
+body[data-theme="dark"] .payroll-studio #form-employee .payroll-wizard__steps .hr-form-wizard-dot.is-done {
+  color: #4ade80;
+}
+
 /* ── Tema oscuro ── */
 body[data-theme="dark"] .payroll-studio {
   --pay-surface: rgba(15, 28, 46, 0.65);
@@ -1701,6 +1800,31 @@ body[data-theme="dark"] .payroll-studio #form-employee .payroll-wizard-tip {
 
 body[data-theme="dark"] .payroll-studio .hr-workspace-tab--switch.is-active {
   box-shadow: 0 6px 18px rgba(var(--primary-rgb), 0.35);
+}
+
+/* Pie del wizard coherente con el tema oscuro */
+body[data-theme="dark"] .payroll-studio #form-employee .hr-form-wizard-footer {
+  background: rgba(10, 22, 38, 0.6);
+  border-top-color: rgba(148, 196, 255, 0.14);
+}
+
+body[data-theme="dark"] .payroll-studio #form-employee .hr-form-wizard-footer-nav {
+  background: rgba(15, 28, 46, 0.85);
+  border-color: rgba(148, 196, 255, 0.18);
+}
+
+body[data-theme="dark"] .payroll-studio #form-employee .hr-wizard-nav-btn--next:not(:disabled) {
+  background: rgba(30, 58, 138, 0.55);
+  color: #cfe4ff;
+}
+
+body[data-theme="dark"] .payroll-studio #form-employee .hr-wizard-nav-btn--prev {
+  color: #94a8c4;
+}
+
+body[data-theme="dark"] .payroll-studio #form-employee .hr-wizard-nav-btn--prev:hover:not(:disabled) {
+  color: #e8f2fc;
+  background: rgba(148, 196, 255, 0.1);
 }
 
 

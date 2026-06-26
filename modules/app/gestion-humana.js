@@ -1103,35 +1103,14 @@ function bindPayrollPortalControls() {
       try {
         const raw = readFormEntriesNormalized(employeeForm);
         // El formulario precarga varios campos con valores por defecto (salario mínimo,
-        // auxilio de transporte, contadores en 0, "No" en enfermedad…). Esos valores por
-        // sí solos no representan datos diligenciados, así que no deben habilitar el
-        // guardado de un borrador vacío.
-        const draftDefaultValues = {
-          hasIllness: "no",
-          baseSalary: String(CO_HR_RULES.minMonthlySalary),
-          transportAllowance: String(CO_HR_RULES.transportAllowance),
-          comparendos: "0",
-          experienceYears: "0"
-        };
-        const ignoredDraftKeys = new Set(["avatarUrl", "avatarFile", "workSchedule"]);
-        const meaningfulFields = Object.entries(raw).filter(([key, value]) => {
-          if (ignoredDraftKeys.has(key)) return false;
-          const text = String(value ?? "").trim();
-          if (!text) return false;
-          if (draftDefaultValues[key] !== undefined && text === draftDefaultValues[key]) return false;
-          return true;
-        });
+        // auxilio de transporte, contadores en 0, "No" en enfermedad…), por lo que no se
+        // puede asumir que haya datos diligenciados solo porque el formulario "tiene"
+        // valores. Exigimos el nombre del colaborador como mínimo: identifica el borrador
+        // (avatar, restauración y aviso de guardado) y evita guardar fichas vacías.
         const draftName = String(raw.name || "").trim();
         if (!draftName) {
-          // El nombre identifica el borrador (avatar, restauración y lista), por eso es el
-          // mínimo exigible para poder guardar.
           notify("Diligencie al menos el nombre del colaborador antes de guardar el borrador.", "warn");
           failPortalField(employeeForm, "name", "Ingrese el nombre del colaborador para guardar el borrador.");
-          return;
-        }
-        if (!meaningfulFields.length) {
-          notify("Complete algún dato del colaborador antes de guardar el borrador.", "warn");
-          failPortalField(employeeForm, "name", "Diligencie al menos un dato para guardar el borrador.");
           return;
         }
         localStorage.setItem(EMPLOYEE_CREATE_DRAFT_KEY, JSON.stringify({ savedAt: Date.now(), fields: raw }));
@@ -1162,6 +1141,17 @@ function bindPayrollPortalControls() {
             if (el.tagName === "SELECT") el.value = String(value ?? "");
             else el.value = String(value ?? "");
           });
+          // Las opciones de «Ciudad» se generan a partir del departamento elegido. Al
+          // restaurar un borrador el `value` de ciudad no existe todavía como opción, así
+          // que disparamos el cambio del departamento para repoblar las ciudades y luego
+          // reasignamos la ciudad guardada.
+          const draftDeptEl = employeeForm.querySelector("select[name='department']");
+          const draftCityEl = employeeForm.querySelector("select[name='city']");
+          const draftCityValue = String(fields.city ?? "");
+          if (draftDeptEl && draftDeptEl.value) {
+            draftDeptEl.dispatchEvent(new Event("change", { bubbles: true }));
+            if (draftCityEl && draftCityValue) draftCityEl.value = draftCityValue;
+          }
           syncIllnessVisibility();
           employeeCompRule.sync({ force: true });
           syncPlazoVisibility();
