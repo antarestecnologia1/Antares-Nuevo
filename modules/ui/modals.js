@@ -1560,7 +1560,7 @@ export function openInfoModal({
     .filter(Boolean)
     .join(" ");
   const headBlock = headless
-    ? `<div class="modal-head modal-head--sr-only"><h2 id="crud-modal-title">${escapeHtml(String(title || "Detalle"))}</h2>${renderModalCloseBtn("crud-close")}</div>`
+    ? `<div class="modal-head modal-head--sr-only"><div class="modal-head__copy"><h2 id="crud-modal-title">${escapeHtml(String(title || "Detalle"))}</h2></div>${renderModalCloseBtn("crud-close")}</div>`
     : renderModalHead(title, { subtitleHtml: subtitleBlock, titleId: "crud-modal-title" });
   const closeBtnHtml =
     primaryHtml ||

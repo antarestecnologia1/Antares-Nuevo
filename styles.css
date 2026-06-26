@@ -34616,9 +34616,9 @@ body[data-theme="dark"] .solicitud-trip-summary {
   gap: 0.72rem;
   padding: 0.82rem 0.9rem;
   border-radius: 14px;
-  border: 1px solid color-mix(in srgb, var(--primary) 10%, var(--line));
-  background: linear-gradient(180deg, #ffffff 0%, #f9fbff 100%);
-  box-shadow: 0 2px 10px rgba(var(--primary-rgb), 0.05);
+  border: 1px solid color-mix(in srgb, var(--primary) 22%, var(--line));
+  background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.07), rgba(var(--brand-blue-soft-rgb, 99, 167, 247), 0.18));
+  box-shadow: 0 4px 14px rgba(var(--primary-rgb), 0.08);
   min-width: 0;
 }
 
@@ -34690,9 +34690,13 @@ body[data-theme="dark"] .solicitud-trip-summary {
 .detail-view-card__value {
   font-size: 0.92rem;
   font-weight: 700;
-  color: var(--text);
+  color: var(--primary-deeper, #123f6d);
   line-height: 1.4;
   word-break: break-word;
+}
+
+.detail-view-card__value strong {
+  color: var(--primary-deeper, #123f6d);
 }
 
 .detail-view-card__sub {
@@ -34809,8 +34813,8 @@ body[data-theme="dark"] .solicitud-trip-summary {
 }
 
 body[data-theme="dark"] .detail-view-card {
-  background: linear-gradient(180deg, rgba(20, 37, 59, 0.92) 0%, rgba(12, 27, 44, 0.95) 100%);
-  border-color: rgba(148, 196, 255, 0.16);
+  background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.18), rgba(15, 28, 46, 0.72));
+  border-color: rgba(131, 190, 233, 0.22);
 }
 
 body[data-theme="dark"] .detail-view-card__label {
@@ -34819,6 +34823,10 @@ body[data-theme="dark"] .detail-view-card__label {
 
 body[data-theme="dark"] .detail-view-card__value {
   color: #e8f2ff;
+}
+
+body[data-theme="dark"] .detail-view-card__value strong {
+  color: #dbeafe;
 }
 
 body[data-theme="dark"] .detail-view-sheet__title {
@@ -34873,10 +34881,14 @@ body[data-theme="dark"] .modal-info-layout--headless .modal-head--sr-only .modul
   font-size: 0.94rem;
 }
 
-/* Campos destacados (valor, salario, tarifa, factura): fondo y borde acento */
+/* Campos destacados (valor, salario, tarifa, factura): realce verde sobre la base azul */
 .detail-view-card--highlight {
-  background: linear-gradient(180deg, color-mix(in srgb, #16a34a 10%, #fff), color-mix(in srgb, #16a34a 4%, #fff));
-  border-color: color-mix(in srgb, #16a34a 30%, var(--line));
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, #16a34a 14%, rgba(var(--primary-rgb), 0.07)),
+    color-mix(in srgb, #16a34a 8%, rgba(var(--brand-blue-soft-rgb, 99, 167, 247), 0.18))
+  );
+  border-color: color-mix(in srgb, #16a34a 34%, var(--line));
 }
 
 .detail-view-card--highlight .detail-view-card__icon {
@@ -34934,7 +34946,7 @@ body[data-theme="dark"] .detail-view-card:hover {
 }
 
 body[data-theme="dark"] .detail-view-card--highlight {
-  background: linear-gradient(180deg, rgba(22, 163, 74, 0.2), rgba(22, 163, 74, 0.08));
+  background: linear-gradient(135deg, rgba(22, 163, 74, 0.22), rgba(var(--primary-rgb), 0.14));
   border-color: rgba(34, 197, 94, 0.34);
 }
 
