@@ -141,15 +141,21 @@ export const PUBLIC_ES_EN_DICT = {
   "Cajas:": "Boxes:",
   "Ideal para rutas urbanas y regionales": "Ideal for urban and regional routes",
   "39 carros turbo en operación": "39 turbo trucks in operation",
+  "39 camiones en operación": "39 trucks in operation",
   "Unidades livianas para despachos frecuentes y cadena de frío confiable":
     "Lightweight units for frequent dispatches with a dependable cold chain",
   "29 tractomulas en operación": "29 tractor-trailers in operation",
+  "Unidades livianas para despachos frecuentes": "Lightweight units for frequent dispatches",
+  " y cadena de frío confiable": " and a dependable cold chain",
+  "Articulados para el mayor volumen por viaje": "Articulated rigs for maximum load per trip",
+  " y trazabilidad en corredor": " and corridor-level traceability",
   "Articulados para el mayor volumen por viaje y trazabilidad en corredor":
     "Articulated rigs for maximum load per trip and corridor-level traceability",
   Tractomula: "Articulated fleet",
   Bus: "Bus",
   "Traslados de equipo y corredores entre sedes": "Crew moves and corridor runs between locations",
   Camion: "Truck",
+  Camiones: "Trucks",
   "Balance entre volumen y eficiencia": "Balance of volume and efficiency",
   Tractocamion: "Tractor-trailer",
   "Alto volumen y larga distancia": "High volume and long distance",
@@ -210,12 +216,16 @@ export const PUBLIC_ES_EN_DICT = {
   "Operación documentada en campo": "Field-documented operation",
   "Corredor estratégico de exportación": "Strategic export corridor",
   "Evidencia audiovisual y fotográfica": "Audiovisual and photographic evidence",
+  "Evidencia audiovisual": "Audiovisual evidence",
   "Hito logístico Transportes Antares": "Transportes Antares logistics milestone",
   "Unidad destacada: JZX522": "Featured unit: JZX522",
+  "Unidad destacada: En una de nuestras tractomulas": "Featured unit: One of our tractor-trailers",
   "Primera operación de contenedor de flor en Puerto Antioquia": "First flower container operation at Puerto Antioquia",
   "Fuimos la": "We were the",
   "primera empresa de transporte": "first transport company",
   "en ingresar contenedor de flor a Puerto Antioquia con nuestra tractomula": "entering a flower container into Puerto Antioquia with our tractor-trailer",
+  " en ingresar un contenedor de flor a Puerto Antioquia en una de nuestras tractomulas, marcando un avance clave para la cadena de exportación.":
+    " to deliver a flower container into Puerto Antioquia with one of our tractor-trailers, marking a key advance for the export chain.",
   ", marcando un avance clave para la cadena de exportación.": ", marking a key advance for the export chain.",
   "Ventaja competitiva": "Competitive edge",
   "Menor tiempo de conexión portuaria": "Shorter port connection time",
@@ -278,8 +288,14 @@ export const PUBLIC_ES_EN_DICT = {
   "Cuentanos tu necesidad logistica y te compartimos una propuesta tecnica y comercial.": "Tell us your logistics needs and we will share a technical and commercial proposal.",
   "Cuentanos tu operacion y te proponemos una solucion logistica ajustada a tu nivel de servicio.": "Tell us about your operation and we will propose a logistics solution tailored to your service level.",
   "Respuesta comercial < 2 horas": "Commercial response < 2 hours",
+  "Respuesta comercial < 30 min": "Commercial response < 30 min",
   "Atencion especializada B2B": "Specialized B2B support",
   "Confidencialidad de datos": "Data confidentiality",
+  "Celular Colombia: 10 dígitos (empieza por 3).": "Colombia mobile: 10 digits (starts with 3).",
+  "¿Requiere refrigeración Termoking?": "Requires Thermo King refrigeration?",
+  "Sí, carga refrigerada (Termoking)": "Yes, refrigerated cargo (Thermo King)",
+  "No, carga seca": "No, dry cargo",
+  "Carrera 20 #6-81 La Ceja, EDS Roscombustible — 2.º piso.": "Carrera 20 #6-81 La Ceja, EDS Roscombustible — 2nd floor.",
   "Al enviar, un asesor B2B te contactara para validar requerimientos tecnicos y comerciales.": "After submitting, a B2B advisor will contact you to validate technical and commercial requirements.",
   "Enviar solicitud B2B": "Send B2B request",
   "Tipo de operacion": "Operation type",
@@ -422,7 +438,7 @@ export function translatePublicText(text, lang) {
         let next = out.replace(re, en);
         if (
           next === out &&
-          src.length >= 5 &&
+          src.length >= phraseThreshold &&
           normalizePublicKey(out).includes(normalizePublicKey(src))
         ) {
           next = replaceAllNormalizedSpans(out, src, en);
