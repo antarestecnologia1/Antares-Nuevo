@@ -50,27 +50,27 @@
   opacity: 0.48;
 }
 
-.sidebar-notif-bell-toggle--off::after,
-.sidebar-notif-group--off .sidebar-notif-bell-toggle::after {
+/* Tachado del estado "desactivado": se ancla SOLO sobre el ícono del timbre
+   (no sobre toda la fila), para que en modo expandido/drawer —donde el botón
+   ocupa el ancho completo con la etiqueta "Activar alertas"— la línea no cruce
+   el texto. La línea queda centrada sobre el ícono en cualquier layout. */
+.sidebar-notif-bell-toggle--off .sidebar-notif-bell-icon,
+.sidebar-notif-group--off .sidebar-notif-bell-toggle .sidebar-notif-bell-icon {
+  position: relative;
+}
+
+.sidebar-notif-bell-toggle--off .sidebar-notif-bell-icon::after,
+.sidebar-notif-group--off .sidebar-notif-bell-toggle .sidebar-notif-bell-icon::after {
   content: "";
   position: absolute;
-  left: 0.35rem;
-  right: 0.35rem;
+  left: 50%;
   top: 50%;
+  width: 24px;
   height: 2px;
   background: rgba(248, 113, 113, 0.92);
   border-radius: 1px;
-  transform: translateY(-50%) rotate(-35deg);
+  transform: translate(-50%, -50%) rotate(-35deg);
   pointer-events: none;
-}
-
-@media (max-width: 920px) {
-  .sidebar-notif-bell-toggle--off::after,
-  .sidebar-notif-group--off .sidebar-notif-bell-toggle::after {
-    left: 0.5rem;
-    right: 0.5rem;
-    height: 2.5px;
-  }
 }
 
 @media (max-width: 920px) {

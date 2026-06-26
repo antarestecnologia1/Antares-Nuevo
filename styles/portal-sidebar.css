@@ -658,6 +658,20 @@ body.portal-sidebar-collapsed #portal-sidebar .side-link.active::before {
   height: 18px !important;
 }
 
+/* El timbre reserva un hueco del mismo tamaño que el contenedor de ícono de los
+   demás enlaces (36px) para que su etiqueta «Silenciar alertas» quede alineada
+   con «Notificaciones» y el resto del menú. Es transparente (sin caja) a
+   propósito: el timbre es un control sutil, no un ítem de navegación. */
+#portal-sidebar .sidebar-notif-bell-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--portal-sidebar-icon-size);
+  height: var(--portal-sidebar-icon-size);
+  min-width: var(--portal-sidebar-icon-size);
+}
+
 /* La etiqueta del timbre se oculta por defecto; se muestra cuando el menú está
    expandido (escritorio) o en el cajón móvil (ver media queries). */
 #portal-sidebar .sidebar-notif-bell-label {
@@ -705,7 +719,7 @@ body.portal-sidebar-collapsed #portal-sidebar .side-link.active::before {
     max-width: none;
     min-height: 42px;
     padding: 0.42rem 0.55rem;
-    gap: 0.7rem;
+    gap: 0.72rem;
     justify-content: flex-start;
   }
 

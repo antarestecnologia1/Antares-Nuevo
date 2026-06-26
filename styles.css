@@ -31228,6 +31228,82 @@ body[data-theme="dark"] .approve-trip-pill--tk {
   box-sizing: border-box;
 }
 
+/* ──────────────────────────────────────────────────────────────────────────
+   Formularios de edición (openEditModal): cabecera y pie SIEMPRE visibles.
+   #crud-modal-content es el área con scroll (overflow-y:auto / overflow-x:hidden),
+   así que NO usamos sangrado con márgenes negativos (se recortarían); fijamos la
+   cabecera arriba y la barra de acciones abajo, con fondo opaco, para que los
+   botones «Cancelar / Guardar cambios» nunca queden cortados ni pegados al borde.
+   ────────────────────────────────────────────────────────────────────────── */
+#crud-modal .modal-card.modal-card-edit > #crud-modal-content > .modal-head {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  flex-shrink: 0;
+  margin-bottom: 0.85rem;
+  padding-bottom: 0.8rem;
+  background: var(--white);
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+}
+
+body[data-theme="dark"] #crud-modal .modal-card.modal-card-edit > #crud-modal-content > .modal-head {
+  background: var(--white);
+  border-bottom-color: color-mix(in srgb, var(--line) 58%, transparent);
+}
+
+#crud-modal
+  .modal-card.modal-card-edit
+  > #crud-modal-content
+  > #crud-form.modal-edit-form
+  > .module-panel-actions--footer.modal-edit-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  flex-shrink: 0;
+  margin-top: 0.6rem !important;
+  margin-bottom: 0 !important;
+  max-width: none;
+  overflow: visible;
+  box-sizing: border-box;
+}
+
+/* Barra de acciones fija: borde superior nítido, fondo opaco (para que los campos
+   pasen por debajo sin transparentarse) y respeto del área segura inferior. */
+#crud-modal
+  .modal-card.modal-card-edit
+  > #crud-modal-content
+  > #crud-form.modal-edit-form
+  > .module-panel-actions--footer.modal-edit-actions
+  .module-panel-actions__bar {
+  margin-top: 0;
+  padding: 0.95rem 0.15rem max(0.95rem, calc(0.6rem + env(safe-area-inset-bottom, 0px)));
+  border-radius: 0;
+  border-top: 1px solid color-mix(in srgb, var(--primary, #377cc0) 18%, #e2e8f0);
+  box-shadow: 0 -10px 18px -14px rgba(15, 23, 42, 0.28);
+}
+
+body[data-theme="dark"]
+  #crud-modal
+  .modal-card.modal-card-edit
+  > #crud-modal-content
+  > #crud-form.modal-edit-form
+  > .module-panel-actions--footer.modal-edit-actions
+  .module-panel-actions__bar {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--primary, #377cc0) 12%, #122036) 0%,
+    #0f1c2e 100%
+  );
+  border-top-color: color-mix(in srgb, var(--primary, #377cc0) 30%, rgba(255, 255, 255, 0.08));
+  box-shadow: 0 -10px 20px -14px rgba(0, 0, 0, 0.6);
+}
+
+/* Holgura inferior del formulario para que el último campo no quede tapado
+   por el pie fijo al final del scroll. */
+#crud-modal .modal-card.modal-card-edit > #crud-modal-content > #crud-form.modal-edit-form {
+  padding-bottom: 0.35rem;
+}
+
 .trip-assign-friendly-intro {
   margin: 0.5rem 0 1rem;
   padding: 1rem 1.1rem;
