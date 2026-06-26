@@ -3,6 +3,11 @@
    Alcance: .portal-ops-card, .trip-ops-card, .directory-card, .hiring-candidate-card
    =================================================================== */
 
+:root {
+  --ops-cards-min: 21rem;
+  --ops-cards-gap: 0.65rem;
+}
+
 .portal-ops-cards,
 .trip-ops-cards,
 .request-ops-cards,
@@ -14,9 +19,8 @@
 .employees-grid,
 .hiring-cards.hiring-cards--candidates {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(16.5rem, 20.5rem));
-  justify-content: start;
-  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--ops-cards-min)), 1fr));
+  gap: var(--ops-cards-gap);
   width: 100%;
   min-width: 0;
   container-type: inline-size;
@@ -30,10 +34,10 @@
   position: relative;
   border: 1px solid #e8edf3;
   border-radius: 12px;
-  padding: 0.72rem 0.82rem 0.68rem;
+  padding: 0.55rem 0.72rem 0.5rem;
   background: #ffffff;
   display: grid;
-  gap: 0.5rem;
+  gap: 0.36rem;
   box-shadow: 0 4px 18px rgba(15, 35, 70, 0.07), 0 1px 3px rgba(15, 35, 70, 0.04);
   transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
   min-width: 0;
@@ -447,8 +451,8 @@
 .directory-card__facts,
 .hiring-candidate-card__meta {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.38rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.28rem;
   margin: 0;
   padding: 0;
   min-width: 0;
@@ -470,9 +474,9 @@
 .directory-chip,
 .directory-card__fact {
   display: grid;
-  gap: 0.2rem;
-  padding: 0.4rem 0.48rem;
-  border-radius: 9px;
+  gap: 0.12rem;
+  padding: 0.3rem 0.36rem;
+  border-radius: 8px;
   background: #f8fafc;
   border: 1px solid #edf1f5;
   min-width: 0;
@@ -782,8 +786,8 @@
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 0.5rem;
-  padding-top: 0.65rem;
+  gap: 0.4rem;
+  padding-top: 0.38rem;
   border-top: 1px solid #eef1f5;
   font-size: 0.72rem;
   color: #8a96a8;
@@ -810,8 +814,8 @@
 .directory-card__avatar,
 .driver-avatar,
 .portal-ops-card-avatar {
-  width: 2.65rem;
-  height: 2.65rem;
+  width: 2.2rem;
+  height: 2.2rem;
   flex: 0 0 auto;
   display: grid;
   place-items: center;
@@ -863,9 +867,8 @@
 .drivers-grid.directory-grid,
 .payroll-employees-grid.directory-grid,
 .hiring-cards--candidates.portal-ops-cards {
-  grid-template-columns: repeat(auto-fill, minmax(16.5rem, 20.5rem));
-  justify-content: start;
-  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--ops-cards-min)), 1fr));
+  gap: var(--ops-cards-gap);
 }
 
 .directory-card__title,
@@ -946,8 +949,21 @@
   min-width: 0;
 }
 
+/* ── Tarjetas anchas: más columnas en datos para menos altura ── */
+@container ops-card (min-width: 26rem) {
+  .portal-ops-card-spec-grid,
+  .trip-ops-card-grid,
+  .vehicle-card-spec-grid,
+  .driver-card-spec-grid,
+  .directory-card__metrics:not(.directory-card__metrics--triple):not(.directory-card__metrics--quad),
+  .directory-card__facts,
+  .hiring-candidate-card__meta {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
 /* ── Container queries: solo en tarjetas muy estrechas ── */
-@container ops-card (max-width: 19rem) {
+@container ops-card (max-width: 22rem) {
   .trip-ops-card-head,
   .directory-card__head,
   .hiring-candidate-card__head {
@@ -979,8 +995,11 @@
   .portal-ops-card-spec-grid,
   .trip-ops-card-grid,
   .vehicle-card-spec-grid,
-  .driver-card-spec-grid {
-    grid-template-columns: 1fr;
+  .driver-card-spec-grid,
+  .directory-card__metrics:not(.directory-card__metrics--triple):not(.directory-card__metrics--quad),
+  .directory-card__facts,
+  .hiring-candidate-card__meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .portal-ops-card-actions-grid,
@@ -1006,40 +1025,14 @@
 }
 
 @media (max-width: 768px) {
-  .portal-ops-cards,
-  .trip-ops-cards,
-  .request-ops-cards,
-  .directory-grid,
-  .payroll-run-cards-grid,
-  .b2b-leads-mosaic,
-  .vehicle-ops-cards,
-  .drivers-ops-cards,
-  .employees-grid,
-  .hiring-cards.hiring-cards--candidates {
-    grid-template-columns: repeat(auto-fill, minmax(15rem, 20.5rem));
+  :root {
+    --ops-cards-min: 18.5rem;
   }
 }
 
 @media (max-width: 520px) {
-  .portal-ops-cards,
-  .trip-ops-cards,
-  .request-ops-cards,
-  .directory-grid,
-  .payroll-run-cards-grid,
-  .b2b-leads-mosaic,
-  .vehicle-ops-cards,
-  .drivers-ops-cards,
-  .employees-grid,
-  .hiring-cards.hiring-cards--candidates {
-    grid-template-columns: repeat(auto-fill, minmax(14.5rem, 20.5rem));
-    justify-content: start;
-  }
-
-  .portal-ops-card,
-  .trip-ops-card,
-  .directory-card:not(.directory-card--compact),
-  .hiring-candidate-card {
-    max-width: 20.5rem;
+  :root {
+    --ops-cards-min: 100%;
   }
 
   .directory-card__metrics--triple,

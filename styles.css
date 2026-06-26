@@ -8759,8 +8759,7 @@ body[data-theme="dark"] .trip-ops-card--vehicle .vehicle-occupancy-note {
 }
 
 .vehicle-ops-cards {
-  grid-template-columns: repeat(auto-fill, minmax(16.5rem, 20.5rem));
-  justify-content: start;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 21rem), 1fr));
 }
 
 @media (max-width: 520px) {
@@ -9165,8 +9164,7 @@ body[data-theme="dark"] .vehicle-card-equip-pill {
 }
 
 .drivers-ops-cards {
-  grid-template-columns: repeat(auto-fill, minmax(16.5rem, 20.5rem));
-  justify-content: start;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 21rem), 1fr));
 }
 
 @media (max-width: 520px) {
@@ -9281,9 +9279,8 @@ body[data-theme="dark"] .driver-availability-bar__copy strong {
 
 .trip-ops-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(16.5rem, 20.5rem));
-  justify-content: start;
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 21rem), 1fr));
+  gap: 0.65rem;
   width: 100%;
   min-width: 0;
 }
@@ -9865,8 +9862,7 @@ body[data-theme="dark"] .driver-availability-bar__copy strong {
 
 @media (max-width: 768px) {
   .trip-ops-cards {
-    grid-template-columns: repeat(auto-fill, minmax(15rem, 20.5rem));
-    justify-content: start;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 18.5rem), 1fr));
   }
   .trip-ops-card {
     padding: 1rem;
@@ -13658,6 +13654,8 @@ body[data-theme="dark"] .b2b-leads-brief {
 
   body.portal-drawer-open #portal-sidebar.sidebar {
     transform: translateX(0);
+    width: min(320px, 92vw);
+    max-width: none;
     box-shadow:
       24px 0 56px rgba(11, 33, 56, 0.22),
       0 0 0 1px rgba(var(--primary-rgb), 0.08) inset;
