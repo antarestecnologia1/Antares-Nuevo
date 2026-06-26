@@ -328,7 +328,7 @@ function driversHtml() {
           ${buildPortalOpsCardGridItem("SS", IC.shield, item.hasSocialSecurity ? "Al día" : "Pendiente", { tone: item.hasSocialSecurity ? "ok" : "warn" })}
           ${buildPortalOpsCardGridItem("Documento", IC.badge, String(d.idDoc || "—"))}
           ${buildPortalOpsCardGridItem("Teléfono", IC.phone, phoneValue)}
-          ${buildPortalOpsCardGridItem("Licencia", IC.calendar, licenseNumber, { tone: licenseSubTone, subValue: licenseSubLabel, subTone: licenseSubTone })}
+          ${buildPortalOpsCardGridItem("Venc. licencia", IC.calendar, licenseNumber, { tone: licenseSubTone, subValue: licenseSubLabel, subTone: licenseSubTone })}
           ${buildPortalOpsCardGridItem("Curso", IC.graduation, item.courseMeta.label, { tone: courseTone })}
         </div>
         ${buildPortalOpsCardActions(actionButtons, statusActionBtn)}
