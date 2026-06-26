@@ -10420,13 +10420,17 @@ body[data-theme="dark"] .trips-table-wrap table tbody td:last-child {
 #crud-modal .module-panel-actions--footer.modal-edit-actions .btn,
 #crud-modal .module-panel-actions--footer.modal-edit-actions .module-panel-btn,
 #crud-modal .detail-view-close-btn,
-#crud-modal .module-panel-actions--footer.modal-edit-actions .module-panel-btn__label {
+#crud-modal .module-panel-actions--footer.modal-edit-actions .module-panel-btn__label,
+.modal-card-edit .module-panel-actions--footer.modal-edit-actions .btn,
+.modal-card-edit .module-panel-actions--footer.modal-edit-actions .module-panel-btn,
+.modal-card-edit .module-panel-actions--footer.modal-edit-actions .module-panel-btn__label {
   white-space: normal;
   text-align: center;
   line-height: 1.25;
   min-width: 0;
   overflow: visible;
   text-overflow: unset;
+  max-width: 100%;
 }
 
 #crud-modal .module-panel-actions--footer.modal-edit-actions .module-panel-actions__group--secondary,
@@ -21725,7 +21729,7 @@ body[data-theme="dark"] .module-panel-actions--footer .module-panel-actions__bar
 .hr-form-wizard-footer .hr-form-wizard-submit {
   position: relative;
   isolation: isolate;
-  overflow: hidden;
+  overflow: visible;
   min-height: 2.8rem;
   padding: 0.65rem 1.55rem;
   border-radius: 12px;
@@ -31003,7 +31007,7 @@ body[data-theme="dark"] .approve-trip-pill--tk {
 #crud-modal .modal-card.modal-card-edit {
   --modal-card-pad-top: 1.4rem;
   --modal-card-pad-x: 1.4rem;
-  --modal-card-pad-bottom: 1.4rem;
+  --modal-card-pad-bottom: 0;
   max-height: min(92vh, 960px);
   display: flex;
   flex-direction: column;
@@ -31017,7 +31021,7 @@ body[data-theme="dark"] .approve-trip-pill--tk {
 #crud-modal .modal-card.modal-card-edit.modal-card-edit--wide-info.modal-card--detail-view {
   --modal-card-pad-top: 1.15rem;
   --modal-card-pad-x: 1.25rem;
-  --modal-card-pad-bottom: 1.25rem;
+  --modal-card-pad-bottom: 0;
   width: min(920px, calc(100vw - 1.25rem));
   border-radius: 22px;
 }
@@ -31025,7 +31029,7 @@ body[data-theme="dark"] .approve-trip-pill--tk {
 #crud-modal .modal-card.modal-card-edit.modal-card-edit--wide-info.modal-card--portal-detail {
   --modal-card-pad-top: 1.15rem;
   --modal-card-pad-x: 1.25rem;
-  --modal-card-pad-bottom: 1.25rem;
+  --modal-card-pad-bottom: 0;
 }
 
 #crud-modal .modal-card.modal-card-edit > #crud-modal-content {
@@ -33771,17 +33775,22 @@ body[data-theme="dark"] .modal-card-edit--employee-non-renewal .modal-edit-actio
 #crud-modal .module-panel-actions--footer.modal-edit-actions,
 .modal-card-edit .module-panel-actions--footer.modal-edit-actions {
   margin-inline: calc(-1 * var(--modal-card-pad-x, 1.4rem));
-  margin-bottom: calc(-1 * var(--modal-card-pad-bottom, 1.4rem));
+  margin-bottom: 0;
   width: calc(100% + (2 * var(--modal-card-pad-x, 1.4rem)));
   max-width: none;
   box-sizing: border-box;
   overflow: visible;
+  position: sticky;
+  bottom: 0;
+  z-index: 4;
+  flex-shrink: 0;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 .report-preview-actions.module-panel-actions--footer.modal-edit-actions {
   margin-top: 0.65rem !important;
   margin-inline: calc(-1 * var(--modal-card-pad-x, 1.2rem));
-  margin-bottom: calc(-1 * var(--modal-card-pad-bottom, 1rem));
+  margin-bottom: 0;
   width: calc(100% + (2 * var(--modal-card-pad-x, 1.2rem)));
   overflow: visible;
 }
@@ -33793,11 +33802,13 @@ body[data-theme="dark"] .modal-card-edit--employee-non-renewal .modal-edit-actio
   justify-content: space-between;
   gap: 0.75rem 1rem;
   margin-top: 0;
-  padding: 0.85rem 1.15rem 1rem;
+  padding: 0.9rem 1.15rem max(1.05rem, calc(0.9rem + env(safe-area-inset-bottom, 0px)));
   border-top: 1px solid rgba(148, 163, 184, 0.24);
   border-radius: 0 0 var(--radius) var(--radius);
   background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    0 -6px 16px rgba(15, 23, 42, 0.06);
   overflow: visible;
   min-width: 0;
 }
@@ -33895,6 +33906,7 @@ body[data-theme="dark"] .modal-card-edit--employee-non-renewal .modal-edit-actio
   justify-content: center;
   min-height: 2.65rem;
   min-width: 8rem;
+  max-width: 100%;
   padding: 0.58rem 1.15rem;
   border-radius: 10px;
   border: 1px solid rgba(37, 99, 168, 0.45) !important;
@@ -33909,6 +33921,20 @@ body[data-theme="dark"] .modal-card-edit--employee-non-renewal .modal-edit-actio
     inset 0 1px 0 rgba(255, 255, 255, 0.2),
     0 2px 8px rgba(37, 105, 184, 0.28);
   transform: none;
+  overflow: visible;
+  flex-shrink: 0;
+}
+
+.module-panel-actions--footer.modal-edit-actions .module-panel-btn--cancel {
+  overflow: visible;
+  flex-shrink: 0;
+  max-width: 100%;
+}
+
+.module-panel-actions--footer.modal-edit-actions .module-panel-btn__inner {
+  flex-wrap: wrap;
+  justify-content: center;
+  row-gap: 0.2rem;
 }
 
 .module-panel-actions--footer.modal-edit-actions .module-panel-actions__group--primary > .btn-primary .module-panel-btn__label,
@@ -33956,7 +33982,7 @@ body[data-theme="dark"] .modal-card-edit--employee-non-renewal .modal-edit-actio
     flex-direction: column;
     align-items: stretch;
     gap: 0.55rem;
-    padding: 0.75rem 1rem;
+    padding: 0.8rem 1rem max(0.95rem, calc(0.8rem + env(safe-area-inset-bottom, 0px)));
   }
 
   .module-panel-actions--footer.modal-edit-actions .module-panel-actions__group--primary::before {
