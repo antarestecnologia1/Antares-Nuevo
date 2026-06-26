@@ -8,8 +8,8 @@
   --ops-cards-max: 20rem;
   --ops-cards-gap: 0.75rem;
   --ops-card-accent: #1d63d3;
-  --ops-tile-grid: repeat(auto-fill, minmax(min(100%, var(--ops-cards-min)), var(--ops-cards-max)));
-  --ops-tile-grid-kpi: repeat(auto-fill, minmax(min(100%, 11rem), 14rem));
+  --ops-tile-grid: repeat(auto-fit, minmax(min(100%, var(--ops-cards-min)), var(--ops-cards-max)));
+  --ops-tile-grid-kpi: repeat(auto-fit, minmax(min(100%, 11rem), 14rem));
 }
 
 .portal-ops-cards,
@@ -28,6 +28,8 @@
   display: grid;
   grid-template-columns: var(--ops-tile-grid);
   justify-content: start;
+  justify-items: start;
+  align-items: start;
   gap: var(--ops-cards-gap);
   width: 100%;
   min-width: 0;
@@ -50,7 +52,8 @@
   transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
   min-width: 0;
   max-width: var(--ops-cards-max);
-  width: 100%;
+  width: min(100%, var(--ops-cards-max));
+  justify-self: start;
   overflow: hidden;
   container-type: inline-size;
   container-name: ops-card;
@@ -1125,16 +1128,33 @@
    =================================================================== */
 
 /* ── Rejillas por studio (todos los módulos) ── */
-.requests-studio .requests-data-results .request-ops-cards,
-.requests-studio .requests-data-results .trip-ops-cards,
-.transport-studio .transport-data-pane__body .request-ops-cards,
-.transport-studio .transport-data-pane__body .trip-ops-cards,
 .vehicles-studio .vehicle-ops-cards,
 .vehicles-studio .trip-ops-cards.portal-ops-cards,
 .vehicles-studio .trip-ops-cards.vehicle-ops-cards,
 .drivers-studio .drivers-ops-cards,
 .drivers-studio .trip-ops-cards.portal-ops-cards,
-.drivers-studio .trip-ops-cards.drivers-ops-cards,
+.drivers-studio .trip-ops-cards.drivers-ops-cards {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  justify-content: flex-start;
+  gap: var(--ops-cards-gap);
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: unset;
+}
+
+.vehicles-studio .trip-ops-card.portal-ops-card.trip-ops-card--vehicle,
+.drivers-studio .trip-ops-card.portal-ops-card.trip-ops-card--driver {
+  flex: 0 0 auto;
+  width: min(100%, var(--ops-cards-max));
+  max-width: var(--ops-cards-max);
+}
+
+.requests-studio .requests-data-results .request-ops-cards,
+.requests-studio .requests-data-results .trip-ops-cards,
+.transport-studio .transport-data-pane__body .request-ops-cards,
+.transport-studio .transport-data-pane__body .trip-ops-cards,
 .payroll-studio .payroll-run-cards-grid,
 .payroll-studio .employees-grid,
 .payroll-studio .payroll-employees-grid,

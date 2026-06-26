@@ -8760,8 +8760,9 @@ body[data-theme="dark"] .trip-ops-card--vehicle .vehicle-occupancy-note {
 }
 
 .vehicle-ops-cards {
-  grid-template-columns: var(--ops-tile-grid, repeat(auto-fill, minmax(min(100%, 17.25rem), 19.5rem)));
+  grid-template-columns: var(--ops-tile-grid, repeat(auto-fit, minmax(min(100%, 17.25rem), 19.5rem)));
   justify-content: start;
+  justify-items: start;
 }
 
 @media (max-width: 520px) {
@@ -9166,8 +9167,9 @@ body[data-theme="dark"] .vehicle-card-equip-pill {
 }
 
 .drivers-ops-cards {
-  grid-template-columns: var(--ops-tile-grid, repeat(auto-fill, minmax(min(100%, 17.25rem), 19.5rem)));
+  grid-template-columns: var(--ops-tile-grid, repeat(auto-fit, minmax(min(100%, 17.25rem), 19.5rem)));
   justify-content: start;
+  justify-items: start;
 }
 
 @media (max-width: 520px) {

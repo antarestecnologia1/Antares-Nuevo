@@ -192,7 +192,7 @@ body.portal-mode .kpi-grid {
   .portal-main .drivers-ops-cards,
   .portal-main .employees-grid,
   .portal-main .hiring-cards.hiring-cards--candidates {
-    grid-template-columns: var(--ops-tile-grid, repeat(auto-fill, minmax(min(100%, 17.5rem), 20rem)));
+    grid-template-columns: var(--ops-tile-grid, repeat(auto-fit, minmax(min(100%, 17.5rem), 20rem)));
     justify-content: start;
   }
 
@@ -263,7 +263,7 @@ body.portal-mode .kpi-grid {
   .portal-main .drivers-ops-cards,
   .portal-main .employees-grid,
   .portal-main .hiring-cards.hiring-cards--candidates {
-    grid-template-columns: var(--ops-tile-grid, repeat(auto-fill, minmax(min(100%, 17.5rem), 20rem)));
+    grid-template-columns: var(--ops-tile-grid, repeat(auto-fit, minmax(min(100%, 17.5rem), 20rem)));
     justify-content: start;
   }
 
