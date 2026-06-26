@@ -322,6 +322,8 @@ export function syncNotificationPrefsSidebarUi() {
     );
     bellBtn.title = off ? "Activar notificaciones" : "Desactivar notificaciones";
     bellBtn.classList.toggle("sidebar-notif-bell-toggle--off", off);
+    const bellLabel = bellBtn.querySelector(".sidebar-notif-bell-label");
+    if (bellLabel) bellLabel.textContent = off ? "Activar alertas" : "Silenciar alertas";
   }
   if (group) {
     group.classList.toggle("sidebar-notif-group--off", off);
