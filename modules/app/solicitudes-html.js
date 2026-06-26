@@ -175,22 +175,14 @@
     ]
       .filter(Boolean)
       .join(" · ");
-    const statusLabel = prettyStatus(r.status, "request");
+    const statusText = String(r.status || "—").trim() || "—";
     const reqNo = String(r.requestNumber || r.id || "-");
     const createdLabel = fmtDate(r.createdAt || "") || "—";
-    const recordId = String(r.id || "—");
     const statusBadgeHtml = `<span class="trip-ops-card-badge trip-ops-card-badge--${escapeAttr(statusSlug)}" role="status">
       <span class="trip-ops-card-badge-icon" aria-hidden="true">${IC.inbox}</span>
-      <span class="trip-ops-card-badge-text">${escapeHtml(statusLabel)}</span>
+      <span class="trip-ops-card-badge-text">${escapeHtml(statusText)}</span>
       <span class="trip-ops-card-badge-dot" aria-hidden="true"></span>
     </span>`;
-    const statusBlockHtml = `<div class="trip-ops-card-status-block">
-      <p class="trip-ops-card-status-label">${IC.activity}<span>Estado de la solicitud</span></p>
-      <div class="trip-ops-card-status-picker trip-ops-card-status-picker--static trip-ops-card-status-picker--${escapeAttr(statusSlug)}" role="status">
-        <span class="trip-ops-card-status-picker-leading" aria-hidden="true">${IC.inbox}</span>
-        <span class="trip-ops-card-status-picker-value">${escapeHtml(statusLabel)}</span>
-      </div>
-    </div>`;
     const tripBadge = r.trip
       ? `<p class="trip-ops-card-standby request-ops-card-trip"><span class="request-ops-card-trip-ico">${IC.truck}</span><span>Viaje <strong>${escapeHtml(String(r.trip.tripNumber || "-"))}</strong> · ${escapeHtml(String(r.trip.vehiclePlate || "-"))} · <span class="muted">${escapeHtml(String(r.trip.driverName || "-"))}</span></span></p>`
       : "";
@@ -262,14 +254,12 @@
         ${gridItem("Valor", IC.dollar, valueDd, "trip-ops-card-item--value")}
       </div>
       ${tripBadge}
-      ${statusBlockHtml}
       <div class="trip-ops-card-actions">
         <div class="trip-ops-card-actions-primary">${primaryActions}</div>
         ${dangerActions}
       </div>
       <footer class="trip-ops-card-foot">
         <span class="trip-ops-card-foot-created">${IC.clock}<span>Creado ${escapeHtml(createdLabel)}</span></span>
-        <span class="trip-ops-card-foot-id">ID: ${escapeHtml(recordId)}</span>
       </footer>
     </article>`;
   }

@@ -203,7 +203,6 @@ function vehiclesHtml() {
       const motorLabel = String(v.engineNumber || "").trim() || "Sin motor";
       const vinLabel = String(v.vin || "").trim() || "Sin VIN";
       const createdLabel = fmtDate(v.createdAt || "") || "—";
-      const recordId = String(v.id || "—");
       const lastUpdateLabel = formatVehicleLastUpdateLabel(v.updatedAt || v.createdAt || "");
       const statusBadgeHtml = `<span class="vehicle-card-status-pill vehicle-card-status-pill--${escapeAttr(occupancySlug)}" role="status">
         <span class="vehicle-card-status-pill__dot" aria-hidden="true"></span>
@@ -275,10 +274,6 @@ function vehiclesHtml() {
         </div>
         <footer class="trip-ops-card-foot">
           <span class="trip-ops-card-foot-created">${IC.clock}<span>Creado: ${escapeHtml(createdLabel)}</span></span>
-          <span class="trip-ops-card-foot-id">
-            ID: ${escapeHtml(recordId)}
-            <button type="button" class="vehicle-card-copy-id" data-action="copy-vehicle-id" data-id="${escapeAttr(recordId)}" title="Copiar ID" aria-label="Copiar ID del vehículo"><svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
-          </span>
         </footer>
       </article>`;
     })
@@ -556,33 +551,6 @@ function vehiclesHtml() {
         const layout = normalizeVehicleFleetLayout(btn.dataset.layout);
         state.vehiclesUi = { ...(state.vehiclesUi || {}), fleetLayout: layout };
         renderPortalView();
-      });
-    });
-
-    nodes.viewRoot.querySelectorAll("[data-action='copy-vehicle-id']").forEach((btn) => {
-      btn.addEventListener("click", async (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        const id = String(btn.dataset.id || "").trim();
-        if (!id) return;
-        try {
-          if (navigator.clipboard?.writeText) {
-            await navigator.clipboard.writeText(id);
-          } else {
-            const ta = document.createElement("textarea");
-            ta.value = id;
-            ta.setAttribute("readonly", "");
-            ta.style.position = "fixed";
-            ta.style.left = "-9999px";
-            document.body.appendChild(ta);
-            ta.select();
-            document.execCommand("copy");
-            document.body.removeChild(ta);
-          }
-          notify("ID copiado al portapapeles.", "success");
-        } catch (_err) {
-          notify("No fue posible copiar el ID.", "error");
-        }
       });
     });
 

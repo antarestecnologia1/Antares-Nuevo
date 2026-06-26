@@ -190,14 +190,13 @@ function transportTripsHtml() {
     const tripValueFmt = `$${parseNum(r.tripValue || 0).toLocaleString("es-CO")}`;
     const isClosed = [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status);
     const transitions = [r.status, ...(STATUS_TRANSITIONS[r.status] || [])];
-    const statusLabel = prettyStatus(r.status, "trip");
+    const statusText = String(r.status || "—").trim() || "—";
     const tripNo = String(r.trip?.tripNumber || "-");
     const reqNo = String(r.requestNumber || r.id || "-");
     const createdLabel = fmtDate(r.createdAt || "") || "—";
-    const recordId = String(r.id || "—");
     const statusBadgeHtml = `<span class="trip-ops-card-badge trip-ops-card-badge--${escapeAttr(statusSlug)}" role="status">
       <span class="trip-ops-card-badge-icon" aria-hidden="true">${IC.truck}</span>
-      <span class="trip-ops-card-badge-text">${escapeHtml(statusLabel)}</span>
+      <span class="trip-ops-card-badge-text">${escapeHtml(statusText)}</span>
       <span class="trip-ops-card-badge-dot" aria-hidden="true"></span>
     </span>`;
     const statusBlockHtml =
@@ -216,7 +215,7 @@ function transportTripsHtml() {
             <p class="trip-ops-card-status-label">${IC.activity}<span>Estado del viaje</span></p>
             <div class="trip-ops-card-status-picker trip-ops-card-status-picker--static trip-ops-card-status-picker--${escapeAttr(statusSlug)}" role="status">
               <span class="trip-ops-card-status-picker-leading" aria-hidden="true">${IC.truck}</span>
-              <span class="trip-ops-card-status-picker-value">${escapeHtml(statusLabel)}</span>
+              <span class="trip-ops-card-status-picker-value">${escapeHtml(statusText)}</span>
             </div>
           </div>`;
     const primaryActions = [
@@ -280,7 +279,6 @@ function transportTripsHtml() {
       </div>
       <footer class="trip-ops-card-foot">
         <span class="trip-ops-card-foot-created">${IC.clock}<span>Creado ${escapeHtml(createdLabel)}</span></span>
-        <span class="trip-ops-card-foot-id">ID: ${escapeHtml(recordId)}</span>
       </footer>
     </article>`;
   };

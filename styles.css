@@ -8758,37 +8758,6 @@ body[data-theme="dark"] .trip-ops-card--vehicle .vehicle-occupancy-note {
   font-size: 0.74rem;
 }
 
-.trip-ops-card-foot-id {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.vehicle-card-copy-id {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.35rem;
-  height: 1.35rem;
-  padding: 0;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: #8a96a8;
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
-}
-
-.vehicle-card-copy-id:hover {
-  background: #eef1f5;
-  color: #1d63d3;
-}
-
-.vehicle-card-copy-id svg {
-  width: 0.8rem;
-  height: 0.8rem;
-}
-
 .vehicle-ops-cards {
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr));
 }
@@ -8849,11 +8818,6 @@ body[data-theme="dark"] .vehicle-card-equip-pill {
   background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(16, 185, 129, 0.1));
   color: #6ee7b7;
   border-color: rgba(16, 185, 129, 0.35);
-}
-
-body[data-theme="dark"] .vehicle-card-copy-id:hover {
-  background: rgba(148, 196, 255, 0.1);
-  color: #93c5fd;
 }
 
 .request-company-preview {
@@ -9450,8 +9414,8 @@ body[data-theme="dark"] .vehicle-card-copy-id:hover {
 .trip-ops-card-foot {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
+  justify-content: flex-start;
+  gap: 0.5rem;
   padding-top: 0.65rem;
   border-top: 1px solid #eef1f5;
   font-size: 0.72rem;
@@ -9461,22 +9425,25 @@ body[data-theme="dark"] .vehicle-card-copy-id:hover {
 
 .trip-ops-card-foot-created {
   display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
+  align-items: flex-start;
+  gap: 0.35rem;
   min-width: 0;
+  flex: 1 1 auto;
+  line-height: 1.45;
+}
+
+.trip-ops-card-foot-created > span:last-child {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .trip-ops-card-foot-created svg {
   width: 0.85rem;
   height: 0.85rem;
   flex: 0 0 auto;
-}
-
-.trip-ops-card-foot-id {
-  flex: 0 0 auto;
-  padding-left: 0.65rem;
-  border-left: 1px solid #e0e6ee;
-  white-space: nowrap;
+  margin-top: 0.12rem;
 }
 
 .trip-ops-card-actions.toolbar {
@@ -31451,10 +31418,6 @@ body[data-theme="dark"] .trip-ops-card-btn--danger {
 body[data-theme="dark"] .trip-ops-card-foot {
   border-top-color: rgba(148, 196, 255, 0.12);
   color: #94a8c0;
-}
-
-body[data-theme="dark"] .trip-ops-card-foot-id {
-  border-left-color: rgba(148, 196, 255, 0.16);
 }
 
 body[data-theme="dark"] .trip-ops-card-actions {
