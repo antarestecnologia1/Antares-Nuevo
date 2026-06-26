@@ -5173,6 +5173,8 @@ window.hideAuth = hideAuth;
 window.initPortalClientStorage = initPortalClientStorage;
 window.restorePortalSnapshotIfAvailable = restorePortalSnapshotIfAvailable;
 window.initPublicEffects = initPublicEffects;
+window.initCoverageCorridors = initCoverageCorridors;
+window.renderPublicCoverageFromView = renderPublicCoverageFromView;
 window.ensureUsersPasswordHashing = ensureUsersPasswordHashing;
 window.updateAutoApprove = updateAutoApprove;
 
@@ -12195,6 +12197,8 @@ function abortUnlessCanManageSst(reason = "adminOnlyModule") {
 
 /** Cobertura pública: GET /api/public/transport-request-coverage-stats (sin JWT). */
 let publicCoverageStatsView = null;
+let publicCoverageStatsFetchInFlight = false;
+const COVERAGE_STATS_FETCH_TIMEOUT_MS = 15000;
 
 /** Rutas principales del index: lista fija (no se sustituye por topHubs de la API). */
 const COVERAGE_MAIN_ROUTES_ES = [
@@ -12304,17 +12308,22 @@ function renderPublicCoverageFromView() {
   if (!view || view.kind === "fallback") {
     corridorGrid.innerHTML = renderPublicCoverageCorridorGrid(COVERAGE_FALLBACK_CORRIDORS, false);
     if (foot) {
-      foot.hidden = false;
-      foot.textContent =
-        view?.reason === "nobase"
-          ? tPublic("Configure la URL del servidor para ver la demanda real en esta seccion.")
-          : view?.reason === "empty"
-            ? tPublic("No hay solicitudes suficientes en la ventana analizada; se muestra referencia geografica.")
-            : view?.reason === "error"
-              ? tPublic(
-                  "No fue posible cargar las estadisticas de cobertura. Se muestra referencia geografica."
-                )
-              : tPublic("Configure la URL del servidor para ver la demanda real en esta seccion.");
+      if (view?.reason === "preview") {
+        foot.hidden = true;
+        foot.textContent = "";
+      } else {
+        foot.hidden = false;
+        foot.textContent =
+          view?.reason === "nobase"
+            ? tPublic("Configure la URL del servidor para ver la demanda real en esta seccion.")
+            : view?.reason === "empty"
+              ? tPublic("No hay solicitudes suficientes en la ventana analizada; se muestra referencia geografica.")
+              : view?.reason === "error"
+                ? tPublic(
+                    "No fue posible cargar las estadisticas de cobertura. Se muestra referencia geografica."
+                  )
+                : tPublic("Configure la URL del servidor para ver la demanda real en esta seccion.");
+      }
     }
     return;
   }
@@ -12346,7 +12355,11 @@ function initCoverageCorridors() {
   const hubGrid = document.getElementById("coverage-hub-grid");
   if (!hubGrid) return;
 
-  if (publicCoverageStatsView) {
+  if (publicCoverageStatsView && publicCoverageStatsView.kind !== "fallback") {
+    renderPublicCoverageFromView();
+    return;
+  }
+  if (publicCoverageStatsView?.reason === "preview" && publicCoverageStatsFetchInFlight) {
     renderPublicCoverageFromView();
     return;
   }
@@ -12358,16 +12371,22 @@ function initCoverageCorridors() {
     return;
   }
 
-  hubGrid.innerHTML = `<div class="coverage-item coverage-item-loading"><span class="coverage-dot"></span><span class="coverage-item-label">${escapeHtml(
-    tPublic("Cargando datos de cobertura...")
-  )}</span></div>`;
-  const corridorGrid = document.getElementById("coverage-corridor-grid");
-  if (corridorGrid) {
-    corridorGrid.innerHTML = hubGrid.innerHTML;
+  if (!publicCoverageStatsView || publicCoverageStatsView.reason !== "preview") {
+    publicCoverageStatsView = { kind: "fallback", reason: "preview" };
+    renderPublicCoverageFromView();
   }
 
-  void api
-    .getJsonPublic(`/public/transport-request-coverage-stats?months=${COVERAGE_STATS_API_MONTHS}`)
+  if (publicCoverageStatsFetchInFlight) return;
+  publicCoverageStatsFetchInFlight = true;
+
+  const coverageStatsRequest = Promise.race([
+    api.getJsonPublic(`/public/transport-request-coverage-stats?months=${COVERAGE_STATS_API_MONTHS}`),
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error("coverage-stats-timeout")), COVERAGE_STATS_FETCH_TIMEOUT_MS);
+    })
+  ]);
+
+  void coverageStatsRequest
     .then((data) => {
       const total = Number(data?.totalRequestsAnalyzed) || 0;
       const topHubs = Array.isArray(data?.topHubs) ? data.topHubs : [];
@@ -12383,6 +12402,7 @@ function initCoverageCorridors() {
       publicCoverageStatsView = { kind: "fallback", reason: "error" };
     })
     .finally(() => {
+      publicCoverageStatsFetchInFlight = false;
       renderPublicCoverageFromView();
     });
 }

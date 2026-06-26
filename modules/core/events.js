@@ -2997,7 +2997,7 @@ function initGlobalEvents() {
         state.publicLang = String(btn.dataset.langOption || "es") === "en" ? "en" : "es";
         localStorage.setItem(UI_PREFS.publicLang, state.publicLang);
         applyPublicLanguage(state.publicLang);
-        window.initCoverageCorridors?.();
+        window.renderPublicCoverageFromView?.();
         window.initPublicCareers?.();
       });
     });

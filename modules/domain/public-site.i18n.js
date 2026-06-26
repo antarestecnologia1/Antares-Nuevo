@@ -181,7 +181,11 @@ export const PUBLIC_ES_EN_DICT = {
   "Rutas principales y corredores frecuentes para el sector floricultor y exportador.": "Main routes and frequent corridors for floriculture and exports.",
   "Principales puntos de recogida y entrega donde hoy concentramos mas operacion.":
     "Main pickup and delivery points where we concentrate the most activity today.",
+  "Principales puntos de recogida y entrega donde hoy concentramos más operación.":
+    "Main pickup and delivery points where we concentrate the most activity today.",
   "Trayectos entre ciudades que mas se repiten; ida y vuelta del mismo corredor se muestran como un solo movimiento.":
+    "Most repeated city-to-city runs; outbound and return on the same corridor are shown as a single movement.",
+  "Trayectos entre ciudades que más se repiten; ida y vuelta del mismo corredor se muestran como un solo movimiento.":
     "Most repeated city-to-city runs; outbound and return on the same corridor are shown as a single movement.",
   "Cargando datos de cobertura...": "Loading coverage data…",
   "Configure la URL del servidor para ver la demanda real en esta seccion.":
