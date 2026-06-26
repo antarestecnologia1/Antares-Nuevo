@@ -34621,3 +34621,116 @@ body[data-theme="dark"] .modal-info-layout--headless .modal-head--sr-only .modul
   background: rgba(15, 28, 46, 0.92);
   border-color: rgba(148, 196, 255, 0.2);
 }
+
+/* ===================================================================
+   Realce UI · Editar y Visualizar (mejora global de módulos)
+   Aplica a los modales compartidos detail-view-sheet (visualizar) y
+   modal-edit-form (editar): solicitudes, viajes, flota, calendario,
+   historial, reportería, gestión humana, contratación, SST, B2B,
+   usuarios, autorizaciones, perfil, timbre, avisos y notificaciones.
+   =================================================================== */
+
+/* ── Visualizar: cabecera con separador y mejor jerarquía ── */
+.detail-view-sheet__head {
+  position: relative;
+  padding-bottom: 0.9rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--primary) 12%, var(--line));
+}
+
+.detail-view-sheet__title {
+  font-size: 1.22rem;
+}
+
+.detail-view-sheet__subtitle {
+  font-weight: 600;
+}
+
+/* ── Visualizar: tarjetas de campo con realce e interacción ── */
+.detail-view-card {
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+
+.detail-view-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(var(--primary-rgb), 0.1);
+  border-color: color-mix(in srgb, var(--primary) 24%, var(--line));
+}
+
+.detail-view-card__value {
+  font-size: 0.94rem;
+}
+
+/* Campos destacados (valor, salario, tarifa, factura): fondo y borde acento */
+.detail-view-card--highlight {
+  background: linear-gradient(180deg, color-mix(in srgb, #16a34a 10%, #fff), color-mix(in srgb, #16a34a 4%, #fff));
+  border-color: color-mix(in srgb, #16a34a 30%, var(--line));
+}
+
+.detail-view-card--highlight .detail-view-card__icon {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.detail-view-card--highlight .detail-view-card__value {
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+/* ── Visualizar: pie de acciones más definido ── */
+.detail-view-footer .module-panel-actions__bar {
+  border-top: 1px solid color-mix(in srgb, var(--primary) 10%, var(--line));
+  padding-block: 0.85rem;
+  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--primary) 3%, transparent));
+}
+
+/* ── Editar: formulario más legible y consistente ── */
+.modal-edit-form input:not([type="checkbox"]):not([type="radio"]),
+.modal-edit-form select,
+.modal-edit-form textarea {
+  min-height: 2.45rem;
+}
+
+.modal-edit-form textarea {
+  min-height: 4.6rem;
+  line-height: 1.45;
+}
+
+/* Marca de campo obligatorio */
+.modal-edit-form label.is-required > span:first-child::after,
+.modal-edit-form label[data-required="true"] > span:first-child::after {
+  content: "*";
+  margin-inline-start: 0.2rem;
+  color: #dc2626;
+  font-weight: 800;
+}
+
+/* Sección de edición: cuerpo con respiro uniforme */
+#crud-form.p-form-colored.modal-edit-form .form-section > .form-section-grid,
+#crud-form.p-form-colored.modal-edit-form .form-section > .form-section-body {
+  padding: 0.85rem 1rem 1rem;
+}
+
+/* ── Tema oscuro: paridad de los realces ── */
+body[data-theme="dark"] .detail-view-sheet__head {
+  border-bottom-color: rgba(148, 196, 255, 0.16);
+}
+
+body[data-theme="dark"] .detail-view-card:hover {
+  border-color: rgba(148, 196, 255, 0.32);
+  box-shadow: 0 8px 22px rgba(2, 8, 18, 0.4);
+}
+
+body[data-theme="dark"] .detail-view-card--highlight {
+  background: linear-gradient(180deg, rgba(22, 163, 74, 0.2), rgba(22, 163, 74, 0.08));
+  border-color: rgba(34, 197, 94, 0.34);
+}
+
+body[data-theme="dark"] .detail-view-card--highlight .detail-view-card__icon {
+  background: rgba(34, 197, 94, 0.2);
+  color: #6ee7b7;
+}
+
+body[data-theme="dark"] .detail-view-footer .module-panel-actions__bar {
+  border-top-color: rgba(148, 196, 255, 0.16);
+  background: linear-gradient(180deg, transparent, rgba(99, 167, 247, 0.06));
+}
