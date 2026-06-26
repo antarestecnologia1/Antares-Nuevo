@@ -369,7 +369,7 @@ export function detailViewCardsFromPairs(pairs, opts = {}) {
       const tone = cardOpts.tone || toneKeys[label] || DETAIL_VIEW_TONES[idx % DETAIL_VIEW_TONES.length];
       const highlight =
         cardOpts.highlight === true ||
-        (/valor|salario|tarifa|factura/i.test(String(label)) && !cardOpts.highlight === false);
+        (cardOpts.highlight !== false && /valor|salario|tarifa|factura/i.test(String(label)));
       idx += 1;
       const valueHtml =
         value === null || value === undefined || String(value).trim() === ""

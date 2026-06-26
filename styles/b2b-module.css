@@ -83,6 +83,27 @@
   overflow: hidden;
 }
 
+.b2b-studio .b2b-operate__main .b2b-leads-mosaic {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17.5rem), 1fr));
+  gap: 0.95rem;
+  min-width: 0;
+}
+
+.b2b-studio .b2b-leads-card {
+  min-width: 0;
+}
+
+.b2b-studio .b2b-leads-card-top {
+  flex-wrap: wrap;
+}
+
+.b2b-studio .b2b-leads-title,
+.b2b-studio .b2b-leads-meta dd {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 @media (max-width: 900px) {
   .b2b-studio .b2b-operate { grid-template-columns: 1fr; }
   .b2b-studio .b2b-operate__rail { position: static; }

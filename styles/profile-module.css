@@ -83,6 +83,22 @@
   overflow: hidden;
 }
 
+.profile-studio .profile-stats-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr));
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.profile-studio .profile-stat-card {
+  min-width: 0;
+}
+
+.profile-studio .profile-stat-card strong {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 @media (max-width: 900px) {
   .profile-studio .prf-operate { grid-template-columns: 1fr; }
   .profile-studio .prf-operate__rail { position: static; }

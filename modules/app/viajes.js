@@ -168,15 +168,32 @@ function transportTripsHtml() {
     return new Date(rSafePickup(a)).getTime() - new Date(rSafePickup(b)).getTime();
   });
 
+  const resolveTripCompanyLogoUrl = (r, company) => {
+    const fromCompany =
+      typeof companyProfileLogoUrl === "function"
+        ? companyProfileLogoUrl(company)
+        : String(company?.logoUrl ?? company?.url_logo ?? "").trim();
+    if (fromCompany) return fromCompany;
+    return String(r?.clientCompanyLogoUrl ?? "").trim();
+  };
+
   const buildTripOpsCard = (r) => {
     const standby = parseNum(r.standbyChargeTotal);
     const originCity = String(r.originCity || r.originDepartment || "Origen").trim() || "Origen";
     const destinationCity = String(r.destinationCity || r.destinationDepartment || "Destino").trim() || "Destino";
     const statusSlug = slugStatus(r.status);
-    const clientName = String(r.clientName || "Cliente").trim() || "Cliente";
+    const companies = read(KEYS.companies, []);
+    const company = companies.find((c) => String(c.id) === String(r.clientCompanyId || "")) || null;
+    const clientName = String(r.clientName || company?.name || "Cliente").trim() || "Cliente";
+    const logoUrl = resolveTripCompanyLogoUrl(r, company);
+    const clientLogoHtml = logoUrl
+      ? `<span class="request-company-logo request-company-logo--sm request-ops-card-company-logo" role="img" aria-label="Logo de ${escapeAttr(clientName)}"><img src="${escapeAttr(logoUrl)}" alt="" loading="lazy" /></span>`
+      : `<span class="request-company-logo request-company-logo--sm request-company-logo--fallback request-ops-card-company-logo" aria-hidden="true">${escapeHtml(String(clientName || "E").charAt(0).toUpperCase())}</span>`;
     const driverName = String(r.trip?.driverName || "Sin conductor").trim() || "Sin conductor";
     const plate = String(r.trip?.vehiclePlate || "—").trim() || "—";
     const pickupLabel = fmtDate(r.trip?.etaPickup || r.pickupAt || "") || "Sin fecha";
+    const cargoLabel = String(r.cargoDescription || "Carga").trim() || "Carga";
+    const truckReq = typeof requestTruckRequirementSummaryHtml === "function" ? requestTruckRequirementSummaryHtml(r) : "";
     const tripValueFmt = `$${parseNum(r.tripValue || 0).toLocaleString("es-CO")}`;
     const isClosed = [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status);
     const transitions = [r.status, ...(STATUS_TRANSITIONS[r.status] || [])];
@@ -184,11 +201,17 @@ function transportTripsHtml() {
     const tripNo = String(r.trip?.tripNumber || "-");
     const reqNo = String(r.requestNumber || r.id || "-");
     const createdLabel = fmtDate(r.createdAt || "") || "—";
+    const metaHints = [
+      parseNum(r.distanceKm || 0) > 0 ? `${parseNum(r.distanceKm).toLocaleString("es-CO")} km` : ""
+    ]
+      .filter(Boolean)
+      .join(" · ");
     const headerRefsHtml = buildPortalOpsCardRefs([
-      { label: "Viaje", value: tripNo },
-      { label: "Solicitud", value: `#${reqNo}` }
+      { label: "Solicitud", value: `#${reqNo}` },
+      { label: "Viaje", value: tripNo }
     ]);
     const statusBadgeHtml = buildPortalOpsCardStatusPill(statusText, statusSlug);
+    const fleetBadge = `<p class="trip-ops-card-standby request-ops-card-trip portal-ops-card-highlight"><span class="request-ops-card-trip-ico">${IC.truck}</span><span>Viaje <strong>${escapeHtml(tripNo)}</strong> · ${escapeHtml(plate)} · <span class="muted">${escapeHtml(driverName)}</span></span></p>`;
     const statusBlockHtml =
       transitions.length > 1
         ? `<div class="trip-ops-card-status-block">
@@ -223,12 +246,14 @@ function transportTripsHtml() {
     ]
       .filter(Boolean)
       .join("");
-    return `<article class="trip-ops-card portal-ops-card trip-ops-card--${escapeAttr(statusSlug)}" data-trip-id="${escapeAttr(String(r.id || ""))}">
+    return `<article class="trip-ops-card portal-ops-card trip-ops-card--${escapeAttr(statusSlug)} request-ops-card" data-trip-id="${escapeAttr(String(r.id || ""))}">
       <header class="trip-ops-card-head">
         <div class="trip-ops-card-head-main">
+          ${clientLogoHtml}
           <div class="trip-ops-card-head-info">
             ${headerRefsHtml}
             <h4 class="trip-ops-card-title" title="${escapeAttr(clientName)}">${escapeHtml(clientName)}</h4>
+            ${metaHints ? `<p class="muted request-ops-card-meta">${escapeHtml(metaHints)}</p>` : ""}
           </div>
         </div>
         <div class="portal-ops-card-badges">${statusBadgeHtml}</div>
@@ -254,11 +279,12 @@ function transportTripsHtml() {
         </div>
       </div>
       <div class="trip-ops-card-grid portal-ops-card-spec-grid">
-        ${buildPortalOpsCardGridItem("Camión", IC.truck, plate)}
-        ${buildPortalOpsCardGridItem("Conductor", IC.user, driverName)}
+        ${buildPortalOpsCardGridItem("Carga", IC.package || IC.file, cargoLabel)}
+        ${buildPortalOpsCardGridItem("Camión / requisitos", IC.truck, truckReq, { raw: true })}
         ${buildPortalOpsCardGridItem("Recogida", IC.calendar, pickupLabel)}
         ${buildPortalOpsCardGridItem("Tarifa", IC.dollar, tripValueFmt, { tone: "value" })}
       </div>
+      ${fleetBadge}
       ${standby > 0 ? `<p class="trip-ops-card-standby">${IC.clock || ""}<span>Standby acumulado: <strong>$${standby.toLocaleString("es-CO")}</strong></span></p>` : ""}
       ${statusBlockHtml}
       ${buildPortalOpsCardActions(actionButtons)}
@@ -354,7 +380,7 @@ function transportTripsHtml() {
       : "";
   const tripsCardsGrid =
     tripsLayout === "cards" && sortedFilteredTrips.length
-      ? `<div class="trip-ops-cards portal-ops-cards">${tripsToRender.map(buildTripOpsCard).join("")}</div>`
+      ? `<div class="trip-ops-cards portal-ops-cards request-ops-cards">${tripsToRender.map(buildTripOpsCard).join("")}</div>`
       : "";
   const opsCards = sortedFilteredTrips.length
     ? `${opsToolbarBlock}${tripsLayout === "list" ? tripsListTable : tripsCardsGrid}${tripsMoreBar}`

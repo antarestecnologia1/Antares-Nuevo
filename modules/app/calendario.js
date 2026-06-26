@@ -609,62 +609,52 @@ function transportCalendarHtml() {
         if (kind === "interview") {
           const interview = read(KEYS.interviews, []).find((i) => String(i.id) === id);
           if (!interview) return;
-          const sections = [
-            {
-              icon: "user",
-              title: "Candidato",
-              rows: portalDetailRenderRows([
-                ["Nombre", `<strong>${escapeHtml(String(interview.candidateName || "-"))}</strong>`],
-                ["Fecha", escapeHtml(fmtDate(interview.when))],
-                ["Entrevistador", escapeHtml(String(interview.interviewer || "-"))],
-                ["Modalidad", escapeHtml(String(interview.modality || "-"))]
-              ])
-            },
-            {
-              icon: "mapPin",
-              title: "Lugar y notas",
-              rows: portalDetailRenderRows([
-                ["Lugar / enlace", escapeHtml(String(interview.locationOrLink || "-"))],
-                ["Notas", escapeHtml(String(interview.notes || "-"))]
-              ], { skipEmpty: false })
-            }
-          ];
           openPortalDetailSheet({
             title: `Entrevista · ${escapeHtml(String(interview.candidateName || "Candidato"))}`,
-            subtitle: String(interview.when || ""),
-            sectionsHtml: portalDetailBuildGrid(sections)
+            sheetTitle: `Entrevista · ${escapeHtml(String(interview.candidateName || "Candidato"))}`,
+            subtitleHtml: `${IC.calendar} ${escapeHtml(fmtDate(interview.when))}`,
+            moduleIcon: "calendar",
+            moduleTone: "blue",
+            sections: [
+              {
+                icon: "user",
+                pairs: [
+                  ["Candidato", `<strong>${escapeHtml(String(interview.candidateName || "-"))}</strong>`],
+                  ["Fecha", escapeHtml(fmtDate(interview.when))],
+                  ["Entrevistador", escapeHtml(String(interview.interviewer || "-"))],
+                  ["Modalidad", escapeHtml(String(interview.modality || "-"))],
+                  ["Lugar / enlace", escapeHtml(String(interview.locationOrLink || "-"))],
+                  ["Notas", escapeHtml(String(interview.notes || "-"))]
+                ]
+              }
+            ]
           });
           return;
         }
         const absence = read(KEYS.hrAbsences, []).find((a) => String(a.id) === id);
         if (!absence) return;
         const typeLabel = payrollAbsenceTypeLabel(absence.absenceType);
-        const absenceSections = [
-          {
-            icon: "calendar",
-            title: "Ausencia",
-            rows: portalDetailRenderRows([
-              ["Empleado", `<strong>${escapeHtml(String(absence.employeeName || "-"))}</strong>`],
-              ["Tipo", escapeHtml(typeLabel)],
-              ["Desde", escapeHtml(String(absence.startDate || "-"))],
-              ["Hasta", escapeHtml(String(absence.endDate || "-"))],
-              ["Días", parseNum(absence.days).toLocaleString("es-CO")],
-              ["Soporte", escapeHtml(String(absence.supportNumber || "-"))],
-              ["Entidad", escapeHtml(String(absence.epsEntity || "-"))]
-            ], { skipEmpty: false })
-          },
-          {
-            icon: "file",
-            title: "Notas",
-            rows: absence.notes
-              ? `<p class="detail-note">${escapeHtml(String(absence.notes))}</p>`
-              : `<span class="muted">Sin notas.</span>`
-          }
-        ];
         openPortalDetailSheet({
           title: `${typeLabel} · ${escapeHtml(String(absence.employeeName || "Colaborador"))}`,
-          subtitle: `${escapeHtml(String(absence.startDate || "-"))} → ${escapeHtml(String(absence.endDate || "-"))}`,
-          sectionsHtml: portalDetailBuildGrid(absenceSections)
+          sheetTitle: `${typeLabel}`,
+          subtitleHtml: `${IC.user} ${escapeHtml(String(absence.employeeName || ""))}`,
+          moduleIcon: "calendar",
+          moduleTone: "orange",
+          sections: [
+            {
+              icon: "calendar",
+              pairs: [
+                ["Empleado", `<strong>${escapeHtml(String(absence.employeeName || "-"))}</strong>`],
+                ["Tipo", escapeHtml(typeLabel)],
+                ["Desde", escapeHtml(String(absence.startDate || "-"))],
+                ["Hasta", escapeHtml(String(absence.endDate || "-"))],
+                ["Días", parseNum(absence.days).toLocaleString("es-CO")],
+                ["Soporte", escapeHtml(String(absence.supportNumber || "-"))],
+                ["Entidad", escapeHtml(String(absence.epsEntity || "-"))]
+              ]
+            }
+          ],
+          notesHtml: absence.notes ? String(absence.notes) : ""
         });
       });
     });

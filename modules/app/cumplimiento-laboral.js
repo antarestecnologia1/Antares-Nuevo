@@ -242,8 +242,7 @@ function bindLaborCompliancePortalControls() {
       const sections = [
         {
           icon: "shield",
-          title: "Control",
-          rows: renderDetailRows([
+          pairs: [
             ["Tipo", `<strong>${escapeHtml(String(r.recordType || "-"))}</strong>`],
             ["Código documental", escapeHtml(String(r.documentCode || "-"))],
             ["Empleado", escapeHtml(String(r.employeeName || "-"))],
@@ -252,20 +251,18 @@ function bindLaborCompliancePortalControls() {
             ["Estado", escapeHtml(String(r.status || "-"))],
             ["Registrado", fmtDateOr(r.createdAt)],
             ["Responsable", escapeHtml(String(r.createdBy || "-"))]
-          ])
-        },
-        {
-          icon: "file",
-          title: "Evidencia / observaciones",
-          rows: r.notes
-            ? `<p class="detail-note" style="white-space:pre-wrap;margin:0">${escapeHtml(String(r.notes))}</p>`
-            : `<span class="muted">Sin observaciones.</span>`
+          ]
         }
       ];
       G.openPortalDetailSheet({
         title: `Control SST · ${String(r.recordType || "")}`,
-        subtitle: String(r.employeeName || ""),
-        sectionsHtml: buildDetailGrid(sections)
+        sheetTitle: `Control SST · ${String(r.recordType || "")}`,
+        subtitleHtml: `${G.IC.user} ${escapeHtml(String(r.employeeName || ""))}`,
+        statusHtml: escapeHtml(String(r.status || "-")),
+        moduleIcon: "shield",
+        moduleTone: "teal",
+        sections,
+        notesHtml: r.notes ? String(r.notes) : ""
       });
     });
   });

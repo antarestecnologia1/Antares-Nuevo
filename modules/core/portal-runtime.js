@@ -4,6 +4,7 @@ import {
   findPendingCreateEmployeeApproval,
   listPendingCreateEmployeeApprovalsByDocument
 } from "../domain/pending-employee-approval.domain.js";
+import { detailViewCardMarkup } from "../ui/components.js";
 
 // Enlaces léxicos (módulo estricto; `IC` sigue viniendo del script `portal-icons.js`).
 const ALL_PERMISSIONS = __pr.ALL_PERMISSIONS;
@@ -271,6 +272,7 @@ const openConfirmModalAsync = __pr.openConfirmModalAsync;
 const openConfirmReasonModal = __pr.openConfirmReasonModal;
 const openEditModal = __pr.openEditModal;
 const openInfoModal = __pr.openInfoModal;
+const openDetailViewSheet = __pr.openDetailViewSheet;
 const parseContractDurationText = __pr.parseContractDurationText;
 const readInlineOrNativeFieldError = __pr.readInlineOrNativeFieldError;
 const failPortalField = __pr.failPortalField;
@@ -5836,11 +5838,73 @@ function openVehicleTechnicalSheetModal(vehicle) {
   ];
   openPortalDetailSheet({
     title: `Ficha técnica · ${plate}`,
-    subtitle: `${String(v.type || "Vehículo")} · ${String(v.year || "")}`,
-    heroHtml,
-    tilesHtml,
-    highlightHtml,
-    sectionsHtml: portalDetailBuildGrid(sections),
+    sheetTitle: plate,
+    subtitleHtml: `${IC.truck} ${escapeHtml(vehicleTitle)}`,
+    statusHtml: `${portalVehicleAvailabilityStatusHtml(v)} ${termoChip}`,
+    moduleIcon: "truck",
+    moduleTone: "blue",
+    sections: [
+      {
+        icon: "activity",
+        pairs: [
+          ["Disponibilidad", portalVehicleAvailabilityStatusHtml(v)],
+          ["Detalle operativo", escapeHtml(occupancy.detail)],
+          ["Termoking", isRefrigerated ? "Sí, equipo Termoking" : "No, carga seca"],
+          ["Registrado", fmtDateOr(v.createdAt)],
+          ["Última actualización", fmtDateOr(v.updatedAt)]
+        ]
+      },
+      {
+        icon: "truck",
+        pairs: [
+          ["Placa", `<strong>${escapeHtml(plate)}</strong>`],
+          ["Marca", escapeHtml(String(v.brand || "—"))],
+          ["Línea / modelo", escapeHtml(String(v.model || "—"))],
+          ["Año modelo", escapeHtml(String(v.year || "—"))],
+          ["Color", escapeHtml(String(v.color || "—"))],
+          ["Tipo de vehículo", escapeHtml(String(v.type || "—"))]
+        ]
+      },
+      {
+        icon: "layers",
+        pairs: [
+          ["Carrocería", escapeHtml(String(v.bodyType || "—"))],
+          ["Capacidad", capacityLbl],
+          ["Combustible", escapeHtml(String(v.fuelType || "—"))],
+          ["Configuración de ejes", escapeHtml(String(v.axleConfig || "—"))],
+          ["N° motor", escapeHtml(String(v.engineNumber || "—"))],
+          ["Chasis (VIN)", escapeHtml(String(v.vin || "—"))],
+          ["Kilometraje", mileageLbl]
+        ]
+      },
+      {
+        icon: "shield",
+        pairs: [
+          ["Tarjeta de propiedad", escapeHtml(String(v.ownershipCard || "—"))],
+          ["SOAT expedido", fmtDateOr(v.soatExpeditionDate)],
+          ["SOAT vence", `${fmtDateOr(v.soatExpiryDate)} <span class="status ${soat.cls}">${escapeHtml(soat.label)}</span>`],
+          ["Tecnomecánica expedida", fmtDateOr(v.techInspectionExpeditionDate)],
+          ["Tecnomecánica vence", `${fmtDateOr(v.techInspectionExpiryDate)} <span class="status ${tec.cls}">${escapeHtml(tec.label)}</span>`],
+          ["Póliza RC contractual", escapeHtml(String(v.rcPolicyContract || "—"))],
+          ["Póliza RC extracontractual", escapeHtml(String(v.rcPolicyExtra || "—"))],
+          [
+            "Vence pólizas RCP",
+            v.rcPolicyExpiry
+              ? `${fmtDateOr(v.rcPolicyExpiry)} <span class="status ${rcExpiry.cls}">${escapeHtml(rcExpiry.label)}</span>`
+              : "—"
+          ]
+        ]
+      },
+      {
+        icon: "satellite",
+        pairs: [
+          ["GPS satelital", hasGps ? "Sí" : "No"],
+          ["Proveedor GPS", escapeHtml(String(v.gpsProvider || "—"))],
+          ["Usuario proveedor satélite", escapeHtml(String(v.satelliteProviderUser || "—"))],
+          ["Contraseña proveedor satélite", v.satelliteProviderPassword ? "••••••••" : "—"]
+        ]
+      }
+    ],
     secondaryActionsHtml: isAdminActor()
       ? `<button type="button" class="btn btn-action" data-vehicle-sheet-action="edit">${IC.edit} Editar vehículo</button>`
       : "",
@@ -6015,17 +6079,24 @@ function portalDetailComposeModal(parts = {}) {
 }
 
 function openPortalDetailSheet(opts = {}) {
-  const subtitleHtml = String(opts.subtitleHtml || "").trim();
-  const subtitle = String(opts.subtitle || "").trim();
-  openInfoModal({
+  openDetailViewSheet({
     title: opts.title || "Detalle",
-    subtitle: subtitleHtml ? "" : subtitle,
-    subtitleHtml: subtitleHtml || "",
-    bodyHtml: portalDetailComposeModal(opts),
-    wide: opts.wide !== false,
-    extraModalCardClass: `modal-card--portal-detail${opts.extraModalCardClass ? ` ${escapeAttr(String(opts.extraModalCardClass).trim())}` : ""}`,
-    secondaryActionsHtml: String(opts.secondaryActionsHtml || ""),
-    afterMount: opts.afterMount
+    sheetTitle: opts.sheetTitle || opts.title || "Detalle",
+    subtitle: opts.subtitle || "",
+    subtitleHtml: opts.subtitleHtml || "",
+    statusHtml: opts.statusHtml || "",
+    moduleIcon: opts.moduleIcon || "activity",
+    moduleTone: opts.moduleTone || "blue",
+    cardsHtml: opts.cardsHtml || "",
+    cards: opts.cards,
+    pairs: opts.pairs,
+    sections: opts.sections,
+    notesHtml: opts.notesHtml || "",
+    extraHtml: opts.extraHtml || opts.highlightHtml || "",
+    wide: opts.wide,
+    secondaryActionsHtml: opts.secondaryActionsHtml || "",
+    afterMount: opts.afterMount,
+    extraModalCardClass: opts.extraModalCardClass || ""
   });
 }
 
@@ -6231,11 +6302,50 @@ function openDriverDetailSheetModal(driver) {
   );
   openPortalDetailSheet({
     title: `Conductor ${String(d.name || "")}`,
-    subtitle: `${String(d.licenseCategory || "")} · ${String(d.idDoc || "")}`,
-    heroHtml,
-    tilesHtml: `${phoneBlock}${companyBlock}${licenseBlock}${emergencyBlock}`,
-    highlightHtml,
-    sectionsHtml: portalDetailBuildGrid(sections),
+    sheetTitle: String(d.name || "Conductor"),
+    subtitleHtml: `${IC.briefcase} ${escapeHtml(companyName || "Sin empresa")}`,
+    statusHtml: `${availabilityTag} ${licenseMeta.chipHtml}`,
+    moduleIcon: "user",
+    moduleTone: "purple",
+    extraHtml: detailViewCardMarkup({
+      iconKey: "truck",
+      label: "Operación actual",
+      valueHtml: `<strong>${tripTitle}</strong>`,
+      tone: "blue",
+      full: true,
+      subHtml: tripSub
+    }),
+    sections: [
+      {
+        icon: "phone",
+        pairs: [
+          ["Teléfono", phoneDisp ? escapeHtml(phoneDisp) : '<span class="muted">Sin teléfono</span>'],
+          ["Empresa", companyName ? escapeHtml(companyName) : '<span class="muted">Sin empresa</span>'],
+          ["Licencia", `${escapeHtml(String(d.licenseCategory || "—"))} · ${licenseMeta.chipHtml}`],
+          ["Emergencia", emergencyValue]
+        ]
+      },
+      {
+        icon: "user",
+        pairs: [
+          ["Documento", `<strong>${escapeHtml(String(d.idDoc || "Sin documento"))}</strong>`],
+          ["Categoría licencia", escapeHtml(String(d.licenseCategory || "—"))],
+          ["Vence licencia", `${fmtDateOr(d.licenseExpiry)} ${licenseMeta.chipHtml}`],
+          ["Curso defensivo", `${escapeHtml(String(d.defensiveCourse || "—"))} ${courseMeta.chipHtml}`],
+          ["Experiencia", `${parseNum(d.experienceYears || 0)} año(s)`]
+        ]
+      },
+      {
+        icon: "shield",
+        pairs: [
+          ["EPS", escapeHtml(String(d.eps || "-"))],
+          ["ARL", escapeHtml(String(d.arl || "-"))],
+          ["Comparendos pendientes", String(parseNum(d.comparendos || 0))],
+          ["Estado operativo", availabilityTag],
+          ["Última actualización", fmtDateOr(d.updatedAt || d.createdAt)]
+        ]
+      }
+    ],
     secondaryActionsHtml: isAdminActor()
       ? `<button type="button" class="btn btn-action" data-driver-sheet-action="edit">${IC.edit} Editar conductor</button>`
       : "",
@@ -13025,6 +13135,11 @@ Object.assign(window, {
   openPayrollBulkResultModal,
   openPayrollEmployeeFromCandidate,
   openPortalDetailSheet,
+  openDetailViewSheet,
+  detailViewCardMarkup,
+  detailViewCardsFromPairs,
+  detailViewCardsFromSections,
+  composeDetailViewSheet,
   openReportPdf,
   openReportPreviewModal,
   openRequestDetailModal,

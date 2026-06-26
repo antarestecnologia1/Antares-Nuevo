@@ -135,11 +135,73 @@ function openVehicleTechnicalSheetModal(vehicle) {
   ];
   G.openPortalDetailSheet({
     title: `Ficha técnica · ${plate}`,
-    subtitle: `${String(v.type || "Vehículo")} · ${String(v.year || "")}`,
-    heroHtml,
-    tilesHtml,
-    highlightHtml,
-    sectionsHtml: portalDetailBuildGrid(sections),
+    sheetTitle: plate,
+    subtitleHtml: `${G.IC.truck} ${G.escapeHtml(vehicleTitle)}`,
+    statusHtml: `${portalVehicleAvailabilityStatusHtml(v)} ${termoChip}`,
+    moduleIcon: "truck",
+    moduleTone: "blue",
+    sections: [
+      {
+        icon: "activity",
+        pairs: [
+          ["Disponibilidad", portalVehicleAvailabilityStatusHtml(v)],
+          ["Detalle operativo", G.escapeHtml(occupancy.detail)],
+          ["Termoking", isRefrigerated ? "Sí, equipo Termoking" : "No, carga seca"],
+          ["Registrado", G.fmtDateOr(v.createdAt)],
+          ["Última actualización", G.fmtDateOr(v.updatedAt)]
+        ]
+      },
+      {
+        icon: "truck",
+        pairs: [
+          ["Placa", `<strong>${G.escapeHtml(plate)}</strong>`],
+          ["Marca", G.escapeHtml(String(v.brand || "—"))],
+          ["Línea / modelo", G.escapeHtml(String(v.model || "—"))],
+          ["Año modelo", G.escapeHtml(String(v.year || "—"))],
+          ["Color", G.escapeHtml(String(v.color || "—"))],
+          ["Tipo de vehículo", G.escapeHtml(String(v.type || "—"))]
+        ]
+      },
+      {
+        icon: "layers",
+        pairs: [
+          ["Carrocería", G.escapeHtml(String(v.bodyType || "—"))],
+          ["Capacidad", capacityLbl],
+          ["Combustible", G.escapeHtml(String(v.fuelType || "—"))],
+          ["Configuración de ejes", G.escapeHtml(String(v.axleConfig || "—"))],
+          ["N° motor", G.escapeHtml(String(v.engineNumber || "—"))],
+          ["Chasis (VIN)", G.escapeHtml(String(v.vin || "—"))],
+          ["Kilometraje", mileageLbl]
+        ]
+      },
+      {
+        icon: "shield",
+        pairs: [
+          ["Tarjeta de propiedad", G.escapeHtml(String(v.ownershipCard || "—"))],
+          ["SOAT expedido", G.fmtDateOr(v.soatExpeditionDate)],
+          ["SOAT vence", `${G.fmtDateOr(v.soatExpiryDate)} <span class="status ${soat.cls}">${G.escapeHtml(soat.label)}</span>`],
+          ["Tecnomecánica expedida", G.fmtDateOr(v.techInspectionExpeditionDate)],
+          ["Tecnomecánica vence", `${G.fmtDateOr(v.techInspectionExpiryDate)} <span class="status ${tec.cls}">${G.escapeHtml(tec.label)}</span>`],
+          ["Póliza RC contractual", G.escapeHtml(String(v.rcPolicyContract || "—"))],
+          ["Póliza RC extracontractual", G.escapeHtml(String(v.rcPolicyExtra || "—"))],
+          [
+            "Vence pólizas RCP",
+            v.rcPolicyExpiry
+              ? `${G.fmtDateOr(v.rcPolicyExpiry)} <span class="status ${rcExpiry.cls}">${G.escapeHtml(rcExpiry.label)}</span>`
+              : "—"
+          ]
+        ]
+      },
+      {
+        icon: "satellite",
+        pairs: [
+          ["GPS satelital", hasGps ? "Sí" : "No"],
+          ["Proveedor GPS", G.escapeHtml(String(v.gpsProvider || "—"))],
+          ["Usuario proveedor satélite", G.escapeHtml(String(v.satelliteProviderUser || "—"))],
+          ["Contraseña proveedor satélite", v.satelliteProviderPassword ? "••••••••" : "—"]
+        ]
+      }
+    ],
     secondaryActionsHtml: isAdminActor()
       ? `<button type="button" class="btn btn-action" data-vehicle-sheet-action="edit">${G.IC.edit} Editar vehículo</button>`
       : "",

@@ -1564,7 +1564,9 @@ export function openInfoModal({
     : renderModalHead(title, { subtitleHtml: subtitleBlock, titleId: "crud-modal-title" });
   const closeBtnHtml =
     primaryHtml ||
-    `<button type="button" id="crud-ok" class="btn btn-outline detail-view-close-btn">${ic().x} Cerrar</button>`;
+    (isDetailView
+      ? `<button type="button" id="crud-ok" class="btn btn-outline detail-view-close-btn">${ic().x} Cerrar</button>`
+      : `<button type="button" id="crud-ok" class="btn btn-primary">${ic().x} Cerrar</button>`);
   content.innerHTML = `
     <div class="modal-info-layout${headless ? " modal-info-layout--headless" : ""}">
       ${headBlock}

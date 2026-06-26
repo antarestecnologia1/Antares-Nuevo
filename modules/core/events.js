@@ -3310,10 +3310,26 @@ function bindExtendedViewEditHandlers() {
 
       openPortalDetailSheet({
         title: String(c.name || "Empresa"),
-        subtitle: nitStr ? `NIT ${nitStr}` : "",
-        heroHtml,
-        tilesHtml: `${phoneBlock}${emailBlock}${contactBlock}`,
-        highlightHtml
+        sheetTitle: String(c.name || "Empresa"),
+        subtitleHtml: nitStr ? `${IC.briefcase} NIT ${escapeHtml(nitStr)}` : `${IC.briefcase} Sin NIT registrado`,
+        statusHtml: `${companyKindChipHtml(kindUi)} ${statusChip}`,
+        moduleIcon: "briefcase",
+        moduleTone: "blue",
+        sections: [
+          {
+            icon: "phone",
+            pairs: [
+              ["Teléfono", phoneValue],
+              ["Correo empresarial", emailValue],
+              ["Contacto principal", contactValue],
+              ["Usuarios portal", escapeHtml(String(usersCount))],
+              ["Alta en sistema", createdLbl],
+              ["Última actualización", updatedLbl],
+              ["Dirección", addr ? escapeHtml(addr) : '<span class="muted">Sin dirección</span>', { full: true }],
+              ["Ciudad / departamento", locLine ? escapeHtml(locLine) : '<span class="muted">Sin ubicación</span>', { full: true }]
+            ]
+          }
+        ]
       });
     });
   });
@@ -3455,11 +3471,57 @@ function bindExtendedViewEditHandlers() {
 
       openPortalDetailSheet({
         title: displayName || "Usuario",
-        subtitle: email,
-        heroHtml,
-        tilesHtml: `${emailBlock}${phoneBlock}${companyBlock}`,
-        sectionsHtml: detailSections,
-        highlightHtml
+        sheetTitle: displayName || "Usuario",
+        subtitleHtml: `${IC.mail} ${escapeHtml(email || "Sin correo")}`,
+        statusHtml: `${roleChip} ${accountStatusChip}`,
+        moduleIcon: "user",
+        moduleTone: "purple",
+        sections: [
+          {
+            icon: "user",
+            pairs: [
+              ["Nombre completo", `<strong>${escapeHtml(displayName || "Usuario")}</strong>`],
+              ["Correo corporativo", escapeHtml(email || "Sin correo")],
+              ["Teléfono", escapeHtml(phoneDisp || "Sin teléfono")],
+              ["Tipo documento", escapeHtml(docTypeLabel)],
+              ["Documento / NIT", escapeHtml(idDoc || "Sin documento")],
+              ["Avatar", escapeHtml(avatarCss ? "Cargado" : "Sin foto")]
+            ]
+          },
+          {
+            icon: "shield",
+            pairs: [
+              ["Rol", escapeHtml(formatPortalRoleLabel(u.role) || "Sin rol")],
+              ["Tipo de vínculo", escapeHtml(regKind || "Sin vínculo")],
+              ["Empresa vinculada", escapeHtml(companyName || "Sin empresa")],
+              ["Nombre comercial", escapeHtml(storedCompanyLabel)],
+              ["Autenticación 2FA", escapeHtml(u.twoFactorEnabled ? "Habilitada" : "Deshabilitada")],
+              ["Fecha de ingreso", escapeHtml(joinLbl)],
+              ["Estado de cuenta", escapeHtml(normAcc === ACCOUNT_STATUS.RECHAZADO ? "Rechazada" : normAcc === ACCOUNT_STATUS.PENDIENTE ? "Pendiente" : "Aprobada")],
+              ["Contraseña", `<span class="muted">Oculta por seguridad</span>`]
+            ]
+          },
+          {
+            icon: "mapPin",
+            pairs: [
+              ["Departamento", escapeHtml(dept || "Sin departamento")],
+              ["Ciudad", escapeHtml(city || "Sin ciudad")],
+              ["Dirección", escapeHtml(String(u.address || "").trim() || "Sin dirección"), { full: true }]
+            ]
+          },
+          {
+            icon: "layers",
+            pairs: [
+              [
+                "Permisos asignados",
+                permsHtml
+                  ? `<div class="detail-perms-list">${permsHtml}</div>`
+                  : `<span class="muted">Sin permisos asignados.</span>`,
+                { full: true }
+              ]
+            ]
+          }
+        ]
       });
     });
   });

@@ -361,36 +361,29 @@ function bindHiringPortalControls() {
       const v = read(KEYS.vacancies, []).find((x) => String(x.id) === String(btn.dataset.id || ""));
       if (!v) return;
       const sal = parseNum(v.salaryOffer);
-      const reqs = escapeHtml(String(v.requirements || "").trim() || "Sin requisitos detallados.");
-      const heroHtml = `<div class="portal-detail-hero">
-        <div class="portal-detail-hero-main">
-          <p class="portal-detail-eyebrow">${IC.briefcase} Vacante abierta</p>
-          <div class="portal-detail-badges"><span class="status status-viaje_asignado">${escapeHtml(String(v.status || "Abierta"))}</span></div>
-          <p class="portal-detail-meta"><strong>${escapeHtml(String(v.positionName || "Cargo"))}</strong> · ${escapeHtml(String(v.city || "Ciudad"))}</p>
-          <ul class="portal-detail-stats" aria-label="Resumen de la vacante">
-            <li><strong>$${sal.toLocaleString("es-CO")}</strong><span>Salario ofrecido</span></li>
-            <li><strong>${escapeHtml(String(v.openings ?? 1))}</strong><span>Cupos</span></li>
-            <li><strong>${escapeHtml(String(v.modality || "—"))}</strong><span>Modalidad</span></li>
-          </ul>
-        </div>
-      </div>`;
-      const tilesHtml = [
-        portalDetailTileMarkup(IC.layers, "Departamento", escapeHtml(String(v.department || "—"))),
-        portalDetailTileMarkup(IC.briefcase, "Rol", escapeHtml(String(v.workerRole || "RR.HH."))),
-        portalDetailTileMarkup(IC.calendar, "Cierre postulaciones", escapeHtml(String(v.deadline || "—")))
-      ].join("");
-      const highlightHtml = portalDetailHighlightHtml(
-        "Requisitos y perfil",
-        `<p class="detail-note">${reqs}</p>`,
-        "file"
-      );
+      const reqs = String(v.requirements || "").trim() || "Sin requisitos detallados.";
       openPortalDetailSheet({
         title: String(v.title || "Vacante"),
-        subtitle: `${String(v.department || "").trim()} · ${String(v.workerRole || "").trim() || "RR.HH."}`,
-        heroHtml,
-        tilesHtml,
-        highlightHtml,
-        extraHtml: `<p class="portal-detail-meta muted" style="margin:0">Última actualización: ${escapeHtml(fmtDateOr(v.updatedAt || v.createdAt, "—"))}</p>`
+        sheetTitle: String(v.title || "Vacante"),
+        subtitleHtml: `${IC.briefcase} ${escapeHtml(String(v.positionName || "Cargo"))} · ${escapeHtml(String(v.city || "Ciudad"))}`,
+        statusHtml: `<span class="status status-viaje_asignado">${escapeHtml(String(v.status || "Abierta"))}</span>`,
+        moduleIcon: "briefcase",
+        moduleTone: "green",
+        sections: [
+          {
+            icon: "briefcase",
+            pairs: [
+              ["Departamento", escapeHtml(String(v.department || "—"))],
+              ["Rol", escapeHtml(String(v.workerRole || "RR.HH."))],
+              ["Modalidad", escapeHtml(String(v.modality || "—"))],
+              ["Salario ofrecido", `<strong class="detail-view-money">$${sal.toLocaleString("es-CO")}</strong>`, { highlight: true, iconKey: "dollar", tone: "green" }],
+              ["Cupos", escapeHtml(String(v.openings ?? 1))],
+              ["Cierre postulaciones", escapeHtml(String(v.deadline || "—"))],
+              ["Última actualización", fmtDateOr(v.updatedAt || v.createdAt, "—")]
+            ]
+          }
+        ],
+        notesHtml: reqs
       });
     });
   });
@@ -1283,8 +1276,7 @@ function bindHiringPortalControls() {
       const sections = [
         {
           icon: "briefcase",
-          title: "Cargo",
-          rows: renderDetailRows([
+          pairs: [
             ["Nombre", `<strong>${escapeHtml(String(p.name || ""))}</strong>`],
             ["Rol", p.workerRole === "conductor" ? "Conductor" : "Empleado"],
             ["Salario base", fmtMoney(p.baseSalary)],
@@ -1297,13 +1289,16 @@ function bindHiringPortalControls() {
             ["Base legal", escapeHtml(String(p.legalBasis || "CST"))],
             ["Creado", fmtDateOr(p.createdAt)],
             ["Última actualización", fmtDateOr(p.updatedAt || p.createdAt)]
-          ])
+          ]
         }
       ];
       openPortalDetailSheet({
         title: `Cargo: ${String(p.name || "")}`,
-        subtitle: p.workerRole === "conductor" ? "Conductor" : "Empleado",
-        sectionsHtml: buildDetailGrid(sections)
+        sheetTitle: `Cargo: ${String(p.name || "")}`,
+        subtitleHtml: `${IC.briefcase} ${p.workerRole === "conductor" ? "Conductor" : "Empleado"}`,
+        moduleIcon: "briefcase",
+        moduleTone: "green",
+        sections
       });
     });
   });
@@ -1559,8 +1554,7 @@ function bindHiringPortalControls() {
       const sections = [
         {
           icon: "user",
-          title: "Identificación",
-          rows: renderDetailRows([
+          pairs: [
             ["Nombre", `<strong>${escapeHtml(String(c.name || ""))}</strong>`],
             ["Documento", `${escapeHtml(String(c.documentType || "-"))} ${escapeHtml(String(c.idDoc || ""))}`],
             ["Fecha de nacimiento", fmtDateOr(ageDisp.birthLabel === "—" ? "" : ageDisp.birthLabel)],
@@ -1570,17 +1564,15 @@ function bindHiringPortalControls() {
             ["Ciudad", escapeHtml(String(c.city || "-"))],
             ["Departamento", escapeHtml(String(c.department || "-"))],
             ["Dirección", escapeHtml(String(c.address || "-"))]
-          ])
+          ]
         },
         {
           icon: "briefcase",
-          title: "Postulación",
-          rows: renderDetailRows(postulationRows)
+          pairs: postulationRows
         },
         {
           icon: "file",
-          title: "Adjuntos",
-          rows: `<div class="detail-perms-list">${attachmentsInner}</div>`
+          pairs: [["Adjuntos", `<div class="detail-perms-list">${attachmentsInner}</div>`, { full: true }]]
         }
       ];
       const cvDlModal = extractCandidateCvDownload(c);
@@ -1603,8 +1595,12 @@ function bindHiringPortalControls() {
         .join("");
       openPortalDetailSheet({
         title: String(c.name || "Candidato"),
-        subtitle: String(c.vacancyTitle || ""),
-        sectionsHtml: buildDetailGrid(sections),
+        sheetTitle: String(c.name || "Candidato"),
+        subtitleHtml: `${IC.briefcase} ${escapeHtml(String(c.vacancyTitle || "Sin vacante"))}`,
+        statusHtml: statusShow ? `<span class="status ${hiringPipelineStatusClass(statusShow)}">${escapeHtml(statusShow)}</span>` : "",
+        moduleIcon: "user",
+        moduleTone: "purple",
+        sections,
         secondaryActionsHtml: modalActions,
         afterMount: (content) => {
           const cid = String(c.id || "").trim();
@@ -1859,27 +1855,23 @@ function bindHiringPortalControls() {
       const sections = [
         {
           icon: "calendar",
-          title: "Programación",
-          rows: renderDetailRows([
+          pairs: [
             ["Candidato", `<strong>${escapeHtml(String(i.candidateName || "-"))}</strong>`],
             ["Fecha y hora", escapeHtml(formatInterviewWhenDisplay(i.when))],
             ["Entrevistador", escapeHtml(String(i.interviewer || "-"))],
             ["Modalidad", escapeHtml(String(i.modality || "-"))],
             ["Lugar / enlace", escapeHtml(String(i.locationOrLink || "-"))]
-          ])
-        },
-        {
-          icon: "file",
-          title: "Notas",
-          rows: i.notes
-            ? `<p class="detail-note" style="white-space:pre-wrap;margin:0">${escapeHtml(String(i.notes))}</p>`
-            : `<span class="muted">Sin notas.</span>`
+          ]
         }
       ];
       openPortalDetailSheet({
         title: `Entrevista · ${String(i.candidateName || "")}`,
-        subtitle: formatInterviewWhenDisplay(i.when),
-        sectionsHtml: buildDetailGrid(sections)
+        sheetTitle: `Entrevista · ${String(i.candidateName || "")}`,
+        subtitleHtml: `${IC.calendar} ${escapeHtml(formatInterviewWhenDisplay(i.when))}`,
+        moduleIcon: "calendar",
+        moduleTone: "blue",
+        sections,
+        notesHtml: i.notes ? String(i.notes) : ""
       });
     });
   });
@@ -1999,35 +1991,33 @@ function bindHiringPortalControls() {
       const sections = [
         {
           icon: "user",
-          title: "Persona",
-          rows: renderDetailRows([
+          pairs: [
             ["Nombre", `<strong>${escapeHtml(String(c.candidateName || c.employeeName || employee?.name || "-"))}</strong>`],
             ["Documento", escapeHtml(String(c.idDocSnapshot || employee?.idDoc || "-"))],
             ["Cargo", escapeHtml(String(c.position || c.positionName || employee?.position || "-"))],
             ["Origen", escapeHtml(String(c.source || c.sourceTag || (c.employeeId ? "Empleado" : "Candidato")))]
-          ])
+          ]
         },
         {
           icon: "file",
-          title: "Contrato",
-          rows: renderDetailRows([
+          pairs: [
             ["Tipo", escapeHtml(String(c.contractType || "-"))],
             ["Plantilla", escapeHtml(String(c.contractTemplateKind || c.templateKind || "-"))],
             ["Salario", fmtMoney(c.salary)],
             ["Inicio", fmtDateOr(c.startDate)],
             ["Fin", fmtDateOr(c.endDate)],
             ["Generado", fmtDateOr(c.createdAt)]
-          ])
+          ]
         }
       ];
-      const contentHtml = c.content
-        ? `<section class="detail-section"><h4 class="detail-section-title">${IC.file || ""}<span>Resumen interno</span></h4><pre class="detail-pre">${escapeHtml(String(c.content))}</pre></section>`
-        : "";
       openPortalDetailSheet({
         title: `Contrato · ${String(c.candidateName || c.employeeName || "")}`,
-        subtitle: String(c.position || ""),
-        sectionsHtml: buildDetailGrid(sections),
-        extraHtml: contentHtml
+        sheetTitle: `Contrato · ${String(c.candidateName || c.employeeName || "")}`,
+        subtitleHtml: `${IC.file} ${escapeHtml(String(c.position || ""))}`,
+        moduleIcon: "file",
+        moduleTone: "teal",
+        sections,
+        notesHtml: c.content ? String(c.content) : ""
       });
     });
   });

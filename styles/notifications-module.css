@@ -286,6 +286,9 @@
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  min-width: 0;
+  container-type: inline-size;
+  container-name: ops-cards;
 }
 .ntf-card {
   display: grid;
@@ -297,6 +300,9 @@
   border-radius: var(--ntf-radius-sm);
   background: var(--ntf-card);
   transition: box-shadow 0.15s ease, border-color 0.15s ease;
+  min-width: 0;
+  container-type: inline-size;
+  container-name: ops-card;
 }
 .ntf-card:hover {
   box-shadow: var(--ntf-shadow-sm);
@@ -338,12 +344,16 @@
   margin: 0.2rem 0 0.15rem;
   font-size: 0.96rem;
   font-weight: 700;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .ntf-card__text {
   margin: 0;
   font-size: 0.86rem;
   color: var(--text-soft);
   line-height: 1.45;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .ntf-card__actions {
   display: flex;
@@ -371,6 +381,19 @@
 .ntf-tag--violet { background: rgba(139, 92, 246, 0.12); color: #6d28d9; }
 .ntf-tag--emerald { background: rgba(16, 185, 129, 0.12); color: #047857; }
 .ntf-tag--slate { background: rgba(100, 116, 139, 0.12); color: #475569; }
+
+@container ops-card (max-width: 28rem) {
+  .ntf-card {
+    grid-template-columns: auto 1fr;
+  }
+
+  .ntf-card__actions {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+}
 
 @media (max-width: 900px) {
   .notifications-studio .ntf-operate { grid-template-columns: 1fr; }

@@ -1495,7 +1495,6 @@ function bindPayrollPortalControls() {
         subtitle: `${String(target.position || "Colaborador").trim()} · ${String(target.idDoc || "").trim()}`,
         bodyHtml: `${buildEmployeePayrollProfileBodyHtml(target)}${payrollHistoryHtml}`,
         wide: true,
-        extraModalCardClass: "modal-card--portal-detail",
         secondaryActionsHtml: `${liquidacionesAction}${contractAction}`,
         afterMount: (content) => {
           bindPayrollPayslipButtons(content);
@@ -3002,8 +3001,7 @@ function bindPayrollPortalControls() {
       const sections = [
         {
           icon: "calendar",
-          title: "Detalle",
-          rows: renderDetailRows([
+          pairs: [
             ["Empleado", `<strong>${escapeHtml(String(a.employeeName || "-"))}</strong>`],
             ["Tipo", escapeHtml(typeLabel)],
             ["Subtipo", escapeHtml(subtypeLabel || "No aplica")],
@@ -3014,20 +3012,17 @@ function bindPayrollPortalControls() {
             ["Soporte (N°)", escapeHtml(String(a.supportNumber || "-"))],
             ["Entidad/EPS/ARL", escapeHtml(String(a.epsEntity || "-"))],
             ["Registrado", fmtDateOr(a.createdAt)]
-          ])
-        },
-        {
-          icon: "file",
-          title: "Observaciones",
-          rows: a.notes
-            ? `<p class="detail-note" style="white-space:pre-wrap;margin:0">${escapeHtml(String(a.notes))}</p>`
-            : `<span class="muted">Sin observaciones.</span>`
+          ]
         }
       ];
       openPortalDetailSheet({
         title: `Ausencia · ${typeLabel}`,
-        subtitle: String(a.employeeName || ""),
-        sectionsHtml: buildDetailGrid(sections)
+        sheetTitle: `Ausencia · ${typeLabel}`,
+        subtitleHtml: `${IC.user} ${escapeHtml(String(a.employeeName || ""))}`,
+        moduleIcon: "calendar",
+        moduleTone: "orange",
+        sections,
+        notesHtml: a.notes ? String(a.notes) : ""
       });
     });
   });

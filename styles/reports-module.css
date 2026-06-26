@@ -176,6 +176,9 @@
   border: 1px solid color-mix(in srgb, var(--rpt-accent, #0369a1) 12%, #e2e8f0);
   box-shadow: 0 2px 8px rgba(15,23,42,0.05);
   transition: box-shadow 0.2s ease, transform 0.16s ease;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .reports-studio .rpt-metric:hover,

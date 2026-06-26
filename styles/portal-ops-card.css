@@ -4,7 +4,15 @@
    =================================================================== */
 
 .portal-ops-cards,
-.trip-ops-cards {
+.trip-ops-cards,
+.request-ops-cards,
+.directory-grid,
+.payroll-run-cards-grid,
+.b2b-leads-mosaic,
+.vehicle-ops-cards,
+.drivers-ops-cards,
+.employees-grid,
+.hiring-cards.hiring-cards--candidates {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 17.5rem), 1fr));
   gap: 1rem;
@@ -47,6 +55,7 @@
 .directory-card__head,
 .hiring-candidate-card__head {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: flex-start;
   gap: 0.75rem;
@@ -56,10 +65,10 @@
 .trip-ops-card-head-main,
 .directory-card__identity {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.7rem;
   min-width: 0;
-  flex: 1 1 auto;
+  flex: 1 1 12rem;
 }
 
 .trip-ops-card-head-info,
@@ -153,7 +162,9 @@
   flex-direction: column;
   align-items: flex-end;
   gap: 0.35rem;
-  flex: 0 0 auto;
+  flex: 1 1 auto;
+  max-width: 100%;
+  min-width: 0;
 }
 
 /* ── Pills de estado ── */
@@ -247,7 +258,9 @@
   font-size: 0.62rem;
   font-weight: 800;
   letter-spacing: 0.06em;
-  white-space: nowrap;
+  white-space: normal;
+  text-align: center;
+  overflow-wrap: anywhere;
   border: 1px solid transparent;
 }
 
@@ -292,6 +305,7 @@
 .driver-availability-bar,
 .directory-card__ops {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
@@ -300,6 +314,52 @@
   border: 1px solid rgba(16, 185, 129, 0.28);
   background: linear-gradient(135deg, rgba(16, 185, 129, 0.14), rgba(16, 185, 129, 0.06));
   min-width: 0;
+}
+
+.request-ops-card .request-ops-card-trip,
+.trip-ops-card-standby.request-ops-card-trip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.45rem;
+}
+
+.request-ops-card-trip-ico {
+  flex: 0 0 auto;
+}
+
+.request-ops-card .request-ops-card-trip > span:not(.request-ops-card-trip-ico),
+.trip-ops-card-standby.request-ops-card-trip > span:not(.request-ops-card-trip-ico) {
+  flex: 1 1 10rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.driver-trip-bar__copy span,
+.driver-availability-bar__detail,
+.vehicle-availability-bar__detail {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.vehicle-plate-badge__text {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.driver-trip-bar__map {
+  flex: 1 1 8.5rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.vehicle-availability-bar__update {
+  flex: 1 1 8rem;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .portal-ops-card-highlight__dot,
@@ -641,6 +701,40 @@
   width: 100%;
 }
 
+.trip-ops-card-status-block {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.trip-ops-card-status-picker {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 11px;
+  background: #edf4fc;
+  border: 1px solid #c8daf0;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.trip-ops-card-status-picker select.trip-status-select {
+  flex: 1 1 8rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.request-ops-card-company-logo,
+.vehicle-plate-badge,
+.driver-avatar,
+.portal-ops-card-avatar {
+  flex-shrink: 0;
+}
+
 /* ── Pie ── */
 .portal-ops-card-foot,
 .trip-ops-card-foot {
@@ -732,17 +826,126 @@
   gap: 1rem;
 }
 
+.directory-card__title,
+.directory-card__subline,
+.directory-card__fact dd,
+.directory-chip strong,
+.payroll-run-card-title,
+.payroll-run-card-employee,
+.payroll-run-card-kicker,
+.b2b-leads-title,
+.b2b-leads-company,
+.b2b-leads-meta dd,
+.hiring-candidate-card__meta dd {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.directory-card__compact-row {
+  min-width: 0;
+}
+
+.directory-card__compact-meta,
+.directory-card__compact-actions {
+  flex-wrap: wrap;
+}
+
+.directory-card--compact {
+  min-width: 0;
+  container-type: inline-size;
+  container-name: ops-card;
+}
+
+.payroll-run-card,
+.b2b-leads-card {
+  min-width: 0;
+  container-type: inline-size;
+  container-name: ops-card;
+}
+
+.payroll-run-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.payroll-run-card-actions > .btn {
+  flex: 1 1 8.5rem;
+  min-width: 0;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.25;
+}
+
+.b2b-leads-chip-row {
+  flex-wrap: wrap;
+}
+
+.payroll-run-card-head,
+.b2b-leads-card-top {
+  min-width: 0;
+}
+
 /* ── Container queries: responden al espacio real (zoom, sidebar, paneles) ── */
 @container ops-cards (max-width: 36rem) {
   .portal-ops-cards,
-  .trip-ops-cards {
+  .trip-ops-cards,
+  .request-ops-cards,
+  .directory-grid,
+  .payroll-run-cards-grid,
+  .b2b-leads-mosaic,
+  .vehicle-ops-cards,
+  .drivers-ops-cards,
+  .employees-grid,
+  .hiring-cards.hiring-cards--candidates {
     grid-template-columns: 1fr;
   }
 }
 
-@container ops-card (max-width: 26rem) {
+/* Tarjetas anchas (1 columna con zoom): barras y cabeceras específicas */
+@container ops-card (max-width: 48rem) {
+  .vehicle-availability-bar,
+  .driver-trip-bar,
+  .driver-availability-bar,
+  .portal-ops-card-highlight,
+  .request-ops-card .request-ops-card-trip,
+  .trip-ops-card-standby.request-ops-card-trip {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .vehicle-availability-bar__update,
+  .driver-trip-bar__map {
+    width: 100%;
+    max-width: none;
+  }
+
+  .trip-ops-card-head--vehicle,
+  .trip-ops-card-head--driver {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .trip-ops-card-route {
+    grid-template-columns: 1fr;
+    text-align: left;
+  }
+
+  .trip-ops-card-route-node--dest {
+    text-align: left;
+    justify-items: start;
+  }
+
+  .trip-ops-card-route-connector {
+    display: none;
+  }
+}
+
+@container ops-card (max-width: 36rem) {
   .trip-ops-card-head,
-  .directory-card__head {
+  .directory-card__head,
+  .hiring-candidate-card__head,
+  .payroll-run-card-head,
+  .b2b-leads-card-top {
     flex-direction: column;
     align-items: stretch;
   }
@@ -760,7 +963,69 @@
   .portal-ops-card-spec-grid,
   .trip-ops-card-grid,
   .vehicle-card-spec-grid,
-  .driver-card-spec-grid {
+  .driver-card-spec-grid,
+  .directory-card__metrics,
+  .directory-card__metrics--triple,
+  .directory-card__metrics--quad,
+  .directory-card__facts,
+  .hiring-candidate-card__meta {
+    grid-template-columns: 1fr;
+  }
+
+  .portal-ops-card-actions-grid,
+  .vehicle-card-actions-grid,
+  .driver-card-actions-grid,
+  .trip-ops-card-actions-primary,
+  .hiring-candidate-card__actions,
+  .directory-card__actions,
+  .payroll-run-card-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .directory-card__compact-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .directory-card__compact-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .b2b-leads-when {
+    align-self: flex-start;
+  }
+}
+
+@container ops-card (max-width: 26rem) {
+  .trip-ops-card-head,
+  .directory-card__head,
+  .hiring-candidate-card__head,
+  .payroll-run-card-head,
+  .b2b-leads-card-top {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .portal-ops-card-badges,
+  .driver-card-badges,
+  .vehicle-card-badges,
+  .directory-card__status-stack {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+  }
+
+  .portal-ops-card-spec-grid,
+  .trip-ops-card-grid,
+  .vehicle-card-spec-grid,
+  .driver-card-spec-grid,
+  .directory-card__metrics,
+  .directory-card__metrics--triple,
+  .directory-card__metrics--quad,
+  .directory-card__facts,
+  .hiring-candidate-card__meta {
     grid-template-columns: 1fr;
   }
 
@@ -781,8 +1046,25 @@
   .portal-ops-card-actions-grid,
   .vehicle-card-actions-grid,
   .driver-card-actions-grid,
-  .trip-ops-card-actions-primary {
+  .trip-ops-card-actions-primary,
+  .hiring-candidate-card__actions,
+  .directory-card__actions,
+  .payroll-run-card-actions {
     grid-template-columns: 1fr;
+  }
+
+  .directory-card__compact-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .directory-card__compact-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .b2b-leads-when {
+    align-self: flex-start;
   }
 }
 
@@ -801,7 +1083,15 @@
 
 @media (max-width: 768px) {
   .portal-ops-cards,
-  .trip-ops-cards {
+  .trip-ops-cards,
+  .request-ops-cards,
+  .directory-grid,
+  .payroll-run-cards-grid,
+  .b2b-leads-mosaic,
+  .vehicle-ops-cards,
+  .drivers-ops-cards,
+  .employees-grid,
+  .hiring-cards.hiring-cards--candidates {
     grid-template-columns: 1fr;
   }
 }

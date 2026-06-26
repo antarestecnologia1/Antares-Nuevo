@@ -7,7 +7,7 @@
   const G = globalThis;
   const {
     read, write, writeAwaitServer, KEYS, IC, STATUS, ROLES,
-    state, openInfoModal, openEditModal, escapeHtml, escapeAttr, fmtDate, fmtDateOr,
+    state, openEditModal, escapeHtml, escapeAttr, fmtDate, fmtDateOr,
     parseNum, notify, renderPortalView, reqRead, reqWriteAwait, canAdminEditTrip,
     formatRoute, requestTruckRequirementSummaryHtml, prettyStatus, companyProfileLogoUrl,
     getCompanyById, requestRequiresTermoking, requestTransportModeFromRequest,
@@ -22,115 +22,99 @@
     payrollRunHasAbsenceDetail, ensureCrudModalElement, renderModalHead,
     renderModalFooterActions, wireModalDismiss, scrollOpenCrudModalIntoView,
     persistHrWorkspace, scrollToCreatePanelForm, colombiaTodayIsoDate,
-    portalDetailTileMarkup, portalDetailRenderRows, portalDetailBuildGrid,
-    portalDetailHighlightHtml, openPortalDetailSheet
+    openDetailViewSheet, detailViewCardsFromPairs, detailViewCardMarkup,
+    syncPayloadForEditedObjectKeys, writeAwaitServerEdit
   } = globalThis;
-
-function transportDetailRow(pairs, opts = {}) {
-  return portalDetailRenderRows(pairs, { skipEmpty: opts.skipEmpty !== false, ...opts });
-}
 
 function openAssignedTripInfoModal(req) {
   if (!req?.trip) return;
   const canEditTrip = canAdminEditTrip(req);
   const tripNo = String(req.trip.tripNumber || "—");
-  const reqNo = String(req.requestNumber || req.id || "—");
   const clientName = String(req.clientName || "—");
-  const route = formatRoute(req);
   const tripValue = `$${parseNum(req.tripValue || req.insuredValue || 0).toLocaleString("es-CO")}`;
   const insuredValue = parseNum(req.insuredValue || 0);
   const distanceKm = parseNum(req.distanceKm || 0);
   const standbyTotal = parseNum(req.standbyChargeTotal || 0);
+  const driverName = String(req.trip.driverName || "—");
+  const driverPhone = String(req.trip.driverPhone || "-");
   const secondaryActions = [
     `<button type="button" class="btn btn-outline" data-trip-info-action="view-request">${IC.eye} Ver solicitud</button>`,
     canEditTrip ? `<button type="button" class="btn btn-action" data-trip-info-action="edit-trip">${IC.edit} Editar viaje</button>` : ""
   ].filter(Boolean).join("");
-  const heroHtml = `<div class="portal-detail-hero portal-detail-hero--trip">
-    <div class="portal-detail-hero-main">
-      <p class="portal-detail-eyebrow">${IC.truck} Viaje operativo</p>
-      <div class="portal-detail-badges">${prettyStatus(req.status, "trip")}</div>
-      <p class="portal-detail-meta"><strong>Solicitud #${escapeHtml(reqNo)}</strong> · ${escapeHtml(clientName)}</p>
-      <p class="portal-detail-loc-line portal-detail-route-line">${IC.mapPin} ${escapeHtml(route)}</p>
-      <ul class="portal-detail-stats" aria-label="Resumen del viaje">
-        <li><strong>${escapeHtml(tripValue)}</strong><span>Valor viaje</span></li>
-        <li><strong>${escapeHtml(String(req.trip.vehiclePlate || "—"))}</strong><span>Camión</span></li>
-        <li><strong>${escapeHtml(String(req.trip.driverName || "—"))}</strong><span>Conductor</span></li>
-      </ul>
-    </div>
-  </div>`;
-  const tilesHtml = [
-    portalDetailTileMarkup(
-      IC.package,
+  const pairs = [
+    [
       "Carga",
-      `${escapeHtml(String(req.cargoDescription || "—"))} · ${requestTruckRequirementSummaryHtml(req)}`
-    ),
-    portalDetailTileMarkup(
-      IC.phone,
-      "Contacto conductor",
-      `${escapeHtml(String(req.trip.driverName || "—"))} · ${escapeHtml(String(req.trip.driverPhone || "-"))}`
-    ),
-    portalDetailTileMarkup(IC.clock, "Recogida", escapeHtml(fmtDate(req.trip.etaPickup))),
-    portalDetailTileMarkup(IC.clock, "Entrega", escapeHtml(fmtDate(req.trip.etaDelivery)))
-  ].join("");
-  const assignmentRows = transportDetailRow([
-    ["Camión asignado", `<strong>${escapeHtml(String(req.trip.vehiclePlate || "—"))}</strong> (${escapeHtml(String(req.trip.vehicleType || "-"))})`],
-    ["Conductor", `${escapeHtml(String(req.trip.driverName || "—"))} · ${escapeHtml(String(req.trip.driverPhone || "-"))}`],
-    ["Asignado por", escapeHtml(String(req.trip.assignedBy || req.approvedBy || "-"))],
-    ["Fecha de asignación", escapeHtml(fmtDate(req.trip.assignedAt || req.approvedAt || req.createdAt))],
-    req.autoApproved ? ["Aprobación", "Automática"] : null
-  ].filter(Boolean));
-  const scheduleRows = transportDetailRow([
-    ["Recogida programada", escapeHtml(fmtDate(req.trip.etaPickup))],
-    ["Entrega programada", escapeHtml(fmtDate(req.trip.etaDelivery))],
-    ["Creado", escapeHtml(fmtDateOr(req.trip.createdAt || req.createdAt, "—"))],
-    ["Última actualización", escapeHtml(fmtDateOr(req.trip.updatedAt || req.trip.createdAt || req.updatedAt, "—"))],
-    req.closedAt ? ["Cierre", escapeHtml(fmtDate(req.closedAt))] : null
-  ].filter(Boolean));
-  const financeRows = transportDetailRow([
-    ["Valor del viaje", `<strong>${escapeHtml(tripValue)}</strong>`],
-    insuredValue > 0 ? ["Valor asegurado", `$${insuredValue.toLocaleString("es-CO")}`] : null,
-    distanceKm > 0 ? ["Distancia estimada", `${distanceKm.toLocaleString("es-CO")} km`] : null,
-    standbyTotal > 0 ? ["Standby acumulado", `$${standbyTotal.toLocaleString("es-CO")}`] : null,
-    req.trip.invoice
-      ? [
-          "Factura",
-          `${escapeHtml(String(req.trip.invoice.number))} · $${parseNum(req.trip.invoice.total).toLocaleString("es-CO")}`
-        ]
-      : null
-  ].filter(Boolean), { skipEmpty: false });
-  const sections = [
-    { icon: "truck", title: "Asignación", rows: assignmentRows },
-    { icon: "clock", title: "Programación", rows: scheduleRows },
-    { icon: "dollar", title: "Tarifa y facturación", rows: financeRows }
+      `${escapeHtml(String(req.cargoDescription || "—"))} · ${requestTruckRequirementSummaryHtml(req)}`,
+      { iconKey: "package", tone: "blue" }
+    ],
+    ["Valor viaje", `<strong class="detail-view-money">${escapeHtml(tripValue)}</strong>`, { iconKey: "dollar", tone: "green", highlight: true }],
+    [
+      "Camión",
+      `${escapeHtml(String(req.trip.vehiclePlate || "—"))} (${escapeHtml(String(req.trip.vehicleType || "-"))})`,
+      { iconKey: "truck", tone: "orange" }
+    ],
+    [
+      "Conductor",
+      escapeHtml(driverName),
+      { iconKey: "user", tone: "purple", subHtml: escapeHtml(driverPhone) }
+    ],
+    ["Asignado por", escapeHtml(String(req.trip.assignedBy || req.approvedBy || "-")), { iconKey: "layers", tone: "teal" }],
+    [
+      "Fecha asignación",
+      escapeHtml(fmtDate(req.trip.assignedAt || req.approvedAt || req.createdAt)),
+      { iconKey: "calendar", tone: "blue" }
+    ],
+    ["Creado", escapeHtml(fmtDateOr(req.trip.createdAt || req.createdAt, "—")), { iconKey: "calendar", tone: "rose" }],
+    [
+      "Última actualización",
+      escapeHtml(fmtDateOr(req.trip.updatedAt || req.trip.createdAt || req.updatedAt, "—")),
+      { iconKey: "clock", tone: "orange" }
+    ],
+    ["Recogida", escapeHtml(fmtDate(req.trip.etaPickup)), { iconKey: "clock", tone: "blue" }],
+    ["Entrega", escapeHtml(fmtDate(req.trip.etaDelivery)), { iconKey: "package", tone: "green" }]
   ];
-  openPortalDetailSheet({
+  if (insuredValue > 0) {
+    pairs.splice(2, 0, ["Valor asegurado", `$${insuredValue.toLocaleString("es-CO")}`, { iconKey: "shield", tone: "teal" }]);
+  }
+  if (distanceKm > 0) {
+    pairs.push(["Distancia estimada", `${distanceKm.toLocaleString("es-CO")} km`, { iconKey: "mapPin", tone: "purple" }]);
+  }
+  if (standbyTotal > 0) {
+    pairs.push(["Standby acumulado", `$${standbyTotal.toLocaleString("es-CO")}`, { iconKey: "dollar", tone: "orange" }]);
+  }
+  if (req.closedAt) {
+    pairs.push(["Cierre", escapeHtml(fmtDate(req.closedAt)), { iconKey: "calendar", tone: "rose" }]);
+  }
+  if (req.trip.invoice) {
+    pairs.push([
+      "Factura",
+      `${escapeHtml(String(req.trip.invoice.number))} · $${parseNum(req.trip.invoice.total).toLocaleString("es-CO")}`,
+      { iconKey: "file", tone: "blue" }
+    ]);
+  }
+  openDetailViewSheet({
     title: `Viaje ${tripNo}`,
-    subtitleHtml: prettyStatus(req.status, "trip"),
-    heroHtml,
-    tilesHtml,
-    sectionsHtml: portalDetailBuildGrid(sections),
+    sheetTitle: `Viaje ${tripNo}`,
+    subtitleHtml: `${IC.briefcase} ${escapeHtml(clientName)}`,
+    statusHtml: prettyStatus(req.status, "trip"),
+    moduleIcon: "truck",
+    moduleTone: "blue",
+    cardsHtml: detailViewCardsFromPairs(pairs, { skipEmpty: false }),
     secondaryActionsHtml: secondaryActions,
     afterMount: (contentEl) => {
-      contentEl
-        .querySelector("[data-trip-info-action='view-request']")
-        ?.addEventListener("click", () => {
-          openRequestDetailModal(req);
-        });
-      contentEl
-        .querySelector("[data-trip-info-action='edit-trip']")
-        ?.addEventListener("click", () => {
-          openEditTripModal(req);
-        });
+      contentEl.querySelector("[data-trip-info-action='view-request']")?.addEventListener("click", () => {
+        openRequestDetailModal(req);
+      });
+      contentEl.querySelector("[data-trip-info-action='edit-trip']")?.addEventListener("click", () => {
+        openEditTripModal(req);
+      });
     }
   });
 }
 
 function openRequestDetailModal(req) {
   if (!req) return;
-  const company = typeof getCompanyById === "function" ? getCompanyById(req.clientCompanyId) : null;
-  const clientLogoUrl =
-    companyProfileLogoUrl(company) || String(req.clientCompanyLogoUrl || "").trim();
-  const clientDisplayName = String(req.clientName || company?.name || "-").trim() || "-";
+  const clientDisplayName = String(req.clientName || getCompanyById?.(req.clientCompanyId)?.name || "-").trim() || "-";
   const thermokingReq = requestRequiresTermoking(req);
   const obs = String(req.notes || req.observations || "").trim();
   const origAddr = String(req.originAddress || "").trim();
@@ -140,80 +124,67 @@ function openRequestDetailModal(req) {
   const insuredValue = parseNum(req.insuredValue || 0);
   const distanceKm = parseNum(req.distanceKm || 0);
   const standbyTotal = parseNum(req.standbyChargeTotal || 0);
-  const logoBlock =
-    clientLogoUrl && !/^data:/i.test(clientLogoUrl)
-      ? `<div class="portal-detail-logo"><img src="${escapeAttr(clientLogoUrl)}" alt="" loading="lazy" decoding="async" /></div>`
-      : `<div class="portal-detail-logo portal-detail-logo--fallback" aria-hidden="true"><span>${escapeHtml(String(clientDisplayName.charAt(0) || "C").toUpperCase())}</span></div>`;
-  const heroHtml = `<div class="portal-detail-hero portal-detail-hero--request">
-    ${logoBlock}
-    <div class="portal-detail-hero-main">
-      <p class="portal-detail-eyebrow">${IC.file} Solicitud de transporte</p>
-      <div class="portal-detail-badges">${prettyStatus(req.status, "request")}</div>
-      <p class="portal-detail-meta"><strong>${escapeHtml(clientDisplayName)}</strong></p>
-      <p class="portal-detail-loc-line portal-detail-route-line">${IC.mapPin} ${escapeHtml(formatRoute(req))}</p>
-      <ul class="portal-detail-stats" aria-label="Resumen de la solicitud">
-        <li><strong>${escapeHtml(tripValue)}</strong><span>Valor viaje</span></li>
-        <li><strong>${modoTransporte}</strong><span>Modo</span></li>
-        <li><strong>${thermokingReq ? "Sí" : "No"}</strong><span>Termoking</span></li>
-      </ul>
-    </div>
-  </div>`;
-  const tripHighlight = req.trip
-    ? portalDetailHighlightHtml(
-        "Viaje asignado",
-        `<p class="portal-detail-loc-line"><strong>Viaje ${escapeHtml(String(req.trip.tripNumber || "—"))}</strong> · ${escapeHtml(String(req.trip.vehiclePlate || "—"))} (${escapeHtml(String(req.trip.vehicleType || "-"))})</p>
-        <p class="portal-detail-loc-sub muted">${IC.user} ${escapeHtml(String(req.trip.driverName || "—"))} · ${IC.clock} ${escapeHtml(fmtDate(req.trip.etaPickup))} → ${escapeHtml(fmtDate(req.trip.etaDelivery))}</p>
-        <div class="portal-detail-highlight__actions">
-          <button type="button" class="btn btn-action" data-action="solicitud-trip-open">${IC.eye} Abrir detalle del viaje</button>
-        </div>`,
-        "truck"
-      )
-    : portalDetailHighlightHtml(
-        "Viaje asignado",
-        `<p class="portal-detail-loc-line muted">Aún no tiene viaje asignado.</p>`,
-        "truck"
-      );
-  const requestRows = transportDetailRow([
-    ["Modo de transporte", modoTransporte],
-    ["Refrigeración Termoking", thermokingReq ? "Sí, requerida" : "No"],
-    ["Recogida programada", escapeHtml(fmtDate(req.pickupAt || `${req.pickupDate || ""}T${req.pickupTime || ""}`))],
-    ["Entrega estimada", escapeHtml(fmtDate(req.etaDelivery || `${req.deliveryDate || ""}T${req.deliveryTime || ""}`))],
-    ["Solicita", escapeHtml(String(req.requestedByName || "-"))],
+  const pairs = [
+    ["Cliente", escapeHtml(clientDisplayName), { iconKey: "briefcase", tone: "blue", full: true }],
+    ["Ruta", escapeHtml(formatRoute(req)), { iconKey: "mapPin", tone: "teal", full: true }],
+    ["Modo de transporte", modoTransporte, { iconKey: "truck", tone: "orange" }],
+    ["Termoking", thermokingReq ? "Sí, requerida" : "No", { iconKey: "activity", tone: "blue" }],
+    [
+      "Recogida programada",
+      escapeHtml(fmtDate(req.pickupAt || `${req.pickupDate || ""}T${req.pickupTime || ""}`)),
+      { iconKey: "clock", tone: "blue" }
+    ],
+    [
+      "Entrega estimada",
+      escapeHtml(fmtDate(req.etaDelivery || `${req.deliveryDate || ""}T${req.deliveryTime || ""}`)),
+      { iconKey: "package", tone: "green" }
+    ],
+    ["Solicita", escapeHtml(String(req.requestedByName || "-")), { iconKey: "user", tone: "purple" }],
     [
       "Contacto en sitio",
-      `${escapeHtml(String(req.siteContactName || req.contactName || "-"))} · ${escapeHtml(String(req.siteContactPhone || req.contactPhone || "-"))}`
+      `${escapeHtml(String(req.siteContactName || req.contactName || "-"))} · ${escapeHtml(String(req.siteContactPhone || req.contactPhone || "-"))}`,
+      { iconKey: "phone", tone: "rose" }
     ],
-    ["Carga", escapeHtml(String(req.cargoDescription || "-"))],
-    ["Requisitos de camión", requestTruckRequirementSummaryHtml(req)],
-    ["Valor del viaje", `<strong>${escapeHtml(tripValue)}</strong>`],
-    insuredValue > 0 ? ["Valor asegurado", `$${insuredValue.toLocaleString("es-CO")}`] : null,
-    distanceKm > 0 ? ["Distancia estimada", `${distanceKm.toLocaleString("es-CO")} km`] : null,
-    req.autoApproved ? ["Aprobación", "Automática"] : null,
-    standbyTotal > 0 ? ["Standby", `$${standbyTotal.toLocaleString("es-CO")}`] : null,
-    req.rejectionReason ? ["Motivo rechazo", escapeHtml(String(req.rejectionReason))] : null
-  ].filter(Boolean));
-  const routeRows = transportDetailRow([
-    ["Ruta", escapeHtml(formatRoute(req))],
-    origAddr ? ["Origen (dirección)", escapeHtml(origAddr)] : null,
-    destAddr ? ["Destino (dirección)", escapeHtml(destAddr)] : null
-  ].filter(Boolean), { skipEmpty: false });
-  const sections = [
-    { icon: "mapPin", title: "Ruta y ubicación", rows: routeRows },
-    { icon: "package", title: "Datos de la solicitud", rows: requestRows }
+    ["Carga", escapeHtml(String(req.cargoDescription || "-")), { iconKey: "package", tone: "blue" }],
+    ["Requisitos de camión", requestTruckRequirementSummaryHtml(req), { iconKey: "truck", tone: "orange" }],
+    ["Valor del viaje", `<strong class="detail-view-money">${escapeHtml(tripValue)}</strong>`, { iconKey: "dollar", tone: "green", highlight: true }]
   ];
-  const notesExtra = obs
-    ? `<section class="portal-detail-highlight portal-detail-highlight--notes" aria-label="Observaciones">
-        <h4 class="portal-detail-highlight__title">${IC.file}<span>Observaciones</span></h4>
-        <div class="portal-detail-highlight__body"><p class="detail-note">${escapeHtml(obs)}</p></div>
-      </section>`
-    : "";
-  openPortalDetailSheet({
+  if (origAddr) pairs.push(["Origen (dirección)", escapeHtml(origAddr), { iconKey: "mapPin", tone: "teal", full: true }]);
+  if (destAddr) pairs.push(["Destino (dirección)", escapeHtml(destAddr), { iconKey: "mapPin", tone: "purple", full: true }]);
+  if (insuredValue > 0) pairs.push(["Valor asegurado", `$${insuredValue.toLocaleString("es-CO")}`, { iconKey: "shield", tone: "teal" }]);
+  if (distanceKm > 0) pairs.push(["Distancia estimada", `${distanceKm.toLocaleString("es-CO")} km`, { iconKey: "mapPin", tone: "orange" }]);
+  if (req.autoApproved) pairs.push(["Aprobación", "Automática", { iconKey: "activity", tone: "green" }]);
+  if (standbyTotal > 0) pairs.push(["Standby", `$${standbyTotal.toLocaleString("es-CO")}`, { iconKey: "dollar", tone: "orange" }]);
+  if (req.rejectionReason) pairs.push(["Motivo rechazo", escapeHtml(String(req.rejectionReason)), { iconKey: "alertTriangle", tone: "rose", full: true }]);
+  const tripExtra = req.trip
+    ? detailViewCardMarkup({
+        iconKey: "truck",
+        label: "Viaje asignado",
+        valueHtml: `<strong>${escapeHtml(String(req.trip.tripNumber || "—"))}</strong> · ${escapeHtml(String(req.trip.vehiclePlate || "—"))}`,
+        tone: "blue",
+        full: true,
+        subHtml: `${escapeHtml(String(req.trip.driverName || "—"))} · ${escapeHtml(fmtDate(req.trip.etaPickup))} → ${escapeHtml(fmtDate(req.trip.etaDelivery))}`
+      }) +
+      `<div class="detail-view-inline-action">
+        <button type="button" class="btn btn-action" data-action="solicitud-trip-open">${IC.eye} Abrir detalle del viaje</button>
+      </div>`
+    : detailViewCardMarkup({
+        iconKey: "truck",
+        label: "Viaje asignado",
+        valueHtml: `<span class="muted">Aún no tiene viaje asignado.</span>`,
+        tone: "orange",
+        full: true
+      });
+  openDetailViewSheet({
     title: `Solicitud ${req.requestNumber || req.id}`,
-    subtitleHtml: prettyStatus(req.status, "request"),
-    heroHtml,
-    highlightHtml: tripHighlight,
-    sectionsHtml: portalDetailBuildGrid(sections),
-    extraHtml: `${notesExtra}${renderRequestModificationLogSectionHtml(req)}`,
+    sheetTitle: `Solicitud ${req.requestNumber || req.id}`,
+    subtitleHtml: `${IC.briefcase} ${escapeHtml(clientDisplayName)}`,
+    statusHtml: prettyStatus(req.status, "request"),
+    moduleIcon: "file",
+    moduleTone: "blue",
+    cardsHtml: tripExtra + detailViewCardsFromPairs(pairs, { skipEmpty: false }),
+    notesHtml: obs,
+    extraHtml: renderRequestModificationLogSectionHtml(req),
     afterMount: req.trip
       ? (contentEl) => {
           contentEl.querySelector("[data-action='solicitud-trip-open']")?.addEventListener("click", () => {
@@ -263,77 +234,48 @@ function openDeletedTransportRequestAuditModal(logRow) {
   if (!logRow) return;
   const snap = parsePortalJsonSnapshot(logRow.snapshot);
   const reqN = String(logRow.requestNumber || logRow.requestId || "-").trim();
-  const baseAuditSubtitle = `<span class="muted">Eliminada:</span> ${escapeHtml(fmtDate(logRow.deletedAt))}<br />
-    <span class="muted">Usuario:</span> ${escapeHtml(String(logRow.deletedByName || logRow.deletedByEmail || "—"))}<br />
-    <span class="muted">Motivo:</span> ${escapeHtml(String(logRow.reason || "—"))}`;
+  const baseAuditSubtitle = `${IC.clock} ${escapeHtml(fmtDate(logRow.deletedAt))} · ${escapeHtml(String(logRow.deletedByName || logRow.deletedByEmail || "—"))}`;
   if (!snap) {
-    openPortalDetailSheet({
+    openDetailViewSheet({
       title: `Solicitud eliminada ${reqN}`,
-      subtitleHtml: `${baseAuditSubtitle}<br /><span class="muted">Estado al eliminar:</span> —`,
-      highlightHtml: portalDetailHighlightHtml(
-        "Registro de auditoría",
-        `<p class="portal-detail-loc-line muted">No hay copia JSON de la solicitud en este registro (registros antiguos o sin snapshot).</p>`,
-        "alertTriangle"
-      )
+      sheetTitle: `Solicitud eliminada ${reqN}`,
+      subtitleHtml: baseAuditSubtitle,
+      moduleIcon: "alertTriangle",
+      moduleTone: "rose",
+      cardsHtml: detailViewCardMarkup({
+        iconKey: "file",
+        label: "Auditoría",
+        valueHtml: `<span class="muted">No hay copia JSON de la solicitud en este registro.</span>`,
+        tone: "orange",
+        full: true
+      })
     });
     return;
   }
   const modo = escapeHtml(snapPick(snap, "tipo_servicio", "serviceType") || "—");
   const tkRaw = snap.refrigeracion_termoking ?? snap.requiresThermoking;
   const thermoking =
-    tkRaw === true ||
-    String(tkRaw).toLowerCase() === "true" ||
-    String(tkRaw).toLowerCase() === "yes";
+    tkRaw === true || String(tkRaw).toLowerCase() === "true" || String(tkRaw).toLowerCase() === "yes";
   const routeLine = escapeHtml(formatDeletedRequestSnapshotRouteLine(snap));
-  const origAddr = escapeHtml(snapPick(snap, "direccion_origen", "originAddress"));
-  const destAddr = escapeHtml(snapPick(snap, "direccion_destino", "destinationAddress"));
-  const pickupIso = snapPick(snap, "fecha_hora_recogida", "pickupAt");
-  const deliveryIso = snapPick(snap, "fecha_hora_entrega_estimada", "etaDelivery");
-  const requestedBy = escapeHtml(snapPick(snap, "nombre_quien_solicita", "requestedByName") || "—");
-  const contactName = escapeHtml(snapPick(snap, "nombre_contacto_en_sitio", "siteContactName", "contactName") || "—");
-  const contactPhone = escapeHtml(snapPick(snap, "telefono_contacto_en_sitio", "siteContactPhone", "contactPhone") || "—");
-  const cargo = escapeHtml(snapPick(snap, "descripcion_carga", "cargoDescription") || "—");
-  const peso = parseNum(snap.peso_kg ?? snap.weightKg);
-  const cajas = parseNum(snap.numero_cajas ?? snap.boxes ?? snap.boxesCount);
-  const estadoPlain = snapPick(snap, "estado", "status") || "—";
-  const estado = escapeHtml(estadoPlain);
-  const tipoVeh = escapeHtml(
-    snapPick(snap, "tipo_vehiculo_requerido", "tipo_vehiculo_solicitado", "vehicleType", "requiredTruckType") || "—"
-  );
   const obs = String(snapPick(snap, "observaciones", "notes") || "").trim();
-  const fullSubtitleHtml = `${baseAuditSubtitle}<br /><span class="muted">Estado al eliminar:</span> ${estado}`;
-  const auditSections = [
-    {
-      icon: "briefcase",
-      title: "Datos de la solicitud",
-      rows: transportDetailRow([
-        ["Cliente", escapeHtml(snapPick(snap, "nombre_cliente", "clientName") || "—")],
-        ["Modo de transporte", modo],
-        ["Refrigeración Termoking", thermoking ? "Sí, requerida" : "No"],
-        ["Tipo de vehículo solicitado", tipoVeh],
-        ["Ruta (ciudad / depto.)", routeLine],
-        origAddr ? ["Origen (dirección)", origAddr] : null,
-        destAddr ? ["Destino (dirección)", destAddr] : null,
-        ["Recogida programada", escapeHtml(fmtDate(pickupIso))],
-        ["Entrega estimada", escapeHtml(fmtDate(deliveryIso))],
-        ["Solicita", requestedBy],
-        ["Contacto en sitio", `${contactName} · ${contactPhone}`],
-        ["Carga", cargo],
-        ["Peso / cajas", `${peso.toLocaleString("es-CO")} kg · ${cajas.toLocaleString("es-CO")} cajas`]
-      ].filter(Boolean), { skipEmpty: false })
-    }
+  const pairs = [
+    ["Cliente", escapeHtml(snapPick(snap, "nombre_cliente", "clientName") || "—"), { iconKey: "briefcase", tone: "blue" }],
+    ["Modo de transporte", modo, { iconKey: "truck", tone: "orange" }],
+    ["Termoking", thermoking ? "Sí, requerida" : "No", { iconKey: "activity", tone: "teal" }],
+    ["Ruta", routeLine, { iconKey: "mapPin", tone: "purple", full: true }],
+    ["Recogida", escapeHtml(fmtDate(snapPick(snap, "fecha_hora_recogida", "pickupAt"))), { iconKey: "clock", tone: "blue" }],
+    ["Entrega", escapeHtml(fmtDate(snapPick(snap, "fecha_hora_entrega_estimada", "etaDelivery"))), { iconKey: "package", tone: "green" }],
+    ["Carga", escapeHtml(snapPick(snap, "descripcion_carga", "cargoDescription") || "—"), { iconKey: "package", tone: "blue" }]
   ];
-  const notesExtra = obs
-    ? `<section class="portal-detail-highlight portal-detail-highlight--notes" aria-label="Observaciones">
-        <h4 class="portal-detail-highlight__title">${IC.file}<span>Observaciones</span></h4>
-        <div class="portal-detail-highlight__body"><p class="detail-note">${escapeHtml(obs)}</p></div>
-      </section>`
-    : "";
-  openPortalDetailSheet({
+  openDetailViewSheet({
     title: `Solicitud eliminada ${reqN}`,
-    subtitleHtml: fullSubtitleHtml,
-    sectionsHtml: portalDetailBuildGrid(auditSections),
-    extraHtml: notesExtra
+    sheetTitle: `Solicitud eliminada ${reqN}`,
+    subtitleHtml: baseAuditSubtitle,
+    statusHtml: `<span class="muted">Estado al eliminar:</span> ${escapeHtml(snapPick(snap, "estado", "status") || "—")}`,
+    moduleIcon: "file",
+    moduleTone: "rose",
+    cardsHtml: detailViewCardsFromPairs(pairs, { skipEmpty: false }),
+    notesHtml: obs
   });
 }
 
@@ -360,72 +302,43 @@ function openDeletedTransportTripAuditModal(logRow) {
   const snap = parsePortalJsonSnapshot(logRow.snapshot);
   const tripLabel = String(logRow.tripNumber || "").trim() || "—";
   const reqLabel = String(logRow.requestNumber || logRow.requestId || "").trim() || "—";
-  const baseAuditSubtitle = `<span class="muted">Registrado:</span> ${escapeHtml(fmtDate(logRow.deletedAt))}<br />
-    <span class="muted">Usuario:</span> ${escapeHtml(String(logRow.deletedByName || logRow.deletedByEmail || "—"))}<br />
-    <span class="muted">Motivo:</span> ${escapeHtml(String(logRow.reason || "—"))}<br />
-    <span class="muted">Solicitud:</span> ${escapeHtml(reqLabel)} · <span class="muted">Viaje:</span> ${escapeHtml(tripLabel)}`;
+  const baseAuditSubtitle = `${IC.clock} ${escapeHtml(fmtDate(logRow.deletedAt))} · Solicitud ${escapeHtml(reqLabel)}`;
   if (!snap) {
-    openPortalDetailSheet({
+    openDetailViewSheet({
       title: `Viaje desasignado ${tripLabel}`,
+      sheetTitle: `Viaje desasignado ${tripLabel}`,
       subtitleHtml: baseAuditSubtitle,
-      highlightHtml: portalDetailHighlightHtml(
-        "Registro de auditoría",
-        `<p class="portal-detail-loc-line muted">No hay copia JSON del viaje en este registro (registros antiguos o sin snapshot).</p>`,
-        "alertTriangle"
-      )
+      moduleIcon: "alertTriangle",
+      moduleTone: "rose",
+      cardsHtml: detailViewCardMarkup({
+        iconKey: "truck",
+        label: "Auditoría",
+        valueHtml: `<span class="muted">No hay copia JSON del viaje en este registro.</span>`,
+        tone: "orange",
+        full: true
+      })
     });
     return;
   }
-  const estadoOp = escapeHtml(snapPick(snap, "estado_operativo_en_vivo", "liveOperationalStatus") || "—");
-  const fullSubtitleHtml = `${baseAuditSubtitle}<br /><span class="muted">Estado operativo (copia):</span> ${estadoOp}`;
-  const pickup = snapPick(snap, "fecha_hora_recogida_programada", "etaPickup");
-  const delivery = snapPick(snap, "fecha_hora_entrega_programada", "etaDelivery");
-  const assignedBy = escapeHtml(snapPick(snap, "asignado_por", "assignedBy") || "—");
-  const assignedAt = snapPick(snap, "fecha_hora_asignacion", "assignedAt");
-  const tipoVeh = escapeHtml(snapPick(snap, "tipo_vehiculo_asignado", "vehicleType") || "—");
-  const plate = escapeHtml(snapPick(snap, "placa_vehiculo", "vehiclePlate") || "—");
-  const driver = escapeHtml(snapPick(snap, "nombre_conductor", "driverName") || "—");
-  const driverPhone = escapeHtml(snapPick(snap, "telefono_conductor", "driverPhone") || "—");
-  const routeDesc = escapeHtml(snapPick(snap, "descripcion_ruta", "routeDescription") || "—");
   const numViajeRaw = snapPick(snap, "numero_viaje", "tripNumber") || tripLabel;
-  const numViaje = escapeHtml(numViajeRaw);
-  const idSol = escapeHtml(snapPick(snap, "id_solicitud", "requestId") || String(logRow.requestId || "—"));
-  const invoiceRaw = snap.datos_factura_json ?? snap.invoiceData;
-  let invoiceBlock = "";
-  if (invoiceRaw != null && invoiceRaw !== "") {
-    try {
-      const txt =
-        typeof invoiceRaw === "string" ? invoiceRaw : JSON.stringify(invoiceRaw, null, 2);
-      const short = txt.length > 1200 ? `${txt.slice(0, 1197)}…` : txt;
-      invoiceBlock = `<div class="solicitud-detail-notes"><strong>Datos facturación (JSON)</strong><pre class="detail-note" style="white-space:pre-wrap;margin:0.35rem 0 0;font-size:0.82em;max-height:14rem;overflow:auto">${escapeHtml(short)}</pre></div>`;
-    } catch {
-      invoiceBlock = "";
-    }
-  }
-  const auditSections = [
-    {
-      icon: "truck",
-      title: "Copia del viaje",
-      rows: transportDetailRow([
-        ["Número de viaje", numViaje],
-        ["ID solicitud asociada", idSol],
-        ["Vehículo (placa)", plate],
-        ["Tipo vehículo asignado", tipoVeh],
-        ["Conductor", driver],
-        ["Teléfono conductor", driverPhone],
-        ["Descripción de ruta / observaciones", routeDesc],
-        ["Recogida programada", escapeHtml(fmtDate(pickup))],
-        ["Entrega programada", escapeHtml(fmtDate(delivery))],
-        ["Asignado por", assignedBy],
-        ["Fecha de asignación", escapeHtml(fmtDate(assignedAt))]
-      ], { skipEmpty: false })
-    }
+  const pairs = [
+    ["Número de viaje", escapeHtml(numViajeRaw), { iconKey: "truck", tone: "blue" }],
+    ["Vehículo", escapeHtml(snapPick(snap, "placa_vehiculo", "vehiclePlate") || "—"), { iconKey: "truck", tone: "orange" }],
+    ["Conductor", escapeHtml(snapPick(snap, "nombre_conductor", "driverName") || "—"), { iconKey: "user", tone: "purple" }],
+    ["Teléfono", escapeHtml(snapPick(snap, "telefono_conductor", "driverPhone") || "—"), { iconKey: "phone", tone: "rose" }],
+    ["Recogida", escapeHtml(fmtDate(snapPick(snap, "fecha_hora_recogida_programada", "etaPickup"))), { iconKey: "clock", tone: "blue" }],
+    ["Entrega", escapeHtml(fmtDate(snapPick(snap, "fecha_hora_entrega_programada", "etaDelivery"))), { iconKey: "package", tone: "green" }],
+    ["Asignado por", escapeHtml(snapPick(snap, "asignado_por", "assignedBy") || "—"), { iconKey: "layers", tone: "teal" }],
+    ["Fecha asignación", escapeHtml(fmtDate(snapPick(snap, "fecha_hora_asignacion", "assignedAt"))), { iconKey: "calendar", tone: "blue" }]
   ];
-  openPortalDetailSheet({
+  openDetailViewSheet({
     title: `Viaje desasignado ${numViajeRaw}`,
-    subtitleHtml: fullSubtitleHtml,
-    sectionsHtml: portalDetailBuildGrid(auditSections),
-    extraHtml: invoiceBlock
+    sheetTitle: `Viaje desasignado ${numViajeRaw}`,
+    subtitleHtml: baseAuditSubtitle,
+    statusHtml: `<span class="muted">Estado:</span> ${escapeHtml(snapPick(snap, "estado_operativo_en_vivo", "liveOperationalStatus") || "—")}`,
+    moduleIcon: "truck",
+    moduleTone: "rose",
+    cardsHtml: detailViewCardsFromPairs(pairs, { skipEmpty: false })
   });
 }
 

@@ -853,8 +853,11 @@ body[data-theme="dark"] .portal-main:has(.dashboard-studio:has(.nx-ambient)) {
 
 .dashboard-studio .dash-metrics-cards {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10.5rem), 1fr));
   gap: 10px;
+  min-width: 0;
+  container-type: inline-size;
+  container-name: ops-cards;
 }
 
 .dashboard-studio .dash-metric {
@@ -897,10 +900,10 @@ body[data-theme="dark"] .portal-main:has(.dashboard-studio:has(.nx-ambient)) {
   text-transform: uppercase;
   letter-spacing: 0.055em;
   color: var(--dash-text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
 }
 
 .dashboard-studio .dash-metric__icon {

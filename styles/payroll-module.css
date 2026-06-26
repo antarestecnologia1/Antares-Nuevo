@@ -305,10 +305,13 @@
 /* Tarjetas de sección (Empleados, Ausencias, Nómina…) */
 .payroll-section-cards {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr));
   gap: 0.55rem;
   margin: 0;
   padding: 0;
+  min-width: 0;
+  container-type: inline-size;
+  container-name: ops-cards;
 }
 
 .payroll-section-card {
@@ -325,6 +328,7 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
+  white-space: normal;
   transition:
     border-color 0.18s ease,
     box-shadow 0.18s ease,

@@ -183,8 +183,24 @@ body.portal-mode .kpi-grid {
   }
 
   .portal-main .portal-ops-cards,
-  .portal-main .trip-ops-cards {
+  .portal-main .trip-ops-cards,
+  .portal-main .request-ops-cards,
+  .portal-main .directory-grid,
+  .portal-main .payroll-run-cards-grid,
+  .portal-main .b2b-leads-mosaic,
+  .portal-main .vehicle-ops-cards,
+  .portal-main .drivers-ops-cards,
+  .portal-main .employees-grid,
+  .portal-main .hiring-cards.hiring-cards--candidates {
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  }
+
+  .payroll-studio .payroll-section-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .dashboard-studio .dash-metrics-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -232,17 +248,50 @@ body.portal-mode .kpi-grid {
 
   .portal-main .portal-ops-cards,
   .portal-main .trip-ops-cards,
+  .portal-main .request-ops-cards,
   .transport-studio .trip-ops-cards,
+  .transport-studio .request-ops-cards,
+  .transport-studio .vehicle-ops-cards,
+  .transport-studio .drivers-ops-cards,
   .requests-studio .requests-data-results .trip-ops-cards,
-  .requests-studio .requests-data-results .request-ops-cards {
+  .requests-studio .requests-data-results .request-ops-cards,
+  .portal-main .directory-grid,
+  .portal-main .payroll-run-cards-grid,
+  .portal-main .b2b-leads-mosaic,
+  .portal-main .vehicle-ops-cards,
+  .portal-main .drivers-ops-cards,
+  .portal-main .employees-grid,
+  .portal-main .hiring-cards.hiring-cards--candidates,
+  .dashboard-studio .dash-metrics-cards,
+  .payroll-studio .payroll-section-cards {
     grid-template-columns: 1fr;
   }
 
   .portal-main .requests-data-results,
   .portal-main .transport-data-pane__body,
-  .portal-main .transport-operate__main {
+  .portal-main .transport-data-panes,
+  .portal-main .transport-data-panel,
+  .portal-main .transport-operate__main,
+  .portal-main .payroll-operate__main,
+  .portal-main .b2b-operate__main,
+  .portal-main .notifications-studio .ntf-list,
+  .portal-main .authorizations-studio .aut-operate__main,
+  .portal-main .history-studio .history-operate__main,
+  .portal-main .reports-studio .rpt-operate__main,
+  .portal-main .admin-users-list-shell {
     min-width: 0;
     overflow-x: clip;
+  }
+
+  .notifications-studio .ntf-card {
+    grid-template-columns: auto 1fr;
+  }
+
+  .notifications-studio .ntf-card__actions {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: flex-end;
   }
 }
 
@@ -259,6 +308,11 @@ body.portal-mode .kpi-grid {
 
   .hr-workspace-tab--switch {
     width: 100%;
+  }
+
+  .payroll-studio .payroll-section-cards,
+  .dashboard-studio .dash-metrics-cards {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -467,20 +521,65 @@ body.portal-mode .kpi-grid {
   }
 }
 
-/* ── Zoom alto: tipografía y controles más compactos ── */
+/* ── Zoom alto: tipografía y controles en tarjetas de todos los módulos ── */
 .portal-main .trip-ops-card-title,
 .portal-main .trip-ops-card-route-node strong,
 .portal-main .trip-ops-card-item-value,
 .portal-main .trip-ops-card-item dd,
-.portal-main .portal-ops-card-status-pill__text {
+.portal-main .portal-ops-card-status-pill__text,
+.portal-main .directory-card__title,
+.portal-main .directory-card__subline,
+.portal-main .directory-card__fact dd,
+.portal-main .directory-chip strong,
+.portal-main .payroll-run-card-title,
+.portal-main .payroll-run-card-employee,
+.portal-main .payroll-run-card-kicker,
+.portal-main .payroll-section-card__label,
+.portal-main .payroll-section-card__count,
+.portal-main .b2b-leads-title,
+.portal-main .b2b-leads-company,
+.portal-main .b2b-leads-meta dd,
+.portal-main .hiring-candidate-card__meta dd,
+.portal-main .ntf-card__title,
+.portal-main .ntf-card__text,
+.portal-main .dash-metric__label,
+.portal-main .dash-metric__sub,
+.portal-main .profile-stat-card strong,
+.portal-main .rpt-metric strong,
+.portal-main .rpt-kpi strong {
   overflow-wrap: anywhere;
   word-break: break-word;
 }
 
+.portal-main .trip-ops-card-status-block,
+.portal-main .trip-ops-card-status-picker,
+.portal-main .vehicle-availability-bar,
+.portal-main .driver-trip-bar,
+.portal-main .driver-availability-bar,
+.portal-main .request-ops-card-trip {
+  min-width: 0;
+  max-width: 100%;
+}
 .portal-main .trip-ops-card-kicker,
 .portal-main .trip-ops-card-badge,
-.portal-main .portal-ops-card-status-pill {
+.portal-main .portal-ops-card-status-pill,
+.portal-main .portal-ops-card-doc-pill,
+.portal-main .payroll-section-card,
+.portal-main .dash-metric__label,
+.portal-main .ntf-tag {
   white-space: normal;
+}
+
+.portal-main .btn,
+.portal-main .btn-action,
+.portal-main .btn-sm,
+.portal-main .trip-ops-card-btn,
+.portal-main .payroll-run-card-actions > .btn,
+.portal-main .directory-card__actions .btn,
+.portal-main .hiring-candidate-card__actions .btn {
+  white-space: normal;
+  text-align: center;
+  line-height: 1.25;
 }
 
 @media (max-width: 520px) {
