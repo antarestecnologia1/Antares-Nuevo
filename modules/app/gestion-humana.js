@@ -1,6 +1,17 @@
 ﻿/**
  * Gestión humana — listeners post-render (bindPayrollPortalControls).
  */
+const EMPLOYEE_CREATE_DRAFT_KEY = "antares-employee-create-draft";
+
+/** Elimina el borrador local del formulario de creación de empleado. */
+function clearEmployeeCreateDraft() {
+  try {
+    localStorage.removeItem(EMPLOYEE_CREATE_DRAFT_KEY);
+  } catch (_err) {
+    /* almacenamiento no disponible: el borrador es opcional */
+  }
+}
+
 function switchPayrollLiquidationModePanels(root, mode) {
   if (!root) return false;
   const tabs = [...root.querySelectorAll("[data-action='payroll-liquidation-mode']")];
@@ -1091,8 +1102,40 @@ function bindPayrollPortalControls() {
     employeeForm.querySelector("[data-action='employee-form-save-draft']")?.addEventListener("click", () => {
       try {
         const raw = readFormEntriesNormalized(employeeForm);
-        localStorage.setItem("antares-employee-create-draft", JSON.stringify({ savedAt: Date.now(), fields: raw }));
-        notify("Borrador guardado en este navegador.", "success");
+        // El formulario precarga varios campos con valores por defecto (salario mínimo,
+        // auxilio de transporte, contadores en 0, "No" en enfermedad…). Esos valores por
+        // sí solos no representan datos diligenciados, así que no deben habilitar el
+        // guardado de un borrador vacío.
+        const draftDefaultValues = {
+          hasIllness: "no",
+          baseSalary: String(CO_HR_RULES.minMonthlySalary),
+          transportAllowance: String(CO_HR_RULES.transportAllowance),
+          comparendos: "0",
+          experienceYears: "0"
+        };
+        const ignoredDraftKeys = new Set(["avatarUrl", "avatarFile", "workSchedule"]);
+        const meaningfulFields = Object.entries(raw).filter(([key, value]) => {
+          if (ignoredDraftKeys.has(key)) return false;
+          const text = String(value ?? "").trim();
+          if (!text) return false;
+          if (draftDefaultValues[key] !== undefined && text === draftDefaultValues[key]) return false;
+          return true;
+        });
+        const draftName = String(raw.name || "").trim();
+        if (!draftName) {
+          // El nombre identifica el borrador (avatar, restauración y lista), por eso es el
+          // mínimo exigible para poder guardar.
+          notify("Diligencie al menos el nombre del colaborador antes de guardar el borrador.", "warn");
+          failPortalField(employeeForm, "name", "Ingrese el nombre del colaborador para guardar el borrador.");
+          return;
+        }
+        if (!meaningfulFields.length) {
+          notify("Complete algún dato del colaborador antes de guardar el borrador.", "warn");
+          failPortalField(employeeForm, "name", "Diligencie al menos un dato para guardar el borrador.");
+          return;
+        }
+        localStorage.setItem(EMPLOYEE_CREATE_DRAFT_KEY, JSON.stringify({ savedAt: Date.now(), fields: raw }));
+        notify(`Borrador de «${draftName}» guardado en este navegador.`, "success");
       } catch (_err) {
         notify("No se pudo guardar el borrador.", "error");
       }
@@ -1108,7 +1151,7 @@ function bindPayrollPortalControls() {
     empNameForAvatar?.addEventListener("input", syncEmpCreateAvatarInitial);
     syncEmpCreateAvatarInitial();
     try {
-      const draftRaw = localStorage.getItem("antares-employee-create-draft");
+      const draftRaw = localStorage.getItem(EMPLOYEE_CREATE_DRAFT_KEY);
       if (draftRaw) {
         const draft = JSON.parse(draftRaw);
         const fields = draft?.fields;
@@ -1264,6 +1307,7 @@ function bindPayrollPortalControls() {
           } catch (_err) {
             return;
           }
+          clearEmployeeCreateDraft();
           notify(userMessage("employeeRequestQueued"), "info");
           collapseCreatePanel("create-employee");
           renderPortalView();
@@ -1317,6 +1361,7 @@ function bindPayrollPortalControls() {
           };
           persistHrWorkspace("payroll", "data");
           collapseCreatePanel("create-employee");
+          clearEmployeeCreateDraft();
           renderPortalView();
           return;
         }
@@ -1335,6 +1380,7 @@ function bindPayrollPortalControls() {
         };
         persistHrWorkspace("payroll", "data");
         collapseCreatePanel("create-employee");
+        clearEmployeeCreateDraft();
         notify(
           payload.workerRole === "conductor"
             ? userMessage("employeeCreatedDriverSynced")

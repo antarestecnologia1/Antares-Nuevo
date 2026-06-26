@@ -1140,11 +1140,19 @@ body[data-theme="dark"] #portal-sidebar .sidebar-logout-btn:hover {
 /* ── Drawer móvil ── */
 @media (max-width: 920px) {
   #portal-sidebar.sidebar--rail {
-    padding: 1.1rem 0.9rem 1.25rem;
+    width: min(360px, 88vw);
+    padding: 1.1rem 0.85rem 1.25rem;
     border-radius: 0 24px 24px 0;
     box-shadow:
       20px 0 48px rgba(11, 33, 56, 0.2),
       1px 0 0 rgba(255, 255, 255, 0.5) inset;
+  }
+
+  /* El scroll reserva el carril de la barra para que ningún ítem quede
+     recortado (p. ej. el campanita de Notificaciones) al aparecer el scroll. */
+  #portal-sidebar .sidebar-rail-scroll {
+    padding: 0.1rem 0.35rem 0.4rem 0.15rem;
+    scrollbar-gutter: stable;
   }
 
   #portal-sidebar .sidebar-rail-head {
@@ -1188,9 +1196,39 @@ body[data-theme="dark"] #portal-sidebar .sidebar-logout-btn:hover {
     font-size: 0.9rem;
   }
 
+  /* La barra de cuenta se reacomoda en pantallas estrechas para que el
+     botón "Cerrar sesión" muestre su etiqueta completa sin recortes. */
+  #portal-sidebar .sidebar-account-toolbar {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  #portal-sidebar .sidebar-logout-btn {
+    flex: 1 1 9rem;
+  }
+
+  #portal-sidebar .sidebar-logout-btn__label {
+    overflow: visible;
+    text-overflow: clip;
+  }
+
   #portal-sidebar .side-link {
-    padding: 0.55rem 0.65rem;
+    min-height: 46px;
+    padding: 0.5rem 0.7rem;
+    gap: 0.7rem;
     font-size: 0.9rem;
+  }
+
+  /* En el drawer las etiquetas se ajustan en hasta 2 líneas en vez de
+     recortarse con puntos suspensivos (Cumplimiento laboral y SST, etc.). */
+  #portal-sidebar .side-link__label {
+    white-space: normal;
+    overflow: hidden;
+    text-overflow: clip;
+    line-height: 1.2;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
   }
 
   #portal-sidebar .side-link:hover {
