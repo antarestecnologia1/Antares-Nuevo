@@ -1102,9 +1102,21 @@
     text-align: center;
   }
 
+  .portal-ops-card.trip-ops-card--vehicle .portal-ops-card-status-pill,
+  .portal-ops-card.trip-ops-card--driver .portal-ops-card-status-pill {
+    white-space: nowrap;
+    text-align: left;
+  }
+
   .portal-ops-card-status-pill__text {
     max-width: none;
     white-space: normal;
+  }
+
+  .portal-ops-card.trip-ops-card--vehicle .portal-ops-card-status-pill__text,
+  .portal-ops-card.trip-ops-card--driver .portal-ops-card-status-pill__text {
+    white-space: nowrap;
+    max-width: 7.5rem;
   }
 }
 
@@ -1663,13 +1675,85 @@
   font-size: 0.6rem;
   font-weight: 700;
   line-height: 1.15;
-  white-space: normal;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  white-space: nowrap;
   overflow: hidden;
-  word-break: break-word;
+  text-overflow: ellipsis;
+  display: block;
   text-align: right;
+}
+
+/* Texto siempre horizontal en tarjetas de flota (camiones + conductores) */
+.portal-ops-card.trip-ops-card--vehicle,
+.portal-ops-card.trip-ops-card--driver {
+  writing-mode: horizontal-tb;
+  text-orientation: mixed;
+}
+
+.portal-ops-card.trip-ops-card--vehicle :where(
+  .trip-ops-card-head,
+  .trip-ops-card-head *,
+  .portal-ops-card-badges,
+  .portal-ops-card-badges *,
+  .vehicle-availability-bar,
+  .vehicle-availability-bar *,
+  .driver-trip-bar,
+  .driver-trip-bar *,
+  .driver-availability-bar,
+  .driver-availability-bar *,
+  .trip-ops-card-item,
+  .trip-ops-card-item *,
+  .portal-ops-card-actions,
+  .portal-ops-card-actions *,
+  .portal-ops-card-foot,
+  .portal-ops-card-foot *
+),
+.portal-ops-card.trip-ops-card--driver :where(
+  .trip-ops-card-head,
+  .trip-ops-card-head *,
+  .portal-ops-card-badges,
+  .portal-ops-card-badges *,
+  .vehicle-availability-bar,
+  .vehicle-availability-bar *,
+  .driver-trip-bar,
+  .driver-trip-bar *,
+  .driver-availability-bar,
+  .driver-availability-bar *,
+  .trip-ops-card-item,
+  .trip-ops-card-item *,
+  .portal-ops-card-actions,
+  .portal-ops-card-actions *,
+  .portal-ops-card-foot,
+  .portal-ops-card-foot *
+) {
+  writing-mode: horizontal-tb !important;
+  text-orientation: mixed !important;
+}
+
+.portal-ops-card.trip-ops-card--vehicle .portal-ops-card-doc-pill,
+.portal-ops-card.trip-ops-card--vehicle .vehicle-card-equip-pill,
+.portal-ops-card.trip-ops-card--driver .portal-ops-card-doc-pill,
+.portal-ops-card.trip-ops-card--driver .driver-card-doc-pill {
+  flex-direction: row !important;
+  white-space: nowrap !important;
+  overflow-wrap: normal !important;
+  word-break: normal !important;
+}
+
+.portal-ops-card.trip-ops-card--vehicle .portal-ops-card-doc-pill span,
+.portal-ops-card.trip-ops-card--vehicle .vehicle-card-equip-pill span,
+.portal-ops-card.trip-ops-card--driver .portal-ops-card-doc-pill span,
+.portal-ops-card.trip-ops-card--driver .driver-card-doc-pill span {
+  writing-mode: horizontal-tb !important;
+  text-orientation: mixed !important;
+  transform: none !important;
+}
+
+.portal-ops-card.trip-ops-card--vehicle .portal-ops-card-status-pill,
+.portal-ops-card.trip-ops-card--vehicle .portal-ops-card-status-pill__text,
+.portal-ops-card.trip-ops-card--driver .portal-ops-card-status-pill,
+.portal-ops-card.trip-ops-card--driver .portal-ops-card-status-pill__text {
+  white-space: nowrap !important;
+  writing-mode: horizontal-tb !important;
 }
 
 .portal-ops-card.trip-ops-card--vehicle .vehicle-card-spec-grid,
