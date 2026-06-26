@@ -135,6 +135,31 @@
   --at-text: var(--nx-text); --at-text-2: var(--nx-text-2); --at-text-3: var(--nx-text-3);
   --at-font-ui: var(--nx-font-ui); --at-font-data: var(--nx-font-data);
   --at-r-sm: var(--nx-r-sm); --at-r: var(--nx-r); --at-r-lg: var(--nx-r-lg);
+  --nx-map-bg: linear-gradient(152deg, #fafcff 0%, #f2f7fd 36%, #e9f2fb 68%, #e2edf8 100%);
+  --nx-map-ambient: radial-gradient(ellipse 58% 50% at 16% 80%, rgba(var(--primary-rgb), 0.18), transparent 62%), radial-gradient(ellipse 50% 44% at 90% 18%, rgba(27, 142, 95, 0.14), transparent 58%), radial-gradient(ellipse 72% 58% at 50% 50%, rgba(var(--primary-mid-rgb), 0.09), transparent 74%);
+  --nx-map-head-bg: linear-gradient(to bottom, rgba(255, 255, 255, 0.96) 52%, transparent);
+  --nx-map-title: var(--nx-text-2);
+  --nx-map-vignette: radial-gradient(ellipse 88% 78% at 50% 54%, transparent 44%, rgba(var(--primary-rgb), 0.07) 100%);
+  --nx-map-grid-line: rgba(var(--primary-rgb), 0.11);
+  --nx-map-coords-bg: rgba(255, 255, 255, 0.9);
+  --nx-map-coords-text: var(--nx-text-3);
+  --nx-map-coords-border: rgba(var(--primary-rgb), 0.16);
+  --nx-map-pin-label-bg: rgba(255, 255, 255, 0.94);
+  --nx-map-pin-label-text: var(--nx-text-2);
+  --nx-map-pin-label-border: rgba(var(--primary-rgb), 0.14);
+  --nx-map-empty-text: var(--nx-text-3);
+  --nx-radar-disc-bg: radial-gradient(circle at 42% 38%, rgba(255, 255, 255, 0.98) 0%, rgba(244, 249, 255, 0.92) 48%, rgba(232, 242, 252, 0.82) 100%);
+  --nx-radar-disc-border: rgba(var(--primary-rgb), 0.26);
+  --nx-radar-disc-shadow: 0 10px 36px rgba(var(--primary-rgb), 0.16), 0 2px 8px rgba(15, 43, 74, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  --nx-radar-disc-inset: inset 0 0 28px rgba(var(--primary-rgb), 0.06);
+  --nx-radar-ring: rgba(var(--primary-rgb), 0.22);
+  --nx-radar-ring-dash: rgba(var(--primary-rgb), 0.13);
+  --nx-radar-ring-outer: rgba(27, 142, 95, 0.24);
+  --nx-radar-crosshair: rgba(var(--primary-rgb), 0.14);
+  --nx-radar-sweep-bright: rgba(27, 142, 95, 0.38);
+  --nx-radar-sweep-mid: rgba(var(--primary-rgb), 0.16);
+  --nx-radar-trail: rgba(var(--primary-rgb), 0.08);
+  --nx-radar-glow: 0 0 40px rgba(27, 142, 95, 0.12);
 }
 
 body[data-theme="dark"] .dashboard-studio {
@@ -168,6 +193,31 @@ body[data-theme="dark"] .dashboard-studio {
   --nx-glow-teal: 0 6px 22px rgba(60, 184, 150, 0.18);
   --nx-ambient-opacity: 0.4;
   --nx-card-inset: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --nx-map-bg: linear-gradient(152deg, rgba(24, 36, 54, 0.98) 0%, rgba(18, 30, 46, 0.96) 42%, rgba(14, 24, 38, 0.94) 100%);
+  --nx-map-ambient: radial-gradient(ellipse 58% 50% at 16% 80%, rgba(var(--primary-mid-rgb), 0.2), transparent 62%), radial-gradient(ellipse 50% 44% at 90% 18%, rgba(60, 184, 150, 0.14), transparent 58%), radial-gradient(ellipse 72% 58% at 50% 50%, rgba(var(--primary-rgb), 0.1), transparent 74%);
+  --nx-map-head-bg: linear-gradient(to bottom, rgba(14, 22, 34, 0.94) 52%, transparent);
+  --nx-map-title: var(--nx-text-2);
+  --nx-map-vignette: radial-gradient(ellipse 88% 78% at 50% 54%, transparent 42%, rgba(0, 0, 0, 0.32) 100%);
+  --nx-map-grid-line: rgba(131, 190, 233, 0.08);
+  --nx-map-coords-bg: rgba(12, 20, 32, 0.82);
+  --nx-map-coords-text: rgba(158, 199, 232, 0.72);
+  --nx-map-coords-border: rgba(131, 190, 233, 0.16);
+  --nx-map-pin-label-bg: rgba(12, 20, 32, 0.88);
+  --nx-map-pin-label-text: rgba(232, 244, 252, 0.92);
+  --nx-map-pin-label-border: rgba(131, 190, 233, 0.18);
+  --nx-map-empty-text: rgba(158, 199, 232, 0.55);
+  --nx-radar-disc-bg: radial-gradient(circle at 42% 38%, rgba(28, 42, 62, 0.95) 0%, rgba(20, 32, 50, 0.9) 48%, rgba(14, 24, 38, 0.85) 100%);
+  --nx-radar-disc-border: rgba(60, 184, 150, 0.28);
+  --nx-radar-disc-shadow: 0 10px 36px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --nx-radar-disc-inset: inset 0 0 32px rgba(0, 0, 0, 0.28);
+  --nx-radar-ring: rgba(131, 190, 233, 0.18);
+  --nx-radar-ring-dash: rgba(131, 190, 233, 0.1);
+  --nx-radar-ring-outer: rgba(60, 184, 150, 0.22);
+  --nx-radar-crosshair: rgba(131, 190, 233, 0.12);
+  --nx-radar-sweep-bright: rgba(60, 184, 150, 0.42);
+  --nx-radar-sweep-mid: rgba(131, 190, 233, 0.14);
+  --nx-radar-trail: rgba(60, 184, 150, 0.07);
+  --nx-radar-glow: 0 0 44px rgba(60, 184, 150, 0.14);
 }
 
 .dashboard-studio *, .dashboard-studio *::before, .dashboard-studio *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -563,7 +613,7 @@ body[data-theme="dark"] .at-kpi__icon {
 .at-exec-item span { font-size: 10px; color: var(--nx-text-3); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 500; }
 .at-exec-item strong { font-family: var(--nx-font-data); font-size: 14px; color: var(--nx-text); }
 
-/* ══ MAPA OPERATIVO — radar táctico ══ */
+/* ══ MAPA OPERATIVO — radar integrado al tema ══ */
 .at-command {
   display: grid;
   grid-template-columns: 1.35fr 1fr;
@@ -577,11 +627,17 @@ body[data-theme="dark"] .at-kpi__icon {
   position: relative;
   min-height: 300px;
   overflow: hidden;
-  background:
-    radial-gradient(ellipse 120% 80% at 50% 110%, rgba(27, 142, 95, 0.14), transparent 55%),
-    linear-gradient(165deg, #061220 0%, #0b1e32 38%, #102a44 72%, #153552 100%);
-  border-color: rgba(var(--primary-rgb, 55, 124, 192), 0.22);
-  box-shadow: var(--nx-card-shadow), inset 0 0 80px rgba(0, 0, 0, 0.35);
+  background: var(--nx-map-bg);
+  border-color: color-mix(in srgb, var(--nx-accent) 22%, var(--nx-border));
+  box-shadow: var(--nx-card-shadow), var(--nx-radar-glow);
+}
+.at-map::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--nx-map-ambient);
+  pointer-events: none;
+  z-index: 0;
 }
 .at-map__head {
   position: absolute;
@@ -591,7 +647,9 @@ body[data-theme="dark"] .at-kpi__icon {
   justify-content: space-between;
   align-items: center;
   z-index: 4;
-  background: linear-gradient(to bottom, rgba(6, 18, 32, 0.92) 50%, transparent);
+  background: var(--nx-map-head-bg);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 .at-map__title {
   font-family: var(--nx-font-display);
@@ -599,20 +657,20 @@ body[data-theme="dark"] .at-kpi__icon {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.14em;
-  color: rgba(255, 255, 255, 0.72);
+  color: var(--nx-map-title);
 }
 .at-live-badge {
   display: flex; align-items: center; gap: 7px;
   font-family: var(--nx-font-data);
   font-size: 10px;
   letter-spacing: 0.14em;
-  color: #5dcaab;
+  color: var(--nx-live);
   font-weight: 600;
   padding: 5px 12px;
-  background: rgba(27, 142, 95, 0.18);
-  border: 1px solid rgba(60, 184, 150, 0.35);
+  background: var(--nx-live-low);
+  border: 1px solid color-mix(in srgb, var(--nx-live) 32%, transparent);
   border-radius: 999px;
-  box-shadow: 0 0 16px rgba(27, 142, 95, 0.2);
+  box-shadow: var(--nx-glow-teal);
 }
 .at-live-pulse {
   width: 7px; height: 7px;
@@ -627,7 +685,7 @@ body[data-theme="dark"] .at-kpi__icon {
   content: "";
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse at 50% 52%, transparent 38%, rgba(0, 0, 0, 0.48) 100%);
+  background: var(--nx-map-vignette);
   pointer-events: none;
   z-index: 2;
 }
@@ -646,13 +704,18 @@ body[data-theme="dark"] .at-kpi__icon {
   aspect-ratio: 1;
   border-radius: 50%;
   overflow: hidden;
-  border: 1px solid rgba(60, 184, 150, 0.24);
-  background:
-    radial-gradient(circle at center, rgba(60, 184, 150, 0.1) 0%, transparent 58%),
-    radial-gradient(circle at center, rgba(131, 190, 233, 0.04) 0%, transparent 100%);
-  box-shadow:
-    0 0 48px rgba(60, 184, 150, 0.1),
-    inset 0 0 36px rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--nx-radar-disc-border);
+  background: var(--nx-radar-disc-bg);
+  box-shadow: var(--nx-radar-disc-shadow);
+  animation: nx-radar-breathe 5s ease-in-out infinite;
+}
+.nx-radar__disc::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: var(--nx-radar-disc-inset);
+  pointer-events: none;
 }
 .nx-radar__ring {
   position: absolute;
@@ -660,17 +723,17 @@ body[data-theme="dark"] .at-kpi__icon {
   left: 50%;
   transform: translate(-50%, -50%);
   border-radius: 50%;
-  border: 1px solid rgba(131, 190, 233, 0.16);
+  border: 1px solid var(--nx-radar-ring);
   aspect-ratio: 1;
   pointer-events: none;
 }
 .nx-radar__ring--1 { width: 28%; }
-.nx-radar__ring--2 { width: 52%; border-style: dashed; border-color: rgba(131, 190, 233, 0.1); }
+.nx-radar__ring--2 { width: 52%; border-style: dashed; border-color: var(--nx-radar-ring-dash); }
 .nx-radar__ring--3 { width: 76%; }
 .nx-radar__ring--4 {
   width: 96%;
-  border-color: rgba(60, 184, 150, 0.18);
-  box-shadow: 0 0 12px rgba(60, 184, 150, 0.06);
+  border-color: var(--nx-radar-ring-outer);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--nx-live) 12%, transparent);
 }
 .nx-radar__crosshair {
   position: absolute;
@@ -681,7 +744,7 @@ body[data-theme="dark"] .at-kpi__icon {
 .nx-radar__crosshair::after {
   content: "";
   position: absolute;
-  background: rgba(131, 190, 233, 0.1);
+  background: var(--nx-radar-crosshair);
 }
 .nx-radar__crosshair::before {
   top: 50%;
@@ -701,12 +764,12 @@ body[data-theme="dark"] .at-kpi__icon {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   transform: translate(-50%, -50%);
   border-radius: 50%;
-  background: rgba(60, 184, 150, 0.9);
-  box-shadow: 0 0 0 3px rgba(60, 184, 150, 0.22), 0 0 14px rgba(60, 184, 150, 0.45);
+  background: var(--nx-live);
+  box-shadow: 0 0 0 3px var(--nx-live-mid), 0 0 16px color-mix(in srgb, var(--nx-live) 45%, transparent);
 }
 .nx-radar__sweep {
   position: absolute;
@@ -715,12 +778,12 @@ body[data-theme="dark"] .at-kpi__icon {
   background: conic-gradient(
     from 0deg at 50% 50%,
     transparent 0deg,
-    rgba(60, 184, 150, 0.42) 10deg,
-    rgba(60, 184, 150, 0.14) 26deg,
+    var(--nx-radar-sweep-bright) 10deg,
+    var(--nx-radar-sweep-mid) 26deg,
     transparent 40deg
   );
   animation: nx-radar-sweep 4.5s linear infinite;
-  opacity: 0.9;
+  opacity: 0.92;
 }
 .nx-radar__trail {
   position: absolute;
@@ -729,20 +792,24 @@ body[data-theme="dark"] .at-kpi__icon {
   background: conic-gradient(
     from 0deg at 50% 50%,
     transparent 0deg,
-    rgba(60, 184, 150, 0.06) 55deg,
+    var(--nx-radar-trail) 55deg,
     transparent 70deg
   );
   animation: nx-radar-sweep 4.5s linear infinite;
-  opacity: 0.55;
+  opacity: 0.65;
 }
 
 @keyframes nx-radar-sweep {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
+@keyframes nx-radar-breathe {
+  0%, 100% { box-shadow: var(--nx-radar-disc-shadow); }
+  50% { box-shadow: var(--nx-radar-disc-shadow), 0 0 28px color-mix(in srgb, var(--nx-live) 14%, transparent); }
+}
 @keyframes nx-live-pulse {
   0%, 100% { box-shadow: 0 0 0 3px var(--nx-live-mid); opacity: 1; }
-  50% { box-shadow: 0 0 0 7px rgba(60, 184, 150, 0.08); opacity: 0.82; }
+  50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--nx-live) 10%, transparent); opacity: 0.82; }
 }
 
 .at-map__grid {
@@ -750,10 +817,10 @@ body[data-theme="dark"] .at-kpi__icon {
   inset: 0;
   z-index: 0;
   background-image:
-    linear-gradient(rgba(131, 190, 233, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(131, 190, 233, 0.05) 1px, transparent 1px);
+    linear-gradient(var(--nx-map-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--nx-map-grid-line) 1px, transparent 1px);
   background-size: 40px 40px;
-  opacity: 0.42;
+  opacity: 0.5;
   mask-image: radial-gradient(ellipse 85% 75% at 50% 55%, #000 30%, transparent 78%);
   -webkit-mask-image: radial-gradient(ellipse 85% 75% at 50% 55%, #000 30%, transparent 78%);
 }
@@ -762,13 +829,15 @@ body[data-theme="dark"] .at-kpi__icon {
   bottom: 12px; left: 16px;
   font-family: var(--nx-font-data);
   font-size: 9px;
-  color: rgba(255, 255, 255, 0.48);
+  color: var(--nx-map-coords-text);
   letter-spacing: 0.08em;
   z-index: 4;
   padding: 4px 10px;
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--nx-map-coords-bg);
   border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--nx-map-coords-border);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 
 .at-map-pin {
@@ -792,26 +861,31 @@ body[data-theme="dark"] .at-kpi__icon {
   border: 2px solid;
   position: relative;
   backdrop-filter: blur(4px);
+  background: var(--nx-card-bg);
 }
 .at-map-pin--live .at-map-pin__ico {
   background: var(--nx-live-low);
   border-color: var(--nx-live);
-  box-shadow: 0 2px 12px var(--nx-teal-glow);
+  box-shadow: 0 2px 12px var(--nx-teal-glow), 0 0 0 4px color-mix(in srgb, var(--nx-live) 12%, transparent);
 }
 .at-map-pin--alert .at-map-pin__ico {
   background: var(--nx-red-low);
   border-color: var(--nx-red);
+  box-shadow: 0 2px 12px color-mix(in srgb, var(--nx-red) 22%, transparent);
 }
 .at-map-pin__label {
   font-family: var(--nx-font-data);
   font-size: 9px;
   font-weight: 600;
-  background: rgba(6, 18, 32, 0.82);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.88);
+  background: var(--nx-map-pin-label-bg);
+  border: 1px solid var(--nx-map-pin-label-border);
+  color: var(--nx-map-pin-label-text);
   padding: 3px 7px;
   border-radius: 6px;
   white-space: nowrap;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  box-shadow: 0 2px 8px rgba(15, 43, 74, 0.08);
 }
 .at-map-empty {
   position: absolute;
@@ -821,11 +895,11 @@ body[data-theme="dark"] .at-kpi__icon {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--nx-map-empty-text);
   font-size: 13px;
   z-index: 3;
 }
-.at-map-empty__icon { font-size: 36px; opacity: 0.35; filter: drop-shadow(0 4px 12px rgba(0,0,0,0.4)); }
+.at-map-empty__icon { font-size: 36px; opacity: 0.45; filter: drop-shadow(0 4px 12px rgba(var(--primary-rgb), 0.15)); }
 
 /* Alerts stack */
 .nx-alerts-stack { display: flex; flex-direction: column; gap: 12px; }
@@ -1564,7 +1638,7 @@ body[data-theme="dark"] .at-kpi__icon {
 
 @media (prefers-reduced-motion: reduce) {
   .at-fleet-pie, .at-ring-fg, .at-hour-fill, .at-compliance-bar-fill { transition: none; }
-  .nx-radar__sweep, .nx-radar__trail, .at-live-pulse { animation: none; }
+  .nx-radar__sweep, .nx-radar__trail, .at-live-pulse, .nx-radar__disc { animation: none; }
 }
   `;
 

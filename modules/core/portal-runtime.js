@@ -8680,16 +8680,17 @@ function buildReportExportHtml(title, columns = [], rows = [], meta = {}) {
           (row) =>
             `<tr>${colMeta
               .map((col) => {
-                const classes = ["td", `td-${col.type}`];
-                if (["currency", "number", "percent"].includes(col.type)) classes.push("is-numeric");
+                const cellType = reportPreviewResolveCellType(col, row, row[col.key]);
+                const classes = ["td", `td-${cellType}`];
+                if (["currency", "number", "percent"].includes(cellType)) classes.push("is-numeric");
                 if (col.pinned) classes.push("is-primary");
-                const display = reportsBiExcelEsc(reportPreviewFormatValue(row[col.key], col.type));
+                const display = reportsBiExcelEsc(reportPreviewFormatValue(row[col.key], cellType));
                 if (display === "—") return `<td class="${classes.join(" ")}"><span class="empty-value">—</span></td>`;
-                if (["status", "risk", "boolean", "tag"].includes(col.type)) {
-                  return `<td class="${classes.join(" ")}"><span class="pill pill-${reportPreviewTone(col.type, row[col.key])}">${display}</span></td>`;
+                if (["status", "risk", "boolean", "tag"].includes(cellType)) {
+                  return `<td class="${classes.join(" ")}"><span class="pill pill-${reportPreviewTone(cellType, row[col.key])}">${display}</span></td>`;
                 }
-                if (col.type === "id") return `<td class="${classes.join(" ")}"><span class="code">${display}</span></td>`;
-                if (col.type === "longtext") return `<td class="${classes.join(" ")}"><span class="note">${display}</span></td>`;
+                if (cellType === "id") return `<td class="${classes.join(" ")}"><span class="code">${display}</span></td>`;
+                if (cellType === "longtext") return `<td class="${classes.join(" ")}"><span class="note">${display}</span></td>`;
                 return `<td class="${classes.join(" ")}">${display}</td>`;
               })
               .join("")}</tr>`
@@ -8853,11 +8854,12 @@ function renderReportPreviewTableHtml(columns = [], rows = []) {
           (row, rowIndex) =>
             `<tr>${colMeta
               .map((col) => {
-                const classes = ["report-preview-cell", `report-preview-cell--${col.type}`];
-                if (["currency", "number", "percent"].includes(col.type)) classes.push("is-numeric");
+                const cellType = reportPreviewResolveCellType(col, row, row[col.key]);
+                const classes = ["report-preview-cell", `report-preview-cell--${cellType}`];
+                if (["currency", "number", "percent"].includes(cellType)) classes.push("is-numeric");
                 if (col.pinned) classes.push("is-primary");
                 if (col.key) classes.push(`report-preview-cell--${String(col.key).toLowerCase()}`);
-                return `<td class="${classes.join(" ")}">${reportPreviewCellInnerHtml(row[col.key], col.type, { columnKey: col.key, rowIndex })}</td>`;
+                return `<td class="${classes.join(" ")}">${reportPreviewCellInnerHtml(row[col.key], cellType, { columnKey: col.key, rowIndex, row, column: col })}</td>`;
               })
               .join("")}</tr>`
         )
@@ -8868,7 +8870,7 @@ function renderReportPreviewTableHtml(columns = [], rows = []) {
 
 function ensureReportPreviewModal() {
   let modal = document.getElementById("report-preview-modal");
-  if (modal && !modal.querySelector(".report-preview-footer-icon")) {
+  if (modal && (!modal.querySelector(".report-preview-footer-icon") || modal.querySelector(".report-preview-close-primary__icon"))) {
     modal.remove();
     modal = null;
   }
@@ -8909,7 +8911,7 @@ function ensureReportPreviewModal() {
       secondaryHtml: `<button type="button" class="btn btn-sm report-preview-export-btn report-preview-export-btn--pdf module-panel-btn" data-action="report-preview-download-pdf"><span class="report-preview-export-btn__icon">${IC.file}</span> PDF</button>
         <button type="button" class="btn btn-sm report-preview-export-btn report-preview-export-btn--excel module-panel-btn" data-action="report-preview-download-excel"><span class="report-preview-export-btn__icon">${IC.file}</span> Excel</button>
         <button type="button" class="btn btn-sm report-preview-export-btn report-preview-export-btn--print module-panel-btn" data-action="report-preview-print"><span class="report-preview-export-btn__icon">${IC.printer}</span> Imprimir</button>`,
-      primaryHtml: `<button type="button" class="btn btn-primary btn-sm report-preview-close-primary module-panel-btn" data-action="report-preview-close"><span class="report-preview-close-primary__icon">${IC.x}</span> Cerrar</button>`
+      primaryHtml: `<button type="button" class="btn btn-primary btn-sm report-preview-close-primary module-panel-btn" data-action="report-preview-close">${IC.x} Cerrar</button>`
     })}
   </div>`;
   document.body.appendChild(modal);
@@ -9144,8 +9146,8 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
       { metric: "Solicitudes totales", value: requests.length, detail: "Acumulado histórico", category: "Operación" },
       { metric: "Solicitudes pendientes", value: pendingApprovals, detail: "Esperando gestión operativa", category: "Operación" },
       { metric: "Viajes cerrados", value: closedTrips.length, detail: `${trips.length} viajes creados`, category: "Operación" },
-      { metric: "Ingresos operativos estimados", value: `$${parseNum(totalRevenue).toLocaleString("es-CO")}`, detail: "Incluye standby e invoice", category: "Finanzas" },
-      { metric: "Nómina neta pagada", value: `$${parseNum(paidPayroll).toLocaleString("es-CO")}`, detail: `${payrollRuns.length} liquidaciones`, category: "Finanzas" },
+      { metric: "Ingresos operativos estimados", value: totalRevenue, detail: "Incluye standby e invoice", category: "Finanzas" },
+      { metric: "Nómina neta pagada", value: paidPayroll, detail: `${payrollRuns.length} liquidaciones`, category: "Finanzas" },
       { metric: "Contratos emitidos", value: contracts.length, detail: "Formalización laboral", category: "RRHH" },
       { metric: "Controles SST activos", value: sstControls.length, detail: "Seguridad social y documental", category: "Cumplimiento" },
       { metric: "Aprobaciones abiertas", value: openApprovals, detail: "Solicitudes por decidir", category: "Gobierno" }

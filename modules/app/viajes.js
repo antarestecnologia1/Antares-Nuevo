@@ -168,6 +168,16 @@ function transportTripsHtml() {
     return new Date(rSafePickup(a)).getTime() - new Date(rSafePickup(b)).getTime();
   });
 
+  const buildTripOpsCardGridItem = (label, icon, value, extraClass = "", trailing = "") =>
+    `<div class="trip-ops-card-item${extraClass ? ` ${extraClass}` : ""}">
+      <span class="trip-ops-card-item-label">${escapeHtml(label)}</span>
+      <div class="trip-ops-card-item-body">
+        <span class="trip-ops-card-item-icon" aria-hidden="true">${icon}</span>
+        <span class="trip-ops-card-item-value" title="${escapeAttr(String(value))}">${escapeHtml(String(value))}</span>
+        ${trailing}
+      </div>
+    </div>`;
+
   const buildTripOpsCard = (r) => {
     const standby = parseNum(r.standbyChargeTotal);
     const originCity = String(r.originCity || r.originDepartment || "Origen").trim() || "Origen";
@@ -180,50 +190,98 @@ function transportTripsHtml() {
     const tripValueFmt = `$${parseNum(r.tripValue || 0).toLocaleString("es-CO")}`;
     const isClosed = [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status);
     const transitions = [r.status, ...(STATUS_TRANSITIONS[r.status] || [])];
-    const statusSelectHtml = transitions.length > 1
-      ? `<label class="trip-status-control trip-ops-card-status-control">
-          <span>${IC.activity} Cambiar estado</span>
-          <select class="trip-status-select trip-status-select--${escapeAttr(statusSlug)}" data-action="trip-status" data-id="${escapeAttr(String(r.id || ""))}" data-current-status="${escapeAttr(String(r.status || ""))}">
-            ${transitions.map((s) => `<option value="${escapeAttr(s)}" ${r.status === s ? "selected" : ""}>${escapeHtml(tripStatusOptionLabel(s))}</option>`).join("")}
-          </select>
-        </label>`
+    const statusLabel = prettyStatus(r.status, "trip");
+    const tripNo = String(r.trip?.tripNumber || "-");
+    const reqNo = String(r.requestNumber || r.id || "-");
+    const createdLabel = fmtDate(r.createdAt || "") || "—";
+    const recordId = String(r.id || "—");
+    const statusBadgeHtml = `<span class="trip-ops-card-badge trip-ops-card-badge--${escapeAttr(statusSlug)}" role="status">
+      <span class="trip-ops-card-badge-icon" aria-hidden="true">${IC.truck}</span>
+      <span class="trip-ops-card-badge-text">${escapeHtml(statusLabel)}</span>
+      <span class="trip-ops-card-badge-dot" aria-hidden="true"></span>
+    </span>`;
+    const statusBlockHtml =
+      transitions.length > 1
+        ? `<div class="trip-ops-card-status-block">
+            <p class="trip-ops-card-status-label">${IC.activity}<span>Estado del viaje</span></p>
+            <label class="trip-ops-card-status-picker trip-ops-card-status-picker--${escapeAttr(statusSlug)}">
+              <span class="trip-ops-card-status-picker-leading" aria-hidden="true">${IC.truck}</span>
+              <select class="trip-status-select trip-status-select--${escapeAttr(statusSlug)}" data-action="trip-status" data-id="${escapeAttr(String(r.id || ""))}" data-current-status="${escapeAttr(String(r.status || ""))}" aria-label="Cambiar estado del viaje">
+                ${transitions.map((s) => `<option value="${escapeAttr(s)}" ${r.status === s ? "selected" : ""}>${escapeHtml(tripStatusOptionLabel(s))}</option>`).join("")}
+              </select>
+              <span class="trip-ops-card-status-picker-chevron" aria-hidden="true">${IC.chevronDown}</span>
+            </label>
+          </div>`
+        : `<div class="trip-ops-card-status-block">
+            <p class="trip-ops-card-status-label">${IC.activity}<span>Estado del viaje</span></p>
+            <div class="trip-ops-card-status-picker trip-ops-card-status-picker--static trip-ops-card-status-picker--${escapeAttr(statusSlug)}" role="status">
+              <span class="trip-ops-card-status-picker-leading" aria-hidden="true">${IC.truck}</span>
+              <span class="trip-ops-card-status-picker-value">${escapeHtml(statusLabel)}</span>
+            </div>
+          </div>`;
+    const primaryActions = [
+      `<button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--outline" data-action="trip-detail" data-id="${escapeAttr(String(r.id || ""))}" title="Ficha del viaje">${IC.truck} Viaje</button>`,
+      `<button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--solid" data-action="detail" data-id="${escapeAttr(String(r.id || ""))}" title="Detalle de la solicitud">${IC.eye} Solicitud</button>`,
+      canAdminEditTrip(r)
+        ? `<button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--soft" data-action="edit-trip" data-id="${escapeAttr(String(r.id || ""))}" title="Editar viaje">${IC.edit} Editar</button>`
+        : "",
+      isClosed
+        ? `<button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--soft" data-action="trip-invoice" data-id="${escapeAttr(String(r.id || ""))}" title="Generar factura">${IC.file} Factura</button>`
+        : ""
+    ]
+      .filter(Boolean)
+      .join("");
+    const dangerAction = isAdmin
+      ? `<button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--danger" data-action="delete-trip" data-id="${escapeAttr(String(r.id || ""))}" title="Eliminar viaje">${IC.trash} Eliminar</button>`
       : "";
+    const driverChevron =
+      r.trip?.driverName
+        ? `<span class="trip-ops-card-item-chevron" aria-hidden="true">${IC.chevronRight}</span>`
+        : "";
     return `<article class="trip-ops-card trip-ops-card--${escapeAttr(statusSlug)}" data-trip-id="${escapeAttr(String(r.id || ""))}">
       <header class="trip-ops-card-head">
         <div class="trip-ops-card-head-info">
-          <p class="trip-ops-card-kicker">Viaje ${escapeHtml(String(r.trip?.tripNumber || "-"))} · Solicitud ${escapeHtml(String(r.requestNumber || r.id || "-"))}</p>
+          <p class="trip-ops-card-kicker">Viaje ${escapeHtml(tripNo)} · Solicitud #${escapeHtml(reqNo)}</p>
           <h4 class="trip-ops-card-title" title="${escapeAttr(clientName)}">${escapeHtml(clientName)}</h4>
         </div>
-        <span class="trip-ops-card-status trip-ops-card-status--${escapeAttr(statusSlug)}">${prettyStatus(r.status, "trip")}</span>
+        ${statusBadgeHtml}
       </header>
       <div class="trip-ops-card-route">
-        <span class="trip-ops-card-route-node trip-ops-card-route-node--origin" title="${escapeAttr(originCity)}">
-          <span class="trip-ops-card-route-dot" aria-hidden="true"></span>
+        <div class="trip-ops-card-route-node trip-ops-card-route-node--origin" title="${escapeAttr(originCity)}">
           <span class="trip-ops-card-route-label">Origen</span>
-          <strong>${escapeHtml(originCity)}</strong>
+          <span class="trip-ops-card-route-city">
+            <span class="trip-ops-card-route-pin" aria-hidden="true">${IC.mapPin}</span>
+            <strong>${escapeHtml(originCity)}</strong>
+          </span>
+        </div>
+        <span class="trip-ops-card-route-connector" aria-hidden="true">
+          <span class="trip-ops-card-route-line"></span>
+          <span class="trip-ops-card-route-arrow">${IC.chevronRight}</span>
         </span>
-        <span class="trip-ops-card-route-arrow" aria-hidden="true">→</span>
-        <span class="trip-ops-card-route-node trip-ops-card-route-node--dest" title="${escapeAttr(destinationCity)}">
-          <span class="trip-ops-card-route-dot" aria-hidden="true"></span>
+        <div class="trip-ops-card-route-node trip-ops-card-route-node--dest" title="${escapeAttr(destinationCity)}">
           <span class="trip-ops-card-route-label">Destino</span>
-          <strong>${escapeHtml(destinationCity)}</strong>
-        </span>
+          <span class="trip-ops-card-route-city">
+            <span class="trip-ops-card-route-pin" aria-hidden="true">${IC.mapPin}</span>
+            <strong>${escapeHtml(destinationCity)}</strong>
+          </span>
+        </div>
       </div>
-      <dl class="trip-ops-card-grid">
-        <div class="trip-ops-card-item"><dt>${IC.truck}<span>Camión</span></dt><dd title="${escapeAttr(plate)}">${escapeHtml(plate)}</dd></div>
-        <div class="trip-ops-card-item"><dt>${IC.user}<span>Conductor</span></dt><dd title="${escapeAttr(driverName)}">${escapeHtml(driverName)}</dd></div>
-        <div class="trip-ops-card-item"><dt>${IC.calendar}<span>Recogida</span></dt><dd title="${escapeAttr(pickupLabel)}">${escapeHtml(pickupLabel)}</dd></div>
-        <div class="trip-ops-card-item trip-ops-card-item--value"><dt>${IC.dollar}<span>Tarifa</span></dt><dd>${tripValueFmt}</dd></div>
-      </dl>
+      <div class="trip-ops-card-grid">
+        ${buildTripOpsCardGridItem("Camión", IC.truck, plate)}
+        ${buildTripOpsCardGridItem("Conductor", IC.user, driverName, "", driverChevron)}
+        ${buildTripOpsCardGridItem("Recogida", IC.calendar, pickupLabel)}
+        ${buildTripOpsCardGridItem("Tarifa", IC.dollar, tripValueFmt, "trip-ops-card-item--value")}
+      </div>
       ${standby > 0 ? `<p class="trip-ops-card-standby">${IC.clock || ""}<span>Standby acumulado: <strong>$${standby.toLocaleString("es-CO")}</strong></span></p>` : ""}
-      ${statusSelectHtml}
-      <div class="toolbar trip-ops-card-actions">
-        <button class="btn btn-sm btn-outline" data-action="trip-detail" data-id="${r.id}" title="Ficha del viaje: vehículo, conductor, horarios y standby">${IC.truck} Viaje</button>
-        <button class="btn btn-sm btn-action" data-action="detail" data-id="${r.id}" title="Detalle completo de la solicitud asociada">${IC.eye} Solicitud</button>
-        ${canAdminEditTrip(r) ? `<button class="btn btn-sm btn-action" data-action="edit-trip" data-id="${r.id}" title="Editar vehículo, conductor o fechas estimadas">${IC.edit} Editar</button>` : ""}
-        ${isClosed ? `<button class="btn btn-sm btn-approve" data-action="trip-invoice" data-id="${r.id}" title="Generar factura PDF del viaje">${IC.file} Factura</button>` : ""}
-        ${isAdmin ? `<button class="btn btn-sm btn-reject" data-action="delete-trip" data-id="${r.id}" title="Solo administradores: eliminar el viaje">${IC.trash} Eliminar</button>` : ""}
+      ${statusBlockHtml}
+      <div class="trip-ops-card-actions">
+        <div class="trip-ops-card-actions-primary">${primaryActions}</div>
+        ${dangerAction}
       </div>
+      <footer class="trip-ops-card-foot">
+        <span class="trip-ops-card-foot-created">${IC.clock}<span>Creado ${escapeHtml(createdLabel)}</span></span>
+        <span class="trip-ops-card-foot-id">ID: ${escapeHtml(recordId)}</span>
+      </footer>
     </article>`;
   };
 

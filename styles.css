@@ -8439,6 +8439,423 @@ body[data-theme="dark"] .trip-ops-card--vehicle .vehicle-occupancy-note {
   color: #dbeafe;
 }
 
+/* ── Tarjeta de camión (flota) — interfaz detallada ── */
+.trip-ops-card--vehicle {
+  gap: 0.8rem;
+  padding: 1.05rem 1.1rem 0.9rem;
+}
+
+.trip-ops-card-head--vehicle {
+  align-items: flex-start;
+}
+
+.trip-ops-card-head--vehicle .trip-ops-card-head-main {
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.vehicle-plate-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 4.35rem;
+  min-height: 3.35rem;
+  padding: 0.35rem 0.28rem 0.32rem;
+  border-radius: 10px;
+  border: 2px solid #1a1a1a;
+  background: linear-gradient(180deg, #fff9c4 0%, #ffeb3b 38%, #fdd835 72%, #f9a825 100%);
+  box-shadow:
+    0 2px 0 rgba(15, 23, 42, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  color: #0a0a0a;
+}
+
+.vehicle-plate-badge__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.vehicle-plate-badge__icon svg {
+  width: 0.95rem;
+  height: 0.95rem;
+  color: #0a0a0a;
+}
+
+.vehicle-plate-badge__text {
+  display: block;
+  margin-top: 0.12rem;
+  font-family: "Roboto", "Arial Narrow", "Helvetica Neue", sans-serif;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  line-height: 1.05;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.trip-ops-card-head--vehicle .trip-ops-card-kicker {
+  margin-bottom: 0.18rem;
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #6b7f96;
+}
+
+.trip-ops-card--vehicle .vehicle-plate-title {
+  font-size: 1.12rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #0d2f5c;
+  -webkit-line-clamp: 2;
+}
+
+.vehicle-card-year {
+  margin: 0.18rem 0 0;
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1.15;
+  color: #0d2f5c;
+}
+
+.vehicle-card-badges {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+  flex: 0 0 auto;
+}
+
+.vehicle-card-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.34rem 0.62rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #ffffff;
+  white-space: nowrap;
+}
+
+.vehicle-card-status-pill__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.28);
+  flex: 0 0 auto;
+}
+
+.vehicle-card-status-pill--disponible {
+  background: linear-gradient(135deg, #16a34a, #22c55e);
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.28);
+}
+
+.vehicle-card-status-pill--ocupado {
+  background: linear-gradient(135deg, #c2410c, #ea580c);
+  box-shadow: 0 4px 12px rgba(234, 88, 12, 0.24);
+}
+
+.vehicle-card-status-pill--reservado {
+  background: linear-gradient(135deg, #4f46e5, #6366f1);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.24);
+}
+
+.vehicle-card-status-pill--no-disponible {
+  background: linear-gradient(135deg, #b45309, #d97706);
+  box-shadow: 0 4px 12px rgba(217, 119, 6, 0.24);
+}
+
+.vehicle-card-equip-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  padding: 0.28rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.16), rgba(16, 185, 129, 0.08));
+  color: #047857;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.vehicle-card-equip-pill__icon {
+  font-size: 0.72rem;
+  line-height: 1;
+}
+
+.vehicle-availability-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.68rem 0.8rem;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  min-width: 0;
+}
+
+.vehicle-availability-bar--disponible {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.14), rgba(16, 185, 129, 0.06));
+  border-color: rgba(16, 185, 129, 0.28);
+}
+
+.vehicle-availability-bar--ocupado {
+  background: linear-gradient(135deg, rgba(234, 88, 12, 0.14), rgba(234, 88, 12, 0.06));
+  border-color: rgba(234, 88, 12, 0.28);
+}
+
+.vehicle-availability-bar--reservado {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.14), rgba(99, 102, 241, 0.06));
+  border-color: rgba(99, 102, 241, 0.28);
+}
+
+.vehicle-availability-bar--no-disponible {
+  background: linear-gradient(135deg, rgba(217, 119, 6, 0.14), rgba(217, 119, 6, 0.06));
+  border-color: rgba(217, 119, 6, 0.28);
+}
+
+.vehicle-availability-bar__main {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.vehicle-availability-bar__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: #16a34a;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.18);
+}
+
+.vehicle-availability-bar--ocupado .vehicle-availability-bar__dot {
+  background: #ea580c;
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.18);
+}
+
+.vehicle-availability-bar--reservado .vehicle-availability-bar__dot {
+  background: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
+}
+
+.vehicle-availability-bar--no-disponible .vehicle-availability-bar__dot {
+  background: #d97706;
+  box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.18);
+}
+
+.vehicle-availability-bar__copy {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.vehicle-availability-bar__copy strong {
+  font-size: 0.84rem;
+  font-weight: 800;
+  color: #0f5132;
+  line-height: 1.2;
+}
+
+.vehicle-availability-bar--ocupado .vehicle-availability-bar__copy strong {
+  color: #9a3412;
+}
+
+.vehicle-availability-bar--reservado .vehicle-availability-bar__copy strong {
+  color: #3730a3;
+}
+
+.vehicle-availability-bar--no-disponible .vehicle-availability-bar__copy strong {
+  color: #92400e;
+}
+
+.vehicle-availability-bar__detail {
+  font-size: 0.72rem;
+  color: #64748b;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vehicle-availability-bar__update {
+  display: grid;
+  gap: 0.12rem;
+  justify-items: end;
+  text-align: right;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.vehicle-availability-bar__update-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  font-size: 0.64rem;
+  font-weight: 600;
+  color: #6b7f96;
+  white-space: nowrap;
+}
+
+.vehicle-availability-bar__update-label svg {
+  width: 0.8rem;
+  height: 0.8rem;
+  flex: 0 0 auto;
+}
+
+.vehicle-availability-bar__update strong {
+  font-size: 0.76rem;
+  font-weight: 800;
+  color: #0d2f5c;
+  white-space: nowrap;
+}
+
+.vehicle-card-spec-grid {
+  gap: 0.5rem;
+}
+
+.vehicle-card-spec-grid .trip-ops-card-item {
+  background: #f8fafc;
+  border-color: #edf1f5;
+}
+
+.trip-ops-card-item-value--ok {
+  color: #16a34a !important;
+}
+
+.trip-ops-card-item-value--warn {
+  color: #d97706 !important;
+}
+
+.trip-ops-card-item-value--alert {
+  color: #dc2626 !important;
+}
+
+.vehicle-card-actions {
+  padding-top: 0.1rem;
+}
+
+.vehicle-card-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.vehicle-card-actions-grid .trip-ops-card-btn {
+  width: 100%;
+  min-height: 2.35rem;
+  padding: 0.5rem 0.55rem;
+  font-size: 0.74rem;
+}
+
+.trip-ops-card-foot-id {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.vehicle-card-copy-id {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #8a96a8;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.vehicle-card-copy-id:hover {
+  background: #eef1f5;
+  color: #1d63d3;
+}
+
+.vehicle-card-copy-id svg {
+  width: 0.8rem;
+  height: 0.8rem;
+}
+
+.vehicle-ops-cards {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr));
+}
+
+@media (max-width: 520px) {
+  .trip-ops-card-head--vehicle {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .vehicle-card-badges {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+  }
+
+  .vehicle-availability-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .vehicle-availability-bar__update {
+    justify-items: start;
+    text-align: left;
+  }
+
+  .vehicle-card-actions-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+body[data-theme="dark"] .vehicle-plate-badge {
+  border-color: #334155;
+}
+
+body[data-theme="dark"] .trip-ops-card--vehicle .vehicle-plate-title,
+body[data-theme="dark"] .vehicle-card-year,
+body[data-theme="dark"] .vehicle-availability-bar__update strong {
+  color: #e6f1ff;
+}
+
+body[data-theme="dark"] .vehicle-card-spec-grid .trip-ops-card-item {
+  background: rgba(15, 28, 46, 0.55);
+  border-color: rgba(148, 196, 255, 0.12);
+}
+
+body[data-theme="dark"] .vehicle-availability-bar--disponible {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.18), rgba(16, 185, 129, 0.08));
+  border-color: rgba(16, 185, 129, 0.28);
+}
+
+body[data-theme="dark"] .vehicle-availability-bar--disponible .vehicle-availability-bar__copy strong {
+  color: #6ee7b7;
+}
+
+body[data-theme="dark"] .vehicle-card-equip-pill {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(16, 185, 129, 0.1));
+  color: #6ee7b7;
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
+body[data-theme="dark"] .vehicle-card-copy-id:hover {
+  background: rgba(148, 196, 255, 0.1);
+  color: #93c5fd;
+}
+
 .request-company-preview {
   margin-top: 0.55rem;
   border: 1px solid color-mix(in srgb, var(--primary) 18%, var(--line));
@@ -8497,61 +8914,55 @@ body[data-theme="dark"] .trip-ops-card--vehicle .vehicle-occupancy-note {
 
 .trip-ops-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr));
-  gap: 0.85rem;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+  gap: 1rem;
   width: 100%;
   min-width: 0;
 }
 
 .trip-ops-card {
   position: relative;
-  border: 1px solid color-mix(in srgb, var(--primary) 18%, var(--line));
-  border-radius: 16px;
-  padding: 0.95rem 1rem 0.85rem;
-  background: linear-gradient(160deg, #ffffff 0%, color-mix(in srgb, var(--primary) 4%, #ffffff) 60%, color-mix(in srgb, var(--primary) 9%, #ffffff) 100%);
+  border: 1px solid #e8edf3;
+  border-radius: 14px;
+  padding: 1.1rem 1.15rem 0.95rem;
+  background: #ffffff;
   display: grid;
-  gap: 0.7rem;
-  box-shadow: 0 6px 16px rgba(13, 63, 121, 0.08), 0 1px 2px rgba(13, 63, 121, 0.05);
+  gap: 0.85rem;
+  box-shadow: 0 4px 18px rgba(15, 35, 70, 0.07), 0 1px 3px rgba(15, 35, 70, 0.04);
   transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
   min-width: 0;
   overflow: hidden;
 }
 
 .trip-ops-card::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 4px;
-  background: linear-gradient(90deg, var(--primary-deeper), var(--primary), var(--brand-blue-mid));
-  border-radius: 16px 16px 0 0;
-  opacity: 0.95;
+  display: none;
 }
 
 .trip-ops-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 12px 24px rgba(13, 63, 121, 0.14), 0 2px 4px rgba(13, 63, 121, 0.06);
-  border-color: color-mix(in srgb, var(--primary) 32%, var(--line));
+  box-shadow: 0 10px 28px rgba(15, 35, 70, 0.11), 0 2px 6px rgba(15, 35, 70, 0.05);
+  border-color: #d4e0ef;
 }
 
 .trip-ops-card-head {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 0.6rem;
+  gap: 0.75rem;
   min-width: 0;
 }
 
 .trip-ops-card-head-main {
   display: flex;
   align-items: flex-start;
-  gap: 0.55rem;
+  gap: 0.65rem;
   min-width: 0;
   flex: 1 1 auto;
 }
 
 .request-ops-card-company-logo {
   flex-shrink: 0;
-  margin-top: 0.1rem;
+  margin-top: 0.15rem;
 }
 
 .trip-ops-card-head-info {
@@ -8560,12 +8971,12 @@ body[data-theme="dark"] .trip-ops-card--vehicle .vehicle-occupancy-note {
 }
 
 .trip-ops-card-kicker {
-  margin: 0 0 0.25rem;
+  margin: 0 0 0.3rem;
   font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.4px;
+  font-weight: 600;
+  letter-spacing: 0.35px;
   text-transform: uppercase;
-  color: color-mix(in srgb, var(--primary-deeper) 80%, #1f3b66);
+  color: #6b7f96;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -8573,15 +8984,56 @@ body[data-theme="dark"] .trip-ops-card--vehicle .vehicle-occupancy-note {
 
 .trip-ops-card-title {
   margin: 0;
-  font-size: 1.02rem;
-  line-height: 1.25;
-  font-weight: 700;
-  color: #0d3f79;
+  font-size: 1.35rem;
+  line-height: 1.2;
+  font-weight: 800;
+  color: #0d2f5c;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   word-break: break-word;
+}
+
+.request-ops-card-meta {
+  margin: 0.2rem 0 0;
+  font-size: 0.74rem;
+}
+
+.trip-ops-card-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 0 0 auto;
+  max-width: 11rem;
+  padding: 0.38rem 0.62rem;
+  border-radius: 999px;
+  background: #1d63d3;
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.trip-ops-card-badge-icon svg {
+  width: 0.9rem;
+  height: 0.9rem;
+  flex: 0 0 auto;
+}
+
+.trip-ops-card-badge-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trip-ops-card-badge-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #28a745;
+  flex: 0 0 auto;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35);
 }
 
 .trip-ops-card-status {
@@ -8597,20 +9049,19 @@ body[data-theme="dark"] .trip-ops-card--vehicle .vehicle-occupancy-note {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  gap: 0.45rem;
-  padding: 0.55rem 0.65rem;
-  background: rgba(var(--primary-rgb), 0.06);
-  border: 1px dashed color-mix(in srgb, var(--primary) 25%, var(--line));
+  gap: 0.55rem;
+  padding: 0.75rem 0.85rem;
+  background: #f8f9fb;
+  border: 1px solid #eef1f5;
   border-radius: 12px;
   min-width: 0;
 }
 
 .trip-ops-card-route-node {
   display: grid;
-  gap: 0.1rem;
+  gap: 0.2rem;
   min-width: 0;
   align-content: center;
-  font-size: 0.78rem;
 }
 
 .trip-ops-card-route-node--dest {
@@ -8623,13 +9074,28 @@ body[data-theme="dark"] .trip-ops-card--vehicle .vehicle-occupancy-note {
   font-weight: 700;
   letter-spacing: 0.5px;
   text-transform: uppercase;
-  color: color-mix(in srgb, var(--primary-deeper) 65%, #5a6c84);
+  color: #8a96a8;
+}
+
+.trip-ops-card-route-city {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.trip-ops-card-route-pin svg {
+  width: 0.95rem;
+  height: 0.95rem;
+  color: #1d63d3;
+  flex: 0 0 auto;
 }
 
 .trip-ops-card-route-node strong {
-  font-size: 0.86rem;
-  color: #0d3f79;
-  font-weight: 700;
+  font-size: 0.92rem;
+  color: #152a44;
+  font-weight: 800;
   line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
@@ -8637,22 +9103,40 @@ body[data-theme="dark"] .trip-ops-card--vehicle .vehicle-occupancy-note {
   max-width: 100%;
 }
 
+.trip-ops-card-route-connector {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  min-width: 2.4rem;
+  max-width: 3.5rem;
+  align-self: center;
+}
+
+.trip-ops-card-route-line {
+  flex: 1 1 auto;
+  border-top: 2px dotted #c8d2de;
+  min-width: 0.75rem;
+}
+
+.trip-ops-card-route-arrow svg {
+  width: 0.95rem;
+  height: 0.95rem;
+  color: #1d63d3;
+}
+
 .trip-ops-card-route-dot {
   display: none;
 }
 
 .trip-ops-card-route-arrow {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: var(--primary);
-  align-self: center;
-  line-height: 1;
+  display: inline-flex;
+  align-items: center;
 }
 
 .trip-ops-card-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.45rem 0.6rem;
+  gap: 0.55rem;
   margin: 0;
   padding: 0;
   min-width: 0;
@@ -8660,12 +9144,78 @@ body[data-theme="dark"] .trip-ops-card--vehicle .vehicle-occupancy-note {
 
 .trip-ops-card-item {
   display: grid;
-  gap: 0.1rem;
-  padding: 0.4rem 0.5rem;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.7);
-  border: 1px solid color-mix(in srgb, var(--primary) 12%, var(--line));
+  gap: 0.35rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 11px;
+  background: #ffffff;
+  border: 1px solid #e8edf3;
   min-width: 0;
+}
+
+.trip-ops-card-item-label {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.45px;
+  font-weight: 700;
+  color: #8a96a8;
+}
+
+.trip-ops-card-item-body {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.trip-ops-card-item-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: #e8f1fc;
+  color: #1d63d3;
+  flex: 0 0 auto;
+}
+
+.trip-ops-card-item-icon svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.trip-ops-card-item--value .trip-ops-card-item-icon {
+  background: #e6f7ec;
+  color: #28a745;
+}
+
+.trip-ops-card-item-value {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: #152a44;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.trip-ops-card-item--value .trip-ops-card-item-value {
+  color: #28a745;
+  font-size: 0.92rem;
+  font-weight: 800;
+}
+
+.trip-ops-card-item-chevron {
+  display: inline-flex;
+  align-items: center;
+  color: #9aa8ba;
+  flex: 0 0 auto;
+}
+
+.trip-ops-card-item-chevron svg {
+  width: 0.85rem;
+  height: 0.85rem;
 }
 
 .trip-ops-card-item dt {
@@ -8709,7 +9259,7 @@ body[data-theme="dark"] .trip-ops-card--vehicle .vehicle-occupancy-note {
   align-items: center;
   gap: 0.4rem;
   margin: 0;
-  padding: 0.4rem 0.6rem;
+  padding: 0.45rem 0.65rem;
   border-radius: 10px;
   background: linear-gradient(135deg, rgba(251, 191, 36, 0.18), rgba(251, 191, 36, 0.08));
   border: 1px solid rgba(217, 119, 6, 0.35);
@@ -8725,8 +9275,6 @@ body[data-theme="dark"] .trip-ops-card--vehicle .vehicle-occupancy-note {
   min-width: 0;
   flex: 1 1 auto;
   display: block;
-  /* Permitimos wrap natural por palabras; el texto largo crece en altura
-     dentro del badge sin desbordarse horizontalmente. */
   word-break: break-word;
   overflow-wrap: anywhere;
 }
@@ -8742,15 +9290,203 @@ body[data-theme="dark"] .trip-ops-card--vehicle .vehicle-occupancy-note {
   flex: 0 0 auto;
 }
 
+.trip-ops-card-status-block {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.trip-ops-card-status-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.45px;
+  text-transform: uppercase;
+  color: #8a96a8;
+}
+
+.trip-ops-card-status-label svg {
+  width: 0.85rem;
+  height: 0.85rem;
+  color: #1d63d3;
+}
+
+.trip-ops-card-status-picker {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 11px;
+  background: #edf4fc;
+  border: 1px solid #c8daf0;
+  min-width: 0;
+}
+
+.trip-ops-card-status-picker-leading svg {
+  width: 0.95rem;
+  height: 0.95rem;
+  color: #1d63d3;
+  flex: 0 0 auto;
+}
+
+.trip-ops-card-status-picker select.trip-status-select {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: 0 1.5rem 0 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  appearance: none;
+  -webkit-appearance: none;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: #1d63d3;
+  cursor: pointer;
+}
+
+.trip-ops-card-status-picker-chevron {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  pointer-events: none;
+  color: #1d63d3;
+}
+
+.trip-ops-card-status-picker-chevron svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+.trip-ops-card-status-picker-value {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: #1d63d3;
+}
+
 .trip-ops-card-actions {
+  display: grid;
+  gap: 0.5rem;
+  padding-top: 0.15rem;
+}
+
+.trip-ops-card-actions-primary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.trip-ops-card-actions-primary .trip-ops-card-btn {
+  flex: 1 1 calc(33.333% - 0.35rem);
+}
+
+.trip-ops-card-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  min-width: 0;
+  border-radius: 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0.48rem 0.55rem;
+  line-height: 1.2;
+}
+
+.trip-ops-card-btn .btn-icon {
+  width: 0.9rem;
+  height: 0.9rem;
+  min-width: 0.9rem;
+}
+
+.trip-ops-card-btn--outline {
+  background: #ffffff;
+  border: 1.5px solid #1d63d3;
+  color: #1d63d3;
+}
+
+.trip-ops-card-btn--outline:hover {
+  background: #f3f8ff;
+}
+
+.trip-ops-card-btn--solid {
+  background: #1d63d3;
+  border: 1.5px solid #1d63d3;
+  color: #ffffff;
+}
+
+.trip-ops-card-btn--solid:hover {
+  background: #1856b8;
+  border-color: #1856b8;
+}
+
+.trip-ops-card-btn--soft {
+  background: #f3f8ff;
+  border: 1.5px solid #c8daf0;
+  color: #1d63d3;
+}
+
+.trip-ops-card-btn--soft:hover {
+  background: #e8f1fc;
+}
+
+.trip-ops-card-btn--danger {
+  width: 100%;
+  background: #fff5f5;
+  border: 1.5px solid #f5c2c7;
+  color: #dc3545;
+}
+
+.trip-ops-card-btn--danger:hover {
+  background: #fde8ea;
+  border-color: #f1aeb5;
+}
+
+.trip-ops-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid #eef1f5;
+  font-size: 0.72rem;
+  color: #8a96a8;
+  min-width: 0;
+}
+
+.trip-ops-card-foot-created {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.trip-ops-card-foot-created svg {
+  width: 0.85rem;
+  height: 0.85rem;
+  flex: 0 0 auto;
+}
+
+.trip-ops-card-foot-id {
+  flex: 0 0 auto;
+  padding-left: 0.65rem;
+  border-left: 1px solid #e0e6ee;
+  white-space: nowrap;
+}
+
+.trip-ops-card-actions.toolbar {
   justify-content: flex-start;
   gap: 0.4rem;
   flex-wrap: wrap;
-  padding-top: 0.15rem;
-  border-top: 1px solid color-mix(in srgb, var(--primary) 10%, var(--line));
+  border-top: none;
 }
 
-.trip-ops-card-actions .btn {
+.trip-ops-card-actions .btn:not(.trip-ops-card-btn) {
   flex: 1 1 auto;
   min-width: 0;
   justify-content: center;
@@ -8761,10 +9497,13 @@ body[data-theme="dark"] .trip-ops-card--vehicle .vehicle-occupancy-note {
     grid-template-columns: 1fr;
   }
   .trip-ops-card {
-    padding: 0.85rem 0.9rem 0.8rem;
+    padding: 1rem;
   }
   .trip-ops-card-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .trip-ops-card-actions-primary .trip-ops-card-btn {
+    flex: 1 1 100%;
   }
 }
 
@@ -8780,7 +9519,7 @@ body[data-theme="dark"] .trip-ops-card--vehicle .vehicle-occupancy-note {
     text-align: left;
     justify-items: start;
   }
-  .trip-ops-card-route-arrow {
+  .trip-ops-card-route-connector {
     display: none;
   }
 }
@@ -16091,19 +16830,26 @@ body[data-theme="dark"] .history-fleet-money-wrap input {
   align-items: center;
   justify-content: center;
   background: #ffffff;
-  border: 1px solid #dbeafe;
-  color: #64748b;
+  border: 1px solid #cbd5e1;
+  color: #475569;
   cursor: pointer;
-  transition: background 0.18s, border-color 0.18s, color 0.18s;
+  transition: background 0.18s, border-color 0.18s, color 0.18s, box-shadow 0.18s;
   font-size: 0.9rem;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+
+.report-preview-close-btn .btn-icon {
+  width: 1rem;
+  height: 1rem;
+  stroke-width: 2.25;
 }
 
 .report-preview-close-btn:hover {
-  background: #f8fafc;
-  border-color: #bfdbfe;
+  background: #eff6ff;
+  border-color: #93c5fd;
   transform: none;
-  color: #334155;
+  color: #1e3a5f;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.12);
 }
 
 .report-preview-body {
@@ -16452,16 +17198,19 @@ body[data-theme="dark"] .history-fleet-money-wrap input {
   justify-content: center;
   gap: 0.42rem;
   border-radius: 10px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #d1d5db;
   background: #ffffff;
-  color: #334155;
+  color: #1e293b;
   font-weight: 700;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+  transition: border-color 0.18s, box-shadow 0.18s, transform 0.18s, background 0.18s;
 }
 
 .report-preview-export-btn:hover {
-  background: #ffffff;
-  border-color: #cbd5e1;
+  background: #f8fafc;
+  border-color: #94a3b8;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+  transform: translateY(-1px);
 }
 
 .report-preview-export-btn__icon {
@@ -16491,26 +17240,20 @@ body[data-theme="dark"] .history-fleet-money-wrap input {
   min-width: 8.5rem;
   min-height: 2.65rem;
   justify-content: center;
-  gap: 0.55rem;
-  border-radius: 12px;
+  gap: 0.45rem;
+  border-radius: 10px;
   font-weight: 700;
-  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.28);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 2px 8px rgba(37, 105, 184, 0.28);
 }
 
-.report-preview-close-primary__icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.45rem;
-  height: 1.45rem;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.95);
-  color: #2563eb;
-}
-
-.report-preview-close-primary__icon .btn-icon {
-  width: 0.82rem;
-  height: 0.82rem;
+.report-preview-close-primary .btn-icon {
+  width: 0.95rem;
+  height: 0.95rem;
+  color: #ffffff;
+  stroke: currentColor;
+  flex-shrink: 0;
 }
 
 .report-preview-actions .btn {
@@ -16610,8 +17353,14 @@ body[data-theme="dark"] .report-preview-stat .btn-icon {
 
 body[data-theme="dark"] .report-preview-close-btn {
   background: rgba(15, 23, 42, 0.72);
-  border-color: rgba(131, 190, 233, 0.2);
-  color: #cbd5e1;
+  border-color: rgba(131, 190, 233, 0.28);
+  color: #e2e8f0;
+}
+
+body[data-theme="dark"] .report-preview-close-btn:hover {
+  background: rgba(30, 58, 95, 0.85);
+  border-color: rgba(147, 197, 253, 0.45);
+  color: #f8fafc;
 }
 
 body[data-theme="dark"] .report-preview-meta,
@@ -16646,8 +17395,14 @@ body[data-theme="dark"] .report-preview-actions .module-panel-actions__bar {
 
 body[data-theme="dark"] .report-preview-export-btn {
   background: rgba(15, 23, 42, 0.82);
-  border-color: rgba(131, 190, 233, 0.16);
+  border-color: rgba(131, 190, 233, 0.22);
   color: #e2e8f0;
+}
+
+body[data-theme="dark"] .report-preview-export-btn:hover {
+  background: rgba(24, 40, 64, 0.92);
+  border-color: rgba(147, 197, 253, 0.38);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.28);
 }
 
 body[data-theme="dark"] .report-preview-copy {
@@ -30558,44 +31313,75 @@ body[data-theme="dark"] .portal-main .transport-exec-table-wrap table tbody td:l
 }
 
 body[data-theme="dark"] .trip-ops-card {
-  background: linear-gradient(160deg, color-mix(in srgb, var(--primary) 18%, #0b1626) 0%, #101c2c 60%, color-mix(in srgb, var(--primary) 8%, #0b1626) 100%);
-  border-color: color-mix(in srgb, var(--primary) 34%, #2a3f56);
+  background: #101c2c;
+  border-color: rgba(148, 196, 255, 0.14);
   box-shadow: 0 8px 22px rgba(2, 8, 20, 0.55), 0 1px 2px rgba(2, 8, 20, 0.3);
 }
 
 body[data-theme="dark"] .trip-ops-card:hover {
-  border-color: color-mix(in srgb, var(--primary) 50%, #2a3f56);
+  border-color: rgba(148, 196, 255, 0.28);
   box-shadow: 0 14px 28px rgba(2, 8, 20, 0.7), 0 2px 4px rgba(2, 8, 20, 0.35);
 }
 
 body[data-theme="dark"] .trip-ops-card-kicker {
-  color: #9fc3e6;
+  color: #94a8c0;
 }
 
 body[data-theme="dark"] .trip-ops-card-title {
   color: #e6f1ff;
 }
 
+body[data-theme="dark"] .trip-ops-card-badge {
+  background: #2563c7;
+}
+
 body[data-theme="dark"] .trip-ops-card-route {
-  background: rgba(var(--primary-rgb), 0.16);
-  border-color: color-mix(in srgb, var(--primary) 35%, #2a3f56);
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(148, 196, 255, 0.14);
 }
 
 body[data-theme="dark"] .trip-ops-card-route-label {
-  color: #94b4d6;
+  color: #94a8c0;
 }
 
 body[data-theme="dark"] .trip-ops-card-route-node strong {
   color: #dbeafe;
 }
 
-body[data-theme="dark"] .trip-ops-card-route-arrow {
-  color: color-mix(in srgb, var(--primary) 70%, #cfe6ff);
+body[data-theme="dark"] .trip-ops-card-route-pin svg,
+body[data-theme="dark"] .trip-ops-card-route-arrow svg {
+  color: #7eb8ff;
+}
+
+body[data-theme="dark"] .trip-ops-card-route-line {
+  border-top-color: rgba(148, 196, 255, 0.25);
 }
 
 body[data-theme="dark"] .trip-ops-card-item {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: color-mix(in srgb, var(--primary) 26%, #2a3f56);
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(148, 196, 255, 0.14);
+}
+
+body[data-theme="dark"] .trip-ops-card-item-label {
+  color: #94a8c0;
+}
+
+body[data-theme="dark"] .trip-ops-card-item-icon {
+  background: rgba(37, 99, 199, 0.22);
+  color: #93c5fd;
+}
+
+body[data-theme="dark"] .trip-ops-card-item--value .trip-ops-card-item-icon {
+  background: rgba(40, 167, 69, 0.18);
+  color: #6ee7b7;
+}
+
+body[data-theme="dark"] .trip-ops-card-item-value {
+  color: #dbeafe;
+}
+
+body[data-theme="dark"] .trip-ops-card-item--value .trip-ops-card-item-value {
+  color: #6ee7b7;
 }
 
 body[data-theme="dark"] .trip-ops-card-item dt {
@@ -30624,8 +31410,55 @@ body[data-theme="dark"] .trip-ops-card-standby strong {
   color: #ffe6b5;
 }
 
+body[data-theme="dark"] .trip-ops-card-status-label {
+  color: #94a8c0;
+}
+
+body[data-theme="dark"] .trip-ops-card-status-picker {
+  background: rgba(37, 99, 199, 0.16);
+  border-color: rgba(148, 196, 255, 0.2);
+}
+
+body[data-theme="dark"] .trip-ops-card-status-picker select.trip-status-select,
+body[data-theme="dark"] .trip-ops-card-status-picker-value {
+  color: #93c5fd;
+}
+
+body[data-theme="dark"] .trip-ops-card-btn--outline {
+  background: transparent;
+  border-color: #4b8fe8;
+  color: #93c5fd;
+}
+
+body[data-theme="dark"] .trip-ops-card-btn--solid {
+  background: #2563c7;
+  border-color: #2563c7;
+  color: #ffffff;
+}
+
+body[data-theme="dark"] .trip-ops-card-btn--soft {
+  background: rgba(37, 99, 199, 0.16);
+  border-color: rgba(148, 196, 255, 0.2);
+  color: #93c5fd;
+}
+
+body[data-theme="dark"] .trip-ops-card-btn--danger {
+  background: rgba(220, 53, 69, 0.12);
+  border-color: rgba(248, 113, 113, 0.35);
+  color: #fca5a5;
+}
+
+body[data-theme="dark"] .trip-ops-card-foot {
+  border-top-color: rgba(148, 196, 255, 0.12);
+  color: #94a8c0;
+}
+
+body[data-theme="dark"] .trip-ops-card-foot-id {
+  border-left-color: rgba(148, 196, 255, 0.16);
+}
+
 body[data-theme="dark"] .trip-ops-card-actions {
-  border-top-color: color-mix(in srgb, var(--primary) 22%, #2a3f56);
+  border-top-color: transparent;
 }
 
 body[data-theme="dark"] .hiring-shell .hiring-table-wrap {
@@ -32803,4 +33636,24 @@ body[data-theme="dark"] .solicitud-trip-summary {
 
 .report-preview-actions.module-panel-actions--footer.modal-edit-actions .module-panel-actions__group--primary {
   padding-inline-start: 0;
+}
+
+.report-preview-actions.module-panel-actions--footer.modal-edit-actions .report-preview-close-primary {
+  gap: 0.45rem;
+}
+
+.report-preview-actions.module-panel-actions--footer.modal-edit-actions .report-preview-close-primary .btn-icon {
+  width: 0.95rem;
+  height: 0.95rem;
+  padding: 0;
+  border-radius: 0;
+  background: transparent !important;
+  color: #ffffff !important;
+  stroke: currentColor;
+  filter: none;
+  box-shadow: none;
+}
+
+.report-preview-actions.module-panel-actions--footer.modal-edit-actions .report-preview-close-primary:hover:not(:disabled) .btn-icon {
+  color: #ffffff !important;
 }

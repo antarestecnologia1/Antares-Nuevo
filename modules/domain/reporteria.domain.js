@@ -89,7 +89,55 @@ export function reportPreviewSamples(rows = [], key = "") {
     .slice(0, 8);
 }
 
+const REPORT_CURRENCY_HINT =
+  /(cop\b|costo|cost\b|neto|net\b|gross|devengado|deducc|reembolso|viatic|salario|aspiracion|combustible|standby|nomina|nómina|tarifa|monetario|factur|valor\s+(viaje|operativo|asegurado|del|de|trip)|ingresos?\s+operativ|n[oó]mina\s+neta|pago|bruto)/i;
+const REPORT_COUNT_HINT =
+  /(total(es)?|pendiente(s)?|cerrad[oa]s?|emitid[oa]s?|activ[oa]s?|abiert[oa]s?|cantidad|cupos?|permisos?|viajes?|entrevistas?|contratos?|controles?|registros?|usuarios?|conductores?|solicitudes?|numero|n[uú]mero|count\b|qty\b|litros?|comparendos?|empleados?)/i;
+
+function reportPreviewNumericValue(value) {
+  return typeof value === "number" || /^-?\d+(?:[.,]\d+)?$/.test(String(value ?? "").trim());
+}
+
+function reportPreviewPreformattedCurrency(value) {
+  return typeof value === "string" && /^\$/.test(String(value).trim());
+}
+
+export function reportPreviewInferValueCellType(value, row = {}, column = {}) {
+  const metric = String(row?.metric || "").toLowerCase();
+  const key = String(column?.key || "").toLowerCase();
+  const label = String(column?.label || "").toLowerCase();
+  const meta = `${metric} ${key} ${label}`;
+
+  if (reportPreviewPreformattedCurrency(value)) return "currency";
+  if (REPORT_COUNT_HINT.test(metric) || (REPORT_COUNT_HINT.test(meta) && !REPORT_CURRENCY_HINT.test(meta))) return "number";
+  if (REPORT_CURRENCY_HINT.test(metric) || REPORT_CURRENCY_HINT.test(meta)) return "currency";
+
+  if (reportPreviewNumericValue(value)) {
+    if (/(ingreso|n[oó]mina|salario|costo|tarifa|devengado|neto|bruto|deducc|standby|combustible|viatic|aspiracion|reembolso|monetario|finanz)/i.test(metric)) {
+      return "currency";
+    }
+    if (/(total|pendiente|cerrad|emitid|activ|abiert|contrato|control|aprobacion|viaje|solicitud|permiso|entrevista|usuario|conductor|liquidacion)/i.test(metric)) {
+      return "number";
+    }
+    return "number";
+  }
+  return "text";
+}
+
+export function reportPreviewResolveCellType(column = {}, row = {}, value) {
+  const explicit = String(column?.type || "").trim().toLowerCase();
+  if (explicit && explicit !== "auto") return explicit;
+  const key = String(column?.key || "").toLowerCase();
+  if (key === "value" && row && typeof row === "object") {
+    return reportPreviewInferValueCellType(value, row, column);
+  }
+  return reportPreviewInferColumnType(column, row && typeof row === "object" ? [row] : []);
+}
+
 export function reportPreviewInferColumnType(column = {}, rows = []) {
+  const explicit = String(column?.type || "").trim().toLowerCase();
+  if (explicit && explicit !== "auto") return explicit;
+
   const key = String(column?.key || "").toLowerCase();
   const label = String(column?.label || "").toLowerCase();
   const meta = `${key} ${label}`;
@@ -101,24 +149,38 @@ export function reportPreviewInferColumnType(column = {}, rows = []) {
   if (/(riesgo|risk|vigencia|vence|vencimiento)/i.test(meta)) return "risk";
   if (allBoolean || /(termoking|tiene|entrevista|contrato)/i.test(meta)) return "boolean";
   if (/(categor|tipo|rol|origen|modalidad|fuente)/i.test(meta)) return "tag";
-  if (/(cop|costo|cost|valor|neto|net|gross|devengado|deducc|reembolso|viatic|salario|aspiracion|combustible|standby)/i.test(meta)) return "currency";
+  if (
+    /(count|qty|permissions|liters|litros|trips$|viajes$|entrevistas|comparendos|openings|capacity|odometer)/i.test(key) ||
+    REPORT_COUNT_HINT.test(meta)
+  ) {
+    return "number";
+  }
+  if (/(min|hora|horas|hour|hours|dia|dias|days|kg|litro|liters|permis|edad|viajes|entrevistas|resoluci|capacidad|cantidad)/i.test(meta)) {
+    return "number";
+  }
+  if (REPORT_CURRENCY_HINT.test(meta)) return "currency";
   if (/%/.test(sampleText) || /(porcentaje|tasa|pct|rate|closure|cierre)/i.test(meta)) return "percent";
-  if (/(fecha|date|venc|entrega|asign|cread|pago|revision|solicitud|ingreso|registro)/i.test(meta)) return "date";
-  if (/(min|hora|horas|hour|hours|dia|dias|days|kg|litro|liters|permis|edad|viajes|entrevistas|resoluci|capacidad|cantidad)/i.test(meta)) return "number";
+  if (/(fecha|date|venc|entrega|asign|cread|pago|revision|ingreso|registro)/i.test(meta) && !/(solicitud|valor|numero|n[uú]mero|count)/i.test(key)) {
+    return "date";
+  }
   if (/(detalle|novedad|observ|resumen|reason|nota)/i.test(meta)) return "longtext";
-  if (/(placa|solicitud|viaje|factura|documento|doc|codigo|correo|licencia)/i.test(meta)) return "id";
+  if (/(placa|viaje|factura|documento|doc|codigo|correo|licencia)/i.test(meta) && !/(total|activo|cerrad|histor)/i.test(meta)) {
+    return "id";
+  }
+  if (key === "value" && /^valor$/i.test(label.trim())) return "auto";
   return "text";
 }
 
 export function reportPreviewFormatValue(value, type = "text") {
   if (reportPreviewValueIsEmpty(value)) return "—";
-  if (type === "currency" && (typeof value === "number" || /^-?\d+(?:[.,]\d+)?$/.test(String(value).trim()))) {
+  if (reportPreviewPreformattedCurrency(value)) return String(value).trim();
+  if (type === "currency" && reportPreviewNumericValue(value)) {
     return `$${parseNum(value).toLocaleString("es-CO")}`;
   }
-  if (type === "percent" && typeof value === "number") {
+  if (type === "percent" && reportPreviewNumericValue(value)) {
     return `${parseNum(value).toLocaleString("es-CO")}%`;
   }
-  if (type === "number" && typeof value === "number") {
+  if (type === "number" && reportPreviewNumericValue(value)) {
     return parseNum(value).toLocaleString("es-CO");
   }
   return String(value);
@@ -182,22 +244,26 @@ export function reportPreviewDetailCellHtml(value, rowIndex = 0) {
 export function reportPreviewCellInnerHtml(value, type = "text", context = {}) {
   const columnKey = String(context?.columnKey || "").toLowerCase();
   const rowIndex = Number(context?.rowIndex) || 0;
+  const row = context?.row && typeof context.row === "object" ? context.row : {};
+  const column = context?.column && typeof context.column === "object" ? context.column : { key: columnKey };
+  const cellType = reportPreviewResolveCellType(column, row, value);
   if (columnKey === "category") return reportPreviewCategoryCellHtml(value, rowIndex);
   if (columnKey === "detail") return reportPreviewDetailCellHtml(value, rowIndex);
   if (columnKey === "metric") {
-    const display = reportPreviewFormatValue(value, type);
+    const display = reportPreviewFormatValue(value, cellType);
     if (display === "—") return `<span class="report-empty">—</span>`;
     return `<span class="report-metric">${escapeHtml(display)}</span>`;
   }
-  const display = reportPreviewFormatValue(value, type);
+  const display = reportPreviewFormatValue(value, cellType);
   if (display === "—") return `<span class="report-empty">—</span>`;
   const safe = escapeHtml(display);
-  if (["status", "risk", "boolean", "tag"].includes(type)) {
-    return `<span class="report-badge report-badge--${reportPreviewTone(type, display)}">${safe}</span>`;
+  if (["status", "risk", "boolean", "tag"].includes(cellType)) {
+    return `<span class="report-badge report-badge--${reportPreviewTone(cellType, display)}">${safe}</span>`;
   }
-  if (type === "id") return `<span class="report-code">${safe}</span>`;
-  if (type === "longtext") return `<span class="report-note">${safe}</span>`;
-  const valueClass = columnKey === "value" || ["currency", "number", "percent"].includes(type) ? " report-value--highlight" : "";
+  if (cellType === "id") return `<span class="report-code">${safe}</span>`;
+  if (cellType === "longtext") return `<span class="report-note">${safe}</span>`;
+  const valueClass =
+    columnKey === "value" || ["currency", "number", "percent"].includes(cellType) ? " report-value--highlight" : "";
   return `<span class="report-value${valueClass}">${safe}</span>`;
 }
 

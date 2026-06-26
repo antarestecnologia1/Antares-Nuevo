@@ -37,6 +37,34 @@ function vehicleMatchesFleetSearch(v, qNorm) {
   return vehicleFleetSearchHaystack(v).includes(qNorm);
 }
 
+function formatVehicleLastUpdateLabel(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const isYesterday = d.toDateString() === yesterday.toDateString();
+  const timePart = d.toLocaleTimeString("es-CO", { hour: "numeric", minute: "2-digit", hour12: true });
+  if (sameDay) return `Hoy, ${timePart}`;
+  if (isYesterday) return `Ayer, ${timePart}`;
+  return fmtDate(iso);
+}
+
+function buildVehicleFleetCardGridItem(label, icon, value, tone = "") {
+  const toneClass = tone ? ` trip-ops-card-item--${tone}` : "";
+  const valueClass =
+    tone === "ok" ? " trip-ops-card-item-value--ok" : tone === "warn" ? " trip-ops-card-item-value--warn" : tone === "alert" ? " trip-ops-card-item-value--alert" : "";
+  return `<div class="trip-ops-card-item${toneClass}">
+    <span class="trip-ops-card-item-label">${escapeHtml(label)}</span>
+    <div class="trip-ops-card-item-body">
+      <span class="trip-ops-card-item-icon" aria-hidden="true">${icon}</span>
+      <span class="trip-ops-card-item-value${valueClass}" title="${escapeAttr(String(value))}">${escapeHtml(String(value))}</span>
+    </div>
+  </div>`;
+}
+
 function vehiclesHtml() {
   const vehicles = read(KEYS.vehicles, []);
   const drivers = read(KEYS.drivers, []);
@@ -143,13 +171,6 @@ function vehiclesHtml() {
       const tecno = docExpiryStatus(v.techInspectionExpeditionDate, v.techInspectionExpiryDate);
       const isRefrigerated = vehicleHasTermokingEquipment(v);
       const occupancy = resolveVehicleOccupancy(v.id);
-      const availabilityTag = isManuallyUnavailable(v)
-        ? '<span class="status status-fleet-offline">No disponible</span>'
-        : occupancy.tone === "busy"
-          ? '<span class="status status-fleet-ocupado">Ocupado</span>'
-          : occupancy.tone === "scheduled"
-            ? '<span class="status status-fleet-programado">Reservado</span>'
-            : '<span class="status status-fleet-disponible">Disponible</span>';
       const occupancySlug = isManuallyUnavailable(v)
         ? "no-disponible"
         : occupancy.tone === "busy"
@@ -157,61 +178,107 @@ function vehiclesHtml() {
           : occupancy.tone === "scheduled"
             ? "reservado"
             : "disponible";
+      const availabilityLabel = isManuallyUnavailable(v)
+        ? "No disponible"
+        : occupancy.tone === "busy"
+          ? "Ocupado"
+          : occupancy.tone === "scheduled"
+            ? "Reservado"
+            : "Disponible";
       const plate = String(v.plate || "—").toUpperCase();
-      const typeLabel = String(v.type || "Vehículo").trim() || "Vehículo";
-      const brandModel = `${String(v.brand || "").trim()}${v.brand && v.model ? " · " : ""}${String(v.model || "").trim()}${v.year ? ` · ${v.year}` : ""}`.trim() || "Sin marca/modelo";
+      const typeLabel = String(v.type || "Vehículo").trim().toUpperCase() || "VEHÍCULO";
+      const brandTitle =
+        `${String(v.brand || "").trim()}${v.brand && v.model ? " " : ""}${String(v.model || "").trim()}`.trim() || "Sin marca/modelo";
+      const yearLabel = v.year ? String(v.year) : "";
       const soatTone = directoryToneFromBucket(soat.cls);
       const tecnoTone = directoryToneFromBucket(tecno.cls);
       const gpsEnabled = String(v.hasGps ?? "true").trim().toLowerCase() !== "false";
       const gpsProvider = String(v.gpsProvider || "").trim();
-      const gpsLabel = gpsEnabled ? (gpsProvider || "GPS activo") : "Sin GPS";
-      const occupancyTitle = occupancy.trip
-        ? `Viaje ${String(occupancy.trip.trip?.tripNumber || "-")}`
-        : isManuallyUnavailable(v)
-          ? "No disponible"
-          : occupancy.tone === "scheduled"
-            ? "Reservado"
-            : "Disponible";
+      const gpsTraceLabel = gpsEnabled ? (gpsProvider || "Activo").toUpperCase() : "Sin GPS";
       const occupancyDetail = occupancy.trip
         ? String(occupancy.trip.clientName || occupancy.trip.companyName || occupancy.trip.request?.clientName || "").trim() || occupancy.detail
         : occupancy.detail;
-      const opsTone = isManuallyUnavailable(v) ? "alert" : directoryOpsToneFromSlug(occupancySlug);
       const capacityLabel = parseNum(v.capacityKg) > 0 ? `${parseNum(v.capacityKg).toLocaleString("es-CO")} kg` : "Sin capacidad";
       const ownershipCardLabel = String(v.ownershipCard || "").trim() || "Sin tarjeta";
       const motorLabel = String(v.engineNumber || "").trim() || "Sin motor";
       const vinLabel = String(v.vin || "").trim() || "Sin VIN";
-      return `<article class="directory-card directory-card--vehicle directory-card--${occupancySlug}" data-vehicle-id="${escapeAttr(String(v.id || ""))}">
-        <header class="directory-card__head">
-          <div class="directory-card__identity">
-            ${renderColombianPlateBadgeHtml(plate)}
-            <div class="directory-card__heading">
-              <p class="directory-card__kicker">${escapeHtml(typeLabel)}</p>
-              <h4 class="directory-card__title" title="${escapeAttr(plate)}">${escapeHtml(brandModel)}</h4>
+      const createdLabel = fmtDate(v.createdAt || "") || "—";
+      const recordId = String(v.id || "—");
+      const lastUpdateLabel = formatVehicleLastUpdateLabel(v.updatedAt || v.createdAt || "");
+      const statusBadgeHtml = `<span class="vehicle-card-status-pill vehicle-card-status-pill--${escapeAttr(occupancySlug)}" role="status">
+        <span class="vehicle-card-status-pill__dot" aria-hidden="true"></span>
+        <span>${escapeHtml(availabilityLabel)}</span>
+      </span>`;
+      const termokingBadgeHtml = isRefrigerated
+        ? `<span class="vehicle-card-equip-pill vehicle-card-equip-pill--tk" title="Equipo Termoking">
+            <span class="vehicle-card-equip-pill__icon" aria-hidden="true">❄</span>
+            <span>TERMOKING</span>
+          </span>`
+        : "";
+      const actionButtons = [
+        `<button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--outline" data-action="view-vehicle" data-id="${escapeAttr(String(v.id || ""))}" title="Ver ficha técnica del vehículo">${IC.eye} Ver detalles</button>`,
+        canEditVeh
+          ? `<button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--solid" data-action="edit-vehicle" data-id="${escapeAttr(String(v.id || ""))}" title="Editar datos del vehículo">${IC.edit} Editar información</button>`
+          : "",
+        canToggleVeh
+          ? `<button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--soft" data-action="toggle-vehicle" data-id="${escapeAttr(String(v.id || ""))}" title="Alternar disponibilidad manual">${IC.toggle} Cambiar estado</button>`
+          : "",
+        canDeleteVeh
+          ? `<button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--danger" data-action="delete-vehicle" data-id="${escapeAttr(String(v.id || ""))}" title="Eliminar del catálogo">${IC.trash} Eliminar camión</button>`
+          : ""
+      ]
+        .filter(Boolean)
+        .join("");
+      return `<article class="trip-ops-card trip-ops-card--vehicle trip-ops-card--vehicle-${escapeAttr(occupancySlug)}" data-vehicle-id="${escapeAttr(String(v.id || ""))}">
+        <header class="trip-ops-card-head trip-ops-card-head--vehicle">
+          <div class="trip-ops-card-head-main">
+            <div class="vehicle-plate-badge" title="Placa ${escapeAttr(plate)}" aria-label="Placa ${escapeAttr(plate)}">
+              <span class="vehicle-plate-badge__icon" aria-hidden="true">${IC.truck}</span>
+              <span class="vehicle-plate-badge__text">${escapeHtml(plate)}</span>
+            </div>
+            <div class="trip-ops-card-head-info">
+              <p class="trip-ops-card-kicker">${escapeHtml(typeLabel)}</p>
+              <h4 class="trip-ops-card-title vehicle-plate-title" title="${escapeAttr(brandTitle)}">${escapeHtml(brandTitle)}</h4>
+              ${yearLabel ? `<p class="vehicle-card-year">${escapeHtml(yearLabel)}</p>` : ""}
             </div>
           </div>
-          <div class="directory-card__status-stack">
-            ${availabilityTag}
-            ${directoryPillHtml(isRefrigerated ? "Termoking" : "Seco", isRefrigerated ? "ok" : "neutral")}
+          <div class="vehicle-card-badges">
+            ${statusBadgeHtml}
+            ${termokingBadgeHtml}
           </div>
         </header>
-        ${directoryOpsHtml(occupancyTitle, occupancyDetail, opsTone)}
-        <div class="directory-card__metrics">
-          ${directoryChipHtml("Cap.", capacityLabel)}
-          ${directoryChipHtml("SOAT", soat.label, soatTone)}
-          ${directoryChipHtml("Tecno", tecno.label, tecnoTone)}
-          ${directoryChipHtml("GPS", gpsEnabled ? "Activo" : "No", gpsEnabled ? "ok" : "warn")}
+        <div class="vehicle-availability-bar vehicle-availability-bar--${escapeAttr(occupancySlug)}" role="status">
+          <div class="vehicle-availability-bar__main">
+            <span class="vehicle-availability-bar__dot" aria-hidden="true"></span>
+            <div class="vehicle-availability-bar__copy">
+              <strong>${escapeHtml(availabilityLabel)}</strong>
+              <span class="vehicle-availability-bar__detail">${escapeHtml(occupancyDetail)}</span>
+            </div>
+          </div>
+          <div class="vehicle-availability-bar__update">
+            <span class="vehicle-availability-bar__update-label">${IC.calendar}<span>Última actualización</span></span>
+            <strong>${escapeHtml(lastUpdateLabel)}</strong>
+          </div>
         </div>
-        <dl class="directory-card__facts">
-          ${directoryFactHtml("Tarjeta", ownershipCardLabel)}
-          ${directoryFactHtml("Motor", motorLabel)}
-          ${directoryFactHtml("VIN", vinLabel)}
-          ${directoryFactHtml("Trazabilidad", gpsLabel)}
-        </dl>
-        <footer class="directory-card__actions">
-          <button type="button" class="btn btn-sm btn-outline" data-action="view-vehicle" data-id="${escapeAttr(String(v.id || ""))}" title="Ver ficha técnica del vehículo">${IC.eye} Ver</button>
-          ${canEditVeh ? `<button type="button" class="btn btn-sm btn-action" data-action="edit-vehicle" data-id="${escapeAttr(String(v.id || ""))}" title="Editar datos del vehículo">${IC.edit} Editar</button>` : ""}
-          ${canToggleVeh ? `<button type="button" class="btn btn-sm btn-action" data-action="toggle-vehicle" data-id="${escapeAttr(String(v.id || ""))}" title="Alternar disponibilidad manual">${IC.toggle} Estado</button>` : ""}
-          ${canDeleteVeh ? `<button class="btn btn-sm btn-reject" data-action="delete-vehicle" data-id="${v.id}" title="Eliminar del catálogo">${IC.trash} Eliminar</button>` : ""}
+        <div class="trip-ops-card-grid vehicle-card-spec-grid">
+          ${buildVehicleFleetCardGridItem("Capacidad", IC.scale, capacityLabel)}
+          ${buildVehicleFleetCardGridItem("SOAT", IC.shield, soat.label, soatTone)}
+          ${buildVehicleFleetCardGridItem("Tecnomecánica", IC.file, tecno.label, tecnoTone)}
+          ${buildVehicleFleetCardGridItem("GPS", IC.mapPin, gpsEnabled ? "Activo" : "Inactivo", gpsEnabled ? "ok" : "warn")}
+          ${buildVehicleFleetCardGridItem("Tarjeta de Operación", IC.card, ownershipCardLabel)}
+          ${buildVehicleFleetCardGridItem("Motor", IC.settings, motorLabel)}
+          ${buildVehicleFleetCardGridItem("VIN", IC.hash, vinLabel)}
+          ${buildVehicleFleetCardGridItem("Trazabilidad", IC.satellite, gpsTraceLabel, gpsEnabled ? "ok" : "warn")}
+        </div>
+        <div class="trip-ops-card-actions vehicle-card-actions">
+          <div class="vehicle-card-actions-grid">${actionButtons}</div>
+        </div>
+        <footer class="trip-ops-card-foot">
+          <span class="trip-ops-card-foot-created">${IC.clock}<span>Creado: ${escapeHtml(createdLabel)}</span></span>
+          <span class="trip-ops-card-foot-id">
+            ID: ${escapeHtml(recordId)}
+            <button type="button" class="vehicle-card-copy-id" data-action="copy-vehicle-id" data-id="${escapeAttr(recordId)}" title="Copiar ID" aria-label="Copiar ID del vehículo"><svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+          </span>
         </footer>
       </article>`;
     })
@@ -297,7 +364,7 @@ function vehiclesHtml() {
     <tbody>${vehicleListRows}</tbody>
   </table></div>`
       : "";
-  const fleetCardsGrid = fleetLayout === "cards" && vehicleCards ? `<div class="trip-ops-cards vehicle-ops-cards directory-grid">${vehicleCards}</div>` : "";
+  const fleetCardsGrid = fleetLayout === "cards" && vehicleCards ? `<div class="trip-ops-cards vehicle-ops-cards">${vehicleCards}</div>` : "";
   let fleetMainBody;
   if (!totalCount) {
     fleetMainBody = emptyState("No hay vehículos registrados.");
@@ -489,6 +556,33 @@ function vehiclesHtml() {
         const layout = normalizeVehicleFleetLayout(btn.dataset.layout);
         state.vehiclesUi = { ...(state.vehiclesUi || {}), fleetLayout: layout };
         renderPortalView();
+      });
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='copy-vehicle-id']").forEach((btn) => {
+      btn.addEventListener("click", async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const id = String(btn.dataset.id || "").trim();
+        if (!id) return;
+        try {
+          if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(id);
+          } else {
+            const ta = document.createElement("textarea");
+            ta.value = id;
+            ta.setAttribute("readonly", "");
+            ta.style.position = "fixed";
+            ta.style.left = "-9999px";
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand("copy");
+            document.body.removeChild(ta);
+          }
+          notify("ID copiado al portapapeles.", "success");
+        } catch (_err) {
+          notify("No fue posible copiar el ID.", "error");
+        }
       });
     });
 
