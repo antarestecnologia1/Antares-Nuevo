@@ -1313,9 +1313,10 @@ body[data-theme="dark"] .transport-studio .hr-workspace-tab--switch.is-active {
 /* ── Tarjetas operativas de viajes (mismo look que solicitudes vía portal-ops-card.css) ── */
 .transport-studio .transport-data-pane__body .request-ops-cards,
 .transport-studio .transport-data-pane__body .trip-ops-cards {
-  display: grid;
-  grid-template-columns: var(--ops-tile-grid, repeat(auto-fill, minmax(min(100%, 17.25rem), 19.5rem)));
-  justify-content: start;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  align-items: stretch;
   gap: var(--ops-cards-gap, 0.75rem);
   width: 100%;
   min-width: 0;

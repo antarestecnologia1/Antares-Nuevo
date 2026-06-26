@@ -141,8 +141,19 @@
 
 /* ── Panel lateral: fichas tipo tarjeta ── */
 .calendar-studio .calendar-side-grid {
-  display: grid;
-  grid-template-columns: var(--ops-tile-grid, repeat(auto-fill, minmax(min(100%, 17.25rem), 19.5rem)));
-  justify-content: start;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  align-items: stretch;
   gap: var(--ops-cards-gap, 0.75rem);
+}
+
+.calendar-studio .calendar-side-grid > * {
+  flex: 1 1 var(--ops-cards-min, 17.5rem);
+  min-width: 0;
+}
+
+.calendar-studio .calendar-side-grid:has(> :only-child) > :only-child {
+  flex-grow: 0;
+  max-width: var(--ops-cards-max, 20rem);
 }

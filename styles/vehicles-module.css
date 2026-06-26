@@ -1103,14 +1103,4 @@ body[data-theme="dark"] .vehicles-studio #form-vehicle .payroll-wizard-tip {
   border-color: rgba(148, 196, 255, 0.16);
 }
 
-/* ── Tarjetas operativas: rejilla tipo ficha ── */
-.vehicles-studio .vehicle-ops-cards,
-.vehicles-studio .trip-ops-cards.portal-ops-cards,
-.vehicles-studio .trip-ops-cards.vehicle-ops-cards {
-  display: flex;
-  flex-wrap: wrap;
-  align-content: flex-start;
-  justify-content: flex-start;
-  gap: var(--ops-cards-gap, 0.75rem);
-  grid-template-columns: unset;
-}
+/* ── Tarjetas operativas: rejilla flota (ver portal-ops-card.css) ── */

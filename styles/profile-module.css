@@ -84,10 +84,16 @@
 }
 
 .profile-studio .profile-stats-strip {
-  display: grid;
-  grid-template-columns: var(--ops-tile-grid-kpi, repeat(auto-fill, minmax(min(100%, 11rem), 14rem)));
-  justify-content: start;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  align-items: stretch;
   gap: var(--ops-cards-gap, 0.75rem);
+  min-width: 0;
+}
+
+.profile-studio .profile-stats-strip > * {
+  flex: 1 1 11rem;
   min-width: 0;
 }
 

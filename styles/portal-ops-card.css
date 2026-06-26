@@ -25,16 +25,33 @@
 .history-fleet-log-grid,
 .admin-users-list-shell .user-grid,
 .reports-studio .reports-export-grid {
-  display: grid;
-  grid-template-columns: var(--ops-tile-grid);
-  justify-content: start;
-  justify-items: start;
-  align-items: start;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  align-items: stretch;
   gap: var(--ops-cards-gap);
   width: 100%;
   min-width: 0;
   container-type: inline-size;
   container-name: ops-cards;
+}
+
+/* Tarjeta única: no estirar a todo el ancho (se mantiene compacta) */
+.portal-ops-cards:has(> :only-child) > :only-child,
+.trip-ops-cards:has(> :only-child) > :only-child,
+.request-ops-cards:has(> :only-child) > :only-child,
+.directory-grid:has(> :only-child) > :only-child,
+.payroll-run-cards-grid:has(> :only-child) > :only-child,
+.b2b-leads-mosaic:has(> :only-child) > :only-child,
+.vehicle-ops-cards:has(> :only-child) > :only-child,
+.drivers-ops-cards:has(> :only-child) > :only-child,
+.employees-grid:has(> :only-child) > :only-child,
+.hiring-cards.hiring-cards--candidates:has(> :only-child) > :only-child,
+.history-fleet-log-grid:has(> :only-child) > :only-child,
+.user-grid:has(> :only-child) > :only-child,
+.reports-export-grid:has(> :only-child) > :only-child {
+  flex-grow: 0;
+  max-width: var(--ops-cards-max);
 }
 
 .portal-ops-card,
@@ -51,9 +68,9 @@
   box-shadow: 0 4px 18px rgba(15, 35, 70, 0.07), 0 1px 3px rgba(15, 35, 70, 0.04);
   transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
   min-width: 0;
-  max-width: var(--ops-cards-max);
-  width: min(100%, var(--ops-cards-max));
-  justify-self: start;
+  flex: 1 1 var(--ops-cards-min);
+  max-width: none;
+  width: auto;
   overflow: hidden;
   container-type: inline-size;
   container-name: ops-card;
@@ -963,8 +980,9 @@
 .drivers-grid.directory-grid,
 .payroll-employees-grid.directory-grid,
 .hiring-cards--candidates.portal-ops-cards {
-  grid-template-columns: var(--ops-tile-grid);
-  justify-content: start;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
   gap: var(--ops-cards-gap);
 }
 
@@ -1021,8 +1039,9 @@
 .b2b-leads-card,
 .history-fleet-log-card {
   min-width: 0;
-  max-width: var(--ops-cards-max);
-  width: 100%;
+  flex: 1 1 var(--ops-cards-min);
+  max-width: none;
+  width: auto;
   container-type: inline-size;
   container-name: ops-card;
 }
@@ -1128,6 +1147,7 @@
    =================================================================== */
 
 /* ── Rejillas por studio (todos los módulos) ── */
+/* Flota: flexbox; las fichas se reparten el ancho de cada fila sin huecos */
 .vehicles-studio .vehicle-ops-cards,
 .vehicles-studio .trip-ops-cards.portal-ops-cards,
 .vehicles-studio .trip-ops-cards.vehicle-ops-cards,
@@ -1137,17 +1157,27 @@
   display: flex;
   flex-wrap: wrap;
   align-content: flex-start;
-  justify-content: flex-start;
+  align-items: stretch;
   gap: var(--ops-cards-gap);
   width: 100%;
   min-width: 0;
-  grid-template-columns: unset;
 }
 
 .vehicles-studio .trip-ops-card.portal-ops-card.trip-ops-card--vehicle,
 .drivers-studio .trip-ops-card.portal-ops-card.trip-ops-card--driver {
-  flex: 0 0 auto;
-  width: min(100%, var(--ops-cards-max));
+  flex: 1 1 var(--ops-cards-min);
+  width: auto;
+  max-width: none;
+}
+
+/* Flota: ficha única no se estira a todo el ancho */
+.vehicles-studio .vehicle-ops-cards:has(> :only-child) > :only-child,
+.vehicles-studio .trip-ops-cards.portal-ops-cards:has(> :only-child) > :only-child,
+.vehicles-studio .trip-ops-cards.vehicle-ops-cards:has(> :only-child) > :only-child,
+.drivers-studio .drivers-ops-cards:has(> :only-child) > :only-child,
+.drivers-studio .trip-ops-cards.portal-ops-cards:has(> :only-child) > :only-child,
+.drivers-studio .trip-ops-cards.drivers-ops-cards:has(> :only-child) > :only-child {
+  flex-grow: 0;
   max-width: var(--ops-cards-max);
 }
 
@@ -1170,19 +1200,41 @@
 .history-studio .history-fleet-log-grid,
 .reports-studio .reports-export-grid,
 .calendar-studio .calendar-side-grid {
-  display: grid;
-  grid-template-columns: var(--ops-tile-grid);
-  justify-content: start;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  align-items: stretch;
   gap: var(--ops-cards-gap);
   width: 100%;
   min-width: 0;
 }
 
+/* Ficha única (cualquier módulo): no estirar a todo el ancho */
+.requests-studio .requests-data-results .request-ops-cards:has(> :only-child) > :only-child,
+.requests-studio .requests-data-results .trip-ops-cards:has(> :only-child) > :only-child,
+.transport-studio .transport-data-pane__body .request-ops-cards:has(> :only-child) > :only-child,
+.transport-studio .transport-data-pane__body .trip-ops-cards:has(> :only-child) > :only-child,
+.payroll-studio .payroll-run-cards-grid:has(> :only-child) > :only-child,
+.payroll-studio .employees-grid:has(> :only-child) > :only-child,
+.hiring-studio .hiring-cards.hiring-cards--candidates:has(> :only-child) > :only-child,
+.b2b-studio .b2b-leads-mosaic:has(> :only-child) > :only-child,
+.admin-users-studio .user-grid:has(> :only-child) > :only-child,
+.history-studio .history-fleet-log-grid:has(> :only-child) > :only-child,
+.reports-studio .reports-export-grid:has(> :only-child) > :only-child {
+  flex-grow: 0;
+  max-width: var(--ops-cards-max);
+}
+
 .profile-studio .profile-stats-strip {
-  display: grid;
-  grid-template-columns: var(--ops-tile-grid-kpi);
-  justify-content: start;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
   gap: var(--ops-cards-gap);
+  min-width: 0;
+}
+
+.profile-studio .profile-stats-strip > * {
+  flex: 1 1 11rem;
   min-width: 0;
 }
 
@@ -1234,8 +1286,8 @@
   padding: 0.62rem 0.78rem 0.58rem 0.88rem;
   border-radius: 12px;
   gap: 0.42rem;
-  max-width: var(--ops-cards-max);
-  width: 100%;
+  max-width: none;
+  width: auto;
 }
 
 .b2b-leads-card-top {
@@ -1265,8 +1317,9 @@
   background: #ffffff;
   box-shadow: 0 4px 18px rgba(15, 35, 70, 0.07), 0 1px 3px rgba(15, 35, 70, 0.04);
   min-width: 0;
-  max-width: var(--ops-cards-max);
-  width: 100%;
+  flex: 1 1 var(--ops-cards-min);
+  max-width: none;
+  width: auto;
   container-type: inline-size;
   container-name: ops-card;
   position: relative;
@@ -1468,8 +1521,8 @@
 /* ── Mi perfil: KPIs tipo ficha ── */
 .profile-studio .profile-stat-card {
   position: relative;
-  max-width: 14rem;
-  width: 100%;
+  max-width: none;
+  width: auto;
   padding: 0.55rem 0.68rem 0.55rem 0.82rem;
   border-radius: 10px;
   overflow: hidden;
@@ -1500,8 +1553,9 @@
 /* ── Usuarios: tarjetas comando / insight ── */
 .admin-users-studio .admin-users-insight-card,
 .admin-users-studio .admin-users-command-card {
-  max-width: var(--ops-cards-max);
-  width: 100%;
+  flex: 1 1 var(--ops-cards-min);
+  max-width: none;
+  width: auto;
   padding: 0.62rem 0.78rem 0.58rem 0.88rem;
   border-radius: 12px;
   gap: 0.42rem;

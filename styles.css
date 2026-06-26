@@ -17659,6 +17659,9 @@ body[data-theme="dark"] .history-fleet-money-wrap input {
 
 .report-preview-actions .btn {
   min-width: 0;
+  overflow: visible;
+  max-width: 100%;
+  white-space: normal;
 }
 
 @media (max-width: 720px) {
@@ -31076,11 +31079,16 @@ body[data-theme="dark"] .approve-trip-pill--tk {
 
 .modal-info-layout > .module-panel-actions--footer.modal-edit-actions {
   flex-shrink: 0;
-  margin-top: 0.85rem !important;
+  margin-top: 0 !important;
   margin-bottom: 0 !important;
+  margin-inline: calc(-1 * var(--modal-card-pad-x, 1.4rem));
+  width: calc(100% + (2 * var(--modal-card-pad-x, 1.4rem)));
+  max-width: none;
   position: relative;
-  z-index: 2;
+  z-index: 4;
   overflow: visible;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  box-sizing: border-box;
 }
 
 .trip-assign-friendly-intro {
@@ -33813,8 +33821,14 @@ body[data-theme="dark"] .modal-card-edit--employee-non-renewal .modal-edit-actio
   min-width: 0;
 }
 
-.modal-info-layout > .module-panel-actions--footer.modal-edit-actions .module-panel-actions__bar {
-  padding-bottom: 1rem;
+.modal-info-layout > .module-panel-actions--footer.modal-edit-actions .module-panel-actions__bar,
+.detail-view-footer .module-panel-actions__bar {
+  overflow: visible;
+  flex-wrap: wrap;
+  padding: 0.9rem 1.15rem max(1.05rem, calc(0.9rem + env(safe-area-inset-bottom, 0px)));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    0 -6px 16px rgba(15, 23, 42, 0.06);
 }
 
 .report-preview-actions.module-panel-actions--footer.modal-edit-actions .module-panel-actions__bar {
@@ -33978,7 +33992,9 @@ body[data-theme="dark"] .modal-card-edit--employee-non-renewal .modal-edit-actio
 
 @media (max-width: 560px) {
   #crud-modal .module-panel-actions--footer.modal-edit-actions .module-panel-actions__bar,
-  .modal-card-edit .module-panel-actions--footer.modal-edit-actions .module-panel-actions__bar {
+  .modal-card-edit .module-panel-actions--footer.modal-edit-actions .module-panel-actions__bar,
+  .detail-view-footer .module-panel-actions__bar,
+  .report-preview-actions.module-panel-actions--footer.modal-edit-actions .module-panel-actions__bar {
     flex-direction: column;
     align-items: stretch;
     gap: 0.55rem;
@@ -33996,7 +34012,11 @@ body[data-theme="dark"] .modal-card-edit--employee-non-renewal .modal-edit-actio
   #crud-modal .module-panel-actions--footer.modal-edit-actions .module-panel-actions__group--primary,
   #crud-modal .module-panel-actions--footer.modal-edit-actions .module-panel-actions__group--secondary,
   .modal-card-edit .module-panel-actions--footer.modal-edit-actions .module-panel-actions__group--primary,
-  .modal-card-edit .module-panel-actions--footer.modal-edit-actions .module-panel-actions__group--secondary {
+  .modal-card-edit .module-panel-actions--footer.modal-edit-actions .module-panel-actions__group--secondary,
+  .detail-view-footer .module-panel-actions__group--primary,
+  .detail-view-footer .module-panel-actions__group--secondary,
+  .report-preview-actions.module-panel-actions--footer.modal-edit-actions .module-panel-actions__group--primary,
+  .report-preview-actions.module-panel-actions--footer.modal-edit-actions .module-panel-actions__group--secondary {
     width: 100%;
     margin-inline-start: 0;
     justify-content: stretch;
@@ -34007,7 +34027,11 @@ body[data-theme="dark"] .modal-card-edit--employee-non-renewal .modal-edit-actio
   #crud-modal .module-panel-actions--footer.modal-edit-actions .module-panel-actions__group--primary > .btn,
   .modal-card-edit .module-panel-actions--footer.modal-edit-actions .module-panel-btn--cancel,
   .modal-card-edit .module-panel-actions--footer.modal-edit-actions .module-panel-actions__group--primary > .btn-primary,
-  .modal-card-edit .module-panel-actions--footer.modal-edit-actions .module-panel-actions__group--primary > .btn {
+  .modal-card-edit .module-panel-actions--footer.modal-edit-actions .module-panel-actions__group--primary > .btn,
+  .detail-view-footer .btn,
+  .detail-view-footer .module-panel-btn,
+  .detail-view-footer .detail-view-close-btn,
+  .report-preview-actions.module-panel-actions--footer.modal-edit-actions .btn {
     width: 100%;
     min-width: 0;
     justify-content: center;
@@ -34170,6 +34194,24 @@ body[data-theme="dark"] .solicitud-trip-summary {
 .report-preview-actions.module-panel-actions--footer.modal-edit-actions .module-panel-actions__bar {
   justify-content: space-between;
   flex-wrap: wrap;
+  overflow: visible;
+  padding: 0.9rem 1.2rem max(1.05rem, calc(0.9rem + env(safe-area-inset-bottom, 0px)));
+}
+
+.report-preview-actions.module-panel-actions--footer.modal-edit-actions .btn,
+.report-preview-actions.module-panel-actions--footer.modal-edit-actions .module-panel-btn,
+.report-preview-actions.module-panel-actions--footer.modal-edit-actions .module-panel-btn__label {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  max-width: 100%;
+}
+
+.report-preview-actions.module-panel-actions--footer.modal-edit-actions .module-panel-actions__group--secondary,
+.report-preview-actions.module-panel-actions--footer.modal-edit-actions .module-panel-actions__group--primary {
+  flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .report-preview-actions.module-panel-actions--footer.modal-edit-actions .module-panel-actions__group--primary::before {
@@ -34486,7 +34528,7 @@ body[data-theme="dark"] .solicitud-trip-summary {
 
 .detail-view-footer .module-panel-actions__bar {
   justify-content: flex-start;
-  gap: 0.65rem;
+  gap: 0.65rem 0.85rem;
   border-radius: 0 0 22px 22px;
 }
 
@@ -34496,21 +34538,45 @@ body[data-theme="dark"] .solicitud-trip-summary {
   gap: 0.55rem;
   min-width: 0;
   flex: 1 1 auto;
+  max-width: 100%;
 }
 
 .detail-view-footer .module-panel-actions__group--primary {
   margin-inline-start: auto;
   flex: 0 1 auto;
   min-width: 0;
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+
+.detail-view-footer .btn,
+.detail-view-footer .module-panel-btn,
+.detail-view-footer .detail-view-close-btn,
+.detail-view-footer .module-panel-btn__label {
+  white-space: normal;
+  text-align: center;
+  line-height: 1.25;
+  overflow: visible;
+  text-overflow: unset;
+  max-width: 100%;
+}
+
+.detail-view-footer .module-panel-btn__inner {
+  flex-wrap: wrap;
+  justify-content: center;
+  row-gap: 0.2rem;
 }
 
 .detail-view-footer .detail-view-close-btn {
-  min-height: 2.55rem;
-  min-width: 0;
+  min-height: 2.65rem;
+  min-width: 7rem;
   max-width: 100%;
+  padding: 0.58rem 1.05rem;
   border-color: color-mix(in srgb, var(--line) 75%, #94a3b8);
   color: #475569;
   background: #fff;
+  overflow: visible;
+  flex-shrink: 0;
 }
 
 .detail-view-footer .detail-view-close-btn:hover:not(:disabled) {
