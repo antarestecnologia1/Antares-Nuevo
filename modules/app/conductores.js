@@ -304,7 +304,7 @@ function driversHtml() {
       .filter(Boolean)
       .join("");
     const statusActionBtn = canEditDriver
-      ? `<button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--solid driver-card-status-btn" data-action="toggle-driver" data-id="${escapeAttr(String(d.id ?? ""))}" title="Alternar disponibilidad manual">${IC.toggle} Ver estado actual</button>`
+      ? `<div class="portal-ops-card-actions-stack"><button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--solid driver-card-status-btn" data-action="toggle-driver" data-id="${escapeAttr(String(d.id ?? ""))}" title="Alternar disponibilidad manual">${IC.toggle} Ver estado actual</button></div>`
       : "";
     return `<article class="trip-ops-card portal-ops-card trip-ops-card--driver trip-ops-card--driver-${escapeAttr(item.statusSlug)} directory-card--doc-${escapeAttr(item.docBucket)}" data-driver-id="${escapeAttr(String(d.id ?? ""))}">
         <header class="trip-ops-card-head trip-ops-card-head--driver">

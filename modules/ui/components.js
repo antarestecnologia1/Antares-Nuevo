@@ -1275,7 +1275,7 @@ export function buildPortalOpsCardDocPill(label, bucket = "ok", iconHtml = "") {
           ? "warning"
           : "ok";
   const icon = iconHtml || ic().award || "";
-  return `<span class="portal-ops-card-doc-pill portal-ops-card-doc-pill--${escapeAttr(tone)}" title="Estado documental">
+  return `<span class="portal-ops-card-doc-pill portal-ops-card-doc-pill--${escapeAttr(tone)} driver-card-doc-pill driver-card-doc-pill--${escapeAttr(tone)}" title="${escapeAttr(String(label ?? "").trim() || "Estado documental")}">
     ${icon ? `<span class="portal-ops-card-doc-pill__icon" aria-hidden="true">${icon}</span>` : ""}
     <span>${escapeHtml(String(label ?? "").trim() || "—")}</span>
   </span>`;

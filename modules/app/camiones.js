@@ -174,7 +174,6 @@ function vehiclesHtml() {
       const ownershipCardLabel = String(v.ownershipCard || "").trim() || "Sin tarjeta";
       const motorLabel = String(v.engineNumber || "").trim() || "Sin motor";
       const vinLabel = String(v.vin || "").trim() || "Sin VIN";
-      const createdLabel = fmtDate(v.createdAt || "") || "—";
       const lastUpdateLabel = formatPortalOpsCardTimestamp(v.updatedAt || v.createdAt || "");
       const statusBadgeHtml = buildPortalOpsCardStatusPill(availabilityLabel, occupancySlug);
       const termokingBadgeHtml = isRefrigerated
@@ -183,11 +182,15 @@ function vehiclesHtml() {
             <span>TERMOKING</span>
           </span>`
         : "";
-      const actionButtons = [
+      const primaryButtons = [
         `<button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--outline" data-action="view-vehicle" data-id="${escapeAttr(String(v.id || ""))}" title="Ver ficha técnica del vehículo">${IC.eye} Ver detalles</button>`,
         canEditVeh
           ? `<button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--solid" data-action="edit-vehicle" data-id="${escapeAttr(String(v.id || ""))}" title="Editar datos del vehículo">${IC.edit} Editar información</button>`
-          : "",
+          : ""
+      ]
+        .filter(Boolean)
+        .join("");
+      const fullWidthButtons = [
         canToggleVeh
           ? `<button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--soft" data-action="toggle-vehicle" data-id="${escapeAttr(String(v.id || ""))}" title="Alternar disponibilidad manual">${IC.toggle} Cambiar estado</button>`
           : "",
@@ -197,6 +200,9 @@ function vehiclesHtml() {
       ]
         .filter(Boolean)
         .join("");
+      const fullWidthActionsHtml = fullWidthButtons
+        ? `<div class="portal-ops-card-actions-stack">${fullWidthButtons}</div>`
+        : "";
       return `<article class="trip-ops-card portal-ops-card trip-ops-card--vehicle trip-ops-card--vehicle-${escapeAttr(occupancySlug)}" data-vehicle-id="${escapeAttr(String(v.id || ""))}">
         <header class="trip-ops-card-head trip-ops-card-head--vehicle">
           <div class="trip-ops-card-head-main">
@@ -223,8 +229,8 @@ function vehiclesHtml() {
               <span class="vehicle-availability-bar__detail">${escapeHtml(occupancyDetail)}</span>
             </div>
           </div>
-          <div class="vehicle-availability-bar__update">
-            <span class="vehicle-availability-bar__update-label">${IC.calendar}<span>Última actualización</span></span>
+          <div class="vehicle-availability-bar__update" title="Última actualización: ${escapeAttr(lastUpdateLabel)}">
+            <span class="vehicle-availability-bar__update-label">${IC.calendar}<span>Actualización</span></span>
             <strong>${escapeHtml(lastUpdateLabel)}</strong>
           </div>
         </div>
@@ -238,8 +244,8 @@ function vehiclesHtml() {
           ${buildPortalOpsCardGridItem("VIN", IC.hash, vinLabel)}
           ${buildPortalOpsCardGridItem("Trazabilidad", IC.satellite, gpsTraceLabel, { tone: gpsEnabled ? "ok" : "warn" })}
         </div>
-        ${buildPortalOpsCardActions(actionButtons)}
-        ${buildPortalOpsCardFoot("Creado", createdLabel)}
+        ${buildPortalOpsCardActions(primaryButtons, fullWidthActionsHtml)}
+        ${buildPortalOpsCardFoot("Última actualización", lastUpdateLabel)}
       </article>`;
     })
     .join("");

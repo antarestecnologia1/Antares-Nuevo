@@ -8441,7 +8441,7 @@ body[data-theme="dark"] .trip-ops-card--vehicle .vehicle-occupancy-note {
 }
 
 /* ── Tarjeta de camión (flota) — interfaz detallada ── */
-.trip-ops-card--vehicle {
+.trip-ops-card--vehicle:not(.portal-ops-card) {
   gap: 0.8rem;
   padding: 1.05rem 1.1rem 0.9rem;
 }
@@ -8506,7 +8506,7 @@ body[data-theme="dark"] .trip-ops-card--vehicle .vehicle-occupancy-note {
   color: #6b7f96;
 }
 
-.trip-ops-card--vehicle .vehicle-plate-title {
+.trip-ops-card--vehicle:not(.portal-ops-card) .vehicle-plate-title {
   font-size: 1.12rem;
   font-weight: 800;
   letter-spacing: -0.01em;
@@ -8823,7 +8823,7 @@ body[data-theme="dark"] .vehicle-card-equip-pill {
 }
 
 /* ── Tarjeta de conductor (flota) — interfaz detallada ── */
-.trip-ops-card--driver {
+.trip-ops-card--driver:not(.portal-ops-card) {
   gap: 0.42rem;
   padding: 0.62rem 0.78rem 0.58rem 0.88rem;
 }
