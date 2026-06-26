@@ -88,3 +88,12 @@
   .drivers-studio .drv-operate__rail { position: static; }
 }
 
+/* ── Tarjetas operativas: rejilla tipo ficha ── */
+.drivers-studio .drivers-ops-cards,
+.drivers-studio .trip-ops-cards.portal-ops-cards,
+.drivers-studio .trip-ops-cards.drivers-ops-cards {
+  display: grid;
+  grid-template-columns: var(--ops-tile-grid, repeat(auto-fill, minmax(min(100%, 17.25rem), 19.5rem)));
+  justify-content: start;
+  gap: var(--ops-cards-gap, 0.75rem);
+}

@@ -812,7 +812,7 @@
 }
 
 .payroll-studio .payroll-data-panel .payroll-employees-grid {
-  gap: 0.75rem;
+  gap: var(--ops-cards-gap, 0.65rem);
 }
 
 .payroll-studio .payroll-employees-table {
@@ -3845,3 +3845,13 @@ body[data-theme="dark"] .payroll-studio .payroll-liq-field input[placeholder="Au
   color: rgba(148, 163, 184, 0.8);
 }
 
+/* ── Gestión humana: rejilla tipo ficha ── */
+.payroll-studio .payroll-run-cards-grid,
+.payroll-studio .employees-grid,
+.payroll-studio .payroll-employees-grid,
+.payroll-studio .directory-grid.portal-ops-cards {
+  display: grid;
+  grid-template-columns: var(--ops-tile-grid, repeat(auto-fill, minmax(min(100%, 17.25rem), 19.5rem)));
+  justify-content: start;
+  gap: var(--ops-cards-gap, 0.75rem);
+}

@@ -4,8 +4,12 @@
    =================================================================== */
 
 :root {
-  --ops-cards-min: 21rem;
-  --ops-cards-gap: 0.65rem;
+  --ops-cards-min: 17.25rem;
+  --ops-cards-max: 19.5rem;
+  --ops-cards-gap: 0.75rem;
+  --ops-card-accent: #1d63d3;
+  --ops-tile-grid: repeat(auto-fill, minmax(min(100%, var(--ops-cards-min)), var(--ops-cards-max)));
+  --ops-tile-grid-kpi: repeat(auto-fill, minmax(min(100%, 11rem), 14rem));
 }
 
 .portal-ops-cards,
@@ -17,9 +21,13 @@
 .vehicle-ops-cards,
 .drivers-ops-cards,
 .employees-grid,
-.hiring-cards.hiring-cards--candidates {
+.hiring-cards.hiring-cards--candidates,
+.history-fleet-log-grid,
+.admin-users-list-shell .user-grid,
+.reports-studio .reports-export-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--ops-cards-min)), 1fr));
+  grid-template-columns: var(--ops-tile-grid);
+  justify-content: start;
   gap: var(--ops-cards-gap);
   width: 100%;
   min-width: 0;
@@ -34,17 +42,33 @@
   position: relative;
   border: 1px solid #e8edf3;
   border-radius: 12px;
-  padding: 0.55rem 0.72rem 0.5rem;
+  padding: 0.62rem 0.78rem 0.58rem 0.88rem;
   background: #ffffff;
   display: grid;
-  gap: 0.36rem;
+  gap: 0.42rem;
   box-shadow: 0 4px 18px rgba(15, 35, 70, 0.07), 0 1px 3px rgba(15, 35, 70, 0.04);
   transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
   min-width: 0;
+  max-width: var(--ops-cards-max);
   width: 100%;
   overflow: hidden;
   container-type: inline-size;
   container-name: ops-card;
+}
+
+.portal-ops-card::before,
+.trip-ops-card::before,
+.directory-card:not(.directory-card--compact)::before,
+.hiring-candidate-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 12px 0 0 12px;
+  background: var(--ops-card-accent, #1d63d3);
+  pointer-events: none;
 }
 
 .portal-ops-card:hover,
@@ -165,13 +189,13 @@
 .vehicle-card-badges,
 .directory-card__status-stack {
   display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.28rem;
-  flex: 0 1 auto;
-  max-width: 46%;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: flex-end;
+  justify-content: flex-start;
+  gap: 0.22rem;
+  flex: 0 0 auto;
+  max-width: 42%;
   min-width: 0;
 }
 
@@ -350,9 +374,9 @@
   flex-wrap: nowrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.35rem;
-  padding: 0.32rem 0.45rem;
-  border-radius: 8px;
+  gap: 0.38rem;
+  padding: 0.42rem 0.52rem;
+  border-radius: 9px;
   border: 1px solid rgba(16, 185, 129, 0.28);
   background: linear-gradient(135deg, rgba(16, 185, 129, 0.14), rgba(16, 185, 129, 0.06));
   min-width: 0;
@@ -451,8 +475,8 @@
 .directory-card__facts,
 .hiring-candidate-card__meta {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.28rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem;
   margin: 0;
   padding: 0;
   min-width: 0;
@@ -474,9 +498,9 @@
 .directory-chip,
 .directory-card__fact {
   display: grid;
-  gap: 0.12rem;
-  padding: 0.3rem 0.36rem;
-  border-radius: 8px;
+  gap: 0.18rem;
+  padding: 0.38rem 0.48rem;
+  border-radius: 9px;
   background: #f8fafc;
   border: 1px solid #edf1f5;
   min-width: 0;
@@ -814,8 +838,8 @@
 .directory-card__avatar,
 .driver-avatar,
 .portal-ops-card-avatar {
-  width: 2.2rem;
-  height: 2.2rem;
+  width: 2.5rem;
+  height: 2.5rem;
   flex: 0 0 auto;
   display: grid;
   place-items: center;
@@ -840,9 +864,9 @@
   display: block;
 }
 
-/* ── Overrides directory legacy ── */
+/* Overrides directory legacy — franja lateral la define ::before unificado */
 .directory-card:not(.directory-card--compact)::before {
-  display: none;
+  display: block;
 }
 
 .directory-card:not(.directory-card--compact) {
@@ -867,7 +891,8 @@
 .drivers-grid.directory-grid,
 .payroll-employees-grid.directory-grid,
 .hiring-cards--candidates.portal-ops-cards {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--ops-cards-min)), 1fr));
+  grid-template-columns: var(--ops-tile-grid);
+  justify-content: start;
   gap: var(--ops-cards-gap);
 }
 
@@ -921,8 +946,11 @@
 }
 
 .payroll-run-card,
-.b2b-leads-card {
+.b2b-leads-card,
+.history-fleet-log-card {
   min-width: 0;
+  max-width: var(--ops-cards-max);
+  width: 100%;
   container-type: inline-size;
   container-name: ops-card;
 }
@@ -949,21 +977,8 @@
   min-width: 0;
 }
 
-/* ── Tarjetas anchas: más columnas en datos para menos altura ── */
-@container ops-card (min-width: 26rem) {
-  .portal-ops-card-spec-grid,
-  .trip-ops-card-grid,
-  .vehicle-card-spec-grid,
-  .driver-card-spec-grid,
-  .directory-card__metrics:not(.directory-card__metrics--triple):not(.directory-card__metrics--quad),
-  .directory-card__facts,
-  .hiring-candidate-card__meta {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
-
 /* ── Container queries: solo en tarjetas muy estrechas ── */
-@container ops-card (max-width: 22rem) {
+@container ops-card (max-width: 15.5rem) {
   .trip-ops-card-head,
   .directory-card__head,
   .hiring-candidate-card__head {
@@ -1024,15 +1039,459 @@
   }
 }
 
+/* ===================================================================
+   Módulos del portal — fichas compactas (ancho fijo, estilo tarjeta)
+   =================================================================== */
+
+/* ── Rejillas por studio (todos los módulos) ── */
+.requests-studio .requests-data-results .request-ops-cards,
+.requests-studio .requests-data-results .trip-ops-cards,
+.transport-studio .transport-data-pane__body .request-ops-cards,
+.transport-studio .transport-data-pane__body .trip-ops-cards,
+.vehicles-studio .vehicle-ops-cards,
+.vehicles-studio .trip-ops-cards.portal-ops-cards,
+.vehicles-studio .trip-ops-cards.vehicle-ops-cards,
+.drivers-studio .drivers-ops-cards,
+.drivers-studio .trip-ops-cards.portal-ops-cards,
+.drivers-studio .trip-ops-cards.drivers-ops-cards,
+.payroll-studio .payroll-run-cards-grid,
+.payroll-studio .employees-grid,
+.payroll-studio .payroll-employees-grid,
+.payroll-studio .directory-grid.portal-ops-cards,
+.hiring-studio .hiring-cards.hiring-cards--candidates,
+.hiring-studio .hiring-cards--candidates.portal-ops-cards,
+.b2b-studio .b2b-operate__main .b2b-leads-mosaic,
+.b2b-studio .b2b-leads-mosaic,
+.admin-users-studio .user-grid,
+.admin-users-studio .admin-users-list-shell .user-grid,
+.admin-users-studio .admin-users-insights-grid,
+.admin-users-studio .admin-users-command-grid,
+.history-studio .history-fleet-log-grid,
+.reports-studio .reports-export-grid,
+.calendar-studio .calendar-side-grid {
+  display: grid;
+  grid-template-columns: var(--ops-tile-grid);
+  justify-content: start;
+  gap: var(--ops-cards-gap);
+  width: 100%;
+  min-width: 0;
+}
+
+.profile-studio .profile-stats-strip {
+  display: grid;
+  grid-template-columns: var(--ops-tile-grid-kpi);
+  justify-content: start;
+  gap: var(--ops-cards-gap);
+  min-width: 0;
+}
+
+/* ── Nómina: liquidaciones compactas ── */
+.payroll-run-card--compact {
+  min-height: 0;
+  padding: 0.55rem 0.72rem 0.5rem;
+  gap: 0.36rem;
+  border-radius: 12px;
+}
+
+.payroll-run-card--compact .payroll-run-card-head {
+  padding: 0.35rem 0.35rem 0.25rem 0.85rem;
+  gap: 0.4rem;
+}
+
+.payroll-run-card--compact .payroll-run-card-kicker {
+  margin-bottom: 0.05rem;
+  font-size: 0.62rem;
+}
+
+.payroll-run-card--compact .payroll-run-card-title {
+  font-size: 0.88rem;
+  line-height: 1.18;
+}
+
+.payroll-run-card--compact .payroll-run-card-chips {
+  padding: 0 0.85rem 0.3rem;
+  gap: 0.28rem;
+}
+
+.payroll-run-card--compact .payroll-run-amounts {
+  border-top-width: 1px;
+  border-bottom-width: 1px;
+}
+
+.payroll-run-card--compact .payroll-run-amount-col {
+  padding: 0.38rem 0.42rem 0.38rem 0.65rem;
+  gap: 0.12rem;
+}
+
+.payroll-run-card--compact .payroll-run-card-actions {
+  gap: 0.28rem;
+  padding: 0.35rem 0.5rem 0.4rem;
+}
+
+/* ── B2B: leads compactos ── */
+.b2b-leads-card {
+  padding: 0.62rem 0.78rem 0.58rem 0.88rem;
+  border-radius: 12px;
+  gap: 0.42rem;
+  max-width: var(--ops-cards-max);
+  width: 100%;
+}
+
+.b2b-leads-card-top {
+  margin-bottom: 0.38rem;
+  gap: 0.38rem;
+}
+
+.b2b-leads-meta {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem;
+  padding-top: 0.42rem;
+}
+
+.b2b-leads-brief {
+  margin-top: 0.38rem;
+  padding: 0.42rem 0.5rem;
+  border-radius: 8px;
+}
+
+/* ── Historial: flota (combustible / taller) ── */
+.history-fleet-log-card {
+  display: grid;
+  gap: 0.42rem;
+  padding: 0.62rem 0.78rem 0.58rem 0.88rem;
+  border: 1px solid #e8edf3;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 4px 18px rgba(15, 35, 70, 0.07), 0 1px 3px rgba(15, 35, 70, 0.04);
+  min-width: 0;
+  max-width: var(--ops-cards-max);
+  width: 100%;
+  container-type: inline-size;
+  container-name: ops-card;
+  position: relative;
+  overflow: hidden;
+}
+
+.history-fleet-log-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 12px 0 0 12px;
+  background: var(--ops-card-accent, #1d63d3);
+  pointer-events: none;
+}
+
+.history-fleet-log-card--fuel::before {
+  background: #16a34a;
+}
+
+.history-fleet-log-card--technical::before {
+  background: #6366f1;
+}
+
+.history-fleet-log-head {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.history-fleet-log-date {
+  display: block;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6b7f96;
+  margin-bottom: 0.12rem;
+}
+
+.history-fleet-log-plate {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #0d2f5c;
+  line-height: 1.15;
+}
+
+.history-fleet-log-sub,
+.history-fleet-log-desc {
+  margin: 0.12rem 0 0;
+  font-size: 0.76rem;
+  color: #64748b;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.history-fleet-log-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+}
+
+.history-fleet-log-meta > div {
+  display: grid;
+  gap: 0.12rem;
+  padding: 0.3rem 0.36rem;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #edf1f5;
+  min-width: 0;
+}
+
+.history-fleet-log-meta dt {
+  margin: 0;
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #8a96a8;
+}
+
+.history-fleet-log-meta dd {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #152a44;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.history-fleet-log-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.28rem;
+  justify-content: flex-end;
+}
+
+.history-fleet-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.22rem 0.48rem;
+  border-radius: 999px;
+  font-size: 0.64rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.history-fleet-badge--ok {
+  background: rgba(16, 185, 129, 0.14);
+  color: #047857;
+}
+
+.history-fleet-badge--warn {
+  background: rgba(245, 158, 11, 0.16);
+  color: #b45309;
+}
+
+.history-fleet-badge--type {
+  background: rgba(99, 102, 241, 0.12);
+  color: #4338ca;
+}
+
+.history-fleet-badge--status {
+  background: rgba(55, 124, 192, 0.12);
+  color: #1d4ed8;
+}
+
+/* ── Historial: trazabilidad (timeline) ── */
+.history-studio.hist-trace-shell .hist-trace-card__body {
+  padding: 0.55rem 0.72rem;
+}
+
+.history-studio.hist-trace-shell .hist-trace-card__title {
+  font-size: 0.9rem;
+  line-height: 1.2;
+  margin: 0.2rem 0 0.15rem;
+}
+
+.history-studio.hist-trace-shell .hist-trace-card__summary {
+  font-size: 0.78rem;
+  line-height: 1.35;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.history-studio.hist-trace-shell .hist-trace-card__foot {
+  margin-top: 0.35rem;
+  gap: 0.35rem;
+}
+
+/* ── Notificaciones / avisos / timbre ── */
+.notifications-studio .ntf-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 52rem;
+}
+
+.notifications-studio .ntf-card {
+  position: relative;
+  padding: 0.55rem 0.72rem 0.55rem 0.88rem;
+  gap: 0.42rem 0.58rem;
+  align-items: center;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.notifications-studio .ntf-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 10px 0 0 10px;
+  background: #cbd5e1;
+  pointer-events: none;
+}
+
+.notifications-studio .ntf-card--unread::before {
+  background: linear-gradient(180deg, #6366f1, #4338ca);
+}
+
+/* ── Mi perfil: KPIs tipo ficha ── */
+.profile-studio .profile-stat-card {
+  position: relative;
+  max-width: 14rem;
+  width: 100%;
+  padding: 0.55rem 0.68rem 0.55rem 0.82rem;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.profile-studio .profile-stat-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 10px 0 0 10px;
+  background: #4f46e5;
+  pointer-events: none;
+}
+
+.profile-studio .profile-stat-card p {
+  margin: 0 0 0.12rem;
+  font-size: 0.62rem;
+}
+
+.profile-studio .profile-stat-card strong {
+  font-size: 0.88rem;
+  line-height: 1.2;
+}
+
+/* ── Usuarios: tarjetas comando / insight ── */
+.admin-users-studio .admin-users-insight-card,
+.admin-users-studio .admin-users-command-card {
+  max-width: var(--ops-cards-max);
+  width: 100%;
+  padding: 0.62rem 0.78rem 0.58rem 0.88rem;
+  border-radius: 12px;
+  gap: 0.42rem;
+}
+
+/* ── SST y autorizaciones: paneles compactos ── */
+.sst-studio .p-card,
+.authorizations-studio .p-card {
+  border-radius: 12px;
+}
+
+/* ── Acentos por estado (viajes / solicitudes / flota) ── */
+.trip-ops-card--pendiente,
+.request-ops-card.trip-ops-card--pendiente { --ops-card-accent: #f59e0b; }
+.trip-ops-card--aprobada_pendiente_asignacion { --ops-card-accent: #2563eb; }
+.trip-ops-card--viaje_asignado { --ops-card-accent: #16a34a; }
+.trip-ops-card--en_transito { --ops-card-accent: #0284c7; }
+.trip-ops-card--espera_standby { --ops-card-accent: #6366f1; }
+.trip-ops-card--completada { --ops-card-accent: #0891b2; }
+.trip-ops-card--cerrada { --ops-card-accent: #475569; }
+.trip-ops-card--cancelada,
+.trip-ops-card--rechazada,
+.trip-ops-card--vencida { --ops-card-accent: #dc2626; }
+
+.trip-ops-card--vehicle-disponible { --ops-card-accent: #16a34a; }
+.trip-ops-card--vehicle-ocupado { --ops-card-accent: #ea580c; }
+.trip-ops-card--vehicle-reservado { --ops-card-accent: #6366f1; }
+.trip-ops-card--vehicle-no-disponible { --ops-card-accent: #d97706; }
+
+/* ── Calendario: eventos del panel lateral ── */
+.calendar-studio .cal-day-event,
+.calendar-studio .cal-upcoming-item {
+  padding: 0.42rem 0.55rem 0.42rem 0.68rem;
+  border-radius: 9px;
+  gap: 0.45rem;
+}
+
+@container ops-card (max-width: 22rem) {
+  .b2b-leads-meta,
+  .history-fleet-log-meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ── Conductores: alinear con ficha de referencia ── */
+.trip-ops-card--driver {
+  --ops-card-accent: #ea580c;
+  gap: 0.42rem;
+  padding: 0.62rem 0.78rem 0.58rem 0.88rem;
+}
+
+.trip-ops-card--driver.trip-ops-card--driver-available {
+  --ops-card-accent: #16a34a;
+}
+
+.trip-ops-card--driver.trip-ops-card--driver-busy {
+  --ops-card-accent: #ea580c;
+}
+
+.trip-ops-card--driver.trip-ops-card--driver-scheduled {
+  --ops-card-accent: #6366f1;
+}
+
+.trip-ops-card--driver.trip-ops-card--driver-offline {
+  --ops-card-accent: #d97706;
+}
+
+.trip-ops-card-head--driver .driver-avatar {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 10px;
+  font-size: 0.82rem;
+}
+
+.trip-ops-card--driver .driver-card-title,
+.trip-ops-card--driver .trip-ops-card-title {
+  font-size: 0.88rem;
+  line-height: 1.18;
+}
+
 @media (max-width: 768px) {
   :root {
-    --ops-cards-min: 18.5rem;
+    --ops-cards-min: 16rem;
+    --ops-cards-max: 100%;
   }
 }
 
 @media (max-width: 520px) {
   :root {
     --ops-cards-min: 100%;
+    --ops-cards-max: 100%;
   }
 
   .directory-card__metrics--triple,
@@ -1088,4 +1547,18 @@ body[data-theme="dark"] .portal-ops-card-foot,
 body[data-theme="dark"] .trip-ops-card-foot {
   border-top-color: rgba(148, 196, 255, 0.12);
   color: #94a8c0;
+}
+
+body[data-theme="dark"] .history-fleet-log-card {
+  background: rgba(14, 28, 46, 0.92);
+  border-color: rgba(148, 196, 255, 0.14);
+}
+
+body[data-theme="dark"] .history-fleet-log-plate {
+  color: #e6f1ff;
+}
+
+body[data-theme="dark"] .history-fleet-log-meta > div {
+  background: rgba(15, 28, 46, 0.55);
+  border-color: rgba(148, 196, 255, 0.12);
 }

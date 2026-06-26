@@ -133,7 +133,8 @@ body.portal-mode .kpi-grid {
   .portal-main .drivers-ops-cards,
   .portal-main .employees-grid,
   .portal-main .hiring-cards.hiring-cards--candidates {
-    --ops-cards-min: 18.5rem;
+    --ops-cards-min: 16rem;
+    --ops-cards-max: 100%;
   }
 
   .payroll-studio .payroll-section-cards {
@@ -204,6 +205,7 @@ body.portal-mode .kpi-grid {
   .portal-main .employees-grid,
   .portal-main .hiring-cards.hiring-cards--candidates {
     --ops-cards-min: 100%;
+    --ops-cards-max: 100%;
   }
 
   .dashboard-studio .dash-metrics-cards,
@@ -574,4 +576,40 @@ body.portal-mode .kpi-grid {
   .hr-workspace-jump-btn.btn-primary {
     flex: 1 1 100%;
   }
+}
+
+/* ── Módulos: fichas compactas (todos los studios) ── */
+.requests-studio .requests-data-results .request-ops-cards,
+.requests-studio .requests-data-results .trip-ops-cards,
+.transport-studio .transport-data-pane__body .request-ops-cards,
+.transport-studio .transport-data-pane__body .trip-ops-cards,
+.vehicles-studio .vehicle-ops-cards,
+.vehicles-studio .trip-ops-cards.portal-ops-cards,
+.vehicles-studio .trip-ops-cards.vehicle-ops-cards,
+.drivers-studio .drivers-ops-cards,
+.drivers-studio .trip-ops-cards.portal-ops-cards,
+.drivers-studio .trip-ops-cards.drivers-ops-cards,
+.payroll-studio .payroll-run-cards-grid,
+.payroll-studio .employees-grid,
+.payroll-studio .payroll-employees-grid,
+.payroll-studio .directory-grid.portal-ops-cards,
+.hiring-studio .hiring-cards.hiring-cards--candidates,
+.hiring-studio .hiring-cards--candidates.portal-ops-cards,
+.b2b-studio .b2b-operate__main .b2b-leads-mosaic,
+.b2b-studio .b2b-leads-mosaic,
+.admin-users-studio .user-grid,
+.admin-users-studio .admin-users-list-shell .user-grid,
+.admin-users-studio .admin-users-insights-grid,
+.admin-users-studio .admin-users-command-grid,
+.history-studio .history-fleet-log-grid,
+.reports-studio .reports-export-grid,
+.calendar-studio .calendar-side-grid {
+  grid-template-columns: var(--ops-tile-grid, repeat(auto-fill, minmax(min(100%, 17.25rem), 19.5rem)));
+  justify-content: start;
+  gap: var(--ops-cards-gap, 0.75rem);
+}
+
+.profile-studio .profile-stats-strip {
+  grid-template-columns: var(--ops-tile-grid-kpi, repeat(auto-fill, minmax(min(100%, 11rem), 14rem)));
+  justify-content: start;
 }

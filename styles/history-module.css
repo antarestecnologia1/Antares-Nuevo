@@ -1114,8 +1114,8 @@ body[data-theme="dark"] .history-studio .hiring-candidate-card {
 
 /* ── Timeline cards ── */
 .history-studio.hist-trace-shell .hist-trace-card {
-  grid-template-columns: 1.35rem minmax(0, 1fr);
-  gap: 0.75rem;
+  grid-template-columns: 1.2rem minmax(0, 1fr);
+  gap: 0.55rem;
 }
 
 .history-studio.hist-trace-shell .hist-trace-card__rail {
@@ -1160,7 +1160,7 @@ body[data-theme="dark"] .history-studio .hiring-candidate-card {
 .history-studio.hist-trace-shell .hist-trace-card__body {
   border-radius: var(--trace-radius-sm);
   border-left: 3px solid var(--trace-accent);
-  padding: 0.85rem 1rem;
+  padding: 0.55rem 0.72rem;
   transition: border-color 0.16s, box-shadow 0.16s, transform 0.16s;
 }
 
@@ -1457,3 +1457,12 @@ body[data-theme="dark"] .history-studio.hist-trace-shell .hist-trace-card__actor
     padding: 0.65rem;
   }
 }
+
+/* ── Historial flota: rejilla tipo ficha ── */
+.history-studio .history-fleet-log-grid {
+  display: grid;
+  grid-template-columns: var(--ops-tile-grid, repeat(auto-fill, minmax(min(100%, 17.25rem), 19.5rem)));
+  justify-content: start;
+  gap: var(--ops-cards-gap, 0.75rem);
+}
+

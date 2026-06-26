@@ -88,3 +88,6 @@
   .authorizations-studio .aut-operate__rail { position: static; }
 }
 
+.authorizations-studio .p-card {
+  border-radius: 12px;
+}

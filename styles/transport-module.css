@@ -1314,8 +1314,9 @@ body[data-theme="dark"] .transport-studio .hr-workspace-tab--switch.is-active {
 .transport-studio .transport-data-pane__body .request-ops-cards,
 .transport-studio .transport-data-pane__body .trip-ops-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--ops-cards-min, 21rem)), 1fr));
-  gap: var(--ops-cards-gap, 0.65rem);
+  grid-template-columns: var(--ops-tile-grid, repeat(auto-fill, minmax(min(100%, 17.25rem), 19.5rem)));
+  justify-content: start;
+  gap: var(--ops-cards-gap, 0.75rem);
   width: 100%;
   min-width: 0;
 }

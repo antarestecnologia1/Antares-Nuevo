@@ -88,3 +88,13 @@
   .admin-users-studio .adm-operate__rail { position: static; }
 }
 
+/* ── Tarjetas usuarios / comando: rejilla tipo ficha ── */
+.admin-users-studio .user-grid,
+.admin-users-studio .admin-users-list-shell .user-grid,
+.admin-users-studio .admin-users-insights-grid,
+.admin-users-studio .admin-users-command-grid {
+  display: grid;
+  grid-template-columns: var(--ops-tile-grid, repeat(auto-fill, minmax(min(100%, 17.25rem), 19.5rem)));
+  justify-content: start;
+  gap: var(--ops-cards-gap, 0.75rem);
+}

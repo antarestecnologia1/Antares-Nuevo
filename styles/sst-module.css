@@ -88,3 +88,6 @@
   .sst-studio .sst-operate__rail { position: static; }
 }
 
+.sst-studio .p-card {
+  border-radius: 12px;
+}
