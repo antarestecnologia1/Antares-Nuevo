@@ -181,6 +181,11 @@ body.portal-mode .kpi-grid {
     position: static;
     max-height: none;
   }
+
+  .portal-main .portal-ops-cards,
+  .portal-main .trip-ops-cards {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  }
 }
 
 @container portal-main (max-width: 720px) {
@@ -223,6 +228,21 @@ body.portal-mode .kpi-grid {
 
   .users-hero {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .portal-main .portal-ops-cards,
+  .portal-main .trip-ops-cards,
+  .transport-studio .trip-ops-cards,
+  .requests-studio .requests-data-results .trip-ops-cards,
+  .requests-studio .requests-data-results .request-ops-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .portal-main .requests-data-results,
+  .portal-main .transport-data-pane__body,
+  .portal-main .transport-operate__main {
+    min-width: 0;
+    overflow-x: clip;
   }
 }
 
@@ -448,6 +468,21 @@ body.portal-mode .kpi-grid {
 }
 
 /* ── Zoom alto: tipografía y controles más compactos ── */
+.portal-main .trip-ops-card-title,
+.portal-main .trip-ops-card-route-node strong,
+.portal-main .trip-ops-card-item-value,
+.portal-main .trip-ops-card-item dd,
+.portal-main .portal-ops-card-status-pill__text {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.portal-main .trip-ops-card-kicker,
+.portal-main .trip-ops-card-badge,
+.portal-main .portal-ops-card-status-pill {
+  white-space: normal;
+}
+
 @media (max-width: 520px) {
   .portal-main .btn,
   .portal-main .btn-action,

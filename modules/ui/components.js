@@ -303,6 +303,160 @@ export function renderModalHead(title, opts = {}) {
   </div>`;
 }
 
+const DETAIL_VIEW_TONES = ["blue", "green", "orange", "purple", "teal", "rose"];
+const DETAIL_VIEW_DEFAULT_ICONS = [
+  "package",
+  "dollar",
+  "truck",
+  "user",
+  "layers",
+  "calendar",
+  "clock",
+  "activity",
+  "mapPin",
+  "file",
+  "phone",
+  "briefcase"
+];
+
+/** Tarjeta de campo para fichas «Ver detalle» (grid icono + etiqueta + valor). */
+export function detailViewCardMarkup(opts = {}) {
+  const {
+    iconKey = "activity",
+    label = "",
+    valueHtml = "",
+    tone = "blue",
+    highlight = false,
+    full = false,
+    subHtml = ""
+  } = opts;
+  const icon = ic()[iconKey] || ic().activity || "";
+  const toneClass = tone ? ` detail-view-card--${escapeAttr(String(tone))}` : "";
+  const highlightClass = highlight ? " detail-view-card--highlight" : "";
+  const fullClass = full ? " detail-view-card--full" : "";
+  return `<article class="detail-view-card${toneClass}${highlightClass}${fullClass}">
+    <span class="detail-view-card__icon" aria-hidden="true">${icon}</span>
+    <div class="detail-view-card__body">
+      <span class="detail-view-card__label">${escapeHtml(String(label))}</span>
+      <span class="detail-view-card__value">${valueHtml}</span>
+      ${subHtml ? `<span class="detail-view-card__sub">${subHtml}</span>` : ""}
+    </div>
+  </article>`;
+}
+
+export function detailViewGridMarkup(cardsHtml = "") {
+  const inner = String(cardsHtml || "").trim();
+  return inner ? `<div class="detail-view-grid">${inner}</div>` : "";
+}
+
+export function detailViewCardsFromPairs(pairs, opts = {}) {
+  const skipEmpty = opts.skipEmpty !== false;
+  const iconKeys = opts.iconKeys && typeof opts.iconKeys === "object" ? opts.iconKeys : {};
+  const toneKeys = opts.toneKeys && typeof opts.toneKeys === "object" ? opts.toneKeys : {};
+  let idx = 0;
+  return (pairs || [])
+    .filter((pair) => {
+      if (!pair) return false;
+      if (!skipEmpty) return true;
+      const val = pair[1];
+      return val !== null && val !== undefined && String(val).trim() !== "";
+    })
+    .map((pair) => {
+      const label = pair[0];
+      const value = pair[1];
+      const cardOpts = pair[2] && typeof pair[2] === "object" ? pair[2] : {};
+      const iconKey = cardOpts.iconKey || iconKeys[label] || DETAIL_VIEW_DEFAULT_ICONS[idx % DETAIL_VIEW_DEFAULT_ICONS.length];
+      const tone = cardOpts.tone || toneKeys[label] || DETAIL_VIEW_TONES[idx % DETAIL_VIEW_TONES.length];
+      const highlight =
+        cardOpts.highlight === true ||
+        (/valor|salario|tarifa|factura/i.test(String(label)) && !cardOpts.highlight === false);
+      idx += 1;
+      const valueHtml =
+        value === null || value === undefined || String(value).trim() === ""
+          ? '<span class="muted">—</span>'
+          : String(value);
+      return detailViewCardMarkup({
+        iconKey,
+        label,
+        valueHtml,
+        tone,
+        highlight,
+        full: Boolean(cardOpts.full),
+        subHtml: cardOpts.subHtml || ""
+      });
+    })
+    .join("");
+}
+
+export function detailViewCardsFromSections(sections, opts = {}) {
+  const sectionIconDefaults = {
+    user: "user",
+    truck: "truck",
+    calendar: "calendar",
+    file: "file",
+    briefcase: "briefcase",
+    activity: "activity",
+    shield: "shield",
+    layers: "layers",
+    mapPin: "mapPin",
+    phone: "phone",
+    heart: "heart",
+    dollar: "dollar",
+    package: "package"
+  };
+  let globalIdx = 0;
+  return (sections || [])
+    .map((sec) => {
+      if (!sec) return "";
+      const pairs = Array.isArray(sec.pairs) ? sec.pairs : null;
+      if (!pairs) return "";
+      const defaultIcon = sectionIconDefaults[sec.icon] || "activity";
+      return detailViewCardsFromPairs(pairs, {
+        skipEmpty: opts.skipEmpty,
+        iconKeys: pairs.reduce((acc, pair, pairIdx) => {
+          if (pair?.[2]?.iconKey) acc[pair[0]] = pair[2].iconKey;
+          else if (pairIdx === 0) acc[pair[0]] = defaultIcon;
+          return acc;
+        }, {})
+      });
+    })
+    .filter(Boolean)
+    .join("");
+}
+
+export function composeDetailViewSheet(opts = {}) {
+  const moduleIcon = ic()[opts.moduleIcon || "activity"] || ic().activity || "";
+  const moduleTone = escapeAttr(String(opts.moduleTone || "blue"));
+  const title = escapeHtml(String(opts.title || "Detalle"));
+  const subtitleHtml = String(opts.subtitleHtml || "").trim();
+  const statusHtml = String(opts.statusHtml || "").trim();
+  const cardsHtml = String(opts.cardsHtml || "").trim();
+  const notesHtml = String(opts.notesHtml || "").trim();
+  const extraHtml = String(opts.extraHtml || "").trim();
+  return `<div class="detail-view-sheet">
+    <header class="detail-view-sheet__head">
+      <div class="detail-view-sheet__brand">
+        <span class="detail-view-sheet__module-icon detail-view-sheet__module-icon--${moduleTone}" aria-hidden="true">${moduleIcon}</span>
+        <div class="detail-view-sheet__titles">
+          <h3 class="detail-view-sheet__title">${title}</h3>
+          ${subtitleHtml ? `<p class="detail-view-sheet__subtitle">${subtitleHtml}</p>` : ""}
+        </div>
+      </div>
+      ${statusHtml ? `<div class="detail-view-sheet__status">${statusHtml}</div>` : ""}
+    </header>
+    ${cardsHtml ? detailViewGridMarkup(cardsHtml) : ""}
+    ${
+      notesHtml
+        ? `<section class="detail-view-notes" aria-label="Observaciones">
+            <h4 class="detail-view-notes__title">${ic().file || ""}<span>Observaciones</span></h4>
+            <div class="detail-view-notes__body"><p class="detail-note">${notesHtml}</p></div>
+          </section>`
+        : ""
+    }
+    ${extraHtml}
+  </div>`;
+}
+
 export function renderModalFooterActions(opts = {}) {
   const extraClass = String(opts.className || "").trim();
   const showCancel = opts.showCancel !== false;

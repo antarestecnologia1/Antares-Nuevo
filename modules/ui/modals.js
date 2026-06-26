@@ -14,7 +14,10 @@ import {
   renderConfirmDiscardModalBody,
   renderModulePanelToolbar,
   renderModulePanelBtnInner,
-  isCreatePanelExpanded
+  isCreatePanelExpanded,
+  composeDetailViewSheet,
+  detailViewCardsFromPairs,
+  detailViewCardsFromSections
 } from "./components.js";
 
 function ic() {
@@ -1521,6 +1524,8 @@ export function openInfoModal({
   wide = false,
   extraModalCardClass = "",
   secondaryActionsHtml = "",
+  headless = false,
+  primaryHtml = "",
   afterMount
 }) {
   let modal = document.getElementById("crud-modal");
@@ -1545,23 +1550,32 @@ export function openInfoModal({
       ? `<p class="muted modal-head__subtitle">${escapeHtml(subtitle)}</p>`
       : "";
   const isPortalDetail = String(extraModalCardClass || "").includes("modal-card--portal-detail");
+  const isDetailView = String(extraModalCardClass || "").includes("modal-card--detail-view");
   const infoBodyClass = [
     "modal-info-body",
     wide ? "modal-info-body--profile" : "",
-    isPortalDetail ? "modal-info-body--portal-detail" : ""
+    isPortalDetail ? "modal-info-body--portal-detail" : "",
+    isDetailView ? "modal-info-body--detail-view" : ""
   ]
     .filter(Boolean)
     .join(" ");
+  const headBlock = headless
+    ? `<div class="modal-head modal-head--sr-only"><h2 id="crud-modal-title">${escapeHtml(String(title || "Detalle"))}</h2>${renderModalCloseBtn("crud-close")}</div>`
+    : renderModalHead(title, { subtitleHtml: subtitleBlock, titleId: "crud-modal-title" });
+  const closeBtnHtml =
+    primaryHtml ||
+    `<button type="button" id="crud-ok" class="btn btn-outline detail-view-close-btn">${ic().x} Cerrar</button>`;
   content.innerHTML = `
-    <div class="modal-info-layout">
-      ${renderModalHead(title, { subtitleHtml: subtitleBlock })}
+    <div class="modal-info-layout${headless ? " modal-info-layout--headless" : ""}">
+      ${headBlock}
       <div class="modal-info-layout__scroll">
         <div class="${escapeAttr(infoBodyClass)}">${bodyHtml}</div>
       </div>
       ${renderModalFooterActions({
         showCancel: false,
+        className: isDetailView ? "detail-view-footer" : "",
         secondaryHtml: secondaryActionsHtml,
-        primaryHtml: `<button type="button" id="crud-ok" class="btn btn-primary">${ic().x} Cerrar</button>`
+        primaryHtml: closeBtnHtml
       })}
     </div>
   `;
@@ -1576,4 +1590,35 @@ export function openInfoModal({
     }
   }
   window.scrollOpenCrudModalIntoView?.();
+}
+
+export function openDetailViewSheet(opts = {}) {
+  const title = String(opts.title || "Detalle").trim() || "Detalle";
+  const cardsHtml =
+    String(opts.cardsHtml || "").trim() ||
+    (Array.isArray(opts.cards) ? opts.cards.filter(Boolean).join("") : "") ||
+    detailViewCardsFromSections(opts.sections, { skipEmpty: opts.skipEmpty }) ||
+    detailViewCardsFromPairs(opts.pairs, { skipEmpty: opts.skipEmpty, iconKeys: opts.iconKeys, toneKeys: opts.toneKeys });
+  const subtitleHtml = String(opts.subtitleHtml || "").trim();
+  const subtitleText = String(opts.subtitle || "").trim();
+  const bodyHtml = composeDetailViewSheet({
+    title: String(opts.sheetTitle || title),
+    subtitleHtml: subtitleHtml || (subtitleText ? escapeHtml(subtitleText) : ""),
+    statusHtml: String(opts.statusHtml || "").trim(),
+    moduleIcon: opts.moduleIcon || "activity",
+    moduleTone: opts.moduleTone || "blue",
+    cardsHtml,
+    notesHtml: opts.notesHtml ? escapeHtml(String(opts.notesHtml)) : "",
+    extraHtml: String(opts.extraHtml || "").trim()
+  });
+  openInfoModal({
+    title,
+    bodyHtml,
+    wide: opts.wide !== false,
+    headless: true,
+    extraModalCardClass: `modal-card--detail-view${opts.extraModalCardClass ? ` ${String(opts.extraModalCardClass).trim()}` : ""}`,
+    secondaryActionsHtml: String(opts.secondaryActionsHtml || ""),
+    primaryHtml: String(opts.primaryHtml || "").trim(),
+    afterMount: opts.afterMount
+  });
 }

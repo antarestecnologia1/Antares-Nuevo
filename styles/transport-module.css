@@ -1306,8 +1306,9 @@ body[data-theme="dark"] .transport-studio .hr-workspace-tab--switch.is-active {
 /* ── Tarjetas operativas de viajes ── */
 .transport-studio .trip-ops-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 21rem), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17.5rem), 1fr));
   gap: 1rem;
+  min-width: 0;
 }
 
 .transport-studio .trip-ops-card {
