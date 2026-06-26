@@ -8876,20 +8876,25 @@ function ensureReportPreviewModal() {
   modal.setAttribute("aria-labelledby", "report-preview-title");
   modal.innerHTML = `<div class="modal-card modal-card-report-preview">
     <div class="modal-head report-preview-head">
-      <div class="modal-head__copy report-preview-brand">
+      <div class="report-preview-brand">
         <div class="report-preview-logo-wrap">
           <img id="report-preview-logo" class="report-preview-logo" src="${escapeAttr(reportBrandLogoSrc())}" alt="Logo de Transportes Antares" />
         </div>
         <div>
           <p class="report-preview-kicker">Centro de reportería</p>
           <h2 id="report-preview-title">Reporte</h2>
-          <p id="report-preview-meta" class="report-preview-meta muted"></p>
+          <div id="report-preview-stats" class="report-preview-stats"></div>
         </div>
       </div>
-      <button type="button" class="btn btn-sm btn-outline module-panel-btn module-panel-btn--close" data-action="report-preview-close" aria-label="Cerrar vista previa">${IC.x}</button>
+      <div class="report-preview-head-actions">
+        <button type="button" class="report-preview-close-btn" data-action="report-preview-close" aria-label="Cerrar vista previa">${IC.x}</button>
+      </div>
     </div>
     <div id="report-preview-body" class="report-preview-body table-wrap"></div>
-    <p id="report-preview-copy" class="report-preview-copy muted"></p>
+    <div id="report-preview-copy" class="report-preview-footer-bar">
+      <span class="report-preview-footer-brand"></span>
+      <span class="report-preview-footer-note">Uso interno y operativo</span>
+    </div>
     ${renderModalFooterActions({
       showCancel: false,
       className: "report-preview-actions",
@@ -8987,17 +8992,24 @@ function openReportPreviewModal(report) {
   const modal = ensureReportPreviewModal();
   const actor = currentUser();
   const titleEl = modal.querySelector("#report-preview-title");
-  const metaEl = modal.querySelector("#report-preview-meta");
+  const statsEl = modal.querySelector("#report-preview-stats");
   const bodyEl = modal.querySelector("#report-preview-body");
   const logoEl = modal.querySelector("#report-preview-logo");
   const copyEl = modal.querySelector("#report-preview-copy");
   if (titleEl) titleEl.textContent = payload.title;
-  if (metaEl) {
-    metaEl.textContent = `Generado ${fmtDate(nowIso())}${actor?.name ? ` · ${actor.name}` : ""} · ${payload.rows.length} registro${payload.rows.length === 1 ? "" : "s"} · ${payload.columns.length} columna${payload.columns.length === 1 ? "" : "s"}`;
+  if (statsEl) {
+    const rowCount = payload.rows.length;
+    const colCount = payload.columns.length;
+    const dateStr = fmtDate(nowIso());
+    const userChip = actor?.name ? `<span class="report-preview-stat">${escapeHtml(actor.name)}</span>` : "";
+    statsEl.innerHTML = `<span class="report-preview-stat"><strong>${rowCount}</strong> registro${rowCount === 1 ? "" : "s"}</span><span class="report-preview-stat"><strong>${colCount}</strong> columna${colCount === 1 ? "" : "s"}</span><span class="report-preview-stat">${escapeHtml(dateStr)}</span>${userChip}`;
   }
   if (logoEl) logoEl.src = reportBrandLogoSrc();
   if (bodyEl) bodyEl.innerHTML = renderReportPreviewTableHtml(payload.columns, payload.rows);
-  if (copyEl) copyEl.textContent = `${reportBrandCopyrightText()} · Estados, riesgos y valores destacados para facilitar la lectura del reporte.`;
+  if (copyEl) {
+    const brandEl = copyEl.querySelector(".report-preview-footer-brand");
+    if (brandEl) brandEl.textContent = reportBrandCopyrightText();
+  }
   modal.classList.remove("hidden");
   document.addEventListener("keydown", reportPreviewEscHandler);
 }

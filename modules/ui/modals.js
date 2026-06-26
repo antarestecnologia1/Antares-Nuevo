@@ -13,6 +13,7 @@ import {
   renderModalFooterActions,
   renderConfirmDiscardModalBody,
   renderModulePanelToolbar,
+  renderModulePanelBtnInner,
   isCreatePanelExpanded
 } from "./components.js";
 
@@ -1236,7 +1237,7 @@ export function openEditModal({
   submitText = "Guardar",
   cancelLabel,
   cancelBtnClass = "",
-  primaryBtnClass = "btn btn-primary module-panel-btn",
+  primaryBtnClass = "btn btn-primary module-panel-btn module-panel-btn--save",
   onSubmit,
   afterMount,
   extraModalCardClass = ""
@@ -1267,7 +1268,7 @@ export function openEditModal({
         className: "full",
         cancelLabel,
         cancelBtnClass: cancelBtnClass || undefined,
-        primaryHtml: `<button type="submit" class="${escapeAttr(primaryBtnClass)}">${ic().save} ${escapeHtml(submitText)}</button>`
+        primaryHtml: `<button type="submit" class="${escapeAttr(primaryBtnClass)}">${renderModulePanelBtnInner(ic().save, submitText)}</button>`
       })}
     </form>
   `;

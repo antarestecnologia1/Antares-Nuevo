@@ -15964,44 +15964,49 @@ body[data-theme="dark"] .history-fleet-money-wrap input {
   max-height: min(92vh, 920px);
   display: flex;
   flex-direction: column;
-  padding: 1.15rem 1.2rem 1rem;
+  padding: 0;
   min-height: 0;
-  border-radius: 24px;
-  border: 1px solid color-mix(in srgb, var(--primary) 18%, var(--line));
+  border-radius: 20px;
+  border: 1px solid color-mix(in srgb, var(--primary) 22%, var(--line));
   background: linear-gradient(180deg, #f8fbff 0%, #ffffff 20%, #f7fbff 100%);
-  box-shadow: 0 22px 48px rgba(var(--primary-rgb), 0.12), 0 6px 18px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 28px 56px rgba(var(--primary-rgb), 0.16), 0 8px 24px rgba(15, 23, 42, 0.1);
+  overflow: hidden;
 }
 
 .report-preview-head {
-  align-items: flex-start;
-  gap: 0.75rem;
-  padding: 1rem 1.05rem;
-  margin-bottom: 0.35rem;
-  border: 1px solid color-mix(in srgb, var(--primary-deeper) 14%, var(--line));
-  border-radius: 18px;
-  background: linear-gradient(180deg, rgba(var(--primary-rgb), 0.12), rgba(var(--brand-blue-soft-rgb), 0.26));
-  box-shadow: 0 12px 28px rgba(var(--primary-rgb), 0.08);
+  align-items: center;
+  gap: 0;
+  padding: 0;
+  margin-bottom: 0;
+  border: none;
+  border-radius: 0;
+  background: linear-gradient(135deg, var(--primary-deeper) 0%, var(--primary-dark) 55%, #2e7dc5 100%);
+  box-shadow: 0 4px 16px rgba(var(--primary-rgb), 0.22);
+  flex-shrink: 0;
 }
 
 .report-preview-brand {
   display: flex;
   align-items: center;
-  gap: 0.9rem;
+  gap: 1rem;
   min-width: 0;
+  flex: 1 1 auto;
+  padding: 1.1rem 1.25rem;
 }
 
 .report-preview-logo-wrap {
-  width: 68px;
-  height: 68px;
-  min-width: 68px;
-  border-radius: 18px;
-  background: #ffffff;
-  border: 1px solid color-mix(in srgb, var(--primary) 18%, var(--line));
-  box-shadow: 0 10px 22px rgba(13, 63, 121, 0.12);
+  width: 62px;
+  height: 62px;
+  min-width: 62px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22), 0 0 0 2px rgba(255, 255, 255, 0.18);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0.45rem;
+  padding: 0.4rem;
+  flex-shrink: 0;
 }
 
 .report-preview-logo {
@@ -16013,23 +16018,83 @@ body[data-theme="dark"] .history-fleet-money-wrap input {
 
 .report-preview-head h2 {
   margin: 0;
-  color: var(--primary-deeper);
-  line-height: 1.2;
+  color: #ffffff;
+  line-height: 1.15;
+  font-size: 1.12rem;
 }
 
 .report-preview-kicker {
-  margin: 0 0 0.2rem;
-  font-size: 0.68rem;
+  margin: 0 0 0.22rem;
+  font-size: 0.63rem;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--primary-dark);
+  color: rgba(255, 255, 255, 0.7);
 }
 
 .report-preview-meta {
-  margin: 0.25rem 0 0;
+  margin: 0.35rem 0 0;
   font-size: 0.78rem;
   line-height: 1.45;
+}
+
+.report-preview-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.45rem;
+}
+
+.report-preview-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  padding: 0.18rem 0.58rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.5;
+  letter-spacing: 0.01em;
+}
+
+.report-preview-stat strong {
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.report-preview-head-actions {
+  display: flex;
+  align-items: center;
+  padding: 0 1rem 0 0;
+  flex-shrink: 0;
+  align-self: stretch;
+}
+
+.report-preview-close-btn {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  border-radius: 50%;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+  transition: background 0.18s, transform 0.2s, border-color 0.18s;
+  font-size: 0.9rem;
+}
+
+.report-preview-close-btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: rotate(90deg) scale(1.06);
+  color: #ffffff;
 }
 
 .report-preview-body {
@@ -16037,11 +16102,11 @@ body[data-theme="dark"] .history-fleet-money-wrap input {
   min-height: 8rem;
   max-height: min(58vh, 620px);
   overflow: auto;
-  margin: 0.75rem 0;
+  margin: 0.85rem 1rem 0;
   border: 1px solid color-mix(in srgb, var(--primary) 14%, var(--line));
-  border-radius: 18px;
-  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 8px 20px rgba(var(--primary-rgb), 0.06);
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 2px 12px rgba(var(--primary-rgb), 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
 .report-preview-table-wrap {
@@ -16194,6 +16259,34 @@ body[data-theme="dark"] .history-fleet-money-wrap input {
   font-style: italic;
 }
 
+.report-preview-footer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  margin: 0.6rem 1rem 0;
+  padding: 0.55rem 0.9rem;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--primary) 10%, var(--line));
+  background: linear-gradient(90deg, rgba(var(--primary-rgb), 0.04), rgba(var(--brand-blue-soft-rgb), 0.12));
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--text-soft);
+}
+
+.report-preview-footer-brand {
+  font-weight: 700;
+  color: var(--primary-deeper);
+  font-size: 0.72rem;
+}
+
+.report-preview-footer-note {
+  font-size: 0.69rem;
+  color: var(--text-soft);
+  opacity: 0.75;
+}
+
 .report-preview-copy {
   margin: 0 0 0.8rem;
   padding: 0.75rem 0.9rem;
@@ -16207,10 +16300,13 @@ body[data-theme="dark"] .history-fleet-money-wrap input {
 
 .report-preview-actions {
   flex-shrink: 0;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-  padding-top: 0.2rem;
+}
+
+.report-preview-actions .module-panel-actions__bar {
+  margin-top: 0;
+  border-radius: 0;
+  border-top-color: color-mix(in srgb, var(--primary) 12%, var(--line));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 3%, #f8fbff) 0%, #f3f8fe 100%);
 }
 
 .report-preview-actions .btn {
@@ -16238,29 +16334,43 @@ body[data-theme="dark"] .history-fleet-money-wrap input {
 
   .modal-card-report-preview {
     width: min(96vw, 96vw);
-    padding: 0.9rem;
-    border-radius: 20px;
+    border-radius: 16px;
   }
 
   .report-preview-head {
     flex-direction: column;
     align-items: stretch;
-    padding: 0.9rem;
   }
 
   .report-preview-brand {
     align-items: flex-start;
+    padding: 0.9rem;
+  }
+
+  .report-preview-head-actions {
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    padding: 0.55rem 0.9rem;
+    justify-content: flex-end;
   }
 
   .report-preview-body {
     max-height: min(52vh, 520px);
+    margin: 0.65rem 0.75rem 0;
+  }
+
+  .report-preview-footer-bar {
+    margin: 0.5rem 0.75rem 0;
+  }
+
+  .report-preview-actions .module-panel-actions__bar {
+    padding: 0.55rem 0.75rem 0.75rem;
   }
 }
 
 body[data-theme="dark"] .report-preview-body {
-  background: linear-gradient(180deg, rgba(15, 28, 46, 0.88), rgba(9, 20, 32, 0.92));
+  background: rgba(10, 22, 38, 0.96);
   border-color: rgba(131, 190, 233, 0.16);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 12px 24px rgba(2, 8, 20, 0.3);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
 body[data-theme="dark"] .report-preview-logo-wrap {
@@ -16270,19 +16380,35 @@ body[data-theme="dark"] .report-preview-logo-wrap {
 body[data-theme="dark"] .modal-card-report-preview {
   border-color: rgba(135, 190, 247, 0.2);
   background: linear-gradient(180deg, #081523 0%, #0c1b2c 20%, #08131f 100%);
-  box-shadow: 0 26px 52px rgba(0, 0, 0, 0.42);
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.5);
 }
 
 body[data-theme="dark"] .report-preview-head {
-  border-color: rgba(131, 190, 233, 0.18);
-  background: linear-gradient(180deg, rgba(18, 45, 71, 0.96), rgba(10, 24, 38, 0.88));
-  box-shadow: 0 16px 30px rgba(2, 8, 20, 0.4);
+  background: linear-gradient(135deg, #0a1e36 0%, #0f2a4a 55%, #132f50 100%);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
-body[data-theme="dark"] .report-preview-head h2,
+body[data-theme="dark"] .report-preview-head h2 {
+  color: #f0f7ff;
+}
+
 body[data-theme="dark"] .report-preview-meta,
 body[data-theme="dark"] .report-preview-copy {
   color: #dbeafe;
+}
+
+body[data-theme="dark"] .report-preview-footer-bar {
+  border-color: rgba(131, 190, 233, 0.14);
+  background: linear-gradient(90deg, rgba(18, 45, 71, 0.54), rgba(10, 24, 38, 0.76));
+}
+
+body[data-theme="dark"] .report-preview-footer-brand {
+  color: #93c5fd;
+}
+
+body[data-theme="dark"] .report-preview-actions .module-panel-actions__bar {
+  border-top-color: rgba(131, 190, 233, 0.14);
+  background: linear-gradient(180deg, rgba(14, 30, 50, 0.8) 0%, rgba(8, 18, 32, 0.9) 100%);
 }
 
 body[data-theme="dark"] .report-preview-copy {
@@ -20007,8 +20133,8 @@ body[data-theme="dark"] .module-panel-actions--footer .module-panel-actions__bar
   );
 }
 
-.module-panel-actions--footer .module-panel-btn,
-.module-panel-toolbar .module-panel-btn {
+.module-panel-actions--footer .module-panel-btn:not(.btn-primary),
+.module-panel-toolbar .module-panel-btn:not(.btn-primary) {
   --mpa-btn-bg: rgba(255, 255, 255, 0.92);
   --mpa-btn-edge: color-mix(in srgb, #94a3b8 28%, transparent);
   --mpa-btn-icon-bg: color-mix(in srgb, var(--primary) 9%, #f8fafc);
@@ -20043,8 +20169,8 @@ body[data-theme="dark"] .module-panel-actions--footer .module-panel-actions__bar
   font-size: 0.78rem;
 }
 
-.module-panel-actions--footer .module-panel-btn .btn-icon,
-.module-panel-toolbar .module-panel-btn .btn-icon {
+.module-panel-actions--footer .module-panel-btn:not(.btn-primary) .btn-icon,
+.module-panel-toolbar .module-panel-btn:not(.btn-primary) .btn-icon {
   width: 13px;
   height: 13px;
   flex-shrink: 0;
@@ -20217,11 +20343,12 @@ body[data-theme="dark"] .module-panel-actions--footer .module-panel-actions__bar
     var(--primary) 48%,
     color-mix(in srgb, var(--primary-dark, #2a6399) 92%, #0f172a) 100%
   ) !important;
-  color: #fff !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff;
   font-size: 0.84rem;
-  font-weight: 650;
+  font-weight: 700;
   letter-spacing: 0.03em;
-  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.12);
+  text-shadow: 0 1px 2px rgba(7, 30, 61, 0.42), 0 0 1px rgba(7, 30, 61, 0.28);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.22),
     0 1px 2px rgba(var(--primary-rgb), 0.18),
@@ -20232,12 +20359,27 @@ body[data-theme="dark"] .module-panel-actions--footer .module-panel-actions__bar
     filter 0.22s ease;
 }
 
+.module-panel-actions--footer .module-panel-actions__group--primary > .btn-primary .module-panel-btn__label,
+.module-panel-actions--footer .module-panel-actions__group--primary > .btn-primary .module-panel-btn__inner {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff;
+}
+
 .module-panel-actions--footer .module-panel-actions__group--primary > .btn-primary .btn-icon,
 .hr-form-wizard-footer .module-panel-actions__group--primary .btn-primary .btn-icon,
 .hr-form-wizard-footer .hr-form-wizard-submit .btn-icon {
   width: 14px;
   height: 14px;
-  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.15));
+  flex-shrink: 0;
+  padding: 0.32rem;
+  box-sizing: content-box;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94) !important;
+  color: var(--primary, #2872c0) !important;
+  stroke: currentColor;
+  opacity: 1;
+  filter: none;
+  box-shadow: 0 1px 4px rgba(7, 30, 61, 0.18);
 }
 
 .module-panel-actions--footer .module-panel-actions__group--primary > .btn-primary::after,
@@ -32027,8 +32169,11 @@ body[data-theme="dark"] .modal-card-edit--employee-non-renewal .modal-edit-actio
 .module-panel-actions--footer .module-panel-actions__group--primary > .btn-primary {
   background: linear-gradient(180deg, #4293de 0%, #2872c0 46%, #1d5ea8 100%) !important;
   border-color: rgba(18, 68, 138, 0.42) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff;
   font-weight: 700 !important;
   letter-spacing: 0.025em !important;
+  text-shadow: 0 1px 2px rgba(7, 30, 61, 0.42), 0 0 1px rgba(7, 30, 61, 0.28) !important;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.18),
     0 4px 14px rgba(var(--primary-rgb), 0.34),
@@ -32080,6 +32225,15 @@ body[data-theme="dark"] .modal-card-edit--employee-non-renewal .modal-edit-actio
 
 .module-panel-actions--footer.modal-edit-actions .module-panel-actions__group--secondary {
   flex: 0 1 auto;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  box-shadow: none;
+}
+
+.module-panel-actions--footer.modal-edit-actions .module-panel-actions__group--secondary:has(.module-panel-btn--cancel) {
+  background: transparent;
+  border-color: transparent;
 }
 
 .module-panel-actions--footer.modal-edit-actions .module-panel-actions__group--primary {
@@ -32246,68 +32400,28 @@ body[data-theme="dark"] .solicitud-trip-summary {
   border-color: rgba(131, 190, 233, 0.22);
 }
 
-/* ── 4. Modal REPORTES: más profundidad y contraste ─────────────────────── */
+/* ── 4. Modal REPORTES: diseño con cabecera oscura de marca ─────────────── */
 
-/* Tarjeta principal del modal de reporte */
-.modal-card-report-preview {
-  background: linear-gradient(180deg, #eaf4ff 0%, #f0f7ff 30%, #e8f2fd 100%) !important;
-  border-color: color-mix(in srgb, var(--primary) 28%, var(--line)) !important;
-  box-shadow:
-    0 28px 56px rgba(var(--primary-rgb), 0.18),
-    0 8px 24px rgba(15, 23, 42, 0.12) !important;
-}
-
-/* Cabecera del reporte: más saturada */
-.report-preview-head {
-  background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.18), rgba(var(--brand-blue-soft-rgb), 0.42)) !important;
-  border-color: color-mix(in srgb, var(--primary) 28%, var(--line)) !important;
-  box-shadow: 0 8px 20px rgba(var(--primary-rgb), 0.14) !important;
-}
-
-/* Encabezado del reporte */
 .report-preview-head h2 {
-  color: var(--primary-deeper);
   font-weight: 800;
 }
 
 .report-preview-kicker {
-  color: var(--primary-dark);
   font-weight: 800;
-}
-
-/* Cuerpo de la tabla: fondo más diferenciado */
-.report-preview-body {
-  background: #f0f7ff;
-  border: 1px solid color-mix(in srgb, var(--primary) 20%, var(--line));
-  border-radius: 14px;
 }
 
 /* Filas pares: franja más visible */
 .report-preview-table tbody tr:nth-child(even) td {
-  background: rgba(var(--brand-blue-soft-rgb), 0.38) !important;
+  background: rgba(var(--brand-blue-soft-rgb), 0.32) !important;
 }
 
 /* Hover en filas */
 .report-preview-table tbody tr:hover td {
-  background: rgba(var(--primary-rgb), 0.11) !important;
-}
-
-/* Celdas base: fondo ligeramente azulado en vez de blanco puro */
-.report-preview-table tbody td {
-  background: rgba(240, 247, 255, 0.92) !important;
-}
-
-/* Pie del modal de reporte */
-.report-preview-copy {
-  background: linear-gradient(180deg, rgba(var(--primary-rgb), 0.08), rgba(var(--brand-blue-soft-rgb), 0.24)) !important;
-  border-color: color-mix(in srgb, var(--primary) 18%, var(--line)) !important;
-  color: var(--primary-dark);
-  font-weight: 500;
+  background: rgba(var(--primary-rgb), 0.1) !important;
 }
 
 /* Botones de acción del reporte */
 .report-preview-actions .btn {
-  min-width: 9rem;
   font-weight: 700;
 }
 
@@ -32319,17 +32433,7 @@ body[data-theme="dark"] .modal-card-report-preview {
 }
 
 body[data-theme="dark"] .report-preview-head {
-  background: linear-gradient(135deg, rgba(55, 124, 192, 0.22), rgba(15, 30, 50, 0.88)) !important;
-  border-color: rgba(131, 190, 233, 0.24) !important;
-}
-
-body[data-theme="dark"] .report-preview-head h2 {
-  color: #b8d9f5;
-}
-
-body[data-theme="dark"] .report-preview-body {
-  background: rgba(8, 18, 30, 0.92) !important;
-  border-color: rgba(131, 190, 233, 0.18) !important;
+  background: linear-gradient(135deg, #081a30 0%, #0e2844 55%, #122f50 100%) !important;
 }
 
 body[data-theme="dark"] .report-preview-table tbody td {
@@ -32343,10 +32447,4 @@ body[data-theme="dark"] .report-preview-table tbody tr:nth-child(even) td {
 
 body[data-theme="dark"] .report-preview-table tbody tr:hover td {
   background: rgba(55, 124, 192, 0.18) !important;
-}
-
-body[data-theme="dark"] .report-preview-copy {
-  background: linear-gradient(180deg, rgba(20, 40, 66, 0.72), rgba(10, 22, 38, 0.88)) !important;
-  border-color: rgba(131, 190, 233, 0.16) !important;
-  color: #9ec7e8;
 }
