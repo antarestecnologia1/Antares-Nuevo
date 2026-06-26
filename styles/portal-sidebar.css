@@ -658,7 +658,8 @@ body.portal-sidebar-collapsed #portal-sidebar .side-link.active::before {
   height: 18px !important;
 }
 
-/* La etiqueta del timbre solo se muestra en el cajón móvil (ver media query). */
+/* La etiqueta del timbre se oculta por defecto; se muestra cuando el menú está
+   expandido (escritorio) o en el cajón móvil (ver media queries). */
 #portal-sidebar .sidebar-notif-bell-label {
   position: absolute;
   width: 1px;
@@ -669,6 +670,83 @@ body.portal-sidebar-collapsed #portal-sidebar .side-link.active::before {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* Escritorio con menú expandido: bandeja y timbre en filas independientes para
+   que el timbre no se recorte cuando la barra es estrecha. */
+@media (min-width: 921px) {
+  body:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-notif-hub {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  body:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-notif-hub .side-link--notif-inbox {
+    width: 100%;
+  }
+
+  body:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-notif-hub__divider {
+    width: auto;
+    height: 1px;
+    align-self: stretch;
+    margin: 0.1rem 0.5rem;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(var(--primary-rgb), 0.2) 18%,
+      rgba(var(--primary-rgb), 0.2) 82%,
+      transparent
+    );
+  }
+
+  body:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-notif-hub .sidebar-notif-bell-toggle {
+    flex-direction: row;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none;
+    min-height: 42px;
+    padding: 0.42rem 0.55rem;
+    gap: 0.7rem;
+    justify-content: flex-start;
+  }
+
+  body:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-notif-bell-label {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+    clip: auto;
+    white-space: nowrap;
+    border: 0;
+    font-family: var(--font-display);
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: inherit;
+  }
+
+  /* Pie de cuenta: apariencia y "Cerrar sesión" en filas independientes para
+     que la etiqueta del botón no se recorte cuando la barra es estrecha. */
+  body:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-account-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.4rem;
+  }
+
+  body:not(.portal-sidebar-collapsed) #portal-sidebar .theme-toggle--portal-sidebar {
+    width: 100%;
+    justify-content: center;
+  }
+
+  body:not(.portal-sidebar-collapsed) #portal-sidebar .theme-toggle--portal-sidebar .theme-option {
+    flex: 1;
+  }
+
+  body:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-logout-btn {
+    flex: none;
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 #portal-sidebar .side-link--notif-inbox.active {
