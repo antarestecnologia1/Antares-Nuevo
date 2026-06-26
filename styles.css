@@ -9338,7 +9338,7 @@ body[data-theme="dark"] .trips-table-wrap table tbody td:last-child {
 }
 
 #crud-form.p-form-colored.modal-edit-form .modal-edit-actions.module-panel-actions {
-  margin-top: 0.5rem;
+  margin-top: 0.75rem;
 }
 
 .modal-card--discard {
@@ -31852,14 +31852,12 @@ body[data-theme="dark"] .hr-module-pro--hiring .payroll-data-nav-tab.is-active .
 
 .modal-card-edit--employee-renewal .modal-edit-actions,
 .modal-card-edit--employee-non-renewal .modal-edit-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.65rem;
-  padding-top: 0.85rem;
-  margin-top: 0.15rem;
-  border-top: 1px solid rgba(148, 163, 184, 0.22);
+  margin-top: 0.35rem !important;
+}
+
+.modal-card-edit--employee-renewal .modal-edit-actions .module-panel-actions__bar,
+.modal-card-edit--employee-non-renewal .modal-edit-actions .module-panel-actions__bar {
+  margin-top: 0;
 }
 
 .modal-card-edit--employee-renewal .module-panel-actions__group--secondary,
@@ -31967,8 +31965,8 @@ body[data-theme="dark"] .employee-contract-non-renewal-late {
   color: #fcd34d;
 }
 
-body[data-theme="dark"] .modal-card-edit--employee-renewal .modal-edit-actions,
-body[data-theme="dark"] .modal-card-edit--employee-non-renewal .modal-edit-actions {
+body[data-theme="dark"] .modal-card-edit--employee-renewal .modal-edit-actions .module-panel-actions__bar,
+body[data-theme="dark"] .modal-card-edit--employee-non-renewal .modal-edit-actions .module-panel-actions__bar {
   border-top-color: rgba(148, 196, 255, 0.14);
 }
 
@@ -32046,13 +32044,87 @@ body[data-theme="dark"] .modal-card-edit--employee-non-renewal .modal-edit-actio
   transform: translateY(-2px) !important;
 }
 
-/* Barra de acciones: separador superior visible */
+/* Barra de acciones en modales: ancho completo y pie alineado */
 .module-panel-actions--footer.modal-edit-actions {
-  border-top: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
-  padding-top: 0.75rem;
+  grid-column: 1 / -1;
+  margin-top: 1rem !important;
+}
+
+#crud-modal .module-panel-actions--footer.modal-edit-actions,
+.modal-card-edit .module-panel-actions--footer.modal-edit-actions {
+  margin-inline: -1.4rem;
+  margin-bottom: -1.4rem;
+  width: calc(100% + 2.8rem);
+}
+
+.report-preview-actions.module-panel-actions--footer.modal-edit-actions {
   margin-top: 0.65rem !important;
-  background: linear-gradient(180deg, rgba(var(--brand-blue-soft-rgb), 0.08), transparent);
-  border-radius: 0 0 14px 14px;
+  margin-inline: -1.2rem;
+  margin-bottom: -1rem;
+  width: calc(100% + 2.4rem);
+}
+
+.module-panel-actions--footer.modal-edit-actions .module-panel-actions__bar {
+  margin-top: 0;
+  padding: 0.9rem 1.4rem 1.05rem;
+  border-radius: 0 0 var(--radius) var(--radius);
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+}
+
+.report-preview-actions.module-panel-actions--footer.modal-edit-actions .module-panel-actions__bar {
+  padding: 0.85rem 1.2rem 1rem;
+  border-radius: 0 0 24px 24px;
+  justify-content: flex-end;
+}
+
+.module-panel-actions--footer.modal-edit-actions .module-panel-actions__group--secondary {
+  flex: 0 1 auto;
+}
+
+.module-panel-actions--footer.modal-edit-actions .module-panel-actions__group--primary {
+  flex: 0 0 auto;
+  margin-inline-start: auto;
+}
+
+.module-panel-actions--footer.modal-edit-actions .module-panel-btn--cancel {
+  min-height: 2.8rem;
+  min-width: 7.25rem;
+}
+
+.module-panel-actions--footer.modal-edit-actions .module-panel-actions__group--primary > .btn-primary,
+.module-panel-actions--footer.modal-edit-actions .module-panel-actions__group--primary > .btn {
+  min-width: 7.75rem;
+  justify-content: center;
+}
+
+@media (max-width: 560px) {
+  #crud-modal .module-panel-actions--footer.modal-edit-actions .module-panel-actions__bar,
+  .modal-card-edit .module-panel-actions--footer.modal-edit-actions .module-panel-actions__bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.55rem;
+  }
+
+  #crud-modal .module-panel-actions--footer.modal-edit-actions .module-panel-actions__group--primary,
+  #crud-modal .module-panel-actions--footer.modal-edit-actions .module-panel-actions__group--secondary,
+  .modal-card-edit .module-panel-actions--footer.modal-edit-actions .module-panel-actions__group--primary,
+  .modal-card-edit .module-panel-actions--footer.modal-edit-actions .module-panel-actions__group--secondary {
+    width: 100%;
+    margin-inline-start: 0;
+    justify-content: stretch;
+  }
+
+  #crud-modal .module-panel-actions--footer.modal-edit-actions .module-panel-btn--cancel,
+  #crud-modal .module-panel-actions--footer.modal-edit-actions .module-panel-actions__group--primary > .btn-primary,
+  #crud-modal .module-panel-actions--footer.modal-edit-actions .module-panel-actions__group--primary > .btn,
+  .modal-card-edit .module-panel-actions--footer.modal-edit-actions .module-panel-btn--cancel,
+  .modal-card-edit .module-panel-actions--footer.modal-edit-actions .module-panel-actions__group--primary > .btn-primary,
+  .modal-card-edit .module-panel-actions--footer.modal-edit-actions .module-panel-actions__group--primary > .btn {
+    width: 100%;
+    min-width: 0;
+    justify-content: center;
+  }
 }
 
 /* Dark theme – cancelar */
@@ -32071,9 +32143,8 @@ body[data-theme="dark"] .module-panel-actions--footer .module-panel-actions__gro
   background: color-mix(in srgb, rgba(136, 19, 55, 0.22) 70%, rgba(15, 23, 42, 0.85));
   border-color: rgba(251, 113, 133, 0.2);
 }
-body[data-theme="dark"] .module-panel-actions--footer.modal-edit-actions {
-  border-top-color: rgba(148, 196, 255, 0.14);
-  background: linear-gradient(180deg, rgba(20, 37, 59, 0.32), transparent);
+body[data-theme="dark"] .module-panel-actions--footer.modal-edit-actions .module-panel-actions__bar {
+  border-top-color: color-mix(in srgb, var(--primary, #377cc0) 22%, rgba(255, 255, 255, 0.06));
 }
 
 /* ── 3. Vista detalle VIAJE y SOLICITUD: tiles de información ────────────── */

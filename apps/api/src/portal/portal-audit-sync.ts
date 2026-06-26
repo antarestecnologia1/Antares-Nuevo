@@ -138,11 +138,74 @@ export function portalRowEntityLabel(row: Record<string, unknown>): string {
     const value = String(row[key] ?? "").trim();
     if (value) return value.slice(0, 500);
   }
-  const id = String(row.id ?? "").trim();
-  return id ? `Registro ${id.slice(0, 8)}` : "Registro";
+  const plate = String(row.plate ?? row.placa ?? row.vehiclePlate ?? row.placa_vehiculo ?? "").trim();
+  if (plate) return plate.toUpperCase().slice(0, 500);
+  const desc = String(row.description ?? row.descripcion ?? "").trim();
+  if (desc) return desc.slice(0, 120);
+  return "Registro";
+}
+
+function portalFuelLogSummaryParts(row: Record<string, unknown>): string[] {
+  const parts: string[] = [];
+  const plate = String(row.plate ?? row.vehiclePlate ?? row.placa_vehiculo ?? "").trim().toUpperCase();
+  const date = String(row.date ?? row.fecha ?? "").trim().slice(0, 10);
+  const liters = Number(row.liters ?? row.litros);
+  const total = Number(row.totalCost ?? row.costo_total ?? row.total_cost);
+  const driver = String(row.driverName ?? row.nombre_conductor ?? "").trim();
+  const station = String(row.station ?? row.estacion ?? "").trim();
+  if (plate) parts.push(`Placa ${plate}`);
+  if (date) parts.push(date);
+  if (Number.isFinite(liters) && liters > 0) parts.push(`${liters.toLocaleString("es-CO")} L`);
+  if (Number.isFinite(total) && total > 0) parts.push(`$${Math.round(total).toLocaleString("es-CO")}`);
+  if (driver) parts.push(driver);
+  if (station) parts.push(station);
+  return parts;
+}
+
+function portalTechnicalLogSummaryParts(row: Record<string, unknown>): string[] {
+  const parts: string[] = [];
+  const plate = String(row.plate ?? row.vehiclePlate ?? row.placa_vehiculo ?? "").trim().toUpperCase();
+  const date = String(row.date ?? row.fecha ?? "").trim().slice(0, 10);
+  const typeRaw = String(row.interventionType ?? row.type ?? row.tipo_intervencion ?? "").trim().toLowerCase();
+  const typeLabel =
+    typeRaw === "preventivo"
+      ? "Preventivo"
+      : typeRaw === "correctivo"
+        ? "Correctivo"
+        : typeRaw === "falla"
+          ? "Falla técnica"
+          : typeRaw;
+  const desc = String(row.description ?? row.descripcion ?? "").trim();
+  const cost = Number(row.cost ?? row.costo);
+  if (plate) parts.push(`Placa ${plate}`);
+  if (date) parts.push(date);
+  if (typeLabel) parts.push(typeLabel);
+  if (desc) parts.push(desc.length > 72 ? `${desc.slice(0, 72)}…` : desc);
+  if (Number.isFinite(cost) && cost > 0) parts.push(`$${Math.round(cost).toLocaleString("es-CO")}`);
+  return parts;
 }
 
 export function portalRowEntitySummary(row: Record<string, unknown>, action: string): string {
+  const fuelParts = portalFuelLogSummaryParts(row);
+  if (fuelParts.length >= 2) {
+    return (
+      action === "create"
+        ? `Carga de combustible · ${fuelParts.join(" · ")}`
+        : action === "delete"
+          ? `Eliminación de combustible · ${fuelParts.join(" · ")}`
+          : `Actualización de combustible · ${fuelParts.join(" · ")}`
+    ).slice(0, 2000);
+  }
+  const techParts = portalTechnicalLogSummaryParts(row);
+  if (techParts.length >= 2) {
+    return (
+      action === "create"
+        ? `Registro de taller · ${techParts.join(" · ")}`
+        : action === "delete"
+          ? `Eliminación de taller · ${techParts.join(" · ")}`
+          : `Actualización de taller · ${techParts.join(" · ")}`
+    ).slice(0, 2000);
+  }
   const parts: string[] = portalPayrollRunSummaryParts(row);
   const status = String(row.status ?? row.estado ?? "").trim();
   if (status) parts.push(`Estado: ${status}`);
@@ -223,7 +286,7 @@ async function preparePortalSyncTripRouteRatesAudits(
     pending.push({
       action,
       entityId,
-      entityLabel: entityLabel || `Tarifa ${entityId.slice(0, 8)}`,
+      entityLabel: entityLabel || "Tarifa por trayecto",
       summary: `Tarifa COP ${row.cop.toLocaleString("es-CO")}`
     });
   }
@@ -481,7 +544,7 @@ export async function recordPortalSyncDeleteAudits(
       moduleId: meta.moduleId,
       moduleLabel: meta.moduleLabel,
       entityId,
-      entityLabel: row ? portalRowEntityLabel(row) : `Registro ${entityId.slice(0, 8)}`,
+      entityLabel: row ? portalRowEntityLabel(row) : "Registro",
       summary: row ? portalRowEntitySummary(row, "delete") : "Eliminación confirmada en servidor"
     });
   }

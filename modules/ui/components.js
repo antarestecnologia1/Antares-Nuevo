@@ -311,12 +311,14 @@ export function renderModalFooterActions(opts = {}) {
   const cancelBtnClass = String(opts.cancelBtnClass || "").trim();
   const secondaryHtml = String(opts.secondaryHtml || "").trim();
   const primaryHtml = String(opts.primaryHtml || "").trim();
-  return `<div class="module-panel-actions module-panel-actions--footer modal-edit-actions${extraClass ? ` ${escapeAttr(extraClass)}` : ""}">
-    <div class="module-panel-actions__group module-panel-actions__group--secondary">
-      ${showCancel ? renderModalCancelBtn(cancelId, cancelLabel, cancelBtnClass) : ""}
-      ${secondaryHtml}
+  return `<div class="module-panel-actions module-panel-actions--footer modal-edit-actions form-flow-actions${extraClass ? ` ${escapeAttr(extraClass)}` : ""}">
+    <div class="module-panel-actions__bar">
+      <div class="module-panel-actions__group module-panel-actions__group--secondary">
+        ${showCancel ? renderModalCancelBtn(cancelId, cancelLabel, cancelBtnClass) : ""}
+        ${secondaryHtml}
+      </div>
+      ${primaryHtml ? `<div class="module-panel-actions__group module-panel-actions__group--primary">${primaryHtml}</div>` : ""}
     </div>
-    ${primaryHtml ? `<div class="module-panel-actions__group module-panel-actions__group--primary">${primaryHtml}</div>` : ""}
   </div>`;
 }
 

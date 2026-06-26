@@ -223,6 +223,9 @@ const normalizePersonTypeForDb = __pr.normalizePersonTypeForDb;
 const normalizePortalDateYmd = __pr.normalizePortalDateYmd;
 const listPortalAuditModuleLabels = __pr.listPortalAuditModuleLabels;
 const logPortalAuditEvent = __pr.logPortalAuditEvent;
+const stripHistoryAuditOpaqueTokens = __pr.stripHistoryAuditOpaqueTokens;
+const isHistoryAuditOpaqueLabel = __pr.isHistoryAuditOpaqueLabel;
+const defaultHistoryAuditSummaryText = __pr.defaultHistoryAuditSummaryText;
 const normalizePortalAuditModuleLabel = __pr.normalizePortalAuditModuleLabel;
 const portalAuditModuleIconKey = __pr.portalAuditModuleIconKey;
 const resolvePortalAuditModuleId = __pr.resolvePortalAuditModuleId;
@@ -2457,6 +2460,131 @@ function readModuleAuditLogs() {
   return Array.isArray(rows) ? rows : [];
 }
 
+function resolveHistoryAuditEntityLabelFromCatalog(moduleId, entityId) {
+  const id = String(entityId || "").trim();
+  if (!id) return "";
+  const mod = resolvePortalAuditModuleId(moduleId);
+  if (mod === "vehicles") {
+    if (!isUuidString(id) && /^[A-Z0-9-]{4,10}$/i.test(id)) return id.toUpperCase();
+    const fuel = readFuelLogs().find((l) => String(l.id) === id);
+    if (fuel?.vehiclePlate) return String(fuel.vehiclePlate).toUpperCase();
+    const tech = readVehicleTechnicalLogs().find((l) => String(l.id) === id);
+    if (tech?.vehiclePlate) return String(tech.vehiclePlate).toUpperCase();
+  }
+  if (!isUuidString(id)) {
+    if (mod === "payroll" && /^\d{4}/.test(id)) return `Periodo ${id}`;
+    if (id === "bulk") return "Bandeja";
+    if (id === "prefs") return "Preferencias";
+    return "";
+  }
+  const findIn = (key, pick) => {
+    const row = readArray(key).find((r) => String(r.id) === id);
+    return row ? String(pick(row) || "").trim() : "";
+  };
+  switch (mod) {
+    case "requests":
+      return findIn(KEYS.requests, (r) => r.requestNumber);
+    case "trips": {
+      const req = reqRead().find((r) => String(r.id) === id || String(r.trip?.id) === id);
+      return req ? String(req.trip?.tripNumber || req.requestNumber || "").trim() : "";
+    }
+    case "vehicles":
+      return findIn(KEYS.vehicles, (v) => String(v.plate || "").toUpperCase());
+    case "drivers":
+      return findIn(KEYS.drivers, (d) => d.name);
+    case "users":
+      return findIn(KEYS.users, (u) => getPortalUserDisplayName(u) || u.email);
+    case "payroll":
+      return (
+        findIn(KEYS.payrollEmployees, (e) => e.name) ||
+        findIn(KEYS.payrollRuns, (r) => `${r.employeeName || ""} · ${r.month || ""}`) ||
+        findIn(KEYS.hrAbsences, (a) => `${a.employeeName || ""} · ${a.startDate || ""}`)
+      );
+    case "hiring":
+      return (
+        findIn(KEYS.vacancies, (v) => v.title || v.positionName) ||
+        findIn(KEYS.candidates, (c) => c.name) ||
+        findIn(KEYS.positions, (p) => p.name) ||
+        findIn(KEYS.interviews, (i) => i.candidateName) ||
+        findIn(KEYS.contracts, (c) => c.candidateName || c.employeeName)
+      );
+    case "sst":
+      return findIn(KEYS.sstCompliance, (r) => `${r.employeeName || ""} · ${r.recordType || ""}`);
+    case "contact_b2b":
+      return findIn(KEYS.contacts, (c) => c.contactName || c.companyName);
+    case "authorizations":
+      return findIn(KEYS.approvals, (a) => a.title || a.type);
+    case "notifications":
+      return findIn(KEYS.notifications, (n) => n.title);
+    case "reports":
+      return "";
+    default:
+      return "";
+  }
+}
+
+function formatFuelLogAuditSummary(log) {
+  const row = log && typeof log === "object" ? log : {};
+  const parts = [];
+  const plate = String(row.vehiclePlate || row.plate || "").trim().toUpperCase();
+  const date = String(row.date || "").slice(0, 10);
+  const liters = parseNum(row.liters);
+  const total = parseNum(row.totalCost);
+  const driver = String(row.driverName || "").trim();
+  if (plate) parts.push(`Placa ${plate}`);
+  if (date) parts.push(date);
+  if (liters > 0) parts.push(`${liters.toLocaleString("es-CO")} L`);
+  if (total > 0) parts.push(`$${total.toLocaleString("es-CO")}`);
+  if (driver) parts.push(driver);
+  const station = String(row.station || "").trim();
+  if (station) parts.push(station);
+  return parts.join(" · ") || "Registro de combustible";
+}
+
+function formatTechnicalLogAuditSummary(log) {
+  const row = log && typeof log === "object" ? log : {};
+  const parts = [];
+  const plate = String(row.vehiclePlate || row.plate || "").trim().toUpperCase();
+  const date = String(row.date || "").slice(0, 10);
+  const typeKey = String(row.interventionType || row.type || "").toLowerCase();
+  const typeLabel = HISTORY_FLEET_TECH_LABELS[typeKey] || typeKey;
+  const desc = String(row.description || "").trim();
+  if (plate) parts.push(`Placa ${plate}`);
+  if (date) parts.push(date);
+  if (typeLabel) parts.push(typeLabel);
+  if (desc) parts.push(desc.length > 72 ? `${desc.slice(0, 72)}…` : desc);
+  const cost = parseNum(row.cost);
+  if (cost > 0) parts.push(`$${cost.toLocaleString("es-CO")}`);
+  return parts.join(" · ") || "Registro de taller";
+}
+
+function formatHistoryAuditPresentation(entry) {
+  const row = entry && typeof entry === "object" ? entry : {};
+  const action = String(row.action || "update");
+  const moduleId = String(row.moduleId || "").trim();
+  const moduleLabel = normalizePortalAuditModuleLabel(row.moduleLabel || moduleId);
+  const entityId = String(row.entityId || "").trim();
+
+  let entityLabel = stripHistoryAuditOpaqueTokens(row.entityLabel);
+  if (!entityLabel || isHistoryAuditOpaqueLabel(entityLabel)) {
+    const fromCatalog = resolveHistoryAuditEntityLabelFromCatalog(moduleId, entityId);
+    entityLabel = stripHistoryAuditOpaqueTokens(fromCatalog) || "Registro";
+  }
+
+  let summary = stripHistoryAuditOpaqueTokens(row.summary);
+  if (!summary || isHistoryAuditOpaqueLabel(summary)) {
+    summary = defaultHistoryAuditSummaryText(action, moduleLabel, entityLabel);
+  }
+
+  return {
+    ...row,
+    moduleId: resolvePortalAuditModuleId(moduleId) || moduleId || "dashboard",
+    moduleLabel,
+    entityLabel,
+    summary
+  };
+}
+
 function appendModuleAuditLog(entry) {
   const row = entry && typeof entry === "object" ? entry : {};
   const at = String(row.at || nowIso()).trim();
@@ -2482,7 +2610,7 @@ function appendModuleAuditLog(entry) {
     String(row.usuario || "").trim() ||
     historyAuditFormatStoredUsuario(actor, actorEmail, actorUserId);
   const list = readModuleAuditLogs();
-  const stored = {
+  const stored = formatHistoryAuditPresentation({
     id: String(row.id || newUuidV4()),
     at,
     action: String(row.action || "update"),
@@ -2497,7 +2625,7 @@ function appendModuleAuditLog(entry) {
     usuario,
     detailAction: String(row.detailAction || "").trim(),
     detailId: String(row.detailId || "").trim()
-  };
+  });
   list.unshift(stored);
   write(KEYS.moduleAuditLogs, list.slice(0, 600));
   try {
@@ -2569,7 +2697,7 @@ function appendPortalEntityAuditLog(action, moduleId, moduleLabel, entity, summa
     moduleLabel: canonModuleLabel,
     entityId,
     entityLabel: String(extra.entityLabel || row.name || row.plate || row.title || "Registro").trim(),
-    summary: String(summary || extra.summary || "").trim(),
+    summary: String(summary || extra.summary || defaultHistoryAuditSummaryText(action, canonModuleLabel, extra.entityLabel || row.name || row.plate || row.title || "Registro")).trim(),
     actor,
     actorEmail: String(extra.actorEmail || row.updatedByEmail || row.createdByEmail || snapshot.email || "").trim(),
     actorUserId: String(extra.actorUserId || snapshot.userId || "").trim(),
@@ -6342,7 +6470,7 @@ async function approveRequest(
     });
     logPortalAuditEvent("requests", "update", {
       entityId: String(requestId),
-      entityLabel: String(current.requestNumber || requestId),
+      entityLabel: String(current.requestNumber || "Solicitud"),
       summary: `Viaje asignado · ${String(trip.tripNumber || "")}`,
       actor: tripFields.actor,
       actorEmail: tripFields.actorEmail,
@@ -6392,7 +6520,7 @@ async function rejectRequest(requestId, reason, actorName) {
   const usuario = historyAuditFormatStoredUsuario(actor, snapshot.email, snapshot.userId);
   logPortalAuditEvent("requests", "update", {
     entityId: String(requestId),
-    entityLabel: String(current.requestNumber || requestId),
+    entityLabel: String(current.requestNumber || "Solicitud"),
     summary: `Solicitud rechazada · ${String(reason || "Sin motivo")}`,
     actor,
     actorEmail: snapshot.email,
@@ -8038,7 +8166,7 @@ function moduleAuditLogRowFromTransportDeletion(row, kind) {
 
 function moduleAuditLogRowFromRequestModification(request, logRow) {
   const fields = historyAuditTransportModificationFields(logRow);
-  const requestLabel = String(request.requestNumber || request.id || "Solicitud");
+  const requestLabel = String(request.requestNumber || "Solicitud");
   const just = String(logRow?.justification || "").trim();
   const tripN = String(logRow?.tripNumber || request.trip?.tripNumber || "").trim();
   const changes = String(logRow?.changesSummary || "").trim();
@@ -8306,9 +8434,10 @@ function backfillModuleAuditLogActors() {
   if (!list.length) return;
   let changed = false;
   const next = list.map((row) => {
-    let actorUserId = String(row.actorUserId || "").trim();
-    let actorEmail = String(row.actorEmail || "").trim();
-    let actor = historyAuditActorFromLogRow(row);
+    const formatted = formatHistoryAuditPresentation(row);
+    let actorUserId = String(formatted.actorUserId || "").trim();
+    let actorEmail = String(formatted.actorEmail || "").trim();
+    let actor = historyAuditActorFromLogRow(formatted);
     if (!actorUserId && (actorEmail || actor)) {
       const user = readArray(KEYS.users).find(
         (u) => normalizeEmail(u.email) === normalizeEmail(actorEmail || actor)
@@ -8322,15 +8451,25 @@ function backfillModuleAuditLogActors() {
     if (!actor && actorUserId) actor = historyAuditUserLabelById(actorUserId);
     if (!actor && actorEmail) actor = actorEmail;
     const usuario =
-      String(row.usuario || "").trim() || historyAuditFormatStoredUsuario(actor, actorEmail, actorUserId);
+      String(formatted.usuario || "").trim() || historyAuditFormatStoredUsuario(actor, actorEmail, actorUserId);
+    const merged = {
+      ...formatted,
+      actor: actor || formatted.actor,
+      actorUserId,
+      actorEmail,
+      usuario
+    };
     if (
-      actor !== String(row.actor || "").trim() ||
-      actorUserId !== String(row.actorUserId || "").trim() ||
-      actorEmail !== String(row.actorEmail || "").trim() ||
-      usuario !== String(row.usuario || "").trim()
+      merged.actor !== String(row.actor || "").trim() ||
+      merged.actorUserId !== String(row.actorUserId || "").trim() ||
+      merged.actorEmail !== String(row.actorEmail || "").trim() ||
+      merged.usuario !== String(row.usuario || "").trim() ||
+      merged.entityLabel !== String(row.entityLabel || "").trim() ||
+      merged.summary !== String(row.summary || "").trim() ||
+      merged.moduleLabel !== String(row.moduleLabel || "").trim()
     ) {
       changed = true;
-      return { ...row, actor: actor || row.actor, actorUserId, actorEmail, usuario };
+      return merged;
     }
     return row;
   });
@@ -8338,6 +8477,11 @@ function backfillModuleAuditLogActors() {
 }
 
 function buildHistoryAuditEntries() {
+  if (!state.__historyAuditPresentationBackfilled) {
+    state.__historyAuditPresentationBackfilled = true;
+    syncTransportAuditsToModuleLogs();
+    backfillModuleAuditLogActors();
+  }
   /** Fuente: auditoria_eventos_portal (GET bootstrap / audit-events). Sin entityHistoryActors ni localStorage. */
   const entries = [];
   readModuleAuditLogs().forEach((row) => {
@@ -8347,21 +8491,23 @@ function buildHistoryAuditEntries() {
     const actorUserId = String(row.actorUserId || "").trim();
     const actor = historyAuditActorFromLogRow(row, { fallbackToSession: false });
     const usuario = historyAuditUsuarioFromLogRow(row, { fallbackToSession: false });
-    entries.push({
-      id: `audit-explicit-${String(row.id || newUuidV4())}`,
-      ts,
-      action: String(row.action || "update"),
-      moduleLabel: normalizePortalAuditModuleLabel(row.moduleLabel || row.moduleId || "Módulo"),
-      entityId: String(row.entityId || ""),
-      entityLabel: String(row.entityLabel || "Registro"),
-      summary: String(row.summary || ""),
-      actor,
-      actorEmail,
-      actorUserId,
-      usuario,
-      detailAction: String(row.detailAction || ""),
-      detailId: String(row.detailId || "")
-    });
+    entries.push(
+      formatHistoryAuditPresentation({
+        id: `audit-explicit-${String(row.id || newUuidV4())}`,
+        ts,
+        action: String(row.action || "update"),
+        moduleLabel: normalizePortalAuditModuleLabel(row.moduleLabel || row.moduleId || "Módulo"),
+        entityId: String(row.entityId || ""),
+        entityLabel: String(row.entityLabel || "Registro"),
+        summary: String(row.summary || ""),
+        actor,
+        actorEmail,
+        actorUserId,
+        usuario,
+        detailAction: String(row.detailAction || ""),
+        detailId: String(row.detailId || "")
+      })
+    );
   });
 
   return dedupeHistoryAuditEntries(enrichHistoryAuditEntriesWithExplicitActors(entries))
@@ -12613,6 +12759,9 @@ Object.assign(window, {
   appendPayrollEmployeeAuditLog,
   appendPortalEntityAuditLog,
   buildPortalAuditActorSnapshot,
+  formatFuelLogAuditSummary,
+  formatHistoryAuditPresentation,
+  formatTechnicalLogAuditSummary,
   formatHistoryAuditActorDisplay,
   historyAuditEnrichActorDisplay,
   historyAuditUsuarioFromLogRow,

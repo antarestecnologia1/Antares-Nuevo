@@ -503,6 +503,7 @@ function historyHtml() {
         state.__historyAuditHydrating = false;
         if (ok) {
           state.__historyAuditHydratedFromApi = true;
+          state.__historyAuditPresentationBackfilled = false;
           if (typeof scheduleRenderPortalView === "function") scheduleRenderPortalView();
           else if (typeof renderPortalView === "function") renderPortalView();
         }

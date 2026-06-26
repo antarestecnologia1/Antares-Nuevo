@@ -2854,6 +2854,7 @@ function bindPayrollPortalControls() {
           appendModuleAuditLog({
             action: "delete",
             moduleId: "payroll",
+            moduleLabel: "Gestión humana",
             entityId: id,
             entityLabel: removed
               ? `${String(removed.employeeName || "Colaborador")} · ${String(removed.startDate || "-")}`

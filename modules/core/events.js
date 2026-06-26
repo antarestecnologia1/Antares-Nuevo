@@ -2626,7 +2626,7 @@ function bindDynamicEvents() {
         await exportCatalogReport(report, format === "excel" ? "excel" : "pdf");
         $portal.logPortalAuditEvent?.("reports", "update", {
           entityId: reportId,
-          entityLabel: String(report?.title || reportId || "Reporte").trim(),
+          entityLabel: String(report?.title || "Reporte").trim(),
           summary: `Exportación ${format === "excel" ? "Excel" : "PDF"} · período ${String(exportFilters.period || "90d")}`
         });
         $portal.notify($portal.userMessage(format === "excel" ? "reportExcelExported" : "reportPdfOk"), "success");
@@ -2822,7 +2822,7 @@ function bindDynamicEvents() {
           const actor = currentUser();
           $portal.logPortalAuditEvent?.("requests", "delete", {
             entityId: requestId,
-            entityLabel: String(reqSnapshot?.requestNumber || requestId),
+            entityLabel: String(reqSnapshot?.requestNumber || "Solicitud"),
             summary: `Solicitud eliminada (admin) · Motivo: ${String(motivo || "").trim()}`,
             actor: String(actor?.email || actor?.name || ""),
             actorEmail: String(actor?.email || ""),
@@ -2874,7 +2874,7 @@ function bindDynamicEvents() {
           $portal.recalculateResourceAvailability();
           $portal.logPortalAuditEvent?.("requests", "delete", {
             entityId: requestId,
-            entityLabel: String(req?.requestNumber || requestId),
+            entityLabel: String(req?.requestNumber || "Solicitud"),
             summary: `Solicitud eliminada (cliente) · Motivo: ${String(motivo || "").trim()}`,
             actor: String(actor?.email || actor?.name || ""),
             actorEmail: String(actor?.email || ""),

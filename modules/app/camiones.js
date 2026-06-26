@@ -886,7 +886,7 @@ function vehiclesHtml() {
           return;
         }
         try {
-          await appendFuelLogAwait({
+          const savedFuelLog = await appendFuelLogAwait({
             id: newUuidV4(),
             date: data.date || nowIso().slice(0, 10),
             vehicleId: vehicle.id,
@@ -902,6 +902,12 @@ function vehiclesHtml() {
             station: normalizeLatinUpperForDb(data.station || ""),
             paidBy: String(data.paidBy || "empresa"),
             createdAt: nowIso()
+          });
+          logPortalAuditEvent?.("vehicles", "create", {
+            entityId: String(savedFuelLog?.id || ""),
+            entityLabel: String(savedFuelLog?.vehiclePlate || vehicle.plate || "").toUpperCase(),
+            summary: formatFuelLogAuditSummary(savedFuelLog),
+            at: savedFuelLog?.createdAt
           });
         } catch (err) {
           notify(String(err?.message || "No fue posible guardar el combustible en el servidor."), "error");
@@ -930,7 +936,7 @@ function vehiclesHtml() {
           return;
         }
         try {
-          await appendVehicleTechnicalLogAwait({
+          const savedTechLog = await appendVehicleTechnicalLogAwait({
             id: newUuidV4(),
             date: data.date || nowIso().slice(0, 10),
             vehicleId: vehicle.id,
@@ -944,6 +950,12 @@ function vehiclesHtml() {
             followUpStatus: String(data.status || "Pendiente"),
             status: String(data.status || "Pendiente"),
             createdAt: nowIso()
+          });
+          logPortalAuditEvent?.("vehicles", "create", {
+            entityId: String(savedTechLog?.id || ""),
+            entityLabel: String(savedTechLog?.vehiclePlate || vehicle.plate || "").toUpperCase(),
+            summary: formatTechnicalLogAuditSummary(savedTechLog),
+            at: savedTechLog?.createdAt
           });
         } catch (err) {
           notify(String(err?.message || "No fue posible guardar el mantenimiento en el servidor."), "error");

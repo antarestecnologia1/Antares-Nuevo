@@ -86,6 +86,50 @@ const PORTAL_AUDIT_MODULE_ALIASES = {
   "centro de reporteria": "reports"
 };
 
+const HISTORY_AUDIT_UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const HISTORY_AUDIT_REGISTRO_ID_RE = /^Registro\s+[0-9a-f]{6,16}$/i;
+
+const HISTORY_AUDIT_SENSITIVE_KV_RE =
+  /\b(clientUserId|vehicleId|driverId|companyId|entityId|actorUserId|updatedByUserId|createdByUserId|password|token|secret|hash|credential)\w*\s*[:=]\s*[^\s·,|]+/gi;
+
+/** Etiqueta o resumen que no debe mostrarse al usuario (UUID, fragmento de id, etc.). */
+export function isHistoryAuditOpaqueLabel(value = "") {
+  const s = String(value || "").trim();
+  if (!s) return true;
+  if (HISTORY_AUDIT_UUID_RE.test(s)) return true;
+  if (HISTORY_AUDIT_REGISTRO_ID_RE.test(s)) return true;
+  return false;
+}
+
+/** Quita UUIDs, pares clave=valor técnicos y JSON crudo del texto visible en Historial. */
+export function stripHistoryAuditOpaqueTokens(text = "") {
+  let s = String(text || "").trim();
+  if (!s) return "";
+  if ((s.startsWith("{") && s.endsWith("}")) || (s.startsWith("[") && s.endsWith("]"))) {
+    return "";
+  }
+  s = s.replace(new RegExp(HISTORY_AUDIT_UUID_RE.source, "gi"), "");
+  s = s.replace(/\bRegistro\s+[0-9a-f]{6,16}\b/gi, "");
+  s = s.replace(HISTORY_AUDIT_SENSITIVE_KV_RE, "");
+  return s
+    .replace(/\s*[·,|]\s*$/g, "")
+    .replace(/^\s*[·,|]\s*/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+/** Resumen legible por defecto cuando no hay detalle o solo hay datos técnicos. */
+export function defaultHistoryAuditSummaryText(action, moduleLabel, entityLabel = "") {
+  const verb =
+    action === "create" ? "Creación" : action === "delete" ? "Eliminación" : "Actualización";
+  const mod = normalizePortalAuditModuleLabel(moduleLabel);
+  const ent = stripHistoryAuditOpaqueTokens(entityLabel);
+  if (ent && ent !== "Registro") return `${verb} · ${ent}`;
+  return `${verb} en ${mod}`;
+}
+
 const PORTAL_AUDIT_MODULE_ICON_KEYS = {
   dashboard: "grid",
   requests: "inbox",

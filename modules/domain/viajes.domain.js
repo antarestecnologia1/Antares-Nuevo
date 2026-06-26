@@ -689,7 +689,7 @@ export function recordTransportRequestModification(request, { justification, act
     moduleId: "requests",
     moduleLabel: "Mis solicitudes",
     entityId: String(request?.id || ""),
-    entityLabel: String(request?.requestNumber || request?.id || "Solicitud"),
+    entityLabel: String(request?.requestNumber || "Solicitud"),
     summary: auditSummary,
     actor: actorEmail || actorName,
     actorEmail,
