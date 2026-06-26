@@ -886,12 +886,13 @@ body[data-theme="dark"] .requests-studio .requests-company-row__meta {
 
 /* ===================================================================
    Tarjetas de solicitud — vista Consultar
+   Correcciones: cabecera (display:contents), anchos, responsive, estados
    =================================================================== */
 
 .requests-studio,
 .transport-studio .transport-data-pane__body {
-  --req-card-min: 20rem;
-  --req-card-max: 26rem;
+  --req-card-min: 18.5rem;
+  --req-card-max: 24rem;
 }
 
 .requests-studio .requests-data-results .request-ops-cards,
@@ -901,14 +902,40 @@ body[data-theme="dark"] .requests-studio .requests-company-row__meta {
   --ops-cards-max: var(--req-card-max);
 }
 
+/* Ancho controlado: no estirar tarjetas en pantallas grandes */
 .request-ops-card.portal-ops-card {
-  gap: 0.52rem;
-  padding: 0.72rem 0.85rem 0.68rem 0.95rem;
+  flex: 1 1 var(--req-card-min, 18.5rem);
+  max-width: var(--req-card-max, 24rem);
+  width: 100%;
+  gap: 0.55rem;
+  padding: 0.75rem 0.88rem 0.7rem 1rem;
   border-radius: 14px;
-  background: linear-gradient(165deg, #ffffff 0%, #fafcff 52%, #f4f8fc 100%);
   box-shadow:
     0 1px 2px rgba(15, 35, 70, 0.04),
     0 8px 28px rgba(15, 35, 70, 0.08);
+}
+
+/* Especificidad correcta para tintes por estado (antes no aplicaban) */
+.request-ops-card.portal-ops-card {
+  background: linear-gradient(165deg, #ffffff 0%, #fafcff 52%, #f4f8fc 100%);
+}
+
+.request-ops-card.portal-ops-card.request-ops-card--pendiente {
+  background: linear-gradient(165deg, #fffdf8 0%, #fffaf0 48%, #ffffff 100%);
+}
+
+.request-ops-card.portal-ops-card.request-ops-card--aprobada_pendiente_asignacion {
+  background: linear-gradient(165deg, #f8fbff 0%, #eff6ff 48%, #ffffff 100%);
+}
+
+.request-ops-card.portal-ops-card.request-ops-card--viaje_asignado,
+.request-ops-card.portal-ops-card.request-ops-card--has-trip {
+  background: linear-gradient(165deg, #f6fdf9 0%, #ecfdf5 42%, #ffffff 100%);
+}
+
+.request-ops-card.portal-ops-card.request-ops-card--cancelada,
+.request-ops-card.portal-ops-card.request-ops-card--rechazada {
+  background: linear-gradient(165deg, #fffafa 0%, #fef2f2 42%, #ffffff 100%);
 }
 
 .request-ops-card.portal-ops-card::before {
@@ -917,84 +944,95 @@ body[data-theme="dark"] .requests-studio .requests-company-row__meta {
 }
 
 .request-ops-card.portal-ops-card:hover {
-  transform: translateY(-3px);
+  transform: translateY(-2px);
   box-shadow:
     0 2px 6px rgba(15, 35, 70, 0.06),
-    0 14px 36px rgba(15, 35, 70, 0.12);
+    0 12px 32px rgba(15, 35, 70, 0.1);
 }
 
-/* Tinte sutil según estado */
-.request-ops-card--pendiente { background: linear-gradient(165deg, #fffdf8 0%, #fffaf0 48%, #ffffff 100%); }
-.request-ops-card--aprobada_pendiente_asignacion { background: linear-gradient(165deg, #f8fbff 0%, #eff6ff 48%, #ffffff 100%); }
-.request-ops-card--viaje_asignado,
-.request-ops-card--has-trip { background: linear-gradient(165deg, #f6fdf9 0%, #ecfdf5 42%, #ffffff 100%); }
-.request-ops-card--cancelada,
-.request-ops-card--rechazada { background: linear-gradient(165deg, #fffafa 0%, #fef2f2 42%, #ffffff 100%); }
-
-/* Cabecera */
-.request-ops-card-head {
-  row-gap: 0.22rem;
+/* ── Cabecera: anula display:contents del sistema portal-ops-card ── */
+.request-ops-card .trip-ops-card-head {
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 0.55rem;
+  row-gap: 0.35rem;
+  align-items: start;
 }
 
-.request-ops-card-kicker {
-  margin: 0 0 0.1rem;
-  font-size: 0.64rem;
-  font-weight: 800;
-  letter-spacing: 0.07em;
-  color: color-mix(in srgb, var(--primary-dark, #2a6399) 68%, #64748b);
+.request-ops-card .trip-ops-card-head-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
 }
 
-.request-ops-card .trip-ops-card-title {
-  font-size: 0.94rem;
-  line-height: 1.22;
-  margin-bottom: 0.12rem;
+.request-ops-card .trip-ops-card-head-info {
+  grid-column: unset;
+  grid-row: unset;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .request-ops-card .request-ops-card-company-logo,
 .request-ops-card .request-ops-card-company-logo img {
-  width: 2.65rem;
-  height: 2.65rem;
-  border-radius: 11px;
+  grid-column: unset;
+  grid-row: unset;
+  flex-shrink: 0;
+  width: 2.5rem;
+  height: 2.5rem;
+  min-width: 2.5rem;
+  border-radius: 10px;
   border: 1px solid color-mix(in srgb, var(--req-blue, #377cc0) 22%, #e2e8f0);
   background: #fff;
-  box-shadow: 0 4px 12px rgba(var(--primary-rgb, 55, 124, 192), 0.1);
+  box-shadow: 0 3px 10px rgba(var(--primary-rgb, 55, 124, 192), 0.1);
+  object-fit: contain;
 }
 
 .request-ops-card .request-company-logo--fallback {
-  font-size: 0.92rem;
-  border-radius: 11px;
+  font-size: 0.88rem;
+  border-radius: 10px;
 }
 
-.request-ops-card .portal-ops-card-refs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.28rem;
-  margin: 0 0 0.22rem;
-}
-
-.request-ops-card .portal-ops-card-ref {
-  display: inline-flex;
+.request-ops-card .portal-ops-card-badges {
+  grid-column: 2;
+  grid-row: 1;
+  max-width: none;
   flex-direction: row;
-  align-items: center;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: flex-end;
   gap: 0.28rem;
-  padding: 0.16rem 0.46rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--req-blue-soft, #cce5f8) 38%, #fff);
-  border: 1px solid color-mix(in srgb, var(--req-blue, #377cc0) 18%, #e2e8f0);
 }
 
-.request-ops-card .portal-ops-card-ref-label {
-  font-size: 0.56rem;
-  letter-spacing: 0.05em;
+.request-ops-card .portal-ops-card-status-pill {
+  max-width: 100%;
 }
 
-.request-ops-card .portal-ops-card-ref-label::after {
-  content: ":";
+.request-ops-card .portal-ops-card-status-pill__text {
+  max-width: 10.5rem;
+  white-space: normal;
+  text-align: left;
+  line-height: 1.15;
 }
 
-.request-ops-card .portal-ops-card-ref-value {
-  font-size: 0.68rem;
-  -webkit-line-clamp: 1;
+.request-ops-card-kicker {
+  margin: 0 0 0.12rem;
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--primary-dark, #2a6399) 68%, #64748b);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.request-ops-card .trip-ops-card-title {
+  font-size: 0.92rem;
+  line-height: 1.25;
+  margin: 0 0 0.18rem;
+  -webkit-line-clamp: 2;
 }
 
 /* Meta chips */
@@ -1002,7 +1040,6 @@ body[data-theme="dark"] .requests-studio .requests-company-row__meta {
   display: flex;
   flex-wrap: wrap;
   gap: 0.28rem;
-  margin-top: 0.08rem;
 }
 
 .request-ops-card-chip {
@@ -1026,30 +1063,38 @@ body[data-theme="dark"] .requests-studio .requests-company-row__meta {
   border-color: rgba(16, 185, 129, 0.24);
 }
 
-.request-ops-card-chip--distance {
-  color: #1d4ed8;
-  background: rgba(59, 130, 246, 0.1);
-  border-color: rgba(59, 130, 246, 0.2);
-}
-
 .request-ops-card-chip--user {
   color: #475569;
   background: #f1f5f9;
   border-color: #e2e8f0;
-  max-width: 9.5rem;
+  max-width: 100%;
 }
 
-/* Ruta */
+/* ── Ruta ── */
 .request-ops-card-route {
   padding: 0.55rem 0.62rem;
   border-radius: 11px;
   background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
   border: 1px solid #e2e8f0;
-  gap: 0.38rem;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.request-ops-card-route .trip-ops-card-route-node {
+  min-width: 0;
 }
 
 .request-ops-card-route .trip-ops-card-route-node strong {
   font-size: 0.78rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  max-width: 100%;
+}
+
+.request-ops-card-route .trip-ops-card-route-city {
+  max-width: 100%;
 }
 
 .request-ops-card-route .trip-ops-card-route-pin--origin svg {
@@ -1060,39 +1105,62 @@ body[data-theme="dark"] .requests-studio .requests-company-row__meta {
   color: #2563eb;
 }
 
+.request-ops-card-route .trip-ops-card-route-connector {
+  display: inline-flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  min-width: 1.75rem;
+  max-width: 4.25rem;
+  align-self: center;
+}
+
+.request-ops-card-route .trip-ops-card-route-line {
+  flex: 1 1 auto;
+  min-width: 0.35rem;
+  border-top: 2px solid color-mix(in srgb, var(--req-blue, #377cc0) 28%, #cbd5e1);
+}
+
 .trip-ops-card-route-distance {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  padding: 0.12rem 0.38rem;
+  padding: 0.1rem 0.32rem;
   border-radius: 999px;
-  font-size: 0.58rem;
+  font-size: 0.56rem;
   font-weight: 800;
-  letter-spacing: 0.02em;
   color: #1e40af;
   background: rgba(59, 130, 246, 0.12);
   border: 1px solid rgba(59, 130, 246, 0.2);
   white-space: nowrap;
+  line-height: 1.2;
 }
 
-.request-ops-card-route .trip-ops-card-route-connector {
-  flex-direction: column;
-  gap: 0.18rem;
-  min-width: 2.75rem;
-  max-width: 4.5rem;
+.request-ops-card-route .trip-ops-card-route-arrow svg {
+  width: 0.85rem;
+  height: 0.85rem;
 }
 
-.request-ops-card-route .trip-ops-card-route-line {
-  width: 100%;
-  border-top-style: solid;
-  border-top-color: color-mix(in srgb, var(--req-blue, #377cc0) 28%, #cbd5e1);
+/* Cuadrícula de datos */
+.request-ops-card-spec-grid {
+  gap: 0.32rem;
 }
 
-/* Cuadrícula de datos — recogida y valor primero */
+.request-ops-card-spec-grid .trip-ops-card-item {
+  min-width: 0;
+}
+
 .request-ops-card-spec-grid .trip-ops-card-item:first-child,
 .request-ops-card-spec-grid .trip-ops-card-item:nth-child(2) {
   background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.request-ops-card-spec-grid .trip-ops-card-item-body,
+.request-ops-card-spec-grid .trip-ops-card-item-value {
+  min-width: 0;
 }
 
 .request-ops-card-spec-grid .trip-ops-card-item:nth-child(2) .trip-ops-card-item-value {
@@ -1104,10 +1172,11 @@ body[data-theme="dark"] .requests-studio .requests-company-row__meta {
 .request-ops-card-trip-bar {
   display: flex;
   align-items: center;
-  gap: 0.55rem;
+  gap: 0.5rem;
   padding: 0.48rem 0.58rem;
   border-radius: 10px;
   margin: 0;
+  min-width: 0;
 }
 
 .request-ops-card-trip-copy {
@@ -1126,7 +1195,8 @@ body[data-theme="dark"] .requests-studio .requests-company-row__meta {
 
 .request-ops-card-trip-meta {
   font-size: 0.68rem;
-  line-height: 1.25;
+  line-height: 1.3;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1157,7 +1227,7 @@ body[data-theme="dark"] .requests-studio .requests-company-row__meta {
 /* Pendiente de asignación */
 .request-ops-card-await {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.45rem;
   margin: 0;
   padding: 0.42rem 0.55rem;
@@ -1167,6 +1237,13 @@ body[data-theme="dark"] .requests-studio .requests-company-row__meta {
   color: #1e40af;
   background: linear-gradient(135deg, rgba(59, 130, 246, 0.12), rgba(59, 130, 246, 0.05));
   border: 1px dashed rgba(59, 130, 246, 0.32);
+  min-width: 0;
+}
+
+.request-ops-card-await-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  line-height: 1.35;
 }
 
 .request-ops-card-await-ico {
@@ -1178,6 +1255,7 @@ body[data-theme="dark"] .requests-studio .requests-company-row__meta {
   border-radius: 8px;
   background: rgba(59, 130, 246, 0.14);
   flex-shrink: 0;
+  margin-top: 0.05rem;
 }
 
 .request-ops-card-await-ico svg {
@@ -1185,9 +1263,15 @@ body[data-theme="dark"] .requests-studio .requests-company-row__meta {
   height: 0.85rem;
 }
 
-/* Acciones */
+/* Acciones: botones peligro ocupan celda completa, no 50% suelto */
 .request-ops-card .portal-ops-card-actions-grid {
   gap: 0.28rem;
+}
+
+.request-ops-card .portal-ops-card-actions-grid .trip-ops-card-btn--danger:last-child {
+  grid-column: 1 / -1;
+  max-width: none;
+  justify-self: stretch;
 }
 
 .request-ops-card .trip-ops-card-btn {
@@ -1196,8 +1280,85 @@ body[data-theme="dark"] .requests-studio .requests-company-row__meta {
 }
 
 .request-ops-card .portal-ops-card-foot {
-  padding-top: 0.42rem;
+  padding-top: 0.4rem;
   font-size: 0.68rem;
+}
+
+/* ── Container queries (tarjeta estrecha) ── */
+@container ops-card (max-width: 17.5rem) {
+  .request-ops-card .trip-ops-card-head {
+    grid-template-columns: 1fr;
+  }
+
+  .request-ops-card .trip-ops-card-head-main {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .request-ops-card .portal-ops-card-badges {
+    grid-column: 1;
+    grid-row: 2;
+    justify-content: flex-start;
+  }
+
+  .request-ops-card .portal-ops-card-status-pill__text {
+    max-width: none;
+  }
+
+  .request-ops-card-route {
+    grid-template-columns: 1fr;
+    gap: 0.28rem;
+  }
+
+  .request-ops-card-route .trip-ops-card-route-node--dest {
+    text-align: left;
+    justify-items: start;
+  }
+
+  .request-ops-card-route .trip-ops-card-route-connector {
+    display: none;
+  }
+
+  .request-ops-card-spec-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .request-ops-card .portal-ops-card-actions-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@container ops-card (max-width: 20rem) {
+  .trip-ops-card-route-distance {
+    display: none;
+  }
+}
+
+/* ── Viewport: móvil y panel estrecho (admin sidebar) ── */
+@media (max-width: 720px) {
+  .requests-studio,
+  .transport-studio .transport-data-pane__body {
+    --req-card-min: 100%;
+    --req-card-max: 100%;
+  }
+
+  .requests-studio .requests-data-results .request-ops-cards > .request-ops-card,
+  .transport-studio .transport-data-pane__body .request-ops-cards > .request-ops-card {
+    flex: 1 1 100%;
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 520px) {
+  .request-ops-card .trip-ops-card-btn {
+    white-space: normal;
+    line-height: 1.2;
+    padding: 0.35rem 0.4rem;
+  }
+
+  .request-ops-card-route .trip-ops-card-route-node strong {
+    font-size: 0.82rem;
+  }
 }
 
 /* Dark mode */
@@ -1206,11 +1367,11 @@ body[data-theme="dark"] .request-ops-card.portal-ops-card {
   border-color: rgba(148, 196, 255, 0.16);
 }
 
-body[data-theme="dark"] .request-ops-card--pendiente,
-body[data-theme="dark"] .request-ops-card--aprobada_pendiente_asignacion,
-body[data-theme="dark"] .request-ops-card--has-trip,
-body[data-theme="dark"] .request-ops-card--cancelada,
-body[data-theme="dark"] .request-ops-card--rechazada {
+body[data-theme="dark"] .request-ops-card.portal-ops-card.request-ops-card--pendiente,
+body[data-theme="dark"] .request-ops-card.portal-ops-card.request-ops-card--aprobada_pendiente_asignacion,
+body[data-theme="dark"] .request-ops-card.portal-ops-card.request-ops-card--has-trip,
+body[data-theme="dark"] .request-ops-card.portal-ops-card.request-ops-card--cancelada,
+body[data-theme="dark"] .request-ops-card.portal-ops-card.request-ops-card--rechazada {
   background: linear-gradient(165deg, rgba(18, 32, 50, 0.98) 0%, rgba(12, 24, 38, 0.96) 100%);
 }
 
@@ -1218,14 +1379,14 @@ body[data-theme="dark"] .request-ops-card-kicker {
   color: #94a8c0;
 }
 
-body[data-theme="dark"] .request-ops-card .portal-ops-card-ref {
-  background: rgba(30, 58, 138, 0.22);
-  border-color: rgba(96, 165, 250, 0.22);
-}
-
 body[data-theme="dark"] .request-ops-card-route {
   background: rgba(15, 28, 46, 0.72);
   border-color: rgba(148, 196, 255, 0.14);
+}
+
+body[data-theme="dark"] .request-ops-card-spec-grid .trip-ops-card-item:first-child,
+body[data-theme="dark"] .request-ops-card-spec-grid .trip-ops-card-item:nth-child(2) {
+  background: rgba(15, 28, 46, 0.55);
 }
 
 body[data-theme="dark"] .request-ops-card-chip--user {
@@ -1242,15 +1403,5 @@ body[data-theme="dark"] .request-ops-card-await {
   color: #93c5fd;
   background: rgba(30, 58, 138, 0.28);
   border-color: rgba(96, 165, 250, 0.28);
-}
-
-@container ops-card (max-width: 16.5rem) {
-  .request-ops-card-route .trip-ops-card-route-connector {
-    flex-direction: row;
-  }
-
-  .trip-ops-card-route-distance {
-    display: none;
-  }
 }
 

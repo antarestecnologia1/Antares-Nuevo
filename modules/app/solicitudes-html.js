@@ -142,12 +142,12 @@
   function buildRequestOpsMetaChips(r, requestedBy) {
     const chips = [];
     if (r.autoApproved) chips.push({ label: "Autoaprobada", tone: "ok" });
-    if (requestedBy) chips.push({ label: requestedBy, tone: "user" });
+    if (requestedBy) chips.push({ label: requestedBy, tone: "user", title: requestedBy });
     if (!chips.length) return "";
     return `<div class="request-ops-card-chips">${chips
       .map(
         (chip) =>
-          `<span class="request-ops-card-chip request-ops-card-chip--${escapeAttr(chip.tone)}">${escapeHtml(chip.label)}</span>`
+          `<span class="request-ops-card-chip request-ops-card-chip--${escapeAttr(chip.tone)}"${chip.title ? ` title="${escapeAttr(chip.title)}"` : ""}>${escapeHtml(chip.label)}</span>`
       )
       .join("")}</div>`;
   }
@@ -189,11 +189,6 @@
     const reqNo = String(r.requestNumber || r.id || "-");
     const createdLabel = fmtDate(r.createdAt || "") || "—";
     const distanceKm = parseNum(r.distanceKm || 0);
-    const headerRefs = [];
-    if (r.trip?.tripNumber) {
-      headerRefs.push({ label: "Viaje", value: String(r.trip.tripNumber) });
-    }
-    const headerRefsHtml = buildPortalOpsCardRefs(headerRefs);
     const metaChipsHtml = buildRequestOpsMetaChips(r, requestedBy);
     const statusBadgeHtml = buildPortalOpsCardStatusPill(statusText, statusSlug);
     const tripBadge = r.trip
@@ -205,11 +200,11 @@
           </div>
         </div>`
       : [STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(r.status)
-        ? `<p class="request-ops-card-await" role="status"><span class="request-ops-card-await-ico" aria-hidden="true">${IC.clock || IC.truck}</span><span>Aprobada · pendiente de asignar vehículo</span></p>`
+        ? `<p class="request-ops-card-await" role="status"><span class="request-ops-card-await-ico" aria-hidden="true">${IC.clock || IC.truck}</span><span class="request-ops-card-await-text">Aprobada · pendiente de asignar vehículo</span></p>`
         : "";
     const routeDistanceHtml =
       distanceKm > 0
-        ? `<span class="trip-ops-card-route-distance" title="${escapeAttr(`${distanceKm.toLocaleString("es-CO")} km`)}">${escapeHtml(`${distanceKm.toLocaleString("es-CO")} km`)}</span>`
+        ? `<span class="trip-ops-card-route-distance" aria-label="Distancia ${escapeAttr(`${distanceKm.toLocaleString("es-CO")} kilómetros`)}">${escapeHtml(`${distanceKm.toLocaleString("es-CO")} km`)}</span>`
         : "";
     const tripStateClass = tripAssigned ? " request-ops-card--has-trip" : " request-ops-card--no-trip";
     const actionButtons = [
@@ -236,7 +231,6 @@
           <div class="trip-ops-card-head-info">
             <p class="trip-ops-card-kicker request-ops-card-kicker">Solicitud #${escapeHtml(reqNo)}</p>
             <h4 class="trip-ops-card-title" title="${escapeAttr(clientName)}">${escapeHtml(clientName)}</h4>
-            ${headerRefsHtml}
             ${metaChipsHtml}
           </div>
         </div>
@@ -250,10 +244,10 @@
             <strong>${escapeHtml(originCity)}</strong>
           </span>
         </div>
-        <span class="trip-ops-card-route-connector" aria-hidden="true">
-          <span class="trip-ops-card-route-line"></span>
+        <span class="trip-ops-card-route-connector">
+          <span class="trip-ops-card-route-line" aria-hidden="true"></span>
           ${routeDistanceHtml}
-          <span class="trip-ops-card-route-arrow">${IC.chevronRight}</span>
+          <span class="trip-ops-card-route-arrow" aria-hidden="true">${IC.chevronRight}</span>
         </span>
         <div class="trip-ops-card-route-node trip-ops-card-route-node--dest" title="${escapeAttr(destinationCity)}">
           <span class="trip-ops-card-route-label">Destino</span>
