@@ -107,7 +107,8 @@
 .portal-ops-card .portal-ops-card-avatar,
 .portal-ops-card .request-ops-card-company-logo,
 .portal-ops-card .driver-avatar,
-.portal-ops-card .directory-card__avatar {
+.portal-ops-card .directory-card__avatar,
+.portal-ops-card .vehicle-plate-badge {
   grid-column: 1;
   grid-row: 1;
   align-self: start;
@@ -1553,13 +1554,15 @@
 
 .portal-ops-card.trip-ops-card--vehicle .portal-ops-card-badges,
 .portal-ops-card.trip-ops-card--driver .portal-ops-card-badges {
-  max-width: none;
+  max-width: 6.75rem;
+  flex: 0 0 auto;
   align-items: flex-end;
   gap: 0.28rem;
+  min-width: 0;
 }
 
-.portal-ops-card-badges > .portal-ops-card-doc-pill,
-.portal-ops-card-badges > .vehicle-card-equip-pill {
+.portal-ops-card-badges > .portal-ops-card-doc-pill:not(.vehicle-card-equip-pill),
+.portal-ops-card-badges > .driver-card-doc-pill {
   flex-direction: column;
   align-items: center;
   justify-content: center;
@@ -1574,8 +1577,8 @@
   white-space: nowrap;
 }
 
-.portal-ops-card-badges > .portal-ops-card-doc-pill > span:not([class*="icon"]),
-.portal-ops-card-badges > .vehicle-card-equip-pill > span:not([class*="icon"]) {
+.portal-ops-card-badges > .portal-ops-card-doc-pill:not(.vehicle-card-equip-pill) > span:not([class*="icon"]),
+.portal-ops-card-badges > .driver-card-doc-pill > span:not([class*="icon"]) {
   writing-mode: vertical-rl;
   transform: rotate(180deg);
   max-height: 2.8rem;
@@ -1583,10 +1586,37 @@
   text-overflow: ellipsis;
 }
 
-.portal-ops-card-badges > .vehicle-card-equip-pill--tk .vehicle-card-equip-pill__icon {
-  font-size: 0.62rem;
-  line-height: 1;
+/* Termoking: pill horizontal dentro del stack de badges (no en el borde) */
+.portal-ops-card.trip-ops-card--vehicle .vehicle-card-equip-pill--tk {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 0.22rem;
+  padding: 0.24rem 0.46rem;
+  min-height: 0;
+  max-width: 100%;
+  width: auto;
+  border-radius: 999px;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  align-self: flex-end;
+}
+
+.portal-ops-card.trip-ops-card--vehicle .vehicle-card-equip-pill--tk > span:not([class*="icon"]) {
+  writing-mode: horizontal-tb;
   transform: none;
+  max-height: none;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.portal-ops-card.trip-ops-card--vehicle .vehicle-card-equip-pill--tk .vehicle-card-equip-pill__icon {
+  font-size: 0.68rem;
+  line-height: 1;
+  flex: 0 0 auto;
 }
 
 .portal-ops-card.trip-ops-card--vehicle .vehicle-availability-bar {
