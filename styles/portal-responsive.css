@@ -546,8 +546,7 @@ body.portal-mode .kpi-grid {
 .portal-main .directory-card__fact dd,
 .portal-main .directory-chip strong,
 .portal-main .payroll-run-card-employee,
-.portal-main .b2b-leads-meta dd,
-.portal-main .ntf-card__text {
+.portal-main .b2b-leads-meta dd {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -556,8 +555,7 @@ body.portal-mode .kpi-grid {
 .portal-main .trip-ops-card-title,
 .portal-main .directory-card__title,
 .portal-main .payroll-run-card-title,
-.portal-main .b2b-leads-title,
-.portal-main .ntf-card__title {
+.portal-main .b2b-leads-title {
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;

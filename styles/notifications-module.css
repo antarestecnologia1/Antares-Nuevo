@@ -190,68 +190,102 @@
   color: #d97706;
 }
 
-/* —— Layout operate —— */
+/* —— Layout operate (GitHub inbox: rail + panel unificado) —— */
 .notifications-studio .ntf-operate {
   display: grid;
-  grid-template-columns: minmax(10.5rem, 13rem) minmax(0, 1fr);
-  gap: 1rem;
-  align-items: start;
-}
-.notifications-studio .ntf-operate__rail {
-  position: sticky;
-  top: 0.75rem;
-  padding: 0.65rem;
+  grid-template-columns: minmax(11.5rem, 14.5rem) minmax(0, 1fr);
+  gap: 0;
+  align-items: stretch;
   border-radius: var(--ntf-radius);
   border: 1px solid var(--ntf-edge);
   background: var(--ntf-card);
   box-shadow: var(--ntf-shadow-sm);
+  overflow: hidden;
+}
+
+/* Rail lateral estilo GitHub: lista plana, barra izquierda en activo, sin caja interna */
+.notifications-studio .ntf-operate__rail {
+  position: sticky;
+  top: 0.75rem;
+  align-self: start;
+  max-height: calc(100dvh - 6rem);
+  overflow-y: auto;
+  padding: 0.85rem 0 1rem;
+  border-right: 1px solid var(--ntf-edge);
+  background: color-mix(in srgb, var(--ntf-surface) 55%, var(--ntf-card));
+  box-shadow: none;
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
+  gap: 0.35rem;
 }
+
 .notifications-studio .ntf-operate__rail-label {
   display: block;
-  margin: 0 0 0.15rem 0.55rem;
-  font-size: 0.62rem;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  margin: 0 0 0.35rem;
+  padding: 0 1rem 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: none;
   color: var(--text-soft);
+  border-bottom: 1px solid var(--ntf-edge);
 }
-.notifications-studio .ntf-operate__main { min-width: 0; }
+
+.notifications-studio .ntf-operate__main {
+  min-width: 0;
+}
 
 .ntf-filter-rail {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.1rem;
+  padding: 0 0.35rem;
 }
+
 .ntf-filter-btn {
+  display: flex;
+  align-items: center;
+  width: 100%;
   text-align: left;
-  padding: 0.42rem 0.55rem;
-  border-radius: 10px;
-  border: 1px solid transparent;
+  padding: 0.48rem 0.85rem 0.48rem 1rem;
+  border: none;
+  border-left: 2px solid transparent;
+  border-radius: 0 6px 6px 0;
   background: transparent;
-  font-size: 0.82rem;
-  font-weight: 600;
+  font-size: 0.875rem;
+  font-weight: 400;
+  line-height: 1.35;
   color: var(--text);
   cursor: pointer;
-  transition: background 0.12s ease, border-color 0.12s ease;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease,
+    border-color 0.12s ease;
 }
+
 .ntf-filter-btn:hover {
-  background: var(--ntf-surface);
+  background: color-mix(in srgb, var(--ntf-blue) 6%, var(--ntf-surface));
+  color: var(--text);
 }
+
 .ntf-filter-btn--active {
-  border-color: var(--ntf-edge-strong);
-  background: color-mix(in srgb, var(--ntf-accent) 10%, var(--ntf-card));
-  color: var(--ntf-accent);
+  font-weight: 600;
+  color: var(--ntf-blue);
+  border-left-color: var(--ntf-blue);
+  background: color-mix(in srgb, var(--ntf-blue) 10%, var(--ntf-card));
+}
+
+.ntf-filter-btn--active:hover {
+  background: color-mix(in srgb, var(--ntf-blue) 14%, var(--ntf-card));
+  color: var(--ntf-blue);
 }
 
 .notifications-studio .ntf-data-panel {
-  padding: 1rem 1.1rem 1.15rem;
-  border-radius: var(--ntf-radius);
-  border: 1px solid var(--ntf-edge);
-  background: var(--ntf-card);
-  box-shadow: var(--ntf-shadow-sm);
+  padding: 1rem 1.15rem 1.2rem;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 .ntf-pref-hint {
   margin: 0 0 0.75rem;
@@ -292,17 +326,15 @@
 }
 .ntf-card {
   display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 0.42rem 0.58rem;
-  align-items: center;
-  padding: 0.48rem 0.68rem;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.42rem 0.65rem;
+  align-items: start;
+  padding: 0.65rem 0.75rem;
   border: 1px solid var(--ntf-edge);
-  border-radius: 10px;
+  border-radius: var(--ntf-radius-sm);
   background: var(--ntf-card);
   transition: box-shadow 0.15s ease, border-color 0.15s ease;
   min-width: 0;
-  container-type: inline-size;
-  container-name: ops-card;
 }
 .ntf-card:hover {
   box-shadow: var(--ntf-shadow-sm);
@@ -313,9 +345,13 @@
 }
 .ntf-card__leading {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.35rem;
-  padding-top: 0.15rem;
+  padding-top: 0.1rem;
+}
+.ntf-card__body {
+  min-width: 0;
+  overflow: visible;
 }
 .ntf-card__dot {
   width: 8px;
@@ -342,31 +378,29 @@
 }
 .ntf-card__title {
   margin: 0.08rem 0;
-  font-size: 0.86rem;
+  font-size: 0.875rem;
   font-weight: 700;
-  line-height: 1.2;
+  line-height: 1.35;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
 .ntf-card__text {
-  margin: 0;
-  font-size: 0.76rem;
+  margin: 0.2rem 0 0;
+  font-size: 0.8125rem;
   color: var(--text-soft);
-  line-height: 1.32;
+  line-height: 1.45;
   overflow-wrap: anywhere;
   word-break: break-word;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  white-space: normal;
 }
 .ntf-card__actions {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-start;
   justify-content: flex-end;
   gap: 0.28rem;
+  flex-shrink: 0;
 }
 .ntf-card__read-badge {
   font-size: 0.72rem;
@@ -389,25 +423,42 @@
 .ntf-tag--emerald { background: rgba(16, 185, 129, 0.12); color: #047857; }
 .ntf-tag--slate { background: rgba(100, 116, 139, 0.12); color: #475569; }
 
-@container ops-card (max-width: 28rem) {
-  .ntf-card {
-    grid-template-columns: auto 1fr;
-  }
-
-  .ntf-card__actions {
-    grid-column: 1 / -1;
-    flex-direction: row;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-  }
-}
-
 @media (max-width: 900px) {
-  .notifications-studio .ntf-operate { grid-template-columns: 1fr; }
-  .notifications-studio .ntf-operate__rail { position: static; }
-  .ntf-card {
-    grid-template-columns: auto 1fr;
+  .notifications-studio .ntf-operate {
+    grid-template-columns: 1fr;
   }
+
+  .notifications-studio .ntf-operate__rail {
+    position: static;
+    max-height: none;
+    border-right: none;
+    border-bottom: 1px solid var(--ntf-edge);
+    padding: 0.65rem 0 0.75rem;
+  }
+
+  .ntf-filter-rail {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    padding: 0 0.75rem;
+  }
+
+  .ntf-filter-btn {
+    width: auto;
+    border-left: none;
+    border-radius: 999px;
+    padding: 0.38rem 0.75rem;
+    font-size: 0.8125rem;
+  }
+
+  .ntf-filter-btn--active {
+    border-left-color: transparent;
+  }
+
+  .ntf-card {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
   .ntf-card__actions {
     grid-column: 1 / -1;
     flex-direction: row;
@@ -416,18 +467,31 @@
   }
 }
 
-/* ── Notificaciones / avisos / timbre: lista compacta estilo ficha ── */
+/* —— Lista: ancho completo del panel —— */
 .notifications-studio .ntf-list {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  max-width: 52rem;
+  gap: 0.55rem;
+  min-width: 0;
+  max-width: none;
+  width: 100%;
 }
 
 .notifications-studio .ntf-card {
   position: relative;
-  padding: 0.55rem 0.72rem 0.55rem 0.88rem;
-  overflow: hidden;
+  overflow: visible;
+}
+
+/* Barra de acento izquierda en no leídas (estilo GH inbox) */
+.notifications-studio .ntf-card--unread::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.45rem;
+  bottom: 0.45rem;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--ntf-blue);
 }
 
 body[data-theme="dark"] .notifications-studio {
@@ -436,6 +500,31 @@ body[data-theme="dark"] .notifications-studio {
   --ntf-edge: rgba(148, 163, 184, 0.18);
   --ntf-edge-strong: rgba(148, 163, 184, 0.28);
 }
+
+body[data-theme="dark"] .notifications-studio .ntf-operate__rail {
+  background: color-mix(in srgb, var(--ntf-surface) 80%, transparent);
+  border-right-color: var(--ntf-edge);
+}
+
+body[data-theme="dark"] .ntf-filter-btn:hover {
+  background: rgba(148, 163, 184, 0.08);
+}
+
+body[data-theme="dark"] .ntf-filter-btn--active {
+  color: #79b8ff;
+  border-left-color: #79b8ff;
+  background: rgba(56, 139, 253, 0.12);
+}
+
+body[data-theme="dark"] .ntf-filter-btn--active:hover {
+  background: rgba(56, 139, 253, 0.18);
+  color: #79b8ff;
+}
+
 body[data-theme="dark"] .ntf-card--unread {
   background: linear-gradient(180deg, rgba(99, 102, 241, 0.12), var(--ntf-card));
+}
+
+body[data-theme="dark"] .notifications-studio .ntf-card--unread::before {
+  background: #79b8ff;
 }
