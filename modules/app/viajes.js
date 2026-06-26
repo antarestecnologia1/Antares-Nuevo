@@ -177,6 +177,18 @@ function transportTripsHtml() {
     return String(r?.clientCompanyLogoUrl ?? "").trim();
   };
 
+  const buildTripMetaChips = (reqNo) => {
+    const chips = [];
+    if (reqNo) chips.push({ label: `Sol. #${reqNo}`, tone: "ref" });
+    if (!chips.length) return "";
+    return `<div class="transport-trip-card-chips">${chips
+      .map(
+        (chip) =>
+          `<span class="transport-trip-card-chip transport-trip-card-chip--${escapeAttr(chip.tone)}">${escapeHtml(chip.label)}</span>`
+      )
+      .join("")}</div>`;
+  };
+
   const buildTripOpsCard = (r) => {
     const standby = parseNum(r.standbyChargeTotal);
     const originCity = String(r.originCity || r.originDepartment || "Origen").trim() || "Origen";
@@ -197,21 +209,27 @@ function transportTripsHtml() {
     const tripValueFmt = `$${parseNum(r.tripValue || 0).toLocaleString("es-CO")}`;
     const isClosed = [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status);
     const transitions = [r.status, ...(STATUS_TRANSITIONS[r.status] || [])];
-    const statusText = String(r.status || "—").trim() || "—";
+    const statusText =
+      typeof prettyStatus === "function"
+        ? prettyStatus(r.status, "trip")
+        : String(r.status || "—").trim() || "—";
     const tripNo = String(r.trip?.tripNumber || "-");
     const reqNo = String(r.requestNumber || r.id || "-");
     const createdLabel = fmtDate(r.createdAt || "") || "—";
-    const metaHints = [
-      parseNum(r.distanceKm || 0) > 0 ? `${parseNum(r.distanceKm).toLocaleString("es-CO")} km` : ""
-    ]
-      .filter(Boolean)
-      .join(" · ");
-    const headerRefsHtml = buildPortalOpsCardRefs([
-      { label: "Solicitud", value: `#${reqNo}` },
-      { label: "Viaje", value: tripNo }
-    ]);
+    const distanceKm = parseNum(r.distanceKm || 0);
+    const metaChipsHtml = buildTripMetaChips(reqNo);
     const statusBadgeHtml = buildPortalOpsCardStatusPill(statusText, statusSlug);
-    const fleetBadge = `<p class="trip-ops-card-standby request-ops-card-trip portal-ops-card-highlight"><span class="request-ops-card-trip-ico">${IC.truck}</span><span>Viaje <strong>${escapeHtml(tripNo)}</strong> · ${escapeHtml(plate)} · <span class="muted">${escapeHtml(driverName)}</span></span></p>`;
+    const fleetBar = `<div class="transport-trip-card-fleet-bar portal-ops-card-highlight" role="status">
+          <span class="transport-trip-card-fleet-ico" aria-hidden="true">${IC.truck}</span>
+          <div class="transport-trip-card-fleet-copy">
+            <strong class="transport-trip-card-fleet-plate">${escapeHtml(plate)}</strong>
+            <span class="transport-trip-card-fleet-meta"><span class="muted">${escapeHtml(driverName)}</span></span>
+          </div>
+        </div>`;
+    const routeDistanceHtml =
+      distanceKm > 0
+        ? `<span class="trip-ops-card-route-distance" aria-label="Distancia ${escapeAttr(`${distanceKm.toLocaleString("es-CO")} kilómetros`)}">${escapeHtml(`${distanceKm.toLocaleString("es-CO")} km`)}</span>`
+        : "";
     const statusBlockHtml =
       transitions.length > 1
         ? `<div class="trip-ops-card-status-block">
@@ -246,46 +264,47 @@ function transportTripsHtml() {
     ]
       .filter(Boolean)
       .join("");
-    return `<article class="trip-ops-card portal-ops-card trip-ops-card--${escapeAttr(statusSlug)} request-ops-card" data-trip-id="${escapeAttr(String(r.id || ""))}">
-      <header class="trip-ops-card-head">
+    return `<article class="trip-ops-card portal-ops-card transport-trip-card trip-ops-card--${escapeAttr(statusSlug)} transport-trip-card--${escapeAttr(statusSlug)}" data-trip-id="${escapeAttr(String(r.id || ""))}">
+      <header class="trip-ops-card-head transport-trip-card-head">
         <div class="trip-ops-card-head-main">
           ${clientLogoHtml}
           <div class="trip-ops-card-head-info">
-            ${headerRefsHtml}
+            <p class="trip-ops-card-kicker transport-trip-card-kicker">Viaje #${escapeHtml(tripNo)}</p>
             <h4 class="trip-ops-card-title" title="${escapeAttr(clientName)}">${escapeHtml(clientName)}</h4>
-            ${metaHints ? `<p class="muted request-ops-card-meta">${escapeHtml(metaHints)}</p>` : ""}
+            ${metaChipsHtml}
           </div>
         </div>
         <div class="portal-ops-card-badges">${statusBadgeHtml}</div>
       </header>
-      <div class="trip-ops-card-route">
+      <div class="trip-ops-card-route transport-trip-card-route">
         <div class="trip-ops-card-route-node trip-ops-card-route-node--origin" title="${escapeAttr(originCity)}">
           <span class="trip-ops-card-route-label">Origen</span>
           <span class="trip-ops-card-route-city">
-            <span class="trip-ops-card-route-pin" aria-hidden="true">${IC.mapPin}</span>
+            <span class="trip-ops-card-route-pin trip-ops-card-route-pin--origin" aria-hidden="true">${IC.mapPin}</span>
             <strong>${escapeHtml(originCity)}</strong>
           </span>
         </div>
-        <span class="trip-ops-card-route-connector" aria-hidden="true">
-          <span class="trip-ops-card-route-line"></span>
-          <span class="trip-ops-card-route-arrow">${IC.chevronRight}</span>
+        <span class="trip-ops-card-route-connector">
+          <span class="trip-ops-card-route-line" aria-hidden="true"></span>
+          ${routeDistanceHtml}
+          <span class="trip-ops-card-route-arrow" aria-hidden="true">${IC.chevronRight}</span>
         </span>
         <div class="trip-ops-card-route-node trip-ops-card-route-node--dest" title="${escapeAttr(destinationCity)}">
           <span class="trip-ops-card-route-label">Destino</span>
           <span class="trip-ops-card-route-city">
-            <span class="trip-ops-card-route-pin" aria-hidden="true">${IC.mapPin}</span>
+            <span class="trip-ops-card-route-pin trip-ops-card-route-pin--dest" aria-hidden="true">${IC.mapPin}</span>
             <strong>${escapeHtml(destinationCity)}</strong>
           </span>
         </div>
       </div>
-      <div class="trip-ops-card-grid portal-ops-card-spec-grid">
+      <div class="trip-ops-card-grid portal-ops-card-spec-grid transport-trip-card-spec-grid">
+        ${buildPortalOpsCardGridItem("Recogida", IC.calendar, pickupLabel, { tone: "ok" })}
+        ${buildPortalOpsCardGridItem("Tarifa", IC.dollar, tripValueFmt, { tone: "value" })}
         ${buildPortalOpsCardGridItem("Carga", IC.package || IC.file, cargoLabel)}
         ${buildPortalOpsCardGridItem("Camión / requisitos", IC.truck, truckReq, { raw: true })}
-        ${buildPortalOpsCardGridItem("Recogida", IC.calendar, pickupLabel)}
-        ${buildPortalOpsCardGridItem("Tarifa", IC.dollar, tripValueFmt, { tone: "value" })}
       </div>
-      ${fleetBadge}
-      ${standby > 0 ? `<p class="trip-ops-card-standby">${IC.clock || ""}<span>Standby acumulado: <strong>$${standby.toLocaleString("es-CO")}</strong></span></p>` : ""}
+      ${fleetBar}
+      ${standby > 0 ? `<p class="transport-trip-card-standby" role="status"><span class="transport-trip-card-standby-ico" aria-hidden="true">${IC.clock || ""}</span><span class="transport-trip-card-standby-text">Standby acumulado: <strong>$${standby.toLocaleString("es-CO")}</strong></span></p>` : ""}
       ${statusBlockHtml}
       ${buildPortalOpsCardActions(actionButtons)}
       ${buildPortalOpsCardFoot("Creado", createdLabel)}
@@ -380,7 +399,7 @@ function transportTripsHtml() {
       : "";
   const tripsCardsGrid =
     tripsLayout === "cards" && sortedFilteredTrips.length
-      ? `<div class="trip-ops-cards portal-ops-cards request-ops-cards">${tripsToRender.map(buildTripOpsCard).join("")}</div>`
+      ? `<div class="trip-ops-cards portal-ops-cards transport-trip-cards">${tripsToRender.map(buildTripOpsCard).join("")}</div>`
       : "";
   const opsCards = sortedFilteredTrips.length
     ? `${opsToolbarBlock}${tripsLayout === "list" ? tripsListTable : tripsCardsGrid}${tripsMoreBar}`

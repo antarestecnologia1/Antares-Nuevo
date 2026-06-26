@@ -1310,9 +1310,511 @@ body[data-theme="dark"] .transport-studio .hr-workspace-tab--switch.is-active {
   overflow-x: clip;
 }
 
-/* ── Tarjetas operativas de viajes (mismo look que solicitudes vía portal-ops-card.css) ── */
+/* ── Tarjetas operativas de viajes ── */
+.transport-studio .transport-data-pane__body .transport-trip-cards,
+.transport-studio .transport-data-pane__body .trip-ops-cards.transport-trip-cards {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  align-items: stretch;
+  gap: var(--ops-cards-gap, 0.75rem);
+  width: 100%;
+  min-width: 0;
+  --trn-card-min: 18.5rem;
+  --trn-card-max: 24rem;
+  --ops-cards-min: var(--trn-card-min);
+  --ops-cards-max: var(--trn-card-max);
+}
+
+.transport-studio .transport-data-pane__body .transport-trip-cards > .transport-trip-card,
+.transport-studio .transport-data-pane__body .trip-ops-cards.transport-trip-cards > .transport-trip-card {
+  flex: 1 1 var(--trn-card-min, 18.5rem);
+  max-width: var(--trn-card-max, 24rem);
+  width: 100%;
+}
+
+/* Tarjeta de viaje — mismo patrón corregido que solicitudes */
+.transport-trip-card.portal-ops-card {
+  gap: 0.55rem;
+  padding: 0.75rem 0.88rem 0.7rem 1rem;
+  border-radius: 14px;
+  box-shadow:
+    0 1px 2px rgba(15, 35, 70, 0.04),
+    0 8px 28px rgba(15, 35, 70, 0.08);
+}
+
+.transport-trip-card.portal-ops-card {
+  background: linear-gradient(165deg, #ffffff 0%, #fafcff 52%, #f4f8fc 100%);
+}
+
+.transport-trip-card.portal-ops-card.transport-trip-card--viaje_asignado,
+.transport-trip-card.portal-ops-card.transport-trip-card--en_transito {
+  background: linear-gradient(165deg, #f6fdf9 0%, #ecfdf5 42%, #ffffff 100%);
+}
+
+.transport-trip-card.portal-ops-card.transport-trip-card--espera_standby {
+  background: linear-gradient(165deg, #f8f7ff 0%, #eef2ff 48%, #ffffff 100%);
+}
+
+.transport-trip-card.portal-ops-card.transport-trip-card--completada,
+.transport-trip-card.portal-ops-card.transport-trip-card--cerrada {
+  background: linear-gradient(165deg, #f8fafc 0%, #f1f5f9 48%, #ffffff 100%);
+}
+
+.transport-trip-card.portal-ops-card.transport-trip-card--cancelada,
+.transport-trip-card.portal-ops-card.transport-trip-card--rechazada,
+.transport-trip-card.portal-ops-card.transport-trip-card--vencida {
+  background: linear-gradient(165deg, #fffafa 0%, #fef2f2 42%, #ffffff 100%);
+}
+
+.transport-trip-card.portal-ops-card::before {
+  width: 4px;
+  border-radius: 14px 0 0 14px;
+}
+
+.transport-trip-card.portal-ops-card:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 2px 6px rgba(15, 35, 70, 0.06),
+    0 12px 32px rgba(15, 35, 70, 0.1);
+}
+
+/* Cabecera: anula display:contents */
+.transport-trip-card .trip-ops-card-head {
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 0.55rem;
+  row-gap: 0.35rem;
+  align-items: start;
+}
+
+.transport-trip-card .trip-ops-card-head-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+}
+
+.transport-trip-card .trip-ops-card-head-info {
+  grid-column: unset;
+  grid-row: unset;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.transport-trip-card .request-ops-card-company-logo,
+.transport-trip-card .request-ops-card-company-logo img {
+  grid-column: unset;
+  grid-row: unset;
+  flex-shrink: 0;
+  width: 2.5rem;
+  height: 2.5rem;
+  min-width: 2.5rem;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--trn-blue, #377cc0) 22%, #e2e8f0);
+  background: #fff;
+  box-shadow: 0 3px 10px rgba(var(--primary-rgb, 55, 124, 192), 0.1);
+  object-fit: contain;
+}
+
+.transport-trip-card .request-company-logo--fallback {
+  font-size: 0.88rem;
+  border-radius: 10px;
+}
+
+.transport-trip-card .portal-ops-card-badges {
+  grid-column: 2;
+  grid-row: 1;
+  max-width: none;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 0.28rem;
+}
+
+.transport-trip-card .portal-ops-card-status-pill__text {
+  max-width: 10.5rem;
+  white-space: normal;
+  text-align: left;
+  line-height: 1.15;
+}
+
+.transport-trip-card-kicker {
+  margin: 0 0 0.12rem;
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--trn-blue-deep, #2a6399) 68%, #64748b);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.transport-trip-card .trip-ops-card-title {
+  font-size: 0.92rem;
+  line-height: 1.25;
+  margin: 0 0 0.18rem;
+  -webkit-line-clamp: 2;
+}
+
+.transport-trip-card-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.28rem;
+}
+
+.transport-trip-card-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 0.14rem 0.46rem;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border: 1px solid transparent;
+}
+
+.transport-trip-card-chip--ref {
+  color: #1d4ed8;
+  background: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.2);
+}
+
+/* Ruta */
+.transport-trip-card-route {
+  padding: 0.55rem 0.62rem;
+  border-radius: 11px;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 1px solid #e2e8f0;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.transport-trip-card-route .trip-ops-card-route-node {
+  min-width: 0;
+}
+
+.transport-trip-card-route .trip-ops-card-route-node strong {
+  font-size: 0.78rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  max-width: 100%;
+}
+
+.transport-trip-card-route .trip-ops-card-route-pin--origin svg {
+  color: #16a34a;
+}
+
+.transport-trip-card-route .trip-ops-card-route-pin--dest svg {
+  color: #2563eb;
+}
+
+.transport-trip-card-route .trip-ops-card-route-connector {
+  display: inline-flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  min-width: 1.75rem;
+  max-width: 4.25rem;
+  align-self: center;
+}
+
+.transport-trip-card-route .trip-ops-card-route-line {
+  flex: 1 1 auto;
+  min-width: 0.35rem;
+  border-top: 2px solid color-mix(in srgb, var(--trn-blue, #377cc0) 28%, #cbd5e1);
+}
+
+.transport-trip-card-route .trip-ops-card-route-distance {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  padding: 0.1rem 0.32rem;
+  border-radius: 999px;
+  font-size: 0.56rem;
+  font-weight: 800;
+  color: #1e40af;
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.transport-trip-card-route .trip-ops-card-route-arrow svg {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+/* Cuadrícula */
+.transport-trip-card-spec-grid {
+  gap: 0.32rem;
+}
+
+.transport-trip-card-spec-grid .trip-ops-card-item {
+  min-width: 0;
+}
+
+.transport-trip-card-spec-grid .trip-ops-card-item:first-child,
+.transport-trip-card-spec-grid .trip-ops-card-item:nth-child(2) {
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.transport-trip-card-spec-grid .trip-ops-card-item-body,
+.transport-trip-card-spec-grid .trip-ops-card-item-value {
+  min-width: 0;
+}
+
+.transport-trip-card-spec-grid .trip-ops-card-item:nth-child(2) .trip-ops-card-item-value {
+  color: #0d2f5c;
+  font-weight: 800;
+}
+
+/* Flota asignada */
+.transport-trip-card-fleet-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.48rem 0.58rem;
+  border-radius: 10px;
+  margin: 0;
+  min-width: 0;
+}
+
+.transport-trip-card-fleet-copy {
+  display: grid;
+  gap: 0.06rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.transport-trip-card-fleet-plate {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #065f46;
+  line-height: 1.2;
+  letter-spacing: 0.04em;
+}
+
+.transport-trip-card-fleet-meta {
+  font-size: 0.68rem;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.transport-trip-card-fleet-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 9px;
+  background: rgba(5, 150, 105, 0.14);
+  color: #047857;
+  flex-shrink: 0;
+}
+
+.transport-trip-card-fleet-ico svg {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+/* Standby */
+.transport-trip-card-standby {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0.42rem 0.55rem;
+  border-radius: 10px;
+  font-size: 0.72rem;
+  font-weight: 650;
+  color: #b45309;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.14), rgba(245, 158, 11, 0.06));
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  min-width: 0;
+}
+
+.transport-trip-card-standby-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  line-height: 1.35;
+}
+
+.transport-trip-card-standby-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 0.05rem;
+}
+
+.transport-trip-card-standby-ico svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+/* Selector de estado */
+.transport-trip-card .trip-ops-card-status-block {
+  min-width: 0;
+}
+
+.transport-trip-card .trip-ops-card-status-label {
+  margin: 0 0 0.28rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.transport-trip-card .trip-ops-card-status-picker {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* Acciones */
+.transport-trip-card .portal-ops-card-actions-grid {
+  gap: 0.28rem;
+}
+
+.transport-trip-card .portal-ops-card-actions-grid .trip-ops-card-btn--danger:last-child {
+  grid-column: 1 / -1;
+  max-width: none;
+  justify-self: stretch;
+}
+
+.transport-trip-card .trip-ops-card-btn {
+  min-height: 1.95rem;
+  font-size: 0.68rem;
+}
+
+.transport-trip-card .portal-ops-card-foot {
+  padding-top: 0.4rem;
+  font-size: 0.68rem;
+}
+
+@container ops-card (max-width: 17.5rem) {
+  .transport-trip-card .trip-ops-card-head {
+    grid-template-columns: 1fr;
+  }
+
+  .transport-trip-card .trip-ops-card-head-main {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .transport-trip-card .portal-ops-card-badges {
+    grid-column: 1;
+    grid-row: 2;
+    justify-content: flex-start;
+  }
+
+  .transport-trip-card .portal-ops-card-status-pill__text {
+    max-width: none;
+  }
+
+  .transport-trip-card-route {
+    grid-template-columns: 1fr;
+    gap: 0.28rem;
+  }
+
+  .transport-trip-card-route .trip-ops-card-route-node--dest {
+    text-align: left;
+    justify-items: start;
+  }
+
+  .transport-trip-card-route .trip-ops-card-route-connector {
+    display: none;
+  }
+
+  .transport-trip-card-spec-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .transport-trip-card .portal-ops-card-actions-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@container ops-card (max-width: 20rem) {
+  .transport-trip-card-route .trip-ops-card-route-distance {
+    display: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .transport-studio .transport-data-pane__body {
+    --trn-card-min: 100%;
+    --trn-card-max: 100%;
+  }
+
+  .transport-studio .transport-data-pane__body .transport-trip-cards > .transport-trip-card {
+    flex: 1 1 100%;
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 520px) {
+  .transport-trip-card .trip-ops-card-btn {
+    white-space: normal;
+    line-height: 1.2;
+    padding: 0.35rem 0.4rem;
+  }
+}
+
+body[data-theme="dark"] .transport-trip-card.portal-ops-card {
+  background: linear-gradient(165deg, rgba(18, 32, 50, 0.98) 0%, rgba(12, 24, 38, 0.96) 100%);
+  border-color: rgba(148, 196, 255, 0.16);
+}
+
+body[data-theme="dark"] .transport-trip-card.portal-ops-card[class*="transport-trip-card--"] {
+  background: linear-gradient(165deg, rgba(18, 32, 50, 0.98) 0%, rgba(12, 24, 38, 0.96) 100%);
+}
+
+body[data-theme="dark"] .transport-trip-card-kicker {
+  color: #94a8c0;
+}
+
+body[data-theme="dark"] .transport-trip-card-route {
+  background: rgba(15, 28, 46, 0.72);
+  border-color: rgba(148, 196, 255, 0.14);
+}
+
+body[data-theme="dark"] .transport-trip-card-spec-grid .trip-ops-card-item:first-child,
+body[data-theme="dark"] .transport-trip-card-spec-grid .trip-ops-card-item:nth-child(2) {
+  background: rgba(15, 28, 46, 0.55);
+}
+
+body[data-theme="dark"] .transport-trip-card-fleet-plate {
+  color: #6ee7b7;
+}
+
+body[data-theme="dark"] .transport-trip-card-standby {
+  color: #fbbf24;
+  background: rgba(180, 83, 9, 0.22);
+  border-color: rgba(245, 158, 11, 0.28);
+}
+
 .transport-studio .transport-data-pane__body .request-ops-cards,
-.transport-studio .transport-data-pane__body .trip-ops-cards {
+.transport-studio .transport-data-pane__body .trip-ops-cards:not(.transport-trip-cards) {
   display: flex;
   flex-wrap: wrap;
   align-content: flex-start;
