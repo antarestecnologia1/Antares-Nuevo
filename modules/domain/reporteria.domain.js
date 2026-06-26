@@ -143,7 +143,52 @@ export function reportPreviewColumnMeta(columns = [], rows = []) {
   }));
 }
 
-export function reportPreviewCellInnerHtml(value, type = "text") {
+const REPORT_PREVIEW_ROW_VISUALS = [
+  { tone: "info", categoryIcon: "settings", detailIcon: "activity" },
+  { tone: "warning", categoryIcon: "clock", detailIcon: "clock" },
+  { tone: "success", categoryIcon: "briefcase", detailIcon: "check" },
+  { tone: "info", categoryIcon: "dollar", detailIcon: "activity" },
+  { tone: "warning", categoryIcon: "file", detailIcon: "clock" },
+  { tone: "success", categoryIcon: "shield", detailIcon: "check" },
+  { tone: "info", categoryIcon: "building", detailIcon: "activity" },
+  { tone: "warning", categoryIcon: "users", detailIcon: "clock" }
+];
+
+function reportPreviewPortalIcon(key = "") {
+  const ic = typeof globalThis !== "undefined" && globalThis.IC ? globalThis.IC : {};
+  return ic[key] || "";
+}
+
+function reportPreviewRowVisual(rowIndex = 0) {
+  return REPORT_PREVIEW_ROW_VISUALS[Math.abs(Number(rowIndex) || 0) % REPORT_PREVIEW_ROW_VISUALS.length];
+}
+
+export function reportPreviewCategoryCellHtml(value, rowIndex = 0) {
+  const display = reportPreviewFormatValue(value, "tag");
+  if (display === "—") return `<span class="report-empty">—</span>`;
+  const visual = reportPreviewRowVisual(rowIndex);
+  const icon = reportPreviewPortalIcon(visual.categoryIcon);
+  return `<span class="report-cat-badge report-cat-badge--${visual.tone}">${icon}<span>${escapeHtml(display)}</span></span>`;
+}
+
+export function reportPreviewDetailCellHtml(value, rowIndex = 0) {
+  const display = reportPreviewFormatValue(value, "longtext");
+  if (display === "—") return `<span class="report-empty">—</span>`;
+  const visual = reportPreviewRowVisual(rowIndex);
+  const icon = reportPreviewPortalIcon(visual.detailIcon);
+  return `<span class="report-detail"><span class="report-detail__icon report-detail__icon--${visual.tone}" aria-hidden="true">${icon}</span><span class="report-detail__text">${escapeHtml(display)}</span></span>`;
+}
+
+export function reportPreviewCellInnerHtml(value, type = "text", context = {}) {
+  const columnKey = String(context?.columnKey || "").toLowerCase();
+  const rowIndex = Number(context?.rowIndex) || 0;
+  if (columnKey === "category") return reportPreviewCategoryCellHtml(value, rowIndex);
+  if (columnKey === "detail") return reportPreviewDetailCellHtml(value, rowIndex);
+  if (columnKey === "metric") {
+    const display = reportPreviewFormatValue(value, type);
+    if (display === "—") return `<span class="report-empty">—</span>`;
+    return `<span class="report-metric">${escapeHtml(display)}</span>`;
+  }
   const display = reportPreviewFormatValue(value, type);
   if (display === "—") return `<span class="report-empty">—</span>`;
   const safe = escapeHtml(display);
@@ -152,7 +197,8 @@ export function reportPreviewCellInnerHtml(value, type = "text") {
   }
   if (type === "id") return `<span class="report-code">${safe}</span>`;
   if (type === "longtext") return `<span class="report-note">${safe}</span>`;
-  return `<span class="report-value">${safe}</span>`;
+  const valueClass = columnKey === "value" || ["currency", "number", "percent"].includes(type) ? " report-value--highlight" : "";
+  return `<span class="report-value${valueClass}">${safe}</span>`;
 }
 
 export function downloadBlobFile(filename, content, mimeType) {

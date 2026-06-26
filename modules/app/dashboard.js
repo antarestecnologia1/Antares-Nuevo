@@ -619,43 +619,143 @@ body[data-theme="dark"] .at-kpi__icon {
   border-radius: 50%;
   background: var(--nx-live);
   box-shadow: 0 0 0 3px var(--nx-live-mid);
+  animation: nx-live-pulse 2.2s ease-in-out infinite;
 }
 
-/* Radar rings */
+/* Radar táctico */
+.at-map::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 52%, transparent 38%, rgba(0, 0, 0, 0.48) 100%);
+  pointer-events: none;
+  z-index: 2;
+}
 .nx-radar {
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+  z-index: 1;
+  pointer-events: none;
+}
+.nx-radar__disc {
+  position: relative;
+  width: min(72%, 290px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 1px solid rgba(60, 184, 150, 0.24);
+  background:
+    radial-gradient(circle at center, rgba(60, 184, 150, 0.1) 0%, transparent 58%),
+    radial-gradient(circle at center, rgba(131, 190, 233, 0.04) 0%, transparent 100%);
+  box-shadow:
+    0 0 48px rgba(60, 184, 150, 0.1),
+    inset 0 0 36px rgba(0, 0, 0, 0.28);
 }
 .nx-radar__ring {
   position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   border-radius: 50%;
-  border: 1px solid rgba(131, 190, 233, 0.14);
+  border: 1px solid rgba(131, 190, 233, 0.16);
+  aspect-ratio: 1;
+  pointer-events: none;
 }
-.nx-radar__ring--1 { width: 25%; height: 25%; }
-.nx-radar__ring--2 { width: 50%; height: 50%; }
-.nx-radar__ring--3 { width: 75%; height: 75%; }
-.nx-radar__ring--4 { width: 92%; height: 92%; border-color: rgba(131, 190, 233, 0.06); }
+.nx-radar__ring--1 { width: 28%; }
+.nx-radar__ring--2 { width: 52%; border-style: dashed; border-color: rgba(131, 190, 233, 0.1); }
+.nx-radar__ring--3 { width: 76%; }
+.nx-radar__ring--4 {
+  width: 96%;
+  border-color: rgba(60, 184, 150, 0.18);
+  box-shadow: 0 0 12px rgba(60, 184, 150, 0.06);
+}
+.nx-radar__crosshair {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.nx-radar__crosshair::before,
+.nx-radar__crosshair::after {
+  content: "";
+  position: absolute;
+  background: rgba(131, 190, 233, 0.1);
+}
+.nx-radar__crosshair::before {
+  top: 50%;
+  left: 6%;
+  right: 6%;
+  height: 1px;
+  transform: translateY(-50%);
+}
+.nx-radar__crosshair::after {
+  left: 50%;
+  top: 6%;
+  bottom: 6%;
+  width: 1px;
+  transform: translateX(-50%);
+}
+.nx-radar__center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: rgba(60, 184, 150, 0.9);
+  box-shadow: 0 0 0 3px rgba(60, 184, 150, 0.22), 0 0 14px rgba(60, 184, 150, 0.45);
+}
 .nx-radar__sweep {
   position: absolute;
-  width: 50%; height: 50%;
-  top: 50%; left: 50%;
-  transform-origin: 0 0;
-  background: conic-gradient(from 0deg, transparent 0deg, rgba(60, 184, 150, 0.12) 24deg, transparent 48deg);
-  border-radius: 0 100% 0 0;
-  opacity: 0.85;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg at 50% 50%,
+    transparent 0deg,
+    rgba(60, 184, 150, 0.42) 10deg,
+    rgba(60, 184, 150, 0.14) 26deg,
+    transparent 40deg
+  );
+  animation: nx-radar-sweep 4.5s linear infinite;
+  opacity: 0.9;
+}
+.nx-radar__trail {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg at 50% 50%,
+    transparent 0deg,
+    rgba(60, 184, 150, 0.06) 55deg,
+    transparent 70deg
+  );
+  animation: nx-radar-sweep 4.5s linear infinite;
+  opacity: 0.55;
+}
+
+@keyframes nx-radar-sweep {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes nx-live-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px var(--nx-live-mid); opacity: 1; }
+  50% { box-shadow: 0 0 0 7px rgba(60, 184, 150, 0.08); opacity: 0.82; }
 }
 
 .at-map__grid {
   position: absolute;
   inset: 0;
+  z-index: 0;
   background-image:
-    linear-gradient(rgba(131, 190, 233, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(131, 190, 233, 0.06) 1px, transparent 1px);
-  background-size: 44px 44px;
-  opacity: 0.55;
+    linear-gradient(rgba(131, 190, 233, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(131, 190, 233, 0.05) 1px, transparent 1px);
+  background-size: 40px 40px;
+  opacity: 0.42;
+  mask-image: radial-gradient(ellipse 85% 75% at 50% 55%, #000 30%, transparent 78%);
+  -webkit-mask-image: radial-gradient(ellipse 85% 75% at 50% 55%, #000 30%, transparent 78%);
 }
 .at-map__coords {
   position: absolute;
@@ -1464,6 +1564,7 @@ body[data-theme="dark"] .at-kpi__icon {
 
 @media (prefers-reduced-motion: reduce) {
   .at-fleet-pie, .at-ring-fg, .at-hour-fill, .at-compliance-bar-fill { transition: none; }
+  .nx-radar__sweep, .nx-radar__trail, .at-live-pulse { animation: none; }
 }
   `;
 
@@ -1663,11 +1764,16 @@ body[data-theme="dark"] .at-kpi__icon {
         <span class="at-live-badge"><span class="at-live-pulse"></span>EN VIVO</span>
       </div>
       <div class="nx-radar" aria-hidden="true">
-        <div class="nx-radar__ring nx-radar__ring--1"></div>
-        <div class="nx-radar__ring nx-radar__ring--2"></div>
-        <div class="nx-radar__ring nx-radar__ring--3"></div>
-        <div class="nx-radar__ring nx-radar__ring--4"></div>
-        <div class="nx-radar__sweep"></div>
+        <div class="nx-radar__disc">
+          <div class="nx-radar__ring nx-radar__ring--1"></div>
+          <div class="nx-radar__ring nx-radar__ring--2"></div>
+          <div class="nx-radar__ring nx-radar__ring--3"></div>
+          <div class="nx-radar__ring nx-radar__ring--4"></div>
+          <div class="nx-radar__crosshair"></div>
+          <div class="nx-radar__trail"></div>
+          <div class="nx-radar__sweep"></div>
+          <div class="nx-radar__center"></div>
+        </div>
       </div>
       <div class="at-map__grid" aria-hidden="true"></div>
       <div class="at-map__coords">4.7110° N · 74.0721° W · BOG</div>

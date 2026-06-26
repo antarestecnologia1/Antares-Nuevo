@@ -8850,13 +8850,14 @@ function renderReportPreviewTableHtml(columns = [], rows = []) {
   const tbody = dataRows.length
     ? dataRows
         .map(
-          (row) =>
+          (row, rowIndex) =>
             `<tr>${colMeta
               .map((col) => {
                 const classes = ["report-preview-cell", `report-preview-cell--${col.type}`];
                 if (["currency", "number", "percent"].includes(col.type)) classes.push("is-numeric");
                 if (col.pinned) classes.push("is-primary");
-                return `<td class="${classes.join(" ")}">${reportPreviewCellInnerHtml(row[col.key], col.type)}</td>`;
+                if (col.key) classes.push(`report-preview-cell--${String(col.key).toLowerCase()}`);
+                return `<td class="${classes.join(" ")}">${reportPreviewCellInnerHtml(row[col.key], col.type, { columnKey: col.key, rowIndex })}</td>`;
               })
               .join("")}</tr>`
         )
@@ -8867,6 +8868,10 @@ function renderReportPreviewTableHtml(columns = [], rows = []) {
 
 function ensureReportPreviewModal() {
   let modal = document.getElementById("report-preview-modal");
+  if (modal && !modal.querySelector(".report-preview-footer-icon")) {
+    modal.remove();
+    modal = null;
+  }
   if (modal) return modal;
   modal = document.createElement("div");
   modal.id = "report-preview-modal";
@@ -8890,18 +8895,21 @@ function ensureReportPreviewModal() {
         <button type="button" class="report-preview-close-btn" data-action="report-preview-close" aria-label="Cerrar vista previa">${IC.x}</button>
       </div>
     </div>
-    <div id="report-preview-body" class="report-preview-body table-wrap"></div>
+    <div id="report-preview-body" class="report-preview-body"></div>
     <div id="report-preview-copy" class="report-preview-footer-bar">
-      <span class="report-preview-footer-brand"></span>
-      <span class="report-preview-footer-note">Uso interno y operativo</span>
+      <span class="report-preview-footer-icon" aria-hidden="true">${IC.info}</span>
+      <div class="report-preview-footer-copy">
+        <span class="report-preview-footer-brand"></span>
+        <span class="report-preview-footer-note">Estados, riesgos y valores destacados para facilitar la lectura del reporte.</span>
+      </div>
     </div>
     ${renderModalFooterActions({
       showCancel: false,
       className: "report-preview-actions",
-      secondaryHtml: `<button type="button" class="btn btn-sm btn-approve module-panel-btn" data-action="report-preview-download-pdf">${IC.download} PDF</button>
-        <button type="button" class="btn btn-sm btn-action module-panel-btn" data-action="report-preview-download-excel">${IC.file} Excel</button>
-        <button type="button" class="btn btn-sm btn-action module-panel-btn" data-action="report-preview-print">${IC.printer} Imprimir</button>`,
-      primaryHtml: `<button type="button" class="btn btn-primary btn-sm module-panel-btn" data-action="report-preview-close">${IC.x} Cerrar</button>`
+      secondaryHtml: `<button type="button" class="btn btn-sm report-preview-export-btn report-preview-export-btn--pdf module-panel-btn" data-action="report-preview-download-pdf"><span class="report-preview-export-btn__icon">${IC.file}</span> PDF</button>
+        <button type="button" class="btn btn-sm report-preview-export-btn report-preview-export-btn--excel module-panel-btn" data-action="report-preview-download-excel"><span class="report-preview-export-btn__icon">${IC.file}</span> Excel</button>
+        <button type="button" class="btn btn-sm report-preview-export-btn report-preview-export-btn--print module-panel-btn" data-action="report-preview-print"><span class="report-preview-export-btn__icon">${IC.printer}</span> Imprimir</button>`,
+      primaryHtml: `<button type="button" class="btn btn-primary btn-sm report-preview-close-primary module-panel-btn" data-action="report-preview-close"><span class="report-preview-close-primary__icon">${IC.x}</span> Cerrar</button>`
     })}
   </div>`;
   document.body.appendChild(modal);
@@ -9001,8 +9009,10 @@ function openReportPreviewModal(report) {
     const rowCount = payload.rows.length;
     const colCount = payload.columns.length;
     const dateStr = fmtDate(nowIso());
-    const userChip = actor?.name ? `<span class="report-preview-stat">${escapeHtml(actor.name)}</span>` : "";
-    statsEl.innerHTML = `<span class="report-preview-stat"><strong>${rowCount}</strong> registro${rowCount === 1 ? "" : "s"}</span><span class="report-preview-stat"><strong>${colCount}</strong> columna${colCount === 1 ? "" : "s"}</span><span class="report-preview-stat">${escapeHtml(dateStr)}</span>${userChip}`;
+    const userChip = actor?.name
+      ? `<span class="report-preview-stat">${IC.user}<span>${escapeHtml(actor.name)}</span></span>`
+      : "";
+    statsEl.innerHTML = `<span class="report-preview-stat">${IC.calendar}<span>Generado ${escapeHtml(dateStr)}</span></span>${userChip}<span class="report-preview-stat">${IC.file}<span>${rowCount} registro${rowCount === 1 ? "" : "s"}</span></span><span class="report-preview-stat">${IC.columns}<span>${colCount} columna${colCount === 1 ? "" : "s"}</span></span>`;
   }
   if (logoEl) logoEl.src = reportBrandLogoSrc();
   if (bodyEl) bodyEl.innerHTML = renderReportPreviewTableHtml(payload.columns, payload.rows);
