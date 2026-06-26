@@ -6,6 +6,7 @@
  * Pendiente en portal (`buildPayrollEmployeePayloadFromWizard`, HTML de ficha, etc.):
  * acoplados a reclutamiento / UI — ver Fase 9b.
  */
+/* global getPositionById */
 import {
   KEYS,
   CO_PAYROLL,
@@ -26,16 +27,11 @@ import {
   payrollPeriodCalendarYm
 } from "../core/utils.js";
 import { notify, userMessage } from "../ui/modals.js";
-import {
-  buildColombiaPayrollLiquidation,
-  calcColombiaIncapacityEpsDayAdjustmentCop,
-  payrollCesantiasConsignmentAlert
-} from "./payroll-colombia-legal.domain.js";
+import { calcColombiaIncapacityEpsDayAdjustmentCop } from "./payroll-colombia-legal.domain.js";
 import {
   suggestTerminationReferenceDays,
   computeTerminationSettlementFromForm,
-  applyTerminationSettlementToForm,
-  terminationCauseEligibility
+  applyTerminationSettlementToForm
 } from "./payroll-colombia-termination.domain.js";
 
 export {
@@ -1963,7 +1959,7 @@ export function computePayrollIncapacityColombiaForMonth({ employee, liquidacion
   return { adjustCop: Math.round(salarioAjuste), episodes, smmlv };
 }
 
-export {
+import {
   resolvePayrollCutForClosingDate,
   formatPayrollCutRangeLabel,
   payrollClosingDatesHint,
@@ -1971,6 +1967,15 @@ export {
   liquidationLatestPendingCutAsOf,
   parseIsoDateParts
 } from "./payroll-cut.domain.js";
+
+export {
+  resolvePayrollCutForClosingDate,
+  formatPayrollCutRangeLabel,
+  payrollClosingDatesHint,
+  liquidationCutIfClosingToday,
+  liquidationLatestPendingCutAsOf,
+  parseIsoDateParts
+};
 
 /** Vista previa cliente: cuántos colaboradores recibirían liquidación en cascada. */
 export function previewPayrollBulkEligibility(fechaReferencia, force, employees = [], runs = []) {

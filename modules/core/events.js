@@ -65,6 +65,11 @@ import {
   setPortalDrawerOpen,
   initPortalSidebarExpanded,
   togglePortalSidebarExpanded,
+  setPortalSidebarExpanded,
+  applyPortalSidebarWidth,
+  resetPortalSidebarWidth,
+  PORTAL_SIDEBAR_WIDTH_MIN,
+  PORTAL_SIDEBAR_WIDTH_MAX,
   viewFromPortalHash,
   syncPortalHash
 } from "./router.js";
@@ -2962,6 +2967,76 @@ function initGlobalEvents() {
     portalSidebarToggle.addEventListener("click", (event) => {
       event.stopPropagation();
       togglePortalSidebarExpanded();
+    });
+  }
+
+  const portalSidebarResize = document.getElementById("portal-sidebar-resize");
+  if (portalSidebarResize) {
+    let resizing = false;
+    let lastWidth = 0;
+    let layoutLeft = 0;
+
+    const widthFromEvent = (event) => applyPortalSidebarWidth(event.clientX - layoutLeft, { persist: false });
+
+    const onResizeMove = (event) => {
+      if (!resizing) return;
+      lastWidth = widthFromEvent(event);
+      event.preventDefault();
+    };
+
+    const endResize = () => {
+      if (!resizing) return;
+      resizing = false;
+      document.body.classList.remove("portal-sidebar-resizing");
+      window.removeEventListener("pointermove", onResizeMove);
+      window.removeEventListener("pointerup", endResize);
+      window.removeEventListener("pointercancel", endResize);
+      if (lastWidth) applyPortalSidebarWidth(lastWidth, { persist: true });
+    };
+
+    portalSidebarResize.addEventListener("pointerdown", (event) => {
+      if (window.innerWidth <= 920) return;
+      event.preventDefault();
+      if (document.body.classList.contains("portal-sidebar-collapsed")) {
+        setPortalSidebarExpanded(true);
+      }
+      const layout = portalSidebarResize.closest(".portal-layout");
+      layoutLeft = layout ? layout.getBoundingClientRect().left : 0;
+      resizing = true;
+      lastWidth = widthFromEvent(event);
+      document.body.classList.add("portal-sidebar-resizing");
+      window.addEventListener("pointermove", onResizeMove);
+      window.addEventListener("pointerup", endResize);
+      window.addEventListener("pointercancel", endResize);
+    });
+
+    /* Doble clic en el borde: restablecer al ancho por defecto. */
+    portalSidebarResize.addEventListener("dblclick", (event) => {
+      event.preventDefault();
+      resetPortalSidebarWidth();
+    });
+
+    /* Accesibilidad: ajustar el ancho con las flechas del teclado. */
+    portalSidebarResize.addEventListener("keydown", (event) => {
+      if (window.innerWidth <= 920) return;
+      const STEP = event.shiftKey ? 32 : 12;
+      const current =
+        parseInt(getComputedStyle(document.body).getPropertyValue("--portal-sidebar-rail-width"), 10) ||
+        document.getElementById("portal-sidebar")?.getBoundingClientRect().width ||
+        PORTAL_SIDEBAR_WIDTH_MIN;
+      if (event.key === "ArrowLeft") {
+        applyPortalSidebarWidth(current - STEP);
+        event.preventDefault();
+      } else if (event.key === "ArrowRight") {
+        applyPortalSidebarWidth(current + STEP);
+        event.preventDefault();
+      } else if (event.key === "Home") {
+        applyPortalSidebarWidth(PORTAL_SIDEBAR_WIDTH_MIN);
+        event.preventDefault();
+      } else if (event.key === "End") {
+        applyPortalSidebarWidth(PORTAL_SIDEBAR_WIDTH_MAX);
+        event.preventDefault();
+      }
     });
   }
   if (portalMenuBtn && portalBackdrop) {

@@ -579,11 +579,6 @@ export function computeTerminationSettlementFromForm(form, { employee, position,
     const n = el.name;
     if (n) data[n] = el.type === "checkbox" ? el.checked : el.value;
   });
-  const refs = suggestTerminationReferenceDays({
-    employee,
-    terminationDateYmd: data.terminationDate,
-    absencesAll
-  });
   const contractIndef =
     !String(employee.contractType || "")
       .toLowerCase()

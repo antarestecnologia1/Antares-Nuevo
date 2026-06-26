@@ -2404,12 +2404,102 @@ body.portal-mode .whatsapp-fab {
 }
 
 .portal-layout {
+  position: relative;
   display: grid;
   grid-template-columns: var(--portal-sidebar-rail-width) minmax(0, 1fr);
   height: 100dvh;
   min-height: 100dvh;
   overflow: hidden;
   transition: grid-template-columns 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ── Controlador de redimensionado del menú lateral (arrastre del borde) ── */
+.sidebar-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--portal-sidebar-rail-width);
+  width: 12px;
+  transform: translateX(-6px);
+  z-index: 60;
+  cursor: ew-resize;
+  touch-action: none;
+  background: transparent;
+  transition: left 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.sidebar-resize-handle::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  border-radius: 2px;
+  background: transparent;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.sidebar-resize-handle:hover::before,
+.sidebar-resize-handle:focus-visible::before,
+body.portal-sidebar-resizing .sidebar-resize-handle::before {
+  background: rgba(var(--primary-rgb), 0.55);
+  box-shadow: 0 0 0 1px rgba(var(--primary-rgb), 0.18);
+}
+
+.sidebar-resize-handle:focus-visible {
+  outline: none;
+}
+
+/* Pomo central que aparece al pasar el cursor para indicar que se puede arrastrar */
+.sidebar-resize-handle::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 34px;
+  transform: translate(-50%, -50%);
+  border-radius: 3px;
+  background: rgba(var(--primary-rgb), 0.7);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.sidebar-resize-handle:hover::after,
+.sidebar-resize-handle:focus-visible::after,
+body.portal-sidebar-resizing .sidebar-resize-handle::after {
+  opacity: 1;
+}
+
+/* Durante el arrastre: sin transiciones (seguimiento 1:1) y sin selección de texto */
+body.portal-sidebar-resizing {
+  cursor: ew-resize;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+body.portal-sidebar-resizing .portal-layout,
+body.portal-sidebar-resizing .sidebar-resize-handle {
+  transition: none !important;
+}
+
+/* El menú colapsado (rail) y el móvil usan otros mecanismos: no redimensionar */
+body.portal-sidebar-collapsed .sidebar-resize-handle {
+  display: none;
+}
+
+@media (max-width: 920px) {
+  .sidebar-resize-handle {
+    display: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-resize-handle {
+    transition: none;
+  }
 }
 
 body.portal-sidebar-collapsed {

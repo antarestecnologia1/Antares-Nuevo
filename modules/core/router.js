@@ -513,6 +513,10 @@ export function setPortalDrawerOpen(open) {
 }
 
 const PORTAL_SIDEBAR_EXPANDED_KEY = "antares_portal_sidebar_expanded";
+const PORTAL_SIDEBAR_WIDTH_KEY = "antares_portal_sidebar_width";
+/** Límites del ancho del menú lateral cuando se redimensiona con el borde (px). */
+export const PORTAL_SIDEBAR_WIDTH_MIN = 200;
+export const PORTAL_SIDEBAR_WIDTH_MAX = 460;
 
 export function readPortalSidebarExpandedPref() {
   try {
@@ -521,6 +525,46 @@ export function readPortalSidebarExpandedPref() {
     return raw === "1" || raw === "true";
   } catch (_e) {
     return true;
+  }
+}
+
+/** Ancho personalizado del menú (arrastre del borde). `null` = usar ancho por defecto. */
+export function readPortalSidebarWidthPref() {
+  try {
+    const raw = parseInt(localStorage.getItem(PORTAL_SIDEBAR_WIDTH_KEY), 10);
+    if (!Number.isFinite(raw)) return null;
+    return Math.min(PORTAL_SIDEBAR_WIDTH_MAX, Math.max(PORTAL_SIDEBAR_WIDTH_MIN, raw));
+  } catch (_e) {
+    return null;
+  }
+}
+
+/** Aplica un ancho concreto (px) al menú expandido y, opcionalmente, lo persiste. */
+export function applyPortalSidebarWidth(px, { persist = true } = {}) {
+  if (typeof document === "undefined") return null;
+  const w = Math.min(
+    PORTAL_SIDEBAR_WIDTH_MAX,
+    Math.max(PORTAL_SIDEBAR_WIDTH_MIN, Math.round(Number(px) || 0))
+  );
+  document.body.style.setProperty("--portal-sidebar-rail-width", `${w}px`);
+  if (persist) {
+    try {
+      localStorage.setItem(PORTAL_SIDEBAR_WIDTH_KEY, String(w));
+    } catch (_e) {
+      /* noop */
+    }
+  }
+  return w;
+}
+
+/** Restablece el ancho del menú al valor por defecto (quita el override y la preferencia). */
+export function resetPortalSidebarWidth() {
+  if (typeof document === "undefined") return;
+  document.body.style.removeProperty("--portal-sidebar-rail-width");
+  try {
+    localStorage.removeItem(PORTAL_SIDEBAR_WIDTH_KEY);
+  } catch (_e) {
+    /* noop */
   }
 }
 
@@ -534,6 +578,15 @@ export function setPortalSidebarExpanded(expanded, { persist = true } = {}) {
     const label = on ? "Contraer menú lateral" : "Ampliar menú lateral";
     btn.setAttribute("aria-label", label);
     btn.title = on ? "Contraer menú" : "Ampliar menú";
+  }
+  /* El ancho personalizado solo aplica al estado expandido; al contraer se quita
+     el override para que la regla CSS del rail (estrecho) vuelva a mandar. */
+  if (on) {
+    const w = readPortalSidebarWidthPref();
+    if (w) document.body.style.setProperty("--portal-sidebar-rail-width", `${w}px`);
+    else document.body.style.removeProperty("--portal-sidebar-rail-width");
+  } else {
+    document.body.style.removeProperty("--portal-sidebar-rail-width");
   }
   if (persist) {
     try {

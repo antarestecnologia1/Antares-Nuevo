@@ -3,7 +3,7 @@
  */
 import { KEYS } from "../core/config.js";
 import { read } from "../core/data-io.js";
-import { currentUser, hasPermission, isAdminActor } from "../core/auth.js";
+import { hasPermission, isAdminActor } from "../core/auth.js";
 import { PERMISSIONS } from "../core/config.js";
 
 export function readApprovalsSync() {

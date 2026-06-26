@@ -310,7 +310,8 @@ export function reportPreviewCellInnerHtml(value, type = "text", context = {}) {
   const columnKey = String(context?.columnKey || "").toLowerCase();
   const rowIndex = Number(context?.rowIndex) || 0;
   const row = context?.row && typeof context.row === "object" ? context.row : {};
-  const column = context?.column && typeof context.column === "object" ? context.column : { key: columnKey };
+  const column =
+    context?.column && typeof context.column === "object" ? context.column : { key: columnKey, type };
   const cellType = reportPreviewResolveCellType(column, row, value);
   if (columnKey === "category") return reportPreviewCategoryCellHtml(value, rowIndex);
   if (cellType === "tag") return reportPreviewCategoryCellHtml(value, rowIndex, { valueTone: true });
