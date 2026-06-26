@@ -362,23 +362,35 @@ function bindHiringPortalControls() {
       if (!v) return;
       const sal = parseNum(v.salaryOffer);
       const reqs = escapeHtml(String(v.requirements || "").trim() || "Sin requisitos detallados.");
-      const body = `<div class="vacancy-detail-sheet">
-        <div class="vacancy-detail-pills">
-          <span class="vacancy-pill">${escapeHtml(String(v.positionName || "Cargo"))}</span>
-          <span class="vacancy-pill">${escapeHtml(String(v.city || "Ciudad"))}</span>
-          <span class="vacancy-pill">${escapeHtml(String(v.modality || "Modalidad"))}</span>
-          <span class="vacancy-pill">$${sal.toLocaleString("es-CO")} COP</span>
-          <span class="vacancy-pill">Cupos: ${escapeHtml(String(v.openings ?? 1))}</span>
+      const heroHtml = `<div class="portal-detail-hero">
+        <div class="portal-detail-hero-main">
+          <p class="portal-detail-eyebrow">${IC.briefcase} Vacante abierta</p>
+          <div class="portal-detail-badges"><span class="status status-viaje_asignado">${escapeHtml(String(v.status || "Abierta"))}</span></div>
+          <p class="portal-detail-meta"><strong>${escapeHtml(String(v.positionName || "Cargo"))}</strong> · ${escapeHtml(String(v.city || "Ciudad"))}</p>
+          <ul class="portal-detail-stats" aria-label="Resumen de la vacante">
+            <li><strong>$${sal.toLocaleString("es-CO")}</strong><span>Salario ofrecido</span></li>
+            <li><strong>${escapeHtml(String(v.openings ?? 1))}</strong><span>Cupos</span></li>
+            <li><strong>${escapeHtml(String(v.modality || "—"))}</strong><span>Modalidad</span></li>
+          </ul>
         </div>
-        <p><strong>Cierre postulaciones:</strong> ${escapeHtml(String(v.deadline || "—"))}</p>
-        <p><strong>Última actualización:</strong> ${escapeHtml(fmtDateOr(v.updatedAt || v.createdAt, "—"))}</p>
-        <div class="vacancy-detail-reqs"><strong>Requisitos y perfil</strong><p class="muted" style="margin:0.35rem 0 0;white-space:pre-wrap">${reqs}</p></div>
       </div>`;
-      openInfoModal({
+      const tilesHtml = [
+        portalDetailTileMarkup(IC.layers, "Departamento", escapeHtml(String(v.department || "—"))),
+        portalDetailTileMarkup(IC.briefcase, "Rol", escapeHtml(String(v.workerRole || "RR.HH."))),
+        portalDetailTileMarkup(IC.calendar, "Cierre postulaciones", escapeHtml(String(v.deadline || "—")))
+      ].join("");
+      const highlightHtml = portalDetailHighlightHtml(
+        "Requisitos y perfil",
+        `<p class="detail-note">${reqs}</p>`,
+        "file"
+      );
+      openPortalDetailSheet({
         title: String(v.title || "Vacante"),
         subtitle: `${String(v.department || "").trim()} · ${String(v.workerRole || "").trim() || "RR.HH."}`,
-        bodyHtml: body,
-        wide: true
+        heroHtml,
+        tilesHtml,
+        highlightHtml,
+        extraHtml: `<p class="portal-detail-meta muted" style="margin:0">Última actualización: ${escapeHtml(fmtDateOr(v.updatedAt || v.createdAt, "—"))}</p>`
       });
     });
   });
@@ -1288,11 +1300,10 @@ function bindHiringPortalControls() {
           ])
         }
       ];
-      openInfoModal({
+      openPortalDetailSheet({
         title: `Cargo: ${String(p.name || "")}`,
         subtitle: p.workerRole === "conductor" ? "Conductor" : "Empleado",
-        bodyHtml: `<div class="detail-grid">${buildDetailGrid(sections)}</div>`,
-        wide: true
+        sectionsHtml: buildDetailGrid(sections)
       });
     });
   });
@@ -1590,12 +1601,46 @@ function bindHiringPortalControls() {
       ]
         .filter(Boolean)
         .join("");
-      openInfoModal({
+      openPortalDetailSheet({
         title: String(c.name || "Candidato"),
         subtitle: String(c.vacancyTitle || ""),
-        bodyHtml: `<div class="detail-grid">${buildDetailGrid(sections)}</div>`,
-        wide: true,
-        secondaryActionsHtml: modalActions
+        sectionsHtml: buildDetailGrid(sections),
+        secondaryActionsHtml: modalActions,
+        afterMount: (content) => {
+          const cid = String(c.id || "").trim();
+          content.querySelector("[data-action='schedule-interview-for-candidate']")?.addEventListener("click", () => {
+            if (["Contratado", "Descartado"].includes(String(c.status || ""))) {
+              notify("Este candidato ya no está en proceso; no se puede agendar entrevista.", "info");
+              return;
+            }
+            state.hiringUi = { ...(state.hiringUi || {}), scheduleInterviewOpenForCandidateId: cid };
+            state.hiringUi.workspace = "operate";
+            state.hiringUi.operateSection = "interview";
+            state.createPanels = buildHiringCreatePanelsState("interview", state.createPanels || {}, { expandActive: true });
+            persistHrWorkspace("hiring", "operate");
+            document.getElementById("crud-modal")?.classList.add("hidden");
+            renderPortalView();
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => scrollToCreatePanelForm("create-interview"));
+            });
+          });
+          content.querySelector("[data-action='create-employee-from-candidate']")?.addEventListener("click", () => {
+            if (abortUnlessCanManageHiring()) return;
+            document.getElementById("crud-modal")?.classList.add("hidden");
+            openPayrollEmployeeFromCandidate(cid);
+          });
+          content.querySelector("[data-action='generate-contract-from-candidate']")?.addEventListener("click", () => {
+            if (abortUnlessCanManageHiring()) return;
+            if (!findPayrollEmployeeByIdDoc(c.idDoc)) {
+              notify("Registre primero al candidato como empleado antes de generar el contrato.", "error");
+              document.getElementById("crud-modal")?.classList.add("hidden");
+              openPayrollEmployeeFromCandidate(cid);
+              return;
+            }
+            document.getElementById("crud-modal")?.classList.add("hidden");
+            openHiringContractFromCandidate(cid);
+          });
+        }
       });
     });
   });
@@ -1831,11 +1876,10 @@ function bindHiringPortalControls() {
             : `<span class="muted">Sin notas.</span>`
         }
       ];
-      openInfoModal({
+      openPortalDetailSheet({
         title: `Entrevista · ${String(i.candidateName || "")}`,
         subtitle: formatInterviewWhenDisplay(i.when),
-        bodyHtml: `<div class="detail-grid">${buildDetailGrid(sections)}</div>`,
-        wide: true
+        sectionsHtml: buildDetailGrid(sections)
       });
     });
   });
@@ -1979,11 +2023,11 @@ function bindHiringPortalControls() {
       const contentHtml = c.content
         ? `<section class="detail-section"><h4 class="detail-section-title">${IC.file || ""}<span>Resumen interno</span></h4><pre class="detail-pre">${escapeHtml(String(c.content))}</pre></section>`
         : "";
-      openInfoModal({
+      openPortalDetailSheet({
         title: `Contrato · ${String(c.candidateName || c.employeeName || "")}`,
         subtitle: String(c.position || ""),
-        bodyHtml: `<div class="detail-grid">${buildDetailGrid(sections)}</div>${contentHtml}`,
-        wide: true
+        sectionsHtml: buildDetailGrid(sections),
+        extraHtml: contentHtml
       });
     });
   });

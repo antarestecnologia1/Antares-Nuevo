@@ -588,6 +588,10 @@ function transportCalendarHtml() {
         if (kind === "trip") {
           const req = reqRead().find((r) => r.id === id);
           if (!req?.trip) return;
+          if (typeof openAssignedTripInfoModal === "function") {
+            openAssignedTripInfoModal(req);
+            return;
+          }
           openInfoModal({
             title: `Viaje ${req.trip.tripNumber || ""}`,
             subtitleHtml: `${escapeHtml(req.clientName || "")}${req.clientName ? " · " : ""}${prettyStatus(req.status, "trip")}`,
@@ -605,36 +609,62 @@ function transportCalendarHtml() {
         if (kind === "interview") {
           const interview = read(KEYS.interviews, []).find((i) => String(i.id) === id);
           if (!interview) return;
-          openInfoModal({
+          const sections = [
+            {
+              icon: "user",
+              title: "Candidato",
+              rows: portalDetailRenderRows([
+                ["Nombre", `<strong>${escapeHtml(String(interview.candidateName || "-"))}</strong>`],
+                ["Fecha", escapeHtml(fmtDate(interview.when))],
+                ["Entrevistador", escapeHtml(String(interview.interviewer || "-"))],
+                ["Modalidad", escapeHtml(String(interview.modality || "-"))]
+              ])
+            },
+            {
+              icon: "mapPin",
+              title: "Lugar y notas",
+              rows: portalDetailRenderRows([
+                ["Lugar / enlace", escapeHtml(String(interview.locationOrLink || "-"))],
+                ["Notas", escapeHtml(String(interview.notes || "-"))]
+              ], { skipEmpty: false })
+            }
+          ];
+          openPortalDetailSheet({
             title: `Entrevista · ${escapeHtml(String(interview.candidateName || "Candidato"))}`,
             subtitle: String(interview.when || ""),
-            bodyHtml: `<div class="dash-grid">
-            <div><strong>Candidato:</strong> ${escapeHtml(String(interview.candidateName || "-"))}</div>
-            <div><strong>Fecha:</strong> ${fmtDate(interview.when)}</div>
-            <div><strong>Entrevistador:</strong> ${escapeHtml(String(interview.interviewer || "-"))}</div>
-            <div><strong>Modalidad:</strong> ${escapeHtml(String(interview.modality || "-"))}</div>
-            <div class="full"><strong>Lugar / enlace:</strong> ${escapeHtml(String(interview.locationOrLink || "-"))}</div>
-            <div class="full"><strong>Notas:</strong> ${escapeHtml(String(interview.notes || "-"))}</div>
-          </div>`
+            sectionsHtml: portalDetailBuildGrid(sections)
           });
           return;
         }
         const absence = read(KEYS.hrAbsences, []).find((a) => String(a.id) === id);
         if (!absence) return;
         const typeLabel = payrollAbsenceTypeLabel(absence.absenceType);
-        openInfoModal({
+        const absenceSections = [
+          {
+            icon: "calendar",
+            title: "Ausencia",
+            rows: portalDetailRenderRows([
+              ["Empleado", `<strong>${escapeHtml(String(absence.employeeName || "-"))}</strong>`],
+              ["Tipo", escapeHtml(typeLabel)],
+              ["Desde", escapeHtml(String(absence.startDate || "-"))],
+              ["Hasta", escapeHtml(String(absence.endDate || "-"))],
+              ["Días", parseNum(absence.days).toLocaleString("es-CO")],
+              ["Soporte", escapeHtml(String(absence.supportNumber || "-"))],
+              ["Entidad", escapeHtml(String(absence.epsEntity || "-"))]
+            ], { skipEmpty: false })
+          },
+          {
+            icon: "file",
+            title: "Notas",
+            rows: absence.notes
+              ? `<p class="detail-note">${escapeHtml(String(absence.notes))}</p>`
+              : `<span class="muted">Sin notas.</span>`
+          }
+        ];
+        openPortalDetailSheet({
           title: `${typeLabel} · ${escapeHtml(String(absence.employeeName || "Colaborador"))}`,
           subtitle: `${escapeHtml(String(absence.startDate || "-"))} → ${escapeHtml(String(absence.endDate || "-"))}`,
-          bodyHtml: `<div class="dash-grid">
-          <div><strong>Empleado:</strong> ${escapeHtml(String(absence.employeeName || "-"))}</div>
-          <div><strong>Tipo:</strong> ${escapeHtml(typeLabel)}</div>
-          <div><strong>Desde:</strong> ${escapeHtml(String(absence.startDate || "-"))}</div>
-          <div><strong>Hasta:</strong> ${escapeHtml(String(absence.endDate || "-"))}</div>
-          <div><strong>Días:</strong> ${parseNum(absence.days).toLocaleString("es-CO")}</div>
-          <div><strong>Soporte:</strong> ${escapeHtml(String(absence.supportNumber || "-"))}</div>
-          <div class="full"><strong>Entidad:</strong> ${escapeHtml(String(absence.epsEntity || "-"))}</div>
-          <div class="full"><strong>Notas:</strong> ${escapeHtml(String(absence.notes || "-"))}</div>
-        </div>`
+          sectionsHtml: portalDetailBuildGrid(absenceSections)
         });
       });
     });

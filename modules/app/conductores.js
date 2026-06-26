@@ -224,52 +224,115 @@ function driversHtml() {
     );
     const avatarInner = hasDriverPhoto
       ? `<img src="${escapeAttr(photoUrlDriver)}" alt="" loading="lazy" />`
-      : initials;
-    const avatarClass = hasDriverPhoto
-      ? "directory-card__avatar directory-card__avatar--photo"
-      : "directory-card__avatar";
-    const phoneValue = d.phone ? formatPortalPhoneForDisplay(String(d.phone)) : "Sin telefono";
+      : escapeHtml(initials);
+    const avatarClass = hasDriverPhoto ? "driver-avatar driver-avatar--photo" : "driver-avatar";
+    const phoneValue = d.phone ? formatPortalPhoneForDisplay(String(d.phone)) : "Sin teléfono";
     const expLabel = item.experienceYears ? `${item.experienceYears} año${item.experienceYears === 1 ? "" : "s"}` : "Sin dato";
-    const docTone = directoryToneFromBucket(item.docBucket);
-    const opsTone = directoryOpsToneFromSlug(item.statusSlug);
+    const licenseCategory = String(d.licenseCategory || "Sin cat.").trim() || "Sin cat.";
+    const licenseNumber = String(d.license || "—").trim() || "—";
+    const licenseSubLabel = (() => {
+      const days = item.licenseMeta.days;
+      if (item.licenseMeta.bucket === "expired" && typeof days === "number") {
+        return `Vencida hace ${Math.abs(days)} días`;
+      }
+      if (item.licenseMeta.bucket === "warning" && typeof days === "number") {
+        return days === 0 ? "Vence hoy" : `Vence en ${days} días`;
+      }
+      if (item.licenseMeta.bucket === "ok" && typeof days === "number") {
+        return `Vigente · ${days} días`;
+      }
+      return item.licenseMeta.label;
+    })();
+    const licenseSubTone =
+      item.licenseMeta.bucket === "expired" ? "alert" : item.licenseMeta.bucket === "warning" ? "ok" : item.licenseMeta.bucket === "ok" ? "ok" : "warn";
     const courseTone = directoryToneFromBucket(item.courseMeta.bucket);
-    const licenseFact = `${String(d.license || "-")} · ${item.licenseMeta.label}`;
-    return `<article class="directory-card directory-card--driver directory-card--${escapeAttr(item.statusSlug)} directory-card--doc-${escapeAttr(item.docBucket)}">
-        <header class="directory-card__head">
-          <div class="directory-card__identity">
-            <div class="${avatarClass}">${avatarInner}</div>
-            <div class="directory-card__heading">
-              <p class="directory-card__kicker">${escapeHtml(item.companyName)}</p>
-              <h4 class="directory-card__title">${escapeHtml(String(d.name || "Conductor"))}</h4>
+    const availabilityLabel =
+      item.statusSlug === "offline"
+        ? "No disponible"
+        : item.statusSlug === "busy"
+          ? "Ocupado"
+          : item.statusSlug === "scheduled"
+            ? "Reservado"
+            : "Disponible";
+    const docPillLabel =
+      item.docBucket === "expired"
+        ? "CRÍTICO"
+        : item.docBucket === "missing"
+          ? "INCOMPLETO"
+          : item.docBucket === "warning"
+            ? "POR VENCER"
+            : "AL DÍA";
+    const lastUpdateLabel = formatPortalOpsCardTimestamp(d.updatedAt || d.createdAt || "");
+    const trip = item.occupancy.trip;
+    const tripRequestId = trip ? String(trip.id || "").trim() : "";
+    const tripNumber = trip ? String(trip.trip?.tripNumber || "—") : "";
+    const tripClient = trip
+      ? String(trip.clientName || trip.companyName || trip.request?.clientName || "").trim() || item.tripDetail
+      : "";
+    const statusBadgeHtml = buildPortalOpsCardStatusPill(availabilityLabel, item.statusSlug);
+    const docBadgeHtml = buildPortalOpsCardDocPill(docPillLabel, item.docBucket, IC.award);
+    const tripBarHtml = trip
+      ? `<div class="driver-trip-bar portal-ops-card-highlight driver-trip-bar--${escapeAttr(item.statusSlug)}">
+          <div class="driver-trip-bar__main portal-ops-card-highlight__copy">
+            <span class="driver-trip-bar__icon" aria-hidden="true">${IC.truck}</span>
+            <div class="driver-trip-bar__copy">
+              <strong>Viaje ${escapeHtml(tripNumber)}</strong>
+              <span>${escapeHtml(tripClient)}</span>
             </div>
           </div>
-          <div class="directory-card__status-stack">
-            ${item.statusTag}
-            ${directoryPillHtml(item.docBadge, docTone)}
-          </div>
-        </header>
-        ${directoryOpsHtml(item.tripHeadline, item.tripDetail, opsTone)}
-        <div class="directory-card__metrics">
-          ${directoryChipHtml("Licencia", String(d.licenseCategory || "Sin cat."))}
-          ${directoryChipHtml("Exper.", expLabel)}
-          ${directoryChipHtml("Compar.", item.comparendos > 0 ? String(item.comparendos) : "0", item.comparendos > 0 ? "warn" : "ok")}
-          ${directoryChipHtml("SS", item.hasSocialSecurity ? "Al dia" : "Pendiente", item.hasSocialSecurity ? "ok" : "warn")}
-        </div>
-        <dl class="directory-card__facts">
-          ${directoryFactHtml("Documento", String(d.idDoc || "-"))}
-          ${directoryFactHtml("Telefono", phoneValue)}
-          ${directoryFactHtml("Licencia", licenseFact)}
-          ${directoryFactHtml("Curso", item.courseMeta.label, { tone: courseTone })}
-        </dl>
-        <footer class="directory-card__actions">
-          <button type="button" class="btn btn-sm btn-outline" data-action="view-driver" data-id="${escapeAttr(String(d.id ?? ""))}">${IC.eye} Ver</button>
           ${
-            canEditDriver
-              ? `<button type="button" class="btn btn-sm btn-action" data-action="edit-driver" data-id="${escapeAttr(String(d.id ?? ""))}">${IC.edit} Editar</button>
-          <button type="button" class="btn btn-sm btn-action" data-action="toggle-driver" data-id="${escapeAttr(String(d.id ?? ""))}">${IC.toggle} Estado</button>`
+            tripRequestId
+              ? `<button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--outline driver-trip-bar__map" data-action="trip-detail" data-id="${escapeAttr(tripRequestId)}" title="Ver viaje asignado">${IC.mapPin} Ver en mapa</button>`
               : ""
           }
-        </footer>
+        </div>`
+      : `<div class="driver-availability-bar portal-ops-card-highlight driver-availability-bar--${escapeAttr(item.statusSlug)}" role="status">
+          <div class="driver-availability-bar__main">
+            <span class="driver-availability-bar__dot portal-ops-card-highlight__dot" aria-hidden="true"></span>
+            <div class="driver-availability-bar__copy portal-ops-card-highlight__copy">
+              <strong>${escapeHtml(availabilityLabel)}</strong>
+              <span class="driver-availability-bar__detail">${escapeHtml(item.tripDetail)}</span>
+            </div>
+          </div>
+        </div>`;
+    const actionButtons = [
+      `<button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--outline" data-action="view-driver" data-id="${escapeAttr(String(d.id ?? ""))}" title="Ver ficha del conductor">${IC.eye} Ver detalles</button>`,
+      canEditDriver
+        ? `<button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--solid" data-action="edit-driver" data-id="${escapeAttr(String(d.id ?? ""))}" title="Editar datos del conductor">${IC.edit} Editar información</button>`
+        : ""
+    ]
+      .filter(Boolean)
+      .join("");
+    const statusActionBtn = canEditDriver
+      ? `<button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--solid driver-card-status-btn" data-action="toggle-driver" data-id="${escapeAttr(String(d.id ?? ""))}" title="Alternar disponibilidad manual">${IC.toggle} Ver estado actual</button>`
+      : "";
+    return `<article class="trip-ops-card portal-ops-card trip-ops-card--driver trip-ops-card--driver-${escapeAttr(item.statusSlug)} directory-card--doc-${escapeAttr(item.docBucket)}" data-driver-id="${escapeAttr(String(d.id ?? ""))}">
+        <header class="trip-ops-card-head trip-ops-card-head--driver">
+          <div class="trip-ops-card-head-main">
+            <div class="${avatarClass}">${avatarInner}</div>
+            <div class="trip-ops-card-head-info">
+              <p class="trip-ops-card-kicker">${escapeHtml(item.companyName)}</p>
+              <h4 class="trip-ops-card-title driver-card-title" title="${escapeAttr(String(d.name || ""))}">${escapeHtml(String(d.name || "Conductor"))}</h4>
+            </div>
+          </div>
+          <div class="portal-ops-card-badges driver-card-badges">
+            ${statusBadgeHtml}
+            ${docBadgeHtml}
+          </div>
+        </header>
+        ${tripBarHtml}
+        <div class="trip-ops-card-grid portal-ops-card-spec-grid driver-card-spec-grid">
+          ${buildPortalOpsCardGridItem("Licencia", IC.card, licenseCategory)}
+          ${buildPortalOpsCardGridItem("Experiencia", IC.calendar, expLabel)}
+          ${buildPortalOpsCardGridItem("Compar. (puntos)", IC.scale, item.comparendos > 0 ? String(item.comparendos) : "0", { tone: item.comparendos > 0 ? "warn" : "ok" })}
+          ${buildPortalOpsCardGridItem("SS", IC.shield, item.hasSocialSecurity ? "Al día" : "Pendiente", { tone: item.hasSocialSecurity ? "ok" : "warn" })}
+          ${buildPortalOpsCardGridItem("Documento", IC.badge, String(d.idDoc || "—"))}
+          ${buildPortalOpsCardGridItem("Teléfono", IC.phone, phoneValue)}
+          ${buildPortalOpsCardGridItem("Licencia", IC.calendar, licenseNumber, { tone: licenseSubTone, subValue: licenseSubLabel, subTone: licenseSubTone })}
+          ${buildPortalOpsCardGridItem("Curso", IC.graduation, item.courseMeta.label, { tone: courseTone })}
+        </div>
+        ${buildPortalOpsCardActions(actionButtons, statusActionBtn)}
+        ${buildPortalOpsCardFoot("Última actualización", lastUpdateLabel)}
       </article>`;
   };
 
@@ -310,7 +373,7 @@ function driversHtml() {
       : "";
 
   const fleetCardsGrid =
-    fleetLayout === "cards" && cardsHtml ? `<div class="drivers-grid directory-grid">${cardsHtml}</div>` : "";
+    fleetLayout === "cards" && cardsHtml ? `<div class="trip-ops-cards portal-ops-cards drivers-ops-cards">${cardsHtml}</div>` : "";
 
   const companies = read(KEYS.companies, []);
   const companyOptions = [`<option value="" ${companyFilter ? "" : "selected"}>Todas las empresas</option>`]
@@ -443,6 +506,14 @@ function driversHtml() {
           state.driversUi = { ...prev, companyId: value };
         }
         renderPortalView();
+      });
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='trip-detail']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const req = reqRead().find((r) => String(r.id) === String(btn.dataset.id || ""));
+        if (!req || !req.trip) return;
+        openAssignedTripInfoModal(req);
       });
     });
 

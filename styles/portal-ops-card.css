@@ -1,0 +1,736 @@
+/* ===================================================================
+   Portal · Tarjetas operativas unificadas
+   Alcance: .portal-ops-card, .trip-ops-card, .directory-card, .hiring-candidate-card
+   =================================================================== */
+
+.portal-ops-cards,
+.trip-ops-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr));
+  gap: 1rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.portal-ops-card,
+.trip-ops-card,
+.directory-card:not(.directory-card--compact),
+.hiring-candidate-card {
+  position: relative;
+  border: 1px solid #e8edf3;
+  border-radius: 14px;
+  padding: 1.05rem 1.1rem 0.9rem;
+  background: #ffffff;
+  display: grid;
+  gap: 0.8rem;
+  box-shadow: 0 4px 18px rgba(15, 35, 70, 0.07), 0 1px 3px rgba(15, 35, 70, 0.04);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.portal-ops-card:hover,
+.trip-ops-card:hover,
+.directory-card:not(.directory-card--compact):hover,
+.hiring-candidate-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px rgba(15, 35, 70, 0.11), 0 2px 6px rgba(15, 35, 70, 0.05);
+  border-color: #d4e0ef;
+}
+
+/* ── Cabecera ── */
+.trip-ops-card-head,
+.directory-card__head,
+.hiring-candidate-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.trip-ops-card-head-main,
+.directory-card__identity {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.trip-ops-card-head-info,
+.directory-card__heading {
+  min-width: 0;
+  flex: 1 1 auto;
+  width: 100%;
+}
+
+.trip-ops-card-kicker,
+.directory-card__kicker {
+  margin: 0 0 0.18rem;
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6b7f96;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.portal-ops-card-refs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0 0 0.28rem;
+  min-width: 0;
+}
+
+.portal-ops-card-ref {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  max-width: 100%;
+  min-width: 0;
+  padding: 0.18rem 0.5rem;
+  border-radius: 7px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+}
+
+.portal-ops-card-ref-label {
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6b7f96;
+  flex: 0 0 auto;
+}
+
+.portal-ops-card-ref-value {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #1e3a5f;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.portal-ops-card-status-pill__text {
+  min-width: 0;
+  max-width: 9.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trip-ops-card-title,
+.directory-card__title,
+.hiring-candidate-card__head h4 {
+  margin: 0;
+  font-size: 1.02rem;
+  line-height: 1.2;
+  font-weight: 800;
+  color: #0d2f5c;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.portal-ops-card-badges,
+.driver-card-badges,
+.vehicle-card-badges,
+.directory-card__status-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+  flex: 0 0 auto;
+}
+
+/* ── Pills de estado ── */
+.portal-ops-card-status-pill,
+.vehicle-card-status-pill,
+.driver-card-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.34rem 0.62rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #ffffff;
+  white-space: nowrap;
+}
+
+.portal-ops-card-status-pill__dot,
+.vehicle-card-status-pill__dot,
+.driver-card-status-pill__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.28);
+  flex: 0 0 auto;
+}
+
+.portal-ops-card-status-pill--disponible,
+.portal-ops-card-status-pill--available,
+.vehicle-card-status-pill--disponible,
+.driver-card-status-pill--available {
+  background: linear-gradient(135deg, #16a34a, #22c55e);
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.28);
+}
+
+.portal-ops-card-status-pill--ocupado,
+.portal-ops-card-status-pill--busy,
+.vehicle-card-status-pill--ocupado,
+.driver-card-status-pill--busy {
+  background: linear-gradient(135deg, #c2410c, #ea580c);
+  box-shadow: 0 4px 12px rgba(234, 88, 12, 0.24);
+}
+
+.portal-ops-card-status-pill--reservado,
+.portal-ops-card-status-pill--scheduled,
+.vehicle-card-status-pill--reservado,
+.driver-card-status-pill--scheduled {
+  background: linear-gradient(135deg, #4f46e5, #6366f1);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.24);
+}
+
+.portal-ops-card-status-pill--no-disponible,
+.portal-ops-card-status-pill--offline,
+.vehicle-card-status-pill--no-disponible,
+.driver-card-status-pill--offline {
+  background: linear-gradient(135deg, #b45309, #d97706);
+  box-shadow: 0 4px 12px rgba(217, 119, 6, 0.24);
+}
+
+.portal-ops-card-status-pill--ok,
+.portal-ops-card-status-pill--pendiente,
+.portal-ops-card-status-pill--aprobada_pendiente_asignacion,
+.portal-ops-card-status-pill--viaje_asignado,
+.portal-ops-card-status-pill--en_transito,
+.portal-ops-card-status-pill--espera_standby,
+.portal-ops-card-status-pill--completada,
+.portal-ops-card-status-pill--cerrada {
+  background: linear-gradient(135deg, #1d63d3, #2563eb);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.24);
+}
+
+.portal-ops-card-status-pill--cancelada,
+.portal-ops-card-status-pill--rechazada,
+.portal-ops-card-status-pill--inactive {
+  background: linear-gradient(135deg, #b91c1c, #dc2626);
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.24);
+}
+
+/* ── Pills documentales ── */
+.portal-ops-card-doc-pill,
+.vehicle-card-equip-pill,
+.driver-card-doc-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  padding: 0.28rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.portal-ops-card-doc-pill__icon svg,
+.driver-card-doc-pill__icon svg {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.portal-ops-card-doc-pill--ok,
+.driver-card-doc-pill--ok {
+  color: #047857;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.16), rgba(16, 185, 129, 0.08));
+  border-color: rgba(16, 185, 129, 0.28);
+}
+
+.portal-ops-card-doc-pill--warning,
+.driver-card-doc-pill--warning {
+  color: #b45309;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.18), rgba(245, 158, 11, 0.08));
+  border-color: rgba(245, 158, 11, 0.32);
+}
+
+.portal-ops-card-doc-pill--missing,
+.driver-card-doc-pill--missing {
+  color: #92400e;
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.18), rgba(251, 191, 36, 0.08));
+  border-color: rgba(245, 158, 11, 0.28);
+}
+
+.portal-ops-card-doc-pill--expired,
+.driver-card-doc-pill--expired {
+  color: #b91c1c;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.16), rgba(239, 68, 68, 0.08));
+  border-color: rgba(239, 68, 68, 0.28);
+}
+
+/* ── Barras de contexto / viaje ── */
+.portal-ops-card-highlight,
+.vehicle-availability-bar,
+.driver-trip-bar,
+.driver-availability-bar,
+.directory-card__ops {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.68rem 0.8rem;
+  border-radius: 12px;
+  border: 1px solid rgba(16, 185, 129, 0.28);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.14), rgba(16, 185, 129, 0.06));
+  min-width: 0;
+}
+
+.portal-ops-card-highlight__dot,
+.directory-card__ops-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: #16a34a;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.18);
+}
+
+.portal-ops-card-highlight__copy strong,
+.directory-card__ops-body strong {
+  display: block;
+  font-size: 0.84rem;
+  font-weight: 800;
+  color: #0f5132;
+  line-height: 1.2;
+}
+
+.directory-card__ops-detail {
+  display: block;
+  font-size: 0.72rem;
+  color: #64748b;
+  line-height: 1.3;
+}
+
+.directory-card__ops--warn,
+.directory-card__ops--alert {
+  border-color: rgba(245, 158, 11, 0.32);
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.14), rgba(245, 158, 11, 0.06));
+}
+
+.directory-card__ops--alert {
+  border-color: rgba(239, 68, 68, 0.28);
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.12), rgba(239, 68, 68, 0.05));
+}
+
+/* ── Cuadrícula de datos ── */
+.portal-ops-card-spec-grid,
+.trip-ops-card-grid,
+.vehicle-card-spec-grid,
+.driver-card-spec-grid,
+.directory-card__metrics,
+.directory-card__facts,
+.hiring-candidate-card__meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.directory-card__metrics--triple {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.directory-card__metrics--quad {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.portal-ops-card-spec-grid .trip-ops-card-item,
+.trip-ops-card-grid .trip-ops-card-item,
+.vehicle-card-spec-grid .trip-ops-card-item,
+.driver-card-spec-grid .trip-ops-card-item,
+.directory-card__chip,
+.directory-chip,
+.directory-card__fact {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 11px;
+  background: #f8fafc;
+  border: 1px solid #edf1f5;
+  min-width: 0;
+}
+
+.directory-chip small,
+.directory-card__fact dt,
+.trip-ops-card-item-label {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.45px;
+  font-weight: 700;
+  color: #8a96a8;
+  margin: 0;
+}
+
+.directory-chip strong,
+.directory-card__fact dd,
+.trip-ops-card-item-body {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+  margin: 0;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: #152a44;
+}
+
+.trip-ops-card-item-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: #e8f1fc;
+  color: #1d63d3;
+  flex: 0 0 auto;
+}
+
+.trip-ops-card-item-icon svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.trip-ops-card-item-value {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: #152a44;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.trip-ops-card-item-value--ok { color: #16a34a !important; }
+.trip-ops-card-item-value--warn { color: #d97706 !important; }
+.trip-ops-card-item-value--alert { color: #dc2626 !important; }
+
+.portal-ops-card-spec-sub,
+.driver-card-spec-sub {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #64748b;
+}
+
+.portal-ops-card-spec-sub--ok,
+.driver-card-spec-sub--ok { color: #16a34a; }
+.portal-ops-card-spec-sub--warn,
+.driver-card-spec-sub--warn { color: #d97706; }
+.portal-ops-card-spec-sub--alert,
+.driver-card-spec-sub--alert { color: #dc2626; }
+
+.directory-chip--ok strong,
+.directory-card__fact--ok dd { color: #16a34a; }
+.directory-chip--warn strong,
+.directory-card__fact--warn dd { color: #d97706; }
+.directory-chip--alert strong,
+.directory-card__fact--alert dd { color: #dc2626; }
+
+.hiring-candidate-card__meta > div {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 11px;
+  background: #f8fafc;
+  border: 1px solid #edf1f5;
+}
+
+.hiring-candidate-card__meta dt {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.45px;
+  font-weight: 700;
+  color: #8a96a8;
+}
+
+.hiring-candidate-card__meta dd {
+  margin: 0;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: #152a44;
+}
+
+/* ── Ruta (viajes / solicitudes) ── */
+.trip-ops-card-route {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.75rem 0.85rem;
+  background: #f8fafc;
+  border: 1px solid #edf1f5;
+  border-radius: 12px;
+  min-width: 0;
+}
+
+/* ── Acciones ── */
+.portal-ops-card-actions,
+.trip-ops-card-actions,
+.directory-card__actions,
+.hiring-candidate-card__actions {
+  display: grid;
+  gap: 0.45rem;
+  padding-top: 0.1rem;
+}
+
+.portal-ops-card-actions-grid,
+.vehicle-card-actions-grid,
+.driver-card-actions-grid,
+.trip-ops-card-actions-primary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.portal-ops-card-actions .btn,
+.directory-card__actions .btn,
+.hiring-candidate-card__actions .btn,
+.trip-ops-card-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  min-width: 0;
+  width: 100%;
+  min-height: 2.35rem;
+  border-radius: 10px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  padding: 0.5rem 0.55rem;
+  line-height: 1.2;
+}
+
+.trip-ops-card-btn--outline,
+.directory-card__actions .btn-outline {
+  background: #ffffff;
+  border: 1.5px solid #1d63d3;
+  color: #1d63d3;
+}
+
+.trip-ops-card-btn--solid,
+.directory-card__actions .btn-primary,
+.directory-card__actions .btn-action:first-of-type {
+  background: #1d63d3;
+  border: 1.5px solid #1d63d3;
+  color: #ffffff;
+}
+
+.trip-ops-card-btn--soft {
+  background: #f3f8ff;
+  border: 1.5px solid #c8daf0;
+  color: #1d63d3;
+}
+
+.trip-ops-card-btn--danger,
+.directory-card__actions .btn-reject {
+  background: #fff5f5;
+  border: 1.5px solid #f5c2c7;
+  color: #dc3545;
+}
+
+.driver-card-status-btn,
+.portal-ops-card-actions__full {
+  width: 100%;
+}
+
+/* ── Pie ── */
+.portal-ops-card-foot,
+.trip-ops-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.5rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid #eef1f5;
+  font-size: 0.72rem;
+  color: #8a96a8;
+  min-width: 0;
+}
+
+.trip-ops-card-foot-created {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  min-width: 0;
+  flex: 1 1 auto;
+  line-height: 1.45;
+}
+
+.trip-ops-card-foot-created > span:last-child {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* ── Avatares unificados ── */
+.directory-card__avatar,
+.driver-avatar,
+.portal-ops-card-avatar {
+  width: 3.35rem;
+  height: 3.35rem;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: linear-gradient(145deg, #dbeafe, #bfdbfe);
+  color: #1e3a8a;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  overflow: hidden;
+}
+
+.directory-card__avatar--photo,
+.driver-avatar--photo {
+  padding: 0;
+}
+
+.directory-card__avatar img,
+.driver-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* ── Overrides directory legacy ── */
+.directory-card:not(.directory-card--compact)::before {
+  display: none;
+}
+
+.directory-card:not(.directory-card--compact) {
+  background: #ffffff;
+  box-shadow: 0 4px 18px rgba(15, 35, 70, 0.07), 0 1px 3px rgba(15, 35, 70, 0.04);
+  border-color: #e8edf3;
+}
+
+.directory-card__banner {
+  border-radius: 10px;
+  padding: 0.55rem 0.65rem;
+  font-size: 0.76rem;
+}
+
+.directory-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.user-grid.directory-grid,
+.drivers-grid.directory-grid,
+.payroll-employees-grid.directory-grid,
+.hiring-cards--candidates.portal-ops-cards {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr));
+  gap: 1rem;
+}
+
+@media (max-width: 768px) {
+  .portal-ops-cards,
+  .trip-ops-cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .trip-ops-card-head,
+  .directory-card__head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .portal-ops-card-badges,
+  .driver-card-badges,
+  .vehicle-card-badges,
+  .directory-card__status-stack {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+  }
+
+  .portal-ops-card-actions-grid,
+  .vehicle-card-actions-grid,
+  .driver-card-actions-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .directory-card__metrics--triple,
+  .directory-card__metrics--quad {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+body[data-theme="dark"] .portal-ops-card,
+body[data-theme="dark"] .trip-ops-card,
+body[data-theme="dark"] .directory-card:not(.directory-card--compact),
+body[data-theme="dark"] .hiring-candidate-card {
+  background: rgba(14, 28, 46, 0.92);
+  border-color: rgba(148, 196, 255, 0.14);
+}
+
+body[data-theme="dark"] .trip-ops-card-title,
+body[data-theme="dark"] .directory-card__title,
+body[data-theme="dark"] .hiring-candidate-card__head h4 {
+  color: #e6f1ff;
+}
+
+body[data-theme="dark"] .portal-ops-card-ref {
+  background: rgba(15, 28, 46, 0.72);
+  border-color: rgba(148, 196, 255, 0.14);
+}
+
+body[data-theme="dark"] .portal-ops-card-ref-label {
+  color: #94a3b8;
+}
+
+body[data-theme="dark"] .portal-ops-card-ref-value {
+  color: #dbeafe;
+}
+
+body[data-theme="dark"] .portal-ops-card-spec-grid .trip-ops-card-item,
+body[data-theme="dark"] .trip-ops-card-grid .trip-ops-card-item,
+body[data-theme="dark"] .directory-chip,
+body[data-theme="dark"] .directory-card__fact,
+body[data-theme="dark"] .hiring-candidate-card__meta > div {
+  background: rgba(15, 28, 46, 0.55);
+  border-color: rgba(148, 196, 255, 0.12);
+}
+
+body[data-theme="dark"] .trip-ops-card-route,
+body[data-theme="dark"] .portal-ops-card-highlight,
+body[data-theme="dark"] .directory-card__ops {
+  background: rgba(15, 28, 46, 0.55);
+  border-color: rgba(148, 196, 255, 0.12);
+}
+
+body[data-theme="dark"] .portal-ops-card-foot,
+body[data-theme="dark"] .trip-ops-card-foot {
+  border-top-color: rgba(148, 196, 255, 0.12);
+  color: #94a8c0;
+}

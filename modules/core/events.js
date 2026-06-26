@@ -2616,7 +2616,7 @@ function bindDynamicEvents() {
           }
         }
       }
-      const report = buildReportDataset(reportId, actor, exportFilters);
+      const report = { ...buildReportDataset(reportId, actor, exportFilters), reportId };
       try {
         if (format === "preview") {
           $portal.openReportPreviewModal(report);

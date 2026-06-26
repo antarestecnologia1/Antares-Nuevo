@@ -262,11 +262,10 @@ function bindLaborCompliancePortalControls() {
             : `<span class="muted">Sin observaciones.</span>`
         }
       ];
-      G.openInfoModal({
+      G.openPortalDetailSheet({
         title: `Control SST · ${String(r.recordType || "")}`,
         subtitle: String(r.employeeName || ""),
-        bodyHtml: `<div class="detail-grid">${buildDetailGrid(sections)}</div>`,
-        wide: true
+        sectionsHtml: buildDetailGrid(sections)
       });
     });
   });

@@ -168,16 +168,6 @@ function transportTripsHtml() {
     return new Date(rSafePickup(a)).getTime() - new Date(rSafePickup(b)).getTime();
   });
 
-  const buildTripOpsCardGridItem = (label, icon, value, extraClass = "", trailing = "") =>
-    `<div class="trip-ops-card-item${extraClass ? ` ${extraClass}` : ""}">
-      <span class="trip-ops-card-item-label">${escapeHtml(label)}</span>
-      <div class="trip-ops-card-item-body">
-        <span class="trip-ops-card-item-icon" aria-hidden="true">${icon}</span>
-        <span class="trip-ops-card-item-value" title="${escapeAttr(String(value))}">${escapeHtml(String(value))}</span>
-        ${trailing}
-      </div>
-    </div>`;
-
   const buildTripOpsCard = (r) => {
     const standby = parseNum(r.standbyChargeTotal);
     const originCity = String(r.originCity || r.originDepartment || "Origen").trim() || "Origen";
@@ -194,11 +184,11 @@ function transportTripsHtml() {
     const tripNo = String(r.trip?.tripNumber || "-");
     const reqNo = String(r.requestNumber || r.id || "-");
     const createdLabel = fmtDate(r.createdAt || "") || "—";
-    const statusBadgeHtml = `<span class="trip-ops-card-badge trip-ops-card-badge--${escapeAttr(statusSlug)}" role="status">
-      <span class="trip-ops-card-badge-icon" aria-hidden="true">${IC.truck}</span>
-      <span class="trip-ops-card-badge-text">${escapeHtml(statusText)}</span>
-      <span class="trip-ops-card-badge-dot" aria-hidden="true"></span>
-    </span>`;
+    const headerRefsHtml = buildPortalOpsCardRefs([
+      { label: "Viaje", value: tripNo },
+      { label: "Solicitud", value: `#${reqNo}` }
+    ]);
+    const statusBadgeHtml = buildPortalOpsCardStatusPill(statusText, statusSlug);
     const statusBlockHtml =
       transitions.length > 1
         ? `<div class="trip-ops-card-status-block">
@@ -218,7 +208,7 @@ function transportTripsHtml() {
               <span class="trip-ops-card-status-picker-value">${escapeHtml(statusText)}</span>
             </div>
           </div>`;
-    const primaryActions = [
+    const actionButtons = [
       `<button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--outline" data-action="trip-detail" data-id="${escapeAttr(String(r.id || ""))}" title="Ficha del viaje">${IC.truck} Viaje</button>`,
       `<button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--solid" data-action="detail" data-id="${escapeAttr(String(r.id || ""))}" title="Detalle de la solicitud">${IC.eye} Solicitud</button>`,
       canAdminEditTrip(r)
@@ -226,24 +216,22 @@ function transportTripsHtml() {
         : "",
       isClosed
         ? `<button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--soft" data-action="trip-invoice" data-id="${escapeAttr(String(r.id || ""))}" title="Generar factura">${IC.file} Factura</button>`
+        : "",
+      isAdmin
+        ? `<button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--danger" data-action="delete-trip" data-id="${escapeAttr(String(r.id || ""))}" title="Eliminar viaje">${IC.trash} Eliminar</button>`
         : ""
     ]
       .filter(Boolean)
       .join("");
-    const dangerAction = isAdmin
-      ? `<button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--danger" data-action="delete-trip" data-id="${escapeAttr(String(r.id || ""))}" title="Eliminar viaje">${IC.trash} Eliminar</button>`
-      : "";
-    const driverChevron =
-      r.trip?.driverName
-        ? `<span class="trip-ops-card-item-chevron" aria-hidden="true">${IC.chevronRight}</span>`
-        : "";
-    return `<article class="trip-ops-card trip-ops-card--${escapeAttr(statusSlug)}" data-trip-id="${escapeAttr(String(r.id || ""))}">
+    return `<article class="trip-ops-card portal-ops-card trip-ops-card--${escapeAttr(statusSlug)}" data-trip-id="${escapeAttr(String(r.id || ""))}">
       <header class="trip-ops-card-head">
-        <div class="trip-ops-card-head-info">
-          <p class="trip-ops-card-kicker">Viaje ${escapeHtml(tripNo)} · Solicitud #${escapeHtml(reqNo)}</p>
-          <h4 class="trip-ops-card-title" title="${escapeAttr(clientName)}">${escapeHtml(clientName)}</h4>
+        <div class="trip-ops-card-head-main">
+          <div class="trip-ops-card-head-info">
+            ${headerRefsHtml}
+            <h4 class="trip-ops-card-title" title="${escapeAttr(clientName)}">${escapeHtml(clientName)}</h4>
+          </div>
         </div>
-        ${statusBadgeHtml}
+        <div class="portal-ops-card-badges">${statusBadgeHtml}</div>
       </header>
       <div class="trip-ops-card-route">
         <div class="trip-ops-card-route-node trip-ops-card-route-node--origin" title="${escapeAttr(originCity)}">
@@ -265,21 +253,16 @@ function transportTripsHtml() {
           </span>
         </div>
       </div>
-      <div class="trip-ops-card-grid">
-        ${buildTripOpsCardGridItem("Camión", IC.truck, plate)}
-        ${buildTripOpsCardGridItem("Conductor", IC.user, driverName, "", driverChevron)}
-        ${buildTripOpsCardGridItem("Recogida", IC.calendar, pickupLabel)}
-        ${buildTripOpsCardGridItem("Tarifa", IC.dollar, tripValueFmt, "trip-ops-card-item--value")}
+      <div class="trip-ops-card-grid portal-ops-card-spec-grid">
+        ${buildPortalOpsCardGridItem("Camión", IC.truck, plate)}
+        ${buildPortalOpsCardGridItem("Conductor", IC.user, driverName)}
+        ${buildPortalOpsCardGridItem("Recogida", IC.calendar, pickupLabel)}
+        ${buildPortalOpsCardGridItem("Tarifa", IC.dollar, tripValueFmt, { tone: "value" })}
       </div>
       ${standby > 0 ? `<p class="trip-ops-card-standby">${IC.clock || ""}<span>Standby acumulado: <strong>$${standby.toLocaleString("es-CO")}</strong></span></p>` : ""}
       ${statusBlockHtml}
-      <div class="trip-ops-card-actions">
-        <div class="trip-ops-card-actions-primary">${primaryActions}</div>
-        ${dangerAction}
-      </div>
-      <footer class="trip-ops-card-foot">
-        <span class="trip-ops-card-foot-created">${IC.clock}<span>Creado ${escapeHtml(createdLabel)}</span></span>
-      </footer>
+      ${buildPortalOpsCardActions(actionButtons)}
+      ${buildPortalOpsCardFoot("Creado", createdLabel)}
     </article>`;
   };
 
@@ -371,7 +354,7 @@ function transportTripsHtml() {
       : "";
   const tripsCardsGrid =
     tripsLayout === "cards" && sortedFilteredTrips.length
-      ? `<div class="trip-ops-cards">${tripsToRender.map(buildTripOpsCard).join("")}</div>`
+      ? `<div class="trip-ops-cards portal-ops-cards">${tripsToRender.map(buildTripOpsCard).join("")}</div>`
       : "";
   const opsCards = sortedFilteredTrips.length
     ? `${opsToolbarBlock}${tripsLayout === "list" ? tripsListTable : tripsCardsGrid}${tripsMoreBar}`

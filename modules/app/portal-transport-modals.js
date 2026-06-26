@@ -21,31 +21,99 @@
     formatPayrollPeriodLabel, payrollRunTypeLabel, payrollRunIsDriverTripPayment,
     payrollRunHasAbsenceDetail, ensureCrudModalElement, renderModalHead,
     renderModalFooterActions, wireModalDismiss, scrollOpenCrudModalIntoView,
-    persistHrWorkspace, scrollToCreatePanelForm, colombiaTodayIsoDate
+    persistHrWorkspace, scrollToCreatePanelForm, colombiaTodayIsoDate,
+    portalDetailTileMarkup, portalDetailRenderRows, portalDetailBuildGrid,
+    portalDetailHighlightHtml, openPortalDetailSheet
   } = globalThis;
+
+function transportDetailRow(pairs, opts = {}) {
+  return portalDetailRenderRows(pairs, { skipEmpty: opts.skipEmpty !== false, ...opts });
+}
 
 function openAssignedTripInfoModal(req) {
   if (!req?.trip) return;
   const canEditTrip = canAdminEditTrip(req);
+  const tripNo = String(req.trip.tripNumber || "—");
+  const reqNo = String(req.requestNumber || req.id || "—");
+  const clientName = String(req.clientName || "—");
+  const route = formatRoute(req);
+  const tripValue = `$${parseNum(req.tripValue || req.insuredValue || 0).toLocaleString("es-CO")}`;
+  const insuredValue = parseNum(req.insuredValue || 0);
+  const distanceKm = parseNum(req.distanceKm || 0);
+  const standbyTotal = parseNum(req.standbyChargeTotal || 0);
   const secondaryActions = [
     `<button type="button" class="btn btn-outline" data-trip-info-action="view-request">${IC.eye} Ver solicitud</button>`,
     canEditTrip ? `<button type="button" class="btn btn-action" data-trip-info-action="edit-trip">${IC.edit} Editar viaje</button>` : ""
   ].filter(Boolean).join("");
-  openInfoModal({
-    title: `Viaje ${req.trip.tripNumber}`,
+  const heroHtml = `<div class="portal-detail-hero portal-detail-hero--trip">
+    <div class="portal-detail-hero-main">
+      <p class="portal-detail-eyebrow">${IC.truck} Viaje operativo</p>
+      <div class="portal-detail-badges">${prettyStatus(req.status, "trip")}</div>
+      <p class="portal-detail-meta"><strong>Solicitud #${escapeHtml(reqNo)}</strong> · ${escapeHtml(clientName)}</p>
+      <p class="portal-detail-loc-line portal-detail-route-line">${IC.mapPin} ${escapeHtml(route)}</p>
+      <ul class="portal-detail-stats" aria-label="Resumen del viaje">
+        <li><strong>${escapeHtml(tripValue)}</strong><span>Valor viaje</span></li>
+        <li><strong>${escapeHtml(String(req.trip.vehiclePlate || "—"))}</strong><span>Camión</span></li>
+        <li><strong>${escapeHtml(String(req.trip.driverName || "—"))}</strong><span>Conductor</span></li>
+      </ul>
+    </div>
+  </div>`;
+  const tilesHtml = [
+    portalDetailTileMarkup(
+      IC.package,
+      "Carga",
+      `${escapeHtml(String(req.cargoDescription || "—"))} · ${requestTruckRequirementSummaryHtml(req)}`
+    ),
+    portalDetailTileMarkup(
+      IC.phone,
+      "Contacto conductor",
+      `${escapeHtml(String(req.trip.driverName || "—"))} · ${escapeHtml(String(req.trip.driverPhone || "-"))}`
+    ),
+    portalDetailTileMarkup(IC.clock, "Recogida", escapeHtml(fmtDate(req.trip.etaPickup))),
+    portalDetailTileMarkup(IC.clock, "Entrega", escapeHtml(fmtDate(req.trip.etaDelivery)))
+  ].join("");
+  const assignmentRows = transportDetailRow([
+    ["Camión asignado", `<strong>${escapeHtml(String(req.trip.vehiclePlate || "—"))}</strong> (${escapeHtml(String(req.trip.vehicleType || "-"))})`],
+    ["Conductor", `${escapeHtml(String(req.trip.driverName || "—"))} · ${escapeHtml(String(req.trip.driverPhone || "-"))}`],
+    ["Asignado por", escapeHtml(String(req.trip.assignedBy || req.approvedBy || "-"))],
+    ["Fecha de asignación", escapeHtml(fmtDate(req.trip.assignedAt || req.approvedAt || req.createdAt))],
+    req.autoApproved ? ["Aprobación", "Automática"] : null
+  ].filter(Boolean));
+  const scheduleRows = transportDetailRow([
+    ["Recogida programada", escapeHtml(fmtDate(req.trip.etaPickup))],
+    ["Entrega programada", escapeHtml(fmtDate(req.trip.etaDelivery))],
+    ["Creado", escapeHtml(fmtDateOr(req.trip.createdAt || req.createdAt, "—"))],
+    ["Última actualización", escapeHtml(fmtDateOr(req.trip.updatedAt || req.trip.createdAt || req.updatedAt, "—"))],
+    req.closedAt ? ["Cierre", escapeHtml(fmtDate(req.closedAt))] : null
+  ].filter(Boolean));
+  const financeRows = transportDetailRow([
+    ["Valor del viaje", `<strong>${escapeHtml(tripValue)}</strong>`],
+    insuredValue > 0 ? ["Valor asegurado", `$${insuredValue.toLocaleString("es-CO")}`] : null,
+    distanceKm > 0 ? ["Distancia estimada", `${distanceKm.toLocaleString("es-CO")} km`] : null,
+    standbyTotal > 0 ? ["Standby acumulado", `$${standbyTotal.toLocaleString("es-CO")}`] : null,
+    req.trip.invoice
+      ? [
+          "Factura",
+          `${escapeHtml(String(req.trip.invoice.number))} · $${parseNum(req.trip.invoice.total).toLocaleString("es-CO")}`
+        ]
+      : null
+  ].filter(Boolean), { skipEmpty: false });
+  const sections = [
+    { icon: "truck", title: "Asignación", rows: assignmentRows },
+    { icon: "clock", title: "Programación", rows: scheduleRows },
+    { icon: "dollar", title: "Tarifa y facturación", rows: financeRows }
+  ];
+  openPortalDetailSheet({
+    title: `Viaje ${tripNo}`,
     subtitleHtml: prettyStatus(req.status, "trip"),
-    wide: true,
+    heroHtml,
+    tilesHtml,
+    sectionsHtml: portalDetailBuildGrid(sections),
     secondaryActionsHtml: secondaryActions,
     afterMount: (contentEl) => {
       contentEl
         .querySelector("[data-trip-info-action='view-request']")
         ?.addEventListener("click", () => {
-          /**
-           * Salta del detalle del viaje al detalle de la solicitud. Se hace
-           * fire-and-forget vía el handler global de `data-action=detail`.
-           * Como `data-action=detail` está en cards del módulo y aquí el
-           * botón es modal, abrimos el modal de info directamente.
-           */
           openRequestDetailModal(req);
         });
       contentEl
@@ -53,30 +121,7 @@ function openAssignedTripInfoModal(req) {
         ?.addEventListener("click", () => {
           openEditTripModal(req);
         });
-    },
-    bodyHtml: `
-          <div class="dash-grid">
-            <div><strong>Solicitud:</strong> ${escapeHtml(String(req.requestNumber || req.id))}</div>
-            <div><strong>Cliente:</strong> ${escapeHtml(String(req.clientName || "-"))}</div>
-            <div class="full"><strong>Ruta:</strong> ${escapeHtml(formatRoute(req))}</div>
-            <div><strong>Carga:</strong> ${escapeHtml(String(req.cargoDescription || "-"))} · ${requestTruckRequirementSummaryHtml(req)}</div>
-            <div><strong>Valor viaje:</strong> $${parseNum(req.tripValue || req.insuredValue || 0).toLocaleString("es-CO")}</div>
-            ${parseNum(req.insuredValue || 0) > 0 ? `<div><strong>Valor asegurado:</strong> $${parseNum(req.insuredValue).toLocaleString("es-CO")}</div>` : ""}
-            ${parseNum(req.distanceKm || 0) > 0 ? `<div><strong>Distancia estimada:</strong> ${parseNum(req.distanceKm).toLocaleString("es-CO")} km</div>` : ""}
-            <div><strong>Camión:</strong> ${escapeHtml(String(req.trip.vehiclePlate || ""))} (${escapeHtml(String(req.trip.vehicleType || "-"))})</div>
-            <div><strong>Conductor:</strong> ${escapeHtml(String(req.trip.driverName || ""))} · ${escapeHtml(String(req.trip.driverPhone || "-"))}</div>
-            <div><strong>Asignado por:</strong> ${escapeHtml(String(req.trip.assignedBy || req.approvedBy || "-"))}</div>
-            <div><strong>Fecha asignación:</strong> ${fmtDate(req.trip.assignedAt || req.approvedAt || req.createdAt)}</div>
-            <div><strong>Creado</strong> ${escapeHtml(fmtDateOr(req.trip.createdAt || req.createdAt, "—"))}</div>
-            <div><strong>Última actualización</strong> ${escapeHtml(fmtDateOr(req.trip.updatedAt || req.trip.createdAt || req.updatedAt, "—"))}</div>
-            ${req.autoApproved ? `<div><strong>Aprobación:</strong> Automática</div>` : ""}
-            <div><strong>Recogida:</strong> ${fmtDate(req.trip.etaPickup)}</div>
-            <div><strong>Entrega:</strong> ${fmtDate(req.trip.etaDelivery)}</div>
-            ${req.closedAt ? `<div><strong>Cierre:</strong> ${fmtDate(req.closedAt)}</div>` : ""}
-            ${req.trip.invoice ? `<div><strong>Factura:</strong> ${escapeHtml(String(req.trip.invoice.number))} · $${parseNum(req.trip.invoice.total).toLocaleString("es-CO")}</div>` : ""}
-          </div>
-          ${parseNum(req.standbyChargeTotal) > 0 ? `<p style="margin-top:0.6rem"><strong>Standby acumulado:</strong> $${parseNum(req.standbyChargeTotal).toLocaleString("es-CO")}</p>` : ""}
-        `
+    }
   });
 }
 
@@ -86,71 +131,96 @@ function openRequestDetailModal(req) {
   const clientLogoUrl =
     companyProfileLogoUrl(company) || String(req.clientCompanyLogoUrl || "").trim();
   const clientDisplayName = String(req.clientName || company?.name || "-").trim() || "-";
-  const clientBlock =
-    clientLogoUrl && !/^data:/i.test(clientLogoUrl)
-      ? `<div class="solicitud-detail-client-row"><span class="request-company-logo request-company-logo--sm" role="img" aria-label="Logo de ${escapeAttr(clientDisplayName)}"><img src="${escapeAttr(clientLogoUrl)}" alt="" loading="lazy" /></span><span class="muted">${escapeHtml(clientDisplayName)}</span></div>`
-      : `<span class="muted">${escapeHtml(clientDisplayName)}</span>`;
   const thermokingReq = requestRequiresTermoking(req);
   const obs = String(req.notes || req.observations || "").trim();
   const origAddr = String(req.originAddress || "").trim();
   const destAddr = String(req.destinationAddress || "").trim();
   const modoTransporte = escapeHtml(requestTransportModeFromRequest(req));
-  const tripDetail = req.trip
-    ? `<div class="dash-grid solicitud-trip-summary">
-            <div class="full"><strong>Resumen del viaje asignado</strong></div>
-            <div><strong>Código:</strong> ${escapeHtml(String(req.trip.tripNumber || ""))}</div>
-            <div><strong>Camión:</strong> ${escapeHtml(String(req.trip.vehiclePlate || ""))} (${escapeHtml(String(req.trip.vehicleType || "-"))})</div>
-            <div><strong>Conductor:</strong> ${escapeHtml(String(req.trip.driverName || ""))} · ${escapeHtml(String(req.trip.driverPhone || "-"))}</div>
-            <div><strong>Recogida:</strong> ${fmtDate(req.trip.etaPickup)}</div>
-            <div><strong>Entrega:</strong> ${fmtDate(req.trip.etaDelivery)}</div>
-            <div class="full solicitud-trip-summary-actions">
-              <button type="button" class="btn btn-action" data-action="solicitud-trip-open">${IC.eye} Abrir detalle del viaje</button>
-            </div>
-          </div>`
-    : `<p class="muted" style="margin:0.35rem 0 0">Aún no tiene viaje asignado.</p>`;
-  openInfoModal({
+  const tripValue = `$${parseNum(req.tripValue || req.insuredValue || 0).toLocaleString("es-CO")}`;
+  const insuredValue = parseNum(req.insuredValue || 0);
+  const distanceKm = parseNum(req.distanceKm || 0);
+  const standbyTotal = parseNum(req.standbyChargeTotal || 0);
+  const logoBlock =
+    clientLogoUrl && !/^data:/i.test(clientLogoUrl)
+      ? `<div class="portal-detail-logo"><img src="${escapeAttr(clientLogoUrl)}" alt="" loading="lazy" decoding="async" /></div>`
+      : `<div class="portal-detail-logo portal-detail-logo--fallback" aria-hidden="true"><span>${escapeHtml(String(clientDisplayName.charAt(0) || "C").toUpperCase())}</span></div>`;
+  const heroHtml = `<div class="portal-detail-hero portal-detail-hero--request">
+    ${logoBlock}
+    <div class="portal-detail-hero-main">
+      <p class="portal-detail-eyebrow">${IC.file} Solicitud de transporte</p>
+      <div class="portal-detail-badges">${prettyStatus(req.status, "request")}</div>
+      <p class="portal-detail-meta"><strong>${escapeHtml(clientDisplayName)}</strong></p>
+      <p class="portal-detail-loc-line portal-detail-route-line">${IC.mapPin} ${escapeHtml(formatRoute(req))}</p>
+      <ul class="portal-detail-stats" aria-label="Resumen de la solicitud">
+        <li><strong>${escapeHtml(tripValue)}</strong><span>Valor viaje</span></li>
+        <li><strong>${modoTransporte}</strong><span>Modo</span></li>
+        <li><strong>${thermokingReq ? "Sí" : "No"}</strong><span>Termoking</span></li>
+      </ul>
+    </div>
+  </div>`;
+  const tripHighlight = req.trip
+    ? portalDetailHighlightHtml(
+        "Viaje asignado",
+        `<p class="portal-detail-loc-line"><strong>Viaje ${escapeHtml(String(req.trip.tripNumber || "—"))}</strong> · ${escapeHtml(String(req.trip.vehiclePlate || "—"))} (${escapeHtml(String(req.trip.vehicleType || "-"))})</p>
+        <p class="portal-detail-loc-sub muted">${IC.user} ${escapeHtml(String(req.trip.driverName || "—"))} · ${IC.clock} ${escapeHtml(fmtDate(req.trip.etaPickup))} → ${escapeHtml(fmtDate(req.trip.etaDelivery))}</p>
+        <div class="portal-detail-highlight__actions">
+          <button type="button" class="btn btn-action" data-action="solicitud-trip-open">${IC.eye} Abrir detalle del viaje</button>
+        </div>`,
+        "truck"
+      )
+    : portalDetailHighlightHtml(
+        "Viaje asignado",
+        `<p class="portal-detail-loc-line muted">Aún no tiene viaje asignado.</p>`,
+        "truck"
+      );
+  const requestRows = transportDetailRow([
+    ["Modo de transporte", modoTransporte],
+    ["Refrigeración Termoking", thermokingReq ? "Sí, requerida" : "No"],
+    ["Recogida programada", escapeHtml(fmtDate(req.pickupAt || `${req.pickupDate || ""}T${req.pickupTime || ""}`))],
+    ["Entrega estimada", escapeHtml(fmtDate(req.etaDelivery || `${req.deliveryDate || ""}T${req.deliveryTime || ""}`))],
+    ["Solicita", escapeHtml(String(req.requestedByName || "-"))],
+    [
+      "Contacto en sitio",
+      `${escapeHtml(String(req.siteContactName || req.contactName || "-"))} · ${escapeHtml(String(req.siteContactPhone || req.contactPhone || "-"))}`
+    ],
+    ["Carga", escapeHtml(String(req.cargoDescription || "-"))],
+    ["Requisitos de camión", requestTruckRequirementSummaryHtml(req)],
+    ["Valor del viaje", `<strong>${escapeHtml(tripValue)}</strong>`],
+    insuredValue > 0 ? ["Valor asegurado", `$${insuredValue.toLocaleString("es-CO")}`] : null,
+    distanceKm > 0 ? ["Distancia estimada", `${distanceKm.toLocaleString("es-CO")} km`] : null,
+    req.autoApproved ? ["Aprobación", "Automática"] : null,
+    standbyTotal > 0 ? ["Standby", `$${standbyTotal.toLocaleString("es-CO")}`] : null,
+    req.rejectionReason ? ["Motivo rechazo", escapeHtml(String(req.rejectionReason))] : null
+  ].filter(Boolean));
+  const routeRows = transportDetailRow([
+    ["Ruta", escapeHtml(formatRoute(req))],
+    origAddr ? ["Origen (dirección)", escapeHtml(origAddr)] : null,
+    destAddr ? ["Destino (dirección)", escapeHtml(destAddr)] : null
+  ].filter(Boolean), { skipEmpty: false });
+  const sections = [
+    { icon: "mapPin", title: "Ruta y ubicación", rows: routeRows },
+    { icon: "package", title: "Datos de la solicitud", rows: requestRows }
+  ];
+  const notesExtra = obs
+    ? `<section class="portal-detail-highlight portal-detail-highlight--notes" aria-label="Observaciones">
+        <h4 class="portal-detail-highlight__title">${IC.file}<span>Observaciones</span></h4>
+        <div class="portal-detail-highlight__body"><p class="detail-note">${escapeHtml(obs)}</p></div>
+      </section>`
+    : "";
+  openPortalDetailSheet({
     title: `Solicitud ${req.requestNumber || req.id}`,
     subtitleHtml: prettyStatus(req.status, "request"),
-    wide: true,
+    heroHtml,
+    highlightHtml: tripHighlight,
+    sectionsHtml: portalDetailBuildGrid(sections),
+    extraHtml: `${notesExtra}${renderRequestModificationLogSectionHtml(req)}`,
     afterMount: req.trip
       ? (contentEl) => {
           contentEl.querySelector("[data-action='solicitud-trip-open']")?.addEventListener("click", () => {
             openAssignedTripInfoModal(req);
           });
         }
-      : undefined,
-    bodyHtml: `
-      <section aria-label="Viaje asignado principal">
-        <h3 class="solicitud-detail-heading">Viaje asignado</h3>
-        ${tripDetail}
-      </section>
-      <hr style="border:0;border-top:1px solid var(--line);margin:1rem 0;" />
-      <section class="solicitud-detail-section" aria-label="Datos de la solicitud">
-        <h3 class="solicitud-detail-heading">Solicitud de transporte</h3>
-        <div class="dash-grid">
-          <div class="full"><strong>Cliente</strong><br />${clientBlock}</div>
-          <div><strong>Modo de transporte</strong><br /><span class="muted">${modoTransporte}</span></div>
-          <div><strong>Refrigeración Termoking</strong><br /><span class="muted">${thermokingReq ? "Sí, requerida" : "No"}</span></div>
-          <div><strong>Ruta</strong><br /><span class="muted">${escapeHtml(formatRoute(req))}</span></div>
-          ${origAddr ? `<div class="full"><strong>Origen (dirección)</strong><br /><span class="muted">${escapeHtml(origAddr)}</span></div>` : ""}
-          ${destAddr ? `<div class="full"><strong>Destino (dirección)</strong><br /><span class="muted">${escapeHtml(destAddr)}</span></div>` : ""}
-          <div><strong>Recogida programada</strong><br /><span class="muted">${fmtDate(req.pickupAt || `${req.pickupDate || ""}T${req.pickupTime || ""}`)}</span></div>
-          <div><strong>Entrega estimada</strong><br /><span class="muted">${fmtDate(req.etaDelivery || `${req.deliveryDate || ""}T${req.deliveryTime || ""}`)}</span></div>
-          <div><strong>Solicita</strong><br /><span class="muted">${escapeHtml(String(req.requestedByName || "-"))}</span></div>
-          <div><strong>Contacto en sitio</strong><br /><span class="muted">${escapeHtml(String(req.siteContactName || req.contactName || "-"))} · ${escapeHtml(String(req.siteContactPhone || req.contactPhone || "-"))}</span></div>
-          <div><strong>Carga</strong><br /><span class="muted">${escapeHtml(String(req.cargoDescription || "-"))}</span></div>
-          <div><strong>Requisitos de camión</strong><br /><span class="muted">${requestTruckRequirementSummaryHtml(req)}</span></div>
-          <div><strong>Valor del viaje</strong><br /><span class="muted">$${parseNum(req.tripValue || req.insuredValue || 0).toLocaleString("es-CO")}</span></div>
-          ${parseNum(req.insuredValue || 0) > 0 ? `<div><strong>Valor asegurado</strong><br /><span class="muted">$${parseNum(req.insuredValue).toLocaleString("es-CO")}</span></div>` : ""}
-          ${parseNum(req.distanceKm || 0) > 0 ? `<div><strong>Distancia estimada</strong><br /><span class="muted">${parseNum(req.distanceKm).toLocaleString("es-CO")} km</span></div>` : ""}
-          ${req.autoApproved ? `<div><strong>Aprobación</strong><br /><span class="muted">Automática</span></div>` : ""}
-          ${parseNum(req.standbyChargeTotal) > 0 ? `<div class="full"><strong>Standby</strong><br /><span class="muted">$${parseNum(req.standbyChargeTotal).toLocaleString("es-CO")}</span></div>` : ""}
-          ${req.rejectionReason ? `<div class="full"><strong>Motivo rechazo</strong><br /><span class="muted">${escapeHtml(String(req.rejectionReason))}</span></div>` : ""}
-        </div>
-        ${obs ? `<div class="solicitud-detail-notes full"><strong>Observaciones</strong><p class="detail-note" style="white-space:pre-wrap;margin:0.35rem 0 0">${escapeHtml(obs)}</p></div>` : ""}
-      </section>
-      ${renderRequestModificationLogSectionHtml(req)}
-    `
+      : undefined
   });
 }
 
@@ -197,12 +267,14 @@ function openDeletedTransportRequestAuditModal(logRow) {
     <span class="muted">Usuario:</span> ${escapeHtml(String(logRow.deletedByName || logRow.deletedByEmail || "—"))}<br />
     <span class="muted">Motivo:</span> ${escapeHtml(String(logRow.reason || "—"))}`;
   if (!snap) {
-    openInfoModal({
+    openPortalDetailSheet({
       title: `Solicitud eliminada ${reqN}`,
       subtitleHtml: `${baseAuditSubtitle}<br /><span class="muted">Estado al eliminar:</span> —`,
-      wide: true,
-      bodyHtml:
-        '<p class="muted">No hay copia JSON de la solicitud en este registro de auditoría (registros antiguos o sin snapshot).</p>'
+      highlightHtml: portalDetailHighlightHtml(
+        "Registro de auditoría",
+        `<p class="portal-detail-loc-line muted">No hay copia JSON de la solicitud en este registro (registros antiguos o sin snapshot).</p>`,
+        "alertTriangle"
+      )
     });
     return;
   }
@@ -230,32 +302,38 @@ function openDeletedTransportRequestAuditModal(logRow) {
   );
   const obs = String(snapPick(snap, "observaciones", "notes") || "").trim();
   const fullSubtitleHtml = `${baseAuditSubtitle}<br /><span class="muted">Estado al eliminar:</span> ${estado}`;
-  openInfoModal({
+  const auditSections = [
+    {
+      icon: "briefcase",
+      title: "Datos de la solicitud",
+      rows: transportDetailRow([
+        ["Cliente", escapeHtml(snapPick(snap, "nombre_cliente", "clientName") || "—")],
+        ["Modo de transporte", modo],
+        ["Refrigeración Termoking", thermoking ? "Sí, requerida" : "No"],
+        ["Tipo de vehículo solicitado", tipoVeh],
+        ["Ruta (ciudad / depto.)", routeLine],
+        origAddr ? ["Origen (dirección)", origAddr] : null,
+        destAddr ? ["Destino (dirección)", destAddr] : null,
+        ["Recogida programada", escapeHtml(fmtDate(pickupIso))],
+        ["Entrega estimada", escapeHtml(fmtDate(deliveryIso))],
+        ["Solicita", requestedBy],
+        ["Contacto en sitio", `${contactName} · ${contactPhone}`],
+        ["Carga", cargo],
+        ["Peso / cajas", `${peso.toLocaleString("es-CO")} kg · ${cajas.toLocaleString("es-CO")} cajas`]
+      ].filter(Boolean), { skipEmpty: false })
+    }
+  ];
+  const notesExtra = obs
+    ? `<section class="portal-detail-highlight portal-detail-highlight--notes" aria-label="Observaciones">
+        <h4 class="portal-detail-highlight__title">${IC.file}<span>Observaciones</span></h4>
+        <div class="portal-detail-highlight__body"><p class="detail-note">${escapeHtml(obs)}</p></div>
+      </section>`
+    : "";
+  openPortalDetailSheet({
     title: `Solicitud eliminada ${reqN}`,
     subtitleHtml: fullSubtitleHtml,
-    wide: true,
-    bodyHtml: `
-      <section class="solicitud-detail-section" aria-label="Copia de la solicitud eliminada">
-        <div class="dash-grid">
-          <div class="full"><strong>Cliente</strong><br /><span class="muted">${escapeHtml(
-            snapPick(snap, "nombre_cliente", "clientName") || "—"
-          )}</span></div>
-          <div><strong>Modo de transporte</strong><br /><span class="muted">${modo}</span></div>
-          <div><strong>Refrigeración Termoking</strong><br /><span class="muted">${thermoking ? "Sí, requerida" : "No"}</span></div>
-          <div><strong>Tipo de vehículo solicitado</strong><br /><span class="muted">${tipoVeh}</span></div>
-          <div><strong>Ruta (ciudad / depto.)</strong><br /><span class="muted">${routeLine}</span></div>
-          ${origAddr ? `<div class="full"><strong>Origen (dirección)</strong><br /><span class="muted">${origAddr}</span></div>` : ""}
-          ${destAddr ? `<div class="full"><strong>Destino (dirección)</strong><br /><span class="muted">${destAddr}</span></div>` : ""}
-          <div><strong>Recogida programada</strong><br /><span class="muted">${escapeHtml(fmtDate(pickupIso))}</span></div>
-          <div><strong>Entrega estimada</strong><br /><span class="muted">${escapeHtml(fmtDate(deliveryIso))}</span></div>
-          <div><strong>Solicita</strong><br /><span class="muted">${requestedBy}</span></div>
-          <div><strong>Contacto en sitio</strong><br /><span class="muted">${contactName} · ${contactPhone}</span></div>
-          <div><strong>Carga</strong><br /><span class="muted">${cargo}</span></div>
-          <div><strong>Peso / cajas</strong><br /><span class="muted">${peso.toLocaleString("es-CO")} kg · ${cajas.toLocaleString("es-CO")} cajas</span></div>
-        </div>
-        ${obs ? `<div class="solicitud-detail-notes"><strong>Observaciones</strong><p class="detail-note" style="white-space:pre-wrap;margin:0.35rem 0 0">${escapeHtml(obs)}</p></div>` : ""}
-      </section>
-    `
+    sectionsHtml: portalDetailBuildGrid(auditSections),
+    extraHtml: notesExtra
   });
 }
 
@@ -287,12 +365,14 @@ function openDeletedTransportTripAuditModal(logRow) {
     <span class="muted">Motivo:</span> ${escapeHtml(String(logRow.reason || "—"))}<br />
     <span class="muted">Solicitud:</span> ${escapeHtml(reqLabel)} · <span class="muted">Viaje:</span> ${escapeHtml(tripLabel)}`;
   if (!snap) {
-    openInfoModal({
+    openPortalDetailSheet({
       title: `Viaje desasignado ${tripLabel}`,
       subtitleHtml: baseAuditSubtitle,
-      wide: true,
-      bodyHtml:
-        '<p class="muted">No hay copia JSON del viaje en este registro de auditoría (registros antiguos o sin snapshot).</p>'
+      highlightHtml: portalDetailHighlightHtml(
+        "Registro de auditoría",
+        `<p class="portal-detail-loc-line muted">No hay copia JSON del viaje en este registro (registros antiguos o sin snapshot).</p>`,
+        "alertTriangle"
+      )
     });
     return;
   }
@@ -322,28 +402,30 @@ function openDeletedTransportTripAuditModal(logRow) {
       invoiceBlock = "";
     }
   }
-  openInfoModal({
+  const auditSections = [
+    {
+      icon: "truck",
+      title: "Copia del viaje",
+      rows: transportDetailRow([
+        ["Número de viaje", numViaje],
+        ["ID solicitud asociada", idSol],
+        ["Vehículo (placa)", plate],
+        ["Tipo vehículo asignado", tipoVeh],
+        ["Conductor", driver],
+        ["Teléfono conductor", driverPhone],
+        ["Descripción de ruta / observaciones", routeDesc],
+        ["Recogida programada", escapeHtml(fmtDate(pickup))],
+        ["Entrega programada", escapeHtml(fmtDate(delivery))],
+        ["Asignado por", assignedBy],
+        ["Fecha de asignación", escapeHtml(fmtDate(assignedAt))]
+      ], { skipEmpty: false })
+    }
+  ];
+  openPortalDetailSheet({
     title: `Viaje desasignado ${numViajeRaw}`,
     subtitleHtml: fullSubtitleHtml,
-    wide: true,
-    bodyHtml: `
-      <section class="solicitud-detail-section" aria-label="Copia del viaje desasignado">
-        <div class="dash-grid">
-          <div><strong>Número de viaje</strong><br /><span class="muted">${numViaje}</span></div>
-          <div class="full"><strong>ID solicitud asociada</strong><br /><span class="muted">${idSol}</span></div>
-          <div><strong>Vehículo (placa)</strong><br /><span class="muted">${plate}</span></div>
-          <div><strong>Tipo vehículo asignado</strong><br /><span class="muted">${tipoVeh}</span></div>
-          <div><strong>Conductor</strong><br /><span class="muted">${driver}</span></div>
-          <div><strong>Teléfono conductor</strong><br /><span class="muted">${driverPhone}</span></div>
-          <div class="full"><strong>Descripción de ruta / observaciones</strong><br /><span class="muted">${routeDesc}</span></div>
-          <div><strong>Recogida programada</strong><br /><span class="muted">${escapeHtml(fmtDate(pickup))}</span></div>
-          <div><strong>Entrega programada</strong><br /><span class="muted">${escapeHtml(fmtDate(delivery))}</span></div>
-          <div><strong>Asignado por</strong><br /><span class="muted">${assignedBy}</span></div>
-          <div><strong>Fecha de asignación</strong><br /><span class="muted">${escapeHtml(fmtDate(assignedAt))}</span></div>
-        </div>
-        ${invoiceBlock}
-      </section>
-    `
+    sectionsHtml: portalDetailBuildGrid(auditSections),
+    extraHtml: invoiceBlock
   });
 }
 

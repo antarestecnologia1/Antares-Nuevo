@@ -196,7 +196,7 @@ function adminUsersHtml(current) {
       : u.accountStatus === ACCOUNT_STATUS.RECHAZADO
         ? " directory-card--inactive"
         : " directory-card--ok";
-    return `<article class="directory-card directory-card--user${cardStateClass}">
+    return `<article class="directory-card portal-ops-card trip-ops-card directory-card--user${cardStateClass}">
       <header class="directory-card__head">
         <div class="directory-card__identity">
           ${userAvatarBlock}
@@ -262,7 +262,7 @@ function adminUsersHtml(current) {
       .filter(Boolean)
       .join(" · ") || "—";
     const companyOpsTone = active ? "ok" : "alert";
-    return `<article class="directory-card directory-card--company${companyStateClass}" data-company-id="${escapeAttr(String(c.id || ""))}">
+    return `<article class="directory-card portal-ops-card trip-ops-card directory-card--company${companyStateClass}" data-company-id="${escapeAttr(String(c.id || ""))}">
       <header class="directory-card__head">
         <div class="directory-card__identity">
           ${avatarCompany}
@@ -799,7 +799,7 @@ function adminUsersHtml(current) {
             "shield",
             "Pendientes de aprobación",
             pendingSubtitle,
-            `<div class="admin-users-list-shell"><div class="user-grid user-grid-pending directory-grid">${pendingCardsHtml}</div></div>`,
+            `<div class="admin-users-list-shell"><div class="user-grid user-grid-pending directory-grid portal-ops-cards">${pendingCardsHtml}</div></div>`,
             "admin-users-data-card"
           )
         : pcardWrapPro(
@@ -824,7 +824,7 @@ function adminUsersHtml(current) {
     activeUsers.length && !activeUsersView.length
       ? emptyState("Ningún usuario coincide con la búsqueda.")
       : userCards
-        ? `<div class="admin-users-list-shell"><div class="user-grid user-grid-main directory-grid">${userCards}</div></div>`
+        ? `<div class="admin-users-list-shell"><div class="user-grid user-grid-main directory-grid portal-ops-cards">${userCards}</div></div>`
         : emptyState("Sin usuarios registrados.");
   const usersPaneHtml = pcardWrapPro(
     "shield",
@@ -844,7 +844,7 @@ function adminUsersHtml(current) {
             "briefcase",
             "Empresas registradas",
             companiesPaneSubtitle,
-            `<div class="admin-users-list-shell"><div class="user-grid user-grid-main user-grid-companies directory-grid">${companyCardsHtml}</div></div>`,
+            `<div class="admin-users-list-shell"><div class="user-grid user-grid-main user-grid-companies directory-grid portal-ops-cards">${companyCardsHtml}</div></div>`,
             "admin-users-data-card"
           )
         : pcardWrapPro(

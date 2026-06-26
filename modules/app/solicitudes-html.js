@@ -178,31 +178,23 @@
     const statusText = String(r.status || "—").trim() || "—";
     const reqNo = String(r.requestNumber || r.id || "-");
     const createdLabel = fmtDate(r.createdAt || "") || "—";
-    const statusBadgeHtml = `<span class="trip-ops-card-badge trip-ops-card-badge--${escapeAttr(statusSlug)}" role="status">
-      <span class="trip-ops-card-badge-icon" aria-hidden="true">${IC.inbox}</span>
-      <span class="trip-ops-card-badge-text">${escapeHtml(statusText)}</span>
-      <span class="trip-ops-card-badge-dot" aria-hidden="true"></span>
-    </span>`;
+    const headerRefs = [{ label: "Solicitud", value: `#${reqNo}` }];
+    if (r.trip?.tripNumber) {
+      headerRefs.push({ label: "Viaje", value: String(r.trip.tripNumber) });
+    }
+    if (requestedBy) {
+      headerRefs.push({ label: "Solicitó", value: requestedBy });
+    }
+    const headerRefsHtml = buildPortalOpsCardRefs(headerRefs);
+    const statusBadgeHtml = buildPortalOpsCardStatusPill(statusText, statusSlug);
     const tripBadge = r.trip
-      ? `<p class="trip-ops-card-standby request-ops-card-trip"><span class="request-ops-card-trip-ico">${IC.truck}</span><span>Viaje <strong>${escapeHtml(String(r.trip.tripNumber || "-"))}</strong> · ${escapeHtml(String(r.trip.vehiclePlate || "-"))} · <span class="muted">${escapeHtml(String(r.trip.driverName || "-"))}</span></span></p>`
+      ? `<p class="trip-ops-card-standby request-ops-card-trip portal-ops-card-highlight"><span class="request-ops-card-trip-ico">${IC.truck}</span><span>Viaje <strong>${escapeHtml(String(r.trip.tripNumber || "-"))}</strong> · ${escapeHtml(String(r.trip.vehiclePlate || "-"))} · <span class="muted">${escapeHtml(String(r.trip.driverName || "-"))}</span></span></p>`
       : "";
-    const gridItem = (label, icon, valueHtml, extraClass = "") =>
-      `<div class="trip-ops-card-item${extraClass ? ` ${extraClass}` : ""}">
-        <span class="trip-ops-card-item-label">${escapeHtml(label)}</span>
-        <div class="trip-ops-card-item-body">
-          <span class="trip-ops-card-item-icon" aria-hidden="true">${icon}</span>
-          <span class="trip-ops-card-item-value">${valueHtml}</span>
-        </div>
-      </div>`;
-    const primaryActions = [
+    const actionButtons = [
       `<button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--solid" data-action="detail" data-id="${escapeAttr(String(r.id || ""))}" title="Ver detalle completo">${IC.eye} Detalle</button>`,
       allowEdit
         ? `<button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--soft" data-action="edit-request" data-id="${escapeAttr(String(r.id || ""))}" title="${r.trip ? "Editar (requiere justificación: viaje asignado)" : "Editar la solicitud"}">${IC.edit} Editar</button>`
-        : ""
-    ]
-      .filter(Boolean)
-      .join("");
-    const dangerActions = [
+        : "",
       allowEdit && !r.trip
         ? `<button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--danger" data-action="cancel-request" data-id="${escapeAttr(String(r.id || ""))}" title="Marcar como cancelada">${IC.x} Cancelar</button>`
         : "",
@@ -215,17 +207,17 @@
     ]
       .filter(Boolean)
       .join("");
-    return `<article class="trip-ops-card trip-ops-card--${escapeAttr(statusSlug)} request-ops-card" data-request-id="${escapeAttr(String(r.id || ""))}">
+    return `<article class="trip-ops-card portal-ops-card trip-ops-card--${escapeAttr(statusSlug)} request-ops-card" data-request-id="${escapeAttr(String(r.id || ""))}">
       <header class="trip-ops-card-head">
         <div class="trip-ops-card-head-main">
           ${clientLogoHtml}
           <div class="trip-ops-card-head-info">
-            <p class="trip-ops-card-kicker">Solicitud #${escapeHtml(reqNo)}${requestedBy ? ` · ${escapeHtml(requestedBy)}` : ""}</p>
+            ${headerRefsHtml}
             <h4 class="trip-ops-card-title" title="${escapeAttr(clientName)}">${escapeHtml(clientName)}</h4>
             ${metaHints ? `<p class="muted request-ops-card-meta">${escapeHtml(metaHints)}</p>` : ""}
           </div>
         </div>
-        ${statusBadgeHtml}
+        <div class="portal-ops-card-badges">${statusBadgeHtml}</div>
       </header>
       <div class="trip-ops-card-route">
         <div class="trip-ops-card-route-node trip-ops-card-route-node--origin" title="${escapeAttr(originCity)}">
@@ -247,20 +239,15 @@
           </span>
         </div>
       </div>
-      <div class="trip-ops-card-grid">
-        ${gridItem("Carga", IC.package || IC.file, escapeHtml(cargoLabel))}
-        ${gridItem("Camión / requisitos", IC.truck, truckReq)}
-        ${gridItem("Recogida", IC.calendar, escapeHtml(pickupLabel))}
-        ${gridItem("Valor", IC.dollar, valueDd, "trip-ops-card-item--value")}
+      <div class="trip-ops-card-grid portal-ops-card-spec-grid">
+        ${buildPortalOpsCardGridItem("Carga", IC.package || IC.file, cargoLabel)}
+        ${buildPortalOpsCardGridItem("Camión / requisitos", IC.truck, truckReq, { raw: true })}
+        ${buildPortalOpsCardGridItem("Recogida", IC.calendar, pickupLabel)}
+        ${buildPortalOpsCardGridItem("Valor", IC.dollar, valueDd, { tone: "value", raw: true })}
       </div>
       ${tripBadge}
-      <div class="trip-ops-card-actions">
-        <div class="trip-ops-card-actions-primary">${primaryActions}</div>
-        ${dangerActions}
-      </div>
-      <footer class="trip-ops-card-foot">
-        <span class="trip-ops-card-foot-created">${IC.clock}<span>Creado ${escapeHtml(createdLabel)}</span></span>
-      </footer>
+      ${buildPortalOpsCardActions(actionButtons)}
+      ${buildPortalOpsCardFoot("Creado", createdLabel)}
     </article>`;
   }
 
@@ -353,7 +340,7 @@
         <tbody>${rows}</tbody>
       </table></div>${moreBar}`;
     }
-    return `<div class="trip-ops-cards request-ops-cards">${shown.map((r) => buildRequestOpsCard(r, user)).join("")}</div>${moreBar}`;
+    return `<div class="trip-ops-cards portal-ops-cards request-ops-cards">${shown.map((r) => buildRequestOpsCard(r, user)).join("")}</div>${moreBar}`;
   }
 
   /**

@@ -826,7 +826,7 @@ export function renderHiringCandidateCard(c, ctx) {
   const canDlCv = Boolean(ctx.canDlCv);
   const statusClass = hiringPipelineStatusClass(c.status);
   const employeeMatch = findPayrollEmployeeByIdDoc(c.idDoc);
-  return `<article class="hiring-candidate-card">
+  return `<article class="hiring-candidate-card portal-ops-card trip-ops-card">
     <header class="hiring-candidate-card__head">
       <div>
         <h4>${escapeHtml(String(c.name || ""))}</h4>

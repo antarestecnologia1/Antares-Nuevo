@@ -12,7 +12,7 @@ import {
   TRANSPORT_TRIPS_OPERATE_CREATE_PANEL_IDS,
   VEHICLES_OPERATE_CREATE_PANEL_IDS
 } from "../core/config.js";
-import { escapeHtml, escapeAttr } from "../core/utils.js";
+import { escapeHtml, escapeAttr, fmtDate } from "../core/utils.js";
 
 function ic() {
   return typeof window !== "undefined" && window.IC ? window.IC : {};
@@ -1024,7 +1024,127 @@ export function directoryOpsHtml(headline, detail = "", tone = "neutral") {
   const detailHtml = meta
     ? `<span class="directory-card__ops-detail">${escapeHtml(meta)}</span>`
     : "";
-  return `<div class="directory-card__ops${toneClass}"><span class="directory-card__ops-dot" aria-hidden="true"></span><div class="directory-card__ops-body"><strong>${escapeHtml(title)}</strong>${detailHtml}</div></div>`;
+  return `<div class="directory-card__ops portal-ops-card-highlight${toneClass}"><span class="directory-card__ops-dot portal-ops-card-highlight__dot" aria-hidden="true"></span><div class="directory-card__ops-body portal-ops-card-highlight__copy"><strong>${escapeHtml(title)}</strong>${detailHtml}</div></div>`;
+}
+
+/** Marca de tiempo relativa para pie de tarjetas operativas. */
+export function formatPortalOpsCardTimestamp(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const isYesterday = d.toDateString() === yesterday.toDateString();
+  const timePart = d.toLocaleTimeString("es-CO", { hour: "numeric", minute: "2-digit", hour12: true });
+  if (sameDay) return `Hoy, ${timePart}`;
+  if (isYesterday) return `Ayer, ${timePart}`;
+  return fmtDate(iso);
+}
+
+/** Celda de cuadrícula estándar para tarjetas del portal. */
+export function buildPortalOpsCardGridItem(label, icon, value, options = {}) {
+  const tone = String(options.tone || "");
+  const subValue = String(options.subValue || "").trim();
+  const subTone = String(options.subTone || tone || "");
+  const raw = Boolean(options.raw);
+  const toneClass = tone ? ` trip-ops-card-item--${tone}` : "";
+  const valueClass =
+    tone === "ok"
+      ? " trip-ops-card-item-value--ok"
+      : tone === "warn"
+        ? " trip-ops-card-item-value--warn"
+        : tone === "alert"
+          ? " trip-ops-card-item-value--alert"
+          : "";
+  const valueHtml = raw ? String(value ?? "") : escapeHtml(String(value ?? ""));
+  const subHtml = subValue
+    ? `<span class="portal-ops-card-spec-sub${subTone ? ` portal-ops-card-spec-sub--${escapeAttr(subTone)}` : ""}">${escapeHtml(subValue)}</span>`
+    : "";
+  const bodyClass = subValue ? " portal-ops-card-spec-body" : "";
+  const valueInner = subValue
+    ? `<span class="trip-ops-card-item-value-wrap"><span class="trip-ops-card-item-value${valueClass}" title="${escapeAttr(String(value ?? ""))}">${valueHtml}</span>${subHtml}</span>`
+    : `<span class="trip-ops-card-item-value${valueClass}" title="${escapeAttr(String(value ?? ""))}">${valueHtml}</span>`;
+  return `<div class="trip-ops-card-item${toneClass}">
+    <span class="trip-ops-card-item-label">${escapeHtml(label)}</span>
+    <div class="trip-ops-card-item-body${bodyClass}">
+      <span class="trip-ops-card-item-icon" aria-hidden="true">${icon}</span>
+      ${valueInner}
+    </div>
+  </div>`;
+}
+
+/** Texto plano para pills (evita HTML accidental de prettyStatus). */
+function portalOpsCardPlainLabel(label) {
+  const raw = String(label ?? "").trim();
+  if (!raw) return "—";
+  if (!raw.includes("<")) return raw;
+  return raw.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim() || "—";
+}
+
+/** Referencias de cabecera (viaje, solicitud, etc.) en chips separados y legibles. */
+export function buildPortalOpsCardRefs(items = []) {
+  const chips = (Array.isArray(items) ? items : [])
+    .map((item) => {
+      const label = String(item?.label ?? "").trim();
+      const value = String(item?.value ?? "").trim();
+      if (!label || !value) return "";
+      return `<span class="portal-ops-card-ref" title="${escapeAttr(`${label} ${value}`)}">
+        <span class="portal-ops-card-ref-label">${escapeHtml(label)}</span>
+        <strong class="portal-ops-card-ref-value">${escapeHtml(value)}</strong>
+      </span>`;
+    })
+    .filter(Boolean)
+    .join("");
+  return chips ? `<div class="portal-ops-card-refs">${chips}</div>` : "";
+}
+
+/** Badge de estado principal (flota / viajes / solicitudes). */
+export function buildPortalOpsCardStatusPill(label, slug) {
+  const text = portalOpsCardPlainLabel(label);
+  const key = escapeAttr(String(slug || "neutral").trim() || "neutral");
+  return `<span class="portal-ops-card-status-pill portal-ops-card-status-pill--${key}" role="status">
+    <span class="portal-ops-card-status-pill__dot" aria-hidden="true"></span>
+    <span class="portal-ops-card-status-pill__text">${escapeHtml(text)}</span>
+  </span>`;
+}
+
+/** Badge documental secundario. */
+export function buildPortalOpsCardDocPill(label, bucket = "ok", iconHtml = "") {
+  const tone =
+    bucket === "expired" || bucket === "alert"
+      ? "expired"
+      : bucket === "missing"
+        ? "missing"
+        : bucket === "warning" || bucket === "warn"
+          ? "warning"
+          : "ok";
+  const icon = iconHtml || ic().award || "";
+  return `<span class="portal-ops-card-doc-pill portal-ops-card-doc-pill--${escapeAttr(tone)}" title="Estado documental">
+    ${icon ? `<span class="portal-ops-card-doc-pill__icon" aria-hidden="true">${icon}</span>` : ""}
+    <span>${escapeHtml(String(label ?? "").trim() || "—")}</span>
+  </span>`;
+}
+
+/** Pie estándar sin ID confidencial. */
+export function buildPortalOpsCardFoot(prefix, value) {
+  const label = String(prefix || "Creado").trim();
+  const text = String(value ?? "").trim() || "—";
+  return `<footer class="trip-ops-card-foot portal-ops-card-foot">
+    <span class="trip-ops-card-foot-created">${ic().clock || ""}<span>${escapeHtml(label)}: ${escapeHtml(text)}</span></span>
+  </footer>`;
+}
+
+/** Contenedor de acciones en cuadrícula 2×2 (+ opcional ancho completo). */
+export function buildPortalOpsCardActions(primaryButtonsHtml, fullWidthButtonHtml = "") {
+  const primary = String(primaryButtonsHtml || "").trim();
+  const full = String(fullWidthButtonHtml || "").trim();
+  if (!primary && !full) return "";
+  return `<div class="trip-ops-card-actions portal-ops-card-actions">
+    ${primary ? `<div class="portal-ops-card-actions-grid">${primary}</div>` : ""}
+    ${full}
+  </div>`;
 }
 
 /**

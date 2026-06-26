@@ -963,7 +963,7 @@ function payrollHtml() {
         ? `${employeeContractsDashboard}${employeeTable}`
         : `${employeeContractsDashboard}${emptyState("No hay empleados registrados.")}`
       : employeeCards
-        ? `${employeeContractsDashboard}${employeeTableToolbar}<div class="employees-grid directory-grid payroll-employees-grid">${employeeCards}</div>${employeePagination}`
+        ? `${employeeContractsDashboard}${employeeTableToolbar}<div class="employees-grid directory-grid payroll-employees-grid portal-ops-cards">${employeeCards}</div>${employeePagination}`
         : `${employeeContractsDashboard}${emptyState("No hay empleados registrados.")}`;
   const runCardsGrid = sortedRuns.length
     ? `<div class="payroll-run-cards-grid">${runsToRender.map((r) => renderPayrollRunCard(r, { compact: true })).join("")}</div>${payrollRunsMoreBar}`

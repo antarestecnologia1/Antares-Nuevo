@@ -1495,6 +1495,7 @@ function bindPayrollPortalControls() {
         subtitle: `${String(target.position || "Colaborador").trim()} · ${String(target.idDoc || "").trim()}`,
         bodyHtml: `${buildEmployeePayrollProfileBodyHtml(target)}${payrollHistoryHtml}`,
         wide: true,
+        extraModalCardClass: "modal-card--portal-detail",
         secondaryActionsHtml: `${liquidacionesAction}${contractAction}`,
         afterMount: (content) => {
           bindPayrollPayslipButtons(content);
@@ -3023,11 +3024,10 @@ function bindPayrollPortalControls() {
             : `<span class="muted">Sin observaciones.</span>`
         }
       ];
-      openInfoModal({
+      openPortalDetailSheet({
         title: `Ausencia · ${typeLabel}`,
         subtitle: String(a.employeeName || ""),
-        bodyHtml: `<div class="detail-grid">${buildDetailGrid(sections)}</div>`,
-        wide: true
+        sectionsHtml: buildDetailGrid(sections)
       });
     });
   });

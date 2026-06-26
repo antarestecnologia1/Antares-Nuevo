@@ -1553,13 +1553,17 @@ export function openInfoModal({
     .filter(Boolean)
     .join(" ");
   content.innerHTML = `
-    ${renderModalHead(title, { subtitleHtml: subtitleBlock })}
-    <div class="${escapeAttr(infoBodyClass)}">${bodyHtml}</div>
-    ${renderModalFooterActions({
-      showCancel: false,
-      secondaryHtml: secondaryActionsHtml,
-      primaryHtml: `<button type="button" id="crud-ok" class="btn btn-primary">${ic().x} Cerrar</button>`
-    })}
+    <div class="modal-info-layout">
+      ${renderModalHead(title, { subtitleHtml: subtitleBlock })}
+      <div class="modal-info-layout__scroll">
+        <div class="${escapeAttr(infoBodyClass)}">${bodyHtml}</div>
+      </div>
+      ${renderModalFooterActions({
+        showCancel: false,
+        secondaryHtml: secondaryActionsHtml,
+        primaryHtml: `<button type="button" id="crud-ok" class="btn btn-primary">${ic().x} Cerrar</button>`
+      })}
+    </div>
   `;
   const close = () => modal.classList.add("hidden");
   modal.classList.remove("hidden");

@@ -225,20 +225,85 @@ function reportPreviewRowVisual(rowIndex = 0) {
   return REPORT_PREVIEW_ROW_VISUALS[Math.abs(Number(rowIndex) || 0) % REPORT_PREVIEW_ROW_VISUALS.length];
 }
 
-export function reportPreviewCategoryCellHtml(value, rowIndex = 0) {
-  const display = reportPreviewFormatValue(value, "tag");
-  if (display === "—") return `<span class="report-empty">—</span>`;
-  const visual = reportPreviewRowVisual(rowIndex);
-  const icon = reportPreviewPortalIcon(visual.categoryIcon);
-  return `<span class="report-cat-badge report-cat-badge--${visual.tone}">${icon}<span>${escapeHtml(display)}</span></span>`;
+function reportPreviewCatBadgeTone(tone = "neutral") {
+  if (tone === "success") return "success";
+  if (tone === "warning" || tone === "danger") return "warning";
+  return "info";
 }
 
-export function reportPreviewDetailCellHtml(value, rowIndex = 0) {
+function reportPreviewIconKeyForCell(cellType = "text", tone = "neutral") {
+  if (cellType === "risk") return "shield";
+  if (cellType === "boolean") return tone === "success" ? "check" : "x";
+  if (cellType === "status") {
+    if (tone === "success") return "check";
+    if (tone === "warning" || tone === "danger") return "clock";
+    return "activity";
+  }
+  if (tone === "success") return "check";
+  if (tone === "warning" || tone === "danger") return "clock";
+  return "settings";
+}
+
+function reportPreviewIsMetricColumn(columnKey = "", cellType = "text") {
+  if (cellType !== "text") return false;
+  return /^(client|route|name|driver|company|requestedby|employee|conductor|metric|clientname|tripname)$/.test(columnKey)
+    || columnKey.endsWith("name");
+}
+
+export function reportsExportPeriodLabel(period = "90d") {
+  const labels = {
+    "30d": "Últimos 30 días",
+    "90d": "Últimos 90 días",
+    month: "Mes actual",
+    ytd: "Año en curso",
+    all: "Histórico completo"
+  };
+  return labels[String(period || "90d").trim()] || labels["90d"];
+}
+
+export function reportPreviewCategoryCellHtml(value, rowIndex = 0, options = {}) {
+  const display = reportPreviewFormatValue(value, "tag");
+  if (display === "—") return `<span class="report-empty">—</span>`;
+  let tone;
+  let iconKey;
+  if (options.valueTone) {
+    const valueTone = reportPreviewTone("tag", display);
+    tone = reportPreviewCatBadgeTone(valueTone);
+    iconKey = reportPreviewIconKeyForCell("tag", valueTone);
+  } else {
+    const visual = reportPreviewRowVisual(rowIndex);
+    tone = visual.tone;
+    iconKey = visual.categoryIcon;
+  }
+  const icon = reportPreviewPortalIcon(iconKey);
+  return `<span class="report-cat-badge report-cat-badge--${tone}">${icon}<span>${escapeHtml(display)}</span></span>`;
+}
+
+export function reportPreviewDetailCellHtml(value, rowIndex = 0, options = {}) {
   const display = reportPreviewFormatValue(value, "longtext");
   if (display === "—") return `<span class="report-empty">—</span>`;
-  const visual = reportPreviewRowVisual(rowIndex);
-  const icon = reportPreviewPortalIcon(visual.detailIcon);
-  return `<span class="report-detail"><span class="report-detail__icon report-detail__icon--${visual.tone}" aria-hidden="true">${icon}</span><span class="report-detail__text">${escapeHtml(display)}</span></span>`;
+  let tone;
+  let iconKey;
+  if (options.valueTone) {
+    const valueTone = reportPreviewTone("longtext", display);
+    tone = reportPreviewCatBadgeTone(valueTone);
+    iconKey = reportPreviewIconKeyForCell("status", valueTone);
+  } else {
+    const visual = reportPreviewRowVisual(rowIndex);
+    tone = visual.tone;
+    iconKey = visual.detailIcon;
+  }
+  const icon = reportPreviewPortalIcon(iconKey);
+  return `<span class="report-detail"><span class="report-detail__icon report-detail__icon--${tone}" aria-hidden="true">${icon}</span><span class="report-detail__text">${escapeHtml(display)}</span></span>`;
+}
+
+export function reportPreviewBadgeCellHtml(value, cellType = "status") {
+  const display = reportPreviewFormatValue(value, cellType);
+  if (display === "—") return `<span class="report-empty">—</span>`;
+  const tone = reportPreviewTone(cellType, display);
+  const badgeTone = reportPreviewCatBadgeTone(tone);
+  const icon = reportPreviewPortalIcon(reportPreviewIconKeyForCell(cellType, tone));
+  return `<span class="report-cat-badge report-cat-badge--${badgeTone}">${icon}<span>${escapeHtml(display)}</span></span>`;
 }
 
 export function reportPreviewCellInnerHtml(value, type = "text", context = {}) {
@@ -248,8 +313,10 @@ export function reportPreviewCellInnerHtml(value, type = "text", context = {}) {
   const column = context?.column && typeof context.column === "object" ? context.column : { key: columnKey };
   const cellType = reportPreviewResolveCellType(column, row, value);
   if (columnKey === "category") return reportPreviewCategoryCellHtml(value, rowIndex);
+  if (cellType === "tag") return reportPreviewCategoryCellHtml(value, rowIndex, { valueTone: true });
   if (columnKey === "detail") return reportPreviewDetailCellHtml(value, rowIndex);
-  if (columnKey === "metric") {
+  if (cellType === "longtext") return reportPreviewDetailCellHtml(value, rowIndex, { valueTone: true });
+  if (columnKey === "metric" || reportPreviewIsMetricColumn(columnKey, cellType)) {
     const display = reportPreviewFormatValue(value, cellType);
     if (display === "—") return `<span class="report-empty">—</span>`;
     return `<span class="report-metric">${escapeHtml(display)}</span>`;
@@ -257,11 +324,10 @@ export function reportPreviewCellInnerHtml(value, type = "text", context = {}) {
   const display = reportPreviewFormatValue(value, cellType);
   if (display === "—") return `<span class="report-empty">—</span>`;
   const safe = escapeHtml(display);
-  if (["status", "risk", "boolean", "tag"].includes(cellType)) {
-    return `<span class="report-badge report-badge--${reportPreviewTone(cellType, display)}">${safe}</span>`;
+  if (["status", "risk", "boolean"].includes(cellType)) {
+    return reportPreviewBadgeCellHtml(value, cellType);
   }
   if (cellType === "id") return `<span class="report-code">${safe}</span>`;
-  if (cellType === "longtext") return `<span class="report-note">${safe}</span>`;
   const valueClass =
     columnKey === "value" || ["currency", "number", "percent"].includes(cellType) ? " report-value--highlight" : "";
   return `<span class="report-value${valueClass}">${safe}</span>`;

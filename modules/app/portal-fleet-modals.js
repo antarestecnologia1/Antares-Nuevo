@@ -279,19 +279,24 @@ function portalDetailComposeModal(parts = {}) {
   const tiles = String(parts.tilesHtml || "").trim();
   const highlight = String(parts.highlightHtml || "").trim();
   const sections = String(parts.sectionsHtml || "").trim();
+  const extra = String(parts.extraHtml || "").trim();
   return `<div class="portal-detail-modal">
     ${hero}
     ${tiles ? `<div class="portal-detail-tiles">${tiles}</div>` : ""}
     ${highlight}
     ${sections}
+    ${extra}
   </div>`;
 }
 
 
 function openPortalDetailSheet(opts = {}) {
+  const subtitleHtml = String(opts.subtitleHtml || "").trim();
+  const subtitle = String(opts.subtitle || "").trim();
   G.openInfoModal({
     title: opts.title || "Detalle",
-    subtitle: opts.subtitle || "",
+    subtitle: subtitleHtml ? "" : subtitle,
+    subtitleHtml: subtitleHtml || "",
     bodyHtml: G.portalDetailComposeModal(opts),
     wide: opts.wide !== false,
     extraModalCardClass: `modal-card--portal-detail${opts.extraModalCardClass ? ` ${G.escapeAttr(String(opts.extraModalCardClass).trim())}` : ""}`,

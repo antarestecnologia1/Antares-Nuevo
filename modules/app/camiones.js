@@ -37,34 +37,6 @@ function vehicleMatchesFleetSearch(v, qNorm) {
   return vehicleFleetSearchHaystack(v).includes(qNorm);
 }
 
-function formatVehicleLastUpdateLabel(iso) {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  const now = new Date();
-  const sameDay = d.toDateString() === now.toDateString();
-  const yesterday = new Date(now);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const isYesterday = d.toDateString() === yesterday.toDateString();
-  const timePart = d.toLocaleTimeString("es-CO", { hour: "numeric", minute: "2-digit", hour12: true });
-  if (sameDay) return `Hoy, ${timePart}`;
-  if (isYesterday) return `Ayer, ${timePart}`;
-  return fmtDate(iso);
-}
-
-function buildVehicleFleetCardGridItem(label, icon, value, tone = "") {
-  const toneClass = tone ? ` trip-ops-card-item--${tone}` : "";
-  const valueClass =
-    tone === "ok" ? " trip-ops-card-item-value--ok" : tone === "warn" ? " trip-ops-card-item-value--warn" : tone === "alert" ? " trip-ops-card-item-value--alert" : "";
-  return `<div class="trip-ops-card-item${toneClass}">
-    <span class="trip-ops-card-item-label">${escapeHtml(label)}</span>
-    <div class="trip-ops-card-item-body">
-      <span class="trip-ops-card-item-icon" aria-hidden="true">${icon}</span>
-      <span class="trip-ops-card-item-value${valueClass}" title="${escapeAttr(String(value))}">${escapeHtml(String(value))}</span>
-    </div>
-  </div>`;
-}
-
 function vehiclesHtml() {
   const vehicles = read(KEYS.vehicles, []);
   const drivers = read(KEYS.drivers, []);
@@ -203,13 +175,10 @@ function vehiclesHtml() {
       const motorLabel = String(v.engineNumber || "").trim() || "Sin motor";
       const vinLabel = String(v.vin || "").trim() || "Sin VIN";
       const createdLabel = fmtDate(v.createdAt || "") || "—";
-      const lastUpdateLabel = formatVehicleLastUpdateLabel(v.updatedAt || v.createdAt || "");
-      const statusBadgeHtml = `<span class="vehicle-card-status-pill vehicle-card-status-pill--${escapeAttr(occupancySlug)}" role="status">
-        <span class="vehicle-card-status-pill__dot" aria-hidden="true"></span>
-        <span>${escapeHtml(availabilityLabel)}</span>
-      </span>`;
+      const lastUpdateLabel = formatPortalOpsCardTimestamp(v.updatedAt || v.createdAt || "");
+      const statusBadgeHtml = buildPortalOpsCardStatusPill(availabilityLabel, occupancySlug);
       const termokingBadgeHtml = isRefrigerated
-        ? `<span class="vehicle-card-equip-pill vehicle-card-equip-pill--tk" title="Equipo Termoking">
+        ? `<span class="portal-ops-card-doc-pill portal-ops-card-doc-pill--ok vehicle-card-equip-pill vehicle-card-equip-pill--tk" title="Equipo Termoking">
             <span class="vehicle-card-equip-pill__icon" aria-hidden="true">❄</span>
             <span>TERMOKING</span>
           </span>`
@@ -228,7 +197,7 @@ function vehiclesHtml() {
       ]
         .filter(Boolean)
         .join("");
-      return `<article class="trip-ops-card trip-ops-card--vehicle trip-ops-card--vehicle-${escapeAttr(occupancySlug)}" data-vehicle-id="${escapeAttr(String(v.id || ""))}">
+      return `<article class="trip-ops-card portal-ops-card trip-ops-card--vehicle trip-ops-card--vehicle-${escapeAttr(occupancySlug)}" data-vehicle-id="${escapeAttr(String(v.id || ""))}">
         <header class="trip-ops-card-head trip-ops-card-head--vehicle">
           <div class="trip-ops-card-head-main">
             <div class="vehicle-plate-badge" title="Placa ${escapeAttr(plate)}" aria-label="Placa ${escapeAttr(plate)}">
@@ -241,15 +210,15 @@ function vehiclesHtml() {
               ${yearLabel ? `<p class="vehicle-card-year">${escapeHtml(yearLabel)}</p>` : ""}
             </div>
           </div>
-          <div class="vehicle-card-badges">
+          <div class="portal-ops-card-badges vehicle-card-badges">
             ${statusBadgeHtml}
             ${termokingBadgeHtml}
           </div>
         </header>
-        <div class="vehicle-availability-bar vehicle-availability-bar--${escapeAttr(occupancySlug)}" role="status">
+        <div class="vehicle-availability-bar portal-ops-card-highlight vehicle-availability-bar--${escapeAttr(occupancySlug)}" role="status">
           <div class="vehicle-availability-bar__main">
-            <span class="vehicle-availability-bar__dot" aria-hidden="true"></span>
-            <div class="vehicle-availability-bar__copy">
+            <span class="vehicle-availability-bar__dot portal-ops-card-highlight__dot" aria-hidden="true"></span>
+            <div class="vehicle-availability-bar__copy portal-ops-card-highlight__copy">
               <strong>${escapeHtml(availabilityLabel)}</strong>
               <span class="vehicle-availability-bar__detail">${escapeHtml(occupancyDetail)}</span>
             </div>
@@ -259,22 +228,18 @@ function vehiclesHtml() {
             <strong>${escapeHtml(lastUpdateLabel)}</strong>
           </div>
         </div>
-        <div class="trip-ops-card-grid vehicle-card-spec-grid">
-          ${buildVehicleFleetCardGridItem("Capacidad", IC.scale, capacityLabel)}
-          ${buildVehicleFleetCardGridItem("SOAT", IC.shield, soat.label, soatTone)}
-          ${buildVehicleFleetCardGridItem("Tecnomecánica", IC.file, tecno.label, tecnoTone)}
-          ${buildVehicleFleetCardGridItem("GPS", IC.mapPin, gpsEnabled ? "Activo" : "Inactivo", gpsEnabled ? "ok" : "warn")}
-          ${buildVehicleFleetCardGridItem("Tarjeta de Operación", IC.card, ownershipCardLabel)}
-          ${buildVehicleFleetCardGridItem("Motor", IC.settings, motorLabel)}
-          ${buildVehicleFleetCardGridItem("VIN", IC.hash, vinLabel)}
-          ${buildVehicleFleetCardGridItem("Trazabilidad", IC.satellite, gpsTraceLabel, gpsEnabled ? "ok" : "warn")}
+        <div class="trip-ops-card-grid portal-ops-card-spec-grid vehicle-card-spec-grid">
+          ${buildPortalOpsCardGridItem("Capacidad", IC.scale, capacityLabel)}
+          ${buildPortalOpsCardGridItem("SOAT", IC.shield, soat.label, { tone: soatTone })}
+          ${buildPortalOpsCardGridItem("Tecnomecánica", IC.file, tecno.label, { tone: tecnoTone })}
+          ${buildPortalOpsCardGridItem("GPS", IC.mapPin, gpsEnabled ? "Activo" : "Inactivo", { tone: gpsEnabled ? "ok" : "warn" })}
+          ${buildPortalOpsCardGridItem("Tarjeta de Operación", IC.card, ownershipCardLabel)}
+          ${buildPortalOpsCardGridItem("Motor", IC.settings, motorLabel)}
+          ${buildPortalOpsCardGridItem("VIN", IC.hash, vinLabel)}
+          ${buildPortalOpsCardGridItem("Trazabilidad", IC.satellite, gpsTraceLabel, { tone: gpsEnabled ? "ok" : "warn" })}
         </div>
-        <div class="trip-ops-card-actions vehicle-card-actions">
-          <div class="vehicle-card-actions-grid">${actionButtons}</div>
-        </div>
-        <footer class="trip-ops-card-foot">
-          <span class="trip-ops-card-foot-created">${IC.clock}<span>Creado: ${escapeHtml(createdLabel)}</span></span>
-        </footer>
+        ${buildPortalOpsCardActions(actionButtons)}
+        ${buildPortalOpsCardFoot("Creado", createdLabel)}
       </article>`;
     })
     .join("");
@@ -359,7 +324,7 @@ function vehiclesHtml() {
     <tbody>${vehicleListRows}</tbody>
   </table></div>`
       : "";
-  const fleetCardsGrid = fleetLayout === "cards" && vehicleCards ? `<div class="trip-ops-cards vehicle-ops-cards">${vehicleCards}</div>` : "";
+  const fleetCardsGrid = fleetLayout === "cards" && vehicleCards ? `<div class="trip-ops-cards portal-ops-cards vehicle-ops-cards">${vehicleCards}</div>` : "";
   let fleetMainBody;
   if (!totalCount) {
     fleetMainBody = emptyState("No hay vehículos registrados.");

@@ -8820,6 +8820,407 @@ body[data-theme="dark"] .vehicle-card-equip-pill {
   border-color: rgba(16, 185, 129, 0.35);
 }
 
+/* ── Tarjeta de conductor (flota) — interfaz detallada ── */
+.trip-ops-card--driver {
+  gap: 0.8rem;
+  padding: 1.05rem 1.1rem 0.9rem;
+}
+
+.trip-ops-card-head--driver {
+  align-items: flex-start;
+}
+
+.trip-ops-card-head--driver .trip-ops-card-head-main {
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.trip-ops-card-head--driver .driver-avatar {
+  width: 3.35rem;
+  height: 3.35rem;
+  border-radius: 12px;
+  background: linear-gradient(145deg, #dbeafe, #bfdbfe);
+  color: #1e3a8a;
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+.trip-ops-card-head--driver .driver-avatar--photo {
+  background: #eff6ff;
+  padding: 0;
+}
+
+.trip-ops-card-head--driver .trip-ops-card-kicker {
+  margin-bottom: 0.18rem;
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #6b7f96;
+}
+
+.trip-ops-card--driver .driver-card-title {
+  font-size: 1.02rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #0d2f5c;
+  -webkit-line-clamp: 2;
+}
+
+.driver-card-badges {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+  flex: 0 0 auto;
+}
+
+.driver-card-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.34rem 0.62rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #ffffff;
+  white-space: nowrap;
+}
+
+.driver-card-status-pill__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.28);
+  flex: 0 0 auto;
+}
+
+.driver-card-status-pill--available {
+  background: linear-gradient(135deg, #16a34a, #22c55e);
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.28);
+}
+
+.driver-card-status-pill--busy {
+  background: linear-gradient(135deg, #c2410c, #ea580c);
+  box-shadow: 0 4px 12px rgba(234, 88, 12, 0.24);
+}
+
+.driver-card-status-pill--scheduled {
+  background: linear-gradient(135deg, #4f46e5, #6366f1);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.24);
+}
+
+.driver-card-status-pill--offline {
+  background: linear-gradient(135deg, #b45309, #d97706);
+  box-shadow: 0 4px 12px rgba(217, 119, 6, 0.24);
+}
+
+.driver-card-doc-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  padding: 0.28rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.driver-card-doc-pill__icon svg {
+  width: 0.75rem;
+  height: 0.75rem;
+  flex: 0 0 auto;
+}
+
+.driver-card-doc-pill--ok {
+  color: #047857;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.16), rgba(16, 185, 129, 0.08));
+  border-color: rgba(16, 185, 129, 0.28);
+}
+
+.driver-card-doc-pill--warning {
+  color: #b45309;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.18), rgba(245, 158, 11, 0.08));
+  border-color: rgba(245, 158, 11, 0.32);
+}
+
+.driver-card-doc-pill--missing {
+  color: #92400e;
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.18), rgba(251, 191, 36, 0.08));
+  border-color: rgba(245, 158, 11, 0.28);
+}
+
+.driver-card-doc-pill--expired {
+  color: #b91c1c;
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.16), rgba(239, 68, 68, 0.08));
+  border-color: rgba(239, 68, 68, 0.28);
+}
+
+.driver-trip-bar,
+.driver-availability-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.68rem 0.8rem;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  min-width: 0;
+}
+
+.driver-trip-bar--available,
+.driver-trip-bar--busy,
+.driver-availability-bar--available,
+.driver-availability-bar--busy {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.14), rgba(16, 185, 129, 0.06));
+  border-color: rgba(16, 185, 129, 0.28);
+}
+
+.driver-trip-bar--scheduled,
+.driver-availability-bar--scheduled {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.14), rgba(99, 102, 241, 0.06));
+  border-color: rgba(99, 102, 241, 0.28);
+}
+
+.driver-trip-bar--offline,
+.driver-availability-bar--offline {
+  background: linear-gradient(135deg, rgba(217, 119, 6, 0.14), rgba(217, 119, 6, 0.06));
+  border-color: rgba(217, 119, 6, 0.28);
+}
+
+.driver-trip-bar__main,
+.driver-availability-bar__main {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.driver-trip-bar__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.82);
+  color: #16a34a;
+  flex: 0 0 auto;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.12);
+}
+
+.driver-trip-bar__icon svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.driver-trip-bar__copy {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.driver-trip-bar__copy strong {
+  font-size: 0.84rem;
+  font-weight: 800;
+  color: #0f5132;
+  line-height: 1.2;
+}
+
+.driver-trip-bar__copy span {
+  font-size: 0.72rem;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.driver-trip-bar__map {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.driver-availability-bar__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: #16a34a;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.18);
+}
+
+.driver-availability-bar--busy .driver-availability-bar__dot {
+  background: #ea580c;
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.18);
+}
+
+.driver-availability-bar--scheduled .driver-availability-bar__dot {
+  background: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
+}
+
+.driver-availability-bar--offline .driver-availability-bar__dot {
+  background: #d97706;
+  box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.18);
+}
+
+.driver-availability-bar__copy {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.driver-availability-bar__copy strong {
+  font-size: 0.84rem;
+  font-weight: 800;
+  color: #0f5132;
+}
+
+.driver-availability-bar--busy .driver-availability-bar__copy strong {
+  color: #9a3412;
+}
+
+.driver-availability-bar--scheduled .driver-availability-bar__copy strong {
+  color: #3730a3;
+}
+
+.driver-availability-bar--offline .driver-availability-bar__copy strong {
+  color: #92400e;
+}
+
+.driver-availability-bar__detail {
+  font-size: 0.72rem;
+  color: #64748b;
+  line-height: 1.3;
+}
+
+.driver-card-spec-grid {
+  gap: 0.5rem;
+}
+
+.driver-card-spec-grid .trip-ops-card-item {
+  background: #f8fafc;
+  border-color: #edf1f5;
+}
+
+.driver-card-spec-body {
+  align-items: flex-start;
+}
+
+.driver-card-spec-body .trip-ops-card-item-icon {
+  margin-top: 0.05rem;
+}
+
+.trip-ops-card-item-value-wrap {
+  display: grid;
+  gap: 0.08rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.driver-card-spec-sub {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #64748b;
+}
+
+.driver-card-spec-sub--ok {
+  color: #16a34a;
+}
+
+.driver-card-spec-sub--warn {
+  color: #d97706;
+}
+
+.driver-card-spec-sub--alert {
+  color: #dc2626;
+}
+
+.driver-card-actions {
+  padding-top: 0.1rem;
+  gap: 0.45rem;
+}
+
+.driver-card-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.driver-card-actions-grid .trip-ops-card-btn,
+.driver-card-status-btn {
+  width: 100%;
+  min-height: 2.35rem;
+  padding: 0.5rem 0.55rem;
+  font-size: 0.74rem;
+}
+
+.drivers-ops-cards {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr));
+}
+
+@media (max-width: 520px) {
+  .trip-ops-card-head--driver {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .driver-card-badges {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+  }
+
+  .driver-trip-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .driver-trip-bar__map {
+    width: 100%;
+  }
+
+  .driver-card-actions-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+body[data-theme="dark"] .trip-ops-card--driver .driver-card-title {
+  color: #e6f1ff;
+}
+
+body[data-theme="dark"] .trip-ops-card-head--driver .driver-avatar {
+  background: linear-gradient(145deg, rgba(59, 130, 246, 0.28), rgba(37, 99, 235, 0.18));
+  color: #bfdbfe;
+}
+
+body[data-theme="dark"] .driver-card-spec-grid .trip-ops-card-item {
+  background: rgba(15, 28, 46, 0.55);
+  border-color: rgba(148, 196, 255, 0.12);
+}
+
+body[data-theme="dark"] .driver-trip-bar--available,
+body[data-theme="dark"] .driver-trip-bar--busy,
+body[data-theme="dark"] .driver-availability-bar--available,
+body[data-theme="dark"] .driver-availability-bar--busy {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.18), rgba(16, 185, 129, 0.08));
+  border-color: rgba(16, 185, 129, 0.28);
+}
+
+body[data-theme="dark"] .driver-trip-bar__copy strong,
+body[data-theme="dark"] .driver-availability-bar__copy strong {
+  color: #6ee7b7;
+}
+
 .request-company-preview {
   margin-top: 0.55rem;
   border: 1px solid color-mix(in srgb, var(--primary) 18%, var(--line));
@@ -30148,6 +30549,36 @@ body[data-theme="dark"] .portal-detail-loc-line {
   gap: 1.15rem;
 }
 
+.portal-detail-hero--trip,
+.portal-detail-hero--request {
+  align-items: flex-start;
+}
+
+.portal-detail-route-line {
+  margin: 0.45rem 0 0;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.portal-detail-route-line svg {
+  flex-shrink: 0;
+  margin-right: 0.2rem;
+  color: var(--primary);
+}
+
+.portal-detail-highlight__actions {
+  margin-top: 0.75rem;
+  padding-top: 0.7rem;
+  border-top: 1px dashed color-mix(in srgb, var(--primary) 18%, var(--line));
+}
+
+.portal-detail-highlight--notes .detail-note {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
 .portal-detail-hero--vehicle {
   align-items: center;
 }
@@ -30542,10 +30973,48 @@ body[data-theme="dark"] .approve-trip-pill--tk {
 #crud-modal .modal-card.modal-card-edit > #crud-modal-content {
   flex: 1 1 auto;
   min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+#crud-modal .modal-card.modal-card-edit > #crud-modal-content:not(:has(.modal-info-layout)) {
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+}
+
+.modal-info-layout {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+}
+
+.modal-info-layout > .modal-head {
+  flex-shrink: 0;
+  margin-bottom: 0.75rem;
+}
+
+.modal-info-layout__scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding-right: 0.25rem;
+  scrollbar-gutter: stable;
+}
+
+.modal-info-layout > .module-panel-actions--footer.modal-edit-actions {
+  flex-shrink: 0;
+  margin-top: 0.85rem !important;
+  margin-bottom: 0 !important;
+  position: relative;
+  z-index: 2;
 }
 
 .trip-assign-friendly-intro {
@@ -33253,16 +33722,20 @@ body[data-theme="dark"] .modal-card-edit--employee-non-renewal .modal-edit-actio
 
 .module-panel-actions--footer.modal-edit-actions .module-panel-actions__bar {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 0.75rem 1rem;
   margin-top: 0;
-  padding: 0.8rem 1.15rem;
+  padding: 0.85rem 1.15rem 0.95rem;
   border-top: 1px solid rgba(148, 163, 184, 0.24);
   border-radius: 0 0 var(--radius) var(--radius);
   background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+.modal-info-layout > .module-panel-actions--footer.modal-edit-actions .module-panel-actions__bar {
+  padding-bottom: 1rem;
 }
 
 .report-preview-actions.module-panel-actions--footer.modal-edit-actions .module-panel-actions__bar {
@@ -33495,6 +33968,18 @@ body[data-theme="dark"] .module-panel-actions--footer.modal-edit-actions .module
 }
 
 /* Ítems del dash-grid dentro de modales de info → tiles visuales */
+.modal-info-body .dash-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+@media (max-width: 640px) {
+  .modal-info-body .dash-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .modal-info-body .dash-grid > div,
 .modal-info-body .dash-grid > p {
   padding: 0.7rem 0.9rem;

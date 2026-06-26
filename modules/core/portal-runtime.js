@@ -294,6 +294,20 @@ const writeAwaitServerDelete = globalThis.writeAwaitServerDelete;
 const writeAwaitServerLatestQueuedEmail = globalThis.writeAwaitServerLatestQueuedEmail;
 /** Expuesto desde `payroll-catalog-sanitize.domain` vía `Object.assign(window, …)` en index. */
 const normalizeLatinForDb = globalThis.normalizeLatinForDb;
+/** Expuesto desde `reporteria.domain` vía `Object.assign(window, …)` en index. */
+const reportsExportPeriodLabel = globalThis.reportsExportPeriodLabel;
+const normalizeReportsExportFilters = globalThis.normalizeReportsExportFilters;
+const reportPreviewColumnMeta = globalThis.reportPreviewColumnMeta;
+const reportPreviewResolveCellType = globalThis.reportPreviewResolveCellType;
+const reportPreviewFormatValue = globalThis.reportPreviewFormatValue;
+const reportPreviewTone = globalThis.reportPreviewTone;
+const reportPreviewCellInnerHtml = globalThis.reportPreviewCellInnerHtml;
+const reportBrandLogoSrc = globalThis.reportBrandLogoSrc;
+const reportBrandCopyrightText = globalThis.reportBrandCopyrightText;
+const canAccessReport = globalThis.canAccessReport;
+const exportCatalogReportPdf = globalThis.exportCatalogReportPdf;
+const downloadBlobFile = globalThis.downloadBlobFile;
+const reportExportFilename = globalThis.reportExportFilename;
 
 /**
  * Estado central (`state`), referencias DOM (`nodes`) y helpers asociados se definen en
@@ -5990,18 +6004,23 @@ function portalDetailComposeModal(parts = {}) {
   const tiles = String(parts.tilesHtml || "").trim();
   const highlight = String(parts.highlightHtml || "").trim();
   const sections = String(parts.sectionsHtml || "").trim();
+  const extra = String(parts.extraHtml || "").trim();
   return `<div class="portal-detail-modal">
     ${hero}
     ${tiles ? `<div class="portal-detail-tiles">${tiles}</div>` : ""}
     ${highlight}
     ${sections}
+    ${extra}
   </div>`;
 }
 
 function openPortalDetailSheet(opts = {}) {
+  const subtitleHtml = String(opts.subtitleHtml || "").trim();
+  const subtitle = String(opts.subtitle || "").trim();
   openInfoModal({
     title: opts.title || "Detalle",
-    subtitle: opts.subtitle || "",
+    subtitle: subtitleHtml ? "" : subtitle,
+    subtitleHtml: subtitleHtml || "",
     bodyHtml: portalDetailComposeModal(opts),
     wide: opts.wide !== false,
     extraModalCardClass: `modal-card--portal-detail${opts.extraModalCardClass ? ` ${escapeAttr(String(opts.extraModalCardClass).trim())}` : ""}`,
@@ -6999,7 +7018,7 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = fa
     const contractAlertBar = showContractAlert
       ? `<div class="payroll-emp-contract-alert${contract.statusSlug === "expired" ? " payroll-emp-contract-alert--expired" : ""}">${escapeHtml(contract.headline || contract.pillLabel || "Contrato requiere atención")}</div>`
       : "";
-    return `<article class="directory-card directory-card--employee directory-card--compact directory-card--contract-${escapeAttr(statusSlug)}" data-employee-id="${escapeAttr(String(e.id || ""))}" data-employee-search="${escapeAttr(item.searchBlob)}" data-employee-contract-filter="${escapeAttr(contract.applies ? contract.statusSlug : "all")}">
+    return `<article class="directory-card portal-ops-card trip-ops-card directory-card--employee directory-card--compact directory-card--contract-${escapeAttr(statusSlug)}" data-employee-id="${escapeAttr(String(e.id || ""))}" data-employee-search="${escapeAttr(item.searchBlob)}" data-employee-contract-filter="${escapeAttr(contract.applies ? contract.statusSlug : "all")}">
     <div class="directory-card__compact-row">
       <div class="payroll-emp-avatar payroll-emp-avatar--${avColorIdx}" aria-hidden="true">${escapeHtml(initials)}</div>
       <div class="directory-card__compact-main">
@@ -7028,7 +7047,7 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = fa
     ${contractAlertBar}
   </article>`;
   }
-  return `<article class="directory-card directory-card--employee directory-card--contract-${escapeAttr(statusSlug)}" data-employee-id="${escapeAttr(String(e.id || ""))}" data-employee-search="${escapeAttr(item.searchBlob)}" data-employee-contract-filter="${escapeAttr(contract.applies ? contract.statusSlug : "all")}">
+  return `<article class="directory-card portal-ops-card trip-ops-card directory-card--employee directory-card--contract-${escapeAttr(statusSlug)}" data-employee-id="${escapeAttr(String(e.id || ""))}" data-employee-search="${escapeAttr(item.searchBlob)}" data-employee-contract-filter="${escapeAttr(contract.applies ? contract.statusSlug : "all")}">
     <header class="directory-card__head">
       <div class="directory-card__identity">
         <div class="${avatarClass}">${avatarInner}</div>
@@ -8992,11 +9011,14 @@ function reportPreviewEscHandler(event) {
 }
 
 function openReportPreviewModal(report) {
+  const exportFilters = normalizeReportsExportFilters(state.reportsUi?.exportFilters || { period: state.reportsUi?.period || "90d" });
   const payload = {
     title: report?.title || "Reporte",
     columns: report?.columns || [],
     rows: report?.rows || [],
-    fileName: report?.fileName || "reporte.pdf"
+    fileName: report?.fileName || "reporte.pdf",
+    reportId: String(report?.reportId || "").trim(),
+    period: exportFilters.period || "90d"
   };
   state.reportPreviewPayload = payload;
   const modal = ensureReportPreviewModal();
@@ -9011,10 +9033,11 @@ function openReportPreviewModal(report) {
     const rowCount = payload.rows.length;
     const colCount = payload.columns.length;
     const dateStr = fmtDate(nowIso());
+    const periodLabel = reportsExportPeriodLabel(payload.period);
     const userChip = actor?.name
       ? `<span class="report-preview-stat">${IC.user}<span>${escapeHtml(actor.name)}</span></span>`
       : "";
-    statsEl.innerHTML = `<span class="report-preview-stat">${IC.calendar}<span>Generado ${escapeHtml(dateStr)}</span></span>${userChip}<span class="report-preview-stat">${IC.file}<span>${rowCount} registro${rowCount === 1 ? "" : "s"}</span></span><span class="report-preview-stat">${IC.columns}<span>${colCount} columna${colCount === 1 ? "" : "s"}</span></span>`;
+    statsEl.innerHTML = `<span class="report-preview-stat">${IC.calendar}<span>Generado ${escapeHtml(dateStr)}</span></span><span class="report-preview-stat">${IC.clock}<span>${escapeHtml(periodLabel)}</span></span>${userChip}<span class="report-preview-stat">${IC.file}<span>${rowCount} registro${rowCount === 1 ? "" : "s"}</span></span><span class="report-preview-stat">${IC.columns}<span>${colCount} columna${colCount === 1 ? "" : "s"}</span></span>`;
   }
   if (logoEl) logoEl.src = reportBrandLogoSrc();
   if (bodyEl) bodyEl.innerHTML = renderReportPreviewTableHtml(payload.columns, payload.rows);
@@ -11266,7 +11289,7 @@ function renderHiringCandidateCard(c, ctx) {
   const canDlCv = Boolean(ctx.canDlCv);
   const statusClass = hiringPipelineStatusClass(c.status);
   const employeeMatch = findPayrollEmployeeByIdDoc(c.idDoc);
-  return `<article class="hiring-candidate-card">
+  return `<article class="hiring-candidate-card portal-ops-card trip-ops-card">
     <header class="hiring-candidate-card__head">
       <div>
         <h4>${escapeHtml(String(c.name || ""))}</h4>

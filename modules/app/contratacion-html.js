@@ -435,7 +435,7 @@ function hiringHtml() {
     ? `<div class="table-wrap hiring-table-wrap hiring-table-wrap--vacancies"><table class="hiring-table hiring-table--vacancies"><thead><tr><th>Vacante</th><th>Cargo base</th><th>Ubicación</th><th>Cupos</th><th>Salario</th><th>Límite</th><th>Estado</th><th style="min-width:11rem">Acciones</th></tr></thead><tbody>${vacRows}</tbody></table></div>`
     : hiringEmptyState("Sin vacantes", { action: "hiring-operate-section", section: "vacancy", label: "Publicar vacante" });
   const tCand = candRows
-    ? `<div class="hiring-cards hiring-cards--candidates">${candCards}</div><div class="hiring-table-desktop table-wrap hiring-table-wrap hiring-table-wrap--candidates"><table class="hiring-table hiring-table--candidates"><thead><tr><th>Candidato</th><th>Contacto</th><th>Vacante</th><th>Experiencia / edad</th><th>Origen</th><th>Estado</th><th>Cambiar</th><th>Acciones</th></tr></thead><tbody>${candRows}</tbody></table></div>`
+    ? `<div class="hiring-cards hiring-cards--candidates portal-ops-cards">${candCards}</div><div class="hiring-table-desktop table-wrap hiring-table-wrap hiring-table-wrap--candidates"><table class="hiring-table hiring-table--candidates"><thead><tr><th>Candidato</th><th>Contacto</th><th>Vacante</th><th>Experiencia / edad</th><th>Origen</th><th>Estado</th><th>Cambiar</th><th>Acciones</th></tr></thead><tbody>${candRows}</tbody></table></div>`
     : hiringEmptyState(
         candidateFilter === "finalized" ? "Sin candidatos finalizados" : "Sin candidatos en esta vista",
         { action: "hiring-operate-section", section: "candidate", label: "Registrar candidato" }
