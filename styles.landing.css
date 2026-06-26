@@ -202,7 +202,7 @@ body[data-theme="dark"] .brand-logo {
 
 nav {
   display: flex;
-  gap: 0.18rem;
+  gap: 0.1rem;
   flex-wrap: nowrap;
   align-items: center;
   overflow-x: auto;
@@ -218,10 +218,10 @@ nav a {
   text-decoration: none;
   font-size: clamp(0.8125rem, 0.95vw, 0.9025rem);
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
   line-height: 1.25;
   position: relative;
-  padding: 0.42rem 0.68rem;
+  padding: 0.42rem 0.6rem;
   border-radius: 999px;
   white-space: nowrap;
   scroll-snap-align: start;
@@ -293,13 +293,23 @@ nav a.active::after { width: 58%; }
   transform: translateY(-6px) rotate(-45deg);
 }
 
-@media (max-width: 920px) {
+@media (max-width: 1024px) {
 body:not(.portal-mode) #main-nav:not(.nav-open) {
     display: none !important;
   }
 body:not(.portal-mode).public-nav-open {
     overflow: hidden;
     overscroll-behavior: none;
+  }
+body:not(.portal-mode).public-nav-open::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: rgba(8, 20, 35, 0.46);
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+    animation: publicNavBackdropIn 0.32s ease both;
   }
 body:not(.portal-mode) .top-nav .hamburger {
     display: inline-flex;
@@ -481,10 +491,14 @@ body:not(.portal-mode) #main-nav.nav-open {
 }
 }
 
-@media (min-width: 921px) {
+@media (min-width: 1025px) {
 body:not(.portal-mode).public-nav-open {
     overflow: visible;
     overscroll-behavior: auto;
+  }
+body:not(.portal-mode) #main-nav {
+    -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 26px), transparent 100%);
+    mask-image: linear-gradient(90deg, #000 calc(100% - 26px), transparent 100%);
   }
 }
 
@@ -3538,6 +3552,11 @@ body[data-theme="dark"] .b2b-leads-brief {
   }
 }
 
+@keyframes publicNavBackdropIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 @keyframes portalNavLinkIn {
   from {
     opacity: 0;
@@ -3550,8 +3569,9 @@ body[data-theme="dark"] .b2b-leads-brief {
 }
 
 @media (prefers-reduced-motion: reduce) {
-@media (max-width: 920px) {
-body:not(.portal-mode) #main-nav.nav-open {
+@media (max-width: 1024px) {
+body:not(.portal-mode) #main-nav.nav-open,
+body:not(.portal-mode).public-nav-open::before {
       animation: none !important;
     }
 }
@@ -3560,19 +3580,33 @@ body.portal-drawer-open #portal-sidebar .side-link {
   }
 }
 
-@media (max-width: 920px) {
-.nav-controls {
-    order: 4;
-    width: 100%;
-    justify-content: flex-end;
-    margin-top: 0.35rem;
-  }
+@media (max-width: 1024px) {
 .theme-option,
   .lang-option {
     width: 30px;
     height: 30px;
     font-size: 0.85rem;
   }
+}
+
+@media (max-width: 560px) {
+.nav-wrap {
+    flex-wrap: wrap;
+    row-gap: 0.4rem;
+  }
+.nav-controls {
+    order: 5;
+    flex-basis: 100%;
+    margin-left: 0;
+    justify-content: flex-end;
+  }
+body:not(.portal-mode) .top-nav .hamburger {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+@media (max-width: 920px) {
 body.portal-drawer-open .portal-nav-backdrop {
     opacity: 1;
     visibility: visible;

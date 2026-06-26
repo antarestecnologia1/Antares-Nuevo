@@ -4342,7 +4342,12 @@ export class PortalService implements OnModuleInit {
         return;
       case "payrollEmployees":
         if (!can("payroll_manage")) throw new ForbiddenException();
-        await this.syncPayrollEmployees(c, data, deletedIds);
+        await this.syncPayrollEmployees(
+          c,
+          data,
+          deletedIds,
+          await this.resolvePayrollWriteCompanyScope(admin, userId)
+        );
         try {
           await this.refreshPayrollDraftsAfterEmployeesSync(c, data);
         } catch (e) {
@@ -4353,7 +4358,12 @@ export class PortalService implements OnModuleInit {
         return;
       case "payrollRuns":
         if (!can("payroll_manage")) throw new ForbiddenException();
-        await this.syncPayrollRuns(c, data, deletedIds);
+        await this.syncPayrollRuns(
+          c,
+          data,
+          deletedIds,
+          await this.resolvePayrollWriteCompanyScope(admin, userId)
+        );
         return;
       case "fuelLogs":
         if (!can("transport_history")) throw new ForbiddenException();
@@ -4377,12 +4387,22 @@ export class PortalService implements OnModuleInit {
         return;
       case "hrAbsences":
         if (!can("payroll_manage")) throw new ForbiddenException();
-        await this.syncHrAbsences(c, data, deletedIds);
+        await this.syncHrAbsences(
+          c,
+          data,
+          deletedIds,
+          await this.resolvePayrollWriteCompanyScope(admin, userId)
+        );
         await this.refreshPayrollDraftsAfterHrAbsencesSync(c, data);
         return;
       case "sstCompliance":
         if (!can("sst_compliance")) throw new ForbiddenException();
-        await this.syncSst(c, data, deletedIds);
+        await this.syncSst(
+          c,
+          data,
+          deletedIds,
+          await this.resolvePayrollWriteCompanyScope(admin, userId)
+        );
         return;
       case "tripRouteRates":
         if (!can("transport_trips")) throw new ForbiddenException();
@@ -6509,6 +6529,14 @@ export class PortalService implements OnModuleInit {
     if (!canPayroll) throw new ForbiddenException("Sin permiso para consultar liquidaciones.");
     const id = String(runId || "").trim();
     if (!PG_UUID_V4_RE.test(id)) throw new BadRequestException("Identificador de liquidación inválido.");
+    /**
+     * Aislamiento por empresa estricto: un usuario sin empresa asignada (id_empresa NULL)
+     * no debe poder leer liquidaciones de otros tenants. Antes la cláusula
+     * "($2 IS NULL OR e.id_empresa = $2)" permitía leer cualquier liquidación por UUID.
+     */
+    if (!admin && !empresaId) {
+      throw new ForbiddenException("Su cuenta no tiene una empresa asignada para consultar liquidaciones.");
+    }
     const r = admin
       ? await this.pool.query(`SELECT * FROM liquidaciones_nomina WHERE id = $1::uuid LIMIT 1`, [id])
       : await this.pool.query(
@@ -6516,7 +6544,7 @@ export class PortalService implements OnModuleInit {
              FROM liquidaciones_nomina ln
              INNER JOIN empleados_nomina e ON e.id = ln.id_empleado
             WHERE ln.id = $1::uuid
-              AND ($2::uuid IS NULL OR e.id_empresa = $2::uuid)
+              AND e.id_empresa = $2::uuid
             LIMIT 1`,
           [id, empresaId]
         );
@@ -6830,7 +6858,8 @@ export class PortalService implements OnModuleInit {
   private async deleteRowsByExplicitIds(
     c: PoolClient,
     table: string,
-    deletedIds: unknown[] | undefined
+    deletedIds: unknown[] | undefined,
+    companyScope?: { companyId: string; via: "id_empresa" | "id_empleado" }
   ): Promise<void> {
     const ids = (Array.isArray(deletedIds) ? deletedIds : [])
       .map((raw) => String(raw ?? "").trim())
@@ -6838,7 +6867,70 @@ export class PortalService implements OnModuleInit {
     if (ids.length === 0) {
       return;
     }
+    /**
+     * Aislamiento por empresa (salvo admin): un borrado vía sync solo puede afectar filas
+     * de la empresa del actor. Para tablas con `id_empresa` se filtra directo; para las que
+     * referencian al colaborador (`id_empleado`) se acota por la empresa del empleado.
+     */
+    if (companyScope) {
+      if (companyScope.via === "id_empresa") {
+        await c.query(
+          `DELETE FROM ${table} WHERE id = ANY($1::uuid[]) AND id_empresa = $2::uuid`,
+          [ids, companyScope.companyId]
+        );
+      } else {
+        await c.query(
+          `DELETE FROM ${table}
+            WHERE id = ANY($1::uuid[])
+              AND id_empleado IN (SELECT id FROM empleados_nomina WHERE id_empresa = $2::uuid)`,
+          [ids, companyScope.companyId]
+        );
+      }
+      return;
+    }
     await c.query(`DELETE FROM ${table} WHERE id = ANY($1::uuid[])`, [ids]);
+  }
+
+  /**
+   * Resuelve el alcance de empresa para escrituras de nómina/RRHH vía sync.
+   * Admin: sin restricción (null). No admin: su empresa; si no tiene, se deniega.
+   */
+  private async resolvePayrollWriteCompanyScope(
+    admin: boolean,
+    userId: string
+  ): Promise<string | null> {
+    if (admin) return null;
+    const company = String((await this.getUserCompany(userId)) || "").trim();
+    if (!company || !PG_UUID_V4_RE.test(company)) {
+      throw new ForbiddenException(
+        "Su cuenta no tiene una empresa asignada para gestionar nómina o recursos humanos."
+      );
+    }
+    return company;
+  }
+
+  /** Verifica que todos los colaboradores referenciados pertenezcan a la empresa del actor. */
+  private async assertPayrollEmployeesInCompany(
+    c: PoolClient,
+    employeeIds: unknown[],
+    companyId: string
+  ): Promise<void> {
+    const ids = [
+      ...new Set(
+        employeeIds.map((raw) => String(raw ?? "").trim()).filter((s) => PG_UUID_V4_RE.test(s))
+      )
+    ];
+    if (ids.length === 0) return;
+    const r = await c.query<{ id: string }>(
+      `SELECT id::text FROM empleados_nomina WHERE id = ANY($1::uuid[]) AND id_empresa = $2::uuid`,
+      [ids, companyId]
+    );
+    const allowed = new Set(r.rows.map((row) => row.id));
+    if (ids.some((id) => !allowed.has(id))) {
+      throw new ForbiddenException(
+        "No puede modificar registros de nómina de colaboradores de otra empresa."
+      );
+    }
   }
 
   private syncPruneTableForKey(key: PortalSyncKey): string | null {
@@ -6867,10 +6959,11 @@ export class PortalService implements OnModuleInit {
     c: PoolClient,
     table: string,
     data: unknown[],
-    deletedIds?: string[]
+    deletedIds?: string[],
+    companyScope?: { companyId: string; via: "id_empresa" | "id_empleado" }
   ): Promise<void> {
     void data;
-    await this.deleteRowsByExplicitIds(c, table, deletedIds);
+    await this.deleteRowsByExplicitIds(c, table, deletedIds, companyScope);
   }
 
   private async syncUsers(c: PoolClient, data: unknown, userId: string, role: JwtRole) {
@@ -7820,11 +7913,12 @@ export class PortalService implements OnModuleInit {
         throw new BadRequestException("La fecha de entrega debe ser posterior a la de recogida.");
       }
 
-      const estadoSql = this.solicitudEstadoFromPayload(req);
+      let estadoSql = this.solicitudEstadoFromPayload(req);
 
-      const existingReq = await c.query(`SELECT numero_solicitud FROM solicitudes_transporte WHERE id = $1::uuid LIMIT 1`, [
-        rowId
-      ]);
+      const existingReq = await c.query(
+        `SELECT numero_solicitud, estado::text AS estado FROM solicitudes_transporte WHERE id = $1::uuid LIMIT 1`,
+        [rowId]
+      );
       let requestNumber = "";
       try {
         requestNumber =
@@ -7833,6 +7927,19 @@ export class PortalService implements OnModuleInit {
             : await this.ensureUniqueRequestNumberTx(c, req.requestNumber);
       } catch (numErr) {
         this.mapRequestSyncDbError(numErr, String(req.requestNumber || ""));
+      }
+
+      /**
+       * Endurecimiento de autorización: un cliente del portal NO puede escalar el estado de
+       * su solicitud vía sync (p. ej. autoaprobarla o marcarla completada/cerrada). Al crear
+       * queda en "Pendiente"; si la fila ya existe se conserva el estado vigente en el servidor.
+       * La aprobación/asignación/cierre la realizan operaciones o un administrador.
+       */
+      if (isClient) {
+        const currentEstado = existingReq.rowCount
+          ? String(existingReq.rows[0]?.estado || "").trim()
+          : "";
+        estadoSql = currentEstado || "Pendiente";
       }
 
       try {
@@ -8613,6 +8720,11 @@ export class PortalService implements OnModuleInit {
         [n.id]
       );
       if (!(exists.rowCount ?? 0)) continue;
+      /**
+       * El propietario se valida contra la fila real en BD (id_usuario o audiencia),
+       * no contra el userId del payload (que el cliente puede falsificar). Así un
+       * usuario no puede marcar como leída la notificación personal de otro.
+       */
       await c.query(
         `UPDATE notificaciones
          SET fecha_lectura = CASE
@@ -8620,8 +8732,9 @@ export class PortalService implements OnModuleInit {
                ELSE GREATEST(fecha_lectura, $2::timestamptz)
              END,
              leido = true
-         WHERE id = $1::uuid`,
-        [n.id, readAtParam]
+         WHERE id = $1::uuid
+           AND (id_usuario = $3::uuid OR audiencia IN ('admins', 'hr'))`,
+        [n.id, readAtParam, userId]
       );
     }
 
@@ -8807,12 +8920,19 @@ export class PortalService implements OnModuleInit {
   private async syncPayrollEmployees(
     c: PoolClient,
     data: unknown,
-    deletedIds?: string[]
+    deletedIds?: string[],
+    companyScope?: string | null
   ) {
     if (!Array.isArray(data)) throw new ForbiddenException();
     this.payrollEmployeeSchemaTier = undefined;
     let tier = await this.resolvePayrollEmployeeSchemaTier(c);
-    await this.syncListWithPruning(c, "empleados_nomina", data, deletedIds);
+    await this.syncListWithPruning(
+      c,
+      "empleados_nomina",
+      data,
+      deletedIds,
+      companyScope ? { companyId: companyScope, via: "id_empresa" } : undefined
+    );
 
     /**
      * id_cargo es FK a cargos (nullable, ON DELETE SET NULL). Si el cargo aún no
@@ -9206,6 +9326,9 @@ export class PortalService implements OnModuleInit {
       incomingWithIds += 1;
       if (this.skipUnlessPersistUuid("syncPayrollEmployees", e.id)) continue;
       if (this.skipUnlessPersistUuid("syncPayrollEmployees.companyId", e.companyId)) continue;
+      if (companyScope && String(e.companyId).trim() !== companyScope) {
+        throw new ForbiddenException("No puede crear o modificar colaboradores de otra empresa.");
+      }
       const p = pickPortalField;
       const name = nu(e.name ?? "Empleado") || "EMPLEADO";
       const docType = String(e.documentType || "CC")
@@ -9705,11 +9828,29 @@ export class PortalService implements OnModuleInit {
     ]);
   }
 
-  private async syncPayrollRuns(c: PoolClient, data: unknown, deletedIds?: string[]) {
+  private async syncPayrollRuns(
+    c: PoolClient,
+    data: unknown,
+    deletedIds?: string[],
+    companyScope?: string | null
+  ) {
     if (!Array.isArray(data)) throw new ForbiddenException();
+    if (companyScope) {
+      await this.assertPayrollEmployeesInCompany(
+        c,
+        data.map((raw) => (raw as { employeeId?: unknown })?.employeeId),
+        companyScope
+      );
+    }
     const tier = await this.resolvePayrollLiquSchemaTier(c);
     const hasNov = await this.resolvePayrollLiquNovedadesCols(c);
-    await this.syncListWithPruning(c, "liquidaciones_nomina", data, deletedIds);
+    await this.syncListWithPruning(
+      c,
+      "liquidaciones_nomina",
+      data,
+      deletedIds,
+      companyScope ? { companyId: companyScope, via: "id_empleado" } : undefined
+    );
     for (const raw of data) {
       const hit = raw as { id?: unknown; employeeId?: unknown };
       if (!hit?.id || !hit.employeeId) continue;
@@ -11378,9 +11519,27 @@ export class PortalService implements OnModuleInit {
     }
   }
 
-  private async syncHrAbsences(c: PoolClient, data: unknown, deletedIds?: string[]) {
+  private async syncHrAbsences(
+    c: PoolClient,
+    data: unknown,
+    deletedIds?: string[],
+    companyScope?: string | null
+  ) {
     if (!Array.isArray(data)) throw new ForbiddenException();
-    await this.syncListWithPruning(c, "ausencias_laborales", data, deletedIds);
+    if (companyScope) {
+      await this.assertPayrollEmployeesInCompany(
+        c,
+        data.map((raw) => (raw as { employeeId?: unknown })?.employeeId),
+        companyScope
+      );
+    }
+    await this.syncListWithPruning(
+      c,
+      "ausencias_laborales",
+      data,
+      deletedIds,
+      companyScope ? { companyId: companyScope, via: "id_empleado" } : undefined
+    );
     for (const raw of data) {
       const row = raw as Record<string, unknown>;
       if (!row?.id || !row.employeeId) continue;
@@ -11455,9 +11614,27 @@ export class PortalService implements OnModuleInit {
     }
   }
 
-  private async syncSst(c: PoolClient, data: unknown, deletedIds?: string[]) {
+  private async syncSst(
+    c: PoolClient,
+    data: unknown,
+    deletedIds?: string[],
+    companyScope?: string | null
+  ) {
     if (!Array.isArray(data)) throw new ForbiddenException();
-    await this.syncListWithPruning(c, "registros_cumplimiento_sst", data, deletedIds);
+    if (companyScope) {
+      await this.assertPayrollEmployeesInCompany(
+        c,
+        data.map((raw) => (raw as { employeeId?: unknown })?.employeeId),
+        companyScope
+      );
+    }
+    await this.syncListWithPruning(
+      c,
+      "registros_cumplimiento_sst",
+      data,
+      deletedIds,
+      companyScope ? { companyId: companyScope, via: "id_empleado" } : undefined
+    );
     for (const row of data) {
       if (!row?.id || !row.employeeId) continue;
       if (this.skipUnlessPersistUuid("syncSst", row.id)) continue;

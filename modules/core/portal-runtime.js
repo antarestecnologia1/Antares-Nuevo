@@ -4767,7 +4767,7 @@ function prettyStatus(status, scope = "general") {
    */
   const movingScopes = scope === "request" || scope === "trip";
   const road = movingScopes && (key === "viaje_asignado" || key === "en_transito");
-  return `<span class="status-pretty status-${key} ${road ? "status-road" : ""}">${icon}<span>${status}</span></span>`;
+  return `<span class="status-pretty status-${key} ${road ? "status-road" : ""}">${icon}<span>${escapeHtml(status)}</span></span>`;
 }
 
 function departmentOptions(selected = "") {
@@ -5583,7 +5583,7 @@ function openTripInvoicePdf(requestId) {
   <html lang="es">
   <head>
     <meta charset="utf-8" />
-    <title>Factura ${invoice.number}</title>
+    <title>Factura ${escapeHtml(invoice.number)}</title>
     <style>
       body{font-family:Arial,sans-serif;color:#0f172a;margin:0;padding:24px;background:#f8fafc}
       .sheet{max-width:900px;margin:0 auto;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:26px}
@@ -5605,30 +5605,30 @@ function openTripInvoicePdf(requestId) {
     <div class="sheet">
       <div class="head">
         <div>
-          <h1>Factura de viaje ${invoice.number}</h1>
-          <div class="muted">Generada: ${fmtDate(invoice.generatedAt)}</div>
+          <h1>Factura de viaje ${escapeHtml(invoice.number)}</h1>
+          <div class="muted">Generada: ${escapeHtml(fmtDate(invoice.generatedAt))}</div>
         </div>
         <div>
-          <strong>${invoice.issuer}</strong><br />
+          <strong>${escapeHtml(invoice.issuer)}</strong><br />
           <span class="muted">NIT 900.000.000-0</span>
         </div>
       </div>
       <div class="grid">
         <div class="box">
           <strong>Cliente</strong><br />
-          ${request.clientName || "-"}<br />
-          <span class="muted">Solicitud: ${request.requestNumber || request.id}</span>
+          ${escapeHtml(request.clientName || "-")}<br />
+          <span class="muted">Solicitud: ${escapeHtml(request.requestNumber || request.id)}</span>
         </div>
         <div class="box">
           <strong>Viaje</strong><br />
-          ${request.trip.tripNumber || "-"}<br />
-          <span class="muted">${request.trip.vehiclePlate || "-"} · ${request.trip.driverName || "-"}</span>
+          ${escapeHtml(request.trip.tripNumber || "-")}<br />
+          <span class="muted">${escapeHtml(request.trip.vehiclePlate || "-")} · ${escapeHtml(request.trip.driverName || "-")}</span>
         </div>
       </div>
       <table>
         <thead><tr><th>Concepto</th><th>Detalle</th><th>Valor</th></tr></thead>
         <tbody>
-          <tr><td>Servicio de transporte</td><td>${formatRoute(request)}</td><td>$${invoice.baseValue.toLocaleString("es-CO")}</td></tr>
+          <tr><td>Servicio de transporte</td><td>${escapeHtml(formatRoute(request))}</td><td>$${invoice.baseValue.toLocaleString("es-CO")}</td></tr>
           <tr><td>Standby</td><td>Cargos por espera</td><td>$${invoice.standbyValue.toLocaleString("es-CO")}</td></tr>
         </tbody>
       </table>
@@ -12724,14 +12724,16 @@ function initPublicCareers() {
       .map((v) => {
         const salary = parseNum(v.salaryOffer);
         const salaryStr = `$${salary.toLocaleString("es-CO")}`;
-        const deadline = v.deadline ? `${tPublic("Cierre")}: ${v.deadline}` : tPublic("Sin fecha limite");
-        const req = String(v.requirements || "").slice(0, 180);
+        const deadline = v.deadline
+          ? `${tPublic("Cierre")}: ${escapeHtml(v.deadline)}`
+          : tPublic("Sin fecha limite");
+        const req = escapeHtml(String(v.requirements || "").slice(0, 180));
         const more = String(v.requirements || "").length > 180 ? "…" : "";
         return `<article class="careers-card lift-card">
-          <h3>${v.title}</h3>
-          <div class="careers-meta">${v.positionName || tPublic("Cargo")} · ${salaryStr} · ${deadline}</div>
+          <h3>${escapeHtml(v.title)}</h3>
+          <div class="careers-meta">${escapeHtml(v.positionName || tPublic("Cargo"))} · ${salaryStr} · ${deadline}</div>
           <p class="careers-req muted">${req}${more}</p>
-          <button type="button" class="btn btn-primary full" data-careers-apply data-id="${v.id}">${tPublic("Aplicar")}</button>
+          <button type="button" class="btn btn-primary full" data-careers-apply data-id="${escapeHtml(String(v.id ?? ""))}">${tPublic("Aplicar")}</button>
         </article>`;
       })
       .join("");

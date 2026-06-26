@@ -277,7 +277,7 @@ export function openTripInvoicePdf(requestId) {
   <html lang="es">
   <head>
     <meta charset="utf-8" />
-    <title>Factura ${invoice.number}</title>
+    <title>Factura ${escapeHtml(invoice.number)}</title>
     <style>
       body{font-family:Arial,sans-serif;color:#0f172a;margin:0;padding:24px;background:#f8fafc}
       .sheet{max-width:900px;margin:0 auto;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:26px}
@@ -299,30 +299,30 @@ export function openTripInvoicePdf(requestId) {
     <div class="sheet">
       <div class="head">
         <div>
-          <h1>Factura de viaje ${invoice.number}</h1>
-          <div class="muted">Generada: ${fmtDate(invoice.generatedAt)}</div>
+          <h1>Factura de viaje ${escapeHtml(invoice.number)}</h1>
+          <div class="muted">Generada: ${escapeHtml(fmtDate(invoice.generatedAt))}</div>
         </div>
         <div>
-          <strong>${invoice.issuer}</strong><br />
+          <strong>${escapeHtml(invoice.issuer)}</strong><br />
           <span class="muted">NIT 900.000.000-0</span>
         </div>
       </div>
       <div class="grid">
         <div class="box">
           <strong>Cliente</strong><br />
-          ${request.clientName || "-"}<br />
-          <span class="muted">Solicitud: ${request.requestNumber || request.id}</span>
+          ${escapeHtml(request.clientName || "-")}<br />
+          <span class="muted">Solicitud: ${escapeHtml(request.requestNumber || request.id)}</span>
         </div>
         <div class="box">
           <strong>Viaje</strong><br />
-          ${request.trip.tripNumber || "-"}<br />
-          <span class="muted">${request.trip.vehiclePlate || "-"} · ${request.trip.driverName || "-"}</span>
+          ${escapeHtml(request.trip.tripNumber || "-")}<br />
+          <span class="muted">${escapeHtml(request.trip.vehiclePlate || "-")} · ${escapeHtml(request.trip.driverName || "-")}</span>
         </div>
       </div>
       <table>
         <thead><tr><th>Concepto</th><th>Detalle</th><th>Valor</th></tr></thead>
         <tbody>
-          <tr><td>Servicio de transporte</td><td>${formatRoute(request)}</td><td>$${invoice.baseValue.toLocaleString("es-CO")}</td></tr>
+          <tr><td>Servicio de transporte</td><td>${escapeHtml(formatRoute(request))}</td><td>$${invoice.baseValue.toLocaleString("es-CO")}</td></tr>
           <tr><td>Standby</td><td>Cargos por espera</td><td>$${invoice.standbyValue.toLocaleString("es-CO")}</td></tr>
         </tbody>
       </table>

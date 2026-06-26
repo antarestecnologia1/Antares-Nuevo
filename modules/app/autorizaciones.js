@@ -901,8 +901,8 @@ function bindAuthorizationsPortalControls() {
           <head><title>Contrato</title></head>
           <body style="font-family:Arial;padding:28px">
             <h1>Contrato laboral (resumen interno)</h1>
-            <p class="muted">No se pudo regenerar el Word: ${String(err?.message || err).replace(/</g, "&lt;")}</p>
-            <pre style="white-space:pre-wrap;font-size:15px;line-height:1.6">${c.content}</pre>
+            <p class="muted">No se pudo regenerar el Word: ${escapeHtml(String(err?.message || err))}</p>
+            <pre style="white-space:pre-wrap;font-size:15px;line-height:1.6">${escapeHtml(String(c.content || ""))}</pre>
             <script>window.print();</script>
           </body>
         </html>

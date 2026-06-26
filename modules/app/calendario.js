@@ -596,12 +596,12 @@ function transportCalendarHtml() {
             title: `Viaje ${req.trip.tripNumber || ""}`,
             subtitleHtml: `${escapeHtml(req.clientName || "")}${req.clientName ? " · " : ""}${prettyStatus(req.status, "trip")}`,
             bodyHtml: `<div class="dash-grid">
-            <div><strong>Cliente:</strong> ${req.clientName || "-"}</div>
-            <div><strong>Ruta:</strong> ${req.trip.route || formatRoute(req)}</div>
-            <div><strong>Recogida:</strong> ${fmtDate(req.trip.etaPickup)}</div>
-            <div><strong>Entrega:</strong> ${fmtDate(req.trip.etaDelivery)}</div>
-            <div><strong>Camión:</strong> ${req.trip.vehiclePlate} (${req.trip.vehicleType || "-"})</div>
-            <div><strong>Conductor:</strong> ${req.trip.driverName} · ${req.trip.driverPhone || "-"}</div>
+            <div><strong>Cliente:</strong> ${escapeHtml(req.clientName || "-")}</div>
+            <div><strong>Ruta:</strong> ${escapeHtml(req.trip.route || formatRoute(req))}</div>
+            <div><strong>Recogida:</strong> ${escapeHtml(fmtDate(req.trip.etaPickup))}</div>
+            <div><strong>Entrega:</strong> ${escapeHtml(fmtDate(req.trip.etaDelivery))}</div>
+            <div><strong>Camión:</strong> ${escapeHtml(req.trip.vehiclePlate || "-")} (${escapeHtml(req.trip.vehicleType || "-")})</div>
+            <div><strong>Conductor:</strong> ${escapeHtml(req.trip.driverName || "-")} · ${escapeHtml(req.trip.driverPhone || "-")}</div>
           </div>`
           });
           return;

@@ -114,7 +114,11 @@ export class PortalController {
       req.user.role,
       candidateId
     );
-    const safeName = String(fileName || "hoja-de-vida").replace(/[\\/]/g, "_");
+    const safeName =
+      String(fileName || "hoja-de-vida")
+        // Evita inyección en la cabecera y ruptura del filename entre comillas (CR/LF, comillas, separadores de ruta).
+        .replace(/[\\/"\r\n\t\u0000-\u001f]/g, "_")
+        .slice(0, 200) || "hoja-de-vida";
     res
       .setHeader("Content-Type", mime || "application/octet-stream")
       .setHeader("Content-Disposition", `attachment; filename="${safeName}"`)
