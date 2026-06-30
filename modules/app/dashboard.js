@@ -177,7 +177,7 @@ body[data-theme="dark"] .dashboard-studio {
   --nx-border-hi:    rgba(131, 190, 233, 0.26);
   --nx-text:         var(--text, #e8f4fc);
   --nx-text-2:       var(--text-soft, #9ec7e8);
-  --nx-text-3:       rgba(158, 199, 232, 0.55);
+  --nx-text-3:       rgba(170, 206, 236, 0.74);
   --nx-accent-mid:   rgba(var(--primary-mid-rgb, 131, 190, 233), 0.2);
   --nx-accent-low:   rgba(var(--primary-mid-rgb, 131, 190, 233), 0.1);
   --nx-live:         #3cb896;
@@ -1277,6 +1277,8 @@ body[data-theme="dark"] .at-kpi__icon {
   color: var(--nx-text-3);
 }
 .at-tab.is-active em { background: var(--nx-accent-mid); color: var(--nx-accent-deep); }
+body[data-theme="dark"] .dashboard-studio .at-tab.is-active { color: #bcdcff; }
+body[data-theme="dark"] .dashboard-studio .at-tab.is-active em { background: rgba(131, 190, 233, 0.26); color: #e6f2ff; }
 
 .at-fleet-list { overflow-y: auto; max-height: 640px; }
 

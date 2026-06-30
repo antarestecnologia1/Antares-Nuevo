@@ -1391,3 +1391,33 @@ body:not([data-theme="dark"]) .portal-main .profile-key-item > p {
 body:not([data-theme="dark"]) .portal-main .acf-picker__placeholder {
   color: #647488;
 }
+
+/* —— 7. Insignias de encabezado de módulo en TEMA OSCURO ——
+   Fondo de tinte al 10% (casi transparente sobre el panel oscuro) con texto
+   índigo/azul saturado: se aclara el texto y se refuerza el fondo. */
+body[data-theme="dark"] .portal-main :where(
+  .hist-trace-hero__badge, .history-studio-head__badge,
+  .hiring-studio-head__badge, .payroll-studio-head__badge
+) {
+  color: #c4d2f6;
+  background-color: rgba(129, 140, 248, 0.2);
+  border-color: rgba(129, 140, 248, 0.32);
+}
+
+/* —— 8. Cronograma de la solicitud (acf-schedule) en TEMA OSCURO ——
+   Los badges/etiquetas usaban tonos saturados sobre tarjetas oscuras. */
+body[data-theme="dark"] .portal-main .acf-schedule-card__badge--pickup {
+  color: #9fbdf6;
+}
+
+body[data-theme="dark"] .portal-main .acf-schedule-card__badge--delivery {
+  color: #5fd1a8;
+}
+
+body[data-theme="dark"] .portal-main :where(.acf-schedule-card__step, .acf-schedule__connector-chip) {
+  color: #9db1c9;
+}
+
+body[data-theme="dark"] .portal-main .acf-schedule__connector--warn .acf-schedule__connector-chip {
+  color: #f5c07a;
+}
