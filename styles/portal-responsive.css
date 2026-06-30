@@ -1034,7 +1034,9 @@ body[data-theme="dark"] .portal-main :where(thead th) {
   background: transparent !important;
   border: 0 !important;
   box-shadow: none !important;
-  color: var(--portal-ui-text);
+  /* La regla base `.form-section legend` (color:#fff sobre chip degradado) tiene mayor
+     especificidad; aquí ya quitamos ese fondo, así que forzamos un color legible según el tema. */
+  color: var(--portal-ui-text) !important;
   letter-spacing: -0.01em;
   text-transform: none;
 }

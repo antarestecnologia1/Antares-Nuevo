@@ -2040,6 +2040,10 @@ function authView() {
       ${regBanner}
       <div class="auth-login-shell">
         <form id="form-login" class="form-grid auth-form auth-pane">
+          <div class="auth-login-welcome full">
+            <h3>Bienvenido de nuevo</h3>
+            <p>Ingrese con su correo corporativo para acceder al portal de operaciones.</p>
+          </div>
           <label class="full auth-field-stack">
             <span class="auth-plain-label">${fieldLabel(IC.mail, "Correo corporativo")}</span>
             <div class="auth-input-row">
