@@ -35,6 +35,74 @@ body.portal-mode .portal-main {
   padding: clamp(0.85rem, 1.6vw, 1.8rem) clamp(0.85rem, 2.2vw, 2rem);
 }
 
+/* Capa comun de congruencia visual entre modulos del portal. */
+.portal-main :where(
+  .requests-studio,
+  .transport-studio,
+  .vehicles-studio,
+  .drivers-studio,
+  .calendar-studio,
+  .history-studio,
+  .reports-studio,
+  .payroll-studio,
+  .hiring-studio,
+  .sst-studio,
+  .b2b-studio,
+  .admin-users-studio,
+  .authorizations-studio,
+  .profile-studio,
+  .notifications-studio
+) {
+  display: grid;
+  gap: clamp(0.8rem, 1.35vw, 1.15rem);
+  min-width: 0;
+}
+
+.portal-main :where(.fleet-hero-strip, .users-hero-strip, .ntf-studio-head) {
+  margin-bottom: 0;
+  border: 1px solid color-mix(in srgb, var(--module-accent-start, var(--primary, #377cc0)) 16%, rgba(15, 35, 70, 0.1));
+  box-shadow: 0 12px 28px rgba(15, 35, 70, 0.12);
+}
+
+.portal-main :where(.p-card, .table-wrap, .ntf-data-panel, .auth-queue-section, .reports-workspace, .requests-data-panel) {
+  border-radius: 16px;
+  border-color: color-mix(in srgb, var(--module-accent-start, var(--primary, #377cc0)) 12%, #d9e2ee);
+  box-shadow: 0 8px 24px rgba(15, 35, 70, 0.08);
+}
+
+.portal-main :where(.p-card-header, .requests-data-head, .auth-queue-section-head, .ntf-studio-head) {
+  gap: 0.75rem;
+}
+
+.portal-main :where(.toolbar, .ops-filters-bar, .reports-workspace-tabs, .ntf-toolbar, .b2b-leads-toolbar) {
+  border-radius: 14px;
+}
+
+.portal-main :where(.empty-state) {
+  border-radius: 14px;
+  border: 1px dashed color-mix(in srgb, var(--module-accent-start, var(--primary, #377cc0)) 24%, #d7e2ef);
+  background: linear-gradient(135deg, rgba(55, 124, 192, 0.06), rgba(131, 190, 233, 0.09));
+}
+
+.portal-main :where(.btn, .btn-sm, .btn-action, .btn-outline, .btn-primary) {
+  min-width: 0;
+}
+
+body[data-theme="dark"] .portal-main :where(.fleet-hero-strip, .users-hero-strip, .ntf-studio-head) {
+  border-color: rgba(148, 196, 255, 0.16);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.28);
+}
+
+body[data-theme="dark"] .portal-main :where(.p-card, .table-wrap, .ntf-data-panel, .auth-queue-section, .reports-workspace, .requests-data-panel) {
+  border-color: rgba(148, 196, 255, 0.14);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.24);
+}
+
+body[data-theme="dark"] .portal-main :where(.empty-state) {
+  border-color: rgba(148, 196, 255, 0.18);
+  background: linear-gradient(135deg, rgba(21, 52, 82, 0.46), rgba(13, 32, 54, 0.5));
+}
+
 body.portal-mode .portal-header h1 {
   font-size: clamp(1.15rem, 1rem + 0.9vw, 1.6rem);
   line-height: 1.25;

@@ -9,7 +9,8 @@ function defaultHistoryUi() {
 }
 
 function normalizeHistoryLayout(raw) {
-  return String(raw || "").trim().toLowerCase() === "cards" ? "cards" : HISTORY_DEFAULT_LAYOUT;
+  const value = String(raw || "").trim().toLowerCase();
+  return value === "list" || value === "cards" ? value : HISTORY_DEFAULT_LAYOUT;
 }
 
 function historyTraceRelativeTime(ts) {
