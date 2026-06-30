@@ -2070,14 +2070,6 @@ function authView() {
             <span class="auth-submit-spinner" aria-hidden="true"></span>
           </button>
         </form>
-        <aside class="auth-login-side" aria-hidden="true">
-          <div class="auth-login-visual">
-            <span class="auth-login-visual-ring auth-login-visual-ring--outer"></span>
-            <span class="auth-login-visual-ring auth-login-visual-ring--middle"></span>
-            <span class="auth-login-visual-ring auth-login-visual-ring--inner"></span>
-            <span class="auth-login-visual-icon">${IC.shield}</span>
-          </div>
-        </aside>
       </div>
     `;
   }
