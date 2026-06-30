@@ -20,6 +20,37 @@ body.portal-mode .portal-layout {
   min-height: 100dvh;
 }
 
+@media (max-width: 920px) {
+  body.portal-mode .portal-layout {
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  body.portal-mode .portal-main {
+    grid-column: 1;
+    grid-row: 1;
+    min-height: 0;
+    height: 100%;
+    max-height: 100dvh;
+  }
+
+  /* Dashboard oculta el header del portal; en móvil hace falta el botón ☰. */
+  body.portal-mode .portal-main:has(.dashboard-studio) .portal-header {
+    display: block;
+    margin: 0 0 0.35rem;
+  }
+
+  body.portal-mode .portal-main:has(.dashboard-studio) .portal-header-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+  }
+
+  body.portal-mode .portal-main:has(.dashboard-studio) .portal-header-bar h1,
+  body.portal-mode .portal-main:has(.dashboard-studio) .portal-header .kpi-grid {
+    display: none;
+  }
+}
+
 body.portal-mode .sidebar,
 body.portal-mode .portal-main,
 body.portal-mode .portal-header,

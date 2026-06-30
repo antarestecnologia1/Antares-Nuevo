@@ -1244,7 +1244,21 @@ body[data-theme="dark"] #portal-sidebar .sidebar-logout-btn:hover {
 
 /* ── Drawer móvil ── */
 @media (max-width: 920px) {
+  /*
+   * En escritorio `.sidebar--rail` usa position:relative dentro del grid.
+   * Esa regla (arriba) cargaba después de styles.css y anulaba el drawer
+   * fixed del móvil: el menú ocupaba toda la altura del grid y empujaba
+   * `.portal-main` fuera del viewport → pantalla en blanco tras el login.
+   */
   #portal-sidebar.sidebar--rail {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100dvh;
+    max-height: 100dvh;
+    z-index: 200;
+    transform: translateX(-108%);
+    transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.35s ease;
     width: min(382px, 92vw);
     padding: 1rem 0.8rem 1.2rem;
     border-radius: 0 28px 28px 0;
@@ -1252,6 +1266,10 @@ body[data-theme="dark"] #portal-sidebar .sidebar-logout-btn:hover {
       24px 0 60px rgba(11, 33, 56, 0.24),
       0 0 0 1px rgba(var(--primary-rgb), 0.08),
       1px 0 0 rgba(255, 255, 255, 0.5) inset;
+  }
+
+  body.portal-drawer-open #portal-sidebar.sidebar--rail {
+    transform: translateX(0);
   }
 
   /* El scroll reserva el carril de la barra para que ningún ítem quede
