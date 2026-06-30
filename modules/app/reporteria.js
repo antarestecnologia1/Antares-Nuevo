@@ -41,7 +41,11 @@ function reportsHtml() {
   ]);
   const exportActive = tab === "export";
   const biActive = tab === "bi";
-  const snapshot = buildReportsAnalyticsSnapshot(user, state.reportsUi.period || "90d");
+  const analyticsPanel = biActive
+    ? reportsAnalyticsPanelHtml(buildReportsAnalyticsSnapshot(user, state.reportsUi.period || "90d"), biLayout)
+    : `<div class="reports-bi reports-bi--lazy" data-reports-bi-lazy>
+        ${emptyState("La analítica operativa se cargará al abrir esta pestaña para mantener rápida la vista de exportación.")}
+      </div>`;
   const workspace = `<div class="reports-workspace">
     <nav class="reports-workspace-tabs" aria-label="Secciones de reportería">
       <button type="button" class="reports-workspace-tab${exportActive ? " is-active" : ""}" data-action="reports-set-tab" data-tab="export" aria-current="${exportActive ? "page" : "false"}">${IC.download} Exportar reportes</button>
@@ -51,7 +55,7 @@ function reportsHtml() {
       ${pcardWrap("file", "Catálogo de reportes", "Descargue PDF o Excel (CSV) por área de negocio", reportsExportPanelHtml(user))}
     </div>
     <div class="reports-workspace-panel${biActive ? "" : " hidden"}" data-reports-panel="bi" role="tabpanel"${biActive ? "" : " hidden"}>
-      ${reportsAnalyticsPanelHtml(snapshot, biLayout)}
+      ${analyticsPanel}
     </div>
   </div>`;
   return `<section class="reports-studio">${reportsHero}${workspace}</section>`;
@@ -73,6 +77,11 @@ function bindReportsWorkspaceControls() {
       if (!["export", "bi"].includes(tab)) return;
       const prevTab = String(state.reportsUi?.tab || "export");
       state.reportsUi = { ...state.reportsUi, tab };
+      if (tab === "bi" && root.querySelector("[data-reports-bi-lazy]")) {
+        destroyReportsCharts();
+        renderPortalView();
+        return;
+      }
       if (
         switchModuleTabPanels({
           root,

@@ -344,6 +344,22 @@
   margin-bottom: 0.85rem;
 }
 
+.ntf-visible-count {
+  margin: 0 0 0.65rem;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--ntf-edge);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ntf-surface) 70%, var(--ntf-card));
+  color: var(--text-soft);
+  font-size: 0.78rem;
+  font-weight: 650;
+  width: fit-content;
+}
+
+.ntf-render-more {
+  margin-top: 0.9rem;
+}
+
 /* —— Lista y tarjetas —— */
 .ntf-date-group {
   margin-bottom: 1rem;

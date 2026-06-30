@@ -47,6 +47,15 @@ function vehiclesHtml() {
   const filteredVehicles = fleetSearchNorm
     ? vehicles.filter((v) => vehicleMatchesFleetSearch(v, fleetSearchNorm))
     : vehicles;
+  const vehicleRenderWindowSize = Number(window.RENDER_WINDOW_SIZE) || 30;
+  const vehicleRenderLimit = Number(state.vehiclesRenderLimit) || vehicleRenderWindowSize;
+  const visibleVehicles = filteredVehicles.slice(0, vehicleRenderLimit);
+  const vehiclesMoreBar =
+    typeof renderWindowMoreBar === "function"
+      ? renderWindowMoreBar(filteredVehicles.length, visibleVehicles.length, "vehicles-render-more")
+      : filteredVehicles.length > visibleVehicles.length
+        ? `<div class="render-window-more"><button type="button" class="btn btn-outline btn-sm" data-action="vehicles-render-more">Ver más · mostrando ${visibleVehicles.length} de ${filteredVehicles.length}</button></div>`
+        : "";
   const canEditVeh = canEditVehicle();
   const canToggleVeh = canToggleVehicleStatus();
   const canDeleteVeh = canDeleteVehicle();
@@ -137,7 +146,7 @@ function vehiclesHtml() {
     return ["status-vencida", "status-rechazada", "status-pendiente"].includes(soat.cls) ||
       ["status-vencida", "status-rechazada", "status-pendiente"].includes(tec.cls);
   }).length;
-  const vehicleCards = filteredVehicles
+  const vehicleCards = visibleVehicles
     .map((v) => {
       const soat = docExpiryStatus(v.soatExpeditionDate, v.soatExpiryDate);
       const tecno = docExpiryStatus(v.techInspectionExpeditionDate, v.techInspectionExpiryDate);
@@ -272,7 +281,7 @@ function vehiclesHtml() {
           currentYear: new Date().getFullYear()
         })
       : "";
-  const vehicleListRows = filteredVehicles
+  const vehicleListRows = visibleVehicles
     .map((v) => {
       const soat = docExpiryStatus(v.soatExpeditionDate, v.soatExpiryDate);
       const tecno = docExpiryStatus(v.techInspectionExpeditionDate, v.techInspectionExpiryDate);
@@ -337,13 +346,13 @@ function vehiclesHtml() {
   } else if (!filteredVehicles.length) {
     fleetMainBody = `${fleetToolbar}${emptyState("Ningún vehículo coincide con la búsqueda. Pruebe otras palabras o borre el filtro.")}`;
   } else {
-    fleetMainBody = `${fleetToolbar}${fleetLayout === "list" ? fleetListTable : fleetCardsGrid}`;
+    fleetMainBody = `${fleetToolbar}${fleetLayout === "list" ? fleetListTable : fleetCardsGrid}${vehiclesMoreBar}`;
   }
   const fleetCardSubtitle = fleetSearchNorm
-    ? `${filteredVehicles.length} de ${totalCount} vehículos`
+    ? `${filteredVehicles.length} de ${totalCount} vehículos${filteredVehicles.length > visibleVehicles.length ? ` · ${visibleVehicles.length} visibles` : ""}`
     : fleetLayout === "list"
-      ? `${totalCount} vehículos · vista lista`
-      : `${totalCount} vehículos`;
+      ? `${totalCount} vehículos · vista lista${filteredVehicles.length > visibleVehicles.length ? ` · ${visibleVehicles.length} visibles` : ""}`
+      : `${totalCount} vehículos${filteredVehicles.length > visibleVehicles.length ? ` · ${visibleVehicles.length} visibles` : ""}`;
   const heroStrip = moduleFleetHeroStrip([
     { label: "Flota", value: totalCount },
     { label: "Disponibles", value: availableCount },
@@ -512,7 +521,16 @@ function vehiclesHtml() {
         const start = typeof el.selectionStart === "number" ? el.selectionStart : len;
         const end = typeof el.selectionEnd === "number" ? el.selectionEnd : start;
         state.vehiclesUi = { ...(state.vehiclesUi || {}), fleetSearch: String(el.value || "") };
+        state.vehiclesRenderLimit = Number(window.RENDER_WINDOW_SIZE) || 30;
         state.__vehiclesFleetSearchRestore = { start, end };
+        renderPortalView();
+      });
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='vehicles-render-more']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const step = Number(window.RENDER_WINDOW_SIZE) || 30;
+        state.vehiclesRenderLimit = (Number(state.vehiclesRenderLimit) || step) + step;
         renderPortalView();
       });
     });
@@ -521,6 +539,7 @@ function vehiclesHtml() {
       btn.addEventListener("click", () => {
         const layout = normalizeVehicleFleetLayout(btn.dataset.layout);
         state.vehiclesUi = { ...(state.vehiclesUi || {}), fleetLayout: layout };
+        state.vehiclesRenderLimit = Number(window.RENDER_WINDOW_SIZE) || 30;
         renderPortalView();
       });
     });

@@ -36,6 +36,7 @@ const FILTER_TABS = [
   { id: NOTIFICATION_UI_FILTERS.HR, label: "RRHH" },
   { id: NOTIFICATION_UI_FILTERS.SYSTEM, label: "Sistema" }
 ];
+const NOTIFICATIONS_RENDER_WINDOW_SIZE = 30;
 
 function ntfCategoryTone(category) {
   const c = String(category || "").toLowerCase();
@@ -147,6 +148,11 @@ function ntfGroupedListHtml(buckets, IC) {
     .join("");
 }
 
+function ntfRenderMoreBar(total, shown) {
+  if (total <= shown) return "";
+  return `<div class="ntf-render-more render-window-more"><button type="button" class="btn btn-outline btn-sm" data-action="notif-render-more">Ver más · mostrando ${shown} de ${total}</button></div>`;
+}
+
 function notificationsHtml() {
   const emptyState = G.emptyState;
   const IC = G.IC || {};
@@ -156,6 +162,8 @@ function notificationsHtml() {
   );
   const activeFilter = String(state.notificationsUi?.filter || NOTIFICATION_UI_FILTERS.ALL).trim().toLowerCase();
   const filtered = filterNotificationsByUiFilter(all, activeFilter, notificationIsRead);
+  const renderLimit = Number(state.notificationsUi?.renderLimit) || NOTIFICATIONS_RENDER_WINDOW_SIZE;
+  const visibleFiltered = filtered.slice(0, renderLimit);
   const alertsOn = isInAppNotificationAlertsEnabled();
   const soundOn = isSonidoNotificacionesHabilitado();
   const unread = all.filter((n) => !notificationIsRead(n)).length;
@@ -174,7 +182,7 @@ function notificationsHtml() {
       </div>`;
 
   const listBody = filtered.length
-    ? ntfGroupedListHtml(groupNotificationsByDateBucket(filtered), IC)
+    ? `<p class="ntf-visible-count">Mostrando ${visibleFiltered.length} de ${filtered.length} notificación${filtered.length === 1 ? "" : "es"}${activeFilter === NOTIFICATION_UI_FILTERS.ALL ? "" : " del filtro activo"}.</p>${ntfGroupedListHtml(groupNotificationsByDateBucket(visibleFiltered), IC)}${ntfRenderMoreBar(filtered.length, visibleFiltered.length)}`
     : all.length
       ? typeof emptyState === "function"
         ? emptyState("Ninguna notificación coincide con este filtro.")
@@ -226,7 +234,21 @@ function bindNotificationsPortalControls() {
   root.querySelectorAll("[data-action='notif-filter']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const next = String(btn.dataset.filter || NOTIFICATION_UI_FILTERS.ALL).trim().toLowerCase();
-      state.notificationsUi = { ...(state.notificationsUi || {}), filter: next };
+      state.notificationsUi = {
+        ...(state.notificationsUi || {}),
+        filter: next,
+        renderLimit: NOTIFICATIONS_RENDER_WINDOW_SIZE
+      };
+      G.renderPortalView();
+    });
+  });
+
+  root.querySelectorAll("[data-action='notif-render-more']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.notificationsUi = {
+        ...(state.notificationsUi || {}),
+        renderLimit: (Number(state.notificationsUi?.renderLimit) || NOTIFICATIONS_RENDER_WINDOW_SIZE) + NOTIFICATIONS_RENDER_WINDOW_SIZE
+      };
       G.renderPortalView();
     });
   });

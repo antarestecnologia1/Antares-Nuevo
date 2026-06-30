@@ -14,6 +14,9 @@ Fecha: 2026-06-30
 - `Historial`: `normalizeHistoryLayout()` no aceptaba `list`, por lo que el boton "Tabla" siempre volvia a linea de tiempo.
 - UI transversal: se agrego una capa final de congruencia visual para espaciado, bordes, sombras, estados vacios, toolbars y modo oscuro en los studios principales.
 - Cache CSS: `index.html` ahora carga `portal-responsive.css?v=20260630-module-ui-cohesion`.
+- `Notificaciones / Timbre / Avisos`: el dominio ya tenia logica y columnas separadas (`sonidoNotificacionesHabilitadas`, `notificacionesHabilitadas`) y funciones `toggleNotificationSoundMuted` / `toggleNotificationAlertsEnabled`, pero la UI solo exponia un unico interruptor maestro que apagaba ambos a la vez (codigo muerto). Ahora la cabecera del modulo muestra dos controles independientes (Avisos y Timbre) tipo switch, con estado, iconos y modo oscuro congruentes. El Timbre se deshabilita cuando Avisos esta apagado (el sonido no puede sonar sin avisos).
+- `Auditoria`: `scripts/audit-all-modules.mjs` corregido — el boton de Mi perfil es `[data-view="profile"]` (no `.side-link`), y Timbre/Avisos se validan ahora sobre los controles reales del modulo (`data-action="notif-toggle-sound|alerts"`). Resultado: 18/18 OK.
+- Cache CSS: `index.html` ahora carga `notifications-module.css?v=20260630-ntf-pref-split`.
 
 ## To-dos por modulo
 
@@ -103,18 +106,20 @@ Fecha: 2026-06-30
 
 ### Timbre
 
-- Esta funcionalidad vive dentro de `Notificaciones`.
-- Probar activar/desactivar timbre y persistencia de preferencia tras recargar.
-- Validar que el estado apagado no impida ver el historial de la bandeja.
+- Esta funcionalidad vive dentro de `Notificaciones` (cabecera del modulo). [Implementado]
+- Control independiente tipo switch que solo afecta el sonido (`sonidoNotificacionesHabilitadas`).
+- Se deshabilita visualmente cuando `Avisos` esta apagado (el timbre no suena sin avisos).
+- Pendiente: probar persistencia de la preferencia tras recargar (POST /portal/notification-preferences) con API activa.
 
 ### Avisos
 
-- Esta funcionalidad vive dentro de `Notificaciones`.
-- Probar avisos emergentes por categoria: solicitudes, autorizaciones, RRHH y sistema.
-- Revisar que los avisos tengan deep link cuando aplique y fallback claro cuando no.
+- Esta funcionalidad vive dentro de `Notificaciones` (cabecera del modulo). [Implementado]
+- Control independiente que activa/desactiva las ventanas emergentes (`notificacionesHabilitadas`); la bandeja conserva el historial al apagarlo.
+- Pendiente: probar avisos emergentes por categoria (solicitudes, autorizaciones, RRHH, sistema) y sus deep links con datos reales.
 
 ### Notificaciones
 
+- [Hecho] Cabecera con controles independientes Avisos + Timbre (antes un unico interruptor maestro).
 - Probar filtros, marcar una/todas como leidas, eliminar una/todas y deep links.
 - Validar agrupacion por fecha y lectura en modo oscuro.
 - Revisar desempeno con bandejas grandes y considerar ventana de render si crece el volumen.

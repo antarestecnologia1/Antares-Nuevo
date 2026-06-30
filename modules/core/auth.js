@@ -2037,10 +2037,6 @@ function authView() {
       </div>`
         : "";
     return `
-      <div class="auth-header-premium">
-        <h3>Ingreso empresarial seguro</h3>
-        <p class="muted">Acceda a su operación con trazabilidad, control de permisos y registro de actividad.</p>
-      </div>
       ${regBanner}
       <div class="auth-login-shell">
         <form id="form-login" class="form-grid auth-form auth-pane">
@@ -2074,20 +2070,12 @@ function authView() {
             <span class="auth-submit-spinner" aria-hidden="true"></span>
           </button>
         </form>
-        <aside class="auth-login-side" aria-label="Beneficios del portal">
-          <h3 class="auth-side-heading">
-            <span class="auth-side-heading-icon">${IC.shield}</span>
-            <span class="auth-side-heading-text">Operación con respaldo</span>
-          </h3>
-          <ul class="auth-bullets">
-            <li>Trazabilidad de solicitudes, viajes y aprobaciones.</li>
-            <li>Permisos por rol y área de trabajo.</li>
-            <li>Registro de actividad y auditoría continua.</li>
-          </ul>
-          <div class="auth-side-pills">
-            <span>Cifrado</span>
-            <span>Auditable</span>
-            <span>Disponible 24/7</span>
+        <aside class="auth-login-side" aria-hidden="true">
+          <div class="auth-login-visual">
+            <span class="auth-login-visual-ring auth-login-visual-ring--outer"></span>
+            <span class="auth-login-visual-ring auth-login-visual-ring--middle"></span>
+            <span class="auth-login-visual-ring auth-login-visual-ring--inner"></span>
+            <span class="auth-login-visual-icon">${IC.shield}</span>
           </div>
         </aside>
       </div>

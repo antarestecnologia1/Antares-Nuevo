@@ -208,6 +208,15 @@ function driversHtml() {
     if (fleetSearchNorm && !driverFleetSearchHaystack(item).includes(fleetSearchNorm)) return false;
     return true;
   });
+  const driversRenderWindowSize = Number(window.RENDER_WINDOW_SIZE) || 30;
+  const driversRenderLimit = Number(state.driversRenderLimit) || driversRenderWindowSize;
+  const visibleDriverSummaries = filteredSummaries.slice(0, driversRenderLimit);
+  const driversMoreBar =
+    typeof renderWindowMoreBar === "function"
+      ? renderWindowMoreBar(filteredSummaries.length, visibleDriverSummaries.length, "drivers-render-more")
+      : filteredSummaries.length > visibleDriverSummaries.length
+        ? `<div class="render-window-more"><button type="button" class="btn btn-outline btn-sm" data-action="drivers-render-more">Ver más · mostrando ${visibleDriverSummaries.length} de ${filteredSummaries.length}</button></div>`
+        : "";
 
   const optSel = (value, current) => (String(value) === String(current) ? "selected" : "");
 
@@ -336,9 +345,9 @@ function driversHtml() {
       </article>`;
   };
 
-  const cardsHtml = filteredSummaries.map(renderDriverCard).join("");
+  const cardsHtml = visibleDriverSummaries.map(renderDriverCard).join("");
 
-  const driverListRows = filteredSummaries
+  const driverListRows = visibleDriverSummaries
     .map((item) => {
       const d = item.raw;
       const docTone = directoryToneFromBucket(item.docBucket);
@@ -432,7 +441,7 @@ function driversHtml() {
   } else if (!filteredSummaries.length) {
     fleetMainBody = `${fleetToolbar}${emptyState("Ningún conductor coincide con la búsqueda o los filtros.")}`;
   } else {
-    fleetMainBody = `${fleetToolbar}${fleetLayout === "list" ? fleetListTable : fleetCardsGrid}`;
+    fleetMainBody = `${fleetToolbar}${fleetLayout === "list" ? fleetListTable : fleetCardsGrid}${driversMoreBar}`;
   }
 
   const moduleHint = canEditDriver
@@ -441,8 +450,8 @@ function driversHtml() {
   const filtersActive =
     Boolean(fleetSearchNorm) || statusFilter !== "all" || docFilter !== "all" || Boolean(companyFilter);
   const driverCardSubtitle = filtersActive
-    ? `${filteredSummaries.length} de ${totalDrivers} conductores${fleetLayout === "list" ? " · vista lista" : ""} · ${moduleHint}`
-    : `${totalDrivers} registrados${fleetLayout === "list" ? " · vista lista" : ""} · ${moduleHint}`;
+    ? `${filteredSummaries.length} de ${totalDrivers} conductores${fleetLayout === "list" ? " · vista lista" : ""}${filteredSummaries.length > visibleDriverSummaries.length ? ` · ${visibleDriverSummaries.length} visibles` : ""} · ${moduleHint}`
+    : `${totalDrivers} registrados${fleetLayout === "list" ? " · vista lista" : ""}${filteredSummaries.length > visibleDriverSummaries.length ? ` · ${visibleDriverSummaries.length} visibles` : ""} · ${moduleHint}`;
   const heroStrip = moduleFleetHeroStrip([
     { label: "Total", value: totalDrivers },
     { label: "Disponibles", value: availableDrivers },
@@ -479,7 +488,16 @@ function driversHtml() {
         const start = typeof el.selectionStart === "number" ? el.selectionStart : len;
         const end = typeof el.selectionEnd === "number" ? el.selectionEnd : start;
         state.driversUi = { ...(state.driversUi || {}), fleetSearch: String(el.value || "") };
+        state.driversRenderLimit = Number(window.RENDER_WINDOW_SIZE) || 30;
         state.__driversFleetSearchRestore = { start, end };
+        renderPortalView();
+      });
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='drivers-render-more']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const step = Number(window.RENDER_WINDOW_SIZE) || 30;
+        state.driversRenderLimit = (Number(state.driversRenderLimit) || step) + step;
         renderPortalView();
       });
     });
@@ -488,6 +506,7 @@ function driversHtml() {
       btn.addEventListener("click", () => {
         const layout = normalizeDriverFleetLayout(btn.dataset.layout);
         state.driversUi = { ...(state.driversUi || {}), fleetLayout: layout };
+        state.driversRenderLimit = Number(window.RENDER_WINDOW_SIZE) || 30;
         renderPortalView();
       });
     });
@@ -505,6 +524,7 @@ function driversHtml() {
         } else if (filter === "company") {
           state.driversUi = { ...prev, companyId: value };
         }
+        state.driversRenderLimit = Number(window.RENDER_WINDOW_SIZE) || 30;
         renderPortalView();
       });
     });

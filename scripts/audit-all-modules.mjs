@@ -126,20 +126,27 @@ async function main() {
     });
   }
 
-  // 16. Timbre y 17. Avisos — controles en sidebar (notificaciones.domain.js)
-  const timbrePill = page.locator("[data-notif-pref='sound']");
-  const avisosPill = page.locator("[data-notif-pref='alerts']");
-  const notifIssues = [];
-  if ((await timbrePill.count()) < 1) notifIssues.push("Control Timbre no encontrado");
-  if ((await avisosPill.count()) < 1) notifIssues.push("Control Avisos no encontrado");
-  else {
-    await avisosPill.first().click();
-    await page.waitForTimeout(200);
-    const alertsText = await page.locator(".side-link-notif-alerts-pill").textContent().catch(() => "");
-    if (!alertsText) notifIssues.push("Pill Avisos sin texto tras clic");
+  // 16. Timbre y 17. Avisos — controles independientes en el módulo Notificaciones
+  const notifNav = page.locator('[data-view="notifications"]').first();
+  if (await notifNav.count()) {
+    await notifNav.click();
+    await page.waitForTimeout(400);
   }
-  results.push({ id: "timbre", label: "16. Timbre", status: notifIssues.length ? "FAIL" : "OK", issues: notifIssues.filter((i) => i.includes("Timbre")) });
-  results.push({ id: "avisos", label: "17. Avisos", status: notifIssues.length ? "FAIL" : "OK", issues: notifIssues.filter((i) => i.includes("Avisos")) });
+  const avisosToggle = page.locator("[data-action='notif-toggle-alerts']");
+  const timbreToggle = page.locator("[data-action='notif-toggle-sound']");
+  const timbreIssues = [];
+  const avisosIssues = [];
+  if ((await timbreToggle.count()) < 1) timbreIssues.push("Control Timbre no encontrado");
+  if ((await avisosToggle.count()) < 1) avisosIssues.push("Control Avisos no encontrado");
+  else {
+    const beforeChecked = await avisosToggle.first().getAttribute("aria-checked");
+    await avisosToggle.first().click();
+    await page.waitForTimeout(300);
+    const afterChecked = await page.locator("[data-action='notif-toggle-alerts']").first().getAttribute("aria-checked");
+    if (beforeChecked === afterChecked) avisosIssues.push("El toggle de Avisos no cambió de estado");
+  }
+  results.push({ id: "timbre", label: "16. Timbre", status: timbreIssues.length ? "FAIL" : "OK", issues: timbreIssues });
+  results.push({ id: "avisos", label: "17. Avisos", status: avisosIssues.length ? "FAIL" : "OK", issues: avisosIssues });
 
   await browser.close();
 

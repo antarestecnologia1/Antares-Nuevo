@@ -630,16 +630,22 @@ export function scheduleRenderPortalView() {
 }
 
 export function renderPortalViewImpl() {
-  callApp("runAsSilentSystemNotifications", () => {
-    callApp("updateAutoApprove");
-    callApp("closeCompletedTripsAndGenerateInvoices");
-    callApp("recalculateResourceAvailability");
-  });
-  renderKpis();
-
   const user = currentUser();
   const view = state.currentView;
   const prevPortalView = state.__portalPrevViewForSync;
+  const maintenanceNow = Date.now();
+  const shouldRunPortalMaintenance =
+    prevPortalView !== view || maintenanceNow - Number(state.__lastPortalMaintenanceAt || 0) > 15000;
+  if (shouldRunPortalMaintenance) {
+    state.__lastPortalMaintenanceAt = maintenanceNow;
+    callApp("runAsSilentSystemNotifications", () => {
+      callApp("updateAutoApprove");
+      callApp("closeCompletedTripsAndGenerateInvoices");
+      callApp("recalculateResourceAvailability");
+    });
+  }
+  renderKpis();
+
   /** Misma vista que el ciclo anterior: repintado por datos (poll, sync); no re-animar tarjetas ni paneles RRHH/pestañas. */
   const portalSameViewRefresh = prevPortalView === view;
   state.__suppressModuleAppearThisRender = portalSameViewRefresh;
