@@ -8916,3 +8916,322 @@ body[data-theme="dark"] #auth-modal #form-login .auth-input-row {
   border-color: rgba(148, 196, 255, 0.18);
   box-shadow: 0 14px 30px rgba(2, 10, 20, 0.22);
 }
+
+#auth-modal.modal {
+  padding: clamp(0.75rem, 2.4vw, 1.6rem);
+  background:
+    radial-gradient(circle at 18% 12%, rgba(131, 190, 233, 0.34), transparent 28%),
+    radial-gradient(circle at 82% 88%, rgba(55, 124, 192, 0.3), transparent 32%),
+    linear-gradient(135deg, rgba(5, 22, 39, 0.78), rgba(8, 35, 62, 0.66));
+  backdrop-filter: blur(18px) saturate(1.35);
+  -webkit-backdrop-filter: blur(18px) saturate(1.35);
+}
+
+#auth-modal .modal-card-auth {
+  width: min(680px, calc(100vw - 1.25rem));
+  padding: clamp(1rem, 2.5vw, 1.35rem);
+  border-radius: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.62);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(238, 248, 255, 0.9)),
+    radial-gradient(circle at 18% 0%, rgba(var(--primary-mid-rgb), 0.32), transparent 36%);
+  box-shadow:
+    0 34px 90px rgba(3, 18, 35, 0.34),
+    0 18px 45px rgba(var(--primary-rgb), 0.18),
+    0 1px 0 rgba(255, 255, 255, 0.88) inset;
+}
+
+#auth-modal .modal-card-auth::before {
+  height: 100%;
+  border-radius: inherit;
+  background:
+    linear-gradient(120deg, rgba(255, 255, 255, 0.7), transparent 28%),
+    linear-gradient(90deg, rgba(var(--primary-rgb), 0.65), rgba(var(--primary-mid-rgb), 0.18), transparent 62%);
+  opacity: 0.42;
+  mask-image: linear-gradient(#000 0 5px, transparent 5px);
+}
+
+#auth-modal .modal-card-auth::after {
+  content: "";
+  position: absolute;
+  right: -4.5rem;
+  top: -5rem;
+  width: 13rem;
+  height: 13rem;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(var(--primary-mid-rgb), 0.28), transparent 68%);
+  pointer-events: none;
+}
+
+#auth-modal .modal-head,
+#auth-modal .tabs,
+#auth-modal #auth-content {
+  position: relative;
+  z-index: 1;
+}
+
+#auth-modal .auth-modal-brand-logo {
+  display: none;
+}
+
+#auth-modal .modal-head {
+  align-items: center;
+  padding: 0.15rem 0 0.9rem;
+  border-bottom: 0;
+}
+
+#auth-modal .auth-modal-heading {
+  width: 100%;
+  gap: 0.8rem;
+  padding: 0.85rem 1rem;
+  border-radius: 22px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.76), rgba(240, 248, 255, 0.54)),
+    radial-gradient(circle at 0% 0%, rgba(var(--primary-rgb), 0.16), transparent 42%);
+  border: 1px solid rgba(var(--primary-rgb), 0.12);
+  box-shadow: 0 14px 30px rgba(var(--primary-rgb), 0.1);
+}
+
+#auth-modal .auth-modal-heading-icon {
+  width: 2.8rem !important;
+  height: 2.8rem !important;
+  padding: 0.68rem;
+  border-radius: 18px;
+  color: #ffffff !important;
+  background: linear-gradient(145deg, var(--primary), var(--primary-dark));
+  box-shadow:
+    0 12px 28px rgba(var(--primary-rgb), 0.28),
+    0 0 0 7px rgba(var(--primary-rgb), 0.08);
+}
+
+#auth-modal .module-panel-btn--close {
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.68);
+  box-shadow: 0 10px 24px rgba(7, 30, 61, 0.1);
+}
+
+#auth-modal .tabs {
+  margin: 0.15rem 0 1.05rem;
+  padding: 0.35rem;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--primary-rgb), 0.12);
+  background: rgba(255, 255, 255, 0.66);
+  box-shadow:
+    0 16px 32px rgba(7, 30, 61, 0.08),
+    0 1px 0 rgba(255, 255, 255, 0.86) inset;
+}
+
+#auth-modal .tab {
+  border-radius: 999px;
+  border: 0;
+  background: transparent;
+  min-height: 2.65rem;
+}
+
+#auth-modal .tab.active {
+  background:
+    linear-gradient(135deg, var(--primary) 0%, #2f75b7 48%, var(--primary-dark) 100%);
+  box-shadow:
+    0 14px 28px rgba(var(--primary-rgb), 0.26),
+    0 1px 0 rgba(255, 255, 255, 0.24) inset;
+}
+
+#auth-modal #auth-content {
+  margin-top: 0;
+  padding: 0;
+}
+
+#auth-modal #form-login.auth-pane {
+  gap: 1.05rem;
+  padding: clamp(1.15rem, 3.5vw, 2rem);
+  border-radius: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(242, 249, 255, 0.72)),
+    radial-gradient(circle at 0% 0%, rgba(var(--primary-mid-rgb), 0.28), transparent 36%),
+    radial-gradient(circle at 100% 100%, rgba(var(--primary-rgb), 0.18), transparent 38%);
+  box-shadow:
+    0 24px 58px rgba(7, 30, 61, 0.13),
+    0 1px 0 rgba(255, 255, 255, 0.94) inset;
+  overflow: hidden;
+}
+
+#auth-modal #form-login.auth-pane::before {
+  background:
+    linear-gradient(90deg, rgba(var(--primary-rgb), 0.16) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(var(--primary-rgb), 0.1) 1px, transparent 1px),
+    radial-gradient(circle at 85% 5%, rgba(255, 255, 255, 0.88), transparent 24%);
+  background-size: 36px 36px, 36px 36px, auto;
+  mask-image: linear-gradient(135deg, rgba(0, 0, 0, 0.2), transparent 62%);
+}
+
+#auth-modal #form-login .auth-field-stack {
+  gap: 0.48rem;
+  padding: 0.72rem;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(var(--primary-rgb), 0.08);
+}
+
+#auth-modal #form-login .auth-plain-label {
+  padding-inline: 0.15rem;
+  font-weight: 750;
+  color: color-mix(in srgb, var(--text) 82%, var(--primary));
+}
+
+#auth-modal #form-login .auth-input-row {
+  min-height: 3.45rem;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(var(--primary-rgb), 0.14);
+  box-shadow:
+    0 12px 26px rgba(var(--primary-rgb), 0.08),
+    0 1px 0 rgba(255, 255, 255, 0.9) inset;
+}
+
+#auth-modal #form-login .auth-input-row:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 16px 30px rgba(var(--primary-rgb), 0.12),
+    0 1px 0 rgba(255, 255, 255, 0.9) inset;
+}
+
+#auth-modal #form-login .auth-input-row:focus-within {
+  border-color: rgba(var(--primary-rgb), 0.52);
+  box-shadow:
+    0 0 0 4px rgba(var(--primary-rgb), 0.13),
+    0 18px 34px rgba(var(--primary-rgb), 0.14);
+}
+
+#auth-modal #form-login .auth-input-prefix {
+  min-width: 3.25rem;
+  border-radius: 16px 0 0 16px;
+  color: var(--primary);
+  background:
+    linear-gradient(180deg, rgba(var(--primary-rgb), 0.12), rgba(var(--primary-mid-rgb), 0.12));
+}
+
+#auth-modal #form-login .auth-input-control {
+  font-size: 0.98rem;
+}
+
+#auth-modal #form-login .auth-password-row .btn {
+  min-height: 3.45rem;
+  border-radius: 18px;
+  padding-inline: 0.95rem;
+  border-color: rgba(var(--primary-rgb), 0.14);
+  background: rgba(255, 255, 255, 0.68);
+}
+
+#auth-modal #form-login .auth-remember-row {
+  gap: 0.35rem;
+  padding: 0.8rem 0.9rem;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.56);
+  border: 1px solid rgba(var(--primary-rgb), 0.1);
+}
+
+#auth-modal #form-login .auth-remember-check input {
+  accent-color: var(--primary);
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+#auth-modal #form-login .cf-turnstile {
+  overflow: hidden;
+  border-radius: 18px;
+}
+
+#auth-modal #form-login .btn-primary.full {
+  min-height: 3.55rem;
+  border-radius: 20px;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.18), transparent 28%),
+    linear-gradient(135deg, #59a5eb 0%, var(--primary) 46%, #1e4a73 100%);
+  box-shadow:
+    0 18px 34px rgba(var(--primary-rgb), 0.32),
+    0 1px 0 rgba(255, 255, 255, 0.28) inset;
+}
+
+#auth-modal #form-login .btn-primary.full:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 24px 42px rgba(var(--primary-rgb), 0.38),
+    0 1px 0 rgba(255, 255, 255, 0.3) inset;
+}
+
+@media (max-width: 720px) {
+#auth-modal.modal {
+    padding: 0.55rem;
+  }
+#auth-modal .modal-card-auth {
+    border-radius: 24px;
+    padding: 0.8rem;
+  }
+#auth-modal .auth-modal-heading {
+    padding: 0.72rem;
+  }
+#auth-modal .auth-modal-heading-icon {
+    width: 2.4rem !important;
+    height: 2.4rem !important;
+  }
+#auth-modal #form-login.auth-pane {
+    border-radius: 22px;
+    padding: 0.95rem;
+  }
+#auth-modal #form-login .auth-field-stack {
+    padding: 0.58rem;
+  }
+}
+
+body[data-theme="dark"] #auth-modal.modal {
+  background:
+    radial-gradient(circle at 18% 12%, rgba(117, 176, 244, 0.22), transparent 28%),
+    radial-gradient(circle at 82% 88%, rgba(55, 124, 192, 0.24), transparent 32%),
+    linear-gradient(135deg, rgba(2, 8, 18, 0.88), rgba(5, 18, 32, 0.82));
+}
+
+body[data-theme="dark"] #auth-modal .modal-card-auth {
+  border-color: rgba(148, 196, 255, 0.18);
+  background:
+    linear-gradient(145deg, rgba(17, 33, 53, 0.95), rgba(10, 23, 38, 0.92)),
+    radial-gradient(circle at 18% 0%, rgba(117, 176, 244, 0.18), transparent 36%);
+}
+
+body[data-theme="dark"] #auth-modal .auth-modal-heading,
+body[data-theme="dark"] #auth-modal .tabs,
+body[data-theme="dark"] #auth-modal #form-login .auth-field-stack,
+body[data-theme="dark"] #auth-modal #form-login .auth-remember-row {
+  border-color: rgba(148, 196, 255, 0.14);
+  background: rgba(12, 27, 44, 0.58);
+}
+
+body[data-theme="dark"] #auth-modal #form-login.auth-pane {
+  border-color: rgba(148, 196, 255, 0.16);
+  background:
+    linear-gradient(135deg, rgba(17, 34, 55, 0.92), rgba(9, 21, 36, 0.8)),
+    radial-gradient(circle at 0% 0%, rgba(117, 176, 244, 0.16), transparent 36%),
+    radial-gradient(circle at 100% 100%, rgba(55, 124, 192, 0.18), transparent 38%);
+}
+
+body[data-theme="dark"] #auth-modal #form-login .auth-plain-label {
+  color: #e2efff;
+}
+
+body[data-theme="dark"] #auth-modal #form-login .auth-input-row {
+  background: rgba(8, 20, 34, 0.84);
+  border-color: rgba(148, 196, 255, 0.16);
+  box-shadow: 0 14px 30px rgba(2, 10, 20, 0.26);
+}
+
+body[data-theme="dark"] #auth-modal #form-login .auth-input-prefix {
+  color: #9ed0ff;
+  background: rgba(117, 176, 244, 0.1);
+  border-color: rgba(148, 196, 255, 0.16);
+}
+
+body[data-theme="dark"] #auth-modal #form-login .auth-password-row .btn,
+body[data-theme="dark"] #auth-modal .module-panel-btn--close {
+  background: rgba(15, 31, 50, 0.78);
+  border-color: rgba(148, 196, 255, 0.16);
+}
