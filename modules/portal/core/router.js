@@ -40,7 +40,10 @@ window.PortalCoreRouter = (() => {
 
   function activateSideLinks(sideLinks, view) {
     (sideLinks || []).forEach((link) => {
-      link.classList.toggle("active", link.dataset.view === view);
+      const active = link.dataset.view === view;
+      link.classList.toggle("active", active);
+      if (active) link.setAttribute("aria-current", "page");
+      else link.removeAttribute("aria-current");
     });
   }
 

@@ -49,6 +49,10 @@ export class AuthController {
     };
   }
 
+  private shouldReturnBearerTokens(headerValue: string | undefined): boolean {
+    return /^(1|true|yes)$/i.test(String(headerValue || "").trim());
+  }
+
   // Registro interno (admin): tope conservador por IP para frenar fuerza bruta.
   @Throttle({ default: { ttl: 60_000, limit: 5 } })
   @Post("register")
@@ -67,23 +71,30 @@ export class AuthController {
   @Throttle({ default: { ttl: 60_000, limit: 5 } })
   @HttpCode(200)
   @Post("login")
-  async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
+  async login(
+    @Body() dto: LoginDto,
+    @Headers("x-antares-bearer-fallback") bearerFallback: string | undefined,
+    @Res({ passthrough: true }) res: Response
+  ) {
     const tokens = await this.auth.login(dto);
     const csrfToken = newCsrfToken();
     setAuthCookies(res, this.config, tokens, csrfToken);
-    return {
+    const body: Record<string, unknown> = {
       user: this.buildAuthUserResponse(tokens.accessToken),
-      csrfToken,
-      /** Respaldo para WebKit móvil (iPhone: Safari y Chrome) cuando las cookies cross-site no persisten. */
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken
+      csrfToken
     };
+    if (this.shouldReturnBearerTokens(bearerFallback)) {
+      body.accessToken = tokens.accessToken;
+      body.refreshToken = tokens.refreshToken;
+    }
+    return body;
   }
 
   @HttpCode(200)
   @Post("refresh")
   async refresh(
     @Body() dto: RefreshTokenDto,
+    @Headers("x-antares-bearer-fallback") bearerFallback: string | undefined,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response
   ) {
@@ -99,13 +110,16 @@ export class AuthController {
     const tokens = await this.auth.refresh(userId, refreshToken);
     const csrfToken = String(req.cookies?.[AUTH_COOKIE_CSRF] || "").trim() || newCsrfToken();
     setAuthCookies(res, this.config, tokens, csrfToken);
-    return {
+    const body: Record<string, unknown> = {
       ok: true,
       user: this.buildAuthUserResponse(tokens.accessToken),
-      csrfToken,
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken
+      csrfToken
     };
+    if (this.shouldReturnBearerTokens(bearerFallback)) {
+      body.accessToken = tokens.accessToken;
+      body.refreshToken = tokens.refreshToken;
+    }
+    return body;
   }
 
   /** Cierra sesión: borra cookies HttpOnly e invalida refresh en servidor si es posible. */

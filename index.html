@@ -1199,7 +1199,7 @@
     </section>
 
     <!-- ─── AUTH MODAL ─── -->
-    <div id="auth-modal" class="modal hidden" role="dialog" aria-modal="true">
+    <div id="auth-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title">
       <div class="modal-card modal-card-auth">
         <div class="modal-head">
           <div class="auth-modal-title-wrap">
@@ -1212,7 +1212,7 @@
               decoding="async"
               loading="lazy"
             />
-            <h2 class="auth-modal-heading">
+            <h2 class="auth-modal-heading" id="auth-modal-title">
               <svg class="auth-modal-heading-icon" style="width:24px;height:24px;color:var(--primary)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
               <span class="auth-modal-heading-text">Portal empresarial Transportes Antares</span>
             </h2>
@@ -1222,12 +1222,12 @@
             <svg style="width:18px;height:18px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         </div>
-        <div class="tabs">
-          <button data-tab="login" class="tab active">Ingresar</button>
-          <button data-tab="register" class="tab">Registro</button>
-          <button data-tab="recover" class="tab">Recuperar</button>
+        <div class="tabs" role="tablist" aria-label="Opciones de acceso">
+          <button type="button" data-tab="login" class="tab active" id="auth-tab-login" role="tab" aria-selected="true" aria-controls="auth-content">Ingresar</button>
+          <button type="button" data-tab="register" class="tab" id="auth-tab-register" role="tab" aria-selected="false" aria-controls="auth-content">Registro</button>
+          <button type="button" data-tab="recover" class="tab" id="auth-tab-recover" role="tab" aria-selected="false" aria-controls="auth-content">Recuperar</button>
         </div>
-        <div id="auth-content"></div>
+        <div id="auth-content" role="tabpanel" aria-live="polite"></div>
       </div>
     </div>
 
@@ -1325,12 +1325,12 @@
     <script defer src="./config/antares.public.js?v=20260507-render-only"></script>
     <script defer src="./config/supabase.public.js?v=20260503-1"></script>
     <script defer src="./modules/core/runtime-security.js?v=20260503-runtime-sec"></script>
-    <script defer src="./modules/core/validation.js?v=20260610-blur-noshift"></script>
+    <script defer src="./modules/core/validation.js?v=20260630-security-audit-fix"></script>
     <script defer src="./modules/core/persistence.js"></script>
-    <script defer src="./modules/core/portal-bootstrap-cache.js"></script>
+    <script defer src="./modules/core/portal-bootstrap-cache.js?v=20260630-security-audit-fix"></script>
     <script defer src="./modules/core/supabase-browser.js?v=20260504-pw-recovery"></script>
     <!-- JSZip y jsPDF/autotable se cargan bajo demanda (contracts-docx.js y reporteria.domain.js) -->
-    <script defer src="./modules/core/api-client.js?v=20260515-fetch-errors"></script>
+    <script defer src="./modules/core/api-client.js?v=20260630-security-audit-fix"></script>
     <script defer src="./modules/core/portal-audit-sync.js?v=20260622-audit-pg"></script>
     <script defer src="./modules/core/portal-data-layer.js"></script>
     <script defer src="./modules/core/portal-sync.js?v=20260623-sync-fix3"></script>
@@ -1357,7 +1357,7 @@
     <script defer src="./modules/files/index.js"></script>
     <script defer src="./modules/portal/architecture.js"></script>
     <script defer src="./modules/portal/core/access.js"></script>
-    <script defer src="./modules/portal/core/router.js"></script>
+    <script defer src="./modules/portal/core/router.js?v=20260630-security-audit-fix"></script>
     <script defer src="./modules/portal/core/renderer.js"></script>
     <script defer src="./modules/domain-bootstrap.js"></script>
     <script defer src="./modules/core/feedback-messages.js?v=20260506-perfil-vacantes"></script>
@@ -1464,12 +1464,12 @@
     </script>
     <script type="module">
       import * as AntaresUIComponents from "./modules/ui/components.js";
-      import * as AntaresUIModals from "./modules/ui/modals.js?v=20260622-action-lock";
+      import * as AntaresUIModals from "./modules/ui/modals.js?v=20260630-security-audit-fix";
       import * as AntaresI18n from "./modules/core/i18n.js";
       import * as AntaresSchedulePicker from "./modules/ui/portal-schedule-picker.js?v=20260622-time-slots";
       Object.assign(window, AntaresUIComponents, AntaresUIModals, AntaresI18n, AntaresSchedulePicker);
     </script>
-    <script type="module" src="./modules/core/portal-runtime.js?v=20260630-b2b-inline-errors"></script>
+    <script type="module" src="./modules/core/portal-runtime.js?v=20260630-security-audit-fix"></script>
     <script defer src="./modules/app/portal-transport-modals.js"></script>
     <script defer src="./modules/app/portal-rrhh-modals.js"></script>
     <!-- Vistas legacy (`registerLegacyPortalViews`); deben ejecutarse antes de `app.js` para que el primer `renderPortal()` resuelva HTML. `viajes.js` antes de `mis-solicitudes.js` por `RENDER_WINDOW_SIZE`. -->
@@ -1484,7 +1484,7 @@
     <script defer src="./modules/app/historial.js"></script>
     <script defer src="./modules/app/reporteria.js"></script>
     <script defer src="./modules/app/gestion-humana-html.js"></script>
-    <script defer src="./modules/app/gestion-humana.js"></script>
+    <script defer src="./modules/app/gestion-humana.js?v=20260630-security-audit-fix"></script>
     <script defer src="./modules/app/rrhh-candidate-attachments.js"></script>
     <script defer src="./modules/app/contratacion-html.js"></script>
     <script defer src="./modules/app/contratacion.js"></script>
@@ -1493,7 +1493,7 @@
     <script defer src="./modules/app/usuarios-permisos.js"></script>
     <script defer src="./modules/app/autorizaciones.js"></script>
     <script defer src="./modules/app/mi-perfil.js"></script>
-    <script type="module" src="./modules/app/notificaciones.js"></script>
-    <script type="module" src="./app.js?v=20260630-b2b-step-jump"></script>
+    <script type="module" src="./modules/app/notificaciones.js?v=20260630-security-audit-fix"></script>
+    <script type="module" src="./app.js?v=20260630-security-audit-fix"></script>
   </body>
 </html>

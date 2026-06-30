@@ -129,13 +129,10 @@ function notificationsHtml() {
     ? `<p class="ntf-pref-hint" role="status">Notificaciones desactivadas: no recibirás avisos emergentes ni timbre. La bandeja conserva el historial.</p>`
     : "";
 
-  const toolbar =
-    filtered.length || all.length
-      ? `<div class="ntf-toolbar">
+  const toolbar = `<div class="ntf-toolbar">
         <button type="button" class="btn btn-sm btn-action" data-action="notif-read-all"${unread ? "" : " disabled"}>${IC.check || ""} Marcar todas leídas</button>
         <button type="button" class="btn btn-sm btn-action btn-danger-soft" data-action="notif-delete-all"${all.length ? "" : " disabled"}>${IC.trash || ""} Eliminar todas</button>
-      </div>`
-      : "";
+      </div>`;
 
   const listBody = filtered.length
     ? ntfGroupedListHtml(groupNotificationsByDateBucket(filtered), IC)

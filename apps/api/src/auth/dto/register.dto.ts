@@ -1,5 +1,5 @@
 import { Transform } from "class-transformer";
-import { IsEmail, IsIn, IsNotEmpty, MinLength } from "class-validator";
+import { IsEmail, IsIn, IsNotEmpty, IsOptional, MaxLength, MinLength } from "class-validator";
 import { transformStripEmail, transformStripUpper } from "../../common/normalize-db-text";
 
 export class RegisterDto {
@@ -17,4 +17,12 @@ export class RegisterDto {
 
   @IsIn(["CLIENT"])
   role!: "CLIENT";
+
+  @Transform(({ value }) => {
+    if (value === "" || value === null) return undefined;
+    return typeof value === "string" ? value.replace(/\u0000/g, "").trim() : value;
+  })
+  @IsOptional()
+  @MaxLength(4096)
+  turnstileToken?: string;
 }

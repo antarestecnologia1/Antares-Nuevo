@@ -3,10 +3,10 @@
  */
 const EMPLOYEE_CREATE_DRAFT_KEY = "antares-employee-create-draft";
 
-/** Elimina el borrador local del formulario de creación de empleado. */
+/** Elimina el borrador de sesión del formulario de creación de empleado. */
 function clearEmployeeCreateDraft() {
   try {
-    localStorage.removeItem(EMPLOYEE_CREATE_DRAFT_KEY);
+    sessionStorage.removeItem(EMPLOYEE_CREATE_DRAFT_KEY);
   } catch (_err) {
     /* almacenamiento no disponible: el borrador es opcional */
   }
@@ -1113,7 +1113,7 @@ function bindPayrollPortalControls() {
           failPortalField(employeeForm, "name", "Ingrese el nombre del colaborador para guardar el borrador.");
           return;
         }
-        localStorage.setItem(EMPLOYEE_CREATE_DRAFT_KEY, JSON.stringify({ savedAt: Date.now(), fields: raw }));
+        sessionStorage.setItem(EMPLOYEE_CREATE_DRAFT_KEY, JSON.stringify({ savedAt: Date.now(), fields: raw }));
         notify(`Borrador de «${draftName}» guardado en este navegador.`, "success");
       } catch (_err) {
         notify("No se pudo guardar el borrador.", "error");
@@ -1130,7 +1130,7 @@ function bindPayrollPortalControls() {
     empNameForAvatar?.addEventListener("input", syncEmpCreateAvatarInitial);
     syncEmpCreateAvatarInitial();
     try {
-      const draftRaw = localStorage.getItem(EMPLOYEE_CREATE_DRAFT_KEY);
+      const draftRaw = sessionStorage.getItem(EMPLOYEE_CREATE_DRAFT_KEY);
       if (draftRaw) {
         const draft = JSON.parse(draftRaw);
         const fields = draft?.fields;

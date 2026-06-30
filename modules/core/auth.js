@@ -199,19 +199,21 @@ export function readRememberedLoginCredentials() {
     if (!o || typeof o !== "object") return null;
     const email = String(o.email || "").trim();
     if (!email) return null;
-    return { email, password: String(o.password || "") };
+    if (Object.prototype.hasOwnProperty.call(o, "password")) {
+      writeRememberedLoginCredentials(email);
+    }
+    return { email };
   } catch {
     return null;
   }
 }
 
-export function writeRememberedLoginCredentials(email, password) {
+export function writeRememberedLoginCredentials(email) {
   try {
     localStorage.setItem(
       LOGIN_REMEMBER_STORAGE_KEY,
       JSON.stringify({
         email: String(email || "").trim(),
-        password: String(password || ""),
         savedAt: Date.now()
       })
     );
@@ -1545,6 +1547,9 @@ export async function tryApiRefreshBridge() {
   }
   const base = String(api.getBase()).replace(/\/+$/, "");
   const headers = { "Content-Type": "application/json", Accept: "application/json" };
+  if (typeof api.bearerAuthFallbackEnabled === "function" && api.bearerAuthFallbackEnabled()) {
+    headers["X-Antares-Bearer-Fallback"] = "1";
+  }
   const csrf = typeof api.getCsrfToken === "function" ? String(api.getCsrfToken() || "").trim() : "";
   if (csrf) headers["X-CSRF-Token"] = csrf;
   const refreshToken =
@@ -2059,9 +2064,9 @@ function authView() {
           <label class="full auth-remember-row">
             <span class="auth-remember-check">
               <input type="checkbox" name="rememberCredentials" id="login-remember-credentials" value="1" />
-              <span>Recordar usuario y contraseña en este equipo</span>
+              <span>Recordar correo en este equipo</span>
             </span>
-            <small class="muted auth-remember-hint">Solo recomendable en su equipo personal. Evite esta opción en dispositivos compartidos o públicos.</small>
+            <small class="muted auth-remember-hint">Por seguridad nunca se guarda la contraseña; deberá escribirla en cada ingreso.</small>
           </label>
           ${turnstileWidgetMarkup()}
           <button class="btn btn-primary full" type="submit" data-login-submit>
@@ -2269,7 +2274,10 @@ export function renderAuthTab() {
   const tabs = nodes.authTabs.length ? nodes.authTabs : [...document.querySelectorAll("#auth-modal .tab")];
   const content = nodes.authContent || document.getElementById("auth-content");
   tabs.forEach((tabBtn) => {
-    tabBtn.classList.toggle("active", tabBtn.dataset.tab === state.authTab);
+    const isActive = tabBtn.dataset.tab === state.authTab;
+    tabBtn.classList.toggle("active", isActive);
+    tabBtn.setAttribute("aria-selected", isActive ? "true" : "false");
+    tabBtn.setAttribute("tabindex", isActive ? "0" : "-1");
   });
   if (!content) return;
   content.innerHTML = authView();
@@ -2313,7 +2321,7 @@ export function bindAuthForms() {
       const pw = login.querySelector("input[name='password']");
       const cb = login.querySelector("#login-remember-credentials");
       if (em) em.value = remembered.email;
-      if (pw) pw.value = remembered.password;
+      if (pw) pw.value = "";
       if (cb) cb.checked = true;
     }
     const loginSubmitBtn = login.querySelector("[data-login-submit]");
@@ -2347,9 +2355,16 @@ export function bindAuthForms() {
           try {
             const base = String(window.AntaresApi.getBase()).replace(/\/+$/, "");
             const turnstileToken = await waitForTurnstileToken(login);
+            const headers = { "Content-Type": "application/json", Accept: "application/json" };
+            if (
+              typeof window.AntaresApi?.bearerAuthFallbackEnabled === "function" &&
+              window.AntaresApi.bearerAuthFallbackEnabled()
+            ) {
+              headers["X-Antares-Bearer-Fallback"] = "1";
+            }
             const res = await fetch(`${base}/api/auth/login`, {
               method: "POST",
-              headers: { "Content-Type": "application/json", Accept: "application/json" },
+              headers,
               credentials: "include",
               body: JSON.stringify({ email: data.email, password: passwordRaw, turnstileToken })
             });
@@ -2399,7 +2414,7 @@ export function bindAuthForms() {
                 tokenIssuedAt: Date.now(),
                 profileSnapshot: buildProfileSnapshotFromUserRow(userApi)
               });
-              if (data.rememberCredentials) writeRememberedLoginCredentials(data.email, passwordRaw);
+              if (data.rememberCredentials) writeRememberedLoginCredentials(data.email);
               else clearRememberedLoginCredentials();
               window.hideAuth();
               startSessionSecurityWatch();
@@ -2452,7 +2467,7 @@ export function bindAuthForms() {
           profileSnapshot: buildProfileSnapshotFromUserRow(user)
         });
         void tryApiLoginBridge(user, passwordRaw);
-        if (data.rememberCredentials) writeRememberedLoginCredentials(data.email, passwordRaw);
+        if (data.rememberCredentials) writeRememberedLoginCredentials(data.email);
         else clearRememberedLoginCredentials();
         window.hideAuth();
         startSessionSecurityWatch();

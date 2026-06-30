@@ -188,10 +188,12 @@ export class AuthService {
   }
 
   async register(dto: RegisterDto) {
+    await this.turnstile.assertValid(dto.turnstileToken);
     this.assertDatabaseConfigured();
     if (dto.role !== "CLIENT") {
       throw new BadRequestException("El registro público solo permite cuentas de cliente.");
     }
+    this.assertStrongPassword(dto.password);
     const email = dto.email.trim().toLowerCase();
     const exists = await this.pool.query(`SELECT 1 FROM usuarios WHERE lower(correo_electronico) = lower($1)`, [
       email

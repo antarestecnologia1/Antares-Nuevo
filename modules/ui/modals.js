@@ -806,12 +806,13 @@ export function notify(message, type = "info", durationMs = 3200) {
 
   const safeType = TOAST_META[type] ? type : "info";
   const meta = TOAST_META[safeType];
+  box.setAttribute("aria-live", safeType === "error" ? "assertive" : "polite");
   const ms = Number(durationMs);
   const hideAfter = Number.isFinite(ms) && ms > 0 ? ms : 3200;
 
   const item = document.createElement("div");
   item.className = `toast toast-${safeType}`;
-  item.setAttribute("role", "status");
+  item.setAttribute("role", safeType === "error" ? "alert" : "status");
   item.innerHTML = `
     <span class="toast-accent" aria-hidden="true"></span>
     <span class="toast-icon">${meta.icon}</span>

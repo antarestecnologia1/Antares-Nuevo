@@ -22,10 +22,19 @@
     return s;
   }
 
+  function isLocalDevHost() {
+    try {
+      const host = String(location.hostname || "").toLowerCase();
+      return host === "localhost" || host === "127.0.0.1" || host === "[::1]" || host.endsWith(".localhost");
+    } catch (_e) {
+      return false;
+    }
+  }
+
   function getBase() {
     try {
       const fromWin = typeof window.__ANTARES_API_BASE__ === "string" ? window.__ANTARES_API_BASE__ : "";
-      const fromLs = localStorage.getItem("antares_api_base") || "";
+      const fromLs = isLocalDevHost() ? localStorage.getItem("antares_api_base") || "" : "";
       return normalizeBase(fromWin || fromLs);
     } catch {
       return "";
@@ -179,6 +188,7 @@
   function buildFetchHeaders(method, extra) {
     /** @type {Record<string, string>} */
     const headers = { ...(extra || {}) };
+    if (bearerAuthFallbackEnabled()) headers["X-Antares-Bearer-Fallback"] = "1";
     const bearer = getAccessToken();
     if (bearer) headers.Authorization = `Bearer ${bearer}`;
     if (isMutatingMethod(method)) {
@@ -493,6 +503,7 @@
 
   window.AntaresApi = {
     getBase,
+    bearerAuthFallbackEnabled,
     getAccessToken,
     getRefreshToken,
     getCsrfToken,

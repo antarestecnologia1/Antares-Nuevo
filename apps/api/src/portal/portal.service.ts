@@ -1562,7 +1562,11 @@ export class PortalService implements OnModuleInit {
     role: JwtRole,
     events: Array<Record<string, unknown>>
   ) {
-    void role;
+    const permissionSet = await this.resolveEffectivePermissionSet(actorUserId, role);
+    const admin = this.isAdmin(role);
+    if (!this.canReadPortalAuditEvents(permissionSet, admin)) {
+      throw new ForbiddenException("Sin permiso para registrar eventos de auditoría del portal.");
+    }
     if (!(await this.tableExists("auditoria_eventos_portal"))) {
       return { inserted: 0, skipped: Array.isArray(events) ? events.length : 0 };
     }
@@ -1598,7 +1602,7 @@ export class PortalService implements OnModuleInit {
 
       const atRaw = String(row.at || "").trim();
       const registeredAt =
-        atRaw && !Number.isNaN(new Date(atRaw).getTime()) ? new Date(atRaw).toISOString() : null;
+        admin && atRaw && !Number.isNaN(new Date(atRaw).getTime()) ? new Date(atRaw).toISOString() : null;
 
       const result = await this.pool.query(
         `INSERT INTO auditoria_eventos_portal (
@@ -5268,8 +5272,8 @@ export class PortalService implements OnModuleInit {
     };
 
     if (dto.audience === "admins" || dto.audience === "hr") {
-      if (dto.audience === "hr" && !this.isAdmin(actorRole)) {
-        throw new ForbiddenException("Solo administradores pueden notificar a RRHH.");
+      if (!this.isAdmin(actorRole)) {
+        throw new ForbiddenException("Solo administradores pueden notificar audiencias globales.");
       }
       const inserted = await this.insertNotificationIfNotDuplicate({
         userId: null,
@@ -6927,6 +6931,24 @@ export class PortalService implements OnModuleInit {
     );
     const allowed = new Set(r.rows.map((row) => row.id));
     if (ids.some((id) => !allowed.has(id))) {
+      throw new ForbiddenException(
+        "No puede modificar registros de nómina de colaboradores de otra empresa."
+      );
+    }
+  }
+
+  async assertCanWritePayrollEmployee(actorUserId: string, actorRole: JwtRole, employeeId: string): Promise<void> {
+    const eid = String(employeeId || "").trim();
+    if (!PG_UUID_V4_RE.test(eid)) {
+      throw new BadRequestException("employeeId debe ser UUID válido");
+    }
+    if (this.isAdmin(actorRole)) return;
+    const companyId = await this.resolvePayrollWriteCompanyScope(false, actorUserId);
+    const r = await this.pool.query<{ id: string }>(
+      `SELECT id::text FROM empleados_nomina WHERE id = $1::uuid AND id_empresa = $2::uuid LIMIT 1`,
+      [eid, companyId]
+    );
+    if (!r.rows[0]) {
       throw new ForbiddenException(
         "No puede modificar registros de nómina de colaboradores de otra empresa."
       );

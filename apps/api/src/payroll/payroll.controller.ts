@@ -50,7 +50,8 @@ export class PayrollController {
    */
   @Roles("admin", "rrhh")
   @Post("refresh-drafts")
-  refreshDrafts(
+  async refreshDrafts(
+    @Req() req: { user: ReqUser },
     @Body()
     body: {
       employeeId: string;
@@ -58,6 +59,7 @@ export class PayrollController {
       endDate?: string;
     }
   ) {
+    await this.portal.assertCanWritePayrollEmployee(req.user.userId, req.user.role, body.employeeId);
     return this.portal.refreshPayrollDraftsForEmployee(body.employeeId, {
       startDate: body.startDate,
       endDate: body.endDate
@@ -69,7 +71,7 @@ export class PayrollController {
    */
   @Roles("admin", "rrhh")
   @Post("driver-trip-payment")
-  upsertDriverTripPayment(
+  async upsertDriverTripPayment(
     @Req() req: { user: ReqUser },
     @Body()
     body: {
@@ -79,6 +81,7 @@ export class PayrollController {
       fuelReimbursementManualCop?: number;
     }
   ) {
+    await this.portal.assertCanWritePayrollEmployee(req.user.userId, req.user.role, body.employeeId);
     return this.portal.upsertDriverTripPaymentDraft(body.employeeId, body.periodYm, {
       travelAllowanceManualCop: body.travelAllowanceManualCop,
       fuelReimbursementManualCop: body.fuelReimbursementManualCop

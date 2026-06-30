@@ -34,7 +34,7 @@
 
   var EXTRAS_KEY_PREFIX = "antares_portal_extras_v";
 
-  var MAX_SNAPSHOT_AGE_MS = 12 * 60 * 60 * 1000;
+  var MAX_SNAPSHOT_AGE_MS = 60 * 60 * 1000;
 
   var SAVE_DEBOUNCE_MS = 500;
 
@@ -43,8 +43,6 @@
 
 
   var ESSENTIAL_STORAGE_KEYS = [
-
-    "antares_users_v2",
 
     "antares_companies_v2",
 
@@ -56,21 +54,11 @@
 
     "antares_counters_v2",
 
-    "antares_payroll_employees_v2",
-
-    "antares_payroll_runs_v2",
-
     "antares_approvals_v2",
 
     "antares_positions_v2",
 
-    "antares_vacancies_v2",
-
-    "antares_candidates_v2",
-
-    "antares_interviews_v2",
-
-    "antares_contracts_v2"
+    "antares_vacancies_v2"
 
   ];
 

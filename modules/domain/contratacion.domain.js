@@ -13,6 +13,8 @@ import {
   PIPELINE,
   PIPELINE_TRANSITIONS,
   HIRING_RRHH_EDIT_ACTIONS,
+  PAYROLL_RRHH_EDIT_ACTIONS,
+  SST_RRHH_EDIT_ACTIONS,
   FLEET_DRIVER_EDIT_ACTIONS,
   PORTAL_NON_ADMIN_BLOCKED_ACTIONS,
   LABOR_SYSTEM_PARAMETERS_MIN_YEAR,
@@ -23,6 +25,8 @@ import { state, persistHrWorkspace } from "../core/store.js";
 import {
   currentUser,
   canManageHiringModule,
+  canManagePayrollModule,
+  canManageSstModule,
   canEditFleetDriverAsAdmin,
   canPerformPermissionGatedAction,
   getPositionById,
@@ -1191,6 +1195,8 @@ export function portalNonAdminRestrictedCaptureClick(event) {
   }
   if (isAdminActor()) return;
   if (canPerformHiringEditAction(action)) return;
+  if (PAYROLL_RRHH_EDIT_ACTIONS.has(action) && canManagePayrollModule()) return;
+  if (SST_RRHH_EDIT_ACTIONS.has(action) && canManageSstModule()) return;
   if (canPerformPermissionGatedAction(currentUser(), action, trigger)) return;
   if (!PORTAL_NON_ADMIN_BLOCKED_ACTIONS.has(action)) return;
   event.preventDefault();
@@ -1210,6 +1216,8 @@ export function portalNonAdminRestrictedCaptureChange(event) {
   }
   if (isAdminActor()) return;
   if (canPerformHiringEditAction(action)) return;
+  if (PAYROLL_RRHH_EDIT_ACTIONS.has(action) && canManagePayrollModule()) return;
+  if (SST_RRHH_EDIT_ACTIONS.has(action) && canManageSstModule()) return;
   if (canPerformPermissionGatedAction(currentUser(), action, trigger)) return;
   if (!PORTAL_NON_ADMIN_BLOCKED_ACTIONS.has(action)) return;
   event.preventDefault();

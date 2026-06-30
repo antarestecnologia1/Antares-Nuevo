@@ -34,9 +34,7 @@ function buildCorsOriginHandler(config: ConfigService) {
   const prodFallback = [
     "https://app.transportesantares.co",
     "https://transportesantares.co",
-    "https://www.transportesantares.co",
-    "*.vercel.app",
-    "*.pages.dev"
+    "https://www.transportesantares.co"
   ];
   /** En producción: dominios por defecto + los de CORS_ORIGINS (no reemplazan el resto). */
   const allowed = !isProd

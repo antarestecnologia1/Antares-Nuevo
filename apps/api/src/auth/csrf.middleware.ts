@@ -26,6 +26,8 @@ function shouldSkipCsrf(path: string): boolean {
 /**
  * Protección CSRF (doble envío): si hay cookie de acceso HttpOnly, las mutaciones
  * deben incluir el mismo valor en el encabezado `X-CSRF-Token` que en `antares_csrf`.
+ * Si la sesión viaja por Bearer (fallback móvil), exigimos al menos el encabezado
+ * CSRF emitido por login/refresh para evitar mutaciones Bearer sin intención explícita.
  */
 export function csrfProtectionMiddleware(req: Request, res: Response, next: NextFunction): void {
   const method = String(req.method || "GET").toUpperCase();
@@ -41,14 +43,15 @@ export function csrfProtectionMiddleware(req: Request, res: Response, next: Next
   }
 
   const hasAuthCookies = Boolean(req.cookies?.[AUTH_COOKIE_ACCESS] || req.cookies?.[AUTH_COOKIE_REFRESH]);
-  if (!hasAuthCookies) {
+  const hasBearerAuth = /^Bearer\s+\S+/i.test(String(req.headers.authorization || "").trim());
+  if (!hasAuthCookies && !hasBearerAuth) {
     next();
     return;
   }
 
   const cookieCsrf = String(req.cookies?.[AUTH_COOKIE_CSRF] || "").trim();
   const headerCsrf = String(req.headers[CSRF_HEADER] || req.headers["X-CSRF-Token"] || "").trim();
-  if (!cookieCsrf || !headerCsrf || cookieCsrf !== headerCsrf) {
+  if (!headerCsrf || (hasAuthCookies && (!cookieCsrf || cookieCsrf !== headerCsrf))) {
     res.status(403).json({ message: "Token CSRF inválido o ausente." });
     return;
   }

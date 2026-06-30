@@ -532,6 +532,13 @@ export const HIRING_RRHH_EDIT_ACTIONS = new Set([
   "toggle-position"
 ]);
 
+export const PAYROLL_RRHH_EDIT_ACTIONS = new Set([
+  "delete-employee",
+  "delete-payroll-run",
+  "edit-hr-absence",
+  "delete-hr-absence"
+]);
+
 export const SST_RRHH_EDIT_ACTIONS = new Set(["edit-sst-record", "delete-sst-record"]);
 
 export const TRIP_RATE_SCOPE_SEP = "@@";

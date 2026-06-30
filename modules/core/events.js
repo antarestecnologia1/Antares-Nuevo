@@ -11,6 +11,7 @@ import {
   wireSupabasePasswordRecoveryUi,
   canEditFleetDriverAsAdmin,
   canManageHiringModule,
+  canManagePayrollModule,
   canManageSstModule,
   canPerformPermissionGatedAction,
   ACCOUNT_STATUS
@@ -26,6 +27,7 @@ import {
   HR_VALID_PAYROLL_WS,
   FLEET_DRIVER_EDIT_ACTIONS,
   HIRING_RRHH_EDIT_ACTIONS,
+  PAYROLL_RRHH_EDIT_ACTIONS,
   SST_RRHH_EDIT_ACTIONS,
   PORTAL_NON_ADMIN_BLOCKED_ACTIONS,
   ALL_PERMISSIONS,
@@ -571,6 +573,7 @@ function bindDynamicEvents() {
   const isAdmin = actor?.role === ROLES.ADMIN;
   const fleetDriverEditor = canEditFleetDriverAsAdmin(actor);
   const hiringEditor = canManageHiringModule(actor);
+  const payrollEditor = canManagePayrollModule(actor);
   const sstEditor = canManageSstModule(actor);
   const restrictedActions = PORTAL_NON_ADMIN_BLOCKED_ACTIONS;
 
@@ -587,6 +590,7 @@ function bindDynamicEvents() {
       const action = String(node.dataset.action || "");
       if (FLEET_DRIVER_EDIT_ACTIONS.has(action) && fleetDriverEditor) return;
       if (HIRING_RRHH_EDIT_ACTIONS.has(action) && hiringEditor) return;
+      if (PAYROLL_RRHH_EDIT_ACTIONS.has(action) && payrollEditor) return;
       if (SST_RRHH_EDIT_ACTIONS.has(action) && sstEditor) return;
       if (canPerformPermissionGatedAction(actor, action, node)) return;
       if (!restrictedActions.has(action)) return;
@@ -2933,6 +2937,32 @@ function initGlobalEvents() {
 
   nodes.closeAuth?.addEventListener("click", () => {
     if (typeof window.hideAuth === "function") window.hideAuth();
+  });
+  nodes.authModal?.addEventListener("click", (event) => {
+    if (event.target !== nodes.authModal) return;
+    if (typeof window.hideAuth === "function") window.hideAuth();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || !nodes.authModal || nodes.authModal.classList.contains("hidden")) return;
+    if (typeof window.hideAuth === "function") window.hideAuth();
+  });
+  nodes.authModal?.addEventListener("keydown", (event) => {
+    if (event.key !== "Tab" || nodes.authModal.classList.contains("hidden")) return;
+    const focusable = [
+      ...nodes.authModal.querySelectorAll(
+        "a[href], button:not([disabled]), input:not([disabled]):not([type='hidden']), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])"
+      )
+    ].filter((el) => el instanceof HTMLElement && el.offsetParent !== null);
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
   });
 
   const hamburgerBtn = document.getElementById("hamburger-btn");

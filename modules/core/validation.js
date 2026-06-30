@@ -1071,13 +1071,31 @@
 
   function clearFieldError(field) {
     if (!field) return;
+    const errorId = String(field.dataset?.antaresErrorId || "").trim();
     field.classList.remove("field-invalid");
     field.removeAttribute("aria-invalid");
+    if (errorId) {
+      const describedBy = String(field.getAttribute("aria-describedby") || "")
+        .split(/\s+/)
+        .filter((id) => id && id !== errorId)
+        .join(" ");
+      if (describedBy) field.setAttribute("aria-describedby", describedBy);
+      else field.removeAttribute("aria-describedby");
+      delete field.dataset.antaresErrorId;
+    }
     if (typeof field.setCustomValidity === "function") field.setCustomValidity("");
     const mirror = resolveSearchableSelectMirror(field);
     if (mirror && mirror !== field) {
+      const mirrorDescribedBy = String(mirror.getAttribute("aria-describedby") || "")
+        .split(/\s+/)
+        .filter((id) => id && id !== errorId)
+        .join(" ");
       mirror.classList.remove("field-invalid");
       mirror.removeAttribute("aria-invalid");
+      if (errorId) {
+        if (mirrorDescribedBy) mirror.setAttribute("aria-describedby", mirrorDescribedBy);
+        else mirror.removeAttribute("aria-describedby");
+      }
       if (typeof mirror.setCustomValidity === "function") mirror.setCustomValidity("");
     }
     const mount = findFieldErrorMount(field);
@@ -1102,12 +1120,32 @@
       if (typeof mirror.setCustomValidity === "function") mirror.setCustomValidity(msg);
     }
     const hint = document.createElement("small");
+    const idBase = field.id || field.name || `field-${Math.random().toString(36).slice(2, 8)}`;
+    const errorId = `${String(idBase).replace(/[^A-Za-z0-9_-]+/g, "-")}-error`;
     hint.className = field.closest(".antares-create-form")
       ? "field-error field-error--portal"
       : "field-error";
+    hint.id = errorId;
     hint.setAttribute("role", "alert");
     hint.textContent = msg;
     mount.appendChild(hint);
+    field.dataset.antaresErrorId = errorId;
+    const describedBy = new Set(
+      String(field.getAttribute("aria-describedby") || "")
+        .split(/\s+/)
+        .filter(Boolean)
+    );
+    describedBy.add(errorId);
+    field.setAttribute("aria-describedby", [...describedBy].join(" "));
+    if (mirror && mirror !== field) {
+      const mirrorDescribedBy = new Set(
+        String(mirror.getAttribute("aria-describedby") || "")
+          .split(/\s+/)
+          .filter(Boolean)
+      );
+      mirrorDescribedBy.add(errorId);
+      mirror.setAttribute("aria-describedby", [...mirrorDescribedBy].join(" "));
+    }
   }
 
   function resolvePortalDateVisibleForField(el) {

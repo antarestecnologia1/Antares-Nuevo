@@ -441,6 +441,26 @@ export class B2bProspectService {
     );
   }
 
+  private assertCvMagicMatches(file: Express.Multer.File, mime: string): void {
+    const b = file.buffer;
+    if (!b || b.length < 4) {
+      throw new BadRequestException("El archivo adjunto está vacío o incompleto.");
+    }
+    const starts = (...bytes: number[]) => bytes.every((v, i) => b[i] === v);
+    const ascii = (start: number, len: number) => b.subarray(start, start + len).toString("ascii");
+    const ok =
+      (mime === "application/pdf" && ascii(0, 4) === "%PDF") ||
+      (mime === "application/msword" && starts(0xd0, 0xcf, 0x11, 0xe0)) ||
+      (mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" && starts(0x50, 0x4b, 0x03, 0x04)) ||
+      (mime === "image/jpeg" && starts(0xff, 0xd8, 0xff)) ||
+      (mime === "image/png" && starts(0x89, 0x50, 0x4e, 0x47)) ||
+      (mime === "image/gif" && (ascii(0, 6) === "GIF87a" || ascii(0, 6) === "GIF89a")) ||
+      (mime === "image/webp" && ascii(0, 4) === "RIFF" && ascii(8, 4) === "WEBP");
+    if (!ok) {
+      throw new BadRequestException("El contenido del archivo no coincide con el formato declarado.");
+    }
+  }
+
   private async attachJobApplicationCvJson(
     adjuntos: Record<string, unknown>[],
     dto: CreateJobApplicationDto,
@@ -448,6 +468,7 @@ export class B2bProspectService {
   ) {
     if (attachment?.buffer && attachment.buffer.length > 0) {
       const mime = this.resolveCvMimeOrThrow(attachment);
+      this.assertCvMagicMatches(attachment, mime);
       const origRaw = String(attachment.originalname || "hoja-de-vida").trim().slice(0, 240);
       const safeTail = origRaw.replace(/[^\w.\-\sÁÉÍÓÚáéíóúñÑ]+/g, "_").replace(/\s+/g, "_");
       const fileLabel = safeTail.length ? safeTail : "hoja-de-vida";
@@ -455,12 +476,10 @@ export class B2bProspectService {
       if (this.r2.hasUploadsClient()) {
         const key = `job-applications/${randomUUID()}/${Date.now()}-${fileLabel}`;
         await this.r2.putJobCv(key, attachment.buffer, mime);
-        const url = this.r2.publicUrl(key);
         adjuntos.push({
           kind: "cv_file",
           name: origRaw || fileLabel,
           mime,
-          ...(url ? { url } : {}),
           storageKey: key
         });
         return;

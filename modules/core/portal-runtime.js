@@ -643,7 +643,11 @@ function companyProfileLogoUrl(company) {
     typeof window.normalizePortalBootstrapCompanyRow === "function"
       ? window.normalizePortalBootstrapCompanyRow(company)
       : company;
-  return String(norm.logoUrl || "").trim();
+  const raw = String(norm.logoUrl || "").trim();
+  if (!raw) return "";
+  if (/^https:\/\//i.test(raw)) return raw;
+  if (/^data:image\/(?:png|jpe?g|webp|gif);base64,[A-Za-z0-9+/=]+$/i.test(raw)) return raw;
+  return "";
 }
 
 function payrollDocumentLogoUrl(company) {
@@ -5371,20 +5375,34 @@ async function ensureUsersPasswordHashing() {
   }
   if (changed) write(KEYS.users, secured);
 }
-
-
+let authModalLastFocus = null;
 
 function showAuth() {
   const modal = nodes.authModal || document.getElementById("auth-modal");
   if (!modal) return;
+  authModalLastFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   modal.classList.remove("hidden");
   if (typeof window.renderAuthTab === "function") window.renderAuthTab();
+  const firstFocus = modal.querySelector(
+    "input:not([type='hidden']):not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled])"
+  );
+  try {
+    firstFocus?.focus?.({ preventScroll: true });
+  } catch (_e) {
+    firstFocus?.focus?.();
+  }
 }
 
 function hideAuth() {
   const modal = nodes.authModal || document.getElementById("auth-modal");
   if (!modal) return;
   modal.classList.add("hidden");
+  try {
+    authModalLastFocus?.focus?.({ preventScroll: true });
+  } catch (_e) {
+    authModalLastFocus?.focus?.();
+  }
+  authModalLastFocus = null;
 }
 
 window.showAuth = showAuth;

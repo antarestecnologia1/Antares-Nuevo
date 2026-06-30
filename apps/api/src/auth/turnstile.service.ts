@@ -4,12 +4,9 @@ import { ConfigService } from "@nestjs/config";
 const VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
 /**
- * Verificador del token Turnstile. La validación sólo corre si:
- *   - `CF_TURNSTILE_REQUIRED=true` (o "1"), y
- *   - existe `CF_TURNSTILE_SECRET`.
- * En cualquier otro caso (dev sin captcha, secret no configurado) deja pasar
- * para no romper el flujo. Esto permite mantener el captcha en producción y
- * desactivarlo en local con un solo flag.
+ * Verificador del token Turnstile. La validación corre si `CF_TURNSTILE_REQUIRED=true` (o "1").
+ * En desarrollo puede dejarse el flag apagado; en producción requerida, la falta de secreto
+ * falla cerrado para no publicar formularios sin anti-bot por mala configuración.
  */
 @Injectable()
 export class TurnstileService {
@@ -22,7 +19,12 @@ export class TurnstileService {
       .trim()
       .toLowerCase();
     const secret = String(this.config.get<string>("CF_TURNSTILE_SECRET") ?? "").trim();
-    const enforce = Boolean(secret) && (required === "true" || required === "1");
+    const requiredFlag = required === "true" || required === "1";
+    if (requiredFlag && !secret) {
+      this.logger.error("CF_TURNSTILE_REQUIRED=true pero CF_TURNSTILE_SECRET no está configurado.");
+      throw new BadRequestException("Verificación anti-bot no configurada en el servidor.");
+    }
+    const enforce = Boolean(secret) && requiredFlag;
     if (!enforce) return;
 
     const t = String(token ?? "").trim();
