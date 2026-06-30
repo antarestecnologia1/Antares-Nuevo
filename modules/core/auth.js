@@ -2080,159 +2080,226 @@ function authView() {
 
   if (tab === "register") {
     return `
-      <div class="auth-header-premium">
-        <h3>Registro al portal</h3>
-        <p class="muted">Complete sus datos con cuidado e indique si es <strong>cliente externo</strong> o <strong>empleado interno</strong>. Un administrador revisará y aprobará su cuenta antes de que pueda ingresar. Tras enviar el formulario recibirá un correo con la confirmación.</p>
+      <div class="auth-header-premium register-intro">
+        <h3>Solicitud de registro</h3>
+        <p class="muted">Complete el formulario con datos veraces. Un administrador revisará su solicitud y recibirá confirmación por correo.</p>
       </div>
       <form id="form-register" class="form-grid auth-form auth-register-form auth-pane">
-        <div class="register-kind-field full">
-          <span class="register-kind-label">${fieldLabel(IC.users, "Tipo de vínculo")}</span>
-          <div class="register-kind-options" role="radiogroup" aria-label="Tipo de vínculo con Antares">
-            <label class="register-kind-option">
-              <input type="radio" name="registrationKind" value="cliente" required checked />
-              <span>Cliente externo</span>
-            </label>
-            <label class="register-kind-option">
-              <input type="radio" name="registrationKind" value="empleado_interno" required />
-              <span>Empleado interno</span>
-            </label>
+        <div class="register-section register-section--kind full">
+          <div class="register-section-head register-section-head--compact">
+            <span class="register-section-step register-section-step--icon" aria-hidden="true">◆</span>
+            <div>
+              <h4 class="register-section-title">Tipo de vínculo</h4>
+              <p class="register-section-desc muted">Indique si representa a un cliente externo o es personal interno de Antares.</p>
+            </div>
           </div>
-          <small class="muted register-kind-hint">Cliente: empresas u organizaciones que contratan el servicio. Empleado interno: personal de Transportes Antares.</small>
+          <div class="register-kind-field">
+            <span class="register-kind-label visually-hidden">${fieldLabel(IC.users, "Tipo de vínculo")}</span>
+            <div class="register-kind-options" role="radiogroup" aria-label="Tipo de vínculo con Antares">
+              <label class="register-kind-option">
+                <input type="radio" name="registrationKind" value="cliente" required checked />
+                <span class="register-kind-option-text">
+                  <strong>Cliente externo</strong>
+                  <small>Empresa u organización que contrata el servicio</small>
+                </span>
+              </label>
+              <label class="register-kind-option">
+                <input type="radio" name="registrationKind" value="empleado_interno" required />
+                <span class="register-kind-option-text">
+                  <strong>Empleado interno</strong>
+                  <small>Personal de Transportes Antares</small>
+                </span>
+              </label>
+            </div>
+          </div>
         </div>
-        <label>${fieldLabel(IC.user, "Primer nombre")}<input name="firstName" required autocomplete="given-name" data-antares-restrict="person-name" data-antares-field="person-name" /></label>
-        <label>${fieldLabel(IC.user, "Segundo nombre")}<input name="middleName" autocomplete="additional-name" data-antares-restrict="person-name" /></label>
-        <label>${fieldLabel(IC.users, "Primer apellido")}<input name="lastName" required autocomplete="family-name" data-antares-restrict="person-name" data-antares-field="person-name" /></label>
-        <label>${fieldLabel(IC.users, "Segundo apellido")}<input name="secondLastName" autocomplete="family-name" data-antares-restrict="person-name" /></label>
-        <div class="register-doc-section full">
-          <label class="register-field-person-type">${fieldLabel(IC.briefcase, "Tipo de persona")}
-            <select name="personType" required>
-              <option value="">Seleccione...</option>
-              <option value="natural">Natural</option>
-              <option value="juridica">Jurídica</option>
-            </select>
+
+        <div class="register-section full">
+          <div class="register-section-head">
+            <span class="register-section-step" aria-hidden="true">1</span>
+            <div>
+              <h4 class="register-section-title">Identificación personal</h4>
+              <p class="register-section-desc muted">Nombre completo y documento de identidad.</p>
+            </div>
+          </div>
+          <div class="register-section-grid">
+            <label>${fieldLabel(IC.user, "Primer nombre")}<input name="firstName" required autocomplete="given-name" data-antares-restrict="person-name" data-antares-field="person-name" /></label>
+            <label>${fieldLabel(IC.user, "Segundo nombre")}<input name="middleName" autocomplete="additional-name" data-antares-restrict="person-name" /></label>
+            <label>${fieldLabel(IC.users, "Primer apellido")}<input name="lastName" required autocomplete="family-name" data-antares-restrict="person-name" data-antares-field="person-name" /></label>
+            <label>${fieldLabel(IC.users, "Segundo apellido")}<input name="secondLastName" autocomplete="family-name" data-antares-restrict="person-name" /></label>
+            <div class="register-doc-section full">
+              <label class="register-field-person-type">${fieldLabel(IC.briefcase, "Tipo de persona")}
+                <select name="personType" required>
+                  <option value="">Seleccione...</option>
+                  <option value="natural">Natural</option>
+                  <option value="juridica">Jurídica</option>
+                </select>
+              </label>
+              <div id="register-doc-persona" class="register-doc-block register-doc-block--natural">
+                <label>${fieldLabel(IC.file, "Tipo de documento")}
+                  <select name="documentType" required>
+                    <option value="CC">Cédula de ciudadanía</option>
+                    <option value="CE">Cédula de extranjería</option>
+                    <option value="PAS">Pasaporte</option>
+                  </select>
+                </label>
+                <label>${fieldLabel(IC.badge, "Número de documento")}<input name="taxId" inputmode="numeric" autocomplete="off" aria-required="true" data-antares-restrict="alnum-doc" data-antares-field="doc" /></label>
+              </div>
+              <div id="register-doc-empresa" class="register-doc-block register-doc-block--empresa hidden" hidden>
+                <label>${fieldLabel(IC.briefcase, "NIT de la empresa")}
+                  <input name="companyNit" inputmode="numeric" autocomplete="off" placeholder="Ej. 900123456-7" data-antares-restrict="alnum-doc" data-antares-field="nit" />
+                </label>
+                <label>${fieldLabel(IC.file, "Tipo de cédula (representante)")}
+                  <select name="personalDocumentType">
+                    <option value="CC">Cédula de ciudadanía</option>
+                    <option value="CE">Cédula de extranjería</option>
+                  </select>
+                </label>
+                <label>${fieldLabel(IC.badge, "Número de cédula")}
+                  <input name="personalTaxId" inputmode="numeric" autocomplete="off" placeholder="Debe ser única en el portal" data-antares-restrict="alnum-doc" data-antares-field="doc" data-antares-doc-type-selector="select[name='personalDocumentType']" />
+                </label>
+                <p class="muted register-doc-empresa-note">Varios usuarios pueden compartir el NIT de la empresa; la duplicidad se valida solo sobre el número de cédula del representante.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="register-section full">
+          <div class="register-section-head">
+            <span class="register-section-step" aria-hidden="true">2</span>
+            <div>
+              <h4 class="register-section-title">Perfil laboral</h4>
+              <p class="register-section-desc muted">Datos demográficos y cargo dentro de la organización.</p>
+            </div>
+          </div>
+          <div class="register-section-grid">
+            <label>${fieldLabel(IC.cake, "Fecha de nacimiento")}<input type="date" name="birthDate" required data-antares-validate-blur="date-iso" /></label>
+            <label>${fieldLabel(IC.users, "Género")}
+              <select name="gender" required>
+                <option value="">Seleccione...</option>
+                <option>Femenino</option>
+                <option>Masculino</option>
+                <option>No binario</option>
+                <option>Prefiero no decirlo</option>
+              </select>
+            </label>
+            <label>${fieldLabel(IC.award, "Cargo")}<input name="position" required /></label>
+            <label>${fieldLabel(IC.grid, "Área")}<input name="workArea" required placeholder="Ej.: Operaciones" /></label>
+          </div>
+        </div>
+
+        <div class="register-section full">
+          <div class="register-section-head">
+            <span class="register-section-step" aria-hidden="true">3</span>
+            <div>
+              <h4 class="register-section-title">Contacto y ubicación</h4>
+              <p class="register-section-desc muted">Teléfono, departamento, ciudad y dirección principal.</p>
+            </div>
+          </div>
+          <div class="register-section-grid">
+            <label class="phone-field-register full">
+              ${fieldLabel(IC.phone, "Teléfono")}
+              <div class="phone-input-professional" role="group" aria-label="Teléfono celular Colombia">
+                <div class="phone-reg-flag-slot">
+                  <span class="js-register-lang-flag register-lang-flag register-lang-flag--co" aria-hidden="true" title="Colombia"></span>
+                </div>
+                <select class="js-register-phone-cc phone-cc-select" aria-label="Indicativo +57 (Colombia)" required>
+                  ${window.registerPhoneCountryOptionsHtml()}
+                </select>
+                <input
+                  type="tel"
+                  class="js-register-phone-national phone-national-input"
+                  inputmode="numeric"
+                  autocomplete="tel-national"
+                  placeholder="300 123 4567"
+                  maxlength="14"
+                  required
+                  aria-describedby="register-phone-hint"
+                />
+                <input type="hidden" name="phone" class="js-register-phone-full" value="" />
+              </div>
+              <small id="register-phone-hint" class="muted phone-field-hint">Celular Colombia: 10 dígitos (empieza por 3).</small>
+            </label>
+            <label>${fieldLabel(IC.mapPin, "Departamento")}
+              <select name="department" id="register-department" required>
+                <option value="">Seleccione...</option>
+                ${deptOptions}
+              </select>
+            </label>
+            <label>${fieldLabel(IC.building, "Ciudad")}
+              <select name="city" id="register-city" required>
+                <option value="">Seleccione un departamento...</option>
+              </select>
+            </label>
+            <label class="full">${fieldLabel(IC.compass, "Dirección")}<input name="address" required placeholder="Dirección principal" autocomplete="street-address" /></label>
+          </div>
+        </div>
+
+        <div class="register-section register-section--security full">
+          <div class="register-section-head">
+            <span class="register-section-step" aria-hidden="true">4</span>
+            <div>
+              <h4 class="register-section-title">Acceso al portal</h4>
+              <p class="register-section-desc muted">Correo de ingreso y contraseña segura.</p>
+            </div>
+          </div>
+          <div class="register-section-grid">
+            <label class="full">${fieldLabel(IC.mail, "Correo electrónico")}<input type="email" name="email" autocomplete="username" placeholder="nombre@empresa.com" required data-antares-validate-blur="email" data-antares-restrict="email-local" /></label>
+            <label class="full">${fieldLabel(IC.lock, "Contraseña")}
+              <div class="password-field">
+                <input type="password" minlength="10" name="password" autocomplete="new-password" autocapitalize="off" spellcheck="false" required aria-describedby="password-strength password-hint" class="auth-password-input" />
+                <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="register">${IC.eye} Mostrar</button>
+              </div>
+            </label>
+            <label class="full">${fieldLabel(IC.shield, "Confirmar contraseña")}
+              <input type="password" minlength="10" name="passwordConfirm" autocomplete="new-password" autocapitalize="off" spellcheck="false" required class="auth-password-input" />
+              <small class="muted register-password-match-hint">Repita la contraseña exactamente igual.</small>
+            </label>
+            <div id="register-password-strength-suite" class="password-strength-suite full">
+              <div class="password-strength-bar-wrap">
+                <div class="password-strength-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Progreso de requisitos de contraseña">
+                  <div class="password-strength-bar-fill password-strength-bar-fill--weak"></div>
+                </div>
+                <div class="password-strength-meta">
+                  <span class="password-strength-pill password-strength-pill--weak">0%</span>
+                  <p id="password-strength" class="password-strength-headline">Indique una contraseña segura</p>
+                </div>
+              </div>
+              <ul class="password-rule-grid" role="list" aria-label="Requisitos de contraseña">
+                <li data-rule="len"><span class="password-rule-dot" aria-hidden="true"></span><span>10+ caracteres</span></li>
+                <li data-rule="lower"><span class="password-rule-dot" aria-hidden="true"></span><span>Minúscula (a-z)</span></li>
+                <li data-rule="upper"><span class="password-rule-dot" aria-hidden="true"></span><span>Mayúscula (A-Z)</span></li>
+                <li data-rule="digit"><span class="password-rule-dot" aria-hidden="true"></span><span>Número (0-9)</span></li>
+                <li data-rule="special"><span class="password-rule-dot" aria-hidden="true"></span><span>Símbolo (!@#$…)</span></li>
+              </ul>
+              <p id="password-hint" class="muted password-policy-hint">Mínimo 10 caracteres con mayúscula, minúscula, número y símbolo. Escriba la contraseña como prefiera: en pantalla se muestra tal cual (mayúsculas y minúsculas). En el servidor se almacena de forma segura (hash), no en texto plano.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="register-section register-section--legal full">
+          <label class="full register-terms-card">
+            <span class="register-terms-title">${fieldLabel(IC.file, "Términos y condiciones")}</span>
+            <span class="register-terms-copy muted">
+              Al crear su cuenta acepta los
+              <a class="register-terms-link" href="${REGISTER_TERMS_URL}" target="_blank" rel="noopener noreferrer">Términos de uso</a>,
+              la
+              <a class="register-terms-link" href="${REGISTER_PRIVACY_URL}" target="_blank" rel="noopener noreferrer">Política de privacidad</a>
+              y el tratamiento de datos (Habeas Data), y confirma que la información registrada es veraz.
+            </span>
+            <span class="checkbox-inline register-terms-check">
+              <input type="checkbox" name="acceptTerms" required />
+              Acepto los términos y la política para continuar con la solicitud.
+            </span>
           </label>
-          <div id="register-doc-persona" class="register-doc-block register-doc-block--natural">
-            <label>${fieldLabel(IC.file, "Tipo de documento")}
-              <select name="documentType" required>
-                <option value="CC">Cédula de ciudadanía</option>
-                <option value="CE">Cédula de extranjería</option>
-                <option value="PAS">Pasaporte</option>
-              </select>
-            </label>
-            <label>${fieldLabel(IC.badge, "Número de documento")}<input name="taxId" inputmode="numeric" autocomplete="off" aria-required="true" data-antares-restrict="alnum-doc" data-antares-field="doc" /></label>
+          <div class="full auth-inline-note">
+            <small class="muted">${IC.shield} Su solicitud quedará pendiente hasta que un administrador apruebe y asocie una empresa.</small>
           </div>
-          <div id="register-doc-empresa" class="register-doc-block register-doc-block--empresa hidden" hidden>
-            <label>${fieldLabel(IC.briefcase, "NIT de la empresa")}
-              <input name="companyNit" inputmode="numeric" autocomplete="off" placeholder="Ej. 900123456-7" data-antares-restrict="alnum-doc" data-antares-field="nit" />
-            </label>
-            <label>${fieldLabel(IC.file, "Tipo de cédula (representante)")}
-              <select name="personalDocumentType">
-                <option value="CC">Cédula de ciudadanía</option>
-                <option value="CE">Cédula de extranjería</option>
-              </select>
-            </label>
-            <label>${fieldLabel(IC.badge, "Número de cédula")}
-              <input name="personalTaxId" inputmode="numeric" autocomplete="off" placeholder="Debe ser única en el portal" data-antares-restrict="alnum-doc" data-antares-field="doc" data-antares-doc-type-selector="select[name='personalDocumentType']" />
-            </label>
-            <p class="muted register-doc-empresa-note">Varios usuarios pueden compartir el NIT de la empresa; la duplicidad se valida solo sobre el número de cédula del representante.</p>
+          ${turnstileWidgetMarkup()}
+          <div class="register-submit-wrap full">
+            <button class="btn btn-primary full register-submit-btn" type="submit">${IC.userPlus} Enviar solicitud de registro</button>
           </div>
         </div>
-        <label>${fieldLabel(IC.cake, "Fecha de nacimiento")}<input type="date" name="birthDate" required data-antares-validate-blur="date-iso" /></label>
-        <label>${fieldLabel(IC.users, "Género")}
-          <select name="gender" required>
-            <option value="">Seleccione...</option>
-            <option>Femenino</option>
-            <option>Masculino</option>
-            <option>No binario</option>
-            <option>Prefiero no decirlo</option>
-          </select>
-        </label>
-        <label>${fieldLabel(IC.award, "Cargo")}<input name="position" required /></label>
-        <label>${fieldLabel(IC.grid, "Área")}<input name="workArea" required placeholder="Ej.: Operaciones" /></label>
-        <label class="phone-field-register">
-          ${fieldLabel(IC.phone, "Teléfono")}
-          <div class="phone-input-professional" role="group" aria-label="Teléfono celular Colombia">
-            <div class="phone-reg-flag-slot">
-              <span class="js-register-lang-flag register-lang-flag register-lang-flag--co" aria-hidden="true" title="Colombia"></span>
-            </div>
-            <select class="js-register-phone-cc phone-cc-select" aria-label="Indicativo +57 (Colombia)" required>
-              ${window.registerPhoneCountryOptionsHtml()}
-            </select>
-            <input
-              type="tel"
-              class="js-register-phone-national phone-national-input"
-              inputmode="numeric"
-              autocomplete="tel-national"
-              placeholder="300 123 4567"
-              maxlength="14"
-              required
-              aria-describedby="register-phone-hint"
-            />
-            <input type="hidden" name="phone" class="js-register-phone-full" value="" />
-          </div>
-          <small id="register-phone-hint" class="muted phone-field-hint">Celular Colombia: 10 dígitos (empieza por 3).</small>
-        </label>
-        <label>${fieldLabel(IC.mapPin, "Departamento")}
-          <select name="department" id="register-department" required>
-            <option value="">Seleccione...</option>
-            ${deptOptions}
-          </select>
-        </label>
-        <label>${fieldLabel(IC.building, "Ciudad")}
-          <select name="city" id="register-city" required>
-            <option value="">Seleccione un departamento...</option>
-          </select>
-        </label>
-        <label class="full">${fieldLabel(IC.compass, "Dirección")}<input name="address" required placeholder="Dirección principal" autocomplete="street-address" /></label>
-        <label class="full">${fieldLabel(IC.mail, "Correo electrónico")}<input type="email" name="email" autocomplete="username" placeholder="nombre@empresa.com" required data-antares-validate-blur="email" data-antares-restrict="email-local" /></label>
-        <label class="full">${fieldLabel(IC.lock, "Contraseña")}
-          <div class="password-field">
-            <input type="password" minlength="10" name="password" autocomplete="new-password" autocapitalize="off" spellcheck="false" required aria-describedby="password-strength password-hint" class="auth-password-input" />
-            <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="register">${IC.eye} Mostrar</button>
-          </div>
-        </label>
-        <label class="full">${fieldLabel(IC.shield, "Confirmar contraseña")}
-          <input type="password" minlength="10" name="passwordConfirm" autocomplete="new-password" autocapitalize="off" spellcheck="false" required class="auth-password-input" />
-          <small class="muted register-password-match-hint">Repita la contraseña exactamente igual.</small>
-        </label>
-        <div id="register-password-strength-suite" class="password-strength-suite full">
-          <div class="password-strength-bar-wrap">
-            <div class="password-strength-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Progreso de requisitos de contraseña">
-              <div class="password-strength-bar-fill password-strength-bar-fill--weak"></div>
-            </div>
-            <div class="password-strength-meta">
-              <span class="password-strength-pill password-strength-pill--weak">0%</span>
-              <p id="password-strength" class="password-strength-headline">Indique una contraseña segura</p>
-            </div>
-          </div>
-          <ul class="password-rule-grid" role="list" aria-label="Requisitos de contraseña">
-            <li data-rule="len"><span class="password-rule-dot" aria-hidden="true"></span><span>10+ caracteres</span></li>
-            <li data-rule="lower"><span class="password-rule-dot" aria-hidden="true"></span><span>Minúscula (a-z)</span></li>
-            <li data-rule="upper"><span class="password-rule-dot" aria-hidden="true"></span><span>Mayúscula (A-Z)</span></li>
-            <li data-rule="digit"><span class="password-rule-dot" aria-hidden="true"></span><span>Número (0-9)</span></li>
-            <li data-rule="special"><span class="password-rule-dot" aria-hidden="true"></span><span>Símbolo (!@#$…)</span></li>
-          </ul>
-          <p id="password-hint" class="muted password-policy-hint">Mínimo 10 caracteres con mayúscula, minúscula, número y símbolo. Escriba la contraseña como prefiera: en pantalla se muestra tal cual (mayúsculas y minúsculas). En el servidor se almacena de forma segura (hash), no en texto plano.</p>
-        </div>
-        <label class="full register-terms-card">
-          <span class="register-terms-title">${fieldLabel(IC.file, "Términos y condiciones")}</span>
-          <span class="register-terms-copy muted">
-            Al crear su cuenta acepta los
-            <a class="register-terms-link" href="${REGISTER_TERMS_URL}" target="_blank" rel="noopener noreferrer">Términos de uso</a>,
-            la
-            <a class="register-terms-link" href="${REGISTER_PRIVACY_URL}" target="_blank" rel="noopener noreferrer">Política de privacidad</a>
-            y el tratamiento de datos (Habeas Data), y confirma que la información registrada es veraz.
-          </span>
-          <span class="checkbox-inline register-terms-check">
-            <input type="checkbox" name="acceptTerms" required />
-            Acepto los términos y la política para continuar con la solicitud.
-          </span>
-        </label>
-        <div class="full auth-inline-note">
-          <small class="muted">${IC.shield} Su solicitud quedará pendiente hasta que un administrador apruebe y asocie una empresa.</small>
-        </div>
-        ${turnstileWidgetMarkup()}
-        <button class="btn btn-primary full" type="submit">${IC.userPlus} Enviar solicitud de registro</button>
       </form>
     `;
   }

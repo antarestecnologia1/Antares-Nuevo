@@ -1248,3 +1248,146 @@ body[data-theme="dark"] .portal-main .ntf-card__read-badge {
     justify-content: center;
   }
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   CORRECCIONES DE CONTRASTE — claro / oscuro
+   Detectadas con scripts/ui-theme-audit.mjs. El revamp "module-ux-polish"
+   (arriba) convirtió los hero-strips oscuros en paneles glass claros, pero el
+   contenido interno seguía con la cromática del fondo azul original (texto
+   blanco). Aquí se re-tonaliza para garantizar legibilidad (WCAG AA).
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* —— 1. Chips de métricas de hero-strip en TEMA CLARO ——
+   Por defecto los chips heredan texto blanco; sobre el panel glass quedan
+   invisibles. Se les da fondo claro translúcido + texto legible. */
+body:not([data-theme="dark"]) .portal-main :where(.fleet-hero-metric, .drivers-hero-metric) {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(55, 124, 192, 0.22);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+body:not([data-theme="dark"]) .portal-main :where(.fleet-hero-metric, .drivers-hero-metric) span {
+  color: #50708f;
+}
+
+body:not([data-theme="dark"]) .portal-main :where(.fleet-hero-metric, .drivers-hero-metric) strong {
+  color: #0b2138;
+}
+
+/* Variantes con tono (atención/alerta): se conserva el matiz, sólo se sube su
+   opacidad para que el texto oscuro de arriba contraste bien. */
+body:not([data-theme="dark"]) .portal-main :where(.fleet-hero-metric-warn, .drivers-hero-metric-warn) {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.34), rgba(251, 191, 36, 0.2));
+  border-color: rgba(217, 119, 6, 0.4);
+}
+
+body:not([data-theme="dark"]) .portal-main :where(.fleet-hero-metric-alert, .drivers-hero-metric-alert) {
+  background: linear-gradient(135deg, rgba(248, 113, 113, 0.34), rgba(254, 202, 202, 0.28));
+  border-color: rgba(220, 38, 38, 0.42);
+}
+
+/* Nómina y Contratación mantienen el hero-strip con fondo oscuro (teal/índigo):
+   sus chips siguen con texto blanco. */
+body:not([data-theme="dark"]) .portal-main :where(.fleet-hero-strip--hr-payroll, .fleet-hero-strip--hr-hiring) .fleet-hero-metric {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow: none;
+}
+
+body:not([data-theme="dark"]) .portal-main :where(.fleet-hero-strip--hr-payroll, .fleet-hero-strip--hr-hiring) .fleet-hero-metric span {
+  color: rgba(255, 255, 255, 0.86);
+}
+
+body:not([data-theme="dark"]) .portal-main :where(.fleet-hero-strip--hr-payroll, .fleet-hero-strip--hr-hiring) .fleet-hero-metric strong {
+  color: #ffffff;
+}
+
+/* Notificaciones: métrica de atención en ámbar legible sobre glass claro. */
+body:not([data-theme="dark"]) .portal-main .ntf-metric--warn dd {
+  color: #b45309;
+}
+
+/* —— 2. Encabezados de hero-strips glass en TEMA CLARO —— */
+body:not([data-theme="dark"]) .portal-main :where(
+  .users-hero-strip, .reports-hero, .auth-hero, .profile-hero,
+  .calendar-hero, .history-hero, .b2b-hero
+) :where(h2, .fleet-hero-kicker, .users-hero-kicker, .drivers-hero-kicker, .notif-hero-kicker) {
+  color: var(--portal-ui-text);
+}
+
+body:not([data-theme="dark"]) .portal-main :where(
+  .users-hero-strip, .reports-hero, .auth-hero, .profile-hero,
+  .calendar-hero, .history-hero, .b2b-hero
+) > div > p,
+body:not([data-theme="dark"]) .portal-main .admin-users-hero-main > p {
+  color: var(--portal-ui-muted);
+}
+
+/* Panel "Acciones rápidas" del módulo Usuarios y permisos. */
+body:not([data-theme="dark"]) .portal-main .admin-users-hero-panel {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.66));
+  border-color: rgba(55, 124, 192, 0.2);
+}
+
+body:not([data-theme="dark"]) .portal-main :where(.admin-users-hero-panel__eyebrow, .admin-users-hero-score span) {
+  color: #50708f;
+}
+
+body:not([data-theme="dark"]) .portal-main :where(.admin-users-hero-panel__copy, .admin-users-hero-score p) {
+  color: var(--portal-ui-text);
+}
+
+body:not([data-theme="dark"]) .portal-main .admin-users-hero-score strong {
+  color: #0b2138;
+}
+
+/* —— 3. Navegación operativa por secciones en TEMA OSCURO ——
+   La pestaña activa heredaba color de texto oscuro (diseñado para el fondo
+   claro) y la micro-etiqueta normativa usaba tonos saturados ilegibles sobre
+   oscuro. Se usa [class*=…] (el atributo de clase contiene "is-active", por lo
+   que [class$=…] no casa) y `!important` para superar las reglas por sección
+   (especificidad 0,4,0). */
+body[data-theme="dark"] .portal-main [class*="-operate-nav-tab"].is-active {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.34), rgba(13, 26, 44, 0.96)) !important;
+  border-color: rgba(96, 165, 250, 0.42) !important;
+  color: #e8f1ff !important;
+}
+
+body[data-theme="dark"] .portal-main [class*="-operate-nav-tab"].is-active :where([class*="-operate-nav-label"], [class*="-operate-nav-hint"], [class*="-operate-nav-copy"]) {
+  color: #dceafc !important;
+}
+
+body[data-theme="dark"] .portal-main [class*="-operate-nav-norm"] {
+  background-color: rgba(148, 163, 184, 0.22) !important;
+  color: #c9daf2 !important;
+}
+
+/* —— 4. Botones de panel secundarios en TEMA OSCURO ——
+   El texto base (slate #475569) no contrasta sobre el fondo oscuro del botón. */
+body[data-theme="dark"] .portal-main :where(.module-panel-toolbar, .module-panel-actions--footer) .module-panel-btn:not(.btn-primary) {
+  color: #c3d2e6;
+}
+
+/* —— 5. Botón de acción (btn-action): texto blanco con contraste AA —— */
+.portal-main .btn-action {
+  background: linear-gradient(180deg, #5290d6 0%, #2f73b8 54%, #255a85 100%);
+  color: #ffffff;
+}
+
+body[data-theme="dark"] .portal-main .btn-action {
+  background: linear-gradient(180deg, #5290d6 0%, #2f6fb0 52%, #234e78 100%);
+  color: #ffffff;
+}
+
+/* —— 6. Etiquetas auxiliares de baja intensidad en TEMA CLARO —— */
+body:not([data-theme="dark"]) .portal-main :where(.directory-chip small, .directory-card__fact dt) {
+  color: #5b7188;
+}
+
+body:not([data-theme="dark"]) .portal-main .profile-key-item > p {
+  color: #5b7188;
+}
+
+body:not([data-theme="dark"]) .portal-main .acf-picker__placeholder {
+  color: #647488;
+}

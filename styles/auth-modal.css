@@ -28,7 +28,7 @@
 
 #auth-modal .modal-card-auth:has(#form-register),
 #auth-modal .modal-card-auth:has(#form-recover-complete) {
-  width: min(760px, calc(100vw - 1.5rem));
+  width: min(820px, calc(100vw - 1.5rem));
   max-height: min(92vh, 900px);
   overflow: hidden;
 }
@@ -771,5 +771,502 @@ body[data-theme="dark"] #auth-modal .cf-turnstile {
   #auth-modal.modal,
   #auth-modal .modal-card-auth {
     animation: none !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Formulario de registro — secciones, grid y controles
+   Solo presentación; nombres, ids y estructura de campos intactos.
+   ═══════════════════════════════════════════════════════════════════ */
+
+#auth-modal #form-register.auth-register-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+
+#auth-modal #form-register.auth-register-form::before {
+  display: none;
+}
+
+#auth-modal .register-intro {
+  margin-bottom: 0.15rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 75%, transparent);
+}
+
+#auth-modal .register-intro h3 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+#auth-modal .register-intro .muted {
+  margin: 0.35rem 0 0;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+#auth-modal .register-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.95rem 1rem;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--primary) 10%, var(--line));
+  background: color-mix(in srgb, var(--primary) 3%, #ffffff);
+}
+
+#auth-modal .register-section-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+#auth-modal .register-section-head--compact {
+  margin-bottom: 0.1rem;
+}
+
+#auth-modal .register-section-step {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 10px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1;
+  color: #ffffff;
+  background: linear-gradient(135deg, #4a8fd4, var(--primary));
+  box-shadow: 0 4px 10px rgba(var(--primary-rgb), 0.22);
+}
+
+#auth-modal .register-section-step--icon {
+  font-size: 0.65rem;
+}
+
+#auth-modal .register-section-title {
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+#auth-modal .register-section-desc {
+  margin: 0.2rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+#auth-modal .register-section-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  align-items: start;
+}
+
+#auth-modal .register-section-grid > .full,
+#auth-modal .register-section-grid > .register-doc-section,
+#auth-modal .register-section-grid > .password-strength-suite {
+  grid-column: 1 / -1;
+}
+
+#auth-modal #form-register .register-section-grid > label,
+#auth-modal #form-register .register-section-grid .register-doc-section > label,
+#auth-modal #form-register .register-section-grid #register-doc-persona.register-doc-block--natural > label,
+#auth-modal #form-register .register-section-grid #register-doc-empresa.register-doc-block--empresa > label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+  margin: 0;
+}
+
+#auth-modal #form-register .field-label {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: inherit;
+}
+
+#auth-modal #form-register.auth-register-form {
+  --reg-control-h: 2.65rem;
+}
+
+#auth-modal #form-register.auth-register-form input:not([type="checkbox"]):not([type="hidden"]):not(.phone-national-input),
+#auth-modal #form-register.auth-register-form select:not(.phone-cc-select),
+#auth-modal #form-register.auth-register-form .phone-input-professional,
+#auth-modal #form-register.auth-register-form .password-field .auth-password-input {
+  min-height: var(--reg-control-h);
+  height: var(--reg-control-h);
+  box-sizing: border-box;
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--primary) 10%, var(--line));
+  font-size: 0.9rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+#auth-modal #form-register.auth-register-form input:not([type="checkbox"]):not([type="hidden"]):not(.phone-national-input):focus,
+#auth-modal #form-register.auth-register-form select:not(.phone-cc-select):focus,
+#auth-modal #form-register.auth-register-form .phone-input-professional:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.12);
+  outline: none;
+}
+
+#auth-modal #form-register.auth-register-form .password-field {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.45rem;
+  align-items: stretch;
+  width: 100%;
+}
+
+#auth-modal #form-register.auth-register-form .password-field .btn {
+  min-height: var(--reg-control-h);
+  border-radius: 10px;
+  padding-inline: 0.8rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+#auth-modal #form-register .register-kind-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+#auth-modal #form-register .register-kind-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  padding: 0.85rem 0.9rem;
+  margin: 0;
+  border-radius: 12px;
+  border: 1.5px solid color-mix(in srgb, var(--primary) 14%, var(--line));
+  background: #ffffff;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+#auth-modal #form-register .register-kind-option:hover {
+  border-color: color-mix(in srgb, var(--primary) 32%, var(--line));
+  box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.08);
+}
+
+#auth-modal #form-register .register-kind-option:has(input:checked) {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 6%, #ffffff);
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.12);
+}
+
+#auth-modal #form-register .register-kind-option input {
+  margin-top: 0.2rem;
+  accent-color: var(--primary);
+  flex-shrink: 0;
+}
+
+#auth-modal #form-register .register-kind-option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+#auth-modal #form-register .register-kind-option-text strong {
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+#auth-modal #form-register .register-kind-option-text small {
+  font-size: 0.76rem;
+  line-height: 1.35;
+  color: var(--text-soft, var(--muted));
+}
+
+#auth-modal #form-register .register-doc-section {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  padding: 0.85rem;
+  border-radius: 12px;
+  border: 1px dashed color-mix(in srgb, var(--primary) 18%, var(--line));
+  background: rgba(var(--primary-rgb), 0.04);
+}
+
+#auth-modal #form-register #register-doc-persona.register-doc-block--natural {
+  display: contents;
+}
+
+#auth-modal #form-register #register-doc-persona.register-doc-block--natural[hidden] {
+  display: none !important;
+}
+
+#auth-modal #form-register #register-doc-empresa.register-doc-block--empresa {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+#auth-modal #form-register #register-doc-empresa.register-doc-block--empresa[hidden] {
+  display: none !important;
+}
+
+#auth-modal #form-register .register-doc-empresa-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 0.55rem 0.65rem;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  background: rgba(var(--primary-rgb), 0.06);
+}
+
+#auth-modal #form-register .phone-input-professional {
+  display: flex;
+  align-items: stretch;
+  overflow: hidden;
+  padding: 0;
+  background: #ffffff;
+}
+
+#auth-modal #form-register .phone-input-professional .phone-reg-flag-slot {
+  border-right: 1px solid var(--line);
+}
+
+#auth-modal #form-register .phone-field-hint {
+  font-size: 0.76rem;
+}
+
+#auth-modal #form-register .register-section--security .password-strength-suite {
+  padding: 0.85rem;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #f8fafc;
+}
+
+#auth-modal #form-register .register-section--legal {
+  gap: 0.65rem;
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+
+#auth-modal #form-register .register-terms-card {
+  padding: 0.9rem 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, #f9fcff, #f3f9ff);
+}
+
+#auth-modal #form-register .register-terms-check {
+  justify-content: flex-start;
+  text-align: left;
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+
+#auth-modal #form-register .auth-inline-note {
+  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--primary) 12%, var(--line));
+  background: rgba(var(--primary-rgb), 0.05);
+}
+
+#auth-modal #form-register .auth-inline-note .muted {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+#auth-modal #form-register .register-submit-wrap {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  padding-top: 0.35rem;
+  background: linear-gradient(180deg, transparent, color-mix(in srgb, #ffffff 88%, transparent) 24%);
+}
+
+#auth-modal #form-register .register-submit-btn {
+  min-height: 3rem;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  box-shadow: 0 10px 24px rgba(var(--primary-rgb), 0.24);
+}
+
+#auth-modal #form-register .register-submit-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 28px rgba(var(--primary-rgb), 0.3);
+}
+
+#auth-modal #form-register input.auth-password-input.password-match-ok {
+  border-color: #2d9d62 !important;
+  box-shadow: 0 0 0 3px rgba(45, 157, 98, 0.14) !important;
+}
+
+#auth-modal #form-register input.auth-password-input.password-match-bad {
+  border-color: #d64545 !important;
+  box-shadow: 0 0 0 3px rgba(214, 69, 69, 0.12) !important;
+}
+
+/* Tema claro — registro */
+body:not([data-theme="dark"]) #auth-modal .register-section {
+  background: #fafcfe;
+  border-color: color-mix(in srgb, var(--primary) 10%, var(--line));
+}
+
+body:not([data-theme="dark"]) #auth-modal .register-intro h3 {
+  color: var(--text-main, var(--text));
+}
+
+body:not([data-theme="dark"]) #auth-modal #form-register.auth-register-form input:not([type="checkbox"]):not([type="hidden"]):not(.phone-national-input),
+body:not([data-theme="dark"]) #auth-modal #form-register.auth-register-form select:not(.phone-cc-select) {
+  background: #ffffff;
+  color: var(--text-main, var(--text));
+}
+
+body:not([data-theme="dark"]) #auth-modal #form-register .password-field .btn {
+  color: var(--primary);
+  background: #f4f8fc;
+  border: 1px solid color-mix(in srgb, var(--primary) 12%, var(--line));
+}
+
+body:not([data-theme="dark"]) #auth-modal #form-register .register-kind-option-text strong {
+  color: var(--text-main, var(--text));
+}
+
+body:not([data-theme="dark"]) #auth-modal #form-register .register-section--security .password-strength-suite {
+  background: #f8fafc;
+}
+
+body:not([data-theme="dark"]) #auth-modal #form-register .register-submit-wrap {
+  background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.92) 28%);
+}
+
+/* Tema oscuro — registro */
+body[data-theme="dark"] #auth-modal .register-intro {
+  border-bottom-color: rgba(148, 196, 255, 0.14);
+}
+
+body[data-theme="dark"] #auth-modal .register-intro h3 {
+  color: #eef6ff;
+}
+
+body[data-theme="dark"] #auth-modal .register-section {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(148, 196, 255, 0.14);
+}
+
+body[data-theme="dark"] #auth-modal .register-section-title {
+  color: #eef6ff;
+}
+
+body[data-theme="dark"] #auth-modal .register-section-desc {
+  color: rgba(206, 226, 248, 0.72);
+}
+
+body[data-theme="dark"] #auth-modal #form-register .register-kind-option {
+  background: rgba(8, 22, 40, 0.55);
+  border-color: rgba(148, 196, 255, 0.18);
+}
+
+body[data-theme="dark"] #auth-modal #form-register .register-kind-option:has(input:checked) {
+  background: rgba(var(--primary-rgb), 0.14);
+  border-color: rgba(131, 190, 233, 0.55);
+}
+
+body[data-theme="dark"] #auth-modal #form-register .register-kind-option-text strong {
+  color: #e3eefc;
+}
+
+body[data-theme="dark"] #auth-modal #form-register .register-kind-option-text small {
+  color: rgba(202, 223, 247, 0.68);
+}
+
+body[data-theme="dark"] #auth-modal #form-register .register-doc-section {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(148, 196, 255, 0.16);
+}
+
+body[data-theme="dark"] #auth-modal #form-register .register-doc-empresa-note {
+  background: rgba(131, 190, 233, 0.08);
+  color: rgba(202, 223, 247, 0.72);
+}
+
+body[data-theme="dark"] #auth-modal #form-register.auth-register-form input:not([type="checkbox"]):not([type="hidden"]):not(.phone-national-input),
+body[data-theme="dark"] #auth-modal #form-register.auth-register-form select:not(.phone-cc-select) {
+  background: rgba(8, 22, 40, 0.72);
+  border-color: rgba(148, 196, 255, 0.18);
+  color: #eaf3ff;
+}
+
+body[data-theme="dark"] #auth-modal #form-register .phone-input-professional {
+  background: rgba(8, 22, 40, 0.72);
+  border-color: rgba(148, 196, 255, 0.18);
+}
+
+body[data-theme="dark"] #auth-modal #form-register .password-field .btn {
+  color: #d6e8ff;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(148, 196, 255, 0.2);
+}
+
+body[data-theme="dark"] #auth-modal #form-register .register-section--security .password-strength-suite {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(148, 196, 255, 0.14);
+}
+
+body[data-theme="dark"] #auth-modal #form-register .password-strength-headline {
+  color: #eaf3ff;
+}
+
+body[data-theme="dark"] #auth-modal #form-register .password-rule-grid li {
+  color: rgba(206, 226, 248, 0.78);
+}
+
+body[data-theme="dark"] #auth-modal #form-register .register-terms-card {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(148, 196, 255, 0.14);
+}
+
+body[data-theme="dark"] #auth-modal #form-register .register-terms-title {
+  color: #eef6ff;
+}
+
+body[data-theme="dark"] #auth-modal #form-register .auth-inline-note {
+  background: rgba(131, 190, 233, 0.08);
+  border-color: rgba(148, 196, 255, 0.14);
+}
+
+body[data-theme="dark"] #auth-modal #form-register .register-submit-wrap {
+  background: linear-gradient(180deg, transparent, rgba(12, 27, 44, 0.95) 30%);
+}
+
+@media (max-width: 640px) {
+  #auth-modal .register-section-grid,
+  #auth-modal #form-register .register-doc-section,
+  #auth-modal #form-register #register-doc-empresa.register-doc-block--empresa {
+    grid-template-columns: 1fr;
+  }
+
+  #auth-modal #form-register .register-kind-options {
+    grid-template-columns: 1fr;
+  }
+
+  #auth-modal .register-section {
+    padding: 0.8rem 0.85rem;
   }
 }
