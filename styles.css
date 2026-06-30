@@ -2212,7 +2212,70 @@ body[data-theme="dark"] .clients-strip-logo {
 
 .btn[aria-busy="true"].btn-primary:not(:disabled),
 .btn.is-busy.btn-primary:not(:disabled) {
-  opacity: 0.82;
+  opacity: 0.92;
+}
+
+/* ─── Estado de carga profesional: spinner universal para cualquier .btn ocupado ───
+   Cubre todos los módulos porque ya usan aria-busy / .is-busy al ejecutar acciones. */
+.btn[aria-busy="true"],
+.btn.is-busy {
+  position: relative;
+  color: transparent !important;
+  text-shadow: none !important;
+}
+
+.btn[aria-busy="true"] > *,
+.btn.is-busy > * {
+  opacity: 0 !important;
+  visibility: hidden;
+}
+
+.btn[aria-busy="true"]::after,
+.btn.is-busy::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 1.05em;
+  height: 1.05em;
+  margin: -0.525em 0 0 -0.525em;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  border-top-color: #ffffff;
+  animation: antares-btn-spin 0.62s linear infinite;
+  pointer-events: none;
+}
+
+/* Variantes claras: spinner en tono primario para contraste. */
+.btn-outline[aria-busy="true"]::after,
+.btn-outline.is-busy::after,
+.btn-text[aria-busy="true"]::after,
+.btn-text.is-busy::after,
+.btn-secondary[aria-busy="true"]::after,
+.btn-secondary.is-busy::after,
+.btn-light[aria-busy="true"]::after,
+.btn-light.is-busy::after {
+  border-color: rgba(var(--primary-rgb), 0.28);
+  border-top-color: var(--primary);
+}
+
+@keyframes antares-btn-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn[aria-busy="true"]::after,
+  .btn.is-busy::after {
+    animation-duration: 1.4s;
+  }
+}
+
+/* Pulido profesional: respuesta táctil consistente al presionar. */
+.btn:active:not(:disabled):not([disabled]):not([aria-disabled="true"]):not([aria-busy="true"]):not(.is-busy) {
+  transform: translateY(0);
+  filter: brightness(0.97);
 }
 
 form.is-submitting .module-panel-actions,
@@ -31518,7 +31581,11 @@ body[data-theme="dark"] #crud-modal .modal-card.modal-card-edit > #crud-modal-co
   > .module-panel-actions--footer.modal-edit-actions
   .module-panel-actions__bar {
   margin-top: 0;
-  padding: 0.95rem 0.15rem max(0.95rem, calc(0.6rem + env(safe-area-inset-bottom, 0px)));
+  /* La barra es full-bleed (margin-inline negativo), así que el padding horizontal
+     debe igualar el del card para que los botones queden alineados con los campos
+     y nunca toquen el borde con overflow:hidden (evita el recorte de «Guardar»). */
+  padding: 0.95rem var(--modal-card-pad-x, 1.4rem)
+    max(0.95rem, calc(0.6rem + env(safe-area-inset-bottom, 0px)));
   border-radius: 0;
   border-top: 1px solid color-mix(in srgb, var(--primary, #377cc0) 18%, #e2e8f0);
   box-shadow: 0 -10px 18px -14px rgba(15, 23, 42, 0.28);
@@ -34265,7 +34332,8 @@ body[data-theme="dark"] .modal-card-edit--employee-non-renewal .modal-edit-actio
   justify-content: space-between;
   gap: 0.75rem 1rem;
   margin-top: 0;
-  padding: 0.9rem 1.15rem max(1.05rem, calc(0.9rem + env(safe-area-inset-bottom, 0px)));
+  padding: 0.9rem var(--modal-card-pad-x, 1.4rem)
+    max(1.05rem, calc(0.9rem + env(safe-area-inset-bottom, 0px)));
   border-top: 1px solid rgba(148, 163, 184, 0.24);
   border-radius: 0 0 var(--radius) var(--radius);
   background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
@@ -34280,7 +34348,8 @@ body[data-theme="dark"] .modal-card-edit--employee-non-renewal .modal-edit-actio
 .detail-view-footer .module-panel-actions__bar {
   overflow: visible;
   flex-wrap: wrap;
-  padding: 0.9rem 1.15rem max(1.05rem, calc(0.9rem + env(safe-area-inset-bottom, 0px)));
+  padding: 0.9rem var(--modal-card-pad-x, 1.4rem)
+    max(1.05rem, calc(0.9rem + env(safe-area-inset-bottom, 0px)));
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.85),
     0 -6px 16px rgba(15, 23, 42, 0.06);
@@ -34320,75 +34389,97 @@ body[data-theme="dark"] .modal-card-edit--employee-non-renewal .modal-edit-actio
   background: rgba(148, 163, 184, 0.32);
 }
 
-/* Cancelar — blanco, borde suave, icono rojo plano */
+/* Cancelar — blanco, borde con tinte rojo suave e icono en chip */
 .module-panel-actions--footer.modal-edit-actions .module-panel-btn--cancel {
   --mpa-btn-bg: #ffffff;
-  --mpa-btn-edge: rgba(148, 163, 184, 0.32);
-  --mpa-btn-icon-bg: transparent;
-  min-height: 2.65rem;
+  --mpa-btn-edge: rgba(180, 35, 24, 0.22);
+  --mpa-btn-icon-bg: rgba(220, 38, 38, 0.08);
+  min-height: 2.7rem;
   min-width: 7rem;
-  padding: 0.58rem 1.05rem;
-  border-radius: 10px;
-  border: 1px solid rgba(148, 163, 184, 0.28);
+  padding: 0.6rem 1.2rem;
+  border-radius: 12px;
+  border: 1px solid rgba(180, 35, 24, 0.22);
   background: #ffffff;
   color: #b42318;
   font-weight: 650;
-  font-size: 0.84rem;
+  font-size: 0.85rem;
   letter-spacing: 0.01em;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.95),
-    0 1px 3px rgba(15, 23, 42, 0.06);
+    0 1px 2px rgba(15, 23, 42, 0.05),
+    0 2px 6px rgba(15, 23, 42, 0.04);
+  transition:
+    color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.22s ease,
+    transform 0.18s cubic-bezier(0.34, 1.2, 0.64, 1);
 }
 
 .module-panel-actions--footer.modal-edit-actions .module-panel-btn--cancel:hover {
-  --mpa-btn-bg: #ffffff;
-  --mpa-btn-edge: rgba(148, 163, 184, 0.42);
-  background: #ffffff;
+  --mpa-btn-bg: #fff5f5;
+  --mpa-btn-edge: rgba(220, 38, 38, 0.42);
+  --mpa-btn-icon-bg: rgba(220, 38, 38, 0.15);
+  background: linear-gradient(180deg, #ffffff 0%, #fff5f5 100%);
   color: #991b1b;
-  border-color: rgba(148, 163, 184, 0.38);
+  border-color: rgba(220, 38, 38, 0.42);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 1),
-    0 2px 8px rgba(15, 23, 42, 0.08);
+    0 4px 14px rgba(220, 38, 38, 0.16);
   transform: translateY(-1px);
+}
+
+.module-panel-actions--footer.modal-edit-actions .module-panel-btn--cancel:active {
+  transform: translateY(0) scale(0.985);
 }
 
 .module-panel-actions--footer.modal-edit-actions .module-panel-btn--cancel .btn-icon {
   width: 15px;
   height: 15px;
-  padding: 0;
-  border-radius: 0;
-  background: transparent !important;
+  padding: 0.3rem;
+  box-sizing: content-box;
+  border-radius: 8px;
+  background: var(--mpa-btn-icon-bg) !important;
   color: #b42318;
   stroke: currentColor;
   box-shadow: none;
+  transition: background 0.2s ease, transform 0.2s cubic-bezier(0.34, 1.2, 0.64, 1);
+}
+
+.module-panel-actions--footer.modal-edit-actions .module-panel-btn--cancel:hover .btn-icon {
+  transform: rotate(-32deg);
 }
 
 .module-panel-actions--footer.modal-edit-actions .module-panel-btn--cancel .module-panel-btn__inner {
-  gap: 0.5rem;
+  gap: 0.55rem;
 }
 
-/* Guardar — azul sólido, texto e icono blancos */
+/* Guardar — azul con degradado, icono en chip translúcido */
 .module-panel-actions--footer.modal-edit-actions .module-panel-actions__group--primary > .btn-primary,
 .module-panel-actions--footer.modal-edit-actions .module-panel-actions__group--primary > .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 2.65rem;
-  min-width: 8rem;
+  min-height: 2.7rem;
+  min-width: 8.5rem;
   max-width: 100%;
-  padding: 0.58rem 1.15rem;
-  border-radius: 10px;
-  border: 1px solid rgba(37, 99, 168, 0.45) !important;
-  background: linear-gradient(180deg, #4a95e0 0%, #3186d4 52%, #2569b8 100%) !important;
+  padding: 0.6rem 1.45rem;
+  border-radius: 12px;
+  border: 1px solid rgba(37, 99, 168, 0.5) !important;
+  background: linear-gradient(180deg, #4a98e4 0%, #3186d4 50%, #2364b4 100%) !important;
   color: #ffffff !important;
   -webkit-text-fill-color: #ffffff;
-  font-size: 0.84rem;
-  font-weight: 650;
+  font-size: 0.85rem;
+  font-weight: 700;
   letter-spacing: 0.015em;
-  text-shadow: none;
+  text-shadow: 0 1px 1px rgba(7, 30, 61, 0.22);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.2),
-    0 2px 8px rgba(37, 105, 184, 0.28);
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 2px 6px rgba(37, 105, 184, 0.28),
+    0 6px 18px rgba(37, 105, 184, 0.22);
+  transition:
+    transform 0.18s cubic-bezier(0.34, 1.2, 0.64, 1),
+    box-shadow 0.22s ease,
+    filter 0.2s ease;
   transform: none;
   overflow: visible;
   flex-shrink: 0;
@@ -34416,13 +34507,20 @@ body[data-theme="dark"] .modal-card-edit--employee-non-renewal .modal-edit-actio
 .module-panel-actions--footer.modal-edit-actions .module-panel-actions__group--primary > .btn-primary .btn-icon {
   width: 15px;
   height: 15px;
-  padding: 0;
-  border-radius: 0;
-  background: transparent !important;
+  padding: 0.3rem;
+  box-sizing: content-box;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.22) !important;
   color: #ffffff !important;
   stroke: currentColor;
   filter: none;
-  box-shadow: none;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+  transition: background 0.2s ease, transform 0.2s cubic-bezier(0.34, 1.2, 0.64, 1);
+}
+
+.module-panel-actions--footer.modal-edit-actions .module-panel-actions__group--primary > .btn-primary:hover:not(:disabled) .btn-icon {
+  background: rgba(255, 255, 255, 0.3) !important;
+  transform: scale(1.06);
 }
 
 .module-panel-actions--footer.modal-edit-actions .module-panel-actions__group--primary > .btn-primary::after {
@@ -34433,13 +34531,14 @@ body[data-theme="dark"] .modal-card-edit--employee-non-renewal .modal-edit-actio
   background: linear-gradient(180deg, #5aa3e8 0%, #3b8fd8 52%, #2a75c4 100%) !important;
   color: #ffffff !important;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.24),
-    0 4px 12px rgba(37, 105, 184, 0.34);
-  transform: translateY(-1px) !important;
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 4px 10px rgba(37, 105, 184, 0.3),
+    0 12px 28px rgba(37, 105, 184, 0.3);
+  transform: translateY(-2px) !important;
 }
 
 .module-panel-actions--footer.modal-edit-actions .module-panel-actions__group--primary > .btn-primary:active:not(:disabled) {
-  transform: translateY(0) !important;
+  transform: translateY(0) scale(0.985) !important;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.16),
     0 2px 6px rgba(37, 105, 184, 0.24);
@@ -35903,4 +36002,449 @@ body[data-theme="dark"] #auth-modal #form-login .auth-password-row .btn,
 body[data-theme="dark"] #auth-modal .module-panel-btn--close {
   background: rgba(15, 31, 50, 0.78);
   border-color: rgba(148, 196, 255, 0.16);
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   AUTH — rediseño inmersivo "cadena de frío Antares"
+   Vidrio azul profundo, emblema flotante y transición de marca (ruta
+   logística en movimiento). Texto siempre legible en cualquier tema.
+   Solo presentación: no cambia nombres, ids ni estructura de campos.
+   ════════════════════════════════════════════════════════════════════ */
+
+@keyframes auth-overlay-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes auth-card-in {
+  from { opacity: 0; transform: translateY(24px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes auth-form-in {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes auth-emblem-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-5px); }
+}
+@keyframes auth-track-slide {
+  from { background-position: 0 0, 0 0; }
+  to   { background-position: 60px 0, 0 0; }
+}
+@keyframes auth-aurora-pan {
+  0%   { transform: translate3d(-4%, -2%, 0) rotate(0deg); }
+  50%  { transform: translate3d(4%, 3%, 0) rotate(8deg); }
+  100% { transform: translate3d(-4%, -2%, 0) rotate(0deg); }
+}
+
+/* Overlay: noche azul Antares con aurora difusa */
+#auth-modal.modal {
+  padding: clamp(0.85rem, 2.6vw, 1.8rem);
+  background:
+    radial-gradient(circle at 16% 14%, rgba(131, 190, 233, 0.30), transparent 30%),
+    radial-gradient(circle at 84% 86%, rgba(45, 106, 168, 0.34), transparent 34%),
+    linear-gradient(140deg, rgba(4, 18, 33, 0.86), rgba(7, 33, 60, 0.78));
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  animation: auth-overlay-in 0.4s ease both;
+}
+
+/* Tarjeta: vidrio profundo, borde luminoso, profundidad y entrada animada */
+#auth-modal .modal-card-auth {
+  position: relative;
+  isolation: isolate;
+  width: min(660px, calc(100vw - 1.25rem));
+  padding: clamp(1.1rem, 2.8vw, 1.7rem) clamp(1.1rem, 3vw, 1.9rem) clamp(1.2rem, 3vw, 1.9rem);
+  border-radius: 30px;
+  border: 1px solid rgba(148, 196, 255, 0.28);
+  background:
+    linear-gradient(150deg, rgba(20, 44, 74, 0.92) 0%, rgba(11, 28, 50, 0.94) 55%, rgba(8, 21, 38, 0.96) 100%);
+  box-shadow:
+    0 40px 90px rgba(2, 12, 26, 0.55),
+    0 12px 36px rgba(20, 70, 130, 0.32),
+    0 1px 0 rgba(255, 255, 255, 0.16) inset;
+  color: #e8f2ff;
+  overflow: hidden;
+  animation: auth-card-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Cinta superior tipo "ruta logística" en movimiento continuo */
+#auth-modal .modal-card-auth::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 5px;
+  border-radius: 30px 30px 0 0;
+  background:
+    repeating-linear-gradient(90deg,
+      rgba(255, 255, 255, 0.92) 0 18px,
+      rgba(131, 190, 233, 0.55) 18px 30px,
+      rgba(255, 255, 255, 0) 30px 60px),
+    linear-gradient(90deg, #1d4f86, #377cc0, #83bee9);
+  background-size: 60px 100%, 100% 100%;
+  background-repeat: repeat-x, no-repeat;
+  opacity: 0.92;
+  mask-image: none;
+  -webkit-mask-image: none;
+  pointer-events: none;
+  z-index: 2;
+  animation: auth-track-slide 5.5s linear infinite;
+}
+
+/* Aurora interna en movimiento (transición de marca) */
+#auth-modal .modal-card-auth::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -40%;
+  right: auto;
+  top: auto;
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background:
+    radial-gradient(circle at 30% 30%, rgba(99, 167, 247, 0.24), transparent 45%),
+    radial-gradient(circle at 70% 62%, rgba(131, 190, 233, 0.18), transparent 50%);
+  filter: blur(10px);
+  pointer-events: none;
+  animation: auth-aurora-pan 18s ease-in-out infinite;
+}
+
+#auth-modal .modal-head,
+#auth-modal .tabs,
+#auth-modal #auth-content {
+  position: relative;
+  z-index: 1;
+}
+
+/* Logo plano fuera; emblema circular flotante (estilo avatar de referencia) */
+#auth-modal .auth-modal-brand-logo { display: none; }
+
+#auth-modal .modal-head {
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.6rem;
+  padding: 0.7rem 0 1rem;
+  border-bottom: 0;
+}
+
+#auth-modal .auth-modal-title-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+#auth-modal .auth-modal-heading {
+  flex-direction: column;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  color: #eef6ff;
+  font-size: clamp(1.02rem, 3vw, 1.22rem);
+  text-shadow: 0 2px 12px rgba(2, 12, 26, 0.4);
+}
+
+#auth-modal .auth-modal-heading-text {
+  color: #eef6ff;
+  flex: 0 1 auto;
+  text-align: center;
+}
+
+#auth-modal .auth-modal-heading-icon {
+  width: 72px !important;
+  height: 72px !important;
+  padding: 18px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  color: #ffffff !important;
+  background:
+    radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.4), transparent 46%),
+    linear-gradient(150deg, #4a8fd4 0%, #377cc0 50%, #1e4a73 100%);
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  box-shadow:
+    0 18px 40px rgba(13, 55, 102, 0.55),
+    0 0 0 10px rgba(131, 190, 233, 0.12),
+    0 0 0 1px rgba(255, 255, 255, 0.18) inset;
+  animation: auth-emblem-float 5.5s ease-in-out infinite;
+}
+
+/* Cerrar: flotante, esquina superior derecha */
+#auth-modal .modal-head .module-panel-btn--close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  border-radius: 14px;
+  color: #d6e8ff;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(148, 196, 255, 0.22);
+  box-shadow: none;
+}
+#auth-modal .modal-head .module-panel-btn--close:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+}
+
+/* Tabs: control segmentado tipo píldora, centrado */
+#auth-modal .tabs {
+  margin: 0.2rem auto 1.1rem;
+  max-width: 420px;
+  padding: 0.32rem;
+  gap: 0.25rem;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 196, 255, 0.2);
+  background: rgba(6, 20, 38, 0.55);
+  box-shadow:
+    0 10px 26px rgba(2, 12, 26, 0.4) inset,
+    0 1px 0 rgba(255, 255, 255, 0.06);
+}
+#auth-modal .tab {
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(214, 232, 255, 0.72);
+  min-height: 2.5rem;
+}
+#auth-modal .tab:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.06);
+  border-color: transparent;
+  transform: none;
+}
+#auth-modal .tab.active {
+  color: #ffffff;
+  background: linear-gradient(135deg, #4a8fd4 0%, #377cc0 50%, #1e4a73 100%);
+  border-color: transparent;
+  box-shadow:
+    0 12px 24px rgba(13, 55, 102, 0.45),
+    0 1px 0 rgba(255, 255, 255, 0.28) inset;
+}
+
+#auth-modal #auth-content {
+  margin-top: 0;
+  padding: 0 0.1rem;
+}
+#auth-modal #auth-content > form,
+#auth-modal #auth-content > .auth-header-premium,
+#auth-modal #auth-content > .auth-register-success-banner {
+  animation: auth-form-in 0.45s ease both;
+}
+
+/* Paneles de formulario: vidrio translúcido sobre la tarjeta */
+#auth-modal .auth-pane,
+#auth-modal #form-login.auth-pane {
+  border: 1px solid rgba(148, 196, 255, 0.18);
+  border-radius: 22px;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02));
+  box-shadow:
+    0 18px 40px rgba(2, 12, 26, 0.35),
+    0 1px 0 rgba(255, 255, 255, 0.08) inset;
+}
+#auth-modal #form-login.auth-pane {
+  padding: clamp(1.2rem, 3.4vw, 1.9rem);
+  gap: 1rem;
+}
+
+/* Encabezados internos (registro / recuperar) */
+#auth-modal .auth-header-premium h3 { color: #eaf3ff; }
+#auth-modal .auth-header-premium .muted { color: rgba(206, 226, 248, 0.74); }
+
+/* ── Texto siempre legible (claro) ── */
+#auth-modal,
+#auth-modal label,
+#auth-modal .field-label,
+#auth-modal .auth-plain-label,
+#auth-modal #form-login .auth-plain-label,
+#auth-modal .register-kind-label,
+#auth-modal .register-terms-title,
+#auth-modal .auth-modal-heading {
+  color: #e3eefc;
+}
+#auth-modal .muted,
+#auth-modal small.muted,
+#auth-modal .register-kind-hint,
+#auth-modal .register-doc-empresa-note,
+#auth-modal .register-terms-copy,
+#auth-modal .password-policy-hint,
+#auth-modal .register-password-match-hint,
+#auth-modal .phone-field-hint,
+#auth-modal .auth-remember-hint {
+  color: rgba(202, 223, 247, 0.72);
+}
+#auth-modal a { color: #9ed0ff; }
+#auth-modal strong { color: #f0f7ff; }
+
+/* ── Controles de entrada ── */
+#auth-modal input:not([type="checkbox"]):not([type="radio"]):not(.auth-input-control),
+#auth-modal select,
+#auth-modal textarea {
+  color: #eaf3ff;
+  background: rgba(8, 22, 40, 0.62);
+  border: 1px solid rgba(148, 196, 255, 0.22);
+}
+#auth-modal input:not([type="checkbox"]):not([type="radio"])::placeholder {
+  color: rgba(200, 220, 245, 0.5);
+}
+#auth-modal select option { color: #0b2138; background: #eaf3ff; }
+#auth-modal input:not([type="checkbox"]):not([type="radio"]):focus,
+#auth-modal select:focus,
+#auth-modal textarea:focus {
+  border-color: rgba(131, 190, 233, 0.85);
+  box-shadow: 0 0 0 3px rgba(131, 190, 233, 0.2);
+}
+
+/* Campos sin caja interna (look más limpio) */
+#auth-modal .auth-field-stack,
+#auth-modal #form-login .auth-field-stack {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  gap: 0.45rem;
+}
+
+/* Filas con icono (login / recuperar / asignar contraseña) */
+#auth-modal .auth-input-row,
+#auth-modal #form-login .auth-input-row {
+  min-height: 3.4rem;
+  border-radius: 16px;
+  background: rgba(8, 22, 40, 0.6);
+  border: 1px solid rgba(148, 196, 255, 0.22);
+  box-shadow: none;
+}
+#auth-modal .auth-input-row:hover,
+#auth-modal #form-login .auth-input-row:hover {
+  border-color: rgba(131, 190, 233, 0.5);
+  transform: none;
+  box-shadow: none;
+}
+#auth-modal .auth-input-row:focus-within,
+#auth-modal #form-login .auth-input-row:focus-within {
+  border-color: rgba(131, 190, 233, 0.85);
+  box-shadow: 0 0 0 4px rgba(131, 190, 233, 0.18);
+}
+#auth-modal .auth-input-row .auth-input-control {
+  background: transparent;
+  border: 0;
+  color: #eaf3ff;
+}
+#auth-modal .auth-input-prefix,
+#auth-modal #form-login .auth-input-prefix {
+  min-width: 3.1rem;
+  border-radius: 16px 0 0 16px;
+  color: #9ed0ff;
+  background: linear-gradient(180deg, rgba(131, 190, 233, 0.18), rgba(55, 124, 192, 0.14));
+  border-right: 1px solid rgba(148, 196, 255, 0.18);
+}
+
+/* Botón Mostrar/Ocultar contraseña */
+#auth-modal .auth-password-row .btn,
+#auth-modal .password-field .btn,
+#auth-modal #form-login .auth-password-row .btn {
+  color: #d6e8ff;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(148, 196, 255, 0.22);
+}
+#auth-modal .auth-password-row .btn:hover,
+#auth-modal .password-field .btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+}
+
+/* Recordar credenciales */
+#auth-modal .auth-remember-row,
+#auth-modal #form-login .auth-remember-row {
+  padding: 0.85rem 0.95rem;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(148, 196, 255, 0.16);
+}
+#auth-modal .auth-remember-check span { color: #e3eefc; }
+#auth-modal input[type="checkbox"],
+#auth-modal input[type="radio"] { accent-color: #4a8fd4; }
+
+/* Registro: bloques internos translúcidos */
+#auth-modal .register-kind-options { gap: 0.6rem; }
+#auth-modal .register-kind-option {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(148, 196, 255, 0.2);
+  color: #e3eefc;
+  border-radius: 12px;
+}
+#auth-modal .register-kind-option:hover { border-color: rgba(131, 190, 233, 0.5); }
+#auth-modal .register-terms-card,
+#auth-modal .auth-inline-note,
+#auth-modal .password-strength-suite,
+#auth-modal .auth-recover-hint {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(148, 196, 255, 0.16);
+  border-radius: 16px;
+}
+#auth-modal .password-strength-headline { color: #eaf3ff; }
+#auth-modal .password-rule-grid li { color: rgba(206, 226, 248, 0.78); }
+#auth-modal .auth-recover-hint-title { color: #eaf3ff; }
+#auth-modal .auth-recover-hint-text { color: rgba(206, 226, 248, 0.74); }
+#auth-modal .auth-recover-hint-icon { color: #9ed0ff; }
+
+/* Teléfono (registro) */
+#auth-modal .phone-input-professional {
+  background: rgba(8, 22, 40, 0.6);
+  border: 1px solid rgba(148, 196, 255, 0.22);
+}
+#auth-modal .phone-cc-select,
+#auth-modal .phone-national-input {
+  background: transparent;
+  color: #eaf3ff;
+  border: 0;
+}
+
+/* Banner de éxito de registro mantiene su tarjeta clara legible */
+#auth-modal .auth-register-success-banner,
+#auth-modal .auth-register-success-title,
+#auth-modal .auth-register-success-body { color: #0f3d28; }
+
+/* CTA principal */
+#auth-modal .btn-primary.full,
+#auth-modal #form-login .btn-primary.full {
+  min-height: 3.45rem;
+  border-radius: 16px;
+  color: #ffffff;
+  background-image:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.18), transparent 30%),
+    linear-gradient(135deg, #59a5eb 0%, #377cc0 46%, #1e4a73 100%);
+  box-shadow:
+    0 18px 34px rgba(13, 55, 102, 0.45),
+    0 1px 0 rgba(255, 255, 255, 0.28) inset;
+}
+#auth-modal .btn-primary.full:hover,
+#auth-modal #form-login .btn-primary.full:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 24px 44px rgba(13, 55, 102, 0.5),
+    0 1px 0 rgba(255, 255, 255, 0.3) inset;
+}
+
+#auth-modal .cf-turnstile { border-radius: 14px; overflow: hidden; }
+
+@media (max-width: 720px) {
+  #auth-modal.modal { padding: 0.6rem; }
+  #auth-modal .modal-card-auth { border-radius: 22px; padding: 1rem 0.9rem 1.1rem; }
+  #auth-modal .auth-modal-heading-icon {
+    width: 60px !important;
+    height: 60px !important;
+    padding: 15px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #auth-modal.modal,
+  #auth-modal .modal-card-auth,
+  #auth-modal #auth-content > form,
+  #auth-modal #auth-content > .auth-header-premium,
+  #auth-modal .auth-modal-heading-icon,
+  #auth-modal .modal-card-auth::before,
+  #auth-modal .modal-card-auth::after {
+    animation: none !important;
+  }
 }

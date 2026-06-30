@@ -174,10 +174,17 @@
     const statusSlug = typeof slugStatus === "function" ? slugStatus(r.status) : String(r.status || "").replace(/\W+/g, "-").toLowerCase();
     const originCity = String(r.originCity || r.originDepartment || "Origen").trim() || "Origen";
     const destinationCity = String(r.destinationCity || r.destinationDepartment || "Destino").trim() || "Destino";
-    const pickupLabel = fmtDate(r.trip?.etaPickup || r.pickupAt || r.pickupDate || "") || "Sin fecha";
+    const pickupRaw = r.trip?.etaPickup || r.pickupAt || r.pickupDate || "";
+    const pickupLabel = fmtDate(pickupRaw) || "Sin fecha";
     const cargoLabel = String(r.cargoDescription || "Carga").trim() || "Carga";
     const truckReq = typeof requestTruckRequirementSummaryHtml === "function" ? requestTruckRequirementSummaryHtml(r) : "";
     const tripAssigned = Boolean(r.trip);
+    // Urgencia de recogida solo en estados previos a la recogida (evita "Vencida" en viajes ya hechos/cerrados).
+    const prePickupStatuses = [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION, STATUS.VIAJE_ASIGNADO];
+    const pickupUrgency =
+      pickupRaw && prePickupStatuses.includes(r.status) && typeof portalOpsCardPickupUrgency === "function"
+        ? portalOpsCardPickupUrgency(pickupRaw)
+        : { label: "", tone: "" };
     const valueDd = tripAssigned
       ? `$${parseNum(r.tripValue || r.insuredValue || 0).toLocaleString("es-CO")}`
       : `<span class="muted">${escapeHtml("Pendiente")}</span>`;
@@ -188,6 +195,9 @@
         : String(r.status || "—").trim() || "—";
     const reqNo = String(r.requestNumber || r.id || "-");
     const createdLabel = fmtDate(r.createdAt || "") || "—";
+    const createdRelative =
+      typeof formatPortalOpsCardRelative === "function" ? formatPortalOpsCardRelative(r.createdAt || "") : "";
+    const createdFootLabel = createdRelative && createdLabel !== "—" ? `${createdLabel} · ${createdRelative}` : createdLabel;
     const distanceKm = parseNum(r.distanceKm || 0);
     const metaChipsHtml = buildRequestOpsMetaChips(r, requestedBy);
     const statusBadgeHtml = buildPortalOpsCardStatusPill(statusText, statusSlug);
@@ -258,14 +268,14 @@
         </div>
       </div>
       <div class="trip-ops-card-grid portal-ops-card-spec-grid request-ops-card-spec-grid">
-        ${buildPortalOpsCardGridItem("Recogida", IC.calendar, pickupLabel, { tone: tripAssigned ? "ok" : "warn" })}
+        ${buildPortalOpsCardGridItem("Recogida", IC.calendar, pickupLabel, { tone: pickupUrgency.tone || (tripAssigned ? "ok" : "warn"), subValue: pickupUrgency.label, subTone: pickupUrgency.tone })}
         ${buildPortalOpsCardGridItem("Valor", IC.dollar, valueDd, { tone: "value", raw: true })}
         ${buildPortalOpsCardGridItem("Carga", IC.package || IC.file, cargoLabel)}
         ${buildPortalOpsCardGridItem("Camión / requisitos", IC.truck, truckReq, { raw: true })}
       </div>
       ${tripBadge}
       ${buildPortalOpsCardActions(actionButtons)}
-      ${buildPortalOpsCardFoot("Creado", createdLabel)}
+      ${buildPortalOpsCardFoot("Creado", createdFootLabel)}
     </article>`;
   }
 

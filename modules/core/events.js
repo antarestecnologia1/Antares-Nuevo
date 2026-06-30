@@ -83,6 +83,7 @@ import {
 } from "../ui/components.js";
 import { applyPublicLanguage, applyTheme } from "./i18n.js";
 import { failPortalField, isActionButtonBusy } from "../ui/modals.js";
+import { installActionButtonGuard } from "./action-button-guard.js";
 
 /** Runtime clásico (`portal-runtime.js`) expuesto en `globalThis` antes que este módulo. */
 const $portal = typeof globalThis !== "undefined" ? /** @type {Record<string, any>} */ (globalThis) : /** @type {Record<string, any>} */ ({});
@@ -2909,6 +2910,7 @@ function bindDynamicEvents() {
 }
 
 function initGlobalEvents() {
+  installActionButtonGuard();
   const V = window.AntaresValidation;
   if (V?.installLiveValidation) {
     V.installLiveValidation(document);

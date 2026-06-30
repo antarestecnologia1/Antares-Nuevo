@@ -175,14 +175,13 @@ function vehiclesHtml() {
       const tecnoTone = directoryToneFromBucket(tecno.cls);
       const gpsEnabled = String(v.hasGps ?? "true").trim().toLowerCase() !== "false";
       const gpsProvider = String(v.gpsProvider || "").trim();
-      const gpsTraceLabel = gpsEnabled ? (gpsProvider || "Activo").toUpperCase() : "Sin GPS";
+      const gpsSubLabel = gpsEnabled ? gpsProvider || "Trazabilidad activa" : "Sin trazabilidad";
       const occupancyDetail = occupancy.trip
         ? String(occupancy.trip.clientName || occupancy.trip.companyName || occupancy.trip.request?.clientName || "").trim() || occupancy.detail
         : occupancy.detail;
       const capacityLabel = parseNum(v.capacityKg) > 0 ? `${parseNum(v.capacityKg).toLocaleString("es-CO")} kg` : "Sin capacidad";
       const ownershipCardLabel = String(v.ownershipCard || "").trim() || "Sin tarjeta";
-      const motorLabel = String(v.engineNumber || "").trim() || "Sin motor";
-      const vinLabel = String(v.vin || "").trim() || "Sin VIN";
+      const bodyTypeLabel = String(v.bodyType || "").trim() || "Sin carrocería";
       const lastUpdateLabel = formatPortalOpsCardTimestamp(v.updatedAt || v.createdAt || "");
       const statusBadgeHtml = buildPortalOpsCardStatusPill(availabilityLabel, occupancySlug);
       const termokingBadgeHtml = isRefrigerated
@@ -245,13 +244,11 @@ function vehiclesHtml() {
         </div>
         <div class="trip-ops-card-grid portal-ops-card-spec-grid vehicle-card-spec-grid">
           ${buildPortalOpsCardGridItem("Capacidad", IC.scale, capacityLabel)}
+          ${buildPortalOpsCardGridItem("Carrocería", IC.package || IC.file, bodyTypeLabel)}
           ${buildPortalOpsCardGridItem("SOAT", IC.shield, soat.label, { tone: soatTone })}
           ${buildPortalOpsCardGridItem("Tecnomecánica", IC.file, tecno.label, { tone: tecnoTone })}
-          ${buildPortalOpsCardGridItem("GPS", IC.mapPin, gpsEnabled ? "Activo" : "Inactivo", { tone: gpsEnabled ? "ok" : "warn" })}
+          ${buildPortalOpsCardGridItem("GPS", IC.mapPin, gpsEnabled ? "Activo" : "Inactivo", { tone: gpsEnabled ? "ok" : "warn", subValue: gpsSubLabel, subTone: gpsEnabled ? "ok" : "warn" })}
           ${buildPortalOpsCardGridItem("Tarjeta de Operación", IC.card, ownershipCardLabel)}
-          ${buildPortalOpsCardGridItem("Motor", IC.settings, motorLabel)}
-          ${buildPortalOpsCardGridItem("VIN", IC.hash, vinLabel)}
-          ${buildPortalOpsCardGridItem("Trazabilidad", IC.satellite, gpsTraceLabel, { tone: gpsEnabled ? "ok" : "warn" })}
         </div>
         ${buildPortalOpsCardActions(primaryButtons, fullWidthActionsHtml)}
         ${buildPortalOpsCardFoot("Última actualización", lastUpdateLabel)}

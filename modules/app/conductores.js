@@ -333,7 +333,7 @@ function driversHtml() {
         <div class="trip-ops-card-grid portal-ops-card-spec-grid driver-card-spec-grid">
           ${buildPortalOpsCardGridItem("Licencia", IC.card, licenseCategory)}
           ${buildPortalOpsCardGridItem("Experiencia", IC.calendar, expLabel)}
-          ${buildPortalOpsCardGridItem("Compar. (puntos)", IC.scale, item.comparendos > 0 ? String(item.comparendos) : "0", { tone: item.comparendos > 0 ? "warn" : "ok" })}
+          ${buildPortalOpsCardGridItem("Comparendos", IC.scale, item.comparendos > 0 ? String(item.comparendos) : "0", { tone: item.comparendos > 0 ? "warn" : "ok" })}
           ${buildPortalOpsCardGridItem("SS", IC.shield, item.hasSocialSecurity ? "Al día" : "Pendiente", { tone: item.hasSocialSecurity ? "ok" : "warn" })}
           ${buildPortalOpsCardGridItem("Documento", IC.badge, String(d.idDoc || "—"))}
           ${buildPortalOpsCardGridItem("Teléfono", IC.phone, phoneValue)}

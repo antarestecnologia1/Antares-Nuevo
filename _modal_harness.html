@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="styles.css" />
+<style>
+  html, body { margin: 0; height: 100%; }
+  body { font-family: system-ui, sans-serif; }
+  /* fuerza variables que normalmente define :root del portal por si faltan */
+  :root { --primary: #377cc0; --primary-rgb: 55,124,192; --primary-dark:#2a6399; --white:#ffffff; --line:#e2e8f0; --text-main:#0f2540; --text-soft:#5a7a96; --muted:#5a7a96; --radius:14px; }
+</style>
+</head>
+<body>
+<div class="modal" id="crud-modal" role="dialog" aria-modal="true">
+  <div class="modal-card modal-card-edit">
+    <div id="crud-modal-content">
+      <div class="modal-head">
+        <div class="modal-head__copy">
+          <h2 id="crud-modal-title">Editar solicitud de viaje</h2>
+          <p class="muted modal-head__subtitle">SOL-000039 · FLORISTERIA PRUEBAS · Viaje VIA-000019</p>
+        </div>
+        <button type="button" id="crud-close" class="btn btn-sm btn-outline module-panel-btn module-panel-btn--close" aria-label="Cerrar">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <form id="crud-form" class="p-form p-form-colored modal-edit-form">
+        <fieldset class="form-section form-section-blue full" role="group">
+          <legend>Información</legend>
+          <div class="form-section-grid">
+            <label class="full"><span>Descripción de carga *</span><input type="text" value="100" /></label>
+            <label><span>Refrigeración termoking *</span><select><option>Sí, requiere equipo Termoking</option></select></label>
+            <label><span>Tipo de camión requerido *</span><select><option>Tractomula</option></select></label>
+            <label><span>Peso (kg) tractomula *</span><input type="number" value="200" /></label>
+            <label><span>Valor del viaje (COP)</span><input type="number" value="0" /></label>
+          </div>
+        </fieldset>
+        <div class="module-panel-actions module-panel-actions--footer modal-edit-actions form-flow-actions full">
+          <div class="module-panel-actions__bar">
+            <div class="module-panel-actions__group module-panel-actions__group--secondary">
+              <button type="button" id="crud-cancel" class="btn btn-sm btn-action btn-danger-soft module-panel-btn module-panel-btn--cancel" title="Cancelar">
+                <span class="module-panel-btn__inner"><svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg><span class="module-panel-btn__label">Cancelar</span></span>
+              </button>
+            </div>
+            <div class="module-panel-actions__group module-panel-actions__group--primary">
+              <button type="submit" class="btn btn-primary module-panel-btn module-panel-btn--save">
+                <span class="module-panel-btn__inner"><svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg><span class="module-panel-btn__label">Guardar cambios</span></span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+</body>
+</html>

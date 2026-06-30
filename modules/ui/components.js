@@ -1197,6 +1197,57 @@ export function formatPortalOpsCardTimestamp(iso) {
   return fmtDate(iso);
 }
 
+/**
+ * Tiempo relativo compacto para pies de tarjeta ("hace 3 días", "en 2 meses").
+ * Pensado para dar contexto temporal sin ocupar más espacio que una fecha plana.
+ */
+export function formatPortalOpsCardRelative(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const diffMs = Date.now() - d.getTime();
+  const future = diffMs < 0;
+  const absMs = Math.abs(diffMs);
+  const minutes = Math.floor(absMs / 60000);
+  if (minutes < 1) return "hace instantes";
+  if (minutes < 60) return future ? `en ${minutes} min` : `hace ${minutes} min`;
+  const hours = Math.floor(absMs / 3600000);
+  if (hours < 24) return future ? `en ${hours} h` : `hace ${hours} h`;
+  const days = Math.floor(absMs / 86400000);
+  if (days === 1) return future ? "mañana" : "ayer";
+  if (days < 30) return future ? `en ${days} días` : `hace ${days} días`;
+  const months = Math.floor(days / 30);
+  if (months < 12) {
+    const unit = months === 1 ? "mes" : "meses";
+    return future ? `en ${months} ${unit}` : `hace ${months} ${unit}`;
+  }
+  const years = Math.floor(days / 365);
+  const unit = years === 1 ? "año" : "años";
+  return future ? `en ${years} ${unit}` : `hace ${years} ${unit}`;
+}
+
+/**
+ * Urgencia de una fecha de recogida/cita (comparación por día calendario).
+ * Devuelve `{ label, tone }` para usarse como subvalor de una celda de tarjeta.
+ * `tone`: alert (vencida) · warn (hoy / próxima) · ok (con holgura).
+ */
+export function portalOpsCardPickupUrgency(value) {
+  if (!value) return { label: "", tone: "" };
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return { label: "", tone: "" };
+  const now = new Date();
+  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startTarget = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const days = Math.round((startTarget.getTime() - startToday.getTime()) / 86400000);
+  if (days < 0) {
+    return { label: days === -1 ? "Vencida ayer" : `Vencida hace ${Math.abs(days)} días`, tone: "alert" };
+  }
+  if (days === 0) return { label: "Recoge hoy", tone: "warn" };
+  if (days === 1) return { label: "Recoge mañana", tone: "warn" };
+  if (days <= 3) return { label: `Recoge en ${days} días`, tone: "warn" };
+  return { label: `Recoge en ${days} días`, tone: "ok" };
+}
+
 /** Celda de cuadrícula estándar para tarjetas del portal. */
 export function buildPortalOpsCardGridItem(label, icon, value, options = {}) {
   const tone = String(options.tone || "");
