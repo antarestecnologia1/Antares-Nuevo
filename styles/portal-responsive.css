@@ -1388,6 +1388,14 @@ body:not([data-theme="dark"]) .portal-main .profile-key-item > p {
   color: #5b7188;
 }
 
+body:not([data-theme="dark"]) .portal-main .empty-state p {
+  color: #51677d;
+}
+
+body:not([data-theme="dark"]) .portal-main .profile-stat-card p {
+  color: #5b7188;
+}
+
 body:not([data-theme="dark"]) .portal-main .acf-picker__placeholder {
   color: #647488;
 }
@@ -1420,4 +1428,17 @@ body[data-theme="dark"] .portal-main :where(.acf-schedule-card__step, .acf-sched
 
 body[data-theme="dark"] .portal-main .acf-schedule__connector--warn .acf-schedule__connector-chip {
   color: #f5c07a;
+}
+
+/* —— 9. Historial: token de acento índigo en TEMA OSCURO ——
+   --trace-accent (#4338ca) es legible sobre superficies claras pero no sobre
+   las oscuras; se aclara el token (afecta badge, contador, chips, etc.). */
+body[data-theme="dark"] .history-studio.hist-trace-shell {
+  --trace-accent: #a5b4fc;
+  --trace-accent-soft: rgba(129, 140, 248, 0.2);
+  --trace-accent-border: rgba(129, 140, 248, 0.34);
+}
+
+body[data-theme="dark"] .portal-main .history-studio.hist-trace-shell :where(.hist-trace-result-meta__label, .hist-trace-result-sort, .hist-trace-result-sort span) {
+  color: #9fb2c9;
 }
