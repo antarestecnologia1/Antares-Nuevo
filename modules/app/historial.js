@@ -505,6 +505,7 @@ function historyHtml() {
         if (ok) {
           state.__historyAuditHydratedFromApi = true;
           state.__historyAuditPresentationBackfilled = false;
+          state.__historyAuditEntriesCache = null;
           if (typeof scheduleRenderPortalView === "function") scheduleRenderPortalView();
           else if (typeof renderPortalView === "function") renderPortalView();
         }
@@ -570,7 +571,8 @@ function historyHtml() {
         if (filterInputs.moduleFilter !== String(histUi.moduleFilter || "")) {
           state.historyUi = { ...histUi, moduleFilter: filterInputs.moduleFilter };
         }
-        const items = applyHistoryTraceFilters(buildHistoryAuditEntries(), filterInputs);
+        const allEntries = buildHistoryAuditEntries();
+        const items = applyHistoryTraceFilters(allEntries, filterInputs);
         const chipOpts = { ...filterInputs, moduleFilter: "" };
         const limit = Number(state.historyRenderLimit) > 0 ? Number(state.historyRenderLimit) : HISTORY_RENDER_WINDOW;
         const shownItems = historyRenderWindowSlice(items, limit);
@@ -590,7 +592,7 @@ function historyHtml() {
           kpiRoot.outerHTML = renderHistoryTraceKpis(stats);
         }
         if (chipRoot) {
-          chipRoot.outerHTML = renderHistoryModuleFilterChips(buildHistoryAuditEntries(), chipOpts, filterInputs.moduleFilter);
+          chipRoot.outerHTML = renderHistoryModuleFilterChips(allEntries, chipOpts, filterInputs.moduleFilter);
           nodes.viewRoot.querySelectorAll("[data-action='history-module-filter']").forEach((chipBtn) => {
             chipBtn.addEventListener("click", () => {
               const next = String(chipBtn.dataset.module || "").trim();
@@ -622,13 +624,20 @@ function historyHtml() {
       };
 
       window.__historyTraceApplyFilters = refreshTraceResults;
+      let historySearchTimer = 0;
+      const scheduleTraceResultsRefresh = () => {
+        window.clearTimeout(historySearchTimer);
+        historySearchTimer = window.setTimeout(refreshTraceResults, 220);
+      };
 
       traceFilter.addEventListener("submit", (event) => {
         event.preventDefault();
+        window.clearTimeout(historySearchTimer);
         state.historyRenderLimit = HISTORY_RENDER_WINDOW;
         refreshTraceResults();
       });
       traceFilter.addEventListener("change", () => {
+        window.clearTimeout(historySearchTimer);
         state.historyRenderLimit = HISTORY_RENDER_WINDOW;
         refreshTraceResults();
       });
@@ -636,10 +645,11 @@ function historyHtml() {
       if (liveSearch) {
         liveSearch.addEventListener("input", () => {
           state.historyRenderLimit = HISTORY_RENDER_WINDOW;
-          refreshTraceResults();
+          scheduleTraceResultsRefresh();
         });
       }
       traceFilter.addEventListener("reset", () => {
+        window.clearTimeout(historySearchTimer);
         state.historyUi = { ...(state.historyUi || {}), moduleFilter: "" };
         state.historyRenderLimit = HISTORY_RENDER_WINDOW;
         window.requestAnimationFrame(() => refreshTraceResults());

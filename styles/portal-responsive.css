@@ -654,3 +654,595 @@ body.portal-mode .kpi-grid {
     flex: 1 1 100%;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   Portal UX polish — cohesión visual transversal
+   Alcance: módulos operativos, RRHH, perfiles, notificaciones y B2B.
+   ═══════════════════════════════════════════════════════════════════ */
+:root {
+  --portal-ui-surface: #f4f8fc;
+  --portal-ui-card: rgba(255, 255, 255, 0.94);
+  --portal-ui-card-solid: #ffffff;
+  --portal-ui-edge: rgba(55, 124, 192, 0.16);
+  --portal-ui-edge-strong: rgba(55, 124, 192, 0.28);
+  --portal-ui-text: #0b2138;
+  --portal-ui-muted: #5b7188;
+  --portal-ui-shadow: 0 18px 44px rgba(15, 35, 70, 0.1);
+  --portal-ui-shadow-soft: 0 8px 24px rgba(15, 35, 70, 0.07);
+  --portal-ui-radius: 18px;
+  --portal-ui-radius-sm: 13px;
+}
+
+body[data-theme="dark"] {
+  --portal-ui-surface: #071824;
+  --portal-ui-card: rgba(13, 28, 48, 0.88);
+  --portal-ui-card-solid: rgba(13, 28, 48, 0.96);
+  --portal-ui-edge: rgba(148, 196, 255, 0.15);
+  --portal-ui-edge-strong: rgba(148, 196, 255, 0.25);
+  --portal-ui-text: #e8f4fc;
+  --portal-ui-muted: #9eb8d8;
+  --portal-ui-shadow: 0 22px 54px rgba(0, 0, 0, 0.32);
+  --portal-ui-shadow-soft: 0 12px 30px rgba(0, 0, 0, 0.24);
+}
+
+body.portal-mode .portal-main {
+  background:
+    radial-gradient(circle at 8% 0%, rgba(var(--primary-mid-rgb), 0.18), transparent 28rem),
+    radial-gradient(circle at 100% 4%, rgba(var(--primary-rgb), 0.13), transparent 24rem),
+    linear-gradient(180deg, color-mix(in srgb, var(--portal-ui-surface) 92%, #fff), var(--portal-ui-surface));
+}
+
+body[data-theme="dark"].portal-mode .portal-main {
+  background:
+    radial-gradient(circle at 10% 0%, rgba(var(--primary-mid-rgb), 0.14), transparent 28rem),
+    radial-gradient(circle at 100% 4%, rgba(var(--primary-rgb), 0.18), transparent 24rem),
+    linear-gradient(180deg, #071824 0%, #081421 100%);
+}
+
+.portal-main :where(
+  .requests-studio,
+  .transport-studio,
+  .vehicles-studio,
+  .drivers-studio,
+  .calendar-studio,
+  .history-studio,
+  .reports-studio,
+  .payroll-studio,
+  .hiring-studio,
+  .sst-studio,
+  .b2b-studio,
+  .admin-users-studio,
+  .authorizations-studio,
+  .profile-studio,
+  .notifications-studio
+) {
+  isolation: isolate;
+}
+
+.portal-main :where(
+  .fleet-hero-strip,
+  .users-hero-strip,
+  .ntf-studio-head,
+  .reports-hero,
+  .auth-hero,
+  .profile-hero,
+  .calendar-hero,
+  .history-hero,
+  .b2b-hero,
+  .payroll-studio-head,
+  .hiring-studio-head,
+  .transport-studio-head,
+  .vehicles-studio-head,
+  .requests-studio-head,
+  .sst-studio .p-card:first-child
+) {
+  position: relative;
+  overflow: hidden;
+  border-radius: clamp(16px, 1.2vw, 22px);
+  border: 1px solid var(--portal-ui-edge-strong);
+  background:
+    linear-gradient(135deg, rgba(var(--primary-rgb), 0.12), transparent 58%),
+    linear-gradient(160deg, rgba(255, 255, 255, 0.98), rgba(241, 248, 255, 0.88));
+  box-shadow: var(--portal-ui-shadow);
+}
+
+.portal-main :where(
+  .fleet-hero-strip,
+  .users-hero-strip,
+  .ntf-studio-head,
+  .reports-hero,
+  .auth-hero,
+  .profile-hero,
+  .calendar-hero,
+  .history-hero,
+  .b2b-hero,
+  .payroll-studio-head,
+  .hiring-studio-head,
+  .transport-studio-head,
+  .vehicles-studio-head,
+  .requests-studio-head,
+  .sst-studio .p-card:first-child
+)::after {
+  content: "";
+  position: absolute;
+  inset: auto -8% -42% auto;
+  width: min(24rem, 58%);
+  aspect-ratio: 1;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(var(--primary-mid-rgb), 0.2), transparent 68%);
+  pointer-events: none;
+}
+
+body[data-theme="dark"] .portal-main :where(
+  .fleet-hero-strip,
+  .users-hero-strip,
+  .ntf-studio-head,
+  .reports-hero,
+  .auth-hero,
+  .profile-hero,
+  .calendar-hero,
+  .history-hero,
+  .b2b-hero,
+  .payroll-studio-head,
+  .hiring-studio-head,
+  .transport-studio-head,
+  .vehicles-studio-head,
+  .requests-studio-head,
+  .sst-studio .p-card:first-child
+) {
+  background:
+    linear-gradient(135deg, rgba(var(--primary-rgb), 0.16), transparent 58%),
+    linear-gradient(160deg, rgba(13, 28, 48, 0.98), rgba(9, 22, 38, 0.94));
+}
+
+.portal-main :where(.p-card, .table-wrap, .ntf-data-panel, .auth-queue-section, .reports-workspace, .requests-data-panel) {
+  background: var(--portal-ui-card);
+  border-color: var(--portal-ui-edge);
+  box-shadow: var(--portal-ui-shadow-soft);
+  backdrop-filter: blur(14px) saturate(1.05);
+  -webkit-backdrop-filter: blur(14px) saturate(1.05);
+}
+
+.portal-main :where(.p-card, .portal-ops-card, .trip-ops-card, .directory-card:not(.directory-card--compact), .hiring-candidate-card, .ntf-card) {
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.18s ease;
+}
+
+.portal-main :where(.p-card:hover, .portal-ops-card:hover, .trip-ops-card:hover, .directory-card:not(.directory-card--compact):hover, .hiring-candidate-card:hover, .ntf-card:hover) {
+  border-color: var(--portal-ui-edge-strong);
+  box-shadow: var(--portal-ui-shadow);
+}
+
+.portal-main :where(.p-card-header, .hr-action-card__head, .requests-data-head, .auth-queue-section-head, .modal-head) {
+  border-bottom-color: var(--portal-ui-edge);
+}
+
+.portal-main :where(.p-card-header h2, .hr-action-card__copy h3, .modal-head h2, .detail-view-sheet__title) {
+  color: var(--portal-ui-text);
+  letter-spacing: -0.02em;
+}
+
+.portal-main :where(.p-card-header p, .hr-action-card__desc, .modal-head__subtitle, .detail-view-sheet__subtitle, .muted) {
+  color: var(--portal-ui-muted);
+}
+
+.portal-main :where(
+  .hr-workspace-tabs,
+  .auth-tabs-bar,
+  .reports-workspace-tabs,
+  .payroll-data-nav,
+  .payroll-workspace-actions,
+  .hist-trace-module-filters,
+  .ntf-filter-tabs,
+  .ntf-filter-rail
+) {
+  border: 1px solid var(--portal-ui-edge);
+  background: color-mix(in srgb, var(--portal-ui-card-solid) 82%, var(--primary-light));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 8px 22px rgba(15, 35, 70, 0.06);
+}
+
+.portal-main :where(
+  .hr-workspace-tab,
+  .auth-tab-btn,
+  .reports-workspace-tab,
+  .payroll-data-nav-tab,
+  .hist-trace-module-chip,
+  .ntf-filter-tab,
+  .ntf-filter-btn,
+  .ntf-pref-toggle
+) {
+  border-radius: 999px;
+}
+
+.portal-main :where(
+  .hr-workspace-tab.is-active,
+  .auth-tab-btn.is-active,
+  .reports-workspace-tab.is-active,
+  .payroll-data-nav-tab.is-active,
+  .hist-trace-module-chip.is-active,
+  .ntf-filter-tab.is-active,
+  .ntf-filter-btn--active
+) {
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  color: #fff;
+  box-shadow: 0 10px 24px rgba(var(--primary-rgb), 0.24);
+}
+
+.portal-main .notifications-studio :where(.ntf-pref-toggle) {
+  min-height: 2.75rem;
+  background: color-mix(in srgb, var(--portal-ui-card-solid) 82%, var(--primary-light));
+  border-color: var(--portal-ui-edge);
+  box-shadow: 0 8px 22px rgba(15, 35, 70, 0.07);
+}
+
+.portal-main .notifications-studio :where(.ntf-pref-toggle:not(.ntf-pref-toggle--off):not([disabled])) {
+  border-color: color-mix(in srgb, var(--primary) 30%, var(--portal-ui-edge));
+  background:
+    linear-gradient(135deg, rgba(var(--primary-rgb), 0.09), transparent 60%),
+    var(--portal-ui-card-solid);
+}
+
+.portal-main .notifications-studio :where(.ntf-pref-toggle__switch) {
+  box-shadow: inset 0 1px 2px rgba(11, 33, 56, 0.22);
+}
+
+body[data-theme="dark"] .portal-main .notifications-studio :where(.ntf-pref-toggle) {
+  background: rgba(8, 18, 32, 0.72);
+  border-color: rgba(148, 196, 255, 0.16);
+}
+
+.portal-main :where(.form-section, .modal-edit-form label, .p-form label, .module-filter-field, .searchable-select) {
+  border-radius: var(--portal-ui-radius-sm);
+}
+
+.portal-main :where(
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea,
+  .searchable-select-input,
+  .native-trip-filter-input
+) {
+  border-color: color-mix(in srgb, var(--primary) 14%, var(--line, #d7e2ef));
+  background: color-mix(in srgb, var(--portal-ui-card-solid) 96%, var(--primary-light));
+  color: var(--portal-ui-text);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+.portal-main :where(
+  input:not([type="checkbox"]):not([type="radio"]):hover,
+  select:hover,
+  textarea:hover,
+  .searchable-select-input:hover,
+  .native-trip-filter-input:hover
+) {
+  border-color: color-mix(in srgb, var(--primary) 26%, var(--line, #d7e2ef));
+}
+
+.portal-main :where(
+  input:not([type="checkbox"]):not([type="radio"]):focus,
+  select:focus,
+  textarea:focus,
+  .searchable-select-input:focus,
+  .native-trip-filter-input:focus
+) {
+  border-color: color-mix(in srgb, var(--primary) 48%, var(--line, #d7e2ef));
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.13), inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+body[data-theme="dark"] .portal-main :where(
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea,
+  .searchable-select-input,
+  .native-trip-filter-input
+) {
+  background: rgba(8, 18, 32, 0.82);
+  border-color: rgba(148, 196, 255, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.portal-main :where(.table-wrap) {
+  overflow: auto;
+}
+
+.portal-main :where(table) {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.portal-main :where(thead th) {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: color-mix(in srgb, var(--portal-ui-card-solid) 88%, var(--primary-light));
+  color: color-mix(in srgb, var(--portal-ui-text) 86%, var(--primary));
+  box-shadow: 0 1px 0 var(--portal-ui-edge);
+}
+
+.portal-main :where(tbody tr) {
+  transition: background 0.16s ease, transform 0.16s ease;
+}
+
+.portal-main :where(tbody tr:hover) {
+  background: color-mix(in srgb, var(--primary) 5%, transparent);
+}
+
+body[data-theme="dark"] .portal-main :where(thead th) {
+  background: color-mix(in srgb, rgba(13, 28, 48, 0.98) 88%, var(--primary));
+}
+
+.portal-main :where(.btn-primary, .trip-ops-card-btn--solid, .create-trip-submit-btn, .antares-create-form__submit) {
+  background-image: linear-gradient(135deg, var(--primary), var(--primary-dark)) !important;
+  border-color: color-mix(in srgb, var(--primary) 66%, #fff) !important;
+  box-shadow: 0 10px 24px rgba(var(--primary-rgb), 0.24);
+}
+
+.portal-main :where(.btn-primary:hover, .trip-ops-card-btn--solid:hover, .create-trip-submit-btn:hover, .antares-create-form__submit:hover) {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 30px rgba(var(--primary-rgb), 0.3);
+}
+
+.portal-main :where(.btn-outline, .btn-action, .module-panel-btn, .trip-ops-card-btn--outline) {
+  border-color: var(--portal-ui-edge);
+  background: color-mix(in srgb, var(--portal-ui-card-solid) 86%, var(--primary-light));
+}
+
+.portal-main :where(.empty-state, .searchable-select-empty, .ntf-empty) {
+  color: var(--portal-ui-muted);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.36);
+}
+
+@container portal-main (max-width: 760px) {
+  .portal-main :where(
+    .fleet-hero-strip,
+    .users-hero-strip,
+    .ntf-studio-head,
+    .reports-hero,
+    .auth-hero,
+    .profile-hero,
+    .calendar-hero,
+    .history-hero,
+    .b2b-hero,
+    .payroll-studio-head,
+    .hiring-studio-head,
+    .transport-studio-head,
+    .vehicles-studio-head,
+    .requests-studio-head
+  ) {
+    padding-inline: clamp(0.9rem, 4vw, 1.15rem);
+  }
+
+  .portal-main :where(.table-wrap) {
+    border-radius: 14px;
+  }
+
+  .portal-main :where(.p-card, .portal-ops-card, .trip-ops-card, .ntf-card) {
+    border-radius: 14px;
+  }
+}
+
+/* ── Revisión UX profunda: formularios, tarjetas y estados ── */
+:root {
+  --portal-input-radius: 10px;
+  --portal-field-card-bg: color-mix(in srgb, var(--portal-ui-card-solid, #fff) 96%, var(--primary-light, #cce5f8));
+}
+
+.portal-main :where(.form-section legend, #crud-form.p-form-colored.modal-edit-form .form-section legend) {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  color: var(--portal-ui-text);
+  letter-spacing: -0.01em;
+  text-transform: none;
+}
+
+.portal-main :where(.form-section .muted, .form-section-grid + p.muted, .field-help, .emp-contract-duration-hint) {
+  color: var(--portal-ui-muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.portal-main :where(.form-section-grid .field-error, .modal-edit-form .field-error) {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  margin-top: 0.45rem;
+  padding: 0.48rem 0.62rem;
+  border-radius: 9px;
+  border: 1px solid color-mix(in srgb, #d64545 20%, transparent);
+  background: color-mix(in srgb, #d64545 7%, var(--portal-ui-card-solid, #fff));
+  color: #b42323;
+  font-size: 0.78rem;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.portal-main :where(.form-section-grid .field-error, .modal-edit-form .field-error)::before {
+  content: "!";
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  margin-top: 0.08rem;
+  border-radius: 999px;
+  background: #d64545;
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.portal-main :where(.modal-edit-form .form-section-grid label:has(.field-invalid), .p-form .form-section-grid label:has(.field-invalid)) {
+  border-color: #d64545 !important;
+  box-shadow: 0 0 0 3px rgba(214, 69, 69, 0.14) !important;
+}
+
+.portal-main :where(
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea,
+  .searchable-select-input,
+  .native-trip-filter-input,
+  .acf-picker__open-btn,
+  .acf-date-preset,
+  .acf-time-preset,
+  .acf-time-slot,
+  .acf-cal__day
+) {
+  border-radius: var(--portal-input-radius);
+}
+
+.portal-main :where(
+  .acf-picker__open-btn:focus-visible,
+  .acf-date-preset:focus-visible,
+  .acf-time-preset:focus-visible,
+  .acf-time-slot:focus-visible,
+  .acf-cal__day:focus-visible,
+  .module-panel-btn:focus-visible,
+  .trip-ops-card-btn:focus-visible,
+  .ntf-pref-toggle:focus-visible,
+  .ntf-filter-btn:focus-visible,
+  .reports-workspace-tab:focus-visible,
+  .auth-tab-btn:focus-visible
+) {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.portal-main :where(.antares-create-form .form-section-grid input, .antares-create-form .form-section-grid select, .antares-create-form .form-section-grid textarea) {
+  box-shadow: none;
+}
+
+.portal-main :where(.antares-create-form__submit:disabled, .create-trip-submit-btn:disabled, .hr-form-wizard-submit:disabled) {
+  filter: grayscale(0.35);
+  transform: none !important;
+  box-shadow: none;
+}
+
+body[data-theme="dark"] .portal-main :where(.form-section-grid .field-error, .modal-edit-form .field-error) {
+  border-color: rgba(248, 113, 113, 0.24);
+  background: rgba(127, 29, 29, 0.35);
+  color: #fecaca;
+}
+
+.portal-main :where(.history-empty-state, .auth-inbox-empty .empty-state, .hiring-empty-state, .ntf-empty) {
+  padding: 1rem 1.1rem;
+  border-radius: var(--portal-ui-radius-sm);
+  border: 1px dashed var(--portal-ui-edge-strong);
+  background:
+    linear-gradient(135deg, rgba(var(--primary-rgb), 0.06), transparent 62%),
+    var(--portal-field-card-bg);
+}
+
+.portal-main :where(.history-empty-state)::before {
+  content: "";
+  display: block;
+  width: 2.35rem;
+  height: 2.35rem;
+  margin: 0 0 0.55rem;
+  border-radius: 12px;
+  background:
+    linear-gradient(135deg, rgba(var(--primary-rgb), 0.14), rgba(var(--primary-mid-rgb), 0.12)),
+    var(--portal-ui-card-solid);
+  box-shadow: inset 0 0 0 1px var(--portal-ui-edge);
+}
+
+.portal-main :where(.history-fleet-log-card, .profile-stat-card, .reports-studio .reports-export-grid .p-card) {
+  position: relative;
+  overflow: hidden;
+  border-color: var(--portal-ui-edge);
+  border-radius: var(--portal-ui-radius-sm);
+  background: var(--portal-ui-card);
+  box-shadow: var(--portal-ui-shadow-soft);
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.portal-main :where(.history-fleet-log-card:hover, .profile-stat-card:hover, .reports-studio .reports-export-grid .p-card:hover) {
+  transform: translateY(-2px);
+  border-color: var(--portal-ui-edge-strong);
+  box-shadow: var(--portal-ui-shadow);
+}
+
+.portal-main :where(.history-fleet-log-card::before, .profile-stat-card::before, .reports-studio .reports-export-grid .p-card::before) {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  border-radius: inherit;
+  background: var(--ops-card-accent, var(--primary));
+  pointer-events: none;
+}
+
+.portal-main .trip-ops-card-item-value--value {
+  color: color-mix(in srgb, var(--primary) 84%, var(--portal-ui-text)) !important;
+  font-weight: 800;
+}
+
+.portal-main :where(.portal-ops-card-status-pill__text, .portal-ops-card-doc-pill, .status, .status-pretty) {
+  white-space: normal;
+}
+
+.portal-main :where(.directory-card__actions, .ntf-card__actions) {
+  gap: 0.45rem;
+}
+
+.portal-main :where(.directory-card__actions .btn, .ntf-card__actions .btn) {
+  min-height: 2.05rem;
+  border-radius: 10px;
+  font-weight: 750;
+}
+
+.portal-main .ntf-card:hover {
+  transform: translateY(-1px);
+}
+
+.portal-main .ntf-card__read-badge {
+  border-radius: 999px;
+  border: 1px solid var(--portal-ui-edge);
+  background: color-mix(in srgb, #10b981 10%, var(--portal-ui-card-solid));
+  color: #047857;
+}
+
+body[data-theme="dark"] .portal-main .ntf-card__read-badge {
+  background: rgba(16, 185, 129, 0.12);
+  color: #6ee7b7;
+  border-color: rgba(16, 185, 129, 0.28);
+}
+
+@container portal-main (max-width: 720px) {
+  .portal-main :where(.modal-edit-form, .form-section-grid) {
+    grid-template-columns: 1fr;
+  }
+
+  .portal-main :where(.history-fleet-log-grid, .admin-users-list-shell .user-grid, .user-grid, .reports-export-grid, .admin-users-insights-grid, .admin-users-command-grid) {
+    display: flex;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    justify-content: flex-start;
+  }
+
+  .portal-main :where(.history-fleet-log-card, .profile-stat-card, .reports-studio .reports-export-grid .p-card) {
+    border-radius: 14px;
+  }
+}
+
+@container portal-main (max-width: 480px) {
+  .portal-main :where(.acf-time-slots__grid, .acf-timepicker__grid--hours, .acf-timepicker__grid--minutes) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .portal-main :where(.directory-card__actions, .ntf-card__actions, .reports-workspace-tabs) {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .portal-main :where(.directory-card__actions .btn, .ntf-card__actions .btn, .reports-workspace-tab) {
+    width: 100%;
+    justify-content: center;
+  }
+}

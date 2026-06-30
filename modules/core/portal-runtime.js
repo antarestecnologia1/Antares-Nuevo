@@ -8620,6 +8620,9 @@ function enrichHistoryAuditEntriesWithExplicitActors(entries) {
 }
 
 function dedupeHistoryAuditEntries(entries) {
+  const hasExplicit = entries.some((e) => String(e.id || "").startsWith("audit-explicit-"));
+  const hasSynthetic = entries.some((e) => !String(e.id || "").startsWith("audit-explicit-"));
+  if (!hasExplicit || !hasSynthetic) return entries;
   const dropExplicitIds = new Set();
   for (const explicit of entries) {
     if (!String(explicit.id || "").startsWith("audit-explicit-")) continue;
@@ -8650,6 +8653,22 @@ function dedupeHistoryAuditEntries(entries) {
     if (sibling.actor || sibling.usuario || explicitUsuario) dropExplicitIds.add(explicit.id);
   }
   return dropExplicitIds.size ? entries.filter((e) => !dropExplicitIds.has(e.id)) : entries;
+}
+
+function historyAuditEntriesCacheKey(rows) {
+  const list = Array.isArray(rows) ? rows : [];
+  const first = list[0] || {};
+  const last = list[list.length - 1] || {};
+  return [
+    list.length,
+    first.id || "",
+    first.at || "",
+    first.fecha_actualizacion || "",
+    last.id || "",
+    last.at || "",
+    last.fecha_actualizacion || "",
+    state.__historyAuditPresentationBackfilled ? "1" : "0"
+  ].join("|");
 }
 
 function backfillModuleAuditLogActors() {
@@ -8706,8 +8725,13 @@ function buildHistoryAuditEntries() {
     backfillModuleAuditLogActors();
   }
   /** Fuente: auditoria_eventos_portal (GET bootstrap / audit-events). Sin entityHistoryActors ni localStorage. */
+  const auditRows = readModuleAuditLogs();
+  const cacheKey = historyAuditEntriesCacheKey(auditRows);
+  if (state.__historyAuditEntriesCache?.key === cacheKey && Array.isArray(state.__historyAuditEntriesCache.entries)) {
+    return state.__historyAuditEntriesCache.entries;
+  }
   const entries = [];
-  readModuleAuditLogs().forEach((row) => {
+  auditRows.forEach((row) => {
     const ts = String(row.at || "").trim();
     if (!ts || Number.isNaN(new Date(ts).getTime())) return;
     const actorEmail = String(row.actorEmail || "").trim();
@@ -8733,13 +8757,15 @@ function buildHistoryAuditEntries() {
     );
   });
 
-  return dedupeHistoryAuditEntries(enrichHistoryAuditEntriesWithExplicitActors(entries))
+  const built = dedupeHistoryAuditEntries(enrichHistoryAuditEntriesWithExplicitActors(entries))
     .map((entry) => ({
       ...entry,
       moduleLabel: normalizePortalAuditModuleLabel(entry.moduleLabel),
       usuario: historyAuditUsuarioFromLogRow(entry, { fallbackToSession: false })
     }))
     .sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime());
+  state.__historyAuditEntriesCache = { key: cacheKey, entries: built };
+  return built;
 }
 
 function historyTraceHaystack(entry) {

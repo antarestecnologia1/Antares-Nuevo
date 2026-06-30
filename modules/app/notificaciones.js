@@ -278,7 +278,6 @@ function bindNotificationsPortalControls() {
         if (!visibleIds.has(id)) return;
         const ok = await persistNotificationsReadState([id]);
         if (!ok) return;
-        G.refreshNotificationsUiAfterReadMutation();
       });
     });
   });
@@ -310,7 +309,6 @@ function bindNotificationsPortalControls() {
         if (!unreadIds.length) return;
         const ok = await persistNotificationsReadState(unreadIds);
         if (!ok) return;
-        G.refreshNotificationsUiAfterReadMutation();
       });
     });
   });

@@ -448,9 +448,11 @@ function __notificationReadAtEpochMs(v) {
 export function notificationIsRead(n) {
   if (!n || typeof n !== "object") return false;
   const raw = n.readAt ?? n.read_at;
-  if (raw == null || raw === "") return false;
-  const ms = new Date(raw).getTime();
-  return Number.isFinite(ms);
+  if (raw != null && raw !== "") {
+    const ms = new Date(raw).getTime();
+    if (Number.isFinite(ms)) return true;
+  }
+  return n.leido === true || String(n.leido || "").trim().toLowerCase() === "true";
 }
 
 /** Quita copias con mismo destino, título y cuerpo (p. ej. legacy «una por admin» o sync duplicado). */
@@ -545,6 +547,8 @@ function __removeNotificationsFromSessionCache(ids) {
   write(KEYS.notifications, actor ? filterNotificationsForUser(actor, remaining) : remaining, {
     skipSyncSchedule: true
   });
+  updateNotificationBadge();
+  refreshNotificationsUiAfterReadMutation();
 }
 
 let __contractRenewalNoticeCheckWallMs = 0;
@@ -701,11 +705,14 @@ export function mergeNotificationsListPreserveReadAt(prevList, serverList) {
     if (!p || typeof p !== "object") continue;
     const pr = p.readAt ?? p.read_at;
     const prMs = __notificationReadAtEpochMs(pr);
-    if (prMs <= 0) continue;
+    if (prMs <= 0 && !notificationIsRead(p)) continue;
     const dkey = notificationDedupeKey(p);
     const existing = prevReadAtByDedupe.get(dkey);
     const existingMs = __notificationReadAtEpochMs(existing);
-    if (!existing || prMs >= existingMs) prevReadAtByDedupe.set(dkey, pr);
+    const nextReadAt = prMs > 0 ? pr : nowIso();
+    if (!existing || __notificationReadAtEpochMs(nextReadAt) >= existingMs) {
+      prevReadAtByDedupe.set(dkey, nextReadAt);
+    }
   }
   return server.map((n) => {
     const id = String(n?.id || "").trim();
@@ -715,14 +722,16 @@ export function mergeNotificationsListPreserveReadAt(prevList, serverList) {
     const sr = n.readAt ?? n.read_at;
     const prMs = __notificationReadAtEpochMs(pr);
     const srMs = __notificationReadAtEpochMs(sr);
+    if (notificationIsRead(n) && srMs <= 0) return { ...n, readAt: prMs > 0 ? pr : nowIso(), leido: true };
+    if (p && notificationIsRead(p) && prMs <= 0 && srMs <= 0) return { ...n, readAt: nowIso(), leido: true };
     if (prMs <= 0 && srMs <= 0) {
       const fromDedupe = prevReadAtByDedupe.get(notificationDedupeKey(n));
-      return fromDedupe ? { ...n, readAt: fromDedupe } : n;
+      return fromDedupe ? { ...n, readAt: fromDedupe, leido: true } : n;
     }
-    if (prMs >= srMs && prMs > 0) return { ...n, readAt: pr || sr || null };
+    if (prMs >= srMs && prMs > 0) return { ...n, readAt: pr || sr || null, leido: true };
     if (srMs > 0) return n;
     const fromDedupe = prevReadAtByDedupe.get(notificationDedupeKey(n));
-    return fromDedupe || pr ? { ...n, readAt: fromDedupe || pr } : n;
+    return fromDedupe || pr ? { ...n, readAt: fromDedupe || pr, leido: true } : n;
   });
 }
 
@@ -744,7 +753,7 @@ export async function persistNotificationsReadState(ids) {
   write(
     KEYS.notifications,
     list.map((n) =>
-      __notificationIdSetIncludes(targetIds, n.id) && !notificationIsRead(n) ? { ...n, readAt: ts } : n
+      __notificationIdSetIncludes(targetIds, n.id) && !notificationIsRead(n) ? { ...n, readAt: ts, leido: true } : n
     ),
     { skipSyncSchedule: true }
   );
@@ -768,7 +777,7 @@ export async function persistNotificationsReadState(ids) {
     write(
       KEYS.notifications,
       merged.map((n) =>
-        __notificationIdSetIncludes(targetIds, n.id) ? { ...n, readAt: n.readAt || readAt } : n
+        __notificationIdSetIncludes(targetIds, n.id) ? { ...n, readAt: n.readAt || readAt, leido: true } : n
       ),
       { skipSyncSchedule: true }
     );

@@ -937,4 +937,5 @@
   window.AppModules.solicitudes.requestFormHtml = requestFormHtml;
   window.AppModules.solicitudes.requestListClientHtml = requestListClientHtml;
   window.AppModules.solicitudes.requestsHtml = requestsHtml;
+  window.registerLegacyPortalViews?.({ requestsHtml });
 })();

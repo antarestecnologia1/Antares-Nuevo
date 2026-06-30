@@ -5531,7 +5531,7 @@ export class PortalService implements OnModuleInit {
        SET fecha_lectura = COALESCE(n.fecha_lectura, $2::timestamptz),
            leido = true
        FROM requested src
-       WHERE n.fecha_lectura IS NULL
+       WHERE (n.fecha_lectura IS NULL OR n.leido = false)
          AND (
            n.id = src.id
            OR (
@@ -5575,7 +5575,7 @@ export class PortalService implements OnModuleInit {
     const hrAudience = this.roleMayRunContractRenewalNotices(role);
     const r = await this.pool.query(
       `WITH requested AS (
-         SELECT id, titulo, cuerpo, audiencia, id_usuario
+         SELECT id, titulo, cuerpo, audiencia, id_usuario, tipo_entidad, id_entidad
          FROM notificaciones
          WHERE id = ANY($1::uuid[])
        )
@@ -5586,6 +5586,14 @@ export class PortalService implements OnModuleInit {
          OR (
            n.titulo = src.titulo
            AND n.cuerpo = src.cuerpo
+           AND COALESCE(n.audiencia, '') = COALESCE(src.audiencia, '')
+           AND COALESCE(n.id_usuario::text, '') = COALESCE(src.id_usuario::text, '')
+         )
+         OR (
+           src.tipo_entidad IS NOT NULL
+           AND src.id_entidad IS NOT NULL
+           AND n.tipo_entidad = src.tipo_entidad
+           AND n.id_entidad = src.id_entidad
            AND COALESCE(n.audiencia, '') = COALESCE(src.audiencia, '')
            AND COALESCE(n.id_usuario::text, '') = COALESCE(src.id_usuario::text, '')
          )

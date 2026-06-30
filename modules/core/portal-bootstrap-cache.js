@@ -214,8 +214,10 @@
       var n = val[i];
       if (!n || typeof n !== "object") continue;
       var ra = n.readAt != null && n.readAt !== "" ? n.readAt : n.read_at;
+      var leido = n.leido === true || String(n.leido || "").toLowerCase() === "true";
       if (ra == null || ra === "") {
-        unread += 1;
+        if (leido) readParts.push(String(n.id || "") + ":leido");
+        else unread += 1;
         continue;
       }
       readParts.push(String(n.id || "") + ":" + String(ra).slice(0, 24));

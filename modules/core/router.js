@@ -502,14 +502,36 @@ export function closePublicNavDrawer() {
 export function setPortalDrawerOpen(open) {
   if (typeof document === "undefined") return;
   const on = Boolean(open);
+  const mobileDrawer = typeof window !== "undefined" ? window.innerWidth <= 920 : false;
   document.body.classList.toggle("portal-drawer-open", on);
   const btn = document.getElementById("portal-menu-btn");
   const bd = document.getElementById("portal-nav-backdrop");
+  const sidebar = document.getElementById("portal-sidebar");
   if (btn) {
     btn.setAttribute("aria-expanded", on ? "true" : "false");
-    btn.setAttribute("aria-label", on ? "Cerrar menu de modulos" : "Abrir menu de modulos");
+    btn.setAttribute("aria-label", on ? "Cerrar menú de módulos" : "Abrir menú de módulos");
+    btn.title = on ? "Cerrar menú" : "Abrir menú";
   }
   if (bd) bd.setAttribute("aria-hidden", on ? "false" : "true");
+  if (sidebar) {
+    if (mobileDrawer) {
+      sidebar.setAttribute("aria-hidden", on ? "false" : "true");
+      sidebar.setAttribute("aria-modal", on ? "true" : "false");
+      sidebar.setAttribute("role", on ? "dialog" : "navigation");
+    } else {
+      sidebar.removeAttribute("aria-hidden");
+      sidebar.removeAttribute("aria-modal");
+      sidebar.setAttribute("role", "navigation");
+    }
+    if (on && mobileDrawer) {
+      window.requestAnimationFrame(() => {
+        const first = sidebar.querySelector(
+          ".side-link:not([disabled]), .sidebar-notif-bell-toggle:not([disabled]), button:not([disabled])"
+        );
+        if (first instanceof HTMLElement) first.focus({ preventScroll: true });
+      });
+    }
+  }
 }
 
 const PORTAL_SIDEBAR_EXPANDED_KEY = "antares_portal_sidebar_expanded";
