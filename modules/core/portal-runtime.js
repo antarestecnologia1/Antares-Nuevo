@@ -2366,6 +2366,9 @@ function initB2BFormExperience() {
   const submitBtn = form.querySelector("[data-step-submit]");
   let currentStep = 0;
 
+  const requiredMessage = () => window.AntaresValidation?.MSG?.required || "Este campo es obligatorio.";
+  const minLengthMessage = (n) => window.AntaresValidation?.MSG?.minLen?.(n) || `Escriba al menos ${n} caracteres.`;
+
   const setStep = (index) => {
     currentStep = Math.max(0, Math.min(index, panes.length - 1));
     panes.forEach((pane, idx) => pane.classList.toggle("active", idx === currentStep));
@@ -2378,23 +2381,92 @@ function initB2BFormExperience() {
   };
   form.__setB2BStep = setStep;
 
+  const validateB2BField = (field, opts = {}) => {
+    if (!field || field.type === "hidden" || field.disabled) return true;
+    const showRequired =
+      opts.showRequired || field.dataset.b2bTouched === "1" || field.classList.contains("field-invalid");
+    const value = String(field.value || "").trim();
+    const name = String(field.name || "").trim();
+
+    if (field.classList.contains("js-b2b-phone-national")) {
+      syncPhoneHiddenFull(form, "b2b");
+    }
+
+    if (field.required && !value) {
+      if (showRequired) setFieldError(field, requiredMessage());
+      else clearFieldError(field);
+      return false;
+    }
+
+    if (!value) {
+      clearFieldError(field);
+      return true;
+    }
+
+    if (name === "name" || name === "company" || name === "position") {
+      if (value.length < 2) {
+        setFieldError(field, minLengthMessage(2));
+        return false;
+      }
+    }
+
+    if (name === "email" && !window.AntaresValidation?.isValidEmail?.(normalizeEmail(value))) {
+      setFieldError(field, window.AntaresValidation?.MSG?.email || "Ingrese un correo electrónico válido.");
+      return false;
+    }
+
+    if (name === "taxId") {
+      const nitVal = validateColombianDocument("NIT", value);
+      if (!nitVal.ok) {
+        setFieldError(field, nitVal.message || window.AntaresValidation?.MSG?.nit || "El NIT no es válido.");
+        return false;
+      }
+    }
+
+    if (field.classList.contains("js-b2b-phone-national")) {
+      const meta = getSelectedPhoneCountry(form, "b2b");
+      const phoneDigitsAll = String(form.querySelector(".js-b2b-phone-full")?.value || "").replace(/\D/g, "");
+      let phoneErrMsg = "";
+      if (!phoneDigitsAll.startsWith(String(meta.dial || ""))) {
+        phoneErrMsg = "El teléfono no coincide con el país seleccionado en el indicativo.";
+      } else {
+        const nationalLen = phoneDigitsAll.length - String(meta.dial || "").length;
+        if (nationalLen < meta.minNat || nationalLen > meta.maxNat) {
+          phoneErrMsg =
+            meta.style === "co"
+              ? "Ingrese un celular colombiano válido (10 dígitos nacionales; empieza por 3)."
+              : `Ingrese entre ${meta.minNat} y ${meta.maxNat} dígitos del número local para ${meta.label}.`;
+        } else if (meta.style === "co") {
+          const nat = phoneDigitsAll.slice(String(meta.dial || "").length);
+          if (!nat.startsWith("3")) {
+            phoneErrMsg = window.AntaresValidation?.MSG?.coMobile || "El celular en Colombia debe empezar por 3.";
+          }
+        }
+      }
+      if (phoneErrMsg) {
+        setFieldError(field, phoneErrMsg);
+        return false;
+      }
+    }
+
+    if (name === "message" && value.length < 30) {
+      setFieldError(field, "Cuéntenos un poco más del requerimiento (mínimo 30 caracteres).");
+      return false;
+    }
+
+    clearFieldError(field);
+    return true;
+  };
+
   const validateStep = (index) => {
     const pane = panes[index];
     if (!pane) return true;
     const V = window.AntaresValidation;
-    if (V && typeof V.validateDomForm === "function") {
-      const domVal = V.validateDomForm(pane);
-      if (!domVal.ok) {
-        V.focusInvalidField?.(domVal.firstInvalid, { pulse: true });
-        return false;
-      }
-    }
-    const requiredFields = [...pane.querySelectorAll("input[required], select[required], textarea[required]")];
+    const requiredFields = [...pane.querySelectorAll("input:not([type=hidden]), select, textarea")];
     let firstInvalid = null;
     requiredFields.forEach((field) => {
-      const value = String(field.value || "").trim();
-      if (!value) {
-        setFieldError(field, V?.MSG?.required || "Este campo es obligatorio.");
+      field.dataset.b2bTouched = "1";
+      if (!validateB2BField(field, { showRequired: true })) {
         if (!firstInvalid) firstInvalid = field;
       }
     });
@@ -2443,7 +2515,7 @@ function initB2BFormExperience() {
   if (b2bPhoneNat) {
     b2bPhoneNat.addEventListener("input", () => {
       syncPhoneHiddenFull(form, "b2b");
-      clearFieldError(b2bPhoneNat);
+      validateB2BField(b2bPhoneNat);
     });
   }
   if (b2bPhoneCc) {
@@ -2451,23 +2523,27 @@ function initB2BFormExperience() {
       clearFieldError(b2bPhoneNat);
       updatePhoneFieldForCountry(form, "b2b");
       syncPhoneHiddenFull(form, "b2b");
+      validateB2BField(b2bPhoneNat, {
+        showRequired: Boolean(b2bPhoneNat?.dataset.b2bTouched === "1" || b2bPhoneNat?.value)
+      });
     });
   }
   updatePhoneFieldForCountry(form, "b2b");
   syncPhoneHiddenFull(form, "b2b");
 
-  const emailInput = form.querySelector("input[name='email']");
-  const messageInput = form.querySelector("textarea[name='message']");
-
-  if (emailInput) {
-    emailInput.addEventListener("input", () => clearFieldError(emailInput));
-  }
-  if (messageInput) {
-    messageInput.addEventListener("input", () => clearFieldError(messageInput));
-  }
-
   form.querySelectorAll("input,select,textarea").forEach((field) => {
-    field.addEventListener("change", () => clearFieldError(field));
+    if (field.type === "hidden") return;
+    if (!field.classList.contains("js-b2b-phone-national")) {
+      field.addEventListener("input", () => validateB2BField(field));
+    }
+    field.addEventListener("blur", () => {
+      field.dataset.b2bTouched = "1";
+      validateB2BField(field, { showRequired: true });
+    });
+    field.addEventListener("change", () => {
+      field.dataset.b2bTouched = "1";
+      validateB2BField(field, { showRequired: true });
+    });
   });
 }
 
