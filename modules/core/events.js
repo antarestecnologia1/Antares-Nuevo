@@ -3114,13 +3114,13 @@ function initGlobalEvents() {
       );
       if (!b2bVal.ok) {
         const first = b2bVal.first || b2bVal.errors?.[0];
-        if (first === "email") $portal.jumpToStepForField("input[name='email']");
-        if (first === "phone") $portal.jumpToStepForField(".js-b2b-phone-national");
-        if (first === "message") $portal.jumpToStepForField("textarea[name='message']");
-        if (first === "name") $portal.jumpToStepForField("input[name='name']");
-        if (first === "company") $portal.jumpToStepForField("input[name='company']");
-        if (first === "taxId") $portal.jumpToStepForField("input[name='taxId']");
-        if (first === "position") $portal.jumpToStepForField("input[name='position']");
+        if (first === "email") jumpToStepForField("input[name='email']");
+        if (first === "phone") jumpToStepForField(".js-b2b-phone-national");
+        if (first === "message") jumpToStepForField("textarea[name='message']");
+        if (first === "name") jumpToStepForField("input[name='name']");
+        if (first === "company") jumpToStepForField("input[name='company']");
+        if (first === "taxId") jumpToStepForField("input[name='taxId']");
+        if (first === "position") jumpToStepForField("input[name='position']");
         $portal.notify($portal.userMessage("b2bFieldsInvalid"), "error");
         return;
       }
@@ -3166,9 +3166,9 @@ function initGlobalEvents() {
     }
     if (errors.length) {
       const firstError = errors[0];
-      if (firstError === "email") $portal.jumpToStepForField("input[name='email']");
-      if (firstError === "phone") $portal.jumpToStepForField(".js-b2b-phone-national");
-      if (firstError === "message") $portal.jumpToStepForField("textarea[name='message']");
+      if (firstError === "email") jumpToStepForField("input[name='email']");
+      if (firstError === "phone") jumpToStepForField(".js-b2b-phone-national");
+      if (firstError === "message") jumpToStepForField("textarea[name='message']");
       $portal.notify($portal.userMessage("b2bFieldsInvalid"), "error");
       return;
     }

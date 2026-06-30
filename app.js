@@ -24,7 +24,7 @@ import { devWarn } from "./modules/core/utils.js";
 import { notify } from "./modules/ui/modals.js";
 import { runAsSilentSystemNotifications } from "./modules/domain/notificaciones.domain.js";
 import { hasUnsavedPortalFormData } from "./modules/domain/viajes.domain.js";
-import { initGlobalEvents } from "./modules/core/events.js";
+import { initGlobalEvents } from "./modules/core/events.js?v=20260630-b2b-step-jump";
 
 /**
  * Definidas en `portal-runtime.js` (módulo ES); se exponen en `window` al final de ese archivo.
