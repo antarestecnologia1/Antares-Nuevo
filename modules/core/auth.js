@@ -2074,6 +2074,22 @@ function authView() {
             <span class="auth-submit-spinner" aria-hidden="true"></span>
           </button>
         </form>
+        <aside class="auth-login-side" aria-label="Beneficios del portal">
+          <h3 class="auth-side-heading">
+            <span class="auth-side-heading-icon">${IC.shield}</span>
+            <span class="auth-side-heading-text">Operación con respaldo</span>
+          </h3>
+          <ul class="auth-bullets">
+            <li>Trazabilidad de solicitudes, viajes y aprobaciones.</li>
+            <li>Permisos por rol y área de trabajo.</li>
+            <li>Registro de actividad y auditoría continua.</li>
+          </ul>
+          <div class="auth-side-pills">
+            <span>Cifrado</span>
+            <span>Auditable</span>
+            <span>Disponible 24/7</span>
+          </div>
+        </aside>
       </div>
     `;
   }
@@ -2835,7 +2851,7 @@ export function bindAuthForms() {
       if (V && typeof V.validateDomForm === "function") {
         const domVal = V.validateDomForm(recover);
         if (!domVal.ok) {
-          Vreg.focusInvalidField?.(domVal.firstInvalid, { pulse: true });
+          V.focusInvalidField?.(domVal.firstInvalid, { pulse: true });
           return;
         }
       }

@@ -96,7 +96,7 @@ async function main() {
     consoleErrors.length = 0;
     pageErrors.length = 0;
 
-    const nav = page.locator(`.side-link[data-view="${mod.id}"]`);
+    const nav = page.locator(`[data-view="${mod.id}"]`);
     const navCount = await nav.count();
     if (!navCount) {
       results.push({ ...mod, status: "FAIL", issues: ["Botón de navegación no encontrado"] });

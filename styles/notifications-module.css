@@ -106,53 +106,93 @@
   font-size: 1.35rem;
   font-weight: 800;
 }
-.ntf-studio-head__title-row {
+/* —— Controles independientes: Avisos + Timbre —— */
+.ntf-pref-cluster {
   display: flex;
-  align-items: center;
-  gap: 0.55rem;
   flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.7rem;
 }
-.ntf-bell-toggle {
+.ntf-pref-toggle {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 2.35rem;
-  height: 2.35rem;
-  padding: 0;
+  gap: 0.55rem;
+  padding: 0.45rem 0.7rem;
   border: 1px solid var(--ntf-edge-strong);
-  border-radius: 12px;
+  border-radius: 999px;
   background: var(--ntf-surface);
-  color: var(--ntf-accent);
+  color: var(--text);
   cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+}
+.ntf-pref-toggle:hover:not([disabled]) {
+  border-color: color-mix(in srgb, var(--ntf-accent) 45%, var(--ntf-edge-strong));
+  background: color-mix(in srgb, var(--ntf-accent) 7%, var(--ntf-surface));
+}
+.ntf-pref-toggle:focus-visible {
+  outline: 2px solid var(--ntf-accent);
+  outline-offset: 2px;
+}
+.ntf-pref-toggle[disabled] {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.ntf-pref-toggle__icon {
+  display: inline-flex;
+  color: var(--ntf-accent);
+}
+.ntf-pref-toggle__icon svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+.ntf-pref-toggle__text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+.ntf-pref-toggle__label {
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+.ntf-pref-toggle__state {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--text-soft);
+}
+.ntf-pref-toggle__switch {
   position: relative;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  flex-shrink: 0;
+  width: 2rem;
+  height: 1.1rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ntf-accent) 75%, transparent);
+  transition: background 0.15s ease;
 }
-.ntf-bell-toggle svg {
-  width: 1.15rem;
-  height: 1.15rem;
+.ntf-pref-toggle__knob {
+  position: absolute;
+  top: 50%;
+  left: calc(100% - 0.95rem);
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(11, 33, 56, 0.3);
+  transform: translateY(-50%);
+  transition: left 0.15s ease;
 }
-.ntf-bell-toggle:hover {
-  background: color-mix(in srgb, var(--ntf-accent) 8%, var(--ntf-surface));
-}
-.ntf-bell-toggle--off {
-  color: #b45309;
+.ntf-pref-toggle--off {
   border-color: rgba(217, 119, 6, 0.35);
   background: rgba(251, 191, 36, 0.08);
 }
-.ntf-bell-toggle--off svg {
-  opacity: 0.55;
+.ntf-pref-toggle--off .ntf-pref-toggle__icon {
+  color: #b45309;
 }
-.ntf-bell-toggle--off::after {
-  content: "";
-  position: absolute;
-  left: 0.45rem;
-  right: 0.45rem;
-  top: 50%;
-  height: 2px;
-  background: #dc2626;
-  border-radius: 1px;
-  transform: translateY(-50%) rotate(-35deg);
-  pointer-events: none;
+.ntf-pref-toggle--off .ntf-pref-toggle__switch {
+  background: color-mix(in srgb, #94a3b8 60%, transparent);
+}
+.ntf-pref-toggle--off .ntf-pref-toggle__knob {
+  left: 0.1rem;
 }
 .ntf-studio-head__sub {
   margin: 0.25rem 0 0;

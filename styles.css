@@ -34959,3 +34959,119 @@ body[data-theme="dark"] .detail-view-footer .module-panel-actions__bar {
   border-top-color: rgba(148, 196, 255, 0.16);
   background: linear-gradient(180deg, transparent, rgba(99, 167, 247, 0.06));
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   Auth modal — refresco visual (login / registro / recuperar)
+   Solo presentación; no altera nombres, ids ni estructura de campos.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Tarjeta del modal: borde y sombra más premium + acento superior */
+#auth-modal .modal-card-auth {
+  position: relative;
+  border: 1px solid color-mix(in srgb, var(--primary) 16%, var(--line));
+  box-shadow:
+    0 24px 60px rgba(7, 30, 61, 0.22),
+    0 2px 8px rgba(7, 30, 61, 0.08);
+}
+
+#auth-modal .modal-card-auth::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+  border-radius: 18px 18px 0 0;
+  background: linear-gradient(90deg, #1d4f86 0%, #377cc0 35%, #7db4e8 70%, #c4e0fa 100%);
+  pointer-events: none;
+}
+
+/* Inputs: anillo de foco sobre toda la fila (look más moderno) */
+#auth-modal .auth-input-row {
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+
+#auth-modal .auth-input-row:hover {
+  border-color: color-mix(in srgb, var(--primary) 32%, var(--line));
+}
+
+#auth-modal .auth-input-row:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.16);
+}
+
+/* Evita el doble borde: el control no repinta su anillo si la fila ya lo hace */
+#auth-modal .auth-input-row .auth-input-control:focus {
+  box-shadow: none;
+}
+
+/* Toggle de contraseña: compacto e inline incluso en móvil */
+#auth-modal .auth-password-row {
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 0.4rem;
+}
+
+#auth-modal .auth-password-row .auth-input-row {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+#auth-modal .auth-password-row .btn {
+  flex: 0 0 auto;
+  width: auto;
+  white-space: nowrap;
+}
+
+/* CTA principal: degradado y micro-interacción al pasar el cursor */
+#auth-modal .btn-primary.full {
+  background-image: linear-gradient(135deg, #4a8fd4 0%, var(--primary) 52%, var(--primary-dark) 100%);
+  box-shadow: 0 12px 24px rgba(var(--primary-rgb), 0.22);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease;
+}
+
+#auth-modal .btn-primary.full:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 16px 30px rgba(var(--primary-rgb), 0.28);
+  filter: saturate(1.05);
+}
+
+#auth-modal .btn-primary.full:active {
+  transform: translateY(0);
+}
+
+/* Login en dos columnas (escritorio): formulario + panel de respaldo.
+   En <=900px el grid ya colapsa a una sola columna (regla previa). */
+@media (min-width: 901px) {
+  #auth-modal .auth-login-shell {
+    grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+    gap: 1.1rem;
+    align-items: stretch;
+  }
+
+  #auth-modal .auth-login-shell > .auth-login-side {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+
+  #auth-modal .auth-login-shell > .auth-login-side .auth-side-pills {
+    margin-top: auto;
+  }
+}
+
+/* En móvil el panel de respaldo se subordina al formulario */
+@media (max-width: 900px) {
+  #auth-modal .auth-login-shell > .auth-login-side {
+    order: 2;
+  }
+}
+
+body[data-theme="dark"] #auth-modal .modal-card-auth {
+  box-shadow:
+    0 26px 60px rgba(2, 10, 20, 0.5),
+    0 2px 8px rgba(2, 10, 20, 0.35);
+}
+
+body[data-theme="dark"] #auth-modal .auth-input-row:focus-within {
+  border-color: #78abe8;
+  box-shadow: 0 0 0 3px rgba(117, 176, 244, 0.24);
+}
