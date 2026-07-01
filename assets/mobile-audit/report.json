@@ -1,0 +1,156 @@
+{
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "total": 16,
+  "passed": 16,
+  "failed": 0,
+  "skipped": 0,
+  "results": [
+    {
+      "id": "dashboard",
+      "view": "dashboard",
+      "label": "Dashboard",
+      "status": "OK",
+      "viewRootLen": 19875,
+      "overlapCount": 0,
+      "issues": []
+    },
+    {
+      "id": "requests",
+      "view": "requests",
+      "label": "Mis solicitudes",
+      "status": "OK",
+      "viewRootLen": 43438,
+      "overlapCount": 0,
+      "issues": []
+    },
+    {
+      "id": "transport-trips",
+      "view": "transport-trips",
+      "label": "Viajes",
+      "status": "OK",
+      "viewRootLen": 45869,
+      "overlapCount": 0,
+      "issues": []
+    },
+    {
+      "id": "transport-vehicles",
+      "view": "transport-vehicles",
+      "label": "Camiones",
+      "status": "OK",
+      "viewRootLen": 55150,
+      "overlapCount": 0,
+      "issues": []
+    },
+    {
+      "id": "transport-drivers",
+      "view": "transport-drivers",
+      "label": "Conductores",
+      "status": "OK",
+      "viewRootLen": 1790,
+      "overlapCount": 0,
+      "issues": []
+    },
+    {
+      "id": "transport-calendar",
+      "view": "transport-calendar",
+      "label": "Calendario",
+      "status": "OK",
+      "viewRootLen": 11092,
+      "overlapCount": 0,
+      "issues": []
+    },
+    {
+      "id": "history",
+      "view": "history",
+      "label": "Historial",
+      "status": "OK",
+      "viewRootLen": 15068,
+      "overlapCount": 0,
+      "issues": []
+    },
+    {
+      "id": "reports",
+      "view": "reports",
+      "label": "Reportería",
+      "status": "OK",
+      "viewRootLen": 42016,
+      "overlapCount": 0,
+      "issues": []
+    },
+    {
+      "id": "payroll",
+      "view": "payroll",
+      "label": "Gestión humana",
+      "status": "OK",
+      "viewRootLen": 160232,
+      "overlapCount": 0,
+      "issues": []
+    },
+    {
+      "id": "hiring",
+      "view": "hiring",
+      "label": "Contratación",
+      "status": "OK",
+      "viewRootLen": 82242,
+      "overlapCount": 0,
+      "issues": []
+    },
+    {
+      "id": "labor-compliance",
+      "view": "labor-compliance",
+      "label": "Cumplimiento SST",
+      "status": "OK",
+      "viewRootLen": 13980,
+      "overlapCount": 0,
+      "issues": []
+    },
+    {
+      "id": "contact-leads",
+      "view": "contact-leads",
+      "label": "Contacto B2B",
+      "status": "OK",
+      "viewRootLen": 1459,
+      "overlapCount": 0,
+      "issues": []
+    },
+    {
+      "id": "admin-users",
+      "view": "admin-users",
+      "label": "Usuarios",
+      "status": "OK",
+      "viewRootLen": 19905,
+      "overlapCount": 0,
+      "issues": []
+    },
+    {
+      "id": "authorizations",
+      "view": "authorizations",
+      "label": "Autorizaciones",
+      "status": "OK",
+      "viewRootLen": 11808,
+      "overlapCount": 0,
+      "issues": []
+    },
+    {
+      "id": "profile",
+      "view": "profile",
+      "label": "Mi perfil",
+      "status": "OK",
+      "viewRootLen": 11401,
+      "overlapCount": 0,
+      "issues": []
+    },
+    {
+      "id": "notifications",
+      "view": "notifications",
+      "label": "Notificaciones",
+      "status": "OK",
+      "viewRootLen": 4905,
+      "overlapCount": 0,
+      "issues": []
+    }
+  ]
+}

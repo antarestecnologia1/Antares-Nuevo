@@ -349,14 +349,6 @@ body.portal-mode .kpi-grid {
     grid-template-columns: 1fr;
   }
 
-  .hr-workspace-tabs--switch {
-    flex-direction: column;
-  }
-
-  .hr-workspace-tab--switch {
-    width: 100%;
-  }
-
   .payroll-studio .payroll-section-cards,
   .dashboard-studio .dash-metrics-cards {
     grid-template-columns: 1fr;
@@ -623,6 +615,159 @@ body.portal-mode .kpi-grid {
     flex-wrap: wrap;
     gap: 0.5rem;
   }
+
+  /* Registrar | Consultar: control segmentado compacto (no óvalos apilados). */
+  .portal-main .hr-workspace-header {
+    padding: 0.65rem 0.75rem;
+    gap: 0.6rem;
+  }
+
+  .portal-main .hr-workspace-header__switch,
+  .portal-main .hr-workspace-header__switch--actions {
+    align-self: stretch !important;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+  }
+
+  .portal-main :where(
+    .requests-studio,
+    .transport-studio,
+    .vehicles-studio,
+    .drivers-studio,
+    .history-studio,
+    .payroll-studio,
+    .hiring-studio
+  ) .hr-workspace-header__switch {
+    align-self: stretch !important;
+  }
+
+  .portal-main .hr-workspace-tabs--switch {
+    display: flex;
+    flex-direction: row !important;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    width: 100%;
+    gap: 0.2rem;
+    padding: 0.22rem;
+    border-radius: 12px !important;
+  }
+
+  .portal-main .hr-workspace-tab--switch {
+    flex: 1 1 0;
+    min-width: 0 !important;
+    width: auto !important;
+    min-height: 2.35rem;
+    padding: 0.38rem 0.55rem;
+    border-radius: 9px !important;
+    justify-content: center;
+  }
+
+  .portal-main .hr-workspace-tab--switch .hr-workspace-tab-body {
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    text-align: center;
+    min-width: 0;
+  }
+
+  .portal-main .hr-workspace-tab--switch .hr-workspace-tab-hint {
+    display: none !important;
+  }
+
+  .portal-main .hr-workspace-tab--switch .hr-workspace-tab-ico {
+    width: 1.3rem;
+    height: 1.3rem;
+    flex-shrink: 0;
+    border-radius: 7px;
+  }
+
+  .portal-main .hr-workspace-tab--switch .hr-workspace-tab-label {
+    font-size: 0.8rem;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .portal-main .payroll-workspace-actions {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    width: 100%;
+    gap: 0.2rem;
+    padding: 0.22rem;
+    border-radius: 12px;
+    border: 1px solid var(--portal-ui-edge, rgba(55, 124, 192, 0.16));
+    background: color-mix(in srgb, var(--portal-ui-card-solid, #fff) 82%, var(--primary-light, #cce5f8));
+  }
+
+  .portal-main .payroll-workspace-actions__btn {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 2.35rem;
+    padding-inline: 0.45rem;
+    border-radius: 9px !important;
+    justify-content: center;
+    font-size: 0.8rem;
+  }
+
+  .portal-main .payroll-workspace-actions__btn .btn-icon {
+    width: 0.95rem;
+    height: 0.95rem;
+  }
+
+  /* Rails de creación/consulta internos: fila compacta en lugar de tarjetas altas. */
+  .portal-main :where(
+    .requests-operate-nav,
+    .transport-operate-nav,
+    .vehicles-operate-nav,
+    .payroll-operate-nav,
+    .hiring-operate-nav
+  ) {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  .portal-main :where(
+    .requests-operate-nav-tab,
+    .transport-operate-nav-tab,
+    .vehicles-operate-nav-tab,
+    .payroll-operate-nav-tab,
+    .hiring-operate-nav-tab
+  ) {
+    flex: 1 1 calc(50% - 0.25rem);
+    min-width: min(100%, 9.5rem);
+    padding: 0.55rem 0.65rem;
+    border-radius: 12px !important;
+  }
+
+  .portal-main :where(
+    .requests-operate-nav-hint,
+    .transport-operate-nav-hint,
+    .vehicles-operate-nav-hint,
+    .payroll-operate-nav-hint,
+    .hiring-operate-nav-hint,
+    .requests-operate-nav-norm,
+    .transport-operate-nav-norm,
+    .vehicles-operate-nav-norm,
+    .payroll-operate-nav-norm,
+    .hiring-operate-nav-norm
+  ) {
+    display: none;
+  }
+}
+
+@media (max-width: 420px) {
+  .portal-main .hr-workspace-tab--switch .hr-workspace-tab-ico {
+    display: none;
+  }
+
+  .portal-main .payroll-workspace-actions__btn .btn-icon {
+    display: none;
+  }
 }
 
 @media (max-width: 640px) {
@@ -876,7 +1021,7 @@ body[data-theme="dark"] .portal-main :where(
 }
 
 .portal-main :where(
-  .hr-workspace-tab,
+  .hr-workspace-tab:not(.hr-workspace-tab--switch),
   .auth-tab-btn,
   .reports-workspace-tab,
   .payroll-data-nav-tab,
