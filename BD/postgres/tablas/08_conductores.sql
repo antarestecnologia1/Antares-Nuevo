@@ -34,6 +34,7 @@ CREATE TABLE conductores (
   disponible                BOOLEAN NOT NULL DEFAULT true,
   ocupado_por_sistema       BOOLEAN NOT NULL DEFAULT false,
   fecha_contratacion        TIMESTAMPTZ,
+  tipos_vehiculo            VARCHAR(160),
   fecha_creacion            TIMESTAMPTZ NOT NULL DEFAULT now(),
   fecha_actualizacion       TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT uq_conductores_documento UNIQUE (numero_documento)
@@ -42,3 +43,6 @@ CREATE TABLE conductores (
 COMMENT ON TABLE conductores IS 'KEYS.drivers; sincronizado con empleados conductor en RRHH.';
 
 COMMENT ON COLUMN conductores.url_foto IS 'Foto perfil conductor (HTTPS); KEYS.drivers[].photoUrl.';
+
+COMMENT ON COLUMN conductores.tipos_vehiculo IS
+  'Tipos de vehículo de la flota (vehiculos.tipo_vehiculo) que el conductor está habilitado a conducir, separados por comas (ej.: Camion,Tractomula). KEYS.drivers[].vehicleTypes.';

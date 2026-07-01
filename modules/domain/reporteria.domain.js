@@ -1382,6 +1382,7 @@ export function normalizeDriverRowForEditor(raw) {
     fill("license");
     fill("licenseCategory");
     fill("licenseExpiry");
+    fill("vehicleTypes");
     fill("occupationalExamDate");
     fill("occupationalExamExpiry");
     fill("instruvialExamDate");
@@ -1497,6 +1498,7 @@ export function buildDriverPatchFromEmployee(employee, extraDriverData = {}) {
     arl: String(employee?.arl || "").trim(),
     comparendos: parseNum(employee?.comparendos ?? 0),
     experienceYears: parseNum(employee?.experienceYears ?? 0),
+    vehicleTypes: String(extraDriverData.vehicleTypes || employee?.vehicleTypes || "").trim(),
     photoUrl: photo,
     contractType: String(employee?.contractType || "").trim(),
     baseSalary: parseNum(employee?.baseSalary ?? 0),
@@ -1534,6 +1536,7 @@ export function buildEmployeeBasicPatchFromDriver(driver) {
     arl: String(driver?.arl || "").trim(),
     comparendos: parseNum(driver?.comparendos ?? 0),
     experienceYears: parseNum(driver?.experienceYears ?? 0),
+    vehicleTypes: String(driver?.vehicleTypes || "").trim(),
     avatarUrl: avatar
   };
 }

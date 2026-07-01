@@ -478,6 +478,10 @@ function payrollHtml() {
         <label>${fieldLabel(IC.calendar, "Vence curso defensivo")}<input type="date" name="defensiveCourseExpiry" /></label>
         <label>${fieldLabel(IC.alertTriangle, "Comparendos pendientes (SIMIT)")}<input type="number" name="comparendos" min="0" max="9999" value="0" /></label>
         <label>${fieldLabel(IC.activity, "Años de experiencia conduciendo")}<input type="number" name="experienceYears" min="0" max="80" value="0" /></label>
+        <label class="full">${fieldLabel(IC.truck, "¿De cuáles vehículos de la flota es conductor?")}
+          <div class="hr-conductor-vehicle-types">${driverVehicleTypesCheckboxesHtml("")}</div>
+        </label>
+        <p class="full muted" style="grid-column:1/-1;font-size:0.82rem;margin:0">Marque los tipos de vehículo del módulo Transportes que puede conducir (camión, turbo, tractomula, bus). Puede completarlo luego desde Conductores.</p>
       </div>
     </fieldset>
 

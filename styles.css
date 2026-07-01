@@ -30465,6 +30465,32 @@ body[data-theme="dark"] .directory-card__actions {
   padding: 0 !important;
   font-weight: 500;
 }
+
+/* Casillas «tipo de vehículo que conduce» (creación/edición de empleado y conductor). */
+.hr-conductor-vehicle-types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+}
+.hr-conductor-vehicle-types .hr-conductor-vehicle-type-option {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 0.4rem;
+  width: auto;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: #fff;
+  padding: 0.4rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.84rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+.hr-conductor-vehicle-types .hr-conductor-vehicle-type-option input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+  cursor: pointer;
+}
 /* `display: grid` arriba anula el `display:none` del atributo [hidden] en labels. */
 .form-section-grid label[hidden],
 .form-section-grid label.hidden,

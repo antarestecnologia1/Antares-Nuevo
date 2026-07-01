@@ -1138,7 +1138,8 @@ function bindPayrollPortalControls() {
           Object.entries(fields).forEach(([name, value]) => {
             const el = employeeForm.querySelector(`[name="${name}"]`);
             if (!el || el.type === "file") return;
-            if (el.tagName === "SELECT") el.value = String(value ?? "");
+            if (el.type === "checkbox") el.checked = value === "1" || value === "on" || value === true;
+            else if (el.tagName === "SELECT") el.value = String(value ?? "");
             else el.value = String(value ?? "");
           });
           // Las opciones de «Ciudad» se generan a partir del departamento elegido. Al

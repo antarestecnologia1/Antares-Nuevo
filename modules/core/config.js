@@ -520,7 +520,9 @@ export const CO_CATALOGS = {
   genders: ["Masculino", "Femenino", "Otro", "Prefiero no decirlo"],
   vehicleColors: ["Blanco", "Negro", "Gris", "Plata", "Azul", "Rojo", "Verde", "Amarillo", "Naranja"],
   contractTerminationCauses: ["Vencimiento de termino", "Mutuo acuerdo", "Justa causa", "Sin justa causa", "Renuncia voluntaria", "Termino de obra", "Pension"],
-  uniformIssuance: ["Enero/Mayo/Septiembre", "Abril/Agosto/Diciembre", "No aplica"]
+  uniformIssuance: ["Enero/Mayo/Septiembre", "Abril/Agosto/Diciembre", "No aplica"],
+  /** Mismos tipos operativos de `vehiculos.tipo_vehiculo` (ver `camiones-html.js`); un conductor puede estar habilitado para varios. */
+  driverVehicleTypes: ["Camion", "Turbo", "Tractomula", "Bus"]
 };
 
 export const HIRING_RRHH_EDIT_ACTIONS = new Set([

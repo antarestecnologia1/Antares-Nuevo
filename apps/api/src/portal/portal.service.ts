@@ -711,6 +711,7 @@ export class PortalService implements OnModuleInit {
     await this.ensureAuditoriaTransporteSchema();
     await this.ensurePortalAuditEventsSchema();
     await this.ensurePortalEntityAuditSchema();
+    await this.ensureConductoresSchema();
     await this.ensureRegistrosFlotaSchema();
     await this.pruneTransportDeletionAudits().catch((err) => {
       const msg = err instanceof Error ? err.message : String(err);
@@ -1415,6 +1416,41 @@ export class PortalService implements OnModuleInit {
       }
     }
     if (ok > 0) this.logger.log(`portal entity audit: ${ok} columnas verificadas.`);
+  }
+
+  /** Tipos de vehículo de flota (Camion/Turbo/Tractomula/Bus, separados por comas) que el conductor está habilitado a conducir. */
+  private async ensureConductoresSchema() {
+    if (!(await this.tableExists("conductores"))) return;
+    try {
+      await this.pool.query(
+        `ALTER TABLE public.conductores ADD COLUMN IF NOT EXISTS tipos_vehiculo VARCHAR(160)`
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`ensureConductoresSchema: ${sanitizeLogText(msg)}`);
+    }
+  }
+
+  /** Mismos valores que `vehiculos.tipo_vehiculo` (ver `camiones-html.js`); un conductor puede tener varios, separados por comas. */
+  private static readonly DRIVER_VEHICLE_TYPES = ["Camion", "Turbo", "Tractomula", "Bus"];
+
+  /** Filtra/normaliza el CSV recibido del portal contra el catálogo de tipos de vehículo, sin duplicados. */
+  private sanitizeDriverVehicleTypesCsv(raw: unknown): string | null {
+    const s = String(raw ?? "").trim();
+    if (!s) return null;
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const part of s.split(",")) {
+      const t = part.trim();
+      if (!t) continue;
+      const match = PortalService.DRIVER_VEHICLE_TYPES.find(
+        (x) => x.toLowerCase() === t.toLowerCase()
+      );
+      if (!match || seen.has(match)) continue;
+      seen.add(match);
+      out.push(match);
+    }
+    return out.length ? out.slice(0, 8).join(",").slice(0, 160) : null;
   }
 
   /** Auditoría eliminaciones viajes/solicitudes (25). */
@@ -5235,6 +5271,7 @@ export class PortalService implements OnModuleInit {
         startDate: d.fecha_inicio,
         hiredAt: d.fecha_contratacion ? new Date(d.fecha_contratacion).toISOString() : null,
         photoUrl: String((d as { url_foto?: unknown }).url_foto ?? "").trim(),
+        vehicleTypes: row.tipos_vehiculo != null ? String(row.tipos_vehiculo).trim() : "",
         createdBy: String(row.creado_por ?? "").trim() || null,
         updatedBy: String(row.actualizado_por ?? "").trim() || null,
         createdAt: d.fecha_creacion ? new Date(d.fecha_creacion).toISOString() : new Date().toISOString(),
@@ -8288,6 +8325,9 @@ export class PortalService implements OnModuleInit {
         defCourseRaw != null && String(defCourseRaw).trim() !== ""
           ? (nuN(defCourseRaw)?.slice(0, 32) ?? null)
           : null;
+      const vehicleTypesSql = this.sanitizeDriverVehicleTypesCsv(
+        p(d, "vehicleTypes", "tipos_vehiculo")
+      );
       const audit = portalAuditActorPairFromRecord(d);
 
       try {
@@ -8301,6 +8341,7 @@ export class PortalService implements OnModuleInit {
           fecha_vencimiento_curso_defensivo, tipo_sangre, eps, arl, comparendos_pendientes, anos_experiencia_conduccion,
           contacto_emergencia, telefono_emergencia,
           disponible, ocupado_por_sistema, tipo_contrato, salario_base, fecha_inicio, fecha_contratacion, url_foto,
+          tipos_vehiculo,
           creado_por, actualizado_por
         ) VALUES (
           $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::date,
@@ -8308,7 +8349,8 @@ export class PortalService implements OnModuleInit {
           $18::date, $19, $20, $21, $22, $23,
           $24, $25,
           $26, $27, $28, $29, $30, $31::date, $32::timestamptz,
-          $33, $34, $35
+          $33,
+          $34, $35
         )
         ON CONFLICT (id) DO UPDATE SET
           id_empresa = EXCLUDED.id_empresa,
@@ -8342,6 +8384,7 @@ export class PortalService implements OnModuleInit {
           fecha_inicio = EXCLUDED.fecha_inicio,
           fecha_contratacion = EXCLUDED.fecha_contratacion,
           url_foto = COALESCE(EXCLUDED.url_foto, conductores.url_foto),
+          tipos_vehiculo = EXCLUDED.tipos_vehiculo,
           creado_por = COALESCE(conductores.creado_por, EXCLUDED.creado_por),
           actualizado_por = COALESCE(EXCLUDED.actualizado_por, conductores.actualizado_por),
           fecha_actualizacion = now()`,
@@ -8380,6 +8423,7 @@ export class PortalService implements OnModuleInit {
           portalDateYmdOrNull(d.startDate),
           hiredOk,
           urlFotoSql,
+          vehicleTypesSql,
           audit.createdBy,
           audit.updatedBy
         ]
@@ -8492,7 +8536,8 @@ export class PortalService implements OnModuleInit {
       baseSalary: Number.isFinite(Number(p(e, "baseSalary"))) ? Number(p(e, "baseSalary")) : null,
       startDate: portalDateOrNull(p(e, "startDate")),
       avatarUrl: (p(e, "avatarUrl") as string) || null,
-      hiredAt: p(e, "hiredAt", "startDate") as string | null
+      hiredAt: p(e, "hiredAt", "startDate") as string | null,
+      vehicleTypes: this.sanitizeDriverVehicleTypesCsv(p(e, "vehicleTypes"))
     });
   }
 
@@ -8552,7 +8597,8 @@ export class PortalService implements OnModuleInit {
       baseSalary: row.salario_base != null ? Number(row.salario_base) : null,
       startDate: portalDateYmdOrNull(row.fecha_ingreso),
       avatarUrl: row.url_avatar != null ? String(row.url_avatar).trim() : null,
-      hiredAt: row.fecha_ingreso != null ? String(row.fecha_ingreso) : null
+      hiredAt: row.fecha_ingreso != null ? String(row.fecha_ingreso) : null,
+      vehicleTypes: null
     });
   }
 
@@ -8586,6 +8632,7 @@ export class PortalService implements OnModuleInit {
       startDate: string | null;
       avatarUrl: string | null;
       hiredAt: string | null;
+      vehicleTypes: string | null;
     }
   ): Promise<void> {
     let urlFotoSql: string | null = d.avatarUrl != null ? String(d.avatarUrl).trim() : "";
@@ -8614,14 +8661,16 @@ export class PortalService implements OnModuleInit {
           curso_conduccion_defensiva,
           fecha_vencimiento_curso_defensivo, tipo_sangre, eps, arl, comparendos_pendientes, anos_experiencia_conduccion,
           contacto_emergencia, telefono_emergencia,
-          disponible, ocupado_por_sistema, tipo_contrato, salario_base, fecha_inicio, fecha_contratacion, url_foto
+          disponible, ocupado_por_sistema, tipo_contrato, salario_base, fecha_inicio, fecha_contratacion, url_foto,
+          tipos_vehiculo
         ) VALUES (
           $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::date,
           $13::date, $14::date, $15::date, $16::date, $17,
           $18::date, $19, $20, $21, 0, 0,
           $22, $23,
           true, false, $24, $25, $26::date, $27::timestamptz,
-          $28
+          $28,
+          $29
         )
         ON CONFLICT (numero_documento) DO UPDATE SET
           id_empresa = COALESCE(EXCLUDED.id_empresa, conductores.id_empresa),
@@ -8648,6 +8697,7 @@ export class PortalService implements OnModuleInit {
           salario_base = EXCLUDED.salario_base,
           fecha_inicio = EXCLUDED.fecha_inicio,
           url_foto = COALESCE(EXCLUDED.url_foto, conductores.url_foto),
+          tipos_vehiculo = COALESCE(EXCLUDED.tipos_vehiculo, conductores.tipos_vehiculo),
           fecha_actualizacion = now()`,
       [
         d.id,
@@ -8677,7 +8727,8 @@ export class PortalService implements OnModuleInit {
         d.baseSalary,
         d.startDate,
         hiredOk,
-        urlFotoSql
+        urlFotoSql,
+        d.vehicleTypes
       ]
     );
   }

@@ -1380,6 +1380,54 @@ function positionLooksLikeConductor(position) {
   return /conductor/i.test(String(position.name || ""));
 }
 
+/** Etiquetas visibles para `CO_CATALOGS.driverVehicleTypes` (mismos valores de `vehiculos.tipo_vehiculo`). */
+const DRIVER_VEHICLE_TYPE_LABELS = { Camion: "Camión", Turbo: "Turbo", Tractomula: "Tractomula", Bus: "Bus" };
+
+/** Nombre de campo del checkbox por tipo de vehículo (único por tipo, evita el límite de `FormData` con nombres repetidos). */
+function driverVehicleTypeFieldName(type) {
+  return `vehicleType${String(type || "").trim()}`;
+}
+
+/**
+ * Casillas «¿De cuáles vehículos de la flota es conductor?» (camión, turbo, tractomula, bus).
+ * Se guardan como texto separado por comas en `conductores.tipos_vehiculo` (portal: `vehicleTypes`).
+ */
+function driverVehicleTypesCheckboxesHtml(selectedCsv) {
+  const selected = new Set(
+    String(selectedCsv || "")
+      .split(",")
+      .map((v) => v.trim())
+      .filter(Boolean)
+  );
+  return CO_CATALOGS.driverVehicleTypes
+    .map((type) => {
+      const checked = selected.has(type) ? "checked" : "";
+      return `<label class="hr-conductor-vehicle-type-option"><input type="checkbox" name="${escapeAttr(driverVehicleTypeFieldName(type))}" value="1" ${checked} /> ${escapeHtml(DRIVER_VEHICLE_TYPE_LABELS[type] || type)}</label>`;
+    })
+    .join("");
+}
+
+/** Lee las casillas de tipo de vehículo desde un objeto de formulario (`FormData` ya normalizado) y arma el CSV a persistir. */
+function collectDriverVehicleTypesCsv(source) {
+  if (!source || typeof source !== "object") return "";
+  return CO_CATALOGS.driverVehicleTypes
+    .filter((type) => {
+      const v = source[driverVehicleTypeFieldName(type)];
+      return v === "1" || v === "on" || v === true || v === "true";
+    })
+    .join(",");
+}
+
+/** Texto legible para tarjetas/fichas ("Camión, Tractomula") a partir del CSV guardado en BD. */
+function driverVehicleTypesCsvToLabel(csv, fallback = "Sin dato") {
+  const list = String(csv || "")
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean)
+    .map((v) => DRIVER_VEHICLE_TYPE_LABELS[v] || v);
+  return list.length ? list.join(", ") : fallback;
+}
+
 /**
  * Precarga en el formulario de empleado los datos definidos en el catálogo de cargos (Contratación).
  */
@@ -6426,7 +6474,8 @@ function openDriverDetailSheetModal(driver) {
           ["Categoría licencia", escapeHtml(String(d.licenseCategory || "—"))],
           ["Vence licencia", `${fmtDateOr(d.licenseExpiry)} ${licenseMeta.chipHtml}`],
           ["Curso defensivo", `${escapeHtml(String(d.defensiveCourse || "—"))} ${courseMeta.chipHtml}`],
-          ["Experiencia", `${parseNum(d.experienceYears || 0)} año(s)`]
+          ["Experiencia", `${parseNum(d.experienceYears || 0)} año(s)`],
+          ["Vehículos que conduce", escapeHtml(driverVehicleTypesCsvToLabel(d.vehicleTypes, "Sin definir"))]
         ]
       },
       {
@@ -11923,6 +11972,7 @@ function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = 
       defensiveCourseExpiry: normalizePortalDateYmd(raw.defensiveCourseExpiry),
       comparendos: Math.max(0, Math.min(9999, parseNum(raw.comparendos ?? 0))),
       experienceYears: Math.max(0, Math.min(80, parseNum(raw.experienceYears ?? 0))),
+      vehicleTypes: collectDriverVehicleTypesCsv(raw),
       avatarUrl
     }
   };
@@ -12037,6 +12087,7 @@ function buildEmployeePayrollProfileBodyHtml(emp) {
       ${employeeProfileKvRow("Examen instruvial", e.instruvialExamDate)}
       ${employeeProfileKvRow("Vence examen instruvial", e.instruvialExamExpiry)}
       ${employeeProfileKvRow("Curso conducción defensiva", e.defensiveCourse)}
+      ${employeeProfileKvRow("Vehículos que conduce", driverVehicleTypesCsvToLabel(e.vehicleTypes, "Sin definir"))}
     </div></section>`
     : "";
   return `
@@ -12322,6 +12373,9 @@ ${employeeNationalPhoneFieldHtml("emergencyPhone", "Tel. emergencia", e.emergenc
 <label><span>${escapeHtml("Vence curso defensivo")}</span><input type="date" name="defensiveCourseExpiry" value="${escapeAttr(normalizePortalDateYmd(e.defensiveCourseExpiry))}" /></label>
 <label><span>${escapeHtml("Comparendos pendientes (SIMIT)")}</span><input type="number" name="comparendos" min="0" max="9999" value="${escapeAttr(parseNum(e.comparendos ?? 0))}" /></label>
 <label><span>${escapeHtml("Años de experiencia conduciendo")}</span><input type="number" name="experienceYears" min="0" max="80" value="${escapeAttr(parseNum(e.experienceYears ?? 0))}" /></label>
+<label class="full"><span>${escapeHtml("¿De cuáles vehículos de la flota es conductor?")}</span>
+<div class="hr-conductor-vehicle-types">${driverVehicleTypesCheckboxesHtml(e.vehicleTypes || "")}</div>
+</label>
 <p class="full muted modal-field-hint" style="grid-column:1/-1;font-size:0.82rem">Si el cargo no es conductor, puede dejar esta sección en blanco.</p>
 </div>`
     },
@@ -13130,6 +13184,10 @@ Object.assign(window, {
   deletedRequestSnapshotForTableRow,
   deletedTripSnapshotForTableRow,
   departmentOptions,
+  driverVehicleTypeFieldName,
+  driverVehicleTypesCheckboxesHtml,
+  collectDriverVehicleTypesCsv,
+  driverVehicleTypesCsvToLabel,
   deriveRequestOperationalValue,
   describeContractDurationForDocx,
   describePortalVehicleOccupancy,

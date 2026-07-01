@@ -30,6 +30,7 @@ function driverFleetSearchHaystack(item) {
     d.phone,
     d.license,
     d.licenseCategory,
+    d.vehicleTypes,
     item.companyName,
     d.email,
     d.city,
@@ -339,6 +340,7 @@ function driversHtml() {
           ${buildPortalOpsCardGridItem("Teléfono", IC.phone, phoneValue)}
           ${buildPortalOpsCardGridItem("Venc. licencia", IC.calendar, licenseNumber, { tone: licenseSubTone, subValue: licenseSubLabel, subTone: licenseSubTone })}
           ${buildPortalOpsCardGridItem("Curso", IC.graduation, item.courseMeta.label, { tone: courseTone })}
+          ${buildPortalOpsCardGridItem("Vehículos", IC.truck, driverVehicleTypesCsvToLabel(d.vehicleTypes, "Sin definir"))}
         </div>
         ${buildPortalOpsCardActions(actionButtons, statusActionBtn)}
         ${buildPortalOpsCardFoot("Última actualización", lastUpdateLabel)}
@@ -754,7 +756,13 @@ function driversHtml() {
             { name: "eps", label: "EPS", type: "select", value: target.eps || "", options: epsOpts },
             { name: "arl", label: "ARL", type: "select", value: target.arl || "", options: arlOpts },
             { name: "comparendos", label: "Comparendos pendientes (SIMIT)", type: "number", value: target.comparendos || 0 },
-            { name: "experienceYears", label: "Años de experiencia conduciendo", type: "number", value: target.experienceYears || 0 }
+            { name: "experienceYears", label: "Años de experiencia conduciendo", type: "number", value: target.experienceYears || 0 },
+            {
+              type: "custom",
+              id: "driver-edit-vehicle-types",
+              label: "¿De cuáles vehículos de la flota es conductor?",
+              html: `<div class="hr-conductor-vehicle-types">${driverVehicleTypesCheckboxesHtml(target.vehicleTypes || "")}</div>`
+            }
           ],
           afterMount: (formEl) => {
             if (!formEl) return;
@@ -838,6 +846,11 @@ function driversHtml() {
                     arl: getVal("arl"),
                     comparendos: parseNum(getVal("comparendos")),
                     experienceYears: parseNum(getVal("experienceYears")),
+                    vehicleTypes: collectDriverVehicleTypesCsv(
+                      formEl instanceof HTMLFormElement
+                        ? Object.fromEntries(new FormData(formEl).entries())
+                        : {}
+                    ),
                     photoUrl
                   })
                 : d
