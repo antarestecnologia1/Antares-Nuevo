@@ -208,6 +208,7 @@ function exportHistoryTraceCsv(entries) {
     { key: "modulo", label: "Módulo" },
     { key: "entidad", label: "Entidad" },
     { key: "resumen", label: "Resumen" },
+    { key: "cambios", label: "Detalle del cambio" },
     { key: "usuario", label: "Usuario" }
   ];
   const rows = list.map((entry) => ({
@@ -216,6 +217,7 @@ function exportHistoryTraceCsv(entries) {
     modulo: String(entry.moduleLabel || ""),
     entidad: String(entry.entityLabel || ""),
     resumen: String(entry.summary || ""),
+    cambios: String(entry.changesText || ""),
     usuario: String(
       (typeof historyAuditUsuarioFromLogRow === "function"
         ? historyAuditUsuarioFromLogRow(entry, { fallbackToSession: false })
@@ -241,6 +243,62 @@ function exportHistoryTraceCsv(entries) {
     entityId: `csv-${stamp}`,
     entityLabel: "Trazabilidad",
     summary: `Exportación CSV · ${list.length} evento${list.length === 1 ? "" : "s"}`
+  });
+}
+
+/**
+ * Depuración del historial (solo administradores): elimina en PostgreSQL los eventos que
+ * coinciden con los filtros activos (fecha/módulo/tipo de movimiento) o, si no hay filtros
+ * activos, todo el historial. Requiere motivo y confirmación explícita porque es irreversible.
+ */
+function historyDeleteEventsFlow(formEl) {
+  if (!historyCurrentUserIsAdmin()) {
+    notify("Solo un administrador puede eliminar el historial de auditoría.", "error");
+    return;
+  }
+  if (!(typeof AntaresPortalAuditSync !== "undefined" && typeof AntaresPortalAuditSync.deleteEventsFromApi === "function")) {
+    notify("Esta acción requiere conexión con el servidor.", "error");
+    return;
+  }
+  const traceFilter = formEl || document.getElementById("history-trace-filter");
+  const filterInputs = readHistoryTraceFilterInputs(traceFilter);
+  const activeAction = String(filterInputs.actionFilter || "all");
+  const hasFilters = Boolean(filterInputs.moduleFilter || filterInputs.from || filterInputs.to || activeAction !== "all");
+  const matching = applyHistoryTraceFilters(buildHistoryAuditEntries(), filterInputs);
+  if (!matching.length) {
+    notify("No hay eventos que coincidan con los filtros actuales para eliminar.", "warn");
+    return;
+  }
+  const count = matching.length;
+  const scopeDescription = hasFilters
+    ? `los ${count} evento${count === 1 ? "" : "s"} que coinciden con los filtros activos`
+    : `TODO el historial (${count} evento${count === 1 ? "" : "s"})`;
+
+  openConfirmReasonModal({
+    title: "Eliminar historial de auditoría",
+    message: `Esta acción eliminará de forma permanente ${scopeDescription}. Esta operación no se puede deshacer.`,
+    confirmText: "Eliminar historial",
+    onConfirm: async (motivo) => {
+      const payload = { motivo };
+      if (hasFilters) {
+        if (filterInputs.from) payload.from = filterInputs.from;
+        if (filterInputs.to) payload.to = filterInputs.to;
+        if (filterInputs.moduleFilter) {
+          const moduleId =
+            typeof resolvePortalAuditModuleId === "function" ? resolvePortalAuditModuleId(filterInputs.moduleFilter) : "";
+          if (moduleId) payload.moduleId = moduleId;
+        }
+        if (activeAction !== "all") payload.action = activeAction;
+      } else {
+        payload.scope = "all";
+      }
+      const res = await AntaresPortalAuditSync.deleteEventsFromApi(payload);
+      state.__historyAuditPresentationBackfilled = false;
+      state.__historyAuditEntriesCache = null;
+      state.historyRenderLimit = HISTORY_RENDER_WINDOW;
+      notify(`Se eliminaron ${Number(res?.deleted ?? count)} evento(s) del historial.`, "success");
+      renderPortalView();
+    }
   });
 }
 
@@ -344,10 +402,19 @@ function renderHistoryActionFilters(active, stats = {}) {
   </div>`;
 }
 
+function historyCurrentUserIsAdmin() {
+  try {
+    return typeof currentUser === "function" && currentUser()?.role === ROLES.ADMIN;
+  } catch (_e) {
+    return false;
+  }
+}
+
 function renderHistoryTraceToolbar(viewLayout, moduleOptions, moduleFilter) {
   const moduleOpts = moduleOptions
     .map((m) => `<option value="${escapeAttr(m)}"${moduleFilter === m ? " selected" : ""}>${escapeHtml(m)}</option>`)
     .join("");
+  const canDeleteHistory = historyCurrentUserIsAdmin();
   return `<form id="history-trace-filter" class="hist-trace-filter-form" novalidate>
     <div class="hist-trace-toolbar">
       <label class="hist-trace-search">
@@ -367,6 +434,7 @@ function renderHistoryTraceToolbar(viewLayout, moduleOptions, moduleFilter) {
           </div>
         </details>
         <button type="button" class="btn btn-sm btn-action hist-trace-export-btn" data-action="history-export-csv">${IC.download || ""}<span>Exportar</span></button>
+        ${canDeleteHistory ? `<button type="button" class="btn btn-sm btn-action btn-danger-soft hist-trace-delete-btn" data-action="history-delete-events" title="Eliminar eventos del historial (solo administradores)">${IC.trash || ""}<span>Eliminar</span></button>` : ""}
       </div>
     </div>
   </form>`;
@@ -546,6 +614,13 @@ function historyHtml() {
         if (btn.disabled) return;
         const entries = getHistoryTraceFilteredEntries(document.getElementById("history-trace-filter"));
         exportHistoryTraceCsv(entries);
+      });
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='history-delete-events']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (btn.disabled) return;
+        historyDeleteEventsFlow(document.getElementById("history-trace-filter"));
       });
     });
 

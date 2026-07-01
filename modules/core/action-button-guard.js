@@ -27,9 +27,9 @@
  *    porque solo se enganchan envíos reales y un set acotado de `data-action`.
  */
 
-const COOLDOWN_MS = 900;
-const RELEASE_RECHECK_MS = 500;
-const SAFETY_RELEASE_MS = 12000;
+const COOLDOWN_MS = 1400;
+const RELEASE_RECHECK_MS = 600;
+const SAFETY_RELEASE_MS = 18000;
 
 const guardTimers = new WeakMap();
 
@@ -40,10 +40,14 @@ const guardTimers = new WeakMap();
  * acciones con `save/update/...`.
  */
 const MUTATION_ACTION_RE =
-  /(?:^|[-_:])(?:save|create|add|register|store|update|submit|confirm|delete|remove|destroy|approve|reject|deny|decline|send|resend|assign|unassign|generate|liquidate|liquidacion|settle|pay|payroll|sign|finalize|publish|archive|restore|duplicate|import|export|upload|invite|activate|deactivate|hire|terminate|renew|apply)(?:$|[-_:])/i;
+  /(?:^|[-_:])(?:save|create|add|register|store|update|submit|confirm|delete|remove|destroy|approve|reject|deny|decline|send|resend|assign|unassign|generate|liquidate|settle|pay|sign|finalize|publish|archive|restore|duplicate|import|export|upload|invite|activate|deactivate|hire|terminate|renew|non-renew|apply|mark|recalc|refresh|close|schedule|download|read|payslip|print|bulk|sync|convert|promote|demote|revoke|grant|enqueue|process)(?:$|[-_:])/i;
+
+/** Acciones de solo UI (tabs, filtros, paginación…) — nunca bloquear. */
+const NAVIGATION_ACTION_RE =
+  /(?:^|[-_:])(?:section|panel|tab|workspace|filter|sort|layout|view|toggle|expand|collapse|focus|clear|reset|cancel|page|render-more|rail-toggle|quick-filter|operate-section|data-section|workspace-tab|set-year|liquidation-mode|runs-view|employees-view|preview-close|period|period-chip|layout-preset|module-filter|action-filter|list-layout|fleet-layout|trips-section|candidates-active|candidates-all|candidates-finalized|vacancies-open|vacancies-all|list-search|data-section|operate-rail|toggle-alerts|toggle-sound|open|detail|trip-detail|preview-print)(?:$|[-_:])/i;
 
 const CLICKABLE_SELECTOR =
-  "button, input[type='submit'], input[type='button'], [role='button'], a.btn, [data-lock-on-click]";
+  "button, input[type='submit'], input[type='button'], [role='button'], a.btn, .trip-ops-card-btn, .payroll-contracts-icon-btn, [data-lock-on-click]";
 
 function resolveButton(target) {
   if (!(target instanceof Element)) return null;
@@ -69,6 +73,7 @@ function qualifies(btn) {
   const type = (btn.getAttribute("type") || "").toLowerCase();
   if (type === "submit") return true;
   const action = btn.getAttribute("data-action") || "";
+  if (action && NAVIGATION_ACTION_RE.test(action)) return false;
   if (action && MUTATION_ACTION_RE.test(action)) return true;
   return false;
 }

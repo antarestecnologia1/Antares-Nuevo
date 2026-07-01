@@ -477,13 +477,6 @@ function payrollHtml() {
         <label>${fieldLabel(IC.calendar, "Vence licencia")}<input type="date" name="licenseExpiry" /></label>
         <label>${fieldLabel(IC.calendar, "Examen instruvial")}<input type="date" name="instruvialExamDate" /></label>
         <p class="full muted" style="grid-column:1/-1;font-size:0.82rem;margin:0">La vigencia del examen instruvial se guarda automáticamente a un año desde la fecha indicada. El examen médico ocupacional de ingreso se registra en el paso «Laboral» (aplica a todos los cargos).</p>
-        <label>${fieldLabel(IC.award, "Curso conducción defensiva (Res. 17220)")}<select name="defensiveCourse">
-          <option value="">Seleccione...</option>
-          <option value="vigente">Vigente</option>
-          <option value="vencido">Vencido</option>
-          <option value="no_aplica">No aplica</option>
-        </select></label>
-        <label>${fieldLabel(IC.calendar, "Vence curso defensivo")}<input type="date" name="defensiveCourseExpiry" /></label>
         <label>${fieldLabel(IC.alertTriangle, "Comparendos pendientes (SIMIT)")}<input type="number" name="comparendos" min="0" max="9999" value="0" /></label>
         <label>${fieldLabel(IC.activity, "Años de experiencia conduciendo")}<input type="number" name="experienceYears" min="0" max="80" value="0" /></label>
         <label class="full">${fieldLabel(IC.truck, "¿De cuáles vehículos de la flota es conductor?")}

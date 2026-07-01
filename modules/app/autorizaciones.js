@@ -471,12 +471,13 @@ function bindAuthorizationsPortalControls() {
           payload.workerRole = pos.workerRole || payload.workerRole || employees[idx].workerRole || "empleado";
           payload.contractType = payload.contractType || pos.contractTypeDefault || employees[idx].contractType || "Termino indefinido";
         }
+        const previousEmployee = employees[idx];
         const merged = stampUpdatedRecord({
-          ...employees[idx],
+          ...previousEmployee,
           ...payload,
           id: employeeId,
           avatarUrl:
-            String(payload.avatarUrl || "").trim() || employees[idx].avatarUrl || ""
+            String(payload.avatarUrl || "").trim() || previousEmployee.avatarUrl || ""
         });
         employees[idx] = merged;
         try {
@@ -485,7 +486,7 @@ function bindAuthorizationsPortalControls() {
           notify(String(err?.message || userMessage("genericError")), "error");
           return;
         }
-        appendPayrollEmployeeAuditLog("update", merged);
+        appendPayrollEmployeeAuditLog("update", merged, { previous: previousEmployee });
         const propagate = await propagateEmployeeChanges(merged, {
           license: merged.license,
           licenseCategory: merged.licenseCategory,

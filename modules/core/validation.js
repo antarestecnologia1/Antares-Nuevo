@@ -151,7 +151,6 @@
     "requiredtrucktype",
     "companykind",
     "hasillness",
-    "defensivecourse",
     "pickuptime",
     "deliverytime",
     "pickupdate",

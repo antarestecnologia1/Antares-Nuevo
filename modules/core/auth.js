@@ -2908,7 +2908,14 @@ export function bindAuthForms() {
       }
       const email = normalizeEmail(String(data.email || ""));
       if (!email) {
-        window.notify(window.userMessage("validationStep"), "error");
+        const emailField = recover.querySelector("input[name='email']");
+        const emailMsg = V?.MSG?.email || "Ingrese un correo electrónico válido (ejemplo: nombre@empresa.com).";
+        if (V && emailField) {
+          V.setFieldError?.(emailField, emailMsg);
+          V.focusInvalidField?.(emailField, { pulse: true });
+        } else {
+          window.notify(emailMsg, "error");
+        }
         return;
       }
 

@@ -473,8 +473,6 @@ async function runFormTests(page) {
         licenseCategory: "C2",
         licenseExpiry: plusDays(200),
         instruvialExamDate: plusDays(-30),
-        defensiveCourse: "vigente",
-        defensiveCourseExpiry: plusDays(100),
         comparendos: "0",
         experienceYears: "5"
       }),

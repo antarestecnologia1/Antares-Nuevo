@@ -113,11 +113,3 @@ export function normalizeContractTemplateKindForDb(
   if (ct === "Termino fijo") return "fijo";
   return "oficina";
 }
-
-export function normalizeDefensiveCourseForDb(raw: unknown): string | null {
-  const v = String(raw ?? "")
-    .trim()
-    .toLowerCase();
-  if (v === "vigente" || v === "vencido" || v === "no_aplica") return v;
-  return null;
-}

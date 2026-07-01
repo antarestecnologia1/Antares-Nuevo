@@ -19,8 +19,6 @@ CREATE TABLE conductores (
   fecha_examen_instruvial DATE,
   fecha_vencimiento_examen_instruvial DATE,
   url_foto                      TEXT,
-  curso_conduccion_defensiva VARCHAR(32),
-  fecha_vencimiento_curso_defensivo DATE,
   tipo_sangre                 VARCHAR(8),
   eps                         VARCHAR(120),
   arl                         VARCHAR(120),

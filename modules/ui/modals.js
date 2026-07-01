@@ -662,10 +662,7 @@ export function bindHrFormWizard(form) {
     }
     const stepRes = hrWizardStepValid(steps[idx]);
     if (!stepRes.ok) {
-      flashHrWizardDotError(wizard, idx);
-      const stepName = hrWizardStepLabel(wizard, idx);
-      const tail = stepRes.detail ? ` ${stepRes.detail}` : "";
-      notify(`Revise «${stepName}».${tail ? ` ${tail}` : " Hay campos obligatorios o datos incorrectos."}`, "error");
+      surfaceWizardStepValidation(form, wizard, idx);
       return;
     }
     if (idx < steps.length - 1) {
@@ -690,10 +687,7 @@ export function bindHrFormWizard(form) {
           if (!hopRes.ok) {
             idx = i;
             sync();
-            flashHrWizardDotError(wizard, i);
-            const nm = hrWizardStepLabel(wizard, i);
-            const tail = hopRes.detail ? ` ${hopRes.detail}` : "";
-            notify(`Complete «${nm}» antes de avanzar.${tail ? ` ${tail}` : ""}`, "error");
+            surfaceWizardStepValidation(form, wizard, i);
             return;
           }
         }
@@ -711,7 +705,7 @@ export function bindHrFormWizard(form) {
         if (!dupOk) {
           ev.preventDefault();
           ev.stopImmediatePropagation();
-          /* El chequeo de duplicado ya mostró notify + error en el campo (wireFormDocDuplicateCheck). */
+          /* El chequeo de duplicado ya marcó el campo en rojo (wireFormDocDuplicateCheck). */
           return;
         }
       }
@@ -722,10 +716,7 @@ export function bindHrFormWizard(form) {
           ev.stopImmediatePropagation();
           idx = i;
           sync();
-          flashHrWizardDotError(wizard, i);
-          const nm = hrWizardStepLabel(wizard, i);
-          const tail = subRes.detail ? ` ${subRes.detail}` : "";
-          notify(`Revise «${nm}».${tail ? ` ${tail}` : " Hay campos por completar o corregir."}`, "error");
+          surfaceWizardStepValidation(form, wizard, i);
           return;
         }
       }
@@ -792,7 +783,68 @@ const TOAST_META = {
   }
 };
 
-export function notify(message, type = "info", durationMs = 3200) {
+const TOAST_STACK_MAX = 4;
+const TOAST_DEDUP_MS = 2800;
+const toastDedupRegistry = new Map();
+
+function normalizeNotifyText(text) {
+  return String(text ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+/** Evita toast si el mismo texto ya está visible bajo un campo o en el banner de validación. */
+export function isDuplicateOfVisibleFieldFeedback(message) {
+  const norm = normalizeNotifyText(message);
+  if (!norm) return false;
+  for (const el of document.querySelectorAll(".field-error")) {
+    const inline = normalizeNotifyText(el.textContent);
+    if (!inline) continue;
+    if (inline === norm || inline.includes(norm) || norm.includes(inline)) return true;
+  }
+  const banner = document.querySelector("[data-antares-form-validation-alert]:not(.hidden)");
+  if (!banner) return false;
+  const bannerNorm = normalizeNotifyText(banner.textContent);
+  if (!bannerNorm) return false;
+  const genericValidation =
+    norm.includes("revise los campos") ||
+    norm.includes("marcados en rojo") ||
+    norm.includes("campos obligatorios") ||
+    norm.includes("campos por completar");
+  return genericValidation || bannerNorm.includes(norm) || norm.includes(bannerNorm);
+}
+
+/** Banner + foco en paso del wizard; sin toast duplicado del detalle del campo. */
+function surfaceWizardStepValidation(form, wizard, stepIndex) {
+  flashHrWizardDotError(wizard, stepIndex);
+  const V = window.AntaresValidation;
+  V?.showFormValidationAlert?.(form);
+  try {
+    const banner = form?.querySelector?.("[data-antares-form-validation-alert]:not(.hidden)");
+    if (banner) banner.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  } catch (_e) {
+    /* noop */
+  }
+}
+
+export function notify(message, type = "info", durationOrOpts = 3200, maybeOpts = undefined) {
+  const msg = String(message ?? "").trim();
+  if (!msg) return null;
+
+  let durationMs = 3200;
+  let opts = {};
+  if (typeof durationOrOpts === "object" && durationOrOpts !== null) {
+    opts = durationOrOpts;
+    durationMs = Number(opts.durationMs);
+  } else {
+    durationMs = Number(durationOrOpts);
+    if (typeof maybeOpts === "object" && maybeOpts !== null) opts = maybeOpts;
+  }
+  if (!Number.isFinite(durationMs) || durationMs <= 0) durationMs = 3200;
+
+  if (opts.skipIfInline !== false && isDuplicateOfVisibleFieldFeedback(msg)) return null;
+
   let box = document.getElementById("toast-container");
   if (!box) {
     box = document.createElement("div");
@@ -807,8 +859,25 @@ export function notify(message, type = "info", durationMs = 3200) {
   const safeType = TOAST_META[type] ? type : "info";
   const meta = TOAST_META[safeType];
   box.setAttribute("aria-live", safeType === "error" ? "assertive" : "polite");
-  const ms = Number(durationMs);
-  const hideAfter = Number.isFinite(ms) && ms > 0 ? ms : 3200;
+  const hideAfter = durationMs;
+  const dedupKey = `${safeType}::${normalizeNotifyText(msg)}`;
+
+  if (opts.skipDedup !== true) {
+    const existing = toastDedupRegistry.get(dedupKey);
+    if (existing?.el?.isConnected) {
+      existing.el.classList.remove("toast-hide");
+      existing.el.classList.add("show", "toast--refresh");
+      window.setTimeout(() => existing.el.classList.remove("toast--refresh"), 320);
+      if (typeof existing.resetHide === "function") existing.resetHide(hideAfter);
+      return existing.el;
+    }
+  }
+
+  while (box.children.length >= TOAST_STACK_MAX) {
+    const oldest = box.firstElementChild;
+    if (oldest?.__toastDismiss) oldest.__toastDismiss(true);
+    else oldest?.remove();
+  }
 
   const item = document.createElement("div");
   item.className = `toast toast-${safeType}`;
@@ -818,7 +887,7 @@ export function notify(message, type = "info", durationMs = 3200) {
     <span class="toast-icon">${meta.icon}</span>
     <div class="toast-body">
       <p class="toast-title">${meta.title}</p>
-      <p class="toast-message">${escapeHtml(String(message ?? ""))}</p>
+      <p class="toast-message">${escapeHtml(msg)}</p>
     </div>
     <button type="button" class="toast-close" aria-label="Cerrar aviso">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -829,19 +898,32 @@ export function notify(message, type = "info", durationMs = 3200) {
 
   let hideTimer = null;
   let removeTimer = null;
-  const dismiss = () => {
+  const dismiss = (immediate = false) => {
     if (hideTimer) clearTimeout(hideTimer);
     hideTimer = null;
-    item.classList.remove("show");
+    const current = toastDedupRegistry.get(dedupKey);
+    if (current?.el === item) toastDedupRegistry.delete(dedupKey);
+    item.classList.remove("show", "toast--refresh");
     item.classList.add("toast-hide");
     if (removeTimer) clearTimeout(removeTimer);
-    removeTimer = setTimeout(() => item.remove(), 280);
+    removeTimer = setTimeout(() => item.remove(), immediate ? 0 : 280);
+  };
+  const resetHide = (nextMs) => {
+    if (hideTimer) clearTimeout(hideTimer);
+    hideTimer = setTimeout(dismiss, Number.isFinite(nextMs) && nextMs > 0 ? nextMs : hideAfter);
   };
 
-  item.querySelector(".toast-close")?.addEventListener("click", dismiss);
+  item.__toastDismiss = dismiss;
+  toastDedupRegistry.set(dedupKey, { el: item, resetHide });
+  window.setTimeout(() => {
+    if (toastDedupRegistry.get(dedupKey)?.el === item) toastDedupRegistry.delete(dedupKey);
+  }, TOAST_DEDUP_MS + hideAfter);
+
+  item.querySelector(".toast-close")?.addEventListener("click", () => dismiss());
 
   requestAnimationFrame(() => item.classList.add("show"));
-  hideTimer = setTimeout(dismiss, hideAfter);
+  resetHide(hideAfter);
+  return item;
 }
 
 /** Si la bandeja guardó una notificación para quien ya vio el toast de éxito en pantalla, no repetir en el poll. */
@@ -1303,9 +1385,6 @@ export function openEditModal({
         const domVal = V.validateDomForm(currentForm);
         if (!domVal.ok) {
           V.focusInvalidField?.(domVal.firstInvalid, { pulse: true });
-          if (typeof window.notify === "function") {
-            window.notify(userMessage("validationStep"), "error");
-          }
           return false;
         }
         V.applyDomFormPatch?.(currentForm, domVal.patch);
@@ -1481,7 +1560,9 @@ export function openConfirmReasonModal({ title, message, confirmText = "Confirma
     if (confirmConsumed) return;
     const motivo = String(ta?.value || "").trim();
     if (motivo.length < 3) {
-      notify("Indique el motivo (mínimo 3 caracteres).", "error");
+      const V = window.AntaresValidation;
+      if (V && ta) V.setFieldError?.(ta, "Indique el motivo (mínimo 3 caracteres).");
+      else notify("Indique el motivo (mínimo 3 caracteres).", "error");
       ta?.focus();
       return;
     }

@@ -381,7 +381,9 @@ export async function propagateEmployeeChanges(employee, extraDriverData = {}) {
     if (approvalsChanged) {
       await writeAwaitServer(KEYS.approvals, nextApprovals, { notifyOnFailure: false, syncData: changedApprovals });
     }
-    if (tripsChanged) await reqWriteAwait(nextRequests, changedTrips);
+    if (tripsChanged) {
+      await reqWriteAwait(nextRequests, changedTrips, undefined, { notifyOnFailure: false });
+    }
     if (fuelChanged) await writeFuelLogsAwait(nextFuel, changedFuel);
     if (tripsChanged) recalculateResourceAvailability();
   } catch (err) {

@@ -40,7 +40,7 @@ Fecha: 2026-06-30
 
 ### Conductores
 
-- Validar licencias vencidas, curso defensivo, seguridad social incompleta y comparendos.
+- Validar licencias vencidas, seguridad social incompleta y comparendos.
 - Probar disponibilidad con viajes simultaneos o proximos.
 - Revisar acciones de estado para que el boton principal sea consistente con Camiones.
 

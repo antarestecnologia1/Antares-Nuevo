@@ -1325,18 +1325,6 @@ export function normalizeVehicleRowForEditor(raw) {
   return v;
 }
 
-/** Estado del curso defensivo para selects del portal (`vigente` | `vencido` | `no_aplica`). */
-export function normalizeDefensiveCourseForPortal(raw) {
-  const v = String(raw ?? "")
-    .trim()
-    .toLowerCase();
-  if (v === "vigente" || v === "vencido" || v === "no_aplica") return v;
-  if (/vencid/.test(v)) return "vencido";
-  if (/no\s*aplica/.test(v)) return "no_aplica";
-  if (/vigent/.test(v)) return "vigente";
-  return "";
-}
-
 /**
  * Fila de conductor lista para modales de edición: fechas en YYYY-MM-DD, alias API↔portal
  * y campos que solo viven en RRHH (tipo sangre, EPS, ARL) si el documento coincide.
@@ -1361,7 +1349,6 @@ export function normalizeDriverRowForEditor(raw) {
   d.psychoTestDate = d.occupationalExamDate;
   d.psychoTestExpiry = d.occupationalExamExpiry;
   d.licenseExpiry = normalizePortalDateYmd(d.licenseExpiry);
-  d.defensiveCourseExpiry = normalizePortalDateYmd(d.defensiveCourseExpiry);
 
   const emp = globalThis.findPayrollEmployeeByIdDoc(d.idDoc);
   if (emp && typeof emp === "object") {
@@ -1375,8 +1362,6 @@ export function normalizeDriverRowForEditor(raw) {
     fill("arl");
     fill("comparendos");
     fill("experienceYears");
-    fill("defensiveCourse");
-    fill("defensiveCourseExpiry");
     fill("emergencyContact");
     fill("emergencyPhone");
     fill("license");
@@ -1393,17 +1378,11 @@ export function normalizeDriverRowForEditor(raw) {
     }
   }
 
-  const defPick =
-    d.defensiveCourse != null && String(d.defensiveCourse).trim() !== ""
-      ? d.defensiveCourse
-      : d.defensiveDrivingCourse;
-  d.defensiveCourse = normalizeDefensiveCourseForPortal(defPick);
   d.bloodType = matchCatalogOptionValue(CO_CATALOGS.bloodTypes, d.bloodType);
   d.licenseCategory = matchCatalogOptionValue(CO_CATALOGS.licenseCategories, d.licenseCategory);
   d.eps = matchCatalogOptionValue(CO_CATALOGS.eps, d.eps);
   d.arl = matchCatalogOptionValue(CO_CATALOGS.arl, d.arl);
   d.licenseExpiry = normalizePortalDateYmd(d.licenseExpiry);
-  d.defensiveCourseExpiry = normalizePortalDateYmd(d.defensiveCourseExpiry);
   d.occupationalExamDate = normalizePortalDateYmd(d.occupationalExamDate);
   d.instruvialExamDate = normalizePortalDateYmd(d.instruvialExamDate);
   if (d.occupationalExamDate && !d.occupationalExamExpiry) {
@@ -1444,7 +1423,6 @@ export function normalizeDriverFormPayloadForStorage(data) {
     : normalizePortalDateYmd(d.instruvialExamExpiry);
   d.psychoTestDate = occDate;
   d.psychoTestExpiry = occDate ? addOneYearToYmd(occDate) : "";
-  d.defensiveCourseExpiry = normalizePortalDateYmd(d.defensiveCourseExpiry);
   return d;
 }
 
@@ -1492,8 +1470,6 @@ export function buildDriverPatchFromEmployee(employee, extraDriverData = {}) {
     instruvialExamExpiry: intraEx,
     psychoTestDate: occ,
     psychoTestExpiry: occEx,
-    defensiveCourse: String(employee?.defensiveCourse || "").trim(),
-    defensiveCourseExpiry: normalizePortalDateYmd(employee?.defensiveCourseExpiry),
     eps: String(employee?.eps || "").trim(),
     arl: String(employee?.arl || "").trim(),
     comparendos: parseNum(employee?.comparendos ?? 0),
@@ -1530,8 +1506,6 @@ export function buildEmployeeBasicPatchFromDriver(driver) {
     instruvialExamExpiry: intraEx,
     psychoTestDate: occ,
     psychoTestExpiry: occEx,
-    defensiveCourse: String(driver?.defensiveCourse || "").trim(),
-    defensiveCourseExpiry: normalizePortalDateYmd(driver?.defensiveCourseExpiry),
     eps: String(driver?.eps || "").trim(),
     arl: String(driver?.arl || "").trim(),
     comparendos: parseNum(driver?.comparendos ?? 0),

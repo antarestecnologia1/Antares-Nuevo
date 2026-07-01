@@ -35,3 +35,4 @@
 33_auditoria_eventos_portal.sql
 34_alter_renovacion_contrato.sql
 35_alter_parametros_sistema_vigencia.sql
+36_alter_drop_curso_defensivo.sql

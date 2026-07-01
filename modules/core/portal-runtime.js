@@ -2729,6 +2729,17 @@ function formatHistoryAuditPresentation(entry) {
   };
 }
 
+/** Empresa asociada al evento de auditoría (actor o entidad afectada). */
+function resolvePortalAuditEventCompanyId(entry = {}) {
+  const row = entry && typeof entry === "object" ? entry : {};
+  const direct = String(row.companyId || row.clientCompanyId || row.id_empresa || "").trim();
+  if (direct) return direct;
+  const user = currentUser();
+  const fromUser = String(user?.companyId || "").trim();
+  if (fromUser) return fromUser;
+  return "";
+}
+
 function appendModuleAuditLog(entry) {
   const row = entry && typeof entry === "object" ? entry : {};
   const at = String(row.at || nowIso()).trim();
@@ -2753,6 +2764,7 @@ function appendModuleAuditLog(entry) {
   const usuario =
     String(row.usuario || "").trim() ||
     historyAuditFormatStoredUsuario(actor, actorEmail, actorUserId);
+  const companyId = resolvePortalAuditEventCompanyId(row);
   const list = readModuleAuditLogs();
   const stored = formatHistoryAuditPresentation({
     id: String(row.id || newUuidV4()),
@@ -2768,7 +2780,9 @@ function appendModuleAuditLog(entry) {
     actorUserId,
     usuario,
     detailAction: String(row.detailAction || "").trim(),
-    detailId: String(row.detailId || "").trim()
+    detailId: String(row.detailId || "").trim(),
+    changesText: String(row.changesText || "").trim(),
+    companyId
   });
   list.unshift(stored);
   write(KEYS.moduleAuditLogs, list.slice(0, 600));
@@ -2789,12 +2803,91 @@ function payrollEmployeeAuditSummary(employee) {
   return doc ? `${position} · Doc. ${doc}` : position;
 }
 
+const PAYROLL_EMPLOYEE_CHANGE_FIELDS = [
+  { key: "name", label: "Nombre" },
+  { key: "idDoc", label: "Documento" },
+  { key: "position", label: "Cargo" },
+  { key: "companyId", label: "Empresa", format: (v) => getCompanyById(v)?.name || "Sin empresa" },
+  { key: "contractType", label: "Tipo de contrato" },
+  { key: "baseSalary", label: "Salario base", format: (v) => `$${parseNum(v).toLocaleString("es-CO")}` },
+  {
+    key: "transportAllowance",
+    label: "Auxilio de transporte",
+    format: (v) => `$${parseNum(v).toLocaleString("es-CO")}`
+  },
+  { key: "payFrequency", label: "Periodicidad de pago" },
+  { key: "workSchedule", label: "Horario" },
+  { key: "phone", label: "Celular" },
+  { key: "email", label: "Correo" },
+  { key: "startDate", label: "Fecha de ingreso", format: (v) => fmtDateOr(v) },
+  { key: "contractVigenteStartDate", label: "Inicio vigente", format: (v) => fmtDateOr(v) },
+  { key: "contractEndDate", label: "Fin de contrato", format: (v) => fmtDateOr(v) },
+  { key: "renewalDate", label: "Renovación", format: (v) => fmtDateOr(v) },
+  { key: "arlRiskLevel", label: "Nivel de riesgo ARL" },
+  { key: "license", label: "Licencia de conducción" },
+  { key: "licenseCategory", label: "Categoría de licencia" },
+  { key: "licenseExpiry", label: "Vencimiento licencia", format: (v) => fmtDateOr(v) },
+  { key: "status", label: "Estado" }
+];
+
+/** Texto legible de campos modificados (valor anterior → nuevo) para auditoría de colaboradores. */
+function describePayrollEmployeeChanges(prevEmployee, nextEmployee) {
+  const prev = prevEmployee && typeof prevEmployee === "object" ? prevEmployee : {};
+  const next = nextEmployee && typeof nextEmployee === "object" ? nextEmployee : {};
+  const parts = [];
+  for (const field of PAYROLL_EMPLOYEE_CHANGE_FIELDS) {
+    const beforeRaw = prev[field.key];
+    const afterRaw = next[field.key];
+    const beforeStr = String(beforeRaw ?? "").trim();
+    const afterStr = String(afterRaw ?? "").trim();
+    if (beforeStr === afterStr) continue;
+    const fmt = typeof field.format === "function" ? field.format : (v) => String(v ?? "").trim();
+    const beforeLabel = beforeStr ? fmt(beforeRaw) : "Sin dato";
+    const afterLabel = afterStr ? fmt(afterRaw) : "Sin dato";
+    parts.push(`${field.label}: ${beforeLabel} → ${afterLabel}`);
+  }
+  return parts.join(" · ");
+}
+
+const PAYROLL_EMPLOYEE_SNAPSHOT_FIELD_KEYS = [
+  "position",
+  "contractType",
+  "baseSalary",
+  "companyId",
+  "startDate",
+  "workSchedule"
+];
+
+/** Texto legible de los datos principales de un colaborador (creación/eliminación). */
+function describePayrollEmployeeSnapshot(employee) {
+  const emp = employee && typeof employee === "object" ? employee : {};
+  const parts = [];
+  for (const field of PAYROLL_EMPLOYEE_CHANGE_FIELDS) {
+    if (!PAYROLL_EMPLOYEE_SNAPSHOT_FIELD_KEYS.includes(field.key)) continue;
+    const raw = emp[field.key];
+    const str = String(raw ?? "").trim();
+    if (!str) continue;
+    const fmt = typeof field.format === "function" ? field.format : (v) => String(v ?? "").trim();
+    parts.push(`${field.label}: ${fmt(raw)}`);
+  }
+  return parts.join(" · ");
+}
+
 function appendPayrollEmployeeAuditLog(action, employee, extra = {}) {
   const emp = employee && typeof employee === "object" ? employee : {};
   const entityId = String(extra.entityId || emp.id || "").trim();
   const snapshot = buildPortalAuditActorSnapshot();
   const at = String(extra.at || emp.updatedAt || emp.createdAt || nowIso()).trim();
   const actor = historyAuditActorLabel(extra.actor, snapshot.label, snapshot.email, snapshot.name);
+  const actionKey = String(action || "").trim();
+  const changesText =
+    extra.changesText != null
+      ? String(extra.changesText).trim()
+      : actionKey === "update" && extra.previous
+        ? describePayrollEmployeeChanges(extra.previous, emp)
+        : actionKey === "create" || actionKey === "delete"
+          ? describePayrollEmployeeSnapshot(emp)
+          : "";
   appendModuleAuditLog({
     at,
     action: String(action || "update"),
@@ -2807,7 +2900,9 @@ function appendPayrollEmployeeAuditLog(action, employee, extra = {}) {
     actorEmail: String(extra.actorEmail || snapshot.email || "").trim(),
     actorUserId: String(extra.actorUserId || snapshot.userId || "").trim(),
     detailAction: String(extra.detailAction || ""),
-    detailId: String(extra.detailId || entityId)
+    detailId: String(extra.detailId || entityId),
+    changesText,
+    companyId: String(extra.companyId || emp.companyId || resolvePortalAuditEventCompanyId({ companyId: emp.companyId }) || "").trim()
   });
   if (actor) recordEntityHistoryActor("Gestión humana", entityId, at, actor);
 }
@@ -2846,7 +2941,10 @@ function appendPortalEntityAuditLog(action, moduleId, moduleLabel, entity, summa
     actorEmail: String(extra.actorEmail || row.updatedByEmail || row.createdByEmail || snapshot.email || "").trim(),
     actorUserId: String(extra.actorUserId || snapshot.userId || "").trim(),
     detailAction: String(extra.detailAction || ""),
-    detailId: String(extra.detailId || entityId)
+    detailId: String(extra.detailId || entityId),
+    companyId: String(
+      extra.companyId || row.companyId || row.clientCompanyId || resolvePortalAuditEventCompanyId(row) || ""
+    ).trim()
   });
   recordEntityHistoryActor(canonModuleLabel, entityId, at, actor);
 }
@@ -2956,7 +3054,6 @@ function prepareCreationFormForSubmit(formEl) {
   V.decorateFormFields?.(formEl);
   const domVal = V.validateDomForm(formEl);
   if (!domVal.ok) {
-    V.showFormValidationAlert?.(formEl);
     const banner = formEl.querySelector("[data-antares-form-validation-alert]");
     if (banner && !banner.classList.contains("hidden")) {
       try {
@@ -3281,7 +3378,6 @@ function normalizePayrollEmployeeRowDates(emp) {
   e.bankName = matchCatalogOptionValue(CO_CATALOGS.banks, e.bankName);
   e.bankAccountType = matchCatalogOptionValue(CO_CATALOGS.accountTypes, e.bankAccountType || "Ahorros");
   e.licenseCategory = matchCatalogOptionValue(CO_CATALOGS.licenseCategories, e.licenseCategory);
-  e.defensiveCourse = normalizeDefensiveCourseForPortal(e.defensiveCourse);
   return e;
 }
 
@@ -6286,32 +6382,6 @@ function openDriverDetailSheetModal(driver) {
     };
   };
   const licenseMeta = buildDateChip(d.licenseExpiry, "Sin fecha");
-  const courseMeta = (() => {
-    const raw = String(d.defensiveCourse || "").trim().toLowerCase();
-    if (raw === "no_aplica") {
-      return {
-        bucket: "ok",
-        label: "No aplica",
-        chipHtml: '<span class="status status-viaje_asignado">No aplica</span>'
-      };
-    }
-    if (raw === "vencido") {
-      return {
-        bucket: "expired",
-        label: "Curso vencido",
-        chipHtml: '<span class="status status-rechazada">Vencido</span>'
-      };
-    }
-    if (raw === "vigente") return buildDateChip(d.defensiveCourseExpiry, "Sin fecha");
-    if (!raw && !d.defensiveCourseExpiry) {
-      return {
-        bucket: "missing",
-        label: "Sin registro",
-        chipHtml: '<span class="status status-pendiente">Sin registro</span>'
-      };
-    }
-    return buildDateChip(d.defensiveCourseExpiry, "Sin registro");
-  })();
   const driverTrips = getActiveTrips().filter((trip) => String(trip.trip?.driverId || "") === String(d.id || ""));
   const nowTs = Date.now();
   const occupancy = (() => {
@@ -6407,8 +6477,6 @@ function openDriverDetailSheetModal(driver) {
         ["Vence examen ocupacional", fmtDateOr(d.occupationalExamExpiry)],
         ["Examen instruvial", fmtDateOr(d.instruvialExamDate)],
         ["Vence examen instruvial", fmtDateOr(d.instruvialExamExpiry)],
-        ["Curso defensivo", `${escapeHtml(String(d.defensiveCourse || "-"))} ${courseMeta.chipHtml}`],
-        ["Vence curso defensivo", fmtDateOr(d.defensiveCourseExpiry)],
         ["Años experiencia", String(parseNum(d.experienceYears || 0))]
       ])
     },
@@ -6473,7 +6541,6 @@ function openDriverDetailSheetModal(driver) {
           ["Documento", `<strong>${escapeHtml(String(d.idDoc || "Sin documento"))}</strong>`],
           ["Categoría licencia", escapeHtml(String(d.licenseCategory || "—"))],
           ["Vence licencia", `${fmtDateOr(d.licenseExpiry)} ${licenseMeta.chipHtml}`],
-          ["Curso defensivo", `${escapeHtml(String(d.defensiveCourse || "—"))} ${courseMeta.chipHtml}`],
           ["Experiencia", `${parseNum(d.experienceYears || 0)} año(s)`],
           ["Vehículos que conduce", escapeHtml(driverVehicleTypesCsvToLabel(d.vehicleTypes, "Sin definir"))]
         ]
@@ -8767,6 +8834,87 @@ function backfillModuleAuditLogActors() {
   if (changed) write(KEYS.moduleAuditLogs, next);
 }
 
+const HISTORY_AUDIT_MODULE_PERMISSIONS = {
+  dashboard: ["dashboard_view"],
+  requests: ["client_requests", "transport_requests"],
+  transport_requests: ["client_requests", "transport_requests"],
+  trips: ["transport_trips"],
+  transport_trips: ["transport_trips"],
+  vehicles: [
+    "transport_vehicles",
+    "transport_vehicles_view",
+    "transport_vehicles_create",
+    "transport_vehicles_edit",
+    "transport_vehicles_status",
+    "transport_vehicles_delete"
+  ],
+  drivers: ["transport_drivers"],
+  calendar: ["transport_calendar"],
+  history: ["transport_history"],
+  reports: ["transport_history"],
+  payroll: ["payroll_manage"],
+  hiring: ["hiring_manage"],
+  sst: ["sst_compliance"],
+  contact_b2b: ["contact_b2b_view"],
+  users: ["users_manage"],
+  authorizations: [
+    "authorizations_manage",
+    "authorizations_transport",
+    "authorizations_portal_registrations",
+    "authorizations_portal_users",
+    "authorizations_fleet",
+    "authorizations_workforce",
+    "authorizations_hr_absences",
+    "authorizations_payroll_pay"
+  ],
+  profile: ["profile_view"],
+  notifications: ["notifications_view"],
+  bell: ["notifications_view"],
+  alerts: ["notifications_view"]
+};
+
+function historyAuditEntryAllowedForUser(entry, user) {
+  if (!user) return false;
+  if (user.role === ROLES.ADMIN) return true;
+
+  const moduleKey = String(
+    resolvePortalAuditModuleId(entry?.moduleId || entry?.moduleLabel || "") ||
+      entry?.moduleId ||
+      entry?.moduleLabel ||
+      ""
+  )
+    .trim()
+    .toLowerCase();
+  const modulePerms = HISTORY_AUDIT_MODULE_PERMISSIONS[moduleKey];
+  const perms = typeof effectiveUserPermissions === "function" ? effectiveUserPermissions(user) : [];
+  if (modulePerms) {
+    if (!modulePerms.some((p) => perms.includes(p))) return false;
+  } else if (moduleKey) {
+    return false;
+  }
+
+  if (user.role !== ROLES.CLIENT) return true;
+
+  const companyId = String(user.companyId || "").trim();
+  const eventCompany = String(entry?.companyId || "").trim();
+  if (eventCompany && companyId) return eventCompany === companyId;
+  if (!companyId) return String(entry?.actorUserId || "") === String(user.id || "");
+
+  const entityId = String(entry?.entityId || "").trim();
+  if (entityId) {
+    const reqFn = globalThis.findTransportRequestById;
+    if (typeof reqFn === "function") {
+      const req = reqFn(entityId);
+      if (req && String(req.clientCompanyId || "") === companyId) return true;
+    }
+    const employees = read(KEYS.payrollEmployees, []);
+    const emp = employees.find((row) => String(row.id || "") === entityId);
+    if (emp && String(emp.companyId || "") === companyId) return true;
+  }
+  if (String(entry?.actorUserId || "") === String(user.id || "")) return true;
+  return false;
+}
+
 function buildHistoryAuditEntries() {
   if (!state.__historyAuditPresentationBackfilled) {
     state.__historyAuditPresentationBackfilled = true;
@@ -8801,12 +8949,20 @@ function buildHistoryAuditEntries() {
         actorUserId,
         usuario,
         detailAction: String(row.detailAction || ""),
-        detailId: String(row.detailId || "")
+        detailId: String(row.detailId || ""),
+        changesText: String(row.changesText || ""),
+        companyId: String(row.companyId || "").trim(),
+        moduleId: String(row.moduleId || "").trim()
       })
     );
   });
 
-  const built = dedupeHistoryAuditEntries(enrichHistoryAuditEntriesWithExplicitActors(entries))
+  const actorUser = currentUser();
+  const scopedEntries = actorUser
+    ? entries.filter((entry) => historyAuditEntryAllowedForUser(entry, actorUser))
+    : entries;
+
+  const built = dedupeHistoryAuditEntries(enrichHistoryAuditEntriesWithExplicitActors(scopedEntries))
     .map((entry) => ({
       ...entry,
       moduleLabel: normalizePortalAuditModuleLabel(entry.moduleLabel),
@@ -8845,6 +9001,10 @@ function renderHistoryAuditCard(entry) {
   const relativeHtml = relative
     ? `<span class="hist-trace-card__relative" title="${escapeAttr(fmtDate(entry.ts))}">${escapeHtml(relative)}</span>`
     : "";
+  const changesText = String(entry.changesText || "").trim();
+  const changesHtml = changesText
+    ? `<p class="hist-trace-card__changes">${escapeHtml(changesText)}</p>`
+    : "";
   return `<article class="hist-trace-card hist-trace-card--${escapeAttr(actionSlug)}" data-audit-row data-trace-haystack="${escapeAttr(haystack)}">
     <div class="hist-trace-card__rail" aria-hidden="true">
       <span class="hist-trace-card__dot"></span>
@@ -8857,6 +9017,7 @@ function renderHistoryAuditCard(entry) {
       </header>
       <h3 class="hist-trace-card__title">${escapeHtml(entry.entityLabel)}</h3>
       <p class="hist-trace-card__summary">${escapeHtml(entry.summary || "Sin resumen")}</p>
+      ${changesHtml}
       <footer class="hist-trace-card__foot">
         <div class="hist-trace-card__meta">
           <time class="hist-trace-card__time" datetime="${escapeAttr(String(entry.ts || ""))}">${escapeHtml(fmtDate(entry.ts))}</time>
@@ -8885,9 +9046,12 @@ function renderHistoryAuditRow(entry) {
     entry.detailAction && entry.detailId
       ? `<button type="button" class="btn btn-sm btn-outline hist-trace-detail-btn" data-action="${escapeAttr(entry.detailAction)}" data-id="${escapeAttr(entry.detailId)}">${IC.eye}<span>Detalle</span></button>`
       : "";
+  const changesText = String(entry.changesText || "").trim();
   const actions = detailButton
     ? `<div class="toolbar history-list-actions">${detailButton}</div>`
-    : '<span class="muted">—</span>';
+    : changesText
+      ? `<span class="hist-trace-table-changes">${escapeHtml(changesText)}</span>`
+      : '<span class="muted">—</span>';
   const relativeFn = globalThis.historyTraceRelativeTime;
   const relative = typeof relativeFn === "function" ? relativeFn(entry.ts) : "";
   const initialsFn = globalThis.historyTraceActorInitials;
@@ -10865,26 +11029,17 @@ function wireFormDocDuplicateCheck(formEl, opts = {}) {
   const docTypeSel = formEl.querySelector("select[name='documentType']");
   const companySel = useCompanyScope ? formEl.querySelector("select[name='companyId']") : null;
   const excludeId = String(opts.excludeId || "").trim();
-  let dupNotifyTimer = null;
-  let lastDupToastSig = "";
   let serverCheckTimer = null;
   let serverCheckSeq = 0;
 
   const clearBlock = () => {
-    if (dupNotifyTimer) {
-      clearTimeout(dupNotifyTimer);
-      dupNotifyTimer = null;
-    }
-    lastDupToastSig = "";
-    docInput.dataset.dupLastToastMsg = "";
-    docInput.dataset.dupToastTs = "";
     docInput.dataset.dupError = "";
     docInput.dataset.serverDupError = "";
     V?.clearFieldError?.(docInput);
     docInput.setCustomValidity?.("");
   };
 
-  const applyDuplicateMessage = (dupMsg, { silent, toastKey, blocking, fromSubmit = false, suppressToast = false }) => {
+  const applyDuplicateMessage = (dupMsg, { silent, blocking }) => {
     if (blocking) {
       docInput.dataset.dupError = "1";
       docInput.dataset.serverDupError = "1";
@@ -10896,42 +11051,7 @@ function wireFormDocDuplicateCheck(formEl, opts = {}) {
       docInput.setCustomValidity?.("");
       V?.setFieldError?.(docInput, dupMsg);
     }
-    /* Avisos no bloqueantes (p. ej. documento en otra empresa): solo error bajo el campo, sin toast. */
-    if (blocking && !suppressToast) {
-      const fireDupToast = () => {
-        try {
-          docInput.dataset.dupToastTs = String(Date.now());
-          if (typeof notify === "function") notify(dupMsg, "error", 4200);
-        } catch (_e) {
-          /* noop */
-        }
-      };
-      if (!silent) {
-        /* En submit se re-notifica siempre, salvo que el mismo mensaje acabe de mostrarse
-           (p. ej. el blur del campo al hacer clic en «Guardar» disparó el toast hace un instante). */
-        const lastToastTs = Number(docInput.dataset.dupToastTs || 0);
-        const sameRecentToast =
-          docInput.dataset.dupLastToastMsg === dupMsg && Date.now() - lastToastTs < 1200;
-        const shouldFire = fromSubmit ? !sameRecentToast : docInput.dataset.dupLastToastMsg !== dupMsg;
-        if (shouldFire) {
-          docInput.dataset.dupLastToastMsg = dupMsg;
-          fireDupToast();
-        }
-      } else if (lastDupToastSig !== toastKey) {
-        lastDupToastSig = toastKey;
-        if (dupNotifyTimer) clearTimeout(dupNotifyTimer);
-        dupNotifyTimer = setTimeout(() => {
-          dupNotifyTimer = null;
-          const stillBlocked =
-            String(docInput.dataset.dupError || "") === "1" ||
-            String(docInput.dataset.serverDupError || "") === "1";
-          if (stillBlocked && docInput.value.trim()) {
-            docInput.dataset.dupLastToastMsg = dupMsg;
-            fireDupToast();
-          }
-        }, 380);
-      }
-    }
+    /* Duplicado bloqueante: solo error bajo el campo (sin toast que repita el mismo texto). */
     if (!silent && blocking) {
       try {
         docInput.scrollIntoView?.({ behavior: "smooth", block: "center" });
@@ -11968,8 +12088,6 @@ function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = 
       occupationalExamExpiry: addOneYearToYmd(raw.occupationalExamDate),
       instruvialExamDate: normalizePortalDateYmd(raw.instruvialExamDate),
       instruvialExamExpiry: addOneYearToYmd(raw.instruvialExamDate),
-      defensiveCourse: String(raw.defensiveCourse || "").trim().toLowerCase(),
-      defensiveCourseExpiry: normalizePortalDateYmd(raw.defensiveCourseExpiry),
       comparendos: Math.max(0, Math.min(9999, parseNum(raw.comparendos ?? 0))),
       experienceYears: Math.max(0, Math.min(80, parseNum(raw.experienceYears ?? 0))),
       vehicleTypes: collectDriverVehicleTypesCsv(raw),
@@ -12086,7 +12204,6 @@ function buildEmployeePayrollProfileBodyHtml(emp) {
       ${employeeProfileKvRow("Vence examen ocupacional", e.occupationalExamExpiry)}
       ${employeeProfileKvRow("Examen instruvial", e.instruvialExamDate)}
       ${employeeProfileKvRow("Vence examen instruvial", e.instruvialExamExpiry)}
-      ${employeeProfileKvRow("Curso conducción defensiva", e.defensiveCourse)}
       ${employeeProfileKvRow("Vehículos que conduce", driverVehicleTypesCsvToLabel(e.vehicleTypes, "Sin definir"))}
     </div></section>`
     : "";
@@ -12239,7 +12356,6 @@ function buildPayrollEmployeeEditModalFields(emp) {
     )
     .join("");
   const tplKind = escapeAttr(String(e.contractTemplateKind || "oficina").toLowerCase());
-  const defCourse = escapeAttr(String(e.defensiveCourse || ""));
   const existingAvatar = escapeAttr(String(e.avatarUrl || ""));
   const editPhotoCss = employeeAvatarCssUrl(e.avatarUrl);
   const editPhotoHasImage = Boolean(editPhotoCss);
@@ -12364,13 +12480,6 @@ ${employeeNationalPhoneFieldHtml("emergencyPhone", "Tel. emergencia", e.emergenc
 <label><span>${escapeHtml("Vence licencia")}</span><input type="date" name="licenseExpiry" value="${escapeAttr(normalizePortalDateYmd(e.licenseExpiry))}" /></label>
 <label><span>${escapeHtml("Examen instruvial")}</span><input type="date" name="instruvialExamDate" value="${escapeAttr(normalizePortalDateYmd(e.instruvialExamDate))}" /></label>
 <p class="full muted modal-field-hint" style="grid-column:1/-1;font-size:0.78rem">La vigencia del examen instruvial se calcula automáticamente (+1 año). El examen ocupacional está en la sección «Laboral» porque aplica a todos los cargos.</p>
-<label><span>${escapeHtml("Conducción defensiva")}</span><select name="defensiveCourse">
-<option value="">${escapeHtml("Seleccione...")}</option>
-<option value="vigente" ${defCourse === "vigente" ? "selected" : ""}>${escapeHtml("Vigente")}</option>
-<option value="vencido" ${defCourse === "vencido" ? "selected" : ""}>${escapeHtml("Vencido")}</option>
-<option value="no_aplica" ${defCourse === "no_aplica" ? "selected" : ""}>${escapeHtml("No aplica")}</option>
-</select></label>
-<label><span>${escapeHtml("Vence curso defensivo")}</span><input type="date" name="defensiveCourseExpiry" value="${escapeAttr(normalizePortalDateYmd(e.defensiveCourseExpiry))}" /></label>
 <label><span>${escapeHtml("Comparendos pendientes (SIMIT)")}</span><input type="number" name="comparendos" min="0" max="9999" value="${escapeAttr(parseNum(e.comparendos ?? 0))}" /></label>
 <label><span>${escapeHtml("Años de experiencia conduciendo")}</span><input type="number" name="experienceYears" min="0" max="80" value="${escapeAttr(parseNum(e.experienceYears ?? 0))}" /></label>
 <label class="full"><span>${escapeHtml("¿De cuáles vehículos de la flota es conductor?")}</span>

@@ -1781,7 +1781,7 @@ function bindPayrollPortalControls() {
           scheduleContractRenewalNotificationCheck();
           const refreshed = read(KEYS.payrollEmployees, []).find((empRow) => String(empRow.id) === String(target.id));
           if (refreshed) {
-            appendPayrollEmployeeAuditLog("update", refreshed);
+            appendPayrollEmployeeAuditLog("update", refreshed, { previous: target });
             const propagate = await propagateEmployeeChanges(refreshed);
             if (!propagate.ok) {
               notify(propagate.message || userMessage("employeeCreatedDriverSyncFail"), "error");

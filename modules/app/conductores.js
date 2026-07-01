@@ -118,19 +118,10 @@ function driversHtml() {
       days
     };
   };
-  const defensiveCourseMeta = (driver) => {
-    const raw = String(driver.defensiveCourse || "").trim().toLowerCase();
-    if (raw === "no_aplica") return { bucket: "ok", label: "No aplica" };
-    if (raw === "vencido") return { bucket: "expired", label: "Curso vencido" };
-    if (raw === "vigente") return buildDateMeta(driver.defensiveCourseExpiry, "Sin fecha");
-    if (!raw && !driver.defensiveCourseExpiry) return { bucket: "missing", label: "Sin registro" };
-    return buildDateMeta(driver.defensiveCourseExpiry, "Sin registro");
-  };
   const summaries = drivers.map((driver) => {
     const occupancy = resolveDriverOccupancy(driver.id);
     const companyName = String(getCompanyById(driver.companyId)?.name || "").trim() || "Sin empresa";
     const licenseMeta = buildDateMeta(driver.licenseExpiry, "Sin fecha");
-    const courseMeta = defensiveCourseMeta(driver);
     const hasSocialSecurity = Boolean(String(driver.eps || "").trim() && String(driver.arl || "").trim());
     const comparendos = Math.max(0, parseNum(driver.comparendos || 0));
     const experienceYears = Math.max(0, parseNum(driver.experienceYears || 0));
@@ -149,9 +140,9 @@ function driversHtml() {
           ? '<span class="status status-fleet-programado">Reservado</span>'
           : '<span class="status status-fleet-disponible">Disponible</span>';
     const docBucket = (() => {
-      if (licenseMeta.bucket === "expired" || courseMeta.bucket === "expired") return "expired";
-      if (licenseMeta.bucket === "missing" || courseMeta.bucket === "missing" || !hasSocialSecurity) return "missing";
-      if (licenseMeta.bucket === "warning" || courseMeta.bucket === "warning" || comparendos > 0) return "warning";
+      if (licenseMeta.bucket === "expired") return "expired";
+      if (licenseMeta.bucket === "missing" || !hasSocialSecurity) return "missing";
+      if (licenseMeta.bucket === "warning" || comparendos > 0) return "warning";
       return "ok";
     })();
     const docBadge = docBucket === "expired"
@@ -176,7 +167,6 @@ function driversHtml() {
       statusTag,
       occupancy,
       licenseMeta,
-      courseMeta,
       hasSocialSecurity,
       comparendos,
       experienceYears,
@@ -255,7 +245,6 @@ function driversHtml() {
     })();
     const licenseSubTone =
       item.licenseMeta.bucket === "expired" ? "alert" : item.licenseMeta.bucket === "warning" ? "ok" : item.licenseMeta.bucket === "ok" ? "ok" : "warn";
-    const courseTone = directoryToneFromBucket(item.courseMeta.bucket);
     const availabilityLabel =
       item.statusSlug === "offline"
         ? "No disponible"
@@ -339,7 +328,6 @@ function driversHtml() {
           ${buildPortalOpsCardGridItem("Documento", IC.badge, String(d.idDoc || "—"))}
           ${buildPortalOpsCardGridItem("Teléfono", IC.phone, phoneValue)}
           ${buildPortalOpsCardGridItem("Venc. licencia", IC.calendar, licenseNumber, { tone: licenseSubTone, subValue: licenseSubLabel, subTone: licenseSubTone })}
-          ${buildPortalOpsCardGridItem("Curso", IC.graduation, item.courseMeta.label, { tone: courseTone })}
           ${buildPortalOpsCardGridItem("Vehículos", IC.truck, driverVehicleTypesCsvToLabel(d.vehicleTypes, "Sin definir"))}
         </div>
         ${buildPortalOpsCardActions(actionButtons, statusActionBtn)}
@@ -740,19 +728,6 @@ function driversHtml() {
             { name: "licenseExpiry", label: "Vence licencia", type: "date", value: target.licenseExpiry || "" },
             { name: "occupationalExamDate", label: "Examen ocupacional", type: "date", value: target.occupationalExamDate || "" },
             { name: "instruvialExamDate", label: "Examen instruvial", type: "date", value: target.instruvialExamDate || "" },
-            {
-              name: "defensiveCourse",
-              label: "Curso conducción defensiva (Res. 17220)",
-              type: "select",
-              value: target.defensiveCourse || "",
-              options: [
-                { value: "", label: "Seleccione..." },
-                { value: "vigente", label: "Vigente" },
-                { value: "vencido", label: "Vencido" },
-                { value: "no_aplica", label: "No aplica" }
-              ]
-            },
-            { name: "defensiveCourseExpiry", label: "Vence curso defensivo", type: "date", value: target.defensiveCourseExpiry || "" },
             { name: "eps", label: "EPS", type: "select", value: target.eps || "", options: epsOpts },
             { name: "arl", label: "ARL", type: "select", value: target.arl || "", options: arlOpts },
             { name: "comparendos", label: "Comparendos pendientes (SIMIT)", type: "number", value: target.comparendos || 0 },
@@ -770,8 +745,7 @@ function driversHtml() {
               ["bloodType", target.bloodType],
               ["licenseCategory", target.licenseCategory],
               ["eps", target.eps],
-              ["arl", target.arl],
-              ["defensiveCourse", target.defensiveCourse]
+              ["arl", target.arl]
             ].forEach(([name, val]) => {
               const sel = formEl.querySelector(`select[name="${name}"]`);
               if (sel && val) setFormSelectValue(sel, val);
@@ -820,7 +794,6 @@ function driversHtml() {
             const licenseExpiryNorm = normalizePortalDateYmd(expiryValue);
             const occDate = normalizePortalDateYmd(getVal("occupationalExamDate"));
             const intraDate = normalizePortalDateYmd(getVal("instruvialExamDate"));
-            const defExpiry = normalizePortalDateYmd(getVal("defensiveCourseExpiry"));
 
             const nextDrivers = read(KEYS.drivers, []).map((d) =>
               String(d.id ?? "").trim() === String(target.id ?? "").trim()
@@ -840,8 +813,6 @@ function driversHtml() {
                     instruvialExamExpiry: intraDate ? addOneYearToYmd(intraDate) : "",
                     psychoTestDate: occDate,
                     psychoTestExpiry: occDate ? addOneYearToYmd(occDate) : "",
-                    defensiveCourse: getVal("defensiveCourse"),
-                    defensiveCourseExpiry: defExpiry,
                     eps: getVal("eps"),
                     arl: getVal("arl"),
                     comparendos: parseNum(getVal("comparendos")),

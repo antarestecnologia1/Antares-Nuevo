@@ -1,0 +1,277 @@
+/* ===================================================================
+   Portal — sistema unificado de botones y controles segmentados
+   Alcance: .portal-main, modales del portal, .auth-modal (excepto login)
+   =================================================================== */
+
+/* ── Base: tamaño mínimo táctil y alineación consistente ── */
+.portal-main .btn,
+.modal .btn,
+#portal-app .btn {
+  min-height: 2.25rem;
+  justify-content: center;
+  white-space: nowrap;
+  vertical-align: middle;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.portal-main .btn-sm,
+.modal .btn-sm,
+#portal-app .btn-sm {
+  min-height: 2rem;
+  padding: 0.42rem 0.78rem;
+}
+
+.portal-main .btn .btn-icon,
+.modal .btn .btn-icon,
+#portal-app .btn .btn-icon {
+  flex-shrink: 0;
+}
+
+/* ── Toolbar: acciones en fila sin desbordes raros ── */
+.portal-main .toolbar,
+.modal .toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.portal-main .toolbar .btn,
+.modal .toolbar .btn {
+  flex-shrink: 0;
+}
+
+/* ── Controles segmentados (Tarjetas / Lista, etc.) ── */
+.portal-main .transport-ops-layout,
+#portal-app .transport-ops-layout {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 0;
+  min-height: 2.45rem;
+  padding: 0.2rem;
+  border-radius: 999px;
+  background: rgba(var(--primary-rgb), 0.05);
+  border: 1px solid rgba(var(--primary-rgb), 0.12);
+  overflow: hidden;
+}
+
+.portal-main .transport-ops-layout .btn,
+#portal-app .transport-ops-layout .btn {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+  border-radius: 999px;
+  box-shadow: none;
+  min-height: 0;
+  height: auto;
+  align-self: stretch;
+}
+
+.portal-main .transport-ops-layout .btn:hover,
+#portal-app .transport-ops-layout .btn:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.portal-main .transport-ops-layout .btn-primary:hover,
+#portal-app .transport-ops-layout .btn-primary:hover {
+  background: linear-gradient(180deg, #4a8fd4 0%, var(--primary) 45%, var(--primary-dark) 100%);
+}
+
+.portal-main .transport-ops-layout .btn-outline,
+#portal-app .transport-ops-layout .btn-outline {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.portal-main .transport-ops-layout .btn-outline:hover,
+#portal-app .transport-ops-layout .btn-outline:hover {
+  background: rgba(var(--primary-rgb), 0.08);
+  border-color: transparent;
+}
+
+/* Campo con etiqueta "Vista" (conductores) */
+.driver-fleet-view-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.32rem;
+  min-width: min(11rem, 100%);
+}
+
+.driver-fleet-field-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.28rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #5b6f8d;
+  line-height: 1.2;
+}
+
+.driver-fleet-field-eyebrow .btn-icon {
+  width: 14px;
+  height: 14px;
+  opacity: 0.85;
+}
+
+/* ── Tarjetas operativas (viajes, camiones, conductores…) ── */
+.trip-ops-card-btn {
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease,
+    opacity 0.16s ease;
+}
+
+.trip-ops-card-btn:focus-visible {
+  outline: 2px solid rgba(var(--primary-rgb), 0.45);
+  outline-offset: 2px;
+}
+
+.trip-ops-card-btn.is-busy,
+.trip-ops-card-btn[aria-busy="true"] {
+  position: relative;
+  color: transparent !important;
+  pointer-events: none;
+  cursor: wait;
+  opacity: 0.88;
+}
+
+.trip-ops-card-btn.is-busy > *,
+.trip-ops-card-btn[aria-busy="true"] > * {
+  opacity: 0 !important;
+  visibility: hidden;
+}
+
+.trip-ops-card-btn.is-busy::after,
+.trip-ops-card-btn[aria-busy="true"]::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0.95em;
+  height: 0.95em;
+  margin: -0.475em 0 0 -0.475em;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  border-top-color: #fff;
+  animation: antares-btn-spin 0.62s linear infinite;
+  pointer-events: none;
+}
+
+.trip-ops-card-btn--outline.is-busy::after,
+.trip-ops-card-btn--outline[aria-busy="true"]::after {
+  border-color: rgba(var(--primary-rgb), 0.28);
+  border-top-color: var(--primary);
+}
+
+/* ── Spinners por variante de botón ── */
+.btn-approve.is-busy::after,
+.btn-approve[aria-busy="true"]::after {
+  border-color: rgba(255, 255, 255, 0.42);
+  border-top-color: #fff;
+}
+
+.btn-reject.is-busy::after,
+.btn-reject[aria-busy="true"]::after,
+.btn-danger-soft.is-busy::after,
+.btn-danger-soft[aria-busy="true"]::after {
+  border-color: rgba(255, 255, 255, 0.42);
+  border-top-color: #fff;
+}
+
+.btn-action.is-busy::after,
+.btn-action[aria-busy="true"]::after {
+  border-color: rgba(255, 255, 255, 0.42);
+  border-top-color: #fff;
+}
+
+/* ── Formularios en envío: bloquear acciones duplicadas ── */
+form.is-submitting .btn:not([data-no-lock]),
+form.is-submitting [type="submit"]:not([data-no-lock]) {
+  pointer-events: none;
+}
+
+form.is-submitting .btn[type="submit"],
+form.is-submitting .btn.btn-primary {
+  cursor: wait;
+}
+
+/* ── Icon-only compact buttons ── */
+.payroll-contracts-icon-btn {
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.payroll-contracts-icon-btn.is-busy,
+.payroll-contracts-icon-btn[aria-busy="true"] {
+  position: relative;
+  color: transparent !important;
+  pointer-events: none;
+  cursor: wait;
+}
+
+.payroll-contracts-icon-btn.is-busy svg,
+.payroll-contracts-icon-btn[aria-busy="true"] svg {
+  opacity: 0;
+}
+
+.payroll-contracts-icon-btn.is-busy::after,
+.payroll-contracts-icon-btn[aria-busy="true"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 50%;
+  border: 2px solid rgba(var(--primary-rgb), 0.28);
+  border-top-color: var(--primary);
+  animation: antares-btn-spin 0.62s linear infinite;
+}
+
+/* ── Tema oscuro ── */
+body[data-theme="dark"] .portal-main .transport-ops-layout,
+body[data-theme="dark"] #portal-app .transport-ops-layout,
+body[data-theme="dark"] .driver-fleet-view-toggle {
+  background: rgba(148, 196, 255, 0.06);
+  border-color: rgba(148, 196, 255, 0.12);
+}
+
+body[data-theme="dark"] .driver-fleet-field-eyebrow {
+  color: #9eb8d8;
+}
+
+body[data-theme="dark"] .portal-main .transport-ops-layout .btn-outline:hover,
+body[data-theme="dark"] #portal-app .transport-ops-layout .btn-outline:hover {
+  background: rgba(148, 196, 255, 0.1);
+}
+
+@media (max-width: 900px) {
+  .driver-fleet-view-field {
+    min-width: 0;
+    max-width: 22rem;
+  }
+
+  .portal-main .transport-ops-layout,
+  #portal-app .transport-ops-layout {
+    width: 100%;
+    max-width: 22rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trip-ops-card-btn.is-busy::after,
+  .trip-ops-card-btn[aria-busy="true"]::after,
+  .payroll-contracts-icon-btn.is-busy::after,
+  .payroll-contracts-icon-btn[aria-busy="true"]::after {
+    animation-duration: 1.4s;
+  }
+}

@@ -51,7 +51,6 @@ CREATE TABLE empleados_nomina (
   fecha_vencimiento_examen_ocupacional DATE,
   fecha_examen_instruvial DATE,
   fecha_vencimiento_examen_instruvial DATE,
-  curso_conduccion_defensiva  VARCHAR(32),
   meses_prueba                SMALLINT,
   fecha_fin_contrato          DATE,
   jornada_laboral             VARCHAR(64),

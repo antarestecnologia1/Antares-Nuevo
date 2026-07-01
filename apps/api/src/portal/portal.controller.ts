@@ -26,6 +26,7 @@ import { CreateFleetMaintenanceLogDto } from "./dto/create-fleet-maintenance-log
 import { DeleteLaborSystemParametersDto } from "./dto/delete-labor-system-parameters.dto";
 import { UpsertLaborSystemParametersDto } from "./dto/upsert-labor-system-parameters.dto";
 import { AppendPortalAuditEventsDto } from "./dto/portal-audit-events.dto";
+import { DeletePortalAuditEventsDto } from "./dto/delete-portal-audit-events.dto";
 import { PortalService } from "./portal.service";
 
 type ReqUser = { userId: string; email: string; role: string };
@@ -200,6 +201,12 @@ export class PortalController {
       req.user.role,
       dto.events as unknown as Array<Record<string, unknown>>
     );
+  }
+
+  /** Admin: depurar/vaciar la bitácora de auditoría del portal. */
+  @Post("audit-events/delete")
+  deletePortalAuditEvents(@Req() req: { user: ReqUser }, @Body() dto: DeletePortalAuditEventsDto) {
+    return this.portal.deletePortalAuditEvents(req.user.userId, req.user.email, req.user.role, dto);
   }
 
   @Post("notification-preferences")

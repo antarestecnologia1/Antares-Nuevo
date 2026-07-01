@@ -56,6 +56,15 @@ export class PortalAuditEventDto {
   @IsString()
   @MaxLength(64)
   detailId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  changesText?: string;
+
+  @IsOptional()
+  @IsUUID("4")
+  companyId?: string;
 }
 
 export class AppendPortalAuditEventsDto {

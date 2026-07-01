@@ -56,7 +56,6 @@ import {
 import {
   matchPayrollCatalogOption,
   normalizeContractTemplateKindForDb,
-  normalizeDefensiveCourseForDb,
   PAYROLL_EMPLOYEE_CATALOG
 } from "../common/payroll-employee-catalogs";
 
@@ -1511,11 +1510,22 @@ export class PortalService implements OnModuleInit {
           usuario_etiqueta    TEXT,
           detalle_accion      VARCHAR(64),
           detalle_id          VARCHAR(64),
+          detalle_cambios     TEXT,
+          id_empresa          UUID REFERENCES empresas (id) ON DELETE SET NULL,
           metadata_json       JSONB NOT NULL DEFAULT '{}'::jsonb,
           registrado_en       TIMESTAMPTZ NOT NULL DEFAULT now(),
           CONSTRAINT uq_auditoria_evento_cliente UNIQUE (id_evento_cliente)
         )
       `);
+      await this.pool.query(
+        `ALTER TABLE auditoria_eventos_portal ADD COLUMN IF NOT EXISTS detalle_cambios TEXT`
+      );
+      await this.pool.query(
+        `ALTER TABLE auditoria_eventos_portal ADD COLUMN IF NOT EXISTS id_empresa UUID REFERENCES empresas (id) ON DELETE SET NULL`
+      );
+      await this.pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_aud_portal_empresa_en ON auditoria_eventos_portal (id_empresa, registrado_en DESC)`
+      );
       await this.pool.query(
         `CREATE INDEX IF NOT EXISTS idx_aud_portal_registrado_en ON auditoria_eventos_portal (registrado_en DESC)`
       );
@@ -1552,13 +1562,26 @@ export class PortalService implements OnModuleInit {
       actorUserId,
       usuario: String(row.usuario || actorLabel || actorEmail || "").trim(),
       detailAction: String(row.detailAction || "").trim(),
-      detailId: String(row.detailId || "").trim()
+      detailId: String(row.detailId || "").trim(),
+      changesText: String(row.changesText || "").trim(),
+      companyId: String(row.companyId ?? row.id_empresa ?? "").trim() || ""
     };
   }
 
-  private async loadPortalAuditEvents(limit = PORTAL_AUDIT_EVENTS_BOOTSTRAP_LIMIT) {
+  private async loadPortalAuditEvents(
+    userId: string,
+    role: JwtRole,
+    permissionSet: ReadonlySet<string>,
+    admin: boolean,
+    empresaId: string | null,
+    limit = PORTAL_AUDIT_EVENTS_BOOTSTRAP_LIMIT
+  ) {
     if (!(await this.tableExists("auditoria_eventos_portal"))) return [];
     const cap = Math.min(Math.max(Number(limit) || PORTAL_AUDIT_EVENTS_BOOTSTRAP_LIMIT, 1), PORTAL_AUDIT_EVENTS_QUERY_MAX);
+    const scope = this.buildPortalAuditEventsScopeClauses(role, userId, empresaId, permissionSet, admin, 1);
+    const scopeWhere = scope.clauses.length ? `WHERE ${scope.clauses.join(" AND ")}` : "";
+    const params = [...scope.params, cap];
+    const limitParam = scope.nextIdx;
     const r = await this.pool.query(
       `SELECT COALESCE(a.id_evento_cliente, a.id)::text AS "clientEventId",
               a.id::text AS id,
@@ -1574,12 +1597,15 @@ export class PortalService implements OnModuleInit {
               COALESCE(NULLIF(trim(a.usuario_etiqueta), ''), u.nombre_completo, a.usuario_email) AS usuario,
               a.detalle_accion AS "detailAction",
               a.detalle_id AS "detailId",
+              a.detalle_cambios AS "changesText",
+              a.id_empresa::text AS "companyId",
               a.registrado_en AS "registeredAt"
          FROM auditoria_eventos_portal a
          LEFT JOIN usuarios u ON u.id = a.id_usuario
+        ${scopeWhere}
         ORDER BY a.registrado_en DESC
-        LIMIT $1`,
-      [cap]
+        LIMIT $${limitParam}`,
+      params
     );
     return r.rows.map((row) => this.mapPortalAuditEventRowToClient(row as Record<string, unknown>));
   }
@@ -1590,6 +1616,188 @@ export class PortalService implements OnModuleInit {
       this.hasPortalPermission(permissionSet, "transport_history") ||
       this.hasPortalPermission(permissionSet, "users_manage")
     );
+  }
+
+  /** Permisos del portal requeridos por módulo de auditoría (alineado a VIEW_PERMISSIONS del frontend). */
+  private static readonly PORTAL_AUDIT_MODULE_PERMISSIONS: Record<string, readonly string[]> = {
+    dashboard: ["dashboard_view"],
+    requests: ["client_requests", "transport_requests"],
+    transport_requests: ["client_requests", "transport_requests"],
+    mis_solicitudes: ["client_requests", "transport_requests"],
+    solicitudes: ["client_requests", "transport_requests"],
+    trips: ["transport_trips"],
+    transport_trips: ["transport_trips"],
+    viajes: ["transport_trips"],
+    vehicles: [
+      "transport_vehicles",
+      "transport_vehicles_view",
+      "transport_vehicles_create",
+      "transport_vehicles_edit",
+      "transport_vehicles_status",
+      "transport_vehicles_delete"
+    ],
+    camiones: [
+      "transport_vehicles",
+      "transport_vehicles_view",
+      "transport_vehicles_create",
+      "transport_vehicles_edit",
+      "transport_vehicles_status",
+      "transport_vehicles_delete"
+    ],
+    drivers: ["transport_drivers"],
+    conductores: ["transport_drivers"],
+    calendar: ["transport_calendar"],
+    calendario: ["transport_calendar"],
+    history: ["transport_history"],
+    historial: ["transport_history"],
+    reports: ["transport_history"],
+    reporteria: ["transport_history"],
+    payroll: ["payroll_manage"],
+    nomina: ["payroll_manage"],
+    hr_absences: ["payroll_manage"],
+    hr_payroll: ["payroll_manage"],
+    hiring: ["hiring_manage"],
+    contratacion: ["hiring_manage"],
+    sst: ["sst_compliance"],
+    sst_compliance: ["sst_compliance"],
+    cumplimiento_laboral: ["sst_compliance"],
+    contact_b2b: ["contact_b2b_view"],
+    contacts: ["contact_b2b_view"],
+    b2b: ["contact_b2b_view"],
+    users: ["users_manage"],
+    admin_users: ["users_manage"],
+    companies: ["users_manage"],
+    authorizations: [
+      "authorizations_manage",
+      "authorizations_transport",
+      "authorizations_portal_registrations",
+      "authorizations_portal_users",
+      "authorizations_fleet",
+      "authorizations_workforce",
+      "authorizations_hr_absences",
+      "authorizations_payroll_pay"
+    ],
+    approvals: [
+      "authorizations_manage",
+      "authorizations_transport",
+      "authorizations_portal_registrations",
+      "authorizations_portal_users",
+      "authorizations_fleet",
+      "authorizations_workforce",
+      "authorizations_hr_absences",
+      "authorizations_payroll_pay"
+    ],
+    autorizaciones: [
+      "authorizations_manage",
+      "authorizations_transport",
+      "authorizations_portal_registrations",
+      "authorizations_portal_users",
+      "authorizations_fleet",
+      "authorizations_workforce",
+      "authorizations_hr_absences",
+      "authorizations_payroll_pay"
+    ],
+    profile: ["profile_view"],
+    mi_perfil: ["profile_view"],
+    notifications: ["notifications_view"],
+    notificaciones: ["notifications_view"],
+    bell: ["notifications_view"],
+    timbre: ["notifications_view"],
+    alerts: ["notifications_view"],
+    avisos: ["notifications_view"]
+  };
+
+  /** Módulos de auditoría visibles según permisos efectivos; `null` = sin filtro (admin). */
+  private allowedPortalAuditModuleIds(permissionSet: ReadonlySet<string>, admin: boolean): string[] | null {
+    if (admin) return null;
+    const allowed = new Set<string>();
+    for (const [moduleId, perms] of Object.entries(PortalService.PORTAL_AUDIT_MODULE_PERMISSIONS)) {
+      if (perms.some((p) => permissionSet.has(p))) allowed.add(moduleId);
+    }
+    return [...allowed];
+  }
+
+  /**
+   * Alcance por empresa para bitácora: clientes siempre; demás roles no admin solo si no tienen
+   * directorio amplio (misma regla que bootstrap · canSeeAllCompanies).
+   */
+  private portalAuditEventsNeedCompanyScope(
+    role: JwtRole,
+    admin: boolean,
+    permissionSet: ReadonlySet<string>
+  ): boolean {
+    if (admin) return false;
+    if (this.isPortalClientRole(role)) return true;
+    const broad =
+      this.hasPortalPermission(permissionSet, "users_manage") ||
+      this.hasPortalPermission(permissionSet, "transport_trips") ||
+      this.hasPortalPermission(permissionSet, "transport_requests") ||
+      this.hasPortalPermission(permissionSet, "transport_vehicles") ||
+      this.hasPortalPermission(permissionSet, "transport_drivers") ||
+      this.hasPortalPermission(permissionSet, "transport_calendar") ||
+      this.hasPortalPermission(permissionSet, "transport_history") ||
+      this.hasPortalPermission(permissionSet, "payroll_manage") ||
+      this.hasPortalPermission(permissionSet, "hiring_manage") ||
+      this.hasPortalPermission(permissionSet, "sst_compliance") ||
+      this.hasPortalPermission(permissionSet, "contact_b2b_view");
+    return !broad;
+  }
+
+  /** Cláusulas SQL adicionales para segregar auditoría por permisos y empresa. */
+  private buildPortalAuditEventsScopeClauses(
+    role: JwtRole,
+    userId: string,
+    empresaId: string | null,
+    permissionSet: ReadonlySet<string>,
+    admin: boolean,
+    startIdx: number
+  ): { clauses: string[]; params: unknown[]; nextIdx: number } {
+    const clauses: string[] = [];
+    const params: unknown[] = [];
+    let idx = startIdx;
+
+    const allowedModules = this.allowedPortalAuditModuleIds(permissionSet, admin);
+    if (allowedModules !== null) {
+      if (!allowedModules.length) {
+        clauses.push("FALSE");
+        return { clauses, params, nextIdx: idx };
+      }
+      params.push(allowedModules);
+      clauses.push(`a.modulo_id = ANY($${idx++}::text[])`);
+    }
+
+    if (this.portalAuditEventsNeedCompanyScope(role, admin, permissionSet)) {
+      const companyScope =
+        empresaId && PG_UUID_V4_RE.test(String(empresaId).trim()) ? String(empresaId).trim() : null;
+      if (!companyScope) {
+        params.push(userId);
+        clauses.push(`a.id_usuario = $${idx++}::uuid`);
+      } else {
+        params.push(companyScope, userId);
+        const companyParam = idx++;
+        const userParam = idx++;
+        clauses.push(`(
+          a.id_empresa = $${companyParam}::uuid
+          OR (
+            a.id_empresa IS NULL AND (
+              a.id_usuario = $${userParam}::uuid
+              OR EXISTS (
+                SELECT 1 FROM solicitudes_transporte s
+                 WHERE s.id::text = NULLIF(trim(a.entidad_id), '')
+                   AND s.id_empresa_cliente = $${companyParam}::uuid
+              )
+              OR EXISTS (
+                SELECT 1 FROM empleados_nomina e
+                 WHERE e.id::text = NULLIF(trim(a.entidad_id), '')
+                   AND e.id_empresa = $${companyParam}::uuid
+              )
+            )
+          )
+        )`);
+      }
+    }
+
+    return { clauses, params, nextIdx: idx };
   }
 
   async appendPortalAuditEvents(
@@ -1645,13 +1853,13 @@ export class PortalService implements OnModuleInit {
             id_evento_cliente, accion, modulo_id, modulo_etiqueta,
             entidad_id, entidad_etiqueta, resumen,
             id_usuario, usuario_email, usuario_etiqueta,
-            detalle_accion, detalle_id, registrado_en
+            detalle_accion, detalle_id, detalle_cambios, id_empresa, registrado_en
           )
           VALUES (
             $1::uuid, $2, $3, $4,
             $5, $6, $7,
             $8::uuid, $9, $10,
-            $11, $12, COALESCE($13::timestamptz, now())
+            $11, $12, $13, $14::uuid, COALESCE($15::timestamptz, now())
           )
           ON CONFLICT (id_evento_cliente) DO NOTHING
           RETURNING id`,
@@ -1668,6 +1876,8 @@ export class PortalService implements OnModuleInit {
           actorLabel || null,
           String(row.detailAction || "").trim().slice(0, 64) || null,
           String(row.detailId || "").trim().slice(0, 64) || null,
+          String(row.changesText || "").trim().slice(0, 2000) || null,
+          PG_UUID_V4_RE.test(String(row.companyId || "").trim()) ? String(row.companyId).trim() : null,
           registeredAt
         ]
       );
@@ -1705,6 +1915,11 @@ export class PortalService implements OnModuleInit {
       clauses.push(`a.registrado_en <= $${idx++}::timestamptz`);
       params.push(new Date(`${to}T23:59:59.999Z`).toISOString());
     }
+    const empresaId = await this.getUserCompany(userId);
+    const scope = this.buildPortalAuditEventsScopeClauses(role, userId, empresaId, permissionSet, admin, idx);
+    clauses.push(...scope.clauses);
+    params.push(...scope.params);
+    idx = scope.nextIdx;
     const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
 
     const countR = await this.pool.query<{ c: string }>(
@@ -1729,6 +1944,8 @@ export class PortalService implements OnModuleInit {
               COALESCE(NULLIF(trim(a.usuario_etiqueta), ''), u.nombre_completo, a.usuario_email) AS usuario,
               a.detalle_accion AS "detailAction",
               a.detalle_id AS "detailId",
+              a.detalle_cambios AS "changesText",
+              a.id_empresa::text AS "companyId",
               a.registrado_en AS "registeredAt"
          FROM auditoria_eventos_portal a
          LEFT JOIN usuarios u ON u.id = a.id_usuario
@@ -1741,6 +1958,106 @@ export class PortalService implements OnModuleInit {
       total,
       items: r.rows.map((row) => this.mapPortalAuditEventRowToClient(row as Record<string, unknown>))
     };
+  }
+
+  /**
+   * Borrado de la bitácora de auditoría (solo administradores). Permite depurar el historial
+   * por rango de fechas y/o módulo, o vaciarlo por completo (`scope: "all"`). Queda registrado
+   * un evento de auditoría propio dejando constancia de quién limpió el historial y por qué.
+   */
+  async deletePortalAuditEvents(
+    userId: string,
+    actorEmail: string,
+    role: JwtRole,
+    dto: {
+      from?: string;
+      to?: string;
+      moduleId?: string;
+      action?: "create" | "update" | "delete";
+      scope?: "all";
+      motivo: string;
+    }
+  ) {
+    if (!this.isAdmin(role)) {
+      throw new ForbiddenException("Solo un administrador puede eliminar el historial de auditoría.");
+    }
+    if (!(await this.tableExists("auditoria_eventos_portal"))) {
+      return { deleted: 0 };
+    }
+
+    const scope = dto.scope === "all" ? "all" : "";
+    const from = String(dto.from || "").trim();
+    const to = String(dto.to || "").trim();
+    const moduleId = String(dto.moduleId || "").trim().slice(0, 64);
+    const action = ["create", "update", "delete"].includes(String(dto.action || ""))
+      ? String(dto.action)
+      : "";
+    if (scope !== "all" && !from && !to && !moduleId && !action) {
+      throw new BadRequestException(
+        "Indique un rango de fechas, un módulo, un tipo de movimiento o confirme el borrado total del historial."
+      );
+    }
+
+    const clauses: string[] = [];
+    const params: unknown[] = [];
+    let idx = 1;
+    if (scope !== "all") {
+      if (from) {
+        clauses.push(`registrado_en >= $${idx++}::timestamptz`);
+        params.push(new Date(from).toISOString());
+      }
+      if (to) {
+        clauses.push(`registrado_en <= $${idx++}::timestamptz`);
+        params.push(new Date(`${to}T23:59:59.999Z`).toISOString());
+      }
+      if (moduleId) {
+        clauses.push(`modulo_id = $${idx++}`);
+        params.push(moduleId);
+      }
+      if (action) {
+        clauses.push(`accion = $${idx++}`);
+        params.push(action);
+      }
+    }
+    const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+
+    const profile = await this.pool.query<{ nombre_completo: string | null }>(
+      `SELECT nombre_completo FROM usuarios WHERE id = $1::uuid LIMIT 1`,
+      [userId]
+    );
+    const actorLabel = String(profile.rows[0]?.nombre_completo || actorEmail || "").trim();
+    const motivo = String(dto.motivo || "").trim().slice(0, 500);
+
+    const result = await this.pool.query(`DELETE FROM auditoria_eventos_portal ${where}`, params);
+    const deleted = result.rowCount || 0;
+
+    this.logger.log(
+      `auditoria_eventos_portal: ${deleted} evento(s) eliminado(s) por ${sanitizeLogText(actorLabel || userId)}. Motivo: ${sanitizeLogText(motivo)}`
+    );
+
+    if (deleted > 0) {
+      const scopeLabel = scope === "all" ? "todo el historial" : "eventos filtrados por fecha y/o módulo";
+      await this.pool.query(
+        `INSERT INTO auditoria_eventos_portal (
+            accion, modulo_id, modulo_etiqueta, entidad_id, entidad_etiqueta, resumen,
+            id_usuario, usuario_email, usuario_etiqueta, registrado_en
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7::uuid, $8, $9, now())`,
+        [
+          "delete",
+          "history",
+          "Historial",
+          "purge",
+          "Historial",
+          `Eliminó ${deleted} evento${deleted === 1 ? "" : "s"} de auditoría (${scopeLabel}). Motivo: ${motivo}`,
+          userId,
+          String(actorEmail || "").trim().slice(0, 255) || null,
+          actorLabel || null
+        ]
+      );
+    }
+
+    return { deleted };
   }
 
   /** Ausencias laborales: subtipos y días reconocidos (40). */
@@ -3199,7 +3516,7 @@ export class PortalService implements OnModuleInit {
       admin ? this.loadDeletedTransportTripLogs() : Promise.resolve([]),
       admin ? this.loadDeletedTransportRequestLogs() : Promise.resolve([]),
       this.canReadPortalAuditEvents(permissionSet, admin)
-        ? this.loadPortalAuditEvents()
+        ? this.loadPortalAuditEvents(userId, role, permissionSet, admin, empresaId)
         : Promise.resolve([])
     ]);
 
@@ -5212,12 +5529,7 @@ export class PortalService implements OnModuleInit {
       const occE = this.sqlVehicleDateColumnToString(d.fecha_vencimiento_examen_ocupacional) || "";
       const intraD = this.sqlVehicleDateColumnToString(d.fecha_examen_instruvial) || "";
       const intraE = this.sqlVehicleDateColumnToString(d.fecha_vencimiento_examen_instruvial) || "";
-      const defCourse =
-        d.curso_conduccion_defensiva != null && String(d.curso_conduccion_defensiva).trim() !== ""
-          ? String(d.curso_conduccion_defensiva).trim()
-          : "";
       const row = d as Record<string, unknown>;
-      const defCourseExpiry = this.sqlVehicleDateColumnToString(row.fecha_vencimiento_curso_defensivo) || "";
       const comparendosNum =
         row.comparendos_pendientes != null && String(row.comparendos_pendientes).trim() !== ""
           ? Math.max(0, Math.min(9999, Math.floor(Number(row.comparendos_pendientes))))
@@ -5256,9 +5568,6 @@ export class PortalService implements OnModuleInit {
         psychometricExpiry: occE,
         psychoTestDate: occD,
         psychoTestExpiry: occE,
-        defensiveDrivingCourse: defCourse,
-        defensiveCourse: defCourse,
-        defensiveCourseExpiry: defCourseExpiry,
         bloodType: row.tipo_sangre != null ? String(row.tipo_sangre).trim() : "",
         eps: row.eps != null ? String(row.eps).trim() : "",
         arl: row.arl != null ? String(row.arl).trim() : "",
@@ -6396,7 +6705,6 @@ export class PortalService implements OnModuleInit {
       instruvialExamExpiry: this.sqlEmployeeDateToPortalYmd(e.fecha_vencimiento_examen_instruvial),
       psychoTestDate: this.sqlEmployeeDateToPortalYmd(e.fecha_examen_ocupacional),
       psychoTestExpiry: this.sqlEmployeeDateToPortalYmd(e.fecha_vencimiento_examen_ocupacional),
-      defensiveCourse: e.curso_conduccion_defensiva,
       probationMonths: e.meses_prueba,
       contractEndDate: this.sqlEmployeeDateToPortalYmd(e.fecha_fin_contrato),
       workSchedule: e.jornada_laboral,
@@ -7604,11 +7912,23 @@ export class PortalService implements OnModuleInit {
         "El tipo de vehículo en base de datos no es operativo (se espera Camión, Turbo o Tractomula)."
       );
     }
-    const solKey = this.fleetTypeKey(tipoSolicitado);
-    if (solKey && solKey !== "por definir" && solKey !== vehTipoKey) {
-      throw new BadRequestException(
-        `El vehículo en flota (${String(v.tipo_vehiculo)}) no coincide con el tipo solicitado registrado en la solicitud (${tipoSolicitado}).`
-      );
+    /** Viaje ya asignado en BD: no revalidar tipo flota vs solicitud (p. ej. al sincronizar nombre del conductor desde RR.HH.). */
+    const existingTripRes = await c.query(
+      `SELECT id_vehiculo, id_conductor FROM viajes_transporte WHERE id_solicitud = $1::uuid LIMIT 1`,
+      [solicitudId]
+    );
+    const existingTrip = existingTripRes.rows[0] as Record<string, unknown> | undefined;
+    const preserveExistingAssignment =
+      Boolean(existingTrip) &&
+      String(existingTrip?.id_vehiculo ?? "").trim() === vehicleIdRaw &&
+      String(existingTrip?.id_conductor ?? "").trim() === driverIdRaw;
+    if (!preserveExistingAssignment) {
+      const solKey = this.fleetTypeKey(tipoSolicitado);
+      if (solKey && solKey !== "por definir" && solKey !== vehTipoKey) {
+        throw new BadRequestException(
+          `El vehículo en flota (${String(v.tipo_vehiculo)}) no coincide con el tipo solicitado registrado en la solicitud (${tipoSolicitado}).`
+        );
+      }
     }
 
     const vehTk =
@@ -8320,11 +8640,6 @@ export class PortalService implements OnModuleInit {
           .toUpperCase()
           .slice(0, 8) || "C2";
       const phone = normalizePortalPhoneForStorage(d.phone || "3000000000");
-      const defCourseRaw = p(d, "defensiveDrivingCourse", "defensiveCourse", "curso_conduccion_defensiva");
-      const defCourseSql =
-        defCourseRaw != null && String(defCourseRaw).trim() !== ""
-          ? (nuN(defCourseRaw)?.slice(0, 32) ?? null)
-          : null;
       const vehicleTypesSql = this.sanitizeDriverVehicleTypesCsv(
         p(d, "vehicleTypes", "tipos_vehiculo")
       );
@@ -8337,20 +8652,19 @@ export class PortalService implements OnModuleInit {
           numero_licencia, categoria_licencia, fecha_vencimiento_licencia,
           fecha_examen_ocupacional, fecha_vencimiento_examen_ocupacional,
           fecha_examen_instruvial, fecha_vencimiento_examen_instruvial,
-          curso_conduccion_defensiva,
-          fecha_vencimiento_curso_defensivo, tipo_sangre, eps, arl, comparendos_pendientes, anos_experiencia_conduccion,
+          tipo_sangre, eps, arl, comparendos_pendientes, anos_experiencia_conduccion,
           contacto_emergencia, telefono_emergencia,
           disponible, ocupado_por_sistema, tipo_contrato, salario_base, fecha_inicio, fecha_contratacion, url_foto,
           tipos_vehiculo,
           creado_por, actualizado_por
         ) VALUES (
           $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::date,
-          $13::date, $14::date, $15::date, $16::date, $17,
-          $18::date, $19, $20, $21, $22, $23,
-          $24, $25,
-          $26, $27, $28, $29, $30, $31::date, $32::timestamptz,
-          $33,
-          $34, $35
+          $13::date, $14::date, $15::date, $16::date,
+          $17, $18, $19, $20, $21,
+          $22, $23,
+          $24, $25, $26, $27, $28, $29::date, $30::timestamptz,
+          $31,
+          $32, $33
         )
         ON CONFLICT (id) DO UPDATE SET
           id_empresa = EXCLUDED.id_empresa,
@@ -8368,8 +8682,6 @@ export class PortalService implements OnModuleInit {
           fecha_vencimiento_examen_ocupacional = EXCLUDED.fecha_vencimiento_examen_ocupacional,
           fecha_examen_instruvial = EXCLUDED.fecha_examen_instruvial,
           fecha_vencimiento_examen_instruvial = EXCLUDED.fecha_vencimiento_examen_instruvial,
-          curso_conduccion_defensiva = EXCLUDED.curso_conduccion_defensiva,
-          fecha_vencimiento_curso_defensivo = EXCLUDED.fecha_vencimiento_curso_defensivo,
           tipo_sangre = EXCLUDED.tipo_sangre,
           eps = EXCLUDED.eps,
           arl = EXCLUDED.arl,
@@ -8405,8 +8717,6 @@ export class PortalService implements OnModuleInit {
           occExpiry,
           intraExam,
           intraExpiry,
-          defCourseSql,
-          portalDateYmdOrNull(p(d, "defensiveCourseExpiry", "fecha_vencimiento_curso_defensivo")),
           bloodSql,
           epsSql,
           arlSql,
@@ -8524,7 +8834,6 @@ export class PortalService implements OnModuleInit {
       occExpiry,
       intraExam,
       intraExpiry,
-      defensiveCourse: normalizeDefensiveCourseForDb(p(e, "defensiveCourse", "defensiveDrivingCourse")),
       bloodType: matchPayrollCatalogOption(PAYROLL_EMPLOYEE_CATALOG.bloodTypes, p(e, "bloodType")),
       eps: matchPayrollCatalogOption(PAYROLL_EMPLOYEE_CATALOG.eps, p(e, "eps")),
       arl: matchPayrollCatalogOption(PAYROLL_EMPLOYEE_CATALOG.arl, p(e, "arl")),
@@ -8584,10 +8893,6 @@ export class PortalService implements OnModuleInit {
       occExpiry,
       intraExam,
       intraExpiry,
-      defensiveCourse:
-        row.curso_conduccion_defensiva != null
-          ? normalizeDefensiveCourseForDb(String(row.curso_conduccion_defensiva))
-          : null,
       bloodType: row.tipo_sangre != null ? String(row.tipo_sangre).trim() : null,
       eps: row.eps != null ? String(row.eps).trim() : null,
       arl: row.arl != null ? String(row.arl).trim() : null,
@@ -8621,7 +8926,6 @@ export class PortalService implements OnModuleInit {
       occExpiry: string | null;
       intraExam: string | null;
       intraExpiry: string | null;
-      defensiveCourse: string | null;
       bloodType: string | null;
       eps: string | null;
       arl: string | null;
@@ -8658,19 +8962,18 @@ export class PortalService implements OnModuleInit {
           numero_licencia, categoria_licencia, fecha_vencimiento_licencia,
           fecha_examen_ocupacional, fecha_vencimiento_examen_ocupacional,
           fecha_examen_instruvial, fecha_vencimiento_examen_instruvial,
-          curso_conduccion_defensiva,
-          fecha_vencimiento_curso_defensivo, tipo_sangre, eps, arl, comparendos_pendientes, anos_experiencia_conduccion,
+          tipo_sangre, eps, arl, comparendos_pendientes, anos_experiencia_conduccion,
           contacto_emergencia, telefono_emergencia,
           disponible, ocupado_por_sistema, tipo_contrato, salario_base, fecha_inicio, fecha_contratacion, url_foto,
           tipos_vehiculo
         ) VALUES (
           $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::date,
-          $13::date, $14::date, $15::date, $16::date, $17,
-          $18::date, $19, $20, $21, 0, 0,
-          $22, $23,
-          true, false, $24, $25, $26::date, $27::timestamptz,
-          $28,
-          $29
+          $13::date, $14::date, $15::date, $16::date,
+          $17, $18, $19, 0, 0,
+          $20, $21,
+          true, false, $22, $23, $24::date, $25::timestamptz,
+          $26,
+          $27
         )
         ON CONFLICT (numero_documento) DO UPDATE SET
           id_empresa = COALESCE(EXCLUDED.id_empresa, conductores.id_empresa),
@@ -8687,7 +8990,6 @@ export class PortalService implements OnModuleInit {
           fecha_vencimiento_examen_ocupacional = EXCLUDED.fecha_vencimiento_examen_ocupacional,
           fecha_examen_instruvial = EXCLUDED.fecha_examen_instruvial,
           fecha_vencimiento_examen_instruvial = EXCLUDED.fecha_vencimiento_examen_instruvial,
-          curso_conduccion_defensiva = EXCLUDED.curso_conduccion_defensiva,
           tipo_sangre = EXCLUDED.tipo_sangre,
           eps = EXCLUDED.eps,
           arl = EXCLUDED.arl,
@@ -8716,8 +9018,6 @@ export class PortalService implements OnModuleInit {
         d.occExpiry,
         d.intraExam,
         d.intraExpiry,
-        d.defensiveCourse,
-        null,
         bloodSql,
         epsSql,
         arlSql,
@@ -9053,7 +9353,6 @@ export class PortalService implements OnModuleInit {
           numero_licencia, categoria_licencia, fecha_vencimiento_licencia,
           fecha_examen_ocupacional, fecha_vencimiento_examen_ocupacional,
           fecha_examen_instruvial, fecha_vencimiento_examen_instruvial,
-          curso_conduccion_defensiva,
           meses_prueba, fecha_fin_contrato, jornada_laboral, url_avatar, correo_corporativo,
           fecha_creacion, fecha_actualizacion
         ) VALUES (
@@ -9067,9 +9366,9 @@ export class PortalService implements OnModuleInit {
           $31, $32, $33, $34, $35,
           $36, $37, $38, $39,
           $40, $41, $42,
-          $43::date, $44::date, $45::date, $46::date, $47,
-          $48, $49, $50, $51, $52,
-          COALESCE($53::timestamptz, now()), COALESCE($54::timestamptz, now())
+          $43::date, $44::date, $45::date, $46::date,
+          $47, $48, $49, $50, $51,
+          COALESCE($52::timestamptz, now()), COALESCE($53::timestamptz, now())
         )
         ON CONFLICT (id) DO UPDATE SET
           nombre_completo = EXCLUDED.nombre_completo,
@@ -9115,7 +9414,6 @@ export class PortalService implements OnModuleInit {
           fecha_vencimiento_examen_ocupacional = EXCLUDED.fecha_vencimiento_examen_ocupacional,
           fecha_examen_instruvial = EXCLUDED.fecha_examen_instruvial,
           fecha_vencimiento_examen_instruvial = EXCLUDED.fecha_vencimiento_examen_instruvial,
-          curso_conduccion_defensiva = EXCLUDED.curso_conduccion_defensiva,
           id_empresa = EXCLUDED.id_empresa,
           id_cargo = EXCLUDED.id_cargo,
           meses_prueba = EXCLUDED.meses_prueba,
@@ -9138,7 +9436,6 @@ export class PortalService implements OnModuleInit {
           numero_licencia, categoria_licencia, fecha_vencimiento_licencia,
           fecha_examen_ocupacional, fecha_vencimiento_examen_ocupacional,
           fecha_examen_instruvial, fecha_vencimiento_examen_instruvial,
-          curso_conduccion_defensiva,
           meses_prueba, fecha_fin_contrato, jornada_laboral, url_avatar, correo_corporativo,
           tiene_condicion_medica, descripcion_condicion_medica,
           fecha_creacion, fecha_actualizacion
@@ -9153,10 +9450,10 @@ export class PortalService implements OnModuleInit {
           $31, $32, $33, $34, $35,
           $36, $37, $38, $39,
           $40, $41, $42,
-          $43::date, $44::date, $45::date, $46::date, $47,
-          $48, $49, $50, $51, $52,
-          $53::boolean, $54,
-          COALESCE($55::timestamptz, now()), COALESCE($56::timestamptz, now())
+          $43::date, $44::date, $45::date, $46::date,
+          $47, $48, $49, $50, $51,
+          $52::boolean, $53,
+          COALESCE($54::timestamptz, now()), COALESCE($55::timestamptz, now())
         )
         ON CONFLICT (id) DO UPDATE SET
           nombre_completo = EXCLUDED.nombre_completo,
@@ -9202,7 +9499,6 @@ export class PortalService implements OnModuleInit {
           fecha_vencimiento_examen_ocupacional = EXCLUDED.fecha_vencimiento_examen_ocupacional,
           fecha_examen_instruvial = EXCLUDED.fecha_examen_instruvial,
           fecha_vencimiento_examen_instruvial = EXCLUDED.fecha_vencimiento_examen_instruvial,
-          curso_conduccion_defensiva = EXCLUDED.curso_conduccion_defensiva,
           id_empresa = EXCLUDED.id_empresa,
           id_cargo = EXCLUDED.id_cargo,
           meses_prueba = EXCLUDED.meses_prueba,
@@ -9227,7 +9523,6 @@ export class PortalService implements OnModuleInit {
           numero_licencia, categoria_licencia, fecha_vencimiento_licencia,
           fecha_examen_ocupacional, fecha_vencimiento_examen_ocupacional,
           fecha_examen_instruvial, fecha_vencimiento_examen_instruvial,
-          curso_conduccion_defensiva,
           meses_prueba, fecha_fin_contrato, jornada_laboral, url_avatar, correo_corporativo,
           tiene_condicion_medica, descripcion_condicion_medica,
           fecha_creacion, fecha_actualizacion
@@ -9242,10 +9537,10 @@ export class PortalService implements OnModuleInit {
           $32, $33, $34, $35, $36,
           $37, $38, $39, $40,
           $41, $42, $43,
-          $44::date, $45::date, $46::date, $47::date, $48,
-          $49, $50, $51, $52, $53,
-          $54::boolean, $55,
-          COALESCE($56::timestamptz, now()), COALESCE($57::timestamptz, now())
+          $44::date, $45::date, $46::date, $47::date,
+          $48, $49, $50, $51, $52,
+          $53::boolean, $54,
+          COALESCE($55::timestamptz, now()), COALESCE($56::timestamptz, now())
         )
         ON CONFLICT (id) DO UPDATE SET
           nombre_completo = EXCLUDED.nombre_completo,
@@ -9292,7 +9587,6 @@ export class PortalService implements OnModuleInit {
           fecha_vencimiento_examen_ocupacional = EXCLUDED.fecha_vencimiento_examen_ocupacional,
           fecha_examen_instruvial = EXCLUDED.fecha_examen_instruvial,
           fecha_vencimiento_examen_instruvial = EXCLUDED.fecha_vencimiento_examen_instruvial,
-          curso_conduccion_defensiva = EXCLUDED.curso_conduccion_defensiva,
           id_empresa = EXCLUDED.id_empresa,
           id_cargo = EXCLUDED.id_cargo,
           meses_prueba = EXCLUDED.meses_prueba,
@@ -9317,7 +9611,6 @@ export class PortalService implements OnModuleInit {
           numero_licencia, categoria_licencia, fecha_vencimiento_licencia,
           fecha_examen_ocupacional, fecha_vencimiento_examen_ocupacional,
           fecha_examen_instruvial, fecha_vencimiento_examen_instruvial,
-          curso_conduccion_defensiva,
           meses_prueba, fecha_fin_contrato, jornada_laboral, url_avatar, correo_corporativo,
           tiene_condicion_medica, descripcion_condicion_medica,
           fecha_creacion, fecha_actualizacion
@@ -9332,10 +9625,10 @@ export class PortalService implements OnModuleInit {
           $34, $35, $36, $37, $38,
           $39, $40, $41, $42,
           $43, $44, $45,
-          $46::date, $47::date, $48::date, $49::date, $50,
-          $51, $52, $53, $54, $55,
-          $56::boolean, $57,
-          COALESCE($58::timestamptz, now()), COALESCE($59::timestamptz, now())
+          $46::date, $47::date, $48::date, $49::date,
+          $50, $51, $52, $53, $54,
+          $55::boolean, $56,
+          COALESCE($57::timestamptz, now()), COALESCE($58::timestamptz, now())
         )
         ON CONFLICT (id) DO UPDATE SET
           nombre_completo = EXCLUDED.nombre_completo,
@@ -9384,7 +9677,6 @@ export class PortalService implements OnModuleInit {
           fecha_vencimiento_examen_ocupacional = EXCLUDED.fecha_vencimiento_examen_ocupacional,
           fecha_examen_instruvial = EXCLUDED.fecha_examen_instruvial,
           fecha_vencimiento_examen_instruvial = EXCLUDED.fecha_vencimiento_examen_instruvial,
-          curso_conduccion_defensiva = EXCLUDED.curso_conduccion_defensiva,
           id_empresa = EXCLUDED.id_empresa,
           id_cargo = EXCLUDED.id_cargo,
           meses_prueba = EXCLUDED.meses_prueba,
@@ -9544,7 +9836,6 @@ export class PortalService implements OnModuleInit {
         occExpiry,
         intraExam,
         intraExpiry,
-        normalizeDefensiveCourseForDb(p(e, "defensiveCourse", "defensiveDrivingCourse")),
         this.payrollEmployeeOptionalInt(p(e, "probationMonths")),
         portalDateOrNull(p(e, "contractEndDate")),
         matchPayrollCatalogOption(PAYROLL_EMPLOYEE_CATALOG.workSchedule, p(e, "workSchedule")),

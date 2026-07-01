@@ -31,7 +31,9 @@
       actorUserId: actorUserId,
       actorEmail: actorEmail,
       detailAction: String(r.detailAction || "").trim() || undefined,
-      detailId: String(r.detailId || "").trim() || undefined
+      detailId: String(r.detailId || "").trim() || undefined,
+      changesText: String(r.changesText || "").trim() || undefined,
+      companyId: String(r.companyId || "").trim() || undefined
     };
   }
 
@@ -84,7 +86,7 @@
     try {
       var res = await window.AntaresApi.getJson("/portal/audit-events?" + qs.toString());
       var items = res && Array.isArray(res.items) ? res.items : [];
-      if (!items.length && !(res && res.total > 0)) return false;
+      if (!o.force && !items.length && !(res && res.total > 0)) return false;
       var KEYS = window.KEYS;
       var P = window.AntaresPersistence;
       var key = KEYS && KEYS.moduleAuditLogs ? KEYS.moduleAuditLogs : "antares_module_audit_logs_v1";
@@ -92,7 +94,8 @@
       if (P && typeof P.write === "function") P.write(key, serverRows, { skipSyncSchedule: true });
       else {
         try {
-          localStorage.removeItem(key);
+          if (serverRows.length) localStorage.setItem(key, JSON.stringify(serverRows));
+          else localStorage.removeItem(key);
         } catch (_rm) {
           /* noop */
         }
@@ -103,9 +106,25 @@
     }
   }
 
+  /**
+   * Depura la bitácora de auditoría en PostgreSQL (solo administradores; ver `PortalService.deletePortalAuditEvents`).
+   * `payload` puede traer `from`/`to`/`moduleId`/`action` (filtros) o `scope: "all"` para vaciarla por completo.
+   * Siempre requiere `motivo`. Tras borrar, refresca la caché local para reflejar el estado del servidor.
+   */
+  async function deleteEventsFromApi(payload) {
+    if (!apiReady()) {
+      throw new Error("Sesión sin autenticación API. Vuelva a iniciar sesión para depurar el historial.");
+    }
+    var body = payload && typeof payload === "object" ? payload : {};
+    var res = await window.AntaresApi.postJson("/portal/audit-events/delete", body);
+    await refreshModuleAuditLogsFromApi({ limit: 5000, force: true });
+    return res;
+  }
+
   window.AntaresPortalAuditSync = {
     enqueue: enqueue,
     flush: flush,
-    refreshModuleAuditLogsFromApi: refreshModuleAuditLogsFromApi
+    refreshModuleAuditLogsFromApi: refreshModuleAuditLogsFromApi,
+    deleteEventsFromApi: deleteEventsFromApi
   };
 })();
