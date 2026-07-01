@@ -728,7 +728,8 @@ export function renderPayrollOperateSectionNav(activeId) {
         const active = activeId === t.id;
         const iconSvg = ic()[t.icon] ? `<span class="payroll-operate-nav-ico" aria-hidden="true">${ic()[t.icon]}</span>` : "";
         const tip = escapeAttr(`${t.title} — ${t.hint}`);
-        return `<button type="button" role="tab" class="payroll-operate-nav-tab${active ? " is-active" : ""}" aria-selected="${active ? "true" : "false"}" data-action="payroll-operate-section" data-section="${escapeAttr(t.id)}" title="${tip}">
+        const ariaLbl = escapeAttr(`${t.label} — ${t.hint}`);
+        return `<button type="button" role="tab" class="payroll-operate-nav-tab${active ? " is-active" : ""}" aria-selected="${active ? "true" : "false"}" data-action="payroll-operate-section" data-section="${escapeAttr(t.id)}" title="${tip}" aria-label="${ariaLbl}">
           ${iconSvg}
           <span class="payroll-operate-nav-copy">
             <strong class="payroll-operate-nav-label">${escapeHtml(t.label)}</strong>

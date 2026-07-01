@@ -670,6 +670,21 @@ function bindPayrollPortalControls() {
     });
   });
 
+  nodes.viewRoot.querySelectorAll("[data-action='payroll-operate-rail-toggle']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const panel = btn.closest(".payroll-operate");
+      if (!panel) return;
+      const collapsed = panel.classList.toggle("is-rail-collapsed");
+      btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+      btn.setAttribute("title", collapsed ? "Expandir opciones de trámite" : "Contraer opciones de trámite");
+      try {
+        localStorage.setItem("antares_payroll_rail_collapsed", collapsed ? "1" : "0");
+      } catch (_err) {
+        /* almacenamiento no disponible: la preferencia es opcional */
+      }
+    });
+  });
+
   nodes.viewRoot.querySelectorAll("[data-action='payroll-operate-section']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const section = normalizePayrollOperateSection(btn.dataset.section);

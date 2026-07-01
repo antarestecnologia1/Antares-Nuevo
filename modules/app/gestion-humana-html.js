@@ -2,6 +2,15 @@
  * Gestión humana — HTML de la vista (payrollHtml).
  * Carga con defer antes de gestion-humana.js.
  */
+/** Lee si el riel de "Tipo de trámite" quedó contraído en una sesión anterior. */
+function isPayrollOperateRailCollapsed() {
+  try {
+    return localStorage.getItem("antares_payroll_rail_collapsed") === "1";
+  } catch (_err) {
+    return false;
+  }
+}
+
 function renderPayrollRunsViewToggle(activeView, context = "nomina") {
   const view = String(activeView || "cards").toLowerCase() === "list" ? "list" : "cards";
   const ctx = String(context || "nomina").toLowerCase() === "driver" ? "driver" : "nomina";
@@ -324,20 +333,19 @@ function payrollHtml() {
       <h4 class="payroll-wizard__section-title">${IC.user} Datos personales</h4>
       <div class="form-section-grid payroll-wizard__section-grid">
         <div class="full payroll-wizard-photo-row">
-          <label class="payroll-wizard-upload-zone" data-emp-create-avatar-label for="emp-create-avatar-input">
+          <label class="payroll-wizard-upload-zone" data-emp-create-avatar-label for="emp-create-avatar-input" title="Arrastra y suelta una imagen o haz clic para seleccionar · JPG o PNG · Máx. 5 MB">
             <input type="file" id="emp-create-avatar-input" name="avatarFile" accept="image/jpeg,image/png,image/webp" class="profile-avatar-file-input" aria-label="Foto del empleado" />
             <span class="payroll-wizard-upload-zone__icon" aria-hidden="true">${IC.upload}</span>
-            <span class="payroll-wizard-upload-zone__title">Arrastra y suelta una imagen</span>
-            <span class="payroll-wizard-upload-zone__meta">o haz clic para seleccionar · JPG o PNG · Máx. 5 MB</span>
             <span class="payroll-wizard-upload-zone__preview profile-avatar-initial" data-emp-avatar-initial aria-hidden="true">E</span>
           </label>
-          <aside class="payroll-wizard-tip">
-            <span class="payroll-wizard-tip__icon" aria-hidden="true"><svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg></span>
-            <div class="payroll-wizard-tip__copy">
-              <strong>Consejo</strong>
-              <p>Use una foto clara del rostro, fondo neutro y buena iluminación. Mejora la credencial interna y el contrato Word.</p>
-            </div>
-          </aside>
+          <div class="payroll-wizard-photo-copy">
+            <span class="payroll-wizard-photo-copy__title">Foto del colaborador</span>
+            <span class="payroll-wizard-photo-copy__meta">Clic o arrastra una imagen · JPG/PNG · Máx. 5 MB</span>
+          </div>
+          <button type="button" class="payroll-wizard-tip-trigger" aria-label="Consejo para la foto del colaborador">
+            <span aria-hidden="true">${IC.info}</span>
+            <span class="payroll-wizard-tip-trigger__pop" role="tooltip">Use una foto clara del rostro, fondo neutro y buena iluminación. Mejora la credencial interna y el contrato Word.</span>
+          </button>
         </div>
         <label class="full">${fieldLabel(IC.user, "Nombre completo", { required: true })}<input name="name" required placeholder="Nombres y apellidos completos" data-antares-restrict="person-name" data-antares-field="person-name" /></label>
         <label>${fieldLabel(IC.file, "Tipo de documento", { required: true })}<select name="documentType" required>${docTypeOptions}</select></label>
@@ -1041,6 +1049,7 @@ function payrollHtml() {
     workspace: payrollWorkspace
   });
   const payrollOperateNav = renderPayrollOperateSectionNav(payrollOperateSection);
+  const payrollRailCollapsed = isPayrollOperateRailCollapsed();
   const payrollOperatePaneHidden = (section) => payrollOperateSection !== section;
   const payrollOperatePane = (section, body) =>
     `<div class="auth-tab-panel${payrollOperatePaneHidden(section) ? " hidden" : ""}" data-payroll-operate-pane="${section}"${payrollOperatePaneHidden(section) ? " hidden" : ""} aria-hidden="${payrollOperatePaneHidden(section) ? "true" : "false"}">${body}</div>`;
@@ -1067,9 +1076,14 @@ function payrollHtml() {
     "absence",
     createHrActionCard("create-hr-absence", "calendar", "Crear ausencia", "Vacaciones, licencias, incapacidades, compensatorios y suspensiones", formAbsence, "Abrir formulario", { createPanels: payrollCreateUi })
   );
-  const payrollExecutionBlock = `<section class="payroll-operate payroll-operate-panel">
+  const payrollExecutionBlock = `<section class="payroll-operate payroll-operate-panel${payrollRailCollapsed ? " is-rail-collapsed" : ""}">
       <aside class="payroll-operate__rail" aria-label="Trámites de registro">
-        <p class="payroll-operate__rail-label">Tipo de trámite</p>
+        <div class="payroll-operate__rail-head">
+          <p class="payroll-operate__rail-label">Tipo de trámite</p>
+          <button type="button" class="payroll-operate__rail-toggle" data-action="payroll-operate-rail-toggle" aria-expanded="${payrollRailCollapsed ? "false" : "true"}" title="${payrollRailCollapsed ? "Expandir opciones de trámite" : "Contraer opciones de trámite"}">
+            <span class="payroll-operate__rail-toggle-ico" aria-hidden="true">${IC.chevronLeft}</span>
+          </button>
+        </div>
         ${payrollOperateNav}
       </aside>
       <div class="payroll-operate__main auth-tab-panels">${employeeOperatePane}${payrollOperatePaneBody}${driverPayOperatePane}${settlementOperatePane}${absenceOperatePane}</div>

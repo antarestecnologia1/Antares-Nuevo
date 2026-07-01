@@ -1418,7 +1418,7 @@ export class PortalService implements OnModuleInit {
     if (ok > 0) this.logger.log(`portal entity audit: ${ok} columnas verificadas.`);
   }
 
-  /** Tipos de vehículo de flota (Camion/Turbo/Tractomula/Bus, separados por comas) que el conductor está habilitado a conducir. */
+  /** Tipos de vehículo de flota (Camion/Turbo/Tractomula, separados por comas) que el conductor está habilitado a conducir. */
   private async ensureConductoresSchema() {
     if (!(await this.tableExists("conductores"))) return;
     try {
@@ -1431,8 +1431,8 @@ export class PortalService implements OnModuleInit {
     }
   }
 
-  /** Mismos valores que `vehiculos.tipo_vehiculo` (ver `camiones-html.js`); un conductor puede tener varios, separados por comas. */
-  private static readonly DRIVER_VEHICLE_TYPES = ["Camion", "Turbo", "Tractomula", "Bus"];
+  /** Subconjunto de `vehiculos.tipo_vehiculo` (ver `camiones-html.js`) habilitado para conductores; un conductor puede tener varios, separados por comas. */
+  private static readonly DRIVER_VEHICLE_TYPES = ["Camion", "Turbo", "Tractomula"];
 
   /** Filtra/normaliza el CSV recibido del portal contra el catálogo de tipos de vehículo, sin duplicados. */
   private sanitizeDriverVehicleTypesCsv(raw: unknown): string | null {

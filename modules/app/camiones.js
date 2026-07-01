@@ -393,12 +393,18 @@ function vehiclesHtml() {
   const technicalPanel = canTechnicalLogs
     ? `<div class="auth-tab-panel${vehicleSection === "technical" ? "" : " hidden"}" data-vehicle-operate-pane="technical">${createHrActionCard("create-technical-log", "activity", "Taller", `${technicalLogsCount} novedad${technicalLogsCount === 1 ? "" : "es"} de mantenimiento — preventivo o correctivo`, historyFleetTechnicalFormHtml(todayIsoDate, vehicleSelectOptions), "Abrir formulario", { createPanels: vehiclesCreateUi })}</div>`
     : "";
+  const vehicleRailCollapsed = isOperateRailCollapsed("vehicles");
   const vehicleOperatePanel =
     vehicleOperateTabs.length > 0
       ? `<div class="hr-workspace-panel vehicles-workspace-panel${vehicleWorkspace === "operate" ? "" : " hidden"}" role="tabpanel" data-vehicle-panel="operate">
-      <section class="vehicles-operate vehicles-operate-panel">
+      <section class="vehicles-operate vehicles-operate-panel${vehicleRailCollapsed ? " is-rail-collapsed" : ""}">
         <aside class="vehicles-operate__rail" aria-label="Trámites de registro">
-          <p class="vehicles-operate__rail-label">Tipo de trámite</p>
+          <div class="vehicles-operate__rail-head">
+            <p class="vehicles-operate__rail-label">Tipo de trámite</p>
+            <button type="button" class="vehicles-operate__rail-toggle" data-action="vehicles-operate-rail-toggle" aria-expanded="${vehicleRailCollapsed ? "false" : "true"}" title="${vehicleRailCollapsed ? "Expandir opciones de trámite" : "Contraer opciones de trámite"}">
+              <span class="vehicles-operate__rail-toggle-ico" aria-hidden="true">${IC.chevronLeft}</span>
+            </button>
+          </div>
           ${vehicleOperateNav}
         </aside>
         <div class="vehicles-operate__main auth-tab-panels">${createPanel}${fuelPanel}${technicalPanel}</div>
@@ -508,6 +514,17 @@ function vehiclesHtml() {
           return;
         }
         renderPortalView();
+      });
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='vehicles-operate-rail-toggle']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const panel = btn.closest(".vehicles-operate");
+        if (!panel) return;
+        const collapsed = panel.classList.toggle("is-rail-collapsed");
+        btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+        btn.setAttribute("title", collapsed ? "Expandir opciones de trámite" : "Contraer opciones de trámite");
+        setOperateRailCollapsed("vehicles", collapsed);
       });
     });
 

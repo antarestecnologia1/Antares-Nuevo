@@ -241,6 +241,70 @@
   background: var(--ntf-card);
   box-shadow: var(--ntf-shadow-sm);
   overflow: hidden;
+  transition: grid-template-columns 0.22s ease;
+}
+
+.notifications-studio .ntf-operate.is-rail-collapsed {
+  grid-template-columns: 3.6rem minmax(0, 1fr);
+}
+
+.notifications-studio .ntf-operate__rail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  padding: 0 1rem 0.45rem;
+  border-bottom: 1px solid var(--ntf-edge);
+  margin: 0 0 0.35rem;
+}
+
+.notifications-studio .ntf-operate__rail-head .ntf-operate__rail-label {
+  margin: 0;
+  padding: 0;
+  border-bottom: none;
+}
+
+.notifications-studio .ntf-operate.is-rail-collapsed .ntf-operate__rail-head {
+  justify-content: center;
+  padding: 0 0.4rem 0.45rem;
+}
+
+.notifications-studio .ntf-operate.is-rail-collapsed .ntf-operate__rail-label {
+  display: none;
+}
+
+.notifications-studio .ntf-operate__rail-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 7px;
+  border: 1px solid var(--ntf-edge);
+  background: var(--ntf-card);
+  color: var(--text-soft);
+  cursor: pointer;
+  transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease;
+}
+
+.notifications-studio .ntf-operate__rail-toggle:hover {
+  color: var(--ntf-navy);
+  border-color: #cbd5e1;
+}
+
+.notifications-studio .ntf-operate__rail-toggle-ico {
+  display: inline-flex;
+  transition: transform 0.2s ease;
+}
+
+.notifications-studio .ntf-operate__rail-toggle-ico svg {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+.notifications-studio .ntf-operate.is-rail-collapsed .ntf-operate__rail-toggle-ico {
+  transform: rotate(180deg);
 }
 
 /* Rail lateral estilo GitHub: lista plana, barra izquierda en activo, sin caja interna */
@@ -261,14 +325,13 @@
 
 .notifications-studio .ntf-operate__rail-label {
   display: block;
-  margin: 0 0 0.35rem;
-  padding: 0 1rem 0.45rem;
+  margin: 0;
+  padding: 0;
   font-size: 0.72rem;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: none;
   color: var(--text-soft);
-  border-bottom: 1px solid var(--ntf-edge);
 }
 
 .notifications-studio .ntf-operate__main {
@@ -285,6 +348,7 @@
 .ntf-filter-btn {
   display: flex;
   align-items: center;
+  gap: 0.55rem;
   width: 100%;
   text-align: left;
   padding: 0.48rem 0.85rem 0.48rem 1rem;
@@ -301,6 +365,30 @@
     background 0.12s ease,
     color 0.12s ease,
     border-color 0.12s ease;
+}
+
+.ntf-filter-btn__ico {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--text-soft);
+}
+
+.ntf-filter-btn__ico svg {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.ntf-filter-btn--active .ntf-filter-btn__ico {
+  color: var(--ntf-blue);
+}
+
+.notifications-studio .ntf-operate.is-rail-collapsed .ntf-filter-btn {
+  justify-content: center;
+  padding: 0.55rem 0.4rem;
+}
+
+.notifications-studio .ntf-operate.is-rail-collapsed .ntf-filter-btn__label {
+  display: none;
 }
 
 .ntf-filter-btn:hover {
@@ -480,7 +568,8 @@
 .ntf-tag--slate { background: rgba(100, 116, 139, 0.12); color: #475569; }
 
 @media (max-width: 900px) {
-  .notifications-studio .ntf-operate {
+  .notifications-studio .ntf-operate,
+  .notifications-studio .ntf-operate.is-rail-collapsed {
     grid-template-columns: 1fr;
   }
 
@@ -490,6 +579,15 @@
     border-right: none;
     border-bottom: 1px solid var(--ntf-edge);
     padding: 0.65rem 0 0.75rem;
+  }
+
+  .notifications-studio .ntf-operate.is-rail-collapsed .ntf-operate__rail-head {
+    justify-content: space-between;
+    padding: 0 1rem 0.45rem;
+  }
+
+  .notifications-studio .ntf-operate.is-rail-collapsed .ntf-operate__rail-label {
+    display: block;
   }
 
   .ntf-filter-rail {
@@ -505,6 +603,14 @@
     border-radius: 999px;
     padding: 0.38rem 0.75rem;
     font-size: 0.8125rem;
+  }
+
+  .notifications-studio .ntf-operate.is-rail-collapsed .ntf-filter-btn {
+    padding: 0.38rem 0.75rem;
+  }
+
+  .notifications-studio .ntf-operate.is-rail-collapsed .ntf-filter-btn__label {
+    display: inline;
   }
 
   .ntf-filter-btn--active {

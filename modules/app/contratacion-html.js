@@ -483,9 +483,15 @@ function hiringHtml() {
     "contract",
     createHrActionCard("create-contract", "file", "Generar contrato (Word)", "Plantilla según cargo y tipo de vinculación colombiana", fCon, "Abrir formulario", { createPanels: hiringCreateUi })
   );
-  const hiringExecutionBlock = `<section class="hiring-operate hiring-operate-panel">
+  const hiringRailCollapsed = isOperateRailCollapsed("hiring");
+  const hiringExecutionBlock = `<section class="hiring-operate hiring-operate-panel${hiringRailCollapsed ? " is-rail-collapsed" : ""}">
       <aside class="hiring-operate__rail" aria-label="Trámites de registro">
-        <p class="hiring-operate__rail-label">Tipo de trámite</p>
+        <div class="hiring-operate__rail-head">
+          <p class="hiring-operate__rail-label">Tipo de trámite</p>
+          <button type="button" class="hiring-operate__rail-toggle" data-action="hiring-operate-rail-toggle" aria-expanded="${hiringRailCollapsed ? "false" : "true"}" title="${hiringRailCollapsed ? "Expandir opciones de trámite" : "Contraer opciones de trámite"}">
+            <span class="hiring-operate__rail-toggle-ico" aria-hidden="true">${IC.chevronLeft}</span>
+          </button>
+        </div>
         ${hiringOperateNav}
       </aside>
       <div class="hiring-operate__main auth-tab-panels">${hiringOperatePositionPane}${hiringOperateVacancyPane}${hiringOperateCandidatePane}${hiringOperateInterviewPane}${hiringOperateContractPane}</div>

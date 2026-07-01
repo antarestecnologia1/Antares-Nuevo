@@ -115,6 +115,17 @@ function bindHiringPortalControls() {
     });
   });
 
+  nodes.viewRoot.querySelectorAll("[data-action='hiring-operate-rail-toggle']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const panel = btn.closest(".hiring-operate");
+      if (!panel) return;
+      const collapsed = panel.classList.toggle("is-rail-collapsed");
+      btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+      btn.setAttribute("title", collapsed ? "Expandir opciones de trámite" : "Contraer opciones de trámite");
+      setOperateRailCollapsed("hiring", collapsed);
+    });
+  });
+
   const vacancyForm = document.getElementById("form-vacancy");
   if (vacancyForm) {
     attachDepartmentCitySelects(vacancyForm, {

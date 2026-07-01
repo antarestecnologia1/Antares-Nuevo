@@ -29,12 +29,12 @@ import {
 const G = globalThis;
 
 const FILTER_TABS = [
-  { id: NOTIFICATION_UI_FILTERS.ALL, label: "Todas" },
-  { id: NOTIFICATION_UI_FILTERS.UNREAD, label: "Sin leer" },
-  { id: NOTIFICATION_UI_FILTERS.REQUEST, label: "Solicitudes" },
-  { id: NOTIFICATION_UI_FILTERS.AUTHORIZATION, label: "Autorizaciones" },
-  { id: NOTIFICATION_UI_FILTERS.HR, label: "RRHH" },
-  { id: NOTIFICATION_UI_FILTERS.SYSTEM, label: "Sistema" }
+  { id: NOTIFICATION_UI_FILTERS.ALL, label: "Todas", icon: "inbox" },
+  { id: NOTIFICATION_UI_FILTERS.UNREAD, label: "Sin leer", icon: "bell" },
+  { id: NOTIFICATION_UI_FILTERS.REQUEST, label: "Solicitudes", icon: "send" },
+  { id: NOTIFICATION_UI_FILTERS.AUTHORIZATION, label: "Autorizaciones", icon: "shield" },
+  { id: NOTIFICATION_UI_FILTERS.HR, label: "RRHH", icon: "briefcase" },
+  { id: NOTIFICATION_UI_FILTERS.SYSTEM, label: "Sistema", icon: "settings" }
 ];
 const NOTIFICATIONS_RENDER_WINDOW_SIZE = 30;
 
@@ -47,9 +47,11 @@ function ntfCategoryTone(category) {
 }
 
 function ntfFilterRailHtml(activeFilter) {
+  const IC = G.IC || {};
   const items = FILTER_TABS.map((tab) => {
     const active = tab.id === activeFilter;
-    return `<button type="button" class="ntf-filter-btn${active ? " ntf-filter-btn--active" : ""}" data-action="notif-filter" data-filter="${escapeAttr(tab.id)}" aria-pressed="${active ? "true" : "false"}">${escapeHtml(tab.label)}</button>`;
+    const iconSvg = IC[tab.icon] ? `<span class="ntf-filter-btn__ico" aria-hidden="true">${IC[tab.icon]}</span>` : "";
+    return `<button type="button" class="ntf-filter-btn${active ? " ntf-filter-btn--active" : ""}" data-action="notif-filter" data-filter="${escapeAttr(tab.id)}" aria-pressed="${active ? "true" : "false"}" title="${escapeAttr(tab.label)}">${iconSvg}<span class="ntf-filter-btn__label">${escapeHtml(tab.label)}</span></button>`;
   }).join("");
   return `<nav class="ntf-filter-rail" aria-label="Filtrar notificaciones">${items}</nav>`;
 }
@@ -206,9 +208,15 @@ function notificationsHtml() {
     </dl>
   </header>`;
 
-  const operate = `<div class="ntf-operate">
+  const railCollapsed = (G.isOperateRailCollapsed || (() => false))("notifications");
+  const operate = `<div class="ntf-operate${railCollapsed ? " is-rail-collapsed" : ""}">
     <aside class="ntf-operate__rail">
-      <span class="ntf-operate__rail-label">Filtros</span>
+      <div class="ntf-operate__rail-head">
+        <span class="ntf-operate__rail-label">Filtros</span>
+        <button type="button" class="ntf-operate__rail-toggle" data-action="notifications-operate-rail-toggle" aria-expanded="${railCollapsed ? "false" : "true"}" title="${railCollapsed ? "Expandir filtros" : "Contraer filtros"}">
+          <span class="ntf-operate__rail-toggle-ico" aria-hidden="true">${IC.chevronLeft || ""}</span>
+        </button>
+      </div>
       ${ntfFilterRailHtml(activeFilter)}
     </aside>
     <div class="ntf-operate__main">
@@ -230,6 +238,17 @@ if (typeof window.registerLegacyPortalViews === "function") {
 function bindNotificationsPortalControls() {
   if (String(state.currentView || "") !== "notifications" || !nodes.viewRoot) return;
   const root = nodes.viewRoot;
+
+  root.querySelectorAll("[data-action='notifications-operate-rail-toggle']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const panel = btn.closest(".ntf-operate");
+      if (!panel) return;
+      const collapsed = panel.classList.toggle("is-rail-collapsed");
+      btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+      btn.setAttribute("title", collapsed ? "Expandir filtros" : "Contraer filtros");
+      G.setOperateRailCollapsed?.("notifications", collapsed);
+    });
+  });
 
   root.querySelectorAll("[data-action='notif-filter']").forEach((btn) => {
     btn.addEventListener("click", () => {

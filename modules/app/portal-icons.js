@@ -73,3 +73,32 @@ try {
 } catch (_e) {
   /* noop */
 }
+
+/**
+ * Estado compartido (persistido) de los rieles "Tipo de trámite" / "Filtros"
+ * colapsables en los distintos módulos (Gestión humana, Camiones, Viajes,
+ * Contratación, Solicitudes, Notificaciones…). Cada módulo usa su propia
+ * `key` para no compartir estado entre paneles distintos.
+ */
+function isOperateRailCollapsed(key) {
+  try {
+    return localStorage.getItem(`antares_operate_rail_collapsed_${key}`) === "1";
+  } catch (_e) {
+    return false;
+  }
+}
+
+function setOperateRailCollapsed(key, collapsed) {
+  try {
+    localStorage.setItem(`antares_operate_rail_collapsed_${key}`, collapsed ? "1" : "0");
+  } catch (_e) {
+    /* almacenamiento no disponible: la preferencia es opcional */
+  }
+}
+
+try {
+  window.isOperateRailCollapsed = isOperateRailCollapsed;
+  window.setOperateRailCollapsed = setOperateRailCollapsed;
+} catch (_e) {
+  /* noop */
+}

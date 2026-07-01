@@ -922,10 +922,16 @@
       ]
     });
     const workspaceHeader = renderHrWorkspaceHeader(moduleHead, requestsTabsNav, "payroll");
+    const requestsRailCollapsed = isOperateRailCollapsed("requests");
     const operatePanel = `<div class="hr-workspace-panel requests-workspace-panel${requestsWorkspace === "operate" ? "" : " hidden"}" role="tabpanel" data-requests-panel="operate">
-      <section class="req-operate req-operate-panel">
+      <section class="req-operate req-operate-panel${requestsRailCollapsed ? " is-rail-collapsed" : ""}">
         <aside class="req-operate__rail" aria-label="Tipo de registro">
-          <p class="req-operate__rail-label">Tipo de trámite</p>
+          <div class="req-operate__rail-head">
+            <p class="req-operate__rail-label">Tipo de trámite</p>
+            <button type="button" class="req-operate__rail-toggle" data-action="requests-operate-rail-toggle" aria-expanded="${requestsRailCollapsed ? "false" : "true"}" title="${requestsRailCollapsed ? "Expandir opciones de trámite" : "Contraer opciones de trámite"}">
+              <span class="req-operate__rail-toggle-ico" aria-hidden="true">${IC.chevronLeft}</span>
+            </button>
+          </div>
           ${renderRequestsOperateSectionNav()}
         </aside>
         <div class="req-operate__main">${requestCreateFormPanelHtml()}</div>

@@ -792,11 +792,17 @@ function transportTripsHtml() {
   );
   const tripsOperatePane = `<div class="auth-tab-panel${transportTripsSection === "trips" ? "" : " hidden"}" data-transport-trips-operate-pane="trips">${tripsCreateCard}</div>`;
   const routesOperatePane = `<div class="auth-tab-panel${transportTripsSection === "routes" ? "" : " hidden"}" data-transport-trips-operate-pane="routes">${routesCreateCard}</div>`;
+  const transportRailCollapsed = isOperateRailCollapsed("transport");
   const transportOperatePanel = `<div class="hr-workspace-panel transport-workspace-panel${transportTripsWorkspace === "operate" ? "" : " hidden"}" role="tabpanel" data-transport-trips-panel="operate">
       ${pendingAssignAlert}
-      <section class="transport-operate transport-operate-panel">
+      <section class="transport-operate transport-operate-panel${transportRailCollapsed ? " is-rail-collapsed" : ""}">
         <aside class="transport-operate__rail" aria-label="Flujos de registro">
-          <p class="transport-operate__rail-label">Tipo de trámite</p>
+          <div class="transport-operate__rail-head">
+            <p class="transport-operate__rail-label">Tipo de trámite</p>
+            <button type="button" class="transport-operate__rail-toggle" data-action="transport-operate-rail-toggle" aria-expanded="${transportRailCollapsed ? "false" : "true"}" title="${transportRailCollapsed ? "Expandir opciones de trámite" : "Contraer opciones de trámite"}">
+              <span class="transport-operate__rail-toggle-ico" aria-hidden="true">${IC.chevronLeft}</span>
+            </button>
+          </div>
           ${transportOperateNav}
         </aside>
         <div class="transport-operate__main auth-tab-panels">${tripsOperatePane}${routesOperatePane}</div>
@@ -865,6 +871,17 @@ function transportTripsHtml() {
           return;
         }
         renderPortalView();
+      });
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='transport-operate-rail-toggle']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const panel = btn.closest(".transport-operate");
+        if (!panel) return;
+        const collapsed = panel.classList.toggle("is-rail-collapsed");
+        btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+        btn.setAttribute("title", collapsed ? "Expandir opciones de trámite" : "Contraer opciones de trámite");
+        setOperateRailCollapsed("transport", collapsed);
       });
     });
 

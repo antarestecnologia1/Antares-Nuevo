@@ -757,6 +757,17 @@
   function bindMisSolicitudesPortalControls() {
     if (String(state.currentView || "") !== "requests" || !nodes.viewRoot) return;
 
+    nodes.viewRoot.querySelectorAll("[data-action='requests-operate-rail-toggle']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const panel = btn.closest(".req-operate");
+        if (!panel) return;
+        const collapsed = panel.classList.toggle("is-rail-collapsed");
+        btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+        btn.setAttribute("title", collapsed ? "Expandir opciones de trámite" : "Contraer opciones de trámite");
+        setOperateRailCollapsed("requests", collapsed);
+      });
+    });
+
     nodes.viewRoot.querySelectorAll("[data-action='hr-workspace-tab'][data-module='requests']").forEach((btn) => {
       btn.addEventListener("click", () => {
         const tab = String(btn.dataset.tab || "");
