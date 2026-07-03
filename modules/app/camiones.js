@@ -317,13 +317,18 @@ function vehiclesHtml() {
   const fleetToolbar =
     totalCount > 0
       ? `<div class="transport-ops-toolbar vehicle-fleet-toolbar">
-      <label class="transport-ops-search">
-        <span class="muted">${IC.search || IC.eye} Buscar en flota</span>
-        <input type="search" data-action="vehicles-fleet-search" value="${escapeAttr(fleetSearchRaw)}" placeholder="Placa, marca, modelo, VIN, motor, GPS, tarjeta…" autocomplete="off" />
-      </label>
-      <div class="transport-ops-layout" role="group" aria-label="Vista de flota">
-        <button type="button" class="btn btn-sm ${fleetLayout === "cards" ? "btn-primary" : "btn-outline"}" data-action="vehicles-fleet-layout" data-layout="cards">Tarjetas</button>
-        <button type="button" class="btn btn-sm ${fleetLayout === "list" ? "btn-primary" : "btn-outline"}" data-action="vehicles-fleet-layout" data-layout="list">Lista</button>
+      <div class="driver-fleet-toolbar-top">
+        <label class="transport-ops-search">
+          <span class="muted">${IC.search || IC.eye} Buscar en flota</span>
+          <input type="search" data-action="vehicles-fleet-search" value="${escapeAttr(fleetSearchRaw)}" placeholder="Placa, marca, modelo, VIN, motor, GPS, tarjeta…" autocomplete="off" />
+        </label>
+        <div class="driver-fleet-view-field">
+          <span class="driver-fleet-field-eyebrow muted">${IC.layers || IC.grid || ""} Vista</span>
+          <div class="transport-ops-layout driver-fleet-view-toggle" role="group" aria-label="Vista de flota">
+            <button type="button" class="btn btn-sm ${fleetLayout === "cards" ? "btn-primary" : "btn-outline"}" data-action="vehicles-fleet-layout" data-layout="cards">Tarjetas</button>
+            <button type="button" class="btn btn-sm ${fleetLayout === "list" ? "btn-primary" : "btn-outline"}" data-action="vehicles-fleet-layout" data-layout="list">Lista</button>
+          </div>
+        </div>
       </div>
     </div>`
       : "";

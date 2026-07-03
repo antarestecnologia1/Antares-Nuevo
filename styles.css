@@ -8566,9 +8566,12 @@ body[data-theme="dark"] .request-ops-card .request-ops-card-trip strong {
   margin: 0;
 }
 
-/* Flota Camiones: buscar + vista lista */
+/* Flota Camiones: buscar + vista (misma fila que conductores) */
 .vehicle-fleet-toolbar {
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  align-items: stretch;
 }
 
 /* Conductores: dos filas — arriba búsqueda + vista; abajo filtros alineados */
@@ -8713,10 +8716,6 @@ body[data-theme="dark"] .request-ops-card .request-ops-card-trip strong {
 }
 
 @media (max-width: 960px) {
-  .vehicle-fleet-toolbar {
-    grid-template-columns: 1fr;
-  }
-
   .driver-fleet-toolbar-top {
     grid-template-columns: 1fr;
   }
