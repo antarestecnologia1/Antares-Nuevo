@@ -7251,8 +7251,16 @@ function renderEmploymentLetterActionButtons(id, { compact = false } = {}) {
   const safeId = escapeAttr(String(id || ""));
   const pdfLabel = compact ? " PDF" : " PDF";
   const wordLabel = compact ? " Word" : " Word";
-  return `<button type="button" class="btn btn-sm btn-outline" data-action="employee-generate-labor-letter" data-letter-format="pdf" data-id="${safeId}" title="Carta laboral en PDF">${IC.award}${pdfLabel}</button>
-    <button type="button" class="btn btn-sm btn-outline" data-action="employee-generate-labor-letter" data-letter-format="word" data-id="${safeId}" title="Carta laboral en Word">${IC.award}${wordLabel}</button>`;
+  return `<button type="button" class="btn btn-sm btn-outline" data-action="employee-generate-labor-letter" data-letter-format="pdf" data-id="${safeId}" title="Carta laboral en PDF">${IC.badge}${pdfLabel}</button>
+    <button type="button" class="btn btn-sm btn-outline" data-action="employee-generate-labor-letter" data-letter-format="word" data-id="${safeId}" title="Carta laboral en Word">${IC.badge}${wordLabel}</button>`;
+}
+
+function renderEmploymentLetterIconActions(id) {
+  const safeId = escapeAttr(String(id || ""));
+  return `<span class="payroll-contracts-letter-actions" role="group" aria-label="Carta laboral">
+    <button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--letter payroll-contracts-icon-btn--letter-fmt" data-action="employee-generate-labor-letter" data-letter-format="pdf" data-id="${safeId}" title="Carta laboral en PDF">${IC.badge}<span class="payroll-contracts-icon-btn__fmt">PDF</span></button>
+    <button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--letter payroll-contracts-icon-btn--letter-fmt" data-action="employee-generate-labor-letter" data-letter-format="word" data-id="${safeId}" title="Carta laboral en Word">${IC.badge}<span class="payroll-contracts-icon-btn__fmt">Word</span></button>
+  </span>`;
 }
 
 function renderPayrollEmployeeContractIconActions(e, contract, hrAdminDeletes) {
@@ -7266,7 +7274,7 @@ function renderPayrollEmployeeContractIconActions(e, contract, hrAdminDeletes) {
   return `<div class="payroll-contracts-icon-actions">
     <button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--view" data-action="view-employee" data-id="${id}" title="Ver perfil">${IC.eye}</button>
     <button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--edit" data-action="edit-employee" data-id="${id}" title="Editar">${IC.edit}</button>
-    <button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--letter" data-action="employee-generate-labor-letter" data-letter-format="pdf" data-id="${id}" title="Carta laboral (PDF o Word)">${IC.award}</button>
+    ${renderEmploymentLetterIconActions(e.id)}
     ${
       canAct
         ? `<button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--renew" data-action="renew-employee-contract" data-id="${id}" title="Renovar contrato">${IC.rotateCcw}</button>
@@ -11303,6 +11311,273 @@ async function runEmployeeContractGeneration(employeeId) {
   }
 }
 
+function employmentLetterSubmitLabel(format) {
+  const fmt = String(format || "pdf").trim().toLowerCase();
+  if (fmt === "word") return "Descargar Word";
+  if (fmt === "preview") return "Abrir vista previa";
+  return "Descargar PDF";
+}
+
+function buildEmploymentLetterFormatPickerHtml(selectedFormat = "pdf") {
+  const fmt = ["pdf", "word", "preview"].includes(String(selectedFormat || "").trim().toLowerCase())
+    ? String(selectedFormat).trim().toLowerCase()
+    : "pdf";
+  return `<div class="employment-letter-format-picker" role="radiogroup" aria-label="Formato de descarga">
+    <input type="hidden" name="exportFormat" value="${escapeAttr(fmt)}" />
+    <button type="button" class="btn btn-sm report-preview-export-btn report-preview-export-btn--pdf employment-letter-format-btn${fmt === "pdf" ? " is-active" : ""}" data-letter-format="pdf" aria-pressed="${fmt === "pdf" ? "true" : "false"}"><span class="report-preview-export-btn__icon">${IC.file}</span> PDF</button>
+    <button type="button" class="btn btn-sm report-preview-export-btn employment-letter-format-btn employment-letter-format-btn--word${fmt === "word" ? " is-active" : ""}" data-letter-format="word" aria-pressed="${fmt === "word" ? "true" : "false"}"><span class="report-preview-export-btn__icon">${IC.file}</span> Word</button>
+    <button type="button" class="btn btn-sm report-preview-export-btn report-preview-export-btn--print employment-letter-format-btn${fmt === "preview" ? " is-active" : ""}" data-letter-format="preview" aria-pressed="${fmt === "preview" ? "true" : "false"}"><span class="report-preview-export-btn__icon">${IC.printer}</span> Vista previa</button>
+  </div>`;
+}
+
+function wireEmploymentLetterFormatPicker(formEl) {
+  const picker = formEl?.querySelector(".employment-letter-format-picker");
+  if (!picker || picker.dataset.bound === "1") return;
+  picker.dataset.bound = "1";
+  const hidden = picker.querySelector("[name='exportFormat']");
+  const submitBtn = formEl.querySelector('button[type="submit"]');
+  const sync = (fmt) => {
+    const next = ["pdf", "word", "preview"].includes(fmt) ? fmt : "pdf";
+    if (hidden) hidden.value = next;
+    picker.querySelectorAll("[data-letter-format]").forEach((btn) => {
+      const active = String(btn.dataset.letterFormat || "") === next;
+      btn.classList.toggle("is-active", active);
+      btn.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+    if (submitBtn) {
+      const label = employmentLetterSubmitLabel(next);
+      const textNode = submitBtn.querySelector(".module-panel-btn__text");
+      if (textNode) textNode.textContent = label;
+      else if (submitBtn.lastChild) submitBtn.lastChild.textContent = label;
+    }
+  };
+  picker.querySelectorAll("[data-letter-format]").forEach((btn) => {
+    btn.addEventListener("click", () => sync(String(btn.dataset.letterFormat || "pdf").toLowerCase()));
+  });
+  sync(String(hidden?.value || "pdf").toLowerCase());
+}
+
+function resolveEmploymentLetterDomainFns() {
+  const domain = window.AntaresEmploymentLetter;
+  return {
+    exportEmploymentLetter: domain?.exportEmploymentLetter,
+    validateEmploymentLetterRequest: domain?.validateEmploymentLetterRequest
+  };
+}
+
+function runEmploymentLetterFlow(employeeId, initialFormat = "pdf") {
+  if (abortUnlessCanManagePayroll()) return;
+  const all = read(KEYS.payrollEmployees, []);
+  const target = all.find((e) => String(e.id) === String(employeeId || ""));
+  if (!target) {
+    notify(userMessage("employeeDeleteNotFound"), "error");
+    return;
+  }
+  const normalized = normalizePayrollEmployeeRowDates(ensureEmployeeContractFields(target));
+  const today = colombiaTodayIsoDate();
+  const normalizedFormat = ["pdf", "word", "preview"].includes(String(initialFormat || "").trim().toLowerCase())
+    ? String(initialFormat).trim().toLowerCase()
+    : "pdf";
+  const causeLabels =
+    typeof window.CO_TERMINATION_CAUSE_LABELS === "object" && window.CO_TERMINATION_CAUSE_LABELS
+      ? window.CO_TERMINATION_CAUSE_LABELS
+      : {};
+  const terminationCauseOptions = Object.entries(causeLabels).map(([value, label]) => ({
+    value,
+    label: String(label)
+  }));
+  openEditModal({
+    title: "Generar carta laboral",
+    subtitle: `${String(normalized.name || "").trim()} · ${String(normalized.idDoc || "").trim()}`,
+    submitText: employmentLetterSubmitLabel(normalizedFormat),
+    cancelBtnClass: "btn btn-sm btn-outline module-panel-btn module-panel-btn--cancel",
+    extraModalCardClass: "modal-card-edit--employment-letter",
+    fields: [
+      {
+        type: "section",
+        title: "Tipo de documento",
+        hint: "Constancia de vinculación vigente para terceros (créditos, trámites) o certificado al retiro (CST art. 57)."
+      },
+      {
+        name: "letterKind",
+        label: "Documento",
+        type: "select",
+        required: true,
+        value: "vigente",
+        options: [
+          { value: "vigente", label: "Constancia de vinculación vigente" },
+          { value: "retiro", label: "Certificado laboral al retiro (CST art. 57)" }
+        ]
+      },
+      {
+        name: "letterDate",
+        label: "Fecha del documento",
+        type: "date",
+        value: today,
+        required: true
+      },
+      {
+        name: "addressee",
+        label: "Destinatario",
+        type: "text",
+        value: "A quien interese",
+        placeholder: "Ej. Banco XYZ, entidad crediticia, consulado…"
+      },
+      {
+        type: "section",
+        title: "Formato de descarga",
+        hint: "Elija PDF, Word o vista previa antes de generar el documento."
+      },
+      {
+        type: "custom",
+        full: true,
+        html: buildEmploymentLetterFormatPickerHtml(normalizedFormat)
+      },
+      {
+        type: "custom",
+        full: true,
+        html: `<label class="employee-letter-option"><input type="checkbox" name="includeSalary" checked /><span>Incluir remuneración y auxilio de transporte</span></label>`
+      },
+      {
+        type: "custom",
+        full: true,
+        html: `<label class="employee-letter-option"><input type="checkbox" name="includeSocialSecurity" checked /><span>Incluir afiliaciones EPS, pensión y ARL</span></label>`
+      },
+      {
+        name: "terminationDate",
+        label: "Fecha de retiro",
+        type: "date",
+        value: today,
+        hidden: true
+      },
+      {
+        name: "terminationCause",
+        label: "Causa del retiro",
+        type: "select",
+        value: "otro",
+        hidden: true,
+        options: terminationCauseOptions.length
+          ? terminationCauseOptions
+          : [{ value: "otro", label: "Otro" }]
+      }
+    ],
+    afterMount: (formEl) => {
+      const kindEl = formEl.querySelector("[name='letterKind']");
+      const syncRetiroFields = () => {
+        const isRetiro = String(kindEl?.value || "") === "retiro";
+        formEl.querySelectorAll("[name='terminationDate'], [name='terminationCause']").forEach((el) => {
+          const wrap = el.closest("label");
+          if (wrap) wrap.classList.toggle("hidden", !isRetiro);
+          wrap?.toggleAttribute("hidden", !isRetiro);
+          if (!isRetiro) el.removeAttribute("required");
+          else el.setAttribute("required", "required");
+        });
+      };
+      kindEl?.addEventListener("change", syncRetiroFields);
+      syncRetiroFields();
+      wireEmploymentLetterFormatPicker(formEl);
+    },
+    onSubmit: async (payload, formEl) => {
+      const fields = {
+        letterKind: String(payload.letterKind || "vigente").trim(),
+        letterDate: normalizePortalDateYmd(payload.letterDate),
+        addressee: String(payload.addressee || "A quien interese").trim(),
+        exportFormat: String(payload.exportFormat || normalizedFormat || "pdf").trim().toLowerCase(),
+        includeSalary:
+          String(payload.includeSalary || "").toLowerCase() === "on" || payload.includeSalary === true,
+        includeSocialSecurity:
+          String(payload.includeSocialSecurity || "").toLowerCase() === "on" ||
+          payload.includeSocialSecurity === true,
+        terminationDate: normalizePortalDateYmd(payload.terminationDate),
+        terminationCause: String(payload.terminationCause || "otro").trim()
+      };
+      const { validateEmploymentLetterRequest, exportEmploymentLetter } = resolveEmploymentLetterDomainFns();
+      const check =
+        typeof validateEmploymentLetterRequest === "function"
+          ? validateEmploymentLetterRequest(normalized, fields)
+          : { ok: true };
+      if (!check.ok) {
+        failPortalField(formEl, check.field || "letterDate", check.message || "Revise los datos.");
+        return false;
+      }
+      if (typeof exportEmploymentLetter !== "function") {
+        notify("Módulo de carta laboral no disponible (recargue la página).", "error");
+        return false;
+      }
+      let previewWindow = null;
+      if (fields.exportFormat === "preview") {
+        previewWindow = window.open("", "_blank", "width=820,height=900");
+        if (!previewWindow) {
+          notify("El navegador bloqueó la ventana. Permita ventanas emergentes o elija PDF/Word.", "error");
+          return false;
+        }
+      }
+      try {
+        const result = await exportEmploymentLetter(normalized, { ...fields, previewWindow });
+        if (!result?.ok) {
+          previewWindow?.close?.();
+          notify(String(result?.message || "No se pudo generar el documento."), "error");
+          return false;
+        }
+        const format = fields.exportFormat;
+        if (format === "pdf") {
+          notify(`PDF descargado (${result.fileName || "carta laboral"}) con firma del representante legal.`, "success");
+        } else if (format === "word") {
+          notify(`Word descargado (${result.fileName || "carta laboral"}) con firma del representante legal.`, "success");
+        } else {
+          notify(
+            "Carta laboral generada con firma del representante legal. Puede imprimir o descargar PDF/Word desde la vista previa.",
+            "success"
+          );
+        }
+        return true;
+      } catch (err) {
+        previewWindow?.close?.();
+        notify(String(err?.message || "No se pudo generar la carta laboral."), "error");
+        return false;
+      }
+    }
+  });
+}
+
+async function runEmploymentLetterDownload(token, format) {
+  if (abortUnlessCanManagePayroll()) return;
+  let payload;
+  try {
+    payload = JSON.parse(decodeURIComponent(escape(atob(String(token || "")))));
+  } catch (_e) {
+    notify("No se pudo leer los datos del documento. Genere la carta nuevamente.", "error");
+    return;
+  }
+  const empId = String(payload?.employeeId || "").trim();
+  const opts = payload?.opts && typeof payload.opts === "object" ? payload.opts : {};
+  const employee = read(KEYS.payrollEmployees, []).find((row) => String(row.id) === empId);
+  if (!employee) {
+    notify(userMessage("employeeDeleteNotFound"), "error");
+    return;
+  }
+  const normalized = normalizePayrollEmployeeRowDates(ensureEmployeeContractFields(employee));
+  const { exportEmploymentLetter } = resolveEmploymentLetterDomainFns();
+  if (typeof exportEmploymentLetter !== "function") {
+    notify("Módulo de carta laboral no disponible (recargue la página).", "error");
+    return;
+  }
+  try {
+    const fmt = String(format || "pdf").trim().toLowerCase() === "word" ? "word" : "pdf";
+    const result = await exportEmploymentLetter(normalized, { ...opts, exportFormat: fmt });
+    if (!result?.ok) {
+      notify(String(result?.message || "No se pudo descargar el archivo."), "error");
+      return;
+    }
+    notify(`${fmt === "word" ? "Word" : "PDF"} descargado correctamente.`, "success");
+  } catch (err) {
+    notify(String(err?.message || "No se pudo descargar el archivo."), "error");
+  }
+}
+
+globalThis.runEmploymentLetterFlow = runEmploymentLetterFlow;
+globalThis.runEmploymentLetterDownload = runEmploymentLetterDownload;
+
 function syncEmployeeEditCatalogSelects(formEl, employee) {
   if (!formEl || !employee) return;
   const pairs = [
@@ -11356,11 +11631,7 @@ function installEmployeeContractDelegation() {
     const letterId = String(letterBtn.dataset.id || "").trim();
     const letterFormat = String(letterBtn.dataset.letterFormat || "pdf").trim().toLowerCase();
     if (!letterId || letterBtn.disabled || letterBtn.dataset.busy === "1") return;
-    if (typeof globalThis.runEmploymentLetterFlow !== "function") {
-      notify("Módulo de carta laboral no disponible (recargue la página).", "error");
-      return;
-    }
-    await runWithBusyButton(letterBtn, () => globalThis.runEmploymentLetterFlow(letterId, letterFormat), {
+    await runWithBusyButton(letterBtn, () => runEmploymentLetterFlow(letterId, letterFormat), {
       busyText: "Preparando…"
     });
   });
@@ -13579,6 +13850,8 @@ Object.assign(window, {
   restorePortalSnapshotIfAvailable,
   routeRateKeyFromRequest,
   runEmployeeContractGeneration,
+  runEmploymentLetterDownload,
+  runEmploymentLetterFlow,
   safeHttpsUrlForCandidateCv,
   safeMimeForCvBlobStored,
   saveNotification,

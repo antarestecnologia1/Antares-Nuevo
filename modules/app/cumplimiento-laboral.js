@@ -177,33 +177,47 @@ function countMissingComplianceItems(employees) {
   return count;
 }
 
-function renderSstModuleHead({ employeesCount, recordsCount, dueCount, missingCount, urgentCount }) {
-  const items = [
-    `<div class="sst-studio-kpi sst-studio-kpi--neutral" title="Colaboradores activos en nómina"><dt>Colaboradores</dt><dd><strong>${escapeHtml(String(employeesCount))}</strong></dd></div>`,
-    `<div class="sst-studio-kpi sst-studio-kpi--ok" title="Controles documentales registrados"><dt>Controles</dt><dd><strong>${escapeHtml(String(recordsCount))}</strong></dd></div>`
-  ];
-  if (dueCount > 0) {
+function renderSstModuleHead({ employeesCount, recordsCount, dueCount, missingCount, urgentCount, workspace = "operate" }) {
+  const consultMode = String(workspace || "operate") === "data";
+  const items = consultMode
+    ? []
+    : [
+        `<div class="payroll-module-kpi__item payroll-module-kpi__item--neutral" title="Colaboradores activos en nómina"><dt>Colaboradores</dt><dd><strong>${escapeHtml(String(employeesCount))}</strong></dd></div>`,
+        `<div class="payroll-module-kpi__item payroll-module-kpi__item--ok" title="Controles documentales registrados"><dt>Controles</dt><dd><strong>${escapeHtml(String(recordsCount))}</strong></dd></div>`
+      ];
+  if (!consultMode && dueCount > 0) {
     items.push(
-      `<div class="sst-studio-kpi sst-studio-kpi--warn" title="Vencimientos próximos, vencidos o sin programar"><dt>Vencimientos</dt><dd><strong>${escapeHtml(String(dueCount))}</strong></dd></div>`
+      `<div class="payroll-module-kpi__item payroll-module-kpi__item--warn" title="Vencimientos próximos, vencidos o sin programar"><dt>Vencimientos</dt><dd><strong>${escapeHtml(String(dueCount))}</strong></dd></div>`
     );
   }
-  if (missingCount > 0) {
+  if (!consultMode && missingCount > 0) {
     items.push(
-      `<div class="sst-studio-kpi sst-studio-kpi--alert" title="Colaboradores o registros sin fecha de control"><dt>Sin fecha</dt><dd><strong>${escapeHtml(String(missingCount))}</strong></dd></div>`
+      `<div class="payroll-module-kpi__item payroll-module-kpi__item--alert" title="Colaboradores o registros sin fecha de control"><dt>Sin fecha</dt><dd><strong>${escapeHtml(String(missingCount))}</strong></dd></div>`
     );
   }
-  if (urgentCount > 0) {
+  if (!consultMode && urgentCount > 0) {
     items.push(
-      `<div class="sst-studio-kpi sst-studio-kpi--alert" title="Alertas críticas que requieren acción inmediata"><dt>Urgentes</dt><dd><strong>${escapeHtml(String(urgentCount))}</strong></dd></div>`
+      `<div class="payroll-module-kpi__item payroll-module-kpi__item--alert" title="Alertas críticas que requieren acción inmediata"><dt>Urgentes</dt><dd><strong>${escapeHtml(String(urgentCount))}</strong></dd></div>`
     );
   }
-  return `<header class="sst-studio-head sst-module-head sst-module-head--compact">
-    <div class="sst-studio-head__brand sst-module-head__title">
-      <span class="sst-studio-head__badge">SST · Colombia</span>
+  const payItems = items
+    .map((html) =>
+      html
+        .replace(/payroll-module-kpi__item--/g, "payroll-studio-kpi--")
+        .replace(/payroll-module-kpi__item/g, "payroll-studio-kpi")
+    )
+    .join("");
+  const headModeClass = consultMode ? " payroll-module-head--consult" : "";
+  const kpiHtml = payItems
+    ? `<dl class="payroll-studio-kpis payroll-module-head__kpi payroll-module-kpi" aria-label="Indicadores de cumplimiento SST">${payItems}</dl>`
+    : "";
+  return `<header class="payroll-studio-head payroll-module-head payroll-module-head--compact${headModeClass}">
+    <div class="payroll-studio-head__brand payroll-module-head__title">
+      ${consultMode ? "" : `<span class="payroll-studio-head__badge">SST · Colombia</span>`}
       <h2>Cumplimiento laboral y SST</h2>
-      <p class="sst-studio-head__tagline">Seguridad social, exámenes ocupacionales, instruviales y trazabilidad documental conforme a la normativa laboral vigente.</p>
+      ${consultMode ? "" : `<p class="payroll-studio-head__tagline">Seguridad social, exámenes ocupacionales, instruviales y trazabilidad documental conforme a la normativa laboral vigente.</p>`}
     </div>
-    <dl class="sst-studio-kpis sst-module-head__kpi" aria-label="Indicadores de cumplimiento SST">${items.join("")}</dl>
+    ${kpiHtml}
   </header>`;
 }
 
@@ -215,7 +229,7 @@ function renderSstOperateSectionNav(activeId, IC) {
       title: "Panel de alertas de cumplimiento",
       hint: "Contratos, seguridad social y vencimientos",
       norm: "Monitoreo",
-      icon: IC.activity || ""
+      icon: "activity"
     },
     {
       id: "create",
@@ -223,20 +237,22 @@ function renderSstOperateSectionNav(activeId, IC) {
       title: "Nuevo control SST o legal",
       hint: "Obligaciones, vencimientos y evidencias",
       norm: "Res. 0312",
-      icon: IC.plus || ""
+      icon: "plus"
     }
   ];
-  return `<nav class="sst-operate-nav" role="tablist" aria-label="Trámites SST">
+  return `<nav class="payroll-operate-nav" role="tablist" aria-label="Trámites SST">
     ${tabs
       .map((tab) => {
         const active = activeId === tab.id;
+        const iconSvg = IC[tab.icon] ? `<span class="payroll-operate-nav-ico" aria-hidden="true">${IC[tab.icon]}</span>` : "";
         const tip = escapeAttr(`${tab.title} — ${tab.hint}`);
-        return `<button type="button" role="tab" aria-selected="${active ? "true" : "false"}" class="sst-operate-nav__btn sst-operate-nav-tab${active ? " is-active" : ""}" data-action="sst-operate-section" data-section="${escapeAttr(tab.id)}" title="${tip}">
-          <span class="sst-operate-nav__ico sst-operate-nav-ico" aria-hidden="true">${tab.icon}</span>
-          <span class="sst-operate-nav-copy">
-            <strong class="sst-operate-nav__label sst-operate-nav-label">${escapeHtml(tab.label)}</strong>
-            <small class="sst-operate-nav-hint">${escapeHtml(tab.hint)}</small>
-            <span class="sst-operate-nav-norm">${escapeHtml(tab.norm)}</span>
+        const ariaLbl = escapeAttr(`${tab.label} — ${tab.hint}`);
+        return `<button type="button" role="tab" class="payroll-operate-nav-tab${active ? " is-active" : ""}" aria-selected="${active ? "true" : "false"}" data-action="sst-operate-section" data-section="${escapeAttr(tab.id)}" title="${tip}" aria-label="${ariaLbl}">
+          ${iconSvg}
+          <span class="payroll-operate-nav-copy">
+            <strong class="payroll-operate-nav-label">${escapeHtml(tab.label)}</strong>
+            <small class="payroll-operate-nav-hint">${escapeHtml(tab.hint)}</small>
+            <span class="payroll-operate-nav-norm">${escapeHtml(tab.norm)}</span>
           </span>
         </button>`;
       })
@@ -261,7 +277,7 @@ function renderSstDataSectionNav(activeId, counts, IC) {
       icon: IC.file || ""
     }
   ];
-  return `<nav class="payroll-data-nav payroll-data-nav--minimal sst-data-nav" role="tablist" aria-label="Consultas de cumplimiento SST">
+  return `<nav class="payroll-data-nav payroll-data-nav--minimal" role="tablist" aria-label="Consultas de cumplimiento SST">
     ${tabs
       .map((tab) => {
         const active = activeId === tab.id;
@@ -446,14 +462,14 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
       .map((record) => {
         const employee = employees.find((item) => String(item.id) === String(record.employeeId || ""));
         const stateKey = String(record.status || "Pendiente").trim().toLowerCase().replace(/\s+/g, "-");
-        return `<tr class="sst-table-row sst-table-row--audit" data-sst-state="${escapeAttr(stateKey)}">
-        <td class="sst-table-cell-main"><div class="sst-table-primary"><strong>${escapeHtml(String(record.recordType || "-"))}</strong><span>${escapeHtml(String(record.documentCode || "Sin código documental"))}</span></div></td>
+        return `<tr class="payroll-table-row" data-sst-state="${escapeAttr(stateKey)}">
+        <td><strong>${escapeHtml(String(record.recordType || "-"))}</strong><br><span class="muted">${escapeHtml(String(record.documentCode || "Sin código documental"))}</span></td>
         <td>${escapeHtml(String(employee?.name || record.employeeName || "-"))}</td>
         <td>${escapeHtml(String(record.provider || "-"))}</td>
         <td>${escapeHtml(String(record.dueDate || "-"))}</td>
         <td>${statusBadgeForCompliance(record.status, record.dueDate)}</td>
-        <td class="sst-table-cell-notes"><span class="muted">${escapeHtml(String(record.notes || "-"))}</span></td>
-        <td class="sst-table-cell-actions"><div class="toolbar sst-table-actions">
+        <td class="payroll-table-cell-notes"><span class="muted">${escapeHtml(String(record.notes || "-"))}</span></td>
+        <td class="payroll-contracts-table__actions"><div class="toolbar">
           <button class="btn btn-sm btn-outline" data-action="view-sst-record" data-id="${escapeAttr(String(record.id))}">${IC.eye} Ver</button>
           ${sstCanMutate ? `<button class="btn btn-sm btn-action" data-action="edit-sst-record" data-id="${escapeAttr(String(record.id))}">${IC.edit} Editar</button>` : ""}
           ${sstCanMutate ? `<button class="btn btn-sm btn-reject" data-action="delete-sst-record" data-id="${escapeAttr(String(record.id))}" title="Eliminar control SST">${IC.trash} Eliminar</button>` : ""}
@@ -517,21 +533,21 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
       ${renderManagedCreateFormActions("create-sst-control", `<button class="btn btn-primary" type="submit">${IC.plus} Registrar control legal/SST</button>`)}
     </form>`;
     const recordsTable = recordRows
-      ? `<div class="table-wrap sst-table-wrap sst-table-wrap--audit"><table class="sst-table sst-table--audit"><thead><tr><th>Control</th><th>Empleado</th><th>Entidad</th><th>Vencimiento</th><th>Estado</th><th>Notas</th><th>Acciones</th></tr></thead><tbody>${recordRows}</tbody></table></div>`
+      ? `<div class="table-wrap payroll-table-wrap payroll-contracts-table-wrap"><table class="payroll-contracts-table"><thead><tr><th>Control</th><th>Empleado</th><th>Entidad</th><th>Vencimiento</th><th>Estado</th><th>Notas</th><th class="payroll-contracts-table__actions">Acciones</th></tr></thead><tbody>${recordRows}</tbody></table></div>`
       : emptyState("No hay controles de cumplimiento registrados.");
     const dueItemRows = filteredDueItems
       .map((item) => {
         const bucketClass =
           item.bucket === "expired"
-            ? "sst-table-row--expired"
+            ? "sst-row--expired"
             : item.bucket === "missing"
-              ? "sst-table-row--missing"
-              : "sst-table-row--warning";
-        const nameCell = `<div class="sst-table-primary"><strong>${escapeHtml(item.employeeName)}</strong><span>${escapeHtml(item.position)}</span></div>`;
+              ? "sst-row--missing"
+              : "sst-row--warning";
+        const nameCell = `<strong>${escapeHtml(item.employeeName)}</strong><br><span class="muted">${escapeHtml(item.position)}</span>`;
         const dueDateCell = item.dueDate ? escapeHtml(item.dueDate) : '<span class="muted">Sin programar</span>';
         const rowAttrs = item.bucket === "missing" ? ' data-sst-due-bucket="missing"' : ` data-sst-due-days="${escapeAttr(String(item.days))}"`;
-        return `<tr class="sst-table-row sst-table-row--due ${bucketClass}"${rowAttrs}>
-        <td class="sst-table-cell-main"><strong>${escapeHtml(item.controlType)}</strong></td>
+        return `<tr class="${bucketClass}"${rowAttrs}>
+        <td><strong>${escapeHtml(item.controlType)}</strong></td>
         <td>${nameCell}</td>
         <td>${dueDateCell}</td>
         <td>${sstDueStatusBadge(item)}</td>
@@ -539,7 +555,7 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
       })
       .join("");
     const dueItemsTable = dueItemRows
-      ? `<div class="table-wrap sst-table-wrap sst-table-wrap--due"><table class="sst-table sst-table--due"><thead><tr><th>Control</th><th>Empleado</th><th>Vencimiento</th><th>Estado</th></tr></thead><tbody>${dueItemRows}</tbody></table></div>`
+      ? `<div class="table-wrap payroll-table-wrap"><table><thead><tr><th>Control</th><th>Empleado</th><th>Vencimiento</th><th>Estado</th></tr></thead><tbody>${dueItemRows}</tbody></table></div>`
       : emptyState(
           listSearchNorm
             ? "No hay vencimientos que coincidan con la búsqueda."
@@ -551,7 +567,8 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
       recordsCount: records.length,
       dueCount: dueItems.length,
       missingCount: missingComplianceCount + missingSstRecords,
-      urgentCount: urgentAlertCount
+      urgentCount: urgentAlertCount,
+      workspace: sstWorkspace
     });
     const sstTabsNav = renderHrWorkspaceTabs({
       module: "sst",
@@ -563,17 +580,17 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
         { id: "data", label: "Consultar", icon: "eye", hint: "Vencimientos y auditoría" }
       ]
     });
-    const sstWorkspaceHeader = renderHrWorkspaceHeader(sstModuleHead, sstTabsNav, "sst");
+    const sstWorkspaceHeader = renderHrWorkspaceHeader(sstModuleHead, sstTabsNav, "payroll");
     const sstRailCollapsed = typeof G.isOperateRailCollapsed === "function" ? G.isOperateRailCollapsed("sst") : false;
     const sstOperateNav = renderSstOperateSectionNav(sstOperateSection, IC);
-    const sstAlertsPane = `<div class="auth-tab-panel sst-pane sst-pane--alerts${sstOperateSection === "alerts" ? "" : " hidden"}" data-sst-operate-pane="alerts"${sstOperateSection === "alerts" ? "" : " hidden"} aria-hidden="${sstOperateSection === "alerts" ? "false" : "true"}">
-      <div class="sst-card sst-card--alerts">
-        <div class="sst-card__head">
-          <div class="sst-card__head-copy">
-            <h3>Panel de cumplimiento</h3>
-            <p class="sst-card__head-sub">Monitoreo de obligaciones legales, salud ocupacional y documentación SST</p>
+    const sstAlertsPane = `<div class="auth-tab-panel${sstOperateSection === "alerts" ? "" : " hidden"}" data-sst-operate-pane="alerts"${sstOperateSection === "alerts" ? "" : " hidden"} aria-hidden="${sstOperateSection === "alerts" ? "false" : "true"}">
+      <div class="sst-alerts-panel">
+        <div class="payroll-consult-toolbar-row sst-alerts-panel__head">
+          <div>
+            <h3 class="sst-alerts-panel__title">Panel de cumplimiento</h3>
+            <p class="payroll-consult-meta muted">Monitoreo de obligaciones legales, salud ocupacional y documentación SST</p>
           </div>
-          <span class="sst-card__head-badge${dueItems.length ? " sst-card__head-badge--warn" : " sst-card__head-badge--ok"}">${dueItems.length} pendiente${dueItems.length === 1 ? "" : "s"}</span>
+          <span class="payroll-consult-meta${dueItems.length ? " sst-alerts-panel__badge--warn" : ""}"><strong>${dueItems.length}</strong> pendiente${dueItems.length === 1 ? "" : "s"}</span>
         </div>
         ${alertsBody}
       </div>
@@ -588,26 +605,26 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
           "Abrir formulario",
           { createPanels: sstCreateUi }
         )
-      : `<div class="sst-card">${emptyState("No tiene permiso para registrar controles SST.")}</div>`;
-    const sstCreatePane = `<div class="auth-tab-panel sst-pane sst-pane--create${sstOperateSection === "create" ? "" : " hidden"}" data-sst-operate-pane="create"${sstOperateSection === "create" ? "" : " hidden"} aria-hidden="${sstOperateSection === "create" ? "false" : "true"}">${sstCreatePaneBody}</div>`;
-    const sstOperatePanel = `<div class="hr-workspace-panel sst-workspace-panel${sstWorkspace === "operate" ? "" : " hidden"}" role="tabpanel" data-sst-panel="operate"${sstWorkspace === "operate" ? "" : " hidden"}>
-      <section class="sst-operate sst-operate-panel${sstRailCollapsed ? " is-rail-collapsed" : ""}">
-        <aside class="sst-operate__rail" aria-label="Trámites SST">
-          <div class="sst-operate__rail-head">
-            <p class="sst-operate__rail-label">Tipo de trámite</p>
-            <button type="button" class="sst-operate__rail-toggle" data-action="sst-operate-rail-toggle" aria-expanded="${sstRailCollapsed ? "false" : "true"}" title="${sstRailCollapsed ? "Expandir trámites" : "Contraer trámites"}">
-              <span class="sst-operate__rail-toggle-ico" aria-hidden="true">${IC.chevronLeft || ""}</span>
+      : emptyState("No tiene permiso para registrar controles SST.");
+    const sstCreatePane = `<div class="auth-tab-panel${sstOperateSection === "create" ? "" : " hidden"}" data-sst-operate-pane="create"${sstOperateSection === "create" ? "" : " hidden"} aria-hidden="${sstOperateSection === "create" ? "false" : "true"}">${sstCreatePaneBody}</div>`;
+    const sstOperatePanel = `<div class="hr-workspace-panel payroll-workspace-panel${sstWorkspace === "operate" ? "" : " hidden"}" role="tabpanel" data-sst-panel="operate"${sstWorkspace === "operate" ? "" : " hidden"}>
+      <section class="payroll-operate payroll-operate-panel${sstRailCollapsed ? " is-rail-collapsed" : ""}">
+        <aside class="payroll-operate__rail" aria-label="Trámites SST">
+          <div class="payroll-operate__rail-head">
+            <p class="payroll-operate__rail-label">Tipo de trámite</p>
+            <button type="button" class="payroll-operate__rail-toggle" data-action="sst-operate-rail-toggle" aria-expanded="${sstRailCollapsed ? "false" : "true"}" title="${sstRailCollapsed ? "Expandir opciones de trámite" : "Contraer opciones de trámite"}">
+              <span class="payroll-operate__rail-toggle-ico" aria-hidden="true">${IC.chevronLeft || ""}</span>
             </button>
           </div>
           ${sstOperateNav}
         </aside>
-        <div class="sst-operate__main auth-tab-panels">${sstAlertsPane}${sstCreatePane}</div>
+        <div class="payroll-operate__main auth-tab-panels">${sstAlertsPane}${sstCreatePane}</div>
       </section>
     </div>`;
     const sstDataNav = renderSstDataSectionNav(sstDataSection, { due: dueItems.length, audit: records.length }, IC);
-    const sstDataSearchBar = `<div class="sst-data-search-toolbar">
-      <label class="sst-data-search">
-        <span class="sst-data-search__label">${IC.search || ""} Buscar en listados</span>
+    const sstDataSearchBar = `<div class="payroll-data-search-toolbar">
+      <label class="payroll-data-search">
+        <span class="muted">${IC.search || ""} Buscar en listados</span>
         <input type="search" data-action="sst-data-list-search" value="${escapeAttr(listSearchRaw)}" placeholder="Empleado, control, entidad, documento…" autocomplete="off" />
       </label>
     </div>`;
@@ -615,23 +632,23 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
     const auditMeta = `<p class="payroll-result-meta muted" title="Controles registrados en auditoría documental"><strong>${filteredRecords.length}</strong>${listSearchNorm ? ` <span class="muted">· ${records.length}</span>` : ""} registro${filteredRecords.length === 1 ? "" : "s"}</p>`;
     const duePane = `<div class="payroll-data-pane${sstDataSection === "due" ? "" : " hidden"}" data-sst-section="due"${sstDataSection === "due" ? "" : " hidden"}>
       ${dueMeta}
-      <div class="payroll-table-shell sst-table-shell">${dueItemsTable}</div>
+      <div class="payroll-table-shell">${dueItemsTable}</div>
     </div>`;
     const auditPane = `<div class="payroll-data-pane${sstDataSection === "audit" ? "" : " hidden"}" data-sst-section="audit"${sstDataSection === "audit" ? "" : " hidden"}>
       ${auditMeta}
-      <div class="payroll-table-shell sst-table-shell">${recordsTable}</div>
+      <div class="payroll-table-shell">${recordsTable}</div>
     </div>`;
-    const sstDataBlock = `<section class="sst-data-panel">
+    const sstDataBlock = `<section class="payroll-data-panel">
       ${sstDataSearchBar}
       <div class="payroll-data-toolbar payroll-data-toolbar--compact">
         ${sstDataNav}
       </div>
       <div class="payroll-data-panes">${duePane}${auditPane}</div>
     </section>`;
-    const sstDataPanel = `<div class="hr-workspace-panel sst-workspace-panel${sstWorkspace === "data" ? "" : " hidden"}" role="tabpanel" data-sst-panel="data"${sstWorkspace === "data" ? "" : " hidden"}>
+    const sstDataPanel = `<div class="hr-workspace-panel payroll-workspace-panel${sstWorkspace === "data" ? "" : " hidden"}" role="tabpanel" data-sst-panel="data"${sstWorkspace === "data" ? "" : " hidden"}>
       ${sstDataBlock}
     </div>`;
-    const studioClass = `sst-studio sst-shell sst-shell--workspace hr-flow-shell${sstWorkspace === "data" ? " sst-studio--consult" : ""}`;
+    const studioClass = `sst-studio payroll-studio payroll-shell payroll-shell--workspace hr-flow-shell${sstWorkspace === "data" ? " payroll-module--clean payroll-studio--consult" : ""}`;
     return `<section class="${studioClass}" data-hr-workspace="${escapeAttr(sstWorkspace)}">${sstWorkspaceHeader}
       <div class="hr-workspace-panels">
         ${sstOperatePanel}
@@ -667,7 +684,7 @@ function bindLaborCompliancePortalControls() {
 
   nodes.viewRoot.querySelectorAll("[data-action='sst-operate-rail-toggle']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const panel = btn.closest(".sst-operate");
+      const panel = btn.closest(".payroll-operate");
       if (!panel) return;
       const collapsed = panel.classList.toggle("is-rail-collapsed");
       btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
