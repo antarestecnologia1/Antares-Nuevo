@@ -461,8 +461,6 @@ async function openPayrollRunPayslipById(runId) {
         if (top) disclaimerPieces.push(top);
       }
     }
-    if (parseNum(run.primaServiciosCop) > 0)
-      disclaimerPieces.push("Prima de servicios (CST): cálculo orientativo; validar política empresarial y contador.");
     if (parseNum(run.interesesCesantiasCop) > 0)
       disclaimerPieces.push(
         `Intereses de cesantías (Ley 52/1975, ${CO_CESANTIAS_INTERES_ANUAL_PCT}% anual): el texto legal establece que deben pagarse al trabajador en enero del año siguiente al período causado (y reglas especiales en retiros o ceses antes de ese cierre). Lo habitual es liquidarlos con la nómina de enero del año siguiente o, si su política lo retrasa hasta febrero, documente ese desfase con contador para no omitir obligaciones ya exigidas.`
@@ -504,6 +502,23 @@ async function openPayrollRunPayslipById(runId) {
         )}</td></tr>`
     )
     .join("");
+  const approvedByLabel =
+    run.paid && run.approvedBy
+      ? payrollRunApprovedByLabel(run.approvedBy)
+      : "";
+  const signatureSrc = contractLegalRepSignatureSrc();
+  const signatureBlock = `
+          <div style="margin-top:2rem;padding-top:1.25rem;border-top:1px solid #e9ecef;display:flex;justify-content:flex-start;gap:2rem;flex-wrap:wrap">
+            <div style="flex:0 1 280px;text-align:center">
+              <img src="${escapeAttr(signatureSrc)}" alt="Firma del representante legal" style="max-width:200px;max-height:72px;object-fit:contain;display:block;margin:0 auto 10px" />
+              <p style="margin:0;font-size:0.88rem;line-height:1.45;color:#0B1D33">
+                <strong>${escapeHtml(String(CONTRACT_LEGAL_REP_NAME))}</strong><br />
+                ${escapeHtml(String(CONTRACT_LEGAL_REP_ID_DOC))}<br />
+                Representante legal<br />
+                ${escapeHtml(String(company?.name || "Transportes Antares"))}
+              </p>
+            </div>
+          </div>`;
   pop.document.write(`
         <html><head><meta charset="utf-8"/><title>${escapeHtml(docTitle)}</title></head>
         <body style="font-family:system-ui,Segoe UI,Arial,sans-serif;padding:28px;color:#0B1D33;line-height:1.5">
@@ -532,12 +547,13 @@ async function openPayrollRunPayslipById(runId) {
             ${metaExtra}
             <tr><td style="padding:4px 0"><strong>Estado</strong></td><td>${run.paid ? "Pagado" : "Pendiente de pago"}</td></tr>
             <tr><td style="padding:4px 0"><strong>Fecha de pago</strong></td><td>${escapeHtml(String(paidAtLabel))}</td></tr>
-            ${run.paid && run.approvedBy ? `<tr><td style="padding:4px 0"><strong>Aprobado por</strong></td><td>${escapeHtml(String(run.approvedBy))}</td></tr>` : ""}
+            ${run.paid && approvedByLabel ? `<tr><td style="padding:4px 0"><strong>Aprobado por</strong></td><td>${escapeHtml(approvedByLabel)}</td></tr>` : ""}
           </table>
           <h2 style="font-size:1rem;margin:1.05rem 0 0">Comprobante de pago</h2>
           ${payslipBodyBlocks}
           ${absenceDetailBlock}
           ${disclaimer}
+          ${signatureBlock}
           <p style="margin-top:1.5rem"><button onclick="window.print()" style="padding:10px 18px;border-radius:8px;border:none;background:#0B1D33;color:#fff;cursor:pointer">Imprimir / PDF</button></p>
         </body></html>
       `);

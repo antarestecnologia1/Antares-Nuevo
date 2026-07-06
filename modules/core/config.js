@@ -718,6 +718,11 @@ export const REPORT_EXPORT_BRAND = Object.freeze({
 
 export const REPORT_BRAND_LOGO_PATH = "./imagenes%20empresa/Logo.png";
 
+/** Firma del representante legal (misma imagen embebida en plantillas Word de contratos). */
+export const CONTRACT_LEGAL_REP_SIGNATURE_PATH = "./imagenes%20empresa/firma-representante-legal.jpg";
+export const CONTRACT_LEGAL_REP_NAME = "Alfredo de Jesús Botero Castañeda";
+export const CONTRACT_LEGAL_REP_ID_DOC = "C.C. 15.383.391";
+
 export const SST_COMPLIANCE_RECORD_TYPES = [
   "Afiliacion EPS",
   "Afiliacion pension",

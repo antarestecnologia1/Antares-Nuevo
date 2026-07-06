@@ -123,14 +123,36 @@ export function payrollAuditActorLabel() {
   const snapshotFn = globalThis.buildPortalAuditActorSnapshot;
   if (typeof snapshotFn === "function") {
     const snapshot = snapshotFn();
-    const label = String(snapshot?.label || snapshot?.email || snapshot?.name || "").trim();
-    if (label) return label;
+    const name = String(snapshot?.name || "").trim();
+    if (name && name !== "Usuario") return name;
+    const label = String(snapshot?.label || "").trim();
+    if (label && !label.includes("@")) return label;
+    if (name) return name;
   }
   const user = typeof globalThis.currentUser === "function" ? globalThis.currentUser() : null;
   const displayFn = globalThis.getPortalUserDisplayName;
   const display =
     typeof displayFn === "function" && user ? String(displayFn(user) || "").trim() : "";
-  return String(user?.email || display || user?.name || "").trim();
+  if (display && display !== "Usuario" && !display.includes("@")) return display;
+  const rawName = String(user?.name || "").trim();
+  if (rawName && !rawName.includes("@")) return rawName;
+  return String(display || rawName || user?.email || "").trim();
+}
+
+/** Etiqueta legible del aprobador de pago (nombre; resuelve correos ya persistidos). */
+export function payrollRunApprovedByLabel(approvedByRaw) {
+  const raw = String(approvedByRaw || "").trim();
+  if (!raw) return "";
+  if (!raw.includes("@")) return raw;
+  const displayFn = globalThis.getPortalUserDisplayName;
+  const users = read(KEYS.users, []);
+  const target = raw.toLowerCase();
+  const user = users.find((u) => String(u.email || "").trim().toLowerCase() === target);
+  if (user && typeof displayFn === "function") {
+    const name = String(displayFn(user) || "").trim();
+    if (name && name !== "Usuario" && !name.includes("@")) return name;
+  }
+  return raw;
 }
 
 export function appendPayrollRunAuditLog(action, run, { summary = "", motivo = "" } = {}) {

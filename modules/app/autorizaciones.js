@@ -598,7 +598,7 @@ function bindAuthorizationsPortalControls() {
           return;
         }
         try {
-          const approver = String(actor?.name || actor?.email || "").trim();
+          const approver = payrollAuditActorLabel();
           const nextRuns = runs.map((r) =>
               r.id === payrollRunId
                 ? stampUpdatedRecord({

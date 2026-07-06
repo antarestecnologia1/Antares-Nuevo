@@ -8,7 +8,8 @@ import {
   ROLES,
   CO_CATALOGS,
   REPORT_RULES,
-  REPORT_BRAND_LOGO_PATH
+  REPORT_BRAND_LOGO_PATH,
+  CONTRACT_LEGAL_REP_SIGNATURE_PATH
 } from "../core/config.js";
 import { read, writeAwaitServer, writeAwaitServerCreate, syncPayloadForEditedRow } from "../core/data-io.js";
 import { state, nodes } from "../core/store.js";
@@ -391,6 +392,15 @@ export function reportBrandLogoSrc() {
     return new URL(REPORT_BRAND_LOGO_PATH, window.location.href).href;
   } catch (_e) {
     return REPORT_BRAND_LOGO_PATH;
+  }
+}
+
+/** URL absoluta de la firma del representante legal (contratos y desprendibles). */
+export function contractLegalRepSignatureSrc() {
+  try {
+    return new URL(CONTRACT_LEGAL_REP_SIGNATURE_PATH, window.location.href).href;
+  } catch (_e) {
+    return CONTRACT_LEGAL_REP_SIGNATURE_PATH;
   }
 }
 
