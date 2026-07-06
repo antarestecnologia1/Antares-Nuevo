@@ -446,9 +446,47 @@ function buildEmploymentLetterDocxXml(doc, { signatureRelId = "" } = {}) {
 </w:document>`;
 }
 
+const JSZIP_CDN = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+let jsZipLetterLoadPromise = null;
+
+function loadJsZipScriptOnce() {
+  if (typeof window.JSZip === "function") return Promise.resolve();
+  if (!jsZipLetterLoadPromise) {
+    jsZipLetterLoadPromise = new Promise((resolve, reject) => {
+      const existing = document.querySelector(`script[src="${JSZIP_CDN}"]`);
+      if (existing) {
+        existing.addEventListener("load", () => resolve(), { once: true });
+        existing.addEventListener("error", () => reject(new Error("No se pudo cargar JSZip.")), { once: true });
+        return;
+      }
+      const script = document.createElement("script");
+      script.src = JSZIP_CDN;
+      script.async = true;
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error("No se pudo cargar JSZip."));
+      document.head.appendChild(script);
+    }).catch((err) => {
+      jsZipLetterLoadPromise = null;
+      throw err;
+    });
+  }
+  return jsZipLetterLoadPromise;
+}
+
 async function ensureJsZipForLetter() {
-  if (window.RecruitmentDomain?.ensureJsZip) return window.RecruitmentDomain.ensureJsZip();
-  throw new Error("JSZip no disponible: recargue la página.");
+  if (window.RecruitmentDomain?.ensureJsZip) {
+    try {
+      return await window.RecruitmentDomain.ensureJsZip();
+    } catch (_e) {
+      /* fallback CDN abajo */
+    }
+  }
+  if (typeof window.JSZip === "function") return window.JSZip;
+  await loadJsZipScriptOnce();
+  if (typeof window.JSZip !== "function") {
+    throw new Error("JSZip no disponible: recargue la página o permita scripts externos.");
+  }
+  return window.JSZip;
 }
 
 /** Descarga la carta laboral como Word (.docx). */
@@ -772,7 +810,10 @@ export function openEmploymentLetterPrintWindow(employee, opts = {}) {
   const exportToken = encodeEmploymentLetterExportToken(employee?.id, opts);
   const previewActionsHtml = letterPreviewActionsHtml(exportToken);
   const html = buildEmploymentLetterHtml(employee, { ...opts, previewActionsHtml });
-  const popup = window.open("", "_blank", "width=820,height=900");
+  const preOpened = opts.previewWindow && typeof opts.previewWindow.closed === "boolean" && !opts.previewWindow.closed
+    ? opts.previewWindow
+    : null;
+  const popup = preOpened || window.open("", "_blank", "width=820,height=900");
   if (!popup) {
     return { ok: false, message: "El navegador bloqueó la ventana. Permita ventanas emergentes e intente de nuevo." };
   }

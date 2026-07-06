@@ -7247,6 +7247,14 @@ function renderPayrollEmployeeTableIdentity(item) {
   </div>`;
 }
 
+function renderEmploymentLetterActionButtons(id, { compact = false } = {}) {
+  const safeId = escapeAttr(String(id || ""));
+  const pdfLabel = compact ? " PDF" : " PDF";
+  const wordLabel = compact ? " Word" : " Word";
+  return `<button type="button" class="btn btn-sm btn-outline" data-action="employee-generate-labor-letter" data-letter-format="pdf" data-id="${safeId}" title="Carta laboral en PDF">${IC.award}${pdfLabel}</button>
+    <button type="button" class="btn btn-sm btn-outline" data-action="employee-generate-labor-letter" data-letter-format="word" data-id="${safeId}" title="Carta laboral en Word">${IC.award}${wordLabel}</button>`;
+}
+
 function renderPayrollEmployeeContractIconActions(e, contract, hrAdminDeletes) {
   const id = escapeAttr(String(e.id || ""));
   const canAct =
@@ -7258,7 +7266,7 @@ function renderPayrollEmployeeContractIconActions(e, contract, hrAdminDeletes) {
   return `<div class="payroll-contracts-icon-actions">
     <button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--view" data-action="view-employee" data-id="${id}" title="Ver perfil">${IC.eye}</button>
     <button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--edit" data-action="edit-employee" data-id="${id}" title="Editar">${IC.edit}</button>
-    <button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--letter" data-action="employee-generate-labor-letter" data-id="${id}" title="Carta laboral">${IC.mail}</button>
+    <button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--letter" data-action="employee-generate-labor-letter" data-letter-format="pdf" data-id="${id}" title="Carta laboral (PDF o Word)">${IC.award}</button>
     ${
       canAct
         ? `<button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--renew" data-action="renew-employee-contract" data-id="${id}" title="Renovar contrato">${IC.rotateCcw}</button>
@@ -7360,7 +7368,7 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = fa
         <button type="button" class="btn btn-sm btn-outline" data-action="view-employee" data-id="${escapeAttr(String(e.id))}" title="Perfil">${IC.eye}</button>
         <button type="button" class="btn btn-sm btn-action" data-action="edit-employee" data-id="${escapeAttr(String(e.id))}" title="Editar">${IC.edit}</button>
         ${renderPayrollContractActionButtons(e, contract, { compact })}
-        <button type="button" class="btn btn-sm btn-outline" data-action="employee-generate-labor-letter" data-id="${escapeAttr(String(e.id))}" title="Generar carta laboral (CST)">${IC.file} Carta</button>
+        ${renderEmploymentLetterActionButtons(e.id, { compact: true })}
         <button type="button" class="btn btn-sm btn-outline" data-action="employee-generate-contract" data-id="${escapeAttr(String(e.id))}" title="Generar o descargar contrato Word">${IC.download}</button>
         ${hrAdminDeletes ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-employee" data-id="${escapeAttr(String(e.id))}" title="Eliminar">${IC.trash}</button>` : ""}
         ${selectHtml}
@@ -7404,8 +7412,8 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = fa
       <button type="button" class="btn btn-sm btn-outline" data-action="view-employee" data-id="${escapeAttr(String(e.id))}">${IC.eye} Perfil</button>
       <button type="button" class="btn btn-sm btn-action" data-action="edit-employee" data-id="${escapeAttr(String(e.id))}">${IC.edit} Editar</button>
       ${renderPayrollContractActionButtons(e, contract)}
-      <button type="button" class="btn btn-sm btn-outline" data-action="employee-generate-labor-letter" data-id="${escapeAttr(String(e.id))}" title="Carta laboral">${IC.mail} Carta laboral</button>
-      <button type="button" class="btn btn-sm btn-outline" data-action="employee-generate-contract" data-id="${escapeAttr(String(e.id))}">${IC.file} Contrato</button>
+      ${renderEmploymentLetterActionButtons(e.id)}
+      <button type="button" class="btn btn-sm btn-outline" data-action="employee-generate-contract" data-id="${escapeAttr(String(e.id))}">${IC.download} Contrato</button>
       ${hrAdminDeletes ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-employee" data-id="${escapeAttr(String(e.id))}" title="Eliminar colaborador">${IC.trash}</button>` : ""}
     </footer>
   </article>`;
@@ -11346,12 +11354,13 @@ function installEmployeeContractDelegation() {
     if (!letterBtn) return;
     event.preventDefault();
     const letterId = String(letterBtn.dataset.id || "").trim();
+    const letterFormat = String(letterBtn.dataset.letterFormat || "pdf").trim().toLowerCase();
     if (!letterId || letterBtn.disabled || letterBtn.dataset.busy === "1") return;
     if (typeof globalThis.runEmploymentLetterFlow !== "function") {
       notify("Módulo de carta laboral no disponible (recargue la página).", "error");
       return;
     }
-    await runWithBusyButton(letterBtn, () => globalThis.runEmploymentLetterFlow(letterId), {
+    await runWithBusyButton(letterBtn, () => globalThis.runEmploymentLetterFlow(letterId, letterFormat), {
       busyText: "Preparando…"
     });
   });

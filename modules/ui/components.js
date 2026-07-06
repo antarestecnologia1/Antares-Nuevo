@@ -1117,7 +1117,8 @@ export function renderHrWorkspaceTabs({ module, ariaLabel, activeId, tabs, varia
 
 /** Cabecera del módulo RRHH / Contratación: título + KPIs + conmutador Registrar | Consultar. */
 export function renderHrWorkspaceHeader(moduleHeadHtml, tabsNavHtml, tone = "payroll") {
-  const toneClass = tone === "hiring" ? "hr-workspace-header--hiring" : "hr-workspace-header--payroll";
+  const toneClass =
+    tone === "hiring" ? "hr-workspace-header--hiring" : tone === "sst" ? "hr-workspace-header--sst" : "hr-workspace-header--payroll";
   const switchClass =
     String(tabsNavHtml || "").includes("payroll-workspace-actions")
       ? "hr-workspace-header__switch hr-workspace-header__switch--actions"

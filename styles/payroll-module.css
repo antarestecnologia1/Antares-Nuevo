@@ -3142,6 +3142,12 @@ body[data-theme="dark"] .payroll-studio #form-employee .hr-wizard-nav-btn--prev:
   background: #f8fbff;
 }
 
+.payroll-contracts-icon-btn--letter {
+  color: #7c3aed;
+  border-color: rgba(139, 92, 246, 0.32);
+  background: #f5f3ff;
+}
+
 .payroll-contracts-icon-btn--renew {
   color: #2563eb;
   border-color: rgba(59, 130, 246, 0.28);
@@ -4137,4 +4143,42 @@ body[data-theme="dark"] .payroll-studio .payroll-liq-field input[placeholder="Au
   align-content: flex-start;
   align-items: stretch;
   gap: var(--ops-cards-gap, 0.75rem);
+}
+
+.modal-card-edit--employment-letter .employment-letter-format-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.modal-card-edit--employment-letter .employment-letter-format-btn.is-active {
+  box-shadow: inset 0 0 0 2px rgba(37, 99, 235, 0.35);
+  transform: translateY(-1px);
+}
+
+.modal-card-edit--employment-letter .employment-letter-format-btn--word .report-preview-export-btn__icon {
+  color: #7c3aed;
+}
+
+.modal-card-edit--employment-letter .employee-letter-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.modal-card-edit--employment-letter .employee-letter-option input {
+  margin-top: 0.2rem;
+}
+
+body[data-theme="dark"] .payroll-contracts-icon-btn--letter {
+  color: #c4b5fd;
+  border-color: rgba(167, 139, 250, 0.35);
+  background: rgba(76, 29, 149, 0.22);
+}
+
+body[data-theme="dark"] .modal-card-edit--employment-letter .employment-letter-format-btn.is-active {
+  box-shadow: inset 0 0 0 2px rgba(96, 165, 250, 0.45);
 }
