@@ -179,7 +179,7 @@ export let state = {
   },
   sstUi: {
     workspace: "operate",
-    operateSection: "alerts",
+    operateSection: "create",
     dataSection: "due",
     listSearch: ""
   },

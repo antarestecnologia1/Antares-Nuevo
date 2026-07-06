@@ -386,9 +386,8 @@ export function normalizeSstDataSection(section) {
   return "due";
 }
 
-export function normalizeSstOperateSection(section) {
-  const s = String(section || "").trim().toLowerCase();
-  return s === "create" ? "create" : "alerts";
+export function normalizeSstOperateSection(_section) {
+  return "create";
 }
 
 /** Formato fijo: +57 y máximo 10 dígitos nacionales (sin depender de slice(-10) que provocaba dígitos erróneos al editar). */

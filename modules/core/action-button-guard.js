@@ -44,7 +44,7 @@ const MUTATION_ACTION_RE =
 
 /** Acciones de solo UI (tabs, filtros, paginación…) — nunca bloquear. */
 const NAVIGATION_ACTION_RE =
-  /(?:^|[-_:])(?:section|panel|tab|workspace|filter|sort|layout|view|toggle|expand|collapse|focus|clear|reset|cancel|page|render-more|rail-toggle|quick-filter|operate-section|data-section|workspace-tab|set-year|liquidation-mode|runs-view|employees-view|preview-close|period|period-chip|layout-preset|module-filter|action-filter|list-layout|fleet-layout|trips-section|candidates-active|candidates-all|candidates-finalized|vacancies-open|vacancies-all|list-search|data-section|operate-rail|toggle-alerts|toggle-sound|open|detail|trip-detail|preview-print)(?:$|[-_:])/i;
+  /(?:^|[-_:])(?:section|panel|tab|workspace|filter|sort|layout|view|toggle|expand|collapse|focus|clear|reset|cancel|page|render-more|rail-toggle|quick-filter|operate-section|data-section|workspace-tab|set-year|liquidation-mode|runs-view|employees-view|preview-close|period|period-chip|layout-preset|module-filter|action-filter|list-layout|fleet-layout|trips-section|candidates-active|candidates-all|candidates-finalized|vacancies-open|vacancies-all|list-search|data-section|operate-rail|toggle-alerts|toggle-sound|open|detail|trip-detail|preview-print|generate-labor-letter|generate-contract)(?:$|[-_:])/i;
 
 const CLICKABLE_SELECTOR =
   "button, input[type='submit'], input[type='button'], [role='button'], a.btn, .trip-ops-card-btn, .payroll-contracts-icon-btn, [data-lock-on-click]";

@@ -1034,7 +1034,10 @@ function markFormSubmitting(formEl, active) {
 
 export function isActionButtonBusy(btn) {
   if (!btn) return false;
-  return btn.dataset.busy === "1" || btn.getAttribute("aria-busy") === "true";
+  if (btn.dataset.busy === "1") return true;
+  /* El guard global marca aria-busy en captura antes del handler real (runWithBusyButton). */
+  if (btn.dataset.guardBusy === "1") return false;
+  return btn.getAttribute("aria-busy") === "true";
 }
 
 /** Restaura habilitado/deshabilitado del botón «Guardar» en formularios por pasos. */

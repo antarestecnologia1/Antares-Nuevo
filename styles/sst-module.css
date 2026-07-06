@@ -4,10 +4,6 @@
    Alcance: .sst-studio.payroll-studio
    =================================================================== */
 
-.sst-studio.payroll-studio {
-  /* Mantiene contenedor de arquitectura; estilos visuales = Gestión humana */
-}
-
 /* ── Búsqueda en panel Consultar ── */
 .sst-studio.payroll-studio .payroll-data-search-toolbar {
   margin-bottom: 0.85rem;
@@ -34,107 +30,6 @@
   box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.12);
 }
 
-/* ── Panel de alertas (Registrar → Resumen) ── */
-.sst-studio.payroll-studio .sst-alerts-panel {
-  padding: 1rem 1.1rem 1.15rem;
-  border-radius: var(--pay-radius, 16px);
-  border: 1px solid var(--pay-edge, #e2e8f0);
-  background: var(--pay-card, #fff);
-  box-shadow: var(--pay-shadow-sm);
-}
-
-.sst-studio.payroll-studio .sst-alerts-panel__head {
-  margin-bottom: 0.85rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--pay-edge, #e2e8f0);
-}
-
-.sst-studio.payroll-studio .sst-alerts-panel__title {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 750;
-  color: var(--pay-navy, #0b2138);
-  letter-spacing: -0.02em;
-}
-
-.sst-studio.payroll-studio .sst-alerts-panel__badge--warn strong {
-  color: #b45309;
-}
-
-.sst-studio.payroll-studio .hr-attention-strip {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.45rem;
-  margin: 0 0 0.85rem;
-  padding: 0.65rem 0.85rem;
-  border-radius: var(--pay-radius-sm, 12px);
-  border: 1px solid var(--pay-edge, #e2e8f0);
-  background: var(--pay-surface, #f1f5f9);
-  font-size: 0.82rem;
-}
-
-.sst-studio.payroll-studio .hr-attention-strip--ok {
-  border-color: rgba(13, 148, 136, 0.25);
-  background: rgba(13, 148, 136, 0.08);
-  color: #0f766e;
-  font-weight: 600;
-}
-
-.sst-studio.payroll-studio .hr-attention-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.28rem 0.62rem;
-  border-radius: 999px;
-  border: 1px solid transparent;
-  font-size: 0.76rem;
-  font-weight: 600;
-}
-
-.sst-studio.payroll-studio .hr-attention-pill--warn {
-  border-color: rgba(217, 119, 6, 0.28);
-  background: rgba(245, 158, 11, 0.12);
-  color: #92400e;
-}
-
-.sst-studio.payroll-studio .hr-attention-pill--alert {
-  border-color: rgba(220, 38, 38, 0.28);
-  background: rgba(254, 226, 226, 0.65);
-  color: #991b1b;
-}
-
-.sst-studio.payroll-studio .sst-alert-sections {
-  display: grid;
-  gap: 0.85rem;
-}
-
-.sst-studio.payroll-studio .sst-alert-section {
-  padding: 0.85rem 0.9rem 0.95rem;
-  border-radius: var(--pay-radius-sm, 12px);
-  border: 1px solid var(--pay-edge, #e2e8f0);
-  background: linear-gradient(180deg, var(--pay-surface, #f1f5f9), var(--pay-card, #fff));
-}
-
-.sst-studio.payroll-studio .sst-alert-section__head h4 {
-  margin: 0;
-  font-size: 0.78rem;
-  font-weight: 800;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--pay-navy, #0b2138);
-}
-
-.sst-studio.payroll-studio .sst-alert-section__sub {
-  margin: 0.2rem 0 0.65rem;
-  font-size: 0.76rem;
-  color: var(--text-soft, #64748b);
-}
-
-.sst-studio.payroll-studio .sst-alert-section .hr-alert-grid {
-  gap: 0.6rem;
-}
-
 /* ── Filas de vencimientos por urgencia ── */
 .sst-studio.payroll-studio tr.sst-row--expired {
   background: rgba(220, 38, 38, 0.06);
@@ -158,11 +53,4 @@
 
 .sst-studio.payroll-studio tr[data-sst-state="pendiente"] {
   background: rgba(217, 119, 6, 0.08);
-}
-
-@media (max-width: 640px) {
-  .sst-studio.payroll-studio .sst-alerts-panel__head {
-    flex-direction: column;
-    align-items: flex-start;
-  }
 }

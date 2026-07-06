@@ -5,11 +5,10 @@
 import { state, nodes, persistHrWorkspace } from "../core/store.js";
 import { read, writeAwaitServer } from "../core/data-io.js";
 import { KEYS, HR_VALID_SST_WS } from "../core/config.js";
-import { escapeHtml, escapeAttr, buildModuleCreatePanelsState, normalizeHrWorkspace, normalizeSstDataSection, normalizeSstOperateSection } from "../core/utils.js";
+import { escapeHtml, escapeAttr, buildModuleCreatePanelsState, normalizeHrWorkspace, normalizeSstDataSection } from "../core/utils.js";
 import {
   renderHrWorkspaceTabs,
   renderHrWorkspaceHeader,
-  renderHrAttentionStrip,
   switchHrWorkspacePanels,
   switchModuleTabPanels
 } from "../ui/components.js";
@@ -221,45 +220,6 @@ function renderSstModuleHead({ employeesCount, recordsCount, dueCount, missingCo
   </header>`;
 }
 
-function renderSstOperateSectionNav(activeId, IC) {
-  const tabs = [
-    {
-      id: "alerts",
-      label: "Resumen",
-      title: "Panel de alertas de cumplimiento",
-      hint: "Contratos, seguridad social y vencimientos",
-      norm: "Monitoreo",
-      icon: "activity"
-    },
-    {
-      id: "create",
-      label: "Registrar",
-      title: "Nuevo control SST o legal",
-      hint: "Obligaciones, vencimientos y evidencias",
-      norm: "Res. 0312",
-      icon: "plus"
-    }
-  ];
-  return `<nav class="payroll-operate-nav" role="tablist" aria-label="Trámites SST">
-    ${tabs
-      .map((tab) => {
-        const active = activeId === tab.id;
-        const iconSvg = IC[tab.icon] ? `<span class="payroll-operate-nav-ico" aria-hidden="true">${IC[tab.icon]}</span>` : "";
-        const tip = escapeAttr(`${tab.title} — ${tab.hint}`);
-        const ariaLbl = escapeAttr(`${tab.label} — ${tab.hint}`);
-        return `<button type="button" role="tab" class="payroll-operate-nav-tab${active ? " is-active" : ""}" aria-selected="${active ? "true" : "false"}" data-action="sst-operate-section" data-section="${escapeAttr(tab.id)}" title="${tip}" aria-label="${ariaLbl}">
-          ${iconSvg}
-          <span class="payroll-operate-nav-copy">
-            <strong class="payroll-operate-nav-label">${escapeHtml(tab.label)}</strong>
-            <small class="payroll-operate-nav-hint">${escapeHtml(tab.hint)}</small>
-            <span class="payroll-operate-nav-norm">${escapeHtml(tab.norm)}</span>
-          </span>
-        </button>`;
-      })
-      .join("")}
-  </nav>`;
-}
-
 function renderSstDataSectionNav(activeId, counts, IC) {
   const tabs = [
     {
@@ -292,93 +252,6 @@ function renderSstDataSectionNav(activeId, counts, IC) {
   </nav>`;
 }
 
-function renderSstAlertDashboard(stats, renderHrAlertCardsFn, renderHrAttentionStripFn) {
-  const { IC, expiringContracts, missingSocialSecurity, expiringOccupationalExams, expiringInstruvialExams, expiringLicenses, expiringSstRecords, missingComplianceCount, missingSstRecords } = stats;
-  const allAlertItems = [
-    {
-      icon: IC.calendar,
-      label: "Contratos por vencer (30 días)",
-      value: expiringContracts.length,
-      help: "Anticipa la renovación o el reemplazo del personal.",
-      tone: expiringContracts.length ? "warn" : "ok"
-    },
-    {
-      icon: IC.shield,
-      label: "Seguridad social incompleta",
-      value: missingSocialSecurity.length,
-      help: "Empleados sin EPS, pensión o ARL en su ficha.",
-      tone: missingSocialSecurity.length ? "alert" : "ok"
-    },
-    {
-      icon: IC.activity,
-      label: "Examen médico por vencer (30 días)",
-      value: expiringOccupationalExams.length,
-      help: "Colaboradores con examen ocupacional próximo a vencer o vencido.",
-      tone: expiringOccupationalExams.length ? "warn" : "ok"
-    },
-    {
-      icon: IC.truck,
-      label: "Examen instruvial por vencer (30 días)",
-      value: expiringInstruvialExams.length,
-      help: "Colaboradores con examen instruvial próximo a vencer o vencido.",
-      tone: expiringInstruvialExams.length ? "warn" : "ok"
-    },
-    {
-      icon: IC.alertTriangle,
-      label: "Licencias por vencer (30 días)",
-      value: expiringLicenses.length,
-      help: "Licencias de conducción próximas a expirar.",
-      tone: expiringLicenses.length ? "warn" : "ok"
-    },
-    {
-      icon: IC.file,
-      label: "Controles SST por vencer",
-      value: expiringSstRecords,
-      help: "Registros documentales con vencimiento en los próximos 30 días.",
-      tone: expiringSstRecords ? "warn" : "ok"
-    },
-    {
-      icon: IC.clock,
-      label: "Controles sin fecha",
-      value: missingComplianceCount + missingSstRecords,
-      help: "Colaboradores o registros SST pendientes de programar o registrar vencimiento.",
-      tone: missingComplianceCount + missingSstRecords ? "alert" : "ok"
-    }
-  ];
-  const attentionStrip = renderHrAttentionStripFn(allAlertItems, {
-    okMessage: "Cumplimiento al día — sin alertas activas en los próximos 30 días"
-  });
-  const sections = [
-    {
-      title: "Vinculación legal",
-      subtitle: "Contratos y seguridad social",
-      items: allAlertItems.slice(0, 2)
-    },
-    {
-      title: "Salud y conducción",
-      subtitle: "Exámenes ocupacionales, instruviales y licencias",
-      items: allAlertItems.slice(2, 5)
-    },
-    {
-      title: "Documentación SST",
-      subtitle: "Controles legales y trazabilidad",
-      items: allAlertItems.slice(5)
-    }
-  ];
-  const sectionHtml = sections
-    .map(
-      (section) => `<section class="sst-alert-section">
-      <header class="sst-alert-section__head">
-        <h4>${escapeHtml(section.title)}</h4>
-        <p class="sst-alert-section__sub">${escapeHtml(section.subtitle)}</p>
-      </header>
-      ${renderHrAlertCardsFn(section.items)}
-    </section>`
-    )
-    .join("");
-  return `<div class="sst-alerts-dashboard">${attentionStrip}<div class="sst-alert-sections">${sectionHtml}</div></div>`;
-}
-
 function filterSstListItems(items, searchNorm, fieldsFn) {
   if (!searchNorm) return items;
   return items.filter((item) => {
@@ -392,7 +265,6 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
     const IC = G.IC || {};
     /** TODO: mover fieldLabel a módulo propio (hoy en portal-runtime.js) */
     const fieldLabel = G.fieldLabel;
-    const renderHrAlertCards = G.renderHrAlertCards;
     const emptyState = G.emptyState;
     const renderManagedCreateFormActions = G.renderManagedCreateFormActions;
     const createHrActionCard = G.createHrActionCard;
@@ -400,9 +272,8 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
 
     if (typeof fieldLabel !== "function" || typeof canManageSstModule !== "function") return "";
 
-    const sstUi = state.sstUi || { workspace: "operate", operateSection: "alerts", dataSection: "due", listSearch: "" };
+    const sstUi = state.sstUi || { workspace: "operate", operateSection: "create", dataSection: "due", listSearch: "" };
     const sstWorkspace = normalizeHrWorkspace("sst", sstUi.workspace);
-    const sstOperateSection = normalizeSstOperateSection(sstUi.operateSection);
     const sstDataSection = normalizeSstDataSection(sstUi.dataSection);
     const listSearchRaw = String(sstUi.listSearch || "");
     const listSearchNorm = listSearchRaw.trim().toLowerCase();
@@ -419,19 +290,6 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
       return (endTs - todayTs) / 86400000 <= dueSoonDays;
     });
     const missingSocialSecurity = employees.filter((employee) => !employee.eps || !employee.pensionFund || !employee.arl);
-    const expiringLicenses = employees.filter((employee) =>
-      isEmployeeDueWithinDays(employee, "licenseExpiry", null, dueSoonDays, { includeExpired: true })
-    );
-    const expiringOccupationalExams = employees.filter((employee) =>
-      isEmployeeDueWithinDays(employee, "occupationalExamExpiry", "occupationalExamDate", dueSoonDays, {
-        includeExpired: true
-      })
-    );
-    const expiringInstruvialExams = employees.filter((employee) =>
-      isEmployeeDueWithinDays(employee, "instruvialExamExpiry", "instruvialExamDate", dueSoonDays, {
-        includeExpired: true
-      })
-    );
     const dueItems = collectSstDueItems(employees, records, dueSoonDays);
     const filteredDueItems = filterSstListItems(dueItems, listSearchNorm, (item) =>
       `${item.employeeName} ${item.position} ${item.controlType} ${item.dueDate || ""}`
@@ -440,7 +298,6 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
       const employee = employees.find((item) => String(item.id) === String(record.employeeId || ""));
       return `${record.employeeName || employee?.name || ""} ${record.recordType || ""} ${record.provider || ""} ${record.documentCode || ""} ${record.status || ""} ${record.dueDate || ""}`;
     });
-    const expiringSstRecords = dueItems.filter((item) => item.recordId && item.bucket !== "missing").length;
     const missingComplianceCount = countMissingComplianceItems(employees);
     const missingSstRecords = dueItems.filter((item) => item.recordId && item.bucket === "missing").length;
     const employeeOptions = employees.map((employee) => `<option value="${employee.id}">${employee.name} · ${employee.position || "-"}</option>`).join("");
@@ -481,21 +338,6 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
       expiringContracts.length +
       missingSocialSecurity.length +
       dueItems.filter((item) => item.bucket === "expired").length;
-    const alertsBody = renderSstAlertDashboard(
-      {
-        IC,
-        expiringContracts,
-        missingSocialSecurity,
-        expiringOccupationalExams,
-        expiringInstruvialExams,
-        expiringLicenses,
-        expiringSstRecords,
-        missingComplianceCount,
-        missingSstRecords
-      },
-      renderHrAlertCards,
-      renderHrAttentionStrip
-    );
     const complianceForm = `<form id="form-sst-compliance" class="p-form p-form-colored">
       <fieldset class="form-section form-section-blue full">
         <legend>${IC.user} Empleado y tipo</legend>
@@ -561,7 +403,9 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
             ? "No hay vencimientos que coincidan con la búsqueda."
             : "No hay vencimientos próximos ni controles sin fecha registrada."
         );
-    const sstCreateUi = buildModuleCreatePanelsState(["create-sst-control"], "create-sst-control", state.createPanels || {});
+    const sstCreateUi = buildModuleCreatePanelsState(["create-sst-control"], "create-sst-control", state.createPanels || {}, {
+      expandActive: sstWorkspace === "operate"
+    });
     const sstModuleHead = renderSstModuleHead({
       employeesCount: employees.length,
       recordsCount: records.length,
@@ -576,25 +420,11 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
       activeId: sstWorkspace,
       variant: "switch",
       tabs: [
-        { id: "operate", label: "Registrar", icon: "plus", hint: "Alertas y nuevo control SST" },
+        { id: "operate", label: "Registrar", icon: "plus", hint: "Nuevo control SST / legal" },
         { id: "data", label: "Consultar", icon: "eye", hint: "Vencimientos y auditoría" }
       ]
     });
     const sstWorkspaceHeader = renderHrWorkspaceHeader(sstModuleHead, sstTabsNav, "payroll");
-    const sstRailCollapsed = typeof G.isOperateRailCollapsed === "function" ? G.isOperateRailCollapsed("sst") : false;
-    const sstOperateNav = renderSstOperateSectionNav(sstOperateSection, IC);
-    const sstAlertsPane = `<div class="auth-tab-panel${sstOperateSection === "alerts" ? "" : " hidden"}" data-sst-operate-pane="alerts"${sstOperateSection === "alerts" ? "" : " hidden"} aria-hidden="${sstOperateSection === "alerts" ? "false" : "true"}">
-      <div class="sst-alerts-panel">
-        <div class="payroll-consult-toolbar-row sst-alerts-panel__head">
-          <div>
-            <h3 class="sst-alerts-panel__title">Panel de cumplimiento</h3>
-            <p class="payroll-consult-meta muted">Monitoreo de obligaciones legales, salud ocupacional y documentación SST</p>
-          </div>
-          <span class="payroll-consult-meta${dueItems.length ? " sst-alerts-panel__badge--warn" : ""}"><strong>${dueItems.length}</strong> pendiente${dueItems.length === 1 ? "" : "s"}</span>
-        </div>
-        ${alertsBody}
-      </div>
-    </div>`;
     const sstCreatePaneBody = sstCanMutate
       ? createHrActionCard(
           "create-sst-control",
@@ -606,20 +436,8 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
           { createPanels: sstCreateUi }
         )
       : emptyState("No tiene permiso para registrar controles SST.");
-    const sstCreatePane = `<div class="auth-tab-panel${sstOperateSection === "create" ? "" : " hidden"}" data-sst-operate-pane="create"${sstOperateSection === "create" ? "" : " hidden"} aria-hidden="${sstOperateSection === "create" ? "false" : "true"}">${sstCreatePaneBody}</div>`;
     const sstOperatePanel = `<div class="hr-workspace-panel payroll-workspace-panel${sstWorkspace === "operate" ? "" : " hidden"}" role="tabpanel" data-sst-panel="operate"${sstWorkspace === "operate" ? "" : " hidden"}>
-      <section class="payroll-operate payroll-operate-panel${sstRailCollapsed ? " is-rail-collapsed" : ""}">
-        <aside class="payroll-operate__rail" aria-label="Trámites SST">
-          <div class="payroll-operate__rail-head">
-            <p class="payroll-operate__rail-label">Tipo de trámite</p>
-            <button type="button" class="payroll-operate__rail-toggle" data-action="sst-operate-rail-toggle" aria-expanded="${sstRailCollapsed ? "false" : "true"}" title="${sstRailCollapsed ? "Expandir opciones de trámite" : "Contraer opciones de trámite"}">
-              <span class="payroll-operate__rail-toggle-ico" aria-hidden="true">${IC.chevronLeft || ""}</span>
-            </button>
-          </div>
-          ${sstOperateNav}
-        </aside>
-        <div class="payroll-operate__main auth-tab-panels">${sstAlertsPane}${sstCreatePane}</div>
-      </section>
+      <div class="payroll-operate__main">${sstCreatePaneBody}</div>
     </div>`;
     const sstDataNav = renderSstDataSectionNav(sstDataSection, { due: dueItems.length, audit: records.length }, IC);
     const sstDataSearchBar = `<div class="payroll-data-search-toolbar">
@@ -675,48 +493,15 @@ function bindLaborCompliancePortalControls() {
       state.sstUi = {
         ...(state.sstUi || {}),
         workspace: ws,
+        operateSection: "create",
         ...(ws === "operate" ? { listSearch: "" } : {})
       };
-      persistHrWorkspace("sst", ws);
-      G.renderPortalView?.();
-    });
-  });
-
-  nodes.viewRoot.querySelectorAll("[data-action='sst-operate-rail-toggle']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const panel = btn.closest(".payroll-operate");
-      if (!panel) return;
-      const collapsed = panel.classList.toggle("is-rail-collapsed");
-      btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
-      btn.setAttribute("title", collapsed ? "Expandir trámites" : "Contraer trámites");
-      G.setOperateRailCollapsed?.("sst", collapsed);
-    });
-  });
-
-  nodes.viewRoot.querySelectorAll("[data-action='sst-operate-section']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const section = normalizeSstOperateSection(btn.dataset.section);
-      state.sstUi = { ...(state.sstUi || {}), operateSection: section, workspace: "operate" };
-      if (section === "create") {
+      if (ws === "operate") {
         state.createPanels = buildModuleCreatePanelsState(["create-sst-control"], "create-sst-control", state.createPanels || {}, {
           expandActive: true
         });
       }
-      persistHrWorkspace("sst", "operate");
-      if (
-        switchModuleTabPanels({
-          root: nodes.viewRoot,
-          action: "sst-operate-section",
-          activeValue: section,
-          panelAttr: "data-sst-operate-pane",
-          tabActiveClass: "is-active"
-        })
-      ) {
-        if (section === "create" && typeof G.syncModuleCreatePanelsInDom === "function") {
-          G.syncModuleCreatePanelsInDom(nodes.viewRoot, ["create-sst-control"], "create-sst-control", { expandActive: true });
-        }
-        return;
-      }
+      persistHrWorkspace("sst", ws);
       G.renderPortalView?.();
     });
   });
