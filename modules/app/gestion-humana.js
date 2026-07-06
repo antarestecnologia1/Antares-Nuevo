@@ -1745,15 +1745,14 @@ function bindPayrollPortalControls() {
       const isDriverSvc = employeeIsConductorServiceProvider(target);
       const liquidacionesSection = isDriverSvc ? "driverPayments" : "runs";
       const contractAction = `<button type="button" class="btn btn-action" data-action="employee-generate-contract" data-id="${escapeAttr(String(target.id || ""))}">${IC.download} Descargar contrato</button>`;
-      const laborLetterPdfAction = `<button type="button" class="btn btn-outline" data-action="employee-generate-labor-letter" data-letter-format="pdf" data-id="${escapeAttr(String(target.id || ""))}">${IC.badge} PDF</button>`;
-      const laborLetterWordAction = `<button type="button" class="btn btn-outline" data-action="employee-generate-labor-letter" data-letter-format="word" data-id="${escapeAttr(String(target.id || ""))}">${IC.badge} Word</button>`;
+      const laborLetterAction = `<button type="button" class="btn btn-outline" data-action="employee-generate-labor-letter" data-id="${escapeAttr(String(target.id || ""))}">${IC.badge} Carta laboral</button>`;
       const liquidacionesAction = `<button type="button" class="btn btn-outline" data-action="payroll-focus-employee-runs" data-employee-id="${escapeAttr(String(target.id || ""))}" data-payroll-section="${escapeAttr(liquidacionesSection)}">${IC.dollar} Ver liquidaciones</button>`;
       openInfoModal({
         title: "Ficha del colaborador",
         subtitle: `${String(target.position || "Colaborador").trim()} · ${String(target.idDoc || "").trim()}`,
         bodyHtml: `${buildEmployeePayrollProfileBodyHtml(target)}${payrollHistoryHtml}`,
         wide: true,
-        secondaryActionsHtml: `${liquidacionesAction}${laborLetterPdfAction}${laborLetterWordAction}${contractAction}`,
+        secondaryActionsHtml: `${liquidacionesAction}${laborLetterAction}${contractAction}`,
         afterMount: (content) => {
           bindPayrollPayslipButtons(content);
           wirePayrollEmployeeLiquidationActions(content);

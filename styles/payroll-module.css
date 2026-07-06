@@ -3148,33 +3148,8 @@ body[data-theme="dark"] .payroll-studio #form-employee .hr-wizard-nav-btn--prev:
   background: #f5f3ff;
 }
 
-.payroll-contracts-letter-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.2rem;
-}
-
-.payroll-contracts-icon-btn--letter-fmt {
-  width: auto;
-  min-width: 2rem;
-  height: 2rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.18rem;
-  padding: 0 0.38rem;
-}
-
-.payroll-contracts-icon-btn--letter-fmt .btn-icon {
-  flex: 0 0 auto;
-}
-
-.payroll-contracts-icon-btn__fmt {
-  font-size: 0.58rem;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  line-height: 1;
-  text-transform: uppercase;
+.payroll-letter-btn .btn-icon {
+  color: #7c3aed;
 }
 
 .payroll-contracts-icon-btn--renew {

@@ -572,14 +572,17 @@ function applyNotificationsServerList(serverList) {
 /** GET /portal/notifications → reemplaza la bandeja en RAM (sin fusionar estado local). */
 export async function refreshNotificationsFromServer() {
   const api = window.AntaresApi;
-  if (!api?.getJson || !portalCanRefreshFromApi()) return false;
+  if (!api?.getJson || !portalCanRefreshFromApi() || !getSession()?.userId) return false;
   try {
     const res = await api.getJson("/portal/notifications");
     const raw = Array.isArray(res?.notifications) ? res.notifications : [];
     const applied = applyNotificationsServerList(raw);
     updateNotificationBadge();
     return applied;
-  } catch (_e) {
+  } catch (err) {
+    if (err?.status === 401) {
+      __lastNotificationsLightRefreshWallMs = Date.now() + 120000;
+    }
     return false;
   }
 }
