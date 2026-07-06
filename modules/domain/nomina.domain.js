@@ -15,7 +15,16 @@ import {
   CO_TIMEZONE,
   PAYROLL_ABSENCE_LEGAL_LIMITS
 } from "../core/config.js";
-import { listLiquidationCutsForMonth, resolvePayrollCutForClosingDate } from "./payroll-cut.domain.js";
+import { matchCatalogOptionValue } from "./payroll-catalog-sanitize.domain.js";
+import {
+  listLiquidationCutsForMonth,
+  resolvePayrollCutForClosingDate,
+  formatPayrollCutRangeLabel,
+  payrollClosingDatesHint,
+  liquidationCutIfClosingToday,
+  liquidationLatestPendingCutAsOf,
+  parseIsoDateParts
+} from "./payroll-cut.domain.js";
 import { read } from "../core/data-io.js";
 import { state } from "../core/store.js";
 import {
@@ -2091,15 +2100,6 @@ export function computePayrollIncapacityColombiaForMonth({ employee, liquidacion
 
   return { adjustCop: Math.round(salarioAjuste), episodes, smmlv };
 }
-
-import {
-  resolvePayrollCutForClosingDate,
-  formatPayrollCutRangeLabel,
-  payrollClosingDatesHint,
-  liquidationCutIfClosingToday,
-  liquidationLatestPendingCutAsOf,
-  parseIsoDateParts
-} from "./payroll-cut.domain.js";
 
 export {
   resolvePayrollCutForClosingDate,
