@@ -11,6 +11,7 @@ import {
   HR_VALID_HIRING_WS,
   HR_VALID_PAYROLL_WS,
   HR_VALID_REQUESTS_WS,
+  HR_VALID_SST_WS,
   HR_VALID_TRANSPORT_TRIPS_WS,
   HR_VALID_TRANSPORT_VEHICLES_WS,
   HR_WORKSPACE_STORAGE
@@ -19,6 +20,7 @@ import {
   normalizeHiringDataSection,
   normalizeHiringOperateSection,
   normalizeHrWorkspace,
+  normalizeSstDataSection,
   normalizeTransportTripsSection,
   normalizeTransportTripsWorkspace,
   normalizeVehicleSection,
@@ -174,6 +176,11 @@ export let state = {
     /** Filtro de texto en la pestaña Consultar (listados). */
     dataListSearch: ""
   },
+  sstUi: {
+    workspace: "operate",
+    dataSection: "due",
+    listSearch: ""
+  },
   /** Centro de aprobaciones: filtro de texto en bandejas. */
   authorizationsUi: {
     listSearch: ""
@@ -197,6 +204,7 @@ export function hydrateHrWorkspaceFromStorage() {
   try {
     const p = localStorage.getItem(HR_WORKSPACE_STORAGE.payroll);
     const h = localStorage.getItem(HR_WORKSPACE_STORAGE.hiring);
+    const s = localStorage.getItem(HR_WORKSPACE_STORAGE.sst);
     const r = localStorage.getItem(HR_WORKSPACE_STORAGE.requests);
     const tt = localStorage.getItem(HR_WORKSPACE_STORAGE.transportTrips);
     const tv = localStorage.getItem(HR_WORKSPACE_STORAGE.transportVehicles);
@@ -277,6 +285,25 @@ export function hydrateHrWorkspaceFromStorage() {
         state.hiringUi = { ...(state.hiringUi || {}), workspace: ws };
       }
     }
+    if (s) {
+      let parsed = null;
+      try {
+        parsed = JSON.parse(s);
+      } catch (_jsonErr) {
+        parsed = null;
+      }
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        state.sstUi = {
+          ...(state.sstUi || {}),
+          workspace: normalizeHrWorkspace("sst", parsed.workspace),
+          dataSection: normalizeSstDataSection(parsed.dataSection),
+          listSearch: String(parsed.listSearch || "")
+        };
+      } else {
+        const ws = normalizeHrWorkspace("sst", s);
+        state.sstUi = { ...(state.sstUi || {}), workspace: ws };
+      }
+    }
   } catch (_e) {}
 }
 
@@ -349,6 +376,18 @@ export function persistHrWorkspace(moduleId, workspace) {
           candidateFilter: String(ui.candidateFilter || "active"),
           vacancyFilter: String(ui.vacancyFilter || "open"),
           candidateSort: String(ui.candidateSort || "recent")
+        })
+      );
+    } else if (moduleId === "sst") {
+      const ui = { ...(state.sstUi || {}) };
+      if (HR_VALID_SST_WS.has(ws)) ui.workspace = ws;
+      state.sstUi = ui;
+      localStorage.setItem(
+        HR_WORKSPACE_STORAGE.sst,
+        JSON.stringify({
+          workspace: normalizeHrWorkspace("sst", ui.workspace),
+          dataSection: normalizeSstDataSection(ui.dataSection),
+          listSearch: String(ui.listSearch || "")
         })
       );
     }

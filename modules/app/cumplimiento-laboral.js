@@ -2,11 +2,17 @@
  * Cumplimiento laboral / SST (labor-compliance): vista HTML (runtime) y listeners del portal.
  * Helpers de plantilla viven en `portal-runtime.js` hasta completar la extracción (vía `globalThis`).
  */
-import { state, nodes } from "../core/store.js";
+import { state, nodes, persistHrWorkspace } from "../core/store.js";
 import { read, writeAwaitServer } from "../core/data-io.js";
-import { KEYS } from "../core/config.js";
-import { escapeHtml, escapeAttr, buildModuleCreatePanelsState } from "../core/utils.js";
-import { currentUser } from "../core/auth.js";
+import { KEYS, HR_VALID_SST_WS } from "../core/config.js";
+import { escapeHtml, escapeAttr, buildModuleCreatePanelsState, normalizeHrWorkspace, normalizeSstDataSection } from "../core/utils.js";
+import {
+  renderHrWorkspaceTabs,
+  renderHrWorkspaceHeader,
+  renderModuleWindowTabs,
+  switchHrWorkspacePanels,
+  switchModuleTabPanels
+} from "../ui/components.js";
 
 const G = globalThis;
 
@@ -171,6 +177,34 @@ function countMissingComplianceItems(employees) {
   return count;
 }
 
+function renderSstModuleHead({ recordsCount, dueCount, missingCount }) {
+  const items = [
+    `<div class="hiring-studio-kpi hiring-studio-kpi--neutral" title="Controles registrados en auditoría"><dt>Controles</dt><dd><strong>${escapeHtml(String(recordsCount))}</strong></dd></div>`,
+    `<div class="hiring-studio-kpi hiring-studio-kpi--${dueCount ? "warn" : "ok"}" title="Vencimientos próximos, vencidos o sin programar"><dt>Vencimientos</dt><dd><strong>${escapeHtml(String(dueCount))}</strong></dd></div>`
+  ];
+  if (missingCount > 0) {
+    items.push(
+      `<div class="hiring-studio-kpi hiring-studio-kpi--alert" title="Colaboradores o registros sin fecha"><dt>Sin fecha</dt><dd><strong>${escapeHtml(String(missingCount))}</strong></dd></div>`
+    );
+  }
+  return `<header class="sst-studio-head hiring-studio-head hiring-module-head hiring-module-head--compact">
+    <div class="hiring-studio-head__brand hiring-module-head__title">
+      <span class="hiring-studio-head__badge">SST · Colombia</span>
+      <h2>Cumplimiento laboral y SST</h2>
+      <p class="hiring-studio-head__tagline">Seguridad social, exámenes ocupacionales, instruviales y trazabilidad documental.</p>
+    </div>
+    <dl class="hiring-studio-kpis hiring-module-head__kpi" aria-label="Indicadores de cumplimiento SST">${items.join("")}</dl>
+  </header>`;
+}
+
+function filterSstListItems(items, searchNorm, fieldsFn) {
+  if (!searchNorm) return items;
+  return items.filter((item) => {
+    const blob = fieldsFn(item);
+    return String(blob || "").toLowerCase().includes(searchNorm);
+  });
+}
+
 (function installLaborComplianceHtml() {
   function laborComplianceHtml() {
     const IC = G.IC || {};
@@ -180,11 +214,16 @@ function countMissingComplianceItems(employees) {
     const emptyState = G.emptyState;
     const renderManagedCreateFormActions = G.renderManagedCreateFormActions;
     const createHrActionCard = G.createHrActionCard;
-    const moduleFleetHeroStrip = G.moduleFleetHeroStrip;
     const pcardWrap = G.pcardWrap;
     const canManageSstModule = G.canManageSstModule;
 
     if (typeof fieldLabel !== "function" || typeof canManageSstModule !== "function") return "";
+
+    const sstUi = state.sstUi || { workspace: "operate", dataSection: "due", listSearch: "" };
+    const sstWorkspace = normalizeHrWorkspace("sst", sstUi.workspace);
+    const sstDataSection = normalizeSstDataSection(sstUi.dataSection);
+    const listSearchRaw = String(sstUi.listSearch || "");
+    const listSearchNorm = listSearchRaw.trim().toLowerCase();
 
     const employees = read(KEYS.payrollEmployees, []);
     const contracts = read(KEYS.contracts, []);
@@ -212,6 +251,13 @@ function countMissingComplianceItems(employees) {
       })
     );
     const dueItems = collectSstDueItems(employees, records, dueSoonDays);
+    const filteredDueItems = filterSstListItems(dueItems, listSearchNorm, (item) =>
+      `${item.employeeName} ${item.position} ${item.controlType} ${item.dueDate || ""}`
+    );
+    const filteredRecords = filterSstListItems(records, listSearchNorm, (record) => {
+      const employee = employees.find((item) => String(item.id) === String(record.employeeId || ""));
+      return `${record.employeeName || employee?.name || ""} ${record.recordType || ""} ${record.provider || ""} ${record.documentCode || ""} ${record.status || ""} ${record.dueDate || ""}`;
+    });
     const expiringSstRecords = dueItems.filter((item) => item.recordId && item.bucket !== "missing").length;
     const missingComplianceCount = countMissingComplianceItems(employees);
     const missingSstRecords = dueItems.filter((item) => item.recordId && item.bucket === "missing").length;
@@ -230,7 +276,7 @@ function countMissingComplianceItems(employees) {
       return `<span class="status status-pendiente">Pendiente</span>`;
     };
     const sstCanMutate = canManageSstModule();
-    const recordRows = records
+    const recordRows = filteredRecords
       .map((record) => {
         const employee = employees.find((item) => String(item.id) === String(record.employeeId || ""));
         const stateKey = String(record.status || "Pendiente").trim().toLowerCase().replace(/\s+/g, "-");
@@ -339,7 +385,7 @@ function countMissingComplianceItems(employees) {
     const recordsTable = recordRows
       ? `<div class="table-wrap"><table><thead><tr><th>Control</th><th>Empleado</th><th>Entidad</th><th>Vencimiento</th><th>Estado</th><th>Notas</th><th style="min-width:11rem">Acciones</th></tr></thead><tbody>${recordRows}</tbody></table></div>`
       : emptyState("No hay controles de cumplimiento registrados.");
-    const dueItemRows = dueItems
+    const dueItemRows = filteredDueItems
       .map((item) => {
         const nameCell = `<strong>${escapeHtml(item.employeeName)}</strong><br><span class="muted">${escapeHtml(item.position)}</span>`;
         const dueDateCell = item.dueDate ? escapeHtml(item.dueDate) : '<span class="muted">Sin fecha</span>';
@@ -354,37 +400,87 @@ function countMissingComplianceItems(employees) {
       .join("");
     const dueItemsTable = dueItemRows
       ? `<div class="table-wrap"><table><thead><tr><th>Control</th><th>Empleado</th><th>Vencimiento</th><th>Estado</th></tr></thead><tbody>${dueItemRows}</tbody></table></div>`
-      : emptyState("No hay vencimientos próximos ni controles sin fecha registrada.");
-    const laborHero = moduleFleetHeroStrip([
-      { label: "Controles", value: records.length },
-      {
-        label: "Exam. médico prox.",
-        value: expiringOccupationalExams.length,
-        tone: expiringOccupationalExams.length ? "warn" : undefined
-      },
-      {
-        label: "Exam. instruvial prox.",
-        value: expiringInstruvialExams.length,
-        tone: expiringInstruvialExams.length ? "warn" : undefined
-      },
-      {
-        label: "Licencias prox.",
-        value: expiringLicenses.length,
-        tone: expiringLicenses.length ? "warn" : undefined
-      },
-      {
-        label: "Sin fecha",
-        value: missingComplianceCount + missingSstRecords,
-        tone: missingComplianceCount + missingSstRecords ? "alert" : undefined
-      },
-      {
-        label: "Vencimientos",
-        value: dueItems.length,
-        tone: dueItems.length ? "warn" : undefined
-      }
-    ]);
+      : emptyState(
+          listSearchNorm
+            ? "No hay vencimientos que coincidan con la búsqueda."
+            : "No hay vencimientos próximos ni controles sin fecha registrada."
+        );
     const sstCreateUi = buildModuleCreatePanelsState(["create-sst-control"], "create-sst-control", state.createPanels || {});
-    return `<section class="sst-studio">${laborHero}${pcardWrap("activity", "Alertas", null, alertsBody)}${pcardWrap("alertTriangle", "Vencimientos y pendientes", `${dueItems.length} ítems`, dueItemsTable)}${createHrActionCard("create-sst-control", "shield", "Nuevo control SST / legal", "Registre obligaciones, vencimientos y evidencias de cumplimiento", complianceForm, "Abrir formulario", { createPanels: sstCreateUi })}${pcardWrap("file", "Auditoría documental", `${records.length} registros`, recordsTable)}</section>`;
+    const sstModuleHead = renderSstModuleHead({
+      recordsCount: records.length,
+      dueCount: dueItems.length,
+      missingCount: missingComplianceCount + missingSstRecords
+    });
+    const sstTabsNav = renderHrWorkspaceTabs({
+      module: "sst",
+      ariaLabel: "Secciones del módulo Cumplimiento laboral y SST",
+      activeId: sstWorkspace,
+      variant: "switch",
+      tabs: [
+        { id: "operate", label: "Registrar", icon: "plus", hint: "Alertas y nuevo control SST" },
+        { id: "data", label: "Consultar", icon: "eye", hint: "Vencimientos y auditoría" }
+      ]
+    });
+    const sstWorkspaceHeader = renderHrWorkspaceHeader(sstModuleHead, sstTabsNav, "payroll");
+    const sstOperateCards = [
+      pcardWrap("activity", "Alertas", null, alertsBody),
+      sstCanMutate
+        ? createHrActionCard(
+            "create-sst-control",
+            "shield",
+            "Nuevo control SST / legal",
+            "Registre obligaciones, vencimientos y evidencias de cumplimiento",
+            complianceForm,
+            "Abrir formulario",
+            { createPanels: sstCreateUi }
+          )
+        : pcardWrap("shield", "Nuevo control SST / legal", "Solo lectura", emptyState("No tiene permiso para registrar controles SST."))
+    ].join("");
+    const sstOperatePanel = `<div class="hr-workspace-panel payroll-workspace-panel${sstWorkspace === "operate" ? "" : " hidden"}" role="tabpanel" data-sst-panel="operate">
+      <section class="sst-operate payroll-operate-panel">
+        <div class="payroll-actions-grid">${sstOperateCards}</div>
+      </section>
+    </div>`;
+    const sstDataNav = renderModuleWindowTabs({
+      ariaLabel: "Consultas de cumplimiento SST",
+      activeId: sstDataSection,
+      action: "sst-data-section",
+      valueAttr: "section",
+      tabs: [
+        { id: "due", label: "Vencimientos", count: dueItems.length },
+        { id: "audit", label: "Auditoría", count: records.length }
+      ]
+    });
+    const sstDataSearchBar = `<div class="hiring-data-search-toolbar">
+      <label class="hiring-data-search">
+        <span class="muted">${IC.search || ""} Buscar</span>
+        <input type="search" data-action="sst-data-list-search" value="${escapeAttr(listSearchRaw)}" placeholder="Empleado, control, entidad, documento…" autocomplete="off" />
+      </label>
+    </div>`;
+    const dueMeta = `<p class="payroll-result-meta muted" title="Vencimientos próximos, vencidos o sin programar"><strong>${filteredDueItems.length}</strong>${listSearchNorm ? ` <span class="muted">· ${dueItems.length}</span>` : ""} ítems</p>`;
+    const auditMeta = `<p class="payroll-result-meta muted" title="Controles registrados en auditoría documental"><strong>${filteredRecords.length}</strong>${listSearchNorm ? ` <span class="muted">· ${records.length}</span>` : ""} registros</p>`;
+    const duePane = `<div class="payroll-data-pane${sstDataSection === "due" ? "" : " hidden"}" data-sst-section="due">
+      ${dueMeta}
+      <div class="payroll-table-shell">${dueItemsTable}</div>
+    </div>`;
+    const auditPane = `<div class="payroll-data-pane${sstDataSection === "audit" ? "" : " hidden"}" data-sst-section="audit">
+      ${auditMeta}
+      <div class="payroll-table-shell">${recordsTable}</div>
+    </div>`;
+    const sstDataPanel = `<div class="hr-workspace-panel payroll-workspace-panel${sstWorkspace === "data" ? "" : " hidden"}" role="tabpanel" data-sst-panel="data">
+      <section class="sst-data-panel payroll-data-panel">
+        ${sstDataSearchBar}
+        <div class="payroll-data-toolbar payroll-data-toolbar--compact">${sstDataNav}</div>
+        <div class="payroll-data-panes">${duePane}${auditPane}</div>
+      </section>
+    </div>`;
+    const studioClass = `sst-studio sst-shell sst-shell--workspace hr-flow-shell payroll-shell payroll-shell--workspace${sstWorkspace === "data" ? " payroll-module--clean payroll-studio--consult" : ""}`;
+    return `<section class="${studioClass}" data-hr-workspace="${escapeAttr(sstWorkspace)}">${sstWorkspaceHeader}
+      <div class="hr-workspace-panels">
+        ${sstOperatePanel}
+        ${sstDataPanel}
+      </div>
+    </section>`;
   }
 
   if (typeof window.registerLegacyPortalViews === "function") {
@@ -394,6 +490,64 @@ function countMissingComplianceItems(employees) {
 
 function bindLaborCompliancePortalControls() {
   if (String(state.currentView || "") !== "labor-compliance" || !nodes.viewRoot) return;
+
+  nodes.viewRoot.querySelectorAll("[data-action='hr-workspace-tab'][data-module='sst']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const tab = String(btn.dataset.tab || "");
+      if (!tab) return;
+      const ws = normalizeHrWorkspace("sst", tab);
+      if (!HR_VALID_SST_WS.has(ws)) return;
+      if (normalizeHrWorkspace("sst", state.sstUi?.workspace) === ws) return;
+      state.sstUi = { ...(state.sstUi || {}), workspace: ws, ...(ws === "operate" ? { listSearch: "" } : {}) };
+      persistHrWorkspace("sst", ws);
+      if (
+        switchHrWorkspacePanels({
+          root: nodes.viewRoot,
+          moduleId: "sst",
+          workspace: ws,
+          panelAttr: "data-sst-panel"
+        })
+      ) {
+        return;
+      }
+      G.renderPortalView?.();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='sst-data-section']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const section = normalizeSstDataSection(btn.dataset.section);
+      state.sstUi = { ...(state.sstUi || {}), dataSection: section, workspace: "data" };
+      persistHrWorkspace("sst", "data");
+      switchHrWorkspacePanels({
+        root: nodes.viewRoot,
+        moduleId: "sst",
+        workspace: "data",
+        panelAttr: "data-sst-panel"
+      });
+      if (
+        switchModuleTabPanels({
+          root: nodes.viewRoot,
+          action: "sst-data-section",
+          activeValue: section,
+          panelAttr: "data-sst-section",
+          tabActiveClass: "is-active"
+        })
+      ) {
+        return;
+      }
+      G.renderPortalView?.();
+    });
+  });
+
+  const sstSearchInput = nodes.viewRoot.querySelector("[data-action='sst-data-list-search']");
+  if (sstSearchInput) {
+    sstSearchInput.addEventListener("input", () => {
+      state.sstUi = { ...(state.sstUi || {}), listSearch: String(sstSearchInput.value || ""), workspace: "data" };
+      persistHrWorkspace("sst", "data");
+      G.renderPortalView?.();
+    });
+  }
 
   const sstComplianceForm = document.getElementById("form-sst-compliance");
   if (sstComplianceForm) {

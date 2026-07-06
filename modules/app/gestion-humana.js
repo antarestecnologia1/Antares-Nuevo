@@ -197,7 +197,7 @@ async function openPayrollRunPayslipById(runId) {
   if (!run) return;
   // Abrir la ventana de forma SÍNCRONA dentro del evento de clic para evitar el bloqueo de
   // popups del navegador. window.open() después de un await pierde el contexto del gesto.
-  const pop = window.open("", "_blank", "width=720,height=900");
+  const pop = window.open("", "_blank", "width=860,height=980");
   if (!pop) {
     notify("El navegador bloqueó la ventana del desprendible. Permite las ventanas emergentes para este sitio.", "warn");
     return;
@@ -236,9 +236,27 @@ async function openPayrollRunPayslipById(runId) {
     otro: "Otro"
   };
   const fmtPay = (v) => `$${parseNum(v).toLocaleString("es-CO")}`;
-  const cL = "padding:8px;border-bottom:1px solid #e9ecef";
-  const cR = "padding:8px;border-bottom:1px solid #e9ecef;text-align:right;font-variant-numeric:tabular-nums";
-  const theadP = `<thead><tr style="background:#E8EEF5"><th style="text-align:left;padding:8px">Concepto</th><th style="text-align:right;padding:8px">Valor (COP)</th></tr></thead>`;
+  const cL = 'class="slip-td"';
+  const cR = 'class="slip-td slip-td--num"';
+  const cTotalL = 'class="slip-td slip-td--total"';
+  const cTotalR = 'class="slip-td slip-td--num slip-td--total"';
+  const theadP = `<thead><tr class="slip-thead"><th>Concepto</th><th class="slip-th--num">Valor (COP)</th></tr></thead>`;
+  const slipSection = (num, title, hint, tableHtml) =>
+    `<section class="slip-section">
+      <div class="slip-section__head">
+        <span class="slip-section__badge">${escapeHtml(String(num))}</span>
+        <div>
+          <h2 class="slip-section__title">${escapeHtml(title)}</h2>
+          ${hint ? `<p class="slip-section__hint">${escapeHtml(hint)}</p>` : ""}
+        </div>
+      </div>
+      <div class="slip-table-wrap"><table class="slip-table">${tableHtml}</table></div>
+    </section>`;
+  const slipNetBox = (label) =>
+    `<div class="slip-net" role="status">
+      <span class="slip-net__label">${escapeHtml(label)}</span>
+      <strong class="slip-net__value">${netStr}</strong>
+    </div>`;
 
   let payslipBodyBlocks = "";
   if (isTerm && run.settlementDetail && typeof run.settlementDetail === "object") {
@@ -250,7 +268,7 @@ async function openPayrollRunPayslipById(runId) {
         .filter((L) => parseNum(L.amount) > 0 || L.code === "SALARIO_PENDIENTE")
         .map(
           (L) =>
-            `<tr><td style="${cL}">${escapeHtml(String(L.label || L.code || "Concepto"))}</td><td style="${cR}">${fmtPay(L.amount)}</td></tr>`
+            `<tr><td ${cL}>${escapeHtml(String(L.label || L.code || "Concepto"))}</td><td ${cR}>${fmtPay(L.amount)}</td></tr>`
         )
         .join("");
     } else {
@@ -258,26 +276,26 @@ async function openPayrollRunPayslipById(runId) {
       const auxP = parseNum(sd.auxilioPendiente);
       devRows =
         (salP > 0
-          ? `<tr><td style="${cL}">Salario pendiente mes de retiro</td><td style="${cR}">${fmtPay(salP)}</td></tr>`
+          ? `<tr><td ${cL}>Salario pendiente mes de retiro</td><td ${cR}>${fmtPay(salP)}</td></tr>`
           : "") +
         (auxP > 0
-          ? `<tr><td style="${cL}">Auxilio de transporte proporcional</td><td style="${cR}">${fmtPay(auxP)}</td></tr>`
+          ? `<tr><td ${cL}>Auxilio de transporte proporcional</td><td ${cR}>${fmtPay(auxP)}</td></tr>`
           : "") +
-        `<tr><td style="${cL}"><strong>Cesantías (causadas + fondo)</strong></td><td style="${cR}"><strong>${fmtPay(sd.cesantias)}</strong></td></tr>` +
-        `<tr><td style="${cL}">Intereses cesantías (${CO_CESANTIAS_INTERES_ANUAL_PCT}% Ley 52/1975)</td><td style="${cR}">${fmtPay(sd.interesesCesantias)}</td></tr>` +
-        `<tr><td style="${cL}">Prima proporcional (CST)</td><td style="${cR}">${fmtPay(sd.primaProporcional)}</td></tr>` +
-        `<tr><td style="${cL}">Vacaciones compensadas</td><td style="${cR}">${fmtPay(sd.vacaciones)}</td></tr>` +
+        `<tr><td ${cL}><strong>Cesantías (causadas + fondo)</strong></td><td ${cR}><strong>${fmtPay(sd.cesantias)}</strong></td></tr>` +
+        `<tr><td ${cL}>Intereses cesantías (${CO_CESANTIAS_INTERES_ANUAL_PCT}% Ley 52/1975)</td><td ${cR}>${fmtPay(sd.interesesCesantias)}</td></tr>` +
+        `<tr><td ${cL}>Prima proporcional (CST)</td><td ${cR}>${fmtPay(sd.primaProporcional)}</td></tr>` +
+        `<tr><td ${cL}>Vacaciones compensadas</td><td ${cR}>${fmtPay(sd.vacaciones)}</td></tr>` +
         (parseNum(sd.indemnizacionDespido) > 0
-          ? `<tr><td style="${cL}">Indemnización despido sin justa causa (CST art. 64)</td><td style="${cR}">${fmtPay(sd.indemnizacionDespido)}</td></tr>`
+          ? `<tr><td ${cL}>Indemnización despido sin justa causa (CST art. 64)</td><td ${cR}>${fmtPay(sd.indemnizacionDespido)}</td></tr>`
           : "") +
         (parseNum(sd.indemnizacionAviso) > 0
-          ? `<tr><td style="${cL}">Indemnización sustitutiva aviso previo</td><td style="${cR}">${fmtPay(sd.indemnizacionAviso)}</td></tr>`
+          ? `<tr><td ${cL}>Indemnización sustitutiva aviso previo</td><td ${cR}>${fmtPay(sd.indemnizacionAviso)}</td></tr>`
           : "") +
         (parseNum(sd.otrosSettlement) > 0
-          ? `<tr><td style="${cL}">Otros conceptos</td><td style="${cR}">${fmtPay(sd.otrosSettlement)}</td></tr>`
+          ? `<tr><td ${cL}>Otros conceptos</td><td ${cR}>${fmtPay(sd.otrosSettlement)}</td></tr>`
           : "");
     }
-    devRows += `<tr><td style="${cL}"><strong>Total devengos liquidación</strong></td><td style="${cR}"><strong>${fmtPay(run.gross)}</strong></td></tr>`;
+    devRows += `<tr><td ${cTotalL}><strong>Total devengos liquidación</strong></td><td ${cTotalR}><strong>${fmtPay(run.gross)}</strong></td></tr>`;
 
     const ded = parseNum(run.deductions);
     const dedLines = Array.isArray(sd.deductionsLines) ? sd.deductionsLines : [];
@@ -286,37 +304,42 @@ async function openPayrollRunPayslipById(runId) {
       dedRows = dedLines
         .map(
           (L) =>
-            `<tr><td style="${cL}">${escapeHtml(String(L.label || L.code))}</td><td style="${cR}">${fmtPay(L.amount)}</td></tr>`
+            `<tr><td ${cL}>${escapeHtml(String(L.label || L.code))}</td><td ${cR}>${fmtPay(L.amount)}</td></tr>`
         )
         .join("");
-      dedRows += `<tr><td style="${cL}"><strong>Total deducciones</strong></td><td style="${cR}"><strong>${fmtPay(ded)}</strong></td></tr>`;
+      dedRows += `<tr><td ${cTotalL}><strong>Total deducciones</strong></td><td ${cTotalR}><strong>${fmtPay(ded)}</strong></td></tr>`;
     } else if (ded > 0) {
       dedRows =
-        `<tr><td style="${cL}">Salud empleado</td><td style="${cR}">${fmtPay(run.health)}</td></tr>` +
-        `<tr><td style="${cL}">Pensión empleado</td><td style="${cR}">${fmtPay(run.pension)}</td></tr>` +
+        `<tr><td ${cL}>Salud empleado</td><td ${cR}>${fmtPay(run.health)}</td></tr>` +
+        `<tr><td ${cL}>Pensión empleado</td><td ${cR}>${fmtPay(run.pension)}</td></tr>` +
         (parseNum(run.withholding) > 0
-          ? `<tr><td style="${cL}">Retención Proc. 1 (Art. 383)</td><td style="${cR}">${fmtPay(run.withholding)}</td></tr>`
+          ? `<tr><td ${cL}>Retención Proc. 1 (Art. 383)</td><td ${cR}>${fmtPay(run.withholding)}</td></tr>`
           : "") +
-        `<tr><td style="${cL}"><strong>Total deducciones</strong></td><td style="${cR}"><strong>${fmtPay(ded)}</strong></td></tr>`;
+        `<tr><td ${cTotalL}><strong>Total deducciones</strong></td><td ${cTotalR}><strong>${fmtPay(ded)}</strong></td></tr>`;
     } else {
-      dedRows = `<tr><td colspan="2" style="padding:8px;color:#495057;font-size:0.88rem">Sin deducciones registradas.</td></tr>`;
+      dedRows = `<tr><td class="slip-td slip-td--empty" colspan="2">Sin deducciones registradas.</td></tr>`;
     }
     const checklist = Array.isArray(sd.finiquitoChecklist) ? sd.finiquitoChecklist : [];
     const checklistBlock = checklist.length
-      ? `<h2 style="font-size:1rem;margin:0.75rem 0 0.35rem">III. Checklist legal post-liquidación</h2>
-          <ul style="margin:0 0 1rem 1.1rem;font-size:0.86rem;color:#495057;line-height:1.5">${checklist.map((x) => `<li>${escapeHtml(String(x))}</li>`).join("")}</ul>`
+      ? `<section class="slip-section">
+          <div class="slip-section__head">
+            <span class="slip-section__badge">III</span>
+            <div><h2 class="slip-section__title">Checklist legal post-liquidación</h2></div>
+          </div>
+          <ul class="slip-checklist">${checklist.map((x) => `<li>${escapeHtml(String(x))}</li>`).join("")}</ul>
+        </section>`
       : "";
 
-    payslipBodyBlocks = `
-          <h2 style="font-size:1rem;margin:1.25rem 0 0.35rem">I. Devengos (finiquito / liquidación)</h2>
-          <p style="margin:0 0 0.5rem;font-size:0.86rem;color:#495057">Ítems típicos por terminación conforme ordenamiento laboral colombiano (valores editables en el registro del sistema).</p>
-          <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:1rem">${theadP}<tbody>${devRows}</tbody></table>
-          <h2 style="font-size:1rem;margin:0.75rem 0 0.35rem">II. Deducciones</h2>
-          <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:1rem">${theadP}<tbody>${dedRows}</tbody></table>
-          ${checklistBlock}
-          <table style="width:100%;border-collapse:collapse;font-size:0.95rem;margin-top:0.5rem"><tbody>
-            <tr><td style="padding:12px 8px"><strong>Total neto a consignar / pagar</strong></td><td style="padding:12px 8px;text-align:right;font-size:1.12rem"><strong>${netStr}</strong></td></tr>
-          </tbody></table>`;
+    payslipBodyBlocks =
+      slipSection(
+        "I",
+        "Devengos (finiquito / liquidación)",
+        "Ítems típicos por terminación conforme ordenamiento laboral colombiano (valores editables en el registro del sistema).",
+        `${theadP}<tbody>${devRows}</tbody>`
+      ) +
+      slipSection("II", "Deducciones", "", `${theadP}<tbody>${dedRows}</tbody>`) +
+      checklistBlock +
+      slipNetBox("Total neto a consignar / pagar");
   } else {
     const linesFromRun = resolvePayrollDevengosLines(run);
     const baseInt = parseNum(run.cesantiasInterestBaseCop);
@@ -347,12 +370,12 @@ async function openPayrollRunPayslipById(runId) {
             labelHtml = escapeHtml(intLabel);
           }
           if (L.incapacityNote) {
-            labelHtml += `<span style="font-size:0.82rem;color:#6c757d;display:block;margin-top:3px;line-height:1.35">${escapeHtml(String(L.incapacityNote))}</span>`;
+            labelHtml += `<span class="slip-note">${escapeHtml(String(L.incapacityNote))}</span>`;
           }
-          return `<tr><td style="${cL}">${labelHtml}</td><td style="${cR}">${fmtPay(L.amount)}</td></tr>`;
+          return `<tr><td ${cL}>${labelHtml}</td><td ${cR}>${fmtPay(L.amount)}</td></tr>`;
         })
         .join("");
-      devRowsMes += `<tr><td style="${cL}"><strong>Total devengos del período</strong></td><td style="${cR}"><strong>${fmtPay(run.gross)}</strong></td></tr>`;
+      devRowsMes += `<tr><td ${cTotalL}><strong>Total devengos del período</strong></td><td ${cTotalR}><strong>${fmtPay(run.gross)}</strong></td></tr>`;
     } else {
       const ex = parseNum(run.extras);
       const au = parseNum(run.aux);
@@ -363,86 +386,86 @@ async function openPayrollRunPayslipById(runId) {
       const intCe = parseNum(run.interesesCesantiasCop);
       const salarioBasicoDevengo = Math.max(0, parseNum(run.gross) - ex - au - bo - via - comb - prima - intCe);
       devRowsMes =
-        `<tr><td style="${cL}">Salario básico mensual (devengo ordinario)</td><td style="${cR}">${fmtPay(salarioBasicoDevengo)}</td></tr>` +
+        `<tr><td ${cL}>Salario básico mensual (devengo ordinario)</td><td ${cR}>${fmtPay(salarioBasicoDevengo)}</td></tr>` +
         (ex > 0
-          ? `<tr><td style="${cL}">Horas extras, dominicales o recargos nocturnos</td><td style="${cR}">${fmtPay(ex)}</td></tr>`
+          ? `<tr><td ${cL}>Horas extras, dominicales o recargos nocturnos</td><td ${cR}>${fmtPay(ex)}</td></tr>`
           : "") +
-        `<tr><td style="${cL}">Auxilio legal de transporte (no constitutivo de salario)</td><td style="${cR}">${fmtPay(au)}</td></tr>` +
+        `<tr><td ${cL}>Auxilio legal de transporte (no constitutivo de salario)</td><td ${cR}>${fmtPay(au)}</td></tr>` +
         (bo > 0
-          ? `<tr><td style="${cL}">Bonificaciones y pagos ocasionales gravables (devengo)</td><td style="${cR}">${fmtPay(bo)}</td></tr>`
+          ? `<tr><td ${cL}>Bonificaciones y pagos ocasionales gravables (devengo)</td><td ${cR}>${fmtPay(bo)}</td></tr>`
           : "") +
-        `<tr><td style="${cL}">Viáticos y anticipos de viaje (reintegro / no salario)</td><td style="${cR}">${fmtPay(via)}</td></tr>` +
-        `<tr><td style="${cL}">Reembolso combustible y gastos de ruta deducibles</td><td style="${cR}">${fmtPay(comb)}</td></tr>` +
+        `<tr><td ${cL}>Viáticos y anticipos de viaje (reintegro / no salario)</td><td ${cR}>${fmtPay(via)}</td></tr>` +
+        `<tr><td ${cL}>Reembolso combustible y gastos de ruta deducibles</td><td ${cR}>${fmtPay(comb)}</td></tr>` +
         (prima > 0
-          ? `<tr><td style="${cL}">Prima de servicios semestral (CST arts. 244–249 — ${run.primaServiciosDays ?? "—"} días semestre)</td><td style="${cR}">${fmtPay(prima)}</td></tr>`
+          ? `<tr><td ${cL}>Prima de servicios semestral (CST arts. 244–249 — ${run.primaServiciosDays ?? "—"} días semestre)</td><td ${cR}>${fmtPay(prima)}</td></tr>`
           : "") +
-        (intCe > 0 ? `<tr><td style="${cL}">${escapeHtml(intLabel)}</td><td style="${cR}">${fmtPay(intCe)}</td></tr>` : "") +
-        `<tr><td style="${cL}"><strong>Total devengos del período</strong></td><td style="${cR}"><strong>${fmtPay(run.gross)}</strong></td></tr>`;
+        (intCe > 0 ? `<tr><td ${cL}>${escapeHtml(intLabel)}</td><td ${cR}>${fmtPay(intCe)}</td></tr>` : "") +
+        `<tr><td ${cTotalL}><strong>Total devengos del período</strong></td><td ${cTotalR}><strong>${fmtPay(run.gross)}</strong></td></tr>`;
     }
 
     const isTripPrestacion = payrollRunFrequencyKind(run) === "prestacion_viajes";
     const dedRowsMes = isTripPrestacion
-      ? `<tr><td style="${cL}" colspan="2">Prestación de servicios: sin aportes de salud, pensión ni FSP en este comprobante (pago por viajes).</td></tr>` +
-        `<tr><td style="${cL}"><strong>Total deducciones</strong></td><td style="${cR}"><strong>${fmtPay(run.deductions)}</strong></td></tr>`
-      : `<tr><td style="${cL}">Salario integral de cotización — IBC (base aportes empleador/empleado)</td><td style="${cR}">${fmtPay(run.ibc)}</td></tr>` +
-        `<tr><td style="${cL}">Aporte obligatorio salud — empleado (${(CO_PAYROLL.healthEmployeeRate * 100).toFixed(2).replace(/\.00$/, "")}% sobre IBC)</td><td style="${cR}">${fmtPay(run.health)}</td></tr>` +
-        `<tr><td style="${cL}">Aporte pensión obligatoria — empleado (${(CO_PAYROLL.pensionEmployeeRate * 100).toFixed(2).replace(/\.00$/, "")}% sobre IBC)</td><td style="${cR}">${fmtPay(run.pension)}</td></tr>` +
-        `<tr><td style="${cL}">Fondo de solidaridad pensional FSP (cuando aplique rangos Ley 797/2003)</td><td style="${cR}">${fmtPay(run.solidarity)}</td></tr>` +
-        `<tr><td style="${cL}"><strong>Total deducciones al empleado</strong></td><td style="${cR}"><strong>${fmtPay(run.deductions)}</strong></td></tr>`;
+      ? `<tr><td class="slip-td slip-td--empty" colspan="2">Prestación de servicios: sin aportes de salud, pensión ni FSP en este comprobante (pago por viajes).</td></tr>` +
+        `<tr><td ${cTotalL}><strong>Total deducciones</strong></td><td ${cTotalR}><strong>${fmtPay(run.deductions)}</strong></td></tr>`
+      : `<tr><td ${cL}>Salario integral de cotización — IBC (base aportes empleador/empleado)</td><td ${cR}>${fmtPay(run.ibc)}</td></tr>` +
+        `<tr><td ${cL}>Aporte obligatorio salud — empleado (${(CO_PAYROLL.healthEmployeeRate * 100).toFixed(2).replace(/\.00$/, "")}% sobre IBC)</td><td ${cR}>${fmtPay(run.health)}</td></tr>` +
+        `<tr><td ${cL}>Aporte pensión obligatoria — empleado (${(CO_PAYROLL.pensionEmployeeRate * 100).toFixed(2).replace(/\.00$/, "")}% sobre IBC)</td><td ${cR}>${fmtPay(run.pension)}</td></tr>` +
+        `<tr><td ${cL}>Fondo de solidaridad pensional FSP (cuando aplique rangos Ley 797/2003)</td><td ${cR}>${fmtPay(run.solidarity)}</td></tr>` +
+        `<tr><td ${cTotalL}><strong>Total deducciones al empleado</strong></td><td ${cTotalR}><strong>${fmtPay(run.deductions)}</strong></td></tr>`;
     const workedDaysRows =
       workedDays > 0 || workedDaysPaymentCop > 0
-        ? `<tr><td style="${cL}">Pago por días laborados (${workedDays.toLocaleString("es-CO")} días)</td><td style="${cR}">${fmtPay(workedDaysPaymentCop)}</td></tr>`
-        : `<tr><td style="${cL}" colspan="2">Sin detalle de días laborados para este comprobante.</td></tr>`;
+        ? `<tr><td ${cL}>Pago por días laborados (${workedDays.toLocaleString("es-CO")} días)</td><td ${cR}>${fmtPay(workedDaysPaymentCop)}</td></tr>`
+        : `<tr><td class="slip-td slip-td--empty" colspan="2">Sin detalle de días laborados para este comprobante.</td></tr>`;
 
-    payslipBodyBlocks = `
-          <h2 style="font-size:1rem;margin:1.25rem 0 0.35rem">I. Devengos e ingresos período</h2>
-          <p style="margin:0 0 0.45rem;font-size:0.86rem;color:#495057">${
-            isTripPrestacion
-              ? "Pago por prestación de servicios (viajes interdepartamentales y reembolsos de ruta)."
-              : "Ingresos y conceptos pagados por el empleador; prima e intereses de cesantías solo si se liquidaron en este comprobante."
-          }</p>
-          <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:1rem">${theadP}<tbody>${devRowsMes}</tbody></table>
-          <h2 style="font-size:1rem;margin:0.75rem 0 0.35rem">II. Deducciones (aportes del trabajador)</h2>
-          <p style="margin:0 0 0.45rem;font-size:0.86rem;color:#495057">Descuentos legales incidentes sobre nómina; prima e intereses de cesantías no integran habitualmente esta base de cotización en este modelo simplificado.</p>
-          <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:1rem">${theadP}<tbody>${dedRowsMes}</tbody></table>
-          <h2 style="font-size:1rem;margin:0.75rem 0 0.35rem">III. Resumen de días laborados</h2>
-          <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:1rem">${theadP}<tbody>${workedDaysRows}</tbody></table>
-          <table style="width:100%;border-collapse:collapse;font-size:0.95rem;margin-top:0.5rem"><tbody>
-            <tr><td style="padding:12px 8px"><strong>Neto pagado / a pagar al trabajador</strong></td><td style="padding:12px 8px;text-align:right;font-size:1.12rem"><strong>${netStr}</strong></td></tr>
-          </tbody></table>`;
+    payslipBodyBlocks =
+      slipSection(
+        "I",
+        "Devengos e ingresos período",
+        isTripPrestacion
+          ? "Pago por prestación de servicios (viajes interdepartamentales y reembolsos de ruta)."
+          : "Ingresos y conceptos pagados por el empleador; prima e intereses de cesantías solo si se liquidaron en este comprobante.",
+        `${theadP}<tbody>${devRowsMes}</tbody>`
+      ) +
+      slipSection(
+        "II",
+        "Deducciones (aportes del trabajador)",
+        "Descuentos legales incidentes sobre nómina; prima e intereses de cesantías no integran habitualmente esta base de cotización en este modelo simplificado.",
+        `${theadP}<tbody>${dedRowsMes}</tbody>`
+      ) +
+      slipSection("III", "Resumen de días laborados", "", `${theadP}<tbody>${workedDaysRows}</tbody>`) +
+      slipNetBox("Neto pagado / a pagar al trabajador");
   }
   const docTitle =
     isTerm && run.settlementDetail && typeof run.settlementDetail === "object"
       ? `Liquidación contractual ${run.employeeName}`
       : `Desprendible ${run.employeeName}`;
   const h1Title = isTerm ? "Liquidación contractual" : "Desprendible de nómina";
-  let metaExtra = "";
+  const slipStatusLabel = run.paid ? "Pagado" : "Pendiente de pago";
+  const slipStatusClass = run.paid ? "slip-badge--paid" : "slip-badge--pending";
+  const generatedBy = payrollRunGeneratedByLabel(run);
+  const metaItem = (label, value, highlight = false) =>
+    `<div class="slip-meta__item${highlight ? " slip-meta__item--highlight" : ""}"><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(cleanSlipText(String(value || "-")))}</dd></div>`;
+  let metaExtraItems = "";
   if (isTerm && run.settlementDetail && typeof run.settlementDetail === "object") {
     const sd = run.settlementDetail;
-    metaExtra += `<tr><td style="padding:4px 0"><strong>Fecha terminación</strong></td><td>${escapeHtml(String(sd.terminationDate || "-"))}</td></tr>`;
-    metaExtra += `<tr><td style="padding:4px 0"><strong>Motivo</strong></td><td>${escapeHtml(String(causeLabels[sd.terminationCause] || sd.terminationCause || "-"))}</td></tr>`;
+    metaExtraItems +=
+      metaItem("Fecha terminación", sd.terminationDate || "-") +
+      metaItem("Motivo", causeLabels[sd.terminationCause] || sd.terminationCause || "-");
   }
   const absenceDetailRows = !isTerm ? resolvePayrollAbsenceSlipRows(run, read(KEYS.hrAbsences, [])) : [];
+  const absenceThead = `<thead><tr class="slip-thead slip-thead--3"><th>Ausentismo</th><th>Concepto</th><th class="slip-th--num">Cantidad</th></tr></thead>`;
   const absenceDetailBlock = absenceDetailRows.length
-    ? `
-          <h2 style="font-size:1rem;margin:0.75rem 0 0.35rem">IV. Detalle de ausentismo</h2>
-          <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:1rem">
-            <thead>
-              <tr style="background:#F5F7FA">
-                <th style="text-align:left;padding:8px">Ausentismo</th>
-                <th style="text-align:left;padding:8px">Concepto</th>
-                <th style="text-align:right;padding:8px">Cantidad</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${absenceDetailRows
-                .map(
-                  (row) =>
-                    `<tr><td style="${cL}">${escapeHtml(cleanSlipText(String(row.typeLabel || "Ausentismo")))}</td><td style="${cL}">${escapeHtml(cleanSlipText(String(row.conceptLabel || "")))}</td><td style="${cR}">${escapeHtml(payrollFormatAbsenceQuantity(row.quantity))}</td></tr>`
-                )
-                .join("")}
-            </tbody>
-          </table>`
+    ? slipSection(
+        "IV",
+        "Detalle de ausentismo",
+        "",
+        `${absenceThead}<tbody>${absenceDetailRows
+          .map(
+            (row) =>
+              `<tr><td ${cL}>${escapeHtml(cleanSlipText(String(row.typeLabel || "Ausentismo")))}</td><td ${cL}>${escapeHtml(cleanSlipText(String(row.conceptLabel || "")))}</td><td ${cR}>${escapeHtml(payrollFormatAbsenceQuantity(row.quantity))}</td></tr>`
+          )
+          .join("")}</tbody>`
+      )
     : "";
   const disclaimerPieces = [];
   if (!isTerm) {
@@ -474,11 +497,11 @@ async function openPayrollRunPayslipById(runId) {
   }
   const disclaimer =
     isTerm && run.settlementDetail && typeof run.settlementDetail === "object" && run.settlementDetail.legalDisclaimer
-      ? `<p style="font-size:0.82rem;color:#495057;margin-top:1rem;line-height:1.45">${escapeHtml(String(run.settlementDetail.legalDisclaimer))}</p>`
+      ? `<aside class="slip-disclaimer">${escapeHtml(String(run.settlementDetail.legalDisclaimer))}</aside>`
       : disclaimerPieces.length
-        ? `<p style="font-size:0.82rem;color:#495057;margin-top:1rem;line-height:1.45">${escapeHtml(disclaimerPieces.join(" "))}</p>`
+        ? `<aside class="slip-disclaimer">${escapeHtml(disclaimerPieces.join(" "))}</aside>`
         : "";
-  const employeeMetaRows = [
+  const employeeMetaItems = [
     { label: "Tipo de contrato", value: String(employee?.contractType || "-") },
     { label: "Periodicidad de pago", value: String(employee?.payFrequency || "-") },
     { label: "Centro de costos", value: String(resolvePayrollEmployeeCostCenter(employee) || "-") },
@@ -495,12 +518,7 @@ async function openPayrollRunPayslipById(runId) {
     },
     { label: "IBC (base de cotización)", value: `$${parseNum(run.ibc || 0).toLocaleString("es-CO")}` }
   ]
-    .map(
-      (row) =>
-        `<tr><td style="padding:4px 0"><strong>${escapeHtml(row.label)}</strong></td><td>${escapeHtml(
-          cleanSlipText(String(row.value || "-"))
-        )}</td></tr>`
-    )
+    .map((row) => metaItem(row.label, row.value))
     .join("");
   const approvedByLabel =
     run.paid && run.approvedBy
@@ -508,53 +526,204 @@ async function openPayrollRunPayslipById(runId) {
       : "";
   const signatureSrc = contractLegalRepSignatureSrc();
   const signatureBlock = `
-          <div style="margin-top:2rem;padding-top:1.25rem;border-top:1px solid #e9ecef;display:flex;justify-content:flex-start;gap:2rem;flex-wrap:wrap">
-            <div style="flex:0 1 280px;text-align:center">
-              <img src="${escapeAttr(signatureSrc)}" alt="Firma del representante legal" style="max-width:200px;max-height:72px;object-fit:contain;display:block;margin:0 auto 10px" />
-              <p style="margin:0;font-size:0.88rem;line-height:1.45;color:#0B1D33">
-                <strong>${escapeHtml(String(CONTRACT_LEGAL_REP_NAME))}</strong><br />
-                ${escapeHtml(String(CONTRACT_LEGAL_REP_ID_DOC))}<br />
-                Representante legal<br />
-                ${escapeHtml(String(company?.name || "Transportes Antares"))}
-              </p>
+          <section class="slip-signature">
+            <p class="slip-signature__kicker">Firma del empleador</p>
+            <div class="slip-signature__card">
+              <img class="slip-signature__img" src="${escapeAttr(signatureSrc)}" alt="Firma del representante legal" />
+              <div class="slip-signature__line"></div>
+              <p class="slip-signature__name">${escapeHtml(String(CONTRACT_LEGAL_REP_NAME))}</p>
+              <p class="slip-signature__meta">${escapeHtml(String(CONTRACT_LEGAL_REP_ID_DOC))}</p>
+              <p class="slip-signature__role">Representante legal · ${escapeHtml(String(company?.name || "Transportes Antares"))}</p>
             </div>
-          </div>`;
+          </section>`;
+  const slipStyles = `<style>
+    @page { size: A4; margin: 14mm 12mm; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, Arial, sans-serif;
+      color: #0B1D33;
+      background: #e8eef5;
+      line-height: 1.5;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .slip-shell { padding: 20px 16px 28px; }
+    .slip-page {
+      max-width: 780px;
+      margin: 0 auto;
+      background: #fff;
+      border: 1px solid #d7e5f3;
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 14px 42px rgba(11,33,51,.10);
+    }
+    .slip-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 22px 24px 18px;
+      background: linear-gradient(135deg, #0B1D33 0%, #1a3a5c 58%, #377cc0 100%);
+      color: #fff;
+    }
+    .slip-header__kicker {
+      margin: 0 0 4px;
+      font-size: .72rem;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      opacity: .82;
+    }
+    .slip-header__title { margin: 0; font-size: 1.45rem; font-weight: 700; line-height: 1.2; }
+    .slip-header__company { margin: 6px 0 0; font-size: .92rem; opacity: .9; }
+    .slip-logo {
+      width: 92px; min-width: 92px; height: 92px;
+      border-radius: 16px; background: #fff; border: 1px solid rgba(255,255,255,.25);
+      padding: 10px; display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 8px 22px rgba(0,0,0,.18);
+    }
+    .slip-logo img { width: 100%; height: 100%; object-fit: contain; display: block; }
+    .slip-body { padding: 22px 24px 26px; }
+    .slip-status-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      margin-bottom: 16px; flex-wrap: wrap;
+    }
+    .slip-badge {
+      display: inline-flex; align-items: center; padding: 5px 12px; border-radius: 999px;
+      font-size: .78rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase;
+    }
+    .slip-badge--paid { background: #e8f7ee; color: #1f6b3f; border: 1px solid #b9e3c8; }
+    .slip-badge--pending { background: #fff6e8; color: #9a6116; border: 1px solid #f2d4a6; }
+    .slip-period { margin: 0; font-size: .9rem; color: #64748b; }
+    .slip-period strong { color: #0B1D33; }
+    .slip-meta {
+      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 18px;
+      margin: 0 0 20px; padding: 16px 18px; background: #f7fafc; border: 1px solid #e3edf7; border-radius: 12px;
+    }
+    .slip-meta__item { min-width: 0; }
+    .slip-meta__item dt {
+      margin: 0 0 2px; font-size: .72rem; font-weight: 700; letter-spacing: .04em;
+      text-transform: uppercase; color: #64748b;
+    }
+    .slip-meta__item dd { margin: 0; font-size: .9rem; color: #0B1D33; word-break: break-word; }
+    .slip-meta__item--highlight { grid-column: 1 / -1; padding-top: 4px; border-top: 1px dashed #d7e5f3; }
+    .slip-meta__item--highlight dd { font-size: 1rem; font-weight: 700; }
+    .slip-content-title {
+      margin: 0 0 14px; padding-bottom: 8px; border-bottom: 2px solid #e8eef5;
+      font-size: 1rem; color: #1a3a5c;
+    }
+    .slip-section { margin-bottom: 18px; }
+    .slip-section__head { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 10px; }
+    .slip-section__badge {
+      flex: 0 0 auto; width: 30px; height: 30px; border-radius: 8px;
+      background: #377cc0; color: #fff; font-size: .78rem; font-weight: 700;
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+    .slip-section__title { margin: 0; font-size: .98rem; color: #0B1D33; }
+    .slip-section__hint { margin: 4px 0 0; font-size: .82rem; color: #64748b; line-height: 1.45; }
+    .slip-table-wrap { border: 1px solid #e3edf7; border-radius: 10px; overflow: hidden; }
+    .slip-table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+    .slip-thead th {
+      padding: 9px 12px; text-align: left; background: #e8eef5; color: #1a3a5c;
+      font-size: .76rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase;
+    }
+    .slip-th--num, .slip-td--num { text-align: right; font-variant-numeric: tabular-nums; }
+    .slip-td {
+      padding: 9px 12px; border-top: 1px solid #edf2f7; vertical-align: top; color: #243b53;
+    }
+    .slip-td--total { background: #f7fafc; font-weight: 700; color: #0B1D33; }
+    .slip-td--empty { color: #64748b; font-size: .86rem; font-style: italic; }
+    .slip-note { display: block; margin-top: 3px; font-size: .8rem; color: #64748b; line-height: 1.35; }
+    .slip-checklist {
+      margin: 0; padding: 12px 16px 12px 28px; background: #f7fafc; border: 1px solid #e3edf7;
+      border-radius: 10px; font-size: .84rem; color: #495057; line-height: 1.5;
+    }
+    .slip-net {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+      margin-top: 6px; padding: 16px 18px; border-radius: 12px;
+      background: linear-gradient(135deg, #0B1D33 0%, #1a3a5c 100%); color: #fff;
+    }
+    .slip-net__label { font-size: .95rem; font-weight: 600; }
+    .slip-net__value { font-size: 1.35rem; font-weight: 800; letter-spacing: .01em; }
+    .slip-disclaimer {
+      margin-top: 16px; padding: 12px 14px; border-left: 3px solid #f2d4a6;
+      background: #fffaf2; border-radius: 0 10px 10px 0; font-size: .8rem; color: #5c4a32; line-height: 1.45;
+    }
+    .slip-signature { margin-top: 24px; padding-top: 18px; border-top: 1px solid #e3edf7; }
+    .slip-signature__kicker {
+      margin: 0 0 12px; font-size: .72rem; font-weight: 700; letter-spacing: .08em;
+      text-transform: uppercase; color: #64748b;
+    }
+    .slip-signature__card { max-width: 320px; text-align: center; }
+    .slip-signature__img { max-width: 210px; max-height: 76px; object-fit: contain; display: block; margin: 0 auto 8px; }
+    .slip-signature__line { height: 1px; background: #0B1D33; margin: 0 auto 10px; width: 88%; }
+    .slip-signature__name { margin: 0; font-size: .92rem; font-weight: 700; color: #0B1D33; }
+    .slip-signature__meta, .slip-signature__role { margin: 2px 0 0; font-size: .82rem; color: #64748b; }
+    .slip-footer {
+      margin-top: 18px; padding-top: 12px; border-top: 1px solid #edf2f7;
+      font-size: .74rem; color: #94a3b8; text-align: center;
+    }
+    .slip-actions { margin-top: 18px; text-align: center; }
+    .slip-print-btn {
+      padding: 11px 22px; border-radius: 10px; border: none; cursor: pointer;
+      background: #377cc0; color: #fff; font-size: .92rem; font-weight: 600;
+      box-shadow: 0 8px 20px rgba(55,124,192,.28);
+    }
+    .slip-print-btn:hover { background: #2a6399; }
+    @media print {
+      body { background: #fff; }
+      .slip-shell { padding: 0; }
+      .slip-page { max-width: none; border: none; border-radius: 0; box-shadow: none; }
+      .slip-actions, .no-print { display: none !important; }
+      .slip-section, .slip-net, .slip-signature { break-inside: avoid; }
+    }
+    @media (max-width: 640px) {
+      .slip-header { flex-direction: column-reverse; align-items: flex-start; }
+      .slip-meta { grid-template-columns: 1fr; }
+    }
+  </style>`;
   pop.document.write(`
-        <html><head><meta charset="utf-8"/><title>${escapeHtml(docTitle)}</title></head>
-        <body style="font-family:system-ui,Segoe UI,Arial,sans-serif;padding:28px;color:#0B1D33;line-height:1.5">
-          <div style="border-bottom:2px solid #0B1D33;padding-bottom:12px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;gap:18px">
-            <div style="min-width:0;flex:1 1 auto">
-              <h1 style="margin:0;font-size:1.35rem">${escapeHtml(h1Title)}</h1>
-              <p style="margin:0.35rem 0 0;font-size:0.9rem;color:#495057">${escapeHtml(String(company?.name || "Transportes Antares"))}</p>
+        <html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>${escapeHtml(docTitle)}</title>${slipStyles}</head>
+        <body>
+        <div class="slip-shell">
+        <article class="slip-page">
+          <header class="slip-header">
+            <div>
+              <p class="slip-header__kicker">Comprobante oficial de pago</p>
+              <h1 class="slip-header__title">${escapeHtml(h1Title)}</h1>
+              <p class="slip-header__company">${escapeHtml(String(company?.name || "Transportes Antares"))}</p>
             </div>
-            <div style="width:94px;min-width:94px;height:94px;border-radius:18px;background:#fff;border:1px solid #d7e5f3;padding:10px;display:flex;align-items:center;justify-content:center;box-shadow:0 10px 24px rgba(11,33,56,0.10)">
-              <img src="${escapeAttr(logoSrc)}" alt="${escapeAttr(logoAlt)}" style="width:100%;height:100%;object-fit:contain;display:block" />
+            <div class="slip-logo">
+              <img src="${escapeAttr(logoSrc)}" alt="${escapeAttr(logoAlt)}" />
             </div>
-          </div>
-          <table style="width:100%;font-size:0.92rem;margin-bottom:1.2rem">
-            <tr><td style="padding:4px 0"><strong>Empleador</strong></td><td>${escapeHtml(String(company?.name || "Antares"))}</td></tr>
-            <tr><td style="padding:4px 0"><strong>Trabajador</strong></td><td>${escapeHtml(String(run.employeeName || ""))}</td></tr>
-            <tr><td style="padding:4px 0"><strong>Documento</strong></td><td>${escapeHtml(String(employee?.idDoc || "-"))}</td></tr>
-            <tr><td style="padding:4px 0"><strong>Cargo</strong></td><td>${escapeHtml(String(employee?.position || "-"))}</td></tr>
-            <tr><td style="padding:4px 0"><strong>Periodo registrado</strong></td><td>${escapeHtml(String(run.month || ""))}</td></tr>
-            ${(() => {
-              const generatedBy = payrollRunGeneratedByLabel(run);
-              return generatedBy
-                ? `<tr><td style="padding:4px 0"><strong>Generado por</strong></td><td>${escapeHtml(generatedBy)}</td></tr>`
-                : "";
-            })()}
-            ${employeeMetaRows}
-            ${metaExtra}
-            <tr><td style="padding:4px 0"><strong>Estado</strong></td><td>${run.paid ? "Pagado" : "Pendiente de pago"}</td></tr>
-            <tr><td style="padding:4px 0"><strong>Fecha de pago</strong></td><td>${escapeHtml(String(paidAtLabel))}</td></tr>
-            ${run.paid && approvedByLabel ? `<tr><td style="padding:4px 0"><strong>Aprobado por</strong></td><td>${escapeHtml(approvedByLabel)}</td></tr>` : ""}
-          </table>
-          <h2 style="font-size:1rem;margin:1.05rem 0 0">Comprobante de pago</h2>
+          </header>
+          <div class="slip-body">
+            <div class="slip-status-row">
+              <span class="slip-badge ${slipStatusClass}">${escapeHtml(slipStatusLabel)}</span>
+              <p class="slip-period">Período <strong>${escapeHtml(String(run.month || "-"))}</strong></p>
+            </div>
+            <div class="slip-meta">
+              ${metaItem("Empleador", company?.name || "Antares")}
+              ${metaItem("Trabajador", run.employeeName || "", true)}
+              ${metaItem("Documento", employee?.idDoc || "-")}
+              ${metaItem("Cargo", employee?.position || "-")}
+              ${generatedBy ? metaItem("Generado por", generatedBy) : ""}
+              ${employeeMetaItems}
+              ${metaExtraItems}
+              ${metaItem("Estado", slipStatusLabel)}
+              ${metaItem("Fecha de pago", paidAtLabel)}
+              ${approvedByLabel ? metaItem("Aprobado por", approvedByLabel) : ""}
+            </div>
+            <h2 class="slip-content-title">Detalle del comprobante</h2>
           ${payslipBodyBlocks}
           ${absenceDetailBlock}
           ${disclaimer}
           ${signatureBlock}
-          <p style="margin-top:1.5rem"><button onclick="window.print()" style="padding:10px 18px;border-radius:8px;border:none;background:#0B1D33;color:#fff;cursor:pointer">Imprimir / PDF</button></p>
+          <p class="slip-footer">Documento generado por Antares · ${escapeHtml(String(company?.name || "Transportes Antares"))}</p>
+          <div class="slip-actions no-print"><button type="button" class="slip-print-btn" onclick="window.print()">Imprimir / guardar PDF</button></div>
+          </div>
+        </article>
+        </div>
         </body></html>
       `);
   pop.document.close();

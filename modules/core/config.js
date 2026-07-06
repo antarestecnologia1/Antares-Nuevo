@@ -338,6 +338,7 @@ export const UI_PREFS = {
 export const HR_WORKSPACE_STORAGE = {
   payroll: "antares_hr_payroll_workspace_v1",
   hiring: "antares_hr_hiring_workspace_v1",
+  sst: "antares_sst_workspace_v1",
   requests: "antares_requests_workspace_v1",
   transportTrips: "antares_transport_trips_workspace_v1",
   transportVehicles: "antares_transport_vehicles_workspace_v1"
@@ -350,6 +351,7 @@ export const CLIENT_DATA_SCOPE = {
 };
 export const HR_VALID_PAYROLL_WS = new Set(["operate", "data"]);
 export const HR_VALID_HIRING_WS = new Set(["operate", "data"]);
+export const HR_VALID_SST_WS = new Set(["operate", "data"]);
 export const HR_VALID_REQUESTS_WS = new Set(["operate", "data"]);
 export const HR_VALID_TRANSPORT_TRIPS_WS = new Set(["operate", "data"]);
 export const HR_VALID_TRANSPORT_VEHICLES_WS = new Set(["operate", "data"]);

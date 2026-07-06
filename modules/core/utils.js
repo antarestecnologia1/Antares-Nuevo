@@ -9,6 +9,7 @@ import {
   HR_VALID_HIRING_WS,
   HR_VALID_PAYROLL_WS,
   HR_VALID_REQUESTS_WS,
+  HR_VALID_SST_WS,
   PAYROLL_OPERATE_CREATE_PANEL_IDS,
   PAYROLL_OPERATE_SECTION_PANEL,
   TRANSPORT_TRIPS_OPERATE_CREATE_PANEL_IDS,
@@ -375,7 +376,14 @@ export function normalizeHrWorkspace(moduleId, workspace) {
     return HR_VALID_HIRING_WS.has(ws) ? ws : "operate";
   }
   if (moduleId === "requests") return HR_VALID_REQUESTS_WS.has(ws) ? ws : "operate";
+  if (moduleId === "sst") return HR_VALID_SST_WS.has(ws) ? ws : "operate";
   return ws;
+}
+
+export function normalizeSstDataSection(section) {
+  const s = String(section || "").trim().toLowerCase();
+  if (s === "audit" || s === "auditoria" || s === "records") return "audit";
+  return "due";
 }
 
 /** Formato fijo: +57 y máximo 10 dígitos nacionales (sin depender de slice(-10) que provocaba dígitos erróneos al editar). */

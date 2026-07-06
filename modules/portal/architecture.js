@@ -139,7 +139,12 @@ window.PortalArchitecture = (() => {
       access: "admin-or-rrhh",
       shell: true,
       renderer: [{ module: "rrhh", exportName: "laborComplianceHtml" }],
-      layoutPlan: [{ container: ".sst-studio", order: [".fleet-hero-strip", "[id^='create-']", ".p-card", ".table-wrap", ".empty-state"] }]
+      layoutPlan: [
+        {
+          container: ".sst-studio",
+          order: [".hr-workspace-header--payroll", ".hr-workspace-panels"]
+        }
+      ]
     },
     "admin-users": {
       title: "Administración · Usuarios y permisos",
