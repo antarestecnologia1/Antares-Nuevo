@@ -7258,6 +7258,7 @@ function renderPayrollEmployeeContractIconActions(e, contract, hrAdminDeletes) {
   return `<div class="payroll-contracts-icon-actions">
     <button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--view" data-action="view-employee" data-id="${id}" title="Ver perfil">${IC.eye}</button>
     <button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--edit" data-action="edit-employee" data-id="${id}" title="Editar">${IC.edit}</button>
+    <button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--letter" data-action="employee-generate-labor-letter" data-id="${id}" title="Carta laboral">${IC.mail}</button>
     ${
       canAct
         ? `<button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--renew" data-action="renew-employee-contract" data-id="${id}" title="Renovar contrato">${IC.rotateCcw}</button>
@@ -7359,6 +7360,7 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = fa
         <button type="button" class="btn btn-sm btn-outline" data-action="view-employee" data-id="${escapeAttr(String(e.id))}" title="Perfil">${IC.eye}</button>
         <button type="button" class="btn btn-sm btn-action" data-action="edit-employee" data-id="${escapeAttr(String(e.id))}" title="Editar">${IC.edit}</button>
         ${renderPayrollContractActionButtons(e, contract, { compact })}
+        <button type="button" class="btn btn-sm btn-outline" data-action="employee-generate-labor-letter" data-id="${escapeAttr(String(e.id))}" title="Generar carta laboral (CST)">${IC.file} Carta</button>
         <button type="button" class="btn btn-sm btn-outline" data-action="employee-generate-contract" data-id="${escapeAttr(String(e.id))}" title="Generar o descargar contrato Word">${IC.download}</button>
         ${hrAdminDeletes ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-employee" data-id="${escapeAttr(String(e.id))}" title="Eliminar">${IC.trash}</button>` : ""}
         ${selectHtml}
@@ -7402,6 +7404,7 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = fa
       <button type="button" class="btn btn-sm btn-outline" data-action="view-employee" data-id="${escapeAttr(String(e.id))}">${IC.eye} Perfil</button>
       <button type="button" class="btn btn-sm btn-action" data-action="edit-employee" data-id="${escapeAttr(String(e.id))}">${IC.edit} Editar</button>
       ${renderPayrollContractActionButtons(e, contract)}
+      <button type="button" class="btn btn-sm btn-outline" data-action="employee-generate-labor-letter" data-id="${escapeAttr(String(e.id))}" title="Carta laboral">${IC.mail} Carta laboral</button>
       <button type="button" class="btn btn-sm btn-outline" data-action="employee-generate-contract" data-id="${escapeAttr(String(e.id))}">${IC.file} Contrato</button>
       ${hrAdminDeletes ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-employee" data-id="${escapeAttr(String(e.id))}" title="Eliminar colaborador">${IC.trash}</button>` : ""}
     </footer>
@@ -11325,15 +11328,32 @@ function installEmployeeContractDelegation() {
   if (document.body.dataset.antaresEmpContractBound === "1") return;
   document.body.dataset.antaresEmpContractBound = "1";
   document.body.addEventListener("click", async (event) => {
-    const btn =
+    const contractBtn =
       event.target instanceof Element
         ? event.target.closest("[data-action='employee-generate-contract']")
         : null;
-    if (!btn) return;
+    if (contractBtn) {
+      event.preventDefault();
+      const id = String(contractBtn.dataset.id || "").trim();
+      if (!id || contractBtn.disabled || contractBtn.dataset.busy === "1") return;
+      await runWithBusyButton(contractBtn, () => runEmployeeContractGeneration(id), { busyText: "Generando…" });
+      return;
+    }
+    const letterBtn =
+      event.target instanceof Element
+        ? event.target.closest("[data-action='employee-generate-labor-letter']")
+        : null;
+    if (!letterBtn) return;
     event.preventDefault();
-    const id = String(btn.dataset.id || "").trim();
-    if (!id || btn.disabled || btn.dataset.busy === "1") return;
-    await runWithBusyButton(btn, () => runEmployeeContractGeneration(id), { busyText: "Generando…" });
+    const letterId = String(letterBtn.dataset.id || "").trim();
+    if (!letterId || letterBtn.disabled || letterBtn.dataset.busy === "1") return;
+    if (typeof globalThis.runEmploymentLetterFlow !== "function") {
+      notify("Módulo de carta laboral no disponible (recargue la página).", "error");
+      return;
+    }
+    await runWithBusyButton(letterBtn, () => globalThis.runEmploymentLetterFlow(letterId), {
+      busyText: "Preparando…"
+    });
   });
 }
 

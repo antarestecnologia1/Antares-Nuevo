@@ -5,7 +5,7 @@
 import { state, nodes, persistHrWorkspace } from "../core/store.js";
 import { read, writeAwaitServer } from "../core/data-io.js";
 import { KEYS, HR_VALID_SST_WS } from "../core/config.js";
-import { escapeHtml, escapeAttr, buildModuleCreatePanelsState, normalizeHrWorkspace, normalizeSstDataSection } from "../core/utils.js";
+import { escapeHtml, escapeAttr, buildModuleCreatePanelsState, normalizeHrWorkspace, normalizeSstDataSection, normalizeSstOperateSection } from "../core/utils.js";
 import {
   renderHrWorkspaceTabs,
   renderHrWorkspaceHeader,
@@ -178,23 +178,41 @@ function countMissingComplianceItems(employees) {
 }
 
 function renderSstModuleHead({ recordsCount, dueCount, missingCount }) {
-  const items = [
-    `<div class="hiring-studio-kpi hiring-studio-kpi--neutral" title="Controles registrados en auditoría"><dt>Controles</dt><dd><strong>${escapeHtml(String(recordsCount))}</strong></dd></div>`,
-    `<div class="hiring-studio-kpi hiring-studio-kpi--${dueCount ? "warn" : "ok"}" title="Vencimientos próximos, vencidos o sin programar"><dt>Vencimientos</dt><dd><strong>${escapeHtml(String(dueCount))}</strong></dd></div>`
+  const metrics = [
+    `<div class="sst-metric"><dt>Controles</dt><dd>${escapeHtml(String(recordsCount))}</dd></div>`,
+    `<div class="sst-metric sst-metric--${dueCount ? "warn" : ""}"><dt>Vencimientos</dt><dd>${escapeHtml(String(dueCount))}</dd></div>`
   ];
   if (missingCount > 0) {
-    items.push(
-      `<div class="hiring-studio-kpi hiring-studio-kpi--alert" title="Colaboradores o registros sin fecha"><dt>Sin fecha</dt><dd><strong>${escapeHtml(String(missingCount))}</strong></dd></div>`
+    metrics.push(
+      `<div class="sst-metric sst-metric--alert"><dt>Sin fecha</dt><dd>${escapeHtml(String(missingCount))}</dd></div>`
     );
   }
-  return `<header class="sst-studio-head hiring-studio-head hiring-module-head hiring-module-head--compact">
-    <div class="hiring-studio-head__brand hiring-module-head__title">
-      <span class="hiring-studio-head__badge">SST · Colombia</span>
+  return `<div class="sst-studio-head">
+    <div class="sst-studio-head__brand">
+      <p class="sst-studio-head__kicker">SST · Colombia</p>
       <h2>Cumplimiento laboral y SST</h2>
-      <p class="hiring-studio-head__tagline">Seguridad social, exámenes ocupacionales, instruviales y trazabilidad documental.</p>
+      <p class="sst-studio-head__tagline">Seguridad social, exámenes ocupacionales, instruviales y trazabilidad documental.</p>
     </div>
-    <dl class="hiring-studio-kpis hiring-module-head__kpi" aria-label="Indicadores de cumplimiento SST">${items.join("")}</dl>
-  </header>`;
+    <dl class="sst-studio-head__metrics" aria-label="Indicadores de cumplimiento SST">${metrics.join("")}</dl>
+  </div>`;
+}
+
+function renderSstOperateSectionNav(activeId, IC) {
+  const tabs = [
+    { id: "alerts", label: "Resumen", icon: IC.activity || "" },
+    { id: "create", label: "Registrar", icon: IC.plus || "" }
+  ];
+  return `<nav class="sst-operate-nav" role="tablist" aria-label="Trámites SST">
+    ${tabs
+      .map((tab) => {
+        const active = activeId === tab.id;
+        return `<button type="button" role="tab" aria-selected="${active ? "true" : "false"}" class="sst-operate-nav__btn${active ? " is-active" : ""}" data-action="sst-operate-section" data-section="${escapeAttr(tab.id)}">
+          <span class="sst-operate-nav__ico" aria-hidden="true">${tab.icon}</span>
+          <span class="sst-operate-nav__label">${escapeHtml(tab.label)}</span>
+        </button>`;
+      })
+      .join("")}
+  </nav>`;
 }
 
 function filterSstListItems(items, searchNorm, fieldsFn) {
@@ -214,13 +232,13 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
     const emptyState = G.emptyState;
     const renderManagedCreateFormActions = G.renderManagedCreateFormActions;
     const createHrActionCard = G.createHrActionCard;
-    const pcardWrap = G.pcardWrap;
     const canManageSstModule = G.canManageSstModule;
 
     if (typeof fieldLabel !== "function" || typeof canManageSstModule !== "function") return "";
 
-    const sstUi = state.sstUi || { workspace: "operate", dataSection: "due", listSearch: "" };
+    const sstUi = state.sstUi || { workspace: "operate", operateSection: "alerts", dataSection: "due", listSearch: "" };
     const sstWorkspace = normalizeHrWorkspace("sst", sstUi.workspace);
+    const sstOperateSection = normalizeSstOperateSection(sstUi.operateSection);
     const sstDataSection = normalizeSstDataSection(sstUi.dataSection);
     const listSearchRaw = String(sstUi.listSearch || "");
     const listSearchNorm = listSearchRaw.trim().toLowerCase();
@@ -421,24 +439,40 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
         { id: "data", label: "Consultar", icon: "eye", hint: "Vencimientos y auditoría" }
       ]
     });
-    const sstWorkspaceHeader = renderHrWorkspaceHeader(sstModuleHead, sstTabsNav, "payroll");
-    const sstOperateCards = [
-      pcardWrap("activity", "Alertas", null, alertsBody),
-      sstCanMutate
-        ? createHrActionCard(
-            "create-sst-control",
-            "shield",
-            "Nuevo control SST / legal",
-            "Registre obligaciones, vencimientos y evidencias de cumplimiento",
-            complianceForm,
-            "Abrir formulario",
-            { createPanels: sstCreateUi }
-          )
-        : pcardWrap("shield", "Nuevo control SST / legal", "Solo lectura", emptyState("No tiene permiso para registrar controles SST."))
-    ].join("");
-    const sstOperatePanel = `<div class="hr-workspace-panel payroll-workspace-panel${sstWorkspace === "operate" ? "" : " hidden"}" role="tabpanel" data-sst-panel="operate">
-      <section class="sst-operate payroll-operate-panel">
-        <div class="payroll-actions-grid">${sstOperateCards}</div>
+    const sstWorkspaceHeader = renderHrWorkspaceHeader(sstModuleHead, sstTabsNav, "hiring");
+    const sstRailCollapsed = typeof G.isOperateRailCollapsed === "function" ? G.isOperateRailCollapsed("sst") : false;
+    const sstOperateNav = renderSstOperateSectionNav(sstOperateSection, IC);
+    const sstAlertsPane = `<div class="auth-tab-panel sst-card${sstOperateSection === "alerts" ? "" : " hidden"}" data-sst-operate-pane="alerts"${sstOperateSection === "alerts" ? "" : " hidden"} aria-hidden="${sstOperateSection === "alerts" ? "false" : "true"}">
+      <div class="sst-card__head">
+        <h3>Alertas de cumplimiento</h3>
+        <span class="muted">${dueItems.length} vencimiento${dueItems.length === 1 ? "" : "s"} activo${dueItems.length === 1 ? "" : "s"}</span>
+      </div>
+      ${alertsBody}
+    </div>`;
+    const sstCreatePaneBody = sstCanMutate
+      ? createHrActionCard(
+          "create-sst-control",
+          "shield",
+          "Nuevo control SST / legal",
+          "Registre obligaciones, vencimientos y evidencias de cumplimiento",
+          complianceForm,
+          "Abrir formulario",
+          { createPanels: sstCreateUi }
+        )
+      : `<div class="sst-card">${emptyState("No tiene permiso para registrar controles SST.")}</div>`;
+    const sstCreatePane = `<div class="auth-tab-panel${sstOperateSection === "create" ? "" : " hidden"}" data-sst-operate-pane="create"${sstOperateSection === "create" ? "" : " hidden"} aria-hidden="${sstOperateSection === "create" ? "false" : "true"}">${sstCreatePaneBody}</div>`;
+    const sstOperatePanel = `<div class="hr-workspace-panel${sstWorkspace === "operate" ? "" : " hidden"}" role="tabpanel" data-sst-panel="operate"${sstWorkspace === "operate" ? "" : " hidden"}>
+      <section class="sst-operate${sstRailCollapsed ? " is-rail-collapsed" : ""}">
+        <aside class="sst-operate__rail" aria-label="Trámites SST">
+          <div class="sst-operate__rail-head">
+            <span class="sst-operate__rail-label">Trámite</span>
+            <button type="button" class="sst-operate__rail-toggle" data-action="sst-operate-rail-toggle" aria-expanded="${sstRailCollapsed ? "false" : "true"}" title="${sstRailCollapsed ? "Expandir trámites" : "Contraer trámites"}">
+              <span class="sst-operate__rail-toggle-ico" aria-hidden="true">${IC.chevronLeft || ""}</span>
+            </button>
+          </div>
+          ${sstOperateNav}
+        </aside>
+        <div class="sst-operate__main auth-tab-panels">${sstAlertsPane}${sstCreatePane}</div>
       </section>
     </div>`;
     const sstDataNav = renderModuleWindowTabs({
@@ -451,30 +485,30 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
         { id: "audit", label: "Auditoría", count: records.length }
       ]
     });
-    const sstDataSearchBar = `<div class="hiring-data-search-toolbar">
-      <label class="hiring-data-search">
+    const sstDataSearchBar = `<div class="sst-data-search-toolbar">
+      <label class="sst-data-search">
         <span class="muted">${IC.search || ""} Buscar</span>
         <input type="search" data-action="sst-data-list-search" value="${escapeAttr(listSearchRaw)}" placeholder="Empleado, control, entidad, documento…" autocomplete="off" />
       </label>
     </div>`;
     const dueMeta = `<p class="payroll-result-meta muted" title="Vencimientos próximos, vencidos o sin programar"><strong>${filteredDueItems.length}</strong>${listSearchNorm ? ` <span class="muted">· ${dueItems.length}</span>` : ""} ítems</p>`;
     const auditMeta = `<p class="payroll-result-meta muted" title="Controles registrados en auditoría documental"><strong>${filteredRecords.length}</strong>${listSearchNorm ? ` <span class="muted">· ${records.length}</span>` : ""} registros</p>`;
-    const duePane = `<div class="payroll-data-pane${sstDataSection === "due" ? "" : " hidden"}" data-sst-section="due">
+    const duePane = `<div class="payroll-data-pane${sstDataSection === "due" ? "" : " hidden"}" data-sst-section="due"${sstDataSection === "due" ? "" : " hidden"}>
       ${dueMeta}
       <div class="payroll-table-shell">${dueItemsTable}</div>
     </div>`;
-    const auditPane = `<div class="payroll-data-pane${sstDataSection === "audit" ? "" : " hidden"}" data-sst-section="audit">
+    const auditPane = `<div class="payroll-data-pane${sstDataSection === "audit" ? "" : " hidden"}" data-sst-section="audit"${sstDataSection === "audit" ? "" : " hidden"}>
       ${auditMeta}
       <div class="payroll-table-shell">${recordsTable}</div>
     </div>`;
-    const sstDataPanel = `<div class="hr-workspace-panel payroll-workspace-panel${sstWorkspace === "data" ? "" : " hidden"}" role="tabpanel" data-sst-panel="data">
-      <section class="sst-data-panel payroll-data-panel">
+    const sstDataPanel = `<div class="hr-workspace-panel${sstWorkspace === "data" ? "" : " hidden"}" role="tabpanel" data-sst-panel="data"${sstWorkspace === "data" ? "" : " hidden"}>
+      <section class="sst-data-panel">
         ${sstDataSearchBar}
-        <div class="payroll-data-toolbar payroll-data-toolbar--compact">${sstDataNav}</div>
+        ${sstDataNav}
         <div class="payroll-data-panes">${duePane}${auditPane}</div>
       </section>
     </div>`;
-    const studioClass = `sst-studio sst-shell sst-shell--workspace hr-flow-shell payroll-shell payroll-shell--workspace${sstWorkspace === "data" ? " payroll-module--clean payroll-studio--consult" : ""}`;
+    const studioClass = `sst-studio sst-shell sst-shell--workspace hr-flow-shell${sstWorkspace === "data" ? " sst-studio--consult" : ""}`;
     return `<section class="${studioClass}" data-hr-workspace="${escapeAttr(sstWorkspace)}">${sstWorkspaceHeader}
       <div class="hr-workspace-panels">
         ${sstOperatePanel}
@@ -498,16 +532,49 @@ function bindLaborCompliancePortalControls() {
       const ws = normalizeHrWorkspace("sst", tab);
       if (!HR_VALID_SST_WS.has(ws)) return;
       if (normalizeHrWorkspace("sst", state.sstUi?.workspace) === ws) return;
-      state.sstUi = { ...(state.sstUi || {}), workspace: ws, ...(ws === "operate" ? { listSearch: "" } : {}) };
+      state.sstUi = {
+        ...(state.sstUi || {}),
+        workspace: ws,
+        ...(ws === "operate" ? { listSearch: "" } : {})
+      };
       persistHrWorkspace("sst", ws);
+      G.renderPortalView?.();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='sst-operate-rail-toggle']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const panel = btn.closest(".sst-operate");
+      if (!panel) return;
+      const collapsed = panel.classList.toggle("is-rail-collapsed");
+      btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+      btn.setAttribute("title", collapsed ? "Expandir trámites" : "Contraer trámites");
+      G.setOperateRailCollapsed?.("sst", collapsed);
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='sst-operate-section']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const section = normalizeSstOperateSection(btn.dataset.section);
+      state.sstUi = { ...(state.sstUi || {}), operateSection: section, workspace: "operate" };
+      if (section === "create") {
+        state.createPanels = buildModuleCreatePanelsState(["create-sst-control"], "create-sst-control", state.createPanels || {}, {
+          expandActive: true
+        });
+      }
+      persistHrWorkspace("sst", "operate");
       if (
-        switchHrWorkspacePanels({
+        switchModuleTabPanels({
           root: nodes.viewRoot,
-          moduleId: "sst",
-          workspace: ws,
-          panelAttr: "data-sst-panel"
+          action: "sst-operate-section",
+          activeValue: section,
+          panelAttr: "data-sst-operate-pane",
+          tabActiveClass: "is-active"
         })
       ) {
+        if (section === "create" && typeof G.syncModuleCreatePanelsInDom === "function") {
+          G.syncModuleCreatePanelsInDom(nodes.viewRoot, ["create-sst-control"], "create-sst-control", { expandActive: true });
+        }
         return;
       }
       G.renderPortalView?.();
@@ -519,12 +586,6 @@ function bindLaborCompliancePortalControls() {
       const section = normalizeSstDataSection(btn.dataset.section);
       state.sstUi = { ...(state.sstUi || {}), dataSection: section, workspace: "data" };
       persistHrWorkspace("sst", "data");
-      switchHrWorkspacePanels({
-        root: nodes.viewRoot,
-        moduleId: "sst",
-        workspace: "data",
-        panelAttr: "data-sst-panel"
-      });
       if (
         switchModuleTabPanels({
           root: nodes.viewRoot,
@@ -534,6 +595,12 @@ function bindLaborCompliancePortalControls() {
           tabActiveClass: "is-active"
         })
       ) {
+        switchHrWorkspacePanels({
+          root: nodes.viewRoot,
+          moduleId: "sst",
+          workspace: "data",
+          panelAttr: "data-sst-panel"
+        });
         return;
       }
       G.renderPortalView?.();

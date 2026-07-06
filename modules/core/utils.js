@@ -386,6 +386,11 @@ export function normalizeSstDataSection(section) {
   return "due";
 }
 
+export function normalizeSstOperateSection(section) {
+  const s = String(section || "").trim().toLowerCase();
+  return s === "create" ? "create" : "alerts";
+}
+
 /** Formato fijo: +57 y máximo 10 dígitos nacionales (sin depender de slice(-10) que provocaba dígitos erróneos al editar). */
 export function formatColombianPhone(value) {
   let d = String(value || "").replace(/\D/g, "");

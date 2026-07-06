@@ -22,20 +22,108 @@
   padding-bottom: 0.5rem;
 }
 
-.sst-studio .sst-studio-head,
-.sst-studio .sst-studio-head {
+.sst-studio > .hr-workspace-header {
+  margin: 0;
+}
+
+.sst-studio > .hr-workspace-header .sst-studio-head {
+  flex: 1 1 12rem;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.sst-studio-head {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem 1.5rem;
-  padding: 1.15rem 1.35rem;
-  border-radius: var(--sst-radius);
-  border: 1px solid var(--sst-edge-strong);
-  background: linear-gradient(135deg, color-mix(in srgb, var(--sst-accent) 8%, transparent), transparent 55%), var(--sst-card);
-  box-shadow: var(--sst-shadow-sm);
-  position: relative;
-  overflow: hidden;
+}
+
+.sst-studio-head__brand {
+  min-width: 0;
+  flex: 1 1 14rem;
+}
+
+.sst-studio-head__kicker {
+  margin: 0 0 0.2rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--sst-accent);
+}
+
+.sst-studio-head h2 {
+  margin: 0;
+  font-size: clamp(1.15rem, 2vw, 1.45rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--sst-navy);
+}
+
+.sst-studio-head__tagline {
+  margin: 0.35rem 0 0;
+  max-width: 42rem;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: var(--text-soft, #64748b);
+}
+
+.sst-studio-head__metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sst-metric {
+  margin: 0;
+  padding: 0.45rem 0.72rem;
+  border-radius: 12px;
+  border: 1px solid var(--sst-edge);
+  background: rgba(255, 255, 255, 0.82);
+  min-width: 5.5rem;
+}
+
+.sst-metric dt {
+  margin: 0 0 0.12rem;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-soft, #64748b);
+}
+
+.sst-metric dd {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--sst-navy);
+  line-height: 1.1;
+}
+
+.sst-metric--warn {
+  border-color: rgba(245, 158, 11, 0.35);
+  background: rgba(254, 243, 199, 0.55);
+}
+
+.sst-metric--alert {
+  border-color: rgba(239, 68, 68, 0.35);
+  background: rgba(254, 226, 226, 0.55);
+}
+
+.sst-studio .hr-workspace-panels {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
 }
 
 .sst-studio .sst-operate {
@@ -55,9 +143,17 @@
   box-shadow: var(--sst-shadow-sm);
 }
 
+.sst-studio .sst-operate__rail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  margin-bottom: 0.45rem;
+}
+
 .sst-studio .sst-operate__rail-label {
   display: block;
-  margin: 0 0 0.5rem 0.55rem;
+  margin: 0 0 0 0.15rem;
   font-size: 0.62rem;
   font-weight: 800;
   letter-spacing: 0.1em;
@@ -65,7 +161,98 @@
   color: var(--text-soft);
 }
 
-.sst-studio .sst-operate__main { min-width: 0; }
+.sst-studio .sst-operate__rail-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1px solid var(--sst-edge);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text-soft);
+  cursor: pointer;
+}
+
+.sst-studio .sst-operate.is-rail-collapsed .sst-operate__rail-label,
+.sst-studio .sst-operate.is-rail-collapsed .sst-operate-nav__label {
+  display: none;
+}
+
+.sst-studio .sst-operate.is-rail-collapsed {
+  grid-template-columns: 3.25rem minmax(0, 1fr);
+}
+
+.sst-operate-nav {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.sst-operate-nav__btn {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  padding: 0.62rem 0.7rem;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-soft);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.sst-operate-nav__btn:hover {
+  background: rgba(55, 124, 192, 0.08);
+  color: var(--sst-navy);
+}
+
+.sst-operate-nav__btn.is-active {
+  border-color: var(--sst-edge-strong);
+  background: linear-gradient(135deg, rgba(55, 124, 192, 0.12), rgba(255, 255, 255, 0.95));
+  color: var(--sst-navy);
+  box-shadow: var(--sst-shadow-sm);
+}
+
+.sst-operate-nav__ico svg {
+  width: 1rem !important;
+  height: 1rem !important;
+}
+
+.sst-studio .sst-operate__main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.sst-studio .sst-card {
+  padding: 1rem 1.1rem 1.15rem;
+  border-radius: var(--sst-radius);
+  border: 1px solid var(--sst-edge);
+  background: var(--sst-card);
+  box-shadow: var(--sst-shadow-sm);
+}
+
+.sst-studio .sst-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+  margin-bottom: 0.85rem;
+}
+
+.sst-studio .sst-card__head h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--sst-navy);
+}
 
 .sst-studio .sst-data-panel {
   padding: 1rem 1.1rem 1.15rem;
@@ -73,6 +260,36 @@
   border: 1px solid var(--sst-edge);
   background: var(--sst-card);
   box-shadow: var(--sst-shadow-sm);
+}
+
+.sst-studio .sst-data-panel .auth-tabs-layout {
+  margin-bottom: 0.85rem;
+}
+
+.sst-studio .sst-data-search-toolbar {
+  margin-bottom: 0.85rem;
+}
+
+.sst-studio .sst-data-search {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.sst-studio .sst-data-search input {
+  width: 100%;
+}
+
+.sst-studio .sst-operate__main .hr-action-card,
+.sst-studio .sst-operate__main .p-card {
+  margin: 0;
+}
+
+.sst-studio .sst-operate__main .hr-alert-grid {
+  gap: 0.65rem;
+}
+
+.sst-studio.sst-studio--consult {
+  gap: 0.85rem;
 }
 
 .sst-studio .sst-form-card.admin-users-data-card {
@@ -84,8 +301,17 @@
 }
 
 @media (max-width: 900px) {
-  .sst-studio .sst-operate { grid-template-columns: 1fr; }
-  .sst-studio .sst-operate__rail { position: static; }
+  .sst-studio .sst-operate {
+    grid-template-columns: 1fr;
+  }
+
+  .sst-studio .sst-operate__rail {
+    position: static;
+  }
+
+  .sst-studio .sst-operate.is-rail-collapsed {
+    grid-template-columns: 1fr;
+  }
 }
 
 .sst-studio .p-card {

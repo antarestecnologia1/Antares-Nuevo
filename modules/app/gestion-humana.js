@@ -443,6 +443,7 @@ async function openPayrollRunPayslipById(runId) {
   const slipStatusLabel = run.paid ? "Pagado" : "Pendiente de pago";
   const slipStatusClass = run.paid ? "slip-badge--paid" : "slip-badge--pending";
   const generatedBy = payrollRunGeneratedByLabel(run);
+  const periodDisplay = payrollRunLegalPeriodDisplay(run, employee);
   const metaItem = (label, value, highlight = false) =>
     `<div class="slip-meta__item${highlight ? " slip-meta__item--highlight" : ""}"><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(cleanSlipText(String(value || "-")))}</dd></div>`;
   let metaExtraItems = "";
@@ -452,7 +453,7 @@ async function openPayrollRunPayslipById(runId) {
       metaItem("Fecha terminación", sd.terminationDate || "-") +
       metaItem("Motivo", causeLabels[sd.terminationCause] || sd.terminationCause || "-");
   }
-  const absenceDetailRows = !isTerm ? resolvePayrollAbsenceSlipRows(run, read(KEYS.hrAbsences, [])) : [];
+  const absenceDetailRows = !isTerm ? resolvePayrollAbsenceSlipRows(run, read(KEYS.hrAbsences, []), employee) : [];
   const absenceThead = `<thead><tr class="slip-thead slip-thead--3"><th>Ausentismo</th><th>Concepto</th><th class="slip-th--num">Cantidad</th></tr></thead>`;
   const absenceDetailBlock = absenceDetailRows.length
     ? slipSection(
@@ -595,7 +596,19 @@ async function openPayrollRunPayslipById(runId) {
     .slip-badge--paid { background: #e8f7ee; color: #1f6b3f; border: 1px solid #b9e3c8; }
     .slip-badge--pending { background: #fff6e8; color: #9a6116; border: 1px solid #f2d4a6; }
     .slip-period { margin: 0; font-size: .9rem; color: #64748b; }
-    .slip-period strong { color: #0B1D33; }
+    .slip-period-legal {
+      margin: 0 0 16px; padding: 16px 18px; border-radius: 12px;
+      background: linear-gradient(135deg, #f0f6fc 0%, #e8eef5 100%);
+      border: 1px solid #c8dcf0;
+    }
+    .slip-period-legal__label {
+      margin: 0 0 6px; font-size: .72rem; font-weight: 700; letter-spacing: .1em;
+      text-transform: uppercase; color: #377cc0;
+    }
+    .slip-period-legal__range {
+      margin: 0; font-size: 1.12rem; font-weight: 700; color: #0B1D33; line-height: 1.35;
+    }
+    .slip-period-legal__meta { margin: 6px 0 0; font-size: .84rem; color: #64748b; line-height: 1.45; }
     .slip-meta {
       display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 18px;
       margin: 0 0 20px; padding: 16px 18px; background: #f7fafc; border: 1px solid #e3edf7; border-radius: 12px;
@@ -700,13 +713,19 @@ async function openPayrollRunPayslipById(runId) {
           <div class="slip-body">
             <div class="slip-status-row">
               <span class="slip-badge ${slipStatusClass}">${escapeHtml(slipStatusLabel)}</span>
-              <p class="slip-period">Período <strong>${escapeHtml(String(run.month || "-"))}</strong></p>
+              <p class="slip-period">${escapeHtml(String(periodDisplay.typeLabel || payrollRunTypeLabel(run)))}</p>
+            </div>
+            <div class="slip-period-legal">
+              <p class="slip-period-legal__label">Período de nómina liquidado</p>
+              <p class="slip-period-legal__range">${escapeHtml(String(periodDisplay.range || "-"))}</p>
+              ${periodDisplay.meta ? `<p class="slip-period-legal__meta">${escapeHtml(String(periodDisplay.meta))}</p>` : ""}
             </div>
             <div class="slip-meta">
               ${metaItem("Empleador", company?.name || "Antares")}
               ${metaItem("Trabajador", run.employeeName || "", true)}
               ${metaItem("Documento", employee?.idDoc || "-")}
               ${metaItem("Cargo", employee?.position || "-")}
+              ${metaItem("Tipo de nómina", periodDisplay.typeLabel || payrollRunTypeLabel(run))}
               ${generatedBy ? metaItem("Generado por", generatedBy) : ""}
               ${employeeMetaItems}
               ${metaExtraItems}
@@ -728,6 +747,201 @@ async function openPayrollRunPayslipById(runId) {
       `);
   pop.document.close();
 }
+
+function runEmploymentLetterFlow(employeeId) {
+  if (abortUnlessCanManagePayroll()) return;
+  const all = read(KEYS.payrollEmployees, []);
+  const target = all.find((e) => String(e.id) === String(employeeId || ""));
+  if (!target) {
+    notify(userMessage("employeeDeleteNotFound"), "error");
+    return;
+  }
+  const normalized = normalizePayrollEmployeeRowDates(ensureEmployeeContractFields(target));
+  const today = colombiaTodayIsoDate();
+  const terminationCauseOptions = Object.entries(
+    typeof CO_TERMINATION_CAUSE_LABELS === "object" && CO_TERMINATION_CAUSE_LABELS ? CO_TERMINATION_CAUSE_LABELS : {}
+  ).map(([value, label]) => ({ value, label: String(label) }));
+  openEditModal({
+    title: "Generar carta laboral",
+    subtitle: `${String(normalized.name || "").trim()} · ${String(normalized.idDoc || "").trim()}`,
+    submitText: "Generar documento",
+    cancelBtnClass: "btn btn-sm btn-outline module-panel-btn module-panel-btn--cancel",
+    extraModalCardClass: "modal-card-edit--employment-letter",
+    fields: [
+      {
+        type: "section",
+        title: "Tipo de documento",
+        hint: "Constancia de vinculación vigente para terceros (créditos, trámites) o certificado al retiro (CST art. 57)."
+      },
+      {
+        name: "letterKind",
+        label: "Documento",
+        type: "select",
+        required: true,
+        value: "vigente",
+        options: [
+          { value: "vigente", label: "Constancia de vinculación vigente" },
+          { value: "retiro", label: "Certificado laboral al retiro (CST art. 57)" }
+        ]
+      },
+      {
+        name: "letterDate",
+        label: "Fecha del documento",
+        type: "date",
+        value: today,
+        required: true
+      },
+      {
+        name: "addressee",
+        label: "Destinatario",
+        type: "text",
+        value: "A quien interese",
+        placeholder: "Ej. Banco XYZ, entidad crediticia, consulado…"
+      },
+      {
+        name: "exportFormat",
+        label: "Formato de descarga",
+        type: "select",
+        required: true,
+        value: "preview",
+        options: [
+          { value: "preview", label: "Vista previa (imprimir o PDF/Word desde la ventana)" },
+          { value: "pdf", label: "Descargar PDF (.pdf)" },
+          { value: "word", label: "Descargar Word (.docx)" }
+        ]
+      },
+      {
+        type: "custom",
+        full: true,
+        html: `<label class="employee-letter-option"><input type="checkbox" name="includeSalary" checked /><span>Incluir remuneración y auxilio de transporte</span></label>`
+      },
+      {
+        type: "custom",
+        full: true,
+        html: `<label class="employee-letter-option"><input type="checkbox" name="includeSocialSecurity" checked /><span>Incluir afiliaciones EPS, pensión y ARL</span></label>`
+      },
+      {
+        name: "terminationDate",
+        label: "Fecha de retiro",
+        type: "date",
+        value: today,
+        hidden: true
+      },
+      {
+        name: "terminationCause",
+        label: "Causa del retiro",
+        type: "select",
+        value: "otro",
+        hidden: true,
+        options: terminationCauseOptions.length
+          ? terminationCauseOptions
+          : [{ value: "otro", label: "Otro" }]
+      }
+    ],
+    afterMount: (formEl) => {
+      const kindEl = formEl.querySelector("[name='letterKind']");
+      const syncRetiroFields = () => {
+        const isRetiro = String(kindEl?.value || "") === "retiro";
+        formEl.querySelectorAll("[name='terminationDate'], [name='terminationCause']").forEach((el) => {
+          const wrap = el.closest("label");
+          if (wrap) wrap.classList.toggle("hidden", !isRetiro);
+          wrap?.toggleAttribute("hidden", !isRetiro);
+          if (!isRetiro) el.removeAttribute("required");
+          else el.setAttribute("required", "required");
+        });
+      };
+      kindEl?.addEventListener("change", syncRetiroFields);
+      syncRetiroFields();
+    },
+    onSubmit: async (payload, formEl) => {
+      const fields = {
+        letterKind: String(payload.letterKind || "vigente").trim(),
+        letterDate: normalizePortalDateYmd(payload.letterDate),
+        addressee: String(payload.addressee || "A quien interese").trim(),
+        exportFormat: String(payload.exportFormat || "preview").trim().toLowerCase(),
+        includeSalary:
+          String(payload.includeSalary || "").toLowerCase() === "on" || payload.includeSalary === true,
+        includeSocialSecurity:
+          String(payload.includeSocialSecurity || "").toLowerCase() === "on" ||
+          payload.includeSocialSecurity === true,
+        terminationDate: normalizePortalDateYmd(payload.terminationDate),
+        terminationCause: String(payload.terminationCause || "otro").trim()
+      };
+      const check =
+        typeof validateEmploymentLetterRequest === "function"
+          ? validateEmploymentLetterRequest(normalized, fields)
+          : { ok: true };
+      if (!check.ok) {
+        failPortalField(formEl, check.field || "letterDate", check.message || "Revise los datos.");
+        return false;
+      }
+      const exportFn =
+        typeof exportEmploymentLetter === "function"
+          ? exportEmploymentLetter
+          : window.AntaresEmploymentLetter?.exportEmploymentLetter;
+      if (typeof exportFn !== "function") {
+        notify("Módulo de carta laboral no disponible (recargue la página).", "error");
+        return false;
+      }
+      try {
+        const result = await exportFn(normalized, fields);
+        if (!result?.ok) {
+          notify(String(result?.message || "No se pudo generar el documento."), "error");
+          return false;
+        }
+        const format = fields.exportFormat;
+        if (format === "pdf") {
+          notify(`PDF descargado (${result.fileName || "carta laboral"}) con firma del representante legal.`, "success");
+        } else if (format === "word") {
+          notify(`Word descargado (${result.fileName || "carta laboral"}) con firma del representante legal.`, "success");
+        } else {
+          notify("Carta laboral generada con firma del representante legal. Puede imprimir o descargar PDF/Word desde la vista previa.", "success");
+        }
+        return true;
+      } catch (err) {
+        notify(String(err?.message || "No se pudo generar la carta laboral."), "error");
+        return false;
+      }
+    }
+  });
+}
+
+globalThis.runEmploymentLetterFlow = runEmploymentLetterFlow;
+
+globalThis.runEmploymentLetterDownload = async (token, format) => {
+  if (abortUnlessCanManagePayroll()) return;
+  let payload;
+  try {
+    payload = JSON.parse(decodeURIComponent(escape(atob(String(token || "")))));
+  } catch (_e) {
+    notify("No se pudo leer los datos del documento. Genere la carta nuevamente.", "error");
+    return;
+  }
+  const empId = String(payload?.employeeId || "").trim();
+  const opts = payload?.opts && typeof payload.opts === "object" ? payload.opts : {};
+  const employee = read(KEYS.payrollEmployees, []).find((row) => String(row.id) === empId);
+  if (!employee) {
+    notify(userMessage("employeeDeleteNotFound"), "error");
+    return;
+  }
+  const normalized = normalizePayrollEmployeeRowDates(ensureEmployeeContractFields(employee));
+  const exportFn = window.AntaresEmploymentLetter?.exportEmploymentLetter || exportEmploymentLetter;
+  if (typeof exportFn !== "function") {
+    notify("Módulo de carta laboral no disponible (recargue la página).", "error");
+    return;
+  }
+  try {
+    const fmt = String(format || "pdf").trim().toLowerCase() === "word" ? "word" : "pdf";
+    const result = await exportFn(normalized, { ...opts, exportFormat: fmt });
+    if (!result?.ok) {
+      notify(String(result?.message || "No se pudo descargar el archivo."), "error");
+      return;
+    }
+    notify(`${fmt === "word" ? "Word" : "PDF"} descargado correctamente.`, "success");
+  } catch (err) {
+    notify(String(err?.message || "No se pudo descargar el archivo."), "error");
+  }
+};
 
 function bindPayrollPortalControls() {
   if (typeof scheduleContractRenewalNotificationCheck === "function") {
@@ -1726,13 +1940,14 @@ function bindPayrollPortalControls() {
       const isDriverSvc = employeeIsConductorServiceProvider(target);
       const liquidacionesSection = isDriverSvc ? "driverPayments" : "runs";
       const contractAction = `<button type="button" class="btn btn-action" data-action="employee-generate-contract" data-id="${escapeAttr(String(target.id || ""))}">${IC.download} Descargar contrato</button>`;
+      const laborLetterAction = `<button type="button" class="btn btn-outline" data-action="employee-generate-labor-letter" data-id="${escapeAttr(String(target.id || ""))}">${IC.mail} Carta laboral</button>`;
       const liquidacionesAction = `<button type="button" class="btn btn-outline" data-action="payroll-focus-employee-runs" data-employee-id="${escapeAttr(String(target.id || ""))}" data-payroll-section="${escapeAttr(liquidacionesSection)}">${IC.dollar} Ver liquidaciones</button>`;
       openInfoModal({
         title: "Ficha del colaborador",
         subtitle: `${String(target.position || "Colaborador").trim()} · ${String(target.idDoc || "").trim()}`,
         bodyHtml: `${buildEmployeePayrollProfileBodyHtml(target)}${payrollHistoryHtml}`,
         wide: true,
-        secondaryActionsHtml: `${liquidacionesAction}${contractAction}`,
+        secondaryActionsHtml: `${liquidacionesAction}${laborLetterAction}${contractAction}`,
         afterMount: (content) => {
           bindPayrollPayslipButtons(content);
           wirePayrollEmployeeLiquidationActions(content);

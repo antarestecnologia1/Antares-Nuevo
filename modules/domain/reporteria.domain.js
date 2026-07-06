@@ -474,7 +474,7 @@ function loadVendorScriptOnce(src) {
  * jsPDF + autotable se cargan bajo demanda al exportar: son ~450 KB que el
  * visitante de la landing nunca necesita (antes iban como <script> en index.html).
  */
-async function ensureJsPdf() {
+export async function ensureJsPdfLoaded() {
   if (window.jspdf?.jsPDF) return window.jspdf.jsPDF;
   if (!jsPdfLoadPromise) {
     jsPdfLoadPromise = (async () => {
@@ -491,7 +491,7 @@ async function ensureJsPdf() {
 }
 
 export async function exportCatalogReportPdf(report, meta = {}) {
-  const jsPdfCtor = await ensureJsPdf();
+  const jsPdfCtor = await ensureJsPdfLoaded();
   const title = report?.title || "Reporte";
   const columns = Array.isArray(report?.columns) && report.columns.length ? report.columns : [{ key: "message", label: "Detalle" }];
   const rows = Array.isArray(report?.rows) ? report.rows : [];

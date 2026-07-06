@@ -142,7 +142,7 @@ window.PortalArchitecture = (() => {
       layoutPlan: [
         {
           container: ".sst-studio",
-          order: [".hr-workspace-header--payroll", ".hr-workspace-panels"]
+          order: [".hr-workspace-header--hiring", ".hr-workspace-panels"]
         }
       ]
     },

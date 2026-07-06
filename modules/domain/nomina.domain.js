@@ -12,9 +12,10 @@ import {
   CO_PAYROLL,
   CO_CATALOGS,
   CO_CESANTIAS_INTERES_ANUAL_PCT,
+  CO_TIMEZONE,
   PAYROLL_ABSENCE_LEGAL_LIMITS
 } from "../core/config.js";
-import { matchCatalogOptionValue } from "./payroll-catalog-sanitize.domain.js";
+import { listLiquidationCutsForMonth, resolvePayrollCutForClosingDate } from "./payroll-cut.domain.js";
 import { read } from "../core/data-io.js";
 import { state } from "../core/store.js";
 import {
@@ -24,7 +25,8 @@ import {
   formatPayrollPeriodLabel,
   monthRange,
   normalizePayrollFrequencyJs,
-  payrollPeriodCalendarYm
+  payrollPeriodCalendarYm,
+  payrollPeriodClosingDateYmd
 } from "../core/utils.js";
 import { notify, userMessage } from "../ui/modals.js";
 import { calcColombiaIncapacityEpsDayAdjustmentCop } from "./payroll-colombia-legal.domain.js";
@@ -1773,7 +1775,116 @@ export function payrollMergeAbsenceSlipRows(rows) {
   );
 }
 
-export function payrollResolveRunPeriodBounds(run) {
+/** Resuelve el corte de liquidación (fechas reales) desde novedades, clave de período o fecha de cierre. */
+export function resolvePayrollRunLiquidationCut(run, employee) {
+  if (!run || typeof run !== "object") return null;
+  const periodKey = String(run.month || "").trim();
+  const nv = run.noveltiesDetail;
+  const cutStart = payrollParseLocalYmd(nv?.corteNomina?.desde);
+  const cutEnd = payrollParseLocalYmd(nv?.corteNomina?.hasta);
+  if (cutStart && cutEnd && cutStart <= cutEnd) {
+    return {
+      periodKey: String(nv?.corteNomina?.clavePersistencia || periodKey),
+      calendarMonthYm: payrollPeriodCalendarYm(periodKey),
+      periodStart: cutStart,
+      periodEnd: cutEnd
+    };
+  }
+  let freq = payrollRunFrequencyKind(run);
+  if (freq === "terminacion" || freq === "prestacion_viajes") {
+    freq = employee ? normalizePayrollFrequencyJs(employee.payFrequency) : "mensual";
+  } else if (freq === "mensual" && /-(Q[12]|C[12]|S\d+)$/i.test(periodKey)) {
+    freq = payrollRunFrequencyKind({ month: periodKey });
+  }
+  const ym = payrollPeriodCalendarYm(periodKey);
+  const ymParts = /^(\d{4})-(\d{2})$/.exec(ym);
+  if (ymParts && periodKey) {
+    const y = Number(ymParts[1]);
+    const m0 = Number(ymParts[2]) - 1;
+    const cuts = listLiquidationCutsForMonth(freq, y, m0);
+    const match = cuts.find((c) => c.periodKey === periodKey);
+    if (match) return match;
+  }
+  const closeYmd = payrollPeriodClosingDateYmd(periodKey);
+  if (closeYmd) {
+    const resolved = resolvePayrollCutForClosingDate(closeYmd, freq, { force: true });
+    if (resolved && (!periodKey || resolved.periodKey === periodKey)) return resolved;
+  }
+  return null;
+}
+
+/** Rango legal para desprendibles: «Del 1 al 15 de marzo de 2026». */
+export function formatPayrollLegalDateRange(startDate, endDate) {
+  if (!(startDate instanceof Date) || !(endDate instanceof Date)) return "";
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return "";
+  const dayFmt = { day: "numeric", timeZone: CO_TIMEZONE };
+  const monthFmt = { month: "long", timeZone: CO_TIMEZONE };
+  const yearFmt = { year: "numeric", timeZone: CO_TIMEZONE };
+  const fullFmt = { day: "numeric", month: "long", year: "numeric", timeZone: CO_TIMEZONE };
+  const sDay = startDate.toLocaleDateString("es-CO", dayFmt);
+  const eDay = endDate.toLocaleDateString("es-CO", dayFmt);
+  const sMonth = startDate.toLocaleDateString("es-CO", monthFmt);
+  const eMonth = endDate.toLocaleDateString("es-CO", monthFmt);
+  const sYear = startDate.toLocaleDateString("es-CO", yearFmt);
+  const eYear = endDate.toLocaleDateString("es-CO", yearFmt);
+  if (sMonth === eMonth && sYear === eYear) {
+    return `Del ${sDay} al ${eDay} de ${sMonth} de ${sYear}`;
+  }
+  if (sYear === eYear) {
+    return `Del ${sDay} de ${sMonth} al ${eDay} de ${eMonth} de ${sYear}`;
+  }
+  return `Del ${startDate.toLocaleDateString("es-CO", fullFmt)} al ${endDate.toLocaleDateString("es-CO", fullFmt)}`;
+}
+
+/** Textos de período para desprendible / certificados (rango legal + metadatos). */
+export function payrollRunLegalPeriodDisplay(run, employee) {
+  const typeLabel = payrollRunTypeLabel(run);
+  if (String(run?.payrollKind || "") === "terminacion") {
+    const sd = run.settlementDetail;
+    const term = payrollParseLocalYmd(sd?.terminationDate);
+    const range = term
+      ? `Retiro laboral: ${term.toLocaleDateString("es-CO", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+          timeZone: CO_TIMEZONE
+        })}`
+      : formatPayrollPeriodLabel(run.month);
+    return { range, meta: formatPayrollPeriodLabel(run.month), typeLabel };
+  }
+  const cut = resolvePayrollRunLiquidationCut(run, employee);
+  if (cut?.periodStart && cut?.periodEnd) {
+    const closeYmd = payrollPeriodClosingDateYmd(run.month);
+    const closeDate = closeYmd ? payrollParseLocalYmd(closeYmd) : null;
+    const closeMeta =
+      closeDate && !Number.isNaN(closeDate.getTime())
+        ? closeDate.toLocaleDateString("es-CO", {
+            day: "numeric",
+            month: "long",
+            year: "numeric",
+            timeZone: CO_TIMEZONE
+          })
+        : "";
+    const metaBits = [typeLabel, formatPayrollPeriodLabel(run.month)].filter(Boolean);
+    if (closeMeta) metaBits.push(`fecha de corte ${closeMeta}`);
+    return {
+      range: formatPayrollLegalDateRange(cut.periodStart, cut.periodEnd),
+      meta: metaBits.join(" · "),
+      typeLabel
+    };
+  }
+  return {
+    range: formatPayrollPeriodLabel(run.month),
+    meta: typeLabel,
+    typeLabel
+  };
+}
+
+export function payrollResolveRunPeriodBounds(run, employee) {
+  const cut = resolvePayrollRunLiquidationCut(run, employee);
+  if (cut?.periodStart && cut?.periodEnd) {
+    return { start: cut.periodStart, end: cut.periodEnd };
+  }
   if (!run || typeof run !== "object") return null;
   const nv = run.noveltiesDetail;
   const cutStart = payrollParseLocalYmd(nv?.corteNomina?.desde);
@@ -1817,8 +1928,8 @@ export function buildPayrollAbsenceSlipRowsForPeriod({ employeeId, periodStart, 
   return payrollMergeAbsenceSlipRows(rows);
 }
 
-export function resolvePayrollAbsenceSlipRows(run, absencesAll) {
-  const bounds = payrollResolveRunPeriodBounds(run);
+export function resolvePayrollAbsenceSlipRows(run, absencesAll, employee) {
+  const bounds = payrollResolveRunPeriodBounds(run, employee);
   if (bounds) {
     const liveRows = buildPayrollAbsenceSlipRowsForPeriod({
       employeeId: run?.employeeId,

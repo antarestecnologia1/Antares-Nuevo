@@ -21,6 +21,7 @@ import {
   normalizeHiringOperateSection,
   normalizeHrWorkspace,
   normalizeSstDataSection,
+  normalizeSstOperateSection,
   normalizeTransportTripsSection,
   normalizeTransportTripsWorkspace,
   normalizeVehicleSection,
@@ -178,6 +179,7 @@ export let state = {
   },
   sstUi: {
     workspace: "operate",
+    operateSection: "alerts",
     dataSection: "due",
     listSearch: ""
   },
@@ -296,6 +298,7 @@ export function hydrateHrWorkspaceFromStorage() {
         state.sstUi = {
           ...(state.sstUi || {}),
           workspace: normalizeHrWorkspace("sst", parsed.workspace),
+          operateSection: normalizeSstOperateSection(parsed.operateSection),
           dataSection: normalizeSstDataSection(parsed.dataSection),
           listSearch: String(parsed.listSearch || "")
         };
@@ -386,6 +389,7 @@ export function persistHrWorkspace(moduleId, workspace) {
         HR_WORKSPACE_STORAGE.sst,
         JSON.stringify({
           workspace: normalizeHrWorkspace("sst", ui.workspace),
+          operateSection: normalizeSstOperateSection(ui.operateSection),
           dataSection: normalizeSstDataSection(ui.dataSection),
           listSearch: String(ui.listSearch || "")
         })
