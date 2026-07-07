@@ -47,17 +47,25 @@ export function escapeEmploymentLetterHtml(text) {
     .replace(/"/g, "&quot;");
 }
 
+const DEFAULT_EMPLOYMENT_LETTER_CITY = "Bogotá";
+
 export function resolveEmploymentLetterCompany(employee) {
   const companies = read(KEYS.companies, []);
   const companyId = String(employee?.companyId || "").trim();
   const company = companies.find((row) => String(row.id) === companyId) || companies[0] || {};
-  const city = String(company.city || employee?.city || "").trim();
+  const city = String(company.city || employee?.city || DEFAULT_EMPLOYMENT_LETTER_CITY).trim();
   const department = String(company.department || employee?.department || "").trim();
   const cityLine = city && department && !city.toLowerCase().includes(department.toLowerCase())
     ? `${city}, ${department}`
     : city || department || "Colombia";
+  const name = String(company.name || "Transportes Antares").trim();
+  const displayName =
+    /bogot[aá]/i.test(name) || !city
+      ? name
+      : `${name} ${city}`;
   return {
-    name: String(company.name || "Transportes Antares").trim(),
+    name,
+    displayName,
     nit: String(company.taxId || company.nit || "").trim(),
     address: String(company.address || "").trim(),
     city,
@@ -66,6 +74,150 @@ export function resolveEmploymentLetterCompany(employee) {
     phone: String(company.phone || "").trim(),
     email: String(company.email || "").trim()
   };
+}
+
+/** Fecha estilo carta: «6 de Julio de 2026». */
+export function formatEmploymentLetterDateEs(ymd) {
+  const base = formatContractNoticeDateEs(ymd);
+  if (!base) return "";
+  return base.replace(/ de ([a-záéíóúñ]+) de /i, (_, month) => {
+    const label = String(month || "").trim();
+    if (!label) return " de ";
+    return ` de ${label.charAt(0).toUpperCase()}${label.slice(1)} de `;
+  });
+}
+
+function parseEmploymentLetterYmdParts(ymd) {
+  const n = normalizeContractRenewalYmd(ymd);
+  if (!n) return null;
+  const p = /^(\d{4})-(\d{2})-(\d{2})$/.exec(n);
+  if (!p) return null;
+  return { year: p[1], month: Number(p[2]), day: Number(p[3]) };
+}
+
+/** Cierre: «…a los 6 días del mes de Julio de 2026». */
+function formatEmploymentLetterIssueClosingEs(ymd) {
+  const parts = parseEmploymentLetterYmdParts(ymd);
+  if (!parts || !parts.day) return "";
+  const months = [
+    "Enero",
+    "Febrero",
+    "Marzo",
+    "Abril",
+    "Mayo",
+    "Junio",
+    "Julio",
+    "Agosto",
+    "Septiembre",
+    "Octubre",
+    "Noviembre",
+    "Diciembre"
+  ];
+  const month = months[parts.month - 1];
+  if (!month) return "";
+  return `Esta certificación se expide a solicitud del interesado a los ${parts.day} días del mes de ${month} de ${parts.year}`;
+}
+
+function formatEmploymentLetterIdDoc(idDoc) {
+  const digits = String(idDoc || "").replace(/\D/g, "");
+  if (!digits) return String(idDoc || "").trim();
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
+
+function formatEmploymentLetterDocTypeLabel(docType) {
+  const dt = String(docType || "CC")
+    .trim()
+    .toUpperCase()
+    .replace(/\./g, "");
+  if (dt === "CC" || dt === "CÉDULA" || dt === "CEDULA" || dt === "C C") return "cédula de ciudadanía";
+  if (dt === "CE") return "cédula de extranjería";
+  if (dt === "PA" || dt === "PASAPORTE") return "pasaporte";
+  if (dt === "NIT") return "NIT";
+  if (dt === "TI") return "tarjeta de identidad";
+  return String(docType || "documento de identidad").trim().toLowerCase();
+}
+
+function salaryToWordsEsFallback(n) {
+  const toWords = window.RecruitmentDomain?.toWordsEs;
+  if (typeof toWords === "function") return toWords(n);
+  return salaryToWordsEsLocal(n);
+}
+
+/** Convierte enteros en letras (es-CO) para salarios en certificaciones. */
+function salaryToWordsEsLocal(n) {
+  const num = Math.max(0, Math.floor(Number(n) || 0));
+  if (!num) return "cero";
+  const units = ["", "uno", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve"];
+  const teens = ["diez", "once", "doce", "trece", "catorce", "quince", "dieciséis", "diecisiete", "dieciocho", "diecinueve"];
+  const tens = ["", "", "veinte", "treinta", "cuarenta", "cincuenta", "sesenta", "setenta", "ochenta", "noventa"];
+  const hundreds = ["", "ciento", "doscientos", "trescientos", "cuatrocientos", "quinientos", "seiscientos", "setecientos", "ochocientos", "novecientos"];
+
+  const underThousand = (x) => {
+    if (x === 0) return "";
+    if (x === 100) return "cien";
+    if (x < 10) return units[x];
+    if (x < 20) return teens[x - 10];
+    if (x < 30) return x === 20 ? "veinte" : `veinti${units[x - 20]}`;
+    if (x < 100) {
+      const d = Math.floor(x / 10);
+      const u = x % 10;
+      return u ? `${tens[d]} y ${units[u]}` : tens[d];
+    }
+    const h = Math.floor(x / 100);
+    const rest = x % 100;
+    return rest ? `${hundreds[h]} ${underThousand(rest)}` : hundreds[h];
+  };
+
+  const millions = Math.floor(num / 1000000);
+  const thousands = Math.floor((num % 1000000) / 1000);
+  const rest = num % 1000;
+  const parts = [];
+  if (millions) parts.push(millions === 1 ? "un millón" : `${underThousand(millions)} millones`);
+  if (thousands) parts.push(thousands === 1 ? "mil" : `${underThousand(thousands)} mil`);
+  if (rest) parts.push(underThousand(rest));
+  return parts.join(" ").replace(/\s+/g, " ").trim();
+}
+
+function formatEmploymentLetterAddresseeLine(addressee) {
+  const raw = String(addressee || "A quien interese").trim() || "A quien interese";
+  const upper = raw.toUpperCase().replace(/[.:]+$/, "");
+  return `${upper}:`;
+}
+
+/** Párrafo principal estilo certificación laboral. */
+export function buildActiveEmploymentLetterMainParagraph(meta) {
+  const salaryClause =
+    meta.includeSalary && meta.salaryLegalText
+      ? `, devengando un salario mensual de ${meta.salaryLegalText}`
+      : "";
+  return (
+    `Por medio de la presente, certificamos que el señor ${meta.nameUpper}, ` +
+    `identificado con ${meta.docTypeLabel} No ${meta.idDocFormatted}, labora en nuestra Compañía desde el ${meta.hireLabelCap}, ` +
+    `desempeñando el cargo de ${meta.positionUpper}, con un contrato ${meta.contractPhrase}${salaryClause}.`
+  );
+}
+
+/** Salario estilo certificación: «SIETE MILLONES… PESOS M/CTE. ($7.041.700)». */
+export function formatEmploymentLetterSalaryLegal(cop) {
+  const num = Math.round(Number(cop) || 0);
+  if (num <= 0) return "";
+  const words = salaryToWordsEsFallback(num).toUpperCase().replace(/\s+/g, " ").trim();
+  return `${words} PESOS M/CTE. ($${num.toLocaleString("es-CO")})`;
+}
+
+function formatEmploymentLetterContractPhrase(contractType, contractEndLabel = "") {
+  const ct = String(contractType || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  if (ct.includes("indefinido")) return "a término indefinido";
+  if (ct.includes("fijo") && contractEndLabel) {
+    return `a término fijo con vencimiento el ${formatEmploymentLetterDateEs(contractEndLabel) || contractEndLabel}`;
+  }
+  if (ct.includes("fijo")) return "a término fijo";
+  if (ct.includes("prestacion") || ct.includes("servicio")) return "de prestación de servicios";
+  return `de ${String(contractType || "vinculación laboral").trim()}`;
 }
 
 /** Tiempo de servicio en lenguaje natural (ingreso → fecha de corte inclusive). */
@@ -121,31 +273,54 @@ export function buildEmploymentLetterMeta(employee, opts = {}) {
   const contractType = String(e.contractType || "Término indefinido").trim();
   const workSchedule = String(e.workSchedule || "Diurna").trim();
   const isServiceProvider = employeeIsConductorServiceProvider(e);
+  const nameUpper = String(e.name || "")
+    .trim()
+    .toUpperCase();
+  const positionUpper = String(e.position || "—").trim().toUpperCase();
+  const idDocFormatted = formatEmploymentLetterIdDoc(e.idDoc);
+  const docTypeLabel = formatEmploymentLetterDocTypeLabel(e.documentType);
+  const letterDateCap = formatEmploymentLetterDateEs(letterDate) || letterDate;
+  const hireLabelCap = formatEmploymentLetterDateEs(hireYmd) || hireYmd || "—";
+  const salaryLegalText = includeSalary ? formatEmploymentLetterSalaryLegal(baseSalary) : "";
+  const contractPhrase = formatEmploymentLetterContractPhrase(contractType, e.contractEndDate);
+  const issueClosing = formatEmploymentLetterIssueClosingEs(letterDate);
+  const addresseeLine = formatEmploymentLetterAddresseeLine(addressee);
 
   return {
     letterKind,
     letterDate,
-    letterDateLabel: formatContractNoticeDateEs(letterDate) || letterDate,
+    letterDateLabel: letterDateCap,
+    letterDateCap,
     hireYmd,
     hireLabel: formatContractNoticeDateEs(hireYmd) || hireYmd || "—",
+    hireLabelCap,
     terminationDate,
     terminationLabel: formatContractNoticeDateEs(terminationDate) || terminationDate,
     serviceTime: hireYmd ? formatEmploymentServiceTimeEs(hireYmd, terminationDate) : "—",
     addressee,
+    addresseeLine,
     includeSalary,
     includeSocialSecurity,
     terminationCause,
     causeLabel,
     company,
+    companyDisplayName: company.displayName || company.name,
     name: String(e.name || "").trim(),
+    nameUpper,
     docType: String(e.documentType || "C.C.").trim(),
+    docTypeLabel,
     idDoc: String(e.idDoc || "").trim(),
+    idDocFormatted,
     position: String(e.position || "—").trim(),
+    positionUpper,
     contractType,
+    contractPhrase,
     workSchedule,
     isServiceProvider,
     salaryText,
+    salaryLegalText,
     transportText,
+    issueClosing,
     eps: String(e.eps || "—").trim(),
     pensionFund: String(e.pensionFund || "—").trim(),
     arl: String(e.arl || "—").trim(),
@@ -199,12 +374,6 @@ export function employmentLetterFileName(employee, opts = {}, ext = "pdf") {
 export function buildEmploymentLetterPlainDocument(employee, opts = {}) {
   const meta = buildEmploymentLetterMeta(employee, opts);
   const company = meta.company;
-  const employerId = company.nit ? `, identificada con NIT ${company.nit}` : "";
-  const domicile = company.address
-    ? ` con domicilio en ${company.address}${company.cityLine ? `, ${company.cityLine}` : ""}`
-    : company.cityLine
-      ? ` con sede en ${company.cityLine}`
-      : "";
 
   if (meta.letterKind === "retiro") {
     const employerNit = company.nit ? `, NIT ${company.nit}` : "";
@@ -241,38 +410,23 @@ export function buildEmploymentLetterPlainDocument(employee, opts = {}) {
     };
   }
 
-  const contractDetail =
-    meta.contractType === "Termino fijo" && meta.contractEndLabel
-      ? ` mediante contrato a término fijo con vencimiento el ${meta.contractEndLabel}`
-      : ` mediante contrato ${meta.contractType.toLowerCase()}`;
-  const linkVerb = meta.isServiceProvider ? "presta sus servicios profesionales" : "se encuentra vinculado(a) laboralmente";
+  return buildVigenteEmploymentLetterDocument(employee, opts);
+}
 
-  const paragraphs = [
-    meta.addressee,
-    `${company.name}${employerId}${domicile}, certifica que el(la) señor(a) ${meta.name}, identificado(a) con ${meta.docType} No. ${meta.idDoc}, ${linkVerb} con nuestra organización${contractDetail}, desempeñando el cargo de ${meta.position}.`,
-    `Fecha de ingreso: ${meta.hireLabel}.`,
-    `Tiempo de servicio a la fecha: ${meta.serviceTime}.`,
-    `Tipo de contrato: ${meta.contractType}. Jornada laboral: ${meta.workSchedule}.`
-  ];
-  if (meta.includeSalary) {
-    let salaryLine = `Remuneración mensual: ${meta.salaryText}.`;
-    if (meta.transportText) salaryLine += ` Auxilio de transporte: ${meta.transportText}.`;
-    paragraphs.push(salaryLine);
-  }
-  if (meta.includeSocialSecurity) {
-    paragraphs.push(
-      `Afiliaciones vigentes en seguridad social: EPS ${meta.eps}, fondo de pensiones ${meta.pensionFund} y ARL ${meta.arl}, conforme a la normatividad colombiana.`
-    );
-  }
-  paragraphs.push(
-    "A la fecha de expedición de la presente constancia, la vinculación se encuentra vigente. Este documento se expide a solicitud del interesado, para los fines que estime convenientes, en aplicación de las obligaciones de información del empleador previstas en el Código Sustantivo del Trabajo y la normativa laboral colombiana vigente."
-  );
+function buildVigenteEmploymentLetterDocument(employee, opts = {}) {
+  const meta = buildEmploymentLetterMeta(employee, opts);
+  const companyDisplay = meta.companyDisplayName || meta.company.name;
+  const mainParagraph = buildActiveEmploymentLetterMainParagraph(meta);
+  const paragraphs = [mainParagraph];
+  if (meta.issueClosing) paragraphs.push(meta.issueClosing);
 
   return {
-    title: "CONSTANCIA DE VINCULACIÓN LABORAL",
-    metaLine: `${company.cityLine || "Colombia"}, ${meta.letterDateLabel}`,
+    title: "CERTIFICACIÓN",
+    metaLine: `${companyDisplay}, ${meta.letterDateCap}`,
+    refLine: "REF: CERTIFICACIÓN",
+    addresseeLine: meta.addresseeLine,
     paragraphs,
-    closing: "Atentamente,",
+    closing: "",
     disclaimer: employmentLetterDisclaimer("vigente"),
     fileName: employmentLetterFileName(employee, opts, "pdf"),
     fileNameDocx: employmentLetterFileName(employee, opts, "docx"),
@@ -280,7 +434,7 @@ export function buildEmploymentLetterPlainDocument(employee, opts = {}) {
       name: CONTRACT_LEGAL_REP_NAME,
       idDoc: CONTRACT_LEGAL_REP_ID_DOC,
       role: "Representante legal",
-      company: company.name
+      company: companyDisplay
     }
   };
 }
@@ -430,10 +584,11 @@ function buildEmploymentLetterDocxXml(doc, { signatureRelId = "" } = {}) {
       ]
     : [docxParagraph("_______________________________________", { center: true, spacingAfter: 80 })];
   const body = [
-    docxParagraph(doc.title, { bold: true, center: true, spacingAfter: 240 }),
     docxParagraph(doc.metaLine, { spacingAfter: 200 }),
+    ...(doc.refLine ? [docxParagraph(doc.refLine, { bold: true, spacingAfter: 120 })] : []),
+    ...(doc.addresseeLine ? [docxParagraph(doc.addresseeLine, { bold: true, spacingAfter: 200 })] : []),
     ...doc.paragraphs.map((p) => docxParagraph(p)),
-    docxParagraph(doc.closing, { spacingAfter: 240 }),
+    ...(doc.closing ? [docxParagraph(doc.closing, { spacingAfter: 240 })] : [docxParagraph("", { spacingAfter: 240 })]),
     ...signatureParts,
     docxParagraph(doc.signature.name, { bold: true, center: true, spacingAfter: 40 }),
     docxParagraph(doc.signature.idDoc, { center: true, spacingAfter: 40 }),
@@ -565,29 +720,33 @@ export async function downloadEmploymentLetterPdf(employee, opts = {}) {
     creator: "Antares"
   });
 
-  y = pdfWriteParagraph(pdf, doc.title, pageWidth / 2, y, maxWidth, {
-    fontSize: 14,
-    bold: true,
-    lineHeight: 18,
-    align: "center"
-  });
-  y += 6;
   y = pdfWriteParagraph(pdf, doc.metaLine, margin, y, maxWidth, { fontSize: 11 });
-  y += 8;
+  y += 10;
+  if (doc.refLine) {
+    y = pdfWriteParagraph(pdf, doc.refLine, margin, y, maxWidth, { fontSize: 11, bold: true });
+    y += 8;
+  }
+  if (doc.addresseeLine) {
+    y = pdfWriteParagraph(pdf, doc.addresseeLine, margin, y, maxWidth, { fontSize: 11, bold: true });
+    y += 10;
+  }
 
-  doc.paragraphs.forEach((paragraph, idx) => {
-    const isAddressee = idx === 0;
-    y = pdfWriteParagraph(pdf, paragraph, margin, y, maxWidth, { bold: isAddressee, lineHeight: 15 });
-    y += 6;
+  doc.paragraphs.forEach((paragraph) => {
+    y = pdfWriteParagraph(pdf, paragraph, margin, y, maxWidth, { lineHeight: 15 });
+    y += 8;
     if (y > pageHeight - margin - 120) {
       pdf.addPage();
       y = margin;
     }
   });
 
-  y += 10;
-  y = pdfWriteParagraph(pdf, doc.closing, margin, y, maxWidth);
-  y += 20;
+  if (doc.closing) {
+    y += 10;
+    y = pdfWriteParagraph(pdf, doc.closing, margin, y, maxWidth);
+    y += 20;
+  } else {
+    y += 16;
+  }
 
   const signatureAsset = await fetchLegalRepSignatureAsset();
   y = appendLetterSignatureToPdf(pdf, doc, signatureAsset, y, pageWidth);
@@ -691,59 +850,26 @@ function socialSecurityParagraph(meta) {
   </p>`;
 }
 
-/** Constancia de vinculación laboral vigente. */
+/** Constancia de vinculación laboral vigente (formato certificación). */
 export function buildActiveEmploymentLetterHtml(employee, opts = {}) {
   const meta = buildEmploymentLetterMeta(employee, { ...opts, letterKind: "vigente" });
-  const company = meta.company;
-  const employerId = company.nit ? `, identificada con NIT ${escapeEmploymentLetterHtml(company.nit)}` : "";
-  const domicile = company.address
-    ? ` con domicilio en ${escapeEmploymentLetterHtml(company.address)}${company.cityLine ? `, ${escapeEmploymentLetterHtml(company.cityLine)}` : ""}`
-    : company.cityLine
-      ? ` con sede en ${escapeEmploymentLetterHtml(company.cityLine)}`
-      : "";
-  const contractDetail =
-    meta.contractType === "Termino fijo" && meta.contractEndLabel
-      ? ` mediante contrato a término fijo con vencimiento el <strong>${escapeEmploymentLetterHtml(meta.contractEndLabel)}</strong>`
-      : ` mediante contrato ${escapeEmploymentLetterHtml(meta.contractType.toLowerCase())}`;
+  const companyDisplay = meta.companyDisplayName || meta.company.name;
+  const mainParagraph = buildActiveEmploymentLetterMainParagraph(meta);
 
   return `<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <title>Carta laboral · ${escapeEmploymentLetterHtml(meta.name)}</title>
+  <title>Certificación laboral · ${escapeEmploymentLetterHtml(meta.name)}</title>
   ${letterStyles()}
 </head>
 <body>
-  <h1>Constancia de vinculación laboral</h1>
-  <p class="meta">${escapeEmploymentLetterHtml(company.cityLine || "Colombia")}, ${escapeEmploymentLetterHtml(meta.letterDateLabel)}</p>
-  <p><strong>${escapeEmploymentLetterHtml(meta.addressee)}</strong></p>
-  <p>
-    <strong>${escapeEmploymentLetterHtml(company.name)}</strong>${employerId}${domicile},
-    certifica que el(la) señor(a) <strong>${escapeEmploymentLetterHtml(meta.name)}</strong>,
-    identificado(a) con ${escapeEmploymentLetterHtml(meta.docType)} No. <strong>${escapeEmploymentLetterHtml(meta.idDoc)}</strong>,
-    ${
-      meta.isServiceProvider
-        ? "presta sus servicios profesionales"
-        : "se encuentra vinculado(a) laboralmente"
-    } con nuestra organización${contractDetail},
-    desempeñando el cargo de <strong>${escapeEmploymentLetterHtml(meta.position)}</strong>.
-  </p>
-  <dl class="facts">
-    <dt>Fecha de ingreso</dt><dd>${escapeEmploymentLetterHtml(meta.hireLabel)}</dd>
-    <dt>Tiempo de servicio a la fecha</dt><dd>${escapeEmploymentLetterHtml(meta.serviceTime)}</dd>
-    <dt>Tipo de contrato</dt><dd>${escapeEmploymentLetterHtml(meta.contractType)}</dd>
-    <dt>Jornada laboral</dt><dd>${escapeEmploymentLetterHtml(meta.workSchedule)}</dd>
-  </dl>
-  ${salaryParagraph(meta)}
-  ${socialSecurityParagraph(meta)}
-  <p>
-    A la fecha de expedición de la presente constancia, la vinculación se encuentra <strong>vigente</strong>.
-    Este documento se expide a solicitud del interesado, para los fines que estime convenientes,
-    en aplicación de las obligaciones de información del empleador previstas en el Código Sustantivo del Trabajo
-    y la normativa laboral colombiana vigente.
-  </p>
-  <p>Atentamente,</p>
-  ${letterSignatureBlock(company.name)}
+  <p class="meta">${escapeEmploymentLetterHtml(companyDisplay)}, ${escapeEmploymentLetterHtml(meta.letterDateCap)}</p>
+  <p><strong>REF: CERTIFICACIÓN</strong></p>
+  <p><strong>${escapeEmploymentLetterHtml(meta.addresseeLine)}</strong></p>
+  <p>${escapeEmploymentLetterHtml(mainParagraph)}</p>
+  ${meta.issueClosing ? `<p>${escapeEmploymentLetterHtml(meta.issueClosing)}</p>` : ""}
+  ${letterSignatureBlock(companyDisplay)}
   <p class="muted">${escapeEmploymentLetterHtml(employmentLetterDisclaimer("vigente"))}</p>
   ${opts.previewActionsHtml || `<div class="no-print"><button type="button" onclick="window.print()">Imprimir / guardar PDF</button></div>`}
 </body>
