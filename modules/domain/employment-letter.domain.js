@@ -5,6 +5,7 @@
  */
 import {
   KEYS,
+  CONTRACT_EMPLOYER_LEGAL,
   CONTRACT_LEGAL_REP_NAME,
   CONTRACT_LEGAL_REP_ID_DOC
 } from "../core/config.js";
@@ -47,33 +48,36 @@ export function escapeEmploymentLetterHtml(text) {
     .replace(/"/g, "&quot;");
 }
 
-const DEFAULT_EMPLOYMENT_LETTER_CITY = "Bogotá";
-
-export function resolveEmploymentLetterCompany(employee) {
-  const companies = read(KEYS.companies, []);
-  const companyId = String(employee?.companyId || "").trim();
-  const company = companies.find((row) => String(row.id) === companyId) || companies[0] || {};
-  const city = String(company.city || employee?.city || DEFAULT_EMPLOYMENT_LETTER_CITY).trim();
-  const department = String(company.department || employee?.department || "").trim();
-  const cityLine = city && department && !city.toLowerCase().includes(department.toLowerCase())
-    ? `${city}, ${department}`
-    : city || department || "Colombia";
-  const name = String(company.name || "Transportes Antares").trim();
-  const displayName =
-    /bogot[aá]/i.test(name) || !city
-      ? name
-      : `${name} ${city}`;
+/** Empleador legal (misma identidad que las plantillas Word de contrato). */
+export function resolveEmploymentLetterCompany(_employee) {
+  const legal = CONTRACT_EMPLOYER_LEGAL;
   return {
-    name,
-    displayName,
-    nit: String(company.taxId || company.nit || "").trim(),
-    address: String(company.address || "").trim(),
-    city,
-    department,
-    cityLine,
-    phone: String(company.phone || "").trim(),
-    email: String(company.email || "").trim()
+    name: legal.name,
+    nameUpper: legal.nameUpper,
+    displayName: legal.name,
+    legalName: legal.name,
+    nit: legal.nit,
+    address: legal.address,
+    city: legal.city,
+    department: legal.department,
+    cityLine: legal.cityLine,
+    letterCity: legal.city,
+    legalRepName: legal.legalRepName || CONTRACT_LEGAL_REP_NAME,
+    legalRepNameUpper: legal.legalRepNameUpper || String(CONTRACT_LEGAL_REP_NAME || "").toUpperCase(),
+    legalRepIdDoc: legal.legalRepIdDocLabel || CONTRACT_LEGAL_REP_ID_DOC,
+    phone: "",
+    email: ""
   };
+}
+
+function buildEmploymentLetterEmployerIntro(meta) {
+  const company = meta.company || {};
+  const nameUpper = String(company.nameUpper || company.name || CONTRACT_EMPLOYER_LEGAL.nameUpper).trim();
+  const nit = String(company.nit || CONTRACT_EMPLOYER_LEGAL.nit).trim();
+  const address = String(company.address || CONTRACT_EMPLOYER_LEGAL.address).trim();
+  const nitPart = nit ? `, sociedad comercial identificada con NIT ${nit}` : "";
+  const domicilePart = address ? `, con domicilio en ${address}` : "";
+  return `${nameUpper}${nitPart}${domicilePart}`;
 }
 
 /** Fecha estilo carta: «6 de Julio de 2026». */
@@ -184,15 +188,16 @@ function formatEmploymentLetterAddresseeLine(addressee) {
   return `${upper}:`;
 }
 
-/** Párrafo principal estilo certificación laboral. */
+/** Párrafo principal — certificación de vinculación vigente (Colombia / CST). */
 export function buildActiveEmploymentLetterMainParagraph(meta) {
   const salaryClause =
     meta.includeSalary && meta.salaryLegalText
       ? `, devengando un salario mensual de ${meta.salaryLegalText}`
       : "";
+  const employerIntro = buildEmploymentLetterEmployerIntro(meta);
   return (
-    `Por medio de la presente, certificamos que el señor ${meta.nameUpper}, ` +
-    `identificado con ${meta.docTypeLabel} No ${meta.idDocFormatted}, labora en nuestra Compañía desde el ${meta.hireLabelCap}, ` +
+    `Por medio de la presente, ${employerIntro}, certifica que el señor ${meta.nameUpper}, ` +
+    `identificado con ${meta.docTypeLabel} No ${meta.idDocFormatted}, labora con la empresa desde el ${meta.hireLabelCap}, ` +
     `desempeñando el cargo de ${meta.positionUpper}, con un contrato ${meta.contractPhrase}${salaryClause}.`
   );
 }
@@ -304,7 +309,8 @@ export function buildEmploymentLetterMeta(employee, opts = {}) {
     terminationCause,
     causeLabel,
     company,
-    companyDisplayName: company.displayName || company.name,
+    companyDisplayName: company.legalName || company.displayName || company.name,
+    letterCity: company.letterCity || company.city,
     name: String(e.name || "").trim(),
     nameUpper,
     docType: String(e.documentType || "C.C.").trim(),
@@ -373,16 +379,18 @@ export function employmentLetterFileName(employee, opts = {}, ext = "pdf") {
 /** Contenido plano reutilizable para HTML, PDF y Word. */
 export function buildEmploymentLetterPlainDocument(employee, opts = {}) {
   const meta = buildEmploymentLetterMeta(employee, opts);
-  const company = meta.company;
 
   if (meta.letterKind === "retiro") {
-    const employerNit = company.nit ? `, NIT ${company.nit}` : "";
+    const employerIntro = buildEmploymentLetterEmployerIntro(meta);
+    const salaryRetiro =
+      meta.includeSalary && meta.salaryLegalText
+        ? meta.salaryLegalText
+        : meta.salaryText;
     const paragraphs = [
-      meta.addressee,
-      `En cumplimiento del artículo 57 del Código Sustantivo del Trabajo, ${company.name}${employerNit} certifica que el(la) señor(a) ${meta.name}, identificado(a) con ${meta.docType} No. ${meta.idDoc}, prestó sus servicios en el cargo de ${meta.position}, con jornada ${meta.workSchedule} y tipo de vinculación ${meta.contractType}.`,
-      `Duración del vínculo: desde el ${meta.hireLabel} hasta el ${meta.terminationLabel} (${meta.serviceTime}).`,
-      `Naturaleza y calidad de las labores: funciones propias del cargo de ${meta.position} en el giro ordinario del empleador.`,
-      `Monto de las labores: ${meta.salaryText}${meta.transportText ? ` · ${meta.transportText}` : ""}.`,
+      `En cumplimiento del artículo 57 del Código Sustantivo del Trabajo, ${employerIntro}, certifica que el señor ${meta.nameUpper}, identificado con ${meta.docTypeLabel} No ${meta.idDocFormatted}, prestó sus servicios en el cargo de ${meta.positionUpper}, con jornada ${meta.workSchedule} y contrato ${meta.contractPhrase}.`,
+      `Duración del vínculo: desde el ${meta.hireLabelCap} hasta el ${meta.terminationLabel} (${meta.serviceTime}).`,
+      `Naturaleza y calidad de las labores: funciones propias del cargo de ${meta.positionUpper} en el giro ordinario del empleador.`,
+      `Monto de las labores: ${salaryRetiro}${meta.transportText ? ` · ${meta.transportText}` : ""}.`,
       `Causa del retiro: ${meta.causeLabel}.`
     ];
     if (meta.includeSocialSecurity) {
@@ -390,14 +398,20 @@ export function buildEmploymentLetterPlainDocument(employee, opts = {}) {
         `Afiliaciones en seguridad social: EPS ${meta.eps}, fondo de pensiones ${meta.pensionFund} y ARL ${meta.arl}.`
       );
     }
-    paragraphs.push(
-      "Se expide el presente certificado a solicitud del interesado, sin perjuicio de las obligaciones pendientes de liquidación, pago de prestaciones y entrega de soportes que correspondan conforme al ordenamiento laboral colombiano."
-    );
+    if (meta.issueClosing) paragraphs.push(meta.issueClosing);
+    else {
+      paragraphs.push(
+        "Se expide el presente certificado a solicitud del interesado, sin perjuicio de las obligaciones pendientes de liquidación, pago de prestaciones y entrega de soportes que correspondan conforme al ordenamiento laboral colombiano."
+      );
+    }
     return {
       title: "CERTIFICADO LABORAL",
-      metaLine: `${company.cityLine || "Colombia"}, ${meta.letterDateLabel}`,
+      metaLine: `${meta.companyDisplayName}, ${meta.letterCity}, ${meta.letterDateCap}`,
+      headerSubline: meta.company.nit ? `NIT ${meta.company.nit}` : "",
+      refLine: "REF: CERTIFICADO LABORAL",
+      addresseeLine: meta.addresseeLine,
       paragraphs,
-      closing: "Atentamente,",
+      closing: "",
       disclaimer: employmentLetterDisclaimer("retiro"),
       fileName: employmentLetterFileName(employee, opts, "pdf"),
       fileNameDocx: employmentLetterFileName(employee, opts, "docx"),
@@ -405,7 +419,7 @@ export function buildEmploymentLetterPlainDocument(employee, opts = {}) {
         name: CONTRACT_LEGAL_REP_NAME,
         idDoc: CONTRACT_LEGAL_REP_ID_DOC,
         role: "Representante legal",
-        company: company.name
+        company: meta.companyDisplayName
       }
     };
   }
@@ -422,7 +436,8 @@ function buildVigenteEmploymentLetterDocument(employee, opts = {}) {
 
   return {
     title: "CERTIFICACIÓN",
-    metaLine: `${companyDisplay}, ${meta.letterDateCap}`,
+    metaLine: `${companyDisplay}, ${meta.letterCity}, ${meta.letterDateCap}`,
+    headerSubline: meta.company.nit ? `NIT ${meta.company.nit}` : "",
     refLine: "REF: CERTIFICACIÓN",
     addresseeLine: meta.addresseeLine,
     paragraphs,
@@ -458,9 +473,9 @@ function employmentLetterDisclaimer(kind) {
     "Documento generado desde Antares con la firma digitalizada del representante legal registrada en el sistema.";
   const stamp = " Estampe sello de la empresa únicamente si la entidad receptora lo exige.";
   if (kind === "retiro") {
-    return `${base}${stamp} Valide causal, montos y finiquito con abogado laboral antes de entregar (CST art. 57).`;
+    return `${base}${stamp} Certificado expedido en cumplimiento del artículo 57 del Código Sustantivo del Trabajo (CST). Valide causal, montos y finiquito con abogado laboral antes de entregar.`;
   }
-  return `${base}${stamp} No sustituye asesoría jurídica.`;
+  return `${base}${stamp} Certificación de vinculación vigente expedida a solicitud del interesado, conforme a las obligaciones de información del empleador y la práctica laboral colombiana ante terceros (CST).`;
 }
 
 /** Carga la firma del representante legal (misma imagen que contratos y desprendibles). */
@@ -584,7 +599,8 @@ function buildEmploymentLetterDocxXml(doc, { signatureRelId = "" } = {}) {
       ]
     : [docxParagraph("_______________________________________", { center: true, spacingAfter: 80 })];
   const body = [
-    docxParagraph(doc.metaLine, { spacingAfter: 200 }),
+    docxParagraph(doc.metaLine, { spacingAfter: 120 }),
+    ...(doc.headerSubline ? [docxParagraph(doc.headerSubline, { spacingAfter: 200 })] : []),
     ...(doc.refLine ? [docxParagraph(doc.refLine, { bold: true, spacingAfter: 120 })] : []),
     ...(doc.addresseeLine ? [docxParagraph(doc.addresseeLine, { bold: true, spacingAfter: 200 })] : []),
     ...doc.paragraphs.map((p) => docxParagraph(p)),
@@ -721,7 +737,13 @@ export async function downloadEmploymentLetterPdf(employee, opts = {}) {
   });
 
   y = pdfWriteParagraph(pdf, doc.metaLine, margin, y, maxWidth, { fontSize: 11 });
-  y += 10;
+  y += 6;
+  if (doc.headerSubline) {
+    y = pdfWriteParagraph(pdf, doc.headerSubline, margin, y, maxWidth, { fontSize: 10 });
+    y += 8;
+  } else {
+    y += 4;
+  }
   if (doc.refLine) {
     y = pdfWriteParagraph(pdf, doc.refLine, margin, y, maxWidth, { fontSize: 11, bold: true });
     y += 8;
@@ -850,11 +872,12 @@ function socialSecurityParagraph(meta) {
   </p>`;
 }
 
-/** Constancia de vinculación laboral vigente (formato certificación). */
+/** Constancia de vinculación laboral vigente (formato certificación / CST). */
 export function buildActiveEmploymentLetterHtml(employee, opts = {}) {
   const meta = buildEmploymentLetterMeta(employee, { ...opts, letterKind: "vigente" });
   const companyDisplay = meta.companyDisplayName || meta.company.name;
   const mainParagraph = buildActiveEmploymentLetterMainParagraph(meta);
+  const nitLine = meta.company.nit ? `<p class="meta meta--nit">NIT ${escapeEmploymentLetterHtml(meta.company.nit)}</p>` : "";
 
   return `<!DOCTYPE html>
 <html lang="es">
@@ -864,7 +887,8 @@ export function buildActiveEmploymentLetterHtml(employee, opts = {}) {
   ${letterStyles()}
 </head>
 <body>
-  <p class="meta">${escapeEmploymentLetterHtml(companyDisplay)}, ${escapeEmploymentLetterHtml(meta.letterDateCap)}</p>
+  <p class="meta">${escapeEmploymentLetterHtml(companyDisplay)}, ${escapeEmploymentLetterHtml(meta.letterCity)}, ${escapeEmploymentLetterHtml(meta.letterDateCap)}</p>
+  ${nitLine}
   <p><strong>REF: CERTIFICACIÓN</strong></p>
   <p><strong>${escapeEmploymentLetterHtml(meta.addresseeLine)}</strong></p>
   <p>${escapeEmploymentLetterHtml(mainParagraph)}</p>
@@ -879,8 +903,13 @@ export function buildActiveEmploymentLetterHtml(employee, opts = {}) {
 /** Certificado laboral al retiro (CST art. 57). */
 export function buildTerminationEmploymentCertificateHtml(employee, opts = {}) {
   const meta = buildEmploymentLetterMeta(employee, { ...opts, letterKind: "retiro" });
-  const company = meta.company;
-  const employerId = company.nit ? `, NIT ${escapeEmploymentLetterHtml(company.nit)}` : "";
+  const companyDisplay = meta.companyDisplayName || meta.company.name;
+  const employerIntro = buildEmploymentLetterEmployerIntro(meta);
+  const salaryRetiro =
+    meta.includeSalary && meta.salaryLegalText
+      ? meta.salaryLegalText
+      : meta.salaryText;
+  const nitLine = meta.company.nit ? `<p class="meta meta--nit">NIT ${escapeEmploymentLetterHtml(meta.company.nit)}</p>` : "";
 
   return `<!DOCTYPE html>
 <html lang="es">
@@ -890,34 +919,31 @@ export function buildTerminationEmploymentCertificateHtml(employee, opts = {}) {
   ${letterStyles()}
 </head>
 <body>
-  <h1>Certificado laboral</h1>
-  <p class="meta">${escapeEmploymentLetterHtml(company.cityLine || "Colombia")}, ${escapeEmploymentLetterHtml(meta.letterDateLabel)}</p>
-  <p><strong>${escapeEmploymentLetterHtml(meta.addressee)}</strong></p>
+  <p class="meta">${escapeEmploymentLetterHtml(companyDisplay)}, ${escapeEmploymentLetterHtml(meta.letterCity)}, ${escapeEmploymentLetterHtml(meta.letterDateCap)}</p>
+  ${nitLine}
+  <p><strong>REF: CERTIFICADO LABORAL</strong></p>
+  <p><strong>${escapeEmploymentLetterHtml(meta.addresseeLine)}</strong></p>
   <p>
-    En cumplimiento del artículo 57 del Código Sustantivo del Trabajo, <strong>${escapeEmploymentLetterHtml(company.name)}</strong>${employerId}
-    certifica que el(la) señor(a) <strong>${escapeEmploymentLetterHtml(meta.name)}</strong>,
-    identificado(a) con ${escapeEmploymentLetterHtml(meta.docType)} No. <strong>${escapeEmploymentLetterHtml(meta.idDoc)}</strong>,
-    prestó sus servicios en el cargo de <strong>${escapeEmploymentLetterHtml(meta.position)}</strong>,
-    con jornada <strong>${escapeEmploymentLetterHtml(meta.workSchedule)}</strong>
-    y tipo de vinculación <strong>${escapeEmploymentLetterHtml(meta.contractType)}</strong>.
+    En cumplimiento del artículo 57 del Código Sustantivo del Trabajo, ${escapeEmploymentLetterHtml(employerIntro)}, certifica que el señor ${escapeEmploymentLetterHtml(meta.nameUpper)},
+    identificado con ${escapeEmploymentLetterHtml(meta.docTypeLabel)} No ${escapeEmploymentLetterHtml(meta.idDocFormatted)}, prestó sus servicios en el cargo de ${escapeEmploymentLetterHtml(meta.positionUpper)},
+    con jornada ${escapeEmploymentLetterHtml(meta.workSchedule)} y contrato ${escapeEmploymentLetterHtml(meta.contractPhrase)}.
   </p>
   <dl class="facts">
     <dt>Duración del vínculo</dt>
-    <dd>Desde el ${escapeEmploymentLetterHtml(meta.hireLabel)} hasta el ${escapeEmploymentLetterHtml(meta.terminationLabel)} (${escapeEmploymentLetterHtml(meta.serviceTime)}).</dd>
+    <dd>Desde el ${escapeEmploymentLetterHtml(meta.hireLabelCap)} hasta el ${escapeEmploymentLetterHtml(meta.terminationLabel)} (${escapeEmploymentLetterHtml(meta.serviceTime)}).</dd>
     <dt>Naturaleza y calidad de las labores</dt>
-    <dd>Funciones propias del cargo de ${escapeEmploymentLetterHtml(meta.position)} en el giro ordinario del empleador.</dd>
+    <dd>Funciones propias del cargo de ${escapeEmploymentLetterHtml(meta.positionUpper)} en el giro ordinario del empleador.</dd>
     <dt>Monto de las labores</dt>
-    <dd>${escapeEmploymentLetterHtml(meta.salaryText)}${meta.transportText ? ` · ${escapeEmploymentLetterHtml(meta.transportText)}` : ""}.</dd>
+    <dd>${escapeEmploymentLetterHtml(salaryRetiro)}${meta.transportText ? ` · ${escapeEmploymentLetterHtml(meta.transportText)}` : ""}.</dd>
     <dt>Causa del retiro</dt>
     <dd>${escapeEmploymentLetterHtml(meta.causeLabel)}.</dd>
   </dl>
   ${socialSecurityParagraph(meta)}
-  <p>
+  ${meta.issueClosing ? `<p>${escapeEmploymentLetterHtml(meta.issueClosing)}</p>` : `<p>
     Se expide el presente certificado a solicitud del interesado, sin perjuicio de las obligaciones pendientes
     de liquidación, pago de prestaciones y entrega de soportes que correspondan conforme al ordenamiento laboral colombiano.
-  </p>
-  <p>Atentamente,</p>
-  ${letterSignatureBlock(company.name)}
+  </p>`}
+  ${letterSignatureBlock(companyDisplay)}
   <p class="muted">${escapeEmploymentLetterHtml(employmentLetterDisclaimer("retiro"))}</p>
   ${opts.previewActionsHtml || `<div class="no-print"><button type="button" onclick="window.print()">Imprimir / guardar PDF</button></div>`}
 </body>

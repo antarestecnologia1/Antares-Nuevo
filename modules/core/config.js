@@ -725,6 +725,21 @@ export const CONTRACT_LEGAL_REP_SIGNATURE_PATH = "./imagenes%20empresa/firma-rep
 export const CONTRACT_LEGAL_REP_NAME = "Alfredo de Jesús Botero Castañeda";
 export const CONTRACT_LEGAL_REP_ID_DOC = "C.C. 15.383.391";
 
+/** Empleador en plantillas Word de contrato (CONTRATO_*.docx) — misma identidad en carta laboral. */
+export const CONTRACT_EMPLOYER_LEGAL = {
+  name: "Transportes Antares S.A.S",
+  nameUpper: "TRANSPORTES ANTARES S.A.S",
+  nit: "900.830.324-7",
+  address: "Carrera 20 #6-81 La Ceja, EDS Roscombustible 2do piso",
+  city: "La Ceja",
+  department: "Antioquia",
+  cityLine: "La Ceja, Antioquia",
+  legalRepName: "Alfredo de Jesús Botero Castañeda",
+  legalRepNameUpper: "ALFREDO DE JESUS BOTERO CASTAÑEDA",
+  legalRepIdDoc: "15.383.391",
+  legalRepIdDocLabel: "cédula de ciudadanía número 15.383.391 de La Ceja, Antioquia"
+};
+
 export const SST_COMPLIANCE_RECORD_TYPES = [
   "Afiliacion EPS",
   "Afiliacion pension",
