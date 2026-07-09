@@ -448,6 +448,27 @@ function portalUuidOrNull(v: unknown): string | null {
   return PG_UUID_V4_RE.test(s) ? s : null;
 }
 
+const OCCUPATIONAL_EXAM_RENEWAL_YEARS = 1;
+const INTRUVIAL_EXAM_RENEWAL_YEARS = 2;
+const LICENSE_C2_RENEWAL_YEARS = 3;
+
+function resolveLicenseRenewalYears(category: unknown): number {
+  const cat = String(category ?? "C2")
+    .trim()
+    .toUpperCase();
+  return cat === "C2" ? LICENSE_C2_RENEWAL_YEARS : LICENSE_C2_RENEWAL_YEARS;
+}
+
+function resolvePortalLicenseExpiryYmd(
+  issueDate: unknown,
+  category: unknown,
+  storedExpiry: unknown
+): string | null {
+  const issue = portalDateYmdOrNull(issueDate);
+  if (issue) return portalYmdPlusYears(issue, resolveLicenseRenewalYears(category));
+  return portalDateYmdOrNull(storedExpiry);
+}
+
 /** Suma años a `YYYY-MM-DD` en calendario local (evita corrimientos UTC de toISOString). */
 function portalYmdPlusYears(ymd: unknown, years: number): string | null {
   const s = portalDateOrNull(ymd);
@@ -6699,6 +6720,11 @@ export class PortalService implements OnModuleInit {
       license: e.numero_licencia,
       licenseCategory: e.categoria_licencia,
       licenseExpiry: this.sqlEmployeeDateToPortalYmd(e.fecha_vencimiento_licencia),
+      licenseIssueDate: (() => {
+        const expiry = this.sqlEmployeeDateToPortalYmd(e.fecha_vencimiento_licencia);
+        if (!expiry) return null;
+        return portalYmdPlusYears(expiry, -resolveLicenseRenewalYears(e.categoria_licencia));
+      })(),
       occupationalExamDate: this.sqlEmployeeDateToPortalYmd(e.fecha_examen_ocupacional),
       occupationalExamExpiry: this.sqlEmployeeDateToPortalYmd(e.fecha_vencimiento_examen_ocupacional),
       instruvialExamDate: this.sqlEmployeeDateToPortalYmd(e.fecha_examen_instruvial),
@@ -8620,13 +8646,15 @@ export class PortalService implements OnModuleInit {
       const intraExam = portalDateYmdOrNull(
         p(d, "instruvialExamDate", "intravehicularExamDate", "fecha_examen_instruvial")
       );
-      const occExpiry = occExam ? portalYmdPlusYears(occExam, 1) : null;
-      const intraExpiry = intraExam ? portalYmdPlusYears(intraExam, 1) : null;
+      const occExpiry = occExam ? portalYmdPlusYears(occExam, OCCUPATIONAL_EXAM_RENEWAL_YEARS) : null;
+      const intraExpiry = intraExam ? portalYmdPlusYears(intraExam, INTRUVIAL_EXAM_RENEWAL_YEARS) : null;
 
       const licenseExpirySql =
-        portalDateYmdOrNull(d.licenseExpiry) ??
-        portalDateYmdOrNull(p(d, "licenseExpiry", "fecha_vencimiento_licencia")) ??
-        new Date().toISOString().slice(0, 10);
+        resolvePortalLicenseExpiryYmd(
+          p(d, "licenseIssueDate", "fecha_expedicion_licencia"),
+          d.licenseCategory,
+          d.licenseExpiry ?? p(d, "licenseExpiry", "fecha_vencimiento_licencia")
+        ) ?? new Date().toISOString().slice(0, 10);
 
       const idDoc = String(d.idDoc ?? "0000000").trim().slice(0, 32) || "0000000";
       const docType =
@@ -8793,7 +8821,14 @@ export class PortalService implements OnModuleInit {
     if (role !== "conductor") return;
     const p = pickPortalField;
     const license = String(p(e, "license", "licenseNumber") ?? "").trim();
-    const licenseExpiry = portalDateYmdOrNull(p(e, "licenseExpiry"));
+    const licenseCategory =
+      matchPayrollCatalogOption(PAYROLL_EMPLOYEE_CATALOG.licenseCategories, p(e, "licenseCategory")) ||
+      "C2";
+    const licenseExpiry = resolvePortalLicenseExpiryYmd(
+      p(e, "licenseIssueDate"),
+      licenseCategory,
+      p(e, "licenseExpiry")
+    );
     if (!license || !licenseExpiry) return;
     const empId = String(e.id ?? "").trim();
     if (!PG_UUID_V4_RE.test(empId)) return;
@@ -8811,9 +8846,11 @@ export class PortalService implements OnModuleInit {
     );
     const intraExam = portalDateOrNull(p(e, "instruvialExamDate", "intravehicularExamDate"));
     const occExpiry =
-      portalDateOrNull(p(e, "occupationalExamExpiry")) ?? (occExam ? portalYmdPlusYears(occExam, 1) : null);
+      portalDateOrNull(p(e, "occupationalExamExpiry")) ??
+      (occExam ? portalYmdPlusYears(occExam, OCCUPATIONAL_EXAM_RENEWAL_YEARS) : null);
     const intraExpiry =
-      portalDateOrNull(p(e, "instruvialExamExpiry")) ?? (intraExam ? portalYmdPlusYears(intraExam, 1) : null);
+      portalDateOrNull(p(e, "instruvialExamExpiry")) ??
+      (intraExam ? portalYmdPlusYears(intraExam, INTRUVIAL_EXAM_RENEWAL_YEARS) : null);
 
     await this.upsertConductorRow(c, {
       id: conductorId,
@@ -8871,10 +8908,10 @@ export class PortalService implements OnModuleInit {
     const intraExam = portalDateYmdOrNull(row.fecha_examen_instruvial);
     const occExpiry =
       portalDateYmdOrNull(row.fecha_vencimiento_examen_ocupacional) ??
-      (occExam ? portalYmdPlusYears(occExam, 1) : null);
+      (occExam ? portalYmdPlusYears(occExam, OCCUPATIONAL_EXAM_RENEWAL_YEARS) : null);
     const intraExpiry =
       portalDateYmdOrNull(row.fecha_vencimiento_examen_instruvial) ??
-      (intraExam ? portalYmdPlusYears(intraExam, 1) : null);
+      (intraExam ? portalYmdPlusYears(intraExam, INTRUVIAL_EXAM_RENEWAL_YEARS) : null);
 
     await this.upsertConductorRow(c, {
       id: conductorId,
@@ -9770,8 +9807,17 @@ export class PortalService implements OnModuleInit {
       const intraExam = portalDateOrNull(
         p(e, "instruvialExamDate", "intravehicularExamDate", "fecha_examen_instruvial")
       );
-      const occExpiry = occExam ? portalYmdPlusYears(occExam, 1) : null;
-      const intraExpiry = intraExam ? portalYmdPlusYears(intraExam, 1) : null;
+      const occExpiry = occExam ? portalYmdPlusYears(occExam, OCCUPATIONAL_EXAM_RENEWAL_YEARS) : null;
+      const intraExpiry = intraExam ? portalYmdPlusYears(intraExam, INTRUVIAL_EXAM_RENEWAL_YEARS) : null;
+      const licenseCategoryForExpiry = matchPayrollCatalogOption(
+        PAYROLL_EMPLOYEE_CATALOG.licenseCategories,
+        p(e, "licenseCategory")
+      );
+      const licenseExpiryForSync = resolvePortalLicenseExpiryYmd(
+        p(e, "licenseIssueDate"),
+        licenseCategoryForExpiry,
+        p(e, "licenseExpiry")
+      );
 
       const rawPositionId = portalUuidOrNull(e.positionId);
       const positionIdSql =
@@ -9831,7 +9877,7 @@ export class PortalService implements OnModuleInit {
           PAYROLL_EMPLOYEE_CATALOG.licenseCategories,
           p(e, "licenseCategory")
         ),
-        portalDateOrNull(p(e, "licenseExpiry")),
+        licenseExpiryForSync,
         occExam,
         occExpiry,
         intraExam,

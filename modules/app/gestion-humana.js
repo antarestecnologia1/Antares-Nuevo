@@ -1444,12 +1444,12 @@ function bindPayrollPortalControls() {
                 failPortalField(employeeForm, "licenseCategory", userMessage("employeeDriverFieldsRequired"));
                 return;
               }
-              if (!payload.licenseExpiry) {
-                failPortalField(employeeForm, "licenseExpiry", userMessage("employeeDriverFieldsRequired"));
+              if (!payload.licenseIssueDate) {
+                failPortalField(employeeForm, "licenseIssueDate", userMessage("employeeDriverFieldsRequired"));
                 return;
               }
-              if (new Date(payload.licenseExpiry).getTime() <= Date.now()) {
-                failPortalField(employeeForm, "licenseExpiry", userMessage("payrollLicenseExpired"));
+              if (!payload.licenseExpiry || new Date(payload.licenseExpiry).getTime() <= Date.now()) {
+                failPortalField(employeeForm, "licenseIssueDate", userMessage("payrollLicenseExpired"));
                 return;
               }
             }
@@ -1532,12 +1532,12 @@ function bindPayrollPortalControls() {
             failPortalField(employeeForm, "licenseCategory", userMessage("employeeDriverFieldsRequired"));
             return;
           }
-          if (!payload.licenseExpiry) {
-            failPortalField(employeeForm, "licenseExpiry", userMessage("employeeDriverFieldsRequired"));
+          if (!payload.licenseIssueDate) {
+            failPortalField(employeeForm, "licenseIssueDate", userMessage("employeeDriverFieldsRequired"));
             return;
           }
-          if (new Date(payload.licenseExpiry).getTime() <= Date.now()) {
-            failPortalField(employeeForm, "licenseExpiry", userMessage("payrollLicenseExpired"));
+          if (!payload.licenseExpiry || new Date(payload.licenseExpiry).getTime() <= Date.now()) {
+            failPortalField(employeeForm, "licenseIssueDate", userMessage("payrollLicenseExpired"));
             return;
           }
         }
@@ -1559,6 +1559,7 @@ function bindPayrollPortalControls() {
         const propagate = await propagateEmployeeChanges(createdEmployee, {
           license: payload.license,
           licenseCategory: payload.licenseCategory,
+          licenseIssueDate: payload.licenseIssueDate,
           licenseExpiry: payload.licenseExpiry,
           isNewHire: true
         });
@@ -1913,12 +1914,12 @@ function bindPayrollPortalControls() {
               failPortalField(formEl, "licenseCategory", userMessage("employeeDriverFieldsRequired"));
               return false;
             }
-            if (!nextPayload.licenseExpiry) {
-              failPortalField(formEl, "licenseExpiry", userMessage("employeeDriverFieldsRequired"));
+            if (!nextPayload.licenseIssueDate) {
+              failPortalField(formEl, "licenseIssueDate", userMessage("employeeDriverFieldsRequired"));
               return false;
             }
-            if (new Date(nextPayload.licenseExpiry).getTime() <= Date.now()) {
-              failPortalField(formEl, "licenseExpiry", userMessage("payrollLicenseExpired"));
+            if (!nextPayload.licenseExpiry || new Date(nextPayload.licenseExpiry).getTime() <= Date.now()) {
+              failPortalField(formEl, "licenseIssueDate", userMessage("payrollLicenseExpired"));
               return false;
             }
           }

@@ -474,9 +474,9 @@ function payrollHtml() {
       <div class="form-section-grid">
         <label>${fieldLabel(IC.file, "N° licencia de conducción")}<input name="license" placeholder="Ej: 12C34567890" /></label>
         <label>${fieldLabel(IC.activity, "Categoría licencia")}<select name="licenseCategory">${licenseCategoryOptions}</select></label>
-        <label>${fieldLabel(IC.calendar, "Vence licencia")}<input type="date" name="licenseExpiry" /></label>
+        <label>${fieldLabel(IC.calendar, "Expedición / renovación licencia")}<input type="date" name="licenseIssueDate" /></label>
         <label>${fieldLabel(IC.calendar, "Examen instruvial")}<input type="date" name="instruvialExamDate" /></label>
-        <p class="full muted" style="grid-column:1/-1;font-size:0.82rem;margin:0">La vigencia del examen instruvial se guarda automáticamente a un año desde la fecha indicada. El examen médico ocupacional de ingreso se registra en el paso «Laboral» (aplica a todos los cargos).</p>
+        <p class="full muted" style="grid-column:1/-1;font-size:0.82rem;margin:0">Licencia C2: vigencia automática +3 años desde expedición. Examen instruvial: +2 años. El examen médico ocupacional periódico (+1 año) se registra en el paso «Laboral» (aplica a todos los cargos).</p>
         <label>${fieldLabel(IC.alertTriangle, "Comparendos pendientes (SIMIT)")}<input type="number" name="comparendos" min="0" max="9999" value="0" /></label>
         <label>${fieldLabel(IC.activity, "Años de experiencia conduciendo")}<input type="number" name="experienceYears" min="0" max="80" value="0" /></label>
         <label class="full">${fieldLabel(IC.truck, "¿De cuáles vehículos de la flota es conductor?")}

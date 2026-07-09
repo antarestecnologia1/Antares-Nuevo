@@ -5,6 +5,14 @@ import {
   listPendingCreateEmployeeApprovalsByDocument
 } from "../domain/pending-employee-approval.domain.js";
 import { detailViewCardMarkup } from "../ui/components.js";
+import {
+  addOneYearToYmd,
+  resolveOccupationalExamExpiryYmd,
+  resolveInstruvialExamExpiryYmd,
+  resolveLicenseExpiryYmd,
+  inferLicenseIssueDateFromExpiryYmd,
+  COMPLIANCE_DUE_SOON_DAYS
+} from "../domain/driver-compliance-vigencia.domain.js";
 
 // Enlaces léxicos (módulo estricto; `IC` sigue viniendo del script `portal-icons.js`).
 const ALL_PERMISSIONS = __pr.ALL_PERMISSIONS;
@@ -3264,21 +3272,6 @@ function clearFormDateInput(el) {
   window.AntaresValidation?.clearPortalDateInput?.(el);
 }
 
-/** Suma un año calendario a `YYYY-MM-DD` (local), para vigencias de examen. */
-function addOneYearToYmd(ymd) {
-  const n = normalizePortalDateYmd(ymd);
-  if (!n) return "";
-  const p = /^(\d{4})-(\d{2})-(\d{2})$/.exec(n);
-  if (!p) return "";
-  const y = Number(p[1]);
-  const mo = Number(p[2]) - 1;
-  const day = Number(p[3]);
-  const d = new Date(y, mo, day);
-  if (Number.isNaN(d.getTime())) return "";
-  d.setFullYear(d.getFullYear() + 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
 /** Centro de costos: clave portal `costCenter` ↔ columna BD `centro_costos`. */
 function resolvePayrollEmployeeCostCenter(emp) {
   if (!emp || typeof emp !== "object") return "";
@@ -3302,6 +3295,16 @@ function normalizePayrollEmployeeRowDates(emp) {
   };
   e.birthDate = normalizePortalDateYmd(first(e.birthDate, e.fecha_nacimiento));
   e.licenseExpiry = normalizePortalDateYmd(first(e.licenseExpiry, e.fecha_vencimiento_licencia));
+  e.licenseIssueDate = normalizePortalDateYmd(
+    first(e.licenseIssueDate, e.fecha_expedicion_licencia)
+  );
+  if (!e.licenseIssueDate && e.licenseExpiry) {
+    e.licenseIssueDate = inferLicenseIssueDateFromExpiryYmd(e.licenseExpiry, e.licenseCategory);
+  }
+  if (e.licenseIssueDate) {
+    e.licenseExpiry =
+      resolveLicenseExpiryYmd(e.licenseIssueDate, e.licenseCategory || "C2") || e.licenseExpiry;
+  }
   e.startDate = normalizePortalDateYmd(first(e.startDate, e.fecha_ingreso));
   e.contractVigenteStartDate = normalizePortalDateYmd(
     first(e.contractVigenteStartDate, e.fecha_inicio_contrato_vigente)
@@ -3346,7 +3349,7 @@ function normalizePayrollEmployeeRowDates(emp) {
     e.occupationalExamExpiry = addOneYearToYmd(e.occupationalExamDate);
   }
   if (e.instruvialExamDate && !e.instruvialExamExpiry) {
-    e.instruvialExamExpiry = addOneYearToYmd(e.instruvialExamDate);
+    e.instruvialExamExpiry = resolveInstruvialExamExpiryYmd(e.instruvialExamDate);
   }
   e.psychoTestDate = e.occupationalExamDate;
   e.psychoTestExpiry = e.occupationalExamExpiry;
@@ -12198,11 +12201,15 @@ function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = 
           : preserve?.nonRenewalNoticeDate
       ),
       license: String(raw.license || "").trim(),
-      licenseExpiry: normalizePortalDateYmd(raw.licenseExpiry),
+      licenseIssueDate: normalizePortalDateYmd(raw.licenseIssueDate),
+      licenseExpiry: resolveLicenseExpiryYmd(
+        normalizePortalDateYmd(raw.licenseIssueDate),
+        raw.licenseCategory
+      ) || normalizePortalDateYmd(raw.licenseExpiry),
       occupationalExamDate: normalizePortalDateYmd(raw.occupationalExamDate),
-      occupationalExamExpiry: addOneYearToYmd(raw.occupationalExamDate),
+      occupationalExamExpiry: resolveOccupationalExamExpiryYmd(raw.occupationalExamDate),
       instruvialExamDate: normalizePortalDateYmd(raw.instruvialExamDate),
-      instruvialExamExpiry: addOneYearToYmd(raw.instruvialExamDate),
+      instruvialExamExpiry: resolveInstruvialExamExpiryYmd(raw.instruvialExamDate),
       comparendos: Math.max(0, Math.min(9999, parseNum(raw.comparendos ?? 0))),
       experienceYears: Math.max(0, Math.min(80, parseNum(raw.experienceYears ?? 0))),
       vehicleTypes: collectDriverVehicleTypesCsv(raw),
@@ -12314,6 +12321,7 @@ function buildEmployeePayrollProfileBodyHtml(emp) {
     <section class="employee-profile-section"><h4 class="employee-profile-section-title">Conductor</h4><div class="employee-profile-grid">
       ${employeeProfileKvRow("N° licencia", e.license)}
       ${employeeProfileKvRow("Categoría licencia", e.licenseCategory)}
+      ${employeeProfileKvRow("Expedición licencia", e.licenseIssueDate)}
       ${employeeProfileKvRow("Vence licencia", e.licenseExpiry)}
       ${employeeProfileKvRow("Examen ocupacional", e.occupationalExamDate)}
       ${employeeProfileKvRow("Vence examen ocupacional", e.occupationalExamExpiry)}
@@ -12562,7 +12570,7 @@ ${employeeNationalPhoneFieldHtml("emergencyPhone", "Tel. emergencia", e.emergenc
 <label><span>${escapeHtml("Tipo cotizante")}</span><select name="contributorType">${selectOptionsFromCatalog(CO_CATALOGS.contributorTypes, e.contributorType || "")}</select></label>
 <label><span>${escapeHtml("Nivel riesgo ARL")}</span><select name="arlRiskLevel" id="employee-modal-arl-risk">${selectOptionsFromCatalog(CO_CATALOGS.arlRiskLevels, e.arlRiskLevel || "")}</select></label>
 <label><span>${escapeHtml("Examen médico ocupacional de ingreso")}</span><input type="date" name="occupationalExamDate" value="${escapeAttr(normalizePortalDateYmd(e.occupationalExamDate))}" /></label>
-<p class="full muted modal-field-hint" style="grid-column:1/-1;font-size:0.78rem">Obligatorio para todo trabajador (Resolución 2346 de 2007). Vigencia automática +1 año desde la fecha del examen.</p>
+<p class="full muted modal-field-hint" style="grid-column:1/-1;font-size:0.78rem">Obligatorio para todo trabajador (Resolución 2346 de 2007). Vigencia automática +1 año desde la fecha del último examen periódico.</p>
 <label><span>${escapeHtml("Plantilla contrato Word")}</span><select name="contractTemplateKind" id="employee-modal-contract-template" required>${tmplSel}</select></label>
 </div>`
     },
@@ -12592,9 +12600,11 @@ ${employeeNationalPhoneFieldHtml("emergencyPhone", "Tel. emergencia", e.emergenc
       html: `<div class="form-section-grid employee-edit-grid hr-modal-conductor-block">
 <label><span>${escapeHtml("N° licencia")}</span><input name="license" value="${escapeAttr(e.license || "")}" /></label>
 <label><span>${escapeHtml("Categoría licencia")}</span><select name="licenseCategory">${selectOptionsFromCatalog(CO_CATALOGS.licenseCategories, e.licenseCategory || "", "Seleccione categoría...")}</select></label>
-<label><span>${escapeHtml("Vence licencia")}</span><input type="date" name="licenseExpiry" value="${escapeAttr(normalizePortalDateYmd(e.licenseExpiry))}" /></label>
+<label><span>${escapeHtml("Expedición / renovación licencia")}</span><input type="date" name="licenseIssueDate" value="${escapeAttr(normalizePortalDateYmd(e.licenseIssueDate))}" /></label>
+<label><span>${escapeHtml("Vence licencia (calculado +3 años C2)")}</span><input type="date" name="licenseExpiry" value="${escapeAttr(normalizePortalDateYmd(e.licenseExpiry))}" readonly tabindex="-1" /></label>
+<p class="full muted modal-field-hint" style="grid-column:1/-1;font-size:0.78rem">La vigencia de la licencia C2 se calcula automáticamente a 3 años desde la fecha de expedición o renovación.</p>
 <label><span>${escapeHtml("Examen instruvial")}</span><input type="date" name="instruvialExamDate" value="${escapeAttr(normalizePortalDateYmd(e.instruvialExamDate))}" /></label>
-<p class="full muted modal-field-hint" style="grid-column:1/-1;font-size:0.78rem">La vigencia del examen instruvial se calcula automáticamente (+1 año). El examen ocupacional está en la sección «Laboral» porque aplica a todos los cargos.</p>
+<p class="full muted modal-field-hint" style="grid-column:1/-1;font-size:0.78rem">La vigencia del examen instruvial se calcula automáticamente (+2 años). El examen ocupacional está en la sección «Laboral» porque aplica a todos los cargos.</p>
 <label><span>${escapeHtml("Comparendos pendientes (SIMIT)")}</span><input type="number" name="comparendos" min="0" max="9999" value="${escapeAttr(parseNum(e.comparendos ?? 0))}" /></label>
 <label><span>${escapeHtml("Años de experiencia conduciendo")}</span><input type="number" name="experienceYears" min="0" max="80" value="${escapeAttr(parseNum(e.experienceYears ?? 0))}" /></label>
 <label class="full"><span>${escapeHtml("¿De cuáles vehículos de la flota es conductor?")}</span>
@@ -13309,6 +13319,11 @@ Object.assign(window, {
   abortUnlessCanManageTransportTrips,
   abortUnlessCanToggleVehicleStatus,
   addOneYearToYmd,
+  resolveOccupationalExamExpiryYmd,
+  resolveInstruvialExamExpiryYmd,
+  resolveLicenseExpiryYmd,
+  inferLicenseIssueDateFromExpiryYmd,
+  COMPLIANCE_DUE_SOON_DAYS,
   addYears,
   adminUsersCollapsibleCardBody,
   appendFuelLogAwait,

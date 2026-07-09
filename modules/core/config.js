@@ -215,9 +215,28 @@ export const PERMISSIONS = {
 
 export const ALL_PERMISSIONS = Object.values(PERMISSIONS);
 
+/** 125 municipios del departamento de Antioquia (DANE), sin tildes para coincidencia en formularios. */
+export const ANTIOQUIA_MUNICIPALITIES = [
+  "Abejorral", "Abriaqui", "Alejandria", "Amaga", "Amalfi", "Andes", "Angelopolis", "Angostura", "Anori", "Anza",
+  "Apartado", "Arboletes", "Argelia", "Armenia", "Barbosa", "Bello", "Belmira", "Betania", "Betulia", "Briceno",
+  "Buritica", "Caceres", "Caicedo", "Caldas", "Campamento", "Canasgordas", "Caracoli", "Caramanta", "Carepa",
+  "Carolina del Principe", "Caucasia", "Chigorodo", "Cisneros", "Ciudad Bolivar", "Cocorna", "Concepcion", "Concordia",
+  "Copacabana", "Dabeiba", "Donmatias", "Ebejico", "El Bagre", "El Carmen de Viboral", "El Penol", "El Retiro",
+  "El Santuario", "Entrerrios", "Envigado", "Fredonia", "Frontino", "Giraldo", "Girardota", "Gomez Plata", "Granada",
+  "Guadalupe", "Guarne", "Guatape", "Heliconia", "Hispania", "Itagui", "Ituango", "Jardin", "Jerico", "La Ceja",
+  "La Estrella", "La Pintada", "La Union", "Liborina", "Maceo", "Marinilla", "Medellin", "Montebello", "Murindo",
+  "Mutata", "Narino", "Nechi", "Necocli", "Olaya", "Peque", "Pueblorrico", "Puerto Berrio", "Puerto Nare",
+  "Puerto Triunfo", "Remedios", "Rionegro", "Sabanalarga", "Sabaneta", "Salgar", "San Andres de Cuerquia", "San Carlos",
+  "San Francisco", "San Jeronimo", "San Jose de la Montana", "San Juan de Uraba", "San Luis", "San Pedro de los Milagros",
+  "San Pedro de Uraba", "San Rafael", "San Roque", "San Vicente Ferrer", "Santa Barbara", "Santa Fe de Antioquia",
+  "Santa Rosa de Osos", "Santo Domingo", "Segovia", "Sonson", "Sopetran", "Tamesis", "Taraza", "Tarso", "Titiribi",
+  "Toledo", "Turbo", "Uramita", "Urrao", "Valdivia", "Valparaiso", "Vegachi", "Venecia", "Vigia del Fuerte", "Yali",
+  "Yarumal", "Yolombo", "Yondo", "Zaragoza"
+];
+
 export const COLOMBIA_LOCATIONS = {
   Amazonas: ["Leticia", "Puerto Narino"],
-  Antioquia: ["Medellin", "Bello", "Itagui", "Envigado", "Rionegro", "Apartado", "Turbo", "Caucasia", "La Ceja", "Sabaneta", "Copacabana", "Girardota", "Marinilla", "Yarumal", "Santa Fe de Antioquia"],
+  Antioquia: ANTIOQUIA_MUNICIPALITIES,
   Arauca: ["Arauca", "Arauquita", "Saravena", "Tame", "Fortul"],
   Atlantico: ["Barranquilla", "Soledad", "Malambo", "Puerto Colombia", "Galapa", "Sabanagrande", "Santo Tomas", "Baranoa"],
   Bogota: ["Bogota D.C."],
@@ -497,7 +516,7 @@ export const LABOR_SYSTEM_PARAMETERS_MAX_YEAR = 2035;
 /** Catálogos CO para nómina/RRHH (coincidencia de valores guardados y formularios). */
 export const CO_CATALOGS = {
   licenseCategories: ["A1", "A2", "B1", "B2", "B3", "C1", "C2", "C3"],
-  eps: ["Sura", "Nueva EPS", "Sanitas", "Compensar", "Famisanar", "Salud Total", "Aliansalud", "Coosalud", "Mutual Ser", "S.O.S."],
+  eps: ["Sura", "Nueva EPS", "Sanitas", "Compensar", "Famisanar", "Salud Total", "Savia Salud", "Aliansalud", "Coosalud", "Mutual Ser", "S.O.S."],
   arl: ["Sura", "Positiva", "Colmena", "Bolivar", "Alfa", "Equidad", "Mapfre"],
   bloodTypes: ["O+", "O-", "A+", "A-", "B+", "B-", "AB+", "AB-"],
   pensionFunds: ["Colpensiones", "Porvenir", "Proteccion", "Colfondos", "Skandia"],

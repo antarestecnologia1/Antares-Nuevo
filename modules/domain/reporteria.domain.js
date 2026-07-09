@@ -31,22 +31,21 @@ import { parseNum } from "./historial.domain.js";
 import { matchCatalogOptionValue, normalizePortalPhoneForStorage } from "./payroll-catalog-sanitize.domain.js";
 import { normalizeDocumentDigits } from "./payroll-identifiers.domain.js";
 import { notify, userMessage } from "../ui/modals.js";
+import {
+  addOneYearToYmd,
+  resolveOccupationalExamExpiryYmd,
+  resolveInstruvialExamExpiryYmd,
+  resolveLicenseExpiryYmd,
+  inferLicenseIssueDateFromExpiryYmd
+} from "./driver-compliance-vigencia.domain.js";
 
-
-/** Suma un año calendario a `YYYY-MM-DD` (local), para vigencias de examen. */
-export function addOneYearToYmd(ymd) {
-  const n = normalizePortalDateYmd(ymd);
-  if (!n) return "";
-  const p = /^(\d{4})-(\d{2})-(\d{2})$/.exec(n);
-  if (!p) return "";
-  const y = Number(p[1]);
-  const mo = Number(p[2]) - 1;
-  const day = Number(p[3]);
-  const d = new Date(y, mo, day);
-  if (Number.isNaN(d.getTime())) return "";
-  d.setFullYear(d.getFullYear() + 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
+export {
+  addOneYearToYmd,
+  resolveOccupationalExamExpiryYmd,
+  resolveInstruvialExamExpiryYmd,
+  resolveLicenseExpiryYmd,
+  inferLicenseIssueDateFromExpiryYmd
+};
 
 export function latinForDb(value) {
   const fn = globalThis.AntaresValidation?.normalizeLatinForDb;
@@ -1354,11 +1353,19 @@ export function normalizeDriverRowForEditor(raw) {
     d.occupationalExamExpiry = addOneYearToYmd(d.occupationalExamDate);
   }
   if (d.instruvialExamDate && !d.instruvialExamExpiry) {
-    d.instruvialExamExpiry = addOneYearToYmd(d.instruvialExamDate);
+    d.instruvialExamExpiry = resolveInstruvialExamExpiryYmd(d.instruvialExamDate);
   }
   d.psychoTestDate = d.occupationalExamDate;
   d.psychoTestExpiry = d.occupationalExamExpiry;
   d.licenseExpiry = normalizePortalDateYmd(d.licenseExpiry);
+  d.licenseIssueDate = normalizePortalDateYmd(d.licenseIssueDate);
+  if (!d.licenseIssueDate && d.licenseExpiry) {
+    d.licenseIssueDate = inferLicenseIssueDateFromExpiryYmd(d.licenseExpiry, d.licenseCategory);
+  }
+  if (d.licenseIssueDate) {
+    d.licenseExpiry =
+      resolveLicenseExpiryYmd(d.licenseIssueDate, d.licenseCategory) || d.licenseExpiry;
+  }
 
   const emp = globalThis.findPayrollEmployeeByIdDoc(d.idDoc);
   if (emp && typeof emp === "object") {
@@ -1376,6 +1383,7 @@ export function normalizeDriverRowForEditor(raw) {
     fill("emergencyPhone");
     fill("license");
     fill("licenseCategory");
+    fill("licenseIssueDate");
     fill("licenseExpiry");
     fill("vehicleTypes");
     fill("occupationalExamDate");
@@ -1399,7 +1407,7 @@ export function normalizeDriverRowForEditor(raw) {
     d.occupationalExamExpiry = addOneYearToYmd(d.occupationalExamDate);
   }
   if (d.instruvialExamDate && !d.instruvialExamExpiry) {
-    d.instruvialExamExpiry = addOneYearToYmd(d.instruvialExamDate);
+    d.instruvialExamExpiry = resolveInstruvialExamExpiryYmd(d.instruvialExamDate);
   }
   const phoneDisp = formatPortalPhoneForDisplay(d.phone);
   if (phoneDisp) d.phone = phoneDisp;
@@ -1421,6 +1429,14 @@ export function normalizeDriverFormPayloadForStorage(data) {
   d.phone = normalizePortalPhoneForStorage(d.phone);
   d.emergencyPhone = normalizePortalPhoneForStorage(d.emergencyPhone);
   d.licenseExpiry = normalizePortalDateYmd(d.licenseExpiry);
+  d.licenseIssueDate = normalizePortalDateYmd(d.licenseIssueDate);
+  if (d.licenseIssueDate) {
+    d.licenseExpiry =
+      resolveLicenseExpiryYmd(d.licenseIssueDate, d.licenseCategory) ||
+      normalizePortalDateYmd(d.licenseExpiry);
+  } else if (d.licenseExpiry && !d.licenseIssueDate) {
+    d.licenseIssueDate = inferLicenseIssueDateFromExpiryYmd(d.licenseExpiry, d.licenseCategory);
+  }
   const occDate = normalizePortalDateYmd(d.occupationalExamDate);
   const intraDate = normalizePortalDateYmd(d.instruvialExamDate);
   d.occupationalExamDate = occDate;
@@ -1429,7 +1445,7 @@ export function normalizeDriverFormPayloadForStorage(data) {
     ? addOneYearToYmd(occDate)
     : normalizePortalDateYmd(d.occupationalExamExpiry);
   d.instruvialExamExpiry = intraDate
-    ? addOneYearToYmd(intraDate)
+    ? resolveInstruvialExamExpiryYmd(intraDate)
     : normalizePortalDateYmd(d.instruvialExamExpiry);
   d.psychoTestDate = occDate;
   d.psychoTestExpiry = occDate ? addOneYearToYmd(occDate) : "";
@@ -1457,7 +1473,17 @@ export function buildDriverPatchFromEmployee(employee, extraDriverData = {}) {
     )
   );
   const occEx = occ ? addOneYearToYmd(occ) : normalizePortalDateYmd(employee?.occupationalExamExpiry);
-  const intraEx = intra ? addOneYearToYmd(intra) : normalizePortalDateYmd(employee?.instruvialExamExpiry);
+  const intraEx = intra ? resolveInstruvialExamExpiryYmd(intra) : normalizePortalDateYmd(employee?.instruvialExamExpiry);
+  const licenseCategory = String(extraDriverData.licenseCategory || employee?.licenseCategory || "C2").trim();
+  let licenseIssue = normalizePortalDateYmd(
+    extraDriverData.licenseIssueDate || employee?.licenseIssueDate
+  );
+  let licenseExpiry = normalizePortalDateYmd(extraDriverData.licenseExpiry || employee?.licenseExpiry);
+  if (licenseIssue) {
+    licenseExpiry = resolveLicenseExpiryYmd(licenseIssue, licenseCategory) || licenseExpiry;
+  } else if (licenseExpiry && !licenseIssue) {
+    licenseIssue = inferLicenseIssueDateFromExpiryYmd(licenseExpiry, licenseCategory);
+  }
   const photo = pickFirstNonEmpty(employee?.avatarUrl, employee?.photoUrl, extraDriverData.photoUrl);
   return {
     name: String(employee?.name || "").trim(),
@@ -1472,8 +1498,9 @@ export function buildDriverPatchFromEmployee(employee, extraDriverData = {}) {
     companyId: String(employee?.companyId || "").trim(),
     bloodType: String(employee?.bloodType || "").trim(),
     license: String(extraDriverData.license || employee?.license || "").trim(),
-    licenseCategory: String(extraDriverData.licenseCategory || employee?.licenseCategory || "C2").trim(),
-    licenseExpiry: normalizePortalDateYmd(extraDriverData.licenseExpiry || employee?.licenseExpiry),
+    licenseCategory,
+    licenseExpiry,
+    licenseIssueDate: licenseIssue,
     occupationalExamDate: occ,
     occupationalExamExpiry: occEx,
     instruvialExamDate: intra,
@@ -1496,7 +1523,7 @@ export function buildEmployeeBasicPatchFromDriver(driver) {
   const occ = normalizePortalDateYmd(driver?.occupationalExamDate);
   const intra = normalizePortalDateYmd(driver?.instruvialExamDate);
   const occEx = occ ? addOneYearToYmd(occ) : normalizePortalDateYmd(driver?.occupationalExamExpiry);
-  const intraEx = intra ? addOneYearToYmd(intra) : normalizePortalDateYmd(driver?.instruvialExamExpiry);
+  const intraEx = intra ? resolveInstruvialExamExpiryYmd(intra) : normalizePortalDateYmd(driver?.instruvialExamExpiry);
   const avatar = pickFirstNonEmpty(driver?.photoUrl, driver?.avatarUrl);
   return {
     name: String(driver?.name || "").trim(),

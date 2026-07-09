@@ -546,15 +546,23 @@ function driversHtml() {
           return;
         }
         data.idDoc = docValidation.normalized;
-        if (new Date(String(data.licenseExpiry || "")).getTime() <= Date.now()) {
-          failPortalField(driverForm, "licenseExpiry", userMessage("driverLicenseRegister"));
+        const normalizedPreview = normalizeDriverFormPayloadForStorage(data);
+        if (!normalizedPreview.licenseIssueDate) {
+          failPortalField(driverForm, "licenseIssueDate", userMessage("driverLicenseRegister"));
+          return;
+        }
+        if (
+          !normalizedPreview.licenseExpiry ||
+          new Date(String(normalizedPreview.licenseExpiry || "")).getTime() <= Date.now()
+        ) {
+          failPortalField(driverForm, "licenseIssueDate", userMessage("driverLicenseRegister"));
           return;
         }
         if (actor?.role !== ROLES.ADMIN) {
           await queueApproval({
             type: "create_driver",
             title: `Creacion de conductor ${normalizeLatinUpperForDb(data.name)}`,
-            payload: normalizeDriverFormPayloadForStorage(data),
+            payload: normalizedPreview,
             requestedByUserId: actor?.id || "",
             requestedByName: actor?.name || "Usuario"
           });
@@ -562,7 +570,7 @@ function driversHtml() {
           renderPortalView();
           return;
         }
-        const driverPayload = normalizeDriverFormPayloadForStorage(data);
+        const driverPayload = normalizedPreview;
         const list = read(KEYS.drivers, []);
         const createdDriver = stampCreatedRecord({
           id: newUuidV4(),
@@ -725,7 +733,8 @@ function driversHtml() {
             { name: "bloodType", label: "Tipo de sangre (RH)", type: "select", value: target.bloodType || "", options: bloodOpts },
             { name: "license", label: "N° licencia de conducción", value: target.license || "", placeholder: "Ej: 12345678" },
             { name: "licenseCategory", label: "Categoría licencia", type: "select", value: target.licenseCategory || "", options: licenseCatOpts },
-            { name: "licenseExpiry", label: "Vence licencia", type: "date", value: target.licenseExpiry || "" },
+            { name: "licenseIssueDate", label: "Expedición / renovación licencia", type: "date", value: target.licenseIssueDate || globalThis.inferLicenseIssueDateFromExpiryYmd?.(target.licenseExpiry, target.licenseCategory) || "" },
+            { name: "licenseExpiry", label: "Vence licencia (calculado +3 años C2)", type: "date", value: target.licenseExpiry || "", attrs: { readonly: "readonly", tabindex: "-1" } },
             { name: "occupationalExamDate", label: "Examen ocupacional", type: "date", value: target.occupationalExamDate || "" },
             { name: "instruvialExamDate", label: "Examen instruvial", type: "date", value: target.instruvialExamDate || "" },
             { name: "eps", label: "EPS", type: "select", value: target.eps || "", options: epsOpts },
@@ -766,9 +775,14 @@ function driversHtml() {
               return false;
             }
 
-            const expiryValue = String(formEl?.querySelector?.("input[name='licenseExpiry']")?.value ?? "").trim();
-            if (expiryValue && new Date(expiryValue).getTime() <= Date.now()) {
-              failPortalField(formEl, "licenseExpiry", userMessage("driverLicenseFutureEdit"));
+            const issueValue = String(formEl?.querySelector?.("input[name='licenseIssueDate']")?.value ?? "").trim();
+            const licenseCategoryVal = getVal("licenseCategory");
+            const licenseExpiryNorm =
+              (typeof globalThis.resolveLicenseExpiryYmd === "function"
+                ? globalThis.resolveLicenseExpiryYmd(issueValue, licenseCategoryVal)
+                : "") || normalizePortalDateYmd(issueValue);
+            if (issueValue && licenseExpiryNorm && new Date(licenseExpiryNorm).getTime() <= Date.now()) {
+              failPortalField(formEl, "licenseIssueDate", userMessage("driverLicenseFutureEdit"));
               return false;
             }
 
@@ -791,9 +805,16 @@ function driversHtml() {
               }
             }
 
-            const licenseExpiryNorm = normalizePortalDateYmd(expiryValue);
             const occDate = normalizePortalDateYmd(getVal("occupationalExamDate"));
             const intraDate = normalizePortalDateYmd(getVal("instruvialExamDate"));
+            const occExpiry =
+              typeof globalThis.resolveOccupationalExamExpiryYmd === "function"
+                ? globalThis.resolveOccupationalExamExpiryYmd(occDate)
+                : "";
+            const intraExpiry =
+              typeof globalThis.resolveInstruvialExamExpiryYmd === "function"
+                ? globalThis.resolveInstruvialExamExpiryYmd(intraDate)
+                : "";
 
             const nextDrivers = read(KEYS.drivers, []).map((d) =>
               String(d.id ?? "").trim() === String(target.id ?? "").trim()
@@ -806,13 +827,14 @@ function driversHtml() {
                     bloodType: getVal("bloodType"),
                     license: getVal("license"),
                     licenseCategory: getVal("licenseCategory"),
+                    licenseIssueDate: normalizePortalDateYmd(issueValue),
                     licenseExpiry: licenseExpiryNorm,
                     occupationalExamDate: occDate,
-                    occupationalExamExpiry: occDate ? addOneYearToYmd(occDate) : "",
+                    occupationalExamExpiry: occExpiry,
                     instruvialExamDate: intraDate,
-                    instruvialExamExpiry: intraDate ? addOneYearToYmd(intraDate) : "",
+                    instruvialExamExpiry: intraExpiry,
                     psychoTestDate: occDate,
-                    psychoTestExpiry: occDate ? addOneYearToYmd(occDate) : "",
+                    psychoTestExpiry: occExpiry,
                     eps: getVal("eps"),
                     arl: getVal("arl"),
                     comparendos: parseNum(getVal("comparendos")),

@@ -11,6 +11,10 @@ import { isPortalClientUser } from "../core/client-data-scope-ui.js";
 import { colombiaNowIso, colombiaTodayIsoDate } from "../core/utils.js";
 import { requestPickupIsoDate, tripRequestStatusIsOperational } from "./viajes.domain.js";
 import { filterPendingApprovalsForActor, readApprovalsSync, readPendingPortalRegistrationsSync } from "./authorizations.domain.js";
+import {
+  resolveEmployeeComplianceExpiryYmd,
+  COMPLIANCE_DUE_SOON_DAYS
+} from "./driver-compliance-vigencia.domain.js";
 
 function readRequests() {
   if (typeof globalThis.readPortalTransportRequests === "function") {
@@ -446,20 +450,120 @@ export function computeDashboardCriticalAlerts(user) {
       }
     });
 
+    const complianceDueSoonDays = COMPLIANCE_DUE_SOON_DAYS;
+    const pushComplianceAlert = (id, toneDays, message, help, targetView) => {
+      alerts.push({
+        id,
+        tone: toneDays < 0 ? "alert" : "warn",
+        message,
+        help,
+        targetView
+      });
+    };
+    const daysUntilYmd = (ymd) => {
+      const expTs = new Date(`${ymd}T12:00:00`).getTime();
+      if (!Number.isFinite(expTs)) return null;
+      const todayTs = new Date().setHours(0, 0, 0, 0);
+      return Math.floor((expTs - todayTs) / 86400000);
+    };
+
     const drivers = read(KEYS.drivers, []);
     drivers.forEach((d) => {
       const expiry = String(d.licenseExpiry || "").trim();
       if (!expiry) return;
-      const days = Math.ceil((new Date(expiry).getTime() - nowTs) / 86400000);
-      if (days > 7) return;
+      const days = daysUntilYmd(expiry);
+      if (days === null || days > complianceDueSoonDays) return;
       const name = String(d.name || d.fullName || "Conductor").trim().split(/\s+/)[0];
-      alerts.push({
-        id: `license-${d.id}`,
-        tone: days < 0 ? "alert" : "warn",
-        message: `Licencia ${name} ${docStatusLabel(days)}`,
-        help: "Revise en Transporte · Conductores",
-        targetView: "transport-drivers"
-      });
+      pushComplianceAlert(
+        `license-${d.id}`,
+        days,
+        `Licencia ${name} ${docStatusLabel(days)}`,
+        "Revise en Transporte · Conductores",
+        "transport-drivers"
+      );
+      const occExpiry = resolveEmployeeComplianceExpiryYmd(d, "occupationalExamExpiry", "occupationalExamDate");
+      if (occExpiry) {
+        const occDays = daysUntilYmd(occExpiry);
+        if (occDays !== null && occDays <= complianceDueSoonDays) {
+          pushComplianceAlert(
+            `occ-driver-${d.id}`,
+            occDays,
+            `Examen ocupacional ${name} ${docStatusLabel(occDays)}`,
+            "Revise en Cumplimiento laboral y SST",
+            "labor-compliance"
+          );
+        }
+      }
+      const intraExpiry = resolveEmployeeComplianceExpiryYmd(d, "instruvialExamExpiry", "instruvialExamDate");
+      if (intraExpiry) {
+        const intraDays = daysUntilYmd(intraExpiry);
+        if (intraDays !== null && intraDays <= complianceDueSoonDays) {
+          pushComplianceAlert(
+            `intra-driver-${d.id}`,
+            intraDays,
+            `Examen instruvial ${name} ${docStatusLabel(intraDays)}`,
+            "Revise en Cumplimiento laboral y SST",
+            "labor-compliance"
+          );
+        }
+      }
+    });
+
+    const employees = read(KEYS.payrollEmployees, []);
+    employees.forEach((employee) => {
+      const name = String(employee.name || "Colaborador").trim().split(/\s+/)[0];
+      const occExpiry = resolveEmployeeComplianceExpiryYmd(
+        employee,
+        "occupationalExamExpiry",
+        "occupationalExamDate"
+      );
+      if (occExpiry) {
+        const occDays = daysUntilYmd(occExpiry);
+        if (occDays !== null && occDays <= complianceDueSoonDays) {
+          pushComplianceAlert(
+            `occ-emp-${employee.id}`,
+            occDays,
+            `Examen ocupacional ${name} ${docStatusLabel(occDays)}`,
+            "Revise en Cumplimiento laboral y SST",
+            "labor-compliance"
+          );
+        }
+      }
+      if (String(employee.workerRole || "").trim().toLowerCase() !== "conductor") return;
+      const licExpiry = resolveEmployeeComplianceExpiryYmd(
+        employee,
+        "licenseExpiry",
+        "licenseIssueDate"
+      );
+      if (licExpiry) {
+        const licDays = daysUntilYmd(licExpiry);
+        if (licDays !== null && licDays <= complianceDueSoonDays) {
+          pushComplianceAlert(
+            `license-emp-${employee.id}`,
+            licDays,
+            `Licencia ${name} ${docStatusLabel(licDays)}`,
+            "Revise en Gestión humana o Conductores",
+            "labor-compliance"
+          );
+        }
+      }
+      const intraExpiry = resolveEmployeeComplianceExpiryYmd(
+        employee,
+        "instruvialExamExpiry",
+        "instruvialExamDate"
+      );
+      if (intraExpiry) {
+        const intraDays = daysUntilYmd(intraExpiry);
+        if (intraDays !== null && intraDays <= complianceDueSoonDays) {
+          pushComplianceAlert(
+            `intra-emp-${employee.id}`,
+            intraDays,
+            `Examen instruvial ${name} ${docStatusLabel(intraDays)}`,
+            "Revise en Cumplimiento laboral y SST",
+            "labor-compliance"
+          );
+        }
+      }
     });
   }
 

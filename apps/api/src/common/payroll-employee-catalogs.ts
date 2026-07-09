@@ -11,6 +11,7 @@ export const PAYROLL_EMPLOYEE_CATALOG = {
     "Compensar",
     "Famisanar",
     "Salud Total",
+    "Savia Salud",
     "Aliansalud",
     "Coosalud",
     "Mutual Ser",

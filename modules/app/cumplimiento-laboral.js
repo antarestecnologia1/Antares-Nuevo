@@ -12,19 +12,18 @@ import {
   switchHrWorkspacePanels,
   switchModuleTabPanels
 } from "../ui/components.js";
+import {
+  resolveEmployeeComplianceExpiryYmd,
+  COMPLIANCE_DUE_SOON_DAYS
+} from "../domain/driver-compliance-vigencia.domain.js";
 
 const G = globalThis;
 
-const SST_DUE_SOON_DAYS = 30;
+const SST_DUE_SOON_DAYS = COMPLIANCE_DUE_SOON_DAYS;
 
 function resolveEmployeeExpiryYmd(employee, expiryKey, dateKey) {
   const norm = typeof G.normalizePortalDateYmd === "function" ? G.normalizePortalDateYmd : (v) => String(v || "").trim();
-  const expiry = norm(employee?.[expiryKey]);
-  if (expiry) return expiry;
-  if (!dateKey) return "";
-  const examDate = norm(employee?.[dateKey]);
-  if (examDate && typeof G.addOneYearToYmd === "function") return G.addOneYearToYmd(examDate);
-  return "";
+  return resolveEmployeeComplianceExpiryYmd(employee, expiryKey, dateKey, norm);
 }
 
 function isConductorEmployee(employee) {
@@ -37,7 +36,7 @@ function employeeMissingComplianceDate(employee, expiryKey, dateKey) {
 
 function employeeMissingLicenseDate(employee) {
   if (!isConductorEmployee(employee)) return false;
-  return employeeMissingComplianceDate(employee, "licenseExpiry", null);
+  return !resolveEmployeeExpiryYmd(employee, "licenseExpiry", "licenseIssueDate");
 }
 
 function daysUntilPortalDate(ymd) {
@@ -95,7 +94,9 @@ function collectSstDueItems(employees, records, dueSoonDays = SST_DUE_SOON_DAYS)
       pushEmployeeItem(employee, "Examen instruvial", "instruvialExamExpiry", "instruvialExamDate", {
         allowMissing: true
       });
-      pushEmployeeItem(employee, "Licencia de conducción", "licenseExpiry", null, { allowMissing: true });
+      pushEmployeeItem(employee, "Licencia de conducción", "licenseExpiry", "licenseIssueDate", {
+        allowMissing: true
+      });
     }
   }
 
