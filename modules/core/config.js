@@ -764,6 +764,8 @@ export const SST_COMPLIANCE_RECORD_TYPES = [
   "Afiliacion pension",
   "Afiliacion ARL",
   "Examen medico ocupacional",
+  "Examen instruvial",
+  "Licencia de conduccion",
   "Capacitacion SST",
   "Inspeccion documental"
 ];

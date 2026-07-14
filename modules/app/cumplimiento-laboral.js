@@ -3,9 +3,9 @@
  * Helpers de plantilla viven en `portal-runtime.js` hasta completar la extracción (vía `globalThis`).
  */
 import { state, nodes, persistHrWorkspace } from "../core/store.js";
-import { read, writeAwaitServer } from "../core/data-io.js";
+import { read, writeAwaitServer, writeAwaitServerCreate, writeAwaitServerEdit } from "../core/data-io.js";
 import { KEYS, HR_VALID_SST_WS } from "../core/config.js";
-import { escapeHtml, escapeAttr, buildModuleCreatePanelsState, normalizeHrWorkspace, normalizeSstDataSection } from "../core/utils.js";
+import { escapeHtml, escapeAttr, buildModuleCreatePanelsState, normalizeHrWorkspace, normalizeSstDataSection, colombiaTodayIsoDate } from "../core/utils.js";
 import {
   renderHrWorkspaceTabs,
   renderHrWorkspaceHeader,
@@ -16,6 +16,13 @@ import {
   resolveEmployeeComplianceExpiryYmd,
   COMPLIANCE_DUE_SOON_DAYS
 } from "../domain/driver-compliance-vigencia.domain.js";
+import {
+  resolveSstControlKey,
+  executeSstRenewal,
+  applySstRecordCompletion,
+  sstControlRequiresProvider,
+  getSstControlRecordType
+} from "../domain/sst-renewal.domain.js";
 
 const G = globalThis;
 
@@ -58,7 +65,7 @@ function isEmployeeDueWithinDays(employee, expiryKey, dateKey, dueSoonDays, { in
 
 function collectSstDueItems(employees, records, dueSoonDays = SST_DUE_SOON_DAYS) {
   const items = [];
-  const pushEmployeeItem = (employee, controlType, expiryKey, dateKey, { allowMissing = false } = {}) => {
+  const pushEmployeeItem = (employee, controlType, expiryKey, dateKey, controlKey, { allowMissing = false } = {}) => {
     const dueDate = resolveEmployeeExpiryYmd(employee, expiryKey, dateKey);
     if (!dueDate) {
       if (!allowMissing) return;
@@ -67,6 +74,7 @@ function collectSstDueItems(employees, records, dueSoonDays = SST_DUE_SOON_DAYS)
         employeeName: String(employee.name || "-").trim() || "-",
         position: String(employee.position || "-").trim() || "-",
         controlType,
+        controlKey,
         dueDate: "",
         days: null,
         bucket: "missing"
@@ -80,6 +88,7 @@ function collectSstDueItems(employees, records, dueSoonDays = SST_DUE_SOON_DAYS)
       employeeName: String(employee.name || "-").trim() || "-",
       position: String(employee.position || "-").trim() || "-",
       controlType,
+      controlKey,
       dueDate,
       days,
       bucket: days < 0 ? "expired" : "warning"
@@ -87,14 +96,19 @@ function collectSstDueItems(employees, records, dueSoonDays = SST_DUE_SOON_DAYS)
   };
 
   for (const employee of employees) {
-    pushEmployeeItem(employee, "Examen médico ocupacional", "occupationalExamExpiry", "occupationalExamDate", {
-      allowMissing: true
-    });
+    pushEmployeeItem(
+      employee,
+      "Examen médico ocupacional",
+      "occupationalExamExpiry",
+      "occupationalExamDate",
+      "occupational_exam",
+      { allowMissing: true }
+    );
     if (isConductorEmployee(employee)) {
-      pushEmployeeItem(employee, "Examen instruvial", "instruvialExamExpiry", "instruvialExamDate", {
+      pushEmployeeItem(employee, "Examen instruvial", "instruvialExamExpiry", "instruvialExamDate", "instruvial_exam", {
         allowMissing: true
       });
-      pushEmployeeItem(employee, "Licencia de conducción", "licenseExpiry", "licenseIssueDate", {
+      pushEmployeeItem(employee, "Licencia de conducción", "licenseExpiry", "licenseIssueDate", "license", {
         allowMissing: true
       });
     }
@@ -103,6 +117,7 @@ function collectSstDueItems(employees, records, dueSoonDays = SST_DUE_SOON_DAYS)
   for (const record of records) {
     const status = String(record.status || "").trim().toLowerCase();
     if (status.startsWith("cumpl")) continue;
+    const controlKey = resolveSstControlKey(record.recordType);
     const dueDate =
       (typeof G.normalizePortalDateYmd === "function" ? G.normalizePortalDateYmd(record.dueDate) : "") ||
       String(record.dueDate || "").trim();
@@ -113,6 +128,7 @@ function collectSstDueItems(employees, records, dueSoonDays = SST_DUE_SOON_DAYS)
         employeeName: String(record.employeeName || employee?.name || "-").trim() || "-",
         position: String(employee?.position || "-").trim() || "-",
         controlType: String(record.recordType || "Control SST").trim() || "Control SST",
+        controlKey,
         dueDate: "",
         days: null,
         bucket: "missing",
@@ -128,6 +144,7 @@ function collectSstDueItems(employees, records, dueSoonDays = SST_DUE_SOON_DAYS)
       employeeName: String(record.employeeName || employee?.name || "-").trim() || "-",
       position: String(employee?.position || "-").trim() || "-",
       controlType: String(record.recordType || "Control SST").trim() || "Control SST",
+      controlKey,
       dueDate,
       days,
       bucket: days < 0 ? "expired" : "warning",
@@ -175,6 +192,128 @@ function countMissingComplianceItems(employees) {
     }
   }
   return count;
+}
+
+function renderSstRenewButton(IC, { employeeId, controlKey, recordId, controlType, label = "Renovar" }) {
+  if (!controlKey) return "";
+  return `<button type="button" class="btn btn-sm btn-primary" data-action="renew-sst-control"
+    data-employee-id="${escapeAttr(String(employeeId || ""))}"
+    data-control-key="${escapeAttr(String(controlKey || ""))}"
+    data-record-id="${escapeAttr(String(recordId || ""))}"
+    data-control-type="${escapeAttr(String(controlType || ""))}"
+    title="Renovar control y actualizar ficha del colaborador">${IC.activity || "↻"} ${escapeHtml(label)}</button>`;
+}
+
+function openSstRenewalModal(ctx) {
+  const {
+    employeeId,
+    controlKey,
+    recordId,
+    controlType,
+    provider: initialProvider = "",
+    documentCode: initialDocumentCode = "",
+    notes: initialNotes = ""
+  } = ctx;
+  const employees = read(KEYS.payrollEmployees, []);
+  const employee = employees.find((row) => String(row.id) === String(employeeId || ""));
+  if (!employee) {
+    G.notify("Colaborador no encontrado.", "error");
+    return;
+  }
+  const key = String(controlKey || "").trim();
+  if (!key) {
+    G.notify("Este control no admite renovación automática.", "error");
+    return;
+  }
+  const today = colombiaTodayIsoDate();
+  const needsProvider = sstControlRequiresProvider(key);
+  const displayType = String(controlType || getSstControlRecordType(key) || key);
+  const defaultProvider =
+    String(initialProvider || "").trim() ||
+    (key === "eps_affiliation"
+      ? String(employee.eps || "")
+      : key === "pension_affiliation"
+        ? String(employee.pensionFund || "")
+        : key === "arl_affiliation"
+          ? String(employee.arl || "")
+          : "");
+
+  G.openEditModal({
+    title: "Renovar control SST",
+    subtitle: `${String(employee.name || "").trim()} · ${displayType}`,
+    submitText: "Renovar y actualizar",
+    fields: [
+      {
+        type: "section",
+        title: "Renovación",
+        hint: "Al confirmar se actualiza la ficha del colaborador (y conductor si aplica), se registra el cumplimiento y se calcula el próximo vencimiento."
+      },
+      {
+        name: "completionDate",
+        label: needsProvider ? "Fecha de afiliación / renovación" : "Fecha de realización",
+        type: "date",
+        value: today,
+        required: true
+      },
+      ...(needsProvider
+        ? [
+            {
+              name: "provider",
+              label: "Entidad (EPS, fondo o ARL)",
+              value: defaultProvider,
+              required: true,
+              placeholder: "Ej. Sura, Colpensiones, Positiva"
+            }
+          ]
+        : [
+            {
+              name: "provider",
+              label: "Entidad / proveedor (opcional)",
+              value: defaultProvider
+            }
+          ]),
+      {
+        name: "documentCode",
+        label: "Código documental (opcional)",
+        value: String(initialDocumentCode || "")
+      },
+      {
+        name: "notes",
+        label: "Observaciones (opcional)",
+        type: "textarea",
+        value: String(initialNotes || ""),
+        rows: 2
+      }
+    ],
+    onSubmit: async (form) => {
+      const result = await executeSstRenewal({
+        employeeId: employee.id,
+        controlKey: key,
+        completionDate: form.completionDate,
+        provider: form.provider,
+        documentCode: form.documentCode,
+        notes: form.notes,
+        recordId: recordId || undefined,
+        createAuditRecord: true
+      });
+      if (!result.ok) {
+        G.notify(String(result.message || "No fue posible completar la renovación."), "error");
+        return false;
+      }
+      G.logPortalAuditEvent?.("sst", "renew", {
+        entityId: result.record?.id || recordId || employee.id,
+        entityLabel: `${String(employee.name || "Colaborador")} · ${displayType}`,
+        summary: `Renovado ${String(result.completionDate || "")} · próximo ${String(result.nextDueDate || "—")}`,
+        at: G.nowIso?.() || new Date().toISOString()
+      });
+      G.notify(
+        `Control renovado. Ficha del colaborador actualizada${result.nextDueDate ? ` · próximo vencimiento ${result.nextDueDate}` : ""}.`,
+        "success"
+      );
+      G.renderPortalView();
+      return true;
+    }
+  });
 }
 
 function renderSstModuleHead({ employeesCount, recordsCount, dueCount, missingCount, urgentCount, workspace = "operate" }) {
@@ -329,6 +468,7 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
         <td class="payroll-table-cell-notes"><span class="muted">${escapeHtml(String(record.notes || "-"))}</span></td>
         <td class="payroll-contracts-table__actions"><div class="toolbar">
           <button class="btn btn-sm btn-outline" data-action="view-sst-record" data-id="${escapeAttr(String(record.id))}">${IC.eye} Ver</button>
+          ${sstCanMutate && resolveSstControlKey(record.recordType) ? renderSstRenewButton(IC, { employeeId: record.employeeId, controlKey: resolveSstControlKey(record.recordType), recordId: record.id, controlType: record.recordType }) : ""}
           ${sstCanMutate ? `<button class="btn btn-sm btn-action" data-action="edit-sst-record" data-id="${escapeAttr(String(record.id))}">${IC.edit} Editar</button>` : ""}
           ${sstCanMutate ? `<button class="btn btn-sm btn-reject" data-action="delete-sst-record" data-id="${escapeAttr(String(record.id))}" title="Eliminar control SST">${IC.trash} Eliminar</button>` : ""}
         </div></td>
@@ -351,6 +491,8 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
               <option value="Afiliacion pension">Afiliacion pension</option>
               <option value="Afiliacion ARL">Afiliacion ARL</option>
               <option value="Examen medico ocupacional">Examen medico ocupacional</option>
+              <option value="Examen instruvial">Examen instruvial</option>
+              <option value="Licencia de conduccion">Licencia de conduccion</option>
               <option value="Capacitacion SST">Capacitacion SST</option>
               <option value="Inspeccion documental">Inspeccion documental</option>
             </select>
@@ -362,6 +504,7 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
         <div class="form-section-grid">
           <label>${fieldLabel(IC.briefcase, "Entidad / proveedor")}<input name="provider" required placeholder="EPS, fondo, ARL o entidad auditora" /></label>
           <label>${fieldLabel(IC.calendar, "Vencimiento / control")}<input type="date" name="dueDate" required /></label>
+          <label class="sst-completion-date-field">${fieldLabel(IC.calendar, "Fecha de realización")}<input type="date" name="completionDate" /></label>
           <label>${fieldLabel(IC.activity, "Estado")}
             <select name="status" required>
               <option value="Pendiente">Pendiente</option>
@@ -373,6 +516,7 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
         </div>
       </fieldset>
       <label class="full">${fieldLabel(IC.file, "Evidencia / observaciones")}<textarea name="notes" rows="3" required placeholder="Detalle de soporte, auditoría y responsable"></textarea></label>
+      <p class="muted full sst-renewal-hint">Al marcar el control como <strong>Cumplido</strong>, con fecha de realización, se renovará automáticamente la ficha del colaborador en todos los módulos vinculados.</p>
       ${renderManagedCreateFormActions("create-sst-control", `<button class="btn btn-primary" type="submit">${IC.plus} Registrar control legal/SST</button>`)}
     </form>`;
     const recordsTable = recordRows
@@ -389,16 +533,26 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
         const nameCell = `<strong>${escapeHtml(item.employeeName)}</strong><br><span class="muted">${escapeHtml(item.position)}</span>`;
         const dueDateCell = item.dueDate ? escapeHtml(item.dueDate) : '<span class="muted">Sin programar</span>';
         const rowAttrs = item.bucket === "missing" ? ' data-sst-due-bucket="missing"' : ` data-sst-due-days="${escapeAttr(String(item.days))}"`;
+        const renewBtn =
+          sstCanMutate && item.controlKey
+            ? `<td class="payroll-contracts-table__actions"><div class="toolbar">${renderSstRenewButton(IC, {
+                employeeId: item.employeeId,
+                controlKey: item.controlKey,
+                recordId: item.recordId,
+                controlType: item.controlType
+              })}</div></td>`
+            : `<td class="muted">—</td>`;
         return `<tr class="${bucketClass}"${rowAttrs}>
         <td><strong>${escapeHtml(item.controlType)}</strong></td>
         <td>${nameCell}</td>
         <td>${dueDateCell}</td>
         <td>${sstDueStatusBadge(item)}</td>
+        ${renewBtn}
       </tr>`;
       })
       .join("");
     const dueItemsTable = dueItemRows
-      ? `<div class="table-wrap payroll-table-wrap"><table><thead><tr><th>Control</th><th>Empleado</th><th>Vencimiento</th><th>Estado</th></tr></thead><tbody>${dueItemRows}</tbody></table></div>`
+      ? `<div class="table-wrap payroll-table-wrap"><table><thead><tr><th>Control</th><th>Empleado</th><th>Vencimiento</th><th>Estado</th><th class="payroll-contracts-table__actions">Acciones</th></tr></thead><tbody>${dueItemRows}</tbody></table></div>`
       : emptyState(
           listSearchNorm
             ? "No hay vencimientos que coincidan con la búsqueda."
@@ -557,6 +711,17 @@ function bindLaborCompliancePortalControls() {
         G.failPortalField(sstComplianceForm, "dueDate", G.userMessage("sstDueDateRequired"));
         return;
       }
+      const status = String(data.status || "Pendiente");
+      const isComplete = status.trim().toLowerCase().startsWith("cumpl");
+      const completionDate = String(data.completionDate || "").trim();
+      if (isComplete && !completionDate) {
+        G.failPortalField(
+          sstComplianceForm,
+          "completionDate",
+          "Indique la fecha de realización al marcar el control como Cumplido."
+        );
+        return;
+      }
       const list = read(KEYS.sstCompliance, []);
       const createdRecord = G.stampCreatedRecord({
         id: G.newUuidV4(),
@@ -565,7 +730,8 @@ function bindLaborCompliancePortalControls() {
         recordType: String(data.recordType || "").trim(),
         provider: String(data.provider || "").trim(),
         dueDate,
-        status: String(data.status || "Pendiente"),
+        completionDate: completionDate || "",
+        status,
         documentCode: String(data.documentCode || "").trim().toUpperCase(),
         notes: String(data.notes || "").trim()
       });
@@ -576,6 +742,22 @@ function bindLaborCompliancePortalControls() {
         G.notify(String(err?.message || "No fue posible guardar el registro SST en el servidor."), "error");
         return;
       }
+      if (isComplete) {
+        const renewal = await applySstRecordCompletion(createdRecord, {
+          completionDate: completionDate || dueDate,
+          provider: data.provider,
+          documentCode: data.documentCode,
+          notes: data.notes
+        });
+        if (!renewal.ok) {
+          G.notify(
+            String(renewal.message || "Control registrado, pero no se pudo actualizar la ficha del colaborador."),
+            "error"
+          );
+          G.renderPortalView();
+          return;
+        }
+      }
       if (typeof G.logPortalAuditEvent === "function") {
         G.logPortalAuditEvent("sst", "create", {
           entityId: createdRecord.id,
@@ -584,7 +766,12 @@ function bindLaborCompliancePortalControls() {
           at: createdRecord.createdAt
         });
       }
-      G.notify(G.userMessage("sstRecorded"), "success");
+      G.notify(
+        isComplete
+          ? "Control registrado y ficha del colaborador actualizada."
+          : G.userMessage("sstRecorded"),
+        "success"
+      );
       G.collapseCreatePanel("create-sst-control");
       G.renderPortalView();
     });
@@ -614,6 +801,7 @@ function bindLaborCompliancePortalControls() {
             ["Empleado", escapeHtml(String(r.employeeName || "-"))],
             ["Entidad / proveedor", escapeHtml(String(r.provider || "-"))],
             ["Vencimiento", fmtDateOr(r.dueDate)],
+            ["Realización", fmtDateOr(r.completionDate)],
             ["Estado", escapeHtml(String(r.status || "-"))],
             ["Registrado", fmtDateOr(r.createdAt)],
             ["Responsable", escapeHtml(String(r.createdBy || "-"))]
@@ -657,6 +845,13 @@ function bindLaborCompliancePortalControls() {
           { name: "provider", label: "Entidad / proveedor", value: target.provider || "", required: true },
           { name: "dueDate", label: "Vencimiento", type: "date", value: target.dueDate || "", required: true },
           {
+            name: "completionDate",
+            label: "Fecha de realización",
+            type: "date",
+            value: target.completionDate || "",
+            hint: "Obligatoria al marcar como Cumplido. Actualiza la ficha del colaborador."
+          },
+          {
             name: "status",
             label: "Estado",
             type: "select",
@@ -669,6 +864,17 @@ function bindLaborCompliancePortalControls() {
         onSubmit: async (form) => {
           if (!form.dueDate) {
             G.failPortalField(document.getElementById("crud-form"), "dueDate", G.userMessage("sstDueDateRequired"));
+            return false;
+          }
+          const nextStatus = String(form.status || "Pendiente");
+          const isComplete = nextStatus.trim().toLowerCase().startsWith("cumpl");
+          const completionDate = String(form.completionDate || "").trim();
+          if (isComplete && !completionDate) {
+            G.failPortalField(
+              document.getElementById("crud-form"),
+              "completionDate",
+              "Indique la fecha de realización al marcar como Cumplido."
+            );
             return false;
           }
           const freshRecords = read(KEYS.sstCompliance, []);
@@ -684,7 +890,8 @@ function bindLaborCompliancePortalControls() {
                   recordType: String(form.recordType || r.recordType || "").trim(),
                   provider: String(form.provider || "").trim(),
                   dueDate: form.dueDate,
-                  status: String(form.status || "Pendiente"),
+                  completionDate: completionDate || r.completionDate || "",
+                  status: nextStatus,
                   documentCode: String(form.documentCode || "").trim().toUpperCase(),
                   notes: String(form.notes || "").trim()
                 })
@@ -696,6 +903,22 @@ function bindLaborCompliancePortalControls() {
             return false;
           }
           const updatedRecord = nextList.find((r) => String(r.id) === String(target.id));
+          if (updatedRecord && isComplete) {
+            const renewal = await applySstRecordCompletion(updatedRecord, {
+              completionDate: completionDate || updatedRecord.dueDate,
+              provider: form.provider,
+              documentCode: form.documentCode,
+              notes: form.notes
+            });
+            if (!renewal.ok) {
+              G.notify(
+                String(renewal.message || "Control guardado, pero no se pudo actualizar la ficha del colaborador."),
+                "error"
+              );
+              G.renderPortalView();
+              return false;
+            }
+          }
           if (updatedRecord && typeof G.logPortalAuditEvent === "function") {
             G.logPortalAuditEvent("sst", "update", {
               entityId: updatedRecord.id,
@@ -704,10 +927,25 @@ function bindLaborCompliancePortalControls() {
               at: updatedRecord.updatedAt || G.nowIso()
             });
           }
-          G.notify("Control SST actualizado.", "success");
+          G.notify(
+            isComplete ? "Control actualizado y ficha del colaborador renovada." : "Control SST actualizado.",
+            "success"
+          );
           G.renderPortalView();
           return true;
         }
+      });
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='renew-sst-control']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (G.abortUnlessCanManageSst?.()) return;
+      openSstRenewalModal({
+        employeeId: btn.dataset.employeeId,
+        controlKey: btn.dataset.controlKey,
+        recordId: btn.dataset.recordId,
+        controlType: btn.dataset.controlType
       });
     });
   });

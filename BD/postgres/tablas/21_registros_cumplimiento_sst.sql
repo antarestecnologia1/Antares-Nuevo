@@ -8,6 +8,7 @@ CREATE TABLE registros_cumplimiento_sst (
   tipo_registro           VARCHAR(120) NOT NULL,
   proveedor_entidad       VARCHAR(255) NOT NULL,
   fecha_vencimiento_control DATE NOT NULL,
+  fecha_realizacion       DATE,
   estado                  VARCHAR(64) NOT NULL DEFAULT 'Pendiente',
   codigo_documento        VARCHAR(64),
   observaciones           TEXT,

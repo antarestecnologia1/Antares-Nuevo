@@ -60,15 +60,31 @@ function toLocalInputDateFromIso(isoDate) {
   return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
 }
 
+function parseSstCompletionDateFromNotes(notes) {
+  const text = String(notes || "");
+  const m = text.match(/\[Realizado:\s*(\d{4}-\d{2}-\d{2})\]/i);
+  return m ? normalizePortalDateYmd(m[1]) : "";
+}
+
 export function normalizeSstComplianceRow(row) {
   if (!row || typeof row !== "object") return row;
   const due = normalizePortalDateYmd(row.dueDate || row.expiryDate);
+  const completionDate =
+    normalizePortalDateYmd(row.completionDate || row.completedAt || row.serviceDate) ||
+    parseSstCompletionDateFromNotes(row.notes);
   const recordType = String(row.recordType || "").trim();
   const status = String(row.status || "Pendiente").trim();
   const rtMatch =
     SST_COMPLIANCE_RECORD_TYPES.find((t) => t.toLowerCase() === recordType.toLowerCase()) || recordType;
   const stMatch = SST_COMPLIANCE_STATUSES.find((t) => t.toLowerCase() === status.toLowerCase()) || status;
-  return { ...row, dueDate: due, expiryDate: due, recordType: rtMatch, status: stMatch };
+  return {
+    ...row,
+    dueDate: due,
+    expiryDate: due,
+    completionDate,
+    recordType: rtMatch,
+    status: stMatch
+  };
 }
 
 export function normalizeVacancyRowForEditor(raw) {

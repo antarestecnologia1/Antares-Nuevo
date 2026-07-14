@@ -7092,6 +7092,7 @@ export class PortalService implements OnModuleInit {
       provider: row.proveedor_entidad,
       dueDate: row.fecha_vencimiento_control,
       expiryDate: row.fecha_vencimiento_control,
+      completionDate: row.fecha_realizacion ?? null,
       status: row.estado,
       documentCode: row.codigo_documento,
       notes: row.observaciones,
@@ -12059,14 +12060,15 @@ export class PortalService implements OnModuleInit {
       if (this.skipUnlessPersistUuid("syncSst.employeeId", row.employeeId)) continue;
       await c.query(
         `INSERT INTO registros_cumplimiento_sst (
-          id, id_empleado, nombre_empleado, tipo_registro, proveedor_entidad, fecha_vencimiento_control, estado, codigo_documento, observaciones, creado_por
-        ) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6::date, $7, $8, $9, $10)
+          id, id_empleado, nombre_empleado, tipo_registro, proveedor_entidad, fecha_vencimiento_control, fecha_realizacion, estado, codigo_documento, observaciones, creado_por
+        ) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6::date, $7::date, $8, $9, $10, $11)
         ON CONFLICT (id) DO UPDATE SET
           id_empleado = EXCLUDED.id_empleado,
           nombre_empleado = EXCLUDED.nombre_empleado,
           tipo_registro = EXCLUDED.tipo_registro,
           proveedor_entidad = EXCLUDED.proveedor_entidad,
           fecha_vencimiento_control = EXCLUDED.fecha_vencimiento_control,
+          fecha_realizacion = EXCLUDED.fecha_realizacion,
           estado = EXCLUDED.estado,
           codigo_documento = EXCLUDED.codigo_documento,
           observaciones = EXCLUDED.observaciones,
@@ -12079,6 +12081,7 @@ export class PortalService implements OnModuleInit {
           nu(row.provider),
           (row as { dueDate?: unknown; expiryDate?: unknown }).dueDate ??
             (row as { expiryDate?: unknown }).expiryDate,
+          (row as { completionDate?: unknown }).completionDate ?? null,
           nu(row.status || "Pendiente"),
           nuN(row.documentCode),
           nuN(row.notes),
