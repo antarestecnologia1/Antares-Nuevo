@@ -1120,10 +1120,7 @@ body[data-theme="dark"] #auth-modal .cf-turnstile {
 }
 
 #auth-modal #form-register .register-section--legal {
-  gap: 0.5rem;
-  background: transparent;
-  border: 0;
-  padding: 0;
+  gap: 0.75rem;
 }
 
 #auth-modal #form-register .register-terms-card {
@@ -1176,12 +1173,18 @@ body[data-theme="dark"] #auth-modal .cf-turnstile {
   box-shadow: 0 14px 28px rgba(var(--primary-rgb), 0.3);
 }
 
-#auth-modal #form-register input.auth-password-input.password-match-ok {
+#auth-modal .auth-password-panel input.auth-password-input.password-match-ok,
+#auth-modal .auth-password-panel input.auth-password-input.password-match-bad {
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+#auth-modal .auth-password-panel .register-password-field .auth-input-row:has(.auth-password-input.password-match-ok) {
   border-color: #2d9d62 !important;
   box-shadow: 0 0 0 3px rgba(45, 157, 98, 0.14) !important;
 }
 
-#auth-modal #form-register input.auth-password-input.password-match-bad {
+#auth-modal .auth-password-panel .register-password-field .auth-input-row:has(.auth-password-input.password-match-bad) {
   border-color: #d64545 !important;
   box-shadow: 0 0 0 3px rgba(214, 69, 69, 0.12) !important;
 }
@@ -1216,7 +1219,8 @@ body:not([data-theme="dark"]) #auth-modal #form-register .register-section--secu
   background: #f8fafc;
 }
 
-body:not([data-theme="dark"]) #auth-modal #form-register .register-submit-wrap {
+body:not([data-theme="dark"]) #auth-modal #form-register .register-submit-wrap,
+body:not([data-theme="dark"]) #auth-modal #form-recover-complete .register-submit-wrap {
   background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.92) 28%);
 }
 
@@ -1315,7 +1319,8 @@ body[data-theme="dark"] #auth-modal #form-register .auth-inline-note {
   border-color: rgba(148, 196, 255, 0.14);
 }
 
-body[data-theme="dark"] #auth-modal #form-register .register-submit-wrap {
+body[data-theme="dark"] #auth-modal #form-register .register-submit-wrap,
+body[data-theme="dark"] #auth-modal #form-recover-complete .register-submit-wrap {
   background: linear-gradient(180deg, transparent, rgba(12, 27, 44, 0.95) 30%);
 }
 
@@ -1333,6 +1338,429 @@ body[data-theme="dark"] #auth-modal #form-register .register-submit-wrap {
   #auth-modal .register-section {
     padding: 0.8rem 0.85rem;
   }
+
+  #auth-modal #form-register .register-terms-grid {
+    grid-template-columns: 1fr;
+  }
+
+  #auth-modal .auth-password-panel .password-rule-grid--inline {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Registro / recuperación — sección contraseña (UI premium)
+   ═══════════════════════════════════════════════════════════════════ */
+
+#auth-modal #form-recover-complete.auth-recover-complete-form {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  gap: 0.65rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+
+#auth-modal .auth-password-panel .register-section-step--lock {
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 12%, #ffffff);
+  box-shadow: none;
+}
+
+#auth-modal .auth-password-panel .register-section-step--lock .btn-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+#auth-modal .auth-password-panel .register-password-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  width: 100%;
+}
+
+#auth-modal .auth-password-panel .register-password-field.auth-field-stack {
+  gap: 0.38rem;
+}
+
+#auth-modal .auth-password-panel .register-password-field .auth-password-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.45rem;
+  width: 100%;
+}
+
+#auth-modal .auth-password-panel .register-password-field .auth-input-row {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: var(--reg-control-h, 2.65rem);
+  display: flex;
+  align-items: stretch;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--primary) 10%, var(--line));
+  background: #ffffff;
+  overflow: hidden;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+#auth-modal .auth-password-panel .register-password-field .auth-input-row:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.12);
+}
+
+#auth-modal .auth-password-panel .register-password-field .auth-input-prefix {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.65rem;
+  color: var(--text-soft, var(--muted));
+  border-right: 1px solid color-mix(in srgb, var(--primary) 8%, var(--line));
+}
+
+#auth-modal .auth-password-panel .register-password-field .auth-input-control {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: auto;
+  min-height: 0;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  padding: 0 0.75rem;
+  font-size: 0.9rem;
+}
+
+#auth-modal .auth-password-panel .register-password-field .auth-password-row .btn {
+  flex-shrink: 0;
+  min-height: var(--reg-control-h, 2.65rem);
+  border-radius: 10px;
+  padding-inline: 0.8rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+#auth-modal .auth-password-panel .password-strength-suite--register {
+  margin-top: 0.15rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+#auth-modal .auth-password-panel .password-strength-label {
+  margin: 0 0 0.45rem;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text-main, var(--text));
+}
+
+#auth-modal .auth-password-panel .password-strength-tier {
+  font-weight: 800;
+  color: var(--text-soft, var(--muted));
+}
+
+#auth-modal .auth-password-panel .password-strength-tier[data-tier="weak"] {
+  color: #dc2626;
+}
+
+#auth-modal .auth-password-panel .password-strength-tier[data-tier="fair"] {
+  color: #ea580c;
+}
+
+#auth-modal .auth-password-panel .password-strength-tier[data-tier="good"] {
+  color: var(--primary);
+}
+
+#auth-modal .auth-password-panel .password-strength-tier[data-tier="strong"] {
+  color: #16a34a;
+}
+
+#auth-modal .auth-password-panel .password-strength-segments {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.35rem;
+  margin-bottom: 0.65rem;
+}
+
+#auth-modal .auth-password-panel .password-strength-segment {
+  height: 0.42rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--line) 85%, #ffffff);
+  transition: background 0.22s ease, box-shadow 0.22s ease;
+}
+
+#auth-modal .auth-password-panel .password-strength-segment--on.password-strength-segment--weak {
+  background: linear-gradient(90deg, #ef4444, #f97316);
+}
+
+#auth-modal .auth-password-panel .password-strength-segment--on.password-strength-segment--fair {
+  background: linear-gradient(90deg, #f59e0b, #fbbf24);
+}
+
+#auth-modal .auth-password-panel .password-strength-segment--on.password-strength-segment--good {
+  background: linear-gradient(90deg, var(--primary), var(--primary-mid, #83bee9));
+}
+
+#auth-modal .auth-password-panel .password-strength-segment--on.password-strength-segment--strong {
+  background: linear-gradient(90deg, #16a34a, #4ade80);
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.28);
+}
+
+#auth-modal .auth-password-panel .password-rule-grid--inline {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.35rem 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+#auth-modal .auth-password-panel .password-rule-grid--inline li {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 650;
+  color: var(--text-soft, var(--muted));
+}
+
+#auth-modal .auth-password-panel .password-policy-callout {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  margin-top: 0.65rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--primary) 14%, var(--line));
+  background: color-mix(in srgb, var(--primary) 6%, #ffffff);
+}
+
+#auth-modal .auth-password-panel .password-policy-callout-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 999px;
+  color: var(--primary);
+  background: rgba(var(--primary-rgb), 0.1);
+}
+
+#auth-modal .auth-password-panel .password-policy-callout .password-policy-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--text-soft, var(--muted));
+}
+
+#auth-modal #form-register .register-section--legal {
+  padding: 0.75rem 0.85rem;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--primary) 10%, var(--line));
+  background: color-mix(in srgb, var(--primary) 3%, #ffffff);
+}
+
+#auth-modal #form-register .register-terms-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+  width: 100%;
+}
+
+#auth-modal #form-register .register-terms-doc {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.45rem;
+  min-height: 100%;
+  padding: 0.75rem 0.8rem;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--primary) 12%, var(--line));
+  background: #ffffff;
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+#auth-modal #form-register .register-terms-doc:hover {
+  border-color: color-mix(in srgb, var(--primary) 32%, var(--line));
+  box-shadow: 0 6px 16px rgba(var(--primary-rgb), 0.08);
+  transform: translateY(-1px);
+}
+
+#auth-modal #form-register .register-terms-doc-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 10px;
+  color: var(--primary);
+  background: rgba(var(--primary-rgb), 0.08);
+}
+
+#auth-modal #form-register .register-terms-doc-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+  min-width: 0;
+}
+
+#auth-modal #form-register .register-terms-doc-title {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--primary);
+  line-height: 1.3;
+}
+
+#auth-modal #form-register .register-terms-doc-copy small {
+  font-size: 0.74rem;
+  line-height: 1.35;
+}
+
+#auth-modal #form-register .register-terms-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0.15rem 0 0;
+  text-align: left;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  cursor: pointer;
+}
+
+#auth-modal #form-register .register-terms-check input[type="checkbox"] {
+  margin-top: 0.12rem;
+  accent-color: var(--primary);
+}
+
+#auth-modal #form-register .register-pending-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--primary) 18%, var(--line));
+  background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.07), rgba(var(--primary-rgb), 0.03));
+}
+
+#auth-modal #form-register .register-pending-alert-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  color: var(--primary);
+  background: rgba(var(--primary-rgb), 0.12);
+}
+
+#auth-modal #form-register .register-pending-alert p {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--text-main, var(--text));
+}
+
+#auth-modal #form-register .turnstile-shell-label,
+#auth-modal #form-recover-complete .turnstile-shell-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0;
+  background: transparent;
+  color: var(--text-main, var(--text));
+}
+
+body:not([data-theme="dark"]) #auth-modal .auth-password-panel .register-password-field .auth-input-row {
+  background: #ffffff;
+}
+
+body:not([data-theme="dark"]) #auth-modal .auth-password-panel .register-password-field .auth-input-control {
+  color: var(--text-main, var(--text));
+}
+
+body:not([data-theme="dark"]) #auth-modal .auth-password-panel .register-password-field .auth-password-row .btn {
+  color: var(--primary);
+  background: #f4f8fc;
+  border: 1px solid color-mix(in srgb, var(--primary) 12%, var(--line));
+}
+
+body[data-theme="dark"] #auth-modal .auth-password-panel .register-section-step--lock {
+  color: #9ed0ff;
+  background: rgba(var(--primary-rgb), 0.16);
+}
+
+body[data-theme="dark"] #auth-modal .auth-password-panel .register-password-field .auth-input-row {
+  background: rgba(8, 22, 40, 0.72);
+  border-color: rgba(148, 196, 255, 0.18);
+}
+
+body[data-theme="dark"] #auth-modal .auth-password-panel .register-password-field .auth-input-prefix {
+  color: rgba(202, 223, 247, 0.72);
+  border-right-color: rgba(148, 196, 255, 0.14);
+}
+
+body[data-theme="dark"] #auth-modal .auth-password-panel .register-password-field .auth-input-control {
+  color: #eaf3ff;
+}
+
+body[data-theme="dark"] #auth-modal .auth-password-panel .register-password-field .auth-password-row .btn {
+  color: #d6e8ff;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(148, 196, 255, 0.2);
+}
+
+body[data-theme="dark"] #auth-modal .auth-password-panel .password-strength-label {
+  color: #eaf3ff;
+}
+
+body[data-theme="dark"] #auth-modal .auth-password-panel .password-policy-callout {
+  background: rgba(131, 190, 233, 0.08);
+  border-color: rgba(148, 196, 255, 0.14);
+}
+
+body[data-theme="dark"] #auth-modal #form-register .register-section--legal {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(148, 196, 255, 0.14);
+}
+
+body[data-theme="dark"] #auth-modal #form-register .register-terms-doc {
+  background: rgba(8, 22, 40, 0.55);
+  border-color: rgba(148, 196, 255, 0.16);
+}
+
+body[data-theme="dark"] #auth-modal #form-register .register-terms-doc-title {
+  color: #9ed0ff;
+}
+
+body[data-theme="dark"] #auth-modal #form-register .register-pending-alert {
+  background: rgba(131, 190, 233, 0.08);
+  border-color: rgba(148, 196, 255, 0.16);
+}
+
+body[data-theme="dark"] #auth-modal #form-register .register-pending-alert p {
+  color: rgba(206, 226, 248, 0.88);
+}
+
+body[data-theme="dark"] #auth-modal #form-register .turnstile-shell-label,
+body[data-theme="dark"] #auth-modal #form-recover-complete .turnstile-shell-label {
+  color: #eef6ff;
 }
 
 /* ═══════════════════════════════════════════════════════════════════

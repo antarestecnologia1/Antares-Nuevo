@@ -5,9 +5,12 @@
 import {
   ALL_PERMISSIONS,
   APPROVAL_TYPE_META,
+  DATA_POLICY_URL,
   KEYS,
   LOGIN_REMEMBER_STORAGE_KEY,
   PERMISSIONS,
+  REGISTER_PRIVACY_URL,
+  REGISTER_TERMS_URL,
   ROLES,
   SESSION_API_REFRESH_MS,
   SESSION_CLIENT_TOKEN_ROTATE_MS,
@@ -612,12 +615,30 @@ function __getPasswordStrengthReport(password) {
   }
   return { pct, tier, met, checks, headline };
 }
+const __PASSWORD_TIER_LABELS = Object.freeze({
+  weak: "Débil",
+  fair: "Regular",
+  good: "Buena",
+  strong: "Fuerte"
+});
+
+function __passwordStrengthSegmentCount(met) {
+  if (met <= 0) return 0;
+  if (met <= 2) return 1;
+  if (met === 3) return 2;
+  if (met === 4) return 3;
+  return 4;
+}
+
 function __bindPasswordStrengthSuite(passInput, container) {
   if (!passInput || !container) return;
   const fill = container.querySelector(".password-strength-bar-fill");
   const pill = container.querySelector(".password-strength-pill");
   const headline = container.querySelector(".password-strength-headline");
   const bar = container.querySelector(".password-strength-bar");
+  const tierLabel = container.querySelector(".password-strength-tier");
+  const segmentsWrap = container.querySelector(".password-strength-segments");
+  const segments = segmentsWrap ? [...segmentsWrap.querySelectorAll(".password-strength-segment")] : [];
   const rules = [...container.querySelectorAll(".password-rule-grid li[data-rule]")];
   const sync = () => {
     const r = __getPasswordStrengthReport(passInput.value);
@@ -637,6 +658,22 @@ function __bindPasswordStrengthSuite(passInput, container) {
       pill.className = `password-strength-pill password-strength-pill--${r.tier}`;
     }
     if (headline) headline.textContent = r.headline;
+    if (tierLabel) {
+      tierLabel.textContent = active ? __PASSWORD_TIER_LABELS[r.tier] || "—" : "—";
+      tierLabel.dataset.tier = active ? r.tier : "empty";
+    }
+    if (segments.length) {
+      const filled = __passwordStrengthSegmentCount(r.met);
+      segments.forEach((seg, idx) => {
+        const on = idx < filled;
+        seg.classList.toggle("password-strength-segment--on", on);
+        seg.classList.toggle(`password-strength-segment--${r.tier}`, on);
+      });
+      if (segmentsWrap) {
+        segmentsWrap.setAttribute("aria-valuenow", String(filled));
+        segmentsWrap.dataset.tier = active ? r.tier : "empty";
+      }
+    }
     for (const li of rules) {
       const key = li.getAttribute("data-rule");
       const ok = r.checks.find((c) => c.rule === key)?.ok;
@@ -791,6 +828,9 @@ export function showDataPolicyGate() {
   body.innerHTML = __dataPolicyModalMarkup();
   modal.classList.remove("hidden");
   document.body.classList.add("data-policy-gate-open");
+  body.querySelectorAll(".data-policy-check__box .required-marker, .data-policy-check .required-marker").forEach((node) => {
+    node.remove();
+  });
   const form = document.getElementById("form-data-policy-accept");
   if (form) {
     const onDataPolicyFormChange = () => __syncDataPolicyFormReady(form);
@@ -2005,7 +2045,7 @@ function turnstileWidgetMarkup() {
   return `
     <div class="full turnstile-row">
       <div class="turnstile-shell">
-        <span class="turnstile-shell-label">Verificación de seguridad</span>
+        <span class="turnstile-shell-label">${IC.shield || ""} Verificación de seguridad</span>
         <div class="cf-turnstile" data-sitekey="${siteKey}" data-size="flexible" data-theme="${theme}" data-antares-pending="1"></div>
       </div>
     </div>
@@ -2165,55 +2205,89 @@ function resetTurnstile(form) {
   } catch (_e) {}
 }
 
+function __authPasswordPanelMarkup({
+  title,
+  subtitle,
+  passwordToggleTarget,
+  confirmToggleTarget,
+  strengthSuiteId,
+  strengthLabelId,
+  hintId
+}) {
+  const describedBy = `${strengthLabelId} ${hintId}`;
+  return `
+        <div class="register-section register-section--password auth-password-panel full">
+          <div class="register-section-head">
+            <span class="register-section-step register-section-step--icon register-section-step--lock" aria-hidden="true">${IC.lock}</span>
+            <div>
+              <h4 class="register-section-title">${title}</h4>
+              <p class="register-section-desc muted">${subtitle}</p>
+            </div>
+          </div>
+          <div class="register-password-fields">
+            <label class="full auth-field-stack register-password-field">
+              ${fieldLabel("", "Contraseña", { required: true })}
+              <div class="password-field auth-password-row">
+                <div class="auth-input-row auth-input-row--grow">
+                  <span class="auth-input-prefix" aria-hidden="true">${IC.lock}</span>
+                  <input class="auth-input-control auth-password-input" type="password" minlength="10" name="password" autocomplete="new-password" autocapitalize="off" spellcheck="false" required aria-describedby="${describedBy}" />
+                </div>
+                <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="${passwordToggleTarget}">${IC.eye} Mostrar</button>
+              </div>
+            </label>
+            <label class="full auth-field-stack register-password-field">
+              ${fieldLabel("", "Confirmar contraseña", { required: true })}
+              <div class="password-field auth-password-row">
+                <div class="auth-input-row auth-input-row--grow">
+                  <span class="auth-input-prefix" aria-hidden="true">${IC.lock}</span>
+                  <input class="auth-input-control auth-password-input" type="password" minlength="10" name="passwordConfirm" autocomplete="new-password" autocapitalize="off" spellcheck="false" required />
+                </div>
+                <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="${confirmToggleTarget}">${IC.eye} Mostrar</button>
+              </div>
+              <small class="muted register-password-match-hint">Repita la contraseña exactamente igual.</small>
+            </label>
+            <div id="${strengthSuiteId}" class="password-strength-suite password-strength-suite--register full">
+              <p id="${strengthLabelId}" class="password-strength-label">
+                Fortaleza de la contraseña: <strong class="password-strength-tier" data-tier="empty">—</strong>
+              </p>
+              <div class="password-strength-segments" role="progressbar" aria-valuemin="0" aria-valuemax="4" aria-valuenow="0" aria-label="Fortaleza de la contraseña" data-tier="empty">
+                <span class="password-strength-segment" data-segment="1"></span>
+                <span class="password-strength-segment" data-segment="2"></span>
+                <span class="password-strength-segment" data-segment="3"></span>
+                <span class="password-strength-segment" data-segment="4"></span>
+              </div>
+              <ul class="password-rule-grid password-rule-grid--inline" role="list" aria-label="Requisitos de contraseña">
+                <li data-rule="len"><span class="password-rule-dot" aria-hidden="true"></span><span>10+ caracteres</span></li>
+                <li data-rule="lower"><span class="password-rule-dot" aria-hidden="true"></span><span>Minúscula (a-z)</span></li>
+                <li data-rule="upper"><span class="password-rule-dot" aria-hidden="true"></span><span>Mayúscula (A-Z)</span></li>
+                <li data-rule="digit"><span class="password-rule-dot" aria-hidden="true"></span><span>Número (0-9)</span></li>
+                <li data-rule="special"><span class="password-rule-dot" aria-hidden="true"></span><span>Símbolo (!@#$…)</span></li>
+              </ul>
+              <div class="password-policy-callout">
+                <span class="password-policy-callout-icon" aria-hidden="true">${IC.info}</span>
+                <p id="${hintId}" class="password-policy-hint">Mínimo 10 caracteres con mayúscula, minúscula, número y símbolo. Escriba la contraseña como prefiera: en pantalla se muestra tal cual (mayúsculas y minúsculas).</p>
+              </div>
+            </div>
+          </div>
+        </div>`;
+}
+
 function authView() {
   if (state.authSupabaseRecovery) {
     return `
-    <div class="auth-header-premium">
-      <h3>Asignar contraseña</h3>
-      <p class="muted">Elija una contraseña segura. Quedará aplicada para el inicio de sesión en este portal.</p>
-    </div>
-    <form id="form-recover-complete" class="form-grid auth-pane auth-form" autocomplete="off">
-      <label class="full auth-field-stack">
-        <span class="auth-plain-label">${fieldLabel(IC.lock, "Asignar contraseña", { required: true })}</span>
-        <div class="password-field auth-password-row">
-          <div class="auth-input-row auth-input-row--grow">
-            <span class="auth-input-prefix" aria-hidden="true">${IC.lock}</span>
-            <input class="auth-input-control" type="password" name="password" minlength="10" autocomplete="new-password" autocapitalize="off" spellcheck="false" required aria-describedby="recover-password-strength-headline recover-password-hint" />
-          </div>
-          <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="recover-complete">${IC.eye} Mostrar</button>
-        </div>
-      </label>
-      <label class="full auth-field-stack">
-        <span class="auth-plain-label">${fieldLabel(IC.shield, "Confirmar contraseña", { required: true })}</span>
-        <div class="password-field auth-password-row">
-          <div class="auth-input-row auth-input-row--grow">
-            <span class="auth-input-prefix" aria-hidden="true">${IC.shield}</span>
-            <input class="auth-input-control" type="password" name="passwordConfirm" minlength="10" autocomplete="new-password" autocapitalize="off" spellcheck="false" required />
-          </div>
-          <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="recover-complete-c">${IC.eye} Mostrar</button>
-        </div>
-        <small class="muted register-password-match-hint">Repita la contraseña exactamente igual.</small>
-      </label>
-      <div id="recover-password-strength-suite" class="password-strength-suite full">
-        <div class="password-strength-bar-wrap">
-          <div class="password-strength-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Progreso de requisitos de contraseña">
-            <div class="password-strength-bar-fill password-strength-bar-fill--weak"></div>
-          </div>
-          <div class="password-strength-meta">
-            <span class="password-strength-pill password-strength-pill--weak">0%</span>
-            <p id="recover-password-strength-headline" class="password-strength-headline">Indique una contraseña segura</p>
-          </div>
-        </div>
-        <ul class="password-rule-grid" role="list" aria-label="Requisitos de contraseña">
-          <li data-rule="len"><span class="password-rule-dot" aria-hidden="true"></span><span>10+ caracteres</span></li>
-          <li data-rule="lower"><span class="password-rule-dot" aria-hidden="true"></span><span>Minúscula (a-z)</span></li>
-          <li data-rule="upper"><span class="password-rule-dot" aria-hidden="true"></span><span>Mayúscula (A-Z)</span></li>
-          <li data-rule="digit"><span class="password-rule-dot" aria-hidden="true"></span><span>Número (0-9)</span></li>
-          <li data-rule="special"><span class="password-rule-dot" aria-hidden="true"></span><span>Símbolo (!@#$…)</span></li>
-        </ul>
-        <p id="recover-password-hint" class="muted password-policy-hint">Mínimo 10 caracteres con mayúscula, minúscula, número y símbolo. Escriba la contraseña como prefiera: en pantalla se muestra tal cual (mayúsculas y minúsculas). En el servidor se almacena de forma segura (hash), no en texto plano.</p>
+    <form id="form-recover-complete" class="form-grid auth-pane auth-form auth-recover-complete-form" autocomplete="off">
+      ${__authPasswordPanelMarkup({
+        title: "Asignar contraseña",
+        subtitle: "Elija una contraseña segura para el inicio de sesión en este portal.",
+        passwordToggleTarget: "recover-complete",
+        confirmToggleTarget: "recover-complete-c",
+        strengthSuiteId: "recover-password-strength-suite",
+        strengthLabelId: "recover-password-strength-label",
+        hintId: "recover-password-hint"
+      })}
+      <div class="register-submit-wrap full">
+        <button class="btn btn-primary full register-submit-btn" type="submit">${IC.check} Guardar contraseña e iniciar sesión</button>
       </div>
-      <button class="btn btn-primary full" type="submit">${IC.check} Guardar contraseña e iniciar sesión después</button>
     </form>`;
   }
   const tab = state.authTab;
@@ -2433,71 +2507,71 @@ function authView() {
           </div>
         </div>
 
-        <div class="register-section register-section--security full">
+        <div class="register-section full">
           <div class="register-section-head">
             <span class="register-section-step" aria-hidden="true">4</span>
             <div>
               <h4 class="register-section-title">Acceso al portal</h4>
-              <p class="register-section-desc muted">Correo de ingreso y contraseña segura.</p>
+              <p class="register-section-desc muted">Correo electrónico con el que ingresará al sistema.</p>
             </div>
           </div>
           <div class="register-section-grid">
             <label class="full">${fieldLabel(IC.mail, "Correo electrónico")}<input type="email" name="email" autocomplete="username" placeholder="nombre@empresa.com" required data-antares-validate-blur="email" data-antares-restrict="email-local" /></label>
-            <label class="full">${fieldLabel(IC.lock, "Contraseña")}
-              <div class="password-field">
-                <input type="password" minlength="10" name="password" autocomplete="new-password" autocapitalize="off" spellcheck="false" required aria-describedby="password-strength password-hint" class="auth-password-input" />
-                <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="register">${IC.eye} Mostrar</button>
-              </div>
-            </label>
-            <label class="full">${fieldLabel(IC.shield, "Confirmar contraseña")}
-              <input type="password" minlength="10" name="passwordConfirm" autocomplete="new-password" autocapitalize="off" spellcheck="false" required class="auth-password-input" />
-              <small class="muted register-password-match-hint">Repita la contraseña exactamente igual.</small>
-            </label>
-            <div id="register-password-strength-suite" class="password-strength-suite full">
-              <div class="password-strength-bar-wrap">
-                <div class="password-strength-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Progreso de requisitos de contraseña">
-                  <div class="password-strength-bar-fill password-strength-bar-fill--weak"></div>
-                </div>
-                <div class="password-strength-meta">
-                  <span class="password-strength-pill password-strength-pill--weak">0%</span>
-                  <p id="password-strength" class="password-strength-headline">Indique una contraseña segura</p>
-                </div>
-              </div>
-              <ul class="password-rule-grid" role="list" aria-label="Requisitos de contraseña">
-                <li data-rule="len"><span class="password-rule-dot" aria-hidden="true"></span><span>10+ caracteres</span></li>
-                <li data-rule="lower"><span class="password-rule-dot" aria-hidden="true"></span><span>Minúscula (a-z)</span></li>
-                <li data-rule="upper"><span class="password-rule-dot" aria-hidden="true"></span><span>Mayúscula (A-Z)</span></li>
-                <li data-rule="digit"><span class="password-rule-dot" aria-hidden="true"></span><span>Número (0-9)</span></li>
-                <li data-rule="special"><span class="password-rule-dot" aria-hidden="true"></span><span>Símbolo (!@#$…)</span></li>
-              </ul>
-              <p id="password-hint" class="muted password-policy-hint">Mínimo 10 caracteres con mayúscula, minúscula, número y símbolo. Escriba la contraseña como prefiera: en pantalla se muestra tal cual (mayúsculas y minúsculas). En el servidor se almacena de forma segura (hash), no en texto plano.</p>
-            </div>
           </div>
         </div>
 
+        ${__authPasswordPanelMarkup({
+          title: "Crea tu contraseña",
+          subtitle: "Usa una contraseña segura para proteger tu cuenta.",
+          passwordToggleTarget: "register",
+          confirmToggleTarget: "register-c",
+          strengthSuiteId: "register-password-strength-suite",
+          strengthLabelId: "password-strength-label",
+          hintId: "password-hint"
+        })}
+
         <div class="register-section register-section--legal full">
-          <label class="full register-terms-card">
-            <span class="register-terms-title">${fieldLabel(IC.file, "Términos y condiciones")}</span>
-            <span class="register-terms-copy muted">
-              Al crear su cuenta acepta los
-              <a class="register-terms-link" href="${REGISTER_TERMS_URL}" target="_blank" rel="noopener noreferrer">Términos de uso</a>,
-              la
-              <a class="register-terms-link" href="${REGISTER_PRIVACY_URL}" target="_blank" rel="noopener noreferrer">Política de privacidad</a>,
-              la
-              <a class="register-terms-link" href="${DATA_POLICY_URL}" target="_blank" rel="noopener noreferrer">Política de Tratamiento de Datos Personales</a>
-              (Habeas Data), y confirma que la información registrada es veraz.
-            </span>
-            <span class="checkbox-inline register-terms-check">
-              <input type="checkbox" name="acceptTerms" required />
-              Acepto los términos, la política de privacidad y la Política de Tratamiento de Datos Personales.
-            </span>
+          <div class="register-section-head">
+            <span class="register-section-step register-section-step--icon" aria-hidden="true">${IC.file}</span>
+            <div>
+              <h4 class="register-section-title">Términos y condiciones <span class="field-required-mark" aria-hidden="true">*</span></h4>
+              <p class="register-section-desc muted">Al crear su cuenta acepta los siguientes documentos y confirma que la información registrada es veraz.</p>
+            </div>
+          </div>
+          <div class="register-terms-grid">
+            <a class="register-terms-doc" href="${REGISTER_TERMS_URL}" target="_blank" rel="noopener noreferrer">
+              <span class="register-terms-doc-icon" aria-hidden="true">${IC.file}</span>
+              <span class="register-terms-doc-copy">
+                <strong class="register-terms-doc-title">Términos de uso</strong>
+                <small class="muted">Consulta las reglas y condiciones del servicio.</small>
+              </span>
+            </a>
+            <a class="register-terms-doc" href="${REGISTER_PRIVACY_URL}" target="_blank" rel="noopener noreferrer">
+              <span class="register-terms-doc-icon" aria-hidden="true">${IC.shield}</span>
+              <span class="register-terms-doc-copy">
+                <strong class="register-terms-doc-title">Política de privacidad</strong>
+                <small class="muted">Conoce cómo protegemos tu información personal.</small>
+              </span>
+            </a>
+            <a class="register-terms-doc" href="${DATA_POLICY_URL}" target="_blank" rel="noopener noreferrer">
+              <span class="register-terms-doc-icon" aria-hidden="true">${IC.lock}</span>
+              <span class="register-terms-doc-copy">
+                <strong class="register-terms-doc-title">Política de Tratamiento de Datos Personales</strong>
+                <small class="muted">Información sobre el tratamiento de tus datos (Habeas Data).</small>
+              </span>
+            </a>
+          </div>
+          <label class="register-terms-check">
+            <input type="checkbox" name="acceptTerms" required />
+            <span>Acepto los términos, la política de privacidad y la Política de Tratamiento de Datos Personales.</span>
           </label>
-          <div class="full auth-inline-note">
-            <small class="muted">${IC.shield} Su solicitud quedará pendiente hasta que un administrador apruebe y asocie una empresa.</small>
+          <div class="register-pending-alert full">
+            <span class="register-pending-alert-icon" aria-hidden="true">${IC.info}</span>
+            <p>Su solicitud quedará pendiente hasta que un administrador apruebe y asocie una empresa. Le notificaremos por correo electrónico cuando su solicitud sea aprobada.</p>
           </div>
           ${turnstileWidgetMarkup()}
           <div class="register-submit-wrap full">
-            <button class="btn btn-primary full register-submit-btn" type="submit">${IC.userPlus} Enviar solicitud de registro</button>
+            <button class="btn btn-primary full register-submit-btn" type="submit">${IC.userPlus} Crear cuenta</button>
           </div>
         </div>
       </form>
@@ -2566,6 +2640,7 @@ export function bindAuthForms() {
       const targetForm = String(btn.dataset.target || "");
       let input = null;
       if (targetForm === "register") input = register?.querySelector("input[name='password']");
+      else if (targetForm === "register-c") input = register?.querySelector("input[name='passwordConfirm']");
       else if (targetForm === "admin-create") input = document.querySelector("#form-admin-user-create input[name='password']");
       else if (targetForm === "admin-edit") input = document.querySelector("#form-admin-user-edit input[name='password']");
       else if (targetForm === "recover-complete")

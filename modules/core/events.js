@@ -616,6 +616,7 @@ function bindDynamicEvents() {
       if (targetForm === "admin-create") input = document.querySelector("#form-admin-user-create input[name='password']");
       else if (targetForm === "admin-edit") input = document.querySelector("#form-admin-user-edit input[name='password']");
       else if (targetForm === "register") input = document.querySelector("#form-register input[name='password']");
+      else if (targetForm === "register-c") input = document.querySelector("#form-register input[name='passwordConfirm']");
       if (!input) return;
       const visible = input.type === "text";
       input.type = visible ? "password" : "text";
@@ -3640,12 +3641,23 @@ function initRequiredFieldIndicators() {
 
   const placeMarker = (label) => {
     if (!label || label.querySelector(`.${markerClass}`) || label.querySelector(".field-required-mark")) return;
+    if (label.classList.contains("data-policy-check") || label.closest("#data-policy-modal")) return;
     const marker = document.createElement("span");
     marker.className = markerClass;
     marker.textContent = "*";
     marker.setAttribute("aria-hidden", "true");
 
-    const labelTextNode = label.querySelector("span");
+    const labelTextNode =
+      label.querySelector(".field-label") ||
+      label.querySelector(".register-terms-title .field-label") ||
+      label.querySelector(".register-terms-check") ||
+      [...label.querySelectorAll("span")].find(
+        (node) =>
+          !node.getAttribute("aria-hidden") &&
+          !node.classList.contains("data-policy-check__box") &&
+          !node.classList.contains("btn-icon")
+      ) ||
+      null;
     if (labelTextNode) {
       labelTextNode.classList.add("required-with-marker");
       labelTextNode.append(" ", marker);
@@ -3659,7 +3671,8 @@ function initRequiredFieldIndicators() {
   const scanRequiredFields = (root = document) => {
     const requiredFields = root.querySelectorAll("input[required], select[required], textarea[required]");
     requiredFields.forEach((field) => {
-      if (field.type === "hidden") return;
+      if (field.type === "hidden" || field.type === "checkbox" || field.type === "radio") return;
+      if (field.closest("#data-policy-modal, .data-policy-check")) return;
       const label = field.closest("label");
       placeMarker(label);
     });
@@ -3672,6 +3685,7 @@ function initRequiredFieldIndicators() {
       mutation.addedNodes.forEach((node) => {
         if (!(node instanceof Element)) return;
         if (node.matches("input[required], select[required], textarea[required]")) {
+          if (node.type === "checkbox" || node.type === "radio" || node.closest("#data-policy-modal, .data-policy-check")) return;
           const label = node.closest("label");
           placeMarker(label);
         }
