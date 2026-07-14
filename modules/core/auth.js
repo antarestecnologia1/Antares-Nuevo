@@ -828,6 +828,7 @@ export function showDataPolicyGate() {
   body.innerHTML = __dataPolicyModalMarkup();
   modal.classList.remove("hidden");
   document.body.classList.add("data-policy-gate-open");
+  modal.scrollTop = 0;
   body.querySelectorAll(".data-policy-check__box .required-marker, .data-policy-check .required-marker").forEach((node) => {
     node.remove();
   });

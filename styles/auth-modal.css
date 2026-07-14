@@ -2046,10 +2046,26 @@ body[data-theme="dark"] #auth-modal .register-terms-link {
 #data-policy-modal.modal,
 #data-policy-modal.data-policy-modal {
   z-index: 12050;
-  display: grid;
-  place-items: center;
-  padding: clamp(0.85rem, 2.5vw, 1.5rem);
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  padding:
+    max(0.65rem, env(safe-area-inset-top, 0px))
+    max(0.65rem, env(safe-area-inset-right, 0px))
+    max(0.85rem, calc(0.65rem + env(safe-area-inset-bottom, 0px)))
+    max(0.65rem, env(safe-area-inset-left, 0px));
   animation: auth-fade-in 0.28s ease both;
+}
+
+body.data-policy-gate-open {
+  overflow: hidden;
 }
 
 body.data-policy-gate-open #portal-app {
@@ -2078,12 +2094,19 @@ body[data-theme="dark"] #data-policy-modal.modal {
   -webkit-backdrop-filter: blur(16px);
 }
 
-#data-policy-modal .modal-card-data-policy {
+#data-policy-modal .modal-card.modal-card-auth.modal-card-data-policy {
   position: relative;
   isolation: isolate;
-  overflow: hidden;
-  width: min(640px, calc(100vw - 1.75rem));
-  max-width: none;
+  display: block;
+  flex: 0 0 auto;
+  width: min(640px, 100%);
+  max-width: calc(100vw - 1.25rem);
+  max-height: none;
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+  margin: 0 auto;
+  background: var(--white, #ffffff);
   border-radius: 20px;
   border: 1px solid color-mix(in srgb, var(--primary) 14%, #dbeafe);
   box-shadow:
@@ -2092,7 +2115,7 @@ body[data-theme="dark"] #data-policy-modal.modal {
   animation: auth-slide-up 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-body[data-theme="dark"] #data-policy-modal .modal-card-data-policy {
+body[data-theme="dark"] #data-policy-modal .modal-card.modal-card-auth.modal-card-data-policy {
   border-color: rgba(148, 196, 255, 0.16);
   box-shadow: 0 22px 56px rgba(0, 0, 0, 0.45);
 }
@@ -2141,7 +2164,8 @@ body[data-theme="dark"] #data-policy-modal .modal-card-data-policy {
 #data-policy-modal .data-policy-modal-body {
   position: relative;
   z-index: 1;
-  padding: 1.55rem 1.55rem 1.5rem;
+  min-width: 0;
+  padding: 1.55rem 1.55rem max(1.5rem, calc(1rem + env(safe-area-inset-bottom, 0px)));
 }
 
 #data-policy-modal .data-policy-header__copy {
@@ -2214,6 +2238,8 @@ body[data-theme="dark"] #data-policy-modal .data-policy-header__title {
   font-size: 0.92rem;
   line-height: 1.58;
   color: #475569;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 body[data-theme="dark"] #data-policy-modal .data-policy-lead {
@@ -2285,11 +2311,14 @@ body[data-theme="dark"] #data-policy-modal .data-policy-doc-card {
   display: grid;
   gap: 0.12rem;
   min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 #data-policy-modal .data-policy-doc-card__copy strong {
   font-size: 0.92rem;
   color: #0f172a;
+  line-height: 1.35;
 }
 
 #data-policy-modal .data-policy-doc-card__copy small {
@@ -2400,6 +2429,7 @@ body[data-theme="dark"] #data-policy-modal .data-policy-declaration__copy {
 #data-policy-modal .data-policy-check {
   display: grid;
   grid-template-columns: auto 1fr;
+  grid-template-areas: "box label";
   gap: 0.65rem;
   align-items: start;
   cursor: pointer;
@@ -2414,7 +2444,13 @@ body[data-theme="dark"] #data-policy-modal .data-policy-declaration__copy {
   pointer-events: none;
 }
 
+#data-policy-modal .data-policy-check .required-marker,
+#data-policy-modal .data-policy-check__box .required-marker {
+  display: none !important;
+}
+
 #data-policy-modal .data-policy-check__box {
+  grid-area: box;
   width: 1.35rem;
   height: 1.35rem;
   margin-top: 0.08rem;
@@ -2447,9 +2483,12 @@ body[data-theme="dark"] #data-policy-modal .data-policy-declaration__copy {
 }
 
 #data-policy-modal .data-policy-check__label {
+  grid-area: label;
   font-size: 0.88rem;
   line-height: 1.45;
   color: #334155;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 body[data-theme="dark"] #data-policy-modal .data-policy-check__label {
@@ -2516,22 +2555,104 @@ body[data-theme="dark"] #data-policy-modal .data-policy-trust {
   height: 0.85rem;
 }
 
-@media (max-width: 560px) {
+@media (max-width: 720px) {
+  #data-policy-modal.modal,
+  #data-policy-modal.data-policy-modal {
+    align-items: flex-start;
+    min-height: 100dvh;
+    padding:
+      max(0.5rem, env(safe-area-inset-top, 0px))
+      max(0.5rem, env(safe-area-inset-right, 0px))
+      max(0.75rem, calc(0.5rem + env(safe-area-inset-bottom, 0px)))
+      max(0.5rem, env(safe-area-inset-left, 0px));
+  }
+
+  #data-policy-modal .modal-card.modal-card-auth.modal-card-data-policy {
+    width: 100%;
+    max-width: 100%;
+    border-radius: 16px;
+  }
+
   #data-policy-modal .data-policy-modal-body {
-    padding: 1.15rem 1.1rem 1.2rem;
+    padding: 1rem 0.95rem max(1.1rem, calc(0.85rem + env(safe-area-inset-bottom, 0px)));
+  }
+
+  #data-policy-modal .data-policy-shell {
+    gap: 0.9rem;
   }
 
   #data-policy-modal .data-policy-header {
-    flex-direction: column;
-    gap: 0.75rem;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.7rem;
+  }
+
+  #data-policy-modal .data-policy-header__icon {
+    width: 2.6rem;
+    height: 2.6rem;
+  }
+
+  #data-policy-modal .data-policy-header__title {
+    font-size: 1.12rem;
+  }
+
+  #data-policy-modal .data-policy-lead {
+    font-size: 0.84rem;
+    line-height: 1.5;
   }
 
   #data-policy-modal .data-policy-doc-card {
-    grid-template-columns: auto 1fr;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.6rem;
+    padding: 0.72rem 0.8rem;
+  }
+
+  #data-policy-modal .data-policy-doc-card__pdf {
+    width: 2.25rem;
+    height: 2.25rem;
+  }
+
+  #data-policy-modal .data-policy-doc-card__copy strong {
+    font-size: 0.82rem;
   }
 
   #data-policy-modal .data-policy-doc-card__chev {
     display: none;
+  }
+
+  #data-policy-modal .data-policy-declaration {
+    padding: 0.82rem 0.88rem 0.92rem;
+  }
+
+  #data-policy-modal .data-policy-declaration__copy,
+  #data-policy-modal .data-policy-check__label {
+    font-size: 0.82rem;
+  }
+
+  #data-policy-modal .data-policy-submit {
+    min-height: 2.85rem;
+    font-size: 0.92rem;
+  }
+
+  #data-policy-modal .data-policy-trust {
+    font-size: 0.74rem;
+    line-height: 1.4;
+  }
+
+  #data-policy-modal .data-policy-modal__dots {
+    opacity: 0.2;
+  }
+}
+
+@media (max-width: 420px) {
+  #data-policy-modal .data-policy-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  #data-policy-modal .data-policy-declaration__head {
+    flex-direction: column;
+    gap: 0.45rem;
   }
 }
 
