@@ -380,6 +380,19 @@ export const CO_TIMEZONE = "America/Bogota";
 
 export const REGISTER_TERMS_URL = "./terminos-condiciones.html";
 export const REGISTER_PRIVACY_URL = "./politica-privacidad.html";
+export const DATA_POLICY_VERSION = "2025-v1";
+export const DATA_POLICY_URL = "./documentacion/politica-tratamiento-datos-personales.pdf";
+
+/** Indica si el usuario debe aceptar la política de datos antes de usar el portal. */
+export function userRequiresDataPolicyAcceptance(user) {
+  if (!user || typeof user !== "object") return true;
+  const acceptedAt =
+    user.dataPolicyAcceptedAt ?? user.fechaAceptacionPoliticaDatos ?? user.termsAcceptedAt ?? null;
+  const version = String(user.dataPolicyVersion ?? user.versionPoliticaDatos ?? "").trim();
+  if (!acceptedAt) return true;
+  if (!version || version !== DATA_POLICY_VERSION) return true;
+  return false;
+}
 
 /** Orden en la grilla de permisos (Usuarios y permisos). */
 export const PERMISSION_UI_GROUPS = [
@@ -562,7 +575,12 @@ export const PAYROLL_RRHH_EDIT_ACTIONS = new Set([
   "delete-hr-absence"
 ]);
 
-export const SST_RRHH_EDIT_ACTIONS = new Set(["edit-sst-record", "delete-sst-record"]);
+export const SST_RRHH_EDIT_ACTIONS = new Set([
+  "edit-sst-record",
+  "delete-sst-record",
+  "renew-sst-control",
+  "export-sst-due-csv"
+]);
 
 export const TRIP_RATE_SCOPE_SEP = "@@";
 

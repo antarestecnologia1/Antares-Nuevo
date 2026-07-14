@@ -29,6 +29,8 @@ CREATE TABLE usuarios (
   nombre_empresa_texto_legacy     VARCHAR(255),
   fecha_nacimiento                DATE,
   fecha_aceptacion_terminos       TIMESTAMPTZ,
+  fecha_aceptacion_politica_datos TIMESTAMPTZ,
+  version_politica_datos          VARCHAR(64),
   checklist_registro_json         JSONB NOT NULL DEFAULT '{}',
   contacto_emergencia             VARCHAR(255),
   telefono_emergencia             VARCHAR(32),
@@ -66,6 +68,10 @@ COMMENT ON COLUMN usuarios.area_trabajo IS 'Formulario registro: workArea.';
 COMMENT ON COLUMN usuarios.nit_empresa_registro IS 'NIT empresa cuando el registro es jurídico; puede repetirse entre usuarios.';
 
 COMMENT ON COLUMN usuarios.fecha_aceptacion_terminos IS 'Momento de aceptación Habeas Data / términos (acceptTerms).';
+
+COMMENT ON COLUMN usuarios.fecha_aceptacion_politica_datos IS 'Momento en que el titular aceptó la Política de Tratamiento de Datos Personales vigente.';
+
+COMMENT ON COLUMN usuarios.version_politica_datos IS 'Identificador de versión del documento de política aceptado (ej. 2025-v1).';
 
 COMMENT ON COLUMN usuarios.checklist_registro_json IS 'Equivalente a profileQualityChecklist en app (idVerified, acceptedTermsAt, etc.).';
 

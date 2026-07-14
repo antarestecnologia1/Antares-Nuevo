@@ -74,6 +74,8 @@ export let state = {
   publicLang: "es",
   authTab: "login",
   authSupabaseRecovery: false,
+  /** Bloqueo de portal hasta aceptar Política de Tratamiento de Datos Personales. */
+  dataPolicyGateVisible: false,
   authSecurity: {
     failedAttempts: 0,
     lockUntil: 0

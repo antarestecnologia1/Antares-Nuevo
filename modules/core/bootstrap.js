@@ -822,6 +822,13 @@ export async function startPortalBootstrapForInteractiveSession() {
     } catch (_e2) {
       /* noop */
     }
+    try {
+      if (typeof window.maybeEnforceDataPolicyAcceptance === "function") {
+        window.maybeEnforceDataPolicyAcceptance();
+      }
+    } catch (_e3) {
+      /* noop */
+    }
   }
   return ok;
 }

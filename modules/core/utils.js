@@ -387,7 +387,9 @@ export function normalizeSstDataSection(section) {
   return "due";
 }
 
-export function normalizeSstOperateSection(_section) {
+export function normalizeSstOperateSection(section) {
+  const s = String(section || "").trim().toLowerCase();
+  if (s === "guide" || s === "guia" || s === "checklist") return "guide";
   return "create";
 }
 

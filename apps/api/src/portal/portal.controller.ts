@@ -27,6 +27,7 @@ import { DeleteLaborSystemParametersDto } from "./dto/delete-labor-system-parame
 import { UpsertLaborSystemParametersDto } from "./dto/upsert-labor-system-parameters.dto";
 import { AppendPortalAuditEventsDto } from "./dto/portal-audit-events.dto";
 import { DeletePortalAuditEventsDto } from "./dto/delete-portal-audit-events.dto";
+import { AcceptDataPolicyDto } from "./dto/accept-data-policy.dto";
 import { PortalService } from "./portal.service";
 
 type ReqUser = { userId: string; email: string; role: string };
@@ -135,6 +136,12 @@ export class PortalController {
   @Get("me")
   me(@Req() req: { user: ReqUser }) {
     return this.portal.getOwnProfile(req.user.userId);
+  }
+
+  /** Aceptación obligatoria de la Política de Tratamiento de Datos Personales (primer ingreso). */
+  @Post("accept-data-policy")
+  acceptDataPolicy(@Req() req: { user: ReqUser }, @Body() dto: AcceptDataPolicyDto) {
+    return this.portal.acceptDataPolicy(req.user.userId, dto.acceptDataPolicy);
   }
 
   /** Solo admin JWT: usuarios con alta pendiente (bandeja Autorizaciones si bootstrap falla o va incompleto). */

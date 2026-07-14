@@ -187,6 +187,7 @@ function upsertSstAuditRecord({
   provider,
   documentCode,
   notes,
+  evidenceRef,
   status = "Cumplido"
 }) {
   const records = read(KEYS.sstCompliance, []);
@@ -335,6 +336,7 @@ export async function executeSstRenewal({
       provider: providerText,
       documentCode,
       notes,
+      evidenceRef,
       status: "Cumplido"
     });
     try {
@@ -367,7 +369,10 @@ export async function executeSstRenewal({
 /**
  * Al marcar un registro SST existente como Cumplido desde el formulario de edición/creación.
  */
-export async function applySstRecordCompletion(record, { completionDate, provider, documentCode, notes } = {}) {
+export async function applySstRecordCompletion(
+  record,
+  { completionDate, provider, documentCode, notes, evidenceRef } = {}
+) {
   if (!record?.employeeId) return { ok: false, message: "Registro SST sin colaborador." };
   const controlKey = resolveSstControlKey(record.recordType);
   if (!controlKey) {
@@ -393,7 +398,10 @@ export async function applySstRecordCompletion(record, { completionDate, provide
   const idx = records.findIndex((row) => String(row.id) === String(record.id));
   if (idx < 0) return result;
 
-  const mergedNotes = appendCompletionNote(notes || records[idx].notes, result.completionDate);
+  const mergedNotes = mergeSstEvidenceRef(
+    appendCompletionNote(notes || records[idx].notes, result.completionDate),
+    evidenceRef
+  );
   const nextList = records.map((row, i) =>
     i !== idx
       ? row

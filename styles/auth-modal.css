@@ -1613,3 +1613,35 @@ body[data-theme="dark"] #auth-modal a,
 body[data-theme="dark"] #auth-modal .register-terms-link {
   color: #9ed0ff;
 }
+
+/* ─── Modal obligatorio: Política de Tratamiento de Datos Personales ─── */
+#data-policy-modal.modal {
+  z-index: 12050;
+}
+
+body.data-policy-gate-open #portal-app {
+  pointer-events: none;
+  user-select: none;
+}
+
+body.data-policy-gate-open #data-policy-modal {
+  pointer-events: auto;
+}
+
+#data-policy-modal .modal-card-data-policy {
+  max-width: min(520px, calc(100vw - 2rem));
+}
+
+#data-policy-modal .data-policy-modal-body {
+  padding: 0 1.25rem 1.25rem;
+}
+
+#data-policy-modal .data-policy-lead {
+  margin: 0 0 1rem;
+  line-height: 1.55;
+}
+
+#data-policy-modal .data-policy-doc-link-wrap {
+  margin: 0 0 1.25rem;
+}
+

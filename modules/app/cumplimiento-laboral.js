@@ -3,14 +3,18 @@
  * Helpers de plantilla viven en `portal-runtime.js` hasta completar la extracción (vía `globalThis`).
  */
 import { state, nodes, persistHrWorkspace } from "../core/store.js";
-import { read, writeAwaitServer, writeAwaitServerCreate, writeAwaitServerEdit } from "../core/data-io.js";
+import { read, writeAwaitServerCreate, writeAwaitServerEdit } from "../core/data-io.js";
 import { KEYS, HR_VALID_SST_WS } from "../core/config.js";
-import { escapeHtml, escapeAttr, buildModuleCreatePanelsState, normalizeHrWorkspace, normalizeSstDataSection, colombiaTodayIsoDate } from "../core/utils.js";
+import { escapeHtml, escapeAttr, buildModuleCreatePanelsState, normalizeHrWorkspace, normalizeSstDataSection, normalizeSstOperateSection, colombiaTodayIsoDate } from "../core/utils.js";
 import {
   renderHrWorkspaceTabs,
   renderHrWorkspaceHeader,
   switchHrWorkspacePanels,
-  switchModuleTabPanels
+  switchModuleTabPanels,
+  renderHrFormHero,
+  renderHrFormHeroBadge,
+  renderSstOperateSectionNav,
+  renderHrAlertCards
 } from "../ui/components.js";
 import {
   resolveEmployeeComplianceExpiryYmd,
@@ -345,6 +349,156 @@ function openSstRenewalModal(ctx) {
   });
 }
 
+function sstPreviewStatusChip(label, ymd, { missingLabel = "Sin fecha" } = {}) {
+  if (!ymd) {
+    return `<span class="sst-preview-chip sst-preview-chip--missing" title="${escapeAttr(label)}">${escapeHtml(label)} · ${escapeHtml(missingLabel)}</span>`;
+  }
+  const days = daysUntilPortalDate(ymd);
+  let tone = "ok";
+  if (days !== null && days < 0) tone = "expired";
+  else if (days !== null && days <= SST_DUE_SOON_DAYS) tone = "warn";
+  return `<span class="sst-preview-chip sst-preview-chip--${tone}" title="${escapeAttr(label)} · vence ${escapeAttr(ymd)}">${escapeHtml(label)} · ${escapeHtml(ymd)}</span>`;
+}
+
+function buildSstEmployeePreviewHtml(employee, records = []) {
+  const IC = G.IC || {};
+  if (!employee) {
+    return `<p class="sst-employee-preview__empty muted">${IC.user || ""} Seleccione un colaborador para ver su estado de cumplimiento, vencimientos activos y controles registrados.</p>`;
+  }
+  const name = String(employee.name || "-").trim() || "-";
+  const position = String(employee.position || "-").trim() || "-";
+  const role = isConductorEmployee(employee) ? "Conductor" : "Colaborador";
+  const dueForEmployee = collectSstDueItems([employee], records, SST_DUE_SOON_DAYS);
+  const employeeRecords = records.filter((record) => String(record.employeeId) === String(employee.id));
+  const dueRows = dueForEmployee.length
+    ? dueForEmployee
+        .map((item) => {
+          const tone =
+            item.bucket === "expired" ? "expired" : item.bucket === "missing" ? "missing" : "warn";
+          const dueLabel = item.dueDate ? escapeHtml(item.dueDate) : "Sin programar";
+          return `<li class="sst-preview-due sst-preview-due--${tone}"><strong>${escapeHtml(item.controlType)}</strong><span>${dueLabel}</span></li>`;
+        })
+        .join("")
+    : `<li class="sst-preview-due sst-preview-due--ok"><strong>Sin vencimientos urgentes</strong><span>Ventana 30 días</span></li>`;
+  const chips = [
+    sstPreviewStatusChip("EPS", resolveEmployeeExpiryYmd(employee, "epsExpiry", "epsAffiliationDate")),
+    sstPreviewStatusChip("Pensión", resolveEmployeeExpiryYmd(employee, "pensionExpiry", "pensionAffiliationDate")),
+    sstPreviewStatusChip("ARL", resolveEmployeeExpiryYmd(employee, "arlExpiry", "arlAffiliationDate")),
+    sstPreviewStatusChip("Examen ocup.", resolveEmployeeExpiryYmd(employee, "medicalExamExpiry", "medicalExamDate"))
+  ];
+  if (isConductorEmployee(employee)) {
+    chips.push(sstPreviewStatusChip("Instruvial", resolveEmployeeExpiryYmd(employee, "instruvialExpiry", "instruvialDate")));
+    chips.push(sstPreviewStatusChip("Licencia", resolveEmployeeExpiryYmd(employee, "licenseExpiry", "licenseIssueDate")));
+  }
+  return `<div class="sst-employee-preview__card">
+    <header class="sst-employee-preview__head">
+      <span class="sst-employee-preview__avatar" aria-hidden="true">${IC.user || ""}</span>
+      <div>
+        <h4 class="sst-employee-preview__name">${escapeHtml(name)}</h4>
+        <p class="sst-employee-preview__meta muted">${escapeHtml(position)} · ${escapeHtml(role)}</p>
+      </div>
+    </header>
+    <div class="sst-employee-preview__chips">${chips.join("")}</div>
+    <div class="sst-employee-preview__due">
+      <p class="sst-employee-preview__due-label">Atención prioritaria</p>
+      <ul class="sst-preview-due-list">${dueRows}</ul>
+    </div>
+    <p class="sst-employee-preview__records muted">${employeeRecords.length} control${employeeRecords.length === 1 ? "" : "es"} en auditoría documental</p>
+  </div>`;
+}
+
+function renderSstComplianceGuidePane(IC, { dueCount, recordsCount, reconcileCount, missingCount }) {
+  const cards = renderHrAlertCards([
+    {
+      tone: dueCount > 0 ? "warn" : "ok",
+      icon: IC.calendar || "",
+      label: "Vencimientos",
+      value: dueCount,
+      help: "Controles próximos, vencidos o sin fecha en ventana de 30 días."
+    },
+    {
+      tone: missingCount > 0 ? "alert" : "ok",
+      icon: IC.activity || "",
+      label: "Sin fecha",
+      value: missingCount,
+      help: "Colaboradores o afiliaciones sin vigencia registrada en ficha."
+    },
+    {
+      tone: reconcileCount > 0 ? "warn" : "ok",
+      icon: IC.shield || "",
+      label: "Desincronizados",
+      value: reconcileCount,
+      help: "Registros SST cumplidos cuya ficha no coincide."
+    },
+    {
+      tone: "info",
+      icon: IC.file || "",
+      label: "Auditoría",
+      value: recordsCount,
+      help: "Controles documentales registrados en el módulo."
+    }
+  ]);
+  return `<section class="sst-guide-panel" aria-label="Guía de cumplimiento SST">
+    <header class="sst-guide-panel__head">
+      <p class="sst-guide-panel__eyebrow">Referencia operativa</p>
+      <h3 class="sst-guide-panel__title">Checklist de cumplimiento</h3>
+      <p class="sst-guide-panel__lead muted">Use esta guía para decidir qué registrar. Al marcar un control como <strong>Cumplido</strong> con fecha de realización, la ficha del colaborador se actualiza en todos los módulos vinculados.</p>
+    </header>
+    ${cards}
+    <div class="sst-guide-checklist">
+      <article class="sst-guide-card">
+        <h4>${IC.briefcase || ""} Afiliaciones obligatorias</h4>
+        <p class="muted">EPS, pensión y ARL deben tener entidad, código documental y fecha de vencimiento alineada con la ficha del colaborador.</p>
+      </article>
+      <article class="sst-guide-card">
+        <h4>${IC.shield || ""} Exámenes y capacitación</h4>
+        <p class="muted">Examen médico ocupacional, instruvial (conductores) y capacitaciones SST requieren fecha de realización al cerrar como cumplido.</p>
+      </article>
+      <article class="sst-guide-card">
+        <h4>${IC.link || IC.file || ""} Evidencia sin archivos</h4>
+        <p class="muted">Registre referencias externas (URL o código de carpeta). El portal no almacena PDFs; la trazabilidad queda en observaciones.</p>
+      </article>
+    </div>
+    <footer class="sst-guide-panel__footer">
+      <button type="button" class="btn btn-outline" data-action="hr-workspace-tab" data-module="sst" data-tab="data">${IC.eye || ""} Ir a Consultar vencimientos</button>
+      <button type="button" class="btn btn-primary" data-action="sst-operate-section" data-section="create">${IC.plus || ""} Registrar nuevo control</button>
+    </footer>
+  </section>`;
+}
+
+function updateSstCreateFormProgress(form) {
+  if (!form) return;
+  const employeeId = String(form.querySelector('[name="employeeId"]')?.value || "").trim();
+  const recordType = String(form.querySelector('[name="recordType"]')?.value || "").trim();
+  const provider = String(form.querySelector('[name="provider"]')?.value || "").trim();
+  const dueDate = String(form.querySelector('[name="dueDate"]')?.value || "").trim();
+  const documentCode = String(form.querySelector('[name="documentCode"]')?.value || "").trim();
+  const notes = String(form.querySelector('[name="notes"]')?.value || "").trim();
+  const step1 = Boolean(employeeId && recordType);
+  const step2 = Boolean(provider && dueDate && documentCode);
+  const step3 = Boolean(notes);
+  const completed = [step1, step2, step3].filter(Boolean).length;
+  const fill = form.querySelector("[data-sst-create-progress]");
+  if (fill) fill.style.width = `${Math.round((completed / 3) * 100)}%`;
+  form.querySelectorAll("[data-sst-create-milestone]").forEach((node) => {
+    const key = String(node.dataset.sstCreateMilestone || "");
+    const done = key === "employee" ? step1 : key === "control" ? step2 : key === "evidence" ? step3 : false;
+    node.classList.toggle("is-active", done);
+    node.classList.toggle("is-done", done);
+  });
+}
+
+function refreshSstEmployeePreview(form) {
+  if (!form) return;
+  const preview = document.getElementById("sst-employee-preview");
+  if (!preview) return;
+  const employeeId = String(form.querySelector('[name="employeeId"]')?.value || "").trim();
+  const employees = read(KEYS.payrollEmployees, []);
+  const records = read(KEYS.sstCompliance, []);
+  const employee = employees.find((item) => String(item.id) === employeeId);
+  preview.innerHTML = buildSstEmployeePreviewHtml(employee, records);
+}
+
 function renderSstModuleHead({ employeesCount, recordsCount, dueCount, missingCount, urgentCount, workspace = "operate" }) {
   const consultMode = String(workspace || "operate") === "data";
   const items = consultMode
@@ -450,6 +604,7 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
 
     const sstUi = state.sstUi || { workspace: "operate", operateSection: "create", dataSection: "due", listSearch: "" };
     const sstWorkspace = normalizeHrWorkspace("sst", sstUi.workspace);
+    const sstOperateSection = normalizeSstOperateSection(sstUi.operateSection);
     const sstDataSection = normalizeSstDataSection(sstUi.dataSection);
     const listSearchRaw = String(sstUi.listSearch || "");
     const listSearchNorm = listSearchRaw.trim().toLowerCase();
@@ -849,7 +1004,8 @@ function bindLaborCompliancePortalControls() {
           completionDate: completionDate || dueDate,
           provider: data.provider,
           documentCode: data.documentCode,
-          notes: data.notes
+          notes: createdRecord.notes,
+          evidenceRef: data.evidenceRef
         });
         if (!renewal.ok) {
           G.notify(
@@ -1016,7 +1172,8 @@ function bindLaborCompliancePortalControls() {
               completionDate: completionDate || updatedRecord.dueDate,
               provider: form.provider,
               documentCode: form.documentCode,
-              notes: mergeSstEvidenceRef(String(form.notes || "").trim(), form.evidenceRef)
+              notes: String(form.notes || "").trim(),
+              evidenceRef: form.evidenceRef
             });
             if (!renewal.ok) {
               G.notify(

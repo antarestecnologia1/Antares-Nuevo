@@ -834,6 +834,45 @@ export function renderTransportOperateSectionNav(activeId) {
   </nav>`;
 }
 
+/** Rail lateral en Cumplimiento SST (Registrar). */
+export function renderSstOperateSectionNav(activeId = "create") {
+  const active = String(activeId || "create").trim().toLowerCase() === "guide" ? "guide" : "create";
+  const tabs = [
+    {
+      id: "create",
+      label: "Nuevo control",
+      title: "Registrar obligación legal o control SST",
+      hint: "Colaborador, vencimiento y evidencia",
+      norm: "Auditoría",
+      icon: "shield"
+    },
+    {
+      id: "guide",
+      label: "Guía de cumplimiento",
+      title: "Checklist y buenas prácticas SST",
+      hint: "Qué registrar y cuándo renovar",
+      norm: "Referencia",
+      icon: "file"
+    }
+  ];
+  return `<nav class="sst-operate-nav" role="tablist" aria-label="Registro de controles SST">
+    ${tabs
+      .map((t) => {
+        const isActive = active === t.id;
+        const iconHtml = ic()[t.icon] ? `<span class="sst-operate-nav-ico" aria-hidden="true">${ic()[t.icon]}</span>` : "";
+        return `<button type="button" role="tab" class="sst-operate-nav-tab${isActive ? " is-active" : ""}" aria-selected="${isActive ? "true" : "false"}" data-action="sst-operate-section" data-section="${escapeAttr(t.id)}" title="${escapeAttr(t.title)}">
+          ${iconHtml}
+          <span class="sst-operate-nav-copy">
+            <strong class="sst-operate-nav-label">${escapeHtml(t.label)}</strong>
+            <small class="sst-operate-nav-hint">${escapeHtml(t.hint)}</small>
+            <span class="sst-operate-nav-norm">${escapeHtml(t.norm)}</span>
+          </span>
+        </button>`;
+      })
+      .join("")}
+  </nav>`;
+}
+
 /** Rail lateral en Solicitudes (Registrar). */
 export function renderRequestsOperateSectionNav() {
   const iconSvg = ic().plus ? `<span class="requests-operate-nav-ico" aria-hidden="true">${ic().plus}</span>` : "";

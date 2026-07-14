@@ -668,6 +668,136 @@ export function invokeAuthSuccessCallback() {
   }
 }
 
+function __resolveDataPolicyGateForUser(user) {
+  if (!user || typeof user !== "object") return false;
+  if (user.requiresDataPolicyAcceptance === true) return true;
+  if (user.requiresDataPolicyAcceptance === false) return false;
+  const fn = typeof window.userRequiresDataPolicyAcceptance === "function" ? window.userRequiresDataPolicyAcceptance : null;
+  return fn ? Boolean(fn(user)) : false;
+}
+
+function __dataPolicyModalMarkup() {
+  const policyUrl = String(window.DATA_POLICY_URL || "./documentacion/politica-tratamiento-datos-personales.pdf");
+  const termsUrl = String(window.REGISTER_TERMS_URL || "./terminos-condiciones.html");
+  const privacyUrl = String(window.REGISTER_PRIVACY_URL || "./politica-privacidad.html");
+  const fileIcon = IC.file || "";
+  const shieldIcon = IC.shield || "";
+  return `
+    <p class="muted data-policy-lead">
+      Antes de continuar debe leer y aceptar la
+      <strong>Política de Tratamiento de Datos Personales</strong>, los
+      <a class="register-terms-link" href="${escapeAttr(termsUrl)}" target="_blank" rel="noopener noreferrer">Términos de uso</a>
+      y la
+      <a class="register-terms-link" href="${escapeAttr(privacyUrl)}" target="_blank" rel="noopener noreferrer">Política de privacidad</a>.
+    </p>
+    <p class="data-policy-doc-link-wrap">
+      <a class="btn btn-outline btn-sm" href="${escapeAttr(policyUrl)}" target="_blank" rel="noopener noreferrer">${fileIcon} Ver Política de Tratamiento de Datos Personales (PDF)</a>
+    </p>
+    <form id="form-data-policy-accept" class="form-grid auth-pane">
+      <label class="full register-terms-card">
+        <span class="register-terms-title">${fieldLabel(IC.file, "Declaración de aceptación")}</span>
+        <span class="register-terms-copy muted">
+          Autorizo el tratamiento de mis datos personales conforme al documento oficial de Transportes Antares S.A.S
+          y confirmo que he tenido oportunidad de consultarlo.
+        </span>
+        <span class="checkbox-inline register-terms-check">
+          <input type="checkbox" name="acceptDataPolicy" required />
+          Acepto la Política de Tratamiento de Datos Personales y los términos indicados.
+        </span>
+      </label>
+      <div class="register-submit-wrap full">
+        <button class="btn btn-primary full register-submit-btn" type="submit">${shieldIcon} Confirmar y continuar</button>
+      </div>
+    </form>
+  `;
+}
+
+export function hideDataPolicyGate() {
+  state.dataPolicyGateVisible = false;
+  const modal = document.getElementById("data-policy-modal");
+  if (modal) modal.classList.add("hidden");
+  document.body.classList.remove("data-policy-gate-open");
+}
+
+export function showDataPolicyGate() {
+  if (!getSession()) return false;
+  state.dataPolicyGateVisible = true;
+  const modal = document.getElementById("data-policy-modal");
+  const body = document.getElementById("data-policy-modal-body");
+  if (!modal || !body) return false;
+  body.innerHTML = __dataPolicyModalMarkup();
+  modal.classList.remove("hidden");
+  document.body.classList.add("data-policy-gate-open");
+  const form = document.getElementById("form-data-policy-accept");
+  if (form) {
+    window.wireFormSubmitGuard?.(
+      form,
+      async () => {
+        const data = window.readFormEntriesNormalized?.(form) || {};
+        if (!data.acceptDataPolicy) {
+          window.notify?.(window.userMessage("dataPolicyRequired"), "error");
+          return;
+        }
+        const actor = currentUser();
+        if (!actor?.id) return;
+        if (window.AntaresApi?.getBase?.() && window.AntaresApi?.postJson) {
+          try {
+            const me = await window.AntaresApi.postJson("/portal/accept-data-policy", {
+              acceptDataPolicy: true
+            });
+            if (me?.id) {
+              window.upsertPortalUserRowIntoCache?.(me);
+            }
+          } catch (err) {
+            window.notify?.(String(err?.message || window.userMessage("genericError")), "error");
+            return;
+          }
+        } else {
+          const users = read(KEYS.users, []);
+          const idx = users.findIndex((u) => String(u.id) === String(actor.id));
+          if (idx >= 0) {
+            const at = nowIso();
+            users[idx] = {
+              ...users[idx],
+              dataPolicyAcceptedAt: at,
+              dataPolicyVersion: window.DATA_POLICY_VERSION || "2025-v1",
+              requiresDataPolicyAcceptance: false,
+              profileQualityChecklist: {
+                ...(users[idx].profileQualityChecklist && typeof users[idx].profileQualityChecklist === "object"
+                  ? users[idx].profileQualityChecklist
+                  : {}),
+                dataPolicyAccepted: true,
+                dataPolicyVersion: window.DATA_POLICY_VERSION || "2025-v1",
+                dataPolicyAcceptedAt: at
+              }
+            };
+            write(KEYS.users, users, { skipSyncSchedule: true });
+          }
+        }
+        syncSessionProfileSnapshotFromCache?.();
+        hideDataPolicyGate();
+        window.notify?.(window.userMessage("dataPolicyAccepted"), "success");
+      },
+      { submitButton: form.querySelector("[type='submit']"), busyText: "Registrando…" }
+    );
+  }
+  return true;
+}
+
+/** Muestra el modal de aceptación si el usuario autenticado aún no ha aceptado la política vigente. */
+export function maybeEnforceDataPolicyAcceptance() {
+  if (!getSession()) {
+    hideDataPolicyGate();
+    return false;
+  }
+  const user = currentUser();
+  if (!__resolveDataPolicyGateForUser(user)) {
+    hideDataPolicyGate();
+    return false;
+  }
+  return showDataPolicyGate();
+}
+
 export function sendEmail({ to, subject, body }) {
   /**
    * Con API activa, `emails` solo sincroniza admin (sync-key). Un cliente que encola correos
@@ -2284,12 +2414,14 @@ function authView() {
               Al crear su cuenta acepta los
               <a class="register-terms-link" href="${REGISTER_TERMS_URL}" target="_blank" rel="noopener noreferrer">Términos de uso</a>,
               la
-              <a class="register-terms-link" href="${REGISTER_PRIVACY_URL}" target="_blank" rel="noopener noreferrer">Política de privacidad</a>
-              y el tratamiento de datos (Habeas Data), y confirma que la información registrada es veraz.
+              <a class="register-terms-link" href="${REGISTER_PRIVACY_URL}" target="_blank" rel="noopener noreferrer">Política de privacidad</a>,
+              la
+              <a class="register-terms-link" href="${DATA_POLICY_URL}" target="_blank" rel="noopener noreferrer">Política de Tratamiento de Datos Personales</a>
+              (Habeas Data), y confirma que la información registrada es veraz.
             </span>
             <span class="checkbox-inline register-terms-check">
               <input type="checkbox" name="acceptTerms" required />
-              Acepto los términos y la política para continuar con la solicitud.
+              Acepto los términos, la política de privacidad y la Política de Tratamiento de Datos Personales.
             </span>
           </label>
           <div class="full auth-inline-note">
@@ -2486,7 +2618,9 @@ export function bindAuthForms() {
               window.hideAuth();
               startSessionSecurityWatch();
               invokeAuthSuccessCallback();
-              void startPortalBootstrapForInteractiveSession();
+              void startPortalBootstrapForInteractiveSession().finally(() => {
+                maybeEnforceDataPolicyAcceptance();
+              });
               return;
             }
             const apiMsg = Array.isArray(body?.message) ? body.message.join(", ") : body?.message;
@@ -2539,6 +2673,7 @@ export function bindAuthForms() {
         window.hideAuth();
         startSessionSecurityWatch();
         invokeAuthSuccessCallback();
+        maybeEnforceDataPolicyAcceptance();
       },
       {
         submitButton: loginSubmitBtn,
@@ -2850,6 +2985,8 @@ export function bindAuthForms() {
           termsOfUseAccepted: true,
           privacyPolicyAccepted: true,
           habeasDataAcknowledged: true,
+          dataPolicyAccepted: true,
+          dataPolicyVersion: window.DATA_POLICY_VERSION || "2025-v1",
           registrationKind: normalizeRegistrationKindForDb(data.registrationKind),
           ...(isJuridica
             ? {
@@ -2859,6 +2996,9 @@ export function bindAuthForms() {
               }
             : {})
         },
+        dataPolicyAcceptedAt: nowIso(),
+        dataPolicyVersion: window.DATA_POLICY_VERSION || "2025-v1",
+        requiresDataPolicyAcceptance: false,
         registeredAt: nowIso()
       };
       users.push(newUser);

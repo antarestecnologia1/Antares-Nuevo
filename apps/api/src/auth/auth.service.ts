@@ -14,6 +14,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import type { Pool } from "pg";
 import { createClient } from "@supabase/supabase-js";
 import { timestamptzStringColombiaNow } from "../common/colombia-time";
+import { DATA_POLICY_VERSION } from "../common/data-policy";
 import {
   normalizeDbText,
   normalizeDbTextUpper,
@@ -240,7 +241,9 @@ export class AuthService {
     try {
       await this.turnstile.assertValid(dto.turnstileToken);
       if (!dto.acceptTerms) {
-        throw new BadRequestException("Debes aceptar términos y tratamiento de datos");
+        throw new BadRequestException(
+          "Debes aceptar términos, política de privacidad y Política de Tratamiento de Datos Personales"
+        );
       }
       this.assertDatabaseConfigured();
       this.assertStrongPassword(dto.password);
@@ -284,7 +287,7 @@ export class AuthService {
           ? "empleado_interno"
           : "cliente";
 
-      /** Auditoría alineada al copy legal del formulario (#form-register): términos, privacidad y Habeas en un solo checkbox. */
+      /** Auditoría alineada al copy legal del formulario (#form-register): términos, privacidad, Habeas y política de datos. */
       const checklist: Record<string, unknown> = {
         idVerified: true,
         acceptedTermsAt: regAtColombia,
@@ -292,6 +295,8 @@ export class AuthService {
         termsOfUseAccepted: true,
         privacyPolicyAccepted: true,
         habeasDataAcknowledged: true,
+        dataPolicyAccepted: true,
+        dataPolicyVersion: DATA_POLICY_VERSION,
         registrationKind: vinculoDb
       };
       if (docType === "NIT" && dto.personalDocumentType) {
@@ -345,6 +350,7 @@ export class AuthService {
             fecha_nacimiento, genero, cargo_registro, area_trabajo, telefono,
             departamento, ciudad, direccion,
             fecha_creacion, fecha_actualizacion, fecha_aceptacion_terminos,
+            fecha_aceptacion_politica_datos, version_politica_datos,
             tipo_vinculo_registro,
             checklist_registro_json
           ) VALUES (
@@ -352,6 +358,7 @@ export class AuthService {
             $5, $6, $7, $8, $9, $10, $11, $12, NULL::date,
             $13::date, $14, $15, $16, $17, $18, $19, $20,
             $23::timestamptz, $23::timestamptz, $23::timestamptz,
+            $23::timestamptz, $24,
             $21::tipo_vinculo_registro,
             $22::jsonb
           )
@@ -378,6 +385,8 @@ export class AuthService {
             fecha_creacion = EXCLUDED.fecha_creacion,
             fecha_actualizacion = EXCLUDED.fecha_actualizacion,
             fecha_aceptacion_terminos = EXCLUDED.fecha_aceptacion_terminos,
+            fecha_aceptacion_politica_datos = EXCLUDED.fecha_aceptacion_politica_datos,
+            version_politica_datos = EXCLUDED.version_politica_datos,
             tipo_vinculo_registro = EXCLUDED.tipo_vinculo_registro,
             checklist_registro_json = EXCLUDED.checklist_registro_json`,
           [
@@ -403,7 +412,8 @@ export class AuthService {
             normalizeDbTextUpper(dto.address),
             vinculoDb,
             JSON.stringify(checklist),
-            regAtColombia
+            regAtColombia,
+            DATA_POLICY_VERSION
           ]
         );
       } catch (err: any) {

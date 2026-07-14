@@ -43,6 +43,7 @@ import {
   timestamptzStringColombiaNow,
   timestamptzToColombiaIso
 } from "../common/colombia-time";
+import { DATA_POLICY_VERSION, userRequiresDataPolicyAcceptance } from "../common/data-policy";
 import {
   normalizeCatalogTextFromUnknown,
   normalizeDbTextUpperFromUnknown,
@@ -881,6 +882,8 @@ export class PortalService implements OnModuleInit {
       `ALTER TABLE public.usuarios ADD COLUMN IF NOT EXISTS cargo_registro VARCHAR(255)`,
       `ALTER TABLE public.usuarios ADD COLUMN IF NOT EXISTS area_trabajo VARCHAR(120)`,
       `ALTER TABLE public.usuarios ADD COLUMN IF NOT EXISTS fecha_aceptacion_terminos TIMESTAMPTZ`,
+      `ALTER TABLE public.usuarios ADD COLUMN IF NOT EXISTS fecha_aceptacion_politica_datos TIMESTAMPTZ`,
+      `ALTER TABLE public.usuarios ADD COLUMN IF NOT EXISTS version_politica_datos VARCHAR(64)`,
       `ALTER TABLE public.usuarios ADD COLUMN IF NOT EXISTS checklist_registro_json JSONB NOT NULL DEFAULT '{}'`,
       // 12_usuarios_refresh_token_api.sql
       `ALTER TABLE public.usuarios ADD COLUMN IF NOT EXISTS refresh_token_hash TEXT`,
@@ -913,6 +916,20 @@ export class PortalService implements OnModuleInit {
       this.logger.warn(`ensureUsuariosSchema: índice documento_personal no creado: ${sanitizeLogText(msg)}`);
     }
     this.logger.log(`usuarios: esquema verificado (${applied}/${alters.length} ALTERs idempotentes OK).`);
+    try {
+      await this.pool.query(`
+        UPDATE public.usuarios
+        SET
+          fecha_aceptacion_politica_datos = fecha_aceptacion_terminos,
+          version_politica_datos = COALESCE(version_politica_datos, $1)
+        WHERE fecha_aceptacion_politica_datos IS NULL
+          AND fecha_aceptacion_terminos IS NOT NULL
+          AND COALESCE((checklist_registro_json->>'habeasDataAcknowledged')::boolean, false) = true
+      `, [DATA_POLICY_VERSION]);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`ensureUsuariosSchema: backfill política datos (no fatal): ${sanitizeLogText(msg)}`);
+    }
   }
 
   /** Enum + columna `tipo_relacion_empresa` en `empresas` (17_empresas_tipo_relacion.sql). */
@@ -4906,6 +4923,8 @@ export class PortalService implements OnModuleInit {
               u.parentesco_emergencia AS "emergencyRelationship", u.url_avatar AS "avatarUrl",
               u.autenticacion_dos_factores AS "twoFactorEnabled",
               u.tipo_vinculo_registro::text AS "registrationKind",
+              u.fecha_aceptacion_politica_datos AS "dataPolicyAcceptedAt",
+              u.version_politica_datos AS "dataPolicyVersion",
               u.fecha_ingreso_portal AS "portalSince", u.fecha_creacion AS "createdAt"
          FROM usuarios u
          LEFT JOIN empresas e ON e.id = u.id_empresa
@@ -4925,6 +4944,8 @@ export class PortalService implements OnModuleInit {
               u.parentesco_emergencia AS "emergencyRelationship", u.url_avatar AS "avatarUrl",
               u.autenticacion_dos_factores AS "twoFactorEnabled",
               u.tipo_vinculo_registro::text AS "registrationKind",
+              u.fecha_aceptacion_politica_datos AS "dataPolicyAcceptedAt",
+              u.version_politica_datos AS "dataPolicyVersion",
               u.fecha_ingreso_portal AS "portalSince", u.fecha_creacion AS "createdAt"
          FROM usuarios u
          LEFT JOIN empresas e ON e.id = u.id_empresa
@@ -4964,6 +4985,8 @@ export class PortalService implements OnModuleInit {
               u.parentesco_emergencia AS "emergencyRelationship", u.url_avatar AS "avatarUrl",
               u.autenticacion_dos_factores AS "twoFactorEnabled",
               u.tipo_vinculo_registro::text AS "registrationKind",
+              u.fecha_aceptacion_politica_datos AS "dataPolicyAcceptedAt",
+              u.version_politica_datos AS "dataPolicyVersion",
               u.fecha_ingreso_portal AS "portalSince", u.fecha_creacion AS "createdAt"
          FROM usuarios u
          LEFT JOIN empresas e ON e.id = u.id_empresa
@@ -4977,6 +5000,37 @@ export class PortalService implements OnModuleInit {
     const [row] = await this.finalizePortalUserRowsFromJoin(r.rows, userId, true);
     if (!row) return null;
     return this.enrichPortalUserProfileFromPayrollEmployee(row);
+  }
+
+  /** Registra la aceptación de la Política de Tratamiento de Datos Personales (primer ingreso o re-aceptación). */
+  async acceptDataPolicy(userId: string, acceptDataPolicy: boolean) {
+    if (!acceptDataPolicy) {
+      throw new BadRequestException("Debe aceptar la Política de Tratamiento de Datos Personales para continuar.");
+    }
+    const uid = String(userId || "").trim();
+    if (!uid) throw new BadRequestException("Usuario no válido.");
+    const acceptedAt = timestamptzStringColombiaNow();
+    const checklistPatch = JSON.stringify({
+      dataPolicyAccepted: true,
+      dataPolicyVersion: DATA_POLICY_VERSION,
+      dataPolicyAcceptedAt: acceptedAt,
+      termsOfUseAccepted: true,
+      privacyPolicyAccepted: true,
+      habeasDataAcknowledged: true
+    });
+    const r = await this.pool.query<{ id: string }>(
+      `UPDATE usuarios
+       SET fecha_aceptacion_politica_datos = $2::timestamptz,
+           version_politica_datos = $3,
+           fecha_aceptacion_terminos = COALESCE(fecha_aceptacion_terminos, $2::timestamptz),
+           checklist_registro_json = COALESCE(checklist_registro_json, '{}'::jsonb) || $4::jsonb,
+           fecha_actualizacion = now()
+       WHERE id = $1::uuid
+       RETURNING id::text`,
+      [uid, acceptedAt, DATA_POLICY_VERSION, checklistPatch]
+    );
+    if (!r.rows.length) throw new BadRequestException("Usuario no encontrado.");
+    return this.getOwnProfile(uid);
   }
 
   /**
@@ -5004,6 +5058,8 @@ export class PortalService implements OnModuleInit {
               u.parentesco_emergencia AS "emergencyRelationship", u.url_avatar AS "avatarUrl",
               u.autenticacion_dos_factores AS "twoFactorEnabled",
               u.tipo_vinculo_registro::text AS "registrationKind",
+              u.fecha_aceptacion_politica_datos AS "dataPolicyAcceptedAt",
+              u.version_politica_datos AS "dataPolicyVersion",
               u.fecha_ingreso_portal AS "portalSince", u.fecha_creacion AS "createdAt"
          FROM usuarios u
          LEFT JOIN empresas e ON e.id = u.id_empresa
@@ -5043,11 +5099,22 @@ export class PortalService implements OnModuleInit {
         ? new Date(row.portalSince as string).toISOString().slice(0, 10)
         : "";
       const rid = row.id as string;
+      const dataPolicyAcceptedAtRaw = row.dataPolicyAcceptedAt;
+      const dataPolicyAcceptedAt = dataPolicyAcceptedAtRaw
+        ? new Date(dataPolicyAcceptedAtRaw as string).toISOString()
+        : null;
+      const dataPolicyVersion = String(row.dataPolicyVersion ?? "").trim() || null;
       const baseRow = {
         ...row,
         password: "",
         permissions: permMap.get(rid) || [],
         source: "portal_db",
+        dataPolicyAcceptedAt,
+        dataPolicyVersion,
+        requiresDataPolicyAcceptance: userRequiresDataPolicyAcceptance(
+          dataPolicyAcceptedAt,
+          dataPolicyVersion
+        ),
         documentIssuedAt: row.documentIssuedAt
           ? new Date(row.documentIssuedAt as string).toISOString().slice(0, 10)
           : "",

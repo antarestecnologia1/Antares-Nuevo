@@ -7018,6 +7018,9 @@ async function hydrateOwnProfileFromApi() {
     if (me && me.id) {
       upsertPortalUserRowIntoCache(enrichPortalUserFromPayrollCache(me));
       syncSessionProfileSnapshotFromCache();
+      if (typeof window.maybeEnforceDataPolicyAcceptance === "function") {
+        window.maybeEnforceDataPolicyAcceptance();
+      }
       return true;
     }
   } catch (err) {
