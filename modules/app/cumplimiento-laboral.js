@@ -360,6 +360,13 @@ function sstPreviewStatusChip(label, ymd, { missingLabel = "Sin fecha" } = {}) {
   return `<span class="sst-preview-chip sst-preview-chip--${tone}" title="${escapeAttr(label)} · vence ${escapeAttr(ymd)}">${escapeHtml(label)} · ${escapeHtml(ymd)}</span>`;
 }
 
+function sstPreviewAffiliationChip(label, value) {
+  const text = String(value || "").trim();
+  const tone = text ? "ok" : "missing";
+  const display = text || "Sin afiliación";
+  return `<span class="sst-preview-chip sst-preview-chip--${tone}" title="${escapeAttr(label)}">${escapeHtml(label)} · ${escapeHtml(display)}</span>`;
+}
+
 function buildSstEmployeePreviewHtml(employee, records = []) {
   const IC = G.IC || {};
   if (!employee) {
@@ -381,13 +388,13 @@ function buildSstEmployeePreviewHtml(employee, records = []) {
         .join("")
     : `<li class="sst-preview-due sst-preview-due--ok"><strong>Sin vencimientos urgentes</strong><span>Ventana 30 días</span></li>`;
   const chips = [
-    sstPreviewStatusChip("EPS", resolveEmployeeExpiryYmd(employee, "epsExpiry", "epsAffiliationDate")),
-    sstPreviewStatusChip("Pensión", resolveEmployeeExpiryYmd(employee, "pensionExpiry", "pensionAffiliationDate")),
-    sstPreviewStatusChip("ARL", resolveEmployeeExpiryYmd(employee, "arlExpiry", "arlAffiliationDate")),
-    sstPreviewStatusChip("Examen ocup.", resolveEmployeeExpiryYmd(employee, "medicalExamExpiry", "medicalExamDate"))
+    sstPreviewAffiliationChip("EPS", String(employee.eps || "").trim()),
+    sstPreviewAffiliationChip("Pensión", String(employee.pensionFund || "").trim()),
+    sstPreviewAffiliationChip("ARL", String(employee.arl || "").trim()),
+    sstPreviewStatusChip("Examen ocup.", resolveEmployeeExpiryYmd(employee, "occupationalExamExpiry", "occupationalExamDate"))
   ];
   if (isConductorEmployee(employee)) {
-    chips.push(sstPreviewStatusChip("Instruvial", resolveEmployeeExpiryYmd(employee, "instruvialExpiry", "instruvialDate")));
+    chips.push(sstPreviewStatusChip("Instruvial", resolveEmployeeExpiryYmd(employee, "instruvialExamExpiry", "instruvialExamDate")));
     chips.push(sstPreviewStatusChip("Licencia", resolveEmployeeExpiryYmd(employee, "licenseExpiry", "licenseIssueDate")));
   }
   return `<div class="sst-employee-preview__card">
@@ -674,46 +681,84 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
       expiringContracts.length +
       missingSocialSecurity.length +
       dueItems.filter((item) => item.bucket === "expired").length;
-    const complianceForm = `<form id="form-sst-compliance" class="p-form p-form-colored">
-      <fieldset class="form-section form-section-blue full">
-        <legend>${IC.user} Empleado y tipo</legend>
-        <div class="form-section-grid">
-          <label class="full">${fieldLabel(IC.user, "Empleado")}<select name="employeeId" required><option value="">Seleccione...</option>${employeeOptions}</select></label>
-          <label class="full">${fieldLabel(IC.file, "Tipo de control")}
-            <select name="recordType" required>
-              <option value="">Seleccione...</option>
-              <option value="Afiliacion EPS">Afiliacion EPS</option>
-              <option value="Afiliacion pension">Afiliacion pension</option>
-              <option value="Afiliacion ARL">Afiliacion ARL</option>
-              <option value="Examen medico ocupacional">Examen medico ocupacional</option>
-              <option value="Examen instruvial">Examen instruvial</option>
-              <option value="Licencia de conduccion">Licencia de conduccion</option>
-              <option value="Capacitacion SST">Capacitacion SST</option>
-              <option value="Inspeccion documental">Inspeccion documental</option>
-            </select>
-          </label>
+    const complianceForm = `<form id="form-sst-compliance" class="p-form p-form-colored hr-form-flow antares-create-form sst-create-form" autocomplete="off" novalidate lang="es">
+      ${renderHrFormHero({
+        eyebrow: "Cumplimiento laboral · SST",
+        title: "Nuevo control legal o SST",
+        description: "Registre afiliaciones, exámenes, capacitaciones o inspecciones. Al marcar Cumplido con fecha de realización, la vigencia se propaga a la ficha del colaborador.",
+        tone: "brand",
+        badges: [
+          renderHrFormHeroBadge("3 pasos", "guiados"),
+          renderHrFormHeroBadge("Renovación", "automática"),
+          renderHrFormHeroBadge(String(dueItems.filter((item) => item.bucket === "expired").length), "vencidos")
+        ]
+      })}
+      <div class="sst-create-form__progress" aria-hidden="true">
+        <div class="sst-create-form__progress-track">
+          <div class="sst-create-form__progress-fill" data-sst-create-progress style="width:0%"></div>
         </div>
-      </fieldset>
-      <fieldset class="form-section form-section-emerald full">
-        <legend>${IC.shield} Seguimiento</legend>
-        <div class="form-section-grid">
-          <label>${fieldLabel(IC.briefcase, "Entidad / proveedor")}<input name="provider" required placeholder="EPS, fondo, ARL o entidad auditora" /></label>
-          <label>${fieldLabel(IC.calendar, "Vencimiento / control")}<input type="date" name="dueDate" required /></label>
-          <label class="sst-completion-date-field">${fieldLabel(IC.calendar, "Fecha de realización")}<input type="date" name="completionDate" /></label>
-          <label>${fieldLabel(IC.activity, "Estado")}
-            <select name="status" required>
-              <option value="Pendiente">Pendiente</option>
-              <option value="En gestion">En gestion</option>
-              <option value="Cumplido">Cumplido</option>
-            </select>
-          </label>
-          <label>${fieldLabel(IC.hash, "Codigo documental")}<input name="documentCode" required placeholder="Ej: SST-2026-001" /></label>
+        <ol class="sst-create-form__milestones">
+          <li class="sst-create-form__milestone is-active" data-sst-create-milestone="employee"><span class="sst-create-form__milestone-num">1</span><span class="sst-create-form__milestone-copy"><strong>Colaborador</strong><small>Persona y tipo</small></span></li>
+          <li class="sst-create-form__milestone" data-sst-create-milestone="control"><span class="sst-create-form__milestone-num">2</span><span class="sst-create-form__milestone-copy"><strong>Control</strong><small>Entidad y vencimiento</small></span></li>
+          <li class="sst-create-form__milestone" data-sst-create-milestone="evidence"><span class="sst-create-form__milestone-num">3</span><span class="sst-create-form__milestone-copy"><strong>Evidencia</strong><small>Observaciones</small></span></li>
+        </ol>
+      </div>
+      <div class="sst-create-form__layout">
+        <div class="antares-create-form__sections sst-create-form__sections">
+          <fieldset class="form-section form-section-blue full">
+            <legend>${IC.user} Colaborador y tipo de control</legend>
+            <p class="muted form-section-hint">Identifique al colaborador y el tipo de obligación legal o control SST que desea auditar.</p>
+            <div class="form-section-grid sst-create-form__employee-grid">
+              <label class="full">${fieldLabel(IC.user, "Empleado", { required: true })}<select name="employeeId" id="sst-compliance-employee" required><option value="">Seleccione...</option>${employeeOptions}</select></label>
+              <label class="full">${fieldLabel(IC.file, "Tipo de control", { required: true })}
+                <select name="recordType" id="sst-compliance-record-type" required>
+                  <option value="">Seleccione...</option>
+                  <option value="Afiliacion EPS">Afiliacion EPS</option>
+                  <option value="Afiliacion pension">Afiliacion pension</option>
+                  <option value="Afiliacion ARL">Afiliacion ARL</option>
+                  <option value="Examen medico ocupacional">Examen medico ocupacional</option>
+                  <option value="Examen instruvial">Examen instruvial</option>
+                  <option value="Licencia de conduccion">Licencia de conduccion</option>
+                  <option value="Capacitacion SST">Capacitacion SST</option>
+                  <option value="Inspeccion documental">Inspeccion documental</option>
+                </select>
+              </label>
+            </div>
+          </fieldset>
+          <fieldset class="form-section form-section-emerald full">
+            <legend>${IC.shield} Seguimiento y vigencia</legend>
+            <p class="muted form-section-hint">Entidad responsable, fechas de control y estado del cumplimiento documental.</p>
+            <div class="form-section-grid">
+              <label>${fieldLabel(IC.briefcase, "Entidad / proveedor", { required: true })}<input name="provider" required placeholder="EPS, fondo, ARL o entidad auditora" data-antares-field="db-upper" data-antares-validate-blur="db-upper" /></label>
+              <label>${fieldLabel(IC.calendar, "Vencimiento / control", { required: true })}<input type="date" name="dueDate" required /></label>
+              <label class="sst-completion-date-field">${fieldLabel(IC.calendar, "Fecha de realización")}<input type="date" name="completionDate" /></label>
+              <label>${fieldLabel(IC.activity, "Estado", { required: true })}
+                <select name="status" required>
+                  <option value="Pendiente">Pendiente</option>
+                  <option value="En gestion">En gestion</option>
+                  <option value="Cumplido">Cumplido</option>
+                </select>
+              </label>
+              <label>${fieldLabel(IC.hash, "Codigo documental", { required: true })}<input name="documentCode" required placeholder="Ej: SST-2026-001" data-antares-field="db-upper" data-antares-validate-blur="db-upper" /></label>
+            </div>
+          </fieldset>
+          <fieldset class="form-section form-section-violet full">
+            <legend>${IC.file} Evidencia y trazabilidad</legend>
+            <p class="muted form-section-hint">Detalle de soporte, auditoría y responsable. Use referencia externa sin cargar archivos al portal.</p>
+            <div class="form-section-grid">
+              <label class="full">${fieldLabel(IC.file, "Evidencia / observaciones", { required: true })}<textarea name="notes" rows="3" required placeholder="Detalle de soporte, auditoría y responsable" data-antares-field="db-upper-multiline" data-antares-validate-blur="db-upper-multiline"></textarea></label>
+              <label class="full">${fieldLabel(IC.link || IC.file, "Referencia evidencia (opcional)")}<input name="evidenceRef" placeholder="URL externa o código de carpeta física — no se almacenan archivos en el portal" /></label>
+            </div>
+            <p class="muted full sst-renewal-hint">Al marcar el control como <strong>Cumplido</strong>, con fecha de realización, se renovará automáticamente la ficha del colaborador en todos los módulos vinculados.</p>
+          </fieldset>
         </div>
-      </fieldset>
-      <label class="full">${fieldLabel(IC.file, "Evidencia / observaciones")}<textarea name="notes" rows="3" required placeholder="Detalle de soporte, auditoría y responsable"></textarea></label>
-      <label class="full">${fieldLabel(IC.link || IC.file, "Referencia evidencia (opcional)")}<input name="evidenceRef" placeholder="URL externa o código de carpeta física — no se almacenan archivos en el portal" /></label>
-      <p class="muted full sst-renewal-hint">Al marcar el control como <strong>Cumplido</strong>, con fecha de realización, se renovará automáticamente la ficha del colaborador en todos los módulos vinculados. Use la referencia de evidencia solo como enlace o código (sin cargar PDFs).</p>
-      ${renderManagedCreateFormActions("create-sst-control", `<button class="btn btn-primary" type="submit">${IC.plus} Registrar control legal/SST</button>`)}
+        <aside id="sst-employee-preview" class="sst-employee-preview" aria-live="polite" aria-label="Resumen del colaborador">
+          ${buildSstEmployeePreviewHtml(null, records)}
+        </aside>
+      </div>
+      <footer class="antares-create-form__footer">
+        ${renderManagedCreateFormActions("create-sst-control", `<button class="btn btn-primary antares-create-form__submit" type="submit">${IC.plus} Registrar control legal/SST</button>`)}
+      </footer>
     </form>`;
     const recordsTable = recordRows
       ? `<div class="table-wrap payroll-table-wrap payroll-contracts-table-wrap"><table class="payroll-contracts-table"><thead><tr><th>Control</th><th>Empleado</th><th>Entidad</th><th>Vencimiento</th><th>Estado</th><th>Notas</th><th class="payroll-contracts-table__actions">Acciones</th></tr></thead><tbody>${recordRows}</tbody></table></div>`
@@ -814,14 +859,40 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
           "create-sst-control",
           "shield",
           "Nuevo control SST / legal",
-          "Registre obligaciones, vencimientos y evidencias de cumplimiento",
+          "Colaborador, vencimiento, evidencia y renovación automática de ficha",
           complianceForm,
           "Abrir formulario",
           { createPanels: sstCreateUi }
         )
       : emptyState("No tiene permiso para registrar controles SST.");
+    const sstGuidePane = renderSstComplianceGuidePane(IC, {
+      dueCount: dueItems.length,
+      recordsCount: records.length,
+      reconcileCount: reconcileIssues.length,
+      missingCount: missingComplianceCount + missingSstRecords
+    });
+    const sstRailCollapsed = (G.isOperateRailCollapsed || (() => false))("sst");
+    const sstOperateAlert =
+      urgentAlertCount > 0
+        ? `<p class="sst-operate-alert hr-attention-strip hr-attention-strip--warn" role="status">${IC.alert || IC.activity || ""} <strong>${urgentAlertCount}</strong> alerta${urgentAlertCount === 1 ? "" : "s"} requiere${urgentAlertCount === 1 ? "" : "n"} atención — revise vencimientos y afiliaciones pendientes.</p>`
+        : "";
     const sstOperatePanel = `<div class="hr-workspace-panel payroll-workspace-panel${sstWorkspace === "operate" ? "" : " hidden"}" role="tabpanel" data-sst-panel="operate"${sstWorkspace === "operate" ? "" : " hidden"}>
-      <div class="payroll-operate__main">${sstCreatePaneBody}</div>
+      ${sstOperateAlert}
+      <section class="sst-operate sst-operate-panel${sstRailCollapsed ? " is-rail-collapsed" : ""}">
+        <aside class="sst-operate__rail" aria-label="Tipo de registro SST">
+          <div class="sst-operate__rail-head">
+            <p class="sst-operate__rail-label">Tipo de trámite</p>
+            <button type="button" class="sst-operate__rail-toggle" data-action="sst-operate-rail-toggle" aria-expanded="${sstRailCollapsed ? "false" : "true"}" title="${sstRailCollapsed ? "Expandir opciones de trámite" : "Contraer opciones de trámite"}">
+              <span class="sst-operate__rail-toggle-ico" aria-hidden="true">${IC.chevronLeft || ""}</span>
+            </button>
+          </div>
+          ${renderSstOperateSectionNav(sstOperateSection)}
+        </aside>
+        <div class="sst-operate__main auth-tab-panels">
+          <div class="auth-tab-panel${sstOperateSection === "create" ? "" : " hidden"}" data-sst-operate-pane="create">${sstCreatePaneBody}</div>
+          <div class="auth-tab-panel${sstOperateSection === "guide" ? "" : " hidden"}" data-sst-operate-pane="guide">${sstGuidePane}</div>
+        </div>
+      </section>
     </div>`;
     const sstDataNav = renderSstDataSectionNav(
       sstDataSection,
@@ -877,6 +948,43 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
 
 function bindLaborCompliancePortalControls() {
   if (String(state.currentView || "") !== "labor-compliance" || !nodes.viewRoot) return;
+
+  nodes.viewRoot.querySelectorAll("[data-action='sst-operate-rail-toggle']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const panel = btn.closest(".sst-operate");
+      if (!panel) return;
+      const collapsed = panel.classList.toggle("is-rail-collapsed");
+      btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+      btn.setAttribute("title", collapsed ? "Expandir opciones de trámite" : "Contraer opciones de trámite");
+      G.setOperateRailCollapsed?.("sst", collapsed);
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='sst-operate-section']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const section = normalizeSstOperateSection(btn.dataset.section);
+      if (normalizeSstOperateSection(state.sstUi?.operateSection) === section) return;
+      state.sstUi = { ...(state.sstUi || {}), workspace: "operate", operateSection: section };
+      persistHrWorkspace("sst", "operate");
+      if (
+        switchModuleTabPanels({
+          root: nodes.viewRoot,
+          action: "sst-operate-section",
+          activeValue: section,
+          panelAttr: "data-sst-operate-pane",
+          tabActiveClass: "is-active"
+        })
+      ) {
+        nodes.viewRoot.querySelectorAll("[data-action='sst-operate-section']").forEach((tab) => {
+          const active = normalizeSstOperateSection(tab.dataset.section) === section;
+          tab.classList.toggle("is-active", active);
+          tab.setAttribute("aria-selected", active ? "true" : "false");
+        });
+        return;
+      }
+      G.renderPortalView?.();
+    });
+  });
 
   nodes.viewRoot.querySelectorAll("[data-action='hr-workspace-tab'][data-module='sst']").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -955,6 +1063,13 @@ function bindLaborCompliancePortalControls() {
 
   const sstComplianceForm = document.getElementById("form-sst-compliance");
   if (sstComplianceForm) {
+    const onSstFormUiChange = () => {
+      updateSstCreateFormProgress(sstComplianceForm);
+      refreshSstEmployeePreview(sstComplianceForm);
+    };
+    sstComplianceForm.addEventListener("change", onSstFormUiChange);
+    sstComplianceForm.addEventListener("input", onSstFormUiChange);
+    queueMicrotask(onSstFormUiChange);
     G.wireFormSubmitGuard(sstComplianceForm, async (event) => {
       if (G.abortUnlessCanManageSst?.()) return;
       const data = G.readFormEntriesNormalized(sstComplianceForm);

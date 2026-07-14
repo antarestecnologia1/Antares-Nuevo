@@ -671,9 +671,30 @@ export function invokeAuthSuccessCallback() {
 function __resolveDataPolicyGateForUser(user) {
   if (!user || typeof user !== "object") return false;
   if (user.requiresDataPolicyAcceptance === true) return true;
-  if (user.requiresDataPolicyAcceptance === false) return false;
   const fn = typeof window.userRequiresDataPolicyAcceptance === "function" ? window.userRequiresDataPolicyAcceptance : null;
-  return fn ? Boolean(fn(user)) : false;
+  const clientNeeds = fn ? Boolean(fn(user)) : true;
+  if (clientNeeds) return true;
+  if (user.requiresDataPolicyAcceptance === false) return false;
+  return false;
+}
+
+function __sessionRequiresDataPolicyGate(session, user) {
+  if (session?.dataPolicyGatePending === true) return true;
+  return __resolveDataPolicyGateForUser(user);
+}
+
+function __markDataPolicyGatePendingInSession() {
+  const session = getSession();
+  if (!session || session.dataPolicyGatePending === true) return;
+  setSession({ ...session, dataPolicyGatePending: true });
+}
+
+function __clearDataPolicyGatePendingInSession() {
+  const session = getSession();
+  if (!session || !session.dataPolicyGatePending) return;
+  const next = { ...session };
+  delete next.dataPolicyGatePending;
+  setSession(next);
 }
 
 function __dataPolicyModalMarkup() {
@@ -682,38 +703,79 @@ function __dataPolicyModalMarkup() {
   const privacyUrl = String(window.REGISTER_PRIVACY_URL || "./politica-privacidad.html");
   const fileIcon = IC.file || "";
   const shieldIcon = IC.shield || "";
+  const checkIcon = IC.check || "";
+  const chevronIcon = IC.chevronRight || "";
+  const lockIcon = IC.lock || "";
   return `
-    <p class="muted data-policy-lead">
-      Antes de continuar debe leer y aceptar la
-      <strong>Política de Tratamiento de Datos Personales</strong>, los
-      <a class="register-terms-link" href="${escapeAttr(termsUrl)}" target="_blank" rel="noopener noreferrer">Términos de uso</a>
-      y la
-      <a class="register-terms-link" href="${escapeAttr(privacyUrl)}" target="_blank" rel="noopener noreferrer">Política de privacidad</a>.
-    </p>
-    <p class="data-policy-doc-link-wrap">
-      <a class="btn btn-outline btn-sm" href="${escapeAttr(policyUrl)}" target="_blank" rel="noopener noreferrer">${fileIcon} Ver Política de Tratamiento de Datos Personales (PDF)</a>
-    </p>
-    <form id="form-data-policy-accept" class="form-grid auth-pane">
-      <label class="full register-terms-card">
-        <span class="register-terms-title">${fieldLabel(IC.file, "Declaración de aceptación")}</span>
-        <span class="register-terms-copy muted">
-          Autorizo el tratamiento de mis datos personales conforme al documento oficial de Transportes Antares S.A.S
-          y confirmo que he tenido oportunidad de consultarlo.
+    <div class="data-policy-shell">
+      <header class="data-policy-header">
+        <div class="data-policy-header__icon" aria-hidden="true">
+          <span class="data-policy-header__icon-main">${fileIcon}</span>
+          <span class="data-policy-header__icon-badge">${checkIcon}</span>
+        </div>
+        <div class="data-policy-header__copy">
+          <h2 class="data-policy-header__title" id="data-policy-modal-title">Política de datos personales</h2>
+          <p class="data-policy-lead">
+            Antes de continuar debe leer y aceptar la
+            <strong>Política de Tratamiento de Datos Personales</strong>, los
+            <a class="data-policy-inline-link" href="${escapeAttr(termsUrl)}" target="_blank" rel="noopener noreferrer">Términos de uso</a>
+            y la
+            <a class="data-policy-inline-link" href="${escapeAttr(privacyUrl)}" target="_blank" rel="noopener noreferrer">Política de privacidad</a>.
+          </p>
+        </div>
+      </header>
+      <a class="data-policy-doc-card" href="${escapeAttr(policyUrl)}" target="_blank" rel="noopener noreferrer">
+        <span class="data-policy-doc-card__pdf" aria-hidden="true">${fileIcon}<small>PDF</small></span>
+        <span class="data-policy-doc-card__copy">
+          <strong>Ver Política de Tratamiento de Datos Personales</strong>
+          <small>Descargar documento en PDF</small>
         </span>
-        <span class="checkbox-inline register-terms-check">
-          <input type="checkbox" name="acceptDataPolicy" required />
-          Acepto la Política de Tratamiento de Datos Personales y los términos indicados.
-        </span>
-      </label>
-      <div class="register-submit-wrap full">
-        <button class="btn btn-primary full register-submit-btn" type="submit">${shieldIcon} Confirmar y continuar</button>
-      </div>
-    </form>
+        <span class="data-policy-doc-card__chev" aria-hidden="true">${chevronIcon}</span>
+      </a>
+      <form id="form-data-policy-accept" class="data-policy-form">
+        <section class="data-policy-declaration" aria-labelledby="data-policy-declaration-title">
+          <div class="data-policy-declaration__head">
+            <span class="data-policy-declaration__shield-ico" aria-hidden="true">${shieldIcon}</span>
+            <div>
+              <h3 class="data-policy-declaration__title" id="data-policy-declaration-title">
+                Declaración de aceptación <span class="data-policy-required" aria-hidden="true">*</span>
+              </h3>
+              <span class="data-policy-declaration__accent" aria-hidden="true"></span>
+            </div>
+          </div>
+          <p class="data-policy-declaration__copy">
+            Autorizo el tratamiento de mis datos personales conforme al documento oficial de Transportes Antares S.A.S
+            y confirmo que he tenido oportunidad de consultarlo.
+          </p>
+          <div class="data-policy-declaration__divider" aria-hidden="true"></div>
+          <label class="data-policy-check">
+            <input type="checkbox" name="acceptDataPolicy" required />
+            <span class="data-policy-check__box" aria-hidden="true"></span>
+            <span class="data-policy-check__label">Acepto la Política de Tratamiento de Datos Personales y los términos indicados.</span>
+          </label>
+        </section>
+        <button class="btn btn-primary data-policy-submit" type="submit" disabled>${shieldIcon} Confirmar y continuar</button>
+        <p class="data-policy-trust">
+          <span class="data-policy-trust__ico" aria-hidden="true">${lockIcon}</span>
+          Tu información está protegida y será tratada con confidencialidad.
+        </p>
+      </form>
+    </div>
   `;
 }
 
-export function hideDataPolicyGate() {
+function __syncDataPolicyFormReady(form) {
+  if (!form) return;
+  const checkbox = form.querySelector('[name="acceptDataPolicy"]');
+  const submit = form.querySelector(".data-policy-submit");
+  const ready = Boolean(checkbox?.checked);
+  form.classList.toggle("is-ready", ready);
+  if (submit) submit.disabled = !ready;
+}
+
+export function hideDataPolicyGate({ clearPending = false } = {}) {
   state.dataPolicyGateVisible = false;
+  if (clearPending) __clearDataPolicyGatePendingInSession();
   const modal = document.getElementById("data-policy-modal");
   if (modal) modal.classList.add("hidden");
   document.body.classList.remove("data-policy-gate-open");
@@ -722,6 +784,7 @@ export function hideDataPolicyGate() {
 export function showDataPolicyGate() {
   if (!getSession()) return false;
   state.dataPolicyGateVisible = true;
+  __markDataPolicyGatePendingInSession();
   const modal = document.getElementById("data-policy-modal");
   const body = document.getElementById("data-policy-modal-body");
   if (!modal || !body) return false;
@@ -730,6 +793,10 @@ export function showDataPolicyGate() {
   document.body.classList.add("data-policy-gate-open");
   const form = document.getElementById("form-data-policy-accept");
   if (form) {
+    const onDataPolicyFormChange = () => __syncDataPolicyFormReady(form);
+    form.addEventListener("change", onDataPolicyFormChange);
+    form.addEventListener("input", onDataPolicyFormChange);
+    __syncDataPolicyFormReady(form);
     window.wireFormSubmitGuard?.(
       form,
       async () => {
@@ -775,7 +842,7 @@ export function showDataPolicyGate() {
           }
         }
         syncSessionProfileSnapshotFromCache?.();
-        hideDataPolicyGate();
+        hideDataPolicyGate({ clearPending: true });
         window.notify?.(window.userMessage("dataPolicyAccepted"), "success");
       },
       { submitButton: form.querySelector("[type='submit']"), busyText: "Registrando…" }
@@ -786,13 +853,14 @@ export function showDataPolicyGate() {
 
 /** Muestra el modal de aceptación si el usuario autenticado aún no ha aceptado la política vigente. */
 export function maybeEnforceDataPolicyAcceptance() {
-  if (!getSession()) {
+  const session = getSession();
+  if (!session) {
     hideDataPolicyGate();
     return false;
   }
   const user = currentUser();
-  if (!__resolveDataPolicyGateForUser(user)) {
-    hideDataPolicyGate();
+  if (!__sessionRequiresDataPolicyGate(session, user)) {
+    hideDataPolicyGate({ clearPending: true });
     return false;
   }
   return showDataPolicyGate();

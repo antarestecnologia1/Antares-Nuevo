@@ -1615,8 +1615,13 @@ body[data-theme="dark"] #auth-modal .register-terms-link {
 }
 
 /* ─── Modal obligatorio: Política de Tratamiento de Datos Personales ─── */
-#data-policy-modal.modal {
+#data-policy-modal.modal,
+#data-policy-modal.data-policy-modal {
   z-index: 12050;
+  display: grid;
+  place-items: center;
+  padding: clamp(0.85rem, 2.5vw, 1.5rem);
+  animation: auth-fade-in 0.28s ease both;
 }
 
 body.data-policy-gate-open #portal-app {
@@ -1628,20 +1633,477 @@ body.data-policy-gate-open #data-policy-modal {
   pointer-events: auto;
 }
 
+body:not([data-theme="dark"]) #data-policy-modal.modal {
+  background:
+    radial-gradient(circle at 18% 14%, rgba(var(--primary-rgb), 0.14), transparent 44%),
+    radial-gradient(circle at 82% 88%, rgba(var(--primary-mid-rgb, var(--primary-rgb)), 0.1), transparent 40%),
+    rgba(248, 252, 255, 0.88);
+  backdrop-filter: blur(14px) saturate(1.15);
+  -webkit-backdrop-filter: blur(14px) saturate(1.15);
+}
+
+body[data-theme="dark"] #data-policy-modal.modal {
+  background:
+    radial-gradient(circle at 18% 14%, rgba(var(--primary-rgb), 0.18), transparent 44%),
+    rgba(8, 16, 28, 0.82);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
 #data-policy-modal .modal-card-data-policy {
-  max-width: min(520px, calc(100vw - 2rem));
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  width: min(640px, calc(100vw - 1.75rem));
+  max-width: none;
+  border-radius: 20px;
+  border: 1px solid color-mix(in srgb, var(--primary) 14%, #dbeafe);
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 18px 48px rgba(15, 23, 42, 0.12);
+  animation: auth-slide-up 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+body[data-theme="dark"] #data-policy-modal .modal-card-data-policy {
+  border-color: rgba(148, 196, 255, 0.16);
+  box-shadow: 0 22px 56px rgba(0, 0, 0, 0.45);
+}
+
+#data-policy-modal .data-policy-modal__decor {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+#data-policy-modal .data-policy-modal__blob {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(0.5px);
+}
+
+#data-policy-modal .data-policy-modal__blob--tl {
+  top: -3.5rem;
+  left: -2.5rem;
+  width: 11rem;
+  height: 11rem;
+  background: radial-gradient(circle, rgba(var(--primary-rgb), 0.12), transparent 68%);
+}
+
+#data-policy-modal .data-policy-modal__blob--br {
+  right: -2rem;
+  bottom: -3rem;
+  width: 12rem;
+  height: 12rem;
+  background: radial-gradient(circle, rgba(var(--primary-mid-rgb, var(--primary-rgb)), 0.1), transparent 70%);
+}
+
+#data-policy-modal .data-policy-modal__dots {
+  position: absolute;
+  top: 1.2rem;
+  right: 1.4rem;
+  width: 5.5rem;
+  height: 5.5rem;
+  opacity: 0.35;
+  background-image: radial-gradient(circle, rgba(var(--primary-rgb), 0.28) 1px, transparent 1px);
+  background-size: 10px 10px;
 }
 
 #data-policy-modal .data-policy-modal-body {
-  padding: 0 1.25rem 1.25rem;
+  position: relative;
+  z-index: 1;
+  padding: 1.55rem 1.55rem 1.5rem;
+}
+
+#data-policy-modal .data-policy-header__copy {
+  min-width: 0;
+}
+
+#data-policy-modal .data-policy-shell {
+  display: grid;
+  gap: 1.15rem;
+}
+
+#data-policy-modal .data-policy-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.9rem;
+}
+
+#data-policy-modal .data-policy-header__icon {
+  position: relative;
+  flex-shrink: 0;
+  width: 3.1rem;
+  height: 3.1rem;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #ffffff, #f3f8ff);
+  border: 1px solid #dbeafe;
+  box-shadow: 0 8px 20px rgba(var(--primary-rgb), 0.12);
+  display: grid;
+  place-items: center;
+}
+
+#data-policy-modal .data-policy-header__icon-main svg {
+  width: 1.35rem;
+  height: 1.35rem;
+  color: var(--primary);
+}
+
+#data-policy-modal .data-policy-header__icon-badge {
+  position: absolute;
+  right: -0.25rem;
+  bottom: -0.25rem;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 999px;
+  background: linear-gradient(145deg, var(--primary), var(--primary-dark, #1d4ed8));
+  color: #fff;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 4px 10px rgba(var(--primary-rgb), 0.28);
+}
+
+#data-policy-modal .data-policy-header__icon-badge svg {
+  width: 0.72rem;
+  height: 0.72rem;
+}
+
+#data-policy-modal .data-policy-header__title {
+  margin: 0 0 0.45rem;
+  font-size: clamp(1.35rem, 2.4vw, 1.55rem);
+  line-height: 1.2;
+  color: var(--primary-dark, #1e3a8a);
+  letter-spacing: -0.02em;
+}
+
+body[data-theme="dark"] #data-policy-modal .data-policy-header__title {
+  color: #e8f2ff;
 }
 
 #data-policy-modal .data-policy-lead {
-  margin: 0 0 1rem;
-  line-height: 1.55;
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.58;
+  color: #475569;
 }
 
-#data-policy-modal .data-policy-doc-link-wrap {
-  margin: 0 0 1.25rem;
+body[data-theme="dark"] #data-policy-modal .data-policy-lead {
+  color: #b8c9de;
+}
+
+#data-policy-modal .data-policy-inline-link {
+  color: var(--primary);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+#data-policy-modal .data-policy-inline-link:hover {
+  text-decoration: underline;
+}
+
+#data-policy-modal .data-policy-doc-card {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  border: 1px solid #dbeafe;
+  background: linear-gradient(180deg, #ffffff, #f8fbff);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+}
+
+#data-policy-modal .data-policy-doc-card:hover {
+  border-color: #93c5fd;
+  box-shadow: 0 8px 22px rgba(var(--primary-rgb), 0.1);
+  transform: translateY(-1px);
+}
+
+body[data-theme="dark"] #data-policy-modal .data-policy-doc-card {
+  border-color: rgba(148, 196, 255, 0.18);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
+}
+
+#data-policy-modal .data-policy-doc-card__pdf {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 2.65rem;
+  height: 2.65rem;
+  border-radius: 11px;
+  background: linear-gradient(145deg, rgba(var(--primary-rgb), 0.12), rgba(var(--primary-rgb), 0.05));
+  color: var(--primary);
+}
+
+#data-policy-modal .data-policy-doc-card__pdf svg {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+#data-policy-modal .data-policy-doc-card__pdf small {
+  position: absolute;
+  right: 0.15rem;
+  bottom: 0.12rem;
+  font-size: 0.48rem;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  color: var(--primary);
+}
+
+#data-policy-modal .data-policy-doc-card__copy {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+#data-policy-modal .data-policy-doc-card__copy strong {
+  font-size: 0.92rem;
+  color: #0f172a;
+}
+
+#data-policy-modal .data-policy-doc-card__copy small {
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+body[data-theme="dark"] #data-policy-modal .data-policy-doc-card__copy strong {
+  color: #eef4ff;
+}
+
+body[data-theme="dark"] #data-policy-modal .data-policy-doc-card__copy small {
+  color: #94a3b8;
+}
+
+#data-policy-modal .data-policy-doc-card__chev {
+  display: inline-flex;
+  color: var(--primary);
+  opacity: 0.85;
+}
+
+#data-policy-modal .data-policy-doc-card__chev svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+#data-policy-modal .data-policy-form {
+  display: grid;
+  gap: 1rem;
+}
+
+#data-policy-modal .data-policy-declaration {
+  padding: 1rem 1.05rem 1.05rem;
+  border-radius: 16px;
+  border: 1.5px solid rgba(var(--primary-rgb), 0.35);
+  background: linear-gradient(180deg, rgba(var(--primary-rgb), 0.04), rgba(var(--primary-rgb), 0.02));
+}
+
+body[data-theme="dark"] #data-policy-modal .data-policy-declaration {
+  border-color: rgba(148, 196, 255, 0.28);
+  background: rgba(var(--primary-rgb), 0.08);
+}
+
+#data-policy-modal .data-policy-declaration__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  margin-bottom: 0.65rem;
+}
+
+#data-policy-modal .data-policy-declaration__shield-ico {
+  display: grid;
+  place-items: center;
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: 999px;
+  background: rgba(var(--primary-rgb), 0.12);
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+#data-policy-modal .data-policy-declaration__shield-ico svg {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+#data-policy-modal .data-policy-declaration__title {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--primary-dark, #1e3a8a);
+}
+
+body[data-theme="dark"] #data-policy-modal .data-policy-declaration__title {
+  color: #e8f2ff;
+}
+
+#data-policy-modal .data-policy-required {
+  color: #dc2626;
+  font-weight: 800;
+}
+
+#data-policy-modal .data-policy-declaration__accent {
+  display: block;
+  width: 2.4rem;
+  height: 0.22rem;
+  margin-top: 0.35rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--primary), rgba(var(--primary-rgb), 0.35));
+}
+
+#data-policy-modal .data-policy-declaration__copy {
+  margin: 0 0 0.85rem;
+  font-size: 0.86rem;
+  line-height: 1.55;
+  color: #475569;
+}
+
+body[data-theme="dark"] #data-policy-modal .data-policy-declaration__copy {
+  color: #b8c9de;
+}
+
+#data-policy-modal .data-policy-declaration__divider {
+  height: 1px;
+  margin: 0 0 0.85rem;
+  background: linear-gradient(90deg, transparent, #cbd5e1, transparent);
+}
+
+#data-policy-modal .data-policy-check {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.65rem;
+  align-items: start;
+  cursor: pointer;
+  margin: 0;
+}
+
+#data-policy-modal .data-policy-check input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+
+#data-policy-modal .data-policy-check__box {
+  width: 1.35rem;
+  height: 1.35rem;
+  margin-top: 0.08rem;
+  border-radius: 6px;
+  border: 2px solid rgba(var(--primary-rgb), 0.45);
+  background: #fff;
+  display: grid;
+  place-items: center;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+#data-policy-modal .data-policy-check input:checked + .data-policy-check__box {
+  border-color: var(--primary);
+  background: linear-gradient(145deg, var(--primary), var(--primary-dark, #1d4ed8));
+  box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.28);
+}
+
+#data-policy-modal .data-policy-check input:checked + .data-policy-check__box::after {
+  content: "";
+  width: 0.35rem;
+  height: 0.62rem;
+  border-right: 2px solid #fff;
+  border-bottom: 2px solid #fff;
+  transform: rotate(45deg) translate(-1px, -1px);
+}
+
+#data-policy-modal .data-policy-check input:focus-visible + .data-policy-check__box {
+  outline: 2px solid rgba(var(--primary-rgb), 0.45);
+  outline-offset: 2px;
+}
+
+#data-policy-modal .data-policy-check__label {
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: #334155;
+}
+
+body[data-theme="dark"] #data-policy-modal .data-policy-check__label {
+  color: #dbe7f5;
+}
+
+#data-policy-modal .data-policy-submit {
+  width: 100%;
+  min-height: 3rem;
+  border-radius: 14px;
+  border: none;
+  font-size: 0.96rem;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  background: linear-gradient(145deg, #94a3b8, #64748b);
+  box-shadow: none;
+  cursor: not-allowed;
+  opacity: 0.72;
+  transition: background 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease, opacity 0.18s ease;
+}
+
+#data-policy-modal .data-policy-form.is-ready .data-policy-submit:not(:disabled) {
+  background: linear-gradient(145deg, var(--primary), var(--primary-dark, #1d4ed8));
+  box-shadow: 0 12px 28px rgba(var(--primary-rgb), 0.28);
+  cursor: pointer;
+  opacity: 1;
+}
+
+#data-policy-modal .data-policy-form.is-ready .data-policy-submit:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 32px rgba(var(--primary-rgb), 0.32);
+}
+
+#data-policy-modal .data-policy-submit svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+#data-policy-modal .data-policy-trust {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  color: #64748b;
+  text-align: center;
+}
+
+body[data-theme="dark"] #data-policy-modal .data-policy-trust {
+  color: #94a3b8;
+}
+
+#data-policy-modal .data-policy-trust__ico {
+  display: inline-flex;
+  color: #94a3b8;
+}
+
+#data-policy-modal .data-policy-trust__ico svg {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+@media (max-width: 560px) {
+  #data-policy-modal .data-policy-modal-body {
+    padding: 1.15rem 1.1rem 1.2rem;
+  }
+
+  #data-policy-modal .data-policy-header {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  #data-policy-modal .data-policy-doc-card {
+    grid-template-columns: auto 1fr;
+  }
+
+  #data-policy-modal .data-policy-doc-card__chev {
+    display: none;
+  }
 }
 

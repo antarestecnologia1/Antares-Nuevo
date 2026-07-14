@@ -1442,6 +1442,48 @@
   box-shadow: 0 4px 10px color-mix(in srgb, var(--acf-schedule-accent) 28%, transparent);
 }
 
+/* Numeración de secciones en SST */
+.sst-create-form .antares-create-form__sections {
+  counter-reset: acf-sst-section;
+}
+
+.sst-create-form .form-section legend::before {
+  content: counter(acf-sst-section);
+  counter-increment: acf-sst-section;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.45rem;
+  height: 1.45rem;
+  margin-right: 0.35rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(135deg, #059669, #047857);
+  box-shadow: 0 4px 10px rgba(5, 150, 105, 0.24);
+  vertical-align: middle;
+}
+
+.sst-create-form .form-section-emerald legend::before {
+  background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.sst-create-form .form-section-violet legend::before {
+  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+  box-shadow: 0 4px 10px rgba(124, 58, 237, 0.22);
+}
+
+.sst-studio .sst-create-form .hr-form-hero {
+  margin-bottom: 0.35rem;
+}
+
+.sst-studio .sst-create-form .antares-create-form__footer {
+  margin-top: 0.35rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--acf-edge, #e2e8f0);
+}
+
 /* ── Empresa preview (solicitud) ── */
 .antares-create-form .request-company-preview {
   display: flex;

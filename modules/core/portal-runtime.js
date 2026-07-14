@@ -2160,6 +2160,9 @@ function restorePortalSnapshotIfAvailable() {
   try {
     ensureUsersPermissions();
     syncSessionProfileSnapshotFromCache();
+    if (typeof window.maybeEnforceDataPolicyAcceptance === "function") {
+      window.maybeEnforceDataPolicyAcceptance();
+    }
   } catch (_e) {
     /* noop */
   }

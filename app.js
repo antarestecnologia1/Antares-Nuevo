@@ -11,7 +11,8 @@ import {
   tryApiRefreshBridge,
   clearSession,
   startSessionSecurityWatch,
-  isSessionWithinIdleWindow
+  isSessionWithinIdleWindow,
+  maybeEnforceDataPolicyAcceptance
 } from "./modules/core/auth.js";
 import { renderPortal, scheduleRenderPortalView } from "./modules/core/router.js";
 import {
@@ -71,6 +72,13 @@ initPublicEffects();
 renderPortal();
 if (getSession()) {
   startSessionSecurityWatch();
+  queueMicrotask(() => {
+    try {
+      maybeEnforceDataPolicyAcceptance();
+    } catch (_e) {
+      /* noop */
+    }
+  });
 }
 
 void (async function bootApplicationFromDatabaseThenUi() {
@@ -167,6 +175,13 @@ void (async function bootApplicationFromDatabaseThenUi() {
   try {
     syncSessionProfileSnapshotFromCache();
   } catch (_e) {}
+  if (getSession()) {
+    try {
+      maybeEnforceDataPolicyAcceptance();
+    } catch (_e) {
+      /* noop */
+    }
+  }
   window.PortalDataLayer?.enableVisibilityRefresh?.();
   setInterval(() => {
     if (!state.session) return;

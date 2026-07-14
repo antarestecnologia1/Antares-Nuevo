@@ -386,8 +386,7 @@ export const DATA_POLICY_URL = "./documentacion/politica-tratamiento-datos-perso
 /** Indica si el usuario debe aceptar la política de datos antes de usar el portal. */
 export function userRequiresDataPolicyAcceptance(user) {
   if (!user || typeof user !== "object") return true;
-  const acceptedAt =
-    user.dataPolicyAcceptedAt ?? user.fechaAceptacionPoliticaDatos ?? user.termsAcceptedAt ?? null;
+  const acceptedAt = user.dataPolicyAcceptedAt ?? user.fechaAceptacionPoliticaDatos ?? null;
   const version = String(user.dataPolicyVersion ?? user.versionPoliticaDatos ?? "").trim();
   if (!acceptedAt) return true;
   if (!version || version !== DATA_POLICY_VERSION) return true;

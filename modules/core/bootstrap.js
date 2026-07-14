@@ -816,17 +816,17 @@ export async function startPortalBootstrapForInteractiveSession() {
   } catch (_e) {
     /* fallo de red o 401: la vista usa proyección local hasta el próximo intento */
   }
+  try {
+    if (typeof window.maybeEnforceDataPolicyAcceptance === "function") {
+      window.maybeEnforceDataPolicyAcceptance();
+    }
+  } catch (_e3) {
+    /* noop */
+  }
   if (ok) {
     try {
       __callbacks.onPostInteractiveBootstrap?.();
     } catch (_e2) {
-      /* noop */
-    }
-    try {
-      if (typeof window.maybeEnforceDataPolicyAcceptance === "function") {
-        window.maybeEnforceDataPolicyAcceptance();
-      }
-    } catch (_e3) {
       /* noop */
     }
   }
