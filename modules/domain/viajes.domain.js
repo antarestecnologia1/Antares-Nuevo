@@ -22,6 +22,10 @@ import {
   normalizeRequestRequiredTruckType,
   requestRequiredTruckTypeShowsFuelles
 } from "./solicitudes.domain.js";
+import {
+  evaluateDriverTripCompliance,
+  driverHasExpiredComplianceForTrips
+} from "./driver-compliance-vigencia.domain.js";
 
 /** Misma enumeración que `STATUS` en app.js (texto persistido en solicitudes). */
 export const VIAJES_STATUS = Object.freeze({
@@ -1031,7 +1035,8 @@ export function rebuildTripAssignmentSelectOptions(formEl, request, requestId, n
         const label = tripAssignmentDriverOptionLabel(driver, {
           isBusy: driver.isBusy,
           isUnavailable: driver.isUnavailable,
-          hasExpiredDocs: driver.hasExpiredDocs
+          hasExpiredDocs: driver.hasExpiredDocs,
+          compliance: driver.tripCompliance
         });
         return `<option value="${escapeAttr(String(driver.id))}"${dis ? " disabled" : ""}>${escapeHtml(label)}</option>`;
       })
@@ -1101,8 +1106,12 @@ export function selectBestVehicle(weight, pickupAt, etaDelivery, currentRequestI
 export function selectDriver(pickupAt, etaDelivery, currentRequestId = null) {
   const drivers = read(KEYS.drivers, []);
   return (
-    drivers.find((d) => !isManuallyUnavailable(d) && !isDriverBusyAtHour(d, pickupAt, etaDelivery, currentRequestId)) ||
-    null
+    drivers.find(
+      (d) =>
+        !isManuallyUnavailable(d) &&
+        !driverHasExpiredComplianceForTrips(d) &&
+        !isDriverBusyAtHour(d, pickupAt, etaDelivery, currentRequestId)
+    ) || null
   );
 }
 
@@ -1352,11 +1361,16 @@ export function tripAssignmentDriverOptionLabel(driver, options = {}) {
   const isBusy = Boolean(options.isBusy);
   const isUnavailable = Boolean(options.isUnavailable);
   const hasExpiredDocs = Boolean(options.hasExpiredDocs);
+  const compliance = options.compliance || evaluateDriverTripCompliance(driver);
   const dname = driver.name || driver.fullName || "";
   let tail = `${dname} · Lic ${driver.license || "-"} · vence ${driver.licenseExpiry || "-"} · ${driver.phone || "-"}`;
   if (isBusy) tail += " · Ocupado (horario)";
   if (isUnavailable) tail += " · No disponible";
-  if (hasExpiredDocs) tail += " · Licencia vencida";
+  if (hasExpiredDocs) {
+    tail += compliance.summary && compliance.summary !== "Vigente"
+      ? ` · ${compliance.summary} vencido`
+      : " · Documentación vencida";
+  }
   return tail;
 }
 
@@ -1394,7 +1408,7 @@ export function getCompatibleDriversForRequest(request, currentRequestId = null)
   return read(KEYS.drivers, []).filter(
     (driver) =>
       !isManuallyUnavailable(driver) &&
-      fleetDaysUntil(driver.licenseExpiry) >= 0 &&
+      !driverHasExpiredComplianceForTrips(driver) &&
       !isDriverBusyAtHour(driver, requestSchedulingPickupIso(request), requestSchedulingDeliveryIso(request), currentRequestId)
   );
 }
@@ -1432,7 +1446,8 @@ export function getVehicleCandidatesForRequest(request, currentRequestId = null)
 
 export function getDriverCandidatesForRequest(request, currentRequestId = null) {
   return read(KEYS.drivers, []).map((driver) => {
-    const expiredLicense = fleetDaysUntil(driver.licenseExpiry) < 0;
+    const compliance = evaluateDriverTripCompliance(driver);
+    const expiredCompliance = !compliance.ok;
     const busyBySchedule = isDriverBusyAtHour(
       driver,
       requestSchedulingPickupIso(request),
@@ -1444,7 +1459,8 @@ export function getDriverCandidatesForRequest(request, currentRequestId = null) 
       ...driver,
       isBusy: busyBySchedule,
       isUnavailable: unavailableManual,
-      hasExpiredDocs: expiredLicense
+      hasExpiredDocs: expiredCompliance,
+      tripCompliance: compliance
     };
   });
 }

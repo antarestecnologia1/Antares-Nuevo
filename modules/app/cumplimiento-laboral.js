@@ -21,8 +21,14 @@ import {
   executeSstRenewal,
   applySstRecordCompletion,
   sstControlRequiresProvider,
-  getSstControlRecordType
+  getSstControlRecordType,
+  mergeSstEvidenceRef
 } from "../domain/sst-renewal.domain.js";
+import {
+  findSstEmployeeReconciliationIssues,
+  buildSstDueExportRows
+} from "../domain/sst-reconciliation.domain.js";
+import { downloadCsv } from "../domain/reporteria.domain.js";
 
 const G = globalThis;
 
@@ -112,6 +118,22 @@ function collectSstDueItems(employees, records, dueSoonDays = SST_DUE_SOON_DAYS)
         allowMissing: true
       });
     }
+    const pushMissingAffiliation = (emp, controlType, field, controlKey) => {
+      if (String(emp[field] || "").trim()) return;
+      items.push({
+        employeeId: emp.id,
+        employeeName: String(emp.name || "-").trim() || "-",
+        position: String(emp.position || "-").trim() || "-",
+        controlType,
+        controlKey,
+        dueDate: "",
+        days: null,
+        bucket: "missing"
+      });
+    };
+    pushMissingAffiliation(employee, "Afiliación EPS", "eps", "eps_affiliation");
+    pushMissingAffiliation(employee, "Afiliación pensión", "pensionFund", "pension_affiliation");
+    pushMissingAffiliation(employee, "Afiliación ARL", "arl", "arl_affiliation");
   }
 
   for (const record of records) {
@@ -283,6 +305,12 @@ function openSstRenewalModal(ctx) {
         type: "textarea",
         value: String(initialNotes || ""),
         rows: 2
+      },
+      {
+        name: "evidenceRef",
+        label: "Referencia evidencia (URL o código, opcional)",
+        value: "",
+        placeholder: "Ej. https://… o Carpeta física A-12 (sin subir archivos)"
       }
     ],
     onSubmit: async (form) => {
@@ -294,7 +322,8 @@ function openSstRenewalModal(ctx) {
         documentCode: form.documentCode,
         notes: form.notes,
         recordId: recordId || undefined,
-        createAuditRecord: true
+        createAuditRecord: true,
+        evidenceRef: form.evidenceRef
       });
       if (!result.ok) {
         G.notify(String(result.message || "No fue posible completar la renovación."), "error");
@@ -375,6 +404,13 @@ function renderSstDataSectionNav(activeId, counts, IC) {
       title: "Controles documentales registrados",
       count: counts.audit ?? 0,
       icon: IC.file || ""
+    },
+    {
+      id: "reconcile",
+      label: "Reconciliar",
+      title: "Desincronización SST vs ficha del colaborador",
+      count: counts.reconcile ?? 0,
+      icon: IC.activity || ""
     }
   ];
   return `<nav class="payroll-data-nav payroll-data-nav--minimal" role="tablist" aria-label="Consultas de cumplimiento SST">
@@ -431,6 +467,7 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
     });
     const missingSocialSecurity = employees.filter((employee) => !employee.eps || !employee.pensionFund || !employee.arl);
     const dueItems = collectSstDueItems(employees, records, dueSoonDays);
+    const reconcileIssues = findSstEmployeeReconciliationIssues(employees, records);
     const filteredDueItems = filterSstListItems(dueItems, listSearchNorm, (item) =>
       `${item.employeeName} ${item.position} ${item.controlType} ${item.dueDate || ""}`
     );
@@ -438,6 +475,9 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
       const employee = employees.find((item) => String(item.id) === String(record.employeeId || ""));
       return `${record.employeeName || employee?.name || ""} ${record.recordType || ""} ${record.provider || ""} ${record.documentCode || ""} ${record.status || ""} ${record.dueDate || ""}`;
     });
+    const filteredReconcileIssues = filterSstListItems(reconcileIssues, listSearchNorm, (issue) =>
+      `${issue.employeeName} ${issue.controlType} ${issue.message} ${issue.type}`
+    );
     const missingComplianceCount = countMissingComplianceItems(employees);
     const missingSstRecords = dueItems.filter((item) => item.recordId && item.bucket === "missing").length;
     const employeeOptions = employees.map((employee) => `<option value="${employee.id}">${employee.name} · ${employee.position || "-"}</option>`).join("");
@@ -516,7 +556,8 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
         </div>
       </fieldset>
       <label class="full">${fieldLabel(IC.file, "Evidencia / observaciones")}<textarea name="notes" rows="3" required placeholder="Detalle de soporte, auditoría y responsable"></textarea></label>
-      <p class="muted full sst-renewal-hint">Al marcar el control como <strong>Cumplido</strong>, con fecha de realización, se renovará automáticamente la ficha del colaborador en todos los módulos vinculados.</p>
+      <label class="full">${fieldLabel(IC.link || IC.file, "Referencia evidencia (opcional)")}<input name="evidenceRef" placeholder="URL externa o código de carpeta física — no se almacenan archivos en el portal" /></label>
+      <p class="muted full sst-renewal-hint">Al marcar el control como <strong>Cumplido</strong>, con fecha de realización, se renovará automáticamente la ficha del colaborador en todos los módulos vinculados. Use la referencia de evidencia solo como enlace o código (sin cargar PDFs).</p>
       ${renderManagedCreateFormActions("create-sst-control", `<button class="btn btn-primary" type="submit">${IC.plus} Registrar control legal/SST</button>`)}
     </form>`;
     const recordsTable = recordRows
@@ -558,6 +599,39 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
             ? "No hay vencimientos que coincidan con la búsqueda."
             : "No hay vencimientos próximos ni controles sin fecha registrada."
         );
+    const reconcileRows = filteredReconcileIssues
+      .map((issue) => {
+        const typeBadge =
+          issue.type === "desync"
+            ? `<span class="status status-vencida">Desincronizado</span>`
+            : issue.type === "expired"
+              ? `<span class="status status-vencida">Vencido</span>`
+              : `<span class="status status-en_transito">Faltante</span>`;
+        const renewBtn =
+          sstCanMutate && issue.controlKey
+            ? renderSstRenewButton(IC, {
+                employeeId: issue.employeeId,
+                controlKey: issue.controlKey,
+                recordId: issue.recordId,
+                controlType: issue.controlType,
+                label: "Corregir"
+              })
+            : "";
+        return `<tr>
+        <td>${typeBadge}</td>
+        <td><strong>${escapeHtml(issue.controlType)}</strong><br><span class="muted">${escapeHtml(issue.employeeName)}</span></td>
+        <td class="payroll-table-cell-notes"><span class="muted">${escapeHtml(issue.message)}</span><br><span class="muted">${escapeHtml(issue.suggestedAction || "")}</span></td>
+        <td class="payroll-contracts-table__actions">${renewBtn ? `<div class="toolbar">${renewBtn}</div>` : '<span class="muted">—</span>'}</td>
+      </tr>`;
+      })
+      .join("");
+    const reconcileTable = reconcileRows
+      ? `<div class="table-wrap payroll-table-wrap"><table><thead><tr><th>Tipo</th><th>Control / empleado</th><th>Detalle</th><th class="payroll-contracts-table__actions">Acción</th></tr></thead><tbody>${reconcileRows}</tbody></table></div>`
+      : emptyState(
+          listSearchNorm
+            ? "No hay inconsistencias que coincidan con la búsqueda."
+            : "No hay desincronización entre SST y fichas de colaboradores."
+        );
     const sstCreateUi = buildModuleCreatePanelsState(["create-sst-control"], "create-sst-control", state.createPanels || {}, {
       expandActive: sstWorkspace === "operate"
     });
@@ -594,15 +668,21 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
     const sstOperatePanel = `<div class="hr-workspace-panel payroll-workspace-panel${sstWorkspace === "operate" ? "" : " hidden"}" role="tabpanel" data-sst-panel="operate"${sstWorkspace === "operate" ? "" : " hidden"}>
       <div class="payroll-operate__main">${sstCreatePaneBody}</div>
     </div>`;
-    const sstDataNav = renderSstDataSectionNav(sstDataSection, { due: dueItems.length, audit: records.length }, IC);
+    const sstDataNav = renderSstDataSectionNav(
+      sstDataSection,
+      { due: dueItems.length, audit: records.length, reconcile: reconcileIssues.length },
+      IC
+    );
     const sstDataSearchBar = `<div class="payroll-data-search-toolbar">
       <label class="payroll-data-search">
         <span class="muted">${IC.search || ""} Buscar en listados</span>
         <input type="search" data-action="sst-data-list-search" value="${escapeAttr(listSearchRaw)}" placeholder="Empleado, control, entidad, documento…" autocomplete="off" />
       </label>
+      <button type="button" class="btn btn-sm btn-outline" data-action="export-sst-due-csv" title="Descargar vencimientos actuales">${IC.download || IC.file || ""} Exportar CSV</button>
     </div>`;
     const dueMeta = `<p class="payroll-result-meta muted" title="Vencimientos próximos, vencidos o sin programar"><strong>${filteredDueItems.length}</strong>${listSearchNorm ? ` <span class="muted">· ${dueItems.length}</span>` : ""} ítem${filteredDueItems.length === 1 ? "" : "s"} · ventana 30 días</p>`;
     const auditMeta = `<p class="payroll-result-meta muted" title="Controles registrados en auditoría documental"><strong>${filteredRecords.length}</strong>${listSearchNorm ? ` <span class="muted">· ${records.length}</span>` : ""} registro${filteredRecords.length === 1 ? "" : "s"}</p>`;
+    const reconcileMeta = `<p class="payroll-result-meta muted" title="Controles SST cumplidos cuya ficha no coincide, o vigencias faltantes"><strong>${filteredReconcileIssues.length}</strong>${listSearchNorm ? ` <span class="muted">· ${reconcileIssues.length}</span>` : ""} inconsistencia${filteredReconcileIssues.length === 1 ? "" : "s"}</p>`;
     const duePane = `<div class="payroll-data-pane${sstDataSection === "due" ? "" : " hidden"}" data-sst-section="due"${sstDataSection === "due" ? "" : " hidden"}>
       ${dueMeta}
       <div class="payroll-table-shell">${dueItemsTable}</div>
@@ -611,12 +691,17 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
       ${auditMeta}
       <div class="payroll-table-shell">${recordsTable}</div>
     </div>`;
+    const reconcilePane = `<div class="payroll-data-pane${sstDataSection === "reconcile" ? "" : " hidden"}" data-sst-section="reconcile"${sstDataSection === "reconcile" ? "" : " hidden"}>
+      ${reconcileMeta}
+      <p class="muted payroll-result-meta">Revise registros marcados Cumplido en SST cuya ficha no se actualizó, o colaboradores con EPS/ARL/pensión o exámenes pendientes.</p>
+      <div class="payroll-table-shell">${reconcileTable}</div>
+    </div>`;
     const sstDataBlock = `<section class="payroll-data-panel">
       ${sstDataSearchBar}
       <div class="payroll-data-toolbar payroll-data-toolbar--compact">
         ${sstDataNav}
       </div>
-      <div class="payroll-data-panes">${duePane}${auditPane}</div>
+      <div class="payroll-data-panes">${duePane}${auditPane}${reconcilePane}</div>
     </section>`;
     const sstDataPanel = `<div class="hr-workspace-panel payroll-workspace-panel${sstWorkspace === "data" ? "" : " hidden"}" role="tabpanel" data-sst-panel="data"${sstWorkspace === "data" ? "" : " hidden"}>
       ${sstDataBlock}
@@ -696,6 +781,23 @@ function bindLaborCompliancePortalControls() {
     });
   }
 
+  nodes.viewRoot.querySelectorAll("[data-action='export-sst-due-csv']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const employees = read(KEYS.payrollEmployees, []);
+      const records = read(KEYS.sstCompliance, []);
+      const rows = buildSstDueExportRows(employees, collectSstDueItems(employees, records, SST_DUE_SOON_DAYS));
+      downloadCsv(`vencimientos_sst_${colombiaTodayIsoDate()}.csv`, rows, [
+        { key: "empleado", label: "Empleado" },
+        { key: "documento", label: "Documento" },
+        { key: "control", label: "Control" },
+        { key: "vencimiento", label: "Vencimiento" },
+        { key: "estado", label: "Estado" },
+        { key: "dias", label: "Días" }
+      ]);
+      G.notify?.("Exportación de vencimientos SST descargada.", "success");
+    });
+  });
+
   const sstComplianceForm = document.getElementById("form-sst-compliance");
   if (sstComplianceForm) {
     G.wireFormSubmitGuard(sstComplianceForm, async (event) => {
@@ -733,7 +835,7 @@ function bindLaborCompliancePortalControls() {
         completionDate: completionDate || "",
         status,
         documentCode: String(data.documentCode || "").trim().toUpperCase(),
-        notes: String(data.notes || "").trim()
+        notes: mergeSstEvidenceRef(String(data.notes || "").trim(), data.evidenceRef)
       });
       list.unshift(createdRecord);
       try {
@@ -859,7 +961,13 @@ function bindLaborCompliancePortalControls() {
             options: sstStatusOpts
           },
           { name: "documentCode", label: "Código documental", value: target.documentCode || "" },
-          { name: "notes", label: "Observaciones", type: "textarea", value: target.notes || "", rows: 3 }
+          { name: "notes", label: "Observaciones", type: "textarea", value: target.notes || "", rows: 3 },
+          {
+            name: "evidenceRef",
+            label: "Referencia evidencia (URL o código)",
+            value: "",
+            placeholder: "Opcional — sin subir archivos al portal"
+          }
         ],
         onSubmit: async (form) => {
           if (!form.dueDate) {
@@ -893,7 +1001,7 @@ function bindLaborCompliancePortalControls() {
                   completionDate: completionDate || r.completionDate || "",
                   status: nextStatus,
                   documentCode: String(form.documentCode || "").trim().toUpperCase(),
-                  notes: String(form.notes || "").trim()
+                  notes: mergeSstEvidenceRef(String(form.notes || "").trim(), form.evidenceRef)
                 })
           );
           try {
@@ -908,7 +1016,7 @@ function bindLaborCompliancePortalControls() {
               completionDate: completionDate || updatedRecord.dueDate,
               provider: form.provider,
               documentCode: form.documentCode,
-              notes: form.notes
+              notes: mergeSstEvidenceRef(String(form.notes || "").trim(), form.evidenceRef)
             });
             if (!renewal.ok) {
               G.notify(

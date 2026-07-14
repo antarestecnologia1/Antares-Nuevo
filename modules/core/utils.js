@@ -383,6 +383,7 @@ export function normalizeHrWorkspace(moduleId, workspace) {
 export function normalizeSstDataSection(section) {
   const s = String(section || "").trim().toLowerCase();
   if (s === "audit" || s === "auditoria" || s === "records") return "audit";
+  if (s === "reconcile" || s === "reconciliar" || s === "sync") return "reconcile";
   return "due";
 }
 

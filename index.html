@@ -1394,6 +1394,7 @@
       import * as AntaresReporteriaDomain from "./modules/domain/reporteria.domain.js";
       import * as AntaresNominaDomain from "./modules/domain/nomina.domain.js";
       import * as AntaresSstDomain from "./modules/domain/sst.domain.js";
+      import * as AntaresDriverCompliance from "./modules/domain/driver-compliance-vigencia.domain.js";
       import * as AntaresContratacionDomain from "./modules/domain/contratacion.domain.js";
       import * as AntaresAuditTrail from "./modules/core/audit-trail.js";
       import * as AntaresRouter from "./modules/core/router.js";
@@ -1446,6 +1447,8 @@
       Object.assign(window, AntaresNominaDomain);
       window.AntaresSstDomain = AntaresSstDomain;
       Object.assign(window, AntaresSstDomain);
+      window.AntaresDriverCompliance = AntaresDriverCompliance;
+      Object.assign(window, AntaresDriverCompliance);
       window.AntaresContratacionDomain = AntaresContratacionDomain;
       Object.assign(window, AntaresContratacionDomain);
       Object.assign(window, AntaresRouter);

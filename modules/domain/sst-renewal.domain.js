@@ -169,6 +169,15 @@ function appendCompletionNote(existingNotes, completionDate) {
   return base ? `${base}\n${stamp}` : stamp;
 }
 
+export function mergeSstEvidenceRef(notes, evidenceRef) {
+  const ref = String(evidenceRef || "").trim();
+  let base = String(notes || "").trim();
+  base = base.replace(/\[Ref evidencia:[^\]]+\]/gi, "").trim();
+  if (!ref) return base;
+  const stamp = `[Ref evidencia: ${ref}]`;
+  return base ? `${base}\n${stamp}` : stamp;
+}
+
 function upsertSstAuditRecord({
   recordId,
   employee,
@@ -182,7 +191,10 @@ function upsertSstAuditRecord({
 }) {
   const records = read(KEYS.sstCompliance, []);
   const recordType = getSstControlRecordType(controlKey) || String(controlKey || "Control SST");
-  const mergedNotes = appendCompletionNote(notes, completionDate);
+  const mergedNotes = mergeSstEvidenceRef(
+    appendCompletionNote(notes, completionDate),
+    evidenceRef
+  );
 
   if (recordId) {
     const idx = records.findIndex((row) => String(row.id) === String(recordId));
@@ -242,7 +254,8 @@ export async function executeSstRenewal({
   documentCode,
   notes,
   recordId,
-  createAuditRecord = true
+  createAuditRecord = true,
+  evidenceRef
 }) {
   const key = String(controlKey || "").trim();
   if (!key || !getSstControlSpec(key)) {

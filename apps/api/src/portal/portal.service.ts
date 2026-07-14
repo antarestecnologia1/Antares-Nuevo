@@ -7862,6 +7862,45 @@ export class PortalService implements OnModuleInit {
     return d.toISOString();
   }
 
+  private complianceDaysUntilYmdApi(ymd: string | null): number {
+    if (!ymd) return -9999;
+    const target = new Date(`${ymd}T12:00:00`).getTime();
+    if (!Number.isFinite(target)) return -9999;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return Math.floor((target - today.getTime()) / 86400000);
+  }
+
+  private resolveDriverOccupationalExpiryFromDbRow(d: Record<string, unknown>): string | null {
+    const stored = portalDateYmdOrNull(d.fecha_vencimiento_examen_ocupacional);
+    if (stored) return stored;
+    const exam = portalDateYmdOrNull(d.fecha_examen_ocupacional);
+    return exam ? portalYmdPlusYears(exam, OCCUPATIONAL_EXAM_RENEWAL_YEARS) : null;
+  }
+
+  private resolveDriverInstruvialExpiryFromDbRow(d: Record<string, unknown>): string | null {
+    const stored = portalDateYmdOrNull(d.fecha_vencimiento_examen_instruvial);
+    if (stored) return stored;
+    const exam = portalDateYmdOrNull(d.fecha_examen_instruvial);
+    return exam ? portalYmdPlusYears(exam, INTRUVIAL_EXAM_RENEWAL_YEARS) : null;
+  }
+
+  /** Bloquea asignación si licencia, examen ocupacional o instruvial están vencidos o sin fecha. */
+  private assertDriverTripComplianceFromDbRow(d: Record<string, unknown>): void {
+    const name = String(d.nombre_completo ?? "Conductor").trim() || "Conductor";
+    const issues: string[] = [];
+    const lic = portalDateYmdOrNull(d.fecha_vencimiento_licencia);
+    const occ = this.resolveDriverOccupationalExpiryFromDbRow(d);
+    const intra = this.resolveDriverInstruvialExpiryFromDbRow(d);
+    if (!lic || this.complianceDaysUntilYmdApi(lic) < 0) issues.push("licencia de conducción");
+    if (!occ || this.complianceDaysUntilYmdApi(occ) < 0) issues.push("examen médico ocupacional");
+    if (!intra || this.complianceDaysUntilYmdApi(intra) < 0) issues.push("examen instruvial");
+    if (!issues.length) return;
+    throw new BadRequestException(
+      `No se puede asignar a ${name}: ${issues.join(", ")} vencido(s) o sin fecha. Renueve en Cumplimiento SST.`
+    );
+  }
+
   /**
    * Viaje: valida contra `solicitudes_transporte`, `vehiculos` y `conductores` ya persistidos.
    * Devuelve placa, tipo asignado, nombre/tel conductor y ventana programada leídos de tablas (no del payload).
@@ -7920,7 +7959,9 @@ export class PortalService implements OnModuleInit {
     }
 
     const dRes = await c.query(
-      `SELECT nombre_completo, telefono, disponible, ocupado_por_sistema
+      `SELECT nombre_completo, telefono, disponible, ocupado_por_sistema,
+              fecha_vencimiento_licencia, fecha_vencimiento_examen_ocupacional,
+              fecha_examen_ocupacional, fecha_vencimiento_examen_instruvial, fecha_examen_instruvial
        FROM conductores WHERE id = $1::uuid`,
       [driverIdRaw]
     );
@@ -7950,6 +7991,7 @@ export class PortalService implements OnModuleInit {
       String(existingTrip?.id_vehiculo ?? "").trim() === vehicleIdRaw &&
       String(existingTrip?.id_conductor ?? "").trim() === driverIdRaw;
     if (!preserveExistingAssignment) {
+      this.assertDriverTripComplianceFromDbRow(d);
       const solKey = this.fleetTypeKey(tipoSolicitado);
       if (solKey && solKey !== "por definir" && solKey !== vehTipoKey) {
         throw new BadRequestException(

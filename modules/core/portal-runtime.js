@@ -9966,7 +9966,7 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
   }
   if (reportId === "labor_compliance") {
     const employees = read(KEYS.payrollEmployees, []);
-    const records = reportsFilterItemsByPeriod(read(KEYS.sstCompliance, []), exportFilters.period, (item) => item.dueDate || item.createdAt);
+    const records = reportsFilterItemsByPeriod(read(KEYS.sstCompliance, []), exportFilters.period, (item) => item.dueDate || item.completionDate || item.createdAt);
     const rows = records.map((item) => {
       const employee = employees.find((row) => String(row.id || "") === String(item.employeeId || ""));
       const dueDays = Number.isFinite(daysUntil(item.dueDate)) ? daysUntil(item.dueDate) : null;
@@ -9975,6 +9975,7 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
         employeeDoc: employee?.idDoc || "-",
         control: item.recordType || "-",
         provider: item.provider || "-",
+        completionDate: item.completionDate || "-",
         dueDate: item.dueDate || "-",
         daysToDue: dueDays == null ? "-" : dueDays,
         riskLevel: dueDays == null ? "Sin fecha" : dueDays < 0 ? "Vencido" : dueDays <= 30 ? "Próximo a vencer" : "Controlado",
@@ -9990,6 +9991,7 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
         { key: "employeeDoc", label: "Documento" },
         { key: "control", label: "Control" },
         { key: "provider", label: "Entidad" },
+        { key: "completionDate", label: "Realización" },
         { key: "dueDate", label: "Vencimiento" },
         { key: "daysToDue", label: "Días al vencimiento" },
         { key: "riskLevel", label: "Riesgo" },

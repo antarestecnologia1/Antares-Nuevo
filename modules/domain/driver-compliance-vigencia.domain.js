@@ -77,3 +77,57 @@ export function resolveEmployeeComplianceExpiryYmd(
   }
   return "";
 }
+
+/** Días hasta una fecha YMD (negativo = vencido). */
+export function complianceDaysUntilYmd(ymd) {
+  const norm = String(ymd || "").trim();
+  if (!norm) return -9999;
+  const target = new Date(`${norm}T12:00:00`).getTime();
+  if (!Number.isFinite(target)) return -9999;
+  const todayTs = new Date().setHours(0, 0, 0, 0);
+  return Math.floor((target - todayTs) / 86400000);
+}
+
+/**
+ * Valida licencia, examen ocupacional e instruvial para asignación a viajes.
+ * @param {Record<string, unknown>|null|undefined} driver
+ */
+export function evaluateDriverTripCompliance(driver) {
+  const norm = (v) => String(v || "").trim();
+  const licenseYmd = resolveEmployeeComplianceExpiryYmd(driver, "licenseExpiry", "licenseIssueDate", norm);
+  const occYmd = resolveEmployeeComplianceExpiryYmd(
+    driver,
+    "occupationalExamExpiry",
+    "occupationalExamDate",
+    norm
+  );
+  const intraYmd = resolveEmployeeComplianceExpiryYmd(
+    driver,
+    "instruvialExamExpiry",
+    "instruvialExamDate",
+    norm
+  );
+  const issues = [];
+  if (!licenseYmd || complianceDaysUntilYmd(licenseYmd) < 0) issues.push("licencia de conducción");
+  if (!occYmd || complianceDaysUntilYmd(occYmd) < 0) issues.push("examen médico ocupacional");
+  if (!intraYmd || complianceDaysUntilYmd(intraYmd) < 0) issues.push("examen instruvial");
+  return {
+    ok: issues.length === 0,
+    issues,
+    licenseYmd,
+    occYmd,
+    intraYmd,
+    summary: issues.length ? issues.join(", ") : "Vigente"
+  };
+}
+
+export function driverHasExpiredComplianceForTrips(driver) {
+  return !evaluateDriverTripCompliance(driver).ok;
+}
+
+export function driverTripComplianceBlockMessage(driver) {
+  const check = evaluateDriverTripCompliance(driver);
+  if (check.ok) return "";
+  const name = String(driver?.name || driver?.fullName || "Conductor").trim();
+  return `${name}: ${check.summary} vencido o sin fecha. Renueve en Cumplimiento SST antes de asignar.`;
+}

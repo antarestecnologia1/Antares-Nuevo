@@ -350,6 +350,10 @@ function openEditTripModal(req) {
   }
   const vehicles = read(KEYS.vehicles, []);
   const drivers = read(KEYS.drivers, []);
+  const driverCandidates =
+    typeof G.getDriverCandidatesForRequest === "function" ? G.getDriverCandidatesForRequest(req, req.id) : drivers;
+  const compatibleDrivers =
+    typeof G.getCompatibleDriversForRequest === "function" ? G.getCompatibleDriversForRequest(req, req.id) : drivers;
   const vehicleOptions = [{ value: req.trip.vehicleId || "", label: `${req.trip.vehiclePlate || "—"} · ${req.trip.vehicleType || ""}` }]
     .concat(
       vehicles
@@ -358,9 +362,20 @@ function openEditTripModal(req) {
     );
   const driverOptions = [{ value: req.trip.driverId || "", label: req.trip.driverName || "—" }]
     .concat(
-      drivers
+      driverCandidates
         .filter((d) => String(d.id || "") !== String(req.trip.driverId || ""))
-        .map((d) => ({ value: String(d.id || ""), label: `${d.fullName || d.name || ""}${d.taxId ? ` · ${d.taxId}` : ""}` }))
+        .map((d) => ({
+          value: String(d.id || ""),
+          label:
+            typeof G.tripAssignmentDriverOptionLabel === "function"
+              ? G.tripAssignmentDriverOptionLabel(d, {
+                  isBusy: d.isBusy,
+                  isUnavailable: d.isUnavailable,
+                  hasExpiredDocs: d.hasExpiredDocs,
+                  compliance: d.tripCompliance
+                })
+              : `${d.fullName || d.name || ""}${d.taxId ? ` · ${d.taxId}` : ""}`
+        }))
     );
   const etaPickupLocal = String(toInputDate(req.trip.etaPickup || "") || "").slice(0, 16);
   const etaDeliveryLocal = String(toInputDate(req.trip.etaDelivery || "") || "").slice(0, 16);
@@ -370,7 +385,7 @@ function openEditTripModal(req) {
     submitText: "Guardar cambios del viaje",
     extraModalCardClass: "modal-card-edit--trip",
     fields: [
-      { type: "section", id: "edit-trip-assign", title: "Asignación", hint: "Vehículo y conductor actualmente asignados al viaje." },
+      { type: "section", id: "edit-trip-assign", title: "Asignación", hint: "Solo conductores con licencia, examen ocupacional e instruvial vigentes pueden asignarse." },
       { name: "vehicleId", label: "Vehículo", type: "select", value: req.trip.vehicleId || "", required: true, options: vehicleOptions },
       { name: "driverId", label: "Conductor", type: "select", value: req.trip.driverId || "", required: true, options: driverOptions },
       { type: "section", id: "edit-trip-times", title: "Fechas estimadas", hint: "Permite reprogramar la recogida o la entrega del viaje." },
@@ -389,6 +404,15 @@ function openEditTripModal(req) {
       }
       const targetVehicle = vehicles.find((v) => String(v.id || "") === String(form.vehicleId || ""));
       const targetDriver = drivers.find((d) => String(d.id || "") === String(form.driverId || ""));
+      const driverAllowed = compatibleDrivers.some((d) => String(d.id) === String(form.driverId || ""));
+      if (!driverAllowed && targetDriver) {
+        const msg =
+          typeof G.driverTripComplianceBlockMessage === "function"
+            ? G.driverTripComplianceBlockMessage(targetDriver)
+            : "El conductor seleccionado no cumple requisitos de licencia y exámenes vigentes.";
+        notify(msg, "error");
+        return false;
+      }
       const updates = {
         tripValue: parseNum(form.tripValue) || parseNum(req.tripValue || 0),
         updatedAt: nowIso(),
