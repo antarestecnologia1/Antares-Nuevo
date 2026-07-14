@@ -138,10 +138,10 @@ export class PortalController {
     return this.portal.getOwnProfile(req.user.userId);
   }
 
-  /** Aceptación obligatoria de la Política de Tratamiento de Datos Personales (primer ingreso). */
+  /** Aceptación obligatoria de documentos legales pendientes (primer ingreso). */
   @Post("accept-data-policy")
   acceptDataPolicy(@Req() req: { user: ReqUser }, @Body() dto: AcceptDataPolicyDto) {
-    return this.portal.acceptDataPolicy(req.user.userId, dto.acceptDataPolicy);
+    return this.portal.acceptDataPolicy(req.user.userId, dto);
   }
 
   /** Solo admin JWT: usuarios con alta pendiente (bandeja Autorizaciones si bootstrap falla o va incompleto). */

@@ -2,7 +2,7 @@
  * Bootstrap del portal: normalización de GET /portal/bootstrap, hidratación de caché y orquestación API.
  * `read` / `write` delegan en `window.AntaresPersistence` (mismo patrón que `auth.js`).
  */
-import { KEYS, ROLES, userRequiresDataPolicyAcceptance } from "./config.js";
+import { DATA_POLICY_VERSION, KEYS, ROLES, userRequiresDataPolicyAcceptance, userRequiresTermsAcceptance } from "./config.js";
 import {
   currentUser,
   getSession,
@@ -340,6 +340,7 @@ export function buildProfileSnapshotFromUserRow(u) {
   if (!u || u.id == null) return null;
   const dataPolicyAcceptedAt = u.dataPolicyAcceptedAt ?? u.fechaAceptacionPoliticaDatos ?? null;
   const dataPolicyVersion = String(u.dataPolicyVersion ?? u.versionPoliticaDatos ?? "").trim() || null;
+  const termsAcceptedAt = u.termsAcceptedAt ?? u.fechaAceptacionTerminos ?? null;
   return {
     id: String(u.id),
     email: String(u.email || "").trim(),
@@ -355,7 +356,14 @@ export function buildProfileSnapshotFromUserRow(u) {
         ? true
         : u.requiresDataPolicyAcceptance === false
           ? false
-          : userRequiresDataPolicyAcceptance(u)
+          : userRequiresDataPolicyAcceptance(u),
+    termsAcceptedAt,
+    requiresTermsAcceptance:
+      u.requiresTermsAcceptance === true
+        ? true
+        : u.requiresTermsAcceptance === false
+          ? false
+          : userRequiresTermsAcceptance(u)
   };
 }
 
@@ -402,18 +410,20 @@ export function materializePortalUserFromSession(session) {
       emergencyRelation: String(prev?.emergencyRelation || prev?.emergencyRelationship || "").trim(),
       city: String(prev?.city || "").trim(),
       department: String(prev?.department || "").trim(),
-      dataPolicyAcceptedAt:
-        snap.dataPolicyAcceptedAt ?? prev?.dataPolicyAcceptedAt ?? session.dataPolicyAcceptedAt ?? null,
+      dataPolicyAcceptedAt: snap.dataPolicyAcceptedAt ?? prev?.dataPolicyAcceptedAt ?? null,
       dataPolicyVersion:
-        String(snap.dataPolicyVersion ?? prev?.dataPolicyVersion ?? session.dataPolicyVersion ?? "").trim() || null,
+        String(snap.dataPolicyVersion ?? prev?.dataPolicyVersion ?? "").trim() || null,
+      termsAcceptedAt: snap.termsAcceptedAt ?? prev?.termsAcceptedAt ?? null,
       requiresDataPolicyAcceptance:
-        snap.requiresDataPolicyAcceptance === false ||
-        prev?.requiresDataPolicyAcceptance === false ||
-        session.requiresDataPolicyAcceptance === false
+        snap.requiresDataPolicyAcceptance === false || prev?.requiresDataPolicyAcceptance === false
           ? false
-          : snap.requiresDataPolicyAcceptance === true ||
-              prev?.requiresDataPolicyAcceptance === true ||
-              session.requiresDataPolicyAcceptance === true
+          : snap.requiresDataPolicyAcceptance === true || prev?.requiresDataPolicyAcceptance === true
+            ? true
+            : undefined,
+      requiresTermsAcceptance:
+        snap.requiresTermsAcceptance === false || prev?.requiresTermsAcceptance === false
+          ? false
+          : snap.requiresTermsAcceptance === true || prev?.requiresTermsAcceptance === true
             ? true
             : undefined
     };
@@ -523,26 +533,7 @@ export function __applyPortalBootstrapPayloadInner(p) {
     const hooks = propsNeedingPayloadHooks.has(prop) ? getPayloadHooks() : null;
     if (prop === "users") {
       const raw = Array.isArray(p.users) ? p.users : [];
-      const session = getSession();
-      const sid = session?.userId ? String(session.userId) : "";
-      const prevUsers = read(KEYS.users, []);
-      const prevSelf = sid ? prevUsers.find((u) => String(u.id) === sid) : null;
-      write(
-        KEYS.users,
-        raw.map((row) => {
-          const normalized = normalizePortalBootstrapUserRow(row);
-          if (!sid || !prevSelf || String(normalized?.id || "") !== sid) return normalized;
-          const localAccepted = !userRequiresDataPolicyAcceptance(prevSelf);
-          const serverNeeds = userRequiresDataPolicyAcceptance(normalized);
-          if (!localAccepted || !serverNeeds) return normalized;
-          return {
-            ...normalized,
-            dataPolicyAcceptedAt: prevSelf.dataPolicyAcceptedAt ?? prevSelf.fechaAceptacionPoliticaDatos ?? null,
-            dataPolicyVersion: String(prevSelf.dataPolicyVersion ?? prevSelf.versionPoliticaDatos ?? "").trim() || null,
-            requiresDataPolicyAcceptance: false
-          };
-        })
-      );
+      write(KEYS.users, raw.map(normalizePortalBootstrapUserRow));
       hooks.ensureUsersPermissions();
       continue;
     }

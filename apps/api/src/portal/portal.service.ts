@@ -43,7 +43,7 @@ import {
   timestamptzStringColombiaNow,
   timestamptzToColombiaIso
 } from "../common/colombia-time";
-import { DATA_POLICY_VERSION, userRequiresDataPolicyAcceptance } from "../common/data-policy";
+import { DATA_POLICY_VERSION, userRequiresDataPolicyAcceptance, userRequiresTermsAcceptance } from "../common/data-policy";
 import {
   normalizeCatalogTextFromUnknown,
   normalizeDbTextUpperFromUnknown,
@@ -916,20 +916,7 @@ export class PortalService implements OnModuleInit {
       this.logger.warn(`ensureUsuariosSchema: índice documento_personal no creado: ${sanitizeLogText(msg)}`);
     }
     this.logger.log(`usuarios: esquema verificado (${applied}/${alters.length} ALTERs idempotentes OK).`);
-    try {
-      await this.pool.query(`
-        UPDATE public.usuarios
-        SET
-          fecha_aceptacion_politica_datos = fecha_aceptacion_terminos,
-          version_politica_datos = COALESCE(version_politica_datos, $1)
-        WHERE fecha_aceptacion_politica_datos IS NULL
-          AND fecha_aceptacion_terminos IS NOT NULL
-          AND COALESCE((checklist_registro_json->>'habeasDataAcknowledged')::boolean, false) = true
-      `, [DATA_POLICY_VERSION]);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      this.logger.warn(`ensureUsuariosSchema: backfill política datos (no fatal): ${sanitizeLogText(msg)}`);
-    }
+    /* Backfill de política de datos deshabilitado: la aceptación solo se registra vía POST accept-data-policy. */
   }
 
   /** Enum + columna `tipo_relacion_empresa` en `empresas` (17_empresas_tipo_relacion.sql). */
@@ -4925,6 +4912,7 @@ export class PortalService implements OnModuleInit {
               u.tipo_vinculo_registro::text AS "registrationKind",
               u.fecha_aceptacion_politica_datos AS "dataPolicyAcceptedAt",
               u.version_politica_datos AS "dataPolicyVersion",
+              u.fecha_aceptacion_terminos AS "termsAcceptedAt",
               u.fecha_ingreso_portal AS "portalSince", u.fecha_creacion AS "createdAt"
          FROM usuarios u
          LEFT JOIN empresas e ON e.id = u.id_empresa
@@ -4946,6 +4934,7 @@ export class PortalService implements OnModuleInit {
               u.tipo_vinculo_registro::text AS "registrationKind",
               u.fecha_aceptacion_politica_datos AS "dataPolicyAcceptedAt",
               u.version_politica_datos AS "dataPolicyVersion",
+              u.fecha_aceptacion_terminos AS "termsAcceptedAt",
               u.fecha_ingreso_portal AS "portalSince", u.fecha_creacion AS "createdAt"
          FROM usuarios u
          LEFT JOIN empresas e ON e.id = u.id_empresa
@@ -4987,6 +4976,7 @@ export class PortalService implements OnModuleInit {
               u.tipo_vinculo_registro::text AS "registrationKind",
               u.fecha_aceptacion_politica_datos AS "dataPolicyAcceptedAt",
               u.version_politica_datos AS "dataPolicyVersion",
+              u.fecha_aceptacion_terminos AS "termsAcceptedAt",
               u.fecha_ingreso_portal AS "portalSince", u.fecha_creacion AS "createdAt"
          FROM usuarios u
          LEFT JOIN empresas e ON e.id = u.id_empresa
@@ -5003,31 +4993,56 @@ export class PortalService implements OnModuleInit {
   }
 
   /** Registra la aceptación de la Política de Tratamiento de Datos Personales (primer ingreso o re-aceptación). */
-  async acceptDataPolicy(userId: string, acceptDataPolicy: boolean) {
-    if (!acceptDataPolicy) {
-      throw new BadRequestException("Debe aceptar la Política de Tratamiento de Datos Personales para continuar.");
+  async acceptDataPolicy(
+    userId: string,
+    dto: { acceptDataPolicy?: boolean; acceptTerms?: boolean }
+  ) {
+    const wantsDataPolicy = dto.acceptDataPolicy === true;
+    const wantsTerms = dto.acceptTerms === true;
+    if (!wantsDataPolicy && !wantsTerms) {
+      throw new BadRequestException("Debe aceptar los documentos pendientes para continuar.");
     }
     const uid = String(userId || "").trim();
     if (!uid) throw new BadRequestException("Usuario no válido.");
     const acceptedAt = timestamptzStringColombiaNow();
-    const checklistPatch = JSON.stringify({
-      dataPolicyAccepted: true,
-      dataPolicyVersion: DATA_POLICY_VERSION,
-      dataPolicyAcceptedAt: acceptedAt,
-      termsOfUseAccepted: true,
-      privacyPolicyAccepted: true,
-      habeasDataAcknowledged: true
-    });
+    const checklistPatch: Record<string, unknown> = {};
+    const sets = ["fecha_actualizacion = now()"];
+    const params: unknown[] = [uid];
+    let paramIdx = 2;
+
+    if (wantsDataPolicy) {
+      sets.push(`fecha_aceptacion_politica_datos = $${paramIdx}::timestamptz`);
+      params.push(acceptedAt);
+      paramIdx += 1;
+      sets.push(`version_politica_datos = $${paramIdx}`);
+      params.push(DATA_POLICY_VERSION);
+      paramIdx += 1;
+      Object.assign(checklistPatch, {
+        dataPolicyAccepted: true,
+        dataPolicyVersion: DATA_POLICY_VERSION,
+        dataPolicyAcceptedAt: acceptedAt
+      });
+    }
+    if (wantsTerms) {
+      sets.push(`fecha_aceptacion_terminos = COALESCE(fecha_aceptacion_terminos, $${paramIdx}::timestamptz)`);
+      params.push(acceptedAt);
+      paramIdx += 1;
+      Object.assign(checklistPatch, {
+        termsOfUseAccepted: true,
+        privacyPolicyAccepted: true,
+        habeasDataAcknowledged: true
+      });
+    }
+    if (Object.keys(checklistPatch).length) {
+      sets.push(
+        `checklist_registro_json = COALESCE(checklist_registro_json, '{}'::jsonb) || $${paramIdx}::jsonb`
+      );
+      params.push(JSON.stringify(checklistPatch));
+    }
+
     const r = await this.pool.query<{ id: string }>(
-      `UPDATE usuarios
-       SET fecha_aceptacion_politica_datos = $2::timestamptz,
-           version_politica_datos = $3,
-           fecha_aceptacion_terminos = COALESCE(fecha_aceptacion_terminos, $2::timestamptz),
-           checklist_registro_json = COALESCE(checklist_registro_json, '{}'::jsonb) || $4::jsonb,
-           fecha_actualizacion = now()
-       WHERE id = $1::uuid
-       RETURNING id::text`,
-      [uid, acceptedAt, DATA_POLICY_VERSION, checklistPatch]
+      `UPDATE usuarios SET ${sets.join(", ")} WHERE id = $1::uuid RETURNING id::text`,
+      params
     );
     if (!r.rows.length) throw new BadRequestException("Usuario no encontrado.");
     return this.getOwnProfile(uid);
@@ -5060,6 +5075,7 @@ export class PortalService implements OnModuleInit {
               u.tipo_vinculo_registro::text AS "registrationKind",
               u.fecha_aceptacion_politica_datos AS "dataPolicyAcceptedAt",
               u.version_politica_datos AS "dataPolicyVersion",
+              u.fecha_aceptacion_terminos AS "termsAcceptedAt",
               u.fecha_ingreso_portal AS "portalSince", u.fecha_creacion AS "createdAt"
          FROM usuarios u
          LEFT JOIN empresas e ON e.id = u.id_empresa
@@ -5104,6 +5120,10 @@ export class PortalService implements OnModuleInit {
         ? new Date(dataPolicyAcceptedAtRaw as string).toISOString()
         : null;
       const dataPolicyVersion = String(row.dataPolicyVersion ?? "").trim() || null;
+      const termsAcceptedAtRaw = row.termsAcceptedAt;
+      const termsAcceptedAt = termsAcceptedAtRaw
+        ? new Date(termsAcceptedAtRaw as string).toISOString()
+        : null;
       const baseRow = {
         ...row,
         password: "",
@@ -5115,6 +5135,8 @@ export class PortalService implements OnModuleInit {
           dataPolicyAcceptedAt,
           dataPolicyVersion
         ),
+        termsAcceptedAt,
+        requiresTermsAcceptance: userRequiresTermsAcceptance(termsAcceptedAt),
         documentIssuedAt: row.documentIssuedAt
           ? new Date(row.documentIssuedAt as string).toISOString().slice(0, 10)
           : "",

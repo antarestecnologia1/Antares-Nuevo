@@ -16,7 +16,10 @@ import {
   SESSION_API_REFRESH_MS,
   SESSION_CLIENT_TOKEN_ROTATE_MS,
   SESSION_IDLE_PUBLIC_NOTICE_KEY,
-  userRequiresDataPolicyAcceptance
+  userPendingLegalAcceptances,
+  userRequiresDataPolicyAcceptance,
+  userRequiresLegalAcceptanceGate,
+  userRequiresTermsAcceptance
 } from "./config.js";
 import { state } from "./store.js";
 import { failPortalField } from "../ui/modals.js";
@@ -708,29 +711,92 @@ export function invokeAuthSuccessCallback() {
   }
 }
 
-function __resolveDataPolicyGateForUser(user) {
-  if (!user || typeof user !== "object") return false;
-  if (user.requiresDataPolicyAcceptance === false) return false;
-  if (user.requiresDataPolicyAcceptance === true) return true;
-  return userRequiresDataPolicyAcceptance(user);
+function __resolveLegalAcceptanceGateForUser(user) {
+  if (!user || typeof user !== "object") return true;
+  return userRequiresLegalAcceptanceGate(user);
 }
 
-function __sessionDataPolicyAccepted(session) {
-  if (!session || typeof session !== "object") return false;
-  const acceptedAt = session.dataPolicyAcceptedAt ?? null;
-  const version = String(session.dataPolicyVersion ?? "").trim();
-  if (acceptedAt && version === DATA_POLICY_VERSION) return true;
-  const snap = session.profileSnapshot;
-  if (!snap || typeof snap !== "object") return false;
-  const snapAcceptedAt = snap.dataPolicyAcceptedAt ?? null;
-  const snapVersion = String(snap.dataPolicyVersion ?? "").trim();
-  return Boolean(snapAcceptedAt && snapVersion === DATA_POLICY_VERSION);
+function __normalizeServerLegalUserRow(meRow) {
+  if (!meRow || typeof meRow !== "object") return null;
+  const dataPolicyAcceptedAt = meRow.dataPolicyAcceptedAt ?? meRow.fechaAceptacionPoliticaDatos ?? null;
+  const dataPolicyVersion = String(meRow.dataPolicyVersion ?? meRow.versionPoliticaDatos ?? "").trim() || null;
+  const termsAcceptedAt = meRow.termsAcceptedAt ?? meRow.fechaAceptacionTerminos ?? null;
+  const requiresDataPolicyAcceptance =
+    meRow.requiresDataPolicyAcceptance === true
+      ? true
+      : meRow.requiresDataPolicyAcceptance === false
+        ? false
+        : userRequiresDataPolicyAcceptance({ dataPolicyAcceptedAt, dataPolicyVersion });
+  const requiresTermsAcceptance =
+    meRow.requiresTermsAcceptance === true
+      ? true
+      : meRow.requiresTermsAcceptance === false
+        ? false
+        : userRequiresTermsAcceptance({ termsAcceptedAt });
+  return {
+    ...meRow,
+    dataPolicyAcceptedAt,
+    dataPolicyVersion,
+    termsAcceptedAt,
+    requiresDataPolicyAcceptance,
+    requiresTermsAcceptance
+  };
 }
 
-function __sessionRequiresDataPolicyGate(session, user) {
-  if (__sessionDataPolicyAccepted(session)) return false;
+/** Alinea caché y sesión con `usuarios` (GET /portal/me). */
+function __applyServerLegalUserRow(meRow) {
+  const normalized = __normalizeServerLegalUserRow(meRow);
+  if (!normalized?.id) return null;
+  const uid = String(normalized.id);
+  if (typeof window.upsertPortalUserRowIntoCache === "function") {
+    window.upsertPortalUserRowIntoCache(normalized);
+  }
+  const session = getSession();
+  if (!session || String(session.userId) !== uid) return normalized;
+  const pending = userPendingLegalAcceptances(normalized);
+  const next = { ...session };
+  if (pending.dataPolicy) {
+    delete next.dataPolicyAcceptedAt;
+    delete next.dataPolicyVersion;
+    next.requiresDataPolicyAcceptance = true;
+  } else {
+    next.dataPolicyAcceptedAt = normalized.dataPolicyAcceptedAt;
+    next.dataPolicyVersion = normalized.dataPolicyVersion;
+    next.requiresDataPolicyAcceptance = false;
+  }
+  if (pending.terms) {
+    delete next.termsAcceptedAt;
+    next.requiresTermsAcceptance = true;
+  } else {
+    next.termsAcceptedAt = normalized.termsAcceptedAt;
+    next.requiresTermsAcceptance = false;
+  }
+  if (!pending.dataPolicy && !pending.terms) {
+    delete next.dataPolicyGatePending;
+  }
+  next.profileSnapshot = buildProfileSnapshotFromUserRow(normalized) ?? next.profileSnapshot;
+  setSession(next);
+  syncSessionProfileSnapshotFromCache?.();
+  return normalized;
+}
+
+async function __syncLegalAcceptanceStateFromServer() {
+  if (!portalCanRefreshFromApi()) return false;
+  const api = window.AntaresApi;
+  if (!api?.getJson) return false;
+  try {
+    const me = await api.getJson("/portal/me");
+    if (!me?.id) return false;
+    __applyServerLegalUserRow(me);
+    return true;
+  } catch (_e) {
+    return false;
+  }
+}
+
+function __sessionRequiresLegalAcceptanceGate(session, user) {
   if (session?.dataPolicyGatePending === true) return true;
-  return __resolveDataPolicyGateForUser(user);
+  return __resolveLegalAcceptanceGateForUser(user);
 }
 
 function __markDataPolicyGatePendingInSession() {
@@ -747,55 +813,22 @@ function __clearDataPolicyGatePendingInSession() {
   setSession(next);
 }
 
-function __buildDataPolicyAcceptedUserPatch(sourceRow, actor) {
-  const version = String(sourceRow?.dataPolicyVersion ?? DATA_POLICY_VERSION ?? "2025-v1").trim() || "2025-v1";
-  const acceptedAt =
-    sourceRow?.dataPolicyAcceptedAt ?? sourceRow?.fechaAceptacionPoliticaDatos ?? nowIso();
-  const base = sourceRow && typeof sourceRow === "object" ? sourceRow : actor;
-  const uid = String(base?.id || actor?.id || "").trim();
-  return {
-    ...(base || {}),
-    id: uid,
-    dataPolicyAcceptedAt: acceptedAt,
-    dataPolicyVersion: version,
-    requiresDataPolicyAcceptance: false,
-    profileQualityChecklist: {
-      ...(base?.profileQualityChecklist && typeof base.profileQualityChecklist === "object"
-        ? base.profileQualityChecklist
-        : {}),
-      dataPolicyAccepted: true,
-      dataPolicyVersion: version,
-      dataPolicyAcceptedAt: acceptedAt
-    }
-  };
-}
-
-function __persistDataPolicyAcceptanceLocally(meRow, actor) {
+function __persistLegalAcceptanceLocally(meRow, actor) {
   const uid = String(meRow?.id || actor?.id || "").trim();
   if (!uid) return false;
-  const patch = __buildDataPolicyAcceptedUserPatch(meRow, actor);
+  const normalized = __normalizeServerLegalUserRow(meRow);
   if (typeof window.upsertPortalUserRowIntoCache === "function") {
-    window.upsertPortalUserRowIntoCache(patch);
+    window.upsertPortalUserRowIntoCache(normalized);
   }
   const users = read(KEYS.users, []);
   const idx = users.findIndex((u) => String(u.id) === uid);
-  const nextRow = { ...(idx >= 0 ? users[idx] : patch), ...patch, requiresDataPolicyAcceptance: false };
+  const nextRow = { ...(idx >= 0 ? users[idx] : normalized), ...normalized };
   const others = users.filter((u) => String(u.id) !== uid);
   write(KEYS.users, [nextRow, ...others], { skipSyncSchedule: true });
   const saved = read(KEYS.users, []).find((u) => String(u.id) === uid);
-  const stillNeeds = userRequiresDataPolicyAcceptance(saved);
-  if (stillNeeds) return false;
-  const session = getSession();
-  if (session) {
-    setSession({
-      ...session,
-      dataPolicyAcceptedAt: patch.dataPolicyAcceptedAt,
-      dataPolicyVersion: patch.dataPolicyVersion,
-      requiresDataPolicyAcceptance: false,
-      profileSnapshot: buildProfileSnapshotFromUserRow(nextRow) ?? session.profileSnapshot
-    });
-  }
-  syncSessionProfileSnapshotFromCache?.();
+  const pending = userPendingLegalAcceptances(saved);
+  if (pending.dataPolicy || pending.terms) return false;
+  __applyServerLegalUserRow(saved);
   __clearDataPolicyGatePendingInSession();
   try {
     savePortalSnapshotAfterBootstrap({ immediate: true, force: true, full: true });
@@ -805,12 +838,21 @@ function __persistDataPolicyAcceptanceLocally(meRow, actor) {
   return true;
 }
 
-function __dataPolicyCheckboxAccepted(data) {
-  const value = data?.acceptDataPolicy;
+function __formCheckboxAccepted(data, fieldName) {
+  const value = data?.[fieldName];
   return value === true || value === "true" || value === "on" || value === 1 || value === "1";
 }
 
-function __dataPolicyModalMarkup() {
+function __readLegalAcceptancePendingFromForm(form) {
+  return {
+    dataPolicy: form?.dataset?.needsDataPolicy === "1",
+    terms: form?.dataset?.needsTerms === "1"
+  };
+}
+
+function __dataPolicyModalMarkup(pending = { dataPolicy: true, terms: false }) {
+  const needsDataPolicy = pending.dataPolicy === true;
+  const needsTerms = pending.terms === true;
   const policyUrl = String(window.DATA_POLICY_URL || "./documentacion/politica-tratamiento-datos-personales.pdf");
   const termsUrl = String(window.REGISTER_TERMS_URL || "./terminos-condiciones.html");
   const privacyUrl = String(window.REGISTER_PRIVACY_URL || "./politica-privacidad.html");
@@ -819,24 +861,20 @@ function __dataPolicyModalMarkup() {
   const checkIcon = IC.check || "";
   const chevronIcon = IC.chevronRight || "";
   const lockIcon = IC.lock || "";
-  return `
-    <div class="data-policy-shell">
-      <header class="data-policy-header">
-        <div class="data-policy-header__icon" aria-hidden="true">
-          <span class="data-policy-header__icon-main">${fileIcon}</span>
-          <span class="data-policy-header__icon-badge">${checkIcon}</span>
-        </div>
-        <div class="data-policy-header__copy">
-          <h2 class="data-policy-header__title" id="data-policy-modal-title">Política de datos personales</h2>
-          <p class="data-policy-lead">
-            Antes de continuar debe leer y aceptar la
-            <strong>Política de Tratamiento de Datos Personales</strong>, los
-            <a class="data-policy-inline-link" href="${escapeAttr(termsUrl)}" target="_blank" rel="noopener noreferrer">Términos de uso</a>
-            y la
-            <a class="data-policy-inline-link" href="${escapeAttr(privacyUrl)}" target="_blank" rel="noopener noreferrer">Política de privacidad</a>.
-          </p>
-        </div>
-      </header>
+  const title =
+    needsDataPolicy && needsTerms
+      ? "Documentos legales pendientes"
+      : needsTerms
+        ? "Términos y privacidad"
+        : "Política de datos personales";
+  const lead =
+    needsDataPolicy && needsTerms
+      ? "Antes de continuar debe leer y aceptar los documentos legales que aún no ha registrado en el sistema."
+      : needsTerms
+        ? "Antes de continuar debe leer y aceptar los <strong>Términos de uso</strong> y la <strong>Política de privacidad</strong>."
+        : `Antes de continuar debe leer y aceptar la <strong>Política de Tratamiento de Datos Personales</strong>.`;
+  const policyDocCard = needsDataPolicy
+    ? `
       <a class="data-policy-doc-card" href="${escapeAttr(policyUrl)}" target="_blank" rel="noopener noreferrer">
         <span class="data-policy-doc-card__pdf" aria-hidden="true">${fileIcon}<small>PDF</small></span>
         <span class="data-policy-doc-card__copy">
@@ -844,14 +882,37 @@ function __dataPolicyModalMarkup() {
           <small>Descargar documento en PDF</small>
         </span>
         <span class="data-policy-doc-card__chev" aria-hidden="true">${chevronIcon}</span>
-      </a>
-      <form id="form-data-policy-accept" class="data-policy-form">
+      </a>`
+    : "";
+  const termsDocCards = needsTerms
+    ? `
+      <div class="data-policy-terms-docs">
+        <a class="data-policy-doc-card" href="${escapeAttr(termsUrl)}" target="_blank" rel="noopener noreferrer">
+          <span class="data-policy-doc-card__pdf" aria-hidden="true">${shieldIcon}<small>WEB</small></span>
+          <span class="data-policy-doc-card__copy">
+            <strong>Términos de uso</strong>
+            <small>Condiciones de uso del portal</small>
+          </span>
+          <span class="data-policy-doc-card__chev" aria-hidden="true">${chevronIcon}</span>
+        </a>
+        <a class="data-policy-doc-card" href="${escapeAttr(privacyUrl)}" target="_blank" rel="noopener noreferrer">
+          <span class="data-policy-doc-card__pdf" aria-hidden="true">${lockIcon}<small>WEB</small></span>
+          <span class="data-policy-doc-card__copy">
+            <strong>Política de privacidad</strong>
+            <small>Tratamiento y protección de datos</small>
+          </span>
+          <span class="data-policy-doc-card__chev" aria-hidden="true">${chevronIcon}</span>
+        </a>
+      </div>`
+    : "";
+  const dataPolicyDeclaration = needsDataPolicy
+    ? `
         <section class="data-policy-declaration" aria-labelledby="data-policy-declaration-title">
           <div class="data-policy-declaration__head">
             <span class="data-policy-declaration__shield-ico" aria-hidden="true">${shieldIcon}</span>
             <div>
               <h3 class="data-policy-declaration__title" id="data-policy-declaration-title">
-                Declaración de aceptación <span class="data-policy-required" aria-hidden="true">*</span>
+                Política de datos personales <span class="data-policy-required" aria-hidden="true">*</span>
               </h3>
               <span class="data-policy-declaration__accent" aria-hidden="true"></span>
             </div>
@@ -864,9 +925,50 @@ function __dataPolicyModalMarkup() {
           <label class="data-policy-check">
             <input type="checkbox" name="acceptDataPolicy" value="true" required />
             <span class="data-policy-check__box" aria-hidden="true"></span>
-            <span class="data-policy-check__label">Acepto la Política de Tratamiento de Datos Personales y los términos indicados.</span>
+            <span class="data-policy-check__label">Acepto la Política de Tratamiento de Datos Personales.</span>
           </label>
-        </section>
+        </section>`
+    : "";
+  const termsDeclaration = needsTerms
+    ? `
+        <section class="data-policy-declaration" aria-labelledby="data-policy-terms-title">
+          <div class="data-policy-declaration__head">
+            <span class="data-policy-declaration__shield-ico" aria-hidden="true">${shieldIcon}</span>
+            <div>
+              <h3 class="data-policy-declaration__title" id="data-policy-terms-title">
+                Términos y privacidad <span class="data-policy-required" aria-hidden="true">*</span>
+              </h3>
+              <span class="data-policy-declaration__accent" aria-hidden="true"></span>
+            </div>
+          </div>
+          <p class="data-policy-declaration__copy">
+            Confirmo que he leído los Términos de uso y la Política de privacidad del portal de Transportes Antares S.A.S.
+          </p>
+          <div class="data-policy-declaration__divider" aria-hidden="true"></div>
+          <label class="data-policy-check">
+            <input type="checkbox" name="acceptTerms" value="true" required />
+            <span class="data-policy-check__box" aria-hidden="true"></span>
+            <span class="data-policy-check__label">Acepto los Términos de uso y la Política de privacidad.</span>
+          </label>
+        </section>`
+    : "";
+  return `
+    <div class="data-policy-shell">
+      <header class="data-policy-header">
+        <div class="data-policy-header__icon" aria-hidden="true">
+          <span class="data-policy-header__icon-main">${fileIcon}</span>
+          <span class="data-policy-header__icon-badge">${checkIcon}</span>
+        </div>
+        <div class="data-policy-header__copy">
+          <h2 class="data-policy-header__title" id="data-policy-modal-title">${escapeHtml(title)}</h2>
+          <p class="data-policy-lead">${lead}</p>
+        </div>
+      </header>
+      ${policyDocCard}
+      ${termsDocCards}
+      <form id="form-data-policy-accept" class="data-policy-form" data-needs-data-policy="${needsDataPolicy ? "1" : "0"}" data-needs-terms="${needsTerms ? "1" : "0"}">
+        ${dataPolicyDeclaration}
+        ${termsDeclaration}
         <button class="btn btn-primary data-policy-submit" type="submit" disabled>${shieldIcon} Confirmar y continuar</button>
         <p class="data-policy-trust">
           <span class="data-policy-trust__ico" aria-hidden="true">${lockIcon}</span>
@@ -879,9 +981,15 @@ function __dataPolicyModalMarkup() {
 
 function __syncDataPolicyFormReady(form) {
   if (!form) return;
-  const checkbox = form.querySelector('[name="acceptDataPolicy"]');
+  const pending = __readLegalAcceptancePendingFromForm(form);
+  let ready = true;
+  if (pending.dataPolicy) {
+    ready = ready && Boolean(form.querySelector('[name="acceptDataPolicy"]')?.checked);
+  }
+  if (pending.terms) {
+    ready = ready && Boolean(form.querySelector('[name="acceptTerms"]')?.checked);
+  }
   const submit = form.querySelector(".data-policy-submit");
-  const ready = Boolean(checkbox?.checked);
   form.classList.toggle("is-ready", ready);
   if (submit) submit.disabled = !ready;
 }
@@ -898,7 +1006,12 @@ export function showDataPolicyGate() {
   if (!getSession()) return false;
   const session = getSession();
   const user = currentUser();
-  if (!__sessionRequiresDataPolicyGate(session, user)) {
+  if (!__sessionRequiresLegalAcceptanceGate(session, user)) {
+    hideDataPolicyGate({ clearPending: true });
+    return false;
+  }
+  const pending = userPendingLegalAcceptances(user);
+  if (!pending.dataPolicy && !pending.terms) {
     hideDataPolicyGate({ clearPending: true });
     return false;
   }
@@ -907,7 +1020,7 @@ export function showDataPolicyGate() {
   const modal = document.getElementById("data-policy-modal");
   const body = document.getElementById("data-policy-modal-body");
   if (!modal || !body) return false;
-  body.innerHTML = __dataPolicyModalMarkup();
+  body.innerHTML = __dataPolicyModalMarkup(pending);
   modal.classList.remove("hidden");
   document.body.classList.add("data-policy-gate-open");
   modal.scrollTop = 0;
@@ -923,24 +1036,33 @@ export function showDataPolicyGate() {
     window.wireFormSubmitGuard?.(
       form,
       async () => {
+        const pendingSubmit = __readLegalAcceptancePendingFromForm(form);
         const data = window.readFormEntriesNormalized?.(form) || {};
-        if (!__dataPolicyCheckboxAccepted(data)) {
+        if (pendingSubmit.dataPolicy && !__formCheckboxAccepted(data, "acceptDataPolicy")) {
           window.notify?.(window.userMessage("dataPolicyRequired"), "error");
+          return;
+        }
+        if (pendingSubmit.terms && !__formCheckboxAccepted(data, "acceptTerms")) {
+          window.notify?.(window.userMessage("termsRequired"), "error");
           return;
         }
         const actor = currentUser();
         if (!actor?.id) return;
 
+        const payload = {};
+        if (pendingSubmit.dataPolicy) payload.acceptDataPolicy = true;
+        if (pendingSubmit.terms) payload.acceptTerms = true;
+
         let meRow = null;
         if (window.AntaresApi?.isConfigured?.() && window.AntaresApi?.postJson) {
           try {
-            meRow = await window.AntaresApi.postJson("/portal/accept-data-policy", {
-              acceptDataPolicy: true
-            });
-            if ((!meRow?.dataPolicyAcceptedAt || meRow?.requiresDataPolicyAcceptance === true) && window.AntaresApi?.getJson) {
+            meRow = await window.AntaresApi.postJson("/portal/accept-data-policy", payload);
+            const refreshedPending = userPendingLegalAcceptances(meRow);
+            if (refreshedPending.dataPolicy || refreshedPending.terms) {
               meRow = await window.AntaresApi.getJson("/portal/me");
             }
-            if (!meRow?.dataPolicyAcceptedAt || userRequiresDataPolicyAcceptance(meRow)) {
+            const stillPending = userPendingLegalAcceptances(meRow);
+            if (stillPending.dataPolicy || stillPending.terms) {
               window.notify?.(
                 "No se pudo confirmar la aceptación en el servidor. Verifique la conexión e intente de nuevo.",
                 "error"
@@ -958,16 +1080,34 @@ export function showDataPolicyGate() {
           );
           return;
         } else {
-          meRow = __buildDataPolicyAcceptedUserPatch(null, actor);
+          meRow = {
+            ...actor,
+            ...(pendingSubmit.dataPolicy
+              ? {
+                  dataPolicyAcceptedAt: nowIso(),
+                  dataPolicyVersion: DATA_POLICY_VERSION,
+                  requiresDataPolicyAcceptance: false
+                }
+              : {}),
+            ...(pendingSubmit.terms
+              ? { termsAcceptedAt: nowIso(), requiresTermsAcceptance: false }
+              : {})
+          };
         }
 
-        if (!__persistDataPolicyAcceptanceLocally(meRow, actor)) {
-          window.notify?.("No se pudo registrar la aceptación de la política. Intente de nuevo.", "error");
+        if (!__persistLegalAcceptanceLocally(meRow, actor)) {
+          window.notify?.(window.userMessage("legalAcceptanceRequired"), "error");
           return;
         }
 
         hideDataPolicyGate({ clearPending: true });
-        window.notify?.(window.userMessage("dataPolicyAccepted"), "success");
+        const successMsg =
+          pendingSubmit.dataPolicy && pendingSubmit.terms
+            ? window.userMessage("legalAcceptanceAccepted")
+            : pendingSubmit.terms
+              ? "Términos y privacidad registrados correctamente."
+              : window.userMessage("dataPolicyAccepted");
+        window.notify?.(successMsg, "success");
         if (portalCanRefreshFromApi()) {
           void startPortalBootstrapForInteractiveSession();
         }
@@ -978,15 +1118,18 @@ export function showDataPolicyGate() {
   return true;
 }
 
-/** Muestra el modal de aceptación si el usuario autenticado aún no ha aceptado la política vigente. */
-export function maybeEnforceDataPolicyAcceptance() {
+/** Muestra el modal de aceptación si el usuario autenticado aún no ha aceptado documentos legales pendientes. */
+export async function maybeEnforceDataPolicyAcceptance() {
   const session = getSession();
   if (!session) {
     hideDataPolicyGate();
     return false;
   }
+  if (portalCanRefreshFromApi()) {
+    await __syncLegalAcceptanceStateFromServer();
+  }
   const user = currentUser();
-  if (!__sessionRequiresDataPolicyGate(session, user)) {
+  if (!__sessionRequiresLegalAcceptanceGate(session, user)) {
     hideDataPolicyGate({ clearPending: true });
     return false;
   }

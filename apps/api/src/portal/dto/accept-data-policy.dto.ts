@@ -1,6 +1,12 @@
-import { IsBoolean } from "class-validator";
+import { IsBoolean, IsOptional } from "class-validator";
 
+/** Aceptaciones legales pendientes al ingresar (cada campo es independiente). */
 export class AcceptDataPolicyDto {
+  @IsOptional()
   @IsBoolean()
-  acceptDataPolicy!: boolean;
+  acceptDataPolicy?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  acceptTerms?: boolean;
 }

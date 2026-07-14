@@ -13,11 +13,5 @@ COMMENT ON COLUMN public.usuarios.fecha_aceptacion_politica_datos IS
 COMMENT ON COLUMN public.usuarios.version_politica_datos IS
   'Identificador de versión del documento de política aceptado (ej. 2025-v1).';
 
--- Usuarios que ya aceptaron términos/Habeas en el registro web heredan la aceptación.
-UPDATE public.usuarios
-SET
-  fecha_aceptacion_politica_datos = fecha_aceptacion_terminos,
-  version_politica_datos = COALESCE(version_politica_datos, '2025-v1')
-WHERE fecha_aceptacion_politica_datos IS NULL
-  AND fecha_aceptacion_terminos IS NOT NULL
-  AND COALESCE((checklist_registro_json->>'habeasDataAcknowledged')::boolean, false) = true;
+-- La aceptación explícita se registra solo con POST /portal/accept-data-policy (modal de ingreso).
+-- No copiar fecha_aceptacion_terminos: son campos distintos en la tabla usuarios.

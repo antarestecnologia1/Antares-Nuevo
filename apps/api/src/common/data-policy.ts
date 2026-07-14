@@ -10,3 +10,8 @@ export function userRequiresDataPolicyAcceptance(
   if (!version || version !== DATA_POLICY_VERSION) return true;
   return false;
 }
+
+/** Términos de uso, privacidad y Habeas Data (`usuarios.fecha_aceptacion_terminos`). */
+export function userRequiresTermsAcceptance(termsAcceptedAt: string | Date | null | undefined): boolean {
+  return !termsAcceptedAt;
+}

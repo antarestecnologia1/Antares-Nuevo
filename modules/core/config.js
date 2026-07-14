@@ -393,6 +393,26 @@ export function userRequiresDataPolicyAcceptance(user) {
   return false;
 }
 
+/** Términos de uso, privacidad y Habeas Data (`usuarios.fecha_aceptacion_terminos`). */
+export function userRequiresTermsAcceptance(user) {
+  if (!user || typeof user !== "object") return true;
+  const acceptedAt = user.termsAcceptedAt ?? user.fechaAceptacionTerminos ?? null;
+  return !acceptedAt;
+}
+
+/** Qué aceptaciones legales faltan según fila de usuario (desde BD /portal/me). */
+export function userPendingLegalAcceptances(user) {
+  return {
+    dataPolicy: userRequiresDataPolicyAcceptance(user),
+    terms: userRequiresTermsAcceptance(user)
+  };
+}
+
+export function userRequiresLegalAcceptanceGate(user) {
+  const pending = userPendingLegalAcceptances(user);
+  return pending.dataPolicy || pending.terms;
+}
+
 /** Orden en la grilla de permisos (Usuarios y permisos). */
 export const PERMISSION_UI_GROUPS = [
   {

@@ -2350,6 +2350,11 @@ body[data-theme="dark"] #data-policy-modal .data-policy-doc-card__copy small {
   gap: 1rem;
 }
 
+#data-policy-modal .data-policy-terms-docs {
+  display: grid;
+  gap: 0.65rem;
+}
+
 #data-policy-modal .data-policy-declaration {
   padding: 1rem 1.05rem 1.05rem;
   border-radius: 16px;
