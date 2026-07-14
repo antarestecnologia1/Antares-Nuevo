@@ -196,6 +196,10 @@
       if (isPasswordPayloadKey(k)) continue;
       if (typeof v !== "string") continue;
       const keyLc = k.toLowerCase();
+      if (keyLc === "acceptdatapolicy" || keyLc === "acceptterms") {
+        out[k] = stripNulTrimValue(v).toLowerCase();
+        continue;
+      }
       if (
         PRESERVE_CASE_PAYLOAD_KEYS.has(keyLc) ||
         keyLc.endsWith("reason") ||

@@ -838,9 +838,17 @@ function __persistLegalAcceptanceLocally(meRow, actor) {
   return true;
 }
 
-function __formCheckboxAccepted(data, fieldName) {
+function __formCheckboxAccepted(data, fieldName, form) {
+  const input = form?.querySelector?.(`[name="${fieldName}"]`);
+  if (input instanceof HTMLInputElement && input.type === "checkbox") {
+    return input.checked;
+  }
   const value = data?.[fieldName];
-  return value === true || value === "true" || value === "on" || value === 1 || value === "1";
+  if (value === true || value === 1) return true;
+  const normalized = String(value ?? "")
+    .trim()
+    .toLowerCase();
+  return normalized === "true" || normalized === "on" || normalized === "1";
 }
 
 function __readLegalAcceptancePendingFromForm(form) {
@@ -1037,12 +1045,11 @@ export function showDataPolicyGate() {
       form,
       async () => {
         const pendingSubmit = __readLegalAcceptancePendingFromForm(form);
-        const data = window.readFormEntriesNormalized?.(form) || {};
-        if (pendingSubmit.dataPolicy && !__formCheckboxAccepted(data, "acceptDataPolicy")) {
+        if (pendingSubmit.dataPolicy && !__formCheckboxAccepted(null, "acceptDataPolicy", form)) {
           window.notify?.(window.userMessage("dataPolicyRequired"), "error");
           return;
         }
-        if (pendingSubmit.terms && !__formCheckboxAccepted(data, "acceptTerms")) {
+        if (pendingSubmit.terms && !__formCheckboxAccepted(null, "acceptTerms", form)) {
           window.notify?.(window.userMessage("termsRequired"), "error");
           return;
         }
