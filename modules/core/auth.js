@@ -6,6 +6,7 @@ import {
   ALL_PERMISSIONS,
   APPROVAL_TYPE_META,
   DATA_POLICY_URL,
+  DATA_POLICY_VERSION,
   KEYS,
   LOGIN_REMEMBER_STORAGE_KEY,
   PERMISSIONS,
@@ -14,7 +15,8 @@ import {
   ROLES,
   SESSION_API_REFRESH_MS,
   SESSION_CLIENT_TOKEN_ROTATE_MS,
-  SESSION_IDLE_PUBLIC_NOTICE_KEY
+  SESSION_IDLE_PUBLIC_NOTICE_KEY,
+  userRequiresDataPolicyAcceptance
 } from "./config.js";
 import { state } from "./store.js";
 import { failPortalField } from "../ui/modals.js";
@@ -560,7 +562,8 @@ import {
   syncSessionProfileSnapshotFromCache,
   portalCanRefreshFromApi,
   normalizePortalBootstrapPositionRow,
-  startPortalBootstrapForInteractiveSession
+  startPortalBootstrapForInteractiveSession,
+  savePortalSnapshotAfterBootstrap
 } from "./bootstrap.js";
 const IC = typeof window !== "undefined" ? window.IC || {} : {};
 
@@ -707,15 +710,25 @@ export function invokeAuthSuccessCallback() {
 
 function __resolveDataPolicyGateForUser(user) {
   if (!user || typeof user !== "object") return false;
-  if (user.requiresDataPolicyAcceptance === true) return true;
-  const fn = typeof window.userRequiresDataPolicyAcceptance === "function" ? window.userRequiresDataPolicyAcceptance : null;
-  const clientNeeds = fn ? Boolean(fn(user)) : true;
-  if (clientNeeds) return true;
   if (user.requiresDataPolicyAcceptance === false) return false;
-  return false;
+  if (user.requiresDataPolicyAcceptance === true) return true;
+  return userRequiresDataPolicyAcceptance(user);
+}
+
+function __sessionDataPolicyAccepted(session) {
+  if (!session || typeof session !== "object") return false;
+  const acceptedAt = session.dataPolicyAcceptedAt ?? null;
+  const version = String(session.dataPolicyVersion ?? "").trim();
+  if (acceptedAt && version === DATA_POLICY_VERSION) return true;
+  const snap = session.profileSnapshot;
+  if (!snap || typeof snap !== "object") return false;
+  const snapAcceptedAt = snap.dataPolicyAcceptedAt ?? null;
+  const snapVersion = String(snap.dataPolicyVersion ?? "").trim();
+  return Boolean(snapAcceptedAt && snapVersion === DATA_POLICY_VERSION);
 }
 
 function __sessionRequiresDataPolicyGate(session, user) {
+  if (__sessionDataPolicyAccepted(session)) return false;
   if (session?.dataPolicyGatePending === true) return true;
   return __resolveDataPolicyGateForUser(user);
 }
@@ -732,6 +745,69 @@ function __clearDataPolicyGatePendingInSession() {
   const next = { ...session };
   delete next.dataPolicyGatePending;
   setSession(next);
+}
+
+function __buildDataPolicyAcceptedUserPatch(sourceRow, actor) {
+  const version = String(sourceRow?.dataPolicyVersion ?? DATA_POLICY_VERSION ?? "2025-v1").trim() || "2025-v1";
+  const acceptedAt =
+    sourceRow?.dataPolicyAcceptedAt ?? sourceRow?.fechaAceptacionPoliticaDatos ?? nowIso();
+  const base = sourceRow && typeof sourceRow === "object" ? sourceRow : actor;
+  const uid = String(base?.id || actor?.id || "").trim();
+  return {
+    ...(base || {}),
+    id: uid,
+    dataPolicyAcceptedAt: acceptedAt,
+    dataPolicyVersion: version,
+    requiresDataPolicyAcceptance: false,
+    profileQualityChecklist: {
+      ...(base?.profileQualityChecklist && typeof base.profileQualityChecklist === "object"
+        ? base.profileQualityChecklist
+        : {}),
+      dataPolicyAccepted: true,
+      dataPolicyVersion: version,
+      dataPolicyAcceptedAt: acceptedAt
+    }
+  };
+}
+
+function __persistDataPolicyAcceptanceLocally(meRow, actor) {
+  const uid = String(meRow?.id || actor?.id || "").trim();
+  if (!uid) return false;
+  const patch = __buildDataPolicyAcceptedUserPatch(meRow, actor);
+  if (typeof window.upsertPortalUserRowIntoCache === "function") {
+    window.upsertPortalUserRowIntoCache(patch);
+  }
+  const users = read(KEYS.users, []);
+  const idx = users.findIndex((u) => String(u.id) === uid);
+  const nextRow = { ...(idx >= 0 ? users[idx] : patch), ...patch, requiresDataPolicyAcceptance: false };
+  const others = users.filter((u) => String(u.id) !== uid);
+  write(KEYS.users, [nextRow, ...others], { skipSyncSchedule: true });
+  const saved = read(KEYS.users, []).find((u) => String(u.id) === uid);
+  const stillNeeds = userRequiresDataPolicyAcceptance(saved);
+  if (stillNeeds) return false;
+  const session = getSession();
+  if (session) {
+    setSession({
+      ...session,
+      dataPolicyAcceptedAt: patch.dataPolicyAcceptedAt,
+      dataPolicyVersion: patch.dataPolicyVersion,
+      requiresDataPolicyAcceptance: false,
+      profileSnapshot: buildProfileSnapshotFromUserRow(nextRow) ?? session.profileSnapshot
+    });
+  }
+  syncSessionProfileSnapshotFromCache?.();
+  __clearDataPolicyGatePendingInSession();
+  try {
+    savePortalSnapshotAfterBootstrap({ immediate: true, force: true, full: true });
+  } catch (_e) {
+    /* snapshot opcional */
+  }
+  return true;
+}
+
+function __dataPolicyCheckboxAccepted(data) {
+  const value = data?.acceptDataPolicy;
+  return value === true || value === "true" || value === "on" || value === 1 || value === "1";
 }
 
 function __dataPolicyModalMarkup() {
@@ -786,7 +862,7 @@ function __dataPolicyModalMarkup() {
           </p>
           <div class="data-policy-declaration__divider" aria-hidden="true"></div>
           <label class="data-policy-check">
-            <input type="checkbox" name="acceptDataPolicy" required />
+            <input type="checkbox" name="acceptDataPolicy" value="true" required />
             <span class="data-policy-check__box" aria-hidden="true"></span>
             <span class="data-policy-check__label">Acepto la Política de Tratamiento de Datos Personales y los términos indicados.</span>
           </label>
@@ -820,6 +896,12 @@ export function hideDataPolicyGate({ clearPending = false } = {}) {
 
 export function showDataPolicyGate() {
   if (!getSession()) return false;
+  const session = getSession();
+  const user = currentUser();
+  if (!__sessionRequiresDataPolicyGate(session, user)) {
+    hideDataPolicyGate({ clearPending: true });
+    return false;
+  }
   state.dataPolicyGateVisible = true;
   __markDataPolicyGatePendingInSession();
   const modal = document.getElementById("data-policy-modal");
@@ -842,49 +924,53 @@ export function showDataPolicyGate() {
       form,
       async () => {
         const data = window.readFormEntriesNormalized?.(form) || {};
-        if (!data.acceptDataPolicy) {
+        if (!__dataPolicyCheckboxAccepted(data)) {
           window.notify?.(window.userMessage("dataPolicyRequired"), "error");
           return;
         }
         const actor = currentUser();
         if (!actor?.id) return;
-        if (window.AntaresApi?.getBase?.() && window.AntaresApi?.postJson) {
+
+        let meRow = null;
+        if (window.AntaresApi?.isConfigured?.() && window.AntaresApi?.postJson) {
           try {
-            const me = await window.AntaresApi.postJson("/portal/accept-data-policy", {
+            meRow = await window.AntaresApi.postJson("/portal/accept-data-policy", {
               acceptDataPolicy: true
             });
-            if (me?.id) {
-              window.upsertPortalUserRowIntoCache?.(me);
+            if ((!meRow?.dataPolicyAcceptedAt || meRow?.requiresDataPolicyAcceptance === true) && window.AntaresApi?.getJson) {
+              meRow = await window.AntaresApi.getJson("/portal/me");
+            }
+            if (!meRow?.dataPolicyAcceptedAt || userRequiresDataPolicyAcceptance(meRow)) {
+              window.notify?.(
+                "No se pudo confirmar la aceptación en el servidor. Verifique la conexión e intente de nuevo.",
+                "error"
+              );
+              return;
             }
           } catch (err) {
             window.notify?.(String(err?.message || window.userMessage("genericError")), "error");
             return;
           }
+        } else if (window.AntaresApi?.getBase?.()) {
+          window.notify?.(
+            "No hay sesión activa con el servidor. Cierre sesión, vuelva a ingresar e intente de nuevo.",
+            "error"
+          );
+          return;
         } else {
-          const users = read(KEYS.users, []);
-          const idx = users.findIndex((u) => String(u.id) === String(actor.id));
-          if (idx >= 0) {
-            const at = nowIso();
-            users[idx] = {
-              ...users[idx],
-              dataPolicyAcceptedAt: at,
-              dataPolicyVersion: window.DATA_POLICY_VERSION || "2025-v1",
-              requiresDataPolicyAcceptance: false,
-              profileQualityChecklist: {
-                ...(users[idx].profileQualityChecklist && typeof users[idx].profileQualityChecklist === "object"
-                  ? users[idx].profileQualityChecklist
-                  : {}),
-                dataPolicyAccepted: true,
-                dataPolicyVersion: window.DATA_POLICY_VERSION || "2025-v1",
-                dataPolicyAcceptedAt: at
-              }
-            };
-            write(KEYS.users, users, { skipSyncSchedule: true });
-          }
+          meRow = __buildDataPolicyAcceptedUserPatch(null, actor);
         }
-        syncSessionProfileSnapshotFromCache?.();
+
+        if (!__persistDataPolicyAcceptanceLocally(meRow, actor)) {
+          window.notify?.("No se pudo registrar la aceptación de la política. Intente de nuevo.", "error");
+          return;
+        }
+
         hideDataPolicyGate({ clearPending: true });
         window.notify?.(window.userMessage("dataPolicyAccepted"), "success");
+        if (portalCanRefreshFromApi()) {
+          void startPortalBootstrapForInteractiveSession();
+        }
       },
       { submitButton: form.querySelector("[type='submit']"), busyText: "Registrando…" }
     );

@@ -2,7 +2,7 @@
  * Bootstrap del portal: normalización de GET /portal/bootstrap, hidratación de caché y orquestación API.
  * `read` / `write` delegan en `window.AntaresPersistence` (mismo patrón que `auth.js`).
  */
-import { KEYS, ROLES } from "./config.js";
+import { KEYS, ROLES, userRequiresDataPolicyAcceptance } from "./config.js";
 import {
   currentUser,
   getSession,
@@ -338,6 +338,8 @@ function profileSystemJoinDateValue(user) {
 
 export function buildProfileSnapshotFromUserRow(u) {
   if (!u || u.id == null) return null;
+  const dataPolicyAcceptedAt = u.dataPolicyAcceptedAt ?? u.fechaAceptacionPoliticaDatos ?? null;
+  const dataPolicyVersion = String(u.dataPolicyVersion ?? u.versionPoliticaDatos ?? "").trim() || null;
   return {
     id: String(u.id),
     email: String(u.email || "").trim(),
@@ -345,7 +347,15 @@ export function buildProfileSnapshotFromUserRow(u) {
     role: u.role,
     companyId: u.companyId != null ? String(u.companyId) : "",
     permissions: Array.isArray(u.permissions) ? u.permissions : [],
-    avatarUrl: String(u.avatarUrl || "").trim()
+    avatarUrl: String(u.avatarUrl || "").trim(),
+    dataPolicyAcceptedAt,
+    dataPolicyVersion,
+    requiresDataPolicyAcceptance:
+      u.requiresDataPolicyAcceptance === true
+        ? true
+        : u.requiresDataPolicyAcceptance === false
+          ? false
+          : userRequiresDataPolicyAcceptance(u)
   };
 }
 
@@ -391,7 +401,21 @@ export function materializePortalUserFromSession(session) {
       emergencyPhone: String(prev?.emergencyPhone || "").trim(),
       emergencyRelation: String(prev?.emergencyRelation || prev?.emergencyRelationship || "").trim(),
       city: String(prev?.city || "").trim(),
-      department: String(prev?.department || "").trim()
+      department: String(prev?.department || "").trim(),
+      dataPolicyAcceptedAt:
+        snap.dataPolicyAcceptedAt ?? prev?.dataPolicyAcceptedAt ?? session.dataPolicyAcceptedAt ?? null,
+      dataPolicyVersion:
+        String(snap.dataPolicyVersion ?? prev?.dataPolicyVersion ?? session.dataPolicyVersion ?? "").trim() || null,
+      requiresDataPolicyAcceptance:
+        snap.requiresDataPolicyAcceptance === false ||
+        prev?.requiresDataPolicyAcceptance === false ||
+        session.requiresDataPolicyAcceptance === false
+          ? false
+          : snap.requiresDataPolicyAcceptance === true ||
+              prev?.requiresDataPolicyAcceptance === true ||
+              session.requiresDataPolicyAcceptance === true
+            ? true
+            : undefined
     };
     write(KEYS.users, [row, ...users.filter((u) => String(u.id) !== String(row.id))], { skipSyncSchedule: true });
     user = currentUser();
@@ -499,7 +523,26 @@ export function __applyPortalBootstrapPayloadInner(p) {
     const hooks = propsNeedingPayloadHooks.has(prop) ? getPayloadHooks() : null;
     if (prop === "users") {
       const raw = Array.isArray(p.users) ? p.users : [];
-      write(KEYS.users, raw.map(normalizePortalBootstrapUserRow));
+      const session = getSession();
+      const sid = session?.userId ? String(session.userId) : "";
+      const prevUsers = read(KEYS.users, []);
+      const prevSelf = sid ? prevUsers.find((u) => String(u.id) === sid) : null;
+      write(
+        KEYS.users,
+        raw.map((row) => {
+          const normalized = normalizePortalBootstrapUserRow(row);
+          if (!sid || !prevSelf || String(normalized?.id || "") !== sid) return normalized;
+          const localAccepted = !userRequiresDataPolicyAcceptance(prevSelf);
+          const serverNeeds = userRequiresDataPolicyAcceptance(normalized);
+          if (!localAccepted || !serverNeeds) return normalized;
+          return {
+            ...normalized,
+            dataPolicyAcceptedAt: prevSelf.dataPolicyAcceptedAt ?? prevSelf.fechaAceptacionPoliticaDatos ?? null,
+            dataPolicyVersion: String(prevSelf.dataPolicyVersion ?? prevSelf.versionPoliticaDatos ?? "").trim() || null,
+            requiresDataPolicyAcceptance: false
+          };
+        })
+      );
       hooks.ensureUsersPermissions();
       continue;
     }
