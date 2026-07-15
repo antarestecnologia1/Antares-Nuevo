@@ -327,7 +327,10 @@ export function hydrateHrWorkspaceFromStorage() {
           operateSection: normalizeDocumentsOperateSection(parsed.operateSection),
           dataSection: normalizeDocumentsDataSection(parsed.dataSection),
           listSearch: String(parsed.listSearch || ""),
-          selectedEmployeeId: String(parsed.selectedEmployeeId || "")
+          selectedEmployeeId: String(parsed.selectedEmployeeId || ""),
+          typeFilter: String(parsed.typeFilter || ""),
+          folderBrowseEmployeeId: String(parsed.folderBrowseEmployeeId || ""),
+          folderBrowseName: String(parsed.folderBrowseName || "")
         };
       } else {
         const ws = normalizeHrWorkspace("documents", d);
@@ -432,7 +435,10 @@ export function persistHrWorkspace(moduleId, workspace) {
           operateSection: normalizeDocumentsOperateSection(ui.operateSection),
           dataSection: normalizeDocumentsDataSection(ui.dataSection),
           listSearch: String(ui.listSearch || ""),
-          selectedEmployeeId: String(ui.selectedEmployeeId || "")
+          selectedEmployeeId: String(ui.selectedEmployeeId || ""),
+          typeFilter: String(ui.typeFilter || ""),
+          folderBrowseEmployeeId: String(ui.folderBrowseEmployeeId || ""),
+          folderBrowseName: String(ui.folderBrowseName || "")
         })
       );
     }

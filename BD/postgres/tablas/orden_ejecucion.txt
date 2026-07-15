@@ -38,3 +38,4 @@
 36_alter_drop_curso_defensivo.sql
 37_alter_usuarios_politica_datos_personales.sql
 38_documentos_empleado.sql
+39_alter_documentos_empleado_carpeta.sql

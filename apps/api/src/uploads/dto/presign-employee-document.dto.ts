@@ -18,6 +18,11 @@ export class PresignEmployeeDocumentDto {
   @IsString()
   @MaxLength(64)
   documentType?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  folder?: string;
 }
 
 export class DownloadEmployeeDocumentDto {

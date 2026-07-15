@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS documentos_empleado (
   id_empleado             UUID NOT NULL REFERENCES empleados_nomina (id) ON DELETE CASCADE,
   nombre_empleado         VARCHAR(255) NOT NULL,
   tipo_documento          VARCHAR(64) NOT NULL,
+  carpeta                 VARCHAR(128) NOT NULL DEFAULT 'General',
   nombre_archivo          VARCHAR(512) NOT NULL,
   mime_type               VARCHAR(128) NOT NULL DEFAULT 'application/octet-stream',
   tamano_bytes            BIGINT NOT NULL DEFAULT 0,

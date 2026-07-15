@@ -82,6 +82,12 @@
       "Solo el administrador puede editar conductores en este módulo. La baja se realiza en Gestión humana.",
     vehiclesManageForbidden:
       "No tiene permiso para esta acción en Camiones. Revise sus permisos en Usuarios y permisos.",
+    documentsUploadForbidden:
+      "No tiene permiso para subir documentos. Solicite «Subir documentos» en Usuarios y permisos.",
+    documentsEditForbidden:
+      "No tiene permiso para editar metadatos documentales. Revise sus permisos en Usuarios y permisos.",
+    documentsDeleteForbidden:
+      "No tiene permiso para eliminar documentos del expediente. Revise sus permisos en Usuarios y permisos.",
     driverDeleteUseHr:
       "La baja del conductor se realiza en Gestión humana (empleados con rol conductor). Este módulo no permite eliminar.",
     driverUpdatedHrSynced:

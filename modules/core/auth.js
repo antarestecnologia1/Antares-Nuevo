@@ -58,7 +58,7 @@ export const VIEW_PERMISSIONS = Object.freeze({
   payroll: PERMISSIONS.PAYROLL_MANAGE,
   hiring: PERMISSIONS.HIRING_MANAGE,
   "labor-compliance": PERMISSIONS.SST_COMPLIANCE,
-  "document-management": PERMISSIONS.DOCUMENT_MANAGE,
+  "document-management": PERMISSIONS.DOCUMENT_VIEW,
   "admin-users": PERMISSIONS.USERS_MANAGE,
   authorizations: PERMISSIONS.AUTHORIZATIONS_MANAGE,
   profile: PERMISSIONS.PROFILE_VIEW,
@@ -82,6 +82,13 @@ export const VEHICLE_GRANULAR_PERMISSIONS = Object.freeze([
   PERMISSIONS.TRANSPORT_VEHICLES_EDIT,
   PERMISSIONS.TRANSPORT_VEHICLES_STATUS,
   PERMISSIONS.TRANSPORT_VEHICLES_DELETE
+]);
+
+export const DOCUMENT_GRANULAR_PERMISSIONS = Object.freeze([
+  PERMISSIONS.DOCUMENT_VIEW,
+  PERMISSIONS.DOCUMENT_UPLOAD,
+  PERMISSIONS.DOCUMENT_EDIT,
+  PERMISSIONS.DOCUMENT_DELETE
 ]);
 
 const ACCOUNT_STATUS = Object.freeze({
@@ -402,6 +409,38 @@ export function canDeleteVehicle(user) {
   return isAdminActor(u) || hasVehicleManageAll(u) || hasPermission(u, PERMISSIONS.TRANSPORT_VEHICLES_DELETE);
 }
 
+function hasDocumentManageAll(user) {
+  return hasPermission(user, PERMISSIONS.DOCUMENT_MANAGE);
+}
+
+export function canAccessDocumentsView(user) {
+  if (!user) return false;
+  if (hasDocumentManageAll(user)) return true;
+  return DOCUMENT_GRANULAR_PERMISSIONS.some((perm) => hasPermission(user, perm));
+}
+
+export function canUploadDocuments(user) {
+  const u = user || currentUser();
+  if (!u) return false;
+  return hasDocumentManageAll(u) || hasPermission(u, PERMISSIONS.DOCUMENT_UPLOAD);
+}
+
+export function canEditDocuments(user) {
+  const u = user || currentUser();
+  if (!u) return false;
+  return hasDocumentManageAll(u) || hasPermission(u, PERMISSIONS.DOCUMENT_EDIT);
+}
+
+export function canDeleteDocuments(user) {
+  const u = user || currentUser();
+  if (!u) return false;
+  return isAdminActor(u) || hasDocumentManageAll(u) || hasPermission(u, PERMISSIONS.DOCUMENT_DELETE);
+}
+
+export function canDownloadDocuments(user) {
+  return canAccessDocumentsView(user);
+}
+
 export function canAccessAuthorizationSection(user, sectionKey) {
   if (!user) return false;
   if (hasAuthorizationManageAll(user)) return true;
@@ -499,6 +538,7 @@ export function canAccessView(user, view) {
   const v = String(view || "");
   if (v === "authorizations") return canAccessAuthorizationsView(user);
   if (v === "transport-vehicles") return canAccessVehiclesView(user);
+  if (v === "document-management") return canAccessDocumentsView(user);
   if (v === "requests") {
     return (
       hasPermission(user, PERMISSIONS.CLIENT_REQUESTS) || hasPermission(user, PERMISSIONS.TRANSPORT_REQUESTS)

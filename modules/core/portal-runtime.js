@@ -78,6 +78,7 @@ const portalRoleSelectOptionsHtml = __pr.portalRoleSelectOptionsHtml;
 const ACCOUNT_STATUS = __pr.ACCOUNT_STATUS;
 const SESSION_IDLE_MS = __pr.SESSION_IDLE_MS;
 const VEHICLE_GRANULAR_PERMISSIONS = __pr.VEHICLE_GRANULAR_PERMISSIONS;
+const DOCUMENT_GRANULAR_PERMISSIONS = __pr.DOCUMENT_GRANULAR_PERMISSIONS;
 const VIEW_PERMISSIONS = __pr.VIEW_PERMISSIONS;
 const announceSessionClosedByIdle = __pr.announceSessionClosedByIdle;
 const approvalDetailLine = __pr.approvalDetailLine;
@@ -97,11 +98,15 @@ const canAccessAuthorizationSection = __pr.canAccessAuthorizationSection;
 const canAccessAuthorizationsView = __pr.canAccessAuthorizationsView;
 const canAccessRRHH = __pr.canAccessRRHH;
 const canAccessVehiclesView = __pr.canAccessVehiclesView;
+const canAccessDocumentsView = __pr.canAccessDocumentsView;
 const canAccessView = __pr.canAccessView;
 const canApproveInternalAuthorization = __pr.canApproveInternalAuthorization;
 const canApprovePortalRegistration = __pr.canApprovePortalRegistration;
 const canApproveTransportRequests = __pr.canApproveTransportRequests;
 const canCreateVehicle = __pr.canCreateVehicle;
+const canUploadDocuments = __pr.canUploadDocuments;
+const canEditDocuments = __pr.canEditDocuments;
+const canDeleteDocuments = __pr.canDeleteDocuments;
 const canDeleteVehicle = __pr.canDeleteVehicle;
 const canEditFleetDriverAsAdmin = __pr.canEditFleetDriverAsAdmin;
 const canEditVehicle = __pr.canEditVehicle;
@@ -10989,6 +10994,7 @@ if (typeof window.setBootstrapCallbacks === "function") {
       normalizePayrollEmployeeRowDates,
       normalizeSstComplianceRow: window.normalizeSstComplianceRow,
       normalizeEmployeeDocumentRow: window.normalizeEmployeeDocumentRow,
+      normalizeEmployeeDocumentFolderRow: window.normalizeEmployeeDocumentFolderRow,
       dispatchPositionsCatalogUpdated
     }
   });

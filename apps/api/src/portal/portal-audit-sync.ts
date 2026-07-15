@@ -69,6 +69,11 @@ export const PORTAL_SYNC_AUDIT_META: Partial<Record<PortalSyncKey, SyncAuditMeta
     moduleId: "documents",
     moduleLabel: "Gestión documental"
   },
+  employeeDocumentFolders: {
+    table: "carpetas_documento_empleado",
+    moduleId: "documents",
+    moduleLabel: "Gestión documental"
+  },
   tripRouteRates: { table: "tarifas_trayecto", moduleId: "trips", moduleLabel: "Viajes" },
   approvals: { table: "solicitudes_autorizacion", moduleId: "authorizations", moduleLabel: "Autorizaciones" }
 };

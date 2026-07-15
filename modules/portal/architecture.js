@@ -148,7 +148,7 @@ window.PortalArchitecture = (() => {
     },
     "document-management": {
       title: "Gestión documental",
-      access: "admin-or-rrhh",
+      access: "permission-gated",
       shell: true,
       renderer: [{ module: "rrhh", exportName: "documentManagementHtml" }],
       layoutPlan: [

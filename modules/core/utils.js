@@ -385,7 +385,9 @@ export function normalizeHrWorkspace(moduleId, workspace) {
 export function normalizeDocumentsDataSection(section) {
   const s = String(section || "").trim().toLowerCase();
   if (s === "expired" || s === "vencidos") return "expired";
+  if (s === "due_soon" || s === "por_vencer" || s === "warning") return "due_soon";
   if (s === "employees" || s === "expedientes") return "employees";
+  if (s === "gaps" || s === "pendientes") return "gaps";
   return "all";
 }
 

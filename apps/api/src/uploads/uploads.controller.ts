@@ -4,17 +4,20 @@ import {
   Controller,
   ForbiddenException,
   Get,
+  Inject,
   Param,
   Post,
   Req,
   Res,
   UploadedFile,
   UseGuards,
-  UseInterceptors
+  UseInterceptors,
+  forwardRef
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import type { Express, Response } from "express";
 import { JwtAuthGuard } from "../common/jwt-auth.guard";
+import { PortalService } from "../portal/portal.service";
 import { PresignAvatarDto } from "./dto/presign-avatar.dto";
 import {
   DownloadEmployeeDocumentDto,
@@ -33,20 +36,39 @@ const CONTRACT_TEMPLATE_ALLOWED_ROLES = new Set([
   "lider_administrativo"
 ]);
 
-const EMPLOYEE_DOCUMENT_ALLOWED_ROLES = new Set([
-  ...CONTRACT_TEMPLATE_ALLOWED_ROLES
+const EMPLOYEE_DOCUMENT_BLOCKED_EXT = new Set([
+  "exe",
+  "bat",
+  "cmd",
+  "com",
+  "scr",
+  "msi",
+  "dll",
+  "vbs",
+  "vbe",
+  "js",
+  "jse",
+  "ws",
+  "wsf",
+  "wsc",
+  "wsh",
+  "ps1",
+  "psm1",
+  "psd1",
+  "jar",
+  "app",
+  "deb",
+  "rpm",
+  "sh",
+  "bash",
+  "cpl",
+  "inf",
+  "reg",
+  "hta",
+  "pif"
 ]);
 
-const EMPLOYEE_DOCUMENT_MIME = new Set([
-  "application/pdf",
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-]);
-
-const EMPLOYEE_DOCUMENT_MAX_BYTES = 15 * 1024 * 1024;
+const EMPLOYEE_DOCUMENT_MAX_BYTES = 50 * 1024 * 1024;
 
 function normalizeEmployeeDocMime(raw: string) {
   const mime = String(raw || "")
@@ -57,34 +79,87 @@ function normalizeEmployeeDocMime(raw: string) {
   return mime || "application/octet-stream";
 }
 
+function extFromFileName(fileName: string) {
+  const safe = String(fileName || "").trim();
+  const idx = safe.lastIndexOf(".");
+  if (idx <= 0 || idx >= safe.length - 1) return "";
+  return safe.slice(idx + 1).toLowerCase().slice(0, 16);
+}
+
 function extFromMime(mime: string) {
   switch (mime) {
     case "application/pdf":
       return "pdf";
+    case "image/jpeg":
+      return "jpg";
     case "image/png":
       return "png";
     case "image/webp":
       return "webp";
+    case "image/gif":
+      return "gif";
     case "application/msword":
       return "doc";
     case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
       return "docx";
+    case "application/vnd.ms-excel":
+      return "xls";
+    case "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+      return "xlsx";
+    case "text/plain":
+      return "txt";
+    case "text/csv":
+      return "csv";
+    case "application/zip":
+      return "zip";
     default:
-      return "jpg";
+      return "";
   }
 }
 
-function assertEmployeeDocumentRole(role: string) {
-  const r = String(role || "").trim().toLowerCase();
-  if (!EMPLOYEE_DOCUMENT_ALLOWED_ROLES.has(r)) {
-    throw new ForbiddenException("No autorizado para gestionar documentos de colaboradores.");
+function resolveFileExt(fileName: string, mime: string) {
+  const fromName = extFromFileName(fileName);
+  if (fromName && !EMPLOYEE_DOCUMENT_BLOCKED_EXT.has(fromName)) return fromName;
+  const fromMime = extFromMime(mime);
+  if (fromMime) return fromMime;
+  return "bin";
+}
+
+function sanitizeEmployeeDocumentFolder(raw: unknown) {
+  const cleaned = String(raw || "General")
+    .trim()
+    .replace(/[^a-zA-Z0-9._\s\u00C0-\u024F-]+/g, "")
+    .replace(/\s+/g, " ")
+    .slice(0, 128);
+  return cleaned || "General";
+}
+
+function folderSlugForStorage(raw: unknown) {
+  return sanitizeEmployeeDocumentFolder(raw)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, "_")
+    .replace(/[^a-zA-Z0-9._-]+/g, "")
+    .slice(0, 64)
+    .toLowerCase() || "general";
+}
+
+function assertSafeEmployeeDocumentFile(fileName: string) {
+  const ext = extFromFileName(fileName);
+  if (ext && EMPLOYEE_DOCUMENT_BLOCKED_EXT.has(ext)) {
+    throw new BadRequestException(
+      `Extensión .${ext} no permitida por seguridad. Use otro formato de archivo.`
+    );
   }
 }
 
 @UseGuards(JwtAuthGuard)
 @Controller("uploads")
 export class UploadsController {
-  constructor(private readonly r2: R2Service) {}
+  constructor(
+    private readonly r2: R2Service,
+    @Inject(forwardRef(() => PortalService)) private readonly portal: PortalService
+  ) {}
 
   @Post("avatar/presign")
   async presignAvatar(
@@ -206,33 +281,26 @@ export class UploadsController {
     @Req() req: { user: ReqUser },
     @Body() dto: PresignEmployeeDocumentDto
   ) {
-    assertEmployeeDocumentRole(req.user?.role);
+    await this.portal.assertCanUploadEmployeeDocument(req.user.userId, req.user.role);
     if (!this.r2.hasUploadsClient()) {
       throw new BadRequestException(
         "R2 no está configurado. Define CF_R2_* en el servidor."
       );
     }
     const normalizedCt = normalizeEmployeeDocMime(dto.contentType);
-    if (!EMPLOYEE_DOCUMENT_MIME.has(normalizedCt)) {
-      throw new BadRequestException(
-        "Tipo de archivo no permitido. Use PDF, JPEG, PNG, WebP o Word."
-      );
-    }
+    const safeName = String(dto.fileName || "documento").replace(/[^a-zA-Z0-9._-]+/g, "_");
+    assertSafeEmployeeDocumentFile(safeName);
     const employeeId = String(dto.employeeId || "").replace(/[^a-zA-Z0-9-]+/g, "");
     if (!employeeId) throw new BadRequestException("Colaborador inválido.");
-    const safeName = String(dto.fileName || "documento").replace(/[^a-zA-Z0-9._-]+/g, "_");
-    const ext = safeName.includes(".")
-      ? safeName.split(".").pop()!.toLowerCase()
-      : extFromMime(normalizedCt);
-    const docType = String(dto.documentType || "otro")
-      .replace(/[^a-zA-Z0-9._-]+/g, "_")
-      .slice(0, 48);
-    const key = `documentos_rrhh/${employeeId}/${docType}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const ext = resolveFileExt(safeName, normalizedCt);
+    const folderSlug = folderSlugForStorage(dto.folder);
+    const key = `documentos_rrhh/${employeeId}/${folderSlug}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
     const uploadUrl = await this.r2.presignAvatarUpload(key, normalizedCt, 600);
     return {
       uploadUrl,
       key,
       mimeType: normalizedCt,
+      folder: sanitizeEmployeeDocumentFolder(dto.folder),
       expiresInSec: 600
     };
   }
@@ -248,9 +316,10 @@ export class UploadsController {
     @Req() req: { user: ReqUser },
     @UploadedFile() file: Express.Multer.File,
     @Body("employeeId") employeeIdRaw: string,
-    @Body("documentType") documentTypeRaw?: string
+    @Body("documentType") _documentTypeRaw?: string,
+    @Body("folder") folderRaw?: string
   ) {
-    assertEmployeeDocumentRole(req.user?.role);
+    await this.portal.assertCanUploadEmployeeDocument(req.user.userId, req.user.role);
     if (!this.r2.hasUploadsClient()) {
       throw new BadRequestException(
         "R2 no está configurado. Define CF_R2_* en el servidor."
@@ -260,25 +329,20 @@ export class UploadsController {
       throw new BadRequestException("Adjunte un archivo.");
     }
     const normalizedCt = normalizeEmployeeDocMime(file.mimetype);
-    if (!EMPLOYEE_DOCUMENT_MIME.has(normalizedCt)) {
-      throw new BadRequestException("Solo se permiten PDF, imágenes JPEG/PNG/WebP o Word.");
-    }
     const employeeId = String(employeeIdRaw || "").replace(/[^a-zA-Z0-9-]+/g, "");
     if (!employeeId) throw new BadRequestException("Seleccione un colaborador.");
-    const docType = String(documentTypeRaw || "otro")
-      .replace(/[^a-zA-Z0-9._-]+/g, "_")
-      .slice(0, 48);
     const origName = String(file.originalname || "documento").replace(/[^a-zA-Z0-9._-]+/g, "_");
-    const ext = origName.includes(".")
-      ? origName.split(".").pop()!.toLowerCase()
-      : extFromMime(normalizedCt);
-    const key = `documentos_rrhh/${employeeId}/${docType}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    assertSafeEmployeeDocumentFile(origName);
+    const folderSlug = folderSlugForStorage(folderRaw);
+    const ext = resolveFileExt(origName, normalizedCt);
+    const key = `documentos_rrhh/${employeeId}/${folderSlug}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
     await this.r2.putUploadsObject(key, file.buffer, normalizedCt);
     return {
       key,
       fileName: origName || `documento.${ext}`,
       mimeType: normalizedCt,
-      sizeBytes: file.buffer.length
+      sizeBytes: file.buffer.length,
+      folder: sanitizeEmployeeDocumentFolder(folderRaw)
     };
   }
 
@@ -288,7 +352,7 @@ export class UploadsController {
     @Req() req: { user: ReqUser },
     @Body() dto: DownloadEmployeeDocumentDto
   ) {
-    assertEmployeeDocumentRole(req.user?.role);
+    await this.portal.assertCanDownloadEmployeeDocument(req.user.userId, req.user.role);
     if (!this.r2.hasUploadsClient()) {
       throw new BadRequestException("R2 no está configurado.");
     }

@@ -132,6 +132,7 @@ export const KEYS = {
   hrAbsences: "antares_hr_absences_v2",
   sstCompliance: "antares_sst_compliance_v2",
   employeeDocuments: "antares_employee_documents_v1",
+  employeeDocumentFolders: "antares_employee_document_folders_v1",
   tripRouteRates: "antares_trip_route_rates_v2",
   approvals: "antares_approvals_v2",
   deletedTransportTripLogs: "antares_deleted_transport_trip_logs_v1",
@@ -201,6 +202,10 @@ export const PERMISSIONS = {
   HIRING_MANAGE: "hiring_manage",
   SST_COMPLIANCE: "sst_compliance",
   DOCUMENT_MANAGE: "document_manage",
+  DOCUMENT_VIEW: "document_view",
+  DOCUMENT_UPLOAD: "document_upload",
+  DOCUMENT_EDIT: "document_edit",
+  DOCUMENT_DELETE: "document_delete",
   USERS_MANAGE: "users_manage",
   AUTHORIZATIONS_MANAGE: "authorizations_manage",
   AUTHORIZATIONS_TRANSPORT: "authorizations_transport",
@@ -313,7 +318,26 @@ export const PERMISSION_META = {
   [PERMISSIONS.PAYROLL_MANAGE]: { title: "Gestión humana", desc: "Gestionar empleados y liquidaciones." },
   [PERMISSIONS.HIRING_MANAGE]: { title: "Contratacion", desc: "Gestionar vacantes, candidatos y contratos." },
   [PERMISSIONS.SST_COMPLIANCE]: { title: "Cumplimiento laboral y SST", desc: "Controlar seguridad social, vencimientos y auditoria documental." },
-  [PERMISSIONS.DOCUMENT_MANAGE]: { title: "Gestión documental", desc: "Expediente digital por colaborador: cédulas, contratos, certificados y archivos RRHH." },
+  [PERMISSIONS.DOCUMENT_MANAGE]: {
+    title: "Gestión documental (acceso completo)",
+    desc: "Consultar, subir, editar metadatos, eliminar registros y administrar carpetas sin restricción."
+  },
+  [PERMISSIONS.DOCUMENT_VIEW]: {
+    title: "Consultar expediente documental",
+    desc: "Ver archivos por colaborador y carpeta, descargar y exportar listados."
+  },
+  [PERMISSIONS.DOCUMENT_UPLOAD]: {
+    title: "Subir documentos",
+    desc: "Registrar archivos en el expediente y crear carpetas por colaborador."
+  },
+  [PERMISSIONS.DOCUMENT_EDIT]: {
+    title: "Editar metadatos documentales",
+    desc: "Modificar tipo, carpeta, vencimiento, código y observaciones de documentos existentes."
+  },
+  [PERMISSIONS.DOCUMENT_DELETE]: {
+    title: "Eliminar documentos del expediente",
+    desc: "Quitar registros documentales del portal (el archivo en almacenamiento puede conservarse)."
+  },
   [PERMISSIONS.USERS_MANAGE]: { title: "Usuarios y permisos", desc: "Crear usuarios y administrar accesos." },
   [PERMISSIONS.AUTHORIZATIONS_MANAGE]: {
     title: "Autorizaciones (todas las bandejas)",
@@ -465,9 +489,18 @@ export const PERMISSION_UI_GROUPS = [
       PERMISSIONS.PAYROLL_MANAGE,
       PERMISSIONS.HIRING_MANAGE,
       PERMISSIONS.SST_COMPLIANCE,
-      PERMISSIONS.DOCUMENT_MANAGE,
       PERMISSIONS.USERS_MANAGE,
       PERMISSIONS.CONTACT_B2B_VIEW
+    ]
+  },
+  {
+    title: "Gestión documental (por acción)",
+    permissions: [
+      PERMISSIONS.DOCUMENT_MANAGE,
+      PERMISSIONS.DOCUMENT_VIEW,
+      PERMISSIONS.DOCUMENT_UPLOAD,
+      PERMISSIONS.DOCUMENT_EDIT,
+      PERMISSIONS.DOCUMENT_DELETE
     ]
   }
 ];
@@ -766,6 +799,8 @@ export const REPORT_RULES = {
   payroll_summary: { permission: PERMISSIONS.PAYROLL_MANAGE, rrhhAllowed: true },
   hiring_pipeline: { permission: PERMISSIONS.HIRING_MANAGE, rrhhAllowed: true },
   labor_compliance: { permission: PERMISSIONS.SST_COMPLIANCE, rrhhAllowed: true },
+  document_management: { permission: PERMISSIONS.DOCUMENT_VIEW, rrhhAllowed: true },
+  employee_documents: { permission: PERMISSIONS.DOCUMENT_VIEW, rrhhAllowed: true },
   users_access: { permission: PERMISSIONS.USERS_MANAGE, adminOnly: true },
   authorizations_traceability: { permission: PERMISSIONS.AUTHORIZATIONS_MANAGE, adminOnly: true }
 };

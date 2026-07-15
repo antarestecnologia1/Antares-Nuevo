@@ -273,6 +273,26 @@
 
 .doc-data-toolbar {
   margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+}
+
+.doc-type-filter {
+  min-width: 180px;
+  margin: 0;
+}
+
+.doc-type-filter select {
+  width: 100%;
+}
+
+.doc-dossier__actions {
+  margin: 0 0 1rem;
+}
+
+.doc-operate-alert {
+  margin-bottom: 0.75rem;
 }
 
 .doc-employee-group {
@@ -298,6 +318,90 @@
 .doc-empty {
   padding: 2rem 1rem;
   text-align: center;
+}
+
+.doc-folder-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.doc-folder-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.92rem;
+}
+
+.doc-folder-crumb {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent, #2563eb);
+  cursor: pointer;
+  font: inherit;
+}
+
+.doc-folder-crumb:hover {
+  text-decoration: underline;
+}
+
+.doc-folder-crumb--current {
+  color: inherit;
+  cursor: default;
+  font-weight: 600;
+}
+
+.doc-folder-crumb-sep {
+  color: var(--text-muted, #64748b);
+}
+
+.doc-folder-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+
+.doc-folder-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  text-align: left;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border-subtle, rgba(148, 163, 184, 0.18));
+  border-radius: 12px;
+  background: var(--surface-elevated, rgba(255, 255, 255, 0.02));
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.doc-folder-tile:hover {
+  border-color: var(--accent, #2563eb);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+}
+
+.doc-folder-tile--employee {
+  min-height: 96px;
+}
+
+.doc-folder-tile__icon {
+  font-size: 1.35rem;
+  line-height: 1;
+  opacity: 0.85;
+}
+
+.doc-folder-tile__title {
+  font-size: 0.98rem;
+  line-height: 1.25;
+}
+
+.doc-folder-tile__meta {
+  font-size: 0.82rem;
 }
 
 .field.is-required > span::after,
