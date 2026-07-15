@@ -538,14 +538,11 @@ body:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-section-label {
 }
 
 #portal-sidebar .side-link--notif-inbox {
-  flex: 1 1 0;
+  flex: 0 0 auto;
+  width: 100%;
   min-width: 0;
   overflow: visible;
-  padding: 0.42rem 0.45rem 0.42rem 0.55rem !important;
   margin: 0;
-  border: none !important;
-  background: transparent !important;
-  box-shadow: none !important;
 }
 
 body.portal-sidebar-collapsed #portal-sidebar .side-link {
@@ -575,7 +572,7 @@ body.portal-sidebar-collapsed #portal-sidebar .side-link.active::before {
   height: 48%;
 }
 
-/* ── Notificaciones: hub unificado (bandeja + silenciador) ── */
+/* ── Notificaciones: bandeja + silenciador como ítems normales del menú ── */
 #portal-sidebar .sidebar-notif-group {
   margin-top: 0.15rem;
   overflow: visible;
@@ -583,74 +580,74 @@ body.portal-sidebar-collapsed #portal-sidebar .side-link.active::before {
 
 #portal-sidebar .sidebar-notif-hub {
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   align-items: stretch;
+  gap: 0.15rem;
   width: 100%;
   min-width: 0;
   max-width: 100%;
   box-sizing: border-box;
-  border-radius: calc(var(--portal-sidebar-item-radius) + 2px);
-  border: 1px solid rgba(var(--primary-rgb), 0.1);
-  background: rgba(var(--primary-rgb), 0.04);
-  overflow: hidden;
-  transition:
-    background var(--portal-sidebar-transition),
-    border-color var(--portal-sidebar-transition),
-    box-shadow var(--portal-sidebar-transition);
-}
-
-#portal-sidebar .sidebar-notif-hub:has(.side-link--notif-inbox.active) {
-  background: rgba(var(--primary-rgb), 0.09);
-  border-color: rgba(var(--primary-rgb), 0.2);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
 }
 
 #portal-sidebar .sidebar-notif-hub .side-link--notif-inbox {
-  flex: 1 1 0;
+  flex: 0 0 auto;
   min-width: 0;
-  width: auto;
+  width: 100%;
 }
 
+/* Separador visual del hub antiguo: oculto para que no forme un “cuadro”. */
 #portal-sidebar .sidebar-notif-hub__divider {
-  flex-shrink: 0;
-  width: 1px;
-  align-self: stretch;
-  margin: 0.42rem 0;
-  background: linear-gradient(
-    180deg,
-    transparent,
-    rgba(var(--primary-rgb), 0.2) 18%,
-    rgba(var(--primary-rgb), 0.2) 82%,
-    transparent
-  );
+  display: none;
 }
 
 #portal-sidebar .sidebar-notif-hub .sidebar-notif-bell-toggle {
   flex: 0 0 auto;
   display: inline-flex;
+  flex-direction: row;
   align-items: center;
-  justify-content: center;
-  width: 2.65rem !important;
-  min-width: 2.65rem !important;
-  max-width: 2.65rem;
-  align-self: stretch;
+  justify-content: flex-start;
+  gap: 0.72rem;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
   margin: 0;
-  padding: 0;
-  border: none;
-  border-radius: 0;
+  padding: 0.42rem 0.55rem;
+  border: 1px solid transparent;
+  border-radius: var(--portal-sidebar-item-radius);
   background: transparent;
-  color: var(--portal-sidebar-link-hover);
+  color: var(--portal-sidebar-nav-text);
+  font-family: var(--font-display);
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: left;
   cursor: pointer;
   position: relative;
   transition:
     background var(--portal-sidebar-transition),
-    color var(--portal-sidebar-transition);
+    border-color var(--portal-sidebar-transition),
+    color var(--portal-sidebar-transition),
+    box-shadow var(--portal-sidebar-transition),
+    transform var(--portal-sidebar-transition);
 }
 
 #portal-sidebar .sidebar-notif-hub .sidebar-notif-bell-toggle:hover {
-  background: rgba(var(--primary-rgb), 0.1);
+  background: rgba(var(--primary-rgb), 0.07);
+  border-color: rgba(var(--primary-rgb), 0.1);
+  color: var(--portal-sidebar-nav-text);
+  transform: translateX(2px);
+}
+
+#portal-sidebar .sidebar-notif-hub .sidebar-notif-bell-toggle:hover .sidebar-notif-bell-icon {
+  background: rgba(var(--primary-rgb), 0.11);
+  border-color: rgba(var(--primary-rgb), 0.18);
   color: var(--primary);
-  transform: none;
+  transform: scale(1.04);
 }
 
 #portal-sidebar .sidebar-notif-hub .sidebar-notif-bell-toggle .side-icon {
@@ -658,10 +655,7 @@ body.portal-sidebar-collapsed #portal-sidebar .side-link.active::before {
   height: 18px !important;
 }
 
-/* El timbre reserva un hueco del mismo tamaño que el contenedor de ícono de los
-   demás enlaces (36px) para que su etiqueta «Silenciar alertas» quede alineada
-   con «Notificaciones» y el resto del menú. Es transparente (sin caja) a
-   propósito: el timbre es un control sutil, no un ítem de navegación. */
+/* Ícono del timbre con el mismo contenedor que el resto de enlaces del menú. */
 #portal-sidebar .sidebar-notif-bell-icon {
   display: inline-flex;
   align-items: center;
@@ -670,6 +664,17 @@ body.portal-sidebar-collapsed #portal-sidebar .side-link.active::before {
   width: var(--portal-sidebar-icon-size);
   height: var(--portal-sidebar-icon-size);
   min-width: var(--portal-sidebar-icon-size);
+  border-radius: var(--portal-sidebar-icon-radius);
+  background: rgba(var(--primary-rgb), 0.06);
+  border: 1px solid rgba(var(--primary-rgb), 0.09);
+  color: color-mix(in srgb, var(--portal-sidebar-link-hover) 88%, var(--primary));
+  box-shadow: 0 1px 2px rgba(var(--primary-rgb), 0.04);
+  transition:
+    background var(--portal-sidebar-transition),
+    border-color var(--portal-sidebar-transition),
+    color var(--portal-sidebar-transition),
+    box-shadow var(--portal-sidebar-transition),
+    transform var(--portal-sidebar-transition);
 }
 
 /* La etiqueta del timbre se oculta por defecto; se muestra cuando el menú está
@@ -686,43 +691,8 @@ body.portal-sidebar-collapsed #portal-sidebar .side-link.active::before {
   border: 0;
 }
 
-/* Escritorio con menú expandido: bandeja y timbre en filas independientes para
-   que el timbre no se recorte cuando la barra es estrecha. */
+/* Escritorio con menú expandido: bandeja y timbre como filas del menú. */
 @media (min-width: 921px) {
-  body:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-notif-hub {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  body:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-notif-hub .side-link--notif-inbox {
-    width: 100%;
-  }
-
-  body:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-notif-hub__divider {
-    width: auto;
-    height: 1px;
-    align-self: stretch;
-    margin: 0.1rem 0.5rem;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      rgba(var(--primary-rgb), 0.2) 18%,
-      rgba(var(--primary-rgb), 0.2) 82%,
-      transparent
-    );
-  }
-
-  body:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-notif-hub .sidebar-notif-bell-toggle {
-    flex-direction: row;
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: none;
-    min-height: 42px;
-    padding: 0.42rem 0.55rem;
-    gap: 0.72rem;
-    justify-content: flex-start;
-  }
-
   body:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-notif-bell-label {
     position: static;
     width: auto;
@@ -733,6 +703,8 @@ body.portal-sidebar-collapsed #portal-sidebar .side-link.active::before {
     clip: auto;
     white-space: nowrap;
     border: 0;
+    flex: 1;
+    min-width: 0;
     font-family: var(--font-display);
     font-size: 0.875rem;
     font-weight: 600;
@@ -763,60 +735,27 @@ body.portal-sidebar-collapsed #portal-sidebar .side-link.active::before {
   }
 }
 
-#portal-sidebar .side-link--notif-inbox.active {
-  background: transparent !important;
-  border-color: transparent !important;
-  box-shadow: none !important;
-  color: var(--portal-sidebar-active-text);
-}
-
-#portal-sidebar .side-link--notif-inbox.active .side-link__icon-wrap {
-  background: linear-gradient(145deg, var(--primary) 0%, var(--primary-mid) 100%);
-  border-color: transparent;
-  color: #ffffff;
-  box-shadow: 0 6px 16px rgba(var(--primary-rgb), 0.38);
-}
-
-#portal-sidebar .side-link--notif-inbox.active::before {
-  display: none;
-}
-
 body.portal-sidebar-collapsed #portal-sidebar .sidebar-notif-hub {
-  flex-direction: column;
   align-items: stretch;
-  gap: 0;
-  padding: 0.12rem 0;
-}
-
-body.portal-sidebar-collapsed #portal-sidebar .sidebar-notif-hub__divider {
-  width: auto;
-  height: 1px;
-  margin: 0 0.35rem;
-  align-self: stretch;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(var(--primary-rgb), 0.2) 18%,
-    rgba(var(--primary-rgb), 0.2) 82%,
-    transparent
-  );
+  gap: 0.15rem;
+  padding: 0;
 }
 
 body.portal-sidebar-collapsed #portal-sidebar .side-link--notif-inbox {
   justify-content: center;
-  padding: 0.38rem 0.35rem !important;
-}
-
-body.portal-sidebar-collapsed #portal-sidebar .sidebar-notif-hub .side-link--notif-inbox {
-  flex: 0 0 auto;
-  width: 100%;
+  padding: 0.38rem 0.35rem;
 }
 
 body.portal-sidebar-collapsed #portal-sidebar .sidebar-notif-hub .sidebar-notif-bell-toggle {
-  width: 100% !important;
-  min-width: 0 !important;
-  max-width: none;
-  min-height: 2.35rem;
+  justify-content: center;
+  gap: 0;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.38rem 0.35rem;
+}
+
+body.portal-sidebar-collapsed #portal-sidebar .sidebar-notif-hub .sidebar-notif-bell-toggle:hover {
+  transform: none;
 }
 
 /* ── Footer: dock de cuenta ── */
@@ -1413,29 +1352,23 @@ body[data-theme="dark"] #portal-sidebar .side-link:hover .side-link__icon-wrap {
   border-color: rgba(var(--primary-mid-rgb), 0.24);
 }
 
-body[data-theme="dark"] #portal-sidebar .sidebar-notif-hub {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(var(--primary-mid-rgb), 0.16);
-}
-
-body[data-theme="dark"] #portal-sidebar .sidebar-notif-hub:has(.side-link--notif-inbox.active) {
-  background: rgba(var(--primary-mid-rgb), 0.12);
-  border-color: rgba(var(--primary-mid-rgb), 0.24);
-}
-
 body[data-theme="dark"] #portal-sidebar .sidebar-notif-hub .sidebar-notif-bell-toggle {
-  background: transparent;
-  border: none;
-  color: rgba(232, 242, 252, 0.9);
+  color: var(--portal-sidebar-nav-text);
 }
 
 body[data-theme="dark"] #portal-sidebar .sidebar-notif-hub .sidebar-notif-bell-toggle:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(var(--primary-mid-rgb), 0.12);
+  border-color: rgba(var(--primary-mid-rgb), 0.28);
 }
 
-body[data-theme="dark"] #portal-sidebar .sidebar-notif-bell-toggle {
+body[data-theme="dark"] #portal-sidebar .sidebar-notif-bell-icon {
   background: rgba(255, 255, 255, 0.05);
   border-color: rgba(var(--primary-mid-rgb), 0.14);
+}
+
+body[data-theme="dark"] #portal-sidebar .sidebar-notif-hub .sidebar-notif-bell-toggle:hover .sidebar-notif-bell-icon {
+  background: rgba(var(--primary-mid-rgb), 0.14);
+  border-color: rgba(var(--primary-mid-rgb), 0.24);
 }
 
 body[data-theme="dark"] #portal-sidebar .sidebar-brand-logo-wrap {
@@ -1470,9 +1403,7 @@ body[data-theme="dark"] #portal-sidebar.sidebar--rail {
     4px 0 28px rgba(0, 0, 0, 0.28);
 }
 
-/* Drawer móvil (≤920px): la bandeja y el timbre se separan en filas
-   independientes a ancho completo. En una sola fila quedaban apretados y se
-   recortaban en pantallas pequeñas. */
+/* Drawer móvil (≤920px): bandeja y timbre como filas normales del menú. */
 @media (max-width: 920px) {
   #portal-sidebar .sidebar-notif-group,
   #portal-sidebar .sidebar-notif-hub {
@@ -1480,45 +1411,17 @@ body[data-theme="dark"] #portal-sidebar.sidebar--rail {
     min-width: 0;
   }
 
-  #portal-sidebar .sidebar-notif-hub,
-  body.portal-drawer-open.portal-sidebar-collapsed #portal-sidebar .sidebar-notif-hub {
-    flex-direction: column !important;
-    overflow: visible;
-  }
-
   #portal-sidebar .sidebar-notif-hub .side-link--notif-inbox {
     width: 100%;
     min-height: 46px;
-    padding: 0.55rem 0.65rem !important;
+    padding: 0.55rem 0.65rem;
     gap: 0.7rem;
   }
 
-  /* Separador horizontal entre bandeja y timbre */
-  #portal-sidebar .sidebar-notif-hub__divider {
-    width: auto;
-    height: 1px;
-    align-self: stretch;
-    margin: 0.1rem 0.55rem;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      rgba(var(--primary-rgb), 0.2) 18%,
-      rgba(var(--primary-rgb), 0.2) 82%,
-      transparent
-    );
-  }
-
-  /* El timbre pasa a ser una fila completa con ícono + etiqueta, igual que un
-     enlace del menú, para que no se vea recortado. */
   #portal-sidebar .sidebar-notif-hub .sidebar-notif-bell-toggle {
-    flex-direction: row;
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: none;
     min-height: 46px;
     padding: 0.55rem 0.65rem;
     gap: 0.7rem;
-    justify-content: flex-start;
   }
 
   #portal-sidebar .sidebar-notif-bell-label {
@@ -1531,6 +1434,8 @@ body[data-theme="dark"] #portal-sidebar.sidebar--rail {
     clip: auto;
     white-space: nowrap;
     border: 0;
+    flex: 1;
+    min-width: 0;
     font-family: var(--font-display);
     font-size: 0.9rem;
     font-weight: 600;

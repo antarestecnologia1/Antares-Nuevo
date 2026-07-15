@@ -32,9 +32,9 @@
 
 .sidebar-notif-row .side-link--notif-inbox,
 .sidebar-notif-hub .side-link--notif-inbox {
-  flex: 1 1 0;
+  flex: 0 0 auto;
   min-width: 0;
-  width: auto;
+  width: 100%;
 }
 
 .side-link--notif-inbox {
