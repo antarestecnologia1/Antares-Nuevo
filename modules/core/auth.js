@@ -423,9 +423,10 @@ function hasDocumentManageAll(user) {
 }
 
 export function canAccessDocumentsView(user) {
-  if (!user) return false;
-  if (hasDocumentManageAll(user)) return true;
-  return DOCUMENT_GRANULAR_PERMISSIONS.some((perm) => hasPermission(user, perm));
+  const u = user || currentUser();
+  if (!u) return false;
+  if (isAdminActor(u) || hasDocumentManageAll(u)) return true;
+  return DOCUMENT_GRANULAR_PERMISSIONS.some((perm) => hasPermission(u, perm));
 }
 
 export function canUploadDocuments(user) {

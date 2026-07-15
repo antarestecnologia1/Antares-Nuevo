@@ -484,28 +484,36 @@ function renderKpiCards(summary, IC, gapsCount = 0) {
         <div class="doc-kpi__content">
           <span class="doc-kpi__label">Documentos</span>
           <strong class="doc-kpi__value">${escapeHtml(String(summary.total))}</strong>
+          <span class="doc-kpi__hint">En todos los expedientes</span>
         </div>
+        <span class="doc-kpi__go" aria-hidden="true">→</span>
       </button>
       <button type="button" class="doc-kpi doc-kpi--employees" data-action="doc-goto-browse-toolbar" title="Consultar expedientes por colaborador">
         <div class="doc-kpi__icon" aria-hidden="true">${IC.user || ""}</div>
         <div class="doc-kpi__content">
           <span class="doc-kpi__label">Expedientes activos</span>
           <strong class="doc-kpi__value">${escapeHtml(String(summary.employeesWithDocs))}</strong>
+          <span class="doc-kpi__hint">Colaboradores con archivos</span>
         </div>
+        <span class="doc-kpi__go" aria-hidden="true">→</span>
       </button>
       <button type="button" class="doc-kpi doc-kpi--warn" data-action="doc-quick-filter" data-filter="due_soon" title="Filtrar por vencer">
         <div class="doc-kpi__icon" aria-hidden="true">${IC.alertTriangle || ""}</div>
         <div class="doc-kpi__content">
           <span class="doc-kpi__label">Por vencer (30d)</span>
           <strong class="doc-kpi__value">${escapeHtml(String(summary.dueSoon))}</strong>
+          <span class="doc-kpi__hint">Próximos a vencer</span>
         </div>
+        <span class="doc-kpi__go" aria-hidden="true">→</span>
       </button>
       <button type="button" class="doc-kpi doc-kpi--expired" data-action="doc-quick-filter" data-filter="expired" title="Filtrar vencidos">
         <div class="doc-kpi__icon" aria-hidden="true">${IC.alertTriangle || ""}</div>
         <div class="doc-kpi__content">
           <span class="doc-kpi__label">Vencidos</span>
           <strong class="doc-kpi__value">${escapeHtml(String(summary.expired))}</strong>
+          <span class="doc-kpi__hint">Requieren atención</span>
         </div>
+        <span class="doc-kpi__go" aria-hidden="true">→</span>
       </button>
     </div>
     ${
@@ -618,6 +626,9 @@ function renderEmployeeDossierPanel(employee, documents, todayYmd, IC, highlight
   const empDocs = documents;
   const allCount = checklistSource.length;
   const expected = expectedDocumentTypesForEmployee(employee);
+  const completedCount = expected.filter((t) => employeeHasDocumentType(employee.id, t, checklistSource)).length;
+  const completionPct = expected.length ? Math.round((completedCount / expected.length) * 100) : 100;
+  const completionTone = completionPct >= 100 ? "complete" : completionPct >= 60 ? "mid" : "low";
   const extraTypes = EMPLOYEE_DOCUMENT_TYPES.map((t) => t.value).filter((v) => !expected.includes(v));
   const checklistExpected = expected
     .map((typeValue) =>
@@ -654,7 +665,19 @@ function renderEmployeeDossierPanel(employee, documents, todayYmd, IC, highlight
         </div>
       </div>
       <div class="doc-dossier__stats">
-        <span class="doc-stat-chip"><strong>${empDocs.length}</strong>${empDocs.length !== allCount ? `<span class="muted"> / ${allCount}</span>` : ""} documento${empDocs.length === 1 && allCount === 1 ? "" : "s"}</span>
+        <div class="doc-dossier__gauge doc-dossier__gauge--${completionTone}" style="--doc-progress:${completionPct}" role="img" aria-label="Checklist ${completionPct}% completo, ${completedCount} de ${expected.length} documentos mínimos">
+          <div class="doc-dossier__gauge-ring">
+            <span class="doc-dossier__gauge-value">${completionPct}<small>%</small></span>
+          </div>
+          <div class="doc-dossier__gauge-meta">
+            <span class="doc-dossier__gauge-label">Checklist</span>
+            <strong class="doc-dossier__gauge-count">${completedCount}/${expected.length} listos</strong>
+          </div>
+        </div>
+        <span class="doc-stat-chip">
+          <strong>${empDocs.length}${empDocs.length !== allCount ? `<span class="doc-stat-chip__total">/${allCount}</span>` : ""}</strong>
+          <span class="doc-stat-chip__label">documento${allCount === 1 ? "" : "s"}</span>
+        </span>
       </div>
     </header>
     <div class="doc-checklist-panel">
@@ -697,11 +720,11 @@ function renderUploadForm(selectedEmployeeId, selectedDocumentType, allDocs, fol
       </header>
       <div class="doc-form-block__grid doc-form-block__grid--2">
         <label class="field doc-field">
-          <span class="doc-field__label">Colaborador <span class="req">*</span></span>
+          <span class="doc-field__label">Colaborador</span>
           <select class="doc-field__control" name="employeeId" required data-doc-employee-select>${renderEmployeeOptions(read(KEYS.payrollEmployees, []), selectedEmployeeId)}</select>
         </label>
         <label class="field doc-field">
-          <span class="doc-field__label">Carpeta <span class="req">*</span></span>
+          <span class="doc-field__label">Carpeta</span>
           <input class="doc-field__control" name="folder" list="doc-folder-list" required value="${escapeAttr(folderDefault)}" maxlength="128" placeholder="General, Contratos, Certificados…" data-doc-folder-input />
           <datalist id="doc-folder-list">${folderOptions}</datalist>
           <span class="doc-field__hint muted">Subcarpetas se crean en la pestaña Consultar.</span>
@@ -761,6 +784,7 @@ function renderUploadForm(selectedEmployeeId, selectedDocumentType, allDocs, fol
           <span class="doc-dropzone__halo" aria-hidden="true"></span>
           <span class="doc-dropzone__icon" aria-hidden="true">${IC.upload || IC.file || ""}</span>
           <strong class="doc-dropzone__title">Arrastre el archivo aquí o haga clic</strong>
+          <span class="doc-dropzone__hint muted">PDF, imágenes, Word, Excel · hasta 50 MB</span>
           <span class="doc-dropzone__filename" data-doc-file-label>Sin archivo seleccionado</span>
         </label>
       </div>
@@ -1761,17 +1785,19 @@ function bindDocumentManagementPortalControls() {
       const id = String(btn.dataset.id || "");
       const doc = normalizeEmployeeDocumentRow(read(KEYS.employeeDocuments, []).find((d) => String(d.id) === id));
       if (!doc?.id) return;
-      G.openConfirmModal?.({
+      const requestDeletion = G.openConfirmReasonModal || G.openConfirmModal;
+      requestDeletion?.({
         title: "Eliminar documento",
-        message: `Se eliminará "${doc.fileName}" del expediente de ${doc.employeeName}. El archivo en almacenamiento puede conservarse por auditoría.`,
+        message: `Se eliminará "${doc.fileName}" del expediente de ${doc.employeeName}. El archivo en almacenamiento puede conservarse por auditoría. Indique la justificación de la eliminación.`,
         confirmText: "Eliminar registro",
-        onConfirm: async () => {
+        onConfirm: async (motivo) => {
+          const reason = String(motivo || "").trim();
           const ok = await G.removeFromPortalListAwaitServer?.(KEYS.employeeDocuments, id);
           if (!ok) return;
           G.logPortalAuditEvent?.("documents", "delete", {
             entityId: id,
             entityLabel: `${doc.employeeName} · ${getEmployeeDocumentTypeLabel(doc.documentType)}`,
-            summary: doc.fileName
+            summary: `${doc.fileName}${reason ? ` · Motivo: ${reason}` : ""}`
           });
           G.notify?.("Documento eliminado del expediente.", "success");
           G.renderPortalView?.();
