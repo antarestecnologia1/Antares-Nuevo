@@ -146,6 +146,18 @@ window.PortalArchitecture = (() => {
         }
       ]
     },
+    "document-management": {
+      title: "Gestión documental",
+      access: "admin-or-rrhh",
+      shell: true,
+      renderer: [{ module: "rrhh", exportName: "documentManagementHtml" }],
+      layoutPlan: [
+        {
+          container: ".documents-studio",
+          order: [".hr-workspace-header--payroll", ".hr-workspace-panels"]
+        }
+      ]
+    },
     "admin-users": {
       title: "Administración · Usuarios y permisos",
       access: "admin",

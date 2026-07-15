@@ -1610,6 +1610,278 @@ body[data-theme="dark"] .dashboard-studio .at-tab.is-active em { background: rgb
 .at-client-stat--ok dd    { color: var(--nx-green); }
 .at-client-stat--warn dd  { color: var(--nx-amber); }
 
+/* ══ ESTADÍSTICAS DE LA EMPRESA — BI Studio ══ */
+.at-stats-studio {
+  padding: 20px 36px 24px;
+  border-bottom: 1px solid var(--nx-border-hi);
+  background:
+    radial-gradient(ellipse 80% 60% at 10% 0%, rgba(var(--primary-rgb, 55, 124, 192), 0.06), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 95% 20%, rgba(107, 127, 215, 0.05), transparent 50%),
+    color-mix(in srgb, var(--nx-void) 88%, var(--nx-surface-3));
+}
+.at-stats-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.at-stats-head__title {
+  font-family: var(--nx-font-display);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--nx-text);
+  margin: 0;
+}
+.at-stats-head__sub {
+  font-size: 12px;
+  color: var(--nx-text-3);
+  margin-top: 4px;
+}
+.at-stats-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--nx-r-lg);
+  border: 1px solid var(--nx-border);
+  background: var(--nx-card-bg);
+  box-shadow: var(--nx-card-shadow);
+  margin-bottom: 16px;
+}
+.at-stats-chips {
+  display: inline-flex;
+  gap: 6px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--nx-surface-2);
+  border: 1px solid var(--nx-border);
+}
+.at-stats-chip {
+  border: none;
+  background: transparent;
+  color: var(--nx-text-3);
+  font-family: var(--nx-font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+.at-stats-chip:hover { color: var(--nx-text-2); background: var(--nx-surface-3); }
+.at-stats-chip.is-active {
+  background: linear-gradient(135deg, var(--nx-accent) 0%, var(--nx-accent-deep) 100%);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(var(--primary-rgb, 55, 124, 192), 0.32);
+}
+.at-stats-dates {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--nx-border);
+  background: var(--nx-surface-2);
+}
+.at-stats-dates input {
+  border: none;
+  background: transparent;
+  color: var(--nx-text-2);
+  font-family: var(--nx-font-data);
+  font-size: 11px;
+  font-weight: 600;
+  width: 108px;
+  padding: 4px 2px;
+}
+.at-stats-dates input:focus { outline: none; color: var(--nx-text); }
+.at-stats-dates span { color: var(--nx-text-3); font-size: 11px; }
+.at-stats-select {
+  border: 1px solid var(--nx-border);
+  background: var(--nx-surface-2);
+  color: var(--nx-text-2);
+  font-family: var(--nx-font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  min-width: 130px;
+}
+.at-stats-clear {
+  border: none;
+  background: transparent;
+  color: var(--nx-accent);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px 8px;
+  margin-left: auto;
+}
+.at-stats-clear:hover { text-decoration: underline; }
+.at-stats-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.95fr) minmax(0, 1.55fr);
+  gap: 14px;
+  align-items: stretch;
+}
+.at-stats-left {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+.at-stats-card {
+  border-radius: var(--nx-r-xl);
+  border: 1px solid var(--nx-border);
+  background: var(--nx-card-bg);
+  box-shadow: var(--nx-card-shadow);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.at-stats-card:hover { border-color: var(--nx-border-hi); box-shadow: var(--nx-card-shadow-hover); }
+.at-stats-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 16px 18px 0;
+}
+.at-stats-card__head h4 {
+  margin: 0;
+  font-family: var(--nx-font-display);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--nx-text);
+}
+.at-stats-card__head small {
+  display: block;
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--nx-text-3);
+}
+.at-stats-card__actions {
+  display: inline-flex;
+  gap: 6px;
+  color: var(--nx-text-3);
+}
+.at-stats-card__actions span {
+  width: 28px; height: 28px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 8px;
+  border: 1px solid var(--nx-border);
+  background: var(--nx-surface-2);
+  font-size: 13px;
+}
+.at-stats-budget {
+  padding: 14px 18px 18px;
+}
+.at-stats-budget__bar {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--nx-surface-3);
+  overflow: hidden;
+  margin: 14px 0 12px;
+}
+.at-stats-budget__fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--nx-violet) 0%, var(--nx-accent) 55%, var(--nx-green) 100%);
+  width: 0%;
+  transition: width 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.at-stats-budget__value {
+  font-family: var(--nx-font-display);
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--nx-text);
+  line-height: 1.1;
+}
+.at-stats-budget__value em {
+  font-style: normal;
+  font-size: 16px;
+  color: var(--nx-text-3);
+  font-weight: 600;
+}
+.at-stats-budget__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--nx-text-3);
+}
+.at-stats-trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 11px;
+}
+.at-stats-trend--up { background: var(--nx-green-low); color: var(--nx-green); }
+.at-stats-trend--down { background: var(--nx-red-low); color: var(--nx-red); }
+.at-stats-trend--flat { background: var(--nx-surface-3); color: var(--nx-text-3); }
+.at-stats-chart-card {
+  flex: 1;
+  min-height: 280px;
+  display: flex;
+  flex-direction: column;
+}
+.at-stats-chart-card__body {
+  position: relative;
+  flex: 1;
+  min-height: 220px;
+  padding: 8px 14px 14px;
+}
+.at-stats-chart-card__body canvas {
+  width: 100% !important;
+  height: 100% !important;
+  max-height: 260px;
+}
+.at-stats-line-card {
+  min-height: 420px;
+}
+.at-stats-line-card .at-stats-chart-card__body {
+  min-height: 320px;
+}
+.at-stats-line-card .at-stats-chart-card__body canvas {
+  max-height: 340px;
+}
+.at-stats-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  padding: 0 18px 14px;
+}
+.at-stats-mini-kpi {
+  border-radius: var(--nx-r);
+  border: 1px solid var(--nx-border);
+  background: var(--nx-surface-2);
+  padding: 10px 12px;
+}
+.at-stats-mini-kpi span {
+  display: block;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--nx-text-3);
+}
+.at-stats-mini-kpi strong {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--nx-font-display);
+  font-size: 16px;
+  color: var(--nx-text);
+}
+
 .nx-sidebar-stack { display: flex; flex-direction: column; gap: 16px; }
 
 @media (max-width: 1200px) {
@@ -1617,6 +1889,7 @@ body[data-theme="dark"] .dashboard-studio .at-tab.is-active em { background: rgb
   .at-exec-strip { grid-template-columns: repeat(2, 1fr); }
   .at-analytics { grid-template-columns: 1fr 1fr; }
   .at-analytics > :last-child { grid-column: 1 / -1; }
+  .at-stats-grid { grid-template-columns: 1fr; }
   .at-fleet-section { grid-template-columns: 1fr; }
   .at-command { grid-template-columns: 1fr; }
 }
@@ -1630,7 +1903,7 @@ body[data-theme="dark"] .dashboard-studio .at-tab.is-active em { background: rgb
   .at-search-wrap input { width: 100%; min-width: 0; }
   .at-activity-item { grid-template-columns: 40px minmax(0, 1fr) auto; gap: 8px; }
   .at-activity-link span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
-  .at-kpi-strip, .at-exec-strip, .at-analytics, .at-command, .at-fleet-section, .at-client-layout { padding-left: 20px; padding-right: 20px; }
+  .at-kpi-strip, .at-exec-strip, .at-analytics, .at-command, .at-fleet-section, .at-client-layout, .at-stats-studio { padding-left: 20px; padding-right: 20px; }
   .at-kpi-strip { grid-template-columns: repeat(2, 1fr); }
   .at-exec-strip { grid-template-columns: 1fr; }
   .at-analytics { grid-template-columns: 1fr; }
@@ -2237,6 +2510,310 @@ body[data-theme="dark"] .dashboard-studio .at-tab.is-active em { background: rgb
   }
 
   /* ─────────────────────────────────────────────────────────────
+     ESTADÍSTICAS DE LA EMPRESA (Chart.js)
+  ───────────────────────────────────────────────────────────── */
+
+  const dashStatsUi = { period: "7d", fromDate: "", toDate: "", clientFilter: "all", statusFilter: "all" };
+  let dashStatsChartInstances = [];
+
+  function dashDestroyStatsCharts() {
+    dashStatsChartInstances.forEach((ch) => {
+      try { ch.destroy(); } catch (_e) { /* noop */ }
+    });
+    dashStatsChartInstances = [];
+  }
+
+  function dashStatsTrendHtml(pct) {
+    const n = Number(pct) || 0;
+    const cls = n > 0 ? "up" : n < 0 ? "down" : "flat";
+    const sign = n > 0 ? "+" : "";
+    const arrow = n > 0 ? "↑" : n < 0 ? "↓" : "→";
+    return `<span class="at-stats-trend at-stats-trend--${cls}">${arrow} ${sign}${n}% vs periodo anterior</span>`;
+  }
+
+  function dashBuildStatsFilters(stats, user) {
+    const chips = [
+      { id: "1d", label: "Hoy" },
+      { id: "3d", label: "3 días" },
+      { id: "7d", label: "1 semana" },
+    ];
+    const chipHtml = chips.map((c) =>
+      `<button type="button" class="at-stats-chip${stats.period === c.id ? " is-active" : ""}"
+        data-action="dash-stats-period" data-period="${escapeAttr(c.id)}">${escapeHtml(c.label)}</button>`
+    ).join("");
+
+    const clientOpts = [`<option value="all"${stats.filters?.clientFilter === "all" ? " selected" : ""}>Todos los clientes</option>`]
+      .concat((stats.clients || []).map((c) =>
+        `<option value="${escapeAttr(c)}"${stats.filters?.clientFilter === c ? " selected" : ""}>${escapeHtml(c)}</option>`
+      )).join("");
+
+    const statusOpts = [`<option value="all"${stats.filters?.statusFilter === "all" ? " selected" : ""}>Todos los estados</option>`]
+      .concat((stats.statuses || []).map((s) =>
+        `<option value="${escapeAttr(s)}"${stats.filters?.statusFilter === s ? " selected" : ""}>${escapeHtml(s.replace(/_/g, " "))}</option>`
+      )).join("");
+
+    return `<div class="at-stats-toolbar" role="toolbar" aria-label="Filtros de estadísticas">
+      <div class="at-stats-chips" role="group" aria-label="Periodo rápido">${chipHtml}</div>
+      <div class="at-stats-dates">
+        <input type="date" id="dash-stats-from" value="${escapeAttr(stats.fromDate || "")}" aria-label="Desde"/>
+        <span>—</span>
+        <input type="date" id="dash-stats-to" value="${escapeAttr(stats.toDate || "")}" aria-label="Hasta"/>
+      </div>
+      <select class="at-stats-select" id="dash-stats-client" aria-label="Filtrar por cliente">${clientOpts}</select>
+      <select class="at-stats-select" id="dash-stats-status" aria-label="Filtrar por estado">${statusOpts}</select>
+      <button type="button" class="at-stats-clear" data-action="dash-stats-clear">Limpiar filtros</button>
+    </div>`;
+  }
+
+  function dashBuildCompanyStatsSection(user) {
+    const DD = dashDomain();
+    if (!DD?.computeCompanyStatsSnapshot) return "";
+    const stats = DD.computeCompanyStatsSnapshot(user, dashStatsUi);
+    const scopeLabel = isPortalClientUser(user) ? "Mi operación" : "Empresa";
+
+    const hasClientData = (stats.clientChart || []).length > 0;
+    const clientChartBody = hasClientData
+      ? `<canvas id="dash-chart-clients" aria-label="Gráfica de barras por cliente"></canvas>`
+      : `<p style="padding:24px;font-size:12px;color:var(--nx-text-3);text-align:center">Sin datos de clientes en el periodo seleccionado.</p>`;
+
+    return `<section class="at-stats-studio at-reveal" id="dash-stats-studio" aria-label="Estadísticas de la empresa">
+      <div class="at-stats-head">
+        <div>
+          <h3 class="at-stats-head__title">Estadísticas de ${escapeHtml(scopeLabel.toLowerCase())}</h3>
+          <p class="at-stats-head__sub">Análisis operativo · ${escapeHtml(stats.monthLabel || "")} · actualizado ${escapeHtml(fmtTimeOnly(stats.generatedAt) || "ahora")}</p>
+        </div>
+        ${isViewAllowedForUser(user, "reports")
+          ? `<button type="button" class="at-qa-btn" data-action="dash-nav" data-target-view="reports">${IC.file || ""} Ver informes</button>`
+          : ""}
+      </div>
+      ${dashBuildStatsFilters(stats, user)}
+      <div class="at-stats-grid">
+        <div class="at-stats-left">
+          <article class="at-stats-card at-reveal" style="--at-stagger:12">
+            <div class="at-stats-card__head">
+              <div>
+                <h4>Recaudo total</h4>
+                <small>Valor operativo del periodo</small>
+              </div>
+              <div class="at-stats-card__actions" aria-hidden="true"><span>⚙</span><span>✎</span></div>
+            </div>
+            <div class="at-stats-budget">
+              <div class="at-stats-budget__bar" aria-hidden="true">
+                <div class="at-stats-budget__fill" id="dash-stats-budget-fill" style="width:0%" data-at-width="${stats.budgetPct}"></div>
+              </div>
+              <div class="at-stats-budget__value">
+                ${escapeHtml(stats.fmtCop(stats.revenue))}
+                <em>/ ${escapeHtml(stats.fmtCop(stats.periodTarget))}</em>
+              </div>
+              <div class="at-stats-budget__meta">
+                <span>${stats.trips} viaje${stats.trips === 1 ? "" : "s"} · meta del periodo</span>
+                ${dashStatsTrendHtml(stats.trendPct)}
+              </div>
+            </div>
+            <div class="at-stats-kpi-row">
+              <div class="at-stats-mini-kpi"><span>Combustible</span><strong>${escapeHtml(stats.fmtCop(stats.fuelCost))}</strong></div>
+              <div class="at-stats-mini-kpi"><span>Taller</span><strong>${escapeHtml(stats.fmtCop(stats.maintCost))}</strong></div>
+              <div class="at-stats-mini-kpi"><span>Costos</span><strong>${escapeHtml(stats.fmtCop(stats.totalCost))}</strong></div>
+            </div>
+          </article>
+          <article class="at-stats-card at-stats-chart-card at-reveal" style="--at-stagger:13">
+            <div class="at-stats-card__head">
+              <div>
+                <h4>Distribución por cliente</h4>
+                <small>Recaudo por cuenta · ${escapeHtml(stats.monthLabel || "")}</small>
+              </div>
+            </div>
+            <div class="at-stats-chart-card__body">
+              ${clientChartBody}
+            </div>
+          </article>
+        </div>
+        <article class="at-stats-card at-stats-chart-card at-stats-line-card at-reveal" style="--at-stagger:14">
+          <div class="at-stats-card__head">
+            <div>
+              <h4>Monitoreo operativo diario</h4>
+              <small>Recaudo, costos y viajes · ${escapeHtml(stats.monthLabel || "")}</small>
+            </div>
+          </div>
+          <div class="at-stats-chart-card__body">
+            <canvas id="dash-chart-daily" aria-label="Gráfica de líneas diarias"></canvas>
+          </div>
+        </article>
+      </div>
+    </section>`;
+  }
+
+  function dashReadStatsUiFromRoot(root) {
+    const fromEl = root?.querySelector("#dash-stats-from");
+    const toEl = root?.querySelector("#dash-stats-to");
+    const clientEl = root?.querySelector("#dash-stats-client");
+    const statusEl = root?.querySelector("#dash-stats-status");
+    const fromDate = String(fromEl?.value || "").trim();
+    const toDate = String(toEl?.value || "").trim();
+    if (fromDate && toDate) {
+      dashStatsUi.period = "custom";
+      dashStatsUi.fromDate = fromDate;
+      dashStatsUi.toDate = toDate;
+    }
+    dashStatsUi.clientFilter = String(clientEl?.value || "all");
+    dashStatsUi.statusFilter = String(statusEl?.value || "all");
+    return { ...dashStatsUi };
+  }
+
+  function dashRefreshStatsSection(root, user) {
+    if (!root || !user) return;
+    const studio = root.querySelector("#dash-stats-studio");
+    if (!studio) return;
+    dashDestroyStatsCharts();
+    const html = dashBuildCompanyStatsSection(user);
+    const tmp = document.createElement("div");
+    tmp.innerHTML = html;
+    const next = tmp.querySelector("#dash-stats-studio");
+    if (!next) return;
+    studio.replaceWith(next);
+    initDashboardMotion(root);
+    dashWireStatsCharts(root, user);
+  }
+
+  function dashWireStatsCharts(root, user) {
+    dashDestroyStatsCharts();
+    const DD = dashDomain();
+    const loadChart = typeof loadChartJsLib === "function" ? loadChartJsLib : null;
+    const chartColors = typeof reportsBiChartColors === "function" ? reportsBiChartColors() : null;
+    const chartTheme = typeof reportsBiChartTheme === "function" ? reportsBiChartTheme() : null;
+    if (!DD?.computeCompanyStatsSnapshot || !loadChart || !chartColors || !chartTheme) return;
+
+    const stats = DD.computeCompanyStatsSnapshot(user, dashStatsUi);
+    const { text, muted, grid, font, copTooltip } = chartTheme;
+    const c = chartColors;
+    const tooltipBg = c.dark ? "rgba(14, 22, 34, 0.96)" : "rgba(255, 255, 255, 0.98)";
+    const tooltipBorder = c.dark ? "rgba(131, 190, 233, 0.2)" : "rgba(184, 212, 235, 0.8)";
+    const baseOpts = {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 520, easing: "easeOutQuart" },
+      plugins: {
+        legend: { labels: { color: text, font, boxWidth: 12, padding: 14 } },
+        tooltip: {
+          ...copTooltip,
+          backgroundColor: tooltipBg,
+          titleColor: text,
+          bodyColor: muted,
+          borderColor: tooltipBorder,
+          borderWidth: 1,
+          padding: 10
+        }
+      }
+    };
+    const scaleOpts = {
+      x: { ticks: { color: muted, font, maxRotation: 45, minRotation: 0 }, grid: { color: grid } },
+      y: { ticks: { color: muted, font }, grid: { color: grid } }
+    };
+
+    loadChart().then((Chart) => {
+      if (String(state.currentView || "") !== "dashboard") return;
+      const studio = root?.querySelector("#dash-stats-studio");
+      if (!studio) return;
+
+      const budgetFill = studio.querySelector("#dash-stats-budget-fill");
+      if (budgetFill) {
+        const pct = Number(budgetFill.dataset.atWidth) || 0;
+        requestAnimationFrame(() => { budgetFill.style.width = `${pct}%`; });
+      }
+
+      const clientCanvas = studio.querySelector("#dash-chart-clients");
+      if (clientCanvas && (stats.clientChart || []).length) {
+        const palette = c.palette || [c.primaryDeep, c.primary, c.success, c.warning, c.neutral];
+        dashStatsChartInstances.push(new Chart(clientCanvas, {
+          type: "bar",
+          data: {
+            labels: stats.clientChart.map((x) => (x.label.length > 18 ? `${x.label.slice(0, 16)}…` : x.label)),
+            datasets: [{
+              label: "Recaudo COP",
+              data: stats.clientChart.map((x) => x.value),
+              backgroundColor: stats.clientChart.map((_x, i) => palette[i % palette.length]),
+              borderRadius: 8,
+              borderSkipped: false
+            }]
+          },
+          options: {
+            ...baseOpts,
+            plugins: { ...baseOpts.plugins, legend: { display: false } },
+            scales: scaleOpts
+          }
+        }));
+      }
+
+      const dailyCanvas = studio.querySelector("#dash-chart-daily");
+      if (dailyCanvas) {
+        const clientSeries = (stats.clientDailySeries || []).filter((s) => s.data.some((v) => v > 0));
+        const palette = c.palette || [c.primaryDeep, c.primary, c.success, c.warning, c.neutral];
+        const datasets = clientSeries.length
+          ? clientSeries.map((s, i) => ({
+              label: s.label.length > 22 ? `${s.label.slice(0, 20)}…` : s.label,
+              data: s.data,
+              borderColor: palette[i % palette.length],
+              backgroundColor: "transparent",
+              tension: 0.38,
+              pointRadius: 4,
+              pointHoverRadius: 6,
+              borderWidth: 2.5
+            }))
+          : [
+              {
+                label: "Recaudo",
+                data: stats.dailyRevenueSeries,
+                borderColor: c.primaryDeep,
+                backgroundColor: c.fillPrimary,
+                fill: true,
+                tension: 0.38,
+                pointRadius: 4,
+                yAxisID: "y"
+              },
+              {
+                label: "Combustible",
+                data: stats.dailyFuelSeries,
+                borderColor: c.warning,
+                backgroundColor: "transparent",
+                tension: 0.38,
+                pointRadius: 3,
+                yAxisID: "y"
+              },
+              {
+                label: "Viajes",
+                data: stats.dailyTripsSeries,
+                borderColor: c.success,
+                backgroundColor: "transparent",
+                tension: 0.38,
+                pointRadius: 3,
+                yAxisID: "y1"
+              }
+            ];
+
+        dashStatsChartInstances.push(new Chart(dailyCanvas, {
+          type: "line",
+          data: { labels: stats.dayLabels, datasets },
+          options: {
+            ...baseOpts,
+            interaction: { mode: "index", intersect: false },
+            scales: clientSeries.length
+              ? scaleOpts
+              : {
+                  x: scaleOpts.x,
+                  y: { ...scaleOpts.y, position: "left" },
+                  y1: {
+                    position: "right",
+                    grid: { drawOnChartArea: false },
+                    ticks: { color: c.success, font }
+                  }
+                }
+          }
+        }));
+      }
+    }).catch(() => { /* Chart.js opcional */ });
+  }
+
+  /* ─────────────────────────────────────────────────────────────
      VISTA PRINCIPAL
   ───────────────────────────────────────────────────────────── */
 
@@ -2255,7 +2832,7 @@ body[data-theme="dark"] .dashboard-studio .at-tab.is-active em { background: rgb
 
     /* ── Vista cliente ── */
     if (isPortalClientUser(user)) {
-      return `<section class="dashboard-studio dashboard-studio--client">${scopeBar}${dashBuildAmbient()}${hero}${dashBuildClientPanel(list, user, snap)}</section>`;
+      return `<section class="dashboard-studio dashboard-studio--client">${scopeBar}${dashBuildAmbient()}${hero}${dashBuildCompanyStatsSection(user)}${dashBuildClientPanel(list, user, snap)}</section>`;
     }
 
     /* ── Vista operacional ── */
@@ -2292,6 +2869,7 @@ body[data-theme="dark"] .dashboard-studio .at-tab.is-active em { background: rgb
       ${dashBuildAmbient()}
       ${hero}
       ${dashBuildKpiStrip(snap, exec)}
+      ${dashBuildCompanyStatsSection(user)}
       <div class="at-command">
         ${dashBuildLiveMap(mapMarkers)}
         <div class="nx-alerts-stack">
@@ -2470,6 +3048,7 @@ body[data-theme="dark"] .dashboard-studio .at-tab.is-active em { background: rgb
     if (!root) return;
 
     initDashboardMotion(root);
+    dashWireStatsCharts(root, currentUser());
 
     const search   = root.querySelector("#dash-search");
     const cards    = [...root.querySelectorAll(".at-vehicle")];
@@ -2548,10 +3127,34 @@ body[data-theme="dark"] .dashboard-studio .at-tab.is-active em { background: rgb
 
     applyFilter();
 
+    root.addEventListener("change", (event) => {
+      const id = event.target?.id || "";
+      if (["dash-stats-from", "dash-stats-to", "dash-stats-client", "dash-stats-status"].includes(id)) {
+        dashReadStatsUiFromRoot(root);
+        dashRefreshStatsSection(root, currentUser());
+      }
+    });
+
     root.addEventListener("click", (event) => {
       const btn = event.target.closest("[data-action]");
       if (!btn) return;
       const action = btn.dataset.action;
+      if (action === "dash-stats-period") {
+        dashStatsUi.period = String(btn.dataset.period || "7d");
+        dashStatsUi.fromDate = "";
+        dashStatsUi.toDate = "";
+        dashRefreshStatsSection(root, currentUser());
+        return;
+      }
+      if (action === "dash-stats-clear") {
+        dashStatsUi.period = "7d";
+        dashStatsUi.fromDate = "";
+        dashStatsUi.toDate = "";
+        dashStatsUi.clientFilter = "all";
+        dashStatsUi.statusFilter = "all";
+        dashRefreshStatsSection(root, currentUser());
+        return;
+      }
       if (action === "dash-nav" || action === "dash-attention-nav") {
         const target = String(btn.dataset.targetView || "").trim();
         if (target) setView(target);
@@ -2575,4 +3178,7 @@ body[data-theme="dark"] .dashboard-studio .at-tab.is-active em { background: rgb
 
   window.__portalModuleAfterRender = window.__portalModuleAfterRender || {};
   window.__portalModuleAfterRender.dashboard = bindDashboardControls;
+
+  window.__portalModuleBeforeLeave = window.__portalModuleBeforeLeave || {};
+  window.__portalModuleBeforeLeave.dashboard = dashDestroyStatsCharts;
 })();

@@ -7,6 +7,7 @@
   window.AppModules.rrhh = {
     payrollHtml: (...args) => window.AppLegacyViews?.payrollHtml?.(...args) || "",
     hiringHtml: (...args) => window.AppLegacyViews?.hiringHtml?.(...args) || "",
-    laborComplianceHtml: (...args) => window.AppLegacyViews?.laborComplianceHtml?.(...args) || ""
+    laborComplianceHtml: (...args) => window.AppLegacyViews?.laborComplianceHtml?.(...args) || "",
+    documentManagementHtml: (...args) => window.AppLegacyViews?.documentManagementHtml?.(...args) || ""
   };
 })();

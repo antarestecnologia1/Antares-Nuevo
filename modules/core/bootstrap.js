@@ -514,6 +514,7 @@ export function __applyPortalBootstrapPayloadInner(p) {
     ["contracts", KEYS.contracts],
     ["hrAbsences", KEYS.hrAbsences],
     ["sstCompliance", KEYS.sstCompliance],
+    ["employeeDocuments", KEYS.employeeDocuments],
     ["tripRouteRates", KEYS.tripRouteRates],
     ["approvals", KEYS.approvals]
   ];
@@ -525,6 +526,7 @@ export function __applyPortalBootstrapPayloadInner(p) {
     "notifications",
     "payrollEmployees",
     "sstCompliance",
+    "employeeDocuments",
     "candidates",
     "positions"
   ]);
@@ -619,6 +621,15 @@ export function __applyPortalBootstrapPayloadInner(p) {
     if (prop === "sstCompliance") {
       const raw = Array.isArray(p.sstCompliance) ? p.sstCompliance : [];
       write(KEYS.sstCompliance, raw.map(hooks.normalizeSstComplianceRow));
+      continue;
+    }
+    if (prop === "employeeDocuments") {
+      const raw = Array.isArray(p.employeeDocuments) ? p.employeeDocuments : [];
+      const norm =
+        typeof hooks.normalizeEmployeeDocumentRow === "function"
+          ? hooks.normalizeEmployeeDocumentRow
+          : (row) => row;
+      write(KEYS.employeeDocuments, raw.map(norm));
       continue;
     }
     if (prop === "candidates") {

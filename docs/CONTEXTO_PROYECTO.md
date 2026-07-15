@@ -195,9 +195,13 @@ Carpeta `BD/email_templates/` (recuperación de contraseña, invitaciones). Asun
 |----------|-----|
 | `CF_R2_ACCOUNT_ID` | Cuenta |
 | `CF_R2_ACCESS_KEY_ID` / `CF_R2_SECRET_ACCESS_KEY` | Credenciales |
-| `CF_R2_UPLOADS_BUCKET` | CV, avatares |
+| `CF_R2_UPLOADS_BUCKET` | CV, avatares, **expediente documental RRHH** (`documentos_rrhh/…`) |
 | `CF_R2_TEMPLATES_BUCKET` | Plantillas Word contratos |
-| `CF_R2_PUBLIC_BASE` | URL pública opcional |
+| `CF_R2_PUBLIC_BASE` | URL pública opcional (no usar para cédulas; descarga vía URL prefirmada) |
+
+**Gestión documental:** los archivos van a R2 en el bucket `CF_R2_UPLOADS_BUCKET`, prefijo `documentos_rrhh/{empleado_id}/{tipo}/`. Metadatos en Postgres (`documentos_empleado`). No requiere Supabase Storage.
+
+Validación: `node apps/api/scripts/validate-r2.mjs`
 
 Script: `npm run contracts:upload-r2` (sube desde `documentacion/`).
 

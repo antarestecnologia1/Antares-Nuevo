@@ -228,6 +228,7 @@ const ALL_PORTAL_PERMISSIONS: string[] = [
   "payroll_manage",
   "hiring_manage",
   "sst_compliance",
+  "document_manage",
   "users_manage",
   "authorizations_manage",
   "authorizations_transport",
@@ -251,12 +252,13 @@ function defaultPermissionsForApprovedRole(rol: string): string[] {
       "payroll_manage",
       "hiring_manage",
       "sst_compliance",
+      "document_manage",
       "profile_view",
       "notifications_view"
     ];
   }
   if (r === "auxiliar_administrativo") {
-    return ["dashboard_view", "payroll_manage", "profile_view", "notifications_view"];
+    return ["dashboard_view", "payroll_manage", "document_manage", "profile_view", "notifications_view"];
   }
   if (r === "logistica") {
     return [
@@ -734,6 +736,7 @@ export class PortalService implements OnModuleInit {
     await this.ensurePortalEntityAuditSchema();
     await this.ensureConductoresSchema();
     await this.ensureRegistrosFlotaSchema();
+    await this.ensureDocumentosEmpleadoSchema();
     await this.pruneTransportDeletionAudits().catch((err) => {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.warn(`pruneTransportDeletionAudits startup: ${sanitizeLogText(msg)}`);
@@ -1518,6 +1521,45 @@ export class PortalService implements OnModuleInit {
   }
 
   /** Bitácora append-only del portal (Historial · trazabilidad a largo plazo). */
+  /** Expediente documental RRHH (38_documentos_empleado.sql). */
+  private async ensureDocumentosEmpleadoSchema() {
+    if (!(await this.tableExists("empleados_nomina"))) return;
+    try {
+      await this.pool.query(`
+        CREATE TABLE IF NOT EXISTS documentos_empleado (
+          id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          id_empleado             UUID NOT NULL REFERENCES empleados_nomina (id) ON DELETE CASCADE,
+          nombre_empleado         VARCHAR(255) NOT NULL,
+          tipo_documento          VARCHAR(64) NOT NULL,
+          nombre_archivo          VARCHAR(512) NOT NULL,
+          mime_type               VARCHAR(128) NOT NULL DEFAULT 'application/octet-stream',
+          tamano_bytes            BIGINT NOT NULL DEFAULT 0,
+          storage_key             VARCHAR(1024) NOT NULL,
+          fecha_emision           DATE,
+          fecha_vencimiento       DATE,
+          estado                  VARCHAR(64) NOT NULL DEFAULT 'Vigente',
+          codigo_documental       VARCHAR(64),
+          observaciones           TEXT,
+          subido_por              VARCHAR(255) NOT NULL DEFAULT 'Sistema',
+          fecha_creacion          TIMESTAMPTZ NOT NULL DEFAULT now(),
+          fecha_actualizacion     TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `);
+      await this.pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_documentos_empleado_empleado ON documentos_empleado (id_empleado)`
+      );
+      await this.pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_documentos_empleado_vencimiento ON documentos_empleado (fecha_vencimiento)`
+      );
+      await this.pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_documentos_empleado_tipo ON documentos_empleado (tipo_documento)`
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`ensureDocumentosEmpleadoSchema: ${sanitizeLogText(msg)}`);
+    }
+  }
+
   private async ensurePortalAuditEventsSchema() {
     try {
       await this.pool.query(`
@@ -1686,6 +1728,9 @@ export class PortalService implements OnModuleInit {
     sst: ["sst_compliance"],
     sst_compliance: ["sst_compliance"],
     cumplimiento_laboral: ["sst_compliance"],
+    document_management: ["document_manage"],
+    employee_documents: ["document_manage"],
+    documents: ["document_manage"],
     contact_b2b: ["contact_b2b_view"],
     contacts: ["contact_b2b_view"],
     b2b: ["contact_b2b_view"],
@@ -1764,6 +1809,7 @@ export class PortalService implements OnModuleInit {
       this.hasPortalPermission(permissionSet, "payroll_manage") ||
       this.hasPortalPermission(permissionSet, "hiring_manage") ||
       this.hasPortalPermission(permissionSet, "sst_compliance") ||
+      this.hasPortalPermission(permissionSet, "document_manage") ||
       this.hasPortalPermission(permissionSet, "contact_b2b_view");
     return !broad;
   }
@@ -3439,9 +3485,10 @@ export class PortalService implements OnModuleInit {
     const canHiring = admin || this.hasPortalPermission(permissionSet, "hiring_manage");
     const canLoadPositionsCatalog = this.canViewPositionsCatalog(role, permissionSet);
     const canSst = admin || this.hasPortalPermission(permissionSet, "sst_compliance");
+    const canDocuments = admin || this.hasPortalPermission(permissionSet, "document_manage");
     const fullUserDirectoryAccess = admin || canUsersManage;
     const canSeeAllCompanies =
-      admin || canUsersManage || canTransportData || canPayroll || canHiring || canSst || canViewContactB2b;
+      admin || canUsersManage || canTransportData || canPayroll || canHiring || canSst || canDocuments || canViewContactB2b;
     return {
       admin,
       empresaId,
@@ -3458,6 +3505,7 @@ export class PortalService implements OnModuleInit {
       canHiring,
       canLoadPositionsCatalog,
       canSst,
+      canDocuments,
       fullUserDirectoryAccess,
       canSeeAllCompanies
     };
@@ -3495,6 +3543,7 @@ export class PortalService implements OnModuleInit {
       canHiring,
       canLoadPositionsCatalog,
       canSst,
+      canDocuments,
       fullUserDirectoryAccess,
       canSeeAllCompanies
     } = await this.resolveBootstrapActorContext(userId, role);
@@ -3523,7 +3572,8 @@ export class PortalService implements OnModuleInit {
       canTransportHistory ? this.loadFuelLogs() : Promise.resolve([]),
       canTransportHistory ? this.loadVehicleTechnicalLogs() : Promise.resolve([]),
       canPayroll ? this.loadHrAbsences() : Promise.resolve([]),
-      canSst ? this.loadSstCompliance() : Promise.resolve([])
+      canSst ? this.loadSstCompliance() : Promise.resolve([]),
+      canDocuments ? this.loadEmployeeDocuments() : Promise.resolve([])
     ]);
 
     const dependentPromise = Promise.all([
@@ -3568,7 +3618,8 @@ export class PortalService implements OnModuleInit {
       fuelLogs,
       vehicleTechnicalLogs,
       hrAbsences,
-      sstCompliance
+      sstCompliance,
+      employeeDocuments
     ] = independent;
 
     const [usersRaw, requests, payrollEmployees, approvals, deletedTransportTripLogs, deletedTransportRequestLogs, portalAuditEvents] =
@@ -3606,6 +3657,7 @@ export class PortalService implements OnModuleInit {
       contracts,
       hrAbsences,
       sstCompliance,
+      employeeDocuments,
       tripRouteRates,
       approvals,
       deletedTransportTripLogs,
@@ -4780,6 +4832,15 @@ export class PortalService implements OnModuleInit {
       case "sstCompliance":
         if (!can("sst_compliance")) throw new ForbiddenException();
         await this.syncSst(
+          c,
+          data,
+          deletedIds,
+          await this.resolvePayrollWriteCompanyScope(admin, userId)
+        );
+        return;
+      case "employeeDocuments":
+        if (!can("document_manage")) throw new ForbiddenException();
+        await this.syncEmployeeDocuments(
           c,
           data,
           deletedIds,
@@ -7190,6 +7251,32 @@ export class PortalService implements OnModuleInit {
     }));
   }
 
+  private async loadEmployeeDocuments() {
+    if (!(await this.tableExists("documentos_empleado"))) return [];
+    const r = await this.pool.query(
+      `SELECT * FROM documentos_empleado ORDER BY fecha_creacion DESC`
+    );
+    return r.rows.map((row) => ({
+      id: row.id,
+      employeeId: row.id_empleado,
+      employeeName: row.nombre_empleado,
+      documentType: row.tipo_documento,
+      fileName: row.nombre_archivo,
+      mimeType: row.mime_type,
+      sizeBytes: Number(row.tamano_bytes) || 0,
+      storageKey: row.storage_key,
+      issueDate: row.fecha_emision ?? null,
+      dueDate: row.fecha_vencimiento ?? null,
+      expiryDate: row.fecha_vencimiento ?? null,
+      status: row.estado,
+      documentCode: row.codigo_documento,
+      notes: row.observaciones,
+      uploadedBy: row.subido_por,
+      createdAt: row.fecha_creacion ? new Date(row.fecha_creacion).toISOString() : new Date().toISOString(),
+      updatedAt: row.fecha_actualizacion ? new Date(row.fecha_actualizacion).toISOString() : new Date().toISOString()
+    }));
+  }
+
   private async normalizeApprovalPayloadForStorage(
     typeRaw: unknown,
     payload: unknown
@@ -7434,7 +7521,8 @@ export class PortalService implements OnModuleInit {
       payrollEmployees: "empleados_nomina",
       payrollRuns: "liquidaciones_nomina",
       hrAbsences: "ausencias_laborales",
-      sstCompliance: "registros_cumplimiento_sst"
+      sstCompliance: "registros_cumplimiento_sst",
+      employeeDocuments: "documentos_empleado"
     };
     return map[key] ?? null;
   }
@@ -12217,6 +12305,73 @@ export class PortalService implements OnModuleInit {
           nuN(row.documentCode),
           nuN(row.notes),
           nu(row.createdBy || "Portal")
+        ]
+      );
+    }
+  }
+
+  private async syncEmployeeDocuments(
+    c: PoolClient,
+    data: unknown,
+    deletedIds?: string[],
+    companyScope?: string | null
+  ) {
+    if (!Array.isArray(data)) throw new ForbiddenException();
+    if (companyScope) {
+      await this.assertPayrollEmployeesInCompany(
+        c,
+        data.map((raw) => (raw as { employeeId?: unknown })?.employeeId),
+        companyScope
+      );
+    }
+    await this.syncListWithPruning(
+      c,
+      "documentos_empleado",
+      data,
+      deletedIds,
+      companyScope ? { companyId: companyScope, via: "id_empleado" } : undefined
+    );
+    for (const row of data) {
+      if (!row?.id || !row.employeeId || !row.storageKey) continue;
+      if (this.skipUnlessPersistUuid("syncEmployeeDocuments", row.id)) continue;
+      if (this.skipUnlessPersistUuid("syncEmployeeDocuments.employeeId", row.employeeId)) continue;
+      await c.query(
+        `INSERT INTO documentos_empleado (
+          id, id_empleado, nombre_empleado, tipo_documento, nombre_archivo, mime_type, tamano_bytes,
+          storage_key, fecha_emision, fecha_vencimiento, estado, codigo_documental, observaciones, subido_por
+        ) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9::date, $10::date, $11, $12, $13, $14)
+        ON CONFLICT (id) DO UPDATE SET
+          id_empleado = EXCLUDED.id_empleado,
+          nombre_empleado = EXCLUDED.nombre_empleado,
+          tipo_documento = EXCLUDED.tipo_documento,
+          nombre_archivo = EXCLUDED.nombre_archivo,
+          mime_type = EXCLUDED.mime_type,
+          tamano_bytes = EXCLUDED.tamano_bytes,
+          storage_key = EXCLUDED.storage_key,
+          fecha_emision = EXCLUDED.fecha_emision,
+          fecha_vencimiento = EXCLUDED.fecha_vencimiento,
+          estado = EXCLUDED.estado,
+          codigo_documental = EXCLUDED.codigo_documental,
+          observaciones = EXCLUDED.observaciones,
+          subido_por = EXCLUDED.subido_por,
+          fecha_actualizacion = now()`,
+        [
+          row.id,
+          row.employeeId,
+          nu(row.employeeName),
+          nu(row.documentType || "otro"),
+          nu(row.fileName),
+          nu(row.mimeType || "application/octet-stream"),
+          Number(row.sizeBytes) || 0,
+          nu(row.storageKey),
+          (row as { issueDate?: unknown }).issueDate ?? null,
+          (row as { dueDate?: unknown; expiryDate?: unknown }).dueDate ??
+            (row as { expiryDate?: unknown }).expiryDate ??
+            null,
+          nu(row.status || "Vigente"),
+          nuN(row.documentCode),
+          nuN(row.notes),
+          nu(row.uploadedBy || "Portal")
         ]
       );
     }

@@ -131,6 +131,7 @@ export const KEYS = {
   contracts: "antares_contracts_v2",
   hrAbsences: "antares_hr_absences_v2",
   sstCompliance: "antares_sst_compliance_v2",
+  employeeDocuments: "antares_employee_documents_v1",
   tripRouteRates: "antares_trip_route_rates_v2",
   approvals: "antares_approvals_v2",
   deletedTransportTripLogs: "antares_deleted_transport_trip_logs_v1",
@@ -199,6 +200,7 @@ export const PERMISSIONS = {
   PAYROLL_MANAGE: "payroll_manage",
   HIRING_MANAGE: "hiring_manage",
   SST_COMPLIANCE: "sst_compliance",
+  DOCUMENT_MANAGE: "document_manage",
   USERS_MANAGE: "users_manage",
   AUTHORIZATIONS_MANAGE: "authorizations_manage",
   AUTHORIZATIONS_TRANSPORT: "authorizations_transport",
@@ -311,6 +313,7 @@ export const PERMISSION_META = {
   [PERMISSIONS.PAYROLL_MANAGE]: { title: "Gestión humana", desc: "Gestionar empleados y liquidaciones." },
   [PERMISSIONS.HIRING_MANAGE]: { title: "Contratacion", desc: "Gestionar vacantes, candidatos y contratos." },
   [PERMISSIONS.SST_COMPLIANCE]: { title: "Cumplimiento laboral y SST", desc: "Controlar seguridad social, vencimientos y auditoria documental." },
+  [PERMISSIONS.DOCUMENT_MANAGE]: { title: "Gestión documental", desc: "Expediente digital por colaborador: cédulas, contratos, certificados y archivos RRHH." },
   [PERMISSIONS.USERS_MANAGE]: { title: "Usuarios y permisos", desc: "Crear usuarios y administrar accesos." },
   [PERMISSIONS.AUTHORIZATIONS_MANAGE]: {
     title: "Autorizaciones (todas las bandejas)",
@@ -358,6 +361,7 @@ export const HR_WORKSPACE_STORAGE = {
   payroll: "antares_hr_payroll_workspace_v1",
   hiring: "antares_hr_hiring_workspace_v1",
   sst: "antares_sst_workspace_v1",
+  documents: "antares_documents_workspace_v1",
   requests: "antares_requests_workspace_v1",
   transportTrips: "antares_transport_trips_workspace_v1",
   transportVehicles: "antares_transport_vehicles_workspace_v1"
@@ -371,6 +375,7 @@ export const CLIENT_DATA_SCOPE = {
 export const HR_VALID_PAYROLL_WS = new Set(["operate", "data"]);
 export const HR_VALID_HIRING_WS = new Set(["operate", "data"]);
 export const HR_VALID_SST_WS = new Set(["operate", "data"]);
+export const HR_VALID_DOCUMENTS_WS = new Set(["operate", "data"]);
 export const HR_VALID_REQUESTS_WS = new Set(["operate", "data"]);
 export const HR_VALID_TRANSPORT_TRIPS_WS = new Set(["operate", "data"]);
 export const HR_VALID_TRANSPORT_VEHICLES_WS = new Set(["operate", "data"]);
@@ -460,6 +465,7 @@ export const PERMISSION_UI_GROUPS = [
       PERMISSIONS.PAYROLL_MANAGE,
       PERMISSIONS.HIRING_MANAGE,
       PERMISSIONS.SST_COMPLIANCE,
+      PERMISSIONS.DOCUMENT_MANAGE,
       PERMISSIONS.USERS_MANAGE,
       PERMISSIONS.CONTACT_B2B_VIEW
     ]

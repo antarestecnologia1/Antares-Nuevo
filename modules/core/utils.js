@@ -8,6 +8,7 @@ import {
   HIRING_OPERATE_SECTION_PANEL,
   HR_VALID_HIRING_WS,
   HR_VALID_PAYROLL_WS,
+  HR_VALID_DOCUMENTS_WS,
   HR_VALID_REQUESTS_WS,
   HR_VALID_SST_WS,
   PAYROLL_OPERATE_CREATE_PANEL_IDS,
@@ -377,7 +378,21 @@ export function normalizeHrWorkspace(moduleId, workspace) {
   }
   if (moduleId === "requests") return HR_VALID_REQUESTS_WS.has(ws) ? ws : "operate";
   if (moduleId === "sst") return HR_VALID_SST_WS.has(ws) ? ws : "operate";
+  if (moduleId === "documents") return HR_VALID_DOCUMENTS_WS.has(ws) ? ws : "operate";
   return ws;
+}
+
+export function normalizeDocumentsDataSection(section) {
+  const s = String(section || "").trim().toLowerCase();
+  if (s === "expired" || s === "vencidos") return "expired";
+  if (s === "employees" || s === "expedientes") return "employees";
+  return "all";
+}
+
+export function normalizeDocumentsOperateSection(section) {
+  const s = String(section || "").trim().toLowerCase();
+  if (s === "dossier" || s === "expediente") return "dossier";
+  return "upload";
 }
 
 export function normalizeSstDataSection(section) {

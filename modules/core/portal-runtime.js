@@ -10988,6 +10988,7 @@ if (typeof window.setBootstrapCallbacks === "function") {
       sanitizePayrollEmployeeFieldsForPersist,
       normalizePayrollEmployeeRowDates,
       normalizeSstComplianceRow: window.normalizeSstComplianceRow,
+      normalizeEmployeeDocumentRow: window.normalizeEmployeeDocumentRow,
       dispatchPositionsCatalogUpdated
     }
   });

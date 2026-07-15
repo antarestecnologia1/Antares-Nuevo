@@ -8,7 +8,7 @@ import {
   isViewAllowedForUser
 } from "../core/auth.js";
 import { isPortalClientUser } from "../core/client-data-scope-ui.js";
-import { colombiaNowIso, colombiaTodayIsoDate } from "../core/utils.js";
+import { colombiaNowIso, colombiaTodayIsoDate, getColombiaDateParts } from "../core/utils.js";
 import { requestPickupIsoDate, tripRequestStatusIsOperational } from "./viajes.domain.js";
 import { filterPendingApprovalsForActor, readApprovalsSync, readPendingPortalRegistrationsSync } from "./authorizations.domain.js";
 import {
@@ -638,4 +638,234 @@ export function computeDashboardMapMarkers(groupList = []) {
     });
   });
   return markers;
+}
+
+function parseNum(value) {
+  if (typeof globalThis.parseNum === "function") return globalThis.parseNum(value);
+  const n = Number(String(value ?? "").replace(/[^\d.-]/g, ""));
+  return Number.isFinite(n) ? n : 0;
+}
+
+function deriveRequestValue(request) {
+  if (typeof globalThis.deriveRequestOperationalValue === "function") {
+    return globalThis.deriveRequestOperationalValue(request);
+  }
+  const invoiceTotal = parseNum(request?.trip?.invoice?.total || 0);
+  if (invoiceTotal > 0) return invoiceTotal;
+  return parseNum(request?.insuredValue || request?.tripValue || 0) + parseNum(request?.standbyChargeTotal || 0);
+}
+
+function requestActivityIsoDate(request) {
+  const raw = request?.trip?.assignedAt || request?.approvedAt || request?.pickupAt || request?.createdAt || "";
+  const ts = new Date(raw).getTime();
+  if (!Number.isFinite(ts)) return "";
+  const p = getColombiaDateParts(new Date(ts));
+  return `${p.year}-${String(p.month).padStart(2, "0")}-${String(p.day).padStart(2, "0")}`;
+}
+
+function addDaysToIsoDate(isoDate, deltaDays) {
+  const m = String(isoDate || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return isoDate;
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  d.setUTCDate(d.getUTCDate() + deltaDays);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+}
+
+function enumerateIsoDates(fromIso, toIso) {
+  const out = [];
+  if (!fromIso || !toIso || fromIso > toIso) return out;
+  let cursor = fromIso;
+  while (cursor <= toIso) {
+    out.push(cursor);
+    cursor = addDaysToIsoDate(cursor, 1);
+  }
+  return out;
+}
+
+function resolveCompanyStatsDateRange(opts = {}) {
+  const today = colombiaTodayIsoDate();
+  const period = String(opts.period || "7d").trim();
+  if (period === "custom") {
+    const fromDate = String(opts.fromDate || "").trim();
+    const toDate = String(opts.toDate || today).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(fromDate) && /^\d{4}-\d{2}-\d{2}$/.test(toDate)) {
+      return { fromDate: fromDate <= toDate ? fromDate : toDate, toDate: fromDate <= toDate ? toDate : fromDate, period };
+    }
+  }
+  const days = period === "1d" ? 0 : period === "3d" ? 2 : 6;
+  return { fromDate: addDaysToIsoDate(today, -days), toDate: today, period: period === "1d" ? "1d" : period === "3d" ? "3d" : "7d" };
+}
+
+function filterRequestsForCompanyStats(requests, range, opts = {}) {
+  const clientFilter = String(opts.clientFilter || "all").trim();
+  const statusFilter = String(opts.statusFilter || "all").trim();
+  return (Array.isArray(requests) ? requests : []).filter((r) => {
+    const day = requestActivityIsoDate(r);
+    if (!day || day < range.fromDate || day > range.toDate) return false;
+    if (clientFilter !== "all" && String(r.clientName || "").trim() !== clientFilter) return false;
+    if (statusFilter !== "all" && String(r.status || "") !== statusFilter) return false;
+    return true;
+  });
+}
+
+function readFuelLogsForStats() {
+  return read(KEYS.fuelLogs, []);
+}
+
+function readMaintLogsForStats() {
+  return read(KEYS.vehicleTechnicalLogs, []);
+}
+
+function logIsoDate(log) {
+  const raw = log?.date || log?.createdAt || "";
+  const ts = new Date(raw).getTime();
+  if (!Number.isFinite(ts)) return "";
+  const p = getColombiaDateParts(new Date(ts));
+  return `${p.year}-${String(p.month).padStart(2, "0")}-${String(p.day).padStart(2, "0")}`;
+}
+
+function humanStatsMonth(isoDate) {
+  const m = String(isoDate || "").match(/^(\d{4})-(\d{2})/);
+  if (!m) return "";
+  const names = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+  return `${names[Number(m[2]) - 1] || m[2]} ${m[1]}`;
+}
+
+function humanStatsDayLabel(isoDate) {
+  const m = String(isoDate || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return isoDate;
+  return `${m[2]}/${m[3]}`;
+}
+
+/** Snapshot analítico de la empresa para gráficas del dashboard. */
+export function computeCompanyStatsSnapshot(user, opts = {}) {
+  const range = resolveCompanyStatsDateRange(opts);
+  const allVisible = getVisibleRequests(user);
+  const requests = filterRequestsForCompanyStats(allVisible, range, opts);
+  const dayKeys = enumerateIsoDates(range.fromDate, range.toDate);
+
+  const revenue = requests.reduce((acc, r) => acc + deriveRequestValue(r), 0);
+  const trips = requests.filter((r) => r.trip).length;
+
+  const fuelLogs = readFuelLogsForStats().filter((log) => {
+    const day = logIsoDate(log);
+    return day && day >= range.fromDate && day <= range.toDate;
+  });
+  const maintLogs = readMaintLogsForStats().filter((log) => {
+    const day = logIsoDate(log);
+    return day && day >= range.fromDate && day <= range.toDate;
+  });
+  const fuelCost = fuelLogs.reduce((acc, log) => acc + parseNum(log.totalCost), 0);
+  const maintCost = maintLogs.reduce((acc, log) => acc + parseNum(log.cost), 0);
+  const totalCost = fuelCost + maintCost;
+
+  const prevFrom = addDaysToIsoDate(range.fromDate, -(dayKeys.length || 1));
+  const prevTo = addDaysToIsoDate(range.toDate, -(dayKeys.length || 1));
+  const prevRequests = filterRequestsForCompanyStats(allVisible, { fromDate: prevFrom, toDate: prevTo }, opts);
+  const prevRevenue = prevRequests.reduce((acc, r) => acc + deriveRequestValue(r), 0);
+
+  const dailyRevenue = {};
+  const dailyTrips = {};
+  const dailyFuel = {};
+  const dailyMaint = {};
+  dayKeys.forEach((d) => {
+    dailyRevenue[d] = 0;
+    dailyTrips[d] = 0;
+    dailyFuel[d] = 0;
+    dailyMaint[d] = 0;
+  });
+  requests.forEach((r) => {
+    const d = requestActivityIsoDate(r);
+    if (dailyRevenue[d] == null) return;
+    dailyRevenue[d] += deriveRequestValue(r);
+    if (r.trip) dailyTrips[d] += 1;
+  });
+  fuelLogs.forEach((log) => {
+    const d = logIsoDate(log);
+    if (dailyFuel[d] != null) dailyFuel[d] += parseNum(log.totalCost);
+  });
+  maintLogs.forEach((log) => {
+    const d = logIsoDate(log);
+    if (dailyMaint[d] != null) dailyMaint[d] += parseNum(log.cost);
+  });
+
+  const clientRevenue = {};
+  requests.forEach((r) => {
+    const c = String(r.clientName || "Sin cliente").trim();
+    clientRevenue[c] = (clientRevenue[c] || 0) + deriveRequestValue(r);
+  });
+  const clientChart = Object.entries(clientRevenue)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 9)
+    .map(([label, value]) => ({ label, value }));
+
+  const statusCounts = {};
+  requests.forEach((r) => {
+    const label = String(r.status || "sin_estado");
+    statusCounts[label] = (statusCounts[label] || 0) + 1;
+  });
+  const statusChart = Object.entries(statusCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([label, value]) => ({
+      label: typeof globalThis.prettyStatus === "function"
+        ? String(globalThis.prettyStatus(label, "request")).replace(/<[^>]+>/g, "")
+        : label,
+      value
+    }));
+
+  const topClients = clientChart.slice(0, 5).map((x) => x.label);
+  const clientDailySeries = topClients.map((client) => ({
+    label: client,
+    data: dayKeys.map((d) => {
+      return requests
+        .filter((r) => String(r.clientName || "Sin cliente").trim() === client && requestActivityIsoDate(r) === d)
+        .reduce((acc, r) => acc + deriveRequestValue(r), 0);
+    })
+  }));
+
+  const avgDaily90 = (() => {
+    const start90 = addDaysToIsoDate(colombiaTodayIsoDate(), -89);
+    const slice = filterRequestsForCompanyStats(allVisible, { fromDate: start90, toDate: colombiaTodayIsoDate() }, { clientFilter: "all", statusFilter: "all" });
+    const total = slice.reduce((acc, r) => acc + deriveRequestValue(r), 0);
+    return total / 90;
+  })();
+  const periodTarget = Math.max(Math.round(avgDaily90 * dayKeys.length), revenue, 1);
+  const budgetPct = Math.min(100, Math.round((revenue / periodTarget) * 100));
+
+  const clients = [...new Set(allVisible.map((r) => String(r.clientName || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es"));
+  const statuses = [...new Set(allVisible.map((r) => String(r.status || "").trim()).filter(Boolean))].sort();
+
+  const fmtCop = (n) => `$${parseNum(n).toLocaleString("es-CO")}`;
+  const trendPct = prevRevenue > 0 ? Math.round(((revenue - prevRevenue) / prevRevenue) * 100) : revenue > 0 ? 100 : 0;
+
+  return {
+    ...range,
+    monthLabel: humanStatsMonth(range.toDate),
+    generatedAt: colombiaNowIso(),
+    fmtCop,
+    revenue,
+    trips,
+    fuelCost,
+    maintCost,
+    totalCost,
+    periodTarget,
+    budgetPct,
+    trendPct,
+    dayKeys,
+    dayLabels: dayKeys.map(humanStatsDayLabel),
+    dailyRevenueSeries: dayKeys.map((d) => dailyRevenue[d] || 0),
+    dailyTripsSeries: dayKeys.map((d) => dailyTrips[d] || 0),
+    dailyFuelSeries: dayKeys.map((d) => dailyFuel[d] || 0),
+    dailyMaintSeries: dayKeys.map((d) => dailyMaint[d] || 0),
+    clientChart,
+    statusChart,
+    clientDailySeries,
+    clients,
+    statuses,
+    filters: {
+      clientFilter: String(opts.clientFilter || "all"),
+      statusFilter: String(opts.statusFilter || "all")
+    }
+  };
 }

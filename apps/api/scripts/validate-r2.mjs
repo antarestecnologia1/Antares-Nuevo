@@ -154,6 +154,25 @@ async function main() {
     console.log("  ℹ️  CF_R2_PUBLIC_BASE no configurado: avatares/CV usarán URLs prefirmadas.");
   }
 
+  if (uploadsProbe.ok) {
+    console.log("\n--- Expediente documental (Gestión documental) ---");
+    try {
+      const hrListed = await client.send(
+        new ListObjectsV2Command({
+          Bucket: uploadsBucket,
+          Prefix: "documentos_rrhh/",
+          MaxKeys: 5
+        })
+      );
+      const hrCount = Number(hrListed.KeyCount || hrListed.Contents?.length || 0);
+      console.log(`  ✅ Prefijo documentos_rrhh/ listo en bucket uploads (${hrCount} objeto(s) en muestra)`);
+      (hrListed.Contents || []).forEach((o) => console.log(`     · ${o.Key}`));
+      console.log("  ℹ️  Documentos sensibles: bucket privado + descarga vía POST /uploads/employee-document/download");
+    } catch (err) {
+      console.log(`  ⚠️  No se pudo listar documentos_rrhh/: ${String(err?.message || err)}`);
+    }
+  }
+
   const ok =
     uploadsProbe.ok && (!templatesBucket || (await probeBucket(client, templatesBucket, "t")).ok);
   console.log(`\n${ok ? "✅ R2 operativo para la API." : "❌ Revise errores arriba."}`);

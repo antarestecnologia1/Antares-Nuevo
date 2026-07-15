@@ -64,6 +64,7 @@
     antares_contracts_v2: "contracts",
     antares_hr_absences_v2: "hrAbsences",
     antares_sst_compliance_v2: "sstCompliance",
+    antares_employee_documents_v1: "employeeDocuments",
     antares_trip_route_rates_v2: "tripRouteRates",
     antares_approvals_v2: "approvals"
   };

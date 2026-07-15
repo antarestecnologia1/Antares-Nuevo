@@ -1,0 +1,336 @@
+/* Gestión documental — expediente RRHH */
+
+.documents-studio {
+  --doc-accent: #2563eb;
+  --doc-accent-soft: rgba(37, 99, 235, 0.12);
+  --doc-warn: #d97706;
+  --doc-expired: #dc2626;
+  --doc-ok: #059669;
+}
+
+.doc-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.doc-kpi {
+  border-radius: 14px;
+  padding: 0.85rem 1rem;
+  background: var(--surface-2, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--border-subtle, rgba(148, 163, 184, 0.18));
+}
+
+.doc-kpi__label {
+  display: block;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.75;
+  margin-bottom: 0.25rem;
+}
+
+.doc-kpi__value {
+  font-size: 1.45rem;
+  line-height: 1.1;
+}
+
+.doc-kpi--warn { border-color: rgba(217, 119, 6, 0.35); }
+.doc-kpi--expired { border-color: rgba(220, 38, 38, 0.35); }
+
+.doc-operate-nav,
+.doc-data-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.75rem 0 1rem;
+}
+
+.doc-operate-nav__btn,
+.doc-data-nav__btn {
+  border: 1px solid var(--border-subtle, rgba(148, 163, 184, 0.25));
+  background: transparent;
+  color: inherit;
+  border-radius: 999px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.doc-operate-nav__btn.is-active,
+.doc-data-nav__btn.is-active {
+  background: var(--doc-accent-soft);
+  border-color: rgba(37, 99, 235, 0.45);
+  color: var(--doc-accent, #2563eb);
+}
+
+.doc-upload-form__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.doc-upload-form__grid .field--full {
+  grid-column: 1 / -1;
+}
+
+.doc-dropzone {
+  border: 2px dashed rgba(148, 163, 184, 0.35);
+  border-radius: 16px;
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.doc-dropzone.is-dragover {
+  border-color: var(--doc-accent, #2563eb);
+  background: var(--doc-accent-soft);
+}
+
+.doc-dropzone__label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  text-align: center;
+  cursor: pointer;
+}
+
+.doc-dropzone__icon {
+  font-size: 1.5rem;
+  opacity: 0.85;
+}
+
+.doc-upload-form__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.doc-dossier-select {
+  max-width: 420px;
+  margin-bottom: 1rem;
+}
+
+.doc-dossier {
+  border: 1px solid var(--border-subtle, rgba(148, 163, 184, 0.18));
+  border-radius: 16px;
+  padding: 1rem 1.1rem;
+  background: var(--surface-2, rgba(255, 255, 255, 0.03));
+}
+
+.doc-dossier__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.doc-dossier__eyebrow {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.7;
+  margin: 0 0 0.2rem;
+}
+
+.doc-dossier__name {
+  margin: 0 0 0.25rem;
+  font-size: 1.25rem;
+}
+
+.doc-checklist {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem 1rem;
+}
+
+.doc-checklist__item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.82rem;
+  padding: 0.35rem 0;
+}
+
+.doc-checklist__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(148, 163, 184, 0.5);
+}
+
+.doc-checklist__item.is-ok .doc-checklist__dot {
+  background: var(--doc-ok);
+}
+
+.doc-checklist__item.is-missing .doc-checklist__label {
+  opacity: 0.75;
+}
+
+.doc-checklist__status--warn { color: var(--doc-warn); font-size: 0.75rem; }
+.doc-checklist__status--expired { color: var(--doc-expired); font-size: 0.75rem; }
+
+.doc-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0.75rem;
+}
+
+.doc-card {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.65rem;
+  align-items: start;
+  padding: 0.75rem;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle, rgba(148, 163, 184, 0.18));
+  background: var(--surface-1, rgba(0, 0, 0, 0.15));
+}
+
+.doc-card__icon {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-size: 0.65rem;
+  font-weight: 700;
+  background: var(--doc-accent-soft);
+  color: var(--doc-accent);
+}
+
+.doc-card__title {
+  margin: 0 0 0.15rem;
+  font-size: 0.92rem;
+}
+
+.doc-card__file {
+  margin: 0 0 0.35rem;
+  font-size: 0.78rem;
+  word-break: break-word;
+}
+
+.doc-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.6rem;
+  align-items: center;
+  font-size: 0.75rem;
+}
+
+.doc-card__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.doc-status {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.12rem 0.55rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.doc-status--ok {
+  background: rgba(5, 150, 105, 0.15);
+  color: var(--doc-ok);
+}
+
+.doc-status--warn {
+  background: rgba(217, 119, 6, 0.15);
+  color: var(--doc-warn);
+}
+
+.doc-status--expired {
+  background: rgba(220, 38, 38, 0.15);
+  color: var(--doc-expired);
+}
+
+.doc-file-chip {
+  display: inline-block;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+.doc-table-actions {
+  white-space: nowrap;
+  display: flex;
+  gap: 0.35rem;
+}
+
+.doc-data-toolbar {
+  margin-bottom: 0.75rem;
+}
+
+.doc-employee-group {
+  border: 1px solid var(--border-subtle, rgba(148, 163, 184, 0.18));
+  border-radius: 12px;
+  padding: 0.65rem 0.85rem;
+  margin-bottom: 0.65rem;
+}
+
+.doc-employee-group summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.doc-employee-group summary::-webkit-details-marker {
+  display: none;
+}
+
+.doc-empty {
+  padding: 2rem 1rem;
+  text-align: center;
+}
+
+.field.is-required > span::after,
+[data-doc-due-wrap].is-required > span::after {
+  content: " *";
+  color: var(--doc-expired);
+}
+
+@media (max-width: 900px) {
+  .doc-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .doc-upload-form__grid,
+  .doc-checklist {
+    grid-template-columns: 1fr;
+  }
+
+  .doc-dossier__head {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 560px) {
+  .doc-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .doc-card {
+    grid-template-columns: 1fr;
+  }
+
+  .doc-card__actions {
+    flex-direction: row;
+  }
+}

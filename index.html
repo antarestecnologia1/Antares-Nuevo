@@ -52,6 +52,7 @@
     <link rel="stylesheet" href="./styles/payroll-module.css?v=20260626-emp-wizard-polish" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/hiring-module.css?v=20260626-cards-flex-fill" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/sst-module.css?v=20260714-sst-operate-ui" media="print" onload="this.onload=null;this.media='all'" />
+    <link rel="stylesheet" href="./styles/gestion-documental.css?v=20260715-docs" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/b2b-module.css?v=20260626-cards-flex-fill" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/admin-users-module.css?v=20260626-cards-flex-fill" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/authorizations-module.css?v=20260611-portal-modules" media="print" onload="this.onload=null;this.media='all'" />
@@ -79,6 +80,7 @@
       <link rel="stylesheet" href="./styles/payroll-module.css?v=20260626-emp-wizard-polish" />
       <link rel="stylesheet" href="./styles/hiring-module.css?v=20260626-cards-flex-fill" />
       <link rel="stylesheet" href="./styles/sst-module.css?v=20260714-sst-operate-ui" />
+      <link rel="stylesheet" href="./styles/gestion-documental.css?v=20260715-docs" />
       <link rel="stylesheet" href="./styles/b2b-module.css?v=20260626-cards-flex-fill" />
       <link rel="stylesheet" href="./styles/admin-users-module.css?v=20260626-cards-flex-fill" />
       <link rel="stylesheet" href="./styles/authorizations-module.css?v=20260611-portal-modules" />
@@ -1087,6 +1089,10 @@
             <span class="side-link__icon-wrap" aria-hidden="true"><svg class="side-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg></span>
             <span class="side-link__label">Cumplimiento laboral y SST</span>
           </button>
+          <button type="button" data-view="document-management" class="side-link">
+            <span class="side-link__icon-wrap" aria-hidden="true"><svg class="side-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg></span>
+            <span class="side-link__label">Gestión documental</span>
+          </button>
           <button type="button" data-view="contact-leads" class="side-link">
             <span class="side-link__icon-wrap" aria-hidden="true"><svg class="side-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span>
             <span class="side-link__label">Contacto web (B2B)</span>
@@ -1510,6 +1516,7 @@
     <script defer src="./modules/app/contratacion-html.js"></script>
     <script defer src="./modules/app/contratacion.js"></script>
     <script type="module" src="./modules/app/cumplimiento-laboral.js"></script>
+    <script type="module" src="./modules/app/gestion-documental.js"></script>
     <script defer src="./modules/app/contacto-b2b.js"></script>
     <script defer src="./modules/app/usuarios-permisos.js"></script>
     <script defer src="./modules/app/autorizaciones.js"></script>

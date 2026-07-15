@@ -8,6 +8,7 @@
 import {
   CLIENT_DATA_SCOPE,
   CLIENT_DATA_SCOPE_STORAGE,
+  HR_VALID_DOCUMENTS_WS,
   HR_VALID_HIRING_WS,
   HR_VALID_PAYROLL_WS,
   HR_VALID_REQUESTS_WS,
@@ -17,6 +18,8 @@ import {
   HR_WORKSPACE_STORAGE
 } from "./config.js";
 import {
+  normalizeDocumentsDataSection,
+  normalizeDocumentsOperateSection,
   normalizeHiringDataSection,
   normalizeHiringOperateSection,
   normalizeHrWorkspace,
@@ -209,6 +212,7 @@ export function hydrateHrWorkspaceFromStorage() {
     const p = localStorage.getItem(HR_WORKSPACE_STORAGE.payroll);
     const h = localStorage.getItem(HR_WORKSPACE_STORAGE.hiring);
     const s = localStorage.getItem(HR_WORKSPACE_STORAGE.sst);
+    const d = localStorage.getItem(HR_WORKSPACE_STORAGE.documents);
     const r = localStorage.getItem(HR_WORKSPACE_STORAGE.requests);
     const tt = localStorage.getItem(HR_WORKSPACE_STORAGE.transportTrips);
     const tv = localStorage.getItem(HR_WORKSPACE_STORAGE.transportVehicles);
@@ -309,6 +313,27 @@ export function hydrateHrWorkspaceFromStorage() {
         state.sstUi = { ...(state.sstUi || {}), workspace: ws };
       }
     }
+    if (d) {
+      let parsed = null;
+      try {
+        parsed = JSON.parse(d);
+      } catch (_jsonErr) {
+        parsed = null;
+      }
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        state.documentsUi = {
+          ...(state.documentsUi || {}),
+          workspace: normalizeHrWorkspace("documents", parsed.workspace),
+          operateSection: normalizeDocumentsOperateSection(parsed.operateSection),
+          dataSection: normalizeDocumentsDataSection(parsed.dataSection),
+          listSearch: String(parsed.listSearch || ""),
+          selectedEmployeeId: String(parsed.selectedEmployeeId || "")
+        };
+      } else {
+        const ws = normalizeHrWorkspace("documents", d);
+        state.documentsUi = { ...(state.documentsUi || {}), workspace: ws };
+      }
+    }
   } catch (_e) {}
 }
 
@@ -394,6 +419,20 @@ export function persistHrWorkspace(moduleId, workspace) {
           operateSection: normalizeSstOperateSection(ui.operateSection),
           dataSection: normalizeSstDataSection(ui.dataSection),
           listSearch: String(ui.listSearch || "")
+        })
+      );
+    } else if (moduleId === "documents") {
+      const ui = { ...(state.documentsUi || {}) };
+      if (HR_VALID_DOCUMENTS_WS.has(ws)) ui.workspace = ws;
+      state.documentsUi = ui;
+      localStorage.setItem(
+        HR_WORKSPACE_STORAGE.documents,
+        JSON.stringify({
+          workspace: normalizeHrWorkspace("documents", ui.workspace),
+          operateSection: normalizeDocumentsOperateSection(ui.operateSection),
+          dataSection: normalizeDocumentsDataSection(ui.dataSection),
+          listSearch: String(ui.listSearch || ""),
+          selectedEmployeeId: String(ui.selectedEmployeeId || "")
         })
       );
     }

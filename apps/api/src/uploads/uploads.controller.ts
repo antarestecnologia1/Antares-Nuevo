@@ -16,6 +16,10 @@ import { FileInterceptor } from "@nestjs/platform-express";
 import type { Express, Response } from "express";
 import { JwtAuthGuard } from "../common/jwt-auth.guard";
 import { PresignAvatarDto } from "./dto/presign-avatar.dto";
+import {
+  DownloadEmployeeDocumentDto,
+  PresignEmployeeDocumentDto
+} from "./dto/presign-employee-document.dto";
 import { R2Service } from "./r2.service";
 
 type ReqUser = { userId: string; email: string; role: string };
@@ -28,6 +32,54 @@ const CONTRACT_TEMPLATE_ALLOWED_ROLES = new Set([
   "auxiliar_administrativo",
   "lider_administrativo"
 ]);
+
+const EMPLOYEE_DOCUMENT_ALLOWED_ROLES = new Set([
+  ...CONTRACT_TEMPLATE_ALLOWED_ROLES
+]);
+
+const EMPLOYEE_DOCUMENT_MIME = new Set([
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+]);
+
+const EMPLOYEE_DOCUMENT_MAX_BYTES = 15 * 1024 * 1024;
+
+function normalizeEmployeeDocMime(raw: string) {
+  const mime = String(raw || "")
+    .split(";")[0]
+    .trim()
+    .toLowerCase();
+  if (mime === "image/jpg" || mime === "image/pjpeg") return "image/jpeg";
+  return mime || "application/octet-stream";
+}
+
+function extFromMime(mime: string) {
+  switch (mime) {
+    case "application/pdf":
+      return "pdf";
+    case "image/png":
+      return "png";
+    case "image/webp":
+      return "webp";
+    case "application/msword":
+      return "doc";
+    case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+      return "docx";
+    default:
+      return "jpg";
+  }
+}
+
+function assertEmployeeDocumentRole(role: string) {
+  const r = String(role || "").trim().toLowerCase();
+  if (!EMPLOYEE_DOCUMENT_ALLOWED_ROLES.has(r)) {
+    throw new ForbiddenException("No autorizado para gestionar documentos de colaboradores.");
+  }
+}
 
 @UseGuards(JwtAuthGuard)
 @Controller("uploads")
@@ -146,5 +198,110 @@ export class UploadsController {
       .setHeader("Content-Disposition", `inline; filename="${fileName}"`)
       .setHeader("Cache-Control", "private, max-age=900")
       .send(buffer);
+  }
+
+  /** URL prefirmada PUT para subir documento de expediente RRHH a R2 (privado). */
+  @Post("employee-document/presign")
+  async presignEmployeeDocument(
+    @Req() req: { user: ReqUser },
+    @Body() dto: PresignEmployeeDocumentDto
+  ) {
+    assertEmployeeDocumentRole(req.user?.role);
+    if (!this.r2.hasUploadsClient()) {
+      throw new BadRequestException(
+        "R2 no está configurado. Define CF_R2_* en el servidor."
+      );
+    }
+    const normalizedCt = normalizeEmployeeDocMime(dto.contentType);
+    if (!EMPLOYEE_DOCUMENT_MIME.has(normalizedCt)) {
+      throw new BadRequestException(
+        "Tipo de archivo no permitido. Use PDF, JPEG, PNG, WebP o Word."
+      );
+    }
+    const employeeId = String(dto.employeeId || "").replace(/[^a-zA-Z0-9-]+/g, "");
+    if (!employeeId) throw new BadRequestException("Colaborador inválido.");
+    const safeName = String(dto.fileName || "documento").replace(/[^a-zA-Z0-9._-]+/g, "_");
+    const ext = safeName.includes(".")
+      ? safeName.split(".").pop()!.toLowerCase()
+      : extFromMime(normalizedCt);
+    const docType = String(dto.documentType || "otro")
+      .replace(/[^a-zA-Z0-9._-]+/g, "_")
+      .slice(0, 48);
+    const key = `documentos_rrhh/${employeeId}/${docType}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const uploadUrl = await this.r2.presignAvatarUpload(key, normalizedCt, 600);
+    return {
+      uploadUrl,
+      key,
+      mimeType: normalizedCt,
+      expiresInSec: 600
+    };
+  }
+
+  /** Subida servidor → R2 para documentos de expediente (evita CORS). */
+  @Post("employee-document")
+  @UseInterceptors(
+    FileInterceptor("file", {
+      limits: { fileSize: EMPLOYEE_DOCUMENT_MAX_BYTES }
+    })
+  )
+  async uploadEmployeeDocument(
+    @Req() req: { user: ReqUser },
+    @UploadedFile() file: Express.Multer.File,
+    @Body("employeeId") employeeIdRaw: string,
+    @Body("documentType") documentTypeRaw?: string
+  ) {
+    assertEmployeeDocumentRole(req.user?.role);
+    if (!this.r2.hasUploadsClient()) {
+      throw new BadRequestException(
+        "R2 no está configurado. Define CF_R2_* en el servidor."
+      );
+    }
+    if (!file?.buffer?.length) {
+      throw new BadRequestException("Adjunte un archivo.");
+    }
+    const normalizedCt = normalizeEmployeeDocMime(file.mimetype);
+    if (!EMPLOYEE_DOCUMENT_MIME.has(normalizedCt)) {
+      throw new BadRequestException("Solo se permiten PDF, imágenes JPEG/PNG/WebP o Word.");
+    }
+    const employeeId = String(employeeIdRaw || "").replace(/[^a-zA-Z0-9-]+/g, "");
+    if (!employeeId) throw new BadRequestException("Seleccione un colaborador.");
+    const docType = String(documentTypeRaw || "otro")
+      .replace(/[^a-zA-Z0-9._-]+/g, "_")
+      .slice(0, 48);
+    const origName = String(file.originalname || "documento").replace(/[^a-zA-Z0-9._-]+/g, "_");
+    const ext = origName.includes(".")
+      ? origName.split(".").pop()!.toLowerCase()
+      : extFromMime(normalizedCt);
+    const key = `documentos_rrhh/${employeeId}/${docType}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    await this.r2.putUploadsObject(key, file.buffer, normalizedCt);
+    return {
+      key,
+      fileName: origName || `documento.${ext}`,
+      mimeType: normalizedCt,
+      sizeBytes: file.buffer.length
+    };
+  }
+
+  /** URL prefirmada GET temporal para descargar un documento del expediente. */
+  @Post("employee-document/download")
+  async downloadEmployeeDocument(
+    @Req() req: { user: ReqUser },
+    @Body() dto: DownloadEmployeeDocumentDto
+  ) {
+    assertEmployeeDocumentRole(req.user?.role);
+    if (!this.r2.hasUploadsClient()) {
+      throw new BadRequestException("R2 no está configurado.");
+    }
+    const employeeId = String(dto.employeeId || "").replace(/[^a-zA-Z0-9-]+/g, "");
+    const storageKey = String(dto.storageKey || "").replace(/^\/+/, "");
+    if (!employeeId || !storageKey) {
+      throw new BadRequestException("Referencia de documento inválida.");
+    }
+    const prefix = `documentos_rrhh/${employeeId}/`;
+    if (!storageKey.startsWith(prefix)) {
+      throw new ForbiddenException("El archivo no pertenece al expediente del colaborador.");
+    }
+    const downloadUrl = await this.r2.presignGetUploadsObject(storageKey, 3600);
+    return { downloadUrl, expiresInSec: 3600 };
   }
 }
