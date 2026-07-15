@@ -2,7 +2,7 @@
  * Gestión documental — expediente digital por colaborador (RRHH).
  */
 import { state, nodes, persistHrWorkspace } from "../core/store.js";
-import { read, writeAwaitServerCreate, writeAwaitServerEdit } from "../core/data-io.js";
+import { read, write, writeAwaitServerCreate, writeAwaitServerEdit } from "../core/data-io.js";
 import { KEYS, HR_VALID_DOCUMENTS_WS } from "../core/config.js";
 import {
   canAccessDocumentsView,
@@ -88,8 +88,13 @@ async function ensureEmployeeFolderRecord(employeeId, folderName) {
   if (!id || !folder) return;
   const employees = read(KEYS.payrollEmployees, []);
   const employee = employees.find((e) => String(e.id) === id);
-  const docs = read(KEYS.employeeDocuments, []).map(normalizeEmployeeDocumentRow);
   const folders = read(KEYS.employeeDocumentFolders, []).map(normalizeEmployeeDocumentFolderRow);
+  const existingFolder = folders.find(
+    (row) => String(row.employeeId) === id && normalizeDocumentFolder(row.folderName) === folder
+  );
+  if (existingFolder?.id) return;
+  const docs = read(KEYS.employeeDocuments, []).map(normalizeEmployeeDocumentRow);
+  /* Si aún hay archivos en esa carpeta, no hace falta forzar el alta metadata. */
   if (employeeHasFolderRecord(id, folder, docs, folders)) return;
   const record = buildEmployeeDocumentFolderRecord(
     id,
@@ -98,7 +103,22 @@ async function ensureEmployeeFolderRecord(employeeId, folderName) {
     G.currentUser?.()?.fullName || G.currentUser?.()?.email || "Portal"
   );
   record.id = newUuidV4();
-  await writeAwaitServerCreate(KEYS.employeeDocumentFolders, [...folders, record], record);
+  try {
+    await writeAwaitServerCreate(KEYS.employeeDocumentFolders, [...folders, record], record);
+  } catch (err) {
+    /*
+     * No bloquear la subida del archivo: tras borrar el último documento la carpeta
+     * puede seguir existiendo en servidor (unique id_empleado+nombre) o el sync puede
+     * fallar por permisos asimétricos. El expediente del archivo sí debe registrarse.
+     */
+    console.warn("[documents] ensureEmployeeFolderRecord", err);
+    try {
+      const cleaned = read(KEYS.employeeDocumentFolders, []).filter((row) => String(row?.id || "") !== String(record.id));
+      write(KEYS.employeeDocumentFolders, cleaned, { skipSyncSchedule: true });
+    } catch (_rollback) {
+      /* noop */
+    }
+  }
 }
 
 function defaultDocumentsWorkspace() {
@@ -457,36 +477,43 @@ function renderUploadDocumentTypePicker(employeeId, allDocs, selectedType, today
 }
 
 function renderKpiCards(summary, IC, gapsCount = 0) {
-  return `<div class="doc-kpi-grid" role="group" aria-label="Indicadores documentales">
-    <button type="button" class="doc-kpi doc-kpi--total" data-action="doc-quick-filter" data-filter="all" title="Ver todos los documentos">
-      <div class="doc-kpi__icon" aria-hidden="true">${IC.file || ""}</div>
-      <div class="doc-kpi__content">
-        <span class="doc-kpi__label">Documentos</span>
-        <strong class="doc-kpi__value">${escapeHtml(String(summary.total))}</strong>
-      </div>
-    </button>
-    <button type="button" class="doc-kpi doc-kpi--employees" data-action="doc-goto-browse-toolbar" title="Consultar expedientes por colaborador">
-      <div class="doc-kpi__icon" aria-hidden="true">${IC.user || ""}</div>
-      <div class="doc-kpi__content">
-        <span class="doc-kpi__label">Expedientes activos</span>
-        <strong class="doc-kpi__value">${escapeHtml(String(summary.employeesWithDocs))}</strong>
-      </div>
-    </button>
-    <button type="button" class="doc-kpi doc-kpi--warn" data-action="doc-quick-filter" data-filter="due_soon" title="Filtrar por vencer">
-      <div class="doc-kpi__icon" aria-hidden="true">${IC.alert || ""}</div>
-      <div class="doc-kpi__content">
-        <span class="doc-kpi__label">Por vencer (30d)</span>
-        <strong class="doc-kpi__value">${escapeHtml(String(summary.dueSoon))}</strong>
-      </div>
-    </button>
-    <button type="button" class="doc-kpi doc-kpi--expired" data-action="doc-quick-filter" data-filter="expired" title="Filtrar vencidos">
-      <div class="doc-kpi__icon" aria-hidden="true">${IC.warning || ""}</div>
-      <div class="doc-kpi__content">
-        <span class="doc-kpi__label">Vencidos</span>
-        <strong class="doc-kpi__value">${escapeHtml(String(summary.expired))}</strong>
-      </div>
-    </button>
-  </div>${gapsCount > 0 ? `<p class="doc-kpi-foot muted"><button type="button" class="doc-kpi-link" data-action="doc-quick-filter" data-filter="gaps">${gapsCount} colaborador${gapsCount === 1 ? "" : "es"} con expediente incompleto →</button></p>` : ""}`;
+  return `<div class="doc-kpi-block">
+    <div class="doc-kpi-grid" role="group" aria-label="Indicadores documentales">
+      <button type="button" class="doc-kpi doc-kpi--total" data-action="doc-quick-filter" data-filter="all" title="Ver todos los documentos">
+        <div class="doc-kpi__icon" aria-hidden="true">${IC.file || ""}</div>
+        <div class="doc-kpi__content">
+          <span class="doc-kpi__label">Documentos</span>
+          <strong class="doc-kpi__value">${escapeHtml(String(summary.total))}</strong>
+        </div>
+      </button>
+      <button type="button" class="doc-kpi doc-kpi--employees" data-action="doc-goto-browse-toolbar" title="Consultar expedientes por colaborador">
+        <div class="doc-kpi__icon" aria-hidden="true">${IC.user || ""}</div>
+        <div class="doc-kpi__content">
+          <span class="doc-kpi__label">Expedientes activos</span>
+          <strong class="doc-kpi__value">${escapeHtml(String(summary.employeesWithDocs))}</strong>
+        </div>
+      </button>
+      <button type="button" class="doc-kpi doc-kpi--warn" data-action="doc-quick-filter" data-filter="due_soon" title="Filtrar por vencer">
+        <div class="doc-kpi__icon" aria-hidden="true">${IC.alertTriangle || ""}</div>
+        <div class="doc-kpi__content">
+          <span class="doc-kpi__label">Por vencer (30d)</span>
+          <strong class="doc-kpi__value">${escapeHtml(String(summary.dueSoon))}</strong>
+        </div>
+      </button>
+      <button type="button" class="doc-kpi doc-kpi--expired" data-action="doc-quick-filter" data-filter="expired" title="Filtrar vencidos">
+        <div class="doc-kpi__icon" aria-hidden="true">${IC.alertTriangle || ""}</div>
+        <div class="doc-kpi__content">
+          <span class="doc-kpi__label">Vencidos</span>
+          <strong class="doc-kpi__value">${escapeHtml(String(summary.expired))}</strong>
+        </div>
+      </button>
+    </div>
+    ${
+      gapsCount > 0
+        ? `<p class="doc-kpi-foot muted"><button type="button" class="doc-kpi-link" data-action="doc-quick-filter" data-filter="gaps">${gapsCount} colaborador${gapsCount === 1 ? "" : "es"} con expediente incompleto →</button></p>`
+        : ""
+    }
+  </div>`;
 }
 
 function renderEmptyState(message, { icon = "📂", hint = "" } = {}) {
@@ -645,7 +672,10 @@ function renderEmployeeDossierPanel(employee, documents, todayYmd, IC, highlight
           ? `<p class="doc-dossier__actions"><button type="button" class="btn btn-sm btn-outline" data-action="doc-goto-browse" data-employee-id="${escapeAttr(String(employee.id))}">${IC.folder || ""} Ver carpetas del colaborador</button></p>`
           : ""
     }
-    ${renderDocumentCards(empDocs, todayYmd, IC)}
+    <div class="doc-dossier__files">
+      <h4 class="doc-dossier__files-title">Archivos del expediente</h4>
+      ${renderDocumentCards(empDocs, todayYmd, IC)}
+    </div>
   </section>`;
 }
 
@@ -830,7 +860,7 @@ function renderFolderExplorer(employees, allDocs, folderRecords, ui, todayYmd, I
 
   const employee = employees.find((e) => String(e.id) === browseEmpId);
   if (!employee) {
-    return wrapExplorer(renderEmptyState("Colaborador no encontrado.", { icon: IC.alert || "!" }));
+    return wrapExplorer(renderEmptyState("Colaborador no encontrado.", { icon: IC.alertTriangle || "!" }));
   }
 
   if (!browseFolder) {
@@ -1042,10 +1072,7 @@ function documentManagementHtml() {
   const kpiBlock = ws !== "data" ? renderKpiCards(summary, IC, gapsCount) : "";
 
   const studioClass = `documents-studio payroll-studio payroll-shell payroll-shell--workspace hr-flow-shell${ws === "data" ? " payroll-module--clean payroll-studio--consult" : ""}`;
-  return `<section class="${studioClass}" data-hr-workspace="${escapeAttr(ws)}">${header}
-    ${kpiBlock}
-    <div class="hr-workspace-panels doc-workspace-panels">${uploadPanel}${consultPanel}${dossierPanel}${dataPanel}</div>
-  </section>`;
+  return `<section class="${studioClass}" data-hr-workspace="${escapeAttr(ws)}">${header}${kpiBlock}<div class="hr-workspace-panels doc-workspace-panels">${uploadPanel}${consultPanel}${dossierPanel}${dataPanel}</div></section>`;
 }
 
 async function uploadFileToR2(file, employeeId, documentType, folder) {

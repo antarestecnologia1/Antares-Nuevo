@@ -431,13 +431,13 @@ export function canAccessDocumentsView(user) {
 export function canUploadDocuments(user) {
   const u = user || currentUser();
   if (!u) return false;
-  return hasDocumentManageAll(u) || hasPermission(u, PERMISSIONS.DOCUMENT_UPLOAD);
+  return isAdminActor(u) || hasDocumentManageAll(u) || hasPermission(u, PERMISSIONS.DOCUMENT_UPLOAD);
 }
 
 export function canEditDocuments(user) {
   const u = user || currentUser();
   if (!u) return false;
-  return hasDocumentManageAll(u) || hasPermission(u, PERMISSIONS.DOCUMENT_EDIT);
+  return isAdminActor(u) || hasDocumentManageAll(u) || hasPermission(u, PERMISSIONS.DOCUMENT_EDIT);
 }
 
 export function canDeleteDocuments(user) {

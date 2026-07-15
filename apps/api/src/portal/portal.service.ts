@@ -4979,8 +4979,12 @@ export class PortalService implements OnModuleInit {
         if (!admin) {
           const hasData = Array.isArray(data) && data.length > 0;
           const hasDeletes = Array.isArray(deletedIds) && deletedIds.length > 0;
-          if (hasDeletes && !canDeleteEmployeeDocuments(permissionSet)) throw new ForbiddenException();
-          if (hasData && !canSyncEmployeeDocuments(permissionSet)) throw new ForbiddenException();
+          if (hasDeletes && !canDeleteEmployeeDocuments(permissionSet)) {
+            throw new ForbiddenException("No autorizado para eliminar documentos de colaboradores.");
+          }
+          if (hasData && !canSyncEmployeeDocuments(permissionSet)) {
+            throw new ForbiddenException("No autorizado para registrar documentos de colaboradores.");
+          }
           if (!hasData && !hasDeletes && !canAccessDocumentsModule(permissionSet)) {
             throw new ForbiddenException();
           }
@@ -4993,7 +4997,19 @@ export class PortalService implements OnModuleInit {
         );
         return;
       case "employeeDocumentFolders":
-        if (!admin && !canUploadEmployeeDocuments(permissionSet)) throw new ForbiddenException();
+        if (!admin) {
+          const hasData = Array.isArray(data) && data.length > 0;
+          const hasDeletes = Array.isArray(deletedIds) && deletedIds.length > 0;
+          if (hasDeletes && !canDeleteEmployeeDocuments(permissionSet)) {
+            throw new ForbiddenException("No autorizado para eliminar carpetas del expediente.");
+          }
+          if (hasData && !canUploadEmployeeDocuments(permissionSet)) {
+            throw new ForbiddenException("No autorizado para sincronizar carpetas del expediente.");
+          }
+          if (!hasData && !hasDeletes && !canAccessDocumentsModule(permissionSet)) {
+            throw new ForbiddenException();
+          }
+        }
         await this.syncEmployeeDocumentFolders(
           c,
           data,
@@ -7538,7 +7554,7 @@ export class PortalService implements OnModuleInit {
       dueDate: row.fecha_vencimiento ?? null,
       expiryDate: row.fecha_vencimiento ?? null,
       status: row.estado,
-      documentCode: row.codigo_documento,
+      documentCode: row.codigo_documental,
       notes: row.observaciones,
       uploadedBy: row.subido_por,
       createdAt: row.fecha_creacion ? new Date(row.fecha_creacion).toISOString() : new Date().toISOString(),
@@ -12705,6 +12721,15 @@ export class PortalService implements OnModuleInit {
       if (this.skipUnlessPersistUuid("syncEmployeeDocumentFolders", row.id)) continue;
       if (this.skipUnlessPersistUuid("syncEmployeeDocumentFolders.employeeId", row.employeeId)) continue;
       const folderName = nu(String((row as { folderName?: unknown }).folderName || "General").trim() || "General");
+      const existingByName = await c.query<{ id: string }>(
+        `SELECT id::text AS id
+           FROM carpetas_documento_empleado
+          WHERE id_empleado = $1::uuid
+            AND nombre_carpeta = $2
+          LIMIT 1`,
+        [row.employeeId, folderName]
+      );
+      const persistId = existingByName.rows[0]?.id || row.id;
       await c.query(
         `INSERT INTO carpetas_documento_empleado (
           id, id_empleado, nombre_empleado, nombre_carpeta, creado_por
@@ -12715,7 +12740,7 @@ export class PortalService implements OnModuleInit {
           nombre_carpeta = EXCLUDED.nombre_carpeta,
           creado_por = EXCLUDED.creado_por`,
         [
-          row.id,
+          persistId,
           row.employeeId,
           nu(row.employeeName),
           folderName,

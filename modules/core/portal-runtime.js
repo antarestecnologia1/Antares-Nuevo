@@ -7028,6 +7028,9 @@ async function hydrateOwnProfileFromApi() {
     if (me && me.id) {
       upsertPortalUserRowIntoCache(enrichPortalUserFromPayrollCache(me));
       syncSessionProfileSnapshotFromCache();
+      if (typeof window.updatePortalSidebarSessionMeta === "function") {
+        window.updatePortalSidebarSessionMeta();
+      }
       if (typeof window.maybeEnforceDataPolicyAcceptance === "function") {
         window.maybeEnforceDataPolicyAcceptance();
       }
@@ -7040,6 +7043,9 @@ async function hydrateOwnProfileFromApi() {
   const local = enrichPortalUserFromPayrollCache(cur);
   if (local?.id && portalProfileEnrichmentChanged(cur, local)) {
     upsertPortalUserRowIntoCache(local);
+    if (typeof window.updatePortalSidebarSessionMeta === "function") {
+      window.updatePortalSidebarSessionMeta();
+    }
     return true;
   }
   return false;

@@ -150,11 +150,15 @@
 }
 
 /* ─── KPIs ─── */
+.doc-kpi-block {
+  margin: 0 0 1.15rem;
+}
+
 .doc-kpi-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.85rem;
-  margin-bottom: 1.15rem;
+  margin-bottom: 0;
 }
 
 .doc-kpi {
@@ -178,7 +182,7 @@ button.doc-kpi {
 }
 
 .doc-kpi-foot {
-  margin: -0.35rem 0 1rem;
+  margin: 0.65rem 0 0;
   font-size: 0.84rem;
 }
 
@@ -345,11 +349,12 @@ button.doc-kpi {
   border-radius: var(--doc-radius);
   border: 1px solid var(--doc-border);
   box-shadow: var(--doc-shadow);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .doc-panel-card__head {
   padding: 1.15rem 1.25rem 0.35rem;
+  border-radius: var(--doc-radius) var(--doc-radius) 0 0;
 }
 
 .doc-panel-card__eyebrow {
@@ -777,6 +782,19 @@ button.doc-kpi {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
+}
+
+.doc-dossier__files {
+  margin-top: 0.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--doc-border);
+}
+
+.doc-dossier__files-title {
+  margin: 0 0 0.85rem;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.3;
 }
 
 .doc-browse-card .doc-explorer-panel {

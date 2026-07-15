@@ -26,6 +26,7 @@ import {
 import { state, nodes, persistHrWorkspace } from "./store.js";
 import { devError, devWarn } from "./utils.js";
 import { notify, userMessage } from "../ui/modals.js";
+import { normalizePortalAvatarDisplayUrl } from "../domain/contratacion.domain.js";
 
 const W = /** @type {Record<string, unknown>} */ (typeof window !== "undefined" ? window : {});
 
@@ -150,13 +151,6 @@ const PortalRendererCore =
 
 let _bindEventsCallback = () => {};
 
-function employeeAvatarCssUrlForSidebar(av) {
-  const fn = window.normalizePortalAvatarDisplayUrl;
-  const u = typeof fn === "function" ? fn(av) : String(av || "").trim();
-  if (!u) return "";
-  return u.replace(/'/g, "\\'");
-}
-
 function formatPortalRoleLabelForSidebar(role) {
   const r = String(role || "").toLowerCase();
   if (r === ROLES.ADMIN) return "Administrador";
@@ -194,6 +188,8 @@ export function updatePortalSidebarSessionMeta() {
     if (nameEl) nameEl.textContent = "Transportes Antares";
     if (avatarWrap) avatarWrap.classList.remove("has-photo");
     if (avatarImg) {
+      avatarImg.onload = null;
+      avatarImg.onerror = null;
       avatarImg.removeAttribute("src");
       avatarImg.setAttribute("hidden", "");
     }
@@ -207,29 +203,34 @@ export function updatePortalSidebarSessionMeta() {
   const roleLabel = getPortalSidebarSessionSubtitle(user);
   if (nameEl) nameEl.textContent = displayName;
   if (meta) meta.textContent = roleLabel;
-  const avatarUrlRaw =
-    typeof window.normalizePortalAvatarDisplayUrl === "function"
-      ? window.normalizePortalAvatarDisplayUrl(user.avatarUrl)
-      : String(user.avatarUrl || "").trim();
-  const avatarCss = employeeAvatarCssUrlForSidebar(user.avatarUrl);
+  const avatarUrlRaw = normalizePortalAvatarDisplayUrl(user.avatarUrl);
   if (avatarWrap && avatarImg && avatarInitial) {
-    if (avatarCss && avatarUrlRaw) {
-      avatarImg.src = avatarUrlRaw;
+    const initialLetter = (displayName.charAt(0) || "U").toUpperCase();
+    const showInitial = () => {
+      avatarImg.onload = null;
+      avatarImg.onerror = null;
+      avatarImg.removeAttribute("src");
+      avatarImg.setAttribute("hidden", "");
+      avatarInitial.textContent = initialLetter;
+      avatarInitial.removeAttribute("hidden");
+      avatarWrap.classList.remove("has-photo");
+    };
+    const showPhoto = () => {
       avatarImg.removeAttribute("hidden");
       avatarInitial.setAttribute("hidden", "");
       avatarWrap.classList.add("has-photo");
-      if (typeof window.wirePortalAvatarImgFallback === "function") {
-        window.wirePortalAvatarImgFallback(
-          avatarImg,
-          (displayName.charAt(0) || "U").toUpperCase()
-        );
+    };
+    // Empieza siempre con la inicial: la foto solo se muestra tras `load` exitoso
+    // (así no aparece el icono de imagen rota mientras falla o caduca la URL).
+    showInitial();
+    if (avatarUrlRaw) {
+      avatarImg.onload = () => showPhoto();
+      avatarImg.onerror = () => showInitial();
+      avatarImg.src = avatarUrlRaw;
+      if (avatarImg.complete) {
+        if (avatarImg.naturalWidth > 0) showPhoto();
+        else showInitial();
       }
-    } else {
-      avatarImg.removeAttribute("src");
-      avatarImg.setAttribute("hidden", "");
-      avatarInitial.textContent = (displayName.charAt(0) || "U").toUpperCase();
-      avatarInitial.removeAttribute("hidden");
-      avatarWrap.classList.remove("has-photo");
     }
   }
 }

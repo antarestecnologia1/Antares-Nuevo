@@ -1012,9 +1012,36 @@ export function normalizePortalAvatarDisplayUrl(av) {
   if (/^data:image\//i.test(u) || /^blob:/i.test(u)) return u;
   if (/^https?:\/\//i.test(u)) {
     if (/^https?:\/\/$/i.test(u)) return "";
+    // Prefirmadas caducadas no sirven en <img>; las vigentes sí (bucket privado sin PUBLIC_BASE).
+    if (/X-Amz-|x-amz-|Signature=/i.test(u) && isExpiredPresignedAvatarUrl(u)) return "";
     return u;
   }
   return "";
+}
+
+/** Detecta GET prefirmados S3/R2 cuya ventana de validez ya pasó. */
+function isExpiredPresignedAvatarUrl(raw) {
+  try {
+    const url = new URL(String(raw || "").trim());
+    const amzDate = url.searchParams.get("X-Amz-Date") || url.searchParams.get("x-amz-date");
+    const amzExpiresRaw =
+      url.searchParams.get("X-Amz-Expires") || url.searchParams.get("x-amz-expires");
+    if (amzDate && amzExpiresRaw) {
+      const amzExpires = parseInt(amzExpiresRaw, 10);
+      const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/i.exec(amzDate);
+      if (m && Number.isFinite(amzExpires) && amzExpires > 0) {
+        const startMs = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
+        return Date.now() > startMs + amzExpires * 1000;
+      }
+    }
+    const expires = url.searchParams.get("Expires");
+    if (expires && /^\d{9,}$/.test(expires)) {
+      return Date.now() / 1000 > parseInt(expires, 10);
+    }
+  } catch (_e) {
+    /* URL inválida */
+  }
+  return false;
 }
 
 export function employeeAvatarCssUrl(av) {
