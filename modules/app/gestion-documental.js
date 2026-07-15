@@ -189,17 +189,30 @@ function renderDocumentsFilterBar({ ui, employees, folderNames = [], mode = "dat
     )
     .join("");
 
+  const actions = [
+    hasFilters
+      ? `<button type="button" class="btn btn-sm btn-outline doc-filter-clear" data-action="doc-clear-filters">Limpiar</button>`
+      : "",
+    mode === "data"
+      ? `<button type="button" class="btn btn-sm btn-primary doc-filter-browse" data-action="doc-goto-browse-toolbar">Consultar carpetas</button>`
+      : ""
+  ]
+    .filter(Boolean)
+    .join("");
+
   return `<div class="doc-filter-bar" data-doc-filter-mode="${escapeAttr(mode)}">
-    <div class="doc-filter-bar__row">
+    <div class="doc-filter-bar__search">
       <label class="doc-filter-field doc-filter-field--search">
         <span class="doc-filter-field__label">Buscar</span>
-        <input type="search" data-action="doc-filter-search" value="${escapeAttr(ui.listSearch)}" placeholder="Colaborador, archivo, carpeta, tipo…" autocomplete="off" />
+        <input type="search" data-action="doc-filter-search" data-doc-filter-mode="${escapeAttr(mode)}" value="${escapeAttr(ui.listSearch)}" placeholder="Colaborador, archivo, carpeta, tipo…" autocomplete="off" spellcheck="false" />
       </label>
+    </div>
+    <div class="doc-filter-bar__controls">
       ${
         showEmployee
           ? `<label class="doc-filter-field">
         <span class="doc-filter-field__label">Colaborador</span>
-        <select data-action="doc-filter-employee">
+        <select data-action="doc-filter-employee" title="Filtrar por colaborador">
           <option value=""${ui.filterEmployeeId ? "" : " selected"}>Todos</option>
           ${employeeOpts}
         </select>
@@ -208,13 +221,13 @@ function renderDocumentsFilterBar({ ui, employees, folderNames = [], mode = "dat
       }
       <label class="doc-filter-field">
         <span class="doc-filter-field__label">Tipo documental</span>
-        <select data-action="doc-type-filter">${renderDocumentTypeFilterOptions(ui.typeFilter)}</select>
+        <select data-action="doc-type-filter" title="Filtrar por tipo">${renderDocumentTypeFilterOptions(ui.typeFilter)}</select>
       </label>
       ${
         showStatus
           ? `<label class="doc-filter-field">
         <span class="doc-filter-field__label">Estado</span>
-        <select data-action="doc-filter-status">
+        <select data-action="doc-filter-status" title="Filtrar por estado">
           <option value=""${ui.filterStatus ? "" : " selected"}>Todos</option>
           <option value="Vigente"${ui.filterStatus === "Vigente" ? " selected" : ""}>Vigente</option>
           <option value="Por vencer"${ui.filterStatus === "Por vencer" ? " selected" : ""}>Por vencer</option>
@@ -227,24 +240,15 @@ function renderDocumentsFilterBar({ ui, employees, folderNames = [], mode = "dat
         showFolder
           ? `<label class="doc-filter-field">
         <span class="doc-filter-field__label">Carpeta</span>
-        <select data-action="doc-filter-folder">
+        <select data-action="doc-filter-folder" title="Filtrar por carpeta">
           <option value=""${ui.folderFilter ? "" : " selected"}>Todas</option>
           ${folderOpts}
         </select>
       </label>`
           : ""
       }
-      ${
-        hasFilters
-          ? `<button type="button" class="btn btn-sm btn-outline doc-filter-clear" data-action="doc-clear-filters">Limpiar filtros</button>`
-          : ""
-      }
-      ${
-        mode === "data"
-          ? `<button type="button" class="btn btn-sm btn-primary doc-filter-browse" data-action="doc-goto-browse-toolbar">Consultar carpetas</button>`
-          : ""
-      }
     </div>
+    ${actions ? `<div class="doc-filter-bar__actions">${actions}</div>` : ""}
   </div>`;
 }
 
@@ -254,26 +258,7 @@ function renderResultMeta(text) {
 
 function patchDocumentsUi(partial) {
   state.documentsUi = { ...(state.documentsUi || {}), ...partial };
-  try {
-    localStorage.setItem(
-      "antares_documents_workspace_v1",
-      JSON.stringify({
-        workspace: resolveDocumentsWorkspace(state.documentsUi),
-        operateSection: normalizeDocumentsOperateSection(state.documentsUi.operateSection),
-        dataSection: normalizeDocumentsDataSection(state.documentsUi.dataSection),
-        listSearch: String(state.documentsUi.listSearch || ""),
-        selectedEmployeeId: String(state.documentsUi.selectedEmployeeId || ""),
-        typeFilter: String(state.documentsUi.typeFilter || ""),
-        folderBrowseEmployeeId: String(state.documentsUi.folderBrowseEmployeeId || ""),
-        folderBrowseName: String(state.documentsUi.folderBrowseName || ""),
-        selectedDocumentType: String(state.documentsUi.selectedDocumentType || ""),
-        highlightDocumentType: String(state.documentsUi.highlightDocumentType || ""),
-        filterEmployeeId: String(state.documentsUi.filterEmployeeId || ""),
-        filterStatus: String(state.documentsUi.filterStatus || ""),
-        folderFilter: String(state.documentsUi.folderFilter || "")
-      })
-    );
-  } catch (_e) {}
+  /* Los filtros no se guardan en localStorage (solo la pestaña vía persistHrWorkspace). */
 }
 
 function renderDocStatusBadge(doc, todayYmd) {
@@ -936,7 +921,7 @@ function documentManagementHtml() {
   const moduleHead = renderHrFormHero({
     eyebrow: "Recursos humanos",
     title: "Gestión documental",
-    description: "Expediente digital por colaborador: cédulas, contratos, afiliaciones, exámenes y certificados almacenados de forma segura.",
+    description: "Archivo digital del personal: carga, consulta y control de vigencias en un solo lugar.",
     badges: [
       renderHrFormHeroBadge(String(summary.total), "documentos"),
       summary.expired > 0 ? renderHrFormHeroBadge(String(summary.expired), "vencidos") : "",
@@ -1355,7 +1340,13 @@ function bindDocumentManagementPortalControls() {
 
   nodes.viewRoot.querySelectorAll("[data-action='doc-filter-search']").forEach((input) => {
     input.addEventListener("input", (ev) => {
-      patchDocumentsUi({ listSearch: ev.target.value || "" });
+      const el = /** @type {HTMLInputElement} */ (ev.target);
+      const len = String(el.value || "").length;
+      const start = typeof el.selectionStart === "number" ? el.selectionStart : len;
+      const end = typeof el.selectionEnd === "number" ? el.selectionEnd : start;
+      const mode = String(el.dataset.docFilterMode || el.closest("[data-doc-filter-mode]")?.dataset?.docFilterMode || "");
+      patchDocumentsUi({ listSearch: el.value || "" });
+      state.__documentsFilterSearchRestore = { start, end, mode };
       debouncedFilterRender();
     });
   });
@@ -1817,6 +1808,28 @@ function bindDocumentManagementPortalControls() {
       downloadCsv(rows, `expediente-documental-${todayYmd}.csv`);
     });
   });
+
+  const searchRestore = state.__documentsFilterSearchRestore;
+  if (searchRestore && typeof searchRestore.start === "number") {
+    delete state.__documentsFilterSearchRestore;
+    queueMicrotask(() => {
+      const root = nodes.viewRoot;
+      if (!root || String(state.currentView || "") !== "document-management") return;
+      const mode = String(searchRestore.mode || "");
+      const selector = mode
+        ? `[data-action='doc-filter-search'][data-doc-filter-mode='${mode}']`
+        : "[data-action='doc-filter-search']";
+      const inp = root.querySelector(selector) || root.querySelector("[data-action='doc-filter-search']");
+      if (!inp || typeof inp.focus !== "function") return;
+      inp.focus();
+      if (typeof inp.setSelectionRange === "function") {
+        const n = String(inp.value || "").length;
+        const s = Math.max(0, Math.min(searchRestore.start, n));
+        const e = Math.max(0, Math.min(searchRestore.end ?? searchRestore.start, n));
+        inp.setSelectionRange(s, e);
+      }
+    });
+  }
 }
 
 if (typeof window.registerLegacyPortalViews === "function") {

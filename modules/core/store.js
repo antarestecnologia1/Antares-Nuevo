@@ -18,8 +18,6 @@ import {
   HR_WORKSPACE_STORAGE
 } from "./config.js";
 import {
-  normalizeDocumentsDataSection,
-  normalizeDocumentsOperateSection,
   resolveDocumentsWorkspace,
   normalizeHiringDataSection,
   normalizeHiringOperateSection,
@@ -189,6 +187,22 @@ export let state = {
     dataSection: "due",
     listSearch: ""
   },
+  /** Gestión documental: pestaña + filtros en memoria (filtros no persisten al recargar). */
+  documentsUi: {
+    workspace: "upload",
+    operateSection: "upload",
+    dataSection: "all",
+    listSearch: "",
+    selectedEmployeeId: "",
+    typeFilter: "",
+    filterEmployeeId: "",
+    filterStatus: "",
+    folderFilter: "",
+    folderBrowseEmployeeId: "",
+    folderBrowseName: "",
+    selectedDocumentType: "",
+    highlightDocumentType: ""
+  },
   /** Centro de aprobaciones: filtro de texto en bandejas. */
   authorizationsUi: {
     listSearch: ""
@@ -321,27 +335,30 @@ export function hydrateHrWorkspaceFromStorage() {
       } catch (_jsonErr) {
         parsed = null;
       }
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        state.documentsUi = {
-          ...(state.documentsUi || {}),
-          workspace: resolveDocumentsWorkspace(parsed),
-          operateSection: normalizeDocumentsOperateSection(parsed.operateSection),
-          dataSection: normalizeDocumentsDataSection(parsed.dataSection),
-          listSearch: String(parsed.listSearch || ""),
-          selectedEmployeeId: String(parsed.selectedEmployeeId || ""),
-          typeFilter: String(parsed.typeFilter || ""),
-          folderBrowseEmployeeId: String(parsed.folderBrowseEmployeeId || ""),
-          folderBrowseName: String(parsed.folderBrowseName || ""),
-          selectedDocumentType: String(parsed.selectedDocumentType || ""),
-          highlightDocumentType: String(parsed.highlightDocumentType || ""),
-          filterEmployeeId: String(parsed.filterEmployeeId || ""),
-          filterStatus: String(parsed.filterStatus || ""),
-          folderFilter: String(parsed.folderFilter || "")
-        };
-      } else {
-        const ws = resolveDocumentsWorkspace({ workspace: d });
-        state.documentsUi = { ...(state.documentsUi || {}), workspace: ws };
-      }
+      /* Solo restaurar la pestaña. Los filtros se reinician en cada carga. */
+      const ws =
+        parsed && typeof parsed === "object" && !Array.isArray(parsed)
+          ? resolveDocumentsWorkspace(parsed)
+          : resolveDocumentsWorkspace({ workspace: d });
+      state.documentsUi = {
+        ...(state.documentsUi || {}),
+        workspace: ws,
+        operateSection: "upload",
+        dataSection: "all",
+        listSearch: "",
+        selectedEmployeeId: "",
+        typeFilter: "",
+        folderBrowseEmployeeId: "",
+        folderBrowseName: "",
+        selectedDocumentType: "",
+        highlightDocumentType: "",
+        filterEmployeeId: "",
+        filterStatus: "",
+        folderFilter: ""
+      };
+      try {
+        localStorage.setItem(HR_WORKSPACE_STORAGE.documents, JSON.stringify({ workspace: ws }));
+      } catch (_cleanErr) {}
     }
   } catch (_e) {}
 }
@@ -434,23 +451,10 @@ export function persistHrWorkspace(moduleId, workspace) {
       const ui = { ...(state.documentsUi || {}) };
       if (HR_VALID_DOCUMENTS_WS.has(ws)) ui.workspace = ws;
       state.documentsUi = ui;
+      /* Persistir solo la pestaña; filtros viven solo en memoria de sesión. */
       localStorage.setItem(
         HR_WORKSPACE_STORAGE.documents,
-        JSON.stringify({
-          workspace: resolveDocumentsWorkspace(ui),
-          operateSection: normalizeDocumentsOperateSection(ui.operateSection),
-          dataSection: normalizeDocumentsDataSection(ui.dataSection),
-          listSearch: String(ui.listSearch || ""),
-          selectedEmployeeId: String(ui.selectedEmployeeId || ""),
-          typeFilter: String(ui.typeFilter || ""),
-          folderBrowseEmployeeId: String(ui.folderBrowseEmployeeId || ""),
-          folderBrowseName: String(ui.folderBrowseName || ""),
-          selectedDocumentType: String(ui.selectedDocumentType || ""),
-          highlightDocumentType: String(ui.highlightDocumentType || ""),
-          filterEmployeeId: String(ui.filterEmployeeId || ""),
-          filterStatus: String(ui.filterStatus || ""),
-          folderFilter: String(ui.folderFilter || "")
-        })
+        JSON.stringify({ workspace: resolveDocumentsWorkspace(ui) })
       );
     }
   } catch (_e) {}
