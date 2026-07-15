@@ -5,6 +5,8 @@
 import {
   ALL_PERMISSIONS,
   APPROVAL_TYPE_META,
+  assignablePermissionsForRole,
+  CLIENT_ROLE_PERMISSIONS,
   DATA_POLICY_URL,
   DATA_POLICY_VERSION,
   KEYS,
@@ -345,18 +347,25 @@ export function defaultPermissionsForRole(role) {
     ];
   }
   if (role === ROLES.LOGISTICA) return [...LOGISTICS_OPERATOR_PERMISSIONS];
-  return [
-    PERMISSIONS.DASHBOARD_VIEW,
-    PERMISSIONS.CLIENT_REQUESTS,
-    PERMISSIONS.PROFILE_VIEW,
-    PERMISSIONS.NOTIFICATIONS_VIEW
-  ];
+  return [...CLIENT_ROLE_PERMISSIONS];
+}
+
+export function portalDefaultViewForUser(user) {
+  if (!user) return "dashboard";
+  if (user.role === ROLES.CLIENT) {
+    if (hasPermission(user, PERMISSIONS.CLIENT_REQUESTS)) return "requests";
+    if (hasPermission(user, PERMISSIONS.PROFILE_VIEW)) return "profile";
+    return "profile";
+  }
+  if (hasPermission(user, PERMISSIONS.DASHBOARD_VIEW)) return "dashboard";
+  return "profile";
 }
 
 export function effectiveUserPermissions(user) {
   const role = user?.role || ROLES.CLIENT;
+  const assignable = new Set(assignablePermissionsForRole(role));
   const current = Array.isArray(user?.permissions) ? user.permissions : [];
-  const filtered = current.filter((p) => ALL_PERMISSIONS.includes(p));
+  const filtered = current.filter((p) => assignable.has(p));
   if (filtered.length > 0) return filtered;
   return defaultPermissionsForRole(role);
 }
@@ -534,8 +543,13 @@ export function canPerformPermissionGatedAction(user, action, trigger) {
   return false;
 }
 
+const CLIENT_PORTAL_VIEWS = new Set(["requests", "profile"]);
+
 export function canAccessView(user, view) {
   const v = String(view || "");
+  if (user?.role === ROLES.CLIENT && !CLIENT_PORTAL_VIEWS.has(v)) {
+    return false;
+  }
   if (v === "authorizations") return canAccessAuthorizationsView(user);
   if (v === "transport-vehicles") return canAccessVehiclesView(user);
   if (v === "document-management") return canAccessDocumentsView(user);
@@ -1596,10 +1610,11 @@ export function ensureRequestAndTripIdentifiers() {
   if (changed) reqWrite(filterPortalRequestsForServerCache(mapped));
 }
 
-/** Permisos guardados desde formulario: respeta lo marcado; si queda vacío, defaults del rol (admin incluye todos). */
+/** Permisos guardados desde formulario: respeta lo marcado; si queda vacío, defaults del rol. */
 export function normalizeSavedUserPermissions(role, checkedPermissions) {
+  const assignable = new Set(assignablePermissionsForRole(role));
   const filtered = (Array.isArray(checkedPermissions) ? checkedPermissions : []).filter((p) =>
-    ALL_PERMISSIONS.includes(p)
+    assignable.has(p)
   );
   if (filtered.length > 0) return [...new Set(filtered)];
   return defaultPermissionsForRole(role);
@@ -1609,7 +1624,9 @@ export function repaintPermGridInForm(form, role) {
   if (!form) return;
   const grid = form.querySelector(".perm-grid");
   if (!grid) return;
-  grid.innerHTML = window.buildGranularPermissionsCheckboxesHtml(defaultPermissionsForRole(role || ROLES.CLIENT));
+  grid.innerHTML = window.buildGranularPermissionsCheckboxesHtml(defaultPermissionsForRole(role || ROLES.CLIENT), {
+    role: role || ROLES.CLIENT
+  });
 }
 
 export function wireAdminUserFormPermGridOnRoleChange(form) {
@@ -1625,13 +1642,14 @@ export function wireAdminUserFormPermGridOnRoleChange(form) {
 export function ensureUsersPermissions() {
   const users = read(KEYS.users, []);
   const updated = users.map((user) => {
+    const assignable = new Set(assignablePermissionsForRole(user.role));
     const current = Array.isArray(user.permissions) ? user.permissions : [];
-    const filtered = current.filter((permission) => ALL_PERMISSIONS.includes(permission));
+    const filtered = current.filter((permission) => assignable.has(permission));
     if (filtered.length > 0) {
       return { ...user, permissions: filtered };
     }
     const merged = [...new Set(defaultPermissionsForRole(user.role))].filter((permission) =>
-      ALL_PERMISSIONS.includes(permission)
+      assignable.has(permission)
     );
     return { ...user, permissions: merged };
   });

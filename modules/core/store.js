@@ -20,6 +20,7 @@ import {
 import {
   normalizeDocumentsDataSection,
   normalizeDocumentsOperateSection,
+  resolveDocumentsWorkspace,
   normalizeHiringDataSection,
   normalizeHiringOperateSection,
   normalizeHrWorkspace,
@@ -323,7 +324,7 @@ export function hydrateHrWorkspaceFromStorage() {
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
         state.documentsUi = {
           ...(state.documentsUi || {}),
-          workspace: normalizeHrWorkspace("documents", parsed.workspace),
+          workspace: resolveDocumentsWorkspace(parsed),
           operateSection: normalizeDocumentsOperateSection(parsed.operateSection),
           dataSection: normalizeDocumentsDataSection(parsed.dataSection),
           listSearch: String(parsed.listSearch || ""),
@@ -338,7 +339,7 @@ export function hydrateHrWorkspaceFromStorage() {
           folderFilter: String(parsed.folderFilter || "")
         };
       } else {
-        const ws = normalizeHrWorkspace("documents", d);
+        const ws = resolveDocumentsWorkspace({ workspace: d });
         state.documentsUi = { ...(state.documentsUi || {}), workspace: ws };
       }
     }
@@ -436,7 +437,7 @@ export function persistHrWorkspace(moduleId, workspace) {
       localStorage.setItem(
         HR_WORKSPACE_STORAGE.documents,
         JSON.stringify({
-          workspace: normalizeHrWorkspace("documents", ui.workspace),
+          workspace: resolveDocumentsWorkspace(ui),
           operateSection: normalizeDocumentsOperateSection(ui.operateSection),
           dataSection: normalizeDocumentsDataSection(ui.dataSection),
           listSearch: String(ui.listSearch || ""),
@@ -445,7 +446,10 @@ export function persistHrWorkspace(moduleId, workspace) {
           folderBrowseEmployeeId: String(ui.folderBrowseEmployeeId || ""),
           folderBrowseName: String(ui.folderBrowseName || ""),
           selectedDocumentType: String(ui.selectedDocumentType || ""),
-          highlightDocumentType: String(ui.highlightDocumentType || "")
+          highlightDocumentType: String(ui.highlightDocumentType || ""),
+          filterEmployeeId: String(ui.filterEmployeeId || ""),
+          filterStatus: String(ui.filterStatus || ""),
+          folderFilter: String(ui.folderFilter || "")
         })
       );
     }

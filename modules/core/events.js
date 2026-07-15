@@ -1398,7 +1398,7 @@ function bindDynamicEvents() {
         grid.innerHTML = buildGranularPermissionsCheckboxesHtml([]);
         return;
       }
-      grid.innerHTML = buildGranularPermissionsCheckboxesHtml(effectiveUserPermissions(u));
+      grid.innerHTML = buildGranularPermissionsCheckboxesHtml(effectiveUserPermissions(u), { role: u.role });
     };
     const userSel = adminUserPermissions.querySelector("select[name='userId']");
     if (userSel && !userSel.dataset.antaresPermGridWired) {

@@ -255,6 +255,9 @@ const ALL_PORTAL_PERMISSIONS: string[] = [
   "contact_b2b_view"
 ];
 
+/** Permisos asignables al rol Cliente (segregación granular). */
+const CLIENT_ROLE_PERMISSIONS = ["profile_view", "client_requests"] as const;
+
 function defaultPermissionsForApprovedRole(rol: string): string[] {
   const r = String(rol || "").toLowerCase();
   if (r === "admin") return [...ALL_PORTAL_PERMISSIONS];
@@ -285,7 +288,7 @@ function defaultPermissionsForApprovedRole(rol: string): string[] {
       "notifications_view"
     ];
   }
-  return ["dashboard_view", "client_requests", "profile_view", "notifications_view"];
+  return [...CLIENT_ROLE_PERMISSIONS];
 }
 
 const APPROVE_VALID_ROLES = new Set([
@@ -2960,10 +2963,32 @@ export class PortalService implements OnModuleInit {
   }
 
   /** Misma política que permisos por defecto del rol en app.js cuando `permisos_usuario` está vacío. */
+  private filterPermissionsForPortalRole(role: unknown, permissions: string[]): string[] {
+    const r = String(role || "").toLowerCase();
+    const valid = permissions.filter((p) => ALL_PORTAL_PERMISSIONS.includes(p));
+    if (r === "client") {
+      const allowed = new Set<string>(CLIENT_ROLE_PERMISSIONS);
+      const filtered = valid.filter((p) => allowed.has(p));
+      return filtered.length ? filtered : [...CLIENT_ROLE_PERMISSIONS];
+    }
+    return valid;
+  }
+
+  private resolvePortalUserPermissionsFromDb(role: unknown, stored: string[]): string[] {
+    const r = String(role || "").toLowerCase();
+    if (!stored.length) return defaultPermissionsForApprovedRole(r);
+    return this.filterPermissionsForPortalRole(r, stored);
+  }
+
   private async resolveEffectivePermissionSet(userId: string, role: JwtRole): Promise<Set<string>> {
     const fromDb = await this.loadPortalPermissionSet(userId);
-    if (fromDb.size > 0) return fromDb;
-    return new Set(defaultPermissionsForApprovedRole(String(role || "").toLowerCase()));
+    const base =
+      fromDb.size > 0
+        ? fromDb
+        : new Set(defaultPermissionsForApprovedRole(String(role || "").toLowerCase()));
+    if (!this.isPortalClientRole(role)) return base;
+    const allowed = new Set<string>(CLIENT_ROLE_PERMISSIONS);
+    return new Set([...base].filter((p) => allowed.has(p)));
   }
 
   private canViewPositionsCatalog(role: JwtRole, permissionSet: ReadonlySet<string>): boolean {
@@ -3531,6 +3556,7 @@ export class PortalService implements OnModuleInit {
    */
   private async resolveBootstrapActorContext(userId: string, role: JwtRole) {
     const admin = this.isAdmin(role);
+    const isClient = this.isPortalClientRole(role);
     const [empresaId, permissionSet] = await Promise.all([
       this.getUserCompany(userId),
       this.resolveEffectivePermissionSet(userId, role)
@@ -3556,11 +3582,33 @@ export class PortalService implements OnModuleInit {
     const canLoadPositionsCatalog = this.canViewPositionsCatalog(role, permissionSet);
     const canSst = admin || this.hasPortalPermission(permissionSet, "sst_compliance");
     const canDocuments = admin || canAccessDocumentsModule(permissionSet);
-    const fullUserDirectoryAccess = admin || canUsersManage;
-    const canSeeAllCompanies =
-      admin || canUsersManage || canTransportData || canPayroll || canHiring || canSst || canDocuments || canViewContactB2b;
+    const canClientRequests = this.hasPortalPermission(permissionSet, "client_requests");
+    const fullUserDirectoryAccess = isClient ? false : admin || canUsersManage;
+    const canSeeAllCompanies = isClient
+      ? false
+      : admin ||
+        canUsersManage ||
+        canTransportData ||
+        canPayroll ||
+        canHiring ||
+        canSst ||
+        canDocuments ||
+        canViewContactB2b;
+    /** Clientes nunca reciben flota/historial operativo en bootstrap aunque tengan permisos de transporte. */
+    const canTransportFleetBootstrap = isClient ? false : canTransportData;
+    const canTransportHistoryBootstrap = isClient ? false : canTransportHistory;
+    const canTransportTripsBootstrap = isClient ? false : canTransportTrips;
+    const canPayrollBootstrap = isClient ? false : canPayroll;
+    const canHiringBootstrap = isClient ? false : canHiring;
+    const canSstBootstrap = isClient ? false : canSst;
+    const canLoadTripRouteRatesBootstrap = isClient ? canClientRequests : canTransportTrips;
+    const documentsCompanyScope =
+      isClient || (!canSeeAllCompanies && empresaId && PG_UUID_V4_RE.test(String(empresaId).trim()))
+        ? String(empresaId || "").trim() || null
+        : null;
     return {
       admin,
+      isClient,
       empresaId,
       permissionSet,
       canUsersManage,
@@ -3576,8 +3624,17 @@ export class PortalService implements OnModuleInit {
       canLoadPositionsCatalog,
       canSst,
       canDocuments,
+      canClientRequests,
       fullUserDirectoryAccess,
-      canSeeAllCompanies
+      canSeeAllCompanies,
+      canTransportFleetBootstrap,
+      canTransportHistoryBootstrap,
+      canTransportTripsBootstrap,
+      canPayrollBootstrap,
+      canHiringBootstrap,
+      canSstBootstrap,
+      canLoadTripRouteRatesBootstrap,
+      documentsCompanyScope
     };
   }
 
@@ -3587,6 +3644,7 @@ export class PortalService implements OnModuleInit {
    */
   async listPayrollEmployeesForPortal(userId: string, role: JwtRole) {
     const ctx = await this.resolveBootstrapActorContext(userId, role);
+    if (ctx.isClient) throw new ForbiddenException();
     if (!ctx.canPayroll) throw new ForbiddenException();
     return this.loadPayrollEmployees(
       ctx.empresaId,
@@ -3599,58 +3657,60 @@ export class PortalService implements OnModuleInit {
   async bootstrap(userId: string, role: JwtRole) {
     const {
       admin,
+      isClient,
       empresaId,
       permissionSet,
       canUsersManage,
       canViewContactB2b,
-      canTransportTrips,
-      canTransportVehicles,
-      canTransportDrivers,
-      canTransportCalendar,
-      canTransportHistory,
       canTransportData,
-      canPayroll,
-      canHiring,
       canLoadPositionsCatalog,
-      canSst,
       canDocuments,
       fullUserDirectoryAccess,
-      canSeeAllCompanies
+      canSeeAllCompanies,
+      canTransportFleetBootstrap,
+      canTransportHistoryBootstrap,
+      canPayrollBootstrap,
+      canHiringBootstrap,
+      canSstBootstrap,
+      canLoadTripRouteRatesBootstrap,
+      documentsCompanyScope
     } = await this.resolveBootstrapActorContext(userId, role);
     const laborSystemRulesPromise = this.loadLaborSystemRules();
     const laborSystemHistoryPromise =
-      canPayroll || canHiring ? this.loadLaborSystemParametersHistory() : Promise.resolve([]);
+      canPayrollBootstrap || canHiringBootstrap ? this.loadLaborSystemParametersHistory() : Promise.resolve([]);
 
     const independentPromise = Promise.all([
       this.loadCompanies(canSeeAllCompanies ? null : empresaId),
       admin ? this.loadCounters() : Promise.resolve({}),
-      canPayroll ? this.loadTravelAllowanceRules() : Promise.resolve({ interDepartmentTripAmount: 85000 }),
+      canPayrollBootstrap ? this.loadTravelAllowanceRules() : Promise.resolve({ interDepartmentTripAmount: 85000 }),
       laborSystemRulesPromise,
       laborSystemHistoryPromise,
-      canTransportTrips ? this.loadTripRouteRates() : Promise.resolve({}),
-      canTransportData ? this.loadVehicles() : Promise.resolve([]),
-      canTransportData ? this.loadDrivers() : Promise.resolve([]),
+      canLoadTripRouteRatesBootstrap
+        ? this.loadTripRouteRates(isClient ? empresaId : null)
+        : Promise.resolve({}),
+      canTransportFleetBootstrap ? this.loadVehicles() : Promise.resolve([]),
+      canTransportFleetBootstrap ? this.loadDrivers() : Promise.resolve([]),
       this.loadNotifications(userId, role),
       this.loadEmails(admin),
-      this.loadContacts(canViewContactB2b),
-      canLoadPositionsCatalog ? this.loadPositions() : Promise.resolve([]),
-      canHiring ? this.loadVacancies() : Promise.resolve([]),
-      canHiring ? this.loadCandidates() : Promise.resolve([]),
-      canHiring ? this.loadInterviews() : Promise.resolve([]),
-      canHiring ? this.loadContracts() : Promise.resolve([]),
-      canPayroll ? this.loadPayrollRunsForBootstrap() : Promise.resolve([]),
-      canTransportHistory ? this.loadFuelLogs() : Promise.resolve([]),
-      canTransportHistory ? this.loadVehicleTechnicalLogs() : Promise.resolve([]),
-      canPayroll ? this.loadHrAbsences() : Promise.resolve([]),
-      canSst ? this.loadSstCompliance() : Promise.resolve([]),
-      canDocuments ? this.loadEmployeeDocuments() : Promise.resolve([]),
-      canDocuments ? this.loadEmployeeDocumentFolders() : Promise.resolve([])
+      isClient ? Promise.resolve([]) : this.loadContacts(canViewContactB2b),
+      canLoadPositionsCatalog && !isClient ? this.loadPositions() : Promise.resolve([]),
+      canHiringBootstrap ? this.loadVacancies() : Promise.resolve([]),
+      canHiringBootstrap ? this.loadCandidates() : Promise.resolve([]),
+      canHiringBootstrap ? this.loadInterviews() : Promise.resolve([]),
+      canHiringBootstrap ? this.loadContracts() : Promise.resolve([]),
+      canPayrollBootstrap ? this.loadPayrollRunsForBootstrap() : Promise.resolve([]),
+      canTransportHistoryBootstrap ? this.loadFuelLogs() : Promise.resolve([]),
+      canTransportHistoryBootstrap ? this.loadVehicleTechnicalLogs() : Promise.resolve([]),
+      canPayrollBootstrap ? this.loadHrAbsences() : Promise.resolve([]),
+      canSstBootstrap ? this.loadSstCompliance() : Promise.resolve([]),
+      canDocuments ? this.loadEmployeeDocuments(documentsCompanyScope) : Promise.resolve([]),
+      canDocuments ? this.loadEmployeeDocumentFolders(documentsCompanyScope) : Promise.resolve([])
     ]);
 
     const dependentPromise = Promise.all([
       this.loadUsers(admin, userId, empresaId, role, fullUserDirectoryAccess),
-      this.loadRequests(admin, userId, empresaId, canTransportData, role),
-      canPayroll
+      this.loadRequests(admin, userId, empresaId, canTransportData, role, permissionSet),
+      canPayrollBootstrap
         ? this.loadPayrollEmployees(
             empresaId,
             admin,
@@ -4830,6 +4890,10 @@ export class PortalService implements OnModuleInit {
         await this.syncContacts(c, data);
         return;
       case "requests":
+        if (this.isPortalClientRole(role)) {
+          const clientPerms = await this.resolveEffectivePermissionSet(userId, role);
+          if (!this.hasPortalPermission(clientPerms, "client_requests")) throw new ForbiddenException();
+        }
         await this.syncRequests(c, data, userId, role);
         return;
       case "vehicles":
@@ -5370,7 +5434,7 @@ export class PortalService implements OnModuleInit {
       const baseRow = {
         ...row,
         password: "",
-        permissions: permMap.get(rid) || [],
+        permissions: this.resolvePortalUserPermissionsFromDb(row.role, permMap.get(rid) || []),
         source: "portal_db",
         avatarUrl,
         registrationKind: registrationKind ?? row.registrationKind ?? null,
@@ -5432,7 +5496,7 @@ export class PortalService implements OnModuleInit {
     };
   }
 
-  private async loadTripRouteRates() {
+  private async loadTripRouteRates(onlyCompanyId: string | null = null) {
     /**
      * Si la BD no tiene corrida la migración `09_tarifas_trayecto_clientes.sql`
      * (la columna `ids_empresas` aún no existe), caemos a SELECT sin esa columna
@@ -5473,6 +5537,12 @@ export class PortalService implements OnModuleInit {
       const routeKey = `${o}->${d}`;
       const rawIds = (row as { ids_empresas?: unknown }).ids_empresas;
       const companyIds = Array.isArray(rawIds) ? rawIds.map((id) => String(id)) : [];
+      const scopedCompany = onlyCompanyId && PG_UUID_V4_RE.test(String(onlyCompanyId).trim())
+        ? String(onlyCompanyId).trim()
+        : null;
+      if (scopedCompany && companyIds.length > 0 && !companyIds.includes(scopedCompany)) {
+        continue;
+      }
       const suffix = companyIds.length ? companyIds.slice().sort().join(",") : "*";
       const storageKey = `${routeKey}${SEP}${suffix}`;
       out[storageKey] = {
@@ -5491,7 +5561,8 @@ export class PortalService implements OnModuleInit {
     userId: string,
     empresaId: string | null,
     transport: boolean,
-    role: JwtRole
+    role: JwtRole,
+    permissionSet?: ReadonlySet<string>
   ) {
     const base = `
       SELECT s.id::text,
@@ -5555,9 +5626,11 @@ export class PortalService implements OnModuleInit {
       LEFT JOIN empresas ec ON ec.id = s.id_empresa_cliente`;
 
     let r;
-    if (admin || transport) {
-      r = await this.pool.query(base + ` ORDER BY s.fecha_creacion DESC`);
-    } else if (this.isPortalClientRole(role)) {
+    if (this.isPortalClientRole(role)) {
+      const perms = permissionSet ?? (await this.loadPortalPermissionSet(userId));
+      if (!this.hasPortalPermission(perms, "client_requests")) {
+        return [];
+      }
       if (empresaId) {
         r = await this.pool.query(
           base + ` WHERE s.id_empresa_cliente = $1::uuid ORDER BY s.fecha_creacion DESC`,
@@ -5569,6 +5642,8 @@ export class PortalService implements OnModuleInit {
           [userId]
         );
       }
+    } else if (admin || transport) {
+      r = await this.pool.query(base + ` ORDER BY s.fecha_creacion DESC`);
     } else {
       r = await this.pool.query(
         base +
@@ -7437,11 +7512,18 @@ export class PortalService implements OnModuleInit {
     }));
   }
 
-  private async loadEmployeeDocuments() {
+  private async loadEmployeeDocuments(companyId: string | null = null) {
     if (!(await this.tableExists("documentos_empleado"))) return [];
-    const r = await this.pool.query(
-      `SELECT * FROM documentos_empleado ORDER BY fecha_creacion DESC`
-    );
+    const scoped = companyId && PG_UUID_V4_RE.test(String(companyId).trim()) ? String(companyId).trim() : null;
+    const r = scoped
+      ? await this.pool.query(
+          `SELECT d.* FROM documentos_empleado d
+           INNER JOIN empleados_nomina e ON e.id = d.id_empleado
+           WHERE e.id_empresa = $1::uuid
+           ORDER BY d.fecha_creacion DESC`,
+          [scoped]
+        )
+      : await this.pool.query(`SELECT * FROM documentos_empleado ORDER BY fecha_creacion DESC`);
     return r.rows.map((row) => ({
       id: row.id,
       employeeId: row.id_empleado,
@@ -7464,11 +7546,18 @@ export class PortalService implements OnModuleInit {
     }));
   }
 
-  private async loadEmployeeDocumentFolders() {
+  private async loadEmployeeDocumentFolders(companyId: string | null = null) {
     if (!(await this.tableExists("carpetas_documento_empleado"))) return [];
-    const r = await this.pool.query(
-      `SELECT * FROM carpetas_documento_empleado ORDER BY nombre_carpeta ASC`
-    );
+    const scoped = companyId && PG_UUID_V4_RE.test(String(companyId).trim()) ? String(companyId).trim() : null;
+    const r = scoped
+      ? await this.pool.query(
+          `SELECT f.* FROM carpetas_documento_empleado f
+           INNER JOIN empleados_nomina e ON e.id = f.id_empleado
+           WHERE e.id_empresa = $1::uuid
+           ORDER BY f.nombre_carpeta ASC`,
+          [scoped]
+        )
+      : await this.pool.query(`SELECT * FROM carpetas_documento_empleado ORDER BY nombre_carpeta ASC`);
     return r.rows.map((row) => ({
       id: row.id,
       employeeId: row.id_empleado,
@@ -7843,12 +7932,17 @@ export class PortalService implements OnModuleInit {
         ]);
       }
       if (admin && Array.isArray(u.permissions)) {
+        const roleForPerms = String(u.role || role || "").toLowerCase();
+        const filtered = this.filterPermissionsForPortalRole(
+          roleForPerms,
+          u.permissions.map((perm: unknown) => String(perm))
+        );
         await c.query(`DELETE FROM permisos_usuario WHERE id_usuario = $1::uuid`, [u.id]);
-        for (const perm of u.permissions) {
+        for (const perm of filtered) {
           await c.query(
             `INSERT INTO permisos_usuario (id_usuario, permiso) VALUES ($1::uuid, $2)
              ON CONFLICT (id_usuario, permiso) DO NOTHING`,
-            [u.id, String(perm)]
+            [u.id, perm]
           );
         }
       }
@@ -8626,6 +8720,9 @@ export class PortalService implements OnModuleInit {
     const transport = admin || this.isTransportOps(role) || this.hasTransportOpsPermission(permissionSet);
     const empresaId = await this.getUserCompany(userId);
     const isClient = this.isPortalClientRole(role);
+    if (isClient && !this.hasPortalPermission(permissionSet, "client_requests")) {
+      throw new ForbiddenException();
+    }
     for (const req of data) {
       if (!req || typeof req !== "object") continue;
       const reqRec = req as Record<string, unknown>;
@@ -8645,7 +8742,7 @@ export class PortalService implements OnModuleInit {
 
       let ownerOk =
         admin ||
-        transport ||
+        (!isClient && transport) ||
         (clientUserIdSql && clientUserIdSql === userId) ||
         (empresaId && clientCompanyIdSql && clientCompanyIdSql === String(empresaId));
       if (isClient) {

@@ -24,17 +24,7 @@
 
 /* —— Sidebar: campana + bandeja (layout en portal-sidebar.css) —— */
 .sidebar-notif-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  margin: 0.1rem 0 0.2rem;
-}
-
-.sidebar-notif-row .side-link--notif-inbox,
-.sidebar-notif-hub .side-link--notif-inbox {
-  flex: 0 0 auto;
-  min-width: 0;
-  width: 100%;
+  display: contents;
 }
 
 .side-link--notif-inbox {

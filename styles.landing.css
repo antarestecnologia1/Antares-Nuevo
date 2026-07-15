@@ -2139,27 +2139,6 @@ body:not(.portal-sidebar-collapsed) .sidebar-theme-title {
 body:not(.portal-sidebar-collapsed) .theme-toggle--compact {
     transform: none;
   }
-body:not(.portal-sidebar-collapsed) .sidebar-notif-hub {
-    flex-direction: row;
-    align-items: stretch;
-  }
-body:not(.portal-sidebar-collapsed) .sidebar-notif-hub .sidebar-notif-bell-toggle {
-    width: 2.65rem !important;
-    min-width: 2.65rem !important;
-    margin: 0;
-    padding: 0;
-  }
-body:not(.portal-sidebar-collapsed) .sidebar-notif-hub .side-link--notif-inbox {
-    padding-left: 0.65rem;
-    padding-right: 0.45rem;
-    padding-top: 0.62rem;
-  }
-body:not(.portal-sidebar-collapsed) .sidebar-notif-hub:has(.side-link--notif-inbox.active)::after {
-    display: none;
-  }
-body:not(.portal-sidebar-collapsed) .side-link--notif-inbox.active {
-    background: var(--portal-sidebar-active-bg);
-  }
 }
 
 body.portal-drawer-open .portal-menu-btn {

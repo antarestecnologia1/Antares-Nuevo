@@ -10,6 +10,7 @@ import {
   setSession
 } from "./auth.js";
 import { filterPortalRequestsForServerCache } from "../domain/solicitudes.domain.js";
+import { isPortalClientUser, scopePortalBootstrapPayloadForClient } from "./client-data-scope-ui.js";
 import { state } from "./store.js";
 import { scheduleRenderPortalView } from "./router.js";
 
@@ -678,12 +679,45 @@ export function __applyPortalBootstrapPayloadInner(p) {
   }
 }
 
+function resolveBootstrapActorForScoping(p) {
+  const cached = currentUser();
+  if (cached) return cached;
+  const session = getSession();
+  const uid = session?.userId;
+  if (!uid) return null;
+  if (Array.isArray(p?.users)) {
+    const hit = p.users.find((u) => String(u?.id) === String(uid));
+    if (hit) return hit;
+  }
+  const snap = session.profileSnapshot;
+  if (snap && String(snap.id) === String(uid)) {
+    return {
+      id: String(snap.id),
+      role: snap.role || session.role || ROLES.CLIENT,
+      companyId: snap.companyId != null ? String(snap.companyId) : "",
+      permissions: Array.isArray(snap.permissions) ? snap.permissions : []
+    };
+  }
+  if (session.role) {
+    return {
+      id: String(uid),
+      role: session.role,
+      companyId: "",
+      permissions: []
+    };
+  }
+  return null;
+}
+
 export function applyPortalBootstrapPayload(p) {
   if (!p || typeof p !== "object") return;
   const PS = window.AntaresPortalSync;
   if (PS?.beginBootstrap) PS.beginBootstrap();
   try {
-    __applyPortalBootstrapPayloadInner(p);
+    const actor = resolveBootstrapActorForScoping(p);
+    const scoped =
+      actor && isPortalClientUser(actor) ? scopePortalBootstrapPayloadForClient(p, actor) : p;
+    __applyPortalBootstrapPayloadInner(scoped);
   } finally {
     if (PS?.endBootstrap) PS.endBootstrap();
   }

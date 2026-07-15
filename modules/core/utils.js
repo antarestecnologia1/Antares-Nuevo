@@ -378,7 +378,13 @@ export function normalizeHrWorkspace(moduleId, workspace) {
   }
   if (moduleId === "requests") return HR_VALID_REQUESTS_WS.has(ws) ? ws : "operate";
   if (moduleId === "sst") return HR_VALID_SST_WS.has(ws) ? ws : "operate";
-  if (moduleId === "documents") return HR_VALID_DOCUMENTS_WS.has(ws) ? ws : "operate";
+  if (moduleId === "documents") {
+    const w = ws.toLowerCase();
+    if (w === "operate" || w === "subir" || w === "upload") return "upload";
+    if (w === "browse" || w === "consult" || w === "consultar") return "consult";
+    if (w === "dossier" || w === "expediente") return "dossier";
+    return HR_VALID_DOCUMENTS_WS.has(ws) ? ws : "upload";
+  }
   return ws;
 }
 
@@ -396,6 +402,26 @@ export function normalizeDocumentsOperateSection(section) {
   if (s === "dossier" || s === "expediente") return "dossier";
   if (s === "browse" || s === "consult" || s === "consultar" || s === "carpetas") return "browse";
   return "upload";
+}
+
+/** Migra workspace legacy (operate + operateSection) al modelo upload | consult | dossier | data. */
+export function resolveDocumentsWorkspace(rawUi) {
+  const ui = rawUi || {};
+  const ws = String(ui.workspace || "").trim().toLowerCase();
+  if (ws === "operate") {
+    const sec = normalizeDocumentsOperateSection(ui.operateSection || "upload");
+    if (sec === "browse") return "consult";
+    if (sec === "dossier") return "dossier";
+    return "upload";
+  }
+  const normalized = normalizeHrWorkspace("documents", ws);
+  if (normalized === "operate") {
+    const sec = normalizeDocumentsOperateSection(ui.operateSection || "upload");
+    if (sec === "browse") return "consult";
+    if (sec === "dossier") return "dossier";
+    return "upload";
+  }
+  return normalized;
 }
 
 export function normalizeSstDataSection(section) {

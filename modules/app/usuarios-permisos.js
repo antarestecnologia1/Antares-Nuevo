@@ -18,10 +18,21 @@ function permissionCheckboxHtml(permission, sel, readOnly) {
 
 function buildGranularPermissionsCheckboxesHtml(selected = [], opts = {}) {
   const readOnly = Boolean(opts.readOnlyAllChecked);
-  const allowed = new Set(ALL_PERMISSIONS);
-  const sel = new Set(
+  const roleAssignable =
+    opts.role && typeof assignablePermissionsForRole === "function"
+      ? assignablePermissionsForRole(opts.role)
+      : null;
+  const allowed = new Set(
     readOnly
       ? ALL_PERMISSIONS
+      : roleAssignable ||
+          (Array.isArray(opts.allowedPermissions) && opts.allowedPermissions.length
+            ? opts.allowedPermissions
+            : ALL_PERMISSIONS)
+  );
+  const sel = new Set(
+    readOnly
+      ? [...allowed]
       : (Array.isArray(selected) ? selected : []).filter((p) => allowed.has(p))
   );
   const grouped = new Set();

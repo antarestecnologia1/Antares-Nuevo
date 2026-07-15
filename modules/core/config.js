@@ -222,6 +222,18 @@ export const PERMISSIONS = {
 
 export const ALL_PERMISSIONS = Object.values(PERMISSIONS);
 
+/** Permisos que puede tener un usuario con rol Cliente (segregación granular). */
+export const CLIENT_ROLE_PERMISSIONS = Object.freeze([
+  PERMISSIONS.PROFILE_VIEW,
+  PERMISSIONS.CLIENT_REQUESTS
+]);
+
+/** Permisos mostrables/asignables en la grilla según el rol seleccionado. */
+export function assignablePermissionsForRole(role) {
+  if (role === ROLES.CLIENT) return [...CLIENT_ROLE_PERMISSIONS];
+  return [...ALL_PERMISSIONS];
+}
+
 /** 125 municipios del departamento de Antioquia (DANE), sin tildes para coincidencia en formularios. */
 export const ANTIOQUIA_MUNICIPALITIES = [
   "Abejorral", "Abriaqui", "Alejandria", "Amaga", "Amalfi", "Andes", "Angelopolis", "Angostura", "Anori", "Anza",
@@ -279,7 +291,10 @@ export const COLOMBIA_LOCATIONS = {
 
 export const PERMISSION_META = {
   [PERMISSIONS.DASHBOARD_VIEW]: { title: "Ver dashboard", desc: "Acceso a indicadores y resumen general." },
-  [PERMISSIONS.CLIENT_REQUESTS]: { title: "Solicitudes de cliente", desc: "Crear y consultar solicitudes propias." },
+  [PERMISSIONS.CLIENT_REQUESTS]: {
+    title: "Solicitudes de cliente",
+    desc: "Crear solicitudes, consultar las propias y ver el viaje asignado."
+  },
   [PERMISSIONS.TRANSPORT_REQUESTS]: {
     title: "Operación de solicitudes",
     desc: "Crear solicitudes para cualquier empresa y ver el listado operativo completo (perfil logística)."
@@ -399,7 +414,7 @@ export const CLIENT_DATA_SCOPE = {
 export const HR_VALID_PAYROLL_WS = new Set(["operate", "data"]);
 export const HR_VALID_HIRING_WS = new Set(["operate", "data"]);
 export const HR_VALID_SST_WS = new Set(["operate", "data"]);
-export const HR_VALID_DOCUMENTS_WS = new Set(["operate", "data"]);
+export const HR_VALID_DOCUMENTS_WS = new Set(["upload", "consult", "dossier", "data", "operate"]);
 export const HR_VALID_REQUESTS_WS = new Set(["operate", "data"]);
 export const HR_VALID_TRANSPORT_TRIPS_WS = new Set(["operate", "data"]);
 export const HR_VALID_TRANSPORT_VEHICLES_WS = new Set(["operate", "data"]);

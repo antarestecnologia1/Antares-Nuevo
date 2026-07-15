@@ -537,12 +537,25 @@ body:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-section-label {
   overflow: visible;
 }
 
-#portal-sidebar .side-link--notif-inbox {
-  flex: 0 0 auto;
+/* Sin caja propia: los botones participan del mismo flujo que el resto del menú. */
+#portal-sidebar .sidebar-notif-group {
+  display: contents;
+}
+
+/* Compat: si quedó markup antiguo con hub/divisor, no genera caja ni indentación. */
+#portal-sidebar .sidebar-notif-hub {
+  display: contents;
+}
+
+#portal-sidebar .sidebar-notif-hub__divider {
+  display: none;
+}
+
+#portal-sidebar .side-link--notif-inbox,
+#portal-sidebar .sidebar-notif-bell-toggle {
   width: 100%;
-  min-width: 0;
-  overflow: visible;
   margin: 0;
+  padding: 0.42rem 0.55rem;
 }
 
 body.portal-sidebar-collapsed #portal-sidebar .side-link {
@@ -572,147 +585,8 @@ body.portal-sidebar-collapsed #portal-sidebar .side-link.active::before {
   height: 48%;
 }
 
-/* ── Notificaciones: bandeja + silenciador como ítems normales del menú ── */
-#portal-sidebar .sidebar-notif-group {
-  margin-top: 0.15rem;
-  overflow: visible;
-}
-
-#portal-sidebar .sidebar-notif-hub {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 0.15rem;
-  width: 100%;
-  min-width: 0;
-  max-width: 100%;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  overflow: visible;
-}
-
-#portal-sidebar .sidebar-notif-hub .side-link--notif-inbox {
-  flex: 0 0 auto;
-  min-width: 0;
-  width: 100%;
-}
-
-/* Separador visual del hub antiguo: oculto para que no forme un “cuadro”. */
-#portal-sidebar .sidebar-notif-hub__divider {
-  display: none;
-}
-
-#portal-sidebar .sidebar-notif-hub .sidebar-notif-bell-toggle {
-  flex: 0 0 auto;
-  display: inline-flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 0.72rem;
-  width: 100%;
-  min-width: 0;
-  min-height: 44px;
-  margin: 0;
-  padding: 0.42rem 0.55rem;
-  border: 1px solid transparent;
-  border-radius: var(--portal-sidebar-item-radius);
-  background: transparent;
-  color: var(--portal-sidebar-nav-text);
-  font-family: var(--font-display);
-  font-size: 0.875rem;
-  font-weight: 600;
-  line-height: 1.25;
-  text-align: left;
-  cursor: pointer;
-  position: relative;
-  transition:
-    background var(--portal-sidebar-transition),
-    border-color var(--portal-sidebar-transition),
-    color var(--portal-sidebar-transition),
-    box-shadow var(--portal-sidebar-transition),
-    transform var(--portal-sidebar-transition);
-}
-
-#portal-sidebar .sidebar-notif-hub .sidebar-notif-bell-toggle:hover {
-  background: rgba(var(--primary-rgb), 0.07);
-  border-color: rgba(var(--primary-rgb), 0.1);
-  color: var(--portal-sidebar-nav-text);
-  transform: translateX(2px);
-}
-
-#portal-sidebar .sidebar-notif-hub .sidebar-notif-bell-toggle:hover .sidebar-notif-bell-icon {
-  background: rgba(var(--primary-rgb), 0.11);
-  border-color: rgba(var(--primary-rgb), 0.18);
-  color: var(--primary);
-  transform: scale(1.04);
-}
-
-#portal-sidebar .sidebar-notif-hub .sidebar-notif-bell-toggle .side-icon {
-  width: 18px !important;
-  height: 18px !important;
-}
-
-/* Ícono del timbre con el mismo contenedor que el resto de enlaces del menú. */
-#portal-sidebar .sidebar-notif-bell-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: var(--portal-sidebar-icon-size);
-  height: var(--portal-sidebar-icon-size);
-  min-width: var(--portal-sidebar-icon-size);
-  border-radius: var(--portal-sidebar-icon-radius);
-  background: rgba(var(--primary-rgb), 0.06);
-  border: 1px solid rgba(var(--primary-rgb), 0.09);
-  color: color-mix(in srgb, var(--portal-sidebar-link-hover) 88%, var(--primary));
-  box-shadow: 0 1px 2px rgba(var(--primary-rgb), 0.04);
-  transition:
-    background var(--portal-sidebar-transition),
-    border-color var(--portal-sidebar-transition),
-    color var(--portal-sidebar-transition),
-    box-shadow var(--portal-sidebar-transition),
-    transform var(--portal-sidebar-transition);
-}
-
-/* La etiqueta del timbre se oculta por defecto; se muestra cuando el menú está
-   expandido (escritorio) o en el cajón móvil (ver media queries). */
-#portal-sidebar .sidebar-notif-bell-label {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
-/* Escritorio con menú expandido: bandeja y timbre como filas del menú. */
+/* Escritorio expandido: pie de cuenta en filas independientes. */
 @media (min-width: 921px) {
-  body:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-notif-bell-label {
-    position: static;
-    width: auto;
-    height: auto;
-    margin: 0;
-    padding: 0;
-    overflow: visible;
-    clip: auto;
-    white-space: nowrap;
-    border: 0;
-    flex: 1;
-    min-width: 0;
-    font-family: var(--font-display);
-    font-size: 0.875rem;
-    font-weight: 600;
-    color: inherit;
-  }
-
-  /* Pie de cuenta: apariencia y "Cerrar sesión" en filas independientes para
-     que la etiqueta del botón no se recorte cuando la barra es estrecha. */
   body:not(.portal-sidebar-collapsed) #portal-sidebar .sidebar-account-toolbar {
     flex-direction: column;
     align-items: stretch;
@@ -733,29 +607,6 @@ body.portal-sidebar-collapsed #portal-sidebar .side-link.active::before {
     width: 100%;
     justify-content: center;
   }
-}
-
-body.portal-sidebar-collapsed #portal-sidebar .sidebar-notif-hub {
-  align-items: stretch;
-  gap: 0.15rem;
-  padding: 0;
-}
-
-body.portal-sidebar-collapsed #portal-sidebar .side-link--notif-inbox {
-  justify-content: center;
-  padding: 0.38rem 0.35rem;
-}
-
-body.portal-sidebar-collapsed #portal-sidebar .sidebar-notif-hub .sidebar-notif-bell-toggle {
-  justify-content: center;
-  gap: 0;
-  width: 100%;
-  min-height: 44px;
-  padding: 0.38rem 0.35rem;
-}
-
-body.portal-sidebar-collapsed #portal-sidebar .sidebar-notif-hub .sidebar-notif-bell-toggle:hover {
-  transform: none;
 }
 
 /* ── Footer: dock de cuenta ── */
@@ -1352,25 +1203,6 @@ body[data-theme="dark"] #portal-sidebar .side-link:hover .side-link__icon-wrap {
   border-color: rgba(var(--primary-mid-rgb), 0.24);
 }
 
-body[data-theme="dark"] #portal-sidebar .sidebar-notif-hub .sidebar-notif-bell-toggle {
-  color: var(--portal-sidebar-nav-text);
-}
-
-body[data-theme="dark"] #portal-sidebar .sidebar-notif-hub .sidebar-notif-bell-toggle:hover {
-  background: rgba(var(--primary-mid-rgb), 0.12);
-  border-color: rgba(var(--primary-mid-rgb), 0.28);
-}
-
-body[data-theme="dark"] #portal-sidebar .sidebar-notif-bell-icon {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(var(--primary-mid-rgb), 0.14);
-}
-
-body[data-theme="dark"] #portal-sidebar .sidebar-notif-hub .sidebar-notif-bell-toggle:hover .sidebar-notif-bell-icon {
-  background: rgba(var(--primary-mid-rgb), 0.14);
-  border-color: rgba(var(--primary-mid-rgb), 0.24);
-}
-
 body[data-theme="dark"] #portal-sidebar .sidebar-brand-logo-wrap {
   background: linear-gradient(
     128deg,
@@ -1403,58 +1235,13 @@ body[data-theme="dark"] #portal-sidebar.sidebar--rail {
     4px 0 28px rgba(0, 0, 0, 0.28);
 }
 
-/* Drawer móvil (≤920px): bandeja y timbre como filas normales del menú. */
+/* Drawer móvil (≤920px): notificaciones usan el mismo padding que el resto. */
 @media (max-width: 920px) {
-  #portal-sidebar .sidebar-notif-group,
-  #portal-sidebar .sidebar-notif-hub {
-    width: 100%;
-    min-width: 0;
-  }
-
-  #portal-sidebar .sidebar-notif-hub .side-link--notif-inbox {
-    width: 100%;
+  #portal-sidebar .side-link--notif-inbox,
+  #portal-sidebar .sidebar-notif-bell-toggle {
     min-height: 46px;
     padding: 0.55rem 0.65rem;
     gap: 0.7rem;
-  }
-
-  #portal-sidebar .sidebar-notif-hub .sidebar-notif-bell-toggle {
-    min-height: 46px;
-    padding: 0.55rem 0.65rem;
-    gap: 0.7rem;
-  }
-
-  #portal-sidebar .sidebar-notif-bell-label {
-    position: static;
-    width: auto;
-    height: auto;
-    margin: 0;
-    padding: 0;
-    overflow: visible;
-    clip: auto;
-    white-space: nowrap;
-    border: 0;
-    flex: 1;
-    min-width: 0;
-    font-family: var(--font-display);
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: inherit;
-  }
-
-  #portal-sidebar .side-link--notif-inbox .side-link__label {
-    position: static;
-    width: auto;
-    height: auto;
-    padding: 0;
-    margin: 0;
-    overflow: hidden;
-    clip: auto;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    border: 0;
-    flex: 1;
-    min-width: 0;
   }
 
   body.portal-drawer-open #portal-sidebar .sidebar-rail-scroll {

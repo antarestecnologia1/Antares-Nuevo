@@ -21,6 +21,134 @@
   gap: 1.25rem;
 }
 
+.doc-workspace-panels {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.doc-workspace-panel:not(.hidden) + .doc-workspace-panel:not(.hidden) {
+  margin-top: 0;
+}
+
+/* ─── Campos alineados ─── */
+.documents-studio .doc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+  min-width: 0;
+}
+
+.documents-studio .doc-field__label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.25;
+  color: inherit;
+}
+
+.documents-studio .doc-field__control {
+  display: block;
+  width: 100%;
+  min-height: 2.5rem;
+  box-sizing: border-box;
+  border-radius: 10px;
+}
+
+.documents-studio .doc-field__control[type="date"] {
+  min-height: 2.5rem;
+}
+
+.documents-studio textarea.doc-field__control {
+  min-height: 4.5rem;
+  resize: vertical;
+}
+
+.documents-studio .doc-field__hint {
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.documents-studio .doc-field--inline {
+  max-width: 420px;
+}
+
+.documents-studio .doc-field--full {
+  grid-column: 1 / -1;
+}
+
+/* ─── Bloques del formulario de subida ─── */
+.doc-upload-form {
+  padding: 0 1.25rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+}
+
+.doc-form-block {
+  padding: 1rem 1.05rem;
+  border: 1px solid var(--doc-border);
+  border-radius: var(--doc-radius-sm);
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.doc-form-block__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+
+.doc-form-block__step {
+  flex-shrink: 0;
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--doc-accent);
+  background: var(--doc-accent-soft);
+  line-height: 1;
+}
+
+.doc-form-block__title {
+  margin: 0 0 0.15rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.doc-form-block__hint {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.doc-form-block__grid {
+  display: grid;
+  gap: 0.85rem 1rem;
+  align-items: start;
+}
+
+.doc-form-block__grid--2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.doc-form-block--file .doc-dropzone {
+  margin-bottom: 0;
+}
+
+.doc-dossier-card__body {
+  padding: 0 1.25rem 1.25rem;
+}
+
+.doc-consult-card .doc-explorer-panel--embedded {
+  padding: 0 1rem 1rem;
+}
+
 /* ─── KPIs ─── */
 .doc-kpi-grid {
   display: grid;
@@ -242,28 +370,7 @@ button.doc-kpi {
   padding: 0 1.25rem 1.25rem;
 }
 
-.doc-upload-form {
-  padding: 0 1.25rem 1.25rem;
-}
-
-.doc-upload-form__grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.85rem 1rem;
-  margin-bottom: 1rem;
-}
-
-.doc-upload-form__grid .field--full {
-  grid-column: 1 / -1;
-}
-
-.doc-upload-form__grid .field input,
-.doc-upload-form__grid .field select,
-.doc-upload-form__grid .field textarea {
-  border-radius: 10px;
-}
-
-/* ─── Dropzone ─── */
+/* dropzone — legacy grid rules removed; form uses doc-form-block */
 .doc-dropzone {
   position: relative;
   border: 2px dashed rgba(99, 102, 241, 0.35);
@@ -451,12 +558,12 @@ button.doc-kpi {
 }
 
 .doc-checklist__item {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr) auto auto auto;
+  gap: 0.5rem 0.65rem;
   align-items: center;
-  gap: 0.45rem 0.65rem;
   font-size: 0.82rem;
-  padding: 0.45rem 0.6rem;
+  padding: 0.5rem 0.65rem;
   border-radius: 8px;
   transition: background 0.12s ease, box-shadow 0.25s ease;
 }
@@ -466,17 +573,17 @@ button.doc-kpi {
 }
 
 .doc-checklist__main {
-  display: flex;
-  flex: 1;
+  display: contents;
+}
+
+.doc-checklist__label {
   min-width: 0;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.65rem;
+  line-height: 1.3;
 }
 
 .doc-checklist__dot {
-  width: 1.15rem;
-  height: 1.15rem;
+  width: 1.25rem;
+  height: 1.25rem;
   flex-shrink: 0;
   display: grid;
   place-items: center;
@@ -484,6 +591,7 @@ button.doc-kpi {
   font-weight: 700;
   border-radius: 50%;
   background: rgba(148, 163, 184, 0.2);
+  grid-column: 1;
 }
 
 .doc-checklist__item.is-ok .doc-checklist__dot {
@@ -499,23 +607,18 @@ button.doc-kpi {
 .doc-checklist__count {
   font-size: 0.75rem;
   opacity: 0.8;
+  white-space: nowrap;
+  text-align: right;
 }
 
-.doc-checklist__status--warn {
-  color: var(--doc-warn);
-  font-size: 0.72rem;
-  font-weight: 600;
-}
-
+.doc-checklist__status--warn,
 .doc-checklist__status--expired {
-  color: var(--doc-expired);
-  font-size: 0.72rem;
-  font-weight: 600;
+  white-space: nowrap;
 }
 
 .doc-checklist__upload {
-  margin-left: auto;
-  padding: 0.15rem 0.45rem;
+  justify-self: end;
+  padding: 0.2rem 0.5rem;
   font-size: 0.68rem;
   line-height: 1.2;
   white-space: nowrap;
@@ -589,12 +692,19 @@ button.doc-kpi {
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
 }
 
+.doc-type-picker--form {
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
 .doc-type-picker__item {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: 1.25rem minmax(0, 1fr);
   gap: 0.55rem;
-  align-items: start;
+  align-items: center;
   width: 100%;
+  min-height: 2.75rem;
   padding: 0.55rem 0.65rem;
   border: 1px solid var(--doc-border);
   border-radius: 10px;
@@ -631,15 +741,17 @@ button.doc-kpi {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 1rem;
+  width: 1.25rem;
+  height: 1.25rem;
   font-size: 0.78rem;
   line-height: 1;
-  margin-top: 0.1rem;
 }
 
 .doc-type-picker__body {
-  display: grid;
-  gap: 0.1rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.08rem;
   min-width: 0;
 }
 
@@ -652,6 +764,7 @@ button.doc-kpi {
 .doc-type-picker__state {
   font-size: 0.72rem;
   opacity: 0.75;
+  line-height: 1.2;
 }
 
 .doc-type-picker__empty {
@@ -876,23 +989,21 @@ button.doc-kpi {
 }
 
 .doc-filter-bar__row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
+  display: grid;
+  grid-template-columns: minmax(200px, 2fr) repeat(auto-fit, minmax(140px, 1fr)) auto auto;
   gap: 0.65rem 0.75rem;
+  align-items: end;
 }
 
 .doc-filter-field {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  min-width: 140px;
-  flex: 1 1 140px;
+  gap: 0.3rem;
+  min-width: 0;
   margin: 0;
 }
 
 .doc-filter-field--search {
-  flex: 2 1 220px;
   min-width: 200px;
 }
 
@@ -902,23 +1013,22 @@ button.doc-kpi {
   letter-spacing: 0.04em;
   opacity: 0.72;
   font-weight: 600;
+  line-height: 1.2;
 }
 
 .doc-filter-field input,
 .doc-filter-field select {
   width: 100%;
+  min-height: 2.45rem;
+  box-sizing: border-box;
   border-radius: 10px;
 }
 
-.doc-filter-clear {
-  align-self: flex-end;
-  margin-bottom: 0.1rem;
-}
-
+.doc-filter-clear,
 .doc-filter-browse {
-  align-self: flex-end;
-  margin-bottom: 0.1rem;
-  margin-left: auto;
+  min-height: 2.45rem;
+  align-self: end;
+  white-space: nowrap;
 }
 
 .doc-data-actions {
@@ -1252,23 +1362,41 @@ body[data-theme="dark"] .doc-segment-nav {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .doc-form-block__grid--2,
   .doc-upload-form__grid {
     grid-template-columns: 1fr;
   }
 
-  .doc-filter-field,
-  .doc-filter-field--search {
-    flex: 1 1 100%;
-    min-width: 0;
+  .doc-filter-bar__row {
+    grid-template-columns: 1fr;
   }
 
-  .doc-filter-browse {
-    margin-left: 0;
-    width: 100%;
+  .doc-checklist__item {
+    grid-template-columns: 1.25rem minmax(0, 1fr) auto;
+    grid-template-areas:
+      "dot label count"
+      ". status upload";
   }
 
-  .doc-segment-nav--wide {
-    flex-direction: column;
+  .doc-checklist__dot {
+    grid-area: dot;
+  }
+
+  .doc-checklist__label {
+    grid-area: label;
+  }
+
+  .doc-checklist__count {
+    grid-area: count;
+  }
+
+  .doc-checklist__status--warn,
+  .doc-checklist__status--expired {
+    grid-area: status;
+  }
+
+  .doc-checklist__upload {
+    grid-area: upload;
   }
 
   .doc-dossier__head {

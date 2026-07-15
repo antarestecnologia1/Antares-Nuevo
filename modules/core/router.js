@@ -18,6 +18,7 @@ import {
   getPortalUserFirstName,
   getCompanyById,
   canAccessRRHH,
+  portalDefaultViewForUser,
   mountSessionIdlePublicNoticeIfNeeded,
   dismissSessionIdlePublicNotice,
   announceSessionClosedByIdle
@@ -234,14 +235,15 @@ export function updatePortalSidebarSessionMeta() {
 }
 
 export function enforcePortalViewFromUrl(user) {
+  const fallbackView = portalDefaultViewForUser(user);
   PortalRouterCore.enforceViewFromUrl({
     state,
     user,
     getViewFromHashFn: viewFromPortalHash,
     syncHashFn: syncPortalHash,
     isViewAllowed: isViewAllowedForUser,
-    fallbackView: "dashboard",
-    onUnauthorized: () => alert("Ruta no autorizada. Se redirigio al dashboard.")
+    fallbackView,
+    onUnauthorized: () => alert(`Ruta no autorizada. Se redirigió a ${fallbackView}.`)
   });
 }
 
@@ -270,20 +272,27 @@ function applyPortalDashboardOnFullReload() {
   if (!isBrowserReloadNavigation()) return false;
   const raw = String(window.location.hash || "").split("?")[0];
   if (!raw.startsWith("#portal")) return false;
-  state.currentView = "dashboard";
+  const session = getSession();
+  const role = session?.profileSnapshot?.role || session?.role || ROLES.CLIENT;
+  const fallbackUser = {
+    role,
+    permissions: Array.isArray(session?.profileSnapshot?.permissions) ? session.profileSnapshot.permissions : []
+  };
+  const target = portalDefaultViewForUser(fallbackUser);
+  state.currentView = target;
   const canonicalOrigin = "https://www.transportesantares.co";
   try {
     const u = new URL(window.location.href);
     if (isAntaresProductionSiteHost(u.hostname)) {
       if (u.protocol === "https:" && u.hostname === "www.transportesantares.co") {
-        history.replaceState(null, "", `${u.pathname}${u.search}#portal/dashboard`);
+        history.replaceState(null, "", `${u.pathname}${u.search}#portal/${target}`);
         return false;
       }
-      window.location.replace(`${canonicalOrigin}/#portal/dashboard`);
+      window.location.replace(`${canonicalOrigin}/#portal/${target}`);
       return true;
     }
   } catch (_e) {}
-  history.replaceState(null, "", "#portal/dashboard");
+  history.replaceState(null, "", `#portal/${target}`);
   return false;
 }
 
