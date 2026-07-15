@@ -23877,7 +23877,7 @@ body[data-theme="dark"] .profile-avatar.has-image {
   opacity: 1;
 }
 
-.profile-avatar-file-input {
+.profile-avatar-upload .profile-avatar-file-input {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -23889,6 +23889,29 @@ body[data-theme="dark"] .profile-avatar.has-image {
   cursor: pointer;
   border: 0;
   z-index: 2;
+}
+
+/* Editar usuario (admin): input recortado — evita capa invisible sobre campos del formulario */
+.profile-avatar-upload .profile-avatar-file-input--sr-only,
+#form-admin-user-edit .profile-avatar-upload .profile-avatar-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  inset: auto;
+  opacity: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+
+#form-admin-user-edit .profile-avatar-upload {
+  overflow: hidden;
+  isolation: isolate;
 }
 
 .profile-hero-card-centered .profile-avatar-upload:focus-within {

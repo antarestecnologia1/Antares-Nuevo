@@ -1595,7 +1595,7 @@ export function ensureRequestAndTripIdentifiers() {
   if (changed) reqWrite(filterPortalRequestsForServerCache(mapped));
 }
 
-/** Permisos guardados desde formulario: respeta lo marcado; si queda vacío, defaults del rol (no re-expandir admin). */
+/** Permisos guardados desde formulario: respeta lo marcado; si queda vacío, defaults del rol (admin incluye todos). */
 export function normalizeSavedUserPermissions(role, checkedPermissions) {
   const filtered = (Array.isArray(checkedPermissions) ? checkedPermissions : []).filter((p) =>
     ALL_PERMISSIONS.includes(p)

@@ -575,11 +575,11 @@ function adminUsersHtml(current) {
       <legend>${IC.upload} Foto de perfil</legend>
       <div class="full hr-employee-avatar-row hr-employee-avatar-row--lead" style="grid-column:1/-1">
         <div class="hr-employee-avatar-inner">
-          <label for="admin-edit-user-avatar-input" class="profile-avatar profile-avatar-lg profile-avatar-upload${adminEditUserAvatarHasImage ? " has-image" : ""}" id="admin-edit-user-avatar-label" style="${adminEditUserAvatarHasImage ? `background-image:url('${adminEditUserAvatarCss}');` : ""}" title="Foto del usuario">
+          <label class="profile-avatar profile-avatar-lg profile-avatar-upload${adminEditUserAvatarHasImage ? " has-image" : ""}" id="admin-edit-user-avatar-label" style="${adminEditUserAvatarHasImage ? `background-image:url('${adminEditUserAvatarCss}');` : ""}" title="Foto del usuario" tabindex="0">
             <span class="profile-avatar-initial">${adminEditUserAvatarHasImage ? "" : adminEditUserAvatarInitial}</span>
             <span class="profile-avatar-overlay"><span class="profile-avatar-overlay-inner">${IC.upload}<span>${adminEditUserAvatarHasImage ? escapeHtml("Cambiar foto") : escapeHtml("Subir foto")}</span></span></span>
+            <input type="file" id="admin-edit-user-avatar-input" name="avatarFile" accept="image/*" class="profile-avatar-file-input profile-avatar-file-input--sr-only" aria-label="Cambiar foto del usuario" tabindex="-1" />
           </label>
-          <input type="file" id="admin-edit-user-avatar-input" name="avatarFile" accept="image/*" class="profile-avatar-file-input" aria-label="Cambiar foto del usuario" />
           <input type="hidden" name="avatarUrlExisting" value="${adminEditUserAvatarExisting}" />
           <p class="muted hr-employee-avatar-caption">Pulse el óvalo para elegir imagen. La foto se muestra completa sin recorte; si no cambia el archivo, se conserva la actual.</p>
         </div>

@@ -1478,6 +1478,18 @@ function bindDynamicEvents() {
     const adminEditAvatarInput = document.getElementById("admin-edit-user-avatar-input");
     const adminEditAvatarLabel = document.getElementById("admin-edit-user-avatar-label");
     bindEmployeeAvatarFilePreview(adminEditAvatarInput, adminEditAvatarLabel);
+    if (adminEditAvatarLabel && adminEditAvatarInput && adminEditAvatarLabel.dataset.antaresAvatarClickWired !== "1") {
+      adminEditAvatarLabel.dataset.antaresAvatarClickWired = "1";
+      adminEditAvatarLabel.addEventListener("click", () => {
+        adminEditAvatarInput.click();
+      });
+      adminEditAvatarLabel.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          adminEditAvatarInput.click();
+        }
+      });
+    }
     wireAdminUserFormPermGridOnRoleChange(adminUserEdit);
     wireFormSubmitGuard(adminUserEdit, async (event) => {
       const data = $portal.readFormEntriesNormalized(adminUserEdit);

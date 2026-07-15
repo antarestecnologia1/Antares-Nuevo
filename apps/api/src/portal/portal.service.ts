@@ -2946,7 +2946,6 @@ export class PortalService implements OnModuleInit {
 
   /** Misma política que permisos por defecto del rol en app.js cuando `permisos_usuario` está vacío. */
   private async resolveEffectivePermissionSet(userId: string, role: JwtRole): Promise<Set<string>> {
-    if (this.isAdmin(role)) return new Set(ALL_PORTAL_PERMISSIONS);
     const fromDb = await this.loadPortalPermissionSet(userId);
     if (fromDb.size > 0) return fromDb;
     return new Set(defaultPermissionsForApprovedRole(String(role || "").toLowerCase()));
