@@ -278,7 +278,8 @@ function mountUniversalModuleFilters() {
     "admin-users",
     "authorizations",
     "contact-leads",
-    "notifications"
+    "notifications",
+    "document-management"
   ]);
   if (cardFirstViews.has(moduleView)) return;
   const tableBodies = [...nodes.viewRoot.querySelectorAll(".table-wrap table tbody")];

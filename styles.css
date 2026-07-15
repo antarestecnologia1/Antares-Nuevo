@@ -19964,6 +19964,8 @@ body[data-theme="dark"] .payroll-legal-notice--info {
   font-size: 0.88rem;
   font-weight: 800;
   letter-spacing: -0.01em;
+  white-space: normal;
+  line-height: 1.2;
 }
 
 .hr-workspace-tab--switch .hr-workspace-tab-hint {
