@@ -872,6 +872,21 @@ export class PortalService implements OnModuleInit {
     }
     try {
       await this.pool.query(`
+        DO $migrateTipoVinculoEmpleado$
+        BEGIN
+          ALTER TYPE public.tipo_vinculo_registro ADD VALUE 'empleado_interno';
+        EXCEPTION
+          WHEN duplicate_object THEN NULL;
+        END $migrateTipoVinculoEmpleado$
+      `);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(
+        `ensureUsuariosSchema: valor empleado_interno en tipo_vinculo_registro (no fatal): ${sanitizeLogText(msg)}`
+      );
+    }
+    try {
+      await this.pool.query(`
         DO $migrateRolLogistica$
         BEGIN
           ALTER TYPE public.rol_usuario ADD VALUE 'logistica';
@@ -5209,6 +5224,7 @@ export class PortalService implements OnModuleInit {
               u.parentesco_emergencia AS "emergencyRelationship", u.url_avatar AS "avatarUrl",
               u.autenticacion_dos_factores AS "twoFactorEnabled",
               u.tipo_vinculo_registro::text AS "registrationKind",
+              u.checklist_registro_json AS "profileQualityChecklist",
               u.fecha_aceptacion_politica_datos AS "dataPolicyAcceptedAt",
               u.version_politica_datos AS "dataPolicyVersion",
               u.fecha_aceptacion_terminos AS "termsAcceptedAt",
@@ -5225,6 +5241,56 @@ export class PortalService implements OnModuleInit {
     );
     const orphans = await this.loadSupabaseAuthOrphans(allRes.rows);
     return [...dbPending, ...orphans];
+  }
+
+  /** Extrae la key de R2 (empleados/… o portal-uploads/…) desde URL pública, prefirmada o key cruda. */
+  private extractUploadsStorageKeyFromAvatarUrl(raw: string): string {
+    const trimmed = String(raw || "").trim();
+    if (!trimmed) return "";
+    const bare = trimmed.replace(/^\/+/, "");
+    if (/^(?:empleados|portal-uploads)\//i.test(bare)) return bare;
+    const publicBase = this.r2.getPublicBase();
+    if (publicBase) {
+      const prefix = `${publicBase}/`;
+      if (trimmed.startsWith(prefix)) {
+        const key = trimmed.slice(prefix.length).replace(/^\/+/, "");
+        if (/^(?:empleados|portal-uploads)\//i.test(key)) return key;
+      }
+    }
+    try {
+      const parsed = new URL(trimmed);
+      const pathKey = parsed.pathname.replace(/^\/+/, "");
+      if (/^(?:empleados|portal-uploads)\//i.test(pathKey)) return pathKey;
+    } catch {
+      /* URL relativa o inválida */
+    }
+    return "";
+  }
+
+  /**
+   * URL utilizable en `<img>` / CSS: pública estable, data URL o GET prefirmado (24 h)
+   * cuando el bucket no es público o la URL guardada expiró.
+   */
+  private async resolvePortalAvatarDisplayUrl(raw: string | null | undefined): Promise<string | null> {
+    const u = String(raw || "").trim();
+    if (!u) return null;
+    if (/^data:image\//i.test(u)) return u;
+    const key = this.extractUploadsStorageKeyFromAvatarUrl(u);
+    if (key) {
+      const stable = this.r2.publicUrl(key);
+      if (stable && this.r2.isStablePublicObjectUrl(stable, key)) return stable;
+      if (this.r2.hasUploadsClient()) {
+        try {
+          return await this.r2.presignGetUploadsObject(key, 86400);
+        } catch (e) {
+          this.logger.warn(
+            `resolvePortalAvatarDisplayUrl: presign falló (${key}): ${String((e as Error)?.message || e)}`
+          );
+        }
+      }
+    }
+    if (/^https?:\/\//i.test(u) && !/X-Amz-|x-amz-|Signature=/i.test(u)) return u;
+    return null;
   }
 
   private async finalizePortalUserRowsFromJoin(
@@ -5245,7 +5311,8 @@ export class PortalService implements OnModuleInit {
       }
     }
 
-    return rawRows.map((row) => {
+    return Promise.all(
+      rawRows.map(async (row) => {
       const createdIso = row.createdAt ? new Date(row.createdAt as string).toISOString() : "";
       const portalSinceStr = row.portalSince
         ? new Date(row.portalSince as string).toISOString().slice(0, 10)
@@ -5260,11 +5327,54 @@ export class PortalService implements OnModuleInit {
       const termsAcceptedAt = termsAcceptedAtRaw
         ? new Date(termsAcceptedAtRaw as string).toISOString()
         : null;
+      const checklistRaw = row.profileQualityChecklist;
+      const checklist =
+        checklistRaw && typeof checklistRaw === "object" && !Array.isArray(checklistRaw)
+          ? (checklistRaw as Record<string, unknown>)
+          : typeof checklistRaw === "string"
+            ? (() => {
+                try {
+                  const parsed = JSON.parse(checklistRaw);
+                  return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+                    ? (parsed as Record<string, unknown>)
+                    : null;
+                } catch {
+                  return null;
+                }
+              })()
+            : null;
+      const registrationKindRaw =
+        row.registrationKind ?? checklist?.registrationKind ?? null;
+      const registrationKindNorm = String(registrationKindRaw || "")
+        .trim()
+        .toLowerCase()
+        .replace(/[\s-]+/g, "_");
+      const registrationKind =
+        registrationKindNorm === "empleado_interno" ||
+        registrationKindNorm === "empleadointerno" ||
+        registrationKindNorm === "interno" ||
+        registrationKindNorm === "usuario_interno"
+          ? "empleado_interno"
+          : registrationKindNorm === "cliente"
+            ? "cliente"
+            : registrationKindRaw
+              ? "cliente"
+              : null;
+      const rawAvatar = String(row.avatarUrl ?? "").trim();
+      const resolvedAvatar = rawAvatar ? await this.resolvePortalAvatarDisplayUrl(rawAvatar) : null;
+      const avatarUrl =
+        resolvedAvatar ||
+        (rawAvatar && /^https?:\/\//i.test(rawAvatar) && !/X-Amz-|x-amz-|Signature=/i.test(rawAvatar)
+          ? rawAvatar
+          : null);
       const baseRow = {
         ...row,
         password: "",
         permissions: permMap.get(rid) || [],
         source: "portal_db",
+        avatarUrl,
+        registrationKind: registrationKind ?? row.registrationKind ?? null,
+        profileQualityChecklist: checklist ?? row.profileQualityChecklist ?? null,
         dataPolicyAcceptedAt,
         dataPolicyVersion,
         requiresDataPolicyAcceptance: userRequiresDataPolicyAcceptance(
@@ -5296,7 +5406,8 @@ export class PortalService implements OnModuleInit {
       const isSelf = Boolean(viewerUserId) && String(rid) === String(viewerUserId);
       if (exposeSensitiveAcrossDirectory || isSelf) return baseRow;
       return redactPortalUserDirectoryFields(baseRow);
-    });
+    })
+    );
   }
 
   private async loadCounters() {

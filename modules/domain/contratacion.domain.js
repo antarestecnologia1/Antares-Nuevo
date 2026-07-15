@@ -975,6 +975,7 @@ export async function resolveEmployeeAvatarUrl(file, fallbackDataUrl = "") {
 export function bindEmployeeAvatarFilePreview(fileInput, labelEl) {
   if (!fileInput || !labelEl) return;
   let previewBlobUrl = "";
+  const imgEl = labelEl.querySelector(".profile-avatar-img, [data-admin-edit-avatar-img]");
   fileInput.addEventListener("change", () => {
     const f = fileInput.files?.[0];
     if (!f || !String(f.type || "").startsWith("image/")) return;
@@ -990,17 +991,72 @@ export function bindEmployeeAvatarFilePreview(fileInput, labelEl) {
       previewBlobUrl = "";
     }
     const cssSafe = previewBlobUrl ? previewBlobUrl.replace(/'/g, "\\'") : "";
-    labelEl.style.backgroundImage = cssSafe ? `url('${cssSafe}')` : "";
+    if (imgEl) {
+      imgEl.src = previewBlobUrl || "";
+      imgEl.hidden = !previewBlobUrl;
+    } else {
+      labelEl.style.backgroundImage = cssSafe ? `url('${cssSafe}')` : "";
+    }
     labelEl.classList.toggle("has-image", Boolean(cssSafe));
     const initial = labelEl.querySelector(".profile-avatar-initial");
-    if (initial) initial.textContent = "";
+    if (initial) {
+      initial.textContent = "";
+      initial.hidden = Boolean(cssSafe);
+    }
   });
 }
 
-export function employeeAvatarCssUrl(av) {
+export function normalizePortalAvatarDisplayUrl(av) {
   const u = String(av || "").trim();
-  if (/^https?:\/\//i.test(u) || /^data:image\//i.test(u)) return u.replace(/'/g, "\\'");
+  if (!u) return "";
+  if (/^data:image\//i.test(u) || /^blob:/i.test(u)) return u;
+  if (/^https?:\/\//i.test(u)) {
+    if (/^https?:\/\/$/i.test(u)) return "";
+    return u;
+  }
   return "";
+}
+
+export function employeeAvatarCssUrl(av) {
+  const u = normalizePortalAvatarDisplayUrl(av);
+  return u ? u.replace(/'/g, "\\'") : "";
+}
+
+/** Si la imagen falla al cargar, muestra la inicial del nombre en el contenedor más cercano. */
+export function wirePortalAvatarImgFallback(imgEl, initialText = "") {
+  if (!imgEl || imgEl.dataset.antaresAvatarFallbackWired === "1") return;
+  imgEl.dataset.antaresAvatarFallbackWired = "1";
+  const showFallback = () => {
+    const wrap =
+      imgEl.closest(".profile-avatar-upload") ||
+      imgEl.closest(".directory-card__avatar") ||
+      imgEl.closest(".portal-detail-logo--avatar") ||
+      imgEl.closest(".sidebar-session-avatar-wrap");
+    imgEl.removeAttribute("src");
+    imgEl.hidden = true;
+    if (wrap) {
+      wrap.classList.remove("has-photo", "has-image", "directory-card__avatar--photo");
+    }
+    const cardFallback = wrap?.querySelector(".directory-card__avatar-fallback");
+    if (cardFallback) {
+      cardFallback.hidden = false;
+      cardFallback.removeAttribute("hidden");
+      return;
+    }
+    const initial =
+      wrap?.querySelector(".profile-avatar-initial") ||
+      wrap?.querySelector(".sidebar-session-avatar-initial") ||
+      wrap?.querySelector(".portal-detail-logo--fallback span");
+    if (initial) {
+      if (initialText && !String(initial.textContent || "").trim()) {
+        initial.textContent = initialText;
+      }
+      initial.hidden = false;
+      initial.removeAttribute("hidden");
+    }
+  };
+  imgEl.addEventListener("error", showFallback);
+  if (imgEl.complete && imgEl.naturalWidth === 0 && imgEl.src) showFallback();
 }
 
 export function contractTemplateFileName(kind) {

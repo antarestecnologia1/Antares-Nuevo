@@ -282,8 +282,15 @@ export class AuthService {
       }
 
       const regAtColombia = timestamptzStringColombiaNow();
+      const vinculoRaw = String(dto.registrationKind || "")
+        .trim()
+        .toLowerCase()
+        .replace(/[\s-]+/g, "_");
       const vinculoDb: "cliente" | "empleado_interno" =
-        String(dto.registrationKind || "").trim().toLowerCase() === "empleado_interno"
+        vinculoRaw === "empleado_interno" ||
+        vinculoRaw === "empleadointerno" ||
+        vinculoRaw === "interno" ||
+        vinculoRaw === "usuario_interno"
           ? "empleado_interno"
           : "cliente";
 

@@ -593,6 +593,7 @@ import {
   normalizePayloadTextFields,
   normalizePersonTypeForDb,
   normalizeRegistrationKindForDb,
+  readRegistrationKindFromForm,
   normalizeLatinUpperForDb,
   fieldLabel,
   newUuidV4,
@@ -1913,8 +1914,16 @@ export function portalRegistrationDetailLine(u) {
 export function registrationKindLabel(kind) {
   const k = String(kind || "")
     .trim()
-    .toLowerCase();
-  if (k === "empleado_interno") return "Empleado interno";
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+  if (
+    k === "empleado_interno" ||
+    k === "empleadointerno" ||
+    k === "interno" ||
+    k === "usuario_interno"
+  ) {
+    return "Empleado interno";
+  }
   return "Cliente externo";
 }
 
@@ -1922,9 +1931,27 @@ export function registrationKindLabel(kind) {
 export function registrationKindChipLabel(kind) {
   const k = String(kind || "")
     .trim()
-    .toLowerCase();
-  if (k === "empleado_interno") return "Interno";
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+  if (
+    k === "empleado_interno" ||
+    k === "empleadointerno" ||
+    k === "interno" ||
+    k === "usuario_interno"
+  ) {
+    return "Interno";
+  }
   return "Externo";
+}
+
+export function resolveUserRegistrationKind(user) {
+  if (!user || typeof user !== "object") return "";
+  const fromRow = user.registrationKind;
+  const fromChecklist =
+    user.profileQualityChecklist && typeof user.profileQualityChecklist === "object"
+      ? user.profileQualityChecklist.registrationKind
+      : "";
+  return normalizeRegistrationKindForDb(fromRow || fromChecklist || "");
 }
 
 export function portalRegistrationInboxInitials(name) {
@@ -1973,7 +2000,7 @@ export function buildPortalRegistrationInboxCardsHtml(pendingUsers) {
               <span class="auth-inbox-chip">${IC.briefcase} ${escapeHtml(personLabel)}</span>
               ${docLine ? `<span class="auth-inbox-chip" title="Documento enmascarado por privacidad. Verá el número completo al aprobar.">${IC.badge} ${escapeHtml(docLine)}</span>` : ""}
               ${nitMasked ? `<span class="auth-inbox-chip" title="NIT enmascarado por privacidad. Verá el número completo al aprobar.">${IC.building} NIT ${escapeHtml(nitMasked)}</span>` : ""}
-              ${u.registrationKind ? `<span class="auth-inbox-chip">${IC.shield} ${escapeHtml(registrationKindLabel(u.registrationKind))}</span>` : ""}
+              ${resolveUserRegistrationKind(u) ? `<span class="auth-inbox-chip">${IC.shield} ${escapeHtml(registrationKindLabel(resolveUserRegistrationKind(u)))}</span>` : ""}
               ${u.position ? `<span class="auth-inbox-chip">${IC.award} ${escapeHtml(String(u.position).trim())}</span>` : ""}
               ${loc ? `<span class="auth-inbox-chip">${IC.mapPin} ${escapeHtml(loc)}</span>` : ""}
               ${phoneMasked ? `<span class="auth-inbox-chip" title="Teléfono enmascarado por privacidad. Verá el número completo al aprobar.">${IC.phone} ${escapeHtml(phoneMasked)}</span>` : ""}
@@ -2647,21 +2674,22 @@ function authView() {
           </div>
           <div class="register-kind-field">
             <span class="register-kind-label visually-hidden">${fieldLabel(IC.users, "Tipo de vínculo")}</span>
+            <input type="hidden" name="registrationKind" id="register-registration-kind" value="cliente" />
             <div class="register-kind-options" role="radiogroup" aria-label="Tipo de vínculo con Antares">
-              <label class="register-kind-option">
-                <input type="radio" name="registrationKind" value="cliente" required checked />
+              <button type="button" class="register-kind-option is-selected" data-registration-kind="cliente" aria-pressed="true">
+                <span class="register-kind-option-check" aria-hidden="true"></span>
                 <span class="register-kind-option-text">
                   <strong>Cliente externo</strong>
                   <small>Empresa u organización que contrata el servicio</small>
                 </span>
-              </label>
-              <label class="register-kind-option">
-                <input type="radio" name="registrationKind" value="empleado_interno" required />
+              </button>
+              <button type="button" class="register-kind-option" data-registration-kind="empleado_interno" aria-pressed="false">
+                <span class="register-kind-option-check" aria-hidden="true"></span>
                 <span class="register-kind-option-text">
                   <strong>Empleado interno</strong>
                   <small>Personal de Transportes Antares</small>
                 </span>
-              </label>
+              </button>
             </div>
           </div>
         </div>
@@ -3114,6 +3142,22 @@ export function bindAuthForms() {
       departmentSelector: "select[name='department']",
       citySelector: "select[name='city']"
     });
+    const registrationKindHidden = register.querySelector("#register-registration-kind");
+    const syncRegisterKindUi = (kindRaw) => {
+      const kind = normalizeRegistrationKindForDb(kindRaw);
+      if (registrationKindHidden) registrationKindHidden.value = kind;
+      register.querySelectorAll("[data-registration-kind]").forEach((btn) => {
+        const selected = normalizeRegistrationKindForDb(btn.getAttribute("data-registration-kind")) === kind;
+        btn.classList.toggle("is-selected", selected);
+        btn.setAttribute("aria-pressed", selected ? "true" : "false");
+      });
+    };
+    register.querySelectorAll("[data-registration-kind]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        syncRegisterKindUi(btn.getAttribute("data-registration-kind"));
+      });
+    });
+    syncRegisterKindUi(registrationKindHidden?.value || "cliente");
     const personTypeSel = register.querySelector("select[name='personType']");
     const docTypeSel = register.querySelector("#register-doc-persona select[name='documentType']");
     const blockPersona = register.querySelector("#register-doc-persona");
@@ -3199,6 +3243,8 @@ export function bindAuthForms() {
       async (event) => {
       window.syncPhoneHiddenFull(register, "register");
       const data = __readFormEntriesNormalized(register);
+      const registrationKind = readRegistrationKindFromForm(register, data.registrationKind);
+      data.registrationKind = registrationKind;
       const Vreg = window.AntaresValidation;
       if (Vreg && typeof Vreg.validateDomForm === "function") {
         const domVal = Vreg.validateDomForm(register);
@@ -3332,7 +3378,7 @@ export function bindAuthForms() {
             city: normalizeLatinForDb(data.city),
             address: normalizeLatinUpperForDb(data.address),
             email: data.email,
-            registrationKind: normalizeRegistrationKindForDb(data.registrationKind),
+            registrationKind,
             password: data.password,
             acceptTerms: Boolean(data.acceptTerms),
             turnstileToken
@@ -3392,7 +3438,7 @@ export function bindAuthForms() {
         department: normalizeLatinForDb(data.department),
         city: normalizeLatinForDb(data.city),
         address: normalizeLatinUpperForDb(data.address),
-        registrationKind: normalizeRegistrationKindForDb(data.registrationKind),
+        registrationKind,
         name: fullName,
         email: normalizeEmail(data.email),
         password: await __authHashPassword(data.password),
@@ -3410,7 +3456,7 @@ export function bindAuthForms() {
           habeasDataAcknowledged: true,
           dataPolicyAccepted: true,
           dataPolicyVersion: window.DATA_POLICY_VERSION || "2025-v1",
-          registrationKind: normalizeRegistrationKindForDb(data.registrationKind),
+          registrationKind,
           ...(isJuridica
             ? {
                 representativeDocumentType: String(data.personalDocumentType || "CC")

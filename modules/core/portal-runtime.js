@@ -165,6 +165,7 @@ const refreshPositionSelectsInDocument = __pr.refreshPositionSelectsInDocument;
 const refreshPositionsCatalogFromApi = __pr.refreshPositionsCatalogFromApi;
 const registrationKindChipLabel = __pr.registrationKindChipLabel;
 const registrationKindLabel = __pr.registrationKindLabel;
+const resolveUserRegistrationKind = __pr.resolveUserRegistrationKind;
 const renderAuthTab = __pr.renderAuthTab;
 const repaintPermGridInForm = __pr.repaintPermGridInForm;
 const resetSessionActivityMemory = __pr.resetSessionActivityMemory;
@@ -245,6 +246,7 @@ const portalAuditModuleIconKey = __pr.portalAuditModuleIconKey;
 const resolvePortalAuditModuleId = __pr.resolvePortalAuditModuleId;
 const PORTAL_AUDIT_MODULE_REGISTRY = __pr.PORTAL_AUDIT_MODULE_REGISTRY;
 const normalizeRegistrationKindForDb = __pr.normalizeRegistrationKindForDb;
+const readRegistrationKindFromForm = __pr.readRegistrationKindFromForm;
 const normalizeTransportTripsLayout = __pr.normalizeTransportTripsLayout;
 const normalizeTransportTripsSort = __pr.normalizeTransportTripsSort;
 const normalizeTransportTripsWorkspace = __pr.normalizeTransportTripsWorkspace;
@@ -12068,6 +12070,7 @@ async function resolveEmployeeAvatarUrl(file, fallbackDataUrl = "") {
 function bindEmployeeAvatarFilePreview(fileInput, labelEl) {
   if (!fileInput || !labelEl) return;
   let previewBlobUrl = "";
+  const imgEl = labelEl.querySelector(".profile-avatar-img, [data-admin-edit-avatar-img]");
   fileInput.addEventListener("change", () => {
     const f = fileInput.files?.[0];
     if (!f || !String(f.type || "").startsWith("image/")) return;
@@ -12083,10 +12086,18 @@ function bindEmployeeAvatarFilePreview(fileInput, labelEl) {
       previewBlobUrl = "";
     }
     const cssSafe = previewBlobUrl ? previewBlobUrl.replace(/'/g, "\\'") : "";
-    labelEl.style.backgroundImage = cssSafe ? `url('${cssSafe}')` : "";
+    if (imgEl) {
+      imgEl.src = previewBlobUrl || "";
+      imgEl.hidden = !previewBlobUrl;
+    } else {
+      labelEl.style.backgroundImage = cssSafe ? `url('${cssSafe}')` : "";
+    }
     labelEl.classList.toggle("has-image", Boolean(cssSafe));
     const initial = labelEl.querySelector(".profile-avatar-initial");
-    if (initial) initial.textContent = "";
+    if (initial) {
+      initial.textContent = "";
+      initial.hidden = Boolean(cssSafe);
+    }
   });
 }
 

@@ -386,8 +386,8 @@ export function normalizeDocumentsDataSection(section) {
   const s = String(section || "").trim().toLowerCase();
   if (s === "expired" || s === "vencidos") return "expired";
   if (s === "due_soon" || s === "por_vencer" || s === "warning") return "due_soon";
-  if (s === "employees" || s === "expedientes") return "employees";
-  if (s === "gaps" || s === "pendientes") return "gaps";
+  if (s === "employees" || s === "expedientes" || s === "colaborador") return "all";
+  if (s === "gaps" || s === "pendientes" || s === "incompletos") return "gaps";
   return "all";
 }
 
@@ -704,8 +704,39 @@ export function normalizePersonTypeForDb(value) {
 export function normalizeRegistrationKindForDb(value) {
   const k = String(value || "")
     .trim()
-    .toLowerCase();
-  return k === "empleado_interno" ? "empleado_interno" : "cliente";
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+  if (
+    k === "empleado_interno" ||
+    k === "empleadointerno" ||
+    k === "interno" ||
+    k === "usuario_interno"
+  ) {
+    return "empleado_interno";
+  }
+  return "cliente";
+}
+
+/**
+ * Lee el vínculo del formulario de registro/admin sin depender solo de FormData
+ * (los radios a veces no llegan bien tras normalización o re-pintado).
+ */
+export function readRegistrationKindFromForm(formEl, fallback) {
+  if (formEl && typeof formEl.querySelector === "function") {
+    const checked = formEl.querySelector('input[name="registrationKind"]:checked');
+    if (checked && checked.value != null && String(checked.value).trim() !== "") {
+      return normalizeRegistrationKindForDb(checked.value);
+    }
+    const select = formEl.querySelector('select[name="registrationKind"]');
+    if (select && select.value != null && String(select.value).trim() !== "") {
+      return normalizeRegistrationKindForDb(select.value);
+    }
+    const hidden = formEl.querySelector('input[type="hidden"][name="registrationKind"]');
+    if (hidden && hidden.value != null && String(hidden.value).trim() !== "") {
+      return normalizeRegistrationKindForDb(hidden.value);
+    }
+  }
+  return normalizeRegistrationKindForDb(fallback);
 }
 
 /** empresas.tipo_relacion_empresa / companyKind: cliente | tercero | propia */

@@ -11690,6 +11690,11 @@ body[data-theme="dark"] .users-pending-redirect {
   background: rgba(255, 255, 255, 0.65);
   cursor: pointer;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 body[data-theme="dark"] #form-register .register-kind-option {
@@ -11697,16 +11702,33 @@ body[data-theme="dark"] #form-register .register-kind-option {
   border-color: rgba(129, 187, 255, 0.28);
 }
 
-#form-register .register-kind-option:has(input:checked) {
+#form-register .register-kind-option:has(input:checked),
+#form-register .register-kind-option.is-selected {
   border-color: var(--accent, var(--brand-blue-mid));
   box-shadow: 0 0 0 2px rgba(var(--primary-mid-rgb), 0.18);
 }
 
-#form-register .register-kind-option input {
+#form-register .register-kind-option input,
+#form-register .register-kind-option-check {
   accent-color: var(--accent, var(--brand-blue-mid));
 }
 
-#form-register.auth-register-form input:not([type="checkbox"]):not([type="hidden"]):not(.phone-national-input),
+#form-register .register-kind-option-check {
+  width: 1.05rem;
+  height: 1.05rem;
+  border-radius: 999px;
+  border: 2px solid color-mix(in srgb, var(--primary) 35%, var(--line));
+  flex-shrink: 0;
+  box-sizing: border-box;
+  background: #fff;
+}
+
+#form-register .register-kind-option.is-selected .register-kind-option-check {
+  border-color: var(--primary);
+  background: radial-gradient(circle at center, var(--primary) 0 38%, transparent 42%);
+}
+
+#form-register.auth-register-form input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not(.phone-national-input),
 #form-register.auth-register-form select:not(.phone-cc-select) {
   min-height: var(--reg-control-h);
   height: var(--reg-control-h);
@@ -23803,6 +23825,21 @@ body[data-theme="dark"] .profile-avatar.has-image {
   z-index: 0;
 }
 
+.profile-avatar-upload .profile-avatar-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 50%;
+  z-index: 0;
+  background: #f1f5f9;
+}
+
+body[data-theme="dark"] .profile-avatar-upload .profile-avatar-img {
+  background: #0f172a;
+}
+
 .profile-avatar-upload.has-image .profile-avatar-initial {
   opacity: 0;
   position: absolute;
@@ -29261,6 +29298,17 @@ body[data-theme="dark"] .notif-card-unread {
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+.directory-card__avatar-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: #fff;
 }
 
 .directory-card__avatar--logo img {

@@ -150,9 +150,10 @@ const PortalRendererCore =
 let _bindEventsCallback = () => {};
 
 function employeeAvatarCssUrlForSidebar(av) {
-  const u = String(av || "").trim();
-  if (/^https?:\/\//i.test(u) || /^data:image\//i.test(u)) return u.replace(/'/g, "\\'");
-  return "";
+  const fn = window.normalizePortalAvatarDisplayUrl;
+  const u = typeof fn === "function" ? fn(av) : String(av || "").trim();
+  if (!u) return "";
+  return u.replace(/'/g, "\\'");
 }
 
 function formatPortalRoleLabelForSidebar(role) {
@@ -205,7 +206,10 @@ export function updatePortalSidebarSessionMeta() {
   const roleLabel = getPortalSidebarSessionSubtitle(user);
   if (nameEl) nameEl.textContent = displayName;
   if (meta) meta.textContent = roleLabel;
-  const avatarUrlRaw = String(user.avatarUrl || "").trim();
+  const avatarUrlRaw =
+    typeof window.normalizePortalAvatarDisplayUrl === "function"
+      ? window.normalizePortalAvatarDisplayUrl(user.avatarUrl)
+      : String(user.avatarUrl || "").trim();
   const avatarCss = employeeAvatarCssUrlForSidebar(user.avatarUrl);
   if (avatarWrap && avatarImg && avatarInitial) {
     if (avatarCss && avatarUrlRaw) {
@@ -213,6 +217,12 @@ export function updatePortalSidebarSessionMeta() {
       avatarImg.removeAttribute("hidden");
       avatarInitial.setAttribute("hidden", "");
       avatarWrap.classList.add("has-photo");
+      if (typeof window.wirePortalAvatarImgFallback === "function") {
+        window.wirePortalAvatarImgFallback(
+          avatarImg,
+          (displayName.charAt(0) || "U").toUpperCase()
+        );
+      }
     } else {
       avatarImg.removeAttribute("src");
       avatarImg.setAttribute("hidden", "");

@@ -332,7 +332,10 @@ export function hydrateHrWorkspaceFromStorage() {
           folderBrowseEmployeeId: String(parsed.folderBrowseEmployeeId || ""),
           folderBrowseName: String(parsed.folderBrowseName || ""),
           selectedDocumentType: String(parsed.selectedDocumentType || ""),
-          highlightDocumentType: String(parsed.highlightDocumentType || "")
+          highlightDocumentType: String(parsed.highlightDocumentType || ""),
+          filterEmployeeId: String(parsed.filterEmployeeId || ""),
+          filterStatus: String(parsed.filterStatus || ""),
+          folderFilter: String(parsed.folderFilter || "")
         };
       } else {
         const ws = normalizeHrWorkspace("documents", d);

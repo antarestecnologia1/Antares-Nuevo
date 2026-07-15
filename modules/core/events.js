@@ -14,7 +14,9 @@ import {
   canManagePayrollModule,
   canManageSstModule,
   canPerformPermissionGatedAction,
-  ACCOUNT_STATUS
+  ACCOUNT_STATUS,
+  resolveUserRegistrationKind,
+  registrationKindLabel
 } from "./auth.js";
 import {
   KEYS,
@@ -48,6 +50,9 @@ import {
   escapeHtml,
   normalizeHrWorkspace,
   normalizePortalDateYmd,
+  normalizePersonTypeForDb,
+  normalizeRegistrationKindForDb,
+  readRegistrationKindFromForm,
   nowIso,
   hiringOperateSectionForCreatePanel,
   payrollOperateSectionForCreatePanel,
@@ -1068,7 +1073,7 @@ function bindDynamicEvents() {
         renderPortalView();
         return;
       }
-      const registrationKindCreate = normalizeRegistrationKindForDb(data.registrationKind);
+      const registrationKindCreate = readRegistrationKindFromForm(adminUserCreate, data.registrationKind);
       users.push(stampCreatedRecord({
         id: newUuidV4(),
         name: $portal.normalizeLatinUpperForDb(data.name),
@@ -1478,6 +1483,13 @@ function bindDynamicEvents() {
     const adminEditAvatarInput = document.getElementById("admin-edit-user-avatar-input");
     const adminEditAvatarLabel = document.getElementById("admin-edit-user-avatar-label");
     bindEmployeeAvatarFilePreview(adminEditAvatarInput, adminEditAvatarLabel);
+    const adminEditAvatarImg = adminEditAvatarLabel?.querySelector("[data-admin-edit-avatar-img]");
+    if (adminEditAvatarImg) {
+      wirePortalAvatarImgFallback(
+        adminEditAvatarImg,
+        String(adminEditAvatarImg.dataset.avatarInitial || "").trim()
+      );
+    }
     if (adminEditAvatarLabel && adminEditAvatarInput && adminEditAvatarLabel.dataset.antaresAvatarClickWired !== "1") {
       adminEditAvatarLabel.dataset.antaresAvatarClickWired = "1";
       adminEditAvatarLabel.addEventListener("click", () => {
@@ -1561,7 +1573,7 @@ function bindDynamicEvents() {
             : String(existing.birthDate || "").slice(0, 10) || "";
       const gRaw = String(data.gender ?? "").trim();
       const genderStored = gRaw ? $portal.normalizeLatinUpperForDb(gRaw) : "";
-      const registrationKindStored = normalizeRegistrationKindForDb(data.registrationKind);
+      const registrationKindStored = readRegistrationKindFromForm(adminUserEdit, data.registrationKind);
       const avatarFile = adminUserEdit.querySelector("input[name='avatarFile']")?.files?.[0] || null;
       const avatarExisting = String(data.avatarUrlExisting ?? existing.avatarUrl ?? "").trim();
       let resolvedAvatarUrl = avatarExisting;
@@ -1692,8 +1704,8 @@ function bindDynamicEvents() {
       const modalSubtitleLines = [
         `${getPortalUserDisplayName(target)} · ${target.email || "—"}`
       ];
-      if (target.registrationKind) {
-        modalSubtitleLines.push(`Tipo de vínculo: ${registrationKindLabel(target.registrationKind)}`);
+      if (resolveUserRegistrationKind(target)) {
+        modalSubtitleLines.push(`Tipo de vínculo: ${registrationKindLabel(resolveUserRegistrationKind(target))}`);
       }
       if (target.documentType || target.taxId || target.personalDoc) {
         const docPart = [
@@ -3465,13 +3477,14 @@ function bindExtendedViewEditHandlers() {
       const company = getCompanyById(u.companyId);
       const companyName = String(company?.name || u.company || "").trim();
       const displayName = getPortalUserDisplayName(u);
-      const avatarUrlRaw = String(u.avatarUrl || "").trim();
-      const avatarCss = employeeAvatarCssUrl(u.avatarUrl);
-      const avatarHero = avatarCss
-        ? `<div class="portal-detail-logo portal-detail-logo--avatar"><img src="${escapeAttr(avatarUrlRaw)}" alt="" loading="lazy" decoding="async" /></div>`
-        : `<div class="portal-detail-logo portal-detail-logo--avatar portal-detail-logo--fallback" aria-hidden="true"><span>${escapeHtml(
-            (displayName.charAt(0) || "?").toUpperCase()
-          )}</span></div>`;
+      const avatarUrlRaw =
+        typeof normalizePortalAvatarDisplayUrl === "function"
+          ? normalizePortalAvatarDisplayUrl(u.avatarUrl)
+          : String(u.avatarUrl || "").trim();
+      const avatarInitial = escapeHtml((displayName.charAt(0) || "?").toUpperCase());
+      const avatarHero = avatarUrlRaw
+        ? `<div class="portal-detail-logo portal-detail-logo--avatar"><img src="${escapeAttr(avatarUrlRaw)}" alt="" loading="lazy" decoding="async" data-portal-avatar-img data-avatar-initial="${escapeAttr((displayName.charAt(0) || "?").toUpperCase())}" /></div>`
+        : `<div class="portal-detail-logo portal-detail-logo--avatar portal-detail-logo--fallback" aria-hidden="true"><span>${avatarInitial}</span></div>`;
       const roleKey = String(u.role || "");
       const roleColors = {
         admin: "#377cc0",
@@ -3531,7 +3544,7 @@ function bindExtendedViewEditHandlers() {
       const permsHtml = effectiveUserPermissions(u)
         .map((p) => `<span class="perm-tag">${escapeHtml(PERMISSION_META[p]?.title || String(p))}</span>`)
         .join(" ");
-      const regKind = registrationKindLabel(u.registrationKind);
+      const regKind = registrationKindLabel(resolveUserRegistrationKind(u));
       const detailSections = buildDetailGrid([
         {
           icon: "user",
@@ -3542,7 +3555,7 @@ function bindExtendedViewEditHandlers() {
             ["Tipo documento", escapeHtml(docTypeLabel)],
             ["Documento / NIT", escapeHtml(idDoc || "Sin documento")],
             ["Teléfono", escapeHtml(phoneDisp || "Sin teléfono")],
-            ["Avatar", escapeHtml(avatarCss ? "Cargado" : "Sin foto")]
+            ["Avatar", escapeHtml(avatarUrlRaw ? "Cargado" : "Sin foto")]
           ])
         },
         {
@@ -3605,7 +3618,7 @@ function bindExtendedViewEditHandlers() {
               ["Teléfono", escapeHtml(phoneDisp || "Sin teléfono")],
               ["Tipo documento", escapeHtml(docTypeLabel)],
               ["Documento / NIT", escapeHtml(idDoc || "Sin documento")],
-              ["Avatar", escapeHtml(avatarCss ? "Cargado" : "Sin foto")]
+              ["Avatar", escapeHtml(avatarUrlRaw ? "Cargado" : "Sin foto")]
             ]
           },
           {

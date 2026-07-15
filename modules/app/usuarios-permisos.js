@@ -126,8 +126,9 @@ function adminUsersHtml(current) {
     const companyName = String(getCompanyById(u.companyId)?.name || u.company || "Sin empresa");
     const locationLabel = u.city ? `${String(u.city)}${u.department ? `, ${String(u.department)}` : ""}` : "Sin ubicacion";
     const permissionCount = namedPerms.length;
-    const profileChipLabel = u.registrationKind ? registrationKindChipLabel(u.registrationKind) : "—";
-    const profileChipTitle = u.registrationKind ? registrationKindLabel(u.registrationKind) : "";
+    const resolvedRegKind = resolveUserRegistrationKind(u);
+    const profileChipLabel = resolvedRegKind ? registrationKindChipLabel(resolvedRegKind) : "—";
+    const profileChipTitle = resolvedRegKind ? registrationKindLabel(resolvedRegKind) : "";
     const joinedLabel = fmtDateOr(u.systemJoinDate || u.registeredAt || u.createdAt, "—");
     const docLabel = String(u.idDoc || u.taxId || "").trim() || "Sin documento";
     const phoneLabel = u.phone ? formatPortalPhoneForDisplay(String(u.phone)) : "Sin teléfono";
@@ -186,11 +187,11 @@ function adminUsersHtml(current) {
           ${isAdmin && !isMe ? `<button class="btn btn-sm btn-action" data-action="toggle-user-active" data-id="${escapeAttr(String(u.id))}">${u.accountStatus === ACCOUNT_STATUS.RECHAZADO ? `${IC.check} Activar` : `${IC.x} Desactivar`}</button>` : ""}
           ${isAdmin && !isMe ? `<button class="btn btn-sm btn-reject" data-action="delete-user" data-id="${escapeAttr(String(u.id))}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
         </footer>`;
-    const avatarUrlRaw = String(u.avatarUrl || "").trim();
-    const avatarCss = employeeAvatarCssUrl(u.avatarUrl);
-    const userAvatarBlock = avatarCss
-      ? `<div class="directory-card__avatar directory-card__avatar--photo" aria-hidden="true"><img src="${escapeAttr(avatarUrlRaw)}" alt="" loading="lazy" /></div>`
-      : `<div class="directory-card__avatar">${escapeHtml(getPortalUserDisplayName(u).charAt(0).toUpperCase() || "?")}</div>`;
+    const avatarUrlRaw = normalizePortalAvatarDisplayUrl(u.avatarUrl);
+    const avatarInitial = escapeHtml((getPortalUserDisplayName(u).charAt(0) || "?").toUpperCase());
+    const userAvatarBlock = avatarUrlRaw
+      ? `<div class="directory-card__avatar directory-card__avatar--photo" aria-hidden="true"><img src="${escapeAttr(avatarUrlRaw)}" alt="" loading="lazy" decoding="async" data-portal-avatar-img data-avatar-initial="${escapeAttr(avatarInitial)}" /><span class="directory-card__avatar-fallback" hidden>${avatarInitial}</span></div>`
+      : `<div class="directory-card__avatar">${avatarInitial}</div>`;
     const cardStateClass = isPending
       ? " directory-card--pending"
       : u.accountStatus === ACCOUNT_STATUS.RECHAZADO
@@ -562,11 +563,12 @@ function adminUsersHtml(current) {
   </form>`;
 
   const adminEditUserAvatarExisting = escapeAttr(String(editingUser?.avatarUrl ?? ""));
-  const adminEditUserAvatarCss = editingUser ? employeeAvatarCssUrl(editingUser.avatarUrl) : "";
-  const adminEditUserAvatarHasImage = Boolean(adminEditUserAvatarCss);
-  const adminEditUserAvatarInitial = editingUser
-    ? escapeHtml((getPortalUserDisplayName(editingUser).charAt(0) || "?").toUpperCase())
+  const adminEditUserAvatarRaw = editingUser ? normalizePortalAvatarDisplayUrl(editingUser.avatarUrl) : "";
+  const adminEditUserAvatarHasImage = Boolean(adminEditUserAvatarRaw);
+  const adminEditUserAvatarInitialLetter = editingUser
+    ? (getPortalUserDisplayName(editingUser).charAt(0) || "?").toUpperCase()
     : "";
+  const adminEditUserAvatarInitial = escapeHtml(adminEditUserAvatarInitialLetter);
 
   const fEdit = editingUser
     ? `<form id="form-admin-user-edit" class="p-form p-form-colored">
@@ -575,8 +577,9 @@ function adminUsersHtml(current) {
       <legend>${IC.upload} Foto de perfil</legend>
       <div class="full hr-employee-avatar-row hr-employee-avatar-row--lead" style="grid-column:1/-1">
         <div class="hr-employee-avatar-inner">
-          <label class="profile-avatar profile-avatar-lg profile-avatar-upload${adminEditUserAvatarHasImage ? " has-image" : ""}" id="admin-edit-user-avatar-label" style="${adminEditUserAvatarHasImage ? `background-image:url('${adminEditUserAvatarCss}');` : ""}" title="Foto del usuario" tabindex="0">
-            <span class="profile-avatar-initial">${adminEditUserAvatarHasImage ? "" : adminEditUserAvatarInitial}</span>
+          <label class="profile-avatar profile-avatar-lg profile-avatar-upload${adminEditUserAvatarHasImage ? " has-image" : ""}" id="admin-edit-user-avatar-label" title="Foto del usuario" tabindex="0">
+            ${adminEditUserAvatarHasImage ? `<img class="profile-avatar-img" src="${escapeAttr(adminEditUserAvatarRaw)}" alt="" decoding="async" data-admin-edit-avatar-img data-avatar-initial="${escapeAttr(adminEditUserAvatarInitialLetter)}" />` : ""}
+            <span class="profile-avatar-initial"${adminEditUserAvatarHasImage ? " hidden" : ""}>${adminEditUserAvatarHasImage ? "" : adminEditUserAvatarInitial}</span>
             <span class="profile-avatar-overlay"><span class="profile-avatar-overlay-inner">${IC.upload}<span>${adminEditUserAvatarHasImage ? escapeHtml("Cambiar foto") : escapeHtml("Subir foto")}</span></span></span>
             <input type="file" id="admin-edit-user-avatar-input" name="avatarFile" accept="image/*" class="profile-avatar-file-input profile-avatar-file-input--sr-only" aria-label="Cambiar foto del usuario" tabindex="-1" />
           </label>
@@ -974,6 +977,11 @@ function adminUsersHtml(current) {
           const e = Math.max(0, Math.min(restore.end ?? restore.start, n));
           inp.setSelectionRange(s, e);
         }
+      });
+    }
+    if (typeof wirePortalAvatarImgFallback === "function") {
+      nodes.viewRoot.querySelectorAll("[data-portal-avatar-img]").forEach((img) => {
+        wirePortalAvatarImgFallback(img, String(img.dataset.avatarInitial || "").trim());
       });
     }
   }

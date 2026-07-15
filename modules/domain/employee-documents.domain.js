@@ -252,11 +252,16 @@ export function applyDocumentListFilters(documents, filters, todayYmd) {
     employeeId = "",
     typeFilter = "",
     statusFilter = "",
+    folderFilter = "",
     dataSection = "all"
   } = filters || {};
   let list = (documents || []).map(normalizeEmployeeDocumentRow);
   if (employeeId) list = list.filter((d) => String(d.employeeId) === String(employeeId));
   if (typeFilter) list = list.filter((d) => String(d.documentType) === String(typeFilter));
+  if (folderFilter) {
+    const folder = normalizeDocumentFolder(folderFilter);
+    list = list.filter((d) => normalizeDocumentFolder(d.folder) === folder);
+  }
   if (statusFilter) {
     list = list.filter((d) => computeEmployeeDocumentStatus(d.dueDate, todayYmd) === statusFilter);
   } else if (dataSection === "expired") {
