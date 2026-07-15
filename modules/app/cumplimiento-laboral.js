@@ -11,8 +11,6 @@ import {
   renderHrWorkspaceHeader,
   switchHrWorkspacePanels,
   switchModuleTabPanels,
-  renderHrFormHero,
-  renderHrFormHeroBadge,
   renderSstOperateSectionNav,
   renderHrAlertCards
 } from "../ui/components.js";
@@ -682,17 +680,6 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
       missingSocialSecurity.length +
       dueItems.filter((item) => item.bucket === "expired").length;
     const complianceForm = `<form id="form-sst-compliance" class="p-form p-form-colored hr-form-flow antares-create-form sst-create-form" autocomplete="off" novalidate lang="es">
-      ${renderHrFormHero({
-        eyebrow: "Cumplimiento laboral · SST",
-        title: "Nuevo control legal o SST",
-        description: "Registre afiliaciones, exámenes, capacitaciones o inspecciones. Al marcar Cumplido con fecha de realización, la vigencia se propaga a la ficha del colaborador.",
-        tone: "brand",
-        badges: [
-          renderHrFormHeroBadge("3 pasos", "guiados"),
-          renderHrFormHeroBadge("Renovación", "automática"),
-          renderHrFormHeroBadge(String(dueItems.filter((item) => item.bucket === "expired").length), "vencidos")
-        ]
-      })}
       <div class="sst-create-form__progress" aria-hidden="true">
         <div class="sst-create-form__progress-track">
           <div class="sst-create-form__progress-fill" data-sst-create-progress style="width:0%"></div>

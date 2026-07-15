@@ -122,6 +122,13 @@ function renderDocStatusBadge(doc, todayYmd) {
   return `<span class="doc-status doc-status--ok">Vigente</span>`;
 }
 
+function documentExpiryRowClass(doc, todayYmd) {
+  const status = computeEmployeeDocumentStatus(doc.dueDate, todayYmd);
+  if (status === "Vencido") return "doc-row--expired";
+  if (status === "Por vencer") return "doc-row--warn";
+  return "";
+}
+
 function renderMimeIcon(mime) {
   const m = String(mime || "").toLowerCase();
   if (m.includes("pdf")) return "PDF";
@@ -198,7 +205,8 @@ function renderDocumentCards(documents, todayYmd, IC, { compact = false } = {}) 
     ${documents
       .map((raw) => {
         const doc = normalizeEmployeeDocumentRow(raw);
-        return `<article class="doc-card" data-doc-id="${escapeAttr(String(doc.id))}">
+        const rowTone = documentExpiryRowClass(doc, todayYmd);
+        return `<article class="doc-card${rowTone ? ` ${rowTone}` : ""}" data-doc-id="${escapeAttr(String(doc.id))}">
           <div class="doc-card__icon" aria-hidden="true">${escapeHtml(renderMimeIcon(doc.mimeType))}</div>
           <div class="doc-card__body">
             <h4 class="doc-card__title">${escapeHtml(getEmployeeDocumentTypeLabel(doc.documentType))}</h4>
@@ -231,7 +239,8 @@ function renderDocumentsTable(documents, todayYmd, IC) {
   const rows = documents
     .map((raw) => {
       const doc = normalizeEmployeeDocumentRow(raw);
-      return `<tr data-doc-id="${escapeAttr(String(doc.id))}">
+      const rowTone = documentExpiryRowClass(doc, todayYmd);
+      return `<tr class="${rowTone}" data-doc-id="${escapeAttr(String(doc.id))}">
         <td><strong>${escapeHtml(doc.employeeName || "-")}</strong></td>
         <td>${escapeHtml(normalizeDocumentFolder(doc.folder))}</td>
         <td>${escapeHtml(getEmployeeDocumentTypeLabel(doc.documentType))}</td>
@@ -278,7 +287,7 @@ function renderEmployeeDossierPanel(employee, documents, todayYmd, IC) {
     const ok = items.length > 0;
     const latest = items[0];
     const status = latest ? computeEmployeeDocumentStatus(latest.dueDate, todayYmd) : null;
-    return `<li class="doc-checklist__item${ok ? " is-ok" : " is-missing"}">
+    return `<li class="doc-checklist__item${ok ? " is-ok" : " is-missing"}${status === "Vencido" ? " doc-row--expired" : status === "Por vencer" ? " doc-row--warn" : ""}">
       <span class="doc-checklist__dot" aria-hidden="true"></span>
       <span class="doc-checklist__label">${escapeHtml(t.label)}</span>
       <span class="doc-checklist__count">${items.length ? `${items.length} archivo${items.length === 1 ? "" : "s"}` : "Pendiente"}</span>

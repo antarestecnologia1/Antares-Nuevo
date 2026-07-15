@@ -256,6 +256,62 @@
   color: var(--doc-expired);
 }
 
+/* Filas y tarjetas con vencimiento crítico */
+.doc-table tbody tr.doc-row--expired td {
+  color: var(--doc-expired);
+}
+
+.doc-table tbody tr.doc-row--expired td strong,
+.doc-table tbody tr.doc-row--expired .doc-file-chip {
+  color: var(--doc-expired);
+}
+
+.doc-table tbody tr.doc-row--warn td {
+  color: var(--doc-warn);
+}
+
+.doc-table tbody tr.doc-row--warn td strong,
+.doc-table tbody tr.doc-row--warn .doc-file-chip {
+  color: var(--doc-warn);
+}
+
+.doc-table tbody tr.doc-row--expired .doc-table-actions,
+.doc-table tbody tr.doc-row--warn .doc-table-actions,
+.doc-table tbody tr.doc-row--expired .doc-table-actions .btn,
+.doc-table tbody tr.doc-row--warn .doc-table-actions .btn {
+  color: inherit;
+}
+
+.doc-card.doc-row--expired {
+  border-color: rgba(220, 38, 38, 0.42);
+  background: rgba(220, 38, 38, 0.04);
+}
+
+.doc-card.doc-row--expired .doc-card__title,
+.doc-card.doc-row--expired .doc-card__file {
+  color: var(--doc-expired);
+}
+
+.doc-card.doc-row--warn {
+  border-color: rgba(217, 119, 6, 0.42);
+  background: rgba(217, 119, 6, 0.04);
+}
+
+.doc-card.doc-row--warn .doc-card__title,
+.doc-card.doc-row--warn .doc-card__file {
+  color: var(--doc-warn);
+}
+
+.doc-checklist__item.doc-row--expired .doc-checklist__label {
+  color: var(--doc-expired);
+  font-weight: 600;
+}
+
+.doc-checklist__item.doc-row--warn .doc-checklist__label {
+  color: var(--doc-warn);
+  font-weight: 600;
+}
+
 .doc-file-chip {
   display: inline-block;
   max-width: 220px;
