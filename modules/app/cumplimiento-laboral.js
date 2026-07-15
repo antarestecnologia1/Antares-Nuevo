@@ -24,6 +24,8 @@ import {
   applySstRecordCompletion,
   sstControlRequiresProvider,
   getSstControlRecordType,
+  getSstControlSpec,
+  computeSstNextDueDate,
   mergeSstEvidenceRef
 } from "../domain/sst-renewal.domain.js";
 import {
@@ -228,6 +230,276 @@ function renderSstRenewButton(IC, { employeeId, controlKey, recordId, controlTyp
     title="Renovar control y actualizar ficha del colaborador">${IC.activity || "↻"} ${escapeHtml(label)}</button>`;
 }
 
+function listSstRenewableControlKeys(employee) {
+  const keys = [
+    "eps_affiliation",
+    "pension_affiliation",
+    "arl_affiliation",
+    "occupational_exam"
+  ];
+  if (isConductorEmployee(employee)) {
+    keys.push("instruvial_exam", "license");
+  }
+  keys.push("sst_training", "document_inspection");
+  return keys.filter((key) => getSstControlSpec(key));
+}
+
+function sstRenewalDisplayLabel(controlKey) {
+  const labels = {
+    eps_affiliation: "Afiliación EPS",
+    pension_affiliation: "Afiliación pensión",
+    arl_affiliation: "Afiliación ARL",
+    occupational_exam: "Examen médico ocupacional",
+    instruvial_exam: "Examen instruvial",
+    license: "Licencia de conducción",
+    sst_training: "Capacitación SST",
+    document_inspection: "Inspección documental"
+  };
+  return labels[String(controlKey || "").trim()] || getSstControlRecordType(controlKey) || String(controlKey || "");
+}
+
+function buildSstRenewalControlOptions(employee) {
+  return listSstRenewableControlKeys(employee).map((key) => ({
+    value: key,
+    label: sstRenewalDisplayLabel(key)
+  }));
+}
+
+function sstRenewalProviderMeta(controlKey) {
+  const key = String(controlKey || "").trim();
+  if (key === "eps_affiliation") {
+    return { label: "EPS", placeholder: "Ej. Sura, Sanitas, Nueva EPS" };
+  }
+  if (key === "pension_affiliation") {
+    return { label: "Fondo de pensión", placeholder: "Ej. Colpensiones, Protección, Porvenir" };
+  }
+  if (key === "arl_affiliation") {
+    return { label: "ARL", placeholder: "Ej. Positiva, Sura, Colmena" };
+  }
+  return { label: "Entidad", placeholder: "Entidad responsable" };
+}
+
+function resolveSstRenewalEmployeeState(employee, controlKey, records = [], recordId = "") {
+  const key = String(controlKey || "").trim();
+  const norm =
+    typeof G.normalizePortalDateYmd === "function" ? G.normalizePortalDateYmd : (v) => String(v || "").trim();
+  const employeeRecords = records.filter((row) => String(row.employeeId) === String(employee?.id || ""));
+  const matchingRecord = recordId
+    ? employeeRecords.find((row) => String(row.id) === String(recordId))
+    : employeeRecords
+        .filter((row) => resolveSstControlKey(row.recordType) === key)
+        .sort((a, b) => String(b.dueDate || "").localeCompare(String(a.dueDate || "")))[0];
+
+  const fromRecord = {
+    completionDate: norm(matchingRecord?.completionDate),
+    dueDate: norm(matchingRecord?.dueDate),
+    entity: String(matchingRecord?.provider || "").trim()
+  };
+
+  switch (key) {
+    case "occupational_exam":
+      return {
+        entity: "",
+        completionDate: norm(employee?.occupationalExamDate) || fromRecord.completionDate,
+        dueDate: resolveEmployeeExpiryYmd(employee, "occupationalExamExpiry", "occupationalExamDate") || fromRecord.dueDate
+      };
+    case "instruvial_exam":
+      return {
+        entity: "",
+        completionDate: norm(employee?.instruvialExamDate) || fromRecord.completionDate,
+        dueDate: resolveEmployeeExpiryYmd(employee, "instruvialExamExpiry", "instruvialExamDate") || fromRecord.dueDate
+      };
+    case "license":
+      return {
+        entity: String(employee?.licenseCategory || "C2").trim() || "C2",
+        entityLabel: "Categoría licencia",
+        completionDate: norm(employee?.licenseIssueDate) || fromRecord.completionDate,
+        dueDate: resolveEmployeeExpiryYmd(employee, "licenseExpiry", "licenseIssueDate") || fromRecord.dueDate
+      };
+    case "eps_affiliation":
+      return {
+        entity: String(employee?.eps || "").trim() || fromRecord.entity,
+        entityLabel: "EPS actual",
+        completionDate: fromRecord.completionDate,
+        dueDate: fromRecord.dueDate
+      };
+    case "pension_affiliation":
+      return {
+        entity: String(employee?.pensionFund || "").trim() || fromRecord.entity,
+        entityLabel: "Fondo actual",
+        completionDate: fromRecord.completionDate,
+        dueDate: fromRecord.dueDate
+      };
+    case "arl_affiliation":
+      return {
+        entity: String(employee?.arl || "").trim() || fromRecord.entity,
+        entityLabel: "ARL actual",
+        completionDate: fromRecord.completionDate,
+        dueDate: fromRecord.dueDate
+      };
+    default:
+      return {
+        entity: fromRecord.entity,
+        completionDate: fromRecord.completionDate,
+        dueDate: fromRecord.dueDate
+      };
+  }
+}
+
+function formatSstRenewalStateValue(value, { missing = "Sin registrar" } = {}) {
+  const text = String(value || "").trim();
+  return text || missing;
+}
+
+function buildSstRenewalContextHtml(employee, controlKey, records = [], recordId = "") {
+  const state = resolveSstRenewalEmployeeState(employee, controlKey, records, recordId);
+  const role = isConductorEmployee(employee) ? "Conductor" : "Colaborador";
+  const showEntity = Boolean(state.entity) || sstControlRequiresProvider(controlKey) || state.entityLabel;
+  const entityLabel = state.entityLabel || "Entidad actual";
+  const entityMissing = sstControlRequiresProvider(controlKey) ? "Sin afiliación" : "—";
+  return `<div class="sst-renew-context" data-sst-renew-context>
+    <p class="sst-renew-context__lead muted">Estado actual en la ficha de <strong>${escapeHtml(String(employee?.name || "colaborador"))}</strong> (${escapeHtml(role)} · ${escapeHtml(String(employee?.position || "—"))}).</p>
+    <dl class="sst-renew-context__grid">
+      <div><dt>Última realización</dt><dd data-sst-rc-completion>${escapeHtml(formatSstRenewalStateValue(state.completionDate))}</dd></div>
+      <div><dt>Vencimiento actual</dt><dd data-sst-rc-due>${escapeHtml(formatSstRenewalStateValue(state.dueDate, { missing: "Sin programar" }))}</dd></div>
+      <div data-sst-rc-entity-row${showEntity ? "" : " hidden"}><dt data-sst-rc-entity-label>${escapeHtml(entityLabel)}</dt><dd data-sst-rc-entity>${escapeHtml(formatSstRenewalStateValue(state.entity, { missing: entityMissing }))}</dd></div>
+    </dl>
+  </div>`;
+}
+
+function sstRenewalCompletionLabel(controlKey) {
+  return sstControlRequiresProvider(controlKey) ? "Fecha de afiliación / renovación" : "Fecha de realización";
+}
+
+function sstRenewalVigenciaHintText(controlKey) {
+  const years = getSstControlSpec(controlKey)?.nextDueYears;
+  if (!years) return "";
+  const anchor = sstControlRequiresProvider(controlKey) ? "la fecha de afiliación" : "la fecha de realización";
+  return years === 1
+    ? `El vencimiento se calcula automáticamente: 1 año desde ${anchor}.`
+    : `El vencimiento se calcula automáticamente: ${years} años desde ${anchor}.`;
+}
+
+function sstRenewalSectionHint(controlKey) {
+  const label = sstRenewalDisplayLabel(controlKey);
+  if (sstControlRequiresProvider(controlKey)) {
+    return `Indique la entidad y la fecha de afiliación para renovar ${label.toLowerCase()}.`;
+  }
+  return `Indique la fecha en que se realizó ${label.toLowerCase()}. El próximo vencimiento se calcula solo.`;
+}
+
+function wireSstRenewalModalFields(formEl, employee, initialControlKey, records = [], recordId = "") {
+  if (!formEl || typeof formEl.querySelector !== "function") return;
+  const queryDate =
+    typeof G.queryPortalDateField === "function"
+      ? (root, name) => G.queryPortalDateField(root, name)
+      : (root, name) => root.querySelector(`[name="${name}"]`);
+  const readDate =
+    typeof G.readFormDateIso === "function"
+      ? (root, name) => G.readFormDateIso(root, name)
+      : (root, name) => {
+          const norm = typeof G.normalizePortalDateYmd === "function" ? G.normalizePortalDateYmd : (v) => String(v || "").trim();
+          return norm(root.querySelector(`[name="${name}"]`)?.value);
+        };
+  const setDate = (el, iso) => {
+    if (!el) return;
+    if (G.AntaresValidation?.portalDateInputSetIso) {
+      G.AntaresValidation.portalDateInputSetIso(el, iso || "");
+    } else {
+      el.value = iso || "";
+    }
+  };
+
+  const controlEl = formEl.querySelector("[name='controlKey']");
+  const completionEl = queryDate(formEl, "completionDate");
+  const dueEl = queryDate(formEl, "dueDate");
+  const providerField = formEl.querySelector(".sst-renew-provider-field");
+  const providerInput = formEl.querySelector("[name='provider']");
+  const completionLabel = formEl.querySelector(".sst-renew-completion-field > span");
+  const vigenciaHint = formEl.querySelector("[data-sst-renew-vigencia-hint]");
+  const sectionHint = formEl.querySelector("[aria-labelledby='sst-renew-vigencia-section-lg'] .form-section-hint");
+  const contextRoot = formEl.querySelector("[data-sst-renew-context]");
+  const modalSubtitle = formEl.closest(".modal-card")?.querySelector(".modal-head__subtitle");
+
+  dueEl?.setAttribute("readonly", "");
+  dueEl?.setAttribute("tabindex", "-1");
+  dueEl?.setAttribute("aria-readonly", "true");
+
+  const updateContext = (key) => {
+    const state = resolveSstRenewalEmployeeState(employee, key, records, recordId);
+    const completionElCtx = contextRoot?.querySelector("[data-sst-rc-completion]");
+    const dueElCtx = contextRoot?.querySelector("[data-sst-rc-due]");
+    const entityRow = contextRoot?.querySelector("[data-sst-rc-entity-row]");
+    const entityLabelEl = contextRoot?.querySelector("[data-sst-rc-entity-label]");
+    const entityEl = contextRoot?.querySelector("[data-sst-rc-entity]");
+    if (completionElCtx) {
+      completionElCtx.textContent = formatSstRenewalStateValue(state.completionDate);
+    }
+    if (dueElCtx) {
+      dueElCtx.textContent = formatSstRenewalStateValue(state.dueDate, { missing: "Sin programar" });
+    }
+    const showEntity = Boolean(state.entity) || sstControlRequiresProvider(key) || state.entityLabel;
+    if (entityRow) entityRow.hidden = !showEntity;
+    if (entityLabelEl) {
+      entityLabelEl.textContent = state.entityLabel || "Entidad actual";
+    }
+    if (entityEl) {
+      entityEl.textContent = formatSstRenewalStateValue(state.entity, {
+        missing: sstControlRequiresProvider(key) ? "Sin afiliación" : "—"
+      });
+    }
+    if (modalSubtitle) {
+      modalSubtitle.textContent = `${String(employee?.name || "").trim() || "Colaborador"} · ${String(employee?.position || "—").trim() || "—"} · ${sstRenewalDisplayLabel(key)}`;
+    }
+    if (sectionHint) sectionHint.textContent = sstRenewalSectionHint(key);
+  };
+
+  const syncDueDate = () => {
+    const key = String(controlEl?.value || initialControlKey || "").trim();
+    const comp = readDate(formEl, "completionDate");
+    const next = key && comp ? computeSstNextDueDate(key, comp) : "";
+    setDate(dueEl, next);
+    if (vigenciaHint) vigenciaHint.textContent = sstRenewalVigenciaHintText(key);
+  };
+
+  const syncProviderField = () => {
+    const key = String(controlEl?.value || initialControlKey || "").trim();
+    const needsProvider = sstControlRequiresProvider(key);
+    const providerMeta = sstRenewalProviderMeta(key);
+    if (providerField) providerField.hidden = !needsProvider;
+    if (providerInput) {
+      providerInput.required = needsProvider;
+      providerInput.placeholder = providerMeta.placeholder;
+      if (needsProvider) {
+        const current = String(providerInput.value || "").trim();
+        if (!current || current === "—") {
+          providerInput.value = resolveSstRenewalDefaultProvider(employee, key);
+        }
+      } else {
+        providerInput.value = "";
+      }
+    }
+    const providerLabel = providerField?.querySelector("span");
+    if (providerLabel) providerLabel.textContent = providerMeta.label;
+    if (completionLabel) completionLabel.textContent = sstRenewalCompletionLabel(key);
+    updateContext(key);
+    syncDueDate();
+  };
+
+  controlEl?.addEventListener("change", syncProviderField);
+  completionEl?.addEventListener("change", syncDueDate);
+  completionEl?.addEventListener("blur", syncDueDate);
+  syncProviderField();
+}
+
+function resolveSstRenewalDefaultProvider(employee, controlKey) {
+  const key = String(controlKey || "").trim();
+  if (key === "eps_affiliation") return String(employee?.eps || "").trim();
+  if (key === "pension_affiliation") return String(employee?.pensionFund || "").trim();
+  if (key === "arl_affiliation") return String(employee?.arl || "").trim();
+  return "";
+}
+
 function openSstRenewalModal(ctx) {
   const {
     employeeId,
@@ -244,81 +516,116 @@ function openSstRenewalModal(ctx) {
     G.notify("Colaborador no encontrado.", "error");
     return;
   }
-  const key = String(controlKey || "").trim();
-  if (!key) {
+  const records = read(KEYS.sstCompliance, []);
+  const initialKey =
+    String(controlKey || "").trim() ||
+    resolveSstControlKey(controlType) ||
+    listSstRenewableControlKeys(employee)[0] ||
+    "";
+  if (!initialKey) {
     G.notify("Este control no admite renovación automática.", "error");
     return;
   }
   const today = colombiaTodayIsoDate();
-  const needsProvider = sstControlRequiresProvider(key);
-  const displayType = String(controlType || getSstControlRecordType(key) || key);
+  const needsProvider = sstControlRequiresProvider(initialKey);
+  const providerMeta = sstRenewalProviderMeta(initialKey);
+  const controlOptions = buildSstRenewalControlOptions(employee);
   const defaultProvider =
-    String(initialProvider || "").trim() ||
-    (key === "eps_affiliation"
-      ? String(employee.eps || "")
-      : key === "pension_affiliation"
-        ? String(employee.pensionFund || "")
-        : key === "arl_affiliation"
-          ? String(employee.arl || "")
-          : "");
+    String(initialProvider || "").trim() || resolveSstRenewalDefaultProvider(employee, initialKey);
+  const initialDueDate = computeSstNextDueDate(initialKey, today);
+  const employeeRole = isConductorEmployee(employee) ? "Conductor" : "Colaborador";
 
   G.openEditModal({
     title: "Renovar control SST",
-    subtitle: `${String(employee.name || "").trim()} · ${displayType}`,
+    subtitle: `${String(employee.name || "").trim() || "Colaborador"} · ${String(employee.position || "—").trim() || "—"} · ${sstRenewalDisplayLabel(initialKey)}`,
     submitText: "Renovar y actualizar",
+    cancelBtnClass: "btn btn-sm btn-outline module-panel-btn module-panel-btn--cancel",
+    extraModalCardClass: "modal-card-edit--sst-renewal",
     fields: [
       {
         type: "section",
-        title: "Renovación",
-        hint: "Al confirmar se actualiza la ficha del colaborador (y conductor si aplica), se registra el cumplimiento y se calcula el próximo vencimiento."
+        title: "Control y situación actual",
+        hint: "Seleccione el control a renovar y revise el estado vigente en la ficha del colaborador."
+      },
+      {
+        name: "controlKey",
+        label: "¿Qué desea renovar?",
+        type: "select",
+        value: initialKey,
+        options: controlOptions,
+        required: true
+      },
+      {
+        type: "custom",
+        html: buildSstRenewalContextHtml(employee, initialKey, records, recordId)
+      },
+      {
+        type: "section",
+        title: "Nueva vigencia",
+        hint: sstRenewalSectionHint(initialKey),
+        id: "sst-renew-vigencia-section"
+      },
+      {
+        name: "provider",
+        label: providerMeta.label,
+        value: defaultProvider,
+        required: needsProvider,
+        placeholder: providerMeta.placeholder,
+        wrapperClass: "sst-renew-provider-field",
+        hidden: !needsProvider
       },
       {
         name: "completionDate",
-        label: needsProvider ? "Fecha de afiliación / renovación" : "Fecha de realización",
+        label: sstRenewalCompletionLabel(initialKey),
         type: "date",
         value: today,
-        required: true
+        required: true,
+        wrapperClass: "sst-renew-completion-field"
       },
-      ...(needsProvider
-        ? [
-            {
-              name: "provider",
-              label: "Entidad (EPS, fondo o ARL)",
-              value: defaultProvider,
-              required: true,
-              placeholder: "Ej. Sura, Colpensiones, Positiva"
-            }
-          ]
-        : [
-            {
-              name: "provider",
-              label: "Entidad / proveedor (opcional)",
-              value: defaultProvider
-            }
-          ]),
+      {
+        name: "dueDate",
+        label: "Próximo vencimiento",
+        type: "date",
+        value: initialDueDate,
+        wrapperClass: "sst-renew-due-field"
+      },
+      {
+        type: "custom",
+        html: `<p class="muted sst-renew-vigencia-hint" data-sst-renew-vigencia-hint>${escapeHtml(sstRenewalVigenciaHintText(initialKey))}</p>`
+      },
+      {
+        type: "section",
+        title: "Evidencia (opcional)",
+        hint: "Referencia documental para auditoría. No se cargan archivos en el portal."
+      },
       {
         name: "documentCode",
-        label: "Código documental (opcional)",
-        value: String(initialDocumentCode || "")
+        label: "Código documental",
+        value: String(initialDocumentCode || ""),
+        placeholder: "Ej. SST-2026-001"
       },
       {
         name: "notes",
-        label: "Observaciones (opcional)",
+        label: "Observaciones",
         type: "textarea",
         value: String(initialNotes || ""),
-        rows: 2
+        rows: 2,
+        placeholder: `Renovación ${sstRenewalDisplayLabel(initialKey)} · ${employeeRole}`
       },
       {
         name: "evidenceRef",
-        label: "Referencia evidencia (URL o código, opcional)",
+        label: "Referencia evidencia",
         value: "",
-        placeholder: "Ej. https://… o Carpeta física A-12 (sin subir archivos)"
+        placeholder: "URL externa o código de carpeta física"
       }
     ],
+    afterMount: (formEl) => wireSstRenewalModalFields(formEl, employee, initialKey, records, recordId),
     onSubmit: async (form) => {
+      const selectedKey = String(form.controlKey || initialKey || "").trim();
+      const displayType = sstRenewalDisplayLabel(selectedKey);
       const result = await executeSstRenewal({
         employeeId: employee.id,
-        controlKey: key,
+        controlKey: selectedKey,
         completionDate: form.completionDate,
         provider: form.provider,
         documentCode: form.documentCode,
