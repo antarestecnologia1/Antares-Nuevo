@@ -66,6 +66,32 @@ export function normalizeEmployeeDocumentFolderRow(row) {
   };
 }
 
+export function employeeHasFolderRecord(employeeId, folderName, documents, folderRecords) {
+  const id = String(employeeId || "");
+  const folder = normalizeDocumentFolder(folderName);
+  if (!id) return false;
+  const inDocs = (documents || []).some((raw) => {
+    const doc = normalizeEmployeeDocumentRow(raw);
+    return String(doc.employeeId) === id && normalizeDocumentFolder(doc.folder) === folder;
+  });
+  if (inDocs) return true;
+  return (folderRecords || []).some((raw) => {
+    const row = normalizeEmployeeDocumentFolderRow(raw);
+    return String(row.employeeId) === id && normalizeDocumentFolder(row.folderName) === folder;
+  });
+}
+
+export function buildEmployeeDocumentFolderRecord(employeeId, folderName, employeeName, createdBy) {
+  return normalizeEmployeeDocumentFolderRow({
+    id: "",
+    employeeId,
+    employeeName: String(employeeName || "Colaborador").trim(),
+    folderName: normalizeDocumentFolder(folderName),
+    createdBy: String(createdBy || "Portal").trim(),
+    createdAt: new Date().toISOString()
+  });
+}
+
 export function collectEmployeeFolders(employeeId, documents, folderRecords) {
   const id = String(employeeId || "");
   const names = new Set();

@@ -394,6 +394,7 @@ export function normalizeDocumentsDataSection(section) {
 export function normalizeDocumentsOperateSection(section) {
   const s = String(section || "").trim().toLowerCase();
   if (s === "dossier" || s === "expediente") return "dossier";
+  if (s === "browse" || s === "consult" || s === "consultar" || s === "carpetas") return "browse";
   return "upload";
 }
 
