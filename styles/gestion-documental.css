@@ -299,18 +299,143 @@ button.doc-kpi {
 }
 
 /* ─────────────────────────────────────────────────────────────
-   Pestañas de trabajo (componente compartido) — realce del módulo
+   Pestañas de trabajo — navegación premium (scoped al módulo)
    ───────────────────────────────────────────────────────────── */
+/* Barra de pestañas a todo el ancho: hero y switch apilados en el módulo */
+.documents-studio .hr-workspace-header {
+  flex-direction: column;
+  align-items: stretch;
+}
+.documents-studio .hr-workspace-header__switch {
+  width: 100%;
+  max-width: none;
+}
+
+.documents-studio .hr-workspace-tabs--switch {
+  gap: 0.4rem;
+  padding: 0.4rem;
+  border-radius: 18px;
+  border: 1px solid var(--doc-border);
+  background: linear-gradient(180deg, var(--doc-surface-2) 0%, var(--doc-surface-3) 100%);
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+.documents-studio .hr-workspace-tab--switch {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 3.35rem;
+  gap: 0.65rem;
+  padding: 0.5rem 0.85rem;
+  justify-content: flex-start;
+  border: 1px solid transparent;
+  border-radius: 13px;
+  background: transparent;
+  color: var(--doc-ink-soft);
+  transition: color 0.18s ease, background 0.18s ease, border-color 0.18s ease,
+    box-shadow 0.18s ease, transform 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.documents-studio .hr-workspace-tab--switch:focus-visible {
+  outline: 2px solid var(--doc-accent);
+  outline-offset: 2px;
+}
+
+.documents-studio .hr-workspace-tab--switch .hr-workspace-tab-ico {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 11px;
+  flex-shrink: 0;
+  background: var(--doc-surface);
+  border: 1px solid var(--doc-border);
+  color: var(--doc-ink-soft);
+  box-shadow: var(--doc-shadow-xs);
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+.documents-studio .hr-workspace-tab--switch .hr-workspace-tab-ico :where(svg) {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.documents-studio .hr-workspace-tab--switch .hr-workspace-tab-body {
+  min-width: 0;
+}
+.documents-studio .hr-workspace-tab--switch .hr-workspace-tab-label {
+  font-size: 0.9rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  color: var(--doc-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Subtítulo visible solo en este módulo (otros módulos lo ocultan por convención) */
+.documents-studio.payroll-studio .hr-workspace-tab--switch .hr-workspace-tab-hint {
+  display: block;
+  margin-top: 0.1rem;
+  font-size: 0.69rem;
+  font-weight: 600;
+  line-height: 1.25;
+  opacity: 1;
+  color: var(--doc-ink-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.documents-studio .hr-workspace-tab--switch:hover {
+  background: var(--doc-surface);
+  border-color: var(--doc-accent-line);
+  color: var(--doc-ink);
+  box-shadow: var(--doc-shadow-xs);
+  transform: translateY(-1px);
+}
+.documents-studio .hr-workspace-tab--switch:hover .hr-workspace-tab-ico {
+  background: var(--doc-grad-soft);
+  border-color: var(--doc-accent-line);
+  color: var(--doc-accent);
+}
+
 .documents-studio .hr-workspace-tab--switch.is-active {
   background: var(--doc-grad);
-  color: #fff;
   border-color: transparent;
+  color: #fff;
   box-shadow: var(--doc-shadow-glow);
+  transform: none;
 }
-.documents-studio .hr-workspace-tab--switch.is-active .hr-workspace-tab-ico,
-.documents-studio .hr-workspace-tab--switch.is-active .hr-workspace-tab-hint,
 .documents-studio .hr-workspace-tab--switch.is-active .hr-workspace-tab-label {
   color: #fff;
+}
+.documents-studio.payroll-studio .hr-workspace-tab--switch.is-active .hr-workspace-tab-hint {
+  color: rgba(255, 255, 255, 0.85);
+}
+.documents-studio .hr-workspace-tab--switch.is-active .hr-workspace-tab-ico {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.32);
+  color: #fff;
+  box-shadow: none;
+}
+
+/* En pantallas medianas/pequeñas: tira desplazable, sin recortes ni saltos de línea */
+@media (max-width: 860px) {
+  .documents-studio .hr-workspace-tabs--switch {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .documents-studio .hr-workspace-tabs--switch::-webkit-scrollbar {
+    display: none;
+  }
+  .documents-studio .hr-workspace-tab--switch {
+    flex: 0 0 auto;
+    min-width: max-content;
+  }
+  .documents-studio.payroll-studio .hr-workspace-tab--switch .hr-workspace-tab-hint {
+    display: none;
+  }
 }
 
 /* ─────────────────────────────────────────────────────────────

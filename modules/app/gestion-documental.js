@@ -946,15 +946,15 @@ function documentManagementHtml() {
 
   const documentTabs = [
     canUploadDocumentsModule()
-      ? { id: "upload", label: "Subir documento", icon: "upload", hint: "Registrar archivos en el expediente" }
+      ? { id: "upload", label: "Subir documento", icon: "upload", hint: "Registrar archivos" }
       : null,
     canViewDocumentsModule()
-      ? { id: "consult", label: "Consultar", icon: "folder", hint: "Explorar carpetas por colaborador" }
+      ? { id: "consult", label: "Consultar", icon: "folder", hint: "Carpetas por colaborador" }
       : null,
     canViewDocumentsModule()
-      ? { id: "dossier", label: "Expediente", icon: "user", hint: "Checklist y documentos del colaborador" }
+      ? { id: "dossier", label: "Expediente", icon: "user", hint: "Checklist y archivos" }
       : null,
-    { id: "data", label: "Archivo general", icon: "eye", hint: "Listado, filtros y exportación" }
+    { id: "data", label: "Archivo general", icon: "eye", hint: "Listado y filtros" }
   ].filter(Boolean);
 
   const tabsNav = renderHrWorkspaceTabs({
