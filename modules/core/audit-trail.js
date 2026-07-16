@@ -1,5 +1,5 @@
 /**
- * Trazabilidad unificada del portal: catálogo canónico de los 18 módulos,
+ * Trazabilidad unificada del portal: catálogo canónico de módulos,
  * normalización de etiquetas y helper para registrar eventos con actor.
  */
 
@@ -16,6 +16,7 @@ export const PORTAL_AUDIT_MODULE_ORDER = [
   "payroll",
   "hiring",
   "sst",
+  "documents",
   "contact_b2b",
   "users",
   "authorizations",
@@ -38,6 +39,7 @@ export const PORTAL_AUDIT_MODULE_REGISTRY = {
   payroll: { id: "payroll", label: "Gestión humana" },
   hiring: { id: "hiring", label: "Contratación" },
   sst: { id: "sst", label: "Cumplimiento laboral y SST" },
+  documents: { id: "documents", label: "Gestión documental" },
   contact_b2b: { id: "contact_b2b", label: "Contacto web (B2B)" },
   users: { id: "users", label: "Usuarios y permisos" },
   authorizations: { id: "authorizations", label: "Autorizaciones" },
@@ -71,6 +73,12 @@ const PORTAL_AUDIT_MODULE_ALIASES = {
   contratacion: "hiring",
   sst_compliance: "sst",
   cumplimiento_laboral: "sst",
+  document_management: "documents",
+  "document-management": "documents",
+  gestion_documental: "documents",
+  "gestion documental": "documents",
+  "gestión documental": "documents",
+  expediente: "documents",
   contacts: "contact_b2b",
   b2b: "contact_b2b",
   companies: "users",
@@ -142,6 +150,7 @@ const PORTAL_AUDIT_MODULE_ICON_KEYS = {
   payroll: "briefcase",
   hiring: "userPlus",
   sst: "shield",
+  documents: "file",
   contact_b2b: "globe",
   users: "users",
   authorizations: "check",
@@ -203,6 +212,7 @@ export function portalAuditModuleIconKey(moduleIdOrLabel = "") {
   }
   if (label.includes("contrat")) return "userPlus";
   if (label.includes("sst") || label.includes("cumplimiento")) return "shield";
+  if (label.includes("document") || label.includes("expediente")) return "file";
   if (label.includes("usuario") || label.includes("permiso")) return "users";
   if (label.includes("autoriz")) return "check";
   if (label.includes("contacto") || label.includes("b2b")) return "globe";

@@ -538,6 +538,8 @@ function renderDocumentCards(documents, todayYmd, IC, { compact = false, viewMod
             <div class="doc-card__meta">
               ${renderDocStatusBadge(doc, todayYmd)}
               <span class="doc-meta-chip">${escapeHtml(formatFileSize(doc.sizeBytes))}</span>
+              ${doc.createdAt ? `<span class="doc-meta-chip" title="Fecha de subida">Subido ${escapeHtml(formatDocumentUploadDate(doc.createdAt))}</span>` : ""}
+              ${doc.uploadedBy ? `<span class="doc-meta-chip" title="Usuario que cargó el archivo">${escapeHtml(String(doc.uploadedBy))}</span>` : ""}
               ${doc.dueDate ? `<span class="doc-meta-chip">Vence ${escapeHtml(String(doc.dueDate))}</span>` : ""}
               ${doc.documentCode ? `<span class="doc-meta-chip">Cód. ${escapeHtml(String(doc.documentCode))}</span>` : ""}
             </div>
@@ -562,6 +564,72 @@ function renderDocumentCards(documents, todayYmd, IC, { compact = false, viewMod
   </div>`;
 }
 
+function formatDocumentUploadDate(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "—";
+  const fmt = typeof G.fmtDate === "function" ? G.fmtDate : null;
+  if (fmt) {
+    const labeled = String(fmt(raw) || "").trim();
+    if (labeled) return labeled;
+  }
+  const d = new Date(raw);
+  if (!Number.isNaN(d.getTime())) {
+    return d.toLocaleString("es-CO", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+  }
+  return raw.slice(0, 10);
+}
+
+function currentDocumentsActorLabel() {
+  const user = typeof G.currentUser === "function" ? G.currentUser() : null;
+  return String(user?.fullName || user?.email || "Portal").trim() || "Portal";
+}
+
+/** Payload de auditoría para Historial (módulo Gestión documental). */
+function buildDocumentAuditDetail(action, doc, extra = {}) {
+  const row = normalizeEmployeeDocumentRow(doc || {});
+  const typeLabel = getEmployeeDocumentTypeLabel(row.documentType || "otro");
+  const uploadedBy = String(row.uploadedBy || extra.uploadedBy || currentDocumentsActorLabel()).trim();
+  const uploadedAt = formatDocumentUploadDate(row.createdAt || extra.at || new Date().toISOString());
+  const folder = normalizeDocumentFolder(row.folder || extra.folder || "");
+  const fileName = String(row.fileName || extra.fileName || "").trim();
+  const reason = String(extra.reason || "").trim();
+  const parts = [];
+  if (fileName) parts.push(fileName);
+  if (action === "create") parts.push(`Subido por ${uploadedBy}`);
+  else if (action === "update") parts.push(`Actualizado por ${uploadedBy}`);
+  else if (action === "delete") parts.push(`Eliminado por ${uploadedBy}`);
+  if (reason) parts.push(`Motivo: ${reason}`);
+  const changeBits = [
+    `Fecha subida: ${uploadedAt}`,
+    `Usuario: ${uploadedBy}`,
+    folder ? `Carpeta: ${folder}` : "",
+    typeLabel ? `Tipo: ${typeLabel}` : ""
+  ].filter(Boolean);
+  const detail = {
+    entityId: String(row.id || extra.entityId || "").trim(),
+    entityLabel: String(
+      extra.entityLabel || `${row.employeeName || "Colaborador"} · ${typeLabel}`
+    ).trim(),
+    summary: String(extra.summary || parts.join(" · ")).trim(),
+    changesText: String(extra.changesText || changeBits.join(" · ")).trim(),
+    usuario: uploadedBy,
+    actor: uploadedBy
+  };
+  /* Solo fijar `at` en altas: conserva la fecha de subida del documento en Historial. */
+  if (action === "create") {
+    detail.at = row.createdAt || extra.at || new Date().toISOString();
+  } else if (extra.at) {
+    detail.at = extra.at;
+  }
+  return detail;
+}
+
 function renderDocumentsTable(documents, todayYmd, IC) {
   if (!documents.length) {
     return renderEmptyState("Sin resultados para los filtros actuales.", {
@@ -573,6 +641,8 @@ function renderDocumentsTable(documents, todayYmd, IC) {
     .map((raw) => {
       const doc = normalizeEmployeeDocumentRow(raw);
       const rowTone = documentExpiryRowClass(doc, todayYmd);
+      const uploadedAt = formatDocumentUploadDate(doc.createdAt);
+      const uploadedBy = String(doc.uploadedBy || "").trim() || "—";
       return `<tr class="${rowTone}" data-doc-id="${escapeAttr(String(doc.id))}">
         <td><strong>${escapeHtml(doc.employeeName || "-")}</strong></td>
         <td>${escapeHtml(normalizeDocumentFolder(doc.folder))}</td>
@@ -580,6 +650,8 @@ function renderDocumentsTable(documents, todayYmd, IC) {
         <td><span class="doc-file-chip">${escapeHtml(doc.fileName)}</span></td>
         <td class="muted">${doc.documentCode ? escapeHtml(String(doc.documentCode)) : "—"}</td>
         <td>${renderDocStatusBadge(doc, todayYmd)}</td>
+        <td><time datetime="${escapeAttr(String(doc.createdAt || ""))}">${escapeHtml(uploadedAt)}</time></td>
+        <td>${escapeHtml(uploadedBy)}</td>
         <td>${doc.dueDate ? escapeHtml(String(doc.dueDate)) : "—"}</td>
         <td class="muted">${escapeHtml(formatFileSize(doc.sizeBytes))}</td>
         <td class="doc-table-actions">
@@ -597,7 +669,7 @@ function renderDocumentsTable(documents, todayYmd, IC) {
   return `<div class="doc-table-panel">
     <div class="table-wrap doc-table-wrap"><table class="table doc-table">
     <thead><tr>
-      <th>Colaborador</th><th>Carpeta</th><th>Tipo</th><th>Archivo</th><th>Código</th><th>Estado</th><th>Vencimiento</th><th>Tamaño</th><th></th>
+      <th>Colaborador</th><th>Carpeta</th><th>Tipo</th><th>Archivo</th><th>Código</th><th>Estado</th><th>Fecha subida</th><th>Subido por</th><th>Vencimiento</th><th>Tamaño</th><th></th>
     </tr></thead>
     <tbody>${rows}</tbody>
   </table></div></div>`;
@@ -1272,10 +1344,14 @@ function openDeleteFolderFlow(employeeId, folderName) {
           }
         }
         const reason = String(motivo || "").trim();
+        const actor = currentDocumentsActorLabel();
         G.logPortalAuditEvent?.("documents", "delete", {
           entityId: `${id}:${folderKey}`,
           entityLabel: `Carpeta · ${folder}`,
-          summary: `Eliminada${docCount ? ` · ${docCount} docs → General` : ""}${reason ? ` · Motivo: ${reason}` : ""}`
+          summary: `Eliminada por ${actor}${docCount ? ` · ${docCount} docs → General` : ""}${reason ? ` · Motivo: ${reason}` : ""}`,
+          changesText: `Usuario: ${actor}${reason ? ` · Motivo: ${reason}` : ""}`,
+          usuario: actor,
+          actor
         });
         patchDocumentsUi({
           selectedFolder: DEFAULT_EMPLOYEE_DOCUMENT_FOLDER,
@@ -1355,10 +1431,15 @@ function openCreateFolderModal(defaultEmployeeId = "", opts = {}) {
       });
       try {
         await writeAwaitServerCreate(KEYS.employeeDocumentFolders, [...list, record], record);
+        const actor = String(record.createdBy || currentDocumentsActorLabel()).trim();
         G.logPortalAuditEvent?.("documents", "create", {
           entityId: record.id,
           entityLabel: `${record.employeeName} · ${record.folderName}`,
-          summary: "Carpeta documental"
+          summary: `Carpeta documental · Creada por ${actor}`,
+          changesText: `Fecha: ${formatDocumentUploadDate(record.createdAt)} · Usuario: ${actor}`,
+          usuario: actor,
+          actor,
+          at: record.createdAt
         });
         G.notify?.("Carpeta creada.", "success");
         if (stayOnUpload) {
@@ -1474,11 +1555,14 @@ function openEditDocumentModal(target) {
       });
       try {
         await writeAwaitServerEdit(KEYS.employeeDocuments, nextList, target.id);
-        G.logPortalAuditEvent?.("documents", "update", {
-          entityId: target.id,
-          entityLabel: `${target.employeeName} · ${getEmployeeDocumentTypeLabel(docType)}`,
-          summary: target.fileName
-        });
+        const updatedDoc = nextList.find((r) => String(r.id) === String(target.id)) || target;
+        G.logPortalAuditEvent?.(
+          "documents",
+          "update",
+          buildDocumentAuditDetail("update", updatedDoc, {
+            uploadedBy: currentDocumentsActorLabel()
+          })
+        );
         G.notify?.("Documento actualizado.", "success");
         G.renderPortalView?.();
         return true;
@@ -2012,11 +2096,11 @@ function bindDocumentManagementPortalControls() {
           });
           list = [...list, record];
           await writeAwaitServerCreate(KEYS.employeeDocuments, list, record);
-          G.logPortalAuditEvent?.("documents", "create", {
-            entityId: record.id,
-            entityLabel: `${record.employeeName} · ${getEmployeeDocumentTypeLabel(record.documentType)}`,
-            summary: record.fileName
-          });
+          G.logPortalAuditEvent?.(
+            "documents",
+            "create",
+            buildDocumentAuditDetail("create", record)
+          );
           okCount += 1;
         }
         clearPendingUploadFile();
@@ -2127,11 +2211,14 @@ function bindDocumentManagementPortalControls() {
           const reason = String(motivo || "").trim();
           const ok = await G.removeFromPortalListAwaitServer?.(KEYS.employeeDocuments, id);
           if (!ok) return;
-          G.logPortalAuditEvent?.("documents", "delete", {
-            entityId: id,
-            entityLabel: `${doc.employeeName} · ${getEmployeeDocumentTypeLabel(doc.documentType)}`,
-            summary: `${doc.fileName}${reason ? ` · Motivo: ${reason}` : ""}`
-          });
+          G.logPortalAuditEvent?.(
+            "documents",
+            "delete",
+            buildDocumentAuditDetail("delete", doc, {
+              uploadedBy: currentDocumentsActorLabel(),
+              reason
+            })
+          );
           G.notify?.("Documento eliminado del expediente.", "success");
           G.renderPortalView?.();
         }

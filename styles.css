@@ -16482,6 +16482,19 @@ body[data-theme="dark"] tr[data-sst-state="pendiente"] {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: clip;
+}
+
+.hist-trace-shell .hist-trace-table-wrap,
+.hist-trace-shell .table-wrap {
+  margin-left: 0;
+  margin-right: 0;
+  padding-left: 0;
+  padding-right: 0;
+  max-width: 100%;
 }
 
 .hist-trace-hero {
@@ -16604,7 +16617,10 @@ body[data-theme="dark"] tr[data-sst-state="pendiente"] {
   display: flex;
   flex-wrap: nowrap;
   gap: 0.45rem;
+  max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
+  overscroll-behavior-x: contain;
   padding: 0.15rem 0 0.35rem;
   scrollbar-width: thin;
   -webkit-overflow-scrolling: touch;

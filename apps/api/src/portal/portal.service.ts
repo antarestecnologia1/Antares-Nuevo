@@ -12651,11 +12651,17 @@ export class PortalService implements OnModuleInit {
       if (!row?.id || !row.employeeId || !row.storageKey) continue;
       if (this.skipUnlessPersistUuid("syncEmployeeDocuments", row.id)) continue;
       if (this.skipUnlessPersistUuid("syncEmployeeDocuments.employeeId", row.employeeId)) continue;
+      const createdAtRaw = (row as { createdAt?: unknown }).createdAt;
+      const createdAtIso =
+        createdAtRaw && !Number.isNaN(new Date(String(createdAtRaw)).getTime())
+          ? new Date(String(createdAtRaw)).toISOString()
+          : new Date().toISOString();
       await c.query(
         `INSERT INTO documentos_empleado (
           id, id_empleado, nombre_empleado, tipo_documento, carpeta, nombre_archivo, mime_type, tamano_bytes,
-          storage_key, fecha_emision, fecha_vencimiento, estado, codigo_documental, observaciones, subido_por
-        ) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10::date, $11::date, $12, $13, $14, $15)
+          storage_key, fecha_emision, fecha_vencimiento, estado, codigo_documental, observaciones, subido_por,
+          fecha_creacion
+        ) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10::date, $11::date, $12, $13, $14, $15, $16::timestamptz)
         ON CONFLICT (id) DO UPDATE SET
           id_empleado = EXCLUDED.id_empleado,
           nombre_empleado = EXCLUDED.nombre_empleado,
@@ -12689,7 +12695,8 @@ export class PortalService implements OnModuleInit {
           nu(row.status || "Vigente"),
           nuN(row.documentCode),
           nuN(row.notes),
-          nu(row.uploadedBy || "Portal")
+          nu(row.uploadedBy || "Portal"),
+          createdAtIso
         ]
       );
     }

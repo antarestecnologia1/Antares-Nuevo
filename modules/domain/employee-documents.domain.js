@@ -216,8 +216,8 @@ export function buildEmployeeDocumentExportRows(documents, employees, todayYmd) 
       Vencimiento: row.dueDate || "",
       Estado: computeEmployeeDocumentStatus(row.dueDate, today),
       Codigo: row.documentCode || "",
-      Subido: row.uploadedBy || "",
-      Fecha: row.createdAt ? String(row.createdAt).slice(0, 10) : ""
+      "Subido por": row.uploadedBy || "",
+      "Fecha subida": row.createdAt ? String(row.createdAt).slice(0, 10) : ""
     };
   });
 }

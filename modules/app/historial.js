@@ -135,6 +135,7 @@ const HISTORY_TRACE_MODULE_ICONS = {
   "Gestión humana": "briefcase",
   Contratación: "userPlus",
   "Cumplimiento laboral y SST": "shield",
+  "Gestión documental": "file",
   "Contacto web (B2B)": "globe",
   "Usuarios y permisos": "users",
   Autorizaciones: "check",
