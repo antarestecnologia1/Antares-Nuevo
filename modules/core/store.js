@@ -202,7 +202,8 @@ export let state = {
     folderBrowseName: "",
     selectedDocumentType: "",
     highlightDocumentType: "",
-    listViewMode: "list"
+    listViewMode: "list",
+    selectedFolder: ""
   },
   /** Centro de aprobaciones: filtro de texto en bandejas. */
   authorizationsUi: {

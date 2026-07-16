@@ -146,7 +146,8 @@ function getDocumentsUi() {
     folderBrowseName: String(ui.folderBrowseName || ""),
     selectedDocumentType: String(ui.selectedDocumentType || ""),
     highlightDocumentType: String(ui.highlightDocumentType || ""),
-    listViewMode: ui.listViewMode === "grid" ? "grid" : "list"
+    listViewMode: ui.listViewMode === "grid" ? "grid" : "list",
+    selectedFolder: String(ui.selectedFolder || "")
   };
 }
 
@@ -451,6 +452,7 @@ function renderUploadDocumentTypePicker(employeeId, allDocs, selectedType, today
 }
 
 function renderKpiCards(summary, IC, gapsCount = 0) {
+  void gapsCount;
   return `<div class="doc-kpi-block">
     <div class="doc-kpi-rail" role="group" aria-label="Indicadores documentales">
       <button type="button" class="doc-kpi doc-kpi--total" data-action="doc-quick-filter" data-filter="all" title="Ver todos los documentos">
@@ -482,11 +484,6 @@ function renderKpiCards(summary, IC, gapsCount = 0) {
         </span>
       </button>
     </div>
-    ${
-      gapsCount > 0
-        ? `<p class="doc-kpi-foot"><button type="button" class="doc-kpi-link" data-action="doc-quick-filter" data-filter="gaps"><span class="doc-kpi-link__pulse" aria-hidden="true"></span>${gapsCount} expediente${gapsCount === 1 ? "" : "s"} incompleto${gapsCount === 1 ? "" : "s"}</button></p>`
-        : ""
-    }
   </div>`;
 }
 
@@ -675,11 +672,19 @@ function renderEmployeeDossierPanel(employee, documents, todayYmd, IC, highlight
 
 function renderUploadForm(selectedEmployeeId, selectedDocumentType, allDocs, folderRecords, IC, todayYmd) {
   const folders = collectEmployeeFolders(selectedEmployeeId, allDocs, folderRecords);
-  const folderDefault = folders[0] || DEFAULT_EMPLOYEE_DOCUMENT_FOLDER;
-  const folderOptions = folders
-    .map((name) => `<option value="${escapeAttr(name)}"></option>`)
+  const preferredFolder = normalizeDocumentFolder(getDocumentsUi().selectedFolder || "");
+  const folderDefault =
+    preferredFolder && folders.includes(preferredFolder)
+      ? preferredFolder
+      : folders[0] || DEFAULT_EMPLOYEE_DOCUMENT_FOLDER;
+  const folderSelectOptions = folders
+    .map(
+      (name) =>
+        `<option value="${escapeAttr(name)}"${name === folderDefault ? " selected" : ""}>${escapeHtml(name)}</option>`
+    )
     .join("");
   const resolvedType = resolveUploadDocumentType(selectedEmployeeId, allDocs, selectedDocumentType);
+  const canCreateFolder = canUploadDocumentsModule();
   return `<form id="form-employee-document" class="doc-upload-form" enctype="multipart/form-data">
     <div class="doc-upload-flow">
       <section class="doc-flow-section doc-flow-section--destino">
@@ -697,8 +702,14 @@ function renderUploadForm(selectedEmployeeId, selectedDocumentType, allDocs, fol
           </label>
           <label class="field doc-field">
             <span class="doc-field__label">Carpeta</span>
-            <input class="doc-field__control" name="folder" list="doc-folder-list" required value="${escapeAttr(folderDefault)}" maxlength="128" placeholder="General, Contratos…" data-doc-folder-input />
-            <datalist id="doc-folder-list">${folderOptions}</datalist>
+            <select class="doc-field__control" name="folder" required data-doc-folder-select>
+              ${folderSelectOptions || `<option value="${escapeAttr(DEFAULT_EMPLOYEE_DOCUMENT_FOLDER)}" selected>${escapeHtml(DEFAULT_EMPLOYEE_DOCUMENT_FOLDER)}</option>`}
+              ${
+                canCreateFolder
+                  ? `<option value="__create_folder__">+ Crear carpeta nueva…</option>`
+                  : ""
+              }
+            </select>
           </label>
         </div>
       </section>
@@ -1124,8 +1135,9 @@ async function downloadDocumentRecord(doc) {
   }
 }
 
-function openCreateFolderModal(defaultEmployeeId = "") {
+function openCreateFolderModal(defaultEmployeeId = "", opts = {}) {
   if (!canUploadDocumentsModule()) return;
+  const stayOnUpload = Boolean(opts.stayOnUpload);
   const employees = read(KEYS.payrollEmployees, []);
   const empOpts = employees
     .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "es"))
@@ -1161,8 +1173,9 @@ function openCreateFolderModal(defaultEmployeeId = "") {
         G.failPortalField?.(document.getElementById("crud-form"), "employeeId", "Seleccione un colaborador.");
         return false;
       }
-      if (!folderName || folderName === DEFAULT_EMPLOYEE_DOCUMENT_FOLDER) {
-        /* General always exists logically */
+      if (!folderName) {
+        G.failPortalField?.(document.getElementById("crud-form"), "folderName", "Indique el nombre de la carpeta.");
+        return false;
       }
       const employee = employees.find((e) => String(e.id) === employeeId);
       const list = read(KEYS.employeeDocumentFolders, []).map(normalizeEmployeeDocumentFolderRow);
@@ -1193,12 +1206,22 @@ function openCreateFolderModal(defaultEmployeeId = "") {
           summary: "Carpeta documental"
         });
         G.notify?.("Carpeta creada.", "success");
-        patchDocumentsUi({
-          workspace: "consult",
-          folderBrowseEmployeeId: employeeId,
-          folderBrowseName: ""
-        });
-        persistHrWorkspace("documents", "consult");
+        if (stayOnUpload) {
+          patchDocumentsUi({
+            workspace: "upload",
+            selectedEmployeeId: employeeId,
+            selectedFolder: folderName
+          });
+          persistHrWorkspace("documents", "upload");
+        } else {
+          patchDocumentsUi({
+            workspace: "consult",
+            folderBrowseEmployeeId: employeeId,
+            folderBrowseName: "",
+            selectedFolder: folderName
+          });
+          persistHrWorkspace("documents", "consult");
+        }
         G.renderPortalView?.();
         return true;
       } catch (err) {
@@ -1518,7 +1541,9 @@ function bindDocumentManagementPortalControls() {
 
   nodes.viewRoot.querySelectorAll("[data-action='doc-new-folder']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      openCreateFolderModal(String(btn.dataset.employeeId || getDocumentsUi().folderBrowseEmployeeId || ""));
+      openCreateFolderModal(String(btn.dataset.employeeId || getDocumentsUi().folderBrowseEmployeeId || ""), {
+        stayOnUpload: false
+      });
     });
   });
 
@@ -1602,7 +1627,8 @@ function bindDocumentManagementPortalControls() {
       }
       patchDocumentsUi({
         selectedEmployeeId: employeeId,
-        selectedDocumentType: gaps[0] || ""
+        selectedDocumentType: gaps[0] || "",
+        selectedFolder: ""
       });
       G.renderPortalView?.();
     });
@@ -1625,23 +1651,60 @@ function bindDocumentManagementPortalControls() {
     getDocumentsUi().selectedDocumentType
   ));
 
-  const syncUploadFolderDatalist = () => {
+  const syncUploadFolderSelect = () => {
     const empSel = nodes.viewRoot.querySelector("[data-doc-employee-select]");
-    const folderInput = nodes.viewRoot.querySelector("[data-doc-folder-input]");
-    const datalist = nodes.viewRoot.querySelector("#doc-folder-list");
-    if (!empSel || !folderInput || !datalist) return;
+    const folderSel = nodes.viewRoot.querySelector("[data-doc-folder-select]");
+    if (!empSel || !folderSel) return;
     const employeeId = String(empSel.value || "");
     const folders = collectEmployeeFolders(
       employeeId,
       read(KEYS.employeeDocuments, []).map(normalizeEmployeeDocumentRow),
       read(KEYS.employeeDocumentFolders, []).map(normalizeEmployeeDocumentFolderRow)
     );
-    datalist.innerHTML = folders.map((name) => `<option value="${escapeAttr(name)}"></option>`).join("");
-    if (!String(folderInput.value || "").trim()) {
-      folderInput.value = folders[0] || DEFAULT_EMPLOYEE_DOCUMENT_FOLDER;
-    }
+    const preferred = normalizeDocumentFolder(getDocumentsUi().selectedFolder || "");
+    const current = normalizeDocumentFolder(folderSel.value);
+    const selected =
+      preferred && folders.includes(preferred)
+        ? preferred
+        : folders.includes(current)
+          ? current
+          : folders[0] || DEFAULT_EMPLOYEE_DOCUMENT_FOLDER;
+    const createOpt = canUploadDocumentsModule()
+      ? `<option value="__create_folder__">+ Crear carpeta nueva…</option>`
+      : "";
+    folderSel.innerHTML =
+      (folders.length
+        ? folders
+            .map(
+              (name) =>
+                `<option value="${escapeAttr(name)}"${name === selected ? " selected" : ""}>${escapeHtml(name)}</option>`
+            )
+            .join("")
+        : `<option value="${escapeAttr(DEFAULT_EMPLOYEE_DOCUMENT_FOLDER)}" selected>${escapeHtml(DEFAULT_EMPLOYEE_DOCUMENT_FOLDER)}</option>`) +
+      createOpt;
   };
-  syncUploadFolderDatalist();
+  syncUploadFolderSelect();
+
+  nodes.viewRoot.querySelectorAll("[data-doc-folder-select]").forEach((sel) => {
+    sel.addEventListener("change", () => {
+      if (sel.value !== "__create_folder__") {
+        patchDocumentsUi({ selectedFolder: normalizeDocumentFolder(sel.value) });
+        return;
+      }
+      const empId =
+        String(nodes.viewRoot.querySelector("[data-doc-employee-select]")?.value || "").trim() ||
+        getDocumentsUi().selectedEmployeeId;
+      const previous =
+        normalizeDocumentFolder(getDocumentsUi().selectedFolder) ||
+        DEFAULT_EMPLOYEE_DOCUMENT_FOLDER;
+      sel.value = previous;
+      if (!empId) {
+        G.notify?.("Seleccione primero un colaborador.", "error");
+        return;
+      }
+      openCreateFolderModal(empId, { stayOnUpload: true });
+    });
+  });
 
   const fileInput = nodes.viewRoot.querySelector("#doc-upload-file");
   const fileLabel = nodes.viewRoot.querySelector("[data-doc-file-label]");
@@ -1688,7 +1751,12 @@ function bindDocumentManagementPortalControls() {
         G.notify?.("Indique la fecha de vencimiento para este tipo de documento.", "error");
         return;
       }
-      const folder = normalizeDocumentFolder(fd.get("folder"));
+      const folderRaw = String(fd.get("folder") || "").trim();
+      if (folderRaw === "__create_folder__") {
+        G.notify?.("Seleccione una carpeta o cree una nueva.", "error");
+        return;
+      }
+      const folder = normalizeDocumentFolder(folderRaw);
       const file = getSelectedUploadFile(fileInput);
       if (!employeeId || !file) {
         G.notify?.("Seleccione colaborador y archivo.", "error");
