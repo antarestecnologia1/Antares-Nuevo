@@ -195,6 +195,107 @@ function historyTraceActionLabel(action) {
   return typeof fn === "function" ? fn(action) : String(action || "update");
 }
 
+function historyTraceActionTone(action) {
+  const fn = globalThis.historyAuditActionStatus;
+  return typeof fn === "function" ? fn(action) : "status-pendiente";
+}
+
+function openHistoryAuditEventDetail(entryId) {
+  const id = String(entryId || "").trim();
+  if (!id) return;
+  const entry = (typeof buildHistoryAuditEntries === "function" ? buildHistoryAuditEntries() : []).find(
+    (row) => String(row?.id || "") === id
+  );
+  if (!entry) {
+    notify("No se encontró el evento de auditoría.", "error");
+    return;
+  }
+  const actionLabel = historyTraceActionLabel(entry.action);
+  const actionTone = historyTraceActionTone(entry.action);
+  const actorLabel =
+    (typeof historyAuditUsuarioFromLogRow === "function"
+      ? historyAuditUsuarioFromLogRow(entry, { fallbackToSession: false })
+      : entry.usuario || entry.actor) || "Sin registrar";
+  const changesText = String(entry.changesText || "").trim();
+  const pairs = [
+    ["Entidad", `<strong>${escapeHtml(entry.entityLabel || "—")}</strong>`],
+    ["Resumen", escapeHtml(entry.summary || "Sin resumen")],
+    ["Usuario", escapeHtml(String(actorLabel))],
+    ["Fecha", escapeHtml(fmtDate(entry.ts))],
+    ["Módulo", escapeHtml(String(entry.moduleLabel || "—"))],
+    ["Acción", `<span class="status ${escapeAttr(actionTone)}">${escapeHtml(actionLabel)}</span>`]
+  ];
+  if (changesText) pairs.push(["Detalle del cambio", escapeHtml(changesText)]);
+
+  const hasLinked =
+    String(entry.detailAction || "").trim() && String(entry.detailId || "").trim();
+  const secondaryActionsHtml = hasLinked
+    ? `<button type="button" class="btn btn-outline" id="hist-audit-linked-detail">${IC.eye || ""}<span>Ver registro vinculado</span></button>`
+    : "";
+
+  if (typeof openPortalDetailSheet === "function") {
+    openPortalDetailSheet({
+      title: "Detalle del evento",
+      sheetTitle: String(entry.entityLabel || "Evento de auditoría"),
+      subtitleHtml: `${escapeHtml(String(entry.moduleLabel || ""))} · ${escapeHtml(fmtDate(entry.ts))}`,
+      statusHtml: `<span class="status ${escapeAttr(actionTone)}">${escapeHtml(actionLabel)}</span>`,
+      moduleIcon: "activity",
+      moduleTone: "blue",
+      sections: [{ icon: "layers", pairs }],
+      secondaryActionsHtml,
+      afterMount: (content) => {
+        const linkedBtn = content?.querySelector?.("#hist-audit-linked-detail");
+        if (!linkedBtn || !hasLinked) return;
+        linkedBtn.addEventListener("click", () => {
+          document.getElementById("crud-modal")?.classList.add("hidden");
+          const action = String(entry.detailAction || "").trim();
+          const detailId = String(entry.detailId || "").trim();
+          if (action === "detail" && typeof openRequestDetailModal === "function") {
+            const req =
+              typeof findTransportRequestById === "function" ? findTransportRequestById(detailId) : null;
+            if (req) {
+              openRequestDetailModal(req);
+              return;
+            }
+          }
+          if (action === "deleted-request-snapshot-detail" && typeof openDeletedTransportRequestAuditModal === "function") {
+            const rows = typeof read === "function" ? read(KEYS.deletedTransportRequestLogs, []) : [];
+            const row = rows.find((r) => String(r.id) === detailId);
+            if (row) {
+              openDeletedTransportRequestAuditModal(row);
+              return;
+            }
+          }
+          if (action === "deleted-trip-snapshot-detail" && typeof openDeletedTransportTripAuditModal === "function") {
+            const rows = typeof read === "function" ? read(KEYS.deletedTransportTripLogs, []) : [];
+            const row = rows.find((r) => String(r.id) === detailId);
+            if (row) {
+              openDeletedTransportTripAuditModal(row);
+              return;
+            }
+          }
+          notify("No se pudo abrir el registro vinculado.", "warn");
+        });
+      }
+    });
+    return;
+  }
+
+  if (typeof openInfoModal === "function") {
+    openInfoModal({
+      title: "Detalle del evento",
+      subtitle: `${entry.moduleLabel || ""} · ${fmtDate(entry.ts)}`,
+      bodyHtml: `<dl class="hist-trace-event-detail">${pairs
+        .map(
+          ([label, value]) =>
+            `<div><dt>${escapeHtml(label)}</dt><dd>${value}</dd></div>`
+        )
+        .join("")}</dl>`,
+      secondaryActionsHtml
+    });
+  }
+}
+
 function exportHistoryTraceCsv(entries) {
   const list = Array.isArray(entries) ? entries : [];
   if (!list.length) {
@@ -630,6 +731,17 @@ function historyHtml() {
         renderPortalView();
       });
     });
+
+    if (!state.__historyAuditDetailDelegationBound) {
+      state.__historyAuditDetailDelegationBound = true;
+      nodes.viewRoot.addEventListener("click", (event) => {
+        const btn = event.target.closest("[data-action='history-audit-event-detail']");
+        if (!btn || !nodes.viewRoot.contains(btn)) return;
+        if (String(state.currentView || "") !== "history") return;
+        event.preventDefault();
+        openHistoryAuditEventDetail(btn.dataset.id);
+      });
+    }
 
     const traceFilter = document.getElementById("history-trace-filter");
     if (traceFilter) {

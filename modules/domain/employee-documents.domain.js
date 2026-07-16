@@ -46,12 +46,28 @@ export const EMPLOYEE_DOCUMENT_MAX_BYTES = 50 * 1024 * 1024;
 
 const TYPE_MAP = new Map(EMPLOYEE_DOCUMENT_TYPES.map((t) => [t.value, t]));
 
+/** Clave estable para comparar carpetas sin importar mayúsculas. */
+export function documentFolderKey(name) {
+  return normalizeDocumentFolder(name).toLocaleLowerCase("es");
+}
+
+/**
+ * Normaliza nombre de carpeta: trim, espacios únicos y Mayúscula Inicial por palabra.
+ * Unifica variantes de "General" / "general" / "GENERAL".
+ */
 export function normalizeDocumentFolder(name) {
   const cleaned = String(name || "")
     .trim()
     .replace(/\s+/g, " ")
     .slice(0, 128);
-  return cleaned || DEFAULT_EMPLOYEE_DOCUMENT_FOLDER;
+  if (!cleaned) return DEFAULT_EMPLOYEE_DOCUMENT_FOLDER;
+  const titled = cleaned
+    .toLocaleLowerCase("es")
+    .replace(/(^|[\s/._-]+)(\S)/g, (_, sep, ch) => `${sep}${ch.toLocaleUpperCase("es")}`);
+  if (titled.toLocaleLowerCase("es") === DEFAULT_EMPLOYEE_DOCUMENT_FOLDER.toLocaleLowerCase("es")) {
+    return DEFAULT_EMPLOYEE_DOCUMENT_FOLDER;
+  }
+  return titled;
 }
 
 export function normalizeEmployeeDocumentFolderRow(row) {
@@ -68,16 +84,16 @@ export function normalizeEmployeeDocumentFolderRow(row) {
 
 export function employeeHasFolderRecord(employeeId, folderName, documents, folderRecords) {
   const id = String(employeeId || "");
-  const folder = normalizeDocumentFolder(folderName);
+  const folderKey = documentFolderKey(folderName);
   if (!id) return false;
   const inDocs = (documents || []).some((raw) => {
     const doc = normalizeEmployeeDocumentRow(raw);
-    return String(doc.employeeId) === id && normalizeDocumentFolder(doc.folder) === folder;
+    return String(doc.employeeId) === id && documentFolderKey(doc.folder) === folderKey;
   });
   if (inDocs) return true;
   return (folderRecords || []).some((raw) => {
     const row = normalizeEmployeeDocumentFolderRow(raw);
-    return String(row.employeeId) === id && normalizeDocumentFolder(row.folderName) === folder;
+    return String(row.employeeId) === id && documentFolderKey(row.folderName) === folderKey;
   });
 }
 
@@ -94,25 +110,30 @@ export function buildEmployeeDocumentFolderRecord(employeeId, folderName, employ
 
 export function collectEmployeeFolders(employeeId, documents, folderRecords) {
   const id = String(employeeId || "");
-  const names = new Set();
+  const byKey = new Map();
+  const remember = (rawName) => {
+    const canonical = normalizeDocumentFolder(rawName);
+    const key = documentFolderKey(canonical);
+    if (!byKey.has(key)) byKey.set(key, canonical);
+  };
   for (const d of documents || []) {
     const doc = normalizeEmployeeDocumentRow(d);
-    if (String(doc.employeeId) === id) names.add(normalizeDocumentFolder(doc.folder));
+    if (String(doc.employeeId) === id) remember(doc.folder);
   }
   for (const raw of folderRecords || []) {
     const folder = normalizeEmployeeDocumentFolderRow(raw);
-    if (String(folder.employeeId) === id) names.add(normalizeDocumentFolder(folder.folderName));
+    if (String(folder.employeeId) === id) remember(folder.folderName);
   }
-  if (!names.size) names.add(DEFAULT_EMPLOYEE_DOCUMENT_FOLDER);
-  return [...names].sort((a, b) => a.localeCompare(b, "es"));
+  if (!byKey.size) byKey.set(documentFolderKey(DEFAULT_EMPLOYEE_DOCUMENT_FOLDER), DEFAULT_EMPLOYEE_DOCUMENT_FOLDER);
+  return [...byKey.values()].sort((a, b) => a.localeCompare(b, "es"));
 }
 
 export function countDocumentsInFolder(employeeId, folderName, documents) {
   const id = String(employeeId || "");
-  const folder = normalizeDocumentFolder(folderName);
+  const folderKey = documentFolderKey(folderName);
   return (documents || [])
     .map(normalizeEmployeeDocumentRow)
-    .filter((d) => String(d.employeeId) === id && normalizeDocumentFolder(d.folder) === folder).length;
+    .filter((d) => String(d.employeeId) === id && documentFolderKey(d.folder) === folderKey).length;
 }
 
 export function getEmployeeDocumentTypeLabel(type) {
@@ -259,8 +280,8 @@ export function applyDocumentListFilters(documents, filters, todayYmd) {
   if (employeeId) list = list.filter((d) => String(d.employeeId) === String(employeeId));
   if (typeFilter) list = list.filter((d) => String(d.documentType) === String(typeFilter));
   if (folderFilter) {
-    const folder = normalizeDocumentFolder(folderFilter);
-    list = list.filter((d) => normalizeDocumentFolder(d.folder) === folder);
+    const folderKey = documentFolderKey(folderFilter);
+    list = list.filter((d) => documentFolderKey(d.folder) === folderKey);
   }
   if (statusFilter) {
     list = list.filter((d) => computeEmployeeDocumentStatus(d.dueDate, todayYmd) === statusFilter);

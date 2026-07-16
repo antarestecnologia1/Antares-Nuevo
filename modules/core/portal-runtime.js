@@ -9073,40 +9073,21 @@ function renderHistoryAuditRow(entry) {
   const actionLabel = historyAuditActionLabel(entry.action);
   const actionTone = historyAuditActionStatus(entry.action);
   const actionSlug = String(entry.action || "update");
-  const actorLabel =
-    historyAuditUsuarioFromLogRow(entry, { fallbackToSession: false }) || "Sin registrar";
   const moduleIconFn = globalThis.historyTraceModuleIconHtml;
   const moduleIcon =
     typeof moduleIconFn === "function" ? moduleIconFn(entry.moduleLabel, "hist-trace-table-module-ico") : "";
-  const detailButton =
-    entry.detailAction && entry.detailId
-      ? `<button type="button" class="btn btn-sm btn-outline hist-trace-detail-btn" data-action="${escapeAttr(entry.detailAction)}" data-id="${escapeAttr(entry.detailId)}">${IC.eye}<span>Detalle</span></button>`
-      : "";
-  const changesText = String(entry.changesText || "").trim();
-  const actions = detailButton
-    ? `<div class="toolbar history-list-actions">${detailButton}</div>`
-    : changesText
-      ? `<span class="hist-trace-table-changes">${escapeHtml(changesText)}</span>`
-      : '<span class="muted">—</span>';
   const relativeFn = globalThis.historyTraceRelativeTime;
   const relative = typeof relativeFn === "function" ? relativeFn(entry.ts) : "";
-  const initialsFn = globalThis.historyTraceActorInitials;
-  const initials = typeof initialsFn === "function" ? initialsFn(actorLabel) : "?";
   const relativeHtml = relative ? `<span class="hist-trace-table-relative">${escapeHtml(relative)}</span>` : "";
-  const actorCell = actorLabel
-    ? `<span class="hist-trace-table-actor"><span class="hist-trace-table-avatar" aria-hidden="true">${escapeHtml(initials)}</span><span>${escapeHtml(actorLabel)}</span></span>`
-    : '<span class="muted" title="No se registró el usuario responsable">Sin registrar</span>';
+  const detailButton = `<button type="button" class="btn btn-sm btn-outline hist-trace-detail-btn" data-action="history-audit-event-detail" data-id="${escapeAttr(String(entry.id || ""))}" title="Ver entidad, resumen y usuario">${IC.eye}<span>Detalles</span></button>`;
   return `<tr class="hist-table-row hist-table-row--audit hist-table-row--${escapeAttr(actionSlug)}" data-audit-row>
     <td data-label="Fecha" class="hist-trace-table-date">
       <time datetime="${escapeAttr(String(entry.ts || ""))}">${escapeHtml(fmtDate(entry.ts))}</time>
       ${relativeHtml}
     </td>
     <td data-label="Módulo"><span class="hist-trace-table-module">${moduleIcon}<span>${escapeHtml(entry.moduleLabel)}</span></span></td>
-    <td data-label="Entidad"><strong class="hist-trace-table-entity">${escapeHtml(entry.entityLabel)}</strong></td>
     <td data-label="Acción"><span class="status ${escapeAttr(actionTone)} hist-trace-table-action">${escapeHtml(actionLabel)}</span></td>
-    <td data-label="Resumen"><span class="hist-trace-table-summary">${escapeHtml(entry.summary || "Sin resumen")}</span></td>
-    <td data-label="Usuario">${actorCell}</td>
-    <td data-label="Acciones" class="hist-table-actions">${actions}</td>
+    <td data-label="Detalles" class="hist-table-actions"><div class="toolbar history-list-actions">${detailButton}</div></td>
   </tr>`;
 }
 
@@ -9121,9 +9102,9 @@ function renderHistoryAuditList(entries, layout = "list") {
     return `<div class="hist-empty"><span class="hist-empty__icon" aria-hidden="true">${IC.activity || IC.layers}</span><p>Sin movimientos auditables.</p><p class="muted">Los cambios del sistema aparecerán aquí conforme se registren.</p></div>`;
   }
   if (viewLayout === "list") {
-    return `<div class="table-wrap hist-table-wrap hist-trace-table-wrap"><table class="vehicle-fleet-table hist-table hist-trace-table" id="history-audit-results-grid">
+    return `<div class="table-wrap hist-table-wrap hist-trace-table-wrap"><table class="vehicle-fleet-table hist-table hist-trace-table hist-trace-table--compact" id="history-audit-results-grid">
     <thead><tr>
-      <th scope="col">Fecha</th><th scope="col">Módulo</th><th scope="col">Entidad</th><th scope="col">Acción</th><th scope="col">Resumen</th><th scope="col">Usuario</th><th scope="col">Acciones</th>
+      <th scope="col">Fecha</th><th scope="col">Módulo</th><th scope="col">Acción</th><th scope="col">Detalles</th>
     </tr></thead>
     <tbody>${entries.map(renderHistoryAuditRow).join("")}</tbody>
   </table></div>`;

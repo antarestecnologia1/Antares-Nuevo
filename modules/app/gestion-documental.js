@@ -50,14 +50,16 @@ import {
   findEmployeeDocumentGaps,
   countEmployeesWithDocumentGaps,
   applyDocumentListFilters,
-  expectedDocumentTypesForEmployee
+  expectedDocumentTypesForEmployee,
+  countDocumentsInFolder,
+  documentFolderKey
 } from "../domain/employee-documents.domain.js";
 import { downloadCsv } from "../domain/reporteria.domain.js";
 
 const G = globalThis;
 
-/** Archivo elegido en el dropzone; sobrevive re-renders (cambio de colaborador, sync, etc.). */
-let pendingUploadFile = null;
+/** Archivos elegidos en el dropzone; sobreviven re-renders. */
+let pendingUploadFiles = [];
 
 if (typeof window !== "undefined") {
   window.normalizeEmployeeDocumentRow = normalizeEmployeeDocumentRow;
@@ -92,7 +94,7 @@ async function ensureEmployeeFolderRecord(employeeId, folderName) {
   const employee = employees.find((e) => String(e.id) === id);
   const folders = read(KEYS.employeeDocumentFolders, []).map(normalizeEmployeeDocumentFolderRow);
   const existingFolder = folders.find(
-    (row) => String(row.employeeId) === id && normalizeDocumentFolder(row.folderName) === folder
+    (row) => String(row.employeeId) === id && documentFolderKey(row.folderName) === documentFolderKey(folder)
   );
   if (existingFolder?.id) return;
   const docs = read(KEYS.employeeDocuments, []).map(normalizeEmployeeDocumentRow);
@@ -157,7 +159,8 @@ function hasActiveDocumentFilters(ui) {
       ui.typeFilter ||
       ui.filterEmployeeId ||
       ui.filterStatus ||
-      ui.folderFilter
+      ui.folderFilter ||
+      (ui.dataSection && ui.dataSection !== "all")
   );
 }
 
@@ -180,7 +183,7 @@ function buildDocumentListFilters(ui, { employeeId = "", dataSection = null } = 
   };
 }
 
-function renderDocumentsFilterBar({ ui, employees, folderNames = [], mode = "browse" }) {
+function renderDocumentsFilterBar({ ui, employees, folderNames = [], mode = "browse", gapsCount = 0 } = {}) {
   const hasFilters = hasActiveDocumentFilters(ui);
   const showEmployee = mode === "browse" && !ui.folderBrowseEmployeeId;
   const showStatus = true;
@@ -188,6 +191,14 @@ function renderDocumentsFilterBar({ ui, employees, folderNames = [], mode = "bro
   void folderNames;
   void showFolder;
   const employeeOpts = renderEmployeeOptions(employees, ui.filterEmployeeId, { placeholder: false });
+  const statusValue =
+    ui.dataSection === "gaps"
+      ? "__gaps__"
+      : ui.dataSection === "due_soon"
+        ? "Por vencer"
+        : ui.dataSection === "expired"
+          ? "Vencido"
+          : ui.filterStatus || "";
 
   const actions = [
     hasFilters
@@ -225,10 +236,15 @@ function renderDocumentsFilterBar({ ui, employees, folderNames = [], mode = "bro
           ? `<label class="doc-filter-field">
         <span class="doc-filter-field__label">Estado</span>
         <select data-action="doc-filter-status" title="Filtrar por estado">
-          <option value=""${ui.filterStatus ? "" : " selected"}>Todos</option>
-          <option value="Vigente"${ui.filterStatus === "Vigente" ? " selected" : ""}>Vigente</option>
-          <option value="Por vencer"${ui.filterStatus === "Por vencer" ? " selected" : ""}>Por vencer</option>
-          <option value="Vencido"${ui.filterStatus === "Vencido" ? " selected" : ""}>Vencido</option>
+          <option value=""${!statusValue ? " selected" : ""}>Todos</option>
+          <option value="Vigente"${statusValue === "Vigente" ? " selected" : ""}>Vigente</option>
+          <option value="Por vencer"${statusValue === "Por vencer" ? " selected" : ""}>Por vencer</option>
+          <option value="Vencido"${statusValue === "Vencido" ? " selected" : ""}>Vencido</option>
+          ${
+            !ui.folderBrowseEmployeeId
+              ? `<option value="__gaps__"${statusValue === "__gaps__" ? " selected" : ""}>Incompleto${gapsCount > 0 ? ` (${gapsCount})` : ""}</option>`
+              : ""
+          }
         </select>
       </label>`
           : ""
@@ -700,17 +716,24 @@ function renderUploadForm(selectedEmployeeId, selectedDocumentType, allDocs, fol
             <span class="doc-field__label">Colaborador</span>
             <select class="doc-field__control" name="employeeId" required data-doc-employee-select>${renderEmployeeOptions(read(KEYS.payrollEmployees, []), selectedEmployeeId)}</select>
           </label>
-          <label class="field doc-field">
+          <div class="doc-field doc-field--folder">
             <span class="doc-field__label">Carpeta</span>
-            <select class="doc-field__control" name="folder" required data-doc-folder-select>
-              ${folderSelectOptions || `<option value="${escapeAttr(DEFAULT_EMPLOYEE_DOCUMENT_FOLDER)}" selected>${escapeHtml(DEFAULT_EMPLOYEE_DOCUMENT_FOLDER)}</option>`}
+            <div class="doc-folder-control">
+              <select class="doc-field__control" name="folder" required data-doc-folder-select>
+                ${folderSelectOptions || `<option value="${escapeAttr(DEFAULT_EMPLOYEE_DOCUMENT_FOLDER)}" selected>${escapeHtml(DEFAULT_EMPLOYEE_DOCUMENT_FOLDER)}</option>`}
+                ${
+                  canCreateFolder
+                    ? `<option value="__create_folder__">+ Crear carpeta nueva…</option>`
+                    : ""
+                }
+              </select>
               ${
                 canCreateFolder
-                  ? `<option value="__create_folder__">+ Crear carpeta nueva…</option>`
+                  ? `<button type="button" class="btn btn-sm btn-outline doc-folder-delete" data-action="doc-delete-folder" title="Eliminar carpeta seleccionada">${IC.trash || "×"}</button>`
                   : ""
               }
-            </select>
-          </label>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -732,19 +755,19 @@ function renderUploadForm(selectedEmployeeId, selectedDocumentType, allDocs, fol
           <span class="doc-flow-section__num">03</span>
           <div>
             <h4 class="doc-flow-section__title">Archivo</h4>
-            <p class="doc-flow-section__hint">Arrastre o seleccione · máx. 50 MB</p>
+            <p class="doc-flow-section__hint">Uno o varios · máx. 50 MB c/u</p>
           </div>
         </header>
         <div class="doc-flow-section__body">
           <div class="doc-dropzone" data-doc-dropzone>
-            <input type="file" name="file" id="doc-upload-file" hidden />
+            <input type="file" name="file" id="doc-upload-file" multiple hidden />
             <label for="doc-upload-file" class="doc-dropzone__label">
               <span class="doc-dropzone__halo" aria-hidden="true"></span>
               <span class="doc-dropzone__icon" aria-hidden="true">${IC.upload || IC.file || ""}</span>
-              <strong class="doc-dropzone__title">Arrastre el archivo aquí o haga clic</strong>
-              <strong class="doc-dropzone__title doc-dropzone__title--filled">Archivo listo para registrar</strong>
-              <span class="doc-dropzone__hint">PDF, imágenes, Word, Excel</span>
-              <span class="doc-dropzone__filename" data-doc-file-label>Sin archivo seleccionado</span>
+              <strong class="doc-dropzone__title">Arrastre archivos aquí o haga clic</strong>
+              <strong class="doc-dropzone__title doc-dropzone__title--filled">Archivos listos para registrar</strong>
+              <span class="doc-dropzone__hint">PDF, imágenes, Word, Excel · puede seleccionar varios</span>
+              <span class="doc-dropzone__filename" data-doc-file-label>Sin archivos seleccionados</span>
             </label>
           </div>
         </div>
@@ -780,8 +803,8 @@ function renderUploadForm(selectedEmployeeId, selectedDocumentType, allDocs, fol
     </div>
 
     <div class="doc-upload-form__actions">
-      <p class="doc-upload-form__note">El archivo se guarda de forma segura en el expediente digital.</p>
-      <button type="submit" class="btn btn-primary doc-upload-submit" data-doc-submit>${IC.upload || ""} Registrar documento</button>
+      <p class="doc-upload-form__note">Los archivos se guardan de forma segura en el expediente digital.</p>
+      <button type="submit" class="btn btn-primary doc-upload-submit" data-doc-submit>${IC.upload || ""} Registrar</button>
     </div>
   </form>`;
 }
@@ -831,7 +854,7 @@ function employeeMatchesConsultFilters(emp, allDocs, ui, todayYmd) {
   return true;
 }
 
-function renderFolderExplorer(employees, allDocs, folderRecords, ui, todayYmd, IC, { embedded = false } = {}) {
+function renderFolderExplorer(employees, allDocs, folderRecords, ui, todayYmd, IC, { embedded = false, gapsCount = 0 } = {}) {
   void folderRecords;
   const browseEmpId = ui.folderBrowseEmployeeId || "";
   const viewMode = ui.listViewMode === "grid" ? "grid" : "list";
@@ -868,7 +891,7 @@ function renderFolderExplorer(employees, allDocs, folderRecords, ui, todayYmd, I
   const wrapExplorer = (body, resultHint = "") =>
     `<div class="doc-explorer-panel${embedded ? " doc-explorer-panel--embedded" : ""}">
       <div class="doc-explorer-top">
-        ${renderDocumentsFilterBar({ ui, employees, mode: "browse" })}
+        ${renderDocumentsFilterBar({ ui, employees, mode: "browse", gapsCount })}
         <div class="doc-explorer-top__meta">${resultHint}${toolbar}</div>
       </div>
       <div class="doc-explorer-body">${body}</div>
@@ -998,7 +1021,7 @@ function documentManagementHtml() {
 
   const consultPanel = `<div class="hr-workspace-panel payroll-workspace-panel doc-workspace-panel${ws === "consult" ? "" : " hidden"}" role="tabpanel" data-doc-panel="consult">
     <div class="doc-stage doc-stage--consult">
-      ${canViewDocumentsModule() ? renderFolderExplorer(employees, allDocs, folderRecords, ui, todayYmd, IC, { embedded: true }) : `<p class="doc-stage__denied">No tiene permiso para consultar documentos.</p>`}
+      ${canViewDocumentsModule() ? renderFolderExplorer(employees, allDocs, folderRecords, ui, todayYmd, IC, { embedded: true, gapsCount }) : `<p class="doc-stage__denied">No tiene permiso para consultar documentos.</p>`}
     </div>
   </div>`;
 
@@ -1034,36 +1057,96 @@ function applyPendingUploadFileToDom(root = nodes.viewRoot) {
   const fileLabel = root.querySelector("[data-doc-file-label]");
   const dropzone = root.querySelector("[data-doc-dropzone]");
   if (!fileInput) return;
-  if (pendingUploadFile instanceof File) {
+  const files = pendingUploadFiles.filter((f) => f instanceof File);
+  if (files.length) {
     try {
       const dt = new DataTransfer();
-      dt.items.add(pendingUploadFile);
+      for (const f of files) dt.items.add(f);
       fileInput.files = dt.files;
     } catch (_err) {
-      /* Algunos entornos no permiten asignar FileList; el submit usará pendingUploadFile. */
+      /* submit usará pendingUploadFiles */
     }
     if (fileLabel) {
-      fileLabel.textContent = `${pendingUploadFile.name} (${formatFileSize(pendingUploadFile.size)})`;
+      if (files.length === 1) {
+        fileLabel.textContent = `${files[0].name} (${formatFileSize(files[0].size)})`;
+      } else {
+        const total = files.reduce((sum, f) => sum + (Number(f.size) || 0), 0);
+        fileLabel.textContent = `${files.length} archivos · ${formatFileSize(total)}`;
+      }
     }
     dropzone?.classList.add("is-filled");
   } else {
-    if (fileLabel) fileLabel.textContent = "Sin archivo seleccionado";
+    if (fileLabel) fileLabel.textContent = "Sin archivos seleccionados";
     dropzone?.classList.remove("is-filled");
   }
 }
 
-function setPendingUploadFile(file) {
-  pendingUploadFile = file instanceof File ? file : null;
+function setPendingUploadFiles(fileList) {
+  const list = Array.from(fileList || []).filter((f) => f instanceof File);
+  pendingUploadFiles = list;
   applyPendingUploadFileToDom();
 }
 
 function clearPendingUploadFile() {
-  pendingUploadFile = null;
+  pendingUploadFiles = [];
   applyPendingUploadFileToDom();
 }
 
-function getSelectedUploadFile(fileInput) {
-  return fileInput?.files?.[0] || (pendingUploadFile instanceof File ? pendingUploadFile : null);
+function getSelectedUploadFiles(fileInput) {
+  const fromInput = fileInput?.files?.length ? Array.from(fileInput.files) : [];
+  if (fromInput.length) return fromInput;
+  return pendingUploadFiles.filter((f) => f instanceof File);
+}
+
+/** Un resumen diario a RRHH (sin saturar la bandeja). */
+let __docExpiryDigestWallMs = 0;
+async function maybeDispatchDocumentExpiryDigest() {
+  if (!canViewDocumentsModule()) return;
+  const now = Date.now();
+  if (now - __docExpiryDigestWallMs < 45000) return;
+  const todayYmd = colombiaTodayIsoDate();
+  const storageKey = "antares_doc_expiry_digest_v1";
+  try {
+    if (localStorage.getItem(storageKey) === todayYmd) return;
+  } catch (_e) {
+    /* noop */
+  }
+  __docExpiryDigestWallMs = now;
+  const allDocs = read(KEYS.employeeDocuments, []).map(normalizeEmployeeDocumentRow);
+  const summary = summarizeEmployeeDocuments(allDocs, todayYmd);
+  if (!summary.expired && !summary.dueSoon) {
+    try {
+      localStorage.setItem(storageKey, todayYmd);
+    } catch (_e2) {
+      /* noop */
+    }
+    return;
+  }
+  const dispatch = G.dispatchPortalNotification;
+  if (typeof dispatch !== "function") return;
+  const parts = [];
+  if (summary.expired) {
+    parts.push(`${summary.expired} vencido${summary.expired === 1 ? "" : "s"}`);
+  }
+  if (summary.dueSoon) {
+    parts.push(`${summary.dueSoon} por vencer`);
+  }
+  const ok = await dispatch({
+    audience: "hr",
+    title: "Documentos por revisar",
+    body: `${parts.join(" · ")}. Abra Gestión documental.`,
+    category: "hr",
+    deepLink: "#portal/document-management",
+    entityType: "employee",
+    entityId: `doc_expiry_${todayYmd}`
+  });
+  if (ok) {
+    try {
+      localStorage.setItem(storageKey, todayYmd);
+    } catch (_e3) {
+      /* noop */
+    }
+  }
 }
 
 async function resolveDocumentDownloadUrl(doc) {
@@ -1135,6 +1218,78 @@ async function downloadDocumentRecord(doc) {
   }
 }
 
+function openDeleteFolderFlow(employeeId, folderName) {
+  if (!canUploadDocumentsModule()) return;
+  const id = String(employeeId || "").trim();
+  const folder = normalizeDocumentFolder(folderName);
+  if (!id || !folder) {
+    G.notify?.("Seleccione colaborador y carpeta.", "error");
+    return;
+  }
+  if (documentFolderKey(folder) === documentFolderKey(DEFAULT_EMPLOYEE_DOCUMENT_FOLDER)) {
+    G.notify?.("La carpeta General no se puede eliminar.", "error");
+    return;
+  }
+  const docs = read(KEYS.employeeDocuments, []).map(normalizeEmployeeDocumentRow);
+  const docCount = countDocumentsInFolder(id, folder, docs);
+  const message =
+    docCount > 0
+      ? `Se eliminará la carpeta "${folder}". Sus ${docCount} documento${docCount === 1 ? "" : "s"} pasarán a General.`
+      : `Se eliminará la carpeta vacía "${folder}".`;
+  const requestDeletion = G.openConfirmReasonModal || G.openConfirmModal;
+  requestDeletion?.({
+    title: "Eliminar carpeta",
+    message,
+    confirmText: "Eliminar carpeta",
+    onConfirm: async (motivo) => {
+      try {
+        const folderKey = documentFolderKey(folder);
+        const list = read(KEYS.employeeDocuments, []).map(normalizeEmployeeDocumentRow);
+        const toMove = list.filter(
+          (d) => String(d.employeeId) === id && documentFolderKey(d.folder) === folderKey
+        );
+        for (const doc of toMove) {
+          const updated = normalizeEmployeeDocumentRow({
+            ...doc,
+            folder: DEFAULT_EMPLOYEE_DOCUMENT_FOLDER,
+            updatedAt: new Date().toISOString()
+          });
+          const nextList = read(KEYS.employeeDocuments, []).map((row) =>
+            String(row?.id) === String(doc.id) ? updated : row
+          );
+          await writeAwaitServerEdit(KEYS.employeeDocuments, nextList, doc.id);
+        }
+        const folders = read(KEYS.employeeDocumentFolders, []).map(normalizeEmployeeDocumentFolderRow);
+        const toDelete = folders.filter(
+          (f) => String(f.employeeId) === id && documentFolderKey(f.folderName) === folderKey
+        );
+        for (const row of toDelete) {
+          if (!row.id) continue;
+          const ok = await G.removeFromPortalListAwaitServer?.(KEYS.employeeDocumentFolders, row.id);
+          if (!ok) {
+            G.notify?.("No se pudo eliminar el registro de carpeta.", "error");
+            return;
+          }
+        }
+        const reason = String(motivo || "").trim();
+        G.logPortalAuditEvent?.("documents", "delete", {
+          entityId: `${id}:${folderKey}`,
+          entityLabel: `Carpeta · ${folder}`,
+          summary: `Eliminada${docCount ? ` · ${docCount} docs → General` : ""}${reason ? ` · Motivo: ${reason}` : ""}`
+        });
+        patchDocumentsUi({
+          selectedFolder: DEFAULT_EMPLOYEE_DOCUMENT_FOLDER,
+          selectedEmployeeId: id
+        });
+        G.notify?.("Carpeta eliminada.", "success");
+        G.renderPortalView?.();
+      } catch (err) {
+        G.notify?.(String(err?.message || "No se pudo eliminar la carpeta."), "error");
+      }
+    }
+  });
+}
+
 function openCreateFolderModal(defaultEmployeeId = "", opts = {}) {
   if (!canUploadDocumentsModule()) return;
   const stayOnUpload = Boolean(opts.stayOnUpload);
@@ -1181,10 +1336,10 @@ function openCreateFolderModal(defaultEmployeeId = "", opts = {}) {
       const list = read(KEYS.employeeDocumentFolders, []).map(normalizeEmployeeDocumentFolderRow);
       const docs = read(KEYS.employeeDocuments, []).map(normalizeEmployeeDocumentRow);
       const existsInDocs = docs.some(
-        (d) => String(d.employeeId) === employeeId && normalizeDocumentFolder(d.folder) === folderName
+        (d) => String(d.employeeId) === employeeId && documentFolderKey(d.folder) === documentFolderKey(folderName)
       );
       const existsInFolders = list.some(
-        (f) => String(f.employeeId) === employeeId && normalizeDocumentFolder(f.folderName) === folderName
+        (f) => String(f.employeeId) === employeeId && documentFolderKey(f.folderName) === documentFolderKey(folderName)
       );
       if (existsInDocs || existsInFolders) {
         G.notify?.("Esa carpeta ya existe para el colaborador.", "error");
@@ -1339,6 +1494,7 @@ function bindDocumentManagementPortalControls() {
   if (String(state.currentView || "") !== "document-management" || !nodes.viewRoot) return;
   const IC = G.IC || {};
   const todayYmd = colombiaTodayIsoDate();
+  void maybeDispatchDocumentExpiryDigest();
 
   nodes.viewRoot.querySelectorAll("[data-action='hr-workspace-tab'][data-module='documents']").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -1393,11 +1549,35 @@ function bindDocumentManagementPortalControls() {
 
   nodes.viewRoot.querySelectorAll("[data-action='doc-filter-status']").forEach((sel) => {
     sel.addEventListener("change", () => {
-      patchDocumentsUi({
-        filterStatus: sel.value || "",
-        dataSection: "all",
-        workspace: "consult"
-      });
+      const value = String(sel.value || "");
+      if (value === "__gaps__") {
+        patchDocumentsUi({
+          filterStatus: "",
+          dataSection: "gaps",
+          workspace: "consult",
+          folderBrowseEmployeeId: "",
+          folderBrowseName: ""
+        });
+      } else if (value === "Por vencer") {
+        patchDocumentsUi({
+          filterStatus: "",
+          dataSection: "due_soon",
+          workspace: "consult"
+        });
+      } else if (value === "Vencido") {
+        patchDocumentsUi({
+          filterStatus: "",
+          dataSection: "expired",
+          workspace: "consult"
+        });
+      } else {
+        patchDocumentsUi({
+          filterStatus: value,
+          dataSection: "all",
+          workspace: "consult"
+        });
+      }
+      persistHrWorkspace("documents", "consult");
       G.renderPortalView?.();
     });
   });
@@ -1544,6 +1724,26 @@ function bindDocumentManagementPortalControls() {
       openCreateFolderModal(String(btn.dataset.employeeId || getDocumentsUi().folderBrowseEmployeeId || ""), {
         stayOnUpload: false
       });
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='doc-delete-folder']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const empId =
+        String(nodes.viewRoot.querySelector("[data-doc-employee-select]")?.value || "").trim() ||
+        getDocumentsUi().selectedEmployeeId ||
+        String(btn.dataset.employeeId || "");
+      const folderSel = nodes.viewRoot.querySelector("[data-doc-folder-select]");
+      const folderName = String(folderSel?.value || btn.dataset.folder || "").trim();
+      if (!empId) {
+        G.notify?.("Seleccione primero un colaborador.", "error");
+        return;
+      }
+      if (!folderName || folderName === "__create_folder__") {
+        G.notify?.("Seleccione la carpeta que desea eliminar.", "error");
+        return;
+      }
+      openDeleteFolderFlow(empId, folderName);
     });
   });
 
@@ -1712,8 +1912,7 @@ function bindDocumentManagementPortalControls() {
   applyPendingUploadFileToDom(nodes.viewRoot);
   if (fileInput && fileLabel) {
     fileInput.addEventListener("change", () => {
-      const f = fileInput.files?.[0] || null;
-      setPendingUploadFile(f);
+      setPendingUploadFiles(fileInput.files);
     });
   }
   if (dropzone && fileInput) {
@@ -1725,8 +1924,7 @@ function bindDocumentManagementPortalControls() {
     dropzone.addEventListener("drop", (ev) => {
       ev.preventDefault();
       dropzone.classList.remove("is-dragover");
-      const f = ev.dataTransfer?.files?.[0];
-      if (f) setPendingUploadFile(f);
+      if (ev.dataTransfer?.files?.length) setPendingUploadFiles(ev.dataTransfer.files);
     });
   }
 
@@ -1757,13 +1955,14 @@ function bindDocumentManagementPortalControls() {
         return;
       }
       const folder = normalizeDocumentFolder(folderRaw);
-      const file = getSelectedUploadFile(fileInput);
-      if (!employeeId || !file) {
-        G.notify?.("Seleccione colaborador y archivo.", "error");
+      const files = getSelectedUploadFiles(fileInput);
+      if (!employeeId || !files.length) {
+        G.notify?.("Seleccione colaborador y al menos un archivo.", "error");
         return;
       }
-      if (file.size > EMPLOYEE_DOCUMENT_MAX_BYTES) {
-        G.notify?.("El archivo supera 50 MB.", "error");
+      const oversized = files.find((f) => f.size > EMPLOYEE_DOCUMENT_MAX_BYTES);
+      if (oversized) {
+        G.notify?.(`"${oversized.name}" supera 50 MB.`, "error");
         return;
       }
       const submitBtn = uploadForm.querySelector("[data-doc-submit]");
@@ -1771,42 +1970,55 @@ function bindDocumentManagementPortalControls() {
       if (submitBtn) {
         submitBtn.disabled = true;
         submitBtn.classList.add("is-loading");
-        submitBtn.textContent = "Subiendo…";
+        submitBtn.textContent = files.length > 1 ? `Subiendo 0/${files.length}…` : "Subiendo…";
       }
       try {
         await ensureEmployeeFolderRecord(employeeId, folder);
-        const uploaded = await uploadFileToR2(file, employeeId, documentType, folder);
         const employees = read(KEYS.payrollEmployees, []);
         const employee = employees.find((e) => String(e.id) === employeeId);
         const dueDate = String(fd.get("dueDate") || "").trim() || null;
         const issueDate = String(fd.get("issueDate") || "").trim() || null;
         const status = computeEmployeeDocumentStatus(dueDate, todayYmd);
-        const record = normalizeEmployeeDocumentRow({
-          id: newUuidV4(),
-          employeeId,
-          employeeName: employee?.name || "Colaborador",
-          documentType,
-          folder: uploaded.folder || folder,
-          fileName: uploaded.fileName || file.name,
-          mimeType: uploaded.mimeType || file.type,
-          sizeBytes: uploaded.sizeBytes || file.size,
-          storageKey: uploaded.key,
-          issueDate,
-          dueDate,
-          status,
-          documentCode: String(fd.get("documentCode") || "").trim(),
-          notes: String(fd.get("notes") || "").trim(),
-          uploadedBy: G.currentUser?.()?.fullName || G.currentUser?.()?.email || "Portal",
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        });
-        const list = read(KEYS.employeeDocuments, []);
-        await writeAwaitServerCreate(KEYS.employeeDocuments, [...list, record], record);
-        G.logPortalAuditEvent?.("documents", "create", {
-          entityId: record.id,
-          entityLabel: `${record.employeeName} · ${getEmployeeDocumentTypeLabel(record.documentType)}`,
-          summary: record.fileName
-        });
+        const documentCode = String(fd.get("documentCode") || "").trim();
+        const notes = String(fd.get("notes") || "").trim();
+        const uploadedBy = G.currentUser?.()?.fullName || G.currentUser?.()?.email || "Portal";
+        let list = read(KEYS.employeeDocuments, []);
+        let okCount = 0;
+        for (let i = 0; i < files.length; i += 1) {
+          const file = files[i];
+          if (submitBtn) {
+            submitBtn.textContent =
+              files.length > 1 ? `Subiendo ${i + 1}/${files.length}…` : "Subiendo…";
+          }
+          const uploaded = await uploadFileToR2(file, employeeId, documentType, folder);
+          const record = normalizeEmployeeDocumentRow({
+            id: newUuidV4(),
+            employeeId,
+            employeeName: employee?.name || "Colaborador",
+            documentType,
+            folder: uploaded.folder || folder,
+            fileName: uploaded.fileName || file.name,
+            mimeType: uploaded.mimeType || file.type,
+            sizeBytes: uploaded.sizeBytes || file.size,
+            storageKey: uploaded.key,
+            issueDate,
+            dueDate,
+            status,
+            documentCode,
+            notes,
+            uploadedBy,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          });
+          list = [...list, record];
+          await writeAwaitServerCreate(KEYS.employeeDocuments, list, record);
+          G.logPortalAuditEvent?.("documents", "create", {
+            entityId: record.id,
+            entityLabel: `${record.employeeName} · ${getEmployeeDocumentTypeLabel(record.documentType)}`,
+            summary: record.fileName
+          });
+          okCount += 1;
+        }
         clearPendingUploadFile();
         patchDocumentsUi({
           selectedEmployeeId: employeeId,
@@ -1819,7 +2031,9 @@ function bindDocumentManagementPortalControls() {
         });
         persistHrWorkspace("documents", "consult");
         G.notify?.(
-          `${getEmployeeDocumentTypeLabel(documentType)} registrado. Abriendo el expediente…`,
+          okCount === 1
+            ? `${getEmployeeDocumentTypeLabel(documentType)} registrado.`
+            : `${okCount} documentos registrados.`,
           "success"
         );
         G.renderPortalView?.();
@@ -1839,7 +2053,7 @@ function bindDocumentManagementPortalControls() {
           submitBtn.disabled = false;
           submitBtn.classList.remove("is-loading");
           if (prevSubmitHtml) submitBtn.innerHTML = prevSubmitHtml;
-          else submitBtn.textContent = "Registrar documento";
+          else submitBtn.textContent = "Registrar";
         }
       }
     });

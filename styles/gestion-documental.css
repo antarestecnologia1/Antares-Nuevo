@@ -480,8 +480,30 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-.doc-field--grow {
+.doc-field--folder {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+}
+
+.doc-folder-control {
+  display: flex;
+  align-items: stretch;
+  gap: 0.45rem;
   min-width: 0;
+}
+
+.doc-folder-control .doc-field__control {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.doc-folder-delete {
+  flex-shrink: 0;
+  align-self: stretch;
+  min-width: 2.4rem;
+  padding: 0 0.65rem;
 }
 
 .doc-flow-section--extra {
