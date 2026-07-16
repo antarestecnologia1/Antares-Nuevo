@@ -1035,9 +1035,11 @@ function documentManagementHtml() {
   const dataToolbar = `<div class="doc-data-shell">
     ${renderDocumentsFilterBar({ ui, employees, folderNames, mode: "data" })}
     <div class="doc-data-filters">${dataNav}</div>
-    ${renderResultMeta(`${dataResultText}${hasActiveDocumentFilters(ui) && ui.dataSection === "all" ? " (con filtros activos)" : ""}`)}
-    <div class="doc-data-actions">
-      <button type="button" class="btn btn-sm btn-outline doc-export-btn" data-action="doc-export-csv">${IC.download || ""} Exportar CSV</button>
+    <div class="doc-data-footer">
+      ${renderResultMeta(`${dataResultText}${hasActiveDocumentFilters(ui) && ui.dataSection === "all" ? " (con filtros activos)" : ""}`)}
+      <div class="doc-data-actions">
+        <button type="button" class="btn btn-sm btn-outline doc-export-btn" data-action="doc-export-csv">${IC.download || ""} Exportar CSV</button>
+      </div>
     </div>
   </div>`;
 
