@@ -56,6 +56,9 @@ import { downloadCsv } from "../domain/reporteria.domain.js";
 
 const G = globalThis;
 
+/** Archivo elegido en el dropzone; sobrevive re-renders (cambio de colaborador, sync, etc.). */
+let pendingUploadFile = null;
+
 if (typeof window !== "undefined") {
   window.normalizeEmployeeDocumentRow = normalizeEmployeeDocumentRow;
   window.normalizeEmployeeDocumentFolderRow = normalizeEmployeeDocumentFolderRow;
@@ -143,7 +146,7 @@ function getDocumentsUi() {
     folderBrowseName: String(ui.folderBrowseName || ""),
     selectedDocumentType: String(ui.selectedDocumentType || ""),
     highlightDocumentType: String(ui.highlightDocumentType || ""),
-    listViewMode: ui.listViewMode === "list" ? "list" : "grid"
+    listViewMode: ui.listViewMode === "grid" ? "grid" : "list"
   };
 }
 
@@ -434,11 +437,15 @@ function renderUploadDocumentTypePicker(employeeId, allDocs, selectedType, today
       <p class="doc-type-picker__section-label">Checklist del colaborador</p>
       <div class="doc-type-picker__grid">${expectedItems}</div>
     </div>
-    <div class="doc-type-picker__section">
-      <p class="doc-type-picker__section-label">Otros tipos</p>
+    ${
+      otherItems
+        ? `<details class="doc-type-picker__more">
+      <summary>Otros tipos documentales</summary>
       <div class="doc-type-picker__grid doc-type-picker__grid--compact">${otherItems}</div>
-    </div>`
-        : `<p class="muted doc-type-picker__empty">Seleccione un colaborador en el paso 1 para ver el checklist.</p>`
+    </details>`
+        : ""
+    }`
+        : `<p class="doc-type-picker__empty">Seleccione un colaborador para ver el checklist.</p>`
     }
   </div>`;
 }
@@ -452,36 +459,32 @@ function renderKpiCards(summary, IC, gapsCount = 0) {
           <span class="doc-kpi__label">Documentos</span>
           <strong class="doc-kpi__value">${escapeHtml(String(summary.total))}</strong>
         </span>
-        <span class="doc-kpi__hint">Todos los expedientes</span>
       </button>
-      <button type="button" class="doc-kpi doc-kpi--employees" data-action="doc-goto-browse-toolbar" title="Consultar expedientes por colaborador">
+      <button type="button" class="doc-kpi doc-kpi--employees" data-action="doc-goto-browse-toolbar" title="Consultar expedientes">
         <span class="doc-kpi__icon" aria-hidden="true">${IC.user || ""}</span>
         <span class="doc-kpi__content">
           <span class="doc-kpi__label">Expedientes</span>
           <strong class="doc-kpi__value">${escapeHtml(String(summary.employeesWithDocs))}</strong>
         </span>
-        <span class="doc-kpi__hint">Con archivos activos</span>
       </button>
-      <button type="button" class="doc-kpi doc-kpi--warn" data-action="doc-quick-filter" data-filter="due_soon" title="Filtrar por vencer">
+      <button type="button" class="doc-kpi doc-kpi--warn" data-action="doc-quick-filter" data-filter="due_soon" title="Por vencer">
         <span class="doc-kpi__icon" aria-hidden="true">${IC.alertTriangle || ""}</span>
         <span class="doc-kpi__content">
           <span class="doc-kpi__label">Por vencer</span>
           <strong class="doc-kpi__value">${escapeHtml(String(summary.dueSoon))}</strong>
         </span>
-        <span class="doc-kpi__hint">Próximos 30 días</span>
       </button>
-      <button type="button" class="doc-kpi doc-kpi--expired" data-action="doc-quick-filter" data-filter="expired" title="Filtrar vencidos">
+      <button type="button" class="doc-kpi doc-kpi--expired" data-action="doc-quick-filter" data-filter="expired" title="Vencidos">
         <span class="doc-kpi__icon" aria-hidden="true">${IC.alertTriangle || ""}</span>
         <span class="doc-kpi__content">
           <span class="doc-kpi__label">Vencidos</span>
           <strong class="doc-kpi__value">${escapeHtml(String(summary.expired))}</strong>
         </span>
-        <span class="doc-kpi__hint">Requieren acción</span>
       </button>
     </div>
     ${
       gapsCount > 0
-        ? `<p class="doc-kpi-foot"><button type="button" class="doc-kpi-link" data-action="doc-quick-filter" data-filter="gaps"><span class="doc-kpi-link__pulse" aria-hidden="true"></span>${gapsCount} colaborador${gapsCount === 1 ? "" : "es"} con expediente incompleto</button></p>`
+        ? `<p class="doc-kpi-foot"><button type="button" class="doc-kpi-link" data-action="doc-quick-filter" data-filter="gaps"><span class="doc-kpi-link__pulse" aria-hidden="true"></span>${gapsCount} expediente${gapsCount === 1 ? "" : "s"} incompleto${gapsCount === 1 ? "" : "s"}</button></p>`
         : ""
     }
   </div>`;
@@ -527,6 +530,11 @@ function renderDocumentCards(documents, todayYmd, IC, { compact = false, viewMod
             </div>
           </div>
           <div class="doc-card__actions">
+            ${
+              canPreviewDocument(doc)
+                ? `<button type="button" class="doc-action-btn" data-action="doc-preview" data-id="${escapeAttr(String(doc.id))}" title="Vista previa">${IC.eye || "👁"}</button>`
+                : ""
+            }
             <button type="button" class="doc-action-btn" data-action="doc-download" data-id="${escapeAttr(String(doc.id))}" title="Descargar">${IC.download || "↓"}</button>
             ${
               canEditDocumentsModule() || canDeleteDocumentsModule()
@@ -650,8 +658,7 @@ function renderEmployeeDossierPanel(employee, documents, todayYmd, IC, highlight
     ${
       canUploadDocumentsModule()
         ? `<div class="doc-dossier__actions">
-          <button type="button" class="btn btn-sm btn-primary" data-action="doc-goto-upload" data-employee-id="${escapeAttr(String(employee.id))}">${IC.upload || "+"} Subir documento</button>
-          <button type="button" class="btn btn-sm btn-outline" data-action="doc-new-folder" data-employee-id="${escapeAttr(String(employee.id))}">${IC.folder || ""} Nueva carpeta</button>
+          <button type="button" class="btn btn-sm btn-primary" data-action="doc-goto-upload" data-employee-id="${escapeAttr(String(employee.id))}">${IC.upload || "+"} Subir</button>
         </div>`
         : ""
     }
@@ -674,94 +681,95 @@ function renderUploadForm(selectedEmployeeId, selectedDocumentType, allDocs, fol
     .join("");
   const resolvedType = resolveUploadDocumentType(selectedEmployeeId, allDocs, selectedDocumentType);
   return `<form id="form-employee-document" class="doc-upload-form" enctype="multipart/form-data">
-    <div class="doc-upload-layout">
-      <div class="doc-upload-layout__main">
-        <section class="doc-form-block">
-          <header class="doc-form-block__head">
-            <span class="doc-form-block__step">1</span>
-            <div>
-              <h4 class="doc-form-block__title">Colaborador y carpeta</h4>
-              <p class="doc-form-block__hint">Indique dónde se guardará el archivo en el expediente.</p>
-            </div>
-          </header>
-          <div class="doc-form-block__grid doc-form-block__grid--2">
-            <label class="field doc-field">
-              <span class="doc-field__label">Colaborador</span>
-              <select class="doc-field__control" name="employeeId" required data-doc-employee-select>${renderEmployeeOptions(read(KEYS.payrollEmployees, []), selectedEmployeeId)}</select>
-            </label>
-            <label class="field doc-field">
-              <span class="doc-field__label">Carpeta</span>
-              <input class="doc-field__control" name="folder" list="doc-folder-list" required value="${escapeAttr(folderDefault)}" maxlength="128" placeholder="General, Contratos, Certificados…" data-doc-folder-input />
-              <datalist id="doc-folder-list">${folderOptions}</datalist>
-              <span class="doc-field__hint">Puede crear carpetas nuevas desde Consultar.</span>
-            </label>
+    <div class="doc-upload-flow">
+      <section class="doc-flow-section doc-flow-section--destino">
+        <header class="doc-flow-section__head">
+          <span class="doc-flow-section__num">01</span>
+          <div>
+            <h4 class="doc-flow-section__title">Destino</h4>
+            <p class="doc-flow-section__hint">Colaborador y carpeta del expediente</p>
           </div>
-        </section>
+        </header>
+        <div class="doc-flow-section__body doc-flow-fields">
+          <label class="field doc-field doc-field--grow">
+            <span class="doc-field__label">Colaborador</span>
+            <select class="doc-field__control" name="employeeId" required data-doc-employee-select>${renderEmployeeOptions(read(KEYS.payrollEmployees, []), selectedEmployeeId)}</select>
+          </label>
+          <label class="field doc-field">
+            <span class="doc-field__label">Carpeta</span>
+            <input class="doc-field__control" name="folder" list="doc-folder-list" required value="${escapeAttr(folderDefault)}" maxlength="128" placeholder="General, Contratos…" data-doc-folder-input />
+            <datalist id="doc-folder-list">${folderOptions}</datalist>
+          </label>
+        </div>
+      </section>
 
-        <section class="doc-form-block">
-          <header class="doc-form-block__head">
-            <span class="doc-form-block__step">2</span>
-            <div>
-              <h4 class="doc-form-block__title">Detalles opcionales</h4>
-              <p class="doc-form-block__hint">Código, fechas y notas internas.</p>
-            </div>
-          </header>
-          <div class="doc-form-block__grid doc-form-block__grid--2">
-            <label class="field doc-field">
-              <span class="doc-field__label">Código documental</span>
-              <input class="doc-field__control" name="documentCode" type="text" maxlength="64" placeholder="Opcional" />
-            </label>
-            <label class="field doc-field">
-              <span class="doc-field__label">Fecha emisión</span>
-              <input class="doc-field__control" name="issueDate" type="date" />
-            </label>
-            <label class="field doc-field" data-doc-due-wrap>
-              <span class="doc-field__label">Fecha vencimiento</span>
-              <input class="doc-field__control" name="dueDate" type="date" />
-            </label>
-            <label class="field doc-field doc-field--full">
-              <span class="doc-field__label">Observaciones</span>
-              <textarea class="doc-field__control" name="notes" rows="2" maxlength="2000" placeholder="Notas internas RRHH"></textarea>
-            </label>
+      <section class="doc-flow-section doc-flow-section--tipo">
+        <header class="doc-flow-section__head">
+          <span class="doc-flow-section__num">02</span>
+          <div>
+            <h4 class="doc-flow-section__title">Tipo documental</h4>
+            <p class="doc-flow-section__hint">Elija el documento del checklist</p>
           </div>
-        </section>
+        </header>
+        <div class="doc-flow-section__body">
+          ${renderUploadDocumentTypePicker(selectedEmployeeId, allDocs, resolvedType, todayYmd)}
+        </div>
+      </section>
 
-        <section class="doc-form-block doc-form-block--file">
-          <header class="doc-form-block__head">
-            <span class="doc-form-block__step">3</span>
-            <div>
-              <h4 class="doc-form-block__title">Archivo</h4>
-              <p class="doc-form-block__hint">Cualquier formato · máximo 50 MB</p>
-            </div>
-          </header>
+      <section class="doc-flow-section doc-flow-section--archivo">
+        <header class="doc-flow-section__head">
+          <span class="doc-flow-section__num">03</span>
+          <div>
+            <h4 class="doc-flow-section__title">Archivo</h4>
+            <p class="doc-flow-section__hint">Arrastre o seleccione · máx. 50 MB</p>
+          </div>
+        </header>
+        <div class="doc-flow-section__body">
           <div class="doc-dropzone" data-doc-dropzone>
-            <input type="file" name="file" id="doc-upload-file" required hidden />
+            <input type="file" name="file" id="doc-upload-file" hidden />
             <label for="doc-upload-file" class="doc-dropzone__label">
               <span class="doc-dropzone__halo" aria-hidden="true"></span>
               <span class="doc-dropzone__icon" aria-hidden="true">${IC.upload || IC.file || ""}</span>
               <strong class="doc-dropzone__title">Arrastre el archivo aquí o haga clic</strong>
-              <span class="doc-dropzone__hint">PDF, imágenes, Word, Excel · hasta 50 MB</span>
+              <strong class="doc-dropzone__title doc-dropzone__title--filled">Archivo listo para registrar</strong>
+              <span class="doc-dropzone__hint">PDF, imágenes, Word, Excel</span>
               <span class="doc-dropzone__filename" data-doc-file-label>Sin archivo seleccionado</span>
             </label>
           </div>
-        </section>
-      </div>
+        </div>
+      </section>
 
-      <aside class="doc-upload-layout__side">
-        <section class="doc-form-block doc-form-block--types">
-          <header class="doc-form-block__head">
-            <span class="doc-form-block__step">Tipo</span>
-            <div>
-              <h4 class="doc-form-block__title">Tipo documental</h4>
-              <p class="doc-form-block__hint">Seleccione el ítem del checklist.</p>
-            </div>
-          </header>
-          ${renderUploadDocumentTypePicker(selectedEmployeeId, allDocs, resolvedType, todayYmd)}
-        </section>
-      </aside>
+      <details class="doc-flow-section doc-flow-section--extra">
+        <summary class="doc-flow-section__summary">
+          <span class="doc-flow-section__num">+</span>
+          <span>
+            <strong class="doc-flow-section__title">Detalles opcionales</strong>
+            <span class="doc-flow-section__hint">Código, fechas y notas</span>
+          </span>
+        </summary>
+        <div class="doc-flow-section__body doc-flow-fields doc-flow-fields--3">
+          <label class="field doc-field">
+            <span class="doc-field__label">Código</span>
+            <input class="doc-field__control" name="documentCode" type="text" maxlength="64" placeholder="Opcional" />
+          </label>
+          <label class="field doc-field">
+            <span class="doc-field__label">Emisión</span>
+            <input class="doc-field__control" name="issueDate" type="date" />
+          </label>
+          <label class="field doc-field" data-doc-due-wrap>
+            <span class="doc-field__label">Vencimiento</span>
+            <input class="doc-field__control" name="dueDate" type="date" />
+          </label>
+          <label class="field doc-field doc-field--full">
+            <span class="doc-field__label">Observaciones</span>
+            <textarea class="doc-field__control" name="notes" rows="2" maxlength="2000" placeholder="Notas internas RRHH"></textarea>
+          </label>
+        </div>
+      </details>
     </div>
 
     <div class="doc-upload-form__actions">
+      <p class="doc-upload-form__note">El archivo se guarda de forma segura en el expediente digital.</p>
       <button type="submit" class="btn btn-primary doc-upload-submit" data-doc-submit>${IC.upload || ""} Registrar documento</button>
     </div>
   </form>`;
@@ -815,7 +823,7 @@ function employeeMatchesConsultFilters(emp, allDocs, ui, todayYmd) {
 function renderFolderExplorer(employees, allDocs, folderRecords, ui, todayYmd, IC, { embedded = false } = {}) {
   void folderRecords;
   const browseEmpId = ui.folderBrowseEmployeeId || "";
-  const viewMode = ui.listViewMode === "list" ? "list" : "grid";
+  const viewMode = ui.listViewMode === "grid" ? "grid" : "list";
 
   const sortedEmployees = [...employees].sort((a, b) =>
     String(a.name || "").localeCompare(String(b.name || ""), "es")
@@ -823,8 +831,8 @@ function renderFolderExplorer(employees, allDocs, folderRecords, ui, todayYmd, I
 
   const viewToggle = browseEmpId
     ? `<div class="doc-view-toggle" role="group" aria-label="Vista de documentos">
-        <button type="button" class="doc-view-toggle__btn${viewMode === "grid" ? " is-active" : ""}" data-action="doc-list-view" data-view="grid" title="Vista en cuadrícula">Cuadrícula</button>
         <button type="button" class="doc-view-toggle__btn${viewMode === "list" ? " is-active" : ""}" data-action="doc-list-view" data-view="list" title="Vista en lista">Lista</button>
+        <button type="button" class="doc-view-toggle__btn${viewMode === "grid" ? " is-active" : ""}" data-action="doc-list-view" data-view="grid" title="Vista en cuadrícula">Cuadrícula</button>
       </div>`
     : "";
 
@@ -847,12 +855,18 @@ function renderFolderExplorer(employees, allDocs, folderRecords, ui, todayYmd, I
   </div>`;
 
   const wrapExplorer = (body, resultHint = "") =>
-    `<div class="doc-explorer-panel${embedded ? " doc-explorer-panel--embedded" : ""}">${renderDocumentsFilterBar({ ui, employees, mode: "browse" })}${resultHint}${toolbar}<div class="doc-explorer-body">${body}</div></div>`;
+    `<div class="doc-explorer-panel${embedded ? " doc-explorer-panel--embedded" : ""}">
+      <div class="doc-explorer-top">
+        ${renderDocumentsFilterBar({ ui, employees, mode: "browse" })}
+        <div class="doc-explorer-top__meta">${resultHint}${toolbar}</div>
+      </div>
+      <div class="doc-explorer-body">${body}</div>
+    </div>`;
 
   if (!browseEmpId) {
     const visible = sortedEmployees.filter((emp) => employeeMatchesConsultFilters(emp, allDocs, ui, todayYmd));
     const resultHint = renderResultMeta(
-      `<strong>${visible.length}</strong> expediente${visible.length === 1 ? "" : "s"}${hasActiveDocumentFilters(ui) || ui.dataSection !== "all" ? " filtrados" : ""}`
+      `<strong>${visible.length}</strong> expediente${visible.length === 1 ? "" : "s"}`
     );
     const tiles = visible
       .map((emp) => {
@@ -868,25 +882,24 @@ function renderFolderExplorer(employees, allDocs, folderRecords, ui, todayYmd, I
         const expiredCount = empDocs.filter(
           (d) => computeEmployeeDocumentStatus(normalizeEmployeeDocumentRow(d).dueDate, todayYmd) === "Vencido"
         ).length;
-        return `<button type="button" class="doc-folder-tile doc-folder-tile--employee doc-folder-tile--${tone}" data-action="doc-browse-employee" data-employee-id="${escapeAttr(String(emp.id))}">
-          <span class="doc-folder-tile__top">
-            <span class="doc-folder-tile__avatar" aria-hidden="true">${escapeHtml(employeeInitials(emp.name))}</span>
-            <span class="doc-folder-tile__ring" style="--doc-progress:${completionPct}" aria-hidden="true" title="${completionPct}% checklist">
-              <span class="doc-folder-tile__ring-val">${completionPct}%</span>
-            </span>
+        return `<button type="button" class="doc-folder-tile doc-folder-tile--employee doc-folder-tile--row doc-folder-tile--${tone}" data-action="doc-browse-employee" data-employee-id="${escapeAttr(String(emp.id))}">
+          <span class="doc-folder-tile__avatar" aria-hidden="true">${escapeHtml(employeeInitials(emp.name))}</span>
+          <span class="doc-folder-tile__main">
+            <strong class="doc-folder-tile__title">${escapeHtml(String(emp.name || "-"))}</strong>
+            <span class="doc-folder-tile__sub">${escapeHtml(String(emp.documentType || "CC"))} ${escapeHtml(String(emp.idDoc || ""))}${emp.position ? ` · ${escapeHtml(String(emp.position))}` : ""}</span>
           </span>
-          <strong class="doc-folder-tile__title">${escapeHtml(String(emp.name || "-"))}</strong>
-          <span class="doc-folder-tile__sub">${escapeHtml(String(emp.documentType || "CC"))} ${escapeHtml(String(emp.idDoc || ""))}${emp.position ? ` · ${escapeHtml(String(emp.position))}` : ""}</span>
-          <span class="doc-folder-tile__meta">
-            <span>${docCount} doc${docCount === 1 ? "" : "s"}</span>
-            ${missing ? `<span class="doc-folder-tile__badge doc-folder-tile__badge--gap">${missing} pendiente${missing === 1 ? "" : "s"}</span>` : `<span class="doc-folder-tile__badge doc-folder-tile__badge--ok">Completo</span>`}
-            ${expiredCount ? `<span class="doc-folder-tile__badge doc-folder-tile__badge--expired">${expiredCount} vencido${expiredCount === 1 ? "" : "s"}</span>` : ""}
+          <span class="doc-folder-tile__stats">
+            <span class="doc-folder-tile__stat"><strong>${docCount}</strong> docs</span>
+            <span class="doc-folder-tile__stat"><strong>${completionPct}%</strong></span>
+            ${missing ? `<span class="doc-folder-tile__badge doc-folder-tile__badge--gap">${missing} pend.</span>` : `<span class="doc-folder-tile__badge doc-folder-tile__badge--ok">OK</span>`}
+            ${expiredCount ? `<span class="doc-folder-tile__badge doc-folder-tile__badge--expired">${expiredCount}</span>` : ""}
           </span>
+          <span class="doc-folder-tile__chevron" aria-hidden="true">→</span>
         </button>`;
       })
       .join("");
     return wrapExplorer(
-      `<div class="doc-folder-grid doc-folder-grid--employees">${tiles || renderEmptyState("No hay colaboradores que coincidan.", { icon: IC.search || "", hint: "Ajuste la búsqueda o limpie los filtros." })}</div>`,
+      `<div class="doc-folder-list">${tiles || renderEmptyState("No hay colaboradores que coincidan.", { icon: IC.search || "", hint: "Ajuste la búsqueda o limpie los filtros." })}</div>`,
       resultHint
     );
   }
@@ -908,7 +921,7 @@ function renderFolderExplorer(employees, allDocs, folderRecords, ui, todayYmd, I
     todayYmd
   );
   const resultHint = renderResultMeta(
-    `<strong>${employeeDocs.length}</strong> documento${employeeDocs.length === 1 ? "" : "s"} · ${escapeHtml(String(employee.name || "colaborador"))}${hasActiveDocumentFilters(ui) || (ui.dataSection !== "all" && ui.dataSection !== "gaps") ? " (filtrados)" : ""}`
+    `<strong>${employeeDocs.length}</strong> archivo${employeeDocs.length === 1 ? "" : "s"}`
   );
 
   const dossier = renderEmployeeDossierPanel(employee, employeeDocs, todayYmd, IC, ui.highlightDocumentType, {
@@ -918,16 +931,12 @@ function renderFolderExplorer(employees, allDocs, folderRecords, ui, todayYmd, I
   });
   const filesPane = `<div class="doc-files-pane">
     <header class="doc-files-pane__head">
-      <h4 class="doc-files-pane__title">Archivos del expediente</h4>
-      <p class="doc-files-pane__hint">${employeeDocs.length} resultado${employeeDocs.length === 1 ? "" : "s"}</p>
+      <h4 class="doc-files-pane__title">Archivos</h4>
     </header>
     ${renderDocumentCards(employeeDocs, todayYmd, IC, { viewMode })}
   </div>`;
 
-  return wrapExplorer(
-    `<div class="doc-consult-split">${dossier}${filesPane}</div>`,
-    resultHint
-  );
+  return wrapExplorer(`<div class="doc-consult-split">${dossier}${filesPane}</div>`, resultHint);
 }
 
 function documentManagementHtml() {
@@ -944,7 +953,7 @@ function documentManagementHtml() {
   const moduleHead = renderHrFormHero({
     eyebrow: "Recursos humanos",
     title: "Gestión documental",
-    description: "Expediente digital por colaborador: registre, consulte y controle vencimientos en un solo lugar.",
+    description: "Expediente digital por colaborador.",
     badges: [
       renderHrFormHeroBadge(String(summary.total), "documentos"),
       summary.expired > 0 ? renderHrFormHeroBadge(String(summary.expired), "vencidos") : "",
@@ -972,26 +981,12 @@ function documentManagementHtml() {
 
   const uploadPanel = `<div class="hr-workspace-panel payroll-workspace-panel doc-workspace-panel${ws === "upload" ? "" : " hidden"}" role="tabpanel" data-doc-panel="upload">
     <div class="doc-stage doc-stage--upload">
-      <header class="doc-stage__head">
-        <div>
-          <p class="doc-stage__eyebrow">Registro</p>
-          <h3 class="doc-stage__title">Subir al expediente</h3>
-          <p class="doc-stage__text">Elija colaborador, tipo documental y archivo. El documento queda almacenado de forma segura.</p>
-        </div>
-      </header>
       ${canUploadDocumentsModule() ? renderUploadForm(ui.selectedEmployeeId, ui.selectedDocumentType, allDocs, folderRecords, IC, todayYmd) : `<p class="doc-stage__denied">No tiene permiso para registrar documentos.</p>`}
     </div>
   </div>`;
 
   const consultPanel = `<div class="hr-workspace-panel payroll-workspace-panel doc-workspace-panel${ws === "consult" ? "" : " hidden"}" role="tabpanel" data-doc-panel="consult">
     <div class="doc-stage doc-stage--consult">
-      <header class="doc-stage__head">
-        <div>
-          <p class="doc-stage__eyebrow">Archivo</p>
-          <h3 class="doc-stage__title">Expedientes por colaborador</h3>
-          <p class="doc-stage__text">Abra un expediente para ver checklist, completitud y todos sus documentos.</p>
-        </div>
-      </header>
       ${canViewDocumentsModule() ? renderFolderExplorer(employees, allDocs, folderRecords, ui, todayYmd, IC, { embedded: true }) : `<p class="doc-stage__denied">No tiene permiso para consultar documentos.</p>`}
     </div>
   </div>`;
@@ -1014,19 +1009,119 @@ async function uploadFileToR2(file, employeeId, documentType, folder) {
   return api.postFormData("/uploads/employee-document", fd);
 }
 
-async function downloadDocumentRecord(doc) {
+function canPreviewDocument(doc) {
+  const mime = String(doc?.mimeType || "").toLowerCase();
+  const name = String(doc?.fileName || "").toLowerCase();
+  if (mime.startsWith("image/") || mime.includes("pdf")) return true;
+  if (/\.(pdf|png|jpe?g|gif|webp|bmp|svg)$/i.test(name)) return true;
+  return false;
+}
+
+function applyPendingUploadFileToDom(root = nodes.viewRoot) {
+  if (!root) return;
+  const fileInput = root.querySelector("#doc-upload-file");
+  const fileLabel = root.querySelector("[data-doc-file-label]");
+  const dropzone = root.querySelector("[data-doc-dropzone]");
+  if (!fileInput) return;
+  if (pendingUploadFile instanceof File) {
+    try {
+      const dt = new DataTransfer();
+      dt.items.add(pendingUploadFile);
+      fileInput.files = dt.files;
+    } catch (_err) {
+      /* Algunos entornos no permiten asignar FileList; el submit usará pendingUploadFile. */
+    }
+    if (fileLabel) {
+      fileLabel.textContent = `${pendingUploadFile.name} (${formatFileSize(pendingUploadFile.size)})`;
+    }
+    dropzone?.classList.add("is-filled");
+  } else {
+    if (fileLabel) fileLabel.textContent = "Sin archivo seleccionado";
+    dropzone?.classList.remove("is-filled");
+  }
+}
+
+function setPendingUploadFile(file) {
+  pendingUploadFile = file instanceof File ? file : null;
+  applyPendingUploadFileToDom();
+}
+
+function clearPendingUploadFile() {
+  pendingUploadFile = null;
+  applyPendingUploadFileToDom();
+}
+
+function getSelectedUploadFile(fileInput) {
+  return fileInput?.files?.[0] || (pendingUploadFile instanceof File ? pendingUploadFile : null);
+}
+
+async function resolveDocumentDownloadUrl(doc) {
   const api = window.AntaresApi;
   if (!api?.postJson || !api.isConfigured?.()) {
-    G.notify?.("Configure la API para descargar documentos.", "error");
-    return;
+    throw new Error("Configure la API para abrir documentos.");
   }
   const res = await api.postJson("/uploads/employee-document/download", {
     employeeId: doc.employeeId,
     storageKey: doc.storageKey
   });
   const url = String(res?.downloadUrl || "").trim();
-  if (!url) throw new Error("No se obtuvo enlace de descarga.");
-  window.open(url, "_blank", "noopener,noreferrer");
+  if (!url) throw new Error("No se obtuvo enlace del archivo.");
+  return url;
+}
+
+function closeDocumentPreview() {
+  document.getElementById("doc-preview-overlay")?.remove();
+}
+
+function openDocumentPreview(doc, url) {
+  closeDocumentPreview();
+  const mime = String(doc.mimeType || "").toLowerCase();
+  const isImage =
+    mime.startsWith("image/") || /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(String(doc.fileName || ""));
+  const IC = G.IC || {};
+  const body = isImage
+    ? `<img class="doc-preview__media" src="${escapeAttr(url)}" alt="${escapeAttr(doc.fileName || "Documento")}" />`
+    : `<iframe class="doc-preview__frame" src="${escapeAttr(url)}" title="${escapeAttr(doc.fileName || "Documento")}"></iframe>`;
+  const overlay = document.createElement("div");
+  overlay.id = "doc-preview-overlay";
+  overlay.className = "doc-preview-overlay";
+  overlay.innerHTML = `<div class="doc-preview" role="dialog" aria-modal="true" aria-label="Vista previa del documento">
+    <header class="doc-preview__head">
+      <div class="doc-preview__titles">
+        <p class="doc-preview__eyebrow">Vista previa</p>
+        <h3 class="doc-preview__title">${escapeHtml(getEmployeeDocumentTypeLabel(doc.documentType))}</h3>
+        <p class="doc-preview__file">${escapeHtml(doc.fileName || "")}</p>
+      </div>
+      <div class="doc-preview__actions">
+        <a class="btn btn-sm btn-outline" href="${escapeAttr(url)}" target="_blank" rel="noopener noreferrer">${IC.download || ""} Abrir</a>
+        <button type="button" class="btn btn-sm btn-outline doc-preview__close" data-doc-preview-close title="Cerrar">${IC.x || "×"}</button>
+      </div>
+    </header>
+    <div class="doc-preview__body">${body}</div>
+  </div>`;
+  const onKey = (ev) => {
+    if (ev.key === "Escape") {
+      document.removeEventListener("keydown", onKey);
+      closeDocumentPreview();
+    }
+  };
+  overlay.addEventListener("click", (ev) => {
+    if (ev.target === overlay || ev.target.closest("[data-doc-preview-close]")) {
+      document.removeEventListener("keydown", onKey);
+      closeDocumentPreview();
+    }
+  });
+  document.addEventListener("keydown", onKey);
+  document.body.appendChild(overlay);
+}
+
+async function downloadDocumentRecord(doc) {
+  try {
+    const url = await resolveDocumentDownloadUrl(doc);
+    window.open(url, "_blank", "noopener,noreferrer");
+  } catch (err) {
+    G.notify?.(String(err?.message || "No se pudo descargar."), "error");
+  }
 }
 
 function openCreateFolderModal(defaultEmployeeId = "") {
@@ -1520,6 +1615,8 @@ function bindDocumentManagementPortalControls() {
     dueWrap.classList.toggle("is-required", req);
     const dueInput = dueWrap.querySelector('input[name="dueDate"]');
     if (dueInput) dueInput.required = req;
+    const extra = dueWrap.closest("details.doc-flow-section--extra");
+    if (extra && req) extra.open = true;
   }
 
   syncUploadDueRequired(resolveUploadDocumentType(
@@ -1549,10 +1646,11 @@ function bindDocumentManagementPortalControls() {
   const fileInput = nodes.viewRoot.querySelector("#doc-upload-file");
   const fileLabel = nodes.viewRoot.querySelector("[data-doc-file-label]");
   const dropzone = nodes.viewRoot.querySelector("[data-doc-dropzone]");
+  applyPendingUploadFileToDom(nodes.viewRoot);
   if (fileInput && fileLabel) {
     fileInput.addEventListener("change", () => {
-      const f = fileInput.files?.[0];
-      fileLabel.textContent = f ? `${f.name} (${formatFileSize(f.size)})` : "Sin archivo seleccionado";
+      const f = fileInput.files?.[0] || null;
+      setPendingUploadFile(f);
     });
   }
   if (dropzone && fileInput) {
@@ -1565,12 +1663,7 @@ function bindDocumentManagementPortalControls() {
       ev.preventDefault();
       dropzone.classList.remove("is-dragover");
       const f = ev.dataTransfer?.files?.[0];
-      if (f) {
-        const dt = new DataTransfer();
-        dt.items.add(f);
-        fileInput.files = dt.files;
-        fileLabel.textContent = `${f.name} (${formatFileSize(f.size)})`;
-      }
+      if (f) setPendingUploadFile(f);
     });
   }
 
@@ -1596,7 +1689,7 @@ function bindDocumentManagementPortalControls() {
         return;
       }
       const folder = normalizeDocumentFolder(fd.get("folder"));
-      const file = fileInput?.files?.[0];
+      const file = getSelectedUploadFile(fileInput);
       if (!employeeId || !file) {
         G.notify?.("Seleccione colaborador y archivo.", "error");
         return;
@@ -1606,7 +1699,12 @@ function bindDocumentManagementPortalControls() {
         return;
       }
       const submitBtn = uploadForm.querySelector("[data-doc-submit]");
-      if (submitBtn) submitBtn.disabled = true;
+      const prevSubmitHtml = submitBtn ? submitBtn.innerHTML : "";
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.classList.add("is-loading");
+        submitBtn.textContent = "Subiendo…";
+      }
       try {
         await ensureEmployeeFolderRecord(employeeId, folder);
         const uploaded = await uploadFileToR2(file, employeeId, documentType, folder);
@@ -1641,10 +1739,7 @@ function bindDocumentManagementPortalControls() {
           entityLabel: `${record.employeeName} · ${getEmployeeDocumentTypeLabel(record.documentType)}`,
           summary: record.fileName
         });
-        G.notify?.(
-          `${getEmployeeDocumentTypeLabel(documentType)} registrado correctamente. Ya está disponible en Consultar.`,
-          "success"
-        );
+        clearPendingUploadFile();
         patchDocumentsUi({
           selectedEmployeeId: employeeId,
           selectedDocumentType: "",
@@ -1655,18 +1750,29 @@ function bindDocumentManagementPortalControls() {
           dataSection: "all"
         });
         persistHrWorkspace("documents", "consult");
-        uploadForm.reset();
-        const typeInput = nodes.viewRoot.querySelector("[data-doc-type-input]");
-        if (typeInput) typeInput.value = documentType;
-        if (fileLabel) fileLabel.textContent = "Sin archivo seleccionado";
+        G.notify?.(
+          `${getEmployeeDocumentTypeLabel(documentType)} registrado. Abriendo el expediente…`,
+          "success"
+        );
         G.renderPortalView?.();
+        switchHrWorkspacePanels({
+          root: nodes.viewRoot,
+          moduleId: "documents",
+          workspace: "consult",
+          panelAttr: "data-doc-panel",
+          shellSelector: ".documents-studio"
+        });
         setTimeout(() => {
           patchDocumentsUi({ highlightDocumentType: "" });
         }, 2800);
       } catch (err) {
         G.notify?.(String(err?.message || "No se pudo subir el documento."), "error");
-      } finally {
-        if (submitBtn) submitBtn.disabled = false;
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.classList.remove("is-loading");
+          if (prevSubmitHtml) submitBtn.innerHTML = prevSubmitHtml;
+          else submitBtn.textContent = "Registrar documento";
+        }
       }
     });
   }
@@ -1683,6 +1789,32 @@ function bindDocumentManagementPortalControls() {
         await downloadDocumentRecord(normalizeEmployeeDocumentRow(doc));
       } catch (err) {
         G.notify?.(String(err?.message || "No se pudo descargar."), "error");
+      }
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='doc-preview']").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const id = String(btn.dataset.id || "");
+      const doc = normalizeEmployeeDocumentRow(
+        read(KEYS.employeeDocuments, []).find((d) => String(d.id) === id)
+      );
+      if (!doc?.storageKey) {
+        G.notify?.("Documento no encontrado.", "error");
+        return;
+      }
+      if (!canPreviewDocument(doc)) {
+        G.notify?.("Este formato no tiene vista previa. Descárguelo para abrirlo.", "info");
+        return;
+      }
+      btn.disabled = true;
+      try {
+        const url = await resolveDocumentDownloadUrl(doc);
+        openDocumentPreview(doc, url);
+      } catch (err) {
+        G.notify?.(String(err?.message || "No se pudo abrir la vista previa."), "error");
+      } finally {
+        btn.disabled = false;
       }
     });
   });
