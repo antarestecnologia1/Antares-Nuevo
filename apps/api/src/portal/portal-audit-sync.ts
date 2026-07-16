@@ -85,6 +85,8 @@ const LABEL_FIELDS = [
   "nombre",
   "employeeName",
   "nombre_empleado",
+  "fileName",
+  "nombre_archivo",
   "title",
   "plate",
   "placa",
@@ -107,8 +109,112 @@ const LABEL_FIELDS = [
   "subject",
   "asunto",
   "idDoc",
-  "numero_documento"
+  "numero_documento",
+  "folderName",
+  "nombre_carpeta"
 ];
+
+const HISTORY_AUDIT_ACTION_TITLES: Record<string, Record<string, string>> = {
+  users: {
+    create: "Alta de usuario",
+    update: "Actualización de usuario",
+    delete: "Eliminación de usuario"
+  },
+  companies: {
+    create: "Alta de empresa",
+    update: "Actualización de empresa",
+    delete: "Eliminación de empresa"
+  },
+  documents: {
+    create: "Alta de documento",
+    update: "Actualización de documento",
+    delete: "Eliminación de documento"
+  },
+  employeeDocuments: {
+    create: "Alta de documento",
+    update: "Actualización de documento",
+    delete: "Eliminación de documento"
+  },
+  employeeDocumentFolders: {
+    create: "Alta de carpeta documental",
+    update: "Actualización de carpeta documental",
+    delete: "Eliminación de carpeta documental"
+  },
+  payrollEmployees: {
+    create: "Alta de colaborador",
+    update: "Actualización de colaborador",
+    delete: "Eliminación de colaborador"
+  },
+  drivers: {
+    create: "Alta de conductor",
+    update: "Actualización de conductor",
+    delete: "Eliminación de conductor"
+  },
+  vehicles: {
+    create: "Alta de camión",
+    update: "Actualización de camión",
+    delete: "Eliminación de camión"
+  },
+  requests: {
+    create: "Alta de solicitud",
+    update: "Actualización de solicitud",
+    delete: "Eliminación de solicitud"
+  },
+  trips: {
+    create: "Alta de viaje",
+    update: "Actualización de viaje",
+    delete: "Eliminación de viaje"
+  },
+  notifications: {
+    create: "Alta de notificación",
+    update: "Actualización de notificación",
+    delete: "Eliminación de notificación"
+  },
+  approvals: {
+    create: "Solicitud de autorización",
+    update: "Autorización revisada",
+    delete: "Autorización rechazada"
+  }
+};
+
+function portalHistoryActionTitle(moduleOrKey: string, action: string): string {
+  const key = String(moduleOrKey || "").trim();
+  const actionKey = action === "create" || action === "delete" ? action : "update";
+  const fromMap = HISTORY_AUDIT_ACTION_TITLES[key]?.[actionKey];
+  if (fromMap) return fromMap;
+  if (actionKey === "create") return "Alta en servidor";
+  if (actionKey === "delete") return "Eliminación en servidor";
+  return "Actualización en servidor";
+}
+
+function portalDocumentSummaryParts(row: Record<string, unknown>): string[] {
+  const parts: string[] = [];
+  const fileName = String(row.fileName ?? row.nombre_archivo ?? "").trim();
+  const employee = String(row.employeeName ?? row.nombre_empleado ?? "").trim();
+  const docType = String(row.documentType ?? row.tipo_documento ?? "").trim();
+  const folder = String(row.folder ?? row.carpeta ?? row.folderName ?? row.nombre_carpeta ?? "").trim();
+  if (fileName) parts.push(fileName);
+  if (employee) parts.push(employee);
+  if (docType) parts.push(`Tipo: ${docType}`);
+  if (folder) parts.push(`Carpeta: ${folder}`);
+  return parts;
+}
+
+function isPortalDocumentRow(row: Record<string, unknown>): boolean {
+  return Boolean(
+    String(row.fileName ?? row.nombre_archivo ?? "").trim() ||
+      String(row.documentType ?? row.tipo_documento ?? "").trim() ||
+      (String(row.folder ?? row.carpeta ?? "").trim() &&
+        String(row.employeeName ?? row.nombre_empleado ?? "").trim())
+  );
+}
+
+function isPortalDocumentFolderRow(row: Record<string, unknown>): boolean {
+  return Boolean(
+    String(row.folderName ?? row.nombre_carpeta ?? "").trim() &&
+      !String(row.fileName ?? row.nombre_archivo ?? "").trim()
+  );
+}
 
 function portalPayrollRunParts(row: Record<string, unknown>) {
   const emp = String(row.employeeName ?? row.nombre_empleado ?? "").trim();
@@ -144,6 +250,19 @@ function portalPayrollRunSummaryParts(row: Record<string, unknown>): string[] {
 export function portalRowEntityLabel(row: Record<string, unknown>): string {
   const payrollLabel = portalPayrollRunEntityLabel(row);
   if (payrollLabel) return payrollLabel.slice(0, 500);
+  if (isPortalDocumentFolderRow(row)) {
+    const emp = String(row.employeeName ?? row.nombre_empleado ?? "").trim();
+    const folder = String(row.folderName ?? row.nombre_carpeta ?? "").trim();
+    if (emp && folder) return `${emp} · ${folder}`.slice(0, 500);
+    if (folder) return `Carpeta · ${folder}`.slice(0, 500);
+  }
+  if (isPortalDocumentRow(row)) {
+    const emp = String(row.employeeName ?? row.nombre_empleado ?? "").trim();
+    const fileName = String(row.fileName ?? row.nombre_archivo ?? "").trim();
+    const docType = String(row.documentType ?? row.tipo_documento ?? "").trim();
+    if (emp && (fileName || docType)) return `${emp} · ${fileName || docType}`.slice(0, 500);
+    if (fileName) return fileName.slice(0, 500);
+  }
   for (const key of LABEL_FIELDS) {
     const value = String(row[key] ?? "").trim();
     if (value) return value.slice(0, 500);
@@ -195,7 +314,11 @@ function portalTechnicalLogSummaryParts(row: Record<string, unknown>): string[] 
   return parts;
 }
 
-export function portalRowEntitySummary(row: Record<string, unknown>, action: string): string {
+export function portalRowEntitySummary(
+  row: Record<string, unknown>,
+  action: string,
+  moduleOrKey = ""
+): string {
   const fuelParts = portalFuelLogSummaryParts(row);
   if (fuelParts.length >= 2) {
     return (
@@ -216,6 +339,20 @@ export function portalRowEntitySummary(row: Record<string, unknown>, action: str
           : `Actualización de taller · ${techParts.join(" · ")}`
     ).slice(0, 2000);
   }
+  if (isPortalDocumentFolderRow(row) || moduleOrKey === "employeeDocumentFolders") {
+    const title = portalHistoryActionTitle("employeeDocumentFolders", action);
+    const folder = String(row.folderName ?? row.nombre_carpeta ?? "").trim();
+    const emp = String(row.employeeName ?? row.nombre_empleado ?? "").trim();
+    return [title, folder, emp].filter(Boolean).join(" · ").slice(0, 2000);
+  }
+  if (isPortalDocumentRow(row) || moduleOrKey === "employeeDocuments" || moduleOrKey === "documents") {
+    const title = portalHistoryActionTitle("documents", action);
+    const docParts = portalDocumentSummaryParts(row);
+    const motivo = String(row.reason ?? row.motivo ?? "").trim();
+    const bits = [title, ...docParts];
+    if (motivo && action === "delete") bits.push(`Motivo: ${motivo}`);
+    return bits.join(" · ").slice(0, 2000);
+  }
   const parts: string[] = portalPayrollRunSummaryParts(row);
   const status = String(row.status ?? row.estado ?? "").trim();
   if (status) parts.push(`Estado: ${status}`);
@@ -227,13 +364,14 @@ export function portalRowEntitySummary(row: Record<string, unknown>, action: str
   if (period && !parts.some((p) => p.includes(period))) parts.push(`Periodo ${period}`);
   const motivo = String(row.reason ?? row.motivo ?? "").trim();
   if (motivo && action === "delete") parts.push(`Motivo: ${motivo}`);
+  const actionTitle = portalHistoryActionTitle(moduleOrKey || "dashboard", action);
   if (!parts.length) {
-    parts.push(
-      action === "create" ? "Alta en servidor" : action === "delete" ? "Baja en servidor" : "Actualización en servidor"
-    );
+    parts.push(actionTitle);
+  } else if (moduleOrKey && HISTORY_AUDIT_ACTION_TITLES[moduleOrKey]) {
+    return `${actionTitle} · ${parts.join(" · ")}`.slice(0, 2000);
   }
   if (action === "delete" && portalPayrollRunParts(row).period) {
-    return `Liquidación eliminada · ${parts.join(" · ")}`.slice(0, 2000);
+    return `Eliminación de liquidación · ${parts.join(" · ")}`.slice(0, 2000);
   }
   return parts.join(" · ").slice(0, 2000);
 }
@@ -431,7 +569,7 @@ async function preparePortalSyncRequestsAudits(c: PoolClient, data: unknown): Pr
       action,
       entityId,
       entityLabel: portalRowEntityLabel(row),
-      summary: portalRowEntitySummary(row, action),
+      summary: portalRowEntitySummary(row, action, "requests"),
       actorUserIdCandidates
     });
 
@@ -494,7 +632,7 @@ export async function preparePortalSyncUpsertAudits(
       action,
       entityId,
       entityLabel: portalRowEntityLabel(row),
-      summary: portalRowEntitySummary(row, action),
+      summary: portalRowEntitySummary(row, action, key),
       actorUserIdCandidates: portalRowActorUserIdCandidates(row)
     });
   }
@@ -555,7 +693,9 @@ export async function recordPortalSyncDeleteAudits(
       moduleLabel: meta.moduleLabel,
       entityId,
       entityLabel: row ? portalRowEntityLabel(row) : "Registro",
-      summary: row ? portalRowEntitySummary(row, "delete") : "Eliminación confirmada en servidor"
+      summary: row
+        ? portalRowEntitySummary(row, "delete", key)
+        : `${portalHistoryActionTitle(key, "delete")} · confirmada en servidor`
     });
   }
 }

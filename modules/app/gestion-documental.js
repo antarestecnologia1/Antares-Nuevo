@@ -600,7 +600,13 @@ function buildDocumentAuditDetail(action, doc, extra = {}) {
   const folder = normalizeDocumentFolder(row.folder || extra.folder || "");
   const fileName = String(row.fileName || extra.fileName || "").trim();
   const reason = String(extra.reason || "").trim();
-  const parts = [];
+  const actionTitle =
+    action === "create"
+      ? "Alta de documento"
+      : action === "delete"
+        ? "Eliminación de documento"
+        : "Actualización de documento";
+  const parts = [actionTitle];
   if (fileName) parts.push(fileName);
   if (action === "create") parts.push(`Subido por ${uploadedBy}`);
   else if (action === "update") parts.push(`Actualizado por ${uploadedBy}`);
@@ -614,6 +620,7 @@ function buildDocumentAuditDetail(action, doc, extra = {}) {
   ].filter(Boolean);
   const detail = {
     entityId: String(row.id || extra.entityId || "").trim(),
+    entityKind: "document",
     entityLabel: String(
       extra.entityLabel || `${row.employeeName || "Colaborador"} · ${typeLabel}`
     ).trim(),
@@ -1348,8 +1355,9 @@ function openDeleteFolderFlow(employeeId, folderName) {
         const actor = currentDocumentsActorLabel();
         G.logPortalAuditEvent?.("documents", "delete", {
           entityId: `${id}:${folderKey}`,
+          entityKind: "folder",
           entityLabel: `Carpeta · ${folder}`,
-          summary: `Eliminada por ${actor}${docCount ? ` · ${docCount} docs → General` : ""}${reason ? ` · Motivo: ${reason}` : ""}`,
+          summary: `Eliminación de carpeta documental · ${folder} · Eliminada por ${actor}${docCount ? ` · ${docCount} docs → General` : ""}${reason ? ` · Motivo: ${reason}` : ""}`,
           changesText: `Usuario: ${actor}${reason ? ` · Motivo: ${reason}` : ""}`,
           usuario: actor,
           actor
@@ -1435,8 +1443,9 @@ function openCreateFolderModal(defaultEmployeeId = "", opts = {}) {
         const actor = String(record.createdBy || currentDocumentsActorLabel()).trim();
         G.logPortalAuditEvent?.("documents", "create", {
           entityId: record.id,
+          entityKind: "folder",
           entityLabel: `${record.employeeName} · ${record.folderName}`,
-          summary: `Carpeta documental · Creada por ${actor}`,
+          summary: `Alta de carpeta documental · ${record.folderName} · Creada por ${actor}`,
           changesText: `Fecha: ${formatDocumentUploadDate(record.createdAt)} · Usuario: ${actor}`,
           usuario: actor,
           actor,

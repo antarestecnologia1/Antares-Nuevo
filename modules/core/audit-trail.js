@@ -128,14 +128,245 @@ export function stripHistoryAuditOpaqueTokens(text = "") {
     .trim();
 }
 
+/**
+ * Sustantivo / tipo de entidad para mensajes del Historial (módulo + entityKind opcional).
+ * entityKind permite distinguir p. ej. usuario vs empresa (ambos en módulo users).
+ */
+const HISTORY_AUDIT_ENTITY_KIND_TITLES = {
+  user: {
+    create: "Alta de usuario",
+    update: "Actualización de usuario",
+    delete: "Eliminación de usuario"
+  },
+  company: {
+    create: "Alta de empresa",
+    update: "Actualización de empresa",
+    delete: "Eliminación de empresa"
+  },
+  document: {
+    create: "Alta de documento",
+    update: "Actualización de documento",
+    delete: "Eliminación de documento"
+  },
+  folder: {
+    create: "Alta de carpeta documental",
+    update: "Actualización de carpeta documental",
+    delete: "Eliminación de carpeta documental"
+  },
+  request: {
+    create: "Alta de solicitud",
+    update: "Actualización de solicitud",
+    delete: "Eliminación de solicitud"
+  },
+  trip: {
+    create: "Alta de viaje",
+    update: "Actualización de viaje",
+    delete: "Eliminación de viaje"
+  },
+  vehicle: {
+    create: "Alta de camión",
+    update: "Actualización de camión",
+    delete: "Eliminación de camión"
+  },
+  driver: {
+    create: "Alta de conductor",
+    update: "Actualización de conductor",
+    delete: "Eliminación de conductor"
+  },
+  employee: {
+    create: "Alta de colaborador",
+    update: "Actualización de colaborador",
+    delete: "Eliminación de colaborador"
+  },
+  payroll_run: {
+    create: "Alta de liquidación",
+    update: "Actualización de liquidación",
+    delete: "Eliminación de liquidación"
+  },
+  absence: {
+    create: "Registro de ausencia",
+    update: "Actualización de ausencia",
+    delete: "Eliminación de ausencia"
+  },
+  vacancy: {
+    create: "Alta de vacante",
+    update: "Actualización de vacante",
+    delete: "Eliminación de vacante"
+  },
+  candidate: {
+    create: "Alta de candidato",
+    update: "Actualización de candidato",
+    delete: "Eliminación de candidato"
+  },
+  contract: {
+    create: "Alta de contrato",
+    update: "Actualización de contrato",
+    delete: "Eliminación de contrato"
+  },
+  interview: {
+    create: "Alta de entrevista",
+    update: "Actualización de entrevista",
+    delete: "Eliminación de entrevista"
+  },
+  position: {
+    create: "Alta de cargo",
+    update: "Actualización de cargo",
+    delete: "Eliminación de cargo"
+  },
+  sst: {
+    create: "Alta de registro SST",
+    update: "Actualización de registro SST",
+    delete: "Eliminación de registro SST",
+    renew: "Renovación de registro SST"
+  },
+  contact: {
+    create: "Alta de contacto B2B",
+    update: "Actualización de contacto B2B",
+    delete: "Eliminación de contacto B2B"
+  },
+  authorization: {
+    create: "Solicitud de autorización",
+    update: "Autorización revisada",
+    delete: "Autorización rechazada"
+  },
+  notification: {
+    create: "Alta de notificación",
+    update: "Actualización de notificación",
+    delete: "Eliminación de notificación"
+  },
+  alert: {
+    create: "Alta de aviso",
+    update: "Actualización de aviso",
+    delete: "Eliminación de aviso"
+  },
+  profile: {
+    create: "Alta de perfil",
+    update: "Actualización de perfil",
+    delete: "Eliminación de perfil"
+  },
+  report: {
+    create: "Generación de reporte",
+    update: "Consulta de reportería",
+    delete: "Eliminación de reporte"
+  },
+  history: {
+    create: "Registro en historial",
+    update: "Consulta o exportación de historial",
+    delete: "Eliminación de historial"
+  },
+  fuel: {
+    create: "Carga de combustible",
+    update: "Actualización de combustible",
+    delete: "Eliminación de combustible"
+  },
+  workshop: {
+    create: "Registro de taller",
+    update: "Actualización de taller",
+    delete: "Eliminación de taller"
+  }
+};
+
+/** Título de acción por módulo canónico (cuando no hay entityKind). */
+const HISTORY_AUDIT_MODULE_ACTION_TITLES = {
+  dashboard: { create: "Alta en dashboard", update: "Actualización en dashboard", delete: "Eliminación en dashboard" },
+  requests: HISTORY_AUDIT_ENTITY_KIND_TITLES.request,
+  trips: HISTORY_AUDIT_ENTITY_KIND_TITLES.trip,
+  vehicles: HISTORY_AUDIT_ENTITY_KIND_TITLES.vehicle,
+  drivers: HISTORY_AUDIT_ENTITY_KIND_TITLES.driver,
+  calendar: { create: "Alta en calendario", update: "Actualización en calendario", delete: "Eliminación en calendario" },
+  history: HISTORY_AUDIT_ENTITY_KIND_TITLES.history,
+  reports: HISTORY_AUDIT_ENTITY_KIND_TITLES.report,
+  payroll: HISTORY_AUDIT_ENTITY_KIND_TITLES.employee,
+  hiring: { create: "Alta en contratación", update: "Actualización en contratación", delete: "Eliminación en contratación" },
+  sst: HISTORY_AUDIT_ENTITY_KIND_TITLES.sst,
+  documents: HISTORY_AUDIT_ENTITY_KIND_TITLES.document,
+  contact_b2b: HISTORY_AUDIT_ENTITY_KIND_TITLES.contact,
+  users: HISTORY_AUDIT_ENTITY_KIND_TITLES.user,
+  authorizations: HISTORY_AUDIT_ENTITY_KIND_TITLES.authorization,
+  profile: HISTORY_AUDIT_ENTITY_KIND_TITLES.profile,
+  bell: { create: "Alta de timbre", update: "Actualización de timbre", delete: "Eliminación de timbre" },
+  alerts: HISTORY_AUDIT_ENTITY_KIND_TITLES.alert,
+  notifications: HISTORY_AUDIT_ENTITY_KIND_TITLES.notification
+};
+
+function normalizeHistoryAuditActionKey(action = "") {
+  const raw = String(action || "").trim().toLowerCase();
+  if (raw === "create" || raw === "delete" || raw === "renew") return raw;
+  return "update";
+}
+
+function inferHistoryAuditEntityKind(moduleId = "", entry = {}) {
+  const explicit = String(entry.entityKind || entry.entity_kind || "").trim().toLowerCase();
+  if (explicit && HISTORY_AUDIT_ENTITY_KIND_TITLES[explicit]) return explicit;
+  const label = String(entry.entityLabel || entry.entity_label || "").trim().toLowerCase();
+  const summary = String(entry.summary || "").trim().toLowerCase();
+  const hay = `${label} ${summary}`;
+  if (moduleId === "documents") {
+    if (hay.includes("carpeta")) return "folder";
+    return "document";
+  }
+  if (moduleId === "users") {
+    if (hay.includes("empresa") || hay.includes("compañía") || hay.includes("compania")) return "company";
+    return "user";
+  }
+  if (moduleId === "payroll") {
+    if (hay.includes("liquidación") || hay.includes("liquidacion") || hay.includes("periodo")) return "payroll_run";
+    if (hay.includes("ausencia") || hay.includes("incapacidad")) return "absence";
+    return "employee";
+  }
+  if (moduleId === "vehicles") {
+    if (hay.includes("combustible") || hay.includes("litros") || hay.includes("estación") || hay.includes("estacion")) {
+      return "fuel";
+    }
+    if (hay.includes("taller") || hay.includes("mantenimiento") || hay.includes("preventivo") || hay.includes("correctivo")) {
+      return "workshop";
+    }
+    return "vehicle";
+  }
+  if (moduleId === "hiring") {
+    if (hay.includes("vacante")) return "vacancy";
+    if (hay.includes("candidato")) return "candidate";
+    if (hay.includes("contrato")) return "contract";
+    if (hay.includes("entrevista")) return "interview";
+    if (hay.includes("cargo")) return "position";
+  }
+  return "";
+}
+
+/**
+ * Título claro de la acción para Historial (badge, detalle, CSV).
+ * Ej.: documents+delete → "Eliminación de documento"; users+create → "Alta de usuario".
+ * @param {string} action
+ * @param {string} [moduleIdOrLabel]
+ * @param {object} [entryOrOpts] — entry de auditoría o `{ entityKind }`
+ */
+export function historyAuditActionTitle(action, moduleIdOrLabel = "", entryOrOpts = {}) {
+  const actionKey = normalizeHistoryAuditActionKey(action);
+  const moduleId = resolvePortalAuditModuleId(moduleIdOrLabel) || String(moduleIdOrLabel || "").trim();
+  const opts = entryOrOpts && typeof entryOrOpts === "object" ? entryOrOpts : {};
+  const kind = inferHistoryAuditEntityKind(moduleId, opts);
+  const fromKind = kind ? HISTORY_AUDIT_ENTITY_KIND_TITLES[kind] : null;
+  if (fromKind?.[actionKey]) return fromKind[actionKey];
+  if (fromKind?.update && actionKey === "renew") return fromKind.update;
+  const fromModule = moduleId ? HISTORY_AUDIT_MODULE_ACTION_TITLES[moduleId] : null;
+  if (fromModule?.[actionKey]) return fromModule[actionKey];
+  if (actionKey === "create") return "Creación";
+  if (actionKey === "delete") return "Eliminación";
+  if (actionKey === "renew") return "Renovación";
+  return "Actualización";
+}
+
 /** Resumen legible por defecto cuando no hay detalle o solo hay datos técnicos. */
-export function defaultHistoryAuditSummaryText(action, moduleLabel, entityLabel = "") {
-  const verb =
-    action === "create" ? "Creación" : action === "delete" ? "Eliminación" : "Actualización";
-  const mod = normalizePortalAuditModuleLabel(moduleLabel);
+export function defaultHistoryAuditSummaryText(action, moduleLabel, entityLabel = "", entryOrOpts = {}) {
+  const title = historyAuditActionTitle(action, moduleLabel, {
+    ...(entryOrOpts && typeof entryOrOpts === "object" ? entryOrOpts : {}),
+    entityLabel
+  });
   const ent = stripHistoryAuditOpaqueTokens(entityLabel);
-  if (ent && ent !== "Registro") return `${verb} · ${ent}`;
-  return `${verb} en ${mod}`;
+  if (ent && ent !== "Registro" && !String(ent).toLowerCase().startsWith(title.toLowerCase())) {
+    return `${title} · ${ent}`;
+  }
+  return title;
 }
 
 const PORTAL_AUDIT_MODULE_ICON_KEYS = {
@@ -247,19 +478,27 @@ export function logPortalAuditEvent(moduleKey, action, detail = {}) {
   const usuario =
     String(row.usuario || "").trim() ||
     (typeof usuarioFn === "function" ? usuarioFn(actor, actorEmail, actorUserId) : actor || actorEmail);
+  const entityLabel = String(row.entityLabel || "Registro").trim();
+  const entityKind = String(row.entityKind || "").trim().toLowerCase();
+  const actionKey = String(action || "update");
+  const summary =
+    String(row.summary || "").trim() ||
+    defaultHistoryAuditSummaryText(actionKey, moduleLabel, entityLabel, { entityKind, entityLabel });
   fn({
     id: String(row.id || "").trim() || undefined,
-    action: String(action || "update"),
+    action: actionKey,
     moduleId,
     moduleLabel,
     entityId: String(row.entityId || "").trim(),
-    entityLabel: String(row.entityLabel || "Registro").trim(),
-    summary: String(row.summary || "").trim(),
+    entityLabel,
+    entityKind,
+    summary,
     at: row.at,
     actor,
     actorEmail,
     actorUserId,
     usuario,
+    changesText: String(row.changesText || "").trim(),
     detailAction: String(row.detailAction || "").trim(),
     detailId: String(row.detailId || row.entityId || "").trim()
   });

@@ -241,6 +241,7 @@ const logPortalAuditEvent = __pr.logPortalAuditEvent;
 const stripHistoryAuditOpaqueTokens = __pr.stripHistoryAuditOpaqueTokens;
 const isHistoryAuditOpaqueLabel = __pr.isHistoryAuditOpaqueLabel;
 const defaultHistoryAuditSummaryText = __pr.defaultHistoryAuditSummaryText;
+const historyAuditActionTitle = __pr.historyAuditActionTitle;
 const normalizePortalAuditModuleLabel = __pr.normalizePortalAuditModuleLabel;
 const portalAuditModuleIconKey = __pr.portalAuditModuleIconKey;
 const resolvePortalAuditModuleId = __pr.resolvePortalAuditModuleId;
@@ -2733,9 +2734,13 @@ function formatHistoryAuditPresentation(entry) {
     entityLabel = stripHistoryAuditOpaqueTokens(fromCatalog) || "Registro";
   }
 
+  const entityKind = String(row.entityKind || "").trim().toLowerCase();
   let summary = stripHistoryAuditOpaqueTokens(row.summary);
   if (!summary || isHistoryAuditOpaqueLabel(summary)) {
-    summary = defaultHistoryAuditSummaryText(action, moduleLabel, entityLabel);
+    summary = defaultHistoryAuditSummaryText(action, moduleLabel, entityLabel, {
+      entityKind,
+      entityLabel
+    });
   }
 
   return {
@@ -2743,7 +2748,9 @@ function formatHistoryAuditPresentation(entry) {
     moduleId: resolvePortalAuditModuleId(moduleId) || moduleId || "dashboard",
     moduleLabel,
     entityLabel,
-    summary
+    entityKind,
+    summary,
+    actionTitle: historyAuditActionTitle(action, moduleLabel, { entityKind, entityLabel, summary })
   };
 }
 
@@ -2792,6 +2799,7 @@ function appendModuleAuditLog(entry) {
     moduleLabel,
     entityId: String(row.entityId || "").trim(),
     entityLabel: String(row.entityLabel || "Registro").trim(),
+    entityKind: String(row.entityKind || "").trim().toLowerCase(),
     summary: String(row.summary || "").trim(),
     actor,
     actorEmail,
@@ -2897,7 +2905,7 @@ function appendPayrollEmployeeAuditLog(action, employee, extra = {}) {
   const snapshot = buildPortalAuditActorSnapshot();
   const at = String(extra.at || emp.updatedAt || emp.createdAt || nowIso()).trim();
   const actor = historyAuditActorLabel(extra.actor, snapshot.label, snapshot.email, snapshot.name);
-  const actionKey = String(action || "").trim();
+  const actionKey = String(action || "update").trim() || "update";
   const changesText =
     extra.changesText != null
       ? String(extra.changesText).trim()
@@ -2906,14 +2914,19 @@ function appendPayrollEmployeeAuditLog(action, employee, extra = {}) {
         : actionKey === "create" || actionKey === "delete"
           ? describePayrollEmployeeSnapshot(emp)
           : "";
+  const entityLabel = String(extra.entityLabel || emp.name || "Colaborador").trim();
+  const entityKind = String(extra.entityKind || "employee").trim().toLowerCase();
+  const actionTitle = historyAuditActionTitle(actionKey, "payroll", { entityKind, entityLabel });
+  const baseSummary = String(extra.summary || payrollEmployeeAuditSummary(emp)).trim();
   appendModuleAuditLog({
     at,
-    action: String(action || "update"),
+    action: actionKey,
     moduleId: "payroll",
     moduleLabel: "Gestión humana",
     entityId,
-    entityLabel: String(extra.entityLabel || emp.name || "Colaborador").trim(),
-    summary: String(extra.summary || payrollEmployeeAuditSummary(emp)).trim(),
+    entityLabel,
+    entityKind,
+    summary: baseSummary.startsWith(actionTitle) ? baseSummary : `${actionTitle} · ${baseSummary}`,
     actor,
     actorEmail: String(extra.actorEmail || snapshot.email || "").trim(),
     actorUserId: String(extra.actorUserId || snapshot.userId || "").trim(),
@@ -2947,14 +2960,21 @@ function appendPortalEntityAuditLog(action, moduleId, moduleLabel, entity, summa
     { fallbackToSession: true, sessionSnapshot: snapshot }
   );
   const at = String(extra.at || row.updatedAt || row.createdAt || nowIso()).trim();
+  const entityLabel = String(extra.entityLabel || row.name || row.plate || row.title || "Registro").trim();
+  const entityKind = String(extra.entityKind || "").trim().toLowerCase();
   appendModuleAuditLog({
     at,
     action: String(action || "update"),
     moduleId: canonModuleId,
     moduleLabel: canonModuleLabel,
     entityId,
-    entityLabel: String(extra.entityLabel || row.name || row.plate || row.title || "Registro").trim(),
-    summary: String(summary || extra.summary || defaultHistoryAuditSummaryText(action, canonModuleLabel, extra.entityLabel || row.name || row.plate || row.title || "Registro")).trim(),
+    entityLabel,
+    entityKind,
+    summary: String(
+      summary ||
+        extra.summary ||
+        defaultHistoryAuditSummaryText(action, canonModuleLabel, entityLabel, { entityKind, entityLabel })
+    ).trim(),
     actor,
     actorEmail: String(extra.actorEmail || row.updatedByEmail || row.createdByEmail || snapshot.email || "").trim(),
     actorUserId: String(extra.actorUserId || snapshot.userId || "").trim(),
@@ -8020,7 +8040,10 @@ function readPortalB2bContactLeads() {
   return Array.isArray(state.portalContacts) ? state.portalContacts : [];
 }
 
-function historyAuditActionLabel(action) {
+function historyAuditActionLabel(action, moduleIdOrLabel = "", entryOrOpts = {}) {
+  if (typeof historyAuditActionTitle === "function") {
+    return historyAuditActionTitle(action, moduleIdOrLabel, entryOrOpts);
+  }
   if (action === "create") return "Creación";
   if (action === "delete") return "Eliminación";
   return "Actualización";
@@ -8901,6 +8924,14 @@ const HISTORY_AUDIT_MODULE_PERMISSIONS = {
   payroll: ["payroll_manage"],
   hiring: ["hiring_manage"],
   sst: ["sst_compliance"],
+  documents: [
+    "document_manage",
+    "document_view",
+    "document_upload",
+    "document_edit",
+    "document_delete",
+    "payroll_manage"
+  ],
   contact_b2b: ["contact_b2b_view"],
   users: ["users_manage"],
   authorizations: [
@@ -8989,6 +9020,7 @@ function buildHistoryAuditEntries() {
         moduleLabel: normalizePortalAuditModuleLabel(row.moduleLabel || row.moduleId || "Módulo"),
         entityId: String(row.entityId || ""),
         entityLabel: String(row.entityLabel || "Registro"),
+        entityKind: String(row.entityKind || "").trim().toLowerCase(),
         summary: String(row.summary || ""),
         actor,
         actorEmail,
@@ -9025,7 +9057,7 @@ function historyTraceHaystack(entry) {
 }
 
 function renderHistoryAuditCard(entry) {
-  const actionLabel = historyAuditActionLabel(entry.action);
+  const actionLabel = historyAuditActionLabel(entry.action, entry.moduleId || entry.moduleLabel, entry);
   const actionTone = historyAuditActionStatus(entry.action);
   const actionSlug = String(entry.action || "update");
   const actorLabel =
@@ -9080,7 +9112,7 @@ function renderHistoryAuditCard(entry) {
 }
 
 function renderHistoryAuditRow(entry) {
-  const actionLabel = historyAuditActionLabel(entry.action);
+  const actionLabel = historyAuditActionLabel(entry.action, entry.moduleId || entry.moduleLabel, entry);
   const actionTone = historyAuditActionStatus(entry.action);
   const actionSlug = String(entry.action || "update");
   const moduleIconFn = globalThis.historyTraceModuleIconHtml;
@@ -13511,6 +13543,7 @@ Object.assign(window, {
   hiringPipelineSelectOptions,
   hiringPipelineStatusClass,
   historyAuditActionLabel,
+  historyAuditActionTitle,
   historyAuditActionStatus,
   historyDriverLabel,
   historyFleetFilterToolbar,

@@ -790,12 +790,18 @@ function bindAuthorizationsPortalControls() {
         return;
       }
       notify(userMessage("authApprovalOk"), "success");
-      logPortalAuditEvent?.("authorizations", "update", {
-        entityId: id,
-        entityLabel: String(approval.title || approval.type || "Autorización"),
-        summary: `Autorización aprobada · ${String(approval.type || "interna")}`,
-        actor: String(actor?.email || actor?.name || "")
-      });
+      {
+        const typeLabel = String(
+          APPROVAL_TYPE_META[approval.type]?.label || approval.title || approval.type || "Autorización"
+        );
+        logPortalAuditEvent?.("authorizations", "update", {
+          entityId: id,
+          entityKind: "authorization",
+          entityLabel: typeLabel,
+          summary: `Autorización aprobada · ${typeLabel}`,
+          actor: String(actor?.email || actor?.name || "")
+        });
+      }
       renderPortalView();
       } finally {
         btn.dataset.busy = "0";
@@ -835,12 +841,18 @@ function bindAuthorizationsPortalControls() {
             return false;
           }
           notify(userMessage("authRejectOk"), "success");
-          logPortalAuditEvent?.("authorizations", "delete", {
-            entityId: id,
-            entityLabel: String(approval.title || approval.type || "Autorización"),
-            summary: `Autorización rechazada · ${reason}`,
-            actor: String(actor?.email || actor?.name || "")
-          });
+          {
+            const typeLabel = String(
+              APPROVAL_TYPE_META[approval.type]?.label || approval.title || approval.type || "Autorización"
+            );
+            logPortalAuditEvent?.("authorizations", "delete", {
+              entityId: id,
+              entityKind: "authorization",
+              entityLabel: typeLabel,
+              summary: `Autorización rechazada · ${typeLabel} · Motivo: ${reason}`,
+              actor: String(actor?.email || actor?.name || "")
+            });
+          }
           renderPortalView();
           return true;
         }

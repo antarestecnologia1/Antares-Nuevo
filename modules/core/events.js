@@ -1108,8 +1108,9 @@ function bindDynamicEvents() {
           "users",
           "Usuarios y permisos",
           createdUser,
-          `${formatPortalRoleLabel(createdUser.role)} · ${String(company.name || "Sin empresa")}`,
+          `Alta de usuario · ${formatPortalRoleLabel(createdUser.role)} · ${String(company.name || "Sin empresa")}`,
           {
+            entityKind: "user",
             entityLabel: getPortalUserDisplayName(createdUser) || String(createdUser.email || "Usuario")
           }
         );
@@ -1243,8 +1244,8 @@ function bindDynamicEvents() {
           "companies",
           "Usuarios y permisos",
           createdCompany,
-          `${companyKindLabel(createdCompany.companyKind) || "Sin clasificación"} · ${$portal.isCompanyRecordActive(createdCompany) ? "Activa" : "Inactiva"}`,
-          { entityLabel: String(createdCompany.name || "Empresa").trim() }
+          `Alta de empresa · ${companyKindLabel(createdCompany.companyKind) || "Sin clasificación"} · ${$portal.isCompanyRecordActive(createdCompany) ? "Activa" : "Inactiva"}`,
+          { entityKind: "company", entityLabel: String(createdCompany.name || "Empresa").trim() }
         );
       }
       $portal.notify($portal.userMessage("companyCreated"), "success");
@@ -1373,8 +1374,8 @@ function bindDynamicEvents() {
           "companies",
           "Usuarios y permisos",
           updatedCompany,
-          `${companyKindLabel(updatedCompany.companyKind) || "Sin clasificación"} · ${$portal.isCompanyRecordActive(updatedCompany) ? "Activa" : "Inactiva"}`,
-          { entityLabel: String(updatedCompany.name || "Empresa").trim() }
+          `Actualización de empresa · ${companyKindLabel(updatedCompany.companyKind) || "Sin clasificación"} · ${$portal.isCompanyRecordActive(updatedCompany) ? "Activa" : "Inactiva"}`,
+          { entityKind: "company", entityLabel: String(updatedCompany.name || "Empresa").trim() }
         );
       }
       $portal.notify($portal.userMessage("companyUpdated"), "success");
@@ -1444,8 +1445,9 @@ function bindDynamicEvents() {
           "users",
           "Usuarios y permisos",
           updatedUser,
-          `${formatPortalRoleLabel(updatedUser.role)} · permisos actualizados`,
+          `Actualización de usuario · ${formatPortalRoleLabel(updatedUser.role)} · permisos actualizados`,
           {
+            entityKind: "user",
             entityLabel: getPortalUserDisplayName(updatedUser) || String(updatedUser.email || "Usuario")
           }
         );
@@ -1653,8 +1655,9 @@ function bindDynamicEvents() {
           "users",
           "Usuarios y permisos",
           updatedUser,
-          `${formatPortalRoleLabel(updatedUser.role)} · ${String(updatedUser.email || "Sin correo")}`,
+          `Actualización de usuario · ${formatPortalRoleLabel(updatedUser.role)} · ${String(updatedUser.email || "Sin correo")}`,
           {
+            entityKind: "user",
             entityLabel: getPortalUserDisplayName(updatedUser) || String(updatedUser.email || "Usuario")
           }
         );
@@ -2040,8 +2043,9 @@ function bindDynamicEvents() {
               moduleId: "users",
               moduleLabel: "Usuarios y permisos",
               entityId: String(snapshotUser.id || ""),
+              entityKind: "user",
               entityLabel: getPortalUserDisplayName(snapshotUser) || String(snapshotUser.email || "Usuario"),
-              summary: `${formatPortalRoleLabel(snapshotUser.role)} · ${String(snapshotUser.email || "Sin correo")}`
+              summary: `Eliminación de usuario · ${formatPortalRoleLabel(snapshotUser.role)} · ${String(snapshotUser.email || "Sin correo")}`
             });
           }
           $portal.notify($portal.userMessage("userDeleted"), "success");

@@ -191,9 +191,12 @@ function getHistoryTraceFilteredEntries(formEl) {
   return applyHistoryTraceFilters(buildHistoryAuditEntries(), readHistoryTraceFilterInputs(formEl));
 }
 
-function historyTraceActionLabel(action) {
+function historyTraceActionLabel(action, moduleIdOrLabel = "", entryOrOpts = {}) {
   const fn = globalThis.historyAuditActionLabel;
-  return typeof fn === "function" ? fn(action) : String(action || "update");
+  if (typeof fn === "function") return fn(action, moduleIdOrLabel, entryOrOpts);
+  const titleFn = globalThis.historyAuditActionTitle;
+  if (typeof titleFn === "function") return titleFn(action, moduleIdOrLabel, entryOrOpts);
+  return String(action || "update");
 }
 
 function historyTraceActionTone(action) {
@@ -211,22 +214,47 @@ function openHistoryAuditEventDetail(entryId) {
     notify("No se encontró el evento de auditoría.", "error");
     return;
   }
-  const actionLabel = historyTraceActionLabel(entry.action);
+  const actionLabel = historyTraceActionLabel(
+    entry.action,
+    entry.moduleId || entry.moduleLabel,
+    entry
+  );
   const actionTone = historyTraceActionTone(entry.action);
+  const actionKey = String(entry.action || "update").trim().toLowerCase();
+  const actionIconKey =
+    actionKey === "create" ? "plus" : actionKey === "delete" ? "trash" : actionKey === "renew" ? "rotateCcw" : "edit";
+  const sheetTone =
+    actionKey === "create" ? "green" : actionKey === "delete" ? "rose" : actionKey === "renew" ? "teal" : "blue";
+  const moduleIconKey =
+    (typeof historyTraceModuleIconKey === "function"
+      ? historyTraceModuleIconKey(entry.moduleLabel || entry.moduleId)
+      : "") || "activity";
   const actorLabel =
     (typeof historyAuditUsuarioFromLogRow === "function"
       ? historyAuditUsuarioFromLogRow(entry, { fallbackToSession: false })
       : entry.usuario || entry.actor) || "Sin registrar";
   const changesText = String(entry.changesText || "").trim();
+  const summaryText = String(entry.summary || "").trim();
+  const entityText = String(entry.entityLabel || "").trim();
   const pairs = [
-    ["Entidad", `<strong>${escapeHtml(entry.entityLabel || "—")}</strong>`],
-    ["Resumen", escapeHtml(entry.summary || "Sin resumen")],
-    ["Usuario", escapeHtml(String(actorLabel))],
-    ["Fecha", escapeHtml(fmtDate(entry.ts))],
-    ["Módulo", escapeHtml(String(entry.moduleLabel || "—"))],
-    ["Acción", `<span class="status ${escapeAttr(actionTone)}">${escapeHtml(actionLabel)}</span>`]
+    [
+      "Acción",
+      `<span class="status ${escapeAttr(actionTone)}">${escapeHtml(actionLabel)}</span>`,
+      { iconKey: actionIconKey, tone: sheetTone, highlight: true }
+    ],
+    ["Entidad", `<strong>${escapeHtml(entityText || "—")}</strong>`, { iconKey: "layers", tone: "purple" }],
+    ["Resumen", escapeHtml(summaryText || actionLabel), { iconKey: "log", tone: "teal", full: true }],
+    ["Usuario", escapeHtml(String(actorLabel)), { iconKey: "user", tone: "blue" }],
+    ["Fecha", escapeHtml(fmtDate(entry.ts)), { iconKey: "clock", tone: "orange" }],
+    ["Módulo", escapeHtml(String(entry.moduleLabel || "—")), { iconKey: moduleIconKey, tone: "blue" }]
   ];
-  if (changesText) pairs.push(["Detalle del cambio", escapeHtml(changesText)]);
+  if (changesText) {
+    pairs.push([
+      "Detalle del cambio",
+      escapeHtml(changesText),
+      { iconKey: "list", tone: "teal", full: true }
+    ]);
+  }
 
   const hasLinked =
     String(entry.detailAction || "").trim() && String(entry.detailId || "").trim();
@@ -237,12 +265,12 @@ function openHistoryAuditEventDetail(entryId) {
   if (typeof openPortalDetailSheet === "function") {
     openPortalDetailSheet({
       title: "Detalle del evento",
-      sheetTitle: String(entry.entityLabel || "Evento de auditoría"),
-      subtitleHtml: `${escapeHtml(String(entry.moduleLabel || ""))} · ${escapeHtml(fmtDate(entry.ts))}`,
+      sheetTitle: actionLabel,
+      subtitleHtml: `${escapeHtml(entityText || String(entry.moduleLabel || "Evento"))} · ${escapeHtml(fmtDate(entry.ts))}`,
       statusHtml: `<span class="status ${escapeAttr(actionTone)}">${escapeHtml(actionLabel)}</span>`,
-      moduleIcon: "activity",
-      moduleTone: "blue",
-      sections: [{ icon: "layers", pairs }],
+      moduleIcon: actionIconKey,
+      moduleTone: sheetTone,
+      sections: [{ icon: actionIconKey, pairs }],
       secondaryActionsHtml,
       afterMount: (content) => {
         const linkedBtn = content?.querySelector?.("#hist-audit-linked-detail");
@@ -315,7 +343,7 @@ function exportHistoryTraceCsv(entries) {
   ];
   const rows = list.map((entry) => ({
     fecha: fmtDate(entry.ts),
-    accion: historyTraceActionLabel(entry.action),
+    accion: historyTraceActionLabel(entry.action, entry.moduleId || entry.moduleLabel, entry),
     modulo: String(entry.moduleLabel || ""),
     entidad: String(entry.entityLabel || ""),
     resumen: String(entry.summary || ""),

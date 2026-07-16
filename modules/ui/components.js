@@ -306,7 +306,7 @@ export function renderModalHead(title, opts = {}) {
 const DETAIL_VIEW_TONES = ["blue", "green", "orange", "purple", "teal", "rose"];
 const DETAIL_VIEW_DEFAULT_ICONS = [
   "package",
-  "dollar",
+  "file",
   "truck",
   "user",
   "layers",
@@ -314,10 +314,83 @@ const DETAIL_VIEW_DEFAULT_ICONS = [
   "clock",
   "activity",
   "mapPin",
-  "file",
+  "list",
   "phone",
   "briefcase"
 ];
+
+/** Iconos por etiqueta legible (evita asignar $ u otros iconos fuera de contexto). */
+const DETAIL_VIEW_LABEL_ICONS = {
+  Acción: "activity",
+  Accion: "activity",
+  Entidad: "layers",
+  Resumen: "log",
+  Usuario: "user",
+  Actor: "user",
+  Responsable: "user",
+  Fecha: "clock",
+  "Fecha y hora": "clock",
+  Hora: "clock",
+  Módulo: "grid",
+  Modulo: "grid",
+  "Detalle del cambio": "list",
+  Detalle: "list",
+  Cambios: "list",
+  Motivo: "file",
+  Observaciones: "log",
+  Descripción: "log",
+  Descripcion: "log",
+  Documento: "file",
+  Archivo: "file",
+  Carpeta: "folder",
+  Empresa: "building",
+  Correo: "mail",
+  Teléfono: "phone",
+  Telefono: "phone",
+  Placa: "truck",
+  Vehículo: "truck",
+  Vehiculo: "truck",
+  Conductor: "user",
+  Viaje: "map",
+  Solicitud: "inbox",
+  Estado: "flag",
+  Rol: "badge",
+  Permisos: "shield",
+  Salario: "dollar",
+  Valor: "dollar",
+  Tarifa: "dollar",
+  Factura: "dollar",
+  Costo: "dollar",
+  Neto: "dollar",
+  Pago: "dollar"
+};
+
+function resolveDetailViewIconForLabel(label = "", explicitIconKey = "", idx = 0) {
+  const explicit = String(explicitIconKey || "").trim();
+  if (explicit) return explicit;
+  const raw = String(label || "").trim();
+  if (DETAIL_VIEW_LABEL_ICONS[raw]) return DETAIL_VIEW_LABEL_ICONS[raw];
+  const lower = raw.toLowerCase();
+  if (/acci[oó]n|movimiento|tipo de/.test(lower)) return "activity";
+  if (/resumen|descripci[oó]n|observaci|nota|comentario/.test(lower)) return "log";
+  if (/entidad|registro|asunto|t[ií]tulo/.test(lower)) return "layers";
+  if (/usuario|actor|responsable|operador|solicitante/.test(lower)) return "user";
+  if (/fecha|hora|periodo|vigencia/.test(lower)) return "clock";
+  if (/m[oó]dulo|secci[oó]n|área|area/.test(lower)) return "grid";
+  if (/detalle|cambio|diff|diferencia/.test(lower)) return "list";
+  if (/documento|archivo|anexo/.test(lower)) return "file";
+  if (/carpeta|folder|expediente/.test(lower)) return "folder";
+  if (/empresa|compa[nñ][ií]a/.test(lower)) return "building";
+  if (/correo|email|mail/.test(lower)) return "mail";
+  if (/tel[eé]fono|celular|phone/.test(lower)) return "phone";
+  if (/placa|veh[ií]culo|cami[oó]n|flota/.test(lower)) return "truck";
+  if (/conductor|colaborador|empleado|candidato/.test(lower)) return "user";
+  if (/viaje|ruta|trayecto/.test(lower)) return "map";
+  if (/solicitud|pedido/.test(lower)) return "inbox";
+  if (/estado|estatus/.test(lower)) return "flag";
+  if (/salario|valor|tarifa|factura|neto|pago|costo|precio|cop\b|\$/.test(lower)) return "dollar";
+  return DETAIL_VIEW_DEFAULT_ICONS[Math.abs(idx) % DETAIL_VIEW_DEFAULT_ICONS.length];
+}
 
 /** Tarjeta de campo para fichas «Ver detalle» (grid icono + etiqueta + valor). */
 export function detailViewCardMarkup(opts = {}) {
@@ -365,11 +438,17 @@ export function detailViewCardsFromPairs(pairs, opts = {}) {
       const label = pair[0];
       const value = pair[1];
       const cardOpts = pair[2] && typeof pair[2] === "object" ? pair[2] : {};
-      const iconKey = cardOpts.iconKey || iconKeys[label] || DETAIL_VIEW_DEFAULT_ICONS[idx % DETAIL_VIEW_DEFAULT_ICONS.length];
+      const iconKey = resolveDetailViewIconForLabel(
+        label,
+        cardOpts.iconKey || iconKeys[label] || "",
+        idx
+      );
       const tone = cardOpts.tone || toneKeys[label] || DETAIL_VIEW_TONES[idx % DETAIL_VIEW_TONES.length];
       const highlight =
         cardOpts.highlight === true ||
-        (cardOpts.highlight !== false && /valor|salario|tarifa|factura/i.test(String(label)));
+        (cardOpts.highlight !== false &&
+          iconKey === "dollar" &&
+          /valor|salario|tarifa|factura|neto|pago|costo|precio/i.test(String(label)));
       idx += 1;
       const valueHtml =
         value === null || value === undefined || String(value).trim() === ""
