@@ -35118,11 +35118,88 @@ body[data-theme="dark"] .solicitud-trip-summary {
   color: #15803d;
 }
 
+.detail-view-section {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0 0 1rem;
+}
+
+.detail-view-section:last-child {
+  margin-bottom: 0;
+}
+
+.detail-view-section__title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted, #64748b);
+}
+
+.detail-view-section__title svg {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.hist-audit-critical-banner {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 0.9rem 1rem;
+  margin: 0 0 1rem;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, #dc2626 35%, var(--line));
+  background: color-mix(in srgb, #dc2626 8%, #fff);
+  color: #7f1d1d;
+}
+
+.hist-audit-critical-banner__icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  color: #dc2626;
+}
+
+.hist-audit-critical-banner__icon svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.hist-audit-critical-banner__body {
+  min-width: 0;
+}
+
+.hist-audit-critical-banner__body strong {
+  display: block;
+  margin-bottom: 0.2rem;
+  font-size: 0.92rem;
+}
+
+.hist-audit-critical-banner__body p {
+  margin: 0;
+  line-height: 1.45;
+  font-size: 0.9rem;
+}
+
 .detail-view-notes {
   padding: 0.85rem 0.95rem;
   border-radius: 14px;
   border: 1px dashed color-mix(in srgb, var(--primary) 18%, var(--line));
   background: color-mix(in srgb, var(--primary) 4%, #fff);
+}
+
+.detail-view-notes--critical,
+.detail-view-notes--motivo.detail-view-notes--critical {
+  border-style: solid;
+  border-color: color-mix(in srgb, #dc2626 30%, var(--line));
+  background: color-mix(in srgb, #dc2626 6%, #fff);
+}
+
+.detail-view-notes--critical .detail-view-notes__title {
+  color: #991b1b;
 }
 
 .detail-view-notes__title {

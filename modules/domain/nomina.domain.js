@@ -166,7 +166,33 @@ export function payrollRunApprovedByLabel(approvedByRaw) {
   return raw;
 }
 
-export function appendPayrollRunAuditLog(action, run, { summary = "", motivo = "" } = {}) {
+function describePayrollRunAuditSnapshot(run) {
+  const row = run && typeof run === "object" ? run : {};
+  const parts = [];
+  const typeLabel = payrollRunTypeLabel(row);
+  if (typeLabel) parts.push(`Tipo: ${typeLabel}`);
+  const period = String(row.month || "").trim();
+  if (period) parts.push(`Periodo: ${period}`);
+  const employee = String(row.employeeName || "").trim();
+  if (employee) parts.push(`Colaborador: ${employee}`);
+  const doc = String(row.idDoc || row.employeeIdDoc || "").trim();
+  if (doc) parts.push(`Documento: ${doc}`);
+  const parse =
+    typeof globalThis.parseNum === "function" ? globalThis.parseNum : (v) => Number(v) || 0;
+  const gross = parse(row.gross);
+  const net = parse(row.net);
+  if (gross > 0) parts.push(`Bruto: $${Math.round(gross).toLocaleString("es-CO")}`);
+  if (net > 0) parts.push(`Neto: $${Math.round(net).toLocaleString("es-CO")}`);
+  parts.push(`Estado pago: ${row.paid ? "Pagada" : "Pendiente de pago"}`);
+  if (row.paid && row.paidAt) {
+    const paidLabel =
+      typeof globalThis.fmtDate === "function" ? globalThis.fmtDate(row.paidAt) : String(row.paidAt);
+    if (paidLabel) parts.push(`Fecha pago: ${paidLabel}`);
+  }
+  return parts.join(" · ");
+}
+
+export function appendPayrollRunAuditLog(action, run, { summary = "", motivo = "", changesText = "" } = {}) {
   const logFn = globalThis.appendModuleAuditLog;
   if (typeof logFn !== "function") return;
   const snapshotFn = globalThis.buildPortalAuditActorSnapshot;
@@ -179,19 +205,42 @@ export function appendPayrollRunAuditLog(action, run, { summary = "", motivo = "
   const entityLabel = run
     ? `${String(run.employeeName || "Colaborador")} · ${String(run.month || "-")}`
     : "Liquidación";
-  const bits = [String(summary || "").trim()].filter(Boolean);
-  if (motivo) bits.push(`Motivo: ${String(motivo).trim()}`);
+  const actionKey = String(action || "update").trim().toLowerCase() || "update";
+  const actionTitle =
+    actionKey === "create"
+      ? "Alta de liquidación"
+      : actionKey === "delete"
+        ? "Eliminación de liquidación"
+        : "Actualización de liquidación";
+  const reason = String(motivo || "").trim();
+  const snapshotText = describePayrollRunAuditSnapshot(run);
+  const summaryBits = [String(summary || "").trim() || actionTitle];
+  if (reason && !summaryBits[0].toLowerCase().includes("motivo:")) {
+    summaryBits.push(`Motivo: ${reason}`);
+  }
+  const changeBits = [];
+  const explicitChanges = String(changesText || "").trim();
+  if (explicitChanges) changeBits.push(explicitChanges);
+  else if (snapshotText) changeBits.push(snapshotText);
+  if (reason && !changeBits.some((bit) => String(bit).toLowerCase().includes("motivo:"))) {
+    changeBits.push(`Motivo: ${reason}`);
+  }
   logFn({
-    action: String(action || "update"),
+    action: actionKey,
     moduleId: "payroll",
     moduleLabel: "Gestión humana",
     entityId,
+    entityKind: "payroll_run",
     entityLabel,
-    summary: bits.join(" ") || entityLabel,
+    summary: summaryBits.filter(Boolean).join(" · ") || entityLabel,
+    changesText: changeBits.join(" · "),
     actor,
     actorEmail: String(snapshot.email || "").trim(),
     actorUserId: String(snapshot.userId || "").trim(),
-    at: String(run?.createdAt || run?.updatedAt || "").trim() || undefined
+    at:
+      actionKey === "delete"
+        ? undefined
+        : String(run?.createdAt || run?.updatedAt || "").trim() || undefined
   });
 }
 

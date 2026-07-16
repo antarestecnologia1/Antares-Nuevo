@@ -204,16 +204,107 @@ function historyTraceActionTone(action) {
   return typeof fn === "function" ? fn(action) : "status-pendiente";
 }
 
-function openHistoryAuditEventDetail(entryId) {
-  const id = String(entryId || "").trim();
-  if (!id) return;
-  const entry = (typeof buildHistoryAuditEntries === "function" ? buildHistoryAuditEntries() : []).find(
-    (row) => String(row?.id || "") === id
-  );
-  if (!entry) {
-    notify("No se encontró el evento de auditoría.", "error");
-    return;
+function historyParseAuditKvParts(text = "") {
+  return String(text || "")
+    .split(/\s*[·|]\s*/)
+    .map((part) => String(part || "").trim())
+    .filter(Boolean)
+    .map((part) => {
+      const m = part.match(/^([^:]{2,48}):\s*(.+)$/);
+      if (!m) return null;
+      const label = String(m[1] || "").trim();
+      const value = String(m[2] || "").trim();
+      if (!label || !value) return null;
+      return { label, value };
+    })
+    .filter(Boolean);
+}
+
+function historyExtractAuditMotivo(summary = "", changesText = "") {
+  const blob = `${summary || ""}\n${changesText || ""}`;
+  const m = blob.match(/Motivo:\s*([^\n·|]+)/i);
+  return m ? String(m[1] || "").trim() : "";
+}
+
+function historyAuditEntityKindLabel(kind = "") {
+  const map = {
+    payroll_run: "Liquidación / facturación de nómina",
+    employee: "Colaborador",
+    user: "Usuario del portal",
+    company: "Empresa",
+    document: "Documento",
+    folder: "Carpeta documental",
+    route_rate: "Tarifa de trayecto",
+    request: "Solicitud de transporte",
+    trip: "Viaje",
+    vehicle: "Camión",
+    driver: "Conductor",
+    absence: "Ausencia o incapacidad",
+    authorization: "Autorización",
+    notification: "Notificación",
+    fuel: "Registro de combustible",
+    workshop: "Registro de taller"
+  };
+  return map[String(kind || "").trim().toLowerCase()] || "";
+}
+
+function historyAuditIsCriticalDelete(entry = {}) {
+  if (String(entry.action || "").toLowerCase() !== "delete") return false;
+  const kind = String(entry.entityKind || "").trim().toLowerCase();
+  if (
+    [
+      "payroll_run",
+      "employee",
+      "user",
+      "company",
+      "document",
+      "route_rate",
+      "request",
+      "trip",
+      "contract"
+    ].includes(kind)
+  ) {
+    return true;
   }
+  const hay = `${entry.moduleLabel || ""} ${entry.entityLabel || ""} ${entry.summary || ""} ${entry.changesText || ""}`
+    .toLowerCase();
+  return /liquidaci[oó]n|factur|n[oó]mina|tarifa|salario|neto|bruto|usuario|empresa|documento|solicitud|viaje|contrato/.test(
+    hay
+  );
+}
+
+function historyAuditDetailIconForLabel(label = "") {
+  const lower = String(label || "").toLowerCase();
+  if (/motivo/.test(lower)) return "alertTriangle";
+  if (/neto|bruto|valor|salario|tarifa|cop|pago|costo/.test(lower)) return "dollar";
+  if (/periodo|fecha/.test(lower)) return "calendar";
+  if (/colaborador|empleado|usuario|conductor|candidato/.test(lower)) return "user";
+  if (/documento|archivo/.test(lower)) return "file";
+  if (/ruta|trayecto|viaje|origen|destino/.test(lower)) return "map";
+  if (/estado|impacto/.test(lower)) return "flag";
+  if (/tipo|clase/.test(lower)) return "layers";
+  if (/empresa|compa/.test(lower)) return "building";
+  if (/departamento/.test(lower)) return "mapPin";
+  return "list";
+}
+
+function historyAuditCriticalBannerHtml(entry, actionLabel) {
+  const kindLabel =
+    historyAuditEntityKindLabel(entry.entityKind) ||
+    String(entry.moduleLabel || "registro del portal");
+  const entity = String(entry.entityLabel || "").trim();
+  return `<aside class="hist-audit-critical-banner" role="alert">
+    <div class="hist-audit-critical-banner__icon" aria-hidden="true">${IC.alertTriangle || IC.trash || ""}</div>
+    <div class="hist-audit-critical-banner__body">
+      <strong>Eliminación crítica registrada</strong>
+      <p>${escapeHtml(actionLabel)} sobre <em>${escapeHtml(kindLabel)}</em>${
+        entity ? ` · <strong>${escapeHtml(entity)}</strong>` : ""
+      }. Este movimiento queda trazado para auditoría y no debe confundirse con un alta o una edición.</p>
+    </div>
+  </aside>`;
+}
+
+function historyBuildAuditDetailCardsHtml(entry) {
   const actionLabel = historyTraceActionLabel(
     entry.action,
     entry.moduleId || entry.moduleLabel,
@@ -233,44 +324,162 @@ function openHistoryAuditEventDetail(entryId) {
     (typeof historyAuditUsuarioFromLogRow === "function"
       ? historyAuditUsuarioFromLogRow(entry, { fallbackToSession: false })
       : entry.usuario || entry.actor) || "Sin registrar";
+  const actorEmail = String(entry.actorEmail || "").trim();
   const changesText = String(entry.changesText || "").trim();
   const summaryText = String(entry.summary || "").trim();
   const entityText = String(entry.entityLabel || "").trim();
-  const pairs = [
+  const entityKind = String(entry.entityKind || "").trim().toLowerCase();
+  const kindLabel = historyAuditEntityKindLabel(entityKind);
+  const motivo = historyExtractAuditMotivo(summaryText, changesText);
+  const kvFromChanges = historyParseAuditKvParts(changesText).filter(
+    (row) => String(row.label).toLowerCase() !== "motivo"
+  );
+  const summaryWithoutMotivo = summaryText
+    .replace(/\s*[·|]?\s*Motivo:\s*[^\n·|]+/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .replace(/^[·|\s]+|[·|\s]+$/g, "")
+    .trim();
+
+  const movementPairs = [
     [
       "Acción",
       `<span class="status ${escapeAttr(actionTone)}">${escapeHtml(actionLabel)}</span>`,
       { iconKey: actionIconKey, tone: sheetTone, highlight: true }
     ],
-    ["Entidad", `<strong>${escapeHtml(entityText || "—")}</strong>`, { iconKey: "layers", tone: "purple" }],
-    ["Resumen", escapeHtml(summaryText || actionLabel), { iconKey: "log", tone: "teal", full: true }],
-    ["Usuario", escapeHtml(String(actorLabel)), { iconKey: "user", tone: "blue" }],
-    ["Fecha", escapeHtml(fmtDate(entry.ts)), { iconKey: "clock", tone: "orange" }],
+    [
+      "Severidad",
+      actionKey === "delete"
+        ? historyAuditIsCriticalDelete(entry)
+          ? '<span class="status status-rechazada">Crítica · eliminación</span>'
+          : '<span class="status status-pendiente">Eliminación</span>'
+        : actionKey === "create"
+          ? '<span class="status status-viaje_asignado">Alta</span>'
+          : '<span class="status status-pendiente">Modificación</span>',
+      {
+        iconKey: actionKey === "delete" ? "alertTriangle" : actionKey === "create" ? "check" : "edit",
+        tone: sheetTone
+      }
+    ],
     ["Módulo", escapeHtml(String(entry.moduleLabel || "—")), { iconKey: moduleIconKey, tone: "blue" }]
   ];
-  if (changesText) {
-    pairs.push([
+
+  const targetPairs = [
+    ["Registro afectado", `<strong>${escapeHtml(entityText || "—")}</strong>`, { iconKey: "layers", tone: "purple" }],
+    kindLabel
+      ? ["Tipo de registro", escapeHtml(kindLabel), { iconKey: "badge", tone: "teal" }]
+      : null,
+    summaryWithoutMotivo
+      ? ["Qué ocurrió", escapeHtml(summaryWithoutMotivo), { iconKey: "log", tone: "teal", full: true }]
+      : null
+  ].filter(Boolean);
+
+  const moneyLabels = /neto|bruto|valor|salario|tarifa|costo|pago|cop/i;
+  const impactPairs = kvFromChanges.map((row) => [
+    row.label,
+    moneyLabels.test(row.label) || /\$\s*[\d.,]+/.test(row.value)
+      ? `<strong class="detail-view-money">${escapeHtml(row.value)}</strong>`
+      : escapeHtml(row.value),
+    {
+      iconKey: historyAuditDetailIconForLabel(row.label),
+      tone: moneyLabels.test(row.label) ? "green" : "teal",
+      highlight: moneyLabels.test(row.label),
+      full: /impacto|ruta|colaborador|qué ocurrió/i.test(row.label)
+    }
+  ]);
+
+  if (!impactPairs.length && changesText) {
+    impactPairs.push([
       "Detalle del cambio",
       escapeHtml(changesText),
       { iconKey: "list", tone: "teal", full: true }
     ]);
   }
 
+  const whoPairs = [
+    ["Usuario responsable", escapeHtml(String(actorLabel)), { iconKey: "user", tone: "blue", highlight: true }],
+    actorEmail && actorEmail !== actorLabel
+      ? ["Correo del responsable", escapeHtml(actorEmail), { iconKey: "mail", tone: "blue" }]
+      : null,
+    ["Fecha y hora", escapeHtml(fmtDate(entry.ts)), { iconKey: "clock", tone: "orange" }]
+  ].filter(Boolean);
+
+  const sectionHtml = (title, iconKey, pairs) => {
+    if (!pairs.length) return "";
+    const cardsFn =
+      typeof detailViewCardsFromPairs === "function"
+        ? detailViewCardsFromPairs
+        : globalThis.detailViewCardsFromPairs;
+    const cards = typeof cardsFn === "function" ? cardsFn(pairs, { skipEmpty: true }) : "";
+    if (!cards) return "";
+    const ico = IC[iconKey] || IC.layers || "";
+    return `<section class="detail-view-section">
+      <h4 class="detail-view-section__title">${ico}<span>${escapeHtml(title)}</span></h4>
+      <div class="detail-view-grid">${cards}</div>
+    </section>`;
+  };
+
+  const isCriticalDelete = historyAuditIsCriticalDelete(entry);
+  const cardsHtml = [
+    isCriticalDelete ? historyAuditCriticalBannerHtml(entry, actionLabel) : "",
+    sectionHtml("Movimiento", actionIconKey, movementPairs),
+    sectionHtml("Qué se afectó", "layers", targetPairs),
+    impactPairs.length ? sectionHtml("Detalle e impacto", "list", impactPairs) : "",
+    sectionHtml("Quién y cuándo", "user", whoPairs)
+  ]
+    .filter(Boolean)
+    .join("");
+
+  return {
+    actionLabel,
+    actionTone,
+    actionIconKey,
+    sheetTone,
+    entityText,
+    motivo,
+    cardsHtml,
+    isCriticalDelete
+  };
+}
+
+function openHistoryAuditEventDetail(entryId) {
+  const id = String(entryId || "").trim();
+  if (!id) return;
+  const entry = (typeof buildHistoryAuditEntries === "function" ? buildHistoryAuditEntries() : []).find(
+    (row) => String(row?.id || "") === id
+  );
+  if (!entry) {
+    notify("No se encontró el evento de auditoría.", "error");
+    return;
+  }
+  const detail = historyBuildAuditDetailCardsHtml(entry);
   const hasLinked =
     String(entry.detailAction || "").trim() && String(entry.detailId || "").trim();
   const secondaryActionsHtml = hasLinked
     ? `<button type="button" class="btn btn-outline" id="hist-audit-linked-detail">${IC.eye || ""}<span>Ver registro vinculado</span></button>`
     : "";
+  const extraHtml = detail.motivo
+    ? `<section class="detail-view-notes detail-view-notes--motivo${
+        detail.isCriticalDelete ? " detail-view-notes--critical" : ""
+      }" aria-label="Motivo">
+        <h4 class="detail-view-notes__title">${IC.alertTriangle || IC.file || ""}<span>${
+          String(entry.action || "").toLowerCase() === "delete"
+            ? "Motivo de la eliminación"
+            : "Motivo / justificación"
+        }</span></h4>
+        <div class="detail-view-notes__body"><p class="detail-note">${escapeHtml(detail.motivo)}</p></div>
+      </section>`
+    : "";
 
   if (typeof openPortalDetailSheet === "function") {
     openPortalDetailSheet({
       title: "Detalle del evento",
-      sheetTitle: actionLabel,
-      subtitleHtml: `${escapeHtml(entityText || String(entry.moduleLabel || "Evento"))} · ${escapeHtml(fmtDate(entry.ts))}`,
-      statusHtml: `<span class="status ${escapeAttr(actionTone)}">${escapeHtml(actionLabel)}</span>`,
-      moduleIcon: actionIconKey,
-      moduleTone: sheetTone,
-      sections: [{ icon: actionIconKey, pairs }],
+      sheetTitle: detail.actionLabel,
+      subtitleHtml: `${escapeHtml(detail.entityText || String(entry.moduleLabel || "Evento"))} · ${escapeHtml(fmtDate(entry.ts))}`,
+      statusHtml: `<span class="status ${escapeAttr(detail.actionTone)}">${escapeHtml(detail.actionLabel)}</span>`,
+      moduleIcon: detail.actionIconKey,
+      moduleTone: detail.sheetTone,
+      cardsHtml: detail.cardsHtml,
+      extraHtml,
       secondaryActionsHtml,
       afterMount: (content) => {
         const linkedBtn = content?.querySelector?.("#hist-audit-linked-detail");
@@ -314,12 +523,7 @@ function openHistoryAuditEventDetail(entryId) {
     openInfoModal({
       title: "Detalle del evento",
       subtitle: `${entry.moduleLabel || ""} · ${fmtDate(entry.ts)}`,
-      bodyHtml: `<dl class="hist-trace-event-detail">${pairs
-        .map(
-          ([label, value]) =>
-            `<div><dt>${escapeHtml(label)}</dt><dd>${value}</dd></div>`
-        )
-        .join("")}</dl>`,
+      bodyHtml: `${extraHtml}${detail.cardsHtml}`,
       secondaryActionsHtml
     });
   }

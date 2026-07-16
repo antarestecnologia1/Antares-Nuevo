@@ -183,6 +183,11 @@ const HISTORY_AUDIT_ENTITY_KIND_TITLES = {
     update: "Actualización de liquidación",
     delete: "Eliminación de liquidación"
   },
+  route_rate: {
+    create: "Alta de tarifa de trayecto",
+    update: "Actualización de tarifa de trayecto",
+    delete: "Eliminación de tarifa de trayecto"
+  },
   absence: {
     create: "Registro de ausencia",
     update: "Actualización de ausencia",
@@ -313,6 +318,12 @@ function inferHistoryAuditEntityKind(moduleId = "", entry = {}) {
     if (hay.includes("liquidación") || hay.includes("liquidacion") || hay.includes("periodo")) return "payroll_run";
     if (hay.includes("ausencia") || hay.includes("incapacidad")) return "absence";
     return "employee";
+  }
+  if (moduleId === "trips" || moduleId === "transport_trips") {
+    if (hay.includes("tarifa") || hay.includes("trayecto") || hay.includes("→") || hay.includes("->")) {
+      return "route_rate";
+    }
+    return "trip";
   }
   if (moduleId === "vehicles") {
     if (hay.includes("combustible") || hay.includes("litros") || hay.includes("estación") || hay.includes("estacion")) {

@@ -1075,14 +1075,31 @@ function transportTripsHtml() {
             }
             if (removed && typeof removed === "object") {
               const parts = parseTripRateStorageKeyToRouteParts(key);
-              const routeLabel = `${String(parts.originCity || "?").trim()} → ${String(parts.destinationCity || "?").trim()}`;
+              const origin = String(parts.originCity || "?").trim();
+              const destination = String(parts.destinationCity || "?").trim();
+              const originDept = String(parts.originDepartment || "").trim();
+              const destDept = String(parts.destinationDepartment || "").trim();
+              const routeLabel = `${origin} → ${destination}`;
+              const amount = parseNum(removed.value);
+              const amountLabel = `$${amount.toLocaleString("es-CO")}`;
               appendModuleAuditLog({
                 action: "delete",
-                moduleId: "transport_trips",
+                moduleId: "trips",
                 moduleLabel: "Viajes",
                 entityId: String(removed.id || key),
+                entityKind: "route_rate",
                 entityLabel: routeLabel,
-                summary: `$${parseNum(removed.value).toLocaleString("es-CO")} · tarifa por trayecto eliminada`
+                summary: `Eliminación de tarifa de trayecto · ${routeLabel} · ${amountLabel}`,
+                changesText: [
+                  `Ruta: ${routeLabel}`,
+                  originDept || destDept
+                    ? `Departamentos: ${originDept || "—"} → ${destDept || "—"}`
+                    : "",
+                  `Valor: ${amountLabel} COP`,
+                  "Impacto: deja de sugerirse precio al asignar viajes en esta ruta"
+                ]
+                  .filter(Boolean)
+                  .join(" · ")
               });
             }
             notify(userMessage("routeRateDeleted"), "success");

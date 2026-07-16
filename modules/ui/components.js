@@ -523,7 +523,13 @@ export function composeDetailViewSheet(opts = {}) {
       </div>
       ${statusHtml ? `<div class="detail-view-sheet__status">${statusHtml}</div>` : ""}
     </header>
-    ${cardsHtml ? detailViewGridMarkup(cardsHtml) : ""}
+    ${
+      cardsHtml
+        ? /detail-view-section|detail-view-grid/.test(cardsHtml)
+          ? cardsHtml
+          : detailViewGridMarkup(cardsHtml)
+        : ""
+    }
     ${
       notesHtml
         ? `<section class="detail-view-notes" aria-label="Observaciones">

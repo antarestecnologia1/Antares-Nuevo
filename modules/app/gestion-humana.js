@@ -3153,7 +3153,7 @@ function bindPayrollPortalControls() {
           const ok = await removeFromPortalListAwaitServer(KEYS.payrollRuns, id);
           if (!ok) return;
           appendPayrollRunAuditLog("delete", run, {
-            summary: `Liquidación eliminada (${String(run?.month || "-")} · ${String(run?.employeeName || "Colaborador")})`,
+            summary: `Eliminación de liquidación · ${String(run?.employeeName || "Colaborador")} · periodo ${String(run?.month || "-")}`,
             motivo
           });
           if (portalCanRefreshFromApi()) {
