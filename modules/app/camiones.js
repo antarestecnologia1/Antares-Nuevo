@@ -678,6 +678,7 @@ function vehiclesHtml() {
           gpsProvider: normalizeLatinUpperForDb(data.gpsProvider),
           satelliteProviderUser: String(data.satelliteProviderUser || "").trim(),
           satelliteProviderPassword: String(data.satelliteProviderPassword || ""),
+          satelliteProviderPasswordSet: Boolean(String(data.satelliteProviderPassword || "").trim()),
           available: true
         });
         list.push(createdVehicle);
@@ -826,8 +827,11 @@ function vehiclesHtml() {
             {
               name: "satelliteProviderPassword",
               label: "Contraseña proveedor satélite",
-              type: "text",
-              value: target.satelliteProviderPassword || ""
+              type: "password",
+              value: "",
+              placeholder: target.satelliteProviderPasswordSet
+                ? "Dejar vacío para no cambiar la contraseña guardada"
+                : "Contraseña en el portal del GPS"
             }
           ],
           afterMount: (formEl) => bindVehicleDocExpiryAutoFill(formEl),
@@ -877,7 +881,10 @@ function vehiclesHtml() {
                     hasGps: String(form.hasGps || "false") === "true",
                     gpsProvider: String(form.gpsProvider || "").trim(),
                     satelliteProviderUser: String(form.satelliteProviderUser || "").trim(),
-                    satelliteProviderPassword: String(form.satelliteProviderPassword || "").trim()
+                    satelliteProviderPassword: String(form.satelliteProviderPassword || "").trim(),
+                    satelliteProviderPasswordSet:
+                      Boolean(String(form.satelliteProviderPassword || "").trim()) ||
+                      Boolean(target.satelliteProviderPasswordSet)
                   })
                 : v
             );

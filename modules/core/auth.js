@@ -630,6 +630,41 @@ import {
 const IC = typeof window !== "undefined" ? window.IC || {} : {};
 
 
+/**
+ * Evita mostrar en UI mensajes de API con detalles de infraestructura (BD, hosts, SQL).
+ * No altera credenciales válidas ni mensajes de negocio (correo ya registrado, etc.).
+ */
+function sanitizeAuthClientErrorMessage(raw, fallback) {
+  const msg = String(raw || "").trim();
+  const safeFallback = String(fallback || "No fue posible completar la operación. Intente más tarde.").trim();
+  if (!msg) return safeFallback;
+  if (
+    /DATABASE_URL|PostgreSQL|postgres(?:ql)?:\/\/|supabase\.co|pooler|SQLSTATE|XX000|Render|pg_|\bssl\/tls\b|Connection string|tenant or user/i.test(
+      msg
+    )
+  ) {
+    return safeFallback;
+  }
+  if (msg.length > 280) return safeFallback;
+  return msg;
+}
+
+/** Auth solo-local (localStorage) solo en desarrollo; en producción obliga API. */
+function isOfflineAuthAllowed() {
+  try {
+    if (window.AntaresApi?.getBase?.()) return false;
+    const h = String((window.location && window.location.hostname) || "");
+    return (
+      h === "localhost" ||
+      h === "127.0.0.1" ||
+      h === "[::1]" ||
+      h.endsWith(".localhost")
+    );
+  } catch (_e) {
+    return false;
+  }
+}
+
 async function __authHashPassword(raw) {
   const input = String(raw || "");
   if (!input) return "";
@@ -3094,7 +3129,10 @@ export function bindAuthForms() {
               return;
             }
             const apiMsg = Array.isArray(body?.message) ? body.message.join(", ") : body?.message;
-            window.notify(String(apiMsg || window.userMessage("authInvalidServer")), "error");
+            window.notify(
+              sanitizeAuthClientErrorMessage(apiMsg, window.userMessage("authInvalidServer")),
+              "error"
+            );
             state.authSecurity.failedAttempts += 1;
             if (state.authSecurity.failedAttempts >= 5) {
               state.authSecurity.lockUntil = Date.now() + 60_000;
@@ -3107,6 +3145,15 @@ export function bindAuthForms() {
           }
         }
 
+        if (!isOfflineAuthAllowed()) {
+          window.notify(
+            window.AntaresApi?.getBase?.()
+              ? window.userMessage("authNoConnection")
+              : "El acceso requiere conexión con el servidor. Configure la API e intente de nuevo.",
+            "error"
+          );
+          return;
+        }
         const users = read(KEYS.users, []);
         const user = users.find((u) => normalizeEmail(u.email) === normalizeEmail(data.email));
         const valid = user ? await __authVerifyPassword(passwordRaw, user.password) : false;
@@ -3419,14 +3466,22 @@ export function bindAuthForms() {
         } catch (err) {
           const rawMsg = String(err?.message || "");
           const msg = /failed to fetch/i.test(rawMsg)
-            ? "No fue posible conectar con la API. Verifica CORS_ORIGINS en Render y que la API este activa."
-            : rawMsg || window.userMessage("genericError");
+            ? "No fue posible conectar con el servidor. Intente más tarde."
+            : sanitizeAuthClientErrorMessage(rawMsg, window.userMessage("genericError"));
           window.notify(msg, "error");
           resetTurnstile(register);
           return;
         }
       }
 
+      if (!isOfflineAuthAllowed()) {
+        window.notify(
+          "El registro requiere conexión con el servidor. Configure la API e intente de nuevo.",
+          "error"
+        );
+        resetTurnstile(register);
+        return;
+      }
       const users = read(KEYS.users, []);
       if (users.some((u) => normalizeEmail(u.email) === normalizeEmail(data.email))) {
         window.notify(window.userMessage("registerEmailExists"), "error");

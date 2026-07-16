@@ -1240,6 +1240,14 @@ export function renderEditModalFieldRow(f, fieldIdx) {
   const maxAttr = f.max != null ? ` max="${escapeAttr(String(f.max))}"` : "";
   const stepAttr = f.step != null ? ` step="${escapeAttr(String(f.step))}"` : "";
   const langAttr = f.lang ? ` lang="${escapeAttr(String(f.lang))}"` : "";
+  const placeholderAttr = f.placeholder
+    ? ` placeholder="${escapeAttr(String(f.placeholder))}"`
+    : "";
+  const autocompleteAttr = f.autocomplete
+    ? ` autocomplete="${escapeAttr(String(f.autocomplete))}"`
+    : inputType === "password"
+      ? ` autocomplete="new-password"`
+      : "";
   const labelInner = f.labelHtml ? f.labelHtml : escapeHtml(f.label);
   const labelWrap = f.labelHtml
     ? `<span class="modal-field-label modal-field-label--html">${labelInner}</span>`
@@ -1256,7 +1264,7 @@ export function renderEditModalFieldRow(f, fieldIdx) {
     const raw = String(f.value ?? "").trim();
     inputValue = raw.length >= 5 ? raw.slice(0, 5) : raw;
   }
-  return `<label${editModalLabelClassAttr(f)}${hiddenAttr}>${labelWrap}<input type="${inputType}" name="${escapeAttr(f.name)}" value="${escapeAttr(inputValue)}"${minAttr}${maxAttr}${stepAttr}${langAttr} ${f.required ? "required" : ""}${editModalAntaresAttrString(f)} /></label>`;
+  return `<label${editModalLabelClassAttr(f)}${hiddenAttr}>${labelWrap}<input type="${inputType}" name="${escapeAttr(f.name)}" value="${escapeAttr(inputValue)}"${minAttr}${maxAttr}${stepAttr}${langAttr}${placeholderAttr}${autocompleteAttr} ${f.required ? "required" : ""}${editModalAntaresAttrString(f)} /></label>`;
 }
 
 export function buildOpenEditModalFieldsHtml(fields, fallbackSectionTitle = "Información") {

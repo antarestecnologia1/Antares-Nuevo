@@ -108,7 +108,7 @@
             <label>${fieldLabel(IC.satellite, "GPS satelital")}<select name="hasGps"><option value="true">Sí, GPS activo</option><option value="false">Sin GPS</option></select></label>
             <label>${fieldLabel(IC.briefcase, "Proveedor GPS")}<input name="gpsProvider" placeholder="Ej.: Detektor, Skyangel, Geolocator" /></label>
             <label>${fieldLabel(IC.user, "Usuario proveedor satélite")}<input type="text" name="satelliteProviderUser" placeholder="Usuario en el portal del GPS" autocomplete="off" /></label>
-            <label>${fieldLabel(IC.lock, "Contraseña proveedor satélite")}<input type="text" name="satelliteProviderPassword" placeholder="Contraseña en el portal del GPS" autocomplete="off" /></label>
+            <label>${fieldLabel(IC.lock, "Contraseña proveedor satélite")}<input type="password" name="satelliteProviderPassword" placeholder="Contraseña en el portal del GPS" autocomplete="new-password" /></label>
           </div>
         </fieldset>
       </div>

@@ -45,6 +45,7 @@ import {
 } from "../common/colombia-time";
 import { DATA_POLICY_VERSION, userRequiresDataPolicyAcceptance, userRequiresTermsAcceptance } from "../common/data-policy";
 import {
+  isPasswordFieldKey,
   normalizeCatalogTextFromUnknown,
   normalizeDbTextUpperFromUnknown,
   normalizeDbTextUpperOrNullFromUnknown,
@@ -54,6 +55,7 @@ import {
   sanitizeSyncKeyPayload,
   normalizePersonTypeForDb
 } from "../common/normalize-db-text";
+import { CLIENT_SAFE_ERROR_MSG, toSafeHttpException } from "../common/safe-http-errors";
 import {
   matchPayrollCatalogOption,
   normalizeContractTemplateKindForDb,
@@ -3531,23 +3533,11 @@ export class PortalService implements OnModuleInit {
     if (code === "22P02") {
       return new BadRequestException("Formato de datos inválido al procesar parámetros legales.");
     }
-    if (code === "42P01") {
-      return new BadRequestException(
-        "Falta la tabla parametros_sistema. Ejecute las migraciones de BD/postgres en el servidor PostgreSQL."
-      );
-    }
-    if (code === "42703") {
-      return new BadRequestException(
-        "El esquema de parametros_sistema está desactualizado. Ejecute 35_alter_parametros_sistema_vigencia.sql y reinicie la API."
-      );
-    }
-    if (detail) {
-      return new BadRequestException(
-        `No se pudieron ${action === "guardar" ? "guardar" : "eliminar"} los parámetros legales: ${detail.slice(0, 180)}`
-      );
+    if (code === "42P01" || code === "42703") {
+      return new BadRequestException(CLIENT_SAFE_ERROR_MSG);
     }
     return new BadRequestException(
-      `No se pudieron ${action === "guardar" ? "guardar" : "eliminar"} los parámetros legales. Revise la base de datos e intente nuevamente.`
+      `No se pudieron ${action === "guardar" ? "guardar" : "eliminar"} los parámetros legales. Intente nuevamente o contacte a soporte.`
     );
   }
 
@@ -3906,7 +3896,8 @@ export class PortalService implements OnModuleInit {
       if (key === "requests") {
         throw new BadRequestException(this.describeRequestSyncDbError(e));
       }
-      throw e;
+      this.logger.error(`syncKey(${String(key)}): ${sanitizeLogText((e as Error)?.message || e)}`);
+      throw toSafeHttpException(e, CLIENT_SAFE_ERROR_MSG);
     } finally {
       client.release();
     }
@@ -5960,7 +5951,11 @@ export class PortalService implements OnModuleInit {
       hasGps: v.tiene_gps,
       gpsProvider: v.proveedor_gps || "",
       satelliteProviderUser: v.usuario_proveedor_satelite || "",
-      satelliteProviderPassword: v.password_proveedor_satelite || "",
+      /** Nunca enviar la contraseña real al cliente; solo indicador de existencia. */
+      satelliteProviderPassword: "",
+      satelliteProviderPasswordSet: Boolean(
+        v.password_proveedor_satelite && String(v.password_proveedor_satelite).trim()
+      ),
       createdBy: String((v as { creado_por?: unknown }).creado_por ?? "").trim() || null,
       updatedBy: String((v as { actualizado_por?: unknown }).actualizado_por ?? "").trim() || null,
       createdAt: v.fecha_creacion ? new Date(v.fecha_creacion).toISOString() : new Date().toISOString(),
@@ -7671,13 +7666,25 @@ export class PortalService implements OnModuleInit {
     }
   }
 
+  private redactSecretsFromClientPayload(payload: Record<string, unknown>): Record<string, unknown> {
+    const out: Record<string, unknown> = { ...payload };
+    for (const key of Object.keys(out)) {
+      if (isPasswordFieldKey(key)) {
+        delete out[key];
+      }
+    }
+    return out;
+  }
+
   private async approvalPayloadForPortal(
     typeRaw: unknown,
     payload: unknown,
     fullAccess: boolean
   ): Promise<Record<string, unknown>> {
     const normalized = await this.normalizeApprovalPayloadForStorage(typeRaw, payload);
-    return fullAccess ? normalized : this.summarizeApprovalPayloadForPortal(typeRaw, normalized);
+    if (!fullAccess) return this.summarizeApprovalPayloadForPortal(typeRaw, normalized);
+    /** Admin ve datos de negocio; hashes/contraseñas quedan solo en BD para ejecutar la aprobación. */
+    return this.redactSecretsFromClientPayload(normalized);
   }
 
   private async loadApprovals(admin: boolean, userId: string, empresaId: string | null) {
@@ -8687,10 +8694,10 @@ export class PortalService implements OnModuleInit {
     }
     if (code === "22P02" && /invalid input syntax for type uuid/i.test(msg)) {
       if (/id_usuario|usuario_solicitante/i.test(msg)) {
-        return "El usuario solicitante no está vinculado a un UUID válido en PostgreSQL. Cierre sesión, vuelva a entrar o pida al administrador que sincronice su cuenta.";
+        return "Su usuario no está sincronizado con el servidor. Cierre sesión, vuelva a entrar o contacte al administrador.";
       }
       if (/id_empresa|empresa_cliente/i.test(msg)) {
-        return "La empresa seleccionada no tiene un UUID válido en PostgreSQL. Regístrela o elíjala desde el listado del portal (Administración · Usuarios).";
+        return "La empresa seleccionada no es válida. Recargue el portal o elíjala de nuevo en el listado.";
       }
       if (/id_vehiculo|vehiculo/i.test(msg)) {
         return "El viaje asociado tiene un vehículo con identificador inválido. Quite el viaje o asigne recursos desde el portal.";
@@ -8699,10 +8706,9 @@ export class PortalService implements OnModuleInit {
         return "El viaje asociado tiene un conductor con identificador inválido. Quite el viaje o asigne recursos desde el portal.";
       }
       if (/id_solicitud/i.test(msg)) {
-        return "La solicitud tiene un identificador interno inválido. Recargue el portal (Ctrl+F5) o ejecute clearPortalRequestsLocalAndResyncFromServer() en consola.";
+        return "La solicitud tiene un identificador interno inválido. Recargue el portal (Ctrl+F5) e intente de nuevo.";
       }
-      const detail = sanitizeLogText(msg).slice(0, 220);
-      return `Algún identificador no es un UUID válido (${detail}). Cierre sesión, recargue el portal e intente de nuevo.`;
+      return "Algún identificador no es válido. Cierre sesión, recargue el portal e intente de nuevo.";
     }
     if (code === "22P02") {
       return "Algún dato de la solicitud no tiene el formato esperado en el servidor. Revise fechas, empresa y contacto.";
@@ -8710,12 +8716,10 @@ export class PortalService implements OnModuleInit {
     if (
       code === "42703" ||
       code === "08P01" ||
-      /column .* does not exist|bind message supplies|does not match/i.test(msg)
+      code === "42P01" ||
+      /column .* does not exist|bind message supplies|does not match|relation .* does not exist/i.test(msg)
     ) {
-      return "El servidor no tiene el esquema de solicitudes actualizado. Reinicie la API o ejecute npm run db:init e intente de nuevo.";
-    }
-    if (code === "42P01" || /relation "contadores_secuencia" does not exist/i.test(msg)) {
-      return "El servidor no tiene la tabla de contadores de solicitudes. Reinicie la API o ejecute npm run db:init.";
+      return CLIENT_SAFE_ERROR_MSG;
     }
     if (code === "22007" || /invalid input syntax for type/i.test(msg)) {
       return "Alguna fecha u hora de la solicitud no es válida. Revise recogida y entrega.";
@@ -9086,7 +9090,10 @@ export class PortalService implements OnModuleInit {
           tiene_gps = EXCLUDED.tiene_gps,
           proveedor_gps = EXCLUDED.proveedor_gps,
           usuario_proveedor_satelite = EXCLUDED.usuario_proveedor_satelite,
-          password_proveedor_satelite = EXCLUDED.password_proveedor_satelite,
+          password_proveedor_satelite = COALESCE(
+            NULLIF(btrim(EXCLUDED.password_proveedor_satelite), ''),
+            vehiculos.password_proveedor_satelite
+          ),
           disponible = EXCLUDED.disponible,
           ocupado_por_sistema = EXCLUDED.ocupado_por_sistema,
           creado_por = COALESCE(vehiculos.creado_por, EXCLUDED.creado_por),

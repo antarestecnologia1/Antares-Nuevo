@@ -21,10 +21,7 @@ import {
   normalizePersonTypeForDb
 } from "../common/normalize-db-text";
 import { normalizeSupabaseProjectUrl } from "../common/normalize-supabase-url";
-import {
-  normalizeDatabaseUrl,
-  SUPABASE_POOLER_TENANT_ERROR_HELP
-} from "../database/normalize-database-url";
+import { normalizeDatabaseUrl } from "../database/normalize-database-url";
 import { PG_POOL } from "../database/database.module";
 import { MailService } from "../mail/mail.service";
 import { LoginDto } from "./dto/login.dto";
@@ -80,6 +77,10 @@ function sanitizeLogText(raw: unknown, maxLength = 180): string {
   return text;
 }
 
+/** Mensaje genérico al cliente: no revelar infraestructura, SQL ni configuración. */
+const CLIENT_DB_UNAVAILABLE_MSG =
+  "El servicio no está disponible temporalmente. Intente más tarde o contacte a soporte.";
+
 /** Errores de red/TLS/pooler que `pg` no codifica como ECONNREFUSED / 28P01. */
 function mapSupabaseOrNetworkDbError(err: unknown): ServiceUnavailableException | null {
   const e = err as { code?: string; message?: string; detail?: string } | null | undefined;
@@ -100,9 +101,7 @@ function mapSupabaseOrNetworkDbError(err: unknown): ServiceUnavailableException 
     lower.includes("certificate verify failed") ||
     lower.includes("wrong version number")
   ) {
-    return new ServiceUnavailableException(
-      "Error SSL/TLS al conectar con Postgres. Use la URI exacta del panel Supabase (Settings → Database → Connection string). Si la contraseña tiene @ # % &, codifíquela en la URL. Pruebe conexión directa (puerto 5432, host db.xxx.supabase.co) si el pooler (6543) falla."
-    );
+    return new ServiceUnavailableException(CLIENT_DB_UNAVAILABLE_MSG);
   }
 
   if (
@@ -110,13 +109,11 @@ function mapSupabaseOrNetworkDbError(err: unknown): ServiceUnavailableException 
     lower.includes("could not find tenant") ||
     (lower.includes("user") && lower.includes("not found") && lower.includes("pooler"))
   ) {
-    return new ServiceUnavailableException(SUPABASE_POOLER_TENANT_ERROR_HELP);
+    return new ServiceUnavailableException(CLIENT_DB_UNAVAILABLE_MSG);
   }
 
   if (lower.includes("max clients") || lower.includes("too many connections") || code === "53300") {
-    return new ServiceUnavailableException(
-      "Límite de conexiones en Postgres. Use Session pooler o conexión directa en Supabase, o reduzca el tamaño del pool en la API."
-    );
+    return new ServiceUnavailableException(CLIENT_DB_UNAVAILABLE_MSG);
   }
 
   if (
@@ -125,15 +122,11 @@ function mapSupabaseOrNetworkDbError(err: unknown): ServiceUnavailableException 
     lower.includes("connection terminated unexpectedly") ||
     lower.includes("server closed the connection unexpectedly")
   ) {
-    return new ServiceUnavailableException(
-      "La conexión a Postgres se cerró antes de tiempo. Revise DATABASE_URL, que Supabase permita conexiones externas y pruebe Direct connection si el pooler da timeouts."
-    );
+    return new ServiceUnavailableException(CLIENT_DB_UNAVAILABLE_MSG);
   }
 
   if (/password authentication failed/i.test(lower) && code !== "28P01") {
-    return new ServiceUnavailableException(
-      "PostgreSQL rechazó la contraseña. Confirme la contraseña en Supabase (Database password). Si la URL está mal formada (p. ej. @ en la contraseña sin codificar), corrija o codifique la contraseña."
-    );
+    return new ServiceUnavailableException(CLIENT_DB_UNAVAILABLE_MSG);
   }
 
   if (
@@ -141,9 +134,7 @@ function mapSupabaseOrNetworkDbError(err: unknown): ServiceUnavailableException 
       lower
     )
   ) {
-    return new ServiceUnavailableException(
-      "No se pudo establecer conexión TCP con Postgres. Revise DATABASE_URL en Render (host/puerto), firewall de Supabase (Allow all), pruebe Direct connection (5432) o Session pooler en Supabase."
-    );
+    return new ServiceUnavailableException(CLIENT_DB_UNAVAILABLE_MSG);
   }
 
   return null;
@@ -182,9 +173,8 @@ export class AuthService {
   private assertDatabaseConfigured(): void {
     const dbUrl = normalizeDatabaseUrl(this.config.get<string>("DATABASE_URL") ?? "");
     if (!dbUrl) {
-      throw new ServiceUnavailableException(
-        "DATABASE_URL no configurada en el servidor (cadena Postgres desde Supabase → Database → URI, en Render o apps/api/.env)."
-      );
+      this.logger.error("DATABASE_URL no configurada en el servidor");
+      throw new ServiceUnavailableException(CLIENT_DB_UNAVAILABLE_MSG);
     }
   }
 
@@ -337,7 +327,7 @@ export class AuthService {
           if (this.isSupabaseAuthEmailConflict(syncErr)) {
             throw syncErr instanceof HttpException
               ? syncErr
-              : new BadRequestException(String((syncErr as Error)?.message || syncErr));
+              : new BadRequestException("El correo ya está registrado.");
           }
           const msg = this.extractExceptionMessage(syncErr);
           this.logger.warn(
@@ -554,85 +544,41 @@ export class AuthService {
       if (code === "23505" || /duplicate key/i.test(pgMsg)) {
         throw new BadRequestException("El correo o documento ya está registrado.");
       }
-      if (code === "42P01") {
-        throw new ServiceUnavailableException("La base de datos no está inicializada para registro de usuarios.");
-      }
-      if (code === "42703") {
-        throw new ServiceUnavailableException(
-          "La base de datos está desactualizada. Ejecuta los scripts de BD pendientes y reintenta."
-        );
+      if (code === "42P01" || code === "42703") {
+        throw new ServiceUnavailableException(CLIENT_DB_UNAVAILABLE_MSG);
       }
 
-      /** Errores de red / Node al conectar a Postgres (Render ↔ Supabase/Postgres). */
+      /** Errores de red / Node al conectar a Postgres (detalle solo en logs del servidor). */
       if (
         ["ECONNREFUSED", "ETIMEDOUT", "ENOTFOUND", "EAI_AGAIN", "ECONNRESET", "ENETUNREACH", "EHOSTUNREACH"].includes(code)
       ) {
-        throw new ServiceUnavailableException(
-          code === "ENETUNREACH" || code === "EHOSTUNREACH"
-            ? "No se alcanza Postgres por red (IPv6/IPv4). La API ya fuerza IPv4 en el arranque; si persiste, en Render añada NODE_OPTIONS=--dns-result-order=ipv4first o use en Supabase la URI del Session pooler. Revise DATABASE_URL y firewall de Supabase."
-            : "No hay conexión a la base de datos. Verifique DATABASE_URL en Render (sin espacios), que la BD acepte conexiones externas y SSL; en Supabase use la cadena del panel (pool session/direct si el pool transaccional falla)."
-        );
+        throw new ServiceUnavailableException(CLIENT_DB_UNAVAILABLE_MSG);
       }
 
-      if (code === "28P01") {
-        throw new ServiceUnavailableException(
-          "PostgreSQL rechazó usuario o contraseña (DATABASE_URL incorrecta o contraseña con caracteres que rompen la URL)."
-        );
-      }
-      if (code === "3D000") {
-        throw new ServiceUnavailableException("La base de datos indicada en DATABASE_URL no existe.");
-      }
-      if (code === "08006" || code === "08001" || code === "57P03") {
-        throw new ServiceUnavailableException("PostgreSQL no aceptó la conexión (servicio caído, reinicio o límite de conexiones).");
-      }
-      if (code === "53300") {
-        throw new ServiceUnavailableException("Demasiadas conexiones a PostgreSQL; reduzca el pool o actualice el plan.");
+      if (
+        code === "28P01" ||
+        code === "3D000" ||
+        code === "08006" ||
+        code === "08001" ||
+        code === "57P03" ||
+        code === "53300"
+      ) {
+        throw new ServiceUnavailableException(CLIENT_DB_UNAVAILABLE_MSG);
       }
 
       const sqlStateMatch = pgMsg.match(/\b([0-9A-Z]{5})\b/);
       const sqlState =
         code && /^[0-9A-Z]{5}$/.test(code) ? code : sqlStateMatch?.[1] && /^[0-9A-Z]{5}$/.test(sqlStateMatch[1]) ? sqlStateMatch[1] : "";
-      const alreadyHandled = new Set([
-        "23505",
-        "28P01",
-        "3D000",
-        "42P01",
-        "42703",
-        "08006",
-        "08001",
-        "57P03",
-        "53300"
-      ]);
-      if (sqlState && !alreadyHandled.has(sqlState)) {
+      if (sqlState) {
         if (sqlState === "XX000") {
           const again = mapSupabaseOrNetworkDbError(err);
           if (again) throw again;
-          throw new ServiceUnavailableException(
-            `PostgreSQL XX000 (error interno). ${detail ? String(detail).slice(0, 280) : pgMsg.slice(0, 200)} Si usa el pooler de Supabase, confirme la URI del panel; si el texto habla de tenant o usuario, vea la variable DATABASE_URL (pooler: usuario postgres.PROJECT_REF; directo: db.xxx.supabase.co:5432, usuario postgres).`
-          );
         }
-        if (["23502", "23514", "23P01"].includes(sqlState)) {
-          throw new ServiceUnavailableException(
-            `Datos incumplen restricciones en la base (${sqlState}). Revise longitudes de campos y scripts BD/postgres. ${detail ? String(detail).slice(0, 220) : ""}`
-          );
-        }
-        if (sqlState === "22P02" || sqlState === "22001") {
-          throw new ServiceUnavailableException(
-            `Formato inválido para PostgreSQL (${sqlState}). Revise fechas y textos. ${detail ? String(detail).slice(0, 180) : ""}`
-          );
-        }
-        if (sqlState === "42501") {
-          throw new ServiceUnavailableException(
-            "Permiso denegado en PostgreSQL. Use la URI con usuario postgres y contraseña de Database en Supabase."
-          );
-        }
-        throw new ServiceUnavailableException(
-          `Error PostgreSQL ${sqlState}. Ejecute los scripts BD/postgres sobre la base y revise logs de Render. ${detail ? String(detail).slice(0, 140) : pgMsg.slice(0, 100)}`
-        );
+        throw new ServiceUnavailableException(CLIENT_DB_UNAVAILABLE_MSG);
       }
 
       throw new ServiceUnavailableException(
-        "No fue posible procesar el registro. Revise DATABASE_URL (misma URI que en Supabase → Database, sin comillas) y los logs de Render. Pooler 6543: usuario postgres.<ref_proyecto>; directo 5432: usuario postgres. Contraseña con @ u otros símbolos: codifíquela en la URL."
+        "No fue posible completar el registro. Intente más tarde o contacte a soporte."
       );
     }
   }
@@ -822,8 +768,9 @@ export class AuthService {
     await this.turnstile.assertValid(dto.turnstileToken);
     this.assertDatabaseConfigured();
     if (!this.supabaseAdmin) {
+      this.logger.error("Recuperación por correo: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY no configuradas");
       throw new ServiceUnavailableException(
-        "Recuperación por correo no está disponible: configure SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY en la API."
+        "La recuperación por correo no está disponible temporalmente. Contacte a soporte."
       );
     }
     const email = dto.email.trim().toLowerCase();
@@ -907,7 +854,7 @@ export class AuthService {
         `provisionSupabaseAuthUserForApprovedPortal(${redactEmailForLog(email)}): ${sanitizeLogText(error.message)}`
       );
       throw new BadRequestException(
-        `No se pudo sincronizar el acceso con Supabase Auth: ${error.message}. Revise en el panel Authentication si el correo ya existe con otro UUID.`
+        "No se pudo sincronizar el acceso de autenticación. Contacte al administrador."
       );
     }
   }

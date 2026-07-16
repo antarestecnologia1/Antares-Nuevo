@@ -5,6 +5,7 @@ import { ConfigService } from "@nestjs/config";
 import { NestFactory } from "@nestjs/core";
 import cookieParser from "cookie-parser";
 import type { NextFunction, Request, Response } from "express";
+import { AllExceptionsFilter } from "./common/filters/all-exceptions.filter";
 import { antaresValidationExceptionFactory } from "./common/validation/validation-exception.factory";
 import { csrfProtectionMiddleware } from "./auth/csrf.middleware";
 import { AppModule } from "./app.module";
@@ -80,8 +81,16 @@ async function bootstrap() {
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("X-Frame-Options", "DENY");
     res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+    res.setHeader("X-XSS-Protection", "0");
+    res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()");
+    res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    if (process.env.NODE_ENV === "production" || process.env.RENDER === "true") {
+      res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+    }
     next();
   });
+  app.useGlobalFilters(new AllExceptionsFilter());
   /* CORS: no fijar `allowedHeaders`; cors replica Access-Control-Request-Headers en el preflight.
    * Una lista corta puede bloquear POST multipart y el navegador solo muestra «Failed to fetch». */
   app.enableCors({

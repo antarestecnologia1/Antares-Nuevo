@@ -207,20 +207,30 @@
     const raw = String(err?.message || err || "");
     if (/failed to fetch|networkerror|load failed|network request failed/i.test(raw)) {
       throw new Error(
-        "No fue posible conectar con el servidor. Compruebe su conexion a internet, que la API este activa, la URL en antares_api_base (raiz del API, sin repetir /api) y que CORS permita este sitio."
+        "No fue posible conectar con el servidor. Compruebe su conexión a internet e intente de nuevo."
       );
     }
     throw err instanceof Error ? err : new Error(raw || "Error de red");
   }
 
-  /** Evita mostrar "Internal Server Error" crudo en formularios del portal. */
+  /** Evita mostrar errores de infraestructura o "Internal Server Error" crudo al usuario. */
   function sanitizeApiErrorMessage(msg, status) {
     const s = String(msg || "").trim();
+    const fallback500 =
+      "El servidor no pudo procesar la solicitud. Revise los datos del formulario, la sesión y la conexión e intente de nuevo.";
     if (!s || /^internal server error$/i.test(s)) {
-      if (Number(status) >= 500) {
-        return "El servidor no pudo procesar la solicitud. Revise los datos del formulario, la sesión y la conexión e intente de nuevo.";
-      }
+      if (Number(status) >= 500) return fallback500;
       return s || "Error en la solicitud al servidor.";
+    }
+    if (
+      /DATABASE_URL|PostgreSQL|postgres(?:ql)?:\/\/|supabase\.co|pooler|SQLSTATE|XX000|Render|pg_|\bssl\/tls\b|Connection string|tenant or user|npm run db:init|relation "|column "|ECONNREFUSED|ETIMEDOUT|CORS_ORIGINS|antares_api_base/i.test(
+        s
+      )
+    ) {
+      return Number(status) >= 500 ? fallback500 : "No fue posible completar la operación. Intente más tarde.";
+    }
+    if (s.length > 280) {
+      return Number(status) >= 500 ? fallback500 : "No fue posible completar la operación. Intente más tarde.";
     }
     return s;
   }

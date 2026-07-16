@@ -799,7 +799,12 @@ export async function applyPortalBootstrapFromApi(opts = {}) {
   const tryApiRefreshBridge = orch.tryApiRefreshBridge;
   const refreshPositionsCatalogFromApi = orch.refreshPositionsCatalogFromApi;
   const hydrateOwnProfileFromApi = orch.hydrateOwnProfileFromApi;
-  const devWarn = typeof orch.devWarn === "function" ? orch.devWarn : (...args) => console.warn(...args);
+  const devWarn =
+    typeof orch.devWarn === "function"
+      ? orch.devWarn
+      : typeof window.devWarn === "function"
+        ? window.devWarn
+        : () => {};
   const setHydrating = __callbacks.setPortalDataHydrating;
 
   const tracked = (async () => {

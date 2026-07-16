@@ -14,7 +14,7 @@ import {
 } from "../core/config.js";
 import { read, write } from "../core/data-io.js";
 import { state } from "../core/store.js";
-import { nowIso } from "../core/utils.js";
+import { nowIso, devWarn } from "../core/utils.js";
 import { currentUser, getSession, isAdminActor, hasPermission } from "../core/auth.js";
 import {
   applyPortalBootstrapFromApi,
@@ -617,12 +617,7 @@ export async function refreshContractRenewalNotificationsFromServer() {
     return true;
   } catch (err) {
     try {
-      if (typeof console !== "undefined" && console.warn) {
-        console.warn(
-          "Avisos de renovación contractual (segundo plano):",
-          err?.message || err
-        );
-      }
+      devWarn("Avisos de renovación contractual (segundo plano):", err?.message || err);
     } catch (_e) {
       /* noop */
     }

@@ -19,7 +19,8 @@ import {
   normalizeHrWorkspace,
   normalizeDocumentsDataSection,
   normalizeDocumentsOperateSection,
-  resolveDocumentsWorkspace
+  resolveDocumentsWorkspace,
+  devWarn
 } from "../core/utils.js";
 import {
   renderHrWorkspaceTabs,
@@ -115,7 +116,7 @@ async function ensureEmployeeFolderRecord(employeeId, folderName) {
      * puede seguir existiendo en servidor (unique id_empleado+nombre) o el sync puede
      * fallar por permisos asimétricos. El expediente del archivo sí debe registrarse.
      */
-    console.warn("[documents] ensureEmployeeFolderRecord", err);
+    devWarn("[documents] ensureEmployeeFolderRecord", err?.message || err);
     try {
       const cleaned = read(KEYS.employeeDocumentFolders, []).filter((row) => String(row?.id || "") !== String(record.id));
       write(KEYS.employeeDocumentFolders, cleaned, { skipSyncSchedule: true });

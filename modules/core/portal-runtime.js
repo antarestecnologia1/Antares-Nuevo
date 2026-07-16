@@ -5504,16 +5504,20 @@ async function tryApiLoginBridge(user, password) {
 
 async function ensureUsersPasswordHashing() {
   const users = read(KEYS.users, []);
+  /** Con API activa: nunca persistir hashes/contraseñas en localStorage. */
   if (window.AntaresApi?.getBase?.()) {
-    let anyPlain = false;
-    for (const user of users) {
-      const p = String(user.password || "");
-      if (p && !p.startsWith("sha256:")) {
-        anyPlain = true;
-        break;
-      }
-    }
-    if (!anyPlain) return;
+    let scrubbed = false;
+    const cleaned = users.map((user) => {
+      if (!user || typeof user !== "object") return user;
+      if (!user.password && !user.passwordHash) return user;
+      scrubbed = true;
+      const next = { ...user };
+      delete next.password;
+      delete next.passwordHash;
+      return next;
+    });
+    if (scrubbed) write(KEYS.users, cleaned);
+    return;
   }
   let changed = false;
   const secured = [];
@@ -6083,7 +6087,10 @@ function openVehicleTechnicalSheetModal(vehicle) {
         ["GPS satelital", hasGps ? "Sí" : "No"],
         ["Proveedor GPS", escapeHtml(String(v.gpsProvider || "—"))],
         ["Usuario proveedor satélite", escapeHtml(String(v.satelliteProviderUser || "—"))],
-        ["Contraseña proveedor satélite", v.satelliteProviderPassword ? "••••••••" : "—"]
+        [
+          "Contraseña proveedor satélite",
+          v.satelliteProviderPasswordSet || v.satelliteProviderPassword ? "••••••••" : "—"
+        ]
       ])
     }
   ];
@@ -6152,7 +6159,10 @@ function openVehicleTechnicalSheetModal(vehicle) {
           ["GPS satelital", hasGps ? "Sí" : "No"],
           ["Proveedor GPS", escapeHtml(String(v.gpsProvider || "—"))],
           ["Usuario proveedor satélite", escapeHtml(String(v.satelliteProviderUser || "—"))],
-          ["Contraseña proveedor satélite", v.satelliteProviderPassword ? "••••••••" : "—"]
+          [
+          "Contraseña proveedor satélite",
+          v.satelliteProviderPasswordSet || v.satelliteProviderPassword ? "••••••••" : "—"
+        ]
         ]
       }
     ],
