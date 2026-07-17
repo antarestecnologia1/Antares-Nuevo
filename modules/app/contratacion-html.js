@@ -287,8 +287,10 @@ function hiringHtml() {
             <input type="file" name="imageFile" id="vacancy-image-file" accept="image/jpeg,image/png,image/webp,image/gif" class="vacancy-image-file-input" aria-label="Imagen del cargo para la vacante" />
             <span class="vacancy-image-dropzone__empty" data-vacancy-image-empty>
               <span class="vacancy-image-dropzone__icon" aria-hidden="true">${IC.upload}</span>
-              <span class="vacancy-image-dropzone__title">Elegir imagen del cargo</span>
-              <span class="vacancy-image-dropzone__meta">Opcional · JPG, PNG, WebP o GIF · Se muestra en Carreras</span>
+              <span class="vacancy-image-dropzone__copy">
+                <span class="vacancy-image-dropzone__title">Elegir imagen del cargo</span>
+                <span class="vacancy-image-dropzone__meta">Opcional · JPG, PNG, WebP o GIF · Se muestra en Carreras</span>
+              </span>
             </span>
             <img id="vacancy-image-preview" class="vacancy-image-preview" data-vacancy-image-preview alt="" width="640" height="360" decoding="async" hidden />
             <span class="vacancy-image-dropzone__overlay" aria-hidden="true"><span>Cambiar imagen</span></span>

@@ -1295,8 +1295,10 @@ function bindHiringPortalControls() {
                   <input type="file" id="vacancy-edit-image-file" name="imageFile" accept="image/jpeg,image/png,image/webp,image/gif" class="vacancy-image-file-input" aria-label="Cambiar imagen del cargo" />
                   <span class="vacancy-image-dropzone__empty" data-vacancy-edit-image-empty${hasImage ? " hidden" : ""}>
                     <span class="vacancy-image-dropzone__icon" aria-hidden="true">${IC.upload}</span>
-                    <span class="vacancy-image-dropzone__title">Elegir imagen del cargo</span>
-                    <span class="vacancy-image-dropzone__meta">Opcional · Deje vacío para conservar la actual</span>
+                    <span class="vacancy-image-dropzone__copy">
+                      <span class="vacancy-image-dropzone__title">Elegir imagen del cargo</span>
+                      <span class="vacancy-image-dropzone__meta">Opcional · Deje vacío para conservar la actual</span>
+                    </span>
                   </span>
                   <img class="vacancy-image-preview" data-vacancy-edit-image-preview src="${hasImage ? escapeAttr(existing) : ""}" alt="" width="640" height="360" decoding="async"${hasImage ? "" : " hidden"} />
                   <span class="vacancy-image-dropzone__overlay" aria-hidden="true"><span>Cambiar imagen</span></span>
