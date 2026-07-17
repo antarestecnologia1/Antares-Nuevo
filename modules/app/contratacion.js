@@ -455,17 +455,23 @@ function bindHiringPortalControls() {
     wireFormSubmitGuard(
       vacancyForm,
       async () => {
+        /* Leer el formulario ANTES de deshabilitar campos: FormData omite inputs disabled. */
+        const data = readFormEntriesNormalized(vacancyForm);
+        const positionIdRaw =
+          String(data.positionId || "").trim() ||
+          String(vacancyForm.querySelector("select[name='positionId']")?.value || "").trim();
+        const deadline = vacancyFormDateYmd(vacancyForm, "deadline", data.deadline);
+        const pFrom = vacancyFormDateYmd(vacancyForm, "publishedFrom", data.publishedFrom);
+        const publishedFromRaw = String(data.publishedFrom || "").trim();
+        const imageFile = vacancyForm.querySelector("input[name='imageFile']")?.files?.[0] || null;
+
         setVacancyFormPublishingState(vacancyForm, true, "Publicando vacante…");
         try {
-          const data = readFormEntriesNormalized(vacancyForm);
-          const deadline = vacancyFormDateYmd(vacancyForm, "deadline", data.deadline);
           if (!vacancyDeadlineIsTodayOrFuture(deadline)) {
             failPortalField(vacancyForm, "deadline", userMessage("vacancyDeadlineFuture"));
             notify(userMessage("vacancyDeadlineFuture"), "error");
             return;
           }
-          const pFrom = vacancyFormDateYmd(vacancyForm, "publishedFrom", data.publishedFrom);
-          const publishedFromRaw = String(data.publishedFrom || "").trim();
           if (publishedFromRaw && !pFrom) {
             failPortalField(vacancyForm, "publishedFrom", "Indique una fecha válida en “Visible en web desde”, o déjela vacía.");
             notify("Indique una fecha válida en “Visible en web desde”, o déjela vacía.", "error");
@@ -476,7 +482,7 @@ function bindHiringPortalControls() {
             notify("“Visible desde” no puede ser posterior a la fecha límite de postulaciones.", "error");
             return;
           }
-          const position = getPositionById(String(data.positionId || ""));
+          const position = getPositionById(positionIdRaw);
           if (!position || position.active === false) {
             failPortalField(vacancyForm, "positionId", userMessage("vacancySelectPosition"));
             notify(userMessage("vacancySelectPosition"), "error");
@@ -488,7 +494,6 @@ function bindHiringPortalControls() {
             notify(String(salaryValidation.message || "Revise el salario ofrecido."), "error");
             return;
           }
-          const imageFile = vacancyForm.querySelector("input[name='imageFile']")?.files?.[0] || null;
           const dropzone = vacancyForm.querySelector("[data-vacancy-image-dropzone]");
           dropzone?.classList.remove("is-error");
           let imageUrl = "";
@@ -519,7 +524,7 @@ function bindHiringPortalControls() {
           const all = read(KEYS.vacancies, []);
           const createdVacancy = stampCreatedRecord({
             id: newUuidV4(),
-            positionId: data.positionId,
+            positionId: position.id,
             title: normalizeLatinUpperForDb(data.title || `Vacante ${position.name}`),
             department: normalizeLatinForDb(data.department || ""),
             city: normalizeLatinForDb(data.city || ""),
