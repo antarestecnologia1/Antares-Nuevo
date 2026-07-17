@@ -14959,18 +14959,24 @@ body[data-theme="dark"] .p-form textarea {
 
 .careers-card-media {
   margin: -1.35rem -1.4rem 0.15rem;
-  aspect-ratio: 16 / 9;
+  min-height: 140px;
+  max-height: 220px;
   background: var(--surface-soft, #f1f5f9);
   overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .careers-card-media img {
   display: block;
-  width: 100%;
-  height: 100%;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: 220px;
   object-fit: contain;
   object-position: center;
-  transform: none;
+  transform: none !important;
 }
 
 .careers-card h3 {
@@ -15033,11 +15039,15 @@ body[data-theme="dark"] .p-form textarea {
 }
 
 .vacancy-image-dropzone.has-image {
-  padding: 0;
+  display: inline-flex;
+  width: auto;
+  max-width: min(100%, 360px);
   min-height: 0;
-  max-width: 280px;
-  aspect-ratio: 16 / 9;
+  height: auto;
+  aspect-ratio: auto;
+  padding: 0.35rem;
   justify-content: center;
+  align-items: center;
 }
 
 .vacancy-image-dropzone:hover,
@@ -15048,9 +15058,20 @@ body[data-theme="dark"] .p-form textarea {
     linear-gradient(180deg, color-mix(in srgb, var(--primary) 9%, #fff), #fff);
 }
 
-.vacancy-image-dropzone.is-error {
-  border-color: color-mix(in srgb, #dc2626 55%, var(--line));
-  background: color-mix(in srgb, #dc2626 6%, #fff);
+.vacancy-image-dropzone.is-disabled {
+  pointer-events: none;
+  opacity: 0.65;
+  cursor: wait;
+}
+
+#form-vacancy.is-vacancy-publishing .module-panel-actions__group--primary .btn-primary {
+  cursor: wait;
+}
+
+.vacancy-publish-status {
+  margin: 0.25rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.35;
 }
 
 .vacancy-image-dropzone__empty {
@@ -15112,12 +15133,14 @@ body[data-theme="dark"] .p-form textarea {
 
 .vacancy-image-preview {
   display: none;
-  width: 100%;
-  height: 100%;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: 220px;
   object-fit: contain;
   object-position: center;
-  transform: none;
-  background: #e8eef5;
+  transform: none !important;
+  background: transparent;
 }
 
 .vacancy-image-dropzone.has-image .vacancy-image-preview:not([hidden]) {

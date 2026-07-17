@@ -246,6 +246,106 @@ export class UploadsController {
   }
 
   /**
+   * Presign PUT → Cloudflare R2 para imagen de vacante (portal Carreras).
+   * Prefijo: `vacantes/<userId>/...`
+   */
+  @Post("vacancy-image/presign")
+  async presignVacancyImage(
+    @Req() req: { user: JwtUser },
+    @Body() dto: PresignAvatarDto
+  ) {
+    if (!this.r2.hasUploadsClient()) {
+      throw new BadRequestException(
+        "R2 no está configurado. Define CF_R2_ACCOUNT_ID, CF_R2_ACCESS_KEY_ID, CF_R2_SECRET_ACCESS_KEY y CF_R2_UPLOADS_BUCKET en el servidor."
+      );
+    }
+    const rawCt = String(dto.contentType || "image/jpeg")
+      .split(";")[0]
+      .trim()
+      .toLowerCase();
+    const normalizedCt =
+      rawCt === "image/jpg" || rawCt === "image/pjpeg" ? "image/jpeg" : rawCt || "image/jpeg";
+    if (!/^image\/(jpeg|png|webp|gif)$/.test(normalizedCt)) {
+      throw new BadRequestException(
+        "Tipo de imagen no permitido. Use JPEG, PNG, WebP o GIF."
+      );
+    }
+    const safeName = String(dto.fileName || "vacante.jpg").replace(/[^a-zA-Z0-9._-]+/g, "_");
+    const ext = safeName.includes(".") ? safeName.split(".").pop()!.toLowerCase() : "jpg";
+    const allowedExt = new Set(["jpg", "jpeg", "png", "webp", "gif"]);
+    const finalExt = allowedExt.has(ext) ? ext : "jpg";
+    const ownerId = String(req.user.userId || "anon").replace(/[^a-zA-Z0-9._-]+/g, "");
+    const key = `vacantes/${ownerId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${finalExt}`;
+    const url = await this.r2.presignAvatarUpload(key, normalizedCt, 600);
+    const publicUrl = this.r2.publicUrl(key);
+    if (!publicUrl) {
+      throw new BadRequestException(
+        "R2 está configurado pero falta CF_R2_PUBLIC_BASE. Sin dominio público la imagen de vacante no será visible en Carreras."
+      );
+    }
+    return {
+      uploadUrl: url,
+      publicUrl,
+      key,
+      expiresInSec: 600
+    };
+  }
+
+  /**
+   * Subida de imagen de vacante vía API → Cloudflare R2
+   * (evita CORS del PUT directo). Prefijo `vacantes/`.
+   */
+  @Post("vacancy-image")
+  @UseInterceptors(
+    FileInterceptor("file", {
+      limits: { fileSize: 6 * 1024 * 1024 }
+    })
+  )
+  async uploadVacancyImage(
+    @Req() req: { user: JwtUser },
+    @UploadedFile() file: Express.Multer.File
+  ) {
+    if (!this.r2.hasUploadsClient()) {
+      throw new BadRequestException(
+        "R2 no está configurado. Define CF_R2_ACCOUNT_ID, CF_R2_ACCESS_KEY_ID, CF_R2_SECRET_ACCESS_KEY y CF_R2_UPLOADS_BUCKET en el servidor."
+      );
+    }
+    if (!file?.buffer?.length) {
+      throw new BadRequestException("Adjunte un archivo de imagen.");
+    }
+    const mime = String(file.mimetype || "")
+      .split(";")[0]
+      .trim()
+      .toLowerCase();
+    const normalized =
+      mime === "image/jpg" || mime === "image/pjpeg" ? "image/jpeg" : mime || "image/jpeg";
+    if (!/^image\/(jpeg|png|webp|gif)$/.test(normalized)) {
+      throw new BadRequestException("Solo se permiten imágenes JPEG, PNG, WebP o GIF.");
+    }
+    const ext =
+      normalized === "image/png"
+        ? "png"
+        : normalized === "image/webp"
+          ? "webp"
+          : normalized === "image/gif"
+            ? "gif"
+            : "jpg";
+    const ownerId = String(req.user.userId || "anon").replace(/[^a-zA-Z0-9._-]+/g, "");
+    const key = `vacantes/${ownerId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    await this.r2.putUploadsObject(key, file.buffer, normalized);
+    const publicUrl = this.r2.publicUrl(key);
+    if (!publicUrl) {
+      throw new BadRequestException(
+        "R2 está configurado pero falta CF_R2_PUBLIC_BASE. Sin dominio público la imagen de vacante no será visible en Carreras."
+      );
+    }
+    return {
+      publicUrl,
+      key
+    };
+  }
+
+  /**
    * Devuelve el .docx de la plantilla solicitada. Solo usuarios autenticados
    * pueden descargar las plantillas (datos legales del contrato).
    */

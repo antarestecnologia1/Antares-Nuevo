@@ -4028,7 +4028,9 @@ Object.assign(window, {
   /** Carreras sitio público: usados desde `portal-runtime.js` (script clásico). */
   getPublicPublishedVacancies,
   mergeApiVacanciesWithLocalPublished,
-  openPublicVacancyApplyModal
+  openPublicVacancyApplyModal,
+  publicVacancyYmdValid,
+  publicVacancyYmdToMidnight
 });
 
 registerBindEventsCallback(bindDynamicEvents);

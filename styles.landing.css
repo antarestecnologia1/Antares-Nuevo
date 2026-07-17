@@ -4788,18 +4788,24 @@ body[data-theme="dark"] .p-form textarea {
 
 .careers-card-media {
   margin: -1.35rem -1.4rem 0.15rem;
-  aspect-ratio: 16 / 9;
+  min-height: 140px;
+  max-height: 220px;
   background: var(--surface-soft, #f1f5f9);
   overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .careers-card-media img {
   display: block;
-  width: 100%;
-  height: 100%;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: 220px;
   object-fit: contain;
   object-position: center;
-  transform: none;
+  transform: none !important;
 }
 
 .section-news {

@@ -295,6 +295,7 @@ function hiringHtml() {
             <img id="vacancy-image-preview" class="vacancy-image-preview" data-vacancy-image-preview alt="" width="640" height="360" decoding="async" hidden />
             <span class="vacancy-image-dropzone__overlay" aria-hidden="true"><span>Cambiar imagen</span></span>
           </label>
+          <p class="vacancy-publish-status muted" data-vacancy-publish-status hidden aria-live="polite"></p>
         </div>
       </div>
     </fieldset>

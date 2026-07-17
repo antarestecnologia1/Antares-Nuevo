@@ -1,6 +1,181 @@
 /**
  * Contratación — adjuntos de candidato y listeners.
  */
+
+/** Fechas YYYY-MM-DD (evita depender de helpers no expuestos en window). */
+function vacancyYmdValid(s) {
+  const t = String(s || "").trim();
+  if (!t) return false;
+  const parts = t.split("-");
+  if (parts.length !== 3) return false;
+  const cand = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])).getTime();
+  return Number.isFinite(cand);
+}
+
+function vacancyYmdToMidnight(s) {
+  const parts = String(s || "").trim().split("-");
+  return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])).getTime();
+}
+
+/** Reduce flyers grandes antes de subir (evita timeouts / rechazo del servidor). */
+async function compressVacancyImageFile(file, maxSide = 1600, quality = 0.86) {
+  if (!file || !String(file.type || "").startsWith("image/")) return file;
+  if (file.size > 0 && file.size <= 900 * 1024 && !/image\/gif/i.test(file.type)) return file;
+  if (typeof createImageBitmap !== "function" && typeof FileReader === "undefined") return file;
+  try {
+    let bitmap = null;
+    if (typeof createImageBitmap === "function") {
+      bitmap = await createImageBitmap(file);
+    } else {
+      const dataUrl = await new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result || ""));
+        r.onerror = () => reject(new Error("No se pudo leer la imagen"));
+        r.readAsDataURL(file);
+      });
+      bitmap = await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error("No se pudo decodificar la imagen"));
+        img.src = dataUrl;
+      });
+    }
+    const w = Number(bitmap.width || 0);
+    const h = Number(bitmap.height || 0);
+    if (!w || !h) return file;
+    const scale = Math.min(1, maxSide / Math.max(w, h));
+    const tw = Math.max(1, Math.round(w * scale));
+    const th = Math.max(1, Math.round(h * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = tw;
+    canvas.height = th;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return file;
+    ctx.drawImage(bitmap, 0, 0, tw, th);
+    if (typeof bitmap.close === "function") {
+      try {
+        bitmap.close();
+      } catch (_e) {}
+    }
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
+    if (!blob) return file;
+    const base = String(file.name || "vacante").replace(/\.[^.]+$/, "") || "vacante";
+    return new File([blob], `${base}.jpg`, { type: "image/jpeg", lastModified: Date.now() });
+  } catch (_e) {
+    return file;
+  }
+}
+
+async function resolveVacancyImageUrl(file) {
+  if (!file) return "";
+  const api = window.AntaresApi;
+  const canUseBackend =
+    api &&
+    typeof api.postJson === "function" &&
+    typeof api.getBase === "function" &&
+    api.getBase() &&
+    typeof api.isConfigured === "function" &&
+    api.isConfigured();
+
+  const prepared = await compressVacancyImageFile(file);
+  const rawMime = String(prepared.type || file.type || "image/jpeg").split(";")[0].trim().toLowerCase();
+  const contentType =
+    !rawMime || rawMime === "image/jpg" || rawMime === "image/pjpeg" ? "image/jpeg" : rawMime;
+
+  if (canUseBackend) {
+    /* 1) Presign + PUT directo a Cloudflare R2 (prefijo vacantes/). */
+    try {
+      const presign = await api.postJson("/uploads/vacancy-image/presign", {
+        fileName: String(prepared.name || file.name || "vacante.jpg"),
+        contentType
+      });
+      const uploadUrl = String(presign?.uploadUrl || "").trim();
+      const publicFromPresign = String(presign?.publicUrl || "").trim();
+      if (uploadUrl && /^https?:\/\//i.test(publicFromPresign)) {
+        const resp = await fetch(uploadUrl, {
+          method: "PUT",
+          headers: { "Content-Type": contentType },
+          body: prepared
+        });
+        if (resp.ok) return publicFromPresign;
+        globalThis.devWarn?.("vacancy-image-r2-put-failed", resp.status);
+      }
+    } catch (err) {
+      globalThis.devWarn?.("vacancy-image-presign-failed", err);
+    }
+
+    /* 2) Multipart vía API → R2 (evita CORS). */
+    try {
+      if (typeof api.postFormData === "function") {
+        const fd = new FormData();
+        fd.append("file", prepared, prepared.name || "vacante.jpg");
+        const viaVacancy = await api.postFormData("/uploads/vacancy-image", fd);
+        const u = String(viaVacancy?.publicUrl || "").trim();
+        if (/^https?:\/\//i.test(u)) return u;
+      }
+    } catch (err) {
+      globalThis.devWarn?.("vacancy-image-api-failed", err);
+    }
+
+    /* 3) Fallback genérico /uploads/image. */
+    try {
+      if (typeof api.postFormData === "function") {
+        const fd = new FormData();
+        fd.append("file", prepared, prepared.name || "vacante.jpg");
+        const viaImage = await api.postFormData("/uploads/image", fd);
+        const u = String(viaImage?.publicUrl || "").trim();
+        if (/^https?:\/\//i.test(u)) return u;
+      }
+    } catch (err) {
+      globalThis.devWarn?.("vacancy-image-generic-failed", err);
+    }
+
+    throw new Error(
+      "No se pudo subir la imagen a Cloudflare R2. Revise CF_R2_* y CF_R2_PUBLIC_BASE en el servidor, o intente con un archivo más liviano."
+    );
+  }
+
+  /* Sin API: solo preview local (no apto para Carreras en producción). */
+  const resolveUrl =
+    typeof window.resolveEmployeeAvatarUrl === "function"
+      ? window.resolveEmployeeAvatarUrl
+      : typeof resolveEmployeeAvatarUrl === "function"
+        ? resolveEmployeeAvatarUrl
+        : null;
+  if (!resolveUrl) return "";
+  const uploaded = String((await resolveUrl(prepared, "")) || "").trim();
+  if (uploaded.startsWith("data:image/") && uploaded.length < 350000) return uploaded;
+  return /^https?:\/\//i.test(uploaded) ? uploaded : "";
+}
+
+function setVacancyFormPublishingState(formEl, active, statusText) {
+  if (!formEl) return;
+  formEl.classList.toggle("is-vacancy-publishing", Boolean(active));
+  formEl.querySelectorAll("input, select, textarea, button").forEach((el) => {
+    if (!(el instanceof HTMLElement)) return;
+    if (el.matches("[data-action='toggle-create-panel'], [data-action='cancel-create-panel']")) return;
+    if (active) {
+      if (!el.dataset.vacancyPrevDisabled) {
+        el.dataset.vacancyPrevDisabled = el.disabled ? "1" : "0";
+      }
+      if (el.type !== "submit") el.disabled = true;
+    } else if (el.dataset.vacancyPrevDisabled != null) {
+      el.disabled = el.dataset.vacancyPrevDisabled === "1";
+      delete el.dataset.vacancyPrevDisabled;
+    }
+  });
+  const dropzone = formEl.querySelector("[data-vacancy-image-dropzone]");
+  if (dropzone) {
+    dropzone.classList.toggle("is-disabled", Boolean(active));
+    dropzone.setAttribute("aria-disabled", active ? "true" : "false");
+  }
+  const statusEl = formEl.querySelector("[data-vacancy-publish-status]");
+  if (statusEl) {
+    statusEl.hidden = !active;
+    statusEl.textContent = active ? String(statusText || "Publicando vacante…") : "";
+  }
+}
+
 function parseCandidateAttachmentsForView(raw, opts = {}) {
   const candidateId = String(opts.candidateId || "").trim();
   let experienceFromJson = "";
@@ -191,138 +366,151 @@ function bindHiringPortalControls() {
       syncFromPosition();
     }
 
-    wireFormSubmitGuard(vacancyForm, async (event) => {
-      const data = readFormEntriesNormalized(vacancyForm);
-      const deadlineOk = (() => {
-        const s = String(data.deadline || "").trim();
-        const parts = s.split("-");
-        if (parts.length !== 3) return false;
-        const cand = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])).getTime();
-        if (!Number.isFinite(cand)) return false;
-        const t = new Date();
-        const t0 = new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime();
-        return cand >= t0;
-      })();
-      if (!deadlineOk) {
-        failPortalField(vacancyForm, "deadline", userMessage("vacancyDeadlineFuture"));
-        return;
-      }
-      const pFrom = String(data.publishedFrom || "").trim();
-      if (pFrom) {
-        if (!publicVacancyYmdValid(pFrom)) {
-          failPortalField(vacancyForm, "publishedFrom", "Indique una fecha válida en “Visible en web desde”, o déjela vacía.");
-          return;
-        }
-        const dlim = String(data.deadline || "").trim();
-        if (publicVacancyYmdValid(dlim) && publicVacancyYmdToMidnight(pFrom) > publicVacancyYmdToMidnight(dlim)) {
-          failPortalField(vacancyForm, "publishedFrom", "“Visible desde” no puede ser posterior a la fecha límite de postulaciones.");
-          return;
-        }
-      }
-      const position = getPositionById(String(data.positionId || ""));
-      if (!position || position.active === false) {
-        failPortalField(vacancyForm, "positionId", userMessage("vacancySelectPosition"));
-        return;
-      }
-      const salaryValidation = validateVacancySalaryOffer(data.salaryOffer, position);
-      if (!salaryValidation.ok) {
-        failPortalField(vacancyForm, "salaryOffer", salaryValidation.message);
-        return;
-      }
-      const imageFile = vacancyForm.querySelector("input[name='imageFile']")?.files?.[0] || null;
-      const dropzone = vacancyForm.querySelector("[data-vacancy-image-dropzone]");
-      dropzone?.classList.remove("is-error");
-      let imageUrl = "";
-      if (imageFile) {
-        if (!String(imageFile.type || "").startsWith("image/")) {
-          dropzone?.classList.add("is-error");
-          notify("Seleccione una imagen válida (JPG, PNG, WebP o GIF).", "error");
-          return;
-        }
+    wireFormSubmitGuard(
+      vacancyForm,
+      async () => {
+        setVacancyFormPublishingState(vacancyForm, true, "Publicando vacante…");
         try {
-          const resolveUrl =
-            typeof window.resolveEmployeeAvatarUrl === "function"
-              ? window.resolveEmployeeAvatarUrl
-              : typeof resolveEmployeeAvatarUrl === "function"
-                ? resolveEmployeeAvatarUrl
-                : null;
-          const uploaded = resolveUrl
-            ? String((await resolveUrl(imageFile, "")) || "").trim()
-            : "";
-          const dataUrlCheck =
-            typeof window.isDataUrl === "function"
-              ? window.isDataUrl
-              : typeof isDataUrl === "function"
-                ? isDataUrl
-                : (v) => String(v || "").startsWith("data:");
-          if (uploaded && !(window.AntaresApi?.isConfigured?.() && dataUrlCheck(uploaded))) {
-            imageUrl = uploaded;
-          } else if (uploaded && !window.AntaresApi?.isConfigured?.()) {
-            imageUrl = uploaded;
-          } else {
-            dropzone?.classList.add("is-error");
-            notify(
-              "No se pudo subir la imagen al servidor. La vacante se publicará sin imagen; puede editarla después.",
-              "warning"
-            );
-            imageUrl = "";
+          const data = readFormEntriesNormalized(vacancyForm);
+          const deadlineOk = (() => {
+            const s = String(data.deadline || "").trim();
+            const parts = s.split("-");
+            if (parts.length !== 3) return false;
+            const cand = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])).getTime();
+            if (!Number.isFinite(cand)) return false;
+            const t = new Date();
+            const t0 = new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime();
+            return cand >= t0;
+          })();
+          if (!deadlineOk) {
+            failPortalField(vacancyForm, "deadline", userMessage("vacancyDeadlineFuture"));
+            notify(userMessage("vacancyDeadlineFuture"), "error");
+            return;
           }
-        } catch (imgErr) {
-          dropzone?.classList.add("is-error");
-          notify(
-            String(imgErr?.message || "No se pudo procesar la imagen. La vacante se publicará sin imagen."),
-            "warning"
-          );
-          imageUrl = "";
+          const pFrom = String(data.publishedFrom || "").trim();
+          if (pFrom) {
+            if (!vacancyYmdValid(pFrom)) {
+              failPortalField(vacancyForm, "publishedFrom", "Indique una fecha válida en “Visible en web desde”, o déjela vacía.");
+              notify("Indique una fecha válida en “Visible en web desde”, o déjela vacía.", "error");
+              return;
+            }
+            const dlim = String(data.deadline || "").trim();
+            if (vacancyYmdValid(dlim) && vacancyYmdToMidnight(pFrom) > vacancyYmdToMidnight(dlim)) {
+              failPortalField(vacancyForm, "publishedFrom", "“Visible desde” no puede ser posterior a la fecha límite de postulaciones.");
+              notify("“Visible desde” no puede ser posterior a la fecha límite de postulaciones.", "error");
+              return;
+            }
+          }
+          const position = getPositionById(String(data.positionId || ""));
+          if (!position || position.active === false) {
+            failPortalField(vacancyForm, "positionId", userMessage("vacancySelectPosition"));
+            notify(userMessage("vacancySelectPosition"), "error");
+            return;
+          }
+          const salaryValidation = validateVacancySalaryOffer(data.salaryOffer, position);
+          if (!salaryValidation.ok) {
+            failPortalField(vacancyForm, "salaryOffer", salaryValidation.message);
+            notify(String(salaryValidation.message || "Revise el salario ofrecido."), "error");
+            return;
+          }
+          const imageFile = vacancyForm.querySelector("input[name='imageFile']")?.files?.[0] || null;
+          const dropzone = vacancyForm.querySelector("[data-vacancy-image-dropzone]");
+          dropzone?.classList.remove("is-error");
+          let imageUrl = "";
+          if (imageFile) {
+            if (!String(imageFile.type || "").startsWith("image/")) {
+              dropzone?.classList.add("is-error");
+              notify("Seleccione una imagen válida (JPG, PNG, WebP o GIF).", "error");
+              return;
+            }
+            setVacancyFormPublishingState(vacancyForm, true, "Subiendo imagen a Cloudflare…");
+            try {
+              imageUrl = await resolveVacancyImageUrl(imageFile);
+            } catch (imgErr) {
+              dropzone?.classList.add("is-error");
+              notify(String(imgErr?.message || "No se pudo subir la imagen a Cloudflare R2."), "error");
+              return;
+            }
+            if (!imageUrl) {
+              dropzone?.classList.add("is-error");
+              notify(
+                "No se obtuvo una URL pública de la imagen en Cloudflare. Revise CF_R2_PUBLIC_BASE e intente de nuevo.",
+                "error"
+              );
+              return;
+            }
+          }
+          setVacancyFormPublishingState(vacancyForm, true, "Guardando vacante…");
+          const all = read(KEYS.vacancies, []);
+          const createdVacancy = stampCreatedRecord({
+            id: newUuidV4(),
+            positionId: data.positionId,
+            title: normalizeLatinUpperForDb(data.title || `Vacante ${position.name}`),
+            department: normalizeLatinForDb(data.department || ""),
+            city: normalizeLatinForDb(data.city || ""),
+            modality: normalizeLatinUpperForDb(data.modality || ""),
+            workday: normalizeLatinUpperForDb(data.workday || ""),
+            deadline: data.deadline,
+            publishedFrom: String(data.publishedFrom || "").trim(),
+            openings: Math.max(1, parseNum(data.openings || 1)),
+            salaryOffer: salaryValidation.salaryOffer,
+            positionName: position.name,
+            workerRole: position.workerRole || "empleado",
+            contractTypeDefault: normalizeLatinUpperForDb(
+              data.contractTypeDefault || position.contractTypeDefault || "Termino indefinido"
+            ),
+            requirements: normalizeLatinUpperForDb(data.requirements || ""),
+            imageUrl,
+            status: "Publicada"
+          });
+          all.unshift(createdVacancy);
+          try {
+            await writeAwaitServerCreate(KEYS.vacancies, all, createdVacancy);
+          } catch (err) {
+            notify(String(err?.message || "No fue posible guardar la vacante en el servidor."), "error");
+            return;
+          }
+          if (createdVacancy) {
+            appendPortalEntityAuditLog(
+              "create",
+              "hiring",
+              "Contratación",
+              createdVacancy,
+              `${String(createdVacancy.city || "Sin ciudad")} · ${String(createdVacancy.status || "Publicada")}`,
+              { entityLabel: String(createdVacancy.title || createdVacancy.positionName || "Vacante").trim() }
+            );
+          }
+          state.hiringUi = state.hiringUi || {
+            candidateFilter: "active",
+            vacancyFilter: "open",
+            candidateSort: "recent",
+            workspace: "operate"
+          };
+          state.hiringUi.vacancyFilter = "open";
+          state.hiringUi.workspace = "data";
+          persistHrWorkspace("hiring", "data");
+          collapseCreatePanel("create-vacancy");
+          notify(userMessage("vacancyPublishedOk"), "success");
+          renderPortalView();
+        } catch (err) {
+          notify(String(err?.message || err || "No se pudo publicar la vacante."), "error");
+          globalThis.devWarn?.("vacancy-publish-failed", err);
+        } finally {
+          setVacancyFormPublishingState(vacancyForm, false);
+        }
+      },
+      {
+        busyText: "Publicando…",
+        prepareForm: (form) => {
+          const fn = window.prepareCreationFormForSubmit;
+          const ok = typeof fn !== "function" ? true : fn(form) !== false;
+          if (!ok) {
+            notify("Revise los campos marcados en rojo antes de publicar la vacante.", "error");
+          }
+          return ok;
         }
       }
-      const all = read(KEYS.vacancies, []);
-      const createdVacancy = stampCreatedRecord({
-        id: newUuidV4(),
-        positionId: data.positionId,
-        title: normalizeLatinUpperForDb(data.title || `Vacante ${position.name}`),
-        department: normalizeLatinForDb(data.department || ""),
-        city: normalizeLatinForDb(data.city || ""),
-        modality: normalizeLatinUpperForDb(data.modality || ""),
-        workday: normalizeLatinUpperForDb(data.workday || ""),
-        deadline: data.deadline,
-        publishedFrom: String(data.publishedFrom || "").trim(),
-        openings: Math.max(1, parseNum(data.openings || 1)),
-        salaryOffer: salaryValidation.salaryOffer,
-        positionName: position.name,
-        workerRole: position.workerRole || "empleado",
-        contractTypeDefault: normalizeLatinUpperForDb(
-          data.contractTypeDefault || position.contractTypeDefault || "Termino indefinido"
-        ),
-        requirements: normalizeLatinUpperForDb(data.requirements || ""),
-        imageUrl,
-        status: "Publicada"
-      });
-      all.unshift(createdVacancy);
-      try {
-        await writeAwaitServerCreate(KEYS.vacancies, all, createdVacancy);
-      } catch (err) {
-        notify(String(err?.message || "No fue posible guardar la vacante en el servidor."), "error");
-        return;
-      }
-      if (createdVacancy) {
-        appendPortalEntityAuditLog(
-          "create",
-          "hiring",
-          "Contratación",
-          createdVacancy,
-          `${String(createdVacancy.city || "Sin ciudad")} · ${String(createdVacancy.status || "Publicada")}`,
-          { entityLabel: String(createdVacancy.title || createdVacancy.positionName || "Vacante").trim() }
-        );
-      }
-      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
-      state.hiringUi.vacancyFilter = "open";
-      state.hiringUi.workspace = "data";
-      persistHrWorkspace("hiring", "data");
-      collapseCreatePanel("create-vacancy");
-      notify(userMessage("vacancyPublishedOk"), "success");
-      renderPortalView();
-    });
+    );
   }
 
   const positionForm = document.getElementById("form-position");
@@ -1366,11 +1554,11 @@ function bindHiringPortalControls() {
           }
           const pFrom = String(form.publishedFrom || "").trim();
           if (pFrom) {
-            if (!publicVacancyYmdValid(pFrom)) {
+            if (!vacancyYmdValid(pFrom)) {
               failPortalField(vacancyEditForm, "publishedFrom", "Indique una fecha válida en “Visible en web desde”, o déjela vacía.");
               return false;
             }
-            if (publicVacancyYmdValid(deadline) && publicVacancyYmdToMidnight(pFrom) > publicVacancyYmdToMidnight(deadline)) {
+            if (vacancyYmdValid(deadline) && vacancyYmdToMidnight(pFrom) > vacancyYmdToMidnight(deadline)) {
               failPortalField(vacancyEditForm, "publishedFrom", "“Visible desde” no puede ser posterior a la fecha límite de postulaciones.");
               return false;
             }
@@ -1386,35 +1574,19 @@ function bindHiringPortalControls() {
               return false;
             }
             try {
-              const resolveUrl =
-                typeof window.resolveEmployeeAvatarUrl === "function"
-                  ? window.resolveEmployeeAvatarUrl
-                  : typeof resolveEmployeeAvatarUrl === "function"
-                    ? resolveEmployeeAvatarUrl
-                    : null;
-              const uploaded = resolveUrl
-                ? String((await resolveUrl(imageFile, imageUrl)) || "").trim()
-                : "";
-              const dataUrlCheck =
-                typeof window.isDataUrl === "function"
-                  ? window.isDataUrl
-                  : typeof isDataUrl === "function"
-                    ? isDataUrl
-                    : (v) => String(v || "").startsWith("data:");
-              if (uploaded && !(window.AntaresApi?.isConfigured?.() && dataUrlCheck(uploaded))) {
-                imageUrl = uploaded;
-              } else if (uploaded && !window.AntaresApi?.isConfigured?.()) {
-                imageUrl = uploaded;
-              } else {
+              const uploaded = await resolveVacancyImageUrl(imageFile);
+              if (uploaded) imageUrl = uploaded;
+              else {
                 editDropzone?.classList.add("is-error");
                 notify(
-                  "No se pudo subir la imagen al servidor. Se conservará la imagen anterior (si había).",
+                  "No se obtuvo una URL pública de la imagen en Cloudflare. Se conservará la imagen anterior (si había).",
                   "warning"
                 );
               }
             } catch (imgErr) {
               editDropzone?.classList.add("is-error");
-              notify(String(imgErr?.message || "No se pudo procesar la imagen del cargo."), "warning");
+              notify(String(imgErr?.message || "No se pudo subir la imagen a Cloudflare R2."), "error");
+              return false;
             }
           }
           const freshVacancies = read(KEYS.vacancies, []);
