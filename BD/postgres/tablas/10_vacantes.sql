@@ -17,9 +17,11 @@ CREATE TABLE vacantes (
   rol_trabajador            VARCHAR(32) DEFAULT 'empleado',
   tipo_contrato_predeterminado VARCHAR(120),
   requisitos                TEXT,
+  imagen_url                TEXT,
   estado                    estado_vacante NOT NULL DEFAULT 'Publicada',
   fecha_creacion            TIMESTAMPTZ NOT NULL DEFAULT now(),
   fecha_actualizacion       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 COMMENT ON TABLE vacantes IS 'KEYS.vacancies. fecha_publicacion_desde = primera fecha listado público Carreras (NULL = sin espera).';
+COMMENT ON COLUMN vacantes.imagen_url IS 'URL pública de la imagen del cargo/vacante (portal Carreras).';

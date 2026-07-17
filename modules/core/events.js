@@ -3743,8 +3743,9 @@ function normalizeVacancyForCareersPublic(v) {
     status: String(v.status || ""),
     positionName: String(v.positionName || ""),
     modality: String(v.modality || ""),
-    openings: v.openings != null ? v.openings : 1,
-    workerRole: String(v.workerRole || "")
+    openings: v.openings != null ? v.openings : v.slots != null ? v.slots : 1,
+    workerRole: String(v.workerRole || ""),
+    imageUrl: String(v.imageUrl || v.imagen_url || "").trim()
   };
 }
 

@@ -130,10 +130,11 @@ export class B2bProspectService {
       estado: string;
       nombre_cargo_denorm: string | null;
       fecha_publicacion_desde: Date | null;
+      imagen_url: string | null;
     }>(
       `SELECT id::text, titulo, departamento, ciudad, fecha_limite_postulacion,
               salario_oferta::text, requisitos, estado::text AS estado, nombre_cargo_denorm,
-              fecha_publicacion_desde
+              fecha_publicacion_desde, imagen_url
        FROM vacantes
        WHERE estado = 'Publicada'::estado_vacante
          AND fecha_limite_postulacion >= CURRENT_DATE
@@ -161,7 +162,8 @@ export class B2bProspectService {
         salaryOffer: Number(v.salario_oferta),
         requirements: v.requisitos,
         status: v.estado,
-        positionName: v.nombre_cargo_denorm
+        positionName: v.nombre_cargo_denorm,
+        imageUrl: v.imagen_url != null ? String(v.imagen_url).trim() : ""
       };
     });
   }

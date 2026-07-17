@@ -281,6 +281,11 @@ function hiringHtml() {
         <label>${fieldLabel(IC.calendar, "Fecha límite")}<input type="date" name="deadline" required /></label>
         <label>${fieldLabel(IC.calendar, "Visible en web desde")}<input type="date" name="publishedFrom" /><span class="muted" style="font-size:0.78rem;display:block;margin-top:4px">Opcional. Si se deja vacío, la vacante puede mostrarse de inmediato en el portal de empleos.</span></label>
         <label class="full">${fieldLabel(IC.file, "Requisitos")}<textarea name="requirements" rows="3" required placeholder="Ej: Licencia C2 vigente, 3 años de experiencia, curso defensivo..."></textarea></label>
+        <label class="full vacancy-image-field">${fieldLabel(IC.upload, "Imagen del cargo")}
+          <input type="file" name="imageFile" id="vacancy-image-file" accept="image/jpeg,image/png,image/webp,image/gif" aria-label="Imagen del cargo para la vacante" />
+          <span class="muted" style="font-size:0.78rem;display:block;margin-top:4px">Opcional. JPG, PNG, WebP o GIF. Se muestra en el portal de empleos (Carreras).</span>
+          <img id="vacancy-image-preview" class="vacancy-image-preview" alt="Vista previa de la imagen del cargo" width="320" height="180" decoding="async" hidden />
+        </label>
       </div>
     </fieldset>
     ${renderManagedCreateFormActions("create-vacancy", `<button class="btn btn-primary" type="submit">${IC.plus} Publicar vacante</button>`)}

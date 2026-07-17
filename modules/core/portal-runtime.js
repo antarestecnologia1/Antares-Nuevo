@@ -13192,7 +13192,13 @@ function initPublicCareers() {
           : tPublic("Sin fecha limite");
         const req = escapeHtml(String(v.requirements || "").slice(0, 180));
         const more = String(v.requirements || "").length > 180 ? "…" : "";
+        const imageUrl = String(v.imageUrl || "").trim();
+        const media =
+          imageUrl && (/^https?:\/\//i.test(imageUrl) || imageUrl.startsWith("data:image/"))
+            ? `<div class="careers-card-media"><img src="${escapeAttr(imageUrl)}" alt="${escapeAttr(String(v.title || "Vacante"))}" loading="lazy" decoding="async" /></div>`
+            : "";
         return `<article class="careers-card lift-card">
+          ${media}
           <h3>${escapeHtml(v.title)}</h3>
           <div class="careers-meta">${escapeHtml(v.positionName || tPublic("Cargo"))} · ${salaryStr} · ${deadline}</div>
           <p class="careers-req muted">${req}${more}</p>
@@ -13231,7 +13237,8 @@ function initPublicCareers() {
               positionName: row.positionName,
               modality: row.modality,
               openings: row.openings,
-              workerRole: row.workerRole
+              workerRole: row.workerRole,
+              imageUrl: row.imageUrl || ""
             }))
           : [];
         window.publicCareersVacanciesFromApi = mergeApiVacanciesWithLocalPublished(mapped, read(KEYS.vacancies, []));

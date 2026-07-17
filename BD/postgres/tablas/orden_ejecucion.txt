@@ -39,3 +39,4 @@
 37_alter_usuarios_politica_datos_personales.sql
 38_documentos_empleado.sql
 39_alter_documentos_empleado_carpeta.sql
+40_alter_vacantes_imagen_url.sql

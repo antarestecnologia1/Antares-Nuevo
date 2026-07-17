@@ -136,6 +136,37 @@ function bindHiringPortalControls() {
     const titleInput = vacancyForm.querySelector("input[name='title']");
     const salaryOfferInput = vacancyForm.querySelector("#vacancy-salary-offer");
     const vacancySalaryHint = vacancyForm.querySelector("#vacancy-salary-hint");
+    const vacancyImageInput = vacancyForm.querySelector("input[name='imageFile']");
+    const vacancyImagePreview = vacancyForm.querySelector("#vacancy-image-preview");
+    if (vacancyImageInput && vacancyImagePreview && vacancyForm.dataset.vacancyImagePreviewWired !== "1") {
+      vacancyForm.dataset.vacancyImagePreviewWired = "1";
+      let previewBlobUrl = "";
+      vacancyImageInput.addEventListener("change", () => {
+        const f = vacancyImageInput.files?.[0];
+        if (previewBlobUrl && previewBlobUrl.startsWith("blob:")) {
+          try {
+            URL.revokeObjectURL(previewBlobUrl);
+          } catch (_e) {}
+          previewBlobUrl = "";
+        }
+        if (!f || !String(f.type || "").startsWith("image/")) {
+          vacancyImagePreview.hidden = true;
+          vacancyImagePreview.removeAttribute("src");
+          return;
+        }
+        try {
+          previewBlobUrl = URL.createObjectURL(f);
+        } catch (_e) {
+          previewBlobUrl = "";
+        }
+        if (previewBlobUrl) {
+          vacancyImagePreview.src = previewBlobUrl;
+          vacancyImagePreview.hidden = false;
+        } else {
+          vacancyImagePreview.hidden = true;
+        }
+      });
+    }
     if (positionSelect) {
       const syncFromPosition = () => {
         const position = getPositionById(String(positionSelect.value || ""));
@@ -192,6 +223,27 @@ function bindHiringPortalControls() {
         failPortalField(vacancyForm, "salaryOffer", salaryValidation.message);
         return;
       }
+      const imageFile = vacancyForm.querySelector("input[name='imageFile']")?.files?.[0] || null;
+      let imageUrl = "";
+      if (imageFile) {
+        if (!String(imageFile.type || "").startsWith("image/")) {
+          failPortalField(vacancyForm, "imageFile", "Seleccione una imagen válida (JPG, PNG, WebP o GIF).");
+          return;
+        }
+        imageUrl = String((await resolveEmployeeAvatarUrl(imageFile, "")) || "").trim();
+        if (!imageUrl) {
+          failPortalField(vacancyForm, "imageFile", "No fue posible procesar la imagen del cargo. Intente de nuevo.");
+          return;
+        }
+        if (window.AntaresApi?.isConfigured?.() && isDataUrl(imageUrl)) {
+          failPortalField(
+            vacancyForm,
+            "imageFile",
+            "No se pudo obtener una URL pública de la imagen. Revise la configuración de almacenamiento o reintente con un archivo más liviano."
+          );
+          return;
+        }
+      }
       const all = read(KEYS.vacancies, []);
       const createdVacancy = stampCreatedRecord({
         id: newUuidV4(),
@@ -211,6 +263,7 @@ function bindHiringPortalControls() {
           data.contractTypeDefault || position.contractTypeDefault || "Termino indefinido"
         ),
         requirements: normalizeLatinUpperForDb(data.requirements || ""),
+        imageUrl,
         status: "Publicada"
       });
       all.unshift(createdVacancy);
@@ -373,6 +426,11 @@ function bindHiringPortalControls() {
       if (!v) return;
       const sal = parseNum(v.salaryOffer);
       const reqs = String(v.requirements || "").trim() || "Sin requisitos detallados.";
+      const imageUrl = String(v.imageUrl || "").trim();
+      const imageHero =
+        imageUrl && (/^https?:\/\//i.test(imageUrl) || imageUrl.startsWith("data:image/"))
+          ? `<div class="vacancy-detail-image"><img src="${escapeAttr(imageUrl)}" alt="${escapeAttr(String(v.title || "Imagen del cargo"))}" loading="lazy" decoding="async" /></div>`
+          : "";
       openPortalDetailSheet({
         title: String(v.title || "Vacante"),
         sheetTitle: String(v.title || "Vacante"),
@@ -380,6 +438,7 @@ function bindHiringPortalControls() {
         statusHtml: `<span class="status status-viaje_asignado">${escapeHtml(String(v.status || "Abierta"))}</span>`,
         moduleIcon: "briefcase",
         moduleTone: "green",
+        extraHtml: imageHero,
         sections: [
           {
             icon: "briefcase",
@@ -388,7 +447,7 @@ function bindHiringPortalControls() {
               ["Rol", escapeHtml(String(v.workerRole || "RR.HH."))],
               ["Modalidad", escapeHtml(String(v.modality || "—"))],
               ["Salario ofrecido", `<strong class="detail-view-money">$${sal.toLocaleString("es-CO")}</strong>`, { highlight: true, iconKey: "dollar", tone: "green" }],
-              ["Cupos", escapeHtml(String(v.openings ?? 1))],
+              ["Cupos", escapeHtml(String(v.openings ?? v.slots ?? 1))],
               ["Cierre postulaciones", escapeHtml(String(v.deadline || "—"))],
               ["Última actualización", fmtDateOr(v.updatedAt || v.createdAt, "—")]
             ]
@@ -1189,11 +1248,55 @@ function bindHiringPortalControls() {
               { value: "Publicada", label: "Publicada" },
               { value: "Cerrada", label: "Cerrada" }
             ]
+          },
+          {
+            type: "custom",
+            full: true,
+            html: (() => {
+              const existing = String(target.imageUrl || "").trim();
+              const preview =
+                existing && (/^https?:\/\//i.test(existing) || existing.startsWith("data:image/"))
+                  ? `<img class="vacancy-image-preview" data-vacancy-edit-image-preview src="${escapeAttr(existing)}" alt="Imagen actual del cargo" width="320" height="180" decoding="async" />`
+                  : `<img class="vacancy-image-preview" data-vacancy-edit-image-preview alt="Vista previa" width="320" height="180" decoding="async" hidden />`;
+              return `<div class="vacancy-image-field">
+                <span class="modal-field-label">Imagen del cargo</span>
+                <input type="hidden" name="imageUrlExisting" value="${escapeAttr(existing)}" />
+                <input type="file" name="imageFile" accept="image/jpeg,image/png,image/webp,image/gif" aria-label="Cambiar imagen del cargo" />
+                <span class="muted" style="font-size:0.78rem;display:block;margin-top:4px">Opcional. Deje vacío para conservar la imagen actual.</span>
+                ${preview}
+              </div>`;
+            })()
           }
         ],
-        onSubmit: async (form) => {
+        afterMount: (formEl) => {
+          if (!formEl) return;
+          const fileInput = formEl.querySelector("input[name='imageFile']");
+          const previewImg = formEl.querySelector("[data-vacancy-edit-image-preview]");
+          if (!fileInput || !previewImg) return;
+          let previewBlobUrl = "";
+          fileInput.addEventListener("change", () => {
+            const f = fileInput.files?.[0];
+            if (previewBlobUrl && previewBlobUrl.startsWith("blob:")) {
+              try {
+                URL.revokeObjectURL(previewBlobUrl);
+              } catch (_e) {}
+              previewBlobUrl = "";
+            }
+            if (!f || !String(f.type || "").startsWith("image/")) return;
+            try {
+              previewBlobUrl = URL.createObjectURL(f);
+            } catch (_e) {
+              previewBlobUrl = "";
+            }
+            if (previewBlobUrl) {
+              previewImg.src = previewBlobUrl;
+              previewImg.hidden = false;
+            }
+          });
+        },
+        onSubmit: async (form, formEl) => {
           const position = getPositionById(String(form.positionId || ""));
-          const vacancyEditForm = document.getElementById("crud-form");
+          const vacancyEditForm = formEl || document.getElementById("crud-form");
           if (!position) {
             failPortalField(vacancyEditForm, "positionId", userMessage("vacancySelectPosition"));
             return false;
@@ -1228,6 +1331,29 @@ function bindHiringPortalControls() {
               return false;
             }
           }
+          const imageFile = vacancyEditForm?.querySelector?.("input[name='imageFile']")?.files?.[0] || null;
+          let imageUrl = String(
+            form.imageUrlExisting || target.imageUrl || ""
+          ).trim();
+          if (imageFile) {
+            if (!String(imageFile.type || "").startsWith("image/")) {
+              failPortalField(vacancyEditForm, "imageFile", "Seleccione una imagen válida (JPG, PNG, WebP o GIF).");
+              return false;
+            }
+            imageUrl = String((await resolveEmployeeAvatarUrl(imageFile, imageUrl)) || "").trim();
+            if (!imageUrl) {
+              failPortalField(vacancyEditForm, "imageFile", "No fue posible procesar la imagen del cargo. Intente de nuevo.");
+              return false;
+            }
+            if (window.AntaresApi?.isConfigured?.() && isDataUrl(imageUrl)) {
+              failPortalField(
+                vacancyEditForm,
+                "imageFile",
+                "No se pudo obtener una URL pública de la imagen. Revise la configuración de almacenamiento o reintente con un archivo más liviano."
+              );
+              return false;
+            }
+          }
           const freshVacancies = read(KEYS.vacancies, []);
           const nextVacancies = freshVacancies.map((v) =>
             String(v.id) !== String(target.id)
@@ -1247,6 +1373,7 @@ function bindHiringPortalControls() {
                   deadline,
                   publishedFrom: pFrom,
                   requirements: normalizeLatinUpperForDb(String(form.requirements || "").trim()),
+                  imageUrl,
                   status: String(form.status || "Publicada")
                 })
           );

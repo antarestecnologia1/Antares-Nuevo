@@ -754,6 +754,7 @@ export class PortalService implements OnModuleInit {
     await this.ensureConductoresSchema();
     await this.ensureRegistrosFlotaSchema();
     await this.ensureDocumentosEmpleadoSchema();
+    await this.ensureVacantesSchema();
     await this.pruneTransportDeletionAudits().catch((err) => {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.warn(`pruneTransportDeletionAudits startup: ${sanitizeLogText(msg)}`);
@@ -1016,6 +1017,17 @@ export class PortalService implements OnModuleInit {
       }
     }
     this.logger.log("empresas: esquema tipo_relacion_empresa, activo, url_logo y contacto verificado.");
+  }
+
+  /** Columna `imagen_url` en vacantes (migr. `40_alter_vacantes_imagen_url.sql`). */
+  private async ensureVacantesSchema() {
+    try {
+      await this.pool.query(`ALTER TABLE public.vacantes ADD COLUMN IF NOT EXISTS imagen_url TEXT`);
+      this.logger.log("vacantes: esquema imagen_url verificado.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`ensureVacantesSchema: ADD COLUMN imagen_url fallo (no fatal): ${sanitizeLogText(msg)}`);
+    }
   }
 
   /** Columna `refrigeracion_termoking` en solicitudes (migr. `26_solicitudes_refrigeracion_termoking.sql`). */
@@ -6832,6 +6844,7 @@ export class PortalService implements OnModuleInit {
       city: v.ciudad,
       modality: v.modalidad,
       schedule: v.jornada_vacante,
+      workday: v.jornada_vacante,
       deadline: v.fecha_limite_postulacion,
       publishedFrom: (() => {
         const d = v.fecha_publicacion_desde;
@@ -6840,12 +6853,14 @@ export class PortalService implements OnModuleInit {
         return String(d).slice(0, 10);
       })(),
       slots: v.cupos,
+      openings: v.cupos,
       salaryOffer: Number(v.salario_oferta),
       positionTitle: v.nombre_cargo_denorm,
       positionName: v.nombre_cargo_denorm,
       workerRole: v.rol_trabajador,
       contractType: v.tipo_contrato_predeterminado,
       requirements: v.requisitos,
+      imageUrl: v.imagen_url != null ? String(v.imagen_url).trim() : "",
       status: v.estado,
       createdAt: v.fecha_creacion ? new Date(v.fecha_creacion).toISOString() : new Date().toISOString(),
       updatedAt: v.fecha_actualizacion ? new Date(v.fecha_actualizacion).toISOString() : null
@@ -12235,12 +12250,17 @@ export class PortalService implements OnModuleInit {
           1,
           Math.floor(Number(pickPortalField(v, "slots", "openings") ?? v.slots ?? v.openings) || 1)
         );
+        const imageUrlRaw = pickPortalField(v, "imageUrl", "imagen_url", "imagenUrl");
+        const imageUrl =
+          imageUrlRaw == null || imageUrlRaw === ""
+            ? null
+            : String(imageUrlRaw).trim() || null;
         await c.query(
           `INSERT INTO vacantes (
             id, id_cargo, titulo, departamento, ciudad, modalidad, jornada_vacante,
             fecha_limite_postulacion, fecha_publicacion_desde, cupos, salario_oferta,
-            nombre_cargo_denorm, rol_trabajador, tipo_contrato_predeterminado, requisitos, estado
-          ) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8::date, $9::date, $10, $11, $12, $13, $14, $15, $16::estado_vacante)
+            nombre_cargo_denorm, rol_trabajador, tipo_contrato_predeterminado, requisitos, imagen_url, estado
+          ) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8::date, $9::date, $10, $11, $12, $13, $14, $15, $16, $17::estado_vacante)
           ON CONFLICT (id) DO UPDATE SET
             id_cargo = EXCLUDED.id_cargo,
             titulo = EXCLUDED.titulo,
@@ -12256,6 +12276,7 @@ export class PortalService implements OnModuleInit {
             rol_trabajador = EXCLUDED.rol_trabajador,
             tipo_contrato_predeterminado = EXCLUDED.tipo_contrato_predeterminado,
             requisitos = EXCLUDED.requisitos,
+            imagen_url = EXCLUDED.imagen_url,
             estado = EXCLUDED.estado`,
           [
             v.id,
@@ -12264,7 +12285,7 @@ export class PortalService implements OnModuleInit {
             cat(pickPortalField(v, "department")),
             cat(v.city) ?? "Bogota",
             nuN(pickPortalField(v, "modality")),
-            nuN(pickPortalField(v, "workday")),
+            nuN(pickPortalField(v, "workday", "schedule")),
             v.deadline || new Date().toISOString().slice(0, 10),
             portalDateOrNull(pickPortalField(v, "publishedFrom", "visibleFrom")),
             cupos,
@@ -12273,6 +12294,7 @@ export class PortalService implements OnModuleInit {
             String(pickPortalField(v, "workerRole") || "empleado").toLowerCase(),
             nuN(pickPortalField(v, "contractTypeDefault")),
             nuN(pickPortalField(v, "requirements")),
+            imageUrl,
             v.status || "Publicada"
           ]
         );
