@@ -281,11 +281,19 @@ function hiringHtml() {
         <label>${fieldLabel(IC.calendar, "Fecha límite")}<input type="date" name="deadline" required /></label>
         <label>${fieldLabel(IC.calendar, "Visible en web desde")}<input type="date" name="publishedFrom" /><span class="muted" style="font-size:0.78rem;display:block;margin-top:4px">Opcional. Si se deja vacío, la vacante puede mostrarse de inmediato en el portal de empleos.</span></label>
         <label class="full">${fieldLabel(IC.file, "Requisitos")}<textarea name="requirements" rows="3" required placeholder="Ej: Licencia C2 vigente, 3 años de experiencia, curso defensivo..."></textarea></label>
-        <label class="full vacancy-image-field">${fieldLabel(IC.upload, "Imagen del cargo")}
-          <input type="file" name="imageFile" id="vacancy-image-file" accept="image/jpeg,image/png,image/webp,image/gif" aria-label="Imagen del cargo para la vacante" />
-          <span class="muted" style="font-size:0.78rem;display:block;margin-top:4px">Opcional. JPG, PNG, WebP o GIF. Se muestra en el portal de empleos (Carreras).</span>
-          <img id="vacancy-image-preview" class="vacancy-image-preview" alt="Vista previa de la imagen del cargo" width="320" height="180" decoding="async" hidden />
-        </label>
+        <div class="full vacancy-image-field">
+          ${fieldLabel(IC.upload, "Imagen del cargo")}
+          <label class="vacancy-image-dropzone" data-vacancy-image-dropzone for="vacancy-image-file" title="Clic para elegir imagen del cargo">
+            <input type="file" name="imageFile" id="vacancy-image-file" accept="image/jpeg,image/png,image/webp,image/gif" class="vacancy-image-file-input" aria-label="Imagen del cargo para la vacante" />
+            <span class="vacancy-image-dropzone__empty" data-vacancy-image-empty>
+              <span class="vacancy-image-dropzone__icon" aria-hidden="true">${IC.upload}</span>
+              <span class="vacancy-image-dropzone__title">Elegir imagen del cargo</span>
+              <span class="vacancy-image-dropzone__meta">Opcional · JPG, PNG, WebP o GIF · Se muestra en Carreras</span>
+            </span>
+            <img id="vacancy-image-preview" class="vacancy-image-preview" data-vacancy-image-preview alt="" width="640" height="360" decoding="async" hidden />
+            <span class="vacancy-image-dropzone__overlay" aria-hidden="true"><span>Cambiar imagen</span></span>
+          </label>
+        </div>
       </div>
     </fieldset>
     ${renderManagedCreateFormActions("create-vacancy", `<button class="btn btn-primary" type="submit">${IC.plus} Publicar vacante</button>`)}

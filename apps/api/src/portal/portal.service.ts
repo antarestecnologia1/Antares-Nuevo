@@ -12241,6 +12241,7 @@ export class PortalService implements OnModuleInit {
       await this.syncListWithPruning(c, hrTable, data, deletedIds);
     }
     if (key === "vacancies") {
+      await this.ensureVacantesSchema();
       for (const raw of data) {
         const v = raw as Record<string, unknown>;
         if (!v?.id || !v.positionId) continue;
@@ -12255,49 +12256,98 @@ export class PortalService implements OnModuleInit {
           imageUrlRaw == null || imageUrlRaw === ""
             ? null
             : String(imageUrlRaw).trim() || null;
-        await c.query(
-          `INSERT INTO vacantes (
-            id, id_cargo, titulo, departamento, ciudad, modalidad, jornada_vacante,
-            fecha_limite_postulacion, fecha_publicacion_desde, cupos, salario_oferta,
-            nombre_cargo_denorm, rol_trabajador, tipo_contrato_predeterminado, requisitos, imagen_url, estado
-          ) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8::date, $9::date, $10, $11, $12, $13, $14, $15, $16, $17::estado_vacante)
-          ON CONFLICT (id) DO UPDATE SET
-            id_cargo = EXCLUDED.id_cargo,
-            titulo = EXCLUDED.titulo,
-            departamento = EXCLUDED.departamento,
-            ciudad = EXCLUDED.ciudad,
-            modalidad = EXCLUDED.modalidad,
-            jornada_vacante = EXCLUDED.jornada_vacante,
-            fecha_limite_postulacion = EXCLUDED.fecha_limite_postulacion,
-            fecha_publicacion_desde = EXCLUDED.fecha_publicacion_desde,
-            cupos = EXCLUDED.cupos,
-            salario_oferta = EXCLUDED.salario_oferta,
-            nombre_cargo_denorm = EXCLUDED.nombre_cargo_denorm,
-            rol_trabajador = EXCLUDED.rol_trabajador,
-            tipo_contrato_predeterminado = EXCLUDED.tipo_contrato_predeterminado,
-            requisitos = EXCLUDED.requisitos,
-            imagen_url = EXCLUDED.imagen_url,
-            estado = EXCLUDED.estado`,
-          [
-            v.id,
-            v.positionId,
-            nu(v.title),
-            cat(pickPortalField(v, "department")),
-            cat(v.city) ?? "Bogota",
-            nuN(pickPortalField(v, "modality")),
-            nuN(pickPortalField(v, "workday", "schedule")),
-            v.deadline || new Date().toISOString().slice(0, 10),
-            portalDateOrNull(pickPortalField(v, "publishedFrom", "visibleFrom")),
-            cupos,
-            Number(v.salaryOffer) || 0,
-            nuN(pickPortalField(v, "positionName")),
-            String(pickPortalField(v, "workerRole") || "empleado").toLowerCase(),
-            nuN(pickPortalField(v, "contractTypeDefault")),
-            nuN(pickPortalField(v, "requirements")),
-            imageUrl,
-            v.status || "Publicada"
-          ]
-        );
+        const vacancyParams = [
+          v.id,
+          v.positionId,
+          nu(v.title),
+          cat(pickPortalField(v, "department")),
+          cat(v.city) ?? "Bogota",
+          nuN(pickPortalField(v, "modality")),
+          nuN(pickPortalField(v, "workday", "schedule")),
+          v.deadline || new Date().toISOString().slice(0, 10),
+          portalDateOrNull(pickPortalField(v, "publishedFrom", "visibleFrom")),
+          cupos,
+          Number(v.salaryOffer) || 0,
+          nuN(pickPortalField(v, "positionName")),
+          String(pickPortalField(v, "workerRole") || "empleado").toLowerCase(),
+          nuN(pickPortalField(v, "contractTypeDefault")),
+          nuN(pickPortalField(v, "requirements")),
+          imageUrl,
+          v.status || "Publicada"
+        ];
+        try {
+          await c.query(
+            `INSERT INTO vacantes (
+              id, id_cargo, titulo, departamento, ciudad, modalidad, jornada_vacante,
+              fecha_limite_postulacion, fecha_publicacion_desde, cupos, salario_oferta,
+              nombre_cargo_denorm, rol_trabajador, tipo_contrato_predeterminado, requisitos, imagen_url, estado
+            ) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8::date, $9::date, $10, $11, $12, $13, $14, $15, $16, $17::estado_vacante)
+            ON CONFLICT (id) DO UPDATE SET
+              id_cargo = EXCLUDED.id_cargo,
+              titulo = EXCLUDED.titulo,
+              departamento = EXCLUDED.departamento,
+              ciudad = EXCLUDED.ciudad,
+              modalidad = EXCLUDED.modalidad,
+              jornada_vacante = EXCLUDED.jornada_vacante,
+              fecha_limite_postulacion = EXCLUDED.fecha_limite_postulacion,
+              fecha_publicacion_desde = EXCLUDED.fecha_publicacion_desde,
+              cupos = EXCLUDED.cupos,
+              salario_oferta = EXCLUDED.salario_oferta,
+              nombre_cargo_denorm = EXCLUDED.nombre_cargo_denorm,
+              rol_trabajador = EXCLUDED.rol_trabajador,
+              tipo_contrato_predeterminado = EXCLUDED.tipo_contrato_predeterminado,
+              requisitos = EXCLUDED.requisitos,
+              imagen_url = EXCLUDED.imagen_url,
+              estado = EXCLUDED.estado`,
+            vacancyParams
+          );
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          const missingImageCol = /imagen_url/i.test(msg) && /does not exist|no existe/i.test(msg);
+          if (!missingImageCol) throw err;
+          await this.ensureVacantesSchema();
+          await c.query(
+            `INSERT INTO vacantes (
+              id, id_cargo, titulo, departamento, ciudad, modalidad, jornada_vacante,
+              fecha_limite_postulacion, fecha_publicacion_desde, cupos, salario_oferta,
+              nombre_cargo_denorm, rol_trabajador, tipo_contrato_predeterminado, requisitos, estado
+            ) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8::date, $9::date, $10, $11, $12, $13, $14, $15, $16::estado_vacante)
+            ON CONFLICT (id) DO UPDATE SET
+              id_cargo = EXCLUDED.id_cargo,
+              titulo = EXCLUDED.titulo,
+              departamento = EXCLUDED.departamento,
+              ciudad = EXCLUDED.ciudad,
+              modalidad = EXCLUDED.modalidad,
+              jornada_vacante = EXCLUDED.jornada_vacante,
+              fecha_limite_postulacion = EXCLUDED.fecha_limite_postulacion,
+              fecha_publicacion_desde = EXCLUDED.fecha_publicacion_desde,
+              cupos = EXCLUDED.cupos,
+              salario_oferta = EXCLUDED.salario_oferta,
+              nombre_cargo_denorm = EXCLUDED.nombre_cargo_denorm,
+              rol_trabajador = EXCLUDED.rol_trabajador,
+              tipo_contrato_predeterminado = EXCLUDED.tipo_contrato_predeterminado,
+              requisitos = EXCLUDED.requisitos,
+              estado = EXCLUDED.estado`,
+            [
+              vacancyParams[0],
+              vacancyParams[1],
+              vacancyParams[2],
+              vacancyParams[3],
+              vacancyParams[4],
+              vacancyParams[5],
+              vacancyParams[6],
+              vacancyParams[7],
+              vacancyParams[8],
+              vacancyParams[9],
+              vacancyParams[10],
+              vacancyParams[11],
+              vacancyParams[12],
+              vacancyParams[13],
+              vacancyParams[14],
+              vacancyParams[16]
+            ]
+          );
+        }
       }
       return;
     }

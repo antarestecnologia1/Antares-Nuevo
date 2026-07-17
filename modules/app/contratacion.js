@@ -136,11 +136,23 @@ function bindHiringPortalControls() {
     const titleInput = vacancyForm.querySelector("input[name='title']");
     const salaryOfferInput = vacancyForm.querySelector("#vacancy-salary-offer");
     const vacancySalaryHint = vacancyForm.querySelector("#vacancy-salary-hint");
+    const vacancyImageDropzone = vacancyForm.querySelector("[data-vacancy-image-dropzone]");
     const vacancyImageInput = vacancyForm.querySelector("input[name='imageFile']");
-    const vacancyImagePreview = vacancyForm.querySelector("#vacancy-image-preview");
-    if (vacancyImageInput && vacancyImagePreview && vacancyForm.dataset.vacancyImagePreviewWired !== "1") {
+    const vacancyImagePreview = vacancyForm.querySelector("[data-vacancy-image-preview]");
+    const vacancyImageEmpty = vacancyForm.querySelector("[data-vacancy-image-empty]");
+    if (vacancyImageInput && vacancyImageDropzone && vacancyForm.dataset.vacancyImagePreviewWired !== "1") {
       vacancyForm.dataset.vacancyImagePreviewWired = "1";
       let previewBlobUrl = "";
+      const setVacancyImagePreview = (url) => {
+        const has = Boolean(url);
+        if (vacancyImagePreview) {
+          if (has) vacancyImagePreview.src = url;
+          else vacancyImagePreview.removeAttribute("src");
+          vacancyImagePreview.hidden = !has;
+        }
+        if (vacancyImageEmpty) vacancyImageEmpty.hidden = has;
+        vacancyImageDropzone.classList.toggle("has-image", has);
+      };
       vacancyImageInput.addEventListener("change", () => {
         const f = vacancyImageInput.files?.[0];
         if (previewBlobUrl && previewBlobUrl.startsWith("blob:")) {
@@ -150,8 +162,7 @@ function bindHiringPortalControls() {
           previewBlobUrl = "";
         }
         if (!f || !String(f.type || "").startsWith("image/")) {
-          vacancyImagePreview.hidden = true;
-          vacancyImagePreview.removeAttribute("src");
+          setVacancyImagePreview("");
           return;
         }
         try {
@@ -159,12 +170,7 @@ function bindHiringPortalControls() {
         } catch (_e) {
           previewBlobUrl = "";
         }
-        if (previewBlobUrl) {
-          vacancyImagePreview.src = previewBlobUrl;
-          vacancyImagePreview.hidden = false;
-        } else {
-          vacancyImagePreview.hidden = true;
-        }
+        setVacancyImagePreview(previewBlobUrl);
       });
     }
     if (positionSelect) {
@@ -224,24 +230,50 @@ function bindHiringPortalControls() {
         return;
       }
       const imageFile = vacancyForm.querySelector("input[name='imageFile']")?.files?.[0] || null;
+      const dropzone = vacancyForm.querySelector("[data-vacancy-image-dropzone]");
+      dropzone?.classList.remove("is-error");
       let imageUrl = "";
       if (imageFile) {
         if (!String(imageFile.type || "").startsWith("image/")) {
-          failPortalField(vacancyForm, "imageFile", "Seleccione una imagen válida (JPG, PNG, WebP o GIF).");
+          dropzone?.classList.add("is-error");
+          notify("Seleccione una imagen válida (JPG, PNG, WebP o GIF).", "error");
           return;
         }
-        imageUrl = String((await resolveEmployeeAvatarUrl(imageFile, "")) || "").trim();
-        if (!imageUrl) {
-          failPortalField(vacancyForm, "imageFile", "No fue posible procesar la imagen del cargo. Intente de nuevo.");
-          return;
-        }
-        if (window.AntaresApi?.isConfigured?.() && isDataUrl(imageUrl)) {
-          failPortalField(
-            vacancyForm,
-            "imageFile",
-            "No se pudo obtener una URL pública de la imagen. Revise la configuración de almacenamiento o reintente con un archivo más liviano."
+        try {
+          const resolveUrl =
+            typeof window.resolveEmployeeAvatarUrl === "function"
+              ? window.resolveEmployeeAvatarUrl
+              : typeof resolveEmployeeAvatarUrl === "function"
+                ? resolveEmployeeAvatarUrl
+                : null;
+          const uploaded = resolveUrl
+            ? String((await resolveUrl(imageFile, "")) || "").trim()
+            : "";
+          const dataUrlCheck =
+            typeof window.isDataUrl === "function"
+              ? window.isDataUrl
+              : typeof isDataUrl === "function"
+                ? isDataUrl
+                : (v) => String(v || "").startsWith("data:");
+          if (uploaded && !(window.AntaresApi?.isConfigured?.() && dataUrlCheck(uploaded))) {
+            imageUrl = uploaded;
+          } else if (uploaded && !window.AntaresApi?.isConfigured?.()) {
+            imageUrl = uploaded;
+          } else {
+            dropzone?.classList.add("is-error");
+            notify(
+              "No se pudo subir la imagen al servidor. La vacante se publicará sin imagen; puede editarla después.",
+              "warning"
+            );
+            imageUrl = "";
+          }
+        } catch (imgErr) {
+          dropzone?.classList.add("is-error");
+          notify(
+            String(imgErr?.message || "No se pudo procesar la imagen. La vacante se publicará sin imagen."),
+            "warning"
           );
-          return;
+          imageUrl = "";
         }
       }
       const all = read(KEYS.vacancies, []);
@@ -1254,25 +1286,32 @@ function bindHiringPortalControls() {
             full: true,
             html: (() => {
               const existing = String(target.imageUrl || "").trim();
-              const preview =
-                existing && (/^https?:\/\//i.test(existing) || existing.startsWith("data:image/"))
-                  ? `<img class="vacancy-image-preview" data-vacancy-edit-image-preview src="${escapeAttr(existing)}" alt="Imagen actual del cargo" width="320" height="180" decoding="async" />`
-                  : `<img class="vacancy-image-preview" data-vacancy-edit-image-preview alt="Vista previa" width="320" height="180" decoding="async" hidden />`;
+              const hasImage =
+                existing && (/^https?:\/\//i.test(existing) || existing.startsWith("data:image/"));
               return `<div class="vacancy-image-field">
                 <span class="modal-field-label">Imagen del cargo</span>
                 <input type="hidden" name="imageUrlExisting" value="${escapeAttr(existing)}" />
-                <input type="file" name="imageFile" accept="image/jpeg,image/png,image/webp,image/gif" aria-label="Cambiar imagen del cargo" />
-                <span class="muted" style="font-size:0.78rem;display:block;margin-top:4px">Opcional. Deje vacío para conservar la imagen actual.</span>
-                ${preview}
+                <label class="vacancy-image-dropzone${hasImage ? " has-image" : ""}" data-vacancy-edit-image-dropzone for="vacancy-edit-image-file" title="Clic para cambiar la imagen del cargo">
+                  <input type="file" id="vacancy-edit-image-file" name="imageFile" accept="image/jpeg,image/png,image/webp,image/gif" class="vacancy-image-file-input" aria-label="Cambiar imagen del cargo" />
+                  <span class="vacancy-image-dropzone__empty" data-vacancy-edit-image-empty${hasImage ? " hidden" : ""}>
+                    <span class="vacancy-image-dropzone__icon" aria-hidden="true">${IC.upload}</span>
+                    <span class="vacancy-image-dropzone__title">Elegir imagen del cargo</span>
+                    <span class="vacancy-image-dropzone__meta">Opcional · Deje vacío para conservar la actual</span>
+                  </span>
+                  <img class="vacancy-image-preview" data-vacancy-edit-image-preview src="${hasImage ? escapeAttr(existing) : ""}" alt="" width="640" height="360" decoding="async"${hasImage ? "" : " hidden"} />
+                  <span class="vacancy-image-dropzone__overlay" aria-hidden="true"><span>Cambiar imagen</span></span>
+                </label>
               </div>`;
             })()
           }
         ],
         afterMount: (formEl) => {
           if (!formEl) return;
+          const dropzone = formEl.querySelector("[data-vacancy-edit-image-dropzone]");
           const fileInput = formEl.querySelector("input[name='imageFile']");
           const previewImg = formEl.querySelector("[data-vacancy-edit-image-preview]");
-          if (!fileInput || !previewImg) return;
+          const emptyEl = formEl.querySelector("[data-vacancy-edit-image-empty]");
+          if (!fileInput || !dropzone) return;
           let previewBlobUrl = "";
           fileInput.addEventListener("change", () => {
             const f = fileInput.files?.[0];
@@ -1288,10 +1327,13 @@ function bindHiringPortalControls() {
             } catch (_e) {
               previewBlobUrl = "";
             }
-            if (previewBlobUrl) {
+            if (!previewBlobUrl) return;
+            if (previewImg) {
               previewImg.src = previewBlobUrl;
               previewImg.hidden = false;
             }
+            if (emptyEl) emptyEl.hidden = true;
+            dropzone.classList.add("has-image");
           });
         },
         onSubmit: async (form, formEl) => {
@@ -1332,26 +1374,45 @@ function bindHiringPortalControls() {
             }
           }
           const imageFile = vacancyEditForm?.querySelector?.("input[name='imageFile']")?.files?.[0] || null;
-          let imageUrl = String(
-            form.imageUrlExisting || target.imageUrl || ""
-          ).trim();
+          const editDropzone = vacancyEditForm?.querySelector?.("[data-vacancy-edit-image-dropzone]");
+          editDropzone?.classList.remove("is-error");
+          let imageUrl = String(form.imageUrlExisting || target.imageUrl || "").trim();
           if (imageFile) {
             if (!String(imageFile.type || "").startsWith("image/")) {
-              failPortalField(vacancyEditForm, "imageFile", "Seleccione una imagen válida (JPG, PNG, WebP o GIF).");
+              editDropzone?.classList.add("is-error");
+              notify("Seleccione una imagen válida (JPG, PNG, WebP o GIF).", "error");
               return false;
             }
-            imageUrl = String((await resolveEmployeeAvatarUrl(imageFile, imageUrl)) || "").trim();
-            if (!imageUrl) {
-              failPortalField(vacancyEditForm, "imageFile", "No fue posible procesar la imagen del cargo. Intente de nuevo.");
-              return false;
-            }
-            if (window.AntaresApi?.isConfigured?.() && isDataUrl(imageUrl)) {
-              failPortalField(
-                vacancyEditForm,
-                "imageFile",
-                "No se pudo obtener una URL pública de la imagen. Revise la configuración de almacenamiento o reintente con un archivo más liviano."
-              );
-              return false;
+            try {
+              const resolveUrl =
+                typeof window.resolveEmployeeAvatarUrl === "function"
+                  ? window.resolveEmployeeAvatarUrl
+                  : typeof resolveEmployeeAvatarUrl === "function"
+                    ? resolveEmployeeAvatarUrl
+                    : null;
+              const uploaded = resolveUrl
+                ? String((await resolveUrl(imageFile, imageUrl)) || "").trim()
+                : "";
+              const dataUrlCheck =
+                typeof window.isDataUrl === "function"
+                  ? window.isDataUrl
+                  : typeof isDataUrl === "function"
+                    ? isDataUrl
+                    : (v) => String(v || "").startsWith("data:");
+              if (uploaded && !(window.AntaresApi?.isConfigured?.() && dataUrlCheck(uploaded))) {
+                imageUrl = uploaded;
+              } else if (uploaded && !window.AntaresApi?.isConfigured?.()) {
+                imageUrl = uploaded;
+              } else {
+                editDropzone?.classList.add("is-error");
+                notify(
+                  "No se pudo subir la imagen al servidor. Se conservará la imagen anterior (si había).",
+                  "warning"
+                );
+              }
+            } catch (imgErr) {
+              editDropzone?.classList.add("is-error");
+              notify(String(imgErr?.message || "No se pudo procesar la imagen del cargo."), "warning");
             }
           }
           const freshVacancies = read(KEYS.vacancies, []);
