@@ -15039,15 +15039,16 @@ body[data-theme="dark"] .p-form textarea {
 }
 
 .vacancy-image-dropzone.has-image {
-  display: inline-flex;
-  width: auto;
-  max-width: min(100%, 360px);
-  min-height: 0;
+  display: flex;
+  width: 100%;
+  max-width: 100%;
+  min-height: 200px;
   height: auto;
   aspect-ratio: auto;
-  padding: 0.35rem;
+  padding: 0.5rem;
   justify-content: center;
   align-items: center;
+  background: #eef2f7;
 }
 
 .vacancy-image-dropzone:hover,
@@ -15136,7 +15137,7 @@ body[data-theme="dark"] .p-form textarea {
   width: auto;
   max-width: 100%;
   height: auto;
-  max-height: 220px;
+  max-height: 280px;
   object-fit: contain;
   object-position: center;
   transform: none !important;
@@ -15145,6 +15146,7 @@ body[data-theme="dark"] .p-form textarea {
 
 .vacancy-image-dropzone.has-image .vacancy-image-preview:not([hidden]) {
   display: block;
+  margin: 0 auto;
 }
 
 .vacancy-image-preview[hidden] {

@@ -2,19 +2,105 @@
  * Contratación — adjuntos de candidato y listeners.
  */
 
-/** Fechas YYYY-MM-DD (evita depender de helpers no expuestos en window). */
+/** Normaliza cualquier valor de fecha del formulario a YYYY-MM-DD. */
+function vacancyNormalizeYmd(raw) {
+  const s = String(raw || "").trim();
+  if (!s) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  if (typeof normalizePortalDateYmd === "function") {
+    const n = String(normalizePortalDateYmd(s) || "").trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(n)) return n;
+  }
+  const V = window.AntaresValidation;
+  if (typeof V?.parseDmyToIsoDate === "function") {
+    const dmy = String(V.parseDmyToIsoDate(s) || "").trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dmy)) return dmy;
+  }
+  /* MM/DD/AAAA (algunos navegadores) → intentar si el día > 12 no aplica. */
+  const slash = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+  if (slash) {
+    const a = Number(slash[1]);
+    const b = Number(slash[2]);
+    const y = Number(slash[3]);
+    /* Preferir DD/MM (Colombia): si a>12 es claramente día. */
+    let day = a;
+    let month = b;
+    if (a <= 12 && b > 12) {
+      month = a;
+      day = b;
+    }
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      const ymd = `${y}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      const probe = new Date(y, month - 1, day);
+      if (probe.getFullYear() === y && probe.getMonth() === month - 1 && probe.getDate() === day) return ymd;
+    }
+  }
+  return "";
+}
+
 function vacancyYmdValid(s) {
-  const t = String(s || "").trim();
-  if (!t) return false;
-  const parts = t.split("-");
-  if (parts.length !== 3) return false;
-  const cand = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])).getTime();
-  return Number.isFinite(cand);
+  return Boolean(vacancyNormalizeYmd(s));
 }
 
 function vacancyYmdToMidnight(s) {
-  const parts = String(s || "").trim().split("-");
+  const ymd = vacancyNormalizeYmd(s);
+  const parts = ymd.split("-");
+  if (parts.length !== 3) return NaN;
   return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])).getTime();
+}
+
+/** Lee fecha de campo portal (hidden ISO o visible DMY) ya normalizada. */
+function vacancyFormDateYmd(formEl, fieldName, fallbackRaw) {
+  if (!formEl || !fieldName) return vacancyNormalizeYmd(fallbackRaw);
+  const hidden = formEl.querySelector(
+    `input[type="hidden"][name="${fieldName}"][data-portal-date-iso="1"]`
+  );
+  const fromHidden = vacancyNormalizeYmd(hidden?.value);
+  if (fromHidden) return fromHidden;
+  const V = window.AntaresValidation;
+  if (typeof V?.setPortalFormDateByName === "function" && typeof V?.findPortalDateVisibleInForm === "function") {
+    /* noop — solo lectura */
+  }
+  if (typeof V?.portalDateInputValueIso === "function") {
+    const vis =
+      formEl.querySelector(`input.portal-date-dmy[data-portal-date-uid]`) &&
+      [...formEl.querySelectorAll("input.portal-date-dmy")].find((el) => {
+        const h = formEl.querySelector(
+          `input[type="hidden"][data-portal-date-iso="1"][data-portal-date-for="${el.dataset.portalDateUid || ""}"]`
+        );
+        return h && h.name === fieldName;
+      });
+    if (vis) {
+      const iso = vacancyNormalizeYmd(V.portalDateInputValueIso(vis));
+      if (iso) return iso;
+    }
+  }
+  const named = formEl.querySelector(`[name="${fieldName}"]`);
+  const fromNamed = vacancyNormalizeYmd(named?.value);
+  if (fromNamed) return fromNamed;
+  return vacancyNormalizeYmd(fallbackRaw);
+}
+
+/** Hoy civil Colombia (o local) a medianoche para comparar fechas de vacante. */
+function vacancyTodayMidnight() {
+  try {
+    if (typeof getColombiaDateParts === "function") {
+      const p = getColombiaDateParts(new Date());
+      if (p?.year && p?.month && p?.day) {
+        return new Date(Number(p.year), Number(p.month) - 1, Number(p.day)).getTime();
+      }
+    }
+  } catch (_e) {}
+  const t = new Date();
+  return new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime();
+}
+
+function vacancyDeadlineIsTodayOrFuture(ymd) {
+  const normalized = vacancyNormalizeYmd(ymd);
+  if (!normalized) return false;
+  const cand = vacancyYmdToMidnight(normalized);
+  if (!Number.isFinite(cand)) return false;
+  return cand >= vacancyTodayMidnight();
 }
 
 /** Reduce flyers grandes antes de subir (evita timeouts / rechazo del servidor). */
@@ -372,34 +458,23 @@ function bindHiringPortalControls() {
         setVacancyFormPublishingState(vacancyForm, true, "Publicando vacante…");
         try {
           const data = readFormEntriesNormalized(vacancyForm);
-          const deadlineOk = (() => {
-            const s = String(data.deadline || "").trim();
-            const parts = s.split("-");
-            if (parts.length !== 3) return false;
-            const cand = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])).getTime();
-            if (!Number.isFinite(cand)) return false;
-            const t = new Date();
-            const t0 = new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime();
-            return cand >= t0;
-          })();
-          if (!deadlineOk) {
+          const deadline = vacancyFormDateYmd(vacancyForm, "deadline", data.deadline);
+          if (!vacancyDeadlineIsTodayOrFuture(deadline)) {
             failPortalField(vacancyForm, "deadline", userMessage("vacancyDeadlineFuture"));
             notify(userMessage("vacancyDeadlineFuture"), "error");
             return;
           }
-          const pFrom = String(data.publishedFrom || "").trim();
-          if (pFrom) {
-            if (!vacancyYmdValid(pFrom)) {
-              failPortalField(vacancyForm, "publishedFrom", "Indique una fecha válida en “Visible en web desde”, o déjela vacía.");
-              notify("Indique una fecha válida en “Visible en web desde”, o déjela vacía.", "error");
-              return;
-            }
-            const dlim = String(data.deadline || "").trim();
-            if (vacancyYmdValid(dlim) && vacancyYmdToMidnight(pFrom) > vacancyYmdToMidnight(dlim)) {
-              failPortalField(vacancyForm, "publishedFrom", "“Visible desde” no puede ser posterior a la fecha límite de postulaciones.");
-              notify("“Visible desde” no puede ser posterior a la fecha límite de postulaciones.", "error");
-              return;
-            }
+          const pFrom = vacancyFormDateYmd(vacancyForm, "publishedFrom", data.publishedFrom);
+          const publishedFromRaw = String(data.publishedFrom || "").trim();
+          if (publishedFromRaw && !pFrom) {
+            failPortalField(vacancyForm, "publishedFrom", "Indique una fecha válida en “Visible en web desde”, o déjela vacía.");
+            notify("Indique una fecha válida en “Visible en web desde”, o déjela vacía.", "error");
+            return;
+          }
+          if (pFrom && vacancyYmdToMidnight(pFrom) > vacancyYmdToMidnight(deadline)) {
+            failPortalField(vacancyForm, "publishedFrom", "“Visible desde” no puede ser posterior a la fecha límite de postulaciones.");
+            notify("“Visible desde” no puede ser posterior a la fecha límite de postulaciones.", "error");
+            return;
           }
           const position = getPositionById(String(data.positionId || ""));
           if (!position || position.active === false) {
@@ -450,8 +525,8 @@ function bindHiringPortalControls() {
             city: normalizeLatinForDb(data.city || ""),
             modality: normalizeLatinUpperForDb(data.modality || ""),
             workday: normalizeLatinUpperForDb(data.workday || ""),
-            deadline: data.deadline,
-            publishedFrom: String(data.publishedFrom || "").trim(),
+            deadline,
+            publishedFrom: pFrom || "",
             openings: Math.max(1, parseNum(data.openings || 1)),
             salaryOffer: salaryValidation.salaryOffer,
             positionName: position.name,
@@ -1538,30 +1613,20 @@ function bindHiringPortalControls() {
             failPortalField(vacancyEditForm, "salaryOffer", salaryValidation.message);
             return false;
           }
-          const deadline = String(form.deadline || "").trim();
-          const deadlineOk = (() => {
-            const parts = deadline.split("-");
-            if (parts.length !== 3) return false;
-            const cand = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])).getTime();
-            if (!Number.isFinite(cand)) return false;
-            const t = new Date();
-            const t0 = new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime();
-            return cand >= t0;
-          })();
-          if (!deadlineOk) {
+          const deadline = vacancyFormDateYmd(vacancyEditForm, "deadline", form.deadline);
+          if (!vacancyDeadlineIsTodayOrFuture(deadline)) {
             failPortalField(vacancyEditForm, "deadline", userMessage("vacancyDeadlineFuture"));
+            notify(userMessage("vacancyDeadlineFuture"), "error");
             return false;
           }
-          const pFrom = String(form.publishedFrom || "").trim();
-          if (pFrom) {
-            if (!vacancyYmdValid(pFrom)) {
-              failPortalField(vacancyEditForm, "publishedFrom", "Indique una fecha válida en “Visible en web desde”, o déjela vacía.");
-              return false;
-            }
-            if (vacancyYmdValid(deadline) && vacancyYmdToMidnight(pFrom) > vacancyYmdToMidnight(deadline)) {
-              failPortalField(vacancyEditForm, "publishedFrom", "“Visible desde” no puede ser posterior a la fecha límite de postulaciones.");
-              return false;
-            }
+          const pFrom = vacancyFormDateYmd(vacancyEditForm, "publishedFrom", form.publishedFrom);
+          if (String(form.publishedFrom || "").trim() && !pFrom) {
+            failPortalField(vacancyEditForm, "publishedFrom", "Indique una fecha válida en “Visible en web desde”, o déjela vacía.");
+            return false;
+          }
+          if (pFrom && vacancyYmdToMidnight(pFrom) > vacancyYmdToMidnight(deadline)) {
+            failPortalField(vacancyEditForm, "publishedFrom", "“Visible desde” no puede ser posterior a la fecha límite de postulaciones.");
+            return false;
           }
           const imageFile = vacancyEditForm?.querySelector?.("input[name='imageFile']")?.files?.[0] || null;
           const editDropzone = vacancyEditForm?.querySelector?.("[data-vacancy-edit-image-dropzone]");
@@ -1606,7 +1671,7 @@ function bindHiringPortalControls() {
                   openings: Math.max(1, parseNum(form.openings || 1)),
                   salaryOffer: salaryValidation.salaryOffer,
                   deadline,
-                  publishedFrom: pFrom,
+                  publishedFrom: pFrom || "",
                   requirements: normalizeLatinUpperForDb(String(form.requirements || "").trim()),
                   imageUrl,
                   status: String(form.status || "Publicada")
