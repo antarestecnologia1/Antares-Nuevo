@@ -3888,6 +3888,9 @@ export class PortalService implements OnModuleInit {
     role: JwtRole,
     deletedIds?: string[]
   ) {
+    if (key === "vacancies") {
+      await this.ensureVacantesSchema();
+    }
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
@@ -12241,7 +12244,6 @@ export class PortalService implements OnModuleInit {
       await this.syncListWithPruning(c, hrTable, data, deletedIds);
     }
     if (key === "vacancies") {
-      await this.ensureVacantesSchema();
       for (const raw of data) {
         const v = raw as Record<string, unknown>;
         if (!v?.id || !v.positionId) continue;
@@ -12256,7 +12258,7 @@ export class PortalService implements OnModuleInit {
           imageUrlRaw == null || imageUrlRaw === ""
             ? null
             : String(imageUrlRaw).trim() || null;
-        const vacancyParams = [
+        const baseParams = [
           v.id,
           v.positionId,
           nu(v.title),
@@ -12272,9 +12274,8 @@ export class PortalService implements OnModuleInit {
           String(pickPortalField(v, "workerRole") || "empleado").toLowerCase(),
           nuN(pickPortalField(v, "contractTypeDefault")),
           nuN(pickPortalField(v, "requirements")),
-          imageUrl,
           v.status || "Publicada"
-        ];
+        ] as unknown[];
         try {
           await c.query(
             `INSERT INTO vacantes (
@@ -12299,13 +12300,14 @@ export class PortalService implements OnModuleInit {
               requisitos = EXCLUDED.requisitos,
               imagen_url = EXCLUDED.imagen_url,
               estado = EXCLUDED.estado`,
-            vacancyParams
+            [...baseParams.slice(0, 15), imageUrl, baseParams[15]]
           );
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
-          const missingImageCol = /imagen_url/i.test(msg) && /does not exist|no existe/i.test(msg);
+          const missingImageCol = /imagen_url/i.test(msg) && /does not exist|no existe|column/i.test(msg);
           if (!missingImageCol) throw err;
-          await this.ensureVacantesSchema();
+          /** No llamar ensureVacantesSchema aquí: corre en otra conexión y puede bloquearse
+           *  con la transacción abierta de sync-key (ALTER TABLE vs locks de vacantes). */
           await c.query(
             `INSERT INTO vacantes (
               id, id_cargo, titulo, departamento, ciudad, modalidad, jornada_vacante,
@@ -12328,24 +12330,7 @@ export class PortalService implements OnModuleInit {
               tipo_contrato_predeterminado = EXCLUDED.tipo_contrato_predeterminado,
               requisitos = EXCLUDED.requisitos,
               estado = EXCLUDED.estado`,
-            [
-              vacancyParams[0],
-              vacancyParams[1],
-              vacancyParams[2],
-              vacancyParams[3],
-              vacancyParams[4],
-              vacancyParams[5],
-              vacancyParams[6],
-              vacancyParams[7],
-              vacancyParams[8],
-              vacancyParams[9],
-              vacancyParams[10],
-              vacancyParams[11],
-              vacancyParams[12],
-              vacancyParams[13],
-              vacancyParams[14],
-              vacancyParams[16]
-            ]
+            baseParams
           );
         }
       }

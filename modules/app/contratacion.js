@@ -234,8 +234,9 @@ async function resolveVacancyImageUrl(file) {
   return /^https?:\/\//i.test(uploaded) ? uploaded : "";
 }
 
-function setVacancyFormPublishingState(formEl, active, statusText) {
+function setVacancyFormPublishingState(formEl, active, progressPct) {
   if (!formEl) return;
+  const pct = Math.max(0, Math.min(100, Math.round(Number(progressPct) || 0)));
   formEl.classList.toggle("is-vacancy-publishing", Boolean(active));
   formEl.querySelectorAll("input, select, textarea, button").forEach((el) => {
     if (!(el instanceof HTMLElement)) return;
@@ -255,11 +256,15 @@ function setVacancyFormPublishingState(formEl, active, statusText) {
     dropzone.classList.toggle("is-disabled", Boolean(active));
     dropzone.setAttribute("aria-disabled", active ? "true" : "false");
   }
-  const statusEl = formEl.querySelector("[data-vacancy-publish-status]");
-  if (statusEl) {
-    statusEl.hidden = !active;
-    statusEl.textContent = active ? String(statusText || "Publicando vacante…") : "";
+  const progressEl = formEl.querySelector("[data-vacancy-publish-progress]");
+  const fillEl = formEl.querySelector("[data-vacancy-publish-fill]");
+  const barEl = formEl.querySelector("[data-vacancy-publish-bar]");
+  if (progressEl) {
+    progressEl.hidden = !active;
+    progressEl.setAttribute("aria-busy", active ? "true" : "false");
   }
+  if (fillEl) fillEl.style.width = active ? `${pct}%` : "0%";
+  if (barEl) barEl.setAttribute("aria-valuenow", active ? String(pct) : "0");
 }
 
 function parseCandidateAttachmentsForView(raw, opts = {}) {
@@ -465,7 +470,7 @@ function bindHiringPortalControls() {
         const publishedFromRaw = String(data.publishedFrom || "").trim();
         const imageFile = vacancyForm.querySelector("input[name='imageFile']")?.files?.[0] || null;
 
-        setVacancyFormPublishingState(vacancyForm, true, "Publicando vacante…");
+        setVacancyFormPublishingState(vacancyForm, true, 12);
         try {
           if (!vacancyDeadlineIsTodayOrFuture(deadline)) {
             failPortalField(vacancyForm, "deadline", userMessage("vacancyDeadlineFuture"));
@@ -503,7 +508,7 @@ function bindHiringPortalControls() {
               notify("Seleccione una imagen válida (JPG, PNG, WebP o GIF).", "error");
               return;
             }
-            setVacancyFormPublishingState(vacancyForm, true, "Subiendo imagen a Cloudflare…");
+            setVacancyFormPublishingState(vacancyForm, true, 42);
             try {
               imageUrl = await resolveVacancyImageUrl(imageFile);
             } catch (imgErr) {
@@ -520,7 +525,7 @@ function bindHiringPortalControls() {
               return;
             }
           }
-          setVacancyFormPublishingState(vacancyForm, true, "Guardando vacante…");
+          setVacancyFormPublishingState(vacancyForm, true, 78);
           const all = read(KEYS.vacancies, []);
           const createdVacancy = stampCreatedRecord({
             id: newUuidV4(),
@@ -545,11 +550,31 @@ function bindHiringPortalControls() {
           });
           all.unshift(createdVacancy);
           try {
-            await writeAwaitServerCreate(KEYS.vacancies, all, createdVacancy);
+            const savePromise = writeAwaitServerCreate(KEYS.vacancies, all, createdVacancy);
+            const timeoutPromise = new Promise((_, reject) => {
+              window.setTimeout(() => {
+                reject(
+                  new Error(
+                    "El servidor tardó demasiado en confirmar la vacante. Verifique la conexión o reinicie la API e intente de nuevo."
+                  )
+                );
+              }, 45000);
+            });
+            await Promise.race([savePromise, timeoutPromise]);
           } catch (err) {
-            notify(String(err?.message || "No fue posible guardar la vacante en el servidor."), "error");
-            return;
+            /* Si el timeout ganó la carrera, la vacante puede haber quedado solo en memoria local. */
+            const stillLocal = read(KEYS.vacancies, []).some((v) => String(v?.id) === String(createdVacancy.id));
+            if (stillLocal && /tardó demasiado/i.test(String(err?.message || ""))) {
+              notify(
+                "La vacante quedó guardada en este navegador, pero el servidor no confirmó a tiempo. Si no aparece en otros equipos, reinicie la API y vuelva a editar/guardar.",
+                "warning"
+              );
+            } else {
+              notify(String(err?.message || "No fue posible guardar la vacante en el servidor."), "error");
+              return;
+            }
           }
+          setVacancyFormPublishingState(vacancyForm, true, 100);
           if (createdVacancy) {
             appendPortalEntityAuditLog(
               "create",
@@ -580,7 +605,6 @@ function bindHiringPortalControls() {
         }
       },
       {
-        busyText: "Publicando…",
         prepareForm: (form) => {
           const fn = window.prepareCreationFormForSubmit;
           const ok = typeof fn !== "function" ? true : fn(form) !== false;

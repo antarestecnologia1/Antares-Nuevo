@@ -295,10 +295,15 @@ function hiringHtml() {
             <img id="vacancy-image-preview" class="vacancy-image-preview" data-vacancy-image-preview alt="" width="640" height="360" decoding="async" hidden />
             <span class="vacancy-image-dropzone__overlay" aria-hidden="true"><span>Cambiar imagen</span></span>
           </label>
-          <p class="vacancy-publish-status muted" data-vacancy-publish-status hidden aria-live="polite"></p>
         </div>
       </div>
     </fieldset>
+    <div class="vacancy-publish-progress" data-vacancy-publish-progress hidden aria-live="polite" aria-busy="false">
+      <span class="vacancy-publish-progress__spinner" aria-hidden="true"></span>
+      <div class="vacancy-publish-progress__track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-vacancy-publish-bar>
+        <span class="vacancy-publish-progress__fill" data-vacancy-publish-fill style="width:0%"></span>
+      </div>
+    </div>
     ${renderManagedCreateFormActions("create-vacancy", `<button class="btn btn-primary" type="submit">${IC.plus} Publicar vacante</button>`)}
   </form>`;
   const educationOptsCand = selectOptionsFromCatalog(CO_CATALOGS.educationLevel);

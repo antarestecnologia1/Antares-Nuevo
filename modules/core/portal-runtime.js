@@ -13173,6 +13173,127 @@ function initCoverageCorridors() {
     });
 }
 
+function closePublicCareersOverlay(overlayId) {
+  const overlay = document.getElementById(overlayId);
+  if (!overlay) return;
+  const onKey = overlay._careersOverlayKeyHandler;
+  if (onKey) document.removeEventListener("keydown", onKey);
+  overlay.remove();
+}
+
+function bindPublicCareersOverlay(overlay, closeSelector) {
+  const onKey = (ev) => {
+    if (ev.key === "Escape") closePublicCareersOverlay(overlay.id);
+  };
+  overlay._careersOverlayKeyHandler = onKey;
+  overlay.addEventListener("click", (ev) => {
+    if (ev.target === overlay || ev.target.closest(closeSelector)) {
+      closePublicCareersOverlay(overlay.id);
+    }
+  });
+  document.addEventListener("keydown", onKey);
+  document.body.appendChild(overlay);
+  overlay.querySelector(closeSelector)?.focus?.();
+}
+
+function closePublicCareersImagePreview() {
+  closePublicCareersOverlay("careers-image-preview-overlay");
+}
+
+function openPublicCareersImagePreview(src, alt) {
+  const url = String(src || "").trim();
+  if (!url) return;
+  closePublicCareersImagePreview();
+  closePublicCareersVacancyDetail();
+  const title = String(alt || tPublic("Vacante")).trim() || tPublic("Vacante");
+  const overlay = document.createElement("div");
+  overlay.id = "careers-image-preview-overlay";
+  overlay.className = "careers-image-preview-overlay";
+  overlay.innerHTML = `<div class="careers-image-preview" role="dialog" aria-modal="true" aria-label="${escapeAttr(title)}">
+    <header class="careers-image-preview__head">
+      <p class="careers-image-preview__title">${escapeHtml(title)}</p>
+      <button type="button" class="careers-image-preview__close" data-careers-image-close aria-label="${escapeAttr(tPublic("Cerrar"))}">×</button>
+    </header>
+    <div class="careers-image-preview__body">
+      <img src="${escapeAttr(url)}" alt="${escapeAttr(title)}" />
+    </div>
+  </div>`;
+  bindPublicCareersOverlay(overlay, "[data-careers-image-close]");
+}
+
+function closePublicCareersVacancyDetail() {
+  closePublicCareersOverlay("careers-vacancy-detail-overlay");
+}
+
+function openPublicCareersVacancyDetail(vacancy) {
+  if (!vacancy) return;
+  closePublicCareersVacancyDetail();
+  closePublicCareersImagePreview();
+  const title = String(vacancy.title || tPublic("Vacante")).trim() || tPublic("Vacante");
+  const salary = parseNum(vacancy.salaryOffer);
+  const salaryStr = `$${salary.toLocaleString("es-CO")}`;
+  const deadline = vacancy.deadline
+    ? `${tPublic("Cierre")}: ${escapeHtml(vacancy.deadline)}`
+    : tPublic("Sin fecha limite");
+  const location = [vacancy.city, vacancy.department].filter(Boolean).map((x) => escapeHtml(String(x))).join(", ");
+  const modality = String(vacancy.modality || "").trim();
+  const openings = vacancy.openings != null && vacancy.openings !== "" ? String(vacancy.openings) : "";
+  const requirements = String(vacancy.requirements || "").trim();
+  const metaParts = [
+    escapeHtml(vacancy.positionName || tPublic("Cargo")),
+    salaryStr,
+    deadline,
+    location || "",
+    modality ? `${tPublic("Modalidad")}: ${escapeHtml(modality)}` : "",
+    openings ? `${tPublic("Cupos")}: ${escapeHtml(openings)}` : ""
+  ].filter(Boolean);
+  const imageUrl = String(vacancy.imageUrl || "").trim();
+  const hasImage = imageUrl && (/^https?:\/\//i.test(imageUrl) || imageUrl.startsWith("data:image/"));
+  const overlay = document.createElement("div");
+  overlay.id = "careers-vacancy-detail-overlay";
+  overlay.className = "careers-vacancy-detail-overlay";
+  overlay.innerHTML = `<div class="careers-vacancy-detail" role="dialog" aria-modal="true" aria-label="${escapeAttr(title)}">
+    <header class="careers-vacancy-detail__head">
+      <div>
+        <p class="careers-vacancy-detail__eyebrow">${escapeHtml(tPublic("Detalle de la vacante"))}</p>
+        <h3 class="careers-vacancy-detail__title">${escapeHtml(title)}</h3>
+        <p class="careers-vacancy-detail__meta">${metaParts.join(" · ")}</p>
+      </div>
+      <button type="button" class="careers-vacancy-detail__close" data-careers-detail-close aria-label="${escapeAttr(tPublic("Cerrar"))}">×</button>
+    </header>
+    <div class="careers-vacancy-detail__body">
+      ${
+        hasImage
+          ? `<button type="button" class="careers-vacancy-detail__media" data-careers-detail-image aria-label="${escapeAttr(tPublic("Ver imagen ampliada"))}">
+              <img src="${escapeAttr(imageUrl)}" alt="${escapeAttr(title)}" />
+            </button>`
+          : ""
+      }
+      <div class="careers-vacancy-detail__section">
+        <h4>${escapeHtml(tPublic("Descripción y requisitos"))}</h4>
+        <p class="careers-vacancy-detail__text">${
+          requirements
+            ? escapeHtml(requirements)
+            : escapeHtml(tPublic("Sin descripción publicada para esta vacante."))
+        }</p>
+      </div>
+    </div>
+    <footer class="careers-vacancy-detail__foot">
+      <button type="button" class="btn btn-outline" data-careers-detail-close>${escapeHtml(tPublic("Cerrar"))}</button>
+      <button type="button" class="btn btn-primary" data-careers-detail-apply data-id="${escapeAttr(String(vacancy.id ?? ""))}">${escapeHtml(tPublic("Aplicar"))}</button>
+    </footer>
+  </div>`;
+  bindPublicCareersOverlay(overlay, "[data-careers-detail-close]");
+  overlay.querySelector("[data-careers-detail-apply]")?.addEventListener("click", () => {
+    const vac = getPublicPublishedVacancies().find((x) => String(x.id) === String(vacancy.id));
+    closePublicCareersVacancyDetail();
+    if (vac) openPublicVacancyApplyModal(vac);
+  });
+  overlay.querySelector("[data-careers-detail-image]")?.addEventListener("click", () => {
+    openPublicCareersImagePreview(imageUrl, title);
+  });
+}
+
 function initPublicCareers() {
   const grid = document.getElementById("careers-vacancies-grid");
   if (!grid) return;
@@ -13190,26 +13311,44 @@ function initPublicCareers() {
         const deadline = v.deadline
           ? `${tPublic("Cierre")}: ${escapeHtml(v.deadline)}`
           : tPublic("Sin fecha limite");
-        const req = escapeHtml(String(v.requirements || "").slice(0, 180));
-        const more = String(v.requirements || "").length > 180 ? "…" : "";
+        const fullReq = String(v.requirements || "").trim();
+        const isTruncated = fullReq.length > 180;
+        const reqPreview = escapeHtml(isTruncated ? `${fullReq.slice(0, 180)}…` : fullReq);
+        const vacId = escapeAttr(String(v.id ?? ""));
         const imageUrl = String(v.imageUrl || "").trim();
+        const imageAlt = String(v.title || tPublic("Vacante"));
         const media =
           imageUrl && (/^https?:\/\//i.test(imageUrl) || imageUrl.startsWith("data:image/"))
-            ? `<div class="careers-card-media"><img src="${escapeAttr(imageUrl)}" alt="${escapeAttr(String(v.title || "Vacante"))}" loading="lazy" decoding="async" /></div>`
+            ? `<button type="button" class="careers-card-media careers-card-media--zoomable" data-careers-image-preview aria-label="${escapeAttr(tPublic("Ver imagen ampliada"))}" title="${escapeAttr(tPublic("Ver imagen ampliada"))}">
+                <img src="${escapeAttr(imageUrl)}" alt="${escapeAttr(imageAlt)}" loading="lazy" decoding="async" />
+              </button>`
             : "";
         return `<article class="careers-card lift-card">
           ${media}
           <h3>${escapeHtml(v.title)}</h3>
           <div class="careers-meta">${escapeHtml(v.positionName || tPublic("Cargo"))} · ${salaryStr} · ${deadline}</div>
-          <p class="careers-req muted">${req}${more}</p>
-          <button type="button" class="btn btn-primary full" data-careers-apply data-id="${escapeHtml(String(v.id ?? ""))}">${tPublic("Aplicar")}</button>
+          <p class="careers-req muted">${reqPreview || escapeHtml(tPublic("Sin descripción publicada."))}</p>
+          <button type="button" class="careers-detail-link" data-careers-detail data-id="${vacId}">${escapeHtml(tPublic(isTruncated ? "Ver detalle completo" : "Ver detalle"))}</button>
+          <button type="button" class="btn btn-primary full" data-careers-apply data-id="${vacId}">${tPublic("Aplicar")}</button>
         </article>`;
       })
       .join("");
     grid.querySelectorAll("[data-careers-apply]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        const vac = getPublicPublishedVacancies().find((x) => x.id === btn.dataset.id);
+        const vac = getPublicPublishedVacancies().find((x) => String(x.id) === String(btn.dataset.id));
         if (vac) openPublicVacancyApplyModal(vac);
+      });
+    });
+    grid.querySelectorAll("[data-careers-detail]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const vac = getPublicPublishedVacancies().find((x) => String(x.id) === String(btn.dataset.id));
+        if (vac) openPublicCareersVacancyDetail(vac);
+      });
+    });
+    grid.querySelectorAll("[data-careers-image-preview]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const img = btn.querySelector("img");
+        openPublicCareersImagePreview(img?.currentSrc || img?.src, img?.alt);
       });
     });
   };
