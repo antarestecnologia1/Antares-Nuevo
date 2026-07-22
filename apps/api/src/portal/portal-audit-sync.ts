@@ -441,11 +441,20 @@ async function preparePortalSyncTripRouteRatesAudits(
   return pending;
 }
 
+/**
+ * Memo por proceso: la tabla se crea en el arranque (`ensurePortalAuditEventsSchema`) y no se
+ * elimina en runtime. Tras verla lista una vez, evitamos el `to_regclass` en cada inserción de
+ * auditoría (un round-trip menos por evento sincronizado). Si aún no existe, se sigue reintentando.
+ */
+let auditTableReadyMemo = false;
 async function auditTableReady(c: PoolClient): Promise<boolean> {
+  if (auditTableReadyMemo) return true;
   const r = await c.query<{ reg: string | null }>(
     `SELECT to_regclass('public.auditoria_eventos_portal')::text AS reg`
   );
-  return Boolean(r.rows[0]?.reg);
+  const ready = Boolean(r.rows[0]?.reg);
+  if (ready) auditTableReadyMemo = true;
+  return ready;
 }
 
 function portalRowActorUserIdCandidates(row: Record<string, unknown>): string[] {

@@ -125,7 +125,7 @@ function hiringHtml() {
       <td class="hiring-table-cell-actions"><div class="toolbar vacancy-row-actions hiring-table-actions">${[
         `<button type="button" class="btn btn-sm btn-outline" data-action="view-vacancy" data-id="${escapeAttr(String(v.id))}">${IC.eye} Ver</button>`,
         vacancyCanEdit ? `<button type="button" class="btn btn-sm btn-action" data-action="edit-vacancy" data-id="${escapeAttr(String(v.id))}">${IC.edit} Editar</button>` : "",
-        `<button type="button" class="btn btn-sm btn-action" data-action="close-vacancy" data-id="${escapeAttr(String(v.id))}">${IC.x} Cerrar</button>`,
+        vacancyCanEdit ? `<button type="button" class="btn btn-sm btn-action" data-action="close-vacancy" data-id="${escapeAttr(String(v.id))}">${IC.x} Cerrar</button>` : "",
         delCell
       ].filter(Boolean).join("")}</div></td>
     </tr>`;

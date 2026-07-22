@@ -104,6 +104,8 @@ ALTER TABLE public.empleados_nomina ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.liquidaciones_nomina ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ausencias_laborales ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.registros_cumplimiento_sst ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.documentos_empleado ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.carpetas_documento_empleado ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE public.notificaciones ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.correos_salida ENABLE ROW LEVEL SECURITY;
@@ -424,6 +426,42 @@ CREATE POLICY sst_select
 
 CREATE POLICY sst_escritura
   ON public.registros_cumplimiento_sst FOR ALL TO authenticated
+  USING (public.es_equipo_rrhh() OR public.es_administrador_global())
+  WITH CHECK (public.es_equipo_rrhh() OR public.es_administrador_global());
+
+CREATE POLICY documentos_empleado_select
+  ON public.documentos_empleado FOR SELECT TO authenticated
+  USING (
+    public.es_equipo_rrhh()
+    OR public.es_administrador_global()
+    OR EXISTS (
+      SELECT 1
+      FROM public.empleados_nomina e
+      WHERE e.id = documentos_empleado.id_empleado
+        AND public.misma_empresa_o_admin(e.id_empresa)
+    )
+  );
+
+CREATE POLICY documentos_empleado_escritura
+  ON public.documentos_empleado FOR ALL TO authenticated
+  USING (public.es_equipo_rrhh() OR public.es_administrador_global())
+  WITH CHECK (public.es_equipo_rrhh() OR public.es_administrador_global());
+
+CREATE POLICY carpetas_documento_empleado_select
+  ON public.carpetas_documento_empleado FOR SELECT TO authenticated
+  USING (
+    public.es_equipo_rrhh()
+    OR public.es_administrador_global()
+    OR EXISTS (
+      SELECT 1
+      FROM public.empleados_nomina e
+      WHERE e.id = carpetas_documento_empleado.id_empleado
+        AND public.misma_empresa_o_admin(e.id_empresa)
+    )
+  );
+
+CREATE POLICY carpetas_documento_empleado_escritura
+  ON public.carpetas_documento_empleado FOR ALL TO authenticated
   USING (public.es_equipo_rrhh() OR public.es_administrador_global())
   WITH CHECK (public.es_equipo_rrhh() OR public.es_administrador_global());
 

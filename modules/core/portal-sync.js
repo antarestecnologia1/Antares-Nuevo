@@ -100,6 +100,30 @@
   var lastSyncFailureWallMs = 0;
 
   /**
+   * Coalescing del refresco de la bitácora de auditoría tras cada sync-key. Antes se disparaba
+   * un GET /portal/audit-events (hasta 800 filas) por CADA mutación, compitiendo con el render
+   * inmediato posterior al guardado (p. ej. publicar vacante). Ahora varias mutaciones seguidas
+   * colapsan en un único refresco diferido; es una bitácora de fondo, el pequeño retardo es inocuo.
+   */
+  var auditRefreshTimer = null;
+  function scheduleAuditRefreshCoalesced() {
+    try {
+      var sync = window.AntaresPortalAuditSync;
+      if (!sync || typeof sync.refreshModuleAuditLogsFromApi !== "function") return;
+      clearTimeout(auditRefreshTimer);
+      auditRefreshTimer = setTimeout(function () {
+        try {
+          void sync.refreshModuleAuditLogsFromApi({ limit: 800 });
+        } catch (_e) {
+          /* noop */
+        }
+      }, 900);
+    } catch (_e) {
+      /* noop */
+    }
+  }
+
+  /**
    * Claves respaldadas por PostgreSQL: la fuente de verdad tras `AntaresPersistence.write`
    * es la memoria (`serverBackedMemory`). `pending` solo refleja el último `schedule()` y
    * puede quedar obsoleto si hubo un `write(..., { skipSyncSchedule: true })` (p. ej. borrar
@@ -155,13 +179,7 @@
           }).filter(Boolean);
         }
         await api.postJson("/portal/sync-key", body);
-        try {
-          if (window.AntaresPortalAuditSync && typeof window.AntaresPortalAuditSync.refreshModuleAuditLogsFromApi === "function") {
-            void window.AntaresPortalAuditSync.refreshModuleAuditLogsFromApi({ limit: 800 });
-          }
-        } catch (_auditRefresh) {
-          /* noop */
-        }
+        scheduleAuditRefreshCoalesced();
         if (window.__ANTARES_DEBUG_SYNC__ === true) {
           try {
             var okHint = "";

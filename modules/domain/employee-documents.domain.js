@@ -35,7 +35,8 @@ export const CORE_EMPLOYEE_DOCUMENT_TYPES = Object.freeze([
 export const CONDUCTOR_EXTRA_DOCUMENT_TYPES = Object.freeze([
   "licencia_conduccion",
   "examen_instruvial",
-  "soat"
+  "soat",
+  "certificado_runt"
 ]);
 
 export const EMPLOYEE_DOC_DUE_SOON_DAYS = 30;

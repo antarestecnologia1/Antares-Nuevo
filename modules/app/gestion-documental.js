@@ -165,14 +165,6 @@ function hasActiveDocumentFilters(ui) {
   );
 }
 
-function collectUniqueDocumentFolders(documents) {
-  const names = new Set();
-  for (const raw of documents || []) {
-    names.add(normalizeDocumentFolder(normalizeEmployeeDocumentRow(raw).folder));
-  }
-  return [...names].sort((a, b) => a.localeCompare(b, "es"));
-}
-
 function buildDocumentListFilters(ui, { employeeId = "", dataSection = null } = {}) {
   return {
     searchNorm: String(ui.listSearch || "").trim().toLowerCase(),
@@ -184,13 +176,33 @@ function buildDocumentListFilters(ui, { employeeId = "", dataSection = null } = 
   };
 }
 
+function sortDocumentsNewestFirst(documents) {
+  return [...(documents || [])]
+    .map(normalizeEmployeeDocumentRow)
+    .sort((a, b) => {
+      const ta = Date.parse(String(a.createdAt || a.updatedAt || "")) || 0;
+      const tb = Date.parse(String(b.createdAt || b.updatedAt || "")) || 0;
+      if (tb !== ta) return tb - ta;
+      return String(a.fileName || "").localeCompare(String(b.fileName || ""), "es");
+    });
+}
+
+function renderFolderFilterOptions(folderNames, selected) {
+  const opts = [`<option value="">Todas las carpetas</option>`];
+  const selectedKey = selected ? documentFolderKey(selected) : "";
+  for (const name of folderNames || []) {
+    const canonical = normalizeDocumentFolder(name);
+    opts.push(
+      `<option value="${escapeAttr(canonical)}"${documentFolderKey(canonical) === selectedKey ? " selected" : ""}>${escapeHtml(canonical)}</option>`
+    );
+  }
+  return opts.join("");
+}
+
 function renderDocumentsFilterBar({ ui, employees, folderNames = [], mode = "browse", gapsCount = 0 } = {}) {
   const hasFilters = hasActiveDocumentFilters(ui);
   const showEmployee = mode === "browse" && !ui.folderBrowseEmployeeId;
-  const showStatus = true;
-  const showFolder = false;
-  void folderNames;
-  void showFolder;
+  const showFolder = Boolean(ui.folderBrowseEmployeeId) && (folderNames || []).length > 0;
   const employeeOpts = renderEmployeeOptions(employees, ui.filterEmployeeId, { placeholder: false });
   const statusValue =
     ui.dataSection === "gaps"
@@ -209,7 +221,7 @@ function renderDocumentsFilterBar({ ui, employees, folderNames = [], mode = "bro
     .filter(Boolean)
     .join("");
 
-  return `<div class="doc-filter-bar" data-doc-filter-mode="${escapeAttr(mode)}">
+  return `<div class="doc-filter-bar${hasFilters ? " doc-filter-bar--active" : ""}" data-doc-filter-mode="${escapeAttr(mode)}">
     <div class="doc-filter-bar__search">
       <label class="doc-filter-field doc-filter-field--search">
         <span class="doc-filter-field__label">Buscar</span>
@@ -228,13 +240,19 @@ function renderDocumentsFilterBar({ ui, employees, folderNames = [], mode = "bro
       </label>`
           : ""
       }
+      ${
+        showFolder
+          ? `<label class="doc-filter-field">
+        <span class="doc-filter-field__label">Carpeta</span>
+        <select data-action="doc-filter-folder" title="Filtrar por carpeta">${renderFolderFilterOptions(folderNames, ui.folderFilter)}</select>
+      </label>`
+          : ""
+      }
       <label class="doc-filter-field">
         <span class="doc-filter-field__label">Tipo documental</span>
         <select data-action="doc-type-filter" title="Filtrar por tipo">${renderDocumentTypeFilterOptions(ui.typeFilter)}</select>
       </label>
-      ${
-        showStatus
-          ? `<label class="doc-filter-field">
+      <label class="doc-filter-field">
         <span class="doc-filter-field__label">Estado</span>
         <select data-action="doc-filter-status" title="Filtrar por estado">
           <option value=""${!statusValue ? " selected" : ""}>Todos</option>
@@ -247,9 +265,7 @@ function renderDocumentsFilterBar({ ui, employees, folderNames = [], mode = "bro
               : ""
           }
         </select>
-      </label>`
-          : ""
-      }
+      </label>
     </div>
     ${actions ? `<div class="doc-filter-bar__actions">${actions}</div>` : ""}
   </div>`;
@@ -376,12 +392,13 @@ function renderDocumentChecklistItem(typeValue, { employeeId, allDocs, selectedT
   const ok = employeeHasDocumentType(employeeId, typeValue, allDocs);
   const isSelected = String(selectedType) === String(typeValue);
   const isHighlight = String(highlightType) === String(typeValue);
-  const empDocs = (allDocs || []).filter(
-    (d) =>
-      String(normalizeEmployeeDocumentRow(d).employeeId) === String(employeeId) &&
-      String(normalizeEmployeeDocumentRow(d).documentType) === String(typeValue)
+  const empDocs = sortDocumentsNewestFirst(
+    (allDocs || []).filter((d) => {
+      const row = normalizeEmployeeDocumentRow(d);
+      return String(row.employeeId) === String(employeeId) && String(row.documentType) === String(typeValue);
+    })
   );
-  const latest = empDocs[0] ? normalizeEmployeeDocumentRow(empDocs[0]) : null;
+  const latest = empDocs[0] || null;
   const status = latest ? computeEmployeeDocumentStatus(latest.dueDate, todayYmd) : null;
 
   if (mode === "pick") {
@@ -446,6 +463,7 @@ function renderUploadDocumentTypePicker(employeeId, allDocs, selectedType, today
       })
     )
     .join("");
+  const otherOpen = [...otherTypes, "otro"].includes(resolved);
 
   return `<div class="doc-type-picker doc-type-picker--form" data-doc-type-picker>
     <input type="hidden" name="documentType" value="${escapeAttr(resolved)}" data-doc-type-input required />
@@ -457,7 +475,7 @@ function renderUploadDocumentTypePicker(employeeId, allDocs, selectedType, today
     </div>
     ${
       otherItems
-        ? `<details class="doc-type-picker__more">
+        ? `<details class="doc-type-picker__more"${otherOpen ? " open" : ""}>
       <summary>Otros tipos documentales</summary>
       <div class="doc-type-picker__grid doc-type-picker__grid--compact">${otherItems}</div>
     </details>`
@@ -468,32 +486,32 @@ function renderUploadDocumentTypePicker(employeeId, allDocs, selectedType, today
   </div>`;
 }
 
-function renderKpiCards(summary, IC, gapsCount = 0) {
-  void gapsCount;
+function renderKpiCards(summary, IC, gapsCount = 0, activeFilter = "all") {
+  const active = String(activeFilter || "all");
   return `<div class="doc-kpi-block">
     <div class="doc-kpi-rail" role="group" aria-label="Indicadores documentales">
-      <button type="button" class="doc-kpi doc-kpi--total" data-action="doc-quick-filter" data-filter="all" title="Ver todos los documentos">
+      <button type="button" class="doc-kpi doc-kpi--total${active === "all" ? " is-active" : ""}" data-action="doc-quick-filter" data-filter="all" title="Ver todos los expedientes" aria-pressed="${active === "all" ? "true" : "false"}">
         <span class="doc-kpi__icon" aria-hidden="true">${IC.file || ""}</span>
         <span class="doc-kpi__content">
           <span class="doc-kpi__label">Documentos</span>
           <strong class="doc-kpi__value">${escapeHtml(String(summary.total))}</strong>
         </span>
       </button>
-      <button type="button" class="doc-kpi doc-kpi--employees" data-action="doc-goto-browse-toolbar" title="Consultar expedientes">
-        <span class="doc-kpi__icon" aria-hidden="true">${IC.user || ""}</span>
+      <button type="button" class="doc-kpi doc-kpi--gaps${active === "gaps" ? " is-active" : ""}" data-action="doc-quick-filter" data-filter="gaps" title="Expedientes incompletos" aria-pressed="${active === "gaps" ? "true" : "false"}">
+        <span class="doc-kpi__icon" aria-hidden="true">${IC.user || IC.alertTriangle || ""}</span>
         <span class="doc-kpi__content">
-          <span class="doc-kpi__label">Expedientes</span>
-          <strong class="doc-kpi__value">${escapeHtml(String(summary.employeesWithDocs))}</strong>
+          <span class="doc-kpi__label">Incompletos</span>
+          <strong class="doc-kpi__value">${escapeHtml(String(gapsCount))}</strong>
         </span>
       </button>
-      <button type="button" class="doc-kpi doc-kpi--warn" data-action="doc-quick-filter" data-filter="due_soon" title="Por vencer">
+      <button type="button" class="doc-kpi doc-kpi--warn${active === "due_soon" ? " is-active" : ""}" data-action="doc-quick-filter" data-filter="due_soon" title="Por vencer" aria-pressed="${active === "due_soon" ? "true" : "false"}">
         <span class="doc-kpi__icon" aria-hidden="true">${IC.alertTriangle || ""}</span>
         <span class="doc-kpi__content">
           <span class="doc-kpi__label">Por vencer</span>
           <strong class="doc-kpi__value">${escapeHtml(String(summary.dueSoon))}</strong>
         </span>
       </button>
-      <button type="button" class="doc-kpi doc-kpi--expired" data-action="doc-quick-filter" data-filter="expired" title="Vencidos">
+      <button type="button" class="doc-kpi doc-kpi--expired${active === "expired" ? " is-active" : ""}" data-action="doc-quick-filter" data-filter="expired" title="Vencidos" aria-pressed="${active === "expired" ? "true" : "false"}">
         <span class="doc-kpi__icon" aria-hidden="true">${IC.alertTriangle || ""}</span>
         <span class="doc-kpi__content">
           <span class="doc-kpi__label">Vencidos</span>
@@ -512,8 +530,9 @@ function renderEmptyState(message, { icon = "", hint = "" } = {}) {
   </div>`;
 }
 
-function renderDocumentCards(documents, todayYmd, IC, { compact = false, viewMode = "grid" } = {}) {
-  if (!documents.length) {
+function renderDocumentCards(documents, todayYmd, IC, { compact = false, viewMode = "grid", hideFolderPill = false } = {}) {
+  const sorted = sortDocumentsNewestFirst(documents);
+  if (!sorted.length) {
     return renderEmptyState("No hay documentos en este expediente.", {
       icon: IC.file || "",
       hint: "Suba archivos o cambie los filtros de búsqueda."
@@ -521,11 +540,11 @@ function renderDocumentCards(documents, todayYmd, IC, { compact = false, viewMod
   }
   const isList = viewMode === "list";
   return `<div class="doc-card-grid${compact ? " doc-card-grid--compact" : ""}${isList ? " doc-card-grid--list" : ""}">
-    ${documents
-      .map((raw) => {
-        const doc = normalizeEmployeeDocumentRow(raw);
+    ${sorted
+      .map((doc) => {
         const rowTone = documentExpiryRowClass(doc, todayYmd);
         const mimeClass = renderMimeClass(doc.mimeType);
+        const folderName = normalizeDocumentFolder(doc.folder);
         return `<article class="doc-card${rowTone ? ` ${rowTone}` : ""}${isList ? " doc-card--row" : ""}" data-doc-id="${escapeAttr(String(doc.id))}">
           <div class="doc-card__icon doc-card__icon--${mimeClass}" aria-hidden="true">
             <span class="doc-card__icon-label">${escapeHtml(renderMimeIcon(doc.mimeType))}</span>
@@ -533,9 +552,9 @@ function renderDocumentCards(documents, todayYmd, IC, { compact = false, viewMod
           <div class="doc-card__body">
             <div class="doc-card__headline">
               <h4 class="doc-card__title">${escapeHtml(getEmployeeDocumentTypeLabel(doc.documentType))}</h4>
-              ${doc.folder ? `<span class="doc-folder-pill">${escapeHtml(normalizeDocumentFolder(doc.folder))}</span>` : ""}
+              ${!hideFolderPill && folderName ? `<span class="doc-folder-pill">${escapeHtml(folderName)}</span>` : ""}
             </div>
-            <p class="doc-card__file">${escapeHtml(doc.fileName)}</p>
+            <p class="doc-card__file" title="${escapeAttr(doc.fileName)}">${escapeHtml(doc.fileName)}</p>
             <div class="doc-card__meta">
               ${renderDocStatusBadge(doc, todayYmd)}
               <span class="doc-meta-chip">${escapeHtml(formatFileSize(doc.sizeBytes))}</span>
@@ -561,6 +580,52 @@ function renderDocumentCards(documents, todayYmd, IC, { compact = false, viewMod
           </div>
         </article>`;
       })
+      .join("")}
+  </div>`;
+}
+
+function renderDocumentsGroupedByFolder(documents, todayYmd, IC, { viewMode = "grid", folderFilter = "" } = {}) {
+  const sorted = sortDocumentsNewestFirst(documents);
+  if (!sorted.length) {
+    return renderEmptyState("No hay documentos en este expediente.", {
+      icon: IC.file || "",
+      hint: "Suba archivos o cambie los filtros de búsqueda."
+    });
+  }
+  if (folderFilter) {
+    return renderDocumentCards(sorted, todayYmd, IC, { viewMode, hideFolderPill: true });
+  }
+  const byFolder = new Map();
+  for (const doc of sorted) {
+    const name = normalizeDocumentFolder(doc.folder);
+    const key = documentFolderKey(name);
+    if (!byFolder.has(key)) byFolder.set(key, { name, docs: [] });
+    byFolder.get(key).docs.push(doc);
+  }
+  const groups = [...byFolder.values()].sort((a, b) => {
+    const aGeneral = documentFolderKey(a.name) === documentFolderKey(DEFAULT_EMPLOYEE_DOCUMENT_FOLDER);
+    const bGeneral = documentFolderKey(b.name) === documentFolderKey(DEFAULT_EMPLOYEE_DOCUMENT_FOLDER);
+    if (aGeneral && !bGeneral) return -1;
+    if (!aGeneral && bGeneral) return 1;
+    return a.name.localeCompare(b.name, "es");
+  });
+  if (groups.length <= 1) {
+    return renderDocumentCards(sorted, todayYmd, IC, { viewMode, hideFolderPill: groups.length === 1 });
+  }
+  return `<div class="doc-folder-groups">
+    ${groups
+      .map(
+        (group) => `<section class="doc-folder-group" data-folder="${escapeAttr(group.name)}">
+      <header class="doc-folder-group__head">
+        <div class="doc-folder-group__identity">
+          <span class="doc-folder-group__icon" aria-hidden="true">${IC.folder || ""}</span>
+          <h5 class="doc-folder-group__title">${escapeHtml(group.name)}</h5>
+        </div>
+        <span class="doc-folder-group__count">${group.docs.length} archivo${group.docs.length === 1 ? "" : "s"}</span>
+      </header>
+      ${renderDocumentCards(group.docs, todayYmd, IC, { viewMode, hideFolderPill: true })}
+    </section>`
+      )
       .join("")}
   </div>`;
 }
@@ -636,51 +701,6 @@ function buildDocumentAuditDetail(action, doc, extra = {}) {
     detail.at = extra.at;
   }
   return detail;
-}
-
-function renderDocumentsTable(documents, todayYmd, IC) {
-  if (!documents.length) {
-    return renderEmptyState("Sin resultados para los filtros actuales.", {
-      icon: IC.search || "🔍",
-      hint: "Pruebe otro término o limpie los filtros."
-    });
-  }
-  const rows = documents
-    .map((raw) => {
-      const doc = normalizeEmployeeDocumentRow(raw);
-      const rowTone = documentExpiryRowClass(doc, todayYmd);
-      const uploadedAt = formatDocumentUploadDate(doc.createdAt);
-      const uploadedBy = String(doc.uploadedBy || "").trim() || "—";
-      return `<tr class="${rowTone}" data-doc-id="${escapeAttr(String(doc.id))}">
-        <td><strong>${escapeHtml(doc.employeeName || "-")}</strong></td>
-        <td>${escapeHtml(normalizeDocumentFolder(doc.folder))}</td>
-        <td>${escapeHtml(getEmployeeDocumentTypeLabel(doc.documentType))}</td>
-        <td><span class="doc-file-chip">${escapeHtml(doc.fileName)}</span></td>
-        <td class="muted">${doc.documentCode ? escapeHtml(String(doc.documentCode)) : "—"}</td>
-        <td>${renderDocStatusBadge(doc, todayYmd)}</td>
-        <td><time datetime="${escapeAttr(String(doc.createdAt || ""))}">${escapeHtml(uploadedAt)}</time></td>
-        <td>${escapeHtml(uploadedBy)}</td>
-        <td>${doc.dueDate ? escapeHtml(String(doc.dueDate)) : "—"}</td>
-        <td class="muted">${escapeHtml(formatFileSize(doc.sizeBytes))}</td>
-        <td class="doc-table-actions">
-          <button type="button" class="btn btn-sm btn-outline" data-action="doc-download" data-id="${escapeAttr(String(doc.id))}">${IC.download || "↓"}</button>
-          ${
-            canEditDocumentsModule() || canDeleteDocumentsModule()
-              ? `${canEditDocumentsModule() ? `<button type="button" class="btn btn-sm btn-outline" data-action="doc-edit" data-id="${escapeAttr(String(doc.id))}">${IC.edit || "✎"}</button>` : ""}
-          ${canDeleteDocumentsModule() ? `<button type="button" class="btn btn-sm btn-danger-outline" data-action="doc-delete" data-id="${escapeAttr(String(doc.id))}">${IC.trash || "×"}</button>` : ""}`
-              : ""
-          }
-        </td>
-      </tr>`;
-    })
-    .join("");
-  return `<div class="doc-table-panel">
-    <div class="table-wrap doc-table-wrap"><table class="table doc-table">
-    <thead><tr>
-      <th>Colaborador</th><th>Carpeta</th><th>Tipo</th><th>Archivo</th><th>Código</th><th>Estado</th><th>Fecha subida</th><th>Subido por</th><th>Vencimiento</th><th>Tamaño</th><th></th>
-    </tr></thead>
-    <tbody>${rows}</tbody>
-  </table></div></div>`;
 }
 
 function renderEmployeeDossierPanel(employee, documents, todayYmd, IC, highlightType = "", { allEmployeeDocs = null, includeFiles = true, compact = false } = {}) {
@@ -849,6 +869,7 @@ function renderUploadForm(selectedEmployeeId, selectedDocumentType, allDocs, fol
               <span class="doc-dropzone__hint">PDF, imágenes, Word, Excel · puede seleccionar varios</span>
               <span class="doc-dropzone__filename" data-doc-file-label>Sin archivos seleccionados</span>
             </label>
+            <button type="button" class="doc-dropzone__clear" data-action="doc-clear-upload-files" hidden title="Quitar archivos seleccionados">Quitar</button>
           </div>
         </div>
       </section>
@@ -909,8 +930,26 @@ function employeeMatchesConsultFilters(emp, allDocs, ui, todayYmd) {
     .trim()
     .toLowerCase();
   if (searchNorm) {
-    const blob = `${emp.name || ""} ${emp.idDoc || ""} ${emp.position || ""}`.toLowerCase();
-    if (!blob.includes(searchNorm)) return false;
+    const identityBlob = `${emp.name || ""} ${emp.idDoc || ""} ${emp.position || ""}`.toLowerCase();
+    const identityMatch = identityBlob.includes(searchNorm);
+    if (!identityMatch) {
+      const docMatch = (allDocs || []).some((raw) => {
+        const doc = normalizeEmployeeDocumentRow(raw);
+        if (String(doc.employeeId) !== String(emp.id)) return false;
+        const blob = [
+          doc.fileName,
+          getEmployeeDocumentTypeLabel(doc.documentType),
+          normalizeDocumentFolder(doc.folder),
+          doc.documentCode,
+          doc.notes,
+          doc.uploadedBy
+        ]
+          .join(" ")
+          .toLowerCase();
+        return blob.includes(searchNorm);
+      });
+      if (!docMatch) return false;
+    }
   }
   if (ui.dataSection === "gaps") {
     return findEmployeeDocumentGaps(emp, allDocs).length > 0;
@@ -935,9 +974,11 @@ function employeeMatchesConsultFilters(emp, allDocs, ui, todayYmd) {
 }
 
 function renderFolderExplorer(employees, allDocs, folderRecords, ui, todayYmd, IC, { embedded = false, gapsCount = 0 } = {}) {
-  void folderRecords;
   const browseEmpId = ui.folderBrowseEmployeeId || "";
   const viewMode = ui.listViewMode === "grid" ? "grid" : "list";
+  const employeeFolders = browseEmpId
+    ? collectEmployeeFolders(browseEmpId, allDocs, folderRecords)
+    : [];
 
   const sortedEmployees = [...employees].sort((a, b) =>
     String(a.name || "").localeCompare(String(b.name || ""), "es")
@@ -945,8 +986,8 @@ function renderFolderExplorer(employees, allDocs, folderRecords, ui, todayYmd, I
 
   const viewToggle = browseEmpId
     ? `<div class="doc-view-toggle" role="group" aria-label="Vista de documentos">
-        <button type="button" class="doc-view-toggle__btn${viewMode === "list" ? " is-active" : ""}" data-action="doc-list-view" data-view="list" title="Vista en lista">Lista</button>
-        <button type="button" class="doc-view-toggle__btn${viewMode === "grid" ? " is-active" : ""}" data-action="doc-list-view" data-view="grid" title="Vista en cuadrícula">Cuadrícula</button>
+        <button type="button" class="doc-view-toggle__btn${viewMode === "list" ? " is-active" : ""}" data-action="doc-list-view" data-view="list" title="Vista en lista" aria-pressed="${viewMode === "list" ? "true" : "false"}">Lista</button>
+        <button type="button" class="doc-view-toggle__btn${viewMode === "grid" ? " is-active" : ""}" data-action="doc-list-view" data-view="grid" title="Vista en cuadrícula" aria-pressed="${viewMode === "grid" ? "true" : "false"}">Cuadrícula</button>
       </div>`
     : "";
 
@@ -971,7 +1012,7 @@ function renderFolderExplorer(employees, allDocs, folderRecords, ui, todayYmd, I
   const wrapExplorer = (body, resultHint = "") =>
     `<div class="doc-explorer-panel${embedded ? " doc-explorer-panel--embedded" : ""}">
       <div class="doc-explorer-top">
-        ${renderDocumentsFilterBar({ ui, employees, mode: "browse", gapsCount })}
+        ${renderDocumentsFilterBar({ ui, employees, folderNames: employeeFolders, mode: "browse", gapsCount })}
         <div class="doc-explorer-top__meta">${resultHint}${toolbar}</div>
       </div>
       <div class="doc-explorer-body">${body}</div>
@@ -996,6 +1037,9 @@ function renderFolderExplorer(employees, allDocs, folderRecords, ui, todayYmd, I
         const expiredCount = empDocs.filter(
           (d) => computeEmployeeDocumentStatus(normalizeEmployeeDocumentRow(d).dueDate, todayYmd) === "Vencido"
         ).length;
+        const dueSoonCount = empDocs.filter(
+          (d) => computeEmployeeDocumentStatus(normalizeEmployeeDocumentRow(d).dueDate, todayYmd) === "Por vencer"
+        ).length;
         return `<button type="button" class="doc-folder-tile doc-folder-tile--employee doc-folder-tile--row doc-folder-tile--${tone}" data-action="doc-browse-employee" data-employee-id="${escapeAttr(String(emp.id))}">
           <span class="doc-folder-tile__avatar" aria-hidden="true">${escapeHtml(employeeInitials(emp.name))}</span>
           <span class="doc-folder-tile__main">
@@ -1004,9 +1048,10 @@ function renderFolderExplorer(employees, allDocs, folderRecords, ui, todayYmd, I
           </span>
           <span class="doc-folder-tile__stats">
             <span class="doc-folder-tile__stat"><strong>${docCount}</strong> docs</span>
-            <span class="doc-folder-tile__stat"><strong>${completionPct}%</strong></span>
+            <span class="doc-folder-tile__stat" title="Completitud del checklist"><strong>${completionPct}%</strong></span>
             ${missing ? `<span class="doc-folder-tile__badge doc-folder-tile__badge--gap">${missing} pend.</span>` : `<span class="doc-folder-tile__badge doc-folder-tile__badge--ok">OK</span>`}
-            ${expiredCount ? `<span class="doc-folder-tile__badge doc-folder-tile__badge--expired">${expiredCount}</span>` : ""}
+            ${dueSoonCount ? `<span class="doc-folder-tile__badge doc-folder-tile__badge--warn">${dueSoonCount} por vencer</span>` : ""}
+            ${expiredCount ? `<span class="doc-folder-tile__badge doc-folder-tile__badge--expired">${expiredCount} venc.</span>` : ""}
           </span>
           <span class="doc-folder-tile__chevron" aria-hidden="true">→</span>
         </button>`;
@@ -1035,7 +1080,9 @@ function renderFolderExplorer(employees, allDocs, folderRecords, ui, todayYmd, I
     todayYmd
   );
   const resultHint = renderResultMeta(
-    `<strong>${employeeDocs.length}</strong> archivo${employeeDocs.length === 1 ? "" : "s"}`
+    `<strong>${employeeDocs.length}</strong> archivo${employeeDocs.length === 1 ? "" : "s"}${
+      employeeFolders.length > 1 ? ` · <strong>${employeeFolders.length}</strong> carpetas` : ""
+    }`
   );
 
   const dossier = renderEmployeeDossierPanel(employee, employeeDocs, todayYmd, IC, ui.highlightDocumentType, {
@@ -1046,8 +1093,16 @@ function renderFolderExplorer(employees, allDocs, folderRecords, ui, todayYmd, I
   const filesPane = `<div class="doc-files-pane">
     <header class="doc-files-pane__head">
       <h4 class="doc-files-pane__title">Archivos</h4>
+      ${
+        ui.folderFilter
+          ? `<button type="button" class="btn btn-sm btn-outline" data-action="doc-clear-folder-filter">Quitar filtro de carpeta</button>`
+          : ""
+      }
     </header>
-    ${renderDocumentCards(employeeDocs, todayYmd, IC, { viewMode })}
+    ${renderDocumentsGroupedByFolder(employeeDocs, todayYmd, IC, {
+      viewMode,
+      folderFilter: ui.folderFilter
+    })}
   </div>`;
 
   return wrapExplorer(`<div class="doc-consult-split">${dossier}${filesPane}</div>`, resultHint);
@@ -1067,7 +1122,7 @@ function documentManagementHtml() {
   const moduleHead = renderHrFormHero({
     eyebrow: "Recursos humanos",
     title: "Gestión documental",
-    description: "Expediente digital por colaborador.",
+    description: "Expediente digital por colaborador: suba, consulte y controle vencimientos.",
     badges: [
       renderHrFormHeroBadge(String(summary.total), "documentos"),
       summary.expired > 0 ? renderHrFormHeroBadge(String(summary.expired), "vencidos") : "",
@@ -1105,7 +1160,7 @@ function documentManagementHtml() {
     </div>
   </div>`;
 
-  const kpiBlock = renderKpiCards(summary, IC, gapsCount);
+  const kpiBlock = renderKpiCards(summary, IC, gapsCount, ui.dataSection === "gaps" || ui.dataSection === "due_soon" || ui.dataSection === "expired" ? ui.dataSection : "all");
   const studioClass = `documents-studio payroll-studio payroll-shell payroll-shell--workspace hr-flow-shell`;
   return `<section class="${studioClass}" data-hr-workspace="${escapeAttr(ws)}">${header}${kpiBlock}<div class="hr-workspace-panels doc-workspace-panels">${uploadPanel}${consultPanel}</div></section>`;
 }
@@ -1136,6 +1191,7 @@ function applyPendingUploadFileToDom(root = nodes.viewRoot) {
   const fileInput = root.querySelector("#doc-upload-file");
   const fileLabel = root.querySelector("[data-doc-file-label]");
   const dropzone = root.querySelector("[data-doc-dropzone]");
+  const clearBtn = root.querySelector("[data-action='doc-clear-upload-files']");
   if (!fileInput) return;
   const files = pendingUploadFiles.filter((f) => f instanceof File);
   if (files.length) {
@@ -1155,9 +1211,12 @@ function applyPendingUploadFileToDom(root = nodes.viewRoot) {
       }
     }
     dropzone?.classList.add("is-filled");
+    if (clearBtn) clearBtn.hidden = false;
   } else {
     if (fileLabel) fileLabel.textContent = "Sin archivos seleccionados";
     dropzone?.classList.remove("is-filled");
+    if (fileInput) fileInput.value = "";
+    if (clearBtn) clearBtn.hidden = true;
   }
 }
 
@@ -1565,6 +1624,7 @@ function openEditDocumentModal(target) {
       });
       try {
         await writeAwaitServerEdit(KEYS.employeeDocuments, nextList, target.id);
+        await ensureEmployeeFolderRecord(String(target.employeeId || ""), folder);
         const updatedDoc = nextList.find((r) => String(r.id) === String(target.id)) || target;
         G.logPortalAuditEvent?.(
           "documents",
@@ -1698,6 +1758,13 @@ function bindDocumentManagementPortalControls() {
     });
   });
 
+  nodes.viewRoot.querySelectorAll("[data-action='doc-clear-folder-filter']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      patchDocumentsUi({ folderFilter: "" });
+      G.renderPortalView?.();
+    });
+  });
+
   nodes.viewRoot.querySelectorAll("[data-action='doc-goto-browse-toolbar']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const employeeId = String(btn.dataset.employeeId || getDocumentsUi().filterEmployeeId || "");
@@ -1759,7 +1826,8 @@ function bindDocumentManagementPortalControls() {
       patchDocumentsUi({
         workspace: "consult",
         folderBrowseEmployeeId: "",
-        folderBrowseName: ""
+        folderBrowseName: "",
+        folderFilter: ""
       });
       persistHrWorkspace("documents", "consult");
       G.renderPortalView?.();
@@ -1783,7 +1851,8 @@ function bindDocumentManagementPortalControls() {
       patchDocumentsUi({
         workspace: "consult",
         folderBrowseEmployeeId: String(btn.dataset.employeeId || ""),
-        folderBrowseName: ""
+        folderBrowseName: "",
+        folderFilter: ""
       });
       persistHrWorkspace("documents", "consult");
       G.renderPortalView?.();
@@ -2009,6 +2078,13 @@ function bindDocumentManagementPortalControls() {
       setPendingUploadFiles(fileInput.files);
     });
   }
+  nodes.viewRoot.querySelectorAll("[data-action='doc-clear-upload-files']").forEach((btn) => {
+    btn.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      clearPendingUploadFile();
+    });
+  });
   if (dropzone && fileInput) {
     dropzone.addEventListener("dragover", (ev) => {
       ev.preventDefault();
@@ -2078,40 +2154,67 @@ function bindDocumentManagementPortalControls() {
         const uploadedBy = G.currentUser?.()?.fullName || G.currentUser?.()?.email || "Portal";
         let list = read(KEYS.employeeDocuments, []);
         let okCount = 0;
-        for (let i = 0; i < files.length; i += 1) {
-          const file = files[i];
+        const queue = [...files];
+        while (queue.length) {
+          const file = queue[0];
           if (submitBtn) {
             submitBtn.textContent =
-              files.length > 1 ? `Subiendo ${i + 1}/${files.length}…` : "Subiendo…";
+              files.length > 1 ? `Subiendo ${okCount + 1}/${files.length}…` : "Subiendo…";
           }
-          const uploaded = await uploadFileToR2(file, employeeId, documentType, folder);
-          const record = normalizeEmployeeDocumentRow({
-            id: newUuidV4(),
-            employeeId,
-            employeeName: employee?.name || "Colaborador",
-            documentType,
-            folder: uploaded.folder || folder,
-            fileName: uploaded.fileName || file.name,
-            mimeType: uploaded.mimeType || file.type,
-            sizeBytes: uploaded.sizeBytes || file.size,
-            storageKey: uploaded.key,
-            issueDate,
-            dueDate,
-            status,
-            documentCode,
-            notes,
-            uploadedBy,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          });
-          list = [...list, record];
-          await writeAwaitServerCreate(KEYS.employeeDocuments, list, record);
-          G.logPortalAuditEvent?.(
-            "documents",
-            "create",
-            buildDocumentAuditDetail("create", record)
-          );
-          okCount += 1;
+          try {
+            const uploaded = await uploadFileToR2(file, employeeId, documentType, folder);
+            const record = normalizeEmployeeDocumentRow({
+              id: newUuidV4(),
+              employeeId,
+              employeeName: employee?.name || "Colaborador",
+              documentType,
+              folder: uploaded.folder || folder,
+              fileName: uploaded.fileName || file.name,
+              mimeType: uploaded.mimeType || file.type,
+              sizeBytes: uploaded.sizeBytes || file.size,
+              storageKey: uploaded.key,
+              issueDate,
+              dueDate,
+              status,
+              documentCode,
+              notes,
+              uploadedBy,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            });
+            list = [...list, record];
+            await writeAwaitServerCreate(KEYS.employeeDocuments, list, record);
+            G.logPortalAuditEvent?.(
+              "documents",
+              "create",
+              buildDocumentAuditDetail("create", record)
+            );
+            queue.shift();
+            pendingUploadFiles = [...queue];
+            applyPendingUploadFileToDom(nodes.viewRoot);
+            okCount += 1;
+          } catch (fileErr) {
+            setPendingUploadFiles(queue);
+            if (okCount > 0) {
+              G.notify?.(
+                `${okCount} archivo${okCount === 1 ? "" : "s"} registrado${okCount === 1 ? "" : "s"}; falló "${file.name}": ${String(fileErr?.message || "error de subida")}.`,
+                "error"
+              );
+              patchDocumentsUi({
+                selectedEmployeeId: employeeId,
+                selectedDocumentType: documentType,
+                workspace: "consult",
+                highlightDocumentType: documentType,
+                folderBrowseEmployeeId: employeeId,
+                folderBrowseName: "",
+                dataSection: "all"
+              });
+              persistHrWorkspace("documents", "consult");
+              G.renderPortalView?.();
+              return;
+            }
+            throw fileErr;
+          }
         }
         clearPendingUploadFile();
         patchDocumentsUi({

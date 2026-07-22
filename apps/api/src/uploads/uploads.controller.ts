@@ -251,7 +251,7 @@ export class UploadsController {
    */
   @Post("vacancy-image/presign")
   async presignVacancyImage(
-    @Req() req: { user: JwtUser },
+    @Req() req: { user: ReqUser },
     @Body() dto: PresignAvatarDto
   ) {
     if (!this.r2.hasUploadsClient()) {
@@ -302,7 +302,7 @@ export class UploadsController {
     })
   )
   async uploadVacancyImage(
-    @Req() req: { user: JwtUser },
+    @Req() req: { user: ReqUser },
     @UploadedFile() file: Express.Multer.File
   ) {
     if (!this.r2.hasUploadsClient()) {

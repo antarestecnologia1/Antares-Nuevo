@@ -634,6 +634,7 @@ export const CO_CATALOGS = {
 
 export const HIRING_RRHH_EDIT_ACTIONS = new Set([
   "edit-vacancy",
+  "close-vacancy",
   "edit-position",
   "edit-candidate",
   "edit-interview",
@@ -762,6 +763,7 @@ export const PORTAL_NON_ADMIN_BLOCKED_ACTIONS = new Set([
   "delete-route-rate",
   "delete-employee",
   "delete-vacancy",
+  "close-vacancy",
   "toggle-position",
   "candidate-status",
   "open-edit-user",

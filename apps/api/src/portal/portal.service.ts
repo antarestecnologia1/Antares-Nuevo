@@ -528,6 +528,12 @@ export class PortalService implements OnModuleInit {
   private fixedTermRenewalInFlight = false;
   /** Poda de duplicados en bandeja (throttle; el poll de campana no debe borrar en cada tick). */
   private lastNotificationPruneMs = 0;
+  /**
+   * Esquema `imagen_url` en vacantes verificado una vez por proceso. Evita ejecutar un
+   * `ALTER TABLE` (ACCESS EXCLUSIVE lock) en cada publicación de vacante: el DDL redundante
+   * se encolaba tras cualquier lectura de `vacantes` y disparaba la lentitud del publish.
+   */
+  private vacantesSchemaEnsured = false;
 
   constructor(
     @Inject(PG_POOL) private readonly pool: Pool,
@@ -1019,10 +1025,16 @@ export class PortalService implements OnModuleInit {
     this.logger.log("empresas: esquema tipo_relacion_empresa, activo, url_logo y contacto verificado.");
   }
 
-  /** Columna `imagen_url` en vacantes (migr. `40_alter_vacantes_imagen_url.sql`). */
+  /**
+   * Columna `imagen_url` en vacantes (migr. `40_alter_vacantes_imagen_url.sql`).
+   * Idempotente y memoizado por proceso: tras la primera verificación exitosa no vuelve a
+   * ejecutar el `ALTER TABLE`, para no tomar un lock exclusivo de `vacantes` en cada publish.
+   */
   private async ensureVacantesSchema() {
+    if (this.vacantesSchemaEnsured) return;
     try {
       await this.pool.query(`ALTER TABLE public.vacantes ADD COLUMN IF NOT EXISTS imagen_url TEXT`);
+      this.vacantesSchemaEnsured = true;
       this.logger.log("vacantes: esquema imagen_url verificado.");
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -1618,6 +1630,13 @@ export class PortalService implements OnModuleInit {
       `);
       await this.pool.query(
         `CREATE INDEX IF NOT EXISTS idx_carpetas_documento_empleado ON carpetas_documento_empleado (id_empleado)`
+      );
+      // Supabase: RLS obligatorio en public.*; la API (service_role / owner) lo ignora.
+      await this.pool.query(
+        `ALTER TABLE public.documentos_empleado ENABLE ROW LEVEL SECURITY`
+      );
+      await this.pool.query(
+        `ALTER TABLE public.carpetas_documento_empleado ENABLE ROW LEVEL SECURITY`
       );
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -3894,13 +3913,20 @@ export class PortalService implements OnModuleInit {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
-      const actorProfile = await this.resolvePortalActor(userId);
+      /**
+       * `resolvePortalActor` usa una conexión propia del pool y `preparePortalSyncUpsertAudits`
+       * corre sobre `client` (la transacción): son independientes y pueden solaparse para
+       * ahorrar un round-trip a la BD remota sin cambiar la semántica.
+       */
+      const [actorProfile, pendingUpserts] = await Promise.all([
+        this.resolvePortalActor(userId),
+        preparePortalSyncUpsertAudits(client, key, data)
+      ]);
       const actor: PortalAuditActor = {
         userId,
         email: actorProfile.email,
         label: actorProfile.name || actorProfile.email || "Usuario"
       };
-      const pendingUpserts = await preparePortalSyncUpsertAudits(client, key, data);
       await recordPortalSyncDeleteAudits(client, actor, key, deletedIds, data);
       await this.syncKeyTx(client, key, data, userId, role, deletedIds);
       await flushPortalSyncUpsertAudits(client, actor, key, pendingUpserts);
@@ -12306,6 +12332,9 @@ export class PortalService implements OnModuleInit {
           const msg = err instanceof Error ? err.message : String(err);
           const missingImageCol = /imagen_url/i.test(msg) && /does not exist|no existe|column/i.test(msg);
           if (!missingImageCol) throw err;
+          /** El memo creía el esquema listo pero la columna no existe: invalídalo para que el
+           *  próximo publish reintente el ALTER (fuera de la transacción, en `syncKey`). */
+          this.vacantesSchemaEnsured = false;
           /** No llamar ensureVacantesSchema aquí: corre en otra conexión y puede bloquearse
            *  con la transacción abierta de sync-key (ALTER TABLE vs locks de vacantes). */
           await c.query(

@@ -13173,12 +13173,43 @@ function initCoverageCorridors() {
     });
 }
 
-function closePublicCareersOverlay(overlayId) {
+function syncPublicCareersBodyScrollLock() {
+  const open =
+    document.getElementById("careers-image-preview-overlay") ||
+    document.getElementById("careers-vacancy-detail-overlay");
+  document.documentElement.classList.toggle("careers-overlay-open", Boolean(open));
+  document.body.classList.toggle("careers-overlay-open", Boolean(open));
+}
+
+function closePublicCareersOverlay(overlayId, { immediate = false } = {}) {
   const overlay = document.getElementById(overlayId);
   if (!overlay) return;
-  const onKey = overlay._careersOverlayKeyHandler;
-  if (onKey) document.removeEventListener("keydown", onKey);
-  overlay.remove();
+  if (overlay.dataset.closing === "1" && !immediate) return;
+  const finish = () => {
+    const onKey = overlay._careersOverlayKeyHandler;
+    if (onKey) document.removeEventListener("keydown", onKey);
+    if (typeof overlay._careersScrollCleanup === "function") {
+      overlay._careersScrollCleanup();
+      overlay._careersScrollCleanup = null;
+    }
+    overlay.remove();
+    syncPublicCareersBodyScrollLock();
+  };
+  if (immediate || window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) {
+    finish();
+    return;
+  }
+  overlay.dataset.closing = "1";
+  overlay.classList.remove("is-open");
+  overlay.classList.add("is-closing");
+  let done = false;
+  const end = () => {
+    if (done) return;
+    done = true;
+    finish();
+  };
+  overlay.addEventListener("transitionend", end, { once: true });
+  window.setTimeout(end, 280);
 }
 
 function bindPublicCareersOverlay(overlay, closeSelector) {
@@ -13193,42 +13224,100 @@ function bindPublicCareersOverlay(overlay, closeSelector) {
   });
   document.addEventListener("keydown", onKey);
   document.body.appendChild(overlay);
-  overlay.querySelector(closeSelector)?.focus?.();
+  syncPublicCareersBodyScrollLock();
+  requestAnimationFrame(() => {
+    overlay.classList.add("is-open");
+    overlay.querySelector(closeSelector)?.focus?.();
+  });
 }
 
-function closePublicCareersImagePreview() {
-  closePublicCareersOverlay("careers-image-preview-overlay");
+function closePublicCareersImagePreview(opts) {
+  closePublicCareersOverlay("careers-image-preview-overlay", opts);
+}
+
+function syncCareersOverlayScrollChrome(scrollEl) {
+  if (!(scrollEl instanceof HTMLElement)) return;
+  const viewport = scrollEl.closest("[data-careers-scroll-viewport]");
+  if (!viewport) return;
+  const max = Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight);
+  const top = scrollEl.scrollTop;
+  const canScroll = max > 8;
+  const progress = canScroll ? Math.min(1, Math.max(0, top / max)) : 0;
+  viewport.classList.toggle("is-scrollable", canScroll);
+  viewport.classList.toggle("has-scroll-top", canScroll && top > 6);
+  viewport.classList.toggle("has-scroll-bottom", canScroll && top < max - 6);
+  viewport.style.setProperty("--careers-scroll-progress", String(progress));
+  const bar = viewport.querySelector("[data-careers-scroll-progress]");
+  if (bar instanceof HTMLElement) {
+    bar.style.transform = `scaleX(${canScroll ? Math.max(0.08, progress) : 0})`;
+    bar.hidden = !canScroll;
+  }
+}
+
+function wireCareersOverlayScroll(overlay, scrollSelector) {
+  const scrollEl = overlay?.querySelector?.(scrollSelector);
+  if (!(scrollEl instanceof HTMLElement)) return;
+  const sync = () => syncCareersOverlayScrollChrome(scrollEl);
+  scrollEl.addEventListener("scroll", sync, { passive: true });
+  scrollEl.querySelectorAll("img").forEach((img) => {
+    if (img.complete) sync();
+    else img.addEventListener("load", sync, { once: true });
+  });
+  requestAnimationFrame(() => {
+    sync();
+    requestAnimationFrame(sync);
+  });
+  window.addEventListener("resize", sync, { passive: true });
+  overlay._careersScrollCleanup = () => {
+    window.removeEventListener("resize", sync);
+  };
 }
 
 function openPublicCareersImagePreview(src, alt) {
   const url = String(src || "").trim();
   if (!url) return;
-  closePublicCareersImagePreview();
-  closePublicCareersVacancyDetail();
+  closePublicCareersImagePreview({ immediate: true });
+  closePublicCareersVacancyDetail({ immediate: true });
   const title = String(alt || tPublic("Vacante")).trim() || tPublic("Vacante");
   const overlay = document.createElement("div");
   overlay.id = "careers-image-preview-overlay";
-  overlay.className = "careers-image-preview-overlay";
-  overlay.innerHTML = `<div class="careers-image-preview" role="dialog" aria-modal="true" aria-label="${escapeAttr(title)}">
+  overlay.className = "careers-overlay careers-image-preview-overlay";
+  overlay.innerHTML = `<div class="careers-overlay__panel careers-image-preview" role="dialog" aria-modal="true" aria-label="${escapeAttr(title)}">
     <header class="careers-image-preview__head">
-      <p class="careers-image-preview__title">${escapeHtml(title)}</p>
+      <div>
+        <p class="careers-overlay__eyebrow">${escapeHtml(tPublic("Vista ampliada"))}</p>
+        <p class="careers-image-preview__title">${escapeHtml(title)}</p>
+      </div>
       <button type="button" class="careers-image-preview__close" data-careers-image-close aria-label="${escapeAttr(tPublic("Cerrar"))}">×</button>
     </header>
-    <div class="careers-image-preview__body">
-      <img src="${escapeAttr(url)}" alt="${escapeAttr(title)}" />
+    <div class="careers-image-preview__viewport" data-careers-scroll-viewport>
+      <div class="careers-overlay__progress" data-careers-scroll-progress hidden aria-hidden="true"></div>
+      <div class="careers-image-preview__body careers-overlay__scroll" data-careers-image-scroll tabindex="0">
+        <figure class="careers-image-preview__stage">
+          <img src="${escapeAttr(url)}" alt="${escapeAttr(title)}" />
+        </figure>
+      </div>
+      <div class="careers-image-preview__edge careers-image-preview__edge--top" aria-hidden="true"></div>
+      <div class="careers-image-preview__edge careers-image-preview__edge--bottom" aria-hidden="true">
+        <span class="careers-overlay__scroll-chip">
+          <span class="careers-image-preview__scroll-hint"></span>
+          <span>${escapeHtml(tPublic("Desliza para ver más"))}</span>
+        </span>
+      </div>
     </div>
   </div>`;
   bindPublicCareersOverlay(overlay, "[data-careers-image-close]");
+  wireCareersOverlayScroll(overlay, "[data-careers-image-scroll]");
 }
 
-function closePublicCareersVacancyDetail() {
-  closePublicCareersOverlay("careers-vacancy-detail-overlay");
+function closePublicCareersVacancyDetail(opts) {
+  closePublicCareersOverlay("careers-vacancy-detail-overlay", opts);
 }
 
 function openPublicCareersVacancyDetail(vacancy) {
   if (!vacancy) return;
-  closePublicCareersVacancyDetail();
-  closePublicCareersImagePreview();
+  closePublicCareersVacancyDetail({ immediate: true });
+  closePublicCareersImagePreview({ immediate: true });
   const title = String(vacancy.title || tPublic("Vacante")).trim() || tPublic("Vacante");
   const salary = parseNum(vacancy.salaryOffer);
   const salaryStr = `$${salary.toLocaleString("es-CO")}`;
@@ -13251,8 +13340,8 @@ function openPublicCareersVacancyDetail(vacancy) {
   const hasImage = imageUrl && (/^https?:\/\//i.test(imageUrl) || imageUrl.startsWith("data:image/"));
   const overlay = document.createElement("div");
   overlay.id = "careers-vacancy-detail-overlay";
-  overlay.className = "careers-vacancy-detail-overlay";
-  overlay.innerHTML = `<div class="careers-vacancy-detail" role="dialog" aria-modal="true" aria-label="${escapeAttr(title)}">
+  overlay.className = "careers-overlay careers-vacancy-detail-overlay";
+  overlay.innerHTML = `<div class="careers-overlay__panel careers-vacancy-detail" role="dialog" aria-modal="true" aria-label="${escapeAttr(title)}">
     <header class="careers-vacancy-detail__head">
       <div>
         <p class="careers-vacancy-detail__eyebrow">${escapeHtml(tPublic("Detalle de la vacante"))}</p>
@@ -13261,21 +13350,32 @@ function openPublicCareersVacancyDetail(vacancy) {
       </div>
       <button type="button" class="careers-vacancy-detail__close" data-careers-detail-close aria-label="${escapeAttr(tPublic("Cerrar"))}">×</button>
     </header>
-    <div class="careers-vacancy-detail__body">
-      ${
-        hasImage
-          ? `<button type="button" class="careers-vacancy-detail__media" data-careers-detail-image aria-label="${escapeAttr(tPublic("Ver imagen ampliada"))}">
-              <img src="${escapeAttr(imageUrl)}" alt="${escapeAttr(title)}" />
-            </button>`
-          : ""
-      }
-      <div class="careers-vacancy-detail__section">
-        <h4>${escapeHtml(tPublic("Descripción y requisitos"))}</h4>
-        <p class="careers-vacancy-detail__text">${
-          requirements
-            ? escapeHtml(requirements)
-            : escapeHtml(tPublic("Sin descripción publicada para esta vacante."))
-        }</p>
+    <div class="careers-vacancy-detail__viewport" data-careers-scroll-viewport>
+      <div class="careers-overlay__progress careers-overlay__progress--light" data-careers-scroll-progress hidden aria-hidden="true"></div>
+      <div class="careers-vacancy-detail__body careers-overlay__scroll" data-careers-detail-scroll tabindex="0">
+        ${
+          hasImage
+            ? `<button type="button" class="careers-vacancy-detail__media" data-careers-detail-image aria-label="${escapeAttr(tPublic("Ver imagen ampliada"))}">
+                <img src="${escapeAttr(imageUrl)}" alt="${escapeAttr(title)}" />
+                <span class="careers-vacancy-detail__media-hint">${escapeHtml(tPublic("Ampliar imagen"))}</span>
+              </button>`
+            : ""
+        }
+        <div class="careers-vacancy-detail__section">
+          <h4>${escapeHtml(tPublic("Descripción y requisitos"))}</h4>
+          <p class="careers-vacancy-detail__text">${
+            requirements
+              ? escapeHtml(requirements)
+              : escapeHtml(tPublic("Sin descripción publicada para esta vacante."))
+          }</p>
+        </div>
+      </div>
+      <div class="careers-vacancy-detail__edge careers-vacancy-detail__edge--top" aria-hidden="true"></div>
+      <div class="careers-vacancy-detail__edge careers-vacancy-detail__edge--bottom" aria-hidden="true">
+        <span class="careers-overlay__scroll-chip careers-overlay__scroll-chip--light">
+          <span class="careers-image-preview__scroll-hint"></span>
+          <span>${escapeHtml(tPublic("Desliza para ver más"))}</span>
+        </span>
       </div>
     </div>
     <footer class="careers-vacancy-detail__foot">
@@ -13284,9 +13384,10 @@ function openPublicCareersVacancyDetail(vacancy) {
     </footer>
   </div>`;
   bindPublicCareersOverlay(overlay, "[data-careers-detail-close]");
+  wireCareersOverlayScroll(overlay, "[data-careers-detail-scroll]");
   overlay.querySelector("[data-careers-detail-apply]")?.addEventListener("click", () => {
     const vac = getPublicPublishedVacancies().find((x) => String(x.id) === String(vacancy.id));
-    closePublicCareersVacancyDetail();
+    closePublicCareersVacancyDetail({ immediate: true });
     if (vac) openPublicVacancyApplyModal(vac);
   });
   overlay.querySelector("[data-careers-detail-image]")?.addEventListener("click", () => {

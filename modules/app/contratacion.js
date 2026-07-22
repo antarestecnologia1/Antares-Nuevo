@@ -178,13 +178,22 @@ async function resolveVacancyImageUrl(file) {
       const uploadUrl = String(presign?.uploadUrl || "").trim();
       const publicFromPresign = String(presign?.publicUrl || "").trim();
       if (uploadUrl && /^https?:\/\//i.test(publicFromPresign)) {
-        const resp = await fetch(uploadUrl, {
-          method: "PUT",
-          headers: { "Content-Type": contentType },
-          body: prepared
-        });
-        if (resp.ok) return publicFromPresign;
-        globalThis.devWarn?.("vacancy-image-r2-put-failed", resp.status);
+        /* Timeout duro: si R2 no responde el preflight/PUT (p. ej. CORS mal configurado),
+           abortamos rápido y caemos al fallback multipart en vez de colgar la publicación. */
+        const controller = typeof AbortController === "function" ? new AbortController() : null;
+        const abortTimer = controller ? window.setTimeout(() => controller.abort(), 15000) : 0;
+        try {
+          const resp = await fetch(uploadUrl, {
+            method: "PUT",
+            headers: { "Content-Type": contentType },
+            body: prepared,
+            signal: controller ? controller.signal : undefined
+          });
+          if (resp.ok) return publicFromPresign;
+          globalThis.devWarn?.("vacancy-image-r2-put-failed", resp.status);
+        } finally {
+          if (abortTimer) window.clearTimeout(abortTimer);
+        }
       }
     } catch (err) {
       globalThis.devWarn?.("vacancy-image-presign-failed", err);
@@ -593,6 +602,7 @@ function bindHiringPortalControls() {
           };
           state.hiringUi.vacancyFilter = "open";
           state.hiringUi.workspace = "data";
+          state.hiringUi.dataSection = "vacancies";
           persistHrWorkspace("hiring", "data");
           collapseCreatePanel("create-vacancy");
           notify(userMessage("vacancyPublishedOk"), "success");
@@ -684,6 +694,7 @@ function bindHiringPortalControls() {
       }
       state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
       state.hiringUi.workspace = "data";
+      state.hiringUi.dataSection = "positions";
       persistHrWorkspace("hiring", "data");
       collapseCreatePanel("create-position");
       notify(userMessage("positionCreatedOk"), "success");
@@ -718,6 +729,7 @@ function bindHiringPortalControls() {
 
   nodes.viewRoot.querySelectorAll("[data-action='close-vacancy']").forEach((btn) => {
     btn.addEventListener("click", () => {
+      if (abortUnlessCanManageHiring()) return;
       void runWithBusyButton(btn, async () => {
         const all = read(KEYS.vacancies, []);
         const vacancyId = btn.dataset.id;
@@ -1071,6 +1083,7 @@ function bindHiringPortalControls() {
       state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
       state.hiringUi.candidateFilter = "active";
       state.hiringUi.workspace = "data";
+      state.hiringUi.dataSection = "candidates";
       persistHrWorkspace("hiring", "data");
       collapseCreatePanel("create-candidate");
       notify(userMessage("candidateRegisteredOk"), "success");
@@ -1199,6 +1212,7 @@ function bindHiringPortalControls() {
       );
       state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
       state.hiringUi.workspace = "data";
+      state.hiringUi.dataSection = "interviews";
       persistHrWorkspace("hiring", "data");
       collapseCreatePanel("create-interview");
       notify(userMessage("interviewScheduledOk"), "success");
@@ -1495,6 +1509,7 @@ function bindHiringPortalControls() {
           }
           state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
           state.hiringUi.workspace = "data";
+          state.hiringUi.dataSection = "contracts";
           persistHrWorkspace("hiring", "data");
           collapseCreatePanel("create-contract");
         } catch (persistErr) {

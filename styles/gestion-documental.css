@@ -270,6 +270,14 @@
   z-index: 1;
 }
 
+.doc-kpi.is-active {
+  background: var(--doc-surface-2);
+}
+
+.doc-kpi.is-active::before {
+  opacity: 1;
+}
+
 .doc-kpi__icon {
   width: 2.4rem;
   height: 2.4rem;
@@ -324,6 +332,15 @@
 .doc-kpi--employees .doc-kpi__icon {
   background: rgba(42, 99, 153, 0.12);
   color: var(--primary-dark, #2a6399);
+}
+
+.doc-kpi--gaps .doc-kpi__icon {
+  background: rgba(42, 99, 153, 0.12);
+  color: var(--primary-dark, #2a6399);
+}
+
+.doc-kpi--gaps.is-active {
+  background: linear-gradient(180deg, rgba(55, 124, 192, 0.08), transparent 70%);
 }
 
 .doc-kpi--warn {
@@ -642,10 +659,32 @@
   align-items: center;
   justify-content: center;
   gap: 0.35rem;
-  padding: 2.25rem 1.5rem;
+  padding: 2.25rem 1.5rem 2.6rem;
   cursor: pointer;
   text-align: center;
   min-height: 11rem;
+}
+
+.doc-dropzone__clear {
+  position: absolute;
+  right: 0.75rem;
+  bottom: 0.75rem;
+  z-index: 2;
+  border: 1px solid var(--doc-border-strong);
+  border-radius: 8px;
+  background: var(--doc-surface);
+  color: var(--doc-ink-soft);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.28rem 0.65rem;
+  cursor: pointer;
+}
+
+.doc-dropzone__clear:hover {
+  border-color: var(--doc-expired);
+  color: var(--doc-expired);
+  background: var(--doc-expired-bg);
 }
 
 /* Legacy form blocks kept for compatibility */
@@ -896,16 +935,6 @@ body[data-theme="dark"] .doc-preview__file {
   }
 }
 
-.doc-dropzone__label {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 1.75rem 1.25rem;
-  cursor: pointer;
-  text-align: center;
-}
-
 .doc-dropzone__halo {
   position: absolute;
   inset: 0;
@@ -1067,6 +1096,13 @@ body[data-theme="dark"] .doc-preview__file {
   border: 0;
   background: transparent;
   margin: 0;
+}
+
+.doc-filter-bar--active {
+  padding: 0.85rem 0.95rem;
+  border: 1px solid var(--doc-border);
+  border-radius: var(--doc-r);
+  background: var(--doc-surface-2);
 }
 
 .doc-filter-bar__search {
@@ -1341,6 +1377,11 @@ body[data-theme="dark"] .doc-preview__file {
   color: var(--doc-expired);
 }
 
+.doc-folder-tile__badge--warn {
+  background: var(--doc-warn-bg);
+  color: var(--doc-warn);
+}
+
 .doc-folder-grid--employees {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
@@ -1433,6 +1474,68 @@ body[data-theme="dark"] .doc-preview__file {
   font-size: 0.92rem;
   font-weight: 750;
   color: var(--doc-ink);
+}
+
+.doc-folder-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+}
+
+.doc-folder-group {
+  border: 1px solid var(--doc-border);
+  border-radius: var(--doc-r);
+  background: var(--doc-surface);
+  padding: 0.85rem 0.9rem 1rem;
+  animation: doc-rise 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.doc-folder-group__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.55rem;
+  border-bottom: 1px solid var(--doc-border);
+}
+
+.doc-folder-group__identity {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.doc-folder-group__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 8px;
+  color: var(--doc-accent);
+  background: var(--doc-accent-soft);
+  border: 1px solid var(--doc-accent-line);
+  flex-shrink: 0;
+}
+
+.doc-folder-group__icon :where(svg) {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+.doc-folder-group__title {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 750;
+  color: var(--doc-ink);
+}
+
+.doc-folder-group__count {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--doc-ink-faint);
+  white-space: nowrap;
 }
 
 .doc-card-grid--list {
@@ -2074,8 +2177,10 @@ body[data-theme="dark"] .doc-form-block,
 body[data-theme="dark"] .doc-dossier,
 body[data-theme="dark"] .doc-files-pane,
 body[data-theme="dark"] .doc-folder-tile,
+body[data-theme="dark"] .doc-folder-group,
 body[data-theme="dark"] .doc-card,
-body[data-theme="dark"] .doc-filter-bar {
+body[data-theme="dark"] .doc-filter-bar,
+body[data-theme="dark"] .doc-filter-bar--active {
   background: linear-gradient(165deg, var(--doc-surface-2) 0%, var(--doc-surface) 100%);
 }
 
