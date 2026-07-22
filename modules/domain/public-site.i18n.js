@@ -368,6 +368,11 @@ export const PUBLIC_ES_EN_DICT = {
   Cierre: "Closing",
   "Sin fecha limite": "Open deadline",
   "No hay vacantes publicadas en este momento. Vuelve pronto o escribenos en Contacto.": "There are no openings right now. Check back soon or reach us via Contact.",
+  "Cargando vacantes…": "Loading openings…",
+  "El servidor está despertando; puede tardar hasta un minuto.":
+    "The server is waking up; this can take up to a minute.",
+  "No pudimos cargar las vacantes en este momento.": "We couldn't load the openings right now.",
+  Reintentar: "Retry",
   Direccion: "Address",
   "Las solicitudes se guardan en base de datos local del navegador y": "Requests are stored in the browser’s local database and",
   "generan una notificacion simulada de email.": "trigger a simulated email notification.",

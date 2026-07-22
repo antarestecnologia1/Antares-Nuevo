@@ -1,0 +1,37 @@
+# Mantiene despierta la API en Render.
+#
+# Render suspende el servicio tras ~15 min sin tráfico y el siguiente visitante paga el arranque
+# completo: ~53 s medidos contra producción, de los cuales ~15 s son la verificación de esquema
+# de PortalService.onModuleInit antes de aceptar peticiones. En la landing eso se ve como
+# "Cargando vacantes…" durante casi un minuto.
+#
+# GitHub retrasa los cron de repos con poca actividad y los desactiva tras 60 días sin commits;
+# si el sitio necesita garantía dura, use un pinger externo (cron-job.org, UptimeRobot) o
+# suba el plan de Render a uno que no suspenda.
+name: keep-api-warm
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: keep-api-warm
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping /api/health
+        env:
+          # Cambie la URL aquí (o defina la variable de repositorio API_BASE_URL) si mueve la API.
+          API_BASE_URL: ${{ vars.API_BASE_URL || 'https://antares-nuevo.onrender.com' }}
+        run: |
+          # --max-time holgado: si el servicio estaba suspendido, esta petición es la que lo arranca.
+          code=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 120 "$API_BASE_URL/api/health")
+          echo "GET $API_BASE_URL/api/health -> HTTP $code"
+          test "$code" = "200"

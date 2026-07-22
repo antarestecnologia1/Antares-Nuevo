@@ -13395,6 +13395,79 @@ function openPublicCareersVacancyDetail(vacancy) {
   });
 }
 
+/** Última respuesta de la API cacheada entre visitas: la landing pinta al instante y revalida. */
+const PUBLIC_VACANCIES_CACHE_KEY = "antares_public_vacancies_v1";
+/** Ventana en la que se repinta sin volver a pedir (p. ej. al cambiar de idioma). */
+const PUBLIC_VACANCIES_FRESH_MS = 5 * 60 * 1000;
+/** Por encima del arranque en frío de Render (~50 s medidos); por debajo cortaríamos respuestas sanas. */
+const PUBLIC_VACANCIES_TIMEOUT_MS = 75000;
+/** Sin nada pintado y sin respuesta: se avisa que el servidor está despertando. */
+const PUBLIC_VACANCIES_WAKE_HINT_MS = 8000;
+/** Tope de la caché: con la API caída no sostenemos indefinidamente vacantes que quizá ya no existen. */
+const PUBLIC_VACANCIES_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Instante de la última respuesta aplicada; 0 fuerza ir a la red. */
+let publicCareersVacanciesLoadedAt = 0;
+
+function mapApiVacancyRow(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    department: row.department,
+    city: row.city,
+    deadline: row.deadline,
+    publishedFrom: row.publishedFrom || row.visibleFrom || "",
+    salaryOffer: row.salaryOffer,
+    requirements: row.requirements,
+    status: row.status || "Publicada",
+    positionName: row.positionName,
+    modality: row.modality,
+    openings: row.openings,
+    workerRole: row.workerRole,
+    imageUrl: row.imageUrl || ""
+  };
+}
+
+function readPublicVacanciesCache() {
+  try {
+    const raw = localStorage.getItem(PUBLIC_VACANCIES_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed?.rows)) return null;
+    const age = Date.now() - (Number(parsed.ts) || 0);
+    if (age < 0 || age > PUBLIC_VACANCIES_CACHE_MAX_AGE_MS) return null;
+    return parsed.rows;
+  } catch (_e) {
+    return null;
+  }
+}
+
+function writePublicVacanciesCache(rows) {
+  try {
+    localStorage.setItem(PUBLIC_VACANCIES_CACHE_KEY, JSON.stringify({ ts: Date.now(), rows }));
+  } catch (_e) {
+    /* Cuota llena o almacenamiento bloqueado: la caché es opcional. */
+  }
+}
+
+function careersLoadingCardHtml() {
+  return `<div class="careers-card">
+    <p class="muted" style="margin:0">${tPublic("Cargando vacantes…")}</p>
+    <p class="muted" data-careers-wake-hint hidden style="margin:.5rem 0 0;font-size:.85em">${tPublic(
+      "El servidor está despertando; puede tardar hasta un minuto."
+    )}</p>
+  </div>`;
+}
+
+function careersErrorCardHtml() {
+  return `<div class="careers-card">
+    <p class="muted" style="margin:0">${tPublic("No pudimos cargar las vacantes en este momento.")}</p>
+    <button type="button" class="btn btn-outline" data-careers-retry style="margin-top:.75rem">${tPublic(
+      "Reintentar"
+    )}</button>
+  </div>`;
+}
+
 function initPublicCareers() {
   const grid = document.getElementById("careers-vacancies-grid");
   if (!grid) return;
@@ -13455,48 +13528,83 @@ function initPublicCareers() {
   };
 
   const api = window.AntaresApi;
-  if (api?.hasBase?.()) {
-    window.publicCareersVacanciesSource = "api";
+  if (!api?.hasBase?.()) {
+    window.publicCareersVacanciesSource = "local";
     window.publicCareersVacanciesFromApi = null;
-    grid.innerHTML =
-      `<div class="careers-card"><p class="muted" style="margin:0">${state.publicLang === "en" ? "Loading openings…" : "Cargando vacantes…"}</p></div>`;
-    void api
-      .getJsonPublic("/public/vacancies")
-      .then((rows) => {
-        const mapped = Array.isArray(rows)
-          ? rows.map((row) => ({
-              id: row.id,
-              title: row.title,
-              department: row.department,
-              city: row.city,
-              deadline: row.deadline,
-              publishedFrom: row.publishedFrom || row.visibleFrom || "",
-              salaryOffer: row.salaryOffer,
-              requirements: row.requirements,
-              status: row.status || "Publicada",
-              positionName: row.positionName,
-              modality: row.modality,
-              openings: row.openings,
-              workerRole: row.workerRole,
-              imageUrl: row.imageUrl || ""
-            }))
-          : [];
-        window.publicCareersVacanciesFromApi = mergeApiVacanciesWithLocalPublished(mapped, read(KEYS.vacancies, []));
-      })
-      .catch((err) => {
-        devWarn("Carreras: error al cargar vacantes desde la API.", err?.message || err);
-        window.publicCareersVacanciesSource = "local";
-        window.publicCareersVacanciesFromApi = null;
-      })
-      .finally(() => {
-        render();
-      });
+    render();
     return;
   }
 
-  window.publicCareersVacanciesSource = "local";
-  window.publicCareersVacanciesFromApi = null;
-  render();
+  window.publicCareersVacanciesSource = "api";
+
+  /* Repintado sin red: los datos en memoria siguen frescos (cambio de idioma, por ejemplo). */
+  if (
+    Array.isArray(window.publicCareersVacanciesFromApi) &&
+    Date.now() - publicCareersVacanciesLoadedAt < PUBLIC_VACANCIES_FRESH_MS
+  ) {
+    render();
+    return;
+  }
+
+  /* Pintado inmediato con lo de la visita anterior mientras la red responde. Las vencidas no se
+     cuelan: getPublicPublishedVacancies filtra estado y ventana de publicación contra la fecha de hoy. */
+  const cached = readPublicVacanciesCache();
+  let paintedFromCache = false;
+  if (Array.isArray(cached) && cached.length) {
+    window.publicCareersVacanciesFromApi = mergeApiVacanciesWithLocalPublished(cached, read(KEYS.vacancies, []));
+    if (getPublicPublishedVacancies().length) {
+      render();
+      paintedFromCache = true;
+    }
+  }
+  if (!paintedFromCache) {
+    window.publicCareersVacanciesFromApi = null;
+    grid.innerHTML = careersLoadingCardHtml();
+  }
+
+  const wakeHintTimer = paintedFromCache
+    ? null
+    : setTimeout(() => {
+        const hint = grid.querySelector("[data-careers-wake-hint]");
+        if (hint) hint.hidden = false;
+      }, PUBLIC_VACANCIES_WAKE_HINT_MS);
+
+  /* El prefetch del <head> ya disparó la petición durante la descarga del bundle; se consume una
+     sola vez para que una recarga posterior no reutilice datos viejos. */
+  const prefetched = window.__ANTARES_PUBLIC_PREFETCH__?.vacancies;
+  if (prefetched) window.__ANTARES_PUBLIC_PREFETCH__ = null;
+  const fetchRows = () => api.getJsonPublic("/public/vacancies", { timeoutMs: PUBLIC_VACANCIES_TIMEOUT_MS });
+  const pending =
+    typeof prefetched?.then === "function"
+      ? prefetched.then((rows) => (Array.isArray(rows) ? rows : fetchRows()))
+      : fetchRows();
+
+  void pending
+    .then((rows) => {
+      const mapped = Array.isArray(rows) ? rows.map(mapApiVacancyRow) : [];
+      writePublicVacanciesCache(mapped);
+      publicCareersVacanciesLoadedAt = Date.now();
+      window.publicCareersVacanciesFromApi = mergeApiVacanciesWithLocalPublished(mapped, read(KEYS.vacancies, []));
+      render();
+    })
+    .catch((err) => {
+      devWarn("Carreras: error al cargar vacantes desde la API.", err?.message || err);
+      if (paintedFromCache) return;
+      window.publicCareersVacanciesSource = "local";
+      window.publicCareersVacanciesFromApi = null;
+      if (getPublicPublishedVacancies().length) {
+        render();
+        return;
+      }
+      grid.innerHTML = careersErrorCardHtml();
+      grid.querySelector("[data-careers-retry]")?.addEventListener("click", () => {
+        publicCareersVacanciesLoadedAt = 0;
+        initPublicCareers();
+      });
+    })
+    .finally(() => {
+      if (wakeHintTimer != null) clearTimeout(wakeHintTimer);
+    });
 }
 
 function initPublicScrollSpy() {

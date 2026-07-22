@@ -27,6 +27,72 @@
     <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://antares-nuevo.onrender.com" crossorigin />
+    <!-- Config + prefetch ANTES de cualquier <link rel="stylesheet">: un script situado después
+         no ejecuta hasta que termina de bajar el CSS (~1,2 MB aquí) y el prefetch llegaría tarde. -->
+    <script src="./config/antares.public.js?v=20260722-early-api-base"></script>
+    <script>
+      /**
+       * Prefetch de las vacantes públicas: la petición sale aquí, no al final del arranque.
+       * `initPublicCareers` vive en portal-runtime.js y solo corre desde app.js, el último módulo
+       * de la página: para entonces ya se descargaron ~2 MB de JS. Con la API en Render (que
+       * suspende el servicio por inactividad) el arranque en frío ronda los 50 s, y ese retraso
+       * se sumaba entero al del bundle. Así petición y bundle bajan en paralelo.
+       * Consumidor: `initPublicCareers`. Si esta promesa falta o resuelve null, vuelve a pedirlo.
+       */
+      (function antaresPrefetchPublicVacancies() {
+        // Misma resolución que AntaresApi.getBase(): en localhost manda antares_api_base.
+        var base = String(window.__ANTARES_API_BASE__ || "").replace(/\/+$/, "");
+        try {
+          var host = String(location.hostname || "").toLowerCase();
+          var isLocal =
+            host === "localhost" || host === "127.0.0.1" || host === "[::1]" || host.endsWith(".localhost");
+          if (!base && isLocal) base = String(localStorage.getItem("antares_api_base") || "").replace(/\/+$/, "");
+        } catch (_e) {
+          /* noop */
+        }
+        while (/\/api$/i.test(base)) base = base.slice(0, -4).replace(/\/+$/, "");
+        if (!base) return;
+        try {
+          // Con sesión persistida la landing va oculta y el portal hace sus propias llamadas.
+          var raw = localStorage.getItem("antares_session_v2");
+          var session = raw ? JSON.parse(raw) : null;
+          if (session && session.userId) return;
+        } catch (_e) {
+          /* Sin acceso a localStorage: seguimos con el prefetch. */
+        }
+        var controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+        // Holgado a propósito: por debajo del arranque en frío de Render cortaríamos peticiones sanas.
+        var timer = controller
+          ? setTimeout(function () {
+              try {
+                controller.abort();
+              } catch (_abort) {
+                /* noop */
+              }
+            }, 75000)
+          : null;
+        window.__ANTARES_PUBLIC_PREFETCH__ = {
+          startedAt: Date.now(),
+          vacancies: fetch(base + "/api/public/vacancies", {
+            method: "GET",
+            headers: { Accept: "application/json" },
+            credentials: "include",
+            signal: controller ? controller.signal : undefined
+          })
+            .then(function (res) {
+              return res.ok ? res.json() : null;
+            })
+            .catch(function () {
+              return null;
+            })
+            .then(function (rows) {
+              if (timer != null) clearTimeout(timer);
+              return Array.isArray(rows) ? rows : null;
+            })
+        };
+      })();
+    </script>
     <link
       href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&amp;family=Poppins:wght@600;700&amp;family=Roboto:wght@400;500&amp;display=swap"
       rel="stylesheet"
@@ -1340,7 +1406,8 @@
       </span>
     </a>
 
-    <script defer src="./config/antares.public.js?v=20260507-render-only"></script>
+    <!-- config/antares.public.js se carga en <head> (síncrono): define __ANTARES_API_BASE__
+         antes del prefetch de vacantes. -->
     <script defer src="./config/supabase.public.js?v=20260503-1"></script>
     <script defer src="./modules/core/runtime-security.js?v=20260503-runtime-sec"></script>
     <script defer src="./modules/core/validation.js?v=20260630-security-audit-fix"></script>

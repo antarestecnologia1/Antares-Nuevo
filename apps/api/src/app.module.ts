@@ -12,6 +12,7 @@ import { PayrollModule } from "./payroll/payroll.module";
 import { PortalModule } from "./portal/portal.module";
 import { B2bProspectModule } from "./b2b-prospect/b2b-prospect.module";
 import { UploadsModule } from "./uploads/uploads.module";
+import { HealthController } from "./health/health.controller";
 import { SupabaseReadinessService } from "./supabase/supabase-readiness.service";
 
 @Module({
@@ -36,6 +37,7 @@ import { SupabaseReadinessService } from "./supabase/supabase-readiness.service"
     B2bProspectModule,
     UploadsModule
   ],
+  controllers: [HealthController],
   providers: [
     SupabaseReadinessService,
     {

@@ -439,18 +439,41 @@
     return data;
   }
 
-  /** GET sin sesión (rutas públicas de la API). */
-  async function getJsonPublic(path) {
+  /** GET sin sesión (rutas públicas de la API). `reqOpts.timeoutMs` corta la espera. */
+  async function getJsonPublic(path, reqOpts) {
+    reqOpts = reqOpts && typeof reqOpts === "object" ? reqOpts : {};
     const base = getBase();
     if (!base) throw new Error("API: falta URL base (antares_api_base o __ANTARES_API_BASE__)");
     const rel = path.startsWith("/") ? path : `/${path}`;
     const url = `${base}/api${rel}`;
     const headers = { Accept: "application/json" };
+    const opts = /** @type {RequestInit} */ ({ method: "GET", headers, credentials: "include" });
+    const timeoutMs = typeof reqOpts.timeoutMs === "number" && reqOpts.timeoutMs > 0 ? reqOpts.timeoutMs : 0;
+    let timeoutId = null;
+    let controller = null;
+    if (timeoutMs > 0 && typeof AbortController !== "undefined") {
+      controller = new AbortController();
+      opts.signal = controller.signal;
+      timeoutId = setTimeout(function () {
+        try {
+          controller.abort();
+        } catch (_abort) {
+          /* noop */
+        }
+      }, timeoutMs);
+    }
     let res;
     try {
-      res = await fetch(url, { method: "GET", headers, credentials: "include" });
+      res = await fetch(url, opts);
     } catch (err) {
+      if (controller && err && err.name === "AbortError") {
+        const timeoutErr = new Error("La solicitud al servidor tardó demasiado. Intente de nuevo.");
+        timeoutErr.status = 408;
+        throw timeoutErr;
+      }
       throwIfFetchNetworkError(err);
+    } finally {
+      if (timeoutId != null) clearTimeout(timeoutId);
     }
     const text = await res.text();
     let data = null;
