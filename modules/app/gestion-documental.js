@@ -55,7 +55,7 @@ import {
   countDocumentsInFolder,
   documentFolderKey
 } from "../domain/employee-documents.domain.js";
-import { downloadCsv } from "../domain/reporteria.domain.js";
+import { downloadBlobFile, downloadCsv } from "../domain/reporteria.domain.js";
 
 const G = globalThis;
 
@@ -621,7 +621,10 @@ function renderDocumentsGroupedByFolder(documents, todayYmd, IC, { viewMode = "g
           <span class="doc-folder-group__icon" aria-hidden="true">${IC.folder || ""}</span>
           <h5 class="doc-folder-group__title">${escapeHtml(group.name)}</h5>
         </div>
-        <span class="doc-folder-group__count">${group.docs.length} archivo${group.docs.length === 1 ? "" : "s"}</span>
+        <div class="doc-folder-group__aside">
+          <span class="doc-folder-group__count">${group.docs.length} archivo${group.docs.length === 1 ? "" : "s"}</span>
+          <button type="button" class="doc-action-btn doc-folder-group__export" data-action="doc-export-folder" data-folder="${escapeAttr(group.name)}" title="Descargar la carpeta ${escapeAttr(group.name)} en ZIP" aria-label="Descargar la carpeta ${escapeAttr(group.name)} en ZIP">${IC.download || "↓"}</button>
+        </div>
       </header>
       ${renderDocumentCards(group.docs, todayYmd, IC, { viewMode, hideFolderPill: true })}
     </section>`
@@ -997,7 +1000,12 @@ function renderFolderExplorer(employees, allDocs, folderRecords, ui, todayYmd, I
       ${viewToggle}
       ${
         canViewDocumentsModule()
-          ? `<button type="button" class="btn btn-sm btn-outline" data-action="doc-export-csv" title="Exportar CSV">${IC.download || ""} CSV</button>`
+          ? `<button type="button" class="btn btn-sm btn-outline" data-action="doc-export-csv" title="Exportar el listado filtrado a CSV">${IC.download || ""} CSV</button>`
+          : ""
+      }
+      ${
+        browseEmpId && canViewDocumentsModule()
+          ? `<button type="button" class="btn btn-sm btn-outline" data-action="doc-export-folders" data-employee-id="${escapeAttr(browseEmpId)}" title="Descargar una o varias carpetas del expediente en ZIP">${IC.download || ""} ZIP</button>`
           : ""
       }
       ${
@@ -1095,7 +1103,8 @@ function renderFolderExplorer(employees, allDocs, folderRecords, ui, todayYmd, I
       <h4 class="doc-files-pane__title">Archivos</h4>
       ${
         ui.folderFilter
-          ? `<button type="button" class="btn btn-sm btn-outline" data-action="doc-clear-folder-filter">Quitar filtro de carpeta</button>`
+          ? `<button type="button" class="btn btn-sm btn-outline" data-action="doc-export-folder" data-folder="${escapeAttr(normalizeDocumentFolder(ui.folderFilter))}" title="Descargar esta carpeta en ZIP">${IC.download || ""} ZIP de la carpeta</button>
+             <button type="button" class="btn btn-sm btn-outline" data-action="doc-clear-folder-filter">Quitar filtro de carpeta</button>`
           : ""
       }
     </header>
@@ -1355,6 +1364,240 @@ async function downloadDocumentRecord(doc) {
   } catch (err) {
     G.notify?.(String(err?.message || "No se pudo descargar."), "error");
   }
+}
+
+function documentExportSlug(value, fallback = "colaborador") {
+  return (
+    String(value || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 60)
+      .toLowerCase() || fallback
+  );
+}
+
+/** Carpetas del colaborador con conteo y peso, para elegir qué exportar. */
+function buildFolderExportOptions(employeeId, allDocs, folderRecords) {
+  const id = String(employeeId || "");
+  const docs = (allDocs || [])
+    .map(normalizeEmployeeDocumentRow)
+    .filter((d) => String(d.employeeId) === id);
+  return collectEmployeeFolders(id, allDocs, folderRecords).map((name) => {
+    const key = documentFolderKey(name);
+    const inFolder = docs.filter((d) => documentFolderKey(d.folder) === key);
+    return {
+      name,
+      count: inFolder.length,
+      sizeBytes: inFolder.reduce((sum, d) => sum + (Number(d.sizeBytes) || 0), 0)
+    };
+  });
+}
+
+/**
+ * Pide al API el ZIP de las carpetas indicadas y lo entrega al navegador.
+ * El servidor decide qué archivos entran: aquí solo viajan los nombres de carpeta.
+ */
+async function exportEmployeeFoldersZip(employeeId, folders, employeeName) {
+  const api = window.AntaresApi;
+  if (!api?.postForBlob || !api.isConfigured?.()) {
+    throw new Error("Configure la API para exportar carpetas del expediente.");
+  }
+  const unique = [
+    ...new Map(
+      (folders || [])
+        .map((name) => normalizeDocumentFolder(name))
+        .filter(Boolean)
+        .map((name) => [documentFolderKey(name), name])
+    ).values()
+  ];
+  if (!unique.length) throw new Error("Seleccione al menos una carpeta.");
+  const blob = await api.postForBlob("/uploads/employee-documents/export-zip", {
+    employeeId: String(employeeId || ""),
+    folders: unique
+  });
+  const suffix =
+    unique.length === 1 ? documentExportSlug(unique[0], "carpeta") : `${unique.length}-carpetas`;
+  downloadBlobFile(
+    `expediente-${documentExportSlug(employeeName)}-${suffix}-${colombiaTodayIsoDate()}.zip`,
+    blob,
+    "application/zip"
+  );
+  return unique;
+}
+
+function closeFolderExportModal() {
+  document.getElementById("doc-export-overlay")?.remove();
+}
+
+/** Exporta una sola carpeta sin pasar por el diálogo de selección. */
+async function runSingleFolderExport(employeeId, folderName, triggerBtn) {
+  const employee = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === String(employeeId));
+  const prevHtml = triggerBtn ? triggerBtn.innerHTML : "";
+  if (triggerBtn) {
+    triggerBtn.disabled = true;
+    triggerBtn.classList.add("is-loading");
+  }
+  try {
+    await exportEmployeeFoldersZip(employeeId, [folderName], employee?.name);
+    G.notify?.(`Carpeta "${normalizeDocumentFolder(folderName)}" exportada en ZIP.`, "success");
+  } catch (err) {
+    G.notify?.(String(err?.message || "No se pudo exportar la carpeta."), "error");
+  } finally {
+    if (triggerBtn) {
+      triggerBtn.disabled = false;
+      triggerBtn.classList.remove("is-loading");
+      if (prevHtml) triggerBtn.innerHTML = prevHtml;
+    }
+  }
+}
+
+/** Diálogo para exportar una o varias carpetas del expediente en un único ZIP. */
+function openFolderExportModal(employeeId, preselect = []) {
+  if (!canViewDocumentsModule()) return;
+  const id = String(employeeId || "").trim();
+  if (!id) {
+    G.notify?.("Abra el expediente de un colaborador para exportar carpetas.", "info");
+    return;
+  }
+  const employee = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === id);
+  const options = buildFolderExportOptions(
+    id,
+    read(KEYS.employeeDocuments, []),
+    read(KEYS.employeeDocumentFolders, [])
+  );
+  if (!options.some((opt) => opt.count > 0)) {
+    G.notify?.("El expediente no tiene archivos para exportar.", "info");
+    return;
+  }
+  const preselectKeys = new Set(
+    (preselect || []).filter(Boolean).map((name) => documentFolderKey(name))
+  );
+  const IC = G.IC || {};
+  const items = options
+    .map((opt) => {
+      const empty = opt.count === 0;
+      const checked = !empty && (!preselectKeys.size || preselectKeys.has(documentFolderKey(opt.name)));
+      return `<li class="doc-export__item${empty ? " doc-export__item--empty" : ""}">
+        <label class="doc-export__check">
+          <input type="checkbox" data-doc-export-folder value="${escapeAttr(opt.name)}" data-count="${opt.count}" data-size="${opt.sizeBytes}"${checked ? " checked" : ""}${empty ? " disabled" : ""} />
+          <span class="doc-export__folder">
+            <span class="doc-export__folder-name">${IC.folder || ""} ${escapeHtml(opt.name)}</span>
+            <span class="doc-export__folder-meta">${
+              empty
+                ? "Sin archivos"
+                : `${opt.count} archivo${opt.count === 1 ? "" : "s"} · ${escapeHtml(formatFileSize(opt.sizeBytes))}`
+            }</span>
+          </span>
+        </label>
+      </li>`;
+    })
+    .join("");
+
+  closeFolderExportModal();
+  const overlay = document.createElement("div");
+  overlay.id = "doc-export-overlay";
+  overlay.className = "doc-export-overlay";
+  overlay.innerHTML = `<div class="doc-export" role="dialog" aria-modal="true" aria-labelledby="doc-export-title">
+    <header class="doc-export__head">
+      <div class="doc-export__titles">
+        <p class="doc-export__eyebrow">Exportar expediente</p>
+        <h3 class="doc-export__title" id="doc-export-title">Descargar carpetas en ZIP</h3>
+        <p class="doc-export__subtitle">${escapeHtml(String(employee?.name || "Colaborador"))}</p>
+      </div>
+      <button type="button" class="btn btn-sm btn-outline doc-export__close" data-doc-export-close title="Cerrar">${IC.x || "×"}</button>
+    </header>
+    <form class="doc-export__form" data-doc-export-form>
+      <div class="doc-export__toolbar">
+        <label class="doc-export__check doc-export__check--all">
+          <input type="checkbox" data-doc-export-all />
+          <span>Seleccionar todas</span>
+        </label>
+        <span class="doc-export__summary" data-doc-export-summary></span>
+      </div>
+      <ul class="doc-export__list">${items}</ul>
+      <footer class="doc-export__actions">
+        <button type="button" class="btn btn-sm btn-outline" data-doc-export-close>Cancelar</button>
+        <button type="submit" class="btn btn-sm btn-primary" data-doc-export-submit>${IC.download || ""} Descargar ZIP</button>
+      </footer>
+    </form>
+  </div>`;
+
+  const close = () => {
+    document.removeEventListener("keydown", onKey);
+    closeFolderExportModal();
+  };
+  const onKey = (ev) => {
+    if (ev.key === "Escape") close();
+  };
+  const boxes = () => [...overlay.querySelectorAll("[data-doc-export-folder]:not(:disabled)")];
+  const syncSummary = () => {
+    const selected = boxes().filter((box) => box.checked);
+    const files = selected.reduce((sum, box) => sum + (Number(box.dataset.count) || 0), 0);
+    const bytes = selected.reduce((sum, box) => sum + (Number(box.dataset.size) || 0), 0);
+    const summary = overlay.querySelector("[data-doc-export-summary]");
+    if (summary) {
+      summary.textContent = selected.length
+        ? `${selected.length} carpeta${selected.length === 1 ? "" : "s"} · ${files} archivo${files === 1 ? "" : "s"} · ${formatFileSize(bytes)}`
+        : "Ninguna carpeta seleccionada";
+    }
+    const all = overlay.querySelector("[data-doc-export-all]");
+    if (all) {
+      all.checked = selected.length > 0 && selected.length === boxes().length;
+      all.indeterminate = selected.length > 0 && selected.length < boxes().length;
+    }
+    const submit = overlay.querySelector("[data-doc-export-submit]");
+    if (submit) submit.disabled = !selected.length;
+  };
+
+  overlay.addEventListener("click", (ev) => {
+    if (ev.target === overlay || ev.target.closest("[data-doc-export-close]")) close();
+  });
+  overlay.addEventListener("change", (ev) => {
+    if (ev.target.matches("[data-doc-export-all]")) {
+      const next = ev.target.checked;
+      boxes().forEach((box) => {
+        box.checked = next;
+      });
+    }
+    syncSummary();
+  });
+  overlay.querySelector("[data-doc-export-form]")?.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const selected = boxes()
+      .filter((box) => box.checked)
+      .map((box) => box.value);
+    if (!selected.length) return;
+    const submit = overlay.querySelector("[data-doc-export-submit]");
+    const prevHtml = submit ? submit.innerHTML : "";
+    if (submit) {
+      submit.disabled = true;
+      submit.classList.add("is-loading");
+      submit.textContent = "Preparando ZIP…";
+    }
+    try {
+      const exported = await exportEmployeeFoldersZip(id, selected, employee?.name);
+      G.notify?.(
+        exported.length === 1
+          ? `Carpeta "${exported[0]}" exportada en ZIP.`
+          : `${exported.length} carpetas exportadas en ZIP.`,
+        "success"
+      );
+      close();
+    } catch (err) {
+      G.notify?.(String(err?.message || "No se pudo exportar el expediente."), "error");
+      if (submit) {
+        submit.disabled = false;
+        submit.classList.remove("is-loading");
+        if (prevHtml) submit.innerHTML = prevHtml;
+      }
+    }
+  });
+
+  document.addEventListener("keydown", onKey);
+  document.body.appendChild(overlay);
+  syncSummary();
 }
 
 function openDeleteFolderFlow(employeeId, folderName) {
@@ -2347,7 +2590,33 @@ function bindDocumentManagementPortalControls() {
         read(KEYS.payrollEmployees, []),
         todayYmd
       );
-      downloadCsv(rows, `expediente-documental-${todayYmd}.csv`);
+      if (!rows.length) {
+        G.notify?.("No hay documentos que coincidan con los filtros actuales.", "info");
+        return;
+      }
+      const columns = Object.keys(rows[0]).map((key) => ({ key, label: key }));
+      downloadCsv(`expediente-documental-${todayYmd}.csv`, rows, columns);
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='doc-export-folders']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const ui = getDocumentsUi();
+      const employeeId = String(btn.dataset.employeeId || ui.folderBrowseEmployeeId || "");
+      openFolderExportModal(employeeId, ui.folderFilter ? [ui.folderFilter] : []);
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='doc-export-folder']").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const ui = getDocumentsUi();
+      const employeeId = String(ui.folderBrowseEmployeeId || "");
+      const folder = String(btn.dataset.folder || "");
+      if (!employeeId || !folder) {
+        G.notify?.("Abra el expediente de un colaborador para exportar la carpeta.", "info");
+        return;
+      }
+      await runSingleFolderExport(employeeId, folder, btn);
     });
   });
 

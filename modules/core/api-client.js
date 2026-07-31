@@ -330,6 +330,45 @@
     return request("POST", path, body);
   }
 
+  /** POST autenticado que devuelve binario (p. ej. exportación ZIP del expediente). */
+  async function postForBlob(path, body) {
+    const base = getBase();
+    if (!base) throw new Error("API: falta URL base (antares_api_base o __ANTARES_API_BASE__)");
+    if (!hasPortalSession()) throw new Error("API: sesión no iniciada");
+    const rel = path.startsWith("/") ? path : `/${path}`;
+    const url = `${base}/api${rel}`;
+    const headers = buildFetchHeaders("POST", {
+      Accept: "application/octet-stream, application/json",
+      "Content-Type": "application/json"
+    });
+    let res;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers,
+        credentials: "include",
+        body: JSON.stringify(body)
+      });
+    } catch (err) {
+      throwIfFetchNetworkError(err);
+    }
+    if (!res.ok) {
+      let msg = res.statusText;
+      try {
+        const data = await res.json();
+        if (data && data.message) {
+          msg = Array.isArray(data.message) ? data.message.join(", ") : String(data.message);
+        }
+      } catch (_e) {
+        /* El error puede llegar sin cuerpo JSON. */
+      }
+      const err = new Error(sanitizeApiErrorMessage(msg, res.status) || `HTTP ${res.status}`);
+      err.status = res.status;
+      throw err;
+    }
+    return res.blob();
+  }
+
   /** POST sin sesión (rutas públicas de la API). */
   async function postJsonPublic(path, body) {
     const base = getBase();
@@ -552,6 +591,7 @@
     getJson,
     getArrayBuffer,
     postJson,
+    postForBlob,
     postJsonPublic,
     postFormData,
     postFormDataPublic,

@@ -21,9 +21,11 @@ import { PortalService } from "../portal/portal.service";
 import { PresignAvatarDto } from "./dto/presign-avatar.dto";
 import {
   DownloadEmployeeDocumentDto,
+  ExportEmployeeDocumentsDto,
   PresignEmployeeDocumentDto
 } from "./dto/presign-employee-document.dto";
 import { R2Service } from "./r2.service";
+import { ZipStreamWriter, sanitizeZipEntryName, uniqueZipEntryName } from "./zip-stream";
 
 type ReqUser = { userId: string; email: string; role: string };
 
@@ -69,6 +71,10 @@ const EMPLOYEE_DOCUMENT_BLOCKED_EXT = new Set([
 ]);
 
 const EMPLOYEE_DOCUMENT_MAX_BYTES = 50 * 1024 * 1024;
+
+/** Techos de la exportación ZIP: sin ZIP64 y con memoria acotada en el servidor. */
+const EMPLOYEE_DOCUMENT_EXPORT_MAX_FILES = 500;
+const EMPLOYEE_DOCUMENT_EXPORT_MAX_BYTES = 400 * 1024 * 1024;
 
 function normalizeEmployeeDocMime(raw: string) {
   const mime = String(raw || "")
@@ -142,6 +148,19 @@ function folderSlugForStorage(raw: unknown) {
     .replace(/[^a-zA-Z0-9._-]+/g, "")
     .slice(0, 64)
     .toLowerCase() || "general";
+}
+
+/** Nombre ASCII para `Content-Disposition` (evita cabeceras inválidas con tildes). */
+function downloadSlug(raw: string, fallback: string) {
+  return (
+    String(raw || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 60)
+      .toLowerCase() || fallback
+  );
 }
 
 function assertSafeEmployeeDocumentFile(fileName: string) {
@@ -467,5 +486,94 @@ export class UploadsController {
     }
     const downloadUrl = await this.r2.presignGetUploadsObject(storageKey, 3600);
     return { downloadUrl, expiresInSec: 3600 };
+  }
+
+  /**
+   * Descarga en un solo ZIP una o varias carpetas del expediente de un colaborador.
+   * El archivo se arma sobre la respuesta: cada documento se trae de R2, se escribe
+   * y se descarta, de modo que una carpeta grande no se acumule en memoria.
+   */
+  @Post("employee-documents/export-zip")
+  async exportEmployeeDocumentsZip(
+    @Req() req: { user: ReqUser },
+    @Body() dto: ExportEmployeeDocumentsDto,
+    @Res() res: Response
+  ) {
+    if (!this.r2.hasUploadsClient()) {
+      throw new BadRequestException("R2 no está configurado.");
+    }
+    const { employeeName, files } = await this.portal.listEmployeeDocumentsForExport(
+      req.user.userId,
+      req.user.role,
+      dto.employeeId,
+      dto.folders
+    );
+    if (!files.length) {
+      throw new BadRequestException(
+        "Las carpetas seleccionadas no tienen archivos para exportar."
+      );
+    }
+    if (files.length > EMPLOYEE_DOCUMENT_EXPORT_MAX_FILES) {
+      throw new BadRequestException(
+        `La selección tiene ${files.length} archivos y el máximo por exportación es ${EMPLOYEE_DOCUMENT_EXPORT_MAX_FILES}. Exporte menos carpetas a la vez.`
+      );
+    }
+    const totalBytes = files.reduce((sum, file) => sum + file.sizeBytes, 0);
+    if (totalBytes > EMPLOYEE_DOCUMENT_EXPORT_MAX_BYTES) {
+      const totalMb = Math.ceil(totalBytes / (1024 * 1024));
+      const maxMb = Math.floor(EMPLOYEE_DOCUMENT_EXPORT_MAX_BYTES / (1024 * 1024));
+      throw new BadRequestException(
+        `La selección pesa ${totalMb} MB y el máximo por exportación es ${maxMb} MB. Exporte menos carpetas a la vez.`
+      );
+    }
+
+    const stamp = new Date().toISOString().slice(0, 10);
+    const downloadName = `expediente-${downloadSlug(employeeName, "colaborador")}-${stamp}.zip`;
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="${downloadName}"`);
+    res.setHeader("Cache-Control", "no-store");
+
+    const prefix = `documentos_rrhh/${dto.employeeId}/`;
+    const zip = new ZipStreamWriter(res);
+    const usedNames = new Set<string>();
+    const failures: string[] = [];
+    try {
+      for (const file of files) {
+        const entryName = uniqueZipEntryName(
+          `${sanitizeZipEntryName(file.folder, "General")}/${sanitizeZipEntryName(
+            file.fileName.replace(/\//g, "-"),
+            "documento"
+          )}`,
+          usedNames
+        );
+        if (!file.storageKey.startsWith(prefix)) {
+          failures.push(`${entryName}: la referencia no pertenece al expediente.`);
+          continue;
+        }
+        try {
+          const { buffer } = await this.r2.getUploadsObject(file.storageKey);
+          await zip.addFile(entryName, buffer, file.createdAt ?? undefined);
+        } catch (err) {
+          failures.push(
+            `${entryName}: ${err instanceof Error ? err.message : "no se pudo leer del almacenamiento."}`
+          );
+        }
+      }
+      if (failures.length) {
+        const report = [
+          `Expediente: ${employeeName || dto.employeeId}`,
+          `Fecha de exportación: ${stamp}`,
+          "",
+          `No fue posible incluir ${failures.length} de ${files.length} archivo(s):`,
+          ...failures.map((line) => `- ${line}`)
+        ].join("\r\n");
+        await zip.addFile("ARCHIVOS_NO_EXPORTADOS.txt", Buffer.from(report, "utf8"));
+      }
+      await zip.finalize();
+      res.end();
+    } catch (err) {
+      /* El ZIP ya viaja por el socket: cortar es la única señal de error posible. */
+      res.destroy(err instanceof Error ? err : new Error("Error al generar el ZIP."));
+    }
   }
 }

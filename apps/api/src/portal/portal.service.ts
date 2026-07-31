@@ -2846,6 +2846,73 @@ export class PortalService implements OnModuleInit {
     throw new ForbiddenException("No autorizado para descargar documentos de colaboradores.");
   }
 
+  /**
+   * Archivos del expediente que alimentan la exportación ZIP por carpetas.
+   * La verdad de nombres, carpetas y tamaños es Postgres: el cliente solo elige
+   * qué carpetas quiere, nunca qué objetos de R2 se leen.
+   */
+  async listEmployeeDocumentsForExport(
+    userId: string,
+    role: JwtRole,
+    employeeId: string,
+    folders: string[]
+  ): Promise<{
+    employeeName: string;
+    files: {
+      folder: string;
+      fileName: string;
+      storageKey: string;
+      sizeBytes: number;
+      createdAt: Date | null;
+    }[];
+  }> {
+    await this.assertCanDownloadEmployeeDocument(userId, role);
+    const empId = String(employeeId || "").trim();
+    if (!PG_UUID_V4_RE.test(empId)) {
+      throw new BadRequestException("Colaborador inválido.");
+    }
+    const folderKeys = [
+      ...new Set(
+        (folders || [])
+          .map((name) => String(name || "").trim().toLowerCase())
+          .filter(Boolean)
+      )
+    ];
+    if (!folderKeys.length) {
+      throw new BadRequestException("Seleccione al menos una carpeta para exportar.");
+    }
+    if (!(await this.tableExists("documentos_empleado"))) {
+      return { employeeName: "", files: [] };
+    }
+    const { documentsCompanyScope } = await this.resolveBootstrapActorContext(userId, role);
+    const scoped =
+      documentsCompanyScope && PG_UUID_V4_RE.test(String(documentsCompanyScope).trim())
+        ? String(documentsCompanyScope).trim()
+        : null;
+    const r = await this.pool.query(
+      `SELECT d.carpeta, d.nombre_archivo, d.storage_key, d.tamano_bytes, d.fecha_creacion, d.nombre_empleado
+         FROM documentos_empleado d
+         INNER JOIN empleados_nomina e ON e.id = d.id_empleado
+        WHERE d.id_empleado = $1::uuid
+          AND lower(coalesce(d.carpeta, 'General')) = ANY($2::text[])
+          AND ($3::uuid IS NULL OR e.id_empresa = $3::uuid)
+        ORDER BY d.carpeta ASC, d.fecha_creacion ASC`,
+      [empId, folderKeys, scoped]
+    );
+    return {
+      employeeName: String(r.rows[0]?.nombre_empleado || "").trim(),
+      files: r.rows
+        .filter((row) => String(row.storage_key || "").trim())
+        .map((row) => ({
+          folder: String(row.carpeta || "General").trim() || "General",
+          fileName: String(row.nombre_archivo || "").trim() || "documento",
+          storageKey: String(row.storage_key).trim(),
+          sizeBytes: Number(row.tamano_bytes) || 0,
+          createdAt: row.fecha_creacion ? new Date(row.fecha_creacion) : null
+        }))
+    };
+  }
+
   private hasTransportOpsPermission(permissionSet: Set<string>): boolean {
     if (permissionSet.has("authorizations_manage")) return true;
     const keys = [
