@@ -15,9 +15,9 @@ Gestiona el **proceso de selección de personal**: catálogo de cargos, publicac
 ![Pipeline de candidatos](./assets/contratacion/01-cargos-y-vacantes.png)
 
 - **Tarjetas de resumen**: vacantes abiertas, candidatos en proceso, tasa de conversión y contrataciones del mes.
-- **Pestañas de la bandeja**: **Candidatos**, **Vacantes**, **Agenda** (entrevistas), **Contratos**, **Cargos**.
+- **Pestañas de la bandeja**: **Candidatos**, **Vacantes**, **Agenda** (entrevistas), **Contratos**, **Cargos**, con contador y búsqueda global.
 - **Filtros rápidos**: Activos, Finalizados, Todos, Por etapa, Experiencia, Recientes.
-- **Tarjeta de candidato**: nombre, etapa del proceso (Preseleccionado, Entrevista, etc.), vacante a la que aplica, contacto y años de experiencia. Incluye los botones **Ver** y **Entrevista**.
+- **Tarjeta de candidato**: iniciales, etapa del proceso, indicador de CV, vacante, contacto y experiencia. Incluye **Ver**, **Entrevista** y **CV** (descarga de la hoja de vida adjunta).
 
 ## 3. Paso a paso: definir un cargo
 
@@ -55,9 +55,10 @@ Gestiona el **proceso de selección de personal**: catálogo de cargos, publicac
 
 ![Programar entrevista](./assets/contratacion/04-agendar-entrevista.png)
 
-2. Seleccione el **candidato** (solo se listan los que están activos en el proceso, sin contratar ni descartar).
-3. Indique **fecha y hora** (debe ser una fecha futura), el **entrevistador**, la **modalidad** (presencial/virtual) y el **lugar o enlace**.
-4. Agregue notas previas si lo requiere y pulse **Guardar entrevista**. La cita queda visible también en [Transporte · Calendario](./06-calendario.md).
+2. **Paso 1 — Candidato y agenda**: seleccione el **candidato** (solo se listan los que están activos en el proceso, sin contratar ni descartar). Al elegirlo se muestra su etapa, vacante y datos de contacto. Indique **fecha y hora** (debe ser una fecha futura, hora de Colombia) o use los atajos «Mañana 9:00 a. m.», «Próximo lunes 9:00 a. m.», etc.
+3. **Paso 2 — Entrevistador responsable**: elija a la persona en la lista de **personal de oficina**, que reúne a los empleados con rol administrativo y a los usuarios del portal con rol de oficina (RR.HH., administración, auxiliar o líder administrativo, logística). Los conductores no aparecen en la lista. Si el entrevistador es externo, seleccione **Otro** y escriba el nombre.
+4. **Paso 3 — Modalidad y notas**: elija **presencial**, **virtual** o **telefónica**; el campo de logística cambia según la modalidad (lugar, enlace de videollamada o número de contacto). Agregue notas previas si lo requiere.
+5. Revise el **resumen de la cita** al final del formulario: allí se advierte si la fecha ya pasó o si el entrevistador tiene otra entrevista a menos de una hora. Pulse **Guardar entrevista**; la cita queda visible también en [Transporte · Calendario](./06-calendario.md).
 
 ## 7. Generar el contrato
 

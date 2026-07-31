@@ -11660,6 +11660,25 @@ function candidateMayHaveCvInStorage(candidateLike) {
   return false;
 }
 
+/**
+ * Indica si el botón «Descargar CV» debe habilitarse.
+ * Incluye pistas locales (nombre, cv_filename, storageKey) aunque aún no haya URL/base64 en caché.
+ */
+function candidateCanAttemptCvDownload(candidateLike) {
+  if (!candidateLike) return false;
+  if (extractCandidateCvDownload(candidateLike)?.href) return true;
+  if (candidateMayHaveCvInStorage(candidateLike)) return true;
+  const attachments = flattenCandidateAttachmentsForCv(candidateLike.attachments);
+  for (const item of attachments) {
+    if (typeof item === "string" && item.trim()) return true;
+    if (item == null || typeof item !== "object") continue;
+    const k = String(item.kind || "").toLowerCase();
+    if (k === "cv_filename" || k === "cv_file" || k === "cv_blob") return true;
+    if (String(item.name || "").trim() || String(item.storageKey || "").trim()) return true;
+  }
+  return false;
+}
+
 /** Primera fuente descargable: cv_blob inline, si no cv_file con URL http(s) incl. prefirmadas. */
 function extractCandidateCvDownload(candidateLike) {
   const attachments = flattenCandidateAttachmentsForCv(candidateLike?.attachments);
@@ -11715,7 +11734,8 @@ async function resolveCandidateCvDownload(candidateLike) {
   const local = extractCandidateCvDownload(candidateLike);
   if (local?.href) return local;
   const id = String(candidateLike?.id || "").trim();
-  if (!id || !candidateMayHaveCvInStorage(candidateLike)) return null;
+  if (!id) return null;
+  /* Siempre consultar API: el CV puede existir en BD/R2 aunque el caché local solo tenga el nombre. */
   return fetchCandidateCvDownloadFromApi(id);
 }
 
@@ -11834,16 +11854,32 @@ function installCandidateCvDownloadDelegation() {
     btn.disabled = true;
     try {
       const dl = await resolveCandidateCvDownload(cand);
-      if (!dl?.href) {
-        notify("No hay CV descargable para este candidato.", "info");
+      if (dl?.href) {
+        await triggerCandidateCvDownload(dl.href, dl.fileName, id);
         return;
       }
-      await triggerCandidateCvDownload(dl.href, dl.fileName, id);
+      /* Respaldo binario directo (útil si el JSON de metadatos no trae URL pero el archivo sí está). */
+      const fromApi = await fetchCandidateCvBlobFromApi(id);
+      if (fromApi?.blob) {
+        triggerBlobDownload(fromApi.blob, fromApi.fileName || "hoja-de-vida");
+        return;
+      }
+      notify("No hay CV descargable para este candidato.", "info");
     } finally {
       btn.removeAttribute("aria-busy");
       btn.disabled = false;
     }
   });
+}
+
+function hiringPersonInitials(name) {
+  const parts = String(name || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!parts.length) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] || ""}${parts[parts.length - 1][0] || ""}`.toUpperCase();
 }
 
 function renderHiringCandidateCard(c, ctx) {
@@ -11852,18 +11888,24 @@ function renderHiringCandidateCard(c, ctx) {
   const canDlCv = Boolean(ctx.canDlCv);
   const statusClass = hiringPipelineStatusClass(c.status);
   const employeeMatch = findPayrollEmployeeByIdDoc(c.idDoc);
-  return `<article class="hiring-candidate-card portal-ops-card trip-ops-card">
+  const initials = hiringPersonInitials(c.name);
+  const source = String(c.source || "Portal").trim() || "Portal";
+  return `<article class="hiring-candidate-card hiring-browse-card">
     <header class="hiring-candidate-card__head">
-      <div>
+      <span class="hiring-browse-avatar" aria-hidden="true">${escapeHtml(initials)}</span>
+      <div class="hiring-candidate-card__identity">
         <h4>${escapeHtml(String(c.name || ""))}</h4>
-        <p class="muted">${escapeHtml(String(c.vacancyTitle || "-"))}</p>
+        <p class="muted">${escapeHtml(String(c.vacancyTitle || "Sin vacante"))}</p>
       </div>
-      <span class="status ${statusClass}">${escapeHtml(String(c.status || ""))}</span>
+      <div class="hiring-candidate-card__badges">
+        <span class="status ${statusClass}">${escapeHtml(String(c.status || ""))}</span>
+        ${canDlCv ? `<span class="hiring-browse-chip hiring-browse-chip--cv">${IC.file} CV</span>` : `<span class="hiring-browse-chip hiring-browse-chip--muted">Sin CV</span>`}
+      </div>
     </header>
     <dl class="hiring-candidate-card__meta">
       <div><dt>Contacto</dt><dd>${escapeHtml(String(c.email || "-"))}<br><span class="muted">${escapeHtml(String(c.phone || "-"))}</span></dd></div>
-      <div><dt>Experiencia</dt><dd>${expCargo} años · Edad ${ageInfo.age != null ? `${ageInfo.age} años` : "—"}</dd></div>
-      <div><dt>Etapa</dt><dd><select class="hiring-status-select" data-action="candidate-status" data-id="${escapeAttr(String(c.id))}">${hiringPipelineSelectOptions(c.status)}</select></dd></div>
+      <div><dt>Perfil</dt><dd>${expCargo} años exp. · Edad ${ageInfo.age != null ? `${ageInfo.age}` : "—"}<br><span class="muted">${escapeHtml(source)}</span></dd></div>
+      <div class="hiring-candidate-card__stage"><dt>Etapa</dt><dd><select class="hiring-status-select" data-action="candidate-status" data-id="${escapeAttr(String(c.id))}">${hiringPipelineSelectOptions(c.status)}</select></dd></div>
     </dl>
     <div class="toolbar hiring-candidate-card__actions">
       <button class="btn btn-sm btn-outline" data-action="view-candidate" data-id="${escapeAttr(String(c.id))}">${IC.eye} Ver</button>
@@ -11872,7 +11914,7 @@ function renderHiringCandidateCard(c, ctx) {
           ? `<button type="button" class="btn btn-sm btn-action" data-action="schedule-interview-for-candidate" data-candidate-id="${escapeAttr(String(c.id))}">${IC.calendar} Entrevista</button>`
           : ""
       }
-      <button type="button" class="btn btn-sm btn-action"${canDlCv ? "" : " disabled"} data-action="download-candidate-cv" data-id="${escapeAttr(String(c.id))}">${IC.download} CV</button>
+      <button type="button" class="btn btn-sm btn-action"${canDlCv ? "" : " disabled"} data-action="download-candidate-cv" data-id="${escapeAttr(String(c.id))}" title="${canDlCv ? "Descargar hoja de vida" : "Sin CV disponible"}">${IC.download} CV</button>
       ${
         ctx.canEdit
           ? `<button class="btn btn-sm btn-action" data-action="create-employee-from-candidate" data-candidate-id="${escapeAttr(String(c.id))}" title="Abrir alta de empleado con datos precargados">${IC.userPlus} Empleado</button>`
@@ -11883,7 +11925,7 @@ function renderHiringCandidateCard(c, ctx) {
           ? `<button class="btn btn-sm btn-action" data-action="generate-contract-from-candidate" data-candidate-id="${escapeAttr(String(c.id))}" title="Generar contrato Word">${IC.file} Contrato</button>`
           : ""
       }
-      ${ctx.canEdit ? `<button class="btn btn-sm btn-action" data-action="edit-candidate" data-id="${escapeAttr(String(c.id))}">${IC.edit} Editar</button>` : ""}
+      ${ctx.canEdit ? `<button class="btn btn-sm btn-action" data-action="edit-candidate" data-id="${escapeAttr(String(c.id))}">${IC.edit}</button>` : ""}
       ${ctx.canDelete ? `<button class="btn btn-sm btn-reject" data-action="delete-candidate" data-id="${escapeAttr(String(c.id))}" title="Solo administradores">${IC.trash}</button>` : ""}
     </div>
   </article>`;
@@ -13802,6 +13844,7 @@ Object.assign(window, {
   canViewAllTransportRequests,
   candidateCvDataUrlToBlob,
   candidateMayHaveCvInStorage,
+  candidateCanAttemptCvDownload,
   capStoredArrayRows,
   cityOptionsFromDepartment,
   clampLaborSystemParameterYear,

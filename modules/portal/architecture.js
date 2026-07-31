@@ -154,7 +154,7 @@ window.PortalArchitecture = (() => {
       layoutPlan: [
         {
           container: ".documents-studio",
-          order: [".hr-workspace-header--payroll", ".doc-kpi-block", ".hr-workspace-panels"]
+          order: [".doc-shell", ".doc-bulkbar", ".doc-upload-drawer", ".doc-scrim", ".doc-dropveil"]
         }
       ]
     },

@@ -563,53 +563,861 @@
   padding: 0;
 }
 
-/* ── Panel Consultar ── */
-.hiring-studio .hiring-data-panel {
-  padding: 1rem 1.1rem 1.15rem;
+/* ── Panel Consultar (Hiring Browse) ── */
+.hiring-studio .hiring-browse.hiring-data-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.hiring-studio .hiring-browse__hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem 1.5rem;
+  padding: 1.15rem 1.25rem 1.2rem;
+  border-radius: var(--hi-radius);
+  border: 1px solid var(--hi-edge);
+  background:
+    radial-gradient(120% 80% at 100% 0%, rgba(55, 124, 192, 0.14), transparent 55%),
+    linear-gradient(160deg, #f7fbff 0%, #eef5fb 48%, #f8fafc 100%);
+  box-shadow: var(--hi-shadow-sm);
+}
+
+.hiring-studio .hiring-browse__eyebrow {
+  margin: 0 0 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #1d4ed8;
+}
+
+.hiring-studio .hiring-browse__hero-copy h3 {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--hi-navy);
+}
+
+.hiring-studio .hiring-browse__lead {
+  margin: 0.3rem 0 0;
+  max-width: 36rem;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: var(--text-soft);
+}
+
+.hiring-studio .hiring-browse__search {
+  position: relative;
+  flex: 1 1 18rem;
+  max-width: 26rem;
+}
+
+.hiring-studio .hiring-browse__search-ico {
+  position: absolute;
+  left: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  color: var(--text-soft);
+  pointer-events: none;
+}
+
+.hiring-studio .hiring-browse__search-ico svg {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+.hiring-studio .hiring-browse__search input[type="search"] {
+  width: 100%;
+  min-height: 2.7rem;
+  padding: 0.65rem 0.95rem 0.65rem 2.55rem;
+  border-radius: 14px;
+  border: 1px solid var(--hi-edge-strong);
+  background: rgba(255, 255, 255, 0.92);
+  font-size: 0.9rem;
+  color: var(--hi-navy);
+  box-shadow: inset 0 1px 2px rgba(11, 33, 56, 0.04);
+}
+
+.hiring-studio .hiring-browse__search input[type="search"]:focus {
+  outline: none;
+  border-color: rgba(55, 124, 192, 0.55);
+  box-shadow: 0 0 0 3px rgba(55, 124, 192, 0.14);
+}
+
+.hiring-studio .hiring-browse__tabs {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.hiring-studio .hiring-browse__tab {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+  padding: 0.7rem 0.75rem;
+  border-radius: 14px;
+  border: 1px solid var(--hi-edge);
+  background: var(--hi-card);
+  color: var(--hi-navy);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.hiring-studio .hiring-browse__tab:hover {
+  border-color: var(--hi-edge-strong);
+  transform: translateY(-1px);
+  box-shadow: var(--hi-shadow-sm);
+}
+
+.hiring-studio .hiring-browse__tab.is-active {
+  border-color: rgba(55, 124, 192, 0.4);
+  background: linear-gradient(160deg, #eff6ff, #ffffff);
+  box-shadow: 0 8px 22px rgba(29, 78, 216, 0.12);
+}
+
+.hiring-studio .hiring-browse__tab-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 10px;
+  background: rgba(55, 124, 192, 0.1);
+  color: #1d4ed8;
+  flex: none;
+}
+
+.hiring-studio .hiring-browse__tab.is-active .hiring-browse__tab-ico {
+  background: linear-gradient(145deg, #377cc0, #1d4ed8);
+  color: #fff;
+}
+
+.hiring-studio .hiring-browse__tab-ico svg {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+.hiring-studio .hiring-browse__tab-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.hiring-studio .hiring-browse__tab-copy span {
+  font-size: 0.86rem;
+  font-weight: 750;
+}
+
+.hiring-studio .hiring-browse__tab-copy small {
+  font-size: 0.7rem;
+  color: var(--text-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hiring-studio .hiring-browse__tab-count {
+  margin-left: auto;
+  min-width: 1.6rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: var(--hi-surface);
+  font-size: 0.74rem;
+  font-weight: 750;
+  text-align: center;
+  color: var(--hi-navy-mid);
+}
+
+.hiring-studio .hiring-browse__tab.is-active .hiring-browse__tab-count {
+  background: rgba(29, 78, 216, 0.12);
+  color: #1d4ed8;
+}
+
+.hiring-studio .hiring-browse__filters {
+  padding: 0.55rem 0.65rem;
+  border-radius: 14px;
+  border: 1px solid var(--hi-edge);
+  background: var(--hi-card);
+}
+
+.hiring-studio .hiring-browse__filters .payroll-quick-bar {
+  margin: 0;
+  gap: 0.4rem;
+}
+
+.hiring-studio .hiring-browse .payroll-quick-pill {
+  border-radius: 999px;
+  border: 1px solid var(--hi-edge-strong);
+  background: var(--hi-surface);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.hiring-studio .hiring-browse .payroll-quick-pill.is-active {
+  background: linear-gradient(135deg, #377cc0, #1d4ed8);
+  border-color: transparent;
+  color: #fff;
+}
+
+.hiring-studio .hiring-browse__meta {
+  margin: 0 0 0.75rem;
+  font-size: 0.84rem;
+  color: var(--text-soft);
+}
+
+.hiring-studio .hiring-browse__meta strong {
+  color: var(--hi-navy);
+}
+
+.hiring-studio .hiring-browse__pane {
+  padding: 0.95rem 1rem 1.05rem;
   border-radius: var(--hi-radius);
   border: 1px solid var(--hi-edge);
   background: var(--hi-card);
   box-shadow: var(--hi-shadow-sm);
 }
 
-.hiring-studio .hiring-data-panel .payroll-data-toolbar--compact {
-  gap: 0.85rem;
-  margin-bottom: 0.85rem;
+.hiring-studio .hiring-browse-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
 }
 
-.hiring-studio .hiring-data-panel .payroll-data-nav {
-  padding: 0.35rem;
+.hiring-studio .hiring-browse-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto;
+  gap: 0.75rem 1rem;
+  align-items: center;
+  padding: 0.85rem 0.95rem;
   border-radius: 14px;
   border: 1px solid var(--hi-edge);
-  background: var(--hi-surface);
+  background: linear-gradient(180deg, #ffffff, #f8fafc);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.hiring-studio .hiring-data-panel .payroll-data-nav-tab {
+.hiring-studio .hiring-browse-row:hover {
+  border-color: rgba(55, 124, 192, 0.28);
+  box-shadow: 0 8px 20px rgba(11, 33, 56, 0.06);
+}
+
+.hiring-studio .hiring-browse-row__main {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  min-width: 0;
+}
+
+.hiring-studio .hiring-browse-row__ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
   border-radius: 11px;
-  font-weight: 650;
-  font-size: 0.78rem;
+  background: rgba(13, 148, 136, 0.12);
+  color: #0f766e;
+  flex: none;
 }
 
-.hiring-studio .hiring-data-panel .payroll-data-nav-tab.is-active {
-  background: var(--hi-card);
+.hiring-studio .hiring-browse-row__ico--amber {
+  background: rgba(217, 119, 6, 0.14);
+  color: #b45309;
+}
+
+.hiring-studio .hiring-browse-row__ico--violet {
+  background: rgba(99, 102, 241, 0.14);
   color: #4338ca;
-  border-color: var(--hi-edge-strong);
-  box-shadow: 0 4px 14px rgba(11, 33, 56, 0.08);
 }
 
-.hiring-studio .hiring-data-panel .payroll-table-shell {
-  border-radius: var(--hi-radius-sm);
-  border-color: var(--hi-edge);
+.hiring-studio .hiring-browse-row__ico--blue {
+  background: rgba(55, 124, 192, 0.14);
+  color: #1d4ed8;
+}
+
+.hiring-studio .hiring-browse-row__ico svg {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+.hiring-studio .hiring-browse-row__main h4 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 750;
+  color: var(--hi-navy);
+}
+
+.hiring-studio .hiring-browse-row__main p {
+  margin: 0.15rem 0 0;
+  font-size: 0.8rem;
+  color: var(--text-soft);
+  overflow-wrap: anywhere;
+}
+
+.hiring-studio .hiring-browse-row__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem 1rem;
+}
+
+.hiring-studio .hiring-browse-row__stats span {
+  display: flex;
+  flex-direction: column;
+  gap: 0.08rem;
+  min-width: 4.5rem;
+}
+
+.hiring-studio .hiring-browse-row__stats small {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-soft);
+}
+
+.hiring-studio .hiring-browse-row__stats strong {
+  font-size: 0.84rem;
+  color: var(--hi-navy);
+  overflow-wrap: anywhere;
+}
+
+.hiring-studio .hiring-browse-row__actions {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.hiring-studio .hiring-browse-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 12px;
+  background: linear-gradient(145deg, #377cc0, #123d6b);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  flex: none;
+}
+
+.hiring-studio .hiring-browse-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.18rem 0.5rem;
+  border-radius: 999px;
+  background: var(--hi-surface);
+  border: 1px solid var(--hi-edge);
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--hi-navy-mid);
+  white-space: nowrap;
+}
+
+.hiring-studio .hiring-browse-chip svg {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+.hiring-studio .hiring-browse-chip--cv {
+  background: rgba(13, 148, 136, 0.12);
+  border-color: rgba(13, 148, 136, 0.28);
+  color: #0f766e;
+}
+
+.hiring-studio .hiring-browse-chip--muted {
+  color: var(--text-soft);
+}
+
+.hiring-studio .hiring-candidate-card.hiring-browse-card {
+  --ops-card-accent: #377cc0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 0.9rem 0.95rem 0.85rem;
+  border-radius: 16px;
+  border: 1px solid var(--hi-edge-strong);
+  background: linear-gradient(180deg, #ffffff 0%, #f7faff 100%);
   box-shadow: var(--hi-shadow-sm);
 }
 
-.hiring-studio .hiring-data-panel .payroll-quick-pill.is-active {
-  background: linear-gradient(135deg, #6366f1, #4338ca);
-  color: #fff;
+.hiring-studio .hiring-candidate-card.hiring-browse-card::before {
+  width: 3px;
+  border-radius: 16px 0 0 16px;
+  background: linear-gradient(180deg, #377cc0, #0d9488);
 }
 
-.hiring-studio .hiring-data-panel .payroll-data-pane .payroll-result-meta {
-  margin: 0 0 0.55rem;
+.hiring-studio .hiring-candidate-card__head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.65rem;
+  align-items: start;
+}
+
+.hiring-studio .hiring-candidate-card__identity h4 {
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 780;
+  color: var(--hi-navy);
+}
+
+.hiring-studio .hiring-candidate-card__identity p {
+  margin: 0.15rem 0 0;
+  font-size: 0.8rem;
+}
+
+.hiring-studio .hiring-candidate-card__badges {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.3rem;
+}
+
+.hiring-studio .hiring-candidate-card__meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin: 0;
+}
+
+.hiring-studio .hiring-candidate-card__meta dt {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-soft);
+}
+
+.hiring-studio .hiring-candidate-card__meta dd {
+  margin: 0.15rem 0 0;
+  font-size: 0.82rem;
+  color: var(--hi-navy);
+}
+
+.hiring-studio .hiring-candidate-card__stage select {
+  width: 100%;
+  min-height: 2.1rem;
+}
+
+.hiring-studio .hiring-candidate-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding-top: 0.15rem;
+  border-top: 1px dashed var(--hi-edge);
+}
+
+.hiring-studio .hiring-browse-candidates {
+  --ops-cards-min: 19rem;
+  --ops-cards-max: 24rem;
+}
+
+/* ── Pipeline maestro-detalle (Consultar · Candidatos) ── */
+.hiring-studio .hiring-pipeline {
+  display: grid;
+  grid-template-columns: minmax(16rem, 20rem) minmax(0, 1fr);
+  gap: 0.85rem;
+  min-height: 28rem;
+  align-items: stretch;
+}
+
+.hiring-studio .hiring-pipeline__rail {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-radius: 16px;
+  border: 1px solid var(--hi-edge);
+  background: linear-gradient(180deg, #f8fbff, #ffffff);
+  overflow: hidden;
+}
+
+.hiring-studio .hiring-pipeline__rail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.85rem 0.95rem;
+  border-bottom: 1px solid var(--hi-edge);
+}
+
+.hiring-studio .hiring-pipeline__rail-head p {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--hi-navy-mid);
+}
+
+.hiring-studio .hiring-pipeline__rail-head span {
+  min-width: 1.6rem;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(55, 124, 192, 0.12);
+  color: #1d4ed8;
+  font-size: 0.74rem;
+  font-weight: 750;
+  text-align: center;
+}
+
+.hiring-studio .hiring-pipeline__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.55rem;
+  overflow: auto;
+  max-height: min(70vh, 42rem);
+}
+
+.hiring-studio .hiring-pipeline__item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.55rem;
+  align-items: start;
+  width: 100%;
+  padding: 0.65rem 0.6rem;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.hiring-studio .hiring-pipeline__item:hover {
+  background: rgba(55, 124, 192, 0.06);
+  border-color: var(--hi-edge);
+}
+
+.hiring-studio .hiring-pipeline__item.is-active {
+  background: linear-gradient(145deg, rgba(55, 124, 192, 0.14), rgba(13, 148, 136, 0.08));
+  border-color: rgba(55, 124, 192, 0.28);
+  box-shadow: inset 3px 0 0 #377cc0;
+}
+
+.hiring-studio .hiring-pipeline__item-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.hiring-studio .hiring-pipeline__item-copy strong {
+  font-size: 0.9rem;
+  font-weight: 750;
+  color: var(--hi-navy);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+}
+
+.hiring-studio .hiring-pipeline__item-copy small,
+.hiring-studio .hiring-pipeline__item-meta {
+  font-size: 0.74rem;
+  color: var(--text-soft);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.hiring-studio .hiring-pipeline__item .status {
+  font-size: 0.68rem;
+  justify-self: end;
+}
+
+.hiring-studio .hiring-pipeline__detail {
+  min-width: 0;
+}
+
+.hiring-studio .hiring-pipeline__profile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.95rem;
+  padding: 1rem 1.1rem 1.15rem;
+  border-radius: 16px;
+  border: 1px solid var(--hi-edge);
+  background: #fff;
+  box-shadow: var(--hi-shadow-sm);
+}
+
+.hiring-studio .hiring-pipeline__profile-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.85rem 1rem;
+  align-items: start;
+}
+
+.hiring-studio .hiring-browse-avatar--lg {
+  width: 3.4rem;
+  height: 3.4rem;
+  border-radius: 14px;
+  font-size: 1rem;
+}
+
+.hiring-studio .hiring-pipeline__profile-identity h3 {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--hi-navy);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.2;
+}
+
+.hiring-studio .hiring-pipeline__profile-identity > p {
+  margin: 0.25rem 0 0;
+  font-size: 0.92rem;
+  color: var(--text-soft);
+}
+
+.hiring-studio .hiring-pipeline__profile-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.55rem;
+}
+
+.hiring-studio .hiring-pipeline__profile-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.hiring-studio .hiring-pipeline__tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  gap: 0.55rem;
+}
+
+.hiring-studio .hiring-pipeline__tile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.7rem 0.75rem;
+  border-radius: 12px;
+  border: 1px solid var(--hi-edge);
+  background: var(--hi-surface);
+  min-width: 0;
+}
+
+.hiring-studio .hiring-pipeline__tile-ico {
+  color: #1d4ed8;
+}
+
+.hiring-studio .hiring-pipeline__tile-ico svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.hiring-studio .hiring-pipeline__tile small {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-soft);
+}
+
+.hiring-studio .hiring-pipeline__tile strong {
+  font-size: 0.84rem;
+  color: var(--hi-navy);
+  overflow-wrap: anywhere;
+  line-height: 1.3;
+}
+
+.hiring-studio .hiring-pipeline__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.hiring-studio .hiring-pipeline__panel {
+  padding: 0.85rem 0.9rem;
+  border-radius: 14px;
+  border: 1px solid var(--hi-edge);
+  background: linear-gradient(180deg, #ffffff, #f8fafc);
+}
+
+.hiring-studio .hiring-pipeline__panel h4 {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0 0 0.65rem;
+  font-size: 0.86rem;
+  font-weight: 750;
+  color: var(--hi-navy);
+}
+
+.hiring-studio .hiring-pipeline__panel h4 svg {
+  width: 1rem;
+  height: 1rem;
+  color: #1d4ed8;
+}
+
+.hiring-studio .hiring-pipeline__steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  list-style: none;
+}
+
+.hiring-studio .hiring-pipeline__step {
+  position: relative;
+  padding: 0.35rem 0.55rem 0.35rem 1.4rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  color: var(--text-soft);
+  background: rgba(148, 163, 184, 0.08);
+}
+
+.hiring-studio .hiring-pipeline__step::before {
+  content: "";
+  position: absolute;
+  left: 0.45rem;
+  top: 50%;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  transform: translateY(-50%);
+  background: #cbd5e1;
+}
+
+.hiring-studio .hiring-pipeline__step.is-done {
+  color: #0f766e;
+  background: rgba(13, 148, 136, 0.08);
+}
+
+.hiring-studio .hiring-pipeline__step.is-done::before {
+  background: #0d9488;
+}
+
+.hiring-studio .hiring-pipeline__step.is-current {
+  color: #1d4ed8;
+  font-weight: 700;
+  background: rgba(55, 124, 192, 0.12);
+}
+
+.hiring-studio .hiring-pipeline__step.is-current::before {
+  background: #377cc0;
+  box-shadow: 0 0 0 3px rgba(55, 124, 192, 0.2);
+}
+
+.hiring-studio .hiring-pipeline__stage-select {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.hiring-studio .hiring-pipeline__docs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hiring-studio .hiring-pipeline__docs li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0.55rem;
+  border-radius: 10px;
+  border: 1px solid var(--hi-edge);
+  background: #fff;
+  font-size: 0.82rem;
+}
+
+.hiring-studio .hiring-pipeline__docs li span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.hiring-studio .hiring-pipeline__docs li svg {
+  width: 0.95rem;
+  height: 0.95rem;
+  flex: none;
+}
+
+.hiring-studio .hiring-pipeline__panel-note {
+  margin: 0.55rem 0 0;
+  font-size: 0.78rem;
+}
+
+.hiring-studio .hiring-pipeline__facts {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+}
+
+.hiring-studio .hiring-pipeline__facts div {
+  display: grid;
+  grid-template-columns: 7rem minmax(0, 1fr);
+  gap: 0.4rem;
+  font-size: 0.82rem;
+}
+
+.hiring-studio .hiring-pipeline__facts dt {
+  color: var(--text-soft);
+}
+
+.hiring-studio .hiring-pipeline__facts dd {
+  margin: 0;
+  color: var(--hi-navy);
+  overflow-wrap: anywhere;
+}
+
+.hiring-studio .hiring-pipeline__empty {
+  display: grid;
+  place-items: center;
+  min-height: 18rem;
+  padding: 2rem;
+  border-radius: 16px;
+  border: 1px dashed var(--hi-edge-strong);
+  background: var(--hi-surface);
+  color: var(--text-soft);
+  text-align: center;
+}
+
+@media (max-width: 960px) {
+  .hiring-studio .hiring-pipeline {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+
+  .hiring-studio .hiring-pipeline__list {
+    max-height: 14rem;
+  }
+
+  .hiring-studio .hiring-pipeline__profile-head {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .hiring-studio .hiring-pipeline__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hiring-studio .hiring-pipeline__facts div {
+    grid-template-columns: 5.5rem minmax(0, 1fr);
+  }
 }
 
 .hiring-studio .hr-form-compact .form-section {
@@ -790,9 +1598,215 @@
   background: linear-gradient(145deg, #6366f1, #4338ca);
 }
 
+/* ── Programación de entrevista ── */
+.hiring-studio .hiring-interview-form .hiring-interview-hint {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.76rem;
+  line-height: 1.4;
+  color: var(--text-soft);
+}
+
+.hiring-studio .hiring-interview-quick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.1rem;
+}
+
+.hiring-studio .hiring-interview-quick__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-soft);
+}
+
+.hiring-studio .hiring-interview-quick__label svg {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.hiring-studio .hiring-interview-chip {
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--hi-edge-strong);
+  background: var(--hi-card);
+  color: var(--hi-navy-mid);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.hiring-studio .hiring-interview-chip:hover {
+  border-color: rgba(13, 148, 136, 0.45);
+  background: rgba(13, 148, 136, 0.1);
+  color: #0f766e;
+}
+
+.hiring-studio .hiring-interview-chip.is-active {
+  border-color: #0d9488;
+  background: #0d9488;
+  color: #fff;
+}
+
+.hiring-studio .hiring-interview-context {
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--hi-radius-sm);
+  border: 1px solid var(--hi-edge-strong);
+  background: var(--hi-surface);
+}
+
+.hiring-studio .hiring-interview-context__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.4rem 0.75rem;
+}
+
+.hiring-studio .hiring-interview-context__item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.hiring-studio .hiring-interview-context__item small {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-soft);
+}
+
+.hiring-studio .hiring-interview-context__item strong {
+  font-size: 0.82rem;
+  color: var(--hi-navy);
+  overflow-wrap: anywhere;
+}
+
+.hiring-studio .hiring-interview-context__note {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.45rem 0 0;
+  font-size: 0.78rem;
+  color: var(--hi-warn);
+}
+
+.hiring-studio .hiring-interview-context__note svg {
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+}
+
+.hiring-studio .hiring-interview-summary {
+  margin-top: 0.65rem;
+  padding: 0.65rem 0.8rem;
+  border-radius: var(--hi-radius-sm);
+  border: 1px dashed rgba(13, 148, 136, 0.4);
+  background: rgba(13, 148, 136, 0.07);
+}
+
+.hiring-studio .hiring-interview-summary__head {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0 0 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #0f766e;
+}
+
+.hiring-studio .hiring-interview-summary__head svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.hiring-studio .hiring-interview-summary__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.35rem 0.85rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hiring-studio .hiring-interview-summary__list li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.hiring-studio .hiring-interview-summary__list span {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-soft);
+}
+
+.hiring-studio .hiring-interview-summary__list strong {
+  font-size: 0.85rem;
+  color: var(--hi-navy);
+  overflow-wrap: anywhere;
+}
+
+.hiring-studio .hiring-interview-summary__alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  margin: 0.5rem 0 0;
+  font-size: 0.79rem;
+  line-height: 1.4;
+  color: #b45309;
+}
+
+.hiring-studio .hiring-interview-summary__alert svg {
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+  margin-top: 0.1rem;
+}
+
+@media (max-width: 1100px) {
+  .hiring-studio .hiring-browse__tabs {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .hiring-studio .hiring-browse-row {
+    grid-template-columns: 1fr;
+  }
+
+  .hiring-studio .hiring-browse-row__actions {
+    justify-content: flex-start;
+  }
+
+  .hiring-studio .hiring-candidate-card__meta {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 @media (max-width: 900px) {
   .hiring-studio .hiring-operate,
   .hiring-studio .hiring-operate.is-rail-collapsed {
+    grid-template-columns: 1fr;
+  }
+
+  .hiring-studio .hiring-browse__tabs {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .hiring-studio .hiring-browse__tab-copy small {
+    display: none;
+  }
+
+  .hiring-studio .hiring-candidate-card__meta {
     grid-template-columns: 1fr;
   }
 
@@ -854,10 +1868,45 @@ body[data-theme="dark"] .hiring-studio .hr-workspace-tab--switch.is-active {
   box-shadow: 0 6px 18px rgba(99, 102, 241, 0.35);
 }
 
-body[data-theme="dark"] .hiring-studio .hiring-data-search input[type="search"] {
+body[data-theme="dark"] .hiring-studio .hiring-data-search input[type="search"],
+body[data-theme="dark"] .hiring-studio .hiring-browse__search input[type="search"] {
   background: rgba(10, 22, 38, 0.9);
   border-color: rgba(148, 196, 255, 0.18);
   color: #e8f2fc;
+}
+
+body[data-theme="dark"] .hiring-studio .hiring-browse__hero {
+  background:
+    radial-gradient(120% 80% at 100% 0%, rgba(55, 124, 192, 0.22), transparent 55%),
+    linear-gradient(160deg, rgba(15, 28, 46, 0.95), rgba(10, 22, 38, 0.92));
+  border-color: rgba(148, 196, 255, 0.16);
+}
+
+body[data-theme="dark"] .hiring-studio .hiring-browse__hero-copy h3,
+body[data-theme="dark"] .hiring-studio .hiring-browse-row__main h4,
+body[data-theme="dark"] .hiring-studio .hiring-browse-row__stats strong,
+body[data-theme="dark"] .hiring-studio .hiring-candidate-card__identity h4,
+body[data-theme="dark"] .hiring-studio .hiring-candidate-card__meta dd,
+body[data-theme="dark"] .hiring-studio .hiring-browse__meta strong {
+  color: #e8f2fc;
+}
+
+body[data-theme="dark"] .hiring-studio .hiring-browse__tab,
+body[data-theme="dark"] .hiring-studio .hiring-browse__pane,
+body[data-theme="dark"] .hiring-studio .hiring-browse__filters,
+body[data-theme="dark"] .hiring-studio .hiring-browse-row,
+body[data-theme="dark"] .hiring-studio .hiring-candidate-card.hiring-browse-card {
+  background: rgba(14, 28, 46, 0.92);
+  border-color: rgba(148, 196, 255, 0.14);
+}
+
+body[data-theme="dark"] .hiring-studio .hiring-browse__tab.is-active {
+  background: linear-gradient(160deg, rgba(55, 124, 192, 0.28), rgba(14, 28, 46, 0.95));
+}
+
+body[data-theme="dark"] .hiring-studio .hiring-browse__tab-count {
+  background: rgba(10, 22, 38, 0.85);
+  color: #cfe3f8;
 }
 
 body[data-theme="dark"] .hiring-studio .hiring-table-wrap {
@@ -873,6 +1922,45 @@ body[data-theme="dark"] .hiring-studio .hiring-table tbody td {
 body[data-theme="dark"] .hiring-studio .hiring-candidate-card {
   background: rgba(14, 28, 46, 0.92);
   border-color: rgba(148, 196, 255, 0.16);
+}
+
+body[data-theme="dark"] .hiring-studio .hiring-interview-chip {
+  background: rgba(10, 22, 38, 0.9);
+  border-color: rgba(148, 196, 255, 0.2);
+  color: #cfe3f8;
+}
+
+body[data-theme="dark"] .hiring-studio .hiring-interview-chip:hover {
+  background: rgba(13, 148, 136, 0.22);
+  color: #7fe3d6;
+}
+
+body[data-theme="dark"] .hiring-studio .hiring-interview-chip.is-active {
+  color: #04231f;
+}
+
+body[data-theme="dark"] .hiring-studio .hiring-interview-context {
+  background: rgba(10, 22, 38, 0.7);
+  border-color: rgba(148, 196, 255, 0.18);
+}
+
+body[data-theme="dark"] .hiring-studio .hiring-interview-context__item strong,
+body[data-theme="dark"] .hiring-studio .hiring-interview-summary__list strong {
+  color: #e8f2fc;
+}
+
+body[data-theme="dark"] .hiring-studio .hiring-interview-summary {
+  background: rgba(13, 148, 136, 0.12);
+  border-color: rgba(13, 148, 136, 0.35);
+}
+
+body[data-theme="dark"] .hiring-studio .hiring-interview-summary__head {
+  color: #7fe3d6;
+}
+
+body[data-theme="dark"] .hiring-studio .hiring-interview-summary__alert,
+body[data-theme="dark"] .hiring-studio .hiring-interview-context__note {
+  color: #fbbf24;
 }
 
 /* ── Tarjetas candidatos: rejilla tipo ficha ── */

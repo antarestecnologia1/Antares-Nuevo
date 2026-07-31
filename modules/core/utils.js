@@ -8,7 +8,6 @@ import {
   HIRING_OPERATE_SECTION_PANEL,
   HR_VALID_HIRING_WS,
   HR_VALID_PAYROLL_WS,
-  HR_VALID_DOCUMENTS_WS,
   HR_VALID_REQUESTS_WS,
   HR_VALID_SST_WS,
   PAYROLL_OPERATE_CREATE_PANEL_IDS,
@@ -378,58 +377,11 @@ export function normalizeHrWorkspace(moduleId, workspace) {
   }
   if (moduleId === "requests") return HR_VALID_REQUESTS_WS.has(ws) ? ws : "operate";
   if (moduleId === "sst") return HR_VALID_SST_WS.has(ws) ? ws : "operate";
-  if (moduleId === "documents") {
-    const w = ws.toLowerCase();
-    if (w === "operate" || w === "subir" || w === "upload") return "upload";
-    if (
-      w === "browse" ||
-      w === "consult" ||
-      w === "consultar" ||
-      w === "dossier" ||
-      w === "expediente" ||
-      w === "data" ||
-      w === "archivo"
-    ) {
-      return "consult";
-    }
-    return HR_VALID_DOCUMENTS_WS.has(ws) ? ws : "upload";
-  }
+  /*
+   * Gestión documental ya no usa pestañas: su preferencia persistida es la sección
+   * del rail y la normaliza `normalizeDocumentSection` en el dominio del módulo.
+   */
   return ws;
-}
-
-export function normalizeDocumentsDataSection(section) {
-  const s = String(section || "").trim().toLowerCase();
-  if (s === "expired" || s === "vencidos") return "expired";
-  if (s === "due_soon" || s === "por_vencer" || s === "warning") return "due_soon";
-  if (s === "employees" || s === "expedientes" || s === "colaborador") return "all";
-  if (s === "gaps" || s === "pendientes" || s === "incompletos") return "gaps";
-  return "all";
-}
-
-export function normalizeDocumentsOperateSection(section) {
-  const s = String(section || "").trim().toLowerCase();
-  if (s === "dossier" || s === "expediente") return "dossier";
-  if (s === "browse" || s === "consult" || s === "consultar" || s === "carpetas") return "browse";
-  return "upload";
-}
-
-/** Migra workspace legacy al modelo upload | consult. */
-export function resolveDocumentsWorkspace(rawUi) {
-  const ui = rawUi || {};
-  const ws = String(ui.workspace || "").trim().toLowerCase();
-  if (ws === "operate") {
-    const sec = normalizeDocumentsOperateSection(ui.operateSection || "upload");
-    if (sec === "browse" || sec === "dossier") return "consult";
-    return "upload";
-  }
-  const normalized = normalizeHrWorkspace("documents", ws);
-  if (normalized === "operate") {
-    const sec = normalizeDocumentsOperateSection(ui.operateSection || "upload");
-    if (sec === "browse" || sec === "dossier") return "consult";
-    return "upload";
-  }
-  if (normalized === "dossier" || normalized === "data") return "consult";
-  return normalized === "upload" || normalized === "consult" ? normalized : "upload";
 }
 
 export function normalizeSstDataSection(section) {

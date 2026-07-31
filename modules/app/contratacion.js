@@ -365,8 +365,236 @@ function parseCandidateAttachmentsForView(raw, opts = {}) {
   };
 }
 
+const HIRING_INTERVIEW_MODE_UI = {
+  presencial: {
+    label: "Lugar de la entrevista",
+    placeholder: "Sala de juntas, oficina o dirección",
+    hint: "Indique sede, piso y sala para orientar al candidato."
+  },
+  virtual: {
+    label: "Enlace de la videollamada",
+    placeholder: "https://meet.google.com/… o enlace de Teams",
+    hint: "Pegue el enlace que se enviará al candidato en la invitación."
+  },
+  telefonica: {
+    label: "Número de contacto",
+    placeholder: "3001234567",
+    hint: "Número desde el que se realizará la llamada al candidato."
+  }
+};
+
+/** Fecha (YYYY-MM-DD) en Colombia a N días, o el próximo día de la semana indicado (1 = lunes). */
+function hiringInterviewQuickDateYmd({ days, weekday }) {
+  const base = new Date(`${colombiaTodayIsoDate()}T12:00:00Z`);
+  if (!Number.isFinite(base.getTime())) return "";
+  let offset = Math.max(1, Number(days) || 1);
+  if (Number.isFinite(weekday)) {
+    offset = 1;
+    while (offset < 8 && new Date(base.getTime() + offset * 86400000).getUTCDay() !== Number(weekday)) offset += 1;
+  }
+  return new Date(base.getTime() + offset * 86400000).toISOString().slice(0, 10);
+}
+
+/**
+ * Formulario de entrevista: contexto del candidato, atajos de fecha, selector de
+ * entrevistador (personal de oficina) y resumen en vivo de la cita.
+ * Devuelve la función de sincronización para refrescar tras precargas externas.
+ */
+function wireHiringInterviewFormUi(form) {
+  if (!form) return null;
+  if (typeof form.__antaresInterviewSync === "function") return form.__antaresInterviewSync;
+
+  const candidateSelect = form.querySelector('select[name="candidateId"]');
+  const pickSelect = form.querySelector('[data-interview-field="interviewer-pick"]');
+  const nameInput = form.querySelector('input[name="interviewer"]');
+  const nameHint = form.querySelector('[data-interview-field="interviewer-hint"]');
+  const modeSelect = form.querySelector('select[name="mode"]');
+  const placeLabel = form.querySelector('[data-interview-field="place-label"]');
+  const placeInput = form.querySelector('input[name="place"]');
+  const placeHint = form.querySelector('[data-interview-field="place-hint"]');
+  const contextBox = form.querySelector("[data-interview-context]");
+  const summaryBox = form.querySelector("[data-interview-summary]");
+
+  const readWhenIso = () => {
+    const V = window.AntaresValidation;
+    const wrap = form.querySelector(".portal-datetime-dmy-row");
+    if (wrap && typeof V?.portalDatetimeInputValueIso === "function") {
+      return String(V.portalDatetimeInputValueIso(wrap) || "").trim();
+    }
+    return String(form.querySelector('input[name="when"]')?.value || "").trim();
+  };
+
+  const writeWhenIso = (iso) => {
+    const V = window.AntaresValidation;
+    const wrap = form.querySelector(".portal-datetime-dmy-row");
+    if (wrap && typeof V?.portalDatetimeInputSetIso === "function") {
+      V.portalDatetimeInputSetIso(wrap, iso);
+      return;
+    }
+    const el = form.querySelector('input[name="when"]');
+    if (el) el.value = iso;
+  };
+
+  const whenTimestamp = (iso) => {
+    const raw = String(iso || "").trim();
+    if (!raw) return NaN;
+    return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(raw)
+      ? new Date(`${raw}:00-05:00`).getTime()
+      : new Date(raw).getTime();
+  };
+
+  const syncCandidateContext = () => {
+    if (!contextBox) return;
+    const option = candidateSelect?.selectedOptions?.[0];
+    const candidateId = String(candidateSelect?.value || "").trim();
+    if (!candidateId || !option) {
+      contextBox.classList.add("hidden");
+      contextBox.hidden = true;
+      contextBox.innerHTML = "";
+      return;
+    }
+    const scheduled = read(KEYS.interviews, []).filter((i) => String(i.candidateId || "") === candidateId);
+    const chips = [
+      ["Etapa", option.dataset.candidateStatus || "-"],
+      ["Vacante", option.dataset.candidateVacancy || "Sin vacante asociada"],
+      ["Celular", option.dataset.candidatePhone || "-"],
+      ["Correo", option.dataset.candidateEmail || "-"]
+    ]
+      .map(
+        ([label, value]) =>
+          `<span class="hiring-interview-context__item"><small>${escapeHtml(label)}</small><strong>${escapeHtml(String(value))}</strong></span>`
+      )
+      .join("");
+    const history = scheduled.length
+      ? `<p class="hiring-interview-context__note">${IC.info} Ya tiene ${scheduled.length} entrevista(s) registrada(s); la última el ${escapeHtml(formatInterviewWhenDisplay(scheduled[0]?.when))}.</p>`
+      : "";
+    contextBox.innerHTML = `<div class="hiring-interview-context__grid">${chips}</div>${history}`;
+    contextBox.classList.remove("hidden");
+    contextBox.hidden = false;
+  };
+
+  const syncPlaceField = () => {
+    const mode = String(modeSelect?.value || "presencial").toLowerCase();
+    const ui = HIRING_INTERVIEW_MODE_UI[mode] || HIRING_INTERVIEW_MODE_UI.presencial;
+    const labelText = placeLabel?.querySelector(".field-label > span");
+    if (labelText) labelText.textContent = ui.label;
+    if (placeInput) placeInput.placeholder = ui.placeholder;
+    if (placeHint) placeHint.textContent = ui.hint;
+  };
+
+  const syncInterviewerFromPick = () => {
+    if (!pickSelect || !nameInput) return;
+    const picked = String(pickSelect.value || "").trim();
+    if (picked === "__other__") {
+      nameInput.value = "";
+      if (nameHint) nameHint.textContent = "Entrevistador externo: escriba el nombre completo.";
+      nameInput.focus();
+      return;
+    }
+    if (!picked) {
+      if (nameHint) nameHint.textContent = "Elija a alguien de la lista o escriba el nombre si el entrevistador es externo.";
+      return;
+    }
+    nameInput.value = picked;
+    window.AntaresValidation?.clearFieldError?.(nameInput);
+    if (nameHint) nameHint.textContent = "Tomado del personal de oficina; puede ajustarlo si es necesario.";
+  };
+
+  const syncSummary = () => {
+    if (!summaryBox) return;
+    const candidateName = String(candidateSelect?.selectedOptions?.[0]?.dataset.candidateName || "").trim();
+    const whenIso = readWhenIso();
+    const whenTs = whenTimestamp(whenIso);
+    const interviewer = String(nameInput?.value || "").trim();
+    const mode = String(modeSelect?.value || "presencial").toLowerCase();
+    const place = String(placeInput?.value || "").trim();
+    const rows = [
+      ["Candidato", candidateName || "Sin seleccionar"],
+      ["Fecha y hora", whenIso ? formatInterviewWhenDisplay(whenIso) : "Sin definir"],
+      ["Modalidad", `${formatInterviewModeLabel(mode)}${place ? ` · ${place}` : ""}`],
+      ["Entrevistador", interviewer || "Sin definir"]
+    ]
+      .map(
+        ([label, value]) =>
+          `<li><span>${escapeHtml(label)}</span><strong>${escapeHtml(String(value))}</strong></li>`
+      )
+      .join("");
+    const alerts = [];
+    if (whenIso && Number.isFinite(whenTs) && whenTs < Date.now()) {
+      alerts.push("La fecha y hora ya pasaron: elija una cita futura.");
+    }
+    if (interviewer && Number.isFinite(whenTs)) {
+      const clash = read(KEYS.interviews, []).find((i) => {
+        if (String(i.interviewer || "").trim().toLowerCase() !== interviewer.toLowerCase()) return false;
+        const other = whenTimestamp(i.when);
+        return Number.isFinite(other) && Math.abs(other - whenTs) < 3600000;
+      });
+      if (clash) {
+        alerts.push(
+          `${interviewer} ya tiene una entrevista con ${String(clash.candidateName || "otro candidato")} el ${formatInterviewWhenDisplay(clash.when)}.`
+        );
+      }
+    }
+    const alertsHtml = alerts.length
+      ? `<p class="hiring-interview-summary__alert">${IC.alertTriangle} ${alerts.map((text) => escapeHtml(text)).join(" ")}</p>`
+      : "";
+    summaryBox.innerHTML = `<p class="hiring-interview-summary__head">${IC.check} Resumen de la cita</p>
+      <ul class="hiring-interview-summary__list">${rows}</ul>${alertsHtml}`;
+  };
+
+  const syncAll = () => {
+    syncCandidateContext();
+    syncPlaceField();
+    syncSummary();
+  };
+
+  candidateSelect?.addEventListener("change", () => {
+    syncCandidateContext();
+    syncSummary();
+  });
+  pickSelect?.addEventListener("change", () => {
+    syncInterviewerFromPick();
+    syncSummary();
+  });
+  nameInput?.addEventListener("input", syncSummary);
+  modeSelect?.addEventListener("change", () => {
+    syncPlaceField();
+    syncSummary();
+  });
+  placeInput?.addEventListener("input", syncSummary);
+  form.querySelectorAll("[data-interview-quick]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const ymd = hiringInterviewQuickDateYmd({
+        days: btn.dataset.quickDays,
+        weekday: btn.dataset.quickWeekday ? Number(btn.dataset.quickWeekday) : NaN
+      });
+      if (!ymd) return;
+      writeWhenIso(`${ymd}T${String(btn.dataset.quickTime || "09:00").slice(0, 5)}`);
+      form.querySelectorAll("[data-interview-quick]").forEach((other) => other.classList.remove("is-active"));
+      btn.classList.add("is-active");
+      syncSummary();
+    });
+  });
+  form.addEventListener("change", (event) => {
+    if (event.target?.closest?.(".portal-datetime-dmy-row")) syncSummary();
+  });
+  form.addEventListener("input", (event) => {
+    if (event.target?.closest?.(".portal-datetime-dmy-row")) syncSummary();
+  });
+
+  form.__antaresInterviewSync = syncAll;
+  syncAll();
+  return syncAll;
+}
+
 function bindHiringPortalControls() {
   if (String(state.currentView || "") !== "hiring" || !nodes.viewRoot) return;
+
+  const activePipelineItem = nodes.viewRoot.querySelector(".hiring-pipeline__item.is-active");
+  const activePipelineId = String(activePipelineItem?.dataset?.id || "").trim();
+  if (activePipelineId && String(state.hiringUi?.selectedCandidateId || "") !== activePipelineId) {
+    state.hiringUi = { ...(state.hiringUi || {}), selectedCandidateId: activePipelineId };
+  }
 
   nodes.viewRoot.querySelectorAll("[data-action='hr-workspace-tab'][data-module='hiring']").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -939,6 +1167,16 @@ function bindHiringPortalControls() {
     });
   });
 
+  nodes.viewRoot.querySelectorAll("[data-action='hiring-select-candidate']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = String(btn.dataset.id || "").trim();
+      if (!id) return;
+      if (String(state.hiringUi?.selectedCandidateId || "") === id) return;
+      state.hiringUi = { ...(state.hiringUi || {}), selectedCandidateId: id, workspace: "data", dataSection: "candidates" };
+      renderPortalView();
+    });
+  });
+
   nodes.viewRoot.querySelectorAll("[data-action='hiring-data-section']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const section = normalizeHiringDataSection(btn.dataset.section);
@@ -1011,12 +1249,18 @@ function bindHiringPortalControls() {
         failPortalField(candidateForm, "vacancyId", "La vacante seleccionada está cerrada o venció la fecha límite de postulación.");
         return;
       }
-      const filesFromInput = await readCandidateHrAttachmentsFromInput(candidateForm.querySelector("input[name='attachments']"));
+      const attachmentsInput = candidateForm.querySelector("input[name='attachments']");
+      const filesFromInput = await readCandidateHrAttachmentsFromInput(attachmentsInput);
       if (filesFromInput === null) return;
-      const attachmentList =
-        filesFromInput.length > 0
-          ? filesFromInput
-          : [...(candidateForm.querySelector("input[name='attachments']")?.files ?? [])].map((f) => f.name);
+      if (attachmentsInput?.files?.length && filesFromInput.length === 0) {
+        failPortalField(
+          candidateForm,
+          "attachments",
+          "No se pudo leer la hoja de vida adjunta. Use PDF o Word de menos de 1,5 MB."
+        );
+        return;
+      }
+      const attachmentList = filesFromInput;
       const aspirationCheck = validateColombiaMonthlySalaryCop(data.expectedSalary, "Aspiración salarial");
       if (!aspirationCheck.ok) {
         failPortalField(candidateForm, "expectedSalary", aspirationCheck.message);
@@ -1135,6 +1379,7 @@ function bindHiringPortalControls() {
 
   const interviewForm = document.getElementById("form-interview");
   if (interviewForm) {
+    const refreshInterviewUi = wireHiringInterviewFormUi(interviewForm);
     wireFormSubmitGuard(interviewForm, async (event) => {
       const data = readFormEntriesNormalized(interviewForm);
       const whenRaw = String(data.when || "").trim();
@@ -1245,6 +1490,7 @@ function bindHiringPortalControls() {
           whenEl.focus();
         }
       }
+      refreshInterviewUi?.();
     };
     requestAnimationFrame(() => {
       requestAnimationFrame(applyPendingInterviewCandidate);
@@ -2008,6 +2254,12 @@ function bindHiringPortalControls() {
         notify(userMessage("genericError"), "error");
         return;
       }
+      const displayName =
+        typeof hiringCandidateDisplayName === "function"
+          ? hiringCandidateDisplayName(c)
+          : typeof hiringDisplayPersonName === "function"
+            ? hiringDisplayPersonName(c.name)
+            : String(c.name || "Candidato");
       const { attachmentsHtml: attHtml, experienceFromJson } = parseCandidateAttachmentsForView(c.attachments);
       const experienceSummary = String(c.experienceNotes || experienceFromJson || "").trim();
       const ageDisp = portalCandidateAgeFromBirthIso(c.birthDate);
@@ -2037,7 +2289,7 @@ function bindHiringPortalControls() {
         {
           icon: "user",
           pairs: [
-            ["Nombre", `<strong>${escapeHtml(String(c.name || ""))}</strong>`],
+            ["Nombre", `<strong>${escapeHtml(displayName)}</strong>`],
             ["Documento", `${escapeHtml(String(c.documentType || "-"))} ${escapeHtml(String(c.idDoc || ""))}`],
             ["Fecha de nacimiento", fmtDateOr(ageDisp.birthLabel === "—" ? "" : ageDisp.birthLabel)],
             ["Edad", ageDisp.age != null ? `${String(ageDisp.age)} años` : "—"],
@@ -2057,8 +2309,10 @@ function bindHiringPortalControls() {
           pairs: [["Adjuntos", `<div class="detail-perms-list">${attachmentsInner}</div>`, { full: true }]]
         }
       ];
-      const cvDlModal = extractCandidateCvDownload(c);
-      const canDlCvModal = Boolean(cvDlModal?.href) || candidateMayHaveCvInStorage(c);
+      const canDlCvModal =
+        typeof candidateCanAttemptCvDownload === "function"
+          ? candidateCanAttemptCvDownload(c)
+          : Boolean(extractCandidateCvDownload(c)?.href) || candidateMayHaveCvInStorage(c);
       const canSchedule = !["Contratado", "Descartado"].includes(String(c.status || ""));
       const employeeMatch = findPayrollEmployeeByIdDoc(c.idDoc);
       const modalActions = [
@@ -2076,8 +2330,8 @@ function bindHiringPortalControls() {
         .filter(Boolean)
         .join("");
       openPortalDetailSheet({
-        title: String(c.name || "Candidato"),
-        sheetTitle: String(c.name || "Candidato"),
+        title: displayName,
+        sheetTitle: displayName,
         subtitleHtml: `${IC.briefcase} ${escapeHtml(String(c.vacancyTitle || "Sin vacante"))}`,
         statusHtml: statusShow ? `<span class="status ${hiringPipelineStatusClass(statusShow)}">${escapeHtml(statusShow)}</span>` : "",
         moduleIcon: "user",
@@ -2370,6 +2624,13 @@ function bindHiringPortalControls() {
         submitText: "Guardar cambios",
         fields: [
           { name: "when", label: "Fecha y hora", type: "datetime-local", value: target.whenLocal || "", required: true },
+          {
+            name: "interviewerPick",
+            label: "Personal de oficina",
+            type: "select",
+            value: target.interviewer || "",
+            options: hiringInterviewerPickerOptionList()
+          },
           { name: "interviewer", label: "Entrevistador(a)", value: target.interviewer || "", required: true },
           {
             name: "modality",
@@ -2385,6 +2646,22 @@ function bindHiringPortalControls() {
           { name: "locationOrLink", label: "Lugar o enlace", value: target.locationOrLink || "" },
           { name: "notes", label: "Notas", type: "textarea", value: target.notes || "", rows: 3 }
         ],
+        afterMount: (formEl) => {
+          const pick = formEl?.querySelector('select[name="interviewerPick"]');
+          const nameField = formEl?.querySelector('input[name="interviewer"]');
+          if (!pick || !nameField) return;
+          pick.addEventListener("change", () => {
+            const picked = String(pick.value || "").trim();
+            if (!picked || picked.startsWith("__group_")) return;
+            if (picked === "__other__") {
+              nameField.value = "";
+              nameField.focus();
+              return;
+            }
+            nameField.value = picked;
+            window.AntaresValidation?.clearFieldError?.(nameField);
+          });
+        },
         onSubmit: async (form) => {
           const ts = new Date(String(form.when || "")).getTime();
           const interviewEditForm = document.getElementById("crud-form");
