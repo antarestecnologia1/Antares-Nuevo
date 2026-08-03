@@ -133,6 +133,8 @@ export const KEYS = {
   sstCompliance: "antares_sst_compliance_v2",
   employeeDocuments: "antares_employee_documents_v1",
   employeeDocumentFolders: "antares_employee_document_folders_v1",
+  companyDocuments: "antares_company_documents_v1",
+  companyDocumentFolders: "antares_company_document_folders_v1",
   tripRouteRates: "antares_trip_route_rates_v2",
   approvals: "antares_approvals_v2",
   deletedTransportTripLogs: "antares_deleted_transport_trip_logs_v1",

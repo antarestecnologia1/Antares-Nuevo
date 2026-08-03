@@ -760,6 +760,7 @@ export class PortalService implements OnModuleInit {
     await this.ensureConductoresSchema();
     await this.ensureRegistrosFlotaSchema();
     await this.ensureDocumentosEmpleadoSchema();
+    await this.ensureDocumentosEmpresaSchema();
     await this.ensureVacantesSchema();
     await this.pruneTransportDeletionAudits().catch((err) => {
       const msg = err instanceof Error ? err.message : String(err);
@@ -1641,6 +1642,68 @@ export class PortalService implements OnModuleInit {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.warn(`ensureDocumentosEmpleadoSchema: ${sanitizeLogText(msg)}`);
+    }
+  }
+
+  /** Gestor documental corporativo (41_documentos_empresa.sql). */
+  private async ensureDocumentosEmpresaSchema() {
+    try {
+      await this.pool.query(`
+        CREATE TABLE IF NOT EXISTS documentos_empresa (
+          id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          id_empresa              UUID REFERENCES empresas (id) ON DELETE CASCADE,
+          nombre_archivo          VARCHAR(512) NOT NULL,
+          tipo                    VARCHAR(32) NOT NULL DEFAULT 'ARCHIVO',
+          carpeta                 VARCHAR(200) NOT NULL DEFAULT 'General',
+          mime_type               VARCHAR(128) NOT NULL DEFAULT 'application/octet-stream',
+          tamano_bytes            BIGINT NOT NULL DEFAULT 0,
+          storage_key             VARCHAR(1024) NOT NULL,
+          descripcion             TEXT,
+          etiquetas               TEXT,
+          subido_por              VARCHAR(255) NOT NULL DEFAULT 'Sistema',
+          fecha_creacion          TIMESTAMPTZ NOT NULL DEFAULT now(),
+          fecha_actualizacion     TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `);
+      await this.pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_documentos_empresa_empresa ON documentos_empresa (id_empresa)`
+      );
+      await this.pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_documentos_empresa_carpeta ON documentos_empresa (carpeta)`
+      );
+      await this.pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_documentos_empresa_fecha ON documentos_empresa (fecha_actualizacion DESC)`
+      );
+      await this.pool.query(`
+        CREATE TABLE IF NOT EXISTS carpetas_documento_empresa (
+          id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          id_empresa          UUID REFERENCES empresas (id) ON DELETE CASCADE,
+          nombre_carpeta      VARCHAR(200) NOT NULL,
+          descripcion         TEXT,
+          creado_por          VARCHAR(255) NOT NULL DEFAULT 'Sistema',
+          fecha_creacion      TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `);
+      await this.pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_carpetas_documento_empresa_empresa ON carpetas_documento_empresa (id_empresa)`
+      );
+      await this.pool.query(
+        `CREATE UNIQUE INDEX IF NOT EXISTS uq_carpeta_empresa_nombre
+           ON carpetas_documento_empresa (COALESCE(id_empresa, '00000000-0000-0000-0000-000000000000'::uuid), nombre_carpeta)`
+      );
+      // Permisos por carpeta (listas de roles separadas por comas; vacío = sin restricción).
+      await this.pool.query(
+        `ALTER TABLE carpetas_documento_empresa
+           ADD COLUMN IF NOT EXISTS roles_ver TEXT,
+           ADD COLUMN IF NOT EXISTS roles_subir TEXT,
+           ADD COLUMN IF NOT EXISTS roles_eliminar TEXT`
+      );
+      // Supabase: RLS obligatorio en public.*; la API (service_role / owner) lo ignora.
+      await this.pool.query(`ALTER TABLE public.documentos_empresa ENABLE ROW LEVEL SECURITY`);
+      await this.pool.query(`ALTER TABLE public.carpetas_documento_empresa ENABLE ROW LEVEL SECURITY`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`ensureDocumentosEmpresaSchema: ${sanitizeLogText(msg)}`);
     }
   }
 
@@ -2846,6 +2909,128 @@ export class PortalService implements OnModuleInit {
     throw new ForbiddenException("No autorizado para descargar documentos de colaboradores.");
   }
 
+  async assertCanUploadCompanyDocument(userId: string, role: JwtRole): Promise<void> {
+    if (this.isAdmin(role)) return;
+    const permissionSet = await this.resolveEffectivePermissionSet(userId, role);
+    if (canUploadEmployeeDocuments(permissionSet)) return;
+    throw new ForbiddenException("No autorizado para subir documentos corporativos.");
+  }
+
+  async assertCanDownloadCompanyDocument(userId: string, role: JwtRole): Promise<void> {
+    if (this.isAdmin(role)) return;
+    const permissionSet = await this.resolveEffectivePermissionSet(userId, role);
+    if (canDownloadEmployeeDocuments(permissionSet)) return;
+    throw new ForbiddenException("No autorizado para descargar documentos corporativos.");
+  }
+
+  /** Empresa a la que se atribuyen los documentos corporativos que sube el actor. */
+  async resolveCompanyDocumentWriteScope(userId: string, role: JwtRole): Promise<string | null> {
+    return this.resolvePayrollWriteCompanyScope(this.isAdmin(role), userId);
+  }
+
+  /* ─── Segregación de perfiles: permisos por carpeta corporativa ─── */
+
+  private companyTopFolderName(path: unknown): string {
+    const first = String(path ?? "").split("/")[0].trim();
+    return first || "General";
+  }
+
+  private companyFolderKey(name: unknown): string {
+    return String(name ?? "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toLowerCase();
+  }
+
+  private parseRoleCsv(value: unknown): string[] {
+    return String(value ?? "")
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
+  }
+
+  private roleAllowedInFolderPerm(allow: string[], role: JwtRole): boolean {
+    if (!allow.length) return true;
+    return allow.includes(String(role ?? "").trim().toLowerCase());
+  }
+
+  /**
+   * Mapa de permisos por carpeta principal (clave = nombre de carpeta de nivel superior
+   * normalizado). Solo los registros de nivel superior (sin "/") definen permisos.
+   */
+  private async loadCompanyFolderPermMap(
+    db: Pool | PoolClient,
+    scope: string | null
+  ): Promise<Map<string, { view: string[]; upload: string[]; delete: string[] }>> {
+    const map = new Map<string, { view: string[]; upload: string[]; delete: string[] }>();
+    if (!(await this.tableExists("carpetas_documento_empresa"))) return map;
+    const scoped = scope && PG_UUID_V4_RE.test(String(scope).trim()) ? String(scope).trim() : null;
+    const r = scoped
+      ? await db.query(
+          `SELECT nombre_carpeta, roles_ver, roles_subir, roles_eliminar
+             FROM carpetas_documento_empresa
+            WHERE id_empresa = $1::uuid OR id_empresa IS NULL`,
+          [scoped]
+        )
+      : await db.query(
+          `SELECT nombre_carpeta, roles_ver, roles_subir, roles_eliminar
+             FROM carpetas_documento_empresa`
+        );
+    for (const row of r.rows as Array<Record<string, unknown>>) {
+      const name = String(row.nombre_carpeta ?? "");
+      if (name.includes("/")) continue;
+      const key = this.companyFolderKey(this.companyTopFolderName(name));
+      map.set(key, {
+        view: this.parseRoleCsv(row.roles_ver),
+        upload: this.parseRoleCsv(row.roles_subir),
+        delete: this.parseRoleCsv(row.roles_eliminar)
+      });
+    }
+    return map;
+  }
+
+  private folderPermFor(
+    map: Map<string, { view: string[]; upload: string[]; delete: string[] }>,
+    folderPath: unknown
+  ) {
+    return map.get(this.companyFolderKey(this.companyTopFolderName(folderPath))) || null;
+  }
+
+  /** Subida: exige permiso global + rol permitido (ver y subir) en la carpeta destino. Admin omite. */
+  async assertCanUploadToCompanyFolder(userId: string, role: JwtRole, folderPath: string): Promise<void> {
+    await this.assertCanUploadCompanyDocument(userId, role);
+    if (this.isAdmin(role)) return;
+    const scope = await this.resolveCompanyDocumentWriteScope(userId, role);
+    const perm = this.folderPermFor(await this.loadCompanyFolderPermMap(this.pool, scope), folderPath);
+    if (!perm) return;
+    if (!this.roleAllowedInFolderPerm(perm.view, role) || !this.roleAllowedInFolderPerm(perm.upload, role)) {
+      throw new ForbiddenException("No autorizado para subir a esta carpeta.");
+    }
+  }
+
+  /** Descarga/vista: exige permiso global + rol permitido (ver) en la carpeta del documento. Admin omite. */
+  async assertCanDownloadCompanyDocumentByKey(
+    userId: string,
+    role: JwtRole,
+    storageKey: string
+  ): Promise<void> {
+    await this.assertCanDownloadCompanyDocument(userId, role);
+    if (this.isAdmin(role)) return;
+    if (!(await this.tableExists("documentos_empresa"))) return;
+    const res = await this.pool.query<{ carpeta: string }>(
+      `SELECT carpeta FROM documentos_empresa WHERE storage_key = $1 LIMIT 1`,
+      [String(storageKey || "")]
+    );
+    const folder = res.rows[0]?.carpeta;
+    if (!folder) return;
+    const scope = await this.resolveCompanyDocumentWriteScope(userId, role);
+    const perm = this.folderPermFor(await this.loadCompanyFolderPermMap(this.pool, scope), folder);
+    if (perm && !this.roleAllowedInFolderPerm(perm.view, role)) {
+      throw new ForbiddenException("No autorizado para ver documentos de esta carpeta.");
+    }
+  }
+
   private hasTransportOpsPermission(permissionSet: Set<string>): boolean {
     if (permissionSet.has("authorizations_manage")) return true;
     const keys = [
@@ -3725,7 +3910,9 @@ export class PortalService implements OnModuleInit {
       canPayrollBootstrap ? this.loadHrAbsences() : Promise.resolve([]),
       canSstBootstrap ? this.loadSstCompliance() : Promise.resolve([]),
       canDocuments ? this.loadEmployeeDocuments(documentsCompanyScope) : Promise.resolve([]),
-      canDocuments ? this.loadEmployeeDocumentFolders(documentsCompanyScope) : Promise.resolve([])
+      canDocuments ? this.loadEmployeeDocumentFolders(documentsCompanyScope) : Promise.resolve([]),
+      canDocuments ? this.loadCompanyDocuments(documentsCompanyScope) : Promise.resolve([]),
+      canDocuments ? this.loadCompanyDocumentFolders(documentsCompanyScope) : Promise.resolve([])
     ]);
 
     const dependentPromise = Promise.all([
@@ -3772,7 +3959,9 @@ export class PortalService implements OnModuleInit {
       hrAbsences,
       sstCompliance,
       employeeDocuments,
-      employeeDocumentFolders
+      employeeDocumentFolders,
+      companyDocuments,
+      companyDocumentFolders
     ] = independent;
 
     const [usersRaw, requests, payrollEmployees, approvals, deletedTransportTripLogs, deletedTransportRequestLogs, portalAuditEvents] =
@@ -3812,6 +4001,8 @@ export class PortalService implements OnModuleInit {
       sstCompliance,
       employeeDocuments,
       employeeDocumentFolders,
+      companyDocuments,
+      companyDocumentFolders,
       tripRouteRates,
       approvals,
       deletedTransportTripLogs,
@@ -5047,6 +5238,50 @@ export class PortalService implements OnModuleInit {
           data,
           deletedIds,
           await this.resolvePayrollWriteCompanyScope(admin, userId)
+        );
+        return;
+      case "companyDocuments":
+        if (!admin) {
+          const hasData = Array.isArray(data) && data.length > 0;
+          const hasDeletes = Array.isArray(deletedIds) && deletedIds.length > 0;
+          if (hasDeletes && !canDeleteEmployeeDocuments(permissionSet)) {
+            throw new ForbiddenException("No autorizado para eliminar documentos corporativos.");
+          }
+          if (hasData && !canSyncEmployeeDocuments(permissionSet)) {
+            throw new ForbiddenException("No autorizado para registrar documentos corporativos.");
+          }
+          if (!hasData && !hasDeletes && !canAccessDocumentsModule(permissionSet)) {
+            throw new ForbiddenException();
+          }
+        }
+        await this.syncCompanyDocuments(
+          c,
+          data,
+          deletedIds,
+          await this.resolvePayrollWriteCompanyScope(admin, userId),
+          { role, admin }
+        );
+        return;
+      case "companyDocumentFolders":
+        if (!admin) {
+          const hasData = Array.isArray(data) && data.length > 0;
+          const hasDeletes = Array.isArray(deletedIds) && deletedIds.length > 0;
+          if (hasDeletes && !canDeleteEmployeeDocuments(permissionSet)) {
+            throw new ForbiddenException("No autorizado para eliminar carpetas corporativas.");
+          }
+          if (hasData && !canUploadEmployeeDocuments(permissionSet)) {
+            throw new ForbiddenException("No autorizado para sincronizar carpetas corporativas.");
+          }
+          if (!hasData && !hasDeletes && !canAccessDocumentsModule(permissionSet)) {
+            throw new ForbiddenException();
+          }
+        }
+        await this.syncCompanyDocumentFolders(
+          c,
+          data,
+          deletedIds,
+          await this.resolvePayrollWriteCompanyScope(admin, userId),
+          { admin }
         );
         return;
       case "tripRouteRates":
@@ -7623,6 +7858,63 @@ export class PortalService implements OnModuleInit {
     }));
   }
 
+  private async loadCompanyDocuments(companyId: string | null = null) {
+    if (!(await this.tableExists("documentos_empresa"))) return [];
+    const scoped = companyId && PG_UUID_V4_RE.test(String(companyId).trim()) ? String(companyId).trim() : null;
+    const r = scoped
+      ? await this.pool.query(
+          `SELECT * FROM documentos_empresa
+            WHERE id_empresa = $1::uuid OR id_empresa IS NULL
+            ORDER BY fecha_actualizacion DESC`,
+          [scoped]
+        )
+      : await this.pool.query(`SELECT * FROM documentos_empresa ORDER BY fecha_actualizacion DESC`);
+    return r.rows.map((row) => ({
+      id: row.id,
+      companyId: row.id_empresa ?? null,
+      fileName: row.nombre_archivo,
+      type: row.tipo,
+      folder: row.carpeta ?? "General",
+      mimeType: row.mime_type,
+      sizeBytes: Number(row.tamano_bytes) || 0,
+      storageKey: row.storage_key,
+      description: row.descripcion ?? null,
+      tags: row.etiquetas ?? null,
+      uploadedBy: row.subido_por,
+      createdAt: row.fecha_creacion ? new Date(row.fecha_creacion).toISOString() : new Date().toISOString(),
+      updatedAt: row.fecha_actualizacion ? new Date(row.fecha_actualizacion).toISOString() : new Date().toISOString()
+    }));
+  }
+
+  private async loadCompanyDocumentFolders(companyId: string | null = null) {
+    if (!(await this.tableExists("carpetas_documento_empresa"))) return [];
+    const scoped = companyId && PG_UUID_V4_RE.test(String(companyId).trim()) ? String(companyId).trim() : null;
+    const r = scoped
+      ? await this.pool.query(
+          `SELECT * FROM carpetas_documento_empresa
+            WHERE id_empresa = $1::uuid OR id_empresa IS NULL
+            ORDER BY nombre_carpeta ASC`,
+          [scoped]
+        )
+      : await this.pool.query(`SELECT * FROM carpetas_documento_empresa ORDER BY nombre_carpeta ASC`);
+    const toRoleList = (v: unknown) =>
+      String(v ?? "")
+        .split(",")
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean);
+    return r.rows.map((row) => ({
+      id: row.id,
+      companyId: row.id_empresa ?? null,
+      folderName: row.nombre_carpeta,
+      description: row.descripcion ?? null,
+      rolesView: toRoleList(row.roles_ver),
+      rolesUpload: toRoleList(row.roles_subir),
+      rolesDelete: toRoleList(row.roles_eliminar),
+      createdBy: row.creado_por,
+      createdAt: row.fecha_creacion ? new Date(row.fecha_creacion).toISOString() : new Date().toISOString()
+    }));
+  }
+
   private async normalizeApprovalPayloadForStorage(
     typeRaw: unknown,
     payload: unknown
@@ -7881,7 +8173,9 @@ export class PortalService implements OnModuleInit {
       hrAbsences: "ausencias_laborales",
       sstCompliance: "registros_cumplimiento_sst",
       employeeDocuments: "documentos_empleado",
-      employeeDocumentFolders: "carpetas_documento_empleado"
+      employeeDocumentFolders: "carpetas_documento_empleado",
+      companyDocuments: "documentos_empresa",
+      companyDocumentFolders: "carpetas_documento_empresa"
     };
     return map[key] ?? null;
   }
@@ -12790,6 +13084,191 @@ export class PortalService implements OnModuleInit {
           nuN(row.notes),
           nu(row.uploadedBy || "Portal"),
           createdAtIso
+        ]
+      );
+    }
+  }
+
+  private async syncCompanyDocuments(
+    c: PoolClient,
+    data: unknown,
+    deletedIds?: string[],
+    companyScope?: string | null,
+    opts?: { role?: JwtRole; admin?: boolean }
+  ) {
+    if (!Array.isArray(data)) throw new ForbiddenException();
+    const scope = companyScope && PG_UUID_V4_RE.test(String(companyScope).trim()) ? String(companyScope).trim() : null;
+
+    // Segregación de perfiles: valida permisos por carpeta antes de escribir (los no-admin).
+    const role = String(opts?.role ?? "");
+    if (!opts?.admin) {
+      const permMap = await this.loadCompanyFolderPermMap(c, scope);
+      for (const row of data as Array<Record<string, unknown>>) {
+        if (!row?.id || !row.storageKey) continue;
+        const perm = this.folderPermFor(permMap, row.folder);
+        if (perm && (!this.roleAllowedInFolderPerm(perm.view, role) || !this.roleAllowedInFolderPerm(perm.upload, role))) {
+          throw new ForbiddenException("No autorizado para escribir en esta carpeta corporativa.");
+        }
+      }
+      if (Array.isArray(deletedIds) && deletedIds.length > 0) {
+        const validIds = deletedIds.filter((id) => PG_UUID_V4_RE.test(String(id).trim()));
+        if (validIds.length > 0) {
+          const existing = await c.query<{ carpeta: string }>(
+            `SELECT carpeta FROM documentos_empresa WHERE id = ANY($1::uuid[])`,
+            [validIds]
+          );
+          for (const ex of existing.rows) {
+            const perm = this.folderPermFor(permMap, ex.carpeta);
+            if (perm && (!this.roleAllowedInFolderPerm(perm.view, role) || !this.roleAllowedInFolderPerm(perm.delete, role))) {
+              throw new ForbiddenException("No autorizado para eliminar en esta carpeta corporativa.");
+            }
+          }
+        }
+      }
+    }
+
+    await this.syncListWithPruning(
+      c,
+      "documentos_empresa",
+      data,
+      deletedIds,
+      scope ? { companyId: scope, via: "id_empresa" } : undefined
+    );
+    const txt = (v: unknown, fallback = ""): string => {
+      const s = String(v ?? "").trim();
+      return s || fallback;
+    };
+    const txtN = (v: unknown): string | null => {
+      const s = String(v ?? "").trim();
+      return s || null;
+    };
+    for (const row of data as Array<Record<string, unknown>>) {
+      if (!row?.id || !row.storageKey) continue;
+      if (this.skipUnlessPersistUuid("syncCompanyDocuments", row.id)) continue;
+      const createdAtRaw = row.createdAt;
+      const createdAtIso =
+        createdAtRaw && !Number.isNaN(new Date(String(createdAtRaw)).getTime())
+          ? new Date(String(createdAtRaw)).toISOString()
+          : new Date().toISOString();
+      await c.query(
+        `INSERT INTO documentos_empresa (
+          id, id_empresa, nombre_archivo, tipo, carpeta, mime_type, tamano_bytes,
+          storage_key, descripcion, etiquetas, subido_por, fecha_creacion
+        ) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::timestamptz)
+        ON CONFLICT (id) DO UPDATE SET
+          nombre_archivo = EXCLUDED.nombre_archivo,
+          tipo = EXCLUDED.tipo,
+          carpeta = EXCLUDED.carpeta,
+          mime_type = EXCLUDED.mime_type,
+          tamano_bytes = EXCLUDED.tamano_bytes,
+          storage_key = EXCLUDED.storage_key,
+          descripcion = EXCLUDED.descripcion,
+          etiquetas = EXCLUDED.etiquetas,
+          subido_por = EXCLUDED.subido_por,
+          fecha_actualizacion = now()`,
+        [
+          row.id,
+          scope,
+          txt(row.fileName, "documento"),
+          txt(row.type, "ARCHIVO").slice(0, 32),
+          txt(row.folder, "General").slice(0, 200),
+          txt(row.mimeType, "application/octet-stream"),
+          Number(row.sizeBytes) || 0,
+          txt(row.storageKey),
+          txtN(row.description),
+          txtN(row.tags),
+          txt(row.uploadedBy, "Portal"),
+          createdAtIso
+        ]
+      );
+    }
+  }
+
+  private async syncCompanyDocumentFolders(
+    c: PoolClient,
+    data: unknown,
+    deletedIds?: string[],
+    companyScope?: string | null,
+    opts?: { admin?: boolean }
+  ) {
+    if (!Array.isArray(data)) throw new ForbiddenException();
+    const scope = companyScope && PG_UUID_V4_RE.test(String(companyScope).trim()) ? String(companyScope).trim() : null;
+    const isAdminActor = Boolean(opts?.admin);
+    await this.syncListWithPruning(
+      c,
+      "carpetas_documento_empresa",
+      data,
+      deletedIds,
+      scope ? { companyId: scope, via: "id_empresa" } : undefined
+    );
+    for (const row of data as Array<Record<string, unknown>>) {
+      if (!row?.id || !row.folderName) continue;
+      if (this.skipUnlessPersistUuid("syncCompanyDocumentFolders", row.id)) continue;
+      const folderName = String(row.folderName ?? "").trim().slice(0, 200);
+      if (!folderName) continue;
+      const description = (() => {
+        const s = String(row.description ?? "").trim();
+        return s || null;
+      })();
+      const existingByName = await c.query<{ id: string }>(
+        `SELECT id::text AS id
+           FROM carpetas_documento_empresa
+          WHERE COALESCE(id_empresa, '00000000-0000-0000-0000-000000000000'::uuid)
+              = COALESCE($1::uuid, '00000000-0000-0000-0000-000000000000'::uuid)
+            AND nombre_carpeta = $2
+          LIMIT 1`,
+        [scope, folderName]
+      );
+      const persistId = existingByName.rows[0]?.id || String(row.id);
+      const roleListToText = (v: unknown) => {
+        const arr = Array.isArray(v)
+          ? v
+          : String(v ?? "")
+              .split(",");
+        const cleaned = arr
+          .map((s) => String(s ?? "").trim().toLowerCase())
+          .filter(Boolean);
+        return cleaned.length ? [...new Set(cleaned)].join(",") : null;
+      };
+      let rolesView: string | null;
+      let rolesUpload: string | null;
+      let rolesDelete: string | null;
+      if (isAdminActor) {
+        // Solo el administrador puede asignar/modificar permisos de carpeta.
+        rolesView = roleListToText((row as { rolesView?: unknown }).rolesView);
+        rolesUpload = roleListToText((row as { rolesUpload?: unknown }).rolesUpload);
+        rolesDelete = roleListToText((row as { rolesDelete?: unknown }).rolesDelete);
+      } else {
+        // No-admin: se preservan los permisos existentes (o NULL si la carpeta es nueva).
+        const prev = await c.query<{ roles_ver: string | null; roles_subir: string | null; roles_eliminar: string | null }>(
+          `SELECT roles_ver, roles_subir, roles_eliminar FROM carpetas_documento_empresa WHERE id = $1::uuid LIMIT 1`,
+          [persistId]
+        );
+        rolesView = prev.rows[0]?.roles_ver ?? null;
+        rolesUpload = prev.rows[0]?.roles_subir ?? null;
+        rolesDelete = prev.rows[0]?.roles_eliminar ?? null;
+      }
+      await c.query(
+        `INSERT INTO carpetas_documento_empresa (
+          id, id_empresa, nombre_carpeta, descripcion, creado_por, roles_ver, roles_subir, roles_eliminar
+        ) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8)
+        ON CONFLICT (id) DO UPDATE SET
+          id_empresa = EXCLUDED.id_empresa,
+          nombre_carpeta = EXCLUDED.nombre_carpeta,
+          descripcion = EXCLUDED.descripcion,
+          creado_por = EXCLUDED.creado_por,
+          roles_ver = EXCLUDED.roles_ver,
+          roles_subir = EXCLUDED.roles_subir,
+          roles_eliminar = EXCLUDED.roles_eliminar`,
+        [
+          persistId,
+          scope,
+          folderName,
+          description,
+          String(row.createdBy ?? "Portal").trim() || "Portal",
+          rolesView,
+          rolesUpload,
+          rolesDelete
         ]
       );
     }

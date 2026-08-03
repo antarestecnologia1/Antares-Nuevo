@@ -25,6 +25,8 @@ export const PORTAL_SYNC_KEYS = [
   "sstCompliance",
   "employeeDocuments",
   "employeeDocumentFolders",
+  "companyDocuments",
+  "companyDocumentFolders",
   "tripRouteRates",
   "approvals"
 ] as const;

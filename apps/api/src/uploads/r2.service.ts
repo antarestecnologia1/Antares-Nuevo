@@ -160,16 +160,32 @@ export class R2Service {
   }
 
   /** GET prefirmado para descargar un objeto ya subido a `CF_R2_UPLOADS_BUCKET` (p. ej. CV sin dominio público configurado). */
-  async presignGetUploadsObject(key: string, expiresInSec = 7200) {
+  async presignGetUploadsObject(
+    key: string,
+    expiresInSec = 7200,
+    opts?: { disposition?: "inline" | "attachment"; fileName?: string; contentType?: string }
+  ) {
     if (!this.client) {
       throw new InternalServerErrorException(
         "R2 no está configurado en el servidor."
       );
     }
     const normalizedKey = key.replace(/^\/+/, "");
+    let responseContentDisposition: string | undefined;
+    if (opts?.disposition) {
+      const safeName = String(opts.fileName || "")
+        .replace(/[\r\n"\\]/g, "")
+        .slice(0, 200)
+        .trim();
+      responseContentDisposition = safeName
+        ? `${opts.disposition}; filename="${safeName}"`
+        : opts.disposition;
+    }
     const cmd = new GetObjectCommand({
       Bucket: this.uploadsBucket,
-      Key: normalizedKey
+      Key: normalizedKey,
+      ResponseContentDisposition: responseContentDisposition,
+      ResponseContentType: opts?.contentType || undefined
     });
     return getSignedUrl(this.client, cmd, { expiresIn: expiresInSec });
   }

@@ -1,9 +1,11 @@
 /**
- * Gestión documental — expediente digital por colaborador (RRHH).
+ * Gestión documental — gestor documental corporativo (DMS general de empresa).
+ * Carpetas jerárquicas, subida a Cloudflare R2, KPIs, almacenamiento y documentos recientes.
+ * Reemplaza el antiguo expediente por colaborador. Datos reales vía portal sync + API.
  */
-import { state, nodes, persistHrWorkspace } from "../core/store.js";
-import { read, write, writeAwaitServerCreate, writeAwaitServerEdit } from "../core/data-io.js";
-import { KEYS, HR_VALID_DOCUMENTS_WS } from "../core/config.js";
+import { state, nodes } from "../core/store.js";
+import { read, writeAwaitServerCreate, writeAwaitServerEdit } from "../core/data-io.js";
+import { KEYS } from "../core/config.js";
 import {
   canAccessDocumentsView,
   canUploadDocuments,
@@ -11,1522 +13,887 @@ import {
   canDeleteDocuments,
   currentUser
 } from "../core/auth.js";
+import { PORTAL_ASSIGNABLE_ROLES } from "../core/config.js";
+import { escapeHtml, escapeAttr, colombiaTodayIsoDate, newUuidV4, devWarn } from "../core/utils.js";
 import {
-  escapeHtml,
-  escapeAttr,
-  colombiaTodayIsoDate,
-  newUuidV4,
-  normalizeHrWorkspace,
-  normalizeDocumentsDataSection,
-  normalizeDocumentsOperateSection,
-  resolveDocumentsWorkspace,
-  devWarn
-} from "../core/utils.js";
-import {
-  renderHrWorkspaceTabs,
-  renderHrWorkspaceHeader,
-  switchHrWorkspacePanels,
-  renderHrFormHero,
-  renderHrFormHeroBadge
-} from "../ui/components.js";
-import {
-  EMPLOYEE_DOCUMENT_TYPES,
-  EMPLOYEE_DOC_DUE_SOON_DAYS,
-  EMPLOYEE_DOCUMENT_MAX_BYTES,
-  DEFAULT_EMPLOYEE_DOCUMENT_FOLDER,
-  CORE_EMPLOYEE_DOCUMENT_TYPES,
-  getEmployeeDocumentTypeLabel,
-  employeeDocumentTypeRequiresExpiry,
-  normalizeEmployeeDocumentRow,
-  normalizeEmployeeDocumentFolderRow,
-  normalizeDocumentFolder,
-  collectEmployeeFolders,
-  employeeHasFolderRecord,
-  buildEmployeeDocumentFolderRecord,
-  computeEmployeeDocumentStatus,
-  daysUntilDocumentDue,
+  COMPANY_DOCUMENT_MAX_BYTES,
+  DEFAULT_COMPANY_FOLDER,
+  normalizeCompanyDocumentRow,
+  normalizeCompanyFolderRow,
+  normalizeCompanyFolder,
+  fileTypeLabel,
+  fileTypeGroup,
+  canPreviewFileType,
   formatFileSize,
-  buildEmployeeDocumentExportRows,
-  summarizeEmployeeDocuments,
-  findEmployeeDocumentGaps,
-  countEmployeesWithDocumentGaps,
-  applyDocumentListFilters,
-  expectedDocumentTypesForEmployee,
-  countDocumentsInFolder,
-  documentFolderKey
-} from "../domain/employee-documents.domain.js";
+  collectAllFolderPaths,
+  collectTopFolders,
+  collectSubfolders,
+  topFolderName,
+  folderRoleAllowlist,
+  roleAllowedInFolder,
+  folderLeafName,
+  folderSegments,
+  folderKey,
+  summarizeCompanyDocuments,
+  applyCompanyDocumentFilters,
+  sortByRecent,
+  buildCompanyDocumentExportRows
+} from "../domain/company-documents.domain.js";
 import { downloadCsv } from "../domain/reporteria.domain.js";
 
 const G = globalThis;
+const PAGE_SIZE = 6;
+const RECENT_SIDEBAR_COUNT = 4;
 
-/** Archivos elegidos en el dropzone; sobreviven re-renders. */
-let pendingUploadFiles = [];
+/* Iconos que no están en window.IC */
+const IC_HDD = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="10" rx="2"/><line x1="6" y1="12" x2="6.01" y2="12"/><line x1="10" y1="12" x2="18" y2="12"/></svg>';
+const IC_DOTS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>';
+const IC_FOLDER_PLUS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>';
+const IC_UPLOAD_BIG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>';
+const IC_EXTERNAL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>';
+const IC_LOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
 
-if (typeof window !== "undefined") {
-  window.normalizeEmployeeDocumentRow = normalizeEmployeeDocumentRow;
-  window.normalizeEmployeeDocumentFolderRow = normalizeEmployeeDocumentFolderRow;
-}
+const TYPE_FILTERS = [
+  { value: "all", label: "Todos los tipos" },
+  { value: "pdf", label: "PDF" },
+  { value: "doc", label: "Documentos Word" },
+  { value: "sheet", label: "Hojas de cálculo" },
+  { value: "slide", label: "Presentaciones" },
+  { value: "image", label: "Imágenes" },
+  { value: "archive", label: "Comprimidos" },
+  { value: "text", label: "Texto" }
+];
 
-function canViewDocumentsModule() {
-  const user = typeof G.currentUser === "function" ? G.currentUser() : currentUser();
-  return canAccessDocumentsView(user);
-}
+/* ------------------------------------------------------------------ */
+/* Helpers de estado y permisos                                        */
+/* ------------------------------------------------------------------ */
 
-function canUploadDocumentsModule() {
-  const user = typeof G.currentUser === "function" ? G.currentUser() : currentUser();
-  return canUploadDocuments(user);
-}
-
-function canEditDocumentsModule() {
-  const user = typeof G.currentUser === "function" ? G.currentUser() : currentUser();
-  return canEditDocuments(user);
-}
-
-function canDeleteDocumentsModule() {
-  const user = typeof G.currentUser === "function" ? G.currentUser() : currentUser();
-  return canDeleteDocuments(user);
-}
-
-async function ensureEmployeeFolderRecord(employeeId, folderName) {
-  const id = String(employeeId || "").trim();
-  const folder = normalizeDocumentFolder(folderName);
-  if (!id || !folder) return;
-  const employees = read(KEYS.payrollEmployees, []);
-  const employee = employees.find((e) => String(e.id) === id);
-  const folders = read(KEYS.employeeDocumentFolders, []).map(normalizeEmployeeDocumentFolderRow);
-  const existingFolder = folders.find(
-    (row) => String(row.employeeId) === id && documentFolderKey(row.folderName) === documentFolderKey(folder)
-  );
-  if (existingFolder?.id) return;
-  const docs = read(KEYS.employeeDocuments, []).map(normalizeEmployeeDocumentRow);
-  /* Si aún hay archivos en esa carpeta, no hace falta forzar el alta metadata. */
-  if (employeeHasFolderRecord(id, folder, docs, folders)) return;
-  const record = buildEmployeeDocumentFolderRecord(
-    id,
-    folder,
-    employee?.name,
-    G.currentUser?.()?.fullName || G.currentUser?.()?.email || "Portal"
-  );
-  record.id = newUuidV4();
-  try {
-    await writeAwaitServerCreate(KEYS.employeeDocumentFolders, [...folders, record], record);
-  } catch (err) {
-    /*
-     * No bloquear la subida del archivo: tras borrar el último documento la carpeta
-     * puede seguir existiendo en servidor (unique id_empleado+nombre) o el sync puede
-     * fallar por permisos asimétricos. El expediente del archivo sí debe registrarse.
-     */
-    devWarn("[documents] ensureEmployeeFolderRecord", err?.message || err);
-    try {
-      const cleaned = read(KEYS.employeeDocumentFolders, []).filter((row) => String(row?.id || "") !== String(record.id));
-      write(KEYS.employeeDocumentFolders, cleaned, { skipSyncSchedule: true });
-    } catch (_rollback) {
-      /* noop */
-    }
+function getUi() {
+  if (!state.companyDocsUi || typeof state.companyDocsUi !== "object") {
+    state.companyDocsUi = {
+      viewMode: "list",
+      search: "",
+      typeFilter: "all",
+      folderFilter: "",
+      showFilters: false,
+      page: 1
+    };
   }
+  return state.companyDocsUi;
 }
 
-function defaultDocumentsWorkspace() {
-  if (canUploadDocumentsModule()) return "upload";
-  if (canViewDocumentsModule()) return "consult";
-  return "data";
+function patchUi(patch) {
+  const ui = getUi();
+  Object.assign(ui, patch || {});
+  return ui;
 }
 
-function getDocumentsUi() {
-  const ui = state.documentsUi || {};
-  const workspace = resolveDocumentsWorkspace(ui) || defaultDocumentsWorkspace();
-  return {
-    workspace,
-    operateSection: normalizeDocumentsOperateSection(ui.operateSection || "upload"),
-    dataSection: normalizeDocumentsDataSection(ui.dataSection || "all"),
-    listSearch: String(ui.listSearch || ""),
-    selectedEmployeeId: String(ui.selectedEmployeeId || ""),
-    typeFilter: String(ui.typeFilter || ""),
-    filterEmployeeId: String(ui.filterEmployeeId || ""),
-    filterStatus: String(ui.filterStatus || ""),
-    folderFilter: String(ui.folderFilter || ""),
-    folderBrowseEmployeeId: String(ui.folderBrowseEmployeeId || ""),
-    folderBrowseName: String(ui.folderBrowseName || ""),
-    selectedDocumentType: String(ui.selectedDocumentType || ""),
-    highlightDocumentType: String(ui.highlightDocumentType || ""),
-    listViewMode: ui.listViewMode === "grid" ? "grid" : "list",
-    selectedFolder: String(ui.selectedFolder || "")
-  };
+function actor() {
+  const u = (typeof G.currentUser === "function" ? G.currentUser() : currentUser()) || {};
+  return String(u.fullName || u.name || u.email || "Portal").trim() || "Portal";
 }
 
-function hasActiveDocumentFilters(ui) {
-  return Boolean(
-    String(ui.listSearch || "").trim() ||
-      ui.typeFilter ||
-      ui.filterEmployeeId ||
-      ui.filterStatus ||
-      ui.folderFilter ||
-      (ui.dataSection && ui.dataSection !== "all")
-  );
+function canView() {
+  return canAccessDocumentsView(typeof G.currentUser === "function" ? G.currentUser() : currentUser());
+}
+function canUpload() {
+  return canUploadDocuments(typeof G.currentUser === "function" ? G.currentUser() : currentUser());
+}
+function canEdit() {
+  return canEditDocuments(typeof G.currentUser === "function" ? G.currentUser() : currentUser());
+}
+function canDelete() {
+  return canDeleteDocuments(typeof G.currentUser === "function" ? G.currentUser() : currentUser());
 }
 
-function buildDocumentListFilters(ui, { employeeId = "", dataSection = null } = {}) {
-  return {
-    searchNorm: String(ui.listSearch || "").trim().toLowerCase(),
-    employeeId: employeeId || ui.filterEmployeeId || "",
-    typeFilter: ui.typeFilter,
-    statusFilter: ui.filterStatus,
-    folderFilter: ui.folderFilter,
-    dataSection: dataSection ?? ui.dataSection
-  };
+function userObj() {
+  return (typeof G.currentUser === "function" ? G.currentUser() : currentUser()) || {};
+}
+function userRole() {
+  return String(userObj().role || "").toLowerCase();
+}
+/** Solo el administrador ignora los permisos por carpeta (coincide con el servidor). */
+function isDocManager() {
+  return userRole() === "admin";
+}
+/** Solo el administrador puede asignar/modificar los permisos de una carpeta. */
+function canManageFolderPermissions() {
+  return userRole() === "admin";
 }
 
-function sortDocumentsNewestFirst(documents) {
-  return [...(documents || [])]
-    .map(normalizeEmployeeDocumentRow)
-    .sort((a, b) => {
-      const ta = Date.parse(String(a.createdAt || a.updatedAt || "")) || 0;
-      const tb = Date.parse(String(b.createdAt || b.updatedAt || "")) || 0;
-      if (tb !== ta) return tb - ta;
-      return String(a.fileName || "").localeCompare(String(b.fileName || ""), "es");
-    });
+function canViewFolder(folders, path) {
+  if (!canView()) return false;
+  if (isDocManager()) return true;
+  return roleAllowedInFolder(folders, path, "view", userRole());
 }
-
-function renderFolderFilterOptions(folderNames, selected) {
-  const opts = [`<option value="">Todas las carpetas</option>`];
-  const selectedKey = selected ? documentFolderKey(selected) : "";
-  for (const name of folderNames || []) {
-    const canonical = normalizeDocumentFolder(name);
-    opts.push(
-      `<option value="${escapeAttr(canonical)}"${documentFolderKey(canonical) === selectedKey ? " selected" : ""}>${escapeHtml(canonical)}</option>`
-    );
-  }
-  return opts.join("");
-}
-
-function renderDocumentsFilterBar({ ui, employees, folderNames = [], mode = "browse", gapsCount = 0 } = {}) {
-  const hasFilters = hasActiveDocumentFilters(ui);
-  const showEmployee = mode === "browse" && !ui.folderBrowseEmployeeId;
-  const showFolder = Boolean(ui.folderBrowseEmployeeId) && (folderNames || []).length > 0;
-  const employeeOpts = renderEmployeeOptions(employees, ui.filterEmployeeId, { placeholder: false });
-  const statusValue =
-    ui.dataSection === "gaps"
-      ? "__gaps__"
-      : ui.dataSection === "due_soon"
-        ? "Por vencer"
-        : ui.dataSection === "expired"
-          ? "Vencido"
-          : ui.filterStatus || "";
-
-  const actions = [
-    hasFilters
-      ? `<button type="button" class="btn btn-sm btn-outline doc-filter-clear" data-action="doc-clear-filters">Limpiar</button>`
-      : ""
-  ]
-    .filter(Boolean)
-    .join("");
-
-  return `<div class="doc-filter-bar${hasFilters ? " doc-filter-bar--active" : ""}" data-doc-filter-mode="${escapeAttr(mode)}">
-    <div class="doc-filter-bar__search">
-      <label class="doc-filter-field doc-filter-field--search">
-        <span class="doc-filter-field__label">Buscar</span>
-        <input type="search" data-action="doc-filter-search" data-doc-filter-mode="${escapeAttr(mode)}" value="${escapeAttr(ui.listSearch)}" placeholder="${ui.folderBrowseEmployeeId ? "Archivo, tipo, carpeta…" : "Colaborador, documento, cédula…"}" autocomplete="off" spellcheck="false" />
-      </label>
-    </div>
-    <div class="doc-filter-bar__controls">
-      ${
-        showEmployee
-          ? `<label class="doc-filter-field">
-        <span class="doc-filter-field__label">Colaborador</span>
-        <select data-action="doc-filter-employee" title="Filtrar por colaborador">
-          <option value=""${ui.filterEmployeeId ? "" : " selected"}>Todos</option>
-          ${employeeOpts}
-        </select>
-      </label>`
-          : ""
-      }
-      ${
-        showFolder
-          ? `<label class="doc-filter-field">
-        <span class="doc-filter-field__label">Carpeta</span>
-        <select data-action="doc-filter-folder" title="Filtrar por carpeta">${renderFolderFilterOptions(folderNames, ui.folderFilter)}</select>
-      </label>`
-          : ""
-      }
-      <label class="doc-filter-field">
-        <span class="doc-filter-field__label">Tipo documental</span>
-        <select data-action="doc-type-filter" title="Filtrar por tipo">${renderDocumentTypeFilterOptions(ui.typeFilter)}</select>
-      </label>
-      <label class="doc-filter-field">
-        <span class="doc-filter-field__label">Estado</span>
-        <select data-action="doc-filter-status" title="Filtrar por estado">
-          <option value=""${!statusValue ? " selected" : ""}>Todos</option>
-          <option value="Vigente"${statusValue === "Vigente" ? " selected" : ""}>Vigente</option>
-          <option value="Por vencer"${statusValue === "Por vencer" ? " selected" : ""}>Por vencer</option>
-          <option value="Vencido"${statusValue === "Vencido" ? " selected" : ""}>Vencido</option>
-          ${
-            !ui.folderBrowseEmployeeId
-              ? `<option value="__gaps__"${statusValue === "__gaps__" ? " selected" : ""}>Incompleto${gapsCount > 0 ? ` (${gapsCount})` : ""}</option>`
-              : ""
-          }
-        </select>
-      </label>
-    </div>
-    ${actions ? `<div class="doc-filter-bar__actions">${actions}</div>` : ""}
-  </div>`;
-}
-
-function renderResultMeta(text) {
-  return `<p class="doc-result-meta">${text}</p>`;
-}
-
-function patchDocumentsUi(partial) {
-  state.documentsUi = { ...(state.documentsUi || {}), ...partial };
-  /* Los filtros no se guardan en localStorage (solo la pestaña vía persistHrWorkspace). */
-}
-
-function renderDocStatusBadge(doc, todayYmd) {
-  const status = computeEmployeeDocumentStatus(doc.dueDate, todayYmd);
-  const days = daysUntilDocumentDue(doc.dueDate, todayYmd);
-  if (status === "Vencido") {
-    return `<span class="doc-status doc-status--expired">Vencido${days !== null ? ` · ${Math.abs(days)}d` : ""}</span>`;
-  }
-  if (status === "Por vencer") {
-    return `<span class="doc-status doc-status--warn">Por vencer · ${days}d</span>`;
-  }
-  return `<span class="doc-status doc-status--ok">Vigente</span>`;
-}
-
-function documentExpiryRowClass(doc, todayYmd) {
-  const status = computeEmployeeDocumentStatus(doc.dueDate, todayYmd);
-  if (status === "Vencido") return "doc-row--expired";
-  if (status === "Por vencer") return "doc-row--warn";
-  return "";
-}
-
-function renderMimeIcon(mime) {
-  const m = String(mime || "").toLowerCase();
-  if (m.includes("pdf")) return "PDF";
-  if (m.startsWith("image/")) return "IMG";
-  if (m.includes("word") || m.includes("document")) return "DOC";
-  if (m.includes("sheet") || m.includes("excel")) return "XLS";
-  if (m.includes("zip") || m.includes("archive")) return "ZIP";
-  return "FILE";
-}
-
-function renderMimeClass(mime) {
-  const m = String(mime || "").toLowerCase();
-  if (m.includes("pdf")) return "pdf";
-  if (m.startsWith("image/")) return "image";
-  if (m.includes("word") || m.includes("document")) return "word";
-  if (m.includes("sheet") || m.includes("excel")) return "sheet";
-  if (m.includes("zip") || m.includes("archive")) return "archive";
-  return "file";
-}
-
-function employeeInitials(name) {
-  const parts = String(name || "")
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-  if (!parts.length) return "?";
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
-
-function filterDocuments(documents, filters, todayYmd) {
-  return applyDocumentListFilters(documents, filters, todayYmd);
-}
-
-function renderEmployeeOptions(employees, selectedId, { placeholder = true } = {}) {
-  const sorted = [...employees].sort((a, b) =>
-    String(a.name || "").localeCompare(String(b.name || ""), "es")
-  );
-  const head = placeholder
-    ? `<option value=""${selectedId ? "" : " selected"}>— Seleccione colaborador —</option>`
-    : "";
+function canUploadFolder(folders, path) {
+  if (!canUpload()) return false;
+  if (isDocManager()) return true;
   return (
-    head +
-    sorted
-      .map((emp) => {
-        const id = String(emp.id || "");
-        const label = `${String(emp.name || "Sin nombre")} · ${String(emp.documentType || "CC")} ${String(emp.idDoc || "")}`;
-        return `<option value="${escapeAttr(id)}"${id === selectedId ? " selected" : ""}>${escapeHtml(label)}</option>`;
-      })
-      .join("")
+    roleAllowedInFolder(folders, path, "view", userRole()) &&
+    roleAllowedInFolder(folders, path, "upload", userRole())
   );
 }
-
-function renderDocumentTypeFilterOptions(selected) {
-  const opts = [`<option value="">Todos los tipos</option>`];
-  for (const t of EMPLOYEE_DOCUMENT_TYPES) {
-    opts.push(
-      `<option value="${escapeAttr(t.value)}"${t.value === selected ? " selected" : ""}>${escapeHtml(t.label)}</option>`
-    );
-  }
-  return opts.join("");
-}
-
-function resolveUploadDocumentType(employeeId, allDocs, preferredType) {
-  const preferred = String(preferredType || "").trim();
-  if (preferred && EMPLOYEE_DOCUMENT_TYPES.some((t) => t.value === preferred)) return preferred;
-  const employees = read(KEYS.payrollEmployees, []);
-  const employee = employees.find((e) => String(e.id) === String(employeeId));
-  if (employee) {
-    const gaps = findEmployeeDocumentGaps(employee, allDocs);
-    if (gaps.length) return gaps[0];
-  }
-  return "cedula";
-}
-
-function employeeHasDocumentType(employeeId, documentType, allDocs) {
-  const id = String(employeeId || "");
-  const type = String(documentType || "").trim();
-  if (!id || !type) return false;
-  return (allDocs || []).some((raw) => {
-    const doc = normalizeEmployeeDocumentRow(raw);
-    return String(doc.employeeId) === id && String(doc.documentType) === type;
-  });
-}
-
-function renderDocumentChecklistItem(typeValue, { employeeId, allDocs, selectedType, todayYmd, highlightType, mode = "view" }) {
-  const meta = EMPLOYEE_DOCUMENT_TYPES.find((t) => t.value === typeValue) || {
-    value: typeValue,
-    label: getEmployeeDocumentTypeLabel(typeValue)
-  };
-  const ok = employeeHasDocumentType(employeeId, typeValue, allDocs);
-  const isSelected = String(selectedType) === String(typeValue);
-  const isHighlight = String(highlightType) === String(typeValue);
-  const empDocs = sortDocumentsNewestFirst(
-    (allDocs || []).filter((d) => {
-      const row = normalizeEmployeeDocumentRow(d);
-      return String(row.employeeId) === String(employeeId) && String(row.documentType) === String(typeValue);
-    })
+function canEditFolder(folders, path) {
+  if (!canEdit()) return false;
+  if (isDocManager()) return true;
+  return (
+    roleAllowedInFolder(folders, path, "view", userRole()) &&
+    roleAllowedInFolder(folders, path, "upload", userRole())
   );
-  const latest = empDocs[0] || null;
-  const status = latest ? computeEmployeeDocumentStatus(latest.dueDate, todayYmd) : null;
+}
+function canDeleteFolder(folders, path) {
+  if (!canDelete()) return false;
+  if (isDocManager()) return true;
+  return (
+    roleAllowedInFolder(folders, path, "view", userRole()) &&
+    roleAllowedInFolder(folders, path, "delete", userRole())
+  );
+}
+/** Documentos visibles según permisos por carpeta. */
+function visibleDocs(docs, folders) {
+  if (isDocManager()) return docs;
+  return docs.filter((d) => canViewFolder(folders, d.folder));
+}
+/** Carpetas visibles (registros) según permisos por carpeta. */
+function visibleFolders(folders) {
+  if (isDocManager()) return folders;
+  return folders.filter((f) => canViewFolder(folders, f.folderName));
+}
 
-  if (mode === "pick") {
-    return `<button type="button" class="doc-type-picker__item${ok ? " is-complete" : " is-pending"}${isSelected ? " is-selected" : ""}" data-action="doc-pick-type" data-document-type="${escapeAttr(typeValue)}" aria-pressed="${isSelected ? "true" : "false"}">
-      <span class="doc-type-picker__check" aria-hidden="true">${ok ? "✓" : ""}</span>
-      <span class="doc-type-picker__body">
-        <span class="doc-type-picker__label">${escapeHtml(meta.label)}</span>
-        <span class="doc-type-picker__state">${ok ? `${empDocs.length} en expediente` : "Pendiente"}</span>
-      </span>
-    </button>`;
-  }
+function readDocs() {
+  return read(KEYS.companyDocuments, []).map(normalizeCompanyDocumentRow).filter((d) => d && d.id);
+}
+function readFolders() {
+  return read(KEYS.companyDocumentFolders, []).map(normalizeCompanyFolderRow).filter((f) => f && f.id);
+}
 
-  return `<li class="doc-checklist__item${ok ? " is-ok" : " is-missing"}${isHighlight ? " is-flash" : ""}${status === "Vencido" ? " doc-row--expired" : status === "Por vencer" ? " doc-row--warn" : ""}" data-doc-type="${escapeAttr(typeValue)}">
-    <span class="doc-checklist__dot" aria-hidden="true">${ok ? "✓" : ""}</span>
-    <span class="doc-checklist__main">
-      <span class="doc-checklist__label">${escapeHtml(meta.label)}</span>
-      <span class="doc-checklist__count">${itemsLabel(empDocs.length, ok)}</span>
-    </span>
-    ${status && status !== "Vigente" ? `<span class="doc-checklist__status doc-checklist__status--${status === "Vencido" ? "expired" : "warn"}">${escapeHtml(status)}</span>` : ""}
-    ${
-      !ok && canUploadDocumentsModule() && employeeId
-        ? `<button type="button" class="doc-checklist__upload btn btn-xs btn-outline" data-action="doc-goto-upload" data-employee-id="${escapeAttr(String(employeeId))}" data-document-type="${escapeAttr(typeValue)}" title="Subir ${escapeAttr(meta.label)}">Subir</button>`
-        : ""
+function usersWithAccessCount() {
+  const users = read(KEYS.users, []);
+  let count = 0;
+  for (const u of users) {
+    if (!u || typeof u !== "object") continue;
+    if (String(u.active ?? "true").toLowerCase() === "false") continue;
+    try {
+      if (canAccessDocumentsView(u)) count += 1;
+    } catch {
+      /* ignore malformed user */
     }
-  </li>`;
+  }
+  return count;
 }
 
-function itemsLabel(count, ok) {
-  if (!ok) return "Pendiente";
-  return `${count} archivo${count === 1 ? "" : "s"}`;
+function formatDate(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  const date = d.toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" });
+  const time = d.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
+  return `${date}, ${time}`;
 }
 
-function renderUploadDocumentTypePicker(employeeId, allDocs, selectedType, todayYmd) {
-  const employees = read(KEYS.payrollEmployees, []);
-  const employee = employees.find((e) => String(e.id) === String(employeeId));
-  const resolved = resolveUploadDocumentType(employeeId, allDocs, selectedType);
-  const expected = employee
-    ? expectedDocumentTypesForEmployee(employee)
-    : [...CORE_EMPLOYEE_DOCUMENT_TYPES];
-  const otherTypes = EMPLOYEE_DOCUMENT_TYPES.map((t) => t.value).filter(
-    (v) => !expected.includes(v) && v !== "otro"
-  );
-  const expectedItems = expected
-    .map((typeValue) =>
-      renderDocumentChecklistItem(typeValue, {
-        employeeId,
-        allDocs,
-        selectedType: resolved,
-        todayYmd,
-        mode: "pick"
-      })
-    )
-    .join("");
-  const otherItems = [...otherTypes, "otro"]
-    .map((typeValue) =>
-      renderDocumentChecklistItem(typeValue, {
-        employeeId,
-        allDocs,
-        selectedType: resolved,
-        todayYmd,
-        mode: "pick"
-      })
-    )
-    .join("");
-  const otherOpen = [...otherTypes, "otro"].includes(resolved);
+function formatDateShort(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" });
+}
 
-  return `<div class="doc-type-picker doc-type-picker--form" data-doc-type-picker>
-    <input type="hidden" name="documentType" value="${escapeAttr(resolved)}" data-doc-type-input required />
-    ${
-      employee
-        ? `<div class="doc-type-picker__section">
-      <p class="doc-type-picker__section-label">Checklist del colaborador</p>
-      <div class="doc-type-picker__grid">${expectedItems}</div>
+/* ------------------------------------------------------------------ */
+/* Render — bloques del layout                                         */
+/* ------------------------------------------------------------------ */
+
+function renderHeader(ui, IC) {
+  const uploadBtn = canUpload()
+    ? `<button type="button" class="doc-btn doc-btn--primary" data-action="doc-upload">${IC.upload || ""}<span>Subir documento</span></button>`
+    : "";
+  return `<header class="doc-topbar">
+    <div class="doc-topbar__titles">
+      <h1 class="doc-topbar__title">Gestión documental</h1>
+      <p class="doc-topbar__subtitle">Administra y organiza todos los documentos de la empresa.</p>
     </div>
-    ${
-      otherItems
-        ? `<details class="doc-type-picker__more"${otherOpen ? " open" : ""}>
-      <summary>Otros tipos documentales</summary>
-      <div class="doc-type-picker__grid doc-type-picker__grid--compact">${otherItems}</div>
-    </details>`
-        : ""
-    }`
-        : `<p class="doc-type-picker__empty">Seleccione un colaborador para ver el checklist.</p>`
-    }
-  </div>`;
-}
-
-function renderKpiCards(summary, IC, gapsCount = 0, activeFilter = "all") {
-  const active = String(activeFilter || "all");
-  return `<div class="doc-kpi-block">
-    <div class="doc-kpi-rail" role="group" aria-label="Indicadores documentales">
-      <button type="button" class="doc-kpi doc-kpi--total${active === "all" ? " is-active" : ""}" data-action="doc-quick-filter" data-filter="all" title="Ver todos los expedientes" aria-pressed="${active === "all" ? "true" : "false"}">
-        <span class="doc-kpi__icon" aria-hidden="true">${IC.file || ""}</span>
-        <span class="doc-kpi__content">
-          <span class="doc-kpi__label">Documentos</span>
-          <strong class="doc-kpi__value">${escapeHtml(String(summary.total))}</strong>
-        </span>
-      </button>
-      <button type="button" class="doc-kpi doc-kpi--gaps${active === "gaps" ? " is-active" : ""}" data-action="doc-quick-filter" data-filter="gaps" title="Expedientes incompletos" aria-pressed="${active === "gaps" ? "true" : "false"}">
-        <span class="doc-kpi__icon" aria-hidden="true">${IC.user || IC.alertTriangle || ""}</span>
-        <span class="doc-kpi__content">
-          <span class="doc-kpi__label">Incompletos</span>
-          <strong class="doc-kpi__value">${escapeHtml(String(gapsCount))}</strong>
-        </span>
-      </button>
-      <button type="button" class="doc-kpi doc-kpi--warn${active === "due_soon" ? " is-active" : ""}" data-action="doc-quick-filter" data-filter="due_soon" title="Por vencer" aria-pressed="${active === "due_soon" ? "true" : "false"}">
-        <span class="doc-kpi__icon" aria-hidden="true">${IC.alertTriangle || ""}</span>
-        <span class="doc-kpi__content">
-          <span class="doc-kpi__label">Por vencer</span>
-          <strong class="doc-kpi__value">${escapeHtml(String(summary.dueSoon))}</strong>
-        </span>
-      </button>
-      <button type="button" class="doc-kpi doc-kpi--expired${active === "expired" ? " is-active" : ""}" data-action="doc-quick-filter" data-filter="expired" title="Vencidos" aria-pressed="${active === "expired" ? "true" : "false"}">
-        <span class="doc-kpi__icon" aria-hidden="true">${IC.alertTriangle || ""}</span>
-        <span class="doc-kpi__content">
-          <span class="doc-kpi__label">Vencidos</span>
-          <strong class="doc-kpi__value">${escapeHtml(String(summary.expired))}</strong>
-        </span>
-      </button>
+    <div class="doc-topbar__actions">
+      <label class="doc-search">
+        <span class="doc-search__icon">${IC.search || ""}</span>
+        <input type="search" class="doc-search__input" data-action="doc-search" placeholder="Buscar documentos, carpetas…" value="${escapeAttr(ui.search || "")}" aria-label="Buscar documentos" />
+        <kbd class="doc-search__kbd">⌘K</kbd>
+      </label>
+      ${uploadBtn}
     </div>
-  </div>`;
+  </header>`;
 }
 
-function renderEmptyState(message, { icon = "", hint = "" } = {}) {
-  return `<div class="empty-state doc-empty">
-    ${icon ? `<div class="doc-empty__icon" aria-hidden="true">${icon}</div>` : `<div class="doc-empty__icon doc-empty__icon--mark" aria-hidden="true"></div>`}
-    <p class="doc-empty__title">${escapeHtml(message)}</p>
-    ${hint ? `<p class="doc-empty__hint">${escapeHtml(hint)}</p>` : ""}
-  </div>`;
-}
-
-function renderDocumentCards(documents, todayYmd, IC, { compact = false, viewMode = "grid", hideFolderPill = false } = {}) {
-  const sorted = sortDocumentsNewestFirst(documents);
-  if (!sorted.length) {
-    return renderEmptyState("No hay documentos en este expediente.", {
-      icon: IC.file || "",
-      hint: "Suba archivos o cambie los filtros de búsqueda."
-    });
-  }
-  const isList = viewMode === "list";
-  return `<div class="doc-card-grid${compact ? " doc-card-grid--compact" : ""}${isList ? " doc-card-grid--list" : ""}">
-    ${sorted
-      .map((doc) => {
-        const rowTone = documentExpiryRowClass(doc, todayYmd);
-        const mimeClass = renderMimeClass(doc.mimeType);
-        const folderName = normalizeDocumentFolder(doc.folder);
-        return `<article class="doc-card${rowTone ? ` ${rowTone}` : ""}${isList ? " doc-card--row" : ""}" data-doc-id="${escapeAttr(String(doc.id))}">
-          <div class="doc-card__icon doc-card__icon--${mimeClass}" aria-hidden="true">
-            <span class="doc-card__icon-label">${escapeHtml(renderMimeIcon(doc.mimeType))}</span>
-          </div>
-          <div class="doc-card__body">
-            <div class="doc-card__headline">
-              <h4 class="doc-card__title">${escapeHtml(getEmployeeDocumentTypeLabel(doc.documentType))}</h4>
-              ${!hideFolderPill && folderName ? `<span class="doc-folder-pill">${escapeHtml(folderName)}</span>` : ""}
-            </div>
-            <p class="doc-card__file" title="${escapeAttr(doc.fileName)}">${escapeHtml(doc.fileName)}</p>
-            <div class="doc-card__meta">
-              ${renderDocStatusBadge(doc, todayYmd)}
-              <span class="doc-meta-chip">${escapeHtml(formatFileSize(doc.sizeBytes))}</span>
-              ${doc.createdAt ? `<span class="doc-meta-chip" title="Fecha de subida">Subido ${escapeHtml(formatDocumentUploadDate(doc.createdAt))}</span>` : ""}
-              ${doc.uploadedBy ? `<span class="doc-meta-chip" title="Usuario que cargó el archivo">${escapeHtml(String(doc.uploadedBy))}</span>` : ""}
-              ${doc.dueDate ? `<span class="doc-meta-chip">Vence ${escapeHtml(String(doc.dueDate))}</span>` : ""}
-              ${doc.documentCode ? `<span class="doc-meta-chip">Cód. ${escapeHtml(String(doc.documentCode))}</span>` : ""}
-            </div>
-          </div>
-          <div class="doc-card__actions">
-            ${
-              canPreviewDocument(doc)
-                ? `<button type="button" class="doc-action-btn" data-action="doc-preview" data-id="${escapeAttr(String(doc.id))}" title="Vista previa">${IC.eye || "👁"}</button>`
-                : ""
-            }
-            <button type="button" class="doc-action-btn" data-action="doc-download" data-id="${escapeAttr(String(doc.id))}" title="Descargar">${IC.download || "↓"}</button>
-            ${
-              canEditDocumentsModule() || canDeleteDocumentsModule()
-                ? `${canEditDocumentsModule() ? `<button type="button" class="doc-action-btn" data-action="doc-edit" data-id="${escapeAttr(String(doc.id))}" title="Editar metadatos">${IC.edit || "✎"}</button>` : ""}
-            ${canDeleteDocumentsModule() ? `<button type="button" class="doc-action-btn doc-action-btn--danger" data-action="doc-delete" data-id="${escapeAttr(String(doc.id))}" title="Eliminar">${IC.trash || "×"}</button>` : ""}`
-                : ""
-            }
-          </div>
-        </article>`;
-      })
-      .join("")}
-  </div>`;
-}
-
-function renderDocumentsGroupedByFolder(documents, todayYmd, IC, { viewMode = "grid", folderFilter = "" } = {}) {
-  const sorted = sortDocumentsNewestFirst(documents);
-  if (!sorted.length) {
-    return renderEmptyState("No hay documentos en este expediente.", {
-      icon: IC.file || "",
-      hint: "Suba archivos o cambie los filtros de búsqueda."
-    });
-  }
-  if (folderFilter) {
-    return renderDocumentCards(sorted, todayYmd, IC, { viewMode, hideFolderPill: true });
-  }
-  const byFolder = new Map();
-  for (const doc of sorted) {
-    const name = normalizeDocumentFolder(doc.folder);
-    const key = documentFolderKey(name);
-    if (!byFolder.has(key)) byFolder.set(key, { name, docs: [] });
-    byFolder.get(key).docs.push(doc);
-  }
-  const groups = [...byFolder.values()].sort((a, b) => {
-    const aGeneral = documentFolderKey(a.name) === documentFolderKey(DEFAULT_EMPLOYEE_DOCUMENT_FOLDER);
-    const bGeneral = documentFolderKey(b.name) === documentFolderKey(DEFAULT_EMPLOYEE_DOCUMENT_FOLDER);
-    if (aGeneral && !bGeneral) return -1;
-    if (!aGeneral && bGeneral) return 1;
-    return a.name.localeCompare(b.name, "es");
-  });
-  if (groups.length <= 1) {
-    return renderDocumentCards(sorted, todayYmd, IC, { viewMode, hideFolderPill: groups.length === 1 });
-  }
-  return `<div class="doc-folder-groups">
-    ${groups
+function renderKpis(summary, IC) {
+  const cards = [
+    { icon: IC.folder || "", tone: "blue", label: "Carpetas", value: String(summary.folderCount), sub: "Total carpetas" },
+    { icon: IC.file || "", tone: "green", label: "Documentos", value: String(summary.docCount), sub: "Total archivos" },
+    {
+      icon: IC_HDD,
+      tone: "violet",
+      label: "Almacenamiento",
+      value: formatFileSize(summary.totalBytes),
+      sub: `De ${formatFileSize(summary.quotaBytes)} utilizados`
+    },
+    { icon: IC.users || "", tone: "amber", label: "Usuarios", value: String(summary.usersWithAccess), sub: "Con acceso" }
+  ];
+  return `<section class="doc-kpi-grid" aria-label="Indicadores documentales">
+    ${cards
       .map(
-        (group) => `<section class="doc-folder-group" data-folder="${escapeAttr(group.name)}">
-      <header class="doc-folder-group__head">
-        <div class="doc-folder-group__identity">
-          <span class="doc-folder-group__icon" aria-hidden="true">${IC.folder || ""}</span>
-          <h5 class="doc-folder-group__title">${escapeHtml(group.name)}</h5>
+        (c) => `<article class="doc-kpi">
+        <span class="doc-kpi__icon doc-kpi__icon--${c.tone}">${c.icon}</span>
+        <div class="doc-kpi__body">
+          <span class="doc-kpi__label">${escapeHtml(c.label)}</span>
+          <strong class="doc-kpi__value">${escapeHtml(c.value)}</strong>
+          <span class="doc-kpi__sub">${escapeHtml(c.sub)}</span>
         </div>
-        <span class="doc-folder-group__count">${group.docs.length} archivo${group.docs.length === 1 ? "" : "s"}</span>
-      </header>
-      ${renderDocumentCards(group.docs, todayYmd, IC, { viewMode, hideFolderPill: true })}
-    </section>`
+      </article>`
       )
       .join("")}
-  </div>`;
+  </section>`;
 }
 
-function formatDocumentUploadDate(value) {
-  const raw = String(value || "").trim();
-  if (!raw) return "—";
-  const fmt = typeof G.fmtDate === "function" ? G.fmtDate : null;
-  if (fmt) {
-    const labeled = String(fmt(raw) || "").trim();
-    if (labeled) return labeled;
-  }
-  const d = new Date(raw);
-  if (!Number.isNaN(d.getTime())) {
-    return d.toLocaleString("es-CO", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit"
-    });
-  }
-  return raw.slice(0, 10);
-}
-
-function currentDocumentsActorLabel() {
-  const user = typeof G.currentUser === "function" ? G.currentUser() : null;
-  return String(user?.fullName || user?.email || "Portal").trim() || "Portal";
-}
-
-/** Payload de auditoría para Historial (módulo Gestión documental). */
-function buildDocumentAuditDetail(action, doc, extra = {}) {
-  const row = normalizeEmployeeDocumentRow(doc || {});
-  const typeLabel = getEmployeeDocumentTypeLabel(row.documentType || "otro");
-  const uploadedBy = String(row.uploadedBy || extra.uploadedBy || currentDocumentsActorLabel()).trim();
-  const uploadedAt = formatDocumentUploadDate(row.createdAt || extra.at || new Date().toISOString());
-  const folder = normalizeDocumentFolder(row.folder || extra.folder || "");
-  const fileName = String(row.fileName || extra.fileName || "").trim();
-  const reason = String(extra.reason || "").trim();
-  const actionTitle =
-    action === "create"
-      ? "Alta de documento"
-      : action === "delete"
-        ? "Eliminación de documento"
-        : "Actualización de documento";
-  const parts = [actionTitle];
-  if (fileName) parts.push(fileName);
-  if (action === "create") parts.push(`Subido por ${uploadedBy}`);
-  else if (action === "update") parts.push(`Actualizado por ${uploadedBy}`);
-  else if (action === "delete") parts.push(`Eliminado por ${uploadedBy}`);
-  if (reason) parts.push(`Motivo: ${reason}`);
-  const changeBits = [
-    `Fecha subida: ${uploadedAt}`,
-    `Usuario: ${uploadedBy}`,
-    folder ? `Carpeta: ${folder}` : "",
-    typeLabel ? `Tipo: ${typeLabel}` : ""
-  ].filter(Boolean);
-  const detail = {
-    entityId: String(row.id || extra.entityId || "").trim(),
-    entityKind: "document",
-    entityLabel: String(
-      extra.entityLabel || `${row.employeeName || "Colaborador"} · ${typeLabel}`
-    ).trim(),
-    summary: String(extra.summary || parts.join(" · ")).trim(),
-    changesText: String(extra.changesText || changeBits.join(" · ")).trim(),
-    usuario: uploadedBy,
-    actor: uploadedBy
-  };
-  /* Solo fijar `at` en altas: conserva la fecha de subida del documento en Historial. */
-  if (action === "create") {
-    detail.at = row.createdAt || extra.at || new Date().toISOString();
-  } else if (extra.at) {
-    detail.at = extra.at;
-  }
-  return detail;
-}
-
-function renderEmployeeDossierPanel(employee, documents, todayYmd, IC, highlightType = "", { allEmployeeDocs = null, includeFiles = true, compact = false } = {}) {
-  if (!employee) {
-    return `<div class="doc-dossier doc-dossier--empty">${renderEmptyState("Seleccione un colaborador", { icon: IC.user || "", hint: "Elija una persona para ver su expediente y checklist." })}</div>`;
-  }
-  const checklistSource = allEmployeeDocs || documents;
-  const empDocs = documents;
-  const allCount = checklistSource.length;
-  const expected = expectedDocumentTypesForEmployee(employee);
-  const completedCount = expected.filter((t) => employeeHasDocumentType(employee.id, t, checklistSource)).length;
-  const completionPct = expected.length ? Math.round((completedCount / expected.length) * 100) : 100;
-  const completionTone = completionPct >= 100 ? "complete" : completionPct >= 60 ? "mid" : "low";
-  const extraTypes = EMPLOYEE_DOCUMENT_TYPES.map((t) => t.value).filter((v) => !expected.includes(v));
-  const checklistExpected = expected
-    .map((typeValue) =>
-      renderDocumentChecklistItem(typeValue, {
-        employeeId: employee.id,
-        allDocs: checklistSource,
-        todayYmd,
-        highlightType,
-        mode: "view"
-      })
-    )
-    .join("");
-  const checklistExtra = extraTypes
-    .map((typeValue) => {
-      if (!employeeHasDocumentType(employee.id, typeValue, checklistSource)) return "";
-      return renderDocumentChecklistItem(typeValue, {
-        employeeId: employee.id,
-        allDocs: checklistSource,
-        todayYmd,
-        highlightType,
-        mode: "view"
-      });
-    })
-    .filter(Boolean)
-    .join("");
-  return `<aside class="doc-dossier${compact ? " doc-dossier--rail" : ""}">
-    <header class="doc-dossier__head">
-      <div class="doc-dossier__identity">
-        <span class="doc-dossier__avatar" aria-hidden="true">${escapeHtml(employeeInitials(employee.name))}</span>
-        <div>
-          <p class="doc-dossier__eyebrow">Expediente digital</p>
-          <h3 class="doc-dossier__name">${escapeHtml(String(employee.name || "-"))}</h3>
-          <p class="doc-dossier__sub">${escapeHtml(String(employee.documentType || "CC"))} ${escapeHtml(String(employee.idDoc || ""))}${employee.position ? ` · ${escapeHtml(String(employee.position))}` : ""}</p>
-        </div>
-      </div>
-      <div class="doc-dossier__gauge doc-dossier__gauge--${completionTone}" style="--doc-progress:${completionPct}" role="img" aria-label="Checklist ${completionPct}% completo, ${completedCount} de ${expected.length} documentos mínimos">
-        <div class="doc-dossier__gauge-ring">
-          <span class="doc-dossier__gauge-value">${completionPct}<small>%</small></span>
-        </div>
-        <div class="doc-dossier__gauge-meta">
-          <span class="doc-dossier__gauge-label">Completitud</span>
-          <strong class="doc-dossier__gauge-count">${completedCount}/${expected.length}</strong>
-        </div>
-      </div>
-    </header>
-    <div class="doc-dossier__statline">
-      <span><strong>${empDocs.length}${empDocs.length !== allCount ? `/${allCount}` : ""}</strong> archivo${allCount === 1 ? "" : "s"}</span>
-      <span><strong>${expected.length - completedCount}</strong> pendiente${expected.length - completedCount === 1 ? "" : "s"}</span>
-    </div>
-    <div class="doc-checklist-panel">
-      <h4 class="doc-checklist-panel__title">Checklist mínimo</h4>
-      <ul class="doc-checklist">${checklistExpected}</ul>
-      ${checklistExtra ? `<h4 class="doc-checklist-panel__title doc-checklist-panel__title--extra">Otros en expediente</h4><ul class="doc-checklist doc-checklist--extra">${checklistExtra}</ul>` : ""}
-    </div>
-    ${
-      canUploadDocumentsModule()
-        ? `<div class="doc-dossier__actions">
-          <button type="button" class="btn btn-sm btn-primary" data-action="doc-goto-upload" data-employee-id="${escapeAttr(String(employee.id))}">${IC.upload || "+"} Subir</button>
-        </div>`
-        : ""
-    }
-    ${
-      includeFiles
-        ? `<div class="doc-dossier__files">
-      <h4 class="doc-dossier__files-title">Archivos del expediente</h4>
-      ${renderDocumentCards(empDocs, todayYmd, IC)}
-    </div>`
-        : ""
-    }
-  </aside>`;
-}
-
-function renderUploadForm(selectedEmployeeId, selectedDocumentType, allDocs, folderRecords, IC, todayYmd) {
-  const folders = collectEmployeeFolders(selectedEmployeeId, allDocs, folderRecords);
-  const preferredFolder = normalizeDocumentFolder(getDocumentsUi().selectedFolder || "");
-  const folderDefault =
-    preferredFolder && folders.includes(preferredFolder)
-      ? preferredFolder
-      : folders[0] || DEFAULT_EMPLOYEE_DOCUMENT_FOLDER;
-  const folderSelectOptions = folders
-    .map(
-      (name) =>
-        `<option value="${escapeAttr(name)}"${name === folderDefault ? " selected" : ""}>${escapeHtml(name)}</option>`
-    )
-    .join("");
-  const resolvedType = resolveUploadDocumentType(selectedEmployeeId, allDocs, selectedDocumentType);
-  const canCreateFolder = canUploadDocumentsModule();
-  return `<form id="form-employee-document" class="doc-upload-form" enctype="multipart/form-data">
-    <div class="doc-upload-flow">
-      <section class="doc-flow-section doc-flow-section--destino">
-        <header class="doc-flow-section__head">
-          <span class="doc-flow-section__num">01</span>
-          <div>
-            <h4 class="doc-flow-section__title">Destino</h4>
-            <p class="doc-flow-section__hint">Colaborador y carpeta del expediente</p>
-          </div>
-        </header>
-        <div class="doc-flow-section__body doc-flow-fields">
-          <label class="field doc-field doc-field--grow">
-            <span class="doc-field__label">Colaborador</span>
-            <select class="doc-field__control" name="employeeId" required data-doc-employee-select>${renderEmployeeOptions(read(KEYS.payrollEmployees, []), selectedEmployeeId)}</select>
-          </label>
-          <div class="doc-field doc-field--folder">
-            <span class="doc-field__label">Carpeta</span>
-            <div class="doc-folder-control">
-              <select class="doc-field__control" name="folder" required data-doc-folder-select>
-                ${folderSelectOptions || `<option value="${escapeAttr(DEFAULT_EMPLOYEE_DOCUMENT_FOLDER)}" selected>${escapeHtml(DEFAULT_EMPLOYEE_DOCUMENT_FOLDER)}</option>`}
-                ${
-                  canCreateFolder
-                    ? `<option value="__create_folder__">+ Crear carpeta nueva…</option>`
-                    : ""
-                }
-              </select>
-              ${
-                canCreateFolder
-                  ? `<button type="button" class="btn btn-sm btn-outline doc-folder-delete" data-action="doc-delete-folder" title="Eliminar carpeta seleccionada">${IC.trash || "×"}</button>`
-                  : ""
-              }
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="doc-flow-section doc-flow-section--tipo">
-        <header class="doc-flow-section__head">
-          <span class="doc-flow-section__num">02</span>
-          <div>
-            <h4 class="doc-flow-section__title">Tipo documental</h4>
-            <p class="doc-flow-section__hint">Elija el documento del checklist</p>
-          </div>
-        </header>
-        <div class="doc-flow-section__body">
-          ${renderUploadDocumentTypePicker(selectedEmployeeId, allDocs, resolvedType, todayYmd)}
-        </div>
-      </section>
-
-      <section class="doc-flow-section doc-flow-section--archivo">
-        <header class="doc-flow-section__head">
-          <span class="doc-flow-section__num">03</span>
-          <div>
-            <h4 class="doc-flow-section__title">Archivo</h4>
-            <p class="doc-flow-section__hint">Uno o varios · máx. 50 MB c/u</p>
-          </div>
-        </header>
-        <div class="doc-flow-section__body">
-          <div class="doc-dropzone" data-doc-dropzone>
-            <input type="file" name="file" id="doc-upload-file" multiple hidden />
-            <label for="doc-upload-file" class="doc-dropzone__label">
-              <span class="doc-dropzone__halo" aria-hidden="true"></span>
-              <span class="doc-dropzone__icon" aria-hidden="true">${IC.upload || IC.file || ""}</span>
-              <strong class="doc-dropzone__title">Arrastre archivos aquí o haga clic</strong>
-              <strong class="doc-dropzone__title doc-dropzone__title--filled">Archivos listos para registrar</strong>
-              <span class="doc-dropzone__hint">PDF, imágenes, Word, Excel · puede seleccionar varios</span>
-              <span class="doc-dropzone__filename" data-doc-file-label>Sin archivos seleccionados</span>
-            </label>
-            <button type="button" class="doc-dropzone__clear" data-action="doc-clear-upload-files" hidden title="Quitar archivos seleccionados">Quitar</button>
-          </div>
-        </div>
-      </section>
-
-      <details class="doc-flow-section doc-flow-section--extra">
-        <summary class="doc-flow-section__summary">
-          <span class="doc-flow-section__num">+</span>
-          <span>
-            <strong class="doc-flow-section__title">Detalles opcionales</strong>
-            <span class="doc-flow-section__hint">Código, fechas y notas</span>
-          </span>
-        </summary>
-        <div class="doc-flow-section__body doc-flow-fields doc-flow-fields--3">
-          <label class="field doc-field">
-            <span class="doc-field__label">Código</span>
-            <input class="doc-field__control" name="documentCode" type="text" maxlength="64" placeholder="Opcional" />
-          </label>
-          <label class="field doc-field">
-            <span class="doc-field__label">Emisión</span>
-            <input class="doc-field__control" name="issueDate" type="date" />
-          </label>
-          <label class="field doc-field" data-doc-due-wrap>
-            <span class="doc-field__label">Vencimiento</span>
-            <input class="doc-field__control" name="dueDate" type="date" />
-          </label>
-          <label class="field doc-field doc-field--full">
-            <span class="doc-field__label">Observaciones</span>
-            <textarea class="doc-field__control" name="notes" rows="2" maxlength="2000" placeholder="Notas internas RRHH"></textarea>
-          </label>
-        </div>
-      </details>
-    </div>
-
-    <div class="doc-upload-form__actions">
-      <p class="doc-upload-form__note">Los archivos se guardan de forma segura en el expediente digital.</p>
-      <button type="submit" class="btn btn-primary doc-upload-submit" data-doc-submit>${IC.upload || ""} Registrar</button>
-    </div>
-  </form>`;
-}
-
-function renderFolderBreadcrumb(ui, employees) {
-  if (!ui.folderBrowseEmployeeId) {
-    return `<nav class="doc-folder-breadcrumb" aria-label="Ruta del expediente">
-      <span class="doc-folder-crumb doc-folder-crumb--current">Expedientes</span>
-    </nav>`;
-  }
-  const emp = employees.find((e) => String(e.id) === ui.folderBrowseEmployeeId);
-  return `<nav class="doc-folder-breadcrumb" aria-label="Ruta del expediente">
-    <button type="button" class="doc-folder-crumb" data-action="doc-browse-root">Expedientes</button>
-    <span class="doc-folder-crumb-sep" aria-hidden="true">/</span>
-    <span class="doc-folder-crumb doc-folder-crumb--current">${escapeHtml(String(emp?.name || "Colaborador"))}</span>
-  </nav>`;
-}
-
-function employeeMatchesConsultFilters(emp, allDocs, ui, todayYmd) {
-  if (ui.filterEmployeeId && String(emp.id) !== String(ui.filterEmployeeId)) return false;
-  const searchNorm = String(ui.listSearch || "")
-    .trim()
-    .toLowerCase();
-  if (searchNorm) {
-    const identityBlob = `${emp.name || ""} ${emp.idDoc || ""} ${emp.position || ""}`.toLowerCase();
-    const identityMatch = identityBlob.includes(searchNorm);
-    if (!identityMatch) {
-      const docMatch = (allDocs || []).some((raw) => {
-        const doc = normalizeEmployeeDocumentRow(raw);
-        if (String(doc.employeeId) !== String(emp.id)) return false;
-        const blob = [
-          doc.fileName,
-          getEmployeeDocumentTypeLabel(doc.documentType),
-          normalizeDocumentFolder(doc.folder),
-          doc.documentCode,
-          doc.notes,
-          doc.uploadedBy
-        ]
-          .join(" ")
-          .toLowerCase();
-        return blob.includes(searchNorm);
-      });
-      if (!docMatch) return false;
-    }
-  }
-  if (ui.dataSection === "gaps") {
-    return findEmployeeDocumentGaps(emp, allDocs).length > 0;
-  }
-  const empDocs = filterDocuments(
-    allDocs,
-    buildDocumentListFilters(ui, { employeeId: String(emp.id), dataSection: "all" }),
-    todayYmd
-  );
-  if (ui.dataSection === "due_soon" || ui.dataSection === "expired") {
-    const scoped = filterDocuments(
-      allDocs,
-      buildDocumentListFilters(ui, { employeeId: String(emp.id), dataSection: ui.dataSection }),
-      todayYmd
-    );
-    return scoped.length > 0;
-  }
-  if (ui.typeFilter || ui.filterStatus || ui.folderFilter) {
-    return empDocs.length > 0;
-  }
-  return true;
-}
-
-function renderFolderExplorer(employees, allDocs, folderRecords, ui, todayYmd, IC, { embedded = false, gapsCount = 0 } = {}) {
-  const browseEmpId = ui.folderBrowseEmployeeId || "";
-  const viewMode = ui.listViewMode === "grid" ? "grid" : "list";
-  const employeeFolders = browseEmpId
-    ? collectEmployeeFolders(browseEmpId, allDocs, folderRecords)
-    : [];
-
-  const sortedEmployees = [...employees].sort((a, b) =>
-    String(a.name || "").localeCompare(String(b.name || ""), "es")
-  );
-
-  const viewToggle = browseEmpId
-    ? `<div class="doc-view-toggle" role="group" aria-label="Vista de documentos">
-        <button type="button" class="doc-view-toggle__btn${viewMode === "list" ? " is-active" : ""}" data-action="doc-list-view" data-view="list" title="Vista en lista" aria-pressed="${viewMode === "list" ? "true" : "false"}">Lista</button>
-        <button type="button" class="doc-view-toggle__btn${viewMode === "grid" ? " is-active" : ""}" data-action="doc-list-view" data-view="grid" title="Vista en cuadrícula" aria-pressed="${viewMode === "grid" ? "true" : "false"}">Cuadrícula</button>
-      </div>`
+function renderToolbar(ui, IC) {
+  const newFolderBtn = canUpload()
+    ? `<button type="button" class="doc-btn doc-btn--ghost" data-action="doc-new-folder">${IC.plus || ""}<span>Nueva carpeta</span></button>`
     : "";
-
-  const toolbar = `<div class="doc-folder-toolbar doc-folder-toolbar--panel">
-    ${renderFolderBreadcrumb(ui, employees)}
-    <div class="doc-folder-toolbar__actions">
-      ${viewToggle}
-      ${
-        canViewDocumentsModule()
-          ? `<button type="button" class="btn btn-sm btn-outline" data-action="doc-export-csv" title="Exportar CSV">${IC.download || ""} CSV</button>`
-          : ""
-      }
-      ${
-        browseEmpId && canUploadDocumentsModule()
-          ? `<button type="button" class="btn btn-sm btn-outline" data-action="doc-new-folder" data-employee-id="${escapeAttr(browseEmpId)}">${IC.folder || ""} Carpeta</button>
-             <button type="button" class="btn btn-sm btn-primary" data-action="doc-goto-upload" data-employee-id="${escapeAttr(browseEmpId)}">${IC.upload || "+"} Subir</button>`
-          : ""
-      }
+  const typeOptions = TYPE_FILTERS.map(
+    (t) => `<option value="${escapeAttr(t.value)}"${ui.typeFilter === t.value ? " selected" : ""}>${escapeHtml(t.label)}</option>`
+  ).join("");
+  return `<div class="doc-toolbar">
+    <div class="doc-toolbar__left">
+      ${newFolderBtn}
+      <button type="button" class="doc-btn doc-btn--ghost${ui.showFilters ? " is-active" : ""}" data-action="doc-toggle-filters" aria-pressed="${ui.showFilters ? "true" : "false"}">${IC.filter || ""}<span>Filtros</span></button>
+      <label class="doc-select">
+        <select data-action="doc-type-filter" aria-label="Filtrar por tipo">${typeOptions}</select>
+      </label>
+    </div>
+    <div class="doc-toolbar__right">
+      <div class="doc-viewtoggle" role="group" aria-label="Vista">
+        <button type="button" class="doc-viewtoggle__btn${ui.viewMode === "grid" ? " is-active" : ""}" data-action="doc-view" data-view-mode="grid" aria-label="Vista en cuadrícula" aria-pressed="${ui.viewMode === "grid" ? "true" : "false"}">${IC.grid || ""}</button>
+        <button type="button" class="doc-viewtoggle__btn${ui.viewMode !== "grid" ? " is-active" : ""}" data-action="doc-view" data-view-mode="list" aria-label="Vista en lista" aria-pressed="${ui.viewMode !== "grid" ? "true" : "false"}">${IC.list || ""}</button>
+      </div>
     </div>
   </div>`;
-
-  const wrapExplorer = (body, resultHint = "") =>
-    `<div class="doc-explorer-panel${embedded ? " doc-explorer-panel--embedded" : ""}">
-      <div class="doc-explorer-top">
-        ${renderDocumentsFilterBar({ ui, employees, folderNames: employeeFolders, mode: "browse", gapsCount })}
-        <div class="doc-explorer-top__meta">${resultHint}${toolbar}</div>
-      </div>
-      <div class="doc-explorer-body">${body}</div>
-    </div>`;
-
-  if (!browseEmpId) {
-    const visible = sortedEmployees.filter((emp) => employeeMatchesConsultFilters(emp, allDocs, ui, todayYmd));
-    const resultHint = renderResultMeta(
-      `<strong>${visible.length}</strong> expediente${visible.length === 1 ? "" : "s"}`
-    );
-    const tiles = visible
-      .map((emp) => {
-        const empDocs = allDocs.filter(
-          (d) => String(normalizeEmployeeDocumentRow(d).employeeId) === String(emp.id)
-        );
-        const docCount = empDocs.length;
-        const missing = findEmployeeDocumentGaps(emp, allDocs).length;
-        const expected = expectedDocumentTypesForEmployee(emp);
-        const completedCount = expected.filter((t) => employeeHasDocumentType(emp.id, t, allDocs)).length;
-        const completionPct = expected.length ? Math.round((completedCount / expected.length) * 100) : 100;
-        const tone = missing ? "gap" : completionPct >= 100 ? "ok" : "mid";
-        const expiredCount = empDocs.filter(
-          (d) => computeEmployeeDocumentStatus(normalizeEmployeeDocumentRow(d).dueDate, todayYmd) === "Vencido"
-        ).length;
-        const dueSoonCount = empDocs.filter(
-          (d) => computeEmployeeDocumentStatus(normalizeEmployeeDocumentRow(d).dueDate, todayYmd) === "Por vencer"
-        ).length;
-        return `<button type="button" class="doc-folder-tile doc-folder-tile--employee doc-folder-tile--row doc-folder-tile--${tone}" data-action="doc-browse-employee" data-employee-id="${escapeAttr(String(emp.id))}">
-          <span class="doc-folder-tile__avatar" aria-hidden="true">${escapeHtml(employeeInitials(emp.name))}</span>
-          <span class="doc-folder-tile__main">
-            <strong class="doc-folder-tile__title">${escapeHtml(String(emp.name || "-"))}</strong>
-            <span class="doc-folder-tile__sub">${escapeHtml(String(emp.documentType || "CC"))} ${escapeHtml(String(emp.idDoc || ""))}${emp.position ? ` · ${escapeHtml(String(emp.position))}` : ""}</span>
-          </span>
-          <span class="doc-folder-tile__stats">
-            <span class="doc-folder-tile__stat"><strong>${docCount}</strong> docs</span>
-            <span class="doc-folder-tile__stat" title="Completitud del checklist"><strong>${completionPct}%</strong></span>
-            ${missing ? `<span class="doc-folder-tile__badge doc-folder-tile__badge--gap">${missing} pend.</span>` : `<span class="doc-folder-tile__badge doc-folder-tile__badge--ok">OK</span>`}
-            ${dueSoonCount ? `<span class="doc-folder-tile__badge doc-folder-tile__badge--warn">${dueSoonCount} por vencer</span>` : ""}
-            ${expiredCount ? `<span class="doc-folder-tile__badge doc-folder-tile__badge--expired">${expiredCount} venc.</span>` : ""}
-          </span>
-          <span class="doc-folder-tile__chevron" aria-hidden="true">→</span>
-        </button>`;
-      })
-      .join("");
-    return wrapExplorer(
-      `<div class="doc-folder-list">${tiles || renderEmptyState("No hay colaboradores que coincidan.", { icon: IC.search || "", hint: "Ajuste la búsqueda o limpie los filtros." })}</div>`,
-      resultHint
-    );
-  }
-
-  const employee = employees.find((e) => String(e.id) === browseEmpId);
-  if (!employee) {
-    return wrapExplorer(renderEmptyState("Colaborador no encontrado.", { icon: IC.alertTriangle || "" }));
-  }
-
-  const allEmployeeDocs = allDocs.filter(
-    (d) => String(normalizeEmployeeDocumentRow(d).employeeId) === browseEmpId
-  );
-  const employeeDocs = filterDocuments(
-    allDocs,
-    buildDocumentListFilters(ui, {
-      employeeId: browseEmpId,
-      dataSection: ui.dataSection === "gaps" ? "all" : ui.dataSection
-    }),
-    todayYmd
-  );
-  const resultHint = renderResultMeta(
-    `<strong>${employeeDocs.length}</strong> archivo${employeeDocs.length === 1 ? "" : "s"}${
-      employeeFolders.length > 1 ? ` · <strong>${employeeFolders.length}</strong> carpetas` : ""
-    }`
-  );
-
-  const dossier = renderEmployeeDossierPanel(employee, employeeDocs, todayYmd, IC, ui.highlightDocumentType, {
-    allEmployeeDocs,
-    includeFiles: false,
-    compact: true
-  });
-  const filesPane = `<div class="doc-files-pane">
-    <header class="doc-files-pane__head">
-      <h4 class="doc-files-pane__title">Archivos</h4>
-      ${
-        ui.folderFilter
-          ? `<button type="button" class="btn btn-sm btn-outline" data-action="doc-clear-folder-filter">Quitar filtro de carpeta</button>`
-          : ""
-      }
-    </header>
-    ${renderDocumentsGroupedByFolder(employeeDocs, todayYmd, IC, {
-      viewMode,
-      folderFilter: ui.folderFilter
-    })}
-  </div>`;
-
-  return wrapExplorer(`<div class="doc-consult-split">${dossier}${filesPane}</div>`, resultHint);
 }
+
+function renderFilterBar(ui, docs, folders) {
+  if (!ui.showFilters) return "";
+  const paths = collectAllFolderPaths(docs, folders);
+  const topFolders = [...new Set(paths.map((p) => topFolderName(p)))].sort((a, b) =>
+    a.localeCompare(b, "es", { numeric: true })
+  );
+  const opts = [`<option value="">Todas las carpetas</option>`]
+    .concat(
+      topFolders.map(
+        (name) =>
+          `<option value="${escapeAttr(name)}"${folderKey(ui.folderFilter) === folderKey(name) ? " selected" : ""}>${escapeHtml(name)}</option>`
+      )
+    )
+    .join("");
+  return `<div class="doc-filterbar">
+    <label class="doc-select doc-select--labeled">
+      <span>Carpeta</span>
+      <select data-action="doc-folder-filter" aria-label="Filtrar por carpeta">${opts}</select>
+    </label>
+    <button type="button" class="doc-btn doc-btn--ghost doc-btn--sm" data-action="doc-clear-filters">Limpiar filtros</button>
+    <button type="button" class="doc-btn doc-btn--ghost doc-btn--sm" data-action="doc-export-csv">Exportar CSV</button>
+  </div>`;
+}
+
+function folderTone(index) {
+  const tones = ["blue", "green", "violet", "amber", "cyan", "rose"];
+  return tones[index % tones.length];
+}
+
+function renderMainFolders(topFolders, ui, IC) {
+  if (!topFolders.length) {
+    return `<section class="doc-folders">
+      <h2 class="doc-section-title">Carpetas principales</h2>
+      <p class="doc-empty-inline">Aún no hay carpetas. Cree una con “Nueva carpeta”.</p>
+    </section>`;
+  }
+  const showPerms = canManageFolderPermissions();
+  const cards = topFolders
+    .map((f, i) => {
+      const active = ui.folderFilter && folderKey(topFolderName(ui.folderFilter)) === f.key;
+      const count = f.subfolderCount > 0 ? `${f.subfolderCount} carpeta${f.subfolderCount === 1 ? "" : "s"}` : `${f.docCount} archivo${f.docCount === 1 ? "" : "s"}`;
+      const restricted = folderRoleAllowlist(readFolders(), f.name, "view").length > 0;
+      const permsBtn = showPerms
+        ? `<button type="button" class="doc-folder-card__perms" data-action="doc-folder-perms" data-folder="${escapeAttr(f.name)}" aria-label="Permisos de ${escapeAttr(f.name)}" title="Permisos de carpeta">${IC.lock || IC_LOCK}</button>`
+        : "";
+      const lockBadge = restricted ? `<span class="doc-folder-card__lock" title="Carpeta restringida">${IC_LOCK}</span>` : "";
+      return `<div class="doc-folder-card${active ? " is-active" : ""}${restricted ? " is-restricted" : ""}">
+        <button type="button" class="doc-folder-card__open" data-action="doc-open-folder" data-folder="${escapeAttr(f.name)}">
+          <span class="doc-folder-card__icon doc-folder-card__icon--${folderTone(i)}">${IC.folder || ""}</span>
+          <span class="doc-folder-card__body">
+            <span class="doc-folder-card__name">${escapeHtml(f.name)}${lockBadge}</span>
+            <span class="doc-folder-card__meta">${escapeHtml(count)}</span>
+          </span>
+        </button>
+        ${permsBtn}
+      </div>`;
+    })
+    .join("");
+  return `<section class="doc-folders">
+    <div class="doc-folders__head">
+      <h2 class="doc-section-title">Carpetas principales</h2>
+      <div class="doc-folders__nav">
+        <button type="button" class="doc-scroll-btn" data-action="doc-folders-scroll" data-dir="-1" aria-label="Anterior">${IC.chevronLeft || "‹"}</button>
+        <button type="button" class="doc-scroll-btn" data-action="doc-folders-scroll" data-dir="1" aria-label="Siguiente">${IC.chevronRight || "›"}</button>
+      </div>
+    </div>
+    <div class="doc-folders__rail" data-doc-folders-rail>${cards}</div>
+  </section>`;
+}
+
+function typeBadge(doc) {
+  const group = fileTypeGroup(doc.fileName, doc.mimeType);
+  const label = fileTypeLabel(doc.fileName, doc.mimeType);
+  return `<span class="doc-filetype doc-filetype--${group}" title="${escapeAttr(label)}">${escapeHtml(label.slice(0, 4))}</span>`;
+}
+
+function rowMenu(doc, IC, folders = []) {
+  const canPrev = canPreviewFileType(doc.fileName, doc.mimeType);
+  const items = [];
+  if (canPrev) items.push(`<button type="button" data-action="doc-preview" data-id="${escapeAttr(doc.id)}">${IC.eye || ""}<span>Vista previa</span></button>`);
+  items.push(`<button type="button" data-action="doc-download" data-id="${escapeAttr(doc.id)}">${IC.download || ""}<span>Descargar</span></button>`);
+  if (canEditFolder(folders, doc.folder)) items.push(`<button type="button" data-action="doc-edit" data-id="${escapeAttr(doc.id)}">${IC.edit || ""}<span>Editar / mover</span></button>`);
+  if (canDeleteFolder(folders, doc.folder)) items.push(`<button type="button" class="is-danger" data-action="doc-delete" data-id="${escapeAttr(doc.id)}">${IC.trash || ""}<span>Eliminar</span></button>`);
+  return `<details class="doc-rowmenu">
+    <summary class="doc-iconbtn" aria-label="Acciones">${IC_DOTS}</summary>
+    <div class="doc-rowmenu__list">${items.join("")}</div>
+  </details>`;
+}
+
+function renderTable(pageDocs, IC, folders = []) {
+  if (!pageDocs.length) {
+    return `<div class="doc-empty">
+      <span class="doc-empty__icon">${IC.inbox || IC.file || ""}</span>
+      <p class="doc-empty__title">No hay documentos que coincidan</p>
+      <p class="doc-empty__hint">Ajuste la búsqueda o los filtros, o suba un nuevo documento.</p>
+    </div>`;
+  }
+  const rows = pageDocs
+    .map(
+      (d) => `<tr>
+      <td class="doc-cell-name">
+        <span class="doc-fileicon doc-fileicon--${fileTypeGroup(d.fileName, d.mimeType)}">${IC.file || ""}</span>
+        <span class="doc-cell-name__text" title="${escapeAttr(d.fileName)}">${escapeHtml(d.fileName)}</span>
+      </td>
+      <td>${typeBadge(d)}</td>
+      <td class="doc-cell-folder">${escapeHtml(d.folder)}</td>
+      <td class="doc-cell-size">${escapeHtml(formatFileSize(d.sizeBytes))}</td>
+      <td class="doc-cell-date">${escapeHtml(formatDate(d.updatedAt))}</td>
+      <td class="doc-cell-actions">${rowMenu(d, IC, folders)}</td>
+    </tr>`
+    )
+    .join("");
+  return `<div class="doc-table-wrap">
+    <table class="doc-table">
+      <thead><tr>
+        <th>Nombre</th><th>Tipo</th><th>Carpeta</th><th>Tamaño</th><th>Fecha de modificación</th><th aria-label="Acciones"></th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
+}
+
+function renderGrid(pageDocs, IC, folders = []) {
+  if (!pageDocs.length) {
+    return `<div class="doc-empty">
+      <span class="doc-empty__icon">${IC.inbox || IC.file || ""}</span>
+      <p class="doc-empty__title">No hay documentos que coincidan</p>
+      <p class="doc-empty__hint">Ajuste la búsqueda o los filtros, o suba un nuevo documento.</p>
+    </div>`;
+  }
+  const cards = pageDocs
+    .map(
+      (d) => `<article class="doc-card">
+      <header class="doc-card__head">
+        <span class="doc-fileicon doc-fileicon--${fileTypeGroup(d.fileName, d.mimeType)}">${IC.file || ""}</span>
+        ${rowMenu(d, IC, folders)}
+      </header>
+      <p class="doc-card__name" title="${escapeAttr(d.fileName)}">${escapeHtml(d.fileName)}</p>
+      <p class="doc-card__folder">${escapeHtml(d.folder)}</p>
+      <footer class="doc-card__foot">
+        <span>${escapeHtml(formatFileSize(d.sizeBytes))}</span>
+        <span>${escapeHtml(formatDateShort(d.updatedAt))}</span>
+      </footer>
+    </article>`
+    )
+    .join("");
+  return `<div class="doc-grid">${cards}</div>`;
+}
+
+function renderPagination(totalItems, page) {
+  const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
+  if (totalPages <= 1) {
+    return `<div class="doc-listfoot"><button type="button" class="doc-link" data-action="doc-see-all">Ver todos los documentos</button><span class="doc-count">${totalItems} documento${totalItems === 1 ? "" : "s"}</span></div>`;
+  }
+  const current = Math.min(Math.max(1, page), totalPages);
+  let pages = "";
+  for (let p = 1; p <= totalPages; p += 1) {
+    pages += `<button type="button" class="doc-page${p === current ? " is-active" : ""}" data-action="doc-page" data-page="${p}">${p}</button>`;
+  }
+  return `<div class="doc-listfoot">
+    <button type="button" class="doc-link" data-action="doc-see-all">Ver todos los documentos</button>
+    <nav class="doc-pager" aria-label="Paginación">
+      <button type="button" class="doc-page doc-page--nav" data-action="doc-page" data-page="${current - 1}"${current === 1 ? " disabled" : ""}>‹</button>
+      ${pages}
+      <button type="button" class="doc-page doc-page--nav" data-action="doc-page" data-page="${current + 1}"${current === totalPages ? " disabled" : ""}>›</button>
+    </nav>
+  </div>`;
+}
+
+function renderStorageCard(summary, IC) {
+  const pct = summary.usedPercent;
+  const radius = 52;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference * (1 - pct / 100);
+  return `<article class="doc-side-card doc-storage-card">
+    <h3 class="doc-side-card__title">Almacenamiento</h3>
+    <div class="doc-storage">
+      <div class="doc-donut" role="img" aria-label="${pct}% de almacenamiento utilizado">
+        <svg viewBox="0 0 120 120">
+          <circle class="doc-donut__track" cx="60" cy="60" r="${radius}" />
+          <circle class="doc-donut__value" cx="60" cy="60" r="${radius}" stroke-dasharray="${circumference.toFixed(1)}" stroke-dashoffset="${offset.toFixed(1)}" transform="rotate(-90 60 60)" />
+        </svg>
+        <span class="doc-donut__label">${pct}%</span>
+      </div>
+      <div class="doc-storage__meta">
+        <strong>${escapeHtml(formatFileSize(summary.totalBytes))} <span>utilizados</span></strong>
+        <span class="doc-storage__quota">De ${escapeHtml(formatFileSize(summary.quotaBytes))}</span>
+      </div>
+    </div>
+    <button type="button" class="doc-link doc-link--row" data-action="doc-storage-details">Ver detalles de almacenamiento ${IC.chevronRight || "›"}</button>
+  </article>`;
+}
+
+function renderRecentSidebar(recentDocs, IC) {
+  const items = recentDocs.length
+    ? recentDocs
+        .map(
+          (d) => `<li class="doc-recent-item" data-action="doc-recent-open" data-id="${escapeAttr(d.id)}" tabindex="0" role="button">
+        <span class="doc-fileicon doc-fileicon--${fileTypeGroup(d.fileName, d.mimeType)}">${IC.file || ""}</span>
+        <span class="doc-recent-item__body">
+          <span class="doc-recent-item__name" title="${escapeAttr(d.fileName)}">${escapeHtml(d.fileName)}</span>
+          <span class="doc-recent-item__date">${escapeHtml(formatDate(d.updatedAt))}</span>
+        </span>
+      </li>`
+        )
+        .join("")
+    : `<li class="doc-recent-empty">Sin documentos recientes.</li>`;
+  return `<article class="doc-side-card">
+    <h3 class="doc-side-card__title">Documentos recientes</h3>
+    <ul class="doc-recent-list">${items}</ul>
+    <button type="button" class="doc-link doc-link--row" data-action="doc-see-all">Ver todos los recientes ${IC.chevronRight || "›"}</button>
+  </article>`;
+}
+
+function renderBreadcrumb(ui) {
+  if (!ui.folderFilter) return "";
+  const segs = folderSegments(ui.folderFilter);
+  const parts = [`<button type="button" class="doc-crumb" data-action="doc-crumb" data-path="">Todas</button>`];
+  const acc = [];
+  segs.forEach((seg, i) => {
+    acc.push(seg);
+    const path = acc.join(" / ");
+    parts.push(`<span class="doc-crumb-sep">›</span>`);
+    if (i === segs.length - 1) {
+      parts.push(`<span class="doc-crumb is-current">${escapeHtml(seg)}</span>`);
+    } else {
+      parts.push(`<button type="button" class="doc-crumb" data-action="doc-crumb" data-path="${escapeAttr(path)}">${escapeHtml(seg)}</button>`);
+    }
+  });
+  return `<nav class="doc-breadcrumb" aria-label="Ruta de carpeta">${parts.join("")}</nav>`;
+}
+
+function renderSubfolders(ui, docs, folders, IC) {
+  if (!ui.folderFilter) return "";
+  const subs = collectSubfolders(docs, folders, ui.folderFilter);
+  if (!subs.length) return "";
+  const chips = subs
+    .map(
+      (s) => `<button type="button" class="doc-subchip" data-action="doc-open-subfolder" data-path="${escapeAttr(s.path)}">
+      <span class="doc-subchip__icon">${IC.folder || ""}</span>
+      <span class="doc-subchip__name">${escapeHtml(s.name)}</span>
+      <span class="doc-subchip__count">${s.docCount}</span>
+    </button>`
+    )
+    .join("");
+  return `<div class="doc-subfolders">${chips}</div>`;
+}
+
+function renderOnboarding(IC) {
+  const actions = canUpload()
+    ? `<div class="doc-onboarding__actions">
+        <button type="button" class="doc-btn doc-btn--primary" data-action="doc-upload">${IC.upload || ""}<span>Subir documento</span></button>
+        <button type="button" class="doc-btn doc-btn--ghost" data-action="doc-create-structure">${IC_FOLDER_PLUS}<span>Crear estructura sugerida</span></button>
+      </div>`
+    : `<p class="doc-onboarding__hint">Aún no hay documentos. Pida acceso de carga para empezar.</p>`;
+  return `<section class="doc-onboarding">
+    <span class="doc-onboarding__icon">${IC.folder || ""}</span>
+    <h2 class="doc-onboarding__title">Comienza tu gestor documental</h2>
+    <p class="doc-onboarding__text">Organiza los documentos de la empresa en carpetas como Empleados, Contratación, SST, Legal y Finanzas. Sube tu primer archivo o crea la estructura sugerida.</p>
+    ${actions}
+  </section>`;
+}
+
+/* ------------------------------------------------------------------ */
+/* Render principal                                                    */
+/* ------------------------------------------------------------------ */
 
 function documentManagementHtml() {
   const IC = G.IC || {};
-  const employees = read(KEYS.payrollEmployees, []);
-  const allDocs = read(KEYS.employeeDocuments, []).map(normalizeEmployeeDocumentRow);
-  const folderRecords = read(KEYS.employeeDocumentFolders, []).map(normalizeEmployeeDocumentFolderRow);
-  const todayYmd = colombiaTodayIsoDate();
-  const ui = getDocumentsUi();
-  const ws = ui.workspace === "upload" ? "upload" : "consult";
-  const summary = summarizeEmployeeDocuments(allDocs, todayYmd);
-  const gapsCount = countEmployeesWithDocumentGaps(employees, allDocs);
+  if (!canView()) {
+    return `<section class="documents-studio doc-studio"><div class="doc-empty"><p class="doc-empty__title">No tiene permiso para consultar la gestión documental.</p></div></section>`;
+  }
+  const ui = getUi();
+  const allFolders = readFolders();
+  const docs = visibleDocs(readDocs(), allFolders);
+  const folders = visibleFolders(allFolders);
+  const summary = summarizeCompanyDocuments(docs, folders, usersWithAccessCount());
+  const topFolders = collectTopFolders(docs, folders);
 
-  const moduleHead = renderHrFormHero({
-    eyebrow: "Recursos humanos",
-    title: "Gestión documental",
-    description: "Expediente digital por colaborador: suba, consulte y controle vencimientos.",
-    badges: [
-      renderHrFormHeroBadge(String(summary.total), "documentos"),
-      summary.expired > 0 ? renderHrFormHeroBadge(String(summary.expired), "vencidos") : "",
-      renderHrFormHeroBadge(String(summary.employeesWithDocs), "expedientes")
-    ].filter(Boolean)
-  });
+  const filtered = sortByRecent(
+    applyCompanyDocumentFilters(docs, { search: ui.search, type: ui.typeFilter, folder: ui.folderFilter })
+  );
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  if (ui.page > totalPages) ui.page = totalPages;
+  if (ui.page < 1) ui.page = 1;
+  const pageDocs = filtered.slice((ui.page - 1) * PAGE_SIZE, ui.page * PAGE_SIZE);
+  const recent = sortByRecent(docs).slice(0, RECENT_SIDEBAR_COUNT);
+  const isEmpty = docs.length === 0 && topFolders.length === 0;
 
-  const documentTabs = [
-    canUploadDocumentsModule()
-      ? { id: "upload", label: "Subir documento", icon: "upload", hint: "Registrar archivos" }
-      : null,
-    canViewDocumentsModule()
-      ? { id: "consult", label: "Consultar", icon: "folder", hint: "Expedientes por colaborador" }
-      : null
-  ].filter(Boolean);
+  const listTitle = ui.folderFilter
+    ? `Documentos · ${escapeHtml(folderLeafName(ui.folderFilter))}`
+    : "Documentos recientes";
+  const listBody = ui.viewMode === "grid" ? renderGrid(pageDocs, IC, folders) : renderTable(pageDocs, IC, folders);
 
-  const tabsNav = renderHrWorkspaceTabs({
-    module: "documents",
-    ariaLabel: "Secciones del módulo Gestión documental",
-    activeId: documentTabs.some((t) => t.id === ws) ? ws : documentTabs[0]?.id || "consult",
-    variant: "switch",
-    tabs: documentTabs
-  });
-  const header = renderHrWorkspaceHeader(moduleHead, tabsNav, "payroll");
+  const mainInner = isEmpty
+    ? `${renderToolbar(ui, IC)}${renderOnboarding(IC)}`
+    : `${renderToolbar(ui, IC)}
+        ${renderFilterBar(ui, docs, folders)}
+        ${renderMainFolders(topFolders, ui, IC)}
+        <section class="doc-list">
+          <div class="doc-list__head">
+            <div class="doc-list__headline">
+              <h2 class="doc-section-title">${listTitle}</h2>
+              ${renderBreadcrumb(ui)}
+            </div>
+            ${ui.folderFilter ? `<button type="button" class="doc-link doc-link--sm" data-action="doc-clear-folder">Ver todo</button>` : ""}
+          </div>
+          ${renderSubfolders(ui, docs, folders, IC)}
+          ${listBody}
+          ${renderPagination(filtered.length, ui.page)}
+        </section>`;
 
-  const uploadPanel = `<div class="hr-workspace-panel payroll-workspace-panel doc-workspace-panel${ws === "upload" ? "" : " hidden"}" role="tabpanel" data-doc-panel="upload">
-    <div class="doc-stage doc-stage--upload">
-      ${canUploadDocumentsModule() ? renderUploadForm(ui.selectedEmployeeId, ui.selectedDocumentType, allDocs, folderRecords, IC, todayYmd) : `<p class="doc-stage__denied">No tiene permiso para registrar documentos.</p>`}
+  return `<section class="documents-studio doc-studio">
+    ${renderHeader(ui, IC)}
+    ${renderKpis(summary, IC)}
+    <div class="doc-layout">
+      <div class="doc-main">
+        <div class="doc-panel">
+          ${mainInner}
+        </div>
+      </div>
+      <aside class="doc-side">
+        ${renderStorageCard(summary, IC)}
+        ${renderRecentSidebar(recent, IC)}
+      </aside>
     </div>
-  </div>`;
-
-  const consultPanel = `<div class="hr-workspace-panel payroll-workspace-panel doc-workspace-panel${ws === "consult" ? "" : " hidden"}" role="tabpanel" data-doc-panel="consult">
-    <div class="doc-stage doc-stage--consult">
-      ${canViewDocumentsModule() ? renderFolderExplorer(employees, allDocs, folderRecords, ui, todayYmd, IC, { embedded: true, gapsCount }) : `<p class="doc-stage__denied">No tiene permiso para consultar documentos.</p>`}
-    </div>
-  </div>`;
-
-  const kpiBlock = renderKpiCards(summary, IC, gapsCount, ui.dataSection === "gaps" || ui.dataSection === "due_soon" || ui.dataSection === "expired" ? ui.dataSection : "all");
-  const studioClass = `documents-studio payroll-studio payroll-shell payroll-shell--workspace hr-flow-shell`;
-  return `<section class="${studioClass}" data-hr-workspace="${escapeAttr(ws)}">${header}${kpiBlock}<div class="hr-workspace-panels doc-workspace-panels">${uploadPanel}${consultPanel}</div></section>`;
+  </section>`;
 }
 
-async function uploadFileToR2(file, employeeId, documentType, folder) {
+/* ------------------------------------------------------------------ */
+/* Subida / carpetas / edición                                        */
+/* ------------------------------------------------------------------ */
+
+async function uploadFileToR2(file, folder) {
   const api = window.AntaresApi;
   if (!api?.postFormData || !api.isConfigured?.()) {
     throw new Error("API no configurada para subir archivos.");
   }
   const fd = new FormData();
   fd.append("file", file, file.name || "documento");
-  fd.append("employeeId", employeeId);
-  fd.append("documentType", documentType);
-  fd.append("folder", normalizeDocumentFolder(folder));
-  return api.postFormData("/uploads/employee-document", fd);
+  fd.append("folder", normalizeCompanyFolder(folder));
+  return api.postFormData("/uploads/company-document", fd);
 }
 
-function canPreviewDocument(doc) {
-  const mime = String(doc?.mimeType || "").toLowerCase();
-  const name = String(doc?.fileName || "").toLowerCase();
-  if (mime.startsWith("image/") || mime.includes("pdf")) return true;
-  if (/\.(pdf|png|jpe?g|gif|webp|bmp|svg)$/i.test(name)) return true;
-  return false;
+function folderOptionsHtml(selectedPath) {
+  const docs = readDocs();
+  const folders = readFolders();
+  let paths = collectAllFolderPaths(docs, folders).filter((p) => canUploadFolder(folders, p));
+  if (!paths.length) paths.push(DEFAULT_COMPANY_FOLDER);
+  const sel = normalizeCompanyFolder(selectedPath || paths[0]);
+  return paths
+    .map((p) => ({ value: p, label: p, selected: folderKey(p) === folderKey(sel) }));
 }
 
-function applyPendingUploadFileToDom(root = nodes.viewRoot) {
-  if (!root) return;
-  const fileInput = root.querySelector("#doc-upload-file");
-  const fileLabel = root.querySelector("[data-doc-file-label]");
-  const dropzone = root.querySelector("[data-doc-dropzone]");
-  const clearBtn = root.querySelector("[data-action='doc-clear-upload-files']");
-  if (!fileInput) return;
-  const files = pendingUploadFiles.filter((f) => f instanceof File);
-  if (files.length) {
-    try {
-      const dt = new DataTransfer();
-      for (const f of files) dt.items.add(f);
-      fileInput.files = dt.files;
-    } catch (_err) {
-      /* submit usará pendingUploadFiles */
-    }
-    if (fileLabel) {
-      if (files.length === 1) {
-        fileLabel.textContent = `${files[0].name} (${formatFileSize(files[0].size)})`;
-      } else {
-        const total = files.reduce((sum, f) => sum + (Number(f.size) || 0), 0);
-        fileLabel.textContent = `${files.length} archivos · ${formatFileSize(total)}`;
-      }
-    }
-    dropzone?.classList.add("is-filled");
-    if (clearBtn) clearBtn.hidden = false;
-  } else {
-    if (fileLabel) fileLabel.textContent = "Sin archivos seleccionados";
-    dropzone?.classList.remove("is-filled");
-    if (fileInput) fileInput.value = "";
-    if (clearBtn) clearBtn.hidden = true;
-  }
-}
+function wireDropzone(formEl) {
+  if (!formEl) return;
+  const area = formEl.querySelector("#doc-dropzone-area");
+  const input = formEl.querySelector("#doc-file-input");
+  const list = formEl.querySelector("#doc-file-list");
+  if (!area || !input || !list) return;
 
-function setPendingUploadFiles(fileList) {
-  const list = Array.from(fileList || []).filter((f) => f instanceof File);
-  pendingUploadFiles = list;
-  applyPendingUploadFileToDom();
-}
-
-function clearPendingUploadFile() {
-  pendingUploadFiles = [];
-  applyPendingUploadFileToDom();
-}
-
-function getSelectedUploadFiles(fileInput) {
-  const fromInput = fileInput?.files?.length ? Array.from(fileInput.files) : [];
-  if (fromInput.length) return fromInput;
-  return pendingUploadFiles.filter((f) => f instanceof File);
-}
-
-/** Un resumen diario a RRHH (sin saturar la bandeja). */
-let __docExpiryDigestWallMs = 0;
-async function maybeDispatchDocumentExpiryDigest() {
-  if (!canViewDocumentsModule()) return;
-  const now = Date.now();
-  if (now - __docExpiryDigestWallMs < 45000) return;
-  const todayYmd = colombiaTodayIsoDate();
-  const storageKey = "antares_doc_expiry_digest_v1";
-  try {
-    if (localStorage.getItem(storageKey) === todayYmd) return;
-  } catch (_e) {
-    /* noop */
-  }
-  __docExpiryDigestWallMs = now;
-  const allDocs = read(KEYS.employeeDocuments, []).map(normalizeEmployeeDocumentRow);
-  const summary = summarizeEmployeeDocuments(allDocs, todayYmd);
-  if (!summary.expired && !summary.dueSoon) {
-    try {
-      localStorage.setItem(storageKey, todayYmd);
-    } catch (_e2) {
-      /* noop */
-    }
-    return;
-  }
-  const dispatch = G.dispatchPortalNotification;
-  if (typeof dispatch !== "function") return;
-  const parts = [];
-  if (summary.expired) {
-    parts.push(`${summary.expired} vencido${summary.expired === 1 ? "" : "s"}`);
-  }
-  if (summary.dueSoon) {
-    parts.push(`${summary.dueSoon} por vencer`);
-  }
-  const ok = await dispatch({
-    audience: "hr",
-    title: "Documentos por revisar",
-    body: `${parts.join(" · ")}. Abra Gestión documental.`,
-    category: "hr",
-    deepLink: "#portal/document-management",
-    entityType: "employee",
-    entityId: `doc_expiry_${todayYmd}`
-  });
-  if (ok) {
-    try {
-      localStorage.setItem(storageKey, todayYmd);
-    } catch (_e3) {
-      /* noop */
-    }
-  }
-}
-
-async function resolveDocumentDownloadUrl(doc) {
-  const api = window.AntaresApi;
-  if (!api?.postJson || !api.isConfigured?.()) {
-    throw new Error("Configure la API para abrir documentos.");
-  }
-  const res = await api.postJson("/uploads/employee-document/download", {
-    employeeId: doc.employeeId,
-    storageKey: doc.storageKey
-  });
-  const url = String(res?.downloadUrl || "").trim();
-  if (!url) throw new Error("No se obtuvo enlace del archivo.");
-  return url;
-}
-
-function closeDocumentPreview() {
-  document.getElementById("doc-preview-overlay")?.remove();
-}
-
-function openDocumentPreview(doc, url) {
-  closeDocumentPreview();
-  const mime = String(doc.mimeType || "").toLowerCase();
-  const isImage =
-    mime.startsWith("image/") || /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(String(doc.fileName || ""));
-  const IC = G.IC || {};
-  const body = isImage
-    ? `<img class="doc-preview__media" src="${escapeAttr(url)}" alt="${escapeAttr(doc.fileName || "Documento")}" />`
-    : `<iframe class="doc-preview__frame" src="${escapeAttr(url)}" title="${escapeAttr(doc.fileName || "Documento")}"></iframe>`;
-  const overlay = document.createElement("div");
-  overlay.id = "doc-preview-overlay";
-  overlay.className = "doc-preview-overlay";
-  overlay.innerHTML = `<div class="doc-preview" role="dialog" aria-modal="true" aria-label="Vista previa del documento">
-    <header class="doc-preview__head">
-      <div class="doc-preview__titles">
-        <p class="doc-preview__eyebrow">Vista previa</p>
-        <h3 class="doc-preview__title">${escapeHtml(getEmployeeDocumentTypeLabel(doc.documentType))}</h3>
-        <p class="doc-preview__file">${escapeHtml(doc.fileName || "")}</p>
-      </div>
-      <div class="doc-preview__actions">
-        <a class="btn btn-sm btn-outline" href="${escapeAttr(url)}" target="_blank" rel="noopener noreferrer">${IC.download || ""} Abrir</a>
-        <button type="button" class="btn btn-sm btn-outline doc-preview__close" data-doc-preview-close title="Cerrar">${IC.x || "×"}</button>
-      </div>
-    </header>
-    <div class="doc-preview__body">${body}</div>
-  </div>`;
-  const onKey = (ev) => {
-    if (ev.key === "Escape") {
-      document.removeEventListener("keydown", onKey);
-      closeDocumentPreview();
-    }
+  const renderList = () => {
+    const files = [...input.files];
+    list.innerHTML = files
+      .map((f, i) => {
+        const over = f.size > COMPANY_DOCUMENT_MAX_BYTES;
+        return `<li class="doc-dropzone__item${over ? " is-over" : ""}">
+          <span class="doc-dropzone__fname" title="${escapeAttr(f.name)}">${escapeHtml(f.name)}</span>
+          <span class="doc-dropzone__fsize">${escapeHtml(formatFileSize(f.size))}${over ? " · excede el máximo" : ""}</span>
+          <button type="button" class="doc-dropzone__remove" data-i="${i}" aria-label="Quitar">×</button>
+        </li>`;
+      })
+      .join("");
+    list.querySelectorAll(".doc-dropzone__remove").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const idx = parseInt(btn.dataset.i, 10);
+        const dt = new DataTransfer();
+        [...input.files].forEach((f, i) => {
+          if (i !== idx) dt.items.add(f);
+        });
+        input.files = dt.files;
+        renderList();
+      });
+    });
   };
-  overlay.addEventListener("click", (ev) => {
-    if (ev.target === overlay || ev.target.closest("[data-doc-preview-close]")) {
-      document.removeEventListener("keydown", onKey);
-      closeDocumentPreview();
+
+  const addFiles = (incoming) => {
+    if (!incoming || !incoming.length) return;
+    const dt = new DataTransfer();
+    [...input.files, ...incoming].forEach((f) => dt.items.add(f));
+    input.files = dt.files;
+    renderList();
+  };
+
+  area.addEventListener("click", (e) => {
+    if (e.target === input) return;
+    input.click();
+  });
+  area.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      input.click();
     }
   });
-  document.addEventListener("keydown", onKey);
-  document.body.appendChild(overlay);
-}
-
-async function downloadDocumentRecord(doc) {
-  try {
-    const url = await resolveDocumentDownloadUrl(doc);
-    window.open(url, "_blank", "noopener,noreferrer");
-  } catch (err) {
-    G.notify?.(String(err?.message || "No se pudo descargar."), "error");
-  }
-}
-
-function openDeleteFolderFlow(employeeId, folderName) {
-  if (!canUploadDocumentsModule()) return;
-  const id = String(employeeId || "").trim();
-  const folder = normalizeDocumentFolder(folderName);
-  if (!id || !folder) {
-    G.notify?.("Seleccione colaborador y carpeta.", "error");
-    return;
-  }
-  if (documentFolderKey(folder) === documentFolderKey(DEFAULT_EMPLOYEE_DOCUMENT_FOLDER)) {
-    G.notify?.("La carpeta General no se puede eliminar.", "error");
-    return;
-  }
-  const docs = read(KEYS.employeeDocuments, []).map(normalizeEmployeeDocumentRow);
-  const docCount = countDocumentsInFolder(id, folder, docs);
-  const message =
-    docCount > 0
-      ? `Se eliminará la carpeta "${folder}". Sus ${docCount} documento${docCount === 1 ? "" : "s"} pasarán a General.`
-      : `Se eliminará la carpeta vacía "${folder}".`;
-  const requestDeletion = G.openConfirmReasonModal || G.openConfirmModal;
-  requestDeletion?.({
-    title: "Eliminar carpeta",
-    message,
-    confirmText: "Eliminar carpeta",
-    onConfirm: async (motivo) => {
-      try {
-        const folderKey = documentFolderKey(folder);
-        const list = read(KEYS.employeeDocuments, []).map(normalizeEmployeeDocumentRow);
-        const toMove = list.filter(
-          (d) => String(d.employeeId) === id && documentFolderKey(d.folder) === folderKey
-        );
-        for (const doc of toMove) {
-          const updated = normalizeEmployeeDocumentRow({
-            ...doc,
-            folder: DEFAULT_EMPLOYEE_DOCUMENT_FOLDER,
-            updatedAt: new Date().toISOString()
-          });
-          const nextList = read(KEYS.employeeDocuments, []).map((row) =>
-            String(row?.id) === String(doc.id) ? updated : row
-          );
-          await writeAwaitServerEdit(KEYS.employeeDocuments, nextList, doc.id);
-        }
-        const folders = read(KEYS.employeeDocumentFolders, []).map(normalizeEmployeeDocumentFolderRow);
-        const toDelete = folders.filter(
-          (f) => String(f.employeeId) === id && documentFolderKey(f.folderName) === folderKey
-        );
-        for (const row of toDelete) {
-          if (!row.id) continue;
-          const ok = await G.removeFromPortalListAwaitServer?.(KEYS.employeeDocumentFolders, row.id);
-          if (!ok) {
-            G.notify?.("No se pudo eliminar el registro de carpeta.", "error");
-            return;
-          }
-        }
-        const reason = String(motivo || "").trim();
-        const actor = currentDocumentsActorLabel();
-        G.logPortalAuditEvent?.("documents", "delete", {
-          entityId: `${id}:${folderKey}`,
-          entityKind: "folder",
-          entityLabel: `Carpeta · ${folder}`,
-          summary: `Eliminación de carpeta documental · ${folder} · Eliminada por ${actor}${docCount ? ` · ${docCount} docs → General` : ""}${reason ? ` · Motivo: ${reason}` : ""}`,
-          changesText: `Usuario: ${actor}${reason ? ` · Motivo: ${reason}` : ""}`,
-          usuario: actor,
-          actor
-        });
-        patchDocumentsUi({
-          selectedFolder: DEFAULT_EMPLOYEE_DOCUMENT_FOLDER,
-          selectedEmployeeId: id
-        });
-        G.notify?.("Carpeta eliminada.", "success");
-        G.renderPortalView?.();
-      } catch (err) {
-        G.notify?.(String(err?.message || "No se pudo eliminar la carpeta."), "error");
-      }
-    }
+  ["dragenter", "dragover"].forEach((ev) =>
+    area.addEventListener(ev, (e) => {
+      e.preventDefault();
+      area.classList.add("is-drag");
+    })
+  );
+  ["dragleave", "dragend"].forEach((ev) =>
+    area.addEventListener(ev, () => area.classList.remove("is-drag"))
+  );
+  area.addEventListener("drop", (e) => {
+    e.preventDefault();
+    area.classList.remove("is-drag");
+    addFiles([...(e.dataTransfer?.files || [])]);
   });
+  input.addEventListener("change", () => renderList());
 }
 
-function openCreateFolderModal(defaultEmployeeId = "", opts = {}) {
-  if (!canUploadDocumentsModule()) return;
-  const stayOnUpload = Boolean(opts.stayOnUpload);
-  const employees = read(KEYS.payrollEmployees, []);
-  const empOpts = employees
-    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "es"))
-    .map((emp) => ({
-      value: String(emp.id),
-      label: `${String(emp.name || "Sin nombre")} · ${String(emp.documentType || "CC")} ${String(emp.idDoc || "")}`,
-      selected: String(emp.id) === String(defaultEmployeeId || "")
-    }));
+async function createSuggestedStructure() {
+  if (!canUpload()) return;
+  const defaults = ["01. Empleados", "02. Contratación", "03. SST", "04. Legal", "05. Finanzas"];
+  const by = actor();
+  let list = readFolders();
+  let created = 0;
+  for (const name of defaults) {
+    if (list.some((f) => folderKey(f.folderName) === folderKey(name))) continue;
+    const record = normalizeCompanyFolderRow({
+      id: newUuidV4(),
+      folderName: name,
+      createdBy: by,
+      createdAt: new Date().toISOString()
+    });
+    try {
+      await writeAwaitServerCreate(KEYS.companyDocumentFolders, [...list, record], record);
+      list = [...list, record];
+      created += 1;
+    } catch (err) {
+      devWarn("[companyDocuments] createSuggestedStructure", err?.message || err);
+    }
+  }
+  if (created > 0) G.notify?.(`Estructura creada (${created} carpeta${created === 1 ? "" : "s"}).`, "success");
+  else G.notify?.("La estructura sugerida ya existe.", "info");
+  G.renderPortalView?.();
+}
+
+function openUploadModal() {
+  if (!canUpload()) return;
+  const ui = getUi();
+  const preset = ui.folderFilter ? topFolderName(ui.folderFilter) : DEFAULT_COMPANY_FOLDER;
+  const existing = folderOptionsHtml(preset);
+  const folderOpts = [{ value: "", label: "— Escribir carpeta nueva —", selected: false }, ...existing];
   G.openEditModal?.({
-    title: "Nueva carpeta",
-    subtitle: "Organice el expediente por carpetas dentro de cada colaborador.",
-    submitText: "Crear carpeta",
+    title: "Subir documento",
+    subtitle: "Los archivos se guardan cifrados en el almacenamiento corporativo.",
+    submitText: "Subir",
     fields: [
       {
-        name: "employeeId",
-        label: "Colaborador",
-        type: "select",
-        required: true,
-        value: defaultEmployeeId || "",
-        options: [{ value: "", label: "— Seleccione —", selected: !defaultEmployeeId }, ...empOpts]
+        type: "custom",
+        id: "doc-dropzone-field",
+        html: `<div class="doc-dropzone" id="doc-dropzone-area" tabindex="0" role="button" aria-label="Seleccionar o soltar archivos">
+          <span class="doc-dropzone__icon">${IC_UPLOAD_BIG}</span>
+          <p class="doc-dropzone__title">Arrastra archivos aquí o haz clic para seleccionar</p>
+          <p class="doc-dropzone__hint">PDF, Word, Excel, imágenes… Máx. ${formatFileSize(COMPANY_DOCUMENT_MAX_BYTES)} por archivo.</p>
+          <input type="file" id="doc-file-input" name="file" multiple class="doc-dropzone__input" />
+        </div>
+        <ul class="doc-dropzone__list" id="doc-file-list"></ul>`
       },
+      {
+        name: "folderExisting",
+        label: "Carpeta",
+        type: "select",
+        options: folderOpts
+      },
+      {
+        name: "folderNew",
+        label: "Carpeta nueva (opcional)",
+        placeholder: "Ej. 01. Empleados / Manuales",
+        hint: "Use “ / ” para subcarpetas. Si la completa, se ignora la selección anterior."
+      },
+      { name: "description", label: "Descripción", type: "textarea", rows: 2 }
+    ],
+    afterMount: (formEl) => wireDropzone(formEl),
+    onSubmit: async (form, formEl) => {
+      const input = formEl?.querySelector("#doc-file-input");
+      const files = input?.files ? [...input.files] : [];
+      if (!files.length) {
+        G.failPortalField?.(formEl, "file", "Adjunte al menos un archivo.");
+        return false;
+      }
+      const oversize = files.find((f) => f.size > COMPANY_DOCUMENT_MAX_BYTES);
+      if (oversize) {
+        G.notify?.(`"${oversize.name}" supera el tamaño máximo (${formatFileSize(COMPANY_DOCUMENT_MAX_BYTES)}).`, "error");
+        return false;
+      }
+      const folder = normalizeCompanyFolder(String(form.folderNew || "").trim() || String(form.folderExisting || "").trim() || DEFAULT_COMPANY_FOLDER);
+      if (!canUploadFolder(readFolders(), folder)) {
+        G.notify?.("No tiene permiso para subir a esa carpeta.", "error");
+        return false;
+      }
+      const description = String(form.description || "").trim();
+      const by = actor();
+      let ok = 0;
+      for (const file of files) {
+        try {
+          const uploaded = await uploadFileToR2(file, folder);
+          const nowIso = new Date().toISOString();
+          const record = normalizeCompanyDocumentRow({
+            id: newUuidV4(),
+            fileName: uploaded.fileName || file.name,
+            type: fileTypeLabel(uploaded.fileName || file.name, uploaded.mimeType || file.type),
+            folder: uploaded.folder || folder,
+            mimeType: uploaded.mimeType || file.type || "application/octet-stream",
+            sizeBytes: Number(uploaded.sizeBytes) || file.size || 0,
+            storageKey: uploaded.key,
+            description,
+            uploadedBy: by,
+            createdAt: nowIso,
+            updatedAt: nowIso
+          });
+          const list = readDocs();
+          await writeAwaitServerCreate(KEYS.companyDocuments, [...list, record], record);
+          G.logPortalAuditEvent?.("documents", "create", {
+            entityId: record.id,
+            entityKind: "document",
+            entityLabel: `${record.folder} · ${record.fileName}`,
+            summary: `Alta de documento corporativo · ${record.fileName}`,
+            usuario: by,
+            actor: by,
+            at: nowIso
+          });
+          ok += 1;
+        } catch (err) {
+          devWarn("[companyDocuments] upload", err?.message || err);
+          G.notify?.(`No se pudo subir "${file.name}": ${String(err?.message || err)}`, "error");
+        }
+      }
+      if (ok > 0) {
+        await ensureFolderRecord(folder, by);
+        patchUi({ page: 1 });
+        G.notify?.(`${ok} documento${ok === 1 ? "" : "s"} subido${ok === 1 ? "" : "s"}.`, "success");
+        G.renderPortalView?.();
+        return true;
+      }
+      return false;
+    }
+  });
+}
+
+async function ensureFolderRecord(folderPath, by) {
+  const folder = normalizeCompanyFolder(folderPath);
+  if (!folder || folderKey(folder) === folderKey(DEFAULT_COMPANY_FOLDER)) return;
+  const folders = readFolders();
+  const docs = readDocs();
+  const existsFolder = folders.some((f) => folderKey(f.folderName) === folderKey(folder));
+  const existsInDocs = docs.some((d) => folderKey(d.folder) === folderKey(folder));
+  if (existsFolder || existsInDocs) return;
+  const record = normalizeCompanyFolderRow({
+    id: newUuidV4(),
+    folderName: folder,
+    createdBy: by || actor(),
+    createdAt: new Date().toISOString()
+  });
+  try {
+    await writeAwaitServerCreate(KEYS.companyDocumentFolders, [...folders, record], record);
+  } catch (err) {
+    devWarn("[companyDocuments] ensureFolderRecord", err?.message || err);
+  }
+}
+
+function openNewFolderModal() {
+  if (!canUpload()) return;
+  G.openEditModal?.({
+    title: "Nueva carpeta",
+    subtitle: "Organice los documentos corporativos por carpetas.",
+    submitText: "Crear carpeta",
+    fields: [
       {
         name: "folderName",
         label: "Nombre de carpeta",
         required: true,
-        placeholder: "Ej. Contratos 2025, Certificados médicos"
-      }
+        placeholder: "Ej. 06. Calidad o 01. Empleados / Manuales",
+        hint: "Use “ / ” para crear subcarpetas."
+      },
+      { name: "description", label: "Descripción", type: "textarea", rows: 2 }
     ],
-    onSubmit: async (form) => {
-      const employeeId = String(form.employeeId || "").trim();
-      const folderName = normalizeDocumentFolder(form.folderName);
-      if (!employeeId) {
-        G.failPortalField?.(document.getElementById("crud-form"), "employeeId", "Seleccione un colaborador.");
+    onSubmit: async (form, formEl) => {
+      const folderName = normalizeCompanyFolder(form.folderName);
+      if (!folderName || folderKey(folderName) === folderKey(DEFAULT_COMPANY_FOLDER)) {
+        G.failPortalField?.(formEl, "folderName", "Indique un nombre de carpeta.");
         return false;
       }
-      if (!folderName) {
-        G.failPortalField?.(document.getElementById("crud-form"), "folderName", "Indique el nombre de la carpeta.");
+      const folders = readFolders();
+      if (folders.some((f) => folderKey(f.folderName) === folderKey(folderName))) {
+        G.notify?.("Esa carpeta ya existe.", "error");
         return false;
       }
-      const employee = employees.find((e) => String(e.id) === employeeId);
-      const list = read(KEYS.employeeDocumentFolders, []).map(normalizeEmployeeDocumentFolderRow);
-      const docs = read(KEYS.employeeDocuments, []).map(normalizeEmployeeDocumentRow);
-      const existsInDocs = docs.some(
-        (d) => String(d.employeeId) === employeeId && documentFolderKey(d.folder) === documentFolderKey(folderName)
-      );
-      const existsInFolders = list.some(
-        (f) => String(f.employeeId) === employeeId && documentFolderKey(f.folderName) === documentFolderKey(folderName)
-      );
-      if (existsInDocs || existsInFolders) {
-        G.notify?.("Esa carpeta ya existe para el colaborador.", "error");
-        return false;
-      }
-      const record = normalizeEmployeeDocumentFolderRow({
+      const by = actor();
+      const record = normalizeCompanyFolderRow({
         id: newUuidV4(),
-        employeeId,
-        employeeName: employee?.name || "Colaborador",
         folderName,
-        createdBy: G.currentUser?.()?.fullName || G.currentUser?.()?.email || "Portal",
+        description: String(form.description || "").trim(),
+        createdBy: by,
         createdAt: new Date().toISOString()
       });
       try {
-        await writeAwaitServerCreate(KEYS.employeeDocumentFolders, [...list, record], record);
-        const actor = String(record.createdBy || currentDocumentsActorLabel()).trim();
+        await writeAwaitServerCreate(KEYS.companyDocumentFolders, [...folders, record], record);
         G.logPortalAuditEvent?.("documents", "create", {
           entityId: record.id,
           entityKind: "folder",
-          entityLabel: `${record.employeeName} · ${record.folderName}`,
-          summary: `Alta de carpeta documental · ${record.folderName} · Creada por ${actor}`,
-          changesText: `Fecha: ${formatDocumentUploadDate(record.createdAt)} · Usuario: ${actor}`,
-          usuario: actor,
-          actor,
+          entityLabel: record.folderName,
+          summary: `Alta de carpeta corporativa · ${record.folderName}`,
+          usuario: by,
+          actor: by,
           at: record.createdAt
         });
         G.notify?.("Carpeta creada.", "success");
-        if (stayOnUpload) {
-          patchDocumentsUi({
-            workspace: "upload",
-            selectedEmployeeId: employeeId,
-            selectedFolder: folderName
-          });
-          persistHrWorkspace("documents", "upload");
-        } else {
-          patchDocumentsUi({
-            workspace: "consult",
-            folderBrowseEmployeeId: employeeId,
-            folderBrowseName: "",
-            selectedFolder: folderName
-          });
-          persistHrWorkspace("documents", "consult");
-        }
+        patchUi({ folderFilter: topFolderName(folderName), page: 1 });
         G.renderPortalView?.();
         return true;
       } catch (err) {
@@ -1537,102 +904,149 @@ function openCreateFolderModal(defaultEmployeeId = "", opts = {}) {
   });
 }
 
+function openFolderPermissionsModal(folderNameRaw) {
+  if (!canManageFolderPermissions()) return;
+  const topFolder = topFolderName(normalizeCompanyFolder(folderNameRaw));
+  if (!topFolder) return;
+  const folders = readFolders();
+  const existing = folders.find((f) => folderKey(f.folderName) === folderKey(topFolder)) || null;
+  const current = {
+    view: (existing?.rolesView || []).slice(),
+    upload: (existing?.rolesUpload || []).slice(),
+    delete: (existing?.rolesDelete || []).slice()
+  };
+  const roleChoices = PORTAL_ASSIGNABLE_ROLES.filter((r) => r.value !== "admin");
+  const actions = [
+    { key: "view", label: "Ver" },
+    { key: "upload", label: "Subir" },
+    { key: "delete", label: "Eliminar" }
+  ];
+  const rows = roleChoices
+    .map(
+      (r) => `<tr>
+        <th scope="row">${escapeHtml(r.label)}</th>
+        ${actions
+          .map((a) => {
+            const checked = current[a.key].includes(r.value) ? " checked" : "";
+            return `<td><label class="doc-perm-check"><input type="checkbox" data-perm data-act="${a.key}" data-role="${escapeAttr(r.value)}"${checked} aria-label="${escapeAttr(`${a.label} · ${r.label}`)}"/><span></span></label></td>`;
+          })
+          .join("")}
+      </tr>`
+    )
+    .join("");
+  const gridHtml = `<div class="doc-perm-modal">
+    <p class="doc-perm-help">El administrador siempre tiene acceso completo. Si no marca ningún rol en una columna, esa acción queda disponible para todos los roles con el permiso global correspondiente.</p>
+    <table class="doc-perm-grid">
+      <thead><tr><th>Rol</th>${actions.map((a) => `<th>${a.label}</th>`).join("")}</tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
+
+  G.openEditModal?.({
+    title: `Permisos · ${topFolder}`,
+    subtitle: "Defina qué roles pueden ver, subir o eliminar en esta carpeta y sus subcarpetas.",
+    submitText: "Guardar permisos",
+    fields: [{ type: "custom", id: "doc-perm-field", html: gridHtml }],
+    onSubmit: async (form, formEl) => {
+      const checks = [...(formEl?.querySelectorAll("input[data-perm]:checked") || [])];
+      const collect = (act) => checks.filter((c) => c.dataset.act === act).map((c) => c.dataset.role);
+      const rolesView = collect("view");
+      const rolesUpload = collect("upload");
+      const rolesDelete = collect("delete");
+      const by = actor();
+      const fresh = readFolders();
+      const found = fresh.find((f) => folderKey(f.folderName) === folderKey(topFolder)) || null;
+      try {
+        if (found) {
+          const nextList = fresh.map((f) =>
+            f.id === found.id
+              ? normalizeCompanyFolderRow({ ...f, rolesView, rolesUpload, rolesDelete })
+              : f
+          );
+          await writeAwaitServerEdit(KEYS.companyDocumentFolders, nextList, found.id);
+        } else {
+          const record = normalizeCompanyFolderRow({
+            id: newUuidV4(),
+            folderName: topFolder,
+            rolesView,
+            rolesUpload,
+            rolesDelete,
+            createdBy: by,
+            createdAt: new Date().toISOString()
+          });
+          await writeAwaitServerCreate(KEYS.companyDocumentFolders, [...fresh, record], record);
+        }
+        G.logPortalAuditEvent?.("documents", "update", {
+          entityKind: "folder",
+          entityLabel: topFolder,
+          summary: `Permisos de carpeta corporativa · ${topFolder}`,
+          usuario: by,
+          actor: by,
+          at: new Date().toISOString()
+        });
+        G.notify?.("Permisos de carpeta actualizados.", "success");
+        G.renderPortalView?.();
+        return true;
+      } catch (err) {
+        G.notify?.(String(err?.message || "No se pudieron guardar los permisos."), "error");
+        return false;
+      }
+    }
+  });
+}
+
 function openEditDocumentModal(target) {
-  if (!canEditDocumentsModule() || !target?.id) return;
-  const todayYmd = colombiaTodayIsoDate();
-  const typeOpts = EMPLOYEE_DOCUMENT_TYPES.map((t) => ({
-    value: t.value,
-    label: t.label,
-    selected: String(target.documentType) === t.value
-  }));
-  if (!typeOpts.some((o) => o.selected) && target.documentType) {
-    typeOpts.unshift({
-      value: target.documentType,
-      label: getEmployeeDocumentTypeLabel(target.documentType),
-      selected: true
-    });
-  }
+  if (!canEdit() || !target?.id) return;
   G.openEditModal?.({
     title: "Editar documento",
-    subtitle: `${target.employeeName || "Colaborador"} · ${target.fileName || ""}`,
+    subtitle: target.fileName || "",
     submitText: "Guardar cambios",
     fields: [
-      {
-        name: "documentType",
-        label: "Tipo de documento",
-        type: "select",
-        value: target.documentType || "otro",
-        options: typeOpts,
-        required: true
-      },
+      { name: "fileName", label: "Nombre del archivo", value: target.fileName, required: true },
       {
         name: "folder",
         label: "Carpeta",
-        value: normalizeDocumentFolder(target.folder),
+        value: target.folder,
         required: true,
-        hint: "Nombre lógico de la carpeta dentro del expediente del colaborador."
+        hint: "Use “ / ” para mover a una subcarpeta."
       },
-      { name: "documentCode", label: "Código documental", value: target.documentCode || "" },
-      { name: "issueDate", label: "Fecha emisión", type: "date", value: target.issueDate || "" },
-      {
-        name: "dueDate",
-        label: "Fecha vencimiento",
-        type: "date",
-        value: target.dueDate || "",
-        hint: "Obligatoria para contratos, afiliaciones, exámenes y licencias."
-      },
-      { name: "notes", label: "Observaciones", type: "textarea", value: target.notes || "", rows: 3 },
-      {
-        type: "section",
-        title: "Archivo",
-        hint: `El archivo en Cloudflare R2 no se modifica aquí (${target.fileName || "—"}). Para reemplazarlo, suba un nuevo documento del mismo tipo.`
-      }
+      { name: "description", label: "Descripción", type: "textarea", rows: 2, value: target.description || "" }
     ],
-    onSubmit: async (form) => {
-      const docType = String(form.documentType || target.documentType || "otro").trim();
-      if (employeeDocumentTypeRequiresExpiry(docType) && !String(form.dueDate || "").trim()) {
-        G.failPortalField?.(
-          document.getElementById("crud-form"),
-          "dueDate",
-          "Indique la fecha de vencimiento para este tipo de documento."
-        );
+    onSubmit: async (form, formEl) => {
+      const fileName = String(form.fileName || "").trim();
+      const folder = normalizeCompanyFolder(form.folder);
+      if (!fileName) {
+        G.failPortalField?.(formEl, "fileName", "Indique el nombre del archivo.");
         return false;
       }
-      const fresh = read(KEYS.employeeDocuments, []);
+      const fresh = readDocs();
       if (!fresh.some((r) => String(r.id) === String(target.id))) {
         G.notify?.("El documento ya no está disponible. Actualice la página.", "error");
         return false;
       }
-      const dueDate = String(form.dueDate || "").trim() || null;
-      const issueDate = String(form.issueDate || "").trim() || null;
-      const folder = normalizeDocumentFolder(form.folder);
+      const by = actor();
       const nextList = fresh.map((r) => {
         if (String(r.id) !== String(target.id)) return r;
-        const updated = normalizeEmployeeDocumentRow({
+        return normalizeCompanyDocumentRow({
           ...r,
-          documentType: docType,
+          fileName,
           folder,
-          documentCode: String(form.documentCode || "").trim(),
-          issueDate,
-          dueDate,
-          expiryDate: dueDate,
-          notes: String(form.notes || "").trim(),
-          status: computeEmployeeDocumentStatus(dueDate, todayYmd),
+          description: String(form.description || "").trim(),
           updatedAt: new Date().toISOString()
         });
-        return typeof G.stampUpdatedRecord === "function" ? G.stampUpdatedRecord(updated) : updated;
       });
       try {
-        await writeAwaitServerEdit(KEYS.employeeDocuments, nextList, target.id);
-        await ensureEmployeeFolderRecord(String(target.employeeId || ""), folder);
-        const updatedDoc = nextList.find((r) => String(r.id) === String(target.id)) || target;
-        G.logPortalAuditEvent?.(
-          "documents",
-          "update",
-          buildDocumentAuditDetail("update", updatedDoc, {
-            uploadedBy: currentDocumentsActorLabel()
-          })
-        );
+        await writeAwaitServerEdit(KEYS.companyDocuments, nextList, target.id);
+        await ensureFolderRecord(folder, by);
+        G.logPortalAuditEvent?.("documents", "update", {
+          entityId: target.id,
+          entityKind: "document",
+          entityLabel: `${folder} · ${fileName}`,
+          summary: `Edición de documento corporativo · ${fileName}`,
+          usuario: by,
+          actor: by,
+          at: new Date().toISOString()
+        });
         G.notify?.("Documento actualizado.", "success");
         G.renderPortalView?.();
         return true;
@@ -1644,731 +1058,387 @@ function openEditDocumentModal(target) {
   });
 }
 
-function bindDocumentManagementPortalControls() {
-  if (String(state.currentView || "") !== "document-management" || !nodes.viewRoot) return;
+async function resolveDownloadUrl(doc, { disposition = "attachment" } = {}) {
+  const api = window.AntaresApi;
+  if (!api?.postJson) throw new Error("API no disponible.");
+  const res = await api.postJson("/uploads/company-document/download", {
+    storageKey: doc.storageKey,
+    disposition,
+    fileName: doc.fileName || "documento"
+  });
+  const url = String(res?.downloadUrl || "").trim();
+  if (!url) throw new Error("No se obtuvo el enlace de descarga.");
+  return url;
+}
+
+async function triggerDownload(doc) {
+  const url = await resolveDownloadUrl(doc, { disposition: "attachment" });
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = doc.fileName || "documento";
+  a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+let previewKeyHandler = null;
+
+function closePreviewPanel() {
+  const existing = document.querySelector("[data-doc-preview]");
+  if (existing) existing.remove();
+  if (previewKeyHandler) {
+    document.removeEventListener("keydown", previewKeyHandler);
+    previewKeyHandler = null;
+  }
+}
+
+function previewStageHtml(doc, url) {
+  const group = fileTypeGroup(doc.fileName, doc.mimeType);
+  if (group === "image") {
+    return `<img class="doc-preview__img" src="${escapeAttr(url)}" alt="${escapeAttr(doc.fileName)}" />`;
+  }
+  if (group === "pdf") {
+    return `<iframe class="doc-preview__frame" src="${escapeAttr(url)}#toolbar=1&navpanes=0" title="${escapeAttr(doc.fileName)}"></iframe>`;
+  }
+  if (group === "text") {
+    return `<iframe class="doc-preview__frame doc-preview__frame--text" src="${escapeAttr(url)}" title="${escapeAttr(doc.fileName)}"></iframe>`;
+  }
+  return `<div class="doc-preview__nopreview">
+    <span class="doc-fileicon doc-fileicon--${group}">${(G.IC || {}).file || ""}</span>
+    <p>No hay vista previa disponible para este tipo de archivo.</p>
+    <p class="doc-preview__nopreview-hint">Descárguelo para abrirlo en su equipo.</p>
+  </div>`;
+}
+
+async function openPreview(doc) {
   const IC = G.IC || {};
-  const todayYmd = colombiaTodayIsoDate();
-  void maybeDispatchDocumentExpiryDigest();
+  const group = fileTypeGroup(doc.fileName, doc.mimeType);
+  const canInline = canPreviewFileType(doc.fileName, doc.mimeType);
+  closePreviewPanel();
 
-  nodes.viewRoot.querySelectorAll("[data-action='hr-workspace-tab'][data-module='documents']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const tab = String(btn.dataset.tab || "");
-      if (!tab) return;
-      const ws = normalizeHrWorkspace("documents", tab);
-      if (!HR_VALID_DOCUMENTS_WS.has(ws)) return;
-      if (normalizeHrWorkspace("documents", state.documentsUi?.workspace) === ws) return;
-      patchDocumentsUi({ workspace: ws });
-      persistHrWorkspace("documents", ws);
-      G.renderPortalView?.();
-    });
-  });
+  const overlay = document.createElement("div");
+  overlay.className = "doc-preview-overlay documents-studio doc-studio";
+  overlay.setAttribute("data-doc-preview", "");
+  overlay.innerHTML = `
+    <div class="doc-preview-backdrop" data-close></div>
+    <aside class="doc-preview-drawer" role="dialog" aria-modal="true" aria-label="Vista previa del documento">
+      <header class="doc-preview__head">
+        <span class="doc-fileicon doc-fileicon--${group}">${IC.file || ""}</span>
+        <div class="doc-preview__titles">
+          <p class="doc-preview__name" title="${escapeAttr(doc.fileName)}">${escapeHtml(doc.fileName)}</p>
+          <p class="doc-preview__meta">${escapeHtml(fileTypeLabel(doc.fileName, doc.mimeType))} · ${escapeHtml(formatFileSize(doc.sizeBytes))} · ${escapeHtml(doc.folder)}</p>
+        </div>
+        <button type="button" class="doc-iconbtn doc-preview__close" data-close aria-label="Cerrar vista previa">${IC.x || "×"}</button>
+      </header>
+      <div class="doc-preview__body">
+        <div class="doc-preview__stage" data-stage>
+          <div class="doc-preview__loading"><span class="doc-preview__spinner"></span>Cargando vista previa…</div>
+        </div>
+      </div>
+      <footer class="doc-preview__foot">
+        <div class="doc-preview__info">
+          <span>Subido por ${escapeHtml(doc.uploadedBy || "—")}</span>
+          <span>${escapeHtml(formatDate(doc.updatedAt))}</span>
+          ${doc.description ? `<p class="doc-preview__desc">${escapeHtml(doc.description)}</p>` : ""}
+        </div>
+        <div class="doc-preview__actions">
+          <button type="button" class="doc-btn doc-btn--ghost" data-open-tab>${IC_EXTERNAL}<span>Abrir en pestaña</span></button>
+          <button type="button" class="doc-btn doc-btn--primary" data-download>${IC.download || ""}<span>Descargar</span></button>
+        </div>
+      </footer>
+    </aside>`;
+  document.body.appendChild(overlay);
+  requestAnimationFrame(() => overlay.classList.add("is-open"));
 
-  nodes.viewRoot.querySelectorAll("[data-action='doc-data-section']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const section = btn.dataset.section || "all";
-      patchDocumentsUi({
-        dataSection: section,
-        workspace: "consult",
-        folderBrowseEmployeeId: "",
-        folderBrowseName: "",
-        filterStatus: section === "all" || section === "gaps" ? "" : getDocumentsUi().filterStatus
-      });
-      persistHrWorkspace("documents", "consult");
-      G.renderPortalView?.();
-    });
-  });
-
-  const debouncedFilterRender =
-    G.debounce?.(() => G.renderPortalView?.(), 220) || (() => G.renderPortalView?.());
-
-  nodes.viewRoot.querySelectorAll("[data-action='doc-filter-search']").forEach((input) => {
-    input.addEventListener("input", (ev) => {
-      const el = /** @type {HTMLInputElement} */ (ev.target);
-      const len = String(el.value || "").length;
-      const start = typeof el.selectionStart === "number" ? el.selectionStart : len;
-      const end = typeof el.selectionEnd === "number" ? el.selectionEnd : start;
-      const mode = String(el.dataset.docFilterMode || el.closest("[data-doc-filter-mode]")?.dataset?.docFilterMode || "");
-      patchDocumentsUi({ listSearch: el.value || "" });
-      state.__documentsFilterSearchRestore = { start, end, mode };
-      debouncedFilterRender();
-    });
-  });
-
-  nodes.viewRoot.querySelectorAll("[data-action='doc-filter-employee']").forEach((sel) => {
-    sel.addEventListener("change", () => {
-      patchDocumentsUi({ filterEmployeeId: sel.value || "" });
-      G.renderPortalView?.();
-    });
-  });
-
-  nodes.viewRoot.querySelectorAll("[data-action='doc-filter-status']").forEach((sel) => {
-    sel.addEventListener("change", () => {
-      const value = String(sel.value || "");
-      if (value === "__gaps__") {
-        patchDocumentsUi({
-          filterStatus: "",
-          dataSection: "gaps",
-          workspace: "consult",
-          folderBrowseEmployeeId: "",
-          folderBrowseName: ""
-        });
-      } else if (value === "Por vencer") {
-        patchDocumentsUi({
-          filterStatus: "",
-          dataSection: "due_soon",
-          workspace: "consult"
-        });
-      } else if (value === "Vencido") {
-        patchDocumentsUi({
-          filterStatus: "",
-          dataSection: "expired",
-          workspace: "consult"
-        });
-      } else {
-        patchDocumentsUi({
-          filterStatus: value,
-          dataSection: "all",
-          workspace: "consult"
-        });
-      }
-      persistHrWorkspace("documents", "consult");
-      G.renderPortalView?.();
-    });
-  });
-
-  nodes.viewRoot.querySelectorAll("[data-action='doc-filter-folder']").forEach((sel) => {
-    sel.addEventListener("change", () => {
-      patchDocumentsUi({ folderFilter: sel.value || "", workspace: "consult", dataSection: "all" });
-      persistHrWorkspace("documents", "consult");
-      G.renderPortalView?.();
-    });
-  });
-
-  nodes.viewRoot.querySelectorAll("[data-action='doc-clear-filters']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      patchDocumentsUi({
-        listSearch: "",
-        typeFilter: "",
-        filterEmployeeId: "",
-        filterStatus: "",
-        folderFilter: "",
-        dataSection: "all"
-      });
-      G.renderPortalView?.();
-    });
-  });
-
-  nodes.viewRoot.querySelectorAll("[data-action='doc-clear-folder-filter']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      patchDocumentsUi({ folderFilter: "" });
-      G.renderPortalView?.();
-    });
-  });
-
-  nodes.viewRoot.querySelectorAll("[data-action='doc-goto-browse-toolbar']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const employeeId = String(btn.dataset.employeeId || getDocumentsUi().filterEmployeeId || "");
-      patchDocumentsUi({
-        workspace: "consult",
-        folderBrowseEmployeeId: employeeId,
-        folderBrowseName: ""
-      });
-      persistHrWorkspace("documents", "consult");
-      G.renderPortalView?.();
-    });
-  });
-
-  nodes.viewRoot.querySelectorAll("[data-action='doc-quick-filter']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const filter = String(btn.dataset.filter || "all");
-      if (filter === "gaps") {
-        patchDocumentsUi({
-          workspace: "consult",
-          dataSection: "gaps",
-          filterStatus: "",
-          folderBrowseEmployeeId: "",
-          folderBrowseName: ""
-        });
-      } else if (filter === "due_soon" || filter === "expired") {
-        patchDocumentsUi({
-          workspace: "consult",
-          dataSection: filter,
-          filterStatus: "",
-          listSearch: "",
-          typeFilter: "",
-          filterEmployeeId: "",
-          folderFilter: "",
-          folderBrowseEmployeeId: "",
-          folderBrowseName: ""
-        });
-      } else if (filter === "all") {
-        patchDocumentsUi({
-          workspace: "consult",
-          dataSection: "all",
-          filterStatus: "",
-          listSearch: "",
-          typeFilter: "",
-          filterEmployeeId: "",
-          folderFilter: "",
-          folderBrowseEmployeeId: "",
-          folderBrowseName: ""
-        });
-      } else {
-        patchDocumentsUi({ workspace: "consult" });
-      }
-      persistHrWorkspace("documents", "consult");
-      G.renderPortalView?.();
-    });
-  });
-
-  nodes.viewRoot.querySelectorAll("[data-action='doc-browse-root']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      patchDocumentsUi({
-        workspace: "consult",
-        folderBrowseEmployeeId: "",
-        folderBrowseName: "",
-        folderFilter: ""
-      });
-      persistHrWorkspace("documents", "consult");
-      G.renderPortalView?.();
-    });
-  });
-
-  nodes.viewRoot.querySelectorAll("[data-action='doc-browse-employee-root']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      patchDocumentsUi({
-        workspace: "consult",
-        folderBrowseEmployeeId: String(btn.dataset.employeeId || ""),
-        folderBrowseName: ""
-      });
-      persistHrWorkspace("documents", "consult");
-      G.renderPortalView?.();
-    });
-  });
-
-  nodes.viewRoot.querySelectorAll("[data-action='doc-browse-employee']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      patchDocumentsUi({
-        workspace: "consult",
-        folderBrowseEmployeeId: String(btn.dataset.employeeId || ""),
-        folderBrowseName: "",
-        folderFilter: ""
-      });
-      persistHrWorkspace("documents", "consult");
-      G.renderPortalView?.();
-    });
-  });
-
-  nodes.viewRoot.querySelectorAll("[data-action='doc-browse-folder']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      patchDocumentsUi({
-        workspace: "consult",
-        folderBrowseName: String(btn.dataset.folder || "")
-      });
-      persistHrWorkspace("documents", "consult");
-      G.renderPortalView?.();
-    });
-  });
-
-  nodes.viewRoot.querySelectorAll("[data-action='doc-goto-browse']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      patchDocumentsUi({
-        workspace: "consult",
-        folderBrowseEmployeeId: String(btn.dataset.employeeId || ""),
-        folderBrowseName: ""
-      });
-      persistHrWorkspace("documents", "consult");
-      G.renderPortalView?.();
-    });
-  });
-
-  nodes.viewRoot.querySelectorAll("[data-action='doc-new-folder']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      openCreateFolderModal(String(btn.dataset.employeeId || getDocumentsUi().folderBrowseEmployeeId || ""), {
-        stayOnUpload: false
-      });
-    });
-  });
-
-  nodes.viewRoot.querySelectorAll("[data-action='doc-delete-folder']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const empId =
-        String(nodes.viewRoot.querySelector("[data-doc-employee-select]")?.value || "").trim() ||
-        getDocumentsUi().selectedEmployeeId ||
-        String(btn.dataset.employeeId || "");
-      const folderSel = nodes.viewRoot.querySelector("[data-doc-folder-select]");
-      const folderName = String(folderSel?.value || btn.dataset.folder || "").trim();
-      if (!empId) {
-        G.notify?.("Seleccione primero un colaborador.", "error");
-        return;
-      }
-      if (!folderName || folderName === "__create_folder__") {
-        G.notify?.("Seleccione la carpeta que desea eliminar.", "error");
-        return;
-      }
-      openDeleteFolderFlow(empId, folderName);
-    });
-  });
-
-  nodes.viewRoot.querySelectorAll("[data-action='doc-list-view']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const view = String(btn.dataset.view || "grid") === "list" ? "list" : "grid";
-      patchDocumentsUi({ listViewMode: view, workspace: "consult" });
-      G.renderPortalView?.();
-    });
-  });
-
-  const typeFilterSel = nodes.viewRoot.querySelectorAll("[data-action='doc-type-filter']");
-  typeFilterSel.forEach((sel) => {
-    sel.addEventListener("change", () => {
-      patchDocumentsUi({
-        typeFilter: sel.value || "",
-        workspace: "consult"
-      });
-      G.renderPortalView?.();
-    });
-  });
-
-  nodes.viewRoot.querySelectorAll("[data-action='doc-goto-upload']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const employeeId = String(btn.dataset.employeeId || "");
-      const documentType = String(btn.dataset.documentType || "").trim();
-      const employees = read(KEYS.payrollEmployees, []);
-      const employee = employees.find((e) => String(e.id) === employeeId);
-      const gaps = employee ? findEmployeeDocumentGaps(employee, read(KEYS.employeeDocuments, [])) : [];
-      patchDocumentsUi({
-        workspace: "upload",
-        selectedEmployeeId: employeeId,
-        selectedDocumentType: documentType || gaps[0] || ""
-      });
-      persistHrWorkspace("documents", "upload");
-      G.renderPortalView?.();
-    });
-  });
-
-  nodes.viewRoot.querySelectorAll("[data-action='doc-pick-type']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const documentType = String(btn.dataset.documentType || "").trim();
-      if (!documentType) return;
-      const hidden = nodes.viewRoot.querySelector("[data-doc-type-input]");
-      if (hidden) hidden.value = documentType;
-      patchDocumentsUi({ selectedDocumentType: documentType });
-      nodes.viewRoot.querySelectorAll("[data-action='doc-pick-type']").forEach((el) => {
-        const active = String(el.dataset.documentType) === documentType;
-        el.classList.toggle("is-selected", active);
-        el.setAttribute("aria-pressed", active ? "true" : "false");
-      });
-      syncUploadDueRequired(documentType);
-    });
-  });
-
-  nodes.viewRoot.querySelectorAll("[data-action='doc-goto-dossier']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      patchDocumentsUi({
-        workspace: "consult",
-        folderBrowseEmployeeId: String(btn.dataset.employeeId || ""),
-        folderBrowseName: "",
-        selectedEmployeeId: String(btn.dataset.employeeId || "")
-      });
-      persistHrWorkspace("documents", "consult");
-      G.renderPortalView?.();
-    });
-  });
-
-  nodes.viewRoot.querySelectorAll("[data-action='doc-select-employee'], [data-doc-employee-select]").forEach((sel) => {
-    sel.addEventListener("change", async () => {
-      const employeeId = sel.value || "";
-      const employees = read(KEYS.payrollEmployees, []);
-      const employee = employees.find((e) => String(e.id) === String(employeeId));
-      const gaps = employee ? findEmployeeDocumentGaps(employee, read(KEYS.employeeDocuments, [])) : [];
-      if (employeeId) {
-        try {
-          await ensureEmployeeFolderRecord(employeeId, DEFAULT_EMPLOYEE_DOCUMENT_FOLDER);
-        } catch (_err) {
-          /* non-blocking */
-        }
-      }
-      patchDocumentsUi({
-        selectedEmployeeId: employeeId,
-        selectedDocumentType: gaps[0] || "",
-        selectedFolder: ""
-      });
-      G.renderPortalView?.();
-    });
-  });
-
-  function syncUploadDueRequired(docType) {
-    const dueWrap = nodes.viewRoot.querySelector("[data-doc-due-wrap]");
-    if (!dueWrap) return;
-    const req = employeeDocumentTypeRequiresExpiry(docType);
-    dueWrap.classList.toggle("is-required", req);
-    const dueInput = dueWrap.querySelector('input[name="dueDate"]');
-    if (dueInput) dueInput.required = req;
-    const extra = dueWrap.closest("details.doc-flow-section--extra");
-    if (extra && req) extra.open = true;
-  }
-
-  syncUploadDueRequired(resolveUploadDocumentType(
-    getDocumentsUi().selectedEmployeeId,
-    read(KEYS.employeeDocuments, []).map(normalizeEmployeeDocumentRow),
-    getDocumentsUi().selectedDocumentType
-  ));
-
-  const syncUploadFolderSelect = () => {
-    const empSel = nodes.viewRoot.querySelector("[data-doc-employee-select]");
-    const folderSel = nodes.viewRoot.querySelector("[data-doc-folder-select]");
-    if (!empSel || !folderSel) return;
-    const employeeId = String(empSel.value || "");
-    const folders = collectEmployeeFolders(
-      employeeId,
-      read(KEYS.employeeDocuments, []).map(normalizeEmployeeDocumentRow),
-      read(KEYS.employeeDocumentFolders, []).map(normalizeEmployeeDocumentFolderRow)
-    );
-    const preferred = normalizeDocumentFolder(getDocumentsUi().selectedFolder || "");
-    const current = normalizeDocumentFolder(folderSel.value);
-    const selected =
-      preferred && folders.includes(preferred)
-        ? preferred
-        : folders.includes(current)
-          ? current
-          : folders[0] || DEFAULT_EMPLOYEE_DOCUMENT_FOLDER;
-    const createOpt = canUploadDocumentsModule()
-      ? `<option value="__create_folder__">+ Crear carpeta nueva…</option>`
-      : "";
-    folderSel.innerHTML =
-      (folders.length
-        ? folders
-            .map(
-              (name) =>
-                `<option value="${escapeAttr(name)}"${name === selected ? " selected" : ""}>${escapeHtml(name)}</option>`
-            )
-            .join("")
-        : `<option value="${escapeAttr(DEFAULT_EMPLOYEE_DOCUMENT_FOLDER)}" selected>${escapeHtml(DEFAULT_EMPLOYEE_DOCUMENT_FOLDER)}</option>`) +
-      createOpt;
+  previewKeyHandler = (e) => {
+    if (e.key === "Escape") closePreviewPanel();
   };
-  syncUploadFolderSelect();
+  document.addEventListener("keydown", previewKeyHandler);
+  overlay.querySelectorAll("[data-close]").forEach((el) => el.addEventListener("click", closePreviewPanel));
 
-  nodes.viewRoot.querySelectorAll("[data-doc-folder-select]").forEach((sel) => {
-    sel.addEventListener("change", () => {
-      if (sel.value !== "__create_folder__") {
-        patchDocumentsUi({ selectedFolder: normalizeDocumentFolder(sel.value) });
-        return;
-      }
-      const empId =
-        String(nodes.viewRoot.querySelector("[data-doc-employee-select]")?.value || "").trim() ||
-        getDocumentsUi().selectedEmployeeId;
-      const previous =
-        normalizeDocumentFolder(getDocumentsUi().selectedFolder) ||
-        DEFAULT_EMPLOYEE_DOCUMENT_FOLDER;
-      sel.value = previous;
-      if (!empId) {
-        G.notify?.("Seleccione primero un colaborador.", "error");
-        return;
-      }
-      openCreateFolderModal(empId, { stayOnUpload: true });
-    });
+  const stage = overlay.querySelector("[data-stage]");
+  const openTabBtn = overlay.querySelector("[data-open-tab]");
+  const downloadBtn = overlay.querySelector("[data-download]");
+
+  downloadBtn?.addEventListener("click", async () => {
+    try {
+      await triggerDownload(doc);
+    } catch (err) {
+      G.notify?.(String(err?.message || "No se pudo descargar."), "error");
+    }
+  });
+  openTabBtn?.addEventListener("click", async () => {
+    try {
+      const url = await resolveDownloadUrl(doc, { disposition: "inline" });
+      window.open(url, "_blank", "noopener");
+    } catch (err) {
+      G.notify?.(String(err?.message || "No se pudo abrir."), "error");
+    }
   });
 
-  const fileInput = nodes.viewRoot.querySelector("#doc-upload-file");
-  const fileLabel = nodes.viewRoot.querySelector("[data-doc-file-label]");
-  const dropzone = nodes.viewRoot.querySelector("[data-doc-dropzone]");
-  applyPendingUploadFileToDom(nodes.viewRoot);
-  if (fileInput && fileLabel) {
-    fileInput.addEventListener("change", () => {
-      setPendingUploadFiles(fileInput.files);
-    });
-  }
-  nodes.viewRoot.querySelectorAll("[data-action='doc-clear-upload-files']").forEach((btn) => {
-    btn.addEventListener("click", (ev) => {
-      ev.preventDefault();
-      ev.stopPropagation();
-      clearPendingUploadFile();
-    });
-  });
-  if (dropzone && fileInput) {
-    dropzone.addEventListener("dragover", (ev) => {
-      ev.preventDefault();
-      dropzone.classList.add("is-dragover");
-    });
-    dropzone.addEventListener("dragleave", () => dropzone.classList.remove("is-dragover"));
-    dropzone.addEventListener("drop", (ev) => {
-      ev.preventDefault();
-      dropzone.classList.remove("is-dragover");
-      if (ev.dataTransfer?.files?.length) setPendingUploadFiles(ev.dataTransfer.files);
-    });
+  if (!canInline) {
+    if (stage) stage.innerHTML = previewStageHtml(doc, "");
+    return;
   }
 
-  const uploadForm = nodes.viewRoot.querySelector("#form-employee-document");
-  if (uploadForm) {
-    uploadForm.addEventListener("submit", async (ev) => {
-      ev.preventDefault();
-      if (!canUploadDocumentsModule()) {
-        G.notify?.("No autorizado para subir documentos.", "error");
-        return;
-      }
-      const fd = new FormData(uploadForm);
-      const employeeId = String(fd.get("employeeId") || "").trim();
-      const documentType = String(
-        fd.get("documentType") || nodes.viewRoot.querySelector("[data-doc-type-input]")?.value || "otro"
-      ).trim();
-      if (!documentType) {
-        G.notify?.("Seleccione el documento del checklist que va a subir.", "error");
-        return;
-      }
-      if (employeeDocumentTypeRequiresExpiry(documentType) && !String(fd.get("dueDate") || "").trim()) {
-        G.notify?.("Indique la fecha de vencimiento para este tipo de documento.", "error");
-        return;
-      }
-      const folderRaw = String(fd.get("folder") || "").trim();
-      if (folderRaw === "__create_folder__") {
-        G.notify?.("Seleccione una carpeta o cree una nueva.", "error");
-        return;
-      }
-      const folder = normalizeDocumentFolder(folderRaw);
-      const files = getSelectedUploadFiles(fileInput);
-      if (!employeeId || !files.length) {
-        G.notify?.("Seleccione colaborador y al menos un archivo.", "error");
-        return;
-      }
-      const oversized = files.find((f) => f.size > EMPLOYEE_DOCUMENT_MAX_BYTES);
-      if (oversized) {
-        G.notify?.(`"${oversized.name}" supera 50 MB.`, "error");
-        return;
-      }
-      const submitBtn = uploadForm.querySelector("[data-doc-submit]");
-      const prevSubmitHtml = submitBtn ? submitBtn.innerHTML : "";
-      if (submitBtn) {
-        submitBtn.disabled = true;
-        submitBtn.classList.add("is-loading");
-        submitBtn.textContent = files.length > 1 ? `Subiendo 0/${files.length}…` : "Subiendo…";
-      }
-      try {
-        await ensureEmployeeFolderRecord(employeeId, folder);
-        const employees = read(KEYS.payrollEmployees, []);
-        const employee = employees.find((e) => String(e.id) === employeeId);
-        const dueDate = String(fd.get("dueDate") || "").trim() || null;
-        const issueDate = String(fd.get("issueDate") || "").trim() || null;
-        const status = computeEmployeeDocumentStatus(dueDate, todayYmd);
-        const documentCode = String(fd.get("documentCode") || "").trim();
-        const notes = String(fd.get("notes") || "").trim();
-        const uploadedBy = G.currentUser?.()?.fullName || G.currentUser?.()?.email || "Portal";
-        let list = read(KEYS.employeeDocuments, []);
-        let okCount = 0;
-        const queue = [...files];
-        while (queue.length) {
-          const file = queue[0];
-          if (submitBtn) {
-            submitBtn.textContent =
-              files.length > 1 ? `Subiendo ${okCount + 1}/${files.length}…` : "Subiendo…";
-          }
-          try {
-            const uploaded = await uploadFileToR2(file, employeeId, documentType, folder);
-            const record = normalizeEmployeeDocumentRow({
-              id: newUuidV4(),
-              employeeId,
-              employeeName: employee?.name || "Colaborador",
-              documentType,
-              folder: uploaded.folder || folder,
-              fileName: uploaded.fileName || file.name,
-              mimeType: uploaded.mimeType || file.type,
-              sizeBytes: uploaded.sizeBytes || file.size,
-              storageKey: uploaded.key,
-              issueDate,
-              dueDate,
-              status,
-              documentCode,
-              notes,
-              uploadedBy,
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString()
-            });
-            list = [...list, record];
-            await writeAwaitServerCreate(KEYS.employeeDocuments, list, record);
-            G.logPortalAuditEvent?.(
-              "documents",
-              "create",
-              buildDocumentAuditDetail("create", record)
-            );
-            queue.shift();
-            pendingUploadFiles = [...queue];
-            applyPendingUploadFileToDom(nodes.viewRoot);
-            okCount += 1;
-          } catch (fileErr) {
-            setPendingUploadFiles(queue);
-            if (okCount > 0) {
-              G.notify?.(
-                `${okCount} archivo${okCount === 1 ? "" : "s"} registrado${okCount === 1 ? "" : "s"}; falló "${file.name}": ${String(fileErr?.message || "error de subida")}.`,
-                "error"
-              );
-              patchDocumentsUi({
-                selectedEmployeeId: employeeId,
-                selectedDocumentType: documentType,
-                workspace: "consult",
-                highlightDocumentType: documentType,
-                folderBrowseEmployeeId: employeeId,
-                folderBrowseName: "",
-                dataSection: "all"
-              });
-              persistHrWorkspace("documents", "consult");
-              G.renderPortalView?.();
-              return;
-            }
-            throw fileErr;
-          }
+  try {
+    const url = await resolveDownloadUrl(doc, { disposition: "inline" });
+    if (!document.body.contains(overlay)) return;
+    if (stage) stage.innerHTML = previewStageHtml(doc, url);
+  } catch (err) {
+    if (stage) {
+      stage.innerHTML = `<div class="doc-preview__nopreview">
+        <p>No se pudo cargar la vista previa.</p>
+        <p class="doc-preview__nopreview-hint">${escapeHtml(String(err?.message || ""))}</p>
+      </div>`;
+    }
+  }
+}
+
+function openStorageDetails() {
+  const docs = readDocs();
+  const folders = readFolders();
+  const top = collectTopFolders(docs, folders).sort((a, b) => b.sizeBytes - a.sizeBytes);
+  const summary = summarizeCompanyDocuments(docs, folders, usersWithAccessCount());
+  const rows = top.length
+    ? top
+        .map(
+          (f) => `<div class="doc-storage-row">
+        <span class="doc-storage-row__name">${escapeHtml(f.name)}</span>
+        <span class="doc-storage-row__bar"><span style="width:${summary.totalBytes ? Math.round((f.sizeBytes / summary.totalBytes) * 100) : 0}%"></span></span>
+        <span class="doc-storage-row__size">${escapeHtml(formatFileSize(f.sizeBytes))}</span>
+      </div>`
+        )
+        .join("")
+    : `<p class="muted">Sin documentos almacenados.</p>`;
+  const html = `<div class="doc-storage-details">
+    <p class="doc-storage-details__total">${escapeHtml(formatFileSize(summary.totalBytes))} de ${escapeHtml(formatFileSize(summary.quotaBytes))} · ${summary.usedPercent}%</p>
+    ${rows}
+  </div>`;
+  if (typeof G.openInfoModal === "function") {
+    G.openInfoModal({ title: "Detalles de almacenamiento", bodyHtml: html });
+  } else {
+    G.notify?.(`Almacenamiento: ${formatFileSize(summary.totalBytes)} de ${formatFileSize(summary.quotaBytes)}.`, "info");
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Bindings                                                            */
+/* ------------------------------------------------------------------ */
+
+function findDoc(id) {
+  return readDocs().find((d) => String(d.id) === String(id)) || null;
+}
+
+function on(root, selector, event, handler) {
+  root.querySelectorAll(selector).forEach((el) => el.addEventListener(event, handler));
+}
+
+function bindDocumentManagementPortalControls() {
+  const root = nodes.viewRoot;
+  if (!root) return;
+
+  on(root, "[data-action='doc-upload']", "click", () => openUploadModal());
+  on(root, "[data-action='doc-new-folder']", "click", () => openNewFolderModal());
+
+  on(root, "[data-action='doc-toggle-filters']", "click", () => {
+    patchUi({ showFilters: !getUi().showFilters });
+    G.renderPortalView?.();
+  });
+
+  on(root, "[data-action='doc-type-filter']", "change", (e) => {
+    patchUi({ typeFilter: String(e.target.value || "all"), page: 1 });
+    G.renderPortalView?.();
+  });
+
+  on(root, "[data-action='doc-folder-filter']", "change", (e) => {
+    patchUi({ folderFilter: String(e.target.value || ""), page: 1 });
+    G.renderPortalView?.();
+  });
+
+  on(root, "[data-action='doc-clear-filters']", "click", () => {
+    patchUi({ typeFilter: "all", folderFilter: "", search: "", page: 1 });
+    G.renderPortalView?.();
+  });
+
+  on(root, "[data-action='doc-clear-folder']", "click", () => {
+    patchUi({ folderFilter: "", page: 1 });
+    G.renderPortalView?.();
+  });
+
+  on(root, "[data-action='doc-view']", "click", (e) => {
+    const mode = e.currentTarget.dataset.viewMode === "grid" ? "grid" : "list";
+    patchUi({ viewMode: mode });
+    G.renderPortalView?.();
+  });
+
+  on(root, "[data-action='doc-open-folder']", "click", (e) => {
+    const folder = String(e.currentTarget.dataset.folder || "");
+    const current = getUi().folderFilter;
+    patchUi({ folderFilter: folderKey(current) === folderKey(folder) ? "" : folder, page: 1 });
+    G.renderPortalView?.();
+  });
+
+  on(root, "[data-action='doc-folder-perms']", "click", (e) => {
+    e.stopPropagation();
+    openFolderPermissionsModal(String(e.currentTarget.dataset.folder || ""));
+  });
+
+  on(root, "[data-action='doc-open-subfolder']", "click", (e) => {
+    patchUi({ folderFilter: String(e.currentTarget.dataset.path || ""), page: 1 });
+    G.renderPortalView?.();
+  });
+
+  on(root, "[data-action='doc-crumb']", "click", (e) => {
+    patchUi({ folderFilter: String(e.currentTarget.dataset.path || ""), page: 1 });
+    G.renderPortalView?.();
+  });
+
+  on(root, "[data-action='doc-create-structure']", "click", () => createSuggestedStructure());
+
+  on(root, "[data-action='doc-see-all']", "click", () => {
+    patchUi({ folderFilter: "", typeFilter: "all", search: "", page: 1 });
+    G.renderPortalView?.();
+  });
+
+  on(root, "[data-action='doc-page']", "click", (e) => {
+    const p = parseInt(e.currentTarget.dataset.page, 10);
+    if (!Number.isNaN(p)) {
+      patchUi({ page: p });
+      G.renderPortalView?.();
+    }
+  });
+
+  on(root, "[data-action='doc-folders-scroll']", "click", (e) => {
+    const rail = root.querySelector("[data-doc-folders-rail]");
+    if (!rail) return;
+    const dir = parseInt(e.currentTarget.dataset.dir, 10) || 1;
+    rail.scrollBy({ left: dir * 280, behavior: "smooth" });
+  });
+
+  on(root, "[data-action='doc-export-csv']", "click", () => {
+    const u = getUi();
+    const rows = buildCompanyDocumentExportRows(
+      sortByRecent(applyCompanyDocumentFilters(readDocs(), { search: u.search, type: u.typeFilter, folder: u.folderFilter }))
+    );
+    downloadCsv(`documentos-corporativos-${colombiaTodayIsoDate()}.csv`, rows);
+  });
+
+  on(root, "[data-action='doc-storage-details']", "click", () => openStorageDetails());
+
+  on(root, "[data-action='doc-preview']", "click", async (e) => {
+    const doc = findDoc(e.currentTarget.dataset.id);
+    if (!doc) return;
+    try {
+      await openPreview(doc);
+    } catch (err) {
+      G.notify?.(String(err?.message || "No se pudo abrir la vista previa."), "error");
+    }
+  });
+
+  on(root, "[data-action='doc-download']", "click", async (e) => {
+    const doc = findDoc(e.currentTarget.dataset.id);
+    if (!doc) return;
+    try {
+      await triggerDownload(doc);
+    } catch (err) {
+      G.notify?.(String(err?.message || "No se pudo descargar."), "error");
+    }
+  });
+
+  on(root, "[data-action='doc-recent-open']", "click", async (e) => {
+    const doc = findDoc(e.currentTarget.dataset.id);
+    if (!doc) return;
+    try {
+      if (canPreviewFileType(doc.fileName, doc.mimeType)) await openPreview(doc);
+      else await triggerDownload(doc);
+    } catch (err) {
+      G.notify?.(String(err?.message || "No se pudo abrir el documento."), "error");
+    }
+  });
+  on(root, "[data-action='doc-recent-open']", "keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      e.currentTarget.click();
+    }
+  });
+
+  on(root, "[data-action='doc-edit']", "click", (e) => {
+    const doc = findDoc(e.currentTarget.dataset.id);
+    if (doc) openEditDocumentModal(doc);
+  });
+
+  on(root, "[data-action='doc-delete']", "click", (e) => {
+    if (!canDelete()) return;
+    const doc = findDoc(e.currentTarget.dataset.id);
+    if (!doc) return;
+    const requestDeletion = G.openConfirmReasonModal || G.openConfirmModal;
+    requestDeletion?.({
+      title: "Eliminar documento",
+      message: `Se eliminará "${doc.fileName}" de ${doc.folder}. Indique la justificación.`,
+      confirmText: "Eliminar",
+      onConfirm: async (motivo) => {
+        const reason = String(motivo || "").trim();
+        const ok = await G.removeFromPortalListAwaitServer?.(KEYS.companyDocuments, doc.id);
+        if (!ok) {
+          G.notify?.("No se pudo eliminar el documento.", "error");
+          return;
         }
-        clearPendingUploadFile();
-        patchDocumentsUi({
-          selectedEmployeeId: employeeId,
-          selectedDocumentType: "",
-          workspace: "consult",
-          highlightDocumentType: documentType,
-          folderBrowseEmployeeId: employeeId,
-          folderBrowseName: "",
-          dataSection: "all"
+        G.logPortalAuditEvent?.("documents", "delete", {
+          entityId: doc.id,
+          entityKind: "document",
+          entityLabel: `${doc.folder} · ${doc.fileName}`,
+          summary: `Eliminación de documento corporativo · ${doc.fileName}`,
+          reason,
+          usuario: actor(),
+          actor: actor(),
+          at: new Date().toISOString()
         });
-        persistHrWorkspace("documents", "consult");
-        G.notify?.(
-          okCount === 1
-            ? `${getEmployeeDocumentTypeLabel(documentType)} registrado.`
-            : `${okCount} documentos registrados.`,
-          "success"
-        );
+        G.notify?.("Documento eliminado.", "success");
         G.renderPortalView?.();
-        switchHrWorkspacePanels({
-          root: nodes.viewRoot,
-          moduleId: "documents",
-          workspace: "consult",
-          panelAttr: "data-doc-panel",
-          shellSelector: ".documents-studio"
-        });
-        setTimeout(() => {
-          patchDocumentsUi({ highlightDocumentType: "" });
-        }, 2800);
-      } catch (err) {
-        G.notify?.(String(err?.message || "No se pudo subir el documento."), "error");
-        if (submitBtn) {
-          submitBtn.disabled = false;
-          submitBtn.classList.remove("is-loading");
-          if (prevSubmitHtml) submitBtn.innerHTML = prevSubmitHtml;
-          else submitBtn.textContent = "Registrar";
-        }
+      }
+    });
+  });
+
+  /* Búsqueda con debounce + restauración de foco/caret */
+  const searchInput = root.querySelector("[data-action='doc-search']");
+  if (searchInput) {
+    const runSearch = () => {
+      const el = root.querySelector("[data-action='doc-search']");
+      if (!el) return;
+      state.__companyDocsSearchRestore = { start: el.selectionStart, end: el.selectionEnd };
+      patchUi({ search: el.value, page: 1 });
+      G.renderPortalView?.();
+    };
+    const debounced = (typeof G.debounce === "function" ? G.debounce(runSearch, 260) : runSearch);
+    searchInput.addEventListener("input", debounced);
+  }
+  const restore = state.__companyDocsSearchRestore;
+  if (restore) {
+    delete state.__companyDocsSearchRestore;
+    queueMicrotask(() => {
+      const el = nodes.viewRoot?.querySelector("[data-action='doc-search']");
+      if (!el) return;
+      el.focus();
+      if (typeof el.setSelectionRange === "function") {
+        const n = String(el.value || "").length;
+        el.setSelectionRange(Math.min(restore.start ?? n, n), Math.min(restore.end ?? n, n));
       }
     });
   }
 
-  nodes.viewRoot.querySelectorAll("[data-action='doc-download']").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const id = String(btn.dataset.id || "");
-      const doc = read(KEYS.employeeDocuments, []).find((d) => String(d.id) === id);
-      if (!doc?.storageKey) {
-        G.notify?.("Documento no encontrado.", "error");
-        return;
-      }
-      try {
-        await downloadDocumentRecord(normalizeEmployeeDocumentRow(doc));
-      } catch (err) {
-        G.notify?.(String(err?.message || "No se pudo descargar."), "error");
-      }
-    });
-  });
-
-  nodes.viewRoot.querySelectorAll("[data-action='doc-preview']").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const id = String(btn.dataset.id || "");
-      const doc = normalizeEmployeeDocumentRow(
-        read(KEYS.employeeDocuments, []).find((d) => String(d.id) === id)
-      );
-      if (!doc?.storageKey) {
-        G.notify?.("Documento no encontrado.", "error");
-        return;
-      }
-      if (!canPreviewDocument(doc)) {
-        G.notify?.("Este formato no tiene vista previa. Descárguelo para abrirlo.", "info");
-        return;
-      }
-      btn.disabled = true;
-      try {
-        const url = await resolveDocumentDownloadUrl(doc);
-        openDocumentPreview(doc, url);
-      } catch (err) {
-        G.notify?.(String(err?.message || "No se pudo abrir la vista previa."), "error");
-      } finally {
-        btn.disabled = false;
-      }
-    });
-  });
-
-  nodes.viewRoot.querySelectorAll("[data-action='doc-edit']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const id = String(btn.dataset.id || "");
-      const doc = normalizeEmployeeDocumentRow(
-        read(KEYS.employeeDocuments, []).find((d) => String(d.id) === id)
-      );
-      if (!doc?.id) return;
-      openEditDocumentModal(doc);
-    });
-  });
-
-  nodes.viewRoot.querySelectorAll("[data-action='doc-delete']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      if (!canDeleteDocumentsModule()) return;
-      const id = String(btn.dataset.id || "");
-      const doc = normalizeEmployeeDocumentRow(read(KEYS.employeeDocuments, []).find((d) => String(d.id) === id));
-      if (!doc?.id) return;
-      const requestDeletion = G.openConfirmReasonModal || G.openConfirmModal;
-      requestDeletion?.({
-        title: "Eliminar documento",
-        message: `Se eliminará "${doc.fileName}" del expediente de ${doc.employeeName}. El archivo en almacenamiento puede conservarse por auditoría. Indique la justificación de la eliminación.`,
-        confirmText: "Eliminar registro",
-        onConfirm: async (motivo) => {
-          const reason = String(motivo || "").trim();
-          const ok = await G.removeFromPortalListAwaitServer?.(KEYS.employeeDocuments, id);
-          if (!ok) return;
-          G.logPortalAuditEvent?.(
-            "documents",
-            "delete",
-            buildDocumentAuditDetail("delete", doc, {
-              uploadedBy: currentDocumentsActorLabel(),
-              reason
-            })
-          );
-          G.notify?.("Documento eliminado del expediente.", "success");
-          G.renderPortalView?.();
+  /* Atajo ⌘K / Ctrl+K para enfocar la búsqueda */
+  if (!window.__companyDocsHotkeyBound) {
+    window.__companyDocsHotkeyBound = true;
+    document.addEventListener("keydown", (e) => {
+      if ((e.metaKey || e.ctrlKey) && String(e.key).toLowerCase() === "k") {
+        const el = nodes.viewRoot?.querySelector("[data-action='doc-search']");
+        if (el && String(state.currentView || "") === "document-management") {
+          e.preventDefault();
+          el.focus();
+          el.select?.();
         }
-      });
-    });
-  });
-
-  nodes.viewRoot.querySelectorAll("[data-action='doc-export-csv']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const ui = getDocumentsUi();
-      const rows = buildEmployeeDocumentExportRows(
-        filterDocuments(read(KEYS.employeeDocuments, []), buildDocumentListFilters(ui), todayYmd),
-        read(KEYS.payrollEmployees, []),
-        todayYmd
-      );
-      downloadCsv(rows, `expediente-documental-${todayYmd}.csv`);
-    });
-  });
-
-  const searchRestore = state.__documentsFilterSearchRestore;
-  if (searchRestore && typeof searchRestore.start === "number") {
-    delete state.__documentsFilterSearchRestore;
-    queueMicrotask(() => {
-      const root = nodes.viewRoot;
-      if (!root || String(state.currentView || "") !== "document-management") return;
-      const mode = String(searchRestore.mode || "");
-      const selector = mode
-        ? `[data-action='doc-filter-search'][data-doc-filter-mode='${mode}']`
-        : "[data-action='doc-filter-search']";
-      const inp = root.querySelector(selector) || root.querySelector("[data-action='doc-filter-search']");
-      if (!inp || typeof inp.focus !== "function") return;
-      inp.focus();
-      if (typeof inp.setSelectionRange === "function") {
-        const n = String(inp.value || "").length;
-        const s = Math.max(0, Math.min(searchRestore.start, n));
-        const e = Math.max(0, Math.min(searchRestore.end ?? searchRestore.start, n));
-        inp.setSelectionRange(s, e);
       }
     });
   }

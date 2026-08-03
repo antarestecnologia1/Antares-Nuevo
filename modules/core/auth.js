@@ -451,6 +451,13 @@ export function canDownloadDocuments(user) {
   return canAccessDocumentsView(user);
 }
 
+/** Bypass de permisos por carpeta: admin o gestor documental total. */
+export function canManageAllDocuments(user) {
+  const u = user || currentUser();
+  if (!u) return false;
+  return isAdminActor(u) || hasDocumentManageAll(u);
+}
+
 export function canAccessAuthorizationSection(user, sectionKey) {
   if (!user) return false;
   if (hasAuthorizationManageAll(user)) return true;

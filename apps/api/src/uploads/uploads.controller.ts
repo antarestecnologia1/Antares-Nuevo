@@ -23,6 +23,7 @@ import {
   DownloadEmployeeDocumentDto,
   PresignEmployeeDocumentDto
 } from "./dto/presign-employee-document.dto";
+import { DownloadCompanyDocumentDto } from "./dto/company-document.dto";
 import { R2Service } from "./r2.service";
 
 type ReqUser = { userId: string; email: string; role: string };
@@ -142,6 +143,44 @@ function folderSlugForStorage(raw: unknown) {
     .replace(/[^a-zA-Z0-9._-]+/g, "")
     .slice(0, 64)
     .toLowerCase() || "general";
+}
+
+/** Carpeta corporativa: admite rutas jerárquicas con " / " (p. ej. "01. Empleados / Manuales"). */
+function sanitizeCompanyDocumentFolder(raw: unknown) {
+  const cleaned = String(raw || "General")
+    .replace(/\\/g, "/")
+    .split("/")
+    .map((seg) =>
+      seg
+        .trim()
+        .replace(/[^a-zA-Z0-9._\s\u00C0-\u024F-]+/g, "")
+        .replace(/\s+/g, " ")
+        .slice(0, 80)
+    )
+    .filter(Boolean)
+    .slice(0, 6)
+    .join(" / ")
+    .slice(0, 200);
+  return cleaned || "General";
+}
+
+/** Slug de carpeta corporativa para la clave R2 (rutas anidadas). */
+function companyFolderSlugForStorage(raw: unknown) {
+  const slug = sanitizeCompanyDocumentFolder(raw)
+    .split("/")
+    .map((seg) =>
+      seg
+        .trim()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/\s+/g, "_")
+        .replace(/[^a-zA-Z0-9._-]+/g, "")
+        .slice(0, 48)
+        .toLowerCase()
+    )
+    .filter(Boolean)
+    .join("/");
+  return slug || "general";
 }
 
 function assertSafeEmployeeDocumentFile(fileName: string) {
@@ -466,6 +505,76 @@ export class UploadsController {
       throw new ForbiddenException("El archivo no pertenece al expediente del colaborador.");
     }
     const downloadUrl = await this.r2.presignGetUploadsObject(storageKey, 3600);
+    return { downloadUrl, expiresInSec: 3600 };
+  }
+
+  /** Subida servidor → R2 para el gestor documental corporativo (evita CORS). */
+  @Post("company-document")
+  @UseInterceptors(
+    FileInterceptor("file", {
+      limits: { fileSize: EMPLOYEE_DOCUMENT_MAX_BYTES }
+    })
+  )
+  async uploadCompanyDocument(
+    @Req() req: { user: ReqUser },
+    @UploadedFile() file: Express.Multer.File,
+    @Body("folder") folderRaw?: string
+  ) {
+    await this.portal.assertCanUploadToCompanyFolder(
+      req.user.userId,
+      req.user.role,
+      sanitizeCompanyDocumentFolder(folderRaw)
+    );
+    if (!this.r2.hasUploadsClient()) {
+      throw new BadRequestException("R2 no está configurado. Define CF_R2_* en el servidor.");
+    }
+    if (!file?.buffer?.length) {
+      throw new BadRequestException("Adjunte un archivo.");
+    }
+    const scope = await this.portal.resolveCompanyDocumentWriteScope(
+      req.user.userId,
+      req.user.role
+    );
+    const scopeKey = String(scope || "global").replace(/[^a-zA-Z0-9-]+/g, "") || "global";
+    const normalizedCt = normalizeEmployeeDocMime(file.mimetype);
+    const origName = String(file.originalname || "documento").replace(/[^a-zA-Z0-9._\-\s\u00C0-\u024F]+/g, "_").trim();
+    assertSafeEmployeeDocumentFile(origName);
+    const folderSlug = companyFolderSlugForStorage(folderRaw);
+    const ext = resolveFileExt(origName, normalizedCt);
+    const key = `documentos_empresa/${scopeKey}/${folderSlug}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    await this.r2.putUploadsObject(key, file.buffer, normalizedCt);
+    return {
+      key,
+      fileName: origName || `documento.${ext}`,
+      mimeType: normalizedCt,
+      sizeBytes: file.buffer.length,
+      folder: sanitizeCompanyDocumentFolder(folderRaw)
+    };
+  }
+
+  /** URL prefirmada GET temporal para descargar un documento corporativo. */
+  @Post("company-document/download")
+  async downloadCompanyDocument(
+    @Req() req: { user: ReqUser },
+    @Body() dto: DownloadCompanyDocumentDto
+  ) {
+    if (!this.r2.hasUploadsClient()) {
+      throw new BadRequestException("R2 no está configurado.");
+    }
+    const storageKey = String(dto.storageKey || "").replace(/^\/+/, "");
+    if (!storageKey || !storageKey.startsWith("documentos_empresa/")) {
+      throw new ForbiddenException("El archivo no pertenece al gestor documental corporativo.");
+    }
+    await this.portal.assertCanDownloadCompanyDocumentByKey(
+      req.user.userId,
+      req.user.role,
+      storageKey
+    );
+    const disposition = dto.disposition === "inline" ? "inline" : "attachment";
+    const downloadUrl = await this.r2.presignGetUploadsObject(storageKey, 3600, {
+      disposition,
+      fileName: dto.fileName
+    });
     return { downloadUrl, expiresInSec: 3600 };
   }
 }

@@ -1,0 +1,361 @@
+/**
+ * Dominio del gestor documental corporativo (DMS general de empresa).
+ * Funciones puras: normalización, tipos de archivo, carpetas jerárquicas,
+ * resúmenes (KPI), filtros y almacenamiento. Sin dependencias del DOM.
+ */
+
+export const COMPANY_DOCUMENT_MAX_BYTES = 50 * 1024 * 1024;
+
+/** Cuota de almacenamiento del plan (bytes). 100 GB por defecto. */
+export const COMPANY_STORAGE_QUOTA_BYTES = 100 * 1024 * 1024 * 1024;
+
+export const DEFAULT_COMPANY_FOLDER = "General";
+
+export const COMPANY_FOLDER_SEPARATOR = " / ";
+
+/** Extensiones agrupadas por familia (para color/ícono del tipo). */
+export const COMPANY_DOCUMENT_TYPE_GROUPS = Object.freeze({
+  pdf: ["pdf"],
+  doc: ["doc", "docx", "odt", "rtf"],
+  sheet: ["xls", "xlsx", "csv", "ods"],
+  slide: ["ppt", "pptx", "odp"],
+  image: ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "heic"],
+  archive: ["zip", "rar", "7z", "tar", "gz"],
+  text: ["txt", "md", "log"]
+});
+
+export function extFromFileName(name) {
+  const safe = String(name || "").trim();
+  const idx = safe.lastIndexOf(".");
+  if (idx <= 0 || idx >= safe.length - 1) return "";
+  return safe.slice(idx + 1).toLowerCase().slice(0, 12);
+}
+
+const MIME_EXT_MAP = {
+  "application/pdf": "pdf",
+  "application/msword": "doc",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+  "application/vnd.ms-excel": "xls",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+  "application/vnd.ms-powerpoint": "ppt",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",
+  "text/plain": "txt",
+  "text/csv": "csv",
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/webp": "webp",
+  "image/gif": "gif",
+  "application/zip": "zip"
+};
+
+/** Etiqueta corta del tipo (PDF, DOCX, XLSX…) a partir del nombre/mime. */
+export function fileTypeLabel(fileName, mimeType) {
+  const ext = extFromFileName(fileName) || MIME_EXT_MAP[String(mimeType || "").toLowerCase()] || "";
+  return (ext || "archivo").toUpperCase();
+}
+
+/** Familia visual del tipo, para colorear ícono. */
+export function fileTypeGroup(fileName, mimeType) {
+  const ext = (extFromFileName(fileName) || MIME_EXT_MAP[String(mimeType || "").toLowerCase()] || "").toLowerCase();
+  for (const [group, exts] of Object.entries(COMPANY_DOCUMENT_TYPE_GROUPS)) {
+    if (exts.includes(ext)) return group;
+  }
+  return "other";
+}
+
+/** Puede previsualizarse en el navegador. */
+export function canPreviewFileType(fileName, mimeType) {
+  const g = fileTypeGroup(fileName, mimeType);
+  return g === "pdf" || g === "image" || g === "text";
+}
+
+export function formatFileSize(bytes) {
+  const n = Number(bytes) || 0;
+  if (n <= 0) return "0 KB";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let value = n;
+  let idx = 0;
+  while (value >= 1024 && idx < units.length - 1) {
+    value /= 1024;
+    idx += 1;
+  }
+  const decimals = value >= 100 || idx <= 1 ? 0 : value >= 10 ? 1 : 2;
+  return `${value.toFixed(decimals)} ${units[idx]}`;
+}
+
+/** Ruta de carpeta normalizada (segmentos con " / "). */
+export function normalizeCompanyFolder(raw) {
+  const cleaned = String(raw ?? "")
+    .replace(/\\/g, "/")
+    .split("/")
+    .map((seg) => seg.trim().replace(/\s+/g, " "))
+    .filter(Boolean)
+    .slice(0, 6)
+    .join(COMPANY_FOLDER_SEPARATOR)
+    .trim();
+  return cleaned || DEFAULT_COMPANY_FOLDER;
+}
+
+export function folderSegments(path) {
+  return normalizeCompanyFolder(path)
+    .split("/")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/** Primer segmento (carpeta principal). */
+export function topFolderName(path) {
+  return folderSegments(path)[0] || DEFAULT_COMPANY_FOLDER;
+}
+
+/** Clave de comparación insensible a mayúsculas/acentos. */
+export function folderKey(path) {
+  return normalizeCompanyFolder(path)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+/** True si `docFolder` es igual o descendiente de `filterPath`. */
+export function folderInSubtree(docFolder, filterPath) {
+  const dk = folderKey(docFolder);
+  const fk = folderKey(filterPath);
+  if (!fk) return true;
+  return dk === fk || dk.startsWith(`${fk} / `);
+}
+
+/** Último segmento (nombre visible) de una ruta. */
+export function folderLeafName(path) {
+  const segs = folderSegments(path);
+  return segs[segs.length - 1] || DEFAULT_COMPANY_FOLDER;
+}
+
+export function normalizeCompanyDocumentRow(row) {
+  if (!row || typeof row !== "object") return row;
+  const fileName = String(row.fileName ?? row.nombre_archivo ?? "documento").trim() || "documento";
+  const mimeType = String(row.mimeType ?? row.mime_type ?? "application/octet-stream").trim();
+  const folder = normalizeCompanyFolder(row.folder ?? row.carpeta ?? DEFAULT_COMPANY_FOLDER);
+  const type = String(row.type ?? row.tipo ?? fileTypeLabel(fileName, mimeType)).trim() || fileTypeLabel(fileName, mimeType);
+  const createdAt = row.createdAt ?? row.fecha_creacion ?? new Date().toISOString();
+  const updatedAt = row.updatedAt ?? row.fecha_actualizacion ?? createdAt;
+  return {
+    id: String(row.id ?? ""),
+    companyId: row.companyId ?? row.id_empresa ?? null,
+    fileName,
+    type,
+    folder,
+    mimeType,
+    sizeBytes: Number(row.sizeBytes ?? row.tamano_bytes ?? 0) || 0,
+    storageKey: String(row.storageKey ?? row.storage_key ?? "").trim(),
+    description: row.description ?? row.descripcion ?? "",
+    tags: row.tags ?? row.etiquetas ?? "",
+    uploadedBy: String(row.uploadedBy ?? row.subido_por ?? "Portal").trim() || "Portal",
+    createdAt: String(createdAt),
+    updatedAt: String(updatedAt)
+  };
+}
+
+/** Acciones con permiso por carpeta. */
+export const FOLDER_PERMISSION_ACTIONS = Object.freeze(["view", "upload", "delete"]);
+
+/** Convierte array o cadena separada por comas en lista de slugs de rol normalizados. */
+export function parseRoleList(value) {
+  const raw = Array.isArray(value) ? value : String(value ?? "").split(",");
+  const out = [];
+  const seen = new Set();
+  for (const item of raw) {
+    const slug = String(item ?? "").trim().toLowerCase();
+    if (!slug || seen.has(slug)) continue;
+    seen.add(slug);
+    out.push(slug);
+  }
+  return out;
+}
+
+export function normalizeCompanyFolderRow(row) {
+  if (!row || typeof row !== "object") return row;
+  return {
+    id: String(row.id ?? ""),
+    companyId: row.companyId ?? row.id_empresa ?? null,
+    folderName: normalizeCompanyFolder(row.folderName ?? row.nombre_carpeta ?? ""),
+    description: row.description ?? row.descripcion ?? "",
+    rolesView: parseRoleList(row.rolesView ?? row.roles_ver),
+    rolesUpload: parseRoleList(row.rolesUpload ?? row.roles_subir),
+    rolesDelete: parseRoleList(row.rolesDelete ?? row.roles_eliminar),
+    createdBy: String(row.createdBy ?? row.creado_por ?? "Portal").trim() || "Portal",
+    createdAt: String(row.createdAt ?? row.fecha_creacion ?? new Date().toISOString())
+  };
+}
+
+/** Registro de carpeta cuyo nombre coincide con la carpeta principal de `path` (o null). */
+export function topFolderRecord(folderRecords = [], path = "") {
+  const topK = folderKey(topFolderName(path));
+  return (
+    folderRecords.find((f) => f && folderKey(topFolderName(f.folderName)) === topK && folderSegments(f.folderName).length === 1) ||
+    folderRecords.find((f) => f && folderKey(topFolderName(f.folderName)) === topK) ||
+    null
+  );
+}
+
+/** Lista de roles permitidos para una acción en la carpeta principal de `path` ([] = sin restricción). */
+export function folderRoleAllowlist(folderRecords = [], path = "", action = "view") {
+  const rec = topFolderRecord(folderRecords, path);
+  if (!rec) return [];
+  if (action === "upload") return rec.rolesUpload || [];
+  if (action === "delete") return rec.rolesDelete || [];
+  return rec.rolesView || [];
+}
+
+/**
+ * Evalúa si un rol pasa el filtro por carpeta para una acción.
+ * `hasGlobalCapability` debe evaluarse aparte (los permisos por carpeta solo restringen).
+ * Allowlist vacía = sin restricción. Admin/manage-all deben cortocircuitar antes.
+ */
+export function roleAllowedInFolder(folderRecords, path, action, role) {
+  const allow = folderRoleAllowlist(folderRecords, path, action);
+  if (!allow.length) return true;
+  return allow.includes(String(role ?? "").trim().toLowerCase());
+}
+
+/** Todas las rutas de carpeta presentes (documentos + registros de carpeta). */
+export function collectAllFolderPaths(docs = [], folderRecords = []) {
+  const set = new Map();
+  for (const d of docs) {
+    const p = normalizeCompanyFolder(d.folder);
+    set.set(folderKey(p), p);
+  }
+  for (const f of folderRecords) {
+    const p = normalizeCompanyFolder(f.folderName);
+    set.set(folderKey(p), p);
+  }
+  return [...set.values()].sort((a, b) => a.localeCompare(b, "es"));
+}
+
+/**
+ * Carpetas principales (primer segmento) con conteo de subcarpetas, archivos y peso.
+ */
+export function collectTopFolders(docs = [], folderRecords = []) {
+  const paths = collectAllFolderPaths(docs, folderRecords);
+  const map = new Map();
+  for (const path of paths) {
+    const segs = folderSegments(path);
+    const top = segs[0] || DEFAULT_COMPANY_FOLDER;
+    const key = folderKey(top);
+    if (!map.has(key)) {
+      map.set(key, { name: top, key, subfolders: new Set(), docCount: 0, sizeBytes: 0 });
+    }
+    if (segs.length > 1) map.get(key).subfolders.add(folderKey(segs.slice(1).join(" / ")));
+  }
+  for (const d of docs) {
+    const top = topFolderName(d.folder);
+    const key = folderKey(top);
+    if (!map.has(key)) {
+      map.set(key, { name: top, key, subfolders: new Set(), docCount: 0, sizeBytes: 0 });
+    }
+    const entry = map.get(key);
+    entry.docCount += 1;
+    entry.sizeBytes += Number(d.sizeBytes) || 0;
+  }
+  return [...map.values()]
+    .map((e) => ({
+      name: e.name,
+      key: e.key,
+      subfolderCount: e.subfolders.size,
+      docCount: e.docCount,
+      sizeBytes: e.sizeBytes
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, "es", { numeric: true }));
+}
+
+/** Subcarpetas inmediatas (hijas directas) bajo `parentPath`, con conteos. */
+export function collectSubfolders(docs = [], folderRecords = [], parentPath = "") {
+  const parent = normalizeCompanyFolder(parentPath);
+  const depth = folderSegments(parent).length;
+  const parentK = folderKey(parent);
+  const map = new Map();
+  const ensure = (segs) => {
+    const childPath = segs.slice(0, depth + 1).join(" / ");
+    const k = folderKey(childPath);
+    if (!map.has(k)) map.set(k, { name: segs[depth], path: childPath, key: k, docCount: 0, sizeBytes: 0 });
+    return map.get(k);
+  };
+  for (const p of collectAllFolderPaths(docs, folderRecords)) {
+    const segs = folderSegments(p);
+    if (segs.length <= depth) continue;
+    if (folderKey(segs.slice(0, depth).join(" / ")) !== parentK) continue;
+    ensure(segs);
+  }
+  for (const d of docs) {
+    const segs = folderSegments(d.folder);
+    if (segs.length <= depth) continue;
+    if (folderKey(segs.slice(0, depth).join(" / ")) !== parentK) continue;
+    const e = ensure(segs);
+    e.docCount += 1;
+    e.sizeBytes += Number(d.sizeBytes) || 0;
+  }
+  return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, "es", { numeric: true }));
+}
+
+export function totalStorageBytes(docs = []) {
+  return docs.reduce((acc, d) => acc + (Number(d.sizeBytes) || 0), 0);
+}
+
+/** KPIs del encabezado. */
+export function summarizeCompanyDocuments(docs = [], folderRecords = [], usersWithAccess = 0) {
+  const folders = collectTopFolders(docs, folderRecords);
+  const totalBytes = totalStorageBytes(docs);
+  return {
+    folderCount: folders.length,
+    docCount: docs.length,
+    totalBytes,
+    quotaBytes: COMPANY_STORAGE_QUOTA_BYTES,
+    usedPercent: Math.min(100, Math.round((totalBytes / COMPANY_STORAGE_QUOTA_BYTES) * 100)),
+    usersWithAccess: Number(usersWithAccess) || 0
+  };
+}
+
+function stripAccents(s) {
+  return String(s || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+/** Filtra por búsqueda (nombre/carpeta/tipo), tipo de archivo y carpeta principal. */
+export function applyCompanyDocumentFilters(docs = [], { search = "", type = "all", folder = "" } = {}) {
+  const q = stripAccents(String(search || "").trim());
+  const typeFilter = String(type || "all").toLowerCase();
+  const filterPath = folder ? normalizeCompanyFolder(folder) : "";
+  return docs.filter((d) => {
+    if (filterPath && !folderInSubtree(d.folder, filterPath)) return false;
+    if (typeFilter && typeFilter !== "all") {
+      if (fileTypeGroup(d.fileName, d.mimeType) !== typeFilter) return false;
+    }
+    if (q) {
+      const hay = `${d.fileName} ${d.folder} ${d.type} ${d.description || ""}`;
+      if (!stripAccents(hay).includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+export function sortByRecent(docs = []) {
+  return [...docs].sort((a, b) => {
+    const ta = new Date(a.updatedAt || a.createdAt || 0).getTime();
+    const tb = new Date(b.updatedAt || b.createdAt || 0).getTime();
+    return tb - ta;
+  });
+}
+
+/** Filas para exportación CSV. */
+export function buildCompanyDocumentExportRows(docs = []) {
+  return docs.map((d) => ({
+    Archivo: d.fileName,
+    Tipo: d.type,
+    Carpeta: d.folder,
+    Tamaño: formatFileSize(d.sizeBytes),
+    "Subido por": d.uploadedBy,
+    "Fecha de modificación": d.updatedAt,
+    Descripción: d.description || ""
+  }));
+}

@@ -66,6 +66,8 @@
     antares_sst_compliance_v2: "sstCompliance",
     antares_employee_documents_v1: "employeeDocuments",
     antares_employee_document_folders_v1: "employeeDocumentFolders",
+    antares_company_documents_v1: "companyDocuments",
+    antares_company_document_folders_v1: "companyDocumentFolders",
     antares_trip_route_rates_v2: "tripRouteRates",
     antares_approvals_v2: "approvals"
   };
