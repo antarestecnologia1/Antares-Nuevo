@@ -625,6 +625,15 @@ function bindAuthorizationsPortalControls() {
           appendPayrollRunAuditLog("update", targetRun, {
             summary: `Pago aprobado vía autorizaciones · aprobado por ${approver} · neto $${parseNum(targetRun.net).toLocaleString("es-CO")}`
           });
+          const paidRun = nextRuns.find((r) => String(r.id) === payrollRunId) || {
+            ...targetRun,
+            paid: true,
+            paidAt: nowIso(),
+            approvedBy: approver
+          };
+          if (typeof window.archivePayrollRunToEmployeeFolder === "function") {
+            void window.archivePayrollRunToEmployeeFolder(paidRun);
+          }
         } catch (err) {
           notify(String(err?.message || userMessage("genericError")), "error");
           return;

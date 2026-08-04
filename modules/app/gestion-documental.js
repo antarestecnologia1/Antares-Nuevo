@@ -4,7 +4,7 @@
  * permisos por carpeta (solo admin), vista previa lateral y dropzone.
  */
 import { state, nodes } from "../core/store.js";
-import { read, writeAwaitServerCreate, writeAwaitServerEdit } from "../core/data-io.js";
+import { read, writeAwaitServerCreate, writeAwaitServerEdit, writeAwaitServerDelete } from "../core/data-io.js";
 import { KEYS, PORTAL_ASSIGNABLE_ROLES } from "../core/config.js";
 import {
   canAccessDocumentsView,
@@ -24,7 +24,6 @@ import {
   listMissingEmployeeFolderPaths,
   buildPayrollCompanyDocumentFileName,
   employeeHireDocumentMarker,
-  buildEmployeeContractCompanyFileName,
   buildEmployeePhotoCompanyFileName,
   mapEmployeeDocumentTypeToCompanyCategory,
   normalizeCompanyDocumentRow,
@@ -54,9 +53,9 @@ import {
   normalizeEmployeeDocumentRow,
   normalizeEmployeeDocumentFolderRow
 } from "../domain/employee-documents.domain.js";
-import { downloadCsv, ensureJsPdfLoaded } from "../domain/reporteria.domain.js";
+import { downloadCsv } from "../domain/reporteria.domain.js";
 import { payrollRunTypeLabel } from "../domain/nomina.domain.js";
-import { buildEmployeeContractDocxPayload } from "../domain/contratacion.domain.js";
+import { buildEmployeeContractDocxPayload, prepareEmployeeForContractDocx, validateEmployeeContractDocFields } from "../domain/contratacion.domain.js";
 import {
   SAFE_DOCUMENT_ACCEPT,
   validateUploadFile
@@ -836,57 +835,15 @@ function fmtCop(n) {
   return `$${Number(n || 0).toLocaleString("es-CO")}`;
 }
 
-/** PDF corto del comprobante de pago (jsPDF) para archivar en el DMS. */
-async function buildPayrollComprobantePdfBlob(run) {
-  const JsPDF = await ensureJsPdfLoaded();
-  const doc = new JsPDF({ unit: "pt", format: "letter" });
-  const typeLabel = payrollRunTypeLabel(run);
-  const name = String(run.employeeName || "Colaborador").trim();
-  const period = String(run.month || "—").trim();
-  let y = 48;
-  const line = (text, size = 11, bold = false) => {
-    doc.setFont("helvetica", bold ? "bold" : "normal");
-    doc.setFontSize(size);
-    doc.text(String(text || ""), 48, y);
-    y += size + 8;
-  };
-  line("TRANSPORTES ANTARES", 14, true);
-  line("Comprobante oficial de pago", 16, true);
-  y += 6;
-  line(`Trabajador: ${name}`, 11, true);
-  line(`Período: ${period}`);
-  line(`Tipo: ${typeLabel}`);
-  line(`Estado: ${run.paid ? "Pagado" : "Pendiente de pago"}`);
-  y += 8;
-  line("Resumen", 12, true);
-  line(`Devengado / bruto: ${fmtCop(run.gross)}`);
-  if (Number(run.aux) > 0) line(`Auxilio de transporte: ${fmtCop(run.aux)}`);
-  if (Number(run.extras) > 0) line(`Extras / horas extras: ${fmtCop(run.extras)}`);
-  if (Number(run.travelAllowance) > 0) line(`Viáticos: ${fmtCop(run.travelAllowance)}`);
-  if (Number(run.fuelReimbursement) > 0) line(`Combustible: ${fmtCop(run.fuelReimbursement)}`);
-  if (Number(run.primaServiciosCop) > 0) line(`Prima de servicios: ${fmtCop(run.primaServiciosCop)}`);
-  if (Number(run.interesesCesantiasCop) > 0) line(`Intereses de cesantías: ${fmtCop(run.interesesCesantiasCop)}`);
-  y += 4;
-  line(`Salud: ${fmtCop(run.health)}`);
-  line(`Pensión: ${fmtCop(run.pension)}`);
-  if (Number(run.solidarity) > 0) line(`FSP / solidaridad: ${fmtCop(run.solidarity)}`);
-  line(`Total deducciones: ${fmtCop(run.deductions)}`);
-  y += 10;
-  line(`Neto a pagar: ${fmtCop(run.net)}`, 13, true);
-  y += 16;
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.setTextColor(100);
-  doc.text("Documento generado automáticamente por Antares al registrar el pago.", 48, y);
-  return doc.output("blob");
-}
-
 /**
- * Archiva el comprobante de una liquidación en `01. Empleados / Nombre`.
- * Idempotente por marcador `payrollRunId=` en la descripción.
+ * Archiva el comprobante de una liquidación PAGADA en `01. Empleados / Nombre`.
+ * Usa el mismo desprendible de Gestión humana (HTML→PDF). Idempotente por `payrollRunId=`.
  */
 async function archivePayrollRunToEmployeeFolder(run) {
   if (!run?.id || !run.employeeId) return { ok: false, skipped: true };
+  if (!run.paid) {
+    return { ok: false, skipped: true, message: "Solo se archiva la colilla cuando el pago está marcado como pagado." };
+  }
   const runMarker = `payrollRunId=${String(run.id).trim()}`;
   if (readDocs().some((d) => String(d.description || "").includes(runMarker))) {
     return { ok: true, skipped: true };
@@ -900,10 +857,21 @@ async function archivePayrollRunToEmployeeFolder(run) {
   if (!folder) return { ok: false, message: "No se pudo resolver la carpeta del colaborador." };
 
   const typeLabel = payrollRunTypeLabel(run);
-  const fileName = buildPayrollCompanyDocumentFileName(run, typeLabel);
+  const fallbackName = buildPayrollCompanyDocumentFileName(run, typeLabel);
   try {
-    const blob = await buildPayrollComprobantePdfBlob(run);
-    const file = new File([blob], fileName, { type: "application/pdf" });
+    const buildSlip =
+      typeof window.buildPayrollRunPayslipFileBlob === "function" ? window.buildPayrollRunPayslipFileBlob : null;
+    if (!buildSlip) {
+      return { ok: false, message: "Desprendible de Gestión humana no disponible." };
+    }
+    const packed = await buildSlip(run);
+    if (!packed?.blob) {
+      return { ok: false, message: "No se pudo generar la colilla con el formato de Gestión humana." };
+    }
+    const fileName = packed.fileName || fallbackName;
+    const file = new File([packed.blob], fileName, {
+      type: packed.mimeType || "application/pdf"
+    });
     const uploaded = await uploadFileToR2(file, folder);
     const by = actor();
     const nowIso = new Date().toISOString();
@@ -916,7 +884,7 @@ async function archivePayrollRunToEmployeeFolder(run) {
       mimeType: uploaded.mimeType || "application/pdf",
       sizeBytes: Number(uploaded.sizeBytes) || file.size || 0,
       storageKey: uploaded.key,
-      description: `Comprobante de pago · ${typeLabel} · ${run.month || ""} · neto ${fmtCop(run.net)} · ${runMarker}`,
+      description: `Colilla de pago (Gestión humana) · ${typeLabel} · ${run.month || ""} · neto ${fmtCop(run.net)} · ${runMarker}`,
       tags: "comprobante_pago",
       uploadedBy: by,
       createdAt: nowIso,
@@ -980,38 +948,80 @@ async function archiveBlobToEmployeeFolder({
   }
 }
 
+/**
+ * Genera el Word oficial (misma plantilla y merge que Gestión humana / Contratación).
+ * @returns {{ blob: Blob, fileName: string, kind: string, employee: object } | null}
+ */
 async function buildContractBlobForEmployee(employee) {
   const buildBlob = window.RecruitmentDomain?.buildEmployeeContractDocxBlob;
   if (typeof buildBlob !== "function") return null;
   try {
+    const prepareFn =
+      typeof window.prepareEmployeeForContractDocx === "function"
+        ? window.prepareEmployeeForContractDocx
+        : prepareEmployeeForContractDocx;
+    const validateFn =
+      typeof window.validateEmployeeContractDocFields === "function"
+        ? window.validateEmployeeContractDocFields
+        : validateEmployeeContractDocFields;
     const payloadFn =
       typeof window.buildEmployeeContractDocxPayload === "function"
         ? window.buildEmployeeContractDocxPayload
         : buildEmployeeContractDocxPayload;
-    const payload = payloadFn(employee, { contractTemplateKind: employee.contractTemplateKind });
-    return await buildBlob(payload);
+
+    const emp = prepareFn(employee);
+    const missing = typeof validateFn === "function" ? validateFn(emp) : [];
+    if (Array.isArray(missing) && missing.length) {
+      return { ok: false, skipped: true, message: `Faltan datos del contrato: ${missing.join(", ")}` };
+    }
+    const payload = payloadFn(emp, {
+      contractTemplateKind: emp.contractTemplateKind,
+      signDate: emp.startDate || emp.contractVigenteStartDate
+    });
+    const built = await buildBlob(payload);
+    if (!built?.blob) return null;
+    return { ...built, employee: emp, ok: true };
   } catch (err) {
     devWarn("[companyDocuments] buildContractBlob", err?.message || err);
     return null;
   }
 }
 
-async function archiveEmployeeContractToFolder(employee) {
+/** Archiva el contrato Word oficial (plantilla Antares) en la carpeta del colaborador. */
+async function archiveEmployeeContractToFolder(employee, opts = {}) {
   if (!employee?.id) return { ok: false, skipped: true };
-  const marker = employeeHireDocumentMarker(employee.id, "contrato");
-  if (hasHireDocMarker(marker)) return { ok: true, skipped: true };
-  const built = await buildContractBlobForEmployee(employee);
-  if (!built?.blob) return { ok: false, skipped: true, message: "No se pudo generar el contrato Word." };
-  const fileName =
-    buildEmployeeContractCompanyFileName(employee, built.kind) || built.fileName || "contrato.docx";
+  const signKey = String(
+    opts.signDate || employee.contractVigenteStartDate || employee.startDate || ""
+  )
+    .trim()
+    .slice(0, 10);
+  const markerKind = signKey ? `contrato_oficial:${signKey}` : "contrato_oficial";
+  const marker = employeeHireDocumentMarker(employee.id, markerKind);
+  if (!opts.force && hasHireDocMarker(marker)) return { ok: true, skipped: true };
+
+  let built = opts.built && opts.built.blob ? opts.built : null;
+  if (!built) built = await buildContractBlobForEmployee(employee);
+  if (!built?.blob) {
+    return {
+      ok: false,
+      skipped: true,
+      message: built?.message || "No se pudo generar el contrato Word oficial."
+    };
+  }
+  /* Conserva el nombre del generador oficial: contrato_{plantilla}_{nombre}.docx */
+  const fileName = String(built.fileName || `contrato_${built.kind || "oficina"}.docx`).replace(
+    /[\\/]+/g,
+    "_"
+  );
+  const emp = built.employee || employee;
   return archiveBlobToEmployeeFolder({
-    employee,
+    employee: emp,
     blob: built.blob,
     fileName,
     mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     documentCategory: "contrato",
     marker,
-    description: `Contrato laboral · ${employee.name || ""} · ${built.kind || ""}`
+    description: `Contrato laboral oficial · plantilla ${built.kind || ""} · ${emp.name || ""}`
   });
 }
 
@@ -1053,10 +1063,10 @@ async function blobFromAvatarUrl(avatarUrl) {
   return null;
 }
 
-async function archiveEmployeePhotoToFolder(employee) {
+async function archiveEmployeePhotoToFolder(employee, opts = {}) {
   if (!employee?.id) return { ok: false, skipped: true };
   const marker = employeeHireDocumentMarker(employee.id, "foto");
-  if (hasHireDocMarker(marker)) return { ok: true, skipped: true };
+  if (!opts.force && hasHireDocMarker(marker)) return { ok: true, skipped: true };
   const avatarUrl = String(employee.avatarUrl || employee.photoUrl || "").trim();
   if (!avatarUrl) return { ok: false, skipped: true };
   const packed = await blobFromAvatarUrl(avatarUrl);
@@ -1151,10 +1161,10 @@ async function archiveEmployeeLegacyDocsToFolder(employee) {
   return { ok: true, created };
 }
 
-async function archiveEmployeeLaborLetterToFolder(employee) {
+async function archiveEmployeeLaborLetterToFolder(employee, opts = {}) {
   if (!employee?.id) return { ok: false, skipped: true };
-  const marker = employeeHireDocumentMarker(employee.id, "carta");
-  if (hasHireDocMarker(marker)) return { ok: true, skipped: true };
+  const marker = employeeHireDocumentMarker(employee.id, "carta_oficial");
+  if (!opts.force && hasHireDocMarker(marker)) return { ok: true, skipped: true };
 
   const letterApi = window.AntaresEmploymentLetter || {};
   const validate =
@@ -1167,36 +1177,51 @@ async function archiveEmployeeLaborLetterToFolder(employee) {
       : null;
   if (!buildPdf) return { ok: false, skipped: true, message: "Módulo de carta laboral no disponible." };
 
-  const termDate = String(employee.terminationDate || employee.contractEndDate || "").trim().slice(0, 10);
-  const letterKind = termDate && /^\d{4}-\d{2}-\d{2}$/.test(termDate) ? "retiro" : "vigente";
+  const ensureFields =
+    typeof window.ensureEmployeeContractFields === "function" ? window.ensureEmployeeContractFields : (e) => e;
+  const normalizeDates =
+    typeof window.normalizePayrollEmployeeRowDates === "function"
+      ? window.normalizePayrollEmployeeRowDates
+      : (e) => e;
+  const normalized = normalizeDates(ensureFields(employee));
+
+  const terminated =
+    normalized?.active === false ||
+    String(normalized?.active || "").toLowerCase() === "false" ||
+    /retir|inactiv|terminad/i.test(String(normalized?.status || "")) ||
+    Boolean(String(normalized?.terminationDate || "").trim());
+  const letterKind = terminated ? "retiro" : "vigente";
+  const termDate = String(normalized?.terminationDate || colombiaTodayIsoDate()).trim().slice(0, 10);
   const letterOpts = {
     letterKind,
     letterDate: colombiaTodayIsoDate(),
+    addressee: "A quien interese",
     terminationDate: letterKind === "retiro" ? termDate : undefined,
+    terminationCause: String(normalized?.terminationCause || "otro").trim() || "otro",
     includeSalary: true,
     includeSocialSecurity: true
   };
   if (typeof validate === "function") {
-    const check = validate(employee, letterOpts);
+    const check = validate(normalized, letterOpts);
     if (!check?.ok) return { ok: false, skipped: true, message: check?.message || "Datos insuficientes para carta." };
   }
   try {
-    const built = await buildPdf(employee, letterOpts);
+    const built = await buildPdf(normalized, letterOpts);
     if (!built?.ok || !built.blob) {
       return { ok: false, message: built?.message || "No se pudo generar la carta laboral." };
     }
-    const fileName = String(built.fileName || `Carta laboral · ${employee.name || "colaborador"}.pdf`).replace(
+    const fileName = String(built.fileName || `Carta laboral · ${normalized.name || "colaborador"}.pdf`).replace(
       /[\\/]+/g,
       "_"
     );
     return archiveBlobToEmployeeFolder({
-      employee,
+      employee: normalized,
       blob: built.blob,
       fileName,
       mimeType: "application/pdf",
       documentCategory: "carta_laboral",
       marker,
-      description: `Carta laboral (${letterKind}) · ${employee.name || ""}`
+      description: `Carta laboral (${letterKind}) · formato oficial · ${normalized.name || ""}`
     });
   } catch (err) {
     devWarn("[companyDocuments] archiveLaborLetter", err?.message || err);
@@ -1204,34 +1229,8 @@ async function archiveEmployeeLaborLetterToFolder(employee) {
   }
 }
 
-/** Archiva todas las colillas/liquidaciones disponibles del colaborador. */
-async function archiveEmployeePayrollRunsToFolder(employee, { limit = 40 } = {}) {
-  if (!employee?.id) return { ok: true, created: 0, pending: 0 };
-  const eid = String(employee.id);
-  const runs = read(KEYS.payrollRuns, []).filter((r) => r?.id && String(r.employeeId) === eid);
-  let created = 0;
-  let pending = 0;
-  let processed = 0;
-  for (const run of runs) {
-    const marker = `payrollRunId=${String(run.id).trim()}`;
-    if (hasHireDocMarker(marker) || readDocs().some((d) => String(d.description || "").includes(marker))) {
-      continue;
-    }
-    if (processed >= limit) {
-      pending += 1;
-      continue;
-    }
-    processed += 1;
-    const res = await archivePayrollRunToEmployeeFolder(run);
-    if (res?.created) created += 1;
-    else if (!res?.skipped && !res?.ok) pending += 1;
-  }
-  return { ok: true, created, pending };
-}
-
-/**
- * Archiva en Gestión documental: contrato, foto, carta laboral, colillas, CV y docs legacy.
- * Idempotente. No bloquea el alta si falla.
+/** Archiva en Gestión documental: contrato, foto, carta laboral, CV y docs legacy.
+ * Idempotente. No bloquea el alta si falla. Las colillas solo se archivan al marcar pago.
  */
 async function archiveEmployeeHirePackageToFolder(employee, opts = {}) {
   if (!employee?.id) return { ok: false, skipped: true };
@@ -1239,34 +1238,30 @@ async function archiveEmployeeHirePackageToFolder(employee, opts = {}) {
     contract: null,
     photo: null,
     letter: null,
-    slips: null,
     cv: null,
     legacy: null
   };
   try {
-    results.contract = await archiveEmployeeContractToFolder(employee);
+    results.contract = await archiveEmployeeContractToFolder(employee, {
+      force: opts.forceContract === true || opts.forceAll === true
+    });
   } catch (err) {
     results.contract = { ok: false, message: String(err?.message || err) };
   }
   try {
-    results.photo = await archiveEmployeePhotoToFolder(employee);
+    results.photo = await archiveEmployeePhotoToFolder(employee, {
+      force: opts.forcePhoto === true || opts.forceAll === true
+    });
   } catch (err) {
     results.photo = { ok: false, message: String(err?.message || err) };
   }
   if (opts.includeLaborLetter !== false) {
     try {
-      results.letter = await archiveEmployeeLaborLetterToFolder(employee);
-    } catch (err) {
-      results.letter = { ok: false, message: String(err?.message || err) };
-    }
-  }
-  if (opts.includePayrollSlips !== false) {
-    try {
-      results.slips = await archiveEmployeePayrollRunsToFolder(employee, {
-        limit: Number(opts.payrollSlipLimit) || 40
+      results.letter = await archiveEmployeeLaborLetterToFolder(employee, {
+        force: opts.forceLetter === true || opts.forceAll === true
       });
     } catch (err) {
-      results.slips = { ok: false, message: String(err?.message || err) };
+      results.letter = { ok: false, message: String(err?.message || err) };
     }
   }
   if (opts.candidateId || opts.includeCv !== false) {
@@ -1287,76 +1282,88 @@ async function archiveEmployeeHirePackageToFolder(employee, opts = {}) {
     Number(!!results.contract?.created) +
     Number(!!results.photo?.created) +
     Number(!!results.letter?.created) +
-    Number(results.slips?.created || 0) +
     Number(!!results.cv?.created) +
     Number(results.legacy?.created || 0);
   return { ok: true, created, results };
 }
 
 const DMS_EMPLOYEE_BACKFILL_BATCH = 3;
-const DMS_SLIP_BACKFILL_BATCH = 10;
 const dmsEmployeeBackfillAttempted = new Set();
 let dmsBackfillChainScheduled = false;
 let dmsBackfillNotifyStarted = false;
+let dmsBackfillHadWork = false;
+let dmsResetRecreatePromise = null;
 
-function employeeNeedsDmsBackfill(emp) {
+const DMS_RESET_RECREATE_FLAG = "antares-dms-purge-recreate-v20260804c";
+
+function employeeHasOfficialContractArchived(employeeId) {
+  const id = String(employeeId || "").trim();
+  if (!id) return false;
+  const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(`employeeHireDoc=contrato_oficial(?::\\d{4}-\\d{2}-\\d{2})?:${escaped}(?:\\b|\\s|$)`);
+  return readDocs().some((d) => re.test(String(d.description || "")));
+}
+
+function employeeNeedsDmsBackfill(emp, { forceAll = false } = {}) {
   const id = String(emp.id);
   if (dmsEmployeeBackfillAttempted.has(id)) return false;
-  const needsContract = !hasHireDocMarker(employeeHireDocumentMarker(id, "contrato"));
-  const needsLetter = !hasHireDocMarker(employeeHireDocumentMarker(id, "carta"));
+  if (forceAll) return true;
+  const needsContract = !employeeHasOfficialContractArchived(id);
+  const needsLetter = !hasHireDocMarker(employeeHireDocumentMarker(id, "carta_oficial"));
   const needsPhoto =
     Boolean(String(emp.avatarUrl || emp.photoUrl || "").trim()) &&
     !hasHireDocMarker(employeeHireDocumentMarker(id, "foto"));
-  const hasPendingSlip = read(KEYS.payrollRuns, []).some((r) => {
-    if (!r?.id || String(r.employeeId) !== id) return false;
-    const marker = `payrollRunId=${String(r.id).trim()}`;
-    return !readDocs().some((d) => String(d.description || "").includes(marker));
-  });
-  return needsContract || needsLetter || needsPhoto || hasPendingSlip;
+  return needsContract || needsLetter || needsPhoto;
 }
 
-function countUnarchivedPayrollRuns() {
-  return read(KEYS.payrollRuns, []).filter((r) => {
-    if (!r?.id || !r.employeeId) return false;
-    const marker = `payrollRunId=${String(r.id).trim()}`;
-    return !readDocs().some((d) => String(d.description || "").includes(marker));
-  }).length;
-}
-
-/** Colillas de cualquier empleado aún no archivadas (lote global). */
-async function backfillAvailablePayrollSlips(limit = DMS_SLIP_BACKFILL_BATCH) {
-  const runs = read(KEYS.payrollRuns, []).filter((r) => r?.id && r.employeeId);
-  let created = 0;
-  let processed = 0;
-  for (const run of runs) {
-    const marker = `payrollRunId=${String(run.id).trim()}`;
-    if (readDocs().some((d) => String(d.description || "").includes(marker))) continue;
-    if (processed >= limit) break;
-    processed += 1;
-    const res = await archivePayrollRunToEmployeeFolder(run);
-    if (res?.created) created += 1;
+/** Borra todos los documentos del DMS corporativo en servidor + memoria. */
+async function purgeAllCompanyDocuments() {
+  const docs = readDocs();
+  const ids = docs.map((d) => String(d.id || "").trim()).filter(Boolean);
+  if (!ids.length) return { ok: true, deleted: 0 };
+  const prev = docs.slice();
+  try {
+    await writeAwaitServerDelete(KEYS.companyDocuments, [], ids, { notifyOnFailure: false });
+    return { ok: true, deleted: ids.length };
+  } catch (err) {
+    /* Restaura lectura local si el delete falló a medias. */
+    try {
+      const { write } = await import("../core/data-io.js");
+      write(KEYS.companyDocuments, prev, { skipSyncSchedule: true });
+    } catch (_e) {
+      /* noop */
+    }
+    devWarn("[companyDocuments] purgeAll", err?.message || err);
+    return { ok: false, deleted: 0, message: String(err?.message || err) };
   }
-  return { created, pending: countUnarchivedPayrollRuns() };
 }
 
-let dmsBackfillHadWork = false;
+function resetDmsBackfillState() {
+  dmsEmployeeBackfillAttempted.clear();
+  dmsBackfillNotifyStarted = false;
+  dmsBackfillHadWork = false;
+  dmsBackfillChainScheduled = false;
+}
 
 /**
- * Rellena para empleados existentes: contratos, cartas laborales, fotos y colillas disponibles.
- * Procesa por lotes y se reencadena sola hasta terminar.
+ * Rellena contratos, cartas laborales y fotos.
+ * Con `forceAll` procesa todos los colaboradores (tras un purge).
  */
-async function backfillEmployeeHireDocuments() {
+async function backfillEmployeeHireDocuments(opts = {}) {
+  const forceAll = opts.forceAll === true;
   if (!canUpload()) return { created: 0, pending: 0 };
   if (!dmsBackfillNotifyStarted) {
     dmsBackfillNotifyStarted = true;
     G.notify?.(
-      "Archivando contratos, colillas y cartas laborales de los colaboradores en Gestión documental…",
+      forceAll
+        ? "Regenerando contratos, cartas laborales y fotos en Gestión documental…"
+        : "Archivando contratos y cartas laborales de los colaboradores en Gestión documental…",
       "info"
     );
   }
 
   const employees = read(KEYS.payrollEmployees, []).filter((e) => e?.id && String(e.name || "").trim());
-  const pendingEmps = employees.filter(employeeNeedsDmsBackfill);
+  const pendingEmps = employees.filter((e) => employeeNeedsDmsBackfill(e, { forceAll }));
   let created = 0;
 
   for (const emp of pendingEmps.slice(0, DMS_EMPLOYEE_BACKFILL_BATCH)) {
@@ -1365,36 +1372,105 @@ async function backfillEmployeeHireDocuments() {
       includeCv: false,
       includeLegacyDocs: true,
       includeLaborLetter: true,
-      includePayrollSlips: true,
-      payrollSlipLimit: 25
+      includePayrollSlips: false,
+      forceAll
     });
     created += Number(res?.created || 0);
   }
-
-  const slips = await backfillAvailablePayrollSlips(DMS_SLIP_BACKFILL_BATCH);
-  created += Number(slips?.created || 0);
   if (created > 0) dmsBackfillHadWork = true;
 
-  const stillPendingEmps = employees.filter(employeeNeedsDmsBackfill).length;
-  const stillPendingSlips = countUnarchivedPayrollRuns();
-  const pending = stillPendingEmps + stillPendingSlips;
+  const pending = employees.filter((e) => employeeNeedsDmsBackfill(e, { forceAll })).length;
 
   if (pending > 0 && !dmsBackfillChainScheduled) {
     dmsBackfillChainScheduled = true;
     setTimeout(() => {
       dmsBackfillChainScheduled = false;
-      void backfillEmployeeHireDocuments().then((res) => {
+      void backfillEmployeeHireDocuments({ forceAll }).then((res) => {
         if (res?.created > 0 && String(state.currentView || "") === "document-management") {
           G.renderPortalView?.();
         }
       });
-    }, 400);
+    }, 350);
   } else if (pending <= 0 && dmsBackfillHadWork) {
     dmsBackfillHadWork = false;
-    G.notify?.("Archivado de contratos, colillas y cartas laborales finalizado.", "success");
+    G.notify?.("Gestión documental actualizada: archivos regenerados.", "success");
+    if (String(state.currentView || "") === "document-management") {
+      G.renderPortalView?.();
+    }
   }
 
   return { created, pending };
+}
+
+/** Re-archiva colillas de liquidaciones ya marcadas como pagadas (tras un purge). */
+async function backfillPaidPayrollSlips() {
+  if (!canUpload()) return { created: 0 };
+  if (typeof window.buildPayrollRunPayslipFileBlob !== "function") {
+    return { created: 0, skipped: true };
+  }
+  const runs = read(KEYS.payrollRuns, []).filter((r) => r?.id && r.employeeId && r.paid);
+  let created = 0;
+  const BATCH = 2;
+  for (let i = 0; i < runs.length; i += BATCH) {
+    const slice = runs.slice(i, i + BATCH);
+    for (const run of slice) {
+      try {
+        const res = await archivePayrollRunToEmployeeFolder(run);
+        if (res?.created) created += 1;
+      } catch (err) {
+        devWarn("[companyDocuments] backfillPaidSlip", err?.message || err);
+      }
+    }
+    /* Cede el hilo entre lotes para no congelar la UI. */
+    if (i + BATCH < runs.length) {
+      await new Promise((r) => setTimeout(r, 200));
+    }
+  }
+  return { created };
+}
+
+/**
+ * Borra todos los documentos del DMS y vuelve a crear contratos, cartas, fotos y colillas pagadas.
+ * Se ejecuta una vez por navegador (flag localStorage) al abrir el módulo.
+ */
+async function resetAndRecreateCompanyDocuments({ force = false } = {}) {
+  if (!canUpload()) return { ok: false, skipped: true };
+  if (dmsResetRecreatePromise) return dmsResetRecreatePromise;
+
+  if (!force) {
+    try {
+      if (localStorage.getItem(DMS_RESET_RECREATE_FLAG) === "1") {
+        return { ok: true, skipped: true };
+      }
+    } catch (_e) {
+      /* storage bloqueado: igual intentamos una vez en esta sesión */
+    }
+  }
+
+  dmsResetRecreatePromise = (async () => {
+    G.notify?.("Limpiando Gestión documental y regenerando archivos oficiales…", "info");
+    const purged = await purgeAllCompanyDocuments();
+    if (!purged.ok) {
+      G.notify?.(purged.message || "No se pudieron borrar los documentos actuales.", "error");
+      return { ok: false, purged };
+    }
+    resetDmsBackfillState();
+    /* Carpetas se mantienen; solo se recrean archivos. */
+    await ensureCompanyDocumentStructure({ skipBackfill: true });
+    resetDmsBackfillState();
+    const backfill = await backfillEmployeeHireDocuments({ forceAll: true });
+    const slips = await backfillPaidPayrollSlips();
+    try {
+      localStorage.setItem(DMS_RESET_RECREATE_FLAG, "1");
+    } catch (_e) {
+      /* noop */
+    }
+    return { ok: true, deleted: purged.deleted, backfill, slips };
+  })().finally(() => {
+    dmsResetRecreatePromise = null;
+  });
+
+  return dmsResetRecreatePromise;
 }
 
 if (typeof window !== "undefined") {
@@ -1404,6 +1480,8 @@ if (typeof window !== "undefined") {
   window.archiveEmployeePhotoToFolder = archiveEmployeePhotoToFolder;
   window.archiveEmployeeLaborLetterToFolder = archiveEmployeeLaborLetterToFolder;
   window.backfillEmployeeHireDocuments = backfillEmployeeHireDocuments;
+  window.resetAndRecreateCompanyDocuments = resetAndRecreateCompanyDocuments;
+  window.purgeAllCompanyDocuments = purgeAllCompanyDocuments;
 }
 
 function folderOptionsHtml(selectedPath) {
@@ -1504,7 +1582,7 @@ let ensureStructurePromise = null;
  * Idempotente: si ya existen, no hace nada. Seguro con varios usuarios concurrentes
  * (índice único en BD + skip local por nombre).
  */
-async function ensureCompanyDocumentStructure() {
+async function ensureCompanyDocumentStructure(opts = {}) {
   if (!canUpload()) return { created: 0 };
   if (ensureStructurePromise) return ensureStructurePromise;
   ensureStructurePromise = (async () => {
@@ -1552,12 +1630,13 @@ async function ensureCompanyDocumentStructure() {
         list = readFolders();
       }
     }
-    /* Empleados existentes: archiva contrato, foto y docs de alta faltantes. */
-    try {
-      const backfill = await backfillEmployeeHireDocuments();
-      created += Number(backfill?.created || 0);
-    } catch (err) {
-      devWarn("[companyDocuments] ensureStructure.backfillHireDocs", err?.message || err);
+    if (opts.skipBackfill !== true) {
+      try {
+        const backfill = await backfillEmployeeHireDocuments();
+        created += Number(backfill?.created || 0);
+      } catch (err) {
+        devWarn("[companyDocuments] ensureStructure.backfillHireDocs", err?.message || err);
+      }
     }
     return { created };
   })().finally(() => {
@@ -2507,10 +2586,18 @@ function bindDocumentManagementPortalControls() {
     });
   }
 
-  /* Estructura base + carpetas de empleados: se asegura sola (sin botón). */
+  /* Una sola vez: limpia documentos actuales y regenera contratos/cartas/fotos oficiales. */
   if (canUpload()) {
-    void ensureCompanyDocumentStructure().then((res) => {
-      if (res?.created > 0 && String(state.currentView || "") === "document-management") {
+    void resetAndRecreateCompanyDocuments().then((res) => {
+      if (res?.skipped) {
+        void ensureCompanyDocumentStructure().then((ens) => {
+          if (ens?.created > 0 && String(state.currentView || "") === "document-management") {
+            G.renderPortalView?.();
+          }
+        });
+        return;
+      }
+      if (String(state.currentView || "") === "document-management") {
         G.renderPortalView?.();
       }
     });

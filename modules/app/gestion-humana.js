@@ -190,18 +190,13 @@ function bindPayrollPayslipButtons(root) {
   });
 }
 
-async function openPayrollRunPayslipById(runId) {
-  const id = String(runId || "").trim();
-  if (!id) return;
-  let run = read(KEYS.payrollRuns, []).find((r) => String(r.id) === id);
-  if (!run) return;
-  // Abrir la ventana de forma SÍNCRONA dentro del evento de clic para evitar el bloqueo de
-  // popups del navegador. window.open() después de un await pierde el contexto del gesto.
-  const pop = window.open("", "_blank", "width=860,height=980");
-  if (!pop) {
-    notify("El navegador bloqueó la ventana del desprendible. Permite las ventanas emergentes para este sitio.", "warn");
-    return;
-  }
+async function buildPayrollRunPayslipHtmlDocument(runInput) {
+  let run =
+    runInput && typeof runInput === "object" && runInput.id
+      ? runInput
+      : read(KEYS.payrollRuns, []).find((r) => String(r.id) === String(runInput || "").trim());
+  if (!run?.id) return null;
+  const id = String(run.id);
   if (portalCanRefreshFromApi()) {
     const hydrated = await ensurePayrollRunHeavyJsonLoaded(id);
     if (hydrated) run = hydrated;
@@ -695,7 +690,7 @@ async function openPayrollRunPayslipById(runId) {
       .slip-meta { grid-template-columns: 1fr; }
     }
   </style>`;
-  pop.document.write(`
+  const html = `<!DOCTYPE html>
         <html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>${escapeHtml(docTitle)}</title>${slipStyles}</head>
         <body>
         <div class="slip-shell">
@@ -744,11 +739,153 @@ async function openPayrollRunPayslipById(runId) {
         </article>
         </div>
         </body></html>
-      `);
-  pop.document.close();
+      `;
+  const typeLabel = typeof payrollRunTypeLabel === "function" ? payrollRunTypeLabel(run) : String(run.payrollKind || "nomina");
+  const safe = (v) =>
+    String(v || "")
+      .replace(/[\\/:*?"<>|]+/g, "-")
+      .replace(/\s+/g, " ")
+      .trim();
+  const fileName = `Colilla de pago · ${safe(run.month) || "sin-periodo"} · ${safe(typeLabel) || "Nómina"}.html`;
+  return { html, fileName, run };
 }
 
-/** Guarda el comprobante PDF en la carpeta DMS del colaborador (no bloquea la nómina). */
+async function openPayrollRunPayslipById(runId) {
+  const id = String(runId || "").trim();
+  if (!id) return;
+  // Abrir la ventana de forma SÍNCRONA dentro del evento de clic para evitar el bloqueo de
+  // popups del navegador. window.open() después de un await pierde el contexto del gesto.
+  const pop = window.open("", "_blank", "width=860,height=980");
+  if (!pop) {
+    notify("El navegador bloqueó la ventana del desprendible. Permite las ventanas emergentes para este sitio.", "warn");
+    return;
+  }
+  try {
+    const built = await buildPayrollRunPayslipHtmlDocument(id);
+    if (!built?.html) {
+      pop.close();
+      return;
+    }
+    pop.document.open();
+    pop.document.write(built.html);
+    pop.document.close();
+  } catch (err) {
+    try {
+      pop.close();
+    } catch (_e) {}
+    notify(String(err?.message || "No se pudo abrir el desprendible."), "error");
+  }
+}
+
+async function buildPayrollRunPayslipFileBlob(runInput) {
+  const built = await buildPayrollRunPayslipHtmlDocument(runInput);
+  if (!built?.html) return null;
+  const JsPDF = await ensureJsPdfLoaded();
+  await ensureHtml2CanvasLoaded();
+  const html2canvas = window.html2canvas;
+  if (typeof html2canvas !== "function") {
+    throw new Error("No se pudo cargar el renderizado del desprendible.");
+  }
+
+  const iframe = document.createElement("iframe");
+  iframe.setAttribute("data-payroll-slip-render", "");
+  iframe.setAttribute("aria-hidden", "true");
+  iframe.style.cssText =
+    "position:fixed;left:-12000px;top:0;width:820px;height:1400px;border:0;opacity:0;pointer-events:none;z-index:-1;";
+  document.body.appendChild(iframe);
+  try {
+    await new Promise((resolve, reject) => {
+      iframe.onload = () => resolve();
+      iframe.onerror = () => reject(new Error("No se pudo renderizar el desprendible."));
+      iframe.srcdoc = built.html;
+    });
+    const doc = iframe.contentDocument;
+    if (!doc?.body) throw new Error("Desprendible vacío.");
+    const imgs = [...doc.querySelectorAll("img")];
+    await Promise.all(
+      imgs.map(
+        (img) =>
+          img.complete
+            ? Promise.resolve()
+            : new Promise((resolve) => {
+                img.addEventListener("load", resolve, { once: true });
+                img.addEventListener("error", resolve, { once: true });
+              })
+      )
+    );
+    /* Pequeña espera para layout/fuentes. */
+    await new Promise((r) => setTimeout(r, 50));
+    const pageEl = doc.querySelector(".slip-page") || doc.body;
+    const canvas = await html2canvas(pageEl, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: "#ffffff",
+      logging: false,
+      windowWidth: 820
+    });
+    const pdf = new JsPDF({ unit: "pt", format: "a4", compress: true });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 18;
+    const usableWidth = pageWidth - margin * 2;
+    const usableHeight = pageHeight - margin * 2;
+    const imgWidth = usableWidth;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    const imgData = canvas.toDataURL("image/jpeg", 0.92);
+
+    let heightLeft = imgHeight;
+    let position = margin;
+    pdf.addImage(imgData, "JPEG", margin, position, imgWidth, imgHeight);
+    heightLeft -= usableHeight;
+    while (heightLeft > 8) {
+      position = margin - (imgHeight - heightLeft);
+      pdf.addPage();
+      pdf.addImage(imgData, "JPEG", margin, position, imgWidth, imgHeight);
+      heightLeft -= usableHeight;
+    }
+
+    const pdfName = String(built.fileName || "colilla.html").replace(/\.html?$/i, ".pdf");
+    return {
+      blob: pdf.output("blob"),
+      fileName: pdfName,
+      mimeType: "application/pdf",
+      run: built.run
+    };
+  } finally {
+    iframe.remove();
+  }
+}
+
+async function ensureHtml2CanvasLoaded() {
+  if (typeof window.html2canvas === "function") return window.html2canvas;
+  if (!window.__antaresHtml2CanvasPromise) {
+    window.__antaresHtml2CanvasPromise = new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.async = true;
+      s.crossOrigin = "anonymous";
+      s.referrerPolicy = "no-referrer";
+      s.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+      s.onload = () => resolve(window.html2canvas);
+      s.onerror = () => reject(new Error("No se pudo cargar html2canvas"));
+      document.head.appendChild(s);
+    }).catch((err) => {
+      window.__antaresHtml2CanvasPromise = null;
+      throw err;
+    });
+  }
+  await window.__antaresHtml2CanvasPromise;
+  return window.html2canvas;
+}
+
+if (typeof window !== "undefined") {
+  window.buildPayrollRunPayslipHtmlDocument = buildPayrollRunPayslipHtmlDocument;
+  window.buildPayrollRunPayslipFileBlob = buildPayrollRunPayslipFileBlob;
+  window.openPayrollRunPayslipById = openPayrollRunPayslipById;
+}
+
+
+/** Guarda la colilla (mismo formato de Gestión humana) al marcar un pago. */
 async function archivePayrollRunComprobanteQuietly(run) {
   const fn = typeof window !== "undefined" ? window.archivePayrollRunToEmployeeFolder : null;
   if (typeof fn !== "function" || !run?.id) return;
@@ -757,43 +894,6 @@ async function archivePayrollRunComprobanteQuietly(run) {
   } catch (_err) {
     /* El pago ya quedó registrado; el archivo en DMS es secundario. */
   }
-}
-
-/** Tras liquidación masiva: archiva comprobantes del período (idempotente). */
-async function archivePayrollRunsForPeriodQuietly(periodKey) {
-  const key = String(periodKey || "").trim();
-  if (!key || typeof read !== "function" || !KEYS?.payrollRuns) return;
-  const runs = read(KEYS.payrollRuns, []).filter((r) => {
-    const month = String(r?.month || "");
-    return month === key || month.startsWith(`${key}`);
-  });
-  for (const run of runs) {
-    await archivePayrollRunComprobanteQuietly(run);
-  }
-}
-
-/** Localiza el run de prestación por viajes tras bootstrap. */
-function findDriverTripPayrollRun(employeeId, periodYm) {
-  const eid = String(employeeId || "").trim();
-  const ym = String(periodYm || "").trim().slice(0, 7);
-  if (!eid || !ym || typeof read !== "function") return null;
-  const runs = read(KEYS.payrollRuns, []);
-  const matchTrip = runs.find((r) => {
-    if (String(r.employeeId) !== eid) return false;
-    const month = String(r.month || "");
-    if (!(month === ym || month.startsWith(ym))) return false;
-    return typeof payrollRunFrequencyKind === "function"
-      ? payrollRunFrequencyKind(r) === "prestacion_viajes"
-      : String(r.payrollKind || "").toLowerCase().includes("viaje");
-  });
-  if (matchTrip) return matchTrip;
-  return (
-    runs.find((r) => {
-      if (String(r.employeeId) !== eid) return false;
-      const month = String(r.month || "");
-      return month === ym || month.startsWith(ym);
-    }) || null
-  );
 }
 
 function bindPayrollPortalControls() {
@@ -2502,9 +2602,6 @@ function bindPayrollPortalControls() {
                 entityLabel: "Liquidación masiva",
                 summary: `Cierre ${fechaReferencia}: ${parseNum(result.created ?? result.createdCount)} liquidación(es) generada(s)`
               });
-              if (parseNum(result.created ?? result.createdCount) > 0) {
-                void archivePayrollRunsForPeriodQuietly(result.periodKey || fechaReferencia);
-              }
               presentPayrollBulkAutogenResult(result);
               state.payrollUi = { ...(state.payrollUi || { runSort: "recent" }), workspace: "data", dataSection: "runs" };
               persistHrWorkspace("payroll", "data");
@@ -2820,7 +2917,6 @@ function bindPayrollPortalControls() {
       appendPayrollRunAuditLog("create", run, {
         summary: `Liquidación manual creada (${payrollRunTypeLabel(run)}) · neto $${parseNum(run.net).toLocaleString("es-CO")}`
       });
-      void archivePayrollRunComprobanteQuietly(run);
       state.payrollUi = {
         ...(state.payrollUi || { runSort: "recent" }),
         workspace: "data",
@@ -2884,8 +2980,6 @@ function bindPayrollPortalControls() {
         const gross = parseNum(result.grossCop);
         const trips = parseNum(result.tripCount);
         const inter = parseNum(result.interDepartmentTrips);
-        const tripRun = findDriverTripPayrollRun(employee.id, periodYm);
-        if (tripRun) void archivePayrollRunComprobanteQuietly(tripRun);
         notify(userMessage("driverTripPaymentSaved", gross, trips, inter), "success");
         renderPortalView();
       } catch (err) {
@@ -3063,7 +3157,6 @@ function bindPayrollPortalControls() {
       appendPayrollRunAuditLog("create", run, {
         summary: `Liquidación de terminación creada · neto $${parseNum(run.net).toLocaleString("es-CO")}`
       });
-      void archivePayrollRunComprobanteQuietly(run);
       state.payrollUi = { ...(state.payrollUi || { runSort: "recent" }), workspace: "data" };
       persistHrWorkspace("payroll", "data");
       collapseCreatePanel("create-payroll-settlement");
@@ -3132,6 +3225,13 @@ function bindPayrollPortalControls() {
           appendPayrollRunAuditLog("update", run, {
             summary: `Liquidación marcada como pagada · aprobado por ${approver} · neto $${parseNum(run.net).toLocaleString("es-CO")}`
           });
+          const paidRun = nextRuns.find((item) => String(item.id) === id) || {
+            ...run,
+            paid: true,
+            paidAt: nowIso(),
+            approvedBy: approver
+          };
+          void archivePayrollRunComprobanteQuietly(paidRun);
           notify(userMessage("payrollPaidMarked"), "success");
           renderPortalView();
         }

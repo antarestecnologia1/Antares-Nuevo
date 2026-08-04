@@ -736,72 +736,134 @@ function pdfWriteParagraph(pdf, text, x, y, maxWidth, { fontSize = 11, bold = fa
   return y;
 }
 
-/** Genera el PDF de la carta laboral y devuelve `{ blob, fileName, signed }` sin descargar. */
-export async function buildEmploymentLetterPdfBlob(employee, opts = {}) {
-  const doc = buildEmploymentLetterPlainDocument(employee, opts);
-  const jsPdfCtor = await ensureJsPdfLoaded();
-  const pdf = new jsPdfCtor({ unit: "pt", format: "a4", compress: true });
-  const margin = 56;
-  const pageWidth = pdf.internal.pageSize.getWidth();
-  const pageHeight = pdf.internal.pageSize.getHeight();
-  const maxWidth = pageWidth - margin * 2;
-  let y = margin + 8;
-
-  pdf.setProperties({
-    title: doc.title,
-    subject: "Carta laboral",
-    author: doc.signature.company,
-    creator: "Antares"
-  });
-
-  y = pdfWriteParagraph(pdf, doc.metaLine, margin, y, maxWidth, { fontSize: 11 });
-  y += 6;
-  if (doc.headerSubline) {
-    y = pdfWriteParagraph(pdf, doc.headerSubline, margin, y, maxWidth, { fontSize: 10 });
-    y += 8;
-  } else {
-    y += 4;
-  }
-  if (doc.refLine) {
-    y = pdfWriteParagraph(pdf, doc.refLine, margin, y, maxWidth, { fontSize: 11, bold: true });
-    y += 8;
-  }
-  if (doc.addresseeLine) {
-    y = pdfWriteParagraph(pdf, doc.addresseeLine, margin, y, maxWidth, { fontSize: 11, bold: true });
-    y += 10;
-  }
-
-  doc.paragraphs.forEach((paragraph) => {
-    y = pdfWriteParagraph(pdf, paragraph, margin, y, maxWidth, { lineHeight: 15 });
-    y += 8;
-    if (y > pageHeight - margin - 120) {
-      pdf.addPage();
-      y = margin;
+function loadVendorScriptOnceLocal(src) {
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[data-antares-vendor="${src}"]`);
+    if (existing) {
+      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener("error", () => reject(new Error(`No se pudo cargar ${src}`)), { once: true });
+      return;
     }
+    const s = document.createElement("script");
+    s.async = true;
+    s.crossOrigin = "anonymous";
+    s.referrerPolicy = "no-referrer";
+    s.src = src;
+    s.dataset.antaresVendor = src;
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error(`No se pudo cargar ${src}`));
+    document.head.appendChild(s);
   });
+}
 
-  if (doc.closing) {
-    y += 10;
-    y = pdfWriteParagraph(pdf, doc.closing, margin, y, maxWidth);
-    y += 20;
-  } else {
-    y += 16;
+async function ensureHtml2CanvasLoaded() {
+  if (typeof window.html2canvas === "function") return window.html2canvas;
+  if (!window.__antaresHtml2CanvasPromise) {
+    window.__antaresHtml2CanvasPromise = loadVendorScriptOnceLocal(
+      "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"
+    )
+      .then(() => window.html2canvas)
+      .catch((err) => {
+        window.__antaresHtml2CanvasPromise = null;
+        throw err;
+      });
   }
+  await window.__antaresHtml2CanvasPromise;
+  if (typeof window.html2canvas !== "function") throw new Error("html2canvas no disponible");
+  return window.html2canvas;
+}
 
-  const signatureAsset = await fetchLegalRepSignatureAsset();
-  y = appendLetterSignatureToPdf(pdf, doc, signatureAsset, y, pageWidth);
+/**
+ * Genera el PDF de la carta laboral con el mismo HTML/formato oficial de Gestión humana
+ * (Times New Roman, REF, firma). Devuelve `{ ok, blob, fileName, signed }` sin descargar.
+ */
+export async function buildEmploymentLetterPdfBlob(employee, opts = {}) {
+  const html = buildEmploymentLetterHtml(employee, {
+    ...opts,
+    /* Evita el botón de imprimir en el documento archivado/descargado. */
+    previewActionsHtml: " "
+  });
+  const fileName =
+    typeof employmentLetterFileName === "function"
+      ? employmentLetterFileName(employee, opts, "pdf")
+      : `carta-laboral-${String(employee?.name || "colaborador").replace(/\s+/g, "_")}.pdf`;
 
-  pdf.setFontSize(8.5);
-  pdf.setTextColor(80, 80, 80);
-  y = pdfWriteParagraph(pdf, doc.disclaimer, margin, y, maxWidth, { fontSize: 8.5, lineHeight: 11 });
+  const jsPdfCtor = await ensureJsPdfLoaded();
+  const html2canvas = await ensureHtml2CanvasLoaded();
 
-  const blob = pdf.output("blob");
-  return {
-    ok: true,
-    blob,
-    fileName: doc.fileName,
-    signed: Boolean(signatureAsset?.dataUrl)
-  };
+  const iframe = document.createElement("iframe");
+  iframe.setAttribute("data-employment-letter-render", "");
+  iframe.setAttribute("aria-hidden", "true");
+  iframe.style.cssText =
+    "position:fixed;left:-12000px;top:0;width:820px;height:1200px;border:0;opacity:0;pointer-events:none;z-index:-1;";
+  document.body.appendChild(iframe);
+  try {
+    await new Promise((resolve, reject) => {
+      iframe.onload = () => resolve();
+      iframe.onerror = () => reject(new Error("No se pudo renderizar la carta laboral."));
+      iframe.srcdoc = html;
+    });
+    const doc = iframe.contentDocument;
+    if (!doc?.body) throw new Error("Carta laboral vacía.");
+    const imgs = [...doc.querySelectorAll("img")];
+    await Promise.all(
+      imgs.map(
+        (img) =>
+          img.complete
+            ? Promise.resolve()
+            : new Promise((resolve) => {
+                img.addEventListener("load", resolve, { once: true });
+                img.addEventListener("error", resolve, { once: true });
+              })
+      )
+    );
+    await new Promise((r) => setTimeout(r, 40));
+    const canvas = await html2canvas(doc.body, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: "#ffffff",
+      logging: false,
+      windowWidth: 820
+    });
+
+    const pdf = new jsPdfCtor({ unit: "pt", format: "a4", compress: true });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 28;
+    const usableWidth = pageWidth - margin * 2;
+    const usableHeight = pageHeight - margin * 2;
+    const imgWidth = usableWidth;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    const imgData = canvas.toDataURL("image/jpeg", 0.94);
+
+    let heightLeft = imgHeight;
+    let position = margin;
+    pdf.addImage(imgData, "JPEG", margin, position, imgWidth, imgHeight);
+    heightLeft -= usableHeight;
+    while (heightLeft > 8) {
+      position = margin - (imgHeight - heightLeft);
+      pdf.addPage();
+      pdf.addImage(imgData, "JPEG", margin, position, imgWidth, imgHeight);
+      heightLeft -= usableHeight;
+    }
+
+    pdf.setProperties({
+      title: "Carta laboral",
+      subject: "Certificación laboral",
+      author: "Transportes Antares",
+      creator: "Antares"
+    });
+
+    return {
+      ok: true,
+      blob: pdf.output("blob"),
+      fileName,
+      signed: Boolean(doc.querySelector(".sign__img"))
+    };
+  } finally {
+    iframe.remove();
+  }
 }
 
 /** Descarga la carta laboral como PDF. */
