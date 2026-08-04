@@ -1433,19 +1433,15 @@ async function backfillPaidPayrollSlips() {
  * Borra todos los documentos del DMS y vuelve a crear contratos, cartas, fotos y colillas pagadas.
  * Se ejecuta una vez por navegador (flag localStorage) al abrir el módulo.
  */
+/**
+ * Borra todos los documentos del DMS y vuelve a crear contratos, cartas, fotos y colillas pagadas.
+ * SOLO bajo demanda: `resetAndRecreateCompanyDocuments({ force: true })`.
+ * No se ejecuta al abrir el módulo (congelaba el portal y rompía el arranque).
+ */
 async function resetAndRecreateCompanyDocuments({ force = false } = {}) {
   if (!canUpload()) return { ok: false, skipped: true };
+  if (!force) return { ok: true, skipped: true, message: "Requiere force:true" };
   if (dmsResetRecreatePromise) return dmsResetRecreatePromise;
-
-  if (!force) {
-    try {
-      if (localStorage.getItem(DMS_RESET_RECREATE_FLAG) === "1") {
-        return { ok: true, skipped: true };
-      }
-    } catch (_e) {
-      /* storage bloqueado: igual intentamos una vez en esta sesión */
-    }
-  }
 
   dmsResetRecreatePromise = (async () => {
     G.notify?.("Limpiando Gestión documental y regenerando archivos oficiales…", "info");
@@ -1455,7 +1451,6 @@ async function resetAndRecreateCompanyDocuments({ force = false } = {}) {
       return { ok: false, purged };
     }
     resetDmsBackfillState();
-    /* Carpetas se mantienen; solo se recrean archivos. */
     await ensureCompanyDocumentStructure({ skipBackfill: true });
     resetDmsBackfillState();
     const backfill = await backfillEmployeeHireDocuments({ forceAll: true });
@@ -1630,7 +1625,8 @@ async function ensureCompanyDocumentStructure(opts = {}) {
         list = readFolders();
       }
     }
-    if (opts.skipBackfill !== true) {
+    /* Carpetas sí; relleno masivo de contratos/cartas solo si se pide (congelaba el portal). */
+    if (opts.skipBackfill !== true && opts.runHireBackfill === true) {
       try {
         const backfill = await backfillEmployeeHireDocuments();
         created += Number(backfill?.created || 0);
@@ -2586,18 +2582,10 @@ function bindDocumentManagementPortalControls() {
     });
   }
 
-  /* Una sola vez: limpia documentos actuales y regenera contratos/cartas/fotos oficiales. */
+  /* Estructura base + carpetas (sin purge automático al abrir). */
   if (canUpload()) {
-    void resetAndRecreateCompanyDocuments().then((res) => {
-      if (res?.skipped) {
-        void ensureCompanyDocumentStructure().then((ens) => {
-          if (ens?.created > 0 && String(state.currentView || "") === "document-management") {
-            G.renderPortalView?.();
-          }
-        });
-        return;
-      }
-      if (String(state.currentView || "") === "document-management") {
+    void ensureCompanyDocumentStructure().then((res) => {
+      if (res?.created > 0 && String(state.currentView || "") === "document-management") {
         G.renderPortalView?.();
       }
     });
