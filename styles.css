@@ -25166,6 +25166,21 @@ body[data-theme="dark"] .profile-avatar-upload .profile-avatar-img {
   gap: 0.75rem;
 }
 
+/* Consultar usa layout maestro-detalle; no ocultar ni duplicar con tabla legacy. */
+.hiring-studio .hiring-pipeline {
+  display: grid;
+}
+
+.hiring-studio .hiring-browse-candidates,
+.hiring-studio .hiring-cards.hiring-cards--candidates {
+  display: flex;
+}
+
+.hiring-studio .hiring-table-desktop,
+.hiring-studio table.hiring-table {
+  display: none !important;
+}
+
 .hiring-candidate-card {
   border: 1px solid rgba(55, 124, 192, 0.16);
   border-radius: 14px;

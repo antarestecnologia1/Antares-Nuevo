@@ -8,7 +8,6 @@
 import {
   CLIENT_DATA_SCOPE,
   CLIENT_DATA_SCOPE_STORAGE,
-  HR_VALID_DOCUMENTS_WS,
   HR_VALID_HIRING_WS,
   HR_VALID_PAYROLL_WS,
   HR_VALID_REQUESTS_WS,
@@ -18,7 +17,10 @@ import {
   HR_WORKSPACE_STORAGE
 } from "./config.js";
 import {
-  resolveDocumentsWorkspace,
+  normalizeDocumentSection,
+  normalizeDocumentViewMode
+} from "../domain/employee-documents.domain.js";
+import {
   normalizeHiringDataSection,
   normalizeHiringOperateSection,
   normalizeHrWorkspace,
@@ -179,7 +181,9 @@ export let state = {
     operateSection: "position",
     dataSection: "candidates",
     /** Filtro de texto en la pestaña Consultar (listados). */
-    dataListSearch: ""
+    dataListSearch: "",
+    /** Candidato seleccionado en la bandeja maestro-detalle de Consultar. */
+    selectedCandidateId: ""
   },
   sstUi: {
     workspace: "operate",
@@ -187,23 +191,46 @@ export let state = {
     dataSection: "due",
     listSearch: ""
   },
-  /** Gestión documental: pestaña + filtros en memoria (filtros no persisten al recargar). */
+  /**
+   * Gestión documental: sección del rail, vista, orden, filtros y selección.
+   * Nada de esto persiste al recargar salvo lo que el módulo guarda aparte en localStorage
+   * (favoritos, recientes y preferencia de vista).
+   */
   documentsUi: {
-    workspace: "upload",
-    operateSection: "upload",
-    dataSection: "all",
-    listSearch: "",
-    selectedEmployeeId: "",
-    typeFilter: "",
-    filterEmployeeId: "",
-    filterStatus: "",
-    folderFilter: "",
+    /** Sección activa del rail: overview | all | recent | favorites | due_soon | expired | gaps | files. */
+    section: "overview",
+    /** Navegación de expedientes: colaborador y carpeta abiertos (breadcrumb de 3 niveles). */
     folderBrowseEmployeeId: "",
-    folderBrowseName: "",
-    selectedDocumentType: "",
-    highlightDocumentType: "",
-    listViewMode: "list",
-    selectedFolder: ""
+    selectedFolder: "",
+    /** Presentación del listado: table | cards | list. */
+    viewMode: "table",
+    sortKey: "createdAt",
+    sortDir: "desc",
+    /** Filtros del encabezado y del popover avanzado. */
+    search: "",
+    filterEmployeeId: "",
+    typeFilter: "",
+    folderFilter: "",
+    filterStatus: "",
+    dateField: "created",
+    dateFrom: "",
+    dateTo: "",
+    uploadedBy: "",
+    minSizeMb: "",
+    maxSizeMb: "",
+    onlyCurrentVersions: false,
+    /** Selección múltiple: ids de documento marcados en la vista actual. */
+    selectedIds: [],
+    /** Documento abierto en el panel lateral de detalle. */
+    drawerDocId: "",
+    /** Ventana de render incremental del listado. */
+    renderLimit: 60,
+    /** Estado del flujo de carga y del rail en pantallas medianas. */
+    uploadOpen: false,
+    railOpen: false,
+    filtersOpen: false,
+    selectedEmployeeId: "",
+    selectedDocumentType: ""
   },
   /** Centro de aprobaciones: filtro de texto en bandejas. */
   authorizationsUi: {
@@ -339,29 +366,41 @@ export function hydrateHrWorkspaceFromStorage() {
       } catch (_jsonErr) {
         parsed = null;
       }
-      /* Solo restaurar la pestaña. Los filtros se reinician en cada carga. */
-      const ws =
-        parsed && typeof parsed === "object" && !Array.isArray(parsed)
-          ? resolveDocumentsWorkspace(parsed)
-          : resolveDocumentsWorkspace({ workspace: d });
+      /*
+       * Solo se restauran sección y modo de vista. Filtros, selección y panel de
+       * detalle arrancan limpios en cada carga. Los valores del modelo anterior
+       * (`workspace`, `operateSection`, `dataSection`) se descartan en silencio.
+       */
+      const saved = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+      const section = normalizeDocumentSection(saved.section);
+      const viewMode = normalizeDocumentViewMode(saved.viewMode);
       state.documentsUi = {
         ...(state.documentsUi || {}),
-        workspace: ws,
-        operateSection: "upload",
-        dataSection: "all",
-        listSearch: "",
-        selectedEmployeeId: "",
-        typeFilter: "",
+        section,
+        viewMode,
         folderBrowseEmployeeId: "",
-        folderBrowseName: "",
-        selectedDocumentType: "",
-        highlightDocumentType: "",
+        selectedFolder: "",
+        search: "",
         filterEmployeeId: "",
+        typeFilter: "",
+        folderFilter: "",
         filterStatus: "",
-        folderFilter: ""
+        dateField: "created",
+        dateFrom: "",
+        dateTo: "",
+        uploadedBy: "",
+        minSizeMb: "",
+        maxSizeMb: "",
+        onlyCurrentVersions: false,
+        selectedIds: [],
+        drawerDocId: "",
+        renderLimit: 60,
+        uploadOpen: false,
+        railOpen: false,
+        filtersOpen: false
       };
       try {
-        localStorage.setItem(HR_WORKSPACE_STORAGE.documents, JSON.stringify({ workspace: ws }));
+        localStorage.setItem(HR_WORKSPACE_STORAGE.documents, JSON.stringify({ section, viewMode }));
       } catch (_cleanErr) {}
     }
   } catch (_e) {}
@@ -454,13 +493,15 @@ export function persistHrWorkspace(moduleId, workspace) {
         })
       );
     } else if (moduleId === "documents") {
+      /* En documentos el segundo argumento es la sección del rail, no una pestaña. */
       const ui = { ...(state.documentsUi || {}) };
-      if (HR_VALID_DOCUMENTS_WS.has(ws)) ui.workspace = ws;
+      ui.section = normalizeDocumentSection(ws || ui.section);
+      ui.viewMode = normalizeDocumentViewMode(ui.viewMode);
       state.documentsUi = ui;
-      /* Persistir solo la pestaña; filtros viven solo en memoria de sesión. */
+      /* Persistir solo sección y vista; filtros viven en memoria de sesión. */
       localStorage.setItem(
         HR_WORKSPACE_STORAGE.documents,
-        JSON.stringify({ workspace: resolveDocumentsWorkspace(ui) })
+        JSON.stringify({ section: ui.section, viewMode: ui.viewMode })
       );
     }
   } catch (_e) {}

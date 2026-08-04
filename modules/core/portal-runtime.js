@@ -11660,6 +11660,25 @@ function candidateMayHaveCvInStorage(candidateLike) {
   return false;
 }
 
+/**
+ * Indica si el botón «Descargar CV» debe habilitarse.
+ * Incluye pistas locales (nombre, cv_filename, storageKey) aunque aún no haya URL/base64 en caché.
+ */
+function candidateCanAttemptCvDownload(candidateLike) {
+  if (!candidateLike) return false;
+  if (extractCandidateCvDownload(candidateLike)?.href) return true;
+  if (candidateMayHaveCvInStorage(candidateLike)) return true;
+  const attachments = flattenCandidateAttachmentsForCv(candidateLike.attachments);
+  for (const item of attachments) {
+    if (typeof item === "string" && item.trim()) return true;
+    if (item == null || typeof item !== "object") continue;
+    const k = String(item.kind || "").toLowerCase();
+    if (k === "cv_filename" || k === "cv_file" || k === "cv_blob") return true;
+    if (String(item.name || "").trim() || String(item.storageKey || "").trim()) return true;
+  }
+  return false;
+}
+
 /** Primera fuente descargable: cv_blob inline, si no cv_file con URL http(s) incl. prefirmadas. */
 function extractCandidateCvDownload(candidateLike) {
   const attachments = flattenCandidateAttachmentsForCv(candidateLike?.attachments);
@@ -11715,11 +11734,15 @@ async function resolveCandidateCvDownload(candidateLike) {
   const local = extractCandidateCvDownload(candidateLike);
   if (local?.href) return local;
   const id = String(candidateLike?.id || "").trim();
-  if (!id || !candidateMayHaveCvInStorage(candidateLike)) return null;
+  if (!id) return null;
+  /* Siempre consultar API: el CV puede existir en BD/R2 aunque el caché local solo tenga el nombre. */
   const fromMeta = await fetchCandidateCvDownloadFromApi(id);
   if (fromMeta?.href) return fromMeta;
   /* cv_file con storageKey sin URL: el binario autenticado (cv-file) sigue disponible. */
-  return { href: "", fileName: "hoja-de-vida", useApiBlob: true };
+  if (fromMeta || candidateMayHaveCvInStorage(candidateLike)) {
+    return { href: "", fileName: fromMeta?.fileName || "hoja-de-vida", useApiBlob: true };
+  }
+  return null;
 }
 
 function candidateCvDataUrlToBlob(href) {
@@ -11851,13 +11874,11 @@ function installCandidateCvDownloadDelegation() {
         await triggerCandidateCvDownload(dl.href, dl.fileName, id);
         return;
       }
-      /* Postulación web: adjunto en R2/base64 aunque aún no haya URL en caché local. */
-      if (dl?.useApiBlob || candidateMayHaveCvInStorage(cand)) {
-        const fromApi = await fetchCandidateCvBlobFromApi(id);
-        if (fromApi?.blob) {
-          triggerBlobDownload(fromApi.blob, fromApi.fileName || dl?.fileName || "hoja-de-vida");
-          return;
-        }
+      /* Respaldo binario directo (útil si el JSON de metadatos no trae URL pero el archivo sí está). */
+      const fromApi = await fetchCandidateCvBlobFromApi(id);
+      if (fromApi?.blob) {
+        triggerBlobDownload(fromApi.blob, fromApi.fileName || dl?.fileName || "hoja-de-vida");
+        return;
       }
       notify("No hay CV descargable para este candidato.", "info");
     } finally {
@@ -11887,6 +11908,16 @@ function hiringPipelineStageSlug(status) {
     .replace(/^-|-$/g, "") || "recibido";
 }
 
+function hiringPersonInitials(name) {
+  const parts = String(name || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!parts.length) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] || ""}${parts[parts.length - 1][0] || ""}`.toUpperCase();
+}
+
 function renderHiringCandidateCard(c, ctx = {}) {
   const ageInfo = portalCandidateAgeFromBirthIso(c.birthDate);
   const expCargo = parseNum(c.experienceYears || 0);
@@ -11900,13 +11931,7 @@ function renderHiringCandidateCard(c, ctx = {}) {
   const isWeb = /sitio|web|carreras/i.test(source);
   const compact = ctx.compact === true;
   const city = String(c.city || "").trim();
-  const initials = String(c.name || "?")
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((p) => p.charAt(0))
-    .join("")
-    .toUpperCase();
+  const initials = hiringPersonInitials(c.name);
   const primaryAction =
     status === "Preseleccionado" && ctx.canScheduleInterview
       ? `<button type="button" class="btn btn-sm btn-primary" data-action="schedule-interview-for-candidate" data-candidate-id="${escapeAttr(String(c.id))}">${IC.calendar} Entrevista</button>`
@@ -11924,6 +11949,11 @@ function renderHiringCandidateCard(c, ctx = {}) {
         </div>
       </div>
       <span class="hiring-stage-pill hiring-stage-pill--${escapeAttr(stageSlug)} ${statusClass}">${escapeHtml(status)}</span>
+      ${
+        canDlCv
+          ? `<span class="hiring-browse-chip hiring-browse-chip--cv">${IC.file} CV</span>`
+          : `<span class="hiring-browse-chip hiring-browse-chip--muted">Sin CV</span>`
+      }
     </header>
     <div class="hiring-candidate-card__facts">
       <span class="hiring-candidate-card__fact" title="Experiencia en el cargo"><strong>${expCargo}</strong> años exp.</span>
@@ -13950,6 +13980,7 @@ Object.assign(window, {
   canViewAllTransportRequests,
   candidateCvDataUrlToBlob,
   candidateMayHaveCvInStorage,
+  candidateCanAttemptCvDownload,
   capStoredArrayRows,
   cityOptionsFromDepartment,
   clampLaborSystemParameterYear,

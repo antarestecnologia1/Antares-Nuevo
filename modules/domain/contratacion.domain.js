@@ -858,13 +858,15 @@ export function renderHiringCandidateCard(c, ctx = {}) {
   const isWeb = /sitio|web|carreras/i.test(source);
   const compact = ctx.compact === true;
   const city = String(c.city || "").trim();
-  const initials = String(c.name || "?")
+  const nameParts = String(c.name || "")
     .trim()
     .split(/\s+/)
-    .slice(0, 2)
-    .map((p) => p.charAt(0))
-    .join("")
-    .toUpperCase();
+    .filter(Boolean);
+  const initials = !nameParts.length
+    ? "?"
+    : nameParts.length === 1
+      ? nameParts[0].slice(0, 2).toUpperCase()
+      : `${nameParts[0][0] || ""}${nameParts[nameParts.length - 1][0] || ""}`.toUpperCase();
   const primaryAction =
     status === "Preseleccionado" && ctx.canScheduleInterview
       ? `<button type="button" class="btn btn-sm btn-primary" data-action="schedule-interview-for-candidate" data-candidate-id="${escapeAttr(String(c.id))}">${IC.calendar} Entrevista</button>`
@@ -882,6 +884,11 @@ export function renderHiringCandidateCard(c, ctx = {}) {
         </div>
       </div>
       <span class="hiring-stage-pill hiring-stage-pill--${escapeAttr(stageSlug)} ${statusClass}">${escapeHtml(status)}</span>
+      ${
+        canDlCv
+          ? `<span class="hiring-browse-chip hiring-browse-chip--cv">${IC.file} CV</span>`
+          : `<span class="hiring-browse-chip hiring-browse-chip--muted">Sin CV</span>`
+      }
     </header>
     <div class="hiring-candidate-card__facts">
       <span class="hiring-candidate-card__fact" title="Experiencia en el cargo"><strong>${expCargo}</strong> años exp.</span>
