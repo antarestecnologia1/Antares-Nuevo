@@ -193,13 +193,24 @@ function hiringHtml() {
 
   const positionCanEdit = canManageHiringModule();
   const positionCanDelete = isAdminActor();
+  const positionFilter = String(hiringUi.positionFilter || "active");
+  const positionRoleFilter = String(hiringUi.positionRoleFilter || "all");
+  const positionsScoped = positions.filter((p) => {
+    const active = p.active !== false;
+    if (positionFilter === "active" && !active) return false;
+    if (positionFilter === "inactive" && active) return false;
+    const role = String(p.workerRole || "empleado").toLowerCase();
+    if (positionRoleFilter === "conductor" && role !== "conductor") return false;
+    if (positionRoleFilter === "empleado" && role === "conductor") return false;
+    return true;
+  });
   const positionsView = dataListSearch
-    ? positions.filter((p) =>
+    ? positionsScoped.filter((p) =>
         hiringDataMatches(
           `${p.name} ${p.workerRole} ${p.contractTypeDefault} ${p.legalBasis} ${parseNum(p.baseSalary)}`
         )
       )
-    : positions;
+    : positionsScoped;
   const filteredVacancies = vacancies.filter((v) => (vacancyFilter === "open" ? v.status === "Publicada" : true));
   const filteredVacanciesView = dataListSearch
     ? filteredVacancies.filter((v) =>
@@ -601,33 +612,46 @@ function hiringHtml() {
     )
     .join("");
   const positionCards = positionsView
-    .map(
-      (p) => `<article class="hiring-browse-row hiring-browse-row--position">
-        <div class="hiring-browse-row__main">
-          <span class="hiring-browse-row__ico hiring-browse-row__ico--blue" aria-hidden="true">${IC.briefcase}</span>
-          <div>
-            <h4>${escapeHtml(String(p.name || ""))}</h4>
-            <p>${p.workerRole === "conductor" ? "Conductor" : "Empleado"} · ${escapeHtml(String(p.contractTypeDefault || "-"))}</p>
+    .map((p) => {
+      const isActive = p.active !== false;
+      const isDriver = String(p.workerRole || "").toLowerCase() === "conductor";
+      const linkedVacancies = vacancies.filter((v) => String(v.positionId || "") === String(p.id)).length;
+      const openLinked = vacancies.filter(
+        (v) => String(v.positionId || "") === String(p.id) && String(v.status || "") === "Publicada"
+      ).length;
+      const integral = String(p.integralSalary) === "true" || p.integralSalary === true;
+      return `<article class="hiring-position-card${isActive ? " hiring-position-card--active" : " hiring-position-card--inactive"}${isDriver ? " hiring-position-card--driver" : ""}">
+        <header class="hiring-position-card__head">
+          <span class="hiring-position-card__ico" aria-hidden="true">${IC.briefcase || ""}</span>
+          <div class="hiring-position-card__titles">
+            <h4 title="${escapeAttr(String(p.name || ""))}">${escapeHtml(String(p.name || ""))}</h4>
+            <p>${isDriver ? "Conductor" : "Empleado"} · ${escapeHtml(String(p.contractTypeDefault || "—"))}</p>
           </div>
-          ${p.active === false ? '<span class="status status-rechazada">Inactivo</span>' : '<span class="status status-viaje_asignado">Activo</span>'}
+          <span class="hiring-stage-pill hiring-stage-pill--${isActive ? "contratado" : "descartado"}">${isActive ? "Activo" : "Inactivo"}</span>
+        </header>
+        <ul class="hiring-position-card__meta">
+          <li><small>Salario base</small><strong>$${parseNum(p.baseSalary).toLocaleString("es-CO")}</strong></li>
+          <li><small>Aux. transporte</small><strong>$${readPositionTransportAllowanceCop(p).toLocaleString("es-CO")}</strong></li>
+          <li><small>Integral</small><strong>${integral ? "Sí" : "No"}</strong></li>
+          <li><small>Vacantes</small><strong>${linkedVacancies}${openLinked ? ` · ${openLinked} abiertas` : ""}</strong></li>
+        </ul>
+        <div class="hiring-position-card__actions">
+          <button type="button" class="hiring-icon-btn" data-action="view-position" data-id="${escapeAttr(String(p.id))}" title="Ver cargo">${IC.eye}</button>
+          ${positionCanEdit ? `<button type="button" class="hiring-icon-btn" data-action="edit-position" data-id="${escapeAttr(String(p.id))}" title="Editar">${IC.edit}</button>` : ""}
+          <button type="button" class="hiring-icon-btn" data-action="toggle-position" data-id="${escapeAttr(String(p.id))}" title="${isActive ? "Desactivar" : "Activar"}">${IC.toggle}</button>
+          ${
+            positionCanEdit
+              ? `<button type="button" class="btn btn-sm btn-outline" data-action="hiring-open-create" data-section="vacancy" data-position-id="${escapeAttr(String(p.id))}" title="Publicar vacante desde este cargo">${IC.send} Vacante</button>`
+              : ""
+          }
+          ${positionCanDelete ? `<button type="button" class="hiring-icon-btn hiring-icon-btn--danger" data-action="delete-position" data-id="${escapeAttr(String(p.id))}" title="Eliminar (solo administradores)">${IC.trash}</button>` : ""}
         </div>
-        <div class="hiring-browse-row__stats">
-          <span><small>Salario base</small><strong>$${parseNum(p.baseSalary).toLocaleString("es-CO")}</strong></span>
-          <span><small>Aux. transporte</small><strong>$${readPositionTransportAllowanceCop(p).toLocaleString("es-CO")}</strong></span>
-          <span><small>Integral</small><strong>${String(p.integralSalary) === "true" || p.integralSalary === true ? "Sí" : "No"}</strong></span>
-        </div>
-        <div class="toolbar hiring-browse-row__actions">
-          <button class="btn btn-sm btn-outline" data-action="view-position" data-id="${escapeAttr(String(p.id))}">${IC.eye} Ver</button>
-          ${positionCanEdit ? `<button class="btn btn-sm btn-action" data-action="edit-position" data-id="${escapeAttr(String(p.id))}">${IC.edit}</button>` : ""}
-          <button class="btn btn-sm btn-action" data-action="toggle-position" data-id="${escapeAttr(String(p.id))}">${IC.toggle}</button>
-          ${positionCanDelete ? `<button class="btn btn-sm btn-reject" data-action="delete-position" data-id="${escapeAttr(String(p.id))}" title="Solo administradores">${IC.trash}</button>` : ""}
-        </div>
-      </article>`
-    )
+      </article>`;
+    })
     .join("");
   const tPos = positionCards
-    ? `<div class="hiring-browse-list hiring-browse-list--positions">${positionCards}</div>`
-    : hiringEmptyState("Sin cargos definidos", { action: "hiring-operate-section", section: "position", label: "Definir cargo" });
+    ? `<div class="hiring-position-grid">${positionCards}</div>`
+    : hiringEmptyState("Sin cargos en esta vista", { action: "hiring-open-create", section: "position", label: "Definir cargo" });
   const tVac = vacCards
     ? `<div class="hiring-browse-list hiring-browse-list--vacancies">${vacCards}</div>`
     : hiringEmptyState("Sin vacantes", { action: "hiring-operate-section", section: "vacancy", label: "Publicar vacante" });
@@ -1063,12 +1087,24 @@ function hiringHtml() {
       <button type="button" class="payroll-quick-pill${vacancyFilter === "open" ? " is-active" : ""}" data-action="hiring-vacancies-open">Solo abiertas</button>
       <button type="button" class="payroll-quick-pill${vacancyFilter === "all" ? " is-active" : ""}" data-action="hiring-vacancies-all">Todas</button>
     </div>`;
+  const hiringQuickBarPositions = `<div class="hiring-selection-toolbar">
+      <div class="payroll-quick-bar hiring-selection-toolbar__scope" role="group" aria-label="Estado de cargos">
+        <button type="button" class="payroll-quick-pill${positionFilter === "active" ? " is-active" : ""}" data-action="hiring-positions-active">Activos</button>
+        <button type="button" class="payroll-quick-pill${positionFilter === "inactive" ? " is-active" : ""}" data-action="hiring-positions-inactive">Inactivos</button>
+        <button type="button" class="payroll-quick-pill${positionFilter === "all" ? " is-active" : ""}" data-action="hiring-positions-all">Todos</button>
+      </div>
+      <div class="payroll-quick-bar" role="group" aria-label="Rol del cargo">
+        <button type="button" class="payroll-quick-pill${positionRoleFilter === "all" ? " is-active" : ""}" data-action="hiring-positions-role" data-role="all">Todos los roles</button>
+        <button type="button" class="payroll-quick-pill${positionRoleFilter === "empleado" ? " is-active" : ""}" data-action="hiring-positions-role" data-role="empleado">Empleado</button>
+        <button type="button" class="payroll-quick-pill${positionRoleFilter === "conductor" ? " is-active" : ""}" data-action="hiring-positions-role" data-role="conductor">Conductor</button>
+      </div>
+    </div>`;
   const browseTabs = [
     { id: "candidates", label: "Candidatos", count: sortedCandidates.length, icon: "user", hint: "Pipeline de selección" },
     { id: "vacancies", label: "Vacantes", count: filteredVacancies.length, icon: "send", hint: "Ofertas publicadas" },
+    { id: "positions", label: "Cargos", count: positions.length, icon: "briefcase", hint: "Catálogo salarial" },
     { id: "interviews", label: "Agenda", count: interviews.length, icon: "calendar", hint: "Entrevistas" },
-    { id: "contracts", label: "Contratos", count: contracts.length, icon: "file", hint: "Documentos Word" },
-    { id: "positions", label: "Cargos", count: positions.length, icon: "briefcase", hint: "Catálogo salarial" }
+    { id: "contracts", label: "Contratos", count: contracts.length, icon: "file", hint: "Documentos Word" }
   ];
   const hiringDataNav = `<nav class="hiring-browse__tabs hiring-browse__tabs--secondary" role="tablist" aria-label="Consultas de contratación">
     ${browseTabs
@@ -1088,14 +1124,21 @@ function hiringHtml() {
       ? hiringQuickBarCandidates
       : hiringDataSection === "vacancies"
         ? hiringQuickBarVacancies
-        : "";
+        : hiringDataSection === "positions"
+          ? hiringQuickBarPositions
+          : "";
   const hiringMetaVacancies = `<p class="hiring-browse__meta" title="Vacantes según filtros y búsqueda"><strong>${filteredVacanciesView.length}</strong>${dataListSearch ? ` <span>· ${filteredVacancies.length}</span>` : ""} <span>/ ${vacancies.length}</span> vacantes</p>`;
   const hiringMetaInterviews = `<p class="hiring-browse__meta" title="Entrevistas registradas"><strong>${interviewsView.length}</strong>${dataListSearch ? ` <span>· ${interviews.length}</span>` : ""} entrevistas programadas</p>`;
   const hiringMetaContracts = `<p class="hiring-browse__meta" title="Contratos en el listado y firmados este mes"><strong>${contractsView.length}</strong>${dataListSearch ? ` <span>· ${contracts.length}</span>` : ""} contratos · <strong>${contractsThisMonth.length}</strong> este mes</p>`;
-  const activePositionsInView = positionsView.filter((p) => p.active !== false);
-  const hiringMetaPositions = `<p class="hiring-browse__meta" title="Cargos activos en el catálogo"><strong>${activePositionsInView.length}</strong>${dataListSearch ? ` <span>· ${activePositions.length}</span>` : ""} <span>/ ${positions.length}</span> cargos activos</p>`;
+  const inactivePositionsCount = positions.filter((p) => p.active === false).length;
+  const driverPositionsCount = positions.filter((p) => String(p.workerRole || "").toLowerCase() === "conductor").length;
+  const employeePositionsCount = positions.length - driverPositionsCount;
+  const positionsWithVacancy = positions.filter((p) =>
+    vacancies.some((v) => String(v.positionId || "") === String(p.id))
+  ).length;
   const bandejaCreateActions = hiringCanEdit
     ? `<div class="hiring-bandeja__actions">
+        <button type="button" class="btn btn-outline" data-action="hiring-open-create" data-section="position">${IC.briefcase} Nuevo cargo</button>
         <button type="button" class="btn btn-outline" data-action="hiring-open-create" data-section="vacancy">${IC.plus} Nueva vacante</button>
         <button type="button" class="btn btn-primary" data-action="hiring-open-create" data-section="candidate">${IC.plus} Nuevo candidato</button>
       </div>`
@@ -1106,6 +1149,13 @@ function hiringHtml() {
       <li class="hiring-bandeja__kpi"><span class="hiring-bandeja__kpi-ico hiring-bandeja__kpi-ico--cal" aria-hidden="true">${IC.calendar || ""}</span><div><small>Entrevistas hoy</small><strong>${interviewsToday}</strong></div></li>
       <li class="hiring-bandeja__kpi"><span class="hiring-bandeja__kpi-ico hiring-bandeja__kpi-ico--ok" aria-hidden="true">${IC.file || ""}</span><div><small>Contrataciones</small><strong>${hiredCandidates}</strong></div></li>
       <li class="hiring-bandeja__kpi"><span class="hiring-bandeja__kpi-ico hiring-bandeja__kpi-ico--warn" aria-hidden="true">${IC.clock || ""}</span><div><small>Pendientes</small><strong>${receivedCandidates}</strong></div></li>
+    </ul>`;
+  const cargosKpis = `<ul class="hiring-bandeja__kpis" aria-label="Indicadores del catálogo de cargos">
+      <li class="hiring-bandeja__kpi"><span class="hiring-bandeja__kpi-ico hiring-bandeja__kpi-ico--brief" aria-hidden="true">${IC.briefcase || ""}</span><div><small>Cargos</small><strong>${positions.length}</strong></div></li>
+      <li class="hiring-bandeja__kpi"><span class="hiring-bandeja__kpi-ico hiring-bandeja__kpi-ico--ok" aria-hidden="true">${IC.check || ""}</span><div><small>Activos</small><strong>${activePositions.length}</strong></div></li>
+      <li class="hiring-bandeja__kpi"><span class="hiring-bandeja__kpi-ico hiring-bandeja__kpi-ico--users" aria-hidden="true">${IC.user || ""}</span><div><small>Empleado</small><strong>${employeePositionsCount}</strong></div></li>
+      <li class="hiring-bandeja__kpi"><span class="hiring-bandeja__kpi-ico hiring-bandeja__kpi-ico--cal" aria-hidden="true">${IC.truck || ""}</span><div><small>Conductor</small><strong>${driverPositionsCount}</strong></div></li>
+      <li class="hiring-bandeja__kpi"><span class="hiring-bandeja__kpi-ico hiring-bandeja__kpi-ico--warn" aria-hidden="true">${IC.send || ""}</span><div><small>Con vacante</small><strong>${positionsWithVacancy}</strong></div></li>
     </ul>`;
   const bandejaTopbar = `<header class="hiring-bandeja__topbar">
       <div class="hiring-bandeja__titles">
@@ -1118,6 +1168,24 @@ function hiringHtml() {
         <kbd class="hiring-bandeja__kbd">${escapeHtml(shortcutHint)}</kbd>
       </label>
       ${bandejaCreateActions}
+    </header>`;
+  const cargosCreateActions = hiringCanEdit
+    ? `<div class="hiring-bandeja__actions">
+        <button type="button" class="btn btn-primary" data-action="hiring-open-create" data-section="position">${IC.plus} Nuevo cargo</button>
+        <button type="button" class="btn btn-outline" data-action="hiring-open-create" data-section="vacancy">${IC.send} Nueva vacante</button>
+      </div>`
+    : "";
+  const cargosTopbar = `<header class="hiring-bandeja__topbar">
+      <div class="hiring-bandeja__titles">
+        <h3>Catálogo de cargos</h3>
+        <p>Define salarios, jornada y plantilla contractual que alimentan vacantes y contrataciones.</p>
+      </div>
+      <label class="hiring-bandeja__search">
+        <span class="hiring-bandeja__search-ico" aria-hidden="true">${IC.search || ""}</span>
+        <input type="search" data-action="hiring-data-list-search" value="${escapeAttr(dataListSearchRaw)}" placeholder="Buscar cargos..." autocomplete="off" />
+        <kbd class="hiring-bandeja__kbd">${escapeHtml(shortcutHint)}</kbd>
+      </label>
+      ${cargosCreateActions}
     </header>`;
   const hiringCandidatesPane = `<div class="payroll-data-pane hiring-browse__pane${hiringDataSection === "candidates" ? "" : " hidden"}" data-hiring-section="candidates">
       ${bandejaTopbar}
@@ -1143,7 +1211,10 @@ function hiringHtml() {
       ${tCon}
     </div>`;
   const hiringPositionsPane = `<div class="payroll-data-pane hiring-browse__pane${hiringDataSection === "positions" ? "" : " hidden"}" data-hiring-section="positions">
-      ${hiringMetaPositions}
+      ${cargosTopbar}
+      ${cargosKpis}
+      ${hiringDataFilters ? `<div class="hiring-browse__filters">${hiringDataFilters}</div>` : ""}
+      <p class="hiring-browse__meta" title="Cargos visibles según filtros y búsqueda"><strong>${positionsView.length}</strong>${dataListSearch ? ` <span>· ${positionsScoped.length}</span>` : ""} <span>/ ${positions.length}</span> cargos · <strong>${inactivePositionsCount}</strong> inactivos</p>
       ${tPos}
     </div>`;
   const hiringDataBlock = `<section class="hiring-browse hiring-data-panel hiring-bandeja">

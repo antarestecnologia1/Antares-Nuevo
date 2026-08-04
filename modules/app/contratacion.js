@@ -690,6 +690,11 @@ function bindHiringPortalControls() {
           vacancySalaryHint.textContent = `Cargo «${position.name}»: salario catálogo $${catalog}. Mínimo legal SMMLV $${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}.`;
         }
       };
+      const preferPositionId = String(state.hiringUi?.preferVacancyPositionId || "").trim();
+      if (preferPositionId && [...positionSelect.options].some((o) => String(o.value) === preferPositionId)) {
+        positionSelect.value = preferPositionId;
+        state.hiringUi = { ...(state.hiringUi || {}), preferVacancyPositionId: "" };
+      }
       positionSelect.addEventListener("change", syncFromPosition);
       syncFromPosition();
     }
@@ -1152,13 +1157,66 @@ function bindHiringPortalControls() {
       }
       const section = normalizeHiringOperateSection(btn.dataset.section);
       const panelId = hiringCreatePanelForSection(section);
-      state.hiringUi = { ...(state.hiringUi || {}), operateSection: section, workspace: "operate" };
+      const preferPositionId = String(btn.dataset.positionId || "").trim();
+      state.hiringUi = {
+        ...(state.hiringUi || {}),
+        operateSection: section,
+        workspace: "operate",
+        ...(preferPositionId ? { preferVacancyPositionId: preferPositionId } : {})
+      };
       state.createPanels = buildHiringCreatePanelsState(section, state.createPanels || {}, { expandActive: true });
       persistHrWorkspace("hiring", "operate");
       renderPortalView();
       if (panelId) {
-        requestAnimationFrame(() => scrollToCreatePanelForm(panelId));
+        requestAnimationFrame(() => {
+          scrollToCreatePanelForm(panelId);
+          if (preferPositionId && section === "vacancy") {
+            const sel = nodes.viewRoot?.querySelector?.("#form-vacancy select[name='positionId']");
+            if (sel instanceof HTMLSelectElement) {
+              sel.value = preferPositionId;
+              sel.dispatchEvent(new Event("change", { bubbles: true }));
+            }
+          }
+        });
       }
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='hiring-positions-active']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.hiringUi = { ...(state.hiringUi || {}), positionFilter: "active", workspace: "data", dataSection: "positions" };
+      persistHrWorkspace("hiring", "data");
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='hiring-positions-inactive']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.hiringUi = { ...(state.hiringUi || {}), positionFilter: "inactive", workspace: "data", dataSection: "positions" };
+      persistHrWorkspace("hiring", "data");
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='hiring-positions-all']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.hiringUi = { ...(state.hiringUi || {}), positionFilter: "all", workspace: "data", dataSection: "positions" };
+      persistHrWorkspace("hiring", "data");
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='hiring-positions-role']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const role = String(btn.dataset.role || "all");
+      state.hiringUi = {
+        ...(state.hiringUi || {}),
+        positionRoleFilter: ["all", "empleado", "conductor"].includes(role) ? role : "all",
+        workspace: "data",
+        dataSection: "positions"
+      };
+      persistHrWorkspace("hiring", "data");
+      renderPortalView();
     });
   });
 
@@ -1248,7 +1306,13 @@ function bindHiringPortalControls() {
       ) {
         return;
       }
-      const input = nodes.viewRoot?.querySelector?.("[data-hiring-search-focus]");
+      const visiblePane = nodes.viewRoot?.querySelector?.(
+        ".hiring-browse__pane:not(.hidden) input[data-action='hiring-data-list-search'], .hiring-browse__pane:not(.hidden) [data-hiring-search-focus]"
+      );
+      const input =
+        visiblePane instanceof HTMLInputElement
+          ? visiblePane
+          : nodes.viewRoot?.querySelector?.("[data-hiring-search-focus], input[data-action='hiring-data-list-search']");
       if (!(input instanceof HTMLInputElement)) return;
       event.preventDefault();
       input.focus();

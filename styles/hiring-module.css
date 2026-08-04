@@ -2831,3 +2831,172 @@ body[data-theme="dark"] .hiring-studio .hiring-bandeja__search input[type="searc
   color: #e8f2fc;
 }
 
+/* ── Catálogo de cargos (misma UI bandeja) ── */
+.hiring-studio .hiring-position-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(17.5rem, 1fr));
+  gap: 0.85rem;
+  align-items: stretch;
+}
+
+.hiring-studio .hiring-position-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 0.9rem 0.95rem;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: #fff;
+  box-shadow: 0 4px 14px rgba(11, 33, 56, 0.05);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.hiring-studio .hiring-position-card:hover {
+  border-color: rgba(55, 124, 192, 0.35);
+  box-shadow: 0 8px 22px rgba(11, 33, 56, 0.08);
+}
+
+.hiring-studio .hiring-position-card--inactive {
+  opacity: 0.78;
+  background: linear-gradient(180deg, #f8fafc, #f1f5f9);
+}
+
+.hiring-studio .hiring-position-card--driver {
+  border-left: 3px solid #d97706;
+}
+
+.hiring-studio .hiring-position-card--active:not(.hiring-position-card--driver) {
+  border-left: 3px solid #377cc0;
+}
+
+.hiring-studio .hiring-position-card__head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.55rem;
+  align-items: start;
+}
+
+.hiring-studio .hiring-position-card__ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: 12px;
+  background: rgba(55, 124, 192, 0.12);
+  color: #1d4ed8;
+  flex: none;
+}
+
+.hiring-studio .hiring-position-card--driver .hiring-position-card__ico {
+  background: rgba(217, 119, 6, 0.14);
+  color: #b45309;
+}
+
+.hiring-studio .hiring-position-card__ico svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.hiring-studio .hiring-position-card__titles {
+  min-width: 0;
+}
+
+.hiring-studio .hiring-position-card__titles h4 {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 750;
+  color: var(--hi-navy);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hiring-studio .hiring-position-card__titles p {
+  margin: 0.15rem 0 0;
+  font-size: 0.74rem;
+  color: var(--text-soft);
+}
+
+.hiring-studio .hiring-position-card__meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem 0.65rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hiring-studio .hiring-position-card__meta li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.hiring-studio .hiring-position-card__meta small {
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-soft);
+}
+
+.hiring-studio .hiring-position-card__meta strong {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--hi-navy);
+  overflow-wrap: anywhere;
+}
+
+.hiring-studio .hiring-position-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid var(--hi-edge);
+  margin-top: auto;
+}
+
+.hiring-studio .hiring-icon-btn--danger {
+  color: #b91c1c;
+}
+
+.hiring-studio .hiring-icon-btn--danger:hover:not(:disabled) {
+  background: rgba(220, 38, 38, 0.1);
+  border-color: rgba(220, 38, 38, 0.25);
+  color: #991b1b;
+}
+
+.hiring-studio .hiring-bandeja__actions .btn {
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .hiring-studio .hiring-position-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hiring-studio .hiring-bandeja__actions {
+    width: 100%;
+  }
+
+  .hiring-studio .hiring-bandeja__actions .btn {
+    flex: 1 1 auto;
+  }
+}
+
+body[data-theme="dark"] .hiring-studio .hiring-position-card {
+  background: rgba(14, 28, 46, 0.95);
+  border-color: rgba(148, 196, 255, 0.16);
+}
+
+body[data-theme="dark"] .hiring-studio .hiring-position-card__titles h4,
+body[data-theme="dark"] .hiring-studio .hiring-position-card__meta strong {
+  color: #e8f2fc;
+}
+
+body[data-theme="dark"] .hiring-studio .hiring-position-card--inactive {
+  background: rgba(10, 22, 38, 0.85);
+}
+
