@@ -1143,13 +1143,26 @@ function hiringHtml() {
   const positionsWithVacancy = positions.filter((p) =>
     vacancies.some((v) => String(v.positionId || "") === String(p.id))
   ).length;
-  const bandejaCreateActions = hiringCanEdit
-    ? `<div class="hiring-bandeja__actions">
-        <button type="button" class="btn btn-outline" data-action="hiring-open-create" data-section="position">${IC.briefcase} Nuevo cargo</button>
+  const bandejaConsultMenu = `<details class="hiring-consult-menu">
+      <summary class="btn btn-outline hiring-consult-menu__trigger">${IC.eye || IC.search || ""} Consultar</summary>
+      <div class="hiring-consult-menu__panel" role="menu" aria-label="Consultas de contratación">
+        <button type="button" role="menuitem" data-action="hiring-data-section" data-section="vacancies">${IC.send || ""} Vacantes <span>${filteredVacancies.length}</span></button>
+        <button type="button" role="menuitem" data-action="hiring-data-section" data-section="positions">${IC.briefcase || ""} Cargos <span>${positions.length}</span></button>
+        <button type="button" role="menuitem" data-action="hiring-data-section" data-section="interviews">${IC.calendar || ""} Agenda <span>${interviews.length}</span></button>
+        <button type="button" role="menuitem" data-action="hiring-data-section" data-section="contracts">${IC.file || ""} Contratos <span>${contracts.length}</span></button>
+        <button type="button" role="menuitem" data-action="hiring-data-section" data-section="candidates">${IC.users || ""} Candidatos <span>${sortedCandidates.length}</span></button>
+      </div>
+    </details>`;
+  const bandejaCreateActions = `<div class="hiring-bandeja__actions">
+        ${bandejaConsultMenu}
+        ${
+          hiringCanEdit
+            ? `<button type="button" class="btn btn-outline" data-action="hiring-open-create" data-section="position">${IC.briefcase} Nuevo cargo</button>
         <button type="button" class="btn btn-outline" data-action="hiring-open-create" data-section="vacancy">${IC.plus} Nueva vacante</button>
-        <button type="button" class="btn btn-primary" data-action="hiring-open-create" data-section="candidate">${IC.plus} Nuevo candidato</button>
-      </div>`
-    : "";
+        <button type="button" class="btn btn-primary" data-action="hiring-open-create" data-section="candidate">${IC.plus} Nuevo candidato</button>`
+            : ""
+        }
+      </div>`;
   const bandejaKpis = `<ul class="hiring-bandeja__kpis" aria-label="Indicadores de selección">
       <li class="hiring-bandeja__kpi"><span class="hiring-bandeja__kpi-ico hiring-bandeja__kpi-ico--users" aria-hidden="true">${IC.users || ""}</span><div><small>Candidatos</small><strong>${candidates.length}</strong></div></li>
       <li class="hiring-bandeja__kpi"><span class="hiring-bandeja__kpi-ico hiring-bandeja__kpi-ico--brief" aria-hidden="true">${IC.briefcase || ""}</span><div><small>Vacantes</small><strong>${openVacancies.length}</strong></div></li>
@@ -1176,12 +1189,15 @@ function hiringHtml() {
       </label>
       ${bandejaCreateActions}
     </header>`;
-  const cargosCreateActions = hiringCanEdit
-    ? `<div class="hiring-bandeja__actions">
-        <button type="button" class="btn btn-primary" data-action="hiring-open-create" data-section="position">${IC.plus} Nuevo cargo</button>
-        <button type="button" class="btn btn-outline" data-action="hiring-open-create" data-section="vacancy">${IC.send} Nueva vacante</button>
-      </div>`
-    : "";
+  const cargosCreateActions = `<div class="hiring-bandeja__actions">
+        ${bandejaConsultMenu}
+        ${
+          hiringCanEdit
+            ? `<button type="button" class="btn btn-primary" data-action="hiring-open-create" data-section="position">${IC.plus} Nuevo cargo</button>
+        <button type="button" class="btn btn-outline" data-action="hiring-open-create" data-section="vacancy">${IC.send} Nueva vacante</button>`
+            : ""
+        }
+      </div>`;
   const cargosTopbar = `<header class="hiring-bandeja__topbar">
       <div class="hiring-bandeja__titles">
         <h3>Catálogo de cargos</h3>
@@ -1200,7 +1216,12 @@ function hiringHtml() {
       ${hiringDataFilters ? `<div class="hiring-browse__filters">${hiringDataFilters}</div>` : ""}
       ${tCand || `<div class="hiring-board hiring-board--kanban"><p class="hiring-board__empty">No hay candidatos para mostrar en el tablero.</p></div>`}
     </div>`;
+  const consultBackBar = `<div class="hiring-consult-back">
+      ${bandejaConsultMenu}
+      <button type="button" class="btn btn-outline btn-sm" data-action="hiring-data-section" data-section="candidates">${IC.columns || IC.grid || ""} Volver a bandeja</button>
+    </div>`;
   const hiringVacanciesPane = `<div class="payroll-data-pane hiring-browse__pane${hiringDataSection === "vacancies" ? "" : " hidden"}" data-hiring-section="vacancies">
+      ${consultBackBar}
       <label class="hiring-browse__search hiring-browse__search--inline">
         <span class="hiring-browse__search-ico" aria-hidden="true">${IC.search || ""}</span>
         <input type="search" data-action="hiring-data-list-search" value="${escapeAttr(dataListSearchRaw)}" placeholder="Buscar vacantes…" autocomplete="off" />
@@ -1210,10 +1231,12 @@ function hiringHtml() {
       ${tVac}
     </div>`;
   const hiringInterviewsPane = `<div class="payroll-data-pane hiring-browse__pane${hiringDataSection === "interviews" ? "" : " hidden"}" data-hiring-section="interviews">
+      ${consultBackBar}
       ${hiringMetaInterviews}
       ${tInt}
     </div>`;
   const hiringContractsPane = `<div class="payroll-data-pane hiring-browse__pane${hiringDataSection === "contracts" ? "" : " hidden"}" data-hiring-section="contracts">
+      ${consultBackBar}
       ${hiringMetaContracts}
       ${tCon}
     </div>`;
