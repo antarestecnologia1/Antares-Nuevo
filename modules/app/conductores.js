@@ -622,6 +622,12 @@ function driversHtml() {
               licenseExpiry: createdEmployee.licenseExpiry,
               isNewHire: true
             });
+            if (typeof window.archiveEmployeeHirePackageToFolder === "function") {
+              void window.archiveEmployeeHirePackageToFolder(createdEmployee, {
+                includeLegacyDocs: true,
+                includeCv: true
+              });
+            }
             if (!propagate.ok) {
               notify(
                 propagate.message ||

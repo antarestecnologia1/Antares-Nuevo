@@ -56,6 +56,7 @@ import {
 } from "../domain/employee-documents.domain.js";
 import { downloadCsv, ensureJsPdfLoaded } from "../domain/reporteria.domain.js";
 import { payrollRunTypeLabel } from "../domain/nomina.domain.js";
+import { buildEmployeeContractDocxPayload } from "../domain/contratacion.domain.js";
 import {
   SAFE_DOCUMENT_ACCEPT,
   validateUploadFile
@@ -981,15 +982,13 @@ async function archiveBlobToEmployeeFolder({
 
 async function buildContractBlobForEmployee(employee) {
   const buildBlob = window.RecruitmentDomain?.buildEmployeeContractDocxBlob;
-  const buildPayload =
-    typeof window.buildEmployeeContractDocxPayload === "function"
-      ? window.buildEmployeeContractDocxPayload
-      : null;
-  if (typeof buildBlob !== "function" || typeof buildPayload !== "function") {
-    return null;
-  }
+  if (typeof buildBlob !== "function") return null;
   try {
-    const payload = buildPayload(employee, { contractTemplateKind: employee.contractTemplateKind });
+    const payloadFn =
+      typeof window.buildEmployeeContractDocxPayload === "function"
+        ? window.buildEmployeeContractDocxPayload
+        : buildEmployeeContractDocxPayload;
+    const payload = payloadFn(employee, { contractTemplateKind: employee.contractTemplateKind });
     return await buildBlob(payload);
   } catch (err) {
     devWarn("[companyDocuments] buildContractBlob", err?.message || err);
@@ -1191,26 +1190,29 @@ async function archiveEmployeeHirePackageToFolder(employee, opts = {}) {
   return { ok: true, created, results };
 }
 
-/** Rellena contrato/foto/docs faltantes para empleados ya existentes (al abrir el DMS). */
+const HIRE_DOCS_BACKFILL_BATCH = 4;
+const hireDocsBackfillAttempted = new Set();
+
+/** Rellena contrato/foto/docs faltantes para empleados ya existentes (lotes al abrir el DMS). */
 async function backfillEmployeeHireDocuments() {
   if (!canUpload()) return { created: 0 };
   const employees = read(KEYS.payrollEmployees, []).filter((e) => e?.id && String(e.name || "").trim());
-  let created = 0;
-  for (const emp of employees) {
-    const needsContract = !hasHireDocMarker(employeeHireDocumentMarker(emp.id, "contrato"));
+  const pending = employees.filter((emp) => {
+    const id = String(emp.id);
+    if (hireDocsBackfillAttempted.has(id)) return false;
+    const needsContract = !hasHireDocMarker(employeeHireDocumentMarker(id, "contrato"));
     const needsPhoto =
-      String(emp.avatarUrl || emp.photoUrl || "").trim() &&
-      !hasHireDocMarker(employeeHireDocumentMarker(emp.id, "foto"));
-    if (!needsContract && !needsPhoto) {
-      /* Aun así intenta legacy docs faltantes (barato si ya están marcados). */
-      const legacy = await archiveEmployeeLegacyDocsToFolder(emp);
-      created += Number(legacy?.created || 0);
-      continue;
-    }
-    const res = await archiveEmployeeHirePackageToFolder(emp, { includeCv: false });
+      Boolean(String(emp.avatarUrl || emp.photoUrl || "").trim()) &&
+      !hasHireDocMarker(employeeHireDocumentMarker(id, "foto"));
+    return needsContract || needsPhoto;
+  });
+  let created = 0;
+  for (const emp of pending.slice(0, HIRE_DOCS_BACKFILL_BATCH)) {
+    hireDocsBackfillAttempted.add(String(emp.id));
+    const res = await archiveEmployeeHirePackageToFolder(emp, { includeCv: false, includeLegacyDocs: true });
     created += Number(res?.created || 0);
   }
-  return { created };
+  return { created, pending: Math.max(0, pending.length - HIRE_DOCS_BACKFILL_BATCH) };
 }
 
 if (typeof window !== "undefined") {

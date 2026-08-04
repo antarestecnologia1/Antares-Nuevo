@@ -444,6 +444,12 @@ function bindAuthorizationsPortalControls() {
             licenseExpiry: created.licenseExpiry,
             isNewHire: true
           });
+          if (typeof window.archiveEmployeeHirePackageToFolder === "function") {
+            void window.archiveEmployeeHirePackageToFolder(created, {
+              includeLegacyDocs: true,
+              includeCv: true
+            });
+          }
           if (!propagate.ok) {
             notify(propagate.message || userMessage("employeeCreatedDriverSyncFail"), "error");
             return;
@@ -554,6 +560,12 @@ function bindAuthorizationsPortalControls() {
             licenseExpiry: createdEmployee.licenseExpiry,
             isNewHire: true
           });
+          if (typeof window.archiveEmployeeHirePackageToFolder === "function") {
+            void window.archiveEmployeeHirePackageToFolder(createdEmployee, {
+              includeLegacyDocs: true,
+              includeCv: true
+            });
+          }
           if (!propagate.ok) {
             notify(
               propagate.message ||
