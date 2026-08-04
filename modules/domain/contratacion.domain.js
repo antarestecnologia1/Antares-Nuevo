@@ -42,8 +42,21 @@ function parseNum(v) {
   return Number.isFinite(n) ? n : 0;
 }
 
-/** Iconos del portal (`portal-icons.js` → `window.IC`). */
-const IC = typeof globalThis !== "undefined" && globalThis.IC ? globalThis.IC : /** @type {Record<string, string>} */ ({});
+/** Iconos del portal (`portal-icons.js` → `window.IC`). Se resuelve en runtime: el módulo ES carga antes que el script de iconos. */
+function ic() {
+  return typeof globalThis !== "undefined" && globalThis.IC
+    ? globalThis.IC
+    : /** @type {Record<string, string>} */ ({});
+}
+const IC = new Proxy(
+  {},
+  {
+    get(_t, prop) {
+      const pack = ic();
+      return pack[prop] || "";
+    }
+  }
+);
 
 const CO_SYSTEM_PARAMS_DEFAULTS = {
   smmlvCop: CO_PAYROLL.smmlv,
@@ -951,24 +964,24 @@ export function renderHiringCandidateCard(c, ctx = {}) {
       .filter(Boolean)
       .join("");
 
-    return `<article class="hiring-candidate-card hiring-candidate-card--compact hiring-candidate-card--stage-${escapeAttr(stageSlug)}${selected ? " is-selected" : ""}" data-candidate-id="${escapeAttr(String(c.id))}" data-action="hiring-select-candidate" data-id="${escapeAttr(String(c.id))}">
-      <div class="hiring-candidate-card__badge-row">
+    return `<article class="hiring-kanban-card hiring-kanban-card--${escapeAttr(stageSlug)}${selected ? " is-selected" : ""}" data-candidate-id="${escapeAttr(String(c.id))}" data-action="hiring-select-candidate" data-id="${escapeAttr(String(c.id))}">
+      <div class="hiring-kanban-card__badge">
         <span class="hiring-stage-pill hiring-stage-pill--${escapeAttr(stageSlug)}">${escapeHtml(badge.label)}</span>
-        ${badgeDate ? `<span class="hiring-candidate-card__badge-date">${escapeHtml(badgeDate)}</span>` : ""}
+        ${badgeDate ? `<time class="hiring-kanban-card__when">${escapeHtml(badgeDate)}</time>` : ""}
       </div>
-      <div class="hiring-candidate-card__identity">
-        <span class="hiring-candidate-card__avatar" aria-hidden="true">${escapeHtml(initials || "?")}</span>
-        <div class="hiring-candidate-card__titles">
-          <h4 title="${escapeAttr(String(c.name || ""))}">${escapeHtml(String(c.name || ""))}</h4>
-          <p class="hiring-candidate-card__vacancy" title="${escapeAttr(String(c.vacancyTitle || "Sin vacante"))}">${escapeHtml(String(c.vacancyTitle || "Sin vacante"))}</p>
+      <div class="hiring-kanban-card__person">
+        <span class="hiring-kanban-card__avatar" aria-hidden="true">${escapeHtml(initials || "?")}</span>
+        <div class="hiring-kanban-card__copy">
+          <strong class="hiring-kanban-card__name" title="${escapeAttr(String(c.name || ""))}">${escapeHtml(String(c.name || ""))}</strong>
+          <span class="hiring-kanban-card__role" title="${escapeAttr(String(c.vacancyTitle || "Sin vacante"))}">${escapeHtml(String(c.vacancyTitle || "Sin vacante"))}</span>
         </div>
       </div>
-      <ul class="hiring-candidate-card__meta-list">
-        <li title="Experiencia en el cargo">${IC.star || ""} <span>${expCargo} años exp.</span></li>
-        ${location ? `<li title="Ubicación">${IC.mapPin || ""} <span>${escapeHtml(location)}</span></li>` : ""}
-        <li title="Edad">${IC.cake || ""} <span>${ageInfo.age != null ? `${ageInfo.age} años` : "—"}</span></li>
-      </ul>
-      <div class="hiring-candidate-card__icon-actions" onclick="event.stopPropagation()">
+      <div class="hiring-kanban-card__facts">
+        <span title="Experiencia">${IC.star}<em>${expCargo} años exp.</em></span>
+        ${location ? `<span title="Ubicación">${IC.mapPin}<em>${escapeHtml(location)}</em></span>` : ""}
+        <span title="Edad">${IC.cake}<em>${ageInfo.age != null ? `${ageInfo.age} años` : "—"}</em></span>
+      </div>
+      <div class="hiring-kanban-card__footer" data-stop-card-nav>
         <button type="button" class="hiring-icon-btn" data-action="hiring-select-candidate" data-id="${escapeAttr(String(c.id))}" title="Ver ficha">${IC.eye}</button>
         <button type="button" class="hiring-icon-btn"${canDlCv ? "" : " disabled"} data-action="download-candidate-cv" data-id="${escapeAttr(String(c.id))}" title="${canDlCv ? "Descargar CV" : "Sin CV"}">${IC.file}</button>
         ${
@@ -1086,17 +1099,18 @@ export function renderHiringPipelineBoard(candidates, ctx = {}) {
             : "";
       return `<section class="hiring-board__col hiring-board__col--${escapeAttr(slug)}" data-pipeline-stage="${escapeAttr(stage)}">
         <header class="hiring-board__col-head">
+          <span class="hiring-board__dot" aria-hidden="true"></span>
           <h3>${escapeHtml(stage)}</h3>
           <span class="hiring-board__count">${inStage.length}</span>
         </header>
         <div class="hiring-board__col-body">
-          ${cards || `<p class="hiring-board__empty muted">Sin candidatos</p>`}
+          ${cards || `<p class="hiring-board__empty">Sin candidatos</p>`}
           ${moreBtn}
         </div>
       </section>`;
     })
     .join("");
-  return `<div class="hiring-board" role="region" aria-label="Pipeline de selección">${colsHtml}</div>`;
+  return `<div class="hiring-board hiring-board--kanban" role="region" aria-label="Pipeline de selección">${colsHtml}</div>`;
 }
 
 /** Tarjeta de vacante para el equipo de selección. */

@@ -590,6 +590,22 @@ function wireHiringInterviewFormUi(form) {
 function bindHiringPortalControls() {
   if (String(state.currentView || "") !== "hiring" || !nodes.viewRoot) return;
 
+  // Migración UI: priorizar Kanban de la bandeja (mockup) frente a lista antigua persistida.
+  if (!state.hiringUi || state.hiringUi.__bandejaKanbanV2 !== true) {
+    const prevView = String(state.hiringUi?.candidateView || "");
+    state.hiringUi = {
+      ...(state.hiringUi || {}),
+      candidateView: "board",
+      dataSection: state.hiringUi?.dataSection || "candidates",
+      workspace: state.hiringUi?.workspace || "data",
+      __bandejaKanbanV2: true
+    };
+    if (prevView === "list") {
+      requestAnimationFrame(() => renderPortalView());
+      return;
+    }
+  }
+
   const activePipelineItem = nodes.viewRoot.querySelector(".hiring-pipeline__item.is-active");
   const activePipelineId = String(activePipelineItem?.dataset?.id || "").trim();
   if (activePipelineId && String(state.hiringUi?.selectedCandidateId || "") !== activePipelineId) {
@@ -1367,6 +1383,15 @@ function bindHiringPortalControls() {
     });
   });
 
+  nodes.viewRoot.querySelectorAll("[data-stop-card-nav]").forEach((el) => {
+    el.addEventListener("click", (event) => {
+      const t = event.target;
+      if (!(t instanceof Element)) return;
+      if (t.closest("[data-action='hiring-select-candidate']")) return;
+      event.stopPropagation();
+    });
+  });
+
   nodes.viewRoot.querySelectorAll("[data-action='hiring-select-candidate']").forEach((btn) => {
     btn.addEventListener("click", (event) => {
       if (event.target instanceof Element && event.target.closest("details.hiring-card-menu")) return;
@@ -1380,7 +1405,8 @@ function bindHiringPortalControls() {
         drawerOpen: true,
         drawerTab: state.hiringUi?.drawerTab || "resumen",
         workspace: "data",
-        dataSection: "candidates"
+        dataSection: "candidates",
+        candidateView: "board"
       };
       renderPortalView();
       requestAnimationFrame(() => {
