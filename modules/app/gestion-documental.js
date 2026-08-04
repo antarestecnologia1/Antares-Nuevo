@@ -17,6 +17,10 @@ import { escapeHtml, escapeAttr, newUuidV4, devWarn } from "../core/utils.js";
 import {
   COMPANY_DOCUMENT_MAX_BYTES,
   DEFAULT_COMPANY_FOLDER,
+  EMPLOYEES_ROOT_FOLDER,
+  SUGGESTED_COMPANY_FOLDERS,
+  employeeCompanyFolderPath,
+  listMissingEmployeeFolderPaths,
   normalizeCompanyDocumentRow,
   normalizeCompanyFolderRow,
   normalizeCompanyFolder,
@@ -55,12 +59,61 @@ if (typeof window !== "undefined") {
   window.normalizeCompanyFolderRow = normalizeCompanyFolderRow;
 }
 
+/** Crea (si falta) la carpeta `01. Empleados / Nombre` de un colaborador. */
+async function ensureCompanyEmployeeDocumentFolder(employee, by = actor()) {
+  const path = employeeCompanyFolderPath(employee);
+  if (!path) return { ok: false, skipped: true };
+  const folders = readFolders();
+  if (folders.some((f) => folderKey(f.folderName) === folderKey(path))) {
+    return { ok: true, skipped: true, path };
+  }
+  /* Asegura también la raíz 01. Empleados. */
+  if (!folders.some((f) => folderKey(f.folderName) === folderKey(EMPLOYEES_ROOT_FOLDER))) {
+    const root = normalizeCompanyFolderRow({
+      id: newUuidV4(),
+      folderName: EMPLOYEES_ROOT_FOLDER,
+      description: "Expedientes por colaborador",
+      createdBy: by,
+      createdAt: new Date().toISOString()
+    });
+    try {
+      await writeAwaitServerCreate(KEYS.companyDocumentFolders, [...folders, root], root);
+    } catch (err) {
+      devWarn("[companyDocuments] ensureEmployeesRoot", err?.message || err);
+    }
+  }
+  const fresh = readFolders();
+  if (fresh.some((f) => folderKey(f.folderName) === folderKey(path))) {
+    return { ok: true, skipped: true, path };
+  }
+  const record = normalizeCompanyFolderRow({
+    id: newUuidV4(),
+    folderName: path,
+    description: `Expediente documental de ${sanitizeLeaf(employee?.name)}`,
+    createdBy: by,
+    createdAt: new Date().toISOString()
+  });
+  try {
+    await writeAwaitServerCreate(KEYS.companyDocumentFolders, [...fresh, record], record);
+    return { ok: true, created: true, path, id: record.id };
+  } catch (err) {
+    devWarn("[companyDocuments] ensureCompanyEmployeeDocumentFolder", err?.message || err);
+    return { ok: false, message: String(err?.message || err), path };
+  }
+}
+
+function sanitizeLeaf(name) {
+  return String(name || "").replace(/[\\/]+/g, " ").trim() || "Colaborador";
+}
+
+if (typeof window !== "undefined") {
+  window.ensureCompanyEmployeeDocumentFolder = ensureCompanyEmployeeDocumentFolder;
+}
+
 const IC_HDD =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="10" rx="2"/><line x1="6" y1="12" x2="6.01" y2="12"/><line x1="10" y1="12" x2="18" y2="12"/></svg>';
 const IC_DOTS =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>';
-const IC_FOLDER_PLUS =
-  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>';
 const IC_UPLOAD_BIG =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>';
 const IC_EXTERNAL =
@@ -486,13 +539,12 @@ function renderOnboarding(IC) {
   const actions = canUpload()
     ? `<div class="doc-onboarding__actions">
         <button type="button" class="doc-btn doc-btn--primary" data-action="doc-upload">${IC.upload || ""}<span>Subir documento</span></button>
-        <button type="button" class="doc-btn doc-btn--ghost" data-action="doc-create-structure">${IC_FOLDER_PLUS}<span>Crear estructura sugerida</span></button>
       </div>`
     : `<p class="doc-onboarding__hint">Aún no hay documentos. Pida acceso de carga para empezar.</p>`;
   return `<section class="doc-onboarding">
     <span class="doc-onboarding__icon">${IC.folder || ""}</span>
     <h2 class="doc-onboarding__title">Comienza tu gestor documental</h2>
-    <p class="doc-onboarding__text">Organiza los documentos de la empresa en carpetas como Empleados, Contratación, SST, Legal y Finanzas. Sube tu primer archivo o crea la estructura sugerida.</p>
+    <p class="doc-onboarding__text">Las carpetas base (Empleados, Contratación, SST, Legal, Finanzas) y una carpeta por colaborador se crean automáticamente. Sube el primer documento para empezar.</p>
     ${actions}
   </section>`;
 }
@@ -650,31 +702,67 @@ async function ensureFolderRecord(folderPath, by) {
   }
 }
 
-async function createSuggestedStructure() {
-  if (!canUpload()) return;
-  const defaults = ["01. Empleados", "02. Contratación", "03. SST", "04. Legal", "05. Finanzas"];
-  const by = actor();
-  let list = readFolders();
-  let created = 0;
-  for (const name of defaults) {
-    if (list.some((f) => folderKey(f.folderName) === folderKey(name))) continue;
-    const record = normalizeCompanyFolderRow({
-      id: newUuidV4(),
-      folderName: name,
-      createdBy: by,
-      createdAt: new Date().toISOString()
-    });
-    try {
-      await writeAwaitServerCreate(KEYS.companyDocumentFolders, [...list, record], record);
-      list = [...list, record];
-      created += 1;
-    } catch (err) {
-      devWarn("[companyDocuments] createSuggestedStructure", err?.message || err);
+/** Evita carreras si varios usuarios / re-renders disparan el ensure a la vez. */
+let ensureStructurePromise = null;
+
+/**
+ * Crea en silencio las carpetas base + una por empleado si faltan.
+ * Idempotente: si ya existen, no hace nada. Seguro con varios usuarios concurrentes
+ * (índice único en BD + skip local por nombre).
+ */
+async function ensureCompanyDocumentStructure() {
+  if (!canUpload()) return { created: 0 };
+  if (ensureStructurePromise) return ensureStructurePromise;
+  ensureStructurePromise = (async () => {
+    const by = actor();
+    let list = readFolders();
+    let created = 0;
+
+    for (const name of SUGGESTED_COMPANY_FOLDERS) {
+      if (list.some((f) => folderKey(f.folderName) === folderKey(name))) continue;
+      const record = normalizeCompanyFolderRow({
+        id: newUuidV4(),
+        folderName: name,
+        description: name === EMPLOYEES_ROOT_FOLDER ? "Expedientes por colaborador" : "",
+        createdBy: by,
+        createdAt: new Date().toISOString()
+      });
+      try {
+        await writeAwaitServerCreate(KEYS.companyDocumentFolders, [...list, record], record);
+        list = [...list, record];
+        created += 1;
+      } catch (err) {
+        /* Otro usuario pudo crearla al mismo tiempo: relee y sigue. */
+        devWarn("[companyDocuments] ensureStructure", err?.message || err);
+        list = readFolders();
+      }
     }
-  }
-  if (created > 0) G.notify?.(`Estructura creada (${created} carpeta${created === 1 ? "" : "s"}).`, "success");
-  else G.notify?.("La estructura sugerida ya existe.", "info");
-  G.renderPortalView?.();
+
+    list = readFolders();
+    const employees = read(KEYS.payrollEmployees, []).filter((e) => e && String(e.name || "").trim());
+    for (const path of listMissingEmployeeFolderPaths(employees, list)) {
+      if (list.some((f) => folderKey(f.folderName) === folderKey(path))) continue;
+      const record = normalizeCompanyFolderRow({
+        id: newUuidV4(),
+        folderName: path,
+        description: `Expediente documental de ${folderLeafName(path)}`,
+        createdBy: by,
+        createdAt: new Date().toISOString()
+      });
+      try {
+        await writeAwaitServerCreate(KEYS.companyDocumentFolders, [...list, record], record);
+        list = [...list, record];
+        created += 1;
+      } catch (err) {
+        devWarn("[companyDocuments] ensureStructure.employee", err?.message || err);
+        list = readFolders();
+      }
+    }
+    return { created };
+  })().finally(() => {
+    ensureStructurePromise = null;
+  });
+  return ensureStructurePromise;
 }
 
 function openUploadModal() {
@@ -1108,7 +1196,6 @@ function bindDocumentManagementPortalControls() {
 
   on(root, "[data-action='doc-upload']", "click", () => openUploadModal());
   on(root, "[data-action='doc-new-folder']", "click", () => openNewFolderModal());
-  on(root, "[data-action='doc-create-structure']", "click", () => createSuggestedStructure());
   on(root, "[data-action='doc-toggle-filters']", "click", () => {
     patchUi({ showFilters: !getUi().showFilters });
     G.renderPortalView?.();
@@ -1286,6 +1373,15 @@ function bindDocumentManagementPortalControls() {
           el.focus();
           el.select?.();
         }
+      }
+    });
+  }
+
+  /* Estructura base + carpetas de empleados: se asegura sola (sin botón). */
+  if (canUpload()) {
+    void ensureCompanyDocumentStructure().then((res) => {
+      if (res?.created > 0 && String(state.currentView || "") === "document-management") {
+        G.renderPortalView?.();
       }
     });
   }

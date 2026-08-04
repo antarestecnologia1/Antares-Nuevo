@@ -13,6 +13,52 @@ export const DEFAULT_COMPANY_FOLDER = "General";
 
 export const COMPANY_FOLDER_SEPARATOR = " / ";
 
+/** Carpeta raíz de expedientes por colaborador dentro del DMS corporativo. */
+export const EMPLOYEES_ROOT_FOLDER = "01. Empleados";
+
+/** Estructura sugerida de primer nivel. */
+export const SUGGESTED_COMPANY_FOLDERS = Object.freeze([
+  EMPLOYEES_ROOT_FOLDER,
+  "02. Contratación",
+  "03. SST",
+  "04. Legal",
+  "05. Finanzas"
+]);
+
+/** Segmento de carpeta seguro a partir del nombre del empleado (sin “/”). */
+export function sanitizeEmployeeFolderSegment(name) {
+  return String(name || "")
+    .replace(/[\\/]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 120);
+}
+
+/** Ruta `01. Empleados / Nombre` o null si el empleado no tiene nombre usable. */
+export function employeeCompanyFolderPath(employee) {
+  const leaf = sanitizeEmployeeFolderSegment(employee?.name ?? employee?.fullName ?? "");
+  if (!leaf) return null;
+  return `${EMPLOYEES_ROOT_FOLDER}${COMPANY_FOLDER_SEPARATOR}${leaf}`;
+}
+
+/** Rutas de carpeta de empleados que aún no existen en `folderRecords`. */
+export function listMissingEmployeeFolderPaths(employees = [], folderRecords = []) {
+  const existing = new Set(
+    (folderRecords || []).map((f) => folderKey(f.folderName || f.nombre_carpeta || ""))
+  );
+  const missing = [];
+  const seen = new Set();
+  for (const emp of employees || []) {
+    const path = employeeCompanyFolderPath(emp);
+    if (!path) continue;
+    const k = folderKey(path);
+    if (seen.has(k) || existing.has(k)) continue;
+    seen.add(k);
+    missing.push(path);
+  }
+  return missing.sort((a, b) => a.localeCompare(b, "es", { numeric: true }));
+}
+
 /** Extensiones agrupadas por familia (para color/ícono del tipo). */
 export const COMPANY_DOCUMENT_TYPE_GROUPS = Object.freeze({
   pdf: ["pdf"],
