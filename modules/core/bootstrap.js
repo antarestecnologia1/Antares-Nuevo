@@ -532,6 +532,8 @@ export function __applyPortalBootstrapPayloadInner(p) {
     "sstCompliance",
     "employeeDocuments",
     "employeeDocumentFolders",
+    "companyDocuments",
+    "companyDocumentFolders",
     "candidates",
     "positions"
   ]);
@@ -648,12 +650,20 @@ export function __applyPortalBootstrapPayloadInner(p) {
     }
     if (prop === "companyDocuments") {
       const raw = Array.isArray(p.companyDocuments) ? p.companyDocuments : [];
-      write(KEYS.companyDocuments, raw, { skipSyncSchedule: true });
+      const norm =
+        typeof hooks.normalizeCompanyDocumentRow === "function"
+          ? hooks.normalizeCompanyDocumentRow
+          : (row) => row;
+      write(KEYS.companyDocuments, raw.map(norm), { skipSyncSchedule: true });
       continue;
     }
     if (prop === "companyDocumentFolders") {
       const raw = Array.isArray(p.companyDocumentFolders) ? p.companyDocumentFolders : [];
-      write(KEYS.companyDocumentFolders, raw, { skipSyncSchedule: true });
+      const norm =
+        typeof hooks.normalizeCompanyFolderRow === "function"
+          ? hooks.normalizeCompanyFolderRow
+          : (row) => row;
+      write(KEYS.companyDocumentFolders, raw.map(norm), { skipSyncSchedule: true });
       continue;
     }
     if (prop === "candidates") {

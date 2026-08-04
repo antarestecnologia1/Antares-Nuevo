@@ -1144,6 +1144,118 @@ function bindHiringPortalControls() {
     });
   });
 
+  nodes.viewRoot.querySelectorAll("[data-action='hiring-open-create']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (!canManageHiringModule()) {
+        notify("No tiene permiso para registrar en Contratación.", "error");
+        return;
+      }
+      const section = normalizeHiringOperateSection(btn.dataset.section);
+      const panelId = hiringCreatePanelForSection(section);
+      state.hiringUi = { ...(state.hiringUi || {}), operateSection: section, workspace: "operate" };
+      state.createPanels = buildHiringCreatePanelsState(section, state.createPanels || {}, { expandActive: true });
+      persistHrWorkspace("hiring", "operate");
+      renderPortalView();
+      if (panelId) {
+        requestAnimationFrame(() => scrollToCreatePanelForm(panelId));
+      }
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='hiring-filter-vacancy']").forEach((select) => {
+    select.addEventListener("change", () => {
+      const el = /** @type {HTMLSelectElement} */ (select);
+      state.hiringUi = {
+        ...(state.hiringUi || {}),
+        vacancyIdFilter: String(el.value || "").trim(),
+        workspace: "data",
+        dataSection: "candidates"
+      };
+      persistHrWorkspace("hiring", "data");
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='hiring-sort-candidates-select']").forEach((select) => {
+    select.addEventListener("change", () => {
+      const el = /** @type {HTMLSelectElement} */ (select);
+      const sort = String(el.value || "recent");
+      state.hiringUi = {
+        ...(state.hiringUi || {}),
+        candidateSort: ["recent", "experience", "pipeline"].includes(sort) ? sort : "recent",
+        workspace: "data",
+        dataSection: "candidates"
+      };
+      persistHrWorkspace("hiring", "data");
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='hiring-board-expand']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const stage = String(btn.dataset.stage || "").trim();
+      if (!stage) return;
+      const boardExpand = { ...(state.hiringUi?.boardExpand || {}), [stage]: true };
+      state.hiringUi = { ...(state.hiringUi || {}), boardExpand, workspace: "data", dataSection: "candidates" };
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='hiring-board-collapse']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const stage = String(btn.dataset.stage || "").trim();
+      if (!stage) return;
+      const boardExpand = { ...(state.hiringUi?.boardExpand || {}), [stage]: false };
+      state.hiringUi = { ...(state.hiringUi || {}), boardExpand, workspace: "data", dataSection: "candidates" };
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='hiring-drawer-tab']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const tab = String(btn.dataset.tab || "resumen");
+      state.hiringUi = {
+        ...(state.hiringUi || {}),
+        drawerTab: tab,
+        drawerOpen: true,
+        workspace: "data",
+        dataSection: "candidates"
+      };
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='hiring-drawer-close']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.hiringUi = { ...(state.hiringUi || {}), drawerOpen: false, workspace: "data", dataSection: "candidates" };
+      renderPortalView();
+    });
+  });
+
+  if (!nodes.viewRoot.__hiringSearchHotkeyBound) {
+    nodes.viewRoot.__hiringSearchHotkeyBound = true;
+    document.addEventListener("keydown", (event) => {
+      if (String(state.currentView || "") !== "hiring") return;
+      const key = String(event.key || "").toLowerCase();
+      if (!(key === "k" && (event.ctrlKey || event.metaKey))) return;
+      const target = event.target;
+      if (
+        target &&
+        (target instanceof HTMLInputElement ||
+          target instanceof HTMLTextAreaElement ||
+          target instanceof HTMLSelectElement ||
+          /** @type {HTMLElement} */ (target).isContentEditable)
+      ) {
+        return;
+      }
+      const input = nodes.viewRoot?.querySelector?.("[data-hiring-search-focus]");
+      if (!(input instanceof HTMLInputElement)) return;
+      event.preventDefault();
+      input.focus();
+      input.select();
+    });
+  }
+
   nodes.viewRoot.querySelectorAll("[data-action='hiring-operate-section']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const section = normalizeHiringOperateSection(btn.dataset.section);
@@ -1192,12 +1304,24 @@ function bindHiringPortalControls() {
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='hiring-select-candidate']").forEach((btn) => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", (event) => {
+      if (event.target instanceof Element && event.target.closest("details.hiring-card-menu")) return;
       const id = String(btn.dataset.id || "").trim();
       if (!id) return;
-      if (String(state.hiringUi?.selectedCandidateId || "") === id) return;
-      state.hiringUi = { ...(state.hiringUi || {}), selectedCandidateId: id, workspace: "data", dataSection: "candidates" };
+      const same = String(state.hiringUi?.selectedCandidateId || "") === id && state.hiringUi?.drawerOpen !== false;
+      if (same) return;
+      state.hiringUi = {
+        ...(state.hiringUi || {}),
+        selectedCandidateId: id,
+        drawerOpen: true,
+        drawerTab: state.hiringUi?.drawerTab || "resumen",
+        workspace: "data",
+        dataSection: "candidates"
+      };
       renderPortalView();
+      requestAnimationFrame(() => {
+        nodes.viewRoot?.querySelector?.(".hiring-drawer")?.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
+      });
     });
   });
 

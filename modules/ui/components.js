@@ -717,8 +717,18 @@ export function renderHiringModuleHead({
   hiredCandidates,
   totalCandidates,
   receivedCandidates = 0,
-  interviewsPending = 0
-}) {
+  interviewsPending = 0,
+  slim = false
+} = {}) {
+  if (slim) {
+    return `<header class="hiring-studio-head hiring-module-head hiring-module-head--slim">
+      <div class="hiring-studio-head__brand hiring-module-head__title">
+        <span class="hiring-studio-head__badge">RRHH</span>
+        <h2>Contratación</h2>
+        <p class="hiring-studio-head__tagline">Selección de personal y cierre de vinculación.</p>
+      </div>
+    </header>`;
+  }
   const items = [
     `<div class="hiring-studio-kpi hiring-studio-kpi--neutral" title="Candidatos activos en el pipeline"><dt>En proceso</dt><dd><strong>${escapeHtml(String(activeCandidates))}</strong></dd></div>`,
     `<div class="hiring-studio-kpi hiring-studio-kpi--warn" title="Postulaciones nuevas por revisar (etapa Recibido)"><dt>Por revisar</dt><dd><strong>${escapeHtml(String(receivedCandidates))}</strong></dd></div>`,

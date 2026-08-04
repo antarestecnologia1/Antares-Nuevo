@@ -185,14 +185,25 @@ includesAll(
 includesAll(
   gestionJs,
   [
-    'function canManageFolderPermissions() {\n  return userRole() === "admin";',
-    'function isDocManager() {\n  return userRole() === "admin";',
+    "canManageFolderPermissions",
+    'userRole() === "admin"',
+    "isDocManager",
     "openFolderPermissionsModal",
     "canUploadFolder",
     "canDeleteFolder",
-    "visibleDocs"
+    "visibleDocs",
+    "doc-studio",
+    "companyDocuments"
   ],
   "ui-admin-only-folder-perms"
+);
+ok(
+  /function canManageFolderPermissions\(\)\s*\{\s*return userRole\(\) === ["']admin["'];\s*\}/.test(gestionJs),
+  "canManageFolderPermissions solo admin"
+);
+ok(
+  /function isDocManager\(\)\s*\{\s*return userRole\(\) === ["']admin["'];\s*\}/.test(gestionJs),
+  "isDocManager solo admin"
 );
 
 includesAll(
