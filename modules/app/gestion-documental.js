@@ -2268,7 +2268,7 @@ async function resolveDownloadUrl(doc, { disposition = "attachment" } = {}) {
  * Trae el archivo por la API (cookie/CSRF) y crea un blob: URL local.
  * Evita iframes rotos contra URLs firmadas de R2 (CORS / Content-Type / visor PDF).
  */
-async function resolvePreviewObjectUrl(doc) {
+async function fetchCompanyDocumentBlob(doc) {
   const api = window.AntaresApi;
   if (!api?.postForBlob) throw new Error("API no disponible.");
   const blob = await api.postForBlob("/uploads/company-document/content", {
@@ -2277,21 +2277,103 @@ async function resolvePreviewObjectUrl(doc) {
     fileName: doc.fileName || "documento"
   });
   if (!blob || !blob.size) throw new Error("El archivo llegó vacío.");
+  return blob;
+}
+
+async function resolvePreviewObjectUrl(doc) {
+  const blob = await fetchCompanyDocumentBlob(doc);
   const group = fileTypeGroup(doc.fileName, doc.mimeType);
-  let typed = blob;
-  if (group === "pdf" && !/pdf/i.test(String(blob.type || ""))) {
-    typed = new Blob([blob], { type: "application/pdf" });
-  } else if (group === "image" && !String(blob.type || "").startsWith("image/")) {
-    const mime = String(doc.mimeType || "image/jpeg");
-    typed = new Blob([blob], { type: mime });
-  } else if (group === "text" && !String(blob.type || "").startsWith("text/")) {
-    typed = new Blob([blob], { type: "text/plain;charset=utf-8" });
-  }
-  return URL.createObjectURL(typed);
+  const buffer = await blob.arrayBuffer();
+  let mime = String(blob.type || "").trim();
+  if (group === "pdf") mime = "application/pdf";
+  else if (group === "image" && !mime.startsWith("image/")) mime = String(doc.mimeType || "image/jpeg");
+  else if (group === "text" && !mime.startsWith("text/")) mime = "text/plain;charset=utf-8";
+  else if (!mime) mime = "application/octet-stream";
+  return URL.createObjectURL(new Blob([buffer], { type: mime }));
 }
 
 const MAMMOTH_CDN = "https://cdn.jsdelivr.net/npm/mammoth@1.9.0/mammoth.browser.min.js";
 let mammothLoadPromise = null;
+const PDFJS_CDN = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+const PDFJS_WORKER_CDN = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+let pdfJsLoadPromise = null;
+
+function ensurePdfJs() {
+  if (window.pdfjsLib?.getDocument) {
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_CDN;
+    return Promise.resolve(window.pdfjsLib);
+  }
+  if (pdfJsLoadPromise) return pdfJsLoadPromise;
+  pdfJsLoadPromise = new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.async = true;
+    s.crossOrigin = "anonymous";
+    s.src = PDFJS_CDN;
+    s.onload = () => {
+      if (window.pdfjsLib?.getDocument) {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_CDN;
+        resolve(window.pdfjsLib);
+      } else {
+        pdfJsLoadPromise = null;
+        reject(new Error("PDF.js no quedó disponible."));
+      }
+    };
+    s.onerror = () => {
+      pdfJsLoadPromise = null;
+      reject(new Error("No se pudo cargar el visor PDF (compruebe la conexión)."));
+    };
+    document.head.appendChild(s);
+  });
+  return pdfJsLoadPromise;
+}
+
+function assertPdfMagic(bytes) {
+  if (!bytes || bytes.length < 5) return false;
+  return (
+    bytes[0] === 0x25 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x44 &&
+    bytes[3] === 0x46
+  ); /* %PDF */
+}
+
+/** Render PDF a canvas (evita el visor nativo de Chromium, roto dentro de paneles con transform). */
+async function renderPdfPreviewInto(stage, blob) {
+  if (!stage) return;
+  stage.innerHTML = `<div class="doc-preview__loading"><span class="doc-preview__spinner"></span>Cargando PDF…</div>`;
+  const pdfjs = await ensurePdfJs();
+  const data = new Uint8Array(await blob.arrayBuffer());
+  if (!assertPdfMagic(data)) {
+    throw new Error("El archivo no es un PDF válido o llegó corrupto.");
+  }
+  const loadingTask = pdfjs.getDocument({ data });
+  const pdf = await loadingTask.promise;
+  const wrap = document.createElement("div");
+  wrap.className = "doc-preview__pdfjs";
+  const maxPages = Math.min(Number(pdf.numPages) || 1, 40);
+  const stageWidth = Math.max(280, (stage.clientWidth || 640) - 28);
+  for (let pageNo = 1; pageNo <= maxPages; pageNo += 1) {
+    const page = await pdf.getPage(pageNo);
+    const unscaled = page.getViewport({ scale: 1 });
+    const scale = Math.min(2.2, stageWidth / unscaled.width);
+    const viewport = page.getViewport({ scale });
+    const canvas = document.createElement("canvas");
+    canvas.className = "doc-preview__pdf-page";
+    canvas.width = Math.floor(viewport.width);
+    canvas.height = Math.floor(viewport.height);
+    canvas.setAttribute("aria-label", `Página ${pageNo}`);
+    const ctx = canvas.getContext("2d", { alpha: false });
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    wrap.appendChild(canvas);
+  }
+  if (pdf.numPages > maxPages) {
+    const note = document.createElement("p");
+    note.className = "doc-preview__pdf-note";
+    note.textContent = `Mostrando ${maxPages} de ${pdf.numPages} páginas. Use Abrir en pestaña o Descargar para ver el documento completo.`;
+    wrap.appendChild(note);
+  }
+  stage.replaceChildren(wrap);
+}
 
 function ensureMammoth() {
   if (typeof window.mammoth?.convertToHtml === "function") return Promise.resolve(window.mammoth);
@@ -2326,16 +2408,13 @@ function isDocxDocument(doc) {
   return /wordprocessingml\.document/i.test(String(doc?.mimeType || ""));
 }
 
-async function fetchCompanyDocumentBlob(doc) {
-  const api = window.AntaresApi;
-  if (!api?.postForBlob) throw new Error("API no disponible.");
-  const blob = await api.postForBlob("/uploads/company-document/content", {
-    storageKey: doc.storageKey,
-    disposition: "inline",
-    fileName: doc.fileName || "documento"
-  });
-  if (!blob || !blob.size) throw new Error("El archivo llegó vacío.");
-  return blob;
+function isPdfDocument(doc) {
+  const ext = String(doc?.fileName || "")
+    .split(".")
+    .pop()
+    ?.toLowerCase();
+  if (ext === "pdf") return true;
+  return /application\/pdf/i.test(String(doc?.mimeType || ""));
 }
 
 async function convertDocxBlobToHtml(blob) {
@@ -2555,6 +2634,22 @@ async function openPreview(doc) {
     } catch (err) {
       if (stage) {
         stage.innerHTML = `<div class="doc-preview__nopreview"><p>No se pudo cargar la vista previa del contrato.</p><p class="doc-preview__nopreview-hint">${escapeHtml(String(err?.message || ""))}</p></div>`;
+      }
+    }
+    return;
+  }
+  if (isPdfDocument(doc)) {
+    try {
+      const blob = await fetchCompanyDocumentBlob(doc);
+      const buffer = await blob.arrayBuffer();
+      const pdfBlob = new Blob([buffer], { type: "application/pdf" });
+      previewObjectUrl = URL.createObjectURL(pdfBlob);
+      if (document.body.contains(overlay) && stage) {
+        await renderPdfPreviewInto(stage, pdfBlob);
+      }
+    } catch (err) {
+      if (stage) {
+        stage.innerHTML = `<div class="doc-preview__nopreview"><p>No se pudo cargar la vista previa del PDF.</p><p class="doc-preview__nopreview-hint">${escapeHtml(String(err?.message || ""))}</p><p class="doc-preview__nopreview-hint">Use «Abrir en pestaña» o «Descargar».</p></div>`;
       }
     }
     return;
