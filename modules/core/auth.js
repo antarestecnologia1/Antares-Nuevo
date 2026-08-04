@@ -2767,7 +2767,7 @@ function authView() {
     const phoneCcOptions =
       typeof window.registerPhoneCountryOptionsHtml === "function"
         ? window.registerPhoneCountryOptionsHtml()
-        : `<option value="+57" selected>CO +57</option>`;
+        : `<option value="CO" selected title="Colombia">+57</option>`;
     return `
       <div class="auth-header-premium register-intro">
         <h3>Solicitud de registro</h3>
@@ -3281,7 +3281,7 @@ export function bindAuthForms() {
     const isJuridicaFn =
       typeof window.isPersonTypeJuridica === "function"
         ? window.isPersonTypeJuridica
-        : (v) => String(v || "").toLowerCase() === "juridica";
+        : (v) => normalizePersonTypeForDb(v) === "Juridica";
     const registrationKindHidden = register.querySelector("#register-registration-kind");
     const syncRegisterKindUi = (kindRaw) => {
       const kind = normalizeRegistrationKindForDb(kindRaw);
@@ -3396,7 +3396,11 @@ export function bindAuthForms() {
     __wireAuthFormSubmit(
       register,
       async (event) => {
-      window.syncPhoneHiddenFull(register, "register");
+      try {
+        window.syncPhoneHiddenFull?.(register, "register");
+      } catch (_phoneSync) {
+        /* noop */
+      }
       const data = __readFormEntriesNormalized(register);
       const registrationKind = readRegistrationKindFromForm(register, data.registrationKind);
       data.registrationKind = registrationKind;
@@ -3424,11 +3428,17 @@ export function bindAuthForms() {
       data.personType = normalizePersonTypeForDb(data.personType);
       const isJuridica = data.personType === "Juridica";
       const docTypeUpper = String(data.documentType || "").toUpperCase();
+      const validateDoc =
+        typeof window.validateColombianDocument === "function" ? window.validateColombianDocument : null;
+      if (!validateDoc) {
+        window.notify("No se pudo validar el documento. Recargue la página e intente de nuevo.", "error");
+        return;
+      }
       let personalDocStored = "";
       if (isJuridica) {
         const personalDocType = String(data.personalDocumentType || "CC").toUpperCase() === "CE" ? "CE" : "CC";
-        const nitVal = window.validateColombianDocument("NIT", data.companyNit || "");
-        const personalVal = window.validateColombianDocument(personalDocType, data.personalTaxId || "");
+        const nitVal = validateDoc("NIT", data.companyNit || "");
+        const personalVal = validateDoc(personalDocType, data.personalTaxId || "");
         if (!nitVal.ok) {
           failPortalField(register, "companyNit", nitVal.message);
           return;
@@ -3445,7 +3455,7 @@ export function bindAuthForms() {
           .replace(/[.\s]/g, "")
           .replace(/\D/g, "");
       } else {
-        const docValidation = window.validateColombianDocument(data.documentType, data.taxId);
+        const docValidation = validateDoc(data.documentType, data.taxId);
         if (!docValidation.ok) {
           failPortalField(register, "taxId", docValidation.message);
           return;
@@ -3484,13 +3494,31 @@ export function bindAuthForms() {
         window.notify(window.userMessage("registerMinor"), "error");
         return;
       }
-      const meta = window.getSelectedPhoneCountry(register, "register");
-      const phoneDigitsAll = String(data.phone || "").replace(/\D/g, "");
-      if (!phoneDigitsAll.startsWith(meta.dial)) {
+      const meta =
+        typeof window.getSelectedPhoneCountry === "function"
+          ? window.getSelectedPhoneCountry(register, "register")
+          : { dial: "57", minNat: 10, maxNat: 10, style: "co", label: "Colombia", id: "CO" };
+      if (!meta || !meta.dial) {
+        window.notify("No se pudo validar el teléfono. Recargue la página e intente de nuevo.", "error");
+        return;
+      }
+      /**
+       * `readFormEntriesNormalized` deja `phone` en dígitos nacionales (sin indicativo).
+       * Recomponer E.164 lógico (indicativo + nacional) antes de validar / enviar.
+       */
+      const dial = String(meta.dial);
+      let phoneDigitsAll = String(data.phone || "").replace(/\D/g, "");
+      if (phoneDigitsAll && !phoneDigitsAll.startsWith(dial)) {
+        const natOnly = phoneDigitsAll;
+        if (natOnly.length >= meta.minNat && natOnly.length <= meta.maxNat) {
+          phoneDigitsAll = dial + natOnly;
+        }
+      }
+      if (!phoneDigitsAll.startsWith(dial)) {
         window.notify("El teléfono no coincide con el país seleccionado.", "error");
         return;
       }
-      const nationalLen = phoneDigitsAll.length - meta.dial.length;
+      const nationalLen = phoneDigitsAll.length - dial.length;
       if (nationalLen < meta.minNat || nationalLen > meta.maxNat) {
         window.notify(
           meta.style === "co"
@@ -3500,12 +3528,23 @@ export function bindAuthForms() {
         );
         return;
       }
+      const nationalDigits = phoneDigitsAll.slice(dial.length);
       if (meta.style === "co") {
-        const nat = phoneDigitsAll.slice(meta.dial.length);
-        if (!nat.startsWith("3")) {
+        if (!nationalDigits.startsWith("3")) {
           window.notify("El celular en Colombia debe ser móvil (empieza por 3).", "error");
           return;
         }
+      }
+      if (meta.style === "co") {
+        const segs = [
+          nationalDigits.slice(0, 3),
+          nationalDigits.slice(3, 6),
+          nationalDigits.slice(6, 8),
+          nationalDigits.slice(8, 10)
+        ].filter(Boolean);
+        data.phone = `+57 ${segs.join(" ")}`;
+      } else {
+        data.phone = `+${dial} ${nationalDigits}`;
       }
 
       if (window.AntaresApi?.getBase?.() && typeof window.AntaresApi.postJsonPublic === "function") {
@@ -3576,7 +3615,11 @@ export function bindAuthForms() {
         window.notify(window.userMessage("registerEmailExists"), "error");
         return;
       }
-      if (personalDocStored && users.some((u) => window.getPersonalRegistrationKey(u) === personalDocStored)) {
+      if (
+        personalDocStored &&
+        typeof window.getPersonalRegistrationKey === "function" &&
+        users.some((u) => window.getPersonalRegistrationKey(u) === personalDocStored)
+      ) {
         window.notify(window.userMessage("registerPersonalDocExists"), "error");
         return;
       }

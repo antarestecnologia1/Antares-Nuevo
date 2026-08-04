@@ -5624,6 +5624,12 @@ window.departmentOptions = departmentOptions;
 window.cityOptionsFromDepartment = cityOptionsFromDepartment;
 window.attachDepartmentCitySelects = attachDepartmentCitySelects;
 window.registerPhoneCountryOptionsHtml = registerPhoneCountryOptionsHtml;
+window.getSelectedPhoneCountry = getSelectedPhoneCountry;
+window.syncPhoneHiddenFull = syncPhoneHiddenFull;
+window.updatePhoneFieldForCountry = updatePhoneFieldForCountry;
+window.validateColombianDocument = validateColombianDocument;
+window.isPersonTypeJuridica = isPersonTypeJuridica;
+window.getPersonalRegistrationKey = getPersonalRegistrationKey;
 
 function parseNum(v) {
   const n = Number(v);

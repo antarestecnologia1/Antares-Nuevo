@@ -1781,7 +1781,14 @@
     const meta = typeof getPhoneMeta === "function" ? getPhoneMeta() : { dial: "57", minNat: 8, maxNat: 15, style: "co", label: "" };
     const email = normalizeEmail(data.email);
     const message = sanitizeMultiline(data.message, 8000);
-    const phoneDigitsAll = String(data.phone || "").replace(/\D/g, "");
+    const dial = String(meta.dial || "");
+    let phoneDigitsAll = String(data.phone || "").replace(/\D/g, "");
+    if (phoneDigitsAll && dial && !phoneDigitsAll.startsWith(dial)) {
+      const natOnly = phoneDigitsAll;
+      if (natOnly.length >= meta.minNat && natOnly.length <= meta.maxNat) {
+        phoneDigitsAll = dial + natOnly;
+      }
+    }
 
     const errors = [];
     const natPhoneField = form?.querySelector?.(".js-b2b-phone-national") || null;
@@ -1791,17 +1798,17 @@
       errors.push("email");
     }
     let phoneErrMsg = "";
-    if (!phoneDigitsAll.startsWith(String(meta.dial || ""))) {
+    if (!dial || !phoneDigitsAll.startsWith(dial)) {
       phoneErrMsg = "El teléfono no coincide con el país seleccionado en el indicativo.";
     } else {
-      const nationalLen = phoneDigitsAll.length - String(meta.dial).length;
+      const nationalLen = phoneDigitsAll.length - dial.length;
       if (nationalLen < meta.minNat || nationalLen > meta.maxNat) {
         phoneErrMsg =
           meta.style === "co"
             ? "Ingrese un celular colombiano válido (10 dígitos nacionales; puede incluir +57 en el mismo campo o usar solo el número local)."
             : `Ingrese entre ${meta.minNat} y ${meta.maxNat} dígitos del número local para ${meta.label}.`;
       } else if (meta.style === "co") {
-        const nat = phoneDigitsAll.slice(String(meta.dial).length);
+        const nat = phoneDigitsAll.slice(dial.length);
         if (!nat.startsWith("3")) phoneErrMsg = MSG.coMobile;
       }
     }
