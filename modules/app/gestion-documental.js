@@ -28,6 +28,7 @@ import {
   buildEmployeeLaborLetterCompanyFileName,
   buildEmployeePhotoCompanyFileName,
   formatCompanyDocumentDisplayName,
+  sanitizeCompanyDocumentDescription,
   mapEmployeeDocumentTypeToCompanyCategory,
   normalizeCompanyDocumentRow,
   normalizeCompanyFolderRow,
@@ -2428,15 +2429,56 @@ function openDocxHtmlInTab(fileName, html) {
   }, 60_000);
 }
 
+function foldKeyForCompare(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function buildPreviewMetaLine(doc, display) {
+  const person = String(display.subtitle || "").trim();
+  const folder = String(folderLeafName(doc.folder) || "").trim();
+  const sameAsPerson = person && folder && foldKeyForCompare(person) === foldKeyForCompare(folder);
+  const parts = [];
+  if (person) parts.push(person);
+  parts.push(display.ext || fileTypeLabel(doc.fileName, doc.mimeType) || "");
+  parts.push(formatFileSize(doc.sizeBytes));
+  if (folder && !sameAsPerson) parts.push(folder);
+  return parts.filter(Boolean).join(" · ");
+}
+
+function buildPreviewDescriptionLine(doc, display) {
+  let text = sanitizeCompanyDocumentDescription(doc.description || "");
+  if (!text) return "";
+  /* Evita repetir el nombre del colaborador si ya está en el encabezado. */
+  const person = foldKeyForCompare(display.subtitle || folderLeafName(doc.folder) || "");
+  if (person) {
+    text = text
+      .split("·")
+      .map((p) => p.trim())
+      .filter((p) => p && foldKeyForCompare(p) !== person)
+      .join(" · ");
+  }
+  text = text
+    .replace(/Carta laboral\s*\(\s*vigente\s*\)/gi, "Carta laboral vigente")
+    .replace(/Carta laboral\s*\(\s*retiro\s*\)/gi, "Certificado de retiro")
+    .replace(/\s*·\s*formato oficial/gi, " · Formato oficial")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  return text;
+}
+
 async function openPreview(doc) {
   const IC = G.IC || {};
   const group = fileTypeGroup(doc.fileName, doc.mimeType);
   const canInline = canPreviewFileType(doc.fileName, doc.mimeType);
   const docx = isDocxDocument(doc);
   const display = formatCompanyDocumentDisplayName(doc);
-  const previewMeta = [display.ext || fileTypeLabel(doc.fileName, doc.mimeType), formatFileSize(doc.sizeBytes), folderLeafName(doc.folder) || doc.folder]
-    .filter(Boolean)
-    .join(" · ");
+  const previewMeta = buildPreviewMetaLine(doc, display);
+  const previewDesc = buildPreviewDescriptionLine(doc, display);
   closePreviewPanel();
   const overlay = document.createElement("div");
   overlay.className = "doc-preview-overlay documents-studio doc-studio";
@@ -2448,7 +2490,7 @@ async function openPreview(doc) {
         <span class="doc-fileicon doc-fileicon--${group}">${IC.file || ""}</span>
         <div class="doc-preview__titles">
           <p class="doc-preview__name" title="${escapeAttr(display.fullName)}">${escapeHtml(display.title)}</p>
-          <p class="doc-preview__meta">${escapeHtml(display.subtitle ? `${display.subtitle} · ${previewMeta}` : previewMeta)}</p>
+          <p class="doc-preview__meta">${escapeHtml(previewMeta)}</p>
         </div>
         <button type="button" class="doc-iconbtn doc-preview__close" data-close aria-label="Cerrar">${IC.x || "×"}</button>
       </header>
@@ -2457,7 +2499,7 @@ async function openPreview(doc) {
         <div class="doc-preview__info">
           <span>Subido por ${escapeHtml(doc.uploadedBy || "—")}</span>
           <span>${escapeHtml(formatDate(doc.updatedAt))}</span>
-          ${doc.description ? `<p class="doc-preview__desc">${escapeHtml(doc.description)}</p>` : ""}
+          ${previewDesc ? `<p class="doc-preview__desc">${escapeHtml(previewDesc)}</p>` : ""}
         </div>
         <div class="doc-preview__actions">
           <button type="button" class="doc-btn doc-btn--ghost" data-open-tab>${IC_EXTERNAL}<span>Abrir en pestaña</span></button>

@@ -148,6 +148,20 @@ export function buildEmployeePhotoCompanyFileName(employee = {}, ext = "jpg") {
   return `Foto del colaborador · ${name}.${e}`;
 }
 
+/** Quita marcadores internos (`employeeHireDoc=…`, `payrollRun:…`) de la descripción visible. */
+export function sanitizeCompanyDocumentDescription(raw = "") {
+  let text = String(raw || "").trim();
+  if (!text) return "";
+  text = text
+    .replace(/(?:^|\s)employeeHireDoc=[^\s·|]+/gi, " ")
+    .replace(/(?:^|\s)payrollRun:[^\s·|]+/gi, " ")
+    .replace(/\s*[·|]\s*[·|]\s*/g, " · ")
+    .replace(/\s{2,}/g, " ")
+    .replace(/^[·|\s]+|[·|\s]+$/g, "")
+    .trim();
+  return text;
+}
+
 /**
  * Título/subtítulo para UI (también embellece nombres legacy snake_case).
  * @returns {{ title: string, subtitle: string, ext: string, fullName: string }}
