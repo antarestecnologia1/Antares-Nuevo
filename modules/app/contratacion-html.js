@@ -72,6 +72,16 @@ function hiringOfficeInterviewerPeople() {
     "lider_administrativo",
     "logistica"
   ]);
+  const displayName = (person) => {
+    const full = clean(person?.name);
+    if (full) return full;
+    return clean(
+      [person?.firstName, person?.middleName, person?.lastName, person?.secondLastName]
+        .map(clean)
+        .filter(Boolean)
+        .join(" ")
+    );
+  };
   const seen = new Set();
   const staff = [];
   read(KEYS.payrollEmployees, []).forEach((employee) => {
@@ -79,7 +89,7 @@ function hiringOfficeInterviewerPeople() {
     const role = clean(employee.workerRole).toLowerCase();
     const position = clean(employee.position);
     if (role === "conductor" || position.toLowerCase().includes("conductor")) return;
-    const name = clean(employee.name);
+    const name = displayName(employee);
     if (!name || seen.has(name.toLowerCase())) return;
     seen.add(name.toLowerCase());
     staff.push({ name, detail: position || "Personal de oficina" });
@@ -91,7 +101,7 @@ function hiringOfficeInterviewerPeople() {
     if (!officeRoles.has(role)) return;
     const accountStatus = clean(user.accountStatus).toLowerCase();
     if (accountStatus && accountStatus !== "aprobado") return;
-    const name = clean(user.name);
+    const name = displayName(user);
     if (!name || seen.has(name.toLowerCase())) return;
     seen.add(name.toLowerCase());
     users.push({ name, detail: formatPortalRoleLabel(role) });
@@ -265,6 +275,10 @@ function hiringHtml() {
     sortedCandidatesView.find((c) => String(c.id) === selectedCandidateIdRaw) ||
     (drawerOpen || candidateView === "list" ? sortedCandidatesView[0] || null : null);
   const selectedCandidateId = selectedCandidate ? String(selectedCandidate.id) : "";
+  /* Persistir selección de fallback para que no se pierda al cambiar Tablero ↔ Lista. */
+  if (selectedCandidateId && selectedCandidateId !== selectedCandidateIdRaw) {
+    state.hiringUi = { ...(state.hiringUi || hiringUi), selectedCandidateId };
+  }
   const boardCtx = {
     canEdit: hiringCanEdit,
     canDelete: hiringCanDelete,
@@ -433,6 +447,15 @@ function hiringHtml() {
       return `<option value="${escapeAttr(String(c.id))}" data-candidate-name="${escapeAttr(String(c.name || ""))}" data-candidate-status="${escapeAttr(status)}" data-candidate-vacancy="${escapeAttr(String(c.vacancyTitle || ""))}" data-candidate-phone="${escapeAttr(String(c.phone || ""))}" data-candidate-email="${escapeAttr(String(c.email || ""))}">${escapeHtml(String(c.name || ""))} · ${escapeHtml(status)}</option>`;
     })
     .join("");
+  const interviewMinDate = colombiaTodayIsoDate();
+  const interviewTimePresets = ["08:00", "09:00", "10:00", "11:00", "14:00", "15:00", "16:00"];
+  const formatInterviewTimePreset = (hhmm) => {
+    if (typeof window.formatTimeDisplay === "function") {
+      const label = window.formatTimeDisplay(hhmm);
+      if (label) return label;
+    }
+    return String(hhmm || "").slice(0, 5);
+  };
   const interviewQuickChips = [
     { days: 1, time: "09:00", label: "Mañana 9:00 a. m." },
     { days: 1, time: "14:00", label: "Mañana 2:00 p. m." },
@@ -444,9 +467,23 @@ function hiringHtml() {
         `<button type="button" class="hiring-interview-chip" data-interview-quick${chip.weekday ? ` data-quick-weekday="${chip.weekday}"` : ` data-quick-days="${chip.days}"`} data-quick-time="${chip.time}">${escapeHtml(chip.label)}</button>`
     )
     .join("");
-  const fInt = `<form id="form-interview" class="p-form p-form-colored hr-form-flow hr-form-compact hiring-interview-form">
+  const interviewDatePresetsHtml = `<div class="acf-date-presets hiring-interview-date-presets" role="group" aria-label="Fechas rápidas">
+      <button type="button" class="acf-date-preset" data-acf-date-offset="0" data-acf-date-target="interview-date">Hoy</button>
+      <button type="button" class="acf-date-preset" data-acf-date-offset="1" data-acf-date-target="interview-date">Mañana</button>
+      <button type="button" class="acf-date-preset" data-acf-date-offset="2" data-acf-date-target="interview-date">+2 días</button>
+    </div>`;
+  const interviewTimePresetsHtml = `<div class="acf-time-presets hiring-interview-time-presets" role="group" aria-label="Horas sugeridas">
+      ${interviewTimePresets
+        .map(
+          (t) =>
+            `<button type="button" class="acf-time-preset" data-acf-time-preset="${escapeAttr(t)}" data-acf-time-target="interview-time" aria-label="Usar ${escapeAttr(formatInterviewTimePreset(t))}">${escapeHtml(formatInterviewTimePreset(t))}</button>`
+        )
+        .join("")}
+    </div>`;
+  const fInt = `<form id="form-interview" class="p-form p-form-colored hr-form-flow hr-form-compact hiring-interview-form antares-create-form" autocomplete="off" novalidate lang="es">
+    <input type="hidden" name="when" id="interview-when" required data-interview-field="when" />
     <fieldset class="form-section form-section-emerald full">
-      <legend>${IC.calendar} 1 · Candidato y agenda</legend>
+      <legend>${IC.user} 1 · Candidato</legend>
       <div class="form-section-grid">
         <label class="full">${fieldLabel(IC.user, "Candidato (en proceso)", { required: true })}<select name="candidateId" required><option value="">Seleccione</option>${interviewCandidateOptions}</select><span class="hiring-interview-hint">${
           candidatesForInterviewSelect.length
@@ -454,28 +491,99 @@ function hiringHtml() {
             : "No hay candidatos activos en el pipeline: registre un candidato antes de agendar."
         }</span></label>
         <div class="full hiring-interview-context hidden" data-interview-context hidden aria-live="polite"></div>
-        <label class="full">${fieldLabel(IC.clock, "Fecha y hora", { required: true })}<input type="datetime-local" name="when" required step="60" min="${escapeAttr(colombiaDatetimeLocalString())}" /><span class="hiring-interview-hint">Hora de Colombia (UTC−5). La cita debe quedar en el futuro.</span></label>
-        <div class="full hiring-interview-quick" role="group" aria-label="Atajos de fecha y hora">
-          <span class="hiring-interview-quick__label">${IC.clock} Atajos</span>
+      </div>
+    </fieldset>
+    <fieldset class="form-section form-section-amber full">
+      <legend>${IC.calendar} 2 · Fecha y hora</legend>
+      <div class="hiring-interview-schedule acf-schedule" data-interview-schedule>
+        <div class="hiring-interview-schedule__preview acf-schedule__preview" data-interview-schedule-preview role="status" aria-live="polite">
+          <span class="acf-schedule__preview-icon" aria-hidden="true">${IC.calendar}</span>
+          <div class="acf-schedule__preview-copy">
+            <strong class="acf-schedule__preview-title">Elija fecha y hora de la cita</strong>
+            <p class="acf-schedule__preview-detail muted">Hora de Colombia (COT). Toque el calendario o el reloj para abrir el selector.</p>
+          </div>
+        </div>
+        <div class="hiring-interview-schedule__grid">
+          <div class="acf-schedule-field acf-schedule-field--date hiring-interview-schedule__date">
+            <label>${fieldLabel(IC.calendar, "Fecha", { required: true })}
+              <div class="acf-picker acf-picker--date" data-acf-picker="date" data-acf-picker-target="interview-date">
+                <input type="hidden" name="interviewDate" id="interview-date" required data-portal-date-enhanced="1" data-antares-validate-blur="date-iso" data-antares-date-min="${escapeAttr(interviewMinDate)}" />
+                <div class="acf-date-shell acf-picker__shell">
+                  <span class="acf-date-shell__icon" aria-hidden="true">${IC.calendar}</span>
+                  <button type="button" class="acf-picker__trigger" data-acf-picker-open aria-haspopup="dialog" aria-expanded="false">
+                    <span class="acf-picker__placeholder">Abrir calendario</span>
+                    <span class="acf-picker__value" data-acf-picker-display hidden></span>
+                  </button>
+                  <span class="acf-picker__chevron" aria-hidden="true">${IC.chevronDown}</span>
+                </div>
+                <div class="acf-picker__panel acf-picker__panel--date" data-acf-picker-panel hidden role="dialog" aria-label="Elegir fecha"></div>
+              </div>
+            </label>
+            ${interviewDatePresetsHtml}
+          </div>
+          <div class="acf-schedule-field acf-schedule-field--time hiring-interview-schedule__time">
+            <label>${fieldLabel(IC.clock, "Hora", { required: true })}
+              <div class="acf-picker acf-picker--time" data-acf-picker="time" data-acf-picker-target="interview-time">
+                <input type="hidden" name="interviewTime" id="interview-time" required data-antares-validate-blur="time-hhmm" />
+                <div class="acf-time-shell acf-picker__shell">
+                  <span class="acf-time-shell__icon" aria-hidden="true">${IC.clock}</span>
+                  <button type="button" class="acf-picker__trigger" data-acf-picker-open aria-haspopup="dialog" aria-expanded="false" aria-label="Abrir selector de hora">
+                    <span class="acf-picker__placeholder">Abrir reloj</span>
+                    <span class="acf-picker__value" data-acf-picker-display hidden></span>
+                  </button>
+                  <span class="acf-picker__chevron" aria-hidden="true">${IC.chevronDown}</span>
+                </div>
+                <div class="acf-picker__panel acf-picker__panel--time" data-acf-picker-panel hidden role="dialog" aria-label="Elegir hora"></div>
+              </div>
+            </label>
+            ${interviewTimePresetsHtml}
+          </div>
+        </div>
+        <div class="hiring-interview-quick" role="group" aria-label="Atajos de fecha y hora">
+          <span class="hiring-interview-quick__label">${IC.clock} Combinaciones rápidas</span>
           ${interviewQuickChips}
         </div>
       </div>
     </fieldset>
     <fieldset class="form-section form-section-violet full">
-      <legend>${IC.users} 2 · Entrevistador responsable</legend>
+      <legend>${IC.users} 3 · Entrevistador responsable</legend>
       <div class="form-section-grid">
         <label class="full">${fieldLabel(IC.briefcase, "Personal de oficina")}<select data-interview-field="interviewer-pick">${hiringInterviewerPickerOptionsHtml()}</select><span class="hiring-interview-hint">Incluye empleados administrativos y usuarios del portal con rol de oficina; los conductores no se listan.</span></label>
         <label class="full">${fieldLabel(IC.user, "Nombre del entrevistador", { required: true })}<input name="interviewer" required placeholder="Nombre del entrevistador" autocomplete="off" /><span class="hiring-interview-hint" data-interview-field="interviewer-hint">Elija a alguien de la lista o escriba el nombre si el entrevistador es externo.</span></label>
       </div>
     </fieldset>
     <fieldset class="form-section form-section-cyan full">
-      <legend>${IC.globe} 3 · Modalidad y notas</legend>
+      <legend>${IC.globe} 4 · Modalidad y notas</legend>
       <div class="form-section-grid">
-        <label class="full">${fieldLabel(IC.globe, "Modalidad")}<select name="mode">
-          <option value="presencial">Presencial · en sede</option>
-          <option value="virtual">Virtual · videollamada</option>
-          <option value="telefonica">Telefónica · llamada</option>
-        </select></label>
+        <div class="full hiring-interview-modes" role="radiogroup" aria-label="Modalidad de la entrevista">
+          <span class="hiring-interview-modes__label">${fieldLabel(IC.globe, "Modalidad")}</span>
+          <div class="hiring-interview-modes__grid">
+            <label class="hiring-interview-mode">
+              <input type="radio" name="mode" value="presencial" checked />
+              <span class="hiring-interview-mode__card">
+                <span class="hiring-interview-mode__icon" aria-hidden="true">${IC.building}</span>
+                <strong>Presencial</strong>
+                <small>En sede u oficina</small>
+              </span>
+            </label>
+            <label class="hiring-interview-mode">
+              <input type="radio" name="mode" value="virtual" />
+              <span class="hiring-interview-mode__card">
+                <span class="hiring-interview-mode__icon" aria-hidden="true">${IC.globe}</span>
+                <strong>Virtual</strong>
+                <small>Videollamada</small>
+              </span>
+            </label>
+            <label class="hiring-interview-mode">
+              <input type="radio" name="mode" value="telefonica" />
+              <span class="hiring-interview-mode__card">
+                <span class="hiring-interview-mode__icon" aria-hidden="true">${IC.phone}</span>
+                <strong>Telefónica</strong>
+                <small>Llamada</small>
+              </span>
+            </label>
+          </div>
+        </div>
         <label class="full" data-interview-field="place-label">${fieldLabel(IC.mapPin, "Lugar de la entrevista")}<input name="place" placeholder="Sala de juntas, oficina o dirección" /><span class="hiring-interview-hint" data-interview-field="place-hint">Indique sede, piso y sala para orientar al candidato.</span></label>
         <label class="full">${fieldLabel(IC.file, "Notas previas")}<textarea name="notes" rows="2" placeholder="Temas a revisar, pruebas a aplicar, documentos a solicitar…"></textarea></label>
       </div>
@@ -672,17 +780,32 @@ function hiringHtml() {
       const displayName = hiringCandidateDisplayName(c);
       const ageInfo = portalCandidateAgeFromBirthIso(c.birthDate);
       const expCargo = parseNum(c.experienceYears || 0);
-      const statusClass = hiringPipelineStatusClass(c.status);
+      const status = String(c.status || PIPELINE[0]);
+      const stageSlug =
+        typeof hiringPipelineStageSlug === "function" ? hiringPipelineStageSlug(status) : "recibido";
+      const next =
+        typeof hiringCandidateNextAction === "function"
+          ? hiringCandidateNextAction(status)
+          : { label: status, tone: "review" };
       const active = String(c.id) === selectedCandidateId;
       const whenLabel = c.createdAt ? formatInterviewWhenDisplay(c.createdAt).split(",")[0] || "" : "";
-      return `<button type="button" class="hiring-pipeline__item${active ? " is-active" : ""}" data-action="hiring-select-candidate" data-id="${escapeAttr(String(c.id))}" aria-current="${active ? "true" : "false"}">
-        <span class="hiring-browse-avatar" aria-hidden="true">${escapeHtml(hiringPersonInitialsFromName(displayName))}</span>
-        <span class="hiring-pipeline__item-copy">
-          <strong title="${escapeAttr(displayName)}">${escapeHtml(displayName)}</strong>
-          <small title="${escapeAttr(String(c.vacancyTitle || ""))}">${escapeHtml(String(c.vacancyTitle || "Sin vacante"))}</small>
-          <span class="hiring-pipeline__item-meta">${expCargo} años${ageInfo.age != null ? ` · ${ageInfo.age} años` : ""}${whenLabel ? ` · ${escapeHtml(whenLabel)}` : ""}</span>
+      const location = [c.city, c.department].filter(Boolean).join(", ");
+      return `<button type="button" class="hiring-pipeline__item hiring-list-row${active ? " is-active" : ""}" data-action="hiring-select-candidate" data-id="${escapeAttr(String(c.id))}" aria-current="${active ? "true" : "false"}">
+        <span class="hiring-list-row__avatar" aria-hidden="true">${escapeHtml(hiringPersonInitialsFromName(displayName))}</span>
+        <span class="hiring-list-row__body">
+          <span class="hiring-list-row__top">
+            <strong class="hiring-list-row__name" title="${escapeAttr(displayName)}">${escapeHtml(displayName)}</strong>
+            <span class="hiring-stage-pill hiring-stage-pill--${escapeAttr(stageSlug)}">${escapeHtml(status)}</span>
+          </span>
+          <span class="hiring-list-row__vacancy" title="${escapeAttr(String(c.vacancyTitle || ""))}">${escapeHtml(String(c.vacancyTitle || "Sin vacante"))}</span>
+          <span class="hiring-list-row__meta">
+            <span>${expCargo} años exp.</span>
+            ${ageInfo.age != null ? `<span>${ageInfo.age} años</span>` : ""}
+            ${location ? `<span>${escapeHtml(location)}</span>` : ""}
+            ${whenLabel ? `<span>${escapeHtml(whenLabel)}</span>` : ""}
+          </span>
+          <span class="hiring-list-row__next hiring-list-row__next--${escapeAttr(next.tone)}">${escapeHtml(next.label)}</span>
         </span>
-        <span class="status ${statusClass}">${escapeHtml(String(c.status || PIPELINE[0]))}</span>
       </button>`;
     })
     .join("");
@@ -726,23 +849,32 @@ function hiringHtml() {
           `<div class="hiring-pipeline__tile"><span class="hiring-pipeline__tile-ico" aria-hidden="true">${icon || ""}</span><small>${escapeHtml(label)}</small><strong title="${escapeAttr(value)}">${escapeHtml(value)}</strong></div>`
       )
       .join("");
-    pipelineDetailHtml = `<article class="hiring-pipeline__profile">
-        <header class="hiring-pipeline__profile-head">
-          <span class="hiring-browse-avatar hiring-browse-avatar--lg" aria-hidden="true">${escapeHtml(hiringPersonInitialsFromName(displayName))}</span>
+    const stageSlug =
+      typeof hiringPipelineStageSlug === "function" ? hiringPipelineStageSlug(status) : "recibido";
+    const next =
+      typeof hiringCandidateNextAction === "function"
+        ? hiringCandidateNextAction(status)
+        : { label: "Continuar proceso", tone: "review" };
+    pipelineDetailHtml = `<article class="hiring-pipeline__profile hiring-list-detail">
+        <header class="hiring-pipeline__profile-head hiring-list-detail__head">
+          <span class="hiring-list-detail__avatar" aria-hidden="true">${escapeHtml(hiringPersonInitialsFromName(displayName))}</span>
           <div class="hiring-pipeline__profile-identity">
-            <h3 title="${escapeAttr(displayName)}">${escapeHtml(displayName)}</h3>
+            <div class="hiring-list-detail__title-row">
+              <h3 title="${escapeAttr(displayName)}">${escapeHtml(displayName)}</h3>
+              <span class="hiring-stage-pill hiring-stage-pill--${escapeAttr(stageSlug)} ${statusClass}">${escapeHtml(status)}</span>
+            </div>
             <p>${escapeHtml(String(c.vacancyTitle || "Sin vacante asociada"))}</p>
             <div class="hiring-pipeline__profile-chips">
               <span class="hiring-browse-chip">${expCargo} años de experiencia</span>
               ${ageInfo.age != null ? `<span class="hiring-browse-chip">${ageInfo.age} años</span>` : ""}
-              <span class="status ${statusClass}">${escapeHtml(String(c.status || PIPELINE[0]))}</span>
-              ${canDlCv ? `<span class="hiring-browse-chip hiring-browse-chip--cv">${IC.file} CV adjunto</span>` : ""}
+              ${canDlCv ? `<span class="hiring-browse-chip hiring-browse-chip--cv">${IC.file} CV adjunto</span>` : `<span class="hiring-browse-chip hiring-browse-chip--muted">Sin CV</span>`}
+              <span class="hiring-list-detail__next hiring-list-detail__next--${escapeAttr(next.tone)}">Siguiente: ${escapeHtml(next.label)}</span>
             </div>
           </div>
-          <div class="hiring-pipeline__profile-actions">
+          <div class="hiring-pipeline__profile-actions hiring-list-detail__actions">
             ${
               canScheduleInterview
-                ? `<button type="button" class="btn btn-primary" data-action="schedule-interview-for-candidate" data-candidate-id="${escapeAttr(String(c.id))}">${IC.calendar} Programar entrevista</button>`
+                ? `<button type="button" class="btn btn-primary" data-action="schedule-interview-for-candidate" data-candidate-id="${escapeAttr(String(c.id))}">${IC.calendar} Entrevista</button>`
                 : ""
             }
             ${
@@ -750,7 +882,7 @@ function hiringHtml() {
                 ? `<button type="button" class="btn btn-action" data-action="create-employee-from-candidate" data-candidate-id="${escapeAttr(String(c.id))}">${IC.userPlus} Contratar</button>`
                 : ""
             }
-            <button type="button" class="btn btn-outline"${canDlCv ? "" : " disabled"} data-action="download-candidate-cv" data-id="${escapeAttr(String(c.id))}" title="${canDlCv ? "Descargar hoja de vida" : "Sin CV disponible"}">${IC.download} Descargar CV</button>
+            <button type="button" class="btn btn-outline"${canDlCv ? "" : " disabled"} data-action="download-candidate-cv" data-id="${escapeAttr(String(c.id))}" title="${canDlCv ? "Descargar hoja de vida" : "Sin CV disponible"}">${IC.download} CV</button>
             ${hiringCanEdit ? `<button type="button" class="btn btn-outline" data-action="edit-candidate" data-id="${escapeAttr(String(c.id))}">${IC.edit} Editar</button>` : ""}
             ${
               hiringCanEdit && employeeMatch
@@ -807,8 +939,9 @@ function hiringHtml() {
         </div>
       </article>`;
   } else {
-    pipelineDetailHtml = `<div class="hiring-pipeline__empty">
-        <p>Seleccione un candidato del listado para ver su ficha completa.</p>
+    pipelineDetailHtml = `<div class="hiring-pipeline__empty hiring-list-detail__empty">
+        <span class="hiring-list-detail__empty-ico" aria-hidden="true">${IC.user || ""}</span>
+        <p>Seleccione un candidato del listado para ver su ficha.</p>
       </div>`;
   }
 
@@ -983,15 +1116,18 @@ function hiringHtml() {
   const tCand = sortedCandidatesView.length
     ? renderCandidateBoard
       ? `<div class="hiring-candidates-board-wrap">${candBoard}${candidateDrawerHtml}</div>`
-      : `<div class="hiring-pipeline">
-        <aside class="hiring-pipeline__rail" aria-label="Pipeline de selección">
+      : `<div class="hiring-pipeline hiring-list-view">
+        <aside class="hiring-pipeline__rail hiring-list-view__rail" aria-label="Listado de candidatos">
           <div class="hiring-pipeline__rail-head">
-            <p>Pipeline de selección</p>
+            <div class="hiring-list-view__rail-titles">
+              <p>Candidatos</p>
+              <small>Pulse uno para abrir la ficha</small>
+            </div>
             <span>${sortedCandidatesView.length}</span>
           </div>
           <div class="hiring-pipeline__list">${pipelineListItems}</div>
         </aside>
-        <div class="hiring-pipeline__detail">${pipelineDetailHtml}</div>
+        <div class="hiring-pipeline__detail hiring-list-view__detail">${pipelineDetailHtml}</div>
       </div>`
     : hiringEmptyState(
         candidateFilter === "finalized" ? "Sin candidatos finalizados" : "Sin candidatos en esta vista",

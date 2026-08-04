@@ -9,6 +9,7 @@ import { escapeHtml, escapeAttr, buildModuleCreatePanelsState, normalizeHrWorksp
 import {
   renderHrWorkspaceTabs,
   renderHrWorkspaceHeader,
+  renderPayrollWorkspaceActionButtons,
   switchHrWorkspacePanels,
   switchModuleTabPanels,
   renderSstOperateSectionNav,
@@ -194,18 +195,58 @@ function collectSstDueItems(employees, records, dueSoonDays = SST_DUE_SOON_DAYS)
   return items;
 }
 
+function sstPersonInitials(name) {
+  const parts = String(name || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!parts.length) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] || ""}${parts[parts.length - 1][0] || ""}`.toUpperCase();
+}
+
+function sstRelativeDueMeta(item) {
+  if (item?.bucket === "missing" || item?.days == null) {
+    return { text: "Sin programar", tone: "missing" };
+  }
+  const days = Number(item.days);
+  if (days < 0) return { text: `Hace ${Math.abs(days)} días`, tone: "expired" };
+  if (days === 0) return { text: "Vence hoy", tone: "warning" };
+  return { text: `En ${days} días`, tone: "warning" };
+}
+
 function sstDueStatusBadge(item) {
   if (item?.bucket === "missing") {
-    return `<span class="status status-en_transito">Sin programar</span>`;
+    return `<span class="sst-status-pill sst-status-pill--missing">Sin programar</span>`;
   }
   const days = item?.days;
   if (days < 0) {
-    return `<span class="status status-vencida">Vencido · ${Math.abs(days)}d</span>`;
+    return `<span class="sst-status-pill sst-status-pill--expired">Vencido - ${Math.abs(days)} días</span>`;
   }
   if (days === 0) {
-    return `<span class="status status-pendiente">Vence hoy</span>`;
+    return `<span class="sst-status-pill sst-status-pill--warning">Vence hoy</span>`;
   }
-  return `<span class="status status-pendiente">Próximo · ${days}d</span>`;
+  return `<span class="sst-status-pill sst-status-pill--warning">Por vencer - ${days} días</span>`;
+}
+
+function sstEmployeeCellHtml(name, position) {
+  const initials = sstPersonInitials(name);
+  return `<div class="sst-person-cell">
+    <span class="sst-person-avatar" aria-hidden="true">${escapeHtml(initials)}</span>
+    <span class="sst-person-copy">
+      <strong class="sst-person-name">${escapeHtml(String(name || "—"))}</strong>
+      <span class="sst-person-role muted">${escapeHtml(String(position || "—"))}</span>
+    </span>
+  </div>`;
+}
+
+function sstDueDateCellHtml(item) {
+  const rel = sstRelativeDueMeta(item);
+  const dateLabel = item?.dueDate ? escapeHtml(item.dueDate) : '<span class="muted">Sin programar</span>';
+  return `<div class="sst-due-cell">
+    <span class="sst-due-cell__date">${dateLabel}</span>
+    <span class="sst-due-cell__rel sst-due-cell__rel--${escapeAttr(rel.tone)}">${escapeHtml(rel.text)}</span>
+  </div>`;
 }
 
 function countMissingComplianceItems(employees) {
@@ -222,12 +263,21 @@ function countMissingComplianceItems(employees) {
 
 function renderSstRenewButton(IC, { employeeId, controlKey, recordId, controlType, label = "Renovar" }) {
   if (!controlKey) return "";
-  return `<button type="button" class="btn btn-sm btn-primary" data-action="renew-sst-control"
+  return `<button type="button" class="btn btn-sm btn-outline sst-renew-btn" data-action="renew-sst-control"
     data-employee-id="${escapeAttr(String(employeeId || ""))}"
     data-control-key="${escapeAttr(String(controlKey || ""))}"
     data-record-id="${escapeAttr(String(recordId || ""))}"
     data-control-type="${escapeAttr(String(controlType || ""))}"
-    title="Renovar control y actualizar ficha del colaborador">${IC.activity || "↻"} ${escapeHtml(label)}</button>`;
+    title="Renovar control y actualizar ficha del colaborador">${IC.rotateCcw || IC.activity || "↻"} <span>${escapeHtml(label)}</span></button>`;
+}
+
+function renderSstRowMoreMenu(IC, actionsHtml) {
+  const body = String(actionsHtml || "").trim();
+  if (!body) return "";
+  return `<details class="sst-row-more">
+    <summary class="sst-row-more__btn" aria-label="Más acciones" title="Más acciones">${IC.moreVertical || "⋮"}</summary>
+    <div class="sst-row-more__menu" role="menu">${body}</div>
+  </details>`;
 }
 
 function listSstRenewableControlKeys(employee) {
@@ -357,8 +407,29 @@ function buildSstRenewalContextHtml(employee, controlKey, records = [], recordId
   const showEntity = Boolean(state.entity) || sstControlRequiresProvider(controlKey) || state.entityLabel;
   const entityLabel = state.entityLabel || "Entidad actual";
   const entityMissing = sstControlRequiresProvider(controlKey) ? "Sin afiliación" : "—";
+  const initials = sstPersonInitials(employee?.name);
+  const dueDays = state.dueDate ? daysUntilPortalDate(state.dueDate) : null;
+  let dueTone = "ok";
+  let dueChip = "Al día";
+  if (dueDays == null) {
+    dueTone = "missing";
+    dueChip = "Sin programar";
+  } else if (dueDays < 0) {
+    dueTone = "expired";
+    dueChip = `Vencido · ${Math.abs(dueDays)}d`;
+  } else if (dueDays <= SST_DUE_SOON_DAYS) {
+    dueTone = "warning";
+    dueChip = dueDays === 0 ? "Vence hoy" : `Por vencer · ${dueDays}d`;
+  }
   return `<div class="sst-renew-context" data-sst-renew-context>
-    <p class="sst-renew-context__lead muted">Estado actual en la ficha de <strong>${escapeHtml(String(employee?.name || "colaborador"))}</strong> (${escapeHtml(role)} · ${escapeHtml(String(employee?.position || "—"))}).</p>
+    <div class="sst-renew-context__hero">
+      <span class="sst-person-avatar sst-person-avatar--lg" aria-hidden="true">${escapeHtml(initials)}</span>
+      <div class="sst-renew-context__hero-copy">
+        <p class="sst-renew-context__name">${escapeHtml(String(employee?.name || "Colaborador"))}</p>
+        <p class="sst-renew-context__meta muted">${escapeHtml(role)} · ${escapeHtml(String(employee?.position || "—"))}</p>
+      </div>
+      <span class="sst-status-pill sst-status-pill--${escapeAttr(dueTone)}" data-sst-rc-chip>${escapeHtml(dueChip)}</span>
+    </div>
     <dl class="sst-renew-context__grid">
       <div><dt>Última realización</dt><dd data-sst-rc-completion>${escapeHtml(formatSstRenewalStateValue(state.completionDate))}</dd></div>
       <div><dt>Vencimiento actual</dt><dd data-sst-rc-due>${escapeHtml(formatSstRenewalStateValue(state.dueDate, { missing: "Sin programar" }))}</dd></div>
@@ -432,6 +503,7 @@ function wireSstRenewalModalFields(formEl, employee, initialControlKey, records 
     const entityRow = contextRoot?.querySelector("[data-sst-rc-entity-row]");
     const entityLabelEl = contextRoot?.querySelector("[data-sst-rc-entity-label]");
     const entityEl = contextRoot?.querySelector("[data-sst-rc-entity]");
+    const chipEl = contextRoot?.querySelector("[data-sst-rc-chip]");
     if (completionElCtx) {
       completionElCtx.textContent = formatSstRenewalStateValue(state.completionDate);
     }
@@ -448,8 +520,25 @@ function wireSstRenewalModalFields(formEl, employee, initialControlKey, records 
         missing: sstControlRequiresProvider(key) ? "Sin afiliación" : "—"
       });
     }
+    if (chipEl) {
+      const dueDays = state.dueDate ? daysUntilPortalDate(state.dueDate) : null;
+      let dueTone = "ok";
+      let dueChip = "Al día";
+      if (dueDays == null) {
+        dueTone = "missing";
+        dueChip = "Sin programar";
+      } else if (dueDays < 0) {
+        dueTone = "expired";
+        dueChip = `Vencido · ${Math.abs(dueDays)}d`;
+      } else if (dueDays <= SST_DUE_SOON_DAYS) {
+        dueTone = "warning";
+        dueChip = dueDays === 0 ? "Vence hoy" : `Por vencer · ${dueDays}d`;
+      }
+      chipEl.className = `sst-status-pill sst-status-pill--${dueTone}`;
+      chipEl.textContent = dueChip;
+    }
     if (modalSubtitle) {
-      modalSubtitle.textContent = `${String(employee?.name || "").trim() || "Colaborador"} · ${String(employee?.position || "—").trim() || "—"} · ${sstRenewalDisplayLabel(key)}`;
+      modalSubtitle.textContent = `${String(employee?.name || "").trim() || "Colaborador"} · ${sstRenewalDisplayLabel(key)}`;
     }
     if (sectionHint) sectionHint.textContent = sstRenewalSectionHint(key);
   };
@@ -537,33 +626,27 @@ function openSstRenewalModal(ctx) {
 
   G.openEditModal({
     title: "Renovar control SST",
-    subtitle: `${String(employee.name || "").trim() || "Colaborador"} · ${String(employee.position || "—").trim() || "—"} · ${sstRenewalDisplayLabel(initialKey)}`,
+    subtitle: `${String(employee.name || "").trim() || "Colaborador"} · ${sstRenewalDisplayLabel(initialKey)}`,
     submitText: "Renovar y actualizar",
     cancelBtnClass: "btn btn-sm btn-outline module-panel-btn module-panel-btn--cancel",
     extraModalCardClass: "modal-card-edit--sst-renewal",
     fields: [
-      {
-        type: "section",
-        title: "Control y situación actual",
-        hint: "Seleccione el control a renovar y revise el estado vigente en la ficha del colaborador."
-      },
-      {
-        name: "controlKey",
-        label: "¿Qué desea renovar?",
-        type: "select",
-        value: initialKey,
-        options: controlOptions,
-        required: true
-      },
       {
         type: "custom",
         html: buildSstRenewalContextHtml(employee, initialKey, records, recordId)
       },
       {
         type: "section",
-        title: "Nueva vigencia",
-        hint: sstRenewalSectionHint(initialKey),
-        id: "sst-renew-vigencia-section"
+        title: "Control a renovar",
+        hint: "Confirme el control y complete la nueva vigencia. La ficha del colaborador se actualizará automáticamente."
+      },
+      {
+        name: "controlKey",
+        label: "Tipo de control",
+        type: "select",
+        value: initialKey,
+        options: controlOptions,
+        required: true
       },
       {
         name: "provider",
@@ -575,6 +658,12 @@ function openSstRenewalModal(ctx) {
         hidden: !needsProvider
       },
       {
+        type: "section",
+        title: "Nueva vigencia",
+        hint: sstRenewalSectionHint(initialKey),
+        id: "sst-renew-vigencia-section"
+      },
+      {
         name: "completionDate",
         label: sstRenewalCompletionLabel(initialKey),
         type: "date",
@@ -584,7 +673,7 @@ function openSstRenewalModal(ctx) {
       },
       {
         name: "dueDate",
-        label: "Próximo vencimiento",
+        label: "Próximo vencimiento (automático)",
         type: "date",
         value: initialDueDate,
         wrapperClass: "sst-renew-due-field"
@@ -855,43 +944,170 @@ function renderSstModuleHead({ employeesCount, recordsCount, dueCount, missingCo
   </header>`;
 }
 
+function renderSstStatusSummaryCards(IC, stats) {
+  const cards = [
+    {
+      id: "expired",
+      label: "Vencidos",
+      hint: "Requieren atención",
+      count: stats.expired ?? 0,
+      tone: "expired",
+      icon: IC.alertTriangle || ""
+    },
+    {
+      id: "warning",
+      label: "Por vencer",
+      hint: "Próximos 30 días",
+      count: stats.warning ?? 0,
+      tone: "warning",
+      icon: IC.clock || ""
+    },
+    {
+      id: "ok",
+      label: "Al día",
+      hint: "En cumplimiento",
+      count: stats.ok ?? 0,
+      tone: "ok",
+      icon: IC.check || ""
+    },
+    {
+      id: "total",
+      label: "Total",
+      hint: "Registros",
+      count: stats.total ?? 0,
+      tone: "total",
+      icon: IC.users || IC.user || ""
+    }
+  ];
+  return `<div class="sst-status-cards" role="group" aria-label="Resumen de cumplimiento SST">
+    ${cards
+      .map(
+        (card) => `<article class="sst-status-card sst-status-card--${escapeAttr(card.tone)}">
+      <span class="sst-status-card__ico" aria-hidden="true">${card.icon}</span>
+      <div class="sst-status-card__body">
+        <strong class="sst-status-card__count">${escapeHtml(String(card.count))}</strong>
+        <span class="sst-status-card__label">${escapeHtml(card.label)}</span>
+        <span class="sst-status-card__hint">${escapeHtml(card.hint)}</span>
+      </div>
+    </article>`
+      )
+      .join("")}
+  </div>`;
+}
+
+function renderSstConsultWorkspaceHeader({ workspace, stats, IC }) {
+  const actionsHtml = renderPayrollWorkspaceActionButtons("sst", workspace);
+  return `<header class="hr-workspace-header hr-workspace-header--payroll hr-workspace-header--consult hr-workspace-header--sst">
+    <div class="payroll-consult-head sst-consult-head">
+      <div class="payroll-consult-head__top">
+        <div class="payroll-consult-head__title">
+          <h2>Cumplimiento laboral y SST</h2>
+          <p class="payroll-consult-head__subtitle">Administra y consulta los vencimientos de exámenes, certificaciones y documentos.</p>
+        </div>
+        <div class="payroll-consult-head__actions">${actionsHtml}</div>
+      </div>
+      ${renderSstStatusSummaryCards(IC, stats)}
+    </div>
+  </header>`;
+}
+
 function renderSstDataSectionNav(activeId, counts, IC) {
   const tabs = [
     {
+      id: "all",
+      label: "Todos",
+      title: "Todos los vencimientos y controles",
+      count: null,
+      icon: ""
+    },
+    {
       id: "due",
       label: "Vencimientos",
-      title: "Próximos, vencidos o sin programar",
-      count: counts.due ?? 0,
-      icon: IC.alertTriangle || ""
+      title: "Próximos o vencidos",
+      count: null,
+      icon: IC.clock || ""
     },
     {
       id: "audit",
       label: "Auditoría",
       title: "Controles documentales registrados",
       count: counts.audit ?? 0,
-      icon: IC.file || ""
+      icon: IC.check || IC.file || ""
     },
     {
       id: "reconcile",
       label: "Reconciliar",
       title: "Desincronización SST vs ficha del colaborador",
       count: counts.reconcile ?? 0,
-      icon: IC.activity || ""
+      icon: IC.rotateCcw || IC.activity || ""
     }
   ];
-  return `<nav class="payroll-data-nav payroll-data-nav--minimal" role="tablist" aria-label="Consultas de cumplimiento SST">
+  return `<nav class="payroll-data-nav payroll-data-nav--minimal sst-data-nav" role="tablist" aria-label="Consultas de cumplimiento SST">
     ${tabs
       .map((tab) => {
         const active = activeId === tab.id;
         const tip = escapeAttr(String(tab.title || tab.label || ""));
+        const countHtml =
+          tab.count == null
+            ? ""
+            : `<span class="payroll-data-nav-count">${escapeHtml(String(tab.count))}</span>`;
+        const icoHtml = tab.icon
+          ? `<span class="payroll-data-nav-ico" aria-hidden="true">${tab.icon}</span>`
+          : "";
         return `<button type="button" role="tab" class="payroll-data-nav-tab${active ? " is-active" : ""}" aria-selected="${active ? "true" : "false"}" data-action="sst-data-section" data-section="${escapeAttr(tab.id)}" title="${tip}">
-          <span class="payroll-data-nav-ico" aria-hidden="true">${tab.icon}</span>
+          ${icoHtml}
           <span>${escapeHtml(tab.label)}</span>
-          <span class="payroll-data-nav-count">${escapeHtml(String(tab.count))}</span>
+          ${countHtml}
         </button>`;
       })
       .join("")}
   </nav>`;
+}
+
+function renderSstListPagination(IC, { total, page, pageSize }) {
+  const safeSize = Math.max(5, Number(pageSize) || 10);
+  const totalPages = Math.max(1, Math.ceil(Math.max(0, total) / safeSize));
+  const safePage = Math.min(Math.max(1, Number(page) || 1), totalPages);
+  const start = total === 0 ? 0 : (safePage - 1) * safeSize + 1;
+  const end = Math.min(total, safePage * safeSize);
+  const pages = [];
+  const windowStart = Math.max(1, safePage - 2);
+  const windowEnd = Math.min(totalPages, safePage + 2);
+  for (let p = windowStart; p <= windowEnd; p += 1) {
+    pages.push(
+      `<button type="button" class="payroll-contracts-page-btn${p === safePage ? " is-active" : ""}" data-action="sst-list-page" data-page="${p}" aria-label="Página ${p}"${p === safePage ? ' aria-current="page"' : ""}>${p}</button>`
+    );
+  }
+  return `<footer class="payroll-contracts-pagination sst-list-pagination">
+    <label class="payroll-contracts-page-size sst-list-page-size">
+      <span class="muted">Filas por página</span>
+      <select data-action="sst-list-page-size">
+        ${[5, 10, 20, 50].map((n) => `<option value="${n}"${n === safeSize ? " selected" : ""}>${n}</option>`).join("")}
+      </select>
+    </label>
+    <div class="payroll-contracts-pagination__controls">
+      <p class="payroll-contracts-pagination__meta muted"><strong>${start}</strong>-<strong>${end}</strong> de <strong>${total}</strong></p>
+      <div class="payroll-contracts-page-nav">
+        <button type="button" class="payroll-contracts-page-btn" data-action="sst-list-page" data-page="${Math.max(1, safePage - 1)}" aria-label="Anterior"${safePage <= 1 ? " disabled" : ""}>${IC.chevronLeft || "‹"}</button>
+        ${pages.join("")}
+        <button type="button" class="payroll-contracts-page-btn" data-action="sst-list-page" data-page="${Math.min(totalPages, safePage + 1)}" aria-label="Siguiente"${safePage >= totalPages ? " disabled" : ""}>${IC.chevronRight || "›"}</button>
+      </div>
+    </div>
+  </footer>`;
+}
+
+function paginateSstItems(items, page, pageSize) {
+  const safeSize = Math.max(5, Number(pageSize) || 10);
+  const total = items.length;
+  const totalPages = Math.max(1, Math.ceil(total / safeSize));
+  const safePage = Math.min(Math.max(1, Number(page) || 1), totalPages);
+  const start = (safePage - 1) * safeSize;
+  return {
+    page: safePage,
+    pageSize: safeSize,
+    total,
+    items: items.slice(start, start + safeSize)
+  };
 }
 
 function filterSstListItems(items, searchNorm, fieldsFn) {
@@ -914,12 +1130,23 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
 
     if (typeof fieldLabel !== "function" || typeof canManageSstModule !== "function") return "";
 
-    const sstUi = state.sstUi || { workspace: "operate", operateSection: "create", dataSection: "due", listSearch: "" };
+    const sstUi = state.sstUi || {
+      workspace: "operate",
+      operateSection: "create",
+      dataSection: "all",
+      listSearch: "",
+      listPage: 1,
+      pageSize: 10,
+      listView: "list"
+    };
     const sstWorkspace = normalizeHrWorkspace("sst", sstUi.workspace);
     const sstOperateSection = normalizeSstOperateSection(sstUi.operateSection);
     const sstDataSection = normalizeSstDataSection(sstUi.dataSection);
     const listSearchRaw = String(sstUi.listSearch || "");
     const listSearchNorm = listSearchRaw.trim().toLowerCase();
+    const listView = String(sstUi.listView || "list") === "grid" ? "grid" : "list";
+    const listPage = Math.max(1, Number(sstUi.listPage) || 1);
+    const pageSize = Math.max(5, Number(sstUi.pageSize) || 10);
 
     const employees = read(KEYS.payrollEmployees, []);
     const contracts = read(KEYS.contracts, []);
@@ -935,7 +1162,11 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
     const missingSocialSecurity = employees.filter((employee) => !employee.eps || !employee.pensionFund || !employee.arl);
     const dueItems = collectSstDueItems(employees, records, dueSoonDays);
     const reconcileIssues = findSstEmployeeReconciliationIssues(employees, records);
-    const filteredDueItems = filterSstListItems(dueItems, listSearchNorm, (item) =>
+    const dueAttentionItems = dueItems.filter((item) => item.bucket === "expired" || item.bucket === "warning");
+    const filteredAllDueItems = filterSstListItems(dueItems, listSearchNorm, (item) =>
+      `${item.employeeName} ${item.position} ${item.controlType} ${item.dueDate || ""}`
+    );
+    const filteredDueItems = filterSstListItems(dueAttentionItems, listSearchNorm, (item) =>
       `${item.employeeName} ${item.position} ${item.controlType} ${item.dueDate || ""}`
     );
     const filteredRecords = filterSstListItems(records, listSearchNorm, (record) => {
@@ -945,40 +1176,75 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
     const filteredReconcileIssues = filterSstListItems(reconcileIssues, listSearchNorm, (issue) =>
       `${issue.employeeName} ${issue.controlType} ${issue.message} ${issue.type}`
     );
+    const expiredCount = dueItems.filter((item) => item.bucket === "expired").length;
+    const warningCount = dueItems.filter((item) => item.bucket === "warning").length;
+    const okCount = records.filter((record) => String(record.status || "").trim().toLowerCase().startsWith("cumpl")).length;
+    const sstConsultStats = {
+      expired: expiredCount,
+      warning: warningCount,
+      ok: okCount,
+      total: records.length || dueItems.length
+    };
+    const activeListSource =
+      sstDataSection === "audit"
+        ? filteredRecords
+        : sstDataSection === "reconcile"
+          ? filteredReconcileIssues
+          : sstDataSection === "due"
+            ? filteredDueItems
+            : filteredAllDueItems;
+    const pagedList = paginateSstItems(activeListSource, listPage, pageSize);
     const missingComplianceCount = countMissingComplianceItems(employees);
     const missingSstRecords = dueItems.filter((item) => item.recordId && item.bucket === "missing").length;
     const employeeOptions = employees.map((employee) => `<option value="${employee.id}">${employee.name} · ${employee.position || "-"}</option>`).join("");
     const statusBadgeForCompliance = (status, dueDate) => {
       const s = String(status || "Pendiente").trim().toLowerCase();
-      if (s.startsWith("cumpl")) return `<span class="status status-completada">Cumplido</span>`;
-      if (s.startsWith("en gest")) return `<span class="status status-en_transito">En gestión</span>`;
+      if (s.startsWith("cumpl")) return `<span class="sst-status-pill sst-status-pill--ok">Cumplido</span>`;
+      if (s.startsWith("en gest")) return `<span class="sst-status-pill sst-status-pill--total">En gestión</span>`;
       if (dueDate) {
         const ts = new Date(`${dueDate}T12:00:00`).getTime();
-        if (Number.isFinite(ts) && ts < Date.now()) return `<span class="status status-vencida">Vencido</span>`;
+        if (Number.isFinite(ts) && ts < Date.now()) {
+          return `<span class="sst-status-pill sst-status-pill--expired">Vencido</span>`;
+        }
         if (Number.isFinite(ts) && (ts - Date.now()) / 86400000 <= 30) {
-          return `<span class="status status-pendiente">Próximo</span>`;
+          return `<span class="sst-status-pill sst-status-pill--warning">Por vencer</span>`;
         }
       }
-      return `<span class="status status-pendiente">Pendiente</span>`;
+      return `<span class="sst-status-pill sst-status-pill--missing">Pendiente</span>`;
     };
     const sstCanMutate = canManageSstModule();
-    const recordRows = filteredRecords
+    const pagedRecords = sstDataSection === "audit" ? pagedList.items : filteredRecords;
+    const recordRows = pagedRecords
       .map((record) => {
         const employee = employees.find((item) => String(item.id) === String(record.employeeId || ""));
         const stateKey = String(record.status || "Pendiente").trim().toLowerCase().replace(/\s+/g, "-");
-        return `<tr class="payroll-table-row" data-sst-state="${escapeAttr(stateKey)}">
-        <td><strong>${escapeHtml(String(record.recordType || "-"))}</strong><br><span class="muted">${escapeHtml(String(record.documentCode || "Sin código documental"))}</span></td>
-        <td>${escapeHtml(String(employee?.name || record.employeeName || "-"))}</td>
+        const renewBtn =
+          sstCanMutate && resolveSstControlKey(record.recordType)
+            ? renderSstRenewButton(IC, {
+                employeeId: record.employeeId,
+                controlKey: resolveSstControlKey(record.recordType),
+                recordId: record.id,
+                controlType: record.recordType
+              })
+            : "";
+        const moreActions = [
+          `<button type="button" class="sst-row-more__item" data-action="view-sst-record" data-id="${escapeAttr(String(record.id))}">${IC.eye} Ver</button>`,
+          sstCanMutate
+            ? `<button type="button" class="sst-row-more__item" data-action="edit-sst-record" data-id="${escapeAttr(String(record.id))}">${IC.edit} Editar</button>`
+            : "",
+          sstCanMutate
+            ? `<button type="button" class="sst-row-more__item sst-row-more__item--danger" data-action="delete-sst-record" data-id="${escapeAttr(String(record.id))}">${IC.trash} Eliminar</button>`
+            : ""
+        ]
+          .filter(Boolean)
+          .join("");
+        return `<tr class="payroll-table-row sst-consult-row" data-sst-state="${escapeAttr(stateKey)}">
+        <td><strong class="sst-control-name">${escapeHtml(String(record.recordType || "-"))}</strong><br><span class="muted">${escapeHtml(String(record.documentCode || "Sin código documental"))}</span></td>
+        <td>${sstEmployeeCellHtml(employee?.name || record.employeeName || "-", employee?.position || "—")}</td>
         <td>${escapeHtml(String(record.provider || "-"))}</td>
         <td>${escapeHtml(String(record.dueDate || "-"))}</td>
         <td>${statusBadgeForCompliance(record.status, record.dueDate)}</td>
-        <td class="payroll-table-cell-notes"><span class="muted">${escapeHtml(String(record.notes || "-"))}</span></td>
-        <td class="payroll-contracts-table__actions"><div class="toolbar">
-          <button class="btn btn-sm btn-outline" data-action="view-sst-record" data-id="${escapeAttr(String(record.id))}">${IC.eye} Ver</button>
-          ${sstCanMutate && resolveSstControlKey(record.recordType) ? renderSstRenewButton(IC, { employeeId: record.employeeId, controlKey: resolveSstControlKey(record.recordType), recordId: record.id, controlType: record.recordType }) : ""}
-          ${sstCanMutate ? `<button class="btn btn-sm btn-action" data-action="edit-sst-record" data-id="${escapeAttr(String(record.id))}">${IC.edit} Editar</button>` : ""}
-          ${sstCanMutate ? `<button class="btn btn-sm btn-reject" data-action="delete-sst-record" data-id="${escapeAttr(String(record.id))}" title="Eliminar control SST">${IC.trash} Eliminar</button>` : ""}
-        </div></td>
+        <td class="payroll-contracts-table__actions"><div class="sst-row-actions">${renewBtn}${renderSstRowMoreMenu(IC, moreActions)}</div></td>
       </tr>`;
       })
       .join("");
@@ -1055,52 +1321,95 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
       </footer>
     </form>`;
     const recordsTable = recordRows
-      ? `<div class="table-wrap payroll-table-wrap payroll-contracts-table-wrap"><table class="payroll-contracts-table"><thead><tr><th>Control</th><th>Empleado</th><th>Entidad</th><th>Vencimiento</th><th>Estado</th><th>Notas</th><th class="payroll-contracts-table__actions">Acciones</th></tr></thead><tbody>${recordRows}</tbody></table></div>`
+      ? `<div class="table-wrap payroll-table-wrap payroll-contracts-table-wrap sst-consult-table-wrap"><table class="payroll-contracts-table sst-consult-table"><thead><tr><th>Control</th><th>Empleado</th><th>Entidad</th><th>Vencimiento</th><th>Estado</th><th class="payroll-contracts-table__actions">Acciones</th></tr></thead><tbody>${recordRows}</tbody></table></div>`
       : emptyState("No hay controles de cumplimiento registrados.");
-    const dueItemRows = filteredDueItems
-      .map((item) => {
-        const bucketClass =
-          item.bucket === "expired"
-            ? "sst-row--expired"
-            : item.bucket === "missing"
-              ? "sst-row--missing"
-              : "sst-row--warning";
-        const nameCell = `<strong>${escapeHtml(item.employeeName)}</strong><br><span class="muted">${escapeHtml(item.position)}</span>`;
-        const dueDateCell = item.dueDate ? escapeHtml(item.dueDate) : '<span class="muted">Sin programar</span>';
-        const rowAttrs = item.bucket === "missing" ? ' data-sst-due-bucket="missing"' : ` data-sst-due-days="${escapeAttr(String(item.days))}"`;
-        const renewBtn =
-          sstCanMutate && item.controlKey
-            ? `<td class="payroll-contracts-table__actions"><div class="toolbar">${renderSstRenewButton(IC, {
-                employeeId: item.employeeId,
-                controlKey: item.controlKey,
-                recordId: item.recordId,
-                controlType: item.controlType
-              })}</div></td>`
-            : `<td class="muted">—</td>`;
-        return `<tr class="${bucketClass}"${rowAttrs}>
-        <td><strong>${escapeHtml(item.controlType)}</strong></td>
-        <td>${nameCell}</td>
-        <td>${dueDateCell}</td>
+    const buildDueItemRows = (items) =>
+      items
+        .map((item) => {
+          const bucketClass =
+            item.bucket === "expired"
+              ? "sst-row--expired"
+              : item.bucket === "missing"
+                ? "sst-row--missing"
+                : "sst-row--warning";
+          const rowAttrs =
+            item.bucket === "missing"
+              ? ' data-sst-due-bucket="missing"'
+              : ` data-sst-due-days="${escapeAttr(String(item.days))}"`;
+          const renewBtn =
+            sstCanMutate && item.controlKey
+              ? renderSstRenewButton(IC, {
+                  employeeId: item.employeeId,
+                  controlKey: item.controlKey,
+                  recordId: item.recordId,
+                  controlType: item.controlType
+                })
+              : "";
+          const actionsCell = renewBtn
+            ? `<div class="sst-row-actions">${renewBtn}${renderSstRowMoreMenu(IC, "")}</div>`
+            : '<span class="muted">—</span>';
+          return `<tr class="sst-consult-row ${bucketClass}"${rowAttrs}>
+        <td><strong class="sst-control-name">${escapeHtml(item.controlType)}</strong></td>
+        <td>${sstEmployeeCellHtml(item.employeeName, item.position)}</td>
+        <td>${sstDueDateCellHtml(item)}</td>
         <td>${sstDueStatusBadge(item)}</td>
-        ${renewBtn}
+        <td class="payroll-contracts-table__actions">${actionsCell}</td>
       </tr>`;
-      })
-      .join("");
-    const dueItemsTable = dueItemRows
-      ? `<div class="table-wrap payroll-table-wrap"><table><thead><tr><th>Control</th><th>Empleado</th><th>Vencimiento</th><th>Estado</th><th class="payroll-contracts-table__actions">Acciones</th></tr></thead><tbody>${dueItemRows}</tbody></table></div>`
-      : emptyState(
-          listSearchNorm
-            ? "No hay vencimientos que coincidan con la búsqueda."
-            : "No hay vencimientos próximos ni controles sin fecha registrada."
-        );
-    const reconcileRows = filteredReconcileIssues
+        })
+        .join("");
+    const buildDueItemsCards = (items) =>
+      items
+        .map((item) => {
+          const renewBtn =
+            sstCanMutate && item.controlKey
+              ? renderSstRenewButton(IC, {
+                  employeeId: item.employeeId,
+                  controlKey: item.controlKey,
+                  recordId: item.recordId,
+                  controlType: item.controlType
+                })
+              : "";
+          return `<article class="sst-due-card sst-due-card--${escapeAttr(item.bucket || "warning")}">
+          <div class="sst-due-card__top">
+            <strong class="sst-control-name">${escapeHtml(item.controlType)}</strong>
+            ${sstDueStatusBadge(item)}
+          </div>
+          ${sstEmployeeCellHtml(item.employeeName, item.position)}
+          ${sstDueDateCellHtml(item)}
+          <div class="sst-due-card__actions">${renewBtn || '<span class="muted">—</span>'}</div>
+        </article>`;
+        })
+        .join("");
+    const renderDueItemsView = (items, emptyMsg) => {
+      if (!items.length) return emptyState(emptyMsg);
+      if (listView === "grid") {
+        return `<div class="sst-due-grid">${buildDueItemsCards(items)}</div>`;
+      }
+      return `<div class="table-wrap payroll-table-wrap sst-consult-table-wrap"><table class="sst-consult-table"><thead><tr><th>Control</th><th>Empleado</th><th>Vencimiento</th><th>Estado</th><th class="payroll-contracts-table__actions">Acciones</th></tr></thead><tbody>${buildDueItemRows(items)}</tbody></table></div>`;
+    };
+    const pagedDueForAll = sstDataSection === "all" ? pagedList.items : filteredAllDueItems;
+    const pagedDueForDue = sstDataSection === "due" ? pagedList.items : filteredDueItems;
+    const allDueItemsTable = renderDueItemsView(
+      pagedDueForAll,
+      listSearchNorm
+        ? "No hay vencimientos que coincidan con la búsqueda."
+        : "No hay vencimientos próximos ni controles sin fecha registrada."
+    );
+    const dueItemsTable = renderDueItemsView(
+      pagedDueForDue,
+      listSearchNorm
+        ? "No hay vencimientos que coincidan con la búsqueda."
+        : "No hay vencimientos próximos en la ventana de 30 días."
+    );
+    const pagedReconcile = sstDataSection === "reconcile" ? pagedList.items : filteredReconcileIssues;
+    const reconcileRows = pagedReconcile
       .map((issue) => {
         const typeBadge =
           issue.type === "desync"
-            ? `<span class="status status-vencida">Desincronizado</span>`
+            ? `<span class="sst-status-pill sst-status-pill--expired">Desincronizado</span>`
             : issue.type === "expired"
-              ? `<span class="status status-vencida">Vencido</span>`
-              : `<span class="status status-en_transito">Faltante</span>`;
+              ? `<span class="sst-status-pill sst-status-pill--expired">Vencido</span>`
+              : `<span class="sst-status-pill sst-status-pill--missing">Faltante</span>`;
         const renewBtn =
           sstCanMutate && issue.controlKey
             ? renderSstRenewButton(IC, {
@@ -1111,16 +1420,19 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
                 label: "Corregir"
               })
             : "";
-        return `<tr>
+        return `<tr class="sst-consult-row">
         <td>${typeBadge}</td>
-        <td><strong>${escapeHtml(issue.controlType)}</strong><br><span class="muted">${escapeHtml(issue.employeeName)}</span></td>
+        <td>
+          <strong class="sst-control-name">${escapeHtml(issue.controlType)}</strong>
+          ${sstEmployeeCellHtml(issue.employeeName, "—")}
+        </td>
         <td class="payroll-table-cell-notes"><span class="muted">${escapeHtml(issue.message)}</span><br><span class="muted">${escapeHtml(issue.suggestedAction || "")}</span></td>
-        <td class="payroll-contracts-table__actions">${renewBtn ? `<div class="toolbar">${renewBtn}</div>` : '<span class="muted">—</span>'}</td>
+        <td class="payroll-contracts-table__actions">${renewBtn ? `<div class="sst-row-actions">${renewBtn}</div>` : '<span class="muted">—</span>'}</td>
       </tr>`;
       })
       .join("");
     const reconcileTable = reconcileRows
-      ? `<div class="table-wrap payroll-table-wrap"><table><thead><tr><th>Tipo</th><th>Control / empleado</th><th>Detalle</th><th class="payroll-contracts-table__actions">Acción</th></tr></thead><tbody>${reconcileRows}</tbody></table></div>`
+      ? `<div class="table-wrap payroll-table-wrap sst-consult-table-wrap"><table class="sst-consult-table"><thead><tr><th>Tipo</th><th>Control / empleado</th><th>Detalle</th><th class="payroll-contracts-table__actions">Acción</th></tr></thead><tbody>${reconcileRows}</tbody></table></div>`
       : emptyState(
           listSearchNorm
             ? "No hay inconsistencias que coincidan con la búsqueda."
@@ -1147,7 +1459,10 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
         { id: "data", label: "Consultar", icon: "eye", hint: "Vencimientos y auditoría" }
       ]
     });
-    const sstWorkspaceHeader = renderHrWorkspaceHeader(sstModuleHead, sstTabsNav, "payroll");
+    const sstWorkspaceHeader =
+      sstWorkspace === "data"
+        ? renderSstConsultWorkspaceHeader({ workspace: sstWorkspace, stats: sstConsultStats, IC })
+        : renderHrWorkspaceHeader(sstModuleHead, sstTabsNav, "payroll");
     const sstCreatePaneBody = sstCanMutate
       ? createHrActionCard(
           "create-sst-control",
@@ -1190,38 +1505,60 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
     </div>`;
     const sstDataNav = renderSstDataSectionNav(
       sstDataSection,
-      { due: dueItems.length, audit: records.length, reconcile: reconcileIssues.length },
+      { audit: records.length, reconcile: reconcileIssues.length },
       IC
     );
-    const sstDataSearchBar = `<div class="payroll-data-search-toolbar">
-      <label class="payroll-data-search">
-        <span class="muted">${IC.search || ""} Buscar en listados</span>
-        <input type="search" data-action="sst-data-list-search" value="${escapeAttr(listSearchRaw)}" placeholder="Empleado, control, entidad, documento…" autocomplete="off" />
+    const sstDataSearchBar = `<div class="payroll-data-search-toolbar sst-consult-search-toolbar">
+      <label class="payroll-data-search sst-consult-search">
+        <span class="sst-consult-search__ico" aria-hidden="true">${IC.search || ""}</span>
+        <input type="search" data-action="sst-data-list-search" value="${escapeAttr(listSearchRaw)}" placeholder="Buscar por empleado, control, entidad o documento..." autocomplete="off" />
       </label>
-      <button type="button" class="btn btn-sm btn-outline" data-action="export-sst-due-csv" title="Descargar vencimientos actuales">${IC.download || IC.file || ""} Exportar CSV</button>
+      <button type="button" class="btn btn-sm btn-outline sst-export-btn" data-action="export-sst-due-csv" title="Descargar vencimientos actuales">${IC.download || IC.file || ""} Exportar CSV</button>
     </div>`;
-    const dueMeta = `<p class="payroll-result-meta muted" title="Vencimientos próximos, vencidos o sin programar"><strong>${filteredDueItems.length}</strong>${listSearchNorm ? ` <span class="muted">· ${dueItems.length}</span>` : ""} ítem${filteredDueItems.length === 1 ? "" : "s"} · ventana 30 días</p>`;
-    const auditMeta = `<p class="payroll-result-meta muted" title="Controles registrados en auditoría documental"><strong>${filteredRecords.length}</strong>${listSearchNorm ? ` <span class="muted">· ${records.length}</span>` : ""} registro${filteredRecords.length === 1 ? "" : "s"}</p>`;
-    const reconcileMeta = `<p class="payroll-result-meta muted" title="Controles SST cumplidos cuya ficha no coincide, o vigencias faltantes"><strong>${filteredReconcileIssues.length}</strong>${listSearchNorm ? ` <span class="muted">· ${reconcileIssues.length}</span>` : ""} inconsistencia${filteredReconcileIssues.length === 1 ? "" : "s"}</p>`;
+    const sstViewToggle = `<div class="sst-view-toggle" role="group" aria-label="Tipo de vista">
+      <button type="button" class="sst-view-toggle__btn${listView === "grid" ? " is-active" : ""}" data-action="sst-list-view" data-view="grid" title="Vista tarjetas" aria-pressed="${listView === "grid" ? "true" : "false"}">${IC.grid || ""}</button>
+      <button type="button" class="sst-view-toggle__btn${listView === "list" ? " is-active" : ""}" data-action="sst-list-view" data-view="list" title="Vista lista" aria-pressed="${listView === "list" ? "true" : "false"}">${IC.list || ""}</button>
+    </div>`;
+    const listPagination = renderSstListPagination(IC, {
+      total: pagedList.total,
+      page: pagedList.page,
+      pageSize: pagedList.pageSize
+    });
+    const allMeta = `<p class="payroll-result-meta muted" title="Todos los ítems de vencimiento"><strong>${filteredAllDueItems.length}</strong> ítem${filteredAllDueItems.length === 1 ? "" : "s"} · Ventana 30 días</p>`;
+    const dueMeta = `<p class="payroll-result-meta muted" title="Vencimientos próximos o vencidos"><strong>${filteredDueItems.length}</strong> ítem${filteredDueItems.length === 1 ? "" : "s"} · Ventana 30 días</p>`;
+    const auditMeta = `<p class="payroll-result-meta muted" title="Controles registrados en auditoría documental"><strong>${filteredRecords.length}</strong> registro${filteredRecords.length === 1 ? "" : "s"}</p>`;
+    const reconcileMeta = `<p class="payroll-result-meta muted" title="Controles SST cumplidos cuya ficha no coincide, o vigencias faltantes"><strong>${filteredReconcileIssues.length}</strong> inconsistencia${filteredReconcileIssues.length === 1 ? "" : "s"}</p>`;
+    const allPane = `<div class="payroll-data-pane${sstDataSection === "all" ? "" : " hidden"}" data-sst-section="all"${sstDataSection === "all" ? "" : " hidden"}>
+      ${allMeta}
+      <div class="payroll-table-shell">${allDueItemsTable}</div>
+      ${sstDataSection === "all" ? listPagination : ""}
+    </div>`;
     const duePane = `<div class="payroll-data-pane${sstDataSection === "due" ? "" : " hidden"}" data-sst-section="due"${sstDataSection === "due" ? "" : " hidden"}>
       ${dueMeta}
       <div class="payroll-table-shell">${dueItemsTable}</div>
+      ${sstDataSection === "due" ? listPagination : ""}
     </div>`;
     const auditPane = `<div class="payroll-data-pane${sstDataSection === "audit" ? "" : " hidden"}" data-sst-section="audit"${sstDataSection === "audit" ? "" : " hidden"}>
       ${auditMeta}
       <div class="payroll-table-shell">${recordsTable}</div>
+      ${sstDataSection === "audit" ? listPagination : ""}
     </div>`;
     const reconcilePane = `<div class="payroll-data-pane${sstDataSection === "reconcile" ? "" : " hidden"}" data-sst-section="reconcile"${sstDataSection === "reconcile" ? "" : " hidden"}>
       ${reconcileMeta}
       <p class="muted payroll-result-meta">Revise registros marcados Cumplido en SST cuya ficha no se actualizó, o colaboradores con EPS/ARL/pensión o exámenes pendientes.</p>
       <div class="payroll-table-shell">${reconcileTable}</div>
+      ${sstDataSection === "reconcile" ? listPagination : ""}
     </div>`;
-    const sstDataBlock = `<section class="payroll-data-panel">
+    const sstDataBlock = `<section class="payroll-data-panel sst-consult-panel">
       ${sstDataSearchBar}
-      <div class="payroll-data-toolbar payroll-data-toolbar--compact">
+      <div class="payroll-data-toolbar payroll-data-toolbar--compact sst-consult-toolbar">
         ${sstDataNav}
+        <div class="sst-consult-toolbar__aside">
+          <button type="button" class="btn btn-sm btn-outline sst-filters-btn" data-action="sst-filters-toggle" title="Filtros" aria-expanded="false">${IC.filter || ""} Filtros ${IC.chevronDown || ""}</button>
+          ${sstViewToggle}
+        </div>
       </div>
-      <div class="payroll-data-panes">${duePane}${auditPane}${reconcilePane}</div>
+      <div class="payroll-data-panes">${allPane}${duePane}${auditPane}${reconcilePane}</div>
     </section>`;
     const sstDataPanel = `<div class="hr-workspace-panel payroll-workspace-panel${sstWorkspace === "data" ? "" : " hidden"}" role="tabpanel" data-sst-panel="data"${sstWorkspace === "data" ? "" : " hidden"}>
       ${sstDataBlock}
@@ -1306,25 +1643,9 @@ function bindLaborCompliancePortalControls() {
   nodes.viewRoot.querySelectorAll("[data-action='sst-data-section']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const section = normalizeSstDataSection(btn.dataset.section);
-      state.sstUi = { ...(state.sstUi || {}), dataSection: section, workspace: "data" };
+      if (normalizeSstDataSection(state.sstUi?.dataSection) === section) return;
+      state.sstUi = { ...(state.sstUi || {}), dataSection: section, workspace: "data", listPage: 1 };
       persistHrWorkspace("sst", "data");
-      if (
-        switchModuleTabPanels({
-          root: nodes.viewRoot,
-          action: "sst-data-section",
-          activeValue: section,
-          panelAttr: "data-sst-section",
-          tabActiveClass: "is-active"
-        })
-      ) {
-        switchHrWorkspacePanels({
-          root: nodes.viewRoot,
-          moduleId: "sst",
-          workspace: "data",
-          panelAttr: "data-sst-panel"
-        });
-        return;
-      }
       G.renderPortalView?.();
     });
   });
@@ -1332,11 +1653,60 @@ function bindLaborCompliancePortalControls() {
   const sstSearchInput = nodes.viewRoot.querySelector("[data-action='sst-data-list-search']");
   if (sstSearchInput) {
     sstSearchInput.addEventListener("input", () => {
-      state.sstUi = { ...(state.sstUi || {}), listSearch: String(sstSearchInput.value || ""), workspace: "data" };
+      state.sstUi = {
+        ...(state.sstUi || {}),
+        listSearch: String(sstSearchInput.value || ""),
+        workspace: "data",
+        listPage: 1
+      };
       persistHrWorkspace("sst", "data");
       G.renderPortalView?.();
     });
   }
+
+  nodes.viewRoot.querySelectorAll("[data-action='sst-list-page']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const page = Math.max(1, Number(btn.dataset.page) || 1);
+      if (Number(state.sstUi?.listPage) === page) return;
+      state.sstUi = { ...(state.sstUi || {}), listPage: page, workspace: "data" };
+      G.renderPortalView?.();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='sst-list-page-size']").forEach((sel) => {
+    sel.addEventListener("change", () => {
+      const size = Math.max(5, Number(sel.value) || 10);
+      state.sstUi = { ...(state.sstUi || {}), pageSize: size, listPage: 1, workspace: "data" };
+      G.renderPortalView?.();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='sst-list-view']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const view = String(btn.dataset.view || "list") === "grid" ? "grid" : "list";
+      if (String(state.sstUi?.listView || "list") === view) return;
+      state.sstUi = { ...(state.sstUi || {}), listView: view, workspace: "data" };
+      G.renderPortalView?.();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='sst-filters-toggle']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const panel = nodes.viewRoot.querySelector(".sst-consult-panel");
+      if (!panel) return;
+      const open = panel.classList.toggle("is-filters-open");
+      btn.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll(".sst-row-more").forEach((details) => {
+    details.addEventListener("toggle", () => {
+      if (!details.open) return;
+      nodes.viewRoot.querySelectorAll(".sst-row-more[open]").forEach((other) => {
+        if (other !== details) other.removeAttribute("open");
+      });
+    });
+  });
 
   nodes.viewRoot.querySelectorAll("[data-action='export-sst-due-csv']").forEach((btn) => {
     btn.addEventListener("click", () => {

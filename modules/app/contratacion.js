@@ -403,8 +403,8 @@ function hiringInterviewQuickDateYmd({ days, weekday }) {
 }
 
 /**
- * Formulario de entrevista: contexto del candidato, atajos de fecha, selector de
- * entrevistador (personal de oficina) y resumen en vivo de la cita.
+ * Formulario de entrevista: calendario/reloj, contexto del candidato, atajos,
+ * selector de entrevistador y resumen en vivo de la cita.
  * Devuelve la función de sincronización para refrescar tras precargas externas.
  */
 function wireHiringInterviewFormUi(form) {
@@ -415,31 +415,57 @@ function wireHiringInterviewFormUi(form) {
   const pickSelect = form.querySelector('[data-interview-field="interviewer-pick"]');
   const nameInput = form.querySelector('input[name="interviewer"]');
   const nameHint = form.querySelector('[data-interview-field="interviewer-hint"]');
-  const modeSelect = form.querySelector('select[name="mode"]');
   const placeLabel = form.querySelector('[data-interview-field="place-label"]');
   const placeInput = form.querySelector('input[name="place"]');
   const placeHint = form.querySelector('[data-interview-field="place-hint"]');
   const contextBox = form.querySelector("[data-interview-context]");
   const summaryBox = form.querySelector("[data-interview-summary]");
+  const schedulePreview = form.querySelector("[data-interview-schedule-preview]");
+  const whenHidden = form.querySelector('[data-interview-field="when"], #interview-when, input[name="when"]');
+  const dateInput = form.querySelector("#interview-date");
+  const timeInput = form.querySelector("#interview-time");
 
-  const readWhenIso = () => {
-    const V = window.AntaresValidation;
-    const wrap = form.querySelector(".portal-datetime-dmy-row");
-    if (wrap && typeof V?.portalDatetimeInputValueIso === "function") {
-      return String(V.portalDatetimeInputValueIso(wrap) || "").trim();
-    }
-    return String(form.querySelector('input[name="when"]')?.value || "").trim();
+  const readMode = () =>
+    String(form.querySelector('input[name="mode"]:checked')?.value || form.querySelector('select[name="mode"]')?.value || "presencial")
+      .trim()
+      .toLowerCase();
+
+  const readDateIso = () => String(dateInput?.value || "").trim().slice(0, 10);
+  const readTimeHhmm = () => String(timeInput?.value || "").trim().slice(0, 5);
+
+  const composeWhenIso = (dateIso, timeHhmm) => {
+    const d = String(dateIso || "").trim().slice(0, 10);
+    const t = String(timeHhmm || "").trim().slice(0, 5);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !/^\d{2}:\d{2}$/.test(t)) return "";
+    return `${d}T${t}`;
   };
 
+  const syncWhenHidden = () => {
+    const iso = composeWhenIso(readDateIso(), readTimeHhmm());
+    if (whenHidden) whenHidden.value = iso;
+    return iso;
+  };
+
+  const readWhenIso = () => syncWhenHidden() || String(whenHidden?.value || "").trim();
+
   const writeWhenIso = (iso) => {
-    const V = window.AntaresValidation;
-    const wrap = form.querySelector(".portal-datetime-dmy-row");
-    if (wrap && typeof V?.portalDatetimeInputSetIso === "function") {
-      V.portalDatetimeInputSetIso(wrap, iso);
-      return;
+    const raw = String(iso || "").trim();
+    const match = raw.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})/);
+    const dateIso = match ? match[1] : raw.slice(0, 10);
+    const timeHhmm = match ? `${match[2]}:${match[3]}` : "";
+    if (dateInput) {
+      dateInput.value = /^\d{4}-\d{2}-\d{2}$/.test(dateIso) ? dateIso : "";
+      dateInput.dispatchEvent(new Event("input", { bubbles: true }));
+      dateInput.dispatchEvent(new Event("change", { bubbles: true }));
+      refreshAntaresSchedulePickerDisplay?.(form, "interview-date");
     }
-    const el = form.querySelector('input[name="when"]');
-    if (el) el.value = iso;
+    if (timeInput) {
+      timeInput.value = /^\d{2}:\d{2}$/.test(timeHhmm) ? timeHhmm : "";
+      timeInput.dispatchEvent(new Event("input", { bubbles: true }));
+      timeInput.dispatchEvent(new Event("change", { bubbles: true }));
+      refreshAntaresSchedulePickerDisplay?.(form, "interview-time");
+    }
+    syncWhenHidden();
   };
 
   const whenTimestamp = (iso) => {
@@ -448,6 +474,78 @@ function wireHiringInterviewFormUi(form) {
     return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(raw)
       ? new Date(`${raw}:00-05:00`).getTime()
       : new Date(raw).getTime();
+  };
+
+  const clearScheduleFieldErrors = () => {
+    const V = window.AntaresValidation;
+    if (!V?.clearFieldError) return;
+    [dateInput, timeInput, whenHidden].forEach((el) => {
+      if (el) V.clearFieldError(el);
+    });
+  };
+
+  const setDateOffset = (dayOffset) => {
+    const base = colombiaTodayIsoDate();
+    const [y, m, d] = base.split("-").map((n) => parseInt(n, 10));
+    const dt = new Date(y, m - 1, d + Number(dayOffset || 0));
+    const iso = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+    if (!dateInput) return;
+    clearScheduleFieldErrors();
+    dateInput.value = iso;
+    dateInput.dispatchEvent(new Event("input", { bubbles: true }));
+    dateInput.dispatchEvent(new Event("change", { bubbles: true }));
+    refreshAntaresSchedulePickerDisplay?.(form, "interview-date");
+    syncWhenHidden();
+    syncSchedulePreview();
+    syncSummary();
+  };
+
+  const syncSchedulePreview = () => {
+    if (!schedulePreview) return;
+    const dateIso = readDateIso();
+    const timeHhmm = readTimeHhmm();
+    const whenIso = syncWhenHidden();
+    form.querySelectorAll(".acf-time-preset").forEach((btn) => {
+      const val = String(btn.dataset.acfTimePreset || "");
+      btn.classList.toggle("is-active", Boolean(timeHhmm && timeHhmm === val));
+    });
+    form.querySelectorAll(".acf-date-preset").forEach((btn) => {
+      const offset = Number(btn.dataset.acfDateOffset || 0);
+      const base = colombiaTodayIsoDate();
+      const [y, m, d] = base.split("-").map((n) => parseInt(n, 10));
+      const dt = new Date(y, m - 1, d + offset);
+      const iso = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+      btn.classList.toggle("is-active", Boolean(dateIso && dateIso === iso));
+    });
+    if (!dateIso && !timeHhmm) {
+      schedulePreview.classList.remove("acf-schedule__preview--ready", "acf-schedule__preview--warn");
+      schedulePreview.innerHTML = `<span class="acf-schedule__preview-icon" aria-hidden="true">${IC.calendar}</span>
+        <div class="acf-schedule__preview-copy">
+          <strong class="acf-schedule__preview-title">Elija fecha y hora de la cita</strong>
+          <p class="acf-schedule__preview-detail muted">Hora de Colombia (COT). Toque el calendario o el reloj para abrir el selector.</p>
+        </div>`;
+      return;
+    }
+    const whenTs = whenTimestamp(whenIso);
+    const past = Boolean(whenIso && Number.isFinite(whenTs) && whenTs < Date.now());
+    schedulePreview.classList.toggle("acf-schedule__preview--ready", Boolean(whenIso) && !past);
+    schedulePreview.classList.toggle("acf-schedule__preview--warn", past);
+    if (past) {
+      schedulePreview.innerHTML = `<span class="acf-schedule__preview-icon acf-schedule__preview-icon--warn" aria-hidden="true">${IC.alertTriangle || IC.x}</span>
+        <div class="acf-schedule__preview-copy">
+          <strong class="acf-schedule__preview-title">La cita ya pasó</strong>
+          <p class="acf-schedule__preview-detail muted">Elija una fecha y hora futuras en hora de Colombia.</p>
+        </div>`;
+      return;
+    }
+    const label = whenIso
+      ? formatInterviewWhenDisplay(whenIso)
+      : [dateIso, timeHhmm].filter(Boolean).join(" · ");
+    schedulePreview.innerHTML = `<span class="acf-schedule__preview-icon" aria-hidden="true">${IC.check}</span>
+      <div class="acf-schedule__preview-copy">
+        <strong class="acf-schedule__preview-title">${escapeHtml(label || "Agenda pendiente")}</strong>
+        <p class="acf-schedule__preview-detail muted">Hora de Colombia (COT). Puede ajustar con el calendario o el reloj.</p>
+      </div>`;
   };
 
   const syncCandidateContext = () => {
@@ -481,7 +579,7 @@ function wireHiringInterviewFormUi(form) {
   };
 
   const syncPlaceField = () => {
-    const mode = String(modeSelect?.value || "presencial").toLowerCase();
+    const mode = readMode();
     const ui = HIRING_INTERVIEW_MODE_UI[mode] || HIRING_INTERVIEW_MODE_UI.presencial;
     const labelText = placeLabel?.querySelector(".field-label > span");
     if (labelText) labelText.textContent = ui.label;
@@ -513,7 +611,7 @@ function wireHiringInterviewFormUi(form) {
     const whenIso = readWhenIso();
     const whenTs = whenTimestamp(whenIso);
     const interviewer = String(nameInput?.value || "").trim();
-    const mode = String(modeSelect?.value || "presencial").toLowerCase();
+    const mode = readMode();
     const place = String(placeInput?.value || "").trim();
     const rows = [
       ["Candidato", candidateName || "Sin seleccionar"],
@@ -550,10 +648,14 @@ function wireHiringInterviewFormUi(form) {
   };
 
   const syncAll = () => {
+    syncWhenHidden();
     syncCandidateContext();
     syncPlaceField();
+    syncSchedulePreview();
     syncSummary();
   };
+
+  mountAntaresSchedulePickers?.(form);
 
   candidateSelect?.addEventListener("change", () => {
     syncCandidateContext();
@@ -564,11 +666,53 @@ function wireHiringInterviewFormUi(form) {
     syncSummary();
   });
   nameInput?.addEventListener("input", syncSummary);
-  modeSelect?.addEventListener("change", () => {
-    syncPlaceField();
-    syncSummary();
+  form.querySelectorAll('input[name="mode"]').forEach((radio) => {
+    radio.addEventListener("change", () => {
+      syncPlaceField();
+      syncSummary();
+    });
   });
   placeInput?.addEventListener("input", syncSummary);
+
+  form.querySelectorAll("[data-acf-date-offset]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      setDateOffset(Number(btn.dataset.acfDateOffset || 0));
+    });
+  });
+  form.querySelectorAll("[data-acf-time-preset]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const value = String(btn.dataset.acfTimePreset || "").slice(0, 5);
+      if (!timeInput || !value) return;
+      clearScheduleFieldErrors();
+      timeInput.value = value;
+      timeInput.dispatchEvent(new Event("input", { bubbles: true }));
+      timeInput.dispatchEvent(new Event("change", { bubbles: true }));
+      refreshAntaresSchedulePickerDisplay?.(form, "interview-time");
+      syncWhenHidden();
+      syncSchedulePreview();
+      syncSummary();
+    });
+  });
+
+  ["interview-date", "interview-time"].forEach((id) => {
+    const el = form.querySelector(`#${id}`);
+    if (!el) return;
+    el.addEventListener("input", () => {
+      clearScheduleFieldErrors();
+      syncWhenHidden();
+      refreshAntaresSchedulePickerDisplay?.(form, id);
+      syncSchedulePreview();
+      syncSummary();
+    });
+    el.addEventListener("change", () => {
+      clearScheduleFieldErrors();
+      syncWhenHidden();
+      refreshAntaresSchedulePickerDisplay?.(form, id);
+      syncSchedulePreview();
+      syncSummary();
+    });
+  });
+
   form.querySelectorAll("[data-interview-quick]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const ymd = hiringInterviewQuickDateYmd({
@@ -576,20 +720,17 @@ function wireHiringInterviewFormUi(form) {
         weekday: btn.dataset.quickWeekday ? Number(btn.dataset.quickWeekday) : NaN
       });
       if (!ymd) return;
+      clearScheduleFieldErrors();
       writeWhenIso(`${ymd}T${String(btn.dataset.quickTime || "09:00").slice(0, 5)}`);
       form.querySelectorAll("[data-interview-quick]").forEach((other) => other.classList.remove("is-active"));
       btn.classList.add("is-active");
+      syncSchedulePreview();
       syncSummary();
     });
   });
-  form.addEventListener("change", (event) => {
-    if (event.target?.closest?.(".portal-datetime-dmy-row")) syncSummary();
-  });
-  form.addEventListener("input", (event) => {
-    if (event.target?.closest?.(".portal-datetime-dmy-row")) syncSummary();
-  });
 
   form.__antaresInterviewSync = syncAll;
+  form.__antaresInterviewWriteWhen = writeWhenIso;
   syncAll();
   return syncAll;
 }
@@ -1159,11 +1300,22 @@ function bindHiringPortalControls() {
   nodes.viewRoot.querySelectorAll("[data-action='hiring-candidates-view']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const view = String(btn.dataset.view || "board") === "list" ? "list" : "board";
-      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "data" };
-      state.hiringUi.candidateView = view;
-      /* Tablero Kanban solo en Selección. */
-      state.hiringUi.workspace = "data";
-      state.hiringUi.dataSection = "candidates";
+      const prev = state.hiringUi || {
+        candidateFilter: "active",
+        vacancyFilter: "open",
+        candidateSort: "recent",
+        workspace: "data"
+      };
+      const selectedId = String(prev.selectedCandidateId || "").trim();
+      state.hiringUi = {
+        ...prev,
+        candidateView: view,
+        workspace: "data",
+        dataSection: "candidates",
+        /* Conservar candidato al alternar Tablero ↔ Lista. */
+        ...(selectedId ? { selectedCandidateId: selectedId } : {}),
+        ...(selectedId && view === "board" ? { drawerOpen: true } : {})
+      };
       persistHrWorkspace("hiring", "data");
       renderPortalView();
     });
@@ -1418,20 +1570,26 @@ function bindHiringPortalControls() {
       if (event.target instanceof Element && event.target.closest("details.hiring-card-menu")) return;
       const id = String(btn.dataset.id || "").trim();
       if (!id) return;
-      const same = String(state.hiringUi?.selectedCandidateId || "") === id && state.hiringUi?.drawerOpen !== false;
+      const prev = state.hiringUi || {};
+      const view = String(prev.candidateView || "board") === "list" ? "list" : "board";
+      const same =
+        String(prev.selectedCandidateId || "") === id &&
+        (view === "list" || prev.drawerOpen !== false);
       if (same) return;
       state.hiringUi = {
-        ...(state.hiringUi || {}),
+        ...prev,
         selectedCandidateId: id,
         drawerOpen: true,
-        drawerTab: state.hiringUi?.drawerTab || "resumen",
+        drawerTab: prev.drawerTab || "resumen",
         workspace: "data",
         dataSection: "candidates",
-        candidateView: "board"
+        /* No forzar Tablero: conservar Lista si el usuario está en esa vista. */
+        candidateView: view
       };
       renderPortalView();
       requestAnimationFrame(() => {
-        nodes.viewRoot?.querySelector?.(".hiring-drawer")?.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
+        const targetSel = view === "list" ? ".hiring-pipeline__detail" : ".hiring-drawer";
+        nodes.viewRoot?.querySelector?.(targetSel)?.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
       });
     });
   });
@@ -1650,12 +1808,27 @@ function bindHiringPortalControls() {
     const refreshInterviewUi = wireHiringInterviewFormUi(interviewForm);
     wireFormSubmitGuard(interviewForm, async (event) => {
       const data = readFormEntriesNormalized(interviewForm);
-      const whenRaw = String(data.when || "").trim();
+      const dateRaw = String(data.interviewDate || interviewForm.querySelector("#interview-date")?.value || "").trim().slice(0, 10);
+      const timeRaw = String(data.interviewTime || interviewForm.querySelector("#interview-time")?.value || "").trim().slice(0, 5);
+      const composedWhen =
+        /^\d{4}-\d{2}-\d{2}$/.test(dateRaw) && /^\d{2}:\d{2}$/.test(timeRaw) ? `${dateRaw}T${timeRaw}` : "";
+      const whenRaw = composedWhen || String(data.when || "").trim();
+      if (interviewForm.querySelector('input[name="when"]')) {
+        interviewForm.querySelector('input[name="when"]').value = whenRaw;
+      }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateRaw)) {
+        failPortalField(interviewForm, "interviewDate", "Seleccione la fecha de la entrevista.");
+        return;
+      }
+      if (!/^\d{2}:\d{2}$/.test(timeRaw)) {
+        failPortalField(interviewForm, "interviewTime", "Seleccione la hora de la entrevista.");
+        return;
+      }
       const interviewTs = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(whenRaw)
         ? new Date(`${whenRaw}:00-05:00`).getTime()
         : new Date(whenRaw).getTime();
       if (!Number.isFinite(interviewTs) || interviewTs < Date.now()) {
-        failPortalField(interviewForm, "when", userMessage("interviewScheduleFuture"));
+        failPortalField(interviewForm, "interviewDate", userMessage("interviewScheduleFuture"));
         return;
       }
       const candidate = read(KEYS.candidates, []).find((c) => String(c.id) === String(data.candidateId || ""));
@@ -1672,7 +1845,7 @@ function bindHiringPortalControls() {
         id: newUuidV4(),
         candidateId: candidate.id,
         candidateName: candidate.name,
-        when: data.when,
+        when: whenRaw,
         interviewer: normalizeLatinUpperForDb(String(data.interviewer || "").trim()),
         modality: (() => {
           const modeKey = String(data.mode || "").trim().toLowerCase();
@@ -1710,7 +1883,7 @@ function bindHiringPortalControls() {
       sendEmail({
         to: candidate.email,
         subject: "Entrevista programada",
-        body: `Fecha y hora: ${formatInterviewWhenDisplay(data.when)} (ajuste según su zona horaria).`
+        body: `Fecha y hora: ${formatInterviewWhenDisplay(whenRaw)} (ajuste según su zona horaria).`
       });
       try {
         await writeAwaitServerLatestQueuedEmail();
@@ -1720,7 +1893,7 @@ function bindHiringPortalControls() {
         "hiring",
         "Contratación",
         createdInterview,
-        `${String(createdInterview.modality || "Presencial")} · ${formatInterviewWhenDisplay(data.when)}`,
+        `${String(createdInterview.modality || "Presencial")} · ${formatInterviewWhenDisplay(whenRaw)}`,
         { entityLabel: String(createdInterview.candidateName || "Entrevista").trim() }
       );
       state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
@@ -1739,25 +1912,25 @@ function bindHiringPortalControls() {
       if (sel && [...sel.options].some((o) => String(o.value) === cid)) {
         sel.value = cid;
       }
-      const minWhen = colombiaDatetimeLocalString();
-      const whenWrap = interviewForm.querySelector(".portal-datetime-dmy-row");
-      const V = window.AntaresValidation;
-      if (whenWrap && typeof V?.portalDatetimeInputSetIso === "function") {
-        V.portalDatetimeInputSetIso(whenWrap, "");
-        const dateVis =
-          whenWrap.querySelector(".portal-date-dmy") || whenWrap.querySelector('input[type="date"]');
-        if (dateVis) dateVis.min = minWhen.slice(0, 10);
-        dateVis?.focus?.();
-      } else {
-        const whenEl =
-          interviewForm.querySelector('input[type="datetime-local"][name="when"]') ||
-          interviewForm.querySelector('input[name="when"]');
-        if (whenEl) {
-          whenEl.setAttribute("min", minWhen);
-          whenEl.value = "";
-          whenEl.focus();
-        }
+      const minDate = colombiaTodayIsoDate();
+      const dateEl = interviewForm.querySelector("#interview-date");
+      const timeEl = interviewForm.querySelector("#interview-time");
+      const whenEl = interviewForm.querySelector('input[name="when"]');
+      if (dateEl) {
+        dateEl.dataset.antaresDateMin = minDate;
+        dateEl.value = "";
+        dateEl.dispatchEvent(new Event("input", { bubbles: true }));
+        refreshAntaresSchedulePickerDisplay?.(interviewForm, "interview-date");
       }
+      if (timeEl) {
+        timeEl.value = "";
+        timeEl.dispatchEvent(new Event("input", { bubbles: true }));
+        refreshAntaresSchedulePickerDisplay?.(interviewForm, "interview-time");
+      }
+      if (whenEl) whenEl.value = "";
+      interviewForm
+        .querySelector('[data-acf-picker="date"] [data-acf-picker-open]')
+        ?.focus?.();
       refreshInterviewUi?.();
     };
     requestAnimationFrame(() => {

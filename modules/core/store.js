@@ -188,8 +188,11 @@ export let state = {
   sstUi: {
     workspace: "operate",
     operateSection: "create",
-    dataSection: "due",
-    listSearch: ""
+    dataSection: "all",
+    listSearch: "",
+    listPage: 1,
+    pageSize: 10,
+    listView: "list"
   },
   /**
    * Gestión documental: sección del rail, vista, orden, filtros y selección.

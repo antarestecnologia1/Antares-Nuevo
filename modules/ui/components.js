@@ -1110,7 +1110,7 @@ export function renderPayrollWorkspaceActionButtons(module, activeId) {
     { id: "operate", label: "Registrar", icon: "plus", primary: false },
     { id: "data", label: "Consultar", icon: "eye", primary: true }
   ];
-  return `<div class="payroll-workspace-actions" role="tablist" aria-label="Modo del módulo de gestión humana">
+  return `<div class="payroll-workspace-actions" role="tablist" aria-label="Modo del módulo">
     ${tabs
       .map((t) => {
         const active = activeId === t.id;

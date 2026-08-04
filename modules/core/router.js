@@ -24,7 +24,7 @@ import {
   announceSessionClosedByIdle
 } from "./auth.js";
 import { state, nodes, persistHrWorkspace } from "./store.js";
-import { devError, devWarn } from "./utils.js";
+import { devError, devWarn, escapeHtml } from "./utils.js";
 import { notify, userMessage } from "../ui/modals.js";
 import { normalizePortalAvatarDisplayUrl } from "../domain/contratacion.domain.js";
 
@@ -244,7 +244,7 @@ export function enforcePortalViewFromUrl(user) {
     syncHashFn: syncPortalHash,
     isViewAllowed: isViewAllowedForUser,
     fallbackView,
-    onUnauthorized: () => alert(`Ruta no autorizada. Se redirigió a ${fallbackView}.`)
+    onUnauthorized: () => notify(userMessage("viewRouteUnauthorized"), "warn", 5200)
   });
 }
 
@@ -437,10 +437,31 @@ export function renderFromModule(moduleName, exportName, ...args) {
 }
 
 export function accessDeniedModuleCard() {
-  if (typeof W.pcardWrap === "function" && typeof W.emptyState === "function") {
-    return W.pcardWrap("shield", "Acceso restringido", null, W.emptyState("No tienes autorizacion para esta vista."));
+  const body =
+    typeof userMessage === "function"
+      ? userMessage("viewAccessDeniedBody")
+      : "Tu cuenta no tiene autorización para esta sección del portal.";
+  const icon = `<div class="access-denied__icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        <line x1="9.5" y1="9.5" x2="14.5" y2="14.5"/>
+        <line x1="14.5" y1="9.5" x2="9.5" y2="14.5"/>
+      </svg>
+    </div>`;
+  const panel = `<div class="access-denied" role="status" aria-live="polite">
+    ${icon}
+    <p class="access-denied__text">${escapeHtml(body)}</p>
+    <a href="#portal/dashboard" class="btn btn-primary access-denied__cta">Volver al inicio</a>
+  </div>`;
+  if (typeof W.pcardWrap === "function") {
+    return W.pcardWrap("shield", "Acceso restringido", "Permisos insuficientes", panel);
   }
-  return '<p class="muted">Acceso restringido</p>';
+  return `<div class="access-denied" role="status" aria-live="polite">
+    ${icon}
+    <h3 class="access-denied__title">Acceso restringido</h3>
+    <p class="access-denied__text">${escapeHtml(body)}</p>
+    <a href="#portal/dashboard" class="btn btn-primary access-denied__cta">Volver al inicio</a>
+  </div>`;
 }
 
 export function renderModuleShell(view, _title, bodyHtml) {
@@ -483,7 +504,7 @@ export function setView(view) {
   const user = currentUser();
   if (!user) return;
   if (!isViewAllowedForUser(user, view)) {
-    alert("No tienes permisos para acceder a este módulo.");
+    notify(userMessage("viewAccessDenied"), "warn", 5200);
     return;
   }
   state.currentView = view;

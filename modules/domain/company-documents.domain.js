@@ -25,6 +25,50 @@ export const SUGGESTED_COMPANY_FOLDERS = Object.freeze([
   "05. Finanzas"
 ]);
 
+/** Tipos/categorías documentales seleccionables al subir (valor corto ≤ 32 chars). */
+export const COMPANY_DOCUMENT_CATEGORIES = Object.freeze([
+  { value: "cedula", label: "Cédula de ciudadanía" },
+  { value: "contrato", label: "Contrato laboral" },
+  { value: "hoja_vida", label: "Hoja de vida" },
+  { value: "eps", label: "Afiliación EPS" },
+  { value: "afp", label: "Afiliación pensión (AFP)" },
+  { value: "arl", label: "Afiliación ARL" },
+  { value: "examen_ocupacional", label: "Examen médico ocupacional" },
+  { value: "examen_instruvial", label: "Examen instruvial" },
+  { value: "licencia_conduccion", label: "Licencia de conducción" },
+  { value: "soat", label: "SOAT" },
+  { value: "certificado_runt", label: "Certificado RUNT" },
+  { value: "certificado_antecedentes", label: "Certificado de antecedentes" },
+  { value: "rut", label: "RUT / documento tributario" },
+  { value: "cuenta_bancaria", label: "Certificación bancaria" },
+  { value: "capacitacion", label: "Certificado de capacitación" },
+  { value: "induccion_sst", label: "Inducción SST / seguridad" },
+  { value: "autorizacion_datos", label: "Autorización tratamiento de datos" },
+  { value: "factura", label: "Factura / soporte contable" },
+  { value: "poliza", label: "Póliza / seguro" },
+  { value: "acta", label: "Acta / acuerdo" },
+  { value: "otro", label: "Otro documento" }
+]);
+
+const CATEGORY_MAP = new Map(COMPANY_DOCUMENT_CATEGORIES.map((c) => [c.value, c]));
+
+export function getCompanyDocumentCategoryLabel(value) {
+  const key = String(value || "").trim();
+  if (!key) return "";
+  return CATEGORY_MAP.get(key)?.label || key;
+}
+
+/** Extrae categoría documental desde tags/etiquetas o campo dedicado. */
+export function parseDocumentCategory(tagsOrCategory) {
+  const raw = String(tagsOrCategory ?? "").trim();
+  if (!raw) return "";
+  if (CATEGORY_MAP.has(raw)) return raw;
+  const m = raw.match(/(?:^|,)\s*cat(?:egory|egoria)?\s*[:=]\s*([a-z0-9_]+)/i);
+  if (m && CATEGORY_MAP.has(m[1])) return m[1];
+  const first = raw.split(",")[0].trim();
+  return CATEGORY_MAP.has(first) ? first : "";
+}
+
 /** Segmento de carpeta seguro a partir del nombre del empleado (sin “/”). */
 export function sanitizeEmployeeFolderSegment(name) {
   return String(name || "")
@@ -181,7 +225,13 @@ export function normalizeCompanyDocumentRow(row) {
   const fileName = String(row.fileName ?? row.nombre_archivo ?? "documento").trim() || "documento";
   const mimeType = String(row.mimeType ?? row.mime_type ?? "application/octet-stream").trim();
   const folder = normalizeCompanyFolder(row.folder ?? row.carpeta ?? DEFAULT_COMPANY_FOLDER);
-  const type = String(row.type ?? row.tipo ?? fileTypeLabel(fileName, mimeType)).trim() || fileTypeLabel(fileName, mimeType);
+  const fileKind = fileTypeLabel(fileName, mimeType);
+  const rawType = String(row.type ?? row.tipo ?? "").trim();
+  /* `tipo` puede ser extensión (PDF) o categoría legacy; priorizar categoría en tags. */
+  const documentCategory = parseDocumentCategory(
+    row.documentCategory ?? row.categoria_documento ?? row.tags ?? row.etiquetas ?? ""
+  ) || (CATEGORY_MAP.has(rawType) ? rawType : "");
+  const type = CATEGORY_MAP.has(rawType) ? fileKind : rawType || fileKind;
   const createdAt = row.createdAt ?? row.fecha_creacion ?? new Date().toISOString();
   const updatedAt = row.updatedAt ?? row.fecha_actualizacion ?? createdAt;
   return {
@@ -189,12 +239,13 @@ export function normalizeCompanyDocumentRow(row) {
     companyId: row.companyId ?? row.id_empresa ?? null,
     fileName,
     type,
+    documentCategory,
     folder,
     mimeType,
     sizeBytes: Number(row.sizeBytes ?? row.tamano_bytes ?? 0) || 0,
     storageKey: String(row.storageKey ?? row.storage_key ?? "").trim(),
     description: row.description ?? row.descripcion ?? "",
-    tags: row.tags ?? row.etiquetas ?? "",
+    tags: documentCategory || String(row.tags ?? row.etiquetas ?? "").trim(),
     uploadedBy: String(row.uploadedBy ?? row.subido_por ?? "Portal").trim() || "Portal",
     createdAt: String(createdAt),
     updatedAt: String(updatedAt)

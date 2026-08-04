@@ -8,6 +8,7 @@ import { SAFE_CV_ACCEPT, validateUploadFile } from "./file-upload-security.js";
 import {
   currentUser,
   hasPermission,
+  isViewAllowedForUser,
   renderAuthTab,
   wireSupabasePasswordRecoveryUi,
   canEditFleetDriverAsAdmin,
@@ -88,7 +89,7 @@ import {
   syncModuleCreatePanelsInDom
 } from "../ui/components.js";
 import { applyPublicLanguage, applyTheme } from "./i18n.js";
-import { failPortalField, isActionButtonBusy } from "../ui/modals.js";
+import { failPortalField, isActionButtonBusy, notify, userMessage } from "../ui/modals.js";
 import { installActionButtonGuard } from "./action-button-guard.js";
 
 /** Runtime clásico (`portal-runtime.js`) expuesto en `globalThis` antes que este módulo. */
@@ -548,7 +549,7 @@ function enforceColombianFormStandards() {
     typeSelector: "#form-candidate select[name='documentType']",
     docSelector: "#form-candidate input[name='idDoc']"
   });
-  setAttr("#form-interview input[name='when']", { min: colombiaDatetimeLocalString() });
+  setAttr("#form-interview #interview-date", { "data-antares-date-min": colombiaTodayIsoDate() });
 
   setAttr("#form-hr-absence input[name='supportNumber']", { minlength: "4", maxlength: "40", placeholder: "Radicado o soporte legal" });
   ensureSelectOptions("#form-hr-absence select[name='epsEntity']", [...CO_CATALOGS.eps, "ARL", "Juzgado", "Registraduría", "Otra"], "Seleccione EPS/ARL o entidad...");
@@ -3328,6 +3329,7 @@ function initGlobalEvents() {
       state.currentView = "dashboard";
       syncPortalHash("dashboard");
       renderPortalView();
+      notify(userMessage("viewRouteUnauthorized"), "warn", 5200);
       return;
     }
     state.currentView = urlView;

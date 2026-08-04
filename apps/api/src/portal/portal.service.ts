@@ -3991,7 +3991,7 @@ export class PortalService implements OnModuleInit {
     ]);
 
     const dependentPromise = Promise.all([
-      this.loadUsers(admin, userId, empresaId, role, fullUserDirectoryAccess),
+      this.loadUsers(admin, userId, empresaId, role, fullUserDirectoryAccess, canHiringBootstrap),
       this.loadRequests(admin, userId, empresaId, canTransportData, role, permissionSet),
       canPayrollBootstrap
         ? this.loadPayrollEmployees(
@@ -5463,60 +5463,62 @@ export class PortalService implements OnModuleInit {
     userId: string,
     empresaId: string | null,
     viewerRole: JwtRole,
-    exposeSensitiveAcrossDirectory: boolean
+    exposeSensitiveAcrossDirectory: boolean,
+    /** Contratación: incluir personal de oficina aprobado aunque no comparta id_empresa (admins globales suelen ir sin empresa). */
+    includeOfficeInterviewers = false
   ) {
     const includePendingWithoutCompany = false;
+    const userSelectCols = `SELECT u.id::text, u.correo_electronico AS email, u.nombre_completo AS name, u.rol::text AS role,
+              u.estado_cuenta::text AS "accountStatus", u.id_empresa::text AS "companyId",
+              COALESCE(NULLIF(trim(u.nombre_empresa_texto_legacy), ''), NULLIF(trim(e.nombre), ''), '') AS company,
+              u.primer_nombre AS "firstName", u.segundo_nombre AS "middleName", u.primer_apellido AS "lastName",
+              u.segundo_apellido AS "secondLastName", u.tipo_persona AS "personType", u.tipo_documento AS "documentType",
+              u.numero_identificacion AS "personalDoc",
+              u.nit_empresa_registro AS "companyNit",
+              COALESCE(u.nit_empresa_registro, u.numero_identificacion) AS "taxId",
+              u.fecha_expedicion_documento AS "documentIssuedAt",
+              u.fecha_nacimiento AS "birthDate", u.genero AS gender, u.cargo_registro AS position, u.area_trabajo AS "workArea",
+              u.telefono AS phone, u.departamento AS department, u.ciudad AS city, u.direccion AS address,
+              u.contacto_emergencia AS "emergencyContact", u.telefono_emergencia AS "emergencyPhone",
+              u.parentesco_emergencia AS "emergencyRelationship", u.url_avatar AS "avatarUrl",
+              u.autenticacion_dos_factores AS "twoFactorEnabled",
+              u.tipo_vinculo_registro::text AS "registrationKind",
+              u.fecha_aceptacion_politica_datos AS "dataPolicyAcceptedAt",
+              u.version_politica_datos AS "dataPolicyVersion",
+              u.fecha_aceptacion_terminos AS "termsAcceptedAt",
+              u.fecha_ingreso_portal AS "portalSince", u.fecha_creacion AS "createdAt"
+         FROM usuarios u
+         LEFT JOIN empresas e ON e.id = u.id_empresa`;
 
     const sql = admin
-      ? `SELECT u.id::text, u.correo_electronico AS email, u.nombre_completo AS name, u.rol::text AS role,
-              u.estado_cuenta::text AS "accountStatus", u.id_empresa::text AS "companyId",
-              COALESCE(NULLIF(trim(u.nombre_empresa_texto_legacy), ''), NULLIF(trim(e.nombre), ''), '') AS company,
-              u.primer_nombre AS "firstName", u.segundo_nombre AS "middleName", u.primer_apellido AS "lastName",
-              u.segundo_apellido AS "secondLastName", u.tipo_persona AS "personType", u.tipo_documento AS "documentType",
-              u.numero_identificacion AS "personalDoc",
-              u.nit_empresa_registro AS "companyNit",
-              COALESCE(u.nit_empresa_registro, u.numero_identificacion) AS "taxId",
-              u.fecha_expedicion_documento AS "documentIssuedAt",
-              u.fecha_nacimiento AS "birthDate", u.genero AS gender, u.cargo_registro AS position, u.area_trabajo AS "workArea",
-              u.telefono AS phone, u.departamento AS department, u.ciudad AS city, u.direccion AS address,
-              u.contacto_emergencia AS "emergencyContact", u.telefono_emergencia AS "emergencyPhone",
-              u.parentesco_emergencia AS "emergencyRelationship", u.url_avatar AS "avatarUrl",
-              u.autenticacion_dos_factores AS "twoFactorEnabled",
-              u.tipo_vinculo_registro::text AS "registrationKind",
-              u.fecha_aceptacion_politica_datos AS "dataPolicyAcceptedAt",
-              u.version_politica_datos AS "dataPolicyVersion",
-              u.fecha_aceptacion_terminos AS "termsAcceptedAt",
-              u.fecha_ingreso_portal AS "portalSince", u.fecha_creacion AS "createdAt"
-         FROM usuarios u
-         LEFT JOIN empresas e ON e.id = u.id_empresa
+      ? `${userSelectCols}
          ORDER BY u.correo_electronico`
-      : `SELECT u.id::text, u.correo_electronico AS email, u.nombre_completo AS name, u.rol::text AS role,
-              u.estado_cuenta::text AS "accountStatus", u.id_empresa::text AS "companyId",
-              COALESCE(NULLIF(trim(u.nombre_empresa_texto_legacy), ''), NULLIF(trim(e.nombre), ''), '') AS company,
-              u.primer_nombre AS "firstName", u.segundo_nombre AS "middleName", u.primer_apellido AS "lastName",
-              u.segundo_apellido AS "secondLastName", u.tipo_persona AS "personType", u.tipo_documento AS "documentType",
-              u.numero_identificacion AS "personalDoc",
-              u.nit_empresa_registro AS "companyNit",
-              COALESCE(u.nit_empresa_registro, u.numero_identificacion) AS "taxId",
-              u.fecha_expedicion_documento AS "documentIssuedAt",
-              u.fecha_nacimiento AS "birthDate", u.genero AS gender, u.cargo_registro AS position, u.area_trabajo AS "workArea",
-              u.telefono AS phone, u.departamento AS department, u.ciudad AS city, u.direccion AS address,
-              u.contacto_emergencia AS "emergencyContact", u.telefono_emergencia AS "emergencyPhone",
-              u.parentesco_emergencia AS "emergencyRelationship", u.url_avatar AS "avatarUrl",
-              u.autenticacion_dos_factores AS "twoFactorEnabled",
-              u.tipo_vinculo_registro::text AS "registrationKind",
-              u.fecha_aceptacion_politica_datos AS "dataPolicyAcceptedAt",
-              u.version_politica_datos AS "dataPolicyVersion",
-              u.fecha_aceptacion_terminos AS "termsAcceptedAt",
-              u.fecha_ingreso_portal AS "portalSince", u.fecha_creacion AS "createdAt"
-         FROM usuarios u
-         LEFT JOIN empresas e ON e.id = u.id_empresa
-         WHERE u.id = $1::uuid OR ($2::uuid IS NOT NULL AND u.id_empresa = $2::uuid)
-            OR ($3::boolean = true AND u.estado_cuenta = 'pendiente'::estado_cuenta_usuario)`;
+      : `${userSelectCols}
+         WHERE u.id = $1::uuid
+            OR ($2::uuid IS NOT NULL AND u.id_empresa = $2::uuid)
+            OR ($3::boolean = true AND u.estado_cuenta = 'pendiente'::estado_cuenta_usuario)
+            OR (
+              $4::boolean = true
+              AND u.estado_cuenta = 'aprobado'::estado_cuenta_usuario
+              AND u.rol::text IN (
+                'admin',
+                'rrhh',
+                'administracion',
+                'auxiliar_administrativo',
+                'lider_administrativo',
+                'logistica'
+              )
+            )
+         ORDER BY u.correo_electronico`;
 
     const r = admin
       ? await this.pool.query(sql)
-      : await this.pool.query(sql, [userId, empresaId, includePendingWithoutCompany]);
+      : await this.pool.query(sql, [
+          userId,
+          empresaId,
+          includePendingWithoutCompany,
+          Boolean(includeOfficeInterviewers)
+        ]);
 
     const dbUsers = await this.finalizePortalUserRowsFromJoin(r.rows, userId, exposeSensitiveAcrossDirectory);
     if (!admin) return dbUsers;

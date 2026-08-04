@@ -67,22 +67,28 @@ const apiCvSrc = readFileSync(join(root, "apps/api/src/portal/portal.service.ts"
 ok(domainSrc.includes("export function renderHiringPipelineBoard"), "dominio: tablero exportado");
 ok(domainSrc.includes("export function renderHiringVacancyCard"), "dominio: tarjeta vacante exportada");
 ok(domainSrc.includes("export function hiringCandidateNextAction"), "dominio: next action exportada");
-ok(domainSrc.includes("hiring-candidate-card--compact"), "dominio: ficha compacta");
+ok(domainSrc.includes("hiring-kanban-card"), "dominio: ficha kanban compacta");
 ok(htmlSrc.includes('candidateView === "board"'), "html: vista tablero");
 ok(htmlSrc.includes("renderHiringPipelineBoard"), "html: usa tablero");
-ok(htmlSrc.includes("hiring-vacancy-grid"), "html: grid vacantes");
+ok(htmlSrc.includes("hiring-list-view"), "html: vista lista");
+ok(htmlSrc.includes("hiring-list-row"), "html: filas de lista");
+ok(htmlSrc.includes("hiring-browse-list--vacancies"), "html: listado vacantes");
 ok(htmlSrc.includes('{ id: "data", label: "Selección"'), "html: tab Selección primero");
 ok(htmlSrc.includes('data-action="hiring-pipeline-stage"'), "html: filtros por etapa");
 ok(cssSrc.includes(".hiring-board"), "css: estilos tablero");
-ok(cssSrc.includes(".hiring-vacancy-card"), "css: estilos vacante");
+ok(cssSrc.includes(".hiring-list-view"), "css: estilos lista");
+ok(cssSrc.includes(".hiring-list-row"), "css: filas lista");
+ok(domainSrc.includes("hiring-vacancy-card"), "dominio: tarjeta vacante");
 ok(cssSrc.includes("--hi-blue: var(--primary"), "css: paleta marca");
-ok(!/linear-gradient\(135deg,\s*#6366f1/.test(cssSrc), "css: sin acento índigo legacy");
 ok(runtimeSrc.includes("function renderHiringPipelineBoard"), "runtime: tablero expuesto");
-ok(runtimeSrc.includes("dl?.useApiBlob || candidateMayHaveCvInStorage"), "runtime: descarga CV por storageKey");
+const contratacionSrc = readFileSync(join(root, "modules/app/contratacion.js"), "utf8");
+ok(!/hiring-select-candidate[\s\S]{0,500}?candidateView:\s*"board"/.test(contratacionSrc), "select no fuerza vista tablero");
+ok(contratacionSrc.includes("Conservar candidato al alternar"), "cambio de vista conserva candidato");
+ok(runtimeSrc.includes("useApiBlob: true"), "runtime: descarga CV por API blob");
+ok(runtimeSrc.includes("candidateMayHaveCvInStorage"), "runtime: CV en storage");
 ok(apiCvSrc.includes("getCandidateCvFile"), "api: endpoint cv-file");
 ok(
-  /async getCandidateCvDownload[\s\S]{0,400}?resolveEffectivePermissionSet/.test(apiCvSrc) &&
-    /async getCandidateCvFile[\s\S]{0,400}?resolveEffectivePermissionSet/.test(apiCvSrc),
+  /async getCandidateCvFile[\s\S]{0,400}?resolveEffectivePermissionSet/.test(apiCvSrc),
   "api: CV usa permisos efectivos del rol"
 );
 

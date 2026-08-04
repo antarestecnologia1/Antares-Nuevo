@@ -16,6 +16,7 @@ import {
 import { escapeHtml, escapeAttr, newUuidV4, devWarn } from "../core/utils.js";
 import {
   COMPANY_DOCUMENT_MAX_BYTES,
+  COMPANY_DOCUMENT_CATEGORIES,
   DEFAULT_COMPANY_FOLDER,
   EMPLOYEES_ROOT_FOLDER,
   SUGGESTED_COMPANY_FOLDERS,
@@ -35,8 +36,10 @@ import {
   folderLeafName,
   folderSegments,
   folderKey,
+  folderInSubtree,
   folderRoleAllowlist,
   roleAllowedInFolder,
+  getCompanyDocumentCategoryLabel,
   summarizeCompanyDocuments,
   applyCompanyDocumentFilters,
   sortByRecent,
@@ -461,16 +464,29 @@ function renderSubfolderGrid(subfolders, ui, IC) {
   const visible = subfolders.slice(0, page * SUBFOLDER_PAGE_SIZE);
   const hasMore = visible.length < subfolders.length;
   const isList = ui.viewMode === "list";
+  const canManage = canUpload();
   const cards = visible
     .map((s) => {
       const countLabel = `${s.docCount} archivo${s.docCount === 1 ? "" : "s"}`;
-      return `<button type="button" class="doc-subfolder-card" data-action="doc-open-subfolder" data-path="${escapeAttr(s.path)}" title="${escapeAttr(s.name)}">
-        <span class="doc-subfolder-card__icon">${IC.folder || ""}</span>
-        <span class="doc-subfolder-card__body">
-          <span class="doc-subfolder-card__name">${escapeHtml(String(s.name || "").toUpperCase())}</span>
-          <span class="doc-subfolder-card__meta">${escapeHtml(countLabel)}</span>
-        </span>
-      </button>`;
+      const menu = canManage
+        ? `<details class="doc-folder-menu">
+            <summary class="doc-iconbtn" aria-label="Acciones de carpeta">${IC_DOTS}</summary>
+            <div class="doc-rowmenu__list">
+              <button type="button" data-action="doc-edit-folder" data-path="${escapeAttr(s.path)}">${IC.edit || ""}<span>Renombrar</span></button>
+              <button type="button" class="is-danger" data-action="doc-delete-folder" data-path="${escapeAttr(s.path)}">${IC.trash || IC_TRASH}<span>Eliminar</span></button>
+            </div>
+          </details>`
+        : "";
+      return `<div class="doc-subfolder-card">
+        <button type="button" class="doc-subfolder-card__open" data-action="doc-open-subfolder" data-path="${escapeAttr(s.path)}" title="${escapeAttr(s.name)}">
+          <span class="doc-subfolder-card__icon">${IC.folder || ""}</span>
+          <span class="doc-subfolder-card__body">
+            <span class="doc-subfolder-card__name">${escapeHtml(String(s.name || "").toUpperCase())}</span>
+            <span class="doc-subfolder-card__meta">${escapeHtml(countLabel)}</span>
+          </span>
+        </button>
+        ${menu}
+      </div>`;
     })
     .join("");
   return `<section class="doc-subfolder-block">
@@ -523,6 +539,7 @@ function renderTable(pageDocs, IC, folders = []) {
       (d) => `<tr>
       <td class="doc-cell-name"><span class="doc-fileicon doc-fileicon--${fileTypeGroup(d.fileName, d.mimeType)}">${IC.file || ""}</span><span class="doc-cell-name__text" title="${escapeAttr(d.fileName)}">${escapeHtml(d.fileName)}</span></td>
       <td>${typeBadge(d)}</td>
+      <td>${categoryPill(d) || `<span class="muted">—</span>`}</td>
       <td class="doc-cell-folder">${escapeHtml(d.folder)}</td>
       <td class="doc-cell-size">${escapeHtml(formatFileSize(d.sizeBytes))}</td>
       <td class="doc-cell-date">${escapeHtml(formatDate(d.updatedAt))}</td>
@@ -530,7 +547,13 @@ function renderTable(pageDocs, IC, folders = []) {
     </tr>`
     )
     .join("");
-  return `<div class="doc-table-wrap"><table class="doc-table"><thead><tr><th>Nombre</th><th>Tipo</th><th>Carpeta</th><th>Tamaño</th><th>Fecha de modificación</th><th aria-label="Acciones"></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  return `<div class="doc-table-wrap"><table class="doc-table"><thead><tr><th>Nombre</th><th>Archivo</th><th>Tipo documental</th><th>Carpeta</th><th>Tamaño</th><th>Fecha de modificación</th><th aria-label="Acciones"></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function categoryPill(doc) {
+  const label = getCompanyDocumentCategoryLabel(doc.documentCategory || doc.tags);
+  if (!label) return "";
+  return `<span class="doc-category-pill">${escapeHtml(label)}</span>`;
 }
 
 function renderGrid(pageDocs, IC, folders = []) {
@@ -541,6 +564,7 @@ function renderGrid(pageDocs, IC, folders = []) {
       <header class="doc-card__head"><span class="doc-fileicon doc-fileicon--${fileTypeGroup(d.fileName, d.mimeType)}">${IC.file || ""}</span>${rowMenu(d, IC, folders)}</header>
       <p class="doc-card__name" title="${escapeAttr(d.fileName)}">${escapeHtml(d.fileName)}</p>
       <p class="doc-card__folder">${escapeHtml(d.folder)}</p>
+      ${categoryPill(d)}
       <footer class="doc-card__foot"><span>${escapeHtml(formatFileSize(d.sizeBytes))}</span><span>${escapeHtml(formatDateShort(d.updatedAt))}</span></footer>
     </article>`
     )

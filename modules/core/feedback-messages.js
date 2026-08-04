@@ -123,6 +123,13 @@
     userPick: "Seleccione un usuario.",
     permissionsChangedLogout: "Sus permisos cambiaron. Por seguridad, debe iniciar sesión de nuevo.",
     permissionsUpdated: "Permisos actualizados correctamente.",
+    viewAccessDenied:
+      "No tienes permisos para acceder a este módulo. Si crees que es un error, solicita el acceso a un administrador.",
+    viewRouteUnauthorized:
+      "No tienes acceso a esa ruta. Te redirigimos a una vista disponible para tu usuario.",
+    viewAccessDeniedBody:
+      "Tu cuenta no tiene autorización para esta sección del portal. Puedes volver al inicio o pedir al administrador que te asigne el permiso correspondiente.",
+
     userNotFound: "No se encontró el usuario.",
     userEmailDuplicate: "Ya existe otro usuario con ese correo.",
     userUpdated: "Usuario actualizado correctamente.",

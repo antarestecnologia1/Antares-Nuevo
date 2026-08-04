@@ -387,9 +387,11 @@ export function normalizeHrWorkspace(moduleId, workspace) {
 
 export function normalizeSstDataSection(section) {
   const s = String(section || "").trim().toLowerCase();
+  if (s === "all" || s === "todos" || s === "todo") return "all";
   if (s === "audit" || s === "auditoria" || s === "records") return "audit";
   if (s === "reconcile" || s === "reconciliar" || s === "sync") return "reconcile";
-  return "due";
+  if (s === "due" || s === "vencimientos" || s === "vencimiento") return "due";
+  return "all";
 }
 
 export function normalizeSstOperateSection(section) {
