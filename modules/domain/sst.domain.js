@@ -238,7 +238,7 @@ export async function propagateEmployeeChanges(employee, extraDriverData = {}) {
           "Empleado guardado, pero no fue posible registrar el contrato en el servidor."
       };
     }
-    /* Carpeta + contrato/foto/CV en el DMS corporativo: 01. Empleados / Nombre */
+    /* Carpeta + contrato y carta laboral oficiales en DMS: 01. Empleados / Nombre */
     if (typeof globalThis.ensureCompanyEmployeeDocumentFolder === "function") {
       try {
         await globalThis.ensureCompanyEmployeeDocumentFolder(employee);
@@ -249,9 +249,8 @@ export async function propagateEmployeeChanges(employee, extraDriverData = {}) {
     if (typeof globalThis.archiveEmployeeHirePackageToFolder === "function") {
       try {
         await globalThis.archiveEmployeeHirePackageToFolder(employee, {
-          candidateId: linkedCandidate?.id || extraDriverData.candidateId || "",
-          includeLegacyDocs: true,
-          includeCv: true
+          includeContract: true,
+          includeLaborLetter: true
         });
       } catch {
         /* el alta del empleado no depende del archivado documental */

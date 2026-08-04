@@ -991,6 +991,19 @@
         const form = ev.target;
         if (!(form instanceof HTMLFormElement)) return;
         if (form.getAttribute("data-antares-no-guard") === "1") return;
+        const isAuthForm =
+          form.dataset.antaresAuthForm === "1" ||
+          form.id === "form-login" ||
+          form.id === "form-register" ||
+          form.id === "form-recover" ||
+          form.id === "form-recover-complete" ||
+          form.classList.contains("auth-form") ||
+          form.classList.contains("auth-register-form");
+        /**
+         * Auth es SPA: nunca permitir submit nativo (recargaría index.html).
+         * Si el wire JS aún no enganchó, bloqueamos solo la navegación aquí.
+         */
+        if (isAuthForm) ev.preventDefault();
         if (form.dataset.submitGuardWired === "1" || form.dataset.crudSubmitGuardWired === "1") return;
         if (!form.matches(FORM_GUARD_SELECTOR)) return;
         decorateFormFields(form);

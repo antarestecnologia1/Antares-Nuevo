@@ -624,8 +624,8 @@ function driversHtml() {
             });
             if (typeof window.archiveEmployeeHirePackageToFolder === "function") {
               void window.archiveEmployeeHirePackageToFolder(createdEmployee, {
-                includeLegacyDocs: true,
-                includeCv: true
+                includeContract: true,
+                includeLaborLetter: true
               });
             }
             if (!propagate.ok) {

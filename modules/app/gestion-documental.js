@@ -1229,8 +1229,11 @@ async function archiveEmployeeLaborLetterToFolder(employee, opts = {}) {
   }
 }
 
-/** Archiva en Gestión documental: contrato, foto, carta laboral, CV y docs legacy.
- * Idempotente. No bloquea el alta si falla. Las colillas solo se archivan al marcar pago.
+/**
+ * Archiva en la carpeta del colaborador solo lo oficial:
+ * - contrato Word (plantilla Antares)
+ * - carta laboral (formato oficial GH)
+ * Foto/CV/legacy quedan opt-in. Las colillas solo se archivan al marcar pago en GH.
  */
 async function archiveEmployeeHirePackageToFolder(employee, opts = {}) {
   if (!employee?.id) return { ok: false, skipped: true };
@@ -1241,19 +1244,14 @@ async function archiveEmployeeHirePackageToFolder(employee, opts = {}) {
     cv: null,
     legacy: null
   };
-  try {
-    results.contract = await archiveEmployeeContractToFolder(employee, {
-      force: opts.forceContract === true || opts.forceAll === true
-    });
-  } catch (err) {
-    results.contract = { ok: false, message: String(err?.message || err) };
-  }
-  try {
-    results.photo = await archiveEmployeePhotoToFolder(employee, {
-      force: opts.forcePhoto === true || opts.forceAll === true
-    });
-  } catch (err) {
-    results.photo = { ok: false, message: String(err?.message || err) };
+  if (opts.includeContract !== false) {
+    try {
+      results.contract = await archiveEmployeeContractToFolder(employee, {
+        force: opts.forceContract === true || opts.forceAll === true
+      });
+    } catch (err) {
+      results.contract = { ok: false, message: String(err?.message || err) };
+    }
   }
   if (opts.includeLaborLetter !== false) {
     try {
@@ -1264,14 +1262,23 @@ async function archiveEmployeeHirePackageToFolder(employee, opts = {}) {
       results.letter = { ok: false, message: String(err?.message || err) };
     }
   }
-  if (opts.candidateId || opts.includeCv !== false) {
+  if (opts.includePhoto === true) {
+    try {
+      results.photo = await archiveEmployeePhotoToFolder(employee, {
+        force: opts.forcePhoto === true || opts.forceAll === true
+      });
+    } catch (err) {
+      results.photo = { ok: false, message: String(err?.message || err) };
+    }
+  }
+  if (opts.includeCv === true) {
     try {
       results.cv = await archiveEmployeeCandidateCvToFolder(employee, opts.candidateId);
     } catch (err) {
       results.cv = { ok: false, message: String(err?.message || err) };
     }
   }
-  if (opts.includeLegacyDocs !== false) {
+  if (opts.includeLegacyDocs === true) {
     try {
       results.legacy = await archiveEmployeeLegacyDocsToFolder(employee);
     } catch (err) {
@@ -1287,12 +1294,12 @@ async function archiveEmployeeHirePackageToFolder(employee, opts = {}) {
   return { ok: true, created, results };
 }
 
-const DMS_EMPLOYEE_BACKFILL_BATCH = 3;
+const DMS_EMPLOYEE_BACKFILL_BATCH = 1;
 const dmsEmployeeBackfillAttempted = new Set();
-let dmsBackfillChainScheduled = false;
 let dmsBackfillNotifyStarted = false;
 let dmsBackfillHadWork = false;
 let dmsResetRecreatePromise = null;
+let dmsOfficialBackfillPromise = null;
 
 const DMS_RESET_RECREATE_FLAG = "antares-dms-purge-recreate-v20260804c";
 
@@ -1310,10 +1317,7 @@ function employeeNeedsDmsBackfill(emp, { forceAll = false } = {}) {
   if (forceAll) return true;
   const needsContract = !employeeHasOfficialContractArchived(id);
   const needsLetter = !hasHireDocMarker(employeeHireDocumentMarker(id, "carta_oficial"));
-  const needsPhoto =
-    Boolean(String(emp.avatarUrl || emp.photoUrl || "").trim()) &&
-    !hasHireDocMarker(employeeHireDocumentMarker(id, "foto"));
-  return needsContract || needsLetter || needsPhoto;
+  return needsContract || needsLetter;
 }
 
 /** Borra todos los documentos del DMS corporativo en servidor + memoria. */
@@ -1342,12 +1346,11 @@ function resetDmsBackfillState() {
   dmsEmployeeBackfillAttempted.clear();
   dmsBackfillNotifyStarted = false;
   dmsBackfillHadWork = false;
-  dmsBackfillChainScheduled = false;
 }
 
 /**
- * Rellena contratos, cartas laborales y fotos.
- * Con `forceAll` procesa todos los colaboradores (tras un purge).
+ * Rellena solo contratos oficiales y cartas laborales oficiales (faltantes).
+ * Con `forceAll` regenera esos dos tipos para todos los colaboradores.
  */
 async function backfillEmployeeHireDocuments(opts = {}) {
   const forceAll = opts.forceAll === true;
@@ -1356,53 +1359,49 @@ async function backfillEmployeeHireDocuments(opts = {}) {
     dmsBackfillNotifyStarted = true;
     G.notify?.(
       forceAll
-        ? "Regenerando contratos, cartas laborales y fotos en Gestión documental…"
-        : "Archivando contratos y cartas laborales de los colaboradores en Gestión documental…",
+        ? "Regenerando contratos y cartas laborales oficiales en Gestión documental…"
+        : "Archivando contratos y cartas laborales oficiales en Gestión documental…",
       "info"
     );
   }
 
   const employees = read(KEYS.payrollEmployees, []).filter((e) => e?.id && String(e.name || "").trim());
-  const pendingEmps = employees.filter((e) => employeeNeedsDmsBackfill(e, { forceAll }));
   let created = 0;
+  let pending = employees.filter((e) => employeeNeedsDmsBackfill(e, { forceAll })).length;
 
-  for (const emp of pendingEmps.slice(0, DMS_EMPLOYEE_BACKFILL_BATCH)) {
-    dmsEmployeeBackfillAttempted.add(String(emp.id));
-    const res = await archiveEmployeeHirePackageToFolder(emp, {
-      includeCv: false,
-      includeLegacyDocs: true,
-      includeLaborLetter: true,
-      includePayrollSlips: false,
-      forceAll
-    });
-    created += Number(res?.created || 0);
-  }
-  if (created > 0) dmsBackfillHadWork = true;
-
-  const pending = employees.filter((e) => employeeNeedsDmsBackfill(e, { forceAll })).length;
-
-  if (pending > 0 && !dmsBackfillChainScheduled) {
-    dmsBackfillChainScheduled = true;
-    setTimeout(() => {
-      dmsBackfillChainScheduled = false;
-      void backfillEmployeeHireDocuments({ forceAll }).then((res) => {
-        if (res?.created > 0 && String(state.currentView || "") === "document-management") {
-          G.renderPortalView?.();
-        }
+  while (pending > 0) {
+    const pendingEmps = employees.filter((e) => employeeNeedsDmsBackfill(e, { forceAll }));
+    if (!pendingEmps.length) break;
+    for (const emp of pendingEmps.slice(0, DMS_EMPLOYEE_BACKFILL_BATCH)) {
+      dmsEmployeeBackfillAttempted.add(String(emp.id));
+      const res = await archiveEmployeeHirePackageToFolder(emp, {
+        includeContract: true,
+        includeLaborLetter: true,
+        includePhoto: false,
+        includeCv: false,
+        includeLegacyDocs: false,
+        forceContract: forceAll,
+        forceLetter: forceAll
       });
-    }, 350);
-  } else if (pending <= 0 && dmsBackfillHadWork) {
+      created += Number(res?.created || 0);
+    }
+    if (created > 0) dmsBackfillHadWork = true;
+    pending = employees.filter((e) => employeeNeedsDmsBackfill(e, { forceAll })).length;
+    if (pending > 0) await new Promise((r) => setTimeout(r, 700));
+  }
+
+  if (dmsBackfillHadWork) {
     dmsBackfillHadWork = false;
-    G.notify?.("Gestión documental actualizada: archivos regenerados.", "success");
+    G.notify?.("Gestión documental: contratos y cartas laborales actualizados.", "success");
     if (String(state.currentView || "") === "document-management") {
       G.renderPortalView?.();
     }
   }
 
-  return { created, pending };
+  return { created, pending: 0 };
 }
 
-/** Re-archiva colillas de liquidaciones ya marcadas como pagadas (tras un purge). */
+/** Archiva colillas solo de liquidaciones ya marcadas como pagadas (formato GH). */
 async function backfillPaidPayrollSlips() {
   if (!canUpload()) return { created: 0 };
   if (typeof window.buildPayrollRunPayslipFileBlob !== "function") {
@@ -1410,7 +1409,7 @@ async function backfillPaidPayrollSlips() {
   }
   const runs = read(KEYS.payrollRuns, []).filter((r) => r?.id && r.employeeId && r.paid);
   let created = 0;
-  const BATCH = 2;
+  const BATCH = 1;
   for (let i = 0; i < runs.length; i += BATCH) {
     const slice = runs.slice(i, i + BATCH);
     for (const run of slice) {
@@ -1421,22 +1420,42 @@ async function backfillPaidPayrollSlips() {
         devWarn("[companyDocuments] backfillPaidSlip", err?.message || err);
       }
     }
-    /* Cede el hilo entre lotes para no congelar la UI. */
     if (i + BATCH < runs.length) {
-      await new Promise((r) => setTimeout(r, 200));
+      await new Promise((r) => setTimeout(r, 450));
     }
   }
   return { created };
 }
 
 /**
- * Borra todos los documentos del DMS y vuelve a crear contratos, cartas, fotos y colillas pagadas.
- * Se ejecuta una vez por navegador (flag localStorage) al abrir el módulo.
+ * Al abrir DMS: contratos/cartas faltantes + colillas pagadas de GH.
+ * Sin borrar nada. Idempotente y en segundo plano.
  */
+async function runOfficialEmployeeDocumentsBackfill() {
+  if (!canUpload()) return { ok: false, skipped: true };
+  if (dmsOfficialBackfillPromise) return dmsOfficialBackfillPromise;
+  dmsOfficialBackfillPromise = (async () => {
+    await new Promise((r) => setTimeout(r, 400));
+    resetDmsBackfillState();
+    const hire = await backfillEmployeeHireDocuments({ forceAll: false });
+    const slips = await backfillPaidPayrollSlips();
+    if ((Number(hire?.created || 0) > 0 || Number(slips?.created || 0) > 0) &&
+      String(state.currentView || "") === "document-management") {
+      G.renderPortalView?.();
+    }
+    if (Number(slips?.created || 0) > 0) {
+      G.notify?.("Gestión documental: colillas de pagos marcados como pagados archivadas.", "success");
+    }
+    return { ok: true, hire, slips };
+  })().finally(() => {
+    dmsOfficialBackfillPromise = null;
+  });
+  return dmsOfficialBackfillPromise;
+}
+
 /**
- * Borra todos los documentos del DMS y vuelve a crear contratos, cartas, fotos y colillas pagadas.
- * SOLO bajo demanda: `resetAndRecreateCompanyDocuments({ force: true })`.
- * No se ejecuta al abrir el módulo (congelaba el portal y rompía el arranque).
+ * Purge + regeneración. SOLO bajo demanda: `resetAndRecreateCompanyDocuments({ force: true })`.
+ * No se ejecuta al abrir el módulo.
  */
 async function resetAndRecreateCompanyDocuments({ force = false } = {}) {
   if (!canUpload()) return { ok: false, skipped: true };
@@ -1475,6 +1494,8 @@ if (typeof window !== "undefined") {
   window.archiveEmployeePhotoToFolder = archiveEmployeePhotoToFolder;
   window.archiveEmployeeLaborLetterToFolder = archiveEmployeeLaborLetterToFolder;
   window.backfillEmployeeHireDocuments = backfillEmployeeHireDocuments;
+  window.backfillPaidPayrollSlips = backfillPaidPayrollSlips;
+  window.runOfficialEmployeeDocumentsBackfill = runOfficialEmployeeDocumentsBackfill;
   window.resetAndRecreateCompanyDocuments = resetAndRecreateCompanyDocuments;
   window.purgeAllCompanyDocuments = purgeAllCompanyDocuments;
 }
@@ -2582,12 +2603,13 @@ function bindDocumentManagementPortalControls() {
     });
   }
 
-  /* Estructura base + carpetas (sin purge automático al abrir). */
+  /* Carpetas + carga oficial (contrato, carta, colillas pagadas). Sin purge. */
   if (canUpload()) {
     void ensureCompanyDocumentStructure().then((res) => {
       if (res?.created > 0 && String(state.currentView || "") === "document-management") {
         G.renderPortalView?.();
       }
+      void runOfficialEmployeeDocumentsBackfill();
     });
   }
 }

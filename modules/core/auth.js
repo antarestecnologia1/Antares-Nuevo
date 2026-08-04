@@ -24,8 +24,17 @@ import {
   userRequiresTermsAcceptance
 } from "./config.js";
 import { state } from "./store.js";
-import { failPortalField } from "../ui/modals.js";
+import { failPortalField, wireFormSubmitGuard } from "../ui/modals.js";
 import { syncPayloadForEditedRow } from "./data-io.js";
+
+/** Preferir el helper del módulo; `window` solo como respaldo si el bundle clásico lo expuso antes. */
+function __wireAuthFormSubmit(formEl, onSubmit, opts) {
+  const wire = typeof wireFormSubmitGuard === "function" ? wireFormSubmitGuard : window.wireFormSubmitGuard;
+  if (typeof wire !== "function") {
+    throw new Error("[auth] wireFormSubmitGuard no disponible");
+  }
+  return wire(formEl, onSubmit, opts);
+}
 
 const SESSION_IDLE_MS = 30 * 60 * 1000;
 const SESSION_ACTIVITY_THROTTLE_MS = 30 * 1000;
@@ -143,7 +152,11 @@ function write(key, value, opts = {}) {
 }
 
 export function getSession() {
-  return read(KEYS.session, null);
+  const stored = read(KEYS.session, null);
+  if (stored && typeof stored === "object") return stored;
+  /** Si localStorage falló (cuota) o aún no hidrató, usar la sesión en memoria. */
+  if (state.session && typeof state.session === "object") return state.session;
+  return null;
 }
 
 export function setSession(sessionData) {
@@ -2643,7 +2656,7 @@ function __authPasswordPanelMarkup({
 function authView() {
   if (state.authSupabaseRecovery) {
     return `
-    <form id="form-recover-complete" class="form-grid auth-pane auth-form auth-recover-complete-form" autocomplete="off">
+    <form id="form-recover-complete" class="form-grid auth-pane auth-form auth-recover-complete-form" action="#" method="post" data-antares-auth-form="1" autocomplete="off">
       ${__authPasswordPanelMarkup({
         title: "Asignar contraseña",
         subtitle: "Elija una contraseña segura para el inicio de sesión en este portal.",
@@ -2678,7 +2691,7 @@ function authView() {
     return `
       ${regBanner}
       <div class="auth-login-shell">
-        <form id="form-login" class="form-grid auth-form auth-pane">
+        <form id="form-login" class="form-grid auth-form auth-pane" action="#" method="post" data-antares-auth-form="1">
           <div class="auth-login-welcome full">
             <h3>Bienvenido de nuevo</h3>
             <p>Ingrese con su correo corporativo para acceder al portal de operaciones.</p>
@@ -2729,7 +2742,7 @@ function authView() {
         <h3>Solicitud de registro</h3>
         <p class="muted">Complete el formulario con datos veraces. Un administrador revisará su solicitud y recibirá confirmación por correo.</p>
       </div>
-      <form id="form-register" class="form-grid auth-form auth-register-form auth-pane">
+      <form id="form-register" class="form-grid auth-form auth-register-form auth-pane" action="#" method="post" data-antares-auth-form="1">
         <div class="register-section register-section--kind full">
           <div class="register-section-head register-section-head--compact">
             <span class="register-section-step register-section-step--icon" aria-hidden="true">◆</span>
@@ -2957,7 +2970,7 @@ function authView() {
       <h3>Recuperación de acceso</h3>
       <p class="muted">Indique el <strong>correo corporativo asociado a su cuenta</strong>. Si el usuario está activo en el sistema, recibirá un mensaje con las instrucciones para restablecer su contraseña de forma segura.</p>
     </div>
-    <form id="form-recover" class="form-grid auth-pane auth-form auth-form-recover">
+    <form id="form-recover" class="form-grid auth-pane auth-form auth-form-recover" action="#" method="post" data-antares-auth-form="1">
       <label class="full auth-field-stack">
         <span class="auth-plain-label">${fieldLabel(IC.mail, "Correo registrado")}</span>
         <div class="auth-input-row">
@@ -3046,7 +3059,7 @@ export function bindAuthForms() {
       if (cb) cb.checked = true;
     }
     const loginSubmitBtn = login.querySelector("[data-login-submit]");
-    window.wireFormSubmitGuard(
+    __wireAuthFormSubmit(
       login,
       async (event) => {
       if (Date.now() < state.authSecurity.lockUntil) {
@@ -3140,6 +3153,14 @@ export function bindAuthForms() {
               window.hideAuth();
               startSessionSecurityWatch();
               invokeAuthSuccessCallback();
+              /** Respaldo: si app.js aún no registró el callback, abrir portal igual. */
+              if (!document.body.classList.contains("portal-mode") && getSession()) {
+                try {
+                  window.renderPortal?.();
+                } catch (_rp) {
+                  /* noop */
+                }
+              }
               void startPortalBootstrapForInteractiveSession().finally(() => {
                 maybeEnforceDataPolicyAcceptance();
               });
@@ -3207,6 +3228,13 @@ export function bindAuthForms() {
         window.hideAuth();
         startSessionSecurityWatch();
         invokeAuthSuccessCallback();
+        if (!document.body.classList.contains("portal-mode") && getSession()) {
+          try {
+            window.renderPortal?.();
+          } catch (_rp) {
+            /* noop */
+          }
+        }
         maybeEnforceDataPolicyAcceptance();
       },
       {
@@ -3321,7 +3349,7 @@ export function bindAuthForms() {
     regPass?.addEventListener("input", syncRegisterPasswordMatchState);
     regPassConfirm?.addEventListener("input", syncRegisterPasswordMatchState);
     __bindPasswordStrengthSuite(regPass, register.querySelector("#register-password-strength-suite"));
-    window.wireFormSubmitGuard(
+    __wireAuthFormSubmit(
       register,
       async (event) => {
       window.syncPhoneHiddenFull(register, "register");
@@ -3596,7 +3624,7 @@ export function bindAuthForms() {
   }
 
   if (recover) {
-    window.wireFormSubmitGuard(recover, async (event) => {
+    __wireAuthFormSubmit(recover, async (event) => {
       const data = __readFormEntriesNormalized(recover);
       const V = window.AntaresValidation;
       if (V && typeof V.validateDomForm === "function") {
@@ -3688,7 +3716,7 @@ export function bindAuthForms() {
     recoverPass?.addEventListener("input", syncRecoverPasswordMatchState);
     recoverPassConfirm?.addEventListener("input", syncRecoverPasswordMatchState);
 
-    window.wireFormSubmitGuard(recoverComplete, async (event) => {
+    __wireAuthFormSubmit(recoverComplete, async (event) => {
       const apiBase = window.AntaresApi?.getBase?.();
       if (!apiBase) {
         window.notify(window.userMessage("recoverCompleteNeedsApi"), "error");
