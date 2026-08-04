@@ -2509,6 +2509,13 @@ body[data-theme="dark"] .hiring-studio .hiring-interview-context__note {
   list-style: none;
 }
 
+.hiring-studio .hiring-bandeja__kpi-sub {
+  margin-left: 0.2rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-soft);
+}
+
 .hiring-studio .hiring-bandeja__kpi {
   display: flex;
   align-items: center;
@@ -3441,9 +3448,10 @@ body[data-theme="dark"] .hiring-studio .hiring-bandeja__search input[type="searc
   font-size: 0.92rem;
   font-weight: 750;
   color: var(--hi-navy);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
 }
 
 .hiring-studio .hiring-position-card__titles p {

@@ -158,7 +158,13 @@ function hiringHtml() {
     .join("");
   const today = new Date();
   const openVacancies = vacancies.filter((v) => v.status === "Publicada");
-  const activeCandidates = candidates.filter((c) => !["Contratado", "Descartado"].includes(c.status));
+  const activeCandidates = candidates.filter((c) => {
+    const stage =
+      typeof normalizeHiringPipelineStatus === "function"
+        ? normalizeHiringPipelineStatus(c.status)
+        : String(c.status || "");
+    return !["Contratado", "Descartado"].includes(stage);
+  });
   const hiringUi = state.hiringUi || {
     candidateFilter: "active",
     vacancyFilter: "open",
@@ -241,31 +247,53 @@ function hiringHtml() {
     : filteredVacancies;
   const vacancyCanEdit = canManageHiringModule();
   const vacancyCanDelete = isAdminActor();
+  const normalizeStage =
+    typeof normalizeHiringPipelineStatus === "function"
+      ? normalizeHiringPipelineStatus
+      : typeof window !== "undefined" && window.AntaresContratacionDomain?.normalizeHiringPipelineStatus
+        ? window.AntaresContratacionDomain.normalizeHiringPipelineStatus
+        : (status) => {
+            const raw = String(status ?? "").trim();
+            return PIPELINE.includes(raw) ? raw : PIPELINE[0];
+          };
+  const candidateStage = (c) => normalizeStage(c?.status ?? c?.pipelineStage);
+  const isTerminalStage = (status) => ["Contratado", "Descartado"].includes(normalizeStage(status));
   const filteredCandidates = candidates.filter((c) => {
-    if (candidateFilter === "active") return !["Contratado", "Descartado"].includes(String(c.status || ""));
-    if (candidateFilter === "finalized") return ["Contratado", "Descartado"].includes(String(c.status || ""));
+    const stage = candidateStage(c);
+    if (candidateFilter === "active") return !isTerminalStage(stage);
+    if (candidateFilter === "finalized") return isTerminalStage(stage);
     return true;
   });
   const sortedCandidates = [...filteredCandidates].sort((a, b) => {
-    if (candidateSort === "pipeline") return PIPELINE.indexOf(String(a.status || PIPELINE[0])) - PIPELINE.indexOf(String(b.status || PIPELINE[0]));
+    if (candidateSort === "pipeline") return PIPELINE.indexOf(candidateStage(a)) - PIPELINE.indexOf(candidateStage(b));
     if (candidateSort === "experience") return parseNum(b.experienceYears || 0) - parseNum(a.experienceYears || 0);
     return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
   });
   const sortedCandidatesSearched = dataListSearch
     ? sortedCandidates.filter((c) =>
         hiringDataMatches(
-          `${c.name} ${c.email} ${c.phone} ${c.vacancyTitle} ${c.status} ${c.idDoc} ${c.city} ${c.address} ${c.source}`
+          `${c.name} ${c.email} ${c.phone} ${c.vacancyTitle} ${candidateStage(c)} ${c.idDoc} ${c.city} ${c.address} ${c.source}`
         )
       )
     : sortedCandidates;
   const sortedCandidatesByVacancy = vacancyIdFilter
     ? sortedCandidatesSearched.filter((c) => String(c.vacancyId || "") === vacancyIdFilter)
     : sortedCandidatesSearched;
-  const sortedCandidatesView = pipelineStageFilter
-    ? sortedCandidatesByVacancy.filter((c) => String(c.status || PIPELINE[0]) === pipelineStageFilter)
+  /* Filtro de etapa persistido que no coincide con nadie: limpiarlo para no “esconder” candidatos. */
+  let effectiveStageFilter = pipelineStageFilter;
+  if (
+    effectiveStageFilter &&
+    sortedCandidatesByVacancy.length &&
+    !sortedCandidatesByVacancy.some((c) => candidateStage(c) === effectiveStageFilter)
+  ) {
+    effectiveStageFilter = "";
+    state.hiringUi = { ...(state.hiringUi || hiringUi), pipelineStage: "" };
+  }
+  const sortedCandidatesView = effectiveStageFilter
+    ? sortedCandidatesByVacancy.filter((c) => candidateStage(c) === effectiveStageFilter)
     : sortedCandidatesByVacancy;
   const pipelineStageCounts = PIPELINE.reduce((acc, stage) => {
-    acc[stage] = sortedCandidatesByVacancy.filter((c) => String(c.status || PIPELINE[0]) === stage).length;
+    acc[stage] = sortedCandidatesByVacancy.filter((c) => candidateStage(c) === stage).length;
     return acc;
   }, {});
   const hiringCanEdit = canManageHiringModule();
@@ -283,8 +311,8 @@ function hiringHtml() {
     canEdit: hiringCanEdit,
     canDelete: hiringCanDelete,
     canScheduleInterview: true,
-    hideTerminal: candidateFilter === "active" && !pipelineStageFilter,
-    stageFilter: pipelineStageFilter,
+    hideTerminal: candidateFilter === "active" && !effectiveStageFilter,
+    stageFilter: effectiveStageFilter,
     boardExpand,
     boardLimit: 4,
     selectedId: selectedCandidateId,
@@ -297,7 +325,17 @@ function hiringHtml() {
   const boardRenderer =
     (typeof window !== "undefined" && window.AntaresContratacionDomain?.renderHiringPipelineBoard) ||
     (typeof renderHiringPipelineBoard === "function" ? renderHiringPipelineBoard : null);
-  const candBoard = typeof boardRenderer === "function" ? boardRenderer(sortedCandidatesView, boardCtx) : "";
+  let candBoard = "";
+  if (typeof boardRenderer === "function") {
+    try {
+      candBoard = String(boardRenderer(sortedCandidatesView, boardCtx) || "");
+    } catch (_boardErr) {
+      candBoard = "";
+    }
+  }
+  /* Si el tablero no pudo renderizar tarjetas, forzar lista para no perder el candidato. */
+  const boardHasCards = candBoard.includes("hiring-kanban-card") || candBoard.includes("hiring-candidate-card");
+  const useBoardView = renderCandidateBoard && boardHasCards;
   const interviewsView = dataListSearch
     ? interviews.filter((i) =>
         hiringDataMatches(
@@ -1113,10 +1151,7 @@ function hiringHtml() {
     </aside>`;
   }
 
-  const tCand = sortedCandidatesView.length
-    ? renderCandidateBoard
-      ? `<div class="hiring-candidates-board-wrap">${candBoard}${candidateDrawerHtml}</div>`
-      : `<div class="hiring-pipeline hiring-list-view">
+  const listViewMarkup = `<div class="hiring-pipeline hiring-list-view">
         <aside class="hiring-pipeline__rail hiring-list-view__rail" aria-label="Listado de candidatos">
           <div class="hiring-pipeline__rail-head">
             <div class="hiring-list-view__rail-titles">
@@ -1128,11 +1163,26 @@ function hiringHtml() {
           <div class="hiring-pipeline__list">${pipelineListItems}</div>
         </aside>
         <div class="hiring-pipeline__detail hiring-list-view__detail">${pipelineDetailHtml}</div>
-      </div>`
-    : hiringEmptyState(
-        candidateFilter === "finalized" ? "Sin candidatos finalizados" : "Sin candidatos en esta vista",
-        { action: "hiring-operate-section", section: "candidate", label: "Registrar candidato" }
-      );
+      </div>`;
+  const emptyCandidatesReason =
+    candidates.length > 0 && !sortedCandidatesView.length
+      ? candidateFilter === "active"
+        ? "Hay candidatos, pero están en Cerrados (contratado/descartado) o fuera de los filtros actuales."
+        : candidateFilter === "finalized"
+          ? "No hay candidatos cerrados con los filtros actuales."
+          : "Ningún candidato coincide con la búsqueda o filtros actuales."
+      : candidateFilter === "finalized"
+        ? "Sin candidatos finalizados"
+        : "Sin candidatos en esta vista";
+  const emptyCandidatesCta =
+    candidates.length > 0 && !sortedCandidatesView.length && candidateFilter === "active"
+      ? { action: "hiring-candidates-all", label: "Ver todos" }
+      : { action: "hiring-operate-section", section: "candidate", label: "Registrar candidato" };
+  const tCand = sortedCandidatesView.length
+    ? useBoardView
+      ? `<div class="hiring-candidates-board-wrap">${candBoard}${candidateDrawerHtml}</div>`
+      : listViewMarkup
+    : hiringEmptyState(emptyCandidatesReason, emptyCandidatesCta);
   const tInt = interviewCards
     ? `<div class="hiring-browse-list hiring-browse-list--interviews">${interviewCards}</div>`
     : hiringEmptyState("Sin entrevistas", { action: "hiring-operate-section", section: "interview", label: "Programar entrevista" });
@@ -1197,7 +1247,7 @@ function hiringHtml() {
   ]
     .map(
       (s) =>
-        `<button type="button" class="hiring-stage-filter${pipelineStageFilter === s.id ? " is-active" : ""}" data-action="hiring-pipeline-stage" data-stage="${escapeAttr(s.id)}">${escapeHtml(s.label)}</button>`
+        `<button type="button" class="hiring-stage-filter${effectiveStageFilter === s.id ? " is-active" : ""}" data-action="hiring-pipeline-stage" data-stage="${escapeAttr(s.id)}">${escapeHtml(s.label)}</button>`
     )
     .join("");
   const vacancyFilterOptions = [
@@ -1209,9 +1259,9 @@ function hiringHtml() {
   ].join("");
   const hiringQuickBarCandidates = `<div class="hiring-selection-toolbar hiring-selection-toolbar--bandeja">
       <div class="hiring-scope-tabs" role="tablist" aria-label="Alcance de candidatos">
-        <button type="button" role="tab" class="hiring-scope-tab${candidateFilter === "active" ? " is-active" : ""}" data-action="hiring-candidates-active" aria-selected="${candidateFilter === "active" ? "true" : "false"}">En proceso</button>
+        <button type="button" role="tab" class="hiring-scope-tab${candidateFilter === "active" ? " is-active" : ""}" data-action="hiring-candidates-active" aria-selected="${candidateFilter === "active" ? "true" : "false"}">En proceso${filteredCandidates.length ? ` (${filteredCandidates.length})` : ""}</button>
         <button type="button" role="tab" class="hiring-scope-tab${candidateFilter === "finalized" ? " is-active" : ""}" data-action="hiring-candidates-finalized" aria-selected="${candidateFilter === "finalized" ? "true" : "false"}">Cerrados</button>
-        <button type="button" role="tab" class="hiring-scope-tab${candidateFilter === "all" ? " is-active" : ""}" data-action="hiring-candidates-all" aria-selected="${candidateFilter === "all" ? "true" : "false"}">Todos</button>
+        <button type="button" role="tab" class="hiring-scope-tab${candidateFilter === "all" ? " is-active" : ""}" data-action="hiring-candidates-all" aria-selected="${candidateFilter === "all" ? "true" : "false"}">Todos (${candidates.length})</button>
       </div>
       <div class="hiring-selection-toolbar__aside">
         <label class="hiring-selection-toolbar__select">
@@ -1227,11 +1277,11 @@ function hiringHtml() {
           </select>
         </label>
         <div class="payroll-quick-bar hiring-selection-toolbar__view" role="group" aria-label="Vista del pipeline">
-          <button type="button" class="payroll-quick-pill${candidateView === "board" ? " is-active" : ""}" data-action="hiring-candidates-view" data-view="board" title="Vista Kanban">${IC.columns || IC.grid || ""} Tablero</button>
-          <button type="button" class="payroll-quick-pill${candidateView === "list" ? " is-active" : ""}" data-action="hiring-candidates-view" data-view="list" title="Vista lista">${IC.list || ""} Lista</button>
+          <button type="button" class="payroll-quick-pill${candidateView === "board" && useBoardView ? " is-active" : ""}" data-action="hiring-candidates-view" data-view="board" title="Vista Kanban">${IC.columns || IC.grid || ""} Tablero</button>
+          <button type="button" class="payroll-quick-pill${candidateView === "list" || !useBoardView ? " is-active" : ""}" data-action="hiring-candidates-view" data-view="list" title="Vista lista">${IC.list || ""} Lista</button>
         </div>
       </div>
-      ${candidateView === "list" ? `<div class="hiring-stage-filters" role="group" aria-label="Filtrar por etapa del pipeline">${pipelineStagePills}</div>` : ""}
+      <div class="hiring-stage-filters" role="group" aria-label="Filtrar por etapa del pipeline">${pipelineStagePills}</div>
     </div>`;
   const hiringQuickBarVacancies = `<div class="payroll-quick-bar" role="group" aria-label="Filtros de vacantes">
       <button type="button" class="payroll-quick-pill${vacancyFilter === "open" ? " is-active" : ""}" data-action="hiring-vacancies-open">Solo abiertas</button>
@@ -1287,7 +1337,7 @@ function hiringHtml() {
     vacancies.some((v) => String(v.positionId || "") === String(p.id))
   ).length;
   const bandejaKpis = `<ul class="hiring-bandeja__kpis" aria-label="Indicadores de selección">
-      <li class="hiring-bandeja__kpi"><span class="hiring-bandeja__kpi-ico hiring-bandeja__kpi-ico--users" aria-hidden="true">${IC.users || ""}</span><div><small>Candidatos</small><strong>${candidates.length}</strong></div></li>
+      <li class="hiring-bandeja__kpi"><span class="hiring-bandeja__kpi-ico hiring-bandeja__kpi-ico--users" aria-hidden="true">${IC.users || ""}</span><div><small>Candidatos</small><strong>${sortedCandidatesView.length}</strong>${sortedCandidatesView.length !== candidates.length ? `<span class="hiring-bandeja__kpi-sub">/ ${candidates.length}</span>` : ""}</div></li>
       <li class="hiring-bandeja__kpi"><span class="hiring-bandeja__kpi-ico hiring-bandeja__kpi-ico--brief" aria-hidden="true">${IC.briefcase || ""}</span><div><small>Vacantes</small><strong>${openVacancies.length}</strong></div></li>
       <li class="hiring-bandeja__kpi"><span class="hiring-bandeja__kpi-ico hiring-bandeja__kpi-ico--cal" aria-hidden="true">${IC.calendar || ""}</span><div><small>Entrevistas hoy</small><strong>${interviewsToday}</strong></div></li>
       <li class="hiring-bandeja__kpi"><span class="hiring-bandeja__kpi-ico hiring-bandeja__kpi-ico--ok" aria-hidden="true">${IC.file || ""}</span><div><small>Contrataciones</small><strong>${hiredCandidates}</strong></div></li>

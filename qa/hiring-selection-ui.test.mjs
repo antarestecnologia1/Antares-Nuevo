@@ -64,6 +64,7 @@ const cssSrc = readFileSync(join(root, "styles/hiring-module.css"), "utf8");
 const runtimeSrc = readFileSync(join(root, "modules/core/portal-runtime.js"), "utf8");
 const apiCvSrc = readFileSync(join(root, "apps/api/src/portal/portal.service.ts"), "utf8");
 
+ok(domainSrc.includes("export function normalizeHiringPipelineStatus"), "dominio: normaliza etapa");
 ok(domainSrc.includes("export function renderHiringPipelineBoard"), "dominio: tablero exportado");
 ok(domainSrc.includes("export function renderHiringVacancyCard"), "dominio: tarjeta vacante exportada");
 ok(domainSrc.includes("export function hiringCandidateNextAction"), "dominio: next action exportada");

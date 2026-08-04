@@ -429,7 +429,8 @@ export function applyCompanyDocumentFilters(docs = [], { search = "", type = "al
       if (fileTypeGroup(d.fileName, d.mimeType) !== typeFilter) return false;
     }
     if (q) {
-      const hay = `${d.fileName} ${d.folder} ${d.type} ${d.description || ""}`;
+      const cat = getCompanyDocumentCategoryLabel(d.documentCategory || d.tags || "");
+      const hay = `${d.fileName} ${d.folder} ${d.type} ${cat} ${d.description || ""} ${d.uploadedBy || ""}`;
       if (!stripAccents(hay).includes(q)) return false;
     }
     return true;

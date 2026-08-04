@@ -1786,8 +1786,19 @@ function canPerformSstEditAction(action) {
   return SST_RRHH_EDIT_ACTIONS.has(String(action || "")) && canManageSstModule();
 }
 
+function normalizeHiringPipelineStatus(status) {
+  if (typeof window.AntaresContratacionDomain?.normalizeHiringPipelineStatus === "function") {
+    return window.AntaresContratacionDomain.normalizeHiringPipelineStatus(status);
+  }
+  const raw = String(status ?? "").replace(/\s+/g, " ").trim();
+  if (!raw) return PIPELINE[0];
+  if (PIPELINE.includes(raw)) return raw;
+  const byLower = PIPELINE.find((p) => p.toLowerCase() === raw.toLowerCase());
+  return byLower || PIPELINE[0];
+}
+
 function hiringPipelineStatusClass(status) {
-  const s = String(status || "");
+  const s = normalizeHiringPipelineStatus(status);
   if (s === "Contratado") return "status-viaje_asignado";
   if (s === "Descartado") return "status-rechazada";
   if (s === "Oferta enviada") return "status-viaje_completado";
@@ -11935,7 +11946,39 @@ function renderHiringPipelineBoard(candidates, ctx = {}) {
   if (typeof window.AntaresContratacionDomain?.renderHiringPipelineBoard === "function") {
     return window.AntaresContratacionDomain.renderHiringPipelineBoard(candidates, ctx);
   }
-  return "";
+  /* Fallback mínimo si el dominio aún no cargó: columnas con tarjetas simples. */
+  const rows = Array.isArray(candidates) ? candidates : [];
+  const stageFilter = String(ctx.stageFilter || "").trim();
+  const hideTerminal = ctx.hideTerminal === true;
+  const selectedId = String(ctx.selectedId || "").trim();
+  const columns = PIPELINE.filter((stage) => {
+    if (stageFilter && stage !== stageFilter) return false;
+    if (hideTerminal && (stage === "Contratado" || stage === "Descartado")) return false;
+    return true;
+  });
+  const colsHtml = columns
+    .map((stage) => {
+      const inStage = rows.filter((c) => normalizeHiringPipelineStatus(c.status) === stage);
+      const cards = inStage
+        .map((c) => {
+          const id = String(c.id || "");
+          const name = escapeHtml(String(c.name || "Sin nombre"));
+          const vacancy = escapeHtml(String(c.vacancyTitle || "Sin vacante"));
+          const selected = selectedId && selectedId === id ? " is-selected" : "";
+          return `<article class="hiring-kanban-card${selected}" data-candidate-id="${escapeAttr(id)}" data-action="hiring-select-candidate" data-id="${escapeAttr(id)}">
+            <strong class="hiring-kanban-card__name">${name}</strong>
+            <span class="hiring-kanban-card__role">${vacancy}</span>
+            <span class="hiring-stage-pill">${escapeHtml(stage)}</span>
+          </article>`;
+        })
+        .join("");
+      return `<section class="hiring-board__col" data-pipeline-stage="${escapeAttr(stage)}">
+        <header class="hiring-board__col-head"><h3>${escapeHtml(stage)}</h3><span class="hiring-board__count">${inStage.length}</span></header>
+        <div class="hiring-board__col-body">${cards || `<p class="hiring-board__empty">Sin candidatos</p>`}</div>
+      </section>`;
+    })
+    .join("");
+  return `<div class="hiring-board hiring-board--kanban" role="region" aria-label="Pipeline de selección">${colsHtml}</div>`;
 }
 
 function renderHiringVacancyCard(v, ctx = {}) {
@@ -14133,6 +14176,7 @@ Object.assign(window, {
   renderHiringCandidateCard,
   renderHiringPipelineBoard,
   renderHiringVacancyCard,
+  normalizeHiringPipelineStatus,
   hiringCandidateNextAction,
   hiringCandidateStageBadge,
   hiringPipelineStageSlug,

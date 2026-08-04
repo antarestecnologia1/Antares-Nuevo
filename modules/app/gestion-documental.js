@@ -410,9 +410,27 @@ function renderExplorerPath(ui, IC) {
     if (i === segs.length - 1) parts.push(`<span class="doc-crumb is-current">${escapeHtml(seg)}</span>`);
     else parts.push(`<button type="button" class="doc-crumb" data-action="doc-crumb" data-path="${escapeAttr(path)}">${escapeHtml(seg)}</button>`);
   });
+  const depth = segs.length;
+  const folderActions =
+    ui.folderFilter && canUpload()
+      ? `<div class="doc-path-actions">
+          ${
+            depth >= 1
+              ? `<button type="button" class="doc-btn doc-btn--ghost doc-btn--sm" data-action="doc-new-subfolder" data-parent="${escapeAttr(ui.folderFilter)}">${IC.plus || "+"}<span>Crear subcarpeta</span></button>`
+              : ""
+          }
+          <button type="button" class="doc-btn doc-btn--ghost doc-btn--sm" data-action="doc-edit-folder" data-path="${escapeAttr(ui.folderFilter)}">${IC.edit || ""}<span>Renombrar</span></button>
+          ${
+            !SUGGESTED_COMPANY_FOLDERS.some((n) => folderKey(n) === folderKey(ui.folderFilter))
+              ? `<button type="button" class="doc-btn doc-btn--ghost doc-btn--sm doc-btn--danger" data-action="doc-delete-folder" data-path="${escapeAttr(ui.folderFilter)}">${IC.trash || IC_TRASH}<span>Eliminar</span></button>`
+              : ""
+          }
+          <button type="button" class="doc-trash-link" data-action="doc-toggle-trash" aria-pressed="false">${IC_TRASH}<span>Ver papelera</span></button>
+        </div>`
+      : `<button type="button" class="doc-trash-link" data-action="doc-toggle-trash" aria-pressed="false">${IC_TRASH}<span>Ver papelera</span></button>`;
   return `<div class="doc-explorer-path">
     <nav class="doc-breadcrumb" aria-label="Ruta de carpeta">${parts.join("")}</nav>
-    <button type="button" class="doc-trash-link" data-action="doc-toggle-trash" aria-pressed="false">${IC_TRASH}<span>Ver papelera</span></button>
+    ${folderActions}
   </div>`;
 }
 
@@ -459,12 +477,40 @@ function folderTone(index) {
 }
 
 function renderSubfolderGrid(subfolders, ui, IC) {
-  if (!subfolders.length) return "";
+  const parent = String(ui.folderFilter || "").trim();
+  const depth = folderSegments(parent).length;
+  const canManage = canUpload();
+  /* Dentro de un colaborador (o cualquier carpeta anidada) siempre mostrar bloque de subcarpetas. */
+  const showBlock = Boolean(parent) && (subfolders.length > 0 || depth >= 2);
+  if (!showBlock) return "";
+
   const page = Math.max(1, Number(ui.folderPage) || 1);
   const visible = subfolders.slice(0, page * SUBFOLDER_PAGE_SIZE);
   const hasMore = visible.length < subfolders.length;
   const isList = ui.viewMode === "list";
-  const canManage = canUpload();
+  const head = `<div class="doc-subfolder-block__head">
+    <h3 class="doc-subfolder-block__title">Subcarpetas</h3>
+    ${
+      canManage
+        ? `<button type="button" class="doc-btn doc-btn--ghost doc-btn--sm" data-action="doc-new-subfolder" data-parent="${escapeAttr(parent)}">${IC.plus || "+"}<span>Crear subcarpeta</span></button>`
+        : ""
+    }
+  </div>`;
+
+  if (!subfolders.length) {
+    return `<section class="doc-subfolder-block">
+      ${head}
+      <div class="doc-subfolder-empty">
+        <p>No hay subcarpetas en este expediente.</p>
+        ${
+          canManage
+            ? `<button type="button" class="doc-btn doc-btn--primary doc-btn--sm" data-action="doc-new-subfolder" data-parent="${escapeAttr(parent)}">${IC.plus || "+"}<span>Crear subcarpeta</span></button>`
+            : ""
+        }
+      </div>
+    </section>`;
+  }
+
   const cards = visible
     .map((s) => {
       const countLabel = `${s.docCount} archivo${s.docCount === 1 ? "" : "s"}`;
@@ -490,6 +536,7 @@ function renderSubfolderGrid(subfolders, ui, IC) {
     })
     .join("");
   return `<section class="doc-subfolder-block">
+    ${head}
     <div class="doc-subfolder-grid${isList ? " doc-subfolder-grid--list" : ""}">${cards}</div>
     ${
       hasMore
@@ -532,6 +579,12 @@ function rowMenu(doc, IC, folders = []) {
   return `<details class="doc-rowmenu"><summary class="doc-iconbtn" aria-label="Acciones">${IC_DOTS}</summary><div class="doc-rowmenu__list">${items.join("")}</div></details>`;
 }
 
+function categoryPill(doc) {
+  const label = getCompanyDocumentCategoryLabel(doc.documentCategory || doc.tags);
+  if (!label) return "";
+  return `<span class="doc-category-pill">${escapeHtml(label)}</span>`;
+}
+
 function renderTable(pageDocs, IC, folders = []) {
   if (!pageDocs.length) return "";
   const rows = pageDocs
@@ -548,12 +601,6 @@ function renderTable(pageDocs, IC, folders = []) {
     )
     .join("");
   return `<div class="doc-table-wrap"><table class="doc-table"><thead><tr><th>Nombre</th><th>Archivo</th><th>Tipo documental</th><th>Carpeta</th><th>Tamaño</th><th>Fecha de modificación</th><th aria-label="Acciones"></th></tr></thead><tbody>${rows}</tbody></table></div>`;
-}
-
-function categoryPill(doc) {
-  const label = getCompanyDocumentCategoryLabel(doc.documentCategory || doc.tags);
-  if (!label) return "";
-  return `<span class="doc-category-pill">${escapeHtml(label)}</span>`;
 }
 
 function renderGrid(pageDocs, IC, folders = []) {
@@ -697,11 +744,16 @@ function documentManagementHtml() {
     }),
     ui.sortKey
   );
-  /* En carpeta con subcarpetas, mostrar solo archivos directamente en esa ruta (no descendientes). */
-  const directDocs = ui.folderFilter
-    ? filtered.filter((d) => folderKey(d.folder) === folderKey(ui.folderFilter))
-    : filtered;
-  const listDocs = subfolders.length ? directDocs : filtered;
+  /*
+   * Si hay subcarpetas: mostrar docs de la carpeta actual + descendientes cuando el
+   * usuario busca, o solo los de la ruta exacta si no. En hojas (sin subcarpetas)
+   * siempre mostrar elSubtree completo (incluye la carpeta actual).
+   */
+  const depth = folderSegments(ui.folderFilter || "").length;
+  const listDocs =
+    subfolders.length && !q && depth <= 1
+      ? filtered.filter((d) => folderKey(d.folder) === folderKey(ui.folderFilter))
+      : filtered;
 
   const totalPages = Math.max(1, Math.ceil(listDocs.length / PAGE_SIZE));
   if (ui.page > totalPages) ui.page = totalPages;
@@ -721,7 +773,13 @@ function documentManagementHtml() {
     ? ui.viewMode === "grid"
       ? renderGrid(pageDocs, IC, folders)
       : renderTable(pageDocs, IC, folders)
-    : renderDocsEmpty(IC);
+    : subfolders.length
+      ? `<div class="doc-docs-hint"><p>Abra una carpeta para ver o subir documentos.</p>${
+          canUpload()
+            ? `<button type="button" class="doc-btn doc-btn--primary" data-action="doc-upload">${IC.plus || "+"}<span>Subir documento</span></button>`
+            : ""
+        }</div>`
+      : renderDocsEmpty(IC);
 
   return `<section class="documents-studio doc-studio doc-studio--explorer">
     ${renderHeader(ui, IC)}
@@ -759,9 +817,12 @@ async function uploadFileToR2(file, folder) {
 function folderOptionsHtml(selectedPath) {
   const folders = readFolders();
   let paths = collectAllFolderPaths(readDocs(), folders).filter((p) => canUploadFolder(folders, p));
-  if (!paths.length) paths.push(DEFAULT_COMPANY_FOLDER);
-  const sel = normalizeCompanyFolder(selectedPath || paths[0]);
-  return paths.map((p) => ({ value: p, label: p, selected: folderKey(p) === folderKey(sel) }));
+  const sel = normalizeCompanyFolder(selectedPath || paths[0] || EMPLOYEES_ROOT_FOLDER);
+  if (sel && !paths.some((p) => folderKey(p) === folderKey(sel))) paths = [sel, ...paths];
+  if (!paths.length) paths.push(sel || DEFAULT_COMPANY_FOLDER);
+  return paths
+    .sort((a, b) => a.localeCompare(b, "es", { numeric: true }))
+    .map((p) => ({ value: p, label: p, selected: folderKey(p) === folderKey(sel) }));
 }
 
 function wireDropzone(formEl) {
@@ -906,35 +967,133 @@ async function ensureCompanyDocumentStructure() {
   return ensureStructurePromise;
 }
 
+function documentCategoryOptionsHtml(selected = "otro") {
+  const sel = String(selected || "otro");
+  return COMPANY_DOCUMENT_CATEGORIES.map((c) => ({
+    value: c.value,
+    label: c.label,
+    selected: c.value === sel
+  }));
+}
+
 function openUploadModal() {
   if (!canUpload()) return;
-  const folderOpts = [{ value: "", label: "— Escribir carpeta nueva —", selected: false }, ...folderOptionsHtml(getUi().folderFilter)];
+  const currentFolder = normalizeCompanyFolder(getUi().folderFilter || EMPLOYEES_ROOT_FOLDER);
+  const lockDestination = folderSegments(currentFolder).length >= 2;
+  const folderOpts = folderOptionsHtml(currentFolder);
+  const categoryOpts = documentCategoryOptionsHtml("otro");
+  const categoryChips = COMPANY_DOCUMENT_CATEGORIES.map(
+    (c) =>
+      `<button type="button" class="doc-upload-chip${c.value === "otro" ? " is-selected" : ""}" data-doc-cat="${escapeAttr(c.value)}" aria-pressed="${c.value === "otro" ? "true" : "false"}">${escapeHtml(c.label)}</button>`
+  ).join("");
+  const destinationSection = lockDestination
+    ? `<section class="doc-upload-modal__section">
+        <header class="doc-upload-modal__head">
+          <span class="doc-upload-modal__step">2</span>
+          <div>
+            <h4 class="doc-upload-modal__title">Destino</h4>
+            <p class="doc-upload-modal__hint">Se guardará en la carpeta abierta</p>
+          </div>
+        </header>
+        <input type="hidden" name="folderExisting" value="${escapeAttr(currentFolder)}" />
+        <div class="doc-upload-destination" role="status">
+          <span class="doc-upload-destination__icon">${(G.IC || {}).folder || ""}</span>
+          <div>
+            <strong>Carpeta actual</strong>
+            <p>${escapeHtml(currentFolder)}</p>
+          </div>
+        </div>
+      </section>`
+    : `<section class="doc-upload-modal__section">
+        <header class="doc-upload-modal__head">
+          <span class="doc-upload-modal__step">2</span>
+          <div>
+            <h4 class="doc-upload-modal__title">Destino</h4>
+            <p class="doc-upload-modal__hint">Carpeta donde se guardará el archivo</p>
+          </div>
+        </header>
+        <label class="doc-upload-modal__select-wrap">
+          <span>Carpeta</span>
+          <select name="folderExisting" required>
+            ${folderOpts.map((o) => `<option value="${escapeAttr(o.value)}"${o.selected ? " selected" : ""}>${escapeHtml(o.label)}</option>`).join("")}
+          </select>
+        </label>
+        <label class="doc-upload-modal__select-wrap">
+          <span>Carpeta nueva (opcional)</span>
+          <input type="text" name="folderNew" placeholder="Ej. 01. Empleados / Manuales" maxlength="200" />
+          <small>Si la completa, reemplaza la carpeta seleccionada. Use “ / ” para subcarpetas.</small>
+        </label>
+      </section>`;
   G.openEditModal?.({
     title: "Subir documento",
-    subtitle: "Los archivos se guardan cifrados en el almacenamiento corporativo.",
-    submitText: "Subir",
+    subtitle: lockDestination
+      ? `El archivo se subirá a: ${currentFolder}`
+      : "Indique el tipo documental, la carpeta destino y adjunte los archivos.",
+    submitText: "Subir documento",
     fields: [
       {
         type: "custom",
-        id: "doc-dropzone-field",
-        html: `<div class="doc-dropzone" id="doc-dropzone-area" tabindex="0" role="button" aria-label="Seleccionar o soltar archivos">
-          <span class="doc-dropzone__icon">${IC_UPLOAD_BIG}</span>
-          <p class="doc-dropzone__title">Arrastra archivos aquí o haz clic para seleccionar</p>
-          <p class="doc-dropzone__hint">PDF, Office, texto, ZIP o imagen (sin ejecutables/SVG). Máx. ${formatFileSize(COMPANY_DOCUMENT_MAX_BYTES)} por archivo.</p>
-          <input type="file" id="doc-file-input" name="file" multiple accept="${SAFE_DOCUMENT_ACCEPT}" class="doc-dropzone__input" />
-        </div>
-        <ul class="doc-dropzone__list" id="doc-file-list"></ul>`
-      },
-      { name: "folderExisting", label: "Carpeta", type: "select", options: folderOpts },
-      {
-        name: "folderNew",
-        label: "Carpeta nueva (opcional)",
-        placeholder: "Ej. 01. Empleados / Manuales",
-        hint: "Use “ / ” para subcarpetas. Si la completa, se ignora la selección anterior."
-      },
-      { name: "description", label: "Descripción", type: "textarea", rows: 2 }
+        id: "doc-upload-shell",
+        html: `<div class="doc-upload-modal">
+          <section class="doc-upload-modal__section">
+            <header class="doc-upload-modal__head">
+              <span class="doc-upload-modal__step">1</span>
+              <div>
+                <h4 class="doc-upload-modal__title">Tipo de documento</h4>
+                <p class="doc-upload-modal__hint">Seleccione qué está cargando al expediente</p>
+              </div>
+            </header>
+            <input type="hidden" name="documentCategory" value="otro" data-doc-category-input />
+            <div class="doc-upload-chips" data-doc-category-chips>${categoryChips}</div>
+            <label class="doc-upload-modal__select-wrap">
+              <span>O elija de la lista</span>
+              <select name="documentCategorySelect" data-doc-category-select aria-label="Tipo de documento">
+                ${categoryOpts.map((o) => `<option value="${escapeAttr(o.value)}"${o.selected ? " selected" : ""}>${escapeHtml(o.label)}</option>`).join("")}
+              </select>
+            </label>
+          </section>
+          ${destinationSection}
+          <section class="doc-upload-modal__section">
+            <header class="doc-upload-modal__head">
+              <span class="doc-upload-modal__step">3</span>
+              <div>
+                <h4 class="doc-upload-modal__title">Archivos</h4>
+                <p class="doc-upload-modal__hint">PDF, Office, texto, ZIP o imagen · máx. ${escapeHtml(formatFileSize(COMPANY_DOCUMENT_MAX_BYTES))} c/u</p>
+              </div>
+            </header>
+            <div class="doc-dropzone" id="doc-dropzone-area" tabindex="0" role="button" aria-label="Seleccionar o soltar archivos">
+              <span class="doc-dropzone__icon">${IC_UPLOAD_BIG}</span>
+              <p class="doc-dropzone__title">Arrastre archivos aquí o haga clic</p>
+              <p class="doc-dropzone__hint">Puede seleccionar varios archivos a la vez</p>
+              <input type="file" id="doc-file-input" name="file" multiple accept="${SAFE_DOCUMENT_ACCEPT}" class="doc-dropzone__input" />
+            </div>
+            <ul class="doc-dropzone__list" id="doc-file-list"></ul>
+          </section>
+          <label class="doc-upload-modal__select-wrap">
+            <span>Observaciones (opcional)</span>
+            <textarea name="description" rows="2" maxlength="2000" placeholder="Notas internas"></textarea>
+          </label>
+        </div>`
+      }
     ],
-    afterMount: (formEl) => wireDropzone(formEl),
+    afterMount: (formEl) => {
+      wireDropzone(formEl);
+      const hidden = formEl?.querySelector("[data-doc-category-input]");
+      const select = formEl?.querySelector("[data-doc-category-select]");
+      const chips = formEl?.querySelectorAll("[data-doc-cat]");
+      const sync = (value) => {
+        const v = String(value || "otro");
+        if (hidden) hidden.value = v;
+        if (select) select.value = v;
+        chips?.forEach((btn) => {
+          const on = btn.dataset.docCat === v;
+          btn.classList.toggle("is-selected", on);
+          btn.setAttribute("aria-pressed", on ? "true" : "false");
+        });
+      };
+      chips?.forEach((btn) => btn.addEventListener("click", () => sync(btn.dataset.docCat)));
+      select?.addEventListener("change", () => sync(select.value));
+    },
     onSubmit: async (form, formEl) => {
       const input = formEl?.querySelector("#doc-file-input");
       const files = input?.files ? [...input.files] : [];
@@ -954,8 +1113,17 @@ function openUploadModal() {
           return false;
         }
       }
+      const documentCategory = String(
+        form.documentCategory || formEl?.querySelector("[data-doc-category-input]")?.value || form.documentCategorySelect || "otro"
+      ).trim() || "otro";
+      /* Dentro del expediente del colaborador el destino queda fijado a la carpeta abierta. */
       const folder = normalizeCompanyFolder(
-        String(form.folderNew || "").trim() || String(form.folderExisting || "").trim() || DEFAULT_COMPANY_FOLDER
+        lockDestination
+          ? currentFolder
+          : String(form.folderNew || "").trim() ||
+              String(form.folderExisting || "").trim() ||
+              currentFolder ||
+              DEFAULT_COMPANY_FOLDER
       );
       if (!canUploadFolder(readFolders(), folder)) {
         G.notify?.("No tiene permiso para subir a esa carpeta.", "error");
@@ -963,6 +1131,7 @@ function openUploadModal() {
       }
       const description = String(form.description || "").trim();
       const by = actor();
+      const categoryLabel = getCompanyDocumentCategoryLabel(documentCategory) || documentCategory;
       let ok = 0;
       for (const file of files) {
         try {
@@ -972,7 +1141,9 @@ function openUploadModal() {
             id: newUuidV4(),
             fileName: uploaded.fileName || file.name,
             type: fileTypeLabel(uploaded.fileName || file.name, uploaded.mimeType || file.type),
-            folder: uploaded.folder || folder,
+            documentCategory,
+            tags: documentCategory,
+            folder: normalizeCompanyFolder(uploaded.folder || folder),
             mimeType: uploaded.mimeType || file.type || "application/octet-stream",
             sizeBytes: Number(uploaded.sizeBytes) || file.size || 0,
             storageKey: uploaded.key,
@@ -986,7 +1157,7 @@ function openUploadModal() {
             entityId: record.id,
             entityKind: "document",
             entityLabel: `${record.folder} · ${record.fileName}`,
-            summary: `Alta de documento corporativo · ${record.fileName}`,
+            summary: `Alta de documento · ${categoryLabel} · ${record.fileName}`,
             usuario: by,
             actor: by,
             at: nowIso
@@ -998,8 +1169,13 @@ function openUploadModal() {
       }
       if (ok > 0) {
         await ensureFolderRecord(folder, by);
-        patchUi({ page: 1 });
-        G.notify?.(`${ok} documento${ok === 1 ? "" : "s"} subido${ok === 1 ? "" : "s"}.`, "success");
+        patchUi({ page: 1, folderFilter: folder, folderPage: 1, showTrash: false, search: "" });
+        G.notify?.(
+          ok === 1
+            ? `${categoryLabel} registrado en la carpeta.`
+            : `${ok} documentos (${categoryLabel}) registrados.`,
+          "success"
+        );
         G.renderPortalView?.();
         return true;
       }
@@ -1008,24 +1184,189 @@ function openUploadModal() {
   });
 }
 
-function openNewFolderModal() {
+function parentFolderPath(path) {
+  const segs = folderSegments(path);
+  if (segs.length <= 1) return "";
+  return segs.slice(0, -1).join(" / ");
+}
+
+function remapFolderPath(path, fromPath, toPath) {
+  const pk = folderKey(path);
+  const fk = folderKey(fromPath);
+  if (pk === fk) return normalizeCompanyFolder(toPath);
+  if (pk.startsWith(`${fk} / `)) {
+    const rest = folderSegments(path).slice(folderSegments(fromPath).length).join(" / ");
+    return normalizeCompanyFolder(`${toPath} / ${rest}`);
+  }
+  return path;
+}
+
+function openEditFolderModal(folderPathRaw) {
   if (!canUpload()) return;
+  const path = normalizeCompanyFolder(folderPathRaw);
+  if (!path) return;
+  const leaf = folderLeafName(path);
+  const parent = parentFolderPath(path);
   G.openEditModal?.({
-    title: "Nueva carpeta",
-    subtitle: "Organice los documentos corporativos por carpetas.",
-    submitText: "Crear carpeta",
+    title: "Renombrar carpeta",
+    subtitle: path,
+    submitText: "Guardar",
     fields: [
       {
         name: "folderName",
         label: "Nombre de carpeta",
         required: true,
-        placeholder: "Ej. 06. Calidad o 01. Empleados / Manuales",
-        hint: "Use “ / ” para crear subcarpetas."
+        value: leaf,
+        hint: parent ? `Quedará dentro de: ${parent}` : "Carpeta de primer nivel."
+      }
+    ],
+    onSubmit: async (form, formEl) => {
+      const newLeaf = String(form.folderName || "")
+        .replace(/[\\/]+/g, " ")
+        .trim();
+      if (!newLeaf) {
+        G.failPortalField?.(formEl, "folderName", "Indique el nombre.");
+        return false;
+      }
+      const newPath = normalizeCompanyFolder(parent ? `${parent} / ${newLeaf}` : newLeaf);
+      if (folderKey(newPath) === folderKey(path)) return true;
+      if (readFolders().some((f) => folderKey(f.folderName) === folderKey(newPath))) {
+        G.notify?.("Ya existe una carpeta con ese nombre.", "error");
+        return false;
+      }
+      try {
+        const folders = readFolders();
+        for (const row of folders.filter((f) => folderInSubtree(f.folderName, path))) {
+          const updated = normalizeCompanyFolderRow({
+            ...row,
+            folderName: remapFolderPath(row.folderName, path, newPath)
+          });
+          const next = readFolders().map((f) => (f.id === row.id ? updated : f));
+          await writeAwaitServerEdit(KEYS.companyDocumentFolders, next, row.id);
+        }
+        const docs = readDocs().filter((d) => folderInSubtree(d.folder, path));
+        for (const doc of docs) {
+          const updated = normalizeCompanyDocumentRow({
+            ...doc,
+            folder: remapFolderPath(doc.folder, path, newPath),
+            updatedAt: new Date().toISOString()
+          });
+          const next = readDocs().map((d) => (d.id === doc.id ? updated : d));
+          await writeAwaitServerEdit(KEYS.companyDocuments, next, doc.id);
+        }
+        patchUi({ folderFilter: newPath, page: 1, folderPage: 1 });
+        G.notify?.("Carpeta renombrada.", "success");
+        G.renderPortalView?.();
+        return true;
+      } catch (err) {
+        G.notify?.(String(err?.message || "No se pudo renombrar."), "error");
+        return false;
+      }
+    }
+  });
+}
+
+function openDeleteFolderFlow(folderPathRaw) {
+  if (!canUpload()) return;
+  const path = normalizeCompanyFolder(folderPathRaw);
+  if (!path) return;
+  if (SUGGESTED_COMPANY_FOLDERS.some((n) => folderKey(n) === folderKey(path))) {
+    G.notify?.("Las carpetas principales del sistema no se pueden eliminar.", "error");
+    return;
+  }
+  const docs = readDocs().filter((d) => folderInSubtree(d.folder, path));
+  const childFolders = readFolders().filter(
+    (f) => folderKey(f.folderName) !== folderKey(path) && folderInSubtree(f.folderName, path)
+  );
+  const parent = parentFolderPath(path) || DEFAULT_COMPANY_FOLDER;
+  const message =
+    docs.length || childFolders.length
+      ? `Se eliminará "${folderLeafName(path)}". ${docs.length} documento${docs.length === 1 ? "" : "s"} y ${childFolders.length} subcarpeta${childFolders.length === 1 ? "" : "s"} pasarán a “${parent}”.`
+      : `Se eliminará la carpeta vacía "${folderLeafName(path)}".`;
+  const requestDeletion = G.openConfirmReasonModal || G.openConfirmModal;
+  requestDeletion?.({
+    title: "Eliminar carpeta",
+    message,
+    confirmText: "Eliminar carpeta",
+    onConfirm: async (motivo) => {
+      try {
+        for (const doc of docs) {
+          const updated = normalizeCompanyDocumentRow({
+            ...doc,
+            folder: parent,
+            updatedAt: new Date().toISOString()
+          });
+          const next = readDocs().map((d) => (d.id === doc.id ? updated : d));
+          await writeAwaitServerEdit(KEYS.companyDocuments, next, doc.id);
+        }
+        const folders = readFolders().filter((f) => folderInSubtree(f.folderName, path));
+        for (const row of folders) {
+          if (folderKey(row.folderName) === folderKey(path)) {
+            const ok = await G.removeFromPortalListAwaitServer?.(KEYS.companyDocumentFolders, row.id);
+            if (!ok) {
+              G.notify?.("No se pudo eliminar el registro de carpeta.", "error");
+              return;
+            }
+          } else {
+            const updated = normalizeCompanyFolderRow({
+              ...row,
+              folderName: remapFolderPath(row.folderName, path, parent)
+            });
+            const next = readFolders().map((f) => (f.id === row.id ? updated : f));
+            await writeAwaitServerEdit(KEYS.companyDocumentFolders, next, row.id);
+          }
+        }
+        G.logPortalAuditEvent?.("documents", "delete", {
+          entityId: path,
+          entityKind: "folder",
+          entityLabel: `Carpeta · ${path}`,
+          summary: `Eliminación de carpeta · ${path}${motivo ? ` · ${motivo}` : ""}`,
+          usuario: actor(),
+          actor: actor()
+        });
+        patchUi({ folderFilter: parent, page: 1, folderPage: 1 });
+        G.notify?.("Carpeta eliminada.", "success");
+        G.renderPortalView?.();
+      } catch (err) {
+        G.notify?.(String(err?.message || "No se pudo eliminar la carpeta."), "error");
+      }
+    }
+  });
+}
+
+function openNewFolderModal(parentPathRaw = "") {
+  if (!canUpload()) return;
+  const parent = normalizeCompanyFolder(parentPathRaw || getUi().folderFilter || "");
+  const isSubfolder = Boolean(parent) && folderSegments(parent).length >= 1;
+  G.openEditModal?.({
+    title: isSubfolder ? "Nueva subcarpeta" : "Nueva carpeta",
+    subtitle: isSubfolder
+      ? `Se creará dentro de: ${parent}`
+      : "Organice los documentos corporativos por carpetas.",
+    submitText: isSubfolder ? "Crear subcarpeta" : "Crear carpeta",
+    fields: [
+      {
+        name: "folderName",
+        label: isSubfolder ? "Nombre de la subcarpeta" : "Nombre de carpeta",
+        required: true,
+        placeholder: isSubfolder ? "Ej. Contratos 2026, Certificados médicos" : "Ej. 06. Calidad",
+        hint: isSubfolder
+          ? "Solo el nombre; se guardará dentro de la carpeta actual."
+          : "Use “ / ” si desea indicar una ruta completa."
       },
       { name: "description", label: "Descripción", type: "textarea", rows: 2 }
     ],
     onSubmit: async (form, formEl) => {
-      const folderName = normalizeCompanyFolder(form.folderName);
+      const leaf = String(form.folderName || "")
+        .replace(/[\\/]+/g, " ")
+        .trim();
+      if (!leaf) {
+        G.failPortalField?.(formEl, "folderName", "Indique el nombre de la carpeta.");
+        return false;
+      }
+      const folderName = normalizeCompanyFolder(
+        isSubfolder ? `${parent} / ${leaf}` : String(form.folderName || "").trim()
+      );
       if (!folderName || folderKey(folderName) === folderKey(DEFAULT_COMPANY_FOLDER)) {
         G.failPortalField?.(formEl, "folderName", "Indique un nombre de carpeta.");
         return false;
@@ -1045,8 +1386,13 @@ function openNewFolderModal() {
       });
       try {
         await writeAwaitServerCreate(KEYS.companyDocumentFolders, [...folders, record], record);
-        G.notify?.("Carpeta creada.", "success");
-        patchUi({ folderFilter: topFolderName(folderName), page: 1 });
+        G.notify?.(isSubfolder ? "Subcarpeta creada." : "Carpeta creada.", "success");
+        patchUi({
+          folderFilter: isSubfolder ? parent : folderName,
+          page: 1,
+          folderPage: 1,
+          showTrash: false
+        });
         G.renderPortalView?.();
         return true;
       } catch (err) {
@@ -1343,7 +1689,12 @@ function bindDocumentManagementPortalControls() {
   if (!root) return;
 
   on(root, "[data-action='doc-upload']", "click", () => openUploadModal());
-  on(root, "[data-action='doc-new-folder']", "click", () => openNewFolderModal());
+  on(root, "[data-action='doc-new-folder']", "click", () => openNewFolderModal(""));
+  on(root, "[data-action='doc-new-subfolder']", "click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openNewFolderModal(String(e.currentTarget.dataset.parent || getUi().folderFilter || ""));
+  });
   on(root, "[data-action='doc-toggle-filters']", "click", () => {
     patchUi({ showFilters: !getUi().showFilters });
     G.renderPortalView?.();
@@ -1418,6 +1769,16 @@ function bindDocumentManagementPortalControls() {
   on(root, "[data-action='doc-open-subfolder']", "click", (e) => {
     patchUi({ folderFilter: String(e.currentTarget.dataset.path || ""), page: 1, folderPage: 1, showTrash: false });
     G.renderPortalView?.();
+  });
+  on(root, "[data-action='doc-edit-folder']", "click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openEditFolderModal(String(e.currentTarget.dataset.path || ""));
+  });
+  on(root, "[data-action='doc-delete-folder']", "click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openDeleteFolderFlow(String(e.currentTarget.dataset.path || ""));
   });
   on(root, "[data-action='doc-crumb']", "click", (e) => {
     const path = String(e.currentTarget.dataset.path || "");

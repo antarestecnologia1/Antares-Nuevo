@@ -665,8 +665,28 @@ export function canPerformHiringEditAction(action) {
   return HIRING_RRHH_EDIT_ACTIONS.has(String(action || "")) && canManageHiringModule();
 }
 
+/** Normaliza etapa del pipeline (trim, mayúsculas/acentos, aliases) para que el tablero siempre ubique al candidato. */
+export function normalizeHiringPipelineStatus(status) {
+  const raw = String(status ?? "").replace(/\s+/g, " ").trim();
+  if (!raw) return PIPELINE[0];
+  if (PIPELINE.includes(raw)) return raw;
+  const lower = raw.toLowerCase();
+  const byLower = PIPELINE.find((p) => p.toLowerCase() === lower);
+  if (byLower) return byLower;
+  const slug = hiringPipelineStageSlug(raw);
+  const bySlug = PIPELINE.find((p) => hiringPipelineStageSlug(p) === slug);
+  if (bySlug) return bySlug;
+  if (/nuevo|recibid|postul/i.test(raw)) return "Recibido";
+  if (/preselec/i.test(raw)) return "Preseleccionado";
+  if (/entrevist/i.test(raw)) return "Entrevistado";
+  if (/oferta/i.test(raw)) return "Oferta enviada";
+  if (/contrat/i.test(raw)) return "Contratado";
+  if (/descart|rechaz/i.test(raw)) return "Descartado";
+  return PIPELINE[0];
+}
+
 export function hiringPipelineStatusClass(status) {
-  const s = String(status || "");
+  const s = normalizeHiringPipelineStatus(status);
   if (s === "Contratado") return "status-viaje_asignado";
   if (s === "Descartado") return "status-rechazada";
   if (s === "Oferta enviada") return "status-viaje_completado";
@@ -676,7 +696,7 @@ export function hiringPipelineStatusClass(status) {
 }
 
 export function hiringPipelineSelectOptions(currentStatus) {
-  const current = String(currentStatus || PIPELINE[0]);
+  const current = normalizeHiringPipelineStatus(currentStatus);
   const allowed = PIPELINE_TRANSITIONS[current] || [];
   const options = new Set([current, ...allowed]);
   return [...options]
@@ -839,7 +859,7 @@ export function portalCandidateAgeFromBirthIso(birthIso) {
 
 /** Siguiente acción recomendada según etapa del pipeline (selección de personal). */
 export function hiringCandidateNextAction(status) {
-  const s = String(status || PIPELINE[0]);
+  const s = normalizeHiringPipelineStatus(status);
   if (s === "Recibido") return { label: "Revisar y preseleccionar", tone: "review" };
   if (s === "Preseleccionado") return { label: "Agendar entrevista", tone: "interview" };
   if (s === "Entrevistado") return { label: "Evaluar oferta", tone: "offer" };
@@ -860,7 +880,7 @@ export function hiringPipelineStageSlug(status) {
 
 /** Etiqueta corta del badge en tarjeta Kanban (mockup bandeja). */
 export function hiringCandidateStageBadge(status, interviewWhen = "") {
-  const s = String(status || PIPELINE[0]);
+  const s = normalizeHiringPipelineStatus(status);
   if (s === "Recibido") return { label: "Nuevo", date: "" };
   if (s === "Preseleccionado") return { label: "Preseleccionado", date: "" };
   if (s === "Entrevistado") {
@@ -916,7 +936,7 @@ export function renderHiringCandidateCard(c, ctx = {}) {
   const ageInfo = portalCandidateAgeFromBirthIso(c.birthDate);
   const expCargo = parseNum(c.experienceYears || 0);
   const canDlCv = Boolean(ctx.canDlCv);
-  const status = String(c.status || PIPELINE[0]);
+  const status = normalizeHiringPipelineStatus(c.status);
   const statusClass = hiringPipelineStatusClass(status);
   const stageSlug = hiringPipelineStageSlug(status);
   const employeeMatch = findPayrollEmployeeByIdDoc(c.idDoc);
@@ -1075,7 +1095,7 @@ export function renderHiringPipelineBoard(candidates, ctx = {}) {
   const colsHtml = columns
     .map((stage) => {
       const slug = hiringPipelineStageSlug(stage);
-      const inStage = rows.filter((c) => String(c.status || PIPELINE[0]) === stage);
+      const inStage = rows.filter((c) => normalizeHiringPipelineStatus(c.status) === stage);
       const expanded = boardExpand[stage] === true || boardExpand[slug] === true;
       const visible = expanded ? inStage : inStage.slice(0, boardLimit);
       const hiddenCount = Math.max(0, inStage.length - visible.length);
