@@ -28,6 +28,7 @@ export const SUGGESTED_COMPANY_FOLDERS = Object.freeze([
 /** Tipos/categorías documentales seleccionables al subir (valor corto ≤ 32 chars). */
 export const COMPANY_DOCUMENT_CATEGORIES = Object.freeze([
   { value: "cedula", label: "Cédula de ciudadanía" },
+  { value: "foto", label: "Foto del colaborador" },
   { value: "contrato", label: "Contrato laboral" },
   { value: "hoja_vida", label: "Hoja de vida" },
   { value: "eps", label: "Afiliación EPS" },
@@ -45,10 +46,78 @@ export const COMPANY_DOCUMENT_CATEGORIES = Object.freeze([
   { value: "induccion_sst", label: "Inducción SST / seguridad" },
   { value: "autorizacion_datos", label: "Autorización tratamiento de datos" },
   { value: "factura", label: "Factura / soporte contable" },
+  { value: "comprobante_pago", label: "Comprobante de pago / colilla" },
   { value: "poliza", label: "Póliza / seguro" },
   { value: "acta", label: "Acta / acuerdo" },
   { value: "otro", label: "Otro documento" }
 ]);
+
+/** Nombre de archivo seguro para un comprobante de nómina en la carpeta del colaborador. */
+export function buildPayrollCompanyDocumentFileName(run = {}, typeLabel = "") {
+  const safe = (s) =>
+    String(s ?? "")
+      .replace(/[\\/:*?"<>|]+/g, "-")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 80);
+  const period = safe(run.month) || "sin-periodo";
+  const kind = safe(typeLabel) || "Nómina";
+  return `Comprobante de pago · ${period} · ${kind}.pdf`;
+}
+
+/** Tag estable para detectar si un run ya fue archivado en el DMS. */
+export function payrollRunDocumentTag(runId) {
+  const id = String(runId || "").trim();
+  return id ? `payrollRun:${id}` : "";
+}
+
+/** Marcador idempotente en descripción: documentos de alta del colaborador. */
+export function employeeHireDocumentMarker(employeeId, kind) {
+  const id = String(employeeId || "").trim();
+  const k = String(kind || "").trim().toLowerCase();
+  if (!id || !k) return "";
+  return `employeeHireDoc=${k}:${id}`;
+}
+
+function safeDocNamePart(s, fallback = "colaborador") {
+  return (
+    String(s ?? "")
+      .replace(/[\\/:*?"<>|]+/g, "-")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 80) || fallback
+  );
+}
+
+/** Nombre de archivo para el contrato Word en la carpeta del colaborador. */
+export function buildEmployeeContractCompanyFileName(employee = {}, kind = "") {
+  const name = safeDocNamePart(employee.name || employee.fullName, "colaborador");
+  const tpl = safeDocNamePart(kind || employee.contractTemplateKind || "contrato", "contrato");
+  return `Contrato laboral · ${name} · ${tpl}.docx`;
+}
+
+/** Nombre de archivo para la foto del colaborador. */
+export function buildEmployeePhotoCompanyFileName(employee = {}, ext = "jpg") {
+  const name = safeDocNamePart(employee.name || employee.fullName, "colaborador");
+  const e = String(ext || "jpg").replace(/^\./, "").toLowerCase().slice(0, 8) || "jpg";
+  return `Foto · ${name}.${e}`;
+}
+
+/** Mapea tipo del expediente legacy a categoría del DMS corporativo. */
+export function mapEmployeeDocumentTypeToCompanyCategory(documentType) {
+  const t = String(documentType || "").trim().toLowerCase();
+  if (!t) return "otro";
+  if (CATEGORY_MAP.has(t)) return t;
+  if (t.includes("contrato")) return "contrato";
+  if (t.includes("cedula") || t.includes("cédula") || t === "cc") return "cedula";
+  if (t.includes("foto") || t.includes("avatar") || t.includes("photo")) return "foto";
+  if (t.includes("hoja") || t.includes("cv") || t.includes("vida")) return "hoja_vida";
+  if (t.includes("eps")) return "eps";
+  if (t.includes("afp") || t.includes("pension")) return "afp";
+  if (t.includes("arl")) return "arl";
+  if (t.includes("licencia")) return "licencia_conduccion";
+  return "otro";
+}
 
 const CATEGORY_MAP = new Map(COMPANY_DOCUMENT_CATEGORIES.map((c) => [c.value, c]));
 

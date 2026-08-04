@@ -340,7 +340,8 @@
     );
   }
 
-  async function generateEmployeeContractDocx(input) {
+  /** Genera el Word del contrato y devuelve `{ blob, fileName, kind }` sin descargar. */
+  async function buildEmployeeContractDocxBlob(input) {
     const JSZipLib = await ensureJsZip();
 
     let kind = String(input.contractTemplateKind || "").trim().toLowerCase();
@@ -387,11 +388,16 @@
       })
     );
 
-    const output = await zip.generateAsync({ type: "blob" });
+    const blob = await zip.generateAsync({ type: "blob" });
     const nombreSafe = mergeEntries.find((x) => x[0] === "nombre_empleado")?.[1] || "empleado";
     const safeName = String(nombreSafe).replace(/[^a-z0-9]+/gi, "_");
     const fileName = `contrato_${kind}_${safeName}.docx`;
-    const url = URL.createObjectURL(output);
+    return { blob, fileName, kind };
+  }
+
+  async function generateEmployeeContractDocx(input) {
+    const { blob, fileName } = await buildEmployeeContractDocxBlob(input);
+    const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
     a.download = fileName;
@@ -412,5 +418,6 @@
   window.RecruitmentDomain.formatSalarioLetrasPesos = formatSalarioLetrasPesos;
   window.RecruitmentDomain.buildContractDocxMergeEntries = buildContractDocxMergeEntries;
   window.RecruitmentDomain.ensureJsZip = ensureJsZip;
+  window.RecruitmentDomain.buildEmployeeContractDocxBlob = buildEmployeeContractDocxBlob;
   window.RecruitmentDomain.generateEmployeeContractDocx = generateEmployeeContractDocx;
 })();

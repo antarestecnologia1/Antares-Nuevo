@@ -154,7 +154,7 @@ window.PortalArchitecture = (() => {
       layoutPlan: [
         {
           container: ".documents-studio",
-          order: [".doc-topbar", ".doc-kpi-grid", ".doc-layout"]
+          order: [".doc-topbar", ".doc-kpi-grid", ".doc-categories", ".doc-layout"]
         }
       ]
     },

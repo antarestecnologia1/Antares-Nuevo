@@ -21305,7 +21305,24 @@ body[data-theme="dark"] .payroll-bulk-result-list li {
 .payroll-employees-grid.directory-grid {
   display: flex;
   flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
   gap: 0.45rem;
+  width: 100%;
+  min-width: 0;
+  container-type: normal;
+}
+
+/* Evita colapso de ancho (~30px) por container-type + width:auto en flex column. */
+.payroll-employees-grid > .directory-card--compact {
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  contain: none;
+  container-type: normal;
 }
 
 .directory-card--compact {

@@ -238,12 +238,23 @@ export async function propagateEmployeeChanges(employee, extraDriverData = {}) {
           "Empleado guardado, pero no fue posible registrar el contrato en el servidor."
       };
     }
-    /* Carpeta automática en el DMS corporativo: 01. Empleados / Nombre */
+    /* Carpeta + contrato/foto/CV en el DMS corporativo: 01. Empleados / Nombre */
     if (typeof globalThis.ensureCompanyEmployeeDocumentFolder === "function") {
       try {
         await globalThis.ensureCompanyEmployeeDocumentFolder(employee);
       } catch {
         /* no bloquea el alta si falla el gestor documental */
+      }
+    }
+    if (typeof globalThis.archiveEmployeeHirePackageToFolder === "function") {
+      try {
+        await globalThis.archiveEmployeeHirePackageToFolder(employee, {
+          candidateId: linkedCandidate?.id || extraDriverData.candidateId || "",
+          includeLegacyDocs: true,
+          includeCv: true
+        });
+      } catch {
+        /* el alta del empleado no depende del archivado documental */
       }
     }
   }

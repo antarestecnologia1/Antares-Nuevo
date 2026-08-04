@@ -22,6 +22,11 @@ import {
   SUGGESTED_COMPANY_FOLDERS,
   employeeCompanyFolderPath,
   listMissingEmployeeFolderPaths,
+  buildPayrollCompanyDocumentFileName,
+  employeeHireDocumentMarker,
+  buildEmployeeContractCompanyFileName,
+  buildEmployeePhotoCompanyFileName,
+  mapEmployeeDocumentTypeToCompanyCategory,
   normalizeCompanyDocumentRow,
   normalizeCompanyFolderRow,
   normalizeCompanyFolder,
@@ -49,7 +54,8 @@ import {
   normalizeEmployeeDocumentRow,
   normalizeEmployeeDocumentFolderRow
 } from "../domain/employee-documents.domain.js";
-import { downloadCsv } from "../domain/reporteria.domain.js";
+import { downloadCsv, ensureJsPdfLoaded } from "../domain/reporteria.domain.js";
+import { payrollRunTypeLabel } from "../domain/nomina.domain.js";
 import {
   SAFE_DOCUMENT_ACCEPT,
   validateUploadFile
@@ -664,18 +670,25 @@ function renderStorageCard(summary, IC) {
   </article>`;
 }
 
-function renderRecentSidebar(recentDocs, IC) {
+function renderRecentSidebar(recentDocs, IC, folders = []) {
   const items = recentDocs.length
     ? recentDocs
-        .map(
-          (d) => `<li class="doc-recent-item" data-action="doc-recent-open" data-id="${escapeAttr(d.id)}" tabindex="0" role="button">
-        <span class="doc-fileicon doc-fileicon--${fileTypeGroup(d.fileName, d.mimeType)}">${IC.file || ""}</span>
-        <span class="doc-recent-item__body">
-          <span class="doc-recent-item__name" title="${escapeAttr(d.fileName)}">${escapeHtml(d.fileName)}</span>
-          <span class="doc-recent-item__date">${escapeHtml(formatDate(d.updatedAt))}</span>
-        </span>
-      </li>`
-        )
+        .map((d) => {
+          const canRemove = isDocManager() || canDeleteFolder(folders, d.folder);
+          const delBtn = canRemove
+            ? `<button type="button" class="doc-recent-item__delete" data-action="doc-delete" data-id="${escapeAttr(d.id)}" aria-label="Eliminar ${escapeAttr(d.fileName)}" title="Eliminar">${IC.trash || IC_TRASH}</button>`
+            : "";
+          return `<li class="doc-recent-item">
+        <button type="button" class="doc-recent-item__open" data-action="doc-recent-open" data-id="${escapeAttr(d.id)}">
+          <span class="doc-fileicon doc-fileicon--${fileTypeGroup(d.fileName, d.mimeType)}">${IC.file || ""}</span>
+          <span class="doc-recent-item__body">
+            <span class="doc-recent-item__name" title="${escapeAttr(d.fileName)}">${escapeHtml(d.fileName)}</span>
+            <span class="doc-recent-item__date">${escapeHtml(formatDate(d.updatedAt))}</span>
+          </span>
+        </button>
+        ${delBtn}
+      </li>`;
+        })
         .join("")
     : `<li class="doc-recent-empty">Sin documentos recientes.</li>`;
   return `<article class="doc-side-card">
@@ -785,19 +798,23 @@ function documentManagementHtml() {
     ${renderHeader(ui, IC)}
     ${renderKpis(summary, IC)}
     ${renderCategoryRail(topFolders, ui, IC)}
-    <div class="doc-explorer">
-      ${renderExplorerPath(ui, IC)}
-      ${renderExplorerToolbar(ui, IC)}
-      ${renderSubfolderGrid(subfolders, ui, IC)}
-      <section class="doc-docs-panel" aria-label="Documentos">
-        ${listBody}
-        ${renderPagination(listDocs.length, ui.page)}
-      </section>
+    <div class="doc-layout">
+      <div class="doc-main">
+        <div class="doc-explorer">
+          ${renderExplorerPath(ui, IC)}
+          ${renderExplorerToolbar(ui, IC)}
+          ${renderSubfolderGrid(subfolders, ui, IC)}
+          <section class="doc-docs-panel" aria-label="Documentos">
+            ${listBody}
+            ${renderPagination(listDocs.length, ui.page)}
+          </section>
+        </div>
+      </div>
+      <aside class="doc-side" aria-label="Resumen y recientes">
+        ${renderStorageCard(summary, IC)}
+        ${renderRecentSidebar(recent, IC, folders)}
+      </aside>
     </div>
-    <aside class="doc-side doc-side--footer" hidden>
-      ${renderStorageCard(summary, IC)}
-      ${renderRecentSidebar(recent, IC)}
-    </aside>
   </section>`;
 }
 
@@ -812,6 +829,395 @@ async function uploadFileToR2(file, folder) {
   const res = await api.postFormData("/uploads/company-document", fd);
   if (!res?.key) throw new Error("No se obtuvo la clave de almacenamiento.");
   return res;
+}
+
+function fmtCop(n) {
+  return `$${Number(n || 0).toLocaleString("es-CO")}`;
+}
+
+/** PDF corto del comprobante de pago (jsPDF) para archivar en el DMS. */
+async function buildPayrollComprobantePdfBlob(run) {
+  const JsPDF = await ensureJsPdfLoaded();
+  const doc = new JsPDF({ unit: "pt", format: "letter" });
+  const typeLabel = payrollRunTypeLabel(run);
+  const name = String(run.employeeName || "Colaborador").trim();
+  const period = String(run.month || "—").trim();
+  let y = 48;
+  const line = (text, size = 11, bold = false) => {
+    doc.setFont("helvetica", bold ? "bold" : "normal");
+    doc.setFontSize(size);
+    doc.text(String(text || ""), 48, y);
+    y += size + 8;
+  };
+  line("TRANSPORTES ANTARES", 14, true);
+  line("Comprobante oficial de pago", 16, true);
+  y += 6;
+  line(`Trabajador: ${name}`, 11, true);
+  line(`Período: ${period}`);
+  line(`Tipo: ${typeLabel}`);
+  line(`Estado: ${run.paid ? "Pagado" : "Pendiente de pago"}`);
+  y += 8;
+  line("Resumen", 12, true);
+  line(`Devengado / bruto: ${fmtCop(run.gross)}`);
+  if (Number(run.aux) > 0) line(`Auxilio de transporte: ${fmtCop(run.aux)}`);
+  if (Number(run.extras) > 0) line(`Extras / horas extras: ${fmtCop(run.extras)}`);
+  if (Number(run.travelAllowance) > 0) line(`Viáticos: ${fmtCop(run.travelAllowance)}`);
+  if (Number(run.fuelReimbursement) > 0) line(`Combustible: ${fmtCop(run.fuelReimbursement)}`);
+  if (Number(run.primaServiciosCop) > 0) line(`Prima de servicios: ${fmtCop(run.primaServiciosCop)}`);
+  if (Number(run.interesesCesantiasCop) > 0) line(`Intereses de cesantías: ${fmtCop(run.interesesCesantiasCop)}`);
+  y += 4;
+  line(`Salud: ${fmtCop(run.health)}`);
+  line(`Pensión: ${fmtCop(run.pension)}`);
+  if (Number(run.solidarity) > 0) line(`FSP / solidaridad: ${fmtCop(run.solidarity)}`);
+  line(`Total deducciones: ${fmtCop(run.deductions)}`);
+  y += 10;
+  line(`Neto a pagar: ${fmtCop(run.net)}`, 13, true);
+  y += 16;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(100);
+  doc.text("Documento generado automáticamente por Antares al registrar el pago.", 48, y);
+  return doc.output("blob");
+}
+
+/**
+ * Archiva el comprobante de una liquidación en `01. Empleados / Nombre`.
+ * Idempotente por marcador `payrollRunId=` en la descripción.
+ */
+async function archivePayrollRunToEmployeeFolder(run) {
+  if (!run?.id || !run.employeeId) return { ok: false, skipped: true };
+  const runMarker = `payrollRunId=${String(run.id).trim()}`;
+  if (readDocs().some((d) => String(d.description || "").includes(runMarker))) {
+    return { ok: true, skipped: true };
+  }
+  const employee = {
+    id: run.employeeId,
+    name: run.employeeName || read(KEYS.payrollEmployees, []).find((e) => String(e.id) === String(run.employeeId))?.name
+  };
+  const folderRes = await ensureCompanyEmployeeDocumentFolder(employee);
+  const folder = folderRes?.path || employeeCompanyFolderPath(employee);
+  if (!folder) return { ok: false, message: "No se pudo resolver la carpeta del colaborador." };
+
+  const typeLabel = payrollRunTypeLabel(run);
+  const fileName = buildPayrollCompanyDocumentFileName(run, typeLabel);
+  try {
+    const blob = await buildPayrollComprobantePdfBlob(run);
+    const file = new File([blob], fileName, { type: "application/pdf" });
+    const uploaded = await uploadFileToR2(file, folder);
+    const by = actor();
+    const nowIso = new Date().toISOString();
+    const record = normalizeCompanyDocumentRow({
+      id: newUuidV4(),
+      fileName: uploaded.fileName || fileName,
+      type: "PDF",
+      documentCategory: "comprobante_pago",
+      folder: uploaded.folder || folder,
+      mimeType: uploaded.mimeType || "application/pdf",
+      sizeBytes: Number(uploaded.sizeBytes) || file.size || 0,
+      storageKey: uploaded.key,
+      description: `Comprobante de pago · ${typeLabel} · ${run.month || ""} · neto ${fmtCop(run.net)} · ${runMarker}`,
+      tags: "comprobante_pago",
+      uploadedBy: by,
+      createdAt: nowIso,
+      updatedAt: nowIso
+    });
+    await writeAwaitServerCreate(KEYS.companyDocuments, [...readDocs(), record], record);
+    return { ok: true, created: true, path: folder, fileName: record.fileName, id: record.id };
+  } catch (err) {
+    devWarn("[companyDocuments] archivePayrollRun", err?.message || err);
+    return { ok: false, message: String(err?.message || err) };
+  }
+}
+
+/** ¿Ya existe un documento corporativo con este marcador de alta? */
+function hasHireDocMarker(marker) {
+  if (!marker) return false;
+  return readDocs().some((d) => String(d.description || "").includes(marker));
+}
+
+/** Sube un blob al DMS en la carpeta del colaborador (idempotente por marcador). */
+async function archiveBlobToEmployeeFolder({
+  employee,
+  blob,
+  fileName,
+  mimeType,
+  documentCategory,
+  marker,
+  description
+}) {
+  if (!employee?.id || !blob || !fileName || !marker) return { ok: false, skipped: true };
+  if (hasHireDocMarker(marker)) return { ok: true, skipped: true };
+  const folderRes = await ensureCompanyEmployeeDocumentFolder(employee);
+  const folder = folderRes?.path || employeeCompanyFolderPath(employee);
+  if (!folder) return { ok: false, message: "No se pudo resolver la carpeta del colaborador." };
+  try {
+    const file = new File([blob], fileName, { type: mimeType || blob.type || "application/octet-stream" });
+    const uploaded = await uploadFileToR2(file, folder);
+    const by = actor();
+    const nowIso = new Date().toISOString();
+    const cat = String(documentCategory || "otro");
+    const record = normalizeCompanyDocumentRow({
+      id: newUuidV4(),
+      fileName: uploaded.fileName || fileName,
+      type: fileTypeLabel(uploaded.fileName || fileName, uploaded.mimeType || file.type),
+      documentCategory: cat,
+      folder: uploaded.folder || folder,
+      mimeType: uploaded.mimeType || file.type || "application/octet-stream",
+      sizeBytes: Number(uploaded.sizeBytes) || file.size || 0,
+      storageKey: uploaded.key,
+      description: `${String(description || fileName).trim()} · ${marker}`,
+      tags: cat,
+      uploadedBy: by,
+      createdAt: nowIso,
+      updatedAt: nowIso
+    });
+    await writeAwaitServerCreate(KEYS.companyDocuments, [...readDocs(), record], record);
+    return { ok: true, created: true, id: record.id, path: folder, fileName: record.fileName };
+  } catch (err) {
+    devWarn("[companyDocuments] archiveBlob", err?.message || err);
+    return { ok: false, message: String(err?.message || err) };
+  }
+}
+
+async function buildContractBlobForEmployee(employee) {
+  const buildBlob = window.RecruitmentDomain?.buildEmployeeContractDocxBlob;
+  const buildPayload =
+    typeof window.buildEmployeeContractDocxPayload === "function"
+      ? window.buildEmployeeContractDocxPayload
+      : null;
+  if (typeof buildBlob !== "function" || typeof buildPayload !== "function") {
+    return null;
+  }
+  try {
+    const payload = buildPayload(employee, { contractTemplateKind: employee.contractTemplateKind });
+    return await buildBlob(payload);
+  } catch (err) {
+    devWarn("[companyDocuments] buildContractBlob", err?.message || err);
+    return null;
+  }
+}
+
+async function archiveEmployeeContractToFolder(employee) {
+  if (!employee?.id) return { ok: false, skipped: true };
+  const marker = employeeHireDocumentMarker(employee.id, "contrato");
+  if (hasHireDocMarker(marker)) return { ok: true, skipped: true };
+  const built = await buildContractBlobForEmployee(employee);
+  if (!built?.blob) return { ok: false, skipped: true, message: "No se pudo generar el contrato Word." };
+  const fileName =
+    buildEmployeeContractCompanyFileName(employee, built.kind) || built.fileName || "contrato.docx";
+  return archiveBlobToEmployeeFolder({
+    employee,
+    blob: built.blob,
+    fileName,
+    mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    documentCategory: "contrato",
+    marker,
+    description: `Contrato laboral · ${employee.name || ""} · ${built.kind || ""}`
+  });
+}
+
+async function blobFromAvatarUrl(avatarUrl) {
+  const src = String(avatarUrl || "").trim();
+  if (!src) return null;
+  try {
+    if (src.startsWith("data:")) {
+      const res = await fetch(src);
+      const blob = await res.blob();
+      if (!blob?.size) return null;
+      const mime = blob.type || "image/jpeg";
+      const ext = mime.includes("png") ? "png" : mime.includes("webp") ? "webp" : mime.includes("gif") ? "gif" : "jpg";
+      return { blob, mimeType: mime, ext };
+    }
+    if (/^https?:\/\//i.test(src)) {
+      const res = await fetch(src, { credentials: "omit", mode: "cors" });
+      if (!res.ok) return null;
+      const blob = await res.blob();
+      if (!blob?.size) return null;
+      const mime = blob.type || "image/jpeg";
+      const fromUrl = (() => {
+        try {
+          const path = new URL(src).pathname;
+          const m = /\.([a-z0-9]+)$/i.exec(path);
+          return m ? m[1].toLowerCase() : "";
+        } catch (_e) {
+          return "";
+        }
+      })();
+      const ext =
+        fromUrl ||
+        (mime.includes("png") ? "png" : mime.includes("webp") ? "webp" : mime.includes("gif") ? "gif" : "jpg");
+      return { blob, mimeType: mime, ext };
+    }
+  } catch (err) {
+    devWarn("[companyDocuments] blobFromAvatarUrl", err?.message || err);
+  }
+  return null;
+}
+
+async function archiveEmployeePhotoToFolder(employee) {
+  if (!employee?.id) return { ok: false, skipped: true };
+  const marker = employeeHireDocumentMarker(employee.id, "foto");
+  if (hasHireDocMarker(marker)) return { ok: true, skipped: true };
+  const avatarUrl = String(employee.avatarUrl || employee.photoUrl || "").trim();
+  if (!avatarUrl) return { ok: false, skipped: true };
+  const packed = await blobFromAvatarUrl(avatarUrl);
+  if (!packed?.blob) return { ok: false, skipped: true, message: "No se pudo leer la foto." };
+  const fileName = buildEmployeePhotoCompanyFileName(employee, packed.ext);
+  return archiveBlobToEmployeeFolder({
+    employee,
+    blob: packed.blob,
+    fileName,
+    mimeType: packed.mimeType,
+    documentCategory: "foto",
+    marker,
+    description: `Foto del colaborador · ${employee.name || ""}`
+  });
+}
+
+async function archiveEmployeeCandidateCvToFolder(employee, candidateId) {
+  const cid = String(candidateId || "").trim();
+  if (!employee?.id || !cid) return { ok: false, skipped: true };
+  const marker = employeeHireDocumentMarker(employee.id, "cv");
+  if (hasHireDocMarker(marker)) return { ok: true, skipped: true };
+  const fetchCv =
+    typeof window.fetchCandidateCvBlobFromApi === "function" ? window.fetchCandidateCvBlobFromApi : null;
+  if (!fetchCv) return { ok: false, skipped: true };
+  try {
+    const packed = await fetchCv(cid);
+    if (!packed?.blob?.size) return { ok: false, skipped: true };
+    const rawName = String(packed.fileName || "hoja-de-vida.pdf").replace(/[\\/]+/g, "_");
+    const fileName = rawName.toLowerCase().includes("hoja") ? rawName : `Hoja de vida · ${rawName}`;
+    const mime = packed.blob.type || "application/pdf";
+    return archiveBlobToEmployeeFolder({
+      employee,
+      blob: packed.blob,
+      fileName,
+      mimeType: mime,
+      documentCategory: "hoja_vida",
+      marker,
+      description: `Hoja de vida (candidato) · ${employee.name || ""}`
+    });
+  } catch (err) {
+    devWarn("[companyDocuments] archiveCandidateCv", err?.message || err);
+    return { ok: false, message: String(err?.message || err) };
+  }
+}
+
+async function downloadEmployeeDocumentBlob(doc) {
+  const storageKey = String(doc?.storageKey || "").trim();
+  const employeeId = String(doc?.employeeId || "").trim();
+  if (!storageKey || !employeeId) return null;
+  const api = window.AntaresApi;
+  if (!api?.postJson) return null;
+  try {
+    const res = await api.postJson("/uploads/employee-document/download", { storageKey, employeeId });
+    const url = String(res?.downloadUrl || "").trim();
+    if (!url) return null;
+    const fileRes = await fetch(url);
+    if (!fileRes.ok) return null;
+    const blob = await fileRes.blob();
+    if (!blob?.size) return null;
+    return blob;
+  } catch (err) {
+    devWarn("[companyDocuments] downloadEmployeeDocumentBlob", err?.message || err);
+    return null;
+  }
+}
+
+/** Copia documentos del expediente legacy (employeeDocuments) a la carpeta DMS. */
+async function archiveEmployeeLegacyDocsToFolder(employee) {
+  if (!employee?.id || !KEYS.employeeDocuments) return { ok: true, created: 0 };
+  const legacy = read(KEYS.employeeDocuments, [])
+    .map(normalizeEmployeeDocumentRow)
+    .filter((d) => d && String(d.employeeId) === String(employee.id) && d.storageKey);
+  let created = 0;
+  for (const doc of legacy) {
+    const marker = employeeHireDocumentMarker(employee.id, `empDoc:${doc.id}`);
+    if (hasHireDocMarker(marker)) continue;
+    const blob = await downloadEmployeeDocumentBlob(doc);
+    if (!blob) continue;
+    const cat = mapEmployeeDocumentTypeToCompanyCategory(doc.documentType);
+    const fileName = String(doc.fileName || `${cat || "documento"}.bin`).replace(/[\\/]+/g, "_");
+    const res = await archiveBlobToEmployeeFolder({
+      employee,
+      blob,
+      fileName,
+      mimeType: doc.mimeType || blob.type || "application/octet-stream",
+      documentCategory: cat,
+      marker,
+      description: `Expediente · ${doc.documentType || cat} · ${employee.name || ""}`
+    });
+    if (res?.created) created += 1;
+  }
+  return { ok: true, created };
+}
+
+/**
+ * Archiva en Gestión documental: contrato Word, foto, CV de candidato y docs del expediente.
+ * Idempotente. No bloquea el alta si falla.
+ */
+async function archiveEmployeeHirePackageToFolder(employee, opts = {}) {
+  if (!employee?.id) return { ok: false, skipped: true };
+  const results = { contract: null, photo: null, cv: null, legacy: null };
+  try {
+    results.contract = await archiveEmployeeContractToFolder(employee);
+  } catch (err) {
+    results.contract = { ok: false, message: String(err?.message || err) };
+  }
+  try {
+    results.photo = await archiveEmployeePhotoToFolder(employee);
+  } catch (err) {
+    results.photo = { ok: false, message: String(err?.message || err) };
+  }
+  if (opts.candidateId || opts.includeCv !== false) {
+    try {
+      results.cv = await archiveEmployeeCandidateCvToFolder(employee, opts.candidateId);
+    } catch (err) {
+      results.cv = { ok: false, message: String(err?.message || err) };
+    }
+  }
+  if (opts.includeLegacyDocs !== false) {
+    try {
+      results.legacy = await archiveEmployeeLegacyDocsToFolder(employee);
+    } catch (err) {
+      results.legacy = { ok: false, message: String(err?.message || err) };
+    }
+  }
+  const created =
+    Number(!!results.contract?.created) +
+    Number(!!results.photo?.created) +
+    Number(!!results.cv?.created) +
+    Number(results.legacy?.created || 0);
+  return { ok: true, created, results };
+}
+
+/** Rellena contrato/foto/docs faltantes para empleados ya existentes (al abrir el DMS). */
+async function backfillEmployeeHireDocuments() {
+  if (!canUpload()) return { created: 0 };
+  const employees = read(KEYS.payrollEmployees, []).filter((e) => e?.id && String(e.name || "").trim());
+  let created = 0;
+  for (const emp of employees) {
+    const needsContract = !hasHireDocMarker(employeeHireDocumentMarker(emp.id, "contrato"));
+    const needsPhoto =
+      String(emp.avatarUrl || emp.photoUrl || "").trim() &&
+      !hasHireDocMarker(employeeHireDocumentMarker(emp.id, "foto"));
+    if (!needsContract && !needsPhoto) {
+      /* Aun así intenta legacy docs faltantes (barato si ya están marcados). */
+      const legacy = await archiveEmployeeLegacyDocsToFolder(emp);
+      created += Number(legacy?.created || 0);
+      continue;
+    }
+    const res = await archiveEmployeeHirePackageToFolder(emp, { includeCv: false });
+    created += Number(res?.created || 0);
+  }
+  return { created };
+}
+
+if (typeof window !== "undefined") {
+  window.archivePayrollRunToEmployeeFolder = archivePayrollRunToEmployeeFolder;
+  window.archiveEmployeeHirePackageToFolder = archiveEmployeeHirePackageToFolder;
+  window.archiveEmployeeContractToFolder = archiveEmployeeContractToFolder;
+  window.archiveEmployeePhotoToFolder = archiveEmployeePhotoToFolder;
 }
 
 function folderOptionsHtml(selectedPath) {
@@ -959,6 +1365,13 @@ async function ensureCompanyDocumentStructure() {
         devWarn("[companyDocuments] ensureStructure.employee", err?.message || err);
         list = readFolders();
       }
+    }
+    /* Empleados existentes: archiva contrato, foto y docs de alta faltantes. */
+    try {
+      const backfill = await backfillEmployeeHireDocuments();
+      created += Number(backfill?.created || 0);
+    } catch (err) {
+      devWarn("[companyDocuments] ensureStructure.backfillHireDocs", err?.message || err);
     }
     return { created };
   })().finally(() => {
@@ -1680,6 +2093,46 @@ function openStorageDetails() {
 function findDoc(id) {
   return readDocs().find((d) => String(d.id) === String(id)) || null;
 }
+
+/** Confirmación + borrado de un documento corporativo (admin / permiso por carpeta). */
+function confirmDeleteDocument(doc) {
+  if (!doc) return;
+  if (!canDelete() && !isDocManager()) {
+    G.notify?.("No tiene permiso para eliminar documentos.", "error");
+    return;
+  }
+  if (!isDocManager() && !canDeleteFolder(readFolders(), doc.folder)) {
+    G.notify?.("No tiene permiso para eliminar en esa carpeta.", "error");
+    return;
+  }
+  const requestDeletion = G.openConfirmReasonModal || G.openConfirmModal;
+  requestDeletion?.({
+    title: "Eliminar documento",
+    message: `Se eliminará "${doc.fileName}" de ${doc.folder}. Indique la justificación.`,
+    confirmText: "Eliminar",
+    onConfirm: async (motivo) => {
+      const reason = String(motivo || "").trim();
+      const ok = await G.removeFromPortalListAwaitServer?.(KEYS.companyDocuments, doc.id);
+      if (!ok) {
+        G.notify?.("No se pudo eliminar el documento.", "error");
+        return;
+      }
+      G.logPortalAuditEvent?.("documents", "delete", {
+        entityId: doc.id,
+        entityKind: "document",
+        entityLabel: `${doc.folder} · ${doc.fileName}`,
+        summary: `Eliminación de documento corporativo · ${doc.fileName}`,
+        reason,
+        usuario: actor(),
+        actor: actor(),
+        at: new Date().toISOString()
+      });
+      G.notify?.("Documento eliminado.", "success");
+      G.renderPortalView?.();
+    }
+  });
+}
+
 function on(root, selector, event, handler) {
   root.querySelectorAll(selector).forEach((el) => el.addEventListener(event, handler));
 }
@@ -1819,50 +2272,14 @@ function bindDocumentManagementPortalControls() {
       G.notify?.(String(err?.message || "No se pudo abrir el documento."), "error");
     }
   });
-  on(root, "[data-action='doc-recent-open']", "keydown", (e) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      e.currentTarget.click();
-    }
-  });
   on(root, "[data-action='doc-edit']", "click", (e) => {
     const doc = findDoc(e.currentTarget.dataset.id);
     if (doc) openEditDocumentModal(doc);
   });
   on(root, "[data-action='doc-delete']", "click", (e) => {
-    if (!canDelete()) return;
-    const doc = findDoc(e.currentTarget.dataset.id);
-    if (!doc) return;
-    if (!canDeleteFolder(readFolders(), doc.folder)) {
-      G.notify?.("No tiene permiso para eliminar en esa carpeta.", "error");
-      return;
-    }
-    const requestDeletion = G.openConfirmReasonModal || G.openConfirmModal;
-    requestDeletion?.({
-      title: "Eliminar documento",
-      message: `Se eliminará "${doc.fileName}" de ${doc.folder}. Indique la justificación.`,
-      confirmText: "Eliminar",
-      onConfirm: async (motivo) => {
-        const reason = String(motivo || "").trim();
-        const ok = await G.removeFromPortalListAwaitServer?.(KEYS.companyDocuments, doc.id);
-        if (!ok) {
-          G.notify?.("No se pudo eliminar el documento.", "error");
-          return;
-        }
-        G.logPortalAuditEvent?.("documents", "delete", {
-          entityId: doc.id,
-          entityKind: "document",
-          entityLabel: `${doc.folder} · ${doc.fileName}`,
-          summary: `Eliminación de documento corporativo · ${doc.fileName}`,
-          reason,
-          usuario: actor(),
-          actor: actor(),
-          at: new Date().toISOString()
-        });
-        G.notify?.("Documento eliminado.", "success");
-        G.renderPortalView?.();
-      }
-    });
+    e.preventDefault();
+    e.stopPropagation();
+    confirmDeleteDocument(findDoc(e.currentTarget.dataset.id));
   });
 
   const searchInput = root.querySelector("[data-action='doc-search']");

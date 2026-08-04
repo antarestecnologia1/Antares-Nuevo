@@ -748,6 +748,54 @@ async function openPayrollRunPayslipById(runId) {
   pop.document.close();
 }
 
+/** Guarda el comprobante PDF en la carpeta DMS del colaborador (no bloquea la nómina). */
+async function archivePayrollRunComprobanteQuietly(run) {
+  const fn = typeof window !== "undefined" ? window.archivePayrollRunToEmployeeFolder : null;
+  if (typeof fn !== "function" || !run?.id) return;
+  try {
+    await fn(run);
+  } catch (_err) {
+    /* El pago ya quedó registrado; el archivo en DMS es secundario. */
+  }
+}
+
+/** Tras liquidación masiva: archiva comprobantes del período (idempotente). */
+async function archivePayrollRunsForPeriodQuietly(periodKey) {
+  const key = String(periodKey || "").trim();
+  if (!key || typeof read !== "function" || !KEYS?.payrollRuns) return;
+  const runs = read(KEYS.payrollRuns, []).filter((r) => {
+    const month = String(r?.month || "");
+    return month === key || month.startsWith(`${key}`);
+  });
+  for (const run of runs) {
+    await archivePayrollRunComprobanteQuietly(run);
+  }
+}
+
+/** Localiza el run de prestación por viajes tras bootstrap. */
+function findDriverTripPayrollRun(employeeId, periodYm) {
+  const eid = String(employeeId || "").trim();
+  const ym = String(periodYm || "").trim().slice(0, 7);
+  if (!eid || !ym || typeof read !== "function") return null;
+  const runs = read(KEYS.payrollRuns, []);
+  const matchTrip = runs.find((r) => {
+    if (String(r.employeeId) !== eid) return false;
+    const month = String(r.month || "");
+    if (!(month === ym || month.startsWith(ym))) return false;
+    return typeof payrollRunFrequencyKind === "function"
+      ? payrollRunFrequencyKind(r) === "prestacion_viajes"
+      : String(r.payrollKind || "").toLowerCase().includes("viaje");
+  });
+  if (matchTrip) return matchTrip;
+  return (
+    runs.find((r) => {
+      if (String(r.employeeId) !== eid) return false;
+      const month = String(r.month || "");
+      return month === ym || month.startsWith(ym);
+    }) || null
+  );
+}
+
 function bindPayrollPortalControls() {
   if (typeof scheduleContractRenewalNotificationCheck === "function") {
     scheduleContractRenewalNotificationCheck();
@@ -2448,6 +2496,9 @@ function bindPayrollPortalControls() {
                 entityLabel: "Liquidación masiva",
                 summary: `Cierre ${fechaReferencia}: ${parseNum(result.created ?? result.createdCount)} liquidación(es) generada(s)`
               });
+              if (parseNum(result.created ?? result.createdCount) > 0) {
+                void archivePayrollRunsForPeriodQuietly(result.periodKey || fechaReferencia);
+              }
               presentPayrollBulkAutogenResult(result);
               state.payrollUi = { ...(state.payrollUi || { runSort: "recent" }), workspace: "data", dataSection: "runs" };
               persistHrWorkspace("payroll", "data");
@@ -2763,6 +2814,7 @@ function bindPayrollPortalControls() {
       appendPayrollRunAuditLog("create", run, {
         summary: `Liquidación manual creada (${payrollRunTypeLabel(run)}) · neto $${parseNum(run.net).toLocaleString("es-CO")}`
       });
+      void archivePayrollRunComprobanteQuietly(run);
       state.payrollUi = {
         ...(state.payrollUi || { runSort: "recent" }),
         workspace: "data",
@@ -2826,6 +2878,8 @@ function bindPayrollPortalControls() {
         const gross = parseNum(result.grossCop);
         const trips = parseNum(result.tripCount);
         const inter = parseNum(result.interDepartmentTrips);
+        const tripRun = findDriverTripPayrollRun(employee.id, periodYm);
+        if (tripRun) void archivePayrollRunComprobanteQuietly(tripRun);
         notify(userMessage("driverTripPaymentSaved", gross, trips, inter), "success");
         renderPortalView();
       } catch (err) {
@@ -3003,6 +3057,7 @@ function bindPayrollPortalControls() {
       appendPayrollRunAuditLog("create", run, {
         summary: `Liquidación de terminación creada · neto $${parseNum(run.net).toLocaleString("es-CO")}`
       });
+      void archivePayrollRunComprobanteQuietly(run);
       state.payrollUi = { ...(state.payrollUi || { runSort: "recent" }), workspace: "data" };
       persistHrWorkspace("payroll", "data");
       collapseCreatePanel("create-payroll-settlement");

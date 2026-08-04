@@ -4150,6 +4150,44 @@ body[data-theme="dark"] .payroll-studio .payroll-liq-field input[placeholder="Au
   gap: var(--ops-cards-gap, 0.75rem);
 }
 
+/*
+  Consultar → Colaboradores → Tarjetas:
+  las fichas compactas heredan container-type:inline-size + width:auto de
+  .portal-ops-card; en un flex column eso colapsa el ancho (~30px) y
+  contain:paint deja solo una franja a la izquierda.
+*/
+.payroll-studio .payroll-employees-grid.directory-grid,
+.payroll-studio .payroll-employees-grid.portal-ops-cards {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  container-type: normal;
+}
+
+.payroll-studio .payroll-employees-grid > .directory-card--compact,
+.payroll-studio .payroll-employees-grid:has(> :only-child) > .directory-card--compact {
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  contain: none;
+  container-type: normal;
+}
+
+.payroll-studio .payroll-employees-grid > .directory-card--compact .directory-card__compact-row {
+  width: 100%;
+  min-width: 0;
+}
+
+.payroll-studio--consult .payroll-data-panel .payroll-table-shell:has(.payroll-employees-grid) {
+  overflow: visible;
+}
+
 .modal-card-edit--employment-letter .employment-letter-format-picker {
   display: flex;
   flex-wrap: wrap;

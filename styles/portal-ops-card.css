@@ -978,12 +978,36 @@
 
 .user-grid.directory-grid,
 .drivers-grid.directory-grid,
-.payroll-employees-grid.directory-grid,
 .hiring-cards--candidates.portal-ops-cards {
   display: flex;
   flex-wrap: wrap;
   align-content: flex-start;
   gap: var(--ops-cards-gap);
+}
+
+/* Lista vertical a ancho completo (no mosaico con container queries). */
+.payroll-employees-grid.directory-grid {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  align-content: flex-start;
+  gap: var(--ops-cards-gap);
+  width: 100%;
+  min-width: 0;
+  container-type: normal;
+}
+
+.payroll-employees-grid > .directory-card--compact.portal-ops-card,
+.payroll-employees-grid > .directory-card--compact.trip-ops-card,
+.payroll-employees-grid:has(> :only-child) > .directory-card--compact {
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  contain: none;
+  container-type: normal;
 }
 
 .directory-card__title,
@@ -1203,8 +1227,7 @@
 .transport-studio .transport-data-pane__body .trip-ops-cards,
 .payroll-studio .payroll-run-cards-grid,
 .payroll-studio .employees-grid,
-.payroll-studio .payroll-employees-grid,
-.payroll-studio .directory-grid.portal-ops-cards,
+.payroll-studio .directory-grid.portal-ops-cards:not(.payroll-employees-grid),
 .hiring-studio .hiring-cards.hiring-cards--candidates,
 .hiring-studio .hiring-cards--candidates.portal-ops-cards,
 .b2b-studio .b2b-operate__main .b2b-leads-mosaic,
@@ -1231,7 +1254,6 @@
 .transport-studio .transport-data-pane__body .request-ops-cards:has(> :only-child) > :only-child,
 .transport-studio .transport-data-pane__body .trip-ops-cards:has(> :only-child) > :only-child,
 .payroll-studio .payroll-run-cards-grid:has(> :only-child) > :only-child,
-.payroll-studio .employees-grid:has(> :only-child) > :only-child,
 .hiring-studio .hiring-cards.hiring-cards--candidates:has(> :only-child) > :only-child,
 .b2b-studio .b2b-leads-mosaic:has(> :only-child) > :only-child,
 .admin-users-studio .user-grid:has(> :only-child) > :only-child,
