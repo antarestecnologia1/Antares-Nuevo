@@ -53,8 +53,16 @@ import {
 } from "../core/file-upload-security.js";
 
 const G = globalThis;
-const PAGE_SIZE = 6;
+const PAGE_SIZE = 12;
+const SUBFOLDER_PAGE_SIZE = 8;
 const RECENT_SIDEBAR_COUNT = 4;
+
+const SORT_OPTIONS = [
+  { value: "name_asc", label: "Nombre (A-Z)" },
+  { value: "name_desc", label: "Nombre (Z-A)" },
+  { value: "recent", label: "Más recientes" },
+  { value: "size_desc", label: "Tamaño" }
+];
 
 if (typeof window !== "undefined") {
   window.normalizeEmployeeDocumentRow = normalizeEmployeeDocumentRow;
@@ -124,6 +132,14 @@ const IC_EXTERNAL =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>';
 const IC_LOCK =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
+const IC_TRASH =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+const IC_CHEVRON_DOWN =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+const IC_SORT =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5h10M11 9h7M11 13h4M3 5l3 3 3-3M6 8v13"/></svg>';
+const IC_EMPTY_FOLDER =
+  '<svg viewBox="0 0 64 64" fill="none" aria-hidden="true"><rect x="8" y="18" width="48" height="34" rx="4" fill="#e8eef7" stroke="#2563eb" stroke-width="2"/><path d="M8 26h20l4-6h24v6" stroke="#2563eb" stroke-width="2" stroke-linejoin="round"/><circle cx="48" cy="14" r="3" fill="#93c5fd"/><circle cx="16" cy="48" r="2" fill="#bfdbfe"/><path d="M28 38h8M32 34v8" stroke="#2563eb" stroke-width="2" stroke-linecap="round"/></svg>';
 
 const TYPE_FILTERS = [
   { value: "all", label: "Todos los tipos" },
@@ -139,15 +155,23 @@ const TYPE_FILTERS = [
 function getUi() {
   if (!state.companyDocsUi || typeof state.companyDocsUi !== "object") {
     state.companyDocsUi = {
-      viewMode: "list",
+      viewMode: "grid",
       search: "",
       typeFilter: "all",
-      folderFilter: "",
+      folderFilter: EMPLOYEES_ROOT_FOLDER,
       showFilters: false,
-      page: 1
+      showTrash: false,
+      sortKey: "name_asc",
+      page: 1,
+      folderPage: 1
     };
   }
-  return state.companyDocsUi;
+  const ui = state.companyDocsUi;
+  if (!ui.sortKey) ui.sortKey = "name_asc";
+  if (!ui.folderPage) ui.folderPage = 1;
+  if (ui.showTrash == null) ui.showTrash = false;
+  if (!ui.viewMode) ui.viewMode = "grid";
+  return ui;
 }
 function patchUi(patch) {
   return Object.assign(getUi(), patch || {});
@@ -258,17 +282,16 @@ function renderHeader(ui, IC) {
   const uploadBtn = canUpload()
     ? `<button type="button" class="doc-btn doc-btn--primary" data-action="doc-upload">${IC.upload || ""}<span>Subir documento</span></button>`
     : "";
+  const newFolderBtn = canUpload()
+    ? `<button type="button" class="doc-btn doc-btn--ghost" data-action="doc-new-folder">${IC.plus || ""}<span>Nueva carpeta</span></button>`
+    : "";
   return `<header class="doc-topbar">
     <div class="doc-topbar__titles">
       <h1 class="doc-topbar__title">Gestión documental</h1>
       <p class="doc-topbar__subtitle">Administra y organiza todos los documentos de la empresa.</p>
     </div>
     <div class="doc-topbar__actions">
-      <label class="doc-search">
-        <span class="doc-search__icon">${IC.search || ""}</span>
-        <input type="search" class="doc-search__input" data-action="doc-search" placeholder="Buscar documentos, carpetas…" value="${escapeAttr(ui.search || "")}" aria-label="Buscar documentos" />
-        <kbd class="doc-search__kbd">⌘K</kbd>
-      </label>
+      ${newFolderBtn}
       ${uploadBtn}
     </div>
   </header>`;
@@ -281,7 +304,7 @@ function renderKpis(summary, IC) {
     { icon: IC_HDD, tone: "violet", label: "Almacenamiento", value: formatFileSize(summary.totalBytes), sub: `De ${formatFileSize(summary.quotaBytes)} utilizados` },
     { icon: IC.users || "", tone: "amber", label: "Usuarios", value: String(summary.usersWithAccess), sub: "Con acceso" }
   ];
-  return `<section class="doc-kpi-grid" aria-label="Indicadores documentales">
+  return `<section class="doc-kpi-grid doc-kpi-grid--compact" aria-label="Indicadores documentales">
     ${cards
       .map(
         (c) => `<article class="doc-kpi">
@@ -289,7 +312,6 @@ function renderKpis(summary, IC) {
         <div class="doc-kpi__body">
           <span class="doc-kpi__label">${escapeHtml(c.label)}</span>
           <strong class="doc-kpi__value">${escapeHtml(c.value)}</strong>
-          <span class="doc-kpi__sub">${escapeHtml(c.sub)}</span>
         </div>
       </article>`
       )
@@ -297,44 +319,135 @@ function renderKpis(summary, IC) {
   </section>`;
 }
 
-function renderToolbar(ui, IC) {
-  const newFolderBtn = canUpload()
-    ? `<button type="button" class="doc-btn doc-btn--ghost" data-action="doc-new-folder">${IC.plus || ""}<span>Nueva carpeta</span></button>`
-    : "";
-  const typeOptions = TYPE_FILTERS.map(
-    (t) => `<option value="${escapeAttr(t.value)}"${ui.typeFilter === t.value ? " selected" : ""}>${escapeHtml(t.label)}</option>`
-  ).join("");
-  return `<div class="doc-toolbar">
-    <div class="doc-toolbar__left">
-      ${newFolderBtn}
-      <button type="button" class="doc-btn doc-btn--ghost${ui.showFilters ? " is-active" : ""}" data-action="doc-toggle-filters" aria-pressed="${ui.showFilters ? "true" : "false"}">${IC.filter || ""}<span>Filtros</span></button>
-      <label class="doc-select"><select data-action="doc-type-filter" aria-label="Filtrar por tipo">${typeOptions}</select></label>
-    </div>
-    <div class="doc-toolbar__right">
-      <div class="doc-viewtoggle" role="group" aria-label="Vista">
-        <button type="button" class="doc-viewtoggle__btn${ui.viewMode === "grid" ? " is-active" : ""}" data-action="doc-view" data-view-mode="grid" aria-label="Vista en cuadrícula">${IC.grid || ""}</button>
-        <button type="button" class="doc-viewtoggle__btn${ui.viewMode !== "grid" ? " is-active" : ""}" data-action="doc-view" data-view-mode="list" aria-label="Vista en lista">${IC.list || ""}</button>
-      </div>
-    </div>
+function mergeSuggestedTopFolders(topFolders) {
+  const map = new Map((topFolders || []).map((f) => [f.key, f]));
+  const suggested = SUGGESTED_COMPANY_FOLDERS.map((name) => {
+    const key = folderKey(name);
+    const existing = map.get(key);
+    if (existing) {
+      map.delete(key);
+      return existing;
+    }
+    return { name, key, subfolderCount: 0, docCount: 0, sizeBytes: 0 };
+  });
+  const extras = [...map.values()].sort((a, b) => a.name.localeCompare(b.name, "es", { numeric: true }));
+  return [...suggested, ...extras];
+}
+
+function stripSearch(s) {
+  return String(s || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function sortSubfolders(list, sortKey) {
+  const items = [...(list || [])];
+  if (sortKey === "name_desc") return items.sort((a, b) => b.name.localeCompare(a.name, "es", { numeric: true }));
+  if (sortKey === "size_desc") return items.sort((a, b) => (b.sizeBytes || 0) - (a.sizeBytes || 0) || a.name.localeCompare(b.name, "es", { numeric: true }));
+  if (sortKey === "recent") return items.sort((a, b) => (b.docCount || 0) - (a.docCount || 0) || a.name.localeCompare(b.name, "es", { numeric: true }));
+  return items.sort((a, b) => a.name.localeCompare(b.name, "es", { numeric: true }));
+}
+
+function sortDocuments(list, sortKey) {
+  const items = [...(list || [])];
+  if (sortKey === "name_asc") return items.sort((a, b) => String(a.fileName || "").localeCompare(String(b.fileName || ""), "es", { numeric: true }));
+  if (sortKey === "name_desc") return items.sort((a, b) => String(b.fileName || "").localeCompare(String(a.fileName || ""), "es", { numeric: true }));
+  if (sortKey === "size_desc") return items.sort((a, b) => (Number(b.sizeBytes) || 0) - (Number(a.sizeBytes) || 0));
+  return sortByRecent(items);
+}
+
+function renderCategoryRail(topFolders, ui, IC) {
+  const showPerms = canManageFolderPermissions();
+  const allFolders = readFolders();
+  const cards = topFolders
+    .map((f, i) => {
+      const active = !ui.showTrash && ui.folderFilter && folderKey(topFolderName(ui.folderFilter)) === f.key;
+      const count =
+        f.subfolderCount > 0
+          ? `${f.subfolderCount} carpeta${f.subfolderCount === 1 ? "" : "s"}`
+          : `${f.docCount} archivo${f.docCount === 1 ? "" : "s"}`;
+      const restricted = folderRoleAllowlist(allFolders, f.name, "view").length > 0;
+      const permsBtn = showPerms
+        ? `<button type="button" class="doc-cat-card__perms" data-action="doc-folder-perms" data-folder="${escapeAttr(f.name)}" aria-label="Permisos de ${escapeAttr(f.name)}" title="Permisos">${IC_LOCK}</button>`
+        : "";
+      return `<div class="doc-cat-card${active ? " is-active" : ""}${restricted ? " is-restricted" : ""}">
+        <button type="button" class="doc-cat-card__open" data-action="doc-open-folder" data-folder="${escapeAttr(f.name)}">
+          <span class="doc-cat-card__icon doc-cat-card__icon--${folderTone(i)}">${IC.folder || ""}</span>
+          <span class="doc-cat-card__body">
+            <span class="doc-cat-card__name">${escapeHtml(f.name)}</span>
+            <span class="doc-cat-card__meta">${escapeHtml(count)}</span>
+          </span>
+        </button>
+        ${permsBtn}
+      </div>`;
+    })
+    .join("");
+  return `<section class="doc-categories" aria-label="Carpetas principales">${cards}</section>`;
+}
+
+function renderExplorerPath(ui, IC) {
+  if (ui.showTrash) {
+    return `<div class="doc-explorer-path">
+      <nav class="doc-breadcrumb" aria-label="Ruta">
+        <button type="button" class="doc-crumb" data-action="doc-crumb" data-path="${escapeAttr(EMPLOYEES_ROOT_FOLDER)}">Documentos</button>
+        <span class="doc-crumb-sep">›</span>
+        <span class="doc-crumb is-current">Papelera</span>
+      </nav>
+      <button type="button" class="doc-trash-link is-active" data-action="doc-toggle-trash" aria-pressed="true">${IC_TRASH}<span>Papelera</span></button>
+    </div>`;
+  }
+  const segs = ui.folderFilter ? folderSegments(ui.folderFilter) : [];
+  const parts = [`<button type="button" class="doc-crumb" data-action="doc-crumb" data-path="">Documentos</button>`];
+  const acc = [];
+  segs.forEach((seg, i) => {
+    acc.push(seg);
+    const path = acc.join(" / ");
+    parts.push(`<span class="doc-crumb-sep">›</span>`);
+    if (i === segs.length - 1) parts.push(`<span class="doc-crumb is-current">${escapeHtml(seg)}</span>`);
+    else parts.push(`<button type="button" class="doc-crumb" data-action="doc-crumb" data-path="${escapeAttr(path)}">${escapeHtml(seg)}</button>`);
+  });
+  return `<div class="doc-explorer-path">
+    <nav class="doc-breadcrumb" aria-label="Ruta de carpeta">${parts.join("")}</nav>
+    <button type="button" class="doc-trash-link" data-action="doc-toggle-trash" aria-pressed="false">${IC_TRASH}<span>Ver papelera</span></button>
   </div>`;
 }
 
-function renderFilterBar(ui, docs, folders) {
-  if (!ui.showFilters) return "";
-  const paths = collectAllFolderPaths(docs, folders);
-  const topFolders = [...new Set(paths.map((p) => topFolderName(p)))].sort((a, b) => a.localeCompare(b, "es", { numeric: true }));
-  const opts = [`<option value="">Todas las carpetas</option>`]
-    .concat(
-      topFolders.map(
-        (name) =>
-          `<option value="${escapeAttr(name)}"${folderKey(ui.folderFilter) === folderKey(name) ? " selected" : ""}>${escapeHtml(name)}</option>`
-      )
-    )
-    .join("");
-  return `<div class="doc-filterbar">
-    <label class="doc-select doc-select--labeled"><span>Carpeta</span><select data-action="doc-folder-filter" aria-label="Filtrar por carpeta">${opts}</select></label>
-    <button type="button" class="doc-btn doc-btn--ghost doc-btn--sm" data-action="doc-clear-filters">Limpiar filtros</button>
-    <button type="button" class="doc-btn doc-btn--ghost doc-btn--sm" data-action="doc-export-csv">Exportar CSV</button>
+function renderExplorerToolbar(ui, IC) {
+  const sortLabel = SORT_OPTIONS.find((o) => o.value === ui.sortKey)?.label || "Nombre (A-Z)";
+  const sortOpts = SORT_OPTIONS.map(
+    (o) => `<option value="${escapeAttr(o.value)}"${ui.sortKey === o.value ? " selected" : ""}>${escapeHtml(o.label)}</option>`
+  ).join("");
+  const typeOptions = TYPE_FILTERS.map(
+    (t) => `<option value="${escapeAttr(t.value)}"${ui.typeFilter === t.value ? " selected" : ""}>${escapeHtml(t.label)}</option>`
+  ).join("");
+  return `<div class="doc-explorer-toolbar">
+    <label class="doc-explorer-search">
+      <span class="doc-explorer-search__icon">${IC.search || ""}</span>
+      <input type="search" data-action="doc-search" placeholder="Buscar carpetas o documentos…" value="${escapeAttr(ui.search || "")}" aria-label="Buscar carpetas o documentos" />
+    </label>
+    <div class="doc-explorer-toolbar__actions">
+      <button type="button" class="doc-btn doc-btn--ghost${ui.showFilters ? " is-active" : ""}" data-action="doc-toggle-filters" aria-pressed="${ui.showFilters ? "true" : "false"}">${IC.filter || ""}<span>Filtros</span></button>
+      <label class="doc-sort-select" title="Ordenar">
+        <span class="doc-sort-select__icon">${IC_SORT}</span>
+        <span class="doc-sort-select__label">Ordenar por:</span>
+        <select data-action="doc-sort" aria-label="Ordenar por">${sortOpts}</select>
+      </label>
+      <div class="doc-viewtoggle" role="group" aria-label="Vista">
+        <button type="button" class="doc-viewtoggle__btn${ui.viewMode === "grid" ? " is-active" : ""}" data-action="doc-view" data-view-mode="grid" aria-label="Vista en cuadrícula" aria-pressed="${ui.viewMode === "grid" ? "true" : "false"}">${IC.grid || ""}</button>
+        <button type="button" class="doc-viewtoggle__btn${ui.viewMode !== "grid" ? " is-active" : ""}" data-action="doc-view" data-view-mode="list" aria-label="Vista en lista" aria-pressed="${ui.viewMode !== "grid" ? "true" : "false"}">${IC.list || ""}</button>
+      </div>
+    </div>
+    ${
+      ui.showFilters
+        ? `<div class="doc-filterbar doc-filterbar--inline">
+      <label class="doc-select doc-select--labeled"><span>Tipo</span><select data-action="doc-type-filter" aria-label="Filtrar por tipo">${typeOptions}</select></label>
+      <button type="button" class="doc-btn doc-btn--ghost doc-btn--sm" data-action="doc-clear-filters">Limpiar</button>
+      <button type="button" class="doc-btn doc-btn--ghost doc-btn--sm" data-action="doc-export-csv">Exportar CSV</button>
+      <span class="doc-filterbar__hint muted">Orden: ${escapeHtml(sortLabel)}</span>
+    </div>`
+        : ""
+    }
   </div>`;
 }
 
@@ -342,49 +455,44 @@ function folderTone(index) {
   return ["blue", "green", "violet", "amber", "cyan", "rose"][index % 6];
 }
 
-function renderMainFolders(topFolders, ui, IC) {
-  if (!topFolders.length) {
-    return `<section class="doc-folders">
-      <h2 class="doc-section-title">Carpetas principales</h2>
-      <p class="doc-empty-inline">Aún no hay carpetas. Cree una con “Nueva carpeta”.</p>
-    </section>`;
-  }
-  const showPerms = canManageFolderPermissions();
-  const allFolders = readFolders();
-  const cards = topFolders
-    .map((f, i) => {
-      const active = ui.folderFilter && folderKey(topFolderName(ui.folderFilter)) === f.key;
-      const count =
-        f.subfolderCount > 0
-          ? `${f.subfolderCount} carpeta${f.subfolderCount === 1 ? "" : "s"}`
-          : `${f.docCount} archivo${f.docCount === 1 ? "" : "s"}`;
-      const restricted = folderRoleAllowlist(allFolders, f.name, "view").length > 0;
-      const permsBtn = showPerms
-        ? `<button type="button" class="doc-folder-card__perms" data-action="doc-folder-perms" data-folder="${escapeAttr(f.name)}" aria-label="Permisos de ${escapeAttr(f.name)}" title="Permisos de carpeta">${IC_LOCK}</button>`
-        : "";
-      const lockBadge = restricted ? `<span class="doc-folder-card__lock" title="Carpeta restringida">${IC_LOCK}</span>` : "";
-      return `<div class="doc-folder-card${active ? " is-active" : ""}${restricted ? " is-restricted" : ""}">
-        <button type="button" class="doc-folder-card__open" data-action="doc-open-folder" data-folder="${escapeAttr(f.name)}">
-          <span class="doc-folder-card__icon doc-folder-card__icon--${folderTone(i)}">${IC.folder || ""}</span>
-          <span class="doc-folder-card__body">
-            <span class="doc-folder-card__name">${escapeHtml(f.name)}${lockBadge}</span>
-            <span class="doc-folder-card__meta">${escapeHtml(count)}</span>
-          </span>
-        </button>
-        ${permsBtn}
-      </div>`;
+function renderSubfolderGrid(subfolders, ui, IC) {
+  if (!subfolders.length) return "";
+  const page = Math.max(1, Number(ui.folderPage) || 1);
+  const visible = subfolders.slice(0, page * SUBFOLDER_PAGE_SIZE);
+  const hasMore = visible.length < subfolders.length;
+  const isList = ui.viewMode === "list";
+  const cards = visible
+    .map((s) => {
+      const countLabel = `${s.docCount} archivo${s.docCount === 1 ? "" : "s"}`;
+      return `<button type="button" class="doc-subfolder-card" data-action="doc-open-subfolder" data-path="${escapeAttr(s.path)}" title="${escapeAttr(s.name)}">
+        <span class="doc-subfolder-card__icon">${IC.folder || ""}</span>
+        <span class="doc-subfolder-card__body">
+          <span class="doc-subfolder-card__name">${escapeHtml(String(s.name || "").toUpperCase())}</span>
+          <span class="doc-subfolder-card__meta">${escapeHtml(countLabel)}</span>
+        </span>
+      </button>`;
     })
     .join("");
-  return `<section class="doc-folders">
-    <div class="doc-folders__head">
-      <h2 class="doc-section-title">Carpetas principales</h2>
-      <div class="doc-folders__nav">
-        <button type="button" class="doc-scroll-btn" data-action="doc-folders-scroll" data-dir="-1" aria-label="Anterior">‹</button>
-        <button type="button" class="doc-scroll-btn" data-action="doc-folders-scroll" data-dir="1" aria-label="Siguiente">›</button>
-      </div>
-    </div>
-    <div class="doc-folders__rail" data-doc-folders-rail>${cards}</div>
+  return `<section class="doc-subfolder-block">
+    <div class="doc-subfolder-grid${isList ? " doc-subfolder-grid--list" : ""}">${cards}</div>
+    ${
+      hasMore
+        ? `<button type="button" class="doc-more-folders" data-action="doc-more-folders">${IC_CHEVRON_DOWN}<span>Ver más carpetas</span></button>`
+        : ""
+    }
   </section>`;
+}
+
+function renderDocsEmpty(IC, { title, hint, showUpload = true } = {}) {
+  const upload = showUpload && canUpload()
+    ? `<button type="button" class="doc-btn doc-btn--primary" data-action="doc-upload">${IC.plus || "+"}<span>Subir documento</span></button>`
+    : "";
+  return `<div class="doc-empty doc-empty--panel">
+    <div class="doc-empty__art" aria-hidden="true">${IC_EMPTY_FOLDER}</div>
+    <p class="doc-empty__title">${escapeHtml(title || "No hay documentos que coincidan")}</p>
+    <p class="doc-empty__hint">${escapeHtml(hint || "Ajuste la búsqueda o los filtros, o suba un nuevo documento.")}</p>
+    ${upload}
+  </div>`;
 }
 
 function typeBadge(doc) {
@@ -409,9 +517,7 @@ function rowMenu(doc, IC, folders = []) {
 }
 
 function renderTable(pageDocs, IC, folders = []) {
-  if (!pageDocs.length) {
-    return `<div class="doc-empty"><span class="doc-empty__icon">${IC.inbox || IC.file || ""}</span><p class="doc-empty__title">No hay documentos que coincidan</p><p class="doc-empty__hint">Ajuste la búsqueda o los filtros, o suba un nuevo documento.</p></div>`;
-  }
+  if (!pageDocs.length) return "";
   const rows = pageDocs
     .map(
       (d) => `<tr>
@@ -428,9 +534,7 @@ function renderTable(pageDocs, IC, folders = []) {
 }
 
 function renderGrid(pageDocs, IC, folders = []) {
-  if (!pageDocs.length) {
-    return `<div class="doc-empty"><span class="doc-empty__icon">${IC.inbox || IC.file || ""}</span><p class="doc-empty__title">No hay documentos que coincidan</p><p class="doc-empty__hint">Ajuste la búsqueda o los filtros, o suba un nuevo documento.</p></div>`;
-  }
+  if (!pageDocs.length) return "";
   const cards = pageDocs
     .map(
       (d) => `<article class="doc-card">
@@ -446,8 +550,9 @@ function renderGrid(pageDocs, IC, folders = []) {
 
 function renderPagination(totalItems, page) {
   const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
+  if (totalItems === 0) return "";
   if (totalPages <= 1) {
-    return `<div class="doc-listfoot"><button type="button" class="doc-link" data-action="doc-see-all">Ver todos los documentos</button><span class="doc-count">${totalItems} documento${totalItems === 1 ? "" : "s"}</span></div>`;
+    return `<div class="doc-listfoot"><span class="doc-count">${totalItems} documento${totalItems === 1 ? "" : "s"}</span></div>`;
   }
   const current = Math.min(Math.max(1, page), totalPages);
   let pages = "";
@@ -455,7 +560,7 @@ function renderPagination(totalItems, page) {
     pages += `<button type="button" class="doc-page${p === current ? " is-active" : ""}" data-action="doc-page" data-page="${p}">${p}</button>`;
   }
   return `<div class="doc-listfoot">
-    <button type="button" class="doc-link" data-action="doc-see-all">Ver todos los documentos</button>
+    <span class="doc-count">${totalItems} documento${totalItems === 1 ? "" : "s"}</span>
     <nav class="doc-pager" aria-label="Paginación">
       <button type="button" class="doc-page doc-page--nav" data-action="doc-page" data-page="${current - 1}"${current === 1 ? " disabled" : ""}>‹</button>
       ${pages}
@@ -505,38 +610,8 @@ function renderRecentSidebar(recentDocs, IC) {
   return `<article class="doc-side-card">
     <h3 class="doc-side-card__title">Documentos recientes</h3>
     <ul class="doc-recent-list">${items}</ul>
-    <button type="button" class="doc-link doc-link--row" data-action="doc-see-all">Ver todos los recientes ${IC.chevronRight || "›"}</button>
+    <button type="button" class="doc-link doc-link--row" data-action="doc-storage-details">Ver almacenamiento ${IC.chevronRight || "›"}</button>
   </article>`;
-}
-
-function renderBreadcrumb(ui) {
-  if (!ui.folderFilter) return "";
-  const segs = folderSegments(ui.folderFilter);
-  const parts = [`<button type="button" class="doc-crumb" data-action="doc-crumb" data-path="">Todas</button>`];
-  const acc = [];
-  segs.forEach((seg, i) => {
-    acc.push(seg);
-    const path = acc.join(" / ");
-    parts.push(`<span class="doc-crumb-sep">›</span>`);
-    if (i === segs.length - 1) parts.push(`<span class="doc-crumb is-current">${escapeHtml(seg)}</span>`);
-    else parts.push(`<button type="button" class="doc-crumb" data-action="doc-crumb" data-path="${escapeAttr(path)}">${escapeHtml(seg)}</button>`);
-  });
-  return `<nav class="doc-breadcrumb" aria-label="Ruta de carpeta">${parts.join("")}</nav>`;
-}
-
-function renderSubfolders(ui, docs, folders, IC) {
-  if (!ui.folderFilter) return "";
-  const subs = collectSubfolders(docs, folders, ui.folderFilter);
-  if (!subs.length) return "";
-  return `<div class="doc-subfolders">${subs
-    .map(
-      (s) => `<button type="button" class="doc-subchip" data-action="doc-open-subfolder" data-path="${escapeAttr(s.path)}">
-      <span class="doc-subchip__icon">${IC.folder || ""}</span>
-      <span class="doc-subchip__name">${escapeHtml(s.name)}</span>
-      <span class="doc-subchip__count">${s.docCount}</span>
-    </button>`
-    )
-    .join("")}</div>`;
 }
 
 function renderOnboarding(IC) {
@@ -563,48 +638,84 @@ function documentManagementHtml() {
   const docs = visibleDocs(readDocs(), allFolders);
   const folders = visibleFolders(allFolders);
   const summary = summarizeCompanyDocuments(docs, folders, usersWithAccessCount());
-  const topFolders = collectTopFolders(docs, folders);
-  const filtered = sortByRecent(
-    applyCompanyDocumentFilters(docs, { search: ui.search, type: ui.typeFilter, folder: ui.folderFilter })
+  const topFolders = mergeSuggestedTopFolders(collectTopFolders(docs, folders));
+
+  if (!ui.showTrash && !ui.folderFilter && topFolders.length) {
+    ui.folderFilter = topFolders[0].name;
+  }
+
+  if (ui.showTrash) {
+    return `<section class="documents-studio doc-studio doc-studio--explorer">
+      ${renderHeader(ui, IC)}
+      ${renderCategoryRail(topFolders, ui, IC)}
+      <div class="doc-explorer">
+        ${renderExplorerPath(ui, IC)}
+        ${renderExplorerToolbar(ui, IC)}
+        ${renderDocsEmpty(IC, {
+          title: "La papelera está vacía",
+          hint: "Los documentos eliminados no se conservan en papelera por ahora. La eliminación es definitiva tras confirmar.",
+          showUpload: false
+        })}
+      </div>
+    </section>`;
+  }
+
+  const q = stripSearch(ui.search);
+  let subfolders = ui.folderFilter ? collectSubfolders(docs, folders, ui.folderFilter) : [];
+  if (q) subfolders = subfolders.filter((s) => stripSearch(s.name).includes(q) || stripSearch(s.path).includes(q));
+  subfolders = sortSubfolders(subfolders, ui.sortKey);
+
+  const filtered = sortDocuments(
+    applyCompanyDocumentFilters(docs, {
+      search: ui.search,
+      type: ui.typeFilter,
+      folder: ui.folderFilter
+    }),
+    ui.sortKey
   );
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  /* En carpeta con subcarpetas, mostrar solo archivos directamente en esa ruta (no descendientes). */
+  const directDocs = ui.folderFilter
+    ? filtered.filter((d) => folderKey(d.folder) === folderKey(ui.folderFilter))
+    : filtered;
+  const listDocs = subfolders.length ? directDocs : filtered;
+
+  const totalPages = Math.max(1, Math.ceil(listDocs.length / PAGE_SIZE));
   if (ui.page > totalPages) ui.page = totalPages;
   if (ui.page < 1) ui.page = 1;
-  const pageDocs = filtered.slice((ui.page - 1) * PAGE_SIZE, ui.page * PAGE_SIZE);
+  const pageDocs = listDocs.slice((ui.page - 1) * PAGE_SIZE, ui.page * PAGE_SIZE);
   const recent = sortByRecent(docs).slice(0, RECENT_SIDEBAR_COUNT);
-  const isEmpty = docs.length === 0 && topFolders.length === 0;
-  const listTitle = ui.folderFilter
-    ? `Documentos · ${escapeHtml(folderLeafName(ui.folderFilter))}`
-    : "Documentos recientes";
-  const listBody = ui.viewMode === "grid" ? renderGrid(pageDocs, IC, folders) : renderTable(pageDocs, IC, folders);
-  const mainInner = isEmpty
-    ? `${renderToolbar(ui, IC)}${renderOnboarding(IC)}`
-    : `${renderToolbar(ui, IC)}
-        ${renderFilterBar(ui, docs, folders)}
-        ${renderMainFolders(topFolders, ui, IC)}
-        <section class="doc-list">
-          <div class="doc-list__head">
-            <div class="doc-list__headline">
-              <h2 class="doc-section-title">${listTitle}</h2>
-              ${renderBreadcrumb(ui)}
-            </div>
-            ${ui.folderFilter ? `<button type="button" class="doc-link doc-link--sm" data-action="doc-clear-folder">Ver todo</button>` : ""}
-          </div>
-          ${renderSubfolders(ui, docs, folders, IC)}
-          ${listBody}
-          ${renderPagination(filtered.length, ui.page)}
-        </section>`;
+  const isBootstrapEmpty = docs.length === 0 && folders.length === 0;
 
-  return `<section class="documents-studio doc-studio">
+  if (isBootstrapEmpty) {
+    return `<section class="documents-studio doc-studio">
+      ${renderHeader(ui, IC)}
+      ${renderOnboarding(IC)}
+    </section>`;
+  }
+
+  const listBody = listDocs.length
+    ? ui.viewMode === "grid"
+      ? renderGrid(pageDocs, IC, folders)
+      : renderTable(pageDocs, IC, folders)
+    : renderDocsEmpty(IC);
+
+  return `<section class="documents-studio doc-studio doc-studio--explorer">
     ${renderHeader(ui, IC)}
     ${renderKpis(summary, IC)}
-    <div class="doc-layout">
-      <div class="doc-main"><div class="doc-panel">${mainInner}</div></div>
-      <aside class="doc-side">
-        ${renderStorageCard(summary, IC)}
-        ${renderRecentSidebar(recent, IC)}
-      </aside>
+    ${renderCategoryRail(topFolders, ui, IC)}
+    <div class="doc-explorer">
+      ${renderExplorerPath(ui, IC)}
+      ${renderExplorerToolbar(ui, IC)}
+      ${renderSubfolderGrid(subfolders, ui, IC)}
+      <section class="doc-docs-panel" aria-label="Documentos">
+        ${listBody}
+        ${renderPagination(listDocs.length, ui.page)}
+      </section>
     </div>
+    <aside class="doc-side doc-side--footer" hidden>
+      ${renderStorageCard(summary, IC)}
+      ${renderRecentSidebar(recent, IC)}
+    </aside>
   </section>`;
 }
 
@@ -1213,20 +1324,38 @@ function bindDocumentManagementPortalControls() {
     patchUi({ showFilters: !getUi().showFilters });
     G.renderPortalView?.();
   });
+  on(root, "[data-action='doc-toggle-trash']", "click", () => {
+    const next = !getUi().showTrash;
+    patchUi({
+      showTrash: next,
+      page: 1,
+      folderPage: 1,
+      ...(next ? {} : { folderFilter: getUi().folderFilter || EMPLOYEES_ROOT_FOLDER })
+    });
+    G.renderPortalView?.();
+  });
+  on(root, "[data-action='doc-sort']", "change", (e) => {
+    patchUi({ sortKey: e.currentTarget.value || "name_asc", page: 1, folderPage: 1 });
+    G.renderPortalView?.();
+  });
+  on(root, "[data-action='doc-more-folders']", "click", () => {
+    patchUi({ folderPage: (Number(getUi().folderPage) || 1) + 1 });
+    G.renderPortalView?.();
+  });
   on(root, "[data-action='doc-type-filter']", "change", (e) => {
     patchUi({ typeFilter: e.currentTarget.value || "all", page: 1 });
     G.renderPortalView?.();
   });
   on(root, "[data-action='doc-folder-filter']", "change", (e) => {
-    patchUi({ folderFilter: e.currentTarget.value || "", page: 1 });
+    patchUi({ folderFilter: e.currentTarget.value || "", page: 1, folderPage: 1, showTrash: false });
     G.renderPortalView?.();
   });
   on(root, "[data-action='doc-clear-filters']", "click", () => {
-    patchUi({ search: "", typeFilter: "all", folderFilter: "", page: 1 });
+    patchUi({ search: "", typeFilter: "all", page: 1, folderPage: 1 });
     G.renderPortalView?.();
   });
   on(root, "[data-action='doc-clear-folder']", "click", () => {
-    patchUi({ folderFilter: "", page: 1 });
+    patchUi({ folderFilter: EMPLOYEES_ROOT_FOLDER, page: 1, folderPage: 1, showTrash: false });
     G.renderPortalView?.();
   });
   on(root, "[data-action='doc-view']", "click", (e) => {
@@ -1240,7 +1369,7 @@ function bindDocumentManagementPortalControls() {
     G.renderPortalView?.();
   });
   on(root, "[data-action='doc-see-all']", "click", () => {
-    patchUi({ folderFilter: "", search: "", typeFilter: "all", page: 1 });
+    patchUi({ folderFilter: EMPLOYEES_ROOT_FOLDER, search: "", typeFilter: "all", page: 1, folderPage: 1, showTrash: false });
     G.renderPortalView?.();
   });
   on(root, "[data-action='doc-export-csv']", "click", () => {
@@ -1253,15 +1382,9 @@ function bindDocumentManagementPortalControls() {
     });
     downloadCsv("documentos-empresa.csv", buildCompanyDocumentExportRows(filtered));
   });
-  on(root, "[data-action='doc-folders-scroll']", "click", (e) => {
-    const rail = root.querySelector("[data-doc-folders-rail]");
-    if (!rail) return;
-    rail.scrollBy({ left: Number(e.currentTarget.dataset.dir) * 220, behavior: "smooth" });
-  });
   on(root, "[data-action='doc-open-folder']", "click", (e) => {
     const folder = String(e.currentTarget.dataset.folder || "");
-    const current = getUi().folderFilter;
-    patchUi({ folderFilter: folderKey(current) === folderKey(folder) ? "" : folder, page: 1 });
+    patchUi({ folderFilter: folder, page: 1, folderPage: 1, showTrash: false });
     G.renderPortalView?.();
   });
   on(root, "[data-action='doc-folder-perms']", "click", (e) => {
@@ -1269,11 +1392,17 @@ function bindDocumentManagementPortalControls() {
     openFolderPermissionsModal(String(e.currentTarget.dataset.folder || ""));
   });
   on(root, "[data-action='doc-open-subfolder']", "click", (e) => {
-    patchUi({ folderFilter: String(e.currentTarget.dataset.path || ""), page: 1 });
+    patchUi({ folderFilter: String(e.currentTarget.dataset.path || ""), page: 1, folderPage: 1, showTrash: false });
     G.renderPortalView?.();
   });
   on(root, "[data-action='doc-crumb']", "click", (e) => {
-    patchUi({ folderFilter: String(e.currentTarget.dataset.path || ""), page: 1 });
+    const path = String(e.currentTarget.dataset.path || "");
+    patchUi({
+      folderFilter: path || EMPLOYEES_ROOT_FOLDER,
+      page: 1,
+      folderPage: 1,
+      showTrash: false
+    });
     G.renderPortalView?.();
   });
   on(root, "[data-action='doc-storage-details']", "click", () => openStorageDetails());

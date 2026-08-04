@@ -21266,8 +21266,8 @@ body[data-theme="dark"] .payroll-bulk-result-list li {
 
 .directory-card__compact-row {
   display: grid;
-  grid-template-columns: auto 1fr auto auto;
-  gap: 0.65rem 0.85rem;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.55rem 0.75rem;
   align-items: center;
 }
 
@@ -21301,14 +21301,31 @@ body[data-theme="dark"] .payroll-bulk-result-list li {
   align-items: flex-end;
   gap: 0.25rem;
   text-align: right;
+  min-width: 0;
 }
 
+/* Acciones en fila propia: evita que overflow:hidden recorte botones en mosaico (~20rem). */
 .directory-card__compact-actions {
-  justify-content: flex-end;
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.directory-card__compact-actions .btn {
+  flex: 0 0 auto;
 }
 
 .directory-card--compact .directory-card__ops {
   margin-top: 0.5rem;
+}
+
+/* Compactas heredan overflow:hidden de .portal-ops-card / .trip-ops-card; hay que liberar clics. */
+.directory-card--compact.portal-ops-card,
+.directory-card--compact.trip-ops-card {
+  overflow: visible;
 }
 
 .payroll-module--clean .payroll-run-cards-grid {
@@ -21401,16 +21418,16 @@ body[data-theme="dark"] .payroll-bulk-result-list li {
 
 @media (max-width: 720px) {
   .directory-card__compact-row {
-    grid-template-columns: auto 1fr;
-    grid-template-rows: auto auto;
+    grid-template-columns: auto minmax(0, 1fr);
   }
 
-  .directory-card__compact-meta,
-  .directory-card__compact-actions {
+  .directory-card__compact-meta {
     grid-column: 1 / -1;
     flex-direction: row;
-    justify-content: space-between;
+    flex-wrap: wrap;
+    justify-content: flex-start;
     align-items: center;
+    text-align: left;
   }
 }
 
@@ -21891,6 +21908,11 @@ body[data-theme="dark"] .payroll-data-nav-tab.is-active .payroll-data-nav-count 
   display: flex;
   flex-direction: column;
   gap: 0.55rem;
+}
+
+.payroll-data-pane[hidden],
+.payroll-data-pane.hidden {
+  display: none !important;
 }
 
 .payroll-result-meta {

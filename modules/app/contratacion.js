@@ -625,18 +625,20 @@ function bindHiringPortalControls() {
       if (!tab) return;
       const ws = normalizeHrWorkspace("hiring", tab);
       if (!HR_VALID_HIRING_WS.has(ws)) return;
-      state.hiringUi = { ...(state.hiringUi || {}), workspace: ws, ...(ws === "operate" ? { dataListSearch: "" } : {}) };
-      persistHrWorkspace("hiring", ws);
-      if (
-        switchHrWorkspacePanels({
-          root: nodes.viewRoot,
-          moduleId: "hiring",
-          workspace: ws,
-          panelAttr: "data-hiring-panel"
-        })
-      ) {
-        return;
+      const prev = state.hiringUi || {};
+      const nextUi = { ...prev, workspace: ws };
+      if (ws === "operate") nextUi.dataListSearch = "";
+      if (ws === "data") {
+        nextUi.dataSection = "candidates";
+        nextUi.candidateView = nextUi.candidateView || "board";
       }
+      if (ws === "consult") {
+        const sec = normalizeHiringDataSection(prev.dataSection);
+        /* Si venía de Selección (solo candidatos), abrir Consultar en Vacantes. */
+        nextUi.dataSection = prev.workspace === "data" || !sec || sec === "candidates" ? "vacancies" : sec;
+      }
+      state.hiringUi = nextUi;
+      persistHrWorkspace("hiring", ws);
       renderPortalView();
     });
   });
@@ -857,9 +859,9 @@ function bindHiringPortalControls() {
             workspace: "operate"
           };
           state.hiringUi.vacancyFilter = "open";
-          state.hiringUi.workspace = "data";
+          state.hiringUi.workspace = "consult";
           state.hiringUi.dataSection = "vacancies";
-          persistHrWorkspace("hiring", "data");
+          persistHrWorkspace("hiring", "consult");
           collapseCreatePanel("create-vacancy");
           notify(userMessage("vacancyPublishedOk"), "success");
           renderPortalView();
@@ -949,9 +951,9 @@ function bindHiringPortalControls() {
         );
       }
       state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
-      state.hiringUi.workspace = "data";
+      state.hiringUi.workspace = "consult";
       state.hiringUi.dataSection = "positions";
-      persistHrWorkspace("hiring", "data");
+      persistHrWorkspace("hiring", "consult");
       collapseCreatePanel("create-position");
       notify(userMessage("positionCreatedOk"), "success");
       renderPortalView();
@@ -1082,35 +1084,41 @@ function bindHiringPortalControls() {
     });
   });
 
+  const keepHiringCandidatesWorkspace = () =>
+    normalizeHrWorkspace("hiring", state.hiringUi?.workspace) === "consult" ? "consult" : "data";
+
   nodes.viewRoot.querySelectorAll("[data-action='hiring-candidates-active']").forEach((btn) => {
     btn.addEventListener("click", () => {
+      const ws = keepHiringCandidatesWorkspace();
       state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
       state.hiringUi.candidateFilter = "active";
-      state.hiringUi.workspace = "data";
+      state.hiringUi.workspace = ws;
       state.hiringUi.dataSection = "candidates";
-      persistHrWorkspace("hiring", "data");
+      persistHrWorkspace("hiring", ws);
       renderPortalView();
     });
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='hiring-candidates-all']").forEach((btn) => {
     btn.addEventListener("click", () => {
+      const ws = keepHiringCandidatesWorkspace();
       state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
       state.hiringUi.candidateFilter = "all";
-      state.hiringUi.workspace = "data";
+      state.hiringUi.workspace = ws;
       state.hiringUi.dataSection = "candidates";
-      persistHrWorkspace("hiring", "data");
+      persistHrWorkspace("hiring", ws);
       renderPortalView();
     });
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='hiring-candidates-finalized']").forEach((btn) => {
     btn.addEventListener("click", () => {
+      const ws = keepHiringCandidatesWorkspace();
       state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
       state.hiringUi.candidateFilter = "finalized";
-      state.hiringUi.workspace = "data";
+      state.hiringUi.workspace = ws;
       state.hiringUi.dataSection = "candidates";
-      persistHrWorkspace("hiring", "data");
+      persistHrWorkspace("hiring", ws);
       renderPortalView();
     });
   });
@@ -1119,9 +1127,9 @@ function bindHiringPortalControls() {
     btn.addEventListener("click", () => {
       state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
       state.hiringUi.vacancyFilter = "open";
-      state.hiringUi.workspace = "data";
+      state.hiringUi.workspace = "consult";
       state.hiringUi.dataSection = "vacancies";
-      persistHrWorkspace("hiring", "data");
+      persistHrWorkspace("hiring", "consult");
       renderPortalView();
     });
   });
@@ -1130,9 +1138,9 @@ function bindHiringPortalControls() {
     btn.addEventListener("click", () => {
       state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
       state.hiringUi.vacancyFilter = "all";
-      state.hiringUi.workspace = "data";
+      state.hiringUi.workspace = "consult";
       state.hiringUi.dataSection = "vacancies";
-      persistHrWorkspace("hiring", "data");
+      persistHrWorkspace("hiring", "consult");
       renderPortalView();
     });
   });
@@ -1153,6 +1161,7 @@ function bindHiringPortalControls() {
       const view = String(btn.dataset.view || "board") === "list" ? "list" : "board";
       state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "data" };
       state.hiringUi.candidateView = view;
+      /* Tablero Kanban solo en Selección. */
       state.hiringUi.workspace = "data";
       state.hiringUi.dataSection = "candidates";
       persistHrWorkspace("hiring", "data");
@@ -1207,24 +1216,24 @@ function bindHiringPortalControls() {
 
   nodes.viewRoot.querySelectorAll("[data-action='hiring-positions-active']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      state.hiringUi = { ...(state.hiringUi || {}), positionFilter: "active", workspace: "data", dataSection: "positions" };
-      persistHrWorkspace("hiring", "data");
+      state.hiringUi = { ...(state.hiringUi || {}), positionFilter: "active", workspace: "consult", dataSection: "positions" };
+      persistHrWorkspace("hiring", "consult");
       renderPortalView();
     });
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='hiring-positions-inactive']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      state.hiringUi = { ...(state.hiringUi || {}), positionFilter: "inactive", workspace: "data", dataSection: "positions" };
-      persistHrWorkspace("hiring", "data");
+      state.hiringUi = { ...(state.hiringUi || {}), positionFilter: "inactive", workspace: "consult", dataSection: "positions" };
+      persistHrWorkspace("hiring", "consult");
       renderPortalView();
     });
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='hiring-positions-all']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      state.hiringUi = { ...(state.hiringUi || {}), positionFilter: "all", workspace: "data", dataSection: "positions" };
-      persistHrWorkspace("hiring", "data");
+      state.hiringUi = { ...(state.hiringUi || {}), positionFilter: "all", workspace: "consult", dataSection: "positions" };
+      persistHrWorkspace("hiring", "consult");
       renderPortalView();
     });
   });
@@ -1235,10 +1244,10 @@ function bindHiringPortalControls() {
       state.hiringUi = {
         ...(state.hiringUi || {}),
         positionRoleFilter: ["all", "empleado", "conductor"].includes(role) ? role : "all",
-        workspace: "data",
+        workspace: "consult",
         dataSection: "positions"
       };
-      persistHrWorkspace("hiring", "data");
+      persistHrWorkspace("hiring", "consult");
       renderPortalView();
     });
   });
@@ -1384,7 +1393,12 @@ function bindHiringPortalControls() {
       const len = String(el.value || "").length;
       const start = typeof el.selectionStart === "number" ? el.selectionStart : len;
       const end = typeof el.selectionEnd === "number" ? el.selectionEnd : start;
-      state.hiringUi = { ...(state.hiringUi || {}), dataListSearch: String(el.value || ""), workspace: "data" };
+      const currentWs = normalizeHrWorkspace("hiring", state.hiringUi?.workspace);
+      state.hiringUi = {
+        ...(state.hiringUi || {}),
+        dataListSearch: String(el.value || ""),
+        workspace: currentWs === "operate" ? "data" : currentWs
+      };
       state.__hiringDataListSearchRestore = { start, end };
       renderPortalView();
     });
@@ -1425,25 +1439,8 @@ function bindHiringPortalControls() {
   nodes.viewRoot.querySelectorAll("[data-action='hiring-data-section']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const section = normalizeHiringDataSection(btn.dataset.section);
-      state.hiringUi = { ...(state.hiringUi || {}), dataSection: section, workspace: "data" };
-      persistHrWorkspace("hiring", "data");
-      switchHrWorkspacePanels({
-        root: nodes.viewRoot,
-        moduleId: "hiring",
-        workspace: "data",
-        panelAttr: "data-hiring-panel"
-      });
-      if (
-        switchModuleTabPanels({
-          root: nodes.viewRoot,
-          action: "hiring-data-section",
-          activeValue: section,
-          panelAttr: "data-hiring-section",
-          tabActiveClass: "is-active"
-        })
-      ) {
-        return;
-      }
+      state.hiringUi = { ...(state.hiringUi || {}), dataSection: section, workspace: "consult" };
+      persistHrWorkspace("hiring", "consult");
       renderPortalView();
     });
   });
@@ -1727,9 +1724,9 @@ function bindHiringPortalControls() {
         { entityLabel: String(createdInterview.candidateName || "Entrevista").trim() }
       );
       state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
-      state.hiringUi.workspace = "data";
+      state.hiringUi.workspace = "consult";
       state.hiringUi.dataSection = "interviews";
-      persistHrWorkspace("hiring", "data");
+      persistHrWorkspace("hiring", "consult");
       collapseCreatePanel("create-interview");
       notify(userMessage("interviewScheduledOk"), "success");
       renderPortalView();
@@ -2032,9 +2029,9 @@ function bindHiringPortalControls() {
             }
           }
           state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
-          state.hiringUi.workspace = "data";
+          state.hiringUi.workspace = "consult";
           state.hiringUi.dataSection = "contracts";
-          persistHrWorkspace("hiring", "data");
+          persistHrWorkspace("hiring", "consult");
           collapseCreatePanel("create-contract");
         } catch (persistErr) {
           notify(String(persistErr?.message || "No fue posible guardar el contrato en el servidor."), "error");

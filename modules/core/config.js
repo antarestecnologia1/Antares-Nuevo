@@ -414,7 +414,8 @@ export const CLIENT_DATA_SCOPE = {
   INDIVIDUAL: "individual"
 };
 export const HR_VALID_PAYROLL_WS = new Set(["operate", "data"]);
-export const HR_VALID_HIRING_WS = new Set(["operate", "data"]);
+/** data = Selección (pipeline) · operate = Registrar · consult = Consultar listados */
+export const HR_VALID_HIRING_WS = new Set(["operate", "data", "consult"]);
 export const HR_VALID_SST_WS = new Set(["operate", "data"]);
 export const HR_VALID_REQUESTS_WS = new Set(["operate", "data"]);
 export const HR_VALID_TRANSPORT_TRIPS_WS = new Set(["operate", "data"]);

@@ -7402,7 +7402,9 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = fa
     const contractAlertBar = showContractAlert
       ? `<div class="payroll-emp-contract-alert${contract.statusSlug === "expired" ? " payroll-emp-contract-alert--expired" : ""}">${escapeHtml(contract.headline || contract.pillLabel || "Contrato requiere atención")}</div>`
       : "";
-    return `<article class="directory-card portal-ops-card trip-ops-card directory-card--employee directory-card--compact directory-card--contract-${escapeAttr(statusSlug)}" data-employee-id="${escapeAttr(String(e.id || ""))}" data-employee-search="${escapeAttr(item.searchBlob)}" data-employee-contract-filter="${escapeAttr(contract.applies ? contract.statusSlug : "all")}">
+    const contractTypeKey = payrollEmployeeContractTypeKey(e);
+    const endYmd = normalizePortalDateYmd(contract.endYmd || e.contractEndDate || "");
+    return `<article class="directory-card portal-ops-card trip-ops-card directory-card--employee directory-card--compact directory-card--contract-${escapeAttr(statusSlug)}" data-employee-id="${escapeAttr(String(e.id || ""))}" data-employee-search="${escapeAttr(item.searchBlob)}" data-employee-contract-filter="${escapeAttr(contract.applies ? contract.statusSlug : "all")}" data-employee-contract-type="${escapeAttr(contractTypeKey)}" data-employee-contract-end="${escapeAttr(endYmd)}">
     <div class="directory-card__compact-row">
       <div class="payroll-emp-avatar payroll-emp-avatar--${avColorIdx}" aria-hidden="true">${escapeHtml(initials)}</div>
       <div class="directory-card__compact-main">
@@ -7432,7 +7434,7 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = fa
     ${contractAlertBar}
   </article>`;
   }
-  return `<article class="directory-card portal-ops-card trip-ops-card directory-card--employee directory-card--contract-${escapeAttr(statusSlug)}" data-employee-id="${escapeAttr(String(e.id || ""))}" data-employee-search="${escapeAttr(item.searchBlob)}" data-employee-contract-filter="${escapeAttr(contract.applies ? contract.statusSlug : "all")}">
+  return `<article class="directory-card portal-ops-card trip-ops-card directory-card--employee directory-card--contract-${escapeAttr(statusSlug)}" data-employee-id="${escapeAttr(String(e.id || ""))}" data-employee-search="${escapeAttr(item.searchBlob)}" data-employee-contract-filter="${escapeAttr(contract.applies ? contract.statusSlug : "all")}" data-employee-contract-type="${escapeAttr(payrollEmployeeContractTypeKey(e))}" data-employee-contract-end="${escapeAttr(normalizePortalDateYmd(contract.endYmd || e.contractEndDate || ""))}">
     <header class="directory-card__head">
       <div class="directory-card__identity">
         <div class="${avatarClass}">${avatarInner}</div>

@@ -1031,8 +1031,24 @@
 
 .directory-card--compact {
   min-width: 0;
+  overflow: visible;
   container-type: inline-size;
   container-name: ops-card;
+}
+
+@container ops-card (max-width: 22rem) {
+  .directory-card__compact-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .directory-card__compact-meta {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    align-items: center;
+    text-align: left;
+  }
 }
 
 .payroll-run-card,

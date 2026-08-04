@@ -170,8 +170,14 @@ function hiringHtml() {
     ? String(hiringUi.drawerTab)
     : "resumen";
   const hiringWorkspace = normalizeHrWorkspace("hiring", hiringUi.workspace);
+  const isSelectionWs = hiringWorkspace === "data";
+  const isConsultWs = hiringWorkspace === "consult";
   const hiringOperateSection = normalizeHiringOperateSection(hiringUi.operateSection);
-  const hiringDataSection = normalizeHiringDataSection(hiringUi.dataSection);
+  const hiringDataSection = normalizeHiringDataSection(
+    isSelectionWs ? "candidates" : hiringUi.dataSection || (isConsultWs ? "vacancies" : "candidates")
+  );
+  /** En Consultar los candidatos se muestran en lista; el Kanban vive solo en Selección. */
+  const renderCandidateBoard = isSelectionWs && candidateView === "board";
   if (!String(state.hiringUi?.candidateView || "").trim() && hiringDataSection === "candidates") {
     state.hiringUi = { ...(state.hiringUi || hiringUi), candidateView: "board" };
   }
@@ -975,7 +981,7 @@ function hiringHtml() {
   }
 
   const tCand = sortedCandidatesView.length
-    ? candidateView === "board"
+    ? renderCandidateBoard
       ? `<div class="hiring-candidates-board-wrap">${candBoard}${candidateDrawerHtml}</div>`
       : `<div class="hiring-pipeline">
         <aside class="hiring-pipeline__rail" aria-label="Pipeline de selección">
@@ -1144,30 +1150,6 @@ function hiringHtml() {
   const positionsWithVacancy = positions.filter((p) =>
     vacancies.some((v) => String(v.positionId || "") === String(p.id))
   ).length;
-  const bandejaConsultMenu = `<details class="hiring-action-menu">
-      <summary class="btn btn-outline hiring-action-menu__trigger">${IC.eye || IC.search || ""} Consultar</summary>
-      <div class="hiring-action-menu__panel" role="menu" aria-label="Consultas de contratación">
-        <button type="button" role="menuitem" data-action="hiring-data-section" data-section="vacancies">${IC.send || ""} Vacantes <span>${filteredVacancies.length}</span></button>
-        <button type="button" role="menuitem" data-action="hiring-data-section" data-section="positions">${IC.briefcase || ""} Cargos <span>${positions.length}</span></button>
-        <button type="button" role="menuitem" data-action="hiring-data-section" data-section="interviews">${IC.calendar || ""} Agenda <span>${interviews.length}</span></button>
-        <button type="button" role="menuitem" data-action="hiring-data-section" data-section="contracts">${IC.file || ""} Contratos <span>${contracts.length}</span></button>
-        <button type="button" role="menuitem" data-action="hiring-data-section" data-section="candidates">${IC.users || ""} Candidatos <span>${sortedCandidates.length}</span></button>
-      </div>
-    </details>`;
-  const bandejaNuevoMenu = hiringCanEdit
-    ? `<details class="hiring-action-menu">
-      <summary class="btn btn-primary hiring-action-menu__trigger">${IC.plus || ""} Nuevo</summary>
-      <div class="hiring-action-menu__panel" role="menu" aria-label="Registrar en contratación">
-        <button type="button" role="menuitem" data-action="hiring-open-create" data-section="candidate">${IC.userPlus || IC.users || ""} Nuevo candidato</button>
-        <button type="button" role="menuitem" data-action="hiring-open-create" data-section="vacancy">${IC.send || IC.plus || ""} Nueva vacante</button>
-        <button type="button" role="menuitem" data-action="hiring-open-create" data-section="position">${IC.briefcase || ""} Nuevo cargo</button>
-      </div>
-    </details>`
-    : "";
-  const bandejaCreateActions = `<div class="hiring-bandeja__actions">
-        ${bandejaConsultMenu}
-        ${bandejaNuevoMenu}
-      </div>`;
   const bandejaKpis = `<ul class="hiring-bandeja__kpis" aria-label="Indicadores de selección">
       <li class="hiring-bandeja__kpi"><span class="hiring-bandeja__kpi-ico hiring-bandeja__kpi-ico--users" aria-hidden="true">${IC.users || ""}</span><div><small>Candidatos</small><strong>${candidates.length}</strong></div></li>
       <li class="hiring-bandeja__kpi"><span class="hiring-bandeja__kpi-ico hiring-bandeja__kpi-ico--brief" aria-hidden="true">${IC.briefcase || ""}</span><div><small>Vacantes</small><strong>${openVacancies.length}</strong></div></li>
@@ -1185,76 +1167,89 @@ function hiringHtml() {
   const bandejaTopbar = `<header class="hiring-bandeja__topbar">
       <div class="hiring-bandeja__titles">
         <h3>Bandeja de selección</h3>
-        <p>Gestiona y da seguimiento a los candidatos en cada etapa del proceso.</p>
+        <p>Pipeline Kanban: avance candidatos por etapa del proceso.</p>
       </div>
       <label class="hiring-bandeja__search">
         <span class="hiring-bandeja__search-ico" aria-hidden="true">${IC.search || ""}</span>
         <input type="search" data-action="hiring-data-list-search" data-hiring-search-focus value="${escapeAttr(dataListSearchRaw)}" placeholder="Buscar candidatos..." autocomplete="off" />
         <kbd class="hiring-bandeja__kbd">${escapeHtml(shortcutHint)}</kbd>
       </label>
-      ${bandejaCreateActions}
     </header>`;
-  const cargosCreateActions = `<div class="hiring-bandeja__actions">
-        ${bandejaConsultMenu}
-        ${bandejaNuevoMenu}
-      </div>`;
-  const cargosTopbar = `<header class="hiring-bandeja__topbar">
+  const cargosTopbar = `<header class="hiring-bandeja__topbar hiring-bandeja__topbar--consult">
       <div class="hiring-bandeja__titles">
         <h3>Catálogo de cargos</h3>
-        <p>Define salarios, jornada y plantilla contractual que alimentan vacantes y contrataciones.</p>
+        <p>Salarios, jornada y plantilla contractual.</p>
       </div>
       <label class="hiring-bandeja__search">
         <span class="hiring-bandeja__search-ico" aria-hidden="true">${IC.search || ""}</span>
         <input type="search" data-action="hiring-data-list-search" value="${escapeAttr(dataListSearchRaw)}" placeholder="Buscar cargos..." autocomplete="off" />
         <kbd class="hiring-bandeja__kbd">${escapeHtml(shortcutHint)}</kbd>
       </label>
-      ${cargosCreateActions}
     </header>`;
-  const hiringCandidatesPane = `<div class="payroll-data-pane hiring-browse__pane${hiringDataSection === "candidates" ? "" : " hidden"}" data-hiring-section="candidates">
+  const consultCandidatesTopbar = `<header class="hiring-bandeja__topbar hiring-bandeja__topbar--consult">
+      <div class="hiring-bandeja__titles">
+        <h3>Candidatos</h3>
+        <p>Listado completo para consulta y edición.</p>
+      </div>
+      <label class="hiring-bandeja__search">
+        <span class="hiring-bandeja__search-ico" aria-hidden="true">${IC.search || ""}</span>
+        <input type="search" data-action="hiring-data-list-search" value="${escapeAttr(dataListSearchRaw)}" placeholder="Buscar candidatos..." autocomplete="off" />
+      </label>
+    </header>`;
+  const selectionCandidatesPane = `<div class="payroll-data-pane hiring-browse__pane" data-hiring-section="candidates">
       ${bandejaTopbar}
       ${bandejaKpis}
-      ${hiringDataFilters ? `<div class="hiring-browse__filters">${hiringDataFilters}</div>` : ""}
+      ${hiringQuickBarCandidates ? `<div class="hiring-browse__filters">${hiringQuickBarCandidates}</div>` : ""}
       ${tCand || `<div class="hiring-board hiring-board--kanban"><p class="hiring-board__empty">No hay candidatos para mostrar en el tablero.</p></div>`}
     </div>`;
-  const consultBackBar = `<div class="hiring-consult-back">
-      ${bandejaConsultMenu}
-      <button type="button" class="btn btn-outline btn-sm" data-action="hiring-data-section" data-section="candidates">${IC.columns || IC.grid || ""} Volver a bandeja</button>
-    </div>`;
-  const hiringVacanciesPane = `<div class="payroll-data-pane hiring-browse__pane${hiringDataSection === "vacancies" ? "" : " hidden"}" data-hiring-section="vacancies">
-      ${consultBackBar}
+  const consultSectionHead = (title, subtitle, searchPlaceholder) => `<header class="hiring-consult-section-head">
+      <div>
+        <h3>${escapeHtml(title)}</h3>
+        <p class="muted">${escapeHtml(subtitle)}</p>
+      </div>
       <label class="hiring-browse__search hiring-browse__search--inline">
         <span class="hiring-browse__search-ico" aria-hidden="true">${IC.search || ""}</span>
-        <input type="search" data-action="hiring-data-list-search" value="${escapeAttr(dataListSearchRaw)}" placeholder="Buscar vacantes…" autocomplete="off" />
+        <input type="search" data-action="hiring-data-list-search" value="${escapeAttr(dataListSearchRaw)}" placeholder="${escapeAttr(searchPlaceholder)}" autocomplete="off" />
       </label>
-      ${hiringDataFilters ? `<div class="hiring-browse__filters">${hiringDataFilters}</div>` : ""}
+    </header>`;
+  const hiringVacanciesPane = `<div class="payroll-data-pane hiring-browse__pane${hiringDataSection === "vacancies" ? "" : " hidden"}" data-hiring-section="vacancies">
+      ${consultSectionHead("Vacantes", "Ofertas publicadas y su estado.", "Buscar vacantes…")}
+      ${hiringDataSection === "vacancies" && hiringQuickBarVacancies ? `<div class="hiring-browse__filters">${hiringQuickBarVacancies}</div>` : ""}
       ${hiringMetaVacancies}
       ${tVac}
     </div>`;
   const hiringInterviewsPane = `<div class="payroll-data-pane hiring-browse__pane${hiringDataSection === "interviews" ? "" : " hidden"}" data-hiring-section="interviews">
-      ${consultBackBar}
+      ${consultSectionHead("Agenda de entrevistas", "Entrevistas programadas y notas del proceso.", "Buscar entrevistas…")}
       ${hiringMetaInterviews}
       ${tInt}
     </div>`;
   const hiringContractsPane = `<div class="payroll-data-pane hiring-browse__pane${hiringDataSection === "contracts" ? "" : " hidden"}" data-hiring-section="contracts">
-      ${consultBackBar}
+      ${consultSectionHead("Contratos", "Documentos Word generados desde contratación.", "Buscar contratos…")}
       ${hiringMetaContracts}
       ${tCon}
     </div>`;
   const hiringPositionsPane = `<div class="payroll-data-pane hiring-browse__pane${hiringDataSection === "positions" ? "" : " hidden"}" data-hiring-section="positions">
       ${cargosTopbar}
       ${cargosKpis}
-      ${hiringDataFilters ? `<div class="hiring-browse__filters">${hiringDataFilters}</div>` : ""}
+      ${hiringDataSection === "positions" && hiringQuickBarPositions ? `<div class="hiring-browse__filters">${hiringQuickBarPositions}</div>` : ""}
       <p class="hiring-browse__meta" title="Cargos visibles según filtros y búsqueda"><strong>${positionsView.length}</strong>${dataListSearch ? ` <span>· ${positionsScoped.length}</span>` : ""} <span>/ ${positions.length}</span> cargos · <strong>${inactivePositionsCount}</strong> inactivos</p>
       ${tPos}
     </div>`;
-  const hiringDataBlock = `<section class="hiring-browse hiring-data-panel hiring-bandeja" data-hiring-section-active="${escapeAttr(hiringDataSection)}">
-      ${hiringDataSection === "candidates" ? "" : hiringDataNav}
-      <div class="payroll-data-panes hiring-browse__panes">${hiringCandidatesPane}${hiringVacanciesPane}${hiringInterviewsPane}${hiringContractsPane}${hiringPositionsPane}</div>
+  const consultCandidatesPane = `<div class="payroll-data-pane hiring-browse__pane${hiringDataSection === "candidates" ? "" : " hidden"}" data-hiring-section="candidates">
+      ${consultCandidatesTopbar}
+      ${hiringDataSection === "candidates" ? `<div class="hiring-browse__filters">${hiringQuickBarCandidates}</div>` : ""}
       ${
-        hiringDataSection === "candidates"
-          ? `<footer class="hiring-bandeja__section-nav">${hiringDataNav}</footer>`
-          : ""
+        renderCandidateBoard
+          ? `<div class="hiring-board hiring-board--kanban"><p class="hiring-board__empty">Cambie a Selección para ver el tablero Kanban.</p></div>`
+          : tCand || `<p class="muted">No hay candidatos registrados.</p>`
       }
+    </div>`;
+  const hiringSelectionBlock = `<section class="hiring-browse hiring-data-panel hiring-bandeja hiring-bandeja--selection" data-hiring-section-active="candidates">
+      <div class="payroll-data-panes hiring-browse__panes">${selectionCandidatesPane}</div>
+    </section>`;
+  const hiringConsultBlock = `<section class="hiring-browse hiring-data-panel hiring-bandeja hiring-bandeja--consult" data-hiring-section-active="${escapeAttr(hiringDataSection)}">
+      ${hiringDataNav}
+      <div class="payroll-data-panes hiring-browse__panes">${consultCandidatesPane}${hiringVacanciesPane}${hiringInterviewsPane}${hiringContractsPane}${hiringPositionsPane}</div>
     </section>`;
   const hiringTabsNav = renderHrWorkspaceTabs({
     module: "hiring",
@@ -1262,21 +1257,26 @@ function hiringHtml() {
     activeId: hiringWorkspace,
     variant: "switch",
     tabs: [
-      { id: "data", label: "Selección", icon: "users", hint: "Pipeline y seguimiento" },
-      { id: "operate", label: "Registrar", icon: "plus", hint: "Altas y formularios" }
+      { id: "data", label: "Selección", icon: "users", hint: "Pipeline Kanban" },
+      { id: "operate", label: "Registrar", icon: "plus", hint: "Altas y formularios" },
+      { id: "consult", label: "Consultar", icon: "eye", hint: "Vacantes, cargos y agenda" }
     ]
   });
   const hiringWorkspaceHeader = renderHrWorkspaceHeader(hiringModuleHead, hiringTabsNav, "hiring");
   const hiringDataPanel = `<div class="hr-workspace-panel payroll-workspace-panel${hiringWorkspace === "data" ? "" : " hidden"}" role="tabpanel" data-hiring-panel="data">
-      ${hiringDataBlock}
+      ${hiringSelectionBlock}
     </div>`;
   const hiringOperatePanel = `<div class="hr-workspace-panel payroll-workspace-panel${hiringWorkspace === "operate" ? "" : " hidden"}" role="tabpanel" data-hiring-panel="operate">
       ${hiringExecutionBlock}
+    </div>`;
+  const hiringConsultPanel = `<div class="hr-workspace-panel payroll-workspace-panel${hiringWorkspace === "consult" ? "" : " hidden"}" role="tabpanel" data-hiring-panel="consult">
+      ${hiringConsultBlock}
     </div>`;
   return `<section class="hiring-studio hiring-shell hiring-shell--workspace hr-flow-shell" data-hr-workspace="${escapeAttr(hiringWorkspace)}">${hiringWorkspaceHeader}
       <div class="hr-workspace-panels">
         ${hiringDataPanel}
         ${hiringOperatePanel}
+        ${hiringConsultPanel}
       </div>
     </section>`;
 }

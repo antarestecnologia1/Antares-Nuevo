@@ -373,7 +373,7 @@ export function normalizeHrWorkspace(moduleId, workspace) {
   if (moduleId === "payroll") return HR_VALID_PAYROLL_WS.has(ws) ? ws : "operate";
   if (moduleId === "hiring") {
     if (ws === "track") return "data";
-    /* Por defecto: Selección (consultar pipeline), no el rail de alta. */
+    /* Por defecto: Selección (pipeline Kanban). consult = listados; operate = altas. */
     return HR_VALID_HIRING_WS.has(ws) ? ws : "data";
   }
   if (moduleId === "requests") return HR_VALID_REQUESTS_WS.has(ws) ? ws : "operate";

@@ -850,26 +850,13 @@ function bindPayrollPortalControls() {
   nodes.viewRoot.querySelectorAll("[data-action='payroll-data-section']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const section = normalizePayrollDataSection(btn.dataset.section);
+      const prevSection = normalizePayrollDataSection(state.payrollUi?.dataSection);
+      const alreadyData = normalizeHrWorkspace("payroll", state.payrollUi?.workspace) === "data";
+      if (alreadyData && prevSection === section) return;
       state.payrollUi = { ...(state.payrollUi || {}), dataSection: section, workspace: "data" };
       persistHrWorkspace("payroll", "data");
-      switchHrWorkspacePanels({
-        root: nodes.viewRoot,
-        moduleId: "payroll",
-        workspace: "data",
-        panelAttr: "data-payroll-panel"
-      });
-      if (
-        switchModuleTabPanels({
-          root: nodes.viewRoot,
-          action: "payroll-data-section",
-          activeValue: section,
-          panelAttr: "data-payroll-section",
-          tabActiveClass: "is-active"
-        })
-      ) {
-        syncPayrollConsultHeaderDom(nodes.viewRoot, section);
-        return;
-      }
+      // Re-render completo: las barras de filtros (Nómina/Viajes) y paneles legales
+      // dependen de dataSection en el HTML; el switch parcial dejaba la UI desfasada.
       renderPortalView();
     });
   });

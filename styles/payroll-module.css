@@ -328,6 +328,7 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
+  pointer-events: auto;
   white-space: normal;
   transition:
     border-color 0.18s ease,
