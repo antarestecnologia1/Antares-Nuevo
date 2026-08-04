@@ -464,10 +464,20 @@ body[data-theme="dark"] .payroll-employee-toolbar-actions .btn-reject {
 /* Tarjetas compactas de empleados */
 body[data-theme="dark"] .payroll-studio .directory-card--compact,
 body[data-theme="dark"] .payroll-shell .directory-card--compact,
-body[data-theme="dark"] .hr-module-pro--payroll .payroll-employees-grid .directory-card--compact {
+body[data-theme="dark"] .hr-module-pro--payroll .payroll-employees-grid .directory-card--compact,
+body[data-theme="dark"] .payroll-studio .payroll-employees-grid > .directory-card--compact {
   background: linear-gradient(165deg, rgba(22, 40, 64, 0.96) 0%, rgba(15, 28, 48, 0.98) 100%);
   border-color: rgba(74, 115, 153, 0.3);
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+}
+
+body[data-theme="dark"] .payroll-studio .payroll-employees-grid .directory-card__compact-actions {
+  border-top-color: rgba(100, 150, 200, 0.16);
+}
+
+body[data-theme="dark"] .payroll-studio .payroll-employees-grid .payroll-emp-role-chip {
+  background: rgba(55, 124, 192, 0.18);
+  color: #93c5fd;
 }
 
 body[data-theme="dark"] .payroll-studio .directory-card--compact:hover,

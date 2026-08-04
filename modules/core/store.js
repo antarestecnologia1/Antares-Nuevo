@@ -168,7 +168,9 @@ export let state = {
     runSort: "recent",
     workspace: "operate",
     dataSection: "employees",
-    operateSection: "employee"
+    operateSection: "employee",
+    employeesView: "cards",
+    runsView: "cards"
   },
   payrollLegalUi: {
     year: String(new Date().getFullYear())

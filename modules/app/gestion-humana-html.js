@@ -27,7 +27,7 @@ function renderPayrollEmployeesViewToggle(activeView) {
     const active = view === mode;
     return `<button type="button" class="payroll-runs-view-toggle__btn${active ? " is-active" : ""}" role="tab" aria-selected="${active ? "true" : "false"}" data-action="payroll-employees-view" data-view="${mode}">${icon}<span>${escapeHtml(label)}</span></button>`;
   };
-  return `<div class="payroll-runs-view-toggle payroll-contracts-view-toggle" role="tablist" aria-label="Vista de colaboradores">${mkBtn("list", IC.list, "Tabla")}${mkBtn("cards", IC.grid, "Tarjetas")}</div>`;
+  return `<div class="payroll-runs-view-toggle payroll-contracts-view-toggle" role="tablist" aria-label="Vista de colaboradores">${mkBtn("cards", IC.grid, "Tarjetas")}${mkBtn("list", IC.list, "Tabla")}</div>`;
 }
 
 function computePayrollContractDashboardStats(summaries) {
@@ -181,7 +181,7 @@ function payrollHtml() {
   const filters = state.payrollFilters || defaultPayrollFilters();
   const runSort = String(payrollUi.runSort || "recent");
   const runsView = String(payrollUi.runsView || "cards").toLowerCase() === "list" ? "list" : "cards";
-  const employeesView = String(payrollUi.employeesView || "list").toLowerCase() === "cards" ? "cards" : "list";
+  const employeesView = String(payrollUi.employeesView || "cards").toLowerCase() === "list" ? "list" : "cards";
   const payrollWorkspace = normalizeHrWorkspace("payroll", payrollUi.workspace);
   const payrollDataSection = normalizePayrollDataSection(payrollUi.dataSection);
   const payrollOperateSection = normalizePayrollOperateSection(payrollUi.operateSection);
