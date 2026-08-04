@@ -1144,9 +1144,9 @@ function hiringHtml() {
   const positionsWithVacancy = positions.filter((p) =>
     vacancies.some((v) => String(v.positionId || "") === String(p.id))
   ).length;
-  const bandejaConsultMenu = `<details class="hiring-consult-menu">
-      <summary class="btn btn-outline hiring-consult-menu__trigger">${IC.eye || IC.search || ""} Consultar</summary>
-      <div class="hiring-consult-menu__panel" role="menu" aria-label="Consultas de contratación">
+  const bandejaConsultMenu = `<details class="hiring-action-menu">
+      <summary class="btn btn-outline hiring-action-menu__trigger">${IC.eye || IC.search || ""} Consultar</summary>
+      <div class="hiring-action-menu__panel" role="menu" aria-label="Consultas de contratación">
         <button type="button" role="menuitem" data-action="hiring-data-section" data-section="vacancies">${IC.send || ""} Vacantes <span>${filteredVacancies.length}</span></button>
         <button type="button" role="menuitem" data-action="hiring-data-section" data-section="positions">${IC.briefcase || ""} Cargos <span>${positions.length}</span></button>
         <button type="button" role="menuitem" data-action="hiring-data-section" data-section="interviews">${IC.calendar || ""} Agenda <span>${interviews.length}</span></button>
@@ -1154,15 +1154,19 @@ function hiringHtml() {
         <button type="button" role="menuitem" data-action="hiring-data-section" data-section="candidates">${IC.users || ""} Candidatos <span>${sortedCandidates.length}</span></button>
       </div>
     </details>`;
+  const bandejaNuevoMenu = hiringCanEdit
+    ? `<details class="hiring-action-menu">
+      <summary class="btn btn-primary hiring-action-menu__trigger">${IC.plus || ""} Nuevo</summary>
+      <div class="hiring-action-menu__panel" role="menu" aria-label="Registrar en contratación">
+        <button type="button" role="menuitem" data-action="hiring-open-create" data-section="candidate">${IC.userPlus || IC.users || ""} Nuevo candidato</button>
+        <button type="button" role="menuitem" data-action="hiring-open-create" data-section="vacancy">${IC.send || IC.plus || ""} Nueva vacante</button>
+        <button type="button" role="menuitem" data-action="hiring-open-create" data-section="position">${IC.briefcase || ""} Nuevo cargo</button>
+      </div>
+    </details>`
+    : "";
   const bandejaCreateActions = `<div class="hiring-bandeja__actions">
         ${bandejaConsultMenu}
-        ${
-          hiringCanEdit
-            ? `<button type="button" class="btn btn-outline" data-action="hiring-open-create" data-section="position">${IC.briefcase} Nuevo cargo</button>
-        <button type="button" class="btn btn-outline" data-action="hiring-open-create" data-section="vacancy">${IC.plus} Nueva vacante</button>
-        <button type="button" class="btn btn-primary" data-action="hiring-open-create" data-section="candidate">${IC.plus} Nuevo candidato</button>`
-            : ""
-        }
+        ${bandejaNuevoMenu}
       </div>`;
   const bandejaKpis = `<ul class="hiring-bandeja__kpis" aria-label="Indicadores de selección">
       <li class="hiring-bandeja__kpi"><span class="hiring-bandeja__kpi-ico hiring-bandeja__kpi-ico--users" aria-hidden="true">${IC.users || ""}</span><div><small>Candidatos</small><strong>${candidates.length}</strong></div></li>
@@ -1192,12 +1196,7 @@ function hiringHtml() {
     </header>`;
   const cargosCreateActions = `<div class="hiring-bandeja__actions">
         ${bandejaConsultMenu}
-        ${
-          hiringCanEdit
-            ? `<button type="button" class="btn btn-primary" data-action="hiring-open-create" data-section="position">${IC.plus} Nuevo cargo</button>
-        <button type="button" class="btn btn-outline" data-action="hiring-open-create" data-section="vacancy">${IC.send} Nueva vacante</button>`
-            : ""
-        }
+        ${bandejaNuevoMenu}
       </div>`;
   const cargosTopbar = `<header class="hiring-bandeja__topbar">
       <div class="hiring-bandeja__titles">

@@ -4007,6 +4007,7 @@ function openPublicVacancyApplyModal(vacancy) {
         expectedSalary: 0,
         availabilityDate: "",
         status: PIPELINE[0],
+        pipelineStage: PIPELINE[0],
         attachments: cvPieces,
         source: "Sitio web",
         createdAt: nowIso()

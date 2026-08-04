@@ -1565,6 +1565,7 @@ function bindHiringPortalControls() {
         vacancyId: vac.id,
         vacancyTitle: vac.title,
         status: PIPELINE[0],
+        pipelineStage: PIPELINE[0],
         attachments: attachmentList,
         source: "Portal RRHH"
       });
@@ -1611,9 +1612,14 @@ function bindHiringPortalControls() {
         renderPortalView();
         return;
       }
-      const updated = all.map((c) =>
-        c.id === select.dataset.id ? { ...c, status: select.value, updatedAt: nowIso() } : c
-      );
+      const nextStage = String(select.value || PIPELINE[0]);
+      const updated = all.map((c) => {
+        if (c.id !== select.dataset.id) return c;
+        const next = { ...c, status: nextStage, pipelineStage: nextStage, updatedAt: nowIso() };
+        if (nextStage === "Contratado" && !next.hiredAt) next.hiredAt = nowIso();
+        if (nextStage !== "Contratado") next.hiredAt = null;
+        return next;
+      });
       try {
         await writeAwaitServerEdit(KEYS.candidates, updated, select.dataset.id);
       } catch (err) {
@@ -1694,7 +1700,7 @@ function bindHiringPortalControls() {
         const status = String(item.status || "");
         if (["Contratado", "Descartado"].includes(status)) return item;
         if (status === "Entrevistado") return item;
-        return stampUpdatedRecord({ ...item, status: "Entrevistado" });
+        return stampUpdatedRecord({ ...item, status: "Entrevistado", pipelineStage: "Entrevistado" });
       });
       write(KEYS.candidates, nextCandidates, { skipSyncSchedule: true });
       try {
@@ -2008,7 +2014,14 @@ function bindHiringPortalControls() {
             if (statusValidation.ok) {
               const nextCandidates = read(KEYS.candidates, []).map((c) =>
                 String(c.id) === String(linkedCandidate.id)
-                  ? stampUpdatedRecord({ ...c, status: "Contratado", updatedAt: nowIso() })
+                  ? stampUpdatedRecord({
+                      ...c,
+                      status: "Contratado",
+                      pipelineStage: "Contratado",
+                      hiredAt: c.hiredAt || nowIso(),
+                      contractRegisteredAt: c.contractRegisteredAt || nowIso(),
+                      updatedAt: nowIso()
+                    })
                   : c
               );
               try {
@@ -2788,8 +2801,12 @@ function bindHiringPortalControls() {
                     vacancyId: vac.id,
                     vacancyTitle: vac.title,
                     status: nextStatus,
+                    pipelineStage: nextStatus,
                     source: String(form.source || "Portal RRHH"),
-                    attachments: nextAttachments
+                    attachments: nextAttachments,
+                    hiredAt:
+                      nextStatus === "Contratado" ? c.hiredAt || target.hiredAt || nowIso() : null,
+                    contractRegisteredAt: c.contractRegisteredAt || target.contractRegisteredAt || null
                   })
             );
           write(KEYS.candidates, nextCandidates, { skipSyncSchedule: true });

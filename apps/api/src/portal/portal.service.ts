@@ -7210,6 +7210,7 @@ export class PortalService implements OnModuleInit {
       positionName: v.nombre_cargo_denorm,
       workerRole: v.rol_trabajador,
       contractType: v.tipo_contrato_predeterminado,
+      contractTypeDefault: v.tipo_contrato_predeterminado,
       requirements: v.requisitos,
       imageUrl: v.imagen_url != null ? String(v.imagen_url).trim() : "",
       status: v.estado,
@@ -7242,13 +7243,25 @@ export class PortalService implements OnModuleInit {
         address: c.direccion,
         experienceYears: Number(c.anios_experiencia),
         salaryExpectation: Number(c.aspiracion_salarial),
+        expectedSalary: Number(c.aspiracion_salarial),
         availableFrom: c.fecha_disponible_ingreso,
+        availabilityDate:
+          c.fecha_disponible_ingreso == null
+            ? ""
+            : c.fecha_disponible_ingreso instanceof Date
+              ? c.fecha_disponible_ingreso.toISOString().slice(0, 10)
+              : String(c.fecha_disponible_ingreso).slice(0, 10),
         vacancyTitle: c.titulo_vacante_denorm,
         pipelineStage: c.etapa_proceso,
+        status: c.etapa_proceso,
         attachments: await this.enrichCandidateAttachmentsForPortal(c.adjuntos_json),
         source: c.origen,
-        hiredAt: c.fecha_contratacion,
-        contractRegisteredAt: c.fecha_registro_contrato,
+        hiredAt: c.fecha_contratacion
+          ? new Date(c.fecha_contratacion).toISOString()
+          : null,
+        contractRegisteredAt: c.fecha_registro_contrato
+          ? new Date(c.fecha_registro_contrato).toISOString()
+          : null,
         createdAt: c.fecha_creacion ? new Date(c.fecha_creacion).toISOString() : new Date().toISOString(),
         updatedAt: c.fecha_actualizacion ? new Date(c.fecha_actualizacion).toISOString() : null
       }))
@@ -7275,6 +7288,7 @@ export class PortalService implements OnModuleInit {
     return r.rows.map((c) => ({
       id: c.id,
       sourceTag: c.etiqueta_origen,
+      source: c.etiqueta_origen,
       personType: c.tipo_persona_origen,
       candidateId: c.id_candidato,
       candidateName: c.nombre_candidato_denorm,
@@ -7283,6 +7297,7 @@ export class PortalService implements OnModuleInit {
       workerRole: c.rol_trabajador,
       positionId: c.id_cargo,
       positionName: c.nombre_cargo_denorm,
+      position: c.nombre_cargo_denorm,
       salary: Number(c.salario_pactado),
       startDate: c.fecha_inicio,
       endDate: c.fecha_fin,
@@ -7291,6 +7306,7 @@ export class PortalService implements OnModuleInit {
       companyName: c.nombre_empresa_denorm,
       contractType: c.tipo_contrato,
       templateKind: c.tipo_plantilla_word,
+      contractTemplateKind: c.tipo_plantilla_word,
       idDocSnapshot: c.documento_identidad_snapshot,
       probationMonths: c.meses_periodo_prueba,
       schedule: c.jornada_turno,
@@ -7308,6 +7324,7 @@ export class PortalService implements OnModuleInit {
       licenseCategory: c.categoria_licencia,
       licenseExpiry: c.fecha_vencimiento_licencia,
       summaryText: c.texto_contenido_resumen,
+      content: c.texto_contenido_resumen,
       createdAt: c.fecha_creacion ? new Date(c.fecha_creacion).toISOString() : new Date().toISOString()
     }));
   }
@@ -12679,7 +12696,7 @@ export class PortalService implements OnModuleInit {
           Number(v.salaryOffer) || 0,
           nuN(pickPortalField(v, "positionName")),
           String(pickPortalField(v, "workerRole") || "empleado").toLowerCase(),
-          nuN(pickPortalField(v, "contractTypeDefault")),
+          nuN(pickPortalField(v, "contractTypeDefault", "contractType")),
           nuN(pickPortalField(v, "requirements")),
           v.status || "Publicada"
         ] as unknown[];
@@ -12758,7 +12775,29 @@ export class PortalService implements OnModuleInit {
         const avail = portalDateOrNull(
           pickPortalField(x, "availableFrom", "availabilityDate") ?? x.availableFrom
         );
-        const stage = String(pickPortalField(x, "pipelineStage", "status") ?? "Recibido");
+        /* UI de Contratación escribe `status`; `pipelineStage` puede quedar obsoleto en caché. */
+        const stage = String(pickPortalField(x, "status", "pipelineStage") ?? "Recibido");
+        const vacancyTitle = nuN(pickPortalField(x, "vacancyTitle", "titulo_vacante_denorm"));
+        const origen =
+          nuN(pickPortalField(x, "source", "origen")) || "Portal RRHH";
+        const hiredAtRaw = pickPortalField(x, "hiredAt", "fecha_contratacion");
+        const contractRegRaw = pickPortalField(x, "contractRegisteredAt", "fecha_registro_contrato");
+        let hiredAtIso: string | null =
+          hiredAtRaw != null && String(hiredAtRaw).trim() !== ""
+            ? new Date(String(hiredAtRaw)).toISOString()
+            : null;
+        if (hiredAtIso && Number.isNaN(Date.parse(hiredAtIso))) hiredAtIso = null;
+        if (stage === "Contratado" && !hiredAtIso) {
+          hiredAtIso = new Date().toISOString();
+        }
+        if (stage !== "Contratado") {
+          hiredAtIso = null;
+        }
+        let contractRegIso: string | null =
+          contractRegRaw != null && String(contractRegRaw).trim() !== ""
+            ? new Date(String(contractRegRaw)).toISOString()
+            : null;
+        if (contractRegIso && Number.isNaN(Date.parse(contractRegIso))) contractRegIso = null;
         let attachmentsPayload: unknown = x.attachments || [];
         const existingAdj = await c.query<{ adjuntos_json: unknown }>(
           `SELECT adjuntos_json FROM candidatos WHERE id = $1::uuid`,
@@ -12773,8 +12812,12 @@ export class PortalService implements OnModuleInit {
           `INSERT INTO candidatos (
             id, id_vacante, nombre_completo, correo_electronico, telefono, tipo_documento, numero_documento,
             fecha_nacimiento, nivel_educativo, departamento, ciudad, direccion,
-            anios_experiencia, aspiracion_salarial, fecha_disponible_ingreso, etapa_proceso, adjuntos_json
-          ) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8::date, $9, $10, $11, $12, $13, $14, $15::date, $16, $17::jsonb)
+            anios_experiencia, aspiracion_salarial, fecha_disponible_ingreso, etapa_proceso, adjuntos_json,
+            titulo_vacante_denorm, origen, fecha_contratacion, fecha_registro_contrato
+          ) VALUES (
+            $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8::date, $9, $10, $11, $12, $13, $14, $15::date, $16, $17::jsonb,
+            $18, $19, $20::timestamptz, $21::timestamptz
+          )
           ON CONFLICT (id) DO UPDATE SET
             id_vacante = EXCLUDED.id_vacante,
             nombre_completo = EXCLUDED.nombre_completo,
@@ -12791,7 +12834,15 @@ export class PortalService implements OnModuleInit {
             aspiracion_salarial = EXCLUDED.aspiracion_salarial,
             fecha_disponible_ingreso = EXCLUDED.fecha_disponible_ingreso,
             etapa_proceso = EXCLUDED.etapa_proceso,
-            adjuntos_json = EXCLUDED.adjuntos_json`,
+            adjuntos_json = EXCLUDED.adjuntos_json,
+            titulo_vacante_denorm = COALESCE(EXCLUDED.titulo_vacante_denorm, candidatos.titulo_vacante_denorm),
+            origen = COALESCE(EXCLUDED.origen, candidatos.origen),
+            fecha_contratacion = CASE
+              WHEN EXCLUDED.etapa_proceso = 'Contratado'
+                THEN COALESCE(EXCLUDED.fecha_contratacion, candidatos.fecha_contratacion, now())
+              ELSE NULL
+            END,
+            fecha_registro_contrato = COALESCE(EXCLUDED.fecha_registro_contrato, candidatos.fecha_registro_contrato)`,
           [
             x.id,
             x.vacancyId,
@@ -12811,7 +12862,11 @@ export class PortalService implements OnModuleInit {
             Number.isFinite(salaryAsp) ? salaryAsp : 0,
             avail || new Date().toISOString().slice(0, 10),
             stage,
-            JSON.stringify(attachmentsPayload)
+            JSON.stringify(attachmentsPayload),
+            vacancyTitle,
+            origen,
+            hiredAtIso,
+            contractRegIso
           ]
         );
       }
@@ -12873,7 +12928,13 @@ export class PortalService implements OnModuleInit {
         ) {
           continue;
         }
-        const salaryRaw = pickPortalField(row, "salaryPactado", "baseSalary", "salario_pactado");
+        const salaryRaw = pickPortalField(
+          row,
+          "salary",
+          "salaryPactado",
+          "baseSalary",
+          "salario_pactado"
+        );
         const salaryPactado = Math.max(0, Number(salaryRaw) || 0);
         const transportRaw = pickPortalField(row, "transportAllowance");
         const auxilioTransporte =
@@ -12940,7 +13001,7 @@ export class PortalService implements OnModuleInit {
             nu(pickPortalField(row, "arl") || "Sura"),
             nu(pickPortalField(row, "schedule", "workSchedule") || "Diurna"),
             auxilioTransporte,
-            nuN(pickPortalField(row, "content"))
+            nuN(pickPortalField(row, "content", "summaryText", "texto_contenido_resumen"))
           ]
         );
       }

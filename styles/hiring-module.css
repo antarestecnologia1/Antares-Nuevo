@@ -2086,10 +2086,12 @@ body[data-theme="dark"] .hiring-studio .hiring-interview-context__note {
   align-items: center;
 }
 
+.hiring-studio .hiring-action-menu,
 .hiring-studio .hiring-consult-menu {
   position: relative;
 }
 
+.hiring-studio .hiring-action-menu > summary,
 .hiring-studio .hiring-consult-menu > summary {
   list-style: none;
   cursor: pointer;
@@ -2098,10 +2100,12 @@ body[data-theme="dark"] .hiring-studio .hiring-interview-context__note {
   gap: 0.35rem;
 }
 
+.hiring-studio .hiring-action-menu > summary::-webkit-details-marker,
 .hiring-studio .hiring-consult-menu > summary::-webkit-details-marker {
   display: none;
 }
 
+.hiring-studio .hiring-action-menu__panel,
 .hiring-studio .hiring-consult-menu__panel {
   position: absolute;
   top: calc(100% + 0.35rem);
@@ -2118,6 +2122,7 @@ body[data-theme="dark"] .hiring-studio .hiring-interview-context__note {
   box-shadow: 0 12px 32px rgba(11, 33, 56, 0.12);
 }
 
+.hiring-studio .hiring-action-menu__panel button,
 .hiring-studio .hiring-consult-menu__panel button {
   display: flex;
   align-items: center;
@@ -2134,6 +2139,7 @@ body[data-theme="dark"] .hiring-studio .hiring-interview-context__note {
   cursor: pointer;
 }
 
+.hiring-studio .hiring-action-menu__panel button span,
 .hiring-studio .hiring-consult-menu__panel button span {
   margin-left: auto;
   min-width: 1.4rem;
@@ -2146,10 +2152,12 @@ body[data-theme="dark"] .hiring-studio .hiring-interview-context__note {
   text-align: center;
 }
 
+.hiring-studio .hiring-action-menu__panel button:hover,
 .hiring-studio .hiring-consult-menu__panel button:hover {
   background: #f1f5f9;
 }
 
+.hiring-studio .hiring-action-menu__panel svg,
 .hiring-studio .hiring-consult-menu__panel svg {
   width: 1rem;
   height: 1rem;

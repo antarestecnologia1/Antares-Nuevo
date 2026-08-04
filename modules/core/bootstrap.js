@@ -673,9 +673,15 @@ export function __applyPortalBootstrapPayloadInner(p) {
         raw.map((row) => {
           if (!row || typeof row !== "object") return row;
           const r = { ...row };
-          const st = String(r.status || "").trim();
           const ps = String(r.pipelineStage || "").trim();
-          if (!st && ps) r.status = ps;
+          const st = String(r.status || "").trim();
+          /* Bootstrap trae etapa en `pipelineStage`; la UI lee `status`. Mantener ambos alineados. */
+          if (ps) {
+            r.status = ps;
+            r.pipelineStage = ps;
+          } else if (st) {
+            r.pipelineStage = st;
+          }
           if (r.expectedSalary == null && r.salaryExpectation != null) r.expectedSalary = Number(r.salaryExpectation) || 0;
           const avail = String(r.availabilityDate || "").trim();
           if (!avail && r.availableFrom != null) {
