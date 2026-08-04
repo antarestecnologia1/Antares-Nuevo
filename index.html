@@ -118,7 +118,7 @@
     <link rel="stylesheet" href="./styles/payroll-module.css?v=20260804-payroll-cards-default" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/hiring-module.css?v=20260804-hiring-candidate-fix" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/sst-module.css?v=20260714-sst-operate-ui" media="print" onload="this.onload=null;this.media='all'" />
-    <link rel="stylesheet" href="./styles/gestion-documental.css?v=20260804-dms12" media="print" onload="this.onload=null;this.media='all'" />
+    <link rel="stylesheet" href="./styles/gestion-documental.css?v=20260804-dms-docx-preview" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/b2b-module.css?v=20260626-cards-flex-fill" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/admin-users-module.css?v=20260626-cards-flex-fill" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/authorizations-module.css?v=20260611-portal-modules" media="print" onload="this.onload=null;this.media='all'" />
@@ -146,7 +146,7 @@
       <link rel="stylesheet" href="./styles/payroll-module.css?v=20260804-payroll-cards-default" />
       <link rel="stylesheet" href="./styles/hiring-module.css?v=20260804-hiring-candidate-fix" />
       <link rel="stylesheet" href="./styles/sst-module.css?v=20260714-sst-operate-ui" />
-      <link rel="stylesheet" href="./styles/gestion-documental.css?v=20260804-dms12" />
+      <link rel="stylesheet" href="./styles/gestion-documental.css?v=20260804-dms-docx-preview" />
       <link rel="stylesheet" href="./styles/b2b-module.css?v=20260626-cards-flex-fill" />
       <link rel="stylesheet" href="./styles/admin-users-module.css?v=20260626-cards-flex-fill" />
       <link rel="stylesheet" href="./styles/authorizations-module.css?v=20260611-portal-modules" />
@@ -1562,7 +1562,7 @@
       import * as AntaresSchedulePicker from "./modules/ui/portal-schedule-picker.js?v=20260622-time-slots";
       Object.assign(window, AntaresUIComponents, AntaresUIModals, AntaresI18n, AntaresSchedulePicker);
     </script>
-    <script type="module" src="./modules/core/portal-runtime.js?v=20260804-register-form-fix"></script>
+    <script type="module" src="./modules/core/portal-runtime.js?v=20260804-phone-accents"></script>
     <script defer src="./modules/app/portal-transport-modals.js"></script>
     <script defer src="./modules/app/portal-rrhh-modals.js"></script>
     <!-- Vistas legacy (`registerLegacyPortalViews`); deben ejecutarse antes de `app.js` para que el primer `renderPortal()` resuelva HTML. `viajes.js` antes de `mis-solicitudes.js` por `RENDER_WINDOW_SIZE`. -->
@@ -1582,7 +1582,7 @@
     <script defer src="./modules/app/contratacion-html.js?v=20260804-interview-ui"></script>
     <script defer src="./modules/app/contratacion.js?v=20260804-interview-ui"></script>
     <script type="module" src="./modules/app/cumplimiento-laboral.js"></script>
-    <script type="module" src="./modules/app/gestion-documental.js?v=20260804-dms22-official-only"></script>
+    <script type="module" src="./modules/app/gestion-documental.js?v=20260804-dms-docx-preview"></script>
     <script defer src="./modules/app/contacto-b2b.js"></script>
     <script defer src="./modules/app/usuarios-permisos.js"></script>
     <script defer src="./modules/app/autorizaciones.js"></script>

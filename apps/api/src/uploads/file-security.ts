@@ -157,6 +157,12 @@ export function extFromFileName(fileName: string): string {
   return safe.slice(idx + 1).toLowerCase().slice(0, 16);
 }
 
+/** MIME sugerido por extensión (vista previa / Content-Disposition). */
+export function mimeFromFileName(fileName: string): string {
+  const ext = extFromFileName(fileName);
+  return EXT_TO_MIME[ext] || "application/octet-stream";
+}
+
 function allowlistsFor(purpose: UploadPurpose): { mimes: Set<string>; exts: Set<string> } {
   if (purpose === "image") return { mimes: IMAGE_MIME, exts: IMAGE_EXT };
   if (purpose === "cv") return { mimes: CV_MIME, exts: CV_EXT };

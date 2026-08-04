@@ -2250,6 +2250,106 @@ async function resolveDownloadUrl(doc, { disposition = "attachment" } = {}) {
   return url;
 }
 
+/**
+ * Trae el archivo por la API (cookie/CSRF) y crea un blob: URL local.
+ * Evita iframes rotos contra URLs firmadas de R2 (CORS / Content-Type / visor PDF).
+ */
+async function resolvePreviewObjectUrl(doc) {
+  const api = window.AntaresApi;
+  if (!api?.postForBlob) throw new Error("API no disponible.");
+  const blob = await api.postForBlob("/uploads/company-document/content", {
+    storageKey: doc.storageKey,
+    disposition: "inline",
+    fileName: doc.fileName || "documento"
+  });
+  if (!blob || !blob.size) throw new Error("El archivo llegó vacío.");
+  const group = fileTypeGroup(doc.fileName, doc.mimeType);
+  let typed = blob;
+  if (group === "pdf" && !/pdf/i.test(String(blob.type || ""))) {
+    typed = new Blob([blob], { type: "application/pdf" });
+  } else if (group === "image" && !String(blob.type || "").startsWith("image/")) {
+    const mime = String(doc.mimeType || "image/jpeg");
+    typed = new Blob([blob], { type: mime });
+  } else if (group === "text" && !String(blob.type || "").startsWith("text/")) {
+    typed = new Blob([blob], { type: "text/plain;charset=utf-8" });
+  }
+  return URL.createObjectURL(typed);
+}
+
+const MAMMOTH_CDN = "https://cdn.jsdelivr.net/npm/mammoth@1.9.0/mammoth.browser.min.js";
+let mammothLoadPromise = null;
+
+function ensureMammoth() {
+  if (typeof window.mammoth?.convertToHtml === "function") return Promise.resolve(window.mammoth);
+  if (mammothLoadPromise) return mammothLoadPromise;
+  mammothLoadPromise = new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.async = true;
+    s.crossOrigin = "anonymous";
+    s.src = MAMMOTH_CDN;
+    s.onload = () => {
+      if (typeof window.mammoth?.convertToHtml === "function") resolve(window.mammoth);
+      else {
+        mammothLoadPromise = null;
+        reject(new Error("Mammoth no quedó disponible para vista previa Word."));
+      }
+    };
+    s.onerror = () => {
+      mammothLoadPromise = null;
+      reject(new Error("No se pudo cargar el visor Word (compruebe la conexión)."));
+    };
+    document.head.appendChild(s);
+  });
+  return mammothLoadPromise;
+}
+
+function isDocxDocument(doc) {
+  const ext = String(doc?.fileName || "")
+    .split(".")
+    .pop()
+    ?.toLowerCase();
+  if (ext === "docx") return true;
+  return /wordprocessingml\.document/i.test(String(doc?.mimeType || ""));
+}
+
+async function fetchCompanyDocumentBlob(doc) {
+  const api = window.AntaresApi;
+  if (!api?.postForBlob) throw new Error("API no disponible.");
+  const blob = await api.postForBlob("/uploads/company-document/content", {
+    storageKey: doc.storageKey,
+    disposition: "inline",
+    fileName: doc.fileName || "documento"
+  });
+  if (!blob || !blob.size) throw new Error("El archivo llegó vacío.");
+  return blob;
+}
+
+async function convertDocxBlobToHtml(blob) {
+  const mammoth = await ensureMammoth();
+  const arrayBuffer = await blob.arrayBuffer();
+  const result = await mammoth.convertToHtml(
+    { arrayBuffer },
+    {
+      styleMap: [
+        "p[style-name='Title'] => h1:fresh",
+        "p[style-name='Heading 1'] => h2:fresh",
+        "p[style-name='Heading 2'] => h3:fresh"
+      ]
+    }
+  );
+  return String(result?.value || "").trim();
+}
+
+function docxPreviewStageHtml(innerHtml) {
+  if (!innerHtml) {
+    return `<div class="doc-preview__nopreview"><p>El contrato no tiene contenido previsualizable.</p></div>`;
+  }
+  return `<div class="doc-preview__docx" data-docx-preview>
+    <p class="doc-preview__docx-note">Vista previa del documento Word (puede diferir ligeramente del archivo original).</p>
+    <article class="doc-preview__docx-body">${innerHtml}</article>
+  </div>`;
+}
+
 async function triggerDownload(doc) {
   const url = await resolveDownloadUrl(doc, { disposition: "attachment" });
   const a = document.createElement("a");
@@ -2262,19 +2362,32 @@ async function triggerDownload(doc) {
 }
 
 let previewKeyHandler = null;
+let previewObjectUrl = "";
+let previewDocxHtml = "";
+
 function closePreviewPanel() {
   document.querySelector("[data-doc-preview]")?.remove();
   if (previewKeyHandler) {
     document.removeEventListener("keydown", previewKeyHandler);
     previewKeyHandler = null;
   }
+  if (previewObjectUrl) {
+    try {
+      URL.revokeObjectURL(previewObjectUrl);
+    } catch (_e) {
+      /* noop */
+    }
+    previewObjectUrl = "";
+  }
+  previewDocxHtml = "";
 }
 
 function previewStageHtml(doc, url) {
   const group = fileTypeGroup(doc.fileName, doc.mimeType);
   if (group === "image") return `<img class="doc-preview__img" src="${escapeAttr(url)}" alt="${escapeAttr(doc.fileName)}" />`;
   if (group === "pdf") {
-    return `<iframe class="doc-preview__frame" src="${escapeAttr(url)}#toolbar=1&navpanes=0" title="${escapeAttr(doc.fileName)}"></iframe>`;
+    /* Sin #fragment en blob: URLs: algunos visores PDF fallan con hash. */
+    return `<iframe class="doc-preview__frame" src="${escapeAttr(url)}" title="${escapeAttr(doc.fileName)}"></iframe>`;
   }
   if (group === "text") {
     return `<iframe class="doc-preview__frame doc-preview__frame--text" src="${escapeAttr(url)}" title="${escapeAttr(doc.fileName)}"></iframe>`;
@@ -2282,10 +2395,31 @@ function previewStageHtml(doc, url) {
   return `<div class="doc-preview__nopreview"><p>No hay vista previa disponible para este tipo de archivo.</p></div>`;
 }
 
+function openDocxHtmlInTab(fileName, html) {
+  const title = escapeHtml(fileName || "Contrato");
+  const page = `<!doctype html><html lang="es"><head><meta charset="utf-8"/><title>${title}</title>
+<style>
+  body{margin:0;background:#f4f4f1;color:#1a1a1a;font:16px/1.55 Georgia,"Times New Roman",serif;}
+  .wrap{max-width:720px;margin:0 auto;padding:2rem 1.25rem 3rem;background:#fff;min-height:100vh;box-shadow:0 0 0 1px rgba(0,0,0,.06);}
+  h1,h2,h3{line-height:1.25} p{margin:0 0 .85em} table{border-collapse:collapse;width:100%}
+  td,th{border:1px solid #ccc;padding:.35em .5em;vertical-align:top}
+</style></head><body><div class="wrap">${html || "<p>Sin contenido.</p>"}</div></body></html>`;
+  const url = URL.createObjectURL(new Blob([page], { type: "text/html;charset=utf-8" }));
+  window.open(url, "_blank", "noopener");
+  setTimeout(() => {
+    try {
+      URL.revokeObjectURL(url);
+    } catch (_e) {
+      /* noop */
+    }
+  }, 60_000);
+}
+
 async function openPreview(doc) {
   const IC = G.IC || {};
   const group = fileTypeGroup(doc.fileName, doc.mimeType);
   const canInline = canPreviewFileType(doc.fileName, doc.mimeType);
+  const docx = isDocxDocument(doc);
   closePreviewPanel();
   const overlay = document.createElement("div");
   overlay.className = "doc-preview-overlay documents-studio doc-studio";
@@ -2331,21 +2465,54 @@ async function openPreview(doc) {
   });
   overlay.querySelector("[data-open-tab]")?.addEventListener("click", async () => {
     try {
-      window.open(await resolveDownloadUrl(doc, { disposition: "inline" }), "_blank", "noopener");
+      if (docx) {
+        if (!previewDocxHtml) {
+          const blob = await fetchCompanyDocumentBlob(doc);
+          previewDocxHtml = await convertDocxBlobToHtml(blob);
+        }
+        openDocxHtmlInTab(doc.fileName, previewDocxHtml);
+        return;
+      }
+      const url = previewObjectUrl || (await resolvePreviewObjectUrl(doc));
+      if (!previewObjectUrl) previewObjectUrl = url;
+      window.open(url, "_blank", "noopener");
     } catch (err) {
-      G.notify?.(String(err?.message || "No se pudo abrir."), "error");
+      try {
+        window.open(await resolveDownloadUrl(doc, { disposition: "inline" }), "_blank", "noopener");
+      } catch (err2) {
+        G.notify?.(String(err2?.message || err?.message || "No se pudo abrir."), "error");
+      }
     }
   });
   if (!canInline) {
     if (stage) stage.innerHTML = previewStageHtml(doc, "");
     return;
   }
+  if (docx) {
+    try {
+      const blob = await fetchCompanyDocumentBlob(doc);
+      previewDocxHtml = await convertDocxBlobToHtml(blob);
+      if (document.body.contains(overlay) && stage) stage.innerHTML = docxPreviewStageHtml(previewDocxHtml);
+    } catch (err) {
+      if (stage) {
+        stage.innerHTML = `<div class="doc-preview__nopreview"><p>No se pudo cargar la vista previa del contrato.</p><p class="doc-preview__nopreview-hint">${escapeHtml(String(err?.message || ""))}</p></div>`;
+      }
+    }
+    return;
+  }
   try {
-    const url = await resolveDownloadUrl(doc, { disposition: "inline" });
+    const url = await resolvePreviewObjectUrl(doc);
+    previewObjectUrl = url;
     if (document.body.contains(overlay) && stage) stage.innerHTML = previewStageHtml(doc, url);
   } catch (err) {
-    if (stage) {
-      stage.innerHTML = `<div class="doc-preview__nopreview"><p>No se pudo cargar la vista previa.</p><p class="doc-preview__nopreview-hint">${escapeHtml(String(err?.message || ""))}</p></div>`;
+    /* Respaldo: URL firmada R2 (puede fallar en iframe según navegador/CORS). */
+    try {
+      const fallbackUrl = await resolveDownloadUrl(doc, { disposition: "inline" });
+      if (document.body.contains(overlay) && stage) stage.innerHTML = previewStageHtml(doc, fallbackUrl);
+    } catch (err2) {
+      if (stage) {
+        stage.innerHTML = `<div class="doc-preview__nopreview"><p>No se pudo cargar la vista previa.</p><p class="doc-preview__nopreview-hint">${escapeHtml(String(err?.message || err2?.message || ""))}</p></div>`;
+      }
     }
   }
 }

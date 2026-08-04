@@ -2253,16 +2253,16 @@ if (typeof window.DomainRegistry?.wireFromAntares === "function") {
  */
 const REGISTER_PHONE_COUNTRIES = [
   { id: "CO", label: "Colombia", dial: "57", minNat: 10, maxNat: 10, style: "co", flag: "co" },
-  { id: "MX", label: "MÃ©xico", dial: "52", minNat: 10, maxNat: 10, style: "generic", flag: "mx" },
+  { id: "MX", label: "México", dial: "52", minNat: 10, maxNat: 10, style: "generic", flag: "mx" },
   { id: "US", label: "Estados Unidos", dial: "1", minNat: 10, maxNat: 10, style: "generic", flag: "us" },
   { id: "EC", label: "Ecuador", dial: "593", minNat: 9, maxNat: 9, style: "generic", flag: "ec" },
-  { id: "PE", label: "PerÃº", dial: "51", minNat: 9, maxNat: 9, style: "generic", flag: "pe" },
+  { id: "PE", label: "Perú", dial: "51", minNat: 9, maxNat: 9, style: "generic", flag: "pe" },
   { id: "CL", label: "Chile", dial: "56", minNat: 9, maxNat: 9, style: "generic", flag: "cl" },
   { id: "AR", label: "Argentina", dial: "54", minNat: 10, maxNat: 10, style: "generic", flag: "ar" },
   { id: "BR", label: "Brasil", dial: "55", minNat: 10, maxNat: 11, style: "generic", flag: "br" },
-  { id: "PA", label: "PanamÃ¡", dial: "507", minNat: 8, maxNat: 8, style: "generic", flag: "pa" },
+  { id: "PA", label: "Panamá", dial: "507", minNat: 8, maxNat: 8, style: "generic", flag: "pa" },
   { id: "CR", label: "Costa Rica", dial: "506", minNat: 8, maxNat: 8, style: "generic", flag: "cr" },
-  { id: "ES", label: "EspaÃ±a", dial: "34", minNat: 9, maxNat: 9, style: "generic", flag: "es" },
+  { id: "ES", label: "España", dial: "34", minNat: 9, maxNat: 9, style: "generic", flag: "es" },
   { id: "VE", label: "Venezuela", dial: "58", minNat: 10, maxNat: 10, style: "generic", flag: "ve" },
   { id: "GT", label: "Guatemala", dial: "502", minNat: 8, maxNat: 8, style: "generic", flag: "gt" },
   { id: "HN", label: "Honduras", dial: "504", minNat: 8, maxNat: 8, style: "generic", flag: "hn" }
@@ -2338,19 +2338,19 @@ function updatePhoneFieldForCountry(form, presetKey) {
   if (wrap) {
     wrap.setAttribute(
       "aria-label",
-      meta.id === "CO" ? "TelÃ©fono celular Colombia" : `TelÃ©fono ${meta.label}`
+      meta.id === "CO" ? "Teléfono celular Colombia" : `Teléfono ${meta.label}`
     );
   }
   if (hint) {
     hint.textContent =
       meta.style === "co"
-        ? "Celular Colombia: 10 dÃ­gitos (empieza por 3)."
+        ? "Celular Colombia: 10 dígitos (empieza por 3)."
         : meta.minNat === meta.maxNat
-          ? `Indicativo +${meta.dial}: ingrese ${meta.maxNat} dÃ­gitos del nÃºmero local.`
-          : `Indicativo +${meta.dial}: entre ${meta.minNat} y ${meta.maxNat} dÃ­gitos del nÃºmero local.`;
+          ? `Indicativo +${meta.dial}: ingrese ${meta.maxNat} dígitos del número local.`
+          : `Indicativo +${meta.dial}: entre ${meta.minNat} y ${meta.maxNat} dígitos del número local.`;
   }
   if (nat) {
-    nat.placeholder = meta.style === "co" ? "300 123 4567" : "NÃºmero local";
+    nat.placeholder = meta.style === "co" ? "300 123 4567" : "Número local";
     const maxFormatted =
       meta.style === "co"
         ? 14
@@ -2510,14 +2510,14 @@ function initB2BFormExperience() {
       const phoneDigitsAll = String(form.querySelector(".js-b2b-phone-full")?.value || "").replace(/\D/g, "");
       let phoneErrMsg = "";
       if (!phoneDigitsAll.startsWith(String(meta.dial || ""))) {
-        phoneErrMsg = "El telÃ©fono no coincide con el paÃ­s seleccionado en el indicativo.";
+        phoneErrMsg = "El teléfono no coincide con el país seleccionado en el indicativo.";
       } else {
         const nationalLen = phoneDigitsAll.length - String(meta.dial || "").length;
         if (nationalLen < meta.minNat || nationalLen > meta.maxNat) {
           phoneErrMsg =
             meta.style === "co"
-              ? "Ingrese un celular colombiano vÃ¡lido (10 dÃ­gitos nacionales; empieza por 3)."
-              : `Ingrese entre ${meta.minNat} y ${meta.maxNat} dÃ­gitos del nÃºmero local para ${meta.label}.`;
+              ? "Ingrese un celular colombiano válido (10 dígitos nacionales; empieza por 3)."
+              : `Ingrese entre ${meta.minNat} y ${meta.maxNat} dígitos del número local para ${meta.label}.`;
         } else if (meta.style === "co") {
           const nat = phoneDigitsAll.slice(String(meta.dial || "").length);
           if (!nat.startsWith("3")) {

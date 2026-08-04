@@ -27,7 +27,7 @@ import {
 import { DownloadCompanyDocumentDto } from "./dto/company-document.dto";
 import { R2Service } from "./r2.service";
 import { ZipStreamWriter, sanitizeZipEntryName, uniqueZipEntryName } from "./zip-stream";
-import { assertSafeUploadBuffer, assertSafeUploadMeta } from "./file-security";
+import { assertSafeUploadBuffer, assertSafeUploadMeta, mimeFromFileName } from "./file-security";
 
 type ReqUser = { userId: string; email: string; role: string };
 
@@ -522,11 +522,61 @@ export class UploadsController {
       storageKey
     );
     const disposition = dto.disposition === "inline" ? "inline" : "attachment";
+    const contentType = mimeFromFileName(String(dto.fileName || storageKey));
+    const safeName =
+      String(dto.fileName || "")
+        .replace(/[\r\n"\\]/g, "")
+        .slice(0, 200)
+        .trim() || undefined;
     const downloadUrl = await this.r2.presignGetUploadsObject(storageKey, 3600, {
       disposition,
-      fileName: dto.fileName
+      fileName: safeName,
+      contentType
     });
-    return { downloadUrl, expiresInSec: 3600 };
+    return { downloadUrl, expiresInSec: 3600, contentType };
+  }
+
+  /**
+   * Binario del documento corporativo vía API (vista previa embebida).
+   * Evita iframes contra URL firmada de R2 (CORS / Content-Type / visor PDF del navegador).
+   */
+  @Post("company-document/content")
+  async streamCompanyDocument(
+    @Req() req: { user: ReqUser },
+    @Body() dto: DownloadCompanyDocumentDto,
+    @Res() res: Response
+  ) {
+    if (!this.r2.hasUploadsClient()) {
+      throw new BadRequestException("R2 no está configurado.");
+    }
+    const storageKey = String(dto.storageKey || "").replace(/^\/+/, "");
+    if (!storageKey || !storageKey.startsWith("documentos_empresa/")) {
+      throw new ForbiddenException("El archivo no pertenece al gestor documental corporativo.");
+    }
+    await this.portal.assertCanDownloadCompanyDocumentByKey(
+      req.user.userId,
+      req.user.role,
+      storageKey
+    );
+    const { buffer, contentType: storedType } = await this.r2.getUploadsObject(storageKey);
+    const byName = mimeFromFileName(String(dto.fileName || storageKey));
+    const contentType =
+      byName !== "application/octet-stream"
+        ? byName
+        : storedType && storedType !== "application/octet-stream"
+          ? storedType
+          : byName;
+    const disposition = dto.disposition === "attachment" ? "attachment" : "inline";
+    const rawName = String(dto.fileName || "documento");
+    const extMatch = /\.([a-z0-9]+)$/i.exec(rawName) || /\.([a-z0-9]+)$/i.exec(storageKey);
+    const ext = extMatch ? extMatch[1].toLowerCase() : "bin";
+    const baseLabel = rawName.replace(/\.[^.]+$/, "") || "documento";
+    const asciiName = downloadSlug(baseLabel, "documento");
+    res.setHeader("Content-Type", contentType);
+    res.setHeader("Content-Disposition", `${disposition}; filename="${asciiName}.${ext}"`);
+    res.setHeader("Cache-Control", "private, max-age=60");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.send(buffer);
   }
 
   /**

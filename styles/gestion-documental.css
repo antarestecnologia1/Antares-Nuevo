@@ -1747,6 +1747,55 @@
   color: var(--doc-text-faint, #64748b);
 }
 
+.doc-preview-overlay .doc-preview__docx {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  padding: 1rem 1.25rem 2rem;
+  background: #ecebe6;
+}
+
+.doc-preview-overlay .doc-preview__docx-note {
+  margin: 0 0 0.75rem;
+  font-size: 0.72rem;
+  color: var(--doc-text-faint, #64748b);
+}
+
+.doc-preview-overlay .doc-preview__docx-body {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 1.75rem 1.5rem 2.25rem;
+  background: #fff;
+  color: #1a1a1a;
+  font: 15px/1.55 Georgia, "Times New Roman", serif;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.doc-preview-overlay .doc-preview__docx-body p {
+  margin: 0 0 0.85em;
+}
+
+.doc-preview-overlay .doc-preview__docx-body h1,
+.doc-preview-overlay .doc-preview__docx-body h2,
+.doc-preview-overlay .doc-preview__docx-body h3 {
+  line-height: 1.25;
+  margin: 0 0 0.65em;
+}
+
+.doc-preview-overlay .doc-preview__docx-body table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0 0 1em;
+}
+
+.doc-preview-overlay .doc-preview__docx-body td,
+.doc-preview-overlay .doc-preview__docx-body th {
+  border: 1px solid #ccc;
+  padding: 0.35em 0.5em;
+  vertical-align: top;
+}
+
 .doc-preview-overlay .doc-preview__foot {
   display: flex;
   flex-direction: column;

@@ -223,10 +223,16 @@ export function fileTypeGroup(fileName, mimeType) {
   return "other";
 }
 
-/** Puede previsualizarse en el navegador. */
+/** Puede previsualizarse en el navegador (PDF/imagen/texto y Word .docx vía conversión HTML). */
 export function canPreviewFileType(fileName, mimeType) {
   const g = fileTypeGroup(fileName, mimeType);
-  return g === "pdf" || g === "image" || g === "text";
+  if (g === "pdf" || g === "image" || g === "text") return true;
+  const ext = (
+    extFromFileName(fileName) ||
+    MIME_EXT_MAP[String(mimeType || "").toLowerCase()] ||
+    ""
+  ).toLowerCase();
+  return ext === "docx";
 }
 
 export function formatFileSize(bytes) {
