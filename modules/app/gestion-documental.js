@@ -24,7 +24,10 @@ import {
   listMissingEmployeeFolderPaths,
   buildPayrollCompanyDocumentFileName,
   employeeHireDocumentMarker,
+  buildEmployeeContractCompanyFileName,
+  buildEmployeeLaborLetterCompanyFileName,
   buildEmployeePhotoCompanyFileName,
+  formatCompanyDocumentDisplayName,
   mapEmployeeDocumentTypeToCompanyCategory,
   normalizeCompanyDocumentRow,
   normalizeCompanyFolderRow,
@@ -570,6 +573,20 @@ function typeBadge(doc) {
   return `<span class="doc-filetype doc-filetype--${group}">${escapeHtml(label.slice(0, 4))}</span>`;
 }
 
+function documentNameBlock(doc, { compact = false } = {}) {
+  const display = formatCompanyDocumentDisplayName(doc);
+  const sub = [display.subtitle, display.ext].filter(Boolean).join(" · ");
+  if (compact) {
+    return `<span class="doc-nameblock doc-nameblock--compact" title="${escapeAttr(display.fullName)}">
+      <span class="doc-nameblock__title">${escapeHtml(display.title)}</span>
+    </span>`;
+  }
+  return `<span class="doc-nameblock" title="${escapeAttr(display.fullName)}">
+    <span class="doc-nameblock__title">${escapeHtml(display.title)}</span>
+    ${sub ? `<span class="doc-nameblock__sub">${escapeHtml(sub)}</span>` : ""}
+  </span>`;
+}
+
 function rowMenu(doc, IC, folders = []) {
   const items = [];
   if (canPreviewFileType(doc.fileName, doc.mimeType)) {
@@ -596,10 +613,10 @@ function renderTable(pageDocs, IC, folders = []) {
   const rows = pageDocs
     .map(
       (d) => `<tr>
-      <td class="doc-cell-name"><span class="doc-fileicon doc-fileicon--${fileTypeGroup(d.fileName, d.mimeType)}">${IC.file || ""}</span><span class="doc-cell-name__text" title="${escapeAttr(d.fileName)}">${escapeHtml(d.fileName)}</span></td>
+      <td class="doc-cell-name"><span class="doc-fileicon doc-fileicon--${fileTypeGroup(d.fileName, d.mimeType)}" aria-hidden="true">${IC.file || ""}</span>${documentNameBlock(d)}</td>
       <td>${typeBadge(d)}</td>
       <td>${categoryPill(d) || `<span class="muted">—</span>`}</td>
-      <td class="doc-cell-folder">${escapeHtml(d.folder)}</td>
+      <td class="doc-cell-folder" title="${escapeAttr(d.folder)}">${escapeHtml(folderLeafName(d.folder) || d.folder)}</td>
       <td class="doc-cell-size">${escapeHtml(formatFileSize(d.sizeBytes))}</td>
       <td class="doc-cell-date">${escapeHtml(formatDate(d.updatedAt))}</td>
       <td class="doc-cell-actions">${rowMenu(d, IC, folders)}</td>
@@ -612,15 +629,17 @@ function renderTable(pageDocs, IC, folders = []) {
 function renderGrid(pageDocs, IC, folders = []) {
   if (!pageDocs.length) return "";
   const cards = pageDocs
-    .map(
-      (d) => `<article class="doc-card">
-      <header class="doc-card__head"><span class="doc-fileicon doc-fileicon--${fileTypeGroup(d.fileName, d.mimeType)}">${IC.file || ""}</span>${rowMenu(d, IC, folders)}</header>
-      <p class="doc-card__name" title="${escapeAttr(d.fileName)}">${escapeHtml(d.fileName)}</p>
-      <p class="doc-card__folder">${escapeHtml(d.folder)}</p>
+    .map((d) => {
+      const display = formatCompanyDocumentDisplayName(d);
+      return `<article class="doc-card">
+      <header class="doc-card__head"><span class="doc-fileicon doc-fileicon--lg doc-fileicon--${fileTypeGroup(d.fileName, d.mimeType)}" aria-hidden="true">${IC.file || ""}</span>${rowMenu(d, IC, folders)}</header>
+      <p class="doc-card__name" title="${escapeAttr(display.fullName)}">${escapeHtml(display.title)}</p>
+      <p class="doc-card__sub">${escapeHtml([display.subtitle, display.ext].filter(Boolean).join(" · "))}</p>
+      <p class="doc-card__folder" title="${escapeAttr(d.folder)}">${escapeHtml(folderLeafName(d.folder) || d.folder)}</p>
       ${categoryPill(d)}
       <footer class="doc-card__foot"><span>${escapeHtml(formatFileSize(d.sizeBytes))}</span><span>${escapeHtml(formatDateShort(d.updatedAt))}</span></footer>
-    </article>`
-    )
+    </article>`;
+    })
     .join("");
   return `<div class="doc-grid">${cards}</div>`;
 }
@@ -678,11 +697,12 @@ function renderRecentSidebar(recentDocs, IC, folders = []) {
           const delBtn = canRemove
             ? `<button type="button" class="doc-recent-item__delete" data-action="doc-delete" data-id="${escapeAttr(d.id)}" aria-label="Eliminar ${escapeAttr(d.fileName)}" title="Eliminar">${IC.trash || IC_TRASH}</button>`
             : "";
+          const display = formatCompanyDocumentDisplayName(d);
           return `<li class="doc-recent-item">
         <button type="button" class="doc-recent-item__open" data-action="doc-recent-open" data-id="${escapeAttr(d.id)}">
-          <span class="doc-fileicon doc-fileicon--${fileTypeGroup(d.fileName, d.mimeType)}">${IC.file || ""}</span>
+          <span class="doc-fileicon doc-fileicon--${fileTypeGroup(d.fileName, d.mimeType)}" aria-hidden="true">${IC.file || ""}</span>
           <span class="doc-recent-item__body">
-            <span class="doc-recent-item__name" title="${escapeAttr(d.fileName)}">${escapeHtml(d.fileName)}</span>
+            <span class="doc-recent-item__name" title="${escapeAttr(display.fullName)}">${escapeHtml(display.title)}</span>
             <span class="doc-recent-item__date">${escapeHtml(formatDate(d.updatedAt))}</span>
           </span>
         </button>
@@ -1008,12 +1028,8 @@ async function archiveEmployeeContractToFolder(employee, opts = {}) {
       message: built?.message || "No se pudo generar el contrato Word oficial."
     };
   }
-  /* Conserva el nombre del generador oficial: contrato_{plantilla}_{nombre}.docx */
-  const fileName = String(built.fileName || `contrato_${built.kind || "oficina"}.docx`).replace(
-    /[\\/]+/g,
-    "_"
-  );
   const emp = built.employee || employee;
+  const fileName = buildEmployeeContractCompanyFileName(emp, built.kind || emp.contractTemplateKind || "oficina");
   return archiveBlobToEmployeeFolder({
     employee: emp,
     blob: built.blob,
@@ -1210,10 +1226,7 @@ async function archiveEmployeeLaborLetterToFolder(employee, opts = {}) {
     if (!built?.ok || !built.blob) {
       return { ok: false, message: built?.message || "No se pudo generar la carta laboral." };
     }
-    const fileName = String(built.fileName || `Carta laboral · ${normalized.name || "colaborador"}.pdf`).replace(
-      /[\\/]+/g,
-      "_"
-    );
+    const fileName = buildEmployeeLaborLetterCompanyFileName(normalized, letterKind);
     return archiveBlobToEmployeeFolder({
       employee: normalized,
       blob: built.blob,
@@ -2420,6 +2433,10 @@ async function openPreview(doc) {
   const group = fileTypeGroup(doc.fileName, doc.mimeType);
   const canInline = canPreviewFileType(doc.fileName, doc.mimeType);
   const docx = isDocxDocument(doc);
+  const display = formatCompanyDocumentDisplayName(doc);
+  const previewMeta = [display.ext || fileTypeLabel(doc.fileName, doc.mimeType), formatFileSize(doc.sizeBytes), folderLeafName(doc.folder) || doc.folder]
+    .filter(Boolean)
+    .join(" · ");
   closePreviewPanel();
   const overlay = document.createElement("div");
   overlay.className = "doc-preview-overlay documents-studio doc-studio";
@@ -2430,8 +2447,8 @@ async function openPreview(doc) {
       <header class="doc-preview__head">
         <span class="doc-fileicon doc-fileicon--${group}">${IC.file || ""}</span>
         <div class="doc-preview__titles">
-          <p class="doc-preview__name" title="${escapeAttr(doc.fileName)}">${escapeHtml(doc.fileName)}</p>
-          <p class="doc-preview__meta">${escapeHtml(fileTypeLabel(doc.fileName, doc.mimeType))} · ${escapeHtml(formatFileSize(doc.sizeBytes))} · ${escapeHtml(doc.folder)}</p>
+          <p class="doc-preview__name" title="${escapeAttr(display.fullName)}">${escapeHtml(display.title)}</p>
+          <p class="doc-preview__meta">${escapeHtml(display.subtitle ? `${display.subtitle} · ${previewMeta}` : previewMeta)}</p>
         </div>
         <button type="button" class="doc-iconbtn doc-preview__close" data-close aria-label="Cerrar">${IC.x || "×"}</button>
       </header>

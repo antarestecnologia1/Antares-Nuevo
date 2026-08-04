@@ -90,18 +90,126 @@ function safeDocNamePart(s, fallback = "colaborador") {
   );
 }
 
+/** Etiqueta legible de la plantilla de contrato (oficina / fijo / prestación). */
+export function contractTemplateKindLabel(kind = "") {
+  const k = String(kind || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  if (k === "oficina" || k.includes("administrativo")) return "Administrativo de oficina";
+  if (k === "fijo" || k.includes("termino")) return "Término fijo";
+  if (k === "prestacion" || k.includes("servicios")) return "Prestación de servicios";
+  if (!k || k === "contrato") return "Contrato";
+  return safeDocNamePart(kind, "Contrato");
+}
+
+/** Convierte CAMILO_BETANCUR / camilo-betancur → “Camilo Betancur”. */
+export function humanizeDocumentNamePart(raw = "") {
+  const spaced = String(raw || "")
+    .replace(/[_\-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!spaced) return "";
+  return spaced
+    .split(" ")
+    .map((w) => {
+      if (!w) return "";
+      if (w.length <= 2 && w === w.toUpperCase()) return w;
+      return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+    })
+    .join(" ");
+}
+
+function employeeDisplayNameForFile(employee = {}) {
+  const raw = safeDocNamePart(employee.name || employee.fullName, "colaborador");
+  return humanizeDocumentNamePart(raw) || raw;
+}
+
 /** Nombre de archivo para el contrato Word en la carpeta del colaborador. */
 export function buildEmployeeContractCompanyFileName(employee = {}, kind = "") {
-  const name = safeDocNamePart(employee.name || employee.fullName, "colaborador");
-  const tpl = safeDocNamePart(kind || employee.contractTemplateKind || "contrato", "contrato");
-  return `Contrato laboral · ${name} · ${tpl}.docx`;
+  const name = employeeDisplayNameForFile(employee);
+  const tpl = contractTemplateKindLabel(kind || employee.contractTemplateKind || "");
+  return `Contrato laboral · ${tpl} · ${name}.docx`;
+}
+
+/** Nombre de archivo para carta / certificado laboral en la carpeta del colaborador. */
+export function buildEmployeeLaborLetterCompanyFileName(employee = {}, letterKind = "vigente") {
+  const name = employeeDisplayNameForFile(employee);
+  const kind = String(letterKind || "").toLowerCase() === "retiro" ? "retiro" : "vigente";
+  const title = kind === "retiro" ? "Certificado de retiro" : "Carta laboral vigente";
+  return `${title} · ${name}.pdf`;
 }
 
 /** Nombre de archivo para la foto del colaborador. */
 export function buildEmployeePhotoCompanyFileName(employee = {}, ext = "jpg") {
-  const name = safeDocNamePart(employee.name || employee.fullName, "colaborador");
+  const name = employeeDisplayNameForFile(employee);
   const e = String(ext || "jpg").replace(/^\./, "").toLowerCase().slice(0, 8) || "jpg";
-  return `Foto · ${name}.${e}`;
+  return `Foto del colaborador · ${name}.${e}`;
+}
+
+/**
+ * Título/subtítulo para UI (también embellece nombres legacy snake_case).
+ * @returns {{ title: string, subtitle: string, ext: string, fullName: string }}
+ */
+export function formatCompanyDocumentDisplayName(doc = {}) {
+  const fullName = String(doc.fileName || doc.nombre_archivo || "documento").trim() || "documento";
+  const ext = (extFromFileName(fullName) || "").toLowerCase();
+  let base = ext ? fullName.slice(0, -(ext.length + 1)) : fullName;
+  base = base.replace(/\s+/g, " ").trim() || "documento";
+  const category = getCompanyDocumentCategoryLabel(doc.documentCategory || doc.tags || "");
+
+  const contractLegacy = base.match(/^contrato_(oficina|fijo|prestacion)_(.+)$/i);
+  if (contractLegacy) {
+    return {
+      title: `Contrato laboral · ${contractTemplateKindLabel(contractLegacy[1])}`,
+      subtitle: humanizeDocumentNamePart(contractLegacy[2]) || category || "Word",
+      ext: (ext || "docx").toUpperCase(),
+      fullName
+    };
+  }
+
+  const letterLegacy = base.match(/^carta_laboral_(carta_vigente|certificado_retiro)_(.+)$/i);
+  if (letterLegacy) {
+    const title =
+      letterLegacy[1].toLowerCase() === "certificado_retiro"
+        ? "Certificado de retiro"
+        : "Carta laboral vigente";
+    return {
+      title,
+      subtitle: humanizeDocumentNamePart(letterLegacy[2]) || category || "PDF",
+      ext: (ext || "pdf").toUpperCase(),
+      fullName
+    };
+  }
+
+  if (base.includes("·")) {
+    const parts = base.split("·").map((p) => p.trim()).filter(Boolean);
+    const title = parts[0] || base;
+    const rest = parts.slice(1).join(" · ");
+    return {
+      title,
+      subtitle: rest || category || (ext ? ext.toUpperCase() : ""),
+      ext: (ext || "").toUpperCase(),
+      fullName
+    };
+  }
+
+  if (/_/.test(base) && !/\s/.test(base)) {
+    return {
+      title: humanizeDocumentNamePart(base) || base,
+      subtitle: category || (ext ? ext.toUpperCase() : ""),
+      ext: (ext || "").toUpperCase(),
+      fullName
+    };
+  }
+
+  return {
+    title: base,
+    subtitle: category || (ext ? ext.toUpperCase() : ""),
+    ext: (ext || "").toUpperCase(),
+    fullName
+  };
 }
 
 /** Mapea tipo del expediente legacy a categoría del DMS corporativo. */
