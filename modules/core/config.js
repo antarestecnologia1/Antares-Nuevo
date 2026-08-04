@@ -641,6 +641,9 @@ export const HIRING_RRHH_EDIT_ACTIONS = new Set([
   "edit-candidate",
   "edit-interview",
   "candidate-status",
+  "candidate-status-apply",
+  "hiring-flow-advance",
+  "upload-candidate-attachment",
   "toggle-position"
 ]);
 

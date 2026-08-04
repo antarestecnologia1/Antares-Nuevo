@@ -4292,6 +4292,165 @@ body[data-theme="dark"] .payroll-studio .payroll-liq-field input[placeholder="Au
   overflow: visible;
 }
 
+.modal-card-edit--employment-letter {
+  max-width: min(720px, calc(100vw - 1.5rem));
+}
+
+.modal-card-edit--employment-letter .employment-letter-intro {
+  margin: 0 1.1rem 0.35rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  background:
+    linear-gradient(180deg, rgba(239, 246, 255, 0.95), rgba(248, 250, 252, 0.92)),
+    repeating-linear-gradient(
+      -12deg,
+      transparent,
+      transparent 10px,
+      rgba(37, 99, 235, 0.03) 10px,
+      rgba(37, 99, 235, 0.03) 11px
+    );
+}
+
+.modal-card-edit--employment-letter .employment-letter-intro > p {
+  margin: 0 0 0.85rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: #1e293b;
+}
+
+.modal-card-edit--employment-letter .employment-letter-facts {
+  border-top: 1px solid rgba(148, 163, 184, 0.35);
+  padding-top: 0.75rem;
+}
+
+.modal-card-edit--employment-letter .employment-letter-facts__title {
+  margin: 0 0 0.55rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #475569;
+}
+
+.modal-card-edit--employment-letter .employment-letter-facts__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem 0.85rem;
+}
+
+.modal-card-edit--employment-letter .employment-letter-facts__list li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.modal-card-edit--employment-letter .employment-letter-facts__list span {
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+.modal-card-edit--employment-letter .employment-letter-facts__list strong {
+  font-size: 0.88rem;
+  font-weight: 650;
+  color: #0f172a;
+  overflow-wrap: anywhere;
+}
+
+.modal-card-edit--employment-letter .employment-letter-kind-picker {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.modal-card-edit--employment-letter .employment-letter-kind-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  text-align: left;
+  padding: 0.85rem 0.9rem;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: #fff;
+  color: #0f172a;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.modal-card-edit--employment-letter .employment-letter-kind-card:hover {
+  border-color: rgba(37, 99, 235, 0.45);
+  transform: translateY(-1px);
+}
+
+.modal-card-edit--employment-letter .employment-letter-kind-card.is-active {
+  border-color: rgba(37, 99, 235, 0.7);
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.28), 0 8px 18px rgba(37, 99, 235, 0.08);
+  background: linear-gradient(180deg, #eff6ff, #fff);
+}
+
+.modal-card-edit--employment-letter .employment-letter-kind-card__badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #1d4ed8;
+  background: rgba(37, 99, 235, 0.1);
+  border-radius: 999px;
+  padding: 0.18rem 0.5rem;
+}
+
+.modal-card-edit--employment-letter .employment-letter-kind-card__badge--retiro {
+  color: #9a3412;
+  background: rgba(234, 88, 12, 0.12);
+}
+
+.modal-card-edit--employment-letter .employment-letter-kind-card strong {
+  font-size: 0.95rem;
+  line-height: 1.25;
+}
+
+.modal-card-edit--employment-letter .employment-letter-kind-card > span:last-child {
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: #475569;
+}
+
+.modal-card-edit--employment-letter .employment-letter-legal-check {
+  margin: 0;
+  padding: 0.75rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: #f8fafc;
+}
+
+.modal-card-edit--employment-letter .employment-letter-legal-check__title {
+  margin: 0 0 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #334155;
+}
+
+.modal-card-edit--employment-letter .employment-letter-legal-check ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: #475569;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.modal-card-edit--employment-letter .employment-letter-legal-check em {
+  font-style: normal;
+  font-weight: 650;
+  color: #9a3412;
+}
+
 .modal-card-edit--employment-letter .employment-letter-format-picker {
   display: flex;
   flex-wrap: wrap;
@@ -4314,10 +4473,55 @@ body[data-theme="dark"] .payroll-studio .payroll-liq-field input[placeholder="Au
   gap: 0.55rem;
   font-size: 0.92rem;
   line-height: 1.45;
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: #fff;
 }
 
 .modal-card-edit--employment-letter .employee-letter-option input {
-  margin-top: 0.2rem;
+  margin-top: 0.25rem;
+  flex: 0 0 auto;
+}
+
+.modal-card-edit--employment-letter .employee-letter-option span {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.modal-card-edit--employment-letter .employee-letter-option strong {
+  font-size: 0.9rem;
+  font-weight: 650;
+  color: #0f172a;
+}
+
+.modal-card-edit--employment-letter .employee-letter-option small,
+.modal-card-edit--employment-letter .employment-letter-retiro-fields .field-help {
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: #64748b;
+}
+
+.modal-card-edit--employment-letter .employment-letter-retiro-fields[hidden],
+.modal-card-edit--employment-letter .employment-letter-retiro-fields.hidden {
+  display: none !important;
+}
+
+.modal-card-edit--employment-letter .employment-letter-retiro-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .modal-card-edit--employment-letter .employment-letter-kind-picker,
+  .modal-card-edit--employment-letter .employment-letter-facts__list {
+    grid-template-columns: 1fr;
+  }
 }
 
 body[data-theme="dark"] .payroll-contracts-icon-btn--letter {
@@ -4326,6 +4530,39 @@ body[data-theme="dark"] .payroll-contracts-icon-btn--letter {
   background: rgba(76, 29, 149, 0.22);
 }
 
+body[data-theme="dark"] .modal-card-edit--employment-letter .employment-letter-intro {
+  border-color: rgba(96, 165, 250, 0.28);
+  background: linear-gradient(180deg, rgba(30, 58, 138, 0.28), rgba(15, 23, 42, 0.55));
+}
+
+body[data-theme="dark"] .modal-card-edit--employment-letter .employment-letter-intro > p,
+body[data-theme="dark"] .modal-card-edit--employment-letter .employment-letter-facts__list strong,
+body[data-theme="dark"] .modal-card-edit--employment-letter .employee-letter-option strong,
+body[data-theme="dark"] .modal-card-edit--employment-letter .employment-letter-kind-card strong {
+  color: #e2e8f0;
+}
+
+body[data-theme="dark"] .modal-card-edit--employment-letter .employment-letter-kind-card,
+body[data-theme="dark"] .modal-card-edit--employment-letter .employee-letter-option,
+body[data-theme="dark"] .modal-card-edit--employment-letter .employment-letter-legal-check {
+  background: rgba(15, 23, 42, 0.72);
+  border-color: rgba(148, 163, 184, 0.28);
+  color: #e2e8f0;
+}
+
+body[data-theme="dark"] .modal-card-edit--employment-letter .employment-letter-kind-card.is-active {
+  background: linear-gradient(180deg, rgba(30, 64, 175, 0.35), rgba(15, 23, 42, 0.85));
+  border-color: rgba(96, 165, 250, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.25);
+}
+
 body[data-theme="dark"] .modal-card-edit--employment-letter .employment-letter-format-btn.is-active {
   box-shadow: inset 0 0 0 2px rgba(96, 165, 250, 0.45);
+}
+
+body[data-theme="dark"] .modal-card-edit--employment-letter .employment-letter-facts__list span,
+body[data-theme="dark"] .modal-card-edit--employment-letter .employment-letter-kind-card > span:last-child,
+body[data-theme="dark"] .modal-card-edit--employment-letter .employee-letter-option small,
+body[data-theme="dark"] .modal-card-edit--employment-letter .employment-letter-legal-check ul {
+  color: #94a3b8;
 }

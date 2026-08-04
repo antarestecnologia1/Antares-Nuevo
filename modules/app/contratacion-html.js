@@ -44,16 +44,34 @@ function hiringPersonInitialsFromName(name) {
   return `${parts[0][0] || ""}${parts[parts.length - 1][0] || ""}`.toUpperCase();
 }
 
-function hiringCandidateCvLabel(candidate) {
-  const attachments = typeof flattenCandidateAttachmentsForCv === "function"
-    ? flattenCandidateAttachmentsForCv(candidate?.attachments)
-    : Array.isArray(candidate?.attachments)
-      ? candidate.attachments
-      : [];
+function hiringCandidateAttachmentList(candidate) {
+  const attachments =
+    typeof flattenCandidateAttachmentsForCv === "function"
+      ? flattenCandidateAttachmentsForCv(candidate?.attachments)
+      : Array.isArray(candidate?.attachments)
+        ? candidate.attachments
+        : [];
+  const out = [];
   for (const item of attachments) {
-    if (typeof item === "string" && item.trim()) return item.trim();
-    if (item && typeof item === "object" && String(item.name || "").trim()) return String(item.name).trim();
+    if (typeof item === "string" && item.trim()) {
+      out.push({ name: item.trim(), downloadable: false });
+      continue;
+    }
+    if (!item || typeof item !== "object") continue;
+    const name = String(item.name || "").trim();
+    if (!name && !String(item.kind || "").startsWith("cv_")) continue;
+    const downloadable =
+      typeof candidateAttachmentHasDownloadableCv === "function"
+        ? candidateAttachmentHasDownloadableCv(item)
+        : Boolean(item.data || item.storageKey || item.url);
+    out.push({ name: name || "Hoja de vida", downloadable });
   }
+  return out;
+}
+
+function hiringCandidateCvLabel(candidate) {
+  const listed = hiringCandidateAttachmentList(candidate);
+  if (listed[0]?.name) return listed[0].name;
   return "Hoja de vida";
 }
 
@@ -518,7 +536,24 @@ function hiringHtml() {
         )
         .join("")}
     </div>`;
+  const interviewFlowReturnId = String(hiringUi.interviewFlowReturn?.candidateId || hiringUi.scheduleInterviewOpenForCandidateId || "").trim();
+  const interviewFlowReturnCand = interviewFlowReturnId
+    ? candidates.find((c) => String(c.id) === interviewFlowReturnId)
+    : null;
+  const interviewFlowReturnName = interviewFlowReturnCand
+    ? hiringCandidateDisplayName(interviewFlowReturnCand)
+    : "";
+  const interviewFlowBar = interviewFlowReturnId
+    ? `<div class="hiring-interview-flow-bar" role="status">
+        <button type="button" class="btn btn-outline btn-sm" data-action="hiring-return-to-candidate" data-candidate-id="${escapeAttr(interviewFlowReturnId)}">${IC.chevronLeft || ""} Volver al candidato</button>
+        <div class="hiring-interview-flow-bar__copy">
+          <strong>Programar entrevista</strong>
+          <span>${interviewFlowReturnName ? `Para <em>${escapeHtml(interviewFlowReturnName)}</em>` : "Seleccione candidato y agenda"} · al guardar regresará a la ficha</span>
+        </div>
+      </div>`
+    : "";
   const fInt = `<form id="form-interview" class="p-form p-form-colored hr-form-flow hr-form-compact hiring-interview-form antares-create-form" autocomplete="off" novalidate lang="es">
+    ${interviewFlowBar}
     <input type="hidden" name="when" id="interview-when" required data-interview-field="when" />
     <fieldset class="form-section form-section-emerald full">
       <legend>${IC.user} 1 · Candidato</legend>
@@ -821,28 +856,51 @@ function hiringHtml() {
       const status = String(c.status || PIPELINE[0]);
       const stageSlug =
         typeof hiringPipelineStageSlug === "function" ? hiringPipelineStageSlug(status) : "recibido";
+      const hasInterview =
+        typeof candidateHasScheduledInterview === "function"
+          ? candidateHasScheduledInterview(c.id)
+          : interviews.some((i) => String(i.candidateId || "") === String(c.id));
+      const latestInterviewWhen = hasInterview
+        ? String(
+            [...interviews]
+              .filter((i) => String(i.candidateId || "") === String(c.id))
+              .sort((a, b) => new Date(b.when || 0) - new Date(a.when || 0))[0]?.when || ""
+          )
+        : "";
       const next =
         typeof hiringCandidateNextAction === "function"
-          ? hiringCandidateNextAction(status)
+          ? hiringCandidateNextAction(status, { hasInterview, interviewWhen: latestInterviewWhen })
           : { label: status, tone: "review" };
+      const badge =
+        typeof hiringCandidateStageBadge === "function"
+          ? hiringCandidateStageBadge(status, latestInterviewWhen, { hasInterview })
+          : { label: status };
       const active = String(c.id) === selectedCandidateId;
       const whenLabel = c.createdAt ? formatInterviewWhenDisplay(c.createdAt).split(",")[0] || "" : "";
-      const location = [c.city, c.department].filter(Boolean).join(", ");
+      const location = String(c.city || c.department || "").trim();
+      const nextIco =
+        next.action === "confirm-interview"
+          ? IC.check
+          : next.tone === "interview" || next.tone === "hire"
+            ? IC.calendar
+            : next.tone === "offer"
+              ? IC.send
+              : IC.activity;
       return `<button type="button" class="hiring-pipeline__item hiring-list-row${active ? " is-active" : ""}" data-action="hiring-select-candidate" data-id="${escapeAttr(String(c.id))}" aria-current="${active ? "true" : "false"}">
         <span class="hiring-list-row__avatar" aria-hidden="true">${escapeHtml(hiringPersonInitialsFromName(displayName))}</span>
         <span class="hiring-list-row__body">
           <span class="hiring-list-row__top">
             <strong class="hiring-list-row__name" title="${escapeAttr(displayName)}">${escapeHtml(displayName)}</strong>
-            <span class="hiring-stage-pill hiring-stage-pill--${escapeAttr(stageSlug)}">${escapeHtml(status)}</span>
+            <span class="hiring-stage-pill hiring-stage-pill--${escapeAttr(stageSlug)}">${escapeHtml(badge.label || status)}</span>
           </span>
           <span class="hiring-list-row__vacancy" title="${escapeAttr(String(c.vacancyTitle || ""))}">${escapeHtml(String(c.vacancyTitle || "Sin vacante"))}</span>
           <span class="hiring-list-row__meta">
-            <span>${expCargo} años exp.</span>
-            ${ageInfo.age != null ? `<span>${ageInfo.age} años</span>` : ""}
-            ${location ? `<span>${escapeHtml(location)}</span>` : ""}
-            ${whenLabel ? `<span>${escapeHtml(whenLabel)}</span>` : ""}
+            <span>${IC.star || ""} ${expCargo} años exp.</span>
+            ${ageInfo.age != null ? `<span>${IC.cake || ""} ${ageInfo.age} años</span>` : ""}
+            ${location ? `<span>${IC.mapPin || ""} ${escapeHtml(location)}</span>` : ""}
+            ${whenLabel ? `<span>${IC.calendar || ""} ${escapeHtml(whenLabel)}</span>` : ""}
           </span>
-          <span class="hiring-list-row__next hiring-list-row__next--${escapeAttr(next.tone)}">${escapeHtml(next.label)}</span>
+          <span class="hiring-list-row__next hiring-list-row__next--${escapeAttr(next.tone)}">${nextIco || ""} ${escapeHtml(next.label)}</span>
         </span>
       </button>`;
     })
@@ -854,125 +912,182 @@ function hiringHtml() {
     const displayName = hiringCandidateDisplayName(c);
     const ageInfo = portalCandidateAgeFromBirthIso(c.birthDate);
     const expCargo = parseNum(c.experienceYears || 0);
-    const statusClass = hiringPipelineStatusClass(c.status);
     const canDlCv =
       typeof candidateCanAttemptCvDownload === "function"
         ? candidateCanAttemptCvDownload(c)
         : Boolean(extractCandidateCvDownload(c)?.href) || candidateMayHaveCvInStorage(c);
     const canScheduleInterview = !["Contratado", "Descartado"].includes(String(c.status || ""));
-    const employeeMatch = findPayrollEmployeeByIdDoc(c.idDoc);
-    const linkedInterviews = interviews.filter((i) => String(i.candidateId || "") === String(c.id));
-    const cvLabel = hiringCandidateCvLabel(c);
+    const attachmentEntries = hiringCandidateAttachmentList(c);
+    const docCount = Math.max(attachmentEntries.length, canDlCv ? 1 : 0);
     const status = String(c.status || PIPELINE[0]);
+    const hasInterview =
+      typeof candidateHasScheduledInterview === "function"
+        ? candidateHasScheduledInterview(c.id)
+        : interviews.some((i) => String(i.candidateId || "") === String(c.id));
+    const latestInterviewWhen = hasInterview
+      ? String(
+          [...interviews]
+            .filter((i) => String(i.candidateId || "") === String(c.id))
+            .sort((a, b) => new Date(b.when || 0) - new Date(a.when || 0))[0]?.when || ""
+        )
+      : "";
     const activePipeline = PIPELINE.filter((s) => s !== "Descartado");
     const stageIdx = activePipeline.indexOf(status);
     const isDiscarded = status === "Descartado";
     const pipelineSteps = activePipeline
       .map((step, idx) => {
-        const done = !isDiscarded && ((stageIdx >= 0 && idx < stageIdx) || status === "Contratado");
+        const done =
+          !isDiscarded &&
+          ((stageIdx >= 0 && idx < stageIdx) || (status === "Contratado" && step !== "Contratado"));
         const current = !isDiscarded && status === step;
-        return `<li class="hiring-pipeline__step${done ? " is-done" : ""}${current ? " is-current" : ""}"><span>${escapeHtml(step)}</span></li>`;
+        const stateLabel = done ? "Completado" : current ? "Actual" : "Pendiente";
+        const mark = done
+          ? `<span class="hiring-pipeline__step-mark" aria-hidden="true">${IC.check || ""}</span>`
+          : `<span class="hiring-pipeline__step-mark" aria-hidden="true"></span>`;
+        return `<li class="hiring-pipeline__step${done ? " is-done" : ""}${current ? " is-current" : ""}">
+          ${mark}
+          <span class="hiring-pipeline__step-label">${escapeHtml(step)}</span>
+          <em class="hiring-pipeline__step-state">${escapeHtml(stateLabel)}</em>
+        </li>`;
       })
       .join("");
+    const locationLabel = String(c.city || "").trim() || String(c.department || "").trim() || "—";
+    const ageValue = ageInfo.age != null ? `${ageInfo.age} años` : "—";
+    const ageSub = ageInfo.age != null && ageInfo.birthLabel ? `nac. ${ageInfo.birthLabel}` : "";
     const infoTiles = [
-      ["Correo", String(c.email || "-"), IC.mail],
-      ["Teléfono", String(c.phone || "-"), IC.phone],
-      ["Edad", ageInfo.age != null ? `${ageInfo.age} años · nac. ${ageInfo.birthLabel}` : "—", IC.cake],
-      ["Ubicación", [c.city, c.department].filter(Boolean).join(", ") || "—", IC.mapPin],
-      ["Experiencia", `${expCargo} años en el cargo`, IC.star],
-      ["Origen", String(c.source || "Portal"), IC.globe]
+      { label: "Correo", value: String(c.email || "-"), icon: IC.mail },
+      { label: "Teléfono", value: String(c.phone || "-"), icon: IC.phone },
+      { label: "Edad", value: ageValue, sub: ageSub, icon: IC.cake },
+      { label: "Ubicación", value: locationLabel, icon: IC.mapPin },
+      { label: "Experiencia", value: `${expCargo} años en el cargo`, icon: IC.star },
+      { label: "Origen", value: String(c.source || "Portal").toUpperCase(), icon: IC.globe }
     ]
       .map(
-        ([label, value, icon]) =>
-          `<div class="hiring-pipeline__tile"><span class="hiring-pipeline__tile-ico" aria-hidden="true">${icon || ""}</span><small>${escapeHtml(label)}</small><strong title="${escapeAttr(value)}">${escapeHtml(value)}</strong></div>`
+        (tile) =>
+          `<div class="hiring-pipeline__tile"><span class="hiring-pipeline__tile-ico" aria-hidden="true">${tile.icon || ""}</span><small>${escapeHtml(tile.label)}</small><strong title="${escapeAttr(tile.value)}">${escapeHtml(tile.value)}</strong>${tile.sub ? `<span class="hiring-pipeline__tile-sub">${escapeHtml(tile.sub)}</span>` : ""}</div>`
       )
       .join("");
     const stageSlug =
       typeof hiringPipelineStageSlug === "function" ? hiringPipelineStageSlug(status) : "recibido";
     const next =
       typeof hiringCandidateNextAction === "function"
-        ? hiringCandidateNextAction(status)
+        ? hiringCandidateNextAction(status, { hasInterview, interviewWhen: latestInterviewWhen })
         : { label: "Continuar proceso", tone: "review" };
+    const stageBadge =
+      typeof hiringCandidateStageBadge === "function"
+        ? hiringCandidateStageBadge(status, latestInterviewWhen, { hasInterview })
+        : { label: status };
+    const flowBanner =
+      typeof hiringFlowBannerHtml === "function"
+        ? hiringFlowBannerHtml(c, {
+            canEdit: hiringCanEdit,
+            canScheduleInterview,
+            hasInterview,
+            interviewWhen: latestInterviewWhen
+          })
+        : "";
+    const flowPrimaryBtn =
+      typeof hiringFlowPrimaryActionHtml === "function"
+        ? hiringFlowPrimaryActionHtml(c, {
+            canEdit: hiringCanEdit,
+            canScheduleInterview,
+            hasInterview,
+            interviewWhen: latestInterviewWhen,
+            btnClass: "btn btn-primary"
+          })
+        : "";
+    const docsList =
+      attachmentEntries.length > 0
+        ? attachmentEntries
+            .map((doc, idx) => {
+              const canDl = doc.downloadable || (idx === 0 && canDlCv);
+              const isPdf = /\.pdf$/i.test(doc.name);
+              return `<li class="hiring-list-docs__item">
+                <span class="hiring-list-docs__ico${isPdf ? " hiring-list-docs__ico--pdf" : ""}" aria-hidden="true">${IC.file || ""}</span>
+                <span class="hiring-list-docs__copy">
+                  <strong title="${escapeAttr(doc.name)}">${escapeHtml(doc.name)}</strong>
+                  <small>${canDl ? "Listo para descargar" : "Nombre registrado"}</small>
+                </span>
+                <button type="button" class="btn btn-sm btn-outline"${canDl ? "" : " disabled"} data-action="download-candidate-cv" data-id="${escapeAttr(String(c.id))}">${IC.download || ""} Descargar</button>
+              </li>`;
+            })
+            .join("")
+        : `<li class="hiring-list-docs__empty muted">Sin archivos adjuntos todavía.</li>`;
     pipelineDetailHtml = `<article class="hiring-pipeline__profile hiring-list-detail">
         <header class="hiring-pipeline__profile-head hiring-list-detail__head">
           <span class="hiring-list-detail__avatar" aria-hidden="true">${escapeHtml(hiringPersonInitialsFromName(displayName))}</span>
           <div class="hiring-pipeline__profile-identity">
             <div class="hiring-list-detail__title-row">
               <h3 title="${escapeAttr(displayName)}">${escapeHtml(displayName)}</h3>
-              <span class="hiring-stage-pill hiring-stage-pill--${escapeAttr(stageSlug)} ${statusClass}">${escapeHtml(status)}</span>
+              <span class="hiring-stage-pill hiring-stage-pill--${escapeAttr(stageSlug)}">${escapeHtml(stageBadge.label || status)}</span>
             </div>
             <p>${escapeHtml(String(c.vacancyTitle || "Sin vacante asociada"))}</p>
             <div class="hiring-pipeline__profile-chips">
-              <span class="hiring-browse-chip">${expCargo} años de experiencia</span>
-              ${ageInfo.age != null ? `<span class="hiring-browse-chip">${ageInfo.age} años</span>` : ""}
-              ${canDlCv ? `<span class="hiring-browse-chip hiring-browse-chip--cv">${IC.file} CV adjunto</span>` : `<span class="hiring-browse-chip hiring-browse-chip--muted">Sin CV</span>`}
-              <span class="hiring-list-detail__next hiring-list-detail__next--${escapeAttr(next.tone)}">Siguiente: ${escapeHtml(next.label)}</span>
+              <span class="hiring-browse-chip">${IC.user || ""} ${expCargo} años de experiencia</span>
+              ${ageInfo.age != null ? `<span class="hiring-browse-chip">${IC.calendar || ""} ${ageInfo.age} años</span>` : ""}
+              ${canDlCv ? `<span class="hiring-browse-chip hiring-browse-chip--cv">${IC.file || ""} CV adjunto</span>` : `<span class="hiring-browse-chip hiring-browse-chip--muted">${IC.file || ""} Sin CV</span>`}
+              ${
+                hasInterview && latestInterviewWhen
+                  ? `<span class="hiring-browse-chip hiring-browse-chip--interview">${IC.calendar || ""} ${escapeHtml(formatInterviewWhenDisplay(latestInterviewWhen))}</span>`
+                  : ""
+              }
+              <span class="hiring-list-detail__next hiring-list-detail__next--${escapeAttr(next.tone)}">${IC.activity || ""} Siguiente: ${escapeHtml(next.label)}</span>
             </div>
           </div>
-          <div class="hiring-pipeline__profile-actions hiring-list-detail__actions">
-            ${
-              canScheduleInterview
-                ? `<button type="button" class="btn btn-primary" data-action="schedule-interview-for-candidate" data-candidate-id="${escapeAttr(String(c.id))}">${IC.calendar} Entrevista</button>`
-                : ""
-            }
-            ${
-              hiringCanEdit
-                ? `<button type="button" class="btn btn-action" data-action="create-employee-from-candidate" data-candidate-id="${escapeAttr(String(c.id))}">${IC.userPlus} Contratar</button>`
-                : ""
-            }
-            <button type="button" class="btn btn-outline"${canDlCv ? "" : " disabled"} data-action="download-candidate-cv" data-id="${escapeAttr(String(c.id))}" title="${canDlCv ? "Descargar hoja de vida" : "Sin CV disponible"}">${IC.download} CV</button>
-            ${hiringCanEdit ? `<button type="button" class="btn btn-outline" data-action="edit-candidate" data-id="${escapeAttr(String(c.id))}">${IC.edit} Editar</button>` : ""}
-            ${
-              hiringCanEdit && employeeMatch
-                ? `<button type="button" class="btn btn-outline" data-action="generate-contract-from-candidate" data-candidate-id="${escapeAttr(String(c.id))}">${IC.file} Contrato</button>`
-                : ""
-            }
-            ${hiringCanDelete ? `<button type="button" class="btn btn-reject" data-action="delete-candidate" data-id="${escapeAttr(String(c.id))}" title="Solo administradores">${IC.trash}</button>` : ""}
-          </div>
+          <button type="button" class="hiring-list-detail__more" data-action="view-candidate" data-id="${escapeAttr(String(c.id))}" title="Ver ficha completa" aria-label="Más opciones">${IC.moreVertical || "···"}</button>
         </header>
+        ${flowBanner}
+        <div class="hiring-pipeline__profile-actions hiring-list-detail__actions">
+          ${flowPrimaryBtn && !flowBanner ? flowPrimaryBtn : ""}
+          ${
+            canScheduleInterview && next.action !== "schedule-interview" && next.action !== "confirm-interview"
+              ? `<button type="button" class="btn btn-outline" data-action="schedule-interview-for-candidate" data-candidate-id="${escapeAttr(String(c.id))}">${IC.calendar} Entrevista</button>`
+              : ""
+          }
+          ${
+            hiringCanEdit && next.action !== "hire"
+              ? `<button type="button" class="btn btn-outline" data-action="create-employee-from-candidate" data-candidate-id="${escapeAttr(String(c.id))}">${IC.userPlus} Contratar</button>`
+              : ""
+          }
+          <button type="button" class="btn btn-outline"${canDlCv ? "" : " disabled"} data-action="download-candidate-cv" data-id="${escapeAttr(String(c.id))}" title="${canDlCv ? "Descargar hoja de vida" : "Sin CV disponible"}">${IC.download} CV</button>
+          ${hiringCanEdit ? `<button type="button" class="btn btn-outline" data-action="edit-candidate" data-id="${escapeAttr(String(c.id))}">${IC.edit} Editar</button>` : ""}
+          ${
+            hiringCanEdit
+              ? `<button type="button" class="btn btn-outline" data-action="generate-contract-from-candidate" data-candidate-id="${escapeAttr(String(c.id))}">${IC.file} Contrato</button>`
+              : ""
+          }
+          ${hiringCanDelete ? `<button type="button" class="btn btn-outline hiring-list-detail__danger" data-action="delete-candidate" data-id="${escapeAttr(String(c.id))}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
+        </div>
         <div class="hiring-pipeline__tiles">${infoTiles}</div>
-        <div class="hiring-pipeline__grid">
-          <section class="hiring-pipeline__panel">
-            <h4>${IC.activity} Etapa del proceso</h4>
+        <div class="hiring-pipeline__grid hiring-list-detail__panels">
+          <section class="hiring-pipeline__panel hiring-list-detail__stage-panel">
+            <h4>Etapa del proceso</h4>
             <ol class="hiring-pipeline__steps">${pipelineSteps}</ol>
             ${isDiscarded ? `<p class="muted hiring-pipeline__panel-note">Candidato descartado del proceso.</p>` : ""}
-            <label class="hiring-pipeline__stage-select">${fieldLabel(IC.toggle, "Cambiar etapa")}
-              <select class="hiring-status-select" data-action="candidate-status" data-id="${escapeAttr(String(c.id))}">${hiringPipelineSelectOptions(c.status)}</select>
-            </label>
+            <div class="hiring-list-detail__stage-tools">
+              <label class="hiring-pipeline__stage-select">${fieldLabel(IC.toggle, "Cambiar etapa")}
+                <select class="hiring-status-select" data-candidate-status-draft data-id="${escapeAttr(String(c.id))}">${hiringPipelineSelectOptions(c.status)}</select>
+              </label>
+              ${
+                hiringCanEdit
+                  ? `<button type="button" class="btn btn-primary" data-action="candidate-status-apply" data-id="${escapeAttr(String(c.id))}">${IC.rotateCcw || IC.toggle || ""} Actualizar etapa</button>`
+                  : ""
+              }
+            </div>
           </section>
-          <section class="hiring-pipeline__panel">
-            <h4>${IC.file} Documentos</h4>
-            <ul class="hiring-pipeline__docs">
-              <li>
-                <span>${IC.file} ${escapeHtml(cvLabel)}</span>
-                <button type="button" class="btn btn-sm btn-action"${canDlCv ? "" : " disabled"} data-action="download-candidate-cv" data-id="${escapeAttr(String(c.id))}">${IC.download} Descargar</button>
-              </li>
-            </ul>
-            <p class="muted hiring-pipeline__panel-note">${canDlCv ? "Hoja de vida disponible para descarga." : "Este candidato aún no tiene CV descargable."}</p>
-          </section>
-          <section class="hiring-pipeline__panel">
-            <h4>${IC.calendar} Entrevistas</h4>
+          <section class="hiring-pipeline__panel hiring-list-detail__docs-panel">
+            <h4>Documentos ${docCount ? `<span class="hiring-list-docs__badge">${docCount} archivo${docCount === 1 ? "" : "s"}</span>` : ""}</h4>
+            <ul class="hiring-pipeline__docs hiring-list-docs">${docsList}</ul>
             ${
-              linkedInterviews.length
-                ? `<ul class="hiring-pipeline__docs">${linkedInterviews
-                    .slice(0, 4)
-                    .map(
-                      (i) =>
-                        `<li><span>${IC.calendar} ${escapeHtml(formatInterviewWhenDisplay(i.when))} · ${escapeHtml(String(i.interviewer || "-"))}</span><button type="button" class="btn btn-sm btn-outline" data-action="view-interview" data-id="${escapeAttr(String(i.id))}">${IC.eye}</button></li>`
-                    )
-                    .join("")}</ul>`
-                : `<p class="muted hiring-pipeline__panel-note">Sin entrevistas programadas.</p>`
+              hiringCanEdit
+                ? `<label class="hiring-list-docs__dropzone">
+              <input type="file" data-action="upload-candidate-attachment" data-id="${escapeAttr(String(c.id))}" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
+              <span class="hiring-list-docs__dropzone-ico" aria-hidden="true">${IC.upload || ""}</span>
+              <strong>Arrastra archivos aquí o selecciona</strong>
+              <small>PDF, DOC, DOCX · Máx. 10MB</small>
+            </label>`
+                : `<p class="muted hiring-pipeline__panel-note">${canDlCv ? "Hoja de vida disponible para descarga." : "Sin documentos descargables."}</p>`
             }
-          </section>
-          <section class="hiring-pipeline__panel">
-            <h4>${IC.user} Identificación</h4>
-            <dl class="hiring-pipeline__facts">
-              <div><dt>Documento</dt><dd>${escapeHtml(String(c.documentType || "-"))} ${escapeHtml(String(c.idDoc || ""))}</dd></div>
-              <div><dt>Dirección</dt><dd>${escapeHtml(String(c.address || "-"))}</dd></div>
-              <div><dt>Educación</dt><dd>${escapeHtml(String(c.educationLevel || "-"))}</dd></div>
-              <div><dt>Disponibilidad</dt><dd>${escapeHtml(String(c.availabilityDate || "-"))}</dd></div>
-              <div><dt>Aspiración</dt><dd>$${parseNum(c.expectedSalary).toLocaleString("es-CO")}</dd></div>
-            </dl>
           </section>
         </div>
       </article>`;
@@ -1101,6 +1216,17 @@ function hiringHtml() {
         <p class="muted">Las evaluaciones formales se registrarán en una próxima iteración. Use entrevistas y notas mientras tanto.</p>
       </div>`;
     const email = String(c.email || "").trim();
+    const drawerHasInterview = linkedInterviews.length > 0;
+    const drawerInterviewWhen = String(linkedInterviews[0]?.when || "");
+    const drawerFlowBanner =
+      typeof hiringFlowBannerHtml === "function"
+        ? hiringFlowBannerHtml(c, {
+            canEdit: hiringCanEdit,
+            canScheduleInterview,
+            hasInterview: drawerHasInterview,
+            interviewWhen: drawerInterviewWhen
+          })
+        : "";
     candidateDrawerHtml = `<aside class="hiring-drawer" aria-label="Detalle del candidato">
       <button type="button" class="hiring-drawer__close" data-action="hiring-drawer-close" title="Cerrar ficha" aria-label="Cerrar ficha">${IC.x || "×"}</button>
       <div class="hiring-drawer__profile">
@@ -1118,6 +1244,7 @@ function hiringHtml() {
           <li>${IC.file || ""} CV ${canDlCv ? "disponible" : "pendiente"}</li>
         </ul>
       </div>
+      ${drawerFlowBanner}
       <div class="hiring-drawer__main">
         <div class="hiring-drawer__tabs" role="tablist">${drawerTabs}</div>
         ${resumenPane}${timelinePane}${docsPane}${notesPane}${evalPane}
@@ -1130,16 +1257,9 @@ function hiringHtml() {
             ? `<a class="btn btn-outline" href="mailto:${escapeAttr(email)}">${IC.mail} Enviar mensaje</a>`
             : `<button type="button" class="btn btn-outline" disabled>${IC.mail} Enviar mensaje</button>`
         }
-        ${
-          canScheduleInterview
+        ${!drawerFlowBanner && canScheduleInterview
             ? `<button type="button" class="btn btn-primary" data-action="schedule-interview-for-candidate" data-candidate-id="${escapeAttr(String(c.id))}">${IC.calendar} Entrevista</button>`
-            : ""
-        }
-        ${
-          hiringCanEdit
-            ? `<button type="button" class="btn btn-action" data-action="create-employee-from-candidate" data-candidate-id="${escapeAttr(String(c.id))}">${IC.userPlus} Contratar</button>`
-            : ""
-        }
+            : ""}
         ${hiringCanEdit ? `<button type="button" class="btn btn-outline" data-action="edit-candidate" data-id="${escapeAttr(String(c.id))}">${IC.edit} Editar</button>` : ""}
         ${
           hiringCanEdit && employeeMatch
@@ -1155,12 +1275,11 @@ function hiringHtml() {
         <aside class="hiring-pipeline__rail hiring-list-view__rail" aria-label="Listado de candidatos">
           <div class="hiring-pipeline__rail-head">
             <div class="hiring-list-view__rail-titles">
-              <p>Candidatos</p>
-              <small>Pulse uno para abrir la ficha</small>
+              <p>Candidatos <span class="hiring-list-view__count">${sortedCandidatesView.length}</span></p>
+              <small>Pulse un candidato para ver su ficha</small>
             </div>
-            <span>${sortedCandidatesView.length}</span>
           </div>
-          <div class="hiring-pipeline__list">${pipelineListItems}</div>
+          <div class="hiring-pipeline__list">${pipelineListItems || `<p class="hiring-list-view__rail-empty muted">No hay candidatos en esta vista.</p>`}</div>
         </aside>
         <div class="hiring-pipeline__detail hiring-list-view__detail">${pipelineDetailHtml}</div>
       </div>`;
@@ -1239,15 +1358,16 @@ function hiringHtml() {
       <div class="hiring-operate__main auth-tab-panels">${hiringOperatePositionPane}${hiringOperateVacancyPane}${hiringOperateCandidatePane}${hiringOperateInterviewPane}${hiringOperateContractPane}</div>
     </section>`;
   const pipelineStagePills = [
-    { id: "", label: "Todas las etapas" },
+    { id: "", label: "Todas las etapas", slug: "todas" },
     ...PIPELINE.filter((s) => (candidateFilter === "active" ? !["Contratado", "Descartado"].includes(s) : true)).map((s) => ({
       id: s,
+      slug: typeof hiringPipelineStageSlug === "function" ? hiringPipelineStageSlug(s) : "recibido",
       label: `${s}${pipelineStageCounts[s] ? ` (${pipelineStageCounts[s]})` : ""}`
     }))
   ]
     .map(
       (s) =>
-        `<button type="button" class="hiring-stage-filter${effectiveStageFilter === s.id ? " is-active" : ""}" data-action="hiring-pipeline-stage" data-stage="${escapeAttr(s.id)}">${escapeHtml(s.label)}</button>`
+        `<button type="button" class="hiring-stage-filter hiring-stage-filter--${escapeAttr(s.slug)}${effectiveStageFilter === s.id ? " is-active" : ""}" data-action="hiring-pipeline-stage" data-stage="${escapeAttr(s.id)}"><span class="hiring-stage-filter__dot" aria-hidden="true"></span>${escapeHtml(s.label)}</button>`
     )
     .join("");
   const vacancyFilterOptions = [

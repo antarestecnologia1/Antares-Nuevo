@@ -13,7 +13,7 @@ import {
   canDeleteDocuments,
   currentUser
 } from "../core/auth.js";
-import { escapeHtml, escapeAttr, newUuidV4, devWarn } from "../core/utils.js";
+import { escapeHtml, escapeAttr, newUuidV4, devWarn, colombiaTodayIsoDate } from "../core/utils.js";
 import {
   COMPANY_DOCUMENT_MAX_BYTES,
   COMPANY_DOCUMENT_CATEGORIES,
@@ -1151,13 +1151,98 @@ async function archiveEmployeeLegacyDocsToFolder(employee) {
   return { ok: true, created };
 }
 
+async function archiveEmployeeLaborLetterToFolder(employee) {
+  if (!employee?.id) return { ok: false, skipped: true };
+  const marker = employeeHireDocumentMarker(employee.id, "carta");
+  if (hasHireDocMarker(marker)) return { ok: true, skipped: true };
+
+  const letterApi = window.AntaresEmploymentLetter || {};
+  const validate =
+    typeof letterApi.validateEmploymentLetterRequest === "function"
+      ? letterApi.validateEmploymentLetterRequest
+      : null;
+  const buildPdf =
+    typeof letterApi.buildEmploymentLetterPdfBlob === "function"
+      ? letterApi.buildEmploymentLetterPdfBlob
+      : null;
+  if (!buildPdf) return { ok: false, skipped: true, message: "Módulo de carta laboral no disponible." };
+
+  const termDate = String(employee.terminationDate || employee.contractEndDate || "").trim().slice(0, 10);
+  const letterKind = termDate && /^\d{4}-\d{2}-\d{2}$/.test(termDate) ? "retiro" : "vigente";
+  const letterOpts = {
+    letterKind,
+    letterDate: colombiaTodayIsoDate(),
+    terminationDate: letterKind === "retiro" ? termDate : undefined,
+    includeSalary: true,
+    includeSocialSecurity: true
+  };
+  if (typeof validate === "function") {
+    const check = validate(employee, letterOpts);
+    if (!check?.ok) return { ok: false, skipped: true, message: check?.message || "Datos insuficientes para carta." };
+  }
+  try {
+    const built = await buildPdf(employee, letterOpts);
+    if (!built?.ok || !built.blob) {
+      return { ok: false, message: built?.message || "No se pudo generar la carta laboral." };
+    }
+    const fileName = String(built.fileName || `Carta laboral · ${employee.name || "colaborador"}.pdf`).replace(
+      /[\\/]+/g,
+      "_"
+    );
+    return archiveBlobToEmployeeFolder({
+      employee,
+      blob: built.blob,
+      fileName,
+      mimeType: "application/pdf",
+      documentCategory: "carta_laboral",
+      marker,
+      description: `Carta laboral (${letterKind}) · ${employee.name || ""}`
+    });
+  } catch (err) {
+    devWarn("[companyDocuments] archiveLaborLetter", err?.message || err);
+    return { ok: false, message: String(err?.message || err) };
+  }
+}
+
+/** Archiva todas las colillas/liquidaciones disponibles del colaborador. */
+async function archiveEmployeePayrollRunsToFolder(employee, { limit = 40 } = {}) {
+  if (!employee?.id) return { ok: true, created: 0, pending: 0 };
+  const eid = String(employee.id);
+  const runs = read(KEYS.payrollRuns, []).filter((r) => r?.id && String(r.employeeId) === eid);
+  let created = 0;
+  let pending = 0;
+  let processed = 0;
+  for (const run of runs) {
+    const marker = `payrollRunId=${String(run.id).trim()}`;
+    if (hasHireDocMarker(marker) || readDocs().some((d) => String(d.description || "").includes(marker))) {
+      continue;
+    }
+    if (processed >= limit) {
+      pending += 1;
+      continue;
+    }
+    processed += 1;
+    const res = await archivePayrollRunToEmployeeFolder(run);
+    if (res?.created) created += 1;
+    else if (!res?.skipped && !res?.ok) pending += 1;
+  }
+  return { ok: true, created, pending };
+}
+
 /**
- * Archiva en Gestión documental: contrato Word, foto, CV de candidato y docs del expediente.
+ * Archiva en Gestión documental: contrato, foto, carta laboral, colillas, CV y docs legacy.
  * Idempotente. No bloquea el alta si falla.
  */
 async function archiveEmployeeHirePackageToFolder(employee, opts = {}) {
   if (!employee?.id) return { ok: false, skipped: true };
-  const results = { contract: null, photo: null, cv: null, legacy: null };
+  const results = {
+    contract: null,
+    photo: null,
+    letter: null,
+    slips: null,
+    cv: null,
+    legacy: null
+  };
   try {
     results.contract = await archiveEmployeeContractToFolder(employee);
   } catch (err) {
@@ -1167,6 +1252,22 @@ async function archiveEmployeeHirePackageToFolder(employee, opts = {}) {
     results.photo = await archiveEmployeePhotoToFolder(employee);
   } catch (err) {
     results.photo = { ok: false, message: String(err?.message || err) };
+  }
+  if (opts.includeLaborLetter !== false) {
+    try {
+      results.letter = await archiveEmployeeLaborLetterToFolder(employee);
+    } catch (err) {
+      results.letter = { ok: false, message: String(err?.message || err) };
+    }
+  }
+  if (opts.includePayrollSlips !== false) {
+    try {
+      results.slips = await archiveEmployeePayrollRunsToFolder(employee, {
+        limit: Number(opts.payrollSlipLimit) || 40
+      });
+    } catch (err) {
+      results.slips = { ok: false, message: String(err?.message || err) };
+    }
   }
   if (opts.candidateId || opts.includeCv !== false) {
     try {
@@ -1185,34 +1286,115 @@ async function archiveEmployeeHirePackageToFolder(employee, opts = {}) {
   const created =
     Number(!!results.contract?.created) +
     Number(!!results.photo?.created) +
+    Number(!!results.letter?.created) +
+    Number(results.slips?.created || 0) +
     Number(!!results.cv?.created) +
     Number(results.legacy?.created || 0);
   return { ok: true, created, results };
 }
 
-const HIRE_DOCS_BACKFILL_BATCH = 4;
-const hireDocsBackfillAttempted = new Set();
+const DMS_EMPLOYEE_BACKFILL_BATCH = 3;
+const DMS_SLIP_BACKFILL_BATCH = 10;
+const dmsEmployeeBackfillAttempted = new Set();
+let dmsBackfillChainScheduled = false;
+let dmsBackfillNotifyStarted = false;
 
-/** Rellena contrato/foto/docs faltantes para empleados ya existentes (lotes al abrir el DMS). */
-async function backfillEmployeeHireDocuments() {
-  if (!canUpload()) return { created: 0 };
-  const employees = read(KEYS.payrollEmployees, []).filter((e) => e?.id && String(e.name || "").trim());
-  const pending = employees.filter((emp) => {
-    const id = String(emp.id);
-    if (hireDocsBackfillAttempted.has(id)) return false;
-    const needsContract = !hasHireDocMarker(employeeHireDocumentMarker(id, "contrato"));
-    const needsPhoto =
-      Boolean(String(emp.avatarUrl || emp.photoUrl || "").trim()) &&
-      !hasHireDocMarker(employeeHireDocumentMarker(id, "foto"));
-    return needsContract || needsPhoto;
+function employeeNeedsDmsBackfill(emp) {
+  const id = String(emp.id);
+  if (dmsEmployeeBackfillAttempted.has(id)) return false;
+  const needsContract = !hasHireDocMarker(employeeHireDocumentMarker(id, "contrato"));
+  const needsLetter = !hasHireDocMarker(employeeHireDocumentMarker(id, "carta"));
+  const needsPhoto =
+    Boolean(String(emp.avatarUrl || emp.photoUrl || "").trim()) &&
+    !hasHireDocMarker(employeeHireDocumentMarker(id, "foto"));
+  const hasPendingSlip = read(KEYS.payrollRuns, []).some((r) => {
+    if (!r?.id || String(r.employeeId) !== id) return false;
+    const marker = `payrollRunId=${String(r.id).trim()}`;
+    return !readDocs().some((d) => String(d.description || "").includes(marker));
   });
+  return needsContract || needsLetter || needsPhoto || hasPendingSlip;
+}
+
+function countUnarchivedPayrollRuns() {
+  return read(KEYS.payrollRuns, []).filter((r) => {
+    if (!r?.id || !r.employeeId) return false;
+    const marker = `payrollRunId=${String(r.id).trim()}`;
+    return !readDocs().some((d) => String(d.description || "").includes(marker));
+  }).length;
+}
+
+/** Colillas de cualquier empleado aún no archivadas (lote global). */
+async function backfillAvailablePayrollSlips(limit = DMS_SLIP_BACKFILL_BATCH) {
+  const runs = read(KEYS.payrollRuns, []).filter((r) => r?.id && r.employeeId);
   let created = 0;
-  for (const emp of pending.slice(0, HIRE_DOCS_BACKFILL_BATCH)) {
-    hireDocsBackfillAttempted.add(String(emp.id));
-    const res = await archiveEmployeeHirePackageToFolder(emp, { includeCv: false, includeLegacyDocs: true });
+  let processed = 0;
+  for (const run of runs) {
+    const marker = `payrollRunId=${String(run.id).trim()}`;
+    if (readDocs().some((d) => String(d.description || "").includes(marker))) continue;
+    if (processed >= limit) break;
+    processed += 1;
+    const res = await archivePayrollRunToEmployeeFolder(run);
+    if (res?.created) created += 1;
+  }
+  return { created, pending: countUnarchivedPayrollRuns() };
+}
+
+let dmsBackfillHadWork = false;
+
+/**
+ * Rellena para empleados existentes: contratos, cartas laborales, fotos y colillas disponibles.
+ * Procesa por lotes y se reencadena sola hasta terminar.
+ */
+async function backfillEmployeeHireDocuments() {
+  if (!canUpload()) return { created: 0, pending: 0 };
+  if (!dmsBackfillNotifyStarted) {
+    dmsBackfillNotifyStarted = true;
+    G.notify?.(
+      "Archivando contratos, colillas y cartas laborales de los colaboradores en Gestión documental…",
+      "info"
+    );
+  }
+
+  const employees = read(KEYS.payrollEmployees, []).filter((e) => e?.id && String(e.name || "").trim());
+  const pendingEmps = employees.filter(employeeNeedsDmsBackfill);
+  let created = 0;
+
+  for (const emp of pendingEmps.slice(0, DMS_EMPLOYEE_BACKFILL_BATCH)) {
+    dmsEmployeeBackfillAttempted.add(String(emp.id));
+    const res = await archiveEmployeeHirePackageToFolder(emp, {
+      includeCv: false,
+      includeLegacyDocs: true,
+      includeLaborLetter: true,
+      includePayrollSlips: true,
+      payrollSlipLimit: 25
+    });
     created += Number(res?.created || 0);
   }
-  return { created, pending: Math.max(0, pending.length - HIRE_DOCS_BACKFILL_BATCH) };
+
+  const slips = await backfillAvailablePayrollSlips(DMS_SLIP_BACKFILL_BATCH);
+  created += Number(slips?.created || 0);
+  if (created > 0) dmsBackfillHadWork = true;
+
+  const stillPendingEmps = employees.filter(employeeNeedsDmsBackfill).length;
+  const stillPendingSlips = countUnarchivedPayrollRuns();
+  const pending = stillPendingEmps + stillPendingSlips;
+
+  if (pending > 0 && !dmsBackfillChainScheduled) {
+    dmsBackfillChainScheduled = true;
+    setTimeout(() => {
+      dmsBackfillChainScheduled = false;
+      void backfillEmployeeHireDocuments().then((res) => {
+        if (res?.created > 0 && String(state.currentView || "") === "document-management") {
+          G.renderPortalView?.();
+        }
+      });
+    }, 400);
+  } else if (pending <= 0 && dmsBackfillHadWork) {
+    dmsBackfillHadWork = false;
+    G.notify?.("Archivado de contratos, colillas y cartas laborales finalizado.", "success");
+  }
+
+  return { created, pending };
 }
 
 if (typeof window !== "undefined") {
@@ -1220,6 +1402,8 @@ if (typeof window !== "undefined") {
   window.archiveEmployeeHirePackageToFolder = archiveEmployeeHirePackageToFolder;
   window.archiveEmployeeContractToFolder = archiveEmployeeContractToFolder;
   window.archiveEmployeePhotoToFolder = archiveEmployeePhotoToFolder;
+  window.archiveEmployeeLaborLetterToFolder = archiveEmployeeLaborLetterToFolder;
+  window.backfillEmployeeHireDocuments = backfillEmployeeHireDocuments;
 }
 
 function folderOptionsHtml(selectedPath) {

@@ -1756,50 +1756,152 @@ function bindHiringPortalControls() {
     });
   }
 
-  nodes.viewRoot.querySelectorAll("[data-action='candidate-status']").forEach((select) => {
-    select.addEventListener("change", async () => {
-      const all = read(KEYS.candidates, []);
-      const currentCandidate = all.find((c) => c.id === select.dataset.id);
-      if (!currentCandidate) return;
-      const statusValidation = validateCandidatePipelineTransition(currentCandidate, select.value);
-      if (!statusValidation.ok) {
-        failPortalField(select.closest("table") || nodes.viewRoot, select, statusValidation.message);
-        renderPortalView();
-        return;
-      }
-      const nextStage = String(select.value || PIPELINE[0]);
-      const updated = all.map((c) => {
-        if (c.id !== select.dataset.id) return c;
-        const next = { ...c, status: nextStage, pipelineStage: nextStage, updatedAt: nowIso() };
-        if (nextStage === "Contratado" && !next.hiredAt) next.hiredAt = nowIso();
-        if (nextStage !== "Contratado") next.hiredAt = null;
-        return next;
+  const applyCandidatePipelineStatus = async (candidateId, nextStageRaw, fieldEl) => {
+    const id = String(candidateId || "").trim();
+    if (!id) return false;
+    const all = read(KEYS.candidates, []);
+    const currentCandidate = all.find((c) => String(c.id) === id);
+    if (!currentCandidate) return false;
+    const statusValidation = validateCandidatePipelineTransition(currentCandidate, nextStageRaw);
+    if (!statusValidation.ok) {
+      failPortalField(fieldEl?.closest?.("article") || fieldEl?.closest?.("table") || nodes.viewRoot, fieldEl, statusValidation.message);
+      renderPortalView();
+      return false;
+    }
+    const nextStage = String(nextStageRaw || PIPELINE[0]);
+    if (String(currentCandidate.status || "") === nextStage) {
+      notify("El candidato ya está en esa etapa.", "info");
+      return false;
+    }
+    const updated = all.map((c) => {
+      if (String(c.id) !== id) return c;
+      const next = { ...c, status: nextStage, pipelineStage: nextStage, updatedAt: nowIso() };
+      if (nextStage === "Oferta enviada" && !next.offerSentAt) next.offerSentAt = nowIso();
+      if (nextStage === "Contratado" && !next.hiredAt) next.hiredAt = nowIso();
+      if (nextStage !== "Contratado") next.hiredAt = null;
+      return next;
+    });
+    try {
+      await writeAwaitServerEdit(KEYS.candidates, updated, id);
+    } catch (err) {
+      notify(String(err?.message || "No fue posible actualizar el candidato en el servidor."), "error");
+      renderPortalView();
+      return false;
+    }
+    const current = updated.find((c) => String(c.id) === id);
+    if (current) {
+      logPortalAuditEvent?.("hiring", "update", {
+        entityId: String(current.id || ""),
+        entityLabel: String(current.name || "Candidato").trim(),
+        summary: `Estado del pipeline · ${String(current.status || "En proceso")}`
+      });
+      sendEmail({
+        to: current.email,
+        subject: "Actualizacion de proceso",
+        body: `Tu estado cambio a: ${current.status}`
       });
       try {
-        await writeAwaitServerEdit(KEYS.candidates, updated, select.dataset.id);
-      } catch (err) {
-        notify(String(err?.message || "No fue posible actualizar el candidato en el servidor."), "error");
-        renderPortalView();
-        return;
-      }
-      const current = updated.find((c) => c.id === select.dataset.id);
-      if (current) {
-        logPortalAuditEvent?.("hiring", "update", {
-          entityId: String(current.id || ""),
-          entityLabel: String(current.name || "Candidato").trim(),
-          summary: `Estado del pipeline · ${String(current.status || "En proceso")}`
-        });
-        sendEmail({
-          to: current.email,
-          subject: "Actualizacion de proceso",
-          body: `Tu estado cambio a: ${current.status}`
-        });
-        try {
-          await writeAwaitServerLatestQueuedEmail();
-        } catch (_e) {}
-      }
-      notify(userMessage("candidateUpdated"), "success");
+        await writeAwaitServerLatestQueuedEmail();
+      } catch (_e) {}
+    }
+    const successMsg =
+      nextStage === "Entrevistado"
+        ? userMessage("interviewConfirmedOk")
+        : nextStage === "Preseleccionado"
+          ? userMessage("candidatePreselectedOk")
+          : nextStage === "Oferta enviada"
+            ? userMessage("candidateOfferSentOk")
+            : userMessage("candidateUpdated");
+    notify(successMsg, "success");
+    renderPortalView();
+    return true;
+  };
+
+  nodes.viewRoot.querySelectorAll("[data-action='candidate-status']").forEach((select) => {
+    select.addEventListener("change", async () => {
+      await applyCandidatePipelineStatus(select.dataset.id, select.value, select);
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='candidate-status-apply']").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (abortUnlessCanManageHiring()) return;
+      const id = String(btn.dataset.id || "").trim();
+      const select =
+        [...nodes.viewRoot.querySelectorAll("select[data-candidate-status-draft]")].find(
+          (el) => String(el.dataset.id || "") === id
+        ) ||
+        btn.closest(".hiring-list-detail__stage-tools")?.querySelector("select[data-candidate-status-draft]");
+      if (!select) return;
+      await applyCandidatePipelineStatus(id, select.value, select);
+    });
+  });
+
+  const persistCandidateAttachmentUpload = async (candidateId, fileInputLike) => {
+    if (abortUnlessCanManageHiring()) return;
+    const id = String(candidateId || "").trim();
+    if (!id || !fileInputLike?.files?.length) return;
+    const all = read(KEYS.candidates, []);
+    const target = all.find((c) => String(c.id) === id);
+    if (!target) {
+      notify(userMessage("genericError"), "error");
+      return;
+    }
+    const filesFromInput = await readCandidateHrAttachmentsFromInput(fileInputLike);
+    if (filesFromInput === null) {
+      if (fileInputLike.value != null) fileInputLike.value = "";
+      return;
+    }
+    if (!filesFromInput.length) {
+      notify("No se pudo leer el archivo. Use PDF o Word (máx. 6 MB).", "error");
+      if (fileInputLike.value != null) fileInputLike.value = "";
+      return;
+    }
+    const prev = Array.isArray(target.attachments) ? [...target.attachments] : [];
+    const nextAttachments = [...prev, ...filesFromInput];
+    const updated = all.map((c) =>
+      String(c.id) === id ? { ...c, attachments: nextAttachments, updatedAt: nowIso() } : c
+    );
+    try {
+      await writeAwaitServerEdit(KEYS.candidates, updated, id);
+    } catch (err) {
+      notify(String(err?.message || "No fue posible guardar el adjunto en el servidor."), "error");
+      if (fileInputLike.value != null) fileInputLike.value = "";
       renderPortalView();
+      return;
+    }
+    logPortalAuditEvent?.("hiring", "update", {
+      entityId: id,
+      entityLabel: String(target.name || "Candidato").trim(),
+      summary: `Adjunto · ${String(filesFromInput[0]?.name || "documento")}`
+    });
+    notify("Documento adjuntado al candidato.", "success");
+    renderPortalView();
+  };
+
+  nodes.viewRoot.querySelectorAll("[data-action='upload-candidate-attachment']").forEach((input) => {
+    const zone = input.closest(".hiring-list-docs__dropzone");
+    if (zone) {
+      ["dragenter", "dragover"].forEach((evtName) => {
+        zone.addEventListener(evtName, (e) => {
+          e.preventDefault();
+          zone.classList.add("is-dragover");
+        });
+      });
+      zone.addEventListener("dragleave", (e) => {
+        e.preventDefault();
+        zone.classList.remove("is-dragover");
+      });
+      zone.addEventListener("drop", async (e) => {
+        e.preventDefault();
+        zone.classList.remove("is-dragover");
+        const files = e.dataTransfer?.files;
+        if (!files?.length) return;
+        await persistCandidateAttachmentUpload(input.dataset.id, { files });
+      });
+    }
+    input.addEventListener("change", async () => {
+      await persistCandidateAttachmentUpload(input.dataset.id, input);
     });
   });
 
@@ -1864,21 +1966,24 @@ function bindHiringPortalControls() {
         notify(String(err?.message || "No fue posible guardar la entrevista en el servidor."), "error");
         return;
       }
-      const candidateList = read(KEYS.candidates, []);
-      const nextCandidates = candidateList.map((item) => {
-        if (String(item.id) !== String(candidate.id)) return item;
-        const status = String(item.status || "");
-        if (["Contratado", "Descartado"].includes(status)) return item;
-        if (status === "Entrevistado") return item;
-        return stampUpdatedRecord({ ...item, status: "Entrevistado", pipelineStage: "Entrevistado" });
-      });
-      write(KEYS.candidates, nextCandidates, { skipSyncSchedule: true });
-      try {
-        await writeAwaitServerEdit(KEYS.candidates, nextCandidates, candidate.id);
-      } catch (err) {
-        notify(String(err?.message || "Entrevista guardada; no fue posible actualizar el estado del candidato en el servidor."), "error");
-        renderPortalView();
-        return;
+      /* No avanzar a Entrevistado al agendar: eso ocurre al confirmar la entrevista.
+         Si aún está en Recibido, pasa a Preseleccionado para mantener el orden del flujo. */
+      const currentStage = String(candidate.status || PIPELINE[0]);
+      if (currentStage === "Recibido") {
+        const candidateList = read(KEYS.candidates, []);
+        const nextCandidates = candidateList.map((item) => {
+          if (String(item.id) !== String(candidate.id)) return item;
+          return stampUpdatedRecord({ ...item, status: "Preseleccionado", pipelineStage: "Preseleccionado" });
+        });
+        write(KEYS.candidates, nextCandidates, { skipSyncSchedule: true });
+        try {
+          await writeAwaitServerEdit(KEYS.candidates, nextCandidates, candidate.id);
+        } catch (err) {
+          notify(
+            String(err?.message || "Entrevista guardada; no fue posible actualizar la etapa del candidato."),
+            "error"
+          );
+        }
       }
       sendEmail({
         to: candidate.email,
@@ -1896,10 +2001,21 @@ function bindHiringPortalControls() {
         `${String(createdInterview.modality || "Presencial")} · ${formatInterviewWhenDisplay(whenRaw)}`,
         { entityLabel: String(createdInterview.candidateName || "Entrevista").trim() }
       );
-      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
-      state.hiringUi.workspace = "consult";
-      state.hiringUi.dataSection = "interviews";
-      persistHrWorkspace("hiring", "consult");
+      const prevUi = state.hiringUi || {};
+      const returnCtx = prevUi.interviewFlowReturn || {};
+      const returnCandidateId = String(returnCtx.candidateId || candidate.id || "").trim();
+      const returnView = String(returnCtx.candidateView || prevUi.candidateView || "list") === "board" ? "board" : "list";
+      state.hiringUi = {
+        ...prevUi,
+        workspace: "data",
+        dataSection: "candidates",
+        selectedCandidateId: returnCandidateId,
+        candidateView: returnView,
+        drawerOpen: returnCtx.drawerOpen !== false,
+        scheduleInterviewOpenForCandidateId: "",
+        interviewFlowReturn: null
+      };
+      persistHrWorkspace("hiring", "data");
       collapseCreatePanel("create-interview");
       notify(userMessage("interviewScheduledOk"), "success");
       renderPortalView();
@@ -2640,29 +2756,81 @@ function bindHiringPortalControls() {
     });
   });
 
+  const openInterviewSchedulerForCandidate = (cid, opts = {}) => {
+    const id = String(cid || "").trim();
+    if (!id) return;
+    const cand = read(KEYS.candidates, []).find((c) => String(c.id) === id);
+    if (!cand) {
+      notify(userMessage("genericError"), "error");
+      return;
+    }
+    if (["Contratado", "Descartado"].includes(String(cand.status || ""))) {
+      notify("Este candidato ya no está en proceso; no se puede agendar entrevista.", "info");
+      return;
+    }
+    const prev = state.hiringUi || {};
+    state.hiringUi = {
+      ...prev,
+      scheduleInterviewOpenForCandidateId: id,
+      selectedCandidateId: id,
+      interviewFlowReturn: {
+        candidateId: id,
+        candidateView: String(prev.candidateView || "list") === "board" ? "board" : "list",
+        drawerOpen: prev.drawerOpen !== false,
+        fromWorkspace: String(prev.workspace || "data")
+      },
+      workspace: "operate",
+      operateSection: "interview"
+    };
+    state.createPanels = buildHiringCreatePanelsState("interview", state.createPanels || {}, { expandActive: true });
+    persistHrWorkspace("hiring", "operate");
+    if (opts.closeModal) document.getElementById("crud-modal")?.classList.add("hidden");
+    renderPortalView();
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => scrollToCreatePanelForm("create-interview"));
+    });
+  };
+
+  const returnToCandidateFromInterviewFlow = (candidateId) => {
+    const prev = state.hiringUi || {};
+    const returnCtx = prev.interviewFlowReturn || {};
+    const cid = String(candidateId || returnCtx.candidateId || prev.selectedCandidateId || "").trim();
+    const returnView = String(returnCtx.candidateView || prev.candidateView || "list") === "board" ? "board" : "list";
+    state.hiringUi = {
+      ...prev,
+      workspace: "data",
+      dataSection: "candidates",
+      selectedCandidateId: cid || prev.selectedCandidateId,
+      candidateView: returnView,
+      drawerOpen: returnCtx.drawerOpen !== false,
+      scheduleInterviewOpenForCandidateId: "",
+      interviewFlowReturn: null
+    };
+    persistHrWorkspace("hiring", "data");
+    collapseCreatePanel("create-interview");
+    renderPortalView();
+  };
+
   /* ============= CANDIDATO: PROGRAMAR ENTREVISTA DESDE TABLA ============= */
   nodes.viewRoot.querySelectorAll("[data-action='schedule-interview-for-candidate']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const cid = String(btn.dataset.candidateId || "").trim();
-      if (!cid) return;
-      const cand = read(KEYS.candidates, []).find((c) => String(c.id) === cid);
-      if (!cand) {
-        notify(userMessage("genericError"), "error");
-        return;
-      }
-      if (["Contratado", "Descartado"].includes(String(cand.status || ""))) {
-        notify("Este candidato ya no está en proceso; no se puede agendar entrevista.", "info");
-        return;
-      }
-      state.hiringUi = { ...(state.hiringUi || {}), scheduleInterviewOpenForCandidateId: cid };
-      state.hiringUi.workspace = "operate";
-      state.hiringUi.operateSection = "interview";
-      state.createPanels = buildHiringCreatePanelsState("interview", state.createPanels || {}, { expandActive: true });
-      persistHrWorkspace("hiring", "operate");
-      renderPortalView();
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => scrollToCreatePanelForm("create-interview"));
-      });
+      openInterviewSchedulerForCandidate(btn.dataset.candidateId);
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='hiring-return-to-candidate']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      returnToCandidateFromInterviewFlow(btn.dataset.candidateId);
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='hiring-flow-advance']").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (abortUnlessCanManageHiring()) return;
+      const id = String(btn.dataset.id || "").trim();
+      const nextStatus = String(btn.dataset.nextStatus || "").trim();
+      if (!id || !nextStatus) return;
+      await applyCandidatePipelineStatus(id, nextStatus, btn);
     });
   });
 
@@ -2789,20 +2957,7 @@ function bindHiringPortalControls() {
         afterMount: (content) => {
           const cid = String(c.id || "").trim();
           content.querySelector("[data-action='schedule-interview-for-candidate']")?.addEventListener("click", () => {
-            if (["Contratado", "Descartado"].includes(String(c.status || ""))) {
-              notify("Este candidato ya no está en proceso; no se puede agendar entrevista.", "info");
-              return;
-            }
-            state.hiringUi = { ...(state.hiringUi || {}), scheduleInterviewOpenForCandidateId: cid };
-            state.hiringUi.workspace = "operate";
-            state.hiringUi.operateSection = "interview";
-            state.createPanels = buildHiringCreatePanelsState("interview", state.createPanels || {}, { expandActive: true });
-            persistHrWorkspace("hiring", "operate");
-            document.getElementById("crud-modal")?.classList.add("hidden");
-            renderPortalView();
-            requestAnimationFrame(() => {
-              requestAnimationFrame(() => scrollToCreatePanelForm("create-interview"));
-            });
+            openInterviewSchedulerForCandidate(cid, { closeModal: true });
           });
           content.querySelector("[data-action='create-employee-from-candidate']")?.addEventListener("click", () => {
             if (abortUnlessCanManageHiring()) return;

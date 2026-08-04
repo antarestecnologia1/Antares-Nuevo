@@ -7313,12 +7313,12 @@ function renderPayrollEmployeeTableIdentity(item) {
 function renderEmploymentLetterActionButton(id, { compact = false } = {}) {
   const safeId = escapeAttr(String(id || ""));
   const label = compact ? "" : " Carta laboral";
-  return `<button type="button" class="btn btn-sm btn-outline payroll-letter-btn" data-no-lock data-action="employee-generate-labor-letter" data-id="${safeId}" title="Descargar carta laboral en PDF">${IC.badge}${label}</button>`;
+  return `<button type="button" class="btn btn-sm btn-outline payroll-letter-btn" data-no-lock data-action="employee-generate-labor-letter" data-id="${safeId}" title="Generar carta o certificado laboral (CST art. 57)">${IC.badge}${label}</button>`;
 }
 
 function renderEmploymentLetterIconButton(id) {
   const safeId = escapeAttr(String(id || ""));
-  return `<button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--letter" data-no-lock data-action="employee-generate-labor-letter" data-id="${safeId}" title="Carta laboral (PDF)">${IC.badge}</button>`;
+  return `<button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--letter" data-no-lock data-action="employee-generate-labor-letter" data-id="${safeId}" title="Carta laboral (Colombia · CST art. 57)">${IC.badge}</button>`;
 }
 
 function renderPayrollEmployeeContractIconActions(e, contract, hrAdminDeletes) {
@@ -11374,11 +11374,174 @@ function resolveEmploymentLetterDomainFns() {
   const domain = window.AntaresEmploymentLetter;
   return {
     exportEmploymentLetter: domain?.exportEmploymentLetter,
-    validateEmploymentLetterRequest: domain?.validateEmploymentLetterRequest
+    validateEmploymentLetterRequest: domain?.validateEmploymentLetterRequest,
+    buildEmploymentLetterMeta: domain?.buildEmploymentLetterMeta
   };
 }
 
-async function runEmploymentLetterFlow(employeeId) {
+function employmentLetterSubmitLabel(format) {
+  const fmt = String(format || "pdf").trim().toLowerCase();
+  if (fmt === "word") return "Descargar Word";
+  if (fmt === "preview") return "Abrir vista previa";
+  return "Descargar PDF";
+}
+
+function buildEmploymentLetterFormatPickerHtml(selectedFormat = "pdf") {
+  const fmt = ["pdf", "word", "preview"].includes(String(selectedFormat || "").trim().toLowerCase())
+    ? String(selectedFormat).trim().toLowerCase()
+    : "pdf";
+  return `<div class="employment-letter-format-picker" role="radiogroup" aria-label="Formato de descarga">
+    <input type="hidden" name="exportFormat" value="${escapeAttr(fmt)}" />
+    <button type="button" class="btn btn-sm report-preview-export-btn report-preview-export-btn--pdf employment-letter-format-btn${fmt === "pdf" ? " is-active" : ""}" data-letter-format="pdf" aria-pressed="${fmt === "pdf" ? "true" : "false"}"><span class="report-preview-export-btn__icon">${IC.file}</span> PDF</button>
+    <button type="button" class="btn btn-sm report-preview-export-btn employment-letter-format-btn employment-letter-format-btn--word${fmt === "word" ? " is-active" : ""}" data-letter-format="word" aria-pressed="${fmt === "word" ? "true" : "false"}"><span class="report-preview-export-btn__icon">${IC.file}</span> Word</button>
+    <button type="button" class="btn btn-sm report-preview-export-btn report-preview-export-btn--print employment-letter-format-btn${fmt === "preview" ? " is-active" : ""}" data-letter-format="preview" aria-pressed="${fmt === "preview" ? "true" : "false"}"><span class="report-preview-export-btn__icon">${IC.printer}</span> Vista previa</button>
+  </div>`;
+}
+
+function wireEmploymentLetterFormatPicker(formEl) {
+  const picker = formEl?.querySelector(".employment-letter-format-picker");
+  if (!picker || picker.dataset.bound === "1") return;
+  picker.dataset.bound = "1";
+  const hidden = picker.querySelector("[name='exportFormat']");
+  const submitBtn = formEl.querySelector('button[type="submit"]');
+  const sync = (fmt) => {
+    const next = ["pdf", "word", "preview"].includes(fmt) ? fmt : "pdf";
+    if (hidden) hidden.value = next;
+    picker.querySelectorAll("[data-letter-format]").forEach((btn) => {
+      const active = String(btn.dataset.letterFormat || "") === next;
+      btn.classList.toggle("is-active", active);
+      btn.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+    if (submitBtn) {
+      const label = employmentLetterSubmitLabel(next);
+      const textNode = submitBtn.querySelector(".module-panel-btn__text");
+      if (textNode) textNode.textContent = label;
+      else if (submitBtn.lastChild) submitBtn.lastChild.textContent = label;
+    }
+  };
+  picker.querySelectorAll("[data-letter-format]").forEach((btn) => {
+    btn.addEventListener("click", () => sync(String(btn.dataset.letterFormat || "pdf").toLowerCase()));
+  });
+  sync(String(hidden?.value || "pdf").toLowerCase());
+}
+
+function buildEmploymentLetterKindPickerHtml(selectedKind = "vigente") {
+  const kind = String(selectedKind || "vigente").trim().toLowerCase() === "retiro" ? "retiro" : "vigente";
+  return `<div class="employment-letter-kind-picker" role="radiogroup" aria-label="Tipo de documento laboral">
+    <input type="hidden" name="letterKind" value="${escapeAttr(kind)}" />
+    <button type="button" class="employment-letter-kind-card${kind === "vigente" ? " is-active" : ""}" data-letter-kind="vigente" aria-pressed="${kind === "vigente" ? "true" : "false"}">
+      <span class="employment-letter-kind-card__badge">Vigente</span>
+      <strong>Constancia de vinculación</strong>
+      <span>Certifica que la persona labora actualmente. Uso habitual ante bancos, créditos, arriendos y trámites.</span>
+    </button>
+    <button type="button" class="employment-letter-kind-card${kind === "retiro" ? " is-active" : ""}" data-letter-kind="retiro" aria-pressed="${kind === "retiro" ? "true" : "false"}">
+      <span class="employment-letter-kind-card__badge employment-letter-kind-card__badge--retiro">CST art. 57</span>
+      <strong>Certificado al retiro</strong>
+      <span>Obligatorio al terminar el contrato: tiempo de servicio, índole de la labor, salario y causa del retiro.</span>
+    </button>
+  </div>`;
+}
+
+function buildEmploymentLetterFactsPreviewHtml(employee) {
+  const { buildEmploymentLetterMeta } = resolveEmploymentLetterDomainFns();
+  const meta =
+    typeof buildEmploymentLetterMeta === "function"
+      ? buildEmploymentLetterMeta(employee, { letterKind: "vigente", includeSalary: true })
+      : null;
+  const hire = meta?.hireLabelCap || meta?.hireLabel || "—";
+  const position = meta?.position || String(employee?.position || "—").trim() || "—";
+  const contract = meta?.contractType || String(employee?.contractType || "—").trim() || "—";
+  const salary = meta?.salaryText || "No registrado";
+  const idLine = `${meta?.docTypeLabel || "documento"} ${meta?.idDocFormatted || employee?.idDoc || "—"}`;
+  return `<div class="employment-letter-facts" aria-label="Datos que constarán en el documento">
+    <p class="employment-letter-facts__title">Datos del expediente (CST art. 57)</p>
+    <ul class="employment-letter-facts__list">
+      <li><span>Trabajador</span><strong>${escapeHtml(meta?.name || employee?.name || "—")}</strong></li>
+      <li><span>Identificación</span><strong>${escapeHtml(idLine)}</strong></li>
+      <li><span>Tiempo de servicio</span><strong>Desde ${escapeHtml(hire)}</strong></li>
+      <li><span>Índole de la labor</span><strong>${escapeHtml(position)}</strong></li>
+      <li><span>Tipo de contrato</span><strong>${escapeHtml(contract)}</strong></li>
+      <li><span>Salario registrado</span><strong>${escapeHtml(salary)}</strong></li>
+    </ul>
+  </div>`;
+}
+
+function buildEmploymentLetterLegalChecklistHtml(kind = "vigente") {
+  const isRetiro = String(kind || "").toLowerCase() === "retiro";
+  if (isRetiro) {
+    return `<div class="employment-letter-legal-check" data-letter-checklist="retiro">
+      <p class="employment-letter-legal-check__title">Contenido mínimo (CST art. 57)</p>
+      <ul>
+        <li>Tiempo de servicio (ingreso → retiro)</li>
+        <li>Índole / naturaleza de la labor</li>
+        <li>Salario o monto de las labores <em>(obligatorio)</em></li>
+        <li>Causa del retiro (hecho objetivo, sin juicios de desempeño)</li>
+      </ul>
+    </div>`;
+  }
+  return `<div class="employment-letter-legal-check" data-letter-checklist="vigente">
+    <p class="employment-letter-legal-check__title">Buenas prácticas (Colombia)</p>
+    <ul>
+      <li>Fecha de ingreso y cargo actual</li>
+      <li>Tipo de contrato y estado de vinculación</li>
+      <li>Salario en letras y números si el trámite lo exige</li>
+      <li>Solo hechos objetivos · sin opiniones ni recomendaciones</li>
+    </ul>
+  </div>`;
+}
+
+function wireEmploymentLetterModal(formEl) {
+  if (!formEl || formEl.dataset.letterModalBound === "1") return;
+  formEl.dataset.letterModalBound = "1";
+
+  const kindPicker = formEl.querySelector(".employment-letter-kind-picker");
+  const kindHidden = kindPicker?.querySelector("[name='letterKind']");
+  const salaryInput = formEl.querySelector("[name='includeSalary']");
+  const salaryHint = formEl.querySelector("[data-letter-salary-hint]");
+  const checklistHost = formEl.querySelector("[data-letter-checklist-host]");
+  const retiroFields = formEl.querySelectorAll("[data-letter-retiro-field]");
+
+  const setKind = (nextKind) => {
+    const kind = nextKind === "retiro" ? "retiro" : "vigente";
+    const isRetiro = kind === "retiro";
+    if (kindHidden) kindHidden.value = kind;
+    kindPicker?.querySelectorAll("[data-letter-kind]").forEach((btn) => {
+      const active = String(btn.dataset.letterKind || "") === kind;
+      btn.classList.toggle("is-active", active);
+      btn.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+    retiroFields.forEach((wrap) => {
+      wrap.hidden = !isRetiro;
+      wrap.classList.toggle("hidden", !isRetiro);
+      const input = wrap.querySelector("input, select, textarea");
+      if (!input) return;
+      if (isRetiro) input.setAttribute("required", "required");
+      else input.removeAttribute("required");
+    });
+    if (salaryInput) {
+      if (isRetiro) {
+        salaryInput.checked = true;
+        salaryInput.disabled = true;
+      } else {
+        salaryInput.disabled = false;
+      }
+    }
+    if (salaryHint) {
+      salaryHint.textContent = isRetiro
+        ? "En el certificado de retiro el salario (monto de las labores) es dato obligatorio del art. 57 CST."
+        : "Incluya el salario cuando el destinatario lo exija (bancos, créditos). Puede omitirlo por privacidad si el trámite no lo requiere.";
+    }
+    if (checklistHost) checklistHost.innerHTML = buildEmploymentLetterLegalChecklistHtml(kind);
+  };
+
+  kindPicker?.querySelectorAll("[data-letter-kind]").forEach((btn) => {
+    btn.addEventListener("click", () => setKind(String(btn.dataset.letterKind || "vigente")));
+  });
+  setKind(String(kindHidden?.value || "vigente"));
+  wireEmploymentLetterFormatPicker(formEl);
+}
+
+function runEmploymentLetterFlow(employeeId, initialFormat = "pdf") {
   if (abortUnlessCanManagePayroll()) return;
   const all = read(KEYS.payrollEmployees, []);
   const target = all.find((e) => String(e.id) === String(employeeId || ""));
@@ -11388,40 +11551,197 @@ async function runEmploymentLetterFlow(employeeId) {
   }
   const normalized = normalizePayrollEmployeeRowDates(ensureEmployeeContractFields(target));
   const today = colombiaTodayIsoDate();
-  const fields = {
-    letterKind: "vigente",
-    letterDate: today,
-    addressee: "A quien interese",
-    exportFormat: "pdf",
-    includeSalary: true,
-    includeSocialSecurity: true
-  };
-  const { validateEmploymentLetterRequest, exportEmploymentLetter } = resolveEmploymentLetterDomainFns();
-  const check =
-    typeof validateEmploymentLetterRequest === "function"
-      ? validateEmploymentLetterRequest(normalized, fields)
-      : { ok: true };
-  if (!check.ok) {
-    notify(String(check.message || "Revise los datos del colaborador antes de generar la carta."), "error");
-    return;
-  }
-  if (typeof exportEmploymentLetter !== "function") {
-    notify("Módulo de carta laboral no disponible (recargue la página).", "error");
-    return;
-  }
-  try {
-    const result = await exportEmploymentLetter(normalized, fields);
-    if (!result?.ok) {
-      notify(String(result?.message || "No se pudo generar la carta laboral."), "error");
-      return;
+  const normalizedFormat = ["pdf", "word", "preview"].includes(String(initialFormat || "").trim().toLowerCase())
+    ? String(initialFormat).trim().toLowerCase()
+    : "pdf";
+  const causeLabels =
+    (typeof window.CO_TERMINATION_CAUSE_LABELS === "object" && window.CO_TERMINATION_CAUSE_LABELS) ||
+    window.AntaresEmploymentLetter?.CO_TERMINATION_CAUSE_LABELS ||
+    {};
+  const terminationCauseOptions = Object.entries(causeLabels).map(([value, label]) => ({
+    value,
+    label: String(label)
+  }));
+
+  openEditModal({
+    title: "Generar carta laboral",
+    subtitle: `${String(normalized.name || "").trim()} · ${String(normalized.idDoc || "").trim()}`,
+    introHtml: `<div class="employment-letter-intro">
+      <p><strong>Normativa Colombia · CST art. 57.</strong> El empleador debe expedir certificación con el tiempo de servicio, la índole de la labor y el salario. El documento se limita a hechos objetivos; no incluya juicios de desempeño ni recomendaciones.</p>
+      ${buildEmploymentLetterFactsPreviewHtml(normalized)}
+    </div>`,
+    submitText: employmentLetterSubmitLabel(normalizedFormat),
+    cancelBtnClass: "btn btn-sm btn-outline module-panel-btn module-panel-btn--cancel",
+    extraModalCardClass: "modal-card-edit--employment-letter",
+    fields: [
+      {
+        type: "section",
+        title: "Tipo de documento",
+        hint: "Elija constancia de vinculación vigente o certificado laboral al retiro."
+      },
+      {
+        type: "custom",
+        full: true,
+        html: buildEmploymentLetterKindPickerHtml("vigente")
+      },
+      {
+        type: "custom",
+        full: true,
+        html: `<div data-letter-checklist-host>${buildEmploymentLetterLegalChecklistHtml("vigente")}</div>`
+      },
+      {
+        name: "letterDate",
+        label: "Fecha de expedición",
+        type: "date",
+        value: today,
+        required: true
+      },
+      {
+        name: "addressee",
+        label: "Destinatario",
+        type: "text",
+        value: "A quien interese",
+        placeholder: "Ej. Banco XYZ, entidad crediticia, consulado…"
+      },
+      {
+        type: "section",
+        title: "Contenido del certificado",
+        hint: "Active solo la información que el trámite o la ley exijan."
+      },
+      {
+        type: "custom",
+        full: true,
+        html: `<label class="employee-letter-option">
+          <input type="checkbox" name="includeSalary" checked />
+          <span>
+            <strong>Incluir salario / monto de las labores</strong>
+            <small data-letter-salary-hint>Incluya el salario cuando el destinatario lo exija (bancos, créditos). Puede omitirlo por privacidad si el trámite no lo requiere.</small>
+          </span>
+        </label>`
+      },
+      {
+        type: "custom",
+        full: true,
+        html: `<label class="employee-letter-option">
+          <input type="checkbox" name="includeSocialSecurity" checked />
+          <span>
+            <strong>Incluir afiliaciones a seguridad social</strong>
+            <small>EPS, fondo de pensiones y ARL (dato complementario, no sustituye planillas o certificados de afiliación).</small>
+          </span>
+        </label>`
+      },
+      {
+        type: "custom",
+        full: true,
+        html: `<div class="employment-letter-retiro-fields" data-letter-retiro-field hidden>
+          <label class="full">
+            <span>Fecha de retiro</span>
+            <input type="date" name="terminationDate" value="${escapeAttr(today)}" />
+          </label>
+        </div>`
+      },
+      {
+        type: "custom",
+        full: true,
+        html: `<div class="employment-letter-retiro-fields" data-letter-retiro-field hidden>
+          <label class="full">
+            <span>Causa del retiro <em class="muted">(hecho objetivo)</em></span>
+            <select name="terminationCause">
+              ${(terminationCauseOptions.length
+                ? terminationCauseOptions
+                : [{ value: "otro", label: "Otro" }]
+              )
+                .map(
+                  (opt) =>
+                    `<option value="${escapeAttr(opt.value)}"${opt.value === "otro" ? " selected" : ""}>${escapeHtml(opt.label)}</option>`
+                )
+                .join("")}
+            </select>
+            <small class="field-help">No use este campo para calificar conducta o desempeño; solo para registrar la causal objetiva.</small>
+          </label>
+        </div>`
+      },
+      {
+        type: "section",
+        title: "Formato de descarga",
+        hint: "PDF firmado, Word editable o vista previa para imprimir."
+      },
+      {
+        type: "custom",
+        full: true,
+        html: buildEmploymentLetterFormatPickerHtml(normalizedFormat)
+      }
+    ],
+    afterMount: (formEl) => {
+      wireEmploymentLetterModal(formEl);
+    },
+    onSubmit: async (payload, formEl) => {
+      const letterKind = String(payload.letterKind || "vigente").trim().toLowerCase() === "retiro" ? "retiro" : "vigente";
+      const fields = {
+        letterKind,
+        letterDate: normalizePortalDateYmd(payload.letterDate),
+        addressee: String(payload.addressee || "A quien interese").trim(),
+        exportFormat: String(payload.exportFormat || normalizedFormat || "pdf").trim().toLowerCase(),
+        includeSalary:
+          letterKind === "retiro" ||
+          String(payload.includeSalary || "").toLowerCase() === "on" ||
+          payload.includeSalary === true,
+        includeSocialSecurity:
+          String(payload.includeSocialSecurity || "").toLowerCase() === "on" ||
+          payload.includeSocialSecurity === true,
+        terminationDate: normalizePortalDateYmd(payload.terminationDate),
+        terminationCause: String(payload.terminationCause || "otro").trim()
+      };
+      const { validateEmploymentLetterRequest, exportEmploymentLetter } = resolveEmploymentLetterDomainFns();
+      const check =
+        typeof validateEmploymentLetterRequest === "function"
+          ? validateEmploymentLetterRequest(normalized, fields)
+          : { ok: true };
+      if (!check.ok) {
+        failPortalField(formEl, check.field || "letterDate", check.message || "Revise los datos.");
+        return false;
+      }
+      if (typeof exportEmploymentLetter !== "function") {
+        notify("Módulo de carta laboral no disponible (recargue la página).", "error");
+        return false;
+      }
+      let previewWindow = null;
+      if (fields.exportFormat === "preview") {
+        previewWindow = window.open("", "_blank", "width=820,height=900");
+        if (!previewWindow) {
+          notify("El navegador bloqueó la ventana. Permita ventanas emergentes o elija PDF/Word.", "error");
+          return false;
+        }
+      }
+      try {
+        const result = await exportEmploymentLetter(normalized, { ...fields, previewWindow });
+        if (!result?.ok) {
+          previewWindow?.close?.();
+          notify(String(result?.message || "No se pudo generar el documento."), "error");
+          return false;
+        }
+        const format = fields.exportFormat;
+        if (format === "pdf") {
+          notify(`PDF descargado (${result.fileName || "carta laboral"}) con firma del representante legal.`, "success");
+        } else if (format === "word") {
+          notify(`Word descargado (${result.fileName || "carta laboral"}) con firma del representante legal.`, "success");
+        } else {
+          notify(
+            "Documento generado con firma del representante legal. Puede imprimir o descargar PDF/Word desde la vista previa.",
+            "success"
+          );
+        }
+        return true;
+      } catch (err) {
+        previewWindow?.close?.();
+        notify(String(err?.message || "No se pudo generar la carta laboral."), "error");
+        return false;
+      }
     }
-    notify(`PDF descargado (${result.fileName || "carta laboral"}) con firma del representante legal.`, "success");
-  } catch (err) {
-    notify(String(err?.message || "No se pudo generar la carta laboral."), "error");
-  }
+  });
 }
 
-async function runEmploymentLetterDownload(token) {
+async function runEmploymentLetterDownload(token, format) {
   if (abortUnlessCanManagePayroll()) return;
   let payload;
   try {
@@ -11444,12 +11764,13 @@ async function runEmploymentLetterDownload(token) {
     return;
   }
   try {
-    const result = await exportEmploymentLetter(normalized, { ...opts, exportFormat: "pdf" });
+    const fmt = String(format || "pdf").trim().toLowerCase() === "word" ? "word" : "pdf";
+    const result = await exportEmploymentLetter(normalized, { ...opts, exportFormat: fmt });
     if (!result?.ok) {
       notify(String(result?.message || "No se pudo descargar el archivo."), "error");
       return;
     }
-    notify("PDF descargado correctamente.", "success");
+    notify(`${fmt === "word" ? "Word" : "PDF"} descargado correctamente.`, "success");
   } catch (err) {
     notify(String(err?.message || "No se pudo descargar el archivo."), "error");
   }
@@ -11511,7 +11832,7 @@ function installEmployeeContractDelegation() {
     const letterId = String(letterBtn.dataset.id || "").trim();
     if (!letterId || letterBtn.disabled || letterBtn.dataset.busy === "1") return;
     await runWithBusyButton(letterBtn, () => runEmploymentLetterFlow(letterId), {
-      busyText: "Generando PDF…"
+      busyText: "Preparando…"
     });
   });
 }
@@ -11895,18 +12216,34 @@ function installCandidateCvDownloadDelegation() {
   });
 }
 
-function hiringCandidateNextAction(status) {
+function hiringCandidateNextAction(status, ctx = {}) {
   if (typeof window.AntaresContratacionDomain?.hiringCandidateNextAction === "function") {
-    return window.AntaresContratacionDomain.hiringCandidateNextAction(status);
+    return window.AntaresContratacionDomain.hiringCandidateNextAction(status, ctx);
   }
   const s = String(status || PIPELINE[0]);
-  if (s === "Recibido") return { label: "Revisar y preseleccionar", tone: "review" };
-  if (s === "Preseleccionado") return { label: "Agendar entrevista", tone: "interview" };
-  if (s === "Entrevistado") return { label: "Evaluar oferta", tone: "offer" };
-  if (s === "Oferta enviada") return { label: "Cerrar contratación", tone: "hire" };
-  if (s === "Contratado") return { label: "Proceso cerrado", tone: "done" };
-  if (s === "Descartado") return { label: "Descartado", tone: "done" };
-  return { label: "Continuar proceso", tone: "review" };
+  const hasInterview = ctx?.hasInterview === true;
+  if (s === "Recibido") {
+    return { label: "Preseleccionar candidato", tone: "review", action: "preselect", nextStatus: "Preseleccionado", cta: "Preseleccionar" };
+  }
+  if (s === "Preseleccionado" && hasInterview) {
+    return {
+      label: "Confirmar entrevista realizada",
+      tone: "interview",
+      action: "confirm-interview",
+      nextStatus: "Entrevistado",
+      cta: "Confirmar entrevista"
+    };
+  }
+  if (s === "Preseleccionado") {
+    return { label: "Agendar entrevista", tone: "interview", action: "schedule-interview", cta: "Agendar entrevista" };
+  }
+  if (s === "Entrevistado") {
+    return { label: "Enviar oferta", tone: "offer", action: "send-offer", nextStatus: "Oferta enviada", cta: "Enviar oferta" };
+  }
+  if (s === "Oferta enviada") return { label: "Contratar candidato", tone: "hire", action: "hire", cta: "Contratar" };
+  if (s === "Contratado") return { label: "Proceso cerrado", tone: "done", action: "done", cta: "" };
+  if (s === "Descartado") return { label: "Descartado", tone: "done", action: "done", cta: "" };
+  return { label: "Continuar proceso", tone: "review", action: "review", cta: "Continuar" };
 }
 
 function hiringPipelineStageSlug(status) {
@@ -11921,18 +12258,43 @@ function hiringPipelineStageSlug(status) {
     .replace(/^-|-$/g, "") || "recibido";
 }
 
-function hiringCandidateStageBadge(status, interviewWhen = "") {
+function hiringCandidateStageBadge(status, interviewWhen = "", opts = {}) {
   if (typeof window.AntaresContratacionDomain?.hiringCandidateStageBadge === "function") {
-    return window.AntaresContratacionDomain.hiringCandidateStageBadge(status, interviewWhen);
+    return window.AntaresContratacionDomain.hiringCandidateStageBadge(status, interviewWhen, opts);
   }
   const s = String(status || PIPELINE[0]);
+  const when = String(interviewWhen || "").trim();
   if (s === "Recibido") return { label: "Nuevo", date: "" };
+  if (s === "Preseleccionado" && opts?.hasInterview) return { label: "Entrevista agendada", date: when };
   if (s === "Preseleccionado") return { label: "Preseleccionado", date: "" };
-  if (s === "Entrevistado") return { label: "Entrevista programada", date: String(interviewWhen || "").trim() };
-  if (s === "Oferta enviada") return { label: "Oferta enviada", date: String(interviewWhen || "").trim() };
-  if (s === "Contratado") return { label: "Contratado", date: String(interviewWhen || "").trim() };
+  if (s === "Entrevistado") return { label: "Entrevistado", date: when };
+  if (s === "Oferta enviada") return { label: "Oferta enviada", date: when };
+  if (s === "Contratado") return { label: "Contratado", date: when };
   if (s === "Descartado") return { label: "Descartado", date: "" };
   return { label: s, date: "" };
+}
+
+function hiringFlowBannerHtml(candidate, ctx = {}) {
+  if (typeof window.AntaresContratacionDomain?.hiringFlowBannerHtml === "function") {
+    return window.AntaresContratacionDomain.hiringFlowBannerHtml(candidate, ctx);
+  }
+  return "";
+}
+
+function hiringFlowPrimaryActionHtml(candidate, ctx = {}) {
+  if (typeof window.AntaresContratacionDomain?.hiringFlowPrimaryActionHtml === "function") {
+    return window.AntaresContratacionDomain.hiringFlowPrimaryActionHtml(candidate, ctx);
+  }
+  return "";
+}
+
+function candidateHasScheduledInterview(candidateId) {
+  if (typeof window.AntaresContratacionDomain?.candidateHasScheduledInterview === "function") {
+    return window.AntaresContratacionDomain.candidateHasScheduledInterview(candidateId);
+  }
+  const id = String(candidateId || "").trim();
+  if (!id) return false;
+  return read(KEYS.interviews, []).some((item) => String(item.candidateId || "") === id);
 }
 
 function renderHiringCandidateCard(c, ctx = {}) {
@@ -14180,6 +14542,9 @@ Object.assign(window, {
   hiringCandidateNextAction,
   hiringCandidateStageBadge,
   hiringPipelineStageSlug,
+  hiringFlowBannerHtml,
+  hiringFlowPrimaryActionHtml,
+  candidateHasScheduledInterview,
   renderHistoryAuditCard,
   renderHistoryAuditList,
   renderHistoryCard,

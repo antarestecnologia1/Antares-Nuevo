@@ -626,6 +626,12 @@ export function editModalCatalogSelectOptions(catalog, selected, placeholder = "
   return [{ value: "", label: placeholder }, ...values.map((item) => ({ value: item, label: item }))];
 }
 
+export function candidateHasScheduledInterview(candidateId) {
+  const id = String(candidateId || "").trim();
+  if (!id) return false;
+  return read(KEYS.interviews, []).some((item) => String(item.candidateId || "") === id);
+}
+
 export function validateCandidatePipelineTransition(candidate, nextStatus) {
   const currentStatus = String(candidate?.status || PIPELINE[0]);
   const targetStatus = String(nextStatus || currentStatus);
@@ -634,9 +640,16 @@ export function validateCandidatePipelineTransition(candidate, nextStatus) {
   if (!allowed.includes(targetStatus)) {
     return { ok: false, message: `Flujo invalido: ${currentStatus} -> ${targetStatus}. Debes respetar el orden del pipeline.` };
   }
+  if (targetStatus === "Entrevistado") {
+    if (!candidateHasScheduledInterview(candidate?.id)) {
+      return {
+        ok: false,
+        message: "Para marcar como entrevistado primero debe programar la entrevista del candidato."
+      };
+    }
+  }
   if (targetStatus === "Oferta enviada") {
-    const hasInterview = read(KEYS.interviews, []).some((item) => String(item.candidateId || "") === String(candidate.id || ""));
-    if (!hasInterview) {
+    if (!candidateHasScheduledInterview(candidate?.id)) {
       return { ok: false, message: "Para enviar oferta primero debes registrar entrevista del candidato." };
     }
   }
@@ -857,16 +870,62 @@ export function portalCandidateAgeFromBirthIso(birthIso) {
   return { age, birthLabel: s };
 }
 
-/** Siguiente acción recomendada según etapa del pipeline (selección de personal). */
-export function hiringCandidateNextAction(status) {
+/**
+ * Siguiente acción del flujo profesional de selección.
+ * @param {string} status
+ * @param {{ hasInterview?: boolean, interviewWhen?: string }} [ctx]
+ */
+export function hiringCandidateNextAction(status, ctx = {}) {
   const s = normalizeHiringPipelineStatus(status);
-  if (s === "Recibido") return { label: "Revisar y preseleccionar", tone: "review" };
-  if (s === "Preseleccionado") return { label: "Agendar entrevista", tone: "interview" };
-  if (s === "Entrevistado") return { label: "Evaluar oferta", tone: "offer" };
-  if (s === "Oferta enviada") return { label: "Cerrar contratación", tone: "hire" };
-  if (s === "Contratado") return { label: "Proceso cerrado", tone: "done" };
-  if (s === "Descartado") return { label: "Descartado", tone: "done" };
-  return { label: "Continuar proceso", tone: "review" };
+  const hasInterview = ctx.hasInterview === true;
+  const whenHint = String(ctx.interviewWhen || "").trim();
+  if (s === "Recibido") {
+    return {
+      label: "Preseleccionar candidato",
+      tone: "review",
+      action: "preselect",
+      nextStatus: "Preseleccionado",
+      cta: "Preseleccionar"
+    };
+  }
+  if (s === "Preseleccionado" && hasInterview) {
+    return {
+      label: "Confirmar entrevista realizada",
+      tone: "interview",
+      action: "confirm-interview",
+      nextStatus: "Entrevistado",
+      cta: "Confirmar entrevista",
+      hint: whenHint ? `Agendada: ${hiringFormatShortWhen(whenHint)}` : "Entrevista ya programada"
+    };
+  }
+  if (s === "Preseleccionado") {
+    return {
+      label: "Agendar entrevista",
+      tone: "interview",
+      action: "schedule-interview",
+      cta: "Agendar entrevista"
+    };
+  }
+  if (s === "Entrevistado") {
+    return {
+      label: "Enviar oferta",
+      tone: "offer",
+      action: "send-offer",
+      nextStatus: "Oferta enviada",
+      cta: "Enviar oferta"
+    };
+  }
+  if (s === "Oferta enviada") {
+    return {
+      label: "Contratar candidato",
+      tone: "hire",
+      action: "hire",
+      cta: "Contratar"
+    };
+  }
+  if (s === "Contratado") return { label: "Proceso cerrado", tone: "done", action: "done", cta: "" };
+  if (s === "Descartado") return { label: "Descartado", tone: "done", action: "done", cta: "" };
+  return { label: "Continuar proceso", tone: "review", action: "review", cta: "Continuar" };
 }
 
 export function hiringPipelineStageSlug(status) {
@@ -878,18 +937,86 @@ export function hiringPipelineStageSlug(status) {
     .replace(/^-|-$/g, "") || "recibido";
 }
 
-/** Etiqueta corta del badge en tarjeta Kanban (mockup bandeja). */
-export function hiringCandidateStageBadge(status, interviewWhen = "") {
+/**
+ * Etiqueta corta del badge en tarjeta Kanban / ficha.
+ * @param {string} status
+ * @param {string} [interviewWhen]
+ * @param {{ hasInterview?: boolean }} [opts]
+ */
+export function hiringCandidateStageBadge(status, interviewWhen = "", opts = {}) {
   const s = normalizeHiringPipelineStatus(status);
+  const when = String(interviewWhen || "").trim();
   if (s === "Recibido") return { label: "Nuevo", date: "" };
-  if (s === "Preseleccionado") return { label: "Preseleccionado", date: "" };
-  if (s === "Entrevistado") {
-    return { label: "Entrevista programada", date: String(interviewWhen || "").trim() };
+  if (s === "Preseleccionado" && opts.hasInterview) {
+    return { label: "Entrevista agendada", date: when };
   }
-  if (s === "Oferta enviada") return { label: "Oferta enviada", date: String(interviewWhen || "").trim() };
-  if (s === "Contratado") return { label: "Contratado", date: String(interviewWhen || "").trim() };
+  if (s === "Preseleccionado") return { label: "Preseleccionado", date: "" };
+  if (s === "Entrevistado") return { label: "Entrevistado", date: when };
+  if (s === "Oferta enviada") return { label: "Oferta enviada", date: when };
+  if (s === "Contratado") return { label: "Contratado", date: when };
   if (s === "Descartado") return { label: "Descartado", date: "" };
   return { label: s, date: "" };
+}
+
+/** CTA principal del flujo de selección (botón contextual). */
+export function hiringFlowPrimaryActionHtml(candidate, ctx = {}) {
+  const id = String(candidate?.id || "").trim();
+  if (!id) return "";
+  const status = normalizeHiringPipelineStatus(candidate?.status);
+  const hasInterview =
+    ctx.hasInterview === true || (ctx.hasInterview !== false && candidateHasScheduledInterview(id));
+  const interviewWhen =
+    ctx.interviewWhen != null ? String(ctx.interviewWhen || "") : hiringLatestInterviewWhenForCandidate(id);
+  const next = hiringCandidateNextAction(status, { hasInterview, interviewWhen });
+  const canEdit = ctx.canEdit !== false;
+  const canSchedule = ctx.canScheduleInterview !== false;
+  const btnClass = String(ctx.btnClass || "btn btn-primary").trim() || "btn btn-primary";
+
+  if (next.action === "schedule-interview" && canSchedule) {
+    return `<button type="button" class="${escapeAttr(btnClass)}" data-action="schedule-interview-for-candidate" data-candidate-id="${escapeAttr(id)}">${IC.calendar} ${escapeHtml(next.cta || "Agendar entrevista")}</button>`;
+  }
+  if (next.action === "hire" && canEdit) {
+    return `<button type="button" class="${escapeAttr(btnClass)}" data-action="create-employee-from-candidate" data-candidate-id="${escapeAttr(id)}">${IC.userPlus} ${escapeHtml(next.cta || "Contratar")}</button>`;
+  }
+  if ((next.action === "preselect" || next.action === "confirm-interview" || next.action === "send-offer") && canEdit && next.nextStatus) {
+    const ico =
+      next.action === "confirm-interview" ? IC.check : next.action === "send-offer" ? IC.send : IC.star;
+    return `<button type="button" class="${escapeAttr(btnClass)}" data-action="hiring-flow-advance" data-id="${escapeAttr(id)}" data-next-status="${escapeAttr(next.nextStatus)}" data-flow-action="${escapeAttr(next.action)}">${ico || ""} ${escapeHtml(next.cta || "Continuar")}</button>`;
+  }
+  return "";
+}
+
+/** Banner del siguiente paso del flujo (ficha lista / drawer). */
+export function hiringFlowBannerHtml(candidate, ctx = {}) {
+  const id = String(candidate?.id || "").trim();
+  if (!id) return "";
+  const status = normalizeHiringPipelineStatus(candidate?.status);
+  if (["Contratado", "Descartado"].includes(status)) return "";
+  const hasInterview =
+    ctx.hasInterview === true || (ctx.hasInterview !== false && candidateHasScheduledInterview(id));
+  const interviewWhen =
+    ctx.interviewWhen != null ? String(ctx.interviewWhen || "") : hiringLatestInterviewWhenForCandidate(id);
+  const next = hiringCandidateNextAction(status, { hasInterview, interviewWhen });
+  if (!next?.action || next.action === "done") return "";
+  const cta = hiringFlowPrimaryActionHtml(candidate, {
+    ...ctx,
+    hasInterview,
+    interviewWhen,
+    btnClass: "btn btn-primary"
+  });
+  if (!cta && !next.label) return "";
+  const secondary =
+    next.action === "confirm-interview" && ctx.canScheduleInterview !== false
+      ? `<button type="button" class="btn btn-outline" data-action="schedule-interview-for-candidate" data-candidate-id="${escapeAttr(id)}">${IC.calendar} Reprogramar</button>`
+      : "";
+  return `<section class="hiring-flow-banner hiring-flow-banner--${escapeAttr(next.tone || "review")}" aria-label="Siguiente paso del proceso">
+    <div class="hiring-flow-banner__copy">
+      <small>Siguiente paso</small>
+      <strong>${escapeHtml(next.label)}</strong>
+      ${next.hint ? `<p>${escapeHtml(next.hint)}</p>` : `<p>Avance el proceso de selección con la acción recomendada.</p>`}
+    </div>
+    <div class="hiring-flow-banner__actions">${cta}${secondary}</div>
+  </section>`;
 }
 
 function hiringPersonInitialsFromRawName(name) {
@@ -940,7 +1067,16 @@ export function renderHiringCandidateCard(c, ctx = {}) {
   const statusClass = hiringPipelineStatusClass(status);
   const stageSlug = hiringPipelineStageSlug(status);
   const employeeMatch = findPayrollEmployeeByIdDoc(c.idDoc);
-  const next = hiringCandidateNextAction(status);
+  const hasInterview =
+    ctx.hasInterview === true ||
+    (ctx.hasInterview !== false && candidateHasScheduledInterview(c.id));
+  const interviewWhen =
+    ctx.interviewWhen != null
+      ? String(ctx.interviewWhen || "")
+      : hasInterview || ["Entrevistado", "Oferta enviada", "Contratado"].includes(status)
+        ? hiringLatestInterviewWhenForCandidate(c.id)
+        : "";
+  const next = hiringCandidateNextAction(status, { hasInterview, interviewWhen });
   const source = String(c.source || "Portal").trim() || "Portal";
   const isWeb = /sitio|web|carreras/i.test(source);
   const compact = ctx.compact === true;
@@ -948,19 +1084,14 @@ export function renderHiringCandidateCard(c, ctx = {}) {
   const city = String(c.city || "").trim();
   const location = [city, String(c.department || "").trim()].filter(Boolean).join(", ");
   const initials = hiringPersonInitialsFromRawName(c.name);
-  const interviewWhen =
-    ctx.interviewWhen != null
-      ? String(ctx.interviewWhen || "")
-      : ["Entrevistado", "Oferta enviada", "Contratado"].includes(status)
-        ? hiringLatestInterviewWhenForCandidate(c.id)
-        : "";
   const badge = hiringCandidateStageBadge(
     status,
     status === "Contratado" && c.hiredAt
       ? c.hiredAt
       : status === "Oferta enviada" && c.offerSentAt
         ? c.offerSentAt
-        : interviewWhen
+        : interviewWhen,
+    { hasInterview }
   );
   const badgeDate = badge.date ? hiringFormatShortWhen(badge.date) : "";
   const email = String(c.email || "").trim();
@@ -972,7 +1103,16 @@ export function renderHiringCandidateCard(c, ctx = {}) {
         ? `<button type="button" role="menuitem" data-action="edit-candidate" data-id="${escapeAttr(String(c.id))}">${IC.edit} Editar</button>`
         : "",
       ctx.canScheduleInterview && !["Contratado", "Descartado"].includes(status)
-        ? `<button type="button" role="menuitem" data-action="schedule-interview-for-candidate" data-candidate-id="${escapeAttr(String(c.id))}">${IC.calendar} Entrevista</button>`
+        ? `<button type="button" role="menuitem" data-action="schedule-interview-for-candidate" data-candidate-id="${escapeAttr(String(c.id))}">${IC.calendar} ${hasInterview ? "Reprogramar entrevista" : "Agendar entrevista"}</button>`
+        : "",
+      ctx.canEdit && next.action === "confirm-interview"
+        ? `<button type="button" role="menuitem" data-action="hiring-flow-advance" data-id="${escapeAttr(String(c.id))}" data-next-status="Entrevistado" data-flow-action="confirm-interview">${IC.check} Confirmar entrevista</button>`
+        : "",
+      ctx.canEdit && next.action === "preselect"
+        ? `<button type="button" role="menuitem" data-action="hiring-flow-advance" data-id="${escapeAttr(String(c.id))}" data-next-status="Preseleccionado" data-flow-action="preselect">${IC.star} Preseleccionar</button>`
+        : "",
+      ctx.canEdit && next.action === "send-offer"
+        ? `<button type="button" role="menuitem" data-action="hiring-flow-advance" data-id="${escapeAttr(String(c.id))}" data-next-status="Oferta enviada" data-flow-action="send-offer">${IC.send} Enviar oferta</button>`
         : "",
       ctx.canEdit && status === "Oferta enviada"
         ? `<button type="button" role="menuitem" data-action="create-employee-from-candidate" data-candidate-id="${escapeAttr(String(c.id))}">${IC.userPlus} Contratar</button>`
@@ -1021,12 +1161,16 @@ export function renderHiringCandidateCard(c, ctx = {}) {
     </article>`;
   }
 
+  const flowPrimary = hiringFlowPrimaryActionHtml(c, {
+    canEdit: ctx.canEdit,
+    canScheduleInterview: ctx.canScheduleInterview,
+    hasInterview,
+    interviewWhen,
+    btnClass: "btn btn-sm btn-primary"
+  });
   const primaryAction =
-    status === "Preseleccionado" && ctx.canScheduleInterview
-      ? `<button type="button" class="btn btn-sm btn-primary" data-action="schedule-interview-for-candidate" data-candidate-id="${escapeAttr(String(c.id))}">${IC.calendar} Entrevista</button>`
-      : status === "Oferta enviada" && ctx.canEdit
-        ? `<button type="button" class="btn btn-sm btn-primary" data-action="create-employee-from-candidate" data-candidate-id="${escapeAttr(String(c.id))}" title="Alta en Gestión humana">${IC.userPlus} Empleado</button>`
-        : `<button type="button" class="btn btn-sm btn-primary" data-action="hiring-select-candidate" data-id="${escapeAttr(String(c.id))}">${IC.eye} Ficha</button>`;
+    flowPrimary ||
+    `<button type="button" class="btn btn-sm btn-primary" data-action="hiring-select-candidate" data-id="${escapeAttr(String(c.id))}">${IC.eye} Ficha</button>`;
 
   return `<article class="hiring-candidate-card hiring-candidate-card--stage-${escapeAttr(stageSlug)}${selected ? " is-selected" : ""}" data-candidate-id="${escapeAttr(String(c.id))}">
     <header class="hiring-candidate-card__head">

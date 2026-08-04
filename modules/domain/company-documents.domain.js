@@ -30,6 +30,7 @@ export const COMPANY_DOCUMENT_CATEGORIES = Object.freeze([
   { value: "cedula", label: "Cédula de ciudadanía" },
   { value: "foto", label: "Foto del colaborador" },
   { value: "contrato", label: "Contrato laboral" },
+  { value: "carta_laboral", label: "Carta / certificación laboral" },
   { value: "hoja_vida", label: "Hoja de vida" },
   { value: "eps", label: "Afiliación EPS" },
   { value: "afp", label: "Afiliación pensión (AFP)" },
