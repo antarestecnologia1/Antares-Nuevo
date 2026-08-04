@@ -11716,7 +11716,10 @@ async function resolveCandidateCvDownload(candidateLike) {
   if (local?.href) return local;
   const id = String(candidateLike?.id || "").trim();
   if (!id || !candidateMayHaveCvInStorage(candidateLike)) return null;
-  return fetchCandidateCvDownloadFromApi(id);
+  const fromMeta = await fetchCandidateCvDownloadFromApi(id);
+  if (fromMeta?.href) return fromMeta;
+  /* cv_file con storageKey sin URL: el binario autenticado (cv-file) sigue disponible. */
+  return { href: "", fileName: "hoja-de-vida", useApiBlob: true };
 }
 
 function candidateCvDataUrlToBlob(href) {
@@ -11755,9 +11758,19 @@ async function fetchCandidateCvBlobFromApi(candidateId) {
   const base = api.getBase();
   if (!base) return null;
   const url = `${base}/api/portal/candidates/${encodeURIComponent(id)}/cv-file`;
+  /** Misma autenticación que `getArrayBuffer` (cookies + Bearer iOS + CSRF). */
   const headers = { Accept: "application/octet-stream" };
-  const csrf = typeof api.getCsrfToken === "function" ? String(api.getCsrfToken() || "").trim() : "";
-  if (csrf) headers["X-CSRF-Token"] = csrf;
+  try {
+    if (typeof api.bearerAuthFallbackEnabled === "function" && api.bearerAuthFallbackEnabled()) {
+      headers["X-Antares-Bearer-Fallback"] = "1";
+    }
+    const bearer = typeof api.getAccessToken === "function" ? String(api.getAccessToken() || "").trim() : "";
+    if (bearer) headers.Authorization = `Bearer ${bearer}`;
+    const csrf = typeof api.getCsrfToken === "function" ? String(api.getCsrfToken() || "").trim() : "";
+    if (csrf) headers["X-CSRF-Token"] = csrf;
+  } catch (_hdr) {
+    /* seguir con cookies */
+  }
   try {
     const res = await fetch(url, {
       method: "GET",
@@ -11834,11 +11847,19 @@ function installCandidateCvDownloadDelegation() {
     btn.disabled = true;
     try {
       const dl = await resolveCandidateCvDownload(cand);
-      if (!dl?.href) {
-        notify("No hay CV descargable para este candidato.", "info");
+      if (dl?.href) {
+        await triggerCandidateCvDownload(dl.href, dl.fileName, id);
         return;
       }
-      await triggerCandidateCvDownload(dl.href, dl.fileName, id);
+      /* Postulación web: adjunto en R2/base64 aunque aún no haya URL en caché local. */
+      if (dl?.useApiBlob || candidateMayHaveCvInStorage(cand)) {
+        const fromApi = await fetchCandidateCvBlobFromApi(id);
+        if (fromApi?.blob) {
+          triggerBlobDownload(fromApi.blob, fromApi.fileName || dl?.fileName || "hoja-de-vida");
+          return;
+        }
+      }
+      notify("No hay CV descargable para este candidato.", "info");
     } finally {
       btn.removeAttribute("aria-busy");
       btn.disabled = false;
@@ -11846,45 +11867,172 @@ function installCandidateCvDownloadDelegation() {
   });
 }
 
-function renderHiringCandidateCard(c, ctx) {
+function hiringCandidateNextAction(status) {
+  const s = String(status || PIPELINE[0]);
+  if (s === "Recibido") return { label: "Revisar y preseleccionar", tone: "review" };
+  if (s === "Preseleccionado") return { label: "Agendar entrevista", tone: "interview" };
+  if (s === "Entrevistado") return { label: "Evaluar oferta", tone: "offer" };
+  if (s === "Oferta enviada") return { label: "Cerrar contratación", tone: "hire" };
+  if (s === "Contratado") return { label: "Proceso cerrado", tone: "done" };
+  if (s === "Descartado") return { label: "Descartado", tone: "done" };
+  return { label: "Continuar proceso", tone: "review" };
+}
+
+function hiringPipelineStageSlug(status) {
+  return String(status || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "") || "recibido";
+}
+
+function renderHiringCandidateCard(c, ctx = {}) {
   const ageInfo = portalCandidateAgeFromBirthIso(c.birthDate);
   const expCargo = parseNum(c.experienceYears || 0);
   const canDlCv = Boolean(ctx.canDlCv);
-  const statusClass = hiringPipelineStatusClass(c.status);
+  const status = String(c.status || PIPELINE[0]);
+  const statusClass = hiringPipelineStatusClass(status);
+  const stageSlug = hiringPipelineStageSlug(status);
   const employeeMatch = findPayrollEmployeeByIdDoc(c.idDoc);
-  return `<article class="hiring-candidate-card portal-ops-card trip-ops-card">
+  const next = hiringCandidateNextAction(status);
+  const source = String(c.source || "Portal").trim() || "Portal";
+  const isWeb = /sitio|web|carreras/i.test(source);
+  const compact = ctx.compact === true;
+  const city = String(c.city || "").trim();
+  const initials = String(c.name || "?")
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((p) => p.charAt(0))
+    .join("")
+    .toUpperCase();
+  const primaryAction =
+    status === "Preseleccionado" && ctx.canScheduleInterview
+      ? `<button type="button" class="btn btn-sm btn-primary" data-action="schedule-interview-for-candidate" data-candidate-id="${escapeAttr(String(c.id))}">${IC.calendar} Entrevista</button>`
+      : status === "Oferta enviada" && ctx.canEdit
+        ? `<button type="button" class="btn btn-sm btn-primary" data-action="create-employee-from-candidate" data-candidate-id="${escapeAttr(String(c.id))}" title="Alta en Gestión humana">${IC.userPlus} Empleado</button>`
+        : `<button type="button" class="btn btn-sm btn-primary" data-action="view-candidate" data-id="${escapeAttr(String(c.id))}">${IC.eye} Ficha</button>`;
+
+  return `<article class="hiring-candidate-card hiring-candidate-card--stage-${escapeAttr(stageSlug)}${compact ? " hiring-candidate-card--compact" : ""}" data-candidate-id="${escapeAttr(String(c.id))}">
     <header class="hiring-candidate-card__head">
-      <div>
-        <h4>${escapeHtml(String(c.name || ""))}</h4>
-        <p class="muted">${escapeHtml(String(c.vacancyTitle || "-"))}</p>
+      <div class="hiring-candidate-card__identity">
+        <span class="hiring-candidate-card__avatar" aria-hidden="true">${escapeHtml(initials || "?")}</span>
+        <div class="hiring-candidate-card__titles">
+          <h4>${escapeHtml(String(c.name || ""))}</h4>
+          <p class="hiring-candidate-card__vacancy">${escapeHtml(String(c.vacancyTitle || "Sin vacante"))}</p>
+        </div>
       </div>
-      <span class="status ${statusClass}">${escapeHtml(String(c.status || ""))}</span>
+      <span class="hiring-stage-pill hiring-stage-pill--${escapeAttr(stageSlug)} ${statusClass}">${escapeHtml(status)}</span>
     </header>
-    <dl class="hiring-candidate-card__meta">
-      <div><dt>Contacto</dt><dd>${escapeHtml(String(c.email || "-"))}<br><span class="muted">${escapeHtml(String(c.phone || "-"))}</span></dd></div>
-      <div><dt>Experiencia</dt><dd>${expCargo} años · Edad ${ageInfo.age != null ? `${ageInfo.age} años` : "—"}</dd></div>
-      <div><dt>Etapa</dt><dd><select class="hiring-status-select" data-action="candidate-status" data-id="${escapeAttr(String(c.id))}">${hiringPipelineSelectOptions(c.status)}</select></dd></div>
-    </dl>
+    <div class="hiring-candidate-card__facts">
+      <span class="hiring-candidate-card__fact" title="Experiencia en el cargo"><strong>${expCargo}</strong> años exp.</span>
+      <span class="hiring-candidate-card__fact" title="Edad">${ageInfo.age != null ? `${ageInfo.age} años` : "Edad —"}</span>
+      ${city ? `<span class="hiring-candidate-card__fact">${escapeHtml(city)}</span>` : ""}
+      <span class="hiring-candidate-card__source hiring-candidate-card__source--${isWeb ? "web" : "portal"}">${escapeHtml(source)}</span>
+    </div>
+    ${
+      compact
+        ? ""
+        : `<p class="hiring-candidate-card__next hiring-candidate-card__next--${escapeAttr(next.tone)}"><span>Siguiente</span> ${escapeHtml(next.label)}</p>`
+    }
+    <div class="hiring-candidate-card__stage">
+      <label class="hiring-candidate-card__stage-label"><span>Etapa</span>
+        <select class="hiring-status-select" data-action="candidate-status" data-id="${escapeAttr(String(c.id))}" aria-label="Cambiar etapa del candidato">${hiringPipelineSelectOptions(status)}</select>
+      </label>
+    </div>
     <div class="toolbar hiring-candidate-card__actions">
-      <button class="btn btn-sm btn-outline" data-action="view-candidate" data-id="${escapeAttr(String(c.id))}">${IC.eye} Ver</button>
+      ${primaryAction}
+      <button type="button" class="btn btn-sm btn-outline"${canDlCv ? "" : " disabled"} data-action="download-candidate-cv" data-id="${escapeAttr(String(c.id))}" title="${canDlCv ? "Descargar hoja de vida" : "Sin CV disponible"}">${IC.download} CV</button>
       ${
-        ctx.canScheduleInterview
-          ? `<button type="button" class="btn btn-sm btn-action" data-action="schedule-interview-for-candidate" data-candidate-id="${escapeAttr(String(c.id))}">${IC.calendar} Entrevista</button>`
-          : ""
-      }
-      <button type="button" class="btn btn-sm btn-action"${canDlCv ? "" : " disabled"} data-action="download-candidate-cv" data-id="${escapeAttr(String(c.id))}">${IC.download} CV</button>
-      ${
-        ctx.canEdit
-          ? `<button class="btn btn-sm btn-action" data-action="create-employee-from-candidate" data-candidate-id="${escapeAttr(String(c.id))}" title="Abrir alta de empleado con datos precargados">${IC.userPlus} Empleado</button>`
+        !compact && ctx.canScheduleInterview && status !== "Preseleccionado"
+          ? `<button type="button" class="btn btn-sm btn-action" data-action="schedule-interview-for-candidate" data-candidate-id="${escapeAttr(String(c.id))}">${IC.calendar}</button>`
           : ""
       }
       ${
-        ctx.canEdit && employeeMatch
-          ? `<button class="btn btn-sm btn-action" data-action="generate-contract-from-candidate" data-candidate-id="${escapeAttr(String(c.id))}" title="Generar contrato Word">${IC.file} Contrato</button>`
+        !compact && ctx.canEdit && status !== "Oferta enviada"
+          ? `<button type="button" class="btn btn-sm btn-action" data-action="create-employee-from-candidate" data-candidate-id="${escapeAttr(String(c.id))}" title="Alta de empleado">${IC.userPlus}</button>`
           : ""
       }
-      ${ctx.canEdit ? `<button class="btn btn-sm btn-action" data-action="edit-candidate" data-id="${escapeAttr(String(c.id))}">${IC.edit} Editar</button>` : ""}
-      ${ctx.canDelete ? `<button class="btn btn-sm btn-reject" data-action="delete-candidate" data-id="${escapeAttr(String(c.id))}" title="Solo administradores">${IC.trash}</button>` : ""}
+      ${
+        !compact && ctx.canEdit && employeeMatch
+          ? `<button type="button" class="btn btn-sm btn-action" data-action="generate-contract-from-candidate" data-candidate-id="${escapeAttr(String(c.id))}" title="Generar contrato Word">${IC.file}</button>`
+          : ""
+      }
+      ${ctx.canEdit ? `<button type="button" class="btn btn-sm btn-action" data-action="edit-candidate" data-id="${escapeAttr(String(c.id))}" title="Editar">${IC.edit}${compact ? "" : " Editar"}</button>` : ""}
+      ${ctx.canDelete ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-candidate" data-id="${escapeAttr(String(c.id))}" title="Eliminar (solo administradores)">${IC.trash}</button>` : ""}
+    </div>
+  </article>`;
+}
+
+function renderHiringPipelineBoard(candidates, ctx = {}) {
+  const rows = Array.isArray(candidates) ? candidates : [];
+  const stageFilter = String(ctx.stageFilter || "").trim();
+  const columns = PIPELINE.filter((stage) => {
+    if (stageFilter && stage !== stageFilter) return false;
+    if (ctx.hideTerminal && (stage === "Contratado" || stage === "Descartado")) return false;
+    return true;
+  });
+  const colsHtml = columns
+    .map((stage) => {
+      const slug = hiringPipelineStageSlug(stage);
+      const inStage = rows.filter((c) => String(c.status || PIPELINE[0]) === stage);
+      const cards = inStage
+        .map((c) =>
+          renderHiringCandidateCard(c, {
+            ...ctx,
+            compact: true,
+            canScheduleInterview: !["Contratado", "Descartado"].includes(String(c.status || "")),
+            canDlCv: Boolean(ctx.canDlCvFor?.(c) ?? ctx.canDlCv)
+          })
+        )
+        .join("");
+      return `<section class="hiring-board__col hiring-board__col--${escapeAttr(slug)}" data-pipeline-stage="${escapeAttr(stage)}">
+        <header class="hiring-board__col-head">
+          <h3>${escapeHtml(stage)}</h3>
+          <span class="hiring-board__count">${inStage.length}</span>
+        </header>
+        <div class="hiring-board__col-body">
+          ${cards || `<p class="hiring-board__empty muted">Sin candidatos</p>`}
+        </div>
+      </section>`;
+    })
+    .join("");
+  return `<div class="hiring-board" role="region" aria-label="Pipeline de selección">${colsHtml}</div>`;
+}
+
+function renderHiringVacancyCard(v, ctx = {}) {
+  const applicants = Number(ctx.applicants || 0);
+  const activeApplicants = Number(ctx.activeApplicants || 0);
+  const isOpen = String(v.status || "") === "Publicada";
+  const deadline = String(v.deadline || "").trim();
+  let urgency = "";
+  if (isOpen && deadline) {
+    const days = Math.ceil((new Date(`${deadline}T12:00:00`).getTime() - Date.now()) / 86400000);
+    if (days < 0) urgency = "vencida";
+    else if (days <= 3) urgency = "critica";
+    else if (days <= 7) urgency = "proxima";
+  }
+  const salary = parseNum(v.salaryOffer);
+  return `<article class="hiring-vacancy-card${isOpen ? " hiring-vacancy-card--open" : " hiring-vacancy-card--closed"}${urgency ? ` hiring-vacancy-card--${urgency}` : ""}">
+    <header class="hiring-vacancy-card__head">
+      <div>
+        <h4>${escapeHtml(String(v.title || ""))}</h4>
+        <p class="muted">${escapeHtml(String(v.positionName || "Cargo"))} · ${escapeHtml(String(v.city || "—"))}${v.modality ? ` · ${escapeHtml(String(v.modality))}` : ""}</p>
+      </div>
+      <span class="status ${isOpen ? "status-viaje_asignado" : "status-rechazada"}">${isOpen ? "Publicada" : "Cerrada"}</span>
+    </header>
+    <dl class="hiring-vacancy-card__metrics">
+      <div><dt>Postulantes</dt><dd><strong>${applicants}</strong>${activeApplicants !== applicants ? `<span class="muted"> · ${activeApplicants} activos</span>` : ""}</dd></div>
+      <div><dt>Cupos</dt><dd>${escapeHtml(String(v.openings ?? 1))}</dd></div>
+      <div><dt>Salario</dt><dd>$${salary.toLocaleString("es-CO")}</dd></div>
+      <div><dt>Cierre</dt><dd>${deadline ? escapeHtml(deadline) : "—"}${urgency === "critica" || urgency === "proxima" ? ` <span class="hiring-vacancy-card__urgent">Pronto</span>` : ""}${urgency === "vencida" ? ` <span class="hiring-vacancy-card__urgent">Vencida</span>` : ""}</dd></div>
+    </dl>
+    <div class="toolbar hiring-vacancy-card__actions">
+      <button type="button" class="btn btn-sm btn-outline" data-action="view-vacancy" data-id="${escapeAttr(String(v.id))}">${IC.eye} Ver</button>
+      ${ctx.canEdit ? `<button type="button" class="btn btn-sm btn-action" data-action="edit-vacancy" data-id="${escapeAttr(String(v.id))}">${IC.edit} Editar</button>` : ""}
+      ${ctx.canEdit && isOpen ? `<button type="button" class="btn btn-sm btn-action" data-action="close-vacancy" data-id="${escapeAttr(String(v.id))}">${IC.x} Cerrar</button>` : ""}
+      ${ctx.canDelete ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-vacancy" data-id="${escapeAttr(String(v.id))}" title="Solo administradores">${IC.trash}</button>` : ""}
     </div>
   </article>`;
 }
@@ -14038,6 +14186,10 @@ Object.assign(window, {
   renderContractMergePreviewHtml,
   renderContractTemplateSelectOptions,
   renderHiringCandidateCard,
+  renderHiringPipelineBoard,
+  renderHiringVacancyCard,
+  hiringCandidateNextAction,
+  hiringPipelineStageSlug,
   renderHistoryAuditCard,
   renderHistoryAuditList,
   renderHistoryCard,

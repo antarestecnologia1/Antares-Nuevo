@@ -25,7 +25,7 @@ import { devWarn } from "./modules/core/utils.js";
 import { notify } from "./modules/ui/modals.js";
 import { runAsSilentSystemNotifications } from "./modules/domain/notificaciones.domain.js";
 import { hasUnsavedPortalFormData } from "./modules/domain/viajes.domain.js";
-import { initGlobalEvents } from "./modules/core/events.js?v=20260630-security-audit-fix";
+import { initGlobalEvents } from "./modules/core/events.js?v=20260803-cv-download-fix";
 
 /**
  * Definidas en `portal-runtime.js` (módulo ES); se exponen en `window` al final de ese archivo.

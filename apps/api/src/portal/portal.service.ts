@@ -6952,22 +6952,26 @@ export class PortalService implements OnModuleInit {
       const storageKey = String(rec.storageKey || "").trim();
       if (kind === "cv_file" && storageKey) {
         const existingUrl = String(rec.url || "").trim();
-        const publicUrl = this.r2.publicUrl(storageKey);
-        if (publicUrl) {
-          out.push({ ...rec, url: publicUrl });
-          continue;
-        }
-        if (
-          this.r2.hasUploadsClient() &&
-          (!existingUrl || !this.r2.isStablePublicObjectUrl(existingUrl, storageKey))
-        ) {
+        if (this.r2.hasUploadsClient()) {
           try {
-            const signed = await this.r2.presignGetUploadsObject(storageKey, 7200);
+            const signed = await this.r2.presignGetUploadsObject(storageKey, 7200, {
+              disposition: "attachment",
+              fileName: String(rec.name || "hoja-de-vida").trim() || "hoja-de-vida"
+            });
             out.push({ ...rec, url: signed });
             continue;
           } catch (e) {
             this.logger.warn(`presign CV falló (${storageKey}): ${String((e as Error)?.message || e)}`);
           }
+        }
+        const publicUrl = this.r2.publicUrl(storageKey);
+        if (publicUrl) {
+          out.push({ ...rec, url: publicUrl });
+          continue;
+        }
+        if (existingUrl && this.r2.isStablePublicObjectUrl(existingUrl, storageKey)) {
+          out.push(rec);
+          continue;
         }
       }
       out.push(rec);
@@ -6982,7 +6986,7 @@ export class PortalService implements OnModuleInit {
   async getCandidateCvDownload(userId: string, role: JwtRole, candidateId: string) {
     const permissionSet = this.isAdmin(role)
       ? new Set<string>(ALL_PORTAL_PERMISSIONS)
-      : await this.loadPortalPermissionSet(userId);
+      : await this.resolveEffectivePermissionSet(userId, role);
     if (!this.isAdmin(role) && !this.hasPortalPermission(permissionSet, "hiring_manage")) {
       throw new ForbiddenException();
     }
@@ -7013,14 +7017,22 @@ export class PortalService implements OnModuleInit {
       if (kind === "cv_file") {
         const storageKey = String(rec.storageKey || "").trim();
         const existingUrl = String(rec.url || "").trim();
-        if (storageKey) {
+        if (storageKey && this.r2.hasUploadsClient()) {
+          /* Preferir GET prefirmado: CF_R2_PUBLIC_BASE a veces no sirve objetos privados. */
+          try {
+            const signed = await this.r2.presignGetUploadsObject(storageKey, 3600, {
+              disposition: "attachment",
+              fileName
+            });
+            return { url: signed, fileName };
+          } catch (e) {
+            this.logger.warn(
+              `presign CV download falló (${storageKey}): ${String((e as Error)?.message || e)}`
+            );
+          }
           const publicUrl = this.r2.publicUrl(storageKey);
           if (publicUrl) {
             return { url: publicUrl, fileName };
-          }
-          if (this.r2.hasUploadsClient()) {
-            const signed = await this.r2.presignGetUploadsObject(storageKey, 3600);
-            return { url: signed, fileName };
           }
         }
         if (existingUrl && /^https?:\/\//i.test(existingUrl)) {
@@ -7042,7 +7054,7 @@ export class PortalService implements OnModuleInit {
   ): Promise<{ buffer: Buffer; mime: string; fileName: string }> {
     const permissionSet = this.isAdmin(role)
       ? new Set<string>(ALL_PORTAL_PERMISSIONS)
-      : await this.loadPortalPermissionSet(userId);
+      : await this.resolveEffectivePermissionSet(userId, role);
     if (!this.isAdmin(role) && !this.hasPortalPermission(permissionSet, "hiring_manage")) {
       throw new ForbiddenException();
     }

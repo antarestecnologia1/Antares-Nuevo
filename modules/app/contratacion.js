@@ -883,8 +883,32 @@ function bindHiringPortalControls() {
 
   nodes.viewRoot.querySelectorAll("[data-action='hiring-sort-candidates']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
+      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "data" };
       state.hiringUi.candidateSort = String(btn.dataset.sort || "recent");
+      state.hiringUi.workspace = "data";
+      state.hiringUi.dataSection = "candidates";
+      persistHrWorkspace("hiring", "data");
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='hiring-candidates-view']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const view = String(btn.dataset.view || "board") === "list" ? "list" : "board";
+      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "data" };
+      state.hiringUi.candidateView = view;
+      state.hiringUi.workspace = "data";
+      state.hiringUi.dataSection = "candidates";
+      persistHrWorkspace("hiring", "data");
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='hiring-pipeline-stage']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const stage = String(btn.dataset.stage || "").trim();
+      state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "data" };
+      state.hiringUi.pipelineStage = stage;
       state.hiringUi.workspace = "data";
       state.hiringUi.dataSection = "candidates";
       persistHrWorkspace("hiring", "data");

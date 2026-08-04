@@ -3936,10 +3936,13 @@ function openPublicVacancyApplyModal(vacancy) {
       const expY = Math.min(65, Math.max(0, $portal.parseNum(String(fd.get("experienceYears") ?? "0"))));
       fd.set("experienceYears", String(expY));
       const attachInput = formEl.querySelector("input[name='attachment']");
-      if (!attachInput?.files?.[0]) {
+      const cvFile = attachInput?.files?.[0];
+      if (!cvFile) {
         $portal.notify("Adjunte la hoja de vida (PDF, Word o imagen).", "error");
         return false;
       }
+      /* Forzar el binario en el multipart (algunos navegadores omiten file inputs al reconstruir FormData). */
+      fd.set("attachment", cvFile, cvFile.name || "hoja-de-vida");
       fd.set("email", $portal.normalizeEmail(String(fd.get("email") || "")));
       const apiPub = window.AntaresApi;
       if (apiPub?.hasBase?.() && typeof apiPub.postFormDataPublic === "function") {

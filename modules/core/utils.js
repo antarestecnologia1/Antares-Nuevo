@@ -374,7 +374,8 @@ export function normalizeHrWorkspace(moduleId, workspace) {
   if (moduleId === "payroll") return HR_VALID_PAYROLL_WS.has(ws) ? ws : "operate";
   if (moduleId === "hiring") {
     if (ws === "track") return "data";
-    return HR_VALID_HIRING_WS.has(ws) ? ws : "operate";
+    /* Por defecto: Selección (consultar pipeline), no el rail de alta. */
+    return HR_VALID_HIRING_WS.has(ws) ? ws : "data";
   }
   if (moduleId === "requests") return HR_VALID_REQUESTS_WS.has(ws) ? ws : "operate";
   if (moduleId === "sst") return HR_VALID_SST_WS.has(ws) ? ws : "operate";

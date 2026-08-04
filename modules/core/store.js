@@ -303,7 +303,9 @@ export function hydrateHrWorkspaceFromStorage() {
           dataSection: normalizeHiringDataSection(parsed.dataSection),
           candidateFilter: String(parsed.candidateFilter || "active"),
           vacancyFilter: String(parsed.vacancyFilter || "open"),
-          candidateSort: String(parsed.candidateSort || "recent")
+          candidateSort: String(parsed.candidateSort || "recent"),
+          candidateView: String(parsed.candidateView || "board") === "list" ? "list" : "board",
+          pipelineStage: String(parsed.pipelineStage || "")
         };
       } else {
         const ws = normalizeHrWorkspace("hiring", h);
@@ -433,7 +435,9 @@ export function persistHrWorkspace(moduleId, workspace) {
           dataSection: normalizeHiringDataSection(ui.dataSection),
           candidateFilter: String(ui.candidateFilter || "active"),
           vacancyFilter: String(ui.vacancyFilter || "open"),
-          candidateSort: String(ui.candidateSort || "recent")
+          candidateSort: String(ui.candidateSort || "recent"),
+          candidateView: String(ui.candidateView || "board") === "list" ? "list" : "board",
+          pipelineStage: String(ui.pipelineStage || "")
         })
       );
     } else if (moduleId === "sst") {

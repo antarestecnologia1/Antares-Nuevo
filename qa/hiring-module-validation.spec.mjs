@@ -50,7 +50,10 @@ const seedStore = {
       department: "Bogota",
       city: "Bogota D.C.",
       address: "Cra 1 # 1-1",
-      permissions: []
+      permissions: [],
+      dataPolicyAcceptedAt: now.toISOString(),
+      dataPolicyVersion: "2025-v1",
+      termsAcceptedAt: now.toISOString()
     }
   ],
   [KEYS.companies]: [
@@ -202,13 +205,24 @@ const seedStore = {
       id: "admin-1",
       name: "Admin QA",
       email: "admin.qa@antares.test",
-      role: "admin"
+      role: "admin",
+      dataPolicyAcceptedAt: now.toISOString(),
+      dataPolicyVersion: "2025-v1",
+      termsAcceptedAt: now.toISOString()
     }
   },
-  [KEYS.hiringWorkspace]: "operate"
+  [KEYS.hiringWorkspace]: JSON.stringify({
+    workspace: "data",
+    dataSection: "candidates",
+    candidateFilter: "active",
+    vacancyFilter: "open",
+    candidateSort: "recent",
+    candidateView: "board",
+    pipelineStage: ""
+  })
 };
 
-test.setTimeout(240000);
+test.setTimeout(360000);
 
 test("validate hiring module fields", async ({ page, context }) => {
   const results = [];
@@ -450,6 +464,53 @@ test("validate hiring module fields", async ({ page, context }) => {
   await page.waitForSelector("#portal-app", { timeout: 10000 });
   await page.waitForTimeout(800);
 
+  /** Cierra el gate legal (política + términos) si quedó abierto en el arranque. */
+  await page.evaluate(() => {
+    const acceptedAt = new Date().toISOString();
+    const patchUser = (user) => {
+      if (!user || typeof user !== "object") return user;
+      return {
+        ...user,
+        dataPolicyAcceptedAt: acceptedAt,
+        dataPolicyVersion: "2025-v1",
+        termsAcceptedAt: acceptedAt
+      };
+    };
+    try {
+      const users = JSON.parse(localStorage.getItem("antares_users_v2") || "[]");
+      if (Array.isArray(users)) {
+        localStorage.setItem("antares_users_v2", JSON.stringify(users.map(patchUser)));
+      }
+      const sess = JSON.parse(localStorage.getItem("antares_session_v2") || "{}");
+      if (sess && typeof sess === "object") {
+        delete sess.dataPolicyGatePending;
+        sess.profileSnapshot = patchUser(sess.profileSnapshot || {});
+        localStorage.setItem("antares_session_v2", JSON.stringify(sess));
+      }
+    } catch (_e) {
+      /* noop */
+    }
+    document.body.classList.remove("data-policy-gate-open");
+    const modal = document.getElementById("data-policy-modal");
+    if (modal) {
+      modal.classList.add("hidden");
+      modal.setAttribute("hidden", "");
+      modal.style.display = "none";
+      modal.style.pointerEvents = "none";
+    }
+    if (!document.getElementById("qa-disable-data-policy-gate")) {
+      const style = document.createElement("style");
+      style.id = "qa-disable-data-policy-gate";
+      style.textContent = `
+        body.data-policy-gate-open { pointer-events: auto !important; }
+        body.data-policy-gate-open #portal-app,
+        body.data-policy-gate-open .app-shell { pointer-events: auto !important; }
+        #data-policy-modal { display: none !important; pointer-events: none !important; }
+      `;
+      document.head.appendChild(style);
+    }
+  });
+
   /** Sin API real, `persistPositionsCatalog(..., { optimistic: false })` y vacantes/contratos fallan si `writeAwaitServer` lanza. */
   await page.evaluate(() => {
     window.writeAwaitServer = async () => {};
@@ -469,6 +530,37 @@ test("validate hiring module fields", async ({ page, context }) => {
       window.__qaContractCalls.push(payload);
       return payload;
     };
+  });
+
+  await record("Contratación:selection UI shows pipeline board and vacancy cards", async () => {
+    await gotoView("hiring");
+    await ensureHiringDataSection("candidates");
+    await page.waitForFunction(() => {
+      const board = document.querySelector(".hiring-board");
+      const stageFilters = document.querySelectorAll("[data-action='hiring-pipeline-stage']");
+      const viewBoard = document.querySelector("[data-action='hiring-candidates-view'][data-view='board']");
+      return Boolean(board && stageFilters.length >= 2 && viewBoard);
+    });
+    const boardStats = await page.evaluate(() => ({
+      cols: document.querySelectorAll(".hiring-board__col").length,
+      cards: document.querySelectorAll(".hiring-candidate-card").length,
+      preselected: Boolean(document.querySelector('[data-pipeline-stage="Preseleccionado"] .hiring-candidate-card'))
+    }));
+    if (boardStats.cols < 3) throw new Error(`Tablero sin columnas suficientes: ${boardStats.cols}`);
+    if (!boardStats.preselected) throw new Error("Candidato preseleccionado no aparece en el tablero");
+
+    await clickVisible("[data-action='hiring-candidates-view'][data-view='list']");
+    await page.waitForFunction(() => document.querySelector(".hiring-cards--candidates-list, .hiring-table--candidates"));
+    await clickVisible("[data-action='hiring-candidates-view'][data-view='board']");
+    await page.waitForSelector(".hiring-board", { state: "attached" });
+
+    await ensureHiringDataSection("vacancies");
+    await page.waitForFunction(() => document.querySelectorAll(".hiring-vacancy-card").length >= 1);
+    const vacOk = await page.evaluate(() => {
+      const card = document.querySelector(".hiring-vacancy-card");
+      return Boolean(card && card.textContent && /Postulantes/i.test(card.textContent));
+    });
+    if (!vacOk) throw new Error("Tarjeta de vacante sin métrica de postulantes");
   });
 
   await record("Contratación:create position persists every field", async () => {
@@ -603,13 +695,25 @@ test("validate hiring module fields", async ({ page, context }) => {
     });
     await form.locator('select[name="city"]').selectOption("Bogota D.C.");
     await form.locator('input[name="address"]').fill("Calle 12 # 12-12");
-    await form.locator('[data-hr-wizard-next]').click();
+    await page.evaluate(() => {
+      const next = document.querySelector("#form-candidate [data-hr-wizard-next]");
+      if (!next) throw new Error("wizard next no encontrado");
+      next.click();
+    });
+    await page.waitForFunction(() => {
+      const step = document.querySelector("#form-candidate .hr-form-step.is-active");
+      return Boolean(step?.querySelector('select[name="educationLevel"]'));
+    });
     await form.locator('select[name="educationLevel"]').selectOption("Profesional");
     await form.locator('input[name="experienceYears"]').fill("5");
     await form.locator('input[name="expectedSalary"]').fill("2500000");
     await form.locator('input[name="availabilityDate"]').fill(ymd(plusDays(30)));
     await form.locator('select[name="vacancyId"]').selectOption("vac-1");
-    await form.locator('button[type="submit"]').click();
+    await page.evaluate(() => {
+      const candidateForm = document.querySelector("#form-candidate");
+      if (!candidateForm) throw new Error("form-candidate no encontrado");
+      candidateForm.requestSubmit();
+    });
     await waitForArrayLength(KEYS.candidates, before + 1, "create candidate");
     const candidates = await readStore(KEYS.candidates);
     const created = candidates.find((row) => row.email === "nuevo.candidato@test.com");

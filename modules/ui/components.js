@@ -715,37 +715,45 @@ export function renderHiringModuleHead({
   contractsThisMonth,
   candidateConversion,
   hiredCandidates,
-  totalCandidates
+  totalCandidates,
+  receivedCandidates = 0,
+  interviewsPending = 0
 }) {
   const items = [
-    `<div class="hiring-studio-kpi hiring-studio-kpi--ok" title="Vacantes abiertas u ofertas activas"><dt>Vacantes</dt><dd><strong>${escapeHtml(String(openVacancies))}</strong></dd></div>`,
-    `<div class="hiring-studio-kpi hiring-studio-kpi--neutral" title="Candidatos que siguen en proceso de selección"><dt>En proceso</dt><dd><strong>${escapeHtml(String(activeCandidates))}</strong></dd></div>`,
-    `<div class="hiring-studio-kpi hiring-studio-kpi--neutral" title="${escapeHtml(String(hiredCandidates ?? 0))} contratados de ${escapeHtml(String(totalCandidates ?? 0))} candidatos registrados"><dt>Conversión</dt><dd><strong>${escapeHtml(String(candidateConversion))}%</strong></dd></div>`
+    `<div class="hiring-studio-kpi hiring-studio-kpi--neutral" title="Candidatos activos en el pipeline"><dt>En proceso</dt><dd><strong>${escapeHtml(String(activeCandidates))}</strong></dd></div>`,
+    `<div class="hiring-studio-kpi hiring-studio-kpi--warn" title="Postulaciones nuevas por revisar (etapa Recibido)"><dt>Por revisar</dt><dd><strong>${escapeHtml(String(receivedCandidates))}</strong></dd></div>`,
+    `<div class="hiring-studio-kpi hiring-studio-kpi--ok" title="Vacantes publicadas abiertas a postulaciones"><dt>Vacantes</dt><dd><strong>${escapeHtml(String(openVacancies))}</strong></dd></div>`,
+    `<div class="hiring-studio-kpi hiring-studio-kpi--neutral" title="${escapeHtml(String(hiredCandidates ?? 0))} contratados de ${escapeHtml(String(totalCandidates ?? 0))} candidatos"><dt>Conversión</dt><dd><strong>${escapeHtml(String(candidateConversion))}%</strong></dd></div>`
   ];
+  if (interviewsPending > 0) {
+    items.push(
+      `<div class="hiring-studio-kpi hiring-studio-kpi--warn" title="Candidatos preseleccionados listos para entrevista"><dt>Entrevistas</dt><dd><strong>${escapeHtml(String(interviewsPending))}</strong></dd></div>`
+    );
+  }
   if (urgentItems > 0) {
     items.push(
-      `<div class="hiring-studio-kpi hiring-studio-kpi--warn" title="Vacantes por cerrar o contratos por vencer"><dt>Alertas</dt><dd><strong>${escapeHtml(String(urgentItems))}</strong></dd></div>`
+      `<div class="hiring-studio-kpi hiring-studio-kpi--alert" title="Vacantes por cerrar o contratos por vencer"><dt>Alertas</dt><dd><strong>${escapeHtml(String(urgentItems))}</strong></dd></div>`
     );
   }
   if (contractsThisMonth > 0) {
     items.push(
-      `<div class="hiring-studio-kpi hiring-studio-kpi--ok" title="Contratos con fecha de firma en el mes en curso"><dt>Este mes</dt><dd><strong>${escapeHtml(String(contractsThisMonth))}</strong></dd></div>`
+      `<div class="hiring-studio-kpi hiring-studio-kpi--ok" title="Contratos firmados este mes"><dt>Este mes</dt><dd><strong>${escapeHtml(String(contractsThisMonth))}</strong></dd></div>`
     );
   }
   return `<header class="hiring-studio-head hiring-module-head hiring-module-head--compact">
       <div class="hiring-studio-head__brand hiring-module-head__title">
-        <span class="hiring-studio-head__badge">Selección · Colombia</span>
+        <span class="hiring-studio-head__badge">Selección de personal</span>
         <h2>Contratación</h2>
-        <p class="hiring-studio-head__tagline">Vacantes, pipeline de candidatos y generación de contratos conforme al CST y normativa laboral vigente.</p>
+        <p class="hiring-studio-head__tagline">Pipeline de candidatos, vacantes y cierre de vinculación — diseñado para el equipo de selección.</p>
       </div>
-      <dl class="hiring-studio-kpis hiring-module-head__kpi" aria-label="Indicadores de contratación">${items.join("")}</dl>
+      <dl class="hiring-studio-kpis hiring-module-head__kpi" aria-label="Indicadores de selección">${items.join("")}</dl>
     </header>`;
 }
 
 export function renderHiringDataSectionNav(activeId, counts = {}, { minimal = false } = {}) {
   const tabs = [
-    { id: "candidates", label: "Candidatos", title: "Pipeline y fichas de candidatos", count: counts.candidates ?? 0, icon: "user" },
-    { id: "vacancies", label: "Vacantes", title: "Publicaciones y cupos", count: counts.vacancies ?? 0, icon: "send" },
+    { id: "candidates", label: "Pipeline", title: "Tablero y fichas de candidatos en selección", count: counts.candidates ?? 0, icon: "user" },
+    { id: "vacancies", label: "Vacantes", title: "Publicaciones, cupos y postulantes", count: counts.vacancies ?? 0, icon: "send" },
     { id: "interviews", label: "Agenda", title: "Entrevistas programadas", count: counts.interviews ?? 0, icon: "calendar" },
     { id: "contracts", label: "Contratos", title: "Contratos generados y referencias", count: counts.contracts ?? 0, icon: "file" },
     { id: "positions", label: "Cargos", title: "Catálogo de cargos y salarios base", count: counts.positions ?? 0, icon: "briefcase" }

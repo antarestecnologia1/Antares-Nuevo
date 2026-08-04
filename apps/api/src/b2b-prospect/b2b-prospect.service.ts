@@ -322,7 +322,7 @@ export class B2bProspectService {
     if (expNotes) {
       adjuntos.push({ kind: "experience_notes", text: normalizeDbTextUpperFromUnknown(expNotes) });
     }
-    await this.attachJobApplicationCvJson(adjuntos, dto, attachment);
+    await this.attachJobApplicationCvJson(adjuntos, attachment);
 
     const client = await this.pool.connect();
     try {
@@ -465,7 +465,6 @@ export class B2bProspectService {
 
   private async attachJobApplicationCvJson(
     adjuntos: Record<string, unknown>[],
-    dto: CreateJobApplicationDto,
     attachment?: Express.Multer.File
   ) {
     if (attachment?.buffer && attachment.buffer.length > 0) {
@@ -478,12 +477,15 @@ export class B2bProspectService {
       if (this.r2.hasUploadsClient()) {
         const key = `job-applications/${randomUUID()}/${Date.now()}-${fileLabel}`;
         await this.r2.putJobCv(key, attachment.buffer, mime);
-        adjuntos.push({
+        const publicUrl = this.r2.publicUrl(key);
+        const cvFile: Record<string, unknown> = {
           kind: "cv_file",
           name: origRaw || fileLabel,
           mime,
           storageKey: key
-        });
+        };
+        if (publicUrl) cvFile.url = publicUrl;
+        adjuntos.push(cvFile);
         return;
       }
 
@@ -502,12 +504,7 @@ export class B2bProspectService {
       return;
     }
 
-    const fname = String(dto.attachmentFileName || "").trim();
-    if (fname) {
-      adjuntos.push({ kind: "cv_filename", name: fname });
-      return;
-    }
-
+    /* Sin binario no hay CV descargable: no persistir solo el nombre del archivo. */
     throw new BadRequestException("Debe adjuntar la hoja de vida (PDF, Word o imagen).");
   }
 
