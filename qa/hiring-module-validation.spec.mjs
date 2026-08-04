@@ -222,7 +222,7 @@ const seedStore = {
   })
 };
 
-test.setTimeout(360000);
+test.setTimeout(240000);
 
 test("validate hiring module fields", async ({ page, context }) => {
   const results = [];
@@ -511,9 +511,24 @@ test("validate hiring module fields", async ({ page, context }) => {
     }
   });
 
-  /** Sin API real, `persistPositionsCatalog(..., { optimistic: false })` y vacantes/contratos fallan si `writeAwaitServer` lanza. */
+  /**
+   * Sin API real: `persistPositionsCatalog` usa `window.writeAwaitServer`, pero candidatos/vacantes
+   * importan `writeAwaitServer*` de data-io y esperan `AntaresPortalSync.flushStorageKeyNow`.
+   * Si el flush cuelga (API fantasma), el wizard de candidatos nunca termina.
+   */
   await page.evaluate(() => {
-    window.writeAwaitServer = async () => {};
+    const noopWrite = async () => {};
+    window.writeAwaitServer = noopWrite;
+    window.writeAwaitServerCreate = noopWrite;
+    window.writeAwaitServerEdit = noopWrite;
+    window.writeAwaitServerDelete = noopWrite;
+    window.writeAwaitServerLatestQueuedEmail = noopWrite;
+    if (window.AntaresPortalSync && typeof window.AntaresPortalSync === "object") {
+      window.AntaresPortalSync.flushStorageKeyNow = noopWrite;
+      if (typeof window.AntaresPortalSync.scheduleFlush === "function") {
+        window.AntaresPortalSync.scheduleFlush = () => {};
+      }
+    }
   });
   /** `openEditModal` + `validateDomForm` puede bloquear el submit en headless sin reflejar regresiones de RRHH. */
   await page.evaluate(() => {
@@ -679,8 +694,13 @@ test("validate hiring module fields", async ({ page, context }) => {
   });
 
   await record("Contratación:create candidate persists wizard fields", async () => {
+    await gotoView("hiring");
     await ensureHiringOperateSection("candidate");
     const before = await arrayLen(KEYS.candidates);
+    await page.evaluate(() => {
+      const candidateForm = document.querySelector("#form-candidate");
+      if (candidateForm) candidateForm.__antaresDupDocCheck = async () => true;
+    });
     const form = page.locator("#form-candidate");
     await form.locator('input[name="name"]').fill("Nuevo Candidato QA");
     await form.locator('input[name="email"]').fill("nuevo.candidato@test.com");
@@ -692,7 +712,7 @@ test("validate hiring module fields", async ({ page, context }) => {
     await page.waitForFunction(() => {
       const city = document.querySelector("#form-candidate select[name='city']");
       return city && [...city.options].some((opt) => String(opt.value || "") === "Bogota D.C.");
-    });
+    }, null, { timeout: 15000 });
     await form.locator('select[name="city"]').selectOption("Bogota D.C.");
     await form.locator('input[name="address"]').fill("Calle 12 # 12-12");
     await page.evaluate(() => {
@@ -703,7 +723,7 @@ test("validate hiring module fields", async ({ page, context }) => {
     await page.waitForFunction(() => {
       const step = document.querySelector("#form-candidate .hr-form-step.is-active");
       return Boolean(step?.querySelector('select[name="educationLevel"]'));
-    });
+    }, null, { timeout: 15000 });
     await form.locator('select[name="educationLevel"]').selectOption("Profesional");
     await form.locator('input[name="experienceYears"]').fill("5");
     await form.locator('input[name="expectedSalary"]').fill("2500000");
@@ -712,6 +732,7 @@ test("validate hiring module fields", async ({ page, context }) => {
     await page.evaluate(() => {
       const candidateForm = document.querySelector("#form-candidate");
       if (!candidateForm) throw new Error("form-candidate no encontrado");
+      candidateForm.__antaresDupDocCheck = async () => true;
       candidateForm.requestSubmit();
     });
     await waitForArrayLength(KEYS.candidates, before + 1, "create candidate");
