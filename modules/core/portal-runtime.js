@@ -3098,6 +3098,18 @@ function isPasswordPayloadKey(key) {
 function prepareCreationFormForSubmit(formEl) {
   const V = window.AntaresValidation;
   if (!V || !formEl) return true;
+  /** Login/registro/recuperar tienen su propia validación; no aplicar reglas CRUD aquí. */
+  if (
+    formEl.dataset?.antaresAuthForm === "1" ||
+    formEl.id === "form-login" ||
+    formEl.id === "form-register" ||
+    formEl.id === "form-recover" ||
+    formEl.id === "form-recover-complete" ||
+    formEl.classList?.contains("auth-form") ||
+    formEl.classList?.contains("auth-register-form")
+  ) {
+    return true;
+  }
   commitSearchableSelectInputsInForm(formEl);
   V.resyncPortalDateValuesInRoot?.(formEl);
   V.decorateFormFields?.(formEl);

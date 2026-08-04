@@ -1410,7 +1410,7 @@
          antes del prefetch de vacantes. -->
     <script defer src="./config/supabase.public.js?v=20260503-1"></script>
     <script defer src="./modules/core/runtime-security.js?v=20260503-runtime-sec"></script>
-    <script defer src="./modules/core/validation.js?v=20260804-login-enter-fix"></script>
+    <script defer src="./modules/core/validation.js?v=20260804-login-review-fix"></script>
     <script defer src="./modules/core/persistence.js"></script>
     <script defer src="./modules/core/portal-bootstrap-cache.js?v=20260630-security-audit-fix"></script>
     <script defer src="./modules/core/supabase-browser.js?v=20260504-pw-recovery"></script>
@@ -1455,7 +1455,7 @@
       import * as AntaresConfig from "./modules/core/config.js";
       import * as AntaresUtils from "./modules/core/utils.js";
       import * as AntaresStore from "./modules/core/store.js";
-      import * as AntaresAuth from "./modules/core/auth.js?v=20260804-login-enter-fix";
+      import * as AntaresAuth from "./modules/core/auth.js?v=20260804-login-review-fix";
       import * as AntaresBootstrap from "./modules/core/bootstrap.js?v=20260804-stage-persist";
       import { writeAwaitServer, writeAwaitServerEdit, writeAwaitServerCreate, writeAwaitServerDelete, writeAwaitServerLatestQueuedEmail, syncPayloadForEditedRow, syncPayloadForEditedObjectKeys, syncPayloadForChangedRows } from "./modules/core/data-io.js";
       import * as AntaresPublicI18n from "./modules/domain/public-site.i18n.js";
@@ -1562,7 +1562,7 @@
       import * as AntaresSchedulePicker from "./modules/ui/portal-schedule-picker.js?v=20260622-time-slots";
       Object.assign(window, AntaresUIComponents, AntaresUIModals, AntaresI18n, AntaresSchedulePicker);
     </script>
-    <script type="module" src="./modules/core/portal-runtime.js?v=20260804-login-enter-fix"></script>
+    <script type="module" src="./modules/core/portal-runtime.js?v=20260804-login-review-fix"></script>
     <script defer src="./modules/app/portal-transport-modals.js"></script>
     <script defer src="./modules/app/portal-rrhh-modals.js"></script>
     <!-- Vistas legacy (`registerLegacyPortalViews`); deben ejecutarse antes de `app.js` para que el primer `renderPortal()` resuelva HTML. `viajes.js` antes de `mis-solicitudes.js` por `RENDER_WINDOW_SIZE`. -->

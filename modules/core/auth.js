@@ -27,13 +27,44 @@ import { state } from "./store.js";
 import { failPortalField, wireFormSubmitGuard } from "../ui/modals.js";
 import { syncPayloadForEditedRow } from "./data-io.js";
 
-/** Preferir el helper del módulo; `window` solo como respaldo si el bundle clásico lo expuso antes. */
-function __wireAuthFormSubmit(formEl, onSubmit, opts) {
+/**
+ * Engancha submit de formularios de auth.
+ * Importante: NO usar `prepareCreationFormForSubmit` (CRUD portal): al restaurar
+ * Object.assign en portal-runtime, ese prepare bloqueaba el login en silencio.
+ */
+function __wireAuthFormSubmit(formEl, onSubmit, opts = {}) {
   const wire = typeof wireFormSubmitGuard === "function" ? wireFormSubmitGuard : window.wireFormSubmitGuard;
   if (typeof wire !== "function") {
     throw new Error("[auth] wireFormSubmitGuard no disponible");
   }
-  return wire(formEl, onSubmit, opts);
+  return wire(formEl, onSubmit, {
+    ...opts,
+    prepareForm: () => true
+  });
+}
+
+/** Abre el portal tras login (callback de app.js + respaldo directo). */
+function __enterPortalAfterSuccessfulLogin() {
+  invokeAuthSuccessCallback();
+  if (document.body.classList.contains("portal-mode")) return;
+  if (!getSession()) return;
+  try {
+    if (typeof window.renderPortal === "function") {
+      window.renderPortal();
+      return;
+    }
+  } catch (_e) {
+    /* noop */
+  }
+  /* Último recurso: mostrar shell del portal sin depender del router. */
+  try {
+    document.body.classList.add("portal-mode");
+    document.getElementById("public-app")?.classList.add("hidden");
+    document.getElementById("portal-app")?.classList.remove("hidden");
+    document.getElementById("auth-modal")?.classList.add("hidden");
+  } catch (_e2) {
+    /* noop */
+  }
 }
 
 const SESSION_IDLE_MS = 30 * 60 * 1000;
@@ -3117,7 +3148,9 @@ export function bindAuthForms() {
                 try {
                   const me = await window.AntaresApi.getJson("/portal/me");
                   if (me?.id) {
-                    window.upsertPortalUserRowIntoCache(me);
+                    if (typeof window.upsertPortalUserRowIntoCache === "function") {
+                      window.upsertPortalUserRowIntoCache(me);
+                    }
                     usersAfter = read(KEYS.users, []);
                     userApi = usersAfter.find((u) => String(u.id) === String(uid));
                   }
@@ -3152,15 +3185,7 @@ export function bindAuthForms() {
               else clearRememberedLoginCredentials();
               window.hideAuth();
               startSessionSecurityWatch();
-              invokeAuthSuccessCallback();
-              /** Respaldo: si app.js aún no registró el callback, abrir portal igual. */
-              if (!document.body.classList.contains("portal-mode") && getSession()) {
-                try {
-                  window.renderPortal?.();
-                } catch (_rp) {
-                  /* noop */
-                }
-              }
+              __enterPortalAfterSuccessfulLogin();
               void startPortalBootstrapForInteractiveSession().finally(() => {
                 maybeEnforceDataPolicyAcceptance();
               });
@@ -3222,19 +3247,17 @@ export function bindAuthForms() {
           tokenIssuedAt: Date.now(),
           profileSnapshot: buildProfileSnapshotFromUserRow(user)
         });
-        void tryApiLoginBridge(user, passwordRaw);
+        /** Definida en portal-runtime (window); no existe en el scope de este módulo. */
+        try {
+          void window.tryApiLoginBridge?.(user, passwordRaw);
+        } catch (_bridge) {
+          /* API opcional en modo offline */
+        }
         if (data.rememberCredentials) writeRememberedLoginCredentials(data.email);
         else clearRememberedLoginCredentials();
         window.hideAuth();
         startSessionSecurityWatch();
-        invokeAuthSuccessCallback();
-        if (!document.body.classList.contains("portal-mode") && getSession()) {
-          try {
-            window.renderPortal?.();
-          } catch (_rp) {
-            /* noop */
-          }
-        }
+        __enterPortalAfterSuccessfulLogin();
         maybeEnforceDataPolicyAcceptance();
       },
       {
@@ -3249,10 +3272,16 @@ export function bindAuthForms() {
   }
 
   if (register) {
-    window.attachDepartmentCitySelects(register, {
-      departmentSelector: "select[name='department']",
-      citySelector: "select[name='city']"
-    });
+    if (typeof window.attachDepartmentCitySelects === "function") {
+      window.attachDepartmentCitySelects(register, {
+        departmentSelector: "select[name='department']",
+        citySelector: "select[name='city']"
+      });
+    }
+    const isJuridicaFn =
+      typeof window.isPersonTypeJuridica === "function"
+        ? window.isPersonTypeJuridica
+        : (v) => String(v || "").toLowerCase() === "juridica";
     const registrationKindHidden = register.querySelector("#register-registration-kind");
     const syncRegisterKindUi = (kindRaw) => {
       const kind = normalizeRegistrationKindForDb(kindRaw);
@@ -3277,7 +3306,7 @@ export function bindAuthForms() {
     const inputCompanyNit = register.querySelector("input[name='companyNit']");
     const inputPersonalTax = register.querySelector("input[name='personalTaxId']");
     const syncRegisterDocLayout = () => {
-      const isJuridica = window.isPersonTypeJuridica(personTypeSel?.value);
+      const isJuridica = isJuridicaFn(personTypeSel?.value);
       if (blockPersona) {
         blockPersona.classList.toggle("hidden", isJuridica);
         blockPersona.toggleAttribute("hidden", isJuridica);
@@ -3321,18 +3350,33 @@ export function bindAuthForms() {
 
     const registerPhoneNat = register.querySelector(".js-register-phone-national");
     const registerPhoneCc = register.querySelector(".js-register-phone-cc");
+    const syncRegisterPhone = () => {
+      try {
+        window.syncPhoneHiddenFull?.(register, "register");
+      } catch (_e) {
+        /* noop */
+      }
+    };
     if (registerPhoneNat) {
-      registerPhoneNat.addEventListener("input", () => window.syncPhoneHiddenFull(register, "register"));
+      registerPhoneNat.addEventListener("input", syncRegisterPhone);
     }
     if (registerPhoneCc) {
       registerPhoneCc.addEventListener("change", () => {
         window.AntaresValidation?.clearFieldError?.(registerPhoneNat);
-        window.updatePhoneFieldForCountry(register, "register");
-        window.syncPhoneHiddenFull(register, "register");
+        try {
+          window.updatePhoneFieldForCountry?.(register, "register");
+        } catch (_e) {
+          /* noop */
+        }
+        syncRegisterPhone();
       });
     }
-    window.updatePhoneFieldForCountry(register, "register");
-    window.syncPhoneHiddenFull(register, "register");
+    try {
+      window.updatePhoneFieldForCountry?.(register, "register");
+    } catch (_e) {
+      /* noop */
+    }
+    syncRegisterPhone();
     const regPass = register.querySelector("input[name='password']");
     const regPassConfirm = register.querySelector("input[name='passwordConfirm']");
     const syncRegisterPasswordMatchState = () => {
