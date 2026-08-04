@@ -2659,7 +2659,6 @@ function authView() {
     </form>`;
   }
   const tab = state.authTab;
-  const deptOptions = window.departmentOptions();
   if (tab === "login") {
     const regOk = state.registrationSuccessBanner;
     const regBanner =
@@ -2719,6 +2718,12 @@ function authView() {
   }
 
   if (tab === "register") {
+    const deptOptions =
+      typeof window.departmentOptions === "function" ? window.departmentOptions() : "";
+    const phoneCcOptions =
+      typeof window.registerPhoneCountryOptionsHtml === "function"
+        ? window.registerPhoneCountryOptionsHtml()
+        : `<option value="+57" selected>CO +57</option>`;
     return `
       <div class="auth-header-premium register-intro">
         <h3>Solicitud de registro</h3>
@@ -2845,7 +2850,7 @@ function authView() {
                   <span class="js-register-lang-flag register-lang-flag register-lang-flag--co" aria-hidden="true" title="Colombia"></span>
                 </div>
                 <select class="js-register-phone-cc phone-cc-select" aria-label="Indicativo +57 (Colombia)" required>
-                  ${window.registerPhoneCountryOptionsHtml()}
+                  ${phoneCcOptions}
                 </select>
                 <input
                   type="tel"
@@ -2990,9 +2995,14 @@ export function renderAuthTab() {
     tabBtn.setAttribute("tabindex", isActive ? "0" : "-1");
   });
   if (!content) return;
-  content.innerHTML = authView();
-  bindAuthForms();
-  ensureTurnstileWidgets();
+  try {
+    content.innerHTML = authView();
+    bindAuthForms();
+    ensureTurnstileWidgets();
+  } catch (err) {
+    console.error("[auth] renderAuthTab", err);
+    content.innerHTML = `<p class="muted" role="alert">No se pudo cargar el formulario de acceso. Recargue la página e intente de nuevo.</p>`;
+  }
 }
 
 export function bindAuthForms() {

@@ -1455,7 +1455,7 @@
       import * as AntaresConfig from "./modules/core/config.js";
       import * as AntaresUtils from "./modules/core/utils.js";
       import * as AntaresStore from "./modules/core/store.js";
-      import * as AntaresAuth from "./modules/core/auth.js";
+      import * as AntaresAuth from "./modules/core/auth.js?v=20260804-login-form-fix";
       import * as AntaresBootstrap from "./modules/core/bootstrap.js?v=20260804-stage-persist";
       import { writeAwaitServer, writeAwaitServerEdit, writeAwaitServerCreate, writeAwaitServerDelete, writeAwaitServerLatestQueuedEmail, syncPayloadForEditedRow, syncPayloadForEditedObjectKeys, syncPayloadForChangedRows } from "./modules/core/data-io.js";
       import * as AntaresPublicI18n from "./modules/domain/public-site.i18n.js";
@@ -1562,7 +1562,7 @@
       import * as AntaresSchedulePicker from "./modules/ui/portal-schedule-picker.js?v=20260622-time-slots";
       Object.assign(window, AntaresUIComponents, AntaresUIModals, AntaresI18n, AntaresSchedulePicker);
     </script>
-    <script type="module" src="./modules/core/portal-runtime.js?v=20260804-fix-login-runtime"></script>
+    <script type="module" src="./modules/core/portal-runtime.js?v=20260804-login-form-fix"></script>
     <script defer src="./modules/app/portal-transport-modals.js"></script>
     <script defer src="./modules/app/portal-rrhh-modals.js"></script>
     <!-- Vistas legacy (`registerLegacyPortalViews`); deben ejecutarse antes de `app.js` para que el primer `renderPortal()` resuelva HTML. `viajes.js` antes de `mis-solicitudes.js` por `RENDER_WINDOW_SIZE`. -->

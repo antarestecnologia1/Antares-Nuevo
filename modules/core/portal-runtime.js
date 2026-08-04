@@ -5599,7 +5599,7 @@ function hideAuth() {
 
 window.showAuth = showAuth;
 window.hideAuth = hideAuth;
-/** Expuestas para `app.js` (mÃ³dulo ES); el runtime clÃ¡sico no re-exporta por defecto. */
+/** Expuestas para `app.js` (módulo ES); el runtime clásico no re-exporta por defecto. */
 window.initPortalClientStorage = initPortalClientStorage;
 window.restorePortalSnapshotIfAvailable = restorePortalSnapshotIfAvailable;
 window.initPublicEffects = initPublicEffects;
@@ -5607,6 +5607,11 @@ window.initCoverageCorridors = initCoverageCorridors;
 window.renderPublicCoverageFromView = renderPublicCoverageFromView;
 window.ensureUsersPasswordHashing = ensureUsersPasswordHashing;
 window.updateAutoApprove = updateAutoApprove;
+/* Auth/registro y formularios defer: deben vivir en `window` (el Object.assign masivo se perdió al truncar el runtime). */
+window.departmentOptions = departmentOptions;
+window.cityOptionsFromDepartment = cityOptionsFromDepartment;
+window.attachDepartmentCitySelects = attachDepartmentCitySelects;
+window.registerPhoneCountryOptionsHtml = registerPhoneCountryOptionsHtml;
 
 function parseNum(v) {
   const n = Number(v);
