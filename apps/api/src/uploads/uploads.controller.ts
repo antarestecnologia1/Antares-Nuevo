@@ -27,6 +27,7 @@ import {
 import { DownloadCompanyDocumentDto } from "./dto/company-document.dto";
 import { R2Service } from "./r2.service";
 import { ZipStreamWriter, sanitizeZipEntryName, uniqueZipEntryName } from "./zip-stream";
+import { assertSafeUploadBuffer, assertSafeUploadMeta } from "./file-security";
 
 type ReqUser = { userId: string; email: string; role: string };
 
@@ -39,98 +40,11 @@ const CONTRACT_TEMPLATE_ALLOWED_ROLES = new Set([
   "lider_administrativo"
 ]);
 
-const EMPLOYEE_DOCUMENT_BLOCKED_EXT = new Set([
-  "exe",
-  "bat",
-  "cmd",
-  "com",
-  "scr",
-  "msi",
-  "dll",
-  "vbs",
-  "vbe",
-  "js",
-  "jse",
-  "ws",
-  "wsf",
-  "wsc",
-  "wsh",
-  "ps1",
-  "psm1",
-  "psd1",
-  "jar",
-  "app",
-  "deb",
-  "rpm",
-  "sh",
-  "bash",
-  "cpl",
-  "inf",
-  "reg",
-  "hta",
-  "pif"
-]);
-
 const EMPLOYEE_DOCUMENT_MAX_BYTES = 50 * 1024 * 1024;
 
 /** Techos de la exportación ZIP: sin ZIP64 y con memoria acotada en el servidor. */
 const EMPLOYEE_DOCUMENT_EXPORT_MAX_FILES = 500;
 const EMPLOYEE_DOCUMENT_EXPORT_MAX_BYTES = 400 * 1024 * 1024;
-
-function normalizeEmployeeDocMime(raw: string) {
-  const mime = String(raw || "")
-    .split(";")[0]
-    .trim()
-    .toLowerCase();
-  if (mime === "image/jpg" || mime === "image/pjpeg") return "image/jpeg";
-  return mime || "application/octet-stream";
-}
-
-function extFromFileName(fileName: string) {
-  const safe = String(fileName || "").trim();
-  const idx = safe.lastIndexOf(".");
-  if (idx <= 0 || idx >= safe.length - 1) return "";
-  return safe.slice(idx + 1).toLowerCase().slice(0, 16);
-}
-
-function extFromMime(mime: string) {
-  switch (mime) {
-    case "application/pdf":
-      return "pdf";
-    case "image/jpeg":
-      return "jpg";
-    case "image/png":
-      return "png";
-    case "image/webp":
-      return "webp";
-    case "image/gif":
-      return "gif";
-    case "application/msword":
-      return "doc";
-    case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-      return "docx";
-    case "application/vnd.ms-excel":
-      return "xls";
-    case "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
-      return "xlsx";
-    case "text/plain":
-      return "txt";
-    case "text/csv":
-      return "csv";
-    case "application/zip":
-      return "zip";
-    default:
-      return "";
-  }
-}
-
-function resolveFileExt(fileName: string, mime: string) {
-  const fromName = extFromFileName(fileName);
-  if (fromName && !EMPLOYEE_DOCUMENT_BLOCKED_EXT.has(fromName)) return fromName;
-  const fromMime = extFromMime(mime);
-  if (fromMime) return fromMime;
-  return "bin";
-}
 
 function sanitizeEmployeeDocumentFolder(raw: unknown) {
   const cleaned = String(raw || "General")
@@ -202,15 +116,6 @@ function downloadSlug(raw: string, fallback: string) {
   );
 }
 
-function assertSafeEmployeeDocumentFile(fileName: string) {
-  const ext = extFromFileName(fileName);
-  if (ext && EMPLOYEE_DOCUMENT_BLOCKED_EXT.has(ext)) {
-    throw new BadRequestException(
-      `Extensión .${ext} no permitida por seguridad. Use otro formato de archivo.`
-    );
-  }
-}
-
 @UseGuards(JwtAuthGuard)
 @Controller("uploads")
 export class UploadsController {
@@ -229,24 +134,15 @@ export class UploadsController {
         "R2 no está configurado. Define CF_R2_ACCOUNT_ID, CF_R2_ACCESS_KEY_ID, CF_R2_SECRET_ACCESS_KEY y CF_R2_UPLOADS_BUCKET en el servidor."
       );
     }
-    const rawCt = String(dto.contentType || "image/jpeg")
-      .split(";")[0]
-      .trim()
-      .toLowerCase();
-    const normalizedCt =
-      rawCt === "image/jpg" || rawCt === "image/pjpeg" ? "image/jpeg" : rawCt || "image/jpeg";
-    if (!/^image\/(jpeg|png|webp|gif)$/.test(normalizedCt)) {
-      throw new BadRequestException(
-        "Tipo de imagen no permitido. Use JPEG, PNG, WebP o GIF."
-      );
-    }
-    const safeName = String(dto.fileName).replace(/[^a-zA-Z0-9._-]+/g, "_");
-    const ext = safeName.includes(".") ? safeName.split(".").pop()!.toLowerCase() : "jpg";
-    const allowedExt = new Set(["jpg", "jpeg", "png", "webp", "gif"]);
-    const finalExt = allowedExt.has(ext) ? ext : "jpg";
+    const safeName = String(dto.fileName || "avatar.jpg").replace(/[^a-zA-Z0-9._-]+/g, "_");
+    const meta = assertSafeUploadMeta({
+      fileName: safeName,
+      contentType: dto.contentType || "image/jpeg",
+      purpose: "image"
+    });
     const ownerId = String(req.user.userId || "anon").replace(/[^a-zA-Z0-9._-]+/g, "");
-    const key = `empleados/${ownerId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${finalExt}`;
-    const url = await this.r2.presignAvatarUpload(key, normalizedCt, 300);
+    const key = `empleados/${ownerId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${meta.ext}`;
+    const url = await this.r2.presignAvatarUpload(key, meta.mime, 300);
     return {
       uploadUrl: url,
       publicUrl: this.r2.publicUrl(key),
@@ -277,26 +173,15 @@ export class UploadsController {
     if (!file?.buffer?.length) {
       throw new BadRequestException("Adjunte un archivo de imagen.");
     }
-    const mime = String(file.mimetype || "")
-      .split(";")[0]
-      .trim()
-      .toLowerCase();
-    const normalized =
-      mime === "image/jpg" || mime === "image/pjpeg" ? "image/jpeg" : mime || "image/jpeg";
-    if (!/^image\/(jpeg|png|webp|gif)$/.test(normalized)) {
-      throw new BadRequestException("Solo se permiten imágenes JPEG, PNG, WebP o GIF.");
-    }
-    const ext =
-      normalized === "image/png"
-        ? "png"
-        : normalized === "image/webp"
-          ? "webp"
-          : normalized === "image/gif"
-            ? "gif"
-            : "jpg";
+    const meta = assertSafeUploadBuffer({
+      buffer: file.buffer,
+      fileName: file.originalname || "upload.jpg",
+      mimeType: file.mimetype,
+      purpose: "image"
+    });
     const ownerId = String(req.user.userId || "anon").replace(/[^a-zA-Z0-9._-]+/g, "");
-    const key = `portal-uploads/${ownerId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-    await this.r2.putUploadsObject(key, file.buffer, normalized);
+    const key = `portal-uploads/${ownerId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${meta.ext}`;
+    await this.r2.putUploadsObject(key, file.buffer, meta.mime);
     return {
       publicUrl: this.r2.publicUrl(key),
       key
@@ -317,24 +202,15 @@ export class UploadsController {
         "R2 no está configurado. Define CF_R2_ACCOUNT_ID, CF_R2_ACCESS_KEY_ID, CF_R2_SECRET_ACCESS_KEY y CF_R2_UPLOADS_BUCKET en el servidor."
       );
     }
-    const rawCt = String(dto.contentType || "image/jpeg")
-      .split(";")[0]
-      .trim()
-      .toLowerCase();
-    const normalizedCt =
-      rawCt === "image/jpg" || rawCt === "image/pjpeg" ? "image/jpeg" : rawCt || "image/jpeg";
-    if (!/^image\/(jpeg|png|webp|gif)$/.test(normalizedCt)) {
-      throw new BadRequestException(
-        "Tipo de imagen no permitido. Use JPEG, PNG, WebP o GIF."
-      );
-    }
     const safeName = String(dto.fileName || "vacante.jpg").replace(/[^a-zA-Z0-9._-]+/g, "_");
-    const ext = safeName.includes(".") ? safeName.split(".").pop()!.toLowerCase() : "jpg";
-    const allowedExt = new Set(["jpg", "jpeg", "png", "webp", "gif"]);
-    const finalExt = allowedExt.has(ext) ? ext : "jpg";
+    const meta = assertSafeUploadMeta({
+      fileName: safeName,
+      contentType: dto.contentType || "image/jpeg",
+      purpose: "image"
+    });
     const ownerId = String(req.user.userId || "anon").replace(/[^a-zA-Z0-9._-]+/g, "");
-    const key = `vacantes/${ownerId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${finalExt}`;
-    const url = await this.r2.presignAvatarUpload(key, normalizedCt, 600);
+    const key = `vacantes/${ownerId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${meta.ext}`;
+    const url = await this.r2.presignAvatarUpload(key, meta.mime, 600);
     const publicUrl = this.r2.publicUrl(key);
     if (!publicUrl) {
       throw new BadRequestException(
@@ -371,26 +247,15 @@ export class UploadsController {
     if (!file?.buffer?.length) {
       throw new BadRequestException("Adjunte un archivo de imagen.");
     }
-    const mime = String(file.mimetype || "")
-      .split(";")[0]
-      .trim()
-      .toLowerCase();
-    const normalized =
-      mime === "image/jpg" || mime === "image/pjpeg" ? "image/jpeg" : mime || "image/jpeg";
-    if (!/^image\/(jpeg|png|webp|gif)$/.test(normalized)) {
-      throw new BadRequestException("Solo se permiten imágenes JPEG, PNG, WebP o GIF.");
-    }
-    const ext =
-      normalized === "image/png"
-        ? "png"
-        : normalized === "image/webp"
-          ? "webp"
-          : normalized === "image/gif"
-            ? "gif"
-            : "jpg";
+    const meta = assertSafeUploadBuffer({
+      buffer: file.buffer,
+      fileName: file.originalname || "vacante.jpg",
+      mimeType: file.mimetype,
+      purpose: "image"
+    });
     const ownerId = String(req.user.userId || "anon").replace(/[^a-zA-Z0-9._-]+/g, "");
-    const key = `vacantes/${ownerId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-    await this.r2.putUploadsObject(key, file.buffer, normalized);
+    const key = `vacantes/${ownerId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${meta.ext}`;
+    await this.r2.putUploadsObject(key, file.buffer, meta.mime);
     const publicUrl = this.r2.publicUrl(key);
     if (!publicUrl) {
       throw new BadRequestException(
@@ -400,6 +265,63 @@ export class UploadsController {
     return {
       publicUrl,
       key
+    };
+  }
+
+  /**
+   * Hoja de vida de candidato (Contratación / RRHH) → R2 privado.
+   * Prefijo `candidate-cvs/`. Sin R2: responde cv_blob inline (máx. 1,5 MB).
+   */
+  @Post("candidate-cv")
+  @UseInterceptors(
+    FileInterceptor("file", {
+      limits: { fileSize: 6 * 1024 * 1024 }
+    })
+  )
+  async uploadCandidateCv(
+    @Req() req: { user: ReqUser },
+    @UploadedFile() file: Express.Multer.File
+  ) {
+    await this.portal.assertCanUploadCandidateCv(req.user.userId, req.user.role);
+    if (!file?.buffer?.length) {
+      throw new BadRequestException("Adjunte la hoja de vida (PDF, Word o imagen).");
+    }
+    const meta = assertSafeUploadBuffer({
+      buffer: file.buffer,
+      fileName: file.originalname || "hoja-de-vida",
+      mimeType: file.mimetype,
+      purpose: "cv"
+    });
+    const origRaw = String(file.originalname || "hoja-de-vida").trim().slice(0, 240);
+    const safeTail = origRaw.replace(/[^\w.\-\sÁÉÍÓÚáéíóúñÑ]+/g, "_").replace(/\s+/g, "_");
+    const fileLabel = safeTail.length ? safeTail : "hoja-de-vida";
+
+    if (this.r2.hasUploadsClient()) {
+      const ownerId = String(req.user.userId || "anon").replace(/[^a-zA-Z0-9._-]+/g, "");
+      const key = `candidate-cvs/${ownerId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${fileLabel}`;
+      await this.r2.putUploadsObject(key, file.buffer, meta.mime);
+      const publicUrl = this.r2.publicUrl(key);
+      const out: Record<string, unknown> = {
+        kind: "cv_file",
+        name: origRaw || fileLabel,
+        mime: meta.mime,
+        storageKey: key
+      };
+      if (publicUrl) out.url = publicUrl;
+      return out;
+    }
+
+    const maxInline = 1_500_000;
+    if (file.buffer.length > maxInline) {
+      throw new BadRequestException(
+        `Sin almacenamiento R2 configurado solo se pueden adjuntar archivos hasta ${Math.round(maxInline / 1024 / 1024)} MB.`
+      );
+    }
+    return {
+      kind: "cv_blob",
+      name: origRaw || fileLabel,
+      mime: meta.mime,
+      data: file.buffer.toString("base64")
     };
   }
 
@@ -445,19 +367,21 @@ export class UploadsController {
         "R2 no está configurado. Define CF_R2_* en el servidor."
       );
     }
-    const normalizedCt = normalizeEmployeeDocMime(dto.contentType);
     const safeName = String(dto.fileName || "documento").replace(/[^a-zA-Z0-9._-]+/g, "_");
-    assertSafeEmployeeDocumentFile(safeName);
+    const meta = assertSafeUploadMeta({
+      fileName: safeName,
+      contentType: dto.contentType || "application/octet-stream",
+      purpose: "document"
+    });
     const employeeId = String(dto.employeeId || "").replace(/[^a-zA-Z0-9-]+/g, "");
     if (!employeeId) throw new BadRequestException("Colaborador inválido.");
-    const ext = resolveFileExt(safeName, normalizedCt);
     const folderSlug = folderSlugForStorage(dto.folder);
-    const key = `documentos_rrhh/${employeeId}/${folderSlug}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-    const uploadUrl = await this.r2.presignAvatarUpload(key, normalizedCt, 600);
+    const key = `documentos_rrhh/${employeeId}/${folderSlug}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${meta.ext}`;
+    const uploadUrl = await this.r2.presignAvatarUpload(key, meta.mime, 600);
     return {
       uploadUrl,
       key,
-      mimeType: normalizedCt,
+      mimeType: meta.mime,
       folder: sanitizeEmployeeDocumentFolder(dto.folder),
       expiresInSec: 600
     };
@@ -486,19 +410,22 @@ export class UploadsController {
     if (!file?.buffer?.length) {
       throw new BadRequestException("Adjunte un archivo.");
     }
-    const normalizedCt = normalizeEmployeeDocMime(file.mimetype);
     const employeeId = String(employeeIdRaw || "").replace(/[^a-zA-Z0-9-]+/g, "");
     if (!employeeId) throw new BadRequestException("Seleccione un colaborador.");
     const origName = String(file.originalname || "documento").replace(/[^a-zA-Z0-9._-]+/g, "_");
-    assertSafeEmployeeDocumentFile(origName);
+    const meta = assertSafeUploadBuffer({
+      buffer: file.buffer,
+      fileName: origName,
+      mimeType: file.mimetype,
+      purpose: "document"
+    });
     const folderSlug = folderSlugForStorage(folderRaw);
-    const ext = resolveFileExt(origName, normalizedCt);
-    const key = `documentos_rrhh/${employeeId}/${folderSlug}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-    await this.r2.putUploadsObject(key, file.buffer, normalizedCt);
+    const key = `documentos_rrhh/${employeeId}/${folderSlug}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${meta.ext}`;
+    await this.r2.putUploadsObject(key, file.buffer, meta.mime);
     return {
       key,
-      fileName: origName || `documento.${ext}`,
-      mimeType: normalizedCt,
+      fileName: origName || `documento.${meta.ext}`,
+      mimeType: meta.mime,
       sizeBytes: file.buffer.length,
       folder: sanitizeEmployeeDocumentFolder(folderRaw)
     };
@@ -555,17 +482,22 @@ export class UploadsController {
       req.user.role
     );
     const scopeKey = String(scope || "global").replace(/[^a-zA-Z0-9-]+/g, "") || "global";
-    const normalizedCt = normalizeEmployeeDocMime(file.mimetype);
-    const origName = String(file.originalname || "documento").replace(/[^a-zA-Z0-9._\-\s\u00C0-\u024F]+/g, "_").trim();
-    assertSafeEmployeeDocumentFile(origName);
+    const origName = String(file.originalname || "documento")
+      .replace(/[^a-zA-Z0-9._\-\s\u00C0-\u024F]+/g, "_")
+      .trim();
+    const meta = assertSafeUploadBuffer({
+      buffer: file.buffer,
+      fileName: origName,
+      mimeType: file.mimetype,
+      purpose: "document"
+    });
     const folderSlug = companyFolderSlugForStorage(folderRaw);
-    const ext = resolveFileExt(origName, normalizedCt);
-    const key = `documentos_empresa/${scopeKey}/${folderSlug}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-    await this.r2.putUploadsObject(key, file.buffer, normalizedCt);
+    const key = `documentos_empresa/${scopeKey}/${folderSlug}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${meta.ext}`;
+    await this.r2.putUploadsObject(key, file.buffer, meta.mime);
     return {
       key,
-      fileName: origName || `documento.${ext}`,
-      mimeType: normalizedCt,
+      fileName: origName || `documento.${meta.ext}`,
+      mimeType: meta.mime,
       sizeBytes: file.buffer.length,
       folder: sanitizeCompanyDocumentFolder(folderRaw)
     };

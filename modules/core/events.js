@@ -4,6 +4,7 @@
  */
 import { state, nodes, persistClientDataScope, persistHrWorkspace } from "./store.js";
 import { isPortalClientUser } from "./client-data-scope-ui.js";
+import { SAFE_CV_ACCEPT, validateUploadFile } from "./file-upload-security.js";
 import {
   currentUser,
   hasPermission,
@@ -1179,7 +1180,17 @@ function bindDynamicEvents() {
       const department = normalizeLatinForDb(String(data.department || ""));
       const city = normalizeLatinForDb(String(data.city || ""));
       const address = $portal.normalizeLatinUpperForDb(String(data.address || ""));
-      const logoUrl = await resolveEmployeeAvatarUrl(logoFile, "");
+      let logoUrl = "";
+      try {
+        logoUrl = await resolveEmployeeAvatarUrl(logoFile, "");
+      } catch (logoErr) {
+        failPortalField(
+          adminCompanyCreate,
+          "logoFile",
+          String(logoErr?.message || "Logo no permitido. Use JPEG, PNG, WebP o GIF.")
+        );
+        return;
+      }
       if (!String(logoUrl || "").trim()) {
         $portal.notify("No fue posible procesar el logo de la empresa. Intente de nuevo.", "error");
         return;
@@ -1269,7 +1280,16 @@ function bindDynamicEvents() {
       const logoFile = adminCompanyEdit.querySelector("input[name='logoFile']")?.files?.[0] || null;
       let logoUrlResolved = String(data.logoUrlExisting || "").trim();
       if (logoFile) {
-        logoUrlResolved = String(await resolveEmployeeAvatarUrl(logoFile, logoUrlResolved || "") || "").trim();
+        try {
+          logoUrlResolved = String(await resolveEmployeeAvatarUrl(logoFile, logoUrlResolved || "") || "").trim();
+        } catch (logoErr) {
+          failPortalField(
+            adminCompanyEdit,
+            "logoFile",
+            String(logoErr?.message || "Logo no permitido. Use JPEG, PNG, WebP o GIF.")
+          );
+          return;
+        }
       }
       if (!logoUrlResolved) {
         failPortalField(adminCompanyEdit, "logoFile", "La empresa debe tener un logo cargado.");
@@ -3903,7 +3923,7 @@ function openPublicVacancyApplyModal(vacancy) {
         name: "attachment",
         label: "Hoja de vida (PDF, Word o imagen)",
         type: "file",
-        accept: ".pdf,.doc,.docx,image/*",
+        accept: SAFE_CV_ACCEPT,
         required: true
       }
     ],
@@ -3939,6 +3959,11 @@ function openPublicVacancyApplyModal(vacancy) {
       const cvFile = attachInput?.files?.[0];
       if (!cvFile) {
         $portal.notify("Adjunte la hoja de vida (PDF, Word o imagen).", "error");
+        return false;
+      }
+      const cvCheck = await validateUploadFile(cvFile, "cv");
+      if (!cvCheck.ok) {
+        $portal.notify(cvCheck.message || "Archivo de hoja de vida no permitido.", "error");
         return false;
       }
       /* Forzar el binario en el multipart (algunos navegadores omiten file inputs al reconstruir FormData). */

@@ -408,7 +408,7 @@ function adminUsersHtml(current) {
 
     <fieldset class="form-section form-section-amber full">
       <legend>${IC.upload} Avatar (opcional)</legend>
-      <label class="full">${fieldLabel(IC.upload, "Foto del usuario")}<input type="file" name="avatarFile" accept="image/*" /></label>
+      <label class="full">${fieldLabel(IC.upload, "Foto del usuario")}<input type="file" name="avatarFile" accept="image/jpeg,image/png,image/webp,image/gif" /></label>
     </fieldset>
 
     <fieldset class="full perm-fieldset">
@@ -428,7 +428,7 @@ function adminUsersHtml(current) {
         <div class="hr-employee-avatar-inner">
           <label class="full company-logo-form-label">
             ${fieldLabel(IC.upload, "Logo de la empresa", { required: true })}
-            <input type="file" id="admin-company-create-logo-file" name="logoFile" accept="image/*" required class="company-logo-file-input" aria-label="Seleccionar logo de la empresa" />
+            <input type="file" id="admin-company-create-logo-file" name="logoFile" accept="image/jpeg,image/png,image/webp,image/gif" required class="company-logo-file-input" aria-label="Seleccionar logo de la empresa" />
             <span class="company-logo-oval company-logo-oval--interactive" data-company-logo-preview-wrap>
               <span class="company-logo-oval-fallback" data-company-logo-fallback>${IC.upload}</span>
               <img class="company-logo-oval-img" alt="" width="128" height="80" decoding="async" hidden data-company-logo-preview-img />
@@ -503,7 +503,7 @@ function adminUsersHtml(current) {
         <div class="hr-employee-avatar-inner">
           <label class="full company-logo-form-label">
             ${fieldLabel(IC.upload, "Logo de la empresa")}
-            <input type="file" id="admin-company-edit-logo-file" name="logoFile" accept="image/*" class="company-logo-file-input" aria-label="Cambiar logo de la empresa" />
+            <input type="file" id="admin-company-edit-logo-file" name="logoFile" accept="image/jpeg,image/png,image/webp,image/gif" class="company-logo-file-input" aria-label="Cambiar logo de la empresa" />
             <span class="company-logo-oval company-logo-oval--interactive${editingCompanyLogoUrl ? " has-image" : ""}" data-company-logo-preview-wrap>
               ${
                 editingCompanyLogoUrl
@@ -592,7 +592,7 @@ function adminUsersHtml(current) {
             ${adminEditUserAvatarHasImage ? `<img class="profile-avatar-img" src="${escapeAttr(adminEditUserAvatarRaw)}" alt="" decoding="async" data-admin-edit-avatar-img data-avatar-initial="${escapeAttr(adminEditUserAvatarInitialLetter)}" />` : ""}
             <span class="profile-avatar-initial"${adminEditUserAvatarHasImage ? " hidden" : ""}>${adminEditUserAvatarHasImage ? "" : adminEditUserAvatarInitial}</span>
             <span class="profile-avatar-overlay"><span class="profile-avatar-overlay-inner">${IC.upload}<span>${adminEditUserAvatarHasImage ? escapeHtml("Cambiar foto") : escapeHtml("Subir foto")}</span></span></span>
-            <input type="file" id="admin-edit-user-avatar-input" name="avatarFile" accept="image/*" class="profile-avatar-file-input profile-avatar-file-input--sr-only" aria-label="Cambiar foto del usuario" tabindex="-1" />
+            <input type="file" id="admin-edit-user-avatar-input" name="avatarFile" accept="image/jpeg,image/png,image/webp,image/gif" class="profile-avatar-file-input profile-avatar-file-input--sr-only" aria-label="Cambiar foto del usuario" tabindex="-1" />
           </label>
           <input type="hidden" name="avatarUrlExisting" value="${adminEditUserAvatarExisting}" />
           <p class="muted hr-employee-avatar-caption">Pulse el óvalo para elegir imagen. La foto se muestra completa sin recorte; si no cambia el archivo, se conserva la actual.</p>

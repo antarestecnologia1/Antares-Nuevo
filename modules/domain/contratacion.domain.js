@@ -1198,6 +1198,13 @@ export function composeContractDurationText(raw) {
 
 export async function resolveEmployeeAvatarUrl(file, fallbackDataUrl = "") {
   if (!file) return String(fallbackDataUrl || "").trim();
+  const sec = window.AntaresFileUploadSecurity;
+  if (sec?.validateUploadFile) {
+    const check = await sec.validateUploadFile(file, "image");
+    if (!check.ok) throw new Error(check.message || "Imagen no permitida.");
+  } else if (!String(file.type || "").startsWith("image/")) {
+    throw new Error("Solo se permiten imágenes JPEG, PNG, WebP o GIF.");
+  }
   const api = window.AntaresApi;
   const rawMime = String(file.type || "image/jpeg").split(";")[0].trim().toLowerCase();
   const contentType =

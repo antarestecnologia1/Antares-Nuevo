@@ -11664,21 +11664,12 @@ function candidateMayHaveCvInStorage(candidateLike) {
 
 /**
  * Indica si el botón «Descargar CV» debe habilitarse.
- * Incluye pistas locales (nombre, cv_filename, storageKey) aunque aún no haya URL/base64 en caché.
+ * Solo con contenido real (base64, storageKey R2 o URL http); no basta el nombre del archivo.
  */
 function candidateCanAttemptCvDownload(candidateLike) {
   if (!candidateLike) return false;
   if (extractCandidateCvDownload(candidateLike)?.href) return true;
-  if (candidateMayHaveCvInStorage(candidateLike)) return true;
-  const attachments = flattenCandidateAttachmentsForCv(candidateLike.attachments);
-  for (const item of attachments) {
-    if (typeof item === "string" && item.trim()) return true;
-    if (item == null || typeof item !== "object") continue;
-    const k = String(item.kind || "").toLowerCase();
-    if (k === "cv_filename" || k === "cv_file" || k === "cv_blob") return true;
-    if (String(item.name || "").trim() || String(item.storageKey || "").trim()) return true;
-  }
-  return false;
+  return candidateMayHaveCvInStorage(candidateLike);
 }
 
 /** Primera fuente descargable: cv_blob inline, si no cv_file con URL http(s) incl. prefirmadas. */
@@ -11819,13 +11810,7 @@ async function fetchCandidateCvBlobFromApi(candidateId) {
 async function triggerCandidateCvDownload(href, fileNameFallback, candidateId) {
   const name = String(fileNameFallback || "cv").replace(/[\\/]/g, "_");
   const id = String(candidateId || "").trim();
-  if (id) {
-    const fromApi = await fetchCandidateCvBlobFromApi(id);
-    if (fromApi?.blob) {
-      triggerBlobDownload(fromApi.blob, fromApi.fileName || name);
-      return;
-    }
-  }
+  /* Preferir bytes locales (cv_blob) antes del GET API: evita 404/403 cuando el adjunto aún está en caché. */
   try {
     let blob = null;
     if (String(href || "").startsWith("data:")) {
@@ -11840,7 +11825,14 @@ async function triggerCandidateCvDownload(href, fileNameFallback, candidateId) {
       return;
     }
   } catch (_e) {
-    /* continuar al respaldo */
+    /* continuar al binario autenticado */
+  }
+  if (id) {
+    const fromApi = await fetchCandidateCvBlobFromApi(id);
+    if (fromApi?.blob) {
+      triggerBlobDownload(fromApi.blob, fromApi.fileName || name);
+      return;
+    }
   }
   if (href) {
     window.open(href, "_blank", "noopener,noreferrer");
@@ -12130,6 +12122,13 @@ function composeContractDurationText(raw) {
  */
 async function resolveEmployeeAvatarUrl(file, fallbackDataUrl = "") {
   if (!file) return String(fallbackDataUrl || "").trim();
+  const sec = window.AntaresFileUploadSecurity;
+  if (sec?.validateUploadFile) {
+    const check = await sec.validateUploadFile(file, "image");
+    if (!check.ok) throw new Error(check.message || "Imagen no permitida.");
+  } else if (!String(file.type || "").startsWith("image/")) {
+    throw new Error("Solo se permiten imágenes JPEG, PNG, WebP o GIF.");
+  }
   const api = window.AntaresApi;
   const rawMime = String(file.type || "image/jpeg").split(";")[0].trim().toLowerCase();
   const contentType =
@@ -12768,7 +12767,7 @@ ${employeeNationalPhoneFieldHtml("emergencyPhone", "Tel. emergencia", e.emergenc
 <label for="emp-edit-modal-avatar-input" class="profile-avatar profile-avatar-lg profile-avatar-upload${editPhotoHasImage ? " has-image" : ""}" data-emp-edit-avatar-label style="${editPhotoHasImage ? `background-image:url('${editPhotoCss}');` : ""}" title="Foto del empleado">
 <span class="profile-avatar-initial">${editPhotoHasImage ? "" : editPhotoInitial}</span>
 <span class="profile-avatar-overlay"><span class="profile-avatar-overlay-inner">${IC.upload}<span>${editPhotoHasImage ? escapeHtml("Cambiar") : escapeHtml("Subir foto")}</span></span></span>
-<input type="file" id="emp-edit-modal-avatar-input" name="avatarFile" accept="image/*" class="profile-avatar-file-input" aria-label="Foto del empleado" />
+<input type="file" id="emp-edit-modal-avatar-input" name="avatarFile" accept="image/jpeg,image/png,image/webp,image/gif" class="profile-avatar-file-input" aria-label="Foto del empleado" />
 </label>
 <input type="hidden" name="avatarUrlExisting" value="${existingAvatar}" />
 <p class="muted hr-employee-avatar-caption">${escapeHtml("Pulse el círculo. Si no elige archivo, se conserva la foto actual.")}</p>

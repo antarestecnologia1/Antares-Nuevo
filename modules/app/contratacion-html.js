@@ -268,10 +268,11 @@ function hiringHtml() {
     boardExpand,
     boardLimit: 4,
     selectedId: selectedCandidateId,
-    canDlCvFor: (c) => {
-      const cvDlRow = extractCandidateCvDownload(c);
-      return Boolean(cvDlRow?.href) || candidateMayHaveCvInStorage(c);
-    }
+    canDlCvFor: (c) =>
+      typeof candidateCanAttemptCvDownload === "function"
+        ? candidateCanAttemptCvDownload(c)
+        : Boolean(extractCandidateCvDownload(c)?.href) ||
+          (typeof candidateMayHaveCvInStorage === "function" && candidateMayHaveCvInStorage(c))
   };
   const boardRenderer =
     (typeof window !== "undefined" && window.AntaresContratacionDomain?.renderHiringPipelineBoard) ||
@@ -409,7 +410,7 @@ function hiringHtml() {
         <label>${fieldLabel(IC.dollar, "Aspiración salarial (COP)")}<input type="number" min="${CO_HR_RULES.minMonthlySalary}" name="expectedSalary" required placeholder="Mín. SMMLV" /></label>
         <label>${fieldLabel(IC.calendar, "Disponibilidad ingreso")}<input type="date" name="availabilityDate" required /></label>
         <label>${fieldLabel(IC.send, "Vacante")}<select name="vacancyId" required><option value="">Seleccione</option>${vacanciesOpenForApply.map((v) => `<option value="${escapeAttr(String(v.id))}">${escapeHtml(String(v.title || ""))}</option>`).join("")}</select><span class="muted" style="font-size:0.78rem;display:block;margin-top:4px">Solo vacantes publicadas con fecha límite vigente.</span></label>
-        <label class="full">${fieldLabel(IC.upload, "Adjunto hoja de vida")}<input type="file" name="attachments" multiple /></label>
+        <label class="full">${fieldLabel(IC.upload, "Adjunto hoja de vida")}<input type="file" name="attachments" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/jpeg,image/png,image/webp" required /><span class="muted" style="font-size:0.78rem;display:block;margin-top:4px">Obligatorio. PDF, Word o imagen · máx. 6 MB.</span></label>
       </div>
     </fieldset>
       </div>

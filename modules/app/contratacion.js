@@ -154,6 +154,13 @@ async function compressVacancyImageFile(file, maxSide = 1600, quality = 0.86) {
 
 async function resolveVacancyImageUrl(file) {
   if (!file) return "";
+  const sec = window.AntaresFileUploadSecurity;
+  if (sec?.validateUploadFile) {
+    const check = await sec.validateUploadFile(file, "image");
+    if (!check.ok) throw new Error(check.message || "Imagen no permitida.");
+  } else if (!/^image\/(jpeg|png|webp|gif)$/i.test(String(file.type || ""))) {
+    throw new Error("Solo se permiten imágenes JPEG, PNG, WebP o GIF.");
+  }
   const api = window.AntaresApi;
   const canUseBackend =
     api &&
@@ -1488,13 +1495,33 @@ function bindHiringPortalControls() {
         return;
       }
       const attachmentsInput = candidateForm.querySelector("input[name='attachments']");
+      if (!attachmentsInput?.files?.length) {
+        failPortalField(candidateForm, "attachments", "Adjunte la hoja de vida del candidato (PDF, Word o imagen).");
+        return;
+      }
       const filesFromInput = await readCandidateHrAttachmentsFromInput(attachmentsInput);
       if (filesFromInput === null) return;
-      if (attachmentsInput?.files?.length && filesFromInput.length === 0) {
+      if (!filesFromInput.length) {
         failPortalField(
           candidateForm,
           "attachments",
-          "No se pudo leer la hoja de vida adjunta. Use PDF o Word de menos de 1,5 MB."
+          "No se pudo leer la hoja de vida adjunta. Use PDF o Word (máx. 6 MB)."
+        );
+        return;
+      }
+      const hasStoredCv =
+        typeof candidateAttachmentHasDownloadableCv === "function"
+          ? filesFromInput.some((a) => candidateAttachmentHasDownloadableCv(a))
+          : filesFromInput.some(
+              (a) =>
+                (a?.kind === "cv_blob" && a.data) ||
+                (a?.kind === "cv_file" && String(a.storageKey || "").trim())
+            );
+      if (!hasStoredCv) {
+        failPortalField(
+          candidateForm,
+          "attachments",
+          "La hoja de vida no quedó almacenada. Reintente con otro archivo o verifique la conexión."
         );
         return;
       }
@@ -2664,6 +2691,14 @@ function bindHiringPortalControls() {
           formEl.querySelector("input[name='phone']")?.setAttribute("minlength", "10");
           formEl.querySelector("input[name='phone']")?.setAttribute("maxlength", "15");
           formEl.querySelector("input[name='phone']")?.setAttribute("inputmode", "tel");
+          const hasCv =
+            typeof candidateCanAttemptCvDownload === "function"
+              ? candidateCanAttemptCvDownload(target)
+              : false;
+          const wrap = document.createElement("label");
+          wrap.className = "full";
+          wrap.innerHTML = `${hasCv ? "Reemplazar hoja de vida (opcional)" : "Adjuntar hoja de vida"}<input type="file" name="attachments" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/jpeg,image/png,image/webp" /><span class="muted" style="font-size:0.78rem;display:block;margin-top:4px">${hasCv ? "Deje vacío para conservar el CV actual." : "PDF, Word o imagen · máx. 6 MB."}</span>`;
+          formEl.appendChild(wrap);
         },
         onSubmit: async (form) => {
           const docValidation = validateColombianDocument(form.documentType, form.idDoc);
@@ -2671,6 +2706,21 @@ function bindHiringPortalControls() {
           if (!docValidation.ok) {
             failPortalField(candidateEditForm, "idDoc", docValidation.message);
             return false;
+          }
+          const attachmentsInput = candidateEditForm?.querySelector("input[name='attachments']");
+          let nextAttachments = Array.isArray(target.attachments) ? [...target.attachments] : [];
+          if (attachmentsInput?.files?.length) {
+            const filesFromInput = await readCandidateHrAttachmentsFromInput(attachmentsInput);
+            if (filesFromInput === null) return false;
+            if (!filesFromInput.length) {
+              failPortalField(
+                candidateEditForm,
+                "attachments",
+                "No se pudo leer la hoja de vida. Use PDF o Word (máx. 6 MB)."
+              );
+              return false;
+            }
+            nextAttachments = filesFromInput;
           }
           const birthCand = String(form.birthDate || "")
             .trim()
@@ -2738,7 +2788,8 @@ function bindHiringPortalControls() {
                     vacancyId: vac.id,
                     vacancyTitle: vac.title,
                     status: nextStatus,
-                    source: String(form.source || "Portal RRHH")
+                    source: String(form.source || "Portal RRHH"),
+                    attachments: nextAttachments
                   })
             );
           write(KEYS.candidates, nextCandidates, { skipSyncSchedule: true });

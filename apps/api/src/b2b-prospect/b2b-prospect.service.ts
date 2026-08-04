@@ -6,34 +6,13 @@ import { PG_POOL } from "../database/database.module";
 import { CreateB2bProspectDto } from "./dto/create-b2b-prospect.dto";
 import { CreateJobApplicationDto } from "./dto/create-job-application.dto";
 import { R2Service } from "../uploads/r2.service";
+import { assertSafeUploadBuffer } from "../uploads/file-security";
 import { bogotaCalendarYmdFromDate } from "../common/colombia-time";
 import {
   normalizeCatalogTextFromUnknown,
   normalizeDbTextUpperFromUnknown,
   normalizeEmailFromUnknown
 } from "../common/normalize-db-text";
-
-const JOB_CV_MIME_ALLOWED = new Set([
-  "application/pdf",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/gif"
-]);
-
-/** Windows / algunos navegadores envían `application/octet-stream`; inferimos por extensión. */
-const CV_FILENAME_EXT_TO_MIME: Record<string, string> = {
-  ".pdf": "application/pdf",
-  ".doc": "application/msword",
-  ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".png": "image/png",
-  ".webp": "image/webp",
-  ".gif": "image/gif"
-};
 
 /** Sin R2, el archivo se guarda en adjuntos_json (base64) — tamaño máximo servidor. */
 const MAX_CV_INLINE_STORE_BYTES = 1_500_000;
@@ -419,57 +398,18 @@ export class B2bProspectService {
     return String(row.titulo || "").trim();
   }
 
-  /** MIME declarado o inferido por nombre (p. ej. octet-stream + .pdf). */
-  private resolveCvMimeOrThrow(file: Express.Multer.File): string {
-    const raw = String(file.mimetype || "")
-      .split(";")[0]
-      ?.trim()
-      .toLowerCase();
-    if (raw && JOB_CV_MIME_ALLOWED.has(raw)) {
-      return raw;
-    }
-    const loose = raw === "application/octet-stream" || raw === "binary/octet-stream" || raw === "";
-    if (loose) {
-      const lower = String(file.originalname || "").toLowerCase();
-      const dot = lower.lastIndexOf(".");
-      const ext = dot >= 0 ? lower.slice(dot) : "";
-      const mapped = CV_FILENAME_EXT_TO_MIME[ext];
-      if (mapped) {
-        return mapped;
-      }
-    }
-    throw new BadRequestException(
-      "Formato de archivo no permitido. Use PDF, Word (doc/docx) o imagen (jpeg, png, webp o gif)."
-    );
-  }
-
-  private assertCvMagicMatches(file: Express.Multer.File, mime: string): void {
-    const b = file.buffer;
-    if (!b || b.length < 4) {
-      throw new BadRequestException("El archivo adjunto está vacío o incompleto.");
-    }
-    const starts = (...bytes: number[]) => bytes.every((v, i) => b[i] === v);
-    const ascii = (start: number, len: number) => b.subarray(start, start + len).toString("ascii");
-    const ok =
-      (mime === "application/pdf" && ascii(0, 4) === "%PDF") ||
-      (mime === "application/msword" && starts(0xd0, 0xcf, 0x11, 0xe0)) ||
-      (mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" && starts(0x50, 0x4b, 0x03, 0x04)) ||
-      (mime === "image/jpeg" && starts(0xff, 0xd8, 0xff)) ||
-      (mime === "image/png" && starts(0x89, 0x50, 0x4e, 0x47)) ||
-      (mime === "image/gif" && (ascii(0, 6) === "GIF87a" || ascii(0, 6) === "GIF89a")) ||
-      (mime === "image/webp" && ascii(0, 4) === "RIFF" && ascii(8, 4) === "WEBP");
-    if (!ok) {
-      throw new BadRequestException("El contenido del archivo no coincide con el formato declarado.");
-    }
-  }
-
   private async attachJobApplicationCvJson(
     adjuntos: Record<string, unknown>[],
     attachment?: Express.Multer.File
   ) {
     if (attachment?.buffer && attachment.buffer.length > 0) {
-      const mime = this.resolveCvMimeOrThrow(attachment);
-      this.assertCvMagicMatches(attachment, mime);
+      const meta = assertSafeUploadBuffer({
+        buffer: attachment.buffer,
+        fileName: attachment.originalname || "hoja-de-vida",
+        mimeType: attachment.mimetype,
+        purpose: "cv"
+      });
+      const mime = meta.mime;
       const origRaw = String(attachment.originalname || "hoja-de-vida").trim().slice(0, 240);
       const safeTail = origRaw.replace(/[^\w.\-\sÁÉÍÓÚáéíóúñÑ]+/g, "_").replace(/\s+/g, "_");
       const fileLabel = safeTail.length ? safeTail : "hoja-de-vida";

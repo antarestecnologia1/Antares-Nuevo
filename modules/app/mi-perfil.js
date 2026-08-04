@@ -80,7 +80,7 @@ function profileHtml(user) {
       <label for="profile-avatar-input" class="profile-avatar profile-avatar-lg profile-avatar-upload ${profileAvatarCss ? "has-image" : ""}" style="${profileAvatarCss ? `background-image:url('${profileAvatarCss}');` : ""}" title="Cambiar foto de perfil">
         <span class="profile-avatar-initial">${profileAvatarCss ? "" : (displayName || "U").charAt(0).toUpperCase()}</span>
         <span class="profile-avatar-overlay"><span class="profile-avatar-overlay-inner">${IC.upload}<span>Cambiar foto</span></span></span>
-        <input type="file" id="profile-avatar-input" name="avatarFile" form="form-profile" accept="image/*" class="profile-avatar-file-input" aria-label="Cambiar foto de perfil" />
+        <input type="file" id="profile-avatar-input" name="avatarFile" form="form-profile" accept="image/jpeg,image/png,image/webp,image/gif" class="profile-avatar-file-input" aria-label="Cambiar foto de perfil" />
       </label>
       <div class="profile-hero-info profile-hero-info-centered">
         <h3>${escapeHtml(displayName)}</h3>

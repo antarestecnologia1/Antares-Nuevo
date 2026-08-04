@@ -2902,6 +2902,14 @@ export class PortalService implements OnModuleInit {
     throw new ForbiddenException("No autorizado para subir documentos de colaboradores.");
   }
 
+  /** Subida de hoja de vida desde Contratación (RRHH). */
+  async assertCanUploadCandidateCv(userId: string, role: JwtRole): Promise<void> {
+    if (this.isAdmin(role)) return;
+    const permissionSet = await this.resolveEffectivePermissionSet(userId, role);
+    if (this.hasPortalPermission(permissionSet, "hiring_manage")) return;
+    throw new ForbiddenException("No autorizado para subir hojas de vida de candidatos.");
+  }
+
   async assertCanDownloadEmployeeDocument(userId: string, role: JwtRole): Promise<void> {
     if (this.isAdmin(role)) return;
     const permissionSet = await this.resolveEffectivePermissionSet(userId, role);

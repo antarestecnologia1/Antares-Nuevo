@@ -47,6 +47,10 @@ import {
   normalizeEmployeeDocumentFolderRow
 } from "../domain/employee-documents.domain.js";
 import { downloadCsv } from "../domain/reporteria.domain.js";
+import {
+  SAFE_DOCUMENT_ACCEPT,
+  validateUploadFile
+} from "../core/file-upload-security.js";
 
 const G = globalThis;
 const PAGE_SIZE = 6;
@@ -607,6 +611,8 @@ function documentManagementHtml() {
 async function uploadFileToR2(file, folder) {
   const api = window.AntaresApi;
   if (!api?.postFormData) throw new Error("API no disponible.");
+  const check = await validateUploadFile(file, "document");
+  if (!check.ok) throw new Error(check.message || "Archivo no permitido.");
   const fd = new FormData();
   fd.append("file", file);
   fd.append("folder", folder);
@@ -779,8 +785,8 @@ function openUploadModal() {
         html: `<div class="doc-dropzone" id="doc-dropzone-area" tabindex="0" role="button" aria-label="Seleccionar o soltar archivos">
           <span class="doc-dropzone__icon">${IC_UPLOAD_BIG}</span>
           <p class="doc-dropzone__title">Arrastra archivos aquí o haz clic para seleccionar</p>
-          <p class="doc-dropzone__hint">PDF, Word, Excel, imágenes… Máx. ${formatFileSize(COMPANY_DOCUMENT_MAX_BYTES)} por archivo.</p>
-          <input type="file" id="doc-file-input" name="file" multiple class="doc-dropzone__input" />
+          <p class="doc-dropzone__hint">PDF, Office, texto, ZIP o imagen (sin ejecutables/SVG). Máx. ${formatFileSize(COMPANY_DOCUMENT_MAX_BYTES)} por archivo.</p>
+          <input type="file" id="doc-file-input" name="file" multiple accept="${SAFE_DOCUMENT_ACCEPT}" class="doc-dropzone__input" />
         </div>
         <ul class="doc-dropzone__list" id="doc-file-list"></ul>`
       },
@@ -805,6 +811,13 @@ function openUploadModal() {
       if (oversize) {
         G.notify?.(`"${oversize.name}" supera el tamaño máximo (${formatFileSize(COMPANY_DOCUMENT_MAX_BYTES)}).`, "error");
         return false;
+      }
+      for (const file of files) {
+        const check = await validateUploadFile(file, "document");
+        if (!check.ok) {
+          G.notify?.(`"${file.name}": ${check.message}`, "error");
+          return false;
+        }
       }
       const folder = normalizeCompanyFolder(
         String(form.folderNew || "").trim() || String(form.folderExisting || "").trim() || DEFAULT_COMPANY_FOLDER

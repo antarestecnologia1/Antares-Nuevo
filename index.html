@@ -1479,9 +1479,11 @@
       import * as AntaresSstDomain from "./modules/domain/sst.domain.js";
       import * as AntaresDriverCompliance from "./modules/domain/driver-compliance-vigencia.domain.js";
       import * as AntaresContratacionDomain from "./modules/domain/contratacion.domain.js";
+      import * as AntaresFileUploadSecurity from "./modules/core/file-upload-security.js";
       import * as AntaresAuditTrail from "./modules/core/audit-trail.js";
       import * as AntaresRouter from "./modules/core/router.js";
       Object.assign(window, AntaresConfig, AntaresUtils, AntaresStore, AntaresAuth, AntaresBootstrap);
+      window.AntaresFileUploadSecurity = AntaresFileUploadSecurity;
       window.AntaresAuditTrail = AntaresAuditTrail;
       Object.assign(window, AntaresAuditTrail);
       window.writeAwaitServer = writeAwaitServer;
@@ -1560,7 +1562,7 @@
       import * as AntaresSchedulePicker from "./modules/ui/portal-schedule-picker.js?v=20260622-time-slots";
       Object.assign(window, AntaresUIComponents, AntaresUIModals, AntaresI18n, AntaresSchedulePicker);
     </script>
-    <script type="module" src="./modules/core/portal-runtime.js?v=20260803-selection-ui"></script>
+    <script type="module" src="./modules/core/portal-runtime.js?v=20260804-cv-r2"></script>
     <script defer src="./modules/app/portal-transport-modals.js"></script>
     <script defer src="./modules/app/portal-rrhh-modals.js"></script>
     <!-- Vistas legacy (`registerLegacyPortalViews`); deben ejecutarse antes de `app.js` para que el primer `renderPortal()` resuelva HTML. `viajes.js` antes de `mis-solicitudes.js` por `RENDER_WINDOW_SIZE`. -->
@@ -1576,9 +1578,9 @@
     <script defer src="./modules/app/reporteria.js"></script>
     <script defer src="./modules/app/gestion-humana-html.js"></script>
     <script defer src="./modules/app/gestion-humana.js?v=20260630-security-audit-fix"></script>
-    <script defer src="./modules/app/rrhh-candidate-attachments.js"></script>
-    <script defer src="./modules/app/contratacion-html.js?v=20260803-consultar-btn"></script>
-    <script defer src="./modules/app/contratacion.js?v=20260803-kanban-fix"></script>
+    <script defer src="./modules/app/rrhh-candidate-attachments.js?v=20260804-cv-r2"></script>
+    <script defer src="./modules/app/contratacion-html.js?v=20260804-cv-r2"></script>
+    <script defer src="./modules/app/contratacion.js?v=20260804-cv-r2"></script>
     <script type="module" src="./modules/app/cumplimiento-laboral.js"></script>
     <script type="module" src="./modules/app/gestion-documental.js?v=20260804-dms7"></script>
     <script defer src="./modules/app/contacto-b2b.js"></script>
