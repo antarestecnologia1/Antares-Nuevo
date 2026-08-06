@@ -385,7 +385,7 @@ function renderCategoryRail(topFolders, ui, IC) {
         ? `<button type="button" class="doc-cat-card__perms" data-action="doc-folder-perms" data-folder="${escapeAttr(f.name)}" aria-label="Permisos de ${escapeAttr(f.name)}" title="Permisos">${IC_LOCK}</button>`
         : "";
       return `<div class="doc-cat-card${active ? " is-active" : ""}${restricted ? " is-restricted" : ""}">
-        <button type="button" class="doc-cat-card__open" data-action="doc-open-folder" data-folder="${escapeAttr(f.name)}">
+        <button type="button" class="doc-cat-card__open" data-action="doc-open-folder" data-folder="${escapeAttr(f.name)}" title="${escapeAttr(f.name)}">
           <span class="doc-cat-card__icon doc-cat-card__icon--${folderTone(i)}">${IC.folder || ""}</span>
           <span class="doc-cat-card__body">
             <span class="doc-cat-card__name">${escapeHtml(f.name)}</span>
@@ -537,7 +537,7 @@ function renderSubfolderGrid(subfolders, ui, IC) {
         <button type="button" class="doc-subfolder-card__open" data-action="doc-open-subfolder" data-path="${escapeAttr(s.path)}" title="${escapeAttr(s.name)}">
           <span class="doc-subfolder-card__icon">${IC.folder || ""}</span>
           <span class="doc-subfolder-card__body">
-            <span class="doc-subfolder-card__name">${escapeHtml(String(s.name || "").toUpperCase())}</span>
+            <span class="doc-subfolder-card__name">${escapeHtml(s.name || "")}</span>
             <span class="doc-subfolder-card__meta">${escapeHtml(countLabel)}</span>
           </span>
         </button>
@@ -699,11 +699,12 @@ function renderRecentSidebar(recentDocs, IC, folders = []) {
             ? `<button type="button" class="doc-recent-item__delete" data-action="doc-delete" data-id="${escapeAttr(d.id)}" aria-label="Eliminar ${escapeAttr(d.fileName)}" title="Eliminar">${IC.trash || IC_TRASH}</button>`
             : "";
           const display = formatCompanyDocumentDisplayName(d);
+          const recentLabel = display.label || display.title;
           return `<li class="doc-recent-item">
         <button type="button" class="doc-recent-item__open" data-action="doc-recent-open" data-id="${escapeAttr(d.id)}">
           <span class="doc-fileicon doc-fileicon--${fileTypeGroup(d.fileName, d.mimeType)}" aria-hidden="true">${IC.file || ""}</span>
           <span class="doc-recent-item__body">
-            <span class="doc-recent-item__name" title="${escapeAttr(display.fullName)}">${escapeHtml(display.title)}</span>
+            <span class="doc-recent-item__name" title="${escapeAttr(display.fullName)}">${escapeHtml(recentLabel)}</span>
             <span class="doc-recent-item__date">${escapeHtml(formatDate(d.updatedAt))}</span>
           </span>
         </button>

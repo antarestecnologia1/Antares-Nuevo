@@ -104,18 +104,58 @@ export function contractTemplateKindLabel(kind = "") {
   return safeDocNamePart(kind, "Contrato");
 }
 
+/** Partículas españolas en minúscula salvo al inicio del nombre. */
+const SPANISH_NAME_PARTICLES = new Set(["de", "del", "la", "las", "los", "y", "e", "a", "al", "en", "el"]);
+
+/**
+ * Repara texto UTF-8 mal interpretado como Latin-1 (p. ej. “TÃ©rmino” → “Término”, “Â·” → “·”).
+ */
+export function repairUtf8Mojibake(text = "") {
+  let s = String(text || "");
+  if (!s || !/[ÃÂâ]/.test(s)) return s;
+  try {
+    if (typeof TextDecoder !== "undefined") {
+      const bytes = Uint8Array.from(s, (c) => c.charCodeAt(0) & 0xff);
+      const decoded = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+      const bad = (t) => (t.match(/[ÃÂâ\uFFFD]/g) || []).length;
+      if (decoded && bad(decoded) < bad(s)) s = decoded;
+    }
+  } catch {
+    /* conservar s */
+  }
+  return s
+    .replace(/Â·/g, "·")
+    .replace(/Ã©/g, "é")
+    .replace(/Ã¨/g, "è")
+    .replace(/Ã¡/g, "á")
+    .replace(/Ã /g, "à")
+    .replace(/Ã­/g, "í")
+    .replace(/Ã³/g, "ó")
+    .replace(/Ãº/g, "ú")
+    .replace(/Ã±/g, "ñ")
+    .replace(/Ã‘/g, "Ñ")
+    .replace(/Ã‰/g, "É")
+    .replace(/Ã/g, "Á")
+    .replace(/Ã/g, "Í")
+    .replace(/Ã“/g, "Ó")
+    .replace(/Ãš/g, "Ú")
+    .replace(/â€”|â€“/g, "—")
+    .replace(/â€œ|â€|â€˜|â€™/g, '"');
+}
+
 /** Convierte CAMILO_BETANCUR / camilo-betancur → “Camilo Betancur”. */
 export function humanizeDocumentNamePart(raw = "") {
-  const spaced = String(raw || "")
+  const spaced = repairUtf8Mojibake(String(raw || ""))
     .replace(/[_\-]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
   if (!spaced) return "";
   return spaced
     .split(" ")
-    .map((w) => {
+    .map((w, i) => {
       if (!w) return "";
-      if (w.length <= 2 && w === w.toUpperCase()) return w;
+      const lower = w.toLowerCase();
+      if (i > 0 && SPANISH_NAME_PARTICLES.has(lower)) return lower;
       return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
     })
     .join(" ");
@@ -150,7 +190,7 @@ export function buildEmployeePhotoCompanyFileName(employee = {}, ext = "jpg") {
 
 /** Quita marcadores internos (`employeeHireDoc=…`, `payrollRun:…`) de la descripción visible. */
 export function sanitizeCompanyDocumentDescription(raw = "") {
-  let text = String(raw || "").trim();
+  let text = repairUtf8Mojibake(String(raw || "")).trim();
   if (!text) return "";
   text = text
     .replace(/(?:^|\s)employeeHireDoc=[^\s·|]+/gi, " ")
@@ -164,23 +204,35 @@ export function sanitizeCompanyDocumentDescription(raw = "") {
 
 /**
  * Título/subtítulo para UI (también embellece nombres legacy snake_case).
- * @returns {{ title: string, subtitle: string, ext: string, fullName: string }}
+ * @returns {{ title: string, subtitle: string, ext: string, fullName: string, label: string }}
  */
 export function formatCompanyDocumentDisplayName(doc = {}) {
-  const fullName = String(doc.fileName || doc.nombre_archivo || "documento").trim() || "documento";
+  const rawName = String(doc.fileName || doc.nombre_archivo || "documento").trim() || "documento";
+  const fullName = repairUtf8Mojibake(rawName);
   const ext = (extFromFileName(fullName) || "").toLowerCase();
   let base = ext ? fullName.slice(0, -(ext.length + 1)) : fullName;
-  base = base.replace(/\s+/g, " ").trim() || "documento";
+  base = repairUtf8Mojibake(base).replace(/\s+/g, " ").trim() || "documento";
   const category = getCompanyDocumentCategoryLabel(doc.documentCategory || doc.tags || "");
+
+  const withLabel = (parts) => {
+    const title = parts.title || "documento";
+    const subtitle = parts.subtitle || "";
+    return {
+      title,
+      subtitle,
+      ext: parts.ext || "",
+      fullName,
+      label: [title, subtitle].filter(Boolean).join(" · ")
+    };
+  };
 
   const contractLegacy = base.match(/^contrato_(oficina|fijo|prestacion)_(.+)$/i);
   if (contractLegacy) {
-    return {
+    return withLabel({
       title: `Contrato laboral · ${contractTemplateKindLabel(contractLegacy[1])}`,
       subtitle: humanizeDocumentNamePart(contractLegacy[2]) || category || "Word",
-      ext: (ext || "docx").toUpperCase(),
-      fullName
-    };
+      ext: (ext || "docx").toUpperCase()
+    });
   }
 
   const letterLegacy = base.match(/^carta_laboral_(carta_vigente|certificado_retiro)_(.+)$/i);
@@ -189,41 +241,48 @@ export function formatCompanyDocumentDisplayName(doc = {}) {
       letterLegacy[1].toLowerCase() === "certificado_retiro"
         ? "Certificado de retiro"
         : "Carta laboral vigente";
-    return {
+    return withLabel({
       title,
       subtitle: humanizeDocumentNamePart(letterLegacy[2]) || category || "PDF",
-      ext: (ext || "pdf").toUpperCase(),
-      fullName
-    };
+      ext: (ext || "pdf").toUpperCase()
+    });
   }
 
   if (base.includes("·")) {
     const parts = base.split("·").map((p) => p.trim()).filter(Boolean);
+    // Contrato laboral · Término fijo · Nombre → título con plantilla
+    if (/^contrato\s+laboral$/i.test(parts[0] || "") && parts.length >= 2) {
+      return withLabel({
+        title: `Contrato laboral · ${parts[1]}`,
+        subtitle: parts.slice(2).map((p) => humanizeDocumentNamePart(p) || p).join(" · ") || category || (ext ? ext.toUpperCase() : ""),
+        ext: (ext || "").toUpperCase()
+      });
+    }
     const title = parts[0] || base;
-    const rest = parts.slice(1).join(" · ");
-    return {
+    const rest = parts
+      .slice(1)
+      .map((p) => humanizeDocumentNamePart(p) || p)
+      .join(" · ");
+    return withLabel({
       title,
       subtitle: rest || category || (ext ? ext.toUpperCase() : ""),
-      ext: (ext || "").toUpperCase(),
-      fullName
-    };
+      ext: (ext || "").toUpperCase()
+    });
   }
 
   if (/_/.test(base) && !/\s/.test(base)) {
-    return {
+    return withLabel({
       title: humanizeDocumentNamePart(base) || base,
       subtitle: category || (ext ? ext.toUpperCase() : ""),
-      ext: (ext || "").toUpperCase(),
-      fullName
-    };
+      ext: (ext || "").toUpperCase()
+    });
   }
 
-  return {
+  return withLabel({
     title: base,
     subtitle: category || (ext ? ext.toUpperCase() : ""),
-    ext: (ext || "").toUpperCase(),
-    fullName
-  };
+    ext: (ext || "").toUpperCase()
+  });
 }
 
 /** Mapea tipo del expediente legacy a categoría del DMS corporativo. */
@@ -373,7 +432,7 @@ export function formatFileSize(bytes) {
 
 /** Ruta de carpeta normalizada (segmentos con " / "). */
 export function normalizeCompanyFolder(raw) {
-  const cleaned = String(raw ?? "")
+  const cleaned = repairUtf8Mojibake(String(raw ?? ""))
     .replace(/\\/g, "/")
     .split("/")
     .map((seg) => seg.trim().replace(/\s+/g, " "))
@@ -420,9 +479,12 @@ export function folderLeafName(path) {
 
 export function normalizeCompanyDocumentRow(row) {
   if (!row || typeof row !== "object") return row;
-  const fileName = String(row.fileName ?? row.nombre_archivo ?? "documento").trim() || "documento";
+  const fileName =
+    repairUtf8Mojibake(String(row.fileName ?? row.nombre_archivo ?? "documento").trim()) || "documento";
   const mimeType = String(row.mimeType ?? row.mime_type ?? "application/octet-stream").trim();
-  const folder = normalizeCompanyFolder(row.folder ?? row.carpeta ?? DEFAULT_COMPANY_FOLDER);
+  const folder = repairUtf8Mojibake(
+    normalizeCompanyFolder(row.folder ?? row.carpeta ?? DEFAULT_COMPANY_FOLDER)
+  );
   const fileKind = fileTypeLabel(fileName, mimeType);
   const rawType = String(row.type ?? row.tipo ?? "").trim();
   /* `tipo` puede ser extensión (PDF) o categoría legacy; priorizar categoría en tags. */
@@ -442,7 +504,7 @@ export function normalizeCompanyDocumentRow(row) {
     mimeType,
     sizeBytes: Number(row.sizeBytes ?? row.tamano_bytes ?? 0) || 0,
     storageKey: String(row.storageKey ?? row.storage_key ?? "").trim(),
-    description: row.description ?? row.descripcion ?? "",
+    description: repairUtf8Mojibake(String(row.description ?? row.descripcion ?? "")),
     tags: documentCategory || String(row.tags ?? row.etiquetas ?? "").trim(),
     uploadedBy: String(row.uploadedBy ?? row.subido_por ?? "Portal").trim() || "Portal",
     createdAt: String(createdAt),

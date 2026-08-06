@@ -1360,6 +1360,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  line-height: 1.3;
 }
 
 .documents-studio.doc-studio .doc-recent-item__date {
@@ -2427,9 +2428,11 @@ body[data-theme="dark"] .doc-perm-help {
   font-size: 0.9rem;
   font-weight: 700;
   color: var(--doc-text);
+  line-height: 1.25;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  word-break: break-word;
 }
 
 .documents-studio.doc-studio .doc-cat-card.is-active .doc-cat-card__name {
@@ -2686,9 +2689,11 @@ body[data-theme="dark"] .doc-perm-help {
   font-weight: 700;
   letter-spacing: 0.01em;
   color: var(--doc-text);
+  line-height: 1.25;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  word-break: break-word;
 }
 
 .documents-studio.doc-studio .doc-subfolder-card__meta {
@@ -2765,6 +2770,32 @@ body[data-theme="dark"] .doc-perm-help {
   .documents-studio.doc-studio .doc-subfolder-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .documents-studio.doc-studio .doc-cat-card__name,
+  .documents-studio.doc-studio .doc-subfolder-card__name,
+  .documents-studio.doc-studio .doc-folder-card__name {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+  }
+
+  .documents-studio.doc-studio .doc-cat-card__open,
+  .documents-studio.doc-studio .doc-subfolder-card__open {
+    align-items: flex-start;
+  }
+
+  .documents-studio.doc-studio .doc-subfolder-card {
+    overflow: visible;
+  }
+
+  .documents-studio.doc-studio .doc-recent-item__name {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }
 
 @media (max-width: 720px) {
@@ -2777,12 +2808,36 @@ body[data-theme="dark"] .doc-perm-help {
     grid-template-columns: 1fr;
   }
 
+  .documents-studio.doc-studio .doc-cat-card__open {
+    gap: 0.55rem;
+    padding: 0.75rem 0.7rem;
+  }
+
+  .documents-studio.doc-studio .doc-cat-card__icon {
+    width: 2.1rem;
+    height: 2.1rem;
+  }
+
+  .documents-studio.doc-studio .doc-cat-card__name {
+    font-size: 0.82rem;
+  }
+
   .documents-studio.doc-studio .doc-sort-select__label {
     display: none;
   }
 
   .documents-studio.doc-studio .doc-explorer {
     padding: 0.9rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .documents-studio.doc-studio .doc-categories {
+    grid-template-columns: 1fr;
+  }
+
+  .documents-studio.doc-studio .doc-cat-card__name {
+    font-size: 0.88rem;
   }
 }
 
