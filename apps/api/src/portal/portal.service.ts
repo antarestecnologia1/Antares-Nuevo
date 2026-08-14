@@ -82,6 +82,12 @@ import {
   DOCUMENT_GRANULAR_PERMISSIONS
 } from "./document-permissions";
 import {
+  canAccessSarlaftModule,
+  canDeleteSarlaftRecords,
+  canSyncSarlaftKey,
+  SARLAFT_GRANULAR_PERMISSIONS
+} from "./sarlaft-permissions";
+import {
   flushPortalSyncUpsertAudits,
   insertPortalAuditEventTx,
   preparePortalSyncUpsertAudits,
@@ -238,6 +244,13 @@ const ALL_PORTAL_PERMISSIONS: string[] = [
   "payroll_manage",
   "hiring_manage",
   "sst_compliance",
+  "sarlaft_manage",
+  "sarlaft_view",
+  "sarlaft_parties",
+  "sarlaft_alerts",
+  "sarlaft_reviews",
+  "sarlaft_profiles",
+  "sarlaft_delete",
   "document_manage",
   "document_view",
   "document_upload",
@@ -269,13 +282,23 @@ function defaultPermissionsForApprovedRole(rol: string): string[] {
       "payroll_manage",
       "hiring_manage",
       "sst_compliance",
+      "sarlaft_manage",
       "document_manage",
       "profile_view",
       "notifications_view"
     ];
   }
   if (r === "auxiliar_administrativo") {
-    return ["dashboard_view", "payroll_manage", "document_manage", "profile_view", "notifications_view"];
+    return [
+      "dashboard_view",
+      "payroll_manage",
+      "sarlaft_view",
+      "sarlaft_parties",
+      "sarlaft_reviews",
+      "document_manage",
+      "profile_view",
+      "notifications_view"
+    ];
   }
   if (r === "logistica") {
     return [
@@ -761,6 +784,7 @@ export class PortalService implements OnModuleInit {
     await this.ensureRegistrosFlotaSchema();
     await this.ensureDocumentosEmpleadoSchema();
     await this.ensureDocumentosEmpresaSchema();
+    await this.ensureSarlaftPteSchema();
     await this.ensureVacantesSchema();
     await this.pruneTransportDeletionAudits().catch((err) => {
       const msg = err instanceof Error ? err.message : String(err);
@@ -1707,6 +1731,131 @@ export class PortalService implements OnModuleInit {
     }
   }
 
+  /** SARLAFT / PTE (42_sarlaft_pte.sql). */
+  private async ensureSarlaftPteSchema() {
+    try {
+      await this.pool.query(`
+        CREATE TABLE IF NOT EXISTS perfiles_riesgo_sarlaft (
+          id                         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          codigo                     VARCHAR(32) NOT NULL,
+          nombre                     VARCHAR(120) NOT NULL,
+          programa                   VARCHAR(32) NOT NULL DEFAULT 'ambos',
+          nivel                      VARCHAR(32) NOT NULL DEFAULT 'medio',
+          nivel_debida_diligencia    VARCHAR(32) NOT NULL DEFAULT 'normal',
+          dias_revision              INTEGER NOT NULL DEFAULT 180,
+          criterios                  TEXT,
+          color                      VARCHAR(16),
+          activo                     BOOLEAN NOT NULL DEFAULT true,
+          fecha_creacion             TIMESTAMPTZ NOT NULL DEFAULT now(),
+          creado_por                 VARCHAR(255) NOT NULL DEFAULT 'Sistema',
+          fecha_actualizacion        TIMESTAMPTZ NOT NULL DEFAULT now(),
+          actualizado_por            VARCHAR(255)
+        )
+      `);
+      await this.pool.query(
+        `CREATE UNIQUE INDEX IF NOT EXISTS uq_perfiles_riesgo_sarlaft_codigo ON perfiles_riesgo_sarlaft (codigo)`
+      );
+      await this.pool.query(`
+        CREATE TABLE IF NOT EXISTS terceros_sarlaft (
+          id                         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          codigo                     VARCHAR(32),
+          tipo_persona               VARCHAR(32) NOT NULL DEFAULT 'persona_natural',
+          tipo_vinculo               VARCHAR(32) NOT NULL DEFAULT 'proveedor',
+          nombre                     VARCHAR(255) NOT NULL,
+          nombre_comercial           VARCHAR(255),
+          tipo_documento             VARCHAR(32) NOT NULL DEFAULT 'CC',
+          numero_documento           VARCHAR(64),
+          nit                        VARCHAR(32),
+          correo                     VARCHAR(255),
+          telefono                   VARCHAR(64),
+          ciudad                     VARCHAR(120),
+          departamento               VARCHAR(120),
+          pais                       VARCHAR(80) DEFAULT 'Colombia',
+          direccion                  TEXT,
+          actividad_economica        VARCHAR(255),
+          programa                   VARCHAR(32) NOT NULL DEFAULT 'ambos',
+          id_perfil_riesgo           UUID REFERENCES perfiles_riesgo_sarlaft (id) ON DELETE SET NULL,
+          nivel_riesgo               VARCHAR(32) NOT NULL DEFAULT 'medio',
+          estado_kyc                 VARCHAR(32) NOT NULL DEFAULT 'pendiente',
+          nivel_debida_diligencia    VARCHAR(32) NOT NULL DEFAULT 'normal',
+          es_pep                     BOOLEAN NOT NULL DEFAULT false,
+          detalle_pep                TEXT,
+          fecha_proxima_revision     DATE,
+          fecha_ultima_revision      DATE,
+          id_responsable             UUID REFERENCES usuarios (id) ON DELETE SET NULL,
+          nombre_responsable         VARCHAR(255),
+          observaciones              TEXT,
+          ids_documentos             TEXT,
+          fecha_creacion             TIMESTAMPTZ NOT NULL DEFAULT now(),
+          creado_por                 VARCHAR(255) NOT NULL DEFAULT 'Sistema',
+          fecha_actualizacion        TIMESTAMPTZ NOT NULL DEFAULT now(),
+          actualizado_por            VARCHAR(255)
+        )
+      `);
+      await this.pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_terceros_sarlaft_documento ON terceros_sarlaft (numero_documento)`
+      );
+      await this.pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_terceros_sarlaft_estado ON terceros_sarlaft (estado_kyc)`
+      );
+      await this.pool.query(`
+        CREATE TABLE IF NOT EXISTS alertas_sarlaft (
+          id                         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          id_tercero                 UUID REFERENCES terceros_sarlaft (id) ON DELETE SET NULL,
+          nombre_tercero             VARCHAR(255),
+          tipo                       VARCHAR(32) NOT NULL DEFAULT 'alerta',
+          programa                   VARCHAR(32) NOT NULL DEFAULT 'ambos',
+          severidad                  VARCHAR(32) NOT NULL DEFAULT 'media',
+          titulo                     VARCHAR(255) NOT NULL,
+          descripcion                TEXT,
+          estado                     VARCHAR(32) NOT NULL DEFAULT 'abierta',
+          id_responsable             UUID REFERENCES usuarios (id) ON DELETE SET NULL,
+          nombre_responsable         VARCHAR(255),
+          fecha_limite               DATE,
+          origen                     VARCHAR(120),
+          fecha_creacion             TIMESTAMPTZ NOT NULL DEFAULT now(),
+          creado_por                 VARCHAR(255) NOT NULL DEFAULT 'Sistema',
+          fecha_actualizacion        TIMESTAMPTZ NOT NULL DEFAULT now(),
+          actualizado_por            VARCHAR(255),
+          fecha_cierre               TIMESTAMPTZ,
+          cerrado_por                VARCHAR(255)
+        )
+      `);
+      await this.pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_alertas_sarlaft_tercero ON alertas_sarlaft (id_tercero)`
+      );
+      await this.pool.query(`
+        CREATE TABLE IF NOT EXISTS revisiones_sarlaft (
+          id                         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          id_tercero                 UUID REFERENCES terceros_sarlaft (id) ON DELETE SET NULL,
+          nombre_tercero             VARCHAR(255),
+          id_alerta                  UUID REFERENCES alertas_sarlaft (id) ON DELETE SET NULL,
+          tipo                       VARCHAR(32) NOT NULL DEFAULT 'revision',
+          estado                     VARCHAR(32) NOT NULL DEFAULT 'pendiente',
+          observaciones              TEXT,
+          id_responsable             UUID REFERENCES usuarios (id) ON DELETE SET NULL,
+          nombre_responsable         VARCHAR(255),
+          fecha_revision             DATE,
+          fecha_creacion             TIMESTAMPTZ NOT NULL DEFAULT now(),
+          creado_por                 VARCHAR(255) NOT NULL DEFAULT 'Sistema',
+          fecha_actualizacion        TIMESTAMPTZ NOT NULL DEFAULT now(),
+          actualizado_por            VARCHAR(255)
+        )
+      `);
+      await this.pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_revisiones_sarlaft_tercero ON revisiones_sarlaft (id_tercero)`
+      );
+      await this.pool.query(`ALTER TABLE public.perfiles_riesgo_sarlaft ENABLE ROW LEVEL SECURITY`);
+      await this.pool.query(`ALTER TABLE public.terceros_sarlaft ENABLE ROW LEVEL SECURITY`);
+      await this.pool.query(`ALTER TABLE public.alertas_sarlaft ENABLE ROW LEVEL SECURITY`);
+      await this.pool.query(`ALTER TABLE public.revisiones_sarlaft ENABLE ROW LEVEL SECURITY`);
+      this.logger.log("SARLAFT/PTE: tablas verificadas.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`ensureSarlaftPteSchema: ${sanitizeLogText(msg)}`);
+    }
+  }
+
   private async ensurePortalAuditEventsSchema() {
     try {
       await this.pool.query(`
@@ -1875,6 +2024,9 @@ export class PortalService implements OnModuleInit {
     sst: ["sst_compliance"],
     sst_compliance: ["sst_compliance"],
     cumplimiento_laboral: ["sst_compliance"],
+    sarlaft: ["sarlaft_manage", ...SARLAFT_GRANULAR_PERMISSIONS],
+    sarlaft_pte: ["sarlaft_manage", ...SARLAFT_GRANULAR_PERMISSIONS],
+    pte: ["sarlaft_manage", ...SARLAFT_GRANULAR_PERMISSIONS],
     document_management: [
       "document_manage",
       ...DOCUMENT_GRANULAR_PERMISSIONS
@@ -1965,6 +2117,7 @@ export class PortalService implements OnModuleInit {
       this.hasPortalPermission(permissionSet, "payroll_manage") ||
       this.hasPortalPermission(permissionSet, "hiring_manage") ||
       this.hasPortalPermission(permissionSet, "sst_compliance") ||
+      canAccessSarlaftModule(permissionSet) ||
       canAccessDocumentsModule(permissionSet) ||
       this.hasPortalPermission(permissionSet, "contact_b2b_view");
     return !broad;
@@ -3862,6 +4015,7 @@ export class PortalService implements OnModuleInit {
     const canHiring = admin || this.hasPortalPermission(permissionSet, "hiring_manage");
     const canLoadPositionsCatalog = this.canViewPositionsCatalog(role, permissionSet);
     const canSst = admin || this.hasPortalPermission(permissionSet, "sst_compliance");
+    const canSarlaft = admin || canAccessSarlaftModule(permissionSet);
     const canDocuments = admin || canAccessDocumentsModule(permissionSet);
     const canClientRequests = this.hasPortalPermission(permissionSet, "client_requests");
     const fullUserDirectoryAccess = isClient ? false : admin || canUsersManage;
@@ -3873,6 +4027,7 @@ export class PortalService implements OnModuleInit {
         canPayroll ||
         canHiring ||
         canSst ||
+        canSarlaft ||
         canDocuments ||
         canViewContactB2b;
     /** Clientes nunca reciben flota/historial operativo en bootstrap aunque tengan permisos de transporte. */
@@ -3882,6 +4037,7 @@ export class PortalService implements OnModuleInit {
     const canPayrollBootstrap = isClient ? false : canPayroll;
     const canHiringBootstrap = isClient ? false : canHiring;
     const canSstBootstrap = isClient ? false : canSst;
+    const canSarlaftBootstrap = isClient ? false : canSarlaft;
     const canLoadTripRouteRatesBootstrap = isClient ? canClientRequests : canTransportTrips;
     const documentsCompanyScope =
       isClient || (!canSeeAllCompanies && empresaId && PG_UUID_V4_RE.test(String(empresaId).trim()))
@@ -3904,6 +4060,7 @@ export class PortalService implements OnModuleInit {
       canHiring,
       canLoadPositionsCatalog,
       canSst,
+      canSarlaft,
       canDocuments,
       canClientRequests,
       fullUserDirectoryAccess,
@@ -3914,6 +4071,7 @@ export class PortalService implements OnModuleInit {
       canPayrollBootstrap,
       canHiringBootstrap,
       canSstBootstrap,
+      canSarlaftBootstrap,
       canLoadTripRouteRatesBootstrap,
       documentsCompanyScope
     };
@@ -3953,6 +4111,7 @@ export class PortalService implements OnModuleInit {
       canPayrollBootstrap,
       canHiringBootstrap,
       canSstBootstrap,
+      canSarlaftBootstrap,
       canLoadTripRouteRatesBootstrap,
       documentsCompanyScope
     } = await this.resolveBootstrapActorContext(userId, role);
@@ -4036,7 +4195,11 @@ export class PortalService implements OnModuleInit {
       employeeDocuments,
       employeeDocumentFolders,
       companyDocuments,
-      companyDocumentFolders
+      companyDocumentFolders,
+      sarlaftRiskProfiles,
+      sarlaftThirdParties,
+      sarlaftAlerts,
+      sarlaftReviews
     ] = independent;
 
     const [usersRaw, requests, payrollEmployees, approvals, deletedTransportTripLogs, deletedTransportRequestLogs, portalAuditEvents] =
@@ -4078,6 +4241,10 @@ export class PortalService implements OnModuleInit {
       employeeDocumentFolders,
       companyDocuments,
       companyDocumentFolders,
+      sarlaftThirdParties,
+      sarlaftRiskProfiles,
+      sarlaftAlerts,
+      sarlaftReviews,
       tripRouteRates,
       approvals,
       deletedTransportTripLogs,
@@ -5359,6 +5526,24 @@ export class PortalService implements OnModuleInit {
           { admin }
         );
         return;
+      case "sarlaftRiskProfiles":
+      case "sarlaftThirdParties":
+      case "sarlaftAlerts":
+      case "sarlaftReviews": {
+        const hasData = Array.isArray(data) && data.length > 0;
+        const hasDeletes = Array.isArray(deletedIds) && deletedIds.length > 0;
+        if (hasDeletes && !admin && !canDeleteSarlaftRecords(permissionSet)) {
+          throw new ForbiddenException("No autorizado para eliminar registros SARLAFT / PTE.");
+        }
+        if (hasData && !admin && !canSyncSarlaftKey(key, permissionSet)) {
+          throw new ForbiddenException("No autorizado para sincronizar SARLAFT / PTE.");
+        }
+        if (!hasData && !hasDeletes && !admin && !canAccessSarlaftModule(permissionSet)) {
+          throw new ForbiddenException();
+        }
+        await this.syncSarlaftKey(c, key, data, deletedIds);
+        return;
+      }
       case "tripRouteRates":
         if (!can("transport_trips")) throw new ForbiddenException();
         await this.syncTripRouteRates(c, data, deletedIds);
@@ -8021,6 +8206,127 @@ export class PortalService implements OnModuleInit {
     }));
   }
 
+  private sqlDate(value: unknown): string | null {
+    const s = String(value ?? "").trim().slice(0, 10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+  }
+
+  private optionalUuid(value: unknown): string | null {
+    const s = String(value ?? "").trim();
+    return PG_UUID_V4_RE.test(s) ? s : null;
+  }
+
+  private async loadSarlaftRiskProfiles() {
+    if (!(await this.tableExists("perfiles_riesgo_sarlaft"))) return [];
+    const r = await this.pool.query(`SELECT * FROM perfiles_riesgo_sarlaft ORDER BY nivel ASC, nombre ASC`);
+    return r.rows.map((row) => ({
+      id: row.id,
+      code: row.codigo,
+      name: row.nombre,
+      program: row.programa,
+      level: row.nivel,
+      dueDiligenceLevel: row.nivel_debida_diligencia,
+      reviewFrequencyDays: Number(row.dias_revision) || 180,
+      criteria: row.criterios ?? "",
+      color: row.color ?? "",
+      active: row.activo !== false,
+      createdAt: row.fecha_creacion ? new Date(row.fecha_creacion).toISOString() : new Date().toISOString(),
+      createdBy: row.creado_por,
+      updatedAt: row.fecha_actualizacion ? new Date(row.fecha_actualizacion).toISOString() : "",
+      updatedBy: row.actualizado_por ?? ""
+    }));
+  }
+
+  private async loadSarlaftThirdParties() {
+    if (!(await this.tableExists("terceros_sarlaft"))) return [];
+    const r = await this.pool.query(`SELECT * FROM terceros_sarlaft ORDER BY fecha_actualizacion DESC`);
+    return r.rows.map((row) => ({
+      id: row.id,
+      code: row.codigo ?? "",
+      kind: row.tipo_persona,
+      partyType: row.tipo_vinculo,
+      name: row.nombre,
+      tradeName: row.nombre_comercial ?? "",
+      documentType: row.tipo_documento,
+      documentNumber: row.numero_documento ?? "",
+      nit: row.nit ?? "",
+      email: row.correo ?? "",
+      phone: row.telefono ?? "",
+      city: row.ciudad ?? "",
+      department: row.departamento ?? "",
+      country: row.pais ?? "Colombia",
+      address: row.direccion ?? "",
+      economicActivity: row.actividad_economica ?? "",
+      program: row.programa,
+      riskProfileId: row.id_perfil_riesgo ?? "",
+      riskLevel: row.nivel_riesgo,
+      kycStatus: row.estado_kyc,
+      dueDiligenceLevel: row.nivel_debida_diligencia,
+      pepFlag: Boolean(row.es_pep),
+      pepDetails: row.detalle_pep ?? "",
+      nextReviewDate: row.fecha_proxima_revision ?? "",
+      lastReviewDate: row.fecha_ultima_revision ?? "",
+      responsibleUserId: row.id_responsable ?? "",
+      responsibleName: row.nombre_responsable ?? "",
+      notes: row.observaciones ?? "",
+      documentIds: String(row.ids_documentos ?? "")
+        .split(",")
+        .map((s: string) => s.trim())
+        .filter(Boolean),
+      createdAt: row.fecha_creacion ? new Date(row.fecha_creacion).toISOString() : new Date().toISOString(),
+      createdBy: row.creado_por,
+      updatedAt: row.fecha_actualizacion ? new Date(row.fecha_actualizacion).toISOString() : "",
+      updatedBy: row.actualizado_por ?? ""
+    }));
+  }
+
+  private async loadSarlaftAlerts() {
+    if (!(await this.tableExists("alertas_sarlaft"))) return [];
+    const r = await this.pool.query(`SELECT * FROM alertas_sarlaft ORDER BY fecha_creacion DESC`);
+    return r.rows.map((row) => ({
+      id: row.id,
+      thirdPartyId: row.id_tercero ?? "",
+      thirdPartyName: row.nombre_tercero ?? "",
+      kind: row.tipo,
+      program: row.programa,
+      severity: row.severidad,
+      title: row.titulo,
+      description: row.descripcion ?? "",
+      status: row.estado,
+      responsibleUserId: row.id_responsable ?? "",
+      responsibleName: row.nombre_responsable ?? "",
+      dueDate: row.fecha_limite ?? "",
+      source: row.origen ?? "",
+      createdAt: row.fecha_creacion ? new Date(row.fecha_creacion).toISOString() : new Date().toISOString(),
+      createdBy: row.creado_por,
+      updatedAt: row.fecha_actualizacion ? new Date(row.fecha_actualizacion).toISOString() : "",
+      updatedBy: row.actualizado_por ?? "",
+      closedAt: row.fecha_cierre ? new Date(row.fecha_cierre).toISOString() : "",
+      closedBy: row.cerrado_por ?? ""
+    }));
+  }
+
+  private async loadSarlaftReviews() {
+    if (!(await this.tableExists("revisiones_sarlaft"))) return [];
+    const r = await this.pool.query(`SELECT * FROM revisiones_sarlaft ORDER BY fecha_creacion DESC`);
+    return r.rows.map((row) => ({
+      id: row.id,
+      thirdPartyId: row.id_tercero ?? "",
+      thirdPartyName: row.nombre_tercero ?? "",
+      alertId: row.id_alerta ?? "",
+      kind: row.tipo,
+      status: row.estado,
+      observations: row.observaciones ?? "",
+      responsibleUserId: row.id_responsable ?? "",
+      responsibleName: row.nombre_responsable ?? "",
+      reviewedAt: row.fecha_revision ?? "",
+      createdAt: row.fecha_creacion ? new Date(row.fecha_creacion).toISOString() : new Date().toISOString(),
+      createdBy: row.creado_por,
+      updatedAt: row.fecha_actualizacion ? new Date(row.fecha_actualizacion).toISOString() : "",
+      updatedBy: row.actualizado_por ?? ""
+    }));
+  }
+
   private async normalizeApprovalPayloadForStorage(
     typeRaw: unknown,
     payload: unknown
@@ -8281,7 +8587,11 @@ export class PortalService implements OnModuleInit {
       employeeDocuments: "documentos_empleado",
       employeeDocumentFolders: "carpetas_documento_empleado",
       companyDocuments: "documentos_empresa",
-      companyDocumentFolders: "carpetas_documento_empresa"
+      companyDocumentFolders: "carpetas_documento_empresa",
+      sarlaftThirdParties: "terceros_sarlaft",
+      sarlaftRiskProfiles: "perfiles_riesgo_sarlaft",
+      sarlaftAlerts: "alertas_sarlaft",
+      sarlaftReviews: "revisiones_sarlaft"
     };
     return map[key] ?? null;
   }
@@ -13421,6 +13731,229 @@ export class PortalService implements OnModuleInit {
           rolesDelete
         ]
       );
+    }
+  }
+
+  private async syncSarlaftKey(
+    c: PoolClient,
+    key: PortalSyncKey,
+    data: unknown,
+    deletedIds?: string[]
+  ) {
+    if (!Array.isArray(data)) throw new ForbiddenException();
+    const table = this.syncPruneTableForKey(key);
+    if (!table) throw new ForbiddenException("Clave no soportada");
+    await this.syncListWithPruning(c, table, data, deletedIds);
+    const recs = data as Array<Record<string, unknown>>;
+    if (key === "sarlaftRiskProfiles") {
+      for (const row of recs) {
+        if (!row?.id || this.skipUnlessPersistUuid("syncSarlaftProfiles", row.id)) continue;
+        await c.query(
+          `INSERT INTO perfiles_riesgo_sarlaft (
+            id, codigo, nombre, programa, nivel, nivel_debida_diligencia, dias_revision, criterios, color, activo, creado_por, actualizado_por
+          ) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          ON CONFLICT (id) DO UPDATE SET
+            codigo = EXCLUDED.codigo,
+            nombre = EXCLUDED.nombre,
+            programa = EXCLUDED.programa,
+            nivel = EXCLUDED.nivel,
+            nivel_debida_diligencia = EXCLUDED.nivel_debida_diligencia,
+            dias_revision = EXCLUDED.dias_revision,
+            criterios = EXCLUDED.criterios,
+            color = EXCLUDED.color,
+            activo = EXCLUDED.activo,
+            actualizado_por = EXCLUDED.actualizado_por,
+            fecha_actualizacion = now()`,
+          [
+            row.id,
+            nu(row.code || row.codigo),
+            nu(row.name || row.nombre),
+            nu(row.program || "ambos"),
+            nu(row.level || "medio"),
+            nu(row.dueDiligenceLevel || "normal"),
+            Math.max(1, Number(row.reviewFrequencyDays) || 180),
+            nuN(row.criteria),
+            nuN(row.color),
+            row.active !== false,
+            nu(row.createdBy || "Portal"),
+            nuN(row.updatedBy)
+          ]
+        );
+      }
+      return;
+    }
+    if (key === "sarlaftThirdParties") {
+      for (const row of recs) {
+        if (!row?.id || this.skipUnlessPersistUuid("syncSarlaftParties", row.id)) continue;
+        const ids = Array.isArray(row.documentIds)
+          ? row.documentIds.map((x) => String(x || "").trim()).filter(Boolean).join(",")
+          : String(row.documentIds || row.ids_documentos || "").trim();
+        await c.query(
+          `INSERT INTO terceros_sarlaft (
+            id, codigo, tipo_persona, tipo_vinculo, nombre, nombre_comercial, tipo_documento, numero_documento, nit,
+            correo, telefono, ciudad, departamento, pais, direccion, actividad_economica, programa, id_perfil_riesgo,
+            nivel_riesgo, estado_kyc, nivel_debida_diligencia, es_pep, detalle_pep, fecha_proxima_revision,
+            fecha_ultima_revision, id_responsable, nombre_responsable, observaciones, ids_documentos, creado_por, actualizado_por
+          ) VALUES (
+            $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18::uuid,
+            $19, $20, $21, $22, $23, $24::date, $25::date, $26::uuid, $27, $28, $29, $30, $31
+          )
+          ON CONFLICT (id) DO UPDATE SET
+            codigo = EXCLUDED.codigo,
+            tipo_persona = EXCLUDED.tipo_persona,
+            tipo_vinculo = EXCLUDED.tipo_vinculo,
+            nombre = EXCLUDED.nombre,
+            nombre_comercial = EXCLUDED.nombre_comercial,
+            tipo_documento = EXCLUDED.tipo_documento,
+            numero_documento = EXCLUDED.numero_documento,
+            nit = EXCLUDED.nit,
+            correo = EXCLUDED.correo,
+            telefono = EXCLUDED.telefono,
+            ciudad = EXCLUDED.ciudad,
+            departamento = EXCLUDED.departamento,
+            pais = EXCLUDED.pais,
+            direccion = EXCLUDED.direccion,
+            actividad_economica = EXCLUDED.actividad_economica,
+            programa = EXCLUDED.programa,
+            id_perfil_riesgo = EXCLUDED.id_perfil_riesgo,
+            nivel_riesgo = EXCLUDED.nivel_riesgo,
+            estado_kyc = EXCLUDED.estado_kyc,
+            nivel_debida_diligencia = EXCLUDED.nivel_debida_diligencia,
+            es_pep = EXCLUDED.es_pep,
+            detalle_pep = EXCLUDED.detalle_pep,
+            fecha_proxima_revision = EXCLUDED.fecha_proxima_revision,
+            fecha_ultima_revision = EXCLUDED.fecha_ultima_revision,
+            id_responsable = EXCLUDED.id_responsable,
+            nombre_responsable = EXCLUDED.nombre_responsable,
+            observaciones = EXCLUDED.observaciones,
+            ids_documentos = EXCLUDED.ids_documentos,
+            actualizado_por = EXCLUDED.actualizado_por,
+            fecha_actualizacion = now()`,
+          [
+            row.id,
+            nuN(row.code),
+            nu(row.kind || "persona_natural"),
+            nu(row.partyType || "proveedor"),
+            nu(row.name),
+            nuN(row.tradeName),
+            nu(row.documentType || "CC"),
+            nuN(row.documentNumber),
+            nuN(row.nit),
+            String(row.email || "").trim() || null,
+            nuN(row.phone),
+            nuN(row.city),
+            nuN(row.department),
+            nuN(row.country) || "COLOMBIA",
+            nuN(row.address),
+            nuN(row.economicActivity),
+            nu(row.program || "ambos"),
+            this.optionalUuid(row.riskProfileId),
+            nu(row.riskLevel || "medio"),
+            nu(row.kycStatus || "pendiente"),
+            nu(row.dueDiligenceLevel || "normal"),
+            row.pepFlag === true || row.pepFlag === "true",
+            nuN(row.pepDetails || row.notes),
+            this.sqlDate(row.nextReviewDate),
+            this.sqlDate(row.lastReviewDate),
+            this.optionalUuid(row.responsibleUserId),
+            nuN(row.responsibleName),
+            nuN(row.notes),
+            ids || null,
+            nu(row.createdBy || "Portal"),
+            nuN(row.updatedBy)
+          ]
+        );
+      }
+      return;
+    }
+    if (key === "sarlaftAlerts") {
+      for (const row of recs) {
+        if (!row?.id || this.skipUnlessPersistUuid("syncSarlaftAlerts", row.id)) continue;
+        await c.query(
+          `INSERT INTO alertas_sarlaft (
+            id, id_tercero, nombre_tercero, tipo, programa, severidad, titulo, descripcion, estado,
+            id_responsable, nombre_responsable, fecha_limite, origen, creado_por, actualizado_por, fecha_cierre, cerrado_por
+          ) VALUES (
+            $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10::uuid, $11, $12::date, $13, $14, $15, $16::timestamptz, $17
+          )
+          ON CONFLICT (id) DO UPDATE SET
+            id_tercero = EXCLUDED.id_tercero,
+            nombre_tercero = EXCLUDED.nombre_tercero,
+            tipo = EXCLUDED.tipo,
+            programa = EXCLUDED.programa,
+            severidad = EXCLUDED.severidad,
+            titulo = EXCLUDED.titulo,
+            descripcion = EXCLUDED.descripcion,
+            estado = EXCLUDED.estado,
+            id_responsable = EXCLUDED.id_responsable,
+            nombre_responsable = EXCLUDED.nombre_responsable,
+            fecha_limite = EXCLUDED.fecha_limite,
+            origen = EXCLUDED.origen,
+            actualizado_por = EXCLUDED.actualizado_por,
+            fecha_cierre = EXCLUDED.fecha_cierre,
+            cerrado_por = EXCLUDED.cerrado_por,
+            fecha_actualizacion = now()`,
+          [
+            row.id,
+            this.optionalUuid(row.thirdPartyId),
+            nuN(row.thirdPartyName),
+            nu(row.kind || "alerta"),
+            nu(row.program || "ambos"),
+            nu(row.severity || "media"),
+            nu(row.title),
+            nuN(row.description),
+            nu(row.status || "abierta"),
+            this.optionalUuid(row.responsibleUserId),
+            nuN(row.responsibleName),
+            this.sqlDate(row.dueDate),
+            nuN(row.source),
+            nu(row.createdBy || "Portal"),
+            nuN(row.updatedBy),
+            row.closedAt ? new Date(String(row.closedAt)).toISOString() : null,
+            nuN(row.closedBy)
+          ]
+        );
+      }
+      return;
+    }
+    if (key === "sarlaftReviews") {
+      for (const row of recs) {
+        if (!row?.id || this.skipUnlessPersistUuid("syncSarlaftReviews", row.id)) continue;
+        await c.query(
+          `INSERT INTO revisiones_sarlaft (
+            id, id_tercero, nombre_tercero, id_alerta, tipo, estado, observaciones,
+            id_responsable, nombre_responsable, fecha_revision, creado_por, actualizado_por
+          ) VALUES (
+            $1::uuid, $2::uuid, $3, $4::uuid, $5, $6, $7, $8::uuid, $9, $10::date, $11, $12
+          )
+          ON CONFLICT (id) DO UPDATE SET
+            id_tercero = EXCLUDED.id_tercero,
+            nombre_tercero = EXCLUDED.nombre_tercero,
+            id_alerta = EXCLUDED.id_alerta,
+            tipo = EXCLUDED.tipo,
+            estado = EXCLUDED.estado,
+            observaciones = EXCLUDED.observaciones,
+            id_responsable = EXCLUDED.id_responsable,
+            nombre_responsable = EXCLUDED.nombre_responsable,
+            fecha_revision = EXCLUDED.fecha_revision,
+            actualizado_por = EXCLUDED.actualizado_por,
+            fecha_actualizacion = now()`,
+          [
+            row.id,
+            this.optionalUuid(row.thirdPartyId),
+            nuN(row.thirdPartyName),
+            this.optionalUuid(row.alertId),
+            nu(row.kind || "revision"),
+            nu(row.status || "pendiente"),
+            nuN(row.observations),
+            this.optionalUuid(row.responsibleUserId),
+            nuN(row.responsibleName),
+            this.sqlDate(row.reviewedAt),
+            nu(row.createdBy || "Portal"),
+            nuN(row.updatedBy)
+          ]
+        );
+      }
     }
   }
 

@@ -65,6 +65,7 @@ En despliegue con Supabase, la base de datos es la fuente de verdad; `localStora
 | Liquidaciones | `liquidaciones_nomina` | `payrollRuns` |
 | Ausencias | `ausencias_laborales` | `hrAbsences` |
 | SST / cumplimiento | `registros_cumplimiento_sst` | `sstCompliance` |
+| SARLAFT / PTE | `terceros_sarlaft`, `perfiles_riesgo_sarlaft`, `alertas_sarlaft`, `revisiones_sarlaft` | `sarlaftThirdParties`, `sarlaftRiskProfiles`, `sarlaftAlerts`, `sarlaftReviews` |
 | Notificaciones | `notificaciones` | `notifications` |
 | Correos (cola) | `correos_salida` | `emails` |
 | Contacto B2B | `prospectos_contacto_b2b` | `contacts` |

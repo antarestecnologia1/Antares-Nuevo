@@ -135,6 +135,10 @@ export const KEYS = {
   employeeDocumentFolders: "antares_employee_document_folders_v1",
   companyDocuments: "antares_company_documents_v1",
   companyDocumentFolders: "antares_company_document_folders_v1",
+  sarlaftThirdParties: "antares_sarlaft_third_parties_v1",
+  sarlaftRiskProfiles: "antares_sarlaft_risk_profiles_v1",
+  sarlaftAlerts: "antares_sarlaft_alerts_v1",
+  sarlaftReviews: "antares_sarlaft_reviews_v1",
   tripRouteRates: "antares_trip_route_rates_v2",
   approvals: "antares_approvals_v2",
   deletedTransportTripLogs: "antares_deleted_transport_trip_logs_v1",
@@ -208,6 +212,13 @@ export const PERMISSIONS = {
   DOCUMENT_UPLOAD: "document_upload",
   DOCUMENT_EDIT: "document_edit",
   DOCUMENT_DELETE: "document_delete",
+  SARLAFT_MANAGE: "sarlaft_manage",
+  SARLAFT_VIEW: "sarlaft_view",
+  SARLAFT_PARTIES: "sarlaft_parties",
+  SARLAFT_ALERTS: "sarlaft_alerts",
+  SARLAFT_REVIEWS: "sarlaft_reviews",
+  SARLAFT_PROFILES: "sarlaft_profiles",
+  SARLAFT_DELETE: "sarlaft_delete",
   USERS_MANAGE: "users_manage",
   AUTHORIZATIONS_MANAGE: "authorizations_manage",
   AUTHORIZATIONS_TRANSPORT: "authorizations_transport",
@@ -355,6 +366,34 @@ export const PERMISSION_META = {
     title: "Eliminar documentos del expediente",
     desc: "Quitar registros documentales del portal (el archivo en almacenamiento puede conservarse)."
   },
+  [PERMISSIONS.SARLAFT_MANAGE]: {
+    title: "SARLAFT / PTE (acceso completo)",
+    desc: "Consultar, registrar terceros, alertas, revisiones, parametrizar perfiles de riesgo y eliminar registros."
+  },
+  [PERMISSIONS.SARLAFT_VIEW]: {
+    title: "Consultar SARLAFT / PTE",
+    desc: "Ver terceros, alertas, vencimientos, revisiones, reportes y evidencias vinculadas."
+  },
+  [PERMISSIONS.SARLAFT_PARTIES]: {
+    title: "Registrar y actualizar terceros",
+    desc: "Conocimiento del tercero, debida diligencia, clasificación de riesgo y datos de verificación."
+  },
+  [PERMISSIONS.SARLAFT_ALERTS]: {
+    title: "Gestionar alertas y hallazgos",
+    desc: "Registrar y dar seguimiento a alertas, novedades, hallazgos o situaciones de revisión."
+  },
+  [PERMISSIONS.SARLAFT_REVIEWS]: {
+    title: "Registrar revisiones y observaciones",
+    desc: "Dejar constancia de revisiones, responsables, estados de gestión y observaciones."
+  },
+  [PERMISSIONS.SARLAFT_PROFILES]: {
+    title: "Parametrizar perfiles de riesgo",
+    desc: "Crear y ajustar la matriz, criterios, niveles y periodicidad de revisión SARLAFT/PTE."
+  },
+  [PERMISSIONS.SARLAFT_DELETE]: {
+    title: "Eliminar registros SARLAFT / PTE",
+    desc: "Quitar terceros, alertas o revisiones del módulo (queda trazabilidad en el historial)."
+  },
   [PERMISSIONS.USERS_MANAGE]: { title: "Usuarios y permisos", desc: "Crear usuarios y administrar accesos." },
   [PERMISSIONS.AUTHORIZATIONS_MANAGE]: {
     title: "Autorizaciones (todas las bandejas)",
@@ -403,6 +442,7 @@ export const HR_WORKSPACE_STORAGE = {
   hiring: "antares_hr_hiring_workspace_v1",
   sst: "antares_sst_workspace_v1",
   documents: "antares_documents_workspace_v1",
+  sarlaft: "antares_sarlaft_workspace_v1",
   requests: "antares_requests_workspace_v1",
   transportTrips: "antares_transport_trips_workspace_v1",
   transportVehicles: "antares_transport_vehicles_workspace_v1"
@@ -417,6 +457,7 @@ export const HR_VALID_PAYROLL_WS = new Set(["operate", "data"]);
 /** data = Selección (pipeline) · operate = Registrar · consult = Consultar listados */
 export const HR_VALID_HIRING_WS = new Set(["operate", "data", "consult"]);
 export const HR_VALID_SST_WS = new Set(["operate", "data"]);
+export const HR_VALID_SARLAFT_WS = new Set(["operate", "data"]);
 export const HR_VALID_REQUESTS_WS = new Set(["operate", "data"]);
 export const HR_VALID_TRANSPORT_TRIPS_WS = new Set(["operate", "data"]);
 export const HR_VALID_TRANSPORT_VEHICLES_WS = new Set(["operate", "data"]);
@@ -508,6 +549,18 @@ export const PERMISSION_UI_GROUPS = [
       PERMISSIONS.SST_COMPLIANCE,
       PERMISSIONS.USERS_MANAGE,
       PERMISSIONS.CONTACT_B2B_VIEW
+    ]
+  },
+  {
+    title: "SARLAFT / PTE (por acción)",
+    permissions: [
+      PERMISSIONS.SARLAFT_MANAGE,
+      PERMISSIONS.SARLAFT_VIEW,
+      PERMISSIONS.SARLAFT_PARTIES,
+      PERMISSIONS.SARLAFT_ALERTS,
+      PERMISSIONS.SARLAFT_REVIEWS,
+      PERMISSIONS.SARLAFT_PROFILES,
+      PERMISSIONS.SARLAFT_DELETE
     ]
   },
   {
@@ -821,6 +874,7 @@ export const REPORT_RULES = {
   payroll_summary: { permission: PERMISSIONS.PAYROLL_MANAGE, rrhhAllowed: true },
   hiring_pipeline: { permission: PERMISSIONS.HIRING_MANAGE, rrhhAllowed: true },
   labor_compliance: { permission: PERMISSIONS.SST_COMPLIANCE, rrhhAllowed: true },
+  sarlaft_pte: { permission: PERMISSIONS.SARLAFT_VIEW, rrhhAllowed: true },
   document_management: { permission: PERMISSIONS.DOCUMENT_VIEW, rrhhAllowed: true },
   employee_documents: { permission: PERMISSIONS.DOCUMENT_VIEW, rrhhAllowed: true },
   users_access: { permission: PERMISSIONS.USERS_MANAGE, adminOnly: true },

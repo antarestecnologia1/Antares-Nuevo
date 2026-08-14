@@ -16,6 +16,7 @@ export const PORTAL_AUDIT_MODULE_ORDER = [
   "payroll",
   "hiring",
   "sst",
+  "sarlaft",
   "documents",
   "contact_b2b",
   "users",
@@ -39,6 +40,7 @@ export const PORTAL_AUDIT_MODULE_REGISTRY = {
   payroll: { id: "payroll", label: "Gestión humana" },
   hiring: { id: "hiring", label: "Contratación" },
   sst: { id: "sst", label: "Cumplimiento laboral y SST" },
+  sarlaft: { id: "sarlaft", label: "SARLAFT / PTE" },
   documents: { id: "documents", label: "Gestión documental" },
   contact_b2b: { id: "contact_b2b", label: "Contacto web (B2B)" },
   users: { id: "users", label: "Usuarios y permisos" },
@@ -73,6 +75,10 @@ const PORTAL_AUDIT_MODULE_ALIASES = {
   contratacion: "hiring",
   sst_compliance: "sst",
   cumplimiento_laboral: "sst",
+  sarlaft_pte: "sarlaft",
+  "sarlaft-pte": "sarlaft",
+  sarlaft: "sarlaft",
+  pte: "sarlaft",
   document_management: "documents",
   "document-management": "documents",
   gestion_documental: "documents",
@@ -146,7 +152,9 @@ const HISTORY_AUDIT_ENTITY_KIND_TITLES = {
   document: {
     create: "Alta de documento",
     update: "Actualización de documento",
-    delete: "Eliminación de documento"
+    delete: "Eliminación de documento",
+    view: "Consulta de documento",
+    download: "Descarga de documento"
   },
   folder: {
     create: "Alta de carpeta documental",
@@ -224,6 +232,11 @@ const HISTORY_AUDIT_ENTITY_KIND_TITLES = {
     delete: "Eliminación de registro SST",
     renew: "Renovación de registro SST"
   },
+  sarlaft: {
+    create: "Alta SARLAFT / PTE",
+    update: "Actualización SARLAFT / PTE",
+    delete: "Eliminación SARLAFT / PTE"
+  },
   contact: {
     create: "Alta de contacto B2B",
     update: "Actualización de contacto B2B",
@@ -284,6 +297,7 @@ const HISTORY_AUDIT_MODULE_ACTION_TITLES = {
   payroll: HISTORY_AUDIT_ENTITY_KIND_TITLES.employee,
   hiring: { create: "Alta en contratación", update: "Actualización en contratación", delete: "Eliminación en contratación" },
   sst: HISTORY_AUDIT_ENTITY_KIND_TITLES.sst,
+  sarlaft: HISTORY_AUDIT_ENTITY_KIND_TITLES.sarlaft,
   documents: HISTORY_AUDIT_ENTITY_KIND_TITLES.document,
   contact_b2b: HISTORY_AUDIT_ENTITY_KIND_TITLES.contact,
   users: HISTORY_AUDIT_ENTITY_KIND_TITLES.user,
@@ -392,6 +406,7 @@ const PORTAL_AUDIT_MODULE_ICON_KEYS = {
   payroll: "briefcase",
   hiring: "userPlus",
   sst: "shield",
+  sarlaft: "shield",
   documents: "file",
   contact_b2b: "globe",
   users: "users",
@@ -453,7 +468,7 @@ export function portalAuditModuleIconKey(moduleIdOrLabel = "") {
     return "briefcase";
   }
   if (label.includes("contrat")) return "userPlus";
-  if (label.includes("sst") || label.includes("cumplimiento")) return "shield";
+  if (label.includes("sst") || label.includes("cumplimiento") || label.includes("sarlaft") || label.includes("pte")) return "shield";
   if (label.includes("document") || label.includes("expediente")) return "file";
   if (label.includes("usuario") || label.includes("permiso")) return "users";
   if (label.includes("autoriz")) return "check";

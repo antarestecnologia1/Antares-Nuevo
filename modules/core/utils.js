@@ -10,6 +10,7 @@ import {
   HR_VALID_PAYROLL_WS,
   HR_VALID_REQUESTS_WS,
   HR_VALID_SST_WS,
+  HR_VALID_SARLAFT_WS,
   PAYROLL_OPERATE_CREATE_PANEL_IDS,
   PAYROLL_OPERATE_SECTION_PANEL,
   TRANSPORT_TRIPS_OPERATE_CREATE_PANEL_IDS,
@@ -378,6 +379,7 @@ export function normalizeHrWorkspace(moduleId, workspace) {
   }
   if (moduleId === "requests") return HR_VALID_REQUESTS_WS.has(ws) ? ws : "operate";
   if (moduleId === "sst") return HR_VALID_SST_WS.has(ws) ? ws : "operate";
+  if (moduleId === "sarlaft") return HR_VALID_SARLAFT_WS.has(ws) ? ws : "operate";
   /*
    * Gestión documental ya no usa pestañas: su preferencia persistida es la sección
    * del rail y la normaliza `normalizeDocumentSection` en el dominio del módulo.
@@ -398,6 +400,23 @@ export function normalizeSstOperateSection(section) {
   const s = String(section || "").trim().toLowerCase();
   if (s === "guide" || s === "guia" || s === "checklist") return "guide";
   return "create";
+}
+
+export function normalizeSarlaftOperateSection(section) {
+  const s = String(section || "").trim().toLowerCase();
+  if (s === "alert" || s === "alerta") return "alert";
+  if (s === "review" || s === "revision" || s === "revisión") return "review";
+  if (s === "profile" || s === "perfil") return "profile";
+  return "party";
+}
+
+export function normalizeSarlaftDataSection(section) {
+  const s = String(section || "").trim().toLowerCase();
+  if (s === "alerts" || s === "alertas") return "alerts";
+  if (s === "due" || s === "vencimientos" || s === "vencimiento") return "due";
+  if (s === "reviews" || s === "revisiones") return "reviews";
+  if (s === "reports" || s === "reportes") return "reports";
+  return "parties";
 }
 
 /** Formato fijo: +57 y máximo 10 dígitos nacionales (sin depender de slice(-10) que provocaba dígitos erróneos al editar). */

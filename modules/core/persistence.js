@@ -29,6 +29,12 @@
     "antares_contracts_v2",
     "antares_hr_absences_v2",
     "antares_sst_compliance_v2",
+    "antares_company_documents_v1",
+    "antares_company_document_folders_v1",
+    "antares_sarlaft_third_parties_v1",
+    "antares_sarlaft_risk_profiles_v1",
+    "antares_sarlaft_alerts_v1",
+    "antares_sarlaft_reviews_v1",
     "antares_trip_route_rates_v2",
     "antares_approvals_v2"
   ]);

@@ -158,6 +158,18 @@ window.PortalArchitecture = (() => {
         }
       ]
     },
+    "sarlaft-pte": {
+      title: "SARLAFT / PTE",
+      access: "permission-gated",
+      shell: true,
+      renderer: [{ module: "rrhh", exportName: "sarlaftPteHtml" }],
+      layoutPlan: [
+        {
+          container: ".sarlaft-studio",
+          order: [".hr-workspace-header--payroll", ".hr-workspace-panels"]
+        }
+      ]
+    },
     "admin-users": {
       title: "Administración · Usuarios y permisos",
       access: "admin",

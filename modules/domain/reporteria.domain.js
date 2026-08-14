@@ -13,7 +13,7 @@ import {
 } from "../core/config.js";
 import { read, writeAwaitServer, writeAwaitServerCreate, syncPayloadForEditedRow } from "../core/data-io.js";
 import { state, nodes } from "../core/store.js";
-import { currentUser, hasPermission, canAccessRRHH } from "../core/auth.js";
+import { currentUser, hasPermission, canAccessRRHH, canAccessSarlaftView } from "../core/auth.js";
 import {
   escapeHtml,
   escapeAttr,
@@ -69,7 +69,11 @@ export function canAccessReport(user, reportId) {
   if (user.role === ROLES.CLIENT) return false;
   const rule = REPORT_RULES[reportId];
   if (!rule) return false;
-  if (!hasPermission(user, rule.permission)) return false;
+  if (reportId === "sarlaft_pte") {
+    if (!canAccessSarlaftView(user)) return false;
+  } else if (!hasPermission(user, rule.permission)) {
+    return false;
+  }
   if (rule.adminOnly) return user.role === ROLES.ADMIN;
   if (rule.rrhhAllowed) return canAccessRRHH(user.role) || user.role === ROLES.ADMIN;
   return true;
@@ -1262,6 +1266,7 @@ export function reportsExportPanelHtml(user) {
     { id: "payroll_summary", icon: "dollar", title: "Consolidado de nómina", subtitle: "Devengados, deducciones, pagos y aprobaciones de gestión humana.", group: "RRHH" },
     { id: "hiring_pipeline", icon: "briefcase", title: "Gestión de selección y contratación", subtitle: "Seguimiento del proceso de reclutamiento, entrevistas y contratación.", group: "RRHH" },
     { id: "labor_compliance", icon: "shield", title: "Cumplimiento laboral y SST", subtitle: "Controles regulatorios, vencimientos y trazabilidad documental.", group: "Cumplimiento" },
+    { id: "sarlaft_pte", icon: "shield", title: "SARLAFT / PTE", subtitle: "Terceros, perfiles de riesgo, alertas y vencimientos de debida diligencia.", group: "Cumplimiento" },
     { id: "users_access", icon: "shield", title: "Gobierno de usuarios y accesos", subtitle: "Roles, permisos, origen del usuario e ingreso al sistema.", group: "Gobierno" },
     { id: "authorizations_traceability", icon: "check", title: "Trazabilidad de autorizaciones", subtitle: "Tiempos de resolución, aprobadores y observaciones de cierre.", group: "Gobierno" }
   ];

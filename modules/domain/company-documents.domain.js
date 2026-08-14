@@ -22,35 +22,84 @@ export const SUGGESTED_COMPANY_FOLDERS = Object.freeze([
   "02. Contratación",
   "03. SST",
   "04. Legal",
-  "05. Finanzas"
+  "05. Finanzas",
+  "06. Terceros",
+  "07. Operación",
+  "08. SARLAFT / PTE"
 ]);
+
+/** Carpeta oculta donde se persiste el catálogo de tipos documentales personalizados. */
+export const DOCUMENT_TYPES_CATALOG_FOLDER = ".sistema / tipos-documentales";
+
+/** Entidades parametrizadas a las que se puede clasificar un documento. */
+export const COMPANY_DOCUMENT_ENTITY_TYPES = Object.freeze([
+  { value: "empleado", label: "Empleado / colaborador" },
+  { value: "conductor", label: "Conductor" },
+  { value: "vehiculo", label: "Vehículo" },
+  { value: "tercero", label: "Tercero" },
+  { value: "contrato", label: "Contrato" },
+  { value: "proceso", label: "Proceso / área" },
+  { value: "sst", label: "Cumplimiento / SST" },
+  { value: "operacion", label: "Operación" },
+  { value: "otro", label: "Otra entidad" }
+]);
+
+/** Procesos de negocio para tipos documentales y evidencias. */
+export const COMPANY_DOCUMENT_PROCESSES = Object.freeze([
+  { value: "contratacion", label: "Contratación" },
+  { value: "rrhh", label: "Recursos humanos" },
+  { value: "terceros", label: "Terceros" },
+  { value: "cumplimiento", label: "Cumplimiento" },
+  { value: "sarlaft", label: "SARLAFT / PTE" },
+  { value: "operacion", label: "Operación" },
+  { value: "legal", label: "Legal" },
+  { value: "finanzas", label: "Finanzas" }
+]);
+
+export const DOCUMENT_VALIDITY_STATUSES = Object.freeze([
+  { value: "vigente", label: "Vigente" },
+  { value: "por_vencer", label: "Por vencer" },
+  { value: "vencido", label: "Vencido" },
+  { value: "sin_vigencia", label: "Sin vigencia" },
+  { value: "archivado", label: "Archivado" }
+]);
+
+/** Días de anticipación para alerta “por vencer”. */
+export const DOCUMENT_EXPIRY_SOON_DAYS = 30;
 
 /** Tipos/categorías documentales seleccionables al subir (valor corto ≤ 32 chars). */
 export const COMPANY_DOCUMENT_CATEGORIES = Object.freeze([
-  { value: "cedula", label: "Cédula de ciudadanía" },
-  { value: "foto", label: "Foto del colaborador" },
-  { value: "contrato", label: "Contrato laboral" },
-  { value: "carta_laboral", label: "Carta / certificación laboral" },
-  { value: "hoja_vida", label: "Hoja de vida" },
-  { value: "eps", label: "Afiliación EPS" },
-  { value: "afp", label: "Afiliación pensión (AFP)" },
-  { value: "arl", label: "Afiliación ARL" },
-  { value: "examen_ocupacional", label: "Examen médico ocupacional" },
-  { value: "examen_instruvial", label: "Examen instruvial" },
-  { value: "licencia_conduccion", label: "Licencia de conducción" },
-  { value: "soat", label: "SOAT" },
-  { value: "certificado_runt", label: "Certificado RUNT" },
-  { value: "certificado_antecedentes", label: "Certificado de antecedentes" },
-  { value: "rut", label: "RUT / documento tributario" },
-  { value: "cuenta_bancaria", label: "Certificación bancaria" },
-  { value: "capacitacion", label: "Certificado de capacitación" },
-  { value: "induccion_sst", label: "Inducción SST / seguridad" },
-  { value: "autorizacion_datos", label: "Autorización tratamiento de datos" },
-  { value: "factura", label: "Factura / soporte contable" },
-  { value: "comprobante_pago", label: "Comprobante de pago / colilla" },
-  { value: "poliza", label: "Póliza / seguro" },
-  { value: "acta", label: "Acta / acuerdo" },
-  { value: "otro", label: "Otro documento" }
+  { value: "cedula", label: "Cédula de ciudadanía", process: "rrhh", area: "identificacion", requiresExpiry: false },
+  { value: "foto", label: "Foto del colaborador", process: "rrhh", area: "identificacion", requiresExpiry: false },
+  { value: "contrato", label: "Contrato laboral", process: "contratacion", area: "vinculacion", requiresExpiry: false },
+  { value: "carta_laboral", label: "Carta / certificación laboral", process: "rrhh", area: "vinculacion", requiresExpiry: false },
+  { value: "hoja_vida", label: "Hoja de vida", process: "contratacion", area: "seleccion", requiresExpiry: false },
+  { value: "eps", label: "Afiliación EPS", process: "cumplimiento", area: "seguridad_social", requiresExpiry: true },
+  { value: "afp", label: "Afiliación pensión (AFP)", process: "cumplimiento", area: "seguridad_social", requiresExpiry: true },
+  { value: "arl", label: "Afiliación ARL", process: "cumplimiento", area: "seguridad_social", requiresExpiry: true },
+  { value: "examen_ocupacional", label: "Examen médico ocupacional", process: "cumplimiento", area: "sst", requiresExpiry: true },
+  { value: "examen_instruvial", label: "Examen instruvial", process: "operacion", area: "conductores", requiresExpiry: true },
+  { value: "licencia_conduccion", label: "Licencia de conducción", process: "operacion", area: "conductores", requiresExpiry: true },
+  { value: "soat", label: "SOAT", process: "operacion", area: "flota", requiresExpiry: true },
+  { value: "certificado_runt", label: "Certificado RUNT", process: "operacion", area: "flota", requiresExpiry: true },
+  { value: "certificado_antecedentes", label: "Certificado de antecedentes", process: "rrhh", area: "seleccion", requiresExpiry: true },
+  { value: "rut", label: "RUT / documento tributario", process: "terceros", area: "tributario", requiresExpiry: false },
+  { value: "cuenta_bancaria", label: "Certificación bancaria", process: "finanzas", area: "pagos", requiresExpiry: false },
+  { value: "capacitacion", label: "Certificado de capacitación", process: "rrhh", area: "formacion", requiresExpiry: true },
+  { value: "induccion_sst", label: "Inducción SST / seguridad", process: "cumplimiento", area: "sst", requiresExpiry: true },
+  { value: "autorizacion_datos", label: "Autorización tratamiento de datos", process: "legal", area: "habeas_data", requiresExpiry: false },
+  { value: "form_conocimiento_tercero", label: "Formulario de conocimiento del tercero", process: "sarlaft", area: "kyc", requiresExpiry: true },
+  { value: "consulta_listas", label: "Consulta listas restrictivas", process: "sarlaft", area: "kyc", requiresExpiry: true },
+  { value: "declaracion_fondos", label: "Declaración de origen de fondos", process: "sarlaft", area: "kyc", requiresExpiry: false },
+  { value: "declaracion_pep", label: "Declaración PEP", process: "sarlaft", area: "kyc", requiresExpiry: false },
+  { value: "codigo_etica_pte", label: "Código de ética / PTE", process: "sarlaft", area: "pte", requiresExpiry: false },
+  { value: "conflicto_intereses", label: "Declaración de conflicto de intereses", process: "sarlaft", area: "pte", requiresExpiry: false },
+  { value: "cert_existencia", label: "Certificado de existencia y representación", process: "sarlaft", area: "kyc", requiresExpiry: true },
+  { value: "factura", label: "Factura / soporte contable", process: "finanzas", area: "contabilidad", requiresExpiry: false },
+  { value: "comprobante_pago", label: "Comprobante de pago / colilla", process: "rrhh", area: "nomina", requiresExpiry: false },
+  { value: "poliza", label: "Póliza / seguro", process: "cumplimiento", area: "seguros", requiresExpiry: true },
+  { value: "acta", label: "Acta / acuerdo", process: "legal", area: "actas", requiresExpiry: false },
+  { value: "otro", label: "Otro documento", process: "", area: "", requiresExpiry: false }
 ]);
 
 /** Nombre de archivo seguro para un comprobante de nómina en la carpeta del colaborador. */
@@ -303,21 +352,283 @@ export function mapEmployeeDocumentTypeToCompanyCategory(documentType) {
 
 const CATEGORY_MAP = new Map(COMPANY_DOCUMENT_CATEGORIES.map((c) => [c.value, c]));
 
-export function getCompanyDocumentCategoryLabel(value) {
+const ENTITY_TYPE_MAP = new Map(COMPANY_DOCUMENT_ENTITY_TYPES.map((e) => [e.value, e]));
+const PROCESS_MAP = new Map(COMPANY_DOCUMENT_PROCESSES.map((p) => [p.value, p]));
+const VALIDITY_MAP = new Map(DOCUMENT_VALIDITY_STATUSES.map((s) => [s.value, s]));
+
+export function isHiddenCompanyFolder(path) {
+  const k = folderKey(path);
+  return k === folderKey(DOCUMENT_TYPES_CATALOG_FOLDER) || k.startsWith(`${folderKey(".sistema")} / `) || k === folderKey(".sistema");
+}
+
+export function documentCategorySlug(raw) {
+  return String(raw || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 32);
+}
+
+function looksLikeCategorySlug(value) {
+  const s = String(value || "").trim();
+  return /^[a-z][a-z0-9_]{0,31}$/.test(s);
+}
+
+export function normalizeDocumentTypeRow(row) {
+  if (!row || typeof row !== "object") return row;
+  const label = String(row.label || row.nombre || "").trim();
+  const value = documentCategorySlug(row.value || row.codigo || label) || "otro";
+  return {
+    id: String(row.id || value),
+    value,
+    label: label || value,
+    process: String(row.process || row.proceso || "").trim(),
+    area: String(row.area || "").trim(),
+    requiresExpiry: Boolean(row.requiresExpiry ?? row.requiere_vigencia),
+    builtin: Boolean(row.builtin)
+  };
+}
+
+export function parseDocumentTypesCatalog(rawDescription) {
+  const text = String(rawDescription || "").trim();
+  if (!text) return [];
+  try {
+    const parsed = JSON.parse(text);
+    const list = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.types) ? parsed.types : [];
+    return list.map(normalizeDocumentTypeRow).filter((t) => t && t.value);
+  } catch {
+    return [];
+  }
+}
+
+export function serializeDocumentTypesCatalog(types = []) {
+  return JSON.stringify(
+    (types || []).map(normalizeDocumentTypeRow).filter((t) => t && t.value && !t.builtin)
+  );
+}
+
+export function listCompanyDocumentCategories(customTypes = []) {
+  const map = new Map(COMPANY_DOCUMENT_CATEGORIES.map((c) => [c.value, { ...c, builtin: true }]));
+  for (const raw of customTypes || []) {
+    const t = normalizeDocumentTypeRow(raw);
+    if (!t?.value) continue;
+    const prev = map.get(t.value);
+    map.set(t.value, { ...prev, ...t, builtin: Boolean(prev?.builtin) });
+  }
+  return [...map.values()];
+}
+
+export function findCompanyDocumentCategory(value, customTypes = []) {
+  const key = String(value || "").trim();
+  if (!key) return null;
+  return listCompanyDocumentCategories(customTypes).find((c) => c.value === key) || CATEGORY_MAP.get(key) || null;
+}
+
+export function getCompanyDocumentCategoryLabel(value, customTypes = []) {
   const key = String(value || "").trim();
   if (!key) return "";
-  return CATEGORY_MAP.get(key)?.label || key;
+  return findCompanyDocumentCategory(key, customTypes)?.label || key;
+}
+
+export function getCompanyDocumentEntityTypeLabel(value) {
+  const key = String(value || "").trim();
+  if (!key) return "";
+  return ENTITY_TYPE_MAP.get(key)?.label || key;
+}
+
+export function getCompanyDocumentProcessLabel(value) {
+  const key = String(value || "").trim();
+  if (!key) return "";
+  return PROCESS_MAP.get(key)?.label || key;
+}
+
+export function getDocumentValidityStatusLabel(value) {
+  const key = String(value || "").trim();
+  if (!key) return "";
+  return VALIDITY_MAP.get(key)?.label || key;
+}
+
+function parseDocumentMetaObject(raw) {
+  const text = String(raw ?? "").trim();
+  if (!text.startsWith("{")) return null;
+  try {
+    const obj = JSON.parse(text);
+    return obj && typeof obj === "object" && !Array.isArray(obj) ? obj : null;
+  } catch {
+    return null;
+  }
+}
+
+function emptyDocumentMeta() {
+  return {
+    documentCategory: "",
+    entityType: "",
+    entityId: "",
+    entityLabel: "",
+    issuedAt: "",
+    expiresAt: "",
+    version: 1,
+    versionGroup: "",
+    process: "",
+    area: "",
+    validityStatus: "",
+    isCurrentVersion: true,
+    documentCode: ""
+  };
+}
+
+function isoDateOnly(value) {
+  const s = String(value || "").trim();
+  if (!s) return "";
+  const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (m) return m[1];
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 10);
+}
+
+export function parseDocumentMeta(tagsOrCategory) {
+  const meta = emptyDocumentMeta();
+  const obj = parseDocumentMetaObject(tagsOrCategory);
+  if (obj) {
+    meta.documentCategory = String(obj.cat || obj.documentCategory || obj.categoria || "").trim();
+    meta.entityType = String(obj.entityType || obj.entidadTipo || "").trim();
+    meta.entityId = String(obj.entityId || obj.entidadId || "").trim();
+    meta.entityLabel = String(obj.entityLabel || obj.entidadEtiqueta || "").trim();
+    meta.issuedAt = isoDateOnly(obj.issuedAt || obj.fechaEmision);
+    meta.expiresAt = isoDateOnly(obj.expiresAt || obj.fechaVencimiento);
+    meta.version = Math.max(1, Number(obj.version) || 1);
+    meta.versionGroup = String(obj.versionGroup || obj.grupoVersion || "").trim();
+    meta.process = String(obj.process || obj.proceso || "").trim();
+    meta.area = String(obj.area || "").trim();
+    meta.validityStatus = String(obj.status || obj.validityStatus || obj.estado || "").trim();
+    meta.isCurrentVersion = obj.current !== false && obj.isCurrentVersion !== false;
+    meta.documentCode = String(obj.documentCode || obj.codigo || "").trim();
+    return meta;
+  }
+  meta.documentCategory = parseDocumentCategory(tagsOrCategory);
+  return meta;
+}
+
+function hasExtraDocumentMeta(meta) {
+  if (!meta) return false;
+  return Boolean(
+    meta.entityType ||
+      meta.entityId ||
+      meta.entityLabel ||
+      meta.issuedAt ||
+      meta.expiresAt ||
+      meta.versionGroup ||
+      (Number(meta.version) || 1) > 1 ||
+      meta.process ||
+      meta.area ||
+      meta.documentCode ||
+      meta.validityStatus === "archivado" ||
+      meta.isCurrentVersion === false
+  );
+}
+
+export function serializeCompanyDocumentTags(doc = {}) {
+  const cat = String(doc.documentCategory || "").trim();
+  const meta = {
+    documentCategory: cat,
+    entityType: String(doc.entityType || "").trim(),
+    entityId: String(doc.entityId || "").trim(),
+    entityLabel: String(doc.entityLabel || "").trim(),
+    issuedAt: isoDateOnly(doc.issuedAt),
+    expiresAt: isoDateOnly(doc.expiresAt),
+    version: Math.max(1, Number(doc.version) || 1),
+    versionGroup: String(doc.versionGroup || "").trim(),
+    process: String(doc.process || "").trim(),
+    area: String(doc.area || "").trim(),
+    validityStatus: String(doc.validityStatus || doc.status || "").trim(),
+    isCurrentVersion: doc.isCurrentVersion !== false,
+    documentCode: String(doc.documentCode || "").trim()
+  };
+  if (!hasExtraDocumentMeta(meta)) return cat;
+  return JSON.stringify({
+    v: 1,
+    cat,
+    entityType: meta.entityType,
+    entityId: meta.entityId,
+    entityLabel: meta.entityLabel,
+    issuedAt: meta.issuedAt,
+    expiresAt: meta.expiresAt,
+    version: meta.version,
+    versionGroup: meta.versionGroup,
+    process: meta.process,
+    area: meta.area,
+    status: meta.validityStatus,
+    current: meta.isCurrentVersion,
+    documentCode: meta.documentCode
+  });
 }
 
 /** Extrae categoría documental desde tags/etiquetas o campo dedicado. */
 export function parseDocumentCategory(tagsOrCategory) {
+  const obj = parseDocumentMetaObject(tagsOrCategory);
+  if (obj) {
+    const cat = String(obj.cat || obj.documentCategory || "").trim();
+    if (cat) return cat;
+  }
   const raw = String(tagsOrCategory ?? "").trim();
   if (!raw) return "";
-  if (CATEGORY_MAP.has(raw)) return raw;
+  if (CATEGORY_MAP.has(raw) || looksLikeCategorySlug(raw)) return raw;
   const m = raw.match(/(?:^|,)\s*cat(?:egory|egoria)?\s*[:=]\s*([a-z0-9_]+)/i);
-  if (m && CATEGORY_MAP.has(m[1])) return m[1];
+  if (m && (CATEGORY_MAP.has(m[1]) || looksLikeCategorySlug(m[1]))) return m[1];
   const first = raw.split(",")[0].trim();
-  return CATEGORY_MAP.has(first) ? first : "";
+  return CATEGORY_MAP.has(first) || looksLikeCategorySlug(first) ? first : "";
+}
+
+export function computeDocumentValidityStatus(doc = {}, { soonDays = DOCUMENT_EXPIRY_SOON_DAYS, today = "" } = {}) {
+  if (String(doc.validityStatus || "").trim() === "archivado") return "archivado";
+  const expiresAt = isoDateOnly(doc.expiresAt);
+  if (!expiresAt) return "sin_vigencia";
+  const now = isoDateOnly(today) || new Date().toISOString().slice(0, 10);
+  if (expiresAt < now) return "vencido";
+  const soonMs = (Number(soonDays) || DOCUMENT_EXPIRY_SOON_DAYS) * 86400000;
+  const limit = new Date(`${now}T00:00:00`);
+  const exp = new Date(`${expiresAt}T00:00:00`);
+  if (Number.isNaN(limit.getTime()) || Number.isNaN(exp.getTime())) return "vigente";
+  if (exp.getTime() - limit.getTime() <= soonMs) return "por_vencer";
+  return "vigente";
+}
+
+export function companyDocumentVersionKey(doc = {}) {
+  const folder = folderKey(doc.folder || "");
+  const cat = String(doc.documentCategory || "").trim() || "otro";
+  const entityType = String(doc.entityType || "").trim() || "-";
+  const entityId = String(doc.entityId || "").trim() || folderKey(doc.entityLabel || "-");
+  return `${folder}|${cat}|${entityType}|${entityId}`;
+}
+
+export function listDocumentVersionChain(docs = [], target = {}) {
+  const group = String(target.versionGroup || "").trim();
+  const key = companyDocumentVersionKey(target);
+  return (docs || [])
+    .filter((d) => {
+      if (!d) return false;
+      if (group && String(d.versionGroup || "").trim() === group) return true;
+      return companyDocumentVersionKey(d) === key;
+    })
+    .sort((a, b) => (Number(b.version) || 1) - (Number(a.version) || 1) || String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")));
+}
+
+export function nextDocumentVersionState(docs = [], incoming = {}) {
+  const hasEntity = Boolean(String(incoming.entityId || incoming.entityLabel || incoming.versionGroup || "").trim());
+  if (!hasEntity) {
+    return { version: Math.max(1, Number(incoming.version) || 1), versionGroup: String(incoming.versionGroup || "").trim(), previousIds: [] };
+  }
+  const chain = listDocumentVersionChain(docs, incoming).filter((d) => String(d.id) !== String(incoming.id || ""));
+  const current = chain.find((d) => d.isCurrentVersion !== false) || chain[0] || null;
+  const maxVersion = chain.reduce((acc, d) => Math.max(acc, Number(d.version) || 1), 0);
+  return {
+    version: maxVersion + 1,
+    versionGroup: String(current?.versionGroup || incoming.versionGroup || "").trim() || (current?.id || ""),
+    previousIds: chain.filter((d) => d.isCurrentVersion !== false).map((d) => d.id)
+  };
 }
 
 /** Segmento de carpeta seguro a partir del nombre del empleado (sin “/”). */
@@ -463,6 +774,14 @@ export function folderKey(path) {
     .toLowerCase();
 }
 
+/** Catálogo personalizado persistido en la carpeta oculta del sistema. */
+export function readDocumentTypesFromFolderRecords(folderRecords = []) {
+  const rec = (folderRecords || []).find(
+    (f) => f && folderKey(f.folderName || f.nombre_carpeta || "") === folderKey(DOCUMENT_TYPES_CATALOG_FOLDER)
+  );
+  return parseDocumentTypesCatalog(rec?.description ?? rec?.descripcion ?? "");
+}
+
 /** True si `docFolder` es igual o descendiente de `filterPath`. */
 export function folderInSubtree(docFolder, filterPath) {
   const dk = folderKey(docFolder);
@@ -487,14 +806,47 @@ export function normalizeCompanyDocumentRow(row) {
   );
   const fileKind = fileTypeLabel(fileName, mimeType);
   const rawType = String(row.type ?? row.tipo ?? "").trim();
+  const parsedMeta = parseDocumentMeta(row.tags ?? row.etiquetas ?? "");
   /* `tipo` puede ser extensión (PDF) o categoría legacy; priorizar categoría en tags. */
-  const documentCategory = parseDocumentCategory(
-    row.documentCategory ?? row.categoria_documento ?? row.tags ?? row.etiquetas ?? ""
-  ) || (CATEGORY_MAP.has(rawType) ? rawType : "");
+  const documentCategory =
+    parseDocumentCategory(
+      row.documentCategory ?? row.categoria_documento ?? row.tags ?? row.etiquetas ?? ""
+    ) ||
+    parsedMeta.documentCategory ||
+    (CATEGORY_MAP.has(rawType) ? rawType : "");
   const type = CATEGORY_MAP.has(rawType) ? fileKind : rawType || fileKind;
   const createdAt = row.createdAt ?? row.fecha_creacion ?? new Date().toISOString();
   const updatedAt = row.updatedAt ?? row.fecha_actualizacion ?? createdAt;
-  return {
+  const issuedAt = isoDateOnly(row.issuedAt ?? row.fecha_emision ?? parsedMeta.issuedAt);
+  const expiresAt = isoDateOnly(row.expiresAt ?? row.fecha_vencimiento ?? parsedMeta.expiresAt);
+  const entityType = String(row.entityType ?? row.entidad_tipo ?? parsedMeta.entityType ?? "").trim();
+  const entityId = String(row.entityId ?? row.entidad_id ?? parsedMeta.entityId ?? "").trim();
+  const entityLabel = String(row.entityLabel ?? row.entidad_etiqueta ?? parsedMeta.entityLabel ?? "").trim();
+  const process = String(row.process ?? row.proceso ?? parsedMeta.process ?? "").trim();
+  const area = String(row.area ?? parsedMeta.area ?? "").trim();
+  const version = Math.max(1, Number(row.version ?? parsedMeta.version) || 1);
+  const versionGroup = String(row.versionGroup ?? row.grupo_version ?? parsedMeta.versionGroup ?? "").trim();
+  const isCurrentVersion = row.isCurrentVersion ?? row.es_vigente ?? parsedMeta.isCurrentVersion;
+  const documentCode = String(row.documentCode ?? row.codigo_documental ?? parsedMeta.documentCode ?? "").trim();
+  const storedStatus = String(row.validityStatus ?? row.status ?? row.estado ?? parsedMeta.validityStatus ?? "").trim();
+  const draft = {
+    documentCategory,
+    entityType,
+    entityId,
+    entityLabel,
+    issuedAt,
+    expiresAt,
+    version,
+    versionGroup,
+    process,
+    area,
+    documentCode,
+    isCurrentVersion: isCurrentVersion !== false,
+    validityStatus: storedStatus
+  };
+  const validityStatus =
+    storedStatus === "archivado" ? "archivado" : computeDocumentValidityStatus(draft);
+  const normalized = {
     id: String(row.id ?? ""),
     companyId: row.companyId ?? row.id_empresa ?? null,
     fileName,
@@ -505,11 +857,27 @@ export function normalizeCompanyDocumentRow(row) {
     sizeBytes: Number(row.sizeBytes ?? row.tamano_bytes ?? 0) || 0,
     storageKey: String(row.storageKey ?? row.storage_key ?? "").trim(),
     description: repairUtf8Mojibake(String(row.description ?? row.descripcion ?? "")),
-    tags: documentCategory || String(row.tags ?? row.etiquetas ?? "").trim(),
     uploadedBy: String(row.uploadedBy ?? row.subido_por ?? "Portal").trim() || "Portal",
     createdAt: String(createdAt),
-    updatedAt: String(updatedAt)
+    updatedAt: String(updatedAt),
+    entityType,
+    entityId,
+    entityLabel,
+    issuedAt,
+    expiresAt,
+    version,
+    versionGroup,
+    process,
+    area,
+    documentCode,
+    isCurrentVersion: draft.isCurrentVersion,
+    validityStatus
   };
+  normalized.tags =
+    serializeCompanyDocumentTags(normalized) ||
+    documentCategory ||
+    String(row.tags ?? row.etiquetas ?? "").trim();
+  return normalized;
 }
 
 /** Acciones con permiso por carpeta. */
@@ -575,14 +943,16 @@ export function roleAllowedInFolder(folderRecords, path, action, role) {
 }
 
 /** Todas las rutas de carpeta presentes (documentos + registros de carpeta). */
-export function collectAllFolderPaths(docs = [], folderRecords = []) {
+export function collectAllFolderPaths(docs = [], folderRecords = [], { includeHidden = false } = {}) {
   const set = new Map();
   for (const d of docs) {
     const p = normalizeCompanyFolder(d.folder);
+    if (!includeHidden && isHiddenCompanyFolder(p)) continue;
     set.set(folderKey(p), p);
   }
   for (const f of folderRecords) {
     const p = normalizeCompanyFolder(f.folderName);
+    if (!includeHidden && isHiddenCompanyFolder(p)) continue;
     set.set(folderKey(p), p);
   }
   return [...set.values()].sort((a, b) => a.localeCompare(b, "es"));
@@ -661,13 +1031,23 @@ export function totalStorageBytes(docs = []) {
 export function summarizeCompanyDocuments(docs = [], folderRecords = [], usersWithAccess = 0) {
   const folders = collectTopFolders(docs, folderRecords);
   const totalBytes = totalStorageBytes(docs);
+  let dueSoon = 0;
+  let expired = 0;
+  for (const d of docs) {
+    const status = computeDocumentValidityStatus(d);
+    if (status === "por_vencer") dueSoon += 1;
+    if (status === "vencido") expired += 1;
+  }
   return {
     folderCount: folders.length,
     docCount: docs.length,
     totalBytes,
     quotaBytes: COMPANY_STORAGE_QUOTA_BYTES,
     usedPercent: Math.min(100, Math.round((totalBytes / COMPANY_STORAGE_QUOTA_BYTES) * 100)),
-    usersWithAccess: Number(usersWithAccess) || 0
+    usersWithAccess: Number(usersWithAccess) || 0,
+    dueSoonCount: dueSoon,
+    expiredCount: expired,
+    alertCount: dueSoon + expired
   };
 }
 
@@ -678,19 +1058,65 @@ function stripAccents(s) {
     .toLowerCase();
 }
 
-/** Filtra por búsqueda (nombre/carpeta/tipo), tipo de archivo y carpeta principal. */
-export function applyCompanyDocumentFilters(docs = [], { search = "", type = "all", folder = "" } = {}) {
+/** Filtra por búsqueda (nombre/carpeta/tipo), tipo de archivo, carpeta y metadatos. */
+export function applyCompanyDocumentFilters(
+  docs = [],
+  {
+    search = "",
+    type = "all",
+    folder = "",
+    category = "",
+    status = "",
+    entityType = "",
+    entityId = "",
+    process = "",
+    dateField = "",
+    dateFrom = "",
+    dateTo = "",
+    onlyCurrentVersions = false
+  } = {}
+) {
   const q = stripAccents(String(search || "").trim());
   const typeFilter = String(type || "all").toLowerCase();
   const filterPath = folder ? normalizeCompanyFolder(folder) : "";
+  const catFilter = String(category || "").trim().toLowerCase();
+  const statusFilter = String(status || "").trim().toLowerCase();
+  const entityTypeFilter = String(entityType || "").trim().toLowerCase();
+  const entityIdFilter = String(entityId || "").trim();
+  const processFilter = String(process || "").trim().toLowerCase();
+  const from = isoDateOnly(dateFrom);
+  const to = isoDateOnly(dateTo);
+  const field = String(dateField || "").trim().toLowerCase();
   return docs.filter((d) => {
     if (filterPath && !folderInSubtree(d.folder, filterPath)) return false;
     if (typeFilter && typeFilter !== "all") {
       if (fileTypeGroup(d.fileName, d.mimeType) !== typeFilter) return false;
     }
+    if (catFilter && catFilter !== "all" && String(d.documentCategory || "").toLowerCase() !== catFilter) return false;
+    const validity = computeDocumentValidityStatus(d);
+    if (statusFilter && statusFilter !== "all" && validity !== statusFilter) return false;
+    if (entityTypeFilter && entityTypeFilter !== "all" && String(d.entityType || "").toLowerCase() !== entityTypeFilter) {
+      return false;
+    }
+    if (entityIdFilter && String(d.entityId || "") !== entityIdFilter) return false;
+    if (processFilter && processFilter !== "all" && String(d.process || "").toLowerCase() !== processFilter) return false;
+    if (onlyCurrentVersions && d.isCurrentVersion === false) return false;
+    if (from || to) {
+      const raw =
+        field === "expires"
+          ? d.expiresAt
+          : field === "issued"
+            ? d.issuedAt
+            : d.updatedAt || d.createdAt;
+      const stamp = isoDateOnly(raw);
+      if (from && (!stamp || stamp < from)) return false;
+      if (to && (!stamp || stamp > to)) return false;
+    }
     if (q) {
       const cat = getCompanyDocumentCategoryLabel(d.documentCategory || d.tags || "");
-      const hay = `${d.fileName} ${d.folder} ${d.type} ${cat} ${d.description || ""} ${d.uploadedBy || ""}`;
+      const entity = `${d.entityLabel || ""} ${getCompanyDocumentEntityTypeLabel(d.entityType)}`;
+      const proc = getCompanyDocumentProcessLabel(d.process);
+      const hay = `${d.fileName} ${d.folder} ${d.type} ${cat} ${d.description || ""} ${d.uploadedBy || ""} ${entity} ${proc} ${d.documentCode || ""} ${validity}`;
       if (!stripAccents(hay).includes(q)) return false;
     }
     return true;
@@ -710,10 +1136,19 @@ export function buildCompanyDocumentExportRows(docs = []) {
   return docs.map((d) => ({
     Archivo: d.fileName,
     Tipo: d.type,
+    "Tipo documental": getCompanyDocumentCategoryLabel(d.documentCategory || d.tags || ""),
     Carpeta: d.folder,
+    Entidad: d.entityLabel || "",
+    "Tipo de entidad": getCompanyDocumentEntityTypeLabel(d.entityType),
+    Proceso: getCompanyDocumentProcessLabel(d.process),
+    Estado: getDocumentValidityStatusLabel(computeDocumentValidityStatus(d)),
+    Emisión: d.issuedAt || "",
+    Vencimiento: d.expiresAt || "",
+    Versión: d.version || 1,
+    Código: d.documentCode || "",
     Tamaño: formatFileSize(d.sizeBytes),
     "Subido por": d.uploadedBy,
     "Fecha de modificación": d.updatedAt,
-    Descripción: d.description || ""
+    Descripción: sanitizeCompanyDocumentDescription(d.description || "")
   }));
 }

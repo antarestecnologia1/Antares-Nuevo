@@ -48,3 +48,6 @@ ALTER TABLE carpetas_documento_empresa
   ADD COLUMN IF NOT EXISTS roles_ver TEXT,
   ADD COLUMN IF NOT EXISTS roles_subir TEXT,
   ADD COLUMN IF NOT EXISTS roles_eliminar TEXT;
+
+-- Metadatos de vigencia, clasificación y versiones se persisten en `etiquetas` (JSON)
+-- del gestor corporativo: entidad, proceso, fechas, versión y código documental.

@@ -79,6 +79,7 @@ const ACCOUNT_STATUS = __pr.ACCOUNT_STATUS;
 const SESSION_IDLE_MS = __pr.SESSION_IDLE_MS;
 const VEHICLE_GRANULAR_PERMISSIONS = __pr.VEHICLE_GRANULAR_PERMISSIONS;
 const DOCUMENT_GRANULAR_PERMISSIONS = __pr.DOCUMENT_GRANULAR_PERMISSIONS;
+const SARLAFT_GRANULAR_PERMISSIONS = __pr.SARLAFT_GRANULAR_PERMISSIONS;
 const VIEW_PERMISSIONS = __pr.VIEW_PERMISSIONS;
 const announceSessionClosedByIdle = __pr.announceSessionClosedByIdle;
 const approvalDetailLine = __pr.approvalDetailLine;
@@ -8960,6 +8961,7 @@ const HISTORY_AUDIT_MODULE_PERMISSIONS = {
   payroll: ["payroll_manage"],
   hiring: ["hiring_manage"],
   sst: ["sst_compliance"],
+  sarlaft: ["sarlaft_manage", ...SARLAFT_GRANULAR_PERMISSIONS],
   documents: [
     "document_manage",
     "document_view",
@@ -10081,6 +10083,46 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
       fileName: "reporte_cumplimiento_laboral_sst.csv"
     };
   }
+  if (reportId === "sarlaft_pte") {
+    const parties = reportsFilterItemsByPeriod(
+      read(KEYS.sarlaftThirdParties, []),
+      exportFilters.period,
+      (item) => item.nextReviewDate || item.updatedAt || item.createdAt
+    );
+    const rows = parties.map((item) => ({
+      code: item.code || "-",
+      name: item.name || "-",
+      partyType: item.partyType || "-",
+      document: `${item.documentType || ""} ${item.documentNumber || ""}`.trim() || "-",
+      program: item.program || "-",
+      riskLevel: item.riskLevel || "-",
+      kycStatus: item.kycStatus || "-",
+      dueDiligence: item.dueDiligenceLevel || "-",
+      pep: item.pepFlag ? "Sí" : "No",
+      nextReview: item.nextReviewDate || "-",
+      responsible: item.responsibleName || "-",
+      createdAt: fmtDate(item.createdAt)
+    }));
+    return {
+      title: "SARLAFT / PTE",
+      columns: [
+        { key: "code", label: "Código" },
+        { key: "name", label: "Tercero" },
+        { key: "partyType", label: "Vínculo" },
+        { key: "document", label: "Documento" },
+        { key: "program", label: "Programa" },
+        { key: "riskLevel", label: "Riesgo" },
+        { key: "kycStatus", label: "Conocimiento" },
+        { key: "dueDiligence", label: "Debida diligencia" },
+        { key: "pep", label: "PEP" },
+        { key: "nextReview", label: "Próxima revisión" },
+        { key: "responsible", label: "Responsable" },
+        { key: "createdAt", label: "Registro" }
+      ],
+      rows,
+      fileName: "reporte_sarlaft_pte.csv"
+    };
+  }
   if (reportId === "users_access") {
     const users = reportsFilterItemsByPeriod(read(KEYS.users, []), exportFilters.period, (user) => user.systemJoinDate || user.registeredAt || user.createdAt);
     const rows = users.map((user) => ({
@@ -11064,6 +11106,10 @@ if (typeof window.setBootstrapCallbacks === "function") {
       normalizeEmployeeDocumentFolderRow: window.normalizeEmployeeDocumentFolderRow,
       normalizeCompanyDocumentRow: window.normalizeCompanyDocumentRow,
       normalizeCompanyFolderRow: window.normalizeCompanyFolderRow,
+      normalizeSarlaftThirdPartyRow: window.normalizeSarlaftThirdPartyRow,
+      normalizeSarlaftRiskProfileRow: window.normalizeSarlaftRiskProfileRow,
+      normalizeSarlaftAlertRow: window.normalizeSarlaftAlertRow,
+      normalizeSarlaftReviewRow: window.normalizeSarlaftReviewRow,
       dispatchPositionsCatalogUpdated
     }
   });

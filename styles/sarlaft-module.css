@@ -1,0 +1,103 @@
+/* ===================================================================
+   SARLAFT / PTE — extensiones sobre payroll-studio (misma shell que SST/GH)
+   Alcance: .sarlaft-studio.payroll-studio
+   =================================================================== */
+
+.sarlaft-studio.payroll-studio {
+  --sarlaft-navy: #0f2744;
+  --sarlaft-gold: #b45309;
+}
+
+.sarlaft-studio .sst-status-cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.sarlaft-studio .sst-status-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.95rem 1rem;
+  border-radius: 14px;
+  border: 1px solid var(--pay-edge, #e2e8f0);
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 20px rgba(15, 23, 42, 0.04);
+}
+
+.sarlaft-studio .sarlaft-risk-chip,
+.sarlaft-studio .sst-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.18rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.sarlaft-studio .sarlaft-risk-chip--bajo,
+.sarlaft-studio .sst-status-pill--ok { background: #dcfce7; color: #166534; }
+.sarlaft-studio .sarlaft-risk-chip--medio,
+.sarlaft-studio .sst-status-pill--warning { background: #fef3c7; color: #92400e; }
+.sarlaft-studio .sarlaft-risk-chip--alto { background: #ffedd5; color: #9a3412; }
+.sarlaft-studio .sarlaft-risk-chip--critico,
+.sarlaft-studio .sst-status-pill--expired { background: #fee2e2; color: #991b1b; }
+.sarlaft-studio .sst-status-pill--missing,
+.sarlaft-studio .sst-status-pill--total { background: #e2e8f0; color: #334155; }
+
+.sarlaft-studio .sarlaft-pep-flag {
+  display: inline-flex;
+  margin-left: 0.35rem;
+  padding: 0.08rem 0.4rem;
+  border-radius: 6px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.sarlaft-studio .sarlaft-party-cell small {
+  display: block;
+  color: var(--muted, #64748b);
+  font-size: 0.78rem;
+}
+
+.sarlaft-studio .sarlaft-evidence-list {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sarlaft-studio .sarlaft-evidence-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 10px;
+  border: 1px solid var(--pay-edge, #e2e8f0);
+  background: var(--pay-surface, #f8fafc);
+  font-size: 0.84rem;
+}
+
+.sarlaft-studio .sarlaft-link-docs {
+  margin-top: 0.35rem;
+}
+
+@media (max-width: 960px) {
+  .sarlaft-studio .sst-status-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .sarlaft-studio .sst-status-cards {
+    grid-template-columns: 1fr;
+  }
+}

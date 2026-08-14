@@ -70,6 +70,10 @@ export function scopePortalBootstrapPayloadForClient(p, user) {
     scoped.positions = [];
     scoped.hrAbsences = [];
     scoped.sstCompliance = [];
+    scoped.sarlaftThirdParties = [];
+    scoped.sarlaftRiskProfiles = [];
+    scoped.sarlaftAlerts = [];
+    scoped.sarlaftReviews = [];
     scoped.emails = [];
     scoped.contacts = [];
     scoped.counters = {};

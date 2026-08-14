@@ -11,12 +11,18 @@ import {
   canUploadDocuments,
   canEditDocuments,
   canDeleteDocuments,
+  canDownloadDocuments,
+  canManageAllDocuments,
   currentUser
 } from "../core/auth.js";
-import { escapeHtml, escapeAttr, newUuidV4, devWarn, colombiaTodayIsoDate } from "../core/utils.js";
+import { escapeHtml, escapeAttr, newUuidV4, devWarn, colombiaTodayIsoDate, normalizeCompanyKindForDb } from "../core/utils.js";
 import {
   COMPANY_DOCUMENT_MAX_BYTES,
   COMPANY_DOCUMENT_CATEGORIES,
+  COMPANY_DOCUMENT_ENTITY_TYPES,
+  COMPANY_DOCUMENT_PROCESSES,
+  DOCUMENT_VALIDITY_STATUSES,
+  DOCUMENT_TYPES_CATALOG_FOLDER,
   DEFAULT_COMPANY_FOLDER,
   EMPLOYEES_ROOT_FOLDER,
   SUGGESTED_COMPANY_FOLDERS,
@@ -48,6 +54,18 @@ import {
   folderRoleAllowlist,
   roleAllowedInFolder,
   getCompanyDocumentCategoryLabel,
+  getCompanyDocumentEntityTypeLabel,
+  getCompanyDocumentProcessLabel,
+  getDocumentValidityStatusLabel,
+  listCompanyDocumentCategories,
+  findCompanyDocumentCategory,
+  readDocumentTypesFromFolderRecords,
+  serializeDocumentTypesCatalog,
+  serializeCompanyDocumentTags,
+  isHiddenCompanyFolder,
+  computeDocumentValidityStatus,
+  listDocumentVersionChain,
+  nextDocumentVersionState,
   summarizeCompanyDocuments,
   applyCompanyDocumentFilters,
   sortByRecent,
@@ -171,6 +189,13 @@ function getUi() {
       viewMode: "grid",
       search: "",
       typeFilter: "all",
+      categoryFilter: "all",
+      statusFilter: "all",
+      entityTypeFilter: "all",
+      processFilter: "all",
+      dateFrom: "",
+      dateTo: "",
+      dateField: "updated",
       folderFilter: EMPLOYEES_ROOT_FOLDER,
       showFilters: false,
       showTrash: false,
@@ -184,6 +209,13 @@ function getUi() {
   if (!ui.folderPage) ui.folderPage = 1;
   if (ui.showTrash == null) ui.showTrash = false;
   if (!ui.viewMode) ui.viewMode = "grid";
+  if (!ui.categoryFilter) ui.categoryFilter = "all";
+  if (!ui.statusFilter) ui.statusFilter = "all";
+  if (!ui.entityTypeFilter) ui.entityTypeFilter = "all";
+  if (!ui.processFilter) ui.processFilter = "all";
+  if (!ui.dateField) ui.dateField = "updated";
+  if (ui.dateFrom == null) ui.dateFrom = "";
+  if (ui.dateTo == null) ui.dateTo = "";
   return ui;
 }
 function patchUi(patch) {
@@ -260,8 +292,114 @@ function visibleDocs(docs, folders) {
   return docs.filter((d) => canViewFolder(folders, d.folder));
 }
 function visibleFolders(folders) {
-  if (isDocManager()) return folders;
-  return folders.filter((f) => canViewFolder(folders, f.folderName));
+  const list = isDocManager() ? folders : folders.filter((f) => canViewFolder(folders, f.folderName));
+  return list.filter((f) => !isHiddenCompanyFolder(f.folderName));
+}
+
+function canDownload() {
+  return canDownloadDocuments(userObj());
+}
+
+function canManageTypes() {
+  return canManageAllDocuments(userObj()) || isDocManager();
+}
+
+function customDocumentTypes() {
+  return readDocumentTypesFromFolderRecords(readFolders());
+}
+
+function documentCategories() {
+  return listCompanyDocumentCategories(customDocumentTypes());
+}
+
+function logDocumentAction(action, doc, extra = {}) {
+  if (!doc?.id) return;
+  const display = formatCompanyDocumentDisplayName(doc);
+  const titles = {
+    view: "Consulta de documento",
+    download: "Descarga de documento",
+    status: "Cambio de estado documental",
+    version: "Nueva versión de documento"
+  };
+  G.logPortalAuditEvent?.("documents", action === "create" || action === "delete" ? action : "update", {
+    entityId: doc.id,
+    entityKind: "document",
+    entityLabel: `${doc.folder} · ${display.label || doc.fileName}`,
+    summary: `${titles[action] || extra.summary || "Actualización de documento"} · ${display.label || doc.fileName}`,
+    detailAction: action,
+    usuario: actor(),
+    actor: actor(),
+    at: extra.at || new Date().toISOString(),
+    ...extra
+  });
+}
+
+function entityOptionsForType(entityType) {
+  const t = String(entityType || "").trim();
+  const opts = [{ value: "", label: "Sin asociar" }];
+  if (t === "empleado") {
+    for (const e of read(KEYS.payrollEmployees, [])) {
+      const id = String(e?.id || "").trim();
+      const name = String(e?.name || e?.fullName || "").trim();
+      if (id && name) opts.push({ value: id, label: name });
+    }
+  } else if (t === "conductor") {
+    for (const d of read(KEYS.drivers, [])) {
+      const id = String(d?.id || "").trim();
+      const name = String(d?.fullName || d?.name || "").trim();
+      if (id && name) opts.push({ value: id, label: name });
+    }
+  } else if (t === "vehiculo") {
+    for (const v of read(KEYS.vehicles, [])) {
+      const id = String(v?.id || "").trim();
+      const plate = String(v?.plate || "").trim().toUpperCase();
+      if (id && plate) opts.push({ value: id, label: [plate, v.brand, v.model].filter(Boolean).join(" · ") });
+    }
+  } else if (t === "tercero") {
+    for (const c of read(KEYS.companies, [])) {
+      if (normalizeCompanyKindForDb(c?.companyKind) !== "tercero") continue;
+      const id = String(c?.id || "").trim();
+      const name = String(c?.name || "").trim();
+      if (id && name) opts.push({ value: id, label: name });
+    }
+  } else if (t === "contrato") {
+    for (const c of read(KEYS.contracts, [])) {
+      const id = String(c?.id || "").trim();
+      if (!id) continue;
+      const label =
+        String(c?.employeeName || c?.candidateName || c?.positionTitle || c?.id || "").trim() || "Contrato";
+      opts.push({ value: id, label });
+    }
+  } else if (t === "sst") {
+    for (const r of read(KEYS.sstCompliance, [])) {
+      const id = String(r?.id || "").trim();
+      if (!id) continue;
+      const label = [r.recordType, r.employeeName, r.documentCode].filter(Boolean).join(" · ") || "Control SST";
+      opts.push({ value: id, label });
+    }
+  }
+  return opts;
+}
+
+function resolveEntityLabel(entityType, entityId, fallback = "") {
+  const hit = entityOptionsForType(entityType).find((o) => o.value && o.value === String(entityId || ""));
+  return String(hit?.label || fallback || "").trim();
+}
+
+function suggestedFolderForEntity(entityType, entityLabel = "") {
+  const t = String(entityType || "").trim();
+  const leaf = String(entityLabel || "")
+    .replace(/[\\/]+/g, " ")
+    .trim()
+    .slice(0, 120);
+  if (t === "empleado" && leaf) return `${EMPLOYEES_ROOT_FOLDER}${leaf ? ` / ${leaf}` : ""}`;
+  if (t === "conductor" && leaf) return `07. Operación / Conductores / ${leaf}`;
+  if (t === "vehiculo" && leaf) return `07. Operación / Vehículos / ${leaf}`;
+  if (t === "tercero" && leaf) return `06. Terceros / ${leaf}`;
+  if (t === "contrato") return "02. Contratación";
+  if (t === "sst") return "03. SST";
+  if (t === "operacion") return "07. Operación";
+  return "";
 }
 
 function usersWithAccessCount() {
@@ -298,12 +436,16 @@ function renderHeader(ui, IC) {
   const newFolderBtn = canUpload()
     ? `<button type="button" class="doc-btn doc-btn--ghost" data-action="doc-new-folder">${IC.plus || ""}<span>Nueva carpeta</span></button>`
     : "";
+  const typesBtn = canManageTypes()
+    ? `<button type="button" class="doc-btn doc-btn--ghost" data-action="doc-manage-types">${IC.file || ""}<span>Tipos documentales</span></button>`
+    : "";
   return `<header class="doc-topbar">
     <div class="doc-topbar__titles">
       <h1 class="doc-topbar__title">Gestión documental</h1>
       <p class="doc-topbar__subtitle">Administra y organiza todos los documentos de la empresa.</p>
     </div>
     <div class="doc-topbar__actions">
+      ${typesBtn}
       ${newFolderBtn}
       ${uploadBtn}
     </div>
@@ -332,7 +474,34 @@ function renderKpis(summary, IC) {
   </section>`;
 }
 
-function mergeSuggestedTopFolders(topFolders) {
+function renderValidityBanner(summary) {
+  const due = Number(summary.dueSoonCount) || 0;
+  const expired = Number(summary.expiredCount) || 0;
+  if (!due && !expired) return "";
+  const parts = [];
+  if (expired) {
+    parts.push(
+      `<button type="button" class="doc-alert-chip doc-alert-chip--expired" data-action="doc-filter-status" data-status="vencido">${expired} vencido${expired === 1 ? "" : "s"}</button>`
+    );
+  }
+  if (due) {
+    parts.push(
+      `<button type="button" class="doc-alert-chip doc-alert-chip--soon" data-action="doc-filter-status" data-status="por_vencer">${due} por vencer</button>`
+    );
+  }
+  return `<section class="doc-alert-bar" role="status" aria-label="Alertas de vigencia">
+    <p class="doc-alert-bar__text">Hay documentos con vigencia crítica. Filtre para revisarlos.</p>
+    <div class="doc-alert-bar__chips">${parts.join("")}</div>
+  </section>`;
+}
+
+function validityBadge(doc) {
+  const status = computeDocumentValidityStatus(doc);
+  if (status === "sin_vigencia") return "";
+  const label = getDocumentValidityStatusLabel(status);
+  const extra = doc.expiresAt && (status === "por_vencer" || status === "vencido") ? ` · ${formatDateShort(doc.expiresAt)}` : "";
+  return `<span class="doc-validity doc-validity--${status}">${escapeHtml(label)}${escapeHtml(extra)}</span>`;
+}
   const map = new Map((topFolders || []).map((f) => [f.key, f]));
   const suggested = SUGGESTED_COMPANY_FOLDERS.map((name) => {
     const key = folderKey(name);
@@ -375,7 +544,7 @@ function renderCategoryRail(topFolders, ui, IC) {
   const allFolders = readFolders();
   const cards = topFolders
     .map((f, i) => {
-      const active = !ui.showTrash && ui.folderFilter && folderKey(topFolderName(ui.folderFilter)) === f.key;
+      const active = !ui.showTrash && ui.folderFilter && ui.folderFilter !== "*" && folderKey(topFolderName(ui.folderFilter)) === f.key;
       const count =
         f.subfolderCount > 0
           ? `${f.subfolderCount} carpeta${f.subfolderCount === 1 ? "" : "s"}`
@@ -408,6 +577,16 @@ function renderExplorerPath(ui, IC) {
         <span class="doc-crumb is-current">Papelera</span>
       </nav>
       <button type="button" class="doc-trash-link is-active" data-action="doc-toggle-trash" aria-pressed="true">${IC_TRASH}<span>Papelera</span></button>
+    </div>`;
+  }
+  if (ui.folderFilter === "*") {
+    return `<div class="doc-explorer-path">
+      <nav class="doc-breadcrumb" aria-label="Ruta">
+        <button type="button" class="doc-crumb" data-action="doc-crumb" data-path="">Documentos</button>
+        <span class="doc-crumb-sep">›</span>
+        <span class="doc-crumb is-current">Todos (filtro de vigencia)</span>
+      </nav>
+      <button type="button" class="doc-trash-link" data-action="doc-toggle-trash" aria-pressed="false">${IC_TRASH}<span>Ver papelera</span></button>
     </div>`;
   }
   const segs = ui.folderFilter ? folderSegments(ui.folderFilter) : [];
@@ -452,6 +631,33 @@ function renderExplorerToolbar(ui, IC) {
   const typeOptions = TYPE_FILTERS.map(
     (t) => `<option value="${escapeAttr(t.value)}"${ui.typeFilter === t.value ? " selected" : ""}>${escapeHtml(t.label)}</option>`
   ).join("");
+  const categoryOptions = [
+    { value: "all", label: "Todos los tipos documentales" },
+    ...documentCategories()
+  ]
+    .map(
+      (t) =>
+        `<option value="${escapeAttr(t.value)}"${ui.categoryFilter === t.value ? " selected" : ""}>${escapeHtml(t.label)}</option>`
+    )
+    .join("");
+  const statusOptions = [{ value: "all", label: "Todos los estados" }, ...DOCUMENT_VALIDITY_STATUSES]
+    .map(
+      (t) =>
+        `<option value="${escapeAttr(t.value)}"${ui.statusFilter === t.value ? " selected" : ""}>${escapeHtml(t.label)}</option>`
+    )
+    .join("");
+  const entityOptions = [{ value: "all", label: "Todas las entidades" }, ...COMPANY_DOCUMENT_ENTITY_TYPES]
+    .map(
+      (t) =>
+        `<option value="${escapeAttr(t.value)}"${ui.entityTypeFilter === t.value ? " selected" : ""}>${escapeHtml(t.label)}</option>`
+    )
+    .join("");
+  const processOptions = [{ value: "all", label: "Todos los procesos" }, ...COMPANY_DOCUMENT_PROCESSES]
+    .map(
+      (t) =>
+        `<option value="${escapeAttr(t.value)}"${ui.processFilter === t.value ? " selected" : ""}>${escapeHtml(t.label)}</option>`
+    )
+    .join("");
   return `<div class="doc-explorer-toolbar">
     <label class="doc-explorer-search">
       <span class="doc-explorer-search__icon">${IC.search || ""}</span>
@@ -472,7 +678,13 @@ function renderExplorerToolbar(ui, IC) {
     ${
       ui.showFilters
         ? `<div class="doc-filterbar doc-filterbar--inline">
-      <label class="doc-select doc-select--labeled"><span>Tipo</span><select data-action="doc-type-filter" aria-label="Filtrar por tipo">${typeOptions}</select></label>
+      <label class="doc-select doc-select--labeled"><span>Archivo</span><select data-action="doc-type-filter" aria-label="Filtrar por tipo de archivo">${typeOptions}</select></label>
+      <label class="doc-select doc-select--labeled"><span>Tipo documental</span><select data-action="doc-category-filter" aria-label="Filtrar por tipo documental">${categoryOptions}</select></label>
+      <label class="doc-select doc-select--labeled"><span>Estado</span><select data-action="doc-status-filter" aria-label="Filtrar por vigencia">${statusOptions}</select></label>
+      <label class="doc-select doc-select--labeled"><span>Entidad</span><select data-action="doc-entity-filter" aria-label="Filtrar por entidad">${entityOptions}</select></label>
+      <label class="doc-select doc-select--labeled"><span>Proceso</span><select data-action="doc-process-filter" aria-label="Filtrar por proceso">${processOptions}</select></label>
+      <label class="doc-select doc-select--labeled"><span>Desde</span><input type="date" data-action="doc-date-from" value="${escapeAttr(ui.dateFrom || "")}" aria-label="Fecha desde" /></label>
+      <label class="doc-select doc-select--labeled"><span>Hasta</span><input type="date" data-action="doc-date-to" value="${escapeAttr(ui.dateTo || "")}" aria-label="Fecha hasta" /></label>
       <button type="button" class="doc-btn doc-btn--ghost doc-btn--sm" data-action="doc-clear-filters">Limpiar</button>
       <button type="button" class="doc-btn doc-btn--ghost doc-btn--sm" data-action="doc-export-csv">Exportar CSV</button>
       <span class="doc-filterbar__hint muted">Orden: ${escapeHtml(sortLabel)}</span>
@@ -593,7 +805,9 @@ function rowMenu(doc, IC, folders = []) {
   if (canPreviewFileType(doc.fileName, doc.mimeType)) {
     items.push(`<button type="button" data-action="doc-preview" data-id="${escapeAttr(doc.id)}">${IC.eye || ""}<span>Vista previa</span></button>`);
   }
-  items.push(`<button type="button" data-action="doc-download" data-id="${escapeAttr(doc.id)}">${IC.download || ""}<span>Descargar</span></button>`);
+  if (canDownload()) {
+    items.push(`<button type="button" data-action="doc-download" data-id="${escapeAttr(doc.id)}">${IC.download || ""}<span>Descargar</span></button>`);
+  }
   if (canEditFolder(folders, doc.folder)) {
     items.push(`<button type="button" data-action="doc-edit" data-id="${escapeAttr(doc.id)}">${IC.edit || ""}<span>Editar / mover</span></button>`);
   }
@@ -604,9 +818,10 @@ function rowMenu(doc, IC, folders = []) {
 }
 
 function categoryPill(doc) {
-  const label = getCompanyDocumentCategoryLabel(doc.documentCategory || doc.tags);
+  const label = getCompanyDocumentCategoryLabel(doc.documentCategory || doc.tags, customDocumentTypes());
   if (!label) return "";
-  return `<span class="doc-category-pill">${escapeHtml(label)}</span>`;
+  const ver = Number(doc.version) > 1 ? ` v${doc.version}` : "";
+  return `<span class="doc-category-pill">${escapeHtml(label)}${escapeHtml(ver)}</span>`;
 }
 
 function renderTable(pageDocs, IC, folders = []) {
@@ -617,6 +832,8 @@ function renderTable(pageDocs, IC, folders = []) {
       <td class="doc-cell-name"><span class="doc-fileicon doc-fileicon--${fileTypeGroup(d.fileName, d.mimeType)}" aria-hidden="true">${IC.file || ""}</span>${documentNameBlock(d)}</td>
       <td>${typeBadge(d)}</td>
       <td>${categoryPill(d) || `<span class="muted">—</span>`}</td>
+      <td>${d.entityLabel ? `<span title="${escapeAttr(getCompanyDocumentEntityTypeLabel(d.entityType))}">${escapeHtml(d.entityLabel)}</span>` : `<span class="muted">—</span>`}</td>
+      <td>${validityBadge(d) || `<span class="muted">—</span>`}</td>
       <td class="doc-cell-folder" title="${escapeAttr(d.folder)}">${escapeHtml(folderLeafName(d.folder) || d.folder)}</td>
       <td class="doc-cell-size">${escapeHtml(formatFileSize(d.sizeBytes))}</td>
       <td class="doc-cell-date">${escapeHtml(formatDate(d.updatedAt))}</td>
@@ -624,7 +841,7 @@ function renderTable(pageDocs, IC, folders = []) {
     </tr>`
     )
     .join("");
-  return `<div class="doc-table-wrap"><table class="doc-table"><thead><tr><th>Nombre</th><th>Archivo</th><th>Tipo documental</th><th>Carpeta</th><th>Tamaño</th><th>Fecha de modificación</th><th aria-label="Acciones"></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  return `<div class="doc-table-wrap"><table class="doc-table"><thead><tr><th>Nombre</th><th>Archivo</th><th>Tipo documental</th><th>Entidad</th><th>Vigencia</th><th>Carpeta</th><th>Tamaño</th><th>Fecha de modificación</th><th aria-label="Acciones"></th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 function renderGrid(pageDocs, IC, folders = []) {
@@ -638,6 +855,8 @@ function renderGrid(pageDocs, IC, folders = []) {
       <p class="doc-card__sub">${escapeHtml([display.subtitle, display.ext].filter(Boolean).join(" · "))}</p>
       <p class="doc-card__folder" title="${escapeAttr(d.folder)}">${escapeHtml(folderLeafName(d.folder) || d.folder)}</p>
       ${categoryPill(d)}
+      ${d.entityLabel ? `<p class="doc-card__entity">${escapeHtml(d.entityLabel)}</p>` : ""}
+      ${validityBadge(d)}
       <footer class="doc-card__foot"><span>${escapeHtml(formatFileSize(d.sizeBytes))}</span><span>${escapeHtml(formatDateShort(d.updatedAt))}</span></footer>
     </article>`;
     })
@@ -729,7 +948,7 @@ function renderOnboarding(IC) {
   return `<section class="doc-onboarding">
     <span class="doc-onboarding__icon">${IC.folder || ""}</span>
     <h2 class="doc-onboarding__title">Comienza tu gestor documental</h2>
-    <p class="doc-onboarding__text">Las carpetas base (Empleados, Contratación, SST, Legal, Finanzas) y una carpeta por colaborador se crean automáticamente. Sube el primer documento para empezar.</p>
+    <p class="doc-onboarding__text">Las carpetas base (Empleados, Contratación, SST, Legal, Finanzas, Terceros y Operación) y una carpeta por colaborador se crean automáticamente. Sube el primer documento para empezar.</p>
     ${actions}
   </section>`;
 }
@@ -744,9 +963,11 @@ function documentManagementHtml() {
   const docs = visibleDocs(readDocs(), allFolders);
   const folders = visibleFolders(allFolders);
   const summary = summarizeCompanyDocuments(docs, folders, usersWithAccessCount());
-  const topFolders = mergeSuggestedTopFolders(collectTopFolders(docs, folders));
+  const topFolders = mergeSuggestedTopFolders(collectTopFolders(docs, folders)).filter(
+    (f) => !isHiddenCompanyFolder(f.name)
+  );
 
-  if (!ui.showTrash && !ui.folderFilter && topFolders.length) {
+  if (!ui.showTrash && ui.folderFilter !== "*" && !ui.folderFilter && topFolders.length) {
     ui.folderFilter = topFolders[0].name;
   }
 
@@ -766,8 +987,9 @@ function documentManagementHtml() {
     </section>`;
   }
 
+  const browseAll = ui.folderFilter === "*";
   const q = stripSearch(ui.search);
-  let subfolders = ui.folderFilter ? collectSubfolders(docs, folders, ui.folderFilter) : [];
+  let subfolders = browseAll || !ui.folderFilter ? [] : collectSubfolders(docs, folders, ui.folderFilter);
   if (q) subfolders = subfolders.filter((s) => stripSearch(s.name).includes(q) || stripSearch(s.path).includes(q));
   subfolders = sortSubfolders(subfolders, ui.sortKey);
 
@@ -775,7 +997,15 @@ function documentManagementHtml() {
     applyCompanyDocumentFilters(docs, {
       search: ui.search,
       type: ui.typeFilter,
-      folder: ui.folderFilter
+      folder: browseAll ? "" : ui.folderFilter,
+      category: ui.categoryFilter,
+      status: ui.statusFilter,
+      entityType: ui.entityTypeFilter,
+      process: ui.processFilter,
+      dateField: ui.dateField,
+      dateFrom: ui.dateFrom,
+      dateTo: ui.dateTo,
+      onlyCurrentVersions: false
     }),
     ui.sortKey
   );
@@ -784,9 +1014,9 @@ function documentManagementHtml() {
    * usuario busca, o solo los de la ruta exacta si no. En hojas (sin subcarpetas)
    * siempre mostrar elSubtree completo (incluye la carpeta actual).
    */
-  const depth = folderSegments(ui.folderFilter || "").length;
+  const depth = browseAll ? 0 : folderSegments(ui.folderFilter || "").length;
   const listDocs =
-    subfolders.length && !q && depth <= 1
+    !browseAll && subfolders.length && !q && depth <= 1
       ? filtered.filter((d) => folderKey(d.folder) === folderKey(ui.folderFilter))
       : filtered;
 
@@ -819,6 +1049,7 @@ function documentManagementHtml() {
   return `<section class="documents-studio doc-studio doc-studio--explorer">
     ${renderHeader(ui, IC)}
     ${renderKpis(summary, IC)}
+    ${renderValidityBanner(summary)}
     ${renderCategoryRail(topFolders, ui, IC)}
     <div class="doc-layout">
       <div class="doc-main">
@@ -910,7 +1141,9 @@ async function archivePayrollRunToEmployeeFolder(run) {
       tags: "comprobante_pago",
       uploadedBy: by,
       createdAt: nowIso,
-      updatedAt: nowIso
+      updatedAt: nowIso,
+      ...employeeEntityMeta(employee),
+      process: "rrhh"
     });
     await writeAwaitServerCreate(KEYS.companyDocuments, [...readDocs(), record], record);
     return { ok: true, created: true, path: folder, fileName: record.fileName, id: record.id };
@@ -921,7 +1154,16 @@ async function archivePayrollRunToEmployeeFolder(run) {
 }
 
 /** ¿Ya existe un documento corporativo con este marcador de alta? */
-function hasHireDocMarker(marker) {
+function employeeEntityMeta(employee) {
+  const id = String(employee?.id || "").trim();
+  const name = String(employee?.name || employee?.fullName || "").trim();
+  return {
+    entityType: "empleado",
+    entityId: id,
+    entityLabel: name,
+    process: "rrhh"
+  };
+}
   if (!marker) return false;
   return readDocs().some((d) => String(d.description || "").includes(marker));
 }
@@ -960,7 +1202,9 @@ async function archiveBlobToEmployeeFolder({
       tags: cat,
       uploadedBy: by,
       createdAt: nowIso,
-      updatedAt: nowIso
+      updatedAt: nowIso,
+      ...employeeEntityMeta(employee),
+      process: cat === "contrato" || cat === "hoja_vida" ? "contratacion" : "rrhh"
     });
     await writeAwaitServerCreate(KEYS.companyDocuments, [...readDocs(), record], record);
     return { ok: true, created: true, id: record.id, path: folder, fileName: record.fileName };
@@ -1679,23 +1923,191 @@ async function ensureCompanyDocumentStructure(opts = {}) {
 
 function documentCategoryOptionsHtml(selected = "otro") {
   const sel = String(selected || "otro");
-  return COMPANY_DOCUMENT_CATEGORIES.map((c) => ({
+  return documentCategories().map((c) => ({
     value: c.value,
     label: c.label,
     selected: c.value === sel
   }));
 }
 
+function selectOptionsHtml(items, selected) {
+  const sel = String(selected || "");
+  return (items || [])
+    .map(
+      (o) =>
+        `<option value="${escapeAttr(o.value)}"${String(o.value) === sel ? " selected" : ""}>${escapeHtml(o.label)}</option>`
+    )
+    .join("");
+}
+
+function documentMetaFieldsHtml(values = {}, { includeFolderHint = false } = {}) {
+  const cats = documentCategories();
+  const selectedCat = findCompanyDocumentCategory(values.documentCategory || "otro", customDocumentTypes());
+  const entityType = String(values.entityType || "");
+  const entityOpts = entityOptionsForType(entityType);
+  return `<section class="doc-upload-modal__section">
+    <header class="doc-upload-modal__head">
+      <span class="doc-upload-modal__step">4</span>
+      <div>
+        <h4 class="doc-upload-modal__title">Clasificación y vigencia</h4>
+        <p class="doc-upload-modal__hint">Asocie el documento a una entidad, proceso y fechas de control</p>
+      </div>
+    </header>
+    <div class="doc-meta-grid">
+      <label class="doc-upload-modal__select-wrap">
+        <span>Proceso</span>
+        <select name="process">${selectOptionsHtml([{ value: "", label: "Sin proceso" }, ...COMPANY_DOCUMENT_PROCESSES], values.process || selectedCat?.process || "")}</select>
+      </label>
+      <label class="doc-upload-modal__select-wrap">
+        <span>Área / necesidad</span>
+        <input type="text" name="area" maxlength="80" value="${escapeAttr(values.area || selectedCat?.area || "")}" placeholder="Ej. flota, SST, nómina" />
+      </label>
+      <label class="doc-upload-modal__select-wrap">
+        <span>Clasificar por entidad</span>
+        <select name="entityType" data-doc-entity-type>
+          ${selectOptionsHtml([{ value: "", label: "Sin entidad" }, ...COMPANY_DOCUMENT_ENTITY_TYPES], entityType)}
+        </select>
+      </label>
+      <label class="doc-upload-modal__select-wrap">
+        <span>Entidad</span>
+        <select name="entityId" data-doc-entity-id>${selectOptionsHtml(entityOpts, values.entityId || "")}</select>
+        <small>También puede escribir un nombre libre si no está parametrizado.</small>
+      </label>
+      <label class="doc-upload-modal__select-wrap">
+        <span>Nombre de entidad (si no está en lista)</span>
+        <input type="text" name="entityLabel" maxlength="200" value="${escapeAttr(values.entityLabel || "")}" placeholder="Tercero, proceso u otra referencia" />
+      </label>
+      <label class="doc-upload-modal__select-wrap">
+        <span>Código documental</span>
+        <input type="text" name="documentCode" maxlength="64" value="${escapeAttr(values.documentCode || "")}" placeholder="Opcional" />
+      </label>
+      <label class="doc-upload-modal__select-wrap">
+        <span>Fecha de emisión</span>
+        <input type="date" name="issuedAt" value="${escapeAttr(values.issuedAt || "")}" />
+      </label>
+      <label class="doc-upload-modal__select-wrap">
+        <span>Fecha de vencimiento</span>
+        <input type="date" name="expiresAt" value="${escapeAttr(values.expiresAt || "")}" />
+      </label>
+    </div>
+    ${includeFolderHint ? `<p class="doc-upload-modal__hint">Si asocia un empleado, conductor, vehículo o tercero, se sugerirá la carpeta de evidencias correspondiente.</p>` : ""}
+  </section>`;
+}
+
+function wireDocumentMetaFields(formEl) {
+  if (!formEl) return;
+  const typeSel = formEl.querySelector("[data-doc-entity-type]");
+  const idSel = formEl.querySelector("[data-doc-entity-id]");
+  const labelInput = formEl.querySelector("[name='entityLabel']");
+  const processSel = formEl.querySelector("[name='process']");
+  const areaInput = formEl.querySelector("[name='area']");
+  const expiresInput = formEl.querySelector("[name='expiresAt']");
+  const catInput = formEl.querySelector("[data-doc-category-input]");
+  const syncEntity = () => {
+    if (!idSel || !typeSel) return;
+    const current = idSel.value;
+    idSel.innerHTML = selectOptionsHtml(entityOptionsForType(typeSel.value), current);
+    const chosen = entityOptionsForType(typeSel.value).find((o) => o.value && o.value === idSel.value);
+    if (chosen && labelInput && !String(labelInput.value || "").trim()) labelInput.value = chosen.label;
+  };
+  typeSel?.addEventListener("change", syncEntity);
+  idSel?.addEventListener("change", () => {
+    const chosen = entityOptionsForType(typeSel?.value).find((o) => o.value && o.value === idSel.value);
+    if (chosen && labelInput) labelInput.value = chosen.label;
+  });
+  const applyCategoryDefaults = (value) => {
+    const cat = findCompanyDocumentCategory(value, customDocumentTypes());
+    if (!cat) return;
+    if (processSel && !String(processSel.value || "").trim()) processSel.value = cat.process || "";
+    if (areaInput && !String(areaInput.value || "").trim()) areaInput.value = cat.area || "";
+    if (expiresInput) expiresInput.required = Boolean(cat.requiresExpiry);
+  };
+  catInput && applyCategoryDefaults(catInput.value);
+  formEl.querySelector("[data-doc-category-select]")?.addEventListener("change", (e) => applyCategoryDefaults(e.target.value));
+}
+
+function readMetaFromForm(form) {
+  const entityType = String(form.entityType || "").trim();
+  const entityId = String(form.entityId || "").trim();
+  const entityLabel =
+    String(form.entityLabel || "").trim() || resolveEntityLabel(entityType, entityId);
+  return {
+    process: String(form.process || "").trim(),
+    area: String(form.area || "").trim(),
+    entityType,
+    entityId,
+    entityLabel,
+    documentCode: String(form.documentCode || "").trim(),
+    issuedAt: String(form.issuedAt || "").trim(),
+    expiresAt: String(form.expiresAt || "").trim()
+  };
+}
+
+async function supersedePreviousVersions(incoming) {
+  const docs = readDocs();
+  const next = nextDocumentVersionState(docs, incoming);
+  const versionGroup = next.versionGroup || incoming.id;
+  for (const id of next.previousIds || []) {
+    const prev = docs.find((d) => String(d.id) === String(id));
+    if (!prev) continue;
+    const updated = normalizeCompanyDocumentRow({
+      ...prev,
+      isCurrentVersion: false,
+      versionGroup,
+      updatedAt: new Date().toISOString()
+    });
+    await writeAwaitServerEdit(
+      KEYS.companyDocuments,
+      readDocs().map((d) => (d.id === prev.id ? updated : d)),
+      prev.id
+    );
+  }
+  return {
+    version: next.previousIds.length ? next.version : incoming.version || 1,
+    versionGroup,
+    superseded: next.previousIds.length
+  };
+}
+
+async function saveCustomDocumentTypes(types) {
+  const folders = readFolders();
+  const payload = serializeDocumentTypesCatalog(types);
+  const existing = folders.find((f) => folderKey(f.folderName) === folderKey(DOCUMENT_TYPES_CATALOG_FOLDER));
+  if (existing) {
+    const updated = normalizeCompanyFolderRow({ ...existing, description: payload });
+    await writeAwaitServerEdit(
+      KEYS.companyDocumentFolders,
+      folders.map((f) => (f.id === existing.id ? updated : f)),
+      existing.id
+    );
+    return;
+  }
+  const record = normalizeCompanyFolderRow({
+    id: newUuidV4(),
+    folderName: DOCUMENT_TYPES_CATALOG_FOLDER,
+    description: payload,
+    createdBy: actor(),
+    createdAt: new Date().toISOString()
+  });
+  await writeAwaitServerCreate(KEYS.companyDocumentFolders, [...folders, record], record);
+}
+
 function openUploadModal() {
   if (!canUpload()) return;
-  const currentFolder = normalizeCompanyFolder(getUi().folderFilter || EMPLOYEES_ROOT_FOLDER);
+  const rawFolder = getUi().folderFilter;
+  const currentFolder = normalizeCompanyFolder(
+    !rawFolder || rawFolder === "*" ? EMPLOYEES_ROOT_FOLDER : rawFolder
+  );
   const lockDestination = folderSegments(currentFolder).length >= 2;
   const folderOpts = folderOptionsHtml(currentFolder);
   const categoryOpts = documentCategoryOptionsHtml("otro");
-  const categoryChips = COMPANY_DOCUMENT_CATEGORIES.map(
-    (c) =>
-      `<button type="button" class="doc-upload-chip${c.value === "otro" ? " is-selected" : ""}" data-doc-cat="${escapeAttr(c.value)}" aria-pressed="${c.value === "otro" ? "true" : "false"}">${escapeHtml(c.label)}</button>`
-  ).join("");
+  const categoryChips = documentCategories()
+    .slice(0, 16)
+    .map(
+      (c) =>
+        `<button type="button" class="doc-upload-chip${c.value === "otro" ? " is-selected" : ""}" data-doc-cat="${escapeAttr(c.value)}" aria-pressed="${c.value === "otro" ? "true" : "false"}">${escapeHtml(c.label)}</button>`
+    )
+    .join("");
   const destinationSection = lockDestination
     ? `<section class="doc-upload-modal__section">
         <header class="doc-upload-modal__head">
@@ -1779,6 +2191,7 @@ function openUploadModal() {
             </div>
             <ul class="doc-dropzone__list" id="doc-file-list"></ul>
           </section>
+          ${documentMetaFieldsHtml({}, { includeFolderHint: !lockDestination })}
           <label class="doc-upload-modal__select-wrap">
             <span>Observaciones (opcional)</span>
             <textarea name="description" rows="2" maxlength="2000" placeholder="Notas internas"></textarea>
@@ -1788,6 +2201,7 @@ function openUploadModal() {
     ],
     afterMount: (formEl) => {
       wireDropzone(formEl);
+      wireDocumentMetaFields(formEl);
       const hidden = formEl?.querySelector("[data-doc-category-input]");
       const select = formEl?.querySelector("[data-doc-category-select]");
       const chips = formEl?.querySelectorAll("[data-doc-cat]");
@@ -1800,6 +2214,11 @@ function openUploadModal() {
           btn.classList.toggle("is-selected", on);
           btn.setAttribute("aria-pressed", on ? "true" : "false");
         });
+        const cat = findCompanyDocumentCategory(v, customDocumentTypes());
+        const processSel = formEl?.querySelector("[name='process']");
+        const areaInput = formEl?.querySelector("[name='area']");
+        if (cat && processSel) processSel.value = cat.process || processSel.value;
+        if (cat && areaInput && !String(areaInput.value || "").trim()) areaInput.value = cat.area || "";
       };
       chips?.forEach((btn) => btn.addEventListener("click", () => sync(btn.dataset.docCat)));
       select?.addEventListener("change", () => sync(select.value));
@@ -1826,12 +2245,16 @@ function openUploadModal() {
       const documentCategory = String(
         form.documentCategory || formEl?.querySelector("[data-doc-category-input]")?.value || form.documentCategorySelect || "otro"
       ).trim() || "otro";
-      /* Dentro del expediente del colaborador el destino queda fijado a la carpeta abierta. */
-      const folder = normalizeCompanyFolder(
+      const description = String(form.description || "").trim();
+      const meta = readMetaFromForm(form);
+      const by = actor();
+      const categoryLabel = getCompanyDocumentCategoryLabel(documentCategory, customDocumentTypes()) || documentCategory;
+      let folder = normalizeCompanyFolder(
         lockDestination
           ? currentFolder
           : String(form.folderNew || "").trim() ||
               String(form.folderExisting || "").trim() ||
+              suggestedFolderForEntity(meta.entityType, meta.entityLabel) ||
               currentFolder ||
               DEFAULT_COMPANY_FOLDER
       );
@@ -1839,20 +2262,25 @@ function openUploadModal() {
         G.notify?.("No tiene permiso para subir a esa carpeta.", "error");
         return false;
       }
-      const description = String(form.description || "").trim();
-      const by = actor();
-      const categoryLabel = getCompanyDocumentCategoryLabel(documentCategory) || documentCategory;
       let ok = 0;
       for (const file of files) {
         try {
           const uploaded = await uploadFileToR2(file, folder);
           const nowIso = new Date().toISOString();
+          const recordId = newUuidV4();
+          const versionState = await supersedePreviousVersions({
+            id: recordId,
+            folder,
+            documentCategory,
+            entityType: meta.entityType,
+            entityId: meta.entityId,
+            entityLabel: meta.entityLabel
+          });
           const record = normalizeCompanyDocumentRow({
-            id: newUuidV4(),
+            id: recordId,
             fileName: uploaded.fileName || file.name,
             type: fileTypeLabel(uploaded.fileName || file.name, uploaded.mimeType || file.type),
             documentCategory,
-            tags: documentCategory,
             folder: normalizeCompanyFolder(uploaded.folder || folder),
             mimeType: uploaded.mimeType || file.type || "application/octet-stream",
             sizeBytes: Number(uploaded.sizeBytes) || file.size || 0,
@@ -1860,14 +2288,19 @@ function openUploadModal() {
             description,
             uploadedBy: by,
             createdAt: nowIso,
-            updatedAt: nowIso
+            updatedAt: nowIso,
+            ...meta,
+            version: versionState.version,
+            versionGroup: versionState.versionGroup || recordId,
+            isCurrentVersion: true
           });
+          record.tags = serializeCompanyDocumentTags(record);
           await writeAwaitServerCreate(KEYS.companyDocuments, [...readDocs(), record], record);
           G.logPortalAuditEvent?.("documents", "create", {
             entityId: record.id,
             entityKind: "document",
             entityLabel: `${record.folder} · ${record.fileName}`,
-            summary: `Alta de documento · ${categoryLabel} · ${record.fileName}`,
+            summary: `${versionState.superseded ? "Nueva versión de documento" : "Alta de documento"} · ${categoryLabel} · ${record.fileName}`,
             usuario: by,
             actor: by,
             at: nowIso
@@ -2046,7 +2479,8 @@ function openDeleteFolderFlow(folderPathRaw) {
 
 function openNewFolderModal(parentPathRaw = "") {
   if (!canUpload()) return;
-  const parent = normalizeCompanyFolder(parentPathRaw || getUi().folderFilter || "");
+  const rawParent = parentPathRaw || getUi().folderFilter || "";
+  const parent = normalizeCompanyFolder(rawParent === "*" ? "" : rawParent);
   const isSubfolder = Boolean(parent) && folderSegments(parent).length >= 1;
   G.openEditModal?.({
     title: isSubfolder ? "Nueva subcarpeta" : "Nueva carpeta",
@@ -2201,6 +2635,19 @@ function openEditDocumentModal(target) {
     G.notify?.("No tiene permiso para editar en esa carpeta.", "error");
     return;
   }
+  const versions = listDocumentVersionChain(readDocs(), target);
+  const versionHtml = versions.length
+    ? `<p class="doc-upload-modal__hint">Versión ${escapeHtml(String(target.version || 1))} de ${escapeHtml(String(versions.length))}. Subir el mismo tipo sobre la misma entidad crea una versión nueva y conserva el historial.</p>
+       <ul class="doc-version-list">${versions
+         .map(
+           (v) =>
+             `<li class="doc-version-list__item${v.id === target.id ? " is-current" : ""}">
+               <span>v${escapeHtml(String(v.version || 1))} · ${escapeHtml(v.fileName)} · ${escapeHtml(formatDateShort(v.updatedAt))}</span>
+               ${v.id !== target.id && canDownload() ? `<button type="button" class="doc-btn doc-btn--ghost doc-btn--sm" data-action="doc-download" data-id="${escapeAttr(v.id)}">Descargar</button>` : ""}
+             </li>`
+         )
+         .join("")}</ul>`
+    : "";
   G.openEditModal?.({
     title: "Editar documento",
     subtitle: target.fileName || "",
@@ -2208,8 +2655,29 @@ function openEditDocumentModal(target) {
     fields: [
       { name: "fileName", label: "Nombre del archivo", value: target.fileName, required: true },
       { name: "folder", label: "Carpeta", value: target.folder, required: true, hint: "Use “ / ” para mover a una subcarpeta." },
-      { name: "description", label: "Descripción", type: "textarea", rows: 2, value: target.description || "" }
+      {
+        name: "documentCategory",
+        label: "Tipo documental",
+        type: "select",
+        value: target.documentCategory || "otro",
+        options: documentCategories().map((c) => ({ value: c.value, label: c.label }))
+      },
+      {
+        type: "custom",
+        id: "doc-edit-meta",
+        html: `${documentMetaFieldsHtml(target)}${versionHtml}
+          <label class="doc-upload-modal__select-wrap">
+            <span>Estado</span>
+            <select name="validityStatus">${selectOptionsHtml(
+              DOCUMENT_VALIDITY_STATUSES.filter((s) => s.value !== "por_vencer" && s.value !== "vencido"),
+              target.validityStatus === "archivado" ? "archivado" : "vigente"
+            )}</select>
+            <small>La vigencia por fechas se calcula sola. Use Archivado para retirar el documento del control activo.</small>
+          </label>`
+      },
+      { name: "description", label: "Descripción", type: "textarea", rows: 2, value: sanitizeCompanyDocumentDescription(target.description || "") }
     ],
+    afterMount: (formEl) => wireDocumentMetaFields(formEl),
     onSubmit: async (form, formEl) => {
       const fileName = String(form.fileName || "").trim();
       const folder = normalizeCompanyFolder(form.folder);
@@ -2227,6 +2695,9 @@ function openEditDocumentModal(target) {
         return false;
       }
       const by = actor();
+      const meta = readMetaFromForm(form);
+      const documentCategory = String(form.documentCategory || target.documentCategory || "otro").trim();
+      const archived = String(form.validityStatus || "") === "archivado";
       const nextList = fresh.map((r) =>
         String(r.id) !== String(target.id)
           ? r
@@ -2234,18 +2705,129 @@ function openEditDocumentModal(target) {
               ...r,
               fileName,
               folder,
+              documentCategory,
               description: String(form.description || "").trim(),
-              updatedAt: new Date().toISOString()
+              updatedAt: new Date().toISOString(),
+              ...meta,
+              validityStatus: archived ? "archivado" : ""
             })
       );
       try {
         await writeAwaitServerEdit(KEYS.companyDocuments, nextList, target.id);
         await ensureFolderRecord(folder, by);
+        G.logPortalAuditEvent?.("documents", "update", {
+          entityId: target.id,
+          entityKind: "document",
+          entityLabel: `${folder} · ${fileName}`,
+          summary: archived
+            ? `Cambio de estado documental · Archivado · ${fileName}`
+            : `Actualización de documento · ${fileName}`,
+          detailAction: archived ? "status" : "update",
+          usuario: by,
+          actor: by
+        });
         G.notify?.("Documento actualizado.", "success");
         G.renderPortalView?.();
         return true;
       } catch (err) {
         G.notify?.(String(err?.message || "No se pudo guardar."), "error");
+        return false;
+      }
+    }
+  });
+}
+
+function openManageTypesModal() {
+  if (!canManageTypes()) return;
+  const builtin = COMPANY_DOCUMENT_CATEGORIES.map((c) => ({ ...c, builtin: true }));
+  const custom = customDocumentTypes();
+  const rows = [...builtin, ...custom]
+    .map(
+      (t) => `<tr>
+        <td>${escapeHtml(t.label)}</td>
+        <td>${escapeHtml(getCompanyDocumentProcessLabel(t.process) || t.process || "—")}</td>
+        <td>${escapeHtml(t.area || "—")}</td>
+        <td>${t.requiresExpiry ? "Sí" : "No"}</td>
+        <td>${t.builtin ? `<span class="muted">Catálogo base</span>` : `<button type="button" class="doc-btn doc-btn--ghost doc-btn--sm is-danger" data-remove-type="${escapeAttr(t.value)}">Quitar</button>`}</td>
+      </tr>`
+    )
+    .join("");
+  G.openEditModal?.({
+    title: "Tipos y categorías documentales",
+    subtitle: "Parametrice tipos según proceso, área o necesidad de negocio. Los del catálogo base no se eliminan.",
+    submitText: "Agregar tipo",
+    fields: [
+      {
+        type: "custom",
+        id: "doc-types-table",
+        html: `<div class="doc-types-modal">
+          <div class="doc-table-wrap"><table class="doc-table"><thead><tr><th>Tipo</th><th>Proceso</th><th>Área</th><th>Vigencia</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+        </div>`
+      },
+      { name: "label", label: "Nuevo tipo documental", required: true, placeholder: "Ej. Póliza de cumplimiento" },
+      {
+        name: "process",
+        label: "Proceso",
+        type: "select",
+        options: [{ value: "", label: "Sin proceso" }, ...COMPANY_DOCUMENT_PROCESSES]
+      },
+      { name: "area", label: "Área o necesidad de negocio", placeholder: "Ej. contratación, flota, SST" },
+      {
+        name: "requiresExpiry",
+        label: "Requiere fecha de vencimiento",
+        type: "select",
+        options: [
+          { value: "", label: "No" },
+          { value: "1", label: "Sí" }
+        ]
+      }
+    ],
+    afterMount: (formEl) => {
+      formEl?.querySelectorAll("[data-remove-type]").forEach((btn) => {
+        btn.addEventListener("click", async (e) => {
+          e.preventDefault();
+          const value = String(btn.getAttribute("data-remove-type") || "");
+          try {
+            await saveCustomDocumentTypes(customDocumentTypes().filter((t) => t.value !== value));
+            G.notify?.("Tipo documental eliminado.", "success");
+            document.getElementById("crud-modal")?.classList.add("hidden");
+            G.renderPortalView?.();
+          } catch (err) {
+            G.notify?.(String(err?.message || "No se pudo eliminar el tipo."), "error");
+          }
+        });
+      });
+    },
+    onSubmit: async (form, formEl) => {
+      const label = String(form.label || "").trim();
+      if (!label) {
+        G.failPortalField?.(formEl, "label", "Indique el nombre del tipo.");
+        return false;
+      }
+      const next = [
+        ...customDocumentTypes(),
+        {
+          id: newUuidV4(),
+          label,
+          process: String(form.process || "").trim(),
+          area: String(form.area || "").trim(),
+          requiresExpiry: String(form.requiresExpiry || "") === "1"
+        }
+      ];
+      try {
+        await saveCustomDocumentTypes(next);
+        G.logPortalAuditEvent?.("documents", "update", {
+          entityKind: "document",
+          entityLabel: label,
+          summary: `Alta de tipo documental · ${label}`,
+          usuario: actor(),
+          actor: actor()
+        });
+        G.notify?.("Tipo documental creado.", "success");
+        G.renderPortalView?.();
+        return true;
+      } catch (err) {
+        G.notify?.(String(err?.message || "No se pudo guardar el tipo."), "error");
         return false;
       }
     }
@@ -2445,6 +3027,10 @@ function docxPreviewStageHtml(innerHtml) {
 }
 
 async function triggerDownload(doc) {
+  if (!canDownload()) {
+    G.notify?.("No tiene permiso para descargar documentos.", "error");
+    return;
+  }
   const url = await resolveDownloadUrl(doc, { disposition: "attachment" });
   const a = document.createElement("a");
   a.href = url;
@@ -2453,6 +3039,7 @@ async function triggerDownload(doc) {
   document.body.appendChild(a);
   a.click();
   a.remove();
+  logDocumentAction("download", doc);
 }
 
 let previewKeyHandler = null;
@@ -2559,6 +3146,7 @@ async function openPreview(doc) {
   const display = formatCompanyDocumentDisplayName(doc);
   const previewMeta = buildPreviewMetaLine(doc, display);
   const previewDesc = buildPreviewDescriptionLine(doc, display);
+  const validityLine = [getCompanyDocumentCategoryLabel(doc.documentCategory, customDocumentTypes()), doc.entityLabel, getDocumentValidityStatusLabel(computeDocumentValidityStatus(doc)), doc.expiresAt ? `Vence ${formatDateShort(doc.expiresAt)}` : "", Number(doc.version) > 1 ? `v${doc.version}` : ""].filter(Boolean).join(" · ");
   closePreviewPanel();
   const overlay = document.createElement("div");
   overlay.className = "doc-preview-overlay documents-studio doc-studio";
@@ -2580,14 +3168,16 @@ async function openPreview(doc) {
           <span>Subido por ${escapeHtml(doc.uploadedBy || "—")}</span>
           <span>${escapeHtml(formatDate(doc.updatedAt))}</span>
           ${previewDesc ? `<p class="doc-preview__desc">${escapeHtml(previewDesc)}</p>` : ""}
+          ${validityLine ? `<p class="doc-preview__desc">${escapeHtml(validityLine)}</p>` : ""}
         </div>
         <div class="doc-preview__actions">
           <button type="button" class="doc-btn doc-btn--ghost" data-open-tab>${IC_EXTERNAL}<span>Abrir en pestaña</span></button>
-          <button type="button" class="doc-btn doc-btn--primary" data-download>${IC.download || ""}<span>Descargar</span></button>
+          ${canDownload() ? `<button type="button" class="doc-btn doc-btn--primary" data-download>${IC.download || ""}<span>Descargar</span></button>` : ""}
         </div>
       </footer>
     </aside>`;
   document.body.appendChild(overlay);
+  logDocumentAction("view", doc);
   requestAnimationFrame(() => overlay.classList.add("is-open"));
   previewKeyHandler = (e) => {
     if (e.key === "Escape") closePreviewPanel();
@@ -2746,6 +3336,7 @@ function bindDocumentManagementPortalControls() {
   if (!root) return;
 
   on(root, "[data-action='doc-upload']", "click", () => openUploadModal());
+  on(root, "[data-action='doc-manage-types']", "click", () => openManageTypesModal());
   on(root, "[data-action='doc-new-folder']", "click", () => openNewFolderModal(""));
   on(root, "[data-action='doc-new-subfolder']", "click", (e) => {
     e.preventDefault();
@@ -2778,12 +3369,57 @@ function bindDocumentManagementPortalControls() {
     patchUi({ typeFilter: e.currentTarget.value || "all", page: 1 });
     G.renderPortalView?.();
   });
+  on(root, "[data-action='doc-category-filter']", "change", (e) => {
+    patchUi({ categoryFilter: e.currentTarget.value || "all", page: 1 });
+    G.renderPortalView?.();
+  });
+  on(root, "[data-action='doc-status-filter']", "change", (e) => {
+    patchUi({ statusFilter: e.currentTarget.value || "all", page: 1, showFilters: true });
+    G.renderPortalView?.();
+  });
+  on(root, "[data-action='doc-entity-filter']", "change", (e) => {
+    patchUi({ entityTypeFilter: e.currentTarget.value || "all", page: 1 });
+    G.renderPortalView?.();
+  });
+  on(root, "[data-action='doc-process-filter']", "change", (e) => {
+    patchUi({ processFilter: e.currentTarget.value || "all", page: 1 });
+    G.renderPortalView?.();
+  });
+  on(root, "[data-action='doc-date-from']", "change", (e) => {
+    patchUi({ dateFrom: e.currentTarget.value || "", page: 1 });
+    G.renderPortalView?.();
+  });
+  on(root, "[data-action='doc-date-to']", "change", (e) => {
+    patchUi({ dateTo: e.currentTarget.value || "", page: 1 });
+    G.renderPortalView?.();
+  });
+  on(root, "[data-action='doc-filter-status']", "click", (e) => {
+    patchUi({
+      statusFilter: e.currentTarget.dataset.status || "all",
+      showFilters: true,
+      page: 1,
+      folderFilter: "*",
+      showTrash: false
+    });
+    G.renderPortalView?.();
+  });
   on(root, "[data-action='doc-folder-filter']", "change", (e) => {
     patchUi({ folderFilter: e.currentTarget.value || "", page: 1, folderPage: 1, showTrash: false });
     G.renderPortalView?.();
   });
   on(root, "[data-action='doc-clear-filters']", "click", () => {
-    patchUi({ search: "", typeFilter: "all", page: 1, folderPage: 1 });
+    patchUi({
+      search: "",
+      typeFilter: "all",
+      categoryFilter: "all",
+      statusFilter: "all",
+      entityTypeFilter: "all",
+      processFilter: "all",
+      dateFrom: "",
+      dateTo: "",
+      page: 1,
+      folderPage: 1
+    });
     G.renderPortalView?.();
   });
   on(root, "[data-action='doc-clear-folder']", "click", () => {
@@ -2801,7 +3437,7 @@ function bindDocumentManagementPortalControls() {
     G.renderPortalView?.();
   });
   on(root, "[data-action='doc-see-all']", "click", () => {
-    patchUi({ folderFilter: EMPLOYEES_ROOT_FOLDER, search: "", typeFilter: "all", page: 1, folderPage: 1, showTrash: false });
+    patchUi({ folderFilter: EMPLOYEES_ROOT_FOLDER, search: "", typeFilter: "all", categoryFilter: "all", statusFilter: "all", entityTypeFilter: "all", processFilter: "all", dateFrom: "", dateTo: "", page: 1, folderPage: 1, showTrash: false });
     G.renderPortalView?.();
   });
   on(root, "[data-action='doc-export-csv']", "click", () => {
@@ -2810,7 +3446,14 @@ function bindDocumentManagementPortalControls() {
     const filtered = applyCompanyDocumentFilters(docs, {
       search: getUi().search,
       type: getUi().typeFilter,
-      folder: getUi().folderFilter
+      folder: getUi().folderFilter === "*" ? "" : getUi().folderFilter,
+      category: getUi().categoryFilter,
+      status: getUi().statusFilter,
+      entityType: getUi().entityTypeFilter,
+      process: getUi().processFilter,
+      dateField: getUi().dateField,
+      dateFrom: getUi().dateFrom,
+      dateTo: getUi().dateTo
     });
     downloadCsv("documentos-empresa.csv", buildCompanyDocumentExportRows(filtered));
   });

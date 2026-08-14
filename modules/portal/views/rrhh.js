@@ -8,6 +8,7 @@
     payrollHtml: (...args) => window.AppLegacyViews?.payrollHtml?.(...args) || "",
     hiringHtml: (...args) => window.AppLegacyViews?.hiringHtml?.(...args) || "",
     laborComplianceHtml: (...args) => window.AppLegacyViews?.laborComplianceHtml?.(...args) || "",
-    documentManagementHtml: (...args) => window.AppLegacyViews?.documentManagementHtml?.(...args) || ""
+    documentManagementHtml: (...args) => window.AppLegacyViews?.documentManagementHtml?.(...args) || "",
+    sarlaftPteHtml: (...args) => window.AppLegacyViews?.sarlaftPteHtml?.(...args) || ""
   };
 })();

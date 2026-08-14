@@ -119,6 +119,7 @@
     <link rel="stylesheet" href="./styles/hiring-module.css?v=20260804-hiring-candidate-fix" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/sst-module.css?v=20260714-sst-operate-ui" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/gestion-documental.css?v=20260804-dms-pdfjs-preview" media="print" onload="this.onload=null;this.media='all'" />
+    <link rel="stylesheet" href="./styles/sarlaft-module.css?v=20260814-sarlaft-pte" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/b2b-module.css?v=20260626-cards-flex-fill" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/admin-users-module.css?v=20260626-cards-flex-fill" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/authorizations-module.css?v=20260611-portal-modules" media="print" onload="this.onload=null;this.media='all'" />
@@ -147,6 +148,7 @@
       <link rel="stylesheet" href="./styles/hiring-module.css?v=20260804-hiring-candidate-fix" />
       <link rel="stylesheet" href="./styles/sst-module.css?v=20260714-sst-operate-ui" />
       <link rel="stylesheet" href="./styles/gestion-documental.css?v=20260804-dms-pdfjs-preview" />
+      <link rel="stylesheet" href="./styles/sarlaft-module.css?v=20260814-sarlaft-pte" />
       <link rel="stylesheet" href="./styles/b2b-module.css?v=20260626-cards-flex-fill" />
       <link rel="stylesheet" href="./styles/admin-users-module.css?v=20260626-cards-flex-fill" />
       <link rel="stylesheet" href="./styles/authorizations-module.css?v=20260611-portal-modules" />
@@ -1159,6 +1161,10 @@
             <span class="side-link__icon-wrap" aria-hidden="true"><svg class="side-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg></span>
             <span class="side-link__label">Gestión documental</span>
           </button>
+          <button type="button" data-view="sarlaft-pte" class="side-link">
+            <span class="side-link__icon-wrap" aria-hidden="true"><svg class="side-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><circle cx="12" cy="10" r="2.4"/><path d="M8.6 16.2c.9-1.4 2-2 3.4-2s2.5.6 3.4 2"/></svg></span>
+            <span class="side-link__label">SARLAFT / PTE</span>
+          </button>
           <button type="button" data-view="contact-leads" class="side-link">
             <span class="side-link__icon-wrap" aria-hidden="true"><svg class="side-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span>
             <span class="side-link__label">Contacto web (B2B)</span>
@@ -1477,6 +1483,7 @@
       import * as AntaresReporteriaDomain from "./modules/domain/reporteria.domain.js";
       import * as AntaresNominaDomain from "./modules/domain/nomina.domain.js";
       import * as AntaresSstDomain from "./modules/domain/sst.domain.js";
+      import * as AntaresSarlaftDomain from "./modules/domain/sarlaft.domain.js";
       import * as AntaresDriverCompliance from "./modules/domain/driver-compliance-vigencia.domain.js";
       import * as AntaresContratacionDomain from "./modules/domain/contratacion.domain.js";
       import * as AntaresFileUploadSecurity from "./modules/core/file-upload-security.js";
@@ -1532,6 +1539,8 @@
       Object.assign(window, AntaresNominaDomain);
       window.AntaresSstDomain = AntaresSstDomain;
       Object.assign(window, AntaresSstDomain);
+      window.AntaresSarlaftDomain = AntaresSarlaftDomain;
+      Object.assign(window, AntaresSarlaftDomain);
       window.AntaresDriverCompliance = AntaresDriverCompliance;
       Object.assign(window, AntaresDriverCompliance);
       window.AntaresContratacionDomain = AntaresContratacionDomain;
@@ -1583,6 +1592,7 @@
     <script defer src="./modules/app/contratacion.js?v=20260804-interview-ui"></script>
     <script type="module" src="./modules/app/cumplimiento-laboral.js"></script>
     <script type="module" src="./modules/app/gestion-documental.js?v=20260804-dms-pdfjs-preview"></script>
+    <script type="module" src="./modules/app/sarlaft.js?v=20260814-sarlaft-pte"></script>
     <script defer src="./modules/app/contacto-b2b.js"></script>
     <script defer src="./modules/app/usuarios-permisos.js"></script>
     <script defer src="./modules/app/autorizaciones.js"></script>

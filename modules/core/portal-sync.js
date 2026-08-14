@@ -68,6 +68,10 @@
     antares_employee_document_folders_v1: "employeeDocumentFolders",
     antares_company_documents_v1: "companyDocuments",
     antares_company_document_folders_v1: "companyDocumentFolders",
+    antares_sarlaft_third_parties_v1: "sarlaftThirdParties",
+    antares_sarlaft_risk_profiles_v1: "sarlaftRiskProfiles",
+    antares_sarlaft_alerts_v1: "sarlaftAlerts",
+    antares_sarlaft_reviews_v1: "sarlaftReviews",
     antares_trip_route_rates_v2: "tripRouteRates",
     antares_approvals_v2: "approvals"
   };

@@ -101,6 +101,7 @@ export const VIEW_PERMISSIONS = Object.freeze({
   hiring: PERMISSIONS.HIRING_MANAGE,
   "labor-compliance": PERMISSIONS.SST_COMPLIANCE,
   "document-management": PERMISSIONS.DOCUMENT_VIEW,
+  "sarlaft-pte": PERMISSIONS.SARLAFT_VIEW,
   "admin-users": PERMISSIONS.USERS_MANAGE,
   authorizations: PERMISSIONS.AUTHORIZATIONS_MANAGE,
   profile: PERMISSIONS.PROFILE_VIEW,
@@ -131,6 +132,15 @@ export const DOCUMENT_GRANULAR_PERMISSIONS = Object.freeze([
   PERMISSIONS.DOCUMENT_UPLOAD,
   PERMISSIONS.DOCUMENT_EDIT,
   PERMISSIONS.DOCUMENT_DELETE
+]);
+
+export const SARLAFT_GRANULAR_PERMISSIONS = Object.freeze([
+  PERMISSIONS.SARLAFT_VIEW,
+  PERMISSIONS.SARLAFT_PARTIES,
+  PERMISSIONS.SARLAFT_ALERTS,
+  PERMISSIONS.SARLAFT_REVIEWS,
+  PERMISSIONS.SARLAFT_PROFILES,
+  PERMISSIONS.SARLAFT_DELETE
 ]);
 
 const ACCOUNT_STATUS = Object.freeze({
@@ -376,6 +386,7 @@ export function defaultPermissionsForRole(role) {
       PERMISSIONS.PAYROLL_MANAGE,
       PERMISSIONS.HIRING_MANAGE,
       PERMISSIONS.SST_COMPLIANCE,
+      PERMISSIONS.SARLAFT_MANAGE,
       PERMISSIONS.DOCUMENT_MANAGE,
       PERMISSIONS.PROFILE_VIEW,
       PERMISSIONS.NOTIFICATIONS_VIEW
@@ -385,6 +396,9 @@ export function defaultPermissionsForRole(role) {
     return [
       PERMISSIONS.DASHBOARD_VIEW,
       PERMISSIONS.PAYROLL_MANAGE,
+      PERMISSIONS.SARLAFT_VIEW,
+      PERMISSIONS.SARLAFT_PARTIES,
+      PERMISSIONS.SARLAFT_REVIEWS,
       PERMISSIONS.DOCUMENT_MANAGE,
       PERMISSIONS.PROFILE_VIEW,
       PERMISSIONS.NOTIFICATIONS_VIEW
@@ -577,6 +591,52 @@ export function canManageSstModule(user) {
   return isAdminActor(actor) || hasPermission(actor, PERMISSIONS.SST_COMPLIANCE);
 }
 
+export function canAccessSarlaftView(user) {
+  const u = user || currentUser();
+  if (!u) return false;
+  if (isAdminActor(u) || hasSarlaftManageAll(u)) return true;
+  return SARLAFT_GRANULAR_PERMISSIONS.some((perm) => hasPermission(u, perm));
+}
+
+function hasSarlaftManageAll(user) {
+  return hasPermission(user, PERMISSIONS.SARLAFT_MANAGE);
+}
+
+export function canManageSarlaftModule(user) {
+  const actor = user || currentUser();
+  return isAdminActor(actor) || hasSarlaftManageAll(actor);
+}
+
+export function canMutateSarlaftParties(user) {
+  const u = user || currentUser();
+  if (!u) return false;
+  return isAdminActor(u) || hasSarlaftManageAll(u) || hasPermission(u, PERMISSIONS.SARLAFT_PARTIES);
+}
+
+export function canMutateSarlaftAlerts(user) {
+  const u = user || currentUser();
+  if (!u) return false;
+  return isAdminActor(u) || hasSarlaftManageAll(u) || hasPermission(u, PERMISSIONS.SARLAFT_ALERTS);
+}
+
+export function canMutateSarlaftReviews(user) {
+  const u = user || currentUser();
+  if (!u) return false;
+  return isAdminActor(u) || hasSarlaftManageAll(u) || hasPermission(u, PERMISSIONS.SARLAFT_REVIEWS);
+}
+
+export function canMutateSarlaftProfiles(user) {
+  const u = user || currentUser();
+  if (!u) return false;
+  return isAdminActor(u) || hasSarlaftManageAll(u) || hasPermission(u, PERMISSIONS.SARLAFT_PROFILES);
+}
+
+export function canDeleteSarlaftRecords(user) {
+  const u = user || currentUser();
+  if (!u) return false;
+  return isAdminActor(u) || hasSarlaftManageAll(u) || hasPermission(u, PERMISSIONS.SARLAFT_DELETE);
+}
+
 export function canPerformPermissionGatedAction(user, action, trigger) {
   if (!user || isAdminActor(user)) return true;
   if (action === "approve" || action === "reject") return canApproveTransportRequests(user);
@@ -605,6 +665,7 @@ export function canAccessView(user, view) {
   if (v === "authorizations") return canAccessAuthorizationsView(user);
   if (v === "transport-vehicles") return canAccessVehiclesView(user);
   if (v === "document-management") return canAccessDocumentsView(user);
+  if (v === "sarlaft-pte") return canAccessSarlaftView(user);
   if (v === "requests") {
     return (
       hasPermission(user, PERMISSIONS.CLIENT_REQUESTS) || hasPermission(user, PERMISSIONS.TRANSPORT_REQUESTS)

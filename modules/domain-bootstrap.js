@@ -81,6 +81,10 @@
       contracts: list(KEYS.contracts),
       hrAbsences: list(KEYS.hrAbsences),
       sstCompliance: list(KEYS.sstCompliance),
+      sarlaftThirdParties: list(KEYS.sarlaftThirdParties),
+      sarlaftRiskProfiles: list(KEYS.sarlaftRiskProfiles),
+      sarlaftAlerts: list(KEYS.sarlaftAlerts),
+      sarlaftReviews: list(KEYS.sarlaftReviews),
       approvals: list(KEYS.approvals),
       session: {
         storageKey: KEYS.session,

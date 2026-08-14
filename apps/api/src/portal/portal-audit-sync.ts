@@ -1,6 +1,6 @@
 /**
- * Auditoría centralizada de mutaciones del portal (sync-key y borrados admin).
- * Inserta en `auditoria_eventos_portal` dentro de la misma transacción PostgreSQL.
+ * Auditor?a centralizada de mutaciones del portal (sync-key y borrados admin).
+ * Inserta en `auditoria_eventos_portal` dentro de la misma transacci?n PostgreSQL.
  */
 import type { PoolClient } from "pg";
 import type { PortalSyncKey } from "./dto/sync-key.dto";
@@ -30,7 +30,7 @@ type SyncAuditMeta = {
   moduleLabel: string;
 };
 
-/** Claves sync-key → tabla física y módulo del Historial. */
+/** Claves sync-key ��� tabla f?sica y m?dulo del Historial. */
 export const PORTAL_SYNC_AUDIT_META: Partial<Record<PortalSyncKey, SyncAuditMeta>> = {
   users: { table: "usuarios", moduleId: "users", moduleLabel: "Usuarios y permisos" },
   companies: { table: "empresas", moduleId: "users", moduleLabel: "Usuarios y permisos" },
@@ -40,8 +40,8 @@ export const PORTAL_SYNC_AUDIT_META: Partial<Record<PortalSyncKey, SyncAuditMeta
   drivers: { table: "conductores", moduleId: "drivers", moduleLabel: "Conductores" },
   notifications: { table: "notificaciones", moduleId: "notifications", moduleLabel: "Notificaciones" },
   emails: { table: "correos_salida", moduleId: "users", moduleLabel: "Usuarios y permisos" },
-  payrollEmployees: { table: "empleados_nomina", moduleId: "payroll", moduleLabel: "Gestión humana" },
-  payrollRuns: { table: "liquidaciones_nomina", moduleId: "payroll", moduleLabel: "Gestión humana" },
+  payrollEmployees: { table: "empleados_nomina", moduleId: "payroll", moduleLabel: "Gesti?n humana" },
+  payrollRuns: { table: "liquidaciones_nomina", moduleId: "payroll", moduleLabel: "Gesti?n humana" },
   fuelLogs: { table: "registros_combustible", moduleId: "vehicles", moduleLabel: "Camiones" },
   vehicleTechnicalLogs: {
     table: "registros_mantenimiento_vehiculo",
@@ -51,28 +51,58 @@ export const PORTAL_SYNC_AUDIT_META: Partial<Record<PortalSyncKey, SyncAuditMeta
   travelAllowanceRules: {
     table: "reglas_viatico_interdepartamental",
     moduleId: "payroll",
-    moduleLabel: "Gestión humana"
+    moduleLabel: "Gesti?n humana"
   },
-  vacancies: { table: "vacantes", moduleId: "hiring", moduleLabel: "Contratación" },
-  candidates: { table: "candidatos", moduleId: "hiring", moduleLabel: "Contratación" },
-  positions: { table: "cargos", moduleId: "hiring", moduleLabel: "Contratación" },
-  interviews: { table: "entrevistas", moduleId: "hiring", moduleLabel: "Contratación" },
-  contracts: { table: "contratos", moduleId: "hiring", moduleLabel: "Contratación" },
-  hrAbsences: { table: "ausencias_laborales", moduleId: "payroll", moduleLabel: "Gestión humana" },
+  vacancies: { table: "vacantes", moduleId: "hiring", moduleLabel: "Contrataci?n" },
+  candidates: { table: "candidatos", moduleId: "hiring", moduleLabel: "Contrataci?n" },
+  positions: { table: "cargos", moduleId: "hiring", moduleLabel: "Contrataci?n" },
+  interviews: { table: "entrevistas", moduleId: "hiring", moduleLabel: "Contrataci?n" },
+  contracts: { table: "contratos", moduleId: "hiring", moduleLabel: "Contrataci?n" },
+  hrAbsences: { table: "ausencias_laborales", moduleId: "payroll", moduleLabel: "Gesti?n humana" },
   sstCompliance: {
     table: "registros_cumplimiento_sst",
     moduleId: "sst",
     moduleLabel: "Cumplimiento laboral y SST"
   },
+  sarlaftThirdParties: {
+    table: "terceros_sarlaft",
+    moduleId: "sarlaft",
+    moduleLabel: "SARLAFT / PTE"
+  },
+  sarlaftRiskProfiles: {
+    table: "perfiles_riesgo_sarlaft",
+    moduleId: "sarlaft",
+    moduleLabel: "SARLAFT / PTE"
+  },
+  sarlaftAlerts: {
+    table: "alertas_sarlaft",
+    moduleId: "sarlaft",
+    moduleLabel: "SARLAFT / PTE"
+  },
+  sarlaftReviews: {
+    table: "revisiones_sarlaft",
+    moduleId: "sarlaft",
+    moduleLabel: "SARLAFT / PTE"
+  },
   employeeDocuments: {
     table: "documentos_empleado",
     moduleId: "documents",
-    moduleLabel: "Gestión documental"
+    moduleLabel: "Gesti?n documental"
   },
   employeeDocumentFolders: {
     table: "carpetas_documento_empleado",
     moduleId: "documents",
-    moduleLabel: "Gestión documental"
+    moduleLabel: "Gesti?n documental"
+  },
+  companyDocuments: {
+    table: "documentos_empresa",
+    moduleId: "documents",
+    moduleLabel: "Gesti?n documental"
+  },
+  companyDocumentFolders: {
+    table: "carpetas_documento_empresa",
+    moduleId: "documents",
+    moduleLabel: "Gesti?n documental"
   },
   tripRouteRates: { table: "tarifas_trayecto", moduleId: "trips", moduleLabel: "Viajes" },
   approvals: { table: "solicitudes_autorizacion", moduleId: "authorizations", moduleLabel: "Autorizaciones" }
@@ -117,63 +147,63 @@ const LABEL_FIELDS = [
 const HISTORY_AUDIT_ACTION_TITLES: Record<string, Record<string, string>> = {
   users: {
     create: "Alta de usuario",
-    update: "Actualización de usuario",
-    delete: "Eliminación de usuario"
+    update: "Actualizaci?n de usuario",
+    delete: "Eliminaci?n de usuario"
   },
   companies: {
     create: "Alta de empresa",
-    update: "Actualización de empresa",
-    delete: "Eliminación de empresa"
+    update: "Actualizaci?n de empresa",
+    delete: "Eliminaci?n de empresa"
   },
   documents: {
     create: "Alta de documento",
-    update: "Actualización de documento",
-    delete: "Eliminación de documento"
+    update: "Actualizaci?n de documento",
+    delete: "Eliminaci?n de documento"
   },
   employeeDocuments: {
     create: "Alta de documento",
-    update: "Actualización de documento",
-    delete: "Eliminación de documento"
+    update: "Actualizaci?n de documento",
+    delete: "Eliminaci?n de documento"
   },
   employeeDocumentFolders: {
     create: "Alta de carpeta documental",
-    update: "Actualización de carpeta documental",
-    delete: "Eliminación de carpeta documental"
+    update: "Actualizaci?n de carpeta documental",
+    delete: "Eliminaci?n de carpeta documental"
   },
   payrollEmployees: {
     create: "Alta de colaborador",
-    update: "Actualización de colaborador",
-    delete: "Eliminación de colaborador"
+    update: "Actualizaci?n de colaborador",
+    delete: "Eliminaci?n de colaborador"
   },
   drivers: {
     create: "Alta de conductor",
-    update: "Actualización de conductor",
-    delete: "Eliminación de conductor"
+    update: "Actualizaci?n de conductor",
+    delete: "Eliminaci?n de conductor"
   },
   vehicles: {
-    create: "Alta de camión",
-    update: "Actualización de camión",
-    delete: "Eliminación de camión"
+    create: "Alta de cami?n",
+    update: "Actualizaci?n de cami?n",
+    delete: "Eliminaci?n de cami?n"
   },
   requests: {
     create: "Alta de solicitud",
-    update: "Actualización de solicitud",
-    delete: "Eliminación de solicitud"
+    update: "Actualizaci?n de solicitud",
+    delete: "Eliminaci?n de solicitud"
   },
   trips: {
     create: "Alta de viaje",
-    update: "Actualización de viaje",
-    delete: "Eliminación de viaje"
+    update: "Actualizaci?n de viaje",
+    delete: "Eliminaci?n de viaje"
   },
   notifications: {
-    create: "Alta de notificación",
-    update: "Actualización de notificación",
-    delete: "Eliminación de notificación"
+    create: "Alta de notificaci?n",
+    update: "Actualizaci?n de notificaci?n",
+    delete: "Eliminaci?n de notificaci?n"
   },
   approvals: {
-    create: "Solicitud de autorización",
-    update: "Autorización revisada",
-    delete: "Autorización rechazada"
+    create: "Solicitud de autorizaci?n",
+    update: "Autorizaci?n revisada",
+    delete: "Autorizaci?n rechazada"
   }
 };
 
@@ -183,8 +213,8 @@ function portalHistoryActionTitle(moduleOrKey: string, action: string): string {
   const fromMap = HISTORY_AUDIT_ACTION_TITLES[key]?.[actionKey];
   if (fromMap) return fromMap;
   if (actionKey === "create") return "Alta en servidor";
-  if (actionKey === "delete") return "Eliminación en servidor";
-  return "Actualización en servidor";
+  if (actionKey === "delete") return "Eliminaci?n en servidor";
+  return "Actualizaci?n en servidor";
 }
 
 function portalDocumentSummaryParts(row: Record<string, unknown>): string[] {
@@ -224,7 +254,7 @@ function portalPayrollRunParts(row: Record<string, unknown>) {
 
 function portalPayrollRunEntityLabel(row: Record<string, unknown>): string | null {
   const { emp, period } = portalPayrollRunParts(row);
-  if (emp && period) return `${emp} · ${period}`;
+  if (emp && period) return `${emp} ? ${period}`;
   if (emp) return emp;
   if (period) return `Periodo ${period}`;
   return null;
@@ -253,14 +283,14 @@ export function portalRowEntityLabel(row: Record<string, unknown>): string {
   if (isPortalDocumentFolderRow(row)) {
     const emp = String(row.employeeName ?? row.nombre_empleado ?? "").trim();
     const folder = String(row.folderName ?? row.nombre_carpeta ?? "").trim();
-    if (emp && folder) return `${emp} · ${folder}`.slice(0, 500);
-    if (folder) return `Carpeta · ${folder}`.slice(0, 500);
+    if (emp && folder) return `${emp} ? ${folder}`.slice(0, 500);
+    if (folder) return `Carpeta ? ${folder}`.slice(0, 500);
   }
   if (isPortalDocumentRow(row)) {
     const emp = String(row.employeeName ?? row.nombre_empleado ?? "").trim();
     const fileName = String(row.fileName ?? row.nombre_archivo ?? "").trim();
     const docType = String(row.documentType ?? row.tipo_documento ?? "").trim();
-    if (emp && (fileName || docType)) return `${emp} · ${fileName || docType}`.slice(0, 500);
+    if (emp && (fileName || docType)) return `${emp} ? ${fileName || docType}`.slice(0, 500);
     if (fileName) return fileName.slice(0, 500);
   }
   for (const key of LABEL_FIELDS) {
@@ -302,14 +332,14 @@ function portalTechnicalLogSummaryParts(row: Record<string, unknown>): string[] 
       : typeRaw === "correctivo"
         ? "Correctivo"
         : typeRaw === "falla"
-          ? "Falla técnica"
+          ? "Falla t?cnica"
           : typeRaw;
   const desc = String(row.description ?? row.descripcion ?? "").trim();
   const cost = Number(row.cost ?? row.costo);
   if (plate) parts.push(`Placa ${plate}`);
   if (date) parts.push(date);
   if (typeLabel) parts.push(typeLabel);
-  if (desc) parts.push(desc.length > 72 ? `${desc.slice(0, 72)}…` : desc);
+  if (desc) parts.push(desc.length > 72 ? `${desc.slice(0, 72)}���` : desc);
   if (Number.isFinite(cost) && cost > 0) parts.push(`$${Math.round(cost).toLocaleString("es-CO")}`);
   return parts;
 }
@@ -323,27 +353,27 @@ export function portalRowEntitySummary(
   if (fuelParts.length >= 2) {
     return (
       action === "create"
-        ? `Carga de combustible · ${fuelParts.join(" · ")}`
+        ? `Carga de combustible ? ${fuelParts.join(" ? ")}`
         : action === "delete"
-          ? `Eliminación de combustible · ${fuelParts.join(" · ")}`
-          : `Actualización de combustible · ${fuelParts.join(" · ")}`
+          ? `Eliminaci?n de combustible ? ${fuelParts.join(" ? ")}`
+          : `Actualizaci?n de combustible ? ${fuelParts.join(" ? ")}`
     ).slice(0, 2000);
   }
   const techParts = portalTechnicalLogSummaryParts(row);
   if (techParts.length >= 2) {
     return (
       action === "create"
-        ? `Registro de taller · ${techParts.join(" · ")}`
+        ? `Registro de taller ? ${techParts.join(" ? ")}`
         : action === "delete"
-          ? `Eliminación de taller · ${techParts.join(" · ")}`
-          : `Actualización de taller · ${techParts.join(" · ")}`
+          ? `Eliminaci?n de taller ? ${techParts.join(" ? ")}`
+          : `Actualizaci?n de taller ? ${techParts.join(" ? ")}`
     ).slice(0, 2000);
   }
   if (isPortalDocumentFolderRow(row) || moduleOrKey === "employeeDocumentFolders") {
     const title = portalHistoryActionTitle("employeeDocumentFolders", action);
     const folder = String(row.folderName ?? row.nombre_carpeta ?? "").trim();
     const emp = String(row.employeeName ?? row.nombre_empleado ?? "").trim();
-    return [title, folder, emp].filter(Boolean).join(" · ").slice(0, 2000);
+    return [title, folder, emp].filter(Boolean).join(" ? ").slice(0, 2000);
   }
   if (isPortalDocumentRow(row) || moduleOrKey === "employeeDocuments" || moduleOrKey === "documents") {
     const title = portalHistoryActionTitle("documents", action);
@@ -351,7 +381,7 @@ export function portalRowEntitySummary(
     const motivo = String(row.reason ?? row.motivo ?? "").trim();
     const bits = [title, ...docParts];
     if (motivo && action === "delete") bits.push(`Motivo: ${motivo}`);
-    return bits.join(" · ").slice(0, 2000);
+    return bits.join(" ? ").slice(0, 2000);
   }
   const parts: string[] = portalPayrollRunSummaryParts(row);
   const status = String(row.status ?? row.estado ?? "").trim();
@@ -368,12 +398,12 @@ export function portalRowEntitySummary(
   if (!parts.length) {
     parts.push(actionTitle);
   } else if (moduleOrKey && HISTORY_AUDIT_ACTION_TITLES[moduleOrKey]) {
-    return `${actionTitle} · ${parts.join(" · ")}`.slice(0, 2000);
+    return `${actionTitle} ? ${parts.join(" ? ")}`.slice(0, 2000);
   }
   if (action === "delete" && portalPayrollRunParts(row).period) {
-    return `Eliminación de liquidación · ${parts.join(" · ")}`.slice(0, 2000);
+    return `Eliminaci?n de liquidaci?n ? ${parts.join(" ? ")}`.slice(0, 2000);
   }
-  return parts.join(" · ").slice(0, 2000);
+  return parts.join(" ? ").slice(0, 2000);
 }
 
 const TRIP_RATE_SEP = "@@";
@@ -414,7 +444,7 @@ async function preparePortalSyncTripRouteRatesAudits(
   for (const [keyStr, valRaw] of Object.entries(data as Record<string, unknown>)) {
     const row = parseTripRouteRateEntry(keyStr, valRaw);
     if (!row) continue;
-    const entityLabel = `${row.od} ${row.oc} → ${row.dd} ${row.dc}`.trim().slice(0, 500);
+    const entityLabel = `${row.od} ${row.oc} ��� ${row.dd} ${row.dc}`.trim().slice(0, 500);
     let entityId = row.id;
     if (!entityId) {
       const lookup = await c.query<{ id: string }>(
@@ -443,8 +473,8 @@ async function preparePortalSyncTripRouteRatesAudits(
 
 /**
  * Memo por proceso: la tabla se crea en el arranque (`ensurePortalAuditEventsSchema`) y no se
- * elimina en runtime. Tras verla lista una vez, evitamos el `to_regclass` en cada inserción de
- * auditoría (un round-trip menos por evento sincronizado). Si aún no existe, se sigue reintentando.
+ * elimina en runtime. Tras verla lista una vez, evitamos el `to_regclass` en cada inserci?n de
+ * auditor?a (un round-trip menos por evento sincronizado). Si a?n no existe, se sigue reintentando.
  */
 let auditTableReadyMemo = false;
 async function auditTableReady(c: PoolClient): Promise<boolean> {
@@ -467,7 +497,7 @@ function portalRowActorUserIdCandidates(row: Record<string, unknown>): string[] 
   return out;
 }
 
-/** Evita 500 por FK/UUID inválido: solo persiste id_usuario si existe en `usuarios`. */
+/** Evita 500 por FK/UUID inv?lido: solo persiste id_usuario si existe en `usuarios`. */
 export async function resolvePortalAuditUserIdForInsert(
   c: PoolClient,
   ...candidates: Array<string | null | undefined>
@@ -602,7 +632,7 @@ async function preparePortalSyncRequestsAudits(c: PoolClient, data: unknown): Pr
     const driver = String(tripRow.driverName ?? "").trim();
     const tripSummary = [plate ? `Placa ${plate}` : "", driver ? `Conductor ${driver}` : ""]
       .filter(Boolean)
-      .join(" · ");
+      .join(" ? ");
     pending.push({
       action: tripAction,
       entityId: tripEntityId,
@@ -704,7 +734,7 @@ export async function recordPortalSyncDeleteAudits(
       entityLabel: row ? portalRowEntityLabel(row) : "Registro",
       summary: row
         ? portalRowEntitySummary(row, "delete", key)
-        : `${portalHistoryActionTitle(key, "delete")} · confirmada en servidor`
+        : `${portalHistoryActionTitle(key, "delete")} ? confirmada en servidor`
     });
   }
 }
@@ -745,6 +775,6 @@ export async function recordPortalAdminDeleteAudit(
     moduleLabel,
     entityId,
     entityLabel,
-    summary: summary || "Eliminación administrativa en servidor"
+    summary: summary || "Eliminaci?n administrativa en servidor"
   });
 }

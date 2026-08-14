@@ -29,6 +29,7 @@ function reportsHtml() {
     { id: "payroll_summary" },
     { id: "hiring_pipeline" },
     { id: "labor_compliance" },
+    { id: "sarlaft_pte" },
     { id: "users_access" },
     { id: "authorizations_traceability" }
   ];

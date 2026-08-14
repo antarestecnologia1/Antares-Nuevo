@@ -12,6 +12,7 @@ import {
   HR_VALID_PAYROLL_WS,
   HR_VALID_REQUESTS_WS,
   HR_VALID_SST_WS,
+  HR_VALID_SARLAFT_WS,
   HR_VALID_TRANSPORT_TRIPS_WS,
   HR_VALID_TRANSPORT_VEHICLES_WS,
   HR_WORKSPACE_STORAGE
@@ -26,6 +27,8 @@ import {
   normalizeHrWorkspace,
   normalizeSstDataSection,
   normalizeSstOperateSection,
+  normalizeSarlaftDataSection,
+  normalizeSarlaftOperateSection,
   normalizeTransportTripsSection,
   normalizeTransportTripsWorkspace,
   normalizeVehicleSection,
@@ -196,6 +199,15 @@ export let state = {
     pageSize: 10,
     listView: "list"
   },
+  sarlaftUi: {
+    workspace: "operate",
+    operateSection: "party",
+    dataSection: "parties",
+    listSearch: "",
+    listPage: 1,
+    pageSize: 10,
+    selectedPartyId: ""
+  },
   /**
    * Gestión documental: sección del rail, vista, orden, filtros y selección.
    * Nada de esto persiste al recargar salvo lo que el módulo guarda aparte en localStorage
@@ -261,6 +273,7 @@ export function hydrateHrWorkspaceFromStorage() {
     const p = localStorage.getItem(HR_WORKSPACE_STORAGE.payroll);
     const h = localStorage.getItem(HR_WORKSPACE_STORAGE.hiring);
     const s = localStorage.getItem(HR_WORKSPACE_STORAGE.sst);
+    const sf = localStorage.getItem(HR_WORKSPACE_STORAGE.sarlaft);
     const d = localStorage.getItem(HR_WORKSPACE_STORAGE.documents);
     const r = localStorage.getItem(HR_WORKSPACE_STORAGE.requests);
     const tt = localStorage.getItem(HR_WORKSPACE_STORAGE.transportTrips);
@@ -362,6 +375,26 @@ export function hydrateHrWorkspaceFromStorage() {
       } else {
         const ws = normalizeHrWorkspace("sst", s);
         state.sstUi = { ...(state.sstUi || {}), workspace: ws };
+      }
+    }
+    if (sf) {
+      let parsed = null;
+      try {
+        parsed = JSON.parse(sf);
+      } catch (_jsonErr) {
+        parsed = null;
+      }
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        state.sarlaftUi = {
+          ...(state.sarlaftUi || {}),
+          workspace: normalizeHrWorkspace("sarlaft", parsed.workspace),
+          operateSection: normalizeSarlaftOperateSection(parsed.operateSection),
+          dataSection: normalizeSarlaftDataSection(parsed.dataSection),
+          listSearch: String(parsed.listSearch || "")
+        };
+      } else {
+        const ws = normalizeHrWorkspace("sarlaft", sf);
+        state.sarlaftUi = { ...(state.sarlaftUi || {}), workspace: ws };
       }
     }
     if (d) {
@@ -494,6 +527,19 @@ export function persistHrWorkspace(moduleId, workspace) {
           workspace: normalizeHrWorkspace("sst", ui.workspace),
           operateSection: normalizeSstOperateSection(ui.operateSection),
           dataSection: normalizeSstDataSection(ui.dataSection),
+          listSearch: String(ui.listSearch || "")
+        })
+      );
+    } else if (moduleId === "sarlaft") {
+      const ui = { ...(state.sarlaftUi || {}) };
+      if (HR_VALID_SARLAFT_WS.has(ws)) ui.workspace = ws;
+      state.sarlaftUi = ui;
+      localStorage.setItem(
+        HR_WORKSPACE_STORAGE.sarlaft,
+        JSON.stringify({
+          workspace: normalizeHrWorkspace("sarlaft", ui.workspace),
+          operateSection: normalizeSarlaftOperateSection(ui.operateSection),
+          dataSection: normalizeSarlaftDataSection(ui.dataSection),
           listSearch: String(ui.listSearch || "")
         })
       );

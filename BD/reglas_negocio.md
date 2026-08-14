@@ -50,6 +50,7 @@ Documento complementario a los scripts en `postgres/` (**tablas y columnas en es
 | **Auxilio de transporte** | Norma salario ≤ 2 SMMLV; validar en liquidación. |
 | **Contratos** | Catálogo alineado a práctica colombiana. |
 | **Seguridad social** | EPS, pensión y ARL en `empleados_nomina`; cumplimiento en `registros_cumplimiento_sst`. |
+| **SARLAFT / PTE** | Terceros, perfiles de riesgo, alertas y revisiones en `terceros_sarlaft` / `perfiles_riesgo_sarlaft` / `alertas_sarlaft` / `revisiones_sarlaft`. Evidencias en Gestión documental (`08. SARLAFT / PTE`). |
 | **Liquidación** | `liquidaciones_nomina`: el prototipo permite varias filas por empleado/mes; opcional `UNIQUE (id_empleado, periodo_mes)` en producción. |
 | **Pago** | `liquidacion_pagada` con autorización; `pago_aprobado_por` si aplica. |
 

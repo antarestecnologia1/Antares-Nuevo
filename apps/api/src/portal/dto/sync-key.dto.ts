@@ -27,6 +27,10 @@ export const PORTAL_SYNC_KEYS = [
   "employeeDocumentFolders",
   "companyDocuments",
   "companyDocumentFolders",
+  "sarlaftThirdParties",
+  "sarlaftRiskProfiles",
+  "sarlaftAlerts",
+  "sarlaftReviews",
   "tripRouteRates",
   "approvals"
 ] as const;

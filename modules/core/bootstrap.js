@@ -519,6 +519,10 @@ export function __applyPortalBootstrapPayloadInner(p) {
     ["employeeDocumentFolders", KEYS.employeeDocumentFolders],
     ["companyDocuments", KEYS.companyDocuments],
     ["companyDocumentFolders", KEYS.companyDocumentFolders],
+    ["sarlaftThirdParties", KEYS.sarlaftThirdParties],
+    ["sarlaftRiskProfiles", KEYS.sarlaftRiskProfiles],
+    ["sarlaftAlerts", KEYS.sarlaftAlerts],
+    ["sarlaftReviews", KEYS.sarlaftReviews],
     ["tripRouteRates", KEYS.tripRouteRates],
     ["approvals", KEYS.approvals]
   ];
@@ -534,6 +538,10 @@ export function __applyPortalBootstrapPayloadInner(p) {
     "employeeDocumentFolders",
     "companyDocuments",
     "companyDocumentFolders",
+    "sarlaftThirdParties",
+    "sarlaftRiskProfiles",
+    "sarlaftAlerts",
+    "sarlaftReviews",
     "candidates",
     "positions"
   ]);
@@ -664,6 +672,38 @@ export function __applyPortalBootstrapPayloadInner(p) {
           ? hooks.normalizeCompanyFolderRow
           : (row) => row;
       write(KEYS.companyDocumentFolders, raw.map(norm), { skipSyncSchedule: true });
+      continue;
+    }
+    if (prop === "sarlaftThirdParties") {
+      const raw = Array.isArray(p.sarlaftThirdParties) ? p.sarlaftThirdParties : [];
+      const norm =
+        typeof hooks.normalizeSarlaftThirdPartyRow === "function"
+          ? hooks.normalizeSarlaftThirdPartyRow
+          : (row) => row;
+      write(KEYS.sarlaftThirdParties, raw.map(norm).filter(Boolean), { skipSyncSchedule: true });
+      continue;
+    }
+    if (prop === "sarlaftRiskProfiles") {
+      const raw = Array.isArray(p.sarlaftRiskProfiles) ? p.sarlaftRiskProfiles : [];
+      const norm =
+        typeof hooks.normalizeSarlaftRiskProfileRow === "function"
+          ? hooks.normalizeSarlaftRiskProfileRow
+          : (row) => row;
+      write(KEYS.sarlaftRiskProfiles, raw.map(norm).filter(Boolean), { skipSyncSchedule: true });
+      continue;
+    }
+    if (prop === "sarlaftAlerts") {
+      const raw = Array.isArray(p.sarlaftAlerts) ? p.sarlaftAlerts : [];
+      const norm =
+        typeof hooks.normalizeSarlaftAlertRow === "function" ? hooks.normalizeSarlaftAlertRow : (row) => row;
+      write(KEYS.sarlaftAlerts, raw.map(norm).filter(Boolean), { skipSyncSchedule: true });
+      continue;
+    }
+    if (prop === "sarlaftReviews") {
+      const raw = Array.isArray(p.sarlaftReviews) ? p.sarlaftReviews : [];
+      const norm =
+        typeof hooks.normalizeSarlaftReviewRow === "function" ? hooks.normalizeSarlaftReviewRow : (row) => row;
+      write(KEYS.sarlaftReviews, raw.map(norm).filter(Boolean), { skipSyncSchedule: true });
       continue;
     }
     if (prop === "candidates") {

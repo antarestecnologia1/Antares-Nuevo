@@ -281,7 +281,8 @@ function mountUniversalModuleFilters() {
     "authorizations",
     "contact-leads",
     "notifications",
-    "document-management"
+    "document-management",
+    "sarlaft-pte"
   ]);
   if (cardFirstViews.has(moduleView)) return;
   const tableBodies = [...nodes.viewRoot.querySelectorAll(".table-wrap table tbody")];
