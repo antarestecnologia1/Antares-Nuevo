@@ -3,6 +3,8 @@
  * Ejecutar: node qa/company-documents-metadata.test.mjs
  */
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import {
   COMPANY_DOCUMENT_CATEGORIES,
   SUGGESTED_COMPANY_FOLDERS,
@@ -109,5 +111,74 @@ ok(!hiddenPaths.some((p) => p.includes(".sistema")), "collectAllFolderPaths ocul
 
 const legacy = serializeCompanyDocumentTags({ documentCategory: "contrato" });
 ok(legacy === "contrato", "sin metadatos extra se conserva etiqueta plana");
+
+const legacyRow = normalizeCompanyDocumentRow({
+  id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+  nombre_archivo: "contrato_fijo_ana.pdf",
+  tipo: "PDF",
+  carpeta: "01. Empleados / Ana",
+  etiquetas: "contrato",
+  mime_type: "application/pdf",
+  tamano_bytes: 800,
+  storage_key: "k2",
+  subido_por: "Portal"
+});
+ok(legacyRow.documentCategory === "contrato", "fila bootstrap legacy conserva categoría");
+ok(legacyRow.fileName.includes("contrato"), "fila bootstrap legacy conserva nombre");
+ok(legacyRow.tags === "contrato" || parseDocumentCategory(legacyRow.tags) === "contrato", "legacy tags siguen siendo consultables");
+
+const corruptOk = normalizeCompanyDocumentRow({
+  id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+  fileName: "roto.pdf",
+  folder: "General",
+  tags: "{no-json",
+  storageKey: "k3"
+});
+ok(corruptOk?.id, "tags mal formados no tumban la normalización");
+
+/* ------------------------------------------------------------------ */
+/* Integridad estática del módulo UI                                   */
+/* ------------------------------------------------------------------ */
+const ROOT = process.cwd();
+const gestionJs = readFileSync(path.join(ROOT, "modules/app/gestion-documental.js"), "utf8");
+const indexHtml = readFileSync(path.join(ROOT, "index.html"), "utf8");
+const domainJs = readFileSync(path.join(ROOT, "modules/domain/company-documents.domain.js"), "utf8");
+
+ok(gestionJs.includes("function hasHireDocMarker(marker)"), "hasHireDocMarker existe");
+ok(!/function employeeEntityMeta\([\s\S]*?\}\s+if \(!marker\)/.test(gestionJs), "no hay código huérfano tras employeeEntityMeta");
+ok(gestionJs.includes("function documentManagementHtml()"), "renderer principal existe");
+ok(gestionJs.includes("registerLegacyPortalViews({ documentManagementHtml })"), "registra la vista legacy");
+ok(gestionJs.includes("window.AppLegacyViews"), "fallback de registro si el puente aún no está");
+ok(gestionJs.includes('window.__portalModuleAfterRender["document-management"]'), "bind after-render registrado");
+
+const windowExports = [
+  "ensureCompanyEmployeeDocumentFolder",
+  "archivePayrollRunToEmployeeFolder",
+  "archiveEmployeeHirePackageToFolder",
+  "archiveEmployeeContractToFolder",
+  "archiveEmployeePhotoToFolder",
+  "archiveEmployeeLaborLetterToFolder"
+];
+for (const name of windowExports) {
+  ok(gestionJs.includes(`window.${name}`), `export global ${name}`);
+}
+
+const actions = [...gestionJs.matchAll(/data-action=['"](doc-[a-z0-9-]+)['"]/g)].map((m) => m[1]);
+const uniqueActions = [...new Set(actions)];
+const unbound = uniqueActions.filter(
+  (action) =>
+    !gestionJs.includes(`[data-action='${action}']`) &&
+    !gestionJs.includes(`querySelector("[data-action='${action}']")`) &&
+    !gestionJs.includes(`querySelectorAll("[data-action='${action}']")`)
+);
+ok(unbound.length === 0, `todas las acciones UI tienen bind: ${unbound.join(", ") || "ok"}`);
+
+const importBlock = gestionJs.match(/} from "\.\.\/domain\/company-documents\.domain\.js";/)
+  ? gestionJs.slice(0, gestionJs.indexOf('} from "../domain/company-documents.domain.js";'))
+  : "";
+ok(importBlock.includes("normalizeCompanyDocumentRow"), "importa normalizador");
+ok(domainJs.includes("export function normalizeCompanyDocumentRow"), "dominio exporta normalizador");
+ok(indexHtml.includes("gestion-documental.js?v=20260814-dms-integrity"), "cache-bust del JS actualizado");
+ok(indexHtml.includes("gestion-documental.css?v=20260814-dms-integrity"), "cache-bust del CSS actualizado");
 
 console.log("company-documents-metadata: OK");

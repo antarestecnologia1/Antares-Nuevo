@@ -85,6 +85,9 @@ import {
   canAccessSarlaftModule,
   canDeleteSarlaftRecords,
   canSyncSarlaftKey,
+  canUploadSarlaftEvidence,
+  isSarlaftEvidenceDocument,
+  isSarlaftEvidenceFolder,
   SARLAFT_GRANULAR_PERMISSIONS
 } from "./sarlaft-permissions";
 import {
@@ -3160,8 +3163,10 @@ export class PortalService implements OnModuleInit {
 
   /** Subida: exige permiso global + rol permitido (ver y subir) en la carpeta destino. Admin omite. */
   async assertCanUploadToCompanyFolder(userId: string, role: JwtRole, folderPath: string): Promise<void> {
-    await this.assertCanUploadCompanyDocument(userId, role);
     if (this.isAdmin(role)) return;
+    const permissionSet = await this.resolveEffectivePermissionSet(userId, role);
+    if (isSarlaftEvidenceFolder(folderPath) && canUploadSarlaftEvidence(permissionSet)) return;
+    await this.assertCanUploadCompanyDocument(userId, role);
     const scope = await this.resolveCompanyDocumentWriteScope(userId, role);
     const perm = this.folderPermFor(await this.loadCompanyFolderPermMap(this.pool, scope), folderPath);
     if (!perm) return;
@@ -5490,7 +5495,14 @@ export class PortalService implements OnModuleInit {
             throw new ForbiddenException("No autorizado para eliminar documentos corporativos.");
           }
           if (hasData && !canSyncEmployeeDocuments(permissionSet)) {
-            throw new ForbiddenException("No autorizado para registrar documentos corporativos.");
+            const rows = Array.isArray(data) ? data : [];
+            const sarlaftEvidenceOk =
+              rows.length > 0 &&
+              rows.every((row) => isSarlaftEvidenceDocument(row)) &&
+              canUploadSarlaftEvidence(permissionSet);
+            if (!sarlaftEvidenceOk) {
+              throw new ForbiddenException("No autorizado para registrar documentos corporativos.");
+            }
           }
           if (!hasData && !hasDeletes && !canAccessDocumentsModule(permissionSet)) {
             throw new ForbiddenException();

@@ -282,10 +282,28 @@ function canDeleteFolder(folders, path) {
 }
 
 function readDocs() {
-  return read(KEYS.companyDocuments, []).map(normalizeCompanyDocumentRow).filter((d) => d && d.id);
+  return read(KEYS.companyDocuments, [])
+    .map((row) => {
+      try {
+        return normalizeCompanyDocumentRow(row);
+      } catch (err) {
+        devWarn("[companyDocuments] normalize row", err?.message || err);
+        return null;
+      }
+    })
+    .filter((d) => d && d.id);
 }
 function readFolders() {
-  return read(KEYS.companyDocumentFolders, []).map(normalizeCompanyFolderRow).filter((f) => f && f.id);
+  return read(KEYS.companyDocumentFolders, [])
+    .map((row) => {
+      try {
+        return normalizeCompanyFolderRow(row);
+      } catch (err) {
+        devWarn("[companyDocuments] normalize folder", err?.message || err);
+        return null;
+      }
+    })
+    .filter((f) => f && f.id);
 }
 function visibleDocs(docs, folders) {
   if (isDocManager()) return docs;
@@ -954,6 +972,15 @@ function renderOnboarding(IC) {
 }
 
 function documentManagementHtml() {
+  try {
+    return renderDocumentManagementShell();
+  } catch (err) {
+    devWarn("[companyDocuments] render", err?.message || err);
+    return `<section class="documents-studio doc-studio"><div class="doc-empty"><p class="doc-empty__title">No se pudo cargar la gestión documental.</p><p class="doc-empty__hint">Recargue el portal. Si el problema continúa, revise la consola del navegador.</p></div></section>`;
+  }
+}
+
+function renderDocumentManagementShell() {
   const IC = G.IC || {};
   if (!canView()) {
     return `<section class="documents-studio doc-studio"><div class="doc-empty"><p class="doc-empty__title">No tiene permiso para consultar la gestión documental.</p></div></section>`;
@@ -1153,7 +1180,7 @@ async function archivePayrollRunToEmployeeFolder(run) {
   }
 }
 
-/** ¿Ya existe un documento corporativo con este marcador de alta? */
+/** Metadatos de clasificación para evidencias archivadas en el expediente del colaborador. */
 function employeeEntityMeta(employee) {
   const id = String(employee?.id || "").trim();
   const name = String(employee?.name || employee?.fullName || "").trim();
@@ -1164,6 +1191,9 @@ function employeeEntityMeta(employee) {
     process: "rrhh"
   };
 }
+
+/** ¿Ya existe un documento corporativo con este marcador de alta? */
+function hasHireDocMarker(marker) {
   if (!marker) return false;
   return readDocs().some((d) => String(d.description || "").includes(marker));
 }
@@ -2677,7 +2707,21 @@ function openEditDocumentModal(target) {
       },
       { name: "description", label: "Descripción", type: "textarea", rows: 2, value: sanitizeCompanyDocumentDescription(target.description || "") }
     ],
-    afterMount: (formEl) => wireDocumentMetaFields(formEl),
+    afterMount: (formEl) => {
+      wireDocumentMetaFields(formEl);
+      formEl?.querySelectorAll("[data-action='doc-download']").forEach((btn) => {
+        btn.addEventListener("click", async (e) => {
+          e.preventDefault();
+          const doc = findDoc(btn.dataset.id);
+          if (!doc) return;
+          try {
+            await triggerDownload(doc);
+          } catch (err) {
+            G.notify?.(String(err?.message || "No se pudo descargar."), "error");
+          }
+        });
+      });
+    },
     onSubmit: async (form, formEl) => {
       const fileName = String(form.fileName || "").trim();
       const folder = normalizeCompanyFolder(form.folder);
@@ -3581,6 +3625,9 @@ function bindDocumentManagementPortalControls() {
 
 if (typeof window.registerLegacyPortalViews === "function") {
   window.registerLegacyPortalViews({ documentManagementHtml });
+} else {
+  window.AppLegacyViews = window.AppLegacyViews || {};
+  Object.assign(window.AppLegacyViews, { documentManagementHtml });
 }
 
 (function registerDocumentManagementPortalBinds() {

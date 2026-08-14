@@ -90,6 +90,41 @@
   margin-top: 0.35rem;
 }
 
+.sarlaft-studio .sarlaft-evidence-file input[type="file"] {
+  padding: 0.55rem 0.7rem;
+  cursor: pointer;
+}
+
+.sarlaft-studio .sarlaft-evidence-file__hint {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+}
+
+.sarlaft-studio .sarlaft-evidence-file__list {
+  list-style: none;
+  margin: 0.45rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.sarlaft-studio .sarlaft-evidence-file__list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.4rem 0.55rem;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  font-size: 0.82rem;
+}
+
+.sarlaft-studio .sarlaft-evidence-file__list small {
+  color: #64748b;
+  white-space: nowrap;
+}
+
 @media (max-width: 960px) {
   .sarlaft-studio .sst-status-cards {
     grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -35,6 +35,7 @@ import {
   createHrActionCard
 } from "../ui/components.js";
 import { downloadCsv } from "../domain/reporteria.domain.js";
+import { validateUploadFile, SAFE_DOCUMENT_ACCEPT } from "../core/file-upload-security.js";
 import {
   SARLAFT_COMPANY_FOLDER,
   SARLAFT_DOCUMENT_PROCESS,
@@ -70,8 +71,15 @@ import {
   computeSarlaftNextReviewDate
 } from "../domain/sarlaft.domain.js";
 import {
+  COMPANY_DOCUMENT_MAX_BYTES,
+  normalizeCompanyFolder,
   normalizeCompanyDocumentRow,
-  formatCompanyDocumentDisplayName
+  formatCompanyDocumentDisplayName,
+  fileTypeLabel,
+  formatFileSize,
+  findCompanyDocumentCategory,
+  listCompanyDocumentCategories,
+  serializeCompanyDocumentTags
 } from "../domain/company-documents.domain.js";
 
 const G = globalThis;
@@ -149,6 +157,139 @@ function partyOptionsHtml(selectedId = "") {
       return `<option value="${escapeAttr(id)}"${id === String(selectedId) ? " selected" : ""}>${escapeHtml(p.name)} · ${escapeHtml(p.documentNumber || p.code || "")}</option>`;
     })
     .join("");
+}
+
+function sarlaftEvidenceFolder(partyName) {
+  const leaf = String(partyName || "")
+    .replace(/[\\/]+/g, " ")
+    .trim()
+    .slice(0, 120);
+  return normalizeCompanyFolder(leaf ? `${SARLAFT_COMPANY_FOLDER} / ${leaf}` : SARLAFT_COMPANY_FOLDER);
+}
+
+function sarlaftEvidenceCategoryOptionsHtml(selected = "form_conocimiento_tercero") {
+  const cats = listCompanyDocumentCategories().filter((c) => c.process === "sarlaft" || c.value === "otro");
+  return cats
+    .map(
+      (c) =>
+        `<option value="${escapeAttr(c.value)}"${c.value === selected ? " selected" : ""}>${escapeHtml(c.label)}</option>`
+    )
+    .join("");
+}
+
+function evidenceAttachHtml(fieldLabel, IC, { defaultCategory = "form_conocimiento_tercero", hint } = {}) {
+  return `<fieldset class="form-section form-section-amber full">
+    <legend>${IC.upload || IC.file || ""} Anexar evidencias</legend>
+    <p class="muted form-section-hint">${escapeHtml(
+      hint ||
+        `Opcional. Quedan en Gestión documental (${SARLAFT_COMPANY_FOLDER}), vinculados a este registro.`
+    )}</p>
+    <div class="form-section-grid">
+      <label>${fieldLabel(IC.file, "Tipo documental")}
+        <select name="evidenceCategory">${sarlaftEvidenceCategoryOptionsHtml(defaultCategory)}</select>
+      </label>
+      <label>${fieldLabel(IC.calendar, "Vencimiento (si aplica)")}
+        <input type="date" name="evidenceExpiresAt" />
+      </label>
+      <label class="full sarlaft-evidence-file">
+        ${fieldLabel(IC.upload || IC.file, "Archivos")}
+        <input type="file" name="evidenceFiles" data-sarlaft-evidence-input multiple accept="${SAFE_DOCUMENT_ACCEPT}" />
+        <span class="muted sarlaft-evidence-file__hint">PDF, Office, imagen o ZIP · varios archivos · máx. ${escapeHtml(formatFileSize(COMPANY_DOCUMENT_MAX_BYTES))} c/u</span>
+        <ul class="sarlaft-evidence-file__list" data-sarlaft-evidence-list></ul>
+      </label>
+    </div>
+  </fieldset>`;
+}
+
+function bindSarlaftEvidencePicker(form) {
+  const input = form?.querySelector("[data-sarlaft-evidence-input]");
+  const list = form?.querySelector("[data-sarlaft-evidence-list]");
+  if (!input || !list) return;
+  const render = () => {
+    list.innerHTML = [...(input.files || [])]
+      .map((f) => `<li><span>${escapeHtml(f.name)}</span><small>${escapeHtml(formatFileSize(f.size))}</small></li>`)
+      .join("");
+  };
+  input.addEventListener("change", render);
+}
+
+async function uploadSarlaftEvidenceFile(file, folder) {
+  const api = window.AntaresApi;
+  if (!api?.postFormData) throw new Error("API no disponible para anexar archivos.");
+  const check = await validateUploadFile(file, "document");
+  if (!check.ok) throw new Error(check.message || "Archivo no permitido.");
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("folder", folder);
+  const res = await api.postFormData("/uploads/company-document", fd);
+  if (!res?.key) throw new Error("No se obtuvo la clave de almacenamiento.");
+  return res;
+}
+
+async function attachSarlaftEvidenceFiles({ formEl, party, relatedLabel = "" }) {
+  const input = formEl?.querySelector("[data-sarlaft-evidence-input]");
+  const files = input?.files ? [...input.files] : [];
+  if (!files.length || !party?.id) return [];
+  const category =
+    String(formEl.querySelector("[name='evidenceCategory']")?.value || "form_conocimiento_tercero").trim() || "otro";
+  const expiresAt = String(formEl.querySelector("[name='evidenceExpiresAt']")?.value || "").trim();
+  const catMeta = findCompanyDocumentCategory(category);
+  const folder = sarlaftEvidenceFolder(party.name);
+  const by = actorLabel();
+  const ids = [];
+  for (const file of files) {
+    if (file.size > COMPANY_DOCUMENT_MAX_BYTES) {
+      G.notify?.(`"${file.name}" supera el tamaño máximo (${formatFileSize(COMPANY_DOCUMENT_MAX_BYTES)}).`, "error");
+      continue;
+    }
+    try {
+      const uploaded = await uploadSarlaftEvidenceFile(file, folder);
+      const nowIso = new Date().toISOString();
+      const recordId = newUuidV4();
+      const record = normalizeCompanyDocumentRow({
+        id: recordId,
+        fileName: uploaded.fileName || file.name,
+        type: fileTypeLabel(uploaded.fileName || file.name, uploaded.mimeType || file.type),
+        documentCategory: category,
+        folder: normalizeCompanyFolder(uploaded.folder || folder),
+        mimeType: uploaded.mimeType || file.type || "application/octet-stream",
+        sizeBytes: Number(uploaded.sizeBytes) || file.size || 0,
+        storageKey: uploaded.key,
+        description: relatedLabel,
+        uploadedBy: by,
+        createdAt: nowIso,
+        updatedAt: nowIso,
+        entityType: "tercero",
+        entityId: party.id,
+        entityLabel: party.name,
+        process: SARLAFT_DOCUMENT_PROCESS,
+        area: catMeta?.area || "kyc",
+        expiresAt,
+        version: 1,
+        versionGroup: recordId,
+        isCurrentVersion: true
+      });
+      record.tags = serializeCompanyDocumentTags(record);
+      await writeAwaitServerCreate(KEYS.companyDocuments, [...readCompanyDocs(), record], record);
+      ids.push(record.id);
+    } catch (err) {
+      G.notify?.(`No se pudo anexar "${file.name}": ${String(err?.message || err)}`, "error");
+    }
+  }
+  return ids;
+}
+
+async function mergePartyDocumentIds(partyId, attachedIds) {
+  if (!partyId || !attachedIds?.length) return;
+  const next = readParties().map((p) =>
+    p.id === partyId
+      ? stampUpdatedRecord({
+          ...p,
+          documentIds: [...new Set([...(p.documentIds || []), ...attachedIds].map(String))]
+        })
+      : p
+  );
+  await writeAwaitServerEdit(KEYS.sarlaftThirdParties, next, partyId);
 }
 
 function profileOptionsHtml(selectedId = "") {
@@ -396,6 +537,10 @@ function partyFormHtml(fieldLabel, IC, canMutate) {
           </label>
         </div>
       </fieldset>
+      ${evidenceAttachHtml(fieldLabel, IC, {
+        defaultCategory: "form_conocimiento_tercero",
+        hint: "Adjunte formulario de conocimiento, listas, origen de fondos, PEP u otros soportes del tercero."
+      })}
     </div>
     <footer class="antares-create-form__footer">
       ${G.renderManagedCreateFormActions("create-sarlaft-party", `<button class="btn btn-primary antares-create-form__submit" type="submit">${IC.plus || ""} Registrar tercero</button>`)}
@@ -435,6 +580,10 @@ function alertFormHtml(fieldLabel, IC, canMutate) {
           <label>${fieldLabel(IC.hash, "Origen")}<input name="source" maxlength="120" placeholder="Listas, denuncia, auditoría..." /></label>
         </div>
       </fieldset>
+      ${evidenceAttachHtml(fieldLabel, IC, {
+        defaultCategory: "consulta_listas",
+        hint: "Adjunte soportes de la alerta, consulta de listas o evidencia de la situación."
+      })}
     </div>
     <footer class="antares-create-form__footer">
       ${G.renderManagedCreateFormActions("create-sarlaft-alert", `<button class="btn btn-primary antares-create-form__submit" type="submit">${IC.plus || ""} Registrar alerta</button>`)}
@@ -466,6 +615,10 @@ function reviewFormHtml(fieldLabel, IC, canMutate) {
           </label>
         </div>
       </fieldset>
+      ${evidenceAttachHtml(fieldLabel, IC, {
+        defaultCategory: "otro",
+        hint: "Adjunte actas, soportes de la revisión u observaciones documentadas."
+      })}
     </div>
     <footer class="antares-create-form__footer">
       ${G.renderManagedCreateFormActions("create-sarlaft-review", `<button class="btn btn-primary antares-create-form__submit" type="submit">${IC.plus || ""} Registrar revisión</button>`)}
@@ -1023,6 +1176,7 @@ function bindSarlaftPortalControls() {
   const partyForm = document.getElementById("form-sarlaft-party");
   if (partyForm) {
     bindProfileSelect(partyForm);
+    bindSarlaftEvidencePicker(partyForm);
     G.wireFormSubmitGuard?.(partyForm, async () => {
       if (!canMutateSarlaftParties()) return;
       const data = G.readFormEntriesNormalized?.(partyForm) || Object.fromEntries(new FormData(partyForm).entries());
@@ -1047,14 +1201,33 @@ function bindSarlaftPortalControls() {
         })
       );
       await writeAwaitServerCreate(KEYS.sarlaftThirdParties, [...readParties(), record], record);
-      auditSarlaft("create", record.id, record.name, `Alta de tercero ${record.code || ""} · ${record.kycStatus}`);
-      G.notify?.("Tercero registrado.", "success");
+      const attachedIds = await attachSarlaftEvidenceFiles({
+        formEl: partyForm,
+        party: record,
+        relatedLabel: `Alta de tercero ${record.code || ""}`
+      });
+      if (attachedIds.length && canMutateSarlaftParties()) {
+        await mergePartyDocumentIds(record.id, attachedIds);
+      }
+      auditSarlaft(
+        "create",
+        record.id,
+        record.name,
+        `Alta de tercero ${record.code || ""} · ${record.kycStatus}${attachedIds.length ? ` · ${attachedIds.length} anexo(s)` : ""}`
+      );
+      G.notify?.(
+        attachedIds.length
+          ? `Tercero registrado. ${attachedIds.length} documento${attachedIds.length === 1 ? "" : "s"} anexado${attachedIds.length === 1 ? "" : "s"}.`
+          : "Tercero registrado.",
+        "success"
+      );
       G.renderPortalView?.();
     });
   }
 
   const alertForm = document.getElementById("form-sarlaft-alert");
   if (alertForm) {
+    bindSarlaftEvidencePicker(alertForm);
     G.wireFormSubmitGuard?.(alertForm, async () => {
       if (!canMutateSarlaftAlerts()) return;
       const data = G.readFormEntriesNormalized?.(alertForm) || Object.fromEntries(new FormData(alertForm).entries());
@@ -1073,14 +1246,33 @@ function bindSarlaftPortalControls() {
         })
       );
       await writeAwaitServerCreate(KEYS.sarlaftAlerts, [...readAlerts(), record], record);
-      auditSarlaft("create", record.id, record.title, `Alerta ${record.kind} · ${party.name}`);
-      G.notify?.("Alerta registrada.", "success");
+      const attachedIds = await attachSarlaftEvidenceFiles({
+        formEl: alertForm,
+        party,
+        relatedLabel: `Alerta ${record.kind} · ${record.title}`
+      });
+      if (attachedIds.length && canMutateSarlaftParties()) {
+        await mergePartyDocumentIds(party.id, attachedIds);
+      }
+      auditSarlaft(
+        "create",
+        record.id,
+        record.title,
+        `Alerta ${record.kind} · ${party.name}${attachedIds.length ? ` · ${attachedIds.length} anexo(s)` : ""}`
+      );
+      G.notify?.(
+        attachedIds.length
+          ? `Alerta registrada. ${attachedIds.length} documento${attachedIds.length === 1 ? "" : "s"} anexado${attachedIds.length === 1 ? "" : "s"}.`
+          : "Alerta registrada.",
+        "success"
+      );
       G.renderPortalView?.();
     });
   }
 
   const reviewForm = document.getElementById("form-sarlaft-review");
   if (reviewForm) {
+    bindSarlaftEvidencePicker(reviewForm);
     G.wireFormSubmitGuard?.(reviewForm, async () => {
       if (!canMutateSarlaftReviews()) return;
       const data = G.readFormEntriesNormalized?.(reviewForm) || Object.fromEntries(new FormData(reviewForm).entries());
@@ -1099,6 +1291,14 @@ function bindSarlaftPortalControls() {
         })
       );
       await writeAwaitServerCreate(KEYS.sarlaftReviews, [...readReviews(), record], record);
+      const attachedIds = await attachSarlaftEvidenceFiles({
+        formEl: reviewForm,
+        party,
+        relatedLabel: `Revisión ${record.kind} · ${record.status}`
+      });
+      if (attachedIds.length && canMutateSarlaftParties()) {
+        await mergePartyDocumentIds(party.id, attachedIds);
+      }
       if (record.kind === "revision" && record.status === "cerrada" && canMutateSarlaftParties()) {
         const nextList = readParties().map((p) =>
           p.id === party.id
@@ -1115,8 +1315,18 @@ function bindSarlaftPortalControls() {
         const updated = nextList.find((p) => p.id === party.id);
         if (updated) await writeAwaitServerEdit(KEYS.sarlaftThirdParties, nextList, updated.id);
       }
-      auditSarlaft("create", record.id, party.name, `Revisión ${record.kind} · ${record.status}`);
-      G.notify?.("Revisión registrada.", "success");
+      auditSarlaft(
+        "create",
+        record.id,
+        party.name,
+        `Revisión ${record.kind} · ${record.status}${attachedIds.length ? ` · ${attachedIds.length} anexo(s)` : ""}`
+      );
+      G.notify?.(
+        attachedIds.length
+          ? `Revisión registrada. ${attachedIds.length} documento${attachedIds.length === 1 ? "" : "s"} anexado${attachedIds.length === 1 ? "" : "s"}.`
+          : "Revisión registrada.",
+        "success"
+      );
       G.renderPortalView?.();
     });
   }

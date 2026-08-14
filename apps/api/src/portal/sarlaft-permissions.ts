@@ -38,6 +38,34 @@ export function canDeleteSarlaftRecords(permissionSet: ReadonlySet<string>): boo
   return hasSarlaftManageAll(permissionSet) || permissionSet.has("sarlaft_delete");
 }
 
+/** Alta de evidencias KYC desde el módulo SARLAFT (carpeta 08. SARLAFT / PTE). */
+export function canUploadSarlaftEvidence(permissionSet: ReadonlySet<string>): boolean {
+  return (
+    hasSarlaftManageAll(permissionSet) ||
+    permissionSet.has("sarlaft_parties") ||
+    permissionSet.has("sarlaft_alerts") ||
+    permissionSet.has("sarlaft_reviews")
+  );
+}
+
+export function isSarlaftEvidenceFolder(folderPath: unknown): boolean {
+  const key = String(folderPath || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+  return key.includes("sarlaft");
+}
+
+export function isSarlaftEvidenceDocument(row: unknown): boolean {
+  if (!row || typeof row !== "object") return false;
+  const rec = row as Record<string, unknown>;
+  const process = String(rec.process || rec.proceso || "").trim().toLowerCase();
+  const entityType = String(rec.entityType || rec.entidadTipo || rec.entidad_tipo || "").trim().toLowerCase();
+  const folder = rec.folder ?? rec.carpeta ?? "";
+  return process === "sarlaft" || entityType === "tercero" || isSarlaftEvidenceFolder(folder);
+}
+
 export function canSyncSarlaftKey(
   key: "sarlaftRiskProfiles" | "sarlaftThirdParties" | "sarlaftAlerts" | "sarlaftReviews",
   permissionSet: ReadonlySet<string>
