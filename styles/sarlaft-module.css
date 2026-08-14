@@ -6,6 +6,8 @@
 .sarlaft-studio.payroll-studio {
   --sarlaft-navy: #0f2744;
   --sarlaft-gold: #b45309;
+  --pte-teal: #0f766e;
+  --pte-mint: #ccfbf1;
 }
 
 .sarlaft-studio .sst-status-cards {
@@ -66,6 +68,7 @@
   font-size: 0.78rem;
 }
 
+.sarlaft-evidence-list,
 .sarlaft-studio .sarlaft-evidence-list {
   display: grid;
   gap: 0.4rem;
@@ -74,6 +77,7 @@
   list-style: none;
 }
 
+.sarlaft-evidence-list li,
 .sarlaft-studio .sarlaft-evidence-list li {
   display: flex;
   align-items: center;
@@ -84,6 +88,40 @@
   border: 1px solid var(--pay-edge, #e2e8f0);
   background: var(--pay-surface, #f8fafc);
   font-size: 0.84rem;
+}
+
+.sarlaft-evidence-list__meta {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.sarlaft-evidence-list__actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.sarlaft-ficha-attach {
+  margin-top: 0.65rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: 12px;
+  border: 1px dashed #cbd5e1;
+  background: #f8fafc;
+}
+
+.sarlaft-ficha-attach__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.sarlaft-ficha-attach__row select,
+.sarlaft-ficha-attach__row input[type="file"] {
+  min-width: 0;
+  flex: 1 1 12rem;
 }
 
 .sarlaft-studio .sarlaft-link-docs {
@@ -125,6 +163,159 @@
   white-space: nowrap;
 }
 
+.sarlaft-studio--sarlaft {
+  --pay-accent: var(--sarlaft-navy);
+}
+
+.sarlaft-studio--pte {
+  --pay-accent: var(--pte-teal);
+}
+
+.sarlaft-studio-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.sarlaft-program-switch {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.28rem;
+  border-radius: 14px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+}
+
+.sarlaft-program-switch__btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  min-width: 7.5rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: 10px;
+  text-align: left;
+  color: #475569;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.sarlaft-program-switch__btn strong {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 750;
+  letter-spacing: 0.01em;
+}
+
+.sarlaft-program-switch__btn small {
+  display: block;
+  margin-top: 0.08rem;
+  font-size: 0.68rem;
+  color: #64748b;
+}
+
+.sarlaft-program-switch__btn.is-active {
+  background: #fff;
+  color: #0f172a;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08), 0 6px 14px rgba(15, 23, 42, 0.06);
+}
+
+.sarlaft-program-switch__btn--sarlaft.is-active {
+  color: var(--sarlaft-navy, #0f2744);
+  box-shadow: 0 0 0 1px rgba(15, 39, 68, 0.18), 0 6px 14px rgba(15, 39, 68, 0.08);
+}
+
+.sarlaft-program-switch__btn--pte.is-active {
+  color: var(--pte-teal, #0f766e);
+  box-shadow: 0 0 0 1px rgba(15, 118, 110, 0.2), 0 6px 14px rgba(15, 118, 110, 0.08);
+}
+
+.sarlaft-program-chip,
+.sarlaft-pep-flag,
+.sarlaft-pte-flag {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.35rem;
+  padding: 0.08rem 0.4rem;
+  border-radius: 6px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  vertical-align: middle;
+}
+
+.sarlaft-program-chip--sarlaft {
+  background: #e2e8f0;
+  color: #0f2744;
+}
+
+.sarlaft-program-chip--pte {
+  background: #ccfbf1;
+  color: #115e59;
+}
+
+.sarlaft-program-chip--ambos {
+  background: #ffedd5;
+  color: #9a3412;
+}
+
+.sarlaft-pep-flag {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.sarlaft-pte-flag {
+  background: #ccfbf1;
+  color: #0f766e;
+}
+
+.sarlaft-party-detail .sarlaft-detail-block {
+  margin: 0.85rem 0;
+  padding: 0.75rem 0.9rem;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.sarlaft-party-detail .sarlaft-detail-block h4 {
+  margin: 0 0 0.45rem;
+  font-size: 0.86rem;
+}
+
+.sarlaft-detail-block--sarlaft {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+.sarlaft-detail-block--pte {
+  border-color: #99f6e4;
+  background: #f0fdfa;
+}
+
+.sarlaft-check-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.28rem;
+}
+
+.sarlaft-check {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.86rem;
+}
+
+.sarlaft-check.is-on { color: #166534; }
+.sarlaft-check.is-off { color: #64748b; }
+
+.sarlaft-studio [data-program-panel][hidden] {
+  display: none !important;
+}
+
 @media (max-width: 960px) {
   .sarlaft-studio .sst-status-cards {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -135,4 +326,42 @@
   .sarlaft-studio .sst-status-cards {
     grid-template-columns: 1fr;
   }
+
+  .sarlaft-program-switch {
+    width: 100%;
+  }
+
+  .sarlaft-program-switch__btn {
+    flex: 1 1 30%;
+    min-width: 0;
+  }
+}
+
+body[data-theme="dark"] .sarlaft-program-switch {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+body[data-theme="dark"] .sarlaft-program-switch__btn {
+  color: #cbd5e1;
+}
+
+body[data-theme="dark"] .sarlaft-program-switch__btn small {
+  color: #94a3b8;
+}
+
+body[data-theme="dark"] .sarlaft-program-switch__btn.is-active {
+  background: #0f172a;
+  color: #f8fafc;
+}
+
+body[data-theme="dark"] .sarlaft-party-detail .sarlaft-detail-block,
+body[data-theme="dark"] .sarlaft-detail-block--sarlaft {
+  background: #0f172a;
+  border-color: #334155;
+}
+
+body[data-theme="dark"] .sarlaft-detail-block--pte {
+  background: #042f2e;
+  border-color: #115e59;
 }

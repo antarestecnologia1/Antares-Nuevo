@@ -13,7 +13,9 @@ import {
   canDeleteDocuments,
   canDownloadDocuments,
   canManageAllDocuments,
-  currentUser
+  canAccessSarlaftView,
+  currentUser,
+  getPortalUserDisplayName
 } from "../core/auth.js";
 import { escapeHtml, escapeAttr, newUuidV4, devWarn, colombiaTodayIsoDate, normalizeCompanyKindForDb } from "../core/utils.js";
 import {
@@ -52,7 +54,7 @@ import {
   folderKey,
   folderInSubtree,
   folderRoleAllowlist,
-  roleAllowedInFolder,
+  actorAllowedInFolder,
   getCompanyDocumentCategoryLabel,
   getCompanyDocumentEntityTypeLabel,
   getCompanyDocumentProcessLabel,
@@ -225,8 +227,14 @@ function patchUi(patch) {
 function userObj() {
   return (typeof G.currentUser === "function" ? G.currentUser() : currentUser()) || {};
 }
+function userId() {
+  return String(userObj().id || "").trim();
+}
 function userRole() {
   return String(userObj().role || "").toLowerCase();
+}
+function folderActor() {
+  return { role: userRole(), userId: userId() };
 }
 function actor() {
   const u = userObj();
@@ -254,30 +262,35 @@ function canManageFolderPermissions() {
 function canViewFolder(folders, path) {
   if (!canView()) return false;
   if (isDocManager()) return true;
-  return roleAllowedInFolder(folders, path, "view", userRole());
+  return actorAllowedInFolder(folders, path, "view", folderActor());
+}
+function canViewFolderContent(folders, path) {
+  if (!canView()) return false;
+  if (isDocManager()) return true;
+  return actorAllowedInFolder(folders, path, "view", folderActor(), { forContent: true });
 }
 function canUploadFolder(folders, path) {
   if (!canUpload()) return false;
   if (isDocManager()) return true;
   return (
-    roleAllowedInFolder(folders, path, "view", userRole()) &&
-    roleAllowedInFolder(folders, path, "upload", userRole())
+    actorAllowedInFolder(folders, path, "view", folderActor(), { forContent: true }) &&
+    actorAllowedInFolder(folders, path, "upload", folderActor(), { forContent: true })
   );
 }
 function canEditFolder(folders, path) {
   if (!canEdit()) return false;
   if (isDocManager()) return true;
   return (
-    roleAllowedInFolder(folders, path, "view", userRole()) &&
-    roleAllowedInFolder(folders, path, "upload", userRole())
+    actorAllowedInFolder(folders, path, "view", folderActor(), { forContent: true }) &&
+    actorAllowedInFolder(folders, path, "upload", folderActor(), { forContent: true })
   );
 }
 function canDeleteFolder(folders, path) {
   if (!canDelete()) return false;
   if (isDocManager()) return true;
   return (
-    roleAllowedInFolder(folders, path, "view", userRole()) &&
-    roleAllowedInFolder(folders, path, "delete", userRole())
+    actorAllowedInFolder(folders, path, "view", folderActor(), { forContent: true }) &&
+    actorAllowedInFolder(folders, path, "delete", folderActor(), { forContent: true })
   );
 }
 
@@ -307,7 +320,7 @@ function readFolders() {
 }
 function visibleDocs(docs, folders) {
   if (isDocManager()) return docs;
-  return docs.filter((d) => canViewFolder(folders, d.folder));
+  return docs.filter((d) => canViewFolderContent(folders, d.folder));
 }
 function visibleFolders(folders) {
   const list = isDocManager() ? folders : folders.filter((f) => canViewFolder(folders, f.folderName));
@@ -316,6 +329,16 @@ function visibleFolders(folders) {
 
 function canDownload() {
   return canDownloadDocuments(userObj());
+}
+
+function canDownloadCompanyDoc(doc) {
+  if (canDownload()) return true;
+  if (!doc) return false;
+  const process = String(doc.process || "").toLowerCase();
+  const entity = String(doc.entityType || "").toLowerCase();
+  const folder = String(doc.folder || "").toLowerCase();
+  const sarlaft = process === "sarlaft" || entity === "tercero" || folder.includes("sarlaft");
+  return sarlaft && canAccessSarlaftView(userObj());
 }
 
 function canManageTypes() {
@@ -570,7 +593,14 @@ function renderCategoryRail(topFolders, ui, IC) {
         f.subfolderCount > 0
           ? `${f.subfolderCount} carpeta${f.subfolderCount === 1 ? "" : "s"}`
           : `${f.docCount} archivo${f.docCount === 1 ? "" : "s"}`;
-      const restricted = folderRoleAllowlist(allFolders, f.name, "view").length > 0;
+      const restricted =
+        folderRoleAllowlist(allFolders, f.name, "view").length > 0 ||
+        (allFolders || []).some(
+          (rec) =>
+            rec &&
+            folderKey(topFolderName(rec.folderName)) === f.key &&
+            ((rec.usersView || []).length || (rec.usersUpload || []).length || (rec.usersDelete || []).length)
+        );
       const permsBtn = showPerms
         ? `<button type="button" class="doc-cat-card__perms" data-action="doc-folder-perms" data-folder="${escapeAttr(f.name)}" aria-label="Permisos de ${escapeAttr(f.name)}" title="Permisos">${IC_LOCK}</button>`
         : "";
@@ -630,6 +660,11 @@ function renderExplorerPath(ui, IC) {
               : ""
           }
           <button type="button" class="doc-btn doc-btn--ghost doc-btn--sm" data-action="doc-edit-folder" data-path="${escapeAttr(ui.folderFilter)}">${IC.edit || ""}<span>Renombrar</span></button>
+          ${
+            canManageFolderPermissions()
+              ? `<button type="button" class="doc-btn doc-btn--ghost doc-btn--sm" data-action="doc-folder-perms" data-folder="${escapeAttr(ui.folderFilter)}">${IC_LOCK}<span>Permisos</span></button>`
+              : ""
+          }
           ${
             !SUGGESTED_COMPANY_FOLDERS.some((n) => folderKey(n) === folderKey(ui.folderFilter))
               ? `<button type="button" class="doc-btn doc-btn--ghost doc-btn--sm doc-btn--danger" data-action="doc-delete-folder" data-path="${escapeAttr(ui.folderFilter)}">${IC.trash || IC_TRASH}<span>Eliminar</span></button>`
@@ -762,6 +797,11 @@ function renderSubfolderGrid(subfolders, ui, IC) {
             <summary class="doc-iconbtn" aria-label="Acciones de carpeta">${IC_DOTS}</summary>
             <div class="doc-rowmenu__list">
               <button type="button" data-action="doc-edit-folder" data-path="${escapeAttr(s.path)}">${IC.edit || ""}<span>Renombrar</span></button>
+              ${
+                canManageFolderPermissions()
+                  ? `<button type="button" data-action="doc-folder-perms" data-folder="${escapeAttr(s.path)}">${IC_LOCK}<span>Permisos</span></button>`
+                  : ""
+              }
               <button type="button" class="is-danger" data-action="doc-delete-folder" data-path="${escapeAttr(s.path)}">${IC.trash || IC_TRASH}<span>Eliminar</span></button>
             </div>
           </details>`
@@ -994,11 +1034,18 @@ function renderDocumentManagementShell() {
   const folders = visibleFolders(allFolders);
   const summary = summarizeCompanyDocuments(docs, folders, usersWithAccessCount());
   const topFolders = mergeSuggestedTopFolders(collectTopFolders(docs, folders)).filter(
-    (f) => !isHiddenCompanyFolder(f.name)
+    (f) => !isHiddenCompanyFolder(f.name) && canViewFolder(allFolders, f.name)
   );
 
   if (!ui.showTrash && ui.folderFilter !== "*" && !ui.folderFilter && topFolders.length) {
     ui.folderFilter = topFolders[0].name;
+  } else if (
+    !ui.showTrash &&
+    ui.folderFilter &&
+    ui.folderFilter !== "*" &&
+    !canViewFolder(allFolders, ui.folderFilter)
+  ) {
+    ui.folderFilter = topFolders[0]?.name || EMPLOYEES_ROOT_FOLDER;
   }
 
   if (ui.showTrash) {
@@ -2582,63 +2629,152 @@ function openNewFolderModal(parentPathRaw = "") {
 
 function openFolderPermissionsModal(folderNameRaw) {
   if (!canManageFolderPermissions()) return;
-  const topFolder = topFolderName(normalizeCompanyFolder(folderNameRaw));
-  if (!topFolder) return;
+  const targetPath = normalizeCompanyFolder(folderNameRaw);
+  const topFolder = topFolderName(targetPath);
+  if (!targetPath || !topFolder) return;
+  const isNested = folderKey(targetPath) !== folderKey(topFolder);
   const folders = readFolders();
-  const existing = folders.find((f) => folderKey(f.folderName) === folderKey(topFolder)) || null;
-  const current = {
-    view: (existing?.rolesView || []).slice(),
-    upload: (existing?.rolesUpload || []).slice(),
-    delete: (existing?.rolesDelete || []).slice()
+  const topRec = folders.find((f) => folderKey(f.folderName) === folderKey(topFolder)) || null;
+  const targetRec = folders.find((f) => folderKey(f.folderName) === folderKey(targetPath)) || null;
+  const currentRoles = {
+    view: (topRec?.rolesView || []).slice(),
+    upload: (topRec?.rolesUpload || []).slice(),
+    delete: (topRec?.rolesDelete || []).slice()
+  };
+  const currentUsers = {
+    view: (targetRec?.usersView || []).slice(),
+    upload: (targetRec?.usersUpload || []).slice(),
+    delete: (targetRec?.usersDelete || []).slice()
   };
   const roleChoices = PORTAL_ASSIGNABLE_ROLES.filter((r) => r.value !== "admin");
+  const roleLabel = (slug) => PORTAL_ASSIGNABLE_ROLES.find((r) => r.value === slug)?.label || slug;
   const actions = [
     { key: "view", label: "Ver" },
     { key: "upload", label: "Subir" },
     { key: "delete", label: "Eliminar" }
   ];
-  const rows = roleChoices
+  const roleRows = roleChoices
     .map(
       (r) => `<tr>
         <th scope="row">${escapeHtml(r.label)}</th>
         ${actions
           .map((a) => {
-            const checked = current[a.key].includes(r.value) ? " checked" : "";
+            const checked = currentRoles[a.key].includes(r.value) ? " checked" : "";
             return `<td><label class="doc-perm-check"><input type="checkbox" data-perm data-act="${a.key}" data-role="${escapeAttr(r.value)}"${checked}/></label></td>`;
           })
           .join("")}
       </tr>`
     )
     .join("");
+  const userChoices = read(KEYS.users, [])
+    .filter((u) => u && String(u.id || "").trim())
+    .filter((u) => String(u.active ?? "true").toLowerCase() !== "false")
+    .filter((u) => String(u.role || "").toLowerCase() !== "admin")
+    .map((u) => {
+      const id = String(u.id).trim();
+      const name = getPortalUserDisplayName(u) || String(u.name || u.email || "Usuario").trim() || "Usuario";
+      const email = String(u.email || "").trim();
+      const role = String(u.role || "").trim().toLowerCase();
+      return { id, name, email, role };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name, "es", { sensitivity: "base" }));
+  const userRows = userChoices.length
+    ? userChoices
+        .map((u) => {
+          const search = `${u.name} ${u.email} ${u.role} ${roleLabel(u.role)}`.toLowerCase();
+          return `<tr data-perm-user-row data-search="${escapeAttr(search)}">
+            <th scope="row">
+              <span class="doc-perm-user-name">${escapeHtml(u.name)}</span>
+              <span class="doc-perm-user-meta">${escapeHtml([roleLabel(u.role), u.email].filter(Boolean).join(" · "))}</span>
+            </th>
+            ${actions
+              .map((a) => {
+                const checked = currentUsers[a.key].includes(u.id.toLowerCase()) || currentUsers[a.key].includes(u.id) ? " checked" : "";
+                return `<td><label class="doc-perm-check"><input type="checkbox" data-perm-user data-act="${a.key}" data-user="${escapeAttr(u.id)}"${checked}/></label></td>`;
+              })
+              .join("")}
+          </tr>`;
+        })
+        .join("")
+    : `<tr><td colspan="4" class="doc-perm-empty">No hay usuarios activos para asignar.</td></tr>`;
   G.openEditModal?.({
-    title: `Permisos · ${topFolder}`,
-    subtitle: "Defina qué roles pueden ver, subir o eliminar en esta carpeta y sus subcarpetas.",
+    title: `Permisos · ${isNested ? folderLeafName(targetPath) : topFolder}`,
+    subtitle: isNested
+      ? `Acceso a «${targetPath}» y sus subcarpetas. Los roles de la carpeta principal (${topFolder}) siguen aplicando al resto de la rama.`
+      : "Defina qué roles o usuarios pueden ver, subir o eliminar en esta carpeta y sus subcarpetas.",
     submitText: "Guardar permisos",
     fields: [
       {
         type: "custom",
         id: "doc-perm-field",
         html: `<div class="doc-perm-modal">
-          <p class="doc-perm-help">Solo el administrador puede asignar permisos. Si no marca ningún rol en una columna, esa acción queda abierta a quien tenga el permiso global.</p>
-          <table class="doc-perm-grid"><thead><tr><th>Rol</th>${actions.map((a) => `<th>${a.label}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table>
+          <p class="doc-perm-help">Solo el administrador puede asignar permisos. Un usuario marcado queda limitado a esta carpeta (y subcarpetas): no verá el resto del gestor. Si no marca roles ni usuarios, la acción queda abierta a quien tenga el permiso global.</p>
+          <h4 class="doc-perm-section-title">Por rol${isNested ? ` · carpeta principal (${escapeHtml(topFolder)})` : ""}</h4>
+          <table class="doc-perm-grid"><thead><tr><th>Rol</th>${actions.map((a) => `<th>${a.label}</th>`).join("")}</tr></thead><tbody>${roleRows}</tbody></table>
+          <h4 class="doc-perm-section-title">Usuarios con acceso solo a esta carpeta</h4>
+          <label class="doc-perm-user-search">
+            <input type="search" data-perm-user-search placeholder="Buscar por nombre, correo o rol…" autocomplete="off" aria-label="Buscar usuario" />
+          </label>
+          <div class="doc-perm-users-wrap">
+            <table class="doc-perm-grid doc-perm-grid--users"><thead><tr><th>Usuario</th>${actions.map((a) => `<th>${a.label}</th>`).join("")}</tr></thead><tbody>${userRows}</tbody></table>
+          </div>
         </div>`
       }
     ],
+    afterMount: (formEl) => {
+      const input = formEl?.querySelector("[data-perm-user-search]");
+      const rows = [...(formEl?.querySelectorAll("[data-perm-user-row]") || [])];
+      input?.addEventListener("input", () => {
+        const q = String(input.value || "").trim().toLowerCase();
+        rows.forEach((row) => {
+          const hay = String(row.getAttribute("data-search") || "");
+          row.hidden = Boolean(q) && !hay.includes(q);
+        });
+      });
+    },
     onSubmit: async (_form, formEl) => {
-      const checks = [...(formEl?.querySelectorAll("input[data-perm]:checked") || [])];
-      const collect = (act) => checks.filter((c) => c.dataset.act === act).map((c) => c.dataset.role);
-      const rolesView = collect("view");
-      const rolesUpload = collect("upload");
-      const rolesDelete = collect("delete");
+      const roleChecks = [...(formEl?.querySelectorAll("input[data-perm]:checked") || [])];
+      const userChecks = [...(formEl?.querySelectorAll("input[data-perm-user]:checked") || [])];
+      const collectRoles = (act) => roleChecks.filter((c) => c.dataset.act === act).map((c) => c.dataset.role);
+      const collectUsers = (act) => userChecks.filter((c) => c.dataset.act === act).map((c) => c.dataset.user);
+      const rolesView = collectRoles("view");
+      const rolesUpload = collectRoles("upload");
+      const rolesDelete = collectRoles("delete");
+      const usersView = collectUsers("view");
+      const usersUpload = collectUsers("upload");
+      const usersDelete = collectUsers("delete");
       const by = actor();
       const fresh = readFolders();
-      const found = fresh.find((f) => folderKey(f.folderName) === folderKey(topFolder)) || null;
+      const foundTop = fresh.find((f) => folderKey(f.folderName) === folderKey(topFolder)) || null;
+      const foundTarget = fresh.find((f) => folderKey(f.folderName) === folderKey(targetPath)) || null;
+      const sameRecord = foundTop && foundTarget && foundTop.id === foundTarget.id;
       try {
-        if (found) {
-          const nextList = fresh.map((f) =>
-            f.id === found.id ? normalizeCompanyFolderRow({ ...f, rolesView, rolesUpload, rolesDelete }) : f
-          );
-          await writeAwaitServerEdit(KEYS.companyDocumentFolders, nextList, found.id);
+        let list = fresh;
+        if (foundTop) {
+          const patched = normalizeCompanyFolderRow({
+            ...foundTop,
+            rolesView,
+            rolesUpload,
+            rolesDelete,
+            ...(sameRecord ? { usersView, usersUpload, usersDelete } : {})
+          });
+          list = list.map((f) => (f.id === foundTop.id ? patched : f));
+          await writeAwaitServerEdit(KEYS.companyDocumentFolders, list, foundTop.id);
+        } else if (!isNested) {
+          const record = normalizeCompanyFolderRow({
+            id: newUuidV4(),
+            folderName: topFolder,
+            rolesView,
+            rolesUpload,
+            rolesDelete,
+            usersView,
+            usersUpload,
+            usersDelete,
+            createdBy: by,
+            createdAt: new Date().toISOString()
+          });
+          list = [...list, record];
+          await writeAwaitServerCreate(KEYS.companyDocumentFolders, list, record);
         } else {
           const record = normalizeCompanyFolderRow({
             id: newUuidV4(),
@@ -2649,7 +2785,31 @@ function openFolderPermissionsModal(folderNameRaw) {
             createdBy: by,
             createdAt: new Date().toISOString()
           });
-          await writeAwaitServerCreate(KEYS.companyDocumentFolders, [...fresh, record], record);
+          list = [...list, record];
+          await writeAwaitServerCreate(KEYS.companyDocumentFolders, list, record);
+        }
+        if (isNested && !sameRecord) {
+          const latest = readFolders();
+          const foundNested = latest.find((f) => folderKey(f.folderName) === folderKey(targetPath)) || null;
+          if (foundNested) {
+            const nextList = latest.map((f) =>
+              f.id === foundNested.id
+                ? normalizeCompanyFolderRow({ ...f, usersView, usersUpload, usersDelete })
+                : f
+            );
+            await writeAwaitServerEdit(KEYS.companyDocumentFolders, nextList, foundNested.id);
+          } else {
+            const record = normalizeCompanyFolderRow({
+              id: newUuidV4(),
+              folderName: targetPath,
+              usersView,
+              usersUpload,
+              usersDelete,
+              createdBy: by,
+              createdAt: new Date().toISOString()
+            });
+            await writeAwaitServerCreate(KEYS.companyDocumentFolders, [...latest, record], record);
+          }
         }
         G.notify?.("Permisos de carpeta actualizados.", "success");
         G.renderPortalView?.();
@@ -3074,7 +3234,7 @@ function docxPreviewStageHtml(innerHtml) {
 }
 
 async function triggerDownload(doc) {
-  if (!canDownload()) {
+  if (!canDownloadCompanyDoc(doc)) {
     G.notify?.("No tiene permiso para descargar documentos.", "error");
     return;
   }
@@ -3219,7 +3379,7 @@ async function openPreview(doc) {
         </div>
         <div class="doc-preview__actions">
           <button type="button" class="doc-btn doc-btn--ghost" data-open-tab>${IC_EXTERNAL}<span>Abrir en pestaña</span></button>
-          ${canDownload() ? `<button type="button" class="doc-btn doc-btn--primary" data-download>${IC.download || ""}<span>Descargar</span></button>` : ""}
+          ${canDownloadCompanyDoc(doc) ? `<button type="button" class="doc-btn doc-btn--primary" data-download>${IC.download || ""}<span>Descargar</span></button>` : ""}
         </div>
       </footer>
     </aside>`;
@@ -3637,5 +3797,10 @@ if (typeof window.registerLegacyPortalViews === "function") {
   window.__portalModuleAfterRender = window.__portalModuleAfterRender || {};
   window.__portalModuleAfterRender["document-management"] = bindDocumentManagementPortalControls;
 })();
+
+if (typeof window !== "undefined") {
+  window.openCompanyDocumentPreview = openPreview;
+  window.downloadCompanyDocumentFile = triggerDownload;
+}
 
 export { documentManagementHtml, bindDocumentManagementPortalControls };

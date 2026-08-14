@@ -2037,6 +2037,68 @@
   cursor: pointer;
 }
 
+.doc-perm-section-title {
+  margin: 1.15rem 0 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--doc-text-faint, #64748b);
+}
+
+.doc-perm-user-search {
+  display: block;
+  margin: 0 0 0.5rem;
+}
+
+.doc-perm-user-search input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--doc-border, #e2e8f0);
+  border-radius: var(--doc-radius-sm, 8px);
+  font: inherit;
+  font-size: 0.8125rem;
+  background: var(--doc-surface, #fff);
+  color: var(--doc-text, #0f172a);
+}
+
+.doc-perm-users-wrap {
+  max-height: 240px;
+  overflow: auto;
+  border: 1px solid var(--doc-border, #e2e8f0);
+  border-radius: var(--doc-radius-sm, 8px);
+}
+
+.doc-perm-grid--users {
+  margin: 0;
+}
+
+.doc-perm-grid--users thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.doc-perm-user-name {
+  display: block;
+  font-weight: 600;
+}
+
+.doc-perm-user-meta {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.6875rem;
+  font-weight: 400;
+  color: var(--doc-text-faint, #64748b);
+}
+
+.doc-perm-empty {
+  text-align: center;
+  color: var(--doc-text-faint, #64748b);
+  font-weight: 400;
+}
+
 /* ============================================================================
    16. STORAGE DETAILS ROWS (modal)
    ========================================================================== */
@@ -2218,6 +2280,16 @@ body[data-theme="dark"] .doc-perm-grid th {
 body[data-theme="dark"] .doc-perm-help {
   background: rgba(59, 130, 246, 0.12);
   color: #94a3b8;
+}
+
+body[data-theme="dark"] .doc-perm-user-search input {
+  background: #0f172a;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+
+body[data-theme="dark"] .doc-perm-users-wrap {
+  border-color: #334155;
 }
 
 /* ============================================================================

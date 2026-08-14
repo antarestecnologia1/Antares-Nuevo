@@ -279,6 +279,9 @@
     employeeContractWordOk: "Contrato Word generado. Revise la carpeta de descargas.",
     hrAbsenceDeleted: "Ausencia eliminada del expediente digital.",
     payrollRunDeleted: "Liquidación eliminada del historial.",
+    payrollRunsBulkSelect: "Seleccione al menos una liquidación para eliminar.",
+    payrollRunsBulkRemoved: (n) =>
+      n === 1 ? "Liquidación eliminada del historial." : `Se eliminaron ${n} liquidaciones del historial.`,
     adminOnlyDeleteHrPayrollRecord: "Solo los administradores pueden eliminar esta novedad o liquidación.",
     employeeUpdatedOk: "Empleado actualizado correctamente.",
     employeeDeletedCascade: "Empleado eliminado en cascada.",

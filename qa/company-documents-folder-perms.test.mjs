@@ -13,6 +13,11 @@ import {
   parseRoleList,
   folderRoleAllowlist,
   roleAllowedInFolder,
+  actorAllowedInFolder,
+  userHasExclusiveFolderGrants,
+  collectUserFolderGrantPaths,
+  pathCoveredByFolderGrants,
+  pathReachableByFolderGrants,
   topFolderRecord,
   folderInSubtree
 } from "../modules/domain/company-documents.domain.js";
@@ -33,20 +38,21 @@ function includesAll(content, needles, area) {
 }
 
 /** Réplica de la lógica de gate del portal (coincide con gestion-documental.js). */
-function canAct(folders, path, action, role, { isAdmin = false, hasGlobal = true } = {}) {
+function canAct(folders, path, action, role, { isAdmin = false, hasGlobal = true, userId = "" } = {}) {
   if (!hasGlobal) return false;
   if (isAdmin || role === "admin") return true;
-  if (action === "view") return roleAllowedInFolder(folders, path, "view", role);
+  const actor = { role, userId };
+  if (action === "view") return actorAllowedInFolder(folders, path, "view", actor);
   if (action === "upload" || action === "edit") {
     return (
-      roleAllowedInFolder(folders, path, "view", role) &&
-      roleAllowedInFolder(folders, path, "upload", role)
+      actorAllowedInFolder(folders, path, "view", actor, { forContent: true }) &&
+      actorAllowedInFolder(folders, path, "upload", actor, { forContent: true })
     );
   }
   if (action === "delete") {
     return (
-      roleAllowedInFolder(folders, path, "view", role) &&
-      roleAllowedInFolder(folders, path, "delete", role)
+      actorAllowedInFolder(folders, path, "view", actor, { forContent: true }) &&
+      actorAllowedInFolder(folders, path, "delete", actor, { forContent: true })
     );
   }
   return false;
@@ -151,6 +157,65 @@ ok(
 ok(roleAllowedInFolder([], "99. Nueva", "view", "logistica") === true, "sin registro = abierto");
 
 /* ------------------------------------------------------------------ */
+/* Usuario con acceso solo a una carpeta concreta                      */
+/* ------------------------------------------------------------------ */
+
+const anaId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const pedroId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const anaFolder = normalizeCompanyFolderRow({
+  id: "33333333-3333-4333-8333-333333333333",
+  folderName: "01. Empleados / Ana",
+  usersView: [anaId],
+  usersUpload: [anaId],
+  usersDelete: []
+});
+const foldersWithUser = [...folders, anaFolder];
+
+ok(userHasExclusiveFolderGrants(foldersWithUser, anaId) === true, "Ana queda en modo exclusivo");
+ok(userHasExclusiveFolderGrants(foldersWithUser, pedroId) === false, "Pedro no tiene concesión de usuario");
+ok(
+  collectUserFolderGrantPaths(foldersWithUser, anaId, "view").includes("01. Empleados / Ana"),
+  "concesión de Ana es su expediente"
+);
+ok(pathCoveredByFolderGrants("01. Empleados / Ana / Contratos", ["01. Empleados / Ana"]) === true, "hija cubierta");
+ok(pathCoveredByFolderGrants("01. Empleados", ["01. Empleados / Ana"]) === false, "ancestro no cubre contenido");
+ok(pathReachableByFolderGrants("01. Empleados", ["01. Empleados / Ana"]) === true, "ancestro navegable");
+ok(pathReachableByFolderGrants("01. Empleados / Pedro", ["01. Empleados / Ana"]) === false, "hermano no navegable");
+
+ok(
+  actorAllowedInFolder(foldersWithUser, "01. Empleados / Ana", "view", { role: "logistica", userId: anaId }) === true,
+  "Ana ve su carpeta aunque su rol no esté en allowlist"
+);
+ok(
+  actorAllowedInFolder(foldersWithUser, "01. Empleados / Ana / Contratos", "view", { role: "logistica", userId: anaId }, { forContent: true }) === true,
+  "Ana ve documentos de subcarpetas de su expediente"
+);
+ok(
+  actorAllowedInFolder(foldersWithUser, "01. Empleados", "view", { role: "logistica", userId: anaId }) === true,
+  "Ana puede abrir el padre para llegar a su carpeta"
+);
+ok(
+  actorAllowedInFolder(foldersWithUser, "01. Empleados", "view", { role: "logistica", userId: anaId }, { forContent: true }) === false,
+  "Ana no ve documentos sueltos en el padre"
+);
+ok(
+  actorAllowedInFolder(foldersWithUser, "04. Legal", "view", { role: "rrhh", userId: anaId }) === false,
+  "Ana no ve otras carpetas aunque su rol las tendría abiertas"
+);
+ok(
+  canAct(foldersWithUser, "01. Empleados / Ana", "upload", "logistica", { userId: anaId }) === true,
+  "Ana puede subir en su carpeta"
+);
+ok(
+  canAct(foldersWithUser, "01. Empleados / Ana", "delete", "logistica", { userId: anaId }) === false,
+  "Ana no elimina si no está en usersDelete"
+);
+ok(
+  canAct(foldersWithUser, "01. Empleados", "view", "rrhh", { userId: pedroId }) === true,
+  "usuario sin concesión sigue la regla de roles (carpeta abierta)"
+);
+
+/* ------------------------------------------------------------------ */
 /* Estático: API + UI + SQL                                            */
 /* ------------------------------------------------------------------ */
 
@@ -170,6 +235,9 @@ includesAll(
     "roles_ver",
     "roles_subir",
     "roles_eliminar",
+    "usuarios_ver",
+    "usuarios_subir",
+    "usuarios_eliminar",
     "No autorizado para escribir en esta carpeta corporativa",
     "No autorizado para eliminar en esta carpeta corporativa"
   ],
@@ -189,6 +257,7 @@ includesAll(
     'userRole() === "admin"',
     "isDocManager",
     "openFolderPermissionsModal",
+    "data-perm-user",
     "canUploadFolder",
     "canDeleteFolder",
     "visibleDocs",
@@ -208,7 +277,7 @@ ok(
 
 includesAll(
   sqlEmpresa,
-  ["roles_ver", "roles_subir", "roles_eliminar", "ADD COLUMN IF NOT EXISTS roles_ver"],
+  ["roles_ver", "roles_subir", "roles_eliminar", "usuarios_ver", "ADD COLUMN IF NOT EXISTS usuarios_ver"],
   "sql-folder-role-columns"
 );
 
@@ -238,6 +307,10 @@ ok(portalService.includes("isAdminActor"), "sync folders recibe flag admin");
 ok(
   portalService.includes("rolesView = prev.rows[0]?.roles_ver ?? null"),
   "no-admin preserva roles_ver"
+);
+ok(
+  portalService.includes("usersView = prev.rows[0]?.usuarios_ver ?? null"),
+  "no-admin preserva usuarios_ver"
 );
 
 console.log("company-documents-folder-perms: OK");

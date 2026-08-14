@@ -1287,6 +1287,7 @@
 .payroll-run-card--compact .payroll-run-card-head {
   padding: 0.35rem 0.35rem 0.25rem 0.85rem;
   gap: 0.4rem;
+  align-items: flex-start;
 }
 
 .payroll-run-card--compact .payroll-run-card-kicker {

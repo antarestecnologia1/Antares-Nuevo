@@ -31,13 +31,16 @@ CREATE TABLE IF NOT EXISTS carpetas_documento_empresa (
   descripcion         TEXT,
   creado_por          VARCHAR(255) NOT NULL DEFAULT 'Sistema',
   fecha_creacion      TIMESTAMPTZ NOT NULL DEFAULT now(),
-  -- Permisos por carpeta: listas de slugs de rol separadas por comas. Vacío/NULL = sin restricción.
+  -- Permisos por carpeta: listas de slugs de rol o ids de usuario separadas por comas. Vacío/NULL = sin restricción.
   roles_ver           TEXT,
   roles_subir         TEXT,
-  roles_eliminar      TEXT
+  roles_eliminar      TEXT,
+  usuarios_ver        TEXT,
+  usuarios_subir      TEXT,
+  usuarios_eliminar   TEXT
 );
 
-COMMENT ON TABLE carpetas_documento_empresa IS 'KEYS.companyDocumentFolders; carpetas del gestor documental corporativo (rutas con " / "). roles_* restringen ver/subir/eliminar por rol.';
+COMMENT ON TABLE carpetas_documento_empresa IS 'KEYS.companyDocumentFolders; carpetas del gestor documental corporativo (rutas con " / "). roles_* restringen por rol; usuarios_* conceden acceso exclusivo a esa carpeta.';
 
 CREATE INDEX IF NOT EXISTS idx_carpetas_documento_empresa_empresa ON carpetas_documento_empresa (id_empresa);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_carpeta_empresa_nombre
@@ -47,7 +50,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_carpeta_empresa_nombre
 ALTER TABLE carpetas_documento_empresa
   ADD COLUMN IF NOT EXISTS roles_ver TEXT,
   ADD COLUMN IF NOT EXISTS roles_subir TEXT,
-  ADD COLUMN IF NOT EXISTS roles_eliminar TEXT;
+  ADD COLUMN IF NOT EXISTS roles_eliminar TEXT,
+  ADD COLUMN IF NOT EXISTS usuarios_ver TEXT,
+  ADD COLUMN IF NOT EXISTS usuarios_subir TEXT,
+  ADD COLUMN IF NOT EXISTS usuarios_eliminar TEXT;
 
 -- Metadatos de vigencia, clasificación y versiones se persisten en `etiquetas` (JSON)
 -- del gestor corporativo: entidad, proceso, fechas, versión y código documental.

@@ -2,7 +2,7 @@
 -- Corrige alerta Supabase: "RLS Disabled in Public" en documentos_empresa
 -- y carpetas_documento_empresa.
 -- Idempotente. service_role / dueño de tabla siguen sin RLS; la API no se ve afectada.
--- La segregación de perfiles por carpeta (roles_ver/roles_subir/roles_eliminar) la aplica
+-- La segregación de perfiles por carpeta (roles_* / usuarios_*) la aplica
 -- la API; estas políticas son la barrera de acceso directo por Supabase (fallback seguro).
 -- Ejecutar en Supabase SQL Editor si la alerta ya está activa.
 

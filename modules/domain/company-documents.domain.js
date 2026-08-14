@@ -897,6 +897,11 @@ export function parseRoleList(value) {
   return out;
 }
 
+/** Convierte array o cadena separada por comas en ids (uuid/slug) normalizados. */
+export function parseIdList(value) {
+  return parseRoleList(value);
+}
+
 export function normalizeCompanyFolderRow(row) {
   if (!row || typeof row !== "object") return row;
   return {
@@ -907,6 +912,9 @@ export function normalizeCompanyFolderRow(row) {
     rolesView: parseRoleList(row.rolesView ?? row.roles_ver),
     rolesUpload: parseRoleList(row.rolesUpload ?? row.roles_subir),
     rolesDelete: parseRoleList(row.rolesDelete ?? row.roles_eliminar),
+    usersView: parseIdList(row.usersView ?? row.usuarios_ver),
+    usersUpload: parseIdList(row.usersUpload ?? row.usuarios_subir),
+    usersDelete: parseIdList(row.usersDelete ?? row.usuarios_eliminar),
     createdBy: String(row.createdBy ?? row.creado_por ?? "Portal").trim() || "Portal",
     createdAt: String(row.createdAt ?? row.fecha_creacion ?? new Date().toISOString())
   };
@@ -940,6 +948,86 @@ export function roleAllowedInFolder(folderRecords, path, action, role) {
   const allow = folderRoleAllowlist(folderRecords, path, action);
   if (!allow.length) return true;
   return allow.includes(String(role ?? "").trim().toLowerCase());
+}
+
+function folderUsersForAction(rec, action) {
+  if (!rec) return [];
+  if (action === "upload") return rec.usersUpload || [];
+  if (action === "delete") return rec.usersDelete || [];
+  return rec.usersView || [];
+}
+
+/**
+ * Rutas donde el usuario está asignado de forma explícita.
+ * Ver se implica si también está en subir o eliminar (para poder abrir la carpeta).
+ */
+export function collectUserFolderGrantPaths(folderRecords = [], userId = "", action = "view") {
+  const uid = String(userId ?? "").trim().toLowerCase();
+  if (!uid) return [];
+  const out = [];
+  const seen = new Set();
+  for (const rec of folderRecords || []) {
+    if (!rec) continue;
+    const listed =
+      action === "upload"
+        ? (rec.usersUpload || []).includes(uid)
+        : action === "delete"
+          ? (rec.usersDelete || []).includes(uid)
+          : (rec.usersView || []).includes(uid) ||
+            (rec.usersUpload || []).includes(uid) ||
+            (rec.usersDelete || []).includes(uid);
+    if (!listed) continue;
+    const path = normalizeCompanyFolder(rec.folderName);
+    const key = folderKey(path);
+    if (!path || seen.has(key)) continue;
+    seen.add(key);
+    out.push(path);
+  }
+  return out;
+}
+
+/** El usuario tiene al menos una carpeta asignada: solo verá esas (modo exclusivo). */
+export function userHasExclusiveFolderGrants(folderRecords = [], userId = "") {
+  return collectUserFolderGrantPaths(folderRecords, userId, "view").length > 0;
+}
+
+/** Contenido: la ruta es la carpeta concedida o una descendiente. */
+export function pathCoveredByFolderGrants(path, grantPaths = []) {
+  const p = normalizeCompanyFolder(path);
+  return (grantPaths || []).some((g) => folderInSubtree(p, g));
+}
+
+/** Navegación: se puede abrir la ruta para llegar a una concesión (ancestro, misma o hija). */
+export function pathReachableByFolderGrants(path, grantPaths = []) {
+  const p = normalizeCompanyFolder(path);
+  return (grantPaths || []).some((g) => folderInSubtree(p, g) || folderInSubtree(g, p));
+}
+
+/**
+ * Acceso combinado rol + usuario.
+ * Si el usuario está en alguna lista `users*`, queda restringido a esas carpetas
+ * (y subcarpetas). Si no, aplica la allowlist de roles (vacía = sin restricción).
+ * `forContent`: documentos/subida/borrado (no incluye ancestros solo para navegar).
+ */
+export function actorAllowedInFolder(
+  folderRecords,
+  path,
+  action,
+  { role, userId } = {},
+  { forContent = false } = {}
+) {
+  const uid = String(userId ?? "").trim().toLowerCase();
+  if (uid && userHasExclusiveFolderGrants(folderRecords, uid)) {
+    if (action === "view") {
+      const viewGrants = collectUserFolderGrantPaths(folderRecords, uid, "view");
+      return forContent
+        ? pathCoveredByFolderGrants(path, viewGrants)
+        : pathReachableByFolderGrants(path, viewGrants);
+    }
+    const actionGrants = collectUserFolderGrantPaths(folderRecords, uid, action);
+    return pathCoveredByFolderGrants(path, actionGrants);
+  }
+  return roleAllowedInFolder(folderRecords, path, action, role);
 }
 
 /** Todas las rutas de carpeta presentes (documentos + registros de carpeta). */

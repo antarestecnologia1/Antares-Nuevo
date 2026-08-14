@@ -3314,6 +3314,129 @@ function bindPayrollPortalControls() {
     });
   });
 
+  function selectedPayrollRunIds() {
+    return [
+      ...new Set(
+        [...nodes.viewRoot.querySelectorAll("[data-payroll-section='runs'] [data-payroll-run-select]:checked")].map(
+          (check) => String(check.value || "").trim()
+        ).filter(Boolean)
+      )
+    ];
+  }
+
+  function syncPayrollRunSelectionBadge() {
+    const badge = document.getElementById("payroll-runs-selected-count");
+    const deleteBtn = document.getElementById("payroll-runs-delete-selected");
+    const checks = [...nodes.viewRoot.querySelectorAll("[data-payroll-section='runs'] [data-payroll-run-select]")];
+    const selected = checks.filter((el) => el.checked);
+    const count = selected.length;
+    if (badge) {
+      badge.textContent = `${count} seleccionado${count === 1 ? "" : "s"}`;
+      badge.hidden = count <= 0;
+    }
+    if (deleteBtn) deleteBtn.disabled = count <= 0;
+    const allSelected = checks.length > 0 && checks.every((el) => el.checked);
+    const someSelected = count > 0 && !allSelected;
+    const header = document.getElementById("payroll-runs-select-all-header");
+    const toolbar = document.getElementById("payroll-runs-select-all");
+    [header, toolbar].forEach((el) => {
+      if (!el) return;
+      el.checked = allSelected;
+      el.indeterminate = someSelected;
+    });
+    nodes.viewRoot.querySelectorAll("[data-payroll-section='runs'] [data-payroll-run-id]").forEach((row) => {
+      const id = String(row.getAttribute("data-payroll-run-id") || "");
+      const on = selected.some((el) => String(el.value || "") === id);
+      row.classList.toggle("is-selected", on);
+    });
+  }
+
+  const togglePayrollRunSelectAll = (checked) => {
+    nodes.viewRoot.querySelectorAll("[data-payroll-section='runs'] [data-payroll-run-select]").forEach((el) => {
+      el.checked = checked;
+    });
+    syncPayrollRunSelectionBadge();
+  };
+
+  nodes.viewRoot.querySelectorAll("[data-payroll-section='runs'] [data-payroll-run-select]").forEach((check) => {
+    check.addEventListener("change", syncPayrollRunSelectionBadge);
+    check.addEventListener("click", (event) => event.stopPropagation());
+  });
+  document.getElementById("payroll-runs-select-all-header")?.addEventListener("change", (event) => {
+    togglePayrollRunSelectAll(Boolean(event.currentTarget.checked));
+  });
+  document.getElementById("payroll-runs-select-all")?.addEventListener("change", (event) => {
+    togglePayrollRunSelectAll(Boolean(event.currentTarget.checked));
+  });
+  syncPayrollRunSelectionBadge();
+
+  const payrollRunsDeleteSelected = document.getElementById("payroll-runs-delete-selected");
+  if (payrollRunsDeleteSelected) {
+    payrollRunsDeleteSelected.addEventListener("click", (event) => {
+      event.preventDefault();
+      if (currentUser()?.role !== ROLES.ADMIN) {
+        notify(userMessage("adminOnlyDeleteHrPayrollRecord"), "error");
+        return;
+      }
+      const selectedIds = selectedPayrollRunIds();
+      if (!selectedIds.length) {
+        notify(userMessage("payrollRunsBulkSelect"), "error");
+        return;
+      }
+      const preview = selectedIds
+        .slice(0, 3)
+        .map((id) => {
+          const run = read(KEYS.payrollRuns, []).find((r) => String(r.id) === id);
+          if (!run) return id;
+          return `${run.employeeName || "Colaborador"} · ${run.month || "-"}`;
+        })
+        .join("; ");
+      const extra = selectedIds.length > 3 ? ` y ${selectedIds.length - 3} más` : "";
+      openConfirmReasonModal({
+        title: "Eliminar liquidaciones seleccionadas",
+        message: `Se eliminarán ${selectedIds.length} liquidación${selectedIds.length === 1 ? "" : "es"} (${preview}${extra}). Indique la justificación. Solo administradores; no hay deshacer automático si ya se sincronizó con servidor.`,
+        confirmText: selectedIds.length === 1 ? "Eliminar liquidación" : "Eliminar seleccionadas",
+        onConfirm: async (motivo) => {
+          const prev = read(KEYS.payrollRuns, []);
+          const idSet = new Set(selectedIds);
+          const snapshots = selectedIds
+            .map((id) => prev.find((row) => String(row.id) === id))
+            .filter(Boolean);
+          const next = prev.filter((row) => !idSet.has(String(row.id || "")));
+          const prune =
+            typeof writePortalListPrunedAwaitServer === "function"
+              ? writePortalListPrunedAwaitServer
+              : null;
+          let ok = false;
+          if (prune) {
+            ok = await prune(KEYS.payrollRuns, next, selectedIds);
+          } else {
+            ok = true;
+            for (const id of selectedIds) {
+              const removed = await removeFromPortalListAwaitServer(KEYS.payrollRuns, id);
+              if (!removed) {
+                ok = false;
+                break;
+              }
+            }
+          }
+          if (!ok) return;
+          snapshots.forEach((run) => {
+            appendPayrollRunAuditLog("delete", run, {
+              summary: `Eliminación de liquidación · ${String(run?.employeeName || "Colaborador")} · periodo ${String(run?.month || "-")}`,
+              motivo
+            });
+          });
+          if (portalCanRefreshFromApi()) {
+            await applyPortalBootstrapFromApi();
+          }
+          notify(userMessage("payrollRunsBulkRemoved", selectedIds.length), "success");
+          renderPortalView();
+        }
+      });
+    });
+  }
+
   const exportPayroll = document.getElementById("export-payroll");
   if (exportPayroll) {
     exportPayroll.addEventListener("click", async () => {

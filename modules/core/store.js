@@ -29,6 +29,7 @@ import {
   normalizeSstOperateSection,
   normalizeSarlaftDataSection,
   normalizeSarlaftOperateSection,
+  normalizeSarlaftProgramFilter,
   normalizeTransportTripsSection,
   normalizeTransportTripsWorkspace,
   normalizeVehicleSection,
@@ -203,6 +204,7 @@ export let state = {
     workspace: "operate",
     operateSection: "party",
     dataSection: "parties",
+    programFilter: "ambos",
     listSearch: "",
     listPage: 1,
     pageSize: 10,
@@ -390,6 +392,7 @@ export function hydrateHrWorkspaceFromStorage() {
           workspace: normalizeHrWorkspace("sarlaft", parsed.workspace),
           operateSection: normalizeSarlaftOperateSection(parsed.operateSection),
           dataSection: normalizeSarlaftDataSection(parsed.dataSection),
+          programFilter: normalizeSarlaftProgramFilter(parsed.programFilter),
           listSearch: String(parsed.listSearch || "")
         };
       } else {
@@ -540,6 +543,7 @@ export function persistHrWorkspace(moduleId, workspace) {
           workspace: normalizeHrWorkspace("sarlaft", ui.workspace),
           operateSection: normalizeSarlaftOperateSection(ui.operateSection),
           dataSection: normalizeSarlaftDataSection(ui.dataSection),
+          programFilter: normalizeSarlaftProgramFilter(ui.programFilter),
           listSearch: String(ui.listSearch || "")
         })
       );

@@ -1718,12 +1718,15 @@ export class PortalService implements OnModuleInit {
         `CREATE UNIQUE INDEX IF NOT EXISTS uq_carpeta_empresa_nombre
            ON carpetas_documento_empresa (COALESCE(id_empresa, '00000000-0000-0000-0000-000000000000'::uuid), nombre_carpeta)`
       );
-      // Permisos por carpeta (listas de roles separadas por comas; vacío = sin restricción).
+      // Permisos por carpeta (listas de roles y usuarios separadas por comas; vacío = sin restricción).
       await this.pool.query(
         `ALTER TABLE carpetas_documento_empresa
            ADD COLUMN IF NOT EXISTS roles_ver TEXT,
            ADD COLUMN IF NOT EXISTS roles_subir TEXT,
-           ADD COLUMN IF NOT EXISTS roles_eliminar TEXT`
+           ADD COLUMN IF NOT EXISTS roles_eliminar TEXT,
+           ADD COLUMN IF NOT EXISTS usuarios_ver TEXT,
+           ADD COLUMN IF NOT EXISTS usuarios_subir TEXT,
+           ADD COLUMN IF NOT EXISTS usuarios_eliminar TEXT`
       );
       // Supabase: RLS obligatorio en public.*; la API (service_role / owner) lo ignora.
       await this.pool.query(`ALTER TABLE public.documentos_empresa ENABLE ROW LEVEL SECURITY`);
@@ -1795,6 +1798,9 @@ export class PortalService implements OnModuleInit {
           actualizado_por            VARCHAR(255)
         )
       `);
+      await this.pool.query(
+        `ALTER TABLE terceros_sarlaft ADD COLUMN IF NOT EXISTS cumplimiento_json TEXT`
+      );
       await this.pool.query(
         `CREATE INDEX IF NOT EXISTS idx_terceros_sarlaft_documento ON terceros_sarlaft (numero_documento)`
       );
@@ -3099,12 +3105,22 @@ export class PortalService implements OnModuleInit {
     return first || "General";
   }
 
-  private companyFolderKey(name: unknown): string {
-    return String(name ?? "")
+  private companyFolderPathKey(path: unknown): string {
+    return String(path ?? "")
+      .split("/")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .join(" / ")
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
-      .trim()
       .toLowerCase();
+  }
+
+  private folderPathInSubtree(path: unknown, ancestor: unknown): boolean {
+    const dk = this.companyFolderPathKey(path);
+    const fk = this.companyFolderPathKey(ancestor);
+    if (!fk) return true;
+    return dk === fk || dk.startsWith(`${fk} / `);
   }
 
   private parseRoleCsv(value: unknown): string[] {
@@ -3119,80 +3135,177 @@ export class PortalService implements OnModuleInit {
     return allow.includes(String(role ?? "").trim().toLowerCase());
   }
 
+  private exclusiveUserGrantPaths(
+    perms: Array<{
+      path: string;
+      usersView: string[];
+      usersUpload: string[];
+      usersDelete: string[];
+    }>,
+    userId: string
+  ) {
+    const uid = String(userId ?? "").trim().toLowerCase();
+    const view: string[] = [];
+    const upload: string[] = [];
+    const remove: string[] = [];
+    if (!uid) return { view, upload, delete: remove };
+    for (const p of perms) {
+      if (p.usersView.includes(uid) || p.usersUpload.includes(uid) || p.usersDelete.includes(uid)) {
+        view.push(p.path);
+      }
+      if (p.usersUpload.includes(uid)) upload.push(p.path);
+      if (p.usersDelete.includes(uid)) remove.push(p.path);
+    }
+    return { view, upload, delete: remove };
+  }
+
   /**
-   * Mapa de permisos por carpeta principal (clave = nombre de carpeta de nivel superior
-   * normalizado). Solo los registros de nivel superior (sin "/") definen permisos.
+   * Permisos de todas las carpetas (incluidas anidadas). Roles de la carpeta
+   * principal restringen la rama; usuarios_* limitan a esa ruta y descendientes.
    */
   private async loadCompanyFolderPermMap(
     db: Pool | PoolClient,
     scope: string | null
-  ): Promise<Map<string, { view: string[]; upload: string[]; delete: string[] }>> {
-    const map = new Map<string, { view: string[]; upload: string[]; delete: string[] }>();
-    if (!(await this.tableExists("carpetas_documento_empresa"))) return map;
+  ): Promise<
+    Array<{
+      path: string;
+      view: string[];
+      upload: string[];
+      delete: string[];
+      usersView: string[];
+      usersUpload: string[];
+      usersDelete: string[];
+    }>
+  > {
+    const list: Array<{
+      path: string;
+      view: string[];
+      upload: string[];
+      delete: string[];
+      usersView: string[];
+      usersUpload: string[];
+      usersDelete: string[];
+    }> = [];
+    if (!(await this.tableExists("carpetas_documento_empresa"))) return list;
     const scoped = scope && PG_UUID_V4_RE.test(String(scope).trim()) ? String(scope).trim() : null;
     const r = scoped
       ? await db.query(
-          `SELECT nombre_carpeta, roles_ver, roles_subir, roles_eliminar
+          `SELECT nombre_carpeta, roles_ver, roles_subir, roles_eliminar,
+                  usuarios_ver, usuarios_subir, usuarios_eliminar
              FROM carpetas_documento_empresa
             WHERE id_empresa = $1::uuid OR id_empresa IS NULL`,
           [scoped]
         )
       : await db.query(
-          `SELECT nombre_carpeta, roles_ver, roles_subir, roles_eliminar
+          `SELECT nombre_carpeta, roles_ver, roles_subir, roles_eliminar,
+                  usuarios_ver, usuarios_subir, usuarios_eliminar
              FROM carpetas_documento_empresa`
         );
     for (const row of r.rows as Array<Record<string, unknown>>) {
-      const name = String(row.nombre_carpeta ?? "");
-      if (name.includes("/")) continue;
-      const key = this.companyFolderKey(this.companyTopFolderName(name));
-      map.set(key, {
+      const path = String(row.nombre_carpeta ?? "").trim();
+      if (!path) continue;
+      list.push({
+        path,
         view: this.parseRoleCsv(row.roles_ver),
         upload: this.parseRoleCsv(row.roles_subir),
-        delete: this.parseRoleCsv(row.roles_eliminar)
+        delete: this.parseRoleCsv(row.roles_eliminar),
+        usersView: this.parseRoleCsv(row.usuarios_ver),
+        usersUpload: this.parseRoleCsv(row.usuarios_subir),
+        usersDelete: this.parseRoleCsv(row.usuarios_eliminar)
       });
     }
-    return map;
+    return list;
   }
 
-  private folderPermFor(
-    map: Map<string, { view: string[]; upload: string[]; delete: string[] }>,
+  private topFolderRolePerm(
+    perms: Array<{ path: string; view: string[]; upload: string[]; delete: string[] }>,
     folderPath: unknown
   ) {
-    return map.get(this.companyFolderKey(this.companyTopFolderName(folderPath))) || null;
+    const topKey = this.companyFolderPathKey(this.companyTopFolderName(folderPath));
+    return (
+      perms.find((p) => this.companyFolderPathKey(p.path) === topKey) ||
+      perms.find((p) => this.companyFolderPathKey(this.companyTopFolderName(p.path)) === topKey) ||
+      null
+    );
   }
 
-  /** Subida: exige permiso global + rol permitido (ver y subir) en la carpeta destino. Admin omite. */
+  private actorCanCompanyFolder(
+    perms: Array<{
+      path: string;
+      view: string[];
+      upload: string[];
+      delete: string[];
+      usersView: string[];
+      usersUpload: string[];
+      usersDelete: string[];
+    }>,
+    folderPath: unknown,
+    action: "view" | "upload" | "delete",
+    role: JwtRole,
+    userId: string,
+    opts?: { forContent?: boolean }
+  ): boolean {
+    const grants = this.exclusiveUserGrantPaths(perms, userId);
+    if (grants.view.length) {
+      const path = String(folderPath ?? "");
+      if (action === "view") {
+        const covered = grants.view.some((g) => this.folderPathInSubtree(path, g));
+        if (opts?.forContent) return covered;
+        return covered || grants.view.some((g) => this.folderPathInSubtree(g, path));
+      }
+      const actionGrants = action === "upload" ? grants.upload : grants.delete;
+      return actionGrants.some((g) => this.folderPathInSubtree(path, g));
+    }
+    const top = this.topFolderRolePerm(perms, folderPath);
+    if (!top) return true;
+    const allow = action === "upload" ? top.upload : action === "delete" ? top.delete : top.view;
+    return this.roleAllowedInFolderPerm(allow, role);
+  }
+
+  /** Subida: exige permiso global + rol/usuario permitido (ver y subir) en la carpeta destino. Admin omite. */
   async assertCanUploadToCompanyFolder(userId: string, role: JwtRole, folderPath: string): Promise<void> {
     if (this.isAdmin(role)) return;
     const permissionSet = await this.resolveEffectivePermissionSet(userId, role);
     if (isSarlaftEvidenceFolder(folderPath) && canUploadSarlaftEvidence(permissionSet)) return;
     await this.assertCanUploadCompanyDocument(userId, role);
     const scope = await this.resolveCompanyDocumentWriteScope(userId, role);
-    const perm = this.folderPermFor(await this.loadCompanyFolderPermMap(this.pool, scope), folderPath);
-    if (!perm) return;
-    if (!this.roleAllowedInFolderPerm(perm.view, role) || !this.roleAllowedInFolderPerm(perm.upload, role)) {
+    const perms = await this.loadCompanyFolderPermMap(this.pool, scope);
+    const canView = this.actorCanCompanyFolder(perms, folderPath, "view", role, userId, { forContent: true });
+    const canUpload = this.actorCanCompanyFolder(perms, folderPath, "upload", role, userId, { forContent: true });
+    if (!canView || !canUpload) {
       throw new ForbiddenException("No autorizado para subir a esta carpeta.");
     }
   }
 
-  /** Descarga/vista: exige permiso global + rol permitido (ver) en la carpeta del documento. Admin omite. */
+  /** Descarga/vista: DMS o evidencias SARLAFT/PTE del módulo de cumplimiento. Admin omite. */
   async assertCanDownloadCompanyDocumentByKey(
     userId: string,
     role: JwtRole,
     storageKey: string
   ): Promise<void> {
-    await this.assertCanDownloadCompanyDocument(userId, role);
     if (this.isAdmin(role)) return;
-    if (!(await this.tableExists("documentos_empresa"))) return;
-    const res = await this.pool.query<{ carpeta: string }>(
-      `SELECT carpeta FROM documentos_empresa WHERE storage_key = $1 LIMIT 1`,
+    const permissionSet = await this.resolveEffectivePermissionSet(userId, role);
+    if (!(await this.tableExists("documentos_empresa"))) {
+      await this.assertCanDownloadCompanyDocument(userId, role);
+      return;
+    }
+    const res = await this.pool.query<{ carpeta: string | null; etiquetas: string | null }>(
+      `SELECT carpeta, etiquetas FROM documentos_empresa WHERE storage_key = $1 LIMIT 1`,
       [String(storageKey || "")]
     );
-    const folder = res.rows[0]?.carpeta;
+    const folder = res.rows[0]?.carpeta || "";
+    const tags = String(res.rows[0]?.etiquetas || "");
+    const sarlaftDoc = isSarlaftEvidenceDocument({
+      folder,
+      process: /"process"\s*:\s*"sarlaft"/i.test(tags) ? "sarlaft" : "",
+      entityType: /"entityType"\s*:\s*"tercero"/i.test(tags) ? "tercero" : ""
+    });
+    if (sarlaftDoc && canAccessSarlaftModule(permissionSet)) return;
+    await this.assertCanDownloadCompanyDocument(userId, role);
     if (!folder) return;
     const scope = await this.resolveCompanyDocumentWriteScope(userId, role);
-    const perm = this.folderPermFor(await this.loadCompanyFolderPermMap(this.pool, scope), folder);
-    if (perm && !this.roleAllowedInFolderPerm(perm.view, role)) {
+    const perms = await this.loadCompanyFolderPermMap(this.pool, scope);
+    if (!this.actorCanCompanyFolder(perms, folder, "view", role, userId, { forContent: true })) {
       throw new ForbiddenException("No autorizado para ver documentos de esta carpeta.");
     }
   }
@@ -4150,8 +4263,16 @@ export class PortalService implements OnModuleInit {
       canSstBootstrap ? this.loadSstCompliance() : Promise.resolve([]),
       canDocuments ? this.loadEmployeeDocuments(documentsCompanyScope) : Promise.resolve([]),
       canDocuments ? this.loadEmployeeDocumentFolders(documentsCompanyScope) : Promise.resolve([]),
-      canDocuments ? this.loadCompanyDocuments(documentsCompanyScope) : Promise.resolve([]),
-      canDocuments ? this.loadCompanyDocumentFolders(documentsCompanyScope) : Promise.resolve([])
+      canDocuments
+        ? this.loadCompanyDocuments(documentsCompanyScope)
+        : canSarlaftBootstrap
+          ? this.loadSarlaftCompanyDocuments(documentsCompanyScope)
+          : Promise.resolve([]),
+      canDocuments
+        ? this.loadCompanyDocumentFolders(documentsCompanyScope)
+        : canSarlaftBootstrap
+          ? this.loadSarlaftCompanyFolders(documentsCompanyScope)
+          : Promise.resolve([])
     ]);
 
     const dependentPromise = Promise.all([
@@ -5487,7 +5608,8 @@ export class PortalService implements OnModuleInit {
           await this.resolvePayrollWriteCompanyScope(admin, userId)
         );
         return;
-      case "companyDocuments":
+      case "companyDocuments": {
+        let sarlaftUpload = false;
         if (!admin) {
           const hasData = Array.isArray(data) && data.length > 0;
           const hasDeletes = Array.isArray(deletedIds) && deletedIds.length > 0;
@@ -5503,6 +5625,7 @@ export class PortalService implements OnModuleInit {
             if (!sarlaftEvidenceOk) {
               throw new ForbiddenException("No autorizado para registrar documentos corporativos.");
             }
+            sarlaftUpload = true;
           }
           if (!hasData && !hasDeletes && !canAccessDocumentsModule(permissionSet)) {
             throw new ForbiddenException();
@@ -5513,9 +5636,10 @@ export class PortalService implements OnModuleInit {
           data,
           deletedIds,
           await this.resolvePayrollWriteCompanyScope(admin, userId),
-          { role, admin }
+          { role, admin, userId, sarlaftUpload }
         );
         return;
+      }
       case "companyDocumentFolders":
         if (!admin) {
           const hasData = Array.isArray(data) && data.length > 0;
@@ -5524,7 +5648,19 @@ export class PortalService implements OnModuleInit {
             throw new ForbiddenException("No autorizado para eliminar carpetas corporativas.");
           }
           if (hasData && !canUploadEmployeeDocuments(permissionSet)) {
-            throw new ForbiddenException("No autorizado para sincronizar carpetas corporativas.");
+            const rows = Array.isArray(data) ? data : [];
+            const sarlaftFoldersOk =
+              rows.length > 0 &&
+              rows.every((row) =>
+                isSarlaftEvidenceFolder(
+                  (row as { folderName?: unknown; nombre_carpeta?: unknown }).folderName ??
+                    (row as { nombre_carpeta?: unknown }).nombre_carpeta
+                )
+              ) &&
+              canUploadSarlaftEvidence(permissionSet);
+            if (!sarlaftFoldersOk) {
+              throw new ForbiddenException("No autorizado para sincronizar carpetas corporativas.");
+            }
           }
           if (!hasData && !hasDeletes && !canAccessDocumentsModule(permissionSet)) {
             throw new ForbiddenException();
@@ -8213,9 +8349,23 @@ export class PortalService implements OnModuleInit {
       rolesView: toRoleList(row.roles_ver),
       rolesUpload: toRoleList(row.roles_subir),
       rolesDelete: toRoleList(row.roles_eliminar),
+      usersView: toRoleList(row.usuarios_ver),
+      usersUpload: toRoleList(row.usuarios_subir),
+      usersDelete: toRoleList(row.usuarios_eliminar),
       createdBy: row.creado_por,
       createdAt: row.fecha_creacion ? new Date(row.fecha_creacion).toISOString() : new Date().toISOString()
     }));
+  }
+
+  /** Evidencias KYC/PTE para usuarios del módulo SARLAFT sin acceso al DMS completo. */
+  private async loadSarlaftCompanyDocuments(companyId: string | null = null) {
+    const all = await this.loadCompanyDocuments(companyId);
+    return all.filter((row) => isSarlaftEvidenceDocument(row));
+  }
+
+  private async loadSarlaftCompanyFolders(companyId: string | null = null) {
+    const all = await this.loadCompanyDocumentFolders(companyId);
+    return all.filter((row) => isSarlaftEvidenceFolder(row.folderName));
   }
 
   private sqlDate(value: unknown): string | null {
@@ -8281,6 +8431,7 @@ export class PortalService implements OnModuleInit {
       responsibleUserId: row.id_responsable ?? "",
       responsibleName: row.nombre_responsable ?? "",
       notes: row.observaciones ?? "",
+      cumplimientoJson: row.cumplimiento_json ?? "",
       documentIds: String(row.ids_documentos ?? "")
         .split(",")
         .map((s: string) => s.trim())
@@ -13566,19 +13717,22 @@ export class PortalService implements OnModuleInit {
     data: unknown,
     deletedIds?: string[],
     companyScope?: string | null,
-    opts?: { role?: JwtRole; admin?: boolean }
+    opts?: { role?: JwtRole; admin?: boolean; userId?: string; sarlaftUpload?: boolean }
   ) {
     if (!Array.isArray(data)) throw new ForbiddenException();
     const scope = companyScope && PG_UUID_V4_RE.test(String(companyScope).trim()) ? String(companyScope).trim() : null;
 
     // Segregación de perfiles: valida permisos por carpeta antes de escribir (los no-admin).
-    const role = String(opts?.role ?? "");
+    const role = String(opts?.role ?? "") as JwtRole;
+    const actorId = String(opts?.userId ?? "");
     if (!opts?.admin) {
-      const permMap = await this.loadCompanyFolderPermMap(c, scope);
+      const perms = await this.loadCompanyFolderPermMap(c, scope);
       for (const row of data as Array<Record<string, unknown>>) {
         if (!row?.id || !row.storageKey) continue;
-        const perm = this.folderPermFor(permMap, row.folder);
-        if (perm && (!this.roleAllowedInFolderPerm(perm.view, role) || !this.roleAllowedInFolderPerm(perm.upload, role))) {
+        if (opts?.sarlaftUpload && isSarlaftEvidenceDocument(row)) continue;
+        const canView = this.actorCanCompanyFolder(perms, row.folder, "view", role, actorId, { forContent: true });
+        const canUpload = this.actorCanCompanyFolder(perms, row.folder, "upload", role, actorId, { forContent: true });
+        if (!canView || !canUpload) {
           throw new ForbiddenException("No autorizado para escribir en esta carpeta corporativa.");
         }
       }
@@ -13590,8 +13744,9 @@ export class PortalService implements OnModuleInit {
             [validIds]
           );
           for (const ex of existing.rows) {
-            const perm = this.folderPermFor(permMap, ex.carpeta);
-            if (perm && (!this.roleAllowedInFolderPerm(perm.view, role) || !this.roleAllowedInFolderPerm(perm.delete, role))) {
+            const canView = this.actorCanCompanyFolder(perms, ex.carpeta, "view", role, actorId, { forContent: true });
+            const canDelete = this.actorCanCompanyFolder(perms, ex.carpeta, "delete", role, actorId, { forContent: true });
+            if (!canView || !canDelete) {
               throw new ForbiddenException("No autorizado para eliminar en esta carpeta corporativa.");
             }
           }
@@ -13705,25 +13860,43 @@ export class PortalService implements OnModuleInit {
       let rolesView: string | null;
       let rolesUpload: string | null;
       let rolesDelete: string | null;
+      let usersView: string | null;
+      let usersUpload: string | null;
+      let usersDelete: string | null;
       if (isAdminActor) {
         // Solo el administrador puede asignar/modificar permisos de carpeta.
         rolesView = roleListToText((row as { rolesView?: unknown }).rolesView);
         rolesUpload = roleListToText((row as { rolesUpload?: unknown }).rolesUpload);
         rolesDelete = roleListToText((row as { rolesDelete?: unknown }).rolesDelete);
+        usersView = roleListToText((row as { usersView?: unknown }).usersView);
+        usersUpload = roleListToText((row as { usersUpload?: unknown }).usersUpload);
+        usersDelete = roleListToText((row as { usersDelete?: unknown }).usersDelete);
       } else {
         // No-admin: se preservan los permisos existentes (o NULL si la carpeta es nueva).
-        const prev = await c.query<{ roles_ver: string | null; roles_subir: string | null; roles_eliminar: string | null }>(
-          `SELECT roles_ver, roles_subir, roles_eliminar FROM carpetas_documento_empresa WHERE id = $1::uuid LIMIT 1`,
+        const prev = await c.query<{
+          roles_ver: string | null;
+          roles_subir: string | null;
+          roles_eliminar: string | null;
+          usuarios_ver: string | null;
+          usuarios_subir: string | null;
+          usuarios_eliminar: string | null;
+        }>(
+          `SELECT roles_ver, roles_subir, roles_eliminar, usuarios_ver, usuarios_subir, usuarios_eliminar
+             FROM carpetas_documento_empresa WHERE id = $1::uuid LIMIT 1`,
           [persistId]
         );
         rolesView = prev.rows[0]?.roles_ver ?? null;
         rolesUpload = prev.rows[0]?.roles_subir ?? null;
         rolesDelete = prev.rows[0]?.roles_eliminar ?? null;
+        usersView = prev.rows[0]?.usuarios_ver ?? null;
+        usersUpload = prev.rows[0]?.usuarios_subir ?? null;
+        usersDelete = prev.rows[0]?.usuarios_eliminar ?? null;
       }
       await c.query(
         `INSERT INTO carpetas_documento_empresa (
-          id, id_empresa, nombre_carpeta, descripcion, creado_por, roles_ver, roles_subir, roles_eliminar
-        ) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8)
+          id, id_empresa, nombre_carpeta, descripcion, creado_por,
+          roles_ver, roles_subir, roles_eliminar, usuarios_ver, usuarios_subir, usuarios_eliminar
+        ) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         ON CONFLICT (id) DO UPDATE SET
           id_empresa = EXCLUDED.id_empresa,
           nombre_carpeta = EXCLUDED.nombre_carpeta,
@@ -13731,7 +13904,10 @@ export class PortalService implements OnModuleInit {
           creado_por = EXCLUDED.creado_por,
           roles_ver = EXCLUDED.roles_ver,
           roles_subir = EXCLUDED.roles_subir,
-          roles_eliminar = EXCLUDED.roles_eliminar`,
+          roles_eliminar = EXCLUDED.roles_eliminar,
+          usuarios_ver = EXCLUDED.usuarios_ver,
+          usuarios_subir = EXCLUDED.usuarios_subir,
+          usuarios_eliminar = EXCLUDED.usuarios_eliminar`,
         [
           persistId,
           scope,
@@ -13740,7 +13916,10 @@ export class PortalService implements OnModuleInit {
           String(row.createdBy ?? "Portal").trim() || "Portal",
           rolesView,
           rolesUpload,
-          rolesDelete
+          rolesDelete,
+          usersView,
+          usersUpload,
+          usersDelete
         ]
       );
     }
@@ -13805,10 +13984,10 @@ export class PortalService implements OnModuleInit {
             id, codigo, tipo_persona, tipo_vinculo, nombre, nombre_comercial, tipo_documento, numero_documento, nit,
             correo, telefono, ciudad, departamento, pais, direccion, actividad_economica, programa, id_perfil_riesgo,
             nivel_riesgo, estado_kyc, nivel_debida_diligencia, es_pep, detalle_pep, fecha_proxima_revision,
-            fecha_ultima_revision, id_responsable, nombre_responsable, observaciones, ids_documentos, creado_por, actualizado_por
+            fecha_ultima_revision, id_responsable, nombre_responsable, observaciones, ids_documentos, cumplimiento_json, creado_por, actualizado_por
           ) VALUES (
             $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18::uuid,
-            $19, $20, $21, $22, $23, $24::date, $25::date, $26::uuid, $27, $28, $29, $30, $31
+            $19, $20, $21, $22, $23, $24::date, $25::date, $26::uuid, $27, $28, $29, $30, $31, $32
           )
           ON CONFLICT (id) DO UPDATE SET
             codigo = EXCLUDED.codigo,
@@ -13839,6 +14018,7 @@ export class PortalService implements OnModuleInit {
             nombre_responsable = EXCLUDED.nombre_responsable,
             observaciones = EXCLUDED.observaciones,
             ids_documentos = EXCLUDED.ids_documentos,
+            cumplimiento_json = EXCLUDED.cumplimiento_json,
             actualizado_por = EXCLUDED.actualizado_por,
             fecha_actualizacion = now()`,
           [
@@ -13864,13 +14044,14 @@ export class PortalService implements OnModuleInit {
             nu(row.kycStatus || "pendiente"),
             nu(row.dueDiligenceLevel || "normal"),
             row.pepFlag === true || row.pepFlag === "true",
-            nuN(row.pepDetails || row.notes),
+            nuN(row.pepDetails),
             this.sqlDate(row.nextReviewDate),
             this.sqlDate(row.lastReviewDate),
             this.optionalUuid(row.responsibleUserId),
             nuN(row.responsibleName),
             nuN(row.notes),
             ids || null,
+            nuN(row.cumplimientoJson || row.cumplimiento_json),
             nu(row.createdBy || "Portal"),
             nuN(row.updatedBy)
           ]

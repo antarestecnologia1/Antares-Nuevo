@@ -12,6 +12,7 @@ import {
   normalizeHrWorkspace,
   normalizeSarlaftDataSection,
   normalizeSarlaftOperateSection,
+  normalizeSarlaftProgramFilter,
   colombiaTodayIsoDate,
   stampCreatedRecord,
   stampUpdatedRecord,
@@ -19,6 +20,7 @@ import {
 } from "../core/utils.js";
 import {
   canAccessSarlaftView,
+  canAccessDocumentsView,
   canDeleteSarlaftRecords,
   canMutateSarlaftAlerts,
   canMutateSarlaftParties,
@@ -40,6 +42,15 @@ import {
   SARLAFT_COMPANY_FOLDER,
   SARLAFT_DOCUMENT_PROCESS,
   SARLAFT_PROGRAMS,
+  SARLAFT_PROGRAM_COPY,
+  sarlaftProgramCopy,
+  sarlaftCatalogForProgram,
+  filterSarlaftByProgram,
+  matchesSarlaftProgram,
+  serializeSarlaftCompliance,
+  inferSarlaftProgramFromKind,
+  sarlaftReviewAdvancesSchedule,
+  normalizeSarlaftProgram,
   SARLAFT_PERSON_KINDS,
   SARLAFT_PARTY_TYPES,
   SARLAFT_DOCUMENT_TYPES,
@@ -74,12 +85,15 @@ import {
   COMPANY_DOCUMENT_MAX_BYTES,
   normalizeCompanyFolder,
   normalizeCompanyDocumentRow,
+  normalizeCompanyFolderRow,
   formatCompanyDocumentDisplayName,
+  getCompanyDocumentCategoryLabel,
   fileTypeLabel,
   formatFileSize,
   findCompanyDocumentCategory,
   listCompanyDocumentCategories,
-  serializeCompanyDocumentTags
+  serializeCompanyDocumentTags,
+  folderKey
 } from "../domain/company-documents.domain.js";
 
 const G = globalThis;
@@ -117,18 +131,24 @@ function readCompanyDocs() {
   return read(KEYS.companyDocuments, []).map(normalizeCompanyDocumentRow).filter((d) => d && d.id);
 }
 
+function readFolders() {
+  return read(KEYS.companyDocumentFolders, []).map(normalizeCompanyFolderRow).filter((f) => f && f.id);
+}
+
 function getUi() {
   if (!state.sarlaftUi || typeof state.sarlaftUi !== "object") {
     state.sarlaftUi = {
       workspace: "operate",
       operateSection: "party",
       dataSection: "parties",
+      programFilter: "ambos",
       listSearch: "",
       listPage: 1,
       pageSize: PAGE_SIZE,
       selectedPartyId: ""
     };
   }
+  state.sarlaftUi.programFilter = normalizeSarlaftProgramFilter(state.sarlaftUi.programFilter);
   return state.sarlaftUi;
 }
 
@@ -150,8 +170,8 @@ function userOptionsHtml(selectedId = "") {
     .join("");
 }
 
-function partyOptionsHtml(selectedId = "") {
-  return readParties()
+function partyOptionsHtml(selectedId = "", program = "ambos") {
+  return filterSarlaftByProgram(readParties(), program)
     .map((p) => {
       const id = String(p.id);
       return `<option value="${escapeAttr(id)}"${id === String(selectedId) ? " selected" : ""}>${escapeHtml(p.name)} · ${escapeHtml(p.documentNumber || p.code || "")}</option>`;
@@ -167,17 +187,46 @@ function sarlaftEvidenceFolder(partyName) {
   return normalizeCompanyFolder(leaf ? `${SARLAFT_COMPANY_FOLDER} / ${leaf}` : SARLAFT_COMPANY_FOLDER);
 }
 
-function sarlaftEvidenceCategoryOptionsHtml(selected = "form_conocimiento_tercero") {
-  const cats = listCompanyDocumentCategories().filter((c) => c.process === "sarlaft" || c.value === "otro");
+async function ensureSarlaftEvidenceFolder(partyName) {
+  const path = sarlaftEvidenceFolder(partyName);
+  const by = actorLabel();
+  const has = (p) => readFolders().some((f) => folderKey(f.folderName) === folderKey(p));
+  const createFolder = async (folderName, description) => {
+    if (readFolders().some((f) => folderKey(f.folderName) === folderKey(folderName))) return;
+    const record = normalizeCompanyFolderRow({
+      id: newUuidV4(),
+      folderName,
+      description,
+      createdBy: by,
+      createdAt: new Date().toISOString()
+    });
+    try {
+      await writeAwaitServerCreate(KEYS.companyDocumentFolders, [...readFolders(), record], record);
+    } catch (_err) {
+      /* El archivo igual queda en la ruta; la carpeta puede crearla Gestión documental. */
+    }
+  };
+  if (!has(SARLAFT_COMPANY_FOLDER)) {
+    await createFolder(SARLAFT_COMPANY_FOLDER, "Evidencias SARLAFT / PTE");
+  }
+  if (path !== SARLAFT_COMPANY_FOLDER && !has(path)) {
+    await createFolder(path, `Expediente de ${String(partyName || "").trim() || "tercero"}`);
+  }
+  return path;
+}
+
+function sarlaftEvidenceCategoryOptionsHtml(selected = "form_conocimiento_tercero", program = "ambos") {
+  const cats = evidenceCatsForProgram(program);
+  const sel = cats.some((c) => c.value === selected) ? selected : cats[0]?.value || "otro";
   return cats
     .map(
       (c) =>
-        `<option value="${escapeAttr(c.value)}"${c.value === selected ? " selected" : ""}>${escapeHtml(c.label)}</option>`
+        `<option value="${escapeAttr(c.value)}"${c.value === sel ? " selected" : ""}>${escapeHtml(c.label)}</option>`
     )
     .join("");
 }
 
-function evidenceAttachHtml(fieldLabel, IC, { defaultCategory = "form_conocimiento_tercero", hint } = {}) {
+function evidenceAttachHtml(fieldLabel, IC, { defaultCategory = "form_conocimiento_tercero", hint, program = "ambos" } = {}) {
   return `<fieldset class="form-section form-section-amber full">
     <legend>${IC.upload || IC.file || ""} Anexar evidencias</legend>
     <p class="muted form-section-hint">${escapeHtml(
@@ -186,7 +235,7 @@ function evidenceAttachHtml(fieldLabel, IC, { defaultCategory = "form_conocimien
     )}</p>
     <div class="form-section-grid">
       <label>${fieldLabel(IC.file, "Tipo documental")}
-        <select name="evidenceCategory">${sarlaftEvidenceCategoryOptionsHtml(defaultCategory)}</select>
+        <select name="evidenceCategory">${sarlaftEvidenceCategoryOptionsHtml(defaultCategory, program)}</select>
       </label>
       <label>${fieldLabel(IC.calendar, "Vencimiento (si aplica)")}
         <input type="date" name="evidenceExpiresAt" />
@@ -234,7 +283,7 @@ async function attachSarlaftEvidenceFiles({ formEl, party, relatedLabel = "" }) 
     String(formEl.querySelector("[name='evidenceCategory']")?.value || "form_conocimiento_tercero").trim() || "otro";
   const expiresAt = String(formEl.querySelector("[name='evidenceExpiresAt']")?.value || "").trim();
   const catMeta = findCompanyDocumentCategory(category);
-  const folder = sarlaftEvidenceFolder(party.name);
+  const folder = await ensureSarlaftEvidenceFolder(party.name);
   const by = actorLabel();
   const ids = [];
   for (const file of files) {
@@ -279,6 +328,44 @@ async function attachSarlaftEvidenceFiles({ formEl, party, relatedLabel = "" }) 
   return ids;
 }
 
+async function downloadSarlaftDocument(doc) {
+  const api = window.AntaresApi;
+  if (!api?.postJson) throw new Error("API no disponible.");
+  if (!doc?.storageKey) throw new Error("El documento no tiene archivo en almacenamiento.");
+  const res = await api.postJson("/uploads/company-document/download", {
+    storageKey: doc.storageKey,
+    disposition: "attachment",
+    fileName: doc.fileName || "documento"
+  });
+  const url = String(res?.downloadUrl || "").trim();
+  if (!url) throw new Error("No se obtuvo el enlace de descarga.");
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = doc.fileName || "documento";
+  a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+async function previewSarlaftDocument(doc) {
+  if (typeof window.openCompanyDocumentPreview === "function") {
+    await window.openCompanyDocumentPreview(doc);
+    return;
+  }
+  const api = window.AntaresApi;
+  if (!api?.postJson) throw new Error("API no disponible.");
+  if (!doc?.storageKey) throw new Error("El documento no tiene archivo en almacenamiento.");
+  const res = await api.postJson("/uploads/company-document/download", {
+    storageKey: doc.storageKey,
+    disposition: "inline",
+    fileName: doc.fileName || "documento"
+  });
+  const url = String(res?.downloadUrl || "").trim();
+  if (!url) throw new Error("No se obtuvo el enlace de vista previa.");
+  window.open(url, "_blank", "noopener");
+}
+
 async function mergePartyDocumentIds(partyId, attachedIds) {
   if (!partyId || !attachedIds?.length) return;
   const next = readParties().map((p) =>
@@ -292,14 +379,51 @@ async function mergePartyDocumentIds(partyId, attachedIds) {
   await writeAwaitServerEdit(KEYS.sarlaftThirdParties, next, partyId);
 }
 
-function profileOptionsHtml(selectedId = "") {
+function profileOptionsHtml(selectedId = "", program = "ambos") {
   return readProfiles()
-    .filter((p) => p.active)
+    .filter((p) => p.active && matchesSarlaftProgram(p.program, program))
     .map((p) => {
       const id = String(p.id);
       return `<option value="${escapeAttr(id)}" data-level="${escapeAttr(p.level)}" data-dd="${escapeAttr(p.dueDiligenceLevel)}" data-days="${escapeAttr(String(p.reviewFrequencyDays))}"${id === String(selectedId) ? " selected" : ""}>${escapeHtml(p.name)} · ${escapeHtml(sarlaftCatalogLabel(SARLAFT_RISK_LEVELS, p.level))}</option>`;
     })
     .join("");
+}
+
+function programChip(program) {
+  const value = normalizeSarlaftProgram(program, "ambos");
+  const label = sarlaftCatalogLabel(SARLAFT_PROGRAMS, value);
+  return `<span class="sarlaft-program-chip sarlaft-program-chip--${escapeAttr(value)}">${escapeHtml(label)}</span>`;
+}
+
+function programSwitcherHtml(active) {
+  const current = normalizeSarlaftProgramFilter(active);
+  return `<div class="sarlaft-program-switch" role="group" aria-label="Programa de cumplimiento">
+    ${SARLAFT_PROGRAMS.map((p) => {
+      const copy = SARLAFT_PROGRAM_COPY[p.value] || SARLAFT_PROGRAM_COPY.ambos;
+      const on = current === p.value;
+      return `<button type="button" class="sarlaft-program-switch__btn sarlaft-program-switch__btn--${escapeAttr(p.value)}${on ? " is-active" : ""}" data-action="sarlaft-program" data-program="${escapeAttr(p.value)}" aria-pressed="${on ? "true" : "false"}">
+        <strong>${escapeHtml(p.label)}</strong>
+        <small>${escapeHtml(copy.kicker)}</small>
+      </button>`;
+    }).join("")}
+  </div>`;
+}
+
+function flagCheck(label, on) {
+  return `<li class="sarlaft-check ${on ? "is-on" : "is-off"}"><span aria-hidden="true">${on ? "✓" : "○"}</span> ${escapeHtml(label)}</li>`;
+}
+
+function yesNoOptions(selected, { trueLabel = "Sí", falseLabel = "No" } = {}) {
+  const on = selected === true || selected === "true";
+  return `<option value="false"${on ? "" : " selected"}>${escapeHtml(falseLabel)}</option><option value="true"${on ? " selected" : ""}>${escapeHtml(trueLabel)}</option>`;
+}
+
+function evidenceCatsForProgram(program) {
+  const cats = listCompanyDocumentCategories().filter((c) => c.process === "sarlaft" || c.value === "otro");
+  const f = normalizeSarlaftProgram(program, "ambos");
+  if (f === "sarlaft") return cats.filter((c) => c.value === "otro" || c.area === "kyc" || !c.area);
+  if (f === "pte") return cats.filter((c) => c.value === "otro" || c.area === "pte");
+  return cats;
 }
 
 function riskChip(level) {
@@ -373,11 +497,15 @@ async function ensureDefaultRiskProfiles() {
 }
 
 function openSarlaftDocumentsInDms(party) {
+  if (!canAccessDocumentsView(currentUser())) {
+    G.notify?.("Puede ver o descargar las evidencias desde la ficha, sin salir de SARLAFT / PTE.", "info");
+    return;
+  }
   if (!state.companyDocsUi || typeof state.companyDocsUi !== "object") {
     state.companyDocsUi = {};
   }
-  state.companyDocsUi.folderFilter = SARLAFT_COMPANY_FOLDER;
-  state.companyDocsUi.search = String(party?.name || "").trim();
+  state.companyDocsUi.folderFilter = sarlaftEvidenceFolder(party?.name);
+  state.companyDocsUi.search = "";
   state.companyDocsUi.entityTypeFilter = "tercero";
   state.companyDocsUi.processFilter = SARLAFT_DOCUMENT_PROCESS;
   state.companyDocsUi.showFilters = true;
@@ -399,12 +527,12 @@ function firstAllowedSarlaftOperateSection(caps) {
   return "party";
 }
 
-function renderOperateNav(activeId, caps = {}) {
+function renderOperateNav(activeId, caps = {}, copy = sarlaftProgramCopy("ambos")) {
   const tabs = [
-    { id: "party", label: "Tercero", hint: "Conocimiento y verificación", norm: "KYC", icon: "user", allowed: Boolean(caps.canParties) },
-    { id: "alert", label: "Alerta", hint: "Novedad, hallazgo o situación", norm: "Seguimiento", icon: "alert", allowed: Boolean(caps.canAlerts) },
-    { id: "review", label: "Revisión", hint: "Observaciones y responsables", norm: "Gestión", icon: "file", allowed: Boolean(caps.canReviews) },
-    { id: "profile", label: "Perfil de riesgo", hint: "Matriz y parametrización", norm: "Metodología", icon: "shield", allowed: Boolean(caps.canProfiles) }
+    { id: "party", ...copy.operateParty, icon: "user", allowed: Boolean(caps.canParties) },
+    { id: "alert", ...copy.operateAlert, icon: "alert", allowed: Boolean(caps.canAlerts) },
+    { id: "review", ...copy.operateReview, icon: "file", allowed: Boolean(caps.canReviews) },
+    { id: "profile", ...copy.operateProfile, icon: "shield", allowed: Boolean(caps.canProfiles) }
   ].filter((t) => t.allowed);
   const active = tabs.some((t) => t.id === activeId)
     ? activeId
@@ -428,13 +556,13 @@ function renderOperateNav(activeId, caps = {}) {
   </nav>`;
 }
 
-function renderDataNav(activeId, counts) {
+function renderDataNav(activeId, counts, copy = sarlaftProgramCopy("ambos")) {
   const active = normalizeSarlaftDataSection(activeId);
   const tabs = [
-    { id: "parties", label: "Terceros", count: counts.parties },
-    { id: "alerts", label: "Alertas", count: counts.alerts },
-    { id: "due", label: "Vencimientos", count: counts.due },
-    { id: "reviews", label: "Revisiones", count: counts.reviews },
+    { id: "parties", label: copy.consultParties, count: counts.parties },
+    { id: "alerts", label: copy.consultAlerts, count: counts.alerts },
+    { id: "due", label: copy.consultDue, count: counts.due },
+    { id: "reviews", label: copy.consultReviews, count: counts.reviews },
     { id: "reports", label: "Reportes", count: null }
   ];
   return `<nav class="payroll-data-nav sst-consult-nav" aria-label="Consultas SARLAFT">
@@ -460,20 +588,25 @@ function renderPagination(IC, { total, page, pageSize }) {
   </div>`;
 }
 
-function partyFormHtml(fieldLabel, IC, canMutate) {
+function partyFormHtml(fieldLabel, IC, canMutate, program = "ambos") {
   if (!canMutate) return G.emptyState("No tiene permiso para registrar terceros.");
   const today = colombiaTodayIsoDate();
-  return `<form id="form-sarlaft-party" class="p-form p-form-colored hr-form-flow antares-create-form" autocomplete="off" novalidate>
+  const copy = sarlaftProgramCopy(program);
+  const programValue = normalizeSarlaftProgram(program, "ambos");
+  return `<form id="form-sarlaft-party" class="p-form p-form-colored hr-form-flow antares-create-form" autocomplete="off" novalidate data-sarlaft-program="${escapeAttr(programValue)}">
     <div class="antares-create-form__sections">
       <fieldset class="form-section form-section-blue full">
-        <legend>${IC.user || ""} Identificación del tercero</legend>
-        <p class="muted form-section-hint">Registro de personas naturales o jurídicas sujetas a conocimiento y verificación.</p>
+        <legend>${IC.user || ""} Identificación ${programValue === "pte" ? "de la contraparte" : "del tercero"}</legend>
+        <p class="muted form-section-hint">${escapeHtml(copy.partyHint)}</p>
         <div class="form-section-grid">
+          <label>${fieldLabel(IC.shield, "Programa", { required: true })}
+            <select name="program" required data-sarlaft-program-select>${sarlaftCatalogOptionsHtml(SARLAFT_PROGRAMS, programValue)}</select>
+          </label>
           <label>${fieldLabel(IC.briefcase, "Tipo de vínculo", { required: true })}
             <select name="partyType" required><option value="">Seleccione...</option>${sarlaftCatalogOptionsHtml(SARLAFT_PARTY_TYPES)}</select>
           </label>
           <label>${fieldLabel(IC.user, "Tipo de persona", { required: true })}
-            <select name="kind" required>${sarlaftCatalogOptionsHtml(SARLAFT_PERSON_KINDS)}</select>
+            <select name="kind" required data-sarlaft-kind-select>${sarlaftCatalogOptionsHtml(SARLAFT_PERSON_KINDS)}</select>
           </label>
           <label class="full">${fieldLabel(IC.user, "Nombre / razón social", { required: true })}
             <input name="name" required maxlength="255" placeholder="Nombre completo o razón social" />
@@ -504,22 +637,19 @@ function partyFormHtml(fieldLabel, IC, canMutate) {
         </div>
       </fieldset>
       <fieldset class="form-section form-section-violet full">
-        <legend>${IC.shield || ""} Riesgo, debida diligencia y revisión</legend>
-        <p class="muted form-section-hint">Clasificación conforme a la matriz parametrizada. La próxima revisión se calcula con la frecuencia del perfil.</p>
+        <legend>${IC.shield || ""} Riesgo y debida diligencia</legend>
+        <p class="muted form-section-hint">La matriz define nivel, debida diligencia y próxima revisión.</p>
         <div class="form-section-grid">
-          <label>${fieldLabel(IC.shield, "Programa", { required: true })}
-            <select name="program" required>${sarlaftCatalogOptionsHtml(SARLAFT_PROGRAMS, "ambos")}</select>
-          </label>
           <label>${fieldLabel(IC.activity, "Perfil de riesgo")}
-            <select name="riskProfileId" data-sarlaft-profile-select><option value="">Seleccione...</option>${profileOptionsHtml()}</select>
+            <select name="riskProfileId" data-sarlaft-profile-select><option value="">Seleccione...</option>${profileOptionsHtml("", programValue)}</select>
           </label>
           <label>${fieldLabel(IC.activity, "Nivel de riesgo", { required: true })}
             <select name="riskLevel" required>${sarlaftCatalogOptionsHtml(SARLAFT_RISK_LEVELS, "medio")}</select>
           </label>
-          <label>${fieldLabel(IC.file, "Debida diligencia", { required: true })}
+          <label>${fieldLabel(IC.file, copy.ddLabel, { required: true })}
             <select name="dueDiligenceLevel" required>${sarlaftCatalogOptionsHtml(SARLAFT_DUE_DILIGENCE_LEVELS, "normal")}</select>
           </label>
-          <label>${fieldLabel(IC.check, "Estado de conocimiento", { required: true })}
+          <label>${fieldLabel(IC.check, copy.kycLabel, { required: true })}
             <select name="kycStatus" required>${sarlaftCatalogOptionsHtml(SARLAFT_KYC_STATUSES, "pendiente")}</select>
           </label>
           <label>${fieldLabel(IC.calendar, "Próxima revisión")}
@@ -528,41 +658,86 @@ function partyFormHtml(fieldLabel, IC, canMutate) {
           <label>${fieldLabel(IC.user, "Responsable")}
             <select name="responsibleUserId"><option value="">Sin asignar</option>${userOptionsHtml()}</select>
           </label>
-          <label class="full">
-            <span class="field-label">¿Es PEP?</span>
-            <select name="pepFlag"><option value="false">No</option><option value="true">Sí</option></select>
+        </div>
+      </fieldset>
+      <fieldset class="form-section form-section-blue full" data-program-panel="sarlaft"${programValue === "pte" ? " hidden" : ""}>
+        <legend>${IC.shield || ""} SARLAFT · conocimiento LA/FT</legend>
+        <p class="muted form-section-hint">Consulta de listas, PEP, origen de fondos y beneficiario final.</p>
+        <div class="form-section-grid">
+          <label>${fieldLabel(IC.check, "Consulta listas restrictivas")}
+            <select name="listsChecked">${yesNoOptions(false)}</select>
           </label>
-          <label class="full">${fieldLabel(IC.file, "Detalle PEP / observaciones")}
-            <textarea name="notes" rows="3" placeholder="Hallazgos de conocimiento, listas, origen de fondos o conflictos de interés"></textarea>
+          <label>${fieldLabel(IC.check, "Declaración de origen de fondos")}
+            <select name="fundsDeclared">${yesNoOptions(false)}</select>
+          </label>
+          <label>
+            <span class="field-label">¿Es PEP?</span>
+            <select name="pepFlag" data-sarlaft-pep-select>${yesNoOptions(false)}</select>
+          </label>
+          <label class="full" data-pep-details-wrap hidden>${fieldLabel(IC.file, "Detalle PEP")}
+            <textarea name="pepDetails" rows="2" placeholder="Cargo, vínculo, país y fecha de la condición PEP"></textarea>
+          </label>
+          <label class="full" data-beneficial-wrap hidden>${fieldLabel(IC.user, "Beneficiario final")}
+            <input name="beneficialOwner" maxlength="255" placeholder="Nombre y documento del beneficiario final" />
+          </label>
+        </div>
+      </fieldset>
+      <fieldset class="form-section form-section-emerald full" data-program-panel="pte"${programValue === "sarlaft" ? " hidden" : ""}>
+        <legend>${IC.check || ""} PTE · transparencia y ética</legend>
+        <p class="muted form-section-hint">Código de ética, conflictos de interés y transparencia empresarial.</p>
+        <div class="form-section-grid">
+          <label>${fieldLabel(IC.check, "Aceptó código de ética")}
+            <select name="ethicsAccepted">${yesNoOptions(false)}</select>
+          </label>
+          <label>${fieldLabel(IC.check, "Declaró conflicto de intereses")}
+            <select name="conflictDeclared">${yesNoOptions(false)}</select>
+          </label>
+        </div>
+      </fieldset>
+      <fieldset class="form-section form-section-slate full">
+        <legend>${IC.file || ""} Observaciones</legend>
+        <div class="form-section-grid">
+          <label class="full">${fieldLabel(IC.file, "Notas de cumplimiento")}
+            <textarea name="notes" rows="3" placeholder="Hallazgos, pendientes o decisión de vinculación"></textarea>
           </label>
         </div>
       </fieldset>
       ${evidenceAttachHtml(fieldLabel, IC, {
-        defaultCategory: "form_conocimiento_tercero",
-        hint: "Adjunte formulario de conocimiento, listas, origen de fondos, PEP u otros soportes del tercero."
+        defaultCategory: copy.evidenceDefault,
+        hint: copy.evidenceHint,
+        program: programValue
       })}
     </div>
     <footer class="antares-create-form__footer">
-      ${G.renderManagedCreateFormActions("create-sarlaft-party", `<button class="btn btn-primary antares-create-form__submit" type="submit">${IC.plus || ""} Registrar tercero</button>`)}
+      ${G.renderManagedCreateFormActions("create-sarlaft-party", `<button class="btn btn-primary antares-create-form__submit" type="submit">${IC.plus || ""} ${escapeHtml(copy.partyTitle)}</button>`)}
     </footer>
   </form>`;
 }
-
-function alertFormHtml(fieldLabel, IC, canMutate) {
+function alertFormHtml(fieldLabel, IC, canMutate, program = "ambos") {
   if (!canMutate) return G.emptyState("No tiene permiso para registrar alertas.");
-  return `<form id="form-sarlaft-alert" class="p-form p-form-colored hr-form-flow antares-create-form" autocomplete="off" novalidate>
+  const copy = sarlaftProgramCopy(program);
+  const programValue = normalizeSarlaftProgram(program, "ambos");
+  const kinds = sarlaftCatalogForProgram(SARLAFT_ALERT_KINDS, programValue);
+  const defaultKind = kinds[0]?.value || "alerta";
+  const sourcePh =
+    programValue === "pte"
+      ? "Canal ético, auditoría, declaración..."
+      : programValue === "sarlaft"
+        ? "Listas, monitoreo, operación inusual..."
+        : "Listas, denuncia, auditoría...";
+  return `<form id="form-sarlaft-alert" class="p-form p-form-colored hr-form-flow antares-create-form" autocomplete="off" novalidate data-sarlaft-program="${escapeAttr(programValue)}">
     <div class="antares-create-form__sections">
       <fieldset class="form-section form-section-blue full">
-        <legend>${IC.alert || ""} Alerta, novedad o hallazgo</legend>
-        <p class="muted form-section-hint">Situaciones que requieren revisión y gestión interna según políticas SARLAFT/PTE.</p>
+        <legend>${IC.alert || ""} ${escapeHtml(copy.alertTitle.replace(/^Registrar /i, ""))}</legend>
+        <p class="muted form-section-hint">${escapeHtml(copy.alertHint)}</p>
         <div class="form-section-grid">
-          <label class="full">${fieldLabel(IC.user, "Tercero relacionado", { required: true })}
-            <select name="thirdPartyId" required><option value="">Seleccione...</option>${partyOptionsHtml()}</select>
+          <label class="full">${fieldLabel(IC.user, programValue === "pte" ? "Contraparte relacionada" : "Tercero relacionado", { required: true })}
+            <select name="thirdPartyId" required><option value="">Seleccione...</option>${partyOptionsHtml("", programValue)}</select>
           </label>
           <label>${fieldLabel(IC.file, "Tipo", { required: true })}
-            <select name="kind" required>${sarlaftCatalogOptionsHtml(SARLAFT_ALERT_KINDS)}</select>
+            <select name="kind" required data-sarlaft-alert-kind>${sarlaftCatalogOptionsHtml(kinds, defaultKind)}</select>
           </label>
-          <label>${fieldLabel(IC.shield, "Programa")}<select name="program">${sarlaftCatalogOptionsHtml(SARLAFT_PROGRAMS, "ambos")}</select></label>
+          <label>${fieldLabel(IC.shield, "Programa")}<select name="program">${sarlaftCatalogOptionsHtml(SARLAFT_PROGRAMS, programValue)}</select></label>
           <label>${fieldLabel(IC.alert, "Severidad", { required: true })}
             <select name="severity" required>${sarlaftCatalogOptionsHtml(SARLAFT_ALERT_SEVERITIES, "media")}</select>
           </label>
@@ -577,33 +752,38 @@ function alertFormHtml(fieldLabel, IC, canMutate) {
           <label>${fieldLabel(IC.user, "Responsable")}
             <select name="responsibleUserId"><option value="">Sin asignar</option>${userOptionsHtml()}</select>
           </label>
-          <label>${fieldLabel(IC.hash, "Origen")}<input name="source" maxlength="120" placeholder="Listas, denuncia, auditoría..." /></label>
+          <label>${fieldLabel(IC.hash, "Origen")}<input name="source" maxlength="120" placeholder="${escapeAttr(sourcePh)}" /></label>
         </div>
       </fieldset>
       ${evidenceAttachHtml(fieldLabel, IC, {
-        defaultCategory: "consulta_listas",
-        hint: "Adjunte soportes de la alerta, consulta de listas o evidencia de la situación."
+        defaultCategory: copy.evidenceDefault,
+        hint: copy.evidenceHint,
+        program: programValue
       })}
     </div>
     <footer class="antares-create-form__footer">
-      ${G.renderManagedCreateFormActions("create-sarlaft-alert", `<button class="btn btn-primary antares-create-form__submit" type="submit">${IC.plus || ""} Registrar alerta</button>`)}
+      ${G.renderManagedCreateFormActions("create-sarlaft-alert", `<button class="btn btn-primary antares-create-form__submit" type="submit">${IC.plus || ""} ${escapeHtml(copy.alertTitle)}</button>`)}
     </footer>
   </form>`;
 }
 
-function reviewFormHtml(fieldLabel, IC, canMutate) {
+function reviewFormHtml(fieldLabel, IC, canMutate, program = "ambos") {
   if (!canMutate) return G.emptyState("No tiene permiso para registrar revisiones.");
-  return `<form id="form-sarlaft-review" class="p-form p-form-colored hr-form-flow antares-create-form" autocomplete="off" novalidate>
+  const copy = sarlaftProgramCopy(program);
+  const programValue = normalizeSarlaftProgram(program, "ambos");
+  const kinds = sarlaftCatalogForProgram(SARLAFT_REVIEW_KINDS, programValue);
+  const defaultKind = kinds[0]?.value || "revision";
+  return `<form id="form-sarlaft-review" class="p-form p-form-colored hr-form-flow antares-create-form" autocomplete="off" novalidate data-sarlaft-program="${escapeAttr(programValue)}">
     <div class="antares-create-form__sections">
       <fieldset class="form-section form-section-emerald full">
-        <legend>${IC.file || ""} Revisión u observación</legend>
-        <p class="muted form-section-hint">Deje constancia de la actuación: responsable, estado y observaciones.</p>
+        <legend>${IC.file || ""} ${escapeHtml(copy.reviewTitle.replace(/^Registrar /i, ""))}</legend>
+        <p class="muted form-section-hint">${escapeHtml(copy.reviewHint)}</p>
         <div class="form-section-grid">
-          <label class="full">${fieldLabel(IC.user, "Tercero", { required: true })}
-            <select name="thirdPartyId" required><option value="">Seleccione...</option>${partyOptionsHtml()}</select>
+          <label class="full">${fieldLabel(IC.user, programValue === "pte" ? "Contraparte" : "Tercero", { required: true })}
+            <select name="thirdPartyId" required><option value="">Seleccione...</option>${partyOptionsHtml("", programValue)}</select>
           </label>
           <label>${fieldLabel(IC.file, "Tipo", { required: true })}
-            <select name="kind" required>${sarlaftCatalogOptionsHtml(SARLAFT_REVIEW_KINDS)}</select>
+            <select name="kind" required>${sarlaftCatalogOptionsHtml(kinds, defaultKind)}</select>
           </label>
           <label>${fieldLabel(IC.activity, "Estado")}<select name="status">${sarlaftCatalogOptionsHtml(SARLAFT_REVIEW_STATUSES, "pendiente")}</select></label>
           <label>${fieldLabel(IC.calendar, "Fecha de revisión")}<input type="date" name="reviewedAt" value="${escapeAttr(colombiaTodayIsoDate())}" /></label>
@@ -616,44 +796,53 @@ function reviewFormHtml(fieldLabel, IC, canMutate) {
         </div>
       </fieldset>
       ${evidenceAttachHtml(fieldLabel, IC, {
-        defaultCategory: "otro",
-        hint: "Adjunte actas, soportes de la revisión u observaciones documentadas."
+        defaultCategory: copy.evidenceDefault,
+        hint: copy.evidenceHint,
+        program: programValue
       })}
     </div>
     <footer class="antares-create-form__footer">
-      ${G.renderManagedCreateFormActions("create-sarlaft-review", `<button class="btn btn-primary antares-create-form__submit" type="submit">${IC.plus || ""} Registrar revisión</button>`)}
+      ${G.renderManagedCreateFormActions("create-sarlaft-review", `<button class="btn btn-primary antares-create-form__submit" type="submit">${IC.plus || ""} ${escapeHtml(copy.reviewTitle)}</button>`)}
     </footer>
   </form>`;
 }
 
-function profileFormHtml(fieldLabel, IC, canMutate) {
+function profileFormHtml(fieldLabel, IC, canMutate, program = "ambos") {
   if (!canMutate) return G.emptyState("No tiene permiso para parametrizar perfiles de riesgo.");
+  const copy = sarlaftProgramCopy(program);
+  const programValue = normalizeSarlaftProgram(program, "ambos");
+  const criteriaPh =
+    programValue === "pte"
+      ? "Factores PTE: conflicto de intereses, exposición a corrupción, canal ético, cargo sensible..."
+      : programValue === "sarlaft"
+        ? "Factores SARLAFT: tipo de tercero, zona, PEP, listas, actividad, montos..."
+        : "Factores de la matriz: tipo de tercero, zona, PEP, actividad, montos, conflictos...";
   return `<form id="form-sarlaft-profile" class="p-form p-form-colored hr-form-flow antares-create-form" autocomplete="off" novalidate>
     <div class="antares-create-form__sections">
       <fieldset class="form-section form-section-violet full">
-        <legend>${IC.shield || ""} Perfil de la matriz de riesgo</legend>
-        <p class="muted form-section-hint">Parametrice criterios y periodicidad de revisión según la metodología del contratante.</p>
+        <legend>${IC.shield || ""} ${escapeHtml(copy.profileTitle.replace(/^Parametrizar /i, ""))}</legend>
+        <p class="muted form-section-hint">${escapeHtml(copy.profileHint)}</p>
         <div class="form-section-grid">
           <label>${fieldLabel(IC.hash, "Código", { required: true })}<input name="code" required maxlength="32" placeholder="Ej. ALTO" /></label>
           <label>${fieldLabel(IC.file, "Nombre", { required: true })}<input name="name" required maxlength="120" placeholder="Ej. Riesgo alto" /></label>
-          <label>${fieldLabel(IC.shield, "Programa")}<select name="program">${sarlaftCatalogOptionsHtml(SARLAFT_PROGRAMS, "ambos")}</select></label>
+          <label>${fieldLabel(IC.shield, "Programa")}<select name="program">${sarlaftCatalogOptionsHtml(SARLAFT_PROGRAMS, programValue)}</select></label>
           <label>${fieldLabel(IC.activity, "Nivel", { required: true })}
             <select name="level" required>${sarlaftCatalogOptionsHtml(SARLAFT_RISK_LEVELS, "medio")}</select>
           </label>
-          <label>${fieldLabel(IC.file, "Debida diligencia", { required: true })}
+          <label>${fieldLabel(IC.file, copy.ddLabel, { required: true })}
             <select name="dueDiligenceLevel" required>${sarlaftCatalogOptionsHtml(SARLAFT_DUE_DILIGENCE_LEVELS, "normal")}</select>
           </label>
           <label>${fieldLabel(IC.calendar, "Frecuencia de revisión (días)", { required: true })}
             <input type="number" name="reviewFrequencyDays" required min="1" max="1095" value="180" />
           </label>
           <label class="full">${fieldLabel(IC.file, "Criterios / metodología", { required: true })}
-            <textarea name="criteria" rows="3" required placeholder="Factores de la matriz: tipo de tercero, zona, PEP, actividad, montos..."></textarea>
+            <textarea name="criteria" rows="3" required placeholder="${escapeAttr(criteriaPh)}"></textarea>
           </label>
         </div>
       </fieldset>
     </div>
     <footer class="antares-create-form__footer">
-      ${G.renderManagedCreateFormActions("create-sarlaft-profile", `<button class="btn btn-primary antares-create-form__submit" type="submit">${IC.plus || ""} Guardar perfil</button>`)}
+      ${G.renderManagedCreateFormActions("create-sarlaft-profile", `<button class="btn btn-primary antares-create-form__submit" type="submit">${IC.plus || ""} ${escapeHtml(copy.profileTitle)}</button>`)}
     </footer>
   </form>`;
 }
@@ -695,24 +884,35 @@ function sarlaftPteHtml() {
   const listPage = Math.max(1, Number(ui.listPage) || 1);
   const pageSize = Math.max(5, Number(ui.pageSize) || PAGE_SIZE);
   const today = colombiaTodayIsoDate();
+  const programFilter = normalizeSarlaftProgramFilter(ui.programFilter);
+  const copy = sarlaftProgramCopy(programFilter);
+  const partiesById = new Map(readParties().map((p) => [String(p.id), p]));
 
-  const parties = readParties();
-  const profiles = readProfiles();
-  const alerts = readAlerts();
-  const reviews = readReviews();
+  const partiesAll = readParties();
+  const profilesAll = readProfiles();
+  const alertsAll = readAlerts();
+  const reviewsAll = readReviews();
   const docs = readCompanyDocs();
+  const parties = filterSarlaftByProgram(partiesAll, programFilter);
+  const profiles = filterSarlaftByProgram(profilesAll, programFilter);
+  const alerts = filterSarlaftByProgram(alertsAll, programFilter);
+  const reviews = filterSarlaftByProgram(reviewsAll, programFilter, (r) => {
+    const party = partiesById.get(String(r.thirdPartyId || ""));
+    if (party) return party.program;
+    return inferSarlaftProgramFromKind(SARLAFT_REVIEW_KINDS, r.kind, "ambos");
+  });
   const kpis = summarizeSarlaft({ parties, alerts, reviews, todayYmd: today });
   const dueItems = collectSarlaftDueParties(parties, today);
 
   const filteredParties = applySarlaftTextFilter(
     parties,
     listSearchNorm,
-    (p) => `${p.code} ${p.name} ${p.documentNumber} ${p.nit} ${p.partyType} ${p.kycStatus} ${p.riskLevel} ${p.city}`
+    (p) => `${p.code} ${p.name} ${p.documentNumber} ${p.nit} ${p.partyType} ${p.kycStatus} ${p.riskLevel} ${p.city} ${p.program}`
   );
   const filteredAlerts = applySarlaftTextFilter(
     alerts,
     listSearchNorm,
-    (a) => `${a.title} ${a.thirdPartyName} ${a.kind} ${a.status} ${a.severity} ${a.source}`
+    (a) => `${a.title} ${a.thirdPartyName} ${a.kind} ${a.status} ${a.severity} ${a.source} ${a.program}`
   );
   const filteredDue = applySarlaftTextFilter(
     dueItems,
@@ -750,7 +950,7 @@ function sarlaftPteHtml() {
         .filter(Boolean)
         .join("");
       return `<tr>
-        <td><strong>${escapeHtml(p.name)}</strong>${p.pepFlag ? '<span class="sarlaft-pep-flag">PEP</span>' : ""}<div class="sarlaft-party-cell"><small>${escapeHtml(p.code || "—")} · ${escapeHtml(p.documentType)} ${escapeHtml(p.documentNumber || "—")}</small></div></td>
+        <td><strong>${escapeHtml(p.name)}</strong>${programFilter !== "pte" && p.pepFlag ? '<span class="sarlaft-pep-flag">PEP</span>' : ""}${programFilter !== "sarlaft" && p.conflictDeclared ? '<span class="sarlaft-pte-flag">Conflicto</span>' : ""} ${programChip(p.program)}<div class="sarlaft-party-cell"><small>${escapeHtml(p.code || "—")} · ${escapeHtml(p.documentType)} ${escapeHtml(p.documentNumber || "—")}</small></div></td>
         <td>${escapeHtml(sarlaftCatalogLabel(SARLAFT_PARTY_TYPES, p.partyType))}</td>
         <td>${riskChip(p.riskLevel)}</td>
         <td>${kycPill(p.kycStatus)}</td>
@@ -775,7 +975,7 @@ function sarlaftPteHtml() {
         .filter(Boolean)
         .join("");
       return `<tr>
-        <td><strong>${escapeHtml(a.title)}</strong><div class="sarlaft-party-cell"><small>${escapeHtml(sarlaftCatalogLabel(SARLAFT_ALERT_KINDS, a.kind))} · ${escapeHtml(a.thirdPartyName || "—")}</small></div></td>
+        <td><strong>${escapeHtml(a.title)}</strong> ${programChip(a.program)}<div class="sarlaft-party-cell"><small>${escapeHtml(sarlaftCatalogLabel(SARLAFT_ALERT_KINDS, a.kind))} · ${escapeHtml(a.thirdPartyName || "—")}</small></div></td>
         <td>${escapeHtml(sarlaftCatalogLabel(SARLAFT_ALERT_SEVERITIES, a.severity))}</td>
         <td>${alertStatusPill(a.status)}</td>
         <td>${escapeHtml(a.dueDate || "—")}</td>
@@ -787,7 +987,7 @@ function sarlaftPteHtml() {
 
   const dueRows = (dataSection === "due" ? paged.items : filteredDue)
     .map((p) => `<tr>
-      <td><strong>${escapeHtml(p.name)}</strong></td>
+      <td><strong>${escapeHtml(p.name)}</strong> ${programChip(p.program)}</td>
       <td>${riskChip(p.riskLevel)}</td>
       <td>${escapeHtml(p.nextReviewDate || "—")}</td>
       <td>${dueBucketPill(p.bucket)}</td>
@@ -811,7 +1011,7 @@ function sarlaftPteHtml() {
         .filter(Boolean)
         .join("");
       return `<tr>
-        <td><strong>${escapeHtml(sarlaftCatalogLabel(SARLAFT_REVIEW_KINDS, r.kind))}</strong><div class="sarlaft-party-cell"><small>${escapeHtml(r.thirdPartyName || "—")}</small></div></td>
+        <td><strong>${escapeHtml(sarlaftCatalogLabel(SARLAFT_REVIEW_KINDS, r.kind))}</strong><div class="sarlaft-party-cell"><small>${escapeHtml(r.thirdPartyName || "—")} · ${programChip(partiesById.get(String(r.thirdPartyId || ""))?.program || inferSarlaftProgramFromKind(SARLAFT_REVIEW_KINDS, r.kind))}</small></div></td>
         <td>${escapeHtml(sarlaftCatalogLabel(SARLAFT_REVIEW_STATUSES, r.status))}</td>
         <td>${escapeHtml(r.reviewedAt || String(r.createdAt || "").slice(0, 10) || "—")}</td>
         <td>${escapeHtml(r.responsibleName || "—")}</td>
@@ -828,7 +1028,7 @@ function sarlaftPteHtml() {
           <strong>${escapeHtml(p.name)}</strong>
           ${riskChip(p.level)}
         </div>
-        <p class="muted">${escapeHtml(p.code)} · Revisión cada ${escapeHtml(String(p.reviewFrequencyDays))} días · ${escapeHtml(sarlaftCatalogLabel(SARLAFT_DUE_DILIGENCE_LEVELS, p.dueDiligenceLevel))}</p>
+        <p class="muted">${escapeHtml(p.code)} · ${programChip(p.program)} · Revisión cada ${escapeHtml(String(p.reviewFrequencyDays))} días · ${escapeHtml(sarlaftCatalogLabel(SARLAFT_DUE_DILIGENCE_LEVELS, p.dueDiligenceLevel))}</p>
         <p>${escapeHtml(p.criteria || "Sin criterios registrados.")}</p>
       </article>`
     )
@@ -841,41 +1041,41 @@ function sarlaftPteHtml() {
 
   const partiesTable = tableOrEmpty(
     partyRows,
-    "No hay terceros registrados.",
-    "<tr><th>Tercero</th><th>Vínculo</th><th>Riesgo</th><th>Conocimiento</th><th>Próxima revisión</th><th>Responsable</th><th class='payroll-contracts-table__actions'>Acciones</th></tr>"
+    copy.emptyParties,
+    `<tr><th>${escapeHtml(copy.consultParties)}</th><th>Vínculo</th><th>Riesgo</th><th>${escapeHtml(copy.kycLabel)}</th><th>Próxima revisión</th><th>Responsable</th><th class='payroll-contracts-table__actions'>Acciones</th></tr>`
   );
   const alertsTable = tableOrEmpty(
     alertRows,
-    "No hay alertas registradas.",
-    "<tr><th>Situación</th><th>Severidad</th><th>Estado</th><th>Límite</th><th>Responsable</th><th class='payroll-contracts-table__actions'>Acciones</th></tr>"
+    copy.emptyAlerts,
+    `<tr><th>${escapeHtml(copy.consultAlerts)}</th><th>Severidad</th><th>Estado</th><th>Límite</th><th>Responsable</th><th class='payroll-contracts-table__actions'>Acciones</th></tr>`
   );
   const dueTable = tableOrEmpty(
     dueRows,
-    "No hay vencimientos de revisión en la ventana de 30 días.",
-    "<tr><th>Tercero</th><th>Riesgo</th><th>Fecha</th><th>Estado</th><th>Responsable</th><th class='payroll-contracts-table__actions'>Acciones</th></tr>"
+    copy.emptyDue,
+    `<tr><th>${escapeHtml(copy.consultParties)}</th><th>Riesgo</th><th>Fecha</th><th>Estado</th><th>Responsable</th><th class='payroll-contracts-table__actions'>Acciones</th></tr>`
   );
   const reviewsTable = tableOrEmpty(
     reviewRows,
-    "No hay revisiones registradas.",
-    "<tr><th>Tipo</th><th>Estado</th><th>Fecha</th><th>Responsable</th><th>Observación</th><th class='payroll-contracts-table__actions'>Acciones</th></tr>"
+    copy.emptyReviews,
+    `<tr><th>Tipo</th><th>Estado</th><th>Fecha</th><th>Responsable</th><th>Observación</th><th class='payroll-contracts-table__actions'>Acciones</th></tr>`
   );
 
   const reportsPane = `<div class="payroll-data-pane${dataSection === "reports" ? "" : " hidden"}" data-sarlaft-section="reports"${dataSection === "reports" ? "" : " hidden"}>
-    <p class="muted payroll-result-meta">Exportaciones operativas con la información disponible en el sistema. Las evidencias se consultan también en Gestión documental (${escapeHtml(SARLAFT_COMPANY_FOLDER)}).</p>
+    <p class="muted payroll-result-meta">Exportaciones del programa <strong>${escapeHtml(copy.title)}</strong>. Las evidencias se consultan también en Gestión documental (${escapeHtml(SARLAFT_COMPANY_FOLDER)}).</p>
     <div class="sst-due-grid">
       <article class="sst-due-card">
-        <strong>Terceros y conocimiento</strong>
-        <p class="muted">${kpis.parties} registros · ${kpis.pendingKyc} en conocimiento · ${kpis.pepCount} PEP</p>
+        <strong>${escapeHtml(copy.consultParties)} y conocimiento</strong>
+        <p class="muted">${kpis.parties} registros · ${kpis.pendingKyc} en ${escapeHtml(copy.kycLabel.toLowerCase())} · ${kpis.pepCount} PEP</p>
         <button type="button" class="btn btn-sm btn-primary" data-action="export-sarlaft-parties">${IC.download || ""} Exportar CSV</button>
       </article>
       <article class="sst-due-card">
-        <strong>Alertas y hallazgos</strong>
+        <strong>${escapeHtml(copy.consultAlerts)}</strong>
         <p class="muted">${kpis.openAlerts} abiertas · ${kpis.criticalAlerts} de alta/crítica</p>
         <button type="button" class="btn btn-sm btn-primary" data-action="export-sarlaft-alerts">${IC.download || ""} Exportar CSV</button>
       </article>
       <article class="sst-due-card">
         <strong>Perfiles parametrizados</strong>
-        <p class="muted">${profiles.length} perfiles activos en la matriz</p>
+        <p class="muted">${profiles.length} perfiles en la matriz ${escapeHtml(copy.title)}</p>
       </article>
     </div>
     <h3 class="sst-consult-head">Matriz de perfiles</h3>
@@ -883,28 +1083,29 @@ function sarlaftPteHtml() {
   </div>`;
 
   const kpiCards = renderHrAlertCards([
-    { label: "Terceros", value: kpis.parties, tone: "info", icon: IC.user || "", help: "Sujetos a conocimiento" },
-    { label: "Alertas abiertas", value: kpis.openAlerts, tone: kpis.openAlerts ? "warn" : "ok", icon: IC.alert || "", help: "Requieren gestión" },
-    { label: "Revisiones por vencer", value: kpis.dueReviews, tone: kpis.dueReviews ? "alert" : "ok", icon: IC.calendar || "", help: "Ventana 30 días" },
-    { label: "Riesgo alto / crítico", value: kpis.highRisk, tone: kpis.highRisk ? "warn" : "ok", icon: IC.shield || "", help: "Según matriz" }
+    { label: copy.kpiParties, value: kpis.parties, tone: "info", icon: IC.user || "", help: copy.partyHint },
+    { label: copy.kpiAlerts, value: kpis.openAlerts, tone: kpis.openAlerts ? "warn" : "ok", icon: IC.alert || "", help: "Requieren gestión" },
+    { label: copy.kpiDue, value: kpis.dueReviews, tone: kpis.dueReviews ? "alert" : "ok", icon: IC.calendar || "", help: "Ventana 30 días" },
+    { label: copy.kpiRisk, value: kpis.highRisk, tone: kpis.highRisk ? "warn" : "ok", icon: IC.shield || "", help: "Según matriz" }
   ]);
 
-  const moduleHead = `<div class="hr-workspace-head">
+  const moduleHead = `<div class="hr-workspace-head sarlaft-studio-head">
     <div>
-      <p class="hr-workspace-kicker">Cumplimiento</p>
-      <h2>SARLAFT / PTE</h2>
-      <p class="muted">Conocimiento de terceros, debida diligencia, alertas y trazabilidad de actuaciones.</p>
+      <p class="hr-workspace-kicker">${escapeHtml(copy.kicker)}</p>
+      <h2>${escapeHtml(copy.title)}</h2>
+      <p class="muted">${escapeHtml(copy.subtitle)}</p>
     </div>
+    ${programSwitcherHtml(programFilter)}
   </div>${kpiCards}`;
 
   const tabsNav = renderHrWorkspaceTabs({
     module: "sarlaft",
-    ariaLabel: "Secciones del módulo SARLAFT / PTE",
+    ariaLabel: `Secciones del módulo ${copy.title}`,
     activeId: workspace,
     variant: "switch",
     tabs: [
       ...(canOperate
-        ? [{ id: "operate", label: "Registrar", icon: "plus", hint: "Terceros, alertas y perfiles" }]
+        ? [{ id: "operate", label: "Registrar", icon: "plus", hint: copy.operateRail }]
         : []),
       { id: "data", label: "Consultar", icon: "eye", hint: "Seguimiento y reportes" }
     ]
@@ -926,52 +1127,52 @@ function sarlaftPteHtml() {
   const partyPane = createHrActionCard(
     "create-sarlaft-party",
     "user",
-    "Registrar tercero",
-    "Conocimiento, verificación y clasificación de riesgo",
-    partyFormHtml(fieldLabel, IC, canParties),
+    copy.partyTitle,
+    copy.partyHint,
+    partyFormHtml(fieldLabel, IC, canParties, programFilter),
     "Abrir formulario",
     { createPanels: createUi }
   );
   const alertPane = createHrActionCard(
     "create-sarlaft-alert",
     "alert",
-    "Registrar alerta o hallazgo",
-    "Novedades que requieren gestión interna",
-    alertFormHtml(fieldLabel, IC, canAlerts),
+    copy.alertTitle,
+    copy.alertHint,
+    alertFormHtml(fieldLabel, IC, canAlerts, programFilter),
     "Abrir formulario",
     { createPanels: createUi }
   );
   const reviewPane = createHrActionCard(
     "create-sarlaft-review",
     "file",
-    "Registrar revisión",
-    "Observaciones, responsables y estado de gestión",
-    reviewFormHtml(fieldLabel, IC, canReviews),
+    copy.reviewTitle,
+    copy.reviewHint,
+    reviewFormHtml(fieldLabel, IC, canReviews, programFilter),
     "Abrir formulario",
     { createPanels: createUi }
   );
   const profilePane = createHrActionCard(
     "create-sarlaft-profile",
     "shield",
-    "Parametrizar perfil de riesgo",
-    "Matriz, criterios y periodicidad de revisión",
-    profileFormHtml(fieldLabel, IC, canProfiles),
+    copy.profileTitle,
+    copy.profileHint,
+    profileFormHtml(fieldLabel, IC, canProfiles, programFilter),
     "Abrir formulario",
     { createPanels: createUi }
   );
 
   const operateAlert =
     kpis.openAlerts || kpis.dueReviews
-      ? `<p class="sst-operate-alert hr-attention-strip hr-attention-strip--warn" role="status">${IC.alert || ""} <strong>${kpis.openAlerts}</strong> alerta${kpis.openAlerts === 1 ? "" : "s"} abierta${kpis.openAlerts === 1 ? "" : "s"} · <strong>${kpis.dueReviews}</strong> revisión${kpis.dueReviews === 1 ? "" : "es"} por vencer.</p>`
+      ? `<p class="sst-operate-alert hr-attention-strip hr-attention-strip--warn" role="status">${IC.alert || ""} <strong>${kpis.openAlerts}</strong> ${escapeHtml(copy.kpiAlerts.toLowerCase())} · <strong>${kpis.dueReviews}</strong> ${escapeHtml(copy.kpiDue.toLowerCase())}.</p>`
       : "";
 
   const operatePanel = canOperate
     ? `<div class="hr-workspace-panel payroll-workspace-panel${workspace === "operate" ? "" : " hidden"}" role="tabpanel" data-sarlaft-panel="operate"${workspace === "operate" ? "" : " hidden"}>
     ${operateAlert}
     <section class="sst-operate sst-operate-panel">
-      <aside class="sst-operate__rail" aria-label="Tipo de registro SARLAFT">
-        <div class="sst-operate__rail-head"><p class="sst-operate__rail-label">Tipo de trámite</p></div>
-        ${renderOperateNav(operateSection, operateCaps)}
+      <aside class="sst-operate__rail" aria-label="${escapeAttr(copy.operateRail)}">
+        <div class="sst-operate__rail-head"><p class="sst-operate__rail-label">${escapeHtml(copy.operateRail)}</p></div>
+        ${renderOperateNav(operateSection, operateCaps, copy)}
       </aside>
       <div class="sst-operate__main auth-tab-panels">
         ${canParties ? `<div class="auth-tab-panel${operateSection === "party" ? "" : " hidden"}" data-sarlaft-operate-pane="party">${partyPane}</div>` : ""}
@@ -986,7 +1187,7 @@ function sarlaftPteHtml() {
   const searchBar = `<div class="payroll-data-search-toolbar sst-consult-search-toolbar">
     <label class="payroll-data-search sst-consult-search">
       <span class="sst-consult-search__ico" aria-hidden="true">${IC.search || ""}</span>
-      <input type="search" data-action="sarlaft-data-list-search" value="${escapeAttr(listSearchRaw)}" placeholder="Buscar tercero, documento, alerta, responsable..." autocomplete="off" />
+      <input type="search" data-action="sarlaft-data-list-search" value="${escapeAttr(listSearchRaw)}" placeholder="${escapeAttr(copy.searchPlaceholder)}" autocomplete="off" />
     </label>
     <button type="button" class="btn btn-sm btn-outline sst-export-btn" data-action="export-sarlaft-current">${IC.download || ""} Exportar vista</button>
   </div>`;
@@ -1001,11 +1202,11 @@ function sarlaftPteHtml() {
           alerts: kpis.openAlerts,
           due: dueItems.length,
           reviews: reviews.length
-        })}
+        }, copy)}
       </div>
       <div class="payroll-data-panes">
         <div class="payroll-data-pane${dataSection === "parties" ? "" : " hidden"}" data-sarlaft-section="parties"${dataSection === "parties" ? "" : " hidden"}>
-          <p class="payroll-result-meta muted"><strong>${filteredParties.length}</strong> tercero${filteredParties.length === 1 ? "" : "s"} · evidencias en Gestión documental</p>
+          <p class="payroll-result-meta muted"><strong>${filteredParties.length}</strong> ${escapeHtml(copy.consultParties).toLowerCase()} · evidencias en Gestión documental</p>
           <div class="payroll-table-shell">${partiesTable}</div>
           ${dataSection === "parties" ? listPagination : ""}
         </div>
@@ -1020,7 +1221,7 @@ function sarlaftPteHtml() {
           ${dataSection === "due" ? listPagination : ""}
         </div>
         <div class="payroll-data-pane${dataSection === "reviews" ? "" : " hidden"}" data-sarlaft-section="reviews"${dataSection === "reviews" ? "" : " hidden"}>
-          <p class="payroll-result-meta muted"><strong>${filteredReviews.length}</strong> revisión${filteredReviews.length === 1 ? "" : "es"}</p>
+          <p class="payroll-result-meta muted"><strong>${filteredReviews.length}</strong> ${escapeHtml(copy.consultReviews).toLowerCase()}</p>
           <div class="payroll-table-shell">${reviewsTable}</div>
           ${dataSection === "reviews" ? listPagination : ""}
         </div>
@@ -1030,7 +1231,7 @@ function sarlaftPteHtml() {
   </div>`;
 
   void docs;
-  const studioClass = `sarlaft-studio sst-studio payroll-studio payroll-shell payroll-shell--workspace hr-flow-shell${workspace === "data" ? " payroll-module--clean payroll-studio--consult" : ""}`;
+  const studioClass = `sarlaft-studio sst-studio payroll-studio payroll-shell payroll-shell--workspace hr-flow-shell sarlaft-studio--${escapeAttr(programFilter)}${workspace === "data" ? " payroll-module--clean payroll-studio--consult" : ""}`;
   return `<section class="${studioClass}" data-hr-workspace="${escapeAttr(workspace)}">${renderHrWorkspaceHeader(moduleHead, tabsNav, "payroll")}
     <div class="hr-workspace-panels">${operatePanel}${dataPanel}</div>
   </section>`;
@@ -1053,44 +1254,201 @@ function bindProfileSelect(form) {
   });
 }
 
+function syncProgramPanels(form) {
+  if (!form) return;
+  const program = normalizeSarlaftProgram(
+    form.querySelector("[data-sarlaft-program-select], [name='program']")?.value,
+    "ambos"
+  );
+  form.querySelectorAll("[data-program-panel]").forEach((el) => {
+    const want = el.getAttribute("data-program-panel");
+    el.hidden = !(program === "ambos" || want === program);
+  });
+  const pepOn = String(form.querySelector("[name='pepFlag'], [data-sarlaft-pep-select]")?.value || "") === "true";
+  const pepWrap = form.querySelector("[data-pep-details-wrap]");
+  if (pepWrap) pepWrap.hidden = !pepOn;
+  const kind = String(form.querySelector("[name='kind'], [data-sarlaft-kind-select]")?.value || "");
+  const ben = form.querySelector("[data-beneficial-wrap]");
+  if (ben) ben.hidden = kind !== "persona_juridica";
+}
+
+function refreshPartyProgramDependents(form) {
+  const program = normalizeSarlaftProgram(form.querySelector("[data-sarlaft-program-select]")?.value, "ambos");
+  const profileSel = form.querySelector("[data-sarlaft-profile-select]");
+  if (profileSel) {
+    const current = profileSel.value;
+    profileSel.innerHTML = `<option value="">Seleccione...</option>${profileOptionsHtml(current, program)}`;
+  }
+  const catSel = form.querySelector("[name='evidenceCategory']");
+  if (catSel) {
+    const copy = sarlaftProgramCopy(program);
+    catSel.innerHTML = sarlaftEvidenceCategoryOptionsHtml(catSel.value || copy.evidenceDefault, program);
+  }
+}
+
+function bindProgramPanels(form) {
+  if (!form) return;
+  const run = () => syncProgramPanels(form);
+  form.querySelector("[data-sarlaft-program-select]")?.addEventListener("change", () => {
+    run();
+    refreshPartyProgramDependents(form);
+  });
+  form.querySelector("[data-sarlaft-pep-select]")?.addEventListener("change", run);
+  form.querySelector("[data-sarlaft-kind-select]")?.addEventListener("change", run);
+  run();
+}
+
+function bindAlertKindProgram(form) {
+  const kindSel = form?.querySelector("[data-sarlaft-alert-kind], [name='kind']");
+  const progSel = form?.querySelector("[name='program']");
+  if (!kindSel || !progSel) return;
+  kindSel.addEventListener("change", () => {
+    const inferred = inferSarlaftProgramFromKind(SARLAFT_ALERT_KINDS, kindSel.value, progSel.value);
+    if (inferred && inferred !== "ambos") progSel.value = inferred;
+  });
+}
+
 function partyDetailHtml(party) {
+  const IC = G.IC || {};
+  const program = normalizeSarlaftProgram(party.program, "ambos");
+  const showSarlaft = program === "sarlaft" || program === "ambos";
+  const showPte = program === "pte" || program === "ambos";
   const docs = documentsLinkedToSarlaftParty(readCompanyDocs(), party);
+  const canAttach = canMutateSarlaftParties();
+  const canOpenDms = canAccessDocumentsView(currentUser());
   const evidence =
     docs.length === 0
-      ? `<p class="muted">Sin evidencias vinculadas. Ábralas en Gestión documental (${escapeHtml(SARLAFT_COMPANY_FOLDER)}).</p>`
+      ? `<p class="muted">Aún no hay evidencias en ${escapeHtml(SARLAFT_COMPANY_FOLDER)}${party.name ? ` / ${escapeHtml(party.name)}` : ""}.</p>`
       : `<ul class="sarlaft-evidence-list">${docs
-          .map(
-            (d) =>
-              `<li><span>${escapeHtml(formatCompanyDocumentDisplayName(d) || d.fileName || "Documento")}</span><span class="muted">${escapeHtml(d.folder || "")}</span></li>`
-          )
+          .map((d) => {
+            const display = formatCompanyDocumentDisplayName(d);
+            const title = display?.label || display?.title || d.fileName || "Documento";
+            const cat = getCompanyDocumentCategoryLabel(d.documentCategory);
+            return `<li>
+              <div class="sarlaft-evidence-list__meta">
+                <strong>${escapeHtml(title)}</strong>
+                <span class="muted">${escapeHtml(cat || d.folder || "")}${d.sizeBytes ? ` · ${escapeHtml(formatFileSize(d.sizeBytes))}` : ""}</span>
+              </div>
+              <span class="sarlaft-evidence-list__actions">
+                <button type="button" class="btn btn-sm btn-outline" data-action="sarlaft-preview-doc" data-doc-id="${escapeAttr(d.id)}">Ver</button>
+                <button type="button" class="btn btn-sm btn-outline" data-action="sarlaft-download-doc" data-doc-id="${escapeAttr(d.id)}">Descargar</button>
+              </span>
+            </li>`;
+          })
           .join("")}</ul>`;
+  const attachBlock = canAttach
+    ? `<div class="sarlaft-ficha-attach" data-sarlaft-ficha-attach>
+        <p class="muted form-section-hint">Los archivos se guardan en Gestión documental (${escapeHtml(sarlaftEvidenceFolder(party.name))}).</p>
+        <div class="sarlaft-ficha-attach__row">
+          <select name="evidenceCategory" aria-label="Tipo documental">${sarlaftEvidenceCategoryOptionsHtml("form_conocimiento_tercero", party.program)}</select>
+          <input type="file" data-sarlaft-evidence-input multiple accept="${SAFE_DOCUMENT_ACCEPT}" />
+          <button type="button" class="btn btn-sm btn-primary" data-action="sarlaft-ficha-upload">${IC.upload || ""} Anexar</button>
+        </div>
+        <ul class="sarlaft-evidence-file__list" data-sarlaft-evidence-list></ul>
+      </div>`
+    : "";
   const reviews = readReviews().filter((r) => r.thirdPartyId === party.id);
   const alerts = readAlerts().filter((a) => a.thirdPartyId === party.id);
+  const sarlaftBlock = showSarlaft
+    ? `<div class="sarlaft-detail-block sarlaft-detail-block--sarlaft">
+        <h4>SARLAFT · conocimiento LA/FT</h4>
+        <ul class="sarlaft-check-list">
+          ${flagCheck("Consulta de listas restrictivas", party.listsChecked)}
+          ${flagCheck("Declaración de origen de fondos", party.fundsDeclared)}
+          ${flagCheck("Condición PEP", party.pepFlag)}
+        </ul>
+        ${party.pepDetails ? `<p class="muted">${escapeHtml(party.pepDetails)}</p>` : ""}
+        ${party.beneficialOwner ? `<p>Beneficiario final: <strong>${escapeHtml(party.beneficialOwner)}</strong></p>` : ""}
+      </div>`
+    : "";
+  const pteBlock = showPte
+    ? `<div class="sarlaft-detail-block sarlaft-detail-block--pte">
+        <h4>PTE · transparencia y ética</h4>
+        <ul class="sarlaft-check-list">
+          ${flagCheck("Aceptó código de ética", party.ethicsAccepted)}
+          ${flagCheck("Declaró conflicto de intereses", party.conflictDeclared)}
+        </ul>
+      </div>`
+    : "";
   return `<div class="sarlaft-party-detail">
-    <p><strong>${escapeHtml(party.name)}</strong>${party.pepFlag ? ' <span class="sarlaft-pep-flag">PEP</span>' : ""} · ${riskChip(party.riskLevel)} ${kycPill(party.kycStatus)}</p>
-    <p class="muted">${escapeHtml(sarlaftCatalogLabel(SARLAFT_PARTY_TYPES, party.partyType))} · ${escapeHtml(party.documentType)} ${escapeHtml(party.documentNumber || "—")} · ${escapeHtml(sarlaftCatalogLabel(SARLAFT_PROGRAMS, party.program))}</p>
-    <p>Debida diligencia: <strong>${escapeHtml(sarlaftCatalogLabel(SARLAFT_DUE_DILIGENCE_LEVELS, party.dueDiligenceLevel))}</strong> · Próxima revisión: <strong>${escapeHtml(party.nextReviewDate || "—")}</strong></p>
+    <p><strong>${escapeHtml(party.name)}</strong>${party.pepFlag ? ' <span class="sarlaft-pep-flag">PEP</span>' : ""}${party.conflictDeclared ? ' <span class="sarlaft-pte-flag">Conflicto</span>' : ""} · ${programChip(party.program)} ${riskChip(party.riskLevel)} ${kycPill(party.kycStatus)}</p>
+    <p class="muted">${escapeHtml(sarlaftCatalogLabel(SARLAFT_PARTY_TYPES, party.partyType))} · ${escapeHtml(party.documentType)} ${escapeHtml(party.documentNumber || "—")}</p>
+    <p>${escapeHtml(showPte && !showSarlaft ? "Seguimiento ético" : "Debida diligencia")}: <strong>${escapeHtml(sarlaftCatalogLabel(SARLAFT_DUE_DILIGENCE_LEVELS, party.dueDiligenceLevel))}</strong> · Próxima revisión: <strong>${escapeHtml(party.nextReviewDate || "—")}</strong></p>
     <p>Responsable: ${escapeHtml(party.responsibleName || "—")}</p>
+    ${sarlaftBlock}
+    ${pteBlock}
     ${party.notes ? `<p>${escapeHtml(party.notes)}</p>` : ""}
     <h4>Evidencias (${docs.length})</h4>
     ${evidence}
-    <p class="sarlaft-link-docs"><button type="button" class="btn btn-sm btn-outline" data-action="sarlaft-open-dms" data-id="${escapeAttr(party.id)}">Abrir en Gestión documental</button></p>
-    <p class="muted">Alertas: ${alerts.length} · Revisiones: ${reviews.length}</p>
+    ${attachBlock}
+    ${
+      canOpenDms
+        ? `<p class="sarlaft-link-docs"><button type="button" class="btn btn-sm btn-outline" data-action="sarlaft-open-dms" data-id="${escapeAttr(party.id)}">Abrir carpeta en Gestión documental</button></p>`
+        : `<p class="muted sarlaft-link-docs">Carpeta: ${escapeHtml(sarlaftEvidenceFolder(party.name))}</p>`
+    }
+    <p class="muted">${showPte && !showSarlaft ? "Incidentes" : "Alertas"}: ${alerts.length} · ${showPte && !showSarlaft ? "Seguimientos" : "Revisiones"}: ${reviews.length}</p>
   </div>`;
 }
 
 function openPartyView(party) {
+  const program = normalizeSarlaftProgram(party.program, "ambos");
   G.openEditModal?.({
-    title: "Ficha del tercero",
-    subtitle: `${party.code || ""} · SARLAFT / PTE`,
+    title: program === "pte" ? "Ficha de contraparte" : "Ficha del tercero",
+    subtitle: `${party.code || ""} · ${sarlaftCatalogLabel(SARLAFT_PROGRAMS, program)}`,
     submitText: "Cerrar",
     hideSubmit: false,
     fields: [{ type: "custom", html: partyDetailHtml(party) }],
     afterMount: (formEl) => {
+      const bindDocAction = (action, fn) => {
+        formEl.querySelectorAll(`[data-action='${action}']`).forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const doc = readCompanyDocs().find((d) => String(d.id) === String(btn.dataset.docId || ""));
+            if (!doc) {
+              G.notify?.("No se encontró el documento.", "error");
+              return;
+            }
+            try {
+              await fn(doc);
+            } catch (err) {
+              G.notify?.(String(err?.message || err), "error");
+            }
+          });
+        });
+      };
+      bindDocAction("sarlaft-preview-doc", previewSarlaftDocument);
+      bindDocAction("sarlaft-download-doc", downloadSarlaftDocument);
       formEl.querySelector("[data-action='sarlaft-open-dms']")?.addEventListener("click", () => {
         G.closeModal?.();
         openSarlaftDocumentsInDms(party);
       });
+      const attachWrap = formEl.querySelector("[data-sarlaft-ficha-attach]");
+      if (attachWrap) {
+        bindSarlaftEvidencePicker(attachWrap);
+        formEl.querySelector("[data-action='sarlaft-ficha-upload']")?.addEventListener("click", async () => {
+          if (!canMutateSarlaftParties()) return;
+          const input = attachWrap.querySelector("[data-sarlaft-evidence-input]");
+          if (!input?.files?.length) {
+            G.notify?.("Seleccione al menos un archivo.", "error");
+            return;
+          }
+          const attachedIds = await attachSarlaftEvidenceFiles({
+            formEl: attachWrap,
+            party,
+            relatedLabel: `Evidencia ${party.code || party.name || ""}`
+          });
+          if (attachedIds.length) {
+            await mergePartyDocumentIds(party.id, attachedIds);
+            G.notify?.(
+              `${attachedIds.length} documento${attachedIds.length === 1 ? "" : "s"} anexado${attachedIds.length === 1 ? "" : "s"} en Gestión documental.`,
+              "success"
+            );
+            G.closeModal?.();
+            G.renderPortalView?.();
+            const fresh = readParties().find((p) => String(p.id) === String(party.id));
+            if (fresh) openPartyView(fresh);
+          }
+        });
+      }
     },
     onSubmit: async () => true
   });
@@ -1099,6 +1457,16 @@ function openPartyView(party) {
 function bindSarlaftPortalControls() {
   if (String(state.currentView || "") !== "sarlaft-pte" || !nodes.viewRoot) return;
   void ensureDefaultRiskProfiles();
+
+  nodes.viewRoot.querySelectorAll("[data-action='sarlaft-program']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const program = normalizeSarlaftProgramFilter(btn.dataset.program);
+      if (normalizeSarlaftProgramFilter(getUi().programFilter) === program) return;
+      patchUi({ programFilter: program, listPage: 1 });
+      persistHrWorkspace("sarlaft", getUi().workspace);
+      G.renderPortalView?.();
+    });
+  });
 
   nodes.viewRoot.querySelectorAll("[data-action='sarlaft-operate-section']").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -1176,6 +1544,7 @@ function bindSarlaftPortalControls() {
   const partyForm = document.getElementById("form-sarlaft-party");
   if (partyForm) {
     bindProfileSelect(partyForm);
+    bindProgramPanels(partyForm);
     bindSarlaftEvidencePicker(partyForm);
     G.wireFormSubmitGuard?.(partyForm, async () => {
       if (!canMutateSarlaftParties()) return;
@@ -1191,6 +1560,17 @@ function bindSarlaftPortalControls() {
           code: nextSarlaftPartyCode(readParties()),
           ...data,
           pepFlag: String(data.pepFlag) === "true",
+          listsChecked: String(data.listsChecked) === "true",
+          fundsDeclared: String(data.fundsDeclared) === "true",
+          ethicsAccepted: String(data.ethicsAccepted) === "true",
+          conflictDeclared: String(data.conflictDeclared) === "true",
+          cumplimientoJson: serializeSarlaftCompliance({
+            listsChecked: String(data.listsChecked) === "true",
+            fundsDeclared: String(data.fundsDeclared) === "true",
+            beneficialOwner: data.beneficialOwner,
+            conflictDeclared: String(data.conflictDeclared) === "true",
+            ethicsAccepted: String(data.ethicsAccepted) === "true"
+          }),
           responsibleName: findUserName(data.responsibleUserId),
           riskLevel: data.riskLevel || profile?.level || "medio",
           dueDiligenceLevel: data.dueDiligenceLevel || profile?.dueDiligenceLevel || "normal",
@@ -1228,6 +1608,7 @@ function bindSarlaftPortalControls() {
   const alertForm = document.getElementById("form-sarlaft-alert");
   if (alertForm) {
     bindSarlaftEvidencePicker(alertForm);
+    bindAlertKindProgram(alertForm);
     G.wireFormSubmitGuard?.(alertForm, async () => {
       if (!canMutateSarlaftAlerts()) return;
       const data = G.readFormEntriesNormalized?.(alertForm) || Object.fromEntries(new FormData(alertForm).entries());
@@ -1240,6 +1621,7 @@ function bindSarlaftPortalControls() {
         normalizeSarlaftAlertRow({
           id: newUuidV4(),
           ...data,
+          program: data.program || inferSarlaftProgramFromKind(SARLAFT_ALERT_KINDS, data.kind, getUi().programFilter),
           thirdPartyName: party.name,
           responsibleName: findUserName(data.responsibleUserId),
           createdBy: actorLabel()
@@ -1299,7 +1681,7 @@ function bindSarlaftPortalControls() {
       if (attachedIds.length && canMutateSarlaftParties()) {
         await mergePartyDocumentIds(party.id, attachedIds);
       }
-      if (record.kind === "revision" && record.status === "cerrada" && canMutateSarlaftParties()) {
+      if (sarlaftReviewAdvancesSchedule(record.kind) && record.status === "cerrada" && canMutateSarlaftParties()) {
         const nextList = readParties().map((p) =>
           p.id === party.id
             ? stampUpdatedRecord({
@@ -1361,7 +1743,9 @@ function bindSarlaftPortalControls() {
   nodes.viewRoot.querySelectorAll("[data-action='sarlaft-open-dms']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const party = readParties().find((p) => String(p.id) === String(btn.dataset.id || ""));
-      if (party) openSarlaftDocumentsInDms(party);
+      if (!party) return;
+      if (canAccessDocumentsView(currentUser())) openSarlaftDocumentsInDms(party);
+      else openPartyView(party);
     });
   });
 
@@ -1370,43 +1754,102 @@ function bindSarlaftPortalControls() {
       if (!canMutateSarlaftParties()) return;
       const target = readParties().find((p) => String(p.id) === String(btn.dataset.id || ""));
       if (!target) return;
+      const program = normalizeSarlaftProgram(target.program, "ambos");
+      const copy = sarlaftProgramCopy(program);
+      const yesNo = [
+        { value: "true", label: "Sí" },
+        { value: "false", label: "No" }
+      ];
+      const fields = [
+        { name: "name", label: "Nombre / razón social", value: target.name, required: true },
+        {
+          name: "program",
+          label: "Programa",
+          type: "select",
+          value: program,
+          options: SARLAFT_PROGRAMS.map((x) => ({ value: x.value, label: x.label }))
+        },
+        {
+          name: "partyType",
+          label: "Vínculo",
+          type: "select",
+          value: target.partyType,
+          options: SARLAFT_PARTY_TYPES.map((x) => ({ value: x.value, label: x.label }))
+        },
+        {
+          name: "kycStatus",
+          label: copy.kycLabel,
+          type: "select",
+          value: target.kycStatus,
+          options: SARLAFT_KYC_STATUSES.map((x) => ({ value: x.value, label: x.label }))
+        },
+        {
+          name: "riskLevel",
+          label: "Nivel de riesgo",
+          type: "select",
+          value: target.riskLevel,
+          options: SARLAFT_RISK_LEVELS.map((x) => ({ value: x.value, label: x.label }))
+        },
+        {
+          name: "dueDiligenceLevel",
+          label: copy.ddLabel,
+          type: "select",
+          value: target.dueDiligenceLevel,
+          options: SARLAFT_DUE_DILIGENCE_LEVELS.map((x) => ({ value: x.value, label: x.label }))
+        },
+        { name: "nextReviewDate", label: "Próxima revisión", type: "date", value: target.nextReviewDate }
+      ];
+      if (program === "sarlaft" || program === "ambos") {
+        fields.push(
+          {
+            name: "listsChecked",
+            label: "Consulta listas restrictivas",
+            type: "select",
+            value: String(Boolean(target.listsChecked)),
+            options: yesNo
+          },
+          {
+            name: "fundsDeclared",
+            label: "Declaración de origen de fondos",
+            type: "select",
+            value: String(Boolean(target.fundsDeclared)),
+            options: yesNo
+          },
+          {
+            name: "pepFlag",
+            label: "¿Es PEP?",
+            type: "select",
+            value: String(Boolean(target.pepFlag)),
+            options: yesNo
+          },
+          { name: "pepDetails", label: "Detalle PEP", type: "textarea", value: target.pepDetails || "", rows: 2 },
+          { name: "beneficialOwner", label: "Beneficiario final", value: target.beneficialOwner || "" }
+        );
+      }
+      if (program === "pte" || program === "ambos") {
+        fields.push(
+          {
+            name: "ethicsAccepted",
+            label: "Aceptó código de ética",
+            type: "select",
+            value: String(Boolean(target.ethicsAccepted)),
+            options: yesNo
+          },
+          {
+            name: "conflictDeclared",
+            label: "Declaró conflicto de intereses",
+            type: "select",
+            value: String(Boolean(target.conflictDeclared)),
+            options: yesNo
+          }
+        );
+      }
+      fields.push({ name: "notes", label: "Observaciones", type: "textarea", value: target.notes, rows: 3 });
       G.openEditModal?.({
-        title: "Editar tercero",
-        subtitle: target.name,
+        title: program === "pte" ? "Editar contraparte" : "Editar tercero",
+        subtitle: `${target.name} · ${sarlaftCatalogLabel(SARLAFT_PROGRAMS, program)}`,
         submitText: "Guardar",
-        fields: [
-          { name: "name", label: "Nombre / razón social", value: target.name, required: true },
-          {
-            name: "partyType",
-            label: "Vínculo",
-            type: "select",
-            value: target.partyType,
-            options: SARLAFT_PARTY_TYPES.map((x) => ({ value: x.value, label: x.label }))
-          },
-          {
-            name: "kycStatus",
-            label: "Estado de conocimiento",
-            type: "select",
-            value: target.kycStatus,
-            options: SARLAFT_KYC_STATUSES.map((x) => ({ value: x.value, label: x.label }))
-          },
-          {
-            name: "riskLevel",
-            label: "Nivel de riesgo",
-            type: "select",
-            value: target.riskLevel,
-            options: SARLAFT_RISK_LEVELS.map((x) => ({ value: x.value, label: x.label }))
-          },
-          {
-            name: "dueDiligenceLevel",
-            label: "Debida diligencia",
-            type: "select",
-            value: target.dueDiligenceLevel,
-            options: SARLAFT_DUE_DILIGENCE_LEVELS.map((x) => ({ value: x.value, label: x.label }))
-          },
-          { name: "nextReviewDate", label: "Próxima revisión", type: "date", value: target.nextReviewDate },
-          { name: "notes", label: "Observaciones", type: "textarea", value: target.notes, rows: 3 }
-        ],
+        fields,
         onSubmit: async (form) => {
           const next = readParties().map((p) =>
             p.id === target.id
@@ -1435,8 +1878,8 @@ function bindSarlaftPortalControls() {
       const target = readAlerts().find((a) => String(a.id) === String(btn.dataset.id || ""));
       if (!target) return;
       G.openEditModal?.({
-        title: "Gestionar alerta",
-        subtitle: target.title,
+        title: normalizeSarlaftProgram(target.program) === "pte" ? "Gestionar incidente" : "Gestionar alerta",
+        subtitle: `${target.title} · ${sarlaftCatalogLabel(SARLAFT_PROGRAMS, target.program)}`,
         submitText: "Guardar",
         fields: [
           {
@@ -1492,8 +1935,8 @@ function bindSarlaftPortalControls() {
         fields: [
           {
             type: "custom",
-            html: `<p>${alertStatusPill(target.status)} ${escapeHtml(sarlaftCatalogLabel(SARLAFT_ALERT_SEVERITIES, target.severity))}</p>
-              <p class="muted">${escapeHtml(target.thirdPartyName || "—")} · límite ${escapeHtml(target.dueDate || "—")}</p>
+            html: `<p>${programChip(target.program)} ${alertStatusPill(target.status)} ${escapeHtml(sarlaftCatalogLabel(SARLAFT_ALERT_SEVERITIES, target.severity))}</p>
+              <p class="muted">${escapeHtml(target.thirdPartyName || "—")} · ${escapeHtml(sarlaftCatalogLabel(SARLAFT_PROGRAMS, target.program))} · límite ${escapeHtml(target.dueDate || "—")}</p>
               <p>${escapeHtml(target.description || "Sin descripción.")}</p>
               <p class="muted">Registró ${escapeHtml(target.createdBy || "—")} · ${escapeHtml(String(target.createdAt || "").slice(0, 16))}</p>`
           }
@@ -1577,16 +2020,20 @@ function bindSarlaftPortalControls() {
   });
 
   const exportParties = () => {
+    const program = normalizeSarlaftProgramFilter(getUi().programFilter);
+    const prefix = program === "pte" ? "pte_contrapartes" : program === "sarlaft" ? "sarlaft_terceros" : "sarlaft_pte_terceros";
     downloadCsv(
-      `sarlaft_terceros_${colombiaTodayIsoDate()}.csv`,
-      buildSarlaftPartyExportRows(readParties(), readProfiles()),
+      `${prefix}_${colombiaTodayIsoDate()}.csv`,
+      buildSarlaftPartyExportRows(filterSarlaftByProgram(readParties(), program), readProfiles()),
       SARLAFT_PARTY_EXPORT_COLUMNS
     );
   };
   const exportAlerts = () => {
+    const program = normalizeSarlaftProgramFilter(getUi().programFilter);
+    const prefix = program === "pte" ? "pte_incidentes" : program === "sarlaft" ? "sarlaft_alertas" : "sarlaft_pte_alertas";
     downloadCsv(
-      `sarlaft_alertas_${colombiaTodayIsoDate()}.csv`,
-      buildSarlaftAlertExportRows(readAlerts()),
+      `${prefix}_${colombiaTodayIsoDate()}.csv`,
+      buildSarlaftAlertExportRows(filterSarlaftByProgram(readAlerts(), program)),
       SARLAFT_ALERT_EXPORT_COLUMNS
     );
   };

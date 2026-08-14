@@ -14,6 +14,127 @@ export const SARLAFT_PROGRAMS = Object.freeze([
   { value: "ambos", label: "SARLAFT y PTE" }
 ]);
 
+/** Textos de interfaz según el programa activo. */
+export const SARLAFT_PROGRAM_COPY = Object.freeze({
+  sarlaft: {
+    kicker: "Prevención LA/FT",
+    title: "SARLAFT",
+    subtitle:
+      "Sistema de Administración del Riesgo de Lavado de Activos y de la Financiación del Terrorismo: conocimiento del tercero, debida diligencia y señales de alerta.",
+    kycLabel: "Estado de conocimiento",
+    ddLabel: "Debida diligencia",
+    operateRail: "Trámite SARLAFT",
+    partyNoun: "tercero",
+    alertNoun: "alerta LA/FT",
+    reviewNoun: "revisión KYC",
+    partyTitle: "Registrar tercero (KYC)",
+    partyHint: "Conocimiento, consulta de listas y clasificación de riesgo LA/FT",
+    alertTitle: "Registrar señal de alerta LA/FT",
+    alertHint: "Listas restrictivas, PEP, origen de fondos u operación inusual",
+    reviewTitle: "Registrar revisión de debida diligencia",
+    reviewHint: "Actualización de conocimiento, listas y decisión de vinculación",
+    profileTitle: "Parametrizar matriz SARLAFT",
+    profileHint: "Criterios LA/FT, nivel de riesgo y periodicidad de revisión",
+    operateParty: { label: "Tercero", hint: "Conocimiento y listas", norm: "KYC" },
+    operateAlert: { label: "Alerta LA/FT", hint: "Señal de alerta", norm: "SARLAFT" },
+    operateReview: { label: "Revisión KYC", hint: "Debida diligencia", norm: "Gestión" },
+    operateProfile: { label: "Matriz", hint: "Perfiles de riesgo", norm: "Metodología" },
+    kpiParties: "Terceros en conocimiento",
+    kpiAlerts: "Alertas LA/FT abiertas",
+    kpiDue: "Revisiones KYC por vencer",
+    kpiRisk: "Riesgo alto / crítico",
+    consultParties: "Terceros",
+    consultAlerts: "Alertas LA/FT",
+    consultDue: "Vencimientos KYC",
+    consultReviews: "Revisiones",
+    emptyParties: "No hay terceros sujetos a SARLAFT en este filtro.",
+    emptyAlerts: "No hay señales de alerta LA/FT registradas.",
+    emptyDue: "No hay vencimientos de debida diligencia en la ventana de 30 días.",
+    emptyReviews: "No hay revisiones de conocimiento registradas.",
+    evidenceHint: "Formulario de conocimiento, consulta de listas, origen de fondos o declaración PEP.",
+    evidenceDefault: "form_conocimiento_tercero",
+    searchPlaceholder: "Buscar tercero, documento, alerta LA/FT o responsable..."
+  },
+  pte: {
+    kicker: "Transparencia y ética",
+    title: "PTE",
+    subtitle:
+      "Programa de Transparencia y Ética Empresarial: conflictos de interés, anticorrupción, código de ética y canal de denuncias.",
+    kycLabel: "Estado de vinculación",
+    ddLabel: "Seguimiento ético",
+    operateRail: "Trámite PTE",
+    partyNoun: "contraparte",
+    alertNoun: "incidente ético",
+    reviewNoun: "seguimiento",
+    partyTitle: "Registrar contraparte ética",
+    partyHint: "Vinculación sujeta a código de ética, conflictos y transparencia",
+    alertTitle: "Registrar incidente ético",
+    alertHint: "Conflicto de intereses, soborno, dádiva o denuncia del canal ético",
+    reviewTitle: "Registrar seguimiento ético",
+    reviewHint: "Observaciones, decisión y cierre del incidente o declaración",
+    profileTitle: "Parametrizar matriz PTE",
+    profileHint: "Criterios de corrupción, conflicto y periodicidad de revisión",
+    operateParty: { label: "Contraparte", hint: "Ética y transparencia", norm: "PTE" },
+    operateAlert: { label: "Incidente", hint: "Canal ético / corrupción", norm: "PTE" },
+    operateReview: { label: "Seguimiento", hint: "Cierre y observaciones", norm: "Gestión" },
+    operateProfile: { label: "Matriz", hint: "Perfiles de riesgo", norm: "Metodología" },
+    kpiParties: "Contrapartes PTE",
+    kpiAlerts: "Incidentes éticos abiertos",
+    kpiDue: "Seguimientos por vencer",
+    kpiRisk: "Riesgo alto / crítico",
+    consultParties: "Contrapartes",
+    consultAlerts: "Incidentes éticos",
+    consultDue: "Vencimientos",
+    consultReviews: "Seguimientos",
+    emptyParties: "No hay contrapartes sujetas a PTE en este filtro.",
+    emptyAlerts: "No hay incidentes éticos registrados.",
+    emptyDue: "No hay vencimientos de seguimiento ético en la ventana de 30 días.",
+    emptyReviews: "No hay seguimientos éticos registrados.",
+    evidenceHint: "Código de ética, declaración de conflicto de intereses u otro soporte PTE.",
+    evidenceDefault: "codigo_etica_pte",
+    searchPlaceholder: "Buscar contraparte, incidente ético o responsable..."
+  },
+  ambos: {
+    kicker: "Cumplimiento",
+    title: "SARLAFT / PTE",
+    subtitle:
+      "Conocimiento de terceros (LA/FT) y Programa de Transparencia y Ética Empresarial: un solo expediente, dos programas.",
+    kycLabel: "Estado de conocimiento",
+    ddLabel: "Debida diligencia",
+    operateRail: "Tipo de trámite",
+    partyNoun: "tercero",
+    alertNoun: "alerta",
+    reviewNoun: "revisión",
+    partyTitle: "Registrar tercero",
+    partyHint: "Conocimiento KYC, ética empresarial y clasificación de riesgo",
+    alertTitle: "Registrar alerta o incidente",
+    alertHint: "Señal LA/FT o incidente ético que requiere gestión interna",
+    reviewTitle: "Registrar revisión",
+    reviewHint: "Debida diligencia, seguimiento ético, responsables y estado",
+    profileTitle: "Parametrizar perfil de riesgo",
+    profileHint: "Matriz, criterios y periodicidad de revisión SARLAFT/PTE",
+    operateParty: { label: "Tercero", hint: "Conocimiento y verificación", norm: "KYC" },
+    operateAlert: { label: "Alerta", hint: "LA/FT o incidente ético", norm: "Seguimiento" },
+    operateReview: { label: "Revisión", hint: "Observaciones y cierre", norm: "Gestión" },
+    operateProfile: { label: "Perfil de riesgo", hint: "Matriz y parametrización", norm: "Metodología" },
+    kpiParties: "Terceros",
+    kpiAlerts: "Alertas abiertas",
+    kpiDue: "Revisiones por vencer",
+    kpiRisk: "Riesgo alto / crítico",
+    consultParties: "Terceros",
+    consultAlerts: "Alertas",
+    consultDue: "Vencimientos",
+    consultReviews: "Revisiones",
+    emptyParties: "No hay terceros registrados.",
+    emptyAlerts: "No hay alertas registradas.",
+    emptyDue: "No hay vencimientos de revisión en la ventana de 30 días.",
+    emptyReviews: "No hay revisiones registradas.",
+    evidenceHint: "Soportes KYC (listas, fondos, PEP) o PTE (ética, conflicto de intereses).",
+    evidenceDefault: "form_conocimiento_tercero",
+    searchPlaceholder: "Buscar tercero, documento, alerta, incidente o responsable..."
+  }
+});
+
 export const SARLAFT_PERSON_KINDS = Object.freeze([
   { value: "persona_natural", label: "Persona natural" },
   { value: "persona_juridica", label: "Persona jurídica" }
@@ -61,10 +182,18 @@ export const SARLAFT_RISK_LEVELS = Object.freeze([
 ]);
 
 export const SARLAFT_ALERT_KINDS = Object.freeze([
-  { value: "alerta", label: "Alerta" },
-  { value: "novedad", label: "Novedad" },
-  { value: "hallazgo", label: "Hallazgo" },
-  { value: "situacion", label: "Situación" }
+  { value: "listas", label: "Coincidencia en listas restrictivas", program: "sarlaft" },
+  { value: "pep", label: "PEP no declarado o cambio de condición PEP", program: "sarlaft" },
+  { value: "fondos", label: "Origen de fondos / operación inusual", program: "sarlaft" },
+  { value: "laft", label: "Señal de alerta LA/FT", program: "sarlaft" },
+  { value: "conflicto", label: "Conflicto de intereses", program: "pte" },
+  { value: "soborno", label: "Soborno, dádiva o corrupción", program: "pte" },
+  { value: "etica", label: "Incumplimiento del código de ética", program: "pte" },
+  { value: "denuncia", label: "Denuncia del canal ético", program: "pte" },
+  { value: "alerta", label: "Alerta general", program: "ambos" },
+  { value: "novedad", label: "Novedad", program: "ambos" },
+  { value: "hallazgo", label: "Hallazgo", program: "ambos" },
+  { value: "situacion", label: "Situación", program: "ambos" }
 ]);
 
 export const SARLAFT_ALERT_SEVERITIES = Object.freeze([
@@ -83,9 +212,13 @@ export const SARLAFT_ALERT_STATUSES = Object.freeze([
 ]);
 
 export const SARLAFT_REVIEW_KINDS = Object.freeze([
-  { value: "revision", label: "Revisión periódica" },
-  { value: "observacion", label: "Observación" },
-  { value: "seguimiento", label: "Seguimiento" }
+  { value: "revision_kyc", label: "Revisión de debida diligencia", program: "sarlaft" },
+  { value: "actualizacion_listas", label: "Actualización de listas", program: "sarlaft" },
+  { value: "revision_etica", label: "Revisión ética / PTE", program: "pte" },
+  { value: "seguimiento_conflicto", label: "Seguimiento de conflicto de intereses", program: "pte" },
+  { value: "revision", label: "Revisión periódica", program: "ambos" },
+  { value: "observacion", label: "Observación", program: "ambos" },
+  { value: "seguimiento", label: "Seguimiento", program: "ambos" }
 ]);
 
 export const SARLAFT_REVIEW_STATUSES = Object.freeze([
@@ -172,6 +305,87 @@ export function sarlaftCatalogOptionsHtml(list, selected = "") {
         `<option value="${item.value}"${item.value === sel ? " selected" : ""}>${item.label}</option>`
     )
     .join("");
+}
+
+export function normalizeSarlaftProgram(value, fallback = "ambos") {
+  return catalogValue(SARLAFT_PROGRAMS, value, fallback);
+}
+
+export function sarlaftProgramCopy(program) {
+  const key = normalizeSarlaftProgram(program, "ambos");
+  return SARLAFT_PROGRAM_COPY[key] || SARLAFT_PROGRAM_COPY.ambos;
+}
+
+export function matchesSarlaftProgram(itemProgram, filter) {
+  const f = normalizeSarlaftProgram(filter, "ambos");
+  if (f === "ambos") return true;
+  const p = normalizeSarlaftProgram(itemProgram, "ambos");
+  return p === f || p === "ambos";
+}
+
+export function sarlaftCatalogForProgram(list, program) {
+  const f = normalizeSarlaftProgram(program, "ambos");
+  return (list || []).filter((item) => {
+    const p = item.program || "ambos";
+    if (f === "ambos") return true;
+    return p === f || p === "ambos";
+  });
+}
+
+export function filterSarlaftByProgram(items, program, getProgram) {
+  const pick = typeof getProgram === "function" ? getProgram : (row) => row?.program;
+  return (items || []).filter((row) => matchesSarlaftProgram(pick(row), program));
+}
+
+export function inferSarlaftProgramFromKind(list, kind, fallback = "ambos") {
+  const found = (list || []).find((item) => item.value === String(kind || "").trim());
+  return normalizeSarlaftProgram(found?.program || fallback, fallback);
+}
+
+export function sarlaftReviewAdvancesSchedule(kind) {
+  const k = String(kind || "").trim();
+  return (
+    k === "revision" ||
+    k === "revision_kyc" ||
+    k === "actualizacion_listas" ||
+    k === "revision_etica" ||
+    k === "seguimiento"
+  );
+}
+
+function asBool(value) {
+  const v = String(value ?? "").trim().toLowerCase();
+  return value === true || v === "true" || v === "1" || v === "t" || v === "si" || v === "sí" || v === "on";
+}
+
+function parseCompliance(row = {}) {
+  let extra = {};
+  const raw = row.cumplimientoJson || row.cumplimiento_json || row.compliance;
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) extra = raw;
+  else if (typeof raw === "string" && raw.trim().startsWith("{")) {
+    try {
+      extra = JSON.parse(raw);
+    } catch (_err) {
+      extra = {};
+    }
+  }
+  return {
+    listsChecked: asBool(row.listsChecked ?? extra.listsChecked),
+    fundsDeclared: asBool(row.fundsDeclared ?? extra.fundsDeclared),
+    beneficialOwner: cleanText(row.beneficialOwner ?? extra.beneficialOwner, 255),
+    conflictDeclared: asBool(row.conflictDeclared ?? extra.conflictDeclared),
+    ethicsAccepted: asBool(row.ethicsAccepted ?? extra.ethicsAccepted)
+  };
+}
+
+export function serializeSarlaftCompliance(row = {}) {
+  return JSON.stringify({
+    listsChecked: Boolean(row.listsChecked),
+    fundsDeclared: Boolean(row.fundsDeclared),
+    beneficialOwner: cleanText(row.beneficialOwner, 255),
+    conflictDeclared: Boolean(row.conflictDeclared),
+    ethicsAccepted: Boolean(row.ethicsAccepted)
+  });
 }
 
 function cleanText(value, max = 255) {
@@ -276,6 +490,7 @@ export function normalizeSarlaftThirdPartyRow(row = {}) {
   const name = cleanText(row.name || row.nombre, 255);
   if (!name) return null;
   const pepRaw = row.pepFlag ?? row.es_pep;
+  const compliance = parseCompliance(row);
   return {
     id,
     code: cleanText(row.code || row.codigo, 32).toUpperCase(),
@@ -304,6 +519,8 @@ export function normalizeSarlaftThirdPartyRow(row = {}) {
     ),
     pepFlag: pepRaw === true || pepRaw === "true" || pepRaw === 1 || pepRaw === "1" || pepRaw === "t",
     pepDetails: cleanMultiline(row.pepDetails || row.detalle_pep, 2000),
+    ...compliance,
+    cumplimientoJson: serializeSarlaftCompliance(compliance),
     nextReviewDate: isoDateOnly(row.nextReviewDate || row.fecha_proxima_revision),
     lastReviewDate: isoDateOnly(row.lastReviewDate || row.fecha_ultima_revision),
     responsibleUserId: String(row.responsibleUserId || row.id_responsable || "").trim(),
@@ -429,10 +646,16 @@ export function documentsLinkedToSarlaftParty(docs, party) {
   const id = String(party?.id || "").trim();
   if (!id) return [];
   const linked = new Set((party.documentIds || []).map((x) => String(x)));
+  const name = String(party?.name || "")
+    .replace(/[\\/]+/g, " ")
+    .trim()
+    .toLowerCase();
   return (docs || []).filter((doc) => {
     if (!doc || !doc.id) return false;
     if (linked.has(String(doc.id))) return true;
     if (String(doc.entityId || "").trim() === id) return true;
+    const folder = String(doc.folder || "").toLowerCase();
+    if (name && folder.includes("sarlaft") && folder.includes(name)) return true;
     return false;
   });
 }
@@ -452,6 +675,10 @@ export function buildSarlaftPartyExportRows(parties = [], profiles = []) {
     kyc: sarlaftCatalogLabel(SARLAFT_KYC_STATUSES, p.kycStatus),
     debida: sarlaftCatalogLabel(SARLAFT_DUE_DILIGENCE_LEVELS, p.dueDiligenceLevel),
     pep: p.pepFlag ? "Sí" : "No",
+    listas: p.listsChecked ? "Sí" : "No",
+    fondos: p.fundsDeclared ? "Sí" : "No",
+    conflicto: p.conflictDeclared ? "Sí" : "No",
+    etica: p.ethicsAccepted ? "Sí" : "No",
     proximaRevision: p.nextReviewDate || "",
     responsable: p.responsibleName || "",
     ciudad: p.city || "",
@@ -487,6 +714,10 @@ export const SARLAFT_PARTY_EXPORT_COLUMNS = [
   { key: "kyc", label: "Conocimiento" },
   { key: "debida", label: "Debida diligencia" },
   { key: "pep", label: "PEP" },
+  { key: "listas", label: "Consulta listas" },
+  { key: "fondos", label: "Origen de fondos" },
+  { key: "conflicto", label: "Conflicto de intereses" },
+  { key: "etica", label: "Código de ética" },
   { key: "proximaRevision", label: "Próxima revisión" },
   { key: "responsable", label: "Responsable" },
   { key: "ciudad", label: "Ciudad" }

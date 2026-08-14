@@ -536,7 +536,15 @@ body[data-theme="dark"] .directory-card__compact-actions .btn-reject {
   border-color: rgba(248, 113, 113, 0.35);
 }
 
-body[data-theme="dark"] .payroll-run-card--compact {
+body[data-theme="dark"] .payroll-run-card.is-selected,
+body[data-theme="dark"] .payroll-run-table-row.is-selected {
+  outline-color: rgba(96, 165, 250, 0.45);
+  background: rgba(55, 124, 192, 0.14);
+}
+
+body[data-theme="dark"] .payroll-runs-select-all-label {
+  color: #9eb8d8;
+}
   background: linear-gradient(180deg, rgba(20, 36, 58, 0.96) 0%, rgba(14, 28, 48, 0.98) 100%);
   border-color: rgba(74, 115, 153, 0.32);
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);

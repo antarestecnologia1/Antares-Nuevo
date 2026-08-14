@@ -3420,6 +3420,61 @@ body[data-theme="dark"] .payroll-studio .payroll-contracts-table tbody tr:hover 
   gap: 0.55rem;
 }
 
+.payroll-runs-select-all-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: var(--pay-muted, #475569);
+  cursor: pointer;
+  user-select: none;
+}
+
+.payroll-runs-select-all-label input {
+  margin: 0;
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--pay-blue, #2563eb);
+}
+
+.payroll-run-card-select {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+}
+
+.payroll-run-card-select input {
+  margin: 0;
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--pay-blue, #2563eb);
+  cursor: pointer;
+}
+
+.payroll-run-card.is-selected,
+.payroll-run-table-row.is-selected {
+  outline: 2px solid rgba(37, 99, 235, 0.35);
+  outline-offset: -1px;
+  background: rgba(37, 99, 235, 0.06);
+}
+
+.payroll-run-table-row.is-selected td {
+  background: transparent;
+}
+
+.payroll-studio .payroll-runs-list-view .payroll-contracts-table__check {
+  width: 2.5rem;
+  text-align: center;
+  vertical-align: middle;
+}
+
+#payroll-runs-delete-selected:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .payroll-studio--consult .payroll-contracts-table-toolbar {
   margin-bottom: 0.55rem;
   padding-bottom: 0.55rem;

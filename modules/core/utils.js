@@ -402,6 +402,12 @@ export function normalizeSstOperateSection(section) {
   return "create";
 }
 
+export function normalizeSarlaftProgramFilter(value) {
+  const s = String(value || "").trim().toLowerCase();
+  if (s === "sarlaft" || s === "pte" || s === "ambos") return s;
+  return "ambos";
+}
+
 export function normalizeSarlaftOperateSection(section) {
   const s = String(section || "").trim().toLowerCase();
   if (s === "alert" || s === "alerta") return "alert";

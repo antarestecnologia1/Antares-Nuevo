@@ -24,7 +24,7 @@
     persistHrWorkspace, scrollToCreatePanelForm, colombiaTodayIsoDate
   } = globalThis;
 
-function renderPayrollRunCard(run, { compact = false } = {}) {
+function renderPayrollRunCard(run, { compact = false, selectable = false } = {}) {
   const paid = Boolean(run.paid);
   const stateTone = paid ? "paid" : "pending";
   const monthLabel = formatPayrollPeriodLabel(run.month);
@@ -96,9 +96,13 @@ function renderPayrollRunCard(run, { compact = false } = {}) {
       ${hrAdminDeletes ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-payroll-run" data-id="${escapeAttr(String(run.id))}" title="Eliminar liquidación">${IC.trash}</button>` : ""}
     </div>`;
   const compactClass = compact ? " payroll-run-card--compact" : "";
-  return `<article class="payroll-run-card payroll-run-card--${stateTone}${compactClass}" data-payroll-state="${stateTone}">
+  const selectHtml = selectable && hrAdminDeletes
+    ? `<label class="payroll-run-card-select" title="Seleccionar para eliminación masiva"><input type="checkbox" data-payroll-run-select value="${escapeAttr(String(run.id || ""))}" aria-label="Seleccionar liquidación de ${escapeAttr(String(run.employeeName || "colaborador"))}" /><span class="visually-hidden">Seleccionar</span></label>`
+    : "";
+  return `<article class="payroll-run-card payroll-run-card--${stateTone}${compactClass}" data-payroll-state="${stateTone}" data-payroll-run-id="${escapeAttr(String(run.id || ""))}">
     <div class="payroll-run-stripe" aria-hidden="true"></div>
     <header class="payroll-run-card-head">
+      ${selectHtml}
       <div class="payroll-run-card-identity">
         <p class="payroll-run-card-kicker">${escapeHtml(typeLabel)}</p>
         <h4 class="payroll-run-card-title">${escapeHtml(monthLabel)}</h4>

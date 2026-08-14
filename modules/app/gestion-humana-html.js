@@ -267,7 +267,11 @@ function payrollHtml() {
         return `<span class="muted">${bits.join(" · ")}</span>`;
       })();
       const generatedBy = payrollRunGeneratedByLabel(r);
-      return `<tr data-payroll-state="${state}">
+      const selectCell = hrAdminDeletes
+        ? `<td class="payroll-contracts-table__check"><input type="checkbox" data-payroll-run-select value="${escapeAttr(String(r.id || ""))}" aria-label="Seleccionar liquidación de ${escapeAttr(String(r.employeeName || "colaborador"))}" /></td>`
+        : "";
+      return `<tr class="payroll-run-table-row" data-payroll-state="${state}" data-payroll-run-id="${escapeAttr(String(r.id || ""))}">
+        ${selectCell}
         <td><strong>${escapeHtml(monthLabel)}</strong></td>
         <td>${typeCell}</td>
         <td>${escapeHtml(String(r.employeeName || "—"))}${generatedBy ? `<div class="muted" style="font-size:0.82rem;margin-top:2px">Generado por ${escapeHtml(generatedBy)}</div>` : ""}</td>
@@ -971,10 +975,13 @@ function payrollHtml() {
         ? `${employeeContractsDashboard}${employeeTableToolbar}<div class="employees-grid directory-grid payroll-employees-grid portal-ops-cards">${employeeCards}</div>${employeePagination}`
         : `${employeeContractsDashboard}${emptyState("No hay empleados registrados.")}`;
   const runCardsGrid = sortedRuns.length
-    ? `<div class="payroll-run-cards-grid">${runsToRender.map((r) => renderPayrollRunCard(r, { compact: true })).join("")}</div>${payrollRunsMoreBar}`
+    ? `<div class="payroll-run-cards-grid">${runsToRender.map((r) => renderPayrollRunCard(r, { compact: true, selectable: hrAdminDeletes })).join("")}</div>${payrollRunsMoreBar}`
+    : "";
+  const runSelectHeader = hrAdminDeletes
+    ? `<th class="payroll-contracts-table__check"><input type="checkbox" id="payroll-runs-select-all-header" aria-label="Seleccionar todas las liquidaciones visibles" /></th>`
     : "";
   const runTableView = runRows
-    ? `<div class="table-wrap payroll-table-wrap payroll-runs-list-view"><table><thead><tr><th>Período</th><th>Tipo</th><th>Empleado</th><th>Devengado</th><th>Viáticos</th><th>Combustible</th><th>Deducciones</th><th>Neto</th><th>Estado</th><th></th></tr></thead><tbody>${runRows}</tbody></table></div>${payrollRunsMoreBar}`
+    ? `<div class="table-wrap payroll-table-wrap payroll-runs-list-view"><table><thead><tr>${runSelectHeader}<th>Período</th><th>Tipo</th><th>Empleado</th><th>Devengado</th><th>Viáticos</th><th>Combustible</th><th>Deducciones</th><th>Neto</th><th>Estado</th><th></th></tr></thead><tbody>${runRows}</tbody></table></div>${payrollRunsMoreBar}`
     : "";
   const runsEmpty = emptyState("Sin liquidaciones que coincidan con los filtros.");
   const runsPaneBody =
@@ -1359,6 +1366,16 @@ function payrollHtml() {
         ${renderPayrollRunsViewToggle(runsView, "nomina")}
         <div class="payroll-runs-toolbar__actions">
           <p class="payroll-consult-meta muted"><strong>${runs.length}</strong> de ${nominaRunsAll.length}</p>
+          ${
+            hrAdminDeletes
+              ? `<label class="payroll-runs-select-all-label" title="Seleccionar liquidaciones visibles">
+                  <input type="checkbox" id="payroll-runs-select-all" />
+                  <span>Seleccionar</span>
+                </label>
+                <span class="payroll-contracts-bulk__count" id="payroll-runs-selected-count" hidden>0 seleccionados</span>
+                <button type="button" class="btn btn-sm btn-outline btn-reject" id="payroll-runs-delete-selected" disabled>${IC.trash} Eliminar seleccionados</button>`
+              : ""
+          }
           <button type="button" class="btn btn-sm btn-outline" id="export-payroll">${IC.download} Exportar</button>
         </div>
       </div>

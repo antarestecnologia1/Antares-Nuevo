@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS terceros_sarlaft (
   nombre_responsable         VARCHAR(255),
   observaciones              TEXT,
   ids_documentos             TEXT,
+  cumplimiento_json          TEXT,
   fecha_creacion             TIMESTAMPTZ NOT NULL DEFAULT now(),
   creado_por                 VARCHAR(255) NOT NULL DEFAULT 'Sistema',
   fecha_actualizacion        TIMESTAMPTZ NOT NULL DEFAULT now(),
