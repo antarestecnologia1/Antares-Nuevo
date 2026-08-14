@@ -3,6 +3,7 @@
  * Ejecutar: node qa/company-documents-metadata.test.mjs
  */
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import {
@@ -140,12 +141,20 @@ ok(corruptOk?.id, "tags mal formados no tumban la normalización");
 /* Integridad estática del módulo UI                                   */
 /* ------------------------------------------------------------------ */
 const ROOT = process.cwd();
-const gestionJs = readFileSync(path.join(ROOT, "modules/app/gestion-documental.js"), "utf8");
+const gestionPath = path.join(ROOT, "modules/app/gestion-documental.js");
+const syntax = spawnSync(process.execPath, ["--check", gestionPath], { encoding: "utf8" });
+ok(syntax.status === 0, syntax.stderr || "sintaxis de gestion-documental.js");
+const gestionJs = readFileSync(gestionPath, "utf8");
 const indexHtml = readFileSync(path.join(ROOT, "index.html"), "utf8");
 const domainJs = readFileSync(path.join(ROOT, "modules/domain/company-documents.domain.js"), "utf8");
 
 ok(gestionJs.includes("function hasHireDocMarker(marker)"), "hasHireDocMarker existe");
+ok(gestionJs.includes("function mergeSuggestedTopFolders(topFolders)"), "mergeSuggestedTopFolders existe");
 ok(!/function employeeEntityMeta\([\s\S]*?\}\s+if \(!marker\)/.test(gestionJs), "no hay código huérfano tras employeeEntityMeta");
+ok(
+  !/function validityBadge\([\s\S]*?return `[^`]*`;\s*\}\s+const map = new Map\(\(topFolders/.test(gestionJs),
+  "no hay código huérfano tras validityBadge"
+);
 ok(gestionJs.includes("function documentManagementHtml()"), "renderer principal existe");
 ok(gestionJs.includes("registerLegacyPortalViews({ documentManagementHtml })"), "registra la vista legacy");
 ok(gestionJs.includes("window.AppLegacyViews"), "fallback de registro si el puente aún no está");
@@ -178,7 +187,11 @@ const importBlock = gestionJs.match(/} from "\.\.\/domain\/company-documents\.do
   : "";
 ok(importBlock.includes("normalizeCompanyDocumentRow"), "importa normalizador");
 ok(domainJs.includes("export function normalizeCompanyDocumentRow"), "dominio exporta normalizador");
-ok(indexHtml.includes("gestion-documental.js?v=20260814-dms-integrity"), "cache-bust del JS actualizado");
-ok(indexHtml.includes("gestion-documental.css?v=20260814-dms-integrity"), "cache-bust del CSS actualizado");
+ok(indexHtml.includes("gestion-documental.js?v=20260814-dms-loadfix"), "cache-bust del JS actualizado");
+ok(indexHtml.includes('href="./styles/gestion-documental.css?v=20260814-dms-loadfix"'), "cache-bust del CSS actualizado");
+ok(
+  !indexHtml.includes("gestion-documental.css?v=20260804-dms-pdfjs-preview"),
+  "el CSS activo no queda en la versión anterior"
+);
 
 console.log("company-documents-metadata: OK");

@@ -520,6 +520,9 @@ function validityBadge(doc) {
   const extra = doc.expiresAt && (status === "por_vencer" || status === "vencido") ? ` · ${formatDateShort(doc.expiresAt)}` : "";
   return `<span class="doc-validity doc-validity--${status}">${escapeHtml(label)}${escapeHtml(extra)}</span>`;
 }
+
+/** Une carpetas reales con la estructura sugerida para que el rail no quede vacío. */
+function mergeSuggestedTopFolders(topFolders) {
   const map = new Map((topFolders || []).map((f) => [f.key, f]));
   const suggested = SUGGESTED_COMPANY_FOLDERS.map((name) => {
     const key = folderKey(name);
