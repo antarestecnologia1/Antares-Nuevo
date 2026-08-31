@@ -1772,6 +1772,10 @@ export function wireHrAbsenceFormBehavior(form) {
       if (supportRules.requiresNotes) parts.push("Observaciones obligatorias para este caso.");
       supportHintEl.textContent = parts.filter(Boolean).join(" ");
     }
+    const detailsEl = form.querySelector(".hr-absence-support-details");
+    if (detailsEl && (supportRules.requiresSupportNumber || supportRules.requiresEntity)) {
+      detailsEl.open = true;
+    }
     syncTeamPanel();
   };
 

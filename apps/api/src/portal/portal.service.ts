@@ -1544,6 +1544,12 @@ export class PortalService implements OnModuleInit {
 
   /** Subconjunto de `vehiculos.tipo_vehiculo` (ver `camiones-html.js`) habilitado para conductores; un conductor puede tener varios, separados por comas. */
   private static readonly DRIVER_VEHICLE_TYPES = ["Camion", "Turbo", "Tractomula"];
+  private static readonly DRIVER_VEHICLE_TYPE_ALIASES: Record<string, string> = {
+    camion: "Camion",
+    turbo: "Turbo",
+    tractomula: "Tractomula",
+    mula: "Tractomula"
+  };
 
   /** Filtra/normaliza el CSV recibido del portal contra el catálogo de tipos de vehículo, sin duplicados. */
   private sanitizeDriverVehicleTypesCsv(raw: unknown): string | null {
@@ -1551,12 +1557,16 @@ export class PortalService implements OnModuleInit {
     if (!s) return null;
     const seen = new Set<string>();
     const out: string[] = [];
-    for (const part of s.split(",")) {
+    for (const part of s.split(/[,;|]/)) {
       const t = part.trim();
       if (!t) continue;
-      const match = PortalService.DRIVER_VEHICLE_TYPES.find(
-        (x) => x.toLowerCase() === t.toLowerCase()
-      );
+      const key = t
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+      const match =
+        PortalService.DRIVER_VEHICLE_TYPE_ALIASES[key] ||
+        PortalService.DRIVER_VEHICLE_TYPES.find((x) => x.toLowerCase() === key);
       if (!match || seen.has(match)) continue;
       seen.add(match);
       out.push(match);
@@ -2455,7 +2465,9 @@ export class PortalService implements OnModuleInit {
     const alters = [
       `ALTER TABLE public.ausencias_laborales ADD COLUMN IF NOT EXISTS subtipo_ausencia VARCHAR(64)`,
       `ALTER TABLE public.ausencias_laborales ADD COLUMN IF NOT EXISTS dias_reconocidos NUMERIC(6,2)`,
-      `ALTER TABLE public.ausencias_laborales ADD COLUMN IF NOT EXISTS unidad_dias_reconocidos VARCHAR(16)`
+      `ALTER TABLE public.ausencias_laborales ADD COLUMN IF NOT EXISTS unidad_dias_reconocidos VARCHAR(16)`,
+      `ALTER TABLE public.ausencias_laborales ADD COLUMN IF NOT EXISTS id_documento_soporte UUID`,
+      `ALTER TABLE public.ausencias_laborales ADD COLUMN IF NOT EXISTS nombre_archivo_soporte VARCHAR(512)`
     ];
     for (const q of alters) {
       try {
@@ -3123,6 +3135,11 @@ export class PortalService implements OnModuleInit {
     return dk === fk || dk.startsWith(`${fk} / `);
   }
 
+  /** Carpeta de expediente `01. Empleados` o un hijo (soportes de ausencia, colillas). */
+  private isEmployeeExpedienteFolder(folderPath: unknown): boolean {
+    return this.folderPathInSubtree(folderPath, "01. Empleados");
+  }
+
   private parseRoleCsv(value: unknown): string[] {
     return String(value ?? "")
       .split(",")
@@ -3267,7 +3284,11 @@ export class PortalService implements OnModuleInit {
     if (this.isAdmin(role)) return;
     const permissionSet = await this.resolveEffectivePermissionSet(userId, role);
     if (isSarlaftEvidenceFolder(folderPath) && canUploadSarlaftEvidence(permissionSet)) return;
-    await this.assertCanUploadCompanyDocument(userId, role);
+    const payrollEmployeeFolder =
+      this.hasPortalPermission(permissionSet, "payroll_manage") && this.isEmployeeExpedienteFolder(folderPath);
+    if (!payrollEmployeeFolder) {
+      await this.assertCanUploadCompanyDocument(userId, role);
+    }
     const scope = await this.resolveCompanyDocumentWriteScope(userId, role);
     const perms = await this.loadCompanyFolderPermMap(this.pool, scope);
     const canView = this.actorCanCompanyFolder(perms, folderPath, "view", role, userId, { forContent: true });
@@ -5622,10 +5643,19 @@ export class PortalService implements OnModuleInit {
               rows.length > 0 &&
               rows.every((row) => isSarlaftEvidenceDocument(row)) &&
               canUploadSarlaftEvidence(permissionSet);
-            if (!sarlaftEvidenceOk) {
+            const payrollEmployeeDocsOk =
+              rows.length > 0 &&
+              this.hasPortalPermission(permissionSet, "payroll_manage") &&
+              rows.every((row) =>
+                this.isEmployeeExpedienteFolder(
+                  (row as { folder?: unknown; carpeta?: unknown }).folder ??
+                    (row as { carpeta?: unknown }).carpeta
+                )
+              );
+            if (!sarlaftEvidenceOk && !payrollEmployeeDocsOk) {
               throw new ForbiddenException("No autorizado para registrar documentos corporativos.");
             }
-            sarlaftUpload = true;
+            sarlaftUpload = sarlaftEvidenceOk;
           }
           if (!hasData && !hasDeletes && !canAccessDocumentsModule(permissionSet)) {
             throw new ForbiddenException();
@@ -5658,7 +5688,16 @@ export class PortalService implements OnModuleInit {
                 )
               ) &&
               canUploadSarlaftEvidence(permissionSet);
-            if (!sarlaftFoldersOk) {
+            const payrollEmployeeFoldersOk =
+              rows.length > 0 &&
+              this.hasPortalPermission(permissionSet, "payroll_manage") &&
+              rows.every((row) =>
+                this.isEmployeeExpedienteFolder(
+                  (row as { folderName?: unknown; nombre_carpeta?: unknown }).folderName ??
+                    (row as { nombre_carpeta?: unknown }).nombre_carpeta
+                )
+              );
+            if (!sarlaftFoldersOk && !payrollEmployeeFoldersOk) {
               throw new ForbiddenException("No autorizado para sincronizar carpetas corporativas.");
             }
           }
@@ -8214,6 +8253,8 @@ export class PortalService implements OnModuleInit {
       recognizedDays: row.dias_reconocidos != null ? Number(row.dias_reconocidos) : Number(row.dias_calendario),
       recognizedUnit: row.unidad_dias_reconocidos ?? "calendario",
       supportNumber: row.numero_soporte,
+      supportDocumentId: row.id_documento_soporte ?? null,
+      supportFileName: row.nombre_archivo_soporte ?? "",
       epsEntity: row.entidad_eps,
       notes: row.observaciones,
       approvedBy: row.aprobado_por,
@@ -8560,7 +8601,8 @@ export class PortalService implements OnModuleInit {
         return {
           absenceType: payload.absenceType ?? payload.type ?? "",
           startDate: payload.startDate ?? "",
-          endDate: payload.endDate ?? ""
+          endDate: payload.endDate ?? "",
+          supportFileName: payload.supportFileName ?? ""
         };
       case "mark_payroll_paid":
         return {
@@ -13509,9 +13551,11 @@ export class PortalService implements OnModuleInit {
       if (!row?.id || !row.employeeId) continue;
       if (this.skipUnlessPersistUuid("syncHrAbsences", row.id)) continue;
       if (this.skipUnlessPersistUuid("syncHrAbsences.employeeId", row.employeeId)) continue;
-      const tipo = String(
-        pickPortalField(row, "type", "absenceType") ?? "incapacidad"
-      );
+      /* Claves canónicas en minúsculas: los CHECK de ausencias_laborales no aceptan MAYÚSCULAS. */
+      const tipo =
+        String(pickPortalField(row, "type", "absenceType") ?? "incapacidad")
+          .trim()
+          .toLowerCase() || "incapacidad";
       const dias = Math.max(
         1,
         Math.floor(
@@ -13519,7 +13563,7 @@ export class PortalService implements OnModuleInit {
         )
       );
       const subtipoRaw = pickPortalField(row, "subtype", "absenceSubtype");
-      let subtipo = subtipoRaw != null ? String(subtipoRaw).trim() || null : null;
+      let subtipo = subtipoRaw != null ? String(subtipoRaw).trim().toLowerCase() || null : null;
       if (!subtipo) {
         if (tipo === "permiso_sufragio") subtipo = "votante";
         else if (tipo === "licencia_maternidad") subtipo = "ordinaria";
@@ -13532,20 +13576,33 @@ export class PortalService implements OnModuleInit {
         ) || 0.5
       );
       const unidadRaw = pickPortalField(row, "recognizedUnit", "unidadDiasReconocidos");
+      const unidadCanon = String(unidadRaw ?? "")
+        .trim()
+        .toLowerCase();
       const unidad =
-        unidadRaw != null && String(unidadRaw).trim()
-          ? String(unidadRaw).trim()
+        unidadCanon === "calendario" || unidadCanon === "habil" || unidadCanon === "jornada"
+          ? unidadCanon
           : tipo === "permiso_sufragio"
             ? "jornada"
             : ["vacaciones", "licencia_luto", "permiso_cita_medica", "permiso_citacion_judicial"].includes(tipo)
               ? "habil"
               : "calendario";
+      const supportDocIdRaw = pickPortalField(row, "supportDocumentId", "idDocumentoSoporte");
+      const supportDocId =
+        supportDocIdRaw != null && PG_UUID_V4_RE.test(String(supportDocIdRaw).trim())
+          ? String(supportDocIdRaw).trim()
+          : null;
+      const supportFileNameRaw = pickPortalField(row, "supportFileName", "nombreArchivoSoporte");
+      const supportFileName =
+        supportFileNameRaw != null && String(supportFileNameRaw).trim()
+          ? String(supportFileNameRaw).trim().slice(0, 512)
+          : null;
       await c.query(
         `INSERT INTO ausencias_laborales (
           id, id_empleado, nombre_empleado, tipo_ausencia, fecha_inicio, fecha_fin, dias_calendario,
           subtipo_ausencia, dias_reconocidos, unidad_dias_reconocidos,
-          numero_soporte, entidad_eps, observaciones
-        ) VALUES ($1::uuid, $2::uuid, $3, $4, $5::date, $6::date, $7, $8, $9, $10, $11, $12, $13)
+          numero_soporte, id_documento_soporte, nombre_archivo_soporte, entidad_eps, observaciones
+        ) VALUES ($1::uuid, $2::uuid, $3, $4, $5::date, $6::date, $7, $8, $9, $10, $11, $12::uuid, $13, $14, $15)
         ON CONFLICT (id) DO UPDATE SET
           id_empleado = EXCLUDED.id_empleado,
           nombre_empleado = EXCLUDED.nombre_empleado,
@@ -13557,6 +13614,8 @@ export class PortalService implements OnModuleInit {
           dias_reconocidos = EXCLUDED.dias_reconocidos,
           unidad_dias_reconocidos = EXCLUDED.unidad_dias_reconocidos,
           numero_soporte = EXCLUDED.numero_soporte,
+          id_documento_soporte = EXCLUDED.id_documento_soporte,
+          nombre_archivo_soporte = EXCLUDED.nombre_archivo_soporte,
           entidad_eps = EXCLUDED.entidad_eps,
           observaciones = EXCLUDED.observaciones`,
         [
@@ -13567,10 +13626,12 @@ export class PortalService implements OnModuleInit {
           row.startDate,
           row.endDate,
           dias,
-          subtipo != null ? nu(subtipo) : null,
+          subtipo,
           diasReconocidos,
-          unidad != null ? nu(unidad) : null,
+          unidad,
           nuN(pickPortalField(row, "supportNumber")),
+          supportDocId,
+          supportFileName,
           nuN(pickPortalField(row, "epsEntity")),
           nuN(row.notes)
         ]

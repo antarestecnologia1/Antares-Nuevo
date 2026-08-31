@@ -2354,6 +2354,18 @@ body[data-theme="dark"] .payroll-studio #form-employee .hr-wizard-nav-btn--prev:
   border-top: 1px solid var(--pay-edge);
 }
 
+.payroll-studio .hr-absence-field input[type="file"] {
+  padding: 0.45rem 0.55rem;
+  font-size: 0.86rem;
+}
+
+.payroll-studio .hr-absence-field--support-file {
+  padding: 0.85rem 0.95rem;
+  border: 1px dashed var(--pay-edge-strong);
+  border-radius: var(--pay-radius-sm);
+  background: var(--pay-surface);
+}
+
 .payroll-studio .field-help {
   display: inline-flex;
   align-items: center;
@@ -3470,7 +3482,9 @@ body[data-theme="dark"] .payroll-studio .payroll-contracts-table tbody tr:hover 
   vertical-align: middle;
 }
 
-#payroll-runs-delete-selected:disabled {
+#payroll-runs-delete-selected:disabled,
+#payroll-runs-delete-all:disabled,
+#payroll-runs-mark-paid-selected:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }

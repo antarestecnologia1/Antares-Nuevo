@@ -34,7 +34,7 @@ export function normalizeRequestRequiredTruckType(value) {
   const u = normalizeLatinUpperForDb(s);
   if (u === "TURBO") return "Turbo";
   if (u === "CAMION") return "Camión";
-  if (u === "TRACTOMULA") return "Tractomula";
+  if (u === "TRACTOMULA" || u === "MULA") return "Tractomula";
   return "";
 }
 

@@ -31508,6 +31508,12 @@ body[data-theme="dark"] .directory-card__actions {
   margin: 0;
   cursor: pointer;
 }
+.hr-conductor-vehicle-types .hr-conductor-vehicle-type-option:has(input:checked) {
+  border-color: #1d4ed8;
+  background: #eff6ff;
+  color: #1e3a8a;
+  font-weight: 650;
+}
 /* `display: grid` arriba anula el `display:none` del atributo [hidden] en labels. */
 .form-section-grid label[hidden],
 .form-section-grid label.hidden,

@@ -372,6 +372,11 @@ function openEditTripModal(req) {
                   isBusy: d.isBusy,
                   isUnavailable: d.isUnavailable,
                   hasExpiredDocs: d.hasExpiredDocs,
+                  wrongVehicleType: d.wrongVehicleType,
+                  requestTruckType:
+                    typeof G.normalizeRequestRequiredTruckType === "function"
+                      ? G.normalizeRequestRequiredTruckType(req?.vehicleType)
+                      : req?.vehicleType,
                   compliance: d.tripCompliance
                 })
               : `${d.fullName || d.name || ""}${d.taxId ? ` · ${d.taxId}` : ""}`

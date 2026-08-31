@@ -228,6 +228,8 @@
     candidateOfferSentOk: "Oferta enviada. Siguiente paso: contratar al candidato.",
     interviewCandidateMissing: "Seleccione un candidato válido.",
     absencePickEmployee: "Seleccione un empleado para registrar la ausencia.",
+    absenceSupportFileRequired: "Adjunte el soporte documental de la ausencia. Se guardará en la carpeta del colaborador en Gestión documental.",
+    absenceSupportFileSaveError: "No fue posible guardar el soporte en Gestión documental. Verifique el archivo y los permisos, e intente de nuevo.",
     vacancyDeadlineFuture: "La fecha límite de la vacante debe ser hoy o posterior.",
     vacancySelectPosition: "Seleccione un cargo activo para publicar la vacante.",
     candidateUpdated: "Estado del candidato actualizado.",
@@ -280,6 +282,14 @@
     hrAbsenceDeleted: "Ausencia eliminada del expediente digital.",
     payrollRunDeleted: "Liquidación eliminada del historial.",
     payrollRunsBulkSelect: "Seleccione al menos una liquidación para eliminar.",
+    payrollRunsBulkSelectPaid: "Seleccione al menos una liquidación pendiente para marcar como pagada.",
+    payrollRunsBulkPaid: (n) =>
+      n === 1 ? "Liquidación marcada como pagada." : `Se marcaron ${n} liquidaciones como pagadas.`,
+    payrollRunsBulkPaidApproval: (n) =>
+      n === 1
+        ? "Solicitud de marcar pago enviada para aprobación del administrador."
+        : `Se enviaron ${n} solicitudes de pago para aprobación del administrador.`,
+    payrollRunsBulkDeleteAllEmpty: "No hay liquidaciones para eliminar con los filtros actuales.",
     payrollRunsBulkRemoved: (n) =>
       n === 1 ? "Liquidación eliminada del historial." : `Se eliminaron ${n} liquidaciones del historial.`,
     adminOnlyDeleteHrPayrollRecord: "Solo los administradores pueden eliminar esta novedad o liquidación.",

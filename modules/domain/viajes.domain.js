@@ -1031,11 +1031,13 @@ export function rebuildTripAssignmentSelectOptions(formEl, request, requestId, n
     drvSel.innerHTML = [
       `<option value="">${driverCandidates.length ? "Sin asignar por ahora" : "No hay conductores disponibles para el horario"}</option>`,
       ...driverCandidates.map((driver) => {
-        const dis = Boolean(driver.isBusy || driver.isUnavailable || driver.hasExpiredDocs);
+        const dis = Boolean(driver.isBusy || driver.isUnavailable || driver.hasExpiredDocs || driver.wrongVehicleType);
         const label = tripAssignmentDriverOptionLabel(driver, {
           isBusy: driver.isBusy,
           isUnavailable: driver.isUnavailable,
           hasExpiredDocs: driver.hasExpiredDocs,
+          wrongVehicleType: driver.wrongVehicleType,
+          requestTruckType: normalizeRequestRequiredTruckType(request?.vehicleType),
           compliance: driver.tripCompliance
         });
         return `<option value="${escapeAttr(String(driver.id))}"${dis ? " disabled" : ""}>${escapeHtml(label)}</option>`;
@@ -1312,11 +1314,35 @@ export function historyVehicleColumn(request) {
 }
 
 export function normalizeFleetTypeForTripAssignment(type) {
-  return String(type || "")
+  const key = String(type || "")
     .trim()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
+  if (key === "mula" || key === "tracto mula") return "tractomula";
+  return key;
+}
+
+function driverFleetTypeKeys(driver) {
+  const raw = String(driver?.vehicleTypes || driver?.tipos_vehiculo || "").trim();
+  if (!raw) return [];
+  return raw
+    .split(/[,;|]/)
+    .map((part) => normalizeFleetTypeForTripAssignment(part))
+    .filter(Boolean);
+}
+
+/**
+ * Si el conductor no tiene categoría, se admite (datos legacy).
+ * Si tiene camión/turbo/mula, debe incluir el tipo pedido en la solicitud.
+ */
+export function driverMatchesRequestTruckType(driver, request) {
+  const reqLabel = normalizeRequestRequiredTruckType(request?.vehicleType);
+  if (!reqLabel) return true;
+  const keys = driverFleetTypeKeys(driver);
+  if (!keys.length) return true;
+  const reqKey = normalizeFleetTypeForTripAssignment(reqLabel);
+  return Boolean(reqKey && keys.includes(reqKey));
 }
 
 /** Turbo / Camión / Tractomula de la solicitud ↔ mismo tipo en flota (tolerante a tildes/mayúsculas). Sin tipo requerido → no se filtra (datos legacy). */
@@ -1371,6 +1397,10 @@ export function tripAssignmentDriverOptionLabel(driver, options = {}) {
       ? ` · ${compliance.summary} vencido`
       : " · Documentación vencida";
   }
+  if (options.wrongVehicleType) {
+    const rt = String(options.requestTruckType || "").trim();
+    tail += rt ? ` · No habilitado para ${rt === "Tractomula" ? "mula" : rt}` : " · Categoría no coincide con la solicitud";
+  }
   return tail;
 }
 
@@ -1409,7 +1439,8 @@ export function getCompatibleDriversForRequest(request, currentRequestId = null)
     (driver) =>
       !isManuallyUnavailable(driver) &&
       !driverHasExpiredComplianceForTrips(driver) &&
-      !isDriverBusyAtHour(driver, requestSchedulingPickupIso(request), requestSchedulingDeliveryIso(request), currentRequestId)
+      !isDriverBusyAtHour(driver, requestSchedulingPickupIso(request), requestSchedulingDeliveryIso(request), currentRequestId) &&
+      driverMatchesRequestTruckType(driver, request)
   );
 }
 
@@ -1460,6 +1491,7 @@ export function getDriverCandidatesForRequest(request, currentRequestId = null) 
       isBusy: busyBySchedule,
       isUnavailable: unavailableManual,
       hasExpiredDocs: expiredCompliance,
+      wrongVehicleType: !driverMatchesRequestTruckType(driver, request),
       tripCompliance: compliance
     };
   });

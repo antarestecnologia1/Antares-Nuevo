@@ -12,7 +12,9 @@ CREATE TABLE ausencias_laborales (
   dias_calendario         INTEGER NOT NULL CHECK (dias_calendario >= 1),
   dias_reconocidos        NUMERIC(6,2) NOT NULL DEFAULT 1.00,
   unidad_dias_reconocidos VARCHAR(16) NOT NULL DEFAULT 'calendario',
-  numero_soporte        VARCHAR(64),
+  numero_soporte          VARCHAR(64),
+  id_documento_soporte    UUID,
+  nombre_archivo_soporte  VARCHAR(512),
   entidad_eps             VARCHAR(120),
   observaciones           TEXT,
   aprobado_por            VARCHAR(255),
@@ -68,6 +70,8 @@ COMMENT ON TABLE ausencias_laborales IS 'KEYS.hrAbsences.';
 COMMENT ON COLUMN ausencias_laborales.subtipo_ausencia IS 'Desagregación del tipo: sufragio (jurado|votante), maternidad (ordinaria|parto_multiple|parto_prematuro|adopcion|extension_medica), paternidad (continua|flexible|parental_compartida).';
 COMMENT ON COLUMN ausencias_laborales.dias_reconocidos IS 'Días o fracción reconocida laboralmente para nómina/compensación; puede diferir de dias_calendario.';
 COMMENT ON COLUMN ausencias_laborales.unidad_dias_reconocidos IS 'calendario | habil | jornada según la naturaleza de la ausencia.';
+COMMENT ON COLUMN ausencias_laborales.id_documento_soporte IS 'Documento corporativo (DMS) archivado en la carpeta del colaborador.';
+COMMENT ON COLUMN ausencias_laborales.nombre_archivo_soporte IS 'Nombre del archivo de soporte archivado en Gestión documental.';
 
 -- Índices
 

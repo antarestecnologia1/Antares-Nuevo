@@ -2578,11 +2578,13 @@ function bindDynamicEvents() {
               { value: "", label: driverCandidates.length ? "Sin asignar por ahora" : "No hay conductores registrados" },
               ...driverCandidates.map((driver) => ({
                 value: driver.id,
-                disabled: Boolean(driver.isBusy || driver.isUnavailable || driver.hasExpiredDocs),
+                disabled: Boolean(driver.isBusy || driver.isUnavailable || driver.hasExpiredDocs || driver.wrongVehicleType),
                 label: tripAssignmentDriverOptionLabel(driver, {
                   isBusy: driver.isBusy,
                   isUnavailable: driver.isUnavailable,
-                  hasExpiredDocs: driver.hasExpiredDocs
+                  hasExpiredDocs: driver.hasExpiredDocs,
+                  wrongVehicleType: driver.wrongVehicleType,
+                  requestTruckType: normalizeRequestRequiredTruckType(request?.vehicleType)
                 })
               }))
             ]

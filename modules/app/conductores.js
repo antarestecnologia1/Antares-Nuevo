@@ -21,6 +21,35 @@ function normalizeDriverDocFilter(raw) {
   return "all";
 }
 
+function normalizeDriverVehicleFilter(raw) {
+  const v = String(raw || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  if (v === "mula") return "tractomula";
+  if (["camion", "turbo", "tractomula", "none"].includes(v)) return v;
+  return "all";
+}
+
+function driverMatchesVehicleFilter(driver, filter) {
+  const f = normalizeDriverVehicleFilter(filter);
+  if (f === "all") return true;
+  const csv = String(driver?.vehicleTypes || driver?.tipos_vehiculo || "").trim();
+  if (f === "none") return !csv;
+  const typeByFilter = { camion: "Camion", turbo: "Turbo", tractomula: "Tractomula" };
+  const type = typeByFilter[f];
+  if (typeof driverHasCanonicalVehicleType === "function" && type) {
+    return driverHasCanonicalVehicleType(driver, type);
+  }
+  const blob = csv
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  if (f === "tractomula") return blob.includes("tractomula") || /\bmula\b/.test(blob);
+  return Boolean(type && blob.includes(f));
+}
+
 /** Texto agregado para buscar en conductores (insensible a mayúsculas). */
 function driverFleetSearchHaystack(item) {
   const d = item.raw;
@@ -31,6 +60,7 @@ function driverFleetSearchHaystack(item) {
     d.license,
     d.licenseCategory,
     d.vehicleTypes,
+    typeof driverVehicleTypesCsvToLabel === "function" ? driverVehicleTypesCsvToLabel(d.vehicleTypes, "") : "",
     item.companyName,
     d.email,
     d.city,
@@ -183,6 +213,8 @@ function driversHtml() {
   const offlineDrivers = summaries.filter((item) => item.statusSlug === "offline").length;
   const docRiskCount = summaries.filter((item) => item.docBucket !== "ok").length;
   const expiredDocsCount = summaries.filter((item) => item.docBucket === "expired").length;
+  const camionDrivers = summaries.filter((item) => driverMatchesVehicleFilter(item.raw, "camion")).length;
+  const mulaDrivers = summaries.filter((item) => driverMatchesVehicleFilter(item.raw, "tractomula")).length;
 
   const driversUi = state.driversUi || {};
   const fleetSearchRaw = String(driversUi.fleetSearch ?? "");
@@ -190,11 +222,13 @@ function driversHtml() {
   const fleetLayout = normalizeDriverFleetLayout(driversUi.fleetLayout);
   const statusFilter = normalizeDriverStatusFilter(driversUi.statusFilter);
   const docFilter = normalizeDriverDocFilter(driversUi.docFilter);
+  const vehicleFilter = normalizeDriverVehicleFilter(driversUi.vehicleType);
   const companyFilter = String(driversUi.companyId ?? "").trim();
 
   const filteredSummaries = summaries.filter((item) => {
     if (statusFilter !== "all" && item.statusSlug !== statusFilter) return false;
     if (docFilter !== "all" && item.docBucket !== docFilter) return false;
+    if (vehicleFilter !== "all" && !driverMatchesVehicleFilter(item.raw, vehicleFilter)) return false;
     if (companyFilter && String(item.raw.companyId ?? "").trim() !== companyFilter) return false;
     if (fleetSearchNorm && !driverFleetSearchHaystack(item).includes(fleetSearchNorm)) return false;
     return true;
@@ -328,7 +362,7 @@ function driversHtml() {
           ${buildPortalOpsCardGridItem("Documento", IC.badge, String(d.idDoc || "—"))}
           ${buildPortalOpsCardGridItem("Teléfono", IC.phone, phoneValue)}
           ${buildPortalOpsCardGridItem("Venc. licencia", IC.calendar, licenseNumber, { tone: licenseSubTone, subValue: licenseSubLabel, subTone: licenseSubTone })}
-          ${buildPortalOpsCardGridItem("Vehículos", IC.truck, driverVehicleTypesCsvToLabel(d.vehicleTypes, "Sin definir"))}
+          ${buildPortalOpsCardGridItem("Categoría", IC.truck, driverVehicleTypesCsvToLabel(d.vehicleTypes, "Sin categoría"))}
         </div>
         ${buildPortalOpsCardActions(actionButtons, statusActionBtn)}
         ${buildPortalOpsCardFoot("Última actualización", lastUpdateLabel)}
@@ -353,6 +387,7 @@ function driversHtml() {
       return `<tr data-driver-id="${escapeAttr(String(d.id ?? ""))}">
         <td data-label="Conductor"><strong>${escapeHtml(String(d.name || "—"))}</strong><div class="muted driver-fleet-list-sub">${escapeHtml(String(d.idDoc || "—"))}</div></td>
         <td data-label="Empresa">${escapeHtml(item.companyName)}</td>
+        <td data-label="Categoría">${escapeHtml(driverVehicleTypesCsvToLabel(d.vehicleTypes, "Sin categoría"))}</td>
         <td data-label="Estado">${item.statusTag}</td>
         <td data-label="Docs">${directoryPillHtml(item.docBadge, docTone)}</td>
         <td data-label="Disponibilidad"><span class="driver-fleet-list-avail">${escapeHtml(item.tripHeadline)}</span><div class="muted driver-fleet-list-sub">${escapeHtml(item.tripDetail)}</div></td>
@@ -365,7 +400,7 @@ function driversHtml() {
     fleetLayout === "list" && filteredSummaries.length > 0
       ? `<div class="table-wrap driver-fleet-list-wrap"><table class="vehicle-fleet-table driver-fleet-table">
     <thead><tr>
-      <th>Conductor</th><th>Empresa</th><th>Estado</th><th>Documentación</th><th>Disponibilidad</th><th>Acciones</th>
+      <th>Conductor</th><th>Empresa</th><th>Categoría</th><th>Estado</th><th>Documentación</th><th>Disponibilidad</th><th>Acciones</th>
     </tr></thead>
     <tbody>${driverListRows}</tbody>
   </table></div>`
@@ -419,6 +454,14 @@ function driversHtml() {
           <option value="missing" ${optSel("missing", docFilter)}>Incompleto</option>
           <option value="expired" ${optSel("expired", docFilter)}>Crítico</option>
         </select></label>
+      <label class="driver-fleet-filter">${fieldLabel(IC.truck, "Categoría")}
+        <select data-action="drivers-fleet-filter" data-filter="vehicle" aria-label="Filtrar por categoría camión o mula">
+          <option value="all" ${optSel("all", vehicleFilter)}>Todas</option>
+          <option value="camion" ${optSel("camion", vehicleFilter)}>Camión</option>
+          <option value="turbo" ${optSel("turbo", vehicleFilter)}>Turbo</option>
+          <option value="tractomula" ${optSel("tractomula", vehicleFilter)}>Mula</option>
+          <option value="none" ${optSel("none", vehicleFilter)}>Sin categoría</option>
+        </select></label>
       <label class="driver-fleet-filter">${fieldLabel(IC.briefcase, "Empresa")}
         <select data-action="drivers-fleet-filter" data-filter="company" aria-label="Filtrar por empresa">${companyOptions}</select></label>
       </div>
@@ -438,7 +481,7 @@ function driversHtml() {
     ? "Alta, baja y ficha completa en Gestión humana. Aquí el admin puede ajustar datos operativos (se copian a GH)."
     : "Solo consulta. La ficha completa del empleado se edita en Gestión humana.";
   const filtersActive =
-    Boolean(fleetSearchNorm) || statusFilter !== "all" || docFilter !== "all" || Boolean(companyFilter);
+    Boolean(fleetSearchNorm) || statusFilter !== "all" || docFilter !== "all" || vehicleFilter !== "all" || Boolean(companyFilter);
   const driverCardSubtitle = filtersActive
     ? `${filteredSummaries.length} de ${totalDrivers} conductores${fleetLayout === "list" ? " · vista lista" : ""}${filteredSummaries.length > visibleDriverSummaries.length ? ` · ${visibleDriverSummaries.length} visibles` : ""} · ${moduleHint}`
     : `${totalDrivers} registrados${fleetLayout === "list" ? " · vista lista" : ""}${filteredSummaries.length > visibleDriverSummaries.length ? ` · ${visibleDriverSummaries.length} visibles` : ""} · ${moduleHint}`;
@@ -448,6 +491,8 @@ function driversHtml() {
     { label: "Ocupados", value: occupiedDrivers, tone: occupiedDrivers ? "warn" : undefined },
     { label: "Reservados", value: scheduledDrivers },
     { label: "No disp.", value: offlineDrivers },
+    { label: "Camión", value: camionDrivers },
+    { label: "Mulas", value: mulaDrivers },
     { label: "Docs riesgo", value: docRiskCount, tone: docRiskCount ? "warn" : undefined },
     { label: "Vencidos", value: expiredDocsCount, tone: expiredDocsCount ? "alert" : undefined }
   ]);
@@ -513,6 +558,8 @@ function driversHtml() {
           state.driversUi = { ...prev, docFilter: normalizeDriverDocFilter(value) };
         } else if (filter === "company") {
           state.driversUi = { ...prev, companyId: value };
+        } else if (filter === "vehicle") {
+          state.driversUi = { ...prev, vehicleType: normalizeDriverVehicleFilter(value) };
         }
         state.driversRenderLimit = Number(window.RENDER_WINDOW_SIZE) || 30;
         renderPortalView();
@@ -750,8 +797,9 @@ function driversHtml() {
             {
               type: "custom",
               id: "driver-edit-vehicle-types",
-              label: "¿De cuáles vehículos de la flota es conductor?",
-              html: `<div class="hr-conductor-vehicle-types">${driverVehicleTypesCheckboxesHtml(target.vehicleTypes || "")}</div>`
+              label: "Categoría de vehículos que conduce",
+              html: `<div class="hr-conductor-vehicle-types">${driverVehicleTypesCheckboxesHtml(target.vehicleTypes || "")}</div>
+                <p class="full muted modal-field-hint" style="margin:0.4rem 0 0;font-size:0.82rem">Marque si es conductor de camión, turbo y/o mula. Puede tener más de una categoría.</p>`
             }
           ],
           afterMount: (formEl) => {
@@ -765,6 +813,11 @@ function driversHtml() {
               const sel = formEl.querySelector(`select[name="${name}"]`);
               if (sel && val) setFormSelectValue(sel, val);
             });
+            const applyVehicleTypes = () => {
+              applyDriverVehicleTypesCheckboxes?.(formEl, target.vehicleTypes || target.tipos_vehiculo || "");
+            };
+            applyVehicleTypes();
+            queueMicrotask(applyVehicleTypes);
           },
           onSubmit: async (_form, formEl) => {
             const getVal = (name) =>
@@ -845,11 +898,7 @@ function driversHtml() {
                     arl: getVal("arl"),
                     comparendos: parseNum(getVal("comparendos")),
                     experienceYears: parseNum(getVal("experienceYears")),
-                    vehicleTypes: collectDriverVehicleTypesCsv(
-                      formEl instanceof HTMLFormElement
-                        ? Object.fromEntries(new FormData(formEl).entries())
-                        : {}
-                    ),
+                    vehicleTypes: collectDriverVehicleTypesCsv(formEl instanceof HTMLFormElement ? formEl : {}),
                     photoUrl
                   })
                 : d

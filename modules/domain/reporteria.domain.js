@@ -1346,6 +1346,9 @@ export function normalizeVehicleRowForEditor(raw) {
 export function normalizeDriverRowForEditor(raw) {
   if (!raw || typeof raw !== "object") return null;
   const d = { ...raw };
+  if (!String(d.vehicleTypes || "").trim() && d.tipos_vehiculo) {
+    d.vehicleTypes = String(d.tipos_vehiculo).trim();
+  }
   const occD = d.occupationalExamDate ?? d.psychoTestDate ?? d.psychometricExamDate;
   const intraD = d.instruvialExamDate ?? d.intravehicularExamDate;
   d.occupationalExamDate = normalizePortalDateYmd(occD);
@@ -1566,6 +1569,17 @@ export async function syncDriverFromEmployee(employee, extraDriverData = {}) {
   const doc = String(employee.idDoc || "").trim();
   const existing = drivers.find((d) => normalizeDocumentDigits(d.idDoc) === normalizeDocumentDigits(doc));
   const driverPatch = buildDriverPatchFromEmployee(employee, extraDriverData);
+  if (existing) {
+    if (!String(driverPatch.vehicleTypes || "").trim()) {
+      driverPatch.vehicleTypes = String(existing.vehicleTypes || existing.tipos_vehiculo || "").trim();
+    }
+    if (employee?.comparendos == null && extraDriverData?.comparendos == null) {
+      driverPatch.comparendos = existing.comparendos;
+    }
+    if (employee?.experienceYears == null && extraDriverData?.experienceYears == null) {
+      driverPatch.experienceYears = existing.experienceYears;
+    }
+  }
   if (!driverPatch.license || !driverPatch.licenseExpiry) {
     return { ok: false, message: userMessage("payrollDriverLicenseSync") };
   }

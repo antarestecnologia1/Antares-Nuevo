@@ -220,6 +220,20 @@ function shouldSkipStringNormalizeKey(key: string): boolean {
   if (k === "id" || k.endsWith("id") || k.includes("uuid")) return true;
   if (k.includes("url") || k.includes("hash") || k.includes("token") || k.includes("secret")) return true;
   if (k.endsWith("at") && (k.includes("created") || k.includes("updated") || k.includes("expir"))) return true;
+  /* Claves canónicas de ausencias: CHECK en minúsculas (habil, jornada, votante, …). */
+  if (
+    k === "absencetype" ||
+    k === "absencesubtype" ||
+    k === "recognizedunit" ||
+    k === "unidaddiasreconocidos" ||
+    k === "subtipoausencia" ||
+    k === "tipoausencia" ||
+    k === "supportfilename" ||
+    k === "nombrearchivosoporte" ||
+    k === "supportfolder"
+  ) {
+    return true;
+  }
   return false;
 }
 

@@ -1,4 +1,4 @@
-/** Imports ES: el runtime ya no depende del orden defer vs mÃ³dulos en index.html. */
+/** Imports ES: el runtime ya no depende del orden defer vs módulos en index.html. */
 import * as __pr from "./portal-runtime-env.mjs";
 import {
   findPendingCreateEmployeeApproval,
@@ -14,7 +14,7 @@ import {
   COMPLIANCE_DUE_SOON_DAYS
 } from "../domain/driver-compliance-vigencia.domain.js";
 
-// Enlaces lÃ©xicos (mÃ³dulo estricto; `IC` sigue viniendo del script `portal-icons.js`).
+// Enlaces léxicos (módulo estricto; `IC` sigue viniendo del script `portal-icons.js`).
 const ALL_PERMISSIONS = __pr.ALL_PERMISSIONS;
 const APPROVAL_TYPE_META = __pr.APPROVAL_TYPE_META;
 const APPROVAL_UI_BLOCKS = __pr.APPROVAL_UI_BLOCKS;
@@ -311,9 +311,9 @@ const writeAwaitServer = globalThis.writeAwaitServer;
 const writeAwaitServerEdit = globalThis.writeAwaitServerEdit;
 const writeAwaitServerDelete = globalThis.writeAwaitServerDelete;
 const writeAwaitServerLatestQueuedEmail = globalThis.writeAwaitServerLatestQueuedEmail;
-/** Expuesto desde `payroll-catalog-sanitize.domain` vÃ­a `Object.assign(window, â€¦)` en index. */
+/** Expuesto desde `payroll-catalog-sanitize.domain` vía `Object.assign(window, …)` en index. */
 const normalizeLatinForDb = globalThis.normalizeLatinForDb;
-/** Expuesto desde `reporteria.domain` vÃ­a `Object.assign(window, â€¦)` en index. */
+/** Expuesto desde `reporteria.domain` vía `Object.assign(window, …)` en index. */
 const reportsExportPeriodLabel = globalThis.reportsExportPeriodLabel;
 const normalizeReportsExportFilters = globalThis.normalizeReportsExportFilters;
 const reportPreviewColumnMeta = globalThis.reportPreviewColumnMeta;
@@ -330,7 +330,7 @@ const reportExportFilename = globalThis.reportExportFilename;
 
 /**
  * Estado central (`state`), referencias DOM (`nodes`) y helpers asociados se definen en
- * `modules/core/store.js`; este archivo es mÃ³dulo ES y enlaza sÃ­mbolos vÃ­a `portal-runtime-env.mjs`.
+ * `modules/core/store.js`; este archivo es módulo ES y enlaza símbolos vía `portal-runtime-env.mjs`.
  */
 try {
   if (typeof window.purgeDuplicateContracts === "function") window.purgeDuplicateContracts();
@@ -354,10 +354,10 @@ function renderPayrollRunCard(...args) {
 
 
 /**
- * Modal de ficha de viaje. Muestra detalles operativos del viaje y, segÃºn
+ * Modal de ficha de viaje. Muestra detalles operativos del viaje y, según
  * permisos, expone:
- *   - "Ver solicitud" â†’ abre el detalle de la solicitud asociada.
- *   - "Editar viaje"  â†’ abre el formulario de ediciÃ³n (solo admin).
+ *   - "Ver solicitud" → abre el detalle de la solicitud asociada.
+ *   - "Editar viaje"  → abre el formulario de edición (solo admin).
  */
 function openAssignedTripInfoModal(...args) {
   const impl = globalThis.__antaresPortalTransportModals;
@@ -368,7 +368,7 @@ function openAssignedTripInfoModal(...args) {
 /**
  * Modal de detalle de solicitud (read-only) reutilizable desde la ficha
  * de viaje y desde otros lugares. Mantiene la misma estructura visual
- * que la del listado de solicitudes pero sin acciones de ediciÃ³n.
+ * que la del listado de solicitudes pero sin acciones de edición.
  */
 function openRequestDetailModal(...args) {
   const impl = globalThis.__antaresPortalTransportModals;
@@ -376,14 +376,14 @@ function openRequestDetailModal(...args) {
 }
 
 
-/** Copia JSON de auditorÃ­a de viaje: bootstrap puede traer solo `snapshotSummary`. */
+/** Copia JSON de auditoría de viaje: bootstrap puede traer solo `snapshotSummary`. */
 function deletedTripSnapshotForTableRow(...args) {
   const impl = globalThis.__antaresPortalTransportModals;
   if (impl && typeof impl.deletedTripSnapshotForTableRow === "function") return impl.deletedTripSnapshotForTableRow(...args);
 }
 
 
-/** Copia JSON de auditorÃ­a de solicitud: bootstrap puede traer solo `snapshotSummary`. */
+/** Copia JSON de auditoría de solicitud: bootstrap puede traer solo `snapshotSummary`. */
 function deletedRequestSnapshotForTableRow(...args) {
   const impl = globalThis.__antaresPortalTransportModals;
   if (impl && typeof impl.deletedRequestSnapshotForTableRow === "function") return impl.deletedRequestSnapshotForTableRow(...args);
@@ -392,7 +392,7 @@ function deletedRequestSnapshotForTableRow(...args) {
 
 /**
  * Hidrata `noveltiesDetail` / `settlementDetail` desde el API si el bootstrap solo trajo la fila resumida.
- * @returns {object|null} fila fusionada o null si no hay sesiÃ³n API
+ * @returns {object|null} fila fusionada o null si no hay sesión API
  */
 async function ensurePayrollRunHeavyJsonLoaded(runId) {
   const id = String(runId || "").trim();
@@ -421,8 +421,8 @@ async function ensurePayrollRunHeavyJsonLoaded(runId) {
     write(KEYS.payrollRuns, next);
     return merged;
   } catch (err) {
-    devWarn("Portal: detalle de liquidaciÃ³n no disponible.", err?.message || err);
-    notify(String(err?.message || "No fue posible cargar el detalle de la liquidaciÃ³n."), "warn");
+    devWarn("Portal: detalle de liquidación no disponible.", err?.message || err);
+    notify(String(err?.message || "No fue posible cargar el detalle de la liquidación."), "warn");
     return cur;
   }
 }
@@ -446,7 +446,7 @@ async function ensureDeletedTransportTripAuditSnapshotLoaded(logId) {
     write(KEYS.deletedTransportTripLogs, next);
     return true;
   } catch (err) {
-    devWarn("Portal: snapshot de auditorÃ­a (viaje) no disponible.", err?.message || err);
+    devWarn("Portal: snapshot de auditoría (viaje) no disponible.", err?.message || err);
     notify(String(err?.message || "No fue posible cargar la copia del viaje."), "warn");
     return false;
   }
@@ -471,7 +471,7 @@ async function ensureDeletedTransportRequestAuditSnapshotLoaded(logId) {
     write(KEYS.deletedTransportRequestLogs, next);
     return true;
   } catch (err) {
-    devWarn("Portal: snapshot de auditorÃ­a (solicitud) no disponible.", err?.message || err);
+    devWarn("Portal: snapshot de auditoría (solicitud) no disponible.", err?.message || err);
     notify(String(err?.message || "No fue posible cargar la copia de la solicitud."), "warn");
     return false;
   }
@@ -516,9 +516,9 @@ function openDeletedTransportTripAuditModal(...args) {
 
 
 /**
- * Editor del viaje (admin). Permite actualizar fechas estimadas, vehÃ­culo,
+ * Editor del viaje (admin). Permite actualizar fechas estimadas, vehículo,
  * conductor y observaciones operativas. Las acciones destructivas como
- * cambiar el estado del viaje siguen ocurriendo a travÃ©s del select de
+ * cambiar el estado del viaje siguen ocurriendo a través del select de
  * estado en el card (transitionRequestStatus).
  */
 function openEditTripModal(...args) {
@@ -528,7 +528,7 @@ function openEditTripModal(...args) {
 
 
 /**
- * EdiciÃ³n de tarifa por trayecto (admin): mismo patrÃ³n visual que {@link openEditTripModal}
+ * Edición de tarifa por trayecto (admin): mismo patrón visual que {@link openEditTripModal}
  * (secciones, `modal-card-edit--trip`), sin depender del formulario colapsable.
  */
 function openEditRouteRateModal(...args) {
@@ -575,11 +575,11 @@ function validateColombianDocument(docType, rawValue) {
 
 function documentFieldRule(docType) {
   const type = String(docType || "").toUpperCase();
-  if (type === "CC") return { pattern: "[0-9]{6,10}", minlength: "6", maxlength: "10", inputmode: "numeric", placeholder: "CÃ©dula sin puntos" };
-  if (type === "CE") return { pattern: "[0-9]{6,12}", minlength: "6", maxlength: "12", inputmode: "numeric", placeholder: "CÃ©dula de extranjerÃ­a" };
+  if (type === "CC") return { pattern: "[0-9]{6,10}", minlength: "6", maxlength: "10", inputmode: "numeric", placeholder: "Cédula sin puntos" };
+  if (type === "CE") return { pattern: "[0-9]{6,12}", minlength: "6", maxlength: "12", inputmode: "numeric", placeholder: "Cédula de extranjería" };
   if (type === "TI") return { pattern: "[0-9]{8,11}", minlength: "8", maxlength: "11", inputmode: "numeric", placeholder: "Tarjeta de identidad" };
-  if (type === "PAS") return { pattern: "[A-Za-z0-9]{5,20}", minlength: "5", maxlength: "20", inputmode: "text", placeholder: "Pasaporte alfanumÃ©rico" };
-  if (type === "PEP") return { pattern: "[A-Za-z0-9-]{5,20}", minlength: "5", maxlength: "20", inputmode: "text", placeholder: "PEP/PPT alfanumÃ©rico" };
+  if (type === "PAS") return { pattern: "[A-Za-z0-9]{5,20}", minlength: "5", maxlength: "20", inputmode: "text", placeholder: "Pasaporte alfanumérico" };
+  if (type === "PEP") return { pattern: "[A-Za-z0-9-]{5,20}", minlength: "5", maxlength: "20", inputmode: "text", placeholder: "PEP/PPT alfanumérico" };
   return { pattern: "", minlength: "5", maxlength: "20", inputmode: "text", placeholder: "Documento" };
 }
 
@@ -604,7 +604,7 @@ function applyDocumentFieldConstraints(root, config = {}) {
   sync();
 }
 
-/** Clave estable para validar que la cÃ©dula/documento personal no se repita (incluye registros previos). */
+/** Clave estable para validar que la cédula/documento personal no se repita (incluye registros previos). */
 function getPersonalRegistrationKey(user) {
   if (!user) return "";
   const raw =
@@ -627,25 +627,25 @@ function getPersonalRegistrationKey(user) {
 function statusIconEmoji(status) {
   switch (String(status || "").trim()) {
     case STATUS.PENDIENTE:
-      return "ðŸ•’";
+      return "🕒";
     case STATUS.APROBADA_PENDIENTE_ASIGNACION:
-      return "ðŸ“¥";
+      return "📥";
     case STATUS.VIAJE_ASIGNADO:
-      return "ðŸŸ¢";
+      return "🟢";
     case STATUS.EN_TRANSITO:
-      return "ðŸšš";
+      return "🚚";
     case STATUS.ESPERA_STANDBY:
-      return "â¸ï¸";
+      return "⏸️";
     case STATUS.COMPLETADA:
-      return "âœ…";
+      return "✅";
     case STATUS.CERRADA:
-      return "ðŸ“¦";
+      return "📦";
     case STATUS.CANCELADA:
-      return "â›”";
+      return "⛔";
     case STATUS.RECHAZADA:
-      return "âŒ";
+      return "❌";
     default:
-      return "â€¢";
+      return "•";
   }
 }
 
@@ -671,7 +671,7 @@ function payrollDocumentLogoUrl(company) {
   return companyProfileLogoUrl(company) || reportBrandLogoSrc();
 }
 
-/** Alinea texto guardado con la clave exacta del catÃ¡logo COLOMBIA_LOCATIONS (tildes, espacios, mayÃºsculas). */
+/** Alinea texto guardado con la clave exacta del catálogo COLOMBIA_LOCATIONS (tildes, espacios, mayúsculas). */
 function matchColombiaDepartmentToCatalogKey(departmentRaw) {
   const raw = String(departmentRaw || "").trim();
   if (!raw) return "";
@@ -785,9 +785,9 @@ function wireMonthlyPayrollConcepts(form) {
     } else {
       monthEl.value = fecha.slice(0, 7);
       const hint =
-        typeof payrollClosingDatesHint === "function" ? payrollClosingDatesHint(freq) : "dÃ­a de cierre vÃ¡lido";
+        typeof payrollClosingDatesHint === "function" ? payrollClosingDatesHint(freq) : "día de cierre válido";
       if (periodPreview) {
-        periodPreview.innerHTML = `<p class="payroll-period-preview__warn">La fecha no es un dÃ­a de cierre para nÃ³mina ${escapeHtml(String(emp.payFrequency || "Mensual"))}. Use ${escapeHtml(hint)}.</p>`;
+        periodPreview.innerHTML = `<p class="payroll-period-preview__warn">La fecha no es un día de cierre para nómina ${escapeHtml(String(emp.payFrequency || "Mensual"))}. Use ${escapeHtml(hint)}.</p>`;
         periodPreview.classList.add("payroll-period-preview--warn");
       }
     }
@@ -845,7 +845,7 @@ function wireMonthlyPayrollConcepts(form) {
         }
         if (primaDupHint) {
           primaDupHint.textContent =
-            "La prima ya fue liquidada en otra quincena de este mes del semestre. Este corte solo incluye salario y demÃ¡s rubros.";
+            "La prima ya fue liquidada en otra quincena de este mes del semestre. Este corte solo incluye salario y demás rubros.";
           primaDupHint.classList.remove("hidden");
         }
       } else {
@@ -880,7 +880,7 @@ function wireMonthlyPayrollConcepts(form) {
         }
         if (intDupHint) {
           intDupHint.textContent =
-            "Los intereses sobre cesantÃ­as ya fueron liquidados en otra nÃ³mina de enero o febrero de este aÃ±o.";
+            "Los intereses sobre cesantías ya fueron liquidados en otra nómina de enero o febrero de este año.";
           intDupHint.classList.remove("hidden");
         }
       } else {
@@ -1020,17 +1020,17 @@ function wireMonthlyPayrollConcepts(form) {
       } else if (isDriver) {
         freqHint.classList.remove("hidden");
         freqHint.textContent =
-          "Mes calendario del servicio. ViÃ¡ticos interdepartamentales y combustible pagado por el conductor se calculan desde viajes y flota.";
+          "Mes calendario del servicio. Viáticos interdepartamentales y combustible pagado por el conductor se calculan desde viajes y flota.";
       } else {
         freqHint.classList.remove("hidden");
         const closeHint =
-          typeof payrollClosingDatesHint === "function" ? payrollClosingDatesHint(freq) : "dÃ­a de cierre del perÃ­odo";
-        freqHint.textContent = `Periodicidad ${String(emp.payFrequency || "Mensual")}: indique la fecha de cierre (${closeHint}). Salario y auxilio se prorratean segÃºn los dÃ­as del corte.`;
+          typeof payrollClosingDatesHint === "function" ? payrollClosingDatesHint(freq) : "día de cierre del período";
+        freqHint.textContent = `Periodicidad ${String(emp.payFrequency || "Mensual")}: indique la fecha de cierre (${closeHint}). Salario y auxilio se prorratean según los días del corte.`;
       }
     }
     if (submitBtn) {
       const span = submitBtn.querySelector("span");
-      const label = isDriver ? "Liquidar viajes del mes" : "Generar liquidaciÃ³n";
+      const label = isDriver ? "Liquidar viajes del mes" : "Generar liquidación";
       if (span) span.textContent = label;
       else submitBtn.textContent = label;
     }
@@ -1090,7 +1090,7 @@ function wireMonthlyPayrollConcepts(form) {
   onMonthChange();
 }
 
-/** Muestra el salario base del empleado en un input de solo lectura (sin `name`, no va en el envÃ­o). */
+/** Muestra el salario base del empleado en un input de solo lectura (sin `name`, no va en el envío). */
 function syncPayrollEmployeeSalaryReadonly(form, inputId) {
   const empSel = form?.querySelector?.('[name="employeeId"]');
   const salEl = form?.querySelector?.(`#${inputId}`);
@@ -1126,7 +1126,7 @@ function wireTerminationSettlementForm(form) {
           fillSettlementSuggestedAmounts(form);
         },
         {
-          busyText: "Calculandoâ€¦",
+          busyText: "Calculando…",
           lockExtraButtons:
             typeof collectManagedCreateFormLockButtons === "function"
               ? collectManagedCreateFormLockButtons(form)
@@ -1242,7 +1242,7 @@ function validateColombiaIntegralSalary(baseSalary, integralSalary) {
   if (base < floor) {
     return {
       ok: false,
-      message: `Salario integral: el monto debe ser al menos 13 SMMLV ($${floor.toLocaleString("es-CO")}) segÃºn la norma laboral colombiana.`
+      message: `Salario integral: el monto debe ser al menos 13 SMMLV ($${floor.toLocaleString("es-CO")}) según la norma laboral colombiana.`
     };
   }
   return { ok: true };
@@ -1282,7 +1282,7 @@ function validateVacancySalaryOffer(salaryOffer, position) {
     if (catalogSalary > 0 && offerCheck.amount < catalogSalary) {
       return {
         ok: false,
-        message: `El salario ofrecido no puede ser inferior al del cargo en catÃ¡logo ($${catalogSalary.toLocaleString("es-CO")}).`
+        message: `El salario ofrecido no puede ser inferior al del cargo en catálogo ($${catalogSalary.toLocaleString("es-CO")}).`
       };
     }
   }
@@ -1294,10 +1294,10 @@ function validateWorkerMinimumAge(birthIso, label = "trabajador") {
   if (!birth) return { ok: true };
   const ageInfo = portalCandidateAgeFromBirthIso(birth);
   if (ageInfo.age === null) {
-    return { ok: false, message: "Indique una fecha de nacimiento vÃ¡lida." };
+    return { ok: false, message: "Indique una fecha de nacimiento válida." };
   }
   if (ageInfo.age < 18) {
-    return { ok: false, message: `El ${label} debe ser mayor de 18 aÃ±os (CÃ³digo Sustantivo del Trabajo).` };
+    return { ok: false, message: `El ${label} debe ser mayor de 18 años (Código Sustantivo del Trabajo).` };
   }
   return { ok: true };
 }
@@ -1320,7 +1320,7 @@ function setFormSelectValue(selectEl, value) {
   if (match) selectEl.value = match.value;
 }
 
-/** Â¿La opciÃ³n del `<select>` corresponde al valor guardado? (exacto, etiqueta o sin distinguir mayÃºsculas). */
+/** ¿La opción del `<select>` corresponde al valor guardado? (exacto, etiqueta o sin distinguir mayúsculas). */
 function editModalSelectOptionSelected(opt, fieldValue) {
   const fv = String(fieldValue ?? "").trim();
   if (!fv) return false;
@@ -1337,7 +1337,7 @@ function editModalSelectOptionSelected(opt, fieldValue) {
 
 /**
  * Tras montar un modal CRUD: reaplica valores en selects, fechas y horas
- * (catÃ¡logos, BD en mayÃºsculas, ISO con hora, etc.).
+ * (catálogos, BD en mayúsculas, ISO con hora, etc.).
  */
 function wireEditModalFieldValues(formEl, fields) {
   if (!formEl || !Array.isArray(fields)) return;
@@ -1387,9 +1387,9 @@ function wireEditModalFieldValues(formEl, fields) {
 }
 
 /**
- * Cargo de conductor: por rol del catÃ¡logo o, como red de seguridad, por el nombre del cargo
- * (cargos creados como Â«CONDUCTORÂ» pero con rol Â«EmpleadoÂ» por descuido habilitan igual la
- * secciÃ³n de licencia/exÃ¡menes y la sincronizaciÃ³n con el mÃ³dulo Conductores).
+ * Cargo de conductor: por rol del catálogo o, como red de seguridad, por el nombre del cargo
+ * (cargos creados como «CONDUCTOR» pero con rol «Empleado» por descuido habilitan igual la
+ * sección de licencia/exámenes y la sincronización con el módulo Conductores).
  */
 function positionLooksLikeConductor(position) {
   if (!position) return false;
@@ -1398,35 +1398,106 @@ function positionLooksLikeConductor(position) {
 }
 
 /** Etiquetas visibles para `CO_CATALOGS.driverVehicleTypes` (mismos valores de `vehiculos.tipo_vehiculo`). */
-const DRIVER_VEHICLE_TYPE_LABELS = { Camion: "CamiÃ³n", Turbo: "Turbo", Tractomula: "Tractomula", Bus: "Bus" };
+const DRIVER_VEHICLE_TYPE_LABELS = { Camion: "Cami\u00f3n", Turbo: "Turbo", Tractomula: "Mula", Bus: "Bus" };
+/** Alias operativos → valor de catálogo (`vehiculos.tipo_vehiculo` / `conductores.tipos_vehiculo`). */
+const DRIVER_VEHICLE_TYPE_ALIASES = {
+  camion: "Camion",
+  turbo: "Turbo",
+  tractomula: "Tractomula",
+  mula: "Tractomula",
+  bus: "Bus"
+};
 
-/** Nombre de campo del checkbox por tipo de vehÃ­culo (Ãºnico por tipo, evita el lÃ­mite de `FormData` con nombres repetidos). */
+/** Nombre de campo del checkbox por tipo de vehículo (único por tipo, evita el límite de `FormData` con nombres repetidos). */
 function driverVehicleTypeFieldName(type) {
   return `vehicleType${String(type || "").trim()}`;
 }
 
+/** Token comparable: sin acentos, minúsculas, recortado. */
+function normalizeDriverVehicleTypeToken(raw) {
+  return String(raw || "")
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+/** Lista de tipos guardados (CSV, array o alias `tipos_vehiculo`). */
+function splitDriverVehicleTypesTokens(selectedCsv) {
+  if (Array.isArray(selectedCsv)) {
+    return selectedCsv.map((v) => String(v || "").trim()).filter(Boolean);
+  }
+  const s = String(selectedCsv || "").trim();
+  if (!s) return [];
+  return s.split(/[,;|]/).map((v) => v.trim()).filter(Boolean);
+}
+
+function canonicalDriverVehicleType(raw) {
+  const n = normalizeDriverVehicleTypeToken(raw);
+  if (!n) return "";
+  if (DRIVER_VEHICLE_TYPE_ALIASES[n]) return DRIVER_VEHICLE_TYPE_ALIASES[n];
+  const fromCatalog = (CO_CATALOGS.driverVehicleTypes || []).find(
+    (t) => normalizeDriverVehicleTypeToken(t) === n
+  );
+  return fromCatalog || "";
+}
+
+function driverVehicleTypeTokenMatches(type, tokens) {
+  const want = canonicalDriverVehicleType(type) || normalizeDriverVehicleTypeToken(type);
+  const wantLabel = normalizeDriverVehicleTypeToken(DRIVER_VEHICLE_TYPE_LABELS[type] || "");
+  for (const t of tokens) {
+    const canon = canonicalDriverVehicleType(t);
+    const n = canon || normalizeDriverVehicleTypeToken(t);
+    if (!n) continue;
+    if (n === want || (wantLabel && n === wantLabel) || canon === type) return true;
+  }
+  return false;
+}
+
+function driverHasCanonicalVehicleType(driver, type) {
+  const csv = driver && typeof driver === "object" ? driver.vehicleTypes || driver.tipos_vehiculo || "" : driver;
+  return driverVehicleTypeTokenMatches(type, splitDriverVehicleTypesTokens(csv));
+}
+
 /**
- * Casillas Â«Â¿De cuÃ¡les vehÃ­culos de la flota es conductor?Â» (camiÃ³n, turbo, tractomula, bus).
+ * Casillas de categoría operativa: camión, turbo o mula (`conductores.tipos_vehiculo`).
  * Se guardan como texto separado por comas en `conductores.tipos_vehiculo` (portal: `vehicleTypes`).
  */
 function driverVehicleTypesCheckboxesHtml(selectedCsv) {
-  const selected = new Set(
-    String(selectedCsv || "")
-      .split(",")
-      .map((v) => v.trim())
-      .filter(Boolean)
-  );
+  const tokens = splitDriverVehicleTypesTokens(selectedCsv);
   return CO_CATALOGS.driverVehicleTypes
     .map((type) => {
-      const checked = selected.has(type) ? "checked" : "";
+      const checked = driverVehicleTypeTokenMatches(type, tokens) ? "checked" : "";
       return `<label class="hr-conductor-vehicle-type-option"><input type="checkbox" name="${escapeAttr(driverVehicleTypeFieldName(type))}" value="1" ${checked} /> ${escapeHtml(DRIVER_VEHICLE_TYPE_LABELS[type] || type)}</label>`;
     })
     .join("");
 }
 
-/** Lee las casillas de tipo de vehÃ­culo desde un objeto de formulario (`FormData` ya normalizado) y arma el CSV a persistir. */
+/** Reaplica las casillas de tipo de vehículo tras montar el modal (el valor guardado no debe quedar en blanco). */
+function applyDriverVehicleTypesCheckboxes(formEl, selectedCsv) {
+  if (!formEl || typeof formEl.querySelector !== "function") return;
+  const tokens = splitDriverVehicleTypesTokens(selectedCsv);
+  CO_CATALOGS.driverVehicleTypes.forEach((type) => {
+    const inp = formEl.querySelector(`input[type="checkbox"][name="${driverVehicleTypeFieldName(type)}"]`);
+    if (inp) inp.checked = driverVehicleTypeTokenMatches(type, tokens);
+  });
+}
+
+/** Lee las casillas de tipo de vehículo desde un objeto de formulario (`FormData` ya normalizado) y arma el CSV a persistir. */
 function collectDriverVehicleTypesCsv(source) {
   if (!source || typeof source !== "object") return "";
+  const formEl =
+    typeof HTMLFormElement !== "undefined" && source instanceof HTMLFormElement
+      ? source
+      : null;
+  if (formEl) {
+    return CO_CATALOGS.driverVehicleTypes
+      .filter((type) => {
+        const inp = formEl.querySelector(`input[type="checkbox"][name="${driverVehicleTypeFieldName(type)}"]`);
+        return Boolean(inp?.checked);
+      })
+      .join(",");
+  }
   return CO_CATALOGS.driverVehicleTypes
     .filter((type) => {
       const v = source[driverVehicleTypeFieldName(type)];
@@ -1435,18 +1506,18 @@ function collectDriverVehicleTypesCsv(source) {
     .join(",");
 }
 
-/** Texto legible para tarjetas/fichas ("CamiÃ³n, Tractomula") a partir del CSV guardado en BD. */
+/** Texto legible para tarjetas/fichas ("Camión, Tractomula") a partir del CSV guardado en BD. */
 function driverVehicleTypesCsvToLabel(csv, fallback = "Sin dato") {
-  const list = String(csv || "")
-    .split(",")
-    .map((v) => v.trim())
-    .filter(Boolean)
-    .map((v) => DRIVER_VEHICLE_TYPE_LABELS[v] || v);
+  const tokens = splitDriverVehicleTypesTokens(csv);
+  const list = tokens.map((v) => {
+    const type = CO_CATALOGS.driverVehicleTypes.find((t) => driverVehicleTypeTokenMatches(t, [v]));
+    return (type && DRIVER_VEHICLE_TYPE_LABELS[type]) || DRIVER_VEHICLE_TYPE_LABELS[v] || v;
+  });
   return list.length ? list.join(", ") : fallback;
 }
 
 /**
- * Precarga en el formulario de empleado los datos definidos en el catÃ¡logo de cargos (ContrataciÃ³n).
+ * Precarga en el formulario de empleado los datos definidos en el catálogo de cargos (Contratación).
  */
 function applyPositionCatalogToEmployeeForm(form, position, options = {}) {
   const hintEl = form?.querySelector?.(options.hintSelector || "#emp-position-catalog-hint");
@@ -1454,7 +1525,7 @@ function applyPositionCatalogToEmployeeForm(form, position, options = {}) {
   if (!position) {
     if (hintEl) {
       hintEl.textContent =
-        "Seleccione un cargo del catÃ¡logo para cargar salario, tipo de contrato, jornada, riesgo ARL y auxilio de transporte.";
+        "Seleccione un cargo del catálogo para cargar salario, tipo de contrato, jornada, riesgo ARL y auxilio de transporte.";
     }
     const conductorBlock = form.querySelector("#hr-conductor-fields");
     if (conductorBlock) {
@@ -1514,11 +1585,11 @@ function applyPositionCatalogToEmployeeForm(form, position, options = {}) {
       wr === "conductor" ? "Conductor" : "Empleado",
       contractType ? `Contrato: ${contractType}` : "",
       schedule ? `Jornada: ${schedule}` : "",
-      integral ? "Salario integral (catÃ¡logo)" : "",
+      integral ? "Salario integral (catálogo)" : "",
       `Salario $${parseNum(position.baseSalary).toLocaleString("es-CO")}`,
       `Auxilio $${readPositionTransportAllowanceCop(position).toLocaleString("es-CO")}`
     ].filter(Boolean);
-    hintEl.textContent = `${bits.join(" Â· ")}. Puede ajustar salario o auxilio si el pacto lo exige.`;
+    hintEl.textContent = `${bits.join(" · ")}. Puede ajustar salario o auxilio si el pacto lo exige.`;
   }
 
   if (typeof options.onAfterApply === "function") options.onAfterApply(position);
@@ -1678,27 +1749,27 @@ function renderPayrollLegalHistoryCard(row, allRuns = [], { canDelete = false } 
   const pensionPct = ((parseNum(row.pensionEmployeeRate) || 0) * 100).toFixed(2).replace(/\.00$/, "");
   const statusHtml = row.isCurrent
     ? '<span class="status status-completada">Vigente hoy</span>'
-    : '<span class="status">HistÃ³rica</span>';
+    : '<span class="status">Histórica</span>';
   return `<article class="payroll-legal-vigencia-card${row.isCurrent ? " is-current" : ""}" data-legal-year="${escapeAttr(String(rowYear))}">
     <header class="payroll-legal-vigencia-card__head">
       <div>
-        <p class="payroll-legal-vigencia-card__year">${escapeHtml(String(rowYear || "â€”"))}</p>
-        <p class="muted payroll-legal-vigencia-card__range">${escapeHtml(String(row.effectiveFrom || "â€”"))} â†’ ${escapeHtml(String(row.effectiveTo || "â€”"))}</p>
+        <p class="payroll-legal-vigencia-card__year">${escapeHtml(String(rowYear || "—"))}</p>
+        <p class="muted payroll-legal-vigencia-card__range">${escapeHtml(String(row.effectiveFrom || "—"))} → ${escapeHtml(String(row.effectiveTo || "—"))}</p>
       </div>
       ${statusHtml}
     </header>
     <dl class="payroll-legal-vigencia-card__metrics">
       <div><dt>SMMLV</dt><dd>$${parseNum(row.smmlvCop).toLocaleString("es-CO")}</dd></div>
       <div><dt>Auxilio</dt><dd>$${parseNum(row.transportAllowanceCop).toLocaleString("es-CO")}</dd></div>
-      <div><dt>Salud / pensiÃ³n</dt><dd>${healthPct}% / ${pensionPct}%</dd></div>
-      <div><dt>UVT</dt><dd>${row.uvtCop != null ? `$${parseNum(row.uvtCop).toLocaleString("es-CO")}` : "â€”"}</dd></div>
-      <div><dt>Horas / liq.</dt><dd>${escapeHtml(String(parseNum(row.legalWeeklyHours || 0) || "â€”"))} Â· <strong>${rowRuns}</strong></dd></div>
+      <div><dt>Salud / pensión</dt><dd>${healthPct}% / ${pensionPct}%</dd></div>
+      <div><dt>UVT</dt><dd>${row.uvtCop != null ? `$${parseNum(row.uvtCop).toLocaleString("es-CO")}` : "—"}</dd></div>
+      <div><dt>Horas / liq.</dt><dd>${escapeHtml(String(parseNum(row.legalWeeklyHours || 0) || "—"))} · <strong>${rowRuns}</strong></dd></div>
     </dl>
     <footer class="payroll-legal-vigencia-card__actions toolbar">
       <button type="button" class="btn btn-sm btn-outline" data-action="payroll-legal-set-year" data-year="${escapeAttr(String(rowYear))}">${IC.edit} Editar</button>
       ${
         canDelete
-          ? `<button type="button" class="btn btn-sm btn-reject" data-action="payroll-legal-delete" data-year="${escapeAttr(String(rowYear))}" title="Eliminar vigencia del aÃ±o (solo administradores)">${IC.trash} Eliminar</button>`
+          ? `<button type="button" class="btn btn-sm btn-reject" data-action="payroll-legal-delete" data-year="${escapeAttr(String(rowYear))}" title="Eliminar vigencia del año (solo administradores)">${IC.trash} Eliminar</button>`
           : ""
       }
     </footer>
@@ -1728,7 +1799,7 @@ function selectOptionsFromCatalog(values = [], selected = "", placeholder = "Sel
   return [`<option value="">${placeholder}</option>`, ...options].join("");
 }
 
-/** Opciones `{ value, label }` para `openEditModal`: incluye valor guardado aunque no estÃ© en el catÃ¡logo. */
+/** Opciones `{ value, label }` para `openEditModal`: incluye valor guardado aunque no esté en el catálogo. */
 function editModalCatalogSelectOptions(catalog, selected, placeholder = "Seleccione...") {
   const matched = matchCatalogOptionValue(catalog, selected);
   const values = Array.isArray(catalog) ? [...catalog] : [];
@@ -1766,7 +1837,7 @@ function validateCandidatePipelineTransition(candidate, nextStatus) {
       return {
         ok: false,
         message:
-          "Para marcar como contratado debe existir un contrato generado (desde GestiÃ³n humana o ContrataciÃ³n, misma cÃ©dula) o el registro histÃ³rico por candidato."
+          "Para marcar como contratado debe existir un contrato generado (desde Gestión humana o Contratación, misma cédula) o el registro histórico por candidato."
       };
     }
   }
@@ -1827,9 +1898,9 @@ function computeHiringConversionPct(candidates) {
 function formatInterviewModeLabel(mode) {
   const m = String(mode || "").trim().toLowerCase();
   if (m === "virtual") return "Virtual";
-  if (m === "telefonica" || m === "telefÃ³nica") return "TelefÃ³nica";
+  if (m === "telefonica" || m === "telefónica") return "Telefónica";
   if (m === "presencial") return "Presencial";
-  return mode ? String(mode) : "â€”";
+  return mode ? String(mode) : "—";
 }
 
 function getCandidateVacancyAndPosition(candidate) {
@@ -1889,7 +1960,7 @@ function applyCandidateToEmployeeForm(form, candidate) {
   }
   const hintEl = form.querySelector("#emp-position-catalog-hint");
   if (hintEl) {
-    hintEl.textContent = `Datos precargados desde candidato Â«${String(candidate.name || "").trim()}Â». Complete seguridad social, banco y demÃ¡s campos obligatorios antes de guardar.`;
+    hintEl.textContent = `Datos precargados desde candidato «${String(candidate.name || "").trim()}». Complete seguridad social, banco y demás campos obligatorios antes de guardar.`;
   }
   form.dataset.prefillCandidateId = String(candidate.id || "");
   return true;
@@ -1907,7 +1978,7 @@ function openHiringContractFromCandidate(...args) {
 }
 
 
-/** Misma polÃ­tica que modules/core/persistence.js cuando no hay AntaresPersistence. */
+/** Misma política que modules/core/persistence.js cuando no hay AntaresPersistence. */
 function capStoredArrayRows(key, value) {
   const caps = { [KEYS.notifications]: 500, [KEYS.emails]: 400 };
   const max = caps[key];
@@ -1949,18 +2020,18 @@ function write(key, value, opts = {}) {
       window.AntaresPortalSync.schedule(key, stored);
     }
   }
-  /** Contador de campana lateral: mismo valor que tras F5 ante cualquier mutaciÃ³n local o bootstrap. */
+  /** Contador de campana lateral: mismo valor que tras F5 ante cualquier mutación local o bootstrap. */
   if (key === KEYS.notifications && getSession()) {
     try {
       updateNotificationBadge();
     } catch (_e) {
-      /* DOM aÃºn sin portal o funciÃ³n no inicializada */
+      /* DOM aún sin portal o función no inicializada */
     }
   }
 }
 
 /**
- * Persiste una lista podada en PostgreSQL; admite lista vacÃ­a vÃ­a deletedIds.
+ * Persiste una lista podada en PostgreSQL; admite lista vacía vía deletedIds.
  * @returns {Promise<boolean>}
  */
 async function writePortalListPrunedAwaitServer(storageKey, nextList, deletedIds = [], opts = {}) {
@@ -1987,8 +2058,8 @@ async function writePortalListPrunedAwaitServer(storageKey, nextList, deletedIds
 }
 
 /**
- * Quita una fila del catÃ¡logo en memoria y confirma en PostgreSQL (incluye lista vacÃ­a).
- * @returns {Promise<boolean>} true si el servidor confirmÃ³ (o no hay API).
+ * Quita una fila del catálogo en memoria y confirma en PostgreSQL (incluye lista vacía).
+ * @returns {Promise<boolean>} true si el servidor confirmó (o no hay API).
  */
 async function removeFromPortalListAwaitServer(storageKey, rowId, opts = {}) {
   const id = String(rowId || "").trim();
@@ -2003,7 +2074,7 @@ async function removeFromPortalListAwaitServer(storageKey, rowId, opts = {}) {
 /**
  * Inserta o reemplaza una fila de usuario (formato `loadUsers`) en `KEYS.users`.
  * Usado como fallback ligero si /portal/bootstrap falla pero /portal/me responde:
- * asÃ­ Mi perfil renderiza con datos reales en vez de stub vacÃ­o del JWT.
+ * así Mi perfil renderiza con datos reales en vez de stub vacío del JWT.
  */
 function upsertPortalUserRowIntoCache(row) {
   if (!row || typeof row !== "object") return null;
@@ -2064,7 +2135,7 @@ function clearAdminUsersDraft(slot) {
   setAdminUsersDraft(slot, {});
 }
 
-/** Cuerpo de p-card colapsable (mismo patrÃ³n que registro de sesiones en admin). */
+/** Cuerpo de p-card colapsable (mismo patrón que registro de sesiones en admin). */
 function adminUsersCollapsibleCardBody(expanded, toggleAction, panelHtml) {
   return `${renderModulePanelToolbar({ expanded, toggleAction, showWhen: "collapsed" })}
   <div class="${expanded ? "" : "hidden"}" data-admin-collapsible-panel>
@@ -2073,9 +2144,9 @@ function adminUsersCollapsibleCardBody(expanded, toggleAction, panelHtml) {
 }
 
 /**
- * POST autenticado al API: usa la misma alineacion JWTâ†”sesion que bootstrap.
+ * POST autenticado al API: usa la misma alineacion JWT↔sesion que bootstrap.
  * Sin URL de backend: no llama al servidor (retorna undefined).
- * Con backend pero sin token/sesiÃ³n valida: lanza Error (evita borrados solo en cachÃ© en produccion).
+ * Con backend pero sin token/sesión valida: lanza Error (evita borrados solo en caché en produccion).
  */
 async function postPortalAuthorized(path, body) {
   const api = window.AntaresApi;
@@ -2089,8 +2160,8 @@ async function postPortalAuthorized(path, body) {
 }
 
 /**
- * Tras novedades que afectan nÃ³mina laboral (ausencias, cambios de salario): crea/actualiza
- * borradores en servidor. Conductores (prestaciÃ³n de servicios) se excluyen â€” pago por viajes.
+ * Tras novedades que afectan nómina laboral (ausencias, cambios de salario): crea/actualiza
+ * borradores en servidor. Conductores (prestación de servicios) se excluyen — pago por viajes.
  */
 async function refreshDriverTripPaymentLinked(employeeId, periodYm, opts = {}) {
   const eid = String(employeeId || "").trim();
@@ -2098,7 +2169,7 @@ async function refreshDriverTripPaymentLinked(employeeId, periodYm, opts = {}) {
   if (!eid || !/^\d{4}-\d{2}$/.test(ym) || !portalCanRefreshFromApi()) return null;
   const emp = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === eid);
   if (!emp || !employeeIsConductorServiceProvider(emp)) {
-    return { skipped: true, message: "No es conductor en prestaciÃ³n de servicios" };
+    return { skipped: true, message: "No es conductor en prestación de servicios" };
   }
   try {
     const result = await postPortalAuthorized("/payroll/driver-trip-payment", {
@@ -2143,7 +2214,7 @@ async function refreshPayrollDraftsLinked(employeeId, startDate, endDate, opts =
   } catch (err) {
     if (opts.notifyOnError !== false) {
       notify(
-        String(err?.message || "La novedad se guardÃ³, pero no se pudo actualizar el borrador de nÃ³mina."),
+        String(err?.message || "La novedad se guardó, pero no se pudo actualizar el borrador de nómina."),
         "warn"
       );
     }
@@ -2159,13 +2230,13 @@ function payrollDraftLinkSuccessMessage(result, fallback = userMessage("absenceR
   if (created + updated > 0) {
     const parts = [];
     if (created > 0) parts.push(`${created} borrador${created === 1 ? "" : "es"} creado${created === 1 ? "" : "s"}`);
-    if (updated > 0) parts.push(`${updated} liquidaciÃ³n${updated === 1 ? "" : "es"} actualizada${updated === 1 ? "" : "s"}`);
-    return `Novedad registrada. NÃ³mina vinculada: ${parts.join(" y ")}.`;
+    if (updated > 0) parts.push(`${updated} liquidación${updated === 1 ? "" : "es"} actualizada${updated === 1 ? "" : "s"}`);
+    return `Novedad registrada. Nómina vinculada: ${parts.join(" y ")}.`;
   }
   return fallback;
 }
 
-/** Repone datos de la Ãºltima sesiÃ³n en RAM (instantÃ¡neo tras F5). */
+/** Repone datos de la última sesión en RAM (instantáneo tras F5). */
 function restorePortalSnapshotIfAvailable() {
   const session = getSession();
   const uid = session?.userId;
@@ -2220,8 +2291,8 @@ function updatePortalDataHydratingBanner() {
   }
   el.textContent =
     state.portalDataHydrated || state.portalSnapshotRestored
-      ? "Actualizando datos del servidorâ€¦"
-      : "Cargando datos del servidorâ€¦";
+      ? "Actualizando datos del servidor…"
+      : "Cargando datos del servidor…";
 }
 
 window.setPortalDataHydrating = setPortalDataHydrating;
@@ -2239,7 +2310,7 @@ try {
 
 window.refreshPositionsCatalogFromApi = refreshPositionsCatalogFromApi;
 
-/** Fusiona filas de GET /portal/pending-user-registrations sin borrar el resto de usuarios en cachÃ©. */
+/** Fusiona filas de GET /portal/pending-user-registrations sin borrar el resto de usuarios en caché. */
 
 if (typeof window.DomainModules?.requests?.attachStorage === "function") {
   window.DomainModules.requests.attachStorage({ KEYS, read, write });
@@ -2249,7 +2320,7 @@ if (typeof window.DomainRegistry?.wireFromAntares === "function") {
 }
 
 /**
- * Registro telÃ©fono: paÃ­ses principales (Colombia siempre primero = opciÃ³n por defecto).
+ * Registro teléfono: países principales (Colombia siempre primero = opción por defecto).
  * `flag`: sufijo CSS `.register-lang-flag--*` (gradientes locales, sin red).
  */
 const REGISTER_PHONE_COUNTRIES = [
@@ -2494,14 +2565,14 @@ function initB2BFormExperience() {
     }
 
     if (name === "email" && !window.AntaresValidation?.isValidEmail?.(normalizeEmail(value))) {
-      setFieldError(field, window.AntaresValidation?.MSG?.email || "Ingrese un correo electrÃ³nico vÃ¡lido.");
+      setFieldError(field, window.AntaresValidation?.MSG?.email || "Ingrese un correo electrónico válido.");
       return false;
     }
 
     if (name === "taxId") {
       const nitVal = validateColombianDocument("NIT", value);
       if (!nitVal.ok) {
-        setFieldError(field, nitVal.message || window.AntaresValidation?.MSG?.nit || "El NIT no es vÃ¡lido.");
+        setFieldError(field, nitVal.message || window.AntaresValidation?.MSG?.nit || "El NIT no es válido.");
         return false;
       }
     }
@@ -2533,7 +2604,7 @@ function initB2BFormExperience() {
     }
 
     if (name === "message" && value.length < 30) {
-      setFieldError(field, "CuÃ©ntenos un poco mÃ¡s del requerimiento (mÃ­nimo 30 caracteres).");
+      setFieldError(field, "Cuéntenos un poco más del requerimiento (mínimo 30 caracteres).");
       return false;
     }
 
@@ -2672,8 +2743,8 @@ function resolveHistoryAuditEntityLabelFromCatalog(moduleId, entityId) {
     case "payroll":
       return (
         findIn(KEYS.payrollEmployees, (e) => e.name) ||
-        findIn(KEYS.payrollRuns, (r) => `${r.employeeName || ""} Â· ${r.month || ""}`) ||
-        findIn(KEYS.hrAbsences, (a) => `${a.employeeName || ""} Â· ${a.startDate || ""}`)
+        findIn(KEYS.payrollRuns, (r) => `${r.employeeName || ""} · ${r.month || ""}`) ||
+        findIn(KEYS.hrAbsences, (a) => `${a.employeeName || ""} · ${a.startDate || ""}`)
       );
     case "hiring":
       return (
@@ -2684,7 +2755,7 @@ function resolveHistoryAuditEntityLabelFromCatalog(moduleId, entityId) {
         findIn(KEYS.contracts, (c) => c.candidateName || c.employeeName)
       );
     case "sst":
-      return findIn(KEYS.sstCompliance, (r) => `${r.employeeName || ""} Â· ${r.recordType || ""}`);
+      return findIn(KEYS.sstCompliance, (r) => `${r.employeeName || ""} · ${r.recordType || ""}`);
     case "contact_b2b":
       return findIn(KEYS.contacts, (c) => c.contactName || c.companyName);
     case "authorizations":
@@ -2713,7 +2784,7 @@ function formatFuelLogAuditSummary(log) {
   if (driver) parts.push(driver);
   const station = String(row.station || "").trim();
   if (station) parts.push(station);
-  return parts.join(" Â· ") || "Registro de combustible";
+  return parts.join(" · ") || "Registro de combustible";
 }
 
 function formatTechnicalLogAuditSummary(log) {
@@ -2727,10 +2798,10 @@ function formatTechnicalLogAuditSummary(log) {
   if (plate) parts.push(`Placa ${plate}`);
   if (date) parts.push(date);
   if (typeLabel) parts.push(typeLabel);
-  if (desc) parts.push(desc.length > 72 ? `${desc.slice(0, 72)}â€¦` : desc);
+  if (desc) parts.push(desc.length > 72 ? `${desc.slice(0, 72)}…` : desc);
   const cost = parseNum(row.cost);
   if (cost > 0) parts.push(`$${cost.toLocaleString("es-CO")}`);
-  return parts.join(" Â· ") || "Registro de taller";
+  return parts.join(" · ") || "Registro de taller";
 }
 
 function formatHistoryAuditPresentation(entry) {
@@ -2766,7 +2837,7 @@ function formatHistoryAuditPresentation(entry) {
   };
 }
 
-/** Empresa asociada al evento de auditorÃ­a (actor o entidad afectada). */
+/** Empresa asociada al evento de auditoría (actor o entidad afectada). */
 function resolvePortalAuditEventCompanyId(entry = {}) {
   const row = entry && typeof entry === "object" ? entry : {};
   const direct = String(row.companyId || row.clientCompanyId || row.id_empresa || "").trim();
@@ -2838,7 +2909,7 @@ function appendModuleAuditLog(entry) {
 function payrollEmployeeAuditSummary(employee) {
   const position = String(employee?.position || "Sin cargo").trim();
   const doc = String(employee?.idDoc || "").trim();
-  return doc ? `${position} Â· Doc. ${doc}` : position;
+  return doc ? `${position} · Doc. ${doc}` : position;
 }
 
 const PAYROLL_EMPLOYEE_CHANGE_FIELDS = [
@@ -2860,15 +2931,15 @@ const PAYROLL_EMPLOYEE_CHANGE_FIELDS = [
   { key: "startDate", label: "Fecha de ingreso", format: (v) => fmtDateOr(v) },
   { key: "contractVigenteStartDate", label: "Inicio vigente", format: (v) => fmtDateOr(v) },
   { key: "contractEndDate", label: "Fin de contrato", format: (v) => fmtDateOr(v) },
-  { key: "renewalDate", label: "RenovaciÃ³n", format: (v) => fmtDateOr(v) },
+  { key: "renewalDate", label: "Renovación", format: (v) => fmtDateOr(v) },
   { key: "arlRiskLevel", label: "Nivel de riesgo ARL" },
-  { key: "license", label: "Licencia de conducciÃ³n" },
-  { key: "licenseCategory", label: "CategorÃ­a de licencia" },
+  { key: "license", label: "Licencia de conducción" },
+  { key: "licenseCategory", label: "Categoría de licencia" },
   { key: "licenseExpiry", label: "Vencimiento licencia", format: (v) => fmtDateOr(v) },
   { key: "status", label: "Estado" }
 ];
 
-/** Texto legible de campos modificados (valor anterior â†’ nuevo) para auditorÃ­a de colaboradores. */
+/** Texto legible de campos modificados (valor anterior → nuevo) para auditoría de colaboradores. */
 function describePayrollEmployeeChanges(prevEmployee, nextEmployee) {
   const prev = prevEmployee && typeof prevEmployee === "object" ? prevEmployee : {};
   const next = nextEmployee && typeof nextEmployee === "object" ? nextEmployee : {};
@@ -2882,9 +2953,9 @@ function describePayrollEmployeeChanges(prevEmployee, nextEmployee) {
     const fmt = typeof field.format === "function" ? field.format : (v) => String(v ?? "").trim();
     const beforeLabel = beforeStr ? fmt(beforeRaw) : "Sin dato";
     const afterLabel = afterStr ? fmt(afterRaw) : "Sin dato";
-    parts.push(`${field.label}: ${beforeLabel} â†’ ${afterLabel}`);
+    parts.push(`${field.label}: ${beforeLabel} → ${afterLabel}`);
   }
-  return parts.join(" Â· ");
+  return parts.join(" · ");
 }
 
 const PAYROLL_EMPLOYEE_SNAPSHOT_FIELD_KEYS = [
@@ -2896,7 +2967,7 @@ const PAYROLL_EMPLOYEE_SNAPSHOT_FIELD_KEYS = [
   "workSchedule"
 ];
 
-/** Texto legible de los datos principales de un colaborador (creaciÃ³n/eliminaciÃ³n). */
+/** Texto legible de los datos principales de un colaborador (creación/eliminación). */
 function describePayrollEmployeeSnapshot(employee) {
   const emp = employee && typeof employee === "object" ? employee : {};
   const parts = [];
@@ -2908,7 +2979,7 @@ function describePayrollEmployeeSnapshot(employee) {
     const fmt = typeof field.format === "function" ? field.format : (v) => String(v ?? "").trim();
     parts.push(`${field.label}: ${fmt(raw)}`);
   }
-  return parts.join(" Â· ");
+  return parts.join(" · ");
 }
 
 function appendPayrollEmployeeAuditLog(action, employee, extra = {}) {
@@ -2934,11 +3005,11 @@ function appendPayrollEmployeeAuditLog(action, employee, extra = {}) {
     at,
     action: actionKey,
     moduleId: "payroll",
-    moduleLabel: "GestiÃ³n humana",
+    moduleLabel: "Gestión humana",
     entityId,
     entityLabel,
     entityKind,
-    summary: baseSummary.startsWith(actionTitle) ? baseSummary : `${actionTitle} Â· ${baseSummary}`,
+    summary: baseSummary.startsWith(actionTitle) ? baseSummary : `${actionTitle} · ${baseSummary}`,
     actor,
     actorEmail: String(extra.actorEmail || snapshot.email || "").trim(),
     actorUserId: String(extra.actorUserId || snapshot.userId || "").trim(),
@@ -2947,7 +3018,7 @@ function appendPayrollEmployeeAuditLog(action, employee, extra = {}) {
     changesText,
     companyId: String(extra.companyId || emp.companyId || resolvePortalAuditEventCompanyId({ companyId: emp.companyId }) || "").trim()
   });
-  if (actor) recordEntityHistoryActor("GestiÃ³n humana", entityId, at, actor);
+  if (actor) recordEntityHistoryActor("Gestión humana", entityId, at, actor);
 }
 
 function appendPortalEntityAuditLog(action, moduleId, moduleLabel, entity, summary = "", extra = {}) {
@@ -3012,7 +3083,7 @@ function buildRouteRateEntry(value, companyIds, previousEntry = null, ts = nowIs
   };
 }
 
-/** SOAT y tecnomecÃ¡nica: al cambiar fecha de expediciÃ³n, sugerir vencimiento un aÃ±o despuÃ©s. */
+/** SOAT y tecnomecánica: al cambiar fecha de expedición, sugerir vencimiento un año después. */
 function bindVehicleDocExpiryAutoFill(formEl) {
   if (!formEl || typeof formEl.querySelector !== "function") return;
   const soatExpEl = queryPortalDateField(formEl, "soatExpeditionDate");
@@ -3042,7 +3113,7 @@ function bindVehicleDocExpiryAutoFill(formEl) {
 /** Texto legible para valores guardados desde `datetime-local` (YYYY-MM-DDTHH:mm). */
 function formatInterviewWhenDisplay(whenRaw) {
   const s = String(whenRaw || "").trim();
-  if (!s) return "â€”";
+  if (!s) return "—";
   let d;
   if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s)) {
     d = new Date(`${s}:00`);
@@ -3072,7 +3143,7 @@ function normalizeCompaniesForSync(companies) {
   });
 }
 
-/** Claves de payload que no deben normalizarse (contraseÃ±as, hashes, credenciales satelital). */
+/** Claves de payload que no deben normalizarse (contraseñas, hashes, credenciales satelital). */
 function isPasswordPayloadKey(key) {
   const k = String(key || "").trim();
   if (!k) return false;
@@ -3095,7 +3166,7 @@ function isPasswordPayloadKey(key) {
   return lower.includes("password") || lower.includes("contrasena");
 }
 
-/** Valida, aplica mayÃºsculas en campos de texto y devuelve false si el formulario no es vÃ¡lido. */
+/** Valida, aplica mayúsculas en campos de texto y devuelve false si el formulario no es válido. */
 function prepareCreationFormForSubmit(formEl) {
   const V = window.AntaresValidation;
   if (!V || !formEl) return true;
@@ -3132,7 +3203,7 @@ function prepareCreationFormForSubmit(formEl) {
   return true;
 }
 
-/** Lee FormData tras validaciÃ³n previa y normaliza texto para BD (todos los mÃ³dulos). */
+/** Lee FormData tras validación previa y normaliza texto para BD (todos los módulos). */
 function readFormEntriesNormalized(formEl) {
   const fn = window.AntaresValidation?.readFormEntriesNormalized;
   if (typeof fn === "function") return fn(formEl);
@@ -3140,7 +3211,7 @@ function readFormEntriesNormalized(formEl) {
   return normalizePayloadTextFields(Object.fromEntries(new FormData(formEl).entries()));
 }
 
-/** Chip en tarjetas (`.role-chip` fuerza mayÃºsculas); texto corto para no desalinear la cabecera. */
+/** Chip en tarjetas (`.role-chip` fuerza mayúsculas); texto corto para no desalinear la cabecera. */
 function companyKindChipShortLabel(kind) {
   const k = normalizeCompanyKindForDb(kind);
   if (k === "propia") return "Propia";
@@ -3159,8 +3230,8 @@ function companyKindChipHtml(kind) {
 }
 
 /**
- * Una sola fila con nombre canÃ³nico "antares" como cliente y sin otra empresa "propia":
- * se interpreta como operador (misma semÃ¡ntica que tipo_relacion propia en BD).
+ * Una sola fila con nombre canónico "antares" como cliente y sin otra empresa "propia":
+ * se interpreta como operador (misma semántica que tipo_relacion propia en BD).
  */
 function patchOperatorCompanyKindIfNeeded(companies) {
   if (!Array.isArray(companies) || companies.length === 0) return companies;
@@ -3210,18 +3281,18 @@ function getPasswordStrengthReport(password) {
   if (pct >= 80) tier = "strong";
   else if (pct >= 60) tier = "good";
   else if (pct >= 40) tier = "fair";
-  let headline = "Indique una contraseÃ±a segura";
+  let headline = "Indique una contraseña segura";
   if (p.length > 0) {
     if (met === 5) headline = "Excelente: cumple todos los requisitos";
     else if (met === 4) headline = "Muy buena: falta un detalle";
     else if (met === 3) headline = "Media: refuerce los puntos pendientes";
-    else if (met >= 1) headline = "DÃ©bil: complete mÃ¡s requisitos";
-    else headline = "Muy dÃ©bil: siga las indicaciones";
+    else if (met >= 1) headline = "Débil: complete más requisitos";
+    else headline = "Muy débil: siga las indicaciones";
   }
   return { pct, tier, met, checks, headline };
 }
 
-/** Panel de fortaleza (barra, pÃ­ldora %, checklist). El contenedor incluye .password-strength-bar-fill, .password-strength-pill, .password-strength-headline, .password-rule-grid li[data-rule]. */
+/** Panel de fortaleza (barra, píldora %, checklist). El contenedor incluye .password-strength-bar-fill, .password-strength-pill, .password-strength-headline, .password-rule-grid li[data-rule]. */
 function bindPasswordStrengthSuite(passInput, container) {
   if (!passInput || !container) return;
   const fill = container.querySelector(".password-strength-bar-fill");
@@ -3326,7 +3397,7 @@ function clearFormDateInput(el) {
   window.AntaresValidation?.clearPortalDateInput?.(el);
 }
 
-/** Centro de costos: clave portal `costCenter` â†” columna BD `centro_costos`. */
+/** Centro de costos: clave portal `costCenter` ↔ columna BD `centro_costos`. */
 function resolvePayrollEmployeeCostCenter(emp) {
   if (!emp || typeof emp !== "object") return "";
   const direct = String(emp.costCenter ?? "").trim();
@@ -3335,8 +3406,8 @@ function resolvePayrollEmployeeCostCenter(emp) {
 }
 
 /**
- * Fechas de ficha de nÃ³mina en formato `YYYY-MM-DD` para formularios y cachÃ© local.
- * Acepta alias snake_case por si algÃºn flujo devuelve columnas crudas de BD.
+ * Fechas de ficha de nómina en formato `YYYY-MM-DD` para formularios y caché local.
+ * Acepta alias snake_case por si algún flujo devuelve columnas crudas de BD.
  */
 function normalizePayrollEmployeeRowDates(emp) {
   if (!emp || typeof emp !== "object") return emp;
@@ -3440,7 +3511,7 @@ function normalizePayrollEmployeeRowDates(emp) {
 
 /**
  * Estado de vigencia usando fecha de **vencimiento** si existe (`soatExpiryDate`),
- * si no extrapola desde expediciÃ³n + 1 aÃ±o (compatibilidad registros antiguos).
+ * si no extrapola desde expedición + 1 año (compatibilidad registros antiguos).
  */
 function docExpiryStatus(expeditionDate, expiryDate) {
   const expYmd = expiryDate !== undefined ? normalizePortalDateYmd(expiryDate) : "";
@@ -3465,7 +3536,7 @@ function docExpiryStatus(expeditionDate, expiryDate) {
 function formatRoute(request) {
   const origin = `${request.originDepartment ? `${request.originDepartment}, ` : ""}${request.originCity || "-"}`;
   const destination = `${request.destinationDepartment ? `${request.destinationDepartment}, ` : ""}${request.destinationCity || "-"}`;
-  return `${origin} â†’ ${destination}`;
+  return `${origin} → ${destination}`;
 }
 
 /** Hero del modal al aprobar desde tabla de solicitudes o desde Autorizaciones. */
@@ -3475,11 +3546,11 @@ function buildTripApprovalHeroHtml(request, needsTermoking, variant = "table") {
   const ref = escapeHtml(String(request.requestNumber || request.id || ""));
   const kgLine = requestTruckRequirementSummaryHtml(request);
   const pickup = fmtDate(request.pickupAt);
-  const cargo = escapeHtml(String(request.cargoDescription || "â€”").trim().slice(0, 120));
+  const cargo = escapeHtml(String(request.cargoDescription || "—").trim().slice(0, 120));
   const srcBadge =
     variant === "auth"
       ? `<span class="approve-trip-source-badge">${IC.inbox}<span>Bandeja de autorizaciones</span></span>`
-      : `<span class="approve-trip-source-badge approve-trip-source-badge--portal">${IC.compass}<span>MÃ³dulo solicitudes</span></span>`;
+      : `<span class="approve-trip-source-badge approve-trip-source-badge--portal">${IC.compass}<span>Módulo solicitudes</span></span>`;
   const tkPill = needsTermoking
     ? `<span class="approve-trip-pill approve-trip-pill--tk">Termoking</span>`
     : `<span class="approve-trip-pill approve-trip-pill--dry">Sin Termoking</span>`;
@@ -3489,15 +3560,15 @@ function buildTripApprovalHeroHtml(request, needsTermoking, variant = "table") {
         ${srcBadge}
         ${tkPill}
       </div>
-      <p class="approve-trip-hero-kicker">ConfirmaciÃ³n rÃ¡pida</p>
+      <p class="approve-trip-hero-kicker">Confirmación rápida</p>
       <p class="approve-trip-hero-ref"><span class="approve-trip-ref-pill">${ref}</span></p>
       <div class="approve-trip-hero-route">${IC.mapPin}<span>${route}</span></div>
       <div class="approve-trip-hero-grid">
         <div class="approve-trip-hero-cell"><span class="approve-trip-meta-k">Cliente</span><span class="approve-trip-meta-v">${client}</span></div>
-        <div class="approve-trip-hero-cell"><span class="approve-trip-meta-k">CamiÃ³n / carga</span><span class="approve-trip-meta-v">${kgLine}</span></div>
+        <div class="approve-trip-hero-cell"><span class="approve-trip-meta-k">Camión / carga</span><span class="approve-trip-meta-v">${kgLine}</span></div>
         <div class="approve-trip-hero-cell"><span class="approve-trip-meta-k">Recogida</span><span class="approve-trip-meta-v">${pickup}</span></div>
       </div>
-      <p class="approve-trip-hero-cargo"><strong>Carga:</strong> ${cargo}${String(request.cargoDescription || "").trim().length > 120 ? "â€¦" : ""}</p>
+      <p class="approve-trip-hero-cargo"><strong>Carga:</strong> ${cargo}${String(request.cargoDescription || "").trim().length > 120 ? "…" : ""}</p>
     </div>`;
 }
 
@@ -3527,7 +3598,7 @@ function tripRateStorageKey(routeKey, companyIds) {
   return `${routeKey}${TRIP_RATE_SCOPE_SEP}${suffix}`;
 }
 
-/** Partes de ruta (depto/ciudad) a partir de la clave de almacenamiento del catÃ¡logo de tarifas. */
+/** Partes de ruta (depto/ciudad) a partir de la clave de almacenamiento del catálogo de tarifas. */
 function parseTripRateStorageKeyToRouteParts(storageKey) {
   const raw = String(storageKey || "");
   const sepIdx = raw.lastIndexOf(TRIP_RATE_SCOPE_SEP);
@@ -3547,7 +3618,7 @@ function buildRouteRateCompanyCheckboxesHtml(companies, selectedIds = []) {
   const selected = new Set((selectedIds || []).map((id) => String(id).trim()).filter(Boolean));
   const list = Array.isArray(companies) ? companies : [];
   if (!list.length) {
-    return `<p class="muted route-rate-clients-empty">No hay empresas registradas. Cree clientes en administraciÃ³n para usar tarifas por empresa.</p>`;
+    return `<p class="muted route-rate-clients-empty">No hay empresas registradas. Cree clientes en administración para usar tarifas por empresa.</p>`;
   }
   return list
     .map((c) => {
@@ -3564,17 +3635,17 @@ function buildRouteRateCompanyCheckboxesHtml(companies, selectedIds = []) {
     .join("");
 }
 
-/** Resumen de auditorÃ­a de tarifa por trayecto (solo fechas; sin IDs internos). */
+/** Resumen de auditoría de tarifa por trayecto (solo fechas; sin IDs internos). */
 function formatRouteRateAuditSummary(entry) {
-  const createdLbl = fmtDateOr(entry?.createdAt, "â€”");
-  const updatedLbl = fmtDateOr(entry?.updatedAt || entry?.createdAt, "â€”");
-  return `Creada ${createdLbl} Â· actualizada ${updatedLbl}`;
+  const createdLbl = fmtDateOr(entry?.createdAt, "—");
+  const updatedLbl = fmtDateOr(entry?.updatedAt || entry?.createdAt, "—");
+  return `Creada ${createdLbl} · actualizada ${updatedLbl}`;
 }
 
 function formatRouteRateAuditCellHtml(entry) {
-  const createdLbl = fmtDateOr(entry?.createdAt, "â€”");
-  const updatedLbl = fmtDateOr(entry?.updatedAt || entry?.createdAt, "â€”");
-  if (createdLbl === "â€”" && updatedLbl === "â€”") {
+  const createdLbl = fmtDateOr(entry?.createdAt, "—");
+  const updatedLbl = fmtDateOr(entry?.updatedAt || entry?.createdAt, "—");
+  if (createdLbl === "—" && updatedLbl === "—") {
     return '<span class="muted">Sin registro de fechas</span>';
   }
   return `<div class="route-rate-audit-cell">
@@ -3583,7 +3654,7 @@ function formatRouteRateAuditCellHtml(entry) {
   </div>`;
 }
 
-/** Paso 4 del formulario de tarifa: alcance general vs empresas (checkboxes + bÃºsqueda). */
+/** Paso 4 del formulario de tarifa: alcance general vs empresas (checkboxes + búsqueda). */
 function buildRouteRateScopeStepInnerHtml(companies, opts = {}) {
   const o = opts && typeof opts === "object" ? opts : {};
   const selectedIds = (Array.isArray(o.selectedCompanyIds) ? o.selectedCompanyIds : [])
@@ -3624,7 +3695,7 @@ function buildRouteRateScopeStepInnerHtml(companies, opts = {}) {
         </div>
       </div>
       <div class="route-rate-clients-search-row">
-        <input type="search" data-route-rate-clients-search placeholder="Buscar por nombre o NITâ€¦" autocomplete="off" ${scope === "specific" ? "" : "disabled"} />
+        <input type="search" data-route-rate-clients-search placeholder="Buscar por nombre o NIT…" autocomplete="off" ${scope === "specific" ? "" : "disabled"} />
         <span class="route-rate-clients-filter-meta muted" data-route-rate-clients-filter-meta>${totalCompanies} empresa${totalCompanies === 1 ? "" : "s"}</span>
       </div>
       <div class="route-rate-clients-list" data-route-rate-clients-list role="list" aria-label="Empresas cliente">
@@ -3705,8 +3776,8 @@ function wireRouteRateScopeSection(formEl) {
     if (scopeHelp) {
       scopeHelp.textContent = specific
         ? totalCompanies > 80
-          ? `Marque las empresas aplicables (hay ${totalCompanies} registradas). Use la bÃºsqueda para filtrar por nombre o NIT.`
-          : "Marque una o mÃ¡s empresas. Esta tarifa solo se sugerirÃ¡ cuando la solicitud sea de esos clientes."
+          ? `Marque las empresas aplicables (hay ${totalCompanies} registradas). Use la búsqueda para filtrar por nombre o NIT.`
+          : "Marque una o más empresas. Esta tarifa solo se sugerirá cuando la solicitud sea de esos clientes."
         : "Modo general: la tarifa aplica a todos los clientes en esta ruta.";
     }
     if (countEl) countEl.textContent = specific ? String(countSelected()) : "Todas";
@@ -3734,7 +3805,7 @@ function wireRouteRateScopeSection(formEl) {
     });
     if (filterMeta) {
       filterMeta.textContent = needle
-        ? `${visible} de ${totalCompanies} coinciden con la bÃºsqueda`
+        ? `${visible} de ${totalCompanies} coinciden con la búsqueda`
         : `${totalCompanies} empresa${totalCompanies === 1 ? "" : "s"}`;
     }
     if (selectVisibleBtn) {
@@ -3844,7 +3915,7 @@ function populateRouteRateInlineForm(storageKey) {
   if (submitBtn) submitBtn.textContent = `${IC.save} Guardar cambios de tarifa`;
   if (editingHint) {
     editingHint.hidden = false;
-    editingHint.textContent = `${formatRouteRateAuditSummary(entry)}. Al guardar se sobrescribirÃ¡ el valor anterior.`;
+    editingHint.textContent = `${formatRouteRateAuditSummary(entry)}. Al guardar se sobrescribirá el valor anterior.`;
   }
   if (tripRateInput) {
     const val = parseNum(entry.value);
@@ -3882,7 +3953,7 @@ function populateRouteRateInlineForm(storageKey) {
   return true;
 }
 
-/** Alinea el valor de un `<select>` con opciones aunque difiera mayÃºsculas/espacios. */
+/** Alinea el valor de un `<select>` con opciones aunque difiera mayúsculas/espacios. */
 function setSelectValueInsensitive(selectEl, rawValue) {
   if (!selectEl) return;
   const target = String(rawValue || "").trim().toLowerCase();
@@ -3952,7 +4023,7 @@ function getConfiguredTripValue(request) {
   return bestSpecific > 0 ? bestSpecific : bestGlobal;
 }
 
-/** Opciones de tarifa guardadas que coinciden con la ruta de la solicitud (misma clave origenâ†’destino). */
+/** Opciones de tarifa guardadas que coinciden con la ruta de la solicitud (misma clave origen→destino). */
 function listTripRateOptionsForRequest(request) {
   const rates = getTripRouteRatesNormalized();
   const rk = routeRateKeyFromRequest(request);
@@ -3998,13 +4069,13 @@ function humanTripRateRouteLabelFromStorageKey(storageKey) {
     const [dep, city] = String(chunk || "").split("|");
     const d = toSmartTitle(dep);
     const c = toSmartTitle(city);
-    if (!d && !c) return "â€”";
-    return c ? `${d}, ${c}` : d || "â€”";
+    if (!d && !c) return "—";
+    return c ? `${d}, ${c}` : d || "—";
   };
-  return `${fmt(parts[0])} â†’ ${fmt(parts[1])}`;
+  return `${fmt(parts[0])} → ${fmt(parts[1])}`;
 }
 
-/** Opciones por ruta; si no hay coincidencia, lista todo el catÃ¡logo para poder elegir tarifa manualmente. */
+/** Opciones por ruta; si no hay coincidencia, lista todo el catálogo para poder elegir tarifa manualmente. */
 function listTripRateOptionsWithFallback(request) {
   const direct = listTripRateOptionsForRequest(request);
   if (direct.length) return direct;
@@ -4023,7 +4094,7 @@ function listTripRateOptionsWithFallback(request) {
     items.push({
       storageKey,
       value: v,
-      scopeLabel: `${routeHuman} Â· ${scopeLabel}`,
+      scopeLabel: `${routeHuman} · ${scopeLabel}`,
       appliesToRequest
     });
   }
@@ -4098,7 +4169,7 @@ function wireMoneyInputs(formEl) {
   });
 }
 
-/** Enlaza el selector de tarifa con el campo numÃ©rico de precio en el modal de asignaciÃ³n. */
+/** Enlaza el selector de tarifa con el campo numérico de precio en el modal de asignación. */
 function wireTripRateChoiceSelect(formEl) {
   const sel = formEl.querySelector("select[name='tripRateChoice']");
   const num = formEl.querySelector("input[name='tripValue']");
@@ -4121,7 +4192,7 @@ function wireTripRateChoiceSelect(formEl) {
     const rates = getTripRouteRatesNormalized();
     const entry = rates[storageKey];
     if (!entry) {
-      meta.innerHTML = `<span class="muted">Tarifa no disponible en catÃ¡logo.</span>`;
+      meta.innerHTML = `<span class="muted">Tarifa no disponible en catálogo.</span>`;
       return;
     }
     const ids = Array.isArray(entry.companyIds) ? entry.companyIds.map(String).filter(Boolean) : [];
@@ -4180,7 +4251,7 @@ function buildTripRequestPickerCardHtml(request, opts = {}) {
   const statusClass = pending ? "trip-request-card__status--pending" : "trip-request-card__status--approved";
   const route = formatRoute(request);
   const pickup = fmtDate(request.pickupAt) || "Sin fecha";
-  const truck = String(request.vehicleType || request.requiredTruckType || "â€”").trim() || "â€”";
+  const truck = String(request.vehicleType || request.requiredTruckType || "—").trim() || "—";
   const searchHay = [
     request.requestNumber,
     request.id,
@@ -4198,12 +4269,12 @@ function buildTripRequestPickerCardHtml(request, opts = {}) {
     .toLowerCase();
   return `<button type="button" class="trip-request-card${selected ? " is-selected" : ""}" data-trip-request-pick="${escapeAttr(String(request.id || ""))}" data-trip-request-search="${escapeAttr(searchHay)}" role="option"${selected ? ' aria-selected="true"' : ""}>
     <span class="trip-request-card__head">
-      <strong class="trip-request-card__ref">${escapeHtml(String(request.requestNumber || request.id || "â€”"))}</strong>
+      <strong class="trip-request-card__ref">${escapeHtml(String(request.requestNumber || request.id || "—"))}</strong>
       <span class="trip-request-card__status ${statusClass}">${escapeHtml(statusLabel)}</span>
     </span>
     <span class="trip-request-card__client">${escapeHtml(String(request.clientName || "Cliente"))}</span>
     <span class="trip-request-card__route">${escapeHtml(route)}</span>
-    <span class="trip-request-card__meta">${escapeHtml(pickup)} Â· ${escapeHtml(truck)}</span>
+    <span class="trip-request-card__meta">${escapeHtml(pickup)} · ${escapeHtml(truck)}</span>
   </button>`;
 }
 
@@ -4242,7 +4313,7 @@ function wireCreateTripRequestPicker(formEl) {
     if (emptyEl) {
       const noHits = needle && visible === 0;
       emptyEl.classList.toggle("hidden", !noHits);
-      if (noHits) emptyEl.textContent = "Ninguna solicitud coincide con la bÃºsqueda.";
+      if (noHits) emptyEl.textContent = "Ninguna solicitud coincide con la búsqueda.";
     }
   };
 
@@ -4272,7 +4343,7 @@ function wireCreateTripRequestPicker(formEl) {
   syncFilter();
 }
 
-/** Avanza el wizard de transporte cuando el paso actual ya estÃ¡ completo. */
+/** Avanza el wizard de transporte cuando el paso actual ya está completo. */
 function tryAutoAdvanceTransportWizard(formEl, wizardKind) {
   const wizard = formEl?.querySelector(`[data-hr-wizard="${wizardKind}"]`);
   if (!wizard) return;
@@ -4288,29 +4359,29 @@ function renderAssignTripRequestPreview(request) {
   const needsTermoking = requestRequiresTermoking(request);
   const assignableByDate = isRequestPickupSameDayOrFuture(request);
   const tkBadge = needsTermoking
-    ? `<span class="create-trip-status-pill create-trip-status-pill--info" title="RefrigeraciÃ³n Termoking">TK</span>`
+    ? `<span class="create-trip-status-pill create-trip-status-pill--info" title="Refrigeración Termoking">TK</span>`
     : `<span class="create-trip-status-pill create-trip-status-pill--neutral" title="Carga seca">Seco</span>`;
   const dateBadge = assignableByDate
     ? `<span class="create-trip-status-pill create-trip-status-pill--ok" title="Fecha de recogida asignable">OK</span>`
     : `<span class="create-trip-status-pill create-trip-status-pill--bad" title="Fecha de recogida vencida">Vencida</span>`;
-  const cargo = String(request.cargoDescription || "â€”").trim();
-  const cargoShort = cargo.length > 88 ? `${escapeHtml(cargo.slice(0, 88))}â€¦` : escapeHtml(cargo);
+  const cargo = String(request.cargoDescription || "—").trim();
+  const cargoShort = cargo.length > 88 ? `${escapeHtml(cargo.slice(0, 88))}…` : escapeHtml(cargo);
   return `<div class="assign-trip-preview-active create-trip-summary-panel--active">
       <div class="assign-trip-preview-head">
         <p class="assign-trip-preview-route">${IC.mapPin}<span>${escapeHtml(formatRoute(request))}</span></p>
         <div class="assign-trip-preview-badges">${tkBadge}${dateBadge}</div>
       </div>
       <dl class="assign-trip-preview-facts">
-        <div><dt>Cliente</dt><dd>${escapeHtml(String(request.clientName || "â€”"))}</dd></div>
-        <div><dt>Solicita</dt><dd>${escapeHtml(String(request.requestedByName || "â€”"))}</dd></div>
-        <div><dt>CamiÃ³n</dt><dd>${requestTruckRequirementSummaryHtml(request)}</dd></div>
+        <div><dt>Cliente</dt><dd>${escapeHtml(String(request.clientName || "—"))}</dd></div>
+        <div><dt>Solicita</dt><dd>${escapeHtml(String(request.requestedByName || "—"))}</dd></div>
+        <div><dt>Camión</dt><dd>${requestTruckRequirementSummaryHtml(request)}</dd></div>
         <div><dt>Recogida</dt><dd>${escapeHtml(fmtDate(request.pickupAt))}</dd></div>
         <div class="assign-trip-preview-facts--wide"><dt>Carga</dt><dd>${cargoShort}</dd></div>
       </dl>
     </div>`;
 }
 
-/** Actualiza checklist y botÃ³n guardar del formulario asignar viaje. */
+/** Actualiza checklist y botón guardar del formulario asignar viaje. */
 function updateCreateTripStepper(formEl) {
   if (!formEl) return;
   const requestId = String(formEl.querySelector("select[name='requestId']")?.value || "").trim();
@@ -4325,8 +4396,8 @@ function updateCreateTripStepper(formEl) {
   if (checklist) {
     const items = [
       { done: !!requestId, label: "Solicitud", short: "Solicitud" },
-      { done: assignable, label: "Fecha vÃ¡lida", short: "Fecha" },
-      { done: !!vehicleId, label: "VehÃ­culo", short: "VehÃ­culo" },
+      { done: assignable, label: "Fecha válida", short: "Fecha" },
+      { done: !!vehicleId, label: "Vehículo", short: "Vehículo" },
       { done: !!driverId, label: "Conductor", short: "Conductor" },
       { done: tripValue > 0, label: "Precio", short: "Precio" }
     ];
@@ -4368,7 +4439,7 @@ function updateCreateTripStepper(formEl) {
   });
 }
 
-/** Select con bÃºsqueda por texto (listas largas de flota / conductores). */
+/** Select con búsqueda por texto (listas largas de flota / conductores). */
 function getSearchableSelectParts(selectEl) {
   const wrap = selectEl?.closest?.(".searchable-select");
   if (!wrap) return null;
@@ -4387,7 +4458,7 @@ function syncSearchableSelectInputFromValue(selectEl) {
   parts.input.value = opt && String(opt.value || "").trim() ? String(opt.textContent || "").trim() : "";
 }
 
-/** Antes de validar/enviar: si el usuario escribiÃ³ en el buscador pero no eligiÃ³ opciÃ³n, intenta emparejar. */
+/** Antes de validar/enviar: si el usuario escribió en el buscador pero no eligió opción, intenta emparejar. */
 function commitSearchableSelectInputsInForm(rootEl) {
   const root = rootEl && rootEl.querySelectorAll ? rootEl : document;
   const norm = (s) =>
@@ -4496,7 +4567,7 @@ function mountSearchableSelect(selectEl, opts = {}) {
   if (!force && selectEl.options.length < SEARCHABLE_SELECT_MIN_OPTIONS) return;
 
   const placeholder =
-    String(selectEl.getAttribute("data-searchable-placeholder") || "").trim() || "Escriba para buscarâ€¦";
+    String(selectEl.getAttribute("data-searchable-placeholder") || "").trim() || "Escriba para buscar…";
   const wrap = document.createElement("div");
   wrap.className = "searchable-select";
   selectEl.parentNode.insertBefore(wrap, selectEl);
@@ -4622,7 +4693,7 @@ function updateCreateTripResourceFieldHints(formEl, request, vehicleCandidates, 
       if (hint) {
         hint.classList.remove("searchable-select-hint--warn");
         if (!formEl.closest("#form-create-trip")) {
-          hint.textContent = "Clic en â–¼ o escriba para ver y filtrar opciones.";
+          hint.textContent = "Clic en ▼ o escriba para ver y filtrar opciones.";
         }
       }
       return;
@@ -4648,25 +4719,27 @@ function updateCreateTripResourceFieldHints(formEl, request, vehicleCandidates, 
         ((needsTermoking && !vehicleHasTermokingEquipment(v)) ||
           (!needsTermoking && vehicleHasTermokingEquipment(v)))
     ).length;
-    let msg = needsTermoking ? "Sin vehÃ­culos Termoking disponibles." : "Sin vehÃ­culos secos disponibles.";
+    let msg = needsTermoking ? "Sin vehículos Termoking disponibles." : "Sin vehículos secos disponibles.";
     if (blocked) msg += ` ${blocked} no coinciden con el tipo pedido.`;
     if (termokingBlock) msg += ` ${termokingBlock} no cumplen Termoking.`;
-    if (!vehicleCandidates.length) msg = "Sin vehÃ­culos en flota.";
+    if (!vehicleCandidates.length) msg = "Sin vehículos en flota.";
     setHint("vehicleId", escapeHtml(msg));
   } else {
     setHint("vehicleId", "");
   }
   if (!drivers.length) {
     let msg = driverCandidates.length
-      ? "NingÃºn conductor disponible (ocupado, no disponible o doc. vencida)."
+      ? "Ningún conductor disponible (ocupado, no disponible, doc. vencida o categoría distinta al vehículo pedido)."
       : "Sin conductores en flota.";
+    const wrongCat = driverCandidates.filter((d) => d.wrongVehicleType).length;
+    if (wrongCat) msg += ` ${wrongCat} no está habilitado para este tipo (camión/turbo/mula).`;
     setHint("driverId", escapeHtml(msg));
   } else {
     setHint("driverId", "");
   }
 }
 
-/** VehÃ­culo y conductor en crear viaje, aprobar solicitud y autorizaciones. */
+/** Vehículo y conductor en crear viaje, aprobar solicitud y autorizaciones. */
 function enhanceTripAssignmentSelects(rootEl) {
   const root = rootEl && rootEl.querySelector ? rootEl : document;
   root.querySelectorAll("select[name='vehicleId'], select[name='driverId']").forEach((sel) => {
@@ -4674,7 +4747,7 @@ function enhanceTripAssignmentSelects(rootEl) {
   });
 }
 
-/** Selector buscable de colaborador en liquidaciÃ³n individual y terminaciÃ³n contractual. */
+/** Selector buscable de colaborador en liquidación individual y terminación contractual. */
 function enhancePayrollLiquidationSelects(rootEl) {
   const root = rootEl && rootEl.querySelector ? rootEl : document;
   root.querySelectorAll("select[name='employeeId']").forEach((sel) => {
@@ -4746,13 +4819,13 @@ function buildTripRateModalFields(request, opts) {
         { value: "", label: "Manual / sin aplicar tarifa del catalogo" },
         ...items.map((i) => ({
           value: i.storageKey,
-          label: `Trayecto: ${humanTripRateRouteLabelFromStorageKey(i.storageKey)} Â· $${parseNum(i.value).toLocaleString("es-CO")} Â· ${i.scopeLabel}${i.appliesToRequest ? "" : " (otra ruta o alcance)"}`
+          label: `Trayecto: ${humanTripRateRouteLabelFromStorageKey(i.storageKey)} · $${parseNum(i.value).toLocaleString("es-CO")} · ${i.scopeLabel}${i.appliesToRequest ? "" : " (otra ruta o alcance)"}`
         }))
       ]
     : [
         {
           value: "",
-          label: "Sin tarifas guardadas â€” definalas en Viajes Â· Tarifas o indique solo el precio manual"
+          label: "Sin tarifas guardadas — definalas en Viajes · Tarifas o indique solo el precio manual"
         }
       ];
 
@@ -4760,7 +4833,7 @@ function buildTripRateModalFields(request, opts) {
     fields: [
       {
         name: "tripRateChoice",
-        label: items.length ? "Tarifa por trayecto (catÃ¡logo)" : "Tarifa por trayecto",
+        label: items.length ? "Tarifa por trayecto (catálogo)" : "Tarifa por trayecto",
         type: "select",
         required: false,
         value: defaultKey || "",
@@ -4774,7 +4847,7 @@ function buildTripRateModalFields(request, opts) {
       },
       {
         name: "tripValue",
-        label: "Precio del viaje (COP) Â· editable",
+        label: "Precio del viaje (COP) · editable",
         type: "number",
         required,
         value: fallbackVal
@@ -4784,7 +4857,7 @@ function buildTripRateModalFields(request, opts) {
   };
 }
 
-/** Mismos campos de tarifa que el modal, para formulario inline (crear viaje desde mÃ³dulo). */
+/** Mismos campos de tarifa que el modal, para formulario inline (crear viaje desde módulo). */
 function buildTripRateInlineFieldsHtml(request, opts) {
   const o = opts && typeof opts === "object" ? opts : {};
   const required = !!o.required;
@@ -4798,10 +4871,10 @@ function buildTripRateInlineFieldsHtml(request, opts) {
   }
 
   const optRows = [
-    { value: "", label: "Manual (sin catÃ¡logo)" },
+    { value: "", label: "Manual (sin catálogo)" },
     ...items.map((i) => ({
       value: i.storageKey,
-      label: `${humanTripRateRouteLabelFromStorageKey(i.storageKey)} Â· $${parseNum(i.value).toLocaleString("es-CO")}`
+      label: `${humanTripRateRouteLabelFromStorageKey(i.storageKey)} · $${parseNum(i.value).toLocaleString("es-CO")}`
     }))
   ];
 
@@ -4814,7 +4887,7 @@ function buildTripRateInlineFieldsHtml(request, opts) {
     .join("");
 
   return `<div class="create-trip-rate-inner assign-trip-rate-inner assign-trip-rate-card">
-    <label class="full create-trip-rate-catalog assign-trip-field">${fieldLabel(IC.layers, "Tarifa catÃ¡logo")}
+    <label class="full create-trip-rate-catalog assign-trip-field">${fieldLabel(IC.layers, "Tarifa catálogo")}
       <select name="tripRateChoice" id="create-trip-rate-choice" class="trip-rate-choice-select" data-antares-skip-validate="1">${optionsHtml}</select>
     </label>
     <div class="trip-rate-meta assign-trip-rate-meta" data-trip-rate-meta aria-live="polite"></div>
@@ -4868,18 +4941,18 @@ function refreshCreateTripModuleForm(formEl) {
         "lock",
         "Solicitud no disponible para asignar",
         request.status === STATUS.PENDIENTE
-          ? "Apruebe la solicitud en Centro de autorizaciones; luego podrÃ¡ asignar el viaje aquÃ­."
-          : "Esta solicitud no estÃ¡ en un estado vÃ¡lido para asignaciÃ³n de viaje."
+          ? "Apruebe la solicitud en Centro de autorizaciones; luego podrá asignar el viaje aquí."
+          : "Esta solicitud no está en un estado válido para asignación de viaje."
       );
       preview.classList.add("create-trip-summary-panel--active", "assign-trip-preview--filled");
     }
     if (fleetStats) fleetStats.innerHTML = "";
     if (vehSel) {
-      vehSel.innerHTML = `<option value="">No asignable en este mÃ³dulo</option>`;
+      vehSel.innerHTML = `<option value="">No asignable en este módulo</option>`;
       vehSel.disabled = true;
     }
     if (drvSel) {
-      drvSel.innerHTML = `<option value="">No asignable en este mÃ³dulo</option>`;
+      drvSel.innerHTML = `<option value="">No asignable en este módulo</option>`;
       drvSel.disabled = true;
     }
     if (rateMount) {
@@ -4894,17 +4967,17 @@ function refreshCreateTripModuleForm(formEl) {
       preview.innerHTML = createTripEmptyHint(
         "inbox",
         "Seleccione una solicitud",
-        "Al elegir una tarjeta verÃ¡ el resumen de ruta, cliente y recogida."
+        "Al elegir una tarjeta verá el resumen de ruta, cliente y recogida."
       );
       preview.classList.remove("create-trip-summary-panel--active", "assign-trip-preview--filled");
     }
     if (fleetStats) fleetStats.innerHTML = "";
     if (vehSel) {
-      vehSel.innerHTML = `<option value="">â€” Elija solicitud primero â€”</option>`;
+      vehSel.innerHTML = `<option value="">— Elija solicitud primero —</option>`;
       vehSel.disabled = true;
     }
     if (drvSel) {
-      drvSel.innerHTML = `<option value="">â€” Elija solicitud primero â€”</option>`;
+      drvSel.innerHTML = `<option value="">— Elija solicitud primero —</option>`;
       drvSel.disabled = true;
     }
     if (rateMount) {
@@ -4922,7 +4995,7 @@ function refreshCreateTripModuleForm(formEl) {
   const vehicles = vehicleCandidates.filter(
     (v) => !v.isBusy && !v.isUnavailable && !v.hasExpiredDocs && !v.wrongTruckType
   );
-  const drivers = driverCandidates.filter((d) => !d.isBusy && !d.isUnavailable && !d.hasExpiredDocs);
+  const drivers = driverCandidates.filter((d) => !d.isBusy && !d.isUnavailable && !d.hasExpiredDocs && !d.wrongVehicleType);
 
   if (preview) {
     preview.classList.add("create-trip-summary-panel--active", "assign-trip-preview--filled");
@@ -4931,7 +5004,7 @@ function refreshCreateTripModuleForm(formEl) {
 
   if (fleetStats && assignableByDate) {
     fleetStats.innerHTML = `
-      <span class="create-trip-fleet-stat create-trip-fleet-stat--ok" title="VehÃ­culos listos para asignar"><strong>${vehicles.length}</strong> veh.</span>
+      <span class="create-trip-fleet-stat create-trip-fleet-stat--ok" title="Vehículos listos para asignar"><strong>${vehicles.length}</strong> veh.</span>
       <span class="create-trip-fleet-stat create-trip-fleet-stat--ok" title="Conductores listos para asignar"><strong>${drivers.length}</strong> cond.</span>
       <span class="create-trip-fleet-stat create-trip-fleet-stat--muted" title="Total en lista con banderas">${vehicleCandidates.length} / ${driverCandidates.length} en lista</span>`;
   } else if (fleetStats) {
@@ -4959,12 +5032,12 @@ function refreshCreateTripModuleForm(formEl) {
     if (!vehicleCandidates.length) {
       vehSel.innerHTML = `<option value="">${
         needsTermoking
-          ? "No hay vehÃ­culos con Termoking para esta solicitud"
-          : "No hay vehÃ­culos secos (sin Termoking) para esta capacidad y ruta"
+          ? "No hay vehículos con Termoking para esta solicitud"
+          : "No hay vehículos secos (sin Termoking) para esta capacidad y ruta"
       }</option>`;
     } else {
       vehSel.innerHTML =
-        `<option value="">${vehicles.length ? "Seleccione vehÃ­culoâ€¦" : "Sin vehÃ­culo asignable ahora (revise banderas)"}</option>` +
+        `<option value="">${vehicles.length ? "Seleccione vehículo…" : "Sin vehículo asignable ahora (revise banderas)"}</option>` +
         vehicleCandidates
           .map((v) => {
             const lab = tripAssignmentVehicleOptionLabel(v, {
@@ -4989,15 +5062,17 @@ function refreshCreateTripModuleForm(formEl) {
       drvSel.innerHTML = `<option value="">No hay conductores registrados</option>`;
     } else {
       drvSel.innerHTML =
-        `<option value="">${drivers.length ? "Seleccione conductorâ€¦" : "Sin conductor asignable ahora (revise banderas)"}</option>` +
+        `<option value="">${drivers.length ? "Seleccione conductor…" : "Sin conductor asignable ahora (revise banderas)"}</option>` +
         driverCandidates
           .map((d) => {
             const lab = tripAssignmentDriverOptionLabel(d, {
               isBusy: d.isBusy,
               isUnavailable: d.isUnavailable,
-              hasExpiredDocs: d.hasExpiredDocs
+              hasExpiredDocs: d.hasExpiredDocs,
+              wrongVehicleType: d.wrongVehicleType,
+              requestTruckType: normalizeRequestRequiredTruckType(request?.vehicleType)
             });
-            const disabled = d.isBusy || d.isUnavailable || d.hasExpiredDocs ? " disabled" : "";
+            const disabled = d.isBusy || d.isUnavailable || d.hasExpiredDocs || d.wrongVehicleType ? " disabled" : "";
             return `<option value="${escapeAttr(d.id)}"${disabled}>${escapeHtml(lab)}</option>`;
           })
           .join("");
@@ -5041,9 +5116,9 @@ function prettyStatus(status, scope = "general") {
   };
   const icon = iconMap[key] || IC.activity;
   /**
-   * AnimaciÃ³n de "ruta" debajo del badge: aplica tanto al ver una solicitud con
+   * Animación de "ruta" debajo del badge: aplica tanto al ver una solicitud con
    * viaje en curso como cuando se gestiona directamente el viaje. Mejora la
-   * legibilidad rÃ¡pida en mÃ³dulos de operaciÃ³n (un viaje vivo se distingue
+   * legibilidad rápida en módulos de operación (un viaje vivo se distingue
    * visualmente de uno cerrado/pendiente).
    */
   const movingScopes = scope === "request" || scope === "trip";
@@ -5099,7 +5174,7 @@ function attachDepartmentCitySelects(form, {
   deptSelect.addEventListener("change", () => fill(deptSelect.value, ""));
 }
 
-/** `requestAnimationFrame` + `scrollIntoView` suave; Ãºtil tras `renderPortalView()` o al abrir modales con formulario largo. */
+/** `requestAnimationFrame` + `scrollIntoView` suave; útil tras `renderPortalView()` o al abrir modales con formulario largo. */
 function scrollIntoViewSmoothBlockStart(target) {
   if (!target) return;
   requestAnimationFrame(() => {
@@ -5157,7 +5232,7 @@ function prepareCancelCreatePanel(panelId) {
 
 /**
  * Cancelar en paneles de alta: descarta cambios, reinicia el formulario (re-render)
- * y mantiene el panel abierto. Â«MinimizarÂ» sigue siendo solo `toggle-create-panel`.
+ * y mantiene el panel abierto. «Minimizar» sigue siendo solo `toggle-create-panel`.
  */
 async function resetCreatePanelForm(panelId, formEl) {
   const id = String(panelId || "").trim();
@@ -5204,13 +5279,13 @@ function payrollBulkEmployeeNameMap() {
 function humanizePayrollBulkSkipReason(raw) {
   let text = String(raw || "").trim();
   const hireMatch = text.match(/fecha de ingreso\s*\(?(\d{4}-\d{2}-\d{2})\)?/i);
-  if (/sin dÃ­as (efectivos en el corte|laborables en el perÃ­odo)/i.test(text)) {
+  if (/sin días (efectivos en el corte|laborables en el período)/i.test(text)) {
     const hireLabel = hireMatch ? fmtDateOr(hireMatch[1], hireMatch[1]) : "";
     return hireLabel
-      ? `Sin dÃ­as laborables en el perÃ­odo (ingresÃ³ el ${hireLabel}, despuÃ©s del corte seleccionado).`
-      : "Sin dÃ­as laborables en el perÃ­odo seleccionado.";
+      ? `Sin días laborables en el período (ingresó el ${hireLabel}, después del corte seleccionado).`
+      : "Sin días laborables en el período seleccionado.";
   }
-  if (/sin fecha de ingreso/i.test(text)) return "Falta fecha de ingreso vÃ¡lida en la ficha del colaborador.";
+  if (/sin fecha de ingreso/i.test(text)) return "Falta fecha de ingreso válida en la ficha del colaborador.";
   if (/prima omitida/i.test(text)) return text;
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
@@ -5261,7 +5336,7 @@ function presentPayrollBulkAutogenResult(result) {
   }
 
   const title =
-    created > 0 ? "LiquidaciÃ³n masiva completada" : skipped > 0 ? "Sin nuevas liquidaciones" : "LiquidaciÃ³n masiva";
+    created > 0 ? "Liquidación masiva completada" : skipped > 0 ? "Sin nuevas liquidaciones" : "Liquidación masiva";
 
   let bodyHtml = `<div class="payroll-bulk-result-summary">${summaryBits.join("") || '<span class="muted">No hubo cambios.</span>'}</div>`;
 
@@ -5273,7 +5348,7 @@ function presentPayrollBulkAutogenResult(result) {
       )
       .join("")}</ul>`;
   } else if (skipped > 0 && created === 0) {
-    bodyHtml += `<p class="muted payroll-bulk-result-hint">NingÃºn colaborador tenÃ­a un corte pendiente en esa fecha, o ya existÃ­a su liquidaciÃ³n para el mismo perÃ­odo.</p>`;
+    bodyHtml += `<p class="muted payroll-bulk-result-hint">Ningún colaborador tenía un corte pendiente en esa fecha, o ya existía su liquidación para el mismo período.</p>`;
   }
 
   if (items.length || (skipped > 0 && created === 0)) {
@@ -5283,7 +5358,7 @@ function presentPayrollBulkAutogenResult(result) {
 
   if (created > 0) {
     notify(
-      created === 1 ? "Se generÃ³ 1 liquidaciÃ³n." : `Se generaron ${created} liquidaciones.`,
+      created === 1 ? "Se generó 1 liquidación." : `Se generaron ${created} liquidaciones.`,
       "success"
     );
     return;
@@ -5295,11 +5370,11 @@ function presentPayrollBulkAutogenResult(result) {
 function confirmDiscardCreateFormAsync(formEl, opts = {}) {
   if (!formHasDirtyValues(formEl)) return Promise.resolve(true);
   return openConfirmModalAsync({
-    title: opts.title || "Â¿Descartar cambios?",
+    title: opts.title || "¿Descartar cambios?",
     message:
       opts.message ||
-      "Se perderÃ¡n los cambios no guardados de este formulario. Los datos que escribiÃ³ no se guardarÃ¡n.",
-    confirmText: opts.confirmText || "SÃ­, descartar",
+      "Se perderán los cambios no guardados de este formulario. Los datos que escribió no se guardarán.",
+    confirmText: opts.confirmText || "Sí, descartar",
     cancelText: opts.cancelText || "Seguir editando",
     confirmIcon: opts.confirmIcon || "x",
     cardClass: "modal-card-edit modal-card--discard"
@@ -5365,8 +5440,8 @@ function applyAdminUsersFormDraft(formEl, draft = {}) {
 }
 
 /**
- * AdministraciÃ³n Â· Usuarios: acerca el scroll al formulario visible (ediciÃ³n,
- * creaciÃ³n de usuario/empresa o permisos) para no quedar abajo del listado.
+ * Administración · Usuarios: acerca el scroll al formulario visible (edición,
+ * creación de usuario/empresa o permisos) para no quedar abajo del listado.
  */
 function scrollToAdminUsersFocusedForm() {
   const target =
@@ -5378,9 +5453,9 @@ function scrollToAdminUsersFocusedForm() {
   scrollIntoViewSmoothBlockStart(target);
 }
 
-/** Alta/ediciÃ³n empresa (admin): cascada departamentoâ†’ciudad y valores iniciales coherentes con el catÃ¡logo. */
+/** Alta/edición empresa (admin): cascada departamento→ciudad y valores iniciales coherentes con el catálogo. */
 
-/** Vista previa del logo en el Ã³valo (formularios alta/ediciÃ³n empresa en admin). */
+/** Vista previa del logo en el óvalo (formularios alta/edición empresa en admin). */
 
 
 async function dispatchPortalNotification(payload) {
@@ -5453,7 +5528,7 @@ function ensureVehicleDocs() {
   if (changed) write(KEYS.vehicles, updated);
 }
 
-/** Migraciones de esquema. Datos de negocio: memoria de sesiÃ³n + PostgreSQL (no localStorage). */
+/** Migraciones de esquema. Datos de negocio: memoria de sesión + PostgreSQL (no localStorage). */
 function initPortalClientStorage() {
   const PS = window.AntaresPortalSync;
   if (PS?.beginBootstrap) PS.beginBootstrap();
@@ -5548,7 +5623,7 @@ async function tryApiLoginBridge(user, password) {
 
 async function ensureUsersPasswordHashing() {
   const users = read(KEYS.users, []);
-  /** Con API activa: nunca persistir hashes/contraseÃ±as en localStorage. */
+  /** Con API activa: nunca persistir hashes/contraseñas en localStorage. */
   if (window.AntaresApi?.getBase?.()) {
     let scrubbed = false;
     const cleaned = users.map((user) => {
@@ -5652,7 +5727,7 @@ function formatMoneyFieldValue(amount) {
   return n.toLocaleString("es-CO");
 }
 
-/** Normaliza fila de combustible (bootstrap API â†” portal). */
+/** Normaliza fila de combustible (bootstrap API ↔ portal). */
 function normalizeFuelLogPortalRow(log) {
   if (!log || typeof log !== "object") return log;
   const plate = String(log.vehiclePlate || log.plate || log.placa_vehiculo || "").trim().toUpperCase();
@@ -5724,7 +5799,7 @@ function normalizeFuelLogsList(list) {
   return (Array.isArray(list) ? list : []).map(normalizeFuelLogPortalRow);
 }
 
-/** Normaliza fila de taller (bootstrap API â†” portal). */
+/** Normaliza fila de taller (bootstrap API ↔ portal). */
 function normalizeVehicleTechnicalLogPortalRow(log) {
   if (!log || typeof log !== "object") return log;
   const plate = String(log.vehiclePlate || log.plate || log.placa_vehiculo || "").trim().toUpperCase();
@@ -5815,7 +5890,7 @@ async function writeVehicleTechnicalLogsAwait(list, syncRow = null) {
   await writeAwaitServer(KEYS.vehicleTechnicalLogs, normalized, { syncData });
 }
 
-/** Alta de combustible: INSERT en registros_combustible y actualiza cachÃ© del portal. */
+/** Alta de combustible: INSERT en registros_combustible y actualiza caché del portal. */
 async function appendFuelLogAwait(row) {
   const draft = normalizeFuelLogPortalRow(row);
   const api = window.AntaresApi;
@@ -5839,7 +5914,7 @@ async function appendFuelLogAwait(row) {
   return draft;
 }
 
-/** Alta de taller: INSERT en registros_mantenimiento_vehiculo y actualiza cachÃ© del portal. */
+/** Alta de taller: INSERT en registros_mantenimiento_vehiculo y actualiza caché del portal. */
 async function appendVehicleTechnicalLogAwait(row) {
   const draft = normalizeVehicleTechnicalLogPortalRow(row);
   const api = window.AntaresApi;
@@ -5932,7 +6007,7 @@ function openTripInvoicePdf(requestId) {
         <div class="box">
           <strong>Viaje</strong><br />
           ${escapeHtml(request.trip.tripNumber || "-")}<br />
-          <span class="muted">${escapeHtml(request.trip.vehiclePlate || "-")} Â· ${escapeHtml(request.trip.driverName || "-")}</span>
+          <span class="muted">${escapeHtml(request.trip.vehiclePlate || "-")} · ${escapeHtml(request.trip.driverName || "-")}</span>
         </div>
       </div>
       <table>
@@ -5994,7 +6069,7 @@ function describePortalVehicleOccupancy(vehicle) {
     return {
       tone: "busy",
       trip: ongoing,
-      detail: `En curso Â· ${left != null ? `${left} min restantes` : "Horario en curso"}`
+      detail: `En curso · ${left != null ? `${left} min restantes` : "Horario en curso"}`
     };
   }
   const upcoming = activeTrips
@@ -6005,7 +6080,7 @@ function describePortalVehicleOccupancy(vehicle) {
     return {
       tone: "scheduled",
       trip: upcoming.r,
-      detail: `Reservado Â· inicia en ${upcoming.info.minutes} min`
+      detail: `Reservado · inicia en ${upcoming.info.minutes} min`
     };
   }
   return { tone: "available", trip: null, detail: "Sin viaje activo en este momento" };
@@ -6031,7 +6106,7 @@ function portalVehicleAvailabilityStatusHtml(vehicle) {
 function openVehicleTechnicalSheetModal(vehicle) {
   if (!vehicle) return;
   const v = normalizeVehicleRowForEditor(vehicle) || vehicle;
-  const plate = String(v.plate || "").trim().toUpperCase() || "â€”";
+  const plate = String(v.plate || "").trim().toUpperCase() || "—";
   const soat = docExpiryStatus(v.soatExpeditionDate, v.soatExpiryDate);
   const tec = docExpiryStatus(v.techInspectionExpeditionDate, v.techInspectionExpiryDate);
   const rcExpiry = docExpiryStatus(null, v.rcPolicyExpiry);
@@ -6050,9 +6125,9 @@ function openVehicleTechnicalSheetModal(vehicle) {
   const heroHtml = `<div class="portal-detail-hero portal-detail-hero--vehicle">
     <div class="portal-detail-hero-plate" aria-hidden="true">${renderColombianPlateBadgeHtml(plate)}</div>
     <div class="portal-detail-hero-main">
-      <p class="portal-detail-eyebrow">${IC.truck} Ficha tÃ©cnica</p>
+      <p class="portal-detail-eyebrow">${IC.truck} Ficha técnica</p>
       <div class="portal-detail-badges">${portalVehicleAvailabilityStatusHtml(v)} ${termoChip}</div>
-      <p class="portal-detail-meta"><strong>${escapeHtml(vehicleTitle)}</strong> Â· ${escapeHtml(String(v.type || "VehÃ­culo"))} Â· ${escapeHtml(String(v.year || "â€”"))}</p>
+      <p class="portal-detail-meta"><strong>${escapeHtml(vehicleTitle)}</strong> · ${escapeHtml(String(v.type || "Vehículo"))} · ${escapeHtml(String(v.year || "—"))}</p>
       <ul class="portal-detail-stats" aria-label="Resumen">
         <li><strong>${escapeHtml(capacityLbl)}</strong><span>Capacidad</span></li>
         <li><strong>${escapeHtml(mileageLbl)}</strong><span>Kilometraje</span></li>
@@ -6061,7 +6136,7 @@ function openVehicleTechnicalSheetModal(vehicle) {
     </div>
   </div>`;
   const tilesHtml = [
-    portalDetailTileMarkup(IC.layers, "CarrocerÃ­a", escapeHtml(String(v.bodyType || "Sin dato")), {
+    portalDetailTileMarkup(IC.layers, "Carrocería", escapeHtml(String(v.bodyType || "Sin dato")), {
       muted: !String(v.bodyType || "").trim()
     }),
     portalDetailTileMarkup(IC.activity, "Combustible", escapeHtml(String(v.fuelType || "Sin dato")), {
@@ -6075,9 +6150,9 @@ function openVehicleTechnicalSheetModal(vehicle) {
     )
   ].join("");
   const tripHighlightBody = trip
-    ? `<p class="portal-detail-loc-line"><strong>Viaje ${escapeHtml(String(trip.trip?.tripNumber || "â€”"))}</strong> Â· ${escapeHtml(String(trip.clientName || trip.companyName || ""))}</p><p class="portal-detail-loc-sub muted">${IC.clock} ${escapeHtml(occupancy.detail)}</p>`
+    ? `<p class="portal-detail-loc-line"><strong>Viaje ${escapeHtml(String(trip.trip?.tripNumber || "—"))}</strong> · ${escapeHtml(String(trip.clientName || trip.companyName || ""))}</p><p class="portal-detail-loc-sub muted">${IC.clock} ${escapeHtml(occupancy.detail)}</p>`
     : `<p class="portal-detail-loc-line">${escapeHtml(occupancy.detail)}</p>`;
-  const highlightHtml = portalDetailHighlightHtml("OperaciÃ³n actual", tripHighlightBody, "truck");
+  const highlightHtml = portalDetailHighlightHtml("Operación actual", tripHighlightBody, "truck");
   const row = (pairs) => portalDetailRenderRows(pairs, { skipEmpty: false });
   const sections = [
     {
@@ -6086,52 +6161,52 @@ function openVehicleTechnicalSheetModal(vehicle) {
       rows: row([
         ["Disponibilidad", portalVehicleAvailabilityStatusHtml(v)],
         ["Detalle", escapeHtml(occupancy.detail)],
-        ["Termoking", isRefrigerated ? "SÃ­, equipo Termoking" : "No, carga seca"],
+        ["Termoking", isRefrigerated ? "Sí, equipo Termoking" : "No, carga seca"],
         ["Registrado", fmtDateOr(v.createdAt)],
-        ["Ãšltima actualizaciÃ³n", fmtDateOr(v.updatedAt)]
+        ["Última actualización", fmtDateOr(v.updatedAt)]
       ])
     },
     {
       icon: "truck",
-      title: "IdentificaciÃ³n",
+      title: "Identificación",
       rows: row([
         ["Placa", `<strong>${escapeHtml(plate)}</strong>`],
-        ["Marca", escapeHtml(String(v.brand || "â€”"))],
-        ["LÃ­nea / modelo", escapeHtml(String(v.model || "â€”"))],
-        ["AÃ±o modelo", escapeHtml(String(v.year || "â€”"))],
-        ["Color", escapeHtml(String(v.color || "â€”"))],
-        ["Tipo de vehÃ­culo", escapeHtml(String(v.type || "â€”"))]
+        ["Marca", escapeHtml(String(v.brand || "—"))],
+        ["Línea / modelo", escapeHtml(String(v.model || "—"))],
+        ["Año modelo", escapeHtml(String(v.year || "—"))],
+        ["Color", escapeHtml(String(v.color || "—"))],
+        ["Tipo de vehículo", escapeHtml(String(v.type || "—"))]
       ])
     },
     {
       icon: "layers",
-      title: "CaracterÃ­sticas tÃ©cnicas",
+      title: "Características técnicas",
       rows: row([
-        ["CarrocerÃ­a", escapeHtml(String(v.bodyType || "â€”"))],
+        ["Carrocería", escapeHtml(String(v.bodyType || "—"))],
         ["Capacidad", capacityLbl],
-        ["Combustible", escapeHtml(String(v.fuelType || "â€”"))],
-        ["ConfiguraciÃ³n de ejes", escapeHtml(String(v.axleConfig || "â€”"))],
-        ["NÂ° motor", escapeHtml(String(v.engineNumber || "â€”"))],
-        ["Chasis (VIN)", escapeHtml(String(v.vin || "â€”"))],
+        ["Combustible", escapeHtml(String(v.fuelType || "—"))],
+        ["Configuración de ejes", escapeHtml(String(v.axleConfig || "—"))],
+        ["N° motor", escapeHtml(String(v.engineNumber || "—"))],
+        ["Chasis (VIN)", escapeHtml(String(v.vin || "—"))],
         ["Kilometraje", mileageLbl]
       ])
     },
     {
       icon: "shield",
-      title: "DocumentaciÃ³n legal",
+      title: "Documentación legal",
       rows: row([
-        ["Tarjeta de propiedad", escapeHtml(String(v.ownershipCard || "â€”"))],
+        ["Tarjeta de propiedad", escapeHtml(String(v.ownershipCard || "—"))],
         ["SOAT expedido", fmtDateOr(v.soatExpeditionDate)],
         ["SOAT vence", `${fmtDateOr(v.soatExpiryDate)} <span class="status ${soat.cls}">${escapeHtml(soat.label)}</span>`],
-        ["TecnomecÃ¡nica expedida", fmtDateOr(v.techInspectionExpeditionDate)],
-        ["TecnomecÃ¡nica vence", `${fmtDateOr(v.techInspectionExpiryDate)} <span class="status ${tec.cls}">${escapeHtml(tec.label)}</span>`],
-        ["PÃ³liza RC contractual", escapeHtml(String(v.rcPolicyContract || "â€”"))],
-        ["PÃ³liza RC extracontractual", escapeHtml(String(v.rcPolicyExtra || "â€”"))],
+        ["Tecnomecánica expedida", fmtDateOr(v.techInspectionExpeditionDate)],
+        ["Tecnomecánica vence", `${fmtDateOr(v.techInspectionExpiryDate)} <span class="status ${tec.cls}">${escapeHtml(tec.label)}</span>`],
+        ["Póliza RC contractual", escapeHtml(String(v.rcPolicyContract || "—"))],
+        ["Póliza RC extracontractual", escapeHtml(String(v.rcPolicyExtra || "—"))],
         [
-          "Vence pÃ³lizas RCP",
+          "Vence pólizas RCP",
           v.rcPolicyExpiry
             ? `${fmtDateOr(v.rcPolicyExpiry)} <span class="status ${rcExpiry.cls}">${escapeHtml(rcExpiry.label)}</span>`
-            : "â€”"
+            : "—"
         ]
       ])
     },
@@ -6139,18 +6214,18 @@ function openVehicleTechnicalSheetModal(vehicle) {
       icon: "satellite",
       title: "GPS y trazabilidad",
       rows: row([
-        ["GPS satelital", hasGps ? "SÃ­" : "No"],
-        ["Proveedor GPS", escapeHtml(String(v.gpsProvider || "â€”"))],
-        ["Usuario proveedor satÃ©lite", escapeHtml(String(v.satelliteProviderUser || "â€”"))],
+        ["GPS satelital", hasGps ? "Sí" : "No"],
+        ["Proveedor GPS", escapeHtml(String(v.gpsProvider || "—"))],
+        ["Usuario proveedor satélite", escapeHtml(String(v.satelliteProviderUser || "—"))],
         [
-          "ContraseÃ±a proveedor satÃ©lite",
-          v.satelliteProviderPasswordSet || v.satelliteProviderPassword ? "â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" : "â€”"
+          "Contraseña proveedor satélite",
+          v.satelliteProviderPasswordSet || v.satelliteProviderPassword ? "••••••••" : "—"
         ]
       ])
     }
   ];
   openPortalDetailSheet({
-    title: `Ficha tÃ©cnica Â· ${plate}`,
+    title: `Ficha técnica · ${plate}`,
     sheetTitle: plate,
     subtitleHtml: `${IC.truck} ${escapeHtml(vehicleTitle)}`,
     statusHtml: `${portalVehicleAvailabilityStatusHtml(v)} ${termoChip}`,
@@ -6162,67 +6237,67 @@ function openVehicleTechnicalSheetModal(vehicle) {
         pairs: [
           ["Disponibilidad", portalVehicleAvailabilityStatusHtml(v)],
           ["Detalle operativo", escapeHtml(occupancy.detail)],
-          ["Termoking", isRefrigerated ? "SÃ­, equipo Termoking" : "No, carga seca"],
+          ["Termoking", isRefrigerated ? "Sí, equipo Termoking" : "No, carga seca"],
           ["Registrado", fmtDateOr(v.createdAt)],
-          ["Ãšltima actualizaciÃ³n", fmtDateOr(v.updatedAt)]
+          ["Última actualización", fmtDateOr(v.updatedAt)]
         ]
       },
       {
         icon: "truck",
         pairs: [
           ["Placa", `<strong>${escapeHtml(plate)}</strong>`],
-          ["Marca", escapeHtml(String(v.brand || "â€”"))],
-          ["LÃ­nea / modelo", escapeHtml(String(v.model || "â€”"))],
-          ["AÃ±o modelo", escapeHtml(String(v.year || "â€”"))],
-          ["Color", escapeHtml(String(v.color || "â€”"))],
-          ["Tipo de vehÃ­culo", escapeHtml(String(v.type || "â€”"))]
+          ["Marca", escapeHtml(String(v.brand || "—"))],
+          ["Línea / modelo", escapeHtml(String(v.model || "—"))],
+          ["Año modelo", escapeHtml(String(v.year || "—"))],
+          ["Color", escapeHtml(String(v.color || "—"))],
+          ["Tipo de vehículo", escapeHtml(String(v.type || "—"))]
         ]
       },
       {
         icon: "layers",
         pairs: [
-          ["CarrocerÃ­a", escapeHtml(String(v.bodyType || "â€”"))],
+          ["Carrocería", escapeHtml(String(v.bodyType || "—"))],
           ["Capacidad", capacityLbl],
-          ["Combustible", escapeHtml(String(v.fuelType || "â€”"))],
-          ["ConfiguraciÃ³n de ejes", escapeHtml(String(v.axleConfig || "â€”"))],
-          ["NÂ° motor", escapeHtml(String(v.engineNumber || "â€”"))],
-          ["Chasis (VIN)", escapeHtml(String(v.vin || "â€”"))],
+          ["Combustible", escapeHtml(String(v.fuelType || "—"))],
+          ["Configuración de ejes", escapeHtml(String(v.axleConfig || "—"))],
+          ["N° motor", escapeHtml(String(v.engineNumber || "—"))],
+          ["Chasis (VIN)", escapeHtml(String(v.vin || "—"))],
           ["Kilometraje", mileageLbl]
         ]
       },
       {
         icon: "shield",
         pairs: [
-          ["Tarjeta de propiedad", escapeHtml(String(v.ownershipCard || "â€”"))],
+          ["Tarjeta de propiedad", escapeHtml(String(v.ownershipCard || "—"))],
           ["SOAT expedido", fmtDateOr(v.soatExpeditionDate)],
           ["SOAT vence", `${fmtDateOr(v.soatExpiryDate)} <span class="status ${soat.cls}">${escapeHtml(soat.label)}</span>`],
-          ["TecnomecÃ¡nica expedida", fmtDateOr(v.techInspectionExpeditionDate)],
-          ["TecnomecÃ¡nica vence", `${fmtDateOr(v.techInspectionExpiryDate)} <span class="status ${tec.cls}">${escapeHtml(tec.label)}</span>`],
-          ["PÃ³liza RC contractual", escapeHtml(String(v.rcPolicyContract || "â€”"))],
-          ["PÃ³liza RC extracontractual", escapeHtml(String(v.rcPolicyExtra || "â€”"))],
+          ["Tecnomecánica expedida", fmtDateOr(v.techInspectionExpeditionDate)],
+          ["Tecnomecánica vence", `${fmtDateOr(v.techInspectionExpiryDate)} <span class="status ${tec.cls}">${escapeHtml(tec.label)}</span>`],
+          ["Póliza RC contractual", escapeHtml(String(v.rcPolicyContract || "—"))],
+          ["Póliza RC extracontractual", escapeHtml(String(v.rcPolicyExtra || "—"))],
           [
-            "Vence pÃ³lizas RCP",
+            "Vence pólizas RCP",
             v.rcPolicyExpiry
               ? `${fmtDateOr(v.rcPolicyExpiry)} <span class="status ${rcExpiry.cls}">${escapeHtml(rcExpiry.label)}</span>`
-              : "â€”"
+              : "—"
           ]
         ]
       },
       {
         icon: "satellite",
         pairs: [
-          ["GPS satelital", hasGps ? "SÃ­" : "No"],
-          ["Proveedor GPS", escapeHtml(String(v.gpsProvider || "â€”"))],
-          ["Usuario proveedor satÃ©lite", escapeHtml(String(v.satelliteProviderUser || "â€”"))],
+          ["GPS satelital", hasGps ? "Sí" : "No"],
+          ["Proveedor GPS", escapeHtml(String(v.gpsProvider || "—"))],
+          ["Usuario proveedor satélite", escapeHtml(String(v.satelliteProviderUser || "—"))],
           [
-          "ContraseÃ±a proveedor satÃ©lite",
-          v.satelliteProviderPasswordSet || v.satelliteProviderPassword ? "â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" : "â€”"
+          "Contraseña proveedor satélite",
+          v.satelliteProviderPasswordSet || v.satelliteProviderPassword ? "••••••••" : "—"
         ]
         ]
       }
     ],
     secondaryActionsHtml: isAdminActor()
-      ? `<button type="button" class="btn btn-action" data-vehicle-sheet-action="edit">${IC.edit} Editar vehÃ­culo</button>`
+      ? `<button type="button" class="btn btn-action" data-vehicle-sheet-action="edit">${IC.edit} Editar vehículo</button>`
       : "",
     afterMount: (contentEl) => {
       contentEl.querySelector("[data-vehicle-sheet-action='edit']")?.addEventListener("click", () => {
@@ -6236,12 +6311,12 @@ function openVehicleTechnicalSheetModal(vehicle) {
 function togglePortalVehicleManualAvailability(vehicleId) {
   const target = findPortalVehicleById(vehicleId);
   if (!target) {
-    notify("No se encontrÃ³ el vehÃ­culo. Actualice la pÃ¡gina.", "error");
+    notify("No se encontró el vehículo. Actualice la página.", "error");
     return;
   }
   if (target.autoBusy) {
     notify(
-      "Este vehÃ­culo estÃ¡ ocupado por un viaje activo. La disponibilidad se ajustarÃ¡ automÃ¡ticamente al finalizar el viaje.",
+      "Este vehículo está ocupado por un viaje activo. La disponibilidad se ajustará automáticamente al finalizar el viaje.",
       "info"
     );
     return;
@@ -6251,15 +6326,15 @@ function togglePortalVehicleManualAvailability(vehicleId) {
   openConfirmModal({
     title: "Cambiar disponibilidad",
     message: markingUnavailable
-      ? `Â¿Marcar el vehÃ­culo ${plate} como no disponible manualmente? No se ofrecerÃ¡ en asignaciones hasta que lo reactive.`
-      : `Â¿Marcar el vehÃ­culo ${plate} como disponible nuevamente?`,
+      ? `¿Marcar el vehículo ${plate} como no disponible manualmente? No se ofrecerá en asignaciones hasta que lo reactive.`
+      : `¿Marcar el vehículo ${plate} como disponible nuevamente?`,
     confirmText: markingUnavailable ? "Marcar no disponible" : "Marcar disponible",
     onConfirm: async () => {
       try {
         await setVehicleAvailability(target.id, !markingUnavailable);
         recalculateResourceAvailability();
         notify(
-          markingUnavailable ? `VehÃ­culo ${plate} marcado como no disponible.` : `VehÃ­culo ${plate} disponible.`,
+          markingUnavailable ? `Vehículo ${plate} marcado como no disponible.` : `Vehículo ${plate} disponible.`,
           "success"
         );
         renderPortalView();
@@ -6271,7 +6346,7 @@ function togglePortalVehicleManualAvailability(vehicleId) {
 }
 
 
-/** Detalle de solicitud: delegaciÃ³n en viewRoot (tarjetas del mÃ³dulo Solicitudes y tablas legacy). */
+/** Detalle de solicitud: delegación en viewRoot (tarjetas del módulo Solicitudes y tablas legacy). */
 
 async function setDriverAvailability(driverId, available) {
   const key = String(driverId ?? "").trim();
@@ -6294,7 +6369,7 @@ async function setDriverAvailability(driverId, available) {
       "drivers",
       "Conductores",
       updatedDriver,
-      `${updatedDriver.available ? "Disponible" : "No disponible"} Â· estado operativo`,
+      `${updatedDriver.available ? "Disponible" : "No disponible"} · estado operativo`,
       { entityLabel: String(updatedDriver.name || "Conductor").trim() }
     );
     if (portalCanRefreshFromApi()) {
@@ -6335,7 +6410,7 @@ function portalDetailTileMarkup(iconSvg, label, valueHtml, opts = {}) {
 
 function portalDetailRenderRows(pairs, opts = {}) {
   const skipEmpty = opts.skipEmpty !== false;
-  const emptyHtml = opts.emptyHtml ?? '<span class="muted">â€”</span>';
+  const emptyHtml = opts.emptyHtml ?? '<span class="muted">—</span>';
   return (pairs || [])
     .filter((p) => {
       if (!p) return false;
@@ -6455,7 +6530,7 @@ function openDriverDetailSheetModal(driver) {
     }
     return {
       bucket: "ok",
-      label: `Vigente Â· ${days}d`,
+      label: `Vigente · ${days}d`,
       chipHtml: '<span class="status status-viaje_asignado">Vigente</span>'
     };
   };
@@ -6471,7 +6546,7 @@ function openDriverDetailSheetModal(driver) {
       return {
         tone: "busy",
         trip: ongoing,
-        detail: `En curso Â· ${left != null ? `${left} min restantes` : "Horario en curso"}`
+        detail: `En curso · ${left != null ? `${left} min restantes` : "Horario en curso"}`
       };
     }
     const upcoming = driverTrips
@@ -6482,7 +6557,7 @@ function openDriverDetailSheetModal(driver) {
       return {
         tone: "scheduled",
         trip: upcoming.trip,
-        detail: `Reservado Â· inicia en ${upcoming.info.minutes} min`
+        detail: `Reservado · inicia en ${upcoming.info.minutes} min`
       };
     }
     return { tone: "available", detail: "Sin cruce horario activo", trip: driverTrips[0] || null };
@@ -6504,31 +6579,31 @@ function openDriverDetailSheetModal(driver) {
   const rawPhone = String(d.phone || "").trim();
   const telDigits = rawPhone.replace(/\D/g, "");
   const telHref = telDigits.length >= 6 ? `tel:${telDigits}` : "";
-  const phoneValue = phoneDisp ? escapeHtml(phoneDisp) : `<span class="muted">Sin telÃ©fono</span>`;
+  const phoneValue = phoneDisp ? escapeHtml(phoneDisp) : `<span class="muted">Sin teléfono</span>`;
   const phoneBlock = telHref
-    ? portalDetailTileMarkup(IC.phone, "TelÃ©fono", phoneValue, { href: telHref })
-    : portalDetailTileMarkup(IC.phone, "TelÃ©fono", phoneValue, { muted: !phoneDisp });
+    ? portalDetailTileMarkup(IC.phone, "Teléfono", phoneValue, { href: telHref })
+    : portalDetailTileMarkup(IC.phone, "Teléfono", phoneValue, { muted: !phoneDisp });
   const companyValue = companyName ? escapeHtml(companyName) : `<span class="muted">Sin empresa</span>`;
   const companyBlock = portalDetailTileMarkup(IC.briefcase, "Empresa", companyValue, { muted: !companyName });
   const licenseBlock = portalDetailTileMarkup(
     IC.file,
     "Licencia",
-    escapeHtml(`${String(d.license || "Sin licencia")} Â· ${String(d.licenseCategory || "Sin categorÃ­a")}`),
+    escapeHtml(`${String(d.license || "Sin licencia")} · ${String(d.licenseCategory || "Sin categoría")}`),
     { muted: !d.license }
   );
   const emergencyValue = String(d.emergencyPhone || "").trim()
     ? escapeHtml(String(d.emergencyPhone || "").trim())
-    : `<span class="muted">Sin telÃ©fono</span>`;
+    : `<span class="muted">Sin teléfono</span>`;
   const emergencyBlock = portalDetailTileMarkup(IC.heart, "Emergencia", emergencyValue, {
     muted: !String(d.emergencyPhone || "").trim()
   });
   const tripTitle = occupancy.trip
     ? `Viaje ${escapeHtml(String(occupancy.trip.trip?.tripNumber || "-"))}`
     : occupancy.tone === "offline"
-      ? "Fuera de operaciÃ³n"
-      : "Disponible para asignaciÃ³n";
+      ? "Fuera de operación"
+      : "Disponible para asignación";
   const tripSub = occupancy.trip
-    ? `${escapeHtml(String(occupancy.trip.clientName || occupancy.trip.companyName || "-"))} Â· ${escapeHtml(String(occupancy.detail || ""))}`
+    ? `${escapeHtml(String(occupancy.trip.clientName || occupancy.trip.companyName || "-"))} · ${escapeHtml(String(occupancy.detail || ""))}`
     : escapeHtml(String(occupancy.detail || "Sin viaje activo"));
   const sections = [
     {
@@ -6537,7 +6612,7 @@ function openDriverDetailSheetModal(driver) {
       rows: portalDetailRenderRows([
         ["Nombre", `<strong>${escapeHtml(String(d.name || "-"))}</strong>`],
         ["Documento", escapeHtml(String(d.idDoc || "-"))],
-        ["TelÃ©fono", escapeHtml(String(d.phone || "-"))],
+        ["Teléfono", escapeHtml(String(d.phone || "-"))],
         ["Tipo de sangre", escapeHtml(String(d.bloodType || "-"))],
         ["Contacto emergencia", escapeHtml(String(d.emergencyContact || "-"))],
         ["Tel. emergencia", escapeHtml(String(d.emergencyPhone || "-"))],
@@ -6546,16 +6621,16 @@ function openDriverDetailSheetModal(driver) {
     },
     {
       icon: "file",
-      title: "Licencia y formaciÃ³n",
+      title: "Licencia y formación",
       rows: portalDetailRenderRows([
-        ["NÂ° licencia", escapeHtml(String(d.license || "-"))],
-        ["CategorÃ­a", escapeHtml(String(d.licenseCategory || "-"))],
+        ["N° licencia", escapeHtml(String(d.license || "-"))],
+        ["Categoría", escapeHtml(String(d.licenseCategory || "-"))],
         ["Vence licencia", `${fmtDateOr(d.licenseExpiry)} ${licenseMeta.chipHtml}`],
         ["Examen ocupacional", fmtDateOr(d.occupationalExamDate)],
         ["Vence examen ocupacional", fmtDateOr(d.occupationalExamExpiry)],
         ["Examen instruvial", fmtDateOr(d.instruvialExamDate)],
         ["Vence examen instruvial", fmtDateOr(d.instruvialExamExpiry)],
-        ["AÃ±os experiencia", String(parseNum(d.experienceYears || 0))]
+        ["Años experiencia", String(parseNum(d.experienceYears || 0))]
       ])
     },
     {
@@ -6566,7 +6641,7 @@ function openDriverDetailSheetModal(driver) {
         ["ARL", escapeHtml(String(d.arl || "-"))],
         ["Comparendos pendientes", String(parseNum(d.comparendos || 0))],
         ["Estado operativo", availabilityTag],
-        ["Ãšltima actualizaciÃ³n", fmtDateOr(d.updatedAt || d.createdAt)]
+        ["Última actualización", fmtDateOr(d.updatedAt || d.createdAt)]
       ])
     }
   ];
@@ -6577,14 +6652,14 @@ function openDriverDetailSheetModal(driver) {
       <div class="portal-detail-badges">${availabilityTag} ${licenseMeta.chipHtml} ${comparendosTag}</div>
       <p class="portal-detail-meta"><span class="muted">Documento</span> <strong>${escapeHtml(String(d.idDoc || "Sin documento"))}</strong></p>
       <ul class="portal-detail-stats" aria-label="Resumen">
-        <li><strong>${companyName ? escapeHtml(companyName) : "â€”"}</strong><span>Empresa</span></li>
-        <li><strong>${escapeHtml(String(d.licenseCategory || "â€”"))}</strong><span>CategorÃ­a</span></li>
-        <li><strong>${escapeHtml(`${parseNum(d.experienceYears || 0)} aÃ±o${parseNum(d.experienceYears || 0) === 1 ? "" : "s"}`)}</strong><span>Experiencia</span></li>
+        <li><strong>${companyName ? escapeHtml(companyName) : "—"}</strong><span>Empresa</span></li>
+        <li><strong>${escapeHtml(String(d.licenseCategory || "—"))}</strong><span>Categoría</span></li>
+        <li><strong>${escapeHtml(`${parseNum(d.experienceYears || 0)} año${parseNum(d.experienceYears || 0) === 1 ? "" : "s"}`)}</strong><span>Experiencia</span></li>
       </ul>
     </div>
   </div>`;
   const highlightHtml = portalDetailHighlightHtml(
-    "OperaciÃ³n actual",
+    "Operación actual",
     `<p class="portal-detail-loc-line"><strong>${tripTitle}</strong></p><p class="portal-detail-loc-sub muted">${IC.clock} ${tripSub}</p>`,
     "truck"
   );
@@ -6597,7 +6672,7 @@ function openDriverDetailSheetModal(driver) {
     moduleTone: "purple",
     extraHtml: detailViewCardMarkup({
       iconKey: "truck",
-      label: "OperaciÃ³n actual",
+      label: "Operación actual",
       valueHtml: `<strong>${tripTitle}</strong>`,
       tone: "blue",
       full: true,
@@ -6607,9 +6682,9 @@ function openDriverDetailSheetModal(driver) {
       {
         icon: "phone",
         pairs: [
-          ["TelÃ©fono", phoneDisp ? escapeHtml(phoneDisp) : '<span class="muted">Sin telÃ©fono</span>'],
+          ["Teléfono", phoneDisp ? escapeHtml(phoneDisp) : '<span class="muted">Sin teléfono</span>'],
           ["Empresa", companyName ? escapeHtml(companyName) : '<span class="muted">Sin empresa</span>'],
-          ["Licencia", `${escapeHtml(String(d.licenseCategory || "â€”"))} Â· ${licenseMeta.chipHtml}`],
+          ["Licencia", `${escapeHtml(String(d.licenseCategory || "—"))} · ${licenseMeta.chipHtml}`],
           ["Emergencia", emergencyValue]
         ]
       },
@@ -6617,10 +6692,10 @@ function openDriverDetailSheetModal(driver) {
         icon: "user",
         pairs: [
           ["Documento", `<strong>${escapeHtml(String(d.idDoc || "Sin documento"))}</strong>`],
-          ["CategorÃ­a licencia", escapeHtml(String(d.licenseCategory || "â€”"))],
+          ["Categoría licencia", escapeHtml(String(d.licenseCategory || "—"))],
           ["Vence licencia", `${fmtDateOr(d.licenseExpiry)} ${licenseMeta.chipHtml}`],
-          ["Experiencia", `${parseNum(d.experienceYears || 0)} aÃ±o(s)`],
-          ["VehÃ­culos que conduce", escapeHtml(driverVehicleTypesCsvToLabel(d.vehicleTypes, "Sin definir"))]
+          ["Experiencia", `${parseNum(d.experienceYears || 0)} año(s)`],
+          ["Categoría (camión / mula)", escapeHtml(driverVehicleTypesCsvToLabel(d.vehicleTypes, "Sin categoría"))]
         ]
       },
       {
@@ -6630,7 +6705,7 @@ function openDriverDetailSheetModal(driver) {
           ["ARL", escapeHtml(String(d.arl || "-"))],
           ["Comparendos pendientes", String(parseNum(d.comparendos || 0))],
           ["Estado operativo", availabilityTag],
-          ["Ãšltima actualizaciÃ³n", fmtDateOr(d.updatedAt || d.createdAt)]
+          ["Última actualización", fmtDateOr(d.updatedAt || d.createdAt)]
         ]
       }
     ],
@@ -6649,12 +6724,12 @@ function openDriverDetailSheetModal(driver) {
 function togglePortalDriverManualAvailability(driverId) {
   const target = findPortalDriverById(driverId);
   if (!target) {
-    notify("No se encontrÃ³ el conductor. Actualice la pÃ¡gina.", "error");
+    notify("No se encontró el conductor. Actualice la página.", "error");
     return;
   }
   if (target.autoBusy) {
     notify(
-      "Este conductor estÃ¡ en un viaje activo. La disponibilidad se ajustarÃ¡ al finalizar el viaje.",
+      "Este conductor está en un viaje activo. La disponibilidad se ajustará al finalizar el viaje.",
       "info"
     );
     return;
@@ -6664,8 +6739,8 @@ function togglePortalDriverManualAvailability(driverId) {
   openConfirmModal({
     title: "Cambiar disponibilidad",
     message: markingUnavailable
-      ? `Â¿Marcar a ${name} como no disponible manualmente? No se ofrecerÃ¡ en asignaciones hasta reactivarlo.`
-      : `Â¿Marcar a ${name} como disponible nuevamente?`,
+      ? `¿Marcar a ${name} como no disponible manualmente? No se ofrecerá en asignaciones hasta reactivarlo.`
+      : `¿Marcar a ${name} como disponible nuevamente?`,
     confirmText: markingUnavailable ? "Marcar no disponible" : "Marcar disponible",
     onConfirm: async () => {
       try {
@@ -6730,7 +6805,7 @@ async function approveRequest(
       await reqWriteAwait(mapped, updatedRow);
     } catch (err) {
       if (typeof notify === "function") {
-        notify(String(err?.message || "No fue posible guardar la aprobaciÃ³n en el servidor."), "error");
+        notify(String(err?.message || "No fue posible guardar la aprobación en el servidor."), "error");
       }
       return false;
     }
@@ -6738,10 +6813,10 @@ async function approveRequest(
     if (targetUser) {
       saveNotification({
         userId: targetUser.id,
-        title: systemTimerApprove ? "Solicitud aprobada automÃ¡ticamente" : "Solicitud aprobada",
+        title: systemTimerApprove ? "Solicitud aprobada automáticamente" : "Solicitud aprobada",
         body: systemTimerApprove
-          ? `Su solicitud ${current.requestNumber || current.id} fue aprobada por el tiempo de respuesta configurado y queda pendiente de asignaciÃ³n de viaje.`
-          : `Su solicitud ${current.requestNumber || current.id} fue aprobada y queda pendiente de asignaciÃ³n de viaje.`,
+          ? `Su solicitud ${current.requestNumber || current.id} fue aprobada por el tiempo de respuesta configurado y queda pendiente de asignación de viaje.`
+          : `Su solicitud ${current.requestNumber || current.id} fue aprobada y queda pendiente de asignación de viaje.`,
         category: "authorization",
         deepLink: "#portal/requests",
         entityType: "transport_request",
@@ -6802,7 +6877,7 @@ async function approveRequest(
           .toLowerCase()
       : "";
     if (
-      notifyScheduleConflictIfAny(schedPickup, schedDelivery, requestId, "vehÃ­culo", (t) => {
+      notifyScheduleConflictIfAny(schedPickup, schedDelivery, requestId, "vehículo", (t) => {
         if (vid && t.vehicleId) return String(t.vehicleId).trim() === vid;
         if (vplate) return String(t.vehiclePlate || "").trim().toUpperCase() === vplate;
         return false;
@@ -6879,7 +6954,7 @@ async function approveRequest(
     logPortalAuditEvent("trips", "create", {
       entityId: String(requestId),
       entityLabel: String(trip.tripNumber || "Viaje"),
-      summary: `${String(trip.vehiclePlate || "Sin camiÃ³n")} Â· ${String(trip.driverName || "Sin conductor")}`,
+      summary: `${String(trip.vehiclePlate || "Sin camión")} · ${String(trip.driverName || "Sin conductor")}`,
       actor: tripFields.actor,
       actorEmail: tripFields.actorEmail,
       actorUserId: tripFields.actorUserId,
@@ -6888,7 +6963,7 @@ async function approveRequest(
     logPortalAuditEvent("requests", "update", {
       entityId: String(requestId),
       entityLabel: String(current.requestNumber || "Solicitud"),
-      summary: `Viaje asignado Â· ${String(trip.tripNumber || "")}`,
+      summary: `Viaje asignado · ${String(trip.tripNumber || "")}`,
       actor: tripFields.actor,
       actorEmail: tripFields.actorEmail,
       actorUserId: tripFields.actorUserId,
@@ -6904,12 +6979,12 @@ async function approveRequest(
     saveNotification({
       userId: target.id,
       title: "Viaje asignado",
-      body: `Se asignÃ³ el viaje ${trip.tripNumber} a su solicitud ${current.requestNumber || current.id}. VehÃ­culo ${trip.vehiclePlate} Â· Conductor ${trip.driverName}.`
+      body: `Se asignó el viaje ${trip.tripNumber} a su solicitud ${current.requestNumber || current.id}. Vehículo ${trip.vehiclePlate} · Conductor ${trip.driverName}.`
     });
     sendEmail({
       to: target.email,
       subject: "Viaje asignado - Antares",
-      body: `Viaje ${trip.tripNumber} Â· VehÃ­culo ${trip.vehiclePlate} Â· Conductor ${trip.driverName}`
+      body: `Viaje ${trip.tripNumber} · Vehículo ${trip.vehiclePlate} · Conductor ${trip.driverName}`
     });
     try {
       if (typeof globalThis.refreshNotificationsFromServer === "function") {
@@ -6938,7 +7013,7 @@ async function rejectRequest(requestId, reason, actorName) {
   logPortalAuditEvent("requests", "update", {
     entityId: String(requestId),
     entityLabel: String(current.requestNumber || "Solicitud"),
-    summary: `Solicitud rechazada Â· ${String(reason || "Sin motivo")}`,
+    summary: `Solicitud rechazada · ${String(reason || "Sin motivo")}`,
     actor,
     actorEmail: snapshot.email,
     actorUserId: snapshot.userId,
@@ -6972,10 +7047,10 @@ function formatPortalRoleLabel(role) {
   if (r === ROLES.ADMIN) return "Administrador";
   if (r === ROLES.CLIENT) return "Cliente";
   if (r === ROLES.RRHH) return "Recursos humanos";
-  if (r === ROLES.ADMINISTRACION) return "AdministraciÃ³n";
+  if (r === ROLES.ADMINISTRACION) return "Administración";
   if (r === ROLES.AUXILIAR_ADMINISTRATIVO) return "Auxiliar administrativo";
-  if (r === ROLES.LIDER_ADMINISTRATIVO) return "LÃ­der administrativo";
-  if (r === ROLES.LOGISTICA) return "LogÃ­stica";
+  if (r === ROLES.LIDER_ADMINISTRATIVO) return "Líder administrativo";
+  if (r === ROLES.LOGISTICA) return "Logística";
   return String(role || "usuario").toUpperCase();
 }
 
@@ -7003,7 +7078,7 @@ function portalProfileEmergencyFilled(user) {
   );
 }
 
-/** Falta algÃºn dato de emergencia (nombre, telÃ©fono o parentesco). */
+/** Falta algún dato de emergencia (nombre, teléfono o parentesco). */
 function portalProfileEmergencyNeedsEnrichment(user) {
   if (!user) return true;
   return (
@@ -7046,8 +7121,8 @@ function portalUserPayrollMatchKey(user, employee) {
 }
 
 /**
- * Si el usuario portal no tiene contacto de emergencia, toma los datos de su ficha en nÃ³mina
- * (documento, correo personal o nombre completo) ya cargada en cachÃ© por bootstrap.
+ * Si el usuario portal no tiene contacto de emergencia, toma los datos de su ficha en nómina
+ * (documento, correo personal o nombre completo) ya cargada en caché por bootstrap.
  */
 function enrichPortalUserFromPayrollCache(user) {
   if (!user || typeof user !== "object") return user;
@@ -7075,14 +7150,14 @@ function enrichPortalUserFromPayrollCache(user) {
   };
 }
 
-/** Usuario listo para pintar Mi perfil (portal + respaldo nÃ³mina en cachÃ©). */
+/** Usuario listo para pintar Mi perfil (portal + respaldo nómina en caché). */
 function resolvePortalProfileUser(user) {
   return enrichPortalUserFromPayrollCache(user);
 }
 
 /**
  * Hidrata la fila del usuario autenticado desde GET /portal/me (datos completos de BD).
- * Necesario porque el JWT y el profileSnapshot no incluyen telÃ©fono, documento ni fechas.
+ * Necesario porque el JWT y el profileSnapshot no incluyen teléfono, documento ni fechas.
  */
 async function hydrateOwnProfileFromApi() {
   if (!portalCanRefreshFromApi()) return false;
@@ -7122,10 +7197,10 @@ function formatPortalRoleChipLabel(role) {
   if (r === ROLES.ADMIN) return "Admin";
   if (r === ROLES.CLIENT) return "Cliente";
   if (r === ROLES.RRHH) return "RRHH";
-  if (r === ROLES.ADMINISTRACION) return "AdministraciÃ³n";
+  if (r === ROLES.ADMINISTRACION) return "Administración";
   if (r === ROLES.AUXILIAR_ADMINISTRATIVO) return "Aux. adm.";
-  if (r === ROLES.LIDER_ADMINISTRATIVO) return "LÃ­der adm.";
-  if (r === ROLES.LOGISTICA) return "LogÃ­stica";
+  if (r === ROLES.LIDER_ADMINISTRATIVO) return "Líder adm.";
+  if (r === ROLES.LOGISTICA) return "Logística";
   return formatPortalRoleLabel(role);
 }
 
@@ -7153,9 +7228,9 @@ function getVisibleRequestsForUser(user) {
 }
 
 /**
- * Solicitudes visibles en Transporte Â· Viajes para asignar.
- * - Con permiso de aprobaciÃ³n: Pendiente o Aprobada pendiente asignaciÃ³n (flujo en un paso).
- * - Solo transport_trips: Ãºnicamente ya aprobadas.
+ * Solicitudes visibles en Transporte · Viajes para asignar.
+ * - Con permiso de aprobación: Pendiente o Aprobada pendiente asignación (flujo en un paso).
+ * - Solo transport_trips: únicamente ya aprobadas.
  */
 function pendingRequestsForTripAssignment(user) {
   const SD = window.AntaresSolicitudesDomain;
@@ -7198,7 +7273,7 @@ function findPayrollEmployeeByIdDoc(idDoc) {
   );
 }
 
-/** Empleado GH â†’ conductor de flota vinculado por nÃºmero de documento (misma regla que API y syncDriverFromEmployee). */
+/** Empleado GH → conductor de flota vinculado por número de documento (misma regla que API y syncDriverFromEmployee). */
 function resolveDriverForEmployee(employee) {
   if (!employee) return null;
   const docDigits = normalizeDocumentDigits(employee.idDoc);
@@ -7208,6 +7283,33 @@ function resolveDriverForEmployee(employee) {
       (driver) => normalizeDocumentDigits(driver?.idDoc) === docDigits
     ) || null
   );
+}
+
+/**
+ * `empleados_nomina` no guarda tipos de vehículo / comparendos / experiencia: viven en `conductores`.
+ * Al editar o ver la ficha de un colaborador conductor, se copian desde la fila de flota para no
+ * mostrar (ni guardar) esos campos en blanco.
+ */
+function mergeLinkedDriverConductorFields(emp) {
+  if (!emp || typeof emp !== "object") return emp;
+  const e = { ...emp };
+  const driver = resolveDriverForEmployee(e);
+  if (!driver) return e;
+  const fill = (key) => {
+    const cur = e[key];
+    const empty =
+      cur == null ||
+      (typeof cur === "string" && !String(cur).trim()) ||
+      (key === "vehicleTypes" && !String(cur || "").trim());
+    if (empty && driver[key] != null && String(driver[key]).trim() !== "") e[key] = driver[key];
+  };
+  fill("vehicleTypes");
+  fill("comparendos");
+  fill("experienceYears");
+  if (!String(e.vehicleTypes || "").trim() && driver.tipos_vehiculo) {
+    e.vehicleTypes = driver.tipos_vehiculo;
+  }
+  return e;
 }
 
 function abortUnlessAdminForFleetDriverEdit(reason = "driversManageForbidden") {
@@ -7268,7 +7370,7 @@ function summarizePayrollEmployeeForDirectory(emp) {
   const companyName = getCompanyById(raw.companyId)?.name || "Sin empresa";
   const isDriverSvc = employeeIsConductorServiceProvider(raw);
   const roleLabel = isDriverSvc
-    ? "Conductor Â· prestaciÃ³n servicios"
+    ? "Conductor · prestación servicios"
     : String(raw.workerRole || "").toLowerCase() === "conductor"
       ? "Conductor"
       : "Empleado";
@@ -7312,7 +7414,7 @@ function payrollEmployeeContractStatusDisplay(contract) {
   if (slug === "notice_window") return { label: "Por vencer", tone: "warn", slug };
   if (slug === "active") return { label: "Vigente", tone: "ok", slug };
   if (slug === "unknown") return { label: "Sin fecha", tone: "warn", slug };
-  return { label: String(contract.pillLabel || "â€”"), tone: "neutral", slug: slug || "all" };
+  return { label: String(contract.pillLabel || "—"), tone: "neutral", slug: slug || "all" };
 }
 
 function renderPayrollEmployeeTableIdentity(item) {
@@ -7323,7 +7425,7 @@ function renderPayrollEmployeeTableIdentity(item) {
     .map((part) => part.charAt(0).toUpperCase())
     .slice(0, 2)
     .join("");
-  const docLine = `${String(e.documentType || "").trim()} ${String(e.idDoc || "").trim()}`.trim() || "â€”";
+  const docLine = `${String(e.documentType || "").trim()} ${String(e.idDoc || "").trim()}`.trim() || "—";
   const avatarStyle = avCss ? ` style="background-image:url('${avCss}')"` : "";
   return `<div class="payroll-contracts-person">
     <div class="payroll-contracts-person__avatar${avCss ? " payroll-contracts-person__avatar--photo" : ""}"${avatarStyle} aria-hidden="true">${avCss ? "" : escapeHtml(initials)}</div>
@@ -7342,7 +7444,7 @@ function renderEmploymentLetterActionButton(id, { compact = false } = {}) {
 
 function renderEmploymentLetterIconButton(id) {
   const safeId = escapeAttr(String(id || ""));
-  return `<button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--letter" data-no-lock data-action="employee-generate-labor-letter" data-id="${safeId}" title="Carta laboral (Colombia Â· CST art. 57)">${IC.badge}</button>`;
+  return `<button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--letter" data-no-lock data-action="employee-generate-labor-letter" data-id="${safeId}" title="Carta laboral (Colombia · CST art. 57)">${IC.badge}</button>`;
 }
 
 function renderPayrollEmployeeContractIconActions(e, contract, hrAdminDeletes) {
@@ -7360,7 +7462,7 @@ function renderPayrollEmployeeContractIconActions(e, contract, hrAdminDeletes) {
     ${
       canAct
         ? `<button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--renew" data-action="renew-employee-contract" data-id="${id}" title="Renovar contrato">${IC.rotateCcw}</button>
-    <button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--notify" data-action="non-renew-employee-contract" data-id="${id}" title="Aviso de no renovaciÃ³n">${IC.mail}</button>`
+    <button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--notify" data-action="non-renew-employee-contract" data-id="${id}" title="Aviso de no renovación">${IC.mail}</button>`
         : ""
     }
     ${hrAdminDeletes ? `<button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--delete" data-action="delete-employee" data-id="${id}" title="Eliminar">${IC.trash}</button>` : ""}
@@ -7379,7 +7481,7 @@ function renderPayrollContractActionButtons(e, contract, { compact = false } = {
   const nonRenewLabel = compact ? "" : " No renovar";
   return `<div class="payroll-contract-actions" role="group" aria-label="Acciones de contrato">
     <button type="button" class="btn btn-sm payroll-contract-btn payroll-contract-btn--renew" data-action="renew-employee-contract" data-id="${id}" title="Renovar contrato">${IC.rotateCcw}${renewLabel}</button>
-    <button type="button" class="btn btn-sm payroll-contract-btn payroll-contract-btn--non-renew" data-action="non-renew-employee-contract" data-id="${id}" title="Carta de no renovaciÃ³n (CST art. 47)">${IC.mail}${nonRenewLabel}</button>
+    <button type="button" class="btn btn-sm payroll-contract-btn payroll-contract-btn--non-renew" data-action="non-renew-employee-contract" data-id="${id}" title="Carta de no renovación (CST art. 47)">${IC.mail}${nonRenewLabel}</button>
   </div>`;
 }
 
@@ -7415,16 +7517,16 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = fa
           "neutral"
         );
   const selectHtml = hrAdminDeletes
-    ? `<label class="directory-card__select" title="Seleccionar para eliminaciÃ³n masiva"><input type="checkbox" data-employee-select value="${escapeAttr(String(e.id))}" /><span class="muted">Sel.</span></label>`
+    ? `<label class="directory-card__select" title="Seleccionar para eliminación masiva"><input type="checkbox" data-employee-select value="${escapeAttr(String(e.id))}" /><span class="muted">Sel.</span></label>`
     : "";
-  const docLine = `${String(e.documentType || "").trim()} ${String(e.idDoc || "").trim()}`.trim() || "â€”";
+  const docLine = `${String(e.documentType || "").trim()} ${String(e.idDoc || "").trim()}`.trim() || "—";
   const showContractAlert =
     compact &&
     contract.applies &&
     (contract.statusSlug === "notice_window" || contract.statusSlug === "expired");
   const compactClass = compact ? " directory-card--compact" : "";
   if (compact) {
-    // Ãndice de color de avatar (0-3) basado en hash del nombre â€” consistente entre renders
+    // Índice de color de avatar (0-3) basado en hash del nombre — consistente entre renders
     let avColorIdx = 0;
     if (e.name) {
       let h = 0;
@@ -7435,7 +7537,7 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = fa
       typeof CO_PAYROLL !== "undefined" && CO_PAYROLL?.smmlv ? CO_PAYROLL.smmlv : 1300000;
     const isSmmlv = item.salaryCop > 0 && item.salaryCop <= smmlvRef;
     const contractAlertBar = showContractAlert
-      ? `<div class="payroll-emp-contract-alert${contract.statusSlug === "expired" ? " payroll-emp-contract-alert--expired" : ""}">${escapeHtml(contract.headline || contract.pillLabel || "Contrato requiere atenciÃ³n")}</div>`
+      ? `<div class="payroll-emp-contract-alert${contract.statusSlug === "expired" ? " payroll-emp-contract-alert--expired" : ""}">${escapeHtml(contract.headline || contract.pillLabel || "Contrato requiere atención")}</div>`
       : "";
     const contractTypeKey = payrollEmployeeContractTypeKey(e);
     const endYmd = normalizePortalDateYmd(contract.endYmd || e.contractEndDate || "");
@@ -7451,12 +7553,12 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = fa
       </div>
       <div class="directory-card__compact-meta">
         ${isSmmlv ? '<span class="payroll-emp-badge payroll-emp-badge--smmlv" title="Salario en el rango del SMMLV">SMMLV</span>' : ""}
-        ${item.isDriverSvc ? '<span class="payroll-emp-badge payroll-emp-badge--driver">PrestaciÃ³n</span>' : ""}
+        ${item.isDriverSvc ? '<span class="payroll-emp-badge payroll-emp-badge--driver">Prestación</span>' : ""}
         ${contract.applies ? directoryPillHtml(contract.pillLabel, contractPillTone) : ""}
         <span class="directory-card__salary payroll-emp-salary">$${item.salaryCop.toLocaleString("es-CO")}</span>
       </div>
       <div class="directory-card__compact-actions toolbar">
-        <button type="button" class="btn btn-sm btn-action" data-action="payroll-employee-liquidations" data-id="${escapeAttr(String(e.id || ""))}" title="Historial de liquidaciones">${IC.dollar}${compact ? "" : " NÃ³minas"}</button>
+        <button type="button" class="btn btn-sm btn-action" data-action="payroll-employee-liquidations" data-id="${escapeAttr(String(e.id || ""))}" title="Historial de liquidaciones">${IC.dollar}${compact ? "" : " Nóminas"}</button>
         <button type="button" class="btn btn-sm btn-outline" data-action="view-employee" data-id="${escapeAttr(String(e.id))}" title="Perfil">${IC.eye}</button>
         <button type="button" class="btn btn-sm btn-action" data-action="edit-employee" data-id="${escapeAttr(String(e.id))}" title="Editar">${IC.edit}</button>
         ${renderPayrollContractActionButtons(e, contract, { compact })}
@@ -7474,12 +7576,12 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = fa
       <div class="directory-card__identity">
         <div class="${avatarClass}">${avatarInner}</div>
         <div class="directory-card__heading">
-          <p class="directory-card__kicker">${escapeHtml(item.companyName)} Â· ${escapeHtml(item.roleLabel)}</p>
+          <p class="directory-card__kicker">${escapeHtml(item.companyName)} · ${escapeHtml(item.roleLabel)}</p>
           <h4 class="directory-card__title">${escapeHtml(String(e.name || "Colaborador"))}</h4>
         </div>
       </div>
       <div class="directory-card__status-stack">
-        ${item.isDriverSvc ? directoryPillHtml("PrestaciÃ³n servicios", "warn") : ""}
+        ${item.isDriverSvc ? directoryPillHtml("Prestación servicios", "warn") : ""}
         ${contract.applies ? directoryPillHtml(contract.pillLabel, contractPillTone) : directoryPillHtml(String(e.contractType || "Contrato").slice(0, 24), "neutral")}
         ${selectHtml}
       </div>
@@ -7488,19 +7590,19 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = fa
     <div class="directory-card__metrics">
       ${directoryChipHtml("Salario", `$${item.salaryCop.toLocaleString("es-CO")}`)}
       ${directoryChipHtml("Aux. legal", `$${item.transportCop.toLocaleString("es-CO")}`)}
-      ${directoryChipHtml("Ingreso", fmtDateOr(e.startDate, "â€”"))}
-      ${isFixedTermContractType(e.contractType) ? directoryChipHtml("RenovaciÃ³n", fmtDateOr(e.renewalDate, "â€”")) : ""}
-      ${directoryChipHtml("Fin contrato", contract.applies ? fmtDateOr(contract.endYmd, "â€”") : "N/A", contract.statusSlug === "notice_window" ? "warn" : "neutral")}
+      ${directoryChipHtml("Ingreso", fmtDateOr(e.startDate, "—"))}
+      ${isFixedTermContractType(e.contractType) ? directoryChipHtml("Renovación", fmtDateOr(e.renewalDate, "—")) : ""}
+      ${directoryChipHtml("Fin contrato", contract.applies ? fmtDateOr(contract.endYmd, "—") : "N/A", contract.statusSlug === "notice_window" ? "warn" : "neutral")}
     </div>
     <dl class="directory-card__facts">
       ${directoryFactHtml("Documento", docLine)}
-      ${directoryFactHtml("Cargo", String(e.position || "â€”"))}
-      ${directoryFactHtml("Centro costos", String(resolvePayrollEmployeeCostCenter(e) || "â€”"))}
-      ${directoryFactHtml("Tipo contrato", String(e.contractType || "â€”"))}
-      ${contract.applies && contract.noticeDeadlineYmd ? directoryFactHtml("Aviso no renovaciÃ³n", fmtDateOr(contract.noticeDeadlineYmd), { tone: contract.statusSlug === "notice_window" ? "warn" : "neutral" }) : ""}
+      ${directoryFactHtml("Cargo", String(e.position || "—"))}
+      ${directoryFactHtml("Centro costos", String(resolvePayrollEmployeeCostCenter(e) || "—"))}
+      ${directoryFactHtml("Tipo contrato", String(e.contractType || "—"))}
+      ${contract.applies && contract.noticeDeadlineYmd ? directoryFactHtml("Aviso no renovación", fmtDateOr(contract.noticeDeadlineYmd), { tone: contract.statusSlug === "notice_window" ? "warn" : "neutral" }) : ""}
     </dl>
     <footer class="directory-card__actions">
-      <button type="button" class="btn btn-sm btn-action" data-action="payroll-employee-liquidations" data-id="${escapeAttr(String(e.id || ""))}" title="Historial de liquidaciones">${IC.dollar} NÃ³minas</button>
+      <button type="button" class="btn btn-sm btn-action" data-action="payroll-employee-liquidations" data-id="${escapeAttr(String(e.id || ""))}" title="Historial de liquidaciones">${IC.dollar} Nóminas</button>
       <button type="button" class="btn btn-sm btn-outline" data-action="view-employee" data-id="${escapeAttr(String(e.id))}">${IC.eye} Perfil</button>
       <button type="button" class="btn btn-sm btn-action" data-action="edit-employee" data-id="${escapeAttr(String(e.id))}">${IC.edit} Editar</button>
       ${renderPayrollContractActionButtons(e, contract)}
@@ -7524,12 +7626,12 @@ function renderPayrollEmployeeDirectoryTableRow(item, hrAdminDeletes) {
   return `<tr class="payroll-employee-table-row payroll-employee-table-row--${escapeAttr(statusSlug)}" data-employee-id="${escapeAttr(String(e.id || ""))}" data-employee-search="${escapeAttr(item.searchBlob)}" data-employee-contract-filter="${escapeAttr(contract.applies ? contract.statusSlug : "all")}" data-employee-contract-type="${escapeAttr(contractTypeKey)}" data-employee-contract-end="${escapeAttr(endYmd)}">
     ${selectCell}
     <td class="payroll-employee-table-cell-main">${renderPayrollEmployeeTableIdentity(item)}</td>
-    <td>${escapeHtml(String(e.position || "â€”"))}</td>
-    <td>${fmtDateOr(e.startDate, "â€”")}</td>
-    <td>${isFixedTermContractType(e.contractType) ? fmtDateOr(e.contractVigenteStartDate || e.startDate, "â€”") : "â€”"}</td>
-    <td>${isFixedTermContractType(e.contractType) ? fmtDateOr(e.renewalDate, "â€”") : "â€”"}</td>
-    <td>${isFixedTermContractType(e.contractType) ? fmtDateOr(e.nonRenewalNoticeDate, "â€”") : "â€”"}</td>
-    <td>${contract.applies ? fmtDateOr(contract.endYmd || e.contractEndDate, "â€”") : "â€”"}</td>
+    <td>${escapeHtml(String(e.position || "—"))}</td>
+    <td>${fmtDateOr(e.startDate, "—")}</td>
+    <td>${isFixedTermContractType(e.contractType) ? fmtDateOr(e.contractVigenteStartDate || e.startDate, "—") : "—"}</td>
+    <td>${isFixedTermContractType(e.contractType) ? fmtDateOr(e.renewalDate, "—") : "—"}</td>
+    <td>${isFixedTermContractType(e.contractType) ? fmtDateOr(e.nonRenewalNoticeDate, "—") : "—"}</td>
+    <td>${contract.applies ? fmtDateOr(contract.endYmd || e.contractEndDate, "—") : "—"}</td>
     <td><span class="payroll-emp-contract-status payroll-emp-contract-status--${escapeAttr(status.tone)}">${escapeHtml(status.label)}</span></td>
     <td class="payroll-employee-table-cell-actions">${renderPayrollEmployeeContractIconActions(e, contract, hrAdminDeletes)}</td>
   </tr>`;
@@ -7609,21 +7711,21 @@ function historyPlateLabel(request) {
 
 function historyTripValueCell(request) {
   const value = parseNum(request?.trip?.tripValue ?? request?.tripValue ?? 0);
-  if (value <= 0) return '<span class="muted">â€”</span>';
+  if (value <= 0) return '<span class="muted">—</span>';
   return `<span class="history-money">$${value.toLocaleString("es-CO")}</span>`;
 }
 
 function historyRouteCell(request) {
-  const origin = String(request?.originCity || "").trim() || "â€”";
-  const dest = String(request?.destinationCity || "").trim() || "â€”";
+  const origin = String(request?.originCity || "").trim() || "—";
+  const dest = String(request?.destinationCity || "").trim() || "—";
   const full = formatRoute(request);
-  return `<span class="history-route" title="${escapeAttr(full)}"><span class="history-route-cities">${escapeHtml(origin)}</span><span class="history-route-arrow" aria-hidden="true">â†’</span><span class="history-route-cities">${escapeHtml(dest)}</span></span>`;
+  return `<span class="history-route" title="${escapeAttr(full)}"><span class="history-route-cities">${escapeHtml(origin)}</span><span class="history-route-arrow" aria-hidden="true">→</span><span class="history-route-cities">${escapeHtml(dest)}</span></span>`;
 }
 
 function historyStatusFilterOptions() {
   const groups = [
-    { label: "En gestiÃ³n", values: [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION] },
-    { label: "En operaciÃ³n", values: [STATUS.VIAJE_ASIGNADO, STATUS.EN_TRANSITO, STATUS.ESPERA_STANDBY] },
+    { label: "En gestión", values: [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION] },
+    { label: "En operación", values: [STATUS.VIAJE_ASIGNADO, STATUS.EN_TRANSITO, STATUS.ESPERA_STANDBY] },
     { label: "Cerradas", values: [STATUS.COMPLETADA, STATUS.CERRADA] },
     { label: "Anuladas", values: [STATUS.CANCELADA, STATUS.RECHAZADA] }
   ];
@@ -7680,15 +7782,15 @@ function historyQuickFilterCounts(all) {
 function renderHistoryCard(request) {
   const statusSlug = slugStatus(request.status);
   const number = String(request.requestNumber || request.id || "").trim();
-  const client = String(request.clientName || "").trim() || "â€”";
-  const origin = String(request.originCity || "").trim() || "â€”";
-  const dest = String(request.destinationCity || "").trim() || "â€”";
+  const client = String(request.clientName || "").trim() || "—";
+  const origin = String(request.originCity || "").trim() || "—";
+  const dest = String(request.destinationCity || "").trim() || "—";
   const driver = historyDriverLabel(request);
   const plate = historyPlateLabel(request);
   const fleet = historyVehicleColumn(request);
   const trip = String(request.trip?.tripNumber || "").trim();
   const tripValue = parseNum(request.trip?.tripValue ?? request.tripValue ?? 0);
-  const valueLabel = tripValue > 0 ? `$${tripValue.toLocaleString("es-CO")}` : "â€”";
+  const valueLabel = tripValue > 0 ? `$${tripValue.toLocaleString("es-CO")}` : "—";
   const created = fmtDate(request.createdAt);
   const pickup = fmtDate(request.pickupAt);
   return `<article class="hist-card hist-card--${escapeAttr(statusSlug)}" data-history-row data-id="${escapeAttr(String(request.id || ""))}" data-haystack="${escapeAttr(historyHaystack(request))}">
@@ -7707,13 +7809,13 @@ function renderHistoryCard(request) {
     </div>
     <dl class="hist-card__facts">
       <div><dt>${IC.user} Conductor</dt><dd>${driver ? escapeHtml(driver) : '<span class="muted">Sin asignar</span>'}</dd></div>
-      <div><dt>${IC.truck} Placa</dt><dd>${plate ? `<span class="hist-plate">${escapeHtml(plate)}</span>` : '<span class="muted">â€”</span>'}</dd></div>
-      <div><dt>${IC.compass} Viaje</dt><dd>${trip ? escapeHtml(trip) : '<span class="muted">â€”</span>'}</dd></div>
+      <div><dt>${IC.truck} Placa</dt><dd>${plate ? `<span class="hist-plate">${escapeHtml(plate)}</span>` : '<span class="muted">—</span>'}</dd></div>
+      <div><dt>${IC.compass} Viaje</dt><dd>${trip ? escapeHtml(trip) : '<span class="muted">—</span>'}</dd></div>
       <div class="hist-card__fact--money"><dt>${IC.dollar} Tarifa</dt><dd>${escapeHtml(valueLabel)}</dd></div>
       <div class="hist-card__fact--wide"><dt>${IC.truck} Flota</dt><dd>${escapeHtml(fleet)}</dd></div>
     </dl>
     <footer class="hist-card__foot">
-      <p class="hist-card__dates muted"><time datetime="${escapeAttr(String(request.createdAt || ""))}">${escapeHtml(created)}</time> Â· Recogida ${escapeHtml(pickup)}</p>
+      <p class="hist-card__dates muted"><time datetime="${escapeAttr(String(request.createdAt || ""))}">${escapeHtml(created)}</time> · Recogida ${escapeHtml(pickup)}</p>
       <div class="toolbar hist-card__actions">
         <button type="button" class="btn btn-sm btn-action" data-action="detail" data-id="${escapeAttr(String(request.id || ""))}">${IC.eye} Ver</button>
         ${request.trip ? `<button type="button" class="btn btn-sm btn-outline" data-action="trip-detail" data-id="${escapeAttr(String(request.id || ""))}">${IC.truck} Viaje</button>` : ""}
@@ -7725,14 +7827,14 @@ function renderHistoryCard(request) {
 function renderHistoryRequestRow(request) {
   const statusSlug = slugStatus(request.status);
   const number = String(request.requestNumber || request.id || "").trim();
-  const client = String(request.clientName || "").trim() || "â€”";
-  const origin = String(request.originCity || "").trim() || "â€”";
-  const dest = String(request.destinationCity || "").trim() || "â€”";
+  const client = String(request.clientName || "").trim() || "—";
+  const origin = String(request.originCity || "").trim() || "—";
+  const dest = String(request.destinationCity || "").trim() || "—";
   const driver = historyDriverLabel(request);
   const plate = historyPlateLabel(request);
   const trip = String(request.trip?.tripNumber || "").trim();
   const tripValue = parseNum(request.trip?.tripValue ?? request.tripValue ?? 0);
-  const valueLabel = tripValue > 0 ? `$${tripValue.toLocaleString("es-CO")}` : "â€”";
+  const valueLabel = tripValue > 0 ? `$${tripValue.toLocaleString("es-CO")}` : "—";
   const created = fmtDate(request.createdAt);
   const pickup = fmtDate(request.pickupAt);
   const actions = `<div class="toolbar history-list-actions">
@@ -7740,13 +7842,13 @@ function renderHistoryRequestRow(request) {
       ${request.trip ? `<button type="button" class="btn btn-sm btn-outline" data-action="trip-detail" data-id="${escapeAttr(String(request.id || ""))}">${IC.truck} Viaje</button>` : ""}
     </div>`;
   return `<tr class="hist-table-row hist-table-row--${escapeAttr(statusSlug)}" data-history-row data-id="${escapeAttr(String(request.id || ""))}" data-haystack="${escapeAttr(historyHaystack(request))}">
-    <td data-label="Solicitud"><strong>${escapeHtml(number)}</strong><div class="muted hist-table-sub"><time datetime="${escapeAttr(String(request.createdAt || ""))}">${escapeHtml(created)}</time> Â· Recogida ${escapeHtml(pickup)}</div></td>
+    <td data-label="Solicitud"><strong>${escapeHtml(number)}</strong><div class="muted hist-table-sub"><time datetime="${escapeAttr(String(request.createdAt || ""))}">${escapeHtml(created)}</time> · Recogida ${escapeHtml(pickup)}</div></td>
     <td data-label="Cliente">${escapeHtml(client)}</td>
-    <td data-label="Ruta" title="${escapeAttr(formatRoute(request))}"><span class="hist-table-route">${escapeHtml(origin)}</span><span class="hist-table-route-arrow" aria-hidden="true">â†’</span><span class="hist-table-route">${escapeHtml(dest)}</span></td>
+    <td data-label="Ruta" title="${escapeAttr(formatRoute(request))}"><span class="hist-table-route">${escapeHtml(origin)}</span><span class="hist-table-route-arrow" aria-hidden="true">→</span><span class="hist-table-route">${escapeHtml(dest)}</span></td>
     <td data-label="Estado">${prettyStatus(request.status)}</td>
     <td data-label="Conductor">${driver ? escapeHtml(driver) : '<span class="muted">Sin asignar</span>'}</td>
-    <td data-label="Placa">${plate ? `<span class="hist-plate">${escapeHtml(plate)}</span>` : '<span class="muted">â€”</span>'}</td>
-    <td data-label="Viaje">${trip ? escapeHtml(trip) : '<span class="muted">â€”</span>'}</td>
+    <td data-label="Placa">${plate ? `<span class="hist-plate">${escapeHtml(plate)}</span>` : '<span class="muted">—</span>'}</td>
+    <td data-label="Viaje">${trip ? escapeHtml(trip) : '<span class="muted">—</span>'}</td>
     <td data-label="Tarifa">${escapeHtml(valueLabel)}</td>
     <td data-label="Acciones" class="hist-table-actions">${actions}</td>
   </tr>`;
@@ -7760,7 +7862,7 @@ function renderHistoryResultsList(items, layout = "cards") {
         ? "list"
         : "cards";
   if (!items.length) {
-    return `<div class="hist-empty"><span class="hist-empty__icon" aria-hidden="true">${IC.search || IC.clock}</span><p>No hay registros con los filtros actuales.</p><p class="muted">Prueba otro periodo, cliente o quita el filtro rÃ¡pido.</p></div>`;
+    return `<div class="hist-empty"><span class="hist-empty__icon" aria-hidden="true">${IC.search || IC.clock}</span><p>No hay registros con los filtros actuales.</p><p class="muted">Prueba otro periodo, cliente o quita el filtro rápido.</p></div>`;
   }
   if (viewLayout === "list") {
     return `<div class="table-wrap hist-table-wrap"><table class="vehicle-fleet-table hist-table" id="history-results-grid">
@@ -7848,14 +7950,14 @@ function renderHistoryFuelLogCard(log) {
   const total = parseNum(log.totalCost);
   const perLiter = parseNum(log.costPerLiter) || (liters > 0 ? Math.round(total / liters) : 0);
   const paid = String(log.paidBy || "empresa") === "conductor" ? "conductor" : "empresa";
-  const paidLabel = paid === "conductor" ? "Reembolso nÃ³mina" : "Empresa";
+  const paidLabel = paid === "conductor" ? "Reembolso nómina" : "Empresa";
   const trip = String(log.tripNumber || "").trim();
   return `<article class="hist-fleet-card hist-fleet-card--fuel" data-fleet-fuel-row data-haystack="${escapeAttr(historyFleetFuelHaystack(log))}">
     <header class="hist-fleet-card__head">
       <div>
         <time class="hist-fleet-card__date" datetime="${escapeAttr(String(log.date || ""))}">${escapeHtml(fmtFleetLogDate(log.date))}</time>
-        <h3 class="hist-fleet-card__plate">${escapeHtml(String(log.vehiclePlate || "â€”"))}</h3>
-        <p class="hist-fleet-card__sub">${escapeHtml(String(log.driverName || "â€”"))}${trip ? ` Â· ${escapeHtml(trip)}` : ""}</p>
+        <h3 class="hist-fleet-card__plate">${escapeHtml(String(log.vehiclePlate || "—"))}</h3>
+        <p class="hist-fleet-card__sub">${escapeHtml(String(log.driverName || "—"))}${trip ? ` · ${escapeHtml(trip)}` : ""}</p>
       </div>
       <span class="hist-badge hist-badge--${paid === "conductor" ? "warn" : "ok"}">${escapeHtml(paidLabel)}</span>
     </header>
@@ -7863,8 +7965,8 @@ function renderHistoryFuelLogCard(log) {
       <div><dt>${IC.activity} Litros</dt><dd>${liters.toLocaleString("es-CO", { maximumFractionDigits: 2 })} L</dd></div>
       <div><dt>${IC.dollar} Total</dt><dd class="hist-money">$${total.toLocaleString("es-CO")}</dd></div>
       <div><dt>${IC.dollar} $/L</dt><dd>$${perLiter.toLocaleString("es-CO")}</dd></div>
-      <div><dt>${IC.mapPin} EstaciÃ³n</dt><dd>${log.station ? escapeHtml(log.station) : '<span class="muted">â€”</span>'}</dd></div>
-      ${parseNum(log.odometerKm) > 0 ? `<div><dt>${IC.clock} OdÃ³metro</dt><dd>${parseNum(log.odometerKm).toLocaleString("es-CO")} km</dd></div>` : ""}
+      <div><dt>${IC.mapPin} Estación</dt><dd>${log.station ? escapeHtml(log.station) : '<span class="muted">—</span>'}</dd></div>
+      ${parseNum(log.odometerKm) > 0 ? `<div><dt>${IC.clock} Odómetro</dt><dd>${parseNum(log.odometerKm).toLocaleString("es-CO")} km</dd></div>` : ""}
     </dl>
   </article>`;
 }
@@ -7880,8 +7982,8 @@ function renderHistoryTechnicalLogCard(log) {
     <header class="hist-fleet-card__head">
       <div>
         <time class="hist-fleet-card__date" datetime="${escapeAttr(String(log.date || ""))}">${escapeHtml(fmtFleetLogDate(log.date))}</time>
-        <h3 class="hist-fleet-card__plate">${escapeHtml(String(log.vehiclePlate || "â€”"))}</h3>
-        <p class="hist-fleet-card__desc">${escapeHtml(String(log.description || "â€”"))}</p>
+        <h3 class="hist-fleet-card__plate">${escapeHtml(String(log.vehiclePlate || "—"))}</h3>
+        <p class="hist-fleet-card__desc">${escapeHtml(String(log.description || "—"))}</p>
       </div>
       <div class="hist-fleet-card__badges">
         <span class="hist-badge hist-badge--type">${escapeHtml(typeLabel)}</span>
@@ -7900,16 +8002,16 @@ function renderHistoryFuelLogRow(log) {
   const total = parseNum(log.totalCost);
   const perLiter = parseNum(log.costPerLiter) || (liters > 0 ? Math.round(total / liters) : 0);
   const paid = String(log.paidBy || "empresa") === "conductor" ? "conductor" : "empresa";
-  const paidLabel = paid === "conductor" ? "Reembolso nÃ³mina" : "Empresa";
+  const paidLabel = paid === "conductor" ? "Reembolso nómina" : "Empresa";
   const trip = String(log.tripNumber || "").trim();
   return `<tr class="hist-table-row hist-table-row--fuel" data-fleet-fuel-row data-haystack="${escapeAttr(historyFleetFuelHaystack(log))}">
     <td data-label="Fecha"><time datetime="${escapeAttr(String(log.date || ""))}">${escapeHtml(fmtFleetLogDate(log.date))}</time></td>
-    <td data-label="Placa"><strong>${escapeHtml(String(log.vehiclePlate || "â€”"))}</strong></td>
-    <td data-label="Conductor">${escapeHtml(String(log.driverName || "â€”"))}${trip ? `<div class="muted hist-table-sub">${escapeHtml(trip)}</div>` : ""}</td>
+    <td data-label="Placa"><strong>${escapeHtml(String(log.vehiclePlate || "—"))}</strong></td>
+    <td data-label="Conductor">${escapeHtml(String(log.driverName || "—"))}${trip ? `<div class="muted hist-table-sub">${escapeHtml(trip)}</div>` : ""}</td>
     <td data-label="Litros">${liters.toLocaleString("es-CO", { maximumFractionDigits: 2 })} L</td>
     <td data-label="Total" class="hist-money">$${total.toLocaleString("es-CO")}</td>
     <td data-label="$/L">$${perLiter.toLocaleString("es-CO")}</td>
-    <td data-label="EstaciÃ³n">${log.station ? escapeHtml(log.station) : '<span class="muted">â€”</span>'}</td>
+    <td data-label="Estación">${log.station ? escapeHtml(log.station) : '<span class="muted">—</span>'}</td>
     <td data-label="Pagado"><span class="hist-badge hist-badge--${paid === "conductor" ? "warn" : "ok"}">${escapeHtml(paidLabel)}</span></td>
   </tr>`;
 }
@@ -7923,8 +8025,8 @@ function renderHistoryTechnicalLogRow(log) {
   const hours = parseNum(log.downtimeHours);
   return `<tr class="hist-table-row hist-table-row--technical hist-table-row--${escapeAttr(statusSlug)}" data-fleet-technical-row data-haystack="${escapeAttr(historyFleetTechnicalHaystack(log))}">
     <td data-label="Fecha"><time datetime="${escapeAttr(String(log.date || ""))}">${escapeHtml(fmtFleetLogDate(log.date))}</time></td>
-    <td data-label="Placa"><strong>${escapeHtml(String(log.vehiclePlate || "â€”"))}</strong></td>
-    <td data-label="DescripciÃ³n">${escapeHtml(String(log.description || "â€”"))}</td>
+    <td data-label="Placa"><strong>${escapeHtml(String(log.vehiclePlate || "—"))}</strong></td>
+    <td data-label="Descripción">${escapeHtml(String(log.description || "—"))}</td>
     <td data-label="Tipo"><span class="hist-badge hist-badge--type">${escapeHtml(typeLabel)}</span></td>
     <td data-label="Estado"><span class="hist-badge hist-badge--status">${escapeHtml(status)}</span></td>
     <td data-label="Costo" class="hist-money">$${cost.toLocaleString("es-CO")}</td>
@@ -7940,12 +8042,12 @@ function renderHistoryFuelLogsList(logs, layout = "cards") {
         ? "list"
         : "cards";
   if (!logs.length) {
-    return `<div class="hist-empty"><span class="hist-empty__icon" aria-hidden="true">${IC.fuel || IC.activity}</span><p>Sin cargas de combustible.</p><p class="muted">Registre la primera desde el mÃ³dulo <strong>Camiones</strong>.</p></div>`;
+    return `<div class="hist-empty"><span class="hist-empty__icon" aria-hidden="true">${IC.fuel || IC.activity}</span><p>Sin cargas de combustible.</p><p class="muted">Registre la primera desde el módulo <strong>Camiones</strong>.</p></div>`;
   }
   if (viewLayout === "list") {
     return `<div class="table-wrap hist-table-wrap"><table class="vehicle-fleet-table hist-table" id="history-fuel-results-grid">
     <thead><tr>
-      <th>Fecha</th><th>Placa</th><th>Conductor</th><th>Litros</th><th>Total</th><th>$/L</th><th>EstaciÃ³n</th><th>Pagado</th>
+      <th>Fecha</th><th>Placa</th><th>Conductor</th><th>Litros</th><th>Total</th><th>$/L</th><th>Estación</th><th>Pagado</th>
     </tr></thead>
     <tbody>${logs.map(renderHistoryFuelLogRow).join("")}</tbody>
   </table></div>`;
@@ -7966,7 +8068,7 @@ function renderHistoryTechnicalLogsList(logs, layout = "cards") {
   if (viewLayout === "list") {
     return `<div class="table-wrap hist-table-wrap"><table class="vehicle-fleet-table hist-table" id="history-technical-results-grid">
     <thead><tr>
-      <th>Fecha</th><th>Placa</th><th>DescripciÃ³n</th><th>Tipo</th><th>Estado</th><th>Costo</th><th>Fuera de servicio</th>
+      <th>Fecha</th><th>Placa</th><th>Descripción</th><th>Tipo</th><th>Estado</th><th>Costo</th><th>Fuera de servicio</th>
     </tr></thead>
     <tbody>${logs.map(renderHistoryTechnicalLogRow).join("")}</tbody>
   </table></div>`;
@@ -7995,7 +8097,7 @@ function historyFleetFilterToolbar(formId, fieldsHtml, layout = "cards") {
     <div class="transport-ops-toolbar hist-toolbar">
       <label class="transport-ops-search hist-search">
         <span class="muted">${IC.search || IC.filter} Buscar</span>
-        <input type="search" name="q" placeholder="Placa, conductor, estaciÃ³n, viajeâ€¦" autocomplete="off" />
+        <input type="search" name="q" placeholder="Placa, conductor, estación, viaje…" autocomplete="off" />
       </label>
       ${viewToggle}
       <details class="hist-advanced-filters">
@@ -8014,8 +8116,8 @@ function historyFleetFuelFormHtml(todayIsoDate, vehicleOptions, driverOptions) {
       <legend>${IC.calendar} Carga de combustible</legend>
       <div class="form-section-grid">
         <label>${fieldLabel(IC.calendar, "Fecha", { required: true })}<input type="date" name="date" value="${escapeAttr(todayIsoDate)}" required /></label>
-        <label>${fieldLabel(IC.truck, "CamiÃ³n", { required: true })}<select name="vehicleId" required><option value="">Seleccioneâ€¦</option>${vehicleOptions}</select></label>
-        <label>${fieldLabel(IC.user, "Conductor", { required: true })}<select name="driverId" required><option value="">Seleccioneâ€¦</option>${driverOptions}</select></label>
+        <label>${fieldLabel(IC.truck, "Camión", { required: true })}<select name="vehicleId" required><option value="">Seleccione…</option>${vehicleOptions}</select></label>
+        <label>${fieldLabel(IC.user, "Conductor", { required: true })}<select name="driverId" required><option value="">Seleccione…</option>${driverOptions}</select></label>
         <label>${fieldLabel(IC.file, "Viaje (opcional)")}<input name="tripNumber" placeholder="VIA-000123" autocomplete="off" /></label>
       </div>
     </fieldset>
@@ -8024,12 +8126,12 @@ function historyFleetFuelFormHtml(todayIsoDate, vehicleOptions, driverOptions) {
       <div class="form-section-grid">
         <label>${fieldLabel(IC.activity, "Litros", { required: true })}<input type="number" step="0.01" min="0.01" name="liters" required data-fuel-liters-input="1" /></label>
         ${historyFleetMoneyField("totalCost", "Valor total (COP)", { required: true })}
-        <label>${fieldLabel(IC.clock, "OdÃ³metro (km)")}<input type="number" min="0" name="odometerKm" inputmode="numeric" /></label>
-        <label>${fieldLabel(IC.mapPin, "EstaciÃ³n / EDS")}<input name="station" placeholder="EDS Roscombustibleâ€¦" autocomplete="off" /></label>
+        <label>${fieldLabel(IC.clock, "Odómetro (km)")}<input type="number" min="0" name="odometerKm" inputmode="numeric" /></label>
+        <label>${fieldLabel(IC.mapPin, "Estación / EDS")}<input name="station" placeholder="EDS Roscombustible…" autocomplete="off" /></label>
         <label>${fieldLabel(IC.briefcase, "Pagado por")}
           <select name="paidBy">
             <option value="empresa">Empresa</option>
-            <option value="conductor">Conductor (reembolso nÃ³mina)</option>
+            <option value="conductor">Conductor (reembolso nómina)</option>
           </select>
         </label>
       </div>
@@ -8046,15 +8148,15 @@ function historyFleetTechnicalFormHtml(todayIsoDate, vehicleOptions) {
       <legend>${IC.truck} Novedad de taller</legend>
       <div class="form-section-grid">
         <label>${fieldLabel(IC.calendar, "Fecha", { required: true })}<input type="date" name="date" value="${escapeAttr(todayIsoDate)}" required /></label>
-        <label>${fieldLabel(IC.truck, "CamiÃ³n", { required: true })}<select name="vehicleId" required><option value="">Seleccioneâ€¦</option>${vehicleOptions}</select></label>
+        <label>${fieldLabel(IC.truck, "Camión", { required: true })}<select name="vehicleId" required><option value="">Seleccione…</option>${vehicleOptions}</select></label>
         <label>${fieldLabel(IC.activity, "Tipo")}
           <select name="type">
             <option value="preventivo">Mantenimiento preventivo</option>
             <option value="correctivo">Mantenimiento correctivo</option>
-            <option value="falla">Falla tÃ©cnica</option>
+            <option value="falla">Falla técnica</option>
           </select>
         </label>
-        <label class="full">${fieldLabel(IC.file, "DescripciÃ³n", { required: true })}<input name="description" required placeholder="Ej. cambio de aceite, frenos, refrigeraciÃ³nâ€¦" /></label>
+        <label class="full">${fieldLabel(IC.file, "Descripción", { required: true })}<input name="description" required placeholder="Ej. cambio de aceite, frenos, refrigeración…" /></label>
         ${historyFleetMoneyField("cost", "Costo (COP)", { required: true })}
         <label>${fieldLabel(IC.clock, "Horas fuera de servicio")}<input type="number" min="0" step="0.5" name="downtimeHours" value="0" /></label>
         <label>${fieldLabel(IC.check, "Estado")}
@@ -8081,9 +8183,9 @@ function historyAuditActionLabel(action, moduleIdOrLabel = "", entryOrOpts = {})
   if (typeof historyAuditActionTitle === "function") {
     return historyAuditActionTitle(action, moduleIdOrLabel, entryOrOpts);
   }
-  if (action === "create") return "CreaciÃ³n";
-  if (action === "delete") return "EliminaciÃ³n";
-  return "ActualizaciÃ³n";
+  if (action === "create") return "Creación";
+  if (action === "delete") return "Eliminación";
+  return "Actualización";
 }
 
 function historyAuditActionStatus(action) {
@@ -8097,7 +8199,7 @@ const HISTORY_AUDIT_ACTOR_MATCH_MS = 24 * 60 * 60 * 1000;
 function historyAuditActorLabel(...candidates) {
   for (const raw of candidates) {
     const label = String(raw ?? "").trim();
-    if (!label || label === "â€”" || label === "-" || label.toLowerCase() === "usuario") continue;
+    if (!label || label === "—" || label === "-" || label.toLowerCase() === "usuario") continue;
     return label;
   }
   return "";
@@ -8226,10 +8328,10 @@ function formatHistoryAuditActorDisplay(actor, meta = {}) {
   const email = String(meta.actorEmail || "").trim();
   const name = String(meta.actorName || "").trim();
   if (name && email && label.toUpperCase() !== email.toUpperCase() && label.toUpperCase() !== name.toUpperCase()) {
-    return `${name} Â· ${email}`;
+    return `${name} · ${email}`;
   }
   if (email && label.toUpperCase() === email.toUpperCase() && name && name !== "Usuario") {
-    return `${name} Â· ${email}`;
+    return `${name} · ${email}`;
   }
   return label;
 }
@@ -8339,52 +8441,52 @@ function reindexEntityHistoryActorsFromCatalogs() {
     pushEntity("Usuarios y permisos", company, String(company.name || "Empresa"))
   );
   readArray(KEYS.vehicles).forEach((vehicle) =>
-    pushEntity("Camiones", vehicle, String(vehicle.plate || vehicle.id || "CamiÃ³n").toUpperCase())
+    pushEntity("Camiones", vehicle, String(vehicle.plate || vehicle.id || "Camión").toUpperCase())
   );
   readArray(KEYS.drivers).forEach((driver) =>
     pushEntity("Conductores", driver, String(driver.name || "Conductor"))
   );
   readArray(KEYS.positions).forEach((position) =>
-    pushEntity("ContrataciÃ³n", position, String(position.name || "Cargo"))
+    pushEntity("Contratación", position, String(position.name || "Cargo"))
   );
   readArray(KEYS.vacancies).forEach((vacancy) =>
-    pushEntity("ContrataciÃ³n", vacancy, String(vacancy.title || vacancy.positionName || "Vacante"))
+    pushEntity("Contratación", vacancy, String(vacancy.title || vacancy.positionName || "Vacante"))
   );
   readArray(KEYS.candidates).forEach((candidate) =>
-    pushEntity("ContrataciÃ³n", candidate, String(candidate.name || "Candidato"))
+    pushEntity("Contratación", candidate, String(candidate.name || "Candidato"))
   );
   readArray(KEYS.interviews).forEach((interview) =>
-    pushEntity("ContrataciÃ³n", interview, String(interview.candidateName || "Entrevista"))
+    pushEntity("Contratación", interview, String(interview.candidateName || "Entrevista"))
   );
   readArray(KEYS.contracts).forEach((contract) =>
     pushEntity(
-      "ContrataciÃ³n",
+      "Contratación",
       contract,
       String(contract.candidateName || contract.employeeName || "Contrato")
     )
   );
   readArray(KEYS.payrollEmployees).forEach((employee) =>
-    pushEntity("GestiÃ³n humana", employee, String(employee.name || "Colaborador"))
+    pushEntity("Gestión humana", employee, String(employee.name || "Colaborador"))
   );
   readArray(KEYS.payrollRuns).forEach((run) =>
     pushEntity(
-      "GestiÃ³n humana",
+      "Gestión humana",
       run,
-      `${String(run.employeeName || "Colaborador").trim()} Â· ${String(run.month || "-").trim()}`
+      `${String(run.employeeName || "Colaborador").trim()} · ${String(run.month || "-").trim()}`
     )
   );
   readArray(KEYS.hrAbsences).forEach((absence) =>
     pushEntity(
-      "GestiÃ³n humana",
+      "Gestión humana",
       absence,
-      `${String(absence.employeeName || "Colaborador").trim()} Â· ${String(absence.startDate || "-")}`
+      `${String(absence.employeeName || "Colaborador").trim()} · ${String(absence.startDate || "-")}`
     )
   );
   readArray(KEYS.sstCompliance).forEach((record) =>
     pushEntity(
       "Cumplimiento laboral y SST",
       record,
-      `${String(record.employeeName || "Colaborador").trim()} Â· ${String(record.recordType || "Control")}`
+      `${String(record.employeeName || "Colaborador").trim()} · ${String(record.recordType || "Control")}`
     )
   );
   readPortalB2bContactLeads().forEach((contact) =>
@@ -8395,7 +8497,7 @@ function reindexEntityHistoryActorsFromCatalogs() {
     )
   );
   readArray(KEYS.approvals).forEach((approval) =>
-    pushEntity("Autorizaciones", approval, String(approval.title || approval.type || "AutorizaciÃ³n").trim())
+    pushEntity("Autorizaciones", approval, String(approval.title || approval.type || "Autorización").trim())
   );
 
   const bindLogToCatalog = (row) => {
@@ -8599,7 +8701,7 @@ function moduleAuditLogRowFromTransportDeletion(row, kind) {
     entityLabel: String(
       isTrip ? row.tripNumber || row.requestNumber || "Viaje" : row.requestNumber || row.requestId || "Solicitud"
     ),
-    summary: `${summaryPart} Â· Motivo: ${String(row.reason || "â€”")}`,
+    summary: `${summaryPart} · Motivo: ${String(row.reason || "—")}`,
     actor: fields.actor,
     actorEmail: fields.actorEmail,
     actorUserId: fields.actorUserId,
@@ -8624,8 +8726,8 @@ function moduleAuditLogRowFromRequestModification(request, logRow) {
     entityId: String(request.id || ""),
     entityLabel: requestLabel,
     summary: tripN
-      ? `ModificaciÃ³n con viaje ${tripN}${changes ? ` (${changes})` : ""}: ${just}`
-      : `ModificaciÃ³n${changes ? ` (${changes})` : ""}: ${just}`,
+      ? `Modificación con viaje ${tripN}${changes ? ` (${changes})` : ""}: ${just}`
+      : `Modificación${changes ? ` (${changes})` : ""}: ${just}`,
     actor: fields.actor,
     actorEmail: fields.actorEmail,
     actorUserId: fields.actorUserId,
@@ -9055,7 +9157,7 @@ function buildHistoryAuditEntries() {
         id: `audit-explicit-${String(row.id || newUuidV4())}`,
         ts,
         action: String(row.action || "update"),
-        moduleLabel: normalizePortalAuditModuleLabel(row.moduleLabel || row.moduleId || "MÃ³dulo"),
+        moduleLabel: normalizePortalAuditModuleLabel(row.moduleLabel || row.moduleId || "Módulo"),
         entityId: String(row.entityId || ""),
         entityLabel: String(row.entityLabel || "Registro"),
         entityKind: String(row.entityKind || "").trim().toLowerCase(),
@@ -9139,7 +9241,7 @@ function renderHistoryAuditCard(entry) {
           <time class="hist-trace-card__time" datetime="${escapeAttr(String(entry.ts || ""))}">${escapeHtml(fmtDate(entry.ts))}</time>
           ${relativeHtml}
         </div>
-        <span class="hist-trace-card__actor${actorLabel ? "" : " hist-trace-card__actor--empty"}" title="${actorLabel ? "" : "No se registrÃ³ el usuario responsable de este cambio"}">
+        <span class="hist-trace-card__actor${actorLabel ? "" : " hist-trace-card__actor--empty"}" title="${actorLabel ? "" : "No se registró el usuario responsable de este cambio"}">
           <span class="hist-trace-card__avatar" aria-hidden="true">${escapeHtml(initials)}</span>
           <span class="hist-trace-card__actor-name">${actorLabel ? escapeHtml(actorLabel) : "Sin registrar"}</span>
         </span>
@@ -9165,8 +9267,8 @@ function renderHistoryAuditRow(entry) {
       <time datetime="${escapeAttr(String(entry.ts || ""))}">${escapeHtml(fmtDate(entry.ts))}</time>
       ${relativeHtml}
     </td>
-    <td data-label="MÃ³dulo"><span class="hist-trace-table-module">${moduleIcon}<span>${escapeHtml(entry.moduleLabel)}</span></span></td>
-    <td data-label="AcciÃ³n"><span class="status ${escapeAttr(actionTone)} hist-trace-table-action">${escapeHtml(actionLabel)}</span></td>
+    <td data-label="Módulo"><span class="hist-trace-table-module">${moduleIcon}<span>${escapeHtml(entry.moduleLabel)}</span></span></td>
+    <td data-label="Acción"><span class="status ${escapeAttr(actionTone)} hist-trace-table-action">${escapeHtml(actionLabel)}</span></td>
     <td data-label="Detalles" class="hist-table-actions"><div class="toolbar history-list-actions">${detailButton}</div></td>
   </tr>`;
 }
@@ -9179,12 +9281,12 @@ function renderHistoryAuditList(entries, layout = "list") {
         ? "list"
         : "cards";
   if (!entries.length) {
-    return `<div class="hist-empty"><span class="hist-empty__icon" aria-hidden="true">${IC.activity || IC.layers}</span><p>Sin movimientos auditables.</p><p class="muted">Los cambios del sistema aparecerÃ¡n aquÃ­ conforme se registren.</p></div>`;
+    return `<div class="hist-empty"><span class="hist-empty__icon" aria-hidden="true">${IC.activity || IC.layers}</span><p>Sin movimientos auditables.</p><p class="muted">Los cambios del sistema aparecerán aquí conforme se registren.</p></div>`;
   }
   if (viewLayout === "list") {
     return `<div class="table-wrap hist-table-wrap hist-trace-table-wrap"><table class="vehicle-fleet-table hist-table hist-trace-table hist-trace-table--compact" id="history-audit-results-grid">
     <thead><tr>
-      <th scope="col">Fecha</th><th scope="col">MÃ³dulo</th><th scope="col">AcciÃ³n</th><th scope="col">Detalles</th>
+      <th scope="col">Fecha</th><th scope="col">Módulo</th><th scope="col">Acción</th><th scope="col">Detalles</th>
     </tr></thead>
     <tbody>${entries.map(renderHistoryAuditRow).join("")}</tbody>
   </table></div>`;
@@ -9244,7 +9346,7 @@ function buildReportExportHtml(title, columns = [], rows = [], meta = {}) {
                 if (["currency", "number", "percent"].includes(cellType)) classes.push("is-numeric");
                 if (col.pinned) classes.push("is-primary");
                 const display = reportsBiExcelEsc(reportPreviewFormatValue(row[col.key], cellType));
-                if (display === "â€”") return `<td class="${classes.join(" ")}"><span class="empty-value">â€”</span></td>`;
+                if (display === "—") return `<td class="${classes.join(" ")}"><span class="empty-value">—</span></td>`;
                 if (["status", "risk", "boolean", "tag"].includes(cellType)) {
                   return `<td class="${classes.join(" ")}"><span class="pill pill-${reportPreviewTone(cellType, row[col.key])}">${display}</span></td>`;
                 }
@@ -9264,7 +9366,7 @@ function buildReportExportHtml(title, columns = [], rows = [], meta = {}) {
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>${safeTitle} â€” Transportes Antares</title>
+<title>${safeTitle} — Transportes Antares</title>
 <style>
   * { box-sizing: border-box; }
   body { margin: 0; font-family: Montserrat, Arial, sans-serif; color: ${b.text}; background: #f5fbff; }
@@ -9315,7 +9417,7 @@ function buildReportExportHtml(title, columns = [], rows = [], meta = {}) {
         <div class="banner-logo-wrap"><img class="banner-logo" src="${logoSrc}" alt="Logo de Transportes Antares" /></div>
         <div class="banner-copy">
           <h1>${safeTitle}</h1>
-          <p>Transportes Antares Â· Centro de reporterÃ­a</p>
+          <p>Transportes Antares · Centro de reportería</p>
         </div>
       </div>
     </header>
@@ -9330,7 +9432,7 @@ function buildReportExportHtml(title, columns = [], rows = [], meta = {}) {
         <tbody>${tbody}</tbody>
       </table>
     </div>
-    <p class="print-hint">Para guardar como PDF: abra este archivo en el navegador y use <strong>Imprimir â†’ Guardar como PDF</strong> (Ctrl+P).</p>
+    <p class="print-hint">Para guardar como PDF: abra este archivo en el navegador y use <strong>Imprimir → Guardar como PDF</strong> (Ctrl+P).</p>
     <p class="foot">${copyrightText}<br/>Documento generado por Antares. Uso interno y operativo.</p>
   </div>
 </body>
@@ -9364,7 +9466,7 @@ body{font-family:Montserrat,Arial,sans-serif;color:${b.text}}
 <table width="100%" cellspacing="0" cellpadding="0">
 <tr><td class="xls-logo-cell" colspan="${Math.max(4, (columns || []).length)}"><img class="xls-logo" src="${logoSrc}" alt="Logo de Transportes Antares" /></td></tr>
 <tr><td class="xls-banner" colspan="${Math.max(4, (columns || []).length)}">${safeTitle}</td></tr>
-<tr><td class="xls-meta" colspan="${Math.max(4, (columns || []).length)}">Transportes Antares Â· ${generatedAt}${generatedBy ? ` Â· ${generatedBy}` : ""}</td></tr>
+<tr><td class="xls-meta" colspan="${Math.max(4, (columns || []).length)}">Transportes Antares · ${generatedAt}${generatedBy ? ` · ${generatedBy}` : ""}</td></tr>
 <tr><td colspan="${Math.max(4, (columns || []).length)}">${tableHtml}</td></tr>
 <tr><td class="xls-foot" colspan="${Math.max(4, (columns || []).length)}">${copyrightText}</td></tr>
 </table>
@@ -9447,7 +9549,7 @@ function ensureReportPreviewModal() {
           <img id="report-preview-logo" class="report-preview-logo" src="${escapeAttr(reportBrandLogoSrc())}" alt="Logo de Transportes Antares" />
         </div>
         <div>
-          <p class="report-preview-kicker">Centro de reporterÃ­a</p>
+          <p class="report-preview-kicker">Centro de reportería</p>
           <h2 id="report-preview-title">Reporte</h2>
           <div id="report-preview-stats" class="report-preview-stats"></div>
         </div>
@@ -9518,7 +9620,7 @@ function printReportPreviewDocument() {
   if (!frame) {
     frame = document.createElement("iframe");
     frame.id = "report-print-frame";
-    frame.setAttribute("title", "ImpresiÃ³n de reporte");
+    frame.setAttribute("title", "Impresión de reporte");
     frame.style.cssText = "position:fixed;width:0;height:0;border:0;opacity:0;pointer-events:none";
     document.body.appendChild(frame);
   }
@@ -9658,27 +9760,27 @@ function requestLifecycleSummary(request) {
   const insuredValue = parseNum(request?.insuredValue || 0);
   const distanceKm = parseNum(request?.distanceKm || 0);
   const invoiceNumber = String(request?.trip?.invoice?.number || "").trim();
-  if (cancellation) notes.push(`CancelaciÃ³n: ${cancellation}`);
+  if (cancellation) notes.push(`Cancelación: ${cancellation}`);
   if (rejection) notes.push(`Rechazo: ${rejection}`);
-  if (request?.autoApproved) notes.push("AprobaciÃ³n automÃ¡tica");
+  if (request?.autoApproved) notes.push("Aprobación automática");
   if (insuredValue > 0) notes.push(`Asegurado $${insuredValue.toLocaleString("es-CO")}`);
   if (distanceKm > 0) notes.push(`${distanceKm.toLocaleString("es-CO")} km`);
   if (standby > 0) notes.push(`Standby $${standby.toLocaleString("es-CO")}`);
   if (invoiceNumber) notes.push(`Factura ${invoiceNumber}`);
-  return notes.join(" Â· ") || "-";
+  return notes.join(" · ") || "-";
 }
 
 function requestFunnelStageDescription(status) {
   const descriptions = {
-    [STATUS.PENDIENTE]: "Solicitud radicada y pendiente de revisiÃ³n.",
-    [STATUS.APROBADA_PENDIENTE_ASIGNACION]: "Solicitud aprobada, pendiente de asignaciÃ³n de recursos.",
-    [STATUS.VIAJE_ASIGNADO]: "Viaje creado y listo para iniciar operaciÃ³n.",
-    [STATUS.EN_TRANSITO]: "Servicio en ejecuciÃ³n con recursos asignados.",
-    [STATUS.ESPERA_STANDBY]: "OperaciÃ³n en espera con cargos de standby activos.",
+    [STATUS.PENDIENTE]: "Solicitud radicada y pendiente de revisión.",
+    [STATUS.APROBADA_PENDIENTE_ASIGNACION]: "Solicitud aprobada, pendiente de asignación de recursos.",
+    [STATUS.VIAJE_ASIGNADO]: "Viaje creado y listo para iniciar operación.",
+    [STATUS.EN_TRANSITO]: "Servicio en ejecución con recursos asignados.",
+    [STATUS.ESPERA_STANDBY]: "Operación en espera con cargos de standby activos.",
     [STATUS.COMPLETADA]: "Servicio entregado y pendiente de cierre administrativo final.",
     [STATUS.CERRADA]: "Proceso operativo y administrativo cerrado.",
     [STATUS.CANCELADA]: "Solicitud cancelada antes del cierre.",
-    [STATUS.RECHAZADA]: "Solicitud rechazada en validaciÃ³n."
+    [STATUS.RECHAZADA]: "Solicitud rechazada en validación."
   };
   return descriptions[status] || "Estado operativo registrado en el portal.";
 }
@@ -9706,20 +9808,20 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
     const openApprovals = reportsFilterItemsByPeriod(read(KEYS.approvals, []), exportFilters.period, (approval) => approval.requestedAt || approval.reviewedAt || approval.createdAt)
       .filter((approval) => approval.status === "pendiente").length;
     const rows = [
-      { metric: "Solicitudes totales", value: requests.length, detail: "Acumulado histÃ³rico", category: "OperaciÃ³n" },
-      { metric: "Solicitudes pendientes", value: pendingApprovals, detail: "Esperando gestiÃ³n operativa", category: "OperaciÃ³n" },
-      { metric: "Viajes cerrados", value: closedTrips.length, detail: `${trips.length} viajes creados`, category: "OperaciÃ³n" },
+      { metric: "Solicitudes totales", value: requests.length, detail: "Acumulado histórico", category: "Operación" },
+      { metric: "Solicitudes pendientes", value: pendingApprovals, detail: "Esperando gestión operativa", category: "Operación" },
+      { metric: "Viajes cerrados", value: closedTrips.length, detail: `${trips.length} viajes creados`, category: "Operación" },
       { metric: "Ingresos operativos estimados", value: totalRevenue, detail: "Incluye standby e invoice", category: "Finanzas" },
-      { metric: "NÃ³mina neta pagada", value: paidPayroll, detail: `${payrollRuns.length} liquidaciones`, category: "Finanzas" },
-      { metric: "Contratos emitidos", value: contracts.length, detail: "FormalizaciÃ³n laboral", category: "RRHH" },
+      { metric: "Nómina neta pagada", value: paidPayroll, detail: `${payrollRuns.length} liquidaciones`, category: "Finanzas" },
+      { metric: "Contratos emitidos", value: contracts.length, detail: "Formalización laboral", category: "RRHH" },
       { metric: "Controles SST activos", value: sstControls.length, detail: "Seguridad social y documental", category: "Cumplimiento" },
       { metric: "Aprobaciones abiertas", value: openApprovals, detail: "Solicitudes por decidir", category: "Gobierno" }
     ];
     return {
-      title: "Resumen ejecutivo de gestiÃ³n",
+      title: "Resumen ejecutivo de gestión",
       columns: [
-        { key: "category", label: "CategorÃ­a" },
-        { key: "metric", label: "MÃ©trica" },
+        { key: "category", label: "Categoría" },
+        { key: "metric", label: "Métrica" },
         { key: "value", label: "Valor" },
         { key: "detail", label: "Detalle" }
       ],
@@ -9760,11 +9862,11 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
         { key: "status", label: "Estado actual" },
         { key: "client", label: "Cliente" },
         { key: "route", label: "Ruta" },
-        { key: "assignedAt", label: "AsignaciÃ³n" },
+        { key: "assignedAt", label: "Asignación" },
         { key: "etaDelivery", label: "ETA entrega" },
         { key: "deliveredAt", label: "Entrega real" },
-        { key: "approvalMinutes", label: "AprobaciÃ³n (min)" },
-        { key: "delayMinutes", label: "DesviaciÃ³n (min)" },
+        { key: "approvalMinutes", label: "Aprobación (min)" },
+        { key: "delayMinutes", label: "Desviación (min)" },
         { key: "cycleHours", label: "Ciclo (h)" }
       ],
       rows,
@@ -9796,7 +9898,7 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
         historicalTrips: trips.length,
         completedTrips: completed,
         closurePct: `${closurePct}%`,
-        documentRisk: soatRisk.days < 0 || techRisk.days < 0 ? "CrÃ­tico" : (soatRisk.days <= 30 || techRisk.days <= 30 ? "AtenciÃ³n" : "Controlado"),
+        documentRisk: soatRisk.days < 0 || techRisk.days < 0 ? "Crítico" : (soatRisk.days <= 30 || techRisk.days <= 30 ? "Atención" : "Controlado"),
         soatExpiry: vehicle.soatExpiryDate || "-",
         techExpiry: vehicle.techInspectionExpiryDate || "-"
       };
@@ -9809,12 +9911,12 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
         { key: "capacityKg", label: "Capacidad kg" },
         { key: "operationalState", label: "Estado operativo" },
         { key: "activeTrips", label: "Viajes activos" },
-        { key: "historicalTrips", label: "Viajes histÃ³ricos" },
+        { key: "historicalTrips", label: "Viajes históricos" },
         { key: "completedTrips", label: "Viajes finalizados" },
-        { key: "closurePct", label: "Cierre histÃ³rico" },
+        { key: "closurePct", label: "Cierre histórico" },
         { key: "documentRisk", label: "Riesgo documental" },
         { key: "soatExpiry", label: "Vence SOAT" },
-        { key: "techExpiry", label: "Vence tecnomecÃ¡nica" }
+        { key: "techExpiry", label: "Vence tecnomecánica" }
       ],
       rows,
       fileName: "reporte_disponibilidad_flota.csv"
@@ -9831,7 +9933,7 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
         vehicle: request.trip.vehiclePlate,
         route: formatRoute(request),
         serviceMode: normalizeRequestTransportMode(request.serviceType),
-        thermoking: requestRequiresTermoking(request) ? "SÃ­" : "No",
+        thermoking: requestRequiresTermoking(request) ? "Sí" : "No",
         status: prettyStatus(request.status, "request").replace(/<[^>]+>/g, ""),
         slaStatus: slaStatusForRequest(request),
         cycleHours: actualDelivery ? hoursBetween(request.createdAt, actualDelivery) : "-",
@@ -9877,7 +9979,7 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
       status: prettyStatus(request.status, "request").replace(/<[^>]+>/g, ""),
       approvedBy: request.approvedBy || "-",
       approvalMinutes: request.approvedAt ? minutesBetween(request.createdAt, request.approvedAt) : "-",
-      hasTrip: request.trip ? "SÃ­" : "No",
+      hasTrip: request.trip ? "Sí" : "No",
       createdAt: fmtDate(request.createdAt),
       approvedAt: request.approvedAt ? fmtDate(request.approvedAt) : "-",
       lifecycleNote: requestLifecycleSummary(request)
@@ -9893,8 +9995,8 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
         { key: "serviceMode", label: "Modalidad" },
         { key: "value", label: "Valor viaje" },
         { key: "hasTrip", label: "Tiene viaje" },
-        { key: "approvedBy", label: "Responsable decisiÃ³n" },
-        { key: "approvalMinutes", label: "AprobaciÃ³n (min)" },
+        { key: "approvedBy", label: "Responsable decisión" },
+        { key: "approvalMinutes", label: "Aprobación (min)" },
         { key: "createdAt", label: "Creada" },
         { key: "approvedAt", label: "Aprobada" },
         { key: "lifecycleNote", label: "Novedad relevante" }
@@ -9919,10 +10021,10 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
           !Number.isFinite(licenseDays)
             ? "Sin fecha"
             : licenseDays < 0
-              ? `Vencida (${Math.abs(licenseDays)} dÃ­as)`
+              ? `Vencida (${Math.abs(licenseDays)} días)`
               : licenseDays <= 30
-                ? `Por vencer (${licenseDays} dÃ­as)`
-                : `Vigente (${licenseDays} dÃ­as)`,
+                ? `Por vencer (${licenseDays} días)`
+                : `Vigente (${licenseDays} días)`,
         activeTrips,
         trips: trips.length,
         completedTrips,
@@ -9930,7 +10032,7 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
       };
     });
     return {
-      title: "DesempeÃ±o y habilitaciÃ³n de conductores",
+      title: "Desempeño y habilitación de conductores",
       columns: [
         { key: "name", label: "Conductor" },
         { key: "doc", label: "Documento" },
@@ -9956,7 +10058,7 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
       const incapacitySummary =
         inc && Array.isArray(inc.episodes) && inc.episodes.length
           ? inc.episodes
-              .map((e) => `${e.days ?? "?"}dÂ·${parseNum(e.adjustCop).toLocaleString("es-CO")}`)
+              .map((e) => `${e.days ?? "?"}d·${parseNum(e.adjustCop).toLocaleString("es-CO")}`)
               .join("; ")
           : "";
       const absenceSummary = buildPayrollAbsenceSummaryText(run, hrAbsences);
@@ -9977,7 +10079,7 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
       };
     });
     return {
-      title: "Consolidado de nÃ³mina",
+      title: "Consolidado de nómina",
       columns: [
         { key: "month", label: "Mes" },
         { key: "employee", label: "Empleado" },
@@ -10010,20 +10112,20 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
         vacancy: candidate.vacancyTitle,
         source: candidate.source || "-",
         status: candidate.status,
-        birthDate: ai.birthLabel === "â€”" ? "-" : ai.birthLabel,
+        birthDate: ai.birthLabel === "—" ? "-" : ai.birthLabel,
         ageYears: ai.age != null ? String(ai.age) : "-",
         expCargoYears: parseNum(candidate.experienceYears || 0),
         expectedSalary: parseNum(candidate.expectedSalary || 0),
         interviewCount,
-        hasInterview: interviewCount > 0 ? "SÃ­" : "No",
-        hasContract: contract ? "SÃ­" : "No",
+        hasInterview: interviewCount > 0 ? "Sí" : "No",
+        hasContract: contract ? "Sí" : "No",
         contractDate: contract?.createdAt ? fmtDate(contract.createdAt) : "-",
         stageAgeDays: Math.max(0, Math.floor((Date.now() - new Date(candidate.createdAt || nowIso()).getTime()) / 86400000)),
         createdAt: fmtDate(candidate.createdAt)
       };
     });
     return {
-      title: "GestiÃ³n de selecciÃ³n y contrataciÃ³n",
+      title: "Gestión de selección y contratación",
       columns: [
         { key: "name", label: "Candidato" },
         { key: "vacancy", label: "Vacante" },
@@ -10031,13 +10133,13 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
         { key: "status", label: "Estado proceso" },
         { key: "birthDate", label: "Fecha nacimiento" },
         { key: "ageYears", label: "Edad" },
-        { key: "expCargoYears", label: "AÃ±os exp. cargo" },
+        { key: "expCargoYears", label: "Años exp. cargo" },
         { key: "expectedSalary", label: "Aspiracion" },
         { key: "interviewCount", label: "Entrevistas" },
         { key: "hasInterview", label: "Entrevista" },
         { key: "hasContract", label: "Contrato" },
         { key: "contractDate", label: "Fecha contrato" },
-        { key: "stageAgeDays", label: "Edad etapa (dÃ­as)" },
+        { key: "stageAgeDays", label: "Edad etapa (días)" },
         { key: "createdAt", label: "Fecha" }
       ],
       rows,
@@ -10058,7 +10160,7 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
         completionDate: item.completionDate || "-",
         dueDate: item.dueDate || "-",
         daysToDue: dueDays == null ? "-" : dueDays,
-        riskLevel: dueDays == null ? "Sin fecha" : dueDays < 0 ? "Vencido" : dueDays <= 30 ? "PrÃ³ximo a vencer" : "Controlado",
+        riskLevel: dueDays == null ? "Sin fecha" : dueDays < 0 ? "Vencido" : dueDays <= 30 ? "Próximo a vencer" : "Controlado",
         status: item.status || "-",
         documentCode: item.documentCode || "-",
         createdAt: fmtDate(item.createdAt)
@@ -10071,9 +10173,9 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
         { key: "employeeDoc", label: "Documento" },
         { key: "control", label: "Control" },
         { key: "provider", label: "Entidad" },
-        { key: "completionDate", label: "RealizaciÃ³n" },
+        { key: "completionDate", label: "Realización" },
         { key: "dueDate", label: "Vencimiento" },
-        { key: "daysToDue", label: "DÃ­as al vencimiento" },
+        { key: "daysToDue", label: "Días al vencimiento" },
         { key: "riskLevel", label: "Riesgo" },
         { key: "status", label: "Estado" },
         { key: "documentCode", label: "Codigo" },
@@ -10174,8 +10276,8 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
         { key: "requestedAt", label: "Fecha solicitud" },
         { key: "reviewedBy", label: "Aprobador" },
         { key: "reviewedAt", label: "Fecha revision" },
-        { key: "resolutionHours", label: "ResoluciÃ³n (h)" },
-        { key: "rejectionReason", label: "ObservaciÃ³n / rechazo" }
+        { key: "resolutionHours", label: "Resolución (h)" },
+        { key: "rejectionReason", label: "Observación / rechazo" }
       ],
       rows,
       fileName: "reporte_trazabilidad_autorizaciones.csv"
@@ -10199,13 +10301,13 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
       columns: [
         { key: "date", label: "Fecha" },
         { key: "driver", label: "Conductor" },
-        { key: "vehicle", label: "VehÃ­culo" },
-        { key: "station", label: "EstaciÃ³n" },
+        { key: "vehicle", label: "Vehículo" },
+        { key: "station", label: "Estación" },
         { key: "liters", label: "Litros" },
         { key: "totalCost", label: "Costo COP" },
         { key: "costPerLiter", label: "Costo por litro" },
         { key: "paidBy", label: "Pagado por" },
-        { key: "odometerKm", label: "OdÃ³metro km" },
+        { key: "odometerKm", label: "Odómetro km" },
         { key: "tripRef", label: "Viaje / solicitud" }
       ],
       rows,
@@ -10227,12 +10329,12 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
       status: log.status || "-"
     }));
     return {
-      title: "GestiÃ³n de mantenimiento de flota",
+      title: "Gestión de mantenimiento de flota",
       columns: [
         { key: "date", label: "Fecha" },
-        { key: "vehicle", label: "VehÃ­culo" },
+        { key: "vehicle", label: "Vehículo" },
         { key: "kind", label: "Tipo" },
-        { key: "description", label: "DescripciÃ³n" },
+        { key: "description", label: "Descripción" },
         { key: "cost", label: "Costo COP" },
         { key: "downtimeHours", label: "Horas fuera" },
         { key: "costPerDowntimeHour", label: "Costo / hora fuera" },
@@ -10272,7 +10374,7 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
         { key: "trips", label: "Viajes" },
         { key: "revenue", label: "Recaudo COP" },
         { key: "avgTicket", label: "Ticket promedio" },
-        { key: "sharePct", label: "% participaciÃ³n" }
+        { key: "sharePct", label: "% participación" }
       ],
       rows,
       fileName: "reporte_ingresos_por_ruta.csv"
@@ -10304,7 +10406,7 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
       }))
       .sort((a, b) => b.count - a.count);
     return {
-      title: "ConversiÃ³n operativa de solicitudes",
+      title: "Conversión operativa de solicitudes",
       columns: [
         { key: "stage", label: "Etapa" },
         { key: "description", label: "Lectura de negocio" },
@@ -10328,7 +10430,7 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
         techStatus: tech.label,
         techDays: tech.days,
         risk:
-          worst < 0 ? "Vencido" : worst <= 15 ? "CrÃ­tico (15d)" : worst <= 30 ? "AtenciÃ³n (30d)" : "Al dÃ­a",
+          worst < 0 ? "Vencido" : worst <= 15 ? "Crítico (15d)" : worst <= 30 ? "Atención (30d)" : "Al día",
         soatExpiry: vehicle.soatExpiryDate || "-",
         techExpiry: vehicle.techInspectionExpiryDate || "-"
       };
@@ -10339,12 +10441,12 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
         { key: "plate", label: "Placa" },
         { key: "type", label: "Tipo" },
         { key: "soatStatus", label: "Estado SOAT" },
-        { key: "soatDays", label: "DÃ­as SOAT" },
-        { key: "techStatus", label: "Estado tecnomecÃ¡nica" },
-        { key: "techDays", label: "DÃ­as tecnomecÃ¡nica" },
+        { key: "soatDays", label: "Días SOAT" },
+        { key: "techStatus", label: "Estado tecnomecánica" },
+        { key: "techDays", label: "Días tecnomecánica" },
         { key: "risk", label: "Riesgo" },
         { key: "soatExpiry", label: "Vence SOAT" },
-        { key: "techExpiry", label: "Vence tÃ©cnico" }
+        { key: "techExpiry", label: "Vence técnico" }
       ],
       rows,
       fileName: "reporte_cumplimiento_documental_flota.csv"
@@ -10373,11 +10475,11 @@ function reportsPeriodStart(period) {
 
 function reportsPeriodLabel(period) {
   const labels = {
-    "30d": "Ãšltimos 30 dÃ­as",
-    "90d": "Ãšltimos 90 dÃ­as",
+    "30d": "Últimos 30 días",
+    "90d": "Últimos 90 días",
     month: "Mes actual",
-    ytd: "AÃ±o en curso",
-    all: "HistÃ³rico completo"
+    ytd: "Año en curso",
+    all: "Histórico completo"
   };
   return labels[String(period || "90d").trim()] || labels["90d"];
 }
@@ -10415,7 +10517,7 @@ function reportsMonthKey(isoValue) {
 
 function reportsHumanMonth(key) {
   const k = String(key || "");
-  if (!/^\d{4}-\d{2}$/.test(k)) return k || "â€”";
+  if (!/^\d{4}-\d{2}$/.test(k)) return k || "—";
   const [y, m] = k.split("-");
   const names = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
   const mi = Number(m);
@@ -10455,13 +10557,13 @@ function reportsWeekKey(isoValue) {
 function reportsBuildInsights(snapshot) {
   const insights = [];
   const k = snapshot.kpis;
-  if (k.slaPct >= 90) insights.push({ tone: "ok", title: "SLA sÃ³lido", text: `El ${k.slaPct}% de viajes cumple entrega a tiempo en el periodo.` });
+  if (k.slaPct >= 90) insights.push({ tone: "ok", title: "SLA sólido", text: `El ${k.slaPct}% de viajes cumple entrega a tiempo en el periodo.` });
   else if (k.slaPct > 0) insights.push({ tone: "warn", title: "SLA mejorable", text: `Solo ${k.slaPct}% cumple SLA. Revise rutas con retraso en el tablero operativo.` });
   if (k.trends.revenue > 15) insights.push({ tone: "ok", title: "Recaudo al alza", text: `Ingresos +${k.trends.revenue}% vs periodo anterior.` });
   else if (k.trends.revenue < -10) insights.push({ tone: "warn", title: "Recaudo a la baja", text: `Ingresos ${k.trends.revenue}% vs periodo anterior.` });
-  if (k.docRisk > 0) insights.push({ tone: "alert", title: "Flota en riesgo", text: `${k.docRisk} vehÃ­culo(s) con SOAT o tecnomecÃ¡nica vencida o por vencer.` });
-  if (k.assignRate < 70 && k.requests > 5) insights.push({ tone: "warn", title: "Cola de asignaciÃ³n", text: `Solo ${k.assignRate}% de solicitudes tiene viaje. Priorice pendientes de asignar.` });
-  if (k.avgTicket > 0) insights.push({ tone: "neutral", title: "Ticket promedio", text: `${snapshot.fmtCop(k.avgTicket)} por operaciÃ³n en el periodo.` });
+  if (k.docRisk > 0) insights.push({ tone: "alert", title: "Flota en riesgo", text: `${k.docRisk} vehículo(s) con SOAT o tecnomecánica vencida o por vencer.` });
+  if (k.assignRate < 70 && k.requests > 5) insights.push({ tone: "warn", title: "Cola de asignación", text: `Solo ${k.assignRate}% de solicitudes tiene viaje. Priorice pendientes de asignar.` });
+  if (k.avgTicket > 0) insights.push({ tone: "neutral", title: "Ticket promedio", text: `${snapshot.fmtCop(k.avgTicket)} por operación en el periodo.` });
   return insights.slice(0, 4);
 }
 
@@ -10558,7 +10660,7 @@ function buildReportsAnalyticsSnapshot(user, period = "90d") {
     { label: "Solicitudes", value: requests.length },
     { label: "Aprobadas", value: requests.filter((r) => r.approvedAt).length },
     { label: "Con viaje", value: trips.length },
-    { label: "En operaciÃ³n", value: requests.filter((r) => [STATUS.EN_TRANSITO, STATUS.ESPERA_STANDBY, STATUS.VIAJE_ASIGNADO].includes(r.status)).length },
+    { label: "En operación", value: requests.filter((r) => [STATUS.EN_TRANSITO, STATUS.ESPERA_STANDBY, STATUS.VIAJE_ASIGNADO].includes(r.status)).length },
     { label: "Cerradas", value: closed.length }
   ];
 
@@ -10585,7 +10687,7 @@ function buildReportsAnalyticsSnapshot(user, period = "90d") {
   }).length;
   const fleetUtilPct = vehicles.length ? Math.round((fleetBusy / vehicles.length) * 100) : 0;
 
-  const periodLabels = { "30d": "Ãšltimos 30 dÃ­as", "90d": "Ãšltimos 90 dÃ­as", month: "Mes actual", ytd: "AÃ±o en curso", all: "HistÃ³rico completo" };
+  const periodLabels = { "30d": "Últimos 30 días", "90d": "Últimos 90 días", month: "Mes actual", ytd: "Año en curso", all: "Histórico completo" };
   const fmtCop = (n) => `$${parseNum(n).toLocaleString("es-CO")}`;
 
   const snapshot = {
@@ -10675,7 +10777,7 @@ function reportsBiLeaderboardHtml(title, rows, valueKey, format = "num") {
       return `<li class="reports-bi-lb-item">
         <span class="reports-bi-lb-rank">${i + 1}</span>
         <div class="reports-bi-lb-main">
-          <span class="reports-bi-lb-name" title="${escapeAttr(row[0])}">${escapeHtml(row[0].length > 32 ? `${row[0].slice(0, 30)}â€¦` : row[0])}</span>
+          <span class="reports-bi-lb-name" title="${escapeAttr(row[0])}">${escapeHtml(row[0].length > 32 ? `${row[0].slice(0, 30)}…` : row[0])}</span>
           <span class="reports-bi-lb-bar"><i style="width:${pct}%"></i></span>
         </div>
         <span class="reports-bi-lb-val">${val}</span>
@@ -10751,7 +10853,7 @@ function reportsBiLayoutPreset(preset) {
   return all;
 }
 
-function reportsBiDisplayVal(value, fallback = "â€”") {
+function reportsBiDisplayVal(value, fallback = "—") {
   if (value === undefined || value === null) return fallback;
   const s = String(value);
   if (s === "undefined" || s === "NaN" || s === "[object Object]") return fallback;
@@ -10767,7 +10869,7 @@ function reportsBiCustomizerHtml(layout) {
     chk("kpis", "trips", "Viajes", L.kpis.trips),
     chk("kpis", "requests", "Solicitudes", L.kpis.requests),
     chk("kpis", "sla", "SLA", L.kpis.sla),
-    chk("kpis", "cycle", "Ciclo / aprobaciÃ³n", L.kpis.cycle),
+    chk("kpis", "cycle", "Ciclo / aprobación", L.kpis.cycle),
     chk("kpis", "fuel", "Combustible", L.kpis.fuel),
     chk("kpis", "maint", "Taller", L.kpis.maint),
     chk("kpis", "fleet", "Flota", L.kpis.fleet),
@@ -10775,30 +10877,30 @@ function reportsBiCustomizerHtml(layout) {
   ].join("");
   const scoreChecks = [
     chk("scores", "sla", "Anillo SLA", L.scores.sla),
-    chk("scores", "assign", "ConversiÃ³n a viaje", L.scores.assign),
+    chk("scores", "assign", "Conversión a viaje", L.scores.assign),
     chk("scores", "thermoking", "Termoking vs seco", L.scores.thermoking)
   ].join("");
   const chartChecks = [
     chk("charts", "revenue", "Recaudo mensual", L.charts.revenue),
     chk("charts", "weekly", "Actividad semanal", L.charts.weekly),
-    chk("charts", "funnel", "ConversiÃ³n operativa", L.charts.funnel),
+    chk("charts", "funnel", "Conversión operativa", L.charts.funnel),
     chk("charts", "status", "Estados", L.charts.status),
     chk("charts", "clients", "Top clientes", L.charts.clients),
     chk("charts", "routes", "Rutas", L.charts.routes),
     chk("charts", "drivers", "Conductores", L.charts.drivers),
     chk("charts", "rankings", "Rankings", L.charts.rankings)
   ].join("");
-  return `<div class="reports-bi-customizer" aria-label="Personalizar analÃ­tica">
+  return `<div class="reports-bi-customizer" aria-label="Personalizar analítica">
     <div class="reports-bi-customizer-head">
       <div class="reports-bi-customizer-copy">
         <h3 class="reports-bi-customizer-title">${IC.grid} Arme su vista</h3>
-        <p class="reports-bi-customizer-hint">Elija indicadores y grÃ¡ficas. La selecciÃ³n se guarda en este equipo y aplica al Excel.</p>
+        <p class="reports-bi-customizer-hint">Elija indicadores y gráficas. La selección se guarda en este equipo y aplica al Excel.</p>
       </div>
       <div class="reports-bi-customizer-presets">
         <button type="button" class="btn btn-sm btn-action" data-action="reports-bi-layout-preset" data-preset="all">Todo</button>
-        <button type="button" class="btn btn-sm btn-action" data-action="reports-bi-layout-preset" data-preset="min">MÃ­nimo</button>
+        <button type="button" class="btn btn-sm btn-action" data-action="reports-bi-layout-preset" data-preset="min">Mínimo</button>
         <button type="button" class="btn btn-sm btn-action" data-action="reports-bi-layout-preset" data-preset="finance">Finanzas</button>
-        <button type="button" class="btn btn-sm btn-action" data-action="reports-bi-layout-preset" data-preset="ops">OperaciÃ³n</button>
+        <button type="button" class="btn btn-sm btn-action" data-action="reports-bi-layout-preset" data-preset="ops">Operación</button>
         <button type="button" class="btn btn-sm btn-approve" data-action="reports-bi-layout-apply">${IC.check} Aplicar vista</button>
       </div>
     </div>
@@ -10806,7 +10908,7 @@ function reportsBiCustomizerHtml(layout) {
       <fieldset class="reports-bi-customizer-group">
         <legend>General</legend>
         <div class="reports-bi-customizer-checks">
-          ${chk("insights", "insights", "Hallazgos automÃ¡ticos", L.insights)}
+          ${chk("insights", "insights", "Hallazgos automáticos", L.insights)}
         </div>
       </fieldset>
       <fieldset class="reports-bi-customizer-group">
@@ -10822,7 +10924,7 @@ function reportsBiCustomizerHtml(layout) {
         </div>
       </fieldset>
       <fieldset class="reports-bi-customizer-group">
-        <legend>GrÃ¡ficas y rankings</legend>
+        <legend>Gráficas y rankings</legend>
         <div class="reports-bi-customizer-checks reports-bi-customizer-checks--dual">
           ${chartChecks}
         </div>
@@ -10848,20 +10950,20 @@ function reportsAnalyticsPanelHtml(snapshot, layout) {
         </article>`
     )
     .join("");
-  return `<section class="reports-bi" aria-label="AnalÃ­tica operativa">
+  return `<section class="reports-bi" aria-label="Analítica operativa">
     <header class="reports-bi-toolbar">
       <div class="reports-bi-toolbar-intro">
-        <p class="reports-bi-kicker">ReporterÃ­a Â· BI</p>
-        <h2 class="reports-bi-title">AnalÃ­tica operativa</h2>
-        <p class="reports-bi-sub">${escapeHtml(snapshot.periodLabel)} Â· comparativa vs periodo anterior</p>
+        <p class="reports-bi-kicker">Reportería · BI</p>
+        <h2 class="reports-bi-title">Analítica operativa</h2>
+        <p class="reports-bi-sub">${escapeHtml(snapshot.periodLabel)} · comparativa vs periodo anterior</p>
         <span class="reports-bi-updated">Corte ${escapeHtml(snapshot.generatedAt)}</span>
       </div>
       <div class="reports-bi-toolbar-controls">
-        <div class="reports-bi-period-chips" role="group" aria-label="Periodo rÃ¡pido">
+        <div class="reports-bi-period-chips" role="group" aria-label="Periodo rápido">
           ${reportsBiPeriodChip("30d", "30 d", period)}
           ${reportsBiPeriodChip("90d", "90 d", period)}
           ${reportsBiPeriodChip("month", "Mes", period)}
-          ${reportsBiPeriodChip("ytd", "AÃ±o", period)}
+          ${reportsBiPeriodChip("ytd", "Año", period)}
           ${reportsBiPeriodChip("all", "Todo", period)}
         </div>
         <div class="reports-bi-period-summary" aria-label="Periodo analizado">
@@ -10870,12 +10972,12 @@ function reportsAnalyticsPanelHtml(snapshot, layout) {
         </div>
         <div class="reports-bi-toolbar-btns">
           <button type="button" class="btn btn-sm btn-action" data-action="reports-bi-refresh" title="Recalcular indicadores">${IC.clock} Actualizar</button>
-          <button type="button" class="btn btn-sm btn-approve" data-action="reports-bi-export-excel" title="Excel con grÃ¡ficas y datos del periodo">${IC.download} Excel</button>
+          <button type="button" class="btn btn-sm btn-approve" data-action="reports-bi-export-excel" title="Excel con gráficas y datos del periodo">${IC.download} Excel</button>
           <button type="button" class="btn btn-sm btn-action" data-action="generate-report" data-report="executive_control_tower" data-format="preview" title="Vista previa sin ventana emergente">${IC.eye} Resumen ejecutivo</button>
         </div>
       </div>
       <div class="reports-bi-toolbar-stats" aria-label="Resumen del periodo">
-        <span class="reports-bi-stat"><strong>${activeOps}</strong><span>En operaciÃ³n</span></span>
+        <span class="reports-bi-stat"><strong>${activeOps}</strong><span>En operación</span></span>
         <span class="reports-bi-stat"><strong>${k.assignRate}%</strong><span>Asignadas</span></span>
         <span class="reports-bi-stat"><strong>${k.closeRate}%</strong><span>Cerradas</span></span>
         <span class="reports-bi-stat"><strong>${k.slaPct}%</strong><span>SLA</span></span>
@@ -10895,7 +10997,7 @@ function reportsAnalyticsPanelHtml(snapshot, layout) {
       ${L.kpis.cycle ? reportsBiKpiCard({ icon: IC.clock, value: `${k.avgCycleHours}h`, label: "Ciclo promedio", meta: `Aprob. ${k.avgApprovalMin} min` }) : ""}
       ${L.kpis.fuel ? reportsBiKpiCard({ icon: IC.fuel, value: fmtCop(k.fuelCost), label: "Combustible", meta: `${parseNum(snapshot.fuelLiters).toLocaleString("es-CO")} L` }) : ""}
       ${L.kpis.maint ? reportsBiKpiCard({ icon: IC.activity, value: fmtCop(k.maintCost), label: "Taller", meta: k.standbyTotal > 0 ? `Standby ${fmtCop(k.standbyTotal)}` : "Sin standby" }) : ""}
-      ${L.kpis.fleet ? reportsBiKpiCard({ icon: IC.truck, value: `${k.fleetAvailable}/${k.fleetTotal}`, label: "Flota libre", meta: `${k.fleetUtilPct}% ocupaciÃ³n` }) : ""}
+      ${L.kpis.fleet ? reportsBiKpiCard({ icon: IC.truck, value: `${k.fleetAvailable}/${k.fleetTotal}`, label: "Flota libre", meta: `${k.fleetUtilPct}% ocupación` }) : ""}
       ${L.kpis.docs ? reportsBiKpiCard({ mod: k.docRisk ? "warn" : "", icon: IC.shield, value: k.docRisk, label: "Alertas documentales" }) : ""}
     </div>
     </div>`
@@ -10904,7 +11006,7 @@ function reportsAnalyticsPanelHtml(snapshot, layout) {
     ${
       Object.values(L.scores).some(Boolean)
         ? `<div class="reports-bi-section reports-bi-section--compact">
-      <h3 class="reports-bi-section-title">Cumplimiento y conversiÃ³n</h3>
+      <h3 class="reports-bi-section-title">Cumplimiento y conversión</h3>
     <div class="reports-bi-score-row">
       ${
         L.scores.sla
@@ -10934,7 +11036,7 @@ function reportsAnalyticsPanelHtml(snapshot, layout) {
           <strong>${k.assignRate}%</strong>
         </div>
         <div>
-          <h3>${IC.compass} ConversiÃ³n a viaje</h3>
+          <h3>${IC.compass} Conversión a viaje</h3>
           <p>${k.trips} viajes sobre ${k.requests} solicitudes</p>
         </div>
       </article>`
@@ -10961,7 +11063,7 @@ function reportsAnalyticsPanelHtml(snapshot, layout) {
         L.charts.revenue
           ? `<article class="reports-bi-card reports-bi-card--xl">
         <header class="reports-bi-card-head">
-          <div><h3>${IC.dollar} Recaudo y volumen mensual</h3><p class="reports-bi-card-sub">Ingresos (barras) y viajes (lÃ­nea)</p></div>
+          <div><h3>${IC.dollar} Recaudo y volumen mensual</h3><p class="reports-bi-card-sub">Ingresos (barras) y viajes (línea)</p></div>
           <span class="reports-bi-card-stat">${fmtCop(k.revenue)}</span>
         </header>
         <div class="reports-bi-chart-wrap reports-bi-chart-wrap--tall"><canvas id="reports-chart-revenue" aria-label="Recaudo mensual"></canvas></div>
@@ -10981,15 +11083,15 @@ function reportsAnalyticsPanelHtml(snapshot, layout) {
       ${
         L.charts.funnel
           ? `<article class="reports-bi-card">
-        <header class="reports-bi-card-head"><div><h3>${IC.layers} ConversiÃ³n operativa de solicitudes</h3><p class="reports-bi-card-sub">Desde la radicaciÃ³n hasta el cierre</p></div></header>
-        <div class="reports-bi-chart-wrap"><canvas id="reports-chart-funnel" aria-label="ConversiÃ³n operativa"></canvas></div>
+        <header class="reports-bi-card-head"><div><h3>${IC.layers} Conversión operativa de solicitudes</h3><p class="reports-bi-card-sub">Desde la radicación hasta el cierre</p></div></header>
+        <div class="reports-bi-chart-wrap"><canvas id="reports-chart-funnel" aria-label="Conversión operativa"></canvas></div>
       </article>`
           : ""
       }
       ${
         L.charts.status
           ? `<article class="reports-bi-card">
-        <header class="reports-bi-card-head"><div><h3>${IC.activity} Estados</h3><p class="reports-bi-card-sub">DistribuciÃ³n actual</p></div></header>
+        <header class="reports-bi-card-head"><div><h3>${IC.activity} Estados</h3><p class="reports-bi-card-sub">Distribución actual</p></div></header>
         <div class="reports-bi-chart-wrap reports-bi-chart-wrap--donut"><canvas id="reports-chart-status" aria-label="Estados"></canvas></div>
       </article>`
           : ""
@@ -11031,15 +11133,15 @@ function reportsAnalyticsPanelHtml(snapshot, layout) {
       }
     </div>
     </div>`
-        : `<p class="reports-bi-empty reports-bi-section">Seleccione al menos una grÃ¡fica en Â«Arme su vistaÂ» y pulse Aplicar.</p>`
+        : `<p class="reports-bi-empty reports-bi-section">Seleccione al menos una gráfica en «Arme su vista» y pulse Aplicar.</p>`
     }
-    <p class="reports-bi-foot muted">Mismos criterios que exportaciÃ³n PDF/CSV Â· Tendencias vs periodo anterior equivalente Â· ${escapeHtml(snapshot.periodLabel)}</p>
+    <p class="reports-bi-foot muted">Mismos criterios que exportación PDF/CSV · Tendencias vs periodo anterior equivalente · ${escapeHtml(snapshot.periodLabel)}</p>
   </section>`;
 }
 
 
 
-/** Consulta PostgreSQL para duplicidad de documento de colaborador (validaciÃ³n inmediata en formularios). */
+/** Consulta PostgreSQL para duplicidad de documento de colaborador (validación inmediata en formularios). */
 async function queryPayrollEmployeeDocumentDuplicateFromApi({
   documentType,
   idDoc,
@@ -11118,7 +11220,7 @@ if (typeof window.hydrateSystemParametersFromCache === "function") {
   window.hydrateSystemParametersFromCache();
 }
 
-/** Aplica validaciÃ³n en vivo (mayÃºsculas / catÃ¡logo / telÃ©fono) a campos del formulario de empleado. */
+/** Aplica validación en vivo (mayúsculas / catálogo / teléfono) a campos del formulario de empleado. */
 function wirePayrollEmployeeFormFieldSanitization(formEl) {
   if (!formEl) return;
   const upperBlur = [
@@ -11156,8 +11258,8 @@ function wirePayrollEmployeeFormFieldSanitization(formEl) {
 }
 
 /**
- * VerificaciÃ³n inmediata de documento duplicado en formularios de personas: en cuanto el
- * usuario sale del campo Â«NÂ° documentoÂ» (o cambia tipo de documento/empresa) se avisa si ya
+ * Verificación inmediata de documento duplicado en formularios de personas: en cuanto el
+ * usuario sale del campo «N° documento» (o cambia tipo de documento/empresa) se avisa si ya
  * existe un registro con ese documento, sin esperar a diligenciar todo el formulario ni a que
  * el servidor rechace el guardado.
  *
@@ -11237,11 +11339,11 @@ function wireFormDocDuplicateCheck(formEl, opts = {}) {
           toastKey,
           blocking: true,
           fromSubmit,
-          /* Si el chequeo local de este mismo ciclo ya notificÃ³ el duplicado, no duplicar el toast. */
+          /* Si el chequeo local de este mismo ciclo ya notificó el duplicado, no duplicar el toast. */
           suppressToast: localAlreadyBlocking
         });
       } else if (useCompanyScope && !companyId) {
-        const dupMsg = `Este documento ya existe${who}. Si es para otra empresa puede continuar; al elegir la empresa se verificarÃ¡.`;
+        const dupMsg = `Este documento ya existe${who}. Si es para otra empresa puede continuar; al elegir la empresa se verificará.`;
         applyDuplicateMessage(dupMsg, { silent, toastKey, blocking: false, fromSubmit });
       } else {
         clearBlock();
@@ -11301,7 +11403,7 @@ function wireFormDocDuplicateCheck(formEl, opts = {}) {
       } else if (useCompanyScope && !companyId) {
         const ref = String(matches[0]?.name || "").trim();
         const who = ref ? ` (${ref})` : "";
-        const dupMsg = `Este documento ya existe${who}. Si es para otra empresa puede continuar; al elegir la empresa se verificarÃ¡.`;
+        const dupMsg = `Este documento ya existe${who}. Si es para otra empresa puede continuar; al elegir la empresa se verificará.`;
         const toastKey = `warn:${needle}:${excludeId || "new"}`;
         applyDuplicateMessage(dupMsg, { silent, toastKey, blocking: false, fromSubmit });
       } else {
@@ -11376,7 +11478,7 @@ function wireFormDocDuplicateCheck(formEl, opts = {}) {
   return check;
 }
 
-/** Alta de empleado (unicidad por empresa, documento + verificaciÃ³n en servidor). */
+/** Alta de empleado (unicidad por empresa, documento + verificación en servidor). */
 function wireEmployeePayrollDuplicateDocCheck(formEl, opts = {}) {
   return wireFormDocDuplicateCheck(formEl, {
     storageKey: KEYS.payrollEmployees,
@@ -11388,7 +11490,7 @@ function wireEmployeePayrollDuplicateDocCheck(formEl, opts = {}) {
   });
 }
 
-/** Coincide valor guardado (p. ej. mayÃºsculas en BD) con opciÃ³n del catÃ¡logo del formulario. */
+/** Coincide valor guardado (p. ej. mayúsculas en BD) con opción del catálogo del formulario. */
 
 function prepareEmployeeForContractDocx(employee) {
   const e = ensureEmployeeContractFields(normalizePayrollEmployeeRowDates({ ...(employee || {}) }));
@@ -11399,7 +11501,7 @@ function prepareEmployeeForContractDocx(employee) {
   const contractType = String(e.contractType || "Termino indefinido").trim();
   let contractDuration = String(e.contractDuration || e.contractDurationText || "").trim();
   if (!contractDuration && isFixedTermContractType(contractType)) {
-    contractDuration = "1 aÃ±o";
+    contractDuration = "1 año";
   }
   return {
     ...e,
@@ -11518,13 +11620,13 @@ function buildEmploymentLetterKindPickerHtml(selectedKind = "vigente") {
     <input type="hidden" name="letterKind" value="${escapeAttr(kind)}" />
     <button type="button" class="employment-letter-kind-card${kind === "vigente" ? " is-active" : ""}" data-letter-kind="vigente" aria-pressed="${kind === "vigente" ? "true" : "false"}">
       <span class="employment-letter-kind-card__badge">Vigente</span>
-      <strong>Constancia de vinculaciÃ³n</strong>
-      <span>Certifica que la persona labora actualmente. Uso habitual ante bancos, crÃ©ditos, arriendos y trÃ¡mites.</span>
+      <strong>Constancia de vinculación</strong>
+      <span>Certifica que la persona labora actualmente. Uso habitual ante bancos, créditos, arriendos y trámites.</span>
     </button>
     <button type="button" class="employment-letter-kind-card${kind === "retiro" ? " is-active" : ""}" data-letter-kind="retiro" aria-pressed="${kind === "retiro" ? "true" : "false"}">
       <span class="employment-letter-kind-card__badge employment-letter-kind-card__badge--retiro">CST art. 57</span>
       <strong>Certificado al retiro</strong>
-      <span>Obligatorio al terminar el contrato: tiempo de servicio, Ã­ndole de la labor, salario y causa del retiro.</span>
+      <span>Obligatorio al terminar el contrato: tiempo de servicio, índole de la labor, salario y causa del retiro.</span>
     </button>
   </div>`;
 }
@@ -11535,18 +11637,18 @@ function buildEmploymentLetterFactsPreviewHtml(employee) {
     typeof buildEmploymentLetterMeta === "function"
       ? buildEmploymentLetterMeta(employee, { letterKind: "vigente", includeSalary: true })
       : null;
-  const hire = meta?.hireLabelCap || meta?.hireLabel || "â€”";
-  const position = meta?.position || String(employee?.position || "â€”").trim() || "â€”";
-  const contract = meta?.contractType || String(employee?.contractType || "â€”").trim() || "â€”";
+  const hire = meta?.hireLabelCap || meta?.hireLabel || "—";
+  const position = meta?.position || String(employee?.position || "—").trim() || "—";
+  const contract = meta?.contractType || String(employee?.contractType || "—").trim() || "—";
   const salary = meta?.salaryText || "No registrado";
-  const idLine = `${meta?.docTypeLabel || "documento"} ${meta?.idDocFormatted || employee?.idDoc || "â€”"}`;
-  return `<div class="employment-letter-facts" aria-label="Datos que constarÃ¡n en el documento">
+  const idLine = `${meta?.docTypeLabel || "documento"} ${meta?.idDocFormatted || employee?.idDoc || "—"}`;
+  return `<div class="employment-letter-facts" aria-label="Datos que constarán en el documento">
     <p class="employment-letter-facts__title">Datos del expediente (CST art. 57)</p>
     <ul class="employment-letter-facts__list">
-      <li><span>Trabajador</span><strong>${escapeHtml(meta?.name || employee?.name || "â€”")}</strong></li>
-      <li><span>IdentificaciÃ³n</span><strong>${escapeHtml(idLine)}</strong></li>
+      <li><span>Trabajador</span><strong>${escapeHtml(meta?.name || employee?.name || "—")}</strong></li>
+      <li><span>Identificación</span><strong>${escapeHtml(idLine)}</strong></li>
       <li><span>Tiempo de servicio</span><strong>Desde ${escapeHtml(hire)}</strong></li>
-      <li><span>Ãndole de la labor</span><strong>${escapeHtml(position)}</strong></li>
+      <li><span>Índole de la labor</span><strong>${escapeHtml(position)}</strong></li>
       <li><span>Tipo de contrato</span><strong>${escapeHtml(contract)}</strong></li>
       <li><span>Salario registrado</span><strong>${escapeHtml(salary)}</strong></li>
     </ul>
@@ -11557,22 +11659,22 @@ function buildEmploymentLetterLegalChecklistHtml(kind = "vigente") {
   const isRetiro = String(kind || "").toLowerCase() === "retiro";
   if (isRetiro) {
     return `<div class="employment-letter-legal-check" data-letter-checklist="retiro">
-      <p class="employment-letter-legal-check__title">Contenido mÃ­nimo (CST art. 57)</p>
+      <p class="employment-letter-legal-check__title">Contenido mínimo (CST art. 57)</p>
       <ul>
-        <li>Tiempo de servicio (ingreso â†’ retiro)</li>
-        <li>Ãndole / naturaleza de la labor</li>
+        <li>Tiempo de servicio (ingreso → retiro)</li>
+        <li>Índole / naturaleza de la labor</li>
         <li>Salario o monto de las labores <em>(obligatorio)</em></li>
-        <li>Causa del retiro (hecho objetivo, sin juicios de desempeÃ±o)</li>
+        <li>Causa del retiro (hecho objetivo, sin juicios de desempeño)</li>
       </ul>
     </div>`;
   }
   return `<div class="employment-letter-legal-check" data-letter-checklist="vigente">
-    <p class="employment-letter-legal-check__title">Buenas prÃ¡cticas (Colombia)</p>
+    <p class="employment-letter-legal-check__title">Buenas prácticas (Colombia)</p>
     <ul>
       <li>Fecha de ingreso y cargo actual</li>
-      <li>Tipo de contrato y estado de vinculaciÃ³n</li>
-      <li>Salario en letras y nÃºmeros si el trÃ¡mite lo exige</li>
-      <li>Solo hechos objetivos Â· sin opiniones ni recomendaciones</li>
+      <li>Tipo de contrato y estado de vinculación</li>
+      <li>Salario en letras y números si el trámite lo exige</li>
+      <li>Solo hechos objetivos · sin opiniones ni recomendaciones</li>
     </ul>
   </div>`;
 }
@@ -11616,7 +11718,7 @@ function wireEmploymentLetterModal(formEl) {
     if (salaryHint) {
       salaryHint.textContent = isRetiro
         ? "En el certificado de retiro el salario (monto de las labores) es dato obligatorio del art. 57 CST."
-        : "Incluya el salario cuando el destinatario lo exija (bancos, crÃ©ditos). Puede omitirlo por privacidad si el trÃ¡mite no lo requiere.";
+        : "Incluya el salario cuando el destinatario lo exija (bancos, créditos). Puede omitirlo por privacidad si el trámite no lo requiere.";
     }
     if (checklistHost) checklistHost.innerHTML = buildEmploymentLetterLegalChecklistHtml(kind);
   };
@@ -11652,9 +11754,9 @@ function runEmploymentLetterFlow(employeeId, initialFormat = "pdf") {
 
   openEditModal({
     title: "Generar carta laboral",
-    subtitle: `${String(normalized.name || "").trim()} Â· ${String(normalized.idDoc || "").trim()}`,
+    subtitle: `${String(normalized.name || "").trim()} · ${String(normalized.idDoc || "").trim()}`,
     introHtml: `<div class="employment-letter-intro">
-      <p><strong>Normativa Colombia Â· CST art. 57.</strong> El empleador debe expedir certificaciÃ³n con el tiempo de servicio, la Ã­ndole de la labor y el salario. El documento se limita a hechos objetivos; no incluya juicios de desempeÃ±o ni recomendaciones.</p>
+      <p><strong>Normativa Colombia · CST art. 57.</strong> El empleador debe expedir certificación con el tiempo de servicio, la índole de la labor y el salario. El documento se limita a hechos objetivos; no incluya juicios de desempeño ni recomendaciones.</p>
       ${buildEmploymentLetterFactsPreviewHtml(normalized)}
     </div>`,
     submitText: employmentLetterSubmitLabel(normalizedFormat),
@@ -11664,7 +11766,7 @@ function runEmploymentLetterFlow(employeeId, initialFormat = "pdf") {
       {
         type: "section",
         title: "Tipo de documento",
-        hint: "Elija constancia de vinculaciÃ³n vigente o certificado laboral al retiro."
+        hint: "Elija constancia de vinculación vigente o certificado laboral al retiro."
       },
       {
         type: "custom",
@@ -11678,7 +11780,7 @@ function runEmploymentLetterFlow(employeeId, initialFormat = "pdf") {
       },
       {
         name: "letterDate",
-        label: "Fecha de expediciÃ³n",
+        label: "Fecha de expedición",
         type: "date",
         value: today,
         required: true
@@ -11688,12 +11790,12 @@ function runEmploymentLetterFlow(employeeId, initialFormat = "pdf") {
         label: "Destinatario",
         type: "text",
         value: "A quien interese",
-        placeholder: "Ej. Banco XYZ, entidad crediticia, consuladoâ€¦"
+        placeholder: "Ej. Banco XYZ, entidad crediticia, consulado…"
       },
       {
         type: "section",
         title: "Contenido del certificado",
-        hint: "Active solo la informaciÃ³n que el trÃ¡mite o la ley exijan."
+        hint: "Active solo la información que el trámite o la ley exijan."
       },
       {
         type: "custom",
@@ -11702,7 +11804,7 @@ function runEmploymentLetterFlow(employeeId, initialFormat = "pdf") {
           <input type="checkbox" name="includeSalary" checked />
           <span>
             <strong>Incluir salario / monto de las labores</strong>
-            <small data-letter-salary-hint>Incluya el salario cuando el destinatario lo exija (bancos, crÃ©ditos). Puede omitirlo por privacidad si el trÃ¡mite no lo requiere.</small>
+            <small data-letter-salary-hint>Incluya el salario cuando el destinatario lo exija (bancos, créditos). Puede omitirlo por privacidad si el trámite no lo requiere.</small>
           </span>
         </label>`
       },
@@ -11713,7 +11815,7 @@ function runEmploymentLetterFlow(employeeId, initialFormat = "pdf") {
           <input type="checkbox" name="includeSocialSecurity" checked />
           <span>
             <strong>Incluir afiliaciones a seguridad social</strong>
-            <small>EPS, fondo de pensiones y ARL (dato complementario, no sustituye planillas o certificados de afiliaciÃ³n).</small>
+            <small>EPS, fondo de pensiones y ARL (dato complementario, no sustituye planillas o certificados de afiliación).</small>
           </span>
         </label>`
       },
@@ -11744,7 +11846,7 @@ function runEmploymentLetterFlow(employeeId, initialFormat = "pdf") {
                 )
                 .join("")}
             </select>
-            <small class="field-help">No use este campo para calificar conducta o desempeÃ±o; solo para registrar la causal objetiva.</small>
+            <small class="field-help">No use este campo para calificar conducta o desempeño; solo para registrar la causal objetiva.</small>
           </label>
         </div>`
       },
@@ -11789,14 +11891,14 @@ function runEmploymentLetterFlow(employeeId, initialFormat = "pdf") {
         return false;
       }
       if (typeof exportEmploymentLetter !== "function") {
-        notify("MÃ³dulo de carta laboral no disponible (recargue la pÃ¡gina).", "error");
+        notify("Módulo de carta laboral no disponible (recargue la página).", "error");
         return false;
       }
       let previewWindow = null;
       if (fields.exportFormat === "preview") {
         previewWindow = window.open("", "_blank", "width=820,height=900");
         if (!previewWindow) {
-          notify("El navegador bloqueÃ³ la ventana. Permita ventanas emergentes o elija PDF/Word.", "error");
+          notify("El navegador bloqueó la ventana. Permita ventanas emergentes o elija PDF/Word.", "error");
           return false;
         }
       }
@@ -11847,7 +11949,7 @@ async function runEmploymentLetterDownload(token, format) {
   const normalized = normalizePayrollEmployeeRowDates(ensureEmployeeContractFields(employee));
   const { exportEmploymentLetter } = resolveEmploymentLetterDomainFns();
   if (typeof exportEmploymentLetter !== "function") {
-    notify("MÃ³dulo de carta laboral no disponible (recargue la pÃ¡gina).", "error");
+    notify("Módulo de carta laboral no disponible (recargue la página).", "error");
     return;
   }
   try {
@@ -11907,7 +12009,7 @@ function installEmployeeContractDelegation() {
       event.preventDefault();
       const id = String(contractBtn.dataset.id || "").trim();
       if (!id || contractBtn.disabled || contractBtn.dataset.busy === "1") return;
-      await runWithBusyButton(contractBtn, () => runEmployeeContractGeneration(id), { busyText: "Generandoâ€¦" });
+      await runWithBusyButton(contractBtn, () => runEmployeeContractGeneration(id), { busyText: "Generando…" });
       return;
     }
     const letterBtn =
@@ -11919,7 +12021,7 @@ function installEmployeeContractDelegation() {
     const letterId = String(letterBtn.dataset.id || "").trim();
     if (!letterId || letterBtn.disabled || letterBtn.dataset.busy === "1") return;
     await runWithBusyButton(letterBtn, () => runEmploymentLetterFlow(letterId), {
-      busyText: "Preparandoâ€¦"
+      busyText: "Preparando…"
     });
   });
 }
@@ -12029,7 +12131,7 @@ function portalCandidateAgeFromBirthIso(birthIso) {
   const s = String(birthIso ?? "")
     .trim()
     .slice(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return { age: null, birthLabel: "â€”" };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return { age: null, birthLabel: "—" };
   const [y, mo, d] = s.split("-").map((x) => Number(x));
   const birth = new Date(y, mo - 1, d);
   if (birth.getFullYear() !== y || birth.getMonth() !== mo - 1 || birth.getDate() !== d) {
@@ -12069,7 +12171,7 @@ function flattenCandidateAttachmentsForCv(raw) {
   return [];
 }
 
-/** Hay CV persistido (inline, R2 con key o URL) aunque el enlace no este aun en cachÃ© local. */
+/** Hay CV persistido (inline, R2 con key o URL) aunque el enlace no este aun en caché local. */
 function candidateMayHaveCvInStorage(candidateLike) {
   const attachments = flattenCandidateAttachmentsForCv(candidateLike?.attachments);
   for (const item of attachments) {
@@ -12084,7 +12186,7 @@ function candidateMayHaveCvInStorage(candidateLike) {
 }
 
 /**
- * Indica si el botÃ³n Â«Descargar CVÂ» debe habilitarse.
+ * Indica si el botón «Descargar CV» debe habilitarse.
  * Solo con contenido real (base64, storageKey R2 o URL http); no basta el nombre del archivo.
  */
 function candidateCanAttemptCvDownload(candidateLike) {
@@ -12116,7 +12218,7 @@ function extractCandidateCvDownload(candidateLike) {
   return null;
 }
 
-/** GET /portal/candidates/:id/cv-download â€” URL R2 prefirmada/pÃºblica o base64 inline. */
+/** GET /portal/candidates/:id/cv-download — URL R2 prefirmada/pública o base64 inline. */
 async function fetchCandidateCvDownloadFromApi(candidateId) {
   const id = String(candidateId || "").trim();
   if (!id || !portalCanRefreshFromApi()) return null;
@@ -12149,7 +12251,7 @@ async function resolveCandidateCvDownload(candidateLike) {
   if (local?.href) return local;
   const id = String(candidateLike?.id || "").trim();
   if (!id) return null;
-  /* Siempre consultar API: el CV puede existir en BD/R2 aunque el cachÃ© local solo tenga el nombre. */
+  /* Siempre consultar API: el CV puede existir en BD/R2 aunque el caché local solo tenga el nombre. */
   const fromMeta = await fetchCandidateCvDownloadFromApi(id);
   if (fromMeta?.href) return fromMeta;
   /* cv_file con storageKey sin URL: el binario autenticado (cv-file) sigue disponible. */
@@ -12186,7 +12288,7 @@ function triggerBlobDownload(blob, fileNameFallback) {
   URL.revokeObjectURL(url);
 }
 
-/** GET /portal/candidates/:id/cv-file â€” binario con Content-Disposition: attachment. */
+/** GET /portal/candidates/:id/cv-file — binario con Content-Disposition: attachment. */
 async function fetchCandidateCvBlobFromApi(candidateId) {
   const id = String(candidateId || "").trim();
   if (!id || !portalCanRefreshFromApi()) return null;
@@ -12195,7 +12297,7 @@ async function fetchCandidateCvBlobFromApi(candidateId) {
   const base = api.getBase();
   if (!base) return null;
   const url = `${base}/api/portal/candidates/${encodeURIComponent(id)}/cv-file`;
-  /** Misma autenticaciÃ³n que `getArrayBuffer` (cookies + Bearer iOS + CSRF). */
+  /** Misma autenticación que `getArrayBuffer` (cookies + Bearer iOS + CSRF). */
   const headers = { Accept: "application/octet-stream" };
   try {
     if (typeof api.bearerAuthFallbackEnabled === "function" && api.bearerAuthFallbackEnabled()) {
@@ -12231,7 +12333,7 @@ async function fetchCandidateCvBlobFromApi(candidateId) {
 async function triggerCandidateCvDownload(href, fileNameFallback, candidateId) {
   const name = String(fileNameFallback || "cv").replace(/[\\/]/g, "_");
   const id = String(candidateId || "").trim();
-  /* Preferir bytes locales (cv_blob) antes del GET API: evita 404/403 cuando el adjunto aÃºn estÃ¡ en cachÃ©. */
+  /* Preferir bytes locales (cv_blob) antes del GET API: evita 404/403 cuando el adjunto aún está en caché. */
   try {
     let blob = null;
     if (String(href || "").startsWith("data:")) {
@@ -12289,7 +12391,7 @@ function installCandidateCvDownloadDelegation() {
         await triggerCandidateCvDownload(dl.href, dl.fileName, id);
         return;
       }
-      /* Respaldo binario directo (Ãºtil si el JSON de metadatos no trae URL pero el archivo sÃ­ estÃ¡). */
+      /* Respaldo binario directo (útil si el JSON de metadatos no trae URL pero el archivo sí está). */
       const fromApi = await fetchCandidateCvBlobFromApi(id);
       if (fromApi?.blob) {
         triggerBlobDownload(fromApi.blob, fromApi.fileName || dl?.fileName || "hoja-de-vida");
@@ -12395,7 +12497,7 @@ function renderHiringPipelineBoard(candidates, ctx = {}) {
   if (typeof window.AntaresContratacionDomain?.renderHiringPipelineBoard === "function") {
     return window.AntaresContratacionDomain.renderHiringPipelineBoard(candidates, ctx);
   }
-  /* Fallback mÃ­nimo si el dominio aÃºn no cargÃ³: columnas con tarjetas simples. */
+  /* Fallback mínimo si el dominio aún no cargó: columnas con tarjetas simples. */
   const rows = Array.isArray(candidates) ? candidates : [];
   const stageFilter = String(ctx.stageFilter || "").trim();
   const hideTerminal = ctx.hideTerminal === true;
@@ -12427,7 +12529,7 @@ function renderHiringPipelineBoard(candidates, ctx = {}) {
       </section>`;
     })
     .join("");
-  return `<div class="hiring-board hiring-board--kanban" role="region" aria-label="Pipeline de selecciÃ³n">${colsHtml}</div>`;
+  return `<div class="hiring-board hiring-board--kanban" role="region" aria-label="Pipeline de selección">${colsHtml}</div>`;
 }
 
 function renderHiringVacancyCard(v, ctx = {}) {
@@ -12447,15 +12549,15 @@ function renderHiringVacancyCard(v, ctx = {}) {
     <header class="hiring-vacancy-card__head">
       <div>
         <h4>${escapeHtml(String(v.title || ""))}</h4>
-        <p class="muted">${escapeHtml(String(v.positionName || "Cargo"))} Â· ${escapeHtml(String(v.city || "â€”"))}${v.modality ? ` Â· ${escapeHtml(String(v.modality))}` : ""}</p>
+        <p class="muted">${escapeHtml(String(v.positionName || "Cargo"))} · ${escapeHtml(String(v.city || "—"))}${v.modality ? ` · ${escapeHtml(String(v.modality))}` : ""}</p>
       </div>
       <span class="status ${isOpen ? "status-viaje_asignado" : "status-rechazada"}">${isOpen ? "Publicada" : "Cerrada"}</span>
     </header>
     <dl class="hiring-vacancy-card__metrics">
-      <div><dt>Postulantes</dt><dd><strong>${applicants}</strong>${activeApplicants !== applicants ? `<span class="muted"> Â· ${activeApplicants} activos</span>` : ""}</dd></div>
+      <div><dt>Postulantes</dt><dd><strong>${applicants}</strong>${activeApplicants !== applicants ? `<span class="muted"> · ${activeApplicants} activos</span>` : ""}</dd></div>
       <div><dt>Cupos</dt><dd>${escapeHtml(String(v.openings ?? 1))}</dd></div>
       <div><dt>Salario</dt><dd>$${salary.toLocaleString("es-CO")}</dd></div>
-      <div><dt>Cierre</dt><dd>${deadline ? escapeHtml(deadline) : "â€”"}${urgency === "critica" || urgency === "proxima" ? ` <span class="hiring-vacancy-card__urgent">Pronto</span>` : ""}${urgency === "vencida" ? ` <span class="hiring-vacancy-card__urgent">Vencida</span>` : ""}</dd></div>
+      <div><dt>Cierre</dt><dd>${deadline ? escapeHtml(deadline) : "—"}${urgency === "critica" || urgency === "proxima" ? ` <span class="hiring-vacancy-card__urgent">Pronto</span>` : ""}${urgency === "vencida" ? ` <span class="hiring-vacancy-card__urgent">Vencida</span>` : ""}</dd></div>
     </dl>
     <div class="toolbar hiring-vacancy-card__actions">
       <button type="button" class="btn btn-sm btn-outline" data-action="view-vacancy" data-id="${escapeAttr(String(v.id))}">${IC.eye} Ver</button>
@@ -12564,13 +12666,13 @@ function describeContractDurationForDocx(data) {
   const ct = String(data.contractType || "");
   const start = String(data.startDate || "").trim();
   const end = String(data.endDate || data.contractEndDate || "").trim();
-  if (ct === "Termino fijo" && start && end) return `TÃ©rmino fijo: ${start} a ${end}`;
-  if (ct === "Termino fijo") return "TÃ©rmino fijo (plazo contractual en clÃ¡usulas)";
-  if (ct === "Prestacion de servicios") return "PrestaciÃ³n de servicios";
-  return start ? `Vigencia desde ${start} Â· ${ct || "segÃºn anexo"}` : String(ct || "SegÃºn clÃ¡usulas y normativa aplicable");
+  if (ct === "Termino fijo" && start && end) return `Término fijo: ${start} a ${end}`;
+  if (ct === "Termino fijo") return "Término fijo (plazo contractual en cláusulas)";
+  if (ct === "Prestacion de servicios") return "Prestación de servicios";
+  return start ? `Vigencia desde ${start} · ${ct || "según anexo"}` : String(ct || "Según cláusulas y normativa aplicable");
 }
 
-/** Descompone texto guardado (p. ej. "12 meses", "1 aÃ±o") para el formulario de ediciÃ³n. */
+/** Descompone texto guardado (p. ej. "12 meses", "1 año") para el formulario de edición. */
 function parseContractDurationFields(text) {
   const t = String(text || "").trim();
   if (!t) return { unit: "", amount: "", other: "" };
@@ -12581,7 +12683,7 @@ function parseContractDurationFields(text) {
     const n = parseInt(mMes[1], 10);
     if (Number.isFinite(n) && n >= 1) return { unit: "meses", amount: String(n), other: "" };
   }
-  const mAn = t.match(/^(\d+)\s*(aÃ±os|anos|aÃ±o|ano)\s*$/i);
+  const mAn = t.match(/^(\d+)\s*(años|anos|año|ano)\s*$/i);
   if (mAn) {
     const n = parseInt(mAn[1], 10);
     if (Number.isFinite(n) && n >= 1) return { unit: "anios", amount: String(n), other: "" };
@@ -12589,7 +12691,7 @@ function parseContractDurationFields(text) {
   return { unit: "otro", amount: "", other: t };
 }
 
-/** Arma el texto Ãºnico `contractDuration` a partir de unidad + cantidad u â€œotroâ€ (texto libre). */
+/** Arma el texto único `contractDuration` a partir de unidad + cantidad u “otro” (texto libre). */
 function composeContractDurationText(raw) {
   const unit = String(raw.contractDurationUnit || "").trim().toLowerCase();
   const parsedAmt = parseInt(String(raw.contractDurationAmount ?? "").trim(), 10);
@@ -12601,17 +12703,17 @@ function composeContractDurationText(raw) {
     return `${amount} ${amount === 1 ? "mes" : "meses"}`;
   }
   if (unit === "anios" && Number.isFinite(amount) && amount >= 1) {
-    return `${amount} ${amount === 1 ? "aÃ±o" : "aÃ±os"}`;
+    return `${amount} ${amount === 1 ? "año" : "años"}`;
   }
   return legacy;
 }
 
 /**
  * Resuelve URL de imagen (avatar, logo, etc.): intenta presign + PUT directo a R2;
- * si no hay URL pÃºblica HTTPS, reintenta con `POST /uploads/image` (subida vÃ­a API,
+ * si no hay URL pública HTTPS, reintenta con `POST /uploads/image` (subida vía API,
  * evita CORS del bucket). Si no hay API o todo falla, usa `data:` URL (FileReader).
  *
- * Devuelve la URL final (`https://...` o `data:image/...`) o cadena vacÃ­a si
+ * Devuelve la URL final (`https://...` o `data:image/...`) o cadena vacía si
  * no hay archivo.
  */
 async function resolveEmployeeAvatarUrl(file, fallbackDataUrl = "") {
@@ -12621,7 +12723,7 @@ async function resolveEmployeeAvatarUrl(file, fallbackDataUrl = "") {
     const check = await sec.validateUploadFile(file, "image");
     if (!check.ok) throw new Error(check.message || "Imagen no permitida.");
   } else if (!String(file.type || "").startsWith("image/")) {
-    throw new Error("Solo se permiten imÃ¡genes JPEG, PNG, WebP o GIF.");
+    throw new Error("Solo se permiten imágenes JPEG, PNG, WebP o GIF.");
   }
   const api = window.AntaresApi;
   const rawMime = String(file.type || "image/jpeg").split(";")[0].trim().toLowerCase();
@@ -12650,7 +12752,7 @@ async function resolveEmployeeAvatarUrl(file, fallbackDataUrl = "") {
           headers: { "Content-Type": contentType },
           body: file
         });
-        if (!resp.ok) throw new Error(`R2 PUT respondiÃ³ ${resp.status}`);
+        if (!resp.ok) throw new Error(`R2 PUT respondió ${resp.status}`);
       }
     } catch (err) {
       devWarn?.("avatar-upload-r2-presign-failed", err);
@@ -12679,7 +12781,7 @@ async function resolveEmployeeAvatarUrl(file, fallbackDataUrl = "") {
   });
 }
 
-/** Vista previa local en el Ã³valo (misma lÃ³gica que perfil de usuario). */
+/** Vista previa local en el óvalo (misma lógica que perfil de usuario). */
 function bindEmployeeAvatarFilePreview(fileInput, labelEl) {
   if (!fileInput || !labelEl) return;
   let previewBlobUrl = "";
@@ -12747,7 +12849,7 @@ function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = 
   const needsDurationPlazo = contractTypeRequiresDurationPlazo(effectiveContractType);
   let composedDur = needsDurationPlazo ? composeContractDurationText(raw) : "";
   if (isFixedTermContractType(effectiveContractType) && !String(composedDur || "").trim()) {
-    composedDur = "1 aÃ±o";
+    composedDur = "1 año";
   }
   const startDateYmd = normalizePortalDateYmd(raw.startDate);
   const contractVigenteStartDateYmd = normalizePortalDateYmd(raw.contractVigenteStartDate);
@@ -12763,10 +12865,10 @@ function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = 
     const unitDur = String(raw.contractDurationUnit || "").trim().toLowerCase();
     const msg =
       unitDur === "otro"
-        ? "Describa la duraciÃ³n en el campo de texto libre o elija meses/aÃ±os."
+        ? "Describa la duración en el campo de texto libre o elija meses/años."
         : unitDur === "meses" || unitDur === "anios"
-          ? "Indique la cantidad (nÃºmero) de meses o de aÃ±os."
-          : "Complete la duraciÃ³n del contrato: unidad (meses o aÃ±os) o texto en â€œOtroâ€.";
+          ? "Indique la cantidad (número) de meses o de años."
+          : "Complete la duración del contrato: unidad (meses o años) o texto en “Otro”.";
     const durationField =
       unitDur === "otro"
         ? "contractDurationOther"
@@ -12795,7 +12897,7 @@ function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = 
   if (!/^\d{10}$/.test(phoneNat)) {
     return {
       ok: false,
-      msg: "Ingrese el celular de 10 dÃ­gitos sin el +57 (ej.: 3001234567).",
+      msg: "Ingrese el celular de 10 dígitos sin el +57 (ej.: 3001234567).",
       field: "phone"
     };
   }
@@ -12803,7 +12905,7 @@ function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = 
   if (!/^\d{10}$/.test(emergencyNat)) {
     return {
       ok: false,
-      msg: "Ingrese el telÃ©fono de emergencia de 10 dÃ­gitos sin el +57.",
+      msg: "Ingrese el teléfono de emergencia de 10 dígitos sin el +57.",
       field: "emergencyPhone"
     };
   }
@@ -12851,7 +12953,7 @@ function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = 
       instruvialExamExpiry: resolveInstruvialExamExpiryYmd(raw.instruvialExamDate),
       comparendos: Math.max(0, Math.min(9999, parseNum(raw.comparendos ?? 0))),
       experienceYears: Math.max(0, Math.min(80, parseNum(raw.experienceYears ?? 0))),
-      vehicleTypes: collectDriverVehicleTypesCsv(raw),
+      vehicleTypes: collectDriverVehicleTypesCsv(raw) || String(preserve?.vehicleTypes || "").trim(),
       avatarUrl
     }
   };
@@ -12920,13 +13022,13 @@ function employeeAvatarCssUrl(av) {
 }
 
 function fmtProfileCell(value) {
-  const s = value == null || String(value).trim() === "" ? "â€”" : String(value);
+  const s = value == null || String(value).trim() === "" ? "—" : String(value);
   return escapeHtml(s);
 }
 
 /** Creado / actualizado: ISO con hora en zona Colombia, no UTC crudo del servidor. */
 function fmtProfileAuditTimestamp(value) {
-  if (value == null || String(value).trim() === "") return "â€”";
+  if (value == null || String(value).trim() === "") return "—";
   const raw = String(value).trim();
   const d = new Date(raw);
   if (!Number.isNaN(d.getTime()) && /T|\d{2}:\d{2}/.test(raw)) {
@@ -12941,7 +13043,7 @@ function employeeProfileKvRow(label, value) {
 
 function buildEmployeePayrollProfileBodyHtml(emp) {
   if (!emp) return `<p class="muted">Sin datos.</p>`;
-  const e = normalizePayrollEmployeeRowDates(emp);
+  const e = mergeLinkedDriverConductorFields(normalizePayrollEmployeeRowDates(emp));
   const contractRenewal = computeEmployeeContractRenewalMeta(e);
   const css = employeeAvatarCssUrl(e.avatarUrl);
   const initial = escapeHtml(String(e.name || "E").charAt(0).toUpperCase());
@@ -12951,34 +13053,34 @@ function buildEmployeePayrollProfileBodyHtml(emp) {
   const heroAvatar = css
     ? `<div class="employee-profile-hero-avatar" role="img" aria-label="Foto del colaborador"><img src="${escapeAttr(e.avatarUrl)}" alt="Foto de ${escapeAttr(String(e.name || "Empleado"))}" loading="lazy" /></div>`
     : `<div class="employee-profile-hero-avatar employee-profile-hero-avatar--letter" aria-hidden="true"><span>${initial}</span></div>`;
-  const hero = `${heroBanner}<div class="employee-profile-hero-photo-wrap">${heroAvatar}<p class="employee-profile-hero-photo-caption muted">${css ? "Foto del colaborador" : "Sin foto cargada â€” recomendamos subirla al editar el empleado."}</p></div>`;
+  const hero = `${heroBanner}<div class="employee-profile-hero-photo-wrap">${heroAvatar}<p class="employee-profile-hero-photo-caption muted">${css ? "Foto del colaborador" : "Sin foto cargada — recomendamos subirla al editar el empleado."}</p></div>`;
   const docs = `${String(e.documentType || "").trim()} ${String(e.idDoc || "").trim()}`.trim();
-  const companyName = getCompanyById(e.companyId)?.name || "â€”";
+  const companyName = getCompanyById(e.companyId)?.name || "—";
   const isDriver = String(e.workerRole || "").toLowerCase() === "conductor";
   const driverBlock = isDriver
     ? `
     <section class="employee-profile-section"><h4 class="employee-profile-section-title">Conductor</h4><div class="employee-profile-grid">
-      ${employeeProfileKvRow("NÂ° licencia", e.license)}
-      ${employeeProfileKvRow("CategorÃ­a licencia", e.licenseCategory)}
-      ${employeeProfileKvRow("ExpediciÃ³n licencia", e.licenseIssueDate)}
+      ${employeeProfileKvRow("N° licencia", e.license)}
+      ${employeeProfileKvRow("Categoría licencia", e.licenseCategory)}
+      ${employeeProfileKvRow("Expedición licencia", e.licenseIssueDate)}
       ${employeeProfileKvRow("Vence licencia", e.licenseExpiry)}
       ${employeeProfileKvRow("Examen ocupacional", e.occupationalExamDate)}
       ${employeeProfileKvRow("Vence examen ocupacional", e.occupationalExamExpiry)}
       ${employeeProfileKvRow("Examen instruvial", e.instruvialExamDate)}
       ${employeeProfileKvRow("Vence examen instruvial", e.instruvialExamExpiry)}
-      ${employeeProfileKvRow("VehÃ­culos que conduce", driverVehicleTypesCsvToLabel(e.vehicleTypes, "Sin definir"))}
+      ${employeeProfileKvRow("Categoría (camión / mula)", driverVehicleTypesCsvToLabel(e.vehicleTypes, "Sin categoría"))}
     </div></section>`
     : "";
   return `
   <article class="employee-profile-card">${hero}<div class="employee-profile-intro">
       <h3 class="employee-profile-name">${escapeHtml(String(e.name || "").trim())}</h3>
-      <p class="employee-profile-intro-meta muted">${escapeHtml(String(e.position || "").trim())} Â· ${escapeHtml(String(e.contractType || "").trim())}${isDriver ? ` Â· ${escapeHtml("Conductor")}` : ""}</p>
-      <span class="employee-profile-chip">${fmtProfileCell(`${parseNum(e.baseSalary).toLocaleString("es-CO")} COP Â· salario base`)}</span>
+      <p class="employee-profile-intro-meta muted">${escapeHtml(String(e.position || "").trim())} · ${escapeHtml(String(e.contractType || "").trim())}${isDriver ? ` · ${escapeHtml("Conductor")}` : ""}</p>
+      <span class="employee-profile-chip">${fmtProfileCell(`${parseNum(e.baseSalary).toLocaleString("es-CO")} COP · salario base`)}</span>
     </div>
     <section class="employee-profile-section"><h4 class="employee-profile-section-title">Identidad</h4><div class="employee-profile-grid">
       ${employeeProfileKvRow("Documento", docs)}
       ${employeeProfileKvRow("Fecha de nacimiento", e.birthDate)}
-      ${employeeProfileKvRow("GÃ©nero", e.gender)}
+      ${employeeProfileKvRow("Género", e.gender)}
       ${employeeProfileKvRow("Estado civil", e.maritalStatus)}
       ${employeeProfileKvRow("Nivel educativo", e.educationLevel)}
       ${employeeProfileKvRow("Tipo sangre RH", e.bloodType)}
@@ -12986,8 +13088,8 @@ function buildEmployeePayrollProfileBodyHtml(emp) {
     <section class="employee-profile-section"><h4 class="employee-profile-section-title">Contacto</h4><div class="employee-profile-grid">
       ${employeeProfileKvRow("Departamento", e.department)}
       ${employeeProfileKvRow("Ciudad", e.city)}
-      ${employeeProfileKvRow("DirecciÃ³n", e.address)}
-      ${employeeProfileKvRow("TelÃ©fono celular", e.phone)}
+      ${employeeProfileKvRow("Dirección", e.address)}
+      ${employeeProfileKvRow("Teléfono celular", e.phone)}
       ${employeeProfileKvRow("Correo personal", e.personalEmail)}
       ${employeeProfileKvRow("Contacto emergencia", e.emergencyContact)}
       ${employeeProfileKvRow("Tel. emergencia", e.emergencyPhone)}
@@ -12995,12 +13097,12 @@ function buildEmployeePayrollProfileBodyHtml(emp) {
     </div></section>
     <section class="employee-profile-section"><h4 class="employee-profile-section-title">Salud</h4><div class="employee-profile-grid">
       ${employeeProfileKvRow(
-        "Â¿CondiciÃ³n mÃ©dica?",
-        String(e.hasIllness || "").toLowerCase() === "si" ? "SÃ­" : "No"
+        "¿Condición médica?",
+        String(e.hasIllness || "").toLowerCase() === "si" ? "Sí" : "No"
       )}
       ${
         String(e.hasIllness || "").toLowerCase() === "si"
-          ? employeeProfileKvRow("Detalle mÃ©dico", e.illnessDescription || "Sin detalle")
+          ? employeeProfileKvRow("Detalle médico", e.illnessDescription || "Sin detalle")
           : ""
       }
     </div></section>
@@ -13012,30 +13114,30 @@ function buildEmployeePayrollProfileBodyHtml(emp) {
         isFixedTermContractType(e.contractType)
           ? employeeProfileKvRow(
               "Inicio contrato vigente",
-              e.contractVigenteStartDate || e.startDate || "â€”"
+              e.contractVigenteStartDate || e.startDate || "—"
             )
           : ""
       }
       ${
         isFixedTermContractType(e.contractType)
-          ? employeeProfileKvRow("Fecha renovaciÃ³n", e.renewalDate || "â€”")
+          ? employeeProfileKvRow("Fecha renovación", e.renewalDate || "—")
           : ""
       }
       ${
         isFixedTermContractType(e.contractType)
-          ? employeeProfileKvRow("Aviso no renovaciÃ³n enviado", e.nonRenewalNoticeDate || "â€”")
+          ? employeeProfileKvRow("Aviso no renovación enviado", e.nonRenewalNoticeDate || "—")
           : ""
       }
       ${employeeProfileKvRow("Fecha fin contrato", e.contractEndDate)}
       ${
         contractRenewal.applies
-          ? employeeProfileKvRow("Aviso no renovaciÃ³n (mÃ¡x.)", fmtDateOr(contractRenewal.noticeDeadlineYmd, "â€”"))
+          ? employeeProfileKvRow("Aviso no renovación (máx.)", fmtDateOr(contractRenewal.noticeDeadlineYmd, "—"))
           : ""
       }
-      ${employeeProfileKvRow("DuraciÃ³n contrato", e.contractDuration || e.contractDurationText)}
+      ${employeeProfileKvRow("Duración contrato", e.contractDuration || e.contractDurationText)}
       ${employeeProfileKvRow("Periodicidad", e.payFrequency)}
       ${employeeProfileKvRow("Creado", fmtProfileAuditTimestamp(e.createdAt))}
-      ${employeeProfileKvRow("Ãšltima actualizaciÃ³n", fmtProfileAuditTimestamp(e.updatedAt))}
+      ${employeeProfileKvRow("Última actualización", fmtProfileAuditTimestamp(e.updatedAt))}
       ${employeeProfileKvRow("Aux. transporte (COP)", readEmployeeTransportAllowanceCop(e).toLocaleString("es-CO"))}
       ${employeeProfileKvRow("Tipo cotizante", e.contributorType)}
       ${employeeProfileKvRow("ARL nivel riesgo", e.arlRiskLevel)}
@@ -13043,15 +13145,15 @@ function buildEmployeePayrollProfileBodyHtml(emp) {
     </div></section>
     <section class="employee-profile-section"><h4 class="employee-profile-section-title">Seguridad social</h4><div class="employee-profile-grid">
       ${employeeProfileKvRow("EPS", e.eps)}
-      ${employeeProfileKvRow("Fondo pensiÃ³n", e.pensionFund)}
+      ${employeeProfileKvRow("Fondo pensión", e.pensionFund)}
       ${employeeProfileKvRow("ARL", e.arl)}
-      ${employeeProfileKvRow("CesantÃ­as", e.severanceFund)}
-      ${employeeProfileKvRow("Caja compensaciÃ³n", e.compensationFund)}
+      ${employeeProfileKvRow("Cesantías", e.severanceFund)}
+      ${employeeProfileKvRow("Caja compensación", e.compensationFund)}
     </div></section>
     <section class="employee-profile-section"><h4 class="employee-profile-section-title">Datos bancarios</h4><div class="employee-profile-grid">
       ${employeeProfileKvRow("Banco", e.bankName)}
       ${employeeProfileKvRow("Tipo cuenta", e.bankAccountType)}
-      ${employeeProfileKvRow("NÂ° cuenta", e.bankAccount)}
+      ${employeeProfileKvRow("N° cuenta", e.bankAccount)}
     </div></section>
     ${driverBlock}</article>`;
 }
@@ -13066,15 +13168,15 @@ function employeeNationalPhoneFieldHtml(name, label, rawValue) {
 }
 
 function buildPayrollEmployeeEditModalFields(emp) {
-  const e = normalizePayrollEmployeeRowDates(emp || {});
+  const e = mergeLinkedDriverConductorFields(normalizePayrollEmployeeRowDates(emp || {}));
   const empId = escapeAttr(String(e.id || ""));
   const deps = `<option value="">${escapeHtml("Seleccione...")}</option>${departmentOptions(e.department || "")}`;
   const docSel = CO_CATALOGS.documentTypes.map((d) => {
     const lab =
       d === "CC"
-        ? "CÃ©dula de ciudadanÃ­a"
+        ? "Cédula de ciudadanía"
         : d === "CE"
-          ? "CÃ©dula de extranjerÃ­a"
+          ? "Cédula de extranjería"
           : d === "PAS"
             ? "Pasaporte"
             : d === "PEP"
@@ -13113,7 +13215,7 @@ function buildPayrollEmployeeEditModalFields(emp) {
     .concat(
       getActivePositions().map(
         (p) =>
-          `<option value="${escapeAttr(p.id)}" ${String(e.positionId || "") === String(p.id || "") ? "selected" : ""}>${escapeHtml(`${p.name} Â· $${parseNum(p.baseSalary).toLocaleString("es-CO")}`)}</option>`
+          `<option value="${escapeAttr(p.id)}" ${String(e.positionId || "") === String(p.id || "") ? "selected" : ""}>${escapeHtml(`${p.name} · $${parseNum(p.baseSalary).toLocaleString("es-CO")}`)}</option>`
       )
     )
     .join("");
@@ -13139,27 +13241,27 @@ function buildPayrollEmployeeEditModalFields(emp) {
       html: `<div class="form-section-grid employee-edit-grid">
 <label><span>${escapeHtml("Nombre completo")}</span><input name="name" required value="${escapeAttr(e.name || "")}" /></label>
 <label><span>${escapeHtml("Tipo documento")}</span><select name="documentType" required>${docSel}</select></label>
-<label><span>${escapeHtml("NÂ° documento")}</span><input name="idDoc" required value="${escapeAttr(e.idDoc || "")}" /></label>
+<label><span>${escapeHtml("N° documento")}</span><input name="idDoc" required value="${escapeAttr(e.idDoc || "")}" /></label>
 <label><span>${escapeHtml("Fecha nacimiento")}</span><input type="date" name="birthDate" value="${escapeAttr(normalizePortalDateYmd(e.birthDate))}" /></label>
-<label><span>${escapeHtml("GÃ©nero")}</span><select name="gender">${genderSel}</select></label>
+<label><span>${escapeHtml("Género")}</span><select name="gender">${genderSel}</select></label>
 <label><span>${escapeHtml("Estado civil")}</span><select name="maritalStatus">${maritalSel}</select></label>
 <label><span>${escapeHtml("Nivel educativo")}</span><select name="educationLevel">${eduSel}</select></label>
 <label><span>${escapeHtml("Tipo de sangre RH")}</span><select name="bloodType">${selectOptionsFromCatalog(CO_CATALOGS.bloodTypes, e.bloodType || "", "Seleccione tipo de sangre...")}</select></label>
-<label><span>${escapeHtml("Â¿Sufre alguna enfermedad o condiciÃ³n mÃ©dica?")}</span><select name="hasIllness" data-emp-edit-illness required>
+<label><span>${escapeHtml("¿Sufre alguna enfermedad o condición médica?")}</span><select name="hasIllness" data-emp-edit-illness required>
 <option value="no" ${String(e.hasIllness || "").toLowerCase() !== "si" ? "selected" : ""}>${escapeHtml("No")}</option>
-<option value="si" ${String(e.hasIllness || "").toLowerCase() === "si" ? "selected" : ""}>${escapeHtml("SÃ­")}</option>
+<option value="si" ${String(e.hasIllness || "").toLowerCase() === "si" ? "selected" : ""}>${escapeHtml("Sí")}</option>
 </select></label>
-<label class="full" data-emp-edit-illness-detail ${String(e.hasIllness || "").toLowerCase() === "si" ? "" : "hidden"}><span>${escapeHtml("Â¿CuÃ¡l? (descripciÃ³n libre)")}</span><textarea name="illnessDescription" rows="2" placeholder="Detalle breve para uso mÃ©dico/HR">${escapeHtml(e.illnessDescription || "")}</textarea></label>
+<label class="full" data-emp-edit-illness-detail ${String(e.hasIllness || "").toLowerCase() === "si" ? "" : "hidden"}><span>${escapeHtml("¿Cuál? (descripción libre)")}</span><textarea name="illnessDescription" rows="2" placeholder="Detalle breve para uso médico/HR">${escapeHtml(e.illnessDescription || "")}</textarea></label>
 </div>`
     },
     {
       type: "custom",
-      label: "Contacto y ubicaciÃ³n",
+      label: "Contacto y ubicación",
       html: `<div class="form-section-grid employee-edit-grid">
 <label><span>${escapeHtml("Departamento")}</span><select name="department" id="employee-modal-department" required>${deps}</select></label>
 <label><span>${escapeHtml("Ciudad")}</span><select name="city" id="employee-modal-city" required><option value="">${escapeHtml("Seleccione un departamento...")}</option></select></label>
-<label class="full"><span>${escapeHtml("DirecciÃ³n")}</span><input name="address" required value="${escapeAttr(e.address || "")}" /></label>
-${employeeNationalPhoneFieldHtml("phone", "TelÃ©fono celular", e.phone)}
+<label class="full"><span>${escapeHtml("Dirección")}</span><input name="address" required value="${escapeAttr(e.address || "")}" /></label>
+${employeeNationalPhoneFieldHtml("phone", "Teléfono celular", e.phone)}
 <label><span>${escapeHtml("Correo personal")}</span><input type="email" name="personalEmail" value="${escapeAttr(e.personalEmail || "")}" /></label>
 <label><span>${escapeHtml("Contacto emergencia")}</span><input name="emergencyContact" required value="${escapeAttr(e.emergencyContact || "")}" /></label>
 ${employeeNationalPhoneFieldHtml("emergencyPhone", "Tel. emergencia", e.emergencyPhone)}
@@ -13175,27 +13277,27 @@ ${employeeNationalPhoneFieldHtml("emergencyPhone", "Tel. emergencia", e.emergenc
 <input type="hidden" name="workSchedule" id="employee-modal-work-schedule" value="${escapeAttr(String(e.workSchedule || ""))}" />
 <label><span>${escapeHtml("Tipo contrato")}</span><select name="contractType" id="employee-modal-contract-type" required>${contractSel}</select></label>
 <div id="emp-edit-contract-duration-block" class="emp-contract-duration-panel full${showPlazoBlockInit ? "" : " hidden"}" style="grid-column:1/-1"${showPlazoBlockInit ? "" : " hidden"}${showPlazoBlockInit ? "" : ' aria-hidden="true"'}>
-<p class="emp-contract-duration-title"><span>${escapeHtml("Plazo o duraciÃ³n del contrato")}</span></p>
-<p class="full muted modal-field-hint emp-contract-duration-hint" style="margin:0">Obligatorio para <strong>tÃ©rmino fijo</strong> o <strong>prestaciÃ³n de servicios</strong>. En contrato indefinido u otros tipos no aplica.</p>
+<p class="emp-contract-duration-title"><span>${escapeHtml("Plazo o duración del contrato")}</span></p>
+<p class="full muted modal-field-hint emp-contract-duration-hint" style="margin:0">Obligatorio para <strong>término fijo</strong> o <strong>prestación de servicios</strong>. En contrato indefinido u otros tipos no aplica.</p>
 <div class="form-section-grid employee-edit-grid emp-contract-duration-fields" style="grid-column:1/-1">
 <label><span>${escapeHtml("Unidad de tiempo")}</span><select name="contractDurationUnit" id="emp-edit-contract-duration-unit">
 <option value="">${escapeHtml("Seleccione...")}</option>
 <option value="meses" ${dur.unit === "meses" ? "selected" : ""}>${escapeHtml("Meses")}</option>
-<option value="anios" ${dur.unit === "anios" ? "selected" : ""}>${escapeHtml("AÃ±os")}</option>
+<option value="anios" ${dur.unit === "anios" ? "selected" : ""}>${escapeHtml("Años")}</option>
 <option value="otro" ${dur.unit === "otro" ? "selected" : ""}>${escapeHtml("Otro (texto libre)")}</option>
 </select></label>
 <div id="emp-edit-contract-duration-qty-wrap" class="emp-contract-duration-branch${dur.unit === "meses" || dur.unit === "anios" ? "" : " hidden"}"${dur.unit === "meses" || dur.unit === "anios" ? "" : " hidden"}>
 <label><span>${escapeHtml("Cantidad")}</span><input type="number" name="contractDurationAmount" id="emp-edit-contract-duration-amount" min="1" max="600" placeholder="Ej.: 12" value="${escapeAttr(dur.amount)}" /></label>
 </div>
 <div id="emp-edit-contract-duration-other-wrap" class="emp-contract-duration-branch full${dur.unit === "otro" ? "" : " hidden"}"${dur.unit === "otro" ? "" : " hidden"}>
-<label class="full"><span>${escapeHtml("Describa la duraciÃ³n")}</span><textarea name="contractDurationOther" id="emp-edit-contract-duration-other" rows="2" placeholder="Ej.: hasta finalizaciÃ³n del proyecto">${escapeHtml(dur.other)}</textarea></label>
+<label class="full"><span>${escapeHtml("Describa la duración")}</span><textarea name="contractDurationOther" id="emp-edit-contract-duration-other" rows="2" placeholder="Ej.: hasta finalización del proyecto">${escapeHtml(dur.other)}</textarea></label>
 </div>
 </div>
 </div>
 <label><span>${escapeHtml("Fecha ingreso a la empresa")}</span><input type="date" name="startDate" id="employee-modal-start-date" required value="${escapeAttr(normalizePortalDateYmd(e.startDate))}" /></label>
 <div id="emp-edit-contract-vigente-start-wrap" class="emp-contract-vigente-start full${showFixedEndInit ? "" : " hidden"}" style="grid-column:1/-1"${showFixedEndInit ? "" : " hidden"}>
 <label><span>${escapeHtml("Fecha inicio contrato vigente")}</span><input type="date" name="contractVigenteStartDate" id="employee-modal-contract-vigente-start-date" value="${escapeAttr(normalizePortalDateYmd(e.contractVigenteStartDate))}" /></label>
-<p class="muted modal-field-hint" style="margin:0.35rem 0 0;font-size:0.82rem;line-height:1.45">Plazo del contrato fijo o renovaciÃ³n vigente. Si queda vacÃ­o al guardar, se usarÃ¡ la fecha de ingreso.</p>
+<p class="muted modal-field-hint" style="margin:0.35rem 0 0;font-size:0.82rem;line-height:1.45">Plazo del contrato fijo o renovación vigente. Si queda vacío al guardar, se usará la fecha de ingreso.</p>
 </div>
 <div id="emp-edit-contract-end-wrap" class="emp-contract-end-preview full${showFixedEndInit ? "" : " hidden"}" style="grid-column:1/-1"${showFixedEndInit ? "" : " hidden"}>
 <label><span>${escapeHtml("Fecha fin del contrato")}</span><input type="date" name="contractEndDate" id="emp-edit-contract-end-date" readonly tabindex="-1" value="${escapeAttr(normalizePortalDateYmd(e.contractEndDate))}" /></label>
@@ -13208,8 +13310,8 @@ ${employeeNationalPhoneFieldHtml("emergencyPhone", "Tel. emergencia", e.emergenc
 <label><span>${escapeHtml("Centro de costos")}</span><input name="costCenter" value="${escapeAttr(resolvePayrollEmployeeCostCenter(e))}" data-antares-field="db-upper" data-antares-validate-blur="db-upper" /></label>
 <label><span>${escapeHtml("Tipo cotizante")}</span><select name="contributorType">${selectOptionsFromCatalog(CO_CATALOGS.contributorTypes, e.contributorType || "")}</select></label>
 <label><span>${escapeHtml("Nivel riesgo ARL")}</span><select name="arlRiskLevel" id="employee-modal-arl-risk">${selectOptionsFromCatalog(CO_CATALOGS.arlRiskLevels, e.arlRiskLevel || "")}</select></label>
-<label><span>${escapeHtml("Examen mÃ©dico ocupacional de ingreso")}</span><input type="date" name="occupationalExamDate" value="${escapeAttr(normalizePortalDateYmd(e.occupationalExamDate))}" /></label>
-<p class="full muted modal-field-hint" style="grid-column:1/-1;font-size:0.78rem">Obligatorio para todo trabajador (ResoluciÃ³n 2346 de 2007). Vigencia automÃ¡tica +1 aÃ±o desde la fecha del Ãºltimo examen periÃ³dico.</p>
+<label><span>${escapeHtml("Examen médico ocupacional de ingreso")}</span><input type="date" name="occupationalExamDate" value="${escapeAttr(normalizePortalDateYmd(e.occupationalExamDate))}" /></label>
+<p class="full muted modal-field-hint" style="grid-column:1/-1;font-size:0.78rem">Obligatorio para todo trabajador (Resolución 2346 de 2007). Vigencia automática +1 año desde la fecha del último examen periódico.</p>
 <label><span>${escapeHtml("Plantilla contrato Word")}</span><select name="contractTemplateKind" id="employee-modal-contract-template" required>${tmplSel}</select></label>
 </div>`
     },
@@ -13218,10 +13320,10 @@ ${employeeNationalPhoneFieldHtml("emergencyPhone", "Tel. emergencia", e.emergenc
       label: "Seguridad social",
       html: `<div class="form-section-grid employee-edit-grid">
 <label><span>${escapeHtml("EPS")}</span><select name="eps" required>${selectOptionsFromCatalog(CO_CATALOGS.eps, e.eps || "", "Seleccione EPS...")}</select></label>
-<label><span>${escapeHtml("PensiÃ³n")}</span><select name="pensionFund" required>${selectOptionsFromCatalog(CO_CATALOGS.pensionFunds, e.pensionFund || "", "Seleccione fondo...")}</select></label>
+<label><span>${escapeHtml("Pensión")}</span><select name="pensionFund" required>${selectOptionsFromCatalog(CO_CATALOGS.pensionFunds, e.pensionFund || "", "Seleccione fondo...")}</select></label>
 <label><span>${escapeHtml("ARL")}</span><select name="arl" required>${selectOptionsFromCatalog(CO_CATALOGS.arl, e.arl || "", "Seleccione ARL...")}</select></label>
-<label><span>${escapeHtml("Fondo cesantÃ­as")}</span><select name="severanceFund">${selectOptionsFromCatalog(CO_CATALOGS.severanceFunds, e.severanceFund || "")}</select></label>
-<label><span>${escapeHtml("Caja compensaciÃ³n")}</span><select name="compensationFund">${selectOptionsFromCatalog(CO_CATALOGS.compensationFunds, e.compensationFund || "")}</select></label>
+<label><span>${escapeHtml("Fondo cesantías")}</span><select name="severanceFund">${selectOptionsFromCatalog(CO_CATALOGS.severanceFunds, e.severanceFund || "")}</select></label>
+<label><span>${escapeHtml("Caja compensación")}</span><select name="compensationFund">${selectOptionsFromCatalog(CO_CATALOGS.compensationFunds, e.compensationFund || "")}</select></label>
 </div>`
     },
     {
@@ -13230,26 +13332,26 @@ ${employeeNationalPhoneFieldHtml("emergencyPhone", "Tel. emergencia", e.emergenc
       html: `<div class="form-section-grid employee-edit-grid">
 <label><span>${escapeHtml("Banco")}</span><select name="bankName" required>${selectOptionsFromCatalog(CO_CATALOGS.banks, e.bankName || "", "Seleccione...")}</select></label>
 <label><span>${escapeHtml("Tipo cuenta")}</span><select name="bankAccountType">${selectOptionsFromCatalog(CO_CATALOGS.accountTypes, e.bankAccountType || "Ahorros")}</select></label>
-<label class="full"><span>${escapeHtml("NÃºmero cuenta")}</span><input name="bankAccount" required value="${escapeAttr(e.bankAccount || "")}" /></label>
+<label class="full"><span>${escapeHtml("Número cuenta")}</span><input name="bankAccount" required value="${escapeAttr(e.bankAccount || "")}" /></label>
 </div>`
     },
     {
       type: "custom",
       label: "Conductor",
       html: `<div class="form-section-grid employee-edit-grid hr-modal-conductor-block">
-<label><span>${escapeHtml("NÂ° licencia")}</span><input name="license" value="${escapeAttr(e.license || "")}" /></label>
-<label><span>${escapeHtml("CategorÃ­a licencia")}</span><select name="licenseCategory">${selectOptionsFromCatalog(CO_CATALOGS.licenseCategories, e.licenseCategory || "", "Seleccione categorÃ­a...")}</select></label>
-<label><span>${escapeHtml("ExpediciÃ³n / renovaciÃ³n licencia")}</span><input type="date" name="licenseIssueDate" value="${escapeAttr(normalizePortalDateYmd(e.licenseIssueDate))}" /></label>
-<label><span>${escapeHtml("Vence licencia (calculado +3 aÃ±os C2)")}</span><input type="date" name="licenseExpiry" value="${escapeAttr(normalizePortalDateYmd(e.licenseExpiry))}" readonly tabindex="-1" /></label>
-<p class="full muted modal-field-hint" style="grid-column:1/-1;font-size:0.78rem">La vigencia de la licencia C2 se calcula automÃ¡ticamente a 3 aÃ±os desde la fecha de expediciÃ³n o renovaciÃ³n.</p>
+<label><span>${escapeHtml("N° licencia")}</span><input name="license" value="${escapeAttr(e.license || "")}" /></label>
+<label><span>${escapeHtml("Categoría licencia")}</span><select name="licenseCategory">${selectOptionsFromCatalog(CO_CATALOGS.licenseCategories, e.licenseCategory || "", "Seleccione categoría...")}</select></label>
+<label><span>${escapeHtml("Expedición / renovación licencia")}</span><input type="date" name="licenseIssueDate" value="${escapeAttr(normalizePortalDateYmd(e.licenseIssueDate))}" /></label>
+<label><span>${escapeHtml("Vence licencia (calculado +3 años C2)")}</span><input type="date" name="licenseExpiry" value="${escapeAttr(normalizePortalDateYmd(e.licenseExpiry))}" readonly tabindex="-1" /></label>
+<p class="full muted modal-field-hint" style="grid-column:1/-1;font-size:0.78rem">La vigencia de la licencia C2 se calcula automáticamente a 3 años desde la fecha de expedición o renovación.</p>
 <label><span>${escapeHtml("Examen instruvial")}</span><input type="date" name="instruvialExamDate" value="${escapeAttr(normalizePortalDateYmd(e.instruvialExamDate))}" /></label>
-<p class="full muted modal-field-hint" style="grid-column:1/-1;font-size:0.78rem">La vigencia del examen instruvial se calcula automÃ¡ticamente (+2 aÃ±os). El examen ocupacional estÃ¡ en la secciÃ³n Â«LaboralÂ» porque aplica a todos los cargos.</p>
+<p class="full muted modal-field-hint" style="grid-column:1/-1;font-size:0.78rem">La vigencia del examen instruvial se calcula automáticamente (+2 años). El examen ocupacional está en la sección «Laboral» porque aplica a todos los cargos.</p>
 <label><span>${escapeHtml("Comparendos pendientes (SIMIT)")}</span><input type="number" name="comparendos" min="0" max="9999" value="${escapeAttr(parseNum(e.comparendos ?? 0))}" /></label>
-<label><span>${escapeHtml("AÃ±os de experiencia conduciendo")}</span><input type="number" name="experienceYears" min="0" max="80" value="${escapeAttr(parseNum(e.experienceYears ?? 0))}" /></label>
-<label class="full"><span>${escapeHtml("Â¿De cuÃ¡les vehÃ­culos de la flota es conductor?")}</span>
+<label><span>${escapeHtml("Años de experiencia conduciendo")}</span><input type="number" name="experienceYears" min="0" max="80" value="${escapeAttr(parseNum(e.experienceYears ?? 0))}" /></label>
+<label class="full"><span>${escapeHtml("Categoría de vehículos que conduce")}</span>
 <div class="hr-conductor-vehicle-types">${driverVehicleTypesCheckboxesHtml(e.vehicleTypes || "")}</div>
 </label>
-<p class="full muted modal-field-hint" style="grid-column:1/-1;font-size:0.82rem">Si el cargo no es conductor, puede dejar esta secciÃ³n en blanco.</p>
+<p class="full muted modal-field-hint" style="grid-column:1/-1;font-size:0.82rem">Marque camión, turbo y/o mula. Si el cargo no es conductor, puede dejarlo en blanco.</p>
 </div>`
     },
     {
@@ -13264,7 +13366,7 @@ ${employeeNationalPhoneFieldHtml("emergencyPhone", "Tel. emergencia", e.emergenc
 <input type="file" id="emp-edit-modal-avatar-input" name="avatarFile" accept="image/jpeg,image/png,image/webp,image/gif" class="profile-avatar-file-input" aria-label="Foto del empleado" />
 </label>
 <input type="hidden" name="avatarUrlExisting" value="${existingAvatar}" />
-<p class="muted hr-employee-avatar-caption">${escapeHtml("Pulse el cÃ­rculo. Si no elige archivo, se conserva la foto actual.")}</p>
+<p class="muted hr-employee-avatar-caption">${escapeHtml("Pulse el círculo. Si no elige archivo, se conserva la foto actual.")}</p>
 </div>
 </div>
 </div>`
@@ -13415,7 +13517,7 @@ function buildEmployeeContractDocxPayload(employee, opts = {}) {
 
 async function generateOfficialWordContract(payload) {
   if (!window.RecruitmentDomain?.generateEmployeeContractDocx) {
-    throw new Error("MÃ³dulo de contratos Word no disponible (recarga la pÃ¡gina).");
+    throw new Error("Módulo de contratos Word no disponible (recarga la página).");
   }
   return window.RecruitmentDomain.generateEmployeeContractDocx(payload);
 }
@@ -13497,9 +13599,9 @@ function portalNonAdminRestrictedCaptureChange(event) {
 
 /**
  * Guarda dura para handlers destructivos. Aunque la barrera de captura cubre el camino feliz,
- * si alguien manipula el DOM (devtools, extensiÃ³n) o re-renderea sin pasar por viewRoot, este
- * check rechaza la acciÃ³n antes de tocar localStorage o la API.
- * @returns {boolean} true si se debe abortar la acciÃ³n.
+ * si alguien manipula el DOM (devtools, extensión) o re-renderea sin pasar por viewRoot, este
+ * check rechaza la acción antes de tocar localStorage o la API.
+ * @returns {boolean} true si se debe abortar la acción.
  */
 function abortIfNotAdmin(reason = "adminOnlyModule") {
   if (isAdminActor()) return false;
@@ -13545,7 +13647,7 @@ function abortUnlessCanManageSst(reason = "adminOnlyModule") {
 
 
 
-/** Cobertura pÃºblica: GET /api/public/transport-request-coverage-stats (sin JWT). */
+/** Cobertura pública: GET /api/public/transport-request-coverage-stats (sin JWT). */
 let publicCoverageStatsView = null;
 let publicCoverageStatsFetchInFlight = false;
 const COVERAGE_STATS_FETCH_TIMEOUT_MS = 15000;
@@ -13557,9 +13659,9 @@ const COVERAGE_MAIN_ROUTES_ES = [
   "Cartagena",
   "Buenaventura",
   "Puerto Antioquia",
-  "MedellÃ­n",
-  "Oriente AntioqueÃ±o",
-  "BogotÃ¡"
+  "Medellín",
+  "Oriente Antioqueño",
+  "Bogotá"
 ];
 
 function coverageMainRouteHubRows() {
@@ -13575,10 +13677,10 @@ const COVERAGE_FALLBACK_CORRIDORS = [
   { cityA: "Santa Marta", cityB: "Barranquilla" },
   { cityA: "Barranquilla", cityB: "Cartagena" },
   { cityA: "Cartagena", cityB: "Buenaventura" },
-  { cityA: "Buenaventura", cityB: "MedellÃ­n" },
-  { cityA: "MedellÃ­n", cityB: "BogotÃ¡" },
-  { cityA: "Oriente AntioqueÃ±o", cityB: "MedellÃ­n" },
-  { cityA: "MedellÃ­n", cityB: "Puerto Antioquia" }
+  { cityA: "Buenaventura", cityB: "Medellín" },
+  { cityA: "Medellín", cityB: "Bogotá" },
+  { cityA: "Oriente Antioqueño", cityB: "Medellín" },
+  { cityA: "Medellín", cityB: "Puerto Antioquia" }
 ];
 
 /** Ventana de meses para GET /public/transport-request-coverage-stats (API acota entre 3 y 36). */
@@ -13872,7 +13974,7 @@ function openPublicCareersImagePreview(src, alt) {
         <p class="careers-overlay__eyebrow">${escapeHtml(tPublic("Vista ampliada"))}</p>
         <p class="careers-image-preview__title">${escapeHtml(title)}</p>
       </div>
-      <button type="button" class="careers-image-preview__close" data-careers-image-close aria-label="${escapeAttr(tPublic("Cerrar"))}">Ã—</button>
+      <button type="button" class="careers-image-preview__close" data-careers-image-close aria-label="${escapeAttr(tPublic("Cerrar"))}">×</button>
     </header>
     <div class="careers-image-preview__viewport" data-careers-scroll-viewport>
       <div class="careers-overlay__progress" data-careers-scroll-progress hidden aria-hidden="true"></div>
@@ -13885,7 +13987,7 @@ function openPublicCareersImagePreview(src, alt) {
       <div class="careers-image-preview__edge careers-image-preview__edge--bottom" aria-hidden="true">
         <span class="careers-overlay__scroll-chip">
           <span class="careers-image-preview__scroll-hint"></span>
-          <span>${escapeHtml(tPublic("Desliza para ver mÃ¡s"))}</span>
+          <span>${escapeHtml(tPublic("Desliza para ver más"))}</span>
         </span>
       </div>
     </div>
@@ -14036,7 +14138,7 @@ function writePublicVacanciesCache(rows) {
 
 function careersLoadingCardHtml() {
   return `<div class="careers-card">
-    <p class="muted" style="margin:0">${tPublic("Cargando vacantesΓÇª")}</p>
+    <p class="muted" style="margin:0">${tPublic("Cargando vacantesΓǪ")}</p>
     <p class="muted" data-careers-wake-hint hidden style="margin:.5rem 0 0;font-size:.85em">${tPublic(
       "El servidor est├í despertando; puede tardar hasta un minuto."
     )}</p>
@@ -14071,7 +14173,7 @@ function initPublicCareers() {
           : tPublic("Sin fecha limite");
         const fullReq = String(v.requirements || "").trim();
         const isTruncated = fullReq.length > 180;
-        const reqPreview = escapeHtml(isTruncated ? `${fullReq.slice(0, 180)}ΓÇª` : fullReq);
+        const reqPreview = escapeHtml(isTruncated ? `${fullReq.slice(0, 180)}ΓǪ` : fullReq);
         const vacId = escapeAttr(String(v.id ?? ""));
         const imageUrl = String(v.imageUrl || "").trim();
         const imageAlt = String(v.title || tPublic("Vacante"));
@@ -14418,8 +14520,11 @@ Object.assign(window, {
   departmentOptions,
   driverVehicleTypeFieldName,
   driverVehicleTypesCheckboxesHtml,
+  applyDriverVehicleTypesCheckboxes,
+  driverHasCanonicalVehicleType,
   collectDriverVehicleTypesCsv,
   driverVehicleTypesCsvToLabel,
+  mergeLinkedDriverConductorFields,
   deriveRequestOperationalValue,
   describeContractDurationForDocx,
   describePortalVehicleOccupancy,

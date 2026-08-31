@@ -96,8 +96,8 @@ function renderPayrollRunCard(run, { compact = false, selectable = false } = {})
       ${hrAdminDeletes ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-payroll-run" data-id="${escapeAttr(String(run.id))}" title="Eliminar liquidación">${IC.trash}</button>` : ""}
     </div>`;
   const compactClass = compact ? " payroll-run-card--compact" : "";
-  const selectHtml = selectable && hrAdminDeletes
-    ? `<label class="payroll-run-card-select" title="Seleccionar para eliminación masiva"><input type="checkbox" data-payroll-run-select value="${escapeAttr(String(run.id || ""))}" aria-label="Seleccionar liquidación de ${escapeAttr(String(run.employeeName || "colaborador"))}" /><span class="visually-hidden">Seleccionar</span></label>`
+  const selectHtml = selectable
+    ? `<label class="payroll-run-card-select" title="Seleccionar liquidación"><input type="checkbox" data-payroll-run-select value="${escapeAttr(String(run.id || ""))}" aria-label="Seleccionar liquidación de ${escapeAttr(String(run.employeeName || "colaborador"))}" /><span class="visually-hidden">Seleccionar</span></label>`
     : "";
   return `<article class="payroll-run-card payroll-run-card--${stateTone}${compactClass}" data-payroll-state="${stateTone}" data-payroll-run-id="${escapeAttr(String(run.id || ""))}">
     <div class="payroll-run-stripe" aria-hidden="true"></div>

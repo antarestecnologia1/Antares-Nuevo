@@ -42,3 +42,4 @@
 40_alter_vacantes_imagen_url.sql
 41_documentos_empresa.sql
 42_sarlaft_pte.sql
+43_alter_ausencias_soporte_documento.sql

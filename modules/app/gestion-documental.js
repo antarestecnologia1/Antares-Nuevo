@@ -31,6 +31,8 @@ import {
   employeeCompanyFolderPath,
   listMissingEmployeeFolderPaths,
   buildPayrollCompanyDocumentFileName,
+  buildAbsenceSupportCompanyFileName,
+  absenceSupportDocumentMarker,
   employeeHireDocumentMarker,
   buildEmployeeContractCompanyFileName,
   buildEmployeeLaborLetterCompanyFileName,
@@ -78,7 +80,7 @@ import {
   normalizeEmployeeDocumentFolderRow
 } from "../domain/employee-documents.domain.js";
 import { downloadCsv } from "../domain/reporteria.domain.js";
-import { payrollRunTypeLabel } from "../domain/nomina.domain.js";
+import { payrollRunTypeLabel, payrollAbsenceTypeLabel } from "../domain/nomina.domain.js";
 import { buildEmployeeContractDocxPayload, prepareEmployeeForContractDocx, validateEmployeeContractDocFields } from "../domain/contratacion.domain.js";
 import {
   SAFE_DOCUMENT_ACCEPT,
@@ -1256,10 +1258,11 @@ async function archiveBlobToEmployeeFolder({
   mimeType,
   documentCategory,
   marker,
-  description
+  description,
+  force = false
 }) {
   if (!employee?.id || !blob || !fileName || !marker) return { ok: false, skipped: true };
-  if (hasHireDocMarker(marker)) return { ok: true, skipped: true };
+  if (!force && hasHireDocMarker(marker)) return { ok: true, skipped: true };
   const folderRes = await ensureCompanyEmployeeDocumentFolder(employee);
   const folder = folderRes?.path || employeeCompanyFolderPath(employee);
   if (!folder) return { ok: false, message: "No se pudo resolver la carpeta del colaborador." };
@@ -1287,11 +1290,57 @@ async function archiveBlobToEmployeeFolder({
       process: cat === "contrato" || cat === "hoja_vida" ? "contratacion" : "rrhh"
     });
     await writeAwaitServerCreate(KEYS.companyDocuments, [...readDocs(), record], record);
-    return { ok: true, created: true, id: record.id, path: folder, fileName: record.fileName };
+    return {
+      ok: true,
+      created: true,
+      id: record.id,
+      path: folder,
+      fileName: record.fileName,
+      storageKey: record.storageKey
+    };
   } catch (err) {
     devWarn("[companyDocuments] archiveBlob", err?.message || err);
     return { ok: false, message: String(err?.message || err) };
   }
+}
+
+/**
+ * Archiva el soporte de una ausencia en `01. Empleados / Nombre`.
+ * Idempotente por `absenceId=` salvo `force` (reemplazo en edición).
+ */
+async function archiveAbsenceSupportToEmployeeFolder({ employee, file, absence, force = false } = {}) {
+  if (!employee?.id || !file || !absence?.id) return { ok: false, skipped: true };
+  const marker = absenceSupportDocumentMarker(absence.id);
+  if (!marker) return { ok: false, message: "Ausencia sin identificador." };
+  const typeLabel =
+    typeof payrollAbsenceTypeLabel === "function"
+      ? payrollAbsenceTypeLabel(absence.absenceType)
+      : String(absence.absenceType || "Ausencia");
+  const fileName = buildAbsenceSupportCompanyFileName(absence, file.name, typeLabel);
+  const result = await archiveBlobToEmployeeFolder({
+    employee,
+    blob: file,
+    fileName,
+    mimeType: file.type,
+    documentCategory: "soporte_ausencia",
+    marker,
+    force: Boolean(force),
+    description: `Soporte de ausencia · ${typeLabel} · ${absence.startDate || ""} → ${absence.endDate || ""}`
+  });
+  if (result?.ok && result.skipped && !result.id) {
+    const existing = readDocs().find((d) => String(d.description || "").includes(marker));
+    if (existing) {
+      return {
+        ok: true,
+        skipped: true,
+        id: existing.id,
+        path: existing.folder,
+        fileName: existing.fileName,
+        storageKey: existing.storageKey
+      };
+    }
+  }
+  return result;
 }
 
 /**
@@ -1828,6 +1877,7 @@ async function resetAndRecreateCompanyDocuments({ force = false } = {}) {
 
 if (typeof window !== "undefined") {
   window.archivePayrollRunToEmployeeFolder = archivePayrollRunToEmployeeFolder;
+  window.archiveAbsenceSupportToEmployeeFolder = archiveAbsenceSupportToEmployeeFolder;
   window.archiveEmployeeHirePackageToFolder = archiveEmployeeHirePackageToFolder;
   window.archiveEmployeeContractToFolder = archiveEmployeeContractToFolder;
   window.archiveEmployeePhotoToFolder = archiveEmployeePhotoToFolder;

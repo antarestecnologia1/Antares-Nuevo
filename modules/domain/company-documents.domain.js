@@ -97,6 +97,7 @@ export const COMPANY_DOCUMENT_CATEGORIES = Object.freeze([
   { value: "cert_existencia", label: "Certificado de existencia y representación", process: "sarlaft", area: "kyc", requiresExpiry: true },
   { value: "factura", label: "Factura / soporte contable", process: "finanzas", area: "contabilidad", requiresExpiry: false },
   { value: "comprobante_pago", label: "Comprobante de pago / colilla", process: "rrhh", area: "nomina", requiresExpiry: false },
+  { value: "soporte_ausencia", label: "Soporte de ausencia / incapacidad", process: "rrhh", area: "nomina", requiresExpiry: false },
   { value: "poliza", label: "Póliza / seguro", process: "cumplimiento", area: "seguros", requiresExpiry: true },
   { value: "acta", label: "Acta / acuerdo", process: "legal", area: "actas", requiresExpiry: false },
   { value: "otro", label: "Otro documento", process: "", area: "", requiresExpiry: false }
@@ -119,6 +120,26 @@ export function buildPayrollCompanyDocumentFileName(run = {}, typeLabel = "") {
 export function payrollRunDocumentTag(runId) {
   const id = String(runId || "").trim();
   return id ? `payrollRun:${id}` : "";
+}
+
+/** Marcador idempotente en descripción: soporte de una ausencia laboral. */
+export function absenceSupportDocumentMarker(absenceId) {
+  const id = String(absenceId || "").trim();
+  return id ? `absenceId=${id}` : "";
+}
+
+/** Nombre de archivo para el soporte de ausencia en la carpeta del colaborador. */
+export function buildAbsenceSupportCompanyFileName(absence = {}, originalName = "", typeLabel = "") {
+  const safe = (s) =>
+    String(s ?? "")
+      .replace(/[\\/:*?"<>|]+/g, "-")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 80);
+  const kind = safe(typeLabel) || safe(absence.absenceType) || "Ausencia";
+  const start = safe(absence.startDate).slice(0, 10) || "sin-fecha";
+  const ext = extFromFileName(originalName) || "pdf";
+  return `Soporte ausencia · ${kind} · ${start}.${ext}`;
 }
 
 /** Marcador idempotente en descripción: documentos de alta del colaborador. */

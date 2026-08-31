@@ -705,11 +705,13 @@ function bindAuthorizationsPortalControls() {
                 { value: "", label: "Dejar sin asignar por ahora" },
                 ...driverCandidates.map((driver) => ({
                   value: driver.id,
-                  disabled: Boolean(driver.isBusy || driver.isUnavailable || driver.hasExpiredDocs),
+                  disabled: Boolean(driver.isBusy || driver.isUnavailable || driver.hasExpiredDocs || driver.wrongVehicleType),
                   label: tripAssignmentDriverOptionLabel(driver, {
                     isBusy: driver.isBusy,
                     isUnavailable: driver.isUnavailable,
-                    hasExpiredDocs: driver.hasExpiredDocs
+                    hasExpiredDocs: driver.hasExpiredDocs,
+                    wrongVehicleType: driver.wrongVehicleType,
+                    requestTruckType: normalizeRequestRequiredTruckType(request?.vehicleType)
                   })
                 }))
               ]

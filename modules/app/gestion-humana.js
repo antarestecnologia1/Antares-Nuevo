@@ -896,6 +896,37 @@ async function archivePayrollRunComprobanteQuietly(run) {
   }
 }
 
+async function archiveAbsenceSupportForEmployee(employee, file, absence, { force = false } = {}) {
+  const fn = typeof window !== "undefined" ? window.archiveAbsenceSupportToEmployeeFolder : null;
+  if (typeof fn !== "function") {
+    throw new Error(userMessage("absenceSupportFileSaveError"));
+  }
+  const result = await fn({ employee, file, absence, force });
+  if (!result?.ok) {
+    throw new Error(result?.message || userMessage("absenceSupportFileSaveError"));
+  }
+  return result;
+}
+
+function resolveAbsenceSupportMeta(absence) {
+  const fileName = String(absence?.supportFileName || "").trim();
+  const documentId = String(absence?.supportDocumentId || "").trim();
+  const folder = String(absence?.supportFolder || "").trim();
+  if (fileName || documentId) {
+    return { fileName: fileName || "Soporte", documentId, folder };
+  }
+  const id = String(absence?.id || "").trim();
+  if (!id || !KEYS.companyDocuments) return null;
+  const marker = `absenceId=${id}`;
+  const hit = read(KEYS.companyDocuments, []).find((d) => String(d.description || "").includes(marker));
+  if (!hit) return null;
+  return {
+    fileName: String(hit.fileName || "Soporte").trim() || "Soporte",
+    documentId: String(hit.id || "").trim(),
+    folder: String(hit.folder || "").trim()
+  };
+}
+
 function bindPayrollPortalControls() {
   if (typeof scheduleContractRenewalNotificationCheck === "function") {
     scheduleContractRenewalNotificationCheck();
@@ -1802,9 +1833,39 @@ function bindPayrollPortalControls() {
         failPortalField(absenceForm, legalValidation.field || "startDate", legalValidation.message);
         return;
       }
+      const supportFile = absenceForm.querySelector("input[name='supportFile']")?.files?.[0] || null;
+      if (!supportFile) {
+        failPortalField(absenceForm, "supportFile", userMessage("absenceSupportFileRequired"));
+        return;
+      }
+      const sec = window.AntaresFileUploadSecurity;
+      if (sec?.validateUploadFile) {
+        const check = await sec.validateUploadFile(supportFile, "document");
+        if (!check.ok) {
+          failPortalField(absenceForm, "supportFile", check.message || userMessage("absenceSupportFileRequired"));
+          return;
+        }
+      }
       const list = read(KEYS.hrAbsences, []);
+      const absenceId = newUuidV4();
+      let archived;
+      try {
+        archived = await archiveAbsenceSupportForEmployee(employee, supportFile, {
+          id: absenceId,
+          absenceType,
+          startDate: data.startDate,
+          endDate: data.endDate
+        });
+      } catch (err) {
+        failPortalField(
+          absenceForm,
+          "supportFile",
+          String(err?.message || userMessage("absenceSupportFileSaveError"))
+        );
+        return;
+      }
       const absencePayload = {
-        id: newUuidV4(),
+        id: absenceId,
         employeeId: employee.id,
         employeeName: normalizeLatinUpperForDb(employee.name),
         absenceType,
@@ -1815,6 +1876,9 @@ function bindPayrollPortalControls() {
         recognizedDays,
         recognizedUnit: payrollAbsenceRecognizedUnit(absenceType, absenceSubtype),
         supportNumber: normalizeLatinUpperForDb(data.supportNumber || ""),
+        supportDocumentId: archived?.id || null,
+        supportFileName: archived?.fileName || supportFile.name,
+        supportFolder: archived?.path || "",
         epsEntity: normalizeLatinUpperForDb(data.epsEntity || ""),
         notes,
         createdAt: nowIso()
@@ -2008,6 +2072,13 @@ function bindPayrollPortalControls() {
           syncEmployeeEditCatalogSelects(formEl, target);
           wirePayrollEmployeeFormFieldSanitization(formEl);
           wireEmployeePayrollDuplicateDocCheck(formEl, { excludeId: target.id });
+          const linkedDriver = resolveDriverForEmployee?.(target);
+          const vehicleTypesCsv = String(
+            target.vehicleTypes || linkedDriver?.vehicleTypes || linkedDriver?.tipos_vehiculo || ""
+          ).trim();
+          const applyVehicleTypes = () => applyDriverVehicleTypesCheckboxes?.(formEl, vehicleTypesCsv);
+          applyVehicleTypes();
+          queueMicrotask(applyVehicleTypes);
         },
         onSubmit: async (payload, formEl) => {
           const actor = currentUser();
@@ -2035,7 +2106,7 @@ function bindPayrollPortalControls() {
           const packed = buildPayrollEmployeePayloadFromWizard(raw, docValidation.normalized, {
             avatarUrl: nextAvatar,
             stripLargeAvatar: false,
-            preserveEmployee: target
+            preserveEmployee: mergeLinkedDriverConductorFields?.(target) || target
           });
           if (!packed.ok) {
             failPortalField(formEl, packed.field || "name", packed.msg);
@@ -3314,29 +3385,62 @@ function bindPayrollPortalControls() {
     });
   });
 
+  function payrollNominaFilteredRuns() {
+    const filters = state.payrollFilters || defaultPayrollFilters();
+    const source =
+      typeof filterPayrollNominaRuns === "function"
+        ? filterPayrollNominaRuns(read(KEYS.payrollRuns, []))
+        : read(KEYS.payrollRuns, []);
+    return filterPayrollRunsByUiState(source, filters, "nomina");
+  }
+
+  function payrollRunsSelectAllIsOn() {
+    const toolbar = document.getElementById("payroll-runs-select-all");
+    const header = document.getElementById("payroll-runs-select-all-header");
+    const el = toolbar || header;
+    return Boolean(el?.checked) && !el?.indeterminate;
+  }
+
   function selectedPayrollRunIds() {
-    return [
+    const visible = [
       ...new Set(
         [...nodes.viewRoot.querySelectorAll("[data-payroll-section='runs'] [data-payroll-run-select]:checked")].map(
           (check) => String(check.value || "").trim()
         ).filter(Boolean)
       )
     ];
+    if (payrollRunsSelectAllIsOn()) {
+      return payrollNominaFilteredRuns()
+        .map((row) => String(row.id || "").trim())
+        .filter(Boolean);
+    }
+    return visible;
+  }
+
+  function previewPayrollRunIds(ids) {
+    const all = read(KEYS.payrollRuns, []);
+    const preview = ids
+      .slice(0, 3)
+      .map((id) => {
+        const run = all.find((r) => String(r.id) === id);
+        if (!run) return id;
+        return `${run.employeeName || "Colaborador"} · ${run.month || "-"}`;
+      })
+      .join("; ");
+    const extra = ids.length > 3 ? ` y ${ids.length - 3} más` : "";
+    return `${preview}${extra}`;
   }
 
   function syncPayrollRunSelectionBadge() {
     const badge = document.getElementById("payroll-runs-selected-count");
     const deleteBtn = document.getElementById("payroll-runs-delete-selected");
+    const deleteAllBtn = document.getElementById("payroll-runs-delete-all");
+    const markPaidBtn = document.getElementById("payroll-runs-mark-paid-selected");
     const checks = [...nodes.viewRoot.querySelectorAll("[data-payroll-section='runs'] [data-payroll-run-select]")];
     const selected = checks.filter((el) => el.checked);
-    const count = selected.length;
-    if (badge) {
-      badge.textContent = `${count} seleccionado${count === 1 ? "" : "s"}`;
-      badge.hidden = count <= 0;
-    }
-    if (deleteBtn) deleteBtn.disabled = count <= 0;
+    const visibleCount = selected.length;
     const allSelected = checks.length > 0 && checks.every((el) => el.checked);
-    const someSelected = count > 0 && !allSelected;
+    const someSelected = visibleCount > 0 && !allSelected;
     const header = document.getElementById("payroll-runs-select-all-header");
     const toolbar = document.getElementById("payroll-runs-select-all");
     [header, toolbar].forEach((el) => {
@@ -3344,6 +3448,19 @@ function bindPayrollPortalControls() {
       el.checked = allSelected;
       el.indeterminate = someSelected;
     });
+    const selectedIds = selectedPayrollRunIds();
+    const count = selectedIds.length;
+    const selectedIdSet = new Set(selectedIds);
+    const unpaidCount = read(KEYS.payrollRuns, []).filter(
+      (row) => selectedIdSet.has(String(row.id || "")) && !row.paid
+    ).length;
+    if (badge) {
+      badge.textContent = `${count} seleccionado${count === 1 ? "" : "s"}`;
+      badge.hidden = count <= 0;
+    }
+    if (deleteBtn) deleteBtn.disabled = count <= 0;
+    if (deleteAllBtn) deleteAllBtn.disabled = payrollNominaFilteredRuns().length <= 0;
+    if (markPaidBtn) markPaidBtn.disabled = unpaidCount <= 0;
     nodes.viewRoot.querySelectorAll("[data-payroll-section='runs'] [data-payroll-run-id]").forEach((row) => {
       const id = String(row.getAttribute("data-payroll-run-id") || "");
       const on = selected.some((el) => String(el.value || "") === id);
@@ -3370,6 +3487,143 @@ function bindPayrollPortalControls() {
   });
   syncPayrollRunSelectionBadge();
 
+  const confirmRemovePayrollRuns = (ids, { title, message, confirmText }) => {
+    openConfirmReasonModal({
+      title,
+      message,
+      confirmText,
+      onConfirm: async (motivo) => {
+        const prev = read(KEYS.payrollRuns, []);
+        const idSet = new Set(ids);
+        const snapshots = ids
+          .map((id) => prev.find((row) => String(row.id) === id))
+          .filter(Boolean);
+        const next = prev.filter((row) => !idSet.has(String(row.id || "")));
+        const prune =
+          typeof writePortalListPrunedAwaitServer === "function"
+            ? writePortalListPrunedAwaitServer
+            : null;
+        let ok = false;
+        if (prune) {
+          ok = await prune(KEYS.payrollRuns, next, ids);
+        } else {
+          ok = true;
+          for (const id of ids) {
+            const removed = await removeFromPortalListAwaitServer(KEYS.payrollRuns, id);
+            if (!removed) {
+              ok = false;
+              break;
+            }
+          }
+        }
+        if (!ok) return;
+        snapshots.forEach((run) => {
+          appendPayrollRunAuditLog("delete", run, {
+            summary: `Eliminación de liquidación · ${String(run?.employeeName || "Colaborador")} · periodo ${String(run?.month || "-")}`,
+            motivo
+          });
+        });
+        if (portalCanRefreshFromApi()) {
+          await applyPortalBootstrapFromApi();
+        }
+        notify(userMessage("payrollRunsBulkRemoved", ids.length), "success");
+        renderPortalView();
+      }
+    });
+  };
+
+  const payrollRunsMarkPaidSelected = document.getElementById("payroll-runs-mark-paid-selected");
+  if (payrollRunsMarkPaidSelected) {
+    payrollRunsMarkPaidSelected.addEventListener("click", async (event) => {
+      event.preventDefault();
+      const selectedIds = selectedPayrollRunIds();
+      const all = read(KEYS.payrollRuns, []);
+      const idSet = new Set(selectedIds);
+      const targets = all.filter((row) => idSet.has(String(row.id || "")) && !row.paid);
+      if (!targets.length) {
+        notify(userMessage("payrollRunsBulkSelectPaid"), "error");
+        return;
+      }
+      const actor = currentUser();
+      if (requiresAdminHrApproval(actor?.role || "")) {
+        if (payrollRunsMarkPaidSelected.dataset.busy === "1") return;
+        payrollRunsMarkPaidSelected.dataset.busy = "1";
+        payrollRunsMarkPaidSelected.disabled = true;
+        payrollRunsMarkPaidSelected.setAttribute("aria-busy", "true");
+        try {
+          for (const run of targets) {
+            await queueApproval({
+              type: "mark_payroll_paid",
+              title: `Aprobar pago de nómina ${run.employeeName} (${run.month})`,
+              payload: { payrollRunId: run.id, employeeName: run.employeeName, month: run.month },
+              requestedByUserId: actor?.id || "",
+              requestedByName: actor?.name || "Usuario"
+            });
+          }
+          notify(userMessage("payrollRunsBulkPaidApproval", targets.length), "info");
+          renderPortalView();
+        } catch (err) {
+          payrollRunsMarkPaidSelected.dataset.busy = "0";
+          payrollRunsMarkPaidSelected.disabled = false;
+          payrollRunsMarkPaidSelected.removeAttribute("aria-busy");
+          notify(String(err?.message || "No fue posible enviar la solicitud de aprobación."), "error");
+        }
+        return;
+      }
+      const totalNet = targets.reduce((sum, run) => sum + parseNum(run.net), 0);
+      openConfirmModal({
+        title: "Confirmar pago de nómina",
+        message: `Marcar como pagadas ${targets.length} liquidación${targets.length === 1 ? "" : "es"} (${previewPayrollRunIds(targets.map((run) => String(run.id)))}) por ${totalNet.toLocaleString("es-CO")} COP neto.`,
+        confirmText: targets.length === 1 ? "Marcar pagado" : "Marcar pagadas",
+        onConfirm: async () => {
+          const approver = payrollAuditActorLabel();
+          const paidAt = nowIso();
+          const paidIdSet = new Set(targets.map((run) => String(run.id)));
+          const nextRuns = all.map((item) =>
+            paidIdSet.has(String(item.id)) && !item.paid
+              ? stampUpdatedRecord({
+                  ...item,
+                  paid: true,
+                  paidAt,
+                  approvedBy: approver
+                })
+              : item
+          );
+          try {
+            const syncData =
+              typeof syncPayloadForChangedRows === "function"
+                ? syncPayloadForChangedRows(all, nextRuns)
+                : nextRuns.filter((item) => paidIdSet.has(String(item.id)));
+            if (typeof writeAwaitServer === "function") {
+              await writeAwaitServer(KEYS.payrollRuns, nextRuns, { syncData });
+            } else {
+              for (const run of targets) {
+                await writeAwaitServerEdit(KEYS.payrollRuns, nextRuns, run.id);
+              }
+            }
+          } catch (err) {
+            notify(String(err?.message || "No fue posible marcar el pago en el servidor."), "error");
+            return;
+          }
+          targets.forEach((run) => {
+            appendPayrollRunAuditLog("update", run, {
+              summary: `Liquidación marcada como pagada · aprobado por ${approver} · neto $${parseNum(run.net).toLocaleString("es-CO")}`
+            });
+            const paidRun = nextRuns.find((item) => String(item.id) === String(run.id)) || {
+              ...run,
+              paid: true,
+              paidAt,
+              approvedBy: approver
+            };
+            void archivePayrollRunComprobanteQuietly(paidRun);
+          });
+          notify(userMessage("payrollRunsBulkPaid", targets.length), "success");
+          renderPortalView();
+        }
+      });
+    });
+  }
+
   const payrollRunsDeleteSelected = document.getElementById("payroll-runs-delete-selected");
   if (payrollRunsDeleteSelected) {
     payrollRunsDeleteSelected.addEventListener("click", (event) => {
@@ -3383,56 +3637,33 @@ function bindPayrollPortalControls() {
         notify(userMessage("payrollRunsBulkSelect"), "error");
         return;
       }
-      const preview = selectedIds
-        .slice(0, 3)
-        .map((id) => {
-          const run = read(KEYS.payrollRuns, []).find((r) => String(r.id) === id);
-          if (!run) return id;
-          return `${run.employeeName || "Colaborador"} · ${run.month || "-"}`;
-        })
-        .join("; ");
-      const extra = selectedIds.length > 3 ? ` y ${selectedIds.length - 3} más` : "";
-      openConfirmReasonModal({
+      confirmRemovePayrollRuns(selectedIds, {
         title: "Eliminar liquidaciones seleccionadas",
-        message: `Se eliminarán ${selectedIds.length} liquidación${selectedIds.length === 1 ? "" : "es"} (${preview}${extra}). Indique la justificación. Solo administradores; no hay deshacer automático si ya se sincronizó con servidor.`,
-        confirmText: selectedIds.length === 1 ? "Eliminar liquidación" : "Eliminar seleccionadas",
-        onConfirm: async (motivo) => {
-          const prev = read(KEYS.payrollRuns, []);
-          const idSet = new Set(selectedIds);
-          const snapshots = selectedIds
-            .map((id) => prev.find((row) => String(row.id) === id))
-            .filter(Boolean);
-          const next = prev.filter((row) => !idSet.has(String(row.id || "")));
-          const prune =
-            typeof writePortalListPrunedAwaitServer === "function"
-              ? writePortalListPrunedAwaitServer
-              : null;
-          let ok = false;
-          if (prune) {
-            ok = await prune(KEYS.payrollRuns, next, selectedIds);
-          } else {
-            ok = true;
-            for (const id of selectedIds) {
-              const removed = await removeFromPortalListAwaitServer(KEYS.payrollRuns, id);
-              if (!removed) {
-                ok = false;
-                break;
-              }
-            }
-          }
-          if (!ok) return;
-          snapshots.forEach((run) => {
-            appendPayrollRunAuditLog("delete", run, {
-              summary: `Eliminación de liquidación · ${String(run?.employeeName || "Colaborador")} · periodo ${String(run?.month || "-")}`,
-              motivo
-            });
-          });
-          if (portalCanRefreshFromApi()) {
-            await applyPortalBootstrapFromApi();
-          }
-          notify(userMessage("payrollRunsBulkRemoved", selectedIds.length), "success");
-          renderPortalView();
-        }
+        message: `Se eliminarán ${selectedIds.length} liquidación${selectedIds.length === 1 ? "" : "es"} (${previewPayrollRunIds(selectedIds)}). Indique la justificación. Solo administradores; no hay deshacer automático si ya se sincronizó con servidor.`,
+        confirmText: selectedIds.length === 1 ? "Eliminar liquidación" : "Eliminar seleccionadas"
+      });
+    });
+  }
+
+  const payrollRunsDeleteAll = document.getElementById("payroll-runs-delete-all");
+  if (payrollRunsDeleteAll) {
+    payrollRunsDeleteAll.addEventListener("click", (event) => {
+      event.preventDefault();
+      if (currentUser()?.role !== ROLES.ADMIN) {
+        notify(userMessage("adminOnlyDeleteHrPayrollRecord"), "error");
+        return;
+      }
+      const allIds = payrollNominaFilteredRuns()
+        .map((row) => String(row.id || "").trim())
+        .filter(Boolean);
+      if (!allIds.length) {
+        notify(userMessage("payrollRunsBulkDeleteAllEmpty"), "error");
+        return;
+      }
+      confirmRemovePayrollRuns(allIds, {
+        title: "Eliminar todas las liquidaciones",
+        message: `Se eliminarán las ${allIds.length} liquidación${allIds.length === 1 ? "" : "es"} de nómina que coinciden con los filtros actuales (${previewPayrollRunIds(allIds)}). Indique la justificación. Solo administradores; no hay deshacer automático si ya se sincronizó con servidor.`,
+        confirmText: allIds.length === 1 ? "Eliminar liquidación" : "Eliminar todas"
       });
     });
   }
@@ -3527,6 +3758,10 @@ function bindPayrollPortalControls() {
       }
       const typeLabel = payrollAbsenceTypeLabel(a.absenceType);
       const subtypeLabel = payrollAbsenceSubtypeLabel(a.absenceType, a.absenceSubtype);
+      const supportMeta = resolveAbsenceSupportMeta(a);
+      const supportFileLabel = supportMeta
+        ? `${supportMeta.fileName}${supportMeta.folder ? ` · ${supportMeta.folder}` : ""}`
+        : "—";
       const sections = [
         {
           icon: "calendar",
@@ -3539,6 +3774,7 @@ function bindPayrollPortalControls() {
             ["Días calendario", String(parseNum(a.days || 0))],
             ["Días reconocidos", payrollFormatAbsenceQuantity(a.recognizedDays ?? a.days)],
             ["Soporte (N°)", escapeHtml(String(a.supportNumber || "-"))],
+            ["Soporte (archivo)", escapeHtml(supportFileLabel)],
             ["Entidad/EPS/ARL", escapeHtml(String(a.epsEntity || "-"))],
             ["Registrado", fmtDateOr(a.createdAt)]
           ]
@@ -3563,6 +3799,12 @@ function bindPayrollPortalControls() {
       const all = read(KEYS.hrAbsences, []);
       const target = normalizeHrAbsenceRowForEditor(all.find((x) => String(x.id) === String(btn.dataset.id || "")));
       if (!target) return;
+      const currentSupport = resolveAbsenceSupportMeta(target);
+      const currentSupportHtml = currentSupport
+        ? `Soporte archivado: ${escapeHtml(currentSupport.fileName)}${
+            currentSupport.folder ? ` · ${escapeHtml(currentSupport.folder)}` : ""
+          }`
+        : "Sin archivo de soporte archivado en Gestión documental.";
       openEditModal({
         title: "Editar ausencia",
         subtitle: String(target.employeeName || ""),
@@ -3597,6 +3839,16 @@ function bindPayrollPortalControls() {
             type: "custom",
             html: `<p class="full muted" data-absence-support-hint style="margin:0;font-size:0.82rem"></p>`
           },
+          {
+            type: "custom",
+            html: `<p class="full muted" style="margin:0;font-size:0.82rem">${currentSupportHtml}</p>`
+          },
+          {
+            name: "supportFile",
+            label: "Reemplazar soporte (opcional)",
+            type: "file",
+            accept: ".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp,application/pdf"
+          },
           { name: "notes", label: "Observaciones", type: "textarea", value: target.notes || "", rows: 3 }
         ],
         afterMount: (formEl) => {
@@ -3604,10 +3856,10 @@ function bindPayrollPortalControls() {
           if (subtypeLabel) subtypeLabel.setAttribute("data-absence-subtype-wrap", "");
           wireHrAbsenceFormBehavior(formEl);
         },
-        onSubmit: async (form) => {
+        onSubmit: async (form, formEl) => {
           const start = new Date(`${form.startDate}T12:00:00`);
           const end = new Date(`${form.endDate}T12:00:00`);
-          const absenceEditForm = document.getElementById("crud-form");
+          const absenceEditForm = formEl || document.getElementById("crud-form");
           if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) {
             failPortalField(absenceEditForm, "startDate", "Fechas inválidas.");
             return false;
@@ -3634,6 +3886,51 @@ function bindPayrollPortalControls() {
             failPortalField(absenceEditForm, legalValidation.field || "startDate", legalValidation.message);
             return false;
           }
+          const supportFile = absenceEditForm?.querySelector?.("input[name='supportFile']")?.files?.[0] || null;
+          let supportPatch = {};
+          if (supportFile) {
+            const sec = window.AntaresFileUploadSecurity;
+            if (sec?.validateUploadFile) {
+              const check = await sec.validateUploadFile(supportFile, "document");
+              if (!check.ok) {
+                failPortalField(
+                  absenceEditForm,
+                  "supportFile",
+                  check.message || userMessage("absenceSupportFileRequired")
+                );
+                return false;
+              }
+            }
+            try {
+              const employee = {
+                id: target.employeeId,
+                name: target.employeeName
+              };
+              const archived = await archiveAbsenceSupportForEmployee(
+                employee,
+                supportFile,
+                {
+                  id: target.id,
+                  absenceType: normalizedType,
+                  startDate: form.startDate,
+                  endDate: form.endDate
+                },
+                { force: true }
+              );
+              supportPatch = {
+                supportDocumentId: archived?.id || target.supportDocumentId || null,
+                supportFileName: archived?.fileName || supportFile.name,
+                supportFolder: archived?.path || target.supportFolder || ""
+              };
+            } catch (err) {
+              failPortalField(
+                absenceEditForm,
+                "supportFile",
+                String(err?.message || userMessage("absenceSupportFileSaveError"))
+              );
+              return false;
+            }
+          }
           const freshAbsences = read(KEYS.hrAbsences, []);
           if (!freshAbsences.some((a) => String(a.id) === String(target.id))) {
             notify("La ausencia ya no está disponible. Actualice la página.", "error");
@@ -3653,7 +3950,8 @@ function bindPayrollPortalControls() {
                   recognizedUnit: payrollAbsenceRecognizedUnit(normalizedType, normalizedSubtype),
                   supportNumber: String(form.supportNumber || "").trim(),
                   epsEntity: String(form.epsEntity || "").trim(),
-                  notes: String(form.notes || "").trim()
+                  notes: String(form.notes || "").trim(),
+                  ...supportPatch
                 })
           );
           try {
