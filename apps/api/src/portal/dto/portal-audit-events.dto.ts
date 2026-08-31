@@ -17,8 +17,8 @@ export class PortalAuditEventDto {
   @IsUUID("4")
   id?: string;
 
-  @IsIn(["create", "update", "delete"])
-  action!: "create" | "update" | "delete";
+  @IsIn(["create", "update", "delete", "unlink"])
+  action!: "create" | "update" | "delete" | "unlink";
 
   @IsString()
   @MaxLength(64)

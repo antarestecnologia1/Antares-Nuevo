@@ -29,6 +29,7 @@ function historyTraceRelativeTime(ts) {
 function historyTraceActionIcon(action) {
   if (action === "create") return IC.plus || IC.check;
   if (action === "delete") return IC.trash || IC.x;
+  if (action === "unlink") return IC.userMinus || IC.x;
   return IC.edit || IC.activity;
 }
 
@@ -644,6 +645,7 @@ function historyTraceStats(entries) {
     create: list.filter((e) => e.action === "create").length,
     update: list.filter((e) => e.action === "update").length,
     delete: list.filter((e) => e.action === "delete").length,
+    unlink: list.filter((e) => e.action === "unlink").length,
     modules: modules.size
   };
 }
@@ -679,6 +681,7 @@ function renderHistoryTraceKpis(stats) {
     { label: "Eventos", value: stats.total, tone: "primary", icon: IC.activity || IC.layers },
     { label: "Creaciones", value: stats.create, tone: stats.create ? "ok" : "neutral", icon: IC.plus || IC.check },
     { label: "Actualizaciones", value: stats.update, tone: stats.update ? "warn" : "neutral", icon: IC.edit || IC.activity },
+    { label: "Desvinculaciones", value: stats.unlink, tone: stats.unlink ? "danger" : "neutral", icon: IC.userMinus || IC.x },
     { label: "Eliminaciones", value: stats.delete, tone: stats.delete ? "danger" : "neutral", icon: IC.trash || IC.x },
     { label: "Módulos", value: stats.modules, tone: "neutral", icon: IC.layers }
   ];
@@ -732,6 +735,7 @@ function renderHistoryActionFilters(active, stats = {}) {
     ${pill("all", "Todos", IC.layers, stats.total)}
     ${pill("create", "Creaciones", IC.plus || IC.check, stats.create)}
     ${pill("update", "Actualizaciones", IC.edit || IC.activity, stats.update)}
+    ${pill("unlink", "Desvinculaciones", IC.userMinus || IC.x, stats.unlink)}
     ${pill("delete", "Eliminaciones", IC.trash || IC.x, stats.delete)}
   </div>`;
 }

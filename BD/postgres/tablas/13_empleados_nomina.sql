@@ -56,11 +56,16 @@ CREATE TABLE empleados_nomina (
   jornada_laboral             VARCHAR(64),
   url_avatar                  TEXT,
   correo_corporativo          VARCHAR(320),
+  activo                      BOOLEAN NOT NULL DEFAULT true,
+  fecha_desvinculacion        DATE,
+  categoria_desvinculacion    VARCHAR(64),
+  motivo_desvinculacion       TEXT,
+  desvinculado_por            VARCHAR(255),
   tiene_condicion_medica      BOOLEAN NOT NULL DEFAULT false,
   descripcion_condicion_medica TEXT,
   fecha_creacion              TIMESTAMPTZ NOT NULL DEFAULT now(),
   fecha_actualizacion         TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CONSTRAINT uq_empleado_empresa_documento UNIQUE (id_empresa, numero_documento),
+  CONSTRAINT uq_empleado_empresa_documento UNIQUE (id_empresa, numero_documento), -- se reemplaza por índice parcial en 44_alter_empleados_desvinculacion.sql
   CONSTRAINT chk_empleados_condicion_medica CHECK (
     tiene_condicion_medica = true
     OR descripcion_condicion_medica IS NULL

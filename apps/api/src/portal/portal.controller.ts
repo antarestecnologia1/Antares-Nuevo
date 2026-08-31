@@ -361,6 +361,6 @@ export class PortalController {
 
   @Post("admin-employee-delete")
   adminEmployeeDelete(@Req() req: { user: ReqUser }, @Body() dto: AdminEmployeeDeleteDto) {
-    return this.portal.adminDeletePayrollEmployee(req.user.userId, req.user.role, dto.employeeId);
+    return this.portal.adminUnlinkPayrollEmployee(req.user.userId, req.user.role, dto);
   }
 }

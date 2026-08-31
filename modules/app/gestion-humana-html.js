@@ -78,6 +78,26 @@ function renderPayrollContractsFilterBar(canDeletePayrollEmployees) {
       </select>
     </label>
     <label class="payroll-contracts-filter">
+      <span>Vinculación</span>
+      <select id="payroll-employee-link-filter">
+        <option value="active">Activos</option>
+        <option value="unlinked">Desvinculados</option>
+        <option value="all">Todos</option>
+      </select>
+    </label>
+    <label class="payroll-contracts-filter" hidden>
+      <span>Categoría</span>
+      <select id="payroll-employee-unlink-category-filter">
+        <option value="all">Todas</option>
+        <option value="renuncia_voluntaria">Renuncia voluntaria</option>
+        <option value="despido_sin_justa">Despido sin justa causa</option>
+        <option value="despido_justa">Despido con justa causa</option>
+        <option value="mutuo_acuerdo">Mutuo acuerdo</option>
+        <option value="vencimiento_contrato">Vencimiento de contrato</option>
+        <option value="otro">Otro</option>
+      </select>
+    </label>
+    <label class="payroll-contracts-filter">
       <span>Estado</span>
       <select id="payroll-employee-contract-filter">
         <option value="all">Todos</option>
@@ -105,7 +125,7 @@ function renderPayrollContractsTableToolbar(activeView, canDeletePayrollEmployee
     ? `<div class="payroll-contracts-bulk toolbar">
         <span class="payroll-contracts-bulk__count" id="employees-selected-count" hidden>0 seleccionados</span>
         <button type="button" class="btn btn-sm btn-outline" id="export-employees-contracts">${IC.download} Exportar</button>
-        <button type="button" class="btn btn-sm btn-outline btn-reject" id="employees-delete-selected">${IC.trash} Eliminar seleccionados</button>
+        <button type="button" class="btn btn-sm btn-outline btn-reject" id="employees-delete-selected">${IC.userMinus || IC.trash} Desvincular seleccionados</button>
       </div>`
     : `<div class="payroll-contracts-bulk toolbar">
         <button type="button" class="btn btn-sm btn-outline" id="export-employees-contracts">${IC.download} Exportar</button>
@@ -231,10 +251,11 @@ function payrollHtml() {
   const healthRatePct = (parseNum(legalDraft.healthEmployeeRate) * 100).toFixed(2).replace(/\.00$/, "");
   const pensionRatePct = (parseNum(legalDraft.pensionEmployeeRate) * 100).toFixed(2).replace(/\.00$/, "");
   const employeeSummaries = employees.map((e) => summarizePayrollEmployeeForDirectory(e));
-  const contractNoticeCount = employeeSummaries.filter(
+  const activeEmployeeSummaries = employeeSummaries.filter((s) => !s.isUnlinked);
+  const contractNoticeCount = activeEmployeeSummaries.filter(
     (s) => s.contract.applies && (s.contract.statusSlug === "notice_window" || s.contract.statusSlug === "expired")
   ).length;
-  const contractDashboardStats = computePayrollContractDashboardStats(employeeSummaries);
+  const contractDashboardStats = computePayrollContractDashboardStats(activeEmployeeSummaries);
   const employeesPageSize = Math.max(5, Number(payrollUi.employeesPageSize) || 10);
   const employeesPage = Math.max(1, Number(payrollUi.employeesPage) || 1);
   const employeesTotal = employeeSummaries.length;
@@ -711,8 +732,8 @@ function payrollHtml() {
     </fieldset>
     ${renderManagedCreateFormActions("create-driver-trip-payment", `<button class="btn btn-primary" type="submit"${conductorEmployees.length ? "" : " disabled"}>${IC.truck} Liquidar viajes del mes</button>`)}
   </form>`;
-  const payrollEmpOptionsSettlement = `<option value="">Seleccione</option>${nominaEmployees
-    .map((e) => `<option value="${escapeAttr(String(e.id))}">${escapeHtml(String(e.name || ""))}</option>`)
+  const payrollEmpOptionsSettlement = `<option value="">Seleccione</option>${listPayrollLiquidationEmployees(employees, { includeUnlinked: true })
+    .map((e) => `<option value="${escapeAttr(String(e.id))}">${escapeHtml(String(e.name || ""))}${typeof isPayrollEmployeeUnlinked === "function" && isPayrollEmployeeUnlinked(e) ? " · Desvinculado" : ""}</option>`)
     .join("")}`;
   const formPayrollSettlement = `<form id="form-payroll-settlement" novalidate class="p-form p-form-colored hr-form-flow payroll-settlement-create-form">
     <div class="payroll-liq-form__body">

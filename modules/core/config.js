@@ -470,11 +470,59 @@ export const REGISTER_PRIVACY_URL = "./politica-privacidad.html";
 export const DATA_POLICY_VERSION = "2025-v1";
 export const DATA_POLICY_URL = "./documentacion/politica-tratamiento-datos-personales.pdf";
 
+function __checklistFlagTrue(checklist, key) {
+  if (!checklist || typeof checklist !== "object") return false;
+  const v = checklist[key];
+  return v === true || v === 1 || v === "true" || v === "on" || v === "1";
+}
+
+function __legalChecklistFromUser(user) {
+  const raw = user?.profileQualityChecklist ?? user?.checklistRegistroJson ?? null;
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) return raw;
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+/** Perfil real de BD (no el stub del JWT). Sin esto un navegador nuevo pide documentos de más. */
+export function userLegalProfileIsHydrated(user) {
+  if (!user || typeof user !== "object") return false;
+  if (user.source === "portal_db") return true;
+  if (user.requiresDataPolicyAcceptance === true || user.requiresDataPolicyAcceptance === false) return true;
+  if (user.requiresTermsAcceptance === true || user.requiresTermsAcceptance === false) return true;
+  if (user.dataPolicyAcceptedAt || user.fechaAceptacionPoliticaDatos) return true;
+  if (user.termsAcceptedAt || user.fechaAceptacionTerminos) return true;
+  if (String(user.firstName || "").trim() || String(user.personalDoc || user.taxId || "").trim()) return true;
+  return false;
+}
+
 /** Indica si el usuario debe aceptar la política de datos antes de usar el portal. */
 export function userRequiresDataPolicyAcceptance(user) {
   if (!user || typeof user !== "object") return true;
+  if (user.requiresDataPolicyAcceptance === false) return false;
+  if (user.requiresDataPolicyAcceptance === true) {
+    const acceptedAt = user.dataPolicyAcceptedAt ?? user.fechaAceptacionPoliticaDatos ?? null;
+    const version = String(user.dataPolicyVersion ?? user.versionPoliticaDatos ?? "").trim();
+    if (acceptedAt && version === DATA_POLICY_VERSION) return false;
+  }
   const acceptedAt = user.dataPolicyAcceptedAt ?? user.fechaAceptacionPoliticaDatos ?? null;
   const version = String(user.dataPolicyVersion ?? user.versionPoliticaDatos ?? "").trim();
+  if (acceptedAt && version === DATA_POLICY_VERSION) return false;
+  if (acceptedAt && !version) return false;
+  const checklist = __legalChecklistFromUser(user);
+  if (
+    checklist &&
+    (__checklistFlagTrue(checklist, "dataPolicyAccepted") ||
+      String(checklist.dataPolicyVersion || "").trim() === DATA_POLICY_VERSION)
+  ) {
+    return false;
+  }
   if (!acceptedAt) return true;
   if (!version || version !== DATA_POLICY_VERSION) return true;
   return false;
@@ -483,8 +531,21 @@ export function userRequiresDataPolicyAcceptance(user) {
 /** Términos de uso, privacidad y Habeas Data (`usuarios.fecha_aceptacion_terminos`). */
 export function userRequiresTermsAcceptance(user) {
   if (!user || typeof user !== "object") return true;
+  if (user.requiresTermsAcceptance === false) return false;
   const acceptedAt = user.termsAcceptedAt ?? user.fechaAceptacionTerminos ?? null;
-  return !acceptedAt;
+  if (acceptedAt) return false;
+  const checklist = __legalChecklistFromUser(user);
+  if (
+    checklist &&
+    (__checklistFlagTrue(checklist, "termsOfUseAccepted") ||
+      __checklistFlagTrue(checklist, "privacyPolicyAccepted") ||
+      __checklistFlagTrue(checklist, "habeasDataAcknowledged") ||
+      checklist.acceptedTermsAt)
+  ) {
+    return false;
+  }
+  if (user.requiresTermsAcceptance === true) return true;
+  return true;
 }
 
 /** Qué aceptaciones legales faltan según fila de usuario (desde BD /portal/me). */
@@ -496,8 +557,60 @@ export function userPendingLegalAcceptances(user) {
 }
 
 export function userRequiresLegalAcceptanceGate(user) {
+  if (!userLegalProfileIsHydrated(user)) return false;
   const pending = userPendingLegalAcceptances(user);
   return pending.dataPolicy || pending.terms;
+}
+
+/** Conserva fechas ya aceptadas si el bootstrap llega sin ellas (p. ej. caché incompleta). */
+export function mergeLegalAcceptanceFields(incoming, prev, snapshot) {
+  if (!incoming || typeof incoming !== "object") return incoming;
+  const snap = snapshot && String(snapshot.id) === String(incoming.id) ? snapshot : null;
+  const pickDate = (...vals) => {
+    for (const v of vals) {
+      if (v) return v;
+    }
+    return null;
+  };
+  const dataPolicyAcceptedAt = pickDate(
+    incoming.dataPolicyAcceptedAt,
+    incoming.fechaAceptacionPoliticaDatos,
+    prev?.dataPolicyAcceptedAt,
+    snap?.dataPolicyAcceptedAt
+  );
+  const termsAcceptedAt = pickDate(
+    incoming.termsAcceptedAt,
+    incoming.fechaAceptacionTerminos,
+    prev?.termsAcceptedAt,
+    snap?.termsAcceptedAt
+  );
+  const dataPolicyVersion =
+    String(incoming.dataPolicyVersion ?? incoming.versionPoliticaDatos ?? prev?.dataPolicyVersion ?? snap?.dataPolicyVersion ?? "").trim() ||
+    null;
+  const requiresDataPolicyAcceptance =
+    incoming.requiresDataPolicyAcceptance === false
+      ? false
+      : incoming.requiresDataPolicyAcceptance === true
+        ? true
+        : prev?.requiresDataPolicyAcceptance === false || snap?.requiresDataPolicyAcceptance === false
+          ? false
+          : incoming.requiresDataPolicyAcceptance;
+  const requiresTermsAcceptance =
+    incoming.requiresTermsAcceptance === false
+      ? false
+      : incoming.requiresTermsAcceptance === true
+        ? true
+        : prev?.requiresTermsAcceptance === false || snap?.requiresTermsAcceptance === false
+          ? false
+          : incoming.requiresTermsAcceptance;
+  return {
+    ...incoming,
+    dataPolicyAcceptedAt,
+    dataPolicyVersion,
+    termsAcceptedAt,
+    requiresDataPolicyAcceptance,
+    requiresTermsAcceptance
+  };
 }
 
 /** Orden en la grilla de permisos (Usuarios y permisos). */
@@ -702,6 +815,8 @@ export const HIRING_RRHH_EDIT_ACTIONS = new Set([
 
 export const PAYROLL_RRHH_EDIT_ACTIONS = new Set([
   "delete-employee",
+  "unlink-employee",
+  "recategorize-unlinked-employee",
   "delete-payroll-run",
   "edit-hr-absence",
   "delete-hr-absence"
@@ -820,6 +935,8 @@ export const PORTAL_NON_ADMIN_BLOCKED_ACTIONS = new Set([
   "delete-driver",
   "delete-route-rate",
   "delete-employee",
+  "unlink-employee",
+  "recategorize-unlinked-employee",
   "delete-vacancy",
   "close-vacancy",
   "toggle-position",

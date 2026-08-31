@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Gestión humana — listeners post-render (bindPayrollPortalControls).
  */
 const EMPLOYEE_CREATE_DRAFT_KEY = "antares-employee-create-draft";
@@ -1972,6 +1972,10 @@ function bindPayrollPortalControls() {
       const all = read(KEYS.payrollEmployees, []);
       const target = all.find((e) => String(e.id) === String(btn.dataset.id || ""));
       if (!target) return;
+      if (typeof isPayrollEmployeeUnlinked === "function" && isPayrollEmployeeUnlinked(target)) {
+        notify("Este colaborador está desvinculado. Puede recategorizar la desvinculación o consultar su ficha.", "info");
+        return;
+      }
       openEditModal({
         title: "Editar colaborador",
         subtitle: String(target.name || "").trim(),
@@ -2234,6 +2238,10 @@ function bindPayrollPortalControls() {
       const all = read(KEYS.payrollEmployees, []);
       const target = all.find((e) => String(e.id) === String(btn.dataset.id || ""));
       if (!target) return;
+      if (typeof isPayrollEmployeeUnlinked === "function" && isPayrollEmployeeUnlinked(target)) {
+        notify("No se puede renovar el contrato de un colaborador desvinculado.", "info");
+        return;
+      }
       if (!isFixedTermContractType(target.contractType)) {
         notify("La renovación solo aplica a contratos a término fijo.", "error");
         return;
@@ -2360,6 +2368,10 @@ function bindPayrollPortalControls() {
       const all = read(KEYS.payrollEmployees, []);
       const target = all.find((e) => String(e.id) === String(btn.dataset.id || ""));
       if (!target) return;
+      if (typeof isPayrollEmployeeUnlinked === "function" && isPayrollEmployeeUnlinked(target)) {
+        notify("No se puede emitir aviso de no renovación de un colaborador desvinculado.", "info");
+        return;
+      }
       if (!isFixedTermContractType(target.contractType)) {
         notify("El aviso de no renovación solo aplica a contratos a término fijo.", "error");
         return;
@@ -2430,33 +2442,156 @@ function bindPayrollPortalControls() {
     });
   });
 
-  nodes.viewRoot.querySelectorAll("[data-action='delete-employee']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      if (abortUnlessCanManagePayroll()) return;
-      openConfirmModal({
-        title: "Eliminar empleado",
-        message: "El empleado será removido en cascada (nómina, ausencias, contratos y conductor relacionado).",
-        confirmText: "Eliminar",
-        onConfirm: async () => {
-          const empId = String(btn.dataset.id || "");
-          const snapshot = read(KEYS.payrollEmployees, []).find((row) => String(row.id) === empId) || null;
-          try {
-            await postPortalAuthorized("/portal/admin-employee-delete", { employeeId: empId });
-          } catch (err) {
-            notify(String(err?.message || "No fue posible eliminar el empleado en el servidor."), "error");
-            return;
-          }
-          try {
-            await deleteEmployeesCascade([empId]);
-          } catch (err) {
-            devWarn("deleteEmployeesCascade", err);
-          }
-          if (snapshot) appendPayrollEmployeeAuditLog("delete", snapshot);
-          if (portalCanRefreshFromApi()) await applyPortalBootstrapFromApi();
-          notify(userMessage("employeeDeletedCascade"), "success");
-          renderPortalView();
-        }
+  const unlinkCategoryOptions = () =>
+    (typeof PAYROLL_UNLINK_CATEGORIES !== "undefined" && Array.isArray(PAYROLL_UNLINK_CATEGORIES)
+      ? PAYROLL_UNLINK_CATEGORIES
+      : Object.entries(CO_TERMINATION_CAUSE_LABELS || {}).map(([value, label]) => ({ value, label }))
+    ).map((o) => ({ value: o.value, label: o.label }));
+
+  async function runPayrollEmployeeUnlink(employeeIds, payload) {
+    const ids = [...new Set((employeeIds || []).map((id) => String(id || "").trim()).filter(Boolean))];
+    if (!ids.length) return { ok: false };
+    const unlinkDate = String(payload.unlinkDate || "").trim().slice(0, 10);
+    const unlinkCategory = String(payload.unlinkCategory || "otro").trim() || "otro";
+    const unlinkReason = String(payload.unlinkReason || "").trim();
+    const snapshots = ids
+      .map((employeeId) => read(KEYS.payrollEmployees, []).find((row) => String(row.id) === employeeId))
+      .filter(Boolean);
+    try {
+      for (const employeeId of ids) {
+        await postPortalAuthorized("/portal/admin-employee-delete", {
+          employeeId,
+          unlinkDate,
+          unlinkCategory,
+          unlinkReason
+        });
+      }
+    } catch (err) {
+      notify(String(err?.message || "No fue posible desvincular el colaborador en el servidor."), "error");
+      return { ok: false };
+    }
+    for (const snap of snapshots) {
+      const updated =
+        typeof applyPayrollEmployeeUnlinkLocal === "function"
+          ? await applyPayrollEmployeeUnlinkLocal(snap.id, { unlinkDate, unlinkCategory, unlinkReason })
+          : null;
+      const row = updated || { ...snap, active: false, status: "desvinculado", unlinkCategory, unlinkDate, unlinkReason };
+      const catLabel =
+        typeof payrollEmployeeUnlinkCategoryLabel === "function"
+          ? payrollEmployeeUnlinkCategoryLabel(unlinkCategory)
+          : unlinkCategory;
+      appendPayrollEmployeeAuditLog("unlink", row, {
+        previous: snap,
+        changesText: `Categoría: ${catLabel} · Fecha: ${unlinkDate || "—"}${unlinkReason ? ` · Nota: ${unlinkReason}` : ""}`
       });
+    }
+    if (portalCanRefreshFromApi()) {
+      try {
+        await applyPortalBootstrapFromApi();
+      } catch (_e) {
+        /* local unlink already applied */
+      }
+    }
+    return { ok: true, count: ids.length };
+  }
+
+  function openPayrollEmployeeUnlinkModal(employeeIds, { recategorize = false } = {}) {
+    if (abortUnlessCanManagePayroll()) return;
+    const ids = [...new Set((employeeIds || []).map((id) => String(id || "").trim()).filter(Boolean))];
+    if (!ids.length) {
+      notify(userMessage("employeesBulkSelect"), "error");
+      return;
+    }
+    const first = read(KEYS.payrollEmployees, []).find((row) => String(row.id) === ids[0]) || {};
+    const today = colombiaTodayIsoDate();
+    const defaultDate =
+      (typeof payrollEmployeeUnlinkDate === "function" ? payrollEmployeeUnlinkDate(first) : "") ||
+      String(first.terminationDate || first.unlinkDate || today).slice(0, 10);
+    const defaultCat =
+      (typeof payrollEmployeeUnlinkCategory === "function" ? payrollEmployeeUnlinkCategory(first) : "") ||
+      "renuncia_voluntaria";
+    const names = ids
+      .map((id) => read(KEYS.payrollEmployees, []).find((row) => String(row.id) === id)?.name)
+      .filter(Boolean);
+    const subtitle =
+      ids.length === 1
+        ? String(names[0] || "Colaborador")
+        : `${ids.length} colaboradores`;
+    openEditModal({
+      title: recategorize ? "Categorizar desvinculación" : "Desvincular colaborador",
+      subtitle,
+      submitText: recategorize ? "Guardar categoría" : ids.length > 1 ? "Desvincular seleccionados" : "Desvincular",
+      primaryBtnClass: recategorize ? "btn btn-primary" : "btn btn-reject",
+      introHtml: `<p class="modal-body-lead">El expediente y los documentos permanecen en <strong>Gestión documental</strong>. En el historial de Gestión humana quedará como <strong>desvinculado</strong>, clasificado por la categoría que elija. No se borra la ficha ni las liquidaciones. Si hay viajes activos, reasigne o cierre esos viajes primero.</p>`,
+      fields: [
+        {
+          type: "section",
+          title: recategorize ? "Categoría" : "Datos de desvinculación",
+          hint: recategorize
+            ? "Actualice la causal con la que se clasifica este colaborador desvinculado."
+            : "Elija la causal laboral. Puede liquidar la terminación en Nómina antes o después; la documentación no se elimina."
+        },
+        {
+          name: "unlinkDate",
+          label: "Fecha de desvinculación",
+          type: "date",
+          value: defaultDate || today,
+          required: true
+        },
+        {
+          name: "unlinkCategory",
+          label: "Categoría",
+          type: "select",
+          value: defaultCat,
+          required: true,
+          options: unlinkCategoryOptions()
+        },
+        {
+          name: "unlinkReason",
+          label: "Nota (opcional)",
+          type: "textarea",
+          value: String(first.unlinkReason || "").trim()
+        }
+      ],
+      onSubmit: async (payload) => {
+        const unlinkDate = String(payload.unlinkDate || "").trim();
+        if (!unlinkDate) return false;
+        const result = await runPayrollEmployeeUnlink(ids, {
+          unlinkDate,
+          unlinkCategory: String(payload.unlinkCategory || "otro"),
+          unlinkReason: String(payload.unlinkReason || "")
+        });
+        if (!result.ok) return false;
+        notify(
+          recategorize
+            ? userMessage("employeeUnlinkedRecategorized")
+            : ids.length === 1
+              ? userMessage("employeeUnlinked")
+              : userMessage("employeesBulkUnlinked", ids.length),
+          "success"
+        );
+        renderPortalView();
+        return true;
+      }
+    });
+  }
+
+  nodes.viewRoot.querySelectorAll("[data-action='unlink-employee'], [data-action='delete-employee']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const empId = String(btn.dataset.id || "");
+      const target = read(KEYS.payrollEmployees, []).find((row) => String(row.id) === empId);
+      if (!target) {
+        notify(userMessage("employeeUnlinkNotFound"), "error");
+        return;
+      }
+      const already = typeof isPayrollEmployeeUnlinked === "function" && isPayrollEmployeeUnlinked(target);
+      openPayrollEmployeeUnlinkModal([empId], { recategorize: already });
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='recategorize-unlinked-employee']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      openPayrollEmployeeUnlinkModal([String(btn.dataset.id || "")], { recategorize: true });
     });
   });
 
@@ -2537,7 +2672,7 @@ function bindPayrollPortalControls() {
   });
 
   document.getElementById("payroll-contracts-clear-filters")?.addEventListener("click", () => {
-    ["payroll-employee-search", "payroll-employee-contract-filter", "payroll-employee-contract-type-filter", "payroll-employee-contract-date-filter"].forEach(
+    ["payroll-employee-search", "payroll-employee-contract-filter", "payroll-employee-contract-type-filter", "payroll-employee-contract-date-filter", "payroll-employee-link-filter", "payroll-employee-unlink-category-filter"].forEach(
       (id) => {
         const el = document.getElementById(id);
         if (!el) return;
@@ -2601,33 +2736,7 @@ function bindPayrollPortalControls() {
         notify(userMessage("employeesBulkSelect"), "error");
         return;
       }
-      openConfirmModal({
-        title: "Eliminar empleados seleccionados",
-        message: `Se eliminarán ${selectedIds.length} empleados en cascada (nómina, ausencias, contratos y conductores asociados).`,
-        confirmText: "Eliminar seleccionados",
-        onConfirm: async () => {
-          const snapshots = selectedIds
-            .map((employeeId) => read(KEYS.payrollEmployees, []).find((row) => String(row.id) === employeeId))
-            .filter(Boolean);
-          try {
-            for (const employeeId of selectedIds) {
-              await postPortalAuthorized("/portal/admin-employee-delete", { employeeId });
-            }
-          } catch (err) {
-            notify(String(err?.message || "No fue posible eliminar un empleado en el servidor."), "error");
-            return;
-          }
-          try {
-            await deleteEmployeesCascade(selectedIds);
-          } catch (err) {
-            devWarn("deleteEmployeesCascade bulk", err);
-          }
-          snapshots.forEach((employee) => appendPayrollEmployeeAuditLog("delete", employee));
-          if (portalCanRefreshFromApi()) await applyPortalBootstrapFromApi();
-          notify(userMessage("employeesBulkRemoved", selectedIds.length), "success");
-          renderPortalView();
-        }
-      });
+      openPayrollEmployeeUnlinkModal(selectedIds);
     });
   }
 

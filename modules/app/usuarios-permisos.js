@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Usuarios y permisos — permisos granulares y administración.
  * Extraído desde app.js — carga con defer después de app.js.
  */

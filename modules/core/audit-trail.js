@@ -184,7 +184,8 @@ const HISTORY_AUDIT_ENTITY_KIND_TITLES = {
   employee: {
     create: "Alta de colaborador",
     update: "Actualización de colaborador",
-    delete: "Eliminación de colaborador"
+    delete: "Eliminación de colaborador",
+    unlink: "Desvinculación de colaborador"
   },
   payroll_run: {
     create: "Alta de liquidación",
@@ -310,7 +311,7 @@ const HISTORY_AUDIT_MODULE_ACTION_TITLES = {
 
 function normalizeHistoryAuditActionKey(action = "") {
   const raw = String(action || "").trim().toLowerCase();
-  if (raw === "create" || raw === "delete" || raw === "renew") return raw;
+  if (raw === "create" || raw === "delete" || raw === "renew" || raw === "unlink") return raw;
   return "update";
 }
 
@@ -378,6 +379,7 @@ export function historyAuditActionTitle(action, moduleIdOrLabel = "", entryOrOpt
   if (actionKey === "create") return "Creación";
   if (actionKey === "delete") return "Eliminación";
   if (actionKey === "renew") return "Renovación";
+  if (actionKey === "unlink") return "Desvinculación";
   return "Actualización";
 }
 

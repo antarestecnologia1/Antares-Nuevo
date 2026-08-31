@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Centro de aprobaciones (uthorizations): vista HTML y listeners del portal.
  */
 

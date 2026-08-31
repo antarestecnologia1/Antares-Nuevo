@@ -179,6 +179,9 @@ const SPANISH_NAME_PARTICLES = new Set(["de", "del", "la", "las", "los", "y", "e
 
 /**
  * Repara texto UTF-8 mal interpretado como Latin-1 (p. ej. “TÃ©rmino” → “Término”, “Â·” → “·”).
+ *
+ * encoding-tool:allow-mojibake — las secuencias “Ã…” de abajo son los patrones a
+ * detectar, no texto dañado: no las "corrijas" o la función queda sin efecto.
  */
 export function repairUtf8Mojibake(text = "") {
   let s = String(text || "");

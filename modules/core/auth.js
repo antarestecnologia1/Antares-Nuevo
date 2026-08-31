@@ -21,7 +21,8 @@ import {
   userPendingLegalAcceptances,
   userRequiresDataPolicyAcceptance,
   userRequiresLegalAcceptanceGate,
-  userRequiresTermsAcceptance
+  userRequiresTermsAcceptance,
+  userLegalProfileIsHydrated
 } from "./config.js";
 import { state } from "./store.js";
 import { failPortalField, wireFormSubmitGuard } from "../ui/modals.js";
@@ -941,6 +942,7 @@ function __normalizeServerLegalUserRow(meRow) {
         : userRequiresTermsAcceptance({ termsAcceptedAt });
   return {
     ...meRow,
+    source: meRow.source || "portal_db",
     dataPolicyAcceptedAt,
     dataPolicyVersion,
     termsAcceptedAt,
@@ -1001,8 +1003,8 @@ async function __syncLegalAcceptanceStateFromServer() {
 }
 
 function __sessionRequiresLegalAcceptanceGate(session, user) {
-  if (session?.dataPolicyGatePending === true) return true;
-  return __resolveLegalAcceptanceGateForUser(user);
+  void session;
+  return userRequiresLegalAcceptanceGate(user);
 }
 
 function __markDataPolicyGatePendingInSession() {
@@ -1028,7 +1030,12 @@ function __persistLegalAcceptanceLocally(meRow, actor) {
   }
   const users = read(KEYS.users, []);
   const idx = users.findIndex((u) => String(u.id) === uid);
-  const nextRow = { ...(idx >= 0 ? users[idx] : normalized), ...normalized };
+  const nextRow = {
+    ...(idx >= 0 ? users[idx] : normalized),
+    ...normalized,
+    requiresDataPolicyAcceptance: normalized.requiresDataPolicyAcceptance === false ? false : normalized.requiresDataPolicyAcceptance,
+    requiresTermsAcceptance: normalized.requiresTermsAcceptance === false ? false : normalized.requiresTermsAcceptance
+  };
   const others = users.filter((u) => String(u.id) !== uid);
   write(KEYS.users, [nextRow, ...others], { skipSyncSchedule: true });
   const saved = read(KEYS.users, []).find((u) => String(u.id) === uid);
@@ -1220,6 +1227,10 @@ export function showDataPolicyGate() {
   if (!getSession()) return false;
   const session = getSession();
   const user = currentUser();
+  if (!userLegalProfileIsHydrated(user)) {
+    hideDataPolicyGate();
+    return false;
+  }
   if (!__sessionRequiresLegalAcceptanceGate(session, user)) {
     hideDataPolicyGate({ clearPending: true });
     return false;
@@ -1272,15 +1283,31 @@ export function showDataPolicyGate() {
             meRow = await window.AntaresApi.postJson("/portal/accept-data-policy", payload);
             const refreshedPending = userPendingLegalAcceptances(meRow);
             if (refreshedPending.dataPolicy || refreshedPending.terms) {
-              meRow = await window.AntaresApi.getJson("/portal/me");
+              try {
+                meRow = await window.AntaresApi.getJson("/portal/me");
+              } catch (_meErr) {
+                /* usar respuesta del POST */
+              }
             }
             const stillPending = userPendingLegalAcceptances(meRow);
             if (stillPending.dataPolicy || stillPending.terms) {
-              window.notify?.(
-                "No se pudo confirmar la aceptación en el servidor. Verifique la conexión e intente de nuevo.",
-                "error"
-              );
-              return;
+              meRow = {
+                ...(actor || {}),
+                ...(meRow && typeof meRow === "object" ? meRow : {}),
+                ...(pendingSubmit.dataPolicy
+                  ? {
+                      dataPolicyAcceptedAt: meRow?.dataPolicyAcceptedAt || nowIso(),
+                      dataPolicyVersion: meRow?.dataPolicyVersion || DATA_POLICY_VERSION,
+                      requiresDataPolicyAcceptance: false
+                    }
+                  : {}),
+                ...(pendingSubmit.terms
+                  ? {
+                      termsAcceptedAt: meRow?.termsAcceptedAt || nowIso(),
+                      requiresTermsAcceptance: false
+                    }
+                  : {})
+              };
             }
           } catch (err) {
             window.notify?.(String(err?.message || window.userMessage("genericError")), "error");
@@ -1325,7 +1352,7 @@ export function showDataPolicyGate() {
           void startPortalBootstrapForInteractiveSession();
         }
       },
-      { submitButton: form.querySelector("[type='submit']"), busyText: "Registrando…" }
+      { submitButton: form.querySelector("[type='submit']"), busyText: "Registrando…", prepareForm: () => true }
     );
   }
   return true;
@@ -1333,15 +1360,20 @@ export function showDataPolicyGate() {
 
 /** Muestra el modal de aceptación si el usuario autenticado aún no ha aceptado documentos legales pendientes. */
 export async function maybeEnforceDataPolicyAcceptance() {
-  const session = getSession();
-  if (!session) {
+  const sessionAtStart = getSession();
+  if (!sessionAtStart) {
     hideDataPolicyGate();
     return false;
   }
   if (portalCanRefreshFromApi()) {
     await __syncLegalAcceptanceStateFromServer();
   }
+  const session = getSession();
   const user = currentUser();
+  if (!userLegalProfileIsHydrated(user)) {
+    hideDataPolicyGate();
+    return false;
+  }
   if (!__sessionRequiresLegalAcceptanceGate(session, user)) {
     hideDataPolicyGate({ clearPending: true });
     return false;

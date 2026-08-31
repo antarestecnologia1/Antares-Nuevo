@@ -2,7 +2,7 @@
  * Bootstrap del portal: normalización de GET /portal/bootstrap, hidratación de caché y orquestación API.
  * `read` / `write` delegan en `window.AntaresPersistence` (mismo patrón que `auth.js`).
  */
-import { DATA_POLICY_VERSION, KEYS, ROLES, userRequiresDataPolicyAcceptance, userRequiresTermsAcceptance } from "./config.js";
+import { DATA_POLICY_VERSION, KEYS, ROLES, mergeLegalAcceptanceFields, userRequiresDataPolicyAcceptance, userRequiresTermsAcceptance } from "./config.js";
 import {
   currentUser,
   getSession,
@@ -416,17 +416,25 @@ export function materializePortalUserFromSession(session) {
         String(snap.dataPolicyVersion ?? prev?.dataPolicyVersion ?? "").trim() || null,
       termsAcceptedAt: snap.termsAcceptedAt ?? prev?.termsAcceptedAt ?? null,
       requiresDataPolicyAcceptance:
-        snap.requiresDataPolicyAcceptance === false || prev?.requiresDataPolicyAcceptance === false
+        snap.requiresDataPolicyAcceptance === false
           ? false
-          : snap.requiresDataPolicyAcceptance === true || prev?.requiresDataPolicyAcceptance === true
+          : snap.requiresDataPolicyAcceptance === true
             ? true
-            : undefined,
+            : prev?.requiresDataPolicyAcceptance === false
+              ? false
+              : prev?.requiresDataPolicyAcceptance === true
+                ? true
+                : undefined,
       requiresTermsAcceptance:
-        snap.requiresTermsAcceptance === false || prev?.requiresTermsAcceptance === false
+        snap.requiresTermsAcceptance === false
           ? false
-          : snap.requiresTermsAcceptance === true || prev?.requiresTermsAcceptance === true
+          : snap.requiresTermsAcceptance === true
             ? true
-            : undefined
+            : prev?.requiresTermsAcceptance === false
+              ? false
+              : prev?.requiresTermsAcceptance === true
+                ? true
+                : undefined
     };
     write(KEYS.users, [row, ...users.filter((u) => String(u.id) !== String(row.id))], { skipSyncSchedule: true });
     user = currentUser();
@@ -453,7 +461,12 @@ export function materializePortalUserFromSession(session) {
     personalDoc: String(prevFinal?.personalDoc || "").trim(),
     phone: String(prevFinal?.phone || "").trim(),
     documentType: String(prevFinal?.documentType || "").trim(),
-    createdAt: prevFinal?.createdAt || prevFinal?.registeredAt || ""
+    createdAt: prevFinal?.createdAt || prevFinal?.registeredAt || "",
+    dataPolicyAcceptedAt: session.profileSnapshot?.dataPolicyAcceptedAt ?? prevFinal?.dataPolicyAcceptedAt ?? null,
+    dataPolicyVersion: String(session.profileSnapshot?.dataPolicyVersion ?? prevFinal?.dataPolicyVersion ?? "").trim() || null,
+    termsAcceptedAt: session.profileSnapshot?.termsAcceptedAt ?? prevFinal?.termsAcceptedAt ?? null,
+    requiresDataPolicyAcceptance: session.profileSnapshot?.requiresDataPolicyAcceptance,
+    requiresTermsAcceptance: session.profileSnapshot?.requiresTermsAcceptance
   };
   write(KEYS.users, [stubRow, ...usersFinal.filter((u) => String(u.id) !== String(stubRow.id))], {
     skipSyncSchedule: true
@@ -550,7 +563,17 @@ export function __applyPortalBootstrapPayloadInner(p) {
     const hooks = propsNeedingPayloadHooks.has(prop) ? getPayloadHooks() : null;
     if (prop === "users") {
       const raw = Array.isArray(p.users) ? p.users : [];
-      write(KEYS.users, raw.map(normalizePortalBootstrapUserRow));
+      const prevUsers = read(KEYS.users, []);
+      const prevMap = new Map(prevUsers.map((u) => [String(u?.id ?? ""), u]));
+      const sessionSnap = getSession()?.profileSnapshot;
+      write(
+        KEYS.users,
+        raw.map((row) => {
+          const normalized = normalizePortalBootstrapUserRow(row);
+          const id = String(normalized?.id ?? row?.id ?? "");
+          return mergeLegalAcceptanceFields(normalized, prevMap.get(id), sessionSnap);
+        })
+      );
       hooks.ensureUsersPermissions();
       continue;
     }

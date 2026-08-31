@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Cumplimiento laboral / SST (labor-compliance): vista HTML (runtime) y listeners del portal.
  * Helpers de plantilla viven en `portal-runtime.js` hasta completar la extracción (vía `globalThis`).
  */

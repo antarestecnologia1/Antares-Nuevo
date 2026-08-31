@@ -6,6 +6,12 @@ import {
 } from "../domain/pending-employee-approval.domain.js";
 import { detailViewCardMarkup } from "../ui/components.js";
 import {
+  isPayrollEmployeeUnlinked,
+  payrollEmployeeUnlinkCategory,
+  payrollEmployeeUnlinkCategoryLabel,
+  employeeIsConductorServiceProvider
+} from "../domain/nomina.domain.js";
+import {
   addOneYearToYmd,
   resolveOccupationalExamExpiryYmd,
   resolveInstruvialExamExpiryYmd,
@@ -1848,7 +1854,7 @@ function canPerformHiringEditAction(action) {
   return HIRING_RRHH_EDIT_ACTIONS.has(String(action || "")) && canManageHiringModule();
 }
 
-const PAYROLL_RRHH_EDIT_ACTIONS = new Set(["delete-employee"]);
+const PAYROLL_RRHH_EDIT_ACTIONS = new Set(["delete-employee", "unlink-employee", "recategorize-unlinked-employee"]);
 
 function canPerformPayrollEditAction(action) {
   return PAYROLL_RRHH_EDIT_ACTIONS.has(String(action || "")) && canManagePayrollModule();
@@ -2087,7 +2093,12 @@ function upsertPortalUserRowIntoCache(row) {
   const users = read(KEYS.users, []);
   const prev = users.find((u) => String(u.id) === uid);
   const others = users.filter((u) => String(u.id) !== uid);
-  const merged = { ...prev, ...normalized };
+  const snap = typeof window.getSession === "function" ? window.getSession()?.profileSnapshot : null;
+  const mergeLegal =
+    typeof window.mergeLegalAcceptanceFields === "function" ? window.mergeLegalAcceptanceFields : null;
+  const merged = mergeLegal
+    ? mergeLegal({ ...prev, ...normalized }, prev, snap)
+    : { ...prev, ...normalized };
   write(KEYS.users, [merged, ...others], { skipSyncSchedule: true });
   return merged;
 }
@@ -2994,7 +3005,7 @@ function appendPayrollEmployeeAuditLog(action, employee, extra = {}) {
       ? String(extra.changesText).trim()
       : actionKey === "update" && extra.previous
         ? describePayrollEmployeeChanges(extra.previous, emp)
-        : actionKey === "create" || actionKey === "delete"
+        : actionKey === "create" || actionKey === "delete" || actionKey === "unlink"
           ? describePayrollEmployeeSnapshot(emp)
           : "";
   const entityLabel = String(extra.entityLabel || emp.name || "Colaborador").trim();
@@ -7374,6 +7385,8 @@ function summarizePayrollEmployeeForDirectory(emp) {
     : String(raw.workerRole || "").toLowerCase() === "conductor"
       ? "Conductor"
       : "Empleado";
+  const isUnlinked = isPayrollEmployeeUnlinked(raw);
+  const unlinkCategory = payrollEmployeeUnlinkCategoryLabel(raw);
   const searchBlob = [
     raw.name,
     raw.idDoc,
@@ -7381,7 +7394,9 @@ function summarizePayrollEmployeeForDirectory(emp) {
     raw.contractType,
     raw.costCenter,
     companyName,
-    roleLabel
+    roleLabel,
+    isUnlinked ? "desvinculado desvinculados" : "activo activos",
+    unlinkCategory
   ]
     .map((v) => String(v || "").toLowerCase())
     .join(" ");
@@ -7391,6 +7406,8 @@ function summarizePayrollEmployeeForDirectory(emp) {
     companyName,
     roleLabel,
     isDriverSvc,
+    isUnlinked,
+    unlinkCategory,
     searchBlob,
     transportCop: readEmployeeTransportAllowanceCop(raw),
     salaryCop: parseNum(raw.baseSalary)
@@ -7415,6 +7432,30 @@ function payrollEmployeeContractStatusDisplay(contract) {
   if (slug === "active") return { label: "Vigente", tone: "ok", slug };
   if (slug === "unknown") return { label: "Sin fecha", tone: "warn", slug };
   return { label: String(contract.pillLabel || "—"), tone: "neutral", slug: slug || "all" };
+}
+
+function renderPayrollEmployeeUnlinkBadge(item) {
+  if (!item?.isUnlinked) return "";
+  const cat = String(item.unlinkCategory || "Desvinculado").trim() || "Desvinculado";
+  return `<span class="payroll-emp-badge payroll-emp-badge--unlinked" title="Desvinculado · ${escapeAttr(cat)}">Desvinculado · ${escapeHtml(cat)}</span>`;
+}
+
+function renderPayrollEmployeeUnlinkActionButton(e, { compact = false, recategorize = false } = {}) {
+  const id = escapeAttr(String(e?.id || ""));
+  if (recategorize) {
+    const label = compact ? "" : " Categorizar";
+    return `<button type="button" class="btn btn-sm btn-outline" data-action="recategorize-unlinked-employee" data-id="${id}" title="Cambiar categoría de desvinculación">${IC.edit || IC.filter}${label}</button>`;
+  }
+  const label = compact ? "" : " Desvincular";
+  return `<button type="button" class="btn btn-sm btn-reject" data-action="unlink-employee" data-id="${id}" title="Desvincular colaborador">${IC.userMinus || IC.x}${label}</button>`;
+}
+
+function renderPayrollEmployeeUnlinkIconButton(e, recategorize = false) {
+  const id = escapeAttr(String(e?.id || ""));
+  if (recategorize) {
+    return `<button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--edit" data-action="recategorize-unlinked-employee" data-id="${id}" title="Categorizar desvinculación">${IC.edit}</button>`;
+  }
+  return `<button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--delete" data-action="unlink-employee" data-id="${id}" title="Desvincular">${IC.userMinus || IC.x}</button>`;
 }
 
 function renderPayrollEmployeeTableIdentity(item) {
@@ -7449,7 +7490,9 @@ function renderEmploymentLetterIconButton(id) {
 
 function renderPayrollEmployeeContractIconActions(e, contract, hrAdminDeletes) {
   const id = escapeAttr(String(e.id || ""));
+  const unlinked = isPayrollEmployeeUnlinked(e);
   const canAct =
+    !unlinked &&
     contract?.applies &&
     isFixedTermContractType(e.contractType) &&
     (contract.statusSlug === "notice_window" ||
@@ -7457,7 +7500,7 @@ function renderPayrollEmployeeContractIconActions(e, contract, hrAdminDeletes) {
       contract.statusSlug === "active");
   return `<div class="payroll-contracts-icon-actions">
     <button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--view" data-action="view-employee" data-id="${id}" title="Ver perfil">${IC.eye}</button>
-    <button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--edit" data-action="edit-employee" data-id="${id}" title="Editar">${IC.edit}</button>
+    ${unlinked ? "" : `<button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--edit" data-action="edit-employee" data-id="${id}" title="Editar">${IC.edit}</button>`}
     ${renderEmploymentLetterIconButton(e.id)}
     ${
       canAct
@@ -7465,7 +7508,7 @@ function renderPayrollEmployeeContractIconActions(e, contract, hrAdminDeletes) {
     <button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--notify" data-action="non-renew-employee-contract" data-id="${id}" title="Aviso de no renovación">${IC.mail}</button>`
         : ""
     }
-    ${hrAdminDeletes ? `<button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--delete" data-action="delete-employee" data-id="${id}" title="Eliminar">${IC.trash}</button>` : ""}
+    ${hrAdminDeletes ? renderPayrollEmployeeUnlinkIconButton(e, unlinked) : ""}
   </div>`;
 }
 
@@ -7517,7 +7560,7 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = fa
           "neutral"
         );
   const selectHtml = hrAdminDeletes
-    ? `<label class="directory-card__select" title="Seleccionar para eliminación masiva"><input type="checkbox" data-employee-select value="${escapeAttr(String(e.id))}" /><span class="muted">Sel.</span></label>`
+    ? `<label class="directory-card__select" title="Seleccionar para desvinculación masiva"><input type="checkbox" data-employee-select value="${escapeAttr(String(e.id))}" /><span class="muted">Sel.</span></label>`
     : "";
   const docLine = `${String(e.documentType || "").trim()} ${String(e.idDoc || "").trim()}`.trim() || "—";
   const showContractAlert =
@@ -7541,7 +7584,7 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = fa
       : "";
     const contractTypeKey = payrollEmployeeContractTypeKey(e);
     const endYmd = normalizePortalDateYmd(contract.endYmd || e.contractEndDate || "");
-    return `<article class="directory-card portal-ops-card trip-ops-card directory-card--employee directory-card--compact directory-card--contract-${escapeAttr(statusSlug)}" data-employee-id="${escapeAttr(String(e.id || ""))}" data-employee-search="${escapeAttr(item.searchBlob)}" data-employee-contract-filter="${escapeAttr(contract.applies ? contract.statusSlug : "all")}" data-employee-contract-type="${escapeAttr(contractTypeKey)}" data-employee-contract-end="${escapeAttr(endYmd)}">
+    return `<article class="directory-card portal-ops-card trip-ops-card directory-card--employee directory-card--compact directory-card--contract-${escapeAttr(statusSlug)}${item.isUnlinked ? " directory-card--unlinked" : ""}" data-employee-id="${escapeAttr(String(e.id || ""))}" data-employee-search="${escapeAttr(item.searchBlob)}" data-employee-contract-filter="${escapeAttr(contract.applies ? contract.statusSlug : "all")}" data-employee-contract-type="${escapeAttr(contractTypeKey)}" data-employee-contract-end="${escapeAttr(endYmd)}" data-employee-link="${item.isUnlinked ? "unlinked" : "active"}" data-employee-unlink-category="${escapeAttr(payrollEmployeeUnlinkCategory(e) || "")}">
     <div class="directory-card__compact-row">
       <div class="payroll-emp-avatar payroll-emp-avatar--${avColorIdx}" aria-hidden="true">${escapeHtml(initials)}</div>
       <div class="directory-card__compact-main">
@@ -7554,24 +7597,25 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = fa
       <div class="directory-card__compact-meta">
         ${isSmmlv ? '<span class="payroll-emp-badge payroll-emp-badge--smmlv" title="Salario en el rango del SMMLV">SMMLV</span>' : ""}
         ${item.isDriverSvc ? '<span class="payroll-emp-badge payroll-emp-badge--driver">Prestación</span>' : ""}
+        ${renderPayrollEmployeeUnlinkBadge(item)}
         ${contract.applies ? directoryPillHtml(contract.pillLabel, contractPillTone) : ""}
         <span class="directory-card__salary payroll-emp-salary">$${item.salaryCop.toLocaleString("es-CO")}</span>
       </div>
       <div class="directory-card__compact-actions toolbar">
         <button type="button" class="btn btn-sm btn-action" data-action="payroll-employee-liquidations" data-id="${escapeAttr(String(e.id || ""))}" title="Historial de liquidaciones">${IC.dollar}${compact ? "" : " Nóminas"}</button>
         <button type="button" class="btn btn-sm btn-outline" data-action="view-employee" data-id="${escapeAttr(String(e.id))}" title="Perfil">${IC.eye}</button>
-        <button type="button" class="btn btn-sm btn-action" data-action="edit-employee" data-id="${escapeAttr(String(e.id))}" title="Editar">${IC.edit}</button>
-        ${renderPayrollContractActionButtons(e, contract, { compact })}
+        ${item.isUnlinked ? "" : `<button type="button" class="btn btn-sm btn-action" data-action="edit-employee" data-id="${escapeAttr(String(e.id))}" title="Editar">${IC.edit}</button>`}
+        ${item.isUnlinked ? "" : renderPayrollContractActionButtons(e, contract, { compact })}
         ${renderEmploymentLetterActionButton(e.id, { compact: true })}
         <button type="button" class="btn btn-sm btn-outline" data-no-lock data-action="employee-generate-contract" data-id="${escapeAttr(String(e.id))}" title="Generar o descargar contrato Word">${IC.download}</button>
-        ${hrAdminDeletes ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-employee" data-id="${escapeAttr(String(e.id))}" title="Eliminar">${IC.trash}</button>` : ""}
+        ${hrAdminDeletes ? renderPayrollEmployeeUnlinkActionButton(e, { compact: true, recategorize: Boolean(item.isUnlinked) }) : ""}
         ${selectHtml}
       </div>
     </div>
     ${contractAlertBar}
   </article>`;
   }
-  return `<article class="directory-card portal-ops-card trip-ops-card directory-card--employee directory-card--contract-${escapeAttr(statusSlug)}" data-employee-id="${escapeAttr(String(e.id || ""))}" data-employee-search="${escapeAttr(item.searchBlob)}" data-employee-contract-filter="${escapeAttr(contract.applies ? contract.statusSlug : "all")}" data-employee-contract-type="${escapeAttr(payrollEmployeeContractTypeKey(e))}" data-employee-contract-end="${escapeAttr(normalizePortalDateYmd(contract.endYmd || e.contractEndDate || ""))}">
+  return `<article class="directory-card portal-ops-card trip-ops-card directory-card--employee directory-card--contract-${escapeAttr(statusSlug)}${item.isUnlinked ? " directory-card--unlinked" : ""}" data-employee-id="${escapeAttr(String(e.id || ""))}" data-employee-search="${escapeAttr(item.searchBlob)}" data-employee-contract-filter="${escapeAttr(contract.applies ? contract.statusSlug : "all")}" data-employee-contract-type="${escapeAttr(payrollEmployeeContractTypeKey(e))}" data-employee-contract-end="${escapeAttr(normalizePortalDateYmd(contract.endYmd || e.contractEndDate || ""))}" data-employee-link="${item.isUnlinked ? "unlinked" : "active"}" data-employee-unlink-category="${escapeAttr(payrollEmployeeUnlinkCategory(e) || "")}">
     <header class="directory-card__head">
       <div class="directory-card__identity">
         <div class="${avatarClass}">${avatarInner}</div>
@@ -7582,6 +7626,8 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = fa
       </div>
       <div class="directory-card__status-stack">
         ${item.isDriverSvc ? directoryPillHtml("Prestación servicios", "warn") : ""}
+        ${item.isUnlinked ? directoryPillHtml("Desvinculado", "alert") : ""}
+        ${renderPayrollEmployeeUnlinkBadge(item)}
         ${contract.applies ? directoryPillHtml(contract.pillLabel, contractPillTone) : directoryPillHtml(String(e.contractType || "Contrato").slice(0, 24), "neutral")}
         ${selectHtml}
       </div>
@@ -7604,11 +7650,11 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = fa
     <footer class="directory-card__actions">
       <button type="button" class="btn btn-sm btn-action" data-action="payroll-employee-liquidations" data-id="${escapeAttr(String(e.id || ""))}" title="Historial de liquidaciones">${IC.dollar} Nóminas</button>
       <button type="button" class="btn btn-sm btn-outline" data-action="view-employee" data-id="${escapeAttr(String(e.id))}">${IC.eye} Perfil</button>
-      <button type="button" class="btn btn-sm btn-action" data-action="edit-employee" data-id="${escapeAttr(String(e.id))}">${IC.edit} Editar</button>
-      ${renderPayrollContractActionButtons(e, contract)}
+      ${item.isUnlinked ? "" : `<button type="button" class="btn btn-sm btn-action" data-action="edit-employee" data-id="${escapeAttr(String(e.id))}">${IC.edit} Editar</button>`}
+      ${item.isUnlinked ? "" : renderPayrollContractActionButtons(e, contract)}
       ${renderEmploymentLetterActionButton(e.id)}
       <button type="button" class="btn btn-sm btn-outline" data-no-lock data-action="employee-generate-contract" data-id="${escapeAttr(String(e.id))}">${IC.download} Contrato</button>
-      ${hrAdminDeletes ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-employee" data-id="${escapeAttr(String(e.id))}" title="Eliminar colaborador">${IC.trash}</button>` : ""}
+      ${hrAdminDeletes ? renderPayrollEmployeeUnlinkActionButton(e, { recategorize: Boolean(item.isUnlinked) }) : ""}
     </footer>
   </article>`;
 }
@@ -7623,7 +7669,10 @@ function renderPayrollEmployeeDirectoryTableRow(item, hrAdminDeletes) {
   const selectCell = hrAdminDeletes
     ? `<td class="payroll-contracts-table__check"><input type="checkbox" data-employee-select value="${escapeAttr(String(e.id || ""))}" aria-label="Seleccionar ${escapeAttr(String(e.name || "colaborador"))}" /></td>`
     : "";
-  return `<tr class="payroll-employee-table-row payroll-employee-table-row--${escapeAttr(statusSlug)}" data-employee-id="${escapeAttr(String(e.id || ""))}" data-employee-search="${escapeAttr(item.searchBlob)}" data-employee-contract-filter="${escapeAttr(contract.applies ? contract.statusSlug : "all")}" data-employee-contract-type="${escapeAttr(contractTypeKey)}" data-employee-contract-end="${escapeAttr(endYmd)}">
+  const statusLabel = item.isUnlinked
+    ? { label: "Desvinculado", tone: "alert", slug: "unlinked" }
+    : status;
+  return `<tr class="payroll-employee-table-row payroll-employee-table-row--${escapeAttr(item.isUnlinked ? "unlinked" : statusSlug)}" data-employee-id="${escapeAttr(String(e.id || ""))}" data-employee-search="${escapeAttr(item.searchBlob)}" data-employee-contract-filter="${escapeAttr(contract.applies ? contract.statusSlug : "all")}" data-employee-contract-type="${escapeAttr(contractTypeKey)}" data-employee-contract-end="${escapeAttr(endYmd)}" data-employee-link="${item.isUnlinked ? "unlinked" : "active"}" data-employee-unlink-category="${escapeAttr(payrollEmployeeUnlinkCategory(e) || "")}">
     ${selectCell}
     <td class="payroll-employee-table-cell-main">${renderPayrollEmployeeTableIdentity(item)}</td>
     <td>${escapeHtml(String(e.position || "—"))}</td>
@@ -7632,7 +7681,7 @@ function renderPayrollEmployeeDirectoryTableRow(item, hrAdminDeletes) {
     <td>${isFixedTermContractType(e.contractType) ? fmtDateOr(e.renewalDate, "—") : "—"}</td>
     <td>${isFixedTermContractType(e.contractType) ? fmtDateOr(e.nonRenewalNoticeDate, "—") : "—"}</td>
     <td>${contract.applies ? fmtDateOr(contract.endYmd || e.contractEndDate, "—") : "—"}</td>
-    <td><span class="payroll-emp-contract-status payroll-emp-contract-status--${escapeAttr(status.tone)}">${escapeHtml(status.label)}</span></td>
+    <td><span class="payroll-emp-contract-status payroll-emp-contract-status--${escapeAttr(statusLabel.tone)}">${escapeHtml(statusLabel.label)}${item.isUnlinked && item.unlinkCategory ? ` · ${escapeHtml(item.unlinkCategory)}` : ""}</span></td>
     <td class="payroll-employee-table-cell-actions">${renderPayrollEmployeeContractIconActions(e, contract, hrAdminDeletes)}</td>
   </tr>`;
 }
@@ -7642,6 +7691,8 @@ function wirePayrollEmployeeDirectoryFilters() {
   const filterEl = document.getElementById("payroll-employee-contract-filter");
   const typeEl = document.getElementById("payroll-employee-contract-type-filter");
   const dateEl = document.getElementById("payroll-employee-contract-date-filter");
+  const linkEl = document.getElementById("payroll-employee-link-filter");
+  const catEl = document.getElementById("payroll-employee-unlink-category-filter");
   const rows = [
     ...document.querySelectorAll(".directory-card--employee"),
     ...document.querySelectorAll(".payroll-employee-table-row")
@@ -7656,14 +7707,21 @@ function wirePayrollEmployeeDirectoryFilters() {
     const cf = String(filterEl?.value || "all");
     const tf = String(typeEl?.value || "all");
     const df = String(dateEl?.value || "all");
+    const lf = String(linkEl?.value || "active");
+    const catf = String(catEl?.value || "all");
+    if (catEl) catEl.closest("label")?.toggleAttribute("hidden", lf === "active");
     rows.forEach((row) => {
       const blob = String(row.getAttribute("data-employee-search") || "");
       const slug = String(row.getAttribute("data-employee-contract-filter") || "all");
       const typeKey = String(row.getAttribute("data-employee-contract-type") || "all");
       const endYmd = normalizePortalDateYmd(row.getAttribute("data-employee-contract-end") || "");
+      const link = String(row.getAttribute("data-employee-link") || "active");
+      const cat = String(row.getAttribute("data-employee-unlink-category") || "");
       const matchQ = !q || blob.includes(q);
       const matchC = cf === "all" || slug === cf;
       const matchT = tf === "all" || typeKey === tf;
+      const matchL = lf === "all" || link === lf;
+      const matchCat = catf === "all" || lf === "active" || cat === catf;
       let matchD = true;
       if (df !== "all" && endYmd) {
         if (df === "ends_month") matchD = endYmd.slice(0, 7) === monthPrefix;
@@ -7679,7 +7737,7 @@ function wirePayrollEmployeeDirectoryFilters() {
       } else if (df !== "all" && !endYmd) {
         matchD = false;
       }
-      row.classList.toggle("is-filtered-out", !(matchQ && matchC && matchT && matchD));
+      row.classList.toggle("is-filtered-out", !(matchQ && matchC && matchT && matchD && matchL && matchCat));
     });
     window.syncPayrollEmployeeSelectionBadge?.();
   };
@@ -7687,6 +7745,8 @@ function wirePayrollEmployeeDirectoryFilters() {
   filterEl?.addEventListener("change", apply);
   typeEl?.addEventListener("change", apply);
   dateEl?.addEventListener("change", apply);
+  linkEl?.addEventListener("change", apply);
+  catEl?.addEventListener("change", apply);
   apply();
 }
 
@@ -11375,6 +11435,7 @@ function wireFormDocDuplicateCheck(formEl, opts = {}) {
     const records = read(storageKey, []);
     const matches = records.filter((r) => {
       if (String(r.id || "") === excludeId) return false;
+      if (isPayrollEmployeeUnlinked(r)) return false;
       const rdt = String(r.documentType || "CC").toUpperCase();
       if (rdt !== docType) return false;
       return payrollEmployeeDocumentDedupKey(rdt, r.idDoc) === needle;
@@ -12091,6 +12152,39 @@ async function deleteEmployeesCascade(employeeIds = []) {
     }
   }
   return targets.length;
+}
+
+async function applyPayrollEmployeeUnlinkLocal(employeeId, meta = {}) {
+  const empId = String(employeeId || "").trim();
+  if (!empId) return null;
+  const employees = read(KEYS.payrollEmployees, []);
+  const current = employees.find((row) => String(row.id) === empId);
+  if (!current) return null;
+  const category = String(meta.unlinkCategory || current.unlinkCategory || "otro").trim() || "otro";
+  const unlinkDate = String(meta.unlinkDate || meta.terminationDate || "").trim().slice(0, 10);
+  const reason = String(meta.unlinkReason || current.unlinkReason || "").trim();
+  const nextEmployee = stampUpdatedRecord({
+    ...current,
+    active: false,
+    status: "desvinculado",
+    terminationDate: unlinkDate || current.terminationDate || "",
+    unlinkDate: unlinkDate || current.unlinkDate || "",
+    unlinkCategory: category,
+    unlinkReason: reason,
+    unlinkedBy: String(meta.unlinkedBy || current.unlinkedBy || "").trim()
+  });
+  const nextEmployees = employees.map((row) => (String(row.id) === empId ? nextEmployee : row));
+  write(KEYS.payrollEmployees, nextEmployees, { skipSyncSchedule: true });
+
+  const docDigits = normalizeDocumentDigits(current.idDoc);
+  if (docDigits) {
+    const nextDrivers = read(KEYS.drivers, []).map((driver) => {
+      if (normalizeDocumentDigits(driver.idDoc) !== docDigits) return driver;
+      return { ...driver, available: false };
+    });
+    write(KEYS.drivers, nextDrivers, { skipSyncSchedule: true });
+  }
+  return nextEmployee;
 }
 
 
@@ -13057,6 +13151,16 @@ function buildEmployeePayrollProfileBodyHtml(emp) {
   const docs = `${String(e.documentType || "").trim()} ${String(e.idDoc || "").trim()}`.trim();
   const companyName = getCompanyById(e.companyId)?.name || "—";
   const isDriver = String(e.workerRole || "").toLowerCase() === "conductor";
+  const unlinked = isPayrollEmployeeUnlinked(e);
+  const unlinkBlock = unlinked
+    ? `<section class="employee-profile-section"><h4 class="employee-profile-section-title">Desvinculación</h4><div class="employee-profile-grid">
+      ${employeeProfileKvRow("Estado", "Desvinculado")}
+      ${employeeProfileKvRow("Categoría", payrollEmployeeUnlinkCategoryLabel(e))}
+      ${employeeProfileKvRow("Fecha de retiro", e.terminationDate || e.unlinkDate)}
+      ${employeeProfileKvRow("Motivo / nota", e.unlinkReason)}
+      ${employeeProfileKvRow("Registró", e.unlinkedBy)}
+    </div><p class="muted" style="margin:0.5rem 0 0;font-size:0.82rem">La documentación permanece en Gestión documental, asociada a este colaborador.</p></section>`
+    : "";
   const driverBlock = isDriver
     ? `
     <section class="employee-profile-section"><h4 class="employee-profile-section-title">Conductor</h4><div class="employee-profile-grid">
@@ -13074,9 +13178,10 @@ function buildEmployeePayrollProfileBodyHtml(emp) {
   return `
   <article class="employee-profile-card">${hero}<div class="employee-profile-intro">
       <h3 class="employee-profile-name">${escapeHtml(String(e.name || "").trim())}</h3>
-      <p class="employee-profile-intro-meta muted">${escapeHtml(String(e.position || "").trim())} · ${escapeHtml(String(e.contractType || "").trim())}${isDriver ? ` · ${escapeHtml("Conductor")}` : ""}</p>
+      <p class="employee-profile-intro-meta muted">${escapeHtml(String(e.position || "").trim())} · ${escapeHtml(String(e.contractType || "").trim())}${isDriver ? ` · ${escapeHtml("Conductor")}` : ""}${unlinked ? " · Desvinculado" : ""}</p>
       <span class="employee-profile-chip">${fmtProfileCell(`${parseNum(e.baseSalary).toLocaleString("es-CO")} COP · salario base`)}</span>
     </div>
+    ${unlinkBlock}
     <section class="employee-profile-section"><h4 class="employee-profile-section-title">Identidad</h4><div class="employee-profile-grid">
       ${employeeProfileKvRow("Documento", docs)}
       ${employeeProfileKvRow("Fecha de nacimiento", e.birthDate)}
@@ -14032,9 +14137,9 @@ function openPublicCareersVacancyDetail(vacancy) {
       <div>
         <p class="careers-vacancy-detail__eyebrow">${escapeHtml(tPublic("Detalle de la vacante"))}</p>
         <h3 class="careers-vacancy-detail__title">${escapeHtml(title)}</h3>
-        <p class="careers-vacancy-detail__meta">${metaParts.join(" ┬╖ ")}</p>
+        <p class="careers-vacancy-detail__meta">${metaParts.join(" · ")}</p>
       </div>
-      <button type="button" class="careers-vacancy-detail__close" data-careers-detail-close aria-label="${escapeAttr(tPublic("Cerrar"))}">├ù</button>
+      <button type="button" class="careers-vacancy-detail__close" data-careers-detail-close aria-label="${escapeAttr(tPublic("Cerrar"))}">×</button>
     </header>
     <div class="careers-vacancy-detail__viewport" data-careers-scroll-viewport>
       <div class="careers-overlay__progress careers-overlay__progress--light" data-careers-scroll-progress hidden aria-hidden="true"></div>
@@ -14048,11 +14153,11 @@ function openPublicCareersVacancyDetail(vacancy) {
             : ""
         }
         <div class="careers-vacancy-detail__section">
-          <h4>${escapeHtml(tPublic("Descripci├│n y requisitos"))}</h4>
+          <h4>${escapeHtml(tPublic("Descripción y requisitos"))}</h4>
           <p class="careers-vacancy-detail__text">${
             requirements
               ? escapeHtml(requirements)
-              : escapeHtml(tPublic("Sin descripci├│n publicada para esta vacante."))
+              : escapeHtml(tPublic("Sin descripción publicada para esta vacante."))
           }</p>
         </div>
       </div>
@@ -14060,7 +14165,7 @@ function openPublicCareersVacancyDetail(vacancy) {
       <div class="careers-vacancy-detail__edge careers-vacancy-detail__edge--bottom" aria-hidden="true">
         <span class="careers-overlay__scroll-chip careers-overlay__scroll-chip--light">
           <span class="careers-image-preview__scroll-hint"></span>
-          <span>${escapeHtml(tPublic("Desliza para ver m├ís"))}</span>
+          <span>${escapeHtml(tPublic("Desliza para ver más"))}</span>
         </span>
       </div>
     </div>
@@ -14081,18 +14186,18 @@ function openPublicCareersVacancyDetail(vacancy) {
   });
 }
 
-/** ├Ültima respuesta de la API cacheada entre visitas: la landing pinta al instante y revalida. */
+/** Última respuesta de la API cacheada entre visitas: la landing pinta al instante y revalida. */
 const PUBLIC_VACANCIES_CACHE_KEY = "antares_public_vacancies_v1";
 /** Ventana en la que se repinta sin volver a pedir (p. ej. al cambiar de idioma). */
 const PUBLIC_VACANCIES_FRESH_MS = 5 * 60 * 1000;
-/** Por encima del arranque en fr├¡o de Render (~50 s medidos); por debajo cortar├¡amos respuestas sanas. */
+/** Por encima del arranque en frío de Render (~50 s medidos); por debajo cortaríamos respuestas sanas. */
 const PUBLIC_VACANCIES_TIMEOUT_MS = 75000;
-/** Sin nada pintado y sin respuesta: se avisa que el servidor est├í despertando. */
+/** Sin nada pintado y sin respuesta: se avisa que el servidor está despertando. */
 const PUBLIC_VACANCIES_WAKE_HINT_MS = 8000;
-/** Tope de la cach├⌐: con la API ca├¡da no sostenemos indefinidamente vacantes que quiz├í ya no existen. */
+/** Tope de la caché: con la API caída no sostenemos indefinidamente vacantes que quizá ya no existen. */
 const PUBLIC_VACANCIES_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
-/** Instante de la ├║ltima respuesta aplicada; 0 fuerza ir a la red. */
+/** Instante de la última respuesta aplicada; 0 fuerza ir a la red. */
 let publicCareersVacanciesLoadedAt = 0;
 
 function mapApiVacancyRow(row) {
@@ -14132,7 +14237,7 @@ function writePublicVacanciesCache(rows) {
   try {
     localStorage.setItem(PUBLIC_VACANCIES_CACHE_KEY, JSON.stringify({ ts: Date.now(), rows }));
   } catch (_e) {
-    /* Cuota llena o almacenamiento bloqueado: la cach├⌐ es opcional. */
+    /* Cuota llena o almacenamiento bloqueado: la caché es opcional. */
   }
 }
 
@@ -14140,7 +14245,7 @@ function careersLoadingCardHtml() {
   return `<div class="careers-card">
     <p class="muted" style="margin:0">${tPublic("Cargando vacantesΓǪ")}</p>
     <p class="muted" data-careers-wake-hint hidden style="margin:.5rem 0 0;font-size:.85em">${tPublic(
-      "El servidor est├í despertando; puede tardar hasta un minuto."
+      "El servidor está despertando; puede tardar hasta un minuto."
     )}</p>
   </div>`;
 }
@@ -14186,8 +14291,8 @@ function initPublicCareers() {
         return `<article class="careers-card lift-card">
           ${media}
           <h3>${escapeHtml(v.title)}</h3>
-          <div class="careers-meta">${escapeHtml(v.positionName || tPublic("Cargo"))} ┬╖ ${salaryStr} ┬╖ ${deadline}</div>
-          <p class="careers-req muted">${reqPreview || escapeHtml(tPublic("Sin descripci├│n publicada."))}</p>
+          <div class="careers-meta">${escapeHtml(v.positionName || tPublic("Cargo"))} · ${salaryStr} · ${deadline}</div>
+          <p class="careers-req muted">${reqPreview || escapeHtml(tPublic("Sin descripción publicada."))}</p>
           <button type="button" class="careers-detail-link" data-careers-detail data-id="${vacId}">${escapeHtml(tPublic(isTruncated ? "Ver detalle completo" : "Ver detalle"))}</button>
           <button type="button" class="btn btn-primary full" data-careers-apply data-id="${vacId}">${tPublic("Aplicar")}</button>
         </article>`;
@@ -14233,7 +14338,7 @@ function initPublicCareers() {
   }
 
   /* Pintado inmediato con lo de la visita anterior mientras la red responde. Las vencidas no se
-     cuelan: getPublicPublishedVacancies filtra estado y ventana de publicaci├│n contra la fecha de hoy. */
+     cuelan: getPublicPublishedVacancies filtra estado y ventana de publicación contra la fecha de hoy. */
   const cached = readPublicVacanciesCache();
   let paintedFromCache = false;
   if (Array.isArray(cached) && cached.length) {
@@ -14255,7 +14360,7 @@ function initPublicCareers() {
         if (hint) hint.hidden = false;
       }, PUBLIC_VACANCIES_WAKE_HINT_MS);
 
-  /* El prefetch del <head> ya dispar├│ la petici├│n durante la descarga del bundle; se consume una
+  /* El prefetch del <head> ya disparó la petición durante la descarga del bundle; se consume una
      sola vez para que una recarga posterior no reutilice datos viejos. */
   const prefetched = window.__ANTARES_PUBLIC_PREFETCH__?.vacancies;
   if (prefetched) window.__ANTARES_PUBLIC_PREFETCH__ = null;
@@ -14515,6 +14620,7 @@ Object.assign(window, {
   defaultAdminUsersUi,
   defaultTripRateStorageKeyForRequest,
   deleteEmployeesCascade,
+  applyPayrollEmployeeUnlinkLocal,
   deletedRequestSnapshotForTableRow,
   deletedTripSnapshotForTableRow,
   departmentOptions,

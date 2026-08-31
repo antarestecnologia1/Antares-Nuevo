@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Mi perfil (profile): vista HTML y formulario en el portal.
  */
 

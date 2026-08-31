@@ -384,7 +384,14 @@ function entityOptionsForType(entityType) {
     for (const e of read(KEYS.payrollEmployees, [])) {
       const id = String(e?.id || "").trim();
       const name = String(e?.name || e?.fullName || "").trim();
-      if (id && name) opts.push({ value: id, label: name });
+      if (id && name) {
+        const unlinked =
+          typeof window.isPayrollEmployeeUnlinked === "function"
+            ? window.isPayrollEmployeeUnlinked(e)
+            : e?.active === false;
+        const suffix = unlinked ? " · Desvinculado" : "";
+        opts.push({ value: id, label: `${name}${suffix}` });
+      }
     }
   } else if (t === "conductor") {
     for (const d of read(KEYS.drivers, [])) {

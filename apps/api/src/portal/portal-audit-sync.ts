@@ -173,7 +173,8 @@ const HISTORY_AUDIT_ACTION_TITLES: Record<string, Record<string, string>> = {
   payrollEmployees: {
     create: "Alta de colaborador",
     update: "Actualización de colaborador",
-    delete: "Eliminación de colaborador"
+    delete: "Eliminación de colaborador",
+    unlink: "Desvinculación de colaborador"
   },
   drivers: {
     create: "Alta de conductor",
@@ -209,10 +210,11 @@ const HISTORY_AUDIT_ACTION_TITLES: Record<string, Record<string, string>> = {
 
 function portalHistoryActionTitle(moduleOrKey: string, action: string): string {
   const key = String(moduleOrKey || "").trim();
-  const actionKey = action === "create" || action === "delete" ? action : "update";
+  const actionKey = action === "create" || action === "delete" || action === "unlink" ? action : "update";
   const fromMap = HISTORY_AUDIT_ACTION_TITLES[key]?.[actionKey];
   if (fromMap) return fromMap;
   if (actionKey === "create") return "Alta en servidor";
+  if (actionKey === "unlink") return "Desvinculación en servidor";
   if (actionKey === "delete") return "Eliminación en servidor";
   return "Actualización en servidor";
 }
@@ -532,7 +534,7 @@ export async function insertPortalAuditEventTx(
   c: PoolClient,
   actor: PortalAuditActor,
   event: {
-    action: "create" | "update" | "delete";
+    action: "create" | "update" | "delete" | "unlink";
     moduleId: string;
     moduleLabel: string;
     entityId?: string;
@@ -547,7 +549,7 @@ export async function insertPortalAuditEventTx(
 ): Promise<boolean> {
   if (!(await auditTableReady(c))) return false;
   const action = String(event.action || "update").toLowerCase();
-  if (!["create", "update", "delete"].includes(action)) return false;
+  if (!["create", "update", "delete", "unlink"].includes(action)) return false;
   const moduleId = String(event.moduleId || "dashboard").trim().slice(0, 64);
   const moduleLabel = String(event.moduleLabel || moduleId).trim().slice(0, 120);
   let clientEventId: string | null = String(event.clientEventId || "").trim();
@@ -776,5 +778,24 @@ export async function recordPortalAdminDeleteAudit(
     entityId,
     entityLabel,
     summary: summary || "Eliminación administrativa en servidor"
+  });
+}
+
+export async function recordPortalAdminUnlinkAudit(
+  c: PoolClient,
+  actor: PortalAuditActor,
+  moduleId: string,
+  moduleLabel: string,
+  entityId: string,
+  entityLabel: string,
+  summary = ""
+): Promise<void> {
+  await insertPortalAuditEventTx(c, actor, {
+    action: "unlink",
+    moduleId,
+    moduleLabel,
+    entityId,
+    entityLabel,
+    summary: summary || "Desvinculación de colaborador"
   });
 }

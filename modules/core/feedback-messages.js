@@ -295,9 +295,17 @@
     adminOnlyDeleteHrPayrollRecord: "Solo los administradores pueden eliminar esta novedad o liquidación.",
     employeeUpdatedOk: "Empleado actualizado correctamente.",
     employeeDeletedCascade: "Empleado eliminado en cascada.",
+    employeeUnlinked: "Colaborador desvinculado. La documentación permanece en Gestión documental.",
     employeeDeleteNotFound: "No se encontró el empleado a eliminar.",
-    employeesBulkSelect: "Seleccione al menos un empleado para eliminar.",
+    employeeUnlinkNotFound: "No se encontró el colaborador para desvincular.",
+    employeeAlreadyUnlinked: "Este colaborador ya está desvinculado.",
+    employeeUnlinkedRecategorized: "Categoría de desvinculación actualizada.",
+    employeesBulkSelect: "Seleccione al menos un colaborador para desvincular.",
     employeesBulkRemoved: (n) => `Se eliminaron ${n} empleado(s) en cascada.`,
+    employeesBulkUnlinked: (n) =>
+      n === 1
+        ? "Colaborador desvinculado. La documentación permanece en Gestión documental."
+        : `Se desvincularon ${n} colaboradores. La documentación permanece en Gestión documental.`,
     payrollSelectMonth: "Seleccione un mes válido para liquidar.",
     payrollLegalVigenciaDeleted: (year) => `Vigencia legal ${year} eliminada de la base de datos.`,
     payrollLegalVigenciaDeleteFail: "No fue posible eliminar la vigencia legal.",

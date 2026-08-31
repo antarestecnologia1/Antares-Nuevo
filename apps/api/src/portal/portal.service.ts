@@ -43,7 +43,11 @@ import {
   timestamptzStringColombiaNow,
   timestamptzToColombiaIso
 } from "../common/colombia-time";
-import { DATA_POLICY_VERSION, userRequiresDataPolicyAcceptance, userRequiresTermsAcceptance } from "../common/data-policy";
+import {
+  DATA_POLICY_VERSION,
+  parsePortalChecklist,
+  resolveLegalAcceptanceFields
+} from "../common/data-policy";
 import {
   isPasswordFieldKey,
   normalizeCatalogTextFromUnknown,
@@ -95,6 +99,7 @@ import {
   insertPortalAuditEventTx,
   preparePortalSyncUpsertAudits,
   recordPortalAdminDeleteAudit,
+  recordPortalAdminUnlinkAudit,
   recordPortalSyncDeleteAudits,
   type PortalAuditActor
 } from "./portal-audit-sync";
@@ -636,7 +641,7 @@ export class PortalService implements OnModuleInit {
   private async writePortalAuditEvent(
     actorUserId: string,
     event: {
-      action: "create" | "update" | "delete";
+      action: "create" | "update" | "delete" | "unlink";
       moduleId: string;
       moduleLabel: string;
       entityId?: string;
@@ -1442,7 +1447,12 @@ export class PortalService implements OnModuleInit {
       `ALTER TABLE public.empleados_nomina ADD COLUMN IF NOT EXISTS tiene_condicion_medica BOOLEAN NOT NULL DEFAULT false`,
       `ALTER TABLE public.empleados_nomina ADD COLUMN IF NOT EXISTS descripcion_condicion_medica TEXT`,
       `ALTER TABLE public.empleados_nomina ADD COLUMN IF NOT EXISTS fecha_renovacion DATE`,
-      `ALTER TABLE public.empleados_nomina ADD COLUMN IF NOT EXISTS fecha_aviso_no_renovacion DATE`
+      `ALTER TABLE public.empleados_nomina ADD COLUMN IF NOT EXISTS fecha_aviso_no_renovacion DATE`,
+      `ALTER TABLE public.empleados_nomina ADD COLUMN IF NOT EXISTS activo BOOLEAN NOT NULL DEFAULT true`,
+      `ALTER TABLE public.empleados_nomina ADD COLUMN IF NOT EXISTS fecha_desvinculacion DATE`,
+      `ALTER TABLE public.empleados_nomina ADD COLUMN IF NOT EXISTS categoria_desvinculacion VARCHAR(64)`,
+      `ALTER TABLE public.empleados_nomina ADD COLUMN IF NOT EXISTS motivo_desvinculacion TEXT`,
+      `ALTER TABLE public.empleados_nomina ADD COLUMN IF NOT EXISTS desvinculado_por VARCHAR(255)`
     ];
     for (const q of alters) {
       try {
@@ -1467,6 +1477,20 @@ export class PortalService implements OnModuleInit {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.warn(`ensureEmpleadosNominaSchema constraint: ${sanitizeLogText(msg)}`);
+    }
+    try {
+      await this.pool.query(
+        `ALTER TABLE public.empleados_nomina DROP CONSTRAINT IF EXISTS uq_empleado_empresa_documento`
+      );
+      await this.pool.query(`DROP INDEX IF EXISTS uq_empleado_empresa_documento`);
+      await this.pool.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_empleado_empresa_documento_activo
+          ON public.empleados_nomina (id_empresa, numero_documento)
+          WHERE activo = true
+      `);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`ensureEmpleadosNominaSchema unique activo: ${sanitizeLogText(msg)}`);
     }
   }
 
@@ -1917,6 +1941,15 @@ export class PortalService implements OnModuleInit {
       await this.pool.query(
         `CREATE INDEX IF NOT EXISTS idx_aud_portal_usuario_en ON auditoria_eventos_portal (id_usuario, registrado_en DESC)`
       );
+      await this.pool.query(
+        `ALTER TABLE auditoria_eventos_portal DROP CONSTRAINT IF EXISTS chk_auditoria_eventos_accion`
+      );
+      await this.pool.query(`
+        ALTER TABLE auditoria_eventos_portal
+          ADD CONSTRAINT chk_auditoria_eventos_accion CHECK (
+            lower(trim(accion)) IN ('create', 'update', 'delete', 'unlink')
+          )
+      `);
       this.logger.log("auditoria_eventos_portal: tabla verificada.");
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -2230,7 +2263,7 @@ export class PortalService implements OnModuleInit {
     for (const raw of list.slice(0, 80)) {
       const row = raw && typeof raw === "object" ? raw : {};
       const action = String(row.action || "update").toLowerCase();
-      if (!["create", "update", "delete"].includes(action)) {
+      if (!["create", "update", "delete", "unlink"].includes(action)) {
         skipped += 1;
         continue;
       }
@@ -2372,7 +2405,7 @@ export class PortalService implements OnModuleInit {
       from?: string;
       to?: string;
       moduleId?: string;
-      action?: "create" | "update" | "delete";
+      action?: "create" | "update" | "delete" | "unlink";
       scope?: "all";
       motivo: string;
     }
@@ -2388,7 +2421,7 @@ export class PortalService implements OnModuleInit {
     const from = String(dto.from || "").trim();
     const to = String(dto.to || "").trim();
     const moduleId = String(dto.moduleId || "").trim().slice(0, 64);
-    const action = ["create", "update", "delete"].includes(String(dto.action || ""))
+    const action = ["create", "update", "delete", "unlink"].includes(String(dto.action || ""))
       ? String(dto.action)
       : "";
     if (scope !== "all" && !from && !to && !moduleId && !action) {
@@ -5320,24 +5353,54 @@ export class PortalService implements OnModuleInit {
     return { ok: true, requestId: rid };
   }
 
-  async adminDeletePayrollEmployee(actorUserId: string, actorRole: JwtRole, employeeId: string) {
+  async adminUnlinkPayrollEmployee(
+    actorUserId: string,
+    actorRole: JwtRole,
+    dto: {
+      employeeId: string;
+      unlinkDate?: string;
+      unlinkCategory?: string;
+      unlinkReason?: string;
+    }
+  ) {
     const permissionSet = this.isAdmin(actorRole)
       ? new Set<string>(ALL_PORTAL_PERMISSIONS)
       : await this.resolveEffectivePermissionSet(actorUserId, actorRole);
     if (!this.isAdmin(actorRole) && !this.hasPortalPermission(permissionSet, "payroll_manage")) {
       throw new ForbiddenException();
     }
-    const eid = String(employeeId || "").trim();
+    const eid = String(dto?.employeeId || "").trim();
     if (!eid || !PG_UUID_V4_RE.test(eid)) throw new BadRequestException("ID de empleado invalido");
     if (!(await this.tableExists("empleados_nomina"))) {
       throw new BadRequestException("Tabla de nomina no disponible en esta base.");
     }
 
+    const allowedCategories = new Set([
+      "renuncia_voluntaria",
+      "despido_sin_justa",
+      "despido_justa",
+      "mutuo_acuerdo",
+      "vencimiento_contrato",
+      "otro"
+    ]);
+    const unlinkCategoryRaw = String(dto?.unlinkCategory || "otro").trim().toLowerCase();
+    const unlinkCategory = allowedCategories.has(unlinkCategoryRaw) ? unlinkCategoryRaw : "otro";
+    const unlinkDate = /^\d{4}-\d{2}-\d{2}$/.test(String(dto?.unlinkDate || "").trim())
+      ? String(dto.unlinkDate).trim().slice(0, 10)
+      : new Date().toISOString().slice(0, 10);
+    const unlinkReason = String(dto?.unlinkReason || "").trim().slice(0, 2000) || null;
+
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
-      const empRes = await client.query<{ numero_documento: string | null; rol_trabajador: string | null; nombre_completo: string | null }>(
-        `SELECT numero_documento, rol_trabajador, nombre_completo FROM empleados_nomina WHERE id = $1::uuid`,
+      const empRes = await client.query<{
+        numero_documento: string | null;
+        rol_trabajador: string | null;
+        nombre_completo: string | null;
+        activo: boolean | null;
+      }>(
+        `SELECT numero_documento, rol_trabajador, nombre_completo, activo
+           FROM empleados_nomina WHERE id = $1::uuid`,
         [eid]
       );
       if (!empRes.rows.length) {
@@ -5349,10 +5412,8 @@ export class PortalService implements OnModuleInit {
       const workerRole = String(empRes.rows[0]?.rol_trabajador ?? "")
         .trim()
         .toLowerCase();
+      const alreadyUnlinked = empRes.rows[0]?.activo === false;
 
-      /* Conductores vinculados por documento. Solo bloquea la eliminación un viaje en estado
-         ACTIVO o en progreso; los viajes cancelados, completados, cerrados o rechazados son
-         historial y no impiden la baja (quedan con id_conductor en NULL y sus datos snapshot). */
       let linkedDriverIds: string[] = [];
       if (doc && (await this.tableExists("conductores"))) {
         const driverRows = await client.query<{ id: string }>(
@@ -5364,6 +5425,7 @@ export class PortalService implements OnModuleInit {
         linkedDriverIds = driverRows.rows.map((r) => String(r.id));
       }
       if (
+        !alreadyUnlinked &&
         linkedDriverIds.length &&
         (await this.tableExists("viajes_transporte")) &&
         (await this.tableExists("solicitudes_transporte"))
@@ -5386,84 +5448,101 @@ export class PortalService implements OnModuleInit {
           await client.query("ROLLBACK");
           const nums = (active.rows[0]?.numeros || []).filter(Boolean).join(", ");
           throw new BadRequestException(
-            `No se puede eliminar: el conductor vinculado tiene ${activeTrips} viaje(s) activo(s) o en progreso${nums ? ` (${nums})` : ""}. ` +
-              "Complete, cancele o reasigne esos viajes primero. Los viajes cancelados o finalizados no bloquean la eliminación."
+            `No se puede desvincular: el conductor vinculado tiene ${activeTrips} viaje(s) activo(s) o en progreso${nums ? ` (${nums})` : ""}. ` +
+              "Complete, cancele o reasigne esos viajes primero. Los viajes cancelados o finalizados no bloquean la desvinculación."
           );
         }
       }
 
-      if (await this.tableExists("liquidaciones_nomina")) {
-        await client.query(`DELETE FROM liquidaciones_nomina WHERE id_empleado = $1::uuid`, [eid]);
-      }
-      if (await this.tableExists("ausencias_laborales")) {
-        await client.query(`DELETE FROM ausencias_laborales WHERE id_empleado = $1::uuid`, [eid]);
-      }
-      if (await this.tableExists("registros_cumplimiento_sst")) {
-        await client.query(`DELETE FROM registros_cumplimiento_sst WHERE id_empleado = $1::uuid`, [eid]);
-      }
+      const actor = await this.resolvePortalActor(actorUserId);
+      const actorLabel = String(actor.name || actor.email || actorUserId).trim().slice(0, 255);
 
-      let driversRemoved = 0;
-      if (linkedDriverIds.length) {
-        if (await this.tableExists("viajes_transporte")) {
-          /* Historial (cancelados/cerrados/completados): conservar el viaje, soltar el vínculo. */
-          await client.query(
-            `UPDATE viajes_transporte SET id_conductor = NULL WHERE id_conductor = ANY($1::uuid[])`,
-            [linkedDriverIds]
-          );
-        }
-        const delDrivers = await client.query(`DELETE FROM conductores WHERE id = ANY($1::uuid[])`, [
-          linkedDriverIds
-        ]);
-        driversRemoved = delDrivers.rowCount ?? 0;
-      }
-
-      const del = await client.query(`DELETE FROM empleados_nomina WHERE id = $1::uuid`, [eid]);
-      if ((del.rowCount ?? 0) === 0) {
+      const upd = await client.query(
+        `UPDATE empleados_nomina
+            SET activo = false,
+                fecha_desvinculacion = $2::date,
+                categoria_desvinculacion = $3,
+                motivo_desvinculacion = $4,
+                desvinculado_por = COALESCE($5, desvinculado_por),
+                fecha_actualizacion = now()
+          WHERE id = $1::uuid`,
+        [eid, unlinkDate, unlinkCategory, unlinkReason, actorLabel || null]
+      );
+      if ((upd.rowCount ?? 0) === 0) {
         await client.query("ROLLBACK");
         throw new BadRequestException("Empleado no encontrado.");
       }
 
-      await recordPortalAdminDeleteAudit(
+      let driversDisabled = 0;
+      if (linkedDriverIds.length) {
+        const off = await client.query(
+          `UPDATE conductores
+              SET disponible = false,
+                  ocupado_por_sistema = false,
+                  fecha_actualizacion = now()
+            WHERE id = ANY($1::uuid[])`,
+          [linkedDriverIds]
+        );
+        driversDisabled = off.rowCount ?? 0;
+      }
+
+      const categoryLabels: Record<string, string> = {
+        renuncia_voluntaria: "Renuncia voluntaria",
+        despido_sin_justa: "Despido sin justa causa",
+        despido_justa: "Despido con justa causa",
+        mutuo_acuerdo: "Mutuo acuerdo",
+        vencimiento_contrato: "Vencimiento de contrato",
+        otro: "Otro"
+      };
+      const categoryLabel = categoryLabels[unlinkCategory] || unlinkCategory;
+      const auditSummary = alreadyUnlinked
+        ? `Desvinculación de colaborador · categoría actualizada a ${categoryLabel} · ${unlinkDate}`
+        : `Desvinculación de colaborador · ${categoryLabel} · ${unlinkDate}`;
+
+      await recordPortalAdminUnlinkAudit(
         client,
         await this.portalAuditActor(actorUserId),
         "payroll",
         "Gestión humana",
         eid,
         empName || (doc ? `Doc. ${doc}` : "Colaborador"),
-        "Eliminación de colaborador en nómina"
+        auditSummary
       );
 
       await client.query("COMMIT");
-      const actor = await this.resolvePortalActor(actorUserId);
       this.logger.log(
-        `Empleado nómina eliminado (${eid}) por ${actor.name || actor.email || actorUserId}` +
-          (driversRemoved ? `; conductores vinculados removidos: ${driversRemoved}` : "")
+        `Empleado nómina desvinculado (${eid}) por ${actorLabel}` +
+          (driversDisabled ? `; conductores marcados no disponibles: ${driversDisabled}` : "")
       );
       return {
         ok: true,
+        unlinked: true,
+        recategorized: alreadyUnlinked,
         employeeId: eid,
-        driversRemoved,
+        unlinkDate,
+        unlinkCategory,
+        unlinkReason,
+        driversDisabled,
         wasDriver: workerRole === "conductor"
       };
     } catch (e) {
       await client.query("ROLLBACK").catch(() => null);
       if (e instanceof BadRequestException || e instanceof ForbiddenException) throw e;
       const msg = e instanceof Error ? e.message : String(e);
-      if (/not-null constraint|violates not-null/i.test(msg)) {
-        /* Esquema sin actualizar (id_conductor aún NOT NULL): la autocura corre al arrancar la API. */
+      if (/column .*activo|categoria_desvinculacion/i.test(msg)) {
         throw new BadRequestException(
-          "No se pudo desvincular el historial de viajes del conductor. Reinicie la API para aplicar la actualización de esquema e intente de nuevo."
-        );
-      }
-      if (/foreign key|violates foreign key/i.test(msg)) {
-        throw new BadRequestException(
-          "No se pudo eliminar el conductor vinculado: tiene viajes u otros registros asociados. Retire o reasigne esos datos primero."
+          "No se pudo desvincular: falta la migración de desvinculación. Reinicie la API e intente de nuevo."
         );
       }
       throw e;
     } finally {
       client.release();
     }
+  }
+
+  /** @deprecated Use adminUnlinkPayrollEmployee — conserva documentación y ficha. */
+  async adminDeletePayrollEmployee(actorUserId: string, actorRole: JwtRole, employeeId: string) {
+    return this.adminUnlinkPayrollEmployee(actorUserId, actorRole, { employeeId });
   }
 
   private async deleteSupabaseAuthUser(userId: string) {
@@ -5855,6 +5934,7 @@ export class PortalService implements OnModuleInit {
               u.parentesco_emergencia AS "emergencyRelationship", u.url_avatar AS "avatarUrl",
               u.autenticacion_dos_factores AS "twoFactorEnabled",
               u.tipo_vinculo_registro::text AS "registrationKind",
+              u.checklist_registro_json AS "profileQualityChecklist",
               u.fecha_aceptacion_politica_datos AS "dataPolicyAcceptedAt",
               u.version_politica_datos AS "dataPolicyVersion",
               u.fecha_aceptacion_terminos AS "termsAcceptedAt",
@@ -5921,6 +6001,7 @@ export class PortalService implements OnModuleInit {
               u.parentesco_emergencia AS "emergencyRelationship", u.url_avatar AS "avatarUrl",
               u.autenticacion_dos_factores AS "twoFactorEnabled",
               u.tipo_vinculo_registro::text AS "registrationKind",
+              u.checklist_registro_json AS "profileQualityChecklist",
               u.fecha_aceptacion_politica_datos AS "dataPolicyAcceptedAt",
               u.version_politica_datos AS "dataPolicyVersion",
               u.fecha_aceptacion_terminos AS "termsAcceptedAt",
@@ -5936,7 +6017,59 @@ export class PortalService implements OnModuleInit {
     }
     const [row] = await this.finalizePortalUserRowsFromJoin(r.rows, userId, true);
     if (!row) return null;
+    void this.persistDerivedLegalAcceptanceIfMissing(userId, r.rows[0], row).catch((err) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`getOwnProfile: backfill aceptación legal (no fatal): ${sanitizeLogText(msg)}`);
+    });
     return this.enrichPortalUserProfileFromPayrollEmployee(row);
+  }
+
+  /**
+   * Si el checklist o el registro ya constatan la aceptación pero las columnas están vacías,
+   * las rellena para que un navegador/equipo nuevo no vuelva a pedir los documentos.
+   */
+  private async persistDerivedLegalAcceptanceIfMissing(
+    userId: string,
+    dbRow: Record<string, unknown>,
+    resolved: Record<string, unknown>
+  ) {
+    const uid = String(userId || "").trim();
+    if (!uid) return;
+    const legal = resolveLegalAcceptanceFields({
+      dataPolicyAcceptedAt: dbRow.dataPolicyAcceptedAt,
+      dataPolicyVersion: dbRow.dataPolicyVersion,
+      termsAcceptedAt: dbRow.termsAcceptedAt,
+      createdAt: dbRow.createdAt ?? dbRow.portalSince,
+      checklist: dbRow.profileQualityChecklist
+    });
+    if (
+      !legal.missingDbColumns.dataPolicyAcceptedAt &&
+      !legal.missingDbColumns.dataPolicyVersion &&
+      !legal.missingDbColumns.termsAcceptedAt
+    ) {
+      return;
+    }
+    const sets: string[] = ["fecha_actualizacion = now()"];
+    const params: unknown[] = [uid];
+    let idx = 2;
+    if (legal.missingDbColumns.dataPolicyAcceptedAt && legal.dataPolicyAcceptedAt) {
+      sets.push(`fecha_aceptacion_politica_datos = $${idx}::timestamptz`);
+      params.push(legal.dataPolicyAcceptedAt);
+      idx += 1;
+    }
+    if (legal.missingDbColumns.dataPolicyVersion && legal.dataPolicyVersion) {
+      sets.push(`version_politica_datos = COALESCE(NULLIF(trim(version_politica_datos), ''), $${idx})`);
+      params.push(legal.dataPolicyVersion);
+      idx += 1;
+    }
+    if (legal.missingDbColumns.termsAcceptedAt && legal.termsAcceptedAt) {
+      sets.push(`fecha_aceptacion_terminos = COALESCE(fecha_aceptacion_terminos, $${idx}::timestamptz)`);
+      params.push(legal.termsAcceptedAt);
+      idx += 1;
+    }
+    if (sets.length <= 1) return;
+    await this.pool.query(`UPDATE usuarios SET ${sets.join(", ")} WHERE id = $1::uuid`, params);
+    void resolved;
   }
 
   /** Registra la aceptación de la Política de Tratamiento de Datos Personales (primer ingreso o re-aceptación). */
@@ -5944,20 +6077,30 @@ export class PortalService implements OnModuleInit {
     userId: string,
     dto: { acceptDataPolicy?: boolean; acceptTerms?: boolean }
   ) {
+    const uid = String(userId || "").trim();
+    if (!uid) throw new BadRequestException("Usuario no válido.");
+    const current = await this.getOwnProfile(uid);
+    const currentRow = current as {
+      requiresDataPolicyAcceptance?: boolean;
+      requiresTermsAcceptance?: boolean;
+    } | null;
+    const alreadyComplete =
+      currentRow?.requiresDataPolicyAcceptance === false &&
+      currentRow?.requiresTermsAcceptance === false;
     const wantsDataPolicy = dto.acceptDataPolicy === true;
     const wantsTerms = dto.acceptTerms === true;
     if (!wantsDataPolicy && !wantsTerms) {
+      if (alreadyComplete) return current;
       throw new BadRequestException("Debe aceptar los documentos pendientes para continuar.");
     }
-    const uid = String(userId || "").trim();
-    if (!uid) throw new BadRequestException("Usuario no válido.");
+    if (alreadyComplete) return current;
     const acceptedAt = timestamptzStringColombiaNow();
     const checklistPatch: Record<string, unknown> = {};
     const sets = ["fecha_actualizacion = now()"];
     const params: unknown[] = [uid];
     let paramIdx = 2;
 
-    if (wantsDataPolicy) {
+    if (wantsDataPolicy || currentRow?.requiresDataPolicyAcceptance === true) {
       sets.push(`fecha_aceptacion_politica_datos = $${paramIdx}::timestamptz`);
       params.push(acceptedAt);
       paramIdx += 1;
@@ -5970,14 +6113,15 @@ export class PortalService implements OnModuleInit {
         dataPolicyAcceptedAt: acceptedAt
       });
     }
-    if (wantsTerms) {
+    if (wantsTerms || currentRow?.requiresTermsAcceptance === true) {
       sets.push(`fecha_aceptacion_terminos = COALESCE(fecha_aceptacion_terminos, $${paramIdx}::timestamptz)`);
       params.push(acceptedAt);
       paramIdx += 1;
       Object.assign(checklistPatch, {
         termsOfUseAccepted: true,
         privacyPolicyAccepted: true,
-        habeasDataAcknowledged: true
+        habeasDataAcknowledged: true,
+        acceptedTermsAt: acceptedAt
       });
     }
     if (Object.keys(checklistPatch).length) {
@@ -6114,31 +6258,17 @@ export class PortalService implements OnModuleInit {
         ? new Date(row.portalSince as string).toISOString().slice(0, 10)
         : "";
       const rid = row.id as string;
-      const dataPolicyAcceptedAtRaw = row.dataPolicyAcceptedAt;
-      const dataPolicyAcceptedAt = dataPolicyAcceptedAtRaw
-        ? new Date(dataPolicyAcceptedAtRaw as string).toISOString()
-        : null;
-      const dataPolicyVersion = String(row.dataPolicyVersion ?? "").trim() || null;
-      const termsAcceptedAtRaw = row.termsAcceptedAt;
-      const termsAcceptedAt = termsAcceptedAtRaw
-        ? new Date(termsAcceptedAtRaw as string).toISOString()
-        : null;
-      const checklistRaw = row.profileQualityChecklist;
-      const checklist =
-        checklistRaw && typeof checklistRaw === "object" && !Array.isArray(checklistRaw)
-          ? (checklistRaw as Record<string, unknown>)
-          : typeof checklistRaw === "string"
-            ? (() => {
-                try {
-                  const parsed = JSON.parse(checklistRaw);
-                  return parsed && typeof parsed === "object" && !Array.isArray(parsed)
-                    ? (parsed as Record<string, unknown>)
-                    : null;
-                } catch {
-                  return null;
-                }
-              })()
-            : null;
+      const checklist = parsePortalChecklist(row.profileQualityChecklist);
+      const legal = resolveLegalAcceptanceFields({
+        dataPolicyAcceptedAt: row.dataPolicyAcceptedAt,
+        dataPolicyVersion: row.dataPolicyVersion,
+        termsAcceptedAt: row.termsAcceptedAt,
+        createdAt: row.createdAt ?? row.portalSince,
+        checklist
+      });
+      const dataPolicyAcceptedAt = legal.dataPolicyAcceptedAt;
+      const dataPolicyVersion = legal.dataPolicyVersion;
+      const termsAcceptedAt = legal.termsAcceptedAt;
       const registrationKindRaw =
         row.registrationKind ?? checklist?.registrationKind ?? null;
       const registrationKindNorm = String(registrationKindRaw || "")
@@ -6173,12 +6303,9 @@ export class PortalService implements OnModuleInit {
         profileQualityChecklist: checklist ?? row.profileQualityChecklist ?? null,
         dataPolicyAcceptedAt,
         dataPolicyVersion,
-        requiresDataPolicyAcceptance: userRequiresDataPolicyAcceptance(
-          dataPolicyAcceptedAt,
-          dataPolicyVersion
-        ),
+        requiresDataPolicyAcceptance: legal.requiresDataPolicyAcceptance,
         termsAcceptedAt,
-        requiresTermsAcceptance: userRequiresTermsAcceptance(termsAcceptedAt),
+        requiresTermsAcceptance: legal.requiresTermsAcceptance,
         documentIssuedAt: row.documentIssuedAt
           ? new Date(row.documentIssuedAt as string).toISOString().slice(0, 10)
           : "",
@@ -7806,7 +7933,8 @@ export class PortalService implements OnModuleInit {
     let sql = `SELECT e.id::text AS id, e.nombre_completo, e.id_empresa::text AS company_id
       FROM empleados_nomina e
       WHERE upper(trim(coalesce(e.tipo_documento, 'CC'))) = $1
-        AND ${docMatchSql}`;
+        AND ${docMatchSql}
+        AND COALESCE(e.activo, true) = true`;
 
     if (excludeId && PG_UUID_V4_RE.test(excludeId)) {
       queryParams.push(excludeId);
@@ -7918,6 +8046,13 @@ export class PortalService implements OnModuleInit {
       hasIllness: e.tiene_condicion_medica === true ? "si" : "no",
       illnessDescription:
         typeof e.descripcion_condicion_medica === "string" ? e.descripcion_condicion_medica : "",
+      active: e.activo === false ? false : true,
+      status: e.activo === false ? "desvinculado" : "activo",
+      terminationDate: this.sqlEmployeeDateToPortalYmd(e.fecha_desvinculacion),
+      unlinkDate: this.sqlEmployeeDateToPortalYmd(e.fecha_desvinculacion),
+      unlinkCategory: e.categoria_desvinculacion != null ? String(e.categoria_desvinculacion) : "",
+      unlinkReason: e.motivo_desvinculacion != null ? String(e.motivo_desvinculacion) : "",
+      unlinkedBy: e.desvinculado_por != null ? String(e.desvinculado_por) : "",
       createdAt: e.fecha_creacion
         ? timestamptzToColombiaIso(e.fecha_creacion as string | Date)
         : timestamptzStringColombiaNow(),
@@ -10846,11 +10981,16 @@ export class PortalService implements OnModuleInit {
     if (!Array.isArray(data)) throw new ForbiddenException();
     this.payrollEmployeeSchemaTier = undefined;
     let tier = await this.resolvePayrollEmployeeSchemaTier(c);
+    if (Array.isArray(deletedIds) && deletedIds.length > 0) {
+      this.logger.warn(
+        `syncPayrollEmployees: se ignoran ${deletedIds.length} deletedIds; la baja de colaboradores es desvinculación (admin-employee-delete), no borrado.`
+      );
+    }
     await this.syncListWithPruning(
       c,
       "empleados_nomina",
       data,
-      deletedIds,
+      undefined,
       companyScope ? { companyId: companyScope, via: "id_empresa" } : undefined
     );
 
@@ -11461,7 +11601,7 @@ export class PortalService implements OnModuleInit {
           }
         }
 
-        if (role === "conductor") {
+        if (role === "conductor" && e.active !== false && e.activo !== false) {
           try {
             await this.upsertConductorFromPayrollEmployeePayload(c, e);
           } catch (err) {

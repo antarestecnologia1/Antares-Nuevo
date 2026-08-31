@@ -19,8 +19,8 @@ export class DeletePortalAuditEventsDto {
   moduleId?: string;
 
   @IsOptional()
-  @IsIn(["create", "update", "delete"])
-  action?: "create" | "update" | "delete";
+  @IsIn(["create", "update", "delete", "unlink"])
+  action?: "create" | "update" | "delete" | "unlink";
 
   /** Si es "all", ignora from/to/moduleId y borra toda la bitácora. */
   @IsOptional()

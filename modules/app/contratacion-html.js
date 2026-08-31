@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Contratación — HTML de la vista (hiringHtml).
  */
 

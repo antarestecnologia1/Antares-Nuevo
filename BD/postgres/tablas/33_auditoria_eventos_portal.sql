@@ -21,7 +21,7 @@ CREATE TABLE auditoria_eventos_portal (
   registrado_en       TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT uq_auditoria_evento_cliente UNIQUE (id_evento_cliente),
   CONSTRAINT chk_auditoria_eventos_accion CHECK (
-    lower(trim(accion)) IN ('create', 'update', 'delete')
+    lower(trim(accion)) IN ('create', 'update', 'delete', 'unlink')
   )
 );
 

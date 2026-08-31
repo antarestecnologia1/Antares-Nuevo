@@ -1,0 +1,22 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.{sql,txt}]
+indent_size = 2
+
+# Windows PowerShell 5.1 lee un .ps1 SIN BOM como Windows-1252: un script con
+# tildes en sus literales se corrompe al ejecutarse. El BOM lo evita, y aun asi
+# la regla del repo es escribir los .ps1 en ASCII puro (ver scripts/encoding-tool.ps1).
+[*.ps1]
+charset = utf-8-bom
+end_of_line = crlf

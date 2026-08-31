@@ -106,8 +106,57 @@ export function employeeReceivesPayrollNomina(employee) {
   return !employeeIsConductorServiceProvider(employee);
 }
 
-export function listPayrollNominaEmployees(employees = []) {
-  return (Array.isArray(employees) ? employees : []).filter((e) => employeeReceivesPayrollNomina(e));
+/** Categorías de desvinculación (mismas causales de terminación laboral). */
+export const PAYROLL_UNLINK_CATEGORIES = Object.freeze(
+  Object.entries(CO_TERMINATION_CAUSE_LABELS).map(([value, label]) => ({ value, label }))
+);
+
+export function isPayrollEmployeeUnlinked(employee) {
+  if (!employee || typeof employee !== "object") return false;
+  const activeRaw = employee.active ?? employee.activo;
+  if (activeRaw === false || String(activeRaw ?? "").toLowerCase() === "false") return true;
+  const status = String(employee.status || employee.employmentStatus || "").trim().toLowerCase();
+  if (/desvincul|retirad|inactiv/.test(status)) return true;
+  return false;
+}
+
+export function payrollEmployeeUnlinkCategory(employee) {
+  return String(
+    employee?.unlinkCategory ||
+      employee?.categoriaDesvinculacion ||
+      employee?.categoria_desvinculacion ||
+      employee?.terminationCause ||
+      ""
+  ).trim();
+}
+
+export function payrollEmployeeUnlinkCategoryLabel(categoryOrEmployee) {
+  const key =
+    categoryOrEmployee && typeof categoryOrEmployee === "object"
+      ? payrollEmployeeUnlinkCategory(categoryOrEmployee)
+      : String(categoryOrEmployee || "").trim();
+  if (!key) return "Sin categoría";
+  return CO_TERMINATION_CAUSE_LABELS[key] || key.replace(/_/g, " ");
+}
+
+export function payrollEmployeeUnlinkDate(employee) {
+  return String(
+    employee?.terminationDate ||
+      employee?.unlinkDate ||
+      employee?.fechaDesvinculacion ||
+      employee?.fecha_desvinculacion ||
+      ""
+  )
+    .trim()
+    .slice(0, 10);
+}
+
+export function listPayrollNominaEmployees(employees = [], opts = {}) {
+  const includeUnlinked = opts.includeUnlinked === true;
+  return (Array.isArray(employees) ? employees : []).filter((e) => {
+    if (!includeUnlinked && isPayrollEmployeeUnlinked(e)) return false;
+    return employeeReceivesPayrollNomina(e);
+  });
 }
 
 /** Solo mensual y quincenal entran en liquidación automática, masiva y formulario individual. */
@@ -244,8 +293,8 @@ export function appendPayrollRunAuditLog(action, run, { summary = "", motivo = "
   });
 }
 
-export function listPayrollLiquidationEmployees(employees = []) {
-  return listPayrollNominaEmployees(employees).filter((e) => payrollIsAllowedPayFrequency(e.payFrequency));
+export function listPayrollLiquidationEmployees(employees = [], opts = {}) {
+  return listPayrollNominaEmployees(employees, opts).filter((e) => payrollIsAllowedPayFrequency(e.payFrequency));
 }
 
 export function payrollRunIsDriverTripPayment(run) {
@@ -260,8 +309,12 @@ export function filterDriverTripPaymentRuns(allRuns = []) {
   return (Array.isArray(allRuns) ? allRuns : []).filter((run) => payrollRunIsDriverTripPayment(run));
 }
 
-export function listConductorServiceEmployees(employees = []) {
-  return (Array.isArray(employees) ? employees : []).filter((e) => employeeIsConductorServiceProvider(e));
+export function listConductorServiceEmployees(employees = [], opts = {}) {
+  const includeUnlinked = opts.includeUnlinked === true;
+  return (Array.isArray(employees) ? employees : []).filter((e) => {
+    if (!includeUnlinked && isPayrollEmployeeUnlinked(e)) return false;
+    return employeeIsConductorServiceProvider(e);
+  });
 }
 
 /** Usuario que generó la liquidación (persistido o inferido por origen). */

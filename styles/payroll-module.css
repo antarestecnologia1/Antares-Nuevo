@@ -4285,8 +4285,26 @@ body[data-theme="dark"] .payroll-studio .payroll-liq-field input[placeholder="Au
   background: linear-gradient(180deg, #f59e0b, #f97316);
 }
 
-.payroll-studio .payroll-employees-grid > .directory-card--contract-expired::before {
-  background: linear-gradient(180deg, #ef4444, #f97316);
+.payroll-studio .payroll-employees-grid > .directory-card--unlinked::before {
+  background: linear-gradient(180deg, #64748b, #94a3b8);
+}
+
+.payroll-emp-badge--unlinked {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: #334155;
+  background: color-mix(in srgb, #94a3b8 22%, #fff);
+  border: 1px solid color-mix(in srgb, #64748b 28%, transparent);
+}
+
+.payroll-employee-table-row--unlinked td {
+  color: color-mix(in srgb, var(--pay-navy, #0b2138) 78%, #64748b);
 }
 
 .payroll-studio .payroll-employees-grid > .directory-card--compact:hover {
