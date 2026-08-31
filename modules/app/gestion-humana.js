@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Gestión humana — listeners post-render (bindPayrollPortalControls).
  */
 const EMPLOYEE_CREATE_DRAFT_KEY = "antares-employee-create-draft";
@@ -321,7 +321,10 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
             <span class="slip-section__badge">III</span>
             <div><h2 class="slip-section__title">Checklist legal post-liquidación</h2></div>
           </div>
-          <ul class="slip-checklist">${checklist.map((x) => `<li>${escapeHtml(String(x))}</li>`).join("")}</ul>
+          <ul class="slip-checklist">${checklist
+            .slice(0, 6)
+            .map((x) => `<li>${escapeHtml(String(x))}</li>`)
+            .join("")}</ul>
         </section>`
       : "";
 
@@ -329,7 +332,7 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
       slipSection(
         "I",
         "Devengos (finiquito / liquidación)",
-        "Ítems típicos por terminación conforme ordenamiento laboral colombiano (valores editables en el registro del sistema).",
+        "",
         `${theadP}<tbody>${devRows}</tbody>`
       ) +
       slipSection("II", "Deducciones", "", `${theadP}<tbody>${dedRows}</tbody>`) +
@@ -389,8 +392,12 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
         (bo > 0
           ? `<tr><td ${cL}>Bonificaciones y pagos ocasionales gravables (devengo)</td><td ${cR}>${fmtPay(bo)}</td></tr>`
           : "") +
-        `<tr><td ${cL}>Viáticos y anticipos de viaje (reintegro / no salario)</td><td ${cR}>${fmtPay(via)}</td></tr>` +
-        `<tr><td ${cL}>Reembolso combustible y gastos de ruta deducibles</td><td ${cR}>${fmtPay(comb)}</td></tr>` +
+        (via > 0
+          ? `<tr><td ${cL}>Viáticos y anticipos de viaje (reintegro / no salario)</td><td ${cR}>${fmtPay(via)}</td></tr>`
+          : "") +
+        (comb > 0
+          ? `<tr><td ${cL}>Reembolso combustible y gastos de ruta deducibles</td><td ${cR}>${fmtPay(comb)}</td></tr>`
+          : "") +
         (prima > 0
           ? `<tr><td ${cL}>Prima de servicios semestral (CST arts. 244–249 — ${run.primaServiciosDays ?? "—"} días semestre)</td><td ${cR}>${fmtPay(prima)}</td></tr>`
           : "") +
@@ -407,27 +414,25 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
         `<tr><td ${cL}>Aporte pensión obligatoria — empleado (${(CO_PAYROLL.pensionEmployeeRate * 100).toFixed(2).replace(/\.00$/, "")}% sobre IBC)</td><td ${cR}>${fmtPay(run.pension)}</td></tr>` +
         `<tr><td ${cL}>Fondo de solidaridad pensional FSP (cuando aplique rangos Ley 797/2003)</td><td ${cR}>${fmtPay(run.solidarity)}</td></tr>` +
         `<tr><td ${cTotalL}><strong>Total deducciones al empleado</strong></td><td ${cTotalR}><strong>${fmtPay(run.deductions)}</strong></td></tr>`;
-    const workedDaysRows =
-      workedDays > 0 || workedDaysPaymentCop > 0
-        ? `<tr><td ${cL}>Pago por días laborados (${workedDays.toLocaleString("es-CO")} días)</td><td ${cR}>${fmtPay(workedDaysPaymentCop)}</td></tr>`
-        : `<tr><td class="slip-td slip-td--empty" colspan="2">Sin detalle de días laborados para este comprobante.</td></tr>`;
+    const hasWorkedDays = workedDays > 0 || workedDaysPaymentCop > 0;
+    const workedDaysBlock = hasWorkedDays
+      ? slipSection(
+          "III",
+          "Resumen de días laborados",
+          "",
+          `${theadP}<tbody><tr><td ${cL}>Pago por días laborados (${workedDays.toLocaleString("es-CO")} días)</td><td ${cR}>${fmtPay(workedDaysPaymentCop)}</td></tr></tbody>`
+        )
+      : "";
 
     payslipBodyBlocks =
       slipSection(
         "I",
         "Devengos e ingresos período",
-        isTripPrestacion
-          ? "Pago por prestación de servicios (viajes interdepartamentales y reembolsos de ruta)."
-          : "Ingresos y conceptos pagados por el empleador; prima e intereses de cesantías solo si se liquidaron en este comprobante.",
+        isTripPrestacion ? "Prestación de servicios: viajes y reembolsos de ruta." : "",
         `${theadP}<tbody>${devRowsMes}</tbody>`
       ) +
-      slipSection(
-        "II",
-        "Deducciones (aportes del trabajador)",
-        "Descuentos legales incidentes sobre nómina; prima e intereses de cesantías no integran habitualmente esta base de cotización en este modelo simplificado.",
-        `${theadP}<tbody>${dedRowsMes}</tbody>`
-      ) +
-      slipSection("III", "Resumen de días laborados", "", `${theadP}<tbody>${workedDaysRows}</tbody>`) +
+      slipSection("II", "Deducciones (aportes del trabajador)", "", `${theadP}<tbody>${dedRowsMes}</tbody>`) +
+      workedDaysBlock +
       slipNetBox("Neto pagado / a pagar al trabajador");
   }
   const docTitle =
@@ -467,28 +472,17 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
   if (!isTerm) {
     const ori = String(run.liquidacionOrigin || run.origenLiquidacion || "manual").toLowerCase();
     if (ori === "masiva") {
-      disclaimerPieces.push(
-        "Liquidación generada por liquidación masiva (RRHH). Validar incapacidades, vacaciones, viáticos de ruta y bases de cotización con contador antes del pago."
-      );
+      disclaimerPieces.push("Liquidación masiva (RRHH). Validar novedades y bases con contador antes del pago.");
     } else if (ori === "automatica") {
-      disclaimerPieces.push(
-        "Liquidación generada automáticamente en servidor (cron diario, calendario Bogotá). Validar incapacidades, vacaciones y bases de cotización con RRHH y contador."
-      );
-      const nv = run.noveltiesDetail;
-      if (nv && typeof nv === "object" && Array.isArray(nv.disclaimers)) {
-        const top = nv.disclaimers.slice(0, 2).map((x) => String(x)).join(" ");
-        if (top) disclaimerPieces.push(top);
-      }
+      disclaimerPieces.push("Liquidación automática (cron Bogotá). Validar novedades y bases con RRHH y contador.");
     }
     if (parseNum(run.interesesCesantiasCop) > 0)
       disclaimerPieces.push(
-        `Intereses de cesantías (Ley 52/1975, ${CO_CESANTIAS_INTERES_ANUAL_PCT}% anual): el texto legal establece que deben pagarse al trabajador en enero del año siguiente al período causado (y reglas especiales en retiros o ceses antes de ese cierre). Lo habitual es liquidarlos con la nómina de enero del año siguiente o, si su política lo retrasa hasta febrero, documente ese desfase con contador para no omitir obligaciones ya exigidas.`
+        `Intereses de cesantías (Ley 52/1975, ${CO_CESANTIAS_INTERES_ANUAL_PCT}% anual): pago en enero del año siguiente al período causado.`
       );
     const incNv = run.noveltiesDetail?.incapacity;
     if (incNv && Array.isArray(incNv.episodes) && incNv.episodes.length) {
-      disclaimerPieces.push(
-        String(incNv.legalNote || "Incapacidad: montos orientativos en este comprobante; valide con EPS/ARL y contador.")
-      );
+      disclaimerPieces.push("Incapacidad: montos orientativos; valide con EPS/ARL y contador.");
     }
   }
   const disclaimer =
@@ -528,29 +522,28 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
               <img class="slip-signature__img" src="${escapeAttr(signatureSrc)}" alt="Firma del representante legal" />
               <div class="slip-signature__line"></div>
               <p class="slip-signature__name">${escapeHtml(String(CONTRACT_LEGAL_REP_NAME))}</p>
-              <p class="slip-signature__meta">${escapeHtml(String(CONTRACT_LEGAL_REP_ID_DOC))}</p>
-              <p class="slip-signature__role">Representante legal · ${escapeHtml(String(company?.name || "Transportes Antares"))}</p>
+              <p class="slip-signature__meta">${escapeHtml(String(CONTRACT_LEGAL_REP_ID_DOC))} · Representante legal</p>
             </div>
           </section>`;
   const slipStyles = `<style>
-    @page { size: A4; margin: 14mm 12mm; }
+    @page { size: A4; margin: 8mm 9mm; }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       font-family: "Segoe UI", system-ui, Arial, sans-serif;
       color: #0B1D33;
       background: #e8eef5;
-      line-height: 1.5;
+      line-height: 1.32;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
-    .slip-shell { padding: 20px 16px 28px; }
+    .slip-shell { padding: 12px 12px 18px; }
     .slip-page {
       max-width: 780px;
       margin: 0 auto;
       background: #fff;
       border: 1px solid #d7e5f3;
-      border-radius: 14px;
+      border-radius: 12px;
       overflow: hidden;
       box-shadow: 0 14px 42px rgba(11,33,51,.10);
     }
@@ -558,120 +551,113 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 18px;
-      padding: 22px 24px 18px;
+      gap: 12px;
+      padding: 10px 16px;
       background: linear-gradient(135deg, #0B1D33 0%, #1a3a5c 58%, #377cc0 100%);
       color: #fff;
     }
     .slip-header__kicker {
-      margin: 0 0 4px;
-      font-size: .72rem;
+      margin: 0 0 2px;
+      font-size: .68rem;
       letter-spacing: .12em;
       text-transform: uppercase;
       opacity: .82;
     }
-    .slip-header__title { margin: 0; font-size: 1.45rem; font-weight: 700; line-height: 1.2; }
-    .slip-header__company { margin: 6px 0 0; font-size: .92rem; opacity: .9; }
+    .slip-header__title { margin: 0; font-size: 1.18rem; font-weight: 700; line-height: 1.15; }
+    .slip-header__company { margin: 3px 0 0; font-size: .82rem; opacity: .9; }
     .slip-logo {
-      width: 92px; min-width: 92px; height: 92px;
-      border-radius: 16px; background: #fff; border: 1px solid rgba(255,255,255,.25);
-      padding: 10px; display: flex; align-items: center; justify-content: center;
-      box-shadow: 0 8px 22px rgba(0,0,0,.18);
+      width: 58px; min-width: 58px; height: 58px;
+      border-radius: 10px; background: #fff; border: 1px solid rgba(255,255,255,.25);
+      padding: 5px; display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 6px 16px rgba(0,0,0,.16);
     }
     .slip-logo img { width: 100%; height: 100%; object-fit: contain; display: block; }
-    .slip-body { padding: 22px 24px 26px; }
-    .slip-status-row {
-      display: flex; align-items: center; justify-content: space-between; gap: 12px;
-      margin-bottom: 16px; flex-wrap: wrap;
-    }
+    .slip-body { padding: 12px 16px 14px; }
     .slip-badge {
-      display: inline-flex; align-items: center; padding: 5px 12px; border-radius: 999px;
-      font-size: .78rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase;
+      display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px;
+      font-size: .68rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase;
     }
     .slip-badge--paid { background: #e8f7ee; color: #1f6b3f; border: 1px solid #b9e3c8; }
     .slip-badge--pending { background: #fff6e8; color: #9a6116; border: 1px solid #f2d4a6; }
-    .slip-period { margin: 0; font-size: .9rem; color: #64748b; }
     .slip-period-legal {
-      margin: 0 0 16px; padding: 16px 18px; border-radius: 12px;
+      margin: 0 0 10px; padding: 8px 12px; border-radius: 10px;
       background: linear-gradient(135deg, #f0f6fc 0%, #e8eef5 100%);
       border: 1px solid #c8dcf0;
     }
+    .slip-period-legal__top {
+      display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 2px;
+    }
     .slip-period-legal__label {
-      margin: 0 0 6px; font-size: .72rem; font-weight: 700; letter-spacing: .1em;
+      margin: 0; font-size: .66rem; font-weight: 700; letter-spacing: .1em;
       text-transform: uppercase; color: #377cc0;
     }
     .slip-period-legal__range {
-      margin: 0; font-size: 1.12rem; font-weight: 700; color: #0B1D33; line-height: 1.35;
+      margin: 0; font-size: .98rem; font-weight: 700; color: #0B1D33; line-height: 1.25;
     }
-    .slip-period-legal__meta { margin: 6px 0 0; font-size: .84rem; color: #64748b; line-height: 1.45; }
+    .slip-period-legal__meta { margin: 2px 0 0; font-size: .76rem; color: #64748b; line-height: 1.3; }
     .slip-meta {
-      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 18px;
-      margin: 0 0 20px; padding: 16px 18px; background: #f7fafc; border: 1px solid #e3edf7; border-radius: 12px;
+      display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 12px;
+      margin: 0 0 10px; padding: 8px 12px; background: #f7fafc; border: 1px solid #e3edf7; border-radius: 10px;
     }
     .slip-meta__item { min-width: 0; }
     .slip-meta__item dt {
-      margin: 0 0 2px; font-size: .72rem; font-weight: 700; letter-spacing: .04em;
+      margin: 0; font-size: .62rem; font-weight: 700; letter-spacing: .04em;
       text-transform: uppercase; color: #64748b;
     }
-    .slip-meta__item dd { margin: 0; font-size: .9rem; color: #0B1D33; word-break: break-word; }
-    .slip-meta__item--highlight { grid-column: 1 / -1; padding-top: 4px; border-top: 1px dashed #d7e5f3; }
-    .slip-meta__item--highlight dd { font-size: 1rem; font-weight: 700; }
-    .slip-content-title {
-      margin: 0 0 14px; padding-bottom: 8px; border-bottom: 2px solid #e8eef5;
-      font-size: 1rem; color: #1a3a5c;
-    }
-    .slip-section { margin-bottom: 18px; }
-    .slip-section__head { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 10px; }
+    .slip-meta__item dd { margin: 0; font-size: .8rem; color: #0B1D33; word-break: break-word; }
+    .slip-meta__item--highlight dd { font-weight: 700; }
+    .slip-section { margin-bottom: 8px; }
+    .slip-section__head { display: flex; gap: 8px; align-items: center; margin-bottom: 4px; }
     .slip-section__badge {
-      flex: 0 0 auto; width: 30px; height: 30px; border-radius: 8px;
-      background: #377cc0; color: #fff; font-size: .78rem; font-weight: 700;
+      flex: 0 0 auto; width: 22px; height: 22px; border-radius: 6px;
+      background: #377cc0; color: #fff; font-size: .68rem; font-weight: 700;
       display: inline-flex; align-items: center; justify-content: center;
     }
-    .slip-section__title { margin: 0; font-size: .98rem; color: #0B1D33; }
-    .slip-section__hint { margin: 4px 0 0; font-size: .82rem; color: #64748b; line-height: 1.45; }
-    .slip-table-wrap { border: 1px solid #e3edf7; border-radius: 10px; overflow: hidden; }
-    .slip-table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+    .slip-section__title { margin: 0; font-size: .84rem; color: #0B1D33; }
+    .slip-section__hint { margin: 1px 0 0; font-size: .72rem; color: #64748b; line-height: 1.3; }
+    .slip-table-wrap { border: 1px solid #e3edf7; border-radius: 8px; overflow: hidden; }
+    .slip-table { width: 100%; border-collapse: collapse; font-size: .78rem; }
     .slip-thead th {
-      padding: 9px 12px; text-align: left; background: #e8eef5; color: #1a3a5c;
-      font-size: .76rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase;
+      padding: 5px 8px; text-align: left; background: #e8eef5; color: #1a3a5c;
+      font-size: .66rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase;
     }
     .slip-th--num, .slip-td--num { text-align: right; font-variant-numeric: tabular-nums; }
     .slip-td {
-      padding: 9px 12px; border-top: 1px solid #edf2f7; vertical-align: top; color: #243b53;
+      padding: 4px 8px; border-top: 1px solid #edf2f7; vertical-align: top; color: #243b53;
     }
     .slip-td--total { background: #f7fafc; font-weight: 700; color: #0B1D33; }
-    .slip-td--empty { color: #64748b; font-size: .86rem; font-style: italic; }
-    .slip-note { display: block; margin-top: 3px; font-size: .8rem; color: #64748b; line-height: 1.35; }
+    .slip-td--empty { color: #64748b; font-size: .76rem; font-style: italic; }
+    .slip-note { display: block; margin-top: 1px; font-size: .7rem; color: #64748b; line-height: 1.25; }
     .slip-checklist {
-      margin: 0; padding: 12px 16px 12px 28px; background: #f7fafc; border: 1px solid #e3edf7;
-      border-radius: 10px; font-size: .84rem; color: #495057; line-height: 1.5;
+      margin: 0; padding: 6px 12px 6px 22px; background: #f7fafc; border: 1px solid #e3edf7;
+      border-radius: 8px; font-size: .74rem; color: #495057; line-height: 1.35;
     }
     .slip-net {
-      display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
-      margin-top: 6px; padding: 16px 18px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+      margin-top: 4px; padding: 8px 12px; border-radius: 10px;
       background: linear-gradient(135deg, #0B1D33 0%, #1a3a5c 100%); color: #fff;
     }
-    .slip-net__label { font-size: .95rem; font-weight: 600; }
-    .slip-net__value { font-size: 1.35rem; font-weight: 800; letter-spacing: .01em; }
+    .slip-net__label { font-size: .82rem; font-weight: 600; }
+    .slip-net__value { font-size: 1.12rem; font-weight: 800; letter-spacing: .01em; }
     .slip-disclaimer {
-      margin-top: 16px; padding: 12px 14px; border-left: 3px solid #f2d4a6;
-      background: #fffaf2; border-radius: 0 10px 10px 0; font-size: .8rem; color: #5c4a32; line-height: 1.45;
+      margin-top: 8px; padding: 6px 10px; border-left: 3px solid #f2d4a6;
+      background: #fffaf2; border-radius: 0 8px 8px 0; font-size: .7rem; color: #5c4a32; line-height: 1.3;
     }
-    .slip-signature { margin-top: 24px; padding-top: 18px; border-top: 1px solid #e3edf7; }
+    .slip-signature { margin-top: 8px; padding-top: 8px; border-top: 1px solid #e3edf7; }
     .slip-signature__kicker {
-      margin: 0 0 12px; font-size: .72rem; font-weight: 700; letter-spacing: .08em;
+      margin: 0 0 4px; font-size: .62rem; font-weight: 700; letter-spacing: .08em;
       text-transform: uppercase; color: #64748b;
     }
-    .slip-signature__card { max-width: 320px; text-align: center; }
-    .slip-signature__img { max-width: 210px; max-height: 76px; object-fit: contain; display: block; margin: 0 auto 8px; }
-    .slip-signature__line { height: 1px; background: #0B1D33; margin: 0 auto 10px; width: 88%; }
-    .slip-signature__name { margin: 0; font-size: .92rem; font-weight: 700; color: #0B1D33; }
-    .slip-signature__meta, .slip-signature__role { margin: 2px 0 0; font-size: .82rem; color: #64748b; }
+    .slip-signature__card { max-width: 240px; text-align: center; }
+    .slip-signature__img { max-width: 130px; max-height: 38px; object-fit: contain; display: block; margin: 0 auto 2px; }
+    .slip-signature__line { height: 1px; background: #0B1D33; margin: 0 auto 4px; width: 88%; }
+    .slip-signature__name { margin: 0; font-size: .8rem; font-weight: 700; color: #0B1D33; }
+    .slip-signature__meta, .slip-signature__role { margin: 1px 0 0; font-size: .7rem; color: #64748b; }
     .slip-footer {
-      margin-top: 18px; padding-top: 12px; border-top: 1px solid #edf2f7;
-      font-size: .74rem; color: #94a3b8; text-align: center;
+      margin-top: 8px; padding-top: 6px; border-top: 1px solid #edf2f7;
+      font-size: .66rem; color: #94a3b8; text-align: center;
     }
-    .slip-actions { margin-top: 18px; text-align: center; }
+    .slip-actions { margin-top: 12px; text-align: center; }
     .slip-print-btn {
       padding: 11px 22px; border-radius: 10px; border: none; cursor: pointer;
       background: #377cc0; color: #fff; font-size: .92rem; font-weight: 600;
@@ -683,11 +669,10 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
       .slip-shell { padding: 0; }
       .slip-page { max-width: none; border: none; border-radius: 0; box-shadow: none; }
       .slip-actions, .no-print { display: none !important; }
-      .slip-section, .slip-net, .slip-signature { break-inside: avoid; }
     }
     @media (max-width: 640px) {
       .slip-header { flex-direction: column-reverse; align-items: flex-start; }
-      .slip-meta { grid-template-columns: 1fr; }
+      .slip-meta { grid-template-columns: 1fr 1fr; }
     }
   </style>`;
   const html = `<!DOCTYPE html>
@@ -706,12 +691,11 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
             </div>
           </header>
           <div class="slip-body">
-            <div class="slip-status-row">
-              <span class="slip-badge ${slipStatusClass}">${escapeHtml(slipStatusLabel)}</span>
-              <p class="slip-period">${escapeHtml(String(periodDisplay.typeLabel || payrollRunTypeLabel(run)))}</p>
-            </div>
             <div class="slip-period-legal">
-              <p class="slip-period-legal__label">Período de nómina liquidado</p>
+              <div class="slip-period-legal__top">
+                <p class="slip-period-legal__label">Período de nómina liquidado</p>
+                <span class="slip-badge ${slipStatusClass}">${escapeHtml(slipStatusLabel)}</span>
+              </div>
               <p class="slip-period-legal__range">${escapeHtml(String(periodDisplay.range || "-"))}</p>
               ${periodDisplay.meta ? `<p class="slip-period-legal__meta">${escapeHtml(String(periodDisplay.meta))}</p>` : ""}
             </div>
@@ -720,15 +704,12 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
               ${metaItem("Trabajador", run.employeeName || "", true)}
               ${metaItem("Documento", employee?.idDoc || "-")}
               ${metaItem("Cargo", employee?.position || "-")}
-              ${metaItem("Tipo de nómina", periodDisplay.typeLabel || payrollRunTypeLabel(run))}
               ${generatedBy ? metaItem("Generado por", generatedBy) : ""}
               ${employeeMetaItems}
               ${metaExtraItems}
-              ${metaItem("Estado", slipStatusLabel)}
               ${metaItem("Fecha de pago", paidAtLabel)}
               ${approvedByLabel ? metaItem("Aprobado por", approvedByLabel) : ""}
             </div>
-            <h2 class="slip-content-title">Detalle del comprobante</h2>
           ${payslipBodyBlocks}
           ${absenceDetailBlock}
           ${disclaimer}
@@ -827,23 +808,16 @@ async function buildPayrollRunPayslipFileBlob(runInput) {
     const pdf = new JsPDF({ unit: "pt", format: "a4", compress: true });
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
-    const margin = 18;
+    const margin = 14;
     const usableWidth = pageWidth - margin * 2;
     const usableHeight = pageHeight - margin * 2;
-    const imgWidth = usableWidth;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    const fit = Math.min(usableWidth / canvas.width, usableHeight / canvas.height);
+    const imgWidth = canvas.width * fit;
+    const imgHeight = canvas.height * fit;
+    const imgX = margin + (usableWidth - imgWidth) / 2;
+    const imgY = margin;
     const imgData = canvas.toDataURL("image/jpeg", 0.92);
-
-    let heightLeft = imgHeight;
-    let position = margin;
-    pdf.addImage(imgData, "JPEG", margin, position, imgWidth, imgHeight);
-    heightLeft -= usableHeight;
-    while (heightLeft > 8) {
-      position = margin - (imgHeight - heightLeft);
-      pdf.addPage();
-      pdf.addImage(imgData, "JPEG", margin, position, imgWidth, imgHeight);
-      heightLeft -= usableHeight;
-    }
+    pdf.addImage(imgData, "JPEG", imgX, imgY, imgWidth, imgHeight);
 
     const pdfName = String(built.fileName || "colilla.html").replace(/\.html?$/i, ".pdf");
     return {
