@@ -42,7 +42,8 @@ import { calcColombiaIncapacityEpsDayAdjustmentCop } from "./payroll-colombia-le
 import {
   suggestTerminationReferenceDays,
   computeTerminationSettlementFromForm,
-  applyTerminationSettlementToForm
+  applyTerminationSettlementToForm,
+  CO_TERMINATION_CAUSE_LABELS
 } from "./payroll-colombia-termination.domain.js";
 
 export {
