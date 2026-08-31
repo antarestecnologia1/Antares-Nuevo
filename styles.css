@@ -11517,13 +11517,14 @@ body[data-theme="dark"] .toast-warn {
   margin: 0 0 0.75rem;
   padding: 0.85rem 1rem;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--line);
-  background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.12) 0%, rgba(255, 255, 255, 0.96) 100%);
-  box-shadow: var(--shadow-card);
+  border: 1px solid color-mix(in srgb, var(--primary) 28%, var(--line));
+  background: color-mix(in srgb, var(--primary) 10%, #ffffff);
+  box-shadow: 0 8px 22px rgba(var(--primary-rgb), 0.12);
 }
 
 body[data-theme="dark"] .session-idle-banner {
-  background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.22) 0%, rgba(15, 28, 46, 0.96) 100%);
+  background: color-mix(in srgb, var(--primary) 22%, #0f1c2e);
+  border-color: color-mix(in srgb, var(--primary) 40%, #334155);
 }
 
 .session-idle-banner-inner {
@@ -11543,9 +11544,10 @@ body[data-theme="dark"] .session-idle-banner {
 
 .session-idle-banner-hint {
   margin: 0;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   line-height: 1.45;
   max-width: 42rem;
+  color: var(--text);
 }
 
 .session-idle-banner-actions {

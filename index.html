@@ -99,10 +99,10 @@
     />
     <!-- CSS crítico de la landing (bloqueante, ~30% del total). El completo baja en
          prioridad mínima (media="print" no bloquea ni compite) y se activa al llegar. -->
-    <link rel="stylesheet" href="./styles.landing.css?v=20260715-notif-align" />
+    <link rel="stylesheet" href="./styles.landing.css?v=20260831-idle-banner" />
     <link
       rel="stylesheet"
-      href="./styles.css?v=20260804-payroll-cards-width"
+      href="./styles.css?v=20260831-idle-banner"
     />
     <link rel="stylesheet" href="./styles/portal-ops-card.css?v=20260814-payroll-bulk-delete" />
     <link rel="stylesheet" href="./styles/portal-buttons.css?v=20260701-btn-guard" />
@@ -131,7 +131,7 @@
     <link rel="stylesheet" href="./styles/portal-responsive.css?v=20260630-mobile-switch-compact" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/auth-modal.css?v=20260715-registration-kind" />
     <noscript>
-    <link rel="stylesheet" href="./styles.css?v=20260804-payroll-cards-width" />
+    <link rel="stylesheet" href="./styles.css?v=20260831-idle-banner" />
     <link rel="stylesheet" href="./styles/auth-modal.css?v=20260715-registration-kind" />
     <link rel="stylesheet" href="./styles/portal-ops-card.css?v=20260814-payroll-bulk-delete" />
     <link rel="stylesheet" href="./styles/portal-buttons.css?v=20260701-btn-guard" />
@@ -1451,7 +1451,7 @@
     <script defer src="./modules/portal/core/router.js?v=20260630-security-audit-fix"></script>
     <script defer src="./modules/portal/core/renderer.js"></script>
     <script defer src="./modules/domain-bootstrap.js"></script>
-    <script defer src="./modules/core/feedback-messages.js?v=20260831-payroll-bulk-paid"></script>
+    <script defer src="./modules/core/feedback-messages.js?v=20260831-idle-banner"></script>
     <script defer src="./modules/portal/application.js"></script>
     <script defer src="./modules/app/portal-icons.js?v=20260803-bandeja-v2"></script>
     <script type="module" src="./modules/portal/legacy-views-bridge.js"></script>
@@ -1461,7 +1461,7 @@
       import * as AntaresConfig from "./modules/core/config.js?v=20260831-legal-accept";
       import * as AntaresUtils from "./modules/core/utils.js";
       import * as AntaresStore from "./modules/core/store.js";
-      import * as AntaresAuth from "./modules/core/auth.js?v=20260831-legal-accept";
+      import * as AntaresAuth from "./modules/core/auth.js?v=20260831-idle-banner";
       import * as AntaresBootstrap from "./modules/core/bootstrap.js?v=20260831-legal-accept";
       import { writeAwaitServer, writeAwaitServerEdit, writeAwaitServerCreate, writeAwaitServerDelete, writeAwaitServerLatestQueuedEmail, syncPayloadForEditedRow, syncPayloadForEditedObjectKeys, syncPayloadForChangedRows } from "./modules/core/data-io.js";
       import * as AntaresPublicI18n from "./modules/domain/public-site.i18n.js";

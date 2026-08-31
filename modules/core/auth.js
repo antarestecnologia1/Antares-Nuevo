@@ -2404,7 +2404,7 @@ export function mountSessionIdlePublicNoticeIfNeeded() {
   title.textContent = window.userMessage("sessionIdle");
 
   const hint = document.createElement("p");
-  hint.className = "session-idle-banner-hint muted";
+  hint.className = "session-idle-banner-hint";
   const hintMsg = window.userMessage("sessionIdleBannerHint");
   hint.textContent = typeof hintMsg === "string" && hintMsg !== "sessionIdleBannerHint" ? hintMsg : "";
 

@@ -3063,7 +3063,8 @@ body[data-theme="dark"] .toast-warn {
 }
 
 body[data-theme="dark"] .session-idle-banner {
-  background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.22) 0%, rgba(15, 28, 46, 0.96) 100%);
+  background: color-mix(in srgb, var(--primary) 22%, #0f1c2e);
+  border-color: color-mix(in srgb, var(--primary) 40%, #334155);
 }
 
 .auth-form {
