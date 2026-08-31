@@ -864,7 +864,7 @@ async function archivePayrollRunComprobanteQuietly(run) {
   const fn = typeof window !== "undefined" ? window.archivePayrollRunToEmployeeFolder : null;
   if (typeof fn !== "function" || !run?.id) return;
   try {
-    await fn(run);
+    await fn(run, { force: true });
   } catch (_err) {
     /* El pago ya quedó registrado; el archivo en DMS es secundario. */
   }

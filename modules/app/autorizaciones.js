@@ -632,7 +632,7 @@ function bindAuthorizationsPortalControls() {
             approvedBy: approver
           };
           if (typeof window.archivePayrollRunToEmployeeFolder === "function") {
-            void window.archivePayrollRunToEmployeeFolder(paidRun);
+            void window.archivePayrollRunToEmployeeFolder(paidRun, { force: true });
           }
         } catch (err) {
           notify(String(err?.message || userMessage("genericError")), "error");

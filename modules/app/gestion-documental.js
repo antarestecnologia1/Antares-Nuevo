@@ -1174,18 +1174,80 @@ function fmtCop(n) {
   return `$${Number(n || 0).toLocaleString("es-CO")}`;
 }
 
+/** Layout compacto A4 (1 hoja) del desprendible de Gestión humana. */
+const PAYSLIP_LAYOUT_MARKER = "slipLayout=a4-1p";
+const payslipArchiveInflight = new Map();
+
+function payrollRunSlipMarker(runId) {
+  const id = String(runId || "").trim();
+  return id ? `payrollRunId=${id}` : "";
+}
+
+function findPayrollSlipDoc(runId) {
+  const marker = payrollRunSlipMarker(runId);
+  if (!marker) return null;
+  return readDocs().find((d) => String(d.description || "").includes(marker)) || null;
+}
+
+function payrollSlipDocHasCurrentLayout(doc) {
+  return String(doc?.description || "").includes(PAYSLIP_LAYOUT_MARKER);
+}
+
+function isPayrollSlipDocument(doc) {
+  return (
+    String(doc?.documentCategory || "") === "comprobante_pago" ||
+    String(doc?.tags || "").includes("comprobante_pago") ||
+    /colilla de pago/i.test(String(doc?.description || ""))
+  );
+}
+
+function payrollRunIdFromSlipDoc(doc) {
+  const m = String(doc?.description || "").match(/payrollRunId=([^\s·]+)/);
+  return m ? String(m[1] || "").trim() : "";
+}
+
+async function resolvePayslipBlobBuilder() {
+  if (typeof window.buildPayrollRunPayslipFileBlob === "function") {
+    return window.buildPayrollRunPayslipFileBlob;
+  }
+  for (let i = 0; i < 25; i += 1) {
+    await new Promise((r) => setTimeout(r, 120));
+    if (typeof window.buildPayrollRunPayslipFileBlob === "function") {
+      return window.buildPayrollRunPayslipFileBlob;
+    }
+  }
+  return null;
+}
+
 /**
  * Archiva el comprobante de una liquidación PAGADA en `01. Empleados / Nombre`.
- * Usa el mismo desprendible de Gestión humana (HTML→PDF). Idempotente por `payrollRunId=`.
+ * Usa el desprendible de 1 hoja de Gestión humana (HTML→PDF).
+ * Si ya existe una colilla con layout anterior, la reemplaza.
  */
-async function archivePayrollRunToEmployeeFolder(run) {
+async function archivePayrollRunToEmployeeFolder(run, { force = false } = {}) {
   if (!run?.id || !run.employeeId) return { ok: false, skipped: true };
   if (!run.paid) {
     return { ok: false, skipped: true, message: "Solo se archiva la colilla cuando el pago está marcado como pagado." };
   }
-  const runMarker = `payrollRunId=${String(run.id).trim()}`;
-  if (readDocs().some((d) => String(d.description || "").includes(runMarker))) {
-    return { ok: true, skipped: true };
+  const inflightKey = String(run.id);
+  const pending = payslipArchiveInflight.get(inflightKey);
+  if (pending) return pending;
+  const job = archivePayrollRunToEmployeeFolderNow(run, { force }).finally(() => {
+    payslipArchiveInflight.delete(inflightKey);
+  });
+  payslipArchiveInflight.set(inflightKey, job);
+  return job;
+}
+
+async function archivePayrollRunToEmployeeFolderNow(run, { force = false } = {}) {
+  if (!run?.id || !run.employeeId) return { ok: false, skipped: true };
+  if (!run.paid) {
+    return { ok: false, skipped: true, message: "Solo se archiva la colilla cuando el pago está marcado como pagado." };
+  }
+  const runMarker = payrollRunSlipMarker(run.id);
+  const existing = findPayrollSlipDoc(run.id);
+  if (existing && payrollSlipDocHasCurrentLayout(existing) && !force) {
+    return { ok: true, skipped: true, id: existing.id };
   }
   const employee = {
     id: run.employeeId,
@@ -1198,8 +1260,7 @@ async function archivePayrollRunToEmployeeFolder(run) {
   const typeLabel = payrollRunTypeLabel(run);
   const fallbackName = buildPayrollCompanyDocumentFileName(run, typeLabel);
   try {
-    const buildSlip =
-      typeof window.buildPayrollRunPayslipFileBlob === "function" ? window.buildPayrollRunPayslipFileBlob : null;
+    const buildSlip = await resolvePayslipBlobBuilder();
     if (!buildSlip) {
       return { ok: false, message: "Desprendible de Gestión humana no disponible." };
     }
@@ -1214,6 +1275,30 @@ async function archivePayrollRunToEmployeeFolder(run) {
     const uploaded = await uploadFileToR2(file, folder);
     const by = actor();
     const nowIso = new Date().toISOString();
+    const description = `Colilla de pago (Gestión humana) · ${typeLabel} · ${run.month || ""} · neto ${fmtCop(run.net)} · ${runMarker} · ${PAYSLIP_LAYOUT_MARKER}`;
+    if (existing?.id) {
+      const updated = normalizeCompanyDocumentRow({
+        ...existing,
+        fileName: uploaded.fileName || fileName,
+        type: "PDF",
+        documentCategory: "comprobante_pago",
+        folder: uploaded.folder || existing.folder || folder,
+        mimeType: uploaded.mimeType || "application/pdf",
+        sizeBytes: Number(uploaded.sizeBytes) || file.size || 0,
+        storageKey: uploaded.key,
+        description,
+        tags: "comprobante_pago",
+        updatedAt: nowIso,
+        ...employeeEntityMeta(employee),
+        process: "rrhh"
+      });
+      await writeAwaitServerEdit(
+        KEYS.companyDocuments,
+        readDocs().map((d) => (d.id === existing.id ? updated : d)),
+        existing.id
+      );
+      return { ok: true, updated: true, path: folder, fileName: updated.fileName, id: updated.id };
+    }
     const record = normalizeCompanyDocumentRow({
       id: newUuidV4(),
       fileName: uploaded.fileName || fileName,
@@ -1223,7 +1308,7 @@ async function archivePayrollRunToEmployeeFolder(run) {
       mimeType: uploaded.mimeType || "application/pdf",
       sizeBytes: Number(uploaded.sizeBytes) || file.size || 0,
       storageKey: uploaded.key,
-      description: `Colilla de pago (Gestión humana) · ${typeLabel} · ${run.month || ""} · neto ${fmtCop(run.net)} · ${runMarker}`,
+      description,
       tags: "comprobante_pago",
       uploadedBy: by,
       createdAt: nowIso,
@@ -1237,6 +1322,17 @@ async function archivePayrollRunToEmployeeFolder(run) {
     devWarn("[companyDocuments] archivePayrollRun", err?.message || err);
     return { ok: false, message: String(err?.message || err) };
   }
+}
+
+async function ensureCompactPayslipDocument(doc) {
+  if (!isPayrollSlipDocument(doc) || payrollSlipDocHasCurrentLayout(doc)) return doc;
+  const runId = payrollRunIdFromSlipDoc(doc);
+  if (!runId) return doc;
+  const run = read(KEYS.payrollRuns, []).find((r) => String(r.id) === runId);
+  if (!run?.paid) return doc;
+  const res = await archivePayrollRunToEmployeeFolder(run, { force: true });
+  if (!res?.ok) return doc;
+  return readDocs().find((d) => String(d.id) === String(res.id || doc.id)) || doc;
 }
 
 /** Metadatos de clasificación para evidencias archivadas en el expediente del colaborador. */
@@ -1796,10 +1892,11 @@ async function backfillEmployeeHireDocuments(opts = {}) {
   return { created, pending: 0 };
 }
 
-/** Archiva colillas solo de liquidaciones ya marcadas como pagadas (formato GH). */
+/** Archiva o actualiza colillas de liquidaciones pagadas al formato de 1 hoja. */
 async function backfillPaidPayrollSlips() {
   if (!canUpload()) return { created: 0 };
-  if (typeof window.buildPayrollRunPayslipFileBlob !== "function") {
+  const buildSlip = await resolvePayslipBlobBuilder();
+  if (!buildSlip) {
     return { created: 0, skipped: true };
   }
   const runs = read(KEYS.payrollRuns, []).filter((r) => r?.id && r.employeeId && r.paid);
@@ -1810,7 +1907,7 @@ async function backfillPaidPayrollSlips() {
     for (const run of slice) {
       try {
         const res = await archivePayrollRunToEmployeeFolder(run);
-        if (res?.created) created += 1;
+        if (res?.created || res?.updated) created += 1;
       } catch (err) {
         devWarn("[companyDocuments] backfillPaidSlip", err?.message || err);
       }
@@ -1839,7 +1936,7 @@ async function runOfficialEmployeeDocumentsBackfill() {
       G.renderPortalView?.();
     }
     if (Number(slips?.created || 0) > 0) {
-      G.notify?.("Gestión documental: colillas de pagos marcados como pagados archivadas.", "success");
+      G.notify?.("Gestión documental: comprobantes de pago actualizados a 1 hoja.", "success");
     }
     return { ok: true, hire, slips };
   })().finally(() => {
@@ -3403,6 +3500,7 @@ function buildPreviewDescriptionLine(doc, display) {
 }
 
 async function openPreview(doc) {
+  let previewDoc = doc;
   const IC = G.IC || {};
   const group = fileTypeGroup(doc.fileName, doc.mimeType);
   const canInline = canPreviewFileType(doc.fileName, doc.mimeType);
@@ -3451,7 +3549,7 @@ async function openPreview(doc) {
   const stage = overlay.querySelector("[data-stage]");
   overlay.querySelector("[data-download]")?.addEventListener("click", async () => {
     try {
-      await triggerDownload(doc);
+      await triggerDownload(previewDoc);
     } catch (err) {
       G.notify?.(String(err?.message || "No se pudo descargar."), "error");
     }
@@ -3460,18 +3558,18 @@ async function openPreview(doc) {
     try {
       if (docx) {
         if (!previewDocxHtml) {
-          const blob = await fetchCompanyDocumentBlob(doc);
+          const blob = await fetchCompanyDocumentBlob(previewDoc);
           previewDocxHtml = await convertDocxBlobToHtml(blob);
         }
-        openDocxHtmlInTab(doc.fileName, previewDocxHtml);
+        openDocxHtmlInTab(previewDoc.fileName, previewDocxHtml);
         return;
       }
-      const url = previewObjectUrl || (await resolvePreviewObjectUrl(doc));
+      const url = previewObjectUrl || (await resolvePreviewObjectUrl(previewDoc));
       if (!previewObjectUrl) previewObjectUrl = url;
       window.open(url, "_blank", "noopener");
     } catch (err) {
       try {
-        window.open(await resolveDownloadUrl(doc, { disposition: "inline" }), "_blank", "noopener");
+        window.open(await resolveDownloadUrl(previewDoc, { disposition: "inline" }), "_blank", "noopener");
       } catch (err2) {
         G.notify?.(String(err2?.message || err?.message || "No se pudo abrir."), "error");
       }
@@ -3493,9 +3591,15 @@ async function openPreview(doc) {
     }
     return;
   }
-  if (isPdfDocument(doc)) {
+  if (isPdfDocument(previewDoc)) {
     try {
-      const blob = await fetchCompanyDocumentBlob(doc);
+      if (isPayrollSlipDocument(previewDoc) && !payrollSlipDocHasCurrentLayout(previewDoc)) {
+        if (stage) {
+          stage.innerHTML = `<div class="doc-preview__loading"><span class="doc-preview__spinner"></span>Actualizando comprobante a 1 hoja…</div>`;
+        }
+        previewDoc = await ensureCompactPayslipDocument(previewDoc);
+      }
+      const blob = await fetchCompanyDocumentBlob(previewDoc);
       const buffer = await blob.arrayBuffer();
       const pdfBlob = new Blob([buffer], { type: "application/pdf" });
       previewObjectUrl = URL.createObjectURL(pdfBlob);
