@@ -17,6 +17,7 @@ import { MailService } from "../mail/mail.service";
 import { R2Service } from "../uploads/r2.service";
 import {
   computeColombiaPayrollForPeriodCut,
+  buildColombiaPayrollDevengosLines,
   monthUtcBounds,
   parseSqlDate,
   SMMLV_COP_REFERENCE_2026,
@@ -12985,7 +12986,20 @@ export class PortalService implements OnModuleInit {
           origen: "refresh_drafts",
           actualizadoEn: new Date().toISOString(),
           ausenciasEnPeriodo: absList.length
-        }
+        },
+        devengosLines: buildColombiaPayrollDevengosLines({
+          salarioBaseCop: Number((computed.novedadesJson as Record<string, unknown>).salarioBaseProporcionalCop ?? 0) || 0,
+          auxilioCop: computed.auxilioProporcionalCop,
+          extrasCop: preservedExtras,
+          bonusCop: preservedBonus,
+          travelCop: travelAllowance,
+          fuelCop: fuelReimbursement,
+          primaCop: payPrima ? primaCop : 0,
+          interesesCop: payInt ? intCop : 0,
+          incapEpisodes: Array.isArray((computed.novedadesJson as Record<string, unknown>).ausenciasAjustes)
+            ? ((computed.novedadesJson as Record<string, unknown>).ausenciasAjustes as Record<string, unknown>[])
+            : []
+        })
       };
 
       const priorOrigin = String(ex?.origen_liquidacion || "").trim().toLowerCase();

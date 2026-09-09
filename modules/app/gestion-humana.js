@@ -203,6 +203,11 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
   }
   const employee = read(KEYS.payrollEmployees, []).find((e) => e.id === run.employeeId);
   const company = employee ? getCompanyById(employee.companyId) : null;
+  const employerName = (() => {
+    const n = String(company?.name || "").trim();
+    if (!n || /^antares$/i.test(n)) return "Transportes Antares";
+    return n.replace(/\bAntares\b/g, "Transportes Antares").replace(/Transportes Transportes Antares/g, "Transportes Antares");
+  })();
   const netStr = `$${parseNum(run.net).toLocaleString("es-CO")}`;
   const isTerm = String(run.payrollKind || "mensual") === "terminacion";
   const workedDays = parseNum(
@@ -216,7 +221,7 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
   );
   const paidAtLabel = run?.paidAt ? fmtDate(run.paidAt) : "-";
   const logoSrc = payrollDocumentLogoUrl(company);
-  const logoAlt = `Logo de ${String(company?.name || "Transportes Antares")}`;
+  const logoAlt = `Logo de ${employerName}`;
   const cleanSlipText = (value) =>
     String(value ?? "")
       .replace(/^\s*[A-Z]?\d{4,}\s*[-.:]\s*/i, "")
@@ -230,7 +235,11 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
     vencimiento_contrato: "Vencimiento de contrato",
     otro: "Otro"
   };
-  const fmtPay = (v) => `$${parseNum(v).toLocaleString("es-CO")}`;
+  const fmtPay = (v) => {
+    const n = parseNum(v);
+    if (n < 0) return `-$${Math.abs(n).toLocaleString("es-CO")}`;
+    return `$${n.toLocaleString("es-CO")}`;
+  };
   const cL = 'class="slip-td"';
   const cR = 'class="slip-td slip-td--num"';
   const cTotalL = 'class="slip-td slip-td--total"';
@@ -339,7 +348,7 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
       checklistBlock +
       slipNetBox("Total neto a consignar / pagar");
   } else {
-    const linesFromRun = resolvePayrollDevengosLines(run);
+    const linesFromRun = resolvePayrollDevengosLines(run, employee, read(KEYS.hrAbsences, []));
     const baseInt = parseNum(run.cesantiasInterestBaseCop);
     const diasInt = run.cesantiasInterestDays != null ? run.cesantiasInterestDays : "—";
     const intLabel =
@@ -351,7 +360,7 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
     if (linesFromRun && linesFromRun.length) {
       const showLine = (L) => {
         const code = String(L.code || "");
-        if (code.startsWith("INCAPACIDAD")) return true;
+        if (code.startsWith("INCAPACIDAD") || code.startsWith("NOVEDAD")) return parseNum(L.amount) !== 0;
         const a = parseNum(L.amount);
         return a > 0 || code === "SALARIO_ORDINARIO" || code === "AUXILIO_TRANSPORTE";
       };
@@ -382,9 +391,23 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
       const comb = parseNum(run.fuelReimbursement);
       const prima = parseNum(run.primaServiciosCop);
       const intCe = parseNum(run.interesesCesantiasCop);
-      const salarioBasicoDevengo = Math.max(0, parseNum(run.gross) - ex - au - bo - via - comb - prima - intCe);
+      const salarioBasicoDevengoRaw = Math.max(0, parseNum(run.gross) - ex - au - bo - via - comb - prima - intCe);
+      const incapLines = resolvePayrollIncapacityDevengoLines(run, employee, read(KEYS.hrAbsences, []));
+      const incapNet = incapLines.reduce((sum, L) => sum + parseNum(L.amount), 0);
+      const salarioBasicoDevengo = Math.max(0, Math.round(salarioBasicoDevengoRaw - incapNet));
+      const incapRows = incapLines
+        .filter((L) => parseNum(L.amount) !== 0)
+        .map((L) => {
+          let labelHtml = escapeHtml(cleanSlipText(String(L.label || L.code || "Incapacidad")));
+          if (L.incapacityNote) {
+            labelHtml += `<span class="slip-note">${escapeHtml(String(L.incapacityNote))}</span>`;
+          }
+          return `<tr><td ${cL}>${labelHtml}</td><td ${cR}>${fmtPay(L.amount)}</td></tr>`;
+        })
+        .join("");
       devRowsMes =
         `<tr><td ${cL}>Salario básico mensual (devengo ordinario)</td><td ${cR}>${fmtPay(salarioBasicoDevengo)}</td></tr>` +
+        incapRows +
         (ex > 0
           ? `<tr><td ${cL}>Horas extras, dominicales o recargos nocturnos</td><td ${cR}>${fmtPay(ex)}</td></tr>`
           : "") +
@@ -453,19 +476,37 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
       metaItem("Fecha terminación", sd.terminationDate || "-") +
       metaItem("Motivo", causeLabels[sd.terminationCause] || sd.terminationCause || "-");
   }
-  const absenceDetailRows = !isTerm ? resolvePayrollAbsenceSlipRows(run, read(KEYS.hrAbsences, []), employee) : [];
-  const absenceThead = `<thead><tr class="slip-thead slip-thead--3"><th>Ausentismo</th><th>Concepto</th><th class="slip-th--num">Cantidad</th></tr></thead>`;
-  const absenceDetailBlock = absenceDetailRows.length
+  const hrAbsencesForSlip = !isTerm ? read(KEYS.hrAbsences, []) : [];
+  const noveltyEpisodes = !isTerm ? resolvePayrollNoveltySlipRows(run, hrAbsencesForSlip, employee) : [];
+  const noveltyThead = `<thead><tr class="slip-thead slip-thead--5"><th>Novedad</th><th>Días</th><th class="slip-th--num">Descuento</th><th class="slip-th--num">Pago empleador</th><th>A cargo de</th></tr></thead>`;
+  const noveltyRowsHtml = noveltyEpisodes
+    .map((ep) => {
+      const days = parseNum(ep.days ?? ep.dias);
+      const deduct = parseNum(ep.deductSalaryCop ?? ep.descuentoSalarioCop);
+      const pay = parseNum(ep.payEmployerCop ?? ep.pagoEmpleadorCop);
+      const third = parseNum(ep.payThirdPartyCop ?? ep.pagoTerceroCop);
+      const payer = String(ep.payer || "Empleador");
+      const title = escapeHtml(cleanSlipText(String(ep.typeLabel || ep.label || ep.tipo || "Novedad")));
+      const concept = escapeHtml(cleanSlipText(String(ep.conceptLabel || ep.rangeLabel || "")));
+      const range = ep.rangeLabel ? `<span class="slip-note">${escapeHtml(String(ep.rangeLabel))}</span>` : "";
+      const note = ep.note || ep.nota ? `<span class="slip-note">${escapeHtml(String(ep.note || ep.nota))}</span>` : "";
+      const thirdNote =
+        third > 0 ? `<span class="slip-note">Pago estimado EPS/ARL: ${fmtPay(third)}</span>` : "";
+      return `<tr>
+        <td ${cL}>${title}${concept ? `<span class="slip-note">${concept}</span>` : ""}${range}${note}</td>
+        <td ${cR}>${escapeHtml(payrollFormatAbsenceQuantity(days))}</td>
+        <td ${cR}>${deduct !== 0 ? fmtPay(deduct) : "—"}</td>
+        <td ${cR}>${pay !== 0 ? fmtPay(pay) : "—"}</td>
+        <td ${cL}>${escapeHtml(payer)}${thirdNote}</td>
+      </tr>`;
+    })
+    .join("");
+  const absenceDetailBlock = noveltyEpisodes.length
     ? slipSection(
         "IV",
-        "Detalle de ausentismo",
-        "",
-        `${absenceThead}<tbody>${absenceDetailRows
-          .map(
-            (row) =>
-              `<tr><td ${cL}>${escapeHtml(cleanSlipText(String(row.typeLabel || "Ausentismo")))}</td><td ${cL}>${escapeHtml(cleanSlipText(String(row.conceptLabel || "")))}</td><td ${cR}>${escapeHtml(payrollFormatAbsenceQuantity(row.quantity))}</td></tr>`
-          )
-          .join("")}</tbody>`
+        "Novedades de nómina",
+        "Vacaciones, licencias, permisos, suspensiones e incapacidades del período. El descuento y el pago del empleador también aparecen en Devengos cuando afectan el neto.",
+        `${noveltyThead}<tbody>${noveltyRowsHtml}</tbody>`
       )
     : "";
   const disclaimerPieces = [];
@@ -480,9 +521,8 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
       disclaimerPieces.push(
         `Intereses de cesantías (Ley 52/1975, ${CO_CESANTIAS_INTERES_ANUAL_PCT}% anual): pago en enero del año siguiente al período causado.`
       );
-    const incNv = run.noveltiesDetail?.incapacity;
-    if (incNv && Array.isArray(incNv.episodes) && incNv.episodes.length) {
-      disclaimerPieces.push("Incapacidad: montos orientativos; valide con EPS/ARL y contador.");
+    if (noveltyEpisodes.length) {
+      disclaimerPieces.push("Novedades de nómina: valores orientativos; valide con EPS/ARL y contador.");
     }
   }
   const disclaimer =
@@ -622,6 +662,7 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
       font-size: .66rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase;
     }
     .slip-th--num, .slip-td--num { text-align: right; font-variant-numeric: tabular-nums; }
+    .slip-thead--5 th { font-size: .62rem; padding: 5px 6px; }
     .slip-td {
       padding: 4px 8px; border-top: 1px solid #edf2f7; vertical-align: top; color: #243b53;
     }
@@ -684,7 +725,7 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
             <div>
               <p class="slip-header__kicker">Comprobante oficial de pago</p>
               <h1 class="slip-header__title">${escapeHtml(h1Title)}</h1>
-              <p class="slip-header__company">${escapeHtml(String(company?.name || "Transportes Antares"))}</p>
+              <p class="slip-header__company">${escapeHtml(employerName)}</p>
             </div>
             <div class="slip-logo">
               <img src="${escapeAttr(logoSrc)}" alt="${escapeAttr(logoAlt)}" />
@@ -700,7 +741,7 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
               ${periodDisplay.meta ? `<p class="slip-period-legal__meta">${escapeHtml(String(periodDisplay.meta))}</p>` : ""}
             </div>
             <div class="slip-meta">
-              ${metaItem("Empleador", company?.name || "Antares")}
+              ${metaItem("Empleador", employerName)}
               ${metaItem("Trabajador", run.employeeName || "", true)}
               ${metaItem("Documento", employee?.idDoc || "-")}
               ${metaItem("Cargo", employee?.position || "-")}
@@ -714,7 +755,7 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
           ${absenceDetailBlock}
           ${disclaimer}
           ${signatureBlock}
-          <p class="slip-footer">Documento generado por Antares · ${escapeHtml(String(company?.name || "Transportes Antares"))}</p>
+          <p class="slip-footer">Documento generado por Transportes Antares · ${escapeHtml(employerName)}</p>
           <div class="slip-actions no-print"><button type="button" class="slip-print-btn" onclick="window.print()">Imprimir / guardar PDF</button></div>
           </div>
         </article>

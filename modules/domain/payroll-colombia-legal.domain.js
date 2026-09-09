@@ -322,21 +322,29 @@ export function calcColombiaIncapacityEpsDayAdjustmentCop({
   const idx = Math.max(1, Math.floor(parseNum(dayIndexInEpisode)));
   const monthly = Math.max(0, parseNum(monthlySalary));
   const sm = Math.max(0, parseNum(smmlv));
-  if (daily <= 0) return { adjustCop: 0, payer: "—", pct: 0 };
+  if (daily <= 0) return { adjustCop: 0, payer: "—", pct: 0, deductCop: 0, payCop: 0 };
+  const deductCop = -Math.round(daily);
+  const withSplit = (adjustCop, payer, pct) => ({
+    adjustCop,
+    payer,
+    pct,
+    deductCop,
+    payCop: Math.round(adjustCop - deductCop)
+  });
   if (monthly > 0 && monthly <= sm) {
     const pct = idx <= 2 ? 1 : idx <= 90 ? 0.6667 : idx <= 180 ? 0.5 : 0.5;
-    return { adjustCop: Math.round(-daily * (1 - pct)), payer: idx <= 2 ? "Empleador 100%" : "EPS", pct };
+    return withSplit(Math.round(-daily * (1 - pct)), idx <= 2 ? "Empleador 100%" : "EPS", pct);
   }
   if (idx <= 2) {
-    return { adjustCop: Math.round(-daily * (1 / 3)), payer: "Empleador ~66,7%", pct: 0.6667 };
+    return withSplit(Math.round(-daily * (1 / 3)), "Empleador ~66,7%", 0.6667);
   }
   if (idx <= 90) {
-    return { adjustCop: -Math.round(daily), payer: "EPS 66,7%", pct: 0 };
+    return withSplit(-Math.round(daily), "EPS 66,7%", 0);
   }
   if (idx <= 180) {
-    return { adjustCop: -Math.round(daily), payer: "EPS 50%", pct: 0 };
+    return withSplit(-Math.round(daily), "EPS 50%", 0);
   }
-  return { adjustCop: -Math.round(daily), payer: "EPS 50% (prorrogado)", pct: 0 };
+  return withSplit(-Math.round(daily), "EPS 50% (prorrogado)", 0);
 }
 
 /** Provisión mensual cesantías: salario × días ÷ 360. */

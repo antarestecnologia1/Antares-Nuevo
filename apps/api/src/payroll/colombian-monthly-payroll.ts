@@ -103,7 +103,16 @@ export type NoveltyClassification =
   | { kind: "vacaciones"; label: string }
   | { kind: "incapacidad_eps"; label: string }
   | { kind: "incapacidad_arl"; label: string }
+  | { kind: "licencia_maternidad"; label: string }
+  | { kind: "licencia_paternidad"; label: string }
+  | { kind: "licencia_luto"; label: string }
+  | { kind: "calamidad_domestica"; label: string }
+  | { kind: "permiso_cita_medica"; label: string }
+  | { kind: "permiso_citacion_judicial"; label: string }
+  | { kind: "permiso_sufragio"; label: string }
+  | { kind: "licencia_remunerada"; label: string }
   | { kind: "licencia_no_remunerada"; label: string }
+  | { kind: "suspension"; label: string }
   | { kind: "pagada_otra"; label: string };
 
 function humanizeAusenciaTipo(tipo: string): string {
@@ -120,6 +129,7 @@ function humanizeAusenciaTipo(tipo: string): string {
   if ((t.includes("cita") && t.includes("med")) || t.includes("medic")) return "Permiso cita médica";
   if (t.includes("judic")) return "Permiso citación judicial";
   if (t.includes("sufrag") || t.includes("vot")) return "Permiso por sufragio";
+  if (t.includes("suspens")) return "Suspensión";
   if (/sin\s*goce|no.?remuner/i.test(t)) return "Licencia no remunerada";
   if (t.includes("licen") || t.includes("permiso")) return "Licencia remunerada";
   return raw;
@@ -235,14 +245,130 @@ export function classifyAusenciaTipo(tipo: string, observaciones: string | null)
   if (/\barl\b|origen.?labor|risk|riesgo.?labor/i.test(obs) || t.includes("arl")) {
     return { kind: "incapacidad_arl", label: humanizeAusenciaTipo(tipo) || "Incapacidad ARL" };
   }
+  if (t.includes("suspens")) {
+    return { kind: "suspension", label: humanizeAusenciaTipo(tipo) || "Suspensión" };
+  }
   if (/sin\s*goce|no.?remuner/i.test(t) || /sin\s*goce|no.?remuner/i.test(obs)) {
     return { kind: "licencia_no_remunerada", label: humanizeAusenciaTipo(tipo) || "Licencia no remunerada" };
+  }
+  if (t.includes("matern")) {
+    return { kind: "licencia_maternidad", label: humanizeAusenciaTipo(tipo) || "Licencia de maternidad" };
+  }
+  if (t.includes("patern")) {
+    return { kind: "licencia_paternidad", label: humanizeAusenciaTipo(tipo) || "Licencia de paternidad" };
   }
   if (t.includes("incapaci") || t === "eps" || /\beps\b/.test(obs)) {
     return { kind: "incapacidad_eps", label: humanizeAusenciaTipo(tipo) || "Incapacidad EPS" };
   }
   if (t.includes("vacac")) return { kind: "vacaciones", label: humanizeAusenciaTipo(tipo) || "Vacaciones" };
-  return { kind: "pagada_otra", label: humanizeAusenciaTipo(tipo) || "Otra ausencia remunerada orientativa" };
+  if (t.includes("luto") || t.includes("duelo")) {
+    return { kind: "licencia_luto", label: humanizeAusenciaTipo(tipo) || "Licencia por luto" };
+  }
+  if (t.includes("calam")) {
+    return { kind: "calamidad_domestica", label: humanizeAusenciaTipo(tipo) || "Calamidad doméstica" };
+  }
+  if ((t.includes("cita") && t.includes("med")) || t.includes("medic")) {
+    return { kind: "permiso_cita_medica", label: humanizeAusenciaTipo(tipo) || "Permiso cita médica" };
+  }
+  if (t.includes("judic")) {
+    return { kind: "permiso_citacion_judicial", label: humanizeAusenciaTipo(tipo) || "Permiso citación judicial" };
+  }
+  if (t.includes("sufrag") || t.includes("vot")) {
+    return { kind: "permiso_sufragio", label: humanizeAusenciaTipo(tipo) || "Permiso por sufragio" };
+  }
+  if (t.includes("licen") || t.includes("permiso")) {
+    return { kind: "licencia_remunerada", label: humanizeAusenciaTipo(tipo) || "Licencia remunerada" };
+  }
+  return { kind: "pagada_otra", label: humanizeAusenciaTipo(tipo) || "Otra ausencia remunerada" };
+}
+
+function ymdUtc(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+function nCop(v: unknown): number {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.round(n) : 0;
+}
+
+export type PayrollDevengoLine = {
+  code: string;
+  label: string;
+  amount: number;
+  incapacityNote?: string;
+};
+
+function incapacityEpisodeToDevengoLines(ep: Record<string, unknown>, index: number): PayrollDevengoLine[] {
+  const days = nCop(ep.days ?? ep.dias);
+  const deduct = nCop(ep.descuentoSalarioCop ?? ep.deductSalaryCop);
+  const pay = nCop(ep.pagoEmpleadorCop ?? ep.payEmployerCop);
+  const labelBase = `${String(ep.label || ep.tipo || "Incapacidad")} · ${days || "—"} días liq. · ${String(ep.rangeLabel || "")}`.trim();
+  const note = ep.nota || ep.note ? String(ep.nota || ep.note) : "";
+  const kind = String(ep.tipo || ep.kind || "").toLowerCase();
+  const isUnpaid = kind.includes("licencia_no_remunerada") || kind.includes("no_remuner");
+  const lines: PayrollDevengoLine[] = [];
+  if (deduct !== 0) {
+    lines.push({
+      code: `INCAPACIDAD_DESC_${index}`,
+      label: `${isUnpaid ? "Descuento salario (licencia no remunerada)" : "Descuento salario por incapacidad"} · ${labelBase}`,
+      amount: deduct,
+      incapacityNote: note
+    });
+  }
+  if (pay !== 0) {
+    lines.push({
+      code: `INCAPACIDAD_PAGO_${index}`,
+      label: `Pago incapacidad a cargo del empleador · ${labelBase}`,
+      amount: pay,
+      incapacityNote: note
+    });
+  }
+  if (!lines.length && (days > 0 || nCop(ep.ajusteSalarioOrientativoCop ?? ep.adjustCop) !== 0)) {
+    lines.push({
+      code: `INCAPACIDAD_EP_${index}`,
+      label: labelBase,
+      amount: nCop(ep.ajusteSalarioOrientativoCop ?? ep.adjustCop),
+      incapacityNote: note
+    });
+  }
+  return lines;
+}
+
+export function buildColombiaPayrollDevengosLines(opts: {
+  salarioBaseCop: number;
+  auxilioCop: number;
+  extrasCop?: number;
+  bonusCop?: number;
+  travelCop?: number;
+  fuelCop?: number;
+  primaCop?: number;
+  interesesCop?: number;
+  incapEpisodes?: Record<string, unknown>[];
+}): PayrollDevengoLine[] {
+  const lines: PayrollDevengoLine[] = [
+    { code: "SALARIO_ORDINARIO", label: "Salario básico mensual (ordinario)", amount: Math.max(0, nCop(opts.salarioBaseCop)) },
+    {
+      code: "AUXILIO_TRANSPORTE",
+      label: "Auxilio legal de transporte (no constitutivo de salario)",
+      amount: Math.max(0, nCop(opts.auxilioCop))
+    }
+  ];
+  const extras = nCop(opts.extrasCop);
+  const bonus = nCop(opts.bonusCop);
+  const travel = nCop(opts.travelCop);
+  const fuel = nCop(opts.fuelCop);
+  const prima = nCop(opts.primaCop);
+  const intCe = nCop(opts.interesesCop);
+  if (extras > 0) lines.push({ code: "EXTRAS", label: "Horas extras, dominicales o recargos nocturnos", amount: extras });
+  if (bonus > 0) lines.push({ code: "BONIFICACIONES", label: "Bonificaciones y pagos ocasionales gravables", amount: bonus });
+  if (travel > 0) lines.push({ code: "VIATICOS", label: "Viáticos y anticipos de viaje (reintegro)", amount: travel });
+  if (fuel > 0) lines.push({ code: "REEMBOLSO_COMBUSTIBLE", label: "Reembolso combustible y gastos de ruta", amount: fuel });
+  if (prima > 0) lines.push({ code: "PRIMA_SERVICIOS", label: "Prima de servicios (CST)", amount: prima });
+  if (intCe > 0) lines.push({ code: "INT_CESANTIAS", label: "Intereses sobre cesantías (Ley 52/1975)", amount: intCe });
+  (Array.isArray(opts.incapEpisodes) ? opts.incapEpisodes : []).forEach((ep, i) => {
+    incapacityEpisodeToDevengoLines(ep, i).forEach((line) => lines.push(line));
+  });
+  return lines;
 }
 
 export type ColombiaPayrollCutDeps = {
@@ -302,6 +428,7 @@ export type ColombiaAutoPayrollResult = {
   grossTotal: number;
   netOrientativo: number;
   diasCalendarioServicioEnMes: number;
+  salarioBaseProporcionalCop: number;
   novedadesJson: Record<string, unknown>;
 };
 
@@ -409,83 +536,137 @@ export function computeColombiaPayrollForPeriodCut(d: ColombiaPayrollCutDeps): C
     const cl = classifyAusenciaTipo(ab.tipoAusencia, ab.observaciones);
     const ov = overlapInclusive(ab.fechaInicio, ab.fechaFin, serviceLo, serviceHi);
     if (!ov) continue;
+    const calendarDays = inclusiveCalendarDays(ov.s, ov.e);
+    const businessDays = inclusiveBusinessDays(ov.s, ov.e);
+    const recognized = Math.max(0, Number(ab.diasReconocidos ?? 0));
+    const concept = absenceConceptForSlip(ab);
+    let quantity = calendarDays;
+    if (cl.kind === "permiso_sufragio") {
+      quantity = recognized > 0 ? recognized : 0.5;
+    } else if (
+      recognized > 0 &&
+      ov.s.getTime() === ab.fechaInicio.getTime() &&
+      ov.e.getTime() === ab.fechaFin.getTime()
+    ) {
+      quantity = recognized;
+    } else if (concept.quantityKind === "business") {
+      quantity = businessDays;
+    }
+    const moneyDays =
+      cl.kind === "permiso_sufragio" ? quantity : concept.quantityKind === "business" ? businessDays : calendarDays;
+    const rangeLabel = `${ymdUtc(ov.s)} → ${ymdUtc(ov.e)}`;
+    const fullDeduct = moneyDays > 0 && daily > 0 ? -Math.round(daily * moneyDays) : 0;
+    const fullPay = moneyDays > 0 && daily > 0 ? Math.round(daily * moneyDays) : 0;
 
     if (cl.kind === "vacaciones") {
-      vacOverlapDaysAgg[`${ab.id}`] = {
-        dias: inclusiveCalendarDays(ov.s, ov.e),
-        label: cl.label
-      };
-      continue;
+      vacOverlapDaysAgg[`${ab.id}`] = { dias: businessDays, label: cl.label };
     }
 
-    if (cl.kind === "pagada_otra") {
-      incapEsp.push({
-        ausenciaId: ab.id,
-        tipo: cl.label,
-        dias: inclusiveCalendarDays(ov.s, ov.e),
-        ajusteSalarioOrientativoCop: 0,
-        nota:
-          String(ab.tipoAusencia).toLowerCase().includes("licencia")
-            ? "Licencias con goce u otras ausencias remuneradas: sin ajuste en este motor (registro informativo)."
-            : "Ausencia tratada como remunerada salvo pacto especial."
-      });
-      continue;
-    }
-
-    if (cl.kind === "licencia_no_remunerada") {
-      const days = inclusiveCalendarDays(ov.s, ov.e);
-      const ded = -Math.round(days * daily);
-      salarioAjuste += ded;
+    const pushEp = (row: Record<string, unknown>) => {
       incapEsp.push({
         ausenciaId: ab.id,
         tipo: cl.kind,
-        dias: days,
-        ajusteSalarioOrientativoCop: ded,
-        nota: "Descuento ~ salario÷30 × días sin goce de sueldo (validar colectivo / convenio)."
+        kind: cl.kind,
+        label: cl.label,
+        typeLabel: cl.label,
+        conceptLabel: concept.conceptLabel,
+        rangeLabel,
+        ...row
+      });
+    };
+
+    if (cl.kind === "incapacidad_eps") {
+      const toleranciaMinimo = salMonthly > 0 && salMonthly <= d.smmlv;
+      let netIncap = 0;
+      let deductIncap = 0;
+      let payIncap = 0;
+      const payerNotes: string[] = [];
+      const msDay = 86_400_000;
+      for (let cur = ov.s.getTime(); cur <= ov.e.getTime(); cur += msDay) {
+        const dt = new Date(cur);
+        const idx = episodeDayIndex(ab.fechaInicio, dt);
+        const dayAdj = calcColombiaIncapacityEpsDayAdjustmentCop({
+          dailySalary: daily,
+          dayIndexInEpisode: idx,
+          monthlySalary: salMonthly,
+          smmlv: d.smmlv
+        });
+        netIncap += dayAdj.adjustCop;
+        deductIncap += dayAdj.deductCop || 0;
+        payIncap += dayAdj.payCop || 0;
+        if (dayAdj.payer && !payerNotes.includes(dayAdj.payer)) payerNotes.push(dayAdj.payer);
+      }
+      const roundedIncap = Math.round(netIncap);
+      salarioAjuste += roundedIncap;
+      pushEp({
+        dias: calendarDays,
+        ajusteSalarioOrientativoCop: roundedIncap,
+        descuentoSalarioCop: Math.round(deductIncap),
+        pagoEmpleadorCop: Math.round(payIncap),
+        pagoTerceroCop: Math.max(0, Math.round(-Math.round(deductIncap) - Math.round(payIncap))),
+        payer: toleranciaMinimo && calendarDays <= 2 ? "Empleador" : "EPS y empleador",
+        nota: `Incapacidad común (EPS): ${payerNotes.join("; ") || "tabla Dec. 780/2016"}.`
       });
       continue;
     }
 
     if (cl.kind === "incapacidad_arl") {
-      const days = inclusiveCalendarDays(ov.s, ov.e);
-      const ded = -Math.round(days * daily);
-      salarioAjuste += ded;
-      incapEsp.push({
-        ausenciaId: ab.id,
-        tipo: cl.kind,
-        dias: days,
-        ajusteSalarioOrientativoCop: ded,
-        nota: "Incapacidad origen laboral / ARL: orientativamente excluida de nómina empresa (pago vía ARL ~100% del salario base orientativo)."
+      const deduct = calendarDays > 0 ? -Math.round(daily * calendarDays) : 0;
+      salarioAjuste += deduct;
+      pushEp({
+        dias: calendarDays,
+        ajusteSalarioOrientativoCop: deduct,
+        descuentoSalarioCop: deduct,
+        pagoEmpleadorCop: 0,
+        pagoTerceroCop: Math.abs(deduct),
+        payer: "ARL",
+        nota: "Incapacidad laboral (ARL): descuento en nómina empresa; pago a cargo de ARL."
       });
       continue;
     }
 
-    const toleranciaMinimo = salMonthly > 0 && salMonthly <= d.smmlv;
-    let netIncap = 0;
-    const msDay = 86_400_000;
-    for (let cur = ov.s.getTime(); cur <= ov.e.getTime(); cur += msDay) {
-      const dt = new Date(cur);
-      const idx = episodeDayIndex(ab.fechaInicio, dt);
-      const dayAdj = calcColombiaIncapacityEpsDayAdjustmentCop({
-        dailySalary: daily,
-        dayIndexInEpisode: idx,
-        monthlySalary: salMonthly,
-        smmlv: d.smmlv
+    if (cl.kind === "licencia_maternidad" || cl.kind === "licencia_paternidad") {
+      const deduct = calendarDays > 0 ? -Math.round(daily * calendarDays) : 0;
+      salarioAjuste += deduct;
+      pushEp({
+        dias: calendarDays,
+        ajusteSalarioOrientativoCop: deduct,
+        descuentoSalarioCop: deduct,
+        pagoEmpleadorCop: 0,
+        pagoTerceroCop: Math.abs(deduct),
+        payer: "EPS",
+        nota: `${cl.label}: prestación a cargo de la EPS (100% salario/IBC orientativo).`
       });
-      netIncap += dayAdj.adjustCop;
+      continue;
     }
-    const roundedIncap = Math.round(netIncap);
-    salarioAjuste += roundedIncap;
-    incapEsp.push({
-      ausenciaId: ab.id,
-      tipo: cl.kind,
-      dias: inclusiveCalendarDays(ov.s, ov.e),
-      ajusteSalarioOrientativoCop: roundedIncap,
-      nota: toleranciaMinimo
-        ? "Salario ≤ SMMLV: tabla EPS orientativa (100% empleador días 1-2; EPS etapas siguientes)."
-        : "Incapacidad origen común (EPS): tabla orientativa Dec. 780/2016 por día de episodio."
+
+    if (cl.kind === "licencia_no_remunerada" || cl.kind === "suspension") {
+      const deduct = calendarDays > 0 ? -Math.round(daily * calendarDays) : 0;
+      salarioAjuste += deduct;
+      pushEp({
+        dias: calendarDays,
+        ajusteSalarioOrientativoCop: deduct,
+        descuentoSalarioCop: deduct,
+        pagoEmpleadorCop: 0,
+        pagoTerceroCop: 0,
+        payer: "Ninguno",
+        nota:
+          cl.kind === "suspension"
+            ? "Suspensión: días sin remuneración (salario÷30)."
+            : "Licencia no remunerada: descuento de salario (salario÷30)."
+      });
+      continue;
+    }
+
+    pushEp({
+      dias: quantity,
+      ajusteSalarioOrientativoCop: 0,
+      descuentoSalarioCop: fullDeduct,
+      pagoEmpleadorCop: fullPay,
+      pagoTerceroCop: 0,
+      payer: "Empleador",
+      nota: `${cl.label}: remunerada por el empleador. Valor desglosado; el neto del período no cambia.`
     });
-    continue;
   }
 
   const salarioProp = Math.max(0, salarioBaseProp + salarioAjuste);
@@ -565,6 +746,21 @@ export function computeColombiaPayrollForPeriodCut(d: ColombiaPayrollCutDeps): C
     },
     vacaciones: vacOverlapDaysAgg,
     ausenciasAjustes: incapEsp,
+    salarioBaseProporcionalCop: salarioBaseProp,
+    incapacity: {
+      episodes: incapEsp,
+      totalAdjustCop: salarioAjuste,
+      smmlvRef: d.smmlv,
+      legalNote:
+        "Novedades de nómina: vacaciones, licencias, permisos, suspensiones e incapacidades. Se desglosa descuento, pago del empleador y lo a cargo de EPS/ARL."
+    },
+    devengosLines: buildColombiaPayrollDevengosLines({
+      salarioBaseCop: salarioBaseProp,
+      auxilioCop: auxProp,
+      primaCop: payPrima ? primaCop : 0,
+      interesesCop: payInt ? interesesCop : 0,
+      incapEpisodes: incapEsp
+    }),
     primaServiciosAutomática: payPrima
       ? {
           diasSemestreOrientativos: primaDays,
@@ -606,6 +802,7 @@ export function computeColombiaPayrollForPeriodCut(d: ColombiaPayrollCutDeps): C
     grossTotal,
     netOrientativo,
     diasCalendarioServicioEnMes: diasEnCorte,
+    salarioBaseProporcionalCop: salarioBaseProp,
     novedadesJson
   };
 }

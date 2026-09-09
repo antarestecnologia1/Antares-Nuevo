@@ -896,24 +896,153 @@ export function buildPayrollMensualDevengosLines({
   if (prima > 0) lines.push({ code: "PRIMA_SERVICIOS", label: "Prima de servicios (CST)", amount: prima });
   if (intCe > 0) lines.push({ code: "INT_CESANTIAS", label: "Intereses sobre cesantías (Ley 52/1975)", amount: intCe });
   const incapEp = Array.isArray(incapacityEpisodes) ? incapacityEpisodes : [];
-  incapEp.forEach((ep, i) => {
-    const amt = Math.round(parseNum(ep.adjustCop));
-    lines.push({
-      code: `INCAPACIDAD_EP_${i}`,
-      label: `${String(ep.label || "Incapacidad")} · ${ep.days ?? "—"} días liq. · ${String(ep.rangeLabel || "")}`,
-      amount: amt,
-      incapacityNote: ep.note ? String(ep.note) : ""
-    });
+  expandIncapacityEpisodesToDevengoLines(incapEp).forEach((line) => lines.push(line));
+  return lines;
+}
+
+function incapacityEpisodeMoney(ep) {
+  const days = parseNum(ep?.days ?? ep.dias);
+  const adjust = Math.round(parseNum(ep?.adjustCop ?? ep.ajusteSalarioOrientativoCop));
+  const deduct = Math.round(parseNum(ep?.deductSalaryCop ?? ep.descuentoSalarioCop));
+  const pay = Math.round(parseNum(ep?.payEmployerCop ?? ep.pagoEmpleadorCop));
+  return { days, adjust, deduct, pay };
+}
+
+export function expandIncapacityEpisodesToDevengoLines(episodes) {
+  const lines = [];
+  (Array.isArray(episodes) ? episodes : []).forEach((ep, i) => {
+    const { days, deduct, pay } = incapacityEpisodeMoney(ep);
+    const labelBase = `${String(ep.label || ep.tipo || "Incapacidad")} · ${days || "—"} días liq. · ${String(ep.rangeLabel || "")}`.trim();
+    const note = ep.note || ep.nota ? String(ep.note || ep.nota) : "";
+    const kind = String(ep.kind || ep.tipo || ep.typeKey || "").toLowerCase();
+    const isUnpaid =
+      kind.includes("licencia_no_remunerada") ||
+      kind.includes("no_remuner") ||
+      kind.includes("suspension");
+    if (deduct !== 0) {
+      lines.push({
+        code: `INCAPACIDAD_DESC_${i}`,
+        label: `${isUnpaid ? "Descuento salario (sin remuneración)" : "Descuento salario por novedad"} · ${labelBase}`,
+        amount: deduct,
+        incapacityNote: note
+      });
+    }
+    if (pay !== 0) {
+      lines.push({
+        code: `INCAPACIDAD_PAGO_${i}`,
+        label: `Pago de la novedad a cargo del empleador · ${labelBase}`,
+        amount: pay,
+        incapacityNote: note
+      });
+    }
+    if (deduct === 0 && pay === 0) {
+      lines.push({
+        code: `INCAPACIDAD_EP_${i}`,
+        label: labelBase,
+        amount: Math.round(parseNum(ep.adjustCop ?? ep.ajusteSalarioOrientativoCop)),
+        incapacityNote: note
+      });
+    }
   });
   return lines;
 }
 
-export function resolvePayrollDevengosLines(run) {
+function collectPayrollIncapacityEpisodes(run, employee, absencesAll) {
+  const bounds = payrollResolveRunPeriodBounds(run, employee);
+  if (bounds && employee) {
+    const live = computePayrollNoveltiesForPeriod({
+      employee,
+      periodStart: bounds.start,
+      periodEnd: bounds.end,
+      absencesAll
+    });
+    if (live.episodes.length) return live.episodes;
+  }
+  const nv = run?.noveltiesDetail;
+  if (nv && typeof nv === "object") {
+    if (Array.isArray(nv.incapacity?.episodes) && nv.incapacity.episodes.length) {
+      return nv.incapacity.episodes;
+    }
+    if (Array.isArray(nv.ausenciasAjustes) && nv.ausenciasAjustes.length) {
+      return nv.ausenciasAjustes.map((item) => ({
+        ...item,
+        label: item.label || item.tipo,
+        days: item.days ?? item.dias,
+        adjustCop: item.adjustCop ?? item.ajusteSalarioOrientativoCop,
+        deductSalaryCop: item.deductSalaryCop ?? item.descuentoSalarioCop,
+        payEmployerCop: item.payEmployerCop ?? item.pagoEmpleadorCop,
+        payThirdPartyCop: item.payThirdPartyCop ?? item.pagoTerceroCop,
+        payer: item.payer,
+        note: item.note || item.nota,
+        typeLabel: item.typeLabel || item.label || item.tipo,
+        conceptLabel: item.conceptLabel,
+        rangeLabel: item.rangeLabel
+      }));
+    }
+  }
+  return [];
+}
+
+function reconstructIncapacityEpisodeMoney(ep, dailyHint) {
+  const money = incapacityEpisodeMoney(ep);
+  if (money.deduct !== 0 || money.pay !== 0) return money;
+  const days = money.days;
+  const daily = Math.max(0, parseNum(dailyHint));
+  if (days > 0 && daily > 0) {
+    const deduct = -Math.round(daily * days);
+    const pay = Math.round(money.adjust - deduct);
+    return { days, adjust: money.adjust, deduct, pay };
+  }
+  return money;
+}
+
+export function resolvePayrollNoveltySlipRows(run, absencesAll, employee) {
+  return collectPayrollIncapacityEpisodes(run, employee, absencesAll);
+}
+
+export function resolvePayrollIncapacityDevengoLines(run, employee, absencesAll) {
+  const episodes = collectPayrollIncapacityEpisodes(run, employee, absencesAll);
+  if (!episodes.length) return [];
+  const dailyHint = parseNum(employee?.baseSalary) > 0 ? parseNum(employee.baseSalary) / 30 : 0;
+  return expandIncapacityEpisodesToDevengoLines(
+    episodes.map((ep) => {
+      const reconstructed = reconstructIncapacityEpisodeMoney(ep, dailyHint);
+      return {
+        ...ep,
+        days: reconstructed.days,
+        deductSalaryCop: reconstructed.deduct,
+        payEmployerCop: reconstructed.pay,
+        adjustCop: reconstructed.adjust
+      };
+    })
+  );
+}
+
+export function resolvePayrollDevengosLines(run, employee, absencesAll) {
   if (!run || typeof run !== "object") return null;
-  if (Array.isArray(run.devengosLines) && run.devengosLines.length) return run.devengosLines;
-  const nv = run.noveltiesDetail;
-  if (nv && typeof nv === "object" && Array.isArray(nv.devengosLines) && nv.devengosLines.length) return nv.devengosLines;
-  return null;
+  const stored =
+    (Array.isArray(run.devengosLines) && run.devengosLines.length ? run.devengosLines : null) ||
+    (run.noveltiesDetail &&
+    typeof run.noveltiesDetail === "object" &&
+    Array.isArray(run.noveltiesDetail.devengosLines) &&
+    run.noveltiesDetail.devengosLines.length
+      ? run.noveltiesDetail.devengosLines
+      : null);
+  const expanded = resolvePayrollIncapacityDevengoLines(run, employee, absencesAll);
+  if (!expanded.length) return stored;
+  if (!stored) return null;
+  const hadNetLines = stored.some((L) => String(L.code || "").startsWith("INCAPACIDAD"));
+  const withoutOld = stored
+    .filter((L) => !String(L.code || "").startsWith("INCAPACIDAD"))
+    .map((L) => ({ ...L }));
+  if (!hadNetLines) {
+    const net = expanded.reduce((sum, L) => sum + parseNum(L.amount), 0);
+    const salario = withoutOld.find((L) => String(L.code) === "SALARIO_ORDINARIO");
+    if (salario) {
+      salario.amount = Math.round(parseNum(salario.amount) - net);
+    }
+  }
+  return [...withoutOld, ...expanded];
 }
 
 /**
@@ -1532,6 +1661,208 @@ export function payrollAbsenceIsIncapacityType(absenceType) {
   return key === "incapacidad_eps" || key === "incapacidad_arl";
 }
 
+export function computePayrollNoveltyEpisode({
+  absence,
+  overlapStart,
+  overlapEnd,
+  dailySalary,
+  monthlySalary,
+  smmlv
+}) {
+  const typeKey = payrollNormalizeAbsenceTypeKey(absence?.absenceType || absence?.type);
+  const subtype = payrollNormalizeAbsenceSubtype(typeKey, absence?.absenceSubtype || absence?.subtype);
+  const meta = payrollGetAbsenceTypeMeta(typeKey, subtype);
+  const calendarDays = payrollInclusiveCalendarDaysLocal(overlapStart, overlapEnd);
+  const businessDays = payrollInclusiveBusinessDaysLocal(overlapStart, overlapEnd);
+  const recognized = parseNum(absence?.recognizedDays ?? absence?.diasReconocidos);
+  const abStart = payrollParseLocalYmd(absence?.startDate);
+  const abEnd = payrollParseLocalYmd(absence?.endDate) || abStart;
+  const fullOverlap =
+    Boolean(abStart) &&
+    payrollFmtYmdLocal(overlapStart) === payrollFmtYmdLocal(abStart) &&
+    payrollFmtYmdLocal(overlapEnd) === payrollFmtYmdLocal(abEnd);
+  let quantity = calendarDays;
+  if (typeKey === "permiso_sufragio") {
+    quantity = recognized > 0 ? recognized : subtype === "jurado" ? 1 : 0.5;
+  } else if (recognized > 0 && (fullOverlap || meta.quantityKind === "recognized")) {
+    quantity = recognized;
+  } else if (meta.quantityKind === "business") {
+    quantity = businessDays;
+  }
+  const moneyDays =
+    typeKey === "permiso_sufragio"
+      ? quantity
+      : meta.quantityKind === "business"
+        ? businessDays
+        : calendarDays;
+  const daily = Math.max(0, parseNum(dailySalary));
+  const monthly = Math.max(0, parseNum(monthlySalary));
+  const sm = Math.max(0, parseNum(smmlv) || CO_PAYROLL.smmlv);
+  const rangeLabel = `${payrollFmtYmdLocal(overlapStart)} → ${payrollFmtYmdLocal(overlapEnd)}`;
+  const rad = String(absence?.supportNumber || "").trim();
+  const label = rad ? `${meta.label} · radicado ${rad}` : meta.label;
+  const fullDeduct = moneyDays > 0 && daily > 0 ? -Math.round(daily * moneyDays) : 0;
+  const fullPay = moneyDays > 0 && daily > 0 ? Math.round(daily * moneyDays) : 0;
+  const base = {
+    kind: typeKey,
+    tipo: typeKey,
+    absenceId: absence?.id,
+    typeKey,
+    typeLabel: meta.label,
+    conceptLabel: meta.conceptLabel,
+    label,
+    days: quantity,
+    dias: quantity,
+    rangeLabel,
+    deductSalaryCop: 0,
+    payEmployerCop: 0,
+    payThirdPartyCop: 0,
+    adjustCop: 0,
+    payer: "Empleador",
+    note: ""
+  };
+
+  if (typeKey === "incapacidad_eps") {
+    let netIncap = 0;
+    let deductIncap = 0;
+    let payIncap = 0;
+    const payerNotes = [];
+    const msDay = 86400000;
+    const episodeStart = abStart || overlapStart;
+    for (let cur = overlapStart.getTime(); cur <= overlapEnd.getTime(); cur += msDay) {
+      const dt = new Date(cur);
+      const idx = payrollInclusiveCalendarDaysLocal(episodeStart, dt);
+      const dayAdj = calcColombiaIncapacityEpsDayAdjustmentCop({
+        dailySalary: daily,
+        dayIndexInEpisode: idx,
+        monthlySalary: monthly,
+        smmlv: sm
+      });
+      netIncap += dayAdj.adjustCop;
+      deductIncap += parseNum(dayAdj.deductCop);
+      payIncap += parseNum(dayAdj.payCop);
+      if (dayAdj.payer && !payerNotes.includes(dayAdj.payer)) payerNotes.push(dayAdj.payer);
+    }
+    return {
+      ...base,
+      days: calendarDays,
+      dias: calendarDays,
+      deductSalaryCop: Math.round(deductIncap),
+      payEmployerCop: Math.round(payIncap),
+      payThirdPartyCop: Math.max(0, Math.round(-Math.round(deductIncap) - Math.round(payIncap))),
+      adjustCop: Math.round(netIncap),
+      payer: monthly > 0 && monthly <= sm && calendarDays <= 2 ? "Empleador" : "EPS y empleador",
+      note: `Incapacidad común (EPS): ${payerNotes.join("; ") || "tabla Dec. 780/2016"}. Descuento del salario y pago a cargo del empleador según la etapa.`
+    };
+  }
+
+  if (typeKey === "incapacidad_arl") {
+    const deduct = calendarDays > 0 && daily > 0 ? -Math.round(daily * calendarDays) : 0;
+    return {
+      ...base,
+      days: calendarDays,
+      dias: calendarDays,
+      deductSalaryCop: deduct,
+      payEmployerCop: 0,
+      payThirdPartyCop: Math.abs(deduct),
+      adjustCop: deduct,
+      payer: "ARL",
+      note: "Incapacidad laboral (ARL): el salario de esos días se descuenta de la nómina de la empresa; el pago va a cargo de la ARL."
+    };
+  }
+
+  if (typeKey === "licencia_maternidad" || typeKey === "licencia_paternidad") {
+    const deduct = calendarDays > 0 && daily > 0 ? -Math.round(daily * calendarDays) : 0;
+    return {
+      ...base,
+      days: calendarDays,
+      dias: calendarDays,
+      deductSalaryCop: deduct,
+      payEmployerCop: 0,
+      payThirdPartyCop: Math.abs(deduct),
+      adjustCop: deduct,
+      payer: "EPS",
+      note: `${meta.label}: prestacion económica a cargo de la EPS (100% del salario/IBC orientativo). Se descuenta de la nómina del empleador.`
+    };
+  }
+
+  if (typeKey === "licencia_no_remunerada" || typeKey === "suspension") {
+    const deduct = calendarDays > 0 && daily > 0 ? -Math.round(daily * calendarDays) : 0;
+    return {
+      ...base,
+      days: calendarDays,
+      dias: calendarDays,
+      deductSalaryCop: deduct,
+      payEmployerCop: 0,
+      payThirdPartyCop: 0,
+      adjustCop: deduct,
+      payer: "Ninguno",
+      note:
+        typeKey === "suspension"
+          ? "Suspensión: días sin remuneración (salario÷30 × días calendario del período)."
+          : "Licencia no remunerada: descuento de salario por días del período (salario÷30)."
+    };
+  }
+
+  return {
+    ...base,
+    deductSalaryCop: fullDeduct,
+    payEmployerCop: fullPay,
+    payThirdPartyCop: 0,
+    adjustCop: 0,
+    payer: "Empleador",
+    note: `${meta.label}: remunerada por el empleador. El valor (salario÷30 × días) queda desglosado y el neto del período no cambia.`
+  };
+}
+
+export function computePayrollNoveltiesForPeriod({ employee, periodStart, periodEnd, absencesAll }) {
+  const smmlv = CO_PAYROLL.smmlv;
+  const baseSalary = Math.max(0, parseNum(employee?.baseSalary));
+  const daily = baseSalary > 0 ? baseSalary / 30 : 0;
+  if (!periodStart || !periodEnd || daily <= 0) {
+    return { adjustCop: 0, episodes: [], smmlv };
+  }
+  const hire = payrollParseLocalYmd(employee?.startDate);
+  const lo = payrollMaxDateLocal(hire || periodStart, periodStart);
+  const hi = periodEnd;
+  if (lo > hi) return { adjustCop: 0, episodes: [], smmlv };
+  const absences = (absencesAll || []).filter((a) => String(a.employeeId || "") === String(employee?.id || ""));
+  let salarioAjuste = 0;
+  const episodes = [];
+  for (const ab of absences) {
+    const typeKey = payrollNormalizeAbsenceTypeKey(ab.absenceType || ab.type);
+    if (!typeKey) continue;
+    const abStart = payrollParseLocalYmd(ab.startDate);
+    const abEnd = payrollParseLocalYmd(ab.endDate) || abStart;
+    if (!abStart || !abEnd) continue;
+    const ov = payrollOverlapInclusiveLocal(abStart, abEnd, lo, hi);
+    if (!ov) continue;
+    const episode = computePayrollNoveltyEpisode({
+      absence: ab,
+      overlapStart: ov.s,
+      overlapEnd: ov.e,
+      dailySalary: daily,
+      monthlySalary: baseSalary,
+      smmlv
+    });
+    salarioAjuste += parseNum(episode.adjustCop);
+    episodes.push(episode);
+  }
+  return { adjustCop: Math.round(salarioAjuste), episodes, smmlv };
+}
+
+/** @deprecated Preferir computePayrollNoveltiesForPeriod */
+export function computePayrollIncapacityColombiaForMonth({ employee, liquidacionMonthYm, absencesAll }) {
+  const range = monthRange(liquidacionMonthYm);
+  if (!range) return { adjustCop: 0, episodes: [], smmlv: CO_PAYROLL.smmlv };
+  return computePayrollNoveltiesForPeriod({
+    employee,
+    periodStart: range.start,
+    periodEnd: range.end,
+    absencesAll
+  });
+}
+
 export function payrollAbsenceRecognizedUnit(absenceType, absenceSubtype = "") {
   const typeKey = payrollNormalizeAbsenceTypeKey(absenceType);
   if (typeKey === "permiso_sufragio") return "jornada";
@@ -2128,108 +2459,6 @@ export function payrollClassifyIncapacityKind(absenceType, observaciones) {
     return { kind: "incapacidad_arl", label: "Incapacidad origen laboral (ARL)" };
   }
   return { kind: "incapacidad_eps", label: "Incapacidad común (EPS)" };
-}
-
-/**
- * Ajuste orientativo al devengo por incapacidades del mes (normativa laboral colombiana, criterio salario÷30).
- * Ver `computeColombiaPayrollForPeriodCut` en API. No sustituye liquidación EPS/ARL ni tablas de porcentajes.
- */
-export function computePayrollIncapacityColombiaForMonth({ employee, liquidacionMonthYm, absencesAll }) {
-  const smmlv = CO_PAYROLL.smmlv;
-  const baseSalary = Math.max(0, parseNum(employee?.baseSalary));
-  const daily = baseSalary > 0 ? baseSalary / 30 : 0;
-  const range = monthRange(liquidacionMonthYm);
-  if (!range || daily <= 0) {
-    return { adjustCop: 0, episodes: [], smmlv };
-  }
-  const hire = payrollParseLocalYmd(employee?.startDate);
-  const lo = payrollMaxDateLocal(hire || range.start, range.start);
-  const hi = range.end;
-  if (lo > hi) return { adjustCop: 0, episodes: [], smmlv };
-
-  const absences = (absencesAll || []).filter((a) => String(a.employeeId || "") === String(employee?.id || ""));
-  let salarioAjuste = 0;
-  const episodes = [];
-
-  for (const ab of absences) {
-    const typeKey = payrollNormalizeAbsenceTypeKey(ab.absenceType);
-    if (!payrollAbsenceIsIncapacityType(ab.absenceType) && typeKey !== "licencia_no_remunerada") continue;
-    const abStart = payrollParseLocalYmd(ab.startDate);
-    const abEnd = payrollParseLocalYmd(ab.endDate) || abStart;
-    if (!abStart || !abEnd) continue;
-    const ov = payrollOverlapInclusiveLocal(abStart, abEnd, lo, hi);
-    if (!ov) continue;
-
-    if (typeKey === "licencia_no_remunerada") {
-      const days = payrollInclusiveCalendarDaysLocal(ov.s, ov.e);
-      const ded = -Math.round(days * daily);
-      salarioAjuste += ded;
-      episodes.push({
-        kind: "licencia_no_remunerada",
-        absenceId: ab.id,
-        days,
-        adjustCop: ded,
-        label: payrollAbsenceTypeLabel(ab.absenceType || ab.type),
-        rangeLabel: `${payrollFmtYmdLocal(ov.s)} → ${payrollFmtYmdLocal(ov.e)}`,
-        note: "Licencia no remunerada: descuento orientativo de salario por días del período (salario÷30)."
-      });
-      continue;
-    }
-
-    const obs = [ab.notes, ab.epsEntity, ab.supportNumber].filter(Boolean).join(" · ");
-    const cl = payrollClassifyIncapacityKind(ab.absenceType, obs);
-
-    const rad = String(ab.supportNumber || "").trim();
-    const baseTypeLabel = payrollAbsenceTypeLabel(ab.absenceType || ab.type);
-    const baseLabel = rad ? `${baseTypeLabel} · radicado ${rad}` : baseTypeLabel;
-
-    if (cl.kind === "incapacidad_arl") {
-      const days = payrollInclusiveCalendarDaysLocal(ov.s, ov.e);
-      const ded = -Math.round(days * daily);
-      salarioAjuste += ded;
-      episodes.push({
-        kind: "arl",
-        absenceId: ab.id,
-        days,
-        adjustCop: ded,
-        label: `${cl.label}`,
-        rangeLabel: `${payrollFmtYmdLocal(ov.s)} → ${payrollFmtYmdLocal(ov.e)}`,
-        note:
-          "Incapacidad laboral / ARL: descuento orientativo del salario por días en el período (pago a cargo de ARL según calificación). Validar dictamen y resolución."
-      });
-      continue;
-    }
-
-    let netIncap = 0;
-    const msDay = 86400000;
-    const payerNotes = [];
-    for (let cur = ov.s.getTime(); cur <= ov.e.getTime(); cur += msDay) {
-      const dt = new Date(cur);
-      const idx = payrollInclusiveCalendarDaysLocal(abStart, dt);
-      const dayAdj = calcColombiaIncapacityEpsDayAdjustmentCop({
-        dailySalary: daily,
-        dayIndexInEpisode: idx,
-        monthlySalary: baseSalary,
-        smmlv
-      });
-      netIncap += dayAdj.adjustCop;
-      if (dayAdj.payer && !payerNotes.includes(dayAdj.payer)) payerNotes.push(dayAdj.payer);
-    }
-    const roundedIncap = Math.round(netIncap);
-    salarioAjuste += roundedIncap;
-    episodes.push({
-      kind: baseSalary > 0 && baseSalary <= smmlv ? "eps_smmlv" : "eps",
-      absenceId: ab.id,
-      days: payrollInclusiveCalendarDaysLocal(ov.s, ov.e),
-      adjustCop: roundedIncap,
-      label: baseLabel,
-      rangeLabel: `${payrollFmtYmdLocal(ov.s)} → ${payrollFmtYmdLocal(ov.e)}`,
-      note:
-        `Incapacidad común (EPS): tabla orientativa Dec. 780/2016 (${payerNotes.join("; ") || "validar etapa"}). No sustituye liquidación EPS ni soporte médico.`
-    });
-  }
-
-  return { adjustCop: Math.round(salarioAjuste), episodes, smmlv };
 }
 
 export {
