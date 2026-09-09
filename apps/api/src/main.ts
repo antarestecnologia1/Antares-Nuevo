@@ -35,7 +35,11 @@ function buildCorsOriginHandler(config: ConfigService) {
   const prodFallback = [
     "https://app.transportesantares.co",
     "https://transportesantares.co",
-    "https://www.transportesantares.co"
+    "https://www.transportesantares.co",
+    "https://antarestecnologia1.github.io",
+    "*.vercel.app",
+    "*.pages.dev",
+    "*.github.io"
   ];
   /** En producción: dominios por defecto + los de CORS_ORIGINS (no reemplazan el resto). */
   const allowed = !isProd
@@ -73,6 +77,13 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const config = app.get(ConfigService);
   app.setGlobalPrefix("api");
+  /* CORS debe ir antes de CSRF y del resto: un 403 sin ACAO el navegador lo muestra como
+   * «blocked by CORS policy» aunque el origen sea válido (típico al hablar con Render). */
+  app.enableCors({
+    origin: buildCorsOriginHandler(config),
+    credentials: true,
+    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+  });
   app.use(cookieParser());
   app.use(csrfProtectionMiddleware);
   app.useBodyParser("json", { limit: "25mb" });
@@ -91,13 +102,6 @@ async function bootstrap() {
     next();
   });
   app.useGlobalFilters(new AllExceptionsFilter());
-  /* CORS: no fijar `allowedHeaders`; cors replica Access-Control-Request-Headers en el preflight.
-   * Una lista corta puede bloquear POST multipart y el navegador solo muestra «Failed to fetch». */
-  app.enableCors({
-    origin: buildCorsOriginHandler(config),
-    credentials: true,
-    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
-  });
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

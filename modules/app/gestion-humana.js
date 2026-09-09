@@ -3970,7 +3970,10 @@ function bindPayrollPortalControls() {
           const days = Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1;
           const normalizedType = payrollNormalizeAbsenceTypeKey(form.absenceType || target.absenceType);
           const normalizedSubtype = payrollNormalizeAbsenceSubtype(normalizedType, form.absenceSubtype);
-          const nextRecognizedDays = Math.max(0.5, Number(parseNum(form.recognizedDays || target.recognizedDays || days)));
+          const nextRecognizedDays =
+            Math.round(
+              Math.max(0.5, Number(parseNum(form.recognizedDays || target.recognizedDays || days))) * 100
+            ) / 100;
           const legalValidation = payrollValidateAbsenceLegalRules({
             absenceType: normalizedType,
             absenceSubtype: normalizedSubtype,
@@ -4042,8 +4045,8 @@ function bindPayrollPortalControls() {
                   ...a,
                   absenceType: normalizedType,
                   absenceSubtype: normalizedSubtype || null,
-                  startDate: form.startDate,
-                  endDate: form.endDate,
+                  startDate: String(form.startDate || "").slice(0, 10),
+                  endDate: String(form.endDate || "").slice(0, 10),
                   days,
                   recognizedDays: nextRecognizedDays,
                   recognizedUnit: payrollAbsenceRecognizedUnit(normalizedType, normalizedSubtype),

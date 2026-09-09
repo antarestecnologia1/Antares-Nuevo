@@ -499,6 +499,22 @@ function portalUuidOrNull(v: unknown): string | null {
   return PG_UUID_V4_RE.test(s) ? s : null;
 }
 
+const HR_ABSENCE_CANONICAL_TIPOS = new Set([
+  "vacaciones",
+  "incapacidad_eps",
+  "incapacidad_arl",
+  "licencia_maternidad",
+  "licencia_paternidad",
+  "licencia_luto",
+  "calamidad_domestica",
+  "permiso_cita_medica",
+  "permiso_citacion_judicial",
+  "permiso_sufragio",
+  "licencia_remunerada",
+  "licencia_no_remunerada",
+  "suspension"
+]);
+
 /** Tipo canónico en minúsculas (CHECK de ausencias_laborales). */
 function canonicalizeHrAbsenceTipo(raw: unknown): string {
   const t = String(raw ?? "")
@@ -507,8 +523,16 @@ function canonicalizeHrAbsenceTipo(raw: unknown): string {
     .normalize("NFD")
     .replace(/\p{M}/gu, "");
   if (!t || t === "incapacidad") return "incapacidad_eps";
+  if (HR_ABSENCE_CANONICAL_TIPOS.has(t)) return t;
   if (t.includes("vacac")) return "vacaciones";
-  if (t.includes("arl")) return "incapacidad_arl";
+  if (
+    t === "arl" ||
+    (t.includes("incapaci") && t.includes("arl")) ||
+    (t.includes("accidente") && t.includes("laboral")) ||
+    (t.includes("enfermedad") && t.includes("laboral"))
+  ) {
+    return "incapacidad_arl";
+  }
   if (t.includes("incapaci") || t === "eps") return "incapacidad_eps";
   if (t.includes("matern")) return "licencia_maternidad";
   if (t.includes("patern")) return "licencia_paternidad";
@@ -8457,8 +8481,8 @@ export class PortalService implements OnModuleInit {
       absenceType: row.tipo_ausencia,
       subtype: row.subtipo_ausencia,
       absenceSubtype: row.subtipo_ausencia,
-      startDate: row.fecha_inicio,
-      endDate: row.fecha_fin,
+      startDate: this.sqlEmployeeDateToPortalYmd(row.fecha_inicio),
+      endDate: this.sqlEmployeeDateToPortalYmd(row.fecha_fin),
       calendarDays: row.dias_calendario,
       days: row.dias_calendario,
       recognizedDays: row.dias_reconocidos != null ? Number(row.dias_reconocidos) : Number(row.dias_calendario),

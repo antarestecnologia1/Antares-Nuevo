@@ -6,6 +6,7 @@
 (function registerApiClient() {
   const CSRF_COOKIE = "antares_csrf";
   const CSRF_HEADER = "X-CSRF-Token";
+  const CSRF_SS_KEY = "antares_csrf_mem";
   const SESSION_KEY = "antares_session_v2";
   const ACCESS_TOKEN_SS_KEY = "antares_api_at";
   const REFRESH_TOKEN_SS_KEY = "antares_api_rt";
@@ -55,14 +56,33 @@
     return "";
   }
 
+  function readCsrfFromSessionStorage() {
+    try {
+      return String(sessionStorage.getItem(CSRF_SS_KEY) || "").trim();
+    } catch (_e) {
+      return "";
+    }
+  }
+
   function getCsrfToken() {
     const mem = String(csrfTokenMemory || "").trim();
     if (mem) return mem;
+    const stored = readCsrfFromSessionStorage();
+    if (stored) {
+      csrfTokenMemory = stored;
+      return stored;
+    }
     return String(readCsrfFromDocumentCookie() || "").trim();
   }
 
   function setCsrfToken(token) {
     csrfTokenMemory = String(token || "").trim();
+    try {
+      if (csrfTokenMemory) sessionStorage.setItem(CSRF_SS_KEY, csrfTokenMemory);
+      else sessionStorage.removeItem(CSRF_SS_KEY);
+    } catch (_e) {
+      /* noop */
+    }
   }
 
   function hasPortalSession() {

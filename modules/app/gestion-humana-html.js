@@ -959,7 +959,10 @@ function payrollHtml() {
     </div>
     ${renderManagedCreateFormActions("create-hr-absence", `<button class="btn btn-primary" type="submit">${IC.save} Registrar ausencia</button>`)}
   </form>`;
-  const absenceRows = absences
+  const absencesForTable = absences.filter(
+    (a) => !filterEmployee || String(a.employeeId) === String(filterEmployee)
+  );
+  const absenceRows = absencesForTable
     .map((a) => {
       const absKey =
         typeof payrollNormalizeAbsenceTypeKey === "function"
@@ -1388,7 +1391,7 @@ function payrollHtml() {
     </div>`;
   const payrollDataCounts = {
     employees: employees.length,
-    absences: absences.length,
+    absences: absencesForTable.length,
     runs: nominaRunsAll.length,
     driverPayments: driverPaymentRunsAll.length,
     legal: legalHistory.length || 1

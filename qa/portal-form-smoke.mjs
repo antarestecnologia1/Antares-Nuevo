@@ -619,6 +619,20 @@ test("portal form smoke", async ({ page, context }) => {
     }, selector);
   };
 
+  const attachPdfToForm = async (formSelector, fieldName = "supportFile") => {
+    await page.evaluate(({ formSelector: sel, fieldName: name }) => {
+      const form = document.querySelector(sel);
+      const input = form?.querySelector(`input[name="${name}"]`);
+      if (!input) throw new Error(`Campo archivo no encontrado: ${name}`);
+      const bytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x34, 0x0a, 0x25, 0xe2, 0xe3, 0xcf, 0xd3, 0x0a]);
+      const file = new File([bytes], "soporte-novedad-qa.pdf", { type: "application/pdf" });
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      input.files = dt.files;
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    }, { formSelector, fieldName });
+  };
+
   const clickDom = async (selector) => {
     await page.waitForSelector(selector, { state: "attached", timeout: 4000 });
     await page.evaluate((targetSelector) => {
@@ -951,7 +965,7 @@ test("portal form smoke", async ({ page, context }) => {
     await ensureHrWorkspace("payroll", "operate");
     await ensureCreatePanelOpen("create-hr-absence");
     const absBefore = await arrayLen(KEYS.hrAbsences);
-    await submitForm("#form-hr-absence", [
+    await setFormFields("#form-hr-absence", [
       ["employeeId", "emp-1"],
       ["absenceType", "vacaciones"],
       ["startDate", ymd(plusDays(1))],
@@ -960,6 +974,8 @@ test("portal form smoke", async ({ page, context }) => {
       ["epsEntity", "Sura"],
       ["notes", "Ausencia smoke"]
     ]);
+    await attachPdfToForm("#form-hr-absence");
+    await submitExistingForm("#form-hr-absence");
     await waitForArrayLength(KEYS.hrAbsences, absBefore + 1, "Gestión humana:create absence");
   });
 

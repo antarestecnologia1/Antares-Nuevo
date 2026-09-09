@@ -976,11 +976,35 @@ export function payrollFmtYmdLocal(d) {
   return `${y}-${mo}-${da}`;
 }
 
+const HR_ABSENCE_CANONICAL_TYPE_KEYS = new Set([
+  "vacaciones",
+  "incapacidad_eps",
+  "incapacidad_arl",
+  "licencia_maternidad",
+  "licencia_paternidad",
+  "licencia_luto",
+  "calamidad_domestica",
+  "permiso_cita_medica",
+  "permiso_citacion_judicial",
+  "permiso_sufragio",
+  "licencia_remunerada",
+  "licencia_no_remunerada",
+  "suspension"
+]);
+
 export function payrollNormalizeAbsenceTypeKey(absenceType) {
   const t = String(absenceType || "").trim().toLowerCase();
   if (!t) return "";
+  if (HR_ABSENCE_CANONICAL_TYPE_KEYS.has(t)) return t;
   if (t.includes("vacac")) return "vacaciones";
-  if (t.includes("arl")) return "incapacidad_arl";
+  if (
+    t === "arl" ||
+    (t.includes("incapaci") && t.includes("arl")) ||
+    (t.includes("accidente") && t.includes("laboral")) ||
+    (t.includes("enfermedad") && t.includes("laboral"))
+  ) {
+    return "incapacidad_arl";
+  }
   if (t.includes("incapaci") || t === "eps") return "incapacidad_eps";
   if (t.includes("matern")) return "licencia_maternidad";
   if (t.includes("patern")) return "licencia_paternidad";
