@@ -1766,6 +1766,14 @@ function bindPayrollPortalControls() {
         failPortalField(absenceForm, "employeeId", userMessage("absencePickEmployee"));
         return;
       }
+      if (typeof isPayrollEmployeeUnlinked === "function" && isPayrollEmployeeUnlinked(employee)) {
+        failPortalField(
+          absenceForm,
+          "employeeId",
+          "No se puede registrar una novedad de un colaborador desvinculado."
+        );
+        return;
+      }
       const start = new Date(`${data.startDate}T12:00:00`);
       const end = new Date(`${data.endDate}T12:00:00`);
       if (end.getTime() < start.getTime()) {
@@ -1774,21 +1782,23 @@ function bindPayrollPortalControls() {
       }
       const days = Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1;
       const { absenceType, absenceSubtype } = payrollResolveAbsenceFormType(data);
-      const recognizedDays = Math.max(
-        0.5,
-        Number(
-          parseNum(
-            data.requestAmount ||
-              data.recognizedDays ||
-              payrollComputeAbsenceSuggestedRecognizedDays({
-                absenceType,
-                absenceSubtype,
-                startDate: data.startDate,
-                endDate: data.endDate
-              })
+      const recognizedDays = Math.round(
+        Math.max(
+          0.5,
+          Number(
+            parseNum(
+              data.requestAmount ||
+                data.recognizedDays ||
+                payrollComputeAbsenceSuggestedRecognizedDays({
+                  absenceType,
+                  absenceSubtype,
+                  startDate: data.startDate,
+                  endDate: data.endDate
+                })
+            )
           )
-        )
-      );
+        ) * 100
+      ) / 100;
       const notesBase = normalizeLatinUpperForDb(data.notes || "");
       const notes = data.periodicAbsence
         ? normalizeLatinUpperForDb(`[PERIÓDICA] ${notesBase}`.trim())
@@ -1844,8 +1854,8 @@ function bindPayrollPortalControls() {
         employeeName: normalizeLatinUpperForDb(employee.name),
         absenceType,
         absenceSubtype: absenceSubtype || null,
-        startDate: data.startDate,
-        endDate: data.endDate,
+        startDate: String(data.startDate || "").slice(0, 10),
+        endDate: String(data.endDate || "").slice(0, 10),
         days,
         recognizedDays,
         recognizedUnit: payrollAbsenceRecognizedUnit(absenceType, absenceSubtype),
@@ -2571,15 +2581,35 @@ function bindPayrollPortalControls() {
 
   wirePayrollEmployeeDirectoryFilters();
 
-  function syncPayrollEmployeeSelectionBadge() {
-    const badge = document.getElementById("employees-selected-count");
-    if (!badge) return;
-    const selected = [...nodes.viewRoot.querySelectorAll("[data-employee-select]:checked")].filter(
+  function visibleEmployeeSelectChecks() {
+    return [...nodes.viewRoot.querySelectorAll("[data-employee-select]")].filter(
       (el) => !el.closest(".is-filtered-out")
     );
+  }
+
+  function syncPayrollEmployeeSelectAllControls() {
+    const checks = visibleEmployeeSelectChecks();
+    const selected = checks.filter((el) => el.checked);
+    const allSelected = checks.length > 0 && selected.length === checks.length;
+    const someSelected = selected.length > 0 && !allSelected;
+    [document.getElementById("employees-select-all"), document.getElementById("employees-select-all-header")].forEach(
+      (el) => {
+        if (!el) return;
+        el.checked = allSelected;
+        el.indeterminate = someSelected;
+      }
+    );
+  }
+
+  function syncPayrollEmployeeSelectionBadge() {
+    const badge = document.getElementById("employees-selected-count");
+    const selected = visibleEmployeeSelectChecks().filter((el) => el.checked);
     const count = selected.length;
-    badge.textContent = `${count} seleccionado${count === 1 ? "" : "s"}`;
-    badge.hidden = count <= 0;
+    if (badge) {
+      badge.textContent = `${count} seleccionado${count === 1 ? "" : "s"}`;
+      badge.hidden = count <= 0;
+    }
+    syncPayrollEmployeeSelectAllControls();
   }
   window.syncPayrollEmployeeSelectionBadge = syncPayrollEmployeeSelectionBadge;
 
@@ -2587,34 +2617,18 @@ function bindPayrollPortalControls() {
     check.addEventListener("change", syncPayrollEmployeeSelectionBadge);
   });
 
-  const employeesSelectAllHeader = document.getElementById("employees-select-all-header");
   const toggleEmployeeSelectAll = (checked) => {
-    const checks = [...nodes.viewRoot.querySelectorAll(".payroll-employee-table-row:not(.is-filtered-out) [data-employee-select]")];
-    checks.forEach((el) => {
+    visibleEmployeeSelectChecks().forEach((el) => {
       el.checked = checked;
     });
     syncPayrollEmployeeSelectionBadge();
   };
-  employeesSelectAllHeader?.addEventListener("change", () => {
-    toggleEmployeeSelectAll(Boolean(employeesSelectAllHeader.checked));
+  document.getElementById("employees-select-all-header")?.addEventListener("change", (event) => {
+    toggleEmployeeSelectAll(Boolean(event.currentTarget.checked));
   });
-
-  const employeesSelectAll = document.getElementById("employees-select-all");
-  if (employeesSelectAll) {
-    employeesSelectAll.addEventListener("click", (event) => {
-      event.preventDefault();
-      const checks = [
-        ...nodes.viewRoot.querySelectorAll(".directory-card--employee [data-employee-select]"),
-        ...nodes.viewRoot.querySelectorAll("[data-employee-select]")
-      ].filter((el) => !el.closest(".is-filtered-out"));
-      const allSelected = checks.length > 0 && checks.every((check) => check.checked);
-      checks.forEach((check) => {
-        check.checked = !allSelected;
-      });
-      if (employeesSelectAllHeader) employeesSelectAllHeader.checked = !allSelected && checks.length > 0;
-      syncPayrollEmployeeSelectionBadge();
-    });
-  }
+  document.getElementById("employees-select-all")?.addEventListener("change", (event) => {
+    toggleEmployeeSelectAll(Boolean(event.currentTarget.checked));
+  });
   syncPayrollEmployeeSelectionBadge();
 
   nodes.viewRoot.querySelectorAll("[data-action='payroll-employees-page']").forEach((btn) => {
@@ -2646,7 +2660,7 @@ function bindPayrollPortalControls() {
   });
 
   document.getElementById("payroll-contracts-clear-filters")?.addEventListener("click", () => {
-    ["payroll-employee-search", "payroll-employee-contract-filter", "payroll-employee-contract-type-filter", "payroll-employee-contract-date-filter", "payroll-employee-link-filter", "payroll-employee-unlink-category-filter"].forEach(
+    ["payroll-employee-search", "payroll-employee-contract-filter", "payroll-employee-contract-type-filter", "payroll-employee-contract-date-filter", "payroll-employee-link-filter", "payroll-employee-unlink-category-filter", "payroll-employee-vehicle-filter"].forEach(
       (id) => {
         const el = document.getElementById(id);
         if (!el) return;
@@ -2664,7 +2678,7 @@ function bindPayrollPortalControls() {
       return;
     }
     const lines = [
-      ["Nombre", "Documento", "Cargo", "Ingreso", "Inicio vigente", "Renovación", "Aviso no renov.", "Fin contrato", "Estado"].join(";")
+      ["Nombre", "Documento", "Cargo", "Vehículo", "Ingreso", "Inicio vigente", "Renovación", "Aviso no renov.", "Fin contrato", "Estado"].join(";")
     ];
     rows.forEach((row) => {
       const cells = [...row.querySelectorAll("td")];
@@ -2681,7 +2695,8 @@ function bindPayrollPortalControls() {
         cells[offset + 4]?.textContent || "",
         cells[offset + 5]?.textContent || "",
         cells[offset + 6]?.textContent || "",
-        cells[offset + 7]?.textContent || ""
+        cells[offset + 7]?.textContent || "",
+        cells[offset + 8]?.textContent || ""
       ].map((t) => `"${String(t).trim().replace(/"/g, '""')}"`);
       lines.push(values.join(";"));
     });
@@ -2701,9 +2716,10 @@ function bindPayrollPortalControls() {
       if (abortUnlessCanManagePayroll()) return;
       const selectedIds = [
         ...new Set(
-          [...nodes.viewRoot.querySelectorAll("[data-employee-select]:checked")].map((check) =>
-            String(check.value || "")
-          )
+          visibleEmployeeSelectChecks()
+            .filter((check) => check.checked)
+            .map((check) => String(check.value || ""))
+            .filter(Boolean)
         )
       ];
       if (!selectedIds.length) {

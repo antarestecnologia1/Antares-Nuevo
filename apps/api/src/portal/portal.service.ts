@@ -499,6 +499,56 @@ function portalUuidOrNull(v: unknown): string | null {
   return PG_UUID_V4_RE.test(s) ? s : null;
 }
 
+/** Tipo canónico en minúsculas (CHECK de ausencias_laborales). */
+function canonicalizeHrAbsenceTipo(raw: unknown): string {
+  const t = String(raw ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "");
+  if (!t || t === "incapacidad") return "incapacidad_eps";
+  if (t.includes("vacac")) return "vacaciones";
+  if (t.includes("arl")) return "incapacidad_arl";
+  if (t.includes("incapaci") || t === "eps") return "incapacidad_eps";
+  if (t.includes("matern")) return "licencia_maternidad";
+  if (t.includes("patern")) return "licencia_paternidad";
+  if (t.includes("luto") || t.includes("duelo")) return "licencia_luto";
+  if (t.includes("calam")) return "calamidad_domestica";
+  if ((t.includes("cita") && t.includes("med")) || t.includes("medic")) return "permiso_cita_medica";
+  if (t.includes("judic")) return "permiso_citacion_judicial";
+  if (t.includes("sufrag") || t.includes("vot")) return "permiso_sufragio";
+  if (t.includes("sin goce") || t.includes("no remuner") || t.includes("no_remuner")) {
+    return "licencia_no_remunerada";
+  }
+  if (t.includes("suspens")) return "suspension";
+  if (t === "licencia") return "licencia_remunerada";
+  return t.slice(0, 64) || "incapacidad_eps";
+}
+
+function roundHrAbsenceRecognizedDays(raw: unknown, fallback = 1): number {
+  const n = Number(raw);
+  const base = Number.isFinite(n) && n > 0 ? n : fallback;
+  return Math.round(Math.max(0.5, base) * 100) / 100;
+}
+
+function describeHrAbsenceSyncDbError(err: unknown): string {
+  const code = (err as { code?: string } | null)?.code || "";
+  const msg = err instanceof Error ? err.message : String(err);
+  if (code === "23514" || /check constraint|chk_ausencias/i.test(msg)) {
+    return "La novedad no cumple las reglas de ausencias (fechas, tipo, subtipo o días reconocidos). Revise el formulario.";
+  }
+  if (code === "23503" || /violates foreign key|foreign key constraint/i.test(msg)) {
+    return "El colaborador de la novedad no existe en el servidor. Recargue Gestión humana e intente de nuevo.";
+  }
+  if (code === "22007" || /invalid input syntax for type date/i.test(msg)) {
+    return "Las fechas de la novedad no son válidas.";
+  }
+  if (code === "23502" || /not-null constraint|violates not-null/i.test(msg)) {
+    return "Faltan datos obligatorios de la novedad (colaborador, tipo o fechas).";
+  }
+  return "";
+}
+
 const OCCUPATIONAL_EXAM_RENEWAL_YEARS = 1;
 const INTRUVIAL_EXAM_RENEWAL_YEARS = 2;
 const LICENSE_C2_RENEWAL_YEARS = 3;
@@ -1452,7 +1502,8 @@ export class PortalService implements OnModuleInit {
       `ALTER TABLE public.empleados_nomina ADD COLUMN IF NOT EXISTS fecha_desvinculacion DATE`,
       `ALTER TABLE public.empleados_nomina ADD COLUMN IF NOT EXISTS categoria_desvinculacion VARCHAR(64)`,
       `ALTER TABLE public.empleados_nomina ADD COLUMN IF NOT EXISTS motivo_desvinculacion TEXT`,
-      `ALTER TABLE public.empleados_nomina ADD COLUMN IF NOT EXISTS desvinculado_por VARCHAR(255)`
+      `ALTER TABLE public.empleados_nomina ADD COLUMN IF NOT EXISTS desvinculado_por VARCHAR(255)`,
+      `ALTER TABLE public.empleados_nomina ADD COLUMN IF NOT EXISTS tipos_vehiculo VARCHAR(160)`
     ];
     for (const q of alters) {
       try {
@@ -1491,6 +1542,24 @@ export class PortalService implements OnModuleInit {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.warn(`ensureEmpleadosNominaSchema unique activo: ${sanitizeLogText(msg)}`);
+    }
+    if (await this.tableExists("conductores")) {
+      try {
+        await this.pool.query(`
+          UPDATE public.empleados_nomina e
+          SET tipos_vehiculo = c.tipos_vehiculo
+          FROM public.conductores c
+          WHERE regexp_replace(trim(coalesce(e.numero_documento, '')), '[^0-9A-Za-z]', '', 'g')
+              = regexp_replace(trim(coalesce(c.numero_documento, '')), '[^0-9A-Za-z]', '', 'g')
+            AND length(regexp_replace(trim(coalesce(e.numero_documento, '')), '[^0-9A-Za-z]', '', 'g')) > 0
+            AND (e.tipos_vehiculo IS NULL OR length(btrim(e.tipos_vehiculo)) = 0)
+            AND c.tipos_vehiculo IS NOT NULL
+            AND length(btrim(c.tipos_vehiculo)) > 0
+        `);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logger.warn(`ensureEmpleadosNominaSchema backfill tipos_vehiculo: ${sanitizeLogText(msg)}`);
+      }
     }
   }
 
@@ -5655,7 +5724,13 @@ export class PortalService implements OnModuleInit {
           deletedIds,
           await this.resolvePayrollWriteCompanyScope(admin, userId)
         );
-        await this.refreshPayrollDraftsAfterHrAbsencesSync(c, data);
+        try {
+          await this.refreshPayrollDraftsAfterHrAbsencesSync(c, data);
+        } catch (e) {
+          this.logger.warn(
+            `Borradores de nómina tras ausencias: ${e instanceof Error ? e.message : String(e)}`
+          );
+        }
         return;
       case "sstCompliance":
         if (!can("sst_compliance")) throw new ForbiddenException();
@@ -8024,6 +8099,7 @@ export class PortalService implements OnModuleInit {
       bankAccountType: e.tipo_cuenta_bancaria,
       bankAccount: e.numero_cuenta_bancaria,
       workerRole: e.rol_trabajador,
+      vehicleTypes: e.tipos_vehiculo != null ? String(e.tipos_vehiculo).trim() : "",
       license: e.numero_licencia,
       licenseCategory: e.categoria_licencia,
       licenseExpiry: this.sqlEmployeeDateToPortalYmd(e.fecha_vencimiento_licencia),
@@ -10577,7 +10653,7 @@ export class PortalService implements OnModuleInit {
       startDate: portalDateYmdOrNull(row.fecha_ingreso),
       avatarUrl: row.url_avatar != null ? String(row.url_avatar).trim() : null,
       hiredAt: row.fecha_ingreso != null ? String(row.fecha_ingreso) : null,
-      vehicleTypes: null
+      vehicleTypes: this.sanitizeDriverVehicleTypesCsv(row.tipos_vehiculo)
     });
   }
 
@@ -11599,6 +11675,17 @@ export class PortalService implements OnModuleInit {
           } else {
             throw err;
           }
+        }
+
+        const vehicleTypesSql = this.sanitizeDriverVehicleTypesCsv(p(e, "vehicleTypes", "tipos_vehiculo"));
+        try {
+          await c.query(`UPDATE public.empleados_nomina SET tipos_vehiculo = $2 WHERE id = $1::uuid`, [
+            e.id,
+            vehicleTypesSql
+          ]);
+        } catch (vtErr) {
+          const vtMsg = vtErr instanceof Error ? vtErr.message : String(vtErr);
+          this.logger.warn(`empleados_nomina.tipos_vehiculo: ${sanitizeLogText(vtMsg)}`);
         }
 
         if (role === "conductor" && e.active !== false && e.activo !== false) {
@@ -13691,42 +13778,73 @@ export class PortalService implements OnModuleInit {
       if (!row?.id || !row.employeeId) continue;
       if (this.skipUnlessPersistUuid("syncHrAbsences", row.id)) continue;
       if (this.skipUnlessPersistUuid("syncHrAbsences.employeeId", row.employeeId)) continue;
+      const startDate = portalDateYmdOrNull(pickPortalField(row, "startDate", "fechaInicio", "fecha_inicio"));
+      const endDate = portalDateYmdOrNull(pickPortalField(row, "endDate", "fechaFin", "fecha_fin")) || startDate;
+      if (!startDate || !endDate) {
+        throw new BadRequestException("Las fechas de la novedad no son válidas.");
+      }
+      if (endDate < startDate) {
+        throw new BadRequestException("La fecha de finalización debe ser posterior o igual a la de inicio.");
+      }
       /* Claves canónicas en minúsculas: los CHECK de ausencias_laborales no aceptan MAYÚSCULAS. */
-      const tipo =
-        String(pickPortalField(row, "type", "absenceType") ?? "incapacidad")
-          .trim()
-          .toLowerCase() || "incapacidad";
+      const tipo = canonicalizeHrAbsenceTipo(
+        pickPortalField(row, "absenceType", "tipoAusencia", "tipo_ausencia", "type")
+      );
       const dias = Math.max(
         1,
         Math.floor(
           Number(pickPortalField(row, "calendarDays", "days") ?? row.calendarDays ?? row.days) || 1
         )
       );
-      const subtipoRaw = pickPortalField(row, "subtype", "absenceSubtype");
+      const maternitySubs = new Set([
+        "ordinaria",
+        "parto_multiple",
+        "parto_prematuro",
+        "adopcion",
+        "extension_medica"
+      ]);
+      const paternitySubs = new Set(["continua", "flexible", "parental_compartida"]);
+      const subtipoRaw = pickPortalField(row, "absenceSubtype", "subtype", "subtipoAusencia");
       let subtipo = subtipoRaw != null ? String(subtipoRaw).trim().toLowerCase() || null : null;
-      if (!subtipo) {
-        if (tipo === "permiso_sufragio") subtipo = "votante";
-        else if (tipo === "licencia_maternidad") subtipo = "ordinaria";
-        else if (tipo === "licencia_paternidad") subtipo = "continua";
+      if (tipo === "permiso_sufragio") {
+        subtipo = subtipo === "jurado" ? "jurado" : "votante";
+      } else if (tipo === "licencia_maternidad") {
+        subtipo = subtipo && maternitySubs.has(subtipo) ? subtipo : "ordinaria";
+      } else if (tipo === "licencia_paternidad") {
+        subtipo = subtipo && paternitySubs.has(subtipo) ? subtipo : "continua";
+      } else {
+        subtipo = null;
       }
-      const diasReconocidos = Math.max(
-        0.5,
-        Number(
-          pickPortalField(row, "recognizedDays", "diasReconocidos") ?? row.recognizedDays ?? 1
-        ) || 0.5
+      let diasReconocidos = roundHrAbsenceRecognizedDays(
+        pickPortalField(row, "recognizedDays", "diasReconocidos") ?? row.recognizedDays ?? 1
       );
       const unidadRaw = pickPortalField(row, "recognizedUnit", "unidadDiasReconocidos");
       const unidadCanon = String(unidadRaw ?? "")
         .trim()
         .toLowerCase();
-      const unidad =
+      let unidad =
         unidadCanon === "calendario" || unidadCanon === "habil" || unidadCanon === "jornada"
           ? unidadCanon
           : tipo === "permiso_sufragio"
             ? "jornada"
-            : ["vacaciones", "licencia_luto", "permiso_cita_medica", "permiso_citacion_judicial"].includes(tipo)
+            : ["vacaciones", "licencia_luto", "permiso_cita_medica", "permiso_citacion_judicial"].includes(
+                tipo
+              )
               ? "habil"
               : "calendario";
+      if (tipo === "permiso_sufragio") {
+        unidad = "jornada";
+        diasReconocidos = subtipo === "jurado" ? 1 : 0.5;
+      } else if (tipo === "licencia_luto") {
+        unidad = "habil";
+        diasReconocidos = Math.min(5, diasReconocidos);
+      } else if (tipo === "licencia_paternidad") {
+        unidad = "calendario";
+        diasReconocidos = Math.min(subtipo === "parental_compartida" ? 7 : 14, diasReconocidos);
+      } else if (tipo === "licencia_maternidad") {
+        unidad = "calendario";
+        diasReconocidos = Math.min(182, diasReconocidos);
+      }
       const supportDocIdRaw = pickPortalField(row, "supportDocumentId", "idDocumentoSoporte");
       const supportDocId =
         supportDocIdRaw != null && PG_UUID_V4_RE.test(String(supportDocIdRaw).trim())
@@ -13737,45 +13855,106 @@ export class PortalService implements OnModuleInit {
         supportFileNameRaw != null && String(supportFileNameRaw).trim()
           ? String(supportFileNameRaw).trim().slice(0, 512)
           : null;
-      await c.query(
-        `INSERT INTO ausencias_laborales (
-          id, id_empleado, nombre_empleado, tipo_ausencia, fecha_inicio, fecha_fin, dias_calendario,
-          subtipo_ausencia, dias_reconocidos, unidad_dias_reconocidos,
-          numero_soporte, id_documento_soporte, nombre_archivo_soporte, entidad_eps, observaciones
-        ) VALUES ($1::uuid, $2::uuid, $3, $4, $5::date, $6::date, $7, $8, $9, $10, $11, $12::uuid, $13, $14, $15)
-        ON CONFLICT (id) DO UPDATE SET
-          id_empleado = EXCLUDED.id_empleado,
-          nombre_empleado = EXCLUDED.nombre_empleado,
-          tipo_ausencia = EXCLUDED.tipo_ausencia,
-          fecha_inicio = EXCLUDED.fecha_inicio,
-          fecha_fin = EXCLUDED.fecha_fin,
-          dias_calendario = EXCLUDED.dias_calendario,
-          subtipo_ausencia = EXCLUDED.subtipo_ausencia,
-          dias_reconocidos = EXCLUDED.dias_reconocidos,
-          unidad_dias_reconocidos = EXCLUDED.unidad_dias_reconocidos,
-          numero_soporte = EXCLUDED.numero_soporte,
-          id_documento_soporte = EXCLUDED.id_documento_soporte,
-          nombre_archivo_soporte = EXCLUDED.nombre_archivo_soporte,
-          entidad_eps = EXCLUDED.entidad_eps,
-          observaciones = EXCLUDED.observaciones`,
-        [
-          row.id,
-          row.employeeId,
-          nu(row.employeeName),
-          tipo,
-          row.startDate,
-          row.endDate,
-          dias,
-          subtipo,
-          diasReconocidos,
-          unidad,
-          nuN(pickPortalField(row, "supportNumber")),
-          supportDocId,
-          supportFileName,
-          nuN(pickPortalField(row, "epsEntity")),
-          nuN(row.notes)
-        ]
-      );
+      const params = [
+        row.id,
+        row.employeeId,
+        nu(row.employeeName) || "COLABORADOR",
+        tipo,
+        startDate,
+        endDate,
+        dias,
+        subtipo,
+        diasReconocidos,
+        unidad,
+        nuN(pickPortalField(row, "supportNumber")),
+        supportDocId,
+        supportFileName,
+        nuN(pickPortalField(row, "epsEntity")),
+        nuN(row.notes)
+      ];
+      const sp = `hr_abs_${String(row.id).replace(/-/g, "").slice(0, 16)}`;
+      await c.query(`SAVEPOINT ${sp}`);
+      try {
+        await c.query(
+          `INSERT INTO ausencias_laborales (
+            id, id_empleado, nombre_empleado, tipo_ausencia, fecha_inicio, fecha_fin, dias_calendario,
+            subtipo_ausencia, dias_reconocidos, unidad_dias_reconocidos,
+            numero_soporte, id_documento_soporte, nombre_archivo_soporte, entidad_eps, observaciones
+          ) VALUES ($1::uuid, $2::uuid, $3, $4, $5::date, $6::date, $7, $8, $9, $10, $11, $12::uuid, $13, $14, $15)
+          ON CONFLICT (id) DO UPDATE SET
+            id_empleado = EXCLUDED.id_empleado,
+            nombre_empleado = EXCLUDED.nombre_empleado,
+            tipo_ausencia = EXCLUDED.tipo_ausencia,
+            fecha_inicio = EXCLUDED.fecha_inicio,
+            fecha_fin = EXCLUDED.fecha_fin,
+            dias_calendario = EXCLUDED.dias_calendario,
+            subtipo_ausencia = EXCLUDED.subtipo_ausencia,
+            dias_reconocidos = EXCLUDED.dias_reconocidos,
+            unidad_dias_reconocidos = EXCLUDED.unidad_dias_reconocidos,
+            numero_soporte = EXCLUDED.numero_soporte,
+            id_documento_soporte = EXCLUDED.id_documento_soporte,
+            nombre_archivo_soporte = EXCLUDED.nombre_archivo_soporte,
+            entidad_eps = EXCLUDED.entidad_eps,
+            observaciones = EXCLUDED.observaciones`,
+          params
+        );
+        await c.query(`RELEASE SAVEPOINT ${sp}`);
+      } catch (err) {
+        await c.query(`ROLLBACK TO SAVEPOINT ${sp}`).catch(() => undefined);
+        const pgMsg = err instanceof Error ? err.message : String(err);
+        const pgCode = String((err as { code?: string } | null)?.code || "");
+        if (pgCode === "42703" && /id_documento_soporte|nombre_archivo_soporte/i.test(pgMsg)) {
+          try {
+            await c.query(
+              `INSERT INTO ausencias_laborales (
+                id, id_empleado, nombre_empleado, tipo_ausencia, fecha_inicio, fecha_fin, dias_calendario,
+                subtipo_ausencia, dias_reconocidos, unidad_dias_reconocidos,
+                numero_soporte, entidad_eps, observaciones
+              ) VALUES ($1::uuid, $2::uuid, $3, $4, $5::date, $6::date, $7, $8, $9, $10, $11, $12, $13)
+              ON CONFLICT (id) DO UPDATE SET
+                id_empleado = EXCLUDED.id_empleado,
+                nombre_empleado = EXCLUDED.nombre_empleado,
+                tipo_ausencia = EXCLUDED.tipo_ausencia,
+                fecha_inicio = EXCLUDED.fecha_inicio,
+                fecha_fin = EXCLUDED.fecha_fin,
+                dias_calendario = EXCLUDED.dias_calendario,
+                subtipo_ausencia = EXCLUDED.subtipo_ausencia,
+                dias_reconocidos = EXCLUDED.dias_reconocidos,
+                unidad_dias_reconocidos = EXCLUDED.unidad_dias_reconocidos,
+                numero_soporte = EXCLUDED.numero_soporte,
+                entidad_eps = EXCLUDED.entidad_eps,
+                observaciones = EXCLUDED.observaciones`,
+              [
+                params[0],
+                params[1],
+                params[2],
+                params[3],
+                params[4],
+                params[5],
+                params[6],
+                params[7],
+                params[8],
+                params[9],
+                params[10],
+                params[13],
+                params[14]
+              ]
+            );
+            await c.query(`RELEASE SAVEPOINT ${sp}`);
+            continue;
+          } catch (err2) {
+            await c.query(`ROLLBACK TO SAVEPOINT ${sp}`).catch(() => undefined);
+            await c.query(`RELEASE SAVEPOINT ${sp}`).catch(() => undefined);
+            const mapped2 = describeHrAbsenceSyncDbError(err2);
+            if (mapped2) throw new BadRequestException(mapped2);
+            throw err2;
+          }
+        }
+        await c.query(`RELEASE SAVEPOINT ${sp}`).catch(() => undefined);
+        const mapped = describeHrAbsenceSyncDbError(err);
+        if (mapped) throw new BadRequestException(mapped);
+        throw err;
+      }
     }
   }
 
@@ -14004,7 +14183,9 @@ export class PortalService implements OnModuleInit {
           Number(row.sizeBytes) || 0,
           txt(row.storageKey),
           txtN(row.description),
-          txtN(row.tags),
+          row.tags && typeof row.tags === "object" && !Array.isArray(row.tags)
+            ? JSON.stringify(row.tags).slice(0, 8000)
+            : txtN(row.tags),
           txt(row.uploadedBy, "Portal"),
           createdAtIso
         ]

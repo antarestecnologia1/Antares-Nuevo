@@ -44,6 +44,7 @@ CREATE TABLE empleados_nomina (
   tipo_cuenta_bancaria        VARCHAR(32),
   numero_cuenta_bancaria      VARCHAR(64) NOT NULL,
   rol_trabajador              VARCHAR(32) NOT NULL DEFAULT 'empleado',
+  tipos_vehiculo              VARCHAR(160),
   numero_licencia             VARCHAR(64),
   categoria_licencia          VARCHAR(8),
   fecha_vencimiento_licencia  DATE,
@@ -74,6 +75,9 @@ CREATE TABLE empleados_nomina (
 );
 
 COMMENT ON TABLE empleados_nomina IS 'KEYS.payrollEmployees.';
+
+COMMENT ON COLUMN empleados_nomina.tipos_vehiculo IS
+  'Tipos de vehículo que el colaborador (conductor) está habilitado a manejar, separados por comas (Camion,Turbo,Tractomula). Alineado con conductores.tipos_vehiculo.';
 
 COMMENT ON COLUMN empleados_nomina.tiene_condicion_medica IS
   'true si el colaborador declaró enfermedad o condición médica al contratar.';

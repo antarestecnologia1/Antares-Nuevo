@@ -35064,6 +35064,7 @@ body[data-theme="dark"] .hr-module-pro--hiring .payroll-data-nav-tab.is-active .
 }
 .payroll-emp-badge--smmlv { background: var(--pr-badge-smmlv-bg); color: var(--pr-badge-smmlv-fg); }
 .payroll-emp-badge--driver { background: var(--pr-badge-driver-bg); color: var(--pr-badge-driver-fg); }
+.payroll-emp-badge--vehicle { background: var(--pr-badge-smmlv-bg, #e8f1ff); color: var(--pr-badge-smmlv-fg, #1d4ed8); }
 
 /* Barra de alerta de contrato (inferior a la fila compacta) */
 .payroll-emp-contract-alert {

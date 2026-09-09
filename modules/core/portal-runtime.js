@@ -1465,6 +1465,37 @@ function driverHasCanonicalVehicleType(driver, type) {
   return driverVehicleTypeTokenMatches(type, splitDriverVehicleTypesTokens(csv));
 }
 
+/** CSV canónico (Camion,Turbo,Tractomula) para filtros de Gestión humana. */
+function payrollEmployeeCanonicalVehicleTypesCsv(emp) {
+  const merged = mergeLinkedDriverConductorFields(emp) || emp || {};
+  const seen = new Set();
+  const out = [];
+  for (const t of splitDriverVehicleTypesTokens(merged.vehicleTypes || merged.tipos_vehiculo || "")) {
+    const canon = canonicalDriverVehicleType(t);
+    if (!canon || seen.has(canon)) continue;
+    seen.add(canon);
+    out.push(canon);
+  }
+  return out.join(",");
+}
+
+function payrollEmployeeDirectoryDataAttrs(e, item, contract, extra = {}) {
+  const contractTypeKey = extra.contractTypeKey || payrollEmployeeContractTypeKey(e);
+  const endYmd =
+    extra.endYmd != null
+      ? extra.endYmd
+      : normalizePortalDateYmd(contract?.endYmd || e.contractEndDate || "");
+  const vehicleCsv =
+    extra.vehicleCsv != null ? extra.vehicleCsv : payrollEmployeeCanonicalVehicleTypesCsv(e);
+  return `data-employee-id="${escapeAttr(String(e.id || ""))}" data-employee-search="${escapeAttr(item.searchBlob)}" data-employee-contract-filter="${escapeAttr(contract?.applies ? contract.statusSlug : "all")}" data-employee-contract-type="${escapeAttr(contractTypeKey)}" data-employee-contract-end="${escapeAttr(endYmd)}" data-employee-link="${item.isUnlinked ? "unlinked" : "active"}" data-employee-unlink-category="${escapeAttr(payrollEmployeeUnlinkCategory(e) || "")}" data-employee-vehicle-types="${escapeAttr(vehicleCsv)}"`;
+}
+
+function renderPayrollEmployeeVehicleBadge(csv, { empty = false } = {}) {
+  const label = driverVehicleTypesCsvToLabel(csv, empty ? "Sin categoría" : "");
+  if (!label) return "";
+  return `<span class="payroll-emp-badge payroll-emp-badge--vehicle" title="Categoría de vehículo">${escapeHtml(label)}</span>`;
+}
+
 /**
  * Casillas de categoría operativa: camión, turbo o mula (`conductores.tipos_vehiculo`).
  * Se guardan como texto separado por comas en `conductores.tipos_vehiculo` (portal: `vehicleTypes`).
@@ -7297,9 +7328,8 @@ function resolveDriverForEmployee(employee) {
 }
 
 /**
- * `empleados_nomina` no guarda tipos de vehículo / comparendos / experiencia: viven en `conductores`.
- * Al editar o ver la ficha de un colaborador conductor, se copian desde la fila de flota para no
- * mostrar (ni guardar) esos campos en blanco.
+ * Comparendos / experiencia viven en `conductores`. La categoría de vehículo también está en
+ * `empleados_nomina.tipos_vehiculo`; si la ficha de nómina viene vacía, se completa desde flota.
  */
 function mergeLinkedDriverConductorFields(emp) {
   if (!emp || typeof emp !== "object") return emp;
@@ -7387,6 +7417,8 @@ function summarizePayrollEmployeeForDirectory(emp) {
       : "Empleado";
   const isUnlinked = isPayrollEmployeeUnlinked(raw);
   const unlinkCategory = payrollEmployeeUnlinkCategoryLabel(raw);
+  const vehicleCsv = payrollEmployeeCanonicalVehicleTypesCsv(raw);
+  const vehicleLabel = driverVehicleTypesCsvToLabel(vehicleCsv, "");
   const searchBlob = [
     raw.name,
     raw.idDoc,
@@ -7396,7 +7428,9 @@ function summarizePayrollEmployeeForDirectory(emp) {
     companyName,
     roleLabel,
     isUnlinked ? "desvinculado desvinculados" : "activo activos",
-    unlinkCategory
+    unlinkCategory,
+    vehicleLabel,
+    vehicleCsv
   ]
     .map((v) => String(v || "").toLowerCase())
     .join(" ");
@@ -7408,6 +7442,8 @@ function summarizePayrollEmployeeForDirectory(emp) {
     isDriverSvc,
     isUnlinked,
     unlinkCategory,
+    vehicleCsv,
+    vehicleLabel,
     searchBlob,
     transportCop: readEmployeeTransportAllowanceCop(raw),
     salaryCop: parseNum(raw.baseSalary)
@@ -7584,7 +7620,8 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = fa
       : "";
     const contractTypeKey = payrollEmployeeContractTypeKey(e);
     const endYmd = normalizePortalDateYmd(contract.endYmd || e.contractEndDate || "");
-    return `<article class="directory-card portal-ops-card trip-ops-card directory-card--employee directory-card--compact directory-card--contract-${escapeAttr(statusSlug)}${item.isUnlinked ? " directory-card--unlinked" : ""}" data-employee-id="${escapeAttr(String(e.id || ""))}" data-employee-search="${escapeAttr(item.searchBlob)}" data-employee-contract-filter="${escapeAttr(contract.applies ? contract.statusSlug : "all")}" data-employee-contract-type="${escapeAttr(contractTypeKey)}" data-employee-contract-end="${escapeAttr(endYmd)}" data-employee-link="${item.isUnlinked ? "unlinked" : "active"}" data-employee-unlink-category="${escapeAttr(payrollEmployeeUnlinkCategory(e) || "")}">
+    const vehicleCsv = item.vehicleCsv || payrollEmployeeCanonicalVehicleTypesCsv(e);
+    return `<article class="directory-card portal-ops-card trip-ops-card directory-card--employee directory-card--compact directory-card--contract-${escapeAttr(statusSlug)}${item.isUnlinked ? " directory-card--unlinked" : ""}" ${payrollEmployeeDirectoryDataAttrs(e, item, contract, { contractTypeKey, endYmd, vehicleCsv })}>
     <div class="directory-card__compact-row">
       <div class="payroll-emp-avatar payroll-emp-avatar--${avColorIdx}" aria-hidden="true">${escapeHtml(initials)}</div>
       <div class="directory-card__compact-main">
@@ -7597,6 +7634,7 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = fa
       <div class="directory-card__compact-meta">
         ${isSmmlv ? '<span class="payroll-emp-badge payroll-emp-badge--smmlv" title="Salario en el rango del SMMLV">SMMLV</span>' : ""}
         ${item.isDriverSvc ? '<span class="payroll-emp-badge payroll-emp-badge--driver">Prestación</span>' : ""}
+        ${renderPayrollEmployeeVehicleBadge(vehicleCsv)}
         ${renderPayrollEmployeeUnlinkBadge(item)}
         ${contract.applies ? directoryPillHtml(contract.pillLabel, contractPillTone) : ""}
         <span class="directory-card__salary payroll-emp-salary">$${item.salaryCop.toLocaleString("es-CO")}</span>
@@ -7615,7 +7653,7 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = fa
     ${contractAlertBar}
   </article>`;
   }
-  return `<article class="directory-card portal-ops-card trip-ops-card directory-card--employee directory-card--contract-${escapeAttr(statusSlug)}${item.isUnlinked ? " directory-card--unlinked" : ""}" data-employee-id="${escapeAttr(String(e.id || ""))}" data-employee-search="${escapeAttr(item.searchBlob)}" data-employee-contract-filter="${escapeAttr(contract.applies ? contract.statusSlug : "all")}" data-employee-contract-type="${escapeAttr(payrollEmployeeContractTypeKey(e))}" data-employee-contract-end="${escapeAttr(normalizePortalDateYmd(contract.endYmd || e.contractEndDate || ""))}" data-employee-link="${item.isUnlinked ? "unlinked" : "active"}" data-employee-unlink-category="${escapeAttr(payrollEmployeeUnlinkCategory(e) || "")}">
+  return `<article class="directory-card portal-ops-card trip-ops-card directory-card--employee directory-card--contract-${escapeAttr(statusSlug)}${item.isUnlinked ? " directory-card--unlinked" : ""}" ${payrollEmployeeDirectoryDataAttrs(e, item, contract)}>
     <header class="directory-card__head">
       <div class="directory-card__identity">
         <div class="${avatarClass}">${avatarInner}</div>
@@ -7643,6 +7681,7 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = fa
     <dl class="directory-card__facts">
       ${directoryFactHtml("Documento", docLine)}
       ${directoryFactHtml("Cargo", String(e.position || "—"))}
+      ${directoryFactHtml("Vehículo", driverVehicleTypesCsvToLabel(item.vehicleCsv || payrollEmployeeCanonicalVehicleTypesCsv(e), "—"))}
       ${directoryFactHtml("Centro costos", String(resolvePayrollEmployeeCostCenter(e) || "—"))}
       ${directoryFactHtml("Tipo contrato", String(e.contractType || "—"))}
       ${contract.applies && contract.noticeDeadlineYmd ? directoryFactHtml("Aviso no renovación", fmtDateOr(contract.noticeDeadlineYmd), { tone: contract.statusSlug === "notice_window" ? "warn" : "neutral" }) : ""}
@@ -7672,10 +7711,12 @@ function renderPayrollEmployeeDirectoryTableRow(item, hrAdminDeletes) {
   const statusLabel = item.isUnlinked
     ? { label: "Desvinculado", tone: "alert", slug: "unlinked" }
     : status;
-  return `<tr class="payroll-employee-table-row payroll-employee-table-row--${escapeAttr(item.isUnlinked ? "unlinked" : statusSlug)}" data-employee-id="${escapeAttr(String(e.id || ""))}" data-employee-search="${escapeAttr(item.searchBlob)}" data-employee-contract-filter="${escapeAttr(contract.applies ? contract.statusSlug : "all")}" data-employee-contract-type="${escapeAttr(contractTypeKey)}" data-employee-contract-end="${escapeAttr(endYmd)}" data-employee-link="${item.isUnlinked ? "unlinked" : "active"}" data-employee-unlink-category="${escapeAttr(payrollEmployeeUnlinkCategory(e) || "")}">
+  const vehicleCsv = item.vehicleCsv || payrollEmployeeCanonicalVehicleTypesCsv(e);
+  return `<tr class="payroll-employee-table-row payroll-employee-table-row--${escapeAttr(item.isUnlinked ? "unlinked" : statusSlug)}" ${payrollEmployeeDirectoryDataAttrs(e, item, contract, { contractTypeKey, endYmd, vehicleCsv })}>
     ${selectCell}
     <td class="payroll-employee-table-cell-main">${renderPayrollEmployeeTableIdentity(item)}</td>
     <td>${escapeHtml(String(e.position || "—"))}</td>
+    <td>${escapeHtml(driverVehicleTypesCsvToLabel(vehicleCsv, "—"))}</td>
     <td>${fmtDateOr(e.startDate, "—")}</td>
     <td>${isFixedTermContractType(e.contractType) ? fmtDateOr(e.contractVigenteStartDate || e.startDate, "—") : "—"}</td>
     <td>${isFixedTermContractType(e.contractType) ? fmtDateOr(e.renewalDate, "—") : "—"}</td>
@@ -7693,6 +7734,7 @@ function wirePayrollEmployeeDirectoryFilters() {
   const dateEl = document.getElementById("payroll-employee-contract-date-filter");
   const linkEl = document.getElementById("payroll-employee-link-filter");
   const catEl = document.getElementById("payroll-employee-unlink-category-filter");
+  const vehEl = document.getElementById("payroll-employee-vehicle-filter");
   const rows = [
     ...document.querySelectorAll(".directory-card--employee"),
     ...document.querySelectorAll(".payroll-employee-table-row")
@@ -7709,6 +7751,7 @@ function wirePayrollEmployeeDirectoryFilters() {
     const df = String(dateEl?.value || "all");
     const lf = String(linkEl?.value || "active");
     const catf = String(catEl?.value || "all");
+    const vf = String(vehEl?.value || "all");
     if (catEl) catEl.closest("label")?.toggleAttribute("hidden", lf === "active");
     rows.forEach((row) => {
       const blob = String(row.getAttribute("data-employee-search") || "");
@@ -7717,11 +7760,16 @@ function wirePayrollEmployeeDirectoryFilters() {
       const endYmd = normalizePortalDateYmd(row.getAttribute("data-employee-contract-end") || "");
       const link = String(row.getAttribute("data-employee-link") || "active");
       const cat = String(row.getAttribute("data-employee-unlink-category") || "");
+      const vehicleCsv = String(row.getAttribute("data-employee-vehicle-types") || "");
       const matchQ = !q || blob.includes(q);
       const matchC = cf === "all" || slug === cf;
       const matchT = tf === "all" || typeKey === tf;
       const matchL = lf === "all" || link === lf;
       const matchCat = catf === "all" || lf === "active" || cat === catf;
+      const matchV =
+        vf === "all" ||
+        (vf === "none" && !vehicleCsv.trim()) ||
+        (vf !== "none" && driverHasCanonicalVehicleType(vehicleCsv, vf));
       let matchD = true;
       if (df !== "all" && endYmd) {
         if (df === "ends_month") matchD = endYmd.slice(0, 7) === monthPrefix;
@@ -7737,7 +7785,7 @@ function wirePayrollEmployeeDirectoryFilters() {
       } else if (df !== "all" && !endYmd) {
         matchD = false;
       }
-      row.classList.toggle("is-filtered-out", !(matchQ && matchC && matchT && matchD && matchL && matchCat));
+      row.classList.toggle("is-filtered-out", !(matchQ && matchC && matchT && matchD && matchL && matchCat && matchV));
     });
     window.syncPayrollEmployeeSelectionBadge?.();
   };
@@ -7747,6 +7795,7 @@ function wirePayrollEmployeeDirectoryFilters() {
   dateEl?.addEventListener("change", apply);
   linkEl?.addEventListener("change", apply);
   catEl?.addEventListener("change", apply);
+  vehEl?.addEventListener("change", apply);
   apply();
 }
 

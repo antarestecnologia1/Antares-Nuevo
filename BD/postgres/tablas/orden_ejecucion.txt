@@ -44,3 +44,4 @@
 42_sarlaft_pte.sql
 43_alter_ausencias_soporte_documento.sql
 44_alter_empleados_desvinculacion.sql
+45_alter_empleados_tipos_vehiculo.sql

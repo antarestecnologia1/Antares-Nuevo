@@ -85,6 +85,16 @@ function renderPayrollContractsFilterBar(canDeletePayrollEmployees) {
         <option value="all">Todos</option>
       </select>
     </label>
+    <label class="payroll-contracts-filter">
+      <span>Vehículo</span>
+      <select id="payroll-employee-vehicle-filter">
+        <option value="all">Todos</option>
+        <option value="Camion">Camión</option>
+        <option value="Turbo">Turbo</option>
+        <option value="Tractomula">Mula</option>
+        <option value="none">Sin categoría</option>
+      </select>
+    </label>
     <label class="payroll-contracts-filter" hidden>
       <span>Categoría</span>
       <select id="payroll-employee-unlink-category-filter">
@@ -123,6 +133,10 @@ function renderPayrollContractsFilterBar(canDeletePayrollEmployees) {
 function renderPayrollContractsTableToolbar(activeView, canDeletePayrollEmployees) {
   const bulk = canDeletePayrollEmployees
     ? `<div class="payroll-contracts-bulk toolbar">
+        <label class="payroll-runs-select-all-label" title="Seleccionar todos los colaboradores visibles (página y filtros actuales)">
+          <input type="checkbox" id="employees-select-all" />
+          <span>Seleccionar todos</span>
+        </label>
         <span class="payroll-contracts-bulk__count" id="employees-selected-count" hidden>0 seleccionados</span>
         <button type="button" class="btn btn-sm btn-outline" id="export-employees-contracts">${IC.download} Exportar</button>
         <button type="button" class="btn btn-sm btn-outline btn-reject" id="employees-delete-selected">${IC.userMinus || IC.trash} Desvincular seleccionados</button>
@@ -505,7 +519,7 @@ function payrollHtml() {
         <label class="full">${fieldLabel(IC.truck, "Categoría de vehículos que conduce")}
           <div class="hr-conductor-vehicle-types">${driverVehicleTypesCheckboxesHtml("")}</div>
         </label>
-        <p class="full muted" style="grid-column:1/-1;font-size:0.82rem;margin:0">Marque si es conductor de camión, turbo y/o mula. Puede tener más de una categoría y completarlo luego desde Conductores.</p>
+        <p class="full muted" style="grid-column:1/-1;font-size:0.82rem;margin:0">Marque camión, turbo y/o mula. Un conductor puede tener más de una categoría. Luego podrá filtrar al equipo por este dato en Consultar colaboradores.</p>
       </div>
     </fieldset>
 
@@ -870,7 +884,13 @@ function payrollHtml() {
     </header>
     <div class="hr-absence-create-form__body">
       <div class="hr-absence-field hr-absence-field--employee full">
-        <label>${fieldLabel(IC.user, "Colaborador", { required: true })}<select name="employeeId" required><option value="">Seleccione colaborador</option>${employees.map((e) => `<option value="${escapeAttr(String(e.id))}">${escapeHtml(String(e.name || ""))} · ${escapeHtml(String(e.idDoc || "—"))}</option>`).join("")}</select></label>
+        <label>${fieldLabel(IC.user, "Colaborador", { required: true })}<select name="employeeId" required><option value="">Seleccione colaborador</option>${employees
+          .filter((e) => !(typeof isPayrollEmployeeUnlinked === "function" && isPayrollEmployeeUnlinked(e)))
+          .map(
+            (e) =>
+              `<option value="${escapeAttr(String(e.id))}">${escapeHtml(String(e.name || ""))} · ${escapeHtml(String(e.idDoc || "—"))}</option>`
+          )
+          .join("")}</select></label>
       </div>
       <div class="hr-absence-field full">
         <label>${fieldLabel(IC.activity, "Tipo de tiempo", { required: true, help: "Clasificación de la ausencia para nómina y archivo de personal." })}
@@ -984,7 +1004,7 @@ function payrollHtml() {
         ${employeeTableToolbar}
         <div class="table-wrap payroll-table-wrap payroll-employees-list-view payroll-contracts-table-wrap">
           <table class="payroll-employees-table payroll-contracts-table">
-            <thead><tr>${employeeSelectHeader}<th>Colaborador</th><th>Cargo</th><th>Ingreso</th><th>Inicio vigente</th><th>Renovación</th><th>Aviso no renov.</th><th>Fin contrato</th><th>Estado</th><th class="payroll-contracts-table__actions">Acciones</th></tr></thead>
+            <thead><tr>${employeeSelectHeader}<th>Colaborador</th><th>Cargo</th><th>Vehículo</th><th>Ingreso</th><th>Inicio vigente</th><th>Renovación</th><th>Aviso no renov.</th><th>Fin contrato</th><th>Estado</th><th class="payroll-contracts-table__actions">Acciones</th></tr></thead>
             <tbody>${employeeTableRows}</tbody>
           </table>
         </div>
