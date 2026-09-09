@@ -908,39 +908,115 @@ function incapacityEpisodeMoney(ep) {
   return { days, adjust, deduct, pay };
 }
 
+export function formatPayrollHumanDateRange(rangeLabel) {
+  const raw = String(rangeLabel || "").trim();
+  const m = /^(\d{4}-\d{2}-\d{2})\s*[→\-–]\s*(\d{4}-\d{2}-\d{2})$/.exec(raw);
+  const fmt = (ymd) => {
+    const d = payrollParseLocalYmd(ymd);
+    if (!d) return ymd;
+    return d.toLocaleDateString("es-CO", { day: "numeric", month: "short", year: "numeric" });
+  };
+  if (!m) return raw;
+  const a = fmt(m[1]);
+  const b = fmt(m[2]);
+  return a === b ? a : `${a} al ${b}`;
+}
+
+export function formatPayrollPercentLabel(pct) {
+  const p = Number(pct);
+  if (!Number.isFinite(p)) return "0%";
+  if (p >= 0.999) return "100%";
+  if (Math.abs(p - 2 / 3) < 0.02 || Math.abs(p - 0.6667) < 0.02) return "66,67%";
+  if (Math.abs(p - 0.5) < 0.02) return "50%";
+  const n = Math.round(p * 10000) / 100;
+  return `${String(n).replace(".", ",")}%`;
+}
+
+function stagePercentLabel(stage) {
+  const pay = Number(stage.payCop) || 0;
+  const pct = Number(stage.pct) || 0;
+  if (pct >= 0.999 || /empleador 100/i.test(String(stage.payer || ""))) return "100%";
+  if (pay > 0 && pct > 0) return formatPayrollPercentLabel(pct);
+  if (/50/.test(String(stage.payer || "")) || pct === 0.5) return "50%";
+  return "66,67%";
+}
+
+export function formatPayrollNoveltyPercentSummary(ep) {
+  const stages = Array.isArray(ep?.stages) ? ep.stages : [];
+  if (stages.length) {
+    return stages
+      .map((s) => {
+        const span = s.from === s.to ? `día ${s.from}` : `días ${s.from}-${s.to}`;
+        return `${stagePercentLabel(s)} (${span})`;
+      })
+      .join(" · ");
+  }
+  const payer = String(ep?.payer || "");
+  if (/ninguno/i.test(payer)) return "0%";
+  if (/^arl$/i.test(payer)) return "100%";
+  if (/^eps$/i.test(payer)) return "100%";
+  if (/empleador/i.test(payer) && !/eps/i.test(payer)) return "100%";
+  const note = String(ep?.note || ep.nota || "").trim();
+  if (/^\d[\d,]*%$/.test(note)) return note;
+  return "";
+}
+
+export function formatIncapacityEpsStageNote(stages) {
+  return formatPayrollNoveltyPercentSummary({ stages });
+}
+
+export function formatPayrollNoveltyDevengoLabel(ep, { kind } = {}) {
+  const typeLabel = String(ep.typeLabel || ep.label || ep.tipo || "Novedad")
+    .replace(/\s*·\s*radicado\s+\S+/i, "")
+    .trim();
+  const range = formatPayrollHumanDateRange(ep.rangeLabel);
+  const pct = formatPayrollNoveltyPercentSummary(ep);
+  const core = [typeLabel, range, pct].filter(Boolean).join(" · ");
+  if (kind === "deduct") return `Descuento · ${core}`;
+  if (kind === "pay") return `Pago · ${core}`;
+  return core;
+}
+
+function pushIncapacityStage(stages, dayIndex, adj) {
+  const key = `${adj.payer || ""}|${adj.pct ?? ""}|${Number(adj.payCop) > 0 ? "pay" : "eps"}`;
+  const last = stages[stages.length - 1];
+  if (last && last.key === key) {
+    last.to = dayIndex;
+    return;
+  }
+  stages.push({
+    key,
+    from: dayIndex,
+    to: dayIndex,
+    payer: adj.payer,
+    pct: adj.pct,
+    payCop: adj.payCop
+  });
+}
+
 export function expandIncapacityEpisodesToDevengoLines(episodes) {
   const lines = [];
   (Array.isArray(episodes) ? episodes : []).forEach((ep, i) => {
-    const { days, deduct, pay } = incapacityEpisodeMoney(ep);
-    const labelBase = `${String(ep.label || ep.tipo || "Incapacidad")} · ${days || "—"} días liq. · ${String(ep.rangeLabel || "")}`.trim();
-    const note = ep.note || ep.nota ? String(ep.note || ep.nota) : "";
-    const kind = String(ep.kind || ep.tipo || ep.typeKey || "").toLowerCase();
-    const isUnpaid =
-      kind.includes("licencia_no_remunerada") ||
-      kind.includes("no_remuner") ||
-      kind.includes("suspension");
+    const { deduct, pay } = incapacityEpisodeMoney(ep);
     if (deduct !== 0) {
       lines.push({
         code: `INCAPACIDAD_DESC_${i}`,
-        label: `${isUnpaid ? "Descuento salario (sin remuneración)" : "Descuento salario por novedad"} · ${labelBase}`,
-        amount: deduct,
-        incapacityNote: note
+        label: formatPayrollNoveltyDevengoLabel(ep, { kind: "deduct" }),
+        amount: deduct
       });
     }
     if (pay !== 0) {
       lines.push({
         code: `INCAPACIDAD_PAGO_${i}`,
-        label: `Pago de la novedad a cargo del empleador · ${labelBase}`,
-        amount: pay,
-        incapacityNote: note
+        label: formatPayrollNoveltyDevengoLabel(ep, { kind: "pay" }),
+        amount: pay
       });
     }
     if (deduct === 0 && pay === 0) {
       lines.push({
         code: `INCAPACIDAD_EP_${i}`,
-        label: labelBase,
-        amount: Math.round(parseNum(ep.adjustCop ?? ep.ajusteSalarioOrientativoCop)),
-        incapacityNote: note
+        label: formatPayrollNoveltyDevengoLabel(ep),
+        amount: Math.round(parseNum(ep.adjustCop ?? ep.ajusteSalarioOrientativoCop))
       });
     }
   });
@@ -1700,7 +1776,7 @@ export function computePayrollNoveltyEpisode({
   const sm = Math.max(0, parseNum(smmlv) || CO_PAYROLL.smmlv);
   const rangeLabel = `${payrollFmtYmdLocal(overlapStart)} → ${payrollFmtYmdLocal(overlapEnd)}`;
   const rad = String(absence?.supportNumber || "").trim();
-  const label = rad ? `${meta.label} · radicado ${rad}` : meta.label;
+  const label = meta.label;
   const fullDeduct = moneyDays > 0 && daily > 0 ? -Math.round(daily * moneyDays) : 0;
   const fullPay = moneyDays > 0 && daily > 0 ? Math.round(daily * moneyDays) : 0;
   const base = {
@@ -1711,6 +1787,7 @@ export function computePayrollNoveltyEpisode({
     typeLabel: meta.label,
     conceptLabel: meta.conceptLabel,
     label,
+    supportNumber: rad,
     days: quantity,
     dias: quantity,
     rangeLabel,
@@ -1726,7 +1803,7 @@ export function computePayrollNoveltyEpisode({
     let netIncap = 0;
     let deductIncap = 0;
     let payIncap = 0;
-    const payerNotes = [];
+    const stages = [];
     const msDay = 86400000;
     const episodeStart = abStart || overlapStart;
     for (let cur = overlapStart.getTime(); cur <= overlapEnd.getTime(); cur += msDay) {
@@ -1741,7 +1818,7 @@ export function computePayrollNoveltyEpisode({
       netIncap += dayAdj.adjustCop;
       deductIncap += parseNum(dayAdj.deductCop);
       payIncap += parseNum(dayAdj.payCop);
-      if (dayAdj.payer && !payerNotes.includes(dayAdj.payer)) payerNotes.push(dayAdj.payer);
+      pushIncapacityStage(stages, idx, dayAdj);
     }
     return {
       ...base,
@@ -1751,8 +1828,9 @@ export function computePayrollNoveltyEpisode({
       payEmployerCop: Math.round(payIncap),
       payThirdPartyCop: Math.max(0, Math.round(-Math.round(deductIncap) - Math.round(payIncap))),
       adjustCop: Math.round(netIncap),
-      payer: monthly > 0 && monthly <= sm && calendarDays <= 2 ? "Empleador" : "EPS y empleador",
-      note: `Incapacidad común (EPS): ${payerNotes.join("; ") || "tabla Dec. 780/2016"}. Descuento del salario y pago a cargo del empleador según la etapa.`
+      payer: stages.every((s) => Number(s.payCop) > 0 && Number(s.pct) >= 0.999) ? "Empleador" : "EPS y empleador",
+      stages,
+      note: formatIncapacityEpsStageNote(stages)
     };
   }
 
@@ -1767,7 +1845,7 @@ export function computePayrollNoveltyEpisode({
       payThirdPartyCop: Math.abs(deduct),
       adjustCop: deduct,
       payer: "ARL",
-      note: "Incapacidad laboral (ARL): el salario de esos días se descuenta de la nómina de la empresa; el pago va a cargo de la ARL."
+      note: "100%"
     };
   }
 
@@ -1782,7 +1860,7 @@ export function computePayrollNoveltyEpisode({
       payThirdPartyCop: Math.abs(deduct),
       adjustCop: deduct,
       payer: "EPS",
-      note: `${meta.label}: prestacion económica a cargo de la EPS (100% del salario/IBC orientativo). Se descuenta de la nómina del empleador.`
+      note: "100%"
     };
   }
 
@@ -1797,10 +1875,7 @@ export function computePayrollNoveltyEpisode({
       payThirdPartyCop: 0,
       adjustCop: deduct,
       payer: "Ninguno",
-      note:
-        typeKey === "suspension"
-          ? "Suspensión: días sin remuneración (salario÷30 × días calendario del período)."
-          : "Licencia no remunerada: descuento de salario por días del período (salario÷30)."
+      note: "0%"
     };
   }
 
@@ -1811,7 +1886,7 @@ export function computePayrollNoveltyEpisode({
     payThirdPartyCop: 0,
     adjustCop: 0,
     payer: "Empleador",
-    note: `${meta.label}: remunerada por el empleador. El valor (salario÷30 × días) queda desglosado y el neto del período no cambia.`
+    note: "100%"
   };
 }
 

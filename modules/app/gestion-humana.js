@@ -376,9 +376,6 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
           if (L.code === "INT_CESANTIAS" && parseNum(L.amount) > 0) {
             labelHtml = escapeHtml(intLabel);
           }
-          if (L.incapacityNote) {
-            labelHtml += `<span class="slip-note">${escapeHtml(String(L.incapacityNote))}</span>`;
-          }
           return `<tr><td ${cL}>${labelHtml}</td><td ${cR}>${fmtPay(L.amount)}</td></tr>`;
         })
         .join("");
@@ -399,9 +396,6 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
         .filter((L) => parseNum(L.amount) !== 0)
         .map((L) => {
           let labelHtml = escapeHtml(cleanSlipText(String(L.label || L.code || "Incapacidad")));
-          if (L.incapacityNote) {
-            labelHtml += `<span class="slip-note">${escapeHtml(String(L.incapacityNote))}</span>`;
-          }
           return `<tr><td ${cL}>${labelHtml}</td><td ${cR}>${fmtPay(L.amount)}</td></tr>`;
         })
         .join("");
@@ -484,20 +478,17 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
       const days = parseNum(ep.days ?? ep.dias);
       const deduct = parseNum(ep.deductSalaryCop ?? ep.descuentoSalarioCop);
       const pay = parseNum(ep.payEmployerCop ?? ep.pagoEmpleadorCop);
-      const third = parseNum(ep.payThirdPartyCop ?? ep.pagoTerceroCop);
       const payer = String(ep.payer || "Empleador");
-      const title = escapeHtml(cleanSlipText(String(ep.typeLabel || ep.label || ep.tipo || "Novedad")));
-      const concept = escapeHtml(cleanSlipText(String(ep.conceptLabel || ep.rangeLabel || "")));
-      const range = ep.rangeLabel ? `<span class="slip-note">${escapeHtml(String(ep.rangeLabel))}</span>` : "";
-      const note = ep.note || ep.nota ? `<span class="slip-note">${escapeHtml(String(ep.note || ep.nota))}</span>` : "";
-      const thirdNote =
-        third > 0 ? `<span class="slip-note">Pago estimado EPS/ARL: ${fmtPay(third)}</span>` : "";
+      const title = escapeHtml(cleanSlipText(String(ep.typeLabel || ep.label || ep.tipo || "Novedad").replace(/\s*·\s*radicado\s+\S+/i, "")));
+      const rangeHuman = formatPayrollHumanDateRange(ep.rangeLabel);
+      const pct = formatPayrollNoveltyPercentSummary(ep);
+      const extra = [rangeHuman, pct].filter(Boolean).join(" · ");
       return `<tr>
-        <td ${cL}>${title}${concept ? `<span class="slip-note">${concept}</span>` : ""}${range}${note}</td>
+        <td ${cL}>${title}${extra ? `<span class="slip-note">${escapeHtml(extra)}</span>` : ""}</td>
         <td ${cR}>${escapeHtml(payrollFormatAbsenceQuantity(days))}</td>
         <td ${cR}>${deduct !== 0 ? fmtPay(deduct) : "—"}</td>
         <td ${cR}>${pay !== 0 ? fmtPay(pay) : "—"}</td>
-        <td ${cL}>${escapeHtml(payer)}${thirdNote}</td>
+        <td ${cL}>${escapeHtml(payer)}</td>
       </tr>`;
     })
     .join("");
@@ -505,7 +496,7 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
     ? slipSection(
         "IV",
         "Novedades de nómina",
-        "Vacaciones, licencias, permisos, suspensiones e incapacidades del período. El descuento y el pago del empleador también aparecen en Devengos cuando afectan el neto.",
+        "",
         `${noveltyThead}<tbody>${noveltyRowsHtml}</tbody>`
       )
     : "";
@@ -521,9 +512,6 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
       disclaimerPieces.push(
         `Intereses de cesantías (Ley 52/1975, ${CO_CESANTIAS_INTERES_ANUAL_PCT}% anual): pago en enero del año siguiente al período causado.`
       );
-    if (noveltyEpisodes.length) {
-      disclaimerPieces.push("Novedades de nómina: valores orientativos; valide con EPS/ARL y contador.");
-    }
   }
   const disclaimer =
     isTerm && run.settlementDetail && typeof run.settlementDetail === "object" && run.settlementDetail.legalDisclaimer

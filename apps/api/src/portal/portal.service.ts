@@ -12210,7 +12210,7 @@ export class PortalService implements OnModuleInit {
         const abRes = await client.query(
           `
           SELECT id, id_empleado, tipo_ausencia, subtipo_ausencia, fecha_inicio::text AS fecha_inicio, fecha_fin::text AS fecha_fin,
-                 observaciones, dias_reconocidos, unidad_dias_reconocidos
+                 observaciones, dias_reconocidos, unidad_dias_reconocidos, numero_soporte
           FROM ausencias_laborales
           WHERE id_empleado = $1::uuid AND fecha_fin >= $2::date AND fecha_inicio <= $3::date
         `,
@@ -12231,7 +12231,8 @@ export class PortalService implements OnModuleInit {
             observaciones: typeof a.observaciones === "string" ? a.observaciones : null,
             diasReconocidos: a.dias_reconocidos != null ? Number(a.dias_reconocidos) : null,
             unidadDiasReconocidos:
-              a.unidad_dias_reconocidos != null ? String(a.unidad_dias_reconocidos) : null
+              a.unidad_dias_reconocidos != null ? String(a.unidad_dias_reconocidos) : null,
+            numeroSoporte: a.numero_soporte != null ? String(a.numero_soporte) : null
           });
         }
 
@@ -12876,7 +12877,7 @@ export class PortalService implements OnModuleInit {
 
       const abRes = await c.query(
         `SELECT id, id_empleado, tipo_ausencia, subtipo_ausencia, fecha_inicio::text AS fecha_inicio,
-                fecha_fin::text AS fecha_fin, observaciones, dias_reconocidos, unidad_dias_reconocidos
+                fecha_fin::text AS fecha_fin, observaciones, dias_reconocidos, unidad_dias_reconocidos, numero_soporte
          FROM ausencias_laborales
          WHERE id_empleado = $1::uuid AND fecha_fin >= $2::date AND fecha_inicio <= $3::date`,
         [employeeId, this.pgDateUtc(cut.periodStart), this.pgDateUtc(cut.periodEnd)]
@@ -12895,7 +12896,8 @@ export class PortalService implements OnModuleInit {
           observaciones: typeof a.observaciones === "string" ? a.observaciones : null,
           diasReconocidos: a.dias_reconocidos != null ? Number(a.dias_reconocidos) : null,
           unidadDiasReconocidos:
-            a.unidad_dias_reconocidos != null ? String(a.unidad_dias_reconocidos) : null
+            a.unidad_dias_reconocidos != null ? String(a.unidad_dias_reconocidos) : null,
+          numeroSoporte: a.numero_soporte != null ? String(a.numero_soporte) : null
         });
       }
 
