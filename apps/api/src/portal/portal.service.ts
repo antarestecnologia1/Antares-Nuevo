@@ -4458,7 +4458,11 @@ export class PortalService implements OnModuleInit {
         ? this.loadCompanyDocumentFolders(documentsCompanyScope)
         : canSarlaftBootstrap
           ? this.loadSarlaftCompanyFolders(documentsCompanyScope)
-          : Promise.resolve([])
+          : Promise.resolve([]),
+      canSarlaftBootstrap ? this.loadSarlaftRiskProfiles() : Promise.resolve([]),
+      canSarlaftBootstrap ? this.loadSarlaftThirdParties() : Promise.resolve([]),
+      canSarlaftBootstrap ? this.loadSarlaftAlerts() : Promise.resolve([]),
+      canSarlaftBootstrap ? this.loadSarlaftReviews() : Promise.resolve([])
     ]);
 
     const dependentPromise = Promise.all([
