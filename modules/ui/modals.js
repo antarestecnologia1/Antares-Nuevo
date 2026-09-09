@@ -1074,7 +1074,14 @@ export function lockFormSubmitUi(formEl, opts = {}) {
     submitBtn.classList.add("is-busy");
     if (resolved.busyText) {
       if (labelEl) labelEl.textContent = resolved.busyText;
-      else if (!resolved.busyHtml) submitBtn.textContent = resolved.busyText;
+      else if (!resolved.busyHtml) {
+        submitBtn.classList.add("btn-busy-labeled");
+        submitBtn.dataset.busyLabeledByLock = "1";
+        const text = document.createElement("span");
+        text.className = "btn-busy-text";
+        text.textContent = resolved.busyText;
+        submitBtn.replaceChildren(text);
+      }
     }
     if (resolved.busyHtml) submitBtn.innerHTML = resolved.busyHtml;
     if (resolved.loadingClass) submitBtn.classList.add(resolved.loadingClass);
@@ -1083,8 +1090,6 @@ export function lockFormSubmitUi(formEl, opts = {}) {
     if (!btn || btn === submitBtn) return;
     rememberButtonDisabledBeforeLock(btn);
     btn.disabled = true;
-    btn.setAttribute("aria-busy", "true");
-    btn.classList.add("is-busy");
   });
   markFormSubmitting(formEl, true);
 }
@@ -1098,6 +1103,10 @@ export function releaseFormSubmitUi(formEl, opts = {}) {
     if (submitBtn.dataset.submitOrigHtml) submitBtn.innerHTML = submitBtn.dataset.submitOrigHtml;
     const labelEl = submitBtn.querySelector(".auth-submit-label");
     if (labelEl?.dataset.submitOrigText) labelEl.textContent = labelEl.dataset.submitOrigText;
+    if (submitBtn.dataset.busyLabeledByLock === "1") {
+      submitBtn.classList.remove("btn-busy-labeled");
+      delete submitBtn.dataset.busyLabeledByLock;
+    }
     if (resolved.loadingClass) submitBtn.classList.remove(resolved.loadingClass);
     restoreButtonDisabledAfterLock(submitBtn);
   }

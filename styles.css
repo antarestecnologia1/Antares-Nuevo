@@ -2246,6 +2246,35 @@ body[data-theme="dark"] .clients-strip-logo {
   pointer-events: none;
 }
 
+/* Guardado con texto visible: evita el círculo solo en el botón. */
+.btn.btn-busy-labeled[aria-busy="true"],
+.btn.btn-busy-labeled.is-busy {
+  color: #fff !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+}
+
+.btn.btn-busy-labeled[aria-busy="true"] > *,
+.btn.btn-busy-labeled.is-busy > * {
+  opacity: 1 !important;
+  visibility: visible;
+}
+
+.btn.btn-busy-labeled[aria-busy="true"]::after,
+.btn.btn-busy-labeled.is-busy::after {
+  position: static;
+  top: auto;
+  left: auto;
+  margin: 0;
+  flex: 0 0 0.95em;
+  width: 0.95em;
+  height: 0.95em;
+  border-width: 2px;
+  order: -1;
+}
+
 /* Variantes claras: spinner en tono primario para contraste. */
 .btn-outline[aria-busy="true"]::after,
 .btn-outline.is-busy::after,

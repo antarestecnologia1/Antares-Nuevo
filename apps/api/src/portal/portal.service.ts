@@ -558,6 +558,36 @@ function roundHrAbsenceRecognizedDays(raw: unknown, fallback = 1): number {
 function describeHrAbsenceSyncDbError(err: unknown): string {
   const code = (err as { code?: string } | null)?.code || "";
   const msg = err instanceof Error ? err.message : String(err);
+  if (/chk_ausencias_fechas/i.test(msg)) {
+    return "La fecha de finalización debe ser igual o posterior a la de inicio.";
+  }
+  if (/chk_ausencias_dias_reconocidos/i.test(msg)) {
+    return "Los días reconocidos deben ser mayores a cero.";
+  }
+  if (/chk_ausencias_unidad_dias_reconocidos/i.test(msg)) {
+    return "La unidad de días reconocidos no es válida. Use calendario, hábil o jornada según el tipo.";
+  }
+  if (/chk_ausencias_sufragio_subtipo/i.test(msg)) {
+    return "En permiso por sufragio debe indicar si fue votante o jurado de votación.";
+  }
+  if (/chk_ausencias_sufragio_reconocimiento/i.test(msg)) {
+    return "En sufragio, el votante reconoce 0,5 jornada y el jurado 1 jornada.";
+  }
+  if (/chk_ausencias_luto/i.test(msg)) {
+    return "La licencia por luto no puede superar 5 días hábiles.";
+  }
+  if (/chk_ausencias_paternidad_max/i.test(msg)) {
+    return "La licencia de paternidad supera el máximo permitido (14 días, o 7 si es parental compartida).";
+  }
+  if (/chk_ausencias_maternidad_subtipo/i.test(msg)) {
+    return "Seleccione un subtipo válido de licencia de maternidad.";
+  }
+  if (/chk_ausencias_paternidad_subtipo/i.test(msg)) {
+    return "Seleccione un subtipo válido de paternidad: continua, flexible o parental compartida.";
+  }
+  if (/chk_ausencias_maternidad_max/i.test(msg)) {
+    return "La licencia de maternidad no puede superar 182 días calendario.";
+  }
   if (code === "23514" || /check constraint|chk_ausencias/i.test(msg)) {
     return "La novedad no cumple las reglas de ausencias (fechas, tipo, subtipo o días reconocidos). Revise el formulario.";
   }

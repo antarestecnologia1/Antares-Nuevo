@@ -2366,6 +2366,37 @@ body[data-theme="dark"] .payroll-studio #form-employee .hr-wizard-nav-btn--prev:
   background: var(--pay-surface);
 }
 
+.payroll-studio .hr-absence-form-feedback {
+  margin: 0 0 0.15rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  font-weight: 600;
+}
+
+.payroll-studio .hr-absence-form-feedback--saving {
+  color: var(--pay-navy-mid);
+  background: color-mix(in srgb, var(--pay-blue) 12%, var(--pay-card));
+  border: 1px solid color-mix(in srgb, var(--pay-blue) 28%, var(--pay-edge));
+}
+
+.payroll-studio .hr-absence-form-feedback--error {
+  color: #9f1239;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+}
+
+body[data-theme="dark"] .payroll-studio .hr-absence-form-feedback--saving {
+  color: #e2e8f0;
+}
+
+body[data-theme="dark"] .payroll-studio .hr-absence-form-feedback--error {
+  color: #fecdd3;
+  background: color-mix(in srgb, #be123c 28%, var(--pay-card));
+  border-color: color-mix(in srgb, #fb7185 42%, var(--pay-edge));
+}
+
 .payroll-studio .field-help {
   display: inline-flex;
   align-items: center;

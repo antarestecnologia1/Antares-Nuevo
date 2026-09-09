@@ -879,7 +879,7 @@ function payrollHtml() {
   </form>`;
   const formAbsence = `<form id="form-hr-absence" novalidate class="p-form p-form-colored hr-form-flow hr-absence-create-form">
     <header class="hr-absence-create-form__head">
-      <h3 class="hr-absence-create-form__title">Crear ausencia</h3>
+      <h3 class="hr-absence-create-form__title">Crear novedad de nómina</h3>
       <p class="muted hr-absence-create-form__lead">Vacaciones, licencias, incapacidades, compensatorios y suspensiones. El soporte se archiva en la carpeta del colaborador en Gestión documental.</p>
     </header>
     <div class="hr-absence-create-form__body">
@@ -957,7 +957,8 @@ function payrollHtml() {
         </div>
       </details>
     </div>
-    ${renderManagedCreateFormActions("create-hr-absence", `<button class="btn btn-primary" type="submit">${IC.save} Registrar ausencia</button>`)}
+    <div class="hr-absence-form-feedback" data-absence-form-feedback hidden></div>
+    ${renderManagedCreateFormActions("create-hr-absence", `<button class="btn btn-primary btn-busy-labeled" type="submit">${IC.save} <span class="btn-busy-text">Guardar novedad</span></button>`)}
   </form>`;
   const absencesForTable = absences.filter(
     (a) => !filterEmployee || String(a.employeeId) === String(filterEmployee)
@@ -1120,7 +1121,7 @@ function payrollHtml() {
   );
   const absenceOperatePane = payrollOperatePane(
     "absence",
-    createHrActionCard("create-hr-absence", "calendar", "Crear ausencia", "Vacaciones, licencias, incapacidades, compensatorios y suspensiones", formAbsence, "Abrir formulario", { createPanels: payrollCreateUi })
+    createHrActionCard("create-hr-absence", "calendar", "Crear novedad de nómina", "Vacaciones, licencias, incapacidades, compensatorios y suspensiones", formAbsence, "Abrir formulario", { createPanels: payrollCreateUi })
   );
   const payrollExecutionBlock = `<section class="payroll-operate payroll-operate-panel${payrollRailCollapsed ? " is-rail-collapsed" : ""}">
       <aside class="payroll-operate__rail" aria-label="Trámites de registro">

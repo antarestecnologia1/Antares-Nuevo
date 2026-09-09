@@ -870,6 +870,65 @@ async function archivePayrollRunComprobanteQuietly(run) {
   }
 }
 
+function setHrAbsenceFormFeedback(form, kind, message) {
+  const el = form?.querySelector?.("[data-absence-form-feedback]");
+  if (!el) return;
+  const msg = String(message || "").trim();
+  if (!msg) {
+    el.hidden = true;
+    el.textContent = "";
+    el.className = "hr-absence-form-feedback";
+    el.removeAttribute("role");
+    return;
+  }
+  el.hidden = false;
+  el.className = `hr-absence-form-feedback hr-absence-form-feedback--${kind === "saving" ? "saving" : "error"}`;
+  el.setAttribute("role", kind === "error" ? "alert" : "status");
+  el.textContent = msg;
+  if (kind === "error") {
+    try {
+      el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    } catch (_e) {
+      /* noop */
+    }
+  }
+}
+
+function revealHrAbsenceFeedbackField(form, fieldName) {
+  const name = String(fieldName || "");
+  if (name === "supportNumber" || name === "epsEntity") {
+    const details = form?.querySelector?.(".hr-absence-support-details");
+    if (details) details.open = true;
+  }
+  if (name === "absenceSubtype") {
+    form?.querySelector?.("[data-absence-subtype-wrap]")?.classList.remove("hidden");
+  }
+  if (name === "incapacityOrigin") {
+    form?.querySelector?.("[data-incapacity-origin-wrap]")?.classList.remove("hidden");
+  }
+}
+
+function failHrAbsenceField(form, fieldName, message) {
+  const msg = String(message || "").trim();
+  revealHrAbsenceFeedbackField(form, fieldName);
+  setHrAbsenceFormFeedback(form, "error", msg);
+  failPortalField(form, fieldName, msg);
+}
+
+function describeHrAbsenceSaveError(err) {
+  const raw = String(err?.message || err?.errors || "").trim();
+  if (!raw || /^internal server error$/i.test(raw) || /^sync-key rechazado$/i.test(raw)) {
+    return "No fue posible guardar la novedad de nómina. Revise los datos e intente de nuevo.";
+  }
+  if (/sesión no iniciada|sin autenticación|vuelva a iniciar sesión/i.test(raw)) {
+    return "La sesión expiró. Vuelva a iniciar sesión e intente guardar de nuevo.";
+  }
+  if (/tardó demasiado|failed to fetch|networkerror|load failed/i.test(raw)) {
+    return "No hay conexión con el servidor. Verifique la red e intente de nuevo.";
+  }
+  return raw;
+}
+
 async function archiveAbsenceSupportForEmployee(employee, file, absence, { force = false } = {}) {
   const fn = typeof window !== "undefined" ? window.archiveAbsenceSupportToEmployeeFolder : null;
   if (typeof fn !== "function") {
@@ -1763,11 +1822,11 @@ function bindPayrollPortalControls() {
       const data = readFormEntriesNormalized(absenceForm);
       const employee = read(KEYS.payrollEmployees, []).find((e) => e.id === data.employeeId);
       if (!employee) {
-        failPortalField(absenceForm, "employeeId", userMessage("absencePickEmployee"));
+        failHrAbsenceField(absenceForm, "employeeId", userMessage("absencePickEmployee"));
         return;
       }
       if (typeof isPayrollEmployeeUnlinked === "function" && isPayrollEmployeeUnlinked(employee)) {
-        failPortalField(
+        failHrAbsenceField(
           absenceForm,
           "employeeId",
           "No se puede registrar una novedad de un colaborador desvinculado."
@@ -1777,7 +1836,7 @@ function bindPayrollPortalControls() {
       const start = new Date(`${data.startDate}T12:00:00`);
       const end = new Date(`${data.endDate}T12:00:00`);
       if (end.getTime() < start.getTime()) {
-        failPortalField(absenceForm, "endDate", userMessage("absenceDateOrder"));
+        failHrAbsenceField(absenceForm, "endDate", userMessage("absenceDateOrder"));
         return;
       }
       const days = Math.ceil((end.getTime() - start.getTime()) / 86400000) + 1;
@@ -1814,22 +1873,23 @@ function bindPayrollPortalControls() {
         notes: data.notes
       });
       if (!legalValidation.ok) {
-        failPortalField(absenceForm, legalValidation.field || "startDate", legalValidation.message);
+        failHrAbsenceField(absenceForm, legalValidation.field || "startDate", legalValidation.message);
         return;
       }
       const supportFile = absenceForm.querySelector("input[name='supportFile']")?.files?.[0] || null;
       if (!supportFile) {
-        failPortalField(absenceForm, "supportFile", userMessage("absenceSupportFileRequired"));
+        failHrAbsenceField(absenceForm, "supportFile", userMessage("absenceSupportFileRequired"));
         return;
       }
       const sec = window.AntaresFileUploadSecurity;
       if (sec?.validateUploadFile) {
         const check = await sec.validateUploadFile(supportFile, "document");
         if (!check.ok) {
-          failPortalField(absenceForm, "supportFile", check.message || userMessage("absenceSupportFileRequired"));
+          failHrAbsenceField(absenceForm, "supportFile", check.message || userMessage("absenceSupportFileRequired"));
           return;
         }
       }
+      setHrAbsenceFormFeedback(absenceForm, "saving", "Guardando la novedad. Esto puede tardar unos segundos…");
       const list = read(KEYS.hrAbsences, []);
       const absenceId = newUuidV4();
       let archived;
@@ -1841,7 +1901,7 @@ function bindPayrollPortalControls() {
           endDate: data.endDate
         });
       } catch (err) {
-        failPortalField(
+        failHrAbsenceField(
           absenceForm,
           "supportFile",
           String(err?.message || userMessage("absenceSupportFileSaveError"))
@@ -1882,9 +1942,16 @@ function bindPayrollPortalControls() {
       }
       list.unshift(absencePayload);
       try {
-        await writeAwaitServerCreate(KEYS.hrAbsences, list, absencePayload);
+        await writeAwaitServerCreate(KEYS.hrAbsences, list, absencePayload, { notifyOnFailure: false });
       } catch (err) {
-        notify(String(err?.message || "No fue posible registrar la ausencia en el servidor."), "error");
+        write(
+          KEYS.hrAbsences,
+          list.filter((row) => String(row.id) !== absenceId),
+          { skipSyncSchedule: true }
+        );
+        const saveMsg = describeHrAbsenceSaveError(err);
+        setHrAbsenceFormFeedback(absenceForm, "error", saveMsg);
+        notify(saveMsg, "error");
         return;
       }
       logPortalAuditEvent?.("payroll", "create", {
@@ -1901,7 +1968,7 @@ function bindPayrollPortalControls() {
       collapseCreatePanel("create-hr-absence");
       notify(payrollDraftLinkSuccessMessage(linkResult), "success");
       renderPortalView();
-    }, payrollCreateFormSubmitOpts(absenceForm, { busyText: "Registrando ausencia…" }));
+    }, payrollCreateFormSubmitOpts(absenceForm, { busyText: "Guardando novedad…" }));
   }
 
   nodes.viewRoot.querySelectorAll("[data-action='view-employee']").forEach((btn) => {
@@ -4059,7 +4126,7 @@ function bindPayrollPortalControls() {
           try {
             await writeAwaitServerEdit(KEYS.hrAbsences, nextList, target.id);
           } catch (err) {
-            notify(String(err?.message || "No fue posible actualizar la ausencia en el servidor."), "error");
+            notify(describeHrAbsenceSaveError(err), "error");
             return false;
           }
           const updatedAbsence = nextList.find((a) => String(a.id) === String(target.id));
