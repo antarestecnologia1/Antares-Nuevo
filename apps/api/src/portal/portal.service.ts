@@ -562,6 +562,9 @@ function describeHrAbsenceSyncDbError(err: unknown): string {
     return "La novedad no cumple las reglas de ausencias (fechas, tipo, subtipo o días reconocidos). Revise el formulario.";
   }
   if (code === "23503" || /violates foreign key|foreign key constraint/i.test(msg)) {
+    if (/id_documento_soporte|documento/i.test(msg)) {
+      return "El soporte documental no quedó vinculado. Adjunte el archivo de nuevo e intente registrar la novedad.";
+    }
     return "El colaborador de la novedad no existe en el servidor. Recargue Gestión humana e intente de nuevo.";
   }
   if (code === "22007" || /invalid input syntax for type date/i.test(msg)) {
@@ -569,6 +572,12 @@ function describeHrAbsenceSyncDbError(err: unknown): string {
   }
   if (code === "23502" || /not-null constraint|violates not-null/i.test(msg)) {
     return "Faltan datos obligatorios de la novedad (colaborador, tipo o fechas).";
+  }
+  if (code === "42703") {
+    return "El esquema de ausencias en el servidor no está actualizado. Ejecute las migraciones de PostgreSQL e intente de nuevo.";
+  }
+  if (code === "25P02") {
+    return "No fue posible guardar la novedad porque falló una operación posterior (nómina). Intente de nuevo.";
   }
   return "";
 }
@@ -4643,6 +4652,12 @@ export class PortalService implements OnModuleInit {
       if (key === "requests") {
         throw new BadRequestException(this.describeRequestSyncDbError(e));
       }
+      if (key === "hrAbsences") {
+        const mapped = describeHrAbsenceSyncDbError(e);
+        throw new BadRequestException(
+          mapped || "No fue posible guardar la novedad. Revise fechas, tipo, colaborador y el archivo de soporte."
+        );
+      }
       this.logger.error(`syncKey(${String(key)}): ${sanitizeLogText((e as Error)?.message || e)}`);
       throw toSafeHttpException(e, CLIENT_SAFE_ERROR_MSG);
     } finally {
@@ -5748,9 +5763,15 @@ export class PortalService implements OnModuleInit {
           deletedIds,
           await this.resolvePayrollWriteCompanyScope(admin, userId)
         );
+        /* SAVEPOINT: un error SQL en borradores abortaba TODA la transacción (el catch JS no
+         * la recupera) y el COMMIT fallaba → el cliente veía HTTP 503 en sync-key. */
+        await c.query("SAVEPOINT hr_abs_payroll_refresh");
         try {
           await this.refreshPayrollDraftsAfterHrAbsencesSync(c, data);
+          await c.query("RELEASE SAVEPOINT hr_abs_payroll_refresh");
         } catch (e) {
+          await c.query("ROLLBACK TO SAVEPOINT hr_abs_payroll_refresh").catch(() => undefined);
+          await c.query("RELEASE SAVEPOINT hr_abs_payroll_refresh").catch(() => undefined);
           this.logger.warn(
             `Borradores de nómina tras ausencias: ${e instanceof Error ? e.message : String(e)}`
           );
@@ -12691,9 +12712,27 @@ export class PortalService implements OnModuleInit {
 
   private async refreshPayrollDraftsAfterHrAbsencesSync(c: PoolClient, data: unknown) {
     const targets = this.collectAbsenceRefreshTargets(data);
+    if (targets.size > 12) {
+      this.logger.warn(
+        `Omitiendo refresco de nómina en sync-key de ausencias (${targets.size} colaboradores). El cliente refresca al afectado.`
+      );
+      return;
+    }
     const stats = { created: 0, updated: 0, skipped: 0, messages: [] as string[] };
     for (const [employeeId, range] of targets) {
-      await this.refreshPayrollDraftsForEmployeeTx(c, employeeId, stats, range);
+      const sp = `pay_abs_${employeeId.replace(/-/g, "").slice(0, 16)}`;
+      await c.query(`SAVEPOINT ${sp}`);
+      try {
+        await this.refreshPayrollDraftsForEmployeeTx(c, employeeId, stats, range);
+        await c.query(`RELEASE SAVEPOINT ${sp}`);
+      } catch (e) {
+        await c.query(`ROLLBACK TO SAVEPOINT ${sp}`).catch(() => undefined);
+        await c.query(`RELEASE SAVEPOINT ${sp}`).catch(() => undefined);
+        stats.skipped += 1;
+        this.logger.warn(
+          `Borrador de nómina de ${employeeId}: ${e instanceof Error ? e.message : String(e)}`
+        );
+      }
     }
     if (stats.created + stats.updated > 0) {
       this.logger.log(
