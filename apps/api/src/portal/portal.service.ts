@@ -4688,6 +4688,11 @@ export class PortalService implements OnModuleInit {
           mapped || "No fue posible guardar la novedad. Revise fechas, tipo, colaborador y el archivo de soporte."
         );
       }
+      if (key === "companyDocuments") {
+        throw new BadRequestException(
+          "No fue posible archivar el documento de soporte. Recargue e intente de nuevo."
+        );
+      }
       this.logger.error(`syncKey(${String(key)}): ${sanitizeLogText((e as Error)?.message || e)}`);
       throw toSafeHttpException(e, CLIENT_SAFE_ERROR_MSG);
     } finally {
@@ -5793,19 +5798,9 @@ export class PortalService implements OnModuleInit {
           deletedIds,
           await this.resolvePayrollWriteCompanyScope(admin, userId)
         );
-        /* SAVEPOINT: un error SQL en borradores abortaba TODA la transacción (el catch JS no
-         * la recupera) y el COMMIT fallaba → el cliente veía HTTP 503 en sync-key. */
-        await c.query("SAVEPOINT hr_abs_payroll_refresh");
-        try {
-          await this.refreshPayrollDraftsAfterHrAbsencesSync(c, data);
-          await c.query("RELEASE SAVEPOINT hr_abs_payroll_refresh");
-        } catch (e) {
-          await c.query("ROLLBACK TO SAVEPOINT hr_abs_payroll_refresh").catch(() => undefined);
-          await c.query("RELEASE SAVEPOINT hr_abs_payroll_refresh").catch(() => undefined);
-          this.logger.warn(
-            `Borradores de nómina tras ausencias: ${e instanceof Error ? e.message : String(e)}`
-          );
-        }
+        /* No recalcular liquidaciones aquí: una incapacidad de varias semanas abre muchos
+         * cortes y el POST /portal/sync-key supera el timeout de Render (HTTP 503 vacío).
+         * El portal ya llama POST /payroll/refresh-drafts tras guardar. */
         return;
       case "sstCompliance":
         if (!can("sst_compliance")) throw new ForbiddenException();
@@ -12705,70 +12700,6 @@ export class PortalService implements OnModuleInit {
       [employeeId]
     );
     return r.rows.map((row) => this.mapLiquidacionNominaRowToPortalPayrollRun(row as Record<string, unknown>, true));
-  }
-
-  private mergeAbsenceRefreshTargets(
-    acc: Map<string, { startDate: string; endDate: string }>,
-    employeeId: string,
-    startDate: string,
-    endDate: string
-  ) {
-    const eid = String(employeeId || "").trim();
-    const s = String(startDate || "").slice(0, 10);
-    const e = String(endDate || "").slice(0, 10);
-    if (!PG_UUID_V4_RE.test(eid) || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return;
-    const end = /^\d{4}-\d{2}-\d{2}$/.test(e) ? e : s;
-    const prev = acc.get(eid);
-    if (!prev) {
-      acc.set(eid, { startDate: s, endDate: end });
-      return;
-    }
-    if (s < prev.startDate) prev.startDate = s;
-    if (end > prev.endDate) prev.endDate = end;
-  }
-
-  private collectAbsenceRefreshTargets(data: unknown): Map<string, { startDate: string; endDate: string }> {
-    const map = new Map<string, { startDate: string; endDate: string }>();
-    if (!Array.isArray(data)) return map;
-    for (const raw of data) {
-      const row = raw as Record<string, unknown>;
-      const eid = String(pickPortalField(row, "employeeId") ?? row.employeeId ?? "").trim();
-      const s = String(pickPortalField(row, "startDate") ?? row.startDate ?? "").slice(0, 10);
-      const e = String(pickPortalField(row, "endDate") ?? row.endDate ?? "").slice(0, 10);
-      this.mergeAbsenceRefreshTargets(map, eid, s, e);
-    }
-    return map;
-  }
-
-  private async refreshPayrollDraftsAfterHrAbsencesSync(c: PoolClient, data: unknown) {
-    const targets = this.collectAbsenceRefreshTargets(data);
-    if (targets.size > 12) {
-      this.logger.warn(
-        `Omitiendo refresco de nómina en sync-key de ausencias (${targets.size} colaboradores). El cliente refresca al afectado.`
-      );
-      return;
-    }
-    const stats = { created: 0, updated: 0, skipped: 0, messages: [] as string[] };
-    for (const [employeeId, range] of targets) {
-      const sp = `pay_abs_${employeeId.replace(/-/g, "").slice(0, 16)}`;
-      await c.query(`SAVEPOINT ${sp}`);
-      try {
-        await this.refreshPayrollDraftsForEmployeeTx(c, employeeId, stats, range);
-        await c.query(`RELEASE SAVEPOINT ${sp}`);
-      } catch (e) {
-        await c.query(`ROLLBACK TO SAVEPOINT ${sp}`).catch(() => undefined);
-        await c.query(`RELEASE SAVEPOINT ${sp}`).catch(() => undefined);
-        stats.skipped += 1;
-        this.logger.warn(
-          `Borrador de nómina de ${employeeId}: ${e instanceof Error ? e.message : String(e)}`
-        );
-      }
-    }
-    if (stats.created + stats.updated > 0) {
-      this.logger.log(
-        `Nómina vinculada tras ausencias: +${stats.created} borradores, ${stats.updated} actualizados.`
-      );
-    }
   }
 
   private async refreshPayrollDraftsAfterEmployeesSync(c: PoolClient, data: unknown) {

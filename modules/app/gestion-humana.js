@@ -917,6 +917,10 @@ function failHrAbsenceField(form, fieldName, message) {
 
 function describeHrAbsenceSaveError(err) {
   const raw = String(err?.message || err?.errors || "").trim();
+  const status = Number(err?.status || 0);
+  if (status === 503 || /service unavailable/i.test(raw)) {
+    return "El servidor no pudo completar el guardado a tiempo. Espere unos segundos e intente de nuevo.";
+  }
   if (!raw || /^internal server error$/i.test(raw) || /^sync-key rechazado$/i.test(raw)) {
     return "No fue posible guardar la novedad de nómina. Revise los datos e intente de nuevo.";
   }

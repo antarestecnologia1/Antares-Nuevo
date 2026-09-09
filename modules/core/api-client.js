@@ -238,6 +238,9 @@
     const s = String(msg || "").trim();
     const fallback500 =
       "El servidor no pudo procesar la solicitud. Revise los datos del formulario, la sesión y la conexión e intente de nuevo.";
+    if (Number(status) === 503 || /^service unavailable$/i.test(s)) {
+      return "El servidor no respondió a tiempo. Espere unos segundos e intente de nuevo.";
+    }
     if (!s || /^internal server error$/i.test(s)) {
       if (Number(status) >= 500) return fallback500;
       return s || "Error en la solicitud al servidor.";

@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Post, Query, Req, Res, UseGuards } from "@nestjs/common";
+import { SkipThrottle } from "@nestjs/throttler";
 import { ConfigService } from "@nestjs/config";
 import type { Request, Response } from "express";
 import { clearAuthCookies } from "../auth/auth-cookies";
@@ -231,6 +232,7 @@ export class PortalController {
     return this.portal.deleteLaborSystemParameters(req.user.userId, req.user.role, dto.year);
   }
 
+  @SkipThrottle()
   @Post("sync-key")
   syncKey(@Req() req: { user: ReqUser }, @Body() dto: SyncKeyDto) {
     return this.portal.syncKey(dto.key, dto.data, req.user.userId, req.user.role, dto.deletedIds);

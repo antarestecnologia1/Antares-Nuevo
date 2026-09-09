@@ -1,4 +1,5 @@
 import { Body, Controller, Post, Req, UseGuards } from "@nestjs/common";
+import { SkipThrottle } from "@nestjs/throttler";
 import { JwtAuthGuard } from "../common/jwt-auth.guard";
 import { Roles } from "../common/roles.decorator";
 import { RolesGuard } from "../common/roles.guard";
@@ -48,6 +49,7 @@ export class PayrollController {
    * Crea o actualiza borradores de liquidación del empleado según ausencias y demás novedades
    * en el rango indicado (o en liquidaciones pendientes de pago si no hay rango).
    */
+  @SkipThrottle()
   @Roles("admin", "rrhh")
   @Post("refresh-drafts")
   async refreshDrafts(

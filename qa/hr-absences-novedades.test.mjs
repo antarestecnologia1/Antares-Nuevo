@@ -214,6 +214,7 @@ ok(app.includes("archiveAbsenceSupportForEmployee"), "DMS: archivo en carpeta de
 
 ok(api.includes("sqlEmployeeDateToPortalYmd(row.fecha_inicio)"), "bootstrap: fechas de ausencia en YYYY-MM-DD");
 ok(api.includes("SAVEPOINT"), "sync: savepoint por fila");
+ok(!api.includes("hr_abs_payroll_refresh"), "sync-key de ausencias no recalcula nómina en la misma transacción");
 ok(api.includes("describeHrAbsenceSyncDbError"), "API: errores CHECK traducidos");
 ok(cal.includes('kind: "absence"'), "calendario: eventos de ausencia");
 ok(authz.includes("register_hr_absence"), "autorizaciones: tipo register_hr_absence");

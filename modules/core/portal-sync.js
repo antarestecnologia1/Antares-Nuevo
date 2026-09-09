@@ -173,8 +173,12 @@
     var lastErr = null;
     for (var attempt = 0; attempt < 3; attempt += 1) {
       if (attempt > 0) {
+        var retryStatus =
+          lastErr && typeof lastErr === "object" && typeof lastErr.status === "number" ? lastErr.status : 0;
+        if (retryStatus >= 400 && retryStatus < 500) break;
+        if (retryStatus === 503 && attempt > 1) break;
         await new Promise(function (r) {
-          setTimeout(r, 320 * attempt);
+          setTimeout(r, retryStatus === 503 ? 1600 : 320 * attempt);
         });
       }
       try {
