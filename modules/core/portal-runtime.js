@@ -14113,6 +14113,28 @@ function wireCareersOverlayScroll(overlay, scrollSelector) {
   };
 }
 
+/**
+ * Cloudflare R2 distingue mayúsculas/minúsculas en la key del objeto. El backend a veces
+ * devuelve `publicUrl` con el nombre de archivo tal como lo subió el usuario (p. ej. un .JPG
+ * de cámara/celular), pero la key real guardada en el bucket queda en minúsculas. Resultado:
+ * la URL guardada en la vacante no coincide con el objeto real y la imagen sale rota (404).
+ * Normalizamos solo el path (nunca el querystring, por si trae tokens de firma) a minúsculas
+ * antes de usarlo como `src`, para que la vitrina pública no dependa de que el backend siempre
+ * devuelva el casing exacto.
+ */
+function normalizeVacancyImageUrl(url) {
+  const raw = String(url || "").trim();
+  if (!raw) return "";
+  if (raw.startsWith("data:image/")) return raw;
+  try {
+    const u = new URL(raw);
+    u.pathname = u.pathname.toLowerCase();
+    return u.toString();
+  } catch (_e) {
+    return raw;
+  }
+}
+
 function openPublicCareersImagePreview(src, alt) {
   const url = String(src || "").trim();
   if (!url) return;
@@ -14176,7 +14198,7 @@ function openPublicCareersVacancyDetail(vacancy) {
     modality ? `${tPublic("Modalidad")}: ${escapeHtml(modality)}` : "",
     openings ? `${tPublic("Cupos")}: ${escapeHtml(openings)}` : ""
   ].filter(Boolean);
-  const imageUrl = String(vacancy.imageUrl || "").trim();
+  const imageUrl = normalizeVacancyImageUrl(vacancy.imageUrl);
   const hasImage = imageUrl && (/^https?:\/\//i.test(imageUrl) || imageUrl.startsWith("data:image/"));
   const overlay = document.createElement("div");
   overlay.id = "careers-vacancy-detail-overlay";
@@ -14329,7 +14351,7 @@ function initPublicCareers() {
         const isTruncated = fullReq.length > 180;
         const reqPreview = escapeHtml(isTruncated ? `${fullReq.slice(0, 180)}ΓǪ` : fullReq);
         const vacId = escapeAttr(String(v.id ?? ""));
-        const imageUrl = String(v.imageUrl || "").trim();
+        const imageUrl = normalizeVacancyImageUrl(v.imageUrl);
         const imageAlt = String(v.title || tPublic("Vacante"));
         const media =
           imageUrl && (/^https?:\/\//i.test(imageUrl) || imageUrl.startsWith("data:image/"))
