@@ -449,6 +449,102 @@
   transform: translateY(-1px);
 }
 
+/* ── Matriz de perfiles: fila desactivada ── */
+.sarlaft-profile-row--inactive {
+  opacity: 0.6;
+}
+
+/* ── Bitácora de seguimiento (alertas / incidentes / revisiones) ── */
+.sarlaft-followup {
+  margin-top: 1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--pay-edge, #e2e8f0);
+}
+
+.sarlaft-followup h4 {
+  margin: 0 0 0.55rem;
+  font-size: 0.86rem;
+  font-weight: 750;
+  letter-spacing: 0.01em;
+  color: var(--sarlaft-navy);
+}
+
+.sarlaft-studio--pte .sarlaft-followup h4 {
+  color: var(--pte-teal-deep);
+}
+
+.sarlaft-followup-list {
+  margin: 0 0 0.75rem;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.5rem;
+  max-height: 15rem;
+  overflow-y: auto;
+}
+
+.sarlaft-followup-list__item {
+  padding: 0.6rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid var(--pay-edge, #e2e8f0);
+  background: var(--pay-surface, #f8fafc);
+}
+
+.sarlaft-followup-list__item p {
+  margin: 0 0 0.3rem;
+  font-size: 0.86rem;
+  white-space: pre-wrap;
+}
+
+.sarlaft-followup-list__item small {
+  color: var(--muted, #64748b);
+  font-size: 0.74rem;
+}
+
+.sarlaft-followup-empty {
+  margin: 0 0 0.75rem;
+  font-size: 0.84rem;
+}
+
+.sarlaft-followup__add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+
+.sarlaft-followup__add textarea {
+  flex: 1 1 14rem;
+  min-width: 0;
+  resize: vertical;
+}
+
+/* ── Cierre formal (decisión de cierre en alertas y revisiones) ── */
+.sarlaft-closure-block {
+  margin: 0.9rem 0;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--sarlaft-blue-soft, #cce5f8);
+  background: linear-gradient(180deg, #f7fbff 0%, var(--pay-surface, #f8fafc) 100%);
+}
+
+.sarlaft-closure-block h4 {
+  margin: 0 0 0.5rem;
+  font-size: 0.86rem;
+  font-weight: 750;
+  letter-spacing: 0.01em;
+  color: var(--sarlaft-navy);
+}
+
+.sarlaft-closure-block p {
+  margin: 0 0 0.35rem;
+  font-size: 0.86rem;
+}
+
+.sarlaft-closure-block p:last-child {
+  margin-bottom: 0;
+}
+
 @media (max-width: 960px) {
   .sarlaft-studio .sst-status-cards {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -540,4 +636,30 @@ body[data-theme="dark"] .sarlaft-studio .sarlaft-evidence-list li {
 body[data-theme="dark"] .sarlaft-ficha-attach {
   background: rgba(15, 28, 46, 0.5);
   border-color: rgba(131, 190, 233, 0.3);
+}
+
+body[data-theme="dark"] .sarlaft-followup {
+  border-top-color: rgba(148, 196, 255, 0.14);
+}
+
+body[data-theme="dark"] .sarlaft-followup h4 {
+  color: var(--primary-mid, #83bee9);
+}
+
+body[data-theme="dark"] .sarlaft-studio--pte .sarlaft-followup h4 {
+  color: #5eead4;
+}
+
+body[data-theme="dark"] .sarlaft-followup-list__item {
+  background: rgba(15, 28, 46, 0.65);
+  border-color: rgba(148, 196, 255, 0.14);
+}
+
+body[data-theme="dark"] .sarlaft-closure-block {
+  background: #0f172a;
+  border-color: #334155;
+}
+
+body[data-theme="dark"] .sarlaft-closure-block h4 {
+  color: var(--primary-mid, #83bee9);
 }

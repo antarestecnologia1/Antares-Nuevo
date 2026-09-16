@@ -227,6 +227,15 @@ export const SARLAFT_REVIEW_STATUSES = Object.freeze([
   { value: "cerrada", label: "Cerrada" }
 ]);
 
+/** Decisión formal de cierre, común a Revisiones y a Alertas/Incidentes. */
+export const SARLAFT_CLOSURE_DECISIONS = Object.freeze([
+  { value: "aprobado", label: "Aprobado sin observaciones" },
+  { value: "aprobado_con_novedades", label: "Aprobado con novedades" },
+  { value: "rechazado", label: "Rechazado / no procede" },
+  { value: "escalado", label: "Escalado a oficial de cumplimiento" },
+  { value: "desestimado", label: "Desestimado" }
+]);
+
 /** Perfiles iniciales alineados a una matriz típica SARLAFT/PTE (parametrizables). */
 export const DEFAULT_SARLAFT_RISK_PROFILES = Object.freeze([
   {
@@ -407,6 +416,48 @@ function isoDateOnly(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : "";
 }
 
+/** Bitácora de seguimiento: lista de notas con autor y fecha, más reciente primero. */
+function parseFollowUps(raw) {
+  let list = raw;
+  if (typeof raw === "string" && raw.trim().startsWith("[")) {
+    try {
+      list = JSON.parse(raw);
+    } catch (_err) {
+      list = [];
+    }
+  }
+  if (!Array.isArray(list)) return [];
+  return list
+    .map((item) => {
+      const note = cleanMultiline(item?.note, 2000);
+      if (!note) return null;
+      return {
+        id: String(item?.id || "").trim() || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        note,
+        actorName: cleanText(item?.actorName, 255) || "Sistema",
+        at: String(item?.at || "").trim() || new Date().toISOString()
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => String(b.at).localeCompare(String(a.at)));
+}
+
+export function serializeSarlaftFollowUps(list) {
+  return JSON.stringify(parseFollowUps(list));
+}
+
+export function addSarlaftFollowUp(existingRaw, { note, actorName } = {}) {
+  const cleanNote = cleanMultiline(note, 2000);
+  if (!cleanNote) return parseFollowUps(existingRaw);
+  const entry = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    note: cleanNote,
+    actorName: cleanText(actorName, 255) || "Sistema",
+    at: new Date().toISOString()
+  };
+  return [entry, ...parseFollowUps(existingRaw)];
+}
+
 function parseDocumentIds(raw) {
   if (Array.isArray(raw)) {
     return [...new Set(raw.map((id) => String(id || "").trim()).filter(Boolean))];
@@ -558,6 +609,9 @@ export function normalizeSarlaftAlertRow(row = {}) {
     createdBy: cleanText(row.createdBy || row.creado_por, 255) || "Sistema",
     updatedAt: String(row.updatedAt || row.fecha_actualizacion || "").trim(),
     updatedBy: cleanText(row.updatedBy || row.actualizado_por, 255),
+    followUps: parseFollowUps(row.followUps ?? row.seguimiento),
+    closureDecision: catalogValue(SARLAFT_CLOSURE_DECISIONS, row.closureDecision || row.decision_cierre, ""),
+    closureNotes: cleanMultiline(row.closureNotes || row.notas_cierre, 4000),
     closedAt: String(row.closedAt || row.fecha_cierre || "").trim(),
     closedBy: cleanText(row.closedBy || row.cerrado_por, 255)
   };
@@ -581,7 +635,12 @@ export function normalizeSarlaftReviewRow(row = {}) {
     createdAt: String(row.createdAt || row.fecha_creacion || "").trim(),
     createdBy: cleanText(row.createdBy || row.creado_por, 255) || "Sistema",
     updatedAt: String(row.updatedAt || row.fecha_actualizacion || "").trim(),
-    updatedBy: cleanText(row.updatedBy || row.actualizado_por, 255)
+    updatedBy: cleanText(row.updatedBy || row.actualizado_por, 255),
+    followUps: parseFollowUps(row.followUps ?? row.seguimiento),
+    closureDecision: catalogValue(SARLAFT_CLOSURE_DECISIONS, row.closureDecision || row.decision_cierre, ""),
+    closureNotes: cleanMultiline(row.closureNotes || row.notas_cierre, 4000),
+    closedAt: String(row.closedAt || row.fecha_cierre || "").trim(),
+    closedBy: cleanText(row.closedBy || row.cerrado_por, 255)
   };
 }
 
@@ -734,6 +793,30 @@ export const SARLAFT_ALERT_EXPORT_COLUMNS = [
   { key: "responsable", label: "Responsable" },
   { key: "origen", label: "Origen" },
   { key: "creado", label: "Registrado" }
+];
+
+export function buildSarlaftProfileExportRows(profiles = []) {
+  return profiles.map((p) => ({
+    codigo: p.code || "",
+    nombre: p.name,
+    programa: sarlaftCatalogLabel(SARLAFT_PROGRAMS, p.program),
+    nivel: sarlaftCatalogLabel(SARLAFT_RISK_LEVELS, p.level),
+    debida: sarlaftCatalogLabel(SARLAFT_DUE_DILIGENCE_LEVELS, p.dueDiligenceLevel),
+    frecuencia: `${p.reviewFrequencyDays} días`,
+    estado: p.active ? "Activo" : "Inactivo",
+    criterios: p.criteria || ""
+  }));
+}
+
+export const SARLAFT_PROFILE_EXPORT_COLUMNS = [
+  { key: "codigo", label: "Código" },
+  { key: "nombre", label: "Nombre" },
+  { key: "programa", label: "Programa" },
+  { key: "nivel", label: "Nivel" },
+  { key: "debida", label: "Debida diligencia" },
+  { key: "frecuencia", label: "Frecuencia de revisión" },
+  { key: "estado", label: "Estado" },
+  { key: "criterios", label: "Criterios / metodología" }
 ];
 
 export function nextSarlaftPartyCode(existing = []) {

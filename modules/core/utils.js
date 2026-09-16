@@ -421,6 +421,7 @@ export function normalizeSarlaftDataSection(section) {
   if (s === "alerts" || s === "alertas") return "alerts";
   if (s === "due" || s === "vencimientos" || s === "vencimiento") return "due";
   if (s === "reviews" || s === "revisiones") return "reviews";
+  if (s === "matrix" || s === "matriz") return "matrix";
   if (s === "reports" || s === "reportes") return "reports";
   return "parties";
 }

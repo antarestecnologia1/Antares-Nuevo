@@ -62,6 +62,7 @@ import {
   SARLAFT_ALERT_STATUSES,
   SARLAFT_REVIEW_KINDS,
   SARLAFT_REVIEW_STATUSES,
+  SARLAFT_CLOSURE_DECISIONS,
   DEFAULT_SARLAFT_RISK_PROFILES,
   sarlaftCatalogLabel,
   sarlaftCatalogOptionsHtml,
@@ -76,10 +77,13 @@ import {
   documentsLinkedToSarlaftParty,
   buildSarlaftPartyExportRows,
   buildSarlaftAlertExportRows,
+  buildSarlaftProfileExportRows,
   SARLAFT_PARTY_EXPORT_COLUMNS,
   SARLAFT_ALERT_EXPORT_COLUMNS,
+  SARLAFT_PROFILE_EXPORT_COLUMNS,
   nextSarlaftPartyCode,
-  computeSarlaftNextReviewDate
+  computeSarlaftNextReviewDate,
+  addSarlaftFollowUp
 } from "../domain/sarlaft.domain.js";
 import {
   COMPANY_DOCUMENT_MAX_BYTES,
@@ -460,6 +464,42 @@ function dueBucketPill(bucket) {
   return `<span class="sst-status-pill sst-status-pill--${tones[bucket] || "missing"}">${escapeHtml(labels[bucket] || bucket)}</span>`;
 }
 
+function closureDecisionPill(decision) {
+  if (!decision) return "";
+  const map = {
+    aprobado: "ok",
+    aprobado_con_novedades: "warning",
+    rechazado: "expired",
+    escalado: "expired",
+    desestimado: "total"
+  };
+  const tone = map[decision] || "missing";
+  return `<span class="sst-status-pill sst-status-pill--${tone}">${escapeHtml(sarlaftCatalogLabel(SARLAFT_CLOSURE_DECISIONS, decision))}</span>`;
+}
+
+/** Bitácora de seguimiento: lectura (histórico) + fila para agregar una nota nueva. */
+function followUpLogHtml(entityKind, entityId, followUps = []) {
+  const items = Array.isArray(followUps) ? followUps : [];
+  const history = items.length
+    ? `<ul class="sarlaft-followup-list">${items
+        .map(
+          (f) => `<li class="sarlaft-followup-list__item">
+            <p>${escapeHtml(f.note)}</p>
+            <small class="muted">${escapeHtml(f.actorName || "Sistema")} · ${escapeHtml(String(f.at || "").slice(0, 16).replace("T", " "))}</small>
+          </li>`
+        )
+        .join("")}</ul>`
+    : `<p class="muted sarlaft-followup-empty">Sin seguimientos registrados todavía.</p>`;
+  return `<div class="sarlaft-followup" data-sarlaft-followup data-entity-kind="${escapeAttr(entityKind)}" data-entity-id="${escapeAttr(entityId)}">
+    <h4>Bitácora de seguimiento</h4>
+    ${history}
+    <div class="sarlaft-followup__add">
+      <textarea data-sarlaft-followup-note rows="2" maxlength="2000" placeholder="Agregar nota de seguimiento..."></textarea>
+      <button type="button" class="btn btn-sm btn-outline" data-action="sarlaft-add-followup" data-entity-kind="${escapeAttr(entityKind)}" data-entity-id="${escapeAttr(entityId)}">Agregar</button>
+    </div>
+  </div>`;
+}
+
 function auditSarlaft(action, entityId, entityLabel, summary) {
   G.logPortalAuditEvent?.("sarlaft", action, {
     entityId,
@@ -530,7 +570,7 @@ function firstAllowedSarlaftOperateSection(caps) {
 function renderOperateNav(activeId, caps = {}, copy = sarlaftProgramCopy("ambos")) {
   const tabs = [
     { id: "party", ...copy.operateParty, icon: "user", allowed: Boolean(caps.canParties) },
-    { id: "alert", ...copy.operateAlert, icon: "alert", allowed: Boolean(caps.canAlerts) },
+    { id: "alert", ...copy.operateAlert, icon: "alertTriangle", allowed: Boolean(caps.canAlerts) },
     { id: "review", ...copy.operateReview, icon: "file", allowed: Boolean(caps.canReviews) },
     { id: "profile", ...copy.operateProfile, icon: "shield", allowed: Boolean(caps.canProfiles) }
   ].filter((t) => t.allowed);
@@ -563,6 +603,7 @@ function renderDataNav(activeId, counts, copy = sarlaftProgramCopy("ambos")) {
     { id: "alerts", label: copy.consultAlerts, count: counts.alerts },
     { id: "due", label: copy.consultDue, count: counts.due },
     { id: "reviews", label: copy.consultReviews, count: counts.reviews },
+    { id: "matrix", label: "Matriz", count: counts.profiles },
     { id: "reports", label: "Reportes", count: null }
   ];
   return `<nav class="payroll-data-nav sst-consult-nav" aria-label="Consultas SARLAFT">
@@ -728,7 +769,7 @@ function alertFormHtml(fieldLabel, IC, canMutate, program = "ambos") {
   return `<form id="form-sarlaft-alert" class="p-form p-form-colored hr-form-flow antares-create-form" autocomplete="off" novalidate data-sarlaft-program="${escapeAttr(programValue)}">
     <div class="antares-create-form__sections">
       <fieldset class="form-section form-section-blue full">
-        <legend>${IC.alert || ""} ${escapeHtml(copy.alertTitle.replace(/^Registrar /i, ""))}</legend>
+        <legend>${IC.alertTriangle || ""} ${escapeHtml(copy.alertTitle.replace(/^Registrar /i, ""))}</legend>
         <p class="muted form-section-hint">${escapeHtml(copy.alertHint)}</p>
         <div class="form-section-grid">
           <label class="full">${fieldLabel(IC.user, programValue === "pte" ? "Contraparte relacionada" : "Tercero relacionado", { required: true })}
@@ -738,7 +779,7 @@ function alertFormHtml(fieldLabel, IC, canMutate, program = "ambos") {
             <select name="kind" required data-sarlaft-alert-kind>${sarlaftCatalogOptionsHtml(kinds, defaultKind)}</select>
           </label>
           <label>${fieldLabel(IC.shield, "Programa")}<select name="program">${sarlaftCatalogOptionsHtml(SARLAFT_PROGRAMS, programValue)}</select></label>
-          <label>${fieldLabel(IC.alert, "Severidad", { required: true })}
+          <label>${fieldLabel(IC.alertTriangle, "Severidad", { required: true })}
             <select name="severity" required>${sarlaftCatalogOptionsHtml(SARLAFT_ALERT_SEVERITIES, "media")}</select>
           </label>
           <label>${fieldLabel(IC.activity, "Estado")}<select name="status">${sarlaftCatalogOptionsHtml(SARLAFT_ALERT_STATUSES, "abierta")}</select></label>
@@ -785,13 +826,19 @@ function reviewFormHtml(fieldLabel, IC, canMutate, program = "ambos") {
           <label>${fieldLabel(IC.file, "Tipo", { required: true })}
             <select name="kind" required>${sarlaftCatalogOptionsHtml(kinds, defaultKind)}</select>
           </label>
-          <label>${fieldLabel(IC.activity, "Estado")}<select name="status">${sarlaftCatalogOptionsHtml(SARLAFT_REVIEW_STATUSES, "pendiente")}</select></label>
+          <label>${fieldLabel(IC.activity, "Estado")}<select name="status" data-sarlaft-review-status>${sarlaftCatalogOptionsHtml(SARLAFT_REVIEW_STATUSES, "pendiente")}</select></label>
           <label>${fieldLabel(IC.calendar, "Fecha de revisión")}<input type="date" name="reviewedAt" value="${escapeAttr(colombiaTodayIsoDate())}" /></label>
           <label>${fieldLabel(IC.user, "Responsable")}
             <select name="responsibleUserId"><option value="">Sin asignar</option>${userOptionsHtml()}</select>
           </label>
           <label class="full">${fieldLabel(IC.file, "Observaciones", { required: true })}
             <textarea name="observations" rows="3" required placeholder="Resultado de la revisión, pendientes y decisión"></textarea>
+          </label>
+          <label data-sarlaft-closure-wrap hidden>${fieldLabel(IC.check, "Decisión de cierre")}
+            <select name="closureDecision"><option value="">Seleccione...</option>${sarlaftCatalogOptionsHtml(SARLAFT_CLOSURE_DECISIONS)}</select>
+          </label>
+          <label class="full" data-sarlaft-closure-wrap hidden>${fieldLabel(IC.file, "Notas de cierre")}
+            <textarea name="closureNotes" rows="2" placeholder="Conclusión formal del cierre"></textarea>
           </label>
         </div>
       </fieldset>
@@ -1021,17 +1068,30 @@ function sarlaftPteHtml() {
     })
     .join("");
 
-  const profileCards = profiles
-    .map(
-      (p) => `<article class="sst-due-card">
-        <div class="sst-due-card__top">
-          <strong>${escapeHtml(p.name)}</strong>
-          ${riskChip(p.level)}
-        </div>
-        <p class="muted">${escapeHtml(p.code)} · ${programChip(p.program)} · Revisión cada ${escapeHtml(String(p.reviewFrequencyDays))} días · ${escapeHtml(sarlaftCatalogLabel(SARLAFT_DUE_DILIGENCE_LEVELS, p.dueDiligenceLevel))}</p>
-        <p>${escapeHtml(p.criteria || "Sin criterios registrados.")}</p>
-      </article>`
-    )
+  const profileRows = profiles
+    .map((p) => {
+      const more = [
+        canProfiles
+          ? `<button type="button" class="sst-row-more__item" data-action="edit-sarlaft-profile" data-id="${escapeAttr(p.id)}">${IC.edit || ""} Editar</button>`
+          : "",
+        canProfiles
+          ? `<button type="button" class="sst-row-more__item" data-action="toggle-sarlaft-profile" data-id="${escapeAttr(p.id)}">${p.active ? `${IC.check || ""} Desactivar` : `${IC.check || ""} Activar`}</button>`
+          : "",
+        canDelete
+          ? `<button type="button" class="sst-row-more__item sst-row-more__item--danger" data-action="delete-sarlaft-profile" data-id="${escapeAttr(p.id)}">${IC.trash || ""} Eliminar</button>`
+          : ""
+      ]
+        .filter(Boolean)
+        .join("");
+      return `<tr${p.active ? "" : ' class="sarlaft-profile-row--inactive"'}>
+        <td><strong>${escapeHtml(p.name)}</strong>${p.active ? "" : ' <span class="sst-status-pill sst-status-pill--missing">Inactivo</span>'}<div class="sarlaft-party-cell"><small>${escapeHtml(p.code)} · ${programChip(p.program)}</small></div></td>
+        <td>${riskChip(p.level)}</td>
+        <td>${escapeHtml(sarlaftCatalogLabel(SARLAFT_DUE_DILIGENCE_LEVELS, p.dueDiligenceLevel))}</td>
+        <td>${escapeHtml(String(p.reviewFrequencyDays))} días</td>
+        <td>${escapeHtml((p.criteria || "—").slice(0, 90))}${(p.criteria || "").length > 90 ? "…" : ""}</td>
+        <td class="payroll-contracts-table__actions">${more ? rowActions(IC, more) : "—"}</td>
+      </tr>`;
+    })
     .join("");
 
   const tableOrEmpty = (rows, emptyMsg, thead) =>
@@ -1059,6 +1119,11 @@ function sarlaftPteHtml() {
     copy.emptyReviews,
     `<tr><th>Tipo</th><th>Estado</th><th>Fecha</th><th>Responsable</th><th>Observación</th><th class='payroll-contracts-table__actions'>Acciones</th></tr>`
   );
+  const profilesTable = tableOrEmpty(
+    profileRows,
+    "Parametrice al menos un perfil de riesgo.",
+    `<tr><th>Perfil</th><th>Nivel</th><th>Debida diligencia</th><th>Frecuencia</th><th>Criterios</th><th class='payroll-contracts-table__actions'>Acciones</th></tr>`
+  );
 
   const reportsPane = `<div class="payroll-data-pane${dataSection === "reports" ? "" : " hidden"}" data-sarlaft-section="reports"${dataSection === "reports" ? "" : " hidden"}>
     <p class="muted payroll-result-meta">Exportaciones del programa <strong>${escapeHtml(copy.title)}</strong>. Las evidencias se consultan también en Gestión documental (${escapeHtml(SARLAFT_COMPANY_FOLDER)}).</p>
@@ -1075,16 +1140,15 @@ function sarlaftPteHtml() {
       </article>
       <article class="sst-due-card">
         <strong>Perfiles parametrizados</strong>
-        <p class="muted">${profiles.length} perfiles en la matriz ${escapeHtml(copy.title)}</p>
+        <p class="muted">${profiles.length} perfiles en la matriz ${escapeHtml(copy.title)} · ${profiles.filter((p) => p.active).length} activos</p>
+        <button type="button" class="btn btn-sm btn-primary" data-action="export-sarlaft-profiles">${IC.download || ""} Exportar CSV</button>
       </article>
     </div>
-    <h3 class="sst-consult-head">Matriz de perfiles</h3>
-    <div class="sst-due-grid">${profileCards || emptyState("Parametrice al menos un perfil de riesgo.")}</div>
   </div>`;
 
   const kpiCards = renderHrAlertCards([
     { label: copy.kpiParties, value: kpis.parties, tone: "info", icon: IC.user || "", help: copy.partyHint },
-    { label: copy.kpiAlerts, value: kpis.openAlerts, tone: kpis.openAlerts ? "warn" : "ok", icon: IC.alert || "", help: "Requieren gestión" },
+    { label: copy.kpiAlerts, value: kpis.openAlerts, tone: kpis.openAlerts ? "warn" : "ok", icon: IC.alertTriangle || "", help: "Requieren gestión" },
     { label: copy.kpiDue, value: kpis.dueReviews, tone: kpis.dueReviews ? "alert" : "ok", icon: IC.calendar || "", help: "Ventana 30 días" },
     { label: copy.kpiRisk, value: kpis.highRisk, tone: kpis.highRisk ? "warn" : "ok", icon: IC.shield || "", help: "Según matriz" }
   ]);
@@ -1163,7 +1227,7 @@ function sarlaftPteHtml() {
 
   const operateAlert =
     kpis.openAlerts || kpis.dueReviews
-      ? `<p class="sst-operate-alert hr-attention-strip hr-attention-strip--warn" role="status">${IC.alert || ""} <strong>${kpis.openAlerts}</strong> ${escapeHtml(copy.kpiAlerts.toLowerCase())} · <strong>${kpis.dueReviews}</strong> ${escapeHtml(copy.kpiDue.toLowerCase())}.</p>`
+      ? `<p class="sst-operate-alert hr-attention-strip hr-attention-strip--warn" role="status">${IC.alertTriangle || ""} <strong>${kpis.openAlerts}</strong> ${escapeHtml(copy.kpiAlerts.toLowerCase())} · <strong>${kpis.dueReviews}</strong> ${escapeHtml(copy.kpiDue.toLowerCase())}.</p>`
       : "";
 
   const operatePanel = canOperate
@@ -1192,7 +1256,7 @@ function sarlaftPteHtml() {
     <button type="button" class="btn btn-sm btn-outline sst-export-btn" data-action="export-sarlaft-current">${IC.download || ""} Exportar vista</button>
   </div>`;
 
-  const listPagination = dataSection === "reports" ? "" : renderPagination(IC, paged);
+  const listPagination = dataSection === "reports" || dataSection === "matrix" ? "" : renderPagination(IC, paged);
   const dataPanel = `<div class="hr-workspace-panel payroll-workspace-panel${workspace === "data" ? "" : " hidden"}" role="tabpanel" data-sarlaft-panel="data"${workspace === "data" ? "" : " hidden"}>
     <section class="payroll-data-panel sst-consult-panel">
       ${searchBar}
@@ -1201,7 +1265,8 @@ function sarlaftPteHtml() {
           parties: parties.length,
           alerts: kpis.openAlerts,
           due: dueItems.length,
-          reviews: reviews.length
+          reviews: reviews.length,
+          profiles: profiles.length
         }, copy)}
       </div>
       <div class="payroll-data-panes">
@@ -1224,6 +1289,10 @@ function sarlaftPteHtml() {
           <p class="payroll-result-meta muted"><strong>${filteredReviews.length}</strong> ${escapeHtml(copy.consultReviews).toLowerCase()}</p>
           <div class="payroll-table-shell">${reviewsTable}</div>
           ${dataSection === "reviews" ? listPagination : ""}
+        </div>
+        <div class="payroll-data-pane${dataSection === "matrix" ? "" : " hidden"}" data-sarlaft-section="matrix"${dataSection === "matrix" ? "" : " hidden"}>
+          <p class="payroll-result-meta muted"><strong>${profiles.length}</strong> perfil${profiles.length === 1 ? "" : "es"} · define nivel de riesgo, debida diligencia y frecuencia de revisión</p>
+          <div class="payroll-table-shell">${profilesTable}</div>
         </div>
         ${reportsPane}
       </div>
@@ -1306,6 +1375,21 @@ function bindAlertKindProgram(form) {
     const inferred = inferSarlaftProgramFromKind(SARLAFT_ALERT_KINDS, kindSel.value, progSel.value);
     if (inferred && inferred !== "ambos") progSel.value = inferred;
   });
+}
+
+/** En el formulario de creación de Revisión: muestra los campos de cierre formal solo si el estado inicial ya es "cerrada". */
+function bindReviewClosureFields(form) {
+  const statusSel = form?.querySelector("[data-sarlaft-review-status]");
+  const wraps = form?.querySelectorAll("[data-sarlaft-closure-wrap]");
+  if (!statusSel || !wraps?.length) return;
+  const sync = () => {
+    const show = statusSel.value === "cerrada";
+    wraps.forEach((el) => {
+      el.hidden = !show;
+    });
+  };
+  statusSel.addEventListener("change", sync);
+  sync();
 }
 
 function partyDetailHtml(party) {
@@ -1451,6 +1535,129 @@ function openPartyView(party) {
       }
     },
     onSubmit: async () => true
+  });
+}
+
+/** ¿Este estado de alerta/incidente representa un cierre (con o sin decisión formal)? */
+function isSarlaftAlertClosedStatus(status) {
+  return status === "cerrada" || status === "desestimada";
+}
+
+/**
+ * Muestra/oculta los campos de cierre formal (`closureDecision`/`closureNotes`) dentro de un modal ya
+ * montado, según el valor actual del select de estado. Reutilizado por alertas y revisiones.
+ * @param {HTMLFormElement} formEl
+ * @param {string} statusFieldName nombre del <select> de estado en el modal
+ * @param {(status: string) => boolean} isClosed
+ */
+function bindClosureFieldsToggle(formEl, statusFieldName, isClosed) {
+  const statusSelect = formEl?.querySelector(`[name="${statusFieldName}"]`);
+  const decisionLabel = formEl?.querySelector('[name="closureDecision"]')?.closest("label");
+  const notesLabel = formEl?.querySelector('[name="closureNotes"]')?.closest("label");
+  if (!statusSelect || (!decisionLabel && !notesLabel)) return;
+  const sync = () => {
+    const show = isClosed(statusSelect.value);
+    if (decisionLabel) decisionLabel.hidden = !show;
+    if (notesLabel) notesLabel.hidden = !show;
+  };
+  statusSelect.addEventListener("change", sync);
+  sync();
+}
+
+/** Reabre el modal de "Ver alerta" con datos frescos (usado tras agregar un seguimiento). */
+function openAlertView(alertId) {
+  const btn = nodes.viewRoot?.querySelector(`[data-action='view-sarlaft-alert'][data-id="${CSS.escape(String(alertId))}"]`);
+  if (btn) {
+    btn.click();
+    return;
+  }
+  G.closeModal?.();
+}
+
+/** Reabre el modal "Gestionar alerta" con datos frescos (usado tras agregar un seguimiento). */
+function openAlertManage(alertId) {
+  const btn = nodes.viewRoot?.querySelector(`[data-action='edit-sarlaft-alert'][data-id="${CSS.escape(String(alertId))}"]`);
+  if (btn) {
+    btn.click();
+    return;
+  }
+  G.closeModal?.();
+}
+
+/** Reabre el modal "Gestionar revisión" con datos frescos (usado tras agregar un seguimiento). */
+function openReviewEdit(reviewId) {
+  const btn = nodes.viewRoot?.querySelector(`[data-action='edit-sarlaft-review'][data-id="${CSS.escape(String(reviewId))}"]`);
+  if (btn) {
+    btn.click();
+    return;
+  }
+  G.closeModal?.();
+}
+
+/**
+ * Ata el botón "Agregar" de un widget de bitácora (`followUpLogHtml`) dentro de un modal ya montado.
+ * Guarda directamente contra KEYS.sarlaftAlerts / KEYS.sarlaftReviews y reabre el modal con datos frescos,
+ * sin pasar por el submit principal del modal (que puede tener otro propósito, como "Cerrar" o "Guardar estado").
+ */
+function bindFollowUpWidget(rootEl, { kind, id, reopen }) {
+  const widget = rootEl?.querySelector("[data-sarlaft-followup]");
+  const addBtn = widget?.querySelector("[data-action='sarlaft-add-followup']");
+  const textarea = widget?.querySelector("[data-sarlaft-followup-note]");
+  if (!widget || !addBtn || !textarea) return;
+  const canMutate = kind === "alert" ? canMutateSarlaftAlerts() : canMutateSarlaftReviews();
+  if (!canMutate) {
+    addBtn.disabled = true;
+    textarea.disabled = true;
+    return;
+  }
+  addBtn.addEventListener("click", async () => {
+    const note = textarea.value.trim();
+    if (!note) {
+      textarea.focus();
+      return;
+    }
+    addBtn.disabled = true;
+    try {
+      if (kind === "alert") {
+        const target = readAlerts().find((a) => String(a.id) === String(id));
+        if (!target) return;
+        const next = readAlerts().map((a) =>
+          a.id === target.id
+            ? stampUpdatedRecord(
+                normalizeSarlaftAlertRow({
+                  ...a,
+                  followUps: addSarlaftFollowUp(a.followUps, { note, actorName: actorLabel() }),
+                  updatedBy: actorLabel()
+                })
+              )
+            : a
+        );
+        await writeAwaitServerEdit(KEYS.sarlaftAlerts, next, target.id);
+        auditSarlaft("update", target.id, target.title, "Nota de seguimiento agregada");
+      } else {
+        const target = readReviews().find((r) => String(r.id) === String(id));
+        if (!target) return;
+        const next = readReviews().map((r) =>
+          r.id === target.id
+            ? stampUpdatedRecord(
+                normalizeSarlaftReviewRow({
+                  ...r,
+                  followUps: addSarlaftFollowUp(r.followUps, { note, actorName: actorLabel() }),
+                  updatedBy: actorLabel()
+                })
+              )
+            : r
+        );
+        await writeAwaitServerEdit(KEYS.sarlaftReviews, next, target.id);
+        auditSarlaft("update", target.id, target.thirdPartyName, "Nota de seguimiento agregada");
+      }
+      G.notify?.("Seguimiento agregado.", "success");
+      G.renderPortalView?.();
+      reopen?.();
+    } catch (err) {
+      G.notify?.(String(err?.message || err), "error");
+      addBtn.disabled = false;
+    }
   });
 }
 
@@ -1655,6 +1862,7 @@ function bindSarlaftPortalControls() {
   const reviewForm = document.getElementById("form-sarlaft-review");
   if (reviewForm) {
     bindSarlaftEvidencePicker(reviewForm);
+    bindReviewClosureFields(reviewForm);
     G.wireFormSubmitGuard?.(reviewForm, async () => {
       if (!canMutateSarlaftReviews()) return;
       const data = G.readFormEntriesNormalized?.(reviewForm) || Object.fromEntries(new FormData(reviewForm).entries());
@@ -1663,10 +1871,15 @@ function bindSarlaftPortalControls() {
         G.failPortalField?.(reviewForm, "thirdPartyId", "Seleccione el tercero.");
         return;
       }
+      const closedOnCreate = data.status === "cerrada";
       const record = stampCreatedRecord(
         normalizeSarlaftReviewRow({
           id: newUuidV4(),
           ...data,
+          closureDecision: closedOnCreate ? data.closureDecision : "",
+          closureNotes: closedOnCreate ? data.closureNotes : "",
+          closedAt: closedOnCreate ? new Date().toISOString() : "",
+          closedBy: closedOnCreate ? actorLabel() : "",
           thirdPartyName: party.name,
           responsibleName: findUserName(data.responsibleUserId),
           createdBy: actorLabel()
@@ -1897,25 +2110,53 @@ function bindSarlaftPortalControls() {
             options: SARLAFT_ALERT_SEVERITIES.map((x) => ({ value: x.value, label: x.label }))
           },
           { name: "dueDate", label: "Fecha límite", type: "date", value: target.dueDate },
-          { name: "description", label: "Descripción / gestión", type: "textarea", value: target.description, rows: 3 }
+          { name: "description", label: "Descripción / gestión", type: "textarea", value: target.description, rows: 3 },
+          {
+            name: "closureDecision",
+            label: "Decisión de cierre",
+            type: "select",
+            value: target.closureDecision,
+            hidden: !isSarlaftAlertClosedStatus(target.status),
+            options: [{ value: "", label: "Seleccione..." }, ...SARLAFT_CLOSURE_DECISIONS.map((x) => ({ value: x.value, label: x.label }))]
+          },
+          {
+            name: "closureNotes",
+            label: "Notas de cierre",
+            type: "textarea",
+            value: target.closureNotes,
+            rows: 2,
+            hidden: !isSarlaftAlertClosedStatus(target.status)
+          },
+          { type: "custom", html: followUpLogHtml("alert", target.id, target.followUps) }
         ],
+        afterMount: (formEl) => {
+          bindClosureFieldsToggle(formEl, "status", isSarlaftAlertClosedStatus);
+          bindFollowUpWidget(formEl, { kind: "alert", id: target.id, reopen: () => openAlertManage(target.id) });
+        },
         onSubmit: async (form) => {
-          const closed = form.status === "cerrada" || form.status === "desestimada";
+          const closed = isSarlaftAlertClosedStatus(form.status);
           const next = readAlerts().map((a) =>
             a.id === target.id
               ? stampUpdatedRecord(
                   normalizeSarlaftAlertRow({
                     ...a,
                     ...form,
-                    closedAt: closed ? new Date().toISOString() : a.closedAt,
-                    closedBy: closed ? actorLabel() : a.closedBy,
+                    closureDecision: closed ? form.closureDecision : "",
+                    closureNotes: closed ? form.closureNotes : "",
+                    closedAt: closed ? a.closedAt || new Date().toISOString() : "",
+                    closedBy: closed ? a.closedBy || actorLabel() : "",
                     updatedBy: actorLabel()
                   })
                 )
               : a
           );
           await writeAwaitServerEdit(KEYS.sarlaftAlerts, next, target.id);
-          auditSarlaft("update", target.id, target.title, `Estado ${form.status}`);
+          auditSarlaft(
+            "update",
+            target.id,
+            target.title,
+            closed ? `Cerrada · ${sarlaftCatalogLabel(SARLAFT_CLOSURE_DECISIONS, form.closureDecision) || form.status}` : `Estado ${form.status}`
+          );
           G.notify?.("Alerta actualizada.", "success");
           G.renderPortalView?.();
           return true;
@@ -1928,6 +2169,14 @@ function bindSarlaftPortalControls() {
     btn.addEventListener("click", () => {
       const target = readAlerts().find((a) => String(a.id) === String(btn.dataset.id || ""));
       if (!target) return;
+      const closureBlock = target.closureDecision
+        ? `<div class="sarlaft-closure-block">
+            <h4>Cierre formal</h4>
+            <p>${closureDecisionPill(target.closureDecision)}</p>
+            ${target.closureNotes ? `<p>${escapeHtml(target.closureNotes)}</p>` : ""}
+            <p class="muted">${escapeHtml(target.closedBy || "—")} · ${escapeHtml(String(target.closedAt || "").slice(0, 16).replace("T", " "))}</p>
+          </div>`
+        : "";
       G.openEditModal?.({
         title: sarlaftCatalogLabel(SARLAFT_ALERT_KINDS, target.kind),
         subtitle: target.title,
@@ -1938,9 +2187,12 @@ function bindSarlaftPortalControls() {
             html: `<p>${programChip(target.program)} ${alertStatusPill(target.status)} ${escapeHtml(sarlaftCatalogLabel(SARLAFT_ALERT_SEVERITIES, target.severity))}</p>
               <p class="muted">${escapeHtml(target.thirdPartyName || "—")} · ${escapeHtml(sarlaftCatalogLabel(SARLAFT_PROGRAMS, target.program))} · límite ${escapeHtml(target.dueDate || "—")}</p>
               <p>${escapeHtml(target.description || "Sin descripción.")}</p>
-              <p class="muted">Registró ${escapeHtml(target.createdBy || "—")} · ${escapeHtml(String(target.createdAt || "").slice(0, 16))}</p>`
+              <p class="muted">Registró ${escapeHtml(target.createdBy || "—")} · ${escapeHtml(String(target.createdAt || "").slice(0, 16).replace("T", " "))}</p>
+              ${closureBlock}
+              ${followUpLogHtml("alert", target.id, target.followUps)}`
           }
         ],
+        afterMount: (formEl) => bindFollowUpWidget(formEl, { kind: "alert", id: target.id, reopen: () => openAlertView(target.id) }),
         onSubmit: async () => true
       });
     });
@@ -1963,16 +2215,53 @@ function bindSarlaftPortalControls() {
             options: SARLAFT_REVIEW_STATUSES.map((x) => ({ value: x.value, label: x.label }))
           },
           { name: "reviewedAt", label: "Fecha", type: "date", value: target.reviewedAt },
-          { name: "observations", label: "Observaciones", type: "textarea", value: target.observations, rows: 3 }
+          { name: "observations", label: "Observaciones", type: "textarea", value: target.observations, rows: 3 },
+          {
+            name: "closureDecision",
+            label: "Decisión de cierre",
+            type: "select",
+            value: target.closureDecision,
+            hidden: target.status !== "cerrada",
+            options: [{ value: "", label: "Seleccione..." }, ...SARLAFT_CLOSURE_DECISIONS.map((x) => ({ value: x.value, label: x.label }))]
+          },
+          {
+            name: "closureNotes",
+            label: "Notas de cierre",
+            type: "textarea",
+            value: target.closureNotes,
+            rows: 2,
+            hidden: target.status !== "cerrada"
+          },
+          { type: "custom", html: followUpLogHtml("review", target.id, target.followUps) }
         ],
+        afterMount: (formEl) => {
+          bindClosureFieldsToggle(formEl, "status", (status) => status === "cerrada");
+          bindFollowUpWidget(formEl, { kind: "review", id: target.id, reopen: () => openReviewEdit(target.id) });
+        },
         onSubmit: async (form) => {
+          const closed = form.status === "cerrada";
           const next = readReviews().map((r) =>
             r.id === target.id
-              ? stampUpdatedRecord(normalizeSarlaftReviewRow({ ...r, ...form, updatedBy: actorLabel() }))
+              ? stampUpdatedRecord(
+                  normalizeSarlaftReviewRow({
+                    ...r,
+                    ...form,
+                    closureDecision: closed ? form.closureDecision : "",
+                    closureNotes: closed ? form.closureNotes : "",
+                    closedAt: closed ? r.closedAt || new Date().toISOString() : "",
+                    closedBy: closed ? r.closedBy || actorLabel() : "",
+                    updatedBy: actorLabel()
+                  })
+                )
               : r
           );
           await writeAwaitServerEdit(KEYS.sarlaftReviews, next, target.id);
-          auditSarlaft("update", target.id, target.thirdPartyName, `Revisión ${form.status}`);
+          auditSarlaft(
+            "update",
+            target.id,
+            target.thirdPartyName,
+            closed ? `Cerrada · ${sarlaftCatalogLabel(SARLAFT_CLOSURE_DECISIONS, form.closureDecision) || "sin decisión"}` : `Revisión ${form.status}`
+          );
           G.notify?.("Revisión actualizada.", "success");
           G.renderPortalView?.();
           return true;
@@ -2018,6 +2307,96 @@ function bindSarlaftPortalControls() {
       auditSarlaft("delete", target.id, target.thirdPartyName, "Eliminación de revisión");
     });
   });
+  nodes.viewRoot.querySelectorAll("[data-action='delete-sarlaft-profile']").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const target = readProfiles().find((p) => String(p.id) === String(btn.dataset.id || ""));
+      if (!target) return;
+      const inUse = readParties().some((party) => String(party.riskProfileId || "") === String(target.id));
+      if (inUse) {
+        G.notify?.("Este perfil está asignado a terceros. Desactívelo en vez de eliminarlo.", "error");
+        return;
+      }
+      const confirmed = await G.confirmPortalAction?.(`¿Eliminar el perfil ${target.name}?`, { danger: true });
+      if (confirmed === false) return;
+      await removeRow(KEYS.sarlaftRiskProfiles, target.id, readProfiles);
+      auditSarlaft("delete", target.id, target.name, "Eliminación de perfil de riesgo");
+    });
+  });
+  nodes.viewRoot.querySelectorAll("[data-action='toggle-sarlaft-profile']").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (!canMutateSarlaftProfiles()) return;
+      const target = readProfiles().find((p) => String(p.id) === String(btn.dataset.id || ""));
+      if (!target) return;
+      const next = readProfiles().map((p) =>
+        p.id === target.id
+          ? stampUpdatedRecord(normalizeSarlaftRiskProfileRow({ ...p, active: !p.active, updatedBy: actorLabel() }))
+          : p
+      );
+      await writeAwaitServerEdit(KEYS.sarlaftRiskProfiles, next, target.id);
+      auditSarlaft("update", target.id, target.name, target.active ? "Perfil desactivado" : "Perfil activado");
+      G.notify?.(target.active ? "Perfil desactivado." : "Perfil activado.", "success");
+      G.renderPortalView?.();
+    });
+  });
+  nodes.viewRoot.querySelectorAll("[data-action='edit-sarlaft-profile']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (!canMutateSarlaftProfiles()) return;
+      const target = readProfiles().find((p) => String(p.id) === String(btn.dataset.id || ""));
+      if (!target) return;
+      G.openEditModal?.({
+        title: "Editar perfil de riesgo",
+        subtitle: target.name,
+        submitText: "Guardar",
+        fields: [
+          { name: "code", label: "Código", value: target.code, required: true },
+          { name: "name", label: "Nombre", value: target.name, required: true },
+          {
+            name: "program",
+            label: "Programa",
+            type: "select",
+            value: target.program,
+            options: SARLAFT_PROGRAMS.map((x) => ({ value: x.value, label: x.label }))
+          },
+          {
+            name: "level",
+            label: "Nivel",
+            type: "select",
+            value: target.level,
+            options: SARLAFT_RISK_LEVELS.map((x) => ({ value: x.value, label: x.label }))
+          },
+          {
+            name: "dueDiligenceLevel",
+            label: "Debida diligencia",
+            type: "select",
+            value: target.dueDiligenceLevel,
+            options: SARLAFT_DUE_DILIGENCE_LEVELS.map((x) => ({ value: x.value, label: x.label }))
+          },
+          {
+            name: "reviewFrequencyDays",
+            label: "Frecuencia de revisión (días)",
+            type: "number",
+            value: target.reviewFrequencyDays,
+            min: 1,
+            max: 1095,
+            required: true
+          },
+          { name: "criteria", label: "Criterios / metodología", type: "textarea", value: target.criteria, rows: 3, required: true }
+        ],
+        onSubmit: async (form) => {
+          const next = readProfiles().map((p) =>
+            p.id === target.id
+              ? stampUpdatedRecord(normalizeSarlaftRiskProfileRow({ ...p, ...form, updatedBy: actorLabel() }))
+              : p
+          );
+          await writeAwaitServerEdit(KEYS.sarlaftRiskProfiles, next, target.id);
+          auditSarlaft("update", target.id, form.name || target.name, "Perfil de riesgo actualizado");
+          G.notify?.("Perfil actualizado.", "success");
+          G.renderPortalView?.();
+          return true;
+        }
+      });
+    });
+  });
 
   const exportParties = () => {
     const program = normalizeSarlaftProgramFilter(getUi().programFilter);
@@ -2037,16 +2416,29 @@ function bindSarlaftPortalControls() {
       SARLAFT_ALERT_EXPORT_COLUMNS
     );
   };
+  const exportProfiles = () => {
+    const program = normalizeSarlaftProgramFilter(getUi().programFilter);
+    const prefix = program === "pte" ? "pte_matriz_perfiles" : program === "sarlaft" ? "sarlaft_matriz_perfiles" : "sarlaft_pte_matriz_perfiles";
+    downloadCsv(
+      `${prefix}_${colombiaTodayIsoDate()}.csv`,
+      buildSarlaftProfileExportRows(filterSarlaftByProgram(readProfiles(), program)),
+      SARLAFT_PROFILE_EXPORT_COLUMNS
+    );
+  };
   nodes.viewRoot.querySelectorAll("[data-action='export-sarlaft-parties']").forEach((btn) => {
     btn.addEventListener("click", exportParties);
   });
   nodes.viewRoot.querySelectorAll("[data-action='export-sarlaft-alerts']").forEach((btn) => {
     btn.addEventListener("click", exportAlerts);
   });
+  nodes.viewRoot.querySelectorAll("[data-action='export-sarlaft-profiles']").forEach((btn) => {
+    btn.addEventListener("click", exportProfiles);
+  });
   nodes.viewRoot.querySelectorAll("[data-action='export-sarlaft-current']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const section = normalizeSarlaftDataSection(getUi().dataSection);
       if (section === "alerts") exportAlerts();
+      else if (section === "matrix") exportProfiles();
       else exportParties();
     });
   });
