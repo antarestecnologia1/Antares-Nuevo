@@ -1,15 +1,68 @@
 /* ===================================================================
    SARLAFT / PTE — extensiones sobre payroll-studio (misma shell que SST/GH)
    Alcance: .sarlaft-studio.payroll-studio
+
+   Rediseño 2026: el módulo se alinea con la paleta corporativa real de
+   Transportes Antares (--primary / --brand-blue-deep, definida en
+   styles.landing.css y ya expuesta al shell interno como --pay-blue en
+   styles/payroll-module.css) en lugar del navy aislado que tenía antes.
+   PTE conserva un matiz propio para poder distinguir los dos programas
+   de un vistazo, pero armonizado dentro de la misma familia azul/teal
+   en vez de un verde-azulado genérico sin relación con la marca.
    =================================================================== */
 
 .sarlaft-studio.payroll-studio {
-  --sarlaft-navy: #0f2744;
+  /* Acento SARLAFT = azul corporativo Antares (con fallback si --primary no está cargado). */
+  --sarlaft-navy: var(--primary-deeper, #1e4a73);
+  --sarlaft-blue: var(--pay-blue, var(--primary, #377cc0));
+  --sarlaft-blue-mid: var(--primary-mid, #83bee9);
+  --sarlaft-blue-soft: var(--pay-blue-soft, var(--primary-light, #cce5f8));
   --sarlaft-gold: #b45309;
-  --pte-teal: #0f766e;
+
+  /* PTE: teal armonizado con el azul de marca (mismo tono frío, distinto matiz). */
+  --pte-teal: #0d7d72;
+  --pte-teal-deep: #0b5c54;
   --pte-mint: #ccfbf1;
 }
 
+/* ── Cabecera del módulo: misma franja de marca que Gestión Humana/SST ── */
+.sarlaft-studio .sarlaft-studio-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem 1.5rem;
+  flex-wrap: wrap;
+  padding: 1.15rem 1.35rem;
+  border-radius: var(--pay-radius, 16px);
+  border: 1px solid var(--pay-edge-strong, #cbd5e1);
+  background:
+    linear-gradient(135deg, rgba(55, 124, 192, 0.07) 0%, transparent 58%),
+    var(--pay-card, #fff);
+  box-shadow: var(--pay-shadow-sm, 0 1px 3px rgba(15, 23, 42, 0.05), 0 4px 14px rgba(15, 23, 42, 0.06));
+  position: relative;
+  overflow: hidden;
+}
+
+.sarlaft-studio .sarlaft-studio-head::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--sarlaft-navy) 0%, var(--sarlaft-blue) 55%, var(--sarlaft-blue-mid) 100%);
+  opacity: 0.85;
+}
+
+.sarlaft-studio--pte .sarlaft-studio-head::before {
+  background: linear-gradient(90deg, var(--pte-teal-deep) 0%, var(--pte-teal) 60%, #5eead4 100%);
+}
+
+.sarlaft-studio--ambos .sarlaft-studio-head::before {
+  background: linear-gradient(90deg, var(--sarlaft-navy) 0%, var(--sarlaft-blue) 42%, var(--pte-teal) 72%, #5eead4 100%);
+}
+
+/* ── KPI / status cards ── */
 .sarlaft-studio .sst-status-cards {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -26,18 +79,36 @@
   border: 1px solid var(--pay-edge, #e2e8f0);
   background: #fff;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 20px rgba(15, 23, 42, 0.04);
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
 }
 
+.sarlaft-studio .sst-status-card:hover {
+  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.06), 0 14px 28px rgba(15, 23, 42, 0.07);
+  transform: translateY(-1px);
+}
+
+/* La 1ª tarjeta de KPI (total de terceros) usa el acento de marca, no el azul genérico de SST. */
+.sarlaft-studio .sst-status-card--total::after {
+  background: var(--sarlaft-blue);
+}
+
+.sarlaft-studio .sst-status-card--total .sst-status-card__ico {
+  background: rgba(var(--primary-rgb, 55, 124, 192), 0.12);
+  color: var(--sarlaft-navy);
+}
+
+/* ── Chips de estado ── */
 .sarlaft-studio .sarlaft-risk-chip,
 .sarlaft-studio .sst-status-pill {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  padding: 0.18rem 0.55rem;
+  padding: 0.2rem 0.6rem;
   border-radius: 999px;
   font-size: 0.75rem;
-  font-weight: 650;
+  font-weight: 700;
   white-space: nowrap;
+  line-height: 1.5;
 }
 
 .sarlaft-studio .sarlaft-risk-chip--bajo,
@@ -52,13 +123,14 @@
 
 .sarlaft-studio .sarlaft-pep-flag {
   display: inline-flex;
+  align-items: center;
   margin-left: 0.35rem;
-  padding: 0.08rem 0.4rem;
+  padding: 0.1rem 0.45rem;
   border-radius: 6px;
   background: #fef3c7;
   color: #92400e;
   font-size: 0.68rem;
-  font-weight: 700;
+  font-weight: 750;
   letter-spacing: 0.04em;
 }
 
@@ -68,11 +140,12 @@
   font-size: 0.78rem;
 }
 
+/* ── Evidencias / adjuntos ── */
 .sarlaft-evidence-list,
 .sarlaft-studio .sarlaft-evidence-list {
   display: grid;
-  gap: 0.4rem;
-  margin: 0.4rem 0 0;
+  gap: 0.45rem;
+  margin: 0.45rem 0 0;
   padding: 0;
   list-style: none;
 }
@@ -83,16 +156,23 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
-  padding: 0.45rem 0.6rem;
+  padding: 0.55rem 0.7rem;
   border-radius: 10px;
   border: 1px solid var(--pay-edge, #e2e8f0);
   background: var(--pay-surface, #f8fafc);
   font-size: 0.84rem;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.sarlaft-evidence-list li:hover,
+.sarlaft-studio .sarlaft-evidence-list li:hover {
+  border-color: var(--sarlaft-blue-mid);
+  background: #fff;
 }
 
 .sarlaft-evidence-list__meta {
   display: grid;
-  gap: 0.1rem;
+  gap: 0.12rem;
   min-width: 0;
 }
 
@@ -104,11 +184,11 @@
 }
 
 .sarlaft-ficha-attach {
-  margin-top: 0.65rem;
-  padding: 0.7rem 0.8rem;
+  margin-top: 0.7rem;
+  padding: 0.75rem 0.85rem;
   border-radius: 12px;
-  border: 1px dashed #cbd5e1;
-  background: #f8fafc;
+  border: 1px dashed var(--sarlaft-blue-mid, #9ec8e8);
+  background: linear-gradient(180deg, #fbfdff 0%, var(--pay-surface, #f8fafc) 100%);
 }
 
 .sarlaft-ficha-attach__row {
@@ -125,7 +205,7 @@
 }
 
 .sarlaft-studio .sarlaft-link-docs {
-  margin-top: 0.35rem;
+  margin-top: 0.4rem;
 }
 
 .sarlaft-studio .sarlaft-evidence-file input[type="file"] {
@@ -141,17 +221,17 @@
 
 .sarlaft-studio .sarlaft-evidence-file__list {
   list-style: none;
-  margin: 0.45rem 0 0;
+  margin: 0.5rem 0 0;
   padding: 0;
   display: grid;
-  gap: 0.3rem;
+  gap: 0.32rem;
 }
 
 .sarlaft-studio .sarlaft-evidence-file__list li {
   display: flex;
   justify-content: space-between;
   gap: 0.75rem;
-  padding: 0.4rem 0.55rem;
+  padding: 0.42rem 0.6rem;
   border-radius: 8px;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
@@ -163,22 +243,20 @@
   white-space: nowrap;
 }
 
+/* ── Acento por programa activo (rail, switch, franjas) ── */
 .sarlaft-studio--sarlaft {
-  --pay-accent: var(--sarlaft-navy);
+  --pay-accent: var(--sarlaft-blue);
 }
 
 .sarlaft-studio--pte {
   --pay-accent: var(--pte-teal);
 }
 
-.sarlaft-studio-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
+.sarlaft-studio--ambos {
+  --pay-accent: var(--sarlaft-blue);
 }
 
+/* ── Selector de programa (SARLAFT / PTE / Ambos) ── */
 .sarlaft-program-switch {
   display: inline-flex;
   flex-wrap: wrap;
@@ -202,6 +280,10 @@
   transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 
+.sarlaft-program-switch__btn:hover {
+  background: rgba(15, 23, 42, 0.04);
+}
+
 .sarlaft-program-switch__btn strong {
   display: block;
   font-size: 0.82rem;
@@ -223,42 +305,48 @@
 }
 
 .sarlaft-program-switch__btn--sarlaft.is-active {
-  color: var(--sarlaft-navy, #0f2744);
-  box-shadow: 0 0 0 1px rgba(15, 39, 68, 0.18), 0 6px 14px rgba(15, 39, 68, 0.08);
+  color: var(--sarlaft-navy);
+  box-shadow: 0 0 0 1px rgba(var(--primary-rgb, 55, 124, 192), 0.25), 0 6px 14px rgba(var(--primary-rgb, 55, 124, 192), 0.12);
 }
 
 .sarlaft-program-switch__btn--pte.is-active {
-  color: var(--pte-teal, #0f766e);
-  box-shadow: 0 0 0 1px rgba(15, 118, 110, 0.2), 0 6px 14px rgba(15, 118, 110, 0.08);
+  color: var(--pte-teal-deep);
+  box-shadow: 0 0 0 1px rgba(13, 125, 114, 0.22), 0 6px 14px rgba(13, 125, 114, 0.1);
 }
 
+.sarlaft-program-switch__btn--ambos.is-active {
+  color: var(--sarlaft-navy);
+  box-shadow: 0 0 0 1px rgba(var(--primary-rgb, 55, 124, 192), 0.25), 0 6px 14px rgba(var(--primary-rgb, 55, 124, 192), 0.12);
+}
+
+/* ── Chips de programa (SARLAFT / PTE / Ambos) sobre filas y fichas ── */
 .sarlaft-program-chip,
 .sarlaft-pep-flag,
 .sarlaft-pte-flag {
   display: inline-flex;
   align-items: center;
   margin-left: 0.35rem;
-  padding: 0.08rem 0.4rem;
+  padding: 0.1rem 0.45rem;
   border-radius: 6px;
   font-size: 0.68rem;
-  font-weight: 700;
+  font-weight: 750;
   letter-spacing: 0.04em;
   vertical-align: middle;
 }
 
 .sarlaft-program-chip--sarlaft {
-  background: #e2e8f0;
-  color: #0f2744;
+  background: rgba(var(--primary-rgb, 55, 124, 192), 0.14);
+  color: var(--sarlaft-navy);
 }
 
 .sarlaft-program-chip--pte {
   background: #ccfbf1;
-  color: #115e59;
+  color: var(--pte-teal-deep);
 }
 
 .sarlaft-program-chip--ambos {
-  background: #ffedd5;
-  color: #9a3412;
+  background: linear-gradient(90deg, rgba(var(--primary-rgb, 55, 124, 192), 0.16) 0%, #ccfbf1 100%);
+  color: var(--sarlaft-navy);
 }
 
 .sarlaft-pep-flag {
@@ -268,25 +356,32 @@
 
 .sarlaft-pte-flag {
   background: #ccfbf1;
-  color: #0f766e;
+  color: var(--pte-teal-deep);
 }
 
+/* ── Ficha de detalle de tercero ── */
 .sarlaft-party-detail .sarlaft-detail-block {
-  margin: 0.85rem 0;
-  padding: 0.75rem 0.9rem;
+  margin: 0.9rem 0;
+  padding: 0.85rem 1rem;
   border-radius: 12px;
   border: 1px solid #e2e8f0;
   background: #f8fafc;
 }
 
 .sarlaft-party-detail .sarlaft-detail-block h4 {
-  margin: 0 0 0.45rem;
+  margin: 0 0 0.5rem;
   font-size: 0.86rem;
+  font-weight: 750;
+  letter-spacing: 0.01em;
 }
 
 .sarlaft-detail-block--sarlaft {
-  border-color: #cbd5e1;
-  background: #f8fafc;
+  border-color: var(--sarlaft-blue-soft, #cce5f8);
+  background: linear-gradient(180deg, #f7fbff 0%, #f8fafc 100%);
+}
+
+.sarlaft-detail-block--sarlaft h4 {
+  color: var(--sarlaft-navy);
 }
 
 .sarlaft-detail-block--pte {
@@ -294,18 +389,22 @@
   background: #f0fdfa;
 }
 
+.sarlaft-detail-block--pte h4 {
+  color: var(--pte-teal-deep);
+}
+
 .sarlaft-check-list {
   margin: 0;
   padding: 0;
   list-style: none;
   display: grid;
-  gap: 0.28rem;
+  gap: 0.32rem;
 }
 
 .sarlaft-check {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.45rem;
   font-size: 0.86rem;
 }
 
@@ -316,6 +415,40 @@
   display: none !important;
 }
 
+/* ── Rail de "Registrar" (SARLAFT / Alertas / Revisiones / Perfiles) con acento de marca ──
+   SST usa verde (su color de cumplimiento propio) para el tab activo; SARLAFT lo sobreescribe
+   con el azul corporativo (o el teal de PTE) para tener identidad propia en vez de "prestada". */
+.sarlaft-studio .sst-operate-nav-tab {
+  color: var(--sarlaft-navy);
+}
+
+.sarlaft-studio .sst-operate-nav-tab.is-active {
+  border-color: rgba(var(--primary-rgb, 55, 124, 192), 0.4);
+  background: linear-gradient(145deg, rgba(var(--primary-rgb, 55, 124, 192), 0.09), rgba(var(--primary-rgb, 55, 124, 192), 0.03));
+  box-shadow: 0 6px 18px rgba(var(--primary-rgb, 55, 124, 192), 0.14);
+}
+
+.sarlaft-studio--pte .sst-operate-nav-tab {
+  color: var(--pte-teal-deep);
+}
+
+.sarlaft-studio--pte .sst-operate-nav-tab.is-active {
+  border-color: rgba(13, 125, 114, 0.4);
+  background: linear-gradient(145deg, rgba(13, 125, 114, 0.09), rgba(13, 125, 114, 0.03));
+  box-shadow: 0 6px 18px rgba(13, 125, 114, 0.14);
+}
+
+/* ── Tarjetas de perfil de riesgo (matriz parametrizada) ── */
+.sarlaft-studio .sst-due-card {
+  transition: box-shadow 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
+}
+
+.sarlaft-studio .sst-due-card:hover {
+  border-color: var(--sarlaft-blue-mid, #9ec8e8);
+  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.05), 0 12px 24px rgba(15, 23, 42, 0.06);
+  transform: translateY(-1px);
+}
+
 @media (max-width: 960px) {
   .sarlaft-studio .sst-status-cards {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -323,6 +456,10 @@
 }
 
 @media (max-width: 640px) {
+  .sarlaft-studio .sarlaft-studio-head {
+    padding: 1rem;
+  }
+
   .sarlaft-studio .sst-status-cards {
     grid-template-columns: 1fr;
   }
@@ -335,6 +472,18 @@
     flex: 1 1 30%;
     min-width: 0;
   }
+}
+
+/* ── Modo oscuro ── */
+body[data-theme="dark"] .sarlaft-studio .sarlaft-studio-head {
+  background:
+    linear-gradient(135deg, rgba(131, 190, 233, 0.08) 0%, transparent 58%),
+    var(--pay-card, rgba(15, 28, 46, 0.92));
+}
+
+body[data-theme="dark"] .sarlaft-studio .sst-status-card {
+  background: var(--pay-card, rgba(15, 28, 46, 0.92));
+  border-color: var(--pay-edge, rgba(148, 196, 255, 0.14));
 }
 
 body[data-theme="dark"] .sarlaft-program-switch {
@@ -355,13 +504,40 @@ body[data-theme="dark"] .sarlaft-program-switch__btn.is-active {
   color: #f8fafc;
 }
 
+body[data-theme="dark"] .sarlaft-program-switch__btn--sarlaft.is-active {
+  color: var(--primary-mid, #83bee9);
+}
+
+body[data-theme="dark"] .sarlaft-program-switch__btn--pte.is-active {
+  color: #5eead4;
+}
+
 body[data-theme="dark"] .sarlaft-party-detail .sarlaft-detail-block,
 body[data-theme="dark"] .sarlaft-detail-block--sarlaft {
   background: #0f172a;
   border-color: #334155;
 }
 
+body[data-theme="dark"] .sarlaft-detail-block--sarlaft h4 {
+  color: var(--primary-mid, #83bee9);
+}
+
 body[data-theme="dark"] .sarlaft-detail-block--pte {
   background: #042f2e;
   border-color: #115e59;
+}
+
+body[data-theme="dark"] .sarlaft-detail-block--pte h4 {
+  color: #5eead4;
+}
+
+body[data-theme="dark"] .sarlaft-evidence-list li,
+body[data-theme="dark"] .sarlaft-studio .sarlaft-evidence-list li {
+  background: rgba(15, 28, 46, 0.65);
+  border-color: rgba(148, 196, 255, 0.14);
+}
+
+body[data-theme="dark"] .sarlaft-ficha-attach {
+  background: rgba(15, 28, 46, 0.5);
+  border-color: rgba(131, 190, 233, 0.3);
 }

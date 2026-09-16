@@ -1036,7 +1036,7 @@ function payrollHtml() {
       ? runTableView || runsEmpty
       : runCardsGrid || runsEmpty;
   const employeeOpts = employees
-    .map((e) => `<option value="${e.id}" ${filterEmployee === e.id ? "selected" : ""}>${e.name}</option>`)
+    .map((e) => `<option value="${escapeAttr(String(e.id))}" ${filterEmployee === e.id ? "selected" : ""}>${escapeHtml(String(e.name || ""))}</option>`)
     .join("");
   const filteredEmployeeRecord = filterEmployee
     ? employees.find((e) => String(e.id) === String(filterEmployee))
