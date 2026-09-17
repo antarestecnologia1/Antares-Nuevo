@@ -8,17 +8,40 @@
  * de módulos — este overlay debe estar listo el instante en que el login
  * es exitoso, sin parpadeo sin estilos.
  *
- * Uso: await playLoginSuccessAnimation(); luego proceder a mostrar el portal.
- * Si el usuario tiene `prefers-reduced-motion: reduce`, se resuelve de inmediato
- * sin animar (accesibilidad).
+ * API en dos pasos, pensada para eliminar cualquier fotograma intermedio
+ * sin cubrir entre el modal de login y el portal:
+ *
+ *   showLoginSuccessOverlay()               — SÍNCRONA e instantánea. Crea y
+ *     muestra el overlay ya opaco (sin fade-in) cubriendo toda la pantalla.
+ *     Llamarla ANTES de `hideAuth()`, para que el modal de login desaparezca
+ *     directamente sobre el overlay en vez de revelar el sitio público por
+ *     debajo durante un instante.
+ *
+ *   await waitAndDismissLoginSuccessOverlay() — espera lo que falte de la
+ *     animación y retira el overlay con un fade-out corto. Llamarla DESPUÉS
+ *     de que `renderPortal()` ya haya pintado el portal detrás, para que el
+ *     fade-out revele el portal ya listo y no un estado intermedio.
+ *
+ * Si el usuario tiene `prefers-reduced-motion: reduce`, ambos pasos se
+ * resuelven de inmediato sin animar (accesibilidad).
  */
 
 const OVERLAY_ID = "login-success-overlay";
 const STYLE_ID = "login-success-overlay-style";
-const ANIMATION_TOTAL_MS = 1350;
-const FALLBACK_SAFETY_MS = ANIMATION_TOTAL_MS + 600;
+const ANIMATION_TOTAL_MS = 5000;
+const FADE_OUT_MS = 260;
+const FALLBACK_SAFETY_MS = ANIMATION_TOTAL_MS + 1200;
 
 let stylesInjected = false;
+let overlayShownAt = 0;
+let reduceMotionCached = null;
+
+function prefersReducedMotion() {
+  if (reduceMotionCached !== null) return reduceMotionCached;
+  reduceMotionCached =
+    typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  return reduceMotionCached;
+}
 
 function ensureStylesInjected() {
   if (stylesInjected || document.getElementById(STYLE_ID)) {
@@ -37,7 +60,7 @@ function ensureStylesInjected() {
   justify-content: center;
   background: #ffffff;
   opacity: 0;
-  transition: opacity 0.2s ease;
+  transition: opacity ${FADE_OUT_MS}ms ease;
   pointer-events: none;
 }
 #${OVERLAY_ID}.is-visible {
@@ -103,53 +126,67 @@ function ensureStylesInjected() {
   to { stroke-dashoffset: 0; }
 }
 
-/* --- Línea de escaneo horizontal que recorre el escudo de arriba a abajo --- */
+/* --- Línea de escaneo horizontal: recorre el escudo repetidamente mientras
+   dura la verificación (la duración total ahora es más larga que un solo
+   barrido, así que se repite en vaivén para no dejar el escudo "quieto"). --- */
 #${OVERLAY_ID} .lsa-scanline {
   opacity: 0;
-  animation: lsa-scan 0.65s cubic-bezier(0.4, 0, 0.2, 1) 0.15s forwards;
+  animation:
+    lsa-scan-in 0.35s ease-out 0.15s forwards,
+    lsa-scan-sweep 1.1s ease-in-out 0.15s infinite;
 }
-@keyframes lsa-scan {
-  0% { opacity: 0; transform: translateY(-24px); }
-  8% { opacity: 1; }
-  92% { opacity: 1; }
-  100% { opacity: 0; transform: translateY(24px); }
-}
-
-/* --- Relleno del escudo: se ilumina una vez terminado el escaneo --- */
-#${OVERLAY_ID} .lsa-shield-fill {
-  opacity: 0;
-  animation: lsa-fill-in 0.3s ease 0.72s forwards;
-}
-@keyframes lsa-fill-in {
+@keyframes lsa-scan-in {
+  from { opacity: 0; }
   to { opacity: 1; }
 }
+@keyframes lsa-scan-sweep {
+  0%, 100% { transform: translateY(-24px); }
+  50% { transform: translateY(24px); }
+}
+#${OVERLAY_ID}.is-verified .lsa-scanline {
+  animation: lsa-scan-out 0.25s ease-in forwards;
+}
+@keyframes lsa-scan-out {
+  to { opacity: 0; }
+}
 
-/* --- Check interior: se dibuja después de que el escudo se ilumina --- */
+/* --- Relleno del escudo: se ilumina una vez confirmado el acceso --- */
+#${OVERLAY_ID} .lsa-shield-fill {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+#${OVERLAY_ID}.is-verified .lsa-shield-fill {
+  opacity: 1;
+}
+
+/* --- Check interior: se dibuja al confirmarse el acceso --- */
 #${OVERLAY_ID} .lsa-check {
   stroke-dasharray: 34;
   stroke-dashoffset: 34;
-  animation: lsa-check-draw 0.32s cubic-bezier(0.2, 0.6, 0.3, 1) 0.85s forwards;
+  transition: stroke-dashoffset 0.32s cubic-bezier(0.2, 0.6, 0.3, 1) 0.12s;
 }
-@keyframes lsa-check-draw {
-  to { stroke-dashoffset: 0; }
+#${OVERLAY_ID}.is-verified .lsa-check {
+  stroke-dashoffset: 0;
 }
 
-/* --- Pulso final de confirmación alrededor del escudo --- */
+/* --- Pulso de confirmación alrededor del escudo --- */
 #${OVERLAY_ID} .lsa-pulse {
   transform-origin: 60px 60px;
   opacity: 0;
-  animation: lsa-pulse-out 0.55s ease-out 0.82s forwards;
+  transform: scale(0.85);
+}
+#${OVERLAY_ID}.is-verified .lsa-pulse {
+  animation: lsa-pulse-out 0.55s ease-out 0.18s forwards;
 }
 @keyframes lsa-pulse-out {
   0% { opacity: 0.55; transform: scale(0.85); }
   100% { opacity: 0; transform: scale(1.35); }
 }
 
-/* --- Los anillos giratorios se detienen suavemente cuando termina el escaneo --- */
-#${OVERLAY_ID} .lsa-ring,
-#${OVERLAY_ID} .lsa-ring-outer {
-  animation-iteration-count: 1;
-  animation-duration: 0.85s;
+/* --- Los anillos se detienen suavemente al confirmarse el acceso --- */
+#${OVERLAY_ID}.is-verified .lsa-ring,
+#${OVERLAY_ID}.is-verified .lsa-ring-outer {
+  animation-play-state: paused;
 }
 
 @keyframes lsa-msg-fade {
@@ -167,6 +204,7 @@ function ensureStylesInjected() {
   #${OVERLAY_ID} .lsa-pulse,
   #${OVERLAY_ID} .lsa-msg {
     animation: none !important;
+    transition: none !important;
     opacity: 1 !important;
     transform: none !important;
     stroke-dashoffset: 0 !important;
@@ -202,7 +240,7 @@ function buildOverlayMarkup() {
         <!-- Pulso de confirmación final -->
         <circle class="lsa-pulse" cx="60" cy="60" r="36" fill="none" stroke="#377cc0" stroke-width="1.5" />
 
-        <!-- Relleno del escudo (se ilumina al final) -->
+        <!-- Relleno del escudo (se ilumina al confirmar) -->
         <path class="lsa-shield-fill" d="M60 22 L86 32 V58 C86 76 74 88 60 94 C46 88 34 76 34 58 V32 Z" fill="#eaf1fb" />
 
         <!-- Contorno del escudo (se dibuja) -->
@@ -224,12 +262,45 @@ function buildOverlayMarkup() {
 }
 
 /**
- * Reproduce la animación de éxito de login y resuelve la Promise cuando termina
- * (o de inmediato si el usuario prefiere movimiento reducido). Nunca rechaza:
- * cualquier error de DOM se captura y se resuelve igual, para no bloquear jamás
- * la entrada al portal por un fallo puramente cosmético.
+ * PASO 1 — síncrona e instantánea. Crea el overlay ya opaco (sin transición
+ * de entrada) cubriendo toda la pantalla. Llamar ANTES de ocultar el modal
+ * de login, para que no quede ni un fotograma sin cubrir entre ambos.
+ * No hace nada si el usuario prefiere movimiento reducido (no hay overlay
+ * que mostrar en ese caso).
  */
-export function playLoginSuccessAnimation() {
+export function showLoginSuccessOverlay() {
+  try {
+    if (prefersReducedMotion()) return;
+    ensureStylesInjected();
+    let overlay = document.getElementById(OVERLAY_ID);
+    if (!overlay) {
+      overlay = document.createElement("div");
+      overlay.id = OVERLAY_ID;
+      document.body.appendChild(overlay);
+    }
+    overlay.innerHTML = buildOverlayMarkup();
+    overlay.classList.remove("is-leaving", "is-verified");
+    // Sin transición de entrada: se marca visible en el mismo frame de pintado
+    // para que sustituya al modal de login sin ningún hueco entre ambos.
+    overlay.style.transition = "none";
+    overlay.classList.add("is-visible");
+    void overlay.offsetHeight; // fuerza el reflow antes de restaurar la transición
+    overlay.style.transition = "";
+    overlayShownAt = Date.now();
+  } catch (_e) {
+    /* Cosmético: un fallo aquí no debe impedir continuar el login. */
+  }
+}
+
+/**
+ * PASO 2 — espera lo que falte de la duración total de la animación y luego
+ * retira el overlay con un fade-out corto. Resuelve la Promise cuando el
+ * overlay ya quedó completamente removido del DOM. Nunca rechaza. Llamar
+ * DESPUÉS de que el portal ya esté pintado detrás (p. ej. tras
+ * `renderPortal()`), para que el fade-out revele el portal listo y no un
+ * estado intermedio.
+ */
+export function waitAndDismissLoginSuccessOverlay() {
   return new Promise((resolve) => {
     let settled = false;
     const finish = () => {
@@ -238,39 +309,36 @@ export function playLoginSuccessAnimation() {
       resolve();
     };
     try {
-      const reduceMotion =
-        typeof window.matchMedia === "function" &&
-        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      if (reduceMotion) {
+      const overlay = document.getElementById(OVERLAY_ID);
+      if (prefersReducedMotion() || !overlay) {
         finish();
         return;
       }
-      ensureStylesInjected();
-      let overlay = document.getElementById(OVERLAY_ID);
-      if (!overlay) {
-        overlay = document.createElement("div");
-        overlay.id = OVERLAY_ID;
-        document.body.appendChild(overlay);
-      }
-      overlay.innerHTML = buildOverlayMarkup();
-      overlay.classList.remove("is-leaving");
-      requestAnimationFrame(() => {
-        overlay.classList.add("is-visible");
-      });
 
       const safetyTimer = setTimeout(finish, FALLBACK_SAFETY_MS);
+      const elapsed = overlayShownAt ? Date.now() - overlayShownAt : 0;
+      const remaining = Math.max(0, ANIMATION_TOTAL_MS - elapsed);
+
+      // Marca el escudo como verificado (check + pulso) un poco antes de que
+      // termine la espera, para que el usuario vea la confirmación antes del
+      // fade-out, no un corte abrupto a mitad del escaneo.
+      const verifyLeadMs = Math.min(650, remaining);
+      setTimeout(() => {
+        overlay.classList.add("is-verified");
+      }, Math.max(0, remaining - verifyLeadMs));
 
       setTimeout(() => {
         overlay.classList.add("is-leaving");
+        overlay.classList.remove("is-visible");
         setTimeout(() => {
-          overlay.classList.remove("is-visible");
           overlay.innerHTML = "";
+          overlay.classList.remove("is-leaving", "is-verified");
           clearTimeout(safetyTimer);
           finish();
-        }, 220);
-      }, ANIMATION_TOTAL_MS);
+        }, FADE_OUT_MS);
+      }, remaining);
     } catch (_e) {
-      /* Cosmético: cualquier fallo aquí nunca debe bloquear el acceso al portal. */
+      /* Cosmético: nunca debe bloquear la entrada al portal. */
       finish();
     }
   });

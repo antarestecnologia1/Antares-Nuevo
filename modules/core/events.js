@@ -19,7 +19,7 @@ import {
   ACCOUNT_STATUS,
   resolveUserRegistrationKind,
   registrationKindLabel
-} from "./auth.js?v=20260917b-login-scan-shield";
+} from "./auth.js?v=20260917c-login-scan-5s";
 import {
   KEYS,
   PERMISSIONS,

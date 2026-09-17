@@ -3,7 +3,7 @@
  * Helpers aún en `portal-runtime.js` se resuelven vía `window` cuando hace falta.
  */
 import { state } from "../core/store.js";
-import { currentUser } from "../core/auth.js?v=20260917b-login-scan-shield";
+import { currentUser } from "../core/auth.js?v=20260917c-login-scan-5s";
 import { escapeHtml, escapeAttr, normalizePortalDateYmd, fmtDateOr, devWarn } from "../core/utils.js";
 import { MODULE_PANEL_LABELS, MODULE_PANEL_BTN_TITLES } from "../core/config.js";
 import {

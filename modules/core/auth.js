@@ -27,7 +27,10 @@ import {
 import { state } from "./store.js";
 import { failPortalField, wireFormSubmitGuard } from "../ui/modals.js?v=20260917b-login-scan-shield";
 import { syncPayloadForEditedRow } from "./data-io.js?v=20260917b-login-scan-shield";
-import { playLoginSuccessAnimation } from "../ui/login-success-animation.js?v=20260917b-login-scan-shield";
+import {
+  showLoginSuccessOverlay,
+  waitAndDismissLoginSuccessOverlay
+} from "../ui/login-success-animation.js?v=20260917c-login-scan-5s";
 
 /**
  * Engancha submit de formularios de auth.
@@ -45,32 +48,36 @@ function __wireAuthFormSubmit(formEl, onSubmit, opts = {}) {
   });
 }
 
-/** Abre el portal tras login (callback de app.js + respaldo directo). */
+/**
+ * Abre el portal tras login (callback de app.js + respaldo directo) y luego retira el
+ * overlay de éxito. El overlay debe mostrarse ANTES de esta función (justo antes de
+ * `window.hideAuth()`, ver los dos call-sites de login) para que cubra la pantalla sin
+ * parpadeos; aquí solo pintamos el portal detrás y, ya pintado, lo destapamos.
+ */
 async function __enterPortalAfterSuccessfulLogin() {
   try {
-    await playLoginSuccessAnimation();
-  } catch (_animErr) {
-    /* Cosmético: nunca debe bloquear la entrada al portal. */
-  }
-  invokeAuthSuccessCallback();
-  if (document.body.classList.contains("portal-mode")) return;
-  if (!getSession()) return;
-  try {
-    if (typeof window.renderPortal === "function") {
-      window.renderPortal();
-      return;
+    invokeAuthSuccessCallback();
+    if (!document.body.classList.contains("portal-mode") && getSession()) {
+      try {
+        if (typeof window.renderPortal === "function") {
+          window.renderPortal();
+        } else {
+          /* Último recurso: mostrar shell del portal sin depender del router. */
+          document.body.classList.add("portal-mode");
+          document.getElementById("public-app")?.classList.add("hidden");
+          document.getElementById("portal-app")?.classList.remove("hidden");
+          document.getElementById("auth-modal")?.classList.add("hidden");
+        }
+      } catch (_e) {
+        /* noop */
+      }
     }
-  } catch (_e) {
-    /* noop */
-  }
-  /* Último recurso: mostrar shell del portal sin depender del router. */
-  try {
-    document.body.classList.add("portal-mode");
-    document.getElementById("public-app")?.classList.add("hidden");
-    document.getElementById("portal-app")?.classList.remove("hidden");
-    document.getElementById("auth-modal")?.classList.add("hidden");
-  } catch (_e2) {
-    /* noop */
+  } finally {
+    try {
+      await waitAndDismissLoginSuccessOverlay();
+    } catch (_animErr) {
+      /* Cosmético: nunca debe bloquear la entrada al portal. */
+    }
   }
 }
 
@@ -3282,6 +3289,7 @@ export function bindAuthForms() {
               });
               if (data.rememberCredentials) writeRememberedLoginCredentials(data.email);
               else clearRememberedLoginCredentials();
+              showLoginSuccessOverlay();
               window.hideAuth();
               startSessionSecurityWatch();
               await __enterPortalAfterSuccessfulLogin();
@@ -3354,6 +3362,7 @@ export function bindAuthForms() {
         }
         if (data.rememberCredentials) writeRememberedLoginCredentials(data.email);
         else clearRememberedLoginCredentials();
+        showLoginSuccessOverlay();
         window.hideAuth();
         startSessionSecurityWatch();
         await __enterPortalAfterSuccessfulLogin();

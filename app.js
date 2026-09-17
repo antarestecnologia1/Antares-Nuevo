@@ -13,7 +13,7 @@ import {
   startSessionSecurityWatch,
   isSessionWithinIdleWindow,
   maybeEnforceDataPolicyAcceptance
-} from "./modules/core/auth.js?v=20260917b-login-scan-shield";
+} from "./modules/core/auth.js?v=20260917c-login-scan-5s";
 import { renderPortal, scheduleRenderPortalView } from "./modules/core/router.js";
 import {
   portalRefreshAfterBootstrap,
