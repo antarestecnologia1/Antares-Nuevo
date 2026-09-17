@@ -17,7 +17,7 @@ import {
   stampCreatedRecord,
   stampUpdatedRecord,
   newUuidV4
-} from "../core/utils.js";
+} from "../core/utils.js?v=20260916-sarlaft-matrix";
 import {
   canAccessSarlaftView,
   canAccessDocumentsView,
@@ -84,7 +84,7 @@ import {
   nextSarlaftPartyCode,
   computeSarlaftNextReviewDate,
   addSarlaftFollowUp
-} from "../domain/sarlaft.domain.js";
+} from "../domain/sarlaft.domain.js?v=20260916-sarlaft-matrix";
 import {
   COMPANY_DOCUMENT_MAX_BYTES,
   normalizeCompanyFolder,
