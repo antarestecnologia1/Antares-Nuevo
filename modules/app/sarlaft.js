@@ -27,7 +27,7 @@ import {
   canMutateSarlaftProfiles,
   canMutateSarlaftReviews,
   currentUser
-} from "../core/auth.js?v=20260917c-login-scan-5s";
+} from "../core/auth.js?v=20260917d-login-scan-2-5s";
 import {
   renderHrWorkspaceTabs,
   renderHrWorkspaceHeader,

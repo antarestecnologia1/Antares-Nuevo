@@ -19,7 +19,7 @@ import {
   ACCOUNT_STATUS,
   resolveUserRegistrationKind,
   registrationKindLabel
-} from "./auth.js?v=20260917c-login-scan-5s";
+} from "./auth.js?v=20260917d-login-scan-2-5s";
 import {
   KEYS,
   PERMISSIONS,
@@ -89,8 +89,15 @@ import {
   syncModuleCreatePanelsInDom
 } from "../ui/components.js";
 import { applyPublicLanguage, applyTheme } from "./i18n.js";
-import { failPortalField, isActionButtonBusy, notify, userMessage } from "../ui/modals.js?v=20260917b-login-scan-shield";
+import {
+  failPortalField,
+  isActionButtonBusy,
+  notify,
+  openConfirmModalAsync,
+  userMessage
+} from "../ui/modals.js?v=20260917b-login-scan-shield";
 import { installActionButtonGuard } from "./action-button-guard.js";
+import { hasUnsavedPortalFormData } from "../domain/viajes.domain.js";
 
 /** Runtime clásico (`portal-runtime.js`) expuesto en `globalThis` antes que este módulo. */
 const $portal = typeof globalThis !== "undefined" ? /** @type {Record<string, any>} */ (globalThis) : /** @type {Record<string, any>} */ ({});
@@ -3346,29 +3353,66 @@ function initGlobalEvents() {
      * servidor responde fuera de tiempo, igual seguimos con `clearSession()` para no
      * dejar al usuario atrapado en el portal. El timeout corto evita que el botón
      * "Cerrar sesión" se sienta colgado cuando el API está caído.
+     *
+     * Antes de cualquier otra cosa: si hay un formulario del portal con cambios sin
+     * guardar, se pide confirmación explícita (mismo patrón que "Descartar cambios"
+     * en el resto del portal) para no perder ese trabajo con un solo clic accidental.
      */
     const logoutBtn = nodes.logout;
     if (logoutBtn?.dataset.busy === "1") return;
+
+    try {
+      if (typeof hasUnsavedPortalFormData === "function" && hasUnsavedPortalFormData()) {
+        const confirmed = await openConfirmModalAsync({
+          title: "¿Cerrar sesión?",
+          message: "Hay cambios sin guardar en un formulario abierto. Si cierra sesión ahora, esos datos se perderán.",
+          confirmText: "Cerrar sesión de todos modos",
+          cancelText: "Seguir editando",
+          confirmBtnClass: "btn-danger",
+          confirmIcon: "x",
+          cardClass: "modal-card-edit modal-card--discard"
+        });
+        if (!confirmed) return;
+      }
+    } catch (_confirmErr) {
+      /* Si el modal de confirmación falla por algún motivo, no debe bloquear el logout. */
+    }
+
+    const labelEl = logoutBtn?.querySelector(".sidebar-logout-btn__label");
+    const originalLabel = labelEl ? labelEl.textContent : "";
     if (logoutBtn) {
       logoutBtn.dataset.busy = "1";
       logoutBtn.disabled = true;
       logoutBtn.setAttribute("aria-busy", "true");
+      if (labelEl) labelEl.textContent = "Cerrando sesión…";
     }
     try {
-      const api = window.AntaresApi;
-      if (api?.getBase?.() && portalCanRefreshFromApi()) {
-        await Promise.race([
-          api.postJson("/portal/logout", {}),
-          new Promise((resolve) => setTimeout(resolve, 2500))
-        ]);
+      try {
+        const api = window.AntaresApi;
+        if (api?.getBase?.() && portalCanRefreshFromApi()) {
+          await Promise.race([
+            api.postJson("/portal/logout", {}),
+            new Promise((resolve) => setTimeout(resolve, 2500))
+          ]);
+        }
+      } catch (_e) {
+        /* best-effort: el clearSession local debe seguir aunque el server no responda. */
       }
-    } catch (_e) {
-      /* best-effort: el clearSession local debe seguir aunque el server no responda. */
+      clearSession();
+      state.currentView = "dashboard";
+      history.replaceState(null, "", window.location.pathname + window.location.search);
+      renderPortal();
+    } finally {
+      /* Siempre se libera el botón, incluso si clearSession()/renderPortal() fallan:
+         de lo contrario el usuario queda atrapado con "Cerrar sesión" deshabilitado
+         para siempre y sin ninguna forma de reintentar. */
+      if (logoutBtn) {
+        logoutBtn.dataset.busy = "0";
+        logoutBtn.disabled = false;
+        logoutBtn.removeAttribute("aria-busy");
+        if (labelEl) labelEl.textContent = originalLabel;
+      }
     }
-    clearSession();
-    state.currentView = "dashboard";
-    history.replaceState(null, "", window.location.pathname + window.location.search);
-    renderPortal();
   });
 
   initRequiredFieldIndicators();

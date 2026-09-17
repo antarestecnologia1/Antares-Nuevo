@@ -28,7 +28,7 @@
 
 const OVERLAY_ID = "login-success-overlay";
 const STYLE_ID = "login-success-overlay-style";
-const ANIMATION_TOTAL_MS = 5000;
+const ANIMATION_TOTAL_MS = 2500;
 const FADE_OUT_MS = 260;
 const FALLBACK_SAFETY_MS = ANIMATION_TOTAL_MS + 1200;
 

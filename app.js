@@ -13,7 +13,7 @@ import {
   startSessionSecurityWatch,
   isSessionWithinIdleWindow,
   maybeEnforceDataPolicyAcceptance
-} from "./modules/core/auth.js?v=20260917c-login-scan-5s";
+} from "./modules/core/auth.js?v=20260917d-login-scan-2-5s";
 import { renderPortal, scheduleRenderPortalView } from "./modules/core/router.js";
 import {
   portalRefreshAfterBootstrap,
@@ -25,7 +25,7 @@ import { devWarn } from "./modules/core/utils.js";
 import { notify } from "./modules/ui/modals.js?v=20260917b-login-scan-shield";
 import { runAsSilentSystemNotifications } from "./modules/domain/notificaciones.domain.js";
 import { hasUnsavedPortalFormData } from "./modules/domain/viajes.domain.js";
-import { initGlobalEvents } from "./modules/core/events.js?v=20260917b-login-scan-shield";
+import { initGlobalEvents } from "./modules/core/events.js?v=20260917e-logout-confirm";
 
 /**
  * Definidas en `portal-runtime.js` (módulo ES); se exponen en `window` al final de ese archivo.

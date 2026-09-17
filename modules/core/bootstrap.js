@@ -8,7 +8,7 @@ import {
   getSession,
   normalizeUserAccountStatus,
   setSession
-} from "./auth.js?v=20260917c-login-scan-5s";
+} from "./auth.js?v=20260917d-login-scan-2-5s";
 import { filterPortalRequestsForServerCache } from "../domain/solicitudes.domain.js";
 import { isPortalClientUser, scopePortalBootstrapPayloadForClient } from "./client-data-scope-ui.js";
 import { state } from "./store.js";

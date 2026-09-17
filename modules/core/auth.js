@@ -30,7 +30,7 @@ import { syncPayloadForEditedRow } from "./data-io.js?v=20260917b-login-scan-shi
 import {
   showLoginSuccessOverlay,
   waitAndDismissLoginSuccessOverlay
-} from "../ui/login-success-animation.js?v=20260917c-login-scan-5s";
+} from "../ui/login-success-animation.js?v=20260917d-login-scan-2-5s";
 
 /**
  * Engancha submit de formularios de auth.
