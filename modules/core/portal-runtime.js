@@ -1,5 +1,5 @@
 /** Imports ES: el runtime ya no depende del orden defer vs módulos en index.html. */
-import * as __pr from "./portal-runtime-env.mjs";
+import * as __pr from "./portal-runtime-env.mjs?v=20260917-login-key-animation";
 import {
   findPendingCreateEmployeeApproval,
   listPendingCreateEmployeeApprovalsByDocument
@@ -14128,9 +14128,14 @@ function normalizeVacancyImageUrl(url) {
   if (raw.startsWith("data:image/")) return raw;
   try {
     const u = new URL(raw);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return "";
     u.pathname = u.pathname.toLowerCase();
     return u.toString();
   } catch (_e) {
+    // URL relativa (sin esquema): válida siempre que no sea un pseudo-esquema
+    // peligroso disfrazado (ej. "javascript:alert(1)" también falla `new URL`
+    // en algunos motores al no tener authority, así que igual se filtra aquí).
+    if (/^[a-z][a-z0-9+.-]*:/i.test(raw) && !raw.startsWith("//")) return "";
     return raw;
   }
 }

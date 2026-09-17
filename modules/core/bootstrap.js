@@ -8,7 +8,7 @@ import {
   getSession,
   normalizeUserAccountStatus,
   setSession
-} from "./auth.js";
+} from "./auth.js?v=20260917-login-key-animation";
 import { filterPortalRequestsForServerCache } from "../domain/solicitudes.domain.js";
 import { isPortalClientUser, scopePortalBootstrapPayloadForClient } from "./client-data-scope-ui.js";
 import { state } from "./store.js";

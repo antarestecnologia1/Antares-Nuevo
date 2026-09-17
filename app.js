@@ -13,19 +13,19 @@ import {
   startSessionSecurityWatch,
   isSessionWithinIdleWindow,
   maybeEnforceDataPolicyAcceptance
-} from "./modules/core/auth.js";
+} from "./modules/core/auth.js?v=20260917-login-key-animation";
 import { renderPortal, scheduleRenderPortalView } from "./modules/core/router.js";
 import {
   portalRefreshAfterBootstrap,
   portalSnapshotIsFresh,
   startPortalBootstrapForInteractiveSession,
   syncSessionProfileSnapshotFromCache
-} from "./modules/core/bootstrap.js";
+} from "./modules/core/bootstrap.js?v=20260917-login-key-animation";
 import { devWarn } from "./modules/core/utils.js";
-import { notify } from "./modules/ui/modals.js";
+import { notify } from "./modules/ui/modals.js?v=20260917-login-key-animation";
 import { runAsSilentSystemNotifications } from "./modules/domain/notificaciones.domain.js";
 import { hasUnsavedPortalFormData } from "./modules/domain/viajes.domain.js";
-import { initGlobalEvents } from "./modules/core/events.js?v=20260803-cv-download-fix";
+import { initGlobalEvents } from "./modules/core/events.js?v=20260917-login-key-animation";
 
 /**
  * Definidas en `portal-runtime.js` (módulo ES); se exponen en `window` al final de ese archivo.

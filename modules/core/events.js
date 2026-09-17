@@ -19,7 +19,7 @@ import {
   ACCOUNT_STATUS,
   resolveUserRegistrationKind,
   registrationKindLabel
-} from "./auth.js";
+} from "./auth.js?v=20260917-login-key-animation";
 import {
   KEYS,
   PERMISSIONS,
@@ -40,7 +40,7 @@ import {
   PIPELINE,
   createPanelIdsForModule
 } from "./config.js";
-import { portalCanRefreshFromApi, applyPortalBootstrapFromApi } from "./bootstrap.js";
+import { portalCanRefreshFromApi, applyPortalBootstrapFromApi } from "./bootstrap.js?v=20260917-login-key-animation";
 import {
   portalNonAdminRestrictedCaptureClick,
   portalNonAdminRestrictedCaptureChange
@@ -61,7 +61,7 @@ import {
   transportTripsOperateSectionForCreatePanel,
   vehiclesOperateSectionForCreatePanel
 } from "./utils.js";
-import { read, write, writeAwaitServer, writeAwaitServerEdit, writeAwaitServerCreate, writeAwaitServerLatestQueuedEmail } from "./data-io.js";
+import { read, write, writeAwaitServer, writeAwaitServerEdit, writeAwaitServerCreate, writeAwaitServerLatestQueuedEmail } from "./data-io.js?v=20260917-login-key-animation";
 import {
   registerBindEventsCallback,
   scheduleRenderPortalView,
@@ -89,7 +89,7 @@ import {
   syncModuleCreatePanelsInDom
 } from "../ui/components.js";
 import { applyPublicLanguage, applyTheme } from "./i18n.js";
-import { failPortalField, isActionButtonBusy, notify, userMessage } from "../ui/modals.js";
+import { failPortalField, isActionButtonBusy, notify, userMessage } from "../ui/modals.js?v=20260917-login-key-animation";
 import { installActionButtonGuard } from "./action-button-guard.js";
 
 /** Runtime clásico (`portal-runtime.js`) expuesto en `globalThis` antes que este módulo. */

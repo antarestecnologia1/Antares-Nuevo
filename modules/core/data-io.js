@@ -2,7 +2,7 @@
  * Lectura/escritura de almacenamiento portal (delega en `window.AntaresPersistence` de `persistence.js`).
  */
 import { KEYS } from "./config.js";
-import { getSession } from "./auth.js";
+import { getSession } from "./auth.js?v=20260917-login-key-animation";
 
 function capStoredArrayRows(key, value) {
   const caps = { [KEYS.notifications]: 500, [KEYS.emails]: 400 };

@@ -12,12 +12,16 @@
 /
   Cache-Control: public, max-age=0, must-revalidate
 
-# Estáticos versionados con `?v=...` se pueden marcar inmutables.
+# Cache corta por defecto: la mayoría de los imports internos entre módulos NO
+# llevan `?v=...`, así que NO se puede marcar todo `.js`/`.css` como inmutable
+# (eso fue la causa raíz de un bug de módulo con caché obsoleta el 2026-09-16).
+# vercel.json aplica la regla real con `immutable` SOLO cuando la URL trae `?v=`;
+# este archivo es respaldo y usa `must-revalidate` para no repetir ese error.
 /*.js
-  Cache-Control: public, max-age=31536000, immutable
+  Cache-Control: public, max-age=3600, must-revalidate
 
 /*.css
-  Cache-Control: public, max-age=31536000, immutable
+  Cache-Control: public, max-age=3600, must-revalidate
 
 /*.woff2
   Cache-Control: public, max-age=31536000, immutable

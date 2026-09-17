@@ -25,8 +25,9 @@ import {
   userLegalProfileIsHydrated
 } from "./config.js";
 import { state } from "./store.js";
-import { failPortalField, wireFormSubmitGuard } from "../ui/modals.js";
-import { syncPayloadForEditedRow } from "./data-io.js";
+import { failPortalField, wireFormSubmitGuard } from "../ui/modals.js?v=20260917-login-key-animation";
+import { syncPayloadForEditedRow } from "./data-io.js?v=20260917-login-key-animation";
+import { playLoginSuccessAnimation } from "../ui/login-success-animation.js?v=20260917-login-key-animation";
 
 /**
  * Engancha submit de formularios de auth.
@@ -45,7 +46,12 @@ function __wireAuthFormSubmit(formEl, onSubmit, opts = {}) {
 }
 
 /** Abre el portal tras login (callback de app.js + respaldo directo). */
-function __enterPortalAfterSuccessfulLogin() {
+async function __enterPortalAfterSuccessfulLogin() {
+  try {
+    await playLoginSuccessAnimation();
+  } catch (_animErr) {
+    /* Cosmético: nunca debe bloquear la entrada al portal. */
+  }
   invokeAuthSuccessCallback();
   if (document.body.classList.contains("portal-mode")) return;
   if (!getSession()) return;
@@ -739,7 +745,7 @@ import {
   normalizePortalBootstrapPositionRow,
   startPortalBootstrapForInteractiveSession,
   savePortalSnapshotAfterBootstrap
-} from "./bootstrap.js";
+} from "./bootstrap.js?v=20260917-login-key-animation";
 const IC = typeof window !== "undefined" ? window.IC || {} : {};
 
 
@@ -3278,7 +3284,7 @@ export function bindAuthForms() {
               else clearRememberedLoginCredentials();
               window.hideAuth();
               startSessionSecurityWatch();
-              __enterPortalAfterSuccessfulLogin();
+              await __enterPortalAfterSuccessfulLogin();
               void startPortalBootstrapForInteractiveSession().finally(() => {
                 maybeEnforceDataPolicyAcceptance();
               });
@@ -3350,7 +3356,7 @@ export function bindAuthForms() {
         else clearRememberedLoginCredentials();
         window.hideAuth();
         startSessionSecurityWatch();
-        __enterPortalAfterSuccessfulLogin();
+        await __enterPortalAfterSuccessfulLogin();
         maybeEnforceDataPolicyAcceptance();
       },
       {
