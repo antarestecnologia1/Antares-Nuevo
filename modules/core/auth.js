@@ -25,9 +25,9 @@ import {
   userLegalProfileIsHydrated
 } from "./config.js";
 import { state } from "./store.js";
-import { failPortalField, wireFormSubmitGuard } from "../ui/modals.js?v=20260917-login-key-animation";
-import { syncPayloadForEditedRow } from "./data-io.js?v=20260917-login-key-animation";
-import { playLoginSuccessAnimation } from "../ui/login-success-animation.js?v=20260917-login-key-animation";
+import { failPortalField, wireFormSubmitGuard } from "../ui/modals.js?v=20260917b-login-scan-shield";
+import { syncPayloadForEditedRow } from "./data-io.js?v=20260917b-login-scan-shield";
+import { playLoginSuccessAnimation } from "../ui/login-success-animation.js?v=20260917b-login-scan-shield";
 
 /**
  * Engancha submit de formularios de auth.
@@ -745,7 +745,7 @@ import {
   normalizePortalBootstrapPositionRow,
   startPortalBootstrapForInteractiveSession,
   savePortalSnapshotAfterBootstrap
-} from "./bootstrap.js?v=20260917-login-key-animation";
+} from "./bootstrap.js?v=20260917b-login-scan-shield";
 const IC = typeof window !== "undefined" ? window.IC || {} : {};
 
 

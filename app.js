@@ -13,19 +13,19 @@ import {
   startSessionSecurityWatch,
   isSessionWithinIdleWindow,
   maybeEnforceDataPolicyAcceptance
-} from "./modules/core/auth.js?v=20260917-login-key-animation";
+} from "./modules/core/auth.js?v=20260917b-login-scan-shield";
 import { renderPortal, scheduleRenderPortalView } from "./modules/core/router.js";
 import {
   portalRefreshAfterBootstrap,
   portalSnapshotIsFresh,
   startPortalBootstrapForInteractiveSession,
   syncSessionProfileSnapshotFromCache
-} from "./modules/core/bootstrap.js?v=20260917-login-key-animation";
+} from "./modules/core/bootstrap.js?v=20260917b-login-scan-shield";
 import { devWarn } from "./modules/core/utils.js";
-import { notify } from "./modules/ui/modals.js?v=20260917-login-key-animation";
+import { notify } from "./modules/ui/modals.js?v=20260917b-login-scan-shield";
 import { runAsSilentSystemNotifications } from "./modules/domain/notificaciones.domain.js";
 import { hasUnsavedPortalFormData } from "./modules/domain/viajes.domain.js";
-import { initGlobalEvents } from "./modules/core/events.js?v=20260917-login-key-animation";
+import { initGlobalEvents } from "./modules/core/events.js?v=20260917b-login-scan-shield";
 
 /**
  * Definidas en `portal-runtime.js` (módulo ES); se exponen en `window` al final de ese archivo.

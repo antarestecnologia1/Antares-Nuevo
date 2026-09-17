@@ -1,5 +1,5 @@
 /** Imports ES: el runtime ya no depende del orden defer vs módulos en index.html. */
-import * as __pr from "./portal-runtime-env.mjs?v=20260917-login-key-animation";
+import * as __pr from "./portal-runtime-env.mjs?v=20260917b-login-scan-shield";
 import {
   findPendingCreateEmployeeApproval,
   listPendingCreateEmployeeApprovalsByDocument
