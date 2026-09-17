@@ -168,6 +168,14 @@ function hiringHtml() {
   const interviews = read(KEYS.interviews, []);
   const contracts = read(KEYS.contracts, []);
   const employees = read(KEYS.payrollEmployees, []);
+  /**
+   * Los contratos guardan un "snapshot" del nombre/cargo del empleado tomado al momento
+   * de generar el documento (employeeName, position, ...). Si luego se corrige el nombre
+   * del empleado desde Gestión Humana (ej. un apellido faltante), ese snapshot queda
+   * desactualizado. Para que la lista y la búsqueda reflejen el dato correcto vigente,
+   * se resuelve el empleado actual por `employeeId` y su nombre gana sobre el snapshot.
+   */
+  const employeesById = new Map(employees.map((e) => [String(e.id), e]));
   const candidatesForInterviewSelect = candidates.filter((c) =>
     !["Contratado", "Descartado"].includes(String(c.status || ""))
   );
@@ -362,11 +370,12 @@ function hiringHtml() {
       )
     : interviews;
   const contractsView = dataListSearch
-    ? contracts.filter((c) =>
-        hiringDataMatches(
-          `${c.candidateName} ${c.employeeName} ${c.position} ${c.positionName} ${c.contractType} ${c.source} ${c.sourceTag}`
-        )
-      )
+    ? contracts.filter((c) => {
+        const liveName = c.employeeId ? employeesById.get(String(c.employeeId))?.name : "";
+        return hiringDataMatches(
+          `${c.candidateName} ${liveName || c.employeeName} ${c.position} ${c.positionName} ${c.contractType} ${c.source} ${c.sourceTag}`
+        );
+      })
     : contracts;
 
   const arlRiskOpts = selectOptionsFromCatalog(CO_CATALOGS.arlRiskLevels);
@@ -781,12 +790,14 @@ function hiringHtml() {
     )
     .join("");
   const contractCards = contractsView
-    .map(
-      (c) => `<article class="hiring-browse-row hiring-browse-row--contract">
+    .map((c) => {
+      const liveEmployee = c.employeeId ? employeesById.get(String(c.employeeId)) : null;
+      const displayName = c.candidateName || liveEmployee?.name || c.employeeName || "-";
+      return `<article class="hiring-browse-row hiring-browse-row--contract">
         <div class="hiring-browse-row__main">
           <span class="hiring-browse-row__ico hiring-browse-row__ico--violet" aria-hidden="true">${IC.file}</span>
           <div>
-            <h4>${escapeHtml(String(c.candidateName || c.employeeName || "-"))}</h4>
+            <h4>${escapeHtml(String(displayName))}</h4>
             <p>${escapeHtml(String(c.position || c.positionName || "-"))} · ${escapeHtml(String(c.contractType || "-"))}</p>
           </div>
           <span class="hiring-browse-chip">${escapeHtml(String(c.source || c.sourceTag || (c.employeeId ? "Empleado" : "Candidato")))}</span>
@@ -801,8 +812,8 @@ function hiringHtml() {
           <button class="btn btn-sm btn-action" data-action="view-contract" data-id="${escapeAttr(String(c.id))}" title="Descargar Word">${IC.download} Word</button>
           ${hiringCanDelete ? `<button class="btn btn-sm btn-reject" data-action="delete-contract" data-id="${escapeAttr(String(c.id))}" title="Solo administradores">${IC.trash}</button>` : ""}
         </div>
-      </article>`
-    )
+      </article>`;
+    })
     .join("");
   const positionCards = positionsView
     .map((p) => {

@@ -3378,12 +3378,31 @@ function bindHiringPortalControls() {
       const employee = c.employeeId
         ? read(KEYS.payrollEmployees, []).find((e) => String(e.id) === String(c.employeeId))
         : null;
+      /**
+       * `employeeName`/`idDocSnapshot`/`content` son un snapshot tomado al generar el
+       * documento. Si luego se corrige el nombre o la cédula del empleado (ej. un apellido
+       * faltante), ese snapshot queda desactualizado aunque el empleado ya esté al día.
+       * Por eso, cuando el empleado todavía existe, su nombre/cédula ACTUALES ganan sobre
+       * el snapshot — tanto en los campos resumen como en el cuerpo del documento (`content`).
+       * El resto (cargo, salario, tipo de contrato, plantilla, fechas) son términos propios
+       * de ESE contrato tal como se firmó, y se dejan como quedaron registrados: no deben
+       * reescribirse retroactivamente solo porque el perfil del empleado cambió después.
+       */
+      const liveName = employee?.name ? String(employee.name).trim() : "";
+      const liveIdDoc = employee?.idDoc ? String(employee.idDoc).trim() : "";
+      const displayName = c.candidateName || liveName || c.employeeName || "-";
+      const displayIdDoc = liveIdDoc || c.idDocSnapshot || "-";
+      let liveContent = c.content ? String(c.content) : "";
+      /* Reemplazo por función (no por cadena) para que un nombre con "$" nunca se
+         interprete como patrón especial de String.replace (ej. "$1", "$&"). */
+      if (liveName) liveContent = liveContent.replace(/^(Empleado:\s*).*$/m, (_m, prefix) => prefix + liveName);
+      if (liveIdDoc) liveContent = liveContent.replace(/^(Cedula:\s*).*$/m, (_m, prefix) => prefix + liveIdDoc);
       const sections = [
         {
           icon: "user",
           pairs: [
-            ["Nombre", `<strong>${escapeHtml(String(c.candidateName || c.employeeName || employee?.name || "-"))}</strong>`],
-            ["Documento", escapeHtml(String(c.idDocSnapshot || employee?.idDoc || "-"))],
+            ["Nombre", `<strong>${escapeHtml(String(displayName))}</strong>`],
+            ["Documento", escapeHtml(String(displayIdDoc))],
             ["Cargo", escapeHtml(String(c.position || c.positionName || employee?.position || "-"))],
             ["Origen", escapeHtml(String(c.source || c.sourceTag || (c.employeeId ? "Empleado" : "Candidato")))]
           ]
@@ -3401,13 +3420,13 @@ function bindHiringPortalControls() {
         }
       ];
       openPortalDetailSheet({
-        title: `Contrato · ${String(c.candidateName || c.employeeName || "")}`,
-        sheetTitle: `Contrato · ${String(c.candidateName || c.employeeName || "")}`,
+        title: `Contrato · ${String(c.candidateName || liveName || c.employeeName || "")}`,
+        sheetTitle: `Contrato · ${String(c.candidateName || liveName || c.employeeName || "")}`,
         subtitleHtml: `${IC.file} ${escapeHtml(String(c.position || ""))}`,
         moduleIcon: "file",
         moduleTone: "teal",
         sections,
-        notesHtml: c.content ? String(c.content) : ""
+        notesHtml: liveContent
       });
     });
   });
