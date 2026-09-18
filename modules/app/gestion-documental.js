@@ -628,6 +628,15 @@ function renderCategoryRail(topFolders, ui, IC) {
   return `<section class="doc-categories" aria-label="Carpetas principales">${cards}</section>`;
 }
 
+function folderParentPath(path) {
+  const segs = folderSegments(path);
+  return segs.slice(0, -1).join(" / ");
+}
+
+function renderBackButton(targetPath) {
+  return `<button type="button" class="doc-btn doc-btn--ghost doc-btn--sm doc-back-btn" data-action="doc-back" data-path="${escapeAttr(targetPath)}" aria-label="Volver a la carpeta anterior">${IC.chevronLeft || "‹"}<span>Atrás</span></button>`;
+}
+
 function renderExplorerPath(ui, IC) {
   if (ui.showTrash) {
     return `<div class="doc-explorer-path">
@@ -650,6 +659,7 @@ function renderExplorerPath(ui, IC) {
     </div>`;
   }
   const segs = ui.folderFilter ? folderSegments(ui.folderFilter) : [];
+  const backBtn = segs.length >= 1 ? renderBackButton(folderParentPath(ui.folderFilter)) : "";
   const parts = [`<button type="button" class="doc-crumb" data-action="doc-crumb" data-path="">Documentos</button>`];
   const acc = [];
   segs.forEach((seg, i) => {
@@ -683,7 +693,7 @@ function renderExplorerPath(ui, IC) {
         </div>`
       : `<button type="button" class="doc-trash-link" data-action="doc-toggle-trash" aria-pressed="false">${IC_TRASH}<span>Ver papelera</span></button>`;
   return `<div class="doc-explorer-path">
-    <nav class="doc-breadcrumb" aria-label="Ruta de carpeta">${parts.join("")}</nav>
+    <nav class="doc-breadcrumb" aria-label="Ruta de carpeta">${backBtn}${parts.join("")}</nav>
     ${folderActions}
   </div>`;
 }
@@ -3849,6 +3859,16 @@ function bindDocumentManagementPortalControls() {
     openDeleteFolderFlow(String(e.currentTarget.dataset.path || ""));
   });
   on(root, "[data-action='doc-crumb']", "click", (e) => {
+    const path = String(e.currentTarget.dataset.path || "");
+    patchUi({
+      folderFilter: path || EMPLOYEES_ROOT_FOLDER,
+      page: 1,
+      folderPage: 1,
+      showTrash: false
+    });
+    G.renderPortalView?.();
+  });
+  on(root, "[data-action='doc-back']", "click", (e) => {
     const path = String(e.currentTarget.dataset.path || "");
     patchUi({
       folderFilter: path || EMPLOYEES_ROOT_FOLDER,

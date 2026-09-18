@@ -2569,6 +2569,10 @@ body[data-theme="dark"] .doc-perm-users-wrap {
   font-size: 0.875rem;
 }
 
+.documents-studio.doc-studio .doc-back-btn {
+  margin-right: 0.25rem;
+}
+
 .documents-studio.doc-studio .doc-trash-link {
   display: inline-flex;
   align-items: center;
@@ -3022,7 +3026,15 @@ body[data-theme="dark"] .doc-perm-users-wrap {
   align-items: stretch;
   gap: 0;
   padding: 0;
-  overflow: hidden;
+  /* `overflow: hidden` recortaba el menú de 3 puntos (.doc-folder-menu > .doc-rowmenu__list
+     se posiciona absoluto respecto a este mismo contenedor), dejando las opciones "Renombrar
+     / Permisos / Eliminar" invisibles fuera del recuadro de la carpeta. La tarjeta ya tiene
+     bordes redondeados propios vía la regla de mayor especificidad más abajo (border-radius:
+     10px en `.documents-studio.doc-studio .doc-subfolder-card`) y ningún hijo necesita
+     recorte — el nombre largo ya se trunca con ellipsis en `.doc-subfolder-card__name`.
+     `overflow: visible` es el valor por defecto; se deja explícito para que no se repita
+     este bug si alguien reintroduce un `overflow: hidden` aquí sin ver este comentario. */
+  overflow: visible;
 }
 .doc-subfolder-card__open {
   display: flex;
