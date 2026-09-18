@@ -870,6 +870,17 @@ export function normalizeCompanyDocumentRow(row) {
   };
   const validityStatus =
     storedStatus === "archivado" ? "archivado" : computeDocumentValidityStatus(draft);
+  /* Papelera (soft-delete): `deletedAt` presente = el documento está en la papelera.
+     Se lee tanto el nombre camelCase (lo que ya trae normalizado el propio frontend al
+     re-normalizar tras un write) como el snake_case que llega crudo de PostgreSQL
+     (fecha_eliminacion/eliminado_por/motivo_eliminacion, ver portal.service.ts). */
+  const deletedAtRaw = row.deletedAt ?? row.fecha_eliminacion ?? null;
+  const deletedAt =
+    deletedAtRaw && !Number.isNaN(new Date(String(deletedAtRaw)).getTime())
+      ? new Date(String(deletedAtRaw)).toISOString()
+      : "";
+  const deletedBy = deletedAt ? String(row.deletedBy ?? row.eliminado_por ?? "").trim() : "";
+  const deleteReason = deletedAt ? String(row.deleteReason ?? row.motivo_eliminacion ?? "").trim() : "";
   const normalized = {
     id: String(row.id ?? ""),
     companyId: row.companyId ?? row.id_empresa ?? null,
@@ -895,7 +906,10 @@ export function normalizeCompanyDocumentRow(row) {
     area,
     documentCode,
     isCurrentVersion: draft.isCurrentVersion,
-    validityStatus
+    validityStatus,
+    deletedAt,
+    deletedBy,
+    deleteReason
   };
   normalized.tags =
     serializeCompanyDocumentTags(normalized) ||
@@ -928,6 +942,11 @@ export function parseIdList(value) {
 
 export function normalizeCompanyFolderRow(row) {
   if (!row || typeof row !== "object") return row;
+  const deletedAtRaw = row.deletedAt ?? row.fecha_eliminacion ?? null;
+  const deletedAt =
+    deletedAtRaw && !Number.isNaN(new Date(String(deletedAtRaw)).getTime())
+      ? new Date(String(deletedAtRaw)).toISOString()
+      : "";
   return {
     id: String(row.id ?? ""),
     companyId: row.companyId ?? row.id_empresa ?? null,
@@ -940,7 +959,10 @@ export function normalizeCompanyFolderRow(row) {
     usersUpload: parseIdList(row.usersUpload ?? row.usuarios_subir),
     usersDelete: parseIdList(row.usersDelete ?? row.usuarios_eliminar),
     createdBy: String(row.createdBy ?? row.creado_por ?? "Portal").trim() || "Portal",
-    createdAt: String(row.createdAt ?? row.fecha_creacion ?? new Date().toISOString())
+    createdAt: String(row.createdAt ?? row.fecha_creacion ?? new Date().toISOString()),
+    deletedAt,
+    deletedBy: deletedAt ? String(row.deletedBy ?? row.eliminado_por ?? "").trim() : "",
+    deleteReason: deletedAt ? String(row.deleteReason ?? row.motivo_eliminacion ?? "").trim() : ""
   };
 }
 

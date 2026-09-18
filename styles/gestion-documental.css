@@ -981,6 +981,37 @@
   line-height: 1.3;
 }
 
+/* Metadata secundaria (subtítulo, carpeta, categoría, entidad, tamaño/fecha): oculta por
+   defecto para que la tarjeta muestre solo lo esencial al escanear el grid (nombre, ícono,
+   vigencia); se revela con una transición suave al pasar el mouse o al enfocar la tarjeta
+   con teclado (`.doc-card` tiene tabindex="0"). `overflow: hidden` aquí es intencional y
+   seguro: este contenedor no tiene hijos con menús flotantes (el menú de 3 puntos vive en
+   `.doc-card__head`, fuera de `.doc-card__meta`), a diferencia del bug ya resuelto en
+   `.doc-subfolder-card`. */
+.documents-studio.doc-studio .doc-card__meta {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-height var(--doc-base), opacity var(--doc-fast);
+}
+
+.documents-studio.doc-studio .doc-card:hover .doc-card__meta,
+.documents-studio.doc-studio .doc-card:focus-within .doc-card__meta {
+  max-height: 12rem;
+  opacity: 1;
+}
+
+.documents-studio.doc-studio .doc-card:focus {
+  outline: 2px solid var(--doc-primary-ring);
+  outline-offset: 1px;
+}
+
+/* Separación del badge de vigencia respecto al borde inferior de la tarjeta cuando
+   `.doc-card__meta` está colapsado (estado por defecto, sin hover/focus). */
+.documents-studio.doc-studio .doc-card > .doc-validity {
+  margin-bottom: 0.4rem;
+}
+
 .documents-studio.doc-studio .doc-card__sub {
   margin: 0 0 0.45rem;
   font-size: 0.72rem;
@@ -1536,6 +1567,36 @@
   padding: 0;
 }
 
+/* Progreso de subida (contador "Subiendo X de Y" + barra) durante onSubmit del wizard de
+   subida — antes no había ningún indicador aquí y una subida múltiple podía sentirse
+   "congelada" mientras uploadFileToR2 procesaba cada archivo en secuencia. Mismo lenguaje
+   visual que `.doc-storage-row__bar` (pista gris de 6px + relleno azul con transición). */
+.doc-upload-progress {
+  margin-top: 0.75rem;
+}
+
+.doc-upload-progress__bar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--doc-border, #e2e8f0);
+  overflow: hidden;
+}
+
+.doc-upload-progress__fill {
+  display: block;
+  height: 100%;
+  width: 0%;
+  border-radius: inherit;
+  background: var(--doc-primary, #2563eb);
+  transition: width var(--doc-base, 200ms ease);
+}
+
+.doc-upload-progress__label {
+  margin: 0.4rem 0 0;
+  font-size: 0.75rem;
+  color: var(--doc-text-soft, #475569);
+}
+
 .doc-dropzone__item {
   display: flex;
   align-items: center;
@@ -2038,12 +2099,74 @@
 }
 
 .doc-perm-section-title {
-  margin: 1.15rem 0 0.5rem;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0 0 0.35rem;
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--doc-text-faint, #64748b);
+}
+
+/* Dos bloques con fondo diferenciado para que la diferencia semántica entre "esto lo
+   hereda toda la rama" (roles) y "esto es una excepción solo para esta carpeta"
+   (usuarios) se entienda con solo mirar la pantalla, sin depender únicamente del texto
+   de `.doc-perm-help`. */
+.doc-perm-block {
+  margin: 0 0 1rem;
+  padding: 0.875rem;
+  border-radius: var(--doc-radius-sm, 8px);
+  border: 1px solid var(--doc-border, #e2e8f0);
+}
+
+.doc-perm-block--roles {
+  background: var(--doc-primary-soft, rgba(37, 99, 235, 0.1));
+  border-color: var(--doc-primary-ring, rgba(37, 99, 235, 0.22));
+}
+
+.doc-perm-block--roles .doc-perm-grid th {
+  background: var(--doc-surface, #fff);
+}
+
+.doc-perm-block--users {
+  background: var(--doc-tone-violet-soft, rgba(124, 58, 237, 0.12));
+  border-color: rgba(124, 58, 237, 0.3);
+  margin-bottom: 0;
+}
+
+.doc-perm-block--users .doc-perm-grid th {
+  background: var(--doc-surface, #fff);
+}
+
+.doc-perm-section-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+.doc-perm-section-badge--roles {
+  background: var(--doc-primary, #2563eb);
+  color: #fff;
+}
+
+.doc-perm-section-badge--users {
+  background: var(--doc-tone-violet, #7c3aed);
+  color: #fff;
+}
+
+.doc-perm-section-hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.75rem;
+  color: var(--doc-text-soft, #475569);
+  line-height: 1.4;
 }
 
 .doc-perm-user-search {
@@ -2279,6 +2402,25 @@ body[data-theme="dark"] .doc-perm-grid th {
 
 body[data-theme="dark"] .doc-perm-help {
   background: rgba(59, 130, 246, 0.12);
+  color: #94a3b8;
+}
+
+body[data-theme="dark"] .doc-perm-block--roles {
+  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+body[data-theme="dark"] .doc-perm-block--users {
+  background: rgba(167, 139, 250, 0.14);
+  border-color: rgba(167, 139, 250, 0.32);
+}
+
+body[data-theme="dark"] .doc-perm-block--roles .doc-perm-grid th,
+body[data-theme="dark"] .doc-perm-block--users .doc-perm-grid th {
+  background: #0f172a;
+}
+
+body[data-theme="dark"] .doc-perm-section-hint {
   color: #94a3b8;
 }
 
@@ -2984,6 +3126,15 @@ body[data-theme="dark"] .doc-perm-users-wrap {
   background: rgba(37, 99, 235, 0.1);
   color: var(--doc-primary, #2563eb);
 }
+.doc-upload-modal__select-wrap--search {
+  margin-bottom: 0.5rem;
+}
+.doc-upload-modal__chip-empty {
+  margin: -0.3rem 0 0.65rem;
+  font-size: 0.75rem;
+  color: var(--doc-text-faint, #64748b);
+  text-align: center;
+}
 .doc-upload-modal__select-wrap {
   display: flex;
   flex-direction: column;
@@ -3082,6 +3233,19 @@ body[data-theme="dark"] .doc-perm-users-wrap {
   background: var(--doc-surface-2, #f8fafc);
 }
 .doc-docs-hint p { margin: 0; }
+
+.doc-trash-hint {
+  margin: 0 0 0.75rem;
+  padding: 0.65rem 0.875rem;
+  border-radius: var(--doc-radius-sm, 8px);
+  background: var(--doc-surface-2, #f8fafc);
+  font-size: 0.8125rem;
+  color: var(--doc-text-soft, #475569);
+}
+
+.doc-trash-hint p {
+  margin: 0;
+}
 
 .doc-upload-destination {
   display: flex;

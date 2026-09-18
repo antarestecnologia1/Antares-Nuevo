@@ -320,12 +320,32 @@ function readFolders() {
     })
     .filter((f) => f && f.id);
 }
+/** Documentos en la papelera (deletedAt poblado) que el actor puede ver/gestionar. */
+function trashedDocs(docs, folders) {
+  const deleted = docs.filter((d) => d.deletedAt);
+  if (isDocManager()) return deleted;
+  return deleted.filter((d) => canViewFolderContent(folders, d.folder));
+}
+/** Carpetas en la papelera (deletedAt poblado) que el actor puede ver/gestionar. */
+function trashedFolders(folders) {
+  const deleted = folders.filter((f) => f.deletedAt);
+  if (isDocManager()) return deleted;
+  return deleted.filter((f) => canViewFolder(folders, f.folderName));
+}
 function visibleDocs(docs, folders) {
-  if (isDocManager()) return docs;
-  return docs.filter((d) => canViewFolderContent(folders, d.folder));
+  /* `readDocs()` incluye documentos en la papelera (deletedAt poblado) porque las
+     operaciones de escritura -restaurar, editar, mover de carpeta al eliminar la
+     carpeta contenedora- necesitan poder encontrar la fila aunque esté eliminada.
+     Las vistas normales (grid, tabla, KPIs, búsqueda, export) siempre pasan por
+     `visibleDocs`, así que el filtro de "no mostrar eliminados" vive acá, no en
+     `readDocs()` mismo. */
+  const active = docs.filter((d) => !d.deletedAt);
+  if (isDocManager()) return active;
+  return active.filter((d) => canViewFolderContent(folders, d.folder));
 }
 function visibleFolders(folders) {
-  const list = isDocManager() ? folders : folders.filter((f) => canViewFolder(folders, f.folderName));
+  const active = folders.filter((f) => !f.deletedAt);
+  const list = isDocManager() ? active : active.filter((f) => canViewFolder(active, f.folderName));
   return list.filter((f) => !isHiddenCompanyFolder(f.folderName));
 }
 
@@ -904,6 +924,37 @@ function categoryPill(doc) {
   return `<span class="doc-category-pill">${escapeHtml(label)}${escapeHtml(ver)}</span>`;
 }
 
+/** Fila de la papelera para una carpeta eliminada. */
+function trashFolderRow(f, IC) {
+  return `<tr>
+    <td class="doc-cell-name"><span class="doc-fileicon doc-fileicon--other" aria-hidden="true">${IC.folder || ""}</span><span class="doc-nameblock"><span class="doc-nameblock__title">${escapeHtml(folderLeafName(f.folderName) || f.folderName)}</span><span class="doc-nameblock__sub">Carpeta</span></span></td>
+    <td class="doc-cell-folder" title="${escapeAttr(f.folderName)}">${escapeHtml(f.folderName)}</td>
+    <td>${escapeHtml(f.deletedBy || "—")}</td>
+    <td class="doc-cell-date">${escapeHtml(formatDate(f.deletedAt))}</td>
+    <td title="${escapeAttr(f.deleteReason || "")}">${escapeHtml(f.deleteReason || "—")}</td>
+    <td class="doc-cell-actions"><button type="button" class="doc-btn doc-btn--ghost doc-btn--sm" data-action="doc-restore-folder" data-id="${escapeAttr(f.id)}">${IC.rotateCcw || ""}<span>Restaurar</span></button></td>
+  </tr>`;
+}
+
+/** Fila de la papelera para un documento eliminado. */
+function trashDocRow(d, IC) {
+  return `<tr>
+    <td class="doc-cell-name"><span class="doc-fileicon doc-fileicon--${fileTypeGroup(d.fileName, d.mimeType)}" aria-hidden="true">${IC.file || ""}</span>${documentNameBlock(d)}</td>
+    <td class="doc-cell-folder" title="${escapeAttr(d.folder)}">${escapeHtml(d.folder)}</td>
+    <td>${escapeHtml(d.deletedBy || "—")}</td>
+    <td class="doc-cell-date">${escapeHtml(formatDate(d.deletedAt))}</td>
+    <td title="${escapeAttr(d.deleteReason || "")}">${escapeHtml(d.deleteReason || "—")}</td>
+    <td class="doc-cell-actions"><button type="button" class="doc-btn doc-btn--ghost doc-btn--sm" data-action="doc-restore" data-id="${escapeAttr(d.id)}">${IC.rotateCcw || ""}<span>Restaurar</span></button></td>
+  </tr>`;
+}
+
+/** Papelera: carpetas eliminadas primero, luego documentos, ambos más recientes primero. */
+function renderTrashList(folders, docs, IC) {
+  const rows = [...folders.map((f) => trashFolderRow(f, IC)), ...docs.map((d) => trashDocRow(d, IC))].join("");
+  return `<div class="doc-trash-hint"><p>Los elementos aquí se borran definitivamente 30 días después de eliminarse.</p></div>
+    <div class="doc-table-wrap"><table class="doc-table"><thead><tr><th>Nombre</th><th>Carpeta</th><th>Eliminado por</th><th>Fecha</th><th>Motivo</th><th aria-label="Restaurar"></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
 function renderTable(pageDocs, IC, folders = []) {
   if (!pageDocs.length) return "";
   const rows = pageDocs
@@ -929,15 +980,23 @@ function renderGrid(pageDocs, IC, folders = []) {
   const cards = pageDocs
     .map((d) => {
       const display = formatCompanyDocumentDisplayName(d);
-      return `<article class="doc-card">
+      const validity = validityBadge(d);
+      /* Solo nombre, ícono y vigencia quedan siempre visibles (lectura rápida al escanear
+         el grid); el resto de la metadata (subtítulo, carpeta, categoría, entidad, tamaño,
+         fecha) vive en `.doc-card__meta` y se revela con hover/focus vía CSS (ver
+         `.doc-card:hover .doc-card__meta` en gestion-documental.css) para no recargar
+         visualmente cada tarjeta con 6 líneas de texto a la vez. */
+      return `<article class="doc-card" tabindex="0">
       <header class="doc-card__head"><span class="doc-fileicon doc-fileicon--lg doc-fileicon--${fileTypeGroup(d.fileName, d.mimeType)}" aria-hidden="true">${IC.file || ""}</span>${rowMenu(d, IC, folders)}</header>
       <p class="doc-card__name" title="${escapeAttr(display.fullName)}">${escapeHtml(display.title)}</p>
-      <p class="doc-card__sub">${escapeHtml([display.subtitle, display.ext].filter(Boolean).join(" · "))}</p>
-      <p class="doc-card__folder" title="${escapeAttr(d.folder)}">${escapeHtml(folderLeafName(d.folder) || d.folder)}</p>
-      ${categoryPill(d)}
-      ${d.entityLabel ? `<p class="doc-card__entity">${escapeHtml(d.entityLabel)}</p>` : ""}
-      ${validityBadge(d)}
-      <footer class="doc-card__foot"><span>${escapeHtml(formatFileSize(d.sizeBytes))}</span><span>${escapeHtml(formatDateShort(d.updatedAt))}</span></footer>
+      ${validity}
+      <div class="doc-card__meta">
+        <p class="doc-card__sub">${escapeHtml([display.subtitle, display.ext].filter(Boolean).join(" · "))}</p>
+        <p class="doc-card__folder" title="${escapeAttr(d.folder)}">${escapeHtml(folderLeafName(d.folder) || d.folder)}</p>
+        ${categoryPill(d)}
+        ${d.entityLabel ? `<p class="doc-card__entity">${escapeHtml(d.entityLabel)}</p>` : ""}
+        <footer class="doc-card__foot"><span>${escapeHtml(formatFileSize(d.sizeBytes))}</span><span>${escapeHtml(formatDateShort(d.updatedAt))}</span></footer>
+      </div>
     </article>`;
     })
     .join("");
@@ -1068,17 +1127,23 @@ function renderDocumentManagementShell() {
   }
 
   if (ui.showTrash) {
+    const trashDocs = sortByRecent(trashedDocs(readDocs(), allFolders));
+    const trashFolders = trashedFolders(allFolders);
+    const trashBody =
+      trashDocs.length || trashFolders.length
+        ? renderTrashList(trashFolders, trashDocs, IC)
+        : renderDocsEmpty(IC, {
+            title: "La papelera está vacía",
+            hint: "Lo que elimine aquí queda en la papelera 30 días antes de borrarse definitivamente.",
+            showUpload: false
+          });
     return `<section class="documents-studio doc-studio doc-studio--explorer">
       ${renderHeader(ui, IC)}
       ${renderCategoryRail(topFolders, ui, IC)}
       <div class="doc-explorer">
         ${renderExplorerPath(ui, IC)}
         ${renderExplorerToolbar(ui, IC)}
-        ${renderDocsEmpty(IC, {
-          title: "La papelera está vacía",
-          hint: "Los documentos eliminados no se conservan en papelera por ahora. La eliminación es definitiva tras confirmar.",
-          showUpload: false
-        })}
+        <section class="doc-docs-panel" aria-label="Papelera">${trashBody}</section>
       </div>
     </section>`;
   }
@@ -2344,14 +2409,23 @@ function openUploadModal() {
   );
   const lockDestination = folderSegments(currentFolder).length >= 2;
   const folderOpts = folderOptionsHtml(currentFolder);
-  const categoryOpts = documentCategoryOptionsHtml("otro");
-  const categoryChips = documentCategories()
-    .slice(0, 16)
+  const allCategories = documentCategories();
+  const categoryChips = allCategories
     .map(
       (c) =>
-        `<button type="button" class="doc-upload-chip${c.value === "otro" ? " is-selected" : ""}" data-doc-cat="${escapeAttr(c.value)}" aria-pressed="${c.value === "otro" ? "true" : "false"}">${escapeHtml(c.label)}</button>`
+        `<button type="button" class="doc-upload-chip${c.value === "otro" ? " is-selected" : ""}" data-doc-cat="${escapeAttr(c.value)}" data-doc-cat-search="${escapeAttr(c.label.toLowerCase())}" aria-pressed="${c.value === "otro" ? "true" : "false"}">${escapeHtml(c.label)}</button>`
     )
     .join("");
+  /* El buscador de chips solo se muestra si hay suficientes categorías para justificarlo
+     (antes, más de 16 categorías quedaban inaccesibles porque los chips se recortaban a
+     16 y el <select> redundante era la única forma de llegar a las demás; ahora se
+     muestran todos los chips y, si son muchos, un buscador los filtra). */
+  const categorySearch =
+    allCategories.length > 12
+      ? `<label class="doc-upload-modal__select-wrap doc-upload-modal__select-wrap--search">
+          <input type="search" data-doc-category-search placeholder="Buscar tipo de documento…" autocomplete="off" aria-label="Buscar tipo de documento" />
+        </label>`
+      : "";
   const destinationSection = lockDestination
     ? `<section class="doc-upload-modal__section">
         <header class="doc-upload-modal__head">
@@ -2410,13 +2484,9 @@ function openUploadModal() {
               </div>
             </header>
             <input type="hidden" name="documentCategory" value="otro" data-doc-category-input />
+            ${categorySearch}
             <div class="doc-upload-chips" data-doc-category-chips>${categoryChips}</div>
-            <label class="doc-upload-modal__select-wrap">
-              <span>O elija de la lista</span>
-              <select name="documentCategorySelect" data-doc-category-select aria-label="Tipo de documento">
-                ${categoryOpts.map((o) => `<option value="${escapeAttr(o.value)}"${o.selected ? " selected" : ""}>${escapeHtml(o.label)}</option>`).join("")}
-              </select>
-            </label>
+            <p class="doc-upload-modal__chip-empty" data-doc-category-empty hidden>Ningún tipo coincide con la búsqueda.</p>
           </section>
           ${destinationSection}
           <section class="doc-upload-modal__section">
@@ -2434,6 +2504,10 @@ function openUploadModal() {
               <input type="file" id="doc-file-input" name="file" multiple accept="${SAFE_DOCUMENT_ACCEPT}" class="doc-dropzone__input" />
             </div>
             <ul class="doc-dropzone__list" id="doc-file-list"></ul>
+            <div class="doc-upload-progress" id="doc-upload-progress" role="status" aria-live="polite" hidden>
+              <div class="doc-upload-progress__bar"><div class="doc-upload-progress__fill" id="doc-upload-progress-fill"></div></div>
+              <p class="doc-upload-progress__label" id="doc-upload-progress-label"></p>
+            </div>
           </section>
           ${documentMetaFieldsHtml({}, { includeFolderHint: !lockDestination })}
           <label class="doc-upload-modal__select-wrap">
@@ -2447,13 +2521,11 @@ function openUploadModal() {
       wireDropzone(formEl);
       wireDocumentMetaFields(formEl);
       const hidden = formEl?.querySelector("[data-doc-category-input]");
-      const select = formEl?.querySelector("[data-doc-category-select]");
-      const chips = formEl?.querySelectorAll("[data-doc-cat]");
+      const chips = [...(formEl?.querySelectorAll("[data-doc-cat]") || [])];
       const sync = (value) => {
         const v = String(value || "otro");
         if (hidden) hidden.value = v;
-        if (select) select.value = v;
-        chips?.forEach((btn) => {
+        chips.forEach((btn) => {
           const on = btn.dataset.docCat === v;
           btn.classList.toggle("is-selected", on);
           btn.setAttribute("aria-pressed", on ? "true" : "false");
@@ -2464,8 +2536,19 @@ function openUploadModal() {
         if (cat && processSel) processSel.value = cat.process || processSel.value;
         if (cat && areaInput && !String(areaInput.value || "").trim()) areaInput.value = cat.area || "";
       };
-      chips?.forEach((btn) => btn.addEventListener("click", () => sync(btn.dataset.docCat)));
-      select?.addEventListener("change", () => sync(select.value));
+      chips.forEach((btn) => btn.addEventListener("click", () => sync(btn.dataset.docCat)));
+      const search = formEl?.querySelector("[data-doc-category-search]");
+      const empty = formEl?.querySelector("[data-doc-category-empty]");
+      search?.addEventListener("input", () => {
+        const q = String(search.value || "").trim().toLowerCase();
+        let visibleCount = 0;
+        chips.forEach((btn) => {
+          const match = !q || String(btn.dataset.docCatSearch || "").includes(q);
+          btn.hidden = !match;
+          if (match) visibleCount++;
+        });
+        if (empty) empty.hidden = visibleCount > 0;
+      });
     },
     onSubmit: async (form, formEl) => {
       const input = formEl?.querySelector("#doc-file-input");
@@ -2487,7 +2570,7 @@ function openUploadModal() {
         }
       }
       const documentCategory = String(
-        form.documentCategory || formEl?.querySelector("[data-doc-category-input]")?.value || form.documentCategorySelect || "otro"
+        form.documentCategory || formEl?.querySelector("[data-doc-category-input]")?.value || "otro"
       ).trim() || "otro";
       const description = String(form.description || "").trim();
       const meta = readMetaFromForm(form);
@@ -2506,8 +2589,23 @@ function openUploadModal() {
         G.notify?.("No tiene permiso para subir a esa carpeta.", "error");
         return false;
       }
+      const progressWrap = formEl?.querySelector("#doc-upload-progress");
+      const progressFill = formEl?.querySelector("#doc-upload-progress-fill");
+      const progressLabel = formEl?.querySelector("#doc-upload-progress-label");
+      const multiple = files.length > 1;
+      if (progressWrap) progressWrap.hidden = false;
+      const updateProgress = (index, fileName) => {
+        if (progressFill) progressFill.style.width = `${Math.round((index / files.length) * 100)}%`;
+        if (progressLabel) {
+          progressLabel.textContent = multiple
+            ? `Subiendo ${index + 1} de ${files.length}: ${fileName}`
+            : `Subiendo ${fileName}…`;
+        }
+      };
       let ok = 0;
+      let fileIndex = 0;
       for (const file of files) {
+        updateProgress(fileIndex, file.name);
         try {
           const uploaded = await uploadFileToR2(file, folder);
           const nowIso = new Date().toISOString();
@@ -2553,7 +2651,9 @@ function openUploadModal() {
         } catch (err) {
           G.notify?.(`No se pudo subir "${file.name}": ${String(err?.message || err)}`, "error");
         }
+        fileIndex += 1;
       }
+      if (progressFill) progressFill.style.width = "100%";
       if (ok > 0) {
         await ensureFolderRecord(folder, by);
         patchUi({ page: 1, folderFilter: folder, folderPage: 1, showTrash: false, search: "" });
@@ -2673,9 +2773,10 @@ function openDeleteFolderFlow(folderPathRaw) {
   const requestDeletion = G.openConfirmReasonModal || G.openConfirmModal;
   requestDeletion?.({
     title: "Eliminar carpeta",
-    message,
+    message: `${message} La carpeta (ya vacía) irá a la papelera; podrá restaurarla durante 30 días.`,
     confirmText: "Eliminar carpeta",
     onConfirm: async (motivo) => {
+      const reason = String(motivo || "").trim();
       try {
         for (const doc of docs) {
           const updated = normalizeCompanyDocumentRow({
@@ -2689,11 +2790,18 @@ function openDeleteFolderFlow(folderPathRaw) {
         const folders = readFolders().filter((f) => folderInSubtree(f.folderName, path));
         for (const row of folders) {
           if (folderKey(row.folderName) === folderKey(path)) {
-            const ok = await G.removeFromPortalListAwaitServer?.(KEYS.companyDocumentFolders, row.id);
-            if (!ok) {
-              G.notify?.("No se pudo eliminar el registro de carpeta.", "error");
-              return;
-            }
+            /* Papelera (soft-delete): la carpeta ya quedó vacía (sus documentos y
+               subcarpetas se reasignaron al padre arriba), así que solo se marca el
+               propio registro de la carpeta como eliminado — no se borra físicamente. */
+            const nowIso = new Date().toISOString();
+            const updated = normalizeCompanyFolderRow({
+              ...row,
+              deletedAt: nowIso,
+              deletedBy: actor(),
+              deleteReason: reason
+            });
+            const next = readFolders().map((f) => (f.id === row.id ? updated : f));
+            await writeAwaitServerEdit(KEYS.companyDocumentFolders, next, row.id);
           } else {
             const updated = normalizeCompanyFolderRow({
               ...row,
@@ -2712,13 +2820,47 @@ function openDeleteFolderFlow(folderPathRaw) {
           actor: actor()
         });
         patchUi({ folderFilter: parent, page: 1, folderPage: 1 });
-        G.notify?.("Carpeta eliminada.", "success");
+        G.notify?.("Carpeta movida a la papelera.", "success");
         G.renderPortalView?.();
       } catch (err) {
         G.notify?.(String(err?.message || "No se pudo eliminar la carpeta."), "error");
       }
     }
   });
+}
+
+/** Restaura una carpeta de la papelera. Mismo permiso que gestionar esa carpeta. */
+async function restoreFolder(row) {
+  if (!row) return;
+  if (!canDeleteFolder(readFolders(), row.folderName)) {
+    G.notify?.("No tiene permiso para restaurar esa carpeta.", "error");
+    return;
+  }
+  const nowIso = new Date().toISOString();
+  const updated = normalizeCompanyFolderRow({
+    ...row,
+    deletedAt: "",
+    deletedBy: "",
+    deleteReason: ""
+  });
+  try {
+    const next = readFolders().map((f) => (f.id === row.id ? updated : f));
+    await writeAwaitServerEdit(KEYS.companyDocumentFolders, next, row.id);
+  } catch (err) {
+    G.notify?.(String(err?.message || "No se pudo restaurar la carpeta."), "error");
+    return;
+  }
+  G.logPortalAuditEvent?.("documents", "restore", {
+    entityId: row.id,
+    entityKind: "folder",
+    entityLabel: `Carpeta · ${row.folderName}`,
+    summary: `Restauración de carpeta · ${row.folderName}`,
+    usuario: actor(),
+    actor: actor(),
+    at: nowIso
+  });
+  G.notify?.("Carpeta restaurada.", "success");
+  G.renderPortalView?.();
 }
 
 function openNewFolderModal(parentPathRaw = "") {
@@ -2873,15 +3015,27 @@ function openFolderPermissionsModal(folderNameRaw) {
         id: "doc-perm-field",
         html: `<div class="doc-perm-modal">
           <p class="doc-perm-help">Solo el administrador puede asignar permisos. Un usuario marcado queda limitado a esta carpeta (y subcarpetas): no verá el resto del gestor. Si no marca roles ni usuarios, la acción queda abierta a quien tenga el permiso global.</p>
-          <h4 class="doc-perm-section-title">Por rol${isNested ? ` · carpeta principal (${escapeHtml(topFolder)})` : ""}</h4>
-          <table class="doc-perm-grid"><thead><tr><th>Rol</th>${actions.map((a) => `<th>${a.label}</th>`).join("")}</tr></thead><tbody>${roleRows}</tbody></table>
-          <h4 class="doc-perm-section-title">Usuarios con acceso solo a esta carpeta</h4>
-          <label class="doc-perm-user-search">
-            <input type="search" data-perm-user-search placeholder="Buscar por nombre, correo o rol…" autocomplete="off" aria-label="Buscar usuario" />
-          </label>
-          <div class="doc-perm-users-wrap">
-            <table class="doc-perm-grid doc-perm-grid--users"><thead><tr><th>Usuario</th>${actions.map((a) => `<th>${a.label}</th>`).join("")}</tr></thead><tbody>${userRows}</tbody></table>
-          </div>
+          <section class="doc-perm-block doc-perm-block--roles">
+            <h4 class="doc-perm-section-title">
+              <span class="doc-perm-section-badge doc-perm-section-badge--roles">Hereda a toda la rama</span>
+              Por rol${isNested ? ` · carpeta principal (${escapeHtml(topFolder)})` : ""}
+            </h4>
+            <p class="doc-perm-section-hint">Aplica a «${escapeHtml(topFolder)}» y todas sus subcarpetas. Cambiar esto afecta a todo el árbol, no solo a esta carpeta.</p>
+            <table class="doc-perm-grid"><thead><tr><th>Rol</th>${actions.map((a) => `<th>${a.label}</th>`).join("")}</tr></thead><tbody>${roleRows}</tbody></table>
+          </section>
+          <section class="doc-perm-block doc-perm-block--users">
+            <h4 class="doc-perm-section-title">
+              <span class="doc-perm-section-badge doc-perm-section-badge--users">Excepción puntual</span>
+              Usuarios con acceso solo a esta carpeta
+            </h4>
+            <p class="doc-perm-section-hint">Solo afecta a la persona marcada, únicamente en «${escapeHtml(isNested ? targetPath : topFolder)}» (y sus subcarpetas). No cambia el permiso del rol.</p>
+            <label class="doc-perm-user-search">
+              <input type="search" data-perm-user-search placeholder="Buscar por nombre, correo o rol…" autocomplete="off" aria-label="Buscar usuario" />
+            </label>
+            <div class="doc-perm-users-wrap">
+              <table class="doc-perm-grid doc-perm-grid--users"><thead><tr><th>Usuario</th>${actions.map((a) => `<th>${a.label}</th>`).join("")}</tr></thead><tbody>${userRows}</tbody></table>
+            </div>
+          </section>
         </div>`
       }
     ],
@@ -3666,6 +3820,10 @@ function findDoc(id) {
   return readDocs().find((d) => String(d.id) === String(id)) || null;
 }
 
+function findFolderById(id) {
+  return readFolders().find((f) => String(f.id) === String(id)) || null;
+}
+
 /** Confirmación + borrado de un documento corporativo (admin / permiso por carpeta). */
 function confirmDeleteDocument(doc) {
   if (!doc) return;
@@ -3680,13 +3838,27 @@ function confirmDeleteDocument(doc) {
   const requestDeletion = G.openConfirmReasonModal || G.openConfirmModal;
   requestDeletion?.({
     title: "Eliminar documento",
-    message: `Se eliminará "${doc.fileName}" de ${doc.folder}. Indique la justificación.`,
-    confirmText: "Eliminar",
+    message: `Se moverá "${doc.fileName}" a la papelera de ${doc.folder}. Podrá restaurarlo durante 30 días. Indique la justificación.`,
+    confirmText: "Mover a la papelera",
     onConfirm: async (motivo) => {
       const reason = String(motivo || "").trim();
-      const ok = await G.removeFromPortalListAwaitServer?.(KEYS.companyDocuments, doc.id);
-      if (!ok) {
-        G.notify?.("No se pudo eliminar el documento.", "error");
+      /* Papelera (soft-delete): se marca deletedAt/deletedBy/deleteReason en vez de borrar
+         físicamente el registro (antes: G.removeFromPortalListAwaitServer, que manda
+         deletedIds y el backend lo borra de PostgreSQL sin posibilidad de recuperación).
+         El backend purga automáticamente lo que lleve más de 30 días en la papelera. */
+      const nowIso = new Date().toISOString();
+      const updated = normalizeCompanyDocumentRow({
+        ...doc,
+        deletedAt: nowIso,
+        deletedBy: actor(),
+        deleteReason: reason,
+        updatedAt: nowIso
+      });
+      try {
+        const next = readDocs().map((d) => (d.id === doc.id ? updated : d));
+        await writeAwaitServerEdit(KEYS.companyDocuments, next, doc.id);
+      } catch (err) {
+        G.notify?.(String(err?.message || "No se pudo mover el documento a la papelera."), "error");
         return;
       }
       G.logPortalAuditEvent?.("documents", "delete", {
@@ -3697,21 +3869,81 @@ function confirmDeleteDocument(doc) {
         reason,
         usuario: actor(),
         actor: actor(),
-        at: new Date().toISOString()
+        at: nowIso
       });
-      G.notify?.("Documento eliminado.", "success");
+      G.notify?.("Documento movido a la papelera.", "success");
       G.renderPortalView?.();
     }
   });
+}
+
+/** Restaura un documento de la papelera. Mismo permiso que eliminar en esa carpeta
+ *  (quien puede administrar/eliminar ahí puede también deshacer una eliminación ahí). */
+async function restoreDocument(doc) {
+  if (!doc) return;
+  if (!canDeleteFolder(readFolders(), doc.folder)) {
+    G.notify?.("No tiene permiso para restaurar en esa carpeta.", "error");
+    return;
+  }
+  const nowIso = new Date().toISOString();
+  const updated = normalizeCompanyDocumentRow({
+    ...doc,
+    deletedAt: "",
+    deletedBy: "",
+    deleteReason: "",
+    updatedAt: nowIso
+  });
+  try {
+    const next = readDocs().map((d) => (d.id === doc.id ? updated : d));
+    await writeAwaitServerEdit(KEYS.companyDocuments, next, doc.id);
+  } catch (err) {
+    G.notify?.(String(err?.message || "No se pudo restaurar el documento."), "error");
+    return;
+  }
+  G.logPortalAuditEvent?.("documents", "restore", {
+    entityId: doc.id,
+    entityKind: "document",
+    entityLabel: `${doc.folder} · ${doc.fileName}`,
+    summary: `Restauración de documento corporativo · ${doc.fileName}`,
+    usuario: actor(),
+    actor: actor(),
+    at: nowIso
+  });
+  G.notify?.("Documento restaurado.", "success");
+  G.renderPortalView?.();
 }
 
 function on(root, selector, event, handler) {
   root.querySelectorAll(selector).forEach((el) => el.addEventListener(event, handler));
 }
 
+let dmsOutsideClickBound = false;
+
+/**
+ * Los menús de 3 puntos (`.doc-rowmenu` / `.doc-folder-menu`) son <details>/<summary>
+ * nativos sin JS de posicionamiento propio. El navegador no cierra un <details> abierto
+ * al hacer clic fuera de él (soporte nativo desigual/reciente), así que sin esto un menú
+ * puede quedar "flotando" abierto sobre el contenido siguiente si el usuario abre varios
+ * seguidos en una lista larga. Se vincula una sola vez a nivel `document` (bandera
+ * `dmsOutsideClickBound`) porque `bindDocumentManagementPortalControls()` se vuelve a
+ * llamar en cada render — atarlo repetidas veces acumularía listeners duplicados.
+ */
+function bindDmsOutsideClickToCloseMenus() {
+  if (dmsOutsideClickBound) return;
+  dmsOutsideClickBound = true;
+  document.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    document.querySelectorAll(".doc-rowmenu[open], .doc-folder-menu[open]").forEach((el) => {
+      if (!el.contains(target)) el.removeAttribute("open");
+    });
+  });
+}
+
 function bindDocumentManagementPortalControls() {
   const root = nodes.viewRoot;
   if (!root) return;
+  bindDmsOutsideClickToCloseMenus();
 
   on(root, "[data-action='doc-upload']", "click", () => openUploadModal());
   on(root, "[data-action='doc-manage-types']", "click", () => openManageTypesModal());
@@ -3915,6 +4147,16 @@ function bindDocumentManagementPortalControls() {
     e.preventDefault();
     e.stopPropagation();
     confirmDeleteDocument(findDoc(e.currentTarget.dataset.id));
+  });
+  on(root, "[data-action='doc-restore']", "click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    restoreDocument(findDoc(e.currentTarget.dataset.id));
+  });
+  on(root, "[data-action='doc-restore-folder']", "click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    restoreFolder(findFolderById(e.currentTarget.dataset.id));
   });
 
   const searchInput = root.querySelector("[data-action='doc-search']");

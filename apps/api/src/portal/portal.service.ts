@@ -1895,6 +1895,29 @@ export class PortalService implements OnModuleInit {
            ADD COLUMN IF NOT EXISTS usuarios_subir TEXT,
            ADD COLUMN IF NOT EXISTS usuarios_eliminar TEXT`
       );
+      // Papelera (soft-delete): en vez de borrar la fila, se marca fecha_eliminacion +
+      // eliminado_por + motivo_eliminacion. syncCompanyDocuments/syncCompanyDocumentFolders
+      // ya no la borran físicamente al eliminar desde el portal (ver `writeAwaitServerEdit`
+      // en el frontend); purgeExpiredCompanyTrash() sí borra físicamente, pero solo filas
+      // cuya fecha_eliminacion supera el umbral de retención (30 días).
+      await this.pool.query(
+        `ALTER TABLE documentos_empresa
+           ADD COLUMN IF NOT EXISTS fecha_eliminacion TIMESTAMPTZ,
+           ADD COLUMN IF NOT EXISTS eliminado_por VARCHAR(255),
+           ADD COLUMN IF NOT EXISTS motivo_eliminacion TEXT`
+      );
+      await this.pool.query(
+        `ALTER TABLE carpetas_documento_empresa
+           ADD COLUMN IF NOT EXISTS fecha_eliminacion TIMESTAMPTZ,
+           ADD COLUMN IF NOT EXISTS eliminado_por VARCHAR(255),
+           ADD COLUMN IF NOT EXISTS motivo_eliminacion TEXT`
+      );
+      await this.pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_documentos_empresa_eliminado ON documentos_empresa (fecha_eliminacion)`
+      );
+      await this.pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_carpetas_documento_empresa_eliminado ON carpetas_documento_empresa (fecha_eliminacion)`
+      );
       // Supabase: RLS obligatorio en public.*; la API (service_role / owner) lo ignora.
       await this.pool.query(`ALTER TABLE public.documentos_empresa ENABLE ROW LEVEL SECURITY`);
       await this.pool.query(`ALTER TABLE public.carpetas_documento_empresa ENABLE ROW LEVEL SECURITY`);
@@ -14136,6 +14159,28 @@ export class PortalService implements OnModuleInit {
     }
   }
 
+  /**
+   * Purga oportunista de la papelera de Gestión Documental (retención: 30 días).
+   * No hay ningún scheduler/cron instalado en este backend, así que en vez de una tarea
+   * que corre sola, esto se llama al inicio de syncCompanyDocuments/syncCompanyDocumentFolders
+   * — es decir, cada vez que alguien con el módulo abierto sincroniza esa clave. Es una
+   * consulta barata (índice por fecha_eliminacion) y el usuario nunca ve en la papelera
+   * algo eliminado hace más de 30 días, aunque nadie la haya abierto en ese lapso exacto.
+   */
+  private async purgeExpiredCompanyTrash(c: PoolClient) {
+    try {
+      await c.query(
+        `DELETE FROM documentos_empresa WHERE fecha_eliminacion IS NOT NULL AND fecha_eliminacion < now() - interval '30 days'`
+      );
+      await c.query(
+        `DELETE FROM carpetas_documento_empresa WHERE fecha_eliminacion IS NOT NULL AND fecha_eliminacion < now() - interval '30 days'`
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`purgeExpiredCompanyTrash: ${sanitizeLogText(msg)}`);
+    }
+  }
+
   private async syncCompanyDocuments(
     c: PoolClient,
     data: unknown,
@@ -14145,6 +14190,7 @@ export class PortalService implements OnModuleInit {
   ) {
     if (!Array.isArray(data)) throw new ForbiddenException();
     const scope = companyScope && PG_UUID_V4_RE.test(String(companyScope).trim()) ? String(companyScope).trim() : null;
+    await this.purgeExpiredCompanyTrash(c);
 
     // Segregación de perfiles: valida permisos por carpeta antes de escribir (los no-admin).
     const role = String(opts?.role ?? "") as JwtRole;
@@ -14201,11 +14247,20 @@ export class PortalService implements OnModuleInit {
         createdAtRaw && !Number.isNaN(new Date(String(createdAtRaw)).getTime())
           ? new Date(String(createdAtRaw)).toISOString()
           : new Date().toISOString();
+      // Papelera: `deletedAt` presente y válido = mover/mantener en la papelera; ausente o
+      // inválido = NULL, es decir, activo (o restaurado, si antes tenía fecha_eliminacion).
+      const deletedAtRaw = (row as { deletedAt?: unknown }).deletedAt;
+      const deletedAtIso =
+        deletedAtRaw && !Number.isNaN(new Date(String(deletedAtRaw)).getTime())
+          ? new Date(String(deletedAtRaw)).toISOString()
+          : null;
       await c.query(
         `INSERT INTO documentos_empresa (
           id, id_empresa, nombre_archivo, tipo, carpeta, mime_type, tamano_bytes,
-          storage_key, descripcion, etiquetas, subido_por, fecha_creacion
-        ) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::timestamptz)
+          storage_key, descripcion, etiquetas, subido_por, fecha_creacion,
+          fecha_eliminacion, eliminado_por, motivo_eliminacion
+        ) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::timestamptz,
+                  $13::timestamptz, $14, $15)
         ON CONFLICT (id) DO UPDATE SET
           nombre_archivo = EXCLUDED.nombre_archivo,
           tipo = EXCLUDED.tipo,
@@ -14216,6 +14271,9 @@ export class PortalService implements OnModuleInit {
           descripcion = EXCLUDED.descripcion,
           etiquetas = EXCLUDED.etiquetas,
           subido_por = EXCLUDED.subido_por,
+          fecha_eliminacion = EXCLUDED.fecha_eliminacion,
+          eliminado_por = EXCLUDED.eliminado_por,
+          motivo_eliminacion = EXCLUDED.motivo_eliminacion,
           fecha_actualizacion = now()`,
         [
           row.id,
@@ -14231,7 +14289,10 @@ export class PortalService implements OnModuleInit {
             ? JSON.stringify(row.tags).slice(0, 8000)
             : txtN(row.tags),
           txt(row.uploadedBy, "Portal"),
-          createdAtIso
+          createdAtIso,
+          deletedAtIso,
+          deletedAtIso ? txtN((row as { deletedBy?: unknown }).deletedBy) : null,
+          deletedAtIso ? txtN((row as { deleteReason?: unknown }).deleteReason) : null
         ]
       );
     }
@@ -14246,6 +14307,7 @@ export class PortalService implements OnModuleInit {
   ) {
     if (!Array.isArray(data)) throw new ForbiddenException();
     const scope = companyScope && PG_UUID_V4_RE.test(String(companyScope).trim()) ? String(companyScope).trim() : null;
+    await this.purgeExpiredCompanyTrash(c);
     const isAdminActor = Boolean(opts?.admin);
     await this.syncListWithPruning(
       c,
@@ -14318,11 +14380,24 @@ export class PortalService implements OnModuleInit {
         usersUpload = prev.rows[0]?.usuarios_subir ?? null;
         usersDelete = prev.rows[0]?.usuarios_eliminar ?? null;
       }
+      // Papelera: mismo criterio que syncCompanyDocuments — `deletedAt` presente y válido
+      // = en la papelera; ausente/inválido = NULL (activa, o restaurada si ya estaba en
+      // papelera).
+      const deletedAtRaw = (row as { deletedAt?: unknown }).deletedAt;
+      const deletedAtIso =
+        deletedAtRaw && !Number.isNaN(new Date(String(deletedAtRaw)).getTime())
+          ? new Date(String(deletedAtRaw)).toISOString()
+          : null;
+      const deletedBy = deletedAtIso ? String((row as { deletedBy?: unknown }).deletedBy ?? "").trim() || null : null;
+      const deleteReason = deletedAtIso
+        ? String((row as { deleteReason?: unknown }).deleteReason ?? "").trim() || null
+        : null;
       await c.query(
         `INSERT INTO carpetas_documento_empresa (
           id, id_empresa, nombre_carpeta, descripcion, creado_por,
-          roles_ver, roles_subir, roles_eliminar, usuarios_ver, usuarios_subir, usuarios_eliminar
-        ) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+          roles_ver, roles_subir, roles_eliminar, usuarios_ver, usuarios_subir, usuarios_eliminar,
+          fecha_eliminacion, eliminado_por, motivo_eliminacion
+        ) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::timestamptz, $13, $14)
         ON CONFLICT (id) DO UPDATE SET
           id_empresa = EXCLUDED.id_empresa,
           nombre_carpeta = EXCLUDED.nombre_carpeta,
@@ -14333,7 +14408,10 @@ export class PortalService implements OnModuleInit {
           roles_eliminar = EXCLUDED.roles_eliminar,
           usuarios_ver = EXCLUDED.usuarios_ver,
           usuarios_subir = EXCLUDED.usuarios_subir,
-          usuarios_eliminar = EXCLUDED.usuarios_eliminar`,
+          usuarios_eliminar = EXCLUDED.usuarios_eliminar,
+          fecha_eliminacion = EXCLUDED.fecha_eliminacion,
+          eliminado_por = EXCLUDED.eliminado_por,
+          motivo_eliminacion = EXCLUDED.motivo_eliminacion`,
         [
           persistId,
           scope,
@@ -14345,7 +14423,10 @@ export class PortalService implements OnModuleInit {
           rolesDelete,
           usersView,
           usersUpload,
-          usersDelete
+          usersDelete,
+          deletedAtIso,
+          deletedBy,
+          deleteReason
         ]
       );
     }
