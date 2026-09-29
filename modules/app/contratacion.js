@@ -2216,6 +2216,9 @@ function bindHiringPortalControls() {
         `Firma constancia: ${signDate}\n`;
       try {
         await generateOfficialWordContract(payload);
+        if (typeof window.archiveEmployeeContractToFolder === "function") {
+          void window.archiveEmployeeContractToFolder(employee, { signDate });
+        }
         const all = read(KEYS.contracts, []);
         const employeeCompany = getCompanyById(String(employee.companyId || ""));
         const employeePosition = getPositionById(String(employee.positionId || ""));

@@ -240,18 +240,20 @@ function employeeDisplayNameForFile(employee = {}) {
 }
 
 /** Nombre de archivo para el contrato Word en la carpeta del colaborador. */
-export function buildEmployeeContractCompanyFileName(employee = {}, kind = "") {
+export function buildEmployeeContractCompanyFileName(employee = {}, kind = "", dateYmd = "") {
   const name = employeeDisplayNameForFile(employee);
   const tpl = contractTemplateKindLabel(kind || employee.contractTemplateKind || "");
-  return `Contrato laboral · ${tpl} · ${name}.docx`;
+  const dateSuffix = String(dateYmd || "").trim().slice(0, 10);
+  return dateSuffix ? `Contrato laboral · ${tpl} · ${name} · ${dateSuffix}.docx` : `Contrato laboral · ${tpl} · ${name}.docx`;
 }
 
 /** Nombre de archivo para carta / certificado laboral en la carpeta del colaborador. */
-export function buildEmployeeLaborLetterCompanyFileName(employee = {}, letterKind = "vigente") {
+export function buildEmployeeLaborLetterCompanyFileName(employee = {}, letterKind = "vigente", dateYmd = "") {
   const name = employeeDisplayNameForFile(employee);
   const kind = String(letterKind || "").toLowerCase() === "retiro" ? "retiro" : "vigente";
   const title = kind === "retiro" ? "Certificado de retiro" : "Carta laboral vigente";
-  return `${title} · ${name}.pdf`;
+  const dateSuffix = String(dateYmd || "").trim().slice(0, 10);
+  return dateSuffix ? `${title} · ${name} · ${dateSuffix}.pdf` : `${title} · ${name}.pdf`;
 }
 
 /** Nombre de archivo para la foto del colaborador. */

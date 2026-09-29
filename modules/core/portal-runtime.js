@@ -12019,6 +12019,9 @@ function runEmploymentLetterFlow(employeeId, initialFormat = "pdf") {
           notify(String(result?.message || "No se pudo generar el documento."), "error");
           return false;
         }
+        if (typeof window.archiveEmployeeLaborLetterToFolder === "function") {
+          void window.archiveEmployeeLaborLetterToFolder(normalized);
+        }
         const format = fields.exportFormat;
         if (format === "pdf") {
           notify(`PDF descargado (${result.fileName || "carta laboral"}) con firma del representante legal.`, "success");
@@ -12068,6 +12071,9 @@ async function runEmploymentLetterDownload(token, format) {
     if (!result?.ok) {
       notify(String(result?.message || "No se pudo descargar el archivo."), "error");
       return;
+    }
+    if (typeof window.archiveEmployeeLaborLetterToFolder === "function") {
+      void window.archiveEmployeeLaborLetterToFolder(normalized);
     }
     notify(`${fmt === "word" ? "Word" : "PDF"} descargado correctamente.`, "success");
   } catch (err) {

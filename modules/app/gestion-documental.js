@@ -1582,7 +1582,7 @@ async function archiveEmployeeContractToFolder(employee, opts = {}) {
     };
   }
   const emp = built.employee || employee;
-  const fileName = buildEmployeeContractCompanyFileName(emp, built.kind || emp.contractTemplateKind || "oficina");
+  const fileName = buildEmployeeContractCompanyFileName(emp, built.kind || emp.contractTemplateKind || "oficina", signKey);
   return archiveBlobToEmployeeFolder({
     employee: emp,
     blob: built.blob,
@@ -1732,19 +1732,6 @@ async function archiveEmployeeLegacyDocsToFolder(employee) {
 
 async function archiveEmployeeLaborLetterToFolder(employee, opts = {}) {
   if (!employee?.id) return { ok: false, skipped: true };
-  const marker = employeeHireDocumentMarker(employee.id, "carta_oficial");
-  if (!opts.force && hasHireDocMarker(marker)) return { ok: true, skipped: true };
-
-  const letterApi = window.AntaresEmploymentLetter || {};
-  const validate =
-    typeof letterApi.validateEmploymentLetterRequest === "function"
-      ? letterApi.validateEmploymentLetterRequest
-      : null;
-  const buildPdf =
-    typeof letterApi.buildEmploymentLetterPdfBlob === "function"
-      ? letterApi.buildEmploymentLetterPdfBlob
-      : null;
-  if (!buildPdf) return { ok: false, skipped: true, message: "Módulo de carta laboral no disponible." };
 
   const ensureFields =
     typeof window.ensureEmployeeContractFields === "function" ? window.ensureEmployeeContractFields : (e) => e;
@@ -1761,6 +1748,24 @@ async function archiveEmployeeLaborLetterToFolder(employee, opts = {}) {
     Boolean(String(normalized?.terminationDate || "").trim());
   const letterKind = terminated ? "retiro" : "vigente";
   const termDate = String(normalized?.terminationDate || colombiaTodayIsoDate()).trim().slice(0, 10);
+
+  // Marcador con tipo (vigente/retiro) + fecha: una carta vigente ya archivada no debe
+  // bloquear el certificado de retiro, ni una carta regenerada meses después.
+  const letterDateKey = letterKind === "retiro" ? termDate : colombiaTodayIsoDate();
+  const marker = employeeHireDocumentMarker(employee.id, `carta_oficial:${letterKind}:${letterDateKey}`);
+  if (!opts.force && hasHireDocMarker(marker)) return { ok: true, skipped: true };
+
+  const letterApi = window.AntaresEmploymentLetter || {};
+  const validate =
+    typeof letterApi.validateEmploymentLetterRequest === "function"
+      ? letterApi.validateEmploymentLetterRequest
+      : null;
+  const buildPdf =
+    typeof letterApi.buildEmploymentLetterPdfBlob === "function"
+      ? letterApi.buildEmploymentLetterPdfBlob
+      : null;
+  if (!buildPdf) return { ok: false, skipped: true, message: "Módulo de carta laboral no disponible." };
+
   const letterOpts = {
     letterKind,
     letterDate: colombiaTodayIsoDate(),
@@ -1779,7 +1784,7 @@ async function archiveEmployeeLaborLetterToFolder(employee, opts = {}) {
     if (!built?.ok || !built.blob) {
       return { ok: false, message: built?.message || "No se pudo generar la carta laboral." };
     }
-    const fileName = buildEmployeeLaborLetterCompanyFileName(normalized, letterKind);
+    const fileName = buildEmployeeLaborLetterCompanyFileName(normalized, letterKind, letterDateKey);
     return archiveBlobToEmployeeFolder({
       employee: normalized,
       blob: built.blob,

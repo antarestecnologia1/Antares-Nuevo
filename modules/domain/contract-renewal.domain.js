@@ -65,6 +65,9 @@ export async function executeEmployeeContractRenewal(employee, fields, opts = {}
             })
           : null;
       if (payload) await globalThis.generateOfficialWordContract(payload);
+      if (typeof globalThis.archiveEmployeeContractToFolder === "function") {
+        void globalThis.archiveEmployeeContractToFolder(saved);
+      }
     } catch (_err) {
       /* Word no bloquea la renovación */
     }
