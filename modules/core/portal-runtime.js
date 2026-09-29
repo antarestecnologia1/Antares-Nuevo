@@ -13190,6 +13190,60 @@ function employeeProfileKvRow(label, value) {
   return `<div class="employee-profile-kv"><span>${escapeHtml(label)}</span><strong>${fmtProfileCell(value)}</strong></div>`;
 }
 
+/** Sección de antigüedad + historial de renovaciones (a partir de KEYS.contracts) para la ficha del colaborador. */
+function buildEmployeeContractHistorySectionHtml(emp) {
+  const e = emp || {};
+  const allContracts = read(KEYS.contracts, []);
+  const history =
+    typeof getEmployeeContractHistory === "function" ? getEmployeeContractHistory(e.id, allContracts) : [];
+  const renewals = history.filter((row) => contractHistoryMovementLabel(row) === "Renovación");
+  const tenureEnd = e.terminationDate ? e.terminationDate : null;
+  const tenureLabel = formatYearsMonthsBetweenIsoDates(e.startDate, tenureEnd) || "—";
+  const lastRenewal = renewals[renewals.length - 1];
+
+  const summaryGrid = `<div class="employee-profile-grid">
+    ${employeeProfileKvRow("Antigüedad", tenureEnd ? `${tenureLabel} (hasta retiro)` : tenureLabel)}
+    ${employeeProfileKvRow("Renovaciones registradas", String(renewals.length))}
+    ${employeeProfileKvRow("Última renovación", lastRenewal ? fmtDateOr(lastRenewal.startDate) : "—")}
+  </div>`;
+
+  if (!history.length) {
+    return `<section class="employee-profile-section employee-profile-section--payroll-history">
+      <h4 class="employee-profile-section-title">Antigüedad y renovaciones</h4>
+      ${summaryGrid}
+      <p class="muted employee-payroll-history__empty" style="margin-top:0.55rem">Aún no hay contratos registrados en el historial para este colaborador. Se registran al generar o renovar el contrato.</p>
+    </section>`;
+  }
+
+  const rows = history
+    .slice()
+    .reverse()
+    .map((row) => {
+      const label = contractHistoryMovementLabel(row);
+      const period = row.endDate ? `${fmtDateOr(row.startDate)} → ${fmtDateOr(row.endDate)}` : fmtDateOr(row.startDate);
+      return `<tr>
+        <td><strong>${escapeHtml(label)}</strong><span class="muted employee-payroll-history__type">${escapeHtml(String(row.contractType || ""))}</span></td>
+        <td>${escapeHtml(period)}</td>
+        <td>${escapeHtml(String(row.position || row.positionName || "—"))}</td>
+      </tr>`;
+    })
+    .join("");
+
+  return `<section class="employee-profile-section employee-profile-section--payroll-history">
+    <div class="employee-payroll-history__head">
+      <h4 class="employee-profile-section-title">Antigüedad y renovaciones</h4>
+      <span class="employee-payroll-history__stats muted">${history.length} registro${history.length === 1 ? "" : "s"}</span>
+    </div>
+    ${summaryGrid}
+    <div class="table-wrap employee-payroll-history__table-wrap" style="margin-top:0.55rem">
+      <table class="employee-payroll-history__table">
+        <thead><tr><th>Movimiento</th><th>Período</th><th>Cargo</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  </section>`;
+}
+
 function buildEmployeePayrollProfileBodyHtml(emp) {
   if (!emp) return `<p class="muted">Sin datos.</p>`;
   const e = mergeLinkedDriverConductorFields(normalizePayrollEmployeeRowDates(emp));
@@ -13315,6 +13369,7 @@ function buildEmployeePayrollProfileBodyHtml(emp) {
       ${employeeProfileKvRow("Tipo cuenta", e.bankAccountType)}
       ${employeeProfileKvRow("N° cuenta", e.bankAccount)}
     </div></section>
+    ${buildEmployeeContractHistorySectionHtml(e)}
     ${driverBlock}</article>`;
 }
 
@@ -13330,6 +13385,12 @@ function employeeNationalPhoneFieldHtml(name, label, rawValue) {
 function buildPayrollEmployeeEditModalFields(emp) {
   const e = mergeLinkedDriverConductorFields(normalizePayrollEmployeeRowDates(emp || {}));
   const empId = escapeAttr(String(e.id || ""));
+  const contractHistoryForEdit =
+    typeof getEmployeeContractHistory === "function" ? getEmployeeContractHistory(e.id, read(KEYS.contracts, [])) : [];
+  const renewalsForEdit = contractHistoryForEdit.filter((row) => contractHistoryMovementLabel(row) === "Renovación");
+  const tenureLabelForEdit = formatYearsMonthsBetweenIsoDates(e.startDate, e.terminationDate || null) || "—";
+  const lastRenewalForEdit = renewalsForEdit[renewalsForEdit.length - 1];
+  const contractHistorySummaryHtml = `<p class="full muted modal-field-hint employee-edit-tenure-summary" style="grid-column:1/-1;margin:0 0 0.15rem">Antigüedad: <strong>${escapeHtml(tenureLabelForEdit)}</strong>${renewalsForEdit.length ? ` · ${renewalsForEdit.length} renovación${renewalsForEdit.length === 1 ? "" : "es"} registrada${renewalsForEdit.length === 1 ? "" : "s"}${lastRenewalForEdit ? ` (última: ${escapeHtml(fmtDateOr(lastRenewalForEdit.startDate))})` : ""}` : " · sin renovaciones registradas"} — ver ficha del colaborador para el historial completo.</p>`;
   const deps = `<option value="">${escapeHtml("Seleccione...")}</option>${departmentOptions(e.department || "")}`;
   const docSel = CO_CATALOGS.documentTypes.map((d) => {
     const lab =
@@ -13432,6 +13493,7 @@ ${employeeNationalPhoneFieldHtml("emergencyPhone", "Tel. emergencia", e.emergenc
       type: "custom",
       label: "Laboral",
       html: `<div class="form-section-grid employee-edit-grid">
+${contractHistorySummaryHtml}
 <label><span>${escapeHtml("Empresa")}</span><select name="companyId" required>${companyOptsInner}</select></label>
 <label><span>${escapeHtml("Cargo")}</span><select name="positionId" id="employee-modal-position" required>${posOptsInner}</select></label>
 <input type="hidden" name="workSchedule" id="employee-modal-work-schedule" value="${escapeAttr(String(e.workSchedule || ""))}" />

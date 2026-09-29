@@ -180,6 +180,34 @@ function findMatchingContractIndex(list, employee, partial) {
   });
 }
 
+/** Etiqueta legible del movimiento de un registro de `contracts` para mostrarlo en un historial. */
+export function contractHistoryMovementLabel(row) {
+  const slug = contractMovementSlug(row);
+  if (slug === "renovacion") return "Renovación";
+  if (slug === "aviso_no_renovacion") return "Aviso de no renovación";
+  return "Contrato inicial";
+}
+
+/**
+ * Historial cronológico (más antiguo → más reciente) de contratos y renovaciones de un colaborador,
+ * a partir de `KEYS.contracts` (un registro por alta, renovación o aviso de no renovación).
+ */
+export function getEmployeeContractHistory(employeeId, allContracts = []) {
+  const id = String(employeeId || "").trim();
+  if (!id || !Array.isArray(allContracts)) return [];
+  return allContracts
+    .filter((row) => row && String(row.employeeId || "") === id)
+    .slice()
+    .sort((a, b) => {
+      const da = String(a.startDate || a.createdAt || "");
+      const db = String(b.startDate || b.createdAt || "");
+      if (da !== db) return da < db ? -1 : 1;
+      const ca = String(a.createdAt || "");
+      const cb = String(b.createdAt || "");
+      return ca < cb ? -1 : ca > cb ? 1 : 0;
+    });
+}
+
 /**
  * Crea o actualiza el registro de contrato al contratar un empleado y lo sincroniza con PostgreSQL.
  */

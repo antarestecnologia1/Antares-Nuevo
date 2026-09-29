@@ -495,6 +495,29 @@ export function fmtDateOr(value, fallback = "—") {
   return dmy || ymd;
 }
 
+/** Antigüedad legible entre dos fechas ISO (fin = hoy si se omite): "2 años y 3 meses", "8 meses", "Menos de 1 mes". */
+export function formatYearsMonthsBetweenIsoDates(startYmd, endYmd) {
+  const start = String(startYmd || "").trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) return "";
+  const endRaw = String(endYmd || "").trim().slice(0, 10);
+  const end = /^\d{4}-\d{2}-\d{2}$/.test(endRaw)
+    ? endRaw
+    : typeof colombiaTodayIsoDate === "function"
+      ? colombiaTodayIsoDate()
+      : new Date().toISOString().slice(0, 10);
+  const [sy, sm, sd] = start.split("-").map(Number);
+  const [ey, em, ed] = end.split("-").map(Number);
+  let totalMonths = (ey - sy) * 12 + (em - sm);
+  if (ed < sd) totalMonths -= 1;
+  if (totalMonths < 0) totalMonths = 0;
+  const years = Math.floor(totalMonths / 12);
+  const months = totalMonths % 12;
+  if (years <= 0 && months <= 0) return "Menos de 1 mes";
+  const yLabel = years > 0 ? `${years} año${years === 1 ? "" : "s"}` : "";
+  const mLabel = months > 0 ? `${months} mes${months === 1 ? "" : "es"}` : "";
+  return [yLabel, mLabel].filter(Boolean).join(" y ");
+}
+
 export function formatColombiaLongDate(dateValue = new Date()) {
   try {
     const raw = new Date(dateValue).toLocaleDateString("es-CO", {
