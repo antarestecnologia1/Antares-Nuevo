@@ -65,7 +65,7 @@
   justify-content: space-between;
   gap: 1.25rem;
   flex-wrap: wrap;
-  margin-bottom: 1.5rem;
+  margin-bottom: 0; /* el ritmo vertical lo da el gap de .doc-studio--explorer */
 }
 
 .documents-studio.doc-studio .doc-topbar__titles {
@@ -75,7 +75,7 @@
 
 .documents-studio.doc-studio .doc-topbar__title {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: 1.15rem; /* el título del módulo ya aparece arriba en el portal; aquí basta uno discreto */
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--doc-text);
@@ -83,8 +83,8 @@
 }
 
 .documents-studio.doc-studio .doc-topbar__subtitle {
-  margin: 0.25rem 0 0;
-  font-size: 0.875rem;
+  margin: 0.15rem 0 0;
+  font-size: 0.8rem;
   color: var(--doc-text-soft);
 }
 
@@ -350,7 +350,7 @@
 .documents-studio.doc-studio .doc-side {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.7rem;
   position: sticky;
   top: 1rem;
 }
@@ -1268,7 +1268,7 @@
    ========================================================================== */
 
 .documents-studio.doc-studio .doc-side-card {
-  padding: 1rem;
+  padding: 0.8rem 0.9rem;
   background: var(--doc-surface);
   border: 1px solid var(--doc-border);
   border-radius: var(--doc-radius);
@@ -1276,7 +1276,7 @@
 }
 
 .documents-studio.doc-studio .doc-side-card__title {
-  margin: 0 0 0.875rem;
+  margin: 0 0 0.6rem;
   font-size: 0.8125rem;
   font-weight: 600;
   color: var(--doc-text);
@@ -1291,8 +1291,8 @@
 .documents-studio.doc-studio .doc-donut {
   position: relative;
   flex-shrink: 0;
-  width: 96px;
-  height: 96px;
+  width: 78px;
+  height: 78px;
 }
 
 .documents-studio.doc-studio .doc-donut svg {
@@ -1321,7 +1321,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1rem;
+  font-size: 0.85rem;
   font-weight: 700;
   color: var(--doc-text);
 }
@@ -2594,49 +2594,96 @@ body[data-theme="dark"] .doc-perm-users-wrap {
 .documents-studio.doc-studio.doc-studio--explorer {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.7rem;
 }
 
+/* Franja de indicadores: antes 4 tarjetas sueltas (borde+sombra c/u); ahora una
+   sola franja con separadores internos — mismo contenido, menos "cajas" apiladas. */
 .documents-studio.doc-studio .doc-kpi-grid--compact {
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.65rem;
-  margin-bottom: 0.25rem;
+  gap: 0;
+  margin-bottom: 0;
+  background: var(--doc-surface);
+  border: 1px solid var(--doc-border);
+  border-radius: var(--doc-radius);
+  box-shadow: var(--doc-shadow);
+  overflow: hidden;
 }
 
 .documents-studio.doc-studio .doc-kpi-grid--compact .doc-kpi {
-  padding: 0.7rem 0.85rem;
+  position: relative;
+  padding: 0.55rem 0.9rem;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
+.documents-studio.doc-studio .doc-kpi-grid--compact .doc-kpi:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 0.45rem;
+  bottom: 0.45rem;
+  width: 1px;
+  background: var(--doc-border);
+}
+
+.documents-studio.doc-studio .doc-kpi-grid--compact .doc-kpi__icon {
+  width: 1.9rem;
+  height: 1.9rem;
+}
+
+.documents-studio.doc-studio .doc-kpi-grid--compact .doc-kpi__icon svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.documents-studio.doc-studio .doc-kpi-grid--compact .doc-kpi__value {
+  font-size: 1.1rem;
 }
 
 .documents-studio.doc-studio .doc-kpi-grid--compact .doc-kpi__sub {
   display: none;
 }
 
+/* Antes: rejilla de tarjetas grandes (2-3 filas). Ahora: una sola franja de
+   pestañas — mismo dato (ícono, nombre, conteo, candado de permisos) pero en
+   una línea compacta, como una barra de pestañas de escritorio. */
 .documents-studio.doc-studio .doc-categories {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 0.35rem;
+  background: var(--doc-surface);
+  border: 1px solid var(--doc-border);
+  border-radius: var(--doc-radius);
+  box-shadow: var(--doc-shadow);
 }
 
 .documents-studio.doc-studio .doc-cat-card {
   position: relative;
-  border: 1px solid var(--doc-border);
-  border-radius: 12px;
-  background: var(--doc-surface);
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
   transition: border-color var(--doc-fast), box-shadow var(--doc-fast), background var(--doc-fast);
 }
 
 .documents-studio.doc-studio .doc-cat-card.is-active {
-  border-color: var(--doc-primary);
-  background: rgba(37, 99, 235, 0.04);
-  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.18);
+  border-color: rgba(37, 99, 235, 0.22);
+  background: var(--doc-primary-soft);
+  box-shadow: none;
 }
 
 .documents-studio.doc-studio .doc-cat-card__open {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  width: 100%;
-  padding: 0.9rem 1rem;
+  gap: 0.45rem;
+  width: auto;
+  padding: 0.38rem 0.7rem 0.38rem 0.45rem;
   border: 0;
   background: transparent;
   text-align: left;
@@ -2647,16 +2694,16 @@ body[data-theme="dark"] .doc-perm-users-wrap {
 
 .documents-studio.doc-studio .doc-cat-card__icon {
   flex-shrink: 0;
-  width: 2.4rem;
-  height: 2.4rem;
-  border-radius: 10px;
+  width: 1.55rem;
+  height: 1.55rem;
+  border-radius: 7px;
   display: grid;
   place-items: center;
 }
 
 .documents-studio.doc-studio .doc-cat-card__icon svg {
-  width: 1.2rem;
-  height: 1.2rem;
+  width: 0.8rem;
+  height: 0.8rem;
 }
 
 .documents-studio.doc-studio .doc-cat-card__icon--blue { background: var(--doc-tone-blue-soft); color: var(--doc-tone-blue); }
@@ -2668,16 +2715,18 @@ body[data-theme="dark"] .doc-perm-users-wrap {
 
 .documents-studio.doc-studio .doc-cat-card__body {
   display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 0.3rem;
   min-width: 0;
 }
 
 .documents-studio.doc-studio .doc-cat-card__name {
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   font-weight: 700;
   color: var(--doc-text);
   line-height: 1.25;
+  max-width: 13rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2689,16 +2738,23 @@ body[data-theme="dark"] .doc-perm-users-wrap {
 }
 
 .documents-studio.doc-studio .doc-cat-card__meta {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   color: var(--doc-text-faint);
 }
 
+.documents-studio.doc-studio .doc-cat-card__meta::before {
+  content: "· ";
+}
+
+/* El candado queda en el flujo normal (no absoluto) y siempre reserva su
+   espacio: así la pestaña no cambia de ancho al pasar el mouse — mismo
+   criterio anti-parpadeo ya aplicado en el grid de documentos. */
 .documents-studio.doc-studio .doc-cat-card__perms {
-  position: absolute;
-  top: 0.4rem;
-  right: 0.4rem;
-  width: 1.6rem;
-  height: 1.6rem;
+  position: static;
+  flex-shrink: 0;
+  width: 1.2rem;
+  height: 1.2rem;
+  margin-right: 0.35rem;
   border: 0;
   border-radius: 6px;
   background: transparent;
@@ -2715,15 +2771,15 @@ body[data-theme="dark"] .doc-perm-users-wrap {
 }
 
 .documents-studio.doc-studio .doc-cat-card__perms svg {
-  width: 0.85rem;
-  height: 0.85rem;
+  width: 0.68rem;
+  height: 0.68rem;
 }
 
 .documents-studio.doc-studio .doc-explorer {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  padding: 1.1rem 1.15rem 1.35rem;
+  gap: 0.7rem;
+  padding: 0.85rem 0.95rem 1.05rem;
   background: var(--doc-surface);
   border: 1px solid var(--doc-border);
   border-radius: 14px;
@@ -2752,6 +2808,14 @@ body[data-theme="dark"] .doc-perm-users-wrap {
   background: var(--doc-primary-soft);
   border: 1px solid rgba(37, 99, 235, 0.24);
   border-radius: var(--doc-radius-sm);
+}
+
+/* `display:flex` de una regla de autor gana siempre al `[hidden]{display:none}`
+   del user-agent (el origen "author" pisa al "user-agent" aunque la
+   especificidad sea igual), así que sin esta línea la barra queda visible con
+   "0 seleccionados" aunque JS le ponga el atributo `hidden`. */
+.documents-studio.doc-studio .doc-bulkbar[hidden] {
+  display: none;
 }
 
 .documents-studio.doc-studio .doc-bulkbar__count {
@@ -2907,13 +2971,13 @@ body[data-theme="dark"] .doc-perm-users-wrap {
 .documents-studio.doc-studio .doc-subfolder-block {
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
+  gap: 0.55rem;
 }
 
 .documents-studio.doc-studio .doc-subfolder-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.65rem;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 0.5rem;
 }
 
 .documents-studio.doc-studio .doc-subfolder-grid--list {
@@ -2923,9 +2987,9 @@ body[data-theme="dark"] .doc-perm-users-wrap {
 .documents-studio.doc-studio .doc-subfolder-card {
   display: flex;
   align-items: center;
-  gap: 0.7rem;
+  gap: 0.6rem;
   width: 100%;
-  padding: 0.8rem 0.9rem;
+  padding: 0.6rem 0.75rem;
   border: 1px solid var(--doc-border);
   border-radius: 10px;
   background: var(--doc-surface);
@@ -2944,8 +3008,8 @@ body[data-theme="dark"] .doc-perm-users-wrap {
 
 .documents-studio.doc-studio .doc-subfolder-card__icon {
   flex-shrink: 0;
-  width: 2rem;
-  height: 2rem;
+  width: 1.7rem;
+  height: 1.7rem;
   border-radius: 8px;
   display: grid;
   place-items: center;
@@ -2954,8 +3018,8 @@ body[data-theme="dark"] .doc-perm-users-wrap {
 }
 
 .documents-studio.doc-studio .doc-subfolder-card__icon svg {
-  width: 1.05rem;
-  height: 1.05rem;
+  width: 0.92rem;
+  height: 0.92rem;
 }
 
 .documents-studio.doc-studio .doc-subfolder-card__body {
