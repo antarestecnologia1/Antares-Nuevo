@@ -634,9 +634,10 @@ function bindDynamicEvents() {
       else if (targetForm === "register") input = document.querySelector("#form-register input[name='password']");
       else if (targetForm === "register-c") input = document.querySelector("#form-register input[name='passwordConfirm']");
       if (!input) return;
-      const visible = input.type === "text";
-      input.type = visible ? "password" : "text";
-      btn.textContent = `${IC.eye} ${visible ? "Mostrar" : "Ocultar"}`;
+      const wasHidden = input.type === "password";
+      input.type = wasHidden ? "text" : "password";
+      const icon = (wasHidden ? IC.eye : IC.eyeOff) || "";
+      btn.innerHTML = `${icon ? `${icon} ` : ""}${wasHidden ? "Ocultar" : "Mostrar"}`;
     });
   });
 

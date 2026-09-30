@@ -7489,9 +7489,9 @@ function renderPayrollEmployeeUnlinkActionButton(e, { compact = false, recategor
 function renderPayrollEmployeeUnlinkIconButton(e, recategorize = false) {
   const id = escapeAttr(String(e?.id || ""));
   if (recategorize) {
-    return `<button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--edit" data-action="recategorize-unlinked-employee" data-id="${id}" title="Categorizar desvinculación">${IC.edit}</button>`;
+    return `<button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--edit" data-action="recategorize-unlinked-employee" data-id="${id}" title="Categorizar desvinculación">${IC.edit}<span>Categorizar</span></button>`;
   }
-  return `<button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--delete" data-action="unlink-employee" data-id="${id}" title="Desvincular">${IC.userMinus || IC.x}</button>`;
+  return `<button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--delete" data-action="unlink-employee" data-id="${id}" title="Desvincular">${IC.userMinus || IC.x}<span>Desvincular</span></button>`;
 }
 
 function renderPayrollEmployeeTableIdentity(item) {
@@ -7521,7 +7521,7 @@ function renderEmploymentLetterActionButton(id, { compact = false } = {}) {
 
 function renderEmploymentLetterIconButton(id) {
   const safeId = escapeAttr(String(id || ""));
-  return `<button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--letter" data-no-lock data-action="employee-generate-labor-letter" data-id="${safeId}" title="Carta laboral (Colombia · CST art. 57)">${IC.badge}</button>`;
+  return `<button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--letter" data-no-lock data-action="employee-generate-labor-letter" data-id="${safeId}" title="Carta laboral (Colombia · CST art. 57)">${IC.badge}<span>Carta</span></button>`;
 }
 
 function renderPayrollEmployeeContractIconActions(e, contract, hrAdminDeletes) {
@@ -7535,13 +7535,13 @@ function renderPayrollEmployeeContractIconActions(e, contract, hrAdminDeletes) {
       contract.statusSlug === "expired" ||
       contract.statusSlug === "active");
   return `<div class="payroll-contracts-icon-actions">
-    <button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--view" data-action="view-employee" data-id="${id}" title="Ver perfil">${IC.eye}</button>
-    ${unlinked ? "" : `<button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--edit" data-action="edit-employee" data-id="${id}" title="Editar">${IC.edit}</button>`}
+    <button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--view" data-action="view-employee" data-id="${id}" title="Ver perfil">${IC.eye}<span>Ver</span></button>
+    ${unlinked ? "" : `<button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--edit" data-action="edit-employee" data-id="${id}" title="Editar">${IC.edit}<span>Editar</span></button>`}
     ${renderEmploymentLetterIconButton(e.id)}
     ${
       canAct
-        ? `<button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--renew" data-action="renew-employee-contract" data-id="${id}" title="Renovar contrato">${IC.rotateCcw}</button>
-    <button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--notify" data-action="non-renew-employee-contract" data-id="${id}" title="Aviso de no renovación">${IC.mail}</button>`
+        ? `<button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--renew" data-action="renew-employee-contract" data-id="${id}" title="Renovar contrato">${IC.rotateCcw}<span>Renovar</span></button>
+    <button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--notify" data-action="non-renew-employee-contract" data-id="${id}" title="Aviso de no renovación">${IC.mail}<span>No renovar</span></button>`
         : ""
     }
     ${hrAdminDeletes ? renderPayrollEmployeeUnlinkIconButton(e, unlinked) : ""}
@@ -7640,13 +7640,13 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = fa
         <span class="directory-card__salary payroll-emp-salary">$${item.salaryCop.toLocaleString("es-CO")}</span>
       </div>
       <div class="directory-card__compact-actions toolbar">
-        <button type="button" class="btn btn-sm btn-action" data-action="payroll-employee-liquidations" data-id="${escapeAttr(String(e.id || ""))}" title="Historial de liquidaciones">${IC.dollar}${compact ? "" : " Nóminas"}</button>
-        <button type="button" class="btn btn-sm btn-outline" data-action="view-employee" data-id="${escapeAttr(String(e.id))}" title="Perfil">${IC.eye}</button>
-        ${item.isUnlinked ? "" : `<button type="button" class="btn btn-sm btn-action" data-action="edit-employee" data-id="${escapeAttr(String(e.id))}" title="Editar">${IC.edit}</button>`}
-        ${item.isUnlinked ? "" : renderPayrollContractActionButtons(e, contract, { compact })}
-        ${renderEmploymentLetterActionButton(e.id, { compact: true })}
-        <button type="button" class="btn btn-sm btn-outline" data-no-lock data-action="employee-generate-contract" data-id="${escapeAttr(String(e.id))}" title="Generar o descargar contrato Word">${IC.download}</button>
-        ${hrAdminDeletes ? renderPayrollEmployeeUnlinkActionButton(e, { compact: true, recategorize: Boolean(item.isUnlinked) }) : ""}
+        <button type="button" class="btn btn-sm btn-action" data-action="payroll-employee-liquidations" data-id="${escapeAttr(String(e.id || ""))}" title="Historial de liquidaciones">${IC.dollar} Nóminas</button>
+        <button type="button" class="btn btn-sm btn-outline" data-action="view-employee" data-id="${escapeAttr(String(e.id))}" title="Ver perfil">${IC.eye} Ver</button>
+        ${item.isUnlinked ? "" : `<button type="button" class="btn btn-sm btn-action" data-action="edit-employee" data-id="${escapeAttr(String(e.id))}" title="Editar">${IC.edit} Editar</button>`}
+        ${item.isUnlinked ? "" : renderPayrollContractActionButtons(e, contract)}
+        ${renderEmploymentLetterActionButton(e.id)}
+        <button type="button" class="btn btn-sm btn-outline" data-no-lock data-action="employee-generate-contract" data-id="${escapeAttr(String(e.id))}" title="Generar o descargar contrato Word">${IC.download} Contrato</button>
+        ${hrAdminDeletes ? renderPayrollEmployeeUnlinkActionButton(e, { recategorize: Boolean(item.isUnlinked) }) : ""}
         ${selectHtml}
       </div>
     </div>

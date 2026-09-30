@@ -343,7 +343,7 @@ function adminUsersHtml(current) {
               <span class="auth-input-prefix" aria-hidden="true">${IC.lock}</span>
               <input type="password" name="password" minlength="10" required placeholder="Mín. 10 caracteres, mayúscula, minúscula, número y símbolo" aria-describedby="admin-create-password-hint admin-create-password-strength" autocomplete="new-password" />
             </div>
-            <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="admin-create">${IC.eye} Mostrar</button>
+            <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="admin-create">${IC.eyeOff} Mostrar</button>
           </div>
           <div id="admin-password-strength-suite" class="password-strength-suite">
             <div class="password-strength-bar-wrap">
@@ -641,7 +641,7 @@ function adminUsersHtml(current) {
               <span class="auth-input-prefix" aria-hidden="true">${IC.lock}</span>
               <input type="password" name="password" placeholder="Dejar vacío para conservar" autocomplete="new-password" />
             </div>
-            <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="admin-edit">${IC.eye} Mostrar</button>
+            <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="admin-edit">${IC.eyeOff} Mostrar</button>
           </div>
         </label>
         <label>${fieldLabel(IC.shield, "Rol")}

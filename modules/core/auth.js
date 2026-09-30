@@ -2750,7 +2750,7 @@ function __authPasswordPanelMarkup({
                   <span class="auth-input-prefix" aria-hidden="true">${IC.lock}</span>
                   <input class="auth-input-control auth-password-input" type="password" minlength="10" name="password" autocomplete="new-password" autocapitalize="off" spellcheck="false" required aria-describedby="${describedBy}" />
                 </div>
-                <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="${passwordToggleTarget}">${IC.eye} Mostrar</button>
+                <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="${passwordToggleTarget}">${IC.eyeOff} Mostrar</button>
               </div>
             </label>
             <label class="full auth-field-stack register-password-field">
@@ -2760,7 +2760,7 @@ function __authPasswordPanelMarkup({
                   <span class="auth-input-prefix" aria-hidden="true">${IC.lock}</span>
                   <input class="auth-input-control auth-password-input" type="password" minlength="10" name="passwordConfirm" autocomplete="new-password" autocapitalize="off" spellcheck="false" required />
                 </div>
-                <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="${confirmToggleTarget}">${IC.eye} Mostrar</button>
+                <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="${confirmToggleTarget}">${IC.eyeOff} Mostrar</button>
               </div>
               <small class="muted register-password-match-hint">Repita la contraseña exactamente igual.</small>
             </label>
@@ -2847,7 +2847,7 @@ function authView() {
                 <span class="auth-input-prefix" aria-hidden="true">${IC.lock}</span>
                 <input class="auth-input-control" type="password" name="password" autocomplete="current-password" required />
               </div>
-              <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="login">${IC.eye} Mostrar</button>
+              <button type="button" class="btn btn-action btn-sm" data-action="toggle-password" data-target="login">${IC.eyeOff} Mostrar</button>
             </div>
           </label>
           <label class="full auth-remember-row">
@@ -3178,10 +3178,11 @@ export function bindAuthForms() {
         input = document.querySelector("#form-recover-complete input[name='passwordConfirm']");
       else input = login?.querySelector("input[name='password']");
       if (!input) return;
-      const visible = input.type === "text";
-      input.type = visible ? "password" : "text";
-      const eye = typeof IC !== "undefined" && IC.eye ? `${IC.eye} ` : "";
-      btn.innerHTML = `${eye}${visible ? "Mostrar" : "Ocultar"}`;
+      const wasHidden = input.type === "password";
+      input.type = wasHidden ? "text" : "password";
+      const icon = typeof IC !== "undefined" ? (wasHidden ? IC.eye : IC.eyeOff) || "" : "";
+      const label = wasHidden ? "Ocultar" : "Mostrar";
+      btn.innerHTML = `${icon ? `${icon} ` : ""}${label}`;
     });
   });
 

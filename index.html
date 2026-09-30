@@ -33,11 +33,15 @@
     <script src="./config/antares.public.js?v=20260722-early-api-base"></script>
     <script>
       /**
-       * Prefetch de las vacantes públicas: la petición sale aquí, no al final del arranque.
-       * `initPublicCareers` vive en portal-runtime.js y solo corre desde app.js, el último módulo
-       * de la página: para entonces ya se descargaron ~2 MB de JS. Con la API en Render (que
-       * suspende el servicio por inactividad) el arranque en frío ronda los 50 s, y ese retraso
-       * se sumaba entero al del bundle. Así petición y bundle bajan en paralelo.
+       * Prefetch de las vacantes públicas + "despertador" del backend: la petición sale aquí, no al
+       * final del arranque. `initPublicCareers` vive en portal-runtime.js y solo corre desde app.js,
+       * el último módulo de la página: para entonces ya se descargaron ~2 MB de JS. Con la API en
+       * Render (que suspende el servicio por inactividad) el arranque en frío ronda los 50 s, y ese
+       * retraso se sumaba entero al del bundle. Así petición y bundle bajan en paralelo.
+       * Se dispara SIEMPRE, haya o no sesión guardada: con sesión persistida esta respuesta no se
+       * usa (el portal hace sus propias llamadas), pero la petición igual despierta el backend antes
+       * de que el usuario llegue al formulario de login o al portal — que es lo que tarda si el
+       * dyno estaba dormido. Es un GET liviano, sin bloquear nada.
        * Consumidor: `initPublicCareers`. Si esta promesa falta o resuelve null, vuelve a pedirlo.
        */
       (function antaresPrefetchPublicVacancies() {
@@ -53,14 +57,6 @@
         }
         while (/\/api$/i.test(base)) base = base.slice(0, -4).replace(/\/+$/, "");
         if (!base) return;
-        try {
-          // Con sesión persistida la landing va oculta y el portal hace sus propias llamadas.
-          var raw = localStorage.getItem("antares_session_v2");
-          var session = raw ? JSON.parse(raw) : null;
-          if (session && session.userId) return;
-        } catch (_e) {
-          /* Sin acceso a localStorage: seguimos con el prefetch. */
-        }
         var controller = typeof AbortController !== "undefined" ? new AbortController() : null;
         // Holgado a propósito: por debajo del arranque en frío de Render cortaríamos peticiones sanas.
         var timer = controller
