@@ -3109,16 +3109,24 @@ body[data-theme="dark"] .doc-perm-users-wrap {
   gap: 0.1rem;
 }
 
+/* Nombre completo siempre visible (sin truncar): con varios colaboradores que
+   comparten primer nombre ("Carlos", "Cristian Camilo"...) un "Car…" recortado
+   obliga a entrar a cada carpeta para distinguirlos — mejor un par de líneas. */
 .documents-studio.doc-studio .doc-subfolder-card__name {
   font-size: 0.82rem;
   font-weight: 700;
   letter-spacing: 0.01em;
   color: var(--doc-text);
-  line-height: 1.25;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.3;
+  white-space: normal;
+  overflow-wrap: break-word;
   word-break: break-word;
+}
+
+/* El avatar se alinea arriba (no centrado) porque el nombre ahora puede ocupar
+   dos líneas; centrado quedaba descolgado respecto a la primera línea. */
+.documents-studio.doc-studio .doc-subfolder-card__open {
+  align-items: flex-start;
 }
 
 .documents-studio.doc-studio .doc-subfolder-card__meta {
@@ -3192,15 +3200,10 @@ body[data-theme="dark"] .doc-perm-users-wrap {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .documents-studio.doc-studio .doc-subfolder-card__name,
   .documents-studio.doc-studio .doc-folder-card__name {
     white-space: normal;
     overflow: visible;
     text-overflow: unset;
-  }
-
-  .documents-studio.doc-studio .doc-subfolder-card__open {
-    align-items: flex-start;
   }
 
   .documents-studio.doc-studio .doc-subfolder-card {
