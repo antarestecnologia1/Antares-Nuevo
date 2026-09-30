@@ -952,8 +952,8 @@ export function normalizeCompanyFolderRow(row) {
   return {
     id: String(row.id ?? ""),
     companyId: row.companyId ?? row.id_empresa ?? null,
-    folderName: normalizeCompanyFolder(row.folderName ?? row.nombre_carpeta ?? ""),
-    description: row.description ?? row.descripcion ?? "",
+    folderName: repairUtf8Mojibake(normalizeCompanyFolder(row.folderName ?? row.nombre_carpeta ?? "")),
+    description: repairUtf8Mojibake(String(row.description ?? row.descripcion ?? "")),
     rolesView: parseRoleList(row.rolesView ?? row.roles_ver),
     rolesUpload: parseRoleList(row.rolesUpload ?? row.roles_subir),
     rolesDelete: parseRoleList(row.rolesDelete ?? row.roles_eliminar),
