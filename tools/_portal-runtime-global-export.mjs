@@ -233,6 +233,7 @@ Object.assign(globalThis, {
   payrollBulkEmployeeNameMap,
   payrollDocumentLogoUrl,
   payrollDraftLinkSuccessMessage,
+  payrollEmployeeMatchesFilters,
   pendingRequestsForTripAssignment,
   persistReportsBiLayout,
   populateRouteRateInlineForm,

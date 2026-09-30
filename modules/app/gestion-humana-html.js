@@ -57,71 +57,80 @@ function renderPayrollEmployeesConsultAlerts(stats) {
   return `<div class="payroll-consult-alerts" role="status" aria-label="Alertas de contratos">${chips.join("")}</div>`;
 }
 
-function renderPayrollEmployeesConsultToolbar(canDeletePayrollEmployees) {
-  return `<div class="payroll-consult-toolbar">${renderPayrollContractsFilterBar(canDeletePayrollEmployees)}</div>`;
+function renderPayrollEmployeesConsultToolbar(canDeletePayrollEmployees, filters) {
+  return `<div class="payroll-consult-toolbar">${renderPayrollContractsFilterBar(canDeletePayrollEmployees, filters)}</div>`;
 }
 
-function renderPayrollContractsFilterBar(canDeletePayrollEmployees) {
+function renderPayrollContractsFilterBar(canDeletePayrollEmployees, filters) {
+  const f = filters || {};
+  const q = String(f.q || "");
+  const cf = String(f.cf || "all");
+  const tf = String(f.tf || "all");
+  const df = String(f.df || "all");
+  const lf = String(f.lf || "active");
+  const catf = String(f.catf || "all");
+  const vf = String(f.vf || "all");
+  const sel = (value, current) => (value === current ? " selected" : "");
   return `<div class="payroll-contracts-filterbar">
     <label class="payroll-contracts-search">
       <span class="visually-hidden">Buscar</span>
       ${IC.search}
-      <input type="search" id="payroll-employee-search" placeholder="Buscar colaborador, documento o cargo…" autocomplete="off" />
+      <input type="search" id="payroll-employee-search" placeholder="Buscar colaborador, documento o cargo…" autocomplete="off" value="${escapeAttr(q)}" />
     </label>
     <label class="payroll-contracts-filter">
       <span>Contrato</span>
       <select id="payroll-employee-contract-type-filter">
-        <option value="all">Todos</option>
-        <option value="fixed">Término fijo</option>
-        <option value="indefinite">Indefinido</option>
-        <option value="services">Prestación de servicios</option>
+        <option value="all"${sel("all", tf)}>Todos</option>
+        <option value="fixed"${sel("fixed", tf)}>Término fijo</option>
+        <option value="indefinite"${sel("indefinite", tf)}>Indefinido</option>
+        <option value="services"${sel("services", tf)}>Prestación de servicios</option>
       </select>
     </label>
     <label class="payroll-contracts-filter">
       <span>Vinculación</span>
       <select id="payroll-employee-link-filter">
-        <option value="active">Activos</option>
-        <option value="unlinked">Desvinculados</option>
-        <option value="all">Todos</option>
+        <option value="active"${sel("active", lf)}>Activos</option>
+        <option value="unlinked"${sel("unlinked", lf)}>Desvinculados</option>
+        <option value="all"${sel("all", lf)}>Todos</option>
       </select>
     </label>
     <label class="payroll-contracts-filter">
       <span>Vehículo</span>
       <select id="payroll-employee-vehicle-filter">
-        <option value="all">Todos</option>
-        <option value="Camion">Camión</option>
-        <option value="Turbo">Turbo</option>
-        <option value="Tractomula">Mula</option>
-        <option value="none">Sin categoría</option>
+        <option value="all"${sel("all", vf)}>Todos</option>
+        <option value="Camion"${sel("Camion", vf)}>Camión</option>
+        <option value="Turbo"${sel("Turbo", vf)}>Turbo</option>
+        <option value="Tractomula"${sel("Tractomula", vf)}>Mula</option>
+        <option value="none"${sel("none", vf)}>Sin categoría</option>
       </select>
     </label>
-    <label class="payroll-contracts-filter" hidden>
+    <label class="payroll-contracts-filter"${lf === "active" ? " hidden" : ""}>
       <span>Categoría</span>
       <select id="payroll-employee-unlink-category-filter">
-        <option value="all">Todas</option>
-        <option value="renuncia_voluntaria">Renuncia voluntaria</option>
-        <option value="despido_sin_justa">Despido sin justa causa</option>
-        <option value="despido_justa">Despido con justa causa</option>
-        <option value="mutuo_acuerdo">Mutuo acuerdo</option>
-        <option value="vencimiento_contrato">Vencimiento de contrato</option>
-        <option value="otro">Otro</option>
+        <option value="all"${sel("all", catf)}>Todas</option>
+        <option value="renuncia_voluntaria"${sel("renuncia_voluntaria", catf)}>Renuncia voluntaria</option>
+        <option value="despido_sin_justa"${sel("despido_sin_justa", catf)}>Despido sin justa causa</option>
+        <option value="despido_justa"${sel("despido_justa", catf)}>Despido con justa causa</option>
+        <option value="mutuo_acuerdo"${sel("mutuo_acuerdo", catf)}>Mutuo acuerdo</option>
+        <option value="vencimiento_contrato"${sel("vencimiento_contrato", catf)}>Vencimiento de contrato</option>
+        <option value="otro"${sel("otro", catf)}>Otro</option>
       </select>
     </label>
     <label class="payroll-contracts-filter">
       <span>Estado</span>
       <select id="payroll-employee-contract-filter">
-        <option value="all">Todos</option>
-        <option value="notice_window">Por vencer (30 días)</option>
-        <option value="expired">Vencidos</option>
-        <option value="active">Vigentes</option>
+        <option value="all"${sel("all", cf)}>Todos</option>
+        <option value="notice_window"${sel("notice_window", cf)}>Por vencer (30 días)</option>
+        <option value="expired"${sel("expired", cf)}>Vencidos</option>
+        <option value="active"${sel("active", cf)}>Vigentes</option>
       </select>
     </label>
     <label class="payroll-contracts-filter">
       <span>Fecha</span>
       <select id="payroll-employee-contract-date-filter">
-        <option value="all">Todas</option>
-        <option value="ends_30">Vence en 30 días</option>
-        <option value="ends_month">Vence este mes</option>
+        <option value="all"${sel("all", df)}>Todas</option>
+        <option value="ends_30"${sel("ends_30", df)}>Vence en 30 días</option>
+        <option value="ends_month"${sel("ends_month", df)}>Vence este mes</option>
       </select>
     </label>
     <div class="payroll-contracts-filterbar__actions">
@@ -270,13 +279,27 @@ function payrollHtml() {
     (s) => s.contract.applies && (s.contract.statusSlug === "notice_window" || s.contract.statusSlug === "expired")
   ).length;
   const contractDashboardStats = computePayrollContractDashboardStats(activeEmployeeSummaries);
+  const employeesFilters = (payrollUi.employeesFilters && typeof payrollUi.employeesFilters === "object") ? payrollUi.employeesFilters : {};
+  const hasActiveEmployeeFilters = Boolean(
+    String(employeesFilters.q || "").trim() ||
+      (employeesFilters.cf && employeesFilters.cf !== "all") ||
+      (employeesFilters.tf && employeesFilters.tf !== "all") ||
+      (employeesFilters.df && employeesFilters.df !== "all") ||
+      (employeesFilters.lf && employeesFilters.lf !== "active") ||
+      (employeesFilters.catf && employeesFilters.catf !== "all") ||
+      (employeesFilters.vf && employeesFilters.vf !== "all")
+  );
+  // Filtrar ANTES de paginar: si no, buscar/filtrar solo encuentra lo que ya está en la página actual.
+  const employeesFilteredSummaries = hasActiveEmployeeFilters
+    ? employeeSummaries.filter((item) => payrollEmployeeMatchesFilters(item, employeesFilters, colombiaTodayIsoDate()))
+    : employeeSummaries;
   const employeesPageSize = Math.max(5, Number(payrollUi.employeesPageSize) || 10);
   const employeesPage = Math.max(1, Number(payrollUi.employeesPage) || 1);
-  const employeesTotal = employeeSummaries.length;
+  const employeesTotal = employeesFilteredSummaries.length;
   const employeesPageCount = Math.max(1, Math.ceil(employeesTotal / employeesPageSize));
   const employeesSafePage = Math.min(employeesPage, employeesPageCount);
   const employeesPageStart = (employeesSafePage - 1) * employeesPageSize;
-  const employeeSummariesPage = employeeSummaries.slice(employeesPageStart, employeesPageStart + employeesPageSize);
+  const employeeSummariesPage = employeesFilteredSummaries.slice(employeesPageStart, employeesPageStart + employeesPageSize);
   const employeeCards = employeeSummariesPage
     .map((item) => renderPayrollEmployeeDirectoryCard(item, canDeletePayrollEmployees, { compact: true }))
     .join("");
@@ -1000,7 +1023,7 @@ function payrollHtml() {
   const employeeSelectHeader = canDeletePayrollEmployees
     ? `<th class="payroll-contracts-table__check"><input type="checkbox" id="employees-select-all-header" aria-label="Seleccionar todos" /></th>`
     : "";
-  const employeeContractsDashboard = renderPayrollEmployeesConsultToolbar(canDeletePayrollEmployees);
+  const employeeContractsDashboard = renderPayrollEmployeesConsultToolbar(canDeletePayrollEmployees, employeesFilters);
   const employeeTableToolbar = renderPayrollContractsTableToolbar(employeesView, canDeletePayrollEmployees);
   const employeePagination = renderPayrollContractsPagination(employeesTotal, employeesSafePage, employeesPageSize);
   const employeeTable = employeeTableRows
@@ -1015,14 +1038,18 @@ function payrollHtml() {
         ${employeePagination}
       </div>`
     : "";
+  const employeesEmptyMessage =
+    hasActiveEmployeeFilters && employees.length > 0
+      ? "Ningún colaborador coincide con los filtros aplicados. Prueba a limpiar los filtros o ajustar la búsqueda."
+      : "No hay empleados registrados.";
   const empTable =
     employeesView === "list"
       ? employeeTableRows
         ? `${employeeContractsDashboard}${employeeTable}`
-        : `${employeeContractsDashboard}${emptyState("No hay empleados registrados.")}`
+        : `${employeeContractsDashboard}${emptyState(employeesEmptyMessage)}`
       : employeeCards
         ? `${employeeContractsDashboard}${employeeTableToolbar}<div class="employees-grid directory-grid payroll-employees-grid portal-ops-cards">${employeeCards}</div>${employeePagination}`
-        : `${employeeContractsDashboard}${emptyState("No hay empleados registrados.")}`;
+        : `${employeeContractsDashboard}${emptyState(employeesEmptyMessage)}`;
   const runCardsGrid = sortedRuns.length
     ? `<div class="payroll-run-cards-grid">${runsToRender.map((r) => renderPayrollRunCard(r, { compact: true, selectable: true })).join("")}</div>${payrollRunsMoreBar}`
     : "";

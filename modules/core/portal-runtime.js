@@ -7727,6 +7727,63 @@ function renderPayrollEmployeeDirectoryTableRow(item, hrAdminDeletes) {
   </tr>`;
 }
 
+/**
+ * Evalúa si un colaborador (resumen de `summarizePayrollEmployeeForDirectory`) coincide con los
+ * filtros de búsqueda de la lista de Gestión Humana. Se aplica ANTES de paginar, sobre el listado
+ * completo — así buscar/filtrar encuentra resultados sin importar en qué página esté el usuario
+ * (antes, el filtro solo miraba las filas ya renderizadas de la página actual).
+ */
+function payrollEmployeeMatchesFilters(item, filters, todayYmd) {
+  const e = item?.raw || {};
+  const f = filters || {};
+  const q = String(f.q || "").trim().toLowerCase();
+  const cf = String(f.cf || "all");
+  const tf = String(f.tf || "all");
+  const df = String(f.df || "all");
+  const lf = String(f.lf || "active");
+  const catf = String(f.catf || "all");
+  const vf = String(f.vf || "all");
+  const blob = String(item?.searchBlob || "");
+  const slug = item?.contract?.applies ? String(item.contract.statusSlug || "all") : "all";
+  const typeKey = payrollEmployeeContractTypeKey(e);
+  const endYmd = normalizePortalDateYmd(item?.contract?.endYmd || e.contractEndDate || "");
+  const link = item?.isUnlinked ? "unlinked" : "active";
+  const cat = String(payrollEmployeeUnlinkCategory(e) || "");
+  const vehicleCsv = String(item?.vehicleCsv || "");
+  const matchQ = !q || blob.includes(q);
+  const matchC = cf === "all" || slug === cf;
+  const matchT = tf === "all" || typeKey === tf;
+  const matchL = lf === "all" || link === lf;
+  const matchCat = catf === "all" || lf === "active" || cat === catf;
+  const matchV =
+    vf === "all" ||
+    (vf === "none" && !vehicleCsv.trim()) ||
+    (vf !== "none" && driverHasCanonicalVehicleType(vehicleCsv, vf));
+  let matchD = true;
+  if (df !== "all" && endYmd) {
+    if (df === "ends_month") matchD = endYmd.slice(0, 7) === String(todayYmd || "").slice(0, 7);
+    else if (df === "ends_30") {
+      const a = new Date(`${todayYmd}T12:00:00`);
+      const b = new Date(`${endYmd}T12:00:00`);
+      const days =
+        Number.isFinite(a.getTime()) && Number.isFinite(b.getTime())
+          ? Math.round((b.getTime() - a.getTime()) / 86400000)
+          : null;
+      matchD = days != null && days >= 0 && days <= 30;
+    } else matchD = false;
+  } else if (df !== "all" && !endYmd) {
+    matchD = false;
+  }
+  return matchQ && matchC && matchT && matchD && matchL && matchCat && matchV;
+}
+
+/**
+ * Cablea los controles de búsqueda/filtro de la lista de colaboradores. Cada cambio actualiza
+ * `state.payrollUi.employeesFilters` (vuelve a página 1) y dispara un re-render completo, que es
+ * el que filtra+pagina el listado (ver `payrollEmployeeMatchesFilters` y `payrollHtml`). El buscador
+ * de texto usa un pequeño debounce y restaura el foco/cursor tras el re-render para no interrumpir
+ * al usuario mientras escribe.
+ */
 function wirePayrollEmployeeDirectoryFilters() {
   const searchEl = document.getElementById("payroll-employee-search");
   const filterEl = document.getElementById("payroll-employee-contract-filter");
@@ -7735,68 +7792,47 @@ function wirePayrollEmployeeDirectoryFilters() {
   const linkEl = document.getElementById("payroll-employee-link-filter");
   const catEl = document.getElementById("payroll-employee-unlink-category-filter");
   const vehEl = document.getElementById("payroll-employee-vehicle-filter");
-  const rows = [
-    ...document.querySelectorAll(".directory-card--employee"),
-    ...document.querySelectorAll(".payroll-employee-table-row")
-  ];
-  if (!rows.length) return;
-  const today = colombiaTodayIsoDate();
-  const monthPrefix = today.slice(0, 7);
-  const apply = () => {
-    const q = String(searchEl?.value || "")
-      .trim()
-      .toLowerCase();
-    const cf = String(filterEl?.value || "all");
-    const tf = String(typeEl?.value || "all");
-    const df = String(dateEl?.value || "all");
-    const lf = String(linkEl?.value || "active");
-    const catf = String(catEl?.value || "all");
-    const vf = String(vehEl?.value || "all");
-    if (catEl) catEl.closest("label")?.toggleAttribute("hidden", lf === "active");
-    rows.forEach((row) => {
-      const blob = String(row.getAttribute("data-employee-search") || "");
-      const slug = String(row.getAttribute("data-employee-contract-filter") || "all");
-      const typeKey = String(row.getAttribute("data-employee-contract-type") || "all");
-      const endYmd = normalizePortalDateYmd(row.getAttribute("data-employee-contract-end") || "");
-      const link = String(row.getAttribute("data-employee-link") || "active");
-      const cat = String(row.getAttribute("data-employee-unlink-category") || "");
-      const vehicleCsv = String(row.getAttribute("data-employee-vehicle-types") || "");
-      const matchQ = !q || blob.includes(q);
-      const matchC = cf === "all" || slug === cf;
-      const matchT = tf === "all" || typeKey === tf;
-      const matchL = lf === "all" || link === lf;
-      const matchCat = catf === "all" || lf === "active" || cat === catf;
-      const matchV =
-        vf === "all" ||
-        (vf === "none" && !vehicleCsv.trim()) ||
-        (vf !== "none" && driverHasCanonicalVehicleType(vehicleCsv, vf));
-      let matchD = true;
-      if (df !== "all" && endYmd) {
-        if (df === "ends_month") matchD = endYmd.slice(0, 7) === monthPrefix;
-        else if (df === "ends_30") {
-          const a = new Date(`${today}T12:00:00`);
-          const b = new Date(`${endYmd}T12:00:00`);
-          const days =
-            Number.isFinite(a.getTime()) && Number.isFinite(b.getTime())
-              ? Math.round((b.getTime() - a.getTime()) / 86400000)
-              : null;
-          matchD = days != null && days >= 0 && days <= 30;
-        } else matchD = false;
-      } else if (df !== "all" && !endYmd) {
-        matchD = false;
-      }
-      row.classList.toggle("is-filtered-out", !(matchQ && matchC && matchT && matchD && matchL && matchCat && matchV));
-    });
-    window.syncPayrollEmployeeSelectionBadge?.();
+  if (!searchEl && !filterEl && !typeEl && !dateEl && !linkEl && !catEl && !vehEl) return;
+
+  const pendingFocus = state.__payrollEmployeesSearchFocus;
+  if (pendingFocus && searchEl) {
+    state.__payrollEmployeesSearchFocus = null;
+    searchEl.focus();
+    try {
+      searchEl.setSelectionRange(pendingFocus.start, pendingFocus.end);
+    } catch (_e) {
+      /* noop */
+    }
+  }
+
+  const applyFilterChange = (patch) => {
+    state.payrollUi = {
+      ...(state.payrollUi || { runSort: "recent", workspace: "data", dataSection: "employees" }),
+      employeesFilters: { ...(state.payrollUi?.employeesFilters || {}), ...patch },
+      employeesPage: 1,
+      workspace: "data",
+      dataSection: "employees"
+    };
+    persistHrWorkspace("payroll", "data");
+    renderPortalView();
   };
-  searchEl?.addEventListener("input", apply);
-  filterEl?.addEventListener("change", apply);
-  typeEl?.addEventListener("change", apply);
-  dateEl?.addEventListener("change", apply);
-  linkEl?.addEventListener("change", apply);
-  catEl?.addEventListener("change", apply);
-  vehEl?.addEventListener("change", apply);
-  apply();
+
+  searchEl?.addEventListener("input", () => {
+    state.__payrollEmployeesSearchFocus = {
+      start: searchEl.selectionStart,
+      end: searchEl.selectionEnd
+    };
+    clearTimeout(state.__payrollEmployeesSearchDebounceTimer);
+    state.__payrollEmployeesSearchDebounceTimer = setTimeout(() => {
+      applyFilterChange({ q: String(searchEl.value || "") });
+    }, 300);
+  });
+  filterEl?.addEventListener("change", () => applyFilterChange({ cf: String(filterEl.value || "all") }));
+  typeEl?.addEventListener("change", () => applyFilterChange({ tf: String(typeEl.value || "all") }));
+  dateEl?.addEventListener("change", () => applyFilterChange({ df: String(dateEl.value || "all") }));
+  linkEl?.addEventListener("change", () => applyFilterChange({ lf: String(linkEl.value || "active") }));
+  catEl?.addEventListener("change", () => applyFilterChange({ catf: String(catEl.value || "all") }));
+  vehEl?.addEventListener("change", () => applyFilterChange({ vf: String(vehEl.value || "all") }));
 }
 
 
@@ -15110,6 +15146,7 @@ Object.assign(window, {
   wireFormDocDuplicateCheck,
   wireMoneyInputs,
   wireMonthlyPayrollConcepts,
+  payrollEmployeeMatchesFilters,
   wirePayrollEmployeeDirectoryFilters,
   wirePayrollEmployeeFormFieldSanitization,
   wireRouteRateScopeSection,

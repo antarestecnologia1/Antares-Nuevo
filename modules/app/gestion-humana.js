@@ -2760,15 +2760,17 @@ function bindPayrollPortalControls() {
   });
 
   document.getElementById("payroll-contracts-clear-filters")?.addEventListener("click", () => {
-    ["payroll-employee-search", "payroll-employee-contract-filter", "payroll-employee-contract-type-filter", "payroll-employee-contract-date-filter", "payroll-employee-link-filter", "payroll-employee-unlink-category-filter", "payroll-employee-vehicle-filter"].forEach(
-      (id) => {
-        const el = document.getElementById(id);
-        if (!el) return;
-        if (el.tagName === "SELECT") el.value = "all";
-        else el.value = "";
-      }
-    );
-    document.getElementById("payroll-employee-search")?.dispatchEvent(new Event("input", { bubbles: true }));
+    clearTimeout(state.__payrollEmployeesSearchDebounceTimer);
+    state.__payrollEmployeesSearchFocus = null;
+    state.payrollUi = {
+      ...(state.payrollUi || { runSort: "recent", workspace: "data", dataSection: "employees" }),
+      employeesFilters: { lf: "all" },
+      employeesPage: 1,
+      workspace: "data",
+      dataSection: "employees"
+    };
+    persistHrWorkspace("payroll", "data");
+    renderPortalView();
   });
 
   document.getElementById("export-employees-contracts")?.addEventListener("click", () => {
