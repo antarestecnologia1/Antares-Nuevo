@@ -1170,11 +1170,15 @@ function renderDocumentManagementShell() {
           });
     return `<section class="documents-studio doc-studio doc-studio--explorer">
       ${renderHeader(ui, IC)}
-      ${renderCategoryRail(topFolders, ui, IC)}
-      <div class="doc-explorer">
-        ${renderExplorerPath(ui, IC)}
-        ${renderExplorerToolbar(ui, IC)}
-        <section class="doc-docs-panel" aria-label="Papelera">${trashBody}</section>
+      <div class="doc-layout doc-layout--simple">
+        <aside class="doc-side-nav" aria-label="Carpetas principales">${renderCategoryRail(topFolders, ui, IC)}</aside>
+        <div class="doc-main">
+          <div class="doc-explorer">
+            ${renderExplorerPath(ui, IC)}
+            ${renderExplorerToolbar(ui, IC)}
+            <section class="doc-docs-panel" aria-label="Papelera">${trashBody}</section>
+          </div>
+        </div>
       </div>
     </section>`;
   }
@@ -1242,8 +1246,8 @@ function renderDocumentManagementShell() {
     ${renderHeader(ui, IC)}
     ${renderKpis(summary, IC)}
     ${renderValidityBanner(summary)}
-    ${renderCategoryRail(topFolders, ui, IC)}
     <div class="doc-layout">
+      <aside class="doc-side-nav" aria-label="Carpetas principales">${renderCategoryRail(topFolders, ui, IC)}</aside>
       <div class="doc-main">
         <div class="doc-explorer">
           ${renderExplorerPath(ui, IC)}

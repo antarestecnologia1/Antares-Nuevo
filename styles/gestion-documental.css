@@ -330,9 +330,20 @@
 
 .documents-studio.doc-studio .doc-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px;
-  gap: 1.25rem;
+  grid-template-columns: 228px minmax(0, 1fr) 280px;
+  gap: 1.1rem;
   align-items: start;
+}
+
+/* Vista de papelera: sin la columna de resumen/recientes de la derecha. */
+.documents-studio.doc-studio .doc-layout--simple {
+  grid-template-columns: 228px minmax(0, 1fr);
+}
+
+.documents-studio.doc-studio .doc-side-nav {
+  min-width: 0;
+  position: sticky;
+  top: 1rem;
 }
 
 .documents-studio.doc-studio .doc-main {
@@ -2650,40 +2661,49 @@ body[data-theme="dark"] .doc-perm-users-wrap {
 /* Antes: rejilla de tarjetas grandes (2-3 filas). Ahora: una sola franja de
    pestañas — mismo dato (ícono, nombre, conteo, candado de permisos) pero en
    una línea compacta, como una barra de pestañas de escritorio. */
+/* Antes (tarjetas grandes en grilla) → luego (franja de pestañas horizontal) →
+   ahora: rail de navegación vertical, con superficie propia (tono gris sutil)
+   para que se lea como "navegación" y no compita con el contenido blanco. */
 .documents-studio.doc-studio .doc-categories {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  padding: 0.35rem;
-  background: var(--doc-surface);
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.5rem;
+  background: var(--doc-surface-2);
   border: 1px solid var(--doc-border);
   border-radius: var(--doc-radius);
-  box-shadow: var(--doc-shadow);
 }
 
 .documents-studio.doc-studio .doc-cat-card {
   position: relative;
   display: flex;
   align-items: center;
-  flex: 0 0 auto;
+  width: 100%;
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-left: 2.5px solid transparent;
+  border-radius: 8px;
   background: transparent;
   transition: border-color var(--doc-fast), box-shadow var(--doc-fast), background var(--doc-fast);
 }
 
+.documents-studio.doc-studio .doc-cat-card:not(.is-active):hover {
+  background: rgba(15, 23, 42, 0.045);
+}
+
 .documents-studio.doc-studio .doc-cat-card.is-active {
-  border-color: rgba(37, 99, 235, 0.22);
-  background: var(--doc-primary-soft);
-  box-shadow: none;
+  border-color: var(--doc-border);
+  border-left-color: var(--doc-primary);
+  background: var(--doc-surface);
+  box-shadow: var(--doc-shadow);
 }
 
 .documents-studio.doc-studio .doc-cat-card__open {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
-  width: auto;
-  padding: 0.38rem 0.7rem 0.38rem 0.45rem;
+  gap: 0.55rem;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0.5rem 0.55rem;
   border: 0;
   background: transparent;
   text-align: left;
@@ -2694,16 +2714,16 @@ body[data-theme="dark"] .doc-perm-users-wrap {
 
 .documents-studio.doc-studio .doc-cat-card__icon {
   flex-shrink: 0;
-  width: 1.55rem;
-  height: 1.55rem;
+  width: 1.7rem;
+  height: 1.7rem;
   border-radius: 7px;
   display: grid;
   place-items: center;
 }
 
 .documents-studio.doc-studio .doc-cat-card__icon svg {
-  width: 0.8rem;
-  height: 0.8rem;
+  width: 0.9rem;
+  height: 0.9rem;
 }
 
 .documents-studio.doc-studio .doc-cat-card__icon--blue { background: var(--doc-tone-blue-soft); color: var(--doc-tone-blue); }
@@ -2713,37 +2733,51 @@ body[data-theme="dark"] .doc-perm-users-wrap {
 .documents-studio.doc-studio .doc-cat-card__icon--cyan { background: var(--doc-tone-cyan-soft); color: var(--doc-tone-cyan); }
 .documents-studio.doc-studio .doc-cat-card__icon--rose { background: var(--doc-tone-rose-soft); color: var(--doc-tone-rose); }
 
+/* En columna, no en línea: a 208px de ancho, el nombre + una insignia de
+   conteo en la misma fila dejaba casi sin espacio al nombre (se veía "0…" en
+   vez de "01. Empleados"). Apilado, el nombre siempre tiene el ancho completo. */
 .documents-studio.doc-studio .doc-cat-card__body {
   display: flex;
-  flex-direction: row;
-  align-items: baseline;
-  gap: 0.3rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  flex: 1 1 auto;
   min-width: 0;
 }
 
 .documents-studio.doc-studio .doc-cat-card__name {
-  font-size: 0.8rem;
-  font-weight: 700;
+  font-size: 0.82rem;
+  font-weight: 600;
   color: var(--doc-text);
   line-height: 1.25;
-  max-width: 13rem;
+  width: 100%;
+  max-width: none;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  word-break: break-word;
 }
 
 .documents-studio.doc-studio .doc-cat-card.is-active .doc-cat-card__name {
   color: var(--doc-primary);
+  font-weight: 700;
 }
 
+/* El conteo ahora es una insignia redondeada a la derecha (patrón típico de
+   rail de navegación), no texto en línea con el nombre. */
 .documents-studio.doc-studio .doc-cat-card__meta {
-  font-size: 0.7rem;
+  flex-shrink: 0;
+  font-size: 0.66rem;
+  font-weight: 700;
   color: var(--doc-text-faint);
+  background: var(--doc-border);
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  white-space: nowrap;
 }
 
-.documents-studio.doc-studio .doc-cat-card__meta::before {
-  content: "· ";
+.documents-studio.doc-studio .doc-cat-card.is-active .doc-cat-card__meta {
+  color: var(--doc-primary);
+  background: var(--doc-primary-soft);
 }
 
 /* El candado queda en el flujo normal (no absoluto) y siempre reserva su
@@ -3108,15 +3142,17 @@ body[data-theme="dark"] .doc-perm-users-wrap {
 }
 
 @media (max-width: 1100px) {
-  .documents-studio.doc-studio .doc-categories {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* El rail de categorías se apila arriba (grid-template-columns:1fr en
+     .doc-layout) y queda a ancho completo; sigue siendo una lista vertical,
+     solo que ya no necesita truncar tanto el nombre. */
+  .documents-studio.doc-studio .doc-cat-card__name {
+    max-width: none;
   }
 
   .documents-studio.doc-studio .doc-subfolder-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .documents-studio.doc-studio .doc-cat-card__name,
   .documents-studio.doc-studio .doc-subfolder-card__name,
   .documents-studio.doc-studio .doc-folder-card__name {
     white-space: normal;
@@ -3124,7 +3160,6 @@ body[data-theme="dark"] .doc-perm-users-wrap {
     text-overflow: unset;
   }
 
-  .documents-studio.doc-studio .doc-cat-card__open,
   .documents-studio.doc-studio .doc-subfolder-card__open {
     align-items: flex-start;
   }
@@ -3144,7 +3179,6 @@ body[data-theme="dark"] .doc-perm-users-wrap {
 }
 
 @media (max-width: 720px) {
-  .documents-studio.doc-studio .doc-categories,
   .documents-studio.doc-studio .doc-kpi-grid--compact {
     grid-template-columns: 1fr 1fr;
   }
@@ -3177,10 +3211,6 @@ body[data-theme="dark"] .doc-perm-users-wrap {
 }
 
 @media (max-width: 480px) {
-  .documents-studio.doc-studio .doc-categories {
-    grid-template-columns: 1fr;
-  }
-
   .documents-studio.doc-studio .doc-cat-card__name {
     font-size: 0.88rem;
   }
