@@ -944,6 +944,13 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 0.875rem;
+  /* Sin esto, el grid estira (align-items: stretch, valor por defecto) TODAS las tarjetas
+     de la fila a la altura de la que tenga el mouse/foco encima (`.doc-card:hover .doc-card__meta`
+     se expande). Al pasar el cursor de una tarjeta a otra hay un instante sin ninguna en :hover
+     y toda la fila se encoge y vuelve a crecer de golpe — se percibe como parpadeo ("titila") al
+     barrer el cursor por varias tarjetas seguidas. `align-items: start` deja que cada tarjeta
+     crezca de forma independiente según su propio contenido. */
+  align-items: start;
 }
 
 .documents-studio.doc-studio .doc-card {

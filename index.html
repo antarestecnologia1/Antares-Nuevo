@@ -111,10 +111,10 @@
     <link rel="stylesheet" href="./styles/calendar-module.css?v=20260626-cards-flex-fill" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/history-module.css?v=20260626-cards-flex-fill" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/reports-module.css?v=20260626-cards-flex-fill" media="print" onload="this.onload=null;this.media='all'" />
-    <link rel="stylesheet" href="./styles/payroll-module.css?v=20260831-absence-support" media="print" onload="this.onload=null;this.media='all'" />
+    <link rel="stylesheet" href="./styles/payroll-module.css?v=20260930-employee-filters-fix" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/hiring-module.css?v=20260804-hiring-candidate-fix" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/sst-module.css?v=20260714-sst-operate-ui" media="print" onload="this.onload=null;this.media='all'" />
-    <link rel="stylesheet" href="./styles/gestion-documental.css?v=20260918b-ui-improvements" media="print" onload="this.onload=null;this.media='all'" />
+    <link rel="stylesheet" href="./styles/gestion-documental.css?v=20260930-doc-card-hover-flicker-fix" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/sarlaft-module.css?v=20260916-sarlaft-matrix" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/b2b-module.css?v=20260626-cards-flex-fill" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/admin-users-module.css?v=20260626-cards-flex-fill" media="print" onload="this.onload=null;this.media='all'" />
@@ -140,10 +140,10 @@
       <link rel="stylesheet" href="./styles/calendar-module.css?v=20260626-cards-flex-fill" />
       <link rel="stylesheet" href="./styles/history-module.css?v=20260626-cards-flex-fill" />
       <link rel="stylesheet" href="./styles/reports-module.css?v=20260626-cards-flex-fill" />
-      <link rel="stylesheet" href="./styles/payroll-module.css?v=20260831-absence-support" />
+      <link rel="stylesheet" href="./styles/payroll-module.css?v=20260930-employee-filters-fix" />
       <link rel="stylesheet" href="./styles/hiring-module.css?v=20260804-hiring-candidate-fix" />
       <link rel="stylesheet" href="./styles/sst-module.css?v=20260714-sst-operate-ui" />
-      <link rel="stylesheet" href="./styles/gestion-documental.css?v=20260918b-ui-improvements" />
+      <link rel="stylesheet" href="./styles/gestion-documental.css?v=20260930-doc-card-hover-flicker-fix" />
       <link rel="stylesheet" href="./styles/sarlaft-module.css?v=20260916-sarlaft-matrix" />
       <link rel="stylesheet" href="./styles/b2b-module.css?v=20260626-cards-flex-fill" />
       <link rel="stylesheet" href="./styles/admin-users-module.css?v=20260626-cards-flex-fill" />
@@ -1449,7 +1449,7 @@
     <script defer src="./modules/domain-bootstrap.js"></script>
     <script defer src="./modules/core/feedback-messages.js?v=20260831-idle-banner"></script>
     <script defer src="./modules/portal/application.js"></script>
-    <script defer src="./modules/app/portal-icons.js?v=20260803-bandeja-v2"></script>
+    <script defer src="./modules/app/portal-icons.js?v=20260930-eye-toggle-icon"></script>
     <script type="module" src="./modules/portal/legacy-views-bridge.js"></script>
     <script defer src="./modules/payroll/portal-employee-list-sync.js"></script>
     <script defer src="./modules/recruitment/contracts-docx.js?v=20260804-hire-dms"></script>
@@ -1457,7 +1457,7 @@
       import * as AntaresConfig from "./modules/core/config.js?v=20260831-legal-accept";
       import * as AntaresUtils from "./modules/core/utils.js?v=20260916-sarlaft-matrix";
       import * as AntaresStore from "./modules/core/store.js";
-      import * as AntaresAuth from "./modules/core/auth.js?v=20260917d-login-scan-2-5s";
+      import * as AntaresAuth from "./modules/core/auth.js?v=20260930-eye-toggle-icon";
       import * as AntaresBootstrap from "./modules/core/bootstrap.js?v=20260917b-login-scan-shield";
       import { writeAwaitServer, writeAwaitServerEdit, writeAwaitServerCreate, writeAwaitServerDelete, writeAwaitServerLatestQueuedEmail, syncPayloadForEditedRow, syncPayloadForEditedObjectKeys, syncPayloadForChangedRows } from "./modules/core/data-io.js?v=20260917b-login-scan-shield";
       import * as AntaresPublicI18n from "./modules/domain/public-site.i18n.js";
@@ -1567,7 +1567,7 @@
       import * as AntaresSchedulePicker from "./modules/ui/portal-schedule-picker.js?v=20260622-time-slots";
       Object.assign(window, AntaresUIComponents, AntaresUIModals, AntaresI18n, AntaresSchedulePicker);
     </script>
-    <script type="module" src="./modules/core/portal-runtime.js?v=20260917b-login-scan-shield"></script>
+    <script type="module" src="./modules/core/portal-runtime.js?v=20260930-employee-filters-fix"></script>
     <script defer src="./modules/app/portal-transport-modals.js"></script>
     <script defer src="./modules/app/portal-rrhh-modals.js?v=20260831-payroll-bulk-paid"></script>
     <!-- Vistas legacy (`registerLegacyPortalViews`); deben ejecutarse antes de `app.js` para que el primer `renderPortal()` resuelva HTML. `viajes.js` antes de `mis-solicitudes.js` por `RENDER_WINDOW_SIZE`. -->
@@ -1581,8 +1581,8 @@
     <script defer src="./modules/app/calendario.js"></script>
     <script defer src="./modules/app/historial.js"></script>
     <script defer src="./modules/app/reporteria.js"></script>
-    <script defer src="./modules/app/gestion-humana-html.js?v=20260916-xss-fix"></script>
-    <script defer src="./modules/app/gestion-humana.js?v=20260909-slip-short"></script>
+    <script defer src="./modules/app/gestion-humana-html.js?v=20260930-employee-filters-fix"></script>
+    <script defer src="./modules/app/gestion-humana.js?v=20260930-employee-filters-fix"></script>
     <script defer src="./modules/app/rrhh-candidate-attachments.js?v=20260804-cv-r2"></script>
     <script defer src="./modules/app/contratacion-html.js?v=20260917-contract-live-name"></script>
     <script defer src="./modules/app/contratacion.js?v=20260917-contract-live-name"></script>
@@ -1590,10 +1590,10 @@
     <script type="module" src="./modules/app/gestion-documental.js?v=20260918b-ui-improvements"></script>
     <script type="module" src="./modules/app/sarlaft.js?v=20260917b-login-scan-shield"></script>
     <script defer src="./modules/app/contacto-b2b.js"></script>
-    <script defer src="./modules/app/usuarios-permisos.js"></script>
+    <script defer src="./modules/app/usuarios-permisos.js?v=20260930-eye-toggle-icon"></script>
     <script defer src="./modules/app/autorizaciones.js?v=20260831-payslip-1p"></script>
     <script defer src="./modules/app/mi-perfil.js"></script>
     <script type="module" src="./modules/app/notificaciones.js?v=20260630-security-audit-fix"></script>
-    <script type="module" src="./app.js?v=20260917e-logout-confirm"></script>
+    <script type="module" src="./app.js?v=20260930-eye-toggle-icon"></script>
   </body>
 </html>
