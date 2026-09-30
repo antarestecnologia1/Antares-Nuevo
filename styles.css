@@ -54,6 +54,14 @@
   --portal-sidebar-rail-width: var(--portal-sidebar-rail-width-expanded);
   --portal-main-scroll-thumb: rgba(var(--primary-rgb), 0.28);
   --portal-main-scroll-thumb-hover: rgba(var(--primary-rgb), 0.46);
+  --portal-sidebar-icon-bg: rgba(var(--primary-rgb), 0.08);
+  --portal-sidebar-icon-bg-hover: rgba(var(--primary-rgb), 0.15);
+  --portal-sidebar-icon-active-bg: var(--primary);
+  --portal-sidebar-icon-active-fg: #ffffff;
+  --portal-sidebar-label: rgba(58, 90, 120, 0.58);
+  --portal-sidebar-tagline-bg: rgba(var(--primary-rgb), 0.08);
+  --portal-sidebar-tagline-fg: var(--primary-dark);
+  --portal-sidebar-tagline-border: rgba(var(--primary-rgb), 0.3);
   --public-hamburger-bg: rgba(var(--primary-rgb), 0.1);
   --public-hamburger-border: rgba(var(--primary-rgb), 0.18);
   --public-hamburger-icon: var(--primary);
@@ -86,6 +94,14 @@ body[data-theme="dark"] {
   --portal-sidebar-active-text: #b8d9f5;
   --portal-sidebar-scroll-thumb: rgba(var(--primary-mid-rgb), 0.32);
   --portal-sidebar-scroll-thumb-hover: rgba(var(--primary-mid-rgb), 0.5);
+  --portal-sidebar-icon-bg: rgba(var(--primary-mid-rgb), 0.14);
+  --portal-sidebar-icon-bg-hover: rgba(var(--primary-mid-rgb), 0.24);
+  --portal-sidebar-icon-active-bg: var(--primary-mid);
+  --portal-sidebar-icon-active-fg: #0b2138;
+  --portal-sidebar-label: rgba(184, 217, 245, 0.58);
+  --portal-sidebar-tagline-bg: rgba(var(--primary-mid-rgb), 0.16);
+  --portal-sidebar-tagline-fg: #d7e8ff;
+  --portal-sidebar-tagline-border: rgba(var(--primary-mid-rgb), 0.4);
   --text: #e8f4fc;
   --text-main: #e8f4fc;
   --text-soft: #9ec7e8;
@@ -2793,6 +2809,12 @@ body.portal-sidebar-collapsed .sidebar-resize-handle {
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .side-link:hover {
+    transform: none;
+  }
+}
+
 body.portal-sidebar-collapsed {
   --portal-sidebar-rail-width: var(--portal-sidebar-rail-width-collapsed);
 }
@@ -3198,10 +3220,10 @@ body:not(.portal-sidebar-collapsed) .sidebar-expand-toggle-icon--expand {
   font-weight: 800;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: rgba(147, 197, 255, 0.85);
-  background: linear-gradient(90deg, rgba(var(--primary-mid-rgb), 0.2), transparent);
+  color: var(--portal-sidebar-tagline-fg);
+  background: var(--portal-sidebar-tagline-bg);
   border-radius: 8px;
-  border-left: 3px solid rgba(var(--primary-mid-rgb), 0.85);
+  border-left: 3px solid var(--portal-sidebar-tagline-border);
 }
 
 .portal-header-bar {
@@ -3298,7 +3320,7 @@ body.portal-drawer-open .portal-menu-line:nth-child(3) {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 1.2px;
-  color: rgba(var(--primary-rgb), 0.45);
+  color: var(--portal-sidebar-label);
   padding: 0.8rem 0.5rem 0.3rem;
   margin: 0;
 }
@@ -3320,12 +3342,13 @@ body.portal-drawer-open .portal-menu-line:nth-child(3) {
   align-items: center;
   justify-content: center;
   gap: 0.28rem;
-  transition: background 0.2s ease, color 0.2s ease;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
 }
 
 .side-link:hover {
   background: rgba(var(--primary-rgb), 0.06);
   color: var(--portal-sidebar-link-hover);
+  transform: translateY(-1px);
 }
 
 .side-link.active {
@@ -3344,6 +3367,24 @@ body.portal-drawer-open .portal-menu-line:nth-child(3) {
   height: 64%;
   border-radius: 4px 0 0 4px;
   background: var(--primary);
+}
+
+.side-link__icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  padding: 0.3rem;
+  background: var(--portal-sidebar-icon-bg);
+  transition: background 0.2s ease;
+}
+
+.side-link:hover .side-link__icon-wrap:not(.sidebar-notif-bell-icon) {
+  background: var(--portal-sidebar-icon-bg-hover);
+}
+
+.side-link.active .side-link__icon-wrap:not(.sidebar-notif-bell-icon) {
+  background: var(--portal-sidebar-icon-active-bg);
 }
 
 .side-icon {
@@ -3366,8 +3407,10 @@ body.portal-drawer-open .portal-menu-line:nth-child(3) {
   flex-shrink: 0;
 }
 
-.side-link.active .side-icon { color: var(--primary); }
+.side-link.active .side-icon { color: var(--portal-sidebar-icon-active-fg); }
 .side-link:hover .side-icon { color: var(--portal-sidebar-link-hover); }
+.side-link.active:hover .side-link__icon-wrap:not(.sidebar-notif-bell-icon) { background: var(--portal-sidebar-icon-active-bg); }
+.side-link.active:hover .side-icon { color: var(--portal-sidebar-icon-active-fg); }
 
 .side-link.sidebar-logout-btn {
   color: var(--portal-sidebar-link);
