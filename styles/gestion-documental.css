@@ -59,6 +59,10 @@
    2. TOPBAR
    ========================================================================== */
 
+/* Banner "hero": no hay una foto real de la empresa que mostrar (y usar un
+   stock genérico sería falso), así que el efecto de portada se logra con un
+   degradado de marca a ancho completo, título/subtítulo en blanco y los
+   botones de acción en variante translúcida (ver más abajo). */
 .documents-studio.doc-studio .doc-topbar {
   display: flex;
   align-items: flex-start;
@@ -66,6 +70,10 @@
   gap: 1.25rem;
   flex-wrap: wrap;
   margin-bottom: 0; /* el ritmo vertical lo da el gap de .doc-studio--explorer */
+  padding: 1.5rem 1.75rem;
+  border-radius: var(--doc-radius);
+  background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 45%, #7c3aed 100%);
+  box-shadow: var(--doc-shadow);
 }
 
 .documents-studio.doc-studio .doc-topbar__titles {
@@ -75,17 +83,26 @@
 
 .documents-studio.doc-studio .doc-topbar__title {
   margin: 0;
-  font-size: 1.15rem; /* el título del módulo ya aparece arriba en el portal; aquí basta uno discreto */
+  font-size: 1.5rem;
   font-weight: 700;
   letter-spacing: -0.02em;
-  color: var(--doc-text);
+  color: #fff;
   line-height: 1.25;
 }
 
 .documents-studio.doc-studio .doc-topbar__subtitle {
-  margin: 0.15rem 0 0;
-  font-size: 0.8rem;
-  color: var(--doc-text-soft);
+  margin: 0.3rem 0 0;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+/* Línea de cifras reales (carpetas/documentos/almacenamiento) a modo de
+   resumen rápido dentro del banner; nunca variaciones o tendencias inventadas. */
+.documents-studio.doc-studio .doc-topbar__stats {
+  margin: 0.65rem 0 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.92);
 }
 
 .documents-studio.doc-studio .doc-topbar__actions {
@@ -95,6 +112,28 @@
   flex: 1 1 320px;
   justify-content: flex-end;
   flex-wrap: wrap;
+}
+
+.documents-studio.doc-studio .doc-topbar .doc-btn--ghost {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.28);
+  color: #fff;
+}
+
+.documents-studio.doc-studio .doc-topbar .doc-btn--ghost:hover {
+  background: rgba(255, 255, 255, 0.24);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: #fff;
+}
+
+.documents-studio.doc-studio .doc-topbar .doc-btn--primary {
+  background: #fff;
+  color: var(--doc-primary);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.16);
+}
+
+.documents-studio.doc-studio .doc-topbar .doc-btn--primary:hover {
+  background: rgba(255, 255, 255, 0.9);
 }
 
 /* Search */
@@ -324,26 +363,32 @@
   color: var(--doc-text-soft);
 }
 
+/* Estado real (vigencia de documentos, % de almacenamiento) en vez de una
+   variación o tendencia inventada — ver `renderKpis`. */
+.documents-studio.doc-studio .doc-kpi__sub--ok {
+  color: var(--doc-success);
+  font-weight: 600;
+}
+
+.documents-studio.doc-studio .doc-kpi__sub--warn {
+  color: var(--doc-warning);
+  font-weight: 600;
+}
+
+.documents-studio.doc-studio .doc-kpi__sub--danger {
+  color: var(--doc-danger);
+  font-weight: 600;
+}
+
 /* ============================================================================
    4. LAYOUT
    ========================================================================== */
 
 .documents-studio.doc-studio .doc-layout {
   display: grid;
-  grid-template-columns: 228px minmax(0, 1fr) 280px;
+  grid-template-columns: minmax(0, 1fr) 280px;
   gap: 1.1rem;
   align-items: start;
-}
-
-/* Vista de papelera: sin la columna de resumen/recientes de la derecha. */
-.documents-studio.doc-studio .doc-layout--simple {
-  grid-template-columns: 228px minmax(0, 1fr);
-}
-
-.documents-studio.doc-studio .doc-side-nav {
-  min-width: 0;
-  position: sticky;
-  top: 1rem;
 }
 
 .documents-studio.doc-studio .doc-main {
@@ -1351,6 +1396,56 @@
   font-size: 0.75rem;
   font-weight: 400;
   color: var(--doc-text-faint);
+}
+
+/* Desglose real de almacenamiento por tipo de archivo (ver `storageBreakdown`
+   en gestion-documental.js) — mismos colores que los íconos de documento. */
+.documents-studio.doc-studio .doc-storage-legend {
+  list-style: none;
+  margin: 0.8rem 0 0;
+  padding: 0.6rem 0 0;
+  border-top: 1px solid var(--doc-border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.documents-studio.doc-studio .doc-storage-legend__item {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.75rem;
+}
+
+.documents-studio.doc-studio .doc-storage-legend__dot {
+  flex-shrink: 0;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+}
+
+.documents-studio.doc-studio .doc-storage-legend__dot--pdf { background: #dc2626; }
+.documents-studio.doc-studio .doc-storage-legend__dot--doc { background: #2563eb; }
+.documents-studio.doc-studio .doc-storage-legend__dot--sheet { background: #059669; }
+.documents-studio.doc-studio .doc-storage-legend__dot--slide { background: #d97706; }
+.documents-studio.doc-studio .doc-storage-legend__dot--image { background: #7c3aed; }
+.documents-studio.doc-studio .doc-storage-legend__dot--archive { background: #475569; }
+.documents-studio.doc-studio .doc-storage-legend__dot--text { background: #0891b2; }
+.documents-studio.doc-studio .doc-storage-legend__dot--other { background: var(--doc-text-faint); }
+
+.documents-studio.doc-studio .doc-storage-legend__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--doc-text-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.documents-studio.doc-studio .doc-storage-legend__value {
+  flex-shrink: 0;
+  font-weight: 600;
+  color: var(--doc-text);
 }
 
 .documents-studio.doc-studio .doc-recent-list {
@@ -2608,66 +2703,13 @@ body[data-theme="dark"] .doc-perm-users-wrap {
   gap: 0.7rem;
 }
 
-/* Franja de indicadores: antes 4 tarjetas sueltas (borde+sombra c/u); ahora una
-   sola franja con separadores internos — mismo contenido, menos "cajas" apiladas. */
-.documents-studio.doc-studio .doc-kpi-grid--compact {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0;
-  margin-bottom: 0;
-  background: var(--doc-surface);
-  border: 1px solid var(--doc-border);
-  border-radius: var(--doc-radius);
-  box-shadow: var(--doc-shadow);
-  overflow: hidden;
-}
-
-.documents-studio.doc-studio .doc-kpi-grid--compact .doc-kpi {
-  position: relative;
-  padding: 0.55rem 0.9rem;
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
-  background: transparent;
-}
-
-.documents-studio.doc-studio .doc-kpi-grid--compact .doc-kpi:not(:last-child)::after {
-  content: "";
-  position: absolute;
-  right: 0;
-  top: 0.45rem;
-  bottom: 0.45rem;
-  width: 1px;
-  background: var(--doc-border);
-}
-
-.documents-studio.doc-studio .doc-kpi-grid--compact .doc-kpi__icon {
-  width: 1.9rem;
-  height: 1.9rem;
-}
-
-.documents-studio.doc-studio .doc-kpi-grid--compact .doc-kpi__icon svg {
-  width: 1rem;
-  height: 1rem;
-}
-
-.documents-studio.doc-studio .doc-kpi-grid--compact .doc-kpi__value {
-  font-size: 1.1rem;
-}
-
-.documents-studio.doc-studio .doc-kpi-grid--compact .doc-kpi__sub {
-  display: none;
-}
-
-/* Antes: rejilla de tarjetas grandes (2-3 filas). Ahora: una sola franja de
-   pestañas — mismo dato (ícono, nombre, conteo, candado de permisos) pero en
-   una línea compacta, como una barra de pestañas de escritorio. */
-/* Antes (tarjetas grandes en grilla) → luego (franja de pestañas horizontal) →
-   ahora: rail de navegación vertical, con superficie propia (tono gris sutil)
-   para que se lea como "navegación" y no compita con el contenido blanco. */
+/* Rail de categorías: franja horizontal de "píldoras" (una por carpeta
+   principal), con salto de línea si no caben todas — ver `.doc-cat-card`. */
 .documents-studio.doc-studio .doc-categories {
   display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 0.4rem;
   padding: 0.5rem;
   background: var(--doc-surface-2);
   border: 1px solid var(--doc-border);
@@ -2678,32 +2720,28 @@ body[data-theme="dark"] .doc-perm-users-wrap {
   position: relative;
   display: flex;
   align-items: center;
-  width: 100%;
-  border: 1px solid transparent;
-  border-left: 2.5px solid transparent;
-  border-radius: 8px;
-  background: transparent;
+  border: 1px solid var(--doc-border);
+  border-radius: 999px;
+  background: var(--doc-surface);
   transition: border-color var(--doc-fast), box-shadow var(--doc-fast), background var(--doc-fast);
 }
 
 .documents-studio.doc-studio .doc-cat-card:not(.is-active):hover {
-  background: rgba(15, 23, 42, 0.045);
+  border-color: var(--doc-border-strong);
+  box-shadow: var(--doc-shadow);
 }
 
 .documents-studio.doc-studio .doc-cat-card.is-active {
-  border-color: var(--doc-border);
-  border-left-color: var(--doc-primary);
-  background: var(--doc-surface);
-  box-shadow: var(--doc-shadow);
+  border-color: rgba(37, 99, 235, 0.3);
+  background: var(--doc-primary-soft);
 }
 
 .documents-studio.doc-studio .doc-cat-card__open {
   display: flex;
   align-items: center;
-  gap: 0.55rem;
-  flex: 1 1 auto;
+  gap: 0.5rem;
   min-width: 0;
-  padding: 0.5rem 0.55rem;
+  padding: 0.45rem 0.7rem 0.45rem 0.45rem;
   border: 0;
   background: transparent;
   text-align: left;
@@ -2714,9 +2752,9 @@ body[data-theme="dark"] .doc-perm-users-wrap {
 
 .documents-studio.doc-studio .doc-cat-card__icon {
   flex-shrink: 0;
-  width: 1.7rem;
-  height: 1.7rem;
-  border-radius: 7px;
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 999px;
   display: grid;
   place-items: center;
 }
@@ -2733,28 +2771,26 @@ body[data-theme="dark"] .doc-perm-users-wrap {
 .documents-studio.doc-studio .doc-cat-card__icon--cyan { background: var(--doc-tone-cyan-soft); color: var(--doc-tone-cyan); }
 .documents-studio.doc-studio .doc-cat-card__icon--rose { background: var(--doc-tone-rose-soft); color: var(--doc-tone-rose); }
 
-/* En columna, no en línea: a 208px de ancho, el nombre + una insignia de
-   conteo en la misma fila dejaba casi sin espacio al nombre (se veía "0…" en
-   vez de "01. Empleados"). Apilado, el nombre siempre tiene el ancho completo. */
+/* En línea (píldora horizontal): nombre + conteo caben en una fila porque cada
+   píldora ahora mide su propio contenido (no una columna angosta fija). */
 .documents-studio.doc-studio .doc-cat-card__body {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.15rem;
-  flex: 1 1 auto;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 0.35rem;
   min-width: 0;
 }
 
 .documents-studio.doc-studio .doc-cat-card__name {
+  min-width: 0;
   font-size: 0.82rem;
   font-weight: 600;
   color: var(--doc-text);
   line-height: 1.25;
-  width: 100%;
-  max-width: none;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 11rem;
 }
 
 .documents-studio.doc-studio .doc-cat-card.is-active .doc-cat-card__name {
@@ -2762,33 +2798,31 @@ body[data-theme="dark"] .doc-perm-users-wrap {
   font-weight: 700;
 }
 
-/* El conteo ahora es una insignia redondeada a la derecha (patrón típico de
-   rail de navegación), no texto en línea con el nombre. */
 .documents-studio.doc-studio .doc-cat-card__meta {
   flex-shrink: 0;
-  font-size: 0.66rem;
-  font-weight: 700;
+  font-size: 0.72rem;
+  font-weight: 500;
   color: var(--doc-text-faint);
-  background: var(--doc-border);
-  padding: 0.1rem 0.4rem;
-  border-radius: 999px;
   white-space: nowrap;
+}
+
+.documents-studio.doc-studio .doc-cat-card__meta::before {
+  content: "· ";
 }
 
 .documents-studio.doc-studio .doc-cat-card.is-active .doc-cat-card__meta {
   color: var(--doc-primary);
-  background: var(--doc-primary-soft);
 }
 
 /* El candado queda en el flujo normal (no absoluto) y siempre reserva su
-   espacio: así la pestaña no cambia de ancho al pasar el mouse — mismo
+   espacio: así la píldora no cambia de ancho al pasar el mouse — mismo
    criterio anti-parpadeo ya aplicado en el grid de documentos. */
 .documents-studio.doc-studio .doc-cat-card__perms {
   position: static;
   flex-shrink: 0;
-  width: 1.2rem;
-  height: 1.2rem;
-  margin-right: 0.35rem;
+  width: 1.1rem;
+  height: 1.1rem;
+  margin-right: 0.5rem;
   border: 0;
   border-radius: 6px;
   background: transparent;
@@ -2831,6 +2865,9 @@ body[data-theme="dark"] .doc-perm-users-wrap {
 /* Barra de selección múltiple: solo visible cuando hay documentos marcados
    (se muestra/oculta con `hidden` desde JS, sin volver a renderizar la vista —
    ver `syncDocSelectionBadge`). */
+/* Barra persistente (no se oculta con 0 marcados; ver `renderBulkSelectBar` /
+   `syncDocSelectionBadge`): en estado vacío queda neutra y con las acciones
+   deshabilitadas, y se "activa" (tono azul) en cuanto hay algo seleccionado. */
 .documents-studio.doc-studio .doc-bulkbar {
   display: flex;
   align-items: center;
@@ -2842,14 +2879,12 @@ body[data-theme="dark"] .doc-perm-users-wrap {
   background: var(--doc-primary-soft);
   border: 1px solid rgba(37, 99, 235, 0.24);
   border-radius: var(--doc-radius-sm);
+  transition: background-color var(--doc-fast), border-color var(--doc-fast);
 }
 
-/* `display:flex` de una regla de autor gana siempre al `[hidden]{display:none}`
-   del user-agent (el origen "author" pisa al "user-agent" aunque la
-   especificidad sea igual), así que sin esta línea la barra queda visible con
-   "0 seleccionados" aunque JS le ponga el atributo `hidden`. */
-.documents-studio.doc-studio .doc-bulkbar[hidden] {
-  display: none;
+.documents-studio.doc-studio .doc-bulkbar.is-empty {
+  background: var(--doc-surface-2);
+  border-color: var(--doc-border);
 }
 
 .documents-studio.doc-studio .doc-bulkbar__count {
@@ -2858,9 +2893,14 @@ body[data-theme="dark"] .doc-perm-users-wrap {
   color: var(--doc-primary);
 }
 
+.documents-studio.doc-studio .doc-bulkbar.is-empty .doc-bulkbar__count {
+  color: var(--doc-text-faint);
+}
+
 .documents-studio.doc-studio .doc-bulkbar__actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.5rem;
 }
 
@@ -3040,21 +3080,27 @@ body[data-theme="dark"] .doc-perm-users-wrap {
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
-.documents-studio.doc-studio .doc-subfolder-card__icon {
+/* Avatar de iniciales (color por `folderTone`) en vez del ícono genérico de
+   carpeta: ayuda a distinguir de un vistazo las tarjetas de colaboradores. */
+.documents-studio.doc-studio .doc-subfolder-card__avatar {
   flex-shrink: 0;
-  width: 1.7rem;
-  height: 1.7rem;
-  border-radius: 8px;
   display: grid;
   place-items: center;
-  background: var(--doc-tone-blue-soft);
-  color: var(--doc-tone-blue);
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #fff;
 }
 
-.documents-studio.doc-studio .doc-subfolder-card__icon svg {
-  width: 0.92rem;
-  height: 0.92rem;
-}
+.documents-studio.doc-studio .doc-subfolder-card__avatar--blue { background: var(--doc-tone-blue); }
+.documents-studio.doc-studio .doc-subfolder-card__avatar--green { background: var(--doc-tone-green); }
+.documents-studio.doc-studio .doc-subfolder-card__avatar--violet { background: var(--doc-tone-violet); }
+.documents-studio.doc-studio .doc-subfolder-card__avatar--amber { background: var(--doc-tone-amber); }
+.documents-studio.doc-studio .doc-subfolder-card__avatar--cyan { background: var(--doc-tone-cyan); }
+.documents-studio.doc-studio .doc-subfolder-card__avatar--rose { background: var(--doc-tone-rose); }
 
 .documents-studio.doc-studio .doc-subfolder-card__body {
   min-width: 0;
@@ -3142,13 +3188,6 @@ body[data-theme="dark"] .doc-perm-users-wrap {
 }
 
 @media (max-width: 1100px) {
-  /* El rail de categorías se apila arriba (grid-template-columns:1fr en
-     .doc-layout) y queda a ancho completo; sigue siendo una lista vertical,
-     solo que ya no necesita truncar tanto el nombre. */
-  .documents-studio.doc-studio .doc-cat-card__name {
-    max-width: none;
-  }
-
   .documents-studio.doc-studio .doc-subfolder-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -3179,10 +3218,6 @@ body[data-theme="dark"] .doc-perm-users-wrap {
 }
 
 @media (max-width: 720px) {
-  .documents-studio.doc-studio .doc-kpi-grid--compact {
-    grid-template-columns: 1fr 1fr;
-  }
-
   .documents-studio.doc-studio .doc-subfolder-grid {
     grid-template-columns: 1fr;
   }

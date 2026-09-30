@@ -499,7 +499,7 @@ function formatDateShort(iso) {
   return d.toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-function renderHeader(ui, IC) {
+function renderHeader(ui, IC, summary) {
   const uploadBtn = canUpload()
     ? `<button type="button" class="doc-btn doc-btn--primary" data-action="doc-upload">${IC.upload || ""}<span>Subir documento</span></button>`
     : "";
@@ -509,10 +509,14 @@ function renderHeader(ui, IC) {
   const typesBtn = canManageTypes()
     ? `<button type="button" class="doc-btn doc-btn--ghost" data-action="doc-manage-types">${IC.file || ""}<span>Tipos documentales</span></button>`
     : "";
+  const stats = summary
+    ? `<p class="doc-topbar__stats">${escapeHtml(String(summary.folderCount))} carpetas · ${escapeHtml(String(summary.docCount))} documentos · ${escapeHtml(formatFileSize(summary.totalBytes))} usados</p>`
+    : "";
   return `<header class="doc-topbar">
     <div class="doc-topbar__titles">
       <h1 class="doc-topbar__title">Gestión documental</h1>
       <p class="doc-topbar__subtitle">Administra y organiza todos los documentos de la empresa.</p>
+      ${stats}
     </div>
     <div class="doc-topbar__actions">
       ${typesBtn}
@@ -523,13 +527,25 @@ function renderHeader(ui, IC) {
 }
 
 function renderKpis(summary, IC) {
+  const expired = Number(summary.expiredCount) || 0;
+  const dueSoon = Number(summary.dueSoonCount) || 0;
+  let docStatus = { text: "Todos vigentes", tone: "ok" };
+  if (expired) docStatus = { text: `${expired} vencido${expired === 1 ? "" : "s"}${dueSoon ? ` · ${dueSoon} por vencer` : ""}`, tone: "danger" };
+  else if (dueSoon) docStatus = { text: `${dueSoon} por vencer`, tone: "warn" };
+
   const cards = [
     { icon: IC.folder || "", tone: "blue", label: "Carpetas", value: String(summary.folderCount), sub: "Total carpetas" },
-    { icon: IC.file || "", tone: "green", label: "Documentos", value: String(summary.docCount), sub: "Total archivos" },
-    { icon: IC_HDD, tone: "violet", label: "Almacenamiento", value: formatFileSize(summary.totalBytes), sub: `De ${formatFileSize(summary.quotaBytes)} utilizados` },
+    { icon: IC.file || "", tone: "green", label: "Documentos", value: String(summary.docCount), sub: docStatus.text, subTone: docStatus.tone },
+    {
+      icon: IC_HDD,
+      tone: "violet",
+      label: "Almacenamiento",
+      value: formatFileSize(summary.totalBytes),
+      sub: `${summary.usedPercent}% de ${formatFileSize(summary.quotaBytes)}`
+    },
     { icon: IC.users || "", tone: "amber", label: "Usuarios", value: String(summary.usersWithAccess), sub: "Con acceso" }
   ];
-  return `<section class="doc-kpi-grid doc-kpi-grid--compact" aria-label="Indicadores documentales">
+  return `<section class="doc-kpi-grid" aria-label="Indicadores documentales">
     ${cards
       .map(
         (c) => `<article class="doc-kpi">
@@ -537,6 +553,7 @@ function renderKpis(summary, IC) {
         <div class="doc-kpi__body">
           <span class="doc-kpi__label">${escapeHtml(c.label)}</span>
           <strong class="doc-kpi__value">${escapeHtml(c.value)}</strong>
+          <span class="doc-kpi__sub${c.subTone ? ` doc-kpi__sub--${c.subTone}` : ""}">${escapeHtml(c.sub)}</span>
         </div>
       </article>`
       )
@@ -793,6 +810,65 @@ function folderTone(index) {
   return ["blue", "green", "violet", "amber", "cyan", "rose"][index % 6];
 }
 
+/** Iniciales (1-2 letras) para el avatar de una carpeta/colaborador: primera letra
+ *  del primer y del último nombre (p. ej. "ANDRES FELIPE BOTERO CASTRO" → "AC"). */
+function initialsFromName(name) {
+  const parts = String(name || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!parts.length) return "—";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+/** Fecha (ISO) del documento más reciente dentro de `path` o cualquiera de sus
+ *  subcarpetas, calculada a partir de los documentos reales (sin inventar datos). */
+function folderLastUpdated(docs, path) {
+  const targetSegs = folderSegments(path);
+  if (!targetSegs.length) return "";
+  const targetKey = folderKey(targetSegs.join(" / "));
+  let latest = 0;
+  for (const d of docs || []) {
+    const segs = folderSegments(d.folder || "");
+    if (segs.length < targetSegs.length) continue;
+    if (folderKey(segs.slice(0, targetSegs.length).join(" / ")) !== targetKey) continue;
+    const t = new Date(d.updatedAt || d.createdAt || 0).getTime();
+    if (Number.isFinite(t) && t > latest) latest = t;
+  }
+  return latest ? new Date(latest).toISOString() : "";
+}
+
+const DOC_TYPE_GROUP_LABELS = {
+  pdf: "PDF",
+  doc: "Word",
+  sheet: "Excel",
+  slide: "PowerPoint",
+  image: "Imágenes",
+  archive: "Comprimidos",
+  text: "Texto",
+  other: "Otros"
+};
+
+/** Desglose real (no estimado) del almacenamiento usado por familia de archivo,
+ *  a partir del tamaño de cada documento; ordenado de mayor a menor peso. */
+function storageBreakdown(docs) {
+  const totals = new Map();
+  for (const d of docs || []) {
+    const group = fileTypeGroup(d.fileName, d.mimeType);
+    totals.set(group, (totals.get(group) || 0) + (Number(d.sizeBytes) || 0));
+  }
+  const totalBytes = [...totals.values()].reduce((a, b) => a + b, 0);
+  return [...totals.entries()]
+    .map(([group, bytes]) => ({
+      group,
+      label: DOC_TYPE_GROUP_LABELS[group] || "Otros",
+      bytes,
+      pct: totalBytes ? Math.round((bytes / totalBytes) * 100) : 0
+    }))
+    .sort((a, b) => b.bytes - a.bytes);
+}
+
 function renderSubfolderGrid(subfolders, ui, IC) {
   const parent = String(ui.folderFilter || "").trim();
   const depth = folderSegments(parent).length;
@@ -829,8 +905,11 @@ function renderSubfolderGrid(subfolders, ui, IC) {
   }
 
   const cards = visible
-    .map((s) => {
+    .map((s, i) => {
       const countLabel = `${s.docCount} archivo${s.docCount === 1 ? "" : "s"}`;
+      const initials = initialsFromName(s.name);
+      const tone = folderTone(i);
+      const updatedLabel = s.lastUpdatedAt ? formatDateShort(s.lastUpdatedAt) : "";
       const menu = canManage
         ? `<details class="doc-folder-menu">
             <summary class="doc-iconbtn" aria-label="Acciones de carpeta">${IC_DOTS}</summary>
@@ -847,10 +926,10 @@ function renderSubfolderGrid(subfolders, ui, IC) {
         : "";
       return `<div class="doc-subfolder-card">
         <button type="button" class="doc-subfolder-card__open" data-action="doc-open-subfolder" data-path="${escapeAttr(s.path)}" title="${escapeAttr(s.name)}">
-          <span class="doc-subfolder-card__icon">${IC.folder || ""}</span>
+          <span class="doc-subfolder-card__avatar doc-subfolder-card__avatar--${tone}" aria-hidden="true">${escapeHtml(initials)}</span>
           <span class="doc-subfolder-card__body">
             <span class="doc-subfolder-card__name">${escapeHtml(s.name || "")}</span>
-            <span class="doc-subfolder-card__meta">${escapeHtml(countLabel)}</span>
+            <span class="doc-subfolder-card__meta">${escapeHtml(countLabel)}${updatedLabel ? ` · Act. ${escapeHtml(updatedLabel)}` : ""}</span>
           </span>
         </button>
         ${menu}
@@ -884,6 +963,27 @@ function typeBadge(doc) {
   const group = fileTypeGroup(doc.fileName, doc.mimeType);
   const label = fileTypeLabel(doc.fileName, doc.mimeType);
   return `<span class="doc-filetype doc-filetype--${group}">${escapeHtml(label.slice(0, 4))}</span>`;
+}
+
+/** Glifos internos (trazo, 24x24) por familia de documento: se dibujan dentro de la
+ *  misma silueta de página que el ícono genérico para distinguir Word/Excel/PowerPoint/
+ *  PDF/imagen/comprimido/texto a simple vista, sin reproducir logotipos de terceros. */
+const DOC_TYPE_ICON_INNER = {
+  pdf: '<rect x="7.5" y="13.2" width="7" height="5.3" rx="1" fill="currentColor" stroke="none"/><path d="M9.2 15.9l1.15 1.15 2.35-2.6" stroke="#fff" stroke-width="1.4"/>',
+  doc: '<line x1="7" y1="12" x2="15" y2="12"/><line x1="7" y1="15.5" x2="15" y2="15.5"/><line x1="7" y1="19" x2="12" y2="19"/>',
+  sheet: '<rect x="7" y="11" width="8" height="8" rx="0.6"/><line x1="7" y1="15" x2="15" y2="15"/><line x1="11" y1="11" x2="11" y2="19"/>',
+  slide: '<line x1="8.5" y1="19" x2="8.5" y2="15.5"/><line x1="11.5" y1="19" x2="11.5" y2="12.5"/><line x1="14.5" y1="19" x2="14.5" y2="14"/>',
+  image: '<circle cx="9" cy="12.3" r="1.1"/><path d="M7 19l2.8-3.2 2.6 2.6L16.5 13"/>',
+  archive: '<rect x="7.5" y="13" width="7" height="6" rx="0.6"/><line x1="7.5" y1="15.3" x2="14.5" y2="15.3"/><path d="M9.8 13v-1.4h2.4V13"/>',
+  text: '<line x1="7" y1="11.5" x2="15" y2="11.5"/><line x1="7" y1="14" x2="15" y2="14"/><line x1="7" y1="16.5" x2="15" y2="16.5"/><line x1="7" y1="19" x2="15" y2="19"/>'
+};
+
+/** Ícono de documento coloreado según su tipo (Word, Excel, PowerPoint, PDF, imagen,
+ *  comprimido, texto...). Reutiliza la silueta de IC.file y currentColor para heredar
+ *  el color ya definido por `.doc-fileicon--*` en CSS (uno por familia). */
+function docTypeIconSvg(group) {
+  const inner = DOC_TYPE_ICON_INNER[group] || "";
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>${inner}</svg>`;
 }
 
 function documentNameBlock(doc, { compact = false } = {}) {
@@ -939,7 +1039,7 @@ function trashFolderRow(f, IC) {
 /** Fila de la papelera para un documento eliminado. */
 function trashDocRow(d, IC) {
   return `<tr>
-    <td class="doc-cell-name"><span class="doc-fileicon doc-fileicon--${fileTypeGroup(d.fileName, d.mimeType)}" aria-hidden="true">${IC.file || ""}</span>${documentNameBlock(d)}</td>
+    <td class="doc-cell-name"><span class="doc-fileicon doc-fileicon--${fileTypeGroup(d.fileName, d.mimeType)}" aria-hidden="true">${docTypeIconSvg(fileTypeGroup(d.fileName, d.mimeType))}</span>${documentNameBlock(d)}</td>
     <td class="doc-cell-folder" title="${escapeAttr(d.folder)}">${escapeHtml(d.folder)}</td>
     <td>${escapeHtml(d.deletedBy || "—")}</td>
     <td class="doc-cell-date">${escapeHtml(formatDate(d.deletedAt))}</td>
@@ -973,7 +1073,7 @@ function renderTable(pageDocs, IC, folders = []) {
     .map(
       (d) => `<tr>
       ${anySelectable ? `<td class="doc-cell-select">${docSelectCheckboxHtml(d, folders)}</td>` : ""}
-      <td class="doc-cell-name"><span class="doc-fileicon doc-fileicon--${fileTypeGroup(d.fileName, d.mimeType)}" aria-hidden="true">${IC.file || ""}</span>${documentNameBlock(d)}</td>
+      <td class="doc-cell-name"><span class="doc-fileicon doc-fileicon--${fileTypeGroup(d.fileName, d.mimeType)}" aria-hidden="true">${docTypeIconSvg(fileTypeGroup(d.fileName, d.mimeType))}</span>${documentNameBlock(d)}</td>
       <td>${typeBadge(d)}</td>
       <td>${categoryPill(d) || `<span class="muted">—</span>`}</td>
       <td>${d.entityLabel ? `<span title="${escapeAttr(getCompanyDocumentEntityTypeLabel(d.entityType))}">${escapeHtml(d.entityLabel)}</span>` : `<span class="muted">—</span>`}</td>
@@ -1005,7 +1105,7 @@ function renderGrid(pageDocs, IC, folders = []) {
          visualmente cada tarjeta con 6 líneas de texto a la vez. */
       return `<article class="doc-card" tabindex="0">
       <header class="doc-card__head">
-        <span class="doc-card__identity">${selectCheck ? `<label class="doc-card__select" title="Seleccionar">${selectCheck}</label>` : ""}<span class="doc-fileicon doc-fileicon--lg doc-fileicon--${fileTypeGroup(d.fileName, d.mimeType)}" aria-hidden="true">${IC.file || ""}</span></span>
+        <span class="doc-card__identity">${selectCheck ? `<label class="doc-card__select" title="Seleccionar">${selectCheck}</label>` : ""}<span class="doc-fileicon doc-fileicon--lg doc-fileicon--${fileTypeGroup(d.fileName, d.mimeType)}" aria-hidden="true">${docTypeIconSvg(fileTypeGroup(d.fileName, d.mimeType))}</span></span>
         ${rowMenu(d, IC, folders)}
       </header>
       <p class="doc-card__name" title="${escapeAttr(display.fullName)}">${escapeHtml(display.title)}</p>
@@ -1023,13 +1123,18 @@ function renderGrid(pageDocs, IC, folders = []) {
   return `<div class="doc-grid">${cards}</div>`;
 }
 
-/** Barra de acciones masivas: oculta hasta que se marque al menos un documento (ver `syncDocSelectionBadge`). */
+/** Barra de acciones masivas: siempre visible; en estado vacío (0 marcados) las
+ *  acciones quedan deshabilitadas en vez de ocultar la barra (ver `syncDocSelectionBadge`). */
 function renderBulkSelectBar(IC) {
-  return `<div class="doc-bulkbar" id="doc-bulkbar" hidden>
+  const downloadBtn = canDownload()
+    ? `<button type="button" class="doc-btn doc-btn--ghost doc-btn--sm" data-action="doc-bulk-download" disabled>${IC.download || ""}<span>Descargar seleccionados</span></button>`
+    : "";
+  return `<div class="doc-bulkbar is-empty" id="doc-bulkbar">
     <span class="doc-bulkbar__count" id="doc-bulkbar-count">0 seleccionados</span>
     <div class="doc-bulkbar__actions">
-      <button type="button" class="doc-btn doc-btn--ghost doc-btn--sm" data-action="doc-bulk-clear">Cancelar selección</button>
-      <button type="button" class="doc-btn doc-btn--ghost doc-btn--sm doc-btn--danger" data-action="doc-bulk-delete">${IC.trash || IC_TRASH}<span>Eliminar seleccionados</span></button>
+      <button type="button" class="doc-btn doc-btn--ghost doc-btn--sm" data-action="doc-bulk-clear" disabled>Cancelar selección</button>
+      ${downloadBtn}
+      <button type="button" class="doc-btn doc-btn--ghost doc-btn--sm doc-btn--danger" data-action="doc-bulk-delete" disabled>${IC.trash || IC_TRASH}<span>Eliminar seleccionados</span></button>
     </div>
   </div>`;
 }
@@ -1055,11 +1160,23 @@ function renderPagination(totalItems, page) {
   </div>`;
 }
 
-function renderStorageCard(summary, IC) {
+function renderStorageCard(summary, IC, docs) {
   const pct = summary.usedPercent;
   const radius = 52;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference * (1 - pct / 100);
+  const breakdown = storageBreakdown(docs).slice(0, 6);
+  const legend = breakdown.length
+    ? `<ul class="doc-storage-legend">${breakdown
+        .map(
+          (b) => `<li class="doc-storage-legend__item">
+            <span class="doc-storage-legend__dot doc-storage-legend__dot--${b.group}"></span>
+            <span class="doc-storage-legend__label">${escapeHtml(b.label)}</span>
+            <span class="doc-storage-legend__value">${escapeHtml(formatFileSize(b.bytes))}</span>
+          </li>`
+        )
+        .join("")}</ul>`
+    : "";
   return `<article class="doc-side-card doc-storage-card">
     <h3 class="doc-side-card__title">Almacenamiento</h3>
     <div class="doc-storage">
@@ -1075,6 +1192,7 @@ function renderStorageCard(summary, IC) {
         <span class="doc-storage__quota">De ${escapeHtml(formatFileSize(summary.quotaBytes))}</span>
       </div>
     </div>
+    ${legend}
     <button type="button" class="doc-link doc-link--row" data-action="doc-storage-details">Ver detalles de almacenamiento ${IC.chevronRight || "›"}</button>
   </article>`;
 }
@@ -1091,7 +1209,7 @@ function renderRecentSidebar(recentDocs, IC, folders = []) {
           const recentLabel = display.label || display.title;
           return `<li class="doc-recent-item">
         <button type="button" class="doc-recent-item__open" data-action="doc-recent-open" data-id="${escapeAttr(d.id)}">
-          <span class="doc-fileicon doc-fileicon--${fileTypeGroup(d.fileName, d.mimeType)}" aria-hidden="true">${IC.file || ""}</span>
+          <span class="doc-fileicon doc-fileicon--${fileTypeGroup(d.fileName, d.mimeType)}" aria-hidden="true">${docTypeIconSvg(fileTypeGroup(d.fileName, d.mimeType))}</span>
           <span class="doc-recent-item__body">
             <span class="doc-recent-item__name" title="${escapeAttr(display.fullName)}">${escapeHtml(recentLabel)}</span>
             <span class="doc-recent-item__date">${escapeHtml(formatDate(d.updatedAt))}</span>
@@ -1169,15 +1287,13 @@ function renderDocumentManagementShell() {
             showUpload: false
           });
     return `<section class="documents-studio doc-studio doc-studio--explorer">
-      ${renderHeader(ui, IC)}
-      <div class="doc-layout doc-layout--simple">
-        <aside class="doc-side-nav" aria-label="Carpetas principales">${renderCategoryRail(topFolders, ui, IC)}</aside>
-        <div class="doc-main">
-          <div class="doc-explorer">
-            ${renderExplorerPath(ui, IC)}
-            ${renderExplorerToolbar(ui, IC)}
-            <section class="doc-docs-panel" aria-label="Papelera">${trashBody}</section>
-          </div>
+      ${renderHeader(ui, IC, summary)}
+      ${renderCategoryRail(topFolders, ui, IC)}
+      <div class="doc-main">
+        <div class="doc-explorer">
+          ${renderExplorerPath(ui, IC)}
+          ${renderExplorerToolbar(ui, IC)}
+          <section class="doc-docs-panel" aria-label="Papelera">${trashBody}</section>
         </div>
       </div>
     </section>`;
@@ -1188,6 +1304,7 @@ function renderDocumentManagementShell() {
   let subfolders = browseAll || !ui.folderFilter ? [] : collectSubfolders(docs, folders, ui.folderFilter);
   if (q) subfolders = subfolders.filter((s) => stripSearch(s.name).includes(q) || stripSearch(s.path).includes(q));
   subfolders = sortSubfolders(subfolders, ui.sortKey);
+  subfolders = subfolders.map((s) => ({ ...s, lastUpdatedAt: folderLastUpdated(docs, s.path) }));
 
   const filtered = sortDocuments(
     applyCompanyDocumentFilters(docs, {
@@ -1225,7 +1342,7 @@ function renderDocumentManagementShell() {
 
   if (isBootstrapEmpty) {
     return `<section class="documents-studio doc-studio">
-      ${renderHeader(ui, IC)}
+      ${renderHeader(ui, IC, summary)}
       ${renderOnboarding(IC)}
     </section>`;
   }
@@ -1243,11 +1360,11 @@ function renderDocumentManagementShell() {
       : renderDocsEmpty(IC);
 
   return `<section class="documents-studio doc-studio doc-studio--explorer">
-    ${renderHeader(ui, IC)}
+    ${renderHeader(ui, IC, summary)}
     ${renderKpis(summary, IC)}
     ${renderValidityBanner(summary)}
+    ${renderCategoryRail(topFolders, ui, IC)}
     <div class="doc-layout">
-      <aside class="doc-side-nav" aria-label="Carpetas principales">${renderCategoryRail(topFolders, ui, IC)}</aside>
       <div class="doc-main">
         <div class="doc-explorer">
           ${renderExplorerPath(ui, IC)}
@@ -1261,7 +1378,7 @@ function renderDocumentManagementShell() {
         </div>
       </div>
       <aside class="doc-side" aria-label="Resumen y recientes">
-        ${renderStorageCard(summary, IC)}
+        ${renderStorageCard(summary, IC, docs)}
         ${renderRecentSidebar(recent, IC, folders)}
       </aside>
     </div>
@@ -3722,7 +3839,7 @@ async function openPreview(doc) {
     <div class="doc-preview-backdrop" data-close></div>
     <aside class="doc-preview-drawer" role="dialog" aria-modal="true" aria-label="Vista previa">
       <header class="doc-preview__head">
-        <span class="doc-fileicon doc-fileicon--${group}">${IC.file || ""}</span>
+        <span class="doc-fileicon doc-fileicon--${group}">${docTypeIconSvg(group)}</span>
         <div class="doc-preview__titles">
           <p class="doc-preview__name" title="${escapeAttr(display.fullName)}">${escapeHtml(display.title)}</p>
           <p class="doc-preview__meta">${escapeHtml(previewMeta)}</p>
@@ -3918,8 +4035,10 @@ function confirmDeleteDocument(doc) {
   });
 }
 
-/** Actualiza el contador/visibilidad de la barra de selección múltiple sin re-renderizar
- *  toda la vista (evita perder el estado de los demás checkboxes en cada clic). */
+/** Actualiza el contador y el estado (habilitado/deshabilitado) de la barra de selección
+ *  múltiple sin re-renderizar toda la vista (evita perder el estado de los demás
+ *  checkboxes en cada clic). La barra ahora es persistente: en vez de ocultarse con
+ *  0 marcados, queda visible en estado "vacío" con las acciones deshabilitadas. */
 function syncDocSelectionBadge(root) {
   if (!root) return;
   const checks = [...root.querySelectorAll("[data-doc-select]")];
@@ -3927,11 +4046,36 @@ function syncDocSelectionBadge(root) {
   const bar = root.querySelector("#doc-bulkbar");
   const count = root.querySelector("#doc-bulkbar-count");
   if (count) count.textContent = `${selected.length} seleccionado${selected.length === 1 ? "" : "s"}`;
-  if (bar) bar.hidden = selected.length === 0;
+  if (bar) {
+    const empty = selected.length === 0;
+    bar.classList.toggle("is-empty", empty);
+    bar.querySelectorAll(".doc-bulkbar__actions button").forEach((btn) => {
+      btn.disabled = empty;
+    });
+  }
   const selectAll = root.querySelector("[data-action='doc-select-all']");
   if (selectAll) {
     selectAll.checked = checks.length > 0 && selected.length === checks.length;
     selectAll.indeterminate = selected.length > 0 && selected.length < checks.length;
+  }
+}
+
+/** Descarga secuencial de los documentos marcados (pequeña pausa entre cada uno para
+ *  que el navegador no bloquee varias descargas simultáneas). No mueve ni elimina nada. */
+async function bulkDownloadSelectedDocuments(root) {
+  const ids = [...(root?.querySelectorAll("[data-doc-select]") || [])]
+    .filter((el) => el.checked)
+    .map((el) => String(el.dataset.id || ""));
+  const docs = ids.map((id) => findDoc(id)).filter(Boolean);
+  if (!docs.length) return;
+  G.notify?.(`Descargando ${docs.length} documento${docs.length === 1 ? "" : "s"}…`, "info");
+  for (const doc of docs) {
+    try {
+      await triggerDownload(doc);
+    } catch (err) {
+      G.notify?.(String(err?.message || `No se pudo descargar "${doc.fileName}".`), "error");
+    }
+    await new Promise((resolve) => setTimeout(resolve, 300));
   }
 }
 
@@ -4286,6 +4430,7 @@ function bindDocumentManagementPortalControls() {
     syncDocSelectionBadge(root);
   });
   on(root, "[data-action='doc-bulk-delete']", "click", () => confirmBulkDeleteDocuments(root));
+  on(root, "[data-action='doc-bulk-download']", "click", () => bulkDownloadSelectedDocuments(root));
   on(root, "[data-action='doc-restore']", "click", (e) => {
     e.preventDefault();
     e.stopPropagation();
