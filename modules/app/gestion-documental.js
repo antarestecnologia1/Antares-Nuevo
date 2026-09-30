@@ -955,11 +955,24 @@ function renderTrashList(folders, docs, IC) {
     <div class="doc-table-wrap"><table class="doc-table"><thead><tr><th>Nombre</th><th>Carpeta</th><th>Eliminado por</th><th>Fecha</th><th>Motivo</th><th aria-label="Restaurar"></th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
+/** Un documento se puede seleccionar para borrado masivo si el usuario puede eliminar en su carpeta. */
+function canBulkDeleteDoc(doc, folders) {
+  return isDocManager() || canDeleteFolder(folders, doc.folder);
+}
+
+/** Checkbox de selección (tabla o tarjeta). `null` si el usuario no puede eliminar ese documento. */
+function docSelectCheckboxHtml(doc, folders) {
+  if (!canBulkDeleteDoc(doc, folders)) return "";
+  return `<input type="checkbox" class="doc-select-check" data-doc-select data-id="${escapeAttr(doc.id)}" aria-label="Seleccionar ${escapeAttr(doc.fileName)}" />`;
+}
+
 function renderTable(pageDocs, IC, folders = []) {
   if (!pageDocs.length) return "";
+  const anySelectable = pageDocs.some((d) => canBulkDeleteDoc(d, folders));
   const rows = pageDocs
     .map(
       (d) => `<tr>
+      ${anySelectable ? `<td class="doc-cell-select">${docSelectCheckboxHtml(d, folders)}</td>` : ""}
       <td class="doc-cell-name"><span class="doc-fileicon doc-fileicon--${fileTypeGroup(d.fileName, d.mimeType)}" aria-hidden="true">${IC.file || ""}</span>${documentNameBlock(d)}</td>
       <td>${typeBadge(d)}</td>
       <td>${categoryPill(d) || `<span class="muted">—</span>`}</td>
@@ -972,7 +985,10 @@ function renderTable(pageDocs, IC, folders = []) {
     </tr>`
     )
     .join("");
-  return `<div class="doc-table-wrap"><table class="doc-table"><thead><tr><th>Nombre</th><th>Archivo</th><th>Tipo documental</th><th>Entidad</th><th>Vigencia</th><th>Carpeta</th><th>Tamaño</th><th>Fecha de modificación</th><th aria-label="Acciones"></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  const selectAllTh = anySelectable
+    ? `<th class="doc-cell-select"><input type="checkbox" data-action="doc-select-all" aria-label="Seleccionar todos los documentos de esta página" title="Seleccionar todos los documentos visibles (página actual)" /></th>`
+    : "";
+  return `<div class="doc-table-wrap"><table class="doc-table"><thead><tr>${selectAllTh}<th>Nombre</th><th>Archivo</th><th>Tipo documental</th><th>Entidad</th><th>Vigencia</th><th>Carpeta</th><th>Tamaño</th><th>Fecha de modificación</th><th aria-label="Acciones"></th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 function renderGrid(pageDocs, IC, folders = []) {
@@ -981,13 +997,17 @@ function renderGrid(pageDocs, IC, folders = []) {
     .map((d) => {
       const display = formatCompanyDocumentDisplayName(d);
       const validity = validityBadge(d);
+      const selectCheck = docSelectCheckboxHtml(d, folders);
       /* Solo nombre, ícono y vigencia quedan siempre visibles (lectura rápida al escanear
          el grid); el resto de la metadata (subtítulo, carpeta, categoría, entidad, tamaño,
          fecha) vive en `.doc-card__meta` y se revela con hover/focus vía CSS (ver
          `.doc-card:hover .doc-card__meta` en gestion-documental.css) para no recargar
          visualmente cada tarjeta con 6 líneas de texto a la vez. */
       return `<article class="doc-card" tabindex="0">
-      <header class="doc-card__head"><span class="doc-fileicon doc-fileicon--lg doc-fileicon--${fileTypeGroup(d.fileName, d.mimeType)}" aria-hidden="true">${IC.file || ""}</span>${rowMenu(d, IC, folders)}</header>
+      <header class="doc-card__head">
+        <span class="doc-card__identity">${selectCheck ? `<label class="doc-card__select" title="Seleccionar">${selectCheck}</label>` : ""}<span class="doc-fileicon doc-fileicon--lg doc-fileicon--${fileTypeGroup(d.fileName, d.mimeType)}" aria-hidden="true">${IC.file || ""}</span></span>
+        ${rowMenu(d, IC, folders)}
+      </header>
       <p class="doc-card__name" title="${escapeAttr(display.fullName)}">${escapeHtml(display.title)}</p>
       ${validity}
       <div class="doc-card__meta">
@@ -1001,6 +1021,17 @@ function renderGrid(pageDocs, IC, folders = []) {
     })
     .join("");
   return `<div class="doc-grid">${cards}</div>`;
+}
+
+/** Barra de acciones masivas: oculta hasta que se marque al menos un documento (ver `syncDocSelectionBadge`). */
+function renderBulkSelectBar(IC) {
+  return `<div class="doc-bulkbar" id="doc-bulkbar" hidden>
+    <span class="doc-bulkbar__count" id="doc-bulkbar-count">0 seleccionados</span>
+    <div class="doc-bulkbar__actions">
+      <button type="button" class="doc-btn doc-btn--ghost doc-btn--sm" data-action="doc-bulk-clear">Cancelar selección</button>
+      <button type="button" class="doc-btn doc-btn--ghost doc-btn--sm doc-btn--danger" data-action="doc-bulk-delete">${IC.trash || IC_TRASH}<span>Eliminar seleccionados</span></button>
+    </div>
+  </div>`;
 }
 
 function renderPagination(totalItems, page) {
@@ -1218,6 +1249,7 @@ function renderDocumentManagementShell() {
           ${renderExplorerPath(ui, IC)}
           ${renderExplorerToolbar(ui, IC)}
           ${renderSubfolderGrid(subfolders, ui, IC)}
+          ${renderBulkSelectBar(IC)}
           <section class="doc-docs-panel" aria-label="Documentos">
             ${listBody}
             ${renderPagination(listDocs.length, ui.page)}
@@ -3882,6 +3914,87 @@ function confirmDeleteDocument(doc) {
   });
 }
 
+/** Actualiza el contador/visibilidad de la barra de selección múltiple sin re-renderizar
+ *  toda la vista (evita perder el estado de los demás checkboxes en cada clic). */
+function syncDocSelectionBadge(root) {
+  if (!root) return;
+  const checks = [...root.querySelectorAll("[data-doc-select]")];
+  const selected = checks.filter((el) => el.checked);
+  const bar = root.querySelector("#doc-bulkbar");
+  const count = root.querySelector("#doc-bulkbar-count");
+  if (count) count.textContent = `${selected.length} seleccionado${selected.length === 1 ? "" : "s"}`;
+  if (bar) bar.hidden = selected.length === 0;
+  const selectAll = root.querySelector("[data-action='doc-select-all']");
+  if (selectAll) {
+    selectAll.checked = checks.length > 0 && selected.length === checks.length;
+    selectAll.indeterminate = selected.length > 0 && selected.length < checks.length;
+  }
+}
+
+/** Confirmación + borrado masivo de los documentos marcados (misma papelera con recuperación
+ *  de 30 días que el borrado individual; una sola justificación aplica a todos). */
+function confirmBulkDeleteDocuments(root) {
+  const ids = [...(root?.querySelectorAll("[data-doc-select]") || [])]
+    .filter((el) => el.checked)
+    .map((el) => String(el.dataset.id || ""));
+  const docs = ids.map((id) => findDoc(id)).filter(Boolean);
+  if (!docs.length) return;
+  const requestDeletion = G.openConfirmReasonModal || G.openConfirmModal;
+  requestDeletion?.({
+    title: docs.length === 1 ? "Eliminar documento" : `Eliminar ${docs.length} documentos`,
+    message:
+      docs.length === 1
+        ? `Se moverá "${docs[0].fileName}" a la papelera de ${docs[0].folder}. Podrá restaurarlo durante 30 días. Indique la justificación.`
+        : `Se moverán ${docs.length} documentos a la papelera. Podrá restaurarlos durante 30 días. La justificación aplicará a todos.`,
+    confirmText: "Mover a la papelera",
+    onConfirm: async (motivo) => {
+      const reason = String(motivo || "").trim();
+      const nowIso = new Date().toISOString();
+      const updatedById = new Map(
+        docs.map((doc) => [
+          doc.id,
+          normalizeCompanyDocumentRow({
+            ...doc,
+            deletedAt: nowIso,
+            deletedBy: actor(),
+            deleteReason: reason,
+            updatedAt: nowIso
+          })
+        ])
+      );
+      const next = readDocs().map((d) => updatedById.get(d.id) || d);
+      let ok = 0;
+      for (const doc of docs) {
+        try {
+          await writeAwaitServerEdit(KEYS.companyDocuments, next, doc.id);
+          ok += 1;
+          G.logPortalAuditEvent?.("documents", "delete", {
+            entityId: doc.id,
+            entityKind: "document",
+            entityLabel: `${doc.folder} · ${doc.fileName}`,
+            summary: `Eliminación de documento corporativo · ${doc.fileName}`,
+            reason,
+            usuario: actor(),
+            actor: actor(),
+            at: nowIso
+          });
+        } catch (err) {
+          G.notify?.(`No se pudo mover "${doc.fileName}" a la papelera: ${String(err?.message || "error")}`, "error");
+        }
+      }
+      if (ok > 0) {
+        G.notify?.(
+          ok === docs.length
+            ? `${ok} documento${ok === 1 ? "" : "s"} movido${ok === 1 ? "" : "s"} a la papelera.`
+            : `${ok} de ${docs.length} documentos movidos a la papelera.`,
+          ok === docs.length ? "success" : "warning"
+        );
+      }
+      G.renderPortalView?.();
+    }
+  });
+}
+
 /** Restaura un documento de la papelera. Mismo permiso que eliminar en esa carpeta
  *  (quien puede administrar/eliminar ahí puede también deshacer una eliminación ahí). */
 async function restoreDocument(doc) {
@@ -4153,6 +4266,22 @@ function bindDocumentManagementPortalControls() {
     e.stopPropagation();
     confirmDeleteDocument(findDoc(e.currentTarget.dataset.id));
   });
+  on(root, "[data-doc-select]", "click", (e) => e.stopPropagation());
+  on(root, "[data-doc-select]", "change", () => syncDocSelectionBadge(root));
+  on(root, "[data-action='doc-select-all']", "change", (e) => {
+    const checked = Boolean(e.currentTarget.checked);
+    root.querySelectorAll("[data-doc-select]").forEach((el) => {
+      el.checked = checked;
+    });
+    syncDocSelectionBadge(root);
+  });
+  on(root, "[data-action='doc-bulk-clear']", "click", () => {
+    root.querySelectorAll("[data-doc-select]").forEach((el) => {
+      el.checked = false;
+    });
+    syncDocSelectionBadge(root);
+  });
+  on(root, "[data-action='doc-bulk-delete']", "click", () => confirmBulkDeleteDocuments(root));
   on(root, "[data-action='doc-restore']", "click", (e) => {
     e.preventDefault();
     e.stopPropagation();

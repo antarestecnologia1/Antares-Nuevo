@@ -818,6 +818,15 @@
   text-align: right;
 }
 
+.documents-studio.doc-studio .doc-cell-select {
+  width: 2.25rem;
+  text-align: center;
+}
+
+.documents-studio.doc-studio .doc-cell-select .doc-select-check {
+  vertical-align: middle;
+}
+
 /* File icons */
 .documents-studio.doc-studio .doc-fileicon {
   display: inline-flex;
@@ -974,6 +983,25 @@
   justify-content: space-between;
   gap: 0.5rem;
   margin-bottom: 0.625rem;
+}
+
+.documents-studio.doc-studio .doc-card__identity {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.documents-studio.doc-studio .doc-card__select {
+  display: inline-flex;
+  cursor: pointer;
+}
+
+.documents-studio.doc-studio .doc-select-check {
+  width: 1rem;
+  height: 1rem;
+  cursor: pointer;
+  accent-color: var(--doc-primary);
 }
 
 .documents-studio.doc-studio .doc-card__name {
@@ -2708,6 +2736,34 @@ body[data-theme="dark"] .doc-perm-users-wrap {
   justify-content: space-between;
   gap: 0.75rem;
   flex-wrap: wrap;
+}
+
+/* Barra de selección múltiple: solo visible cuando hay documentos marcados
+   (se muestra/oculta con `hidden` desde JS, sin volver a renderizar la vista —
+   ver `syncDocSelectionBadge`). */
+.documents-studio.doc-studio .doc-bulkbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.6rem 0.9rem;
+  margin-top: 0.6rem;
+  background: var(--doc-primary-soft);
+  border: 1px solid rgba(37, 99, 235, 0.24);
+  border-radius: var(--doc-radius-sm);
+}
+
+.documents-studio.doc-studio .doc-bulkbar__count {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--doc-primary);
+}
+
+.documents-studio.doc-studio .doc-bulkbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .documents-studio.doc-studio .doc-explorer .doc-breadcrumb {
