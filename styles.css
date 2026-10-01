@@ -4129,6 +4129,15 @@ tbody tr:last-child td { border-bottom: none; }
   transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 }
 
+/* En columnas angostas (grids de 2-3 campos) el placeholder de un select ("Seleccione
+   un departamento...") se recortaba a lo bruto, sin "…" — texto cortado a la mitad de
+   una letra. */
+.p-form select {
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
 .p-form input:focus, .p-form select:focus, .p-form textarea:focus {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px var(--primary-glow);
@@ -31871,6 +31880,17 @@ body[data-theme="dark"] .directory-card__actions {
   border-radius: 12px;
   font-size: 0.84rem;
   transition: all 0.15s ease;
+}
+
+/* Cada <label> del grid reserva alto para SU PROPIO texto de etiqueta nada más — si
+   "Departamento origen" envuelve a 2 líneas y su vecina "Ciudad origen" cabe en 1, el
+   <select> de cada una arranca a una altura distinta y la fila se ve desalineada
+   (reportado por Julian). Reservar el alto de 2 líneas siempre, sin importar cuántas
+   use el texto real, iguala el punto de partida del control en toda fila, columna o idioma. */
+.form-section-grid label:not(.route-rate-company-item):not(.route-rate-company-item-text) > .field-label {
+  min-height: 2.6em;
+  line-height: 1.3;
+  align-items: flex-start;
 }
 
 #form-route-rate .route-rate-company-item,
