@@ -3662,21 +3662,21 @@ th {
   font-size: 0.76rem;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  padding: 0.7rem 0.6rem;
+  padding: 0.75rem 0.7rem;
   border-bottom: 2px solid var(--line);
   text-align: left;
   white-space: nowrap;
 }
 
 td {
-  padding: 0.7rem 0.6rem;
+  padding: 0.75rem 0.7rem;
   border-bottom: 1px solid #EDF2F7;
   text-align: left;
   vertical-align: middle;
   color: var(--text);
 }
 
-tbody tr { transition: background 0.15s ease; }
+tbody tr { transition: background 0.15s ease, box-shadow 0.15s ease; }
 tbody tr:hover { background: #F5F8FC; }
 tbody tr:last-child td { border-bottom: none; }
 
@@ -3684,6 +3684,26 @@ tbody tr:last-child td { border-bottom: none; }
   overflow-x: auto;
   margin: 0 -1.4rem;
   padding: 0 1.4rem;
+}
+
+/*
+ * Uplift visual del contenedor de tablas (vista "Consultar" en todos los módulos).
+ * No se agrega border/radius al propio .table-wrap porque su margen negativo lo deja
+ * a ras del borde de .p-card (que ya tiene su propio borde+radius+sombra) — envolverlo
+ * otra vez produciría un "doble borde". En su lugar, redondeamos solo el fondo de las
+ * celdas de cabecera (primera/última) para una cabecera con esquinas superiores suaves,
+ * y añadimos un acento de hover sutil en la primera celda de cada fila.
+ */
+.table-wrap table thead th:first-child {
+  border-top-left-radius: var(--radius-sm);
+}
+
+.table-wrap table thead th:last-child {
+  border-top-right-radius: var(--radius-sm);
+}
+
+.table-wrap table tbody tr:hover td:first-child {
+  box-shadow: inset 3px 0 0 0 rgba(var(--primary-rgb), 0.5);
 }
 
 .status {
@@ -5502,6 +5522,11 @@ body[data-theme="dark"] .modal-edit-section-title {
   min-height: 2.45rem;
 }
 
+.transport-ops-search input:hover,
+.transport-ops-sort select:hover {
+  border-color: rgba(var(--primary-rgb), 0.4);
+}
+
 .transport-ops-layout {
   display: inline-flex;
   align-items: end;
@@ -6742,6 +6767,194 @@ body[data-theme="dark"] .searchable-select-dropdown {
 .create-trip-eligibility-badge--blocked {
   color: #9f1239;
   background: color-mix(in srgb, #ef4444 14%, var(--white));
+}
+
+/* ── "Asignar viaje" (v2): cabecera, barra de progreso de 3 pasos y fila de
+   asignación. Estas clases (create-trip-form-v2__*, transport-wizard__*) no tenían
+   NINGÚN CSS — el formulario más usado a diario renderizaba sin fondo, sin tarjetas
+   de hito y sin layout de columnas. Uso exclusivo de este formulario (viajes.js). ── */
+.transport-wizard__head {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1.3rem 1.5rem;
+  margin-bottom: 1.1rem;
+  border-radius: var(--radius);
+  background: var(--gradient-hero);
+  box-shadow: 0 18px 38px rgba(var(--primary-rgb), 0.22);
+  overflow: hidden;
+}
+
+.transport-wizard__eyebrow {
+  margin: 0 0 0.3rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.transport-wizard__title {
+  margin: 0 0 0.35rem;
+  font-size: 1.28rem;
+  color: #fff;
+}
+
+.transport-wizard__desc {
+  margin: 0;
+  max-width: 34rem;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.84);
+}
+
+.create-trip-form-v2__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+body[data-theme="dark"] .transport-wizard__head {
+  box-shadow: 0 18px 38px rgba(2, 8, 18, 0.4);
+}
+
+.create-trip-form-v2__progress {
+  margin: 0 0 1.2rem;
+}
+
+.create-trip-form-v2__progress-track {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(var(--primary-rgb), 0.14);
+  overflow: hidden;
+}
+
+.create-trip-form-v2__progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--primary) 0%, var(--success) 100%);
+  transition: width 0.35s ease;
+}
+
+.create-trip-form-v2__milestones {
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0.7rem 0 0;
+  padding: 0;
+}
+
+.create-trip-form-v2__milestone {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex: 1 1 0;
+  min-width: 0;
+  opacity: 0.55;
+  transition: opacity 0.2s ease;
+}
+
+.create-trip-form-v2__milestone.is-active,
+.create-trip-form-v2__milestone.is-done {
+  opacity: 1;
+}
+
+.create-trip-form-v2__milestone-num {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  font-family: var(--font-display);
+  font-size: 0.76rem;
+  font-weight: 800;
+  color: var(--primary-deeper);
+  background: rgba(var(--primary-rgb), 0.12);
+  border: 2px solid rgba(var(--primary-rgb), 0.22);
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.create-trip-form-v2__milestone.is-active .create-trip-form-v2__milestone-num {
+  color: #fff;
+  background: var(--primary);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.16);
+}
+
+.create-trip-form-v2__milestone.is-done .create-trip-form-v2__milestone-num {
+  color: #fff;
+  background: var(--success);
+  border-color: var(--success);
+}
+
+.create-trip-form-v2__milestone-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.create-trip-form-v2__milestone-copy strong {
+  font-size: 0.82rem;
+  color: var(--text);
+}
+
+.create-trip-form-v2__milestone-copy small {
+  font-size: 0.72rem;
+  color: var(--text-soft);
+}
+
+/* La numeración de pasos de .antares-create-form__sections (ver arriba) reserva
+   2.5rem a la izquierda para las insignias — pero aquí los hijos directos son
+   secciones propias (.assign-trip-block / .create-trip-form-v2__assign-row), no
+   .form-section, así que esas insignias nunca aparecen: se cancela el hueco. */
+.antares-create-form__sections:not(:has(> .form-section)) {
+  padding-left: 0;
+}
+
+.create-trip-form-v2__assign-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+  transition: opacity 0.25s ease;
+}
+
+/* Antes de elegir solicitud, portal-runtime.js marca esta fila como is-locked
+   (selects ya vienen disabled, pero la cabecera y el fieldset de tarifa se veían
+   igual de "activos" que el resto — atenuar todo el bloque unifica la señal,
+   igual que .create-trip-step--locked en este mismo formulario). */
+.create-trip-form-v2__assign-row.is-locked {
+  opacity: 0.6;
+}
+
+/* .full normalmente ocupa todo el ancho del grid del formulario (ver línea ~2488),
+   pero aquí el fieldset de tarifa debe quedar en su propia columna junto al bloque
+   de vehículo/conductor, no abarcar las dos — se anula sólo en este contexto. */
+.create-trip-form-v2__assign-row > .full {
+  grid-column: auto;
+}
+
+@media (max-width: 860px) {
+  .create-trip-form-v2__assign-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .transport-wizard__head {
+    padding: 1.1rem 1.2rem;
+  }
+
+  .create-trip-form-v2__milestone-copy small {
+    display: none;
+  }
 }
 
 .create-trip-fleet-head {
@@ -10752,6 +10965,26 @@ body[data-theme="dark"] .trips-table-wrap table tbody td:last-child {
   box-shadow: 0 32px 64px rgba(7, 30, 61, 0.25);
 }
 
+/* Acento superior + separador de cabecera para modales de crear/editar (CRUD).
+   Escoped a .modal-card-edit (no al .modal-card base) para no afectar el modal
+   de autenticación, que reutiliza .modal-card sin esta variante. */
+.modal-card-edit {
+  border-top: 4px solid var(--primary);
+}
+
+.modal-card-edit .modal-head {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.7rem;
+}
+
+/* body[data-theme="dark"] .modal-card tiene la misma especificidad que un simple
+   ".modal-card-edit" con prefijo de tema, y aparece después en el archivo — por eso
+   ganaría igual. Se ancla con el id #crud-modal (siempre presente, ver openEditModal)
+   para que el acento gane sin depender del orden en el archivo. */
+body[data-theme="dark"] #crud-modal .modal-card-edit {
+  border-top-color: var(--primary-mid);
+}
+
 .modal-card-auth {
   width: min(760px, 94%);
   max-height: min(92vh, 880px);
@@ -11283,6 +11516,27 @@ body[data-theme="dark"] #crud-form.p-form-colored.modal-edit-form > label:not(.r
   width: 100%;
   border-bottom: 1px solid color-mix(in srgb, var(--primary, #377cc0) 10%, #e2e8f0);
   margin: 0;
+}
+
+/* Bug preexistente: las dos reglas #crud-form...form-section / legend de arriba no tenían
+   variante oscura, así que en modo oscuro la tarjeta de cada sección (y su legend) se
+   quedaba con el fondo claro fijo aunque los campos de adentro sí se oscurecían — se veía
+   una tarjeta casi blanca flotando dentro del modal oscuro. Se alinea con la paleta oscura
+   ya usada en el resto de .form-section-*. */
+body[data-theme="dark"] #crud-form.p-form-colored.modal-edit-form .form-section {
+  border-color: color-mix(in srgb, var(--primary-mid, #83bee9) 30%, #345577);
+  background: linear-gradient(145deg, rgba(26, 49, 76, 0.92), rgba(15, 28, 46, 0.88));
+  box-shadow: 0 2px 10px rgba(2, 8, 18, 0.35), 0 1px 2px rgba(2, 8, 18, 0.3);
+}
+
+body[data-theme="dark"] #crud-form.p-form-colored.modal-edit-form .form-section:hover {
+  box-shadow: 0 4px 18px rgba(2, 8, 18, 0.4), 0 2px 4px rgba(var(--primary-rgb), 0.14);
+}
+
+body[data-theme="dark"] #crud-form.p-form-colored.modal-edit-form .form-section legend {
+  color: #bcdcff;
+  background: linear-gradient(90deg, rgba(var(--primary-rgb), 0.24), transparent 85%);
+  border-bottom-color: rgba(148, 196, 255, 0.18);
 }
 
 .modal-edit-form label > span:first-child {
@@ -14465,6 +14719,14 @@ body[data-theme="dark"] .dash-stat-value {
   color: #e6f0ff;
 }
 
+/* Bug preexistente: el borde inferior de <td> quedaba fijo en #EDF2F7 (gris muy claro)
+   incluso en modo oscuro, sin override, por lo que en tablas sin una clase específica
+   (vehicle-fleet-table sí lo corregía) la línea entre filas era casi invisible o brillaba
+   demasiado según el fondo. Se alinea con la convención ya usada por vehicle-fleet-table. */
+body[data-theme="dark"] td {
+  border-bottom-color: rgba(148, 196, 255, 0.12);
+}
+
 body[data-theme="dark"] .muted,
 body[data-theme="dark"] .p-card-header p,
 body[data-theme="dark"] .kpi-data span,
@@ -14991,11 +15253,13 @@ body[data-theme="dark"] .p-form textarea {
 }
 
 .table-wrap table thead th {
-  background: linear-gradient(180deg, #edf4fd 0%, #e6f0fb 100%);
+  background: linear-gradient(180deg, rgba(var(--primary-rgb), 0.1) 0%, rgba(var(--primary-rgb), 0.045) 100%);
+  border-bottom: 2px solid rgba(var(--primary-rgb), 0.22);
+  color: var(--primary-deeper);
 }
 
 .table-wrap table tbody tr:hover {
-  background: rgba(var(--primary-rgb), 0.05);
+  background: rgba(var(--primary-rgb), 0.055);
 }
 
 .status {
@@ -25970,13 +26234,17 @@ body[data-theme="dark"] .perm-check span strong {
 }
 
 body[data-theme="dark"] .table-wrap table thead th {
-  background: linear-gradient(180deg, #1a304a 0%, #223c5d 100%);
+  background: linear-gradient(180deg, #1c3454 0%, #223c5d 100%);
   color: #d9eaff;
-  border-bottom-color: #4a6f99;
+  border-bottom: 2px solid rgba(148, 196, 255, 0.3);
 }
 
 body[data-theme="dark"] .table-wrap table tbody tr:hover {
   background: #24415f;
+}
+
+body[data-theme="dark"] .table-wrap table tbody tr:hover td:first-child {
+  box-shadow: inset 3px 0 0 0 rgba(148, 196, 255, 0.55);
 }
 
 body[data-theme="dark"] .tabs {
