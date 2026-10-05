@@ -161,11 +161,13 @@
     "arl",
     "pensionfund",
     "bankaccount",
-    "supportnumber"
+    "supportnumber",
+    "unlinkcategory"
   ]);
 
   /** Valores sí/no de selects: conservar minúsculas. */
   const LOWERCASE_ENUM_VALUES_KEYS = new Set([
+    "unlinkcategory",
     "requiresthermoking",
     "refrigerated",
     "hasgps",

@@ -2536,7 +2536,13 @@ function bindPayrollPortalControls() {
     const ids = [...new Set((employeeIds || []).map((id) => String(id || "").trim()).filter(Boolean))];
     if (!ids.length) return { ok: false };
     const unlinkDate = String(payload.unlinkDate || "").trim().slice(0, 10);
-    const unlinkCategory = String(payload.unlinkCategory || "otro").trim() || "otro";
+    const unlinkCategoryRaw = String(payload.unlinkCategory || "otro").trim();
+    /* La API valida contra valores exactos en minúsculas (renuncia_voluntaria, ...): nunca enviar mayúsculas ni la etiqueta. */
+    const unlinkCategoryOpts = unlinkCategoryOptions();
+    const unlinkCategory =
+      unlinkCategoryOpts.find((o) => String(o.value).toLowerCase() === unlinkCategoryRaw.toLowerCase())?.value ||
+      unlinkCategoryOpts.find((o) => String(o.label).toLowerCase() === unlinkCategoryRaw.toLowerCase())?.value ||
+      "otro";
     const unlinkReason = String(payload.unlinkReason || "").trim();
     const snapshots = ids
       .map((employeeId) => read(KEYS.payrollEmployees, []).find((row) => String(row.id) === employeeId))

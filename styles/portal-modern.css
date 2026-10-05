@@ -1,0 +1,853 @@
+/* ===================================================================
+   Antares Portal — capa visual moderna (v1)
+   Se carga DESPUÉS de todos los CSS de módulo. Solo cambia aspecto
+   (color, tipografía, profundidad, radios); no toca layout funcional.
+   Cada módulo recibe su color de acento vía .module-shell[data-module-view].
+   =================================================================== */
+
+/* ───────────── 1. Tokens y acento por módulo ───────────── */
+body.portal-mode {
+  --pm-ink: #0b2240;
+  --pm-ink-2: #46607f;
+  --pm-ink-3: #7b8fa8;
+  --pm-card: #ffffff;
+  --pm-hair: rgba(11, 34, 64, 0.09);
+  --pm-hair-strong: rgba(11, 34, 64, 0.16);
+  --pm-sh-1: 0 1px 2px rgba(11, 34, 64, 0.05), 0 6px 16px -8px rgba(11, 34, 64, 0.12);
+  --pm-sh-2: 0 1px 2px rgba(11, 34, 64, 0.05), 0 16px 34px -14px rgba(11, 34, 64, 0.22);
+  --pm-radius: 18px;
+  --mx-rgb: 55, 124, 192;
+}
+
+.portal-main { --mx: rgb(var(--mx-rgb)); --mx-deep: color-mix(in srgb, rgb(var(--mx-rgb)) 66%, #08182e); --mx-tint: rgba(var(--mx-rgb), 0.1); }
+
+.portal-main:has(.module-shell[data-module-view="requests"]) { --mx-rgb: 55, 124, 192; }
+.portal-main:has(.module-shell[data-module-view="transport-trips"]) { --mx-rgb: 47, 110, 214; }
+.portal-main:has(.module-shell[data-module-view="transport-vehicles"]) { --mx-rgb: 14, 152, 160; }
+.portal-main:has(.module-shell[data-module-view="transport-drivers"]) { --mx-rgb: 88, 101, 216; }
+.portal-main:has(.module-shell[data-module-view="transport-calendar"]) { --mx-rgb: 139, 92, 240; }
+.portal-main:has(.module-shell[data-module-view="history"]) { --mx-rgb: 84, 110, 145; }
+.portal-main:has(.module-shell[data-module-view="reports"]) { --mx-rgb: 14, 150, 214; }
+.portal-main:has(.module-shell[data-module-view="payroll"]) { --mx-rgb: 16, 160, 120; }
+.portal-main:has(.module-shell[data-module-view="hiring"]) { --mx-rgb: 168, 85, 204; }
+.portal-main:has(.module-shell[data-module-view="labor-compliance"]) { --mx-rgb: 224, 148, 22; }
+.portal-main:has(.module-shell[data-module-view="sarlaft-pte"]) { --mx-rgb: 224, 82, 122; }
+.portal-main:has(.module-shell[data-module-view="admin-users"]) { --mx-rgb: 88, 101, 216; }
+.portal-main:has(.module-shell[data-module-view="authorizations"]) { --mx-rgb: 224, 148, 22; }
+.portal-main:has(.module-shell[data-module-view="profile"]) { --mx-rgb: 55, 124, 192; }
+.portal-main:has(.module-shell[data-module-view="notifications"]) { --mx-rgb: 14, 150, 214; }
+.portal-main:has(.module-shell[data-module-view="contact-leads"]) { --mx-rgb: 14, 152, 160; }
+
+/* ───────────── 2. Título de página ───────────── */
+body.portal-mode .portal-header h1 {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 1.05rem + 1.15vw, 2.15rem);
+  font-weight: 800;
+  line-height: 1.08;
+  letter-spacing: -0.035em;
+  color: var(--pm-ink);
+}
+
+body.portal-mode .portal-header h1::before {
+  content: "";
+  flex: none;
+  align-self: stretch;
+  width: 0.44rem;
+  min-height: 1.5em;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--mx), var(--mx-deep));
+  box-shadow: 0 8px 16px -6px rgba(var(--mx-rgb), 0.65);
+}
+
+/* ───────────── 3. Tiras de KPI ───────────── */
+/* El header de los estudios es un flex-column: Chrome mide mal el alto de la tira de KPI
+   dentro de él (la calcula apilada). En grid de 1 columna la medida es correcta. */
+body.portal-mode .hr-workspace-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: 0.9rem;
+}
+
+body.portal-mode .hr-workspace-header > .hr-workspace-header__switch { justify-self: end; }
+
+/* 3a · fleet-hero-strip (Viajes, Camiones, Conductores, Calendario, Reportería…) */
+body.portal-mode .fleet-hero-strip {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  overflow: visible;
+}
+
+body.portal-mode .fleet-hero-strip::before,
+body.portal-mode .fleet-hero-strip::after { display: none; }
+
+body.portal-mode .fleet-hero-strip .fleet-hero-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+  width: 100%;
+  justify-content: stretch;
+  align-items: stretch;
+}
+
+body.portal-mode .fleet-hero-metric {
+  position: relative;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  flex: 1 1 10.25rem;
+  min-width: 0;
+  padding: 1rem 1.1rem 1.05rem 1.3rem;
+  text-align: left;
+  border: 1px solid var(--pm-hair);
+  border-radius: 16px;
+  background:
+    radial-gradient(120% 140% at 100% 0%, rgba(var(--mx-rgb), 0.1), transparent 55%),
+    var(--pm-card);
+  box-shadow: var(--pm-sh-1);
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+body.portal-mode .fleet-hero-metric::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: linear-gradient(180deg, var(--mx), var(--mx-deep));
+}
+
+body.portal-mode .fleet-hero-metric:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--pm-sh-2);
+}
+
+body.portal-mode .fleet-hero-metric strong {
+  max-width: 100%;
+  font-family: var(--font-display);
+  font-size: clamp(1.3rem, 0.9rem + 1.1vw, 1.95rem);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.035em;
+  color: var(--pm-ink);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+body.portal-mode .fleet-hero-metric span {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--pm-ink-2);
+}
+
+/* Tiras con muchas métricas (Camiones 7, Conductores 9): modo compacto en una sola fila */
+body.portal-mode .fleet-hero-metrics:has(> :nth-child(7)) .fleet-hero-metric { flex-basis: 8.4rem; padding: 0.85rem 0.9rem 0.9rem 1.1rem; }
+body.portal-mode .fleet-hero-metrics:has(> :nth-child(7)) .fleet-hero-metric strong { font-size: clamp(1.25rem, 0.8rem + 0.9vw, 1.65rem); }
+body.portal-mode .fleet-hero-metrics:has(> :nth-child(8)) .fleet-hero-metric { flex-basis: 6.2rem; padding: 0.8rem 0.7rem 0.85rem 0.95rem; }
+body.portal-mode .fleet-hero-metrics:has(> :nth-child(8)) .fleet-hero-metric span { font-size: 0.6rem; letter-spacing: 0.07em; }
+
+/* 3b · cabecera RRHH / SST (payroll-studio-head) */
+body.portal-mode :is(.payroll-studio-head, .hiring-studio-head) {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 1.25rem;
+  padding: 1.4rem 1.6rem 1.35rem 1.9rem;
+  border: 1px solid var(--pm-hair);
+  border-radius: 22px;
+  background:
+    radial-gradient(70% 160% at 100% 0%, rgba(var(--mx-rgb), 0.16), transparent 60%),
+    linear-gradient(180deg, #ffffff, #f8fbff);
+  box-shadow: var(--pm-sh-2);
+  overflow: hidden;
+}
+
+body.portal-mode :is(.payroll-studio-head, .hiring-studio-head)::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 6px;
+  height: auto;
+  background: linear-gradient(180deg, var(--mx), var(--mx-deep));
+}
+
+body.portal-mode :is(.payroll-studio-head, .hiring-studio-head)::after { display: none; }
+
+body.portal-mode :is(.payroll-studio-head__badge, .hiring-studio-head__badge) {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  padding: 0.28rem 0.7rem;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(var(--mx-rgb), 0.12);
+  color: var(--mx-deep);
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+body.portal-mode :is(.payroll-studio-head, .hiring-studio-head) h2,
+body.portal-mode .hist-trace-hero h2,
+body.portal-mode .hr-workspace-head h2 {
+  margin: 0.45rem 0 0.35rem;
+  font-family: var(--font-display);
+  font-size: clamp(1.45rem, 1.1rem + 1vw, 2rem);
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 1.08;
+  color: var(--pm-ink);
+}
+
+body.portal-mode :is(.payroll-studio-head__tagline, .hiring-studio-head__tagline),
+body.portal-mode .hist-trace-hero__lead,
+body.portal-mode .hr-workspace-head > div > p.muted {
+  max-width: 46ch;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--pm-ink-2);
+}
+
+body.portal-mode :is(.payroll-studio-kpis, .hiring-studio-kpis) {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(6.6rem, 1fr);
+  gap: 0.7rem;
+  margin: 0;
+  align-self: center;
+}
+
+body.portal-mode :is(.payroll-studio-kpi, .hiring-studio-kpi) {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.2rem;
+  min-width: 0;
+  padding: 0.8rem 0.95rem;
+  border: 1px solid var(--pm-hair);
+  border-radius: 14px;
+  background: var(--pm-card);
+  box-shadow: var(--pm-sh-1);
+}
+
+body.portal-mode :is(.payroll-studio-kpi, .hiring-studio-kpi) dt {
+  order: 2;
+  margin: 0;
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--pm-ink-2);
+}
+
+body.portal-mode :is(.payroll-studio-kpi, .hiring-studio-kpi) dd { order: 1; margin: 0; }
+
+body.portal-mode :is(.payroll-studio-kpi, .hiring-studio-kpi) dd strong {
+  font-family: var(--font-display);
+  font-size: 1.55rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  color: var(--pm-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+body.portal-mode :is(.payroll-studio-kpi--warn, .hiring-studio-kpi--warn) dd strong { color: #c2560a; }
+body.portal-mode :is(.payroll-studio-kpi--ok, .hiring-studio-kpi--ok) dd strong { color: #0c8a62; }
+body.portal-mode :is(.payroll-studio-kpi--bad, .hiring-studio-kpi--bad, .hiring-studio-kpi--alert) dd strong { color: #c0392b; }
+
+/* 3c · Historial (hist-trace-hero) */
+body.portal-mode .hist-trace-hero {
+  position: relative;
+  border: 1px solid var(--pm-hair);
+  border-radius: 22px;
+  background:
+    radial-gradient(70% 160% at 100% 0%, rgba(var(--mx-rgb), 0.15), transparent 60%),
+    linear-gradient(180deg, #ffffff, #f8fbff);
+  box-shadow: var(--pm-sh-2);
+  overflow: hidden;
+}
+
+body.portal-mode .hist-trace-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--mx), var(--mx-deep));
+}
+
+body.portal-mode .hist-trace-kpi {
+  border: 1px solid var(--pm-hair);
+  border-radius: 14px;
+  background: var(--pm-card);
+  box-shadow: var(--pm-sh-1);
+}
+
+body.portal-mode .hist-trace-kpi dd strong {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 3d · SARLAFT / PTE (hr-alert-card) */
+body.portal-mode .hr-workspace-head {
+  position: relative;
+  padding: 1.3rem 1.6rem 1.25rem 1.9rem;
+  border: 1px solid var(--pm-hair);
+  border-radius: 22px;
+  background:
+    radial-gradient(70% 160% at 100% 0%, rgba(var(--mx-rgb), 0.15), transparent 60%),
+    linear-gradient(180deg, #ffffff, #f8fbff);
+  box-shadow: var(--pm-sh-2);
+  overflow: hidden;
+}
+
+body.portal-mode .hr-workspace-head::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 6px;
+  background: linear-gradient(180deg, var(--mx), var(--mx-deep));
+}
+
+body.portal-mode .hr-workspace-kicker {
+  display: inline-flex;
+  padding: 0.28rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(var(--mx-rgb), 0.12);
+  color: var(--mx-deep);
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+body.portal-mode .hr-alert-card {
+  position: relative;
+  border: 1px solid var(--pm-hair);
+  border-radius: 16px;
+  background: var(--pm-card);
+  box-shadow: var(--pm-sh-1);
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+body.portal-mode .hr-alert-card:hover { transform: translateY(-2px); box-shadow: var(--pm-sh-2); }
+
+body.portal-mode .hr-alert-card-value {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ───────────── 4. Interruptor Registrar / Consultar ───────────── */
+body.portal-mode .hr-workspace-tabs--switch {
+  gap: 0.25rem;
+  padding: 0.28rem;
+  border: 1px solid var(--pm-hair);
+  border-radius: 999px;
+  background: rgba(11, 34, 64, 0.045);
+  box-shadow: inset 0 1px 2px rgba(11, 34, 64, 0.06);
+}
+
+body.portal-mode .hr-workspace-tab--switch {
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--pm-ink-2);
+  font-weight: 700;
+  box-shadow: none;
+  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+body.portal-mode .hr-workspace-tab--switch:hover:not(.is-active) {
+  background: rgba(var(--mx-rgb), 0.1);
+  color: var(--mx-deep);
+  transform: none;
+}
+
+body.portal-mode .hr-workspace-tab--switch.is-active {
+  color: #ffffff;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--mx) 82%, #ffffff), var(--mx-deep));
+  box-shadow:
+    0 10px 20px -8px rgba(var(--mx-rgb), 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+/* ───────────── 5. Riel «Tipo de trámite» ───────────── */
+body.portal-mode [class*="-operate__rail"]:not([class*="-head"]):not([class*="-label"]):not([class*="-toggle"]) {
+  border: 0;
+  border-radius: var(--pm-radius);
+  background: transparent;
+  box-shadow: none;
+}
+
+body.portal-mode [class*="-operate__rail-label"] {
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: var(--pm-ink-3);
+}
+
+body.portal-mode [class*="-operate-nav-tab"] {
+  position: relative;
+  border: 1px solid var(--pm-hair);
+  border-radius: 16px;
+  background: var(--pm-card);
+  box-shadow: var(--pm-sh-1);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+}
+
+body.portal-mode [class*="-operate-nav-tab"]:hover {
+  border-color: rgba(var(--mx-rgb), 0.35);
+  box-shadow: var(--pm-sh-2);
+  transform: translateY(-2px);
+}
+
+body.portal-mode [class*="-operate-nav-tab"].is-active {
+  border-color: rgba(var(--mx-rgb), 0.55);
+  background:
+    linear-gradient(135deg, rgba(var(--mx-rgb), 0.13), rgba(var(--mx-rgb), 0.03) 70%),
+    var(--pm-card);
+  box-shadow:
+    0 0 0 3px rgba(var(--mx-rgb), 0.12),
+    0 14px 26px -14px rgba(var(--mx-rgb), 0.55);
+  transform: none;
+}
+
+body.portal-mode [class*="-operate-nav-tab"].is-active::before {
+  content: "";
+  position: absolute;
+  inset: 12px auto 12px 0;
+  width: 4px;
+  border-radius: 0 4px 4px 0;
+  background: linear-gradient(180deg, var(--mx), var(--mx-deep));
+}
+
+body.portal-mode [class*="-operate-nav-ico"] {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 11px;
+  background: rgba(var(--mx-rgb), 0.12);
+  color: var(--mx-deep);
+}
+
+body.portal-mode [class*="-operate-nav-tab"].is-active [class*="-operate-nav-ico"] {
+  background: linear-gradient(145deg, var(--mx), var(--mx-deep));
+  color: #ffffff;
+  box-shadow: 0 8px 14px -6px rgba(var(--mx-rgb), 0.7);
+}
+
+body.portal-mode [class*="-operate-nav-label"] {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--pm-ink);
+}
+
+/* ───────────── 6. Tarjetas de acción (cabecera de formulario) ───────────── */
+body.portal-mode .hr-action-card,
+body.portal-mode .p-card {
+  border: 1px solid var(--pm-hair);
+  border-radius: var(--pm-radius);
+  background: var(--pm-card);
+  box-shadow: var(--pm-sh-1);
+}
+
+body.portal-mode .hr-action-card__head .hr-card-icon {
+  width: 2.8rem;
+  height: 2.8rem;
+  border-radius: 14px;
+  background: linear-gradient(145deg, var(--mx), var(--mx-deep));
+  color: #ffffff;
+  box-shadow:
+    0 12px 20px -10px rgba(var(--mx-rgb), 0.75),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+body.portal-mode .hr-action-card__head h3 {
+  font-family: var(--font-display);
+  font-size: 1.12rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--pm-ink);
+}
+
+/* ───────────── 6b. Tarjetas operativas (viajes, camiones, conductores, solicitudes…) ───────────── */
+body.portal-mode .portal-ops-card,
+body.portal-mode .trip-ops-card,
+body.portal-mode .directory-card:not(.directory-card--compact),
+body.portal-mode .hiring-candidate-card {
+  --ops-card-accent: var(--mx);
+  padding: 0.95rem 1.05rem 0.9rem 1.2rem;
+  gap: 0.7rem;
+  border: 1px solid var(--pm-hair);
+  border-radius: 20px;
+  background: var(--pm-card);
+  box-shadow: var(--pm-sh-1);
+}
+
+/* El acento por estado lo conservan las variantes --estado ya definidas (declaradas con mayor especificidad abajo) */
+body.portal-mode .trip-ops-card--pendiente,
+body.portal-mode .request-ops-card.trip-ops-card--pendiente { --ops-card-accent: #f59e0b; }
+body.portal-mode .trip-ops-card--aprobada_pendiente_asignacion { --ops-card-accent: #2563eb; }
+body.portal-mode .trip-ops-card--viaje_asignado { --ops-card-accent: #16a34a; }
+body.portal-mode .trip-ops-card--en_transito { --ops-card-accent: #0284c7; }
+body.portal-mode .trip-ops-card--espera_standby { --ops-card-accent: #6366f1; }
+body.portal-mode .trip-ops-card--completada { --ops-card-accent: #0891b2; }
+body.portal-mode .trip-ops-card--cerrada { --ops-card-accent: #475569; }
+body.portal-mode .trip-ops-card--cancelada,
+body.portal-mode .trip-ops-card--rechazada,
+body.portal-mode .trip-ops-card--vencida { --ops-card-accent: #dc2626; }
+body.portal-mode .trip-ops-card--vehicle-disponible { --ops-card-accent: #16a34a; }
+body.portal-mode .trip-ops-card--vehicle-ocupado { --ops-card-accent: #ea580c; }
+body.portal-mode .trip-ops-card--vehicle-reservado { --ops-card-accent: #6366f1; }
+
+body.portal-mode .portal-ops-card::before,
+body.portal-mode .trip-ops-card::before,
+body.portal-mode .hiring-candidate-card::before {
+  top: 14px;
+  bottom: 14px;
+  width: 4px;
+  border-radius: 0 6px 6px 0;
+}
+
+body.portal-mode .portal-ops-card:hover,
+body.portal-mode .trip-ops-card:hover,
+body.portal-mode .hiring-candidate-card:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--ops-card-accent) 38%, transparent);
+  box-shadow:
+    0 2px 4px rgba(11, 34, 64, 0.05),
+    0 22px 38px -18px color-mix(in srgb, var(--ops-card-accent) 55%, transparent);
+}
+
+body.portal-mode .portal-ops-card .trip-ops-card-title,
+body.portal-mode .portal-ops-card h4 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--pm-ink);
+}
+
+body.portal-mode .trip-ops-card-kicker {
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  color: var(--pm-ink-3);
+}
+
+body.portal-mode .trip-ops-card-item {
+  border: 0;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--ops-card-accent) 6%, #f5f8fc);
+}
+
+body.portal-mode .trip-ops-card-item-label {
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: var(--pm-ink-3);
+}
+
+body.portal-mode .trip-ops-card-route-node strong { font-family: var(--font-display); letter-spacing: -0.01em; }
+
+/* Botones de la tarjeta: rejilla pareja (2 × 2) y estilo moderno */
+body.portal-mode .portal-ops-card-actions-grid > .trip-ops-card-btn--danger:last-child {
+  grid-column: auto;
+  max-width: none;
+  justify-self: stretch;
+}
+
+body.portal-mode .portal-ops-card-actions-grid > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+
+body.portal-mode .trip-ops-card-btn,
+body.portal-mode .portal-ops-card-actions .btn {
+  min-height: 2.15rem;
+  border-radius: 11px;
+  font-size: 0.72rem;
+  letter-spacing: 0.01em;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease, border-color 0.16s ease;
+}
+
+body.portal-mode .trip-ops-card-btn:hover { transform: translateY(-1px); }
+
+body.portal-mode .trip-ops-card-btn--solid {
+  border-color: transparent;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--mx) 84%, #ffffff), var(--mx-deep));
+  box-shadow: 0 10px 18px -10px rgba(var(--mx-rgb), 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+body.portal-mode .trip-ops-card-btn--soft {
+  border-color: rgba(var(--mx-rgb), 0.25);
+  background: rgba(var(--mx-rgb), 0.07);
+  color: var(--mx-deep);
+}
+
+body.portal-mode .trip-ops-card-btn--soft:hover { background: rgba(var(--mx-rgb), 0.14); }
+
+body.portal-mode .trip-ops-card-btn--danger { border-color: rgba(220, 53, 69, 0.28); background: rgba(220, 53, 69, 0.06); color: #c62839; }
+body.portal-mode .trip-ops-card-btn--danger:hover { background: rgba(220, 53, 69, 0.13); }
+
+body.portal-mode .portal-ops-card-status-pill {
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  box-shadow: 0 6px 12px -8px currentColor;
+}
+
+/* ───────────── 6c. Campos de búsqueda y filtros (fuera de formularios de captura) ───────────── */
+body.portal-mode .portal-main :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]), select):not(.p-form *) {
+  min-height: 2.55rem;
+  border: 1px solid var(--pm-hair-strong);
+  border-radius: 12px;
+  background-color: var(--pm-card);
+  color: var(--pm-ink);
+  box-shadow: inset 0 1px 2px rgba(11, 34, 64, 0.05);
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease;
+}
+
+body.portal-mode .portal-main :is(input, select):not(.p-form *):hover:not(:focus) { border-color: rgba(var(--mx-rgb), 0.45); }
+
+/* ───────────── 6d. Héroe de los formularios de captura ───────────── */
+/* En el stack completo el héroe "brand" quedaba claro con chips blancos de texto blanco (invisibles). */
+body.portal-mode .hr-form-hero {
+  position: relative;
+  overflow: hidden;
+  color: #ffffff;
+  border: 0;
+  border-radius: var(--pm-radius);
+  background:
+    radial-gradient(60% 150% at 100% 0%, rgba(var(--mx-rgb), 0.6), transparent 62%),
+    radial-gradient(45% 120% at 0% 110%, rgba(var(--mx-rgb), 0.28), transparent 62%),
+    linear-gradient(135deg, #0b2240 0%, #123a66 100%);
+  box-shadow: 0 24px 44px -26px rgba(11, 34, 64, 0.75);
+}
+
+body.portal-mode .hr-form-hero__eyebrow { color: color-mix(in srgb, rgb(var(--mx-rgb)) 45%, #ffffff); letter-spacing: 0.14em; }
+body.portal-mode .hr-form-hero__title { color: #ffffff; font-family: var(--font-display); font-weight: 800; letter-spacing: -0.03em; }
+body.portal-mode .hr-form-hero__text { color: rgba(255, 255, 255, 0.78); }
+
+body.portal-mode .hr-form-hero-badge {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(6px);
+  box-shadow: none;
+  color: #ffffff;
+}
+
+body.portal-mode .hr-form-hero-badge strong { color: #ffffff; font-family: var(--font-display); }
+body.portal-mode .hr-form-hero-badge small { color: rgba(255, 255, 255, 0.72); }
+
+/* ───────────── 6e. Rejilla de campos: filas parejas y controles alineados abajo ───────────── */
+body.portal-mode .form-section-grid { align-items: stretch; }
+
+body.portal-mode .form-section-grid > label:not(.route-rate-company-item):not(.route-rate-company-item-text) {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+}
+
+body.portal-mode .form-section-grid > label:not(.route-rate-company-item):not(.route-rate-company-item-text) > .field-label {
+  min-height: 0;
+  margin-bottom: auto;
+  padding-bottom: 0.3rem;
+}
+
+/* Empresa y ruta (Nueva solicitud): pares origen / destino a 2 columnas parejas */
+body.portal-mode .requests-create-form .form-section-blue .form-section-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* ───────────── 7. Pestañas y chips de filtro ───────────── */
+body.portal-mode .auth-tab-btn,
+body.portal-mode .reports-workspace-tab,
+body.portal-mode .ops-filter-pill {
+  border-radius: 999px;
+  font-weight: 700;
+  transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+body.portal-mode .auth-tab-btn.is-active,
+body.portal-mode .reports-workspace-tab.is-active,
+body.portal-mode .ops-filter-pill.is-active {
+  color: #ffffff;
+  border-color: transparent;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--mx) 82%, #ffffff), var(--mx-deep));
+  box-shadow: 0 10px 18px -8px rgba(var(--mx-rgb), 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+/* ───────────── 8. Estados vacíos ───────────── */
+body.portal-mode .portal-main .empty-state {
+  border: 1.5px dashed rgba(var(--mx-rgb), 0.3);
+  border-radius: var(--pm-radius);
+  background:
+    radial-gradient(60% 90% at 50% 0%, rgba(var(--mx-rgb), 0.09), transparent 70%),
+    var(--pm-card);
+  color: var(--pm-ink-2);
+}
+
+/* ───────────── 9. Botones ───────────── */
+body.portal-mode .portal-main .btn-primary:not(.btn-guard) {
+  border: 0;
+  border-radius: 12px;
+  color: #ffffff;
+  background-image: linear-gradient(135deg, color-mix(in srgb, var(--mx) 84%, #ffffff), var(--mx-deep)) !important;
+  background-color: var(--mx) !important;
+  box-shadow:
+    0 12px 22px -10px rgba(var(--mx-rgb), 0.75),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+}
+
+body.portal-mode .portal-main .btn-primary:not(.btn-guard):hover {
+  transform: translateY(-2px);
+  filter: saturate(1.08) brightness(1.04);
+  box-shadow:
+    0 18px 28px -12px rgba(var(--mx-rgb), 0.8),
+    inset 0 1px 0 rgba(255, 255, 255, 0.32);
+}
+
+body.portal-mode .portal-main .btn-primary:not(.btn-guard):active { transform: translateY(0); }
+
+body.portal-mode .portal-main .btn-outline,
+body.portal-mode .portal-main .btn-secondary {
+  border-radius: 12px;
+  border: 1px solid var(--pm-hair-strong);
+  background: var(--pm-card);
+  color: var(--pm-ink);
+  box-shadow: var(--pm-sh-1);
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+body.portal-mode .portal-main .btn-outline:hover,
+body.portal-mode .portal-main .btn-secondary:hover {
+  border-color: rgba(var(--mx-rgb), 0.55);
+  background: rgba(var(--mx-rgb), 0.06);
+  transform: translateY(-1px);
+}
+
+/* ───────────── 10. Campos: foco con acento ───────────── */
+body.portal-mode .portal-main input:not([type="checkbox"]):not([type="radio"]):focus,
+body.portal-mode .portal-main select:focus,
+body.portal-mode .portal-main textarea:focus {
+  outline: none;
+  border-color: rgba(var(--mx-rgb), 0.7);
+  box-shadow: 0 0 0 4px rgba(var(--mx-rgb), 0.16);
+}
+
+/* ───────────── 11. Tema oscuro ───────────── */
+body.portal-mode[data-theme="dark"] {
+  --pm-ink: #eaf3ff;
+  --pm-ink-2: #a9bdd6;
+  --pm-ink-3: #7f95b0;
+  --pm-card: rgba(18, 40, 66, 0.78);
+  --pm-hair: rgba(148, 196, 255, 0.14);
+  --pm-hair-strong: rgba(148, 196, 255, 0.26);
+  --pm-sh-1: 0 1px 2px rgba(0, 0, 0, 0.35), 0 8px 18px -10px rgba(0, 0, 0, 0.55);
+  --pm-sh-2: 0 1px 2px rgba(0, 0, 0, 0.4), 0 18px 36px -16px rgba(0, 0, 0, 0.7);
+}
+
+body.portal-mode[data-theme="dark"] :is(.payroll-studio-head, .hiring-studio-head),
+body.portal-mode[data-theme="dark"] .hist-trace-hero,
+body.portal-mode[data-theme="dark"] .hr-workspace-head {
+  background:
+    radial-gradient(70% 160% at 100% 0%, rgba(var(--mx-rgb), 0.22), transparent 60%),
+    linear-gradient(180deg, rgba(20, 44, 72, 0.92), rgba(13, 31, 53, 0.92));
+}
+
+body.portal-mode[data-theme="dark"] :is(.payroll-studio-kpi--ok, .hiring-studio-kpi--ok) dd strong { color: #4fd8a8; }
+body.portal-mode[data-theme="dark"] :is(.payroll-studio-kpi--warn, .hiring-studio-kpi--warn) dd strong { color: #ffb15c; }
+body.portal-mode[data-theme="dark"] :is(.payroll-studio-kpi--bad, .hiring-studio-kpi--bad, .hiring-studio-kpi--alert) dd strong { color: #ff8a7a; }
+
+body.portal-mode[data-theme="dark"] .hr-workspace-tabs--switch {
+  background: rgba(8, 22, 40, 0.55);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+body.portal-mode[data-theme="dark"] [class*="-operate-nav-tab"].is-active {
+  background:
+    linear-gradient(135deg, rgba(var(--mx-rgb), 0.28), rgba(var(--mx-rgb), 0.06) 70%),
+    var(--pm-card);
+}
+
+body.portal-mode[data-theme="dark"] .portal-main .empty-state {
+  background:
+    radial-gradient(60% 90% at 50% 0%, rgba(var(--mx-rgb), 0.16), transparent 70%),
+    var(--pm-card);
+}
+
+/* 11b · Oscuro: SST / SARLAFT y navegación de consulta (sin reglas oscuras propias en sus CSS) */
+body.portal-mode[data-theme="dark"] .sst-studio table tbody td,
+body.portal-mode[data-theme="dark"] .sst-studio .sst-consult-row td {
+  background: transparent;
+  color: var(--pm-ink);
+  border-color: var(--pm-hair);
+}
+
+body.portal-mode[data-theme="dark"] .sst-studio .sst-consult-row.sst-row--expired td { background: rgba(255, 99, 99, 0.13); }
+body.portal-mode[data-theme="dark"] .sst-studio .sst-consult-row.sst-row--warning td { background: rgba(255, 176, 60, 0.1); }
+
+body.portal-mode[data-theme="dark"] :is(
+  .sst-status-card, .sst-view-toggle, .sst-row-more__menu, .sst-create-form__milestone,
+  .payroll-data-nav-tab:not(.is-active), .payroll-data-nav__btn:not(.is-active),
+  .payroll-runs-view-toggle__btn:not(.is-active)
+) {
+  background: var(--pm-card);
+  color: var(--pm-ink);
+  border-color: var(--pm-hair-strong);
+}
+
+body.portal-mode[data-theme="dark"] .sst-status-card :is(strong, b, dd) { color: var(--pm-ink); }
+body.portal-mode[data-theme="dark"] .btn-reject { background: rgba(220, 53, 69, 0.16); border-color: rgba(255, 120, 130, 0.35); color: #ff9aa2; }
+
+body.portal-mode[data-theme="dark"] :is(.sst-status-pill--missing, .sarlaft-risk-chip--critico) {
+  background: rgba(255, 99, 99, 0.16);
+  color: #ff9aa2;
+}
+
+body.portal-mode[data-theme="dark"] .sst-studio h2 { color: var(--pm-ink); }
+
+/* Pestañas de consulta activas con el acento del módulo */
+body.portal-mode :is(.payroll-data-nav-tab, .payroll-data-nav__btn, .payroll-runs-view-toggle__btn, .sst-view-toggle .is-active).is-active {
+  color: #ffffff;
+  border-color: transparent;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--mx) 82%, #ffffff), var(--mx-deep));
+  box-shadow: 0 10px 18px -8px rgba(var(--mx-rgb), 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+/* ───────────── 12. Responsive y movimiento ───────────── */
+@media (max-width: 900px) {
+  body.portal-mode :is(.payroll-studio-head, .hiring-studio-head) { flex-direction: column; justify-content: flex-start; gap: 1rem; min-height: 0; padding-left: 1.5rem; }
+  body.portal-mode :is(.payroll-studio-head__brand, .hiring-studio-head__brand) { flex: 0 0 auto; min-height: 0; }
+  body.portal-mode :is(.payroll-studio-kpis, .hiring-studio-kpis) { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.portal-mode .fleet-hero-metric,
+  body.portal-mode .hr-alert-card,
+  body.portal-mode [class*="-operate-nav-tab"],
+  body.portal-mode .portal-main .btn-primary,
+  body.portal-mode .portal-main .btn-outline {
+    transition: none;
+  }
+  body.portal-mode .fleet-hero-metric:hover,
+  body.portal-mode .hr-alert-card:hover,
+  body.portal-mode [class*="-operate-nav-tab"]:hover,
+  body.portal-mode .portal-main .btn-primary:hover { transform: none; }
+}
