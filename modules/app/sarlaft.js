@@ -2281,34 +2281,66 @@ function bindSarlaftPortalControls() {
     G.renderPortalView?.();
   };
 
+  /** Eliminación siempre tras confirmación explícita (si no hay modal disponible, no se elimina). */
+  const confirmSarlaftDelete = ({ title, message, confirmText, onConfirm }) => {
+    if (typeof G.openConfirmModal !== "function") return;
+    G.openConfirmModal({ title, message, confirmText, onConfirm });
+  };
+
   nodes.viewRoot.querySelectorAll("[data-action='delete-sarlaft-party']").forEach((btn) => {
-    btn.addEventListener("click", async () => {
+    btn.addEventListener("click", () => {
+      if (!canDeleteSarlaftRecords()) return;
       const target = readParties().find((p) => String(p.id) === String(btn.dataset.id || ""));
       if (!target) return;
-      const confirmed = await G.confirmPortalAction?.(`¿Eliminar al tercero ${target.name}?`, { danger: true });
-      if (confirmed === false) return;
-      await removeRow(KEYS.sarlaftThirdParties, target.id, readParties);
-      auditSarlaft("delete", target.id, target.name, "Eliminación de tercero");
+      confirmSarlaftDelete({
+        title: "Eliminar tercero",
+        message: `Se eliminará al tercero "${target.name}" y su registro en SARLAFT / PTE. Esta acción no se puede deshacer.`,
+        confirmText: "Eliminar tercero",
+        onConfirm: async () => {
+          await removeRow(KEYS.sarlaftThirdParties, target.id, readParties);
+          auditSarlaft("delete", target.id, target.name, "Eliminación de tercero");
+          G.notify?.("Tercero eliminado.", "success");
+        }
+      });
     });
   });
   nodes.viewRoot.querySelectorAll("[data-action='delete-sarlaft-alert']").forEach((btn) => {
-    btn.addEventListener("click", async () => {
+    btn.addEventListener("click", () => {
+      if (!canDeleteSarlaftRecords()) return;
       const target = readAlerts().find((a) => String(a.id) === String(btn.dataset.id || ""));
       if (!target) return;
-      await removeRow(KEYS.sarlaftAlerts, target.id, readAlerts);
-      auditSarlaft("delete", target.id, target.title, "Eliminación de alerta");
+      confirmSarlaftDelete({
+        title: "Eliminar alerta",
+        message: `Se eliminará la alerta "${target.title}". Esta acción no se puede deshacer.`,
+        confirmText: "Eliminar alerta",
+        onConfirm: async () => {
+          await removeRow(KEYS.sarlaftAlerts, target.id, readAlerts);
+          auditSarlaft("delete", target.id, target.title, "Eliminación de alerta");
+          G.notify?.("Alerta eliminada.", "success");
+        }
+      });
     });
   });
   nodes.viewRoot.querySelectorAll("[data-action='delete-sarlaft-review']").forEach((btn) => {
-    btn.addEventListener("click", async () => {
+    btn.addEventListener("click", () => {
+      if (!canDeleteSarlaftRecords()) return;
       const target = readReviews().find((r) => String(r.id) === String(btn.dataset.id || ""));
       if (!target) return;
-      await removeRow(KEYS.sarlaftReviews, target.id, readReviews);
-      auditSarlaft("delete", target.id, target.thirdPartyName, "Eliminación de revisión");
+      confirmSarlaftDelete({
+        title: "Eliminar revisión",
+        message: `Se eliminará la revisión de "${target.thirdPartyName}". Esta acción no se puede deshacer.`,
+        confirmText: "Eliminar revisión",
+        onConfirm: async () => {
+          await removeRow(KEYS.sarlaftReviews, target.id, readReviews);
+          auditSarlaft("delete", target.id, target.thirdPartyName, "Eliminación de revisión");
+          G.notify?.("Revisión eliminada.", "success");
+        }
+      });
     });
   });
   nodes.viewRoot.querySelectorAll("[data-action='delete-sarlaft-profile']").forEach((btn) => {
-    btn.addEventListener("click", async () => {
+    btn.addEventListener("click", () => {
+      if (!canDeleteSarlaftRecords()) return;
       const target = readProfiles().find((p) => String(p.id) === String(btn.dataset.id || ""));
       if (!target) return;
       const inUse = readParties().some((party) => String(party.riskProfileId || "") === String(target.id));
@@ -2316,10 +2348,16 @@ function bindSarlaftPortalControls() {
         G.notify?.("Este perfil está asignado a terceros. Desactívelo en vez de eliminarlo.", "error");
         return;
       }
-      const confirmed = await G.confirmPortalAction?.(`¿Eliminar el perfil ${target.name}?`, { danger: true });
-      if (confirmed === false) return;
-      await removeRow(KEYS.sarlaftRiskProfiles, target.id, readProfiles);
-      auditSarlaft("delete", target.id, target.name, "Eliminación de perfil de riesgo");
+      confirmSarlaftDelete({
+        title: "Eliminar perfil de riesgo",
+        message: `Se eliminará el perfil "${target.name}". Esta acción no se puede deshacer.`,
+        confirmText: "Eliminar perfil",
+        onConfirm: async () => {
+          await removeRow(KEYS.sarlaftRiskProfiles, target.id, readProfiles);
+          auditSarlaft("delete", target.id, target.name, "Eliminación de perfil de riesgo");
+          G.notify?.("Perfil de riesgo eliminado.", "success");
+        }
+      });
     });
   });
   nodes.viewRoot.querySelectorAll("[data-action='toggle-sarlaft-profile']").forEach((btn) => {

@@ -19,6 +19,7 @@ import {
   escapeAttr,
   fmtDate,
   nowIso,
+  colombiaTodayIsoDate,
   normalizePortalDateYmd,
   formatPortalPhoneForDisplay,
   pickFirstNonEmpty,
@@ -356,7 +357,8 @@ export function downloadCsv(filename, rows = [], columns = []) {
 }
 
 export function reportExportStamp() {
-  return new Date().toISOString().slice(0, 10);
+  // Fecha local de Colombia (no UTC): después de las 7 p. m. el día UTC ya es el siguiente.
+  return colombiaTodayIsoDate();
 }
 
 export function reportExportSlug(title) {
@@ -1223,7 +1225,7 @@ export async function exportReportsBiToExcel(snapshot, root, layout) {
   if (!hasAnyChart && Object.values(L.charts).some(Boolean)) {
     notify(userMessage("reportBiExcelChartsPending"), "warn");
   }
-  const stamp = new Date().toISOString().slice(0, 10);
+  const stamp = colombiaTodayIsoDate();
   const period = String(snapshot.period || "90d");
   const html = buildReportsBiExcelHtml(snapshot, chartImages, L);
   downloadReportsBiExcel(`analitica_operativa_${period}_${stamp}.xls`, html);

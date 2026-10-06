@@ -297,7 +297,8 @@ function catalogValue(list, raw, fallback) {
     .trim()
     .toLowerCase()
     .replace(/\s+/g, "_");
-  const found = list.find((item) => item.value === v);
+  // El valor del catálogo puede estar en mayúsculas (p. ej. «CC», «NIT»); se compara sin distinguir mayúsculas.
+  const found = list.find((item) => String(item.value).toLowerCase() === v);
   return found ? found.value : fallback;
 }
 

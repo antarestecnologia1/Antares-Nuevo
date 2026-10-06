@@ -3477,16 +3477,16 @@ function bindExtendedViewEditHandlers() {
 
       const phoneValue = phoneDisp ? escapeHtml(phoneDisp) : `<span class="muted">Sin teléfono</span>`;
       const phoneBlock = telHref
-        ? $portal.portalDetailTile(IC.phone, "Teléfono", phoneValue, { href: telHref })
-        : $portal.portalDetailTile(IC.phone, "Teléfono", phoneValue, { muted: !phoneDisp });
+        ? portalDetailTile(IC.phone, "Teléfono", phoneValue, { href: telHref })
+        : portalDetailTile(IC.phone, "Teléfono", phoneValue, { muted: !phoneDisp });
 
       const emailValue = mail ? escapeHtml(mail) : `<span class="muted">Sin correo</span>`;
       const emailBlock = mailHref
-        ? $portal.portalDetailTile(IC.mail, "Correo empresarial", emailValue, { href: mailHref })
-        : $portal.portalDetailTile(IC.mail, "Correo empresarial", emailValue, { muted: !mail });
+        ? portalDetailTile(IC.mail, "Correo empresarial", emailValue, { href: mailHref })
+        : portalDetailTile(IC.mail, "Correo empresarial", emailValue, { muted: !mail });
 
       const contactValue = contactName ? escapeHtml(contactName) : `<span class="muted">Sin contacto principal</span>`;
-      const contactBlock = $portal.portalDetailTile(IC.user, "Contacto principal", contactValue, { muted: !contactName });
+      const contactBlock = portalDetailTile(IC.user, "Contacto principal", contactValue, { muted: !contactName });
 
       const locBody = hasLoc
         ? `<p class="portal-detail-loc-line">${addr ? escapeHtml(addr) : `<span class="muted">Sin dirección</span>`}</p>${
@@ -3605,14 +3605,14 @@ function bindExtendedViewEditHandlers() {
       const phoneDisp = u.phone ? $portal.formatPortalPhoneForDisplay(String(u.phone)) : "";
       const emailValue = email ? escapeHtml(email) : `<span class="muted">Sin correo</span>`;
       const emailBlock = mailHref
-        ? $portal.portalDetailTile(IC.mail, "Correo", emailValue, { href: mailHref })
-        : $portal.portalDetailTile(IC.mail, "Correo", emailValue, { muted: !email });
+        ? portalDetailTile(IC.mail, "Correo", emailValue, { href: mailHref })
+        : portalDetailTile(IC.mail, "Correo", emailValue, { muted: !email });
       const phoneValue = phoneDisp ? escapeHtml(phoneDisp) : `<span class="muted">Sin teléfono</span>`;
       const phoneBlock = telHref
-        ? $portal.portalDetailTile(IC.phone, "Teléfono", phoneValue, { href: telHref })
-        : $portal.portalDetailTile(IC.phone, "Teléfono", phoneValue, { muted: !phoneDisp });
+        ? portalDetailTile(IC.phone, "Teléfono", phoneValue, { href: telHref })
+        : portalDetailTile(IC.phone, "Teléfono", phoneValue, { muted: !phoneDisp });
       const companyValue = companyName ? escapeHtml(companyName) : `<span class="muted">Sin empresa</span>`;
-      const companyBlock = $portal.portalDetailTile(IC.briefcase, "Empresa", companyValue, { muted: !companyName });
+      const companyBlock = portalDetailTile(IC.briefcase, "Empresa", companyValue, { muted: !companyName });
       const storedCompanyLabel = String(u.company || "").trim() || "Sin nombre comercial";
       const city = String(u.city || "").trim();
       const dept = String(u.department || "").trim();

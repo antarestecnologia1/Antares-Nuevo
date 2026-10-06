@@ -876,7 +876,8 @@ export function notify(message, type = "info", durationOrOpts = 3200, maybeOpts 
   while (box.children.length >= TOAST_STACK_MAX) {
     const oldest = box.firstElementChild;
     if (oldest?.__toastDismiss) oldest.__toastDismiss(true);
-    else oldest?.remove();
+    // El dismiss retira el nodo en un setTimeout; sin quitarlo aquí el while no avanza y bloquea la pestaña.
+    oldest?.remove();
   }
 
   const item = document.createElement("div");

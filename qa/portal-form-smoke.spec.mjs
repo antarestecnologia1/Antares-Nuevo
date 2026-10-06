@@ -59,6 +59,8 @@ const afterTomorrow = plusDays(2);
 
 const adminUser = {
   id: "admin-1",
+  requiresDataPolicyAcceptance: false,
+  requiresTermsAcceptance: false,
   name: "Admin QA",
   firstName: "Admin",
   lastName: "QA",
@@ -79,6 +81,8 @@ const adminUser = {
 
 const clientUser = {
   id: "client-1",
+  requiresDataPolicyAcceptance: false,
+  requiresTermsAcceptance: false,
   name: "Cliente Demo",
   email: "cliente.demo@flores.test",
   role: "client",
@@ -231,6 +235,8 @@ const seedStore = {
       license: "C2-8899",
       licenseCategory: "C2",
       licenseExpiry: ymd(plusDays(180)),
+      occupationalExamExpiry: ymd(plusDays(300)),
+      instruvialExamExpiry: ymd(plusDays(300)),
       bloodType: "O+",
       eps: "Sura",
       arl: "Sura",
@@ -1036,6 +1042,8 @@ test("portal form smoke", async ({ page, context }) => {
       "Gestión humana:edit employee"
     );
     await ensureHrWorkspace("payroll", "operate");
+    // Deja que termine el refresco de la vista tras guardar al empleado; si no, el formulario se repinta y se vacía.
+    await page.waitForTimeout(2000);
     await ensureCreatePanelOpen("create-hr-absence");
     const absBefore = await arrayLen(KEYS.hrAbsences);
     await setFormFields("#form-hr-absence", [
@@ -1048,6 +1056,21 @@ test("portal form smoke", async ({ page, context }) => {
       ["notes", "Ausencia smoke"]
     ]);
     await attachPdfToForm("#form-hr-absence");
+    // El soporte se archiva en Gestión Documental vía servidor; sin API real se simula el archivado.
+    await page.evaluate(() => {
+      const stub = async ({ file }) => ({
+        ok: true,
+        fileName: file?.name || "soporte-novedad-qa.pdf",
+        documentId: "doc-qa-absence",
+        folder: "QA"
+      });
+      // Si Gestión Documental se carga después y reasigna la función, se ignora la reasignación.
+      Object.defineProperty(window, "archiveAbsenceSupportToEmployeeFolder", {
+        configurable: true,
+        get: () => stub,
+        set: () => {}
+      });
+    });
     await submitExistingForm("#form-hr-absence");
     await waitForArrayLength(KEYS.hrAbsences, absBefore + 1, "Gestión humana:create absence");
   });
@@ -1119,7 +1142,7 @@ test("portal form smoke", async ({ page, context }) => {
     await ensureHrWorkspace("hiring", "operate");
     await ensureCreatePanelOpen("create-candidate");
     const candBefore = await arrayLen(KEYS.candidates);
-    await submitForm("#form-candidate", [
+    await setFormFields("#form-candidate", [
       ["name", "Nuevo Candidato QA"],
       ["email", "nuevo.candidato@test.com"],
       ["phone", "3009990001"],
@@ -1135,6 +1158,9 @@ test("portal form smoke", async ({ page, context }) => {
       ["availabilityDate", ymd(plusDays(30))],
       ["vacancyId", "vac-1"]
     ]);
+    // La hoja de vida (input «attachments») es obligatoria al crear un candidato.
+    await attachPdfToForm("#form-candidate", "attachments");
+    await submitExistingForm("#form-candidate");
     await waitForArrayLength(KEYS.candidates, candBefore + 1, "Contratación:create candidate");
     await ensureHrWorkspace("hiring", "data");
     await clickDom("[data-action='edit-candidate'][data-id='cand-1']");
@@ -1159,9 +1185,10 @@ test("portal form smoke", async ({ page, context }) => {
     const intBefore = await arrayLen(KEYS.interviews);
     await submitForm("#form-interview", [
       ["candidateId", "cand-1"],
-      ["when", ymdhmLocal(plusDays(12))],
+      // El formulario separa fecha y hora (campos ocultos del selector); «when» se compone al enviar.
+      ["interviewDate", ymd(plusDays(12))],
+      ["interviewTime", "10:00"],
       ["interviewer", "Lina QA"],
-      ["mode", "virtual"],
       ["place", "https://meet.test/qa"],
       ["notes", "Entrevista smoke"]
     ]);
@@ -1307,8 +1334,10 @@ test("portal form smoke", async ({ page, context }) => {
 
   await record("Notificaciones:alerts-sound", async () => {
     await gotoView("notifications");
-    await clickDom("[data-action='notif-toggle-master']");
-    await clickDom("[data-action='notif-toggle-master']");
+    await clickDom("[data-action='notif-toggle-alerts']");
+    await clickDom("[data-action='notif-toggle-alerts']");
+    await clickDom("[data-action='notif-toggle-sound']");
+    await clickDom("[data-action='notif-toggle-sound']");
     await clickDom("[data-action='notif-read-all']");
     await waitForStore(
       (key) => {
