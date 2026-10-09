@@ -10,6 +10,7 @@ import {
   buildNonRenewalNoticeMeta,
   isFixedTermContractType
 } from "../modules/domain/contract-renewal.logic.js";
+import { colombiaTodayIsoDate } from "../modules/core/utils.js";
 
 function contractDedupKey(row) {
   const empKey = String(row.employeeId || "").trim().toLowerCase();
@@ -39,7 +40,16 @@ const emp = {
   contractDuration: "1 año"
 };
 
-ok(suggestRenewalPeriodStartYmd(emp) === "2026-01-01", "inicio renovación = día después del fin");
+ok(suggestRenewalPeriodStartYmd(emp) === "2026-01-01", "contrato ya vencido → inicio = día siguiente al fin");
+
+const empVenceHoyOFuturo = {
+  ...emp,
+  contractEndDate: "2099-12-31"
+};
+ok(
+  suggestRenewalPeriodStartYmd(empVenceHoyOFuturo) === "2099-12-31",
+  "inicio renovación = mismo día del vencimiento si aún no pasó"
+);
 
 const hireNeverRenewed = {
   contractType: "Termino fijo",
@@ -47,10 +57,10 @@ const hireNeverRenewed = {
   contractDuration: "1 año",
   contractEndDate: "2023-08-18"
 };
-ok(
-  suggestRenewalPeriodStartYmd(hireNeverRenewed) === "2026-08-22",
-  "contrato vencido sin renovaciones previas → avanza al período actual"
-);
+const laggedStart = suggestRenewalPeriodStartYmd(hireNeverRenewed);
+const todayYmd = colombiaTodayIsoDate();
+ok(laggedStart >= todayYmd, "contrato vencido sin renovaciones previas → avanza al período actual");
+ok(laggedStart > hireNeverRenewed.contractEndDate, "el período sugerido queda después del fin original");
 
 const renewalOk = validateContractRenewal(emp, {
   renewalDate: "2026-01-10",
@@ -60,9 +70,16 @@ const renewalOk = validateContractRenewal(emp, {
 });
 ok(renewalOk.ok, "renovación válida dentro de 3 años");
 
+const renewalSameDay = validateContractRenewal(emp, {
+  renewalDate: "2025-12-31",
+  contractVigenteStartDate: "2025-12-31",
+  contractEndDate: "2026-05-31"
+});
+ok(renewalSameDay.ok, "permite iniciar el nuevo período el mismo día del vencimiento");
+
 const renewalLateStart = validateContractRenewal(emp, {
   renewalDate: "2026-01-10",
-  contractVigenteStartDate: "2025-12-31",
+  contractVigenteStartDate: "2025-12-30",
   contractEndDate: "2026-05-31"
 });
 ok(!renewalLateStart.ok, "rechaza inicio antes del fin vigente");
@@ -118,4 +135,4 @@ ok(keyHire !== keyRenew, "contrato inicial ≠ renovación");
 ok(keyRenew !== keyNotice, "renovación ≠ aviso");
 ok(keyHire !== keyNotice, "inicial ≠ aviso");
 
-console.log("contract-renewal.domain.test.mjs: OK (13 casos)");
+console.log("contract-renewal.domain.test.mjs: OK (16 casos)");

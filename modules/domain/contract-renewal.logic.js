@@ -78,8 +78,9 @@ export function resolveContractEndFromPlazoStartYmd(employee, plazoStartYmd) {
 }
 
 /**
- * Sugiere el inicio del nuevo período: día siguiente al fin del período vigente.
- * Si el fin ya venció hace varios ciclos (renovaciones no registradas), avanza hasta el período actual.
+ * Sugiere el inicio del nuevo período: el mismo día del vencimiento vigente.
+ * Si el fin ya pasó, el siguiente período inicia al día siguiente.
+ * Si venció hace varios ciclos (renovaciones no registradas), avanza hasta el período actual.
  */
 export function suggestRenewalPeriodStartYmd(employee) {
   const e = employee || {};
@@ -91,7 +92,7 @@ export function suggestRenewalPeriodStartYmd(employee) {
     end = resolveContractEndFromPlazoStartYmd(e, plazoStart);
   }
   if (!end) return today;
-  if (end >= today) return addDaysToContractRenewalYmd(end, 1);
+  if (end >= today) return end;
 
   const nextStart = addDaysToContractRenewalYmd(end, 1);
   let nextEnd = resolveContractEndFromPlazoStartYmd(e, nextStart);
@@ -139,10 +140,10 @@ export function validateContractRenewal(employee, fields) {
     }
   }
   const prevEnd = normalizeContractRenewalYmd(e.contractEndDate);
-  if (prevEnd && periodStart <= prevEnd) {
+  if (prevEnd && periodStart < prevEnd) {
     return {
       ok: false,
-      message: `El nuevo período debe iniciar después del fin vigente (${prevEnd}).`,
+      message: `El nuevo período debe iniciar el día del vencimiento vigente o después (${prevEnd}).`,
       field: "contractVigenteStartDate"
     };
   }
