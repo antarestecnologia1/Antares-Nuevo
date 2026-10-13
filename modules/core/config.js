@@ -943,6 +943,7 @@ export const PORTAL_NON_ADMIN_BLOCKED_ACTIONS = new Set([
   "toggle-position",
   "candidate-status",
   "open-edit-user",
+  "open-user-permissions",
   "delete-user",
   "approve-registration",
   "reject-registration",

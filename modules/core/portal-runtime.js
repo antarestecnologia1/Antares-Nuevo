@@ -2144,7 +2144,12 @@ function defaultAdminUsersUi() {
     createUserMinimized: false,
     createCompanyMinimized: false,
     editMinimized: false,
-    permissionsMinimized: false
+    permissionsMinimized: false,
+    directorySearch: "",
+    permUserId: "",
+    userStatusFilter: "all",
+    userRoleFilter: "all",
+    companyStatusFilter: "all"
   };
 }
 

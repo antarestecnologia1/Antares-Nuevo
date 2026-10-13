@@ -1594,7 +1594,8 @@ export class PortalService implements OnModuleInit {
       `ALTER TABLE public.empleados_nomina ADD COLUMN IF NOT EXISTS categoria_desvinculacion VARCHAR(64)`,
       `ALTER TABLE public.empleados_nomina ADD COLUMN IF NOT EXISTS motivo_desvinculacion TEXT`,
       `ALTER TABLE public.empleados_nomina ADD COLUMN IF NOT EXISTS desvinculado_por VARCHAR(255)`,
-      `ALTER TABLE public.empleados_nomina ADD COLUMN IF NOT EXISTS tipos_vehiculo VARCHAR(160)`
+      `ALTER TABLE public.empleados_nomina ADD COLUMN IF NOT EXISTS tipos_vehiculo VARCHAR(160)`,
+      `ALTER TABLE public.empleados_nomina ADD COLUMN IF NOT EXISTS tipo_plantilla_contrato VARCHAR(32)`
     ];
     for (const q of alters) {
       try {
@@ -12177,6 +12178,9 @@ export class PortalService implements OnModuleInit {
     let skipped = 0;
     try {
       await client.query("BEGIN");
+      /* Cron en varias instancias o cron + liquidación masiva a la vez: sin este candado ambas
+       * transacciones ven "no existe" y duplican la liquidación del mismo corte. */
+      await client.query("SELECT pg_advisory_xact_lock(hashtext('antares_payroll_autogen'))");
       const laborRules = await this.loadLaborSystemRules(reference, client);
       const smmlv = laborRules.smmlvCop;
 
@@ -12186,16 +12190,23 @@ export class PortalService implements OnModuleInit {
       const empRes = await client.query(`
         SELECT id, nombre_completo, salario_base, fecha_ingreso::text AS fecha_ingreso, COALESCE(auxilio_transporte, 0) AS auxilio_transporte,
                COALESCE(NULLIF(TRIM(periodicidad_pago), ''), 'Mensual') AS periodicidad_pago,
-               rol_trabajador, tipo_contrato, nivel_riesgo_arl, tipo_cotizante
+               rol_trabajador, tipo_contrato, tipo_plantilla_contrato, nivel_riesgo_arl, tipo_cotizante,
+               COALESCE(activo, true) AS activo
         FROM empleados_nomina
+        WHERE COALESCE(activo, true) = true
         ORDER BY fecha_creacion ASC
       `);
 
       for (const row of empRes.rows) {
+        if (row.activo === false) {
+          skipped += 1;
+          continue;
+        }
         if (
           !employeeReceivesPayrollNomina({
             rol_trabajador: row.rol_trabajador,
-            tipo_contrato: row.tipo_contrato
+            tipo_contrato: row.tipo_contrato,
+            tipo_plantilla_contrato: row.tipo_plantilla_contrato
           })
         ) {
           skipped += 1;
@@ -12768,7 +12779,9 @@ export class PortalService implements OnModuleInit {
       const row = raw as Record<string, unknown>;
       const eid = String(row?.id ?? "").trim();
       if (!PG_UUID_V4_RE.test(eid)) continue;
-      await this.refreshPayrollDraftsForEmployeeTx(c, eid, stats);
+      /* Editar la ficha (teléfono, cargo, salario…) solo recalcula borradores pendientes que ya
+       * existen; nunca debe abrir una nómina nueva por su cuenta. */
+      await this.refreshPayrollDraftsForEmployeeTx(c, eid, stats, undefined, { createMissing: false });
     }
     if (stats.created + stats.updated > 0) {
       this.logger.log(
@@ -12781,8 +12794,12 @@ export class PortalService implements OnModuleInit {
     c: PoolClient,
     employeeId: string,
     stats: { created: number; updated: number; skipped: number; messages: string[] },
-    range?: { startDate?: string; endDate?: string }
+    range?: { startDate?: string; endDate?: string },
+    opts?: { createMissing?: boolean }
   ) {
+    /* Sin rango (editar ficha / sync): solo recalcula borradores pendientes. Abrir una nómina
+     * nueva queda al cron de cierre, a la liquidación masiva o a un refresh con fechas. */
+    const createMissing = opts?.createMissing ?? Boolean(range?.startDate);
     const empRes = await c.query<{
       id: string;
       nombre_completo: string;
@@ -12792,13 +12809,16 @@ export class PortalService implements OnModuleInit {
       periodicidad_pago: string;
       rol_trabajador: string;
       tipo_contrato: string;
+      tipo_plantilla_contrato: string | null;
       nivel_riesgo_arl: string | null;
       tipo_cotizante: string | null;
+      activo: boolean;
     }>(
       `SELECT id::text, nombre_completo, salario_base, fecha_ingreso::text AS fecha_ingreso,
               COALESCE(auxilio_transporte, 0) AS auxilio_transporte,
               COALESCE(NULLIF(TRIM(periodicidad_pago), ''), 'Mensual') AS periodicidad_pago,
-              rol_trabajador, tipo_contrato, nivel_riesgo_arl, tipo_cotizante
+              rol_trabajador, tipo_contrato, tipo_plantilla_contrato, nivel_riesgo_arl, tipo_cotizante,
+              COALESCE(activo, true) AS activo
        FROM empleados_nomina WHERE id = $1::uuid LIMIT 1`,
       [employeeId]
     );
@@ -12809,10 +12829,19 @@ export class PortalService implements OnModuleInit {
       return;
     }
 
+    if (row.activo === false) {
+      stats.skipped += 1;
+      stats.messages.push(
+        `${String(row.nombre_completo || "Colaborador").trim()}: desvinculado — sin nómina laboral automática`
+      );
+      return;
+    }
+
     if (
       !employeeReceivesPayrollNomina({
         rol_trabajador: row.rol_trabajador,
-        tipo_contrato: row.tipo_contrato
+        tipo_contrato: row.tipo_contrato,
+        tipo_plantilla_contrato: row.tipo_plantilla_contrato
       })
     ) {
       stats.skipped += 1;
@@ -12865,7 +12894,7 @@ export class PortalService implements OnModuleInit {
           cuts.push(cut);
         }
       }
-      if (cuts.length === 0) {
+      if (cuts.length === 0 && createMissing) {
         const { y, m0, dom } = bogotaCalendarPartsFromInstant(new Date());
         const latest = liquidationLatestClosedCutAsOf(freq, y, m0, dom);
         if (latest) cuts = [latest];
@@ -12917,6 +12946,11 @@ export class PortalService implements OnModuleInit {
         [employeeId, cut.periodKey]
       );
       const ex = existing.rows[0];
+      if (!ex && !createMissing) {
+        stats.skipped += 1;
+        stats.messages.push(`${name}: ${cut.periodKey} sin liquidación previa (no se abre nómina al editar la ficha)`);
+        continue;
+      }
       if (ex?.liquidacion_pagada) {
         stats.skipped += 1;
         stats.messages.push(`${name}: ${cut.periodKey} ya está pagado`);

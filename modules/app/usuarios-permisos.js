@@ -10,7 +10,7 @@ function permissionCheckboxHtml(permission, sel, readOnly) {
   const meta = PERMISSION_META[permission] || { title: permission, desc: "" };
   const checked = sel.has(permission) ? "checked" : "";
   const dis = readOnly ? " disabled" : "";
-  return `<label class="perm-check">
+  return `<label class="perm-check${checked ? " is-on" : ""}">
       <input type="checkbox" name="permissions" value="${escapeAttr(permission)}" ${checked}${dis} />
       <span><strong>${escapeHtml(String(meta.title || ""))}</strong><small>${escapeHtml(String(meta.desc || ""))}</small></span>
     </label>`;
@@ -40,17 +40,39 @@ function buildGranularPermissionsCheckboxesHtml(selected = [], opts = {}) {
     const items = group.permissions.filter((p) => allowed.has(p));
     items.forEach((p) => grouped.add(p));
     if (!items.length) return "";
-    return `<div class="perm-group">
-      <p class="perm-group-title">${escapeHtml(group.title)}</p>
+    const onCount = items.filter((p) => sel.has(p)).length;
+    const allOn = onCount === items.length;
+    return `<div class="perm-group" data-perm-group>
+      <div class="perm-group-head">
+        <p class="perm-group-title">${escapeHtml(group.title)}</p>
+        <span class="perm-group-count">${onCount}/${items.length}</span>
+        ${
+          readOnly
+            ? ""
+            : `<button type="button" class="ag-link-btn" data-action="perm-group-toggle" aria-pressed="${allOn}">${allOn ? "Quitar módulo" : "Todo el módulo"}</button>`
+        }
+      </div>
       <div class="perm-group-grid">${items.map((p) => permissionCheckboxHtml(p, sel, readOnly)).join("")}</div>
     </div>`;
   }).join("");
   const rest = ALL_PERMISSIONS.filter((p) => !grouped.has(p));
   const restHtml = rest.length
-    ? `<div class="perm-group">
-      <p class="perm-group-title">Otros</p>
+    ? (() => {
+        const onCount = rest.filter((p) => sel.has(p)).length;
+        const allOn = onCount === rest.length;
+        return `<div class="perm-group" data-perm-group>
+      <div class="perm-group-head">
+        <p class="perm-group-title">Otros</p>
+        <span class="perm-group-count">${onCount}/${rest.length}</span>
+        ${
+          readOnly
+            ? ""
+            : `<button type="button" class="ag-link-btn" data-action="perm-group-toggle" aria-pressed="${allOn}">${allOn ? "Quitar módulo" : "Todo el módulo"}</button>`
+        }
+      </div>
       <div class="perm-group-grid">${rest.map((p) => permissionCheckboxHtml(p, sel, readOnly)).join("")}</div>
-    </div>`
+    </div>`;
+      })()
     : "";
   return sections + restHtml;
 }
@@ -96,21 +118,16 @@ function adminUsersHtml(current) {
     ? selectOptionsFromCatalog(CO_CATALOGS.genders, editingUser.gender, "— Sin especificar —")
     : "";
 
+  const permUserId = String(ui.permUserId || "").trim();
   const userOptions = users
-    .map(
-      (u) =>
-        `<option value="${escapeAttr(String(u.id ?? ""))}">${escapeHtml(String(u.name || ""))} (${escapeHtml(String(u.role || ""))})${String(u.id) === String(current.id) ? " · tu perfil" : ""}</option>`
-    )
+    .map((u) => {
+      const id = String(u.id ?? "");
+      const selected = permUserId && permUserId === id ? " selected" : "";
+      return `<option value="${escapeAttr(id)}"${selected}>${escapeHtml(getPortalUserDisplayName(u))} · ${escapeHtml(formatPortalRoleLabel(u.role))}${String(u.id) === String(current.id) ? " · tu perfil" : ""}</option>`;
+    })
     .join("");
 
   const permissionChecks = (selected = []) => buildGranularPermissionsCheckboxesHtml(selected);
-
-  const statusBadge = (s) => {
-    if (s === ACCOUNT_STATUS.APROBADO) return `<span class="status status-viaje_asignado">Aprobado</span>`;
-    if (s === ACCOUNT_STATUS.PENDIENTE) return `<span class="status status-pendiente">Pendiente</span>`;
-    if (s === ACCOUNT_STATUS.RECHAZADO) return `<span class="status status-rechazada">Rechazado</span>`;
-    return `<span class="status status-viaje_asignado">Aprobado</span>`;
-  };
 
   const roleBadge = (r) => {
     const colors = {
@@ -128,185 +145,193 @@ function adminUsersHtml(current) {
     return `<span class="role-chip role-chip--card"${titleAttr} style="--role-color:${colors[r] || '#64748B'}">${escapeHtml(chipLabel)}</span>`;
   };
 
+  const accessMenu = (items) =>
+    typeof renderAgActionMenu === "function"
+      ? renderAgActionMenu(items, { label: "Más acciones" })
+      : "";
+
   const renderUserCard = (u, mode = "active") => {
     const namedPerms = effectiveUserPermissions(u).map((p) => PERMISSION_META[p]?.title || p);
-    const visiblePerms = namedPerms.slice(0, 2);
+    const visiblePerms = namedPerms.slice(0, 3);
     const hiddenCount = Math.max(0, namedPerms.length - visiblePerms.length);
-    const isMe = u.id === current.id;
+    const isMe = String(u.id) === String(current.id);
     const isPending = mode === "pending";
+    const uid = String(u.id ?? "");
+    const displayName = getPortalUserDisplayName(u);
     const companyName = String(getCompanyById(u.companyId)?.name || u.company || "Sin empresa");
-    const locationLabel = u.city ? `${String(u.city)}${u.department ? `, ${String(u.department)}` : ""}` : "Sin ubicacion";
     const permissionCount = namedPerms.length;
     const resolvedRegKind = resolveUserRegistrationKind(u);
     const profileChipLabel = resolvedRegKind ? registrationKindChipLabel(resolvedRegKind) : "—";
-    const profileChipTitle = resolvedRegKind ? registrationKindLabel(resolvedRegKind) : "";
     const joinedLabel = fmtDateOr(u.systemJoinDate || u.registeredAt || u.createdAt, "—");
     const docLabel = String(u.idDoc || u.taxId || "").trim() || "Sin documento";
-    const phoneLabel = u.phone ? formatPortalPhoneForDisplay(String(u.phone)) : "Sin teléfono";
+    const phoneRaw = String(u.phone || "").replace(/[^\d+]/g, "");
+    const phoneLabel = u.phone ? formatPortalPhoneForDisplay(String(u.phone)) : "";
     const accountStatusKey = normalizeUserAccountStatus(u);
-    const accountStatusLabel =
-      accountStatusKey === ACCOUNT_STATUS.PENDIENTE
-        ? "Pendiente"
-        : accountStatusKey === ACCOUNT_STATUS.RECHAZADO
-          ? "Inactiva"
-          : "Activa";
-    const summaryTitle = isPending
-      ? "Pendiente"
-      : accountStatusKey === ACCOUNT_STATUS.RECHAZADO
-        ? "Inactiva"
-        : "Activa";
-    const summaryCopy = [
-      companyName !== "Sin empresa" ? companyName : "",
-      locationLabel !== "Sin ubicacion" ? locationLabel : "",
-      joinedLabel !== "—" ? joinedLabel : ""
-    ]
-      .filter(Boolean)
-      .join(" · ") || "Sin datos";
-    const userOpsTone = isPending
+    const tone = isPending
       ? "warn"
       : accountStatusKey === ACCOUNT_STATUS.RECHAZADO
         ? "alert"
         : "ok";
-    const roleTag = u.role ? roleBadge(u.role) : directoryPillHtml("Sin rol", "warn");
-    const emailLine = String(u.email || "Sin correo");
-    const locationOnly = locationLabel !== "Sin ubicacion" ? locationLabel : "";
-    const contactSublineHtml = locationOnly
-      ? `<p class="directory-card__subline directory-card__subline--email">${escapeHtml(emailLine)}</p><p class="directory-card__subline">${escapeHtml(locationOnly)}</p>`
-      : `<p class="directory-card__subline directory-card__subline--email">${escapeHtml(emailLine)}</p>`;
+    const statusLabel = isPending
+      ? "Pendiente"
+      : accountStatusKey === ACCOUNT_STATUS.RECHAZADO
+        ? "Inactiva"
+        : "Activa";
+    const avatarUrlRaw = normalizePortalAvatarDisplayUrl(u.avatarUrl);
+    const initials = String(displayName || "?")
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase())
+      .slice(0, 2)
+      .join("") || "?";
+    const hue = typeof agAvatarHue === "function" ? agAvatarHue(displayName) : 0;
+    const avatarBlock = `<span class="ag-avatar ag-avatar--hue-${hue}${avatarUrlRaw ? " ag-avatar--photo" : ""}" aria-hidden="true">${
+      avatarUrlRaw
+        ? `<img src="${escapeAttr(avatarUrlRaw)}" alt="" loading="lazy" decoding="async" data-portal-avatar-img data-avatar-initial="${escapeAttr(initials)}" />`
+        : escapeHtml(initials)
+    }</span>`;
     const permPreview = namedPerms.length
       ? [
-          ...visiblePerms.map((label) => `<span class="perm-tag">${escapeHtml(label)}</span>`),
-          hiddenCount > 0 ? `<span class="perm-tag perm-tag-more">+${hiddenCount} mas</span>` : ""
+          ...visiblePerms.map((label) => `<span class="ag-tag">${escapeHtml(label)}</span>`),
+          hiddenCount > 0 ? `<span class="ag-tag ag-tag--muted">+${hiddenCount}</span>` : ""
         ].join("")
-      : "";
+      : '<span class="ag-tag ag-tag--muted">Sin permisos</span>';
     const rejectionReason = String(u.rejectionReason || "").trim();
-    const note = isPending
-      ? '<div class="directory-card__banner directory-card__banner--warn"><strong>Pendiente.</strong> Empresa, rol y permisos.</div>'
-      : rejectionReason
-        ? `<div class="directory-card__banner directory-card__banner--alert"><strong>Inactiva.</strong> ${escapeHtml(rejectionReason)}</div>`
-      : "";
-    const viewButton = `<button class="btn btn-sm btn-outline" data-action="view-user" data-id="${escapeAttr(String(u.id))}">${IC.eye} Ver</button>`;
-    const actions = isPending
-      ? `<footer class="directory-card__actions">
-          ${viewButton}
-          ${isAdmin ? `<button class="btn btn-sm btn-primary" data-action="approve-registration" data-id="${escapeAttr(String(u.id))}">${IC.check} Aprobar</button>` : ""}
-          ${isAdmin ? `<button class="btn btn-sm btn-reject" data-action="reject-registration" data-id="${escapeAttr(String(u.id))}">${IC.x} Rechazar</button>` : ""}
-        </footer>`
-      : `<footer class="directory-card__actions">
-          ${viewButton}
-          ${isAdmin ? `<button class="btn btn-sm btn-action" data-action="open-edit-user" data-id="${escapeAttr(String(u.id))}">${IC.edit} Editar</button>` : ""}
-          ${isAdmin && !isMe ? `<button class="btn btn-sm btn-action" data-action="toggle-user-active" data-id="${escapeAttr(String(u.id))}">${u.accountStatus === ACCOUNT_STATUS.RECHAZADO ? `${IC.check} Activar` : `${IC.x} Desactivar`}</button>` : ""}
-          ${isAdmin && !isMe ? `<button class="btn btn-sm btn-reject" data-action="delete-user" data-id="${escapeAttr(String(u.id))}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
-        </footer>`;
-    const avatarUrlRaw = normalizePortalAvatarDisplayUrl(u.avatarUrl);
-    const avatarInitial = escapeHtml((getPortalUserDisplayName(u).charAt(0) || "?").toUpperCase());
-    const userAvatarBlock = avatarUrlRaw
-      ? `<div class="directory-card__avatar directory-card__avatar--photo" aria-hidden="true"><img src="${escapeAttr(avatarUrlRaw)}" alt="" loading="lazy" decoding="async" data-portal-avatar-img data-avatar-initial="${escapeAttr(avatarInitial)}" /><span class="directory-card__avatar-fallback" hidden>${avatarInitial}</span></div>`
-      : `<div class="directory-card__avatar">${avatarInitial}</div>`;
-    const cardStateClass = isPending
-      ? " directory-card--pending"
-      : u.accountStatus === ACCOUNT_STATUS.RECHAZADO
-        ? " directory-card--inactive"
-        : " directory-card--ok";
-    return `<article class="directory-card portal-ops-card trip-ops-card directory-card--user${cardStateClass}">
-      <header class="directory-card__head">
-        <div class="directory-card__identity">
-          ${userAvatarBlock}
-          <div class="directory-card__heading">
-            <p class="directory-card__kicker">${escapeHtml(companyName)}</p>
-            <h4 class="directory-card__title">${escapeHtml(getPortalUserDisplayName(u))}${isMe ? ' <span class="directory-card__title-note">Tu cuenta</span>' : ""}</h4>
-            ${contactSublineHtml}
-          </div>
+    const menuItems = isPending
+      ? [
+          isAdmin ? { action: "reject-registration", id: uid, icon: IC.x, label: "Rechazar alta", tone: "danger" } : null
+        ]
+      : [
+          isAdmin ? { action: "open-user-permissions", id: uid, icon: IC.shield, label: "Asignar permisos" } : null,
+          isAdmin && !isMe
+            ? {
+                action: "toggle-user-active",
+                id: uid,
+                icon: accountStatusKey === ACCOUNT_STATUS.RECHAZADO ? IC.check : IC.x,
+                label: accountStatusKey === ACCOUNT_STATUS.RECHAZADO ? "Activar cuenta" : "Desactivar cuenta"
+              }
+            : null,
+          isAdmin && !isMe ? "sep" : null,
+          isAdmin && !isMe
+            ? { action: "delete-user", id: uid, icon: IC.trash, label: "Eliminar usuario", tone: "danger" }
+            : null
+        ];
+    const primary =
+      isPending && isAdmin
+        ? `<button type="button" class="ag-btn ag-btn--primary" data-action="approve-registration" data-id="${escapeAttr(uid)}">${IC.check}<span>Aprobar</span></button>`
+        : `<button type="button" class="ag-btn ag-btn--primary" data-action="view-user" data-id="${escapeAttr(uid)}">${IC.eye}<span>Ver ficha</span></button>`;
+    const extraPendingView =
+      isPending
+        ? `<button type="button" class="ag-icon-btn" data-action="view-user" data-id="${escapeAttr(uid)}" title="Ver ficha" aria-label="Ver ficha">${IC.eye}</button>`
+        : "";
+    return `<article class="ag-access-card ag-access-card--${tone} directory-card--user" data-user-id="${escapeAttr(uid)}">
+      <div class="ag-access-card__id">
+        ${avatarBlock}
+        <div class="ag-access-card__who">
+          <h4 class="ag-access-card__name" title="${escapeAttr(displayName)}">${escapeHtml(displayName)}${isMe ? ' <span class="ag-access-card__you">Tú</span>' : ""}</h4>
+          <p class="ag-access-card__meta">${escapeHtml(companyName)} · ${escapeHtml(docLabel)}</p>
+          <p class="ag-access-card__mail">${escapeHtml(String(u.email || "Sin correo"))}</p>
         </div>
-        <div class="directory-card__status-stack">
-          ${roleTag}
-          ${statusBadge(u.accountStatus)}
-        </div>
-      </header>
-      ${directoryOpsHtml(summaryTitle, summaryCopy, userOpsTone)}
-      <div class="directory-card__metrics directory-card__metrics--triple">
-        ${directoryChipHtml("Permisos", String(permissionCount), permissionCount ? "ok" : "warn")}
-        ${directoryChipHtml("2FA", u.twoFactorEnabled ? "On" : "Off", u.twoFactorEnabled ? "ok" : "warn")}
-        ${directoryChipHtml("Perfil", profileChipLabel, "neutral", profileChipTitle)}
       </div>
-      <dl class="directory-card__facts">
-        ${directoryFactHtml("Documento", docLabel)}
-        ${directoryFactHtml("Telefono", phoneLabel)}
-        ${directoryFactHtml("Ingreso", joinedLabel)}
-        ${directoryFactHtml("Estado", accountStatusLabel)}
-      </dl>
-      ${note}
-      ${permPreview ? `<div class="directory-card__tags">${permPreview}</div>` : ""}
-      ${actions}
+      <div class="ag-access-card__access">
+        <div class="ag-access-card__chips">
+          ${u.role ? roleBadge(u.role) : directoryPillHtml("Sin rol", "warn")}
+          <span class="ag-status ag-status--${tone}"><span class="ag-status__dot" aria-hidden="true"></span>${escapeHtml(statusLabel)}</span>
+          <span class="ag-tag" title="${escapeAttr(profileChipLabel)}">${escapeHtml(profileChipLabel)}</span>
+        </div>
+        <div class="ag-access-card__stats">
+          <span class="ag-check ag-check--${permissionCount ? "ok" : "warn"}">${IC.shield}<span>${permissionCount} permiso${permissionCount === 1 ? "" : "s"}</span></span>
+          <span class="ag-check ag-check--${u.twoFactorEnabled ? "ok" : "warn"}">${IC.lock}<span>2FA ${u.twoFactorEnabled ? "activa" : "off"}</span></span>
+          <span class="ag-check">${IC.calendar}<span>Desde ${escapeHtml(joinedLabel)}</span></span>
+        </div>
+        <div class="ag-access-card__tags">${permPreview}</div>
+        ${
+          rejectionReason
+            ? `<p class="ag-access-card__note ag-access-card__note--alert">${escapeHtml(rejectionReason)}</p>`
+            : isPending
+              ? '<p class="ag-access-card__note">Revise empresa, rol y permisos antes de aprobar.</p>'
+              : ""
+        }
+      </div>
+      <div class="ag-access-card__aside">
+        ${
+          phoneLabel
+            ? `<a class="ag-pass__phone" href="tel:${escapeAttr(phoneRaw)}">${IC.phone}<span>${escapeHtml(phoneLabel)}</span></a>`
+            : '<span class="ag-pass__phone ag-pass__phone--muted">Sin teléfono</span>'
+        }
+        <div class="ag-access-card__actions">
+          ${primary}
+          ${extraPendingView}
+          ${isPending || !isAdmin ? "" : `<button type="button" class="ag-icon-btn" data-action="open-edit-user" data-id="${escapeAttr(uid)}" title="Editar" aria-label="Editar ${escapeAttr(displayName)}">${IC.edit}</button>`}
+          ${accessMenu(menuItems)}
+        </div>
+      </div>
     </article>`;
   };
 
   const renderCompanyCard = (c) => {
     const active = isCompanyRecordActive(c);
-    const usersCount = users.filter((u) => String(u.companyId || "") === String(c.id)).length;
-    const initial = escapeHtml(String((c.name || "?").trim().charAt(0).toUpperCase() || "?"));
+    const cid = String(c.id || "");
+    const usersCount = users.filter((u) => String(u.companyId || "") === cid).length;
+    const name = String(c.name || "Empresa");
+    const initial = String((name || "?").trim().charAt(0).toUpperCase() || "?");
     const logoUrl = companyProfileLogoUrl(c);
-    const avatarCompany = logoUrl
-      ? `<div class="directory-card__avatar directory-card__avatar--photo directory-card__avatar--logo" aria-hidden="true"><img src="${escapeAttr(logoUrl)}" alt="" loading="lazy" /></div>`
-      : `<div class="directory-card__avatar directory-card__avatar--logo" aria-hidden="true">${initial}</div>`;
+    const hue = typeof agAvatarHue === "function" ? agAvatarHue(name) : 0;
+    const avatarCompany = `<span class="ag-avatar ag-avatar--hue-${hue}${logoUrl ? " ag-avatar--photo" : ""}" aria-hidden="true">${
+      logoUrl ? `<img src="${escapeAttr(logoUrl)}" alt="" loading="lazy" />` : escapeHtml(initial)
+    }</span>`;
     const nit = String(c.taxId || c.nit || "").trim() || "Sin NIT";
-    const phoneDisp = c.phone ? formatPortalPhoneForDisplay(String(c.phone)) : "Sin teléfono";
-    const emailLabel = String(c.email || "").trim() || "Sin correo";
-    const contactLabel = String(c.contactName || "").trim() || "Sin contacto";
-    const locationLabel = c.city ? `${String(c.city)}${c.department ? `, ${String(c.department)}` : ""}` : "Sin ubicación";
-    const kindForUi =
-      patchOperatorCompanyKindIfNeeded([{ ...c }])[0]?.companyKind ?? c.companyKind;
-    const companyStateClass = active ? " directory-card--ok" : " directory-card--inactive";
-    const summaryTitle = active ? "Operativa" : "Inactiva";
-    const companyOpsDetail =
-      contactLabel !== "Sin contacto"
-        ? contactLabel
-        : locationLabel !== "Sin ubicación"
-          ? locationLabel
-          : emailLabel !== "Sin correo"
-            ? emailLabel
-            : "Sin contacto";
-    const companyLine = [
-      contactLabel !== "Sin contacto" ? contactLabel : "",
-      emailLabel !== "Sin correo" ? emailLabel : "",
-      locationLabel !== "Sin ubicación" ? locationLabel : ""
-    ]
-      .filter(Boolean)
-      .join(" · ") || "—";
-    const companyOpsTone = active ? "ok" : "alert";
-    return `<article class="directory-card portal-ops-card trip-ops-card directory-card--company${companyStateClass}" data-company-id="${escapeAttr(String(c.id || ""))}">
-      <header class="directory-card__head">
-        <div class="directory-card__identity">
-          ${avatarCompany}
-          <div class="directory-card__heading">
-            <p class="directory-card__kicker">${escapeHtml(companyKindChipShortLabel(normalizeCompanyKindForDb(kindForUi)))} · ${escapeHtml(nit)}</p>
-            <h4 class="directory-card__title">${escapeHtml(String(c.name || "Empresa"))}</h4>
-            <p class="directory-card__subline">${escapeHtml(companyLine)}</p>
-          </div>
+    const phoneRaw = String(c.phone || "").replace(/[^\d+]/g, "");
+    const phoneDisp = c.phone ? formatPortalPhoneForDisplay(String(c.phone)) : "";
+    const emailLabel = String(c.email || "").trim();
+    const contactLabel = String(c.contactName || "").trim();
+    const locationLabel = c.city ? `${String(c.city)}${c.department ? `, ${String(c.department)}` : ""}` : "";
+    const kindForUi = patchOperatorCompanyKindIfNeeded([{ ...c }])[0]?.companyKind ?? c.companyKind;
+    const tone = active ? "ok" : "alert";
+    const menuItems = [
+      isAdmin
+        ? {
+            action: "toggle-company-active",
+            id: cid,
+            icon: active ? IC.x : IC.check,
+            label: active ? "Desactivar" : "Activar"
+          }
+        : null,
+      isAdmin ? "sep" : null,
+      isAdmin ? { action: "delete-company", id: cid, icon: IC.trash, label: "Eliminar empresa", tone: "danger" } : null
+    ];
+    return `<article class="ag-access-card ag-access-card--${tone} directory-card--company" data-company-id="${escapeAttr(cid)}">
+      <div class="ag-access-card__id">
+        ${avatarCompany}
+        <div class="ag-access-card__who">
+          <h4 class="ag-access-card__name" title="${escapeAttr(name)}">${escapeHtml(name)}</h4>
+          <p class="ag-access-card__meta">${escapeHtml(companyKindChipShortLabel(normalizeCompanyKindForDb(kindForUi)))} · ${escapeHtml(nit)}</p>
+          <p class="ag-access-card__mail">${escapeHtml(contactLabel || emailLabel || "Sin contacto")}</p>
         </div>
-        <div class="directory-card__status-stack">
-          ${companyKindChipHtml(kindForUi)}
-          ${active ? '<span class="status status-viaje_asignado">Activa</span>' : '<span class="status status-rechazada">Inactiva</span>'}
-        </div>
-      </header>
-      ${directoryOpsHtml(summaryTitle, companyOpsDetail, companyOpsTone)}
-      <div class="directory-card__metrics directory-card__metrics--triple">
-        ${directoryChipHtml("Usuarios", String(usersCount), usersCount ? "ok" : "neutral")}
-        ${directoryChipHtml("Logo", logoUrl ? "Si" : "No", logoUrl ? "ok" : "warn")}
-        ${directoryChipHtml("Canal", phoneDisp !== "Sin teléfono" || emailLabel !== "Sin correo" ? "OK" : "—", phoneDisp !== "Sin teléfono" || emailLabel !== "Sin correo" ? "ok" : "warn")}
       </div>
-      <dl class="directory-card__facts">
-        ${directoryFactHtml("NIT", nit)}
-        ${directoryFactHtml("Contacto", contactLabel)}
-        ${directoryFactHtml("Telefono", phoneDisp)}
-        ${directoryFactHtml("Ubicacion", locationLabel)}
-      </dl>
-      <footer class="directory-card__actions">
-        <button type="button" class="btn btn-sm btn-outline" data-action="view-company" data-id="${escapeAttr(String(c.id))}">${IC.eye} Ver</button>
-        ${isAdmin ? `<button type="button" class="btn btn-sm btn-action" data-action="open-edit-company" data-id="${escapeAttr(String(c.id))}">${IC.edit} Editar</button>` : ""}
-        ${isAdmin ? `<button type="button" class="btn btn-sm btn-action" data-action="toggle-company-active" data-id="${escapeAttr(String(c.id))}">${active ? `${IC.x} Desactivar` : `${IC.check} Activar`}</button>` : ""}
-        ${isAdmin ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-company" data-id="${escapeAttr(String(c.id))}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
-      </footer>
+      <div class="ag-access-card__access">
+        <div class="ag-access-card__chips">
+          ${companyKindChipHtml(kindForUi)}
+          <span class="ag-status ag-status--${tone}"><span class="ag-status__dot" aria-hidden="true"></span>${active ? "Operativa" : "Inactiva"}</span>
+        </div>
+        <div class="ag-access-card__stats">
+          <span class="ag-check ag-check--${usersCount ? "ok" : "warn"}">${IC.users}<span>${usersCount} usuario${usersCount === 1 ? "" : "s"}</span></span>
+          <span class="ag-check ag-check--${logoUrl ? "ok" : "warn"}">${IC.upload}<span>${logoUrl ? "Con logo" : "Sin logo"}</span></span>
+          ${locationLabel ? `<span class="ag-check">${IC.mapPin}<span>${escapeHtml(locationLabel)}</span></span>` : ""}
+        </div>
+      </div>
+      <div class="ag-access-card__aside">
+        ${
+          phoneDisp
+            ? `<a class="ag-pass__phone" href="tel:${escapeAttr(phoneRaw)}">${IC.phone}<span>${escapeHtml(phoneDisp)}</span></a>`
+            : '<span class="ag-pass__phone ag-pass__phone--muted">Sin teléfono</span>'
+        }
+        <div class="ag-access-card__actions">
+          <button type="button" class="ag-btn ag-btn--primary" data-action="view-company" data-id="${escapeAttr(cid)}">${IC.eye}<span>Ver ficha</span></button>
+          ${isAdmin ? `<button type="button" class="ag-icon-btn" data-action="open-edit-company" data-id="${escapeAttr(cid)}" title="Editar" aria-label="Editar ${escapeAttr(name)}">${IC.edit}</button>` : ""}
+          ${accessMenu(menuItems)}
+        </div>
+      </div>
     </article>`;
   };
 
@@ -322,9 +347,17 @@ function adminUsersHtml(current) {
   const pendingUsersView = directorySearch
     ? pendingUsers.filter((u) => directoryMatch(userDirectoryBlob(u)))
     : pendingUsers;
-  const activeUsersView = directorySearch
-    ? activeUsers.filter((u) => directoryMatch(userDirectoryBlob(u)))
-    : activeUsers;
+  const userStatusFilter = String(ui.userStatusFilter || "all").toLowerCase();
+  const userRoleFilter = String(ui.userRoleFilter || "all").toLowerCase();
+  const companyStatusFilter = String(ui.companyStatusFilter || "all").toLowerCase();
+  const activeUsersView = activeUsers.filter((u) => {
+    if (directorySearch && !directoryMatch(userDirectoryBlob(u))) return false;
+    const statusKey = normalizeUserAccountStatus(u);
+    if (userStatusFilter === "active" && statusKey === ACCOUNT_STATUS.RECHAZADO) return false;
+    if (userStatusFilter === "inactive" && statusKey !== ACCOUNT_STATUS.RECHAZADO) return false;
+    if (userRoleFilter !== "all" && String(u.role || "").toLowerCase() !== userRoleFilter) return false;
+    return true;
+  });
   if (state.adminUsersEntryHydrating) {
     return adminUsersHydratingShellHtml({ pendingUsers, activeUsers, companies, ui });
   }
@@ -556,16 +589,23 @@ function adminUsersHtml(current) {
   </form>`
     : "";
 
-  const fPerm = `<form id="form-admin-user-permissions" class="p-form">
+  const fPerm = `<form id="form-admin-user-permissions" class="p-form adm-perm-form">
     <label class="full">${fieldLabel(IC.user, "Seleccionar usuario")}
       <select name="userId" required>
         <option value="">Seleccione un usuario...</option>
         ${userOptions}
       </select>
     </label>
+    <p class="muted full adm-perm-hint">Los módulos siguen el rol. Marque o quite un grupo entero con «Todo el módulo». Lo que no aplique al rol no aparece.</p>
     <fieldset class="full perm-fieldset">
-      <legend>Permisos a asignar</legend>
-      <div class="perm-grid">${permissionChecks([])}</div>
+      <legend>Módulos visibles</legend>
+      <div class="perm-grid">${(() => {
+        const permTarget = permUserId ? users.find((u) => String(u.id) === permUserId) : null;
+        return buildGranularPermissionsCheckboxesHtml(
+          permTarget ? effectiveUserPermissions(permTarget) : [],
+          permTarget ? { role: permTarget.role } : {}
+        );
+      })()}</div>
     </fieldset>
     ${renderManagedCreateFormActions("admin-permissions", `<button class="btn btn-primary" type="submit">${IC.save} Guardar permisos</button>`, {
       toggleAction: "toggle-admin-permissions-panel",
@@ -694,13 +734,20 @@ function adminUsersHtml(current) {
     if (aa !== bb) return aa - bb;
     return String(a.name || "").localeCompare(String(b.name || ""), "es", { sensitivity: "base" });
   });
-  const companiesForView = directorySearch
-    ? companiesSorted.filter((c) =>
-        directoryMatch(
-          `${c.name} ${c.taxId || c.nit || ""} ${c.email || ""} ${c.contactName || ""} ${c.phone || ""} ${c.city || ""} ${c.department || ""}`
-        )
+  const companiesForView = companiesSorted.filter((c) => {
+    if (
+      directorySearch &&
+      !directoryMatch(
+        `${c.name} ${c.taxId || c.nit || ""} ${c.email || ""} ${c.contactName || ""} ${c.phone || ""} ${c.city || ""} ${c.department || ""}`
       )
-    : companiesSorted;
+    ) {
+      return false;
+    }
+    const active = isCompanyRecordActive(c);
+    if (companyStatusFilter === "active" && !active) return false;
+    if (companyStatusFilter === "inactive" && active) return false;
+    return true;
+  });
   const companyCardsHtml = companiesForView.map((c) => renderCompanyCard(c)).join("");
   const approvedUsers = users.filter((u) => u.accountStatus === ACCOUNT_STATUS.APROBADO);
   const activeCompaniesCount = companies.filter((c) => isCompanyRecordActive(c)).length;
@@ -712,32 +759,26 @@ function adminUsersHtml(current) {
 
   const approvedCount = approvedUsers.length;
 
-  const hero = `<section class="users-hero-strip users-hero-strip--command">
-    <div class="admin-users-hero-main">
-      <p class="users-hero-kicker">Sistema de acceso y gobierno</p>
-      <h2>Usuarios y permisos con una lectura mas clara</h2>
-      <p>
-        Centralice aprobaciones, altas y cambios de acceso en una vista mas limpia, con menos ruido visual y mejor jerarquia.
-      </p>
-      <div class="admin-users-hero-chips">
-        <span class="status ${pendingUsers.length ? "status-pendiente" : "status-viaje_asignado"}">Pendientes ${pendingUsers.length}</span>
-        <span class="status status-viaje_asignado">Aprobados ${approvedCount}</span>
-        <span class="status ${inactiveCompaniesCount ? "status-pendiente" : "status-viaje_asignado"}">Empresas activas ${activeCompaniesCount}</span>
+  const inactiveUsersCount = users.filter((u) => normalizeUserAccountStatus(u) === ACCOUNT_STATUS.RECHAZADO).length;
+  const hero = `<header class="ag-fleet__head adm-access-head">
+    <div class="ag-fleet__title">
+      <p class="ag-eyebrow">Sistema · Gobierno de acceso</p>
+      <h2>Usuarios y permisos</h2>
+      <p class="ag-fleet__hint">Altas, roles y módulos visibles. La ficha guarda el perfil; los permisos se ajustan por módulo sin saturar la tarjeta.</p>
+      <div class="users-hero-actions adm-access-head__actions">
+        <button type="button" class="ag-btn ag-btn--primary" data-action="toggle-admin-panel" data-panel="create-user">${IC.userPlus}<span>Nuevo usuario</span></button>
+        <button type="button" class="ag-icon-btn" data-action="toggle-admin-panel" data-panel="create-company" title="Nueva empresa" aria-label="Nueva empresa">${IC.building || IC.briefcase}</button>
+        <button type="button" class="ag-icon-btn" data-action="toggle-admin-panel" data-panel="set-permissions" title="Asignar permisos" aria-label="Asignar permisos">${IC.shield}</button>
+        <button type="button" class="ag-icon-btn" data-action="refresh-user-sessions" title="Actualizar sesiones" aria-label="Actualizar sesiones">${IC.activity}</button>
       </div>
     </div>
-    <div class="admin-users-hero-panel admin-users-hero-panel--compact">
-      <p class="admin-users-hero-panel__eyebrow">Acciones rapidas</p>
-      <p class="admin-users-hero-panel__copy">
-        Abra solo el flujo que necesita y mantenga el resto del modulo despejado.
-      </p>
-      <div class="users-hero-actions">
-        <button class="btn btn-primary btn-sm" data-action="toggle-admin-panel" data-panel="create-user">${IC.userPlus} Nuevo usuario</button>
-        <button class="btn btn-action btn-sm" data-action="toggle-admin-panel" data-panel="create-company">${IC.building || IC.briefcase} Nueva empresa</button>
-        <button class="btn btn-action btn-sm" data-action="toggle-admin-panel" data-panel="set-permissions">${IC.shield} Asignar permisos</button>
-        <button class="btn btn-outline btn-sm" data-action="refresh-user-sessions">${IC.activity} Actualizar sesiones</button>
-      </div>
+    <div class="ag-fleet__kpis">
+      <div class="ag-kpi${pendingUsers.length ? " ag-kpi--warn" : ""}"><span class="ag-kpi__label">Pendientes</span><strong class="ag-kpi__value">${pendingUsers.length}</strong><span class="ag-kpi__sub">altas por aprobar</span></div>
+      <div class="ag-kpi ag-kpi--ok"><span class="ag-kpi__label">Activos</span><strong class="ag-kpi__value">${approvedCount}</strong><span class="ag-kpi__sub">${inactiveUsersCount ? `${inactiveUsersCount} inactiv${inactiveUsersCount === 1 ? "a" : "as"}` : "sin inactivos"}</span></div>
+      <div class="ag-kpi"><span class="ag-kpi__label">Empresas</span><strong class="ag-kpi__value">${activeCompaniesCount}</strong><span class="ag-kpi__sub">${inactiveCompaniesCount ? `${inactiveCompaniesCount} inactiva${inactiveCompaniesCount === 1 ? "" : "s"}` : "todas operativas"}</span></div>
+      <div class="ag-kpi"><span class="ag-kpi__label">Sesiones</span><strong class="ag-kpi__value">${activeSessions}</strong><span class="ag-kpi__sub">activas ahora</span></div>
     </div>
-  </section>`;
+  </header>`;
 
   let actionsPaneHtml = pcardWrapPro(
     "shield",
@@ -813,7 +854,7 @@ function adminUsersHtml(current) {
             "shield",
             "Pendientes de aprobación",
             pendingSubtitle,
-            `<div class="admin-users-list-shell"><div class="user-grid user-grid-pending directory-grid portal-ops-cards">${pendingCardsHtml}</div></div>`,
+            `<div class="admin-users-list-shell"><div class="user-grid user-grid-pending ag-access-list">${pendingCardsHtml}</div></div>`,
             "admin-users-data-card"
           )
         : pcardWrapPro(
@@ -838,7 +879,7 @@ function adminUsersHtml(current) {
     activeUsers.length && !activeUsersView.length
       ? emptyState("Ningún usuario coincide con la búsqueda.")
       : userCards
-        ? `<div class="admin-users-list-shell"><div class="user-grid user-grid-main directory-grid portal-ops-cards">${userCards}</div></div>`
+        ? `<div class="admin-users-list-shell"><div class="user-grid user-grid-main ag-access-list">${userCards}</div></div>`
         : emptyState("Sin usuarios registrados.");
   const usersPaneHtml = pcardWrapPro(
     "shield",
@@ -858,7 +899,7 @@ function adminUsersHtml(current) {
             "briefcase",
             "Empresas registradas",
             companiesPaneSubtitle,
-            `<div class="admin-users-list-shell"><div class="user-grid user-grid-main user-grid-companies directory-grid portal-ops-cards">${companyCardsHtml}</div></div>`,
+            `<div class="admin-users-list-shell"><div class="user-grid user-grid-main user-grid-companies ag-access-list">${companyCardsHtml}</div></div>`,
             "admin-users-data-card"
           )
         : pcardWrapPro(
@@ -932,12 +973,44 @@ function adminUsersHtml(current) {
       { id: "sessions", label: "Sesiones", count: sessions.length }
     ]
   });
+  const userRolePills = (PORTAL_ASSIGNABLE_ROLES || [])
+    .filter((r) => activeUsers.some((u) => String(u.role || "") === r.value))
+    .map(
+      (r) =>
+        `<option value="${escapeAttr(r.value)}"${userRoleFilter === r.value ? " selected" : ""}>${escapeHtml(r.label)}</option>`
+    )
+    .join("");
   const directorySearchBar = ["pending", "users", "companies"].includes(adminUsersSection)
-    ? `<div class="transport-ops-toolbar admin-users-directory-search">
-        <label class="transport-ops-search">
-          <span class="muted">${IC.search || ""} Buscar</span>
+    ? `<div class="ag-fleet__row ag-fleet__row--filters admin-users-directory-search">
+        <label class="ag-search">
+          ${IC.search || ""}
+          <span class="visually-hidden">Buscar</span>
           <input type="search" data-action="admin-users-directory-search" value="${escapeAttr(directorySearchRaw)}" placeholder="Nombre, correo, documento, empresa…" autocomplete="off" />
         </label>
+        ${
+          adminUsersSection === "users"
+            ? `<div class="ag-seg" role="group" aria-label="Estado de cuenta">
+            <button type="button" class="ag-seg__btn${userStatusFilter === "all" ? " is-active" : ""}" data-action="admin-users-status-filter" data-status="all" aria-pressed="${userStatusFilter === "all"}">Todos</button>
+            <button type="button" class="ag-seg__btn ag-seg__btn--available${userStatusFilter === "active" ? " is-active" : ""}" data-action="admin-users-status-filter" data-status="active" aria-pressed="${userStatusFilter === "active"}">Activos</button>
+            <button type="button" class="ag-seg__btn ag-seg__btn--offline${userStatusFilter === "inactive" ? " is-active" : ""}" data-action="admin-users-status-filter" data-status="inactive" aria-pressed="${userStatusFilter === "inactive"}">Inactivos</button>
+          </div>
+          <label class="ag-select-chip${userRoleFilter !== "all" ? " is-set" : ""}">${IC.badge}
+            <select data-action="admin-users-role-filter" aria-label="Filtrar por rol">
+              <option value="all"${userRoleFilter === "all" ? " selected" : ""}>Todos los roles</option>
+              ${userRolePills}
+            </select>
+          </label>`
+            : ""
+        }
+        ${
+          adminUsersSection === "companies"
+            ? `<div class="ag-seg" role="group" aria-label="Estado de empresa">
+            <button type="button" class="ag-seg__btn${companyStatusFilter === "all" ? " is-active" : ""}" data-action="admin-users-company-filter" data-status="all" aria-pressed="${companyStatusFilter === "all"}">Todas</button>
+            <button type="button" class="ag-seg__btn ag-seg__btn--available${companyStatusFilter === "active" ? " is-active" : ""}" data-action="admin-users-company-filter" data-status="active" aria-pressed="${companyStatusFilter === "active"}">Operativas</button>
+            <button type="button" class="ag-seg__btn ag-seg__btn--offline${companyStatusFilter === "inactive" ? " is-active" : ""}" data-action="admin-users-company-filter" data-status="inactive" aria-pressed="${companyStatusFilter === "inactive"}">Inactivas</button>
+          </div>`
+            : ""
+        }
       </div>`
     : "";
   const actionsPane = `<div class="auth-tab-panel${adminUsersSection === "actions" ? "" : " hidden"}" data-admin-users-panel="actions"${adminUsersSection === "actions" ? "" : " hidden"}>${actionsPaneHtml}</div>`;
@@ -957,6 +1030,73 @@ function adminUsersHtml(current) {
   "use strict";
   function bindAdminUsersPortalControls() {
     if (String(state.currentView || "") !== "admin-users" || !nodes.viewRoot) return;
+    const patchUi = (partial) => {
+      if (typeof setAdminUsersUi === "function") setAdminUsersUi(partial);
+      else state.adminUsersUi = { ...getAdminUsersUi(), ...partial };
+    };
+
+    nodes.viewRoot.querySelectorAll("[data-action='open-user-permissions']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = String(btn.dataset.id || "").trim();
+        if (!id) return;
+        patchUi({
+          panel: "set-permissions",
+          permUserId: id,
+          editUserId: "",
+          editCompanyId: "",
+          section: "actions",
+          permissionsMinimized: false
+        });
+        renderPortalView();
+      });
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='admin-users-status-filter']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const status = String(btn.dataset.status || "all");
+        patchUi({ userStatusFilter: ["all", "active", "inactive"].includes(status) ? status : "all" });
+        renderPortalView();
+      });
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='admin-users-company-filter']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const status = String(btn.dataset.status || "all");
+        patchUi({ companyStatusFilter: ["all", "active", "inactive"].includes(status) ? status : "all" });
+        renderPortalView();
+      });
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='admin-users-role-filter']").forEach((sel) => {
+      sel.addEventListener("change", () => {
+        patchUi({ userRoleFilter: String(sel.value || "all") || "all" });
+        renderPortalView();
+      });
+    });
+
+    if (!nodes.viewRoot.dataset.permGroupToggleBound) {
+      nodes.viewRoot.dataset.permGroupToggleBound = "1";
+      nodes.viewRoot.addEventListener("click", (event) => {
+        const btn = event.target instanceof Element ? event.target.closest("[data-action='perm-group-toggle']") : null;
+        if (!btn || !nodes.viewRoot.contains(btn)) return;
+        event.preventDefault();
+        const group = btn.closest("[data-perm-group]");
+        if (!group) return;
+        const boxes = [...group.querySelectorAll("input[name='permissions']")].filter((el) => !el.disabled);
+        if (!boxes.length) return;
+        const allOn = boxes.every((el) => el.checked);
+        boxes.forEach((el) => {
+          el.checked = !allOn;
+          el.closest(".perm-check")?.classList.toggle("is-on", el.checked);
+        });
+        const countEl = group.querySelector(".perm-group-count");
+        const onCount = boxes.filter((el) => el.checked).length;
+        if (countEl) countEl.textContent = `${onCount}/${boxes.length}`;
+        btn.setAttribute("aria-pressed", String(!allOn));
+        btn.textContent = !allOn ? "Quitar módulo" : "Todo el módulo";
+      });
+    }
+
     nodes.viewRoot.querySelectorAll("[data-action='admin-users-directory-search']").forEach((input) => {
       input.addEventListener("input", () => {
         const el = /** @type {HTMLInputElement} */ (input);

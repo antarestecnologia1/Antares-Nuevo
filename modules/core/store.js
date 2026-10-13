@@ -100,7 +100,11 @@ export let state = {
     /** Tarjeta «Asignar permisos» colapsada tras guardar. */
     permissionsMinimized: false,
     /** Texto de búsqueda en directorios (pendientes / usuarios / empresas). */
-    directorySearch: ""
+    directorySearch: "",
+    permUserId: "",
+    userStatusFilter: "all",
+    userRoleFilter: "all",
+    companyStatusFilter: "all"
   },
   adminUsersDrafts: {
     createUser: {},

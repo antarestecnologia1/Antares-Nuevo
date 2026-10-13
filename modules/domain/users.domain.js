@@ -14,7 +14,11 @@ export function getAdminUsersUi() {
     createCompanyMinimized: Boolean(ui?.createCompanyMinimized),
     editMinimized: Boolean(ui?.editMinimized),
     permissionsMinimized: Boolean(ui?.permissionsMinimized),
-    directorySearch: String(ui?.directorySearch || "").trim()
+    directorySearch: String(ui?.directorySearch || "").trim(),
+    permUserId: String(ui?.permUserId || "").trim(),
+    userStatusFilter: String(ui?.userStatusFilter || "all").trim() || "all",
+    userRoleFilter: String(ui?.userRoleFilter || "all").trim() || "all",
+    companyStatusFilter: String(ui?.companyStatusFilter || "all").trim() || "all"
   };
 }
 
