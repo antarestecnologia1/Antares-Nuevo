@@ -743,7 +743,8 @@ export const CO_PAYROLL = {
 
 /** Referencias RRHH (jornada, salario mínimo, auxilio transporte) alineadas a práctica colombiana. */
 export const CO_HR_RULES = {
-  legalWeeklyHours: 46,
+  /** Ley 2101/2021: 42 h semanales desde el 15-jul-2026. */
+  legalWeeklyHours: 42,
   minMonthlySalary: 1750905,
   transportAllowance: 249095
 };

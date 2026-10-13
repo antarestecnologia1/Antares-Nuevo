@@ -1674,6 +1674,27 @@ async function archiveAbsenceSupportToEmployeeFolder({ employee, file, absence, 
   return result;
 }
 
+/** Elimina el soporte archivado de una ausencia que no llegó a registrarse. */
+async function discardAbsenceSupportDocument(absenceId) {
+  const marker = absenceSupportDocumentMarker(absenceId);
+  if (!marker) return { ok: false, deleted: 0 };
+  const docs = readDocs();
+  const ids = docs
+    .filter((d) => String(d.description || "").includes(marker))
+    .map((d) => String(d.id || "").trim())
+    .filter(Boolean);
+  if (!ids.length) return { ok: true, deleted: 0 };
+  const idSet = new Set(ids);
+  const remaining = docs.filter((d) => !idSet.has(String(d.id || "").trim()));
+  try {
+    await writeAwaitServerDelete(KEYS.companyDocuments, remaining, ids, { notifyOnFailure: false });
+    return { ok: true, deleted: ids.length };
+  } catch (err) {
+    devWarn("[companyDocuments] discardAbsenceSupport", err?.message || err);
+    return { ok: false, deleted: 0 };
+  }
+}
+
 /**
  * Genera el Word oficial (misma plantilla y merge que Gestión humana / Contratación).
  * @returns {{ blob: Blob, fileName: string, kind: string, employee: object } | null}
@@ -2215,6 +2236,7 @@ async function resetAndRecreateCompanyDocuments({ force = false } = {}) {
 if (typeof window !== "undefined") {
   window.archivePayrollRunToEmployeeFolder = archivePayrollRunToEmployeeFolder;
   window.archiveAbsenceSupportToEmployeeFolder = archiveAbsenceSupportToEmployeeFolder;
+  window.discardAbsenceSupportDocument = discardAbsenceSupportDocument;
   window.archiveEmployeeHirePackageToFolder = archiveEmployeeHirePackageToFolder;
   window.archiveEmployeeContractToFolder = archiveEmployeeContractToFolder;
   window.archiveEmployeePhotoToFolder = archiveEmployeePhotoToFolder;

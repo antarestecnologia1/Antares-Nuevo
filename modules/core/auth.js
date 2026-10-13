@@ -1936,6 +1936,11 @@ export async function queueApproval({ type, title, payload, requestedByUserId, r
   try {
     await window.writeAwaitServerCreate(KEYS.approvals, approvals, createdApproval);
   } catch (err) {
+    write(
+      KEYS.approvals,
+      read(KEYS.approvals, []).filter((row) => String(row?.id) !== createdApproval.id),
+      { skipSyncSchedule: true }
+    );
     const msg = String(err?.message || window.userMessage?.("genericError") || "No se pudo enviar la solicitud de autorización.").trim();
     window.notify(msg, "error");
     throw err;

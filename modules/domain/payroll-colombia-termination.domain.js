@@ -10,6 +10,7 @@ import {
   readActiveUvtCop,
   resolveIntegralSalaryFlag
 } from "./payroll-colombia-legal.domain.js";
+import { isColombiaHolidayLocalDate } from "./colombia-holidays.domain.js";
 
 function parseNum(v) {
   const n = Number(v);
@@ -24,12 +25,37 @@ function parseYmd(raw) {
   const mo = Number(m[2]) - 1;
   const d = Number(m[3]);
   const dt = new Date(y, mo, d, 12, 0, 0, 0);
-  return Number.isNaN(dt.getTime()) ? null : dt;
+  if (Number.isNaN(dt.getTime()) || dt.getMonth() !== mo || dt.getDate() !== d) return null;
+  return dt;
 }
 
-function inclusiveDays(a, b) {
+function isLastDayOfMonth(dt) {
+  return new Date(dt.getFullYear(), dt.getMonth() + 1, 0).getDate() === dt.getDate();
+}
+
+/**
+ * Días inclusivos en base comercial 360 (meses de 30 días): el día 31 cuenta como 30 y el
+ * último día de febrero completa el mes (1-feb → 28-feb = 30 días; 1-ene → 31-dic = 360).
+ */
+export function days360Inclusive(a, b) {
   if (!a || !b || a > b) return 0;
-  return Math.floor((b.getTime() - a.getTime()) / 86400000) + 1;
+  const d1 = a.getMonth() === 1 && isLastDayOfMonth(a) ? 30 : Math.min(a.getDate(), 30);
+  const d2 = isLastDayOfMonth(b) ? 30 : Math.min(b.getDate(), 30);
+  return (
+    (b.getFullYear() - a.getFullYear()) * 360 + (b.getMonth() - a.getMonth()) * 30 + (d2 - d1) + 1
+  );
+}
+
+function payrollBusinessDaysInclusive(a, b) {
+  if (!a || !b || a > b) return 0;
+  let total = 0;
+  const cur = new Date(a.getFullYear(), a.getMonth(), a.getDate(), 12);
+  while (cur <= b) {
+    const wd = cur.getDay();
+    if (wd !== 0 && wd !== 6 && !isColombiaHolidayLocalDate(cur)) total += 1;
+    cur.setDate(cur.getDate() + 1);
+  }
+  return total;
 }
 
 function yearStart(y) {
@@ -79,8 +105,8 @@ export function terminationCauseEligibility(cause) {
     return {
       ...base,
       indemnizacionDespido: true,
-      indemnizacionAvisoPrevio: true,
-      note: "Despido sin justa causa: prestaciones sociales + indemnización sustitutiva (CST art. 64) y, si no hubo preaviso, indemnización de aviso (30 días contrato indefinido)."
+      indemnizacionAvisoPrevio: false,
+      note: "Despido sin justa causa: prestaciones sociales + indemnización CST art. 64 (indefinido: tabla por años de servicio; término fijo: salarios del tiempo faltante). La Ley 50/1990 eliminó la indemnización por falta de preaviso del empleador."
     };
   }
   if (c === "despido_justa") {
@@ -117,15 +143,15 @@ export function terminationCauseEligibility(cause) {
   return { ...base, note: "Revise causal y rubros con asesoría legal." };
 }
 
-/** Días calendario trabajados (ingreso → retiro inclusive). */
+/** Días laborados en base 360 (ingreso → retiro inclusive). */
 export function calcColombiaTerminationEmployedDays(hireDateYmd, terminationDateYmd) {
   const hire = parseYmd(hireDateYmd);
   const term = parseYmd(terminationDateYmd);
   if (!hire || !term || term < hire) return 0;
-  return inclusiveDays(hire, term);
+  return days360Inclusive(hire, term);
 }
 
-/** Días del año de retiro para cesantías (360): desde 1 ene o ingreso hasta retiro. */
+/** Días del año de retiro para cesantías (base 360): desde 1 ene o ingreso hasta retiro. */
 export function calcColombiaTerminationCesantiasDaysYear(hireDateYmd, terminationDateYmd) {
   const hire = parseYmd(hireDateYmd);
   const term = parseYmd(terminationDateYmd);
@@ -134,7 +160,7 @@ export function calcColombiaTerminationCesantiasDaysYear(hireDateYmd, terminatio
   const yearLo = yearStart(y);
   const lo = hire && hire > yearLo ? hire : yearLo;
   if (lo > term) return 0;
-  return inclusiveDays(lo, term);
+  return Math.min(360, days360Inclusive(lo, term));
 }
 
 /** Días del semestre en curso para prima proporcional. */
@@ -146,7 +172,7 @@ export function calcColombiaTerminationPrimaSemesterDays(hireDateYmd, terminatio
   const lo = hire && hire > sem.start ? hire : sem.start;
   const hi = term < sem.end ? term : sem.end;
   if (lo > hi) return 0;
-  return Math.min(180, inclusiveDays(lo, hi));
+  return Math.min(180, days360Inclusive(lo, hi));
 }
 
 /**
@@ -164,7 +190,7 @@ export function sumVacationDaysTakenFromAbsences(employeeId, absencesAll, hireDa
   const hire = parseYmd(hireDateYmd);
   const term = parseYmd(terminationDateYmd);
   if (!term) return 0;
-  const lo = hire || term;
+  const lo = hire || new Date(1900, 0, 1, 12);
   let sum = 0;
   for (const ab of absencesAll || []) {
     if (String(ab.employeeId || "") !== String(employeeId || "")) continue;
@@ -176,34 +202,41 @@ export function sumVacationDaysTakenFromAbsences(employeeId, absencesAll, hireDa
     const ovStart = s > lo ? s : lo;
     const ovEnd = e < term ? e : term;
     if (ovStart > ovEnd) continue;
+    const overlapBusiness = payrollBusinessDaysInclusive(ovStart, ovEnd);
     const recognized = parseNum(ab.recognizedDays ?? ab.days);
-    sum += recognized > 0 ? recognized : inclusiveDays(ovStart, ovEnd);
+    if (recognized > 0) {
+      /* Prorratea los días reconocidos según la parte de la ausencia que cae dentro del vínculo. */
+      const fullBusiness = payrollBusinessDaysInclusive(s, e);
+      sum += fullBusiness > 0 ? (recognized * overlapBusiness) / fullBusiness : recognized;
+    } else {
+      sum += overlapBusiness;
+    }
   }
-  return sum;
+  return Math.round(sum * 100) / 100;
 }
 
-/** Indemnización sustitutiva despido sin justa causa — CST art. 64 (orientativo). */
-export function calcColombiaIndemnizacionDespidoSinJustaCop(salaryMonthly, employedDays) {
+/**
+ * Indemnización despido sin justa causa, contrato a término indefinido — CST art. 64 (Ley 789/2002).
+ * Salario < 10 SMMLV: 30 días el primer año (aunque no se complete) + 20 días por año adicional, proporcional.
+ * Salario ≥ 10 SMMLV: 20 días el primer año + 15 días por año adicional, proporcional.
+ */
+export function calcColombiaIndemnizacionDespidoSinJustaCop(salaryMonthly, employedDays, smmlv = CO_PAYROLL.smmlv) {
   const sal = Math.max(0, parseNum(salaryMonthly));
   const days = Math.max(0, parseNum(employedDays));
   if (sal <= 0 || days <= 0) return { cop: 0, diasIndemn: 0, formula: "" };
-  const daily = sal / 30;
+  const sm = Math.max(0, parseNum(smmlv));
+  const highSalary = sm > 0 && sal >= sm * 10;
+  const firstYearDays = highSalary ? 20 : 30;
+  const extraYearDays = highSalary ? 15 : 20;
   const years = days / 360;
-  let diasIndemn = 0;
-  if (years < 1) {
-    diasIndemn = 30 * (days / 360);
-  } else {
-    const fullYears = Math.floor(years);
-    const fraction = years - fullYears;
-    diasIndemn = 30 + Math.max(0, fullYears - 1) * 20;
-    if (fraction > 0.5) diasIndemn += 20;
-    else if (fraction > 0) diasIndemn += 20 * fraction * 2;
-  }
-  diasIndemn = Math.round(diasIndemn * 100) / 100;
+  const diasIndemn =
+    Math.round((firstYearDays + Math.max(0, years - 1) * extraYearDays) * 100) / 100;
   return {
-    cop: Math.round(daily * diasIndemn),
+    cop: Math.round((sal / 30) * diasIndemn),
     diasIndemn,
-    formula: "CST art. 64: 30 días 1.er año; +20 días por cada año adicional (fracción >6 meses +20)."
+    formula: highSalary
+      ? "CST art. 64 (salario ≥ 10 SMMLV): 20 días el primer año + 15 días por año adicional, proporcional."
+      : "CST art. 64 (salario < 10 SMMLV): 30 días el primer año + 20 días por año adicional, proporcional."
   };
 }
 
@@ -233,7 +266,8 @@ export function calcColombiaFixedTermRemainingSalaryCop(salaryMonthly, terminati
   const term = parseYmd(terminationDateYmd);
   const end = parseYmd(contractEndDateYmd);
   if (!term || !end || end <= term || sal <= 0) return { cop: 0, daysRemaining: 0 };
-  const daysRemaining = inclusiveDays(new Date(term.getTime() + 86400000), end);
+  const next = new Date(term.getFullYear(), term.getMonth(), term.getDate() + 1, 12);
+  const daysRemaining = days360Inclusive(next, end);
   return { cop: Math.round((sal / 30) * daysRemaining), daysRemaining };
 }
 
@@ -265,12 +299,20 @@ export function classifyColombiaTerminationTaxBases({
   };
 }
 
-/** Salario y auxilio del mes de retiro (días 1 → fecha retiro). */
-export function calcColombiaTerminationPendingSalaryCop(salaryMonthly, terminationDateYmd, transportMonthlyCop = 0) {
+/** Salario y auxilio del mes de retiro (base 30: desde el 1 o el ingreso hasta la fecha de retiro). */
+export function calcColombiaTerminationPendingSalaryCop(
+  salaryMonthly,
+  terminationDateYmd,
+  transportMonthlyCop = 0,
+  hireDateYmd = ""
+) {
   const term = parseYmd(terminationDateYmd);
   const sal = Math.max(0, parseNum(salaryMonthly));
   if (!term || sal <= 0) return { salarioCop: 0, auxilioCop: 0, diasMes: 0 };
-  const diasMes = term.getDate();
+  const monthStart = new Date(term.getFullYear(), term.getMonth(), 1, 12);
+  const hire = parseYmd(hireDateYmd);
+  const from = hire && hire > monthStart ? hire : monthStart;
+  const diasMes = Math.min(30, days360Inclusive(from, term));
   const salarioCop = Math.round((sal / 30) * diasMes);
   const aux = Math.max(0, parseNum(transportMonthlyCop));
   const auxilioCop = aux > 0 ? Math.round((aux / 30) * diasMes) : 0;
@@ -315,21 +357,25 @@ export function computeColombiaTerminationSettlement({
       ? parseNum(employee.transportAllowance)
       : CO_HR_RULES.transportAllowance
     : 0;
-  const pending = calcColombiaTerminationPendingSalaryCop(salary, term, transportRef);
+  const pending = calcColombiaTerminationPendingSalaryCop(salary, term, transportRef, hire);
 
-  const cesantiasCausadas = eligibility.cesantias
-    ? Math.round((salary * cesantiasDaysYear) / 360)
-    : 0;
+  /* El auxilio de transporte integra la base de cesantías, intereses y prima (Ley 1/1963 art. 7), no la de vacaciones. */
+  const prestacionesBase = salary + transportRef;
+  /* El salario integral ya incluye cesantías, intereses y prima (CST art. 132). */
+  const cesantiasCausadas =
+    eligibility.cesantias && !integral ? Math.round((prestacionesBase * cesantiasDaysYear) / 360) : 0;
+  /* El saldo ya consignado lo paga el fondo, no el empleador: solo se informa. */
   const fondo = Math.max(0, parseNum(cesantiasFondoBalanceCop));
-  const cesantiasTotal = cesantiasCausadas + fondo;
-  const interesesBase = cesantiasTotal > 0 ? cesantiasTotal : cesantiasCausadas;
+  const cesantiasTotal = cesantiasCausadas;
+  const interesesBase = cesantiasCausadas;
   const interesesCesantias =
-    eligibility.interesesCesantias && interesesBase > 0
+    eligibility.interesesCesantias && !integral && interesesBase > 0
       ? Math.round(interesesBase * 0.12 * (Math.min(cesantiasDaysYear, 360) / 360))
       : 0;
-  const primaProporcional = eligibility.primaProporcional
-    ? Math.round((salary * primaSemesterDays) / 360)
-    : 0;
+  const primaProporcional =
+    eligibility.primaProporcional && !integral
+      ? Math.round((prestacionesBase * primaSemesterDays) / 360)
+      : 0;
   const vacaciones =
     eligibility.vacaciones && vacationDaysAccrued > 0
       ? Math.round((salary * vacationDaysAccrued) / 30)
@@ -337,8 +383,8 @@ export function computeColombiaTerminationSettlement({
 
   let indemnizacionDespido = 0;
   let indemnizacionFormula = "";
-  if (eligibility.indemnizacionDespido === true) {
-    const ind = calcColombiaIndemnizacionDespidoSinJustaCop(salary, employedDays);
+  if (eligibility.indemnizacionDespido === true && contractIndefinite) {
+    const ind = calcColombiaIndemnizacionDespidoSinJustaCop(salary, employedDays, smmlv);
     indemnizacionDespido = ind.cop;
     indemnizacionFormula = ind.formula;
   } else if (eligibility.indemnizacionDespido === "manual") {
@@ -360,6 +406,7 @@ export function computeColombiaTerminationSettlement({
     const ft = calcColombiaFixedTermRemainingSalaryCop(salary, term, contractEndDateYmd);
     indemnizacionContratoFijo = ft.cop;
     fixedTermDays = ft.daysRemaining;
+    indemnizacionFormula = "CST art. 64 (término fijo): salarios del tiempo faltante para cumplir el plazo.";
   }
 
   let renunciaAvisoDeduction = 0;
@@ -425,7 +472,6 @@ export function computeColombiaTerminationSettlement({
       label: `Cesantías año en curso (${cesantiasDaysYear} días ÷ 360)`,
       amount: cesantiasCausadas
     },
-    { code: "CESANTIAS_FONDO", label: "Saldo cesantías en fondo (consignado)", amount: fondo },
     {
       code: "INT_CESANTIAS",
       label: `Intereses cesantías (12% anual Ley 52/1975 sobre base ${interesesBase.toLocaleString("es-CO")})`,
@@ -467,7 +513,6 @@ export function computeColombiaTerminationSettlement({
     { code: "SALUD", label: "Aporte salud empleado (4%)", amount: ded.health },
     { code: "PENSION", label: "Aporte pensión empleado (4%)", amount: ded.pension },
     { code: "FSP", label: `Fondo solidaridad pensional (${ded.solidarityTramo || "—"})`, amount: ded.solidarity },
-    { code: "SUBSISTENCIA", label: "Subsistencia pensional (0,5%)", amount: ded.subsistence },
     { code: "RETENCION", label: "Retención fuente Proc. 1 (Art. 383)", amount: withholding.withholdingCop },
     {
       code: "AVISO_RENUNCIA",

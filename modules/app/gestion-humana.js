@@ -201,7 +201,7 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
     const hydrated = await ensurePayrollRunHeavyJsonLoaded(id);
     if (hydrated) run = hydrated;
   }
-  const employee = read(KEYS.payrollEmployees, []).find((e) => e.id === run.employeeId);
+  const employee = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === String(run.employeeId));
   const company = employee ? getCompanyById(employee.companyId) : null;
   const employerName = (() => {
     const n = String(company?.name || "").trim();
@@ -1680,7 +1680,10 @@ function bindPayrollPortalControls() {
                 failPortalField(employeeForm, "licenseIssueDate", userMessage("employeeDriverFieldsRequired"));
                 return;
               }
-              if (!payload.licenseExpiry || new Date(payload.licenseExpiry).getTime() <= Date.now()) {
+              if (
+                !normalizePortalDateYmd(payload.licenseExpiry) ||
+                normalizePortalDateYmd(payload.licenseExpiry) <= colombiaTodayIsoDate()
+              ) {
                 failPortalField(employeeForm, "licenseIssueDate", userMessage("payrollLicenseExpired"));
                 return;
               }
@@ -1768,7 +1771,10 @@ function bindPayrollPortalControls() {
             failPortalField(employeeForm, "licenseIssueDate", userMessage("employeeDriverFieldsRequired"));
             return;
           }
-          if (!payload.licenseExpiry || new Date(payload.licenseExpiry).getTime() <= Date.now()) {
+          if (
+            !normalizePortalDateYmd(payload.licenseExpiry) ||
+            normalizePortalDateYmd(payload.licenseExpiry) <= colombiaTodayIsoDate()
+          ) {
             failPortalField(employeeForm, "licenseIssueDate", userMessage("payrollLicenseExpired"));
             return;
           }
@@ -1853,7 +1859,7 @@ function bindPayrollPortalControls() {
     wireFormSubmitGuard(absenceForm, async (event) => {
       const actor = currentUser();
       const data = readFormEntriesNormalized(absenceForm);
-      const employee = read(KEYS.payrollEmployees, []).find((e) => e.id === data.employeeId);
+      const employee = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === String(data.employeeId));
       if (!employee) {
         failHrAbsenceField(absenceForm, "employeeId", userMessage("absencePickEmployee"));
         return;
@@ -1961,13 +1967,20 @@ function bindPayrollPortalControls() {
         createdAt: nowIso()
       };
       if (requiresAdminHrApproval(actor?.role || "")) {
-        await queueApproval({
-          type: "register_hr_absence",
-          title: `Registro de ausencia de ${employee.name}`,
-          payload: absencePayload,
-          requestedByUserId: actor?.id || "",
-          requestedByName: actor?.name || "Usuario"
-        });
+        try {
+          await queueApproval({
+            type: "register_hr_absence",
+            title: `Registro de ausencia de ${employee.name}`,
+            payload: absencePayload,
+            requestedByUserId: actor?.id || "",
+            requestedByName: actor?.name || "Usuario"
+          });
+        } catch (err) {
+          void window.discardAbsenceSupportDocument?.(absenceId);
+          const queueMsg = String(err?.message || "No fue posible enviar la solicitud de aprobación.");
+          setHrAbsenceFormFeedback(absenceForm, "error", queueMsg);
+          return;
+        }
         notify(userMessage("absenceApprovalQueued"), "info");
         collapseCreatePanel("create-hr-absence");
         renderPortalView();
@@ -1982,6 +1995,7 @@ function bindPayrollPortalControls() {
           list.filter((row) => String(row.id) !== absenceId),
           { skipSyncSchedule: true }
         );
+        void window.discardAbsenceSupportDocument?.(absenceId);
         const saveMsg = describeHrAbsenceSaveError(err);
         setHrAbsenceFormFeedback(absenceForm, "error", saveMsg);
         notify(saveMsg, "error");
@@ -2218,7 +2232,10 @@ function bindPayrollPortalControls() {
               failPortalField(formEl, "licenseIssueDate", userMessage("employeeDriverFieldsRequired"));
               return false;
             }
-            if (!nextPayload.licenseExpiry || new Date(nextPayload.licenseExpiry).getTime() <= Date.now()) {
+            if (
+              !normalizePortalDateYmd(nextPayload.licenseExpiry) ||
+              normalizePortalDateYmd(nextPayload.licenseExpiry) <= colombiaTodayIsoDate()
+            ) {
               failPortalField(formEl, "licenseIssueDate", userMessage("payrollLicenseExpired"));
               return false;
             }
@@ -2281,6 +2298,7 @@ function bindPayrollPortalControls() {
           try {
             await writeAwaitServerEdit(KEYS.payrollEmployees, nextEmployees, target.id);
           } catch (err) {
+            write(KEYS.payrollEmployees, freshEmployees, { skipSyncSchedule: true });
             notify(userMessage("employeeSaveServerFail", err?.message), "error");
             return false;
           }
@@ -2404,13 +2422,16 @@ function bindPayrollPortalControls() {
           endEl?.setAttribute("readonly", "");
           endEl?.setAttribute("tabindex", "-1");
           const syncRenewEnd = () => {
+            if (!endEl) return;
             const start = normalizePortalDateYmd(startEl?.value || "");
-            const dur = String(durEl?.value || "").trim();
-            if (!start || !endEl) return;
-            const parsed = parseContractDurationText(dur || "1 año");
+            const parsed = parseContractDurationText(String(durEl?.value || "").trim() || "1 año");
+            if (!start || parsed.unit === "otro" || !parsed.amount) {
+              endEl.value = "";
+              return;
+            }
             const end = resolveEmployeeContractEndDateYmd(normalized.contractType, start, {
-              contractDurationUnit: parsed.unit === "otro" ? "anios" : parsed.unit,
-              contractDurationAmount: parsed.amount || "1"
+              contractDurationUnit: parsed.unit,
+              contractDurationAmount: parsed.amount
             });
             endEl.value = end || "";
           };
@@ -2426,12 +2447,14 @@ function bindPayrollPortalControls() {
             contractDuration: String(payload.contractDuration || "").trim(),
             baseSalary: payload.baseSalary
           };
-          const check = validateContractRenewal(normalized, fields);
+          const contractHistory = readEmployeeContractHistoryForRenewal(normalized.id);
+          const check = validateContractRenewal(normalized, fields, { contractHistory });
           if (!check.ok) {
             failPortalField(formEl, check.field || "renewalDate", check.message);
             return false;
           }
           const result = await executeEmployeeContractRenewal(normalized, fields, {
+            contractHistory,
             generateWord: String(payload.generateWord || "").toLowerCase() === "on" || payload.generateWord === true
           });
           if (!result.ok) {
@@ -2463,6 +2486,13 @@ function bindPayrollPortalControls() {
       const normalized = normalizePayrollEmployeeRowDates(ensureEmployeeContractFields(target));
       const meta = buildNonRenewalNoticeMeta(normalized);
       const noticeToday = colombiaTodayIsoDate();
+      if (meta.endYmd && noticeToday >= meta.endYmd) {
+        notify(
+          `El contrato venció el ${fmtDateOr(meta.endYmd)}: sin aviso previo se prorrogó por un período igual. Registre la renovación o la terminación.`,
+          "info"
+        );
+        return;
+      }
       openEditModal({
         title: "Aviso de no renovación",
         subtitle: `${String(normalized.name || "").trim()} · vence ${fmtDateOr(meta.endYmd, "—")}`,
@@ -2547,20 +2577,33 @@ function bindPayrollPortalControls() {
     const snapshots = ids
       .map((employeeId) => read(KEYS.payrollEmployees, []).find((row) => String(row.id) === employeeId))
       .filter(Boolean);
-    try {
-      for (const employeeId of ids) {
+    const unlinkedIds = new Set();
+    let failure = null;
+    for (const employeeId of ids) {
+      try {
         await postPortalAuthorized("/portal/admin-employee-delete", {
           employeeId,
           unlinkDate,
           unlinkCategory,
           unlinkReason
         });
+        unlinkedIds.add(employeeId);
+      } catch (err) {
+        failure = err;
+        break;
       }
-    } catch (err) {
-      notify(String(err?.message || "No fue posible desvincular el colaborador en el servidor."), "error");
-      return { ok: false };
     }
-    for (const snap of snapshots) {
+    if (failure) {
+      const reason = String(failure?.message || "No fue posible desvincular el colaborador en el servidor.");
+      notify(
+        unlinkedIds.size
+          ? `Se desvincularon ${unlinkedIds.size} de ${ids.length} colaboradores; el resto falló: ${reason}`
+          : reason,
+        "error"
+      );
+      if (!unlinkedIds.size) return { ok: false };
+    }
+    for (const snap of snapshots.filter((row) => unlinkedIds.has(String(row.id)))) {
       const updated =
         typeof applyPayrollEmployeeUnlinkLocal === "function"
           ? await applyPayrollEmployeeUnlinkLocal(snap.id, { unlinkDate, unlinkCategory, unlinkReason })
@@ -2582,6 +2625,7 @@ function bindPayrollPortalControls() {
         /* local unlink already applied */
       }
     }
+    if (failure) return { ok: false, count: unlinkedIds.size };
     return { ok: true, count: ids.length };
   }
 
@@ -2651,7 +2695,11 @@ function bindPayrollPortalControls() {
           unlinkCategory: String(payload.unlinkCategory || "otro"),
           unlinkReason: String(payload.unlinkReason || "")
         });
-        if (!result.ok) return false;
+        if (!result.ok) {
+          if (!result.count) return false;
+          renderPortalView();
+          return true;
+        }
         notify(
           recategorize
             ? userMessage("employeeUnlinkedRecategorized")
@@ -2780,41 +2828,49 @@ function bindPayrollPortalControls() {
   });
 
   document.getElementById("export-employees-contracts")?.addEventListener("click", () => {
-    const rows = [...nodes.viewRoot.querySelectorAll(".payroll-employee-table-row:not(.is-filtered-out)")];
-    if (!rows.length) {
-      notify("No hay filas visibles para exportar.", "error");
+    const employeesFilters =
+      state.payrollUi?.employeesFilters && typeof state.payrollUi.employeesFilters === "object"
+        ? state.payrollUi.employeesFilters
+        : {};
+    const todayYmd = colombiaTodayIsoDate();
+    const summaries = read(KEYS.payrollEmployees, [])
+      .map((e) => summarizePayrollEmployeeForDirectory(e))
+      .filter((item) => payrollEmployeeMatchesFilters(item, employeesFilters, todayYmd));
+    if (!summaries.length) {
+      notify("No hay colaboradores que coincidan con los filtros para exportar.", "error");
       return;
     }
     const lines = [
       ["Nombre", "Documento", "Cargo", "Vehículo", "Ingreso", "Inicio vigente", "Renovación", "Aviso no renov.", "Fin contrato", "Estado"].join(";")
     ];
-    rows.forEach((row) => {
-      const cells = [...row.querySelectorAll("td")];
-      const offset = cells[0]?.querySelector("[data-employee-select]") ? 1 : 0;
-      const personCell = cells[offset];
-      const strong = personCell?.querySelector("strong");
-      const muted = personCell?.querySelector(".muted");
+    summaries.forEach((item) => {
+      const e = item.raw || {};
+      const status = item.isUnlinked
+        ? "Desvinculado"
+        : payrollEmployeeContractStatusDisplay(item.contract).label;
       const values = [
-        strong?.textContent || "",
-        muted?.textContent || "",
-        cells[offset + 1]?.textContent || "",
-        cells[offset + 2]?.textContent || "",
-        cells[offset + 3]?.textContent || "",
-        cells[offset + 4]?.textContent || "",
-        cells[offset + 5]?.textContent || "",
-        cells[offset + 6]?.textContent || "",
-        cells[offset + 7]?.textContent || "",
-        cells[offset + 8]?.textContent || ""
-      ].map((t) => `"${String(t).trim().replace(/"/g, '""')}"`);
+        e.name,
+        e.idDoc,
+        e.position,
+        item.vehicleLabel,
+        fmtDateOr(e.startDate, ""),
+        fmtDateOr(e.contractVigenteStartDate, ""),
+        fmtDateOr(e.renewalDate, ""),
+        fmtDateOr(e.nonRenewalNoticeDate, ""),
+        fmtDateOr(item.contract?.endYmd || e.contractEndDate, ""),
+        status
+      ].map((t) => `"${String(t ?? "").trim().replace(/"/g, '""')}"`);
       lines.push(values.join(";"));
     });
     const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `contratos-${colombiaTodayIsoDate()}.csv`;
+    a.download = `contratos-${todayYmd}.csv`;
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
   });
 
   const employeesDeleteSelected = document.getElementById("employees-delete-selected");
@@ -2902,7 +2958,7 @@ function bindPayrollPortalControls() {
     wireMonthlyPayrollConcepts(payrollForm);
     wireFormSubmitGuard(payrollForm, async (event) => {
       const data = readFormEntriesNormalized(payrollForm);
-      const employee = read(KEYS.payrollEmployees, []).find((e) => e.id === data.employeeId);
+      const employee = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === String(data.employeeId));
       if (!employee) {
         failPortalField(payrollForm, "employeeId", userMessage("contractPickEmployee"));
         return;
@@ -3086,9 +3142,10 @@ function bindPayrollPortalControls() {
       const bonus = parseNum(data.bonus);
       const empleadoAuxilioRef = readEmployeeTransportAllowanceCop(employee);
       const payrollAbsencesAll = read(KEYS.hrAbsences, []);
-      const incapacityCalc = computePayrollIncapacityColombiaForMonth({
+      const incapacityCalc = computePayrollNoveltiesForPeriod({
         employee,
-        liquidacionMonthYm: dataMonth,
+        periodStart: cut.periodStart,
+        periodEnd: cut.periodEnd,
         absencesAll: payrollAbsencesAll
       });
       const incapacityAdjustCop = parseNum(incapacityCalc.adjustCop);
@@ -3181,7 +3238,11 @@ function bindPayrollPortalControls() {
       try {
         await writeAwaitServerCreate(KEYS.payrollRuns, runs, run);
       } catch (err) {
-        runs.shift();
+        write(
+          KEYS.payrollRuns,
+          read(KEYS.payrollRuns, []).filter((row) => String(row.id) !== String(run.id)),
+          { skipSyncSchedule: true }
+        );
         notify(String(err?.message || "No fue posible guardar la nómina en el servidor."), "error");
         return;
       }
@@ -3301,7 +3362,7 @@ function bindPayrollPortalControls() {
     wireTerminationSettlementForm(settlementForm);
     wireFormSubmitGuard(settlementForm, async (event) => {
       const data = readFormEntriesNormalized(settlementForm);
-      const employee = read(KEYS.payrollEmployees, []).find((e) => e.id === data.employeeId);
+      const employee = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === String(data.employeeId));
       if (!employee) {
         failPortalField(settlementForm, "employeeId", userMessage("contractPickEmployee"));
         return;
@@ -3429,6 +3490,11 @@ function bindPayrollPortalControls() {
       try {
         await writeAwaitServerCreate(KEYS.payrollRuns, runs, run);
       } catch (err) {
+        write(
+          KEYS.payrollRuns,
+          read(KEYS.payrollRuns, []).filter((row) => String(row.id) !== String(run.id)),
+          { skipSyncSchedule: true }
+        );
         notify(String(err?.message || "No fue posible guardar la liquidación en el servidor."), "error");
         return;
       }
@@ -3452,8 +3518,7 @@ function bindPayrollPortalControls() {
     btn.addEventListener("click", async () => {
       const actor = currentUser();
       const id = String(btn.dataset.id || "");
-      const all = read(KEYS.payrollRuns, []);
-      const run = all.find((r) => r.id === id);
+      const run = read(KEYS.payrollRuns, []).find((r) => String(r.id) === id);
       if (!run || run.paid) return;
       if (requiresAdminHrApproval(actor?.role || "")) {
         if (btn.dataset.busy === "1") return;
@@ -3484,8 +3549,9 @@ function bindPayrollPortalControls() {
         confirmText: "Marcar pagado",
         onConfirm: async () => {
           const approver = payrollAuditActorLabel();
+          const all = read(KEYS.payrollRuns, []);
           const nextRuns = all.map((item) =>
-                item.id === id
+                String(item.id) === id
                   ? stampUpdatedRecord({
                       ...item,
                       paid: true,
@@ -3497,6 +3563,7 @@ function bindPayrollPortalControls() {
           try {
             await writeAwaitServerEdit(KEYS.payrollRuns, nextRuns, id);
           } catch (err) {
+            write(KEYS.payrollRuns, all, { skipSyncSchedule: true });
             notify(String(err?.message || "No fue posible marcar el pago en el servidor."), "error");
             return;
           }
@@ -3583,7 +3650,11 @@ function bindPayrollPortalControls() {
             motivo
           });
           if (portalCanRefreshFromApi()) {
-            await applyPortalBootstrapFromApi();
+            try {
+              await applyPortalBootstrapFromApi();
+            } catch (_refreshErr) {
+              /* la eliminación ya se aplicó en servidor */
+            }
           }
           notify(userMessage("payrollRunDeleted"), "success");
           renderPortalView();
@@ -3601,11 +3672,14 @@ function bindPayrollPortalControls() {
     return filterPayrollRunsByUiState(source, filters, "nomina");
   }
 
+  /* Solo el checkbox general extiende la selección a liquidaciones filtradas que no están pintadas. */
+  let payrollRunsExplicitSelectAll = false;
+
   function payrollRunsSelectAllIsOn() {
     const toolbar = document.getElementById("payroll-runs-select-all");
     const header = document.getElementById("payroll-runs-select-all-header");
     const el = toolbar || header;
-    return Boolean(el?.checked) && !el?.indeterminate;
+    return payrollRunsExplicitSelectAll && Boolean(el?.checked) && !el?.indeterminate;
   }
 
   function selectedPayrollRunIds() {
@@ -3676,6 +3750,7 @@ function bindPayrollPortalControls() {
   }
 
   const togglePayrollRunSelectAll = (checked) => {
+    payrollRunsExplicitSelectAll = checked;
     nodes.viewRoot.querySelectorAll("[data-payroll-section='runs'] [data-payroll-run-select]").forEach((el) => {
       el.checked = checked;
     });
@@ -3683,7 +3758,10 @@ function bindPayrollPortalControls() {
   };
 
   nodes.viewRoot.querySelectorAll("[data-payroll-section='runs'] [data-payroll-run-select]").forEach((check) => {
-    check.addEventListener("change", syncPayrollRunSelectionBadge);
+    check.addEventListener("change", () => {
+      payrollRunsExplicitSelectAll = false;
+      syncPayrollRunSelectionBadge();
+    });
     check.addEventListener("click", (event) => event.stopPropagation());
   });
   document.getElementById("payroll-runs-select-all-header")?.addEventListener("change", (event) => {
@@ -3731,7 +3809,11 @@ function bindPayrollPortalControls() {
           });
         });
         if (portalCanRefreshFromApi()) {
-          await applyPortalBootstrapFromApi();
+          try {
+            await applyPortalBootstrapFromApi();
+          } catch (_refreshErr) {
+            /* la eliminación ya se aplicó en servidor */
+          }
         }
         notify(userMessage("payrollRunsBulkRemoved", ids.length), "success");
         renderPortalView();
@@ -3809,6 +3891,7 @@ function bindPayrollPortalControls() {
               }
             }
           } catch (err) {
+            write(KEYS.payrollRuns, all, { skipSyncSchedule: true });
             notify(String(err?.message || "No fue posible marcar el pago en el servidor."), "error");
             return;
           }
@@ -4167,6 +4250,7 @@ function bindPayrollPortalControls() {
           try {
             await writeAwaitServerEdit(KEYS.hrAbsences, nextList, target.id);
           } catch (err) {
+            write(KEYS.hrAbsences, freshAbsences, { skipSyncSchedule: true });
             notify(describeHrAbsenceSaveError(err), "error");
             return false;
           }

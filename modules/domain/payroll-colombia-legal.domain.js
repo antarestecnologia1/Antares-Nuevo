@@ -34,7 +34,8 @@ export const CO_ARL_EMPLOYER_RATES = {
 export const CO_OVERTIME_RATES = {
   hed: 0.25,
   hen: 0.75,
-  hrdf: 1.0,
+  /** Ley 2466/2025: 80% desde jul-2025, 90% desde jul-2026, 100% desde jul-2027. */
+  hrdf: 0.9,
   hrnf: 0.75,
   recargoNocturno: 0.35
 };
@@ -107,16 +108,18 @@ export function calcColombiaPensionSolidarityCop(ibc, smmlv = CO_PAYROLL.smmlv) 
 }
 
 /**
- * Subsistencia pensional (0,5% sobre IBC cuando ≥ 4 SMMLV — complemento Ley 100).
+ * Subcuenta de subsistencia dentro del FSP (Ley 797/2003 art. 8): 0,5% de 4 a 16 SMMLV más el
+ * adicional de los tramos superiores. Ya está incluida en `calcColombiaPensionSolidarityCop`.
  */
 export function calcColombiaPensionSubsistenceCop(ibc, smmlv = CO_PAYROLL.smmlv) {
   const b = Math.max(0, parseNum(ibc));
-  const sm = Math.max(0, parseNum(smmlv));
-  if (sm <= 0 || b < sm * 4) return { subsistenceCop: 0, ratePct: 0 };
-  return { subsistenceCop: Math.round(b * 0.005), ratePct: 0.5 };
+  const sol = calcColombiaPensionSolidarityCop(b, smmlv);
+  if (sol.solidarityCop <= 0) return { subsistenceCop: 0, ratePct: 0 };
+  const subsistenceCop = Math.max(0, sol.solidarityCop - Math.round(b * 0.005));
+  return { subsistenceCop, ratePct: Math.round((sol.ratePct - 0.5) * 100) / 100 };
 }
 
-/** Deducciones empleado: salud, pensión, solidaridad, subsistencia. */
+/** Deducciones empleado: salud, pensión y FSP (`subsistence` es la parte del FSP, no un aporte adicional). */
 export function calcColombiaEmployeeDeductionsCop({
   ibc,
   smmlv = CO_PAYROLL.smmlv,
@@ -140,7 +143,7 @@ export function calcColombiaEmployeeDeductionsCop({
   const pension = Math.round(b * Math.max(0, parseNum(pensionRate)));
   const sol = calcColombiaPensionSolidarityCop(b, smmlv);
   const sub = calcColombiaPensionSubsistenceCop(b, smmlv);
-  const total = health + pension + sol.solidarityCop + sub.subsistenceCop;
+  const total = health + pension + sol.solidarityCop;
   return {
     health,
     pension,
@@ -151,6 +154,19 @@ export function calcColombiaEmployeeDeductionsCop({
     total,
     note: ""
   };
+}
+
+/**
+ * Base gravable mensual Proc. 1 (ET arts. 206, 336, 387): ingreso − aportes obligatorios;
+ * dependientes 10% del ingreso con tope de 32 UVT (no por cada dependiente); renta exenta 25%
+ * con tope de 790 UVT/año; deducciones + rentas exentas limitadas al 40% y a 1.340 UVT/año.
+ */
+function colombiaWithholdingTaxableBaseCop(gross, mandatoryContributions, dependents, uvtVal) {
+  const net = Math.max(0, gross - mandatoryContributions);
+  const depDed = Math.floor(parseNum(dependents)) > 0 ? Math.min(gross * 0.1, 32 * uvtVal) : 0;
+  const exempt25 = Math.min(Math.max(0, net - depDed) * 0.25, (790 / 12) * uvtVal);
+  const benefits = Math.min(depDed + exempt25, net * 0.4, (1340 / 12) * uvtVal);
+  return Math.max(0, net - benefits);
 }
 
 /**
@@ -170,8 +186,7 @@ export function calcColombiaWithholdingProcedimiento1Cop({
   }
   const gross = Math.max(0, parseNum(taxableIncomeCop));
   const ded = Math.max(0, parseNum(healthDeduction)) + Math.max(0, parseNum(pensionDeduction));
-  const depDed = Math.max(0, Math.floor(parseNum(dependents))) * 32 * uvtVal;
-  const taxable = Math.max(0, gross - ded - depDed);
+  const taxable = colombiaWithholdingTaxableBaseCop(gross, ded, dependents, uvtVal);
   const bgUvt = taxable / uvtVal;
   if (bgUvt <= 95) {
     return {
@@ -273,11 +288,11 @@ export function calcColombiaEmployerContributionsCop({
   };
 }
 
-/** Valor hora ordinaria desde salario mensual. */
+/** Valor hora ordinaria: salario ÷ horas mensuales (jornada semanal × 5, criterio MinTrabajo Ley 2101/2021). */
 export function calcColombiaHourlyRateFromMonthly(baseSalaryMonthly, weeklyHours = CO_HR_RULES.legalWeeklyHours) {
   const sal = Math.max(0, parseNum(baseSalaryMonthly));
-  const wh = Math.max(1, parseNum(weeklyHours)) || 46;
-  return sal > 0 ? sal / (wh * (30 / 7)) : 0;
+  const wh = Math.max(1, parseNum(weeklyHours)) || 42;
+  return sal > 0 ? sal / (wh * 5) : 0;
 }
 
 /** Horas extras y recargos (COP). */
@@ -302,7 +317,12 @@ export function calcColombiaOvertimeBreakdownCop({
   let total = 0;
   total += add("HED", "Hora extra diurna (+25%)", hed, CO_OVERTIME_RATES.hed);
   total += add("HEN", "Hora extra nocturna (+75%)", hen, CO_OVERTIME_RATES.hen);
-  total += add("HRDF", "Hora recargo dominical/festivo (+100%)", hrdf, CO_OVERTIME_RATES.hrdf);
+  total += add(
+    "HRDF",
+    `Hora recargo dominical/festivo (+${Math.round(CO_OVERTIME_RATES.hrdf * 100)}%)`,
+    hrdf,
+    CO_OVERTIME_RATES.hrdf
+  );
   total += add("HRNF", "Hora recargo nocturno festivo (+75%)", hrnf, CO_OVERTIME_RATES.hrnf);
   total += add("RN", "Recargo nocturno (+35%)", recargoNocturnoHoras, CO_OVERTIME_RATES.recargoNocturno);
   return { totalCop: total, hourlyRate: Math.round(hourly), lines };
@@ -331,12 +351,16 @@ export function calcColombiaIncapacityEpsDayAdjustmentCop({
     deductCop,
     payCop: Math.round(adjustCop - deductCop)
   });
+  /* La incapacidad nunca puede ser inferior al salario mínimo diario (Dec. 780/2016, art. 3.2.1.10). */
+  const floorPct = sm > 0 ? Math.min(1, sm / 30 / daily) : 0;
   if (monthly > 0 && monthly <= sm) {
-    const pct = idx <= 2 ? 1 : idx <= 90 ? 0.6667 : idx <= 180 ? 0.5 : 0.5;
+    const legalPct = idx <= 2 ? 1 : idx <= 90 ? 0.6667 : 0.5;
+    const pct = Math.max(legalPct, floorPct);
     return withSplit(Math.round(-daily * (1 - pct)), idx <= 2 ? "Empleador 100%" : "EPS", pct);
   }
   if (idx <= 2) {
-    return withSplit(Math.round(-daily * (1 / 3)), "Empleador ~66,7%", 0.6667);
+    const pct = Math.max(0.6667, floorPct);
+    return withSplit(Math.round(-daily * (1 - pct)), "Empleador ~66,7%", pct);
   }
   if (idx <= 90) {
     return withSplit(-Math.round(daily), "EPS 66,7%", 0);

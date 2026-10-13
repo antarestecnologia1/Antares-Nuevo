@@ -1369,15 +1369,16 @@ export function normalizeDriverRowForEditor(raw) {
   d.psychoTestExpiry = d.occupationalExamExpiry;
   d.licenseExpiry = normalizePortalDateYmd(d.licenseExpiry);
   d.licenseIssueDate = normalizePortalDateYmd(d.licenseIssueDate);
+  const emp = globalThis.findPayrollEmployeeByIdDoc(d.idDoc);
+  const birthYmd = normalizePortalDateYmd(d.birthDate || emp?.birthDate);
   if (!d.licenseIssueDate && d.licenseExpiry) {
-    d.licenseIssueDate = inferLicenseIssueDateFromExpiryYmd(d.licenseExpiry, d.licenseCategory);
+    d.licenseIssueDate = inferLicenseIssueDateFromExpiryYmd(d.licenseExpiry, d.licenseCategory, birthYmd);
   }
   if (d.licenseIssueDate) {
     d.licenseExpiry =
-      resolveLicenseExpiryYmd(d.licenseIssueDate, d.licenseCategory) || d.licenseExpiry;
+      resolveLicenseExpiryYmd(d.licenseIssueDate, d.licenseCategory, birthYmd) || d.licenseExpiry;
   }
 
-  const emp = globalThis.findPayrollEmployeeByIdDoc(d.idDoc);
   if (emp && typeof emp === "object") {
     const fill = (key) => {
       const cur = d[key];
@@ -1440,12 +1441,13 @@ export function normalizeDriverFormPayloadForStorage(data) {
   d.emergencyPhone = normalizePortalPhoneForStorage(d.emergencyPhone);
   d.licenseExpiry = normalizePortalDateYmd(d.licenseExpiry);
   d.licenseIssueDate = normalizePortalDateYmd(d.licenseIssueDate);
+  const birthYmd = normalizePortalDateYmd(d.birthDate);
   if (d.licenseIssueDate) {
     d.licenseExpiry =
-      resolveLicenseExpiryYmd(d.licenseIssueDate, d.licenseCategory) ||
+      resolveLicenseExpiryYmd(d.licenseIssueDate, d.licenseCategory, birthYmd) ||
       normalizePortalDateYmd(d.licenseExpiry);
   } else if (d.licenseExpiry && !d.licenseIssueDate) {
-    d.licenseIssueDate = inferLicenseIssueDateFromExpiryYmd(d.licenseExpiry, d.licenseCategory);
+    d.licenseIssueDate = inferLicenseIssueDateFromExpiryYmd(d.licenseExpiry, d.licenseCategory, birthYmd);
   }
   const occDate = normalizePortalDateYmd(d.occupationalExamDate);
   const intraDate = normalizePortalDateYmd(d.instruvialExamDate);
@@ -1489,10 +1491,11 @@ export function buildDriverPatchFromEmployee(employee, extraDriverData = {}) {
     extraDriverData.licenseIssueDate || employee?.licenseIssueDate
   );
   let licenseExpiry = normalizePortalDateYmd(extraDriverData.licenseExpiry || employee?.licenseExpiry);
+  const birthYmd = normalizePortalDateYmd(employee?.birthDate || extraDriverData.birthDate);
   if (licenseIssue) {
-    licenseExpiry = resolveLicenseExpiryYmd(licenseIssue, licenseCategory) || licenseExpiry;
+    licenseExpiry = resolveLicenseExpiryYmd(licenseIssue, licenseCategory, birthYmd) || licenseExpiry;
   } else if (licenseExpiry && !licenseIssue) {
-    licenseIssue = inferLicenseIssueDateFromExpiryYmd(licenseExpiry, licenseCategory);
+    licenseIssue = inferLicenseIssueDateFromExpiryYmd(licenseExpiry, licenseCategory, birthYmd);
   }
   const photo = pickFirstNonEmpty(employee?.avatarUrl, employee?.photoUrl, extraDriverData.photoUrl);
   return {

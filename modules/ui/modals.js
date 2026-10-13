@@ -4,7 +4,14 @@
  */
 import { state } from "../core/store.js";
 import { currentUser } from "../core/auth.js?v=20260917d-login-scan-2-5s";
-import { escapeHtml, escapeAttr, normalizePortalDateYmd, fmtDateOr, devWarn } from "../core/utils.js";
+import {
+  escapeHtml,
+  escapeAttr,
+  normalizePortalDateYmd,
+  fmtDateOr,
+  devWarn,
+  colombiaTodayIsoDate
+} from "../core/utils.js";
 import { MODULE_PANEL_LABELS, MODULE_PANEL_BTN_TITLES } from "../core/config.js";
 import {
   pcardWrap,
@@ -29,14 +36,15 @@ function toInputDateSafe(isoDate) {
   return typeof fn === "function" ? fn(isoDate) : "";
 }
 
-function addOneYearToYmdSafe(ymd) {
-  const fn = typeof window !== "undefined" ? window.addOneYearToYmd : null;
-  return typeof fn === "function" ? fn(ymd) : "";
-}
-
+/** Días calendario entre hoy (Colombia) y `YYYY-MM-DD`; negativo si ya pasó. */
 function daysUntilSafe(dateValue) {
-  const fn = typeof window !== "undefined" ? window.daysUntil : null;
-  return typeof fn === "function" ? fn(dateValue) : NaN;
+  const ymd = normalizePortalDateYmd(dateValue);
+  const today = colombiaTodayIsoDate();
+  const toUtc = (s) => {
+    const p = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+    return p ? Date.UTC(Number(p[1]), Number(p[2]) - 1, Number(p[3])) : NaN;
+  };
+  return Math.round((toUtc(ymd) - toUtc(today)) / 86400000);
 }
 
 /** Descompone texto guardado (p. ej. "12 meses", "1 año") — alineado con `parseContractDurationFields` en runtime. */
@@ -221,16 +229,18 @@ export function addDaysToYmd(ymd, deltaDays) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-/** Suma meses calendario a `YYYY-MM-DD` (local). */
+/** Suma meses calendario a `YYYY-MM-DD`; si el día no existe en el mes destino usa el último (31-ene + 1 mes = 28/29-feb). */
 export function addMonthsToYmd(ymd, months) {
   const n = normalizePortalDateYmd(ymd);
   if (!n) return "";
   const p = /^(\d{4})-(\d{2})-(\d{2})$/.exec(n);
   if (!p) return "";
-  const d = new Date(Number(p[1]), Number(p[2]) - 1, Number(p[3]));
-  if (Number.isNaN(d.getTime())) return "";
-  d.setMonth(d.getMonth() + Math.trunc(Number(months) || 0));
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const total = Number(p[1]) * 12 + (Number(p[2]) - 1) + Math.trunc(Number(months) || 0);
+  const y = Math.floor(total / 12);
+  const mo = (total % 12) + 1;
+  const lastDay = new Date(Date.UTC(y, mo, 0)).getUTCDate();
+  const day = Math.min(Number(p[3]), lastDay);
+  return `${y}-${String(mo).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
 /** Inicio del plazo del contrato vigente (renovación); si falta, usa fecha de ingreso. */
@@ -254,19 +264,12 @@ export function resolveEmployeeContractEndDateYmd(contractType, plazoStartYmd, r
   const parsedAmt = parseInt(String(raw.contractDurationAmount ?? "").trim(), 10);
   const amount = Number.isFinite(parsedAmt) ? Math.max(1, Math.floor(parsedAmt)) : 0;
   if (unit === "meses" && amount >= 1) return addMonthsToYmd(start, amount);
-  if (unit === "anios" && amount >= 1) {
-    let cursor = start;
-    for (let i = 0; i < amount; i += 1) {
-      cursor = addOneYearToYmdSafe(cursor);
-      if (!cursor) return "";
-    }
-    return cursor;
-  }
+  if (unit === "anios" && amount >= 1) return addMonthsToYmd(start, amount * 12);
   if (raw.honorExplicitContractEndDate === true) {
     const explicit = normalizePortalDateYmd(raw.contractEndDate || raw.fecha_fin_contrato || "");
     if (explicit) return explicit;
   }
-  return addOneYearToYmdSafe(start);
+  return addMonthsToYmd(start, 12);
 }
 
 export function ensureEmployeeContractFields(emp) {
@@ -280,6 +283,12 @@ export function ensureEmployeeContractFields(emp) {
   if (isFixedTermContractType(ct) && plazoStart) {
     const durText = String(e.contractDuration || e.contractDurationText || "1 año").trim();
     const parsed = parseContractDurationText(durText || "1 año");
+    const storedEnd = normalizePortalDateYmd(e.contractEndDate || e.fecha_fin_contrato || "");
+    /* Duración en texto libre (p. ej. «4 meses y 15 días»): la fecha fin registrada es la fuente de verdad. */
+    if (parsed.unit === "otro" && storedEnd) {
+      e.contractEndDate = storedEnd;
+      return e;
+    }
     e.contractEndDate = resolveEmployeeContractEndDateYmd(ct, plazoStart, {
       contractDurationUnit: parsed.unit === "otro" ? "anios" : parsed.unit,
       contractDurationAmount: parsed.amount || "1"

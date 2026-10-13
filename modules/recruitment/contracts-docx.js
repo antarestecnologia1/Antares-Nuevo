@@ -82,7 +82,8 @@
     if (num === 0) return "cero";
 
     const units = ["", "uno", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve"];
-    const teens = ["diez", "once", "doce", "trece", "catorce", "quince", "dieciseis", "diecisiete", "dieciocho", "diecinueve"];
+    const teens = ["diez", "once", "doce", "trece", "catorce", "quince", "dieciséis", "diecisiete", "dieciocho", "diecinueve"];
+    const twenties = ["veinte", "veintiuno", "veintidós", "veintitrés", "veinticuatro", "veinticinco", "veintiséis", "veintisiete", "veintiocho", "veintinueve"];
     const tens = ["", "", "veinte", "treinta", "cuarenta", "cincuenta", "sesenta", "setenta", "ochenta", "noventa"];
     const hundreds = ["", "ciento", "doscientos", "trescientos", "cuatrocientos", "quinientos", "seiscientos", "setecientos", "ochocientos", "novecientos"];
 
@@ -91,7 +92,7 @@
       if (x === 100) return "cien";
       if (x < 10) return units[x];
       if (x < 20) return teens[x - 10];
-      if (x < 30) return x === 20 ? "veinte" : `veinti${units[x - 20]}`;
+      if (x < 30) return twenties[x - 20];
       if (x < 100) {
         const d = Math.floor(x / 10);
         const u = x % 10;
@@ -101,16 +102,23 @@
       const rest = x % 100;
       return rest ? `${hundreds[h]} ${underThousand(rest)}` : hundreds[h];
     };
+    /* Delante de «mil» y «millones», «uno» se apocopa: veintiún mil, treinta y un millones. */
+    const apocope = (words) => words.replace(/veintiuno$/, "veintiún").replace(/uno$/, "un");
 
     const millions = Math.floor(num / 1000000);
     const thousands = Math.floor((num % 1000000) / 1000);
     const rest = num % 1000;
     const parts = [];
 
-    if (millions) parts.push(millions === 1 ? "un millon" : `${underThousand(millions)} millones`);
-    if (thousands) parts.push(thousands === 1 ? "mil" : `${underThousand(thousands)} mil`);
+    if (millions) parts.push(millions === 1 ? "un millón" : `${apocope(underThousand(millions))} millones`);
+    if (thousands) parts.push(thousands === 1 ? "mil" : `${apocope(underThousand(thousands))} mil`);
     if (rest) parts.push(underThousand(rest));
     return parts.join(" ").replace(/\s+/g, " ").trim();
+  }
+
+  /** «dos millones» → «dos millones de pesos»; con miles o unidades no lleva «de». */
+  function pesosConnector(num) {
+    return num >= 1000000 && num % 1000000 === 0 ? "de " : "";
   }
 
   let jsZipLoadPromise = null;
@@ -155,7 +163,7 @@
     const num = Math.round(Number(n) || 0);
     if (num <= 0) return "";
     const words = toWordsEs(num);
-    return `${words} pesos colombianos`;
+    return `${words} ${pesosConnector(num)}pesos colombianos`;
   }
 
   /**

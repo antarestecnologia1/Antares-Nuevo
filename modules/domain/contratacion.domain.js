@@ -1500,7 +1500,9 @@ function isExpiredPresignedAvatarUrl(raw) {
 
 export function employeeAvatarCssUrl(av) {
   const u = normalizePortalAvatarDisplayUrl(av);
-  return u ? u.replace(/'/g, "\\'") : "";
+  return u
+    ? u.replace(/["'()\\<>\s]/g, (ch) => `%${ch.charCodeAt(0).toString(16).padStart(2, "0").toUpperCase()}`)
+    : "";
 }
 
 /** Si la imagen falla al cargar, muestra la inicial del nombre en el contenedor más cercano. */

@@ -12,6 +12,7 @@ import {
   calcColombiaPayrollIbcCop,
   calcColombiaWithholdingTaxOrientativeCop
 } from "./payroll-colombia-legal.js";
+import { isColombiaHolidayUtcDate } from "./colombia-holidays.js";
 
 export const HEALTH_EMPLOYEE_RATE = 0.04;
 export const PENSION_EMPLOYEE_RATE = 0.04;
@@ -83,7 +84,7 @@ function inclusiveBusinessDays(a: Date, b: Date): number {
   const cursor = new Date(a.getTime());
   while (cursor <= b) {
     const day = cursor.getUTCDay();
-    if (day !== 0 && day !== 6) total += 1;
+    if (day !== 0 && day !== 6 && !isColombiaHolidayUtcDate(cursor)) total += 1;
     cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
   return total;

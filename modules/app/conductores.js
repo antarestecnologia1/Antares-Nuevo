@@ -244,129 +244,150 @@ function driversHtml() {
         : "";
 
   const optSel = (value, current) => (String(value) === String(current) ? "selected" : "");
+  const statusLabelOf = (slug) =>
+    slug === "offline" ? "No disponible" : slug === "busy" ? "Ocupado" : slug === "scheduled" ? "Reservado" : "Disponible";
+  const docLabelOf = (bucket) =>
+    bucket === "expired" ? "Crítico" : bucket === "missing" ? "Incompleto" : bucket === "warning" ? "Por vencer" : "Al día";
+  const docToneOf = (bucket) =>
+    bucket === "expired" ? "alert" : bucket === "missing" || bucket === "warning" ? "warn" : "ok";
+  const hueOf = (name) => (typeof agAvatarHue === "function" ? agAvatarHue(name) : 0);
+  const initialsOf = (name) =>
+    String(name || "C")
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase())
+      .slice(0, 2)
+      .join("") || "C";
+  const photoOf = (d) => {
+    const url = String(d.photoUrl || "").trim();
+    return url && (/^https?:\/\//i.test(url) || /^data:image\//i.test(url)) ? url : "";
+  };
+  const avatarHtml = (d, statusSlug, size = "") => {
+    const photo = photoOf(d);
+    const name = String(d.name || "");
+    return `<span class="ag-avatar ag-avatar--hue-${hueOf(name)} ag-avatar--ring-${escapeAttr(statusSlug)}${size ? ` ag-avatar--${size}` : ""}" aria-hidden="true">${
+      photo ? `<img src="${escapeAttr(photo)}" alt="" loading="lazy" />` : escapeHtml(initialsOf(name))
+    }</span>`;
+  };
+  const vehicleChipsHtml = (csv) => {
+    const label = driverVehicleTypesCsvToLabel(csv, "");
+    if (!label) return '<span class="ag-tag ag-tag--muted">Sin categoría</span>';
+    return label
+      .split(/\s*,\s*/)
+      .filter(Boolean)
+      .map((v) => `<span class="ag-tag ag-tag--vehicle">${IC.truck}${escapeHtml(v)}</span>`)
+      .join("");
+  };
 
   const renderDriverCard = (item) => {
     const d = item.raw;
-    const initials = String(d.name || "C")
-      .split(/\s+/)
-      .map((part) => part.charAt(0).toUpperCase())
-      .slice(0, 2)
-      .join("");
-    const photoUrlDriver = String(d.photoUrl || "").trim();
-    const hasDriverPhoto = Boolean(
-      photoUrlDriver && (/^https?:\/\//i.test(photoUrlDriver) || /^data:image\//i.test(photoUrlDriver))
-    );
-    const avatarInner = hasDriverPhoto
-      ? `<img src="${escapeAttr(photoUrlDriver)}" alt="" loading="lazy" />`
-      : escapeHtml(initials);
-    const avatarClass = hasDriverPhoto ? "driver-avatar driver-avatar--photo" : "driver-avatar";
-    const phoneValue = d.phone ? formatPortalPhoneForDisplay(String(d.phone)) : "Sin teléfono";
-    const expLabel = item.experienceYears ? `${item.experienceYears} año${item.experienceYears === 1 ? "" : "s"}` : "Sin dato";
-    const licenseCategory = String(d.licenseCategory || "Sin cat.").trim() || "Sin cat.";
-    const licenseNumber = String(d.license || "—").trim() || "—";
-    const licenseSubLabel = (() => {
-      const days = item.licenseMeta.days;
-      if (item.licenseMeta.bucket === "expired" && typeof days === "number") {
-        return `Vencida hace ${Math.abs(days)} días`;
-      }
-      if (item.licenseMeta.bucket === "warning" && typeof days === "number") {
-        return days === 0 ? "Vence hoy" : `Vence en ${days} días`;
-      }
-      if (item.licenseMeta.bucket === "ok" && typeof days === "number") {
-        return `Vigente · ${days} días`;
-      }
-      return item.licenseMeta.label;
-    })();
-    const licenseSubTone =
-      item.licenseMeta.bucket === "expired" ? "alert" : item.licenseMeta.bucket === "warning" ? "ok" : item.licenseMeta.bucket === "ok" ? "ok" : "warn";
-    const availabilityLabel =
-      item.statusSlug === "offline"
-        ? "No disponible"
-        : item.statusSlug === "busy"
-          ? "Ocupado"
-          : item.statusSlug === "scheduled"
-            ? "Reservado"
-            : "Disponible";
-    const docPillLabel =
-      item.docBucket === "expired"
-        ? "CRÍTICO"
-        : item.docBucket === "missing"
-          ? "INCOMPLETO"
-          : item.docBucket === "warning"
-            ? "POR VENCER"
-            : "AL DÍA";
-    const lastUpdateLabel = formatPortalOpsCardTimestamp(d.updatedAt || d.createdAt || "");
+    const id = String(d.id ?? "");
+    const name = String(d.name || "Conductor");
+    const statusLabel = statusLabelOf(item.statusSlug);
+    const licenseCategory = String(d.licenseCategory || "").trim() || "—";
+    const licenseNumber = String(d.license || "").trim() || "Sin número";
+    const days = item.licenseMeta.days;
+    const licenseTone =
+      item.licenseMeta.bucket === "expired" ? "alert" : item.licenseMeta.bucket === "ok" ? "ok" : "warn";
+    const licenseCaption =
+      item.licenseMeta.bucket === "missing"
+        ? "Sin fecha de vencimiento"
+        : item.licenseMeta.bucket === "expired"
+          ? `Vencida hace ${Math.abs(days)} día${Math.abs(days) === 1 ? "" : "s"}`
+          : days === 0
+            ? "Vence hoy"
+            : `Vence en ${days} día${days === 1 ? "" : "s"}`;
+    const licensePct =
+      typeof days === "number" && days > 0 ? Math.min(100, Math.max(4, Math.round((days / 365) * 100))) : 0;
+    const expiryYmd = normalizePortalDateYmd(d.licenseExpiry);
+    const phoneRaw = String(d.phone || "").replace(/[^\d+]/g, "");
+    const phoneLabel = d.phone ? formatPortalPhoneForDisplay(String(d.phone)) : "";
     const trip = item.occupancy.trip;
     const tripRequestId = trip ? String(trip.id || "").trim() : "";
     const tripNumber = trip ? String(trip.trip?.tripNumber || "—") : "";
     const tripClient = trip
       ? String(trip.clientName || trip.companyName || trip.request?.clientName || "").trim() || item.tripDetail
       : "";
-    const statusBadgeHtml = buildPortalOpsCardStatusPill(availabilityLabel, item.statusSlug);
-    const docBadgeHtml = buildPortalOpsCardDocPill(docPillLabel, item.docBucket, IC.award);
-    const tripBarHtml = trip
-      ? `<div class="driver-trip-bar portal-ops-card-highlight driver-trip-bar--${escapeAttr(item.statusSlug)}">
-          <div class="driver-trip-bar__main portal-ops-card-highlight__copy">
-            <span class="driver-trip-bar__icon" aria-hidden="true">${IC.truck}</span>
-            <div class="driver-trip-bar__copy">
-              <strong>Viaje ${escapeHtml(tripNumber)}</strong>
-              <span>${escapeHtml(tripClient)}</span>
-            </div>
+    const tripStrip = trip
+      ? `<div class="ag-pass__trip ag-pass__trip--${escapeAttr(item.statusSlug)}">
+          <span class="ag-pass__trip-ico" aria-hidden="true">${IC.mapPin}</span>
+          <div class="ag-pass__trip-copy">
+            <strong>Viaje ${escapeHtml(tripNumber)}</strong>
+            <span>${escapeHtml(tripClient)} · ${escapeHtml(item.occupancy.detail)}</span>
           </div>
           ${
             tripRequestId
-              ? `<button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--outline driver-trip-bar__map" data-action="trip-detail" data-id="${escapeAttr(tripRequestId)}" title="Ver viaje asignado">${IC.mapPin} Ver en mapa</button>`
+              ? `<button type="button" class="ag-link-btn" data-action="trip-detail" data-id="${escapeAttr(tripRequestId)}">Ver viaje</button>`
               : ""
           }
         </div>`
-      : `<div class="driver-availability-bar portal-ops-card-highlight driver-availability-bar--${escapeAttr(item.statusSlug)}" role="status">
-          <div class="driver-availability-bar__main">
-            <span class="driver-availability-bar__dot portal-ops-card-highlight__dot" aria-hidden="true"></span>
-            <div class="driver-availability-bar__copy portal-ops-card-highlight__copy">
-              <strong>${escapeHtml(availabilityLabel)}</strong>
-              <span class="driver-availability-bar__detail">${escapeHtml(item.tripDetail)}</span>
-            </div>
-          </div>
+      : `<div class="ag-pass__trip ag-pass__trip--${escapeAttr(item.statusSlug)} ag-pass__trip--idle">
+          <span class="ag-status__dot" aria-hidden="true"></span>
+          <div class="ag-pass__trip-copy"><span>${escapeHtml(item.tripDetail)}</span></div>
         </div>`;
-    const actionButtons = [
-      `<button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--outline" data-action="view-driver" data-id="${escapeAttr(String(d.id ?? ""))}" title="Ver ficha del conductor">${IC.eye} Ver detalles</button>`,
-      canEditDriver
-        ? `<button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--solid" data-action="edit-driver" data-id="${escapeAttr(String(d.id ?? ""))}" title="Editar datos del conductor">${IC.edit} Editar información</button>`
-        : ""
+    const checks = [
+      {
+        icon: IC.shield,
+        label: item.hasSocialSecurity ? "EPS y ARL" : "Falta EPS/ARL",
+        tone: item.hasSocialSecurity ? "ok" : "warn"
+      },
+      {
+        icon: IC.scale,
+        label: item.comparendos > 0 ? `${item.comparendos} comparendo${item.comparendos === 1 ? "" : "s"}` : "Sin comparendos",
+        tone: item.comparendos > 0 ? "warn" : "ok"
+      },
+      {
+        icon: IC.award,
+        label: item.experienceYears ? `${item.experienceYears} año${item.experienceYears === 1 ? "" : "s"} exp.` : "Exp. sin dato",
+        tone: "neutral"
+      }
     ]
-      .filter(Boolean)
+      .map((c) => `<span class="ag-check ag-check--${c.tone}">${c.icon}<span>${escapeHtml(c.label)}</span></span>`)
       .join("");
-    const statusActionBtn = canEditDriver
-      ? `<div class="portal-ops-card-actions-stack"><button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--solid driver-card-status-btn" data-action="toggle-driver" data-id="${escapeAttr(String(d.id ?? ""))}" title="Alternar disponibilidad manual">${IC.toggle} Ver estado actual</button></div>`
-      : "";
-    return `<article class="trip-ops-card portal-ops-card trip-ops-card--driver trip-ops-card--driver-${escapeAttr(item.statusSlug)} directory-card--doc-${escapeAttr(item.docBucket)}" data-driver-id="${escapeAttr(String(d.id ?? ""))}">
-        <header class="trip-ops-card-head trip-ops-card-head--driver">
-          <div class="trip-ops-card-head-main">
-            <div class="${avatarClass}">${avatarInner}</div>
-            <div class="trip-ops-card-head-info">
-              <p class="trip-ops-card-kicker">${escapeHtml(item.companyName)}</p>
-              <h4 class="trip-ops-card-title driver-card-title" title="${escapeAttr(String(d.name || ""))}">${escapeHtml(String(d.name || "Conductor"))}</h4>
-            </div>
-          </div>
-          <div class="portal-ops-card-badges driver-card-badges">
-            ${statusBadgeHtml}
-            ${docBadgeHtml}
-          </div>
-        </header>
-        ${tripBarHtml}
-        <div class="trip-ops-card-grid portal-ops-card-spec-grid driver-card-spec-grid">
-          ${buildPortalOpsCardGridItem("Licencia", IC.card, licenseCategory)}
-          ${buildPortalOpsCardGridItem("Experiencia", IC.calendar, expLabel)}
-          ${buildPortalOpsCardGridItem("Comparendos", IC.scale, item.comparendos > 0 ? String(item.comparendos) : "0", { tone: item.comparendos > 0 ? "warn" : "ok" })}
-          ${buildPortalOpsCardGridItem("SS", IC.shield, item.hasSocialSecurity ? "Al día" : "Pendiente", { tone: item.hasSocialSecurity ? "ok" : "warn" })}
-          ${buildPortalOpsCardGridItem("Documento", IC.badge, String(d.idDoc || "—"))}
-          ${buildPortalOpsCardGridItem("Teléfono", IC.phone, phoneValue)}
-          ${buildPortalOpsCardGridItem("Venc. licencia", IC.calendar, licenseNumber, { tone: licenseSubTone, subValue: licenseSubLabel, subTone: licenseSubTone })}
-          ${buildPortalOpsCardGridItem("Categoría", IC.truck, driverVehicleTypesCsvToLabel(d.vehicleTypes, "Sin categoría"))}
+
+    return `<article class="ag-pass ag-pass--${escapeAttr(item.statusSlug)} ag-pass--doc-${escapeAttr(item.docBucket)}" data-driver-id="${escapeAttr(id)}">
+      <header class="ag-pass__head">
+        ${avatarHtml(d, item.statusSlug, "lg")}
+        <div class="ag-pass__who">
+          <h4 class="ag-pass__name" title="${escapeAttr(name)}">${escapeHtml(name)}</h4>
+          <p class="ag-pass__meta">${escapeHtml(String(d.idDoc || "—"))} · ${escapeHtml(item.companyName)}</p>
         </div>
-        ${buildPortalOpsCardActions(actionButtons, statusActionBtn)}
-        ${buildPortalOpsCardFoot("Última actualización", lastUpdateLabel)}
-      </article>`;
+        <span class="ag-status ag-status--${escapeAttr(item.statusSlug)}"><span class="ag-status__dot" aria-hidden="true"></span>${escapeHtml(statusLabel)}</span>
+      </header>
+      <div class="ag-pass__license ag-pass__license--${licenseTone}">
+        <span class="ag-pass__cat" title="Categoría de licencia">${escapeHtml(licenseCategory)}</span>
+        <div class="ag-pass__license-body">
+          <div class="ag-pass__license-top">
+            <span class="ag-pass__license-num">${escapeHtml(licenseNumber)}</span>
+            <span class="ag-pass__doc ag-pass__doc--${docToneOf(item.docBucket)}" title="Estado documental">${escapeHtml(docLabelOf(item.docBucket))}</span>
+          </div>
+          <div class="ag-meter" role="img" aria-label="Licencia: ${escapeAttr(licenseCaption)}"><span style="width:${licensePct}%"></span></div>
+          <div class="ag-pass__license-foot">
+            <span>${escapeHtml(licenseCaption)}</span>
+            ${expiryYmd ? `<span>${escapeHtml(fmtDateOr(expiryYmd))}</span>` : ""}
+          </div>
+        </div>
+      </div>
+      <div class="ag-pass__checks">${checks}</div>
+      <div class="ag-pass__vehicles">${vehicleChipsHtml(d.vehicleTypes)}</div>
+      ${tripStrip}
+      <footer class="ag-pass__foot">
+        ${
+          phoneLabel
+            ? `<a class="ag-pass__phone" href="tel:${escapeAttr(phoneRaw)}" title="Llamar">${IC.phone}<span>${escapeHtml(phoneLabel)}</span></a>`
+            : '<span class="ag-pass__phone ag-pass__phone--muted">Sin teléfono</span>'
+        }
+        <div class="ag-pass__actions">
+          ${
+            canEditDriver
+              ? `<button type="button" class="ag-icon-btn" data-action="toggle-driver" data-id="${escapeAttr(id)}" title="${item.statusSlug === "offline" ? "Marcar disponible" : "Marcar no disponible"}" aria-label="Cambiar disponibilidad">${IC.toggle}</button>
+          <button type="button" class="ag-icon-btn" data-action="edit-driver" data-id="${escapeAttr(id)}" title="Editar datos operativos" aria-label="Editar ${escapeAttr(name)}">${IC.edit}</button>`
+              : ""
+          }
+          <button type="button" class="ag-btn ag-btn--primary" data-action="view-driver" data-id="${escapeAttr(id)}">${IC.eye}<span>Ver ficha</span></button>
+        </div>
+      </footer>
+    </article>`;
   };
 
   const cardsHtml = visibleDriverSummaries.map(renderDriverCard).join("");
@@ -374,40 +395,50 @@ function driversHtml() {
   const driverListRows = visibleDriverSummaries
     .map((item) => {
       const d = item.raw;
-      const docTone = directoryToneFromBucket(item.docBucket);
-      const actions = `<div class="toolbar driver-fleet-list-actions">
-          <button type="button" class="btn btn-sm btn-outline" data-action="view-driver" data-id="${escapeAttr(String(d.id ?? ""))}">${IC.eye} Ver</button>
+      const id = String(d.id ?? "");
+      const days = item.licenseMeta.days;
+      const licenseText =
+        item.licenseMeta.bucket === "missing"
+          ? "Sin fecha"
+          : item.licenseMeta.bucket === "expired"
+            ? `Vencida · ${Math.abs(days)}d`
+            : `${days}d restantes`;
+      return `<tr data-driver-id="${escapeAttr(id)}" class="ag-row ag-row--${escapeAttr(item.statusSlug)}">
+        <td data-label="Conductor">
+          <div class="ag-row__who">
+            ${avatarHtml(d, item.statusSlug, "sm")}
+            <div><strong>${escapeHtml(String(d.name || "—"))}</strong><span>${escapeHtml(String(d.idDoc || "—"))} · ${escapeHtml(item.companyName)}</span></div>
+          </div>
+        </td>
+        <td data-label="Estado"><span class="ag-status ag-status--${escapeAttr(item.statusSlug)}"><span class="ag-status__dot" aria-hidden="true"></span>${escapeHtml(statusLabelOf(item.statusSlug))}</span></td>
+        <td data-label="Licencia"><strong class="ag-row__mono">${escapeHtml(String(d.licenseCategory || "—"))}</strong> <span class="ag-row__sub">${escapeHtml(licenseText)}</span></td>
+        <td data-label="Documentación"><span class="ag-pass__doc ag-pass__doc--${docToneOf(item.docBucket)}">${escapeHtml(docLabelOf(item.docBucket))}</span></td>
+        <td data-label="Vehículos"><div class="ag-row__tags">${vehicleChipsHtml(d.vehicleTypes)}</div></td>
+        <td data-label="Disponibilidad"><span class="ag-row__strong">${escapeHtml(item.tripHeadline)}</span><span class="ag-row__sub">${escapeHtml(item.tripDetail)}</span></td>
+        <td data-label="Acciones" class="ag-row__actions">
           ${
             canEditDriver
-              ? `<button type="button" class="btn btn-sm btn-action" data-action="edit-driver" data-id="${escapeAttr(String(d.id ?? ""))}">${IC.edit} Editar</button>
-          <button type="button" class="btn btn-sm btn-action" data-action="toggle-driver" data-id="${escapeAttr(String(d.id ?? ""))}">${IC.toggle} Estado</button>`
+              ? `<button type="button" class="ag-icon-btn" data-action="toggle-driver" data-id="${escapeAttr(id)}" title="Cambiar disponibilidad" aria-label="Cambiar disponibilidad">${IC.toggle}</button>
+          <button type="button" class="ag-icon-btn" data-action="edit-driver" data-id="${escapeAttr(id)}" title="Editar" aria-label="Editar">${IC.edit}</button>`
               : ""
           }
-        </div>`;
-      return `<tr data-driver-id="${escapeAttr(String(d.id ?? ""))}">
-        <td data-label="Conductor"><strong>${escapeHtml(String(d.name || "—"))}</strong><div class="muted driver-fleet-list-sub">${escapeHtml(String(d.idDoc || "—"))}</div></td>
-        <td data-label="Empresa">${escapeHtml(item.companyName)}</td>
-        <td data-label="Categoría">${escapeHtml(driverVehicleTypesCsvToLabel(d.vehicleTypes, "Sin categoría"))}</td>
-        <td data-label="Estado">${item.statusTag}</td>
-        <td data-label="Docs">${directoryPillHtml(item.docBadge, docTone)}</td>
-        <td data-label="Disponibilidad"><span class="driver-fleet-list-avail">${escapeHtml(item.tripHeadline)}</span><div class="muted driver-fleet-list-sub">${escapeHtml(item.tripDetail)}</div></td>
-        <td data-label="Acciones" class="driver-fleet-list-actions">${actions}</td>
+          <button type="button" class="ag-icon-btn ag-icon-btn--primary" data-action="view-driver" data-id="${escapeAttr(id)}" title="Ver ficha" aria-label="Ver ficha">${IC.eye}</button>
+        </td>
       </tr>`;
     })
     .join("");
 
   const fleetListTable =
     fleetLayout === "list" && filteredSummaries.length > 0
-      ? `<div class="table-wrap driver-fleet-list-wrap"><table class="vehicle-fleet-table driver-fleet-table">
+      ? `<div class="ag-fleet-table-wrap"><table class="ag-table driver-fleet-table">
     <thead><tr>
-      <th>Conductor</th><th>Empresa</th><th>Categoría</th><th>Estado</th><th>Documentación</th><th>Disponibilidad</th><th>Acciones</th>
+      <th>Conductor</th><th>Estado</th><th>Licencia</th><th>Documentación</th><th>Vehículos</th><th>Disponibilidad</th><th><span class="visually-hidden">Acciones</span></th>
     </tr></thead>
     <tbody>${driverListRows}</tbody>
   </table></div>`
       : "";
 
-  const fleetCardsGrid =
-    fleetLayout === "cards" && cardsHtml ? `<div class="trip-ops-cards portal-ops-cards drivers-ops-cards">${cardsHtml}</div>` : "";
+  const fleetCardsGrid = fleetLayout === "cards" && cardsHtml ? `<div class="ag-pass-grid">${cardsHtml}</div>` : "";
 
   const companies = read(KEYS.companies, []);
   const companyOptions = [`<option value="" ${companyFilter ? "" : "selected"}>Todas las empresas</option>`]
@@ -421,49 +452,59 @@ function driversHtml() {
     )
     .join("");
 
+  const filtersActive =
+    Boolean(fleetSearchNorm) || statusFilter !== "all" || docFilter !== "all" || vehicleFilter !== "all" || Boolean(companyFilter);
+  const statusPills = [
+    ["all", "Todos", totalDrivers],
+    ["available", "Disponibles", availableDrivers],
+    ["busy", "Ocupados", occupiedDrivers],
+    ["scheduled", "Reservados", scheduledDrivers],
+    ["offline", "No disponibles", offlineDrivers]
+  ]
+    .map(
+      ([value, label, count]) =>
+        `<button type="button" class="ag-seg__btn ag-seg__btn--${value}${statusFilter === value ? " is-active" : ""}" data-action="drivers-status-pill" data-status="${value}" aria-pressed="${statusFilter === value}"><span class="ag-seg__dot" aria-hidden="true"></span>${label}<span class="ag-seg__count">${count}</span></button>`
+    )
+    .join("");
+
   const fleetToolbar =
     totalDrivers > 0
-      ? `<div class="transport-ops-toolbar driver-fleet-toolbar">
-      <div class="driver-fleet-toolbar-top">
-        <label class="transport-ops-search">
-          <span class="muted">${IC.search || ""} Buscar</span>
-          <input type="search" data-action="drivers-fleet-search" value="${escapeAttr(fleetSearchRaw)}" placeholder="Nombre, documento, teléfono, empresa…" autocomplete="off" />
-        </label>
-        <div class="driver-fleet-view-field">
-          <span class="driver-fleet-field-eyebrow muted">${IC.layers || IC.grid || ""} Vista</span>
-          <div class="transport-ops-layout driver-fleet-view-toggle" role="group" aria-label="Vista de conductores">
-            <button type="button" class="btn btn-sm ${fleetLayout === "cards" ? "btn-primary" : "btn-outline"}" data-action="drivers-fleet-layout" data-layout="cards">Tarjetas</button>
-            <button type="button" class="btn btn-sm ${fleetLayout === "list" ? "btn-primary" : "btn-outline"}" data-action="drivers-fleet-layout" data-layout="list">Lista</button>
-          </div>
+      ? `<div class="ag-fleet__controls">
+      <div class="ag-fleet__row">
+        <div class="ag-seg" role="group" aria-label="Filtrar por estado operativo">${statusPills}</div>
+        <div class="ag-fleet__view" role="group" aria-label="Vista de conductores">
+          <button type="button" class="ag-icon-btn${fleetLayout === "cards" ? " is-active" : ""}" data-action="drivers-fleet-layout" data-layout="cards" title="Tarjetas" aria-label="Vista en tarjetas" aria-pressed="${fleetLayout === "cards"}">${IC.grid}</button>
+          <button type="button" class="ag-icon-btn${fleetLayout === "list" ? " is-active" : ""}" data-action="drivers-fleet-layout" data-layout="list" title="Lista" aria-label="Vista en lista" aria-pressed="${fleetLayout === "list"}">${IC.list}</button>
         </div>
       </div>
-      <div class="driver-fleet-toolbar-filters">
-      <label class="driver-fleet-filter">${fieldLabel(IC.activity, "Estado")}
-        <select data-action="drivers-fleet-filter" data-filter="status" aria-label="Filtrar por estado operativo">
-          <option value="all" ${optSel("all", statusFilter)}>Todos</option>
-          <option value="available" ${optSel("available", statusFilter)}>Disponible</option>
-          <option value="busy" ${optSel("busy", statusFilter)}>Ocupado</option>
-          <option value="scheduled" ${optSel("scheduled", statusFilter)}>Reservado</option>
-          <option value="offline" ${optSel("offline", statusFilter)}>No disponible</option>
-        </select></label>
-      <label class="driver-fleet-filter">${fieldLabel(IC.file, "Documentación")}
-        <select data-action="drivers-fleet-filter" data-filter="doc" aria-label="Filtrar por riesgo documental">
-          <option value="all" ${optSel("all", docFilter)}>Todas</option>
-          <option value="ok" ${optSel("ok", docFilter)}>Al día</option>
-          <option value="warning" ${optSel("warning", docFilter)}>Por vencer</option>
-          <option value="missing" ${optSel("missing", docFilter)}>Incompleto</option>
-          <option value="expired" ${optSel("expired", docFilter)}>Crítico</option>
-        </select></label>
-      <label class="driver-fleet-filter">${fieldLabel(IC.truck, "Categoría")}
-        <select data-action="drivers-fleet-filter" data-filter="vehicle" aria-label="Filtrar por categoría camión o mula">
-          <option value="all" ${optSel("all", vehicleFilter)}>Todas</option>
-          <option value="camion" ${optSel("camion", vehicleFilter)}>Camión</option>
-          <option value="turbo" ${optSel("turbo", vehicleFilter)}>Turbo</option>
-          <option value="tractomula" ${optSel("tractomula", vehicleFilter)}>Mula</option>
-          <option value="none" ${optSel("none", vehicleFilter)}>Sin categoría</option>
-        </select></label>
-      <label class="driver-fleet-filter">${fieldLabel(IC.briefcase, "Empresa")}
-        <select data-action="drivers-fleet-filter" data-filter="company" aria-label="Filtrar por empresa">${companyOptions}</select></label>
+      <div class="ag-fleet__row ag-fleet__row--filters">
+        <label class="ag-search">
+          ${IC.search}
+          <span class="visually-hidden">Buscar conductor</span>
+          <input type="search" data-action="drivers-fleet-search" value="${escapeAttr(fleetSearchRaw)}" placeholder="Nombre, documento, teléfono, empresa…" autocomplete="off" />
+        </label>
+        <label class="ag-select-chip${docFilter !== "all" ? " is-set" : ""}">${IC.file}
+          <select data-action="drivers-fleet-filter" data-filter="doc" aria-label="Filtrar por documentación">
+            <option value="all" ${optSel("all", docFilter)}>Documentación</option>
+            <option value="ok" ${optSel("ok", docFilter)}>Al día</option>
+            <option value="warning" ${optSel("warning", docFilter)}>Por vencer</option>
+            <option value="missing" ${optSel("missing", docFilter)}>Incompleto</option>
+            <option value="expired" ${optSel("expired", docFilter)}>Crítico</option>
+          </select>
+        </label>
+        <label class="ag-select-chip${vehicleFilter !== "all" ? " is-set" : ""}">${IC.truck}
+          <select data-action="drivers-fleet-filter" data-filter="vehicle" aria-label="Filtrar por categoría de vehículo">
+            <option value="all" ${optSel("all", vehicleFilter)}>Vehículo</option>
+            <option value="camion" ${optSel("camion", vehicleFilter)}>Camión</option>
+            <option value="turbo" ${optSel("turbo", vehicleFilter)}>Turbo</option>
+            <option value="tractomula" ${optSel("tractomula", vehicleFilter)}>Mula</option>
+            <option value="none" ${optSel("none", vehicleFilter)}>Sin categoría</option>
+          </select>
+        </label>
+        <label class="ag-select-chip${companyFilter ? " is-set" : ""}">${IC.briefcase}
+          <select data-action="drivers-fleet-filter" data-filter="company" aria-label="Filtrar por empresa">${companyOptions}</select>
+        </label>
+        ${filtersActive ? `<button type="button" class="ag-link-btn" data-action="drivers-fleet-clear">${IC.x}<span>Limpiar</span></button>` : ""}
       </div>
     </div>`
       : "";
@@ -478,25 +519,31 @@ function driversHtml() {
   }
 
   const moduleHint = canEditDriver
-    ? "Alta, baja y ficha completa en Gestión humana. Aquí el admin puede ajustar datos operativos (se copian a GH)."
-    : "Solo consulta. La ficha completa del empleado se edita en Gestión humana.";
-  const filtersActive =
-    Boolean(fleetSearchNorm) || statusFilter !== "all" || docFilter !== "all" || vehicleFilter !== "all" || Boolean(companyFilter);
-  const driverCardSubtitle = filtersActive
-    ? `${filteredSummaries.length} de ${totalDrivers} conductores${fleetLayout === "list" ? " · vista lista" : ""}${filteredSummaries.length > visibleDriverSummaries.length ? ` · ${visibleDriverSummaries.length} visibles` : ""} · ${moduleHint}`
-    : `${totalDrivers} registrados${fleetLayout === "list" ? " · vista lista" : ""}${filteredSummaries.length > visibleDriverSummaries.length ? ` · ${visibleDriverSummaries.length} visibles` : ""} · ${moduleHint}`;
-  const heroStrip = moduleFleetHeroStrip([
-    { label: "Total", value: totalDrivers },
-    { label: "Disponibles", value: availableDrivers },
-    { label: "Ocupados", value: occupiedDrivers, tone: occupiedDrivers ? "warn" : undefined },
-    { label: "Reservados", value: scheduledDrivers },
-    { label: "No disp.", value: offlineDrivers },
-    { label: "Camión", value: camionDrivers },
-    { label: "Mulas", value: mulaDrivers },
-    { label: "Docs riesgo", value: docRiskCount, tone: docRiskCount ? "warn" : undefined },
-    { label: "Vencidos", value: expiredDocsCount, tone: expiredDocsCount ? "alert" : undefined }
-  ]);
-  return `<section class="drivers-studio">${heroStrip}${pcardWrap("user", "Conductores", driverCardSubtitle, fleetMainBody)}</section>`;
+    ? "Alta, baja y ficha completa en Gestión humana. Aquí puede ajustar datos operativos (se copian a GH)."
+    : "Solo consulta. La ficha completa se edita en Gestión humana.";
+  const availablePct = totalDrivers ? Math.round((availableDrivers / totalDrivers) * 100) : 0;
+  const resultLine = filtersActive
+    ? `${filteredSummaries.length} de ${totalDrivers} conductores`
+    : `${totalDrivers} conductor${totalDrivers === 1 ? "" : "es"} registrados`;
+  const kpi = (label, value, sub, tone = "") =>
+    `<div class="ag-kpi${tone ? ` ag-kpi--${tone}` : ""}"><span class="ag-kpi__label">${escapeHtml(label)}</span><strong class="ag-kpi__value">${value}</strong><span class="ag-kpi__sub">${escapeHtml(sub)}</span></div>`;
+  const header = `<header class="ag-fleet__head">
+    <div class="ag-fleet__title">
+      <p class="ag-eyebrow">Transporte · Flota humana</p>
+      <h2>Conductores</h2>
+      <p class="ag-fleet__hint">${escapeHtml(resultLine)} · ${escapeHtml(moduleHint)}</p>
+    </div>
+    <div class="ag-fleet__kpis">
+      <div class="ag-kpi ag-kpi--ring">
+        <span class="ag-ring" style="--pct:${availablePct}" role="img" aria-label="${availablePct}% disponibles"><span>${availablePct}%</span></span>
+        <div><span class="ag-kpi__label">Disponibles</span><strong class="ag-kpi__value">${availableDrivers}<small>/${totalDrivers}</small></strong></div>
+      </div>
+      ${kpi("En ruta", occupiedDrivers + scheduledDrivers, `${occupiedDrivers} en curso · ${scheduledDrivers} reservados`)}
+      ${kpi("Riesgo documental", docRiskCount, expiredDocsCount ? `${expiredDocsCount} crítico${expiredDocsCount === 1 ? "" : "s"}` : "Sin críticos", expiredDocsCount ? "alert" : docRiskCount ? "warn" : "ok")}
+      ${kpi("Por categoría", camionDrivers, `camión · ${mulaDrivers} mula`)}
+    </div>
+  </header>`;
+  return `<section class="drivers-studio ag-fleet">${header}<div class="ag-fleet__body">${fleetMainBody}</div></section>`;
 }
 
 (function registerLegacyViewChunk() {
@@ -541,6 +588,29 @@ function driversHtml() {
       btn.addEventListener("click", () => {
         const layout = normalizeDriverFleetLayout(btn.dataset.layout);
         state.driversUi = { ...(state.driversUi || {}), fleetLayout: layout };
+        state.driversRenderLimit = Number(window.RENDER_WINDOW_SIZE) || 30;
+        renderPortalView();
+      });
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='drivers-status-pill']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.driversUi = { ...(state.driversUi || {}), statusFilter: normalizeDriverStatusFilter(btn.dataset.status) };
+        state.driversRenderLimit = Number(window.RENDER_WINDOW_SIZE) || 30;
+        renderPortalView();
+      });
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='drivers-fleet-clear']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.driversUi = {
+          ...(state.driversUi || {}),
+          fleetSearch: "",
+          statusFilter: "all",
+          docFilter: "all",
+          vehicleType: "all",
+          companyId: ""
+        };
         state.driversRenderLimit = Number(window.RENDER_WINDOW_SIZE) || 30;
         renderPortalView();
       });
@@ -747,6 +817,7 @@ function driversHtml() {
         const epsOpts = editModalCatalogSelectOptions(CO_CATALOGS.eps, target.eps);
         const arlOpts = editModalCatalogSelectOptions(CO_CATALOGS.arl, target.arl);
         const linkedEmployee = findPayrollEmployeeByIdDoc(target.idDoc);
+        const driverBirthYmd = normalizePortalDateYmd(target.birthDate || linkedEmployee?.birthDate);
         const hrLinkNotice = linkedEmployee
           ? `<p class="full muted modal-field-hint" style="margin:0 0 0.5rem">
               Vinculado a ${escapeHtml(String(linkedEmployee.name || linkedEmployee.idDoc || "empleado"))} en Gestión humana.
@@ -786,8 +857,8 @@ function driversHtml() {
             { name: "bloodType", label: "Tipo de sangre (RH)", type: "select", value: target.bloodType || "", options: bloodOpts },
             { name: "license", label: "N° licencia de conducción", value: target.license || "", placeholder: "Ej: 12345678" },
             { name: "licenseCategory", label: "Categoría licencia", type: "select", value: target.licenseCategory || "", options: licenseCatOpts },
-            { name: "licenseIssueDate", label: "Expedición / renovación licencia", type: "date", value: target.licenseIssueDate || globalThis.inferLicenseIssueDateFromExpiryYmd?.(target.licenseExpiry, target.licenseCategory) || "" },
-            { name: "licenseExpiry", label: "Vence licencia (calculado +3 años C2)", type: "date", value: target.licenseExpiry || "", attrs: { readonly: "readonly", tabindex: "-1" } },
+            { name: "licenseIssueDate", label: "Expedición / renovación licencia", type: "date", value: target.licenseIssueDate || globalThis.inferLicenseIssueDateFromExpiryYmd?.(target.licenseExpiry, target.licenseCategory, driverBirthYmd) || "" },
+            { name: "licenseExpiry", label: "Vence licencia (calculado por categoría y edad)", type: "date", value: target.licenseExpiry || "", attrs: { readonly: "readonly", tabindex: "-1" } },
             { name: "occupationalExamDate", label: "Examen ocupacional", type: "date", value: target.occupationalExamDate || "" },
             { name: "instruvialExamDate", label: "Examen instruvial", type: "date", value: target.instruvialExamDate || "" },
             { name: "eps", label: "EPS", type: "select", value: target.eps || "", options: epsOpts },
@@ -838,9 +909,13 @@ function driversHtml() {
             const licenseCategoryVal = getVal("licenseCategory");
             const licenseExpiryNorm =
               (typeof globalThis.resolveLicenseExpiryYmd === "function"
-                ? globalThis.resolveLicenseExpiryYmd(issueValue, licenseCategoryVal)
+                ? globalThis.resolveLicenseExpiryYmd(issueValue, licenseCategoryVal, driverBirthYmd)
                 : "") || normalizePortalDateYmd(issueValue);
-            if (issueValue && licenseExpiryNorm && new Date(licenseExpiryNorm).getTime() <= Date.now()) {
+            const todayYmd =
+              typeof globalThis.colombiaTodayIsoDate === "function"
+                ? globalThis.colombiaTodayIsoDate()
+                : new Date().toISOString().slice(0, 10);
+            if (issueValue && licenseExpiryNorm && licenseExpiryNorm <= todayYmd) {
               failPortalField(formEl, "licenseIssueDate", userMessage("driverLicenseFutureEdit"));
               return false;
             }

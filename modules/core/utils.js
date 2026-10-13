@@ -602,16 +602,13 @@ export function addCalendarYearsIsoDate(isoDateStr, years = 1) {
   const y = Number(m[1]);
   const mo = Number(m[2]);
   const d = Number(m[3]);
-  if (!y || mo < 1 || mo > 12 || d < 1 || d > 31) return "";
-  const dt = new Date(y, mo - 1, d);
-  if (Number.isNaN(dt.getTime())) return "";
+  if (!y || mo < 1 || mo > 12 || d < 1 || d > new Date(Date.UTC(y, mo, 0)).getUTCDate()) return "";
   const n = Number(years);
-  const deltaYears = Number.isFinite(n) && n !== 0 ? n : 1;
-  dt.setFullYear(dt.getFullYear() + deltaYears);
-  const oy = dt.getFullYear();
-  const om = String(dt.getMonth() + 1).padStart(2, "0");
-  const od = String(dt.getDate()).padStart(2, "0");
-  return `${oy}-${om}-${od}`;
+  const deltaYears = Number.isFinite(n) && n !== 0 ? Math.trunc(n) : 1;
+  const oy = y + deltaYears;
+  /* 29-feb + N años cae en 28-feb si el año destino no es bisiesto. */
+  const od = Math.min(d, new Date(Date.UTC(oy, mo, 0)).getUTCDate());
+  return `${oy}-${String(mo).padStart(2, "0")}-${String(od).padStart(2, "0")}`;
 }
 
 /** Valor para `input type="datetime-local"` (sin offset): misma pared de reloj que America/Bogota. */

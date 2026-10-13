@@ -71,11 +71,20 @@ function renderPayrollContractsFilterBar(canDeletePayrollEmployees, filters) {
   const catf = String(f.catf || "all");
   const vf = String(f.vf || "all");
   const sel = (value, current) => (value === current ? " selected" : "");
-  return `<div class="payroll-contracts-filterbar">
+  const extraActive = [vf !== "all", df !== "all", lf !== "active" && catf !== "all"].filter(Boolean).length;
+  return `<div class="payroll-contracts-filterbar ag-filterbar">
     <label class="payroll-contracts-search">
       <span class="visually-hidden">Buscar</span>
       ${IC.search}
       <input type="search" id="payroll-employee-search" placeholder="Buscar colaborador, documento o cargo…" autocomplete="off" value="${escapeAttr(q)}" />
+    </label>
+    <label class="payroll-contracts-filter">
+      <span>Vinculación</span>
+      <select id="payroll-employee-link-filter">
+        <option value="active"${sel("active", lf)}>Activos</option>
+        <option value="unlinked"${sel("unlinked", lf)}>Desvinculados</option>
+        <option value="all"${sel("all", lf)}>Todos</option>
+      </select>
     </label>
     <label class="payroll-contracts-filter">
       <span>Contrato</span>
@@ -87,13 +96,17 @@ function renderPayrollContractsFilterBar(canDeletePayrollEmployees, filters) {
       </select>
     </label>
     <label class="payroll-contracts-filter">
-      <span>Vinculación</span>
-      <select id="payroll-employee-link-filter">
-        <option value="active"${sel("active", lf)}>Activos</option>
-        <option value="unlinked"${sel("unlinked", lf)}>Desvinculados</option>
-        <option value="all"${sel("all", lf)}>Todos</option>
+      <span>Estado</span>
+      <select id="payroll-employee-contract-filter">
+        <option value="all"${sel("all", cf)}>Todos</option>
+        <option value="notice_window"${sel("notice_window", cf)}>Por vencer (30 días)</option>
+        <option value="expired"${sel("expired", cf)}>Vencidos</option>
+        <option value="active"${sel("active", cf)}>Vigentes</option>
       </select>
     </label>
+    <details class="ag-filter-more ag-popover${extraActive ? " is-active" : ""}">
+      <summary>${IC.filter}<span>Más filtros</span>${extraActive ? `<span class="ag-filter-more__count">${extraActive}</span>` : ""}${IC.chevronDown}</summary>
+      <div class="ag-filter-more__panel">
     <label class="payroll-contracts-filter">
       <span>Vehículo</span>
       <select id="payroll-employee-vehicle-filter">
@@ -117,15 +130,6 @@ function renderPayrollContractsFilterBar(canDeletePayrollEmployees, filters) {
       </select>
     </label>
     <label class="payroll-contracts-filter">
-      <span>Estado</span>
-      <select id="payroll-employee-contract-filter">
-        <option value="all"${sel("all", cf)}>Todos</option>
-        <option value="notice_window"${sel("notice_window", cf)}>Por vencer (30 días)</option>
-        <option value="expired"${sel("expired", cf)}>Vencidos</option>
-        <option value="active"${sel("active", cf)}>Vigentes</option>
-      </select>
-    </label>
-    <label class="payroll-contracts-filter">
       <span>Fecha</span>
       <select id="payroll-employee-contract-date-filter">
         <option value="all"${sel("all", df)}>Todas</option>
@@ -133,6 +137,8 @@ function renderPayrollContractsFilterBar(canDeletePayrollEmployees, filters) {
         <option value="ends_month"${sel("ends_month", df)}>Vence este mes</option>
       </select>
     </label>
+      </div>
+    </details>
     <div class="payroll-contracts-filterbar__actions">
       <button type="button" class="payroll-filters-reset" id="payroll-contracts-clear-filters" aria-label="Limpiar filtros de búsqueda">${IC.rotateCcw}<span>Limpiar filtros</span></button>
     </div>
@@ -205,7 +211,7 @@ function payrollHtml() {
     .join("");
   const companyOptions = companies
     .filter((c) => isCompanyRecordActive(c))
-    .map((c) => `<option value="${c.id}">${escapeHtml(String(c.name || ""))} (${escapeHtml(companyKindLabel(c.companyKind))})</option>`)
+    .map((c) => `<option value="${escapeAttr(String(c.id))}">${escapeHtml(String(c.name || ""))} (${escapeHtml(companyKindLabel(c.companyKind))})</option>`)
     .join("");
   const allRuns = readArray(KEYS.payrollRuns);
   const nominaRunsAll = filterPayrollNominaRuns(allRuns);
@@ -536,7 +542,7 @@ function payrollHtml() {
         <label>${fieldLabel(IC.activity, "Categoría licencia")}<select name="licenseCategory">${licenseCategoryOptions}</select></label>
         <label>${fieldLabel(IC.calendar, "Expedición / renovación licencia")}<input type="date" name="licenseIssueDate" /></label>
         <label>${fieldLabel(IC.calendar, "Examen instruvial")}<input type="date" name="instruvialExamDate" /></label>
-        <p class="full muted" style="grid-column:1/-1;font-size:0.82rem;margin:0">Licencia C2: vigencia automática +3 años desde expedición. Examen instruvial: +2 años. El examen médico ocupacional periódico (+1 año) se registra en el paso «Laboral» (aplica a todos los cargos).</p>
+        <p class="full muted" style="grid-column:1/-1;font-size:0.82rem;margin:0">Licencia: vigencia automática desde expedición (C: 3 años, 1 año desde los 60; A/B: 10 años, 5 desde los 60 y 1 después de 80). Examen instruvial: +2 años. El examen médico ocupacional periódico (+1 año) se registra en el paso «Laboral» (aplica a todos los cargos).</p>
         <label>${fieldLabel(IC.alertTriangle, "Comparendos pendientes (SIMIT)")}<input type="number" name="comparendos" min="0" max="9999" value="0" /></label>
         <label>${fieldLabel(IC.activity, "Años de experiencia conduciendo")}<input type="number" name="experienceYears" min="0" max="80" value="0" /></label>
         <label class="full">${fieldLabel(IC.truck, "Categoría de vehículos que conduce")}
@@ -750,7 +756,7 @@ function payrollHtml() {
     ${renderManagedCreateFormActions("create-payroll", `<button class="btn btn-primary payroll-liq-submit" type="submit" id="payroll-submit-btn">${IC.dollar}<span>Generar liquidación</span></button>`)}
   </form>`;
   const conductorTripPayOpts = conductorEmployees
-    .map((e) => `<option value="${e.id}">${escapeHtml(e.name)} · ${escapeHtml(String(e.idDoc || "—"))}</option>`)
+    .map((e) => `<option value="${escapeAttr(String(e.id))}">${escapeHtml(e.name)} · ${escapeHtml(String(e.idDoc || "—"))}</option>`)
     .join("");
   const formDriverTripPay = `<form id="form-driver-trip-payment" novalidate class="p-form p-form-colored hr-form-flow hr-form-compact">
     <fieldset class="form-section form-section-cyan full">
@@ -1048,7 +1054,7 @@ function payrollHtml() {
         ? `${employeeContractsDashboard}${employeeTable}`
         : `${employeeContractsDashboard}${emptyState(employeesEmptyMessage)}`
       : employeeCards
-        ? `${employeeContractsDashboard}${employeeTableToolbar}<div class="employees-grid directory-grid payroll-employees-grid portal-ops-cards">${employeeCards}</div>${employeePagination}`
+        ? `${employeeContractsDashboard}${employeeTableToolbar}<div class="ag-roster">${employeeCards}</div>${employeePagination}`
         : `${employeeContractsDashboard}${emptyState(employeesEmptyMessage)}`;
   const runCardsGrid = sortedRuns.length
     ? `<div class="payroll-run-cards-grid">${runsToRender.map((r) => renderPayrollRunCard(r, { compact: true, selectable: true })).join("")}</div>${payrollRunsMoreBar}`
@@ -1063,7 +1069,7 @@ function payrollHtml() {
       ? runTableView || runsEmpty
       : runCardsGrid || runsEmpty;
   const employeeOpts = employees
-    .map((e) => `<option value="${escapeAttr(String(e.id))}" ${filterEmployee === e.id ? "selected" : ""}>${escapeHtml(String(e.name || ""))}</option>`)
+    .map((e) => `<option value="${escapeAttr(String(e.id))}" ${String(filterEmployee) === String(e.id) ? "selected" : ""}>${escapeHtml(String(e.name || ""))}</option>`)
     .join("");
   const filteredEmployeeRecord = filterEmployee
     ? employees.find((e) => String(e.id) === String(filterEmployee))

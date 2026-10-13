@@ -34,6 +34,7 @@ import {
   buildSstDueExportRows
 } from "../domain/sst-reconciliation.domain.js";
 import { downloadCsv } from "../domain/reporteria.domain.js";
+import { isPayrollEmployeeUnlinked } from "../domain/nomina.domain.js";
 
 const G = globalThis;
 
@@ -1151,13 +1152,23 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
     const employees = read(KEYS.payrollEmployees, []);
     const contracts = read(KEYS.contracts, []);
     const records = read(KEYS.sstCompliance, []);
-    const todayTs = Date.now();
     const dueSoonDays = SST_DUE_SOON_DAYS;
-    const expiringContracts = contracts.filter((contract) => {
-      if (!contract.endDate) return false;
-      const endTs = new Date(`${contract.endDate}T12:00:00`).getTime();
-      if (!Number.isFinite(endTs) || endTs < todayTs) return false;
-      return (endTs - todayTs) / 86400000 <= dueSoonDays;
+    const activeEmployeeIds = new Set(
+      employees.filter((employee) => !isPayrollEmployeeUnlinked(employee)).map((employee) => String(employee.id))
+    );
+    /* Cada renovación o aviso agrega un registro: solo cuenta el más reciente de cada colaborador activo. */
+    const latestContractByEmployee = new Map();
+    contracts.forEach((contract) => {
+      const empId = String(contract?.employeeId || "");
+      if (!empId || !activeEmployeeIds.has(empId)) return;
+      const prev = latestContractByEmployee.get(empId);
+      if (!prev || String(contract.startDate || "") > String(prev.startDate || "")) {
+        latestContractByEmployee.set(empId, contract);
+      }
+    });
+    const expiringContracts = [...latestContractByEmployee.values()].filter((contract) => {
+      const days = contract.endDate ? daysUntilPortalDate(String(contract.endDate).slice(0, 10)) : null;
+      return days !== null && Number.isFinite(days) && days >= 0 && days <= dueSoonDays;
     });
     const missingSocialSecurity = employees.filter((employee) => !employee.eps || !employee.pensionFund || !employee.arl);
     const dueItems = collectSstDueItems(employees, records, dueSoonDays);
@@ -1196,17 +1207,22 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
     const pagedList = paginateSstItems(activeListSource, listPage, pageSize);
     const missingComplianceCount = countMissingComplianceItems(employees);
     const missingSstRecords = dueItems.filter((item) => item.recordId && item.bucket === "missing").length;
-    const employeeOptions = employees.map((employee) => `<option value="${employee.id}">${employee.name} · ${employee.position || "-"}</option>`).join("");
+    const employeeOptions = employees
+      .map(
+        (employee) =>
+          `<option value="${escapeAttr(String(employee.id ?? ""))}">${escapeHtml(String(employee.name || ""))} · ${escapeHtml(String(employee.position || "-"))}</option>`
+      )
+      .join("");
     const statusBadgeForCompliance = (status, dueDate) => {
       const s = String(status || "Pendiente").trim().toLowerCase();
       if (s.startsWith("cumpl")) return `<span class="sst-status-pill sst-status-pill--ok">Cumplido</span>`;
       if (s.startsWith("en gest")) return `<span class="sst-status-pill sst-status-pill--total">En gestión</span>`;
       if (dueDate) {
-        const ts = new Date(`${dueDate}T12:00:00`).getTime();
-        if (Number.isFinite(ts) && ts < Date.now()) {
+        const days = daysUntilPortalDate(String(dueDate).slice(0, 10));
+        if (days !== null && Number.isFinite(days) && days < 0) {
           return `<span class="sst-status-pill sst-status-pill--expired">Vencido</span>`;
         }
-        if (Number.isFinite(ts) && (ts - Date.now()) / 86400000 <= 30) {
+        if (days !== null && Number.isFinite(days) && days <= 30) {
           return `<span class="sst-status-pill sst-status-pill--warning">Por vencer</span>`;
         }
       }

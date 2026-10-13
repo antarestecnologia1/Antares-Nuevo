@@ -75,11 +75,12 @@ export function calcColombiaPensionSolidarityCop(
   return { solidarityCop: Math.round(b * rate), ratePct: rate * 100, tramo };
 }
 
+/** Subcuenta de subsistencia dentro del FSP (Ley 797/2003 art. 8); ya incluida en `calcColombiaPensionSolidarityCop`. */
 export function calcColombiaPensionSubsistenceCop(ibc: number, smmlv: number): number {
   const b = Math.max(0, Number(ibc) || 0);
-  const sm = Math.max(0, Number(smmlv) || 0);
-  if (sm <= 0 || b < sm * 4) return 0;
-  return Math.round(b * 0.005);
+  const sol = calcColombiaPensionSolidarityCop(b, smmlv);
+  if (sol.solidarityCop <= 0) return 0;
+  return Math.max(0, sol.solidarityCop - Math.round(b * 0.005));
 }
 
 export function calcColombiaEmployeeDeductionsCop(opts: {
@@ -109,8 +110,26 @@ export function calcColombiaEmployeeDeductionsCop(opts: {
     pension,
     solidarity: sol.solidarityCop,
     subsistence,
-    total: health + pension + sol.solidarityCop + subsistence
+    total: health + pension + sol.solidarityCop
   };
+}
+
+/**
+ * Base gravable mensual Proc. 1 (ET arts. 206, 336, 387): ingreso − aportes obligatorios;
+ * dependientes 10% del ingreso con tope de 32 UVT (no por cada dependiente); renta exenta 25%
+ * con tope de 790 UVT/año; deducciones + rentas exentas limitadas al 40% y a 1.340 UVT/año.
+ */
+function colombiaWithholdingTaxableBaseCop(
+  gross: number,
+  mandatoryContributions: number,
+  dependents: number,
+  uvtVal: number
+): number {
+  const net = Math.max(0, gross - mandatoryContributions);
+  const depDed = Math.floor(dependents) > 0 ? Math.min(gross * 0.1, 32 * uvtVal) : 0;
+  const exempt25 = Math.min(Math.max(0, net - depDed) * 0.25, (790 / 12) * uvtVal);
+  const benefits = Math.min(depDed + exempt25, net * 0.4, (1340 / 12) * uvtVal);
+  return Math.max(0, net - benefits);
 }
 
 export function calcColombiaWithholdingProcedimiento1Cop(opts: {
@@ -126,8 +145,7 @@ export function calcColombiaWithholdingProcedimiento1Cop(opts: {
   }
   const gross = Math.max(0, Number(opts.taxableIncomeCop) || 0);
   const ded = Math.max(0, Number(opts.healthDeduction) || 0) + Math.max(0, Number(opts.pensionDeduction) || 0);
-  const depDed = Math.max(0, Math.floor(Number(opts.dependents) || 0)) * 32 * uvtVal;
-  const taxable = Math.max(0, gross - ded - depDed);
+  const taxable = colombiaWithholdingTaxableBaseCop(gross, ded, Number(opts.dependents) || 0, uvtVal);
   const bgUvt = taxable / uvtVal;
   if (bgUvt <= 95) {
     return { withholdingCop: 0, taxableUvt: bgUvt, procedure: "1", note: "Base gravable ≤ 95 UVT: tarifa 0%." };
@@ -216,11 +234,16 @@ export function calcColombiaIncapacityEpsDayAdjustmentCop(opts: {
     payCop: Math.round(adjustCop - deductCop),
     pct
   });
+  /* La incapacidad nunca puede ser inferior al salario mínimo diario (Dec. 780/2016, art. 3.2.1.10). */
+  const floorPct = sm > 0 ? Math.min(1, sm / 30 / daily) : 0;
   if (monthly > 0 && monthly <= sm) {
-    const pct = idx <= 2 ? 1 : idx <= 90 ? 0.6667 : 0.5;
+    const pct = Math.max(idx <= 2 ? 1 : idx <= 90 ? 0.6667 : 0.5, floorPct);
     return withSplit(Math.round(-daily * (1 - pct)), idx <= 2 ? "Empleador 100%" : "EPS", pct);
   }
-  if (idx <= 2) return withSplit(Math.round(-daily * (1 / 3)), "Empleador ~66,7%", 0.6667);
+  if (idx <= 2) {
+    const pct = Math.max(0.6667, floorPct);
+    return withSplit(Math.round(-daily * (1 - pct)), "Empleador ~66,7%", pct);
+  }
   if (idx <= 90) return withSplit(-Math.round(daily), "EPS 66,7%", 0);
   return withSplit(-Math.round(daily), "EPS 50%", 0.5);
 }

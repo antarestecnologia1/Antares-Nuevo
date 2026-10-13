@@ -9,6 +9,7 @@ import {
   isPayrollEmployeeUnlinked,
   payrollEmployeeUnlinkCategory,
   payrollEmployeeUnlinkCategoryLabel,
+  payrollEmployeeUnlinkDate,
   employeeIsConductorServiceProvider
 } from "../domain/nomina.domain.js";
 import {
@@ -3396,6 +3397,13 @@ function addYears(dateValue, years) {
 }
 
 function daysUntil(dateValue) {
+  const ymdMatch =
+    typeof dateValue === "string" ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateValue.trim()) : null;
+  if (ymdMatch) {
+    const todayMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(colombiaTodayIsoDate());
+    const toUtc = (m) => Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    if (todayMatch) return Math.round((toUtc(ymdMatch) - toUtc(todayMatch)) / 86400000);
+  }
   const target = new Date(dateValue).setHours(0, 0, 0, 0);
   const now = new Date().setHours(0, 0, 0, 0);
   return Math.floor((target - now) / 86400000);
@@ -3466,11 +3474,11 @@ function normalizePayrollEmployeeRowDates(emp) {
     first(e.licenseIssueDate, e.fecha_expedicion_licencia)
   );
   if (!e.licenseIssueDate && e.licenseExpiry) {
-    e.licenseIssueDate = inferLicenseIssueDateFromExpiryYmd(e.licenseExpiry, e.licenseCategory);
+    e.licenseIssueDate = inferLicenseIssueDateFromExpiryYmd(e.licenseExpiry, e.licenseCategory, e.birthDate);
   }
   if (e.licenseIssueDate) {
     e.licenseExpiry =
-      resolveLicenseExpiryYmd(e.licenseIssueDate, e.licenseCategory || "C2") || e.licenseExpiry;
+      resolveLicenseExpiryYmd(e.licenseIssueDate, e.licenseCategory || "C2", e.birthDate) || e.licenseExpiry;
   }
   e.startDate = normalizePortalDateYmd(first(e.startDate, e.fecha_ingreso));
   e.contractVigenteStartDate = normalizePortalDateYmd(
@@ -7564,7 +7572,230 @@ function renderPayrollContractActionButtons(e, contract, { compact = false } = {
   </div>`;
 }
 
+/** Diferencia en días entre dos YYYY-MM-DD (b − a), sin depender de la zona horaria del navegador. */
+function agYmdDiffDays(a, b) {
+  const pa = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(a || ""));
+  const pb = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(b || ""));
+  if (!pa || !pb) return null;
+  const ta = Date.UTC(Number(pa[1]), Number(pa[2]) - 1, Number(pa[3]));
+  const tb = Date.UTC(Number(pb[1]), Number(pb[2]) - 1, Number(pb[3]));
+  return Math.round((tb - ta) / 86400000);
+}
+
+function agTenureLabel(startYmd, todayYmd) {
+  const days = agYmdDiffDays(startYmd, todayYmd);
+  if (days == null || days < 0) return "";
+  const years = Math.floor(days / 365.25);
+  const months = Math.floor((days - years * 365.25) / 30.44);
+  if (years > 0) return `${years} año${years === 1 ? "" : "s"}${months > 0 ? ` ${months} m` : ""}`;
+  if (months > 0) return `${months} mes${months === 1 ? "" : "es"}`;
+  return `${days} día${days === 1 ? "" : "s"}`;
+}
+
+function agAvatarHue(name) {
+  let h = 0;
+  const s = String(name || "");
+  for (let i = 0; i < s.length; i += 1) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+  return Math.abs(h) % 6;
+}
+
+/**
+ * Menú de acciones secundarias (⋯). Los botones conservan su `data-action`, así que los
+ * listeners existentes de Gestión humana / Conductores siguen funcionando sin cambios.
+ */
+function renderAgActionMenu(items, { label = "Más acciones" } = {}) {
+  const rows = (items || []).filter(Boolean);
+  if (!rows.length) return "";
+  const body = rows
+    .map((row) => {
+      if (row === "sep") return '<span class="ag-menu__sep" role="separator"></span>';
+      const tone = row.tone ? ` ag-menu__item--${escapeAttr(row.tone)}` : "";
+      const noLock = row.noLock ? " data-no-lock" : "";
+      return `<button type="button" class="ag-menu__item${tone}" role="menuitem" data-action="${escapeAttr(row.action)}" data-id="${escapeAttr(String(row.id ?? ""))}"${noLock}${row.title ? ` title="${escapeAttr(row.title)}"` : ""}><span class="ag-menu__ico" aria-hidden="true">${row.icon || ""}</span><span>${escapeHtml(row.label)}</span></button>`;
+    })
+    .join("");
+  return `<details class="ag-menu">
+    <summary class="ag-icon-btn" aria-label="${escapeAttr(label)}" title="${escapeAttr(label)}">${IC.moreVertical}</summary>
+    <div class="ag-menu__panel" role="menu">${body}</div>
+  </details>`;
+}
+
+if (typeof document !== "undefined" && !window.__agMenuDismissBound) {
+  window.__agMenuDismissBound = true;
+  document.addEventListener("click", (event) => {
+    const target = event.target instanceof Element ? event.target : null;
+    document.querySelectorAll("details.ag-menu[open], details.ag-popover[open]").forEach((menu) => {
+      if (!target || !menu.contains(target) || target.closest(".ag-menu__item")) menu.removeAttribute("open");
+    });
+  }, true);
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    document.querySelectorAll("details.ag-menu[open], details.ag-popover[open]").forEach((menu) => {
+      menu.removeAttribute("open");
+      menu.querySelector("summary")?.focus();
+    });
+  });
+}
+
+/** Tarjeta del directorio de Gestión humana: identidad · vigencia del contrato · remuneración · acciones. */
+function renderPayrollEmployeeRosterCard(item, hrAdminDeletes) {
+  const e = item.raw;
+  const contract = item.contract;
+  const id = String(e.id ?? "");
+  const todayYmd = colombiaTodayIsoDate();
+  const name = String(e.name || "Colaborador");
+  const initials = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase())
+    .slice(0, 2)
+    .join("");
+  const avCss = employeeAvatarCssUrl(e.avatarUrl);
+  const isDriver = item.isDriverSvc || String(e.workerRole || "").toLowerCase() === "conductor";
+  const statusSlug = contract.applies ? contract.statusSlug : "indefinite";
+  const tone = item.isUnlinked
+    ? "unlinked"
+    : statusSlug === "expired"
+      ? "alert"
+      : statusSlug === "notice_window" || statusSlug === "unknown"
+        ? "warn"
+        : statusSlug === "active"
+          ? "ok"
+          : "neutral";
+  const statusLabel = item.isUnlinked
+    ? "Desvinculado"
+    : statusSlug === "expired"
+      ? "Vencido"
+      : statusSlug === "notice_window"
+        ? "Por vencer"
+        : statusSlug === "unknown"
+          ? "Sin fecha fin"
+          : statusSlug === "active"
+            ? "Vigente"
+            : item.isDriverSvc
+              ? "Prestación"
+              : "Indefinido";
+
+  const hireYmd = normalizePortalDateYmd(e.startDate);
+  const periodStartYmd = normalizePortalDateYmd(e.contractVigenteStartDate || e.startDate);
+  const endYmd = normalizePortalDateYmd(contract.endYmd || e.contractEndDate || "");
+  let timelineHtml;
+  if (contract.applies && periodStartYmd && endYmd) {
+    const total = Math.max(1, agYmdDiffDays(periodStartYmd, endYmd) || 1);
+    const elapsed = agYmdDiffDays(periodStartYmd, todayYmd) ?? 0;
+    const pct = Math.min(100, Math.max(0, Math.round((elapsed / total) * 100)));
+    const noticeYmd = normalizePortalDateYmd(contract.noticeDeadlineYmd);
+    const noticeOffset = noticeYmd ? agYmdDiffDays(periodStartYmd, noticeYmd) : null;
+    const noticePct =
+      noticeOffset != null ? Math.min(100, Math.max(0, Math.round((noticeOffset / total) * 100))) : null;
+    const daysLeft = agYmdDiffDays(todayYmd, endYmd);
+    const caption =
+      daysLeft == null
+        ? ""
+        : daysLeft < 0
+          ? `Venció hace ${Math.abs(daysLeft)} día${Math.abs(daysLeft) === 1 ? "" : "s"}`
+          : daysLeft === 0
+            ? "Vence hoy"
+            : `Quedan ${daysLeft} día${daysLeft === 1 ? "" : "s"}`;
+    timelineHtml = `<div class="ag-timeline" role="img" aria-label="Vigencia del contrato: ${escapeAttr(caption)}">
+      <div class="ag-timeline__track">
+        <span class="ag-timeline__fill" style="width:${pct}%"></span>
+        ${noticePct != null ? `<span class="ag-timeline__notice" style="left:${noticePct}%" title="Límite aviso de no renovación: ${escapeAttr(fmtDateOr(noticeYmd))}"></span>` : ""}
+        <span class="ag-timeline__now" style="left:${pct}%"></span>
+      </div>
+      <div class="ag-timeline__legend">
+        <span>${escapeHtml(fmtDateOr(periodStartYmd, "—"))}</span>
+        <strong>${escapeHtml(caption)}</strong>
+        <span>${escapeHtml(fmtDateOr(endYmd, "—"))}</span>
+      </div>
+    </div>`;
+  } else {
+    const tenure = hireYmd ? agTenureLabel(hireYmd, todayYmd) : "";
+    timelineHtml = `<div class="ag-timeline ag-timeline--open">
+      <div class="ag-timeline__track"><span class="ag-timeline__fill" style="width:100%"></span></div>
+      <div class="ag-timeline__legend">
+        <span>${hireYmd ? `Desde ${escapeHtml(fmtDateOr(hireYmd))}` : "Sin fecha de ingreso"}</span>
+        ${tenure ? `<strong>${escapeHtml(tenure)} de antigüedad</strong>` : ""}
+        <span>${contract.applies ? "Sin fecha fin" : "Sin vencimiento"}</span>
+      </div>
+    </div>`;
+  }
+
+  const vehicleCsv = item.vehicleCsv || payrollEmployeeCanonicalVehicleTypesCsv(e);
+  const vehicleLabel = driverVehicleTypesCsvToLabel(vehicleCsv, "");
+  const smmlvRef = typeof CO_PAYROLL !== "undefined" && CO_PAYROLL?.smmlv ? CO_PAYROLL.smmlv : 0;
+  const tags = [
+    vehicleLabel ? `<span class="ag-tag ag-tag--vehicle">${IC.truck}${escapeHtml(vehicleLabel)}</span>` : "",
+    item.isDriverSvc ? '<span class="ag-tag ag-tag--svc">Prestación de servicios</span>' : "",
+    smmlvRef && item.salaryCop > 0 && item.salaryCop <= smmlvRef ? '<span class="ag-tag">SMMLV</span>' : "",
+    item.isUnlinked && item.unlinkCategory ? `<span class="ag-tag ag-tag--alert">${escapeHtml(item.unlinkCategory)}</span>` : ""
+  ]
+    .filter(Boolean)
+    .join("");
+
+  const canContractAct =
+    !item.isUnlinked &&
+    contract.applies &&
+    isFixedTermContractType(e.contractType) &&
+    ["notice_window", "expired", "active"].includes(contract.statusSlug);
+  const menu = renderAgActionMenu([
+    { action: "payroll-employee-liquidations", id, icon: IC.dollar, label: "Historial de nóminas" },
+    { action: "employee-generate-labor-letter", id, icon: IC.badge, label: "Carta laboral", noLock: true },
+    { action: "employee-generate-contract", id, icon: IC.download, label: "Contrato (Word)", noLock: true },
+    canContractAct ? "sep" : null,
+    canContractAct ? { action: "renew-employee-contract", id, icon: IC.rotateCcw, label: "Renovar contrato" } : null,
+    canContractAct
+      ? { action: "non-renew-employee-contract", id, icon: IC.mail, label: "Aviso de no renovación", title: "CST art. 46" }
+      : null,
+    hrAdminDeletes ? "sep" : null,
+    hrAdminDeletes
+      ? item.isUnlinked
+        ? { action: "recategorize-unlinked-employee", id, icon: IC.edit, label: "Categorizar desvinculación" }
+        : { action: "unlink-employee", id, icon: IC.userMinus, label: "Desvincular", tone: "danger" }
+      : null
+  ]);
+  const selectHtml = hrAdminDeletes
+    ? `<label class="ag-select" title="Seleccionar"><input type="checkbox" data-employee-select value="${escapeAttr(id)}" aria-label="Seleccionar ${escapeAttr(name)}" /><span aria-hidden="true"></span></label>`
+    : "";
+  const docLine = `${String(e.documentType || "").trim()} ${String(e.idDoc || "").trim()}`.trim() || "—";
+  const contractTypeKey = payrollEmployeeContractTypeKey(e);
+
+  return `<article class="ag-roster-card ag-roster-card--${escapeAttr(tone)} directory-card--employee" ${payrollEmployeeDirectoryDataAttrs(e, item, contract, { contractTypeKey, endYmd, vehicleCsv })}>
+    ${selectHtml}
+    <div class="ag-roster-card__id">
+      <div class="ag-avatar ag-avatar--hue-${agAvatarHue(name)}${avCss ? " ag-avatar--photo" : ""}"${avCss ? ` style="background-image:url('${avCss}')"` : ""} aria-hidden="true">
+        ${avCss ? "" : escapeHtml(initials || "C")}
+        ${isDriver ? `<span class="ag-avatar__badge" title="Conductor">${IC.truck}</span>` : ""}
+      </div>
+      <div class="ag-roster-card__who">
+        <h4 class="ag-roster-card__name" title="${escapeAttr(name)}">${escapeHtml(name)}</h4>
+        <p class="ag-roster-card__role">${escapeHtml(String(e.position || item.roleLabel || "—"))}</p>
+        <p class="ag-roster-card__doc">${escapeHtml(docLine)} · ${escapeHtml(item.companyName)}</p>
+      </div>
+    </div>
+    <div class="ag-roster-card__contract">
+      <div class="ag-roster-card__contract-head">
+        <span class="ag-roster-card__contract-type">${escapeHtml(String(e.contractType || "Contrato"))}</span>
+        <span class="ag-status ag-status--${escapeAttr(tone)}"><span class="ag-status__dot" aria-hidden="true"></span>${escapeHtml(statusLabel)}</span>
+      </div>
+      ${timelineHtml}
+      ${tags ? `<div class="ag-roster-card__tags">${tags}</div>` : ""}
+    </div>
+    <div class="ag-roster-card__pay">
+      <span class="ag-roster-card__pay-label">${item.isDriverSvc ? "Honorarios" : "Salario base"}</span>
+      <strong class="ag-roster-card__pay-value">$${item.salaryCop.toLocaleString("es-CO")}</strong>
+      ${item.transportCop > 0 ? `<span class="ag-roster-card__pay-sub">+ $${item.transportCop.toLocaleString("es-CO")} aux. transporte</span>` : ""}
+    </div>
+    <div class="ag-roster-card__actions">
+      <button type="button" class="ag-btn ag-btn--primary" data-action="view-employee" data-id="${escapeAttr(id)}">${IC.eye}<span>Ver perfil</span></button>
+      ${item.isUnlinked ? "" : `<button type="button" class="ag-icon-btn" data-action="edit-employee" data-id="${escapeAttr(id)}" title="Editar" aria-label="Editar ${escapeAttr(name)}">${IC.edit}</button>`}
+      ${menu}
+    </div>
+  </article>`;
+}
+
 function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = false } = {}) {
+  if (compact) return renderPayrollEmployeeRosterCard(item, hrAdminDeletes);
   const e = item.raw;
   const contract = item.contract;
   const avCss = employeeAvatarCssUrl(e.avatarUrl);
@@ -7599,60 +7830,6 @@ function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = fa
     ? `<label class="directory-card__select" title="Seleccionar para desvinculación masiva"><input type="checkbox" data-employee-select value="${escapeAttr(String(e.id))}" /><span class="muted">Sel.</span></label>`
     : "";
   const docLine = `${String(e.documentType || "").trim()} ${String(e.idDoc || "").trim()}`.trim() || "—";
-  const showContractAlert =
-    compact &&
-    contract.applies &&
-    (contract.statusSlug === "notice_window" || contract.statusSlug === "expired");
-  const compactClass = compact ? " directory-card--compact" : "";
-  if (compact) {
-    // Índice de color de avatar (0-3) basado en hash del nombre — consistente entre renders
-    let avColorIdx = 0;
-    if (e.name) {
-      let h = 0;
-      for (let ci = 0; ci < e.name.length; ci++) h = ((h << 5) - h + e.name.charCodeAt(ci)) | 0;
-      avColorIdx = Math.abs(h) % 4;
-    }
-    const smmlvRef =
-      typeof CO_PAYROLL !== "undefined" && CO_PAYROLL?.smmlv ? CO_PAYROLL.smmlv : 1300000;
-    const isSmmlv = item.salaryCop > 0 && item.salaryCop <= smmlvRef;
-    const contractAlertBar = showContractAlert
-      ? `<div class="payroll-emp-contract-alert${contract.statusSlug === "expired" ? " payroll-emp-contract-alert--expired" : ""}">${escapeHtml(contract.headline || contract.pillLabel || "Contrato requiere atención")}</div>`
-      : "";
-    const contractTypeKey = payrollEmployeeContractTypeKey(e);
-    const endYmd = normalizePortalDateYmd(contract.endYmd || e.contractEndDate || "");
-    const vehicleCsv = item.vehicleCsv || payrollEmployeeCanonicalVehicleTypesCsv(e);
-    return `<article class="directory-card portal-ops-card trip-ops-card directory-card--employee directory-card--compact directory-card--contract-${escapeAttr(statusSlug)}${item.isUnlinked ? " directory-card--unlinked" : ""}" ${payrollEmployeeDirectoryDataAttrs(e, item, contract, { contractTypeKey, endYmd, vehicleCsv })}>
-    <div class="directory-card__compact-row">
-      <div class="payroll-emp-avatar payroll-emp-avatar--${avColorIdx}" aria-hidden="true">${escapeHtml(initials)}</div>
-      <div class="directory-card__compact-main">
-        <h4 class="directory-card__title">${escapeHtml(String(e.name || "Colaborador"))}</h4>
-        <p class="directory-card__subline">
-          <span class="payroll-emp-role-chip">${escapeHtml(item.roleLabel)}</span>
-          <span class="muted">${escapeHtml(docLine)}</span>
-        </p>
-      </div>
-      <div class="directory-card__compact-meta">
-        ${isSmmlv ? '<span class="payroll-emp-badge payroll-emp-badge--smmlv" title="Salario en el rango del SMMLV">SMMLV</span>' : ""}
-        ${item.isDriverSvc ? '<span class="payroll-emp-badge payroll-emp-badge--driver">Prestación</span>' : ""}
-        ${renderPayrollEmployeeVehicleBadge(vehicleCsv)}
-        ${renderPayrollEmployeeUnlinkBadge(item)}
-        ${contract.applies ? directoryPillHtml(contract.pillLabel, contractPillTone) : ""}
-        <span class="directory-card__salary payroll-emp-salary">$${item.salaryCop.toLocaleString("es-CO")}</span>
-      </div>
-      <div class="directory-card__compact-actions toolbar">
-        <button type="button" class="btn btn-sm btn-action" data-action="payroll-employee-liquidations" data-id="${escapeAttr(String(e.id || ""))}" title="Historial de liquidaciones">${IC.dollar} Nóminas</button>
-        <button type="button" class="btn btn-sm btn-outline" data-action="view-employee" data-id="${escapeAttr(String(e.id))}" title="Ver perfil">${IC.eye} Ver</button>
-        ${item.isUnlinked ? "" : `<button type="button" class="btn btn-sm btn-action" data-action="edit-employee" data-id="${escapeAttr(String(e.id))}" title="Editar">${IC.edit} Editar</button>`}
-        ${item.isUnlinked ? "" : renderPayrollContractActionButtons(e, contract)}
-        ${renderEmploymentLetterActionButton(e.id)}
-        <button type="button" class="btn btn-sm btn-outline" data-no-lock data-action="employee-generate-contract" data-id="${escapeAttr(String(e.id))}" title="Generar o descargar contrato Word">${IC.download} Contrato</button>
-        ${hrAdminDeletes ? renderPayrollEmployeeUnlinkActionButton(e, { recategorize: Boolean(item.isUnlinked) }) : ""}
-        ${selectHtml}
-      </div>
-    </div>
-    ${contractAlertBar}
-  </article>`;
-  }
   return `<article class="directory-card portal-ops-card trip-ops-card directory-card--employee directory-card--contract-${escapeAttr(statusSlug)}${item.isUnlinked ? " directory-card--unlinked" : ""}" ${payrollEmployeeDirectoryDataAttrs(e, item, contract)}>
     <header class="directory-card__head">
       <div class="directory-card__identity">
@@ -11897,6 +12074,14 @@ function runEmploymentLetterFlow(employeeId, initialFormat = "pdf") {
     value,
     label: String(label)
   }));
+  const isUnlinked = isPayrollEmployeeUnlinked(normalized);
+  const initialKind = isUnlinked ? "retiro" : "vigente";
+  const defaultTerminationDate =
+    (isUnlinked ? normalizePortalDateYmd(payrollEmployeeUnlinkDate(normalized)) : "") || today;
+  const unlinkCauseRaw = isUnlinked ? String(payrollEmployeeUnlinkCategory(normalized) || "").toLowerCase() : "";
+  const defaultTerminationCause = terminationCauseOptions.some((opt) => opt.value === unlinkCauseRaw)
+    ? unlinkCauseRaw
+    : "otro";
 
   openEditModal({
     title: "Generar carta laboral",
@@ -11917,12 +12102,12 @@ function runEmploymentLetterFlow(employeeId, initialFormat = "pdf") {
       {
         type: "custom",
         full: true,
-        html: buildEmploymentLetterKindPickerHtml("vigente")
+        html: buildEmploymentLetterKindPickerHtml(initialKind)
       },
       {
         type: "custom",
         full: true,
-        html: `<div data-letter-checklist-host>${buildEmploymentLetterLegalChecklistHtml("vigente")}</div>`
+        html: `<div data-letter-checklist-host>${buildEmploymentLetterLegalChecklistHtml(initialKind)}</div>`
       },
       {
         name: "letterDate",
@@ -11971,7 +12156,7 @@ function runEmploymentLetterFlow(employeeId, initialFormat = "pdf") {
         html: `<div class="employment-letter-retiro-fields" data-letter-retiro-field hidden>
           <label class="full">
             <span>Fecha de retiro</span>
-            <input type="date" name="terminationDate" value="${escapeAttr(today)}" />
+            <input type="date" name="terminationDate" value="${escapeAttr(defaultTerminationDate)}" />
           </label>
         </div>`
       },
@@ -11988,7 +12173,7 @@ function runEmploymentLetterFlow(employeeId, initialFormat = "pdf") {
               )
                 .map(
                   (opt) =>
-                    `<option value="${escapeAttr(opt.value)}"${opt.value === "otro" ? " selected" : ""}>${escapeHtml(opt.label)}</option>`
+                    `<option value="${escapeAttr(opt.value)}"${opt.value === defaultTerminationCause ? " selected" : ""}>${escapeHtml(opt.label)}</option>`
                 )
                 .join("")}
             </select>
@@ -12012,6 +12197,13 @@ function runEmploymentLetterFlow(employeeId, initialFormat = "pdf") {
     },
     onSubmit: async (payload, formEl) => {
       const letterKind = String(payload.letterKind || "vigente").trim().toLowerCase() === "retiro" ? "retiro" : "vigente";
+      if (isUnlinked && letterKind === "vigente") {
+        notify(
+          "El colaborador está desvinculado: no se puede expedir constancia de vinculación vigente. Use el certificado al retiro.",
+          "error"
+        );
+        return false;
+      }
       const fields = {
         letterKind,
         letterDate: normalizePortalDateYmd(payload.letterDate),
@@ -13130,7 +13322,8 @@ function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = 
       licenseIssueDate: normalizePortalDateYmd(raw.licenseIssueDate),
       licenseExpiry: resolveLicenseExpiryYmd(
         normalizePortalDateYmd(raw.licenseIssueDate),
-        raw.licenseCategory
+        raw.licenseCategory,
+        normalizePortalDateYmd(raw.birthDate)
       ) || normalizePortalDateYmd(raw.licenseExpiry),
       occupationalExamDate: normalizePortalDateYmd(raw.occupationalExamDate),
       occupationalExamExpiry: resolveOccupationalExamExpiryYmd(raw.occupationalExamDate),
@@ -13202,8 +13395,9 @@ function firstEmployeeContractDocFieldFromMissing(miss) {
 
 function employeeAvatarCssUrl(av) {
   const u = String(av || "").trim();
-  if (/^https?:\/\//i.test(u) || /^data:image\//i.test(u)) return u.replace(/'/g, "\\'");
-  return "";
+  if (!/^https?:\/\//i.test(u) && !/^data:image\//i.test(u)) return "";
+  /* Se interpola dentro de style="…url('…')": comillas, paréntesis o "<" romperían el atributo. */
+  return u.replace(/["'()\\<>\s]/g, (ch) => `%${ch.charCodeAt(0).toString(16).padStart(2, "0").toUpperCase()}`);
 }
 
 function fmtProfileCell(value) {
@@ -13600,7 +13794,7 @@ ${contractHistorySummaryHtml}
 <label><span>${escapeHtml("N° licencia")}</span><input name="license" value="${escapeAttr(e.license || "")}" /></label>
 <label><span>${escapeHtml("Categoría licencia")}</span><select name="licenseCategory">${selectOptionsFromCatalog(CO_CATALOGS.licenseCategories, e.licenseCategory || "", "Seleccione categoría...")}</select></label>
 <label><span>${escapeHtml("Expedición / renovación licencia")}</span><input type="date" name="licenseIssueDate" value="${escapeAttr(normalizePortalDateYmd(e.licenseIssueDate))}" /></label>
-<label><span>${escapeHtml("Vence licencia (calculado +3 años C2)")}</span><input type="date" name="licenseExpiry" value="${escapeAttr(normalizePortalDateYmd(e.licenseExpiry))}" readonly tabindex="-1" /></label>
+<label><span>${escapeHtml("Vence licencia (calculado por categoría y edad)")}</span><input type="date" name="licenseExpiry" value="${escapeAttr(normalizePortalDateYmd(e.licenseExpiry))}" readonly tabindex="-1" /></label>
 <p class="full muted modal-field-hint" style="grid-column:1/-1;font-size:0.78rem">La vigencia de la licencia C2 se calcula automáticamente a 3 años desde la fecha de expedición o renovación.</p>
 <label><span>${escapeHtml("Examen instruvial")}</span><input type="date" name="instruvialExamDate" value="${escapeAttr(normalizePortalDateYmd(e.instruvialExamDate))}" /></label>
 <p class="full muted modal-field-hint" style="grid-column:1/-1;font-size:0.78rem">La vigencia del examen instruvial se calcula automáticamente (+2 años). El examen ocupacional está en la sección «Laboral» porque aplica a todos los cargos.</p>
@@ -15027,6 +15221,8 @@ Object.assign(window, {
   renderHistoryTechnicalLogCard,
   renderHistoryTechnicalLogsList,
   renderPayrollEmployeeDirectoryCard,
+  renderAgActionMenu,
+  agAvatarHue,
   renderPayrollEmployeeDirectoryTableRow,
   renderPayrollLegalHistoryCard,
   renderPayrollRunCard,
@@ -15103,6 +15299,7 @@ Object.assign(window, {
   stripDigitsForRegisterNational,
   suggestedEmployeeTransportAllowanceCop,
   summarizePayrollEmployeeForDirectory,
+  payrollEmployeeContractStatusDisplay,
   syncContractFormFromSelection,
   syncCreateTripCompactPickList,
   syncEmployeeEditCatalogSelects,

@@ -28,14 +28,7 @@ export function isFixedTermContractType(contractType: unknown): boolean {
 }
 
 export function addCalendarYearsYmd(ymd: string, years = 1): string {
-  const n = normalizePortalYmd(ymd);
-  if (!n) return "";
-  const p = /^(\d{4})-(\d{2})-(\d{2})$/.exec(n);
-  if (!p) return "";
-  const d = new Date(Number(p[1]), Number(p[2]) - 1, Number(p[3]));
-  if (Number.isNaN(d.getTime())) return "";
-  d.setFullYear(d.getFullYear() + years);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return addCalendarMonthsYmd(ymd, Math.trunc(years) * 12);
 }
 
 export function addDaysToYmd(ymd: string, deltaDays: number): string {
@@ -55,15 +48,18 @@ export function daysUntilYmd(ymd: string): number {
   return bogotaDaysUntilYmd(n);
 }
 
+/** Suma meses calendario; si el día no existe en el mes destino usa el último (31-ene + 1 mes = 28/29-feb). */
 export function addCalendarMonthsYmd(ymd: string, months: number): string {
   const n = normalizePortalYmd(ymd);
   if (!n) return "";
   const p = /^(\d{4})-(\d{2})-(\d{2})$/.exec(n);
   if (!p) return "";
-  const d = new Date(Number(p[1]), Number(p[2]) - 1, Number(p[3]));
-  if (Number.isNaN(d.getTime())) return "";
-  d.setMonth(d.getMonth() + Math.trunc(months));
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const total = Number(p[1]) * 12 + (Number(p[2]) - 1) + Math.trunc(months);
+  const y = Math.floor(total / 12);
+  const mo = (total % 12) + 1;
+  const lastDay = new Date(Date.UTC(y, mo, 0)).getUTCDate();
+  const day = Math.min(Number(p[3]), lastDay);
+  return `${y}-${String(mo).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
 function parseContractDurationPlazo(raw: {

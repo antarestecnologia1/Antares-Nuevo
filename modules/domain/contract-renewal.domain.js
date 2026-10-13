@@ -6,7 +6,7 @@ import { ensureEmployeeContractFields } from "../ui/modals.js";
 import { KEYS } from "../core/config.js";
 import { read, writeAwaitServerEdit } from "../core/data-io.js";
 import { stampUpdatedRecord } from "../core/utils.js";
-import { upsertContractRecordForEmployee } from "./contracts.domain.js";
+import { getEmployeeContractHistory, upsertContractRecordForEmployee } from "./contracts.domain.js";
 import {
   buildNonRenewalNoticeLetterHtml,
   buildNonRenewalNoticeMeta,
@@ -32,8 +32,15 @@ export {
 /**
  * Persiste renovación: empleado (sin tocar ingreso), nuevo registro en contratos y Word opcional.
  */
+export function readEmployeeContractHistoryForRenewal(employeeId) {
+  return getEmployeeContractHistory(employeeId, read(KEYS.contracts, []));
+}
+
 export async function executeEmployeeContractRenewal(employee, fields, opts = {}) {
-  const built = buildRenewedEmployeePatch(employee, fields);
+  const enriched = ensureEmployeeContractFields(employee || {});
+  const built = buildRenewedEmployeePatch(enriched, fields, {
+    contractHistory: opts.contractHistory || readEmployeeContractHistoryForRenewal(employee?.id)
+  });
   if (!built.ok) return built;
   const renewed = built.employee;
   const all = read(KEYS.payrollEmployees, []);

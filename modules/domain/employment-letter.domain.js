@@ -12,10 +12,7 @@ import {
 import { read } from "../core/data-io.js";
 import { colombiaTodayIsoDate } from "../core/utils.js";
 import { formatContractNoticeDateEs, normalizeContractRenewalYmd } from "./contract-renewal.logic.js";
-import {
-  CO_TERMINATION_CAUSE_LABELS,
-  calcColombiaTerminationEmployedDays
-} from "./payroll-colombia-termination.domain.js";
+import { CO_TERMINATION_CAUSE_LABELS } from "./payroll-colombia-termination.domain.js";
 import { employeeIsConductorServiceProvider } from "./nomina.domain.js";
 import {
   blobToDataUrl,
@@ -153,6 +150,7 @@ function salaryToWordsEsLocal(n) {
   if (!num) return "cero";
   const units = ["", "uno", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve"];
   const teens = ["diez", "once", "doce", "trece", "catorce", "quince", "dieciséis", "diecisiete", "dieciocho", "diecinueve"];
+  const twenties = ["veinte", "veintiuno", "veintidós", "veintitrés", "veinticuatro", "veinticinco", "veintiséis", "veintisiete", "veintiocho", "veintinueve"];
   const tens = ["", "", "veinte", "treinta", "cuarenta", "cincuenta", "sesenta", "setenta", "ochenta", "noventa"];
   const hundreds = ["", "ciento", "doscientos", "trescientos", "cuatrocientos", "quinientos", "seiscientos", "setecientos", "ochocientos", "novecientos"];
 
@@ -161,7 +159,7 @@ function salaryToWordsEsLocal(n) {
     if (x === 100) return "cien";
     if (x < 10) return units[x];
     if (x < 20) return teens[x - 10];
-    if (x < 30) return x === 20 ? "veinte" : `veinti${units[x - 20]}`;
+    if (x < 30) return twenties[x - 20];
     if (x < 100) {
       const d = Math.floor(x / 10);
       const u = x % 10;
@@ -176,8 +174,10 @@ function salaryToWordsEsLocal(n) {
   const thousands = Math.floor((num % 1000000) / 1000);
   const rest = num % 1000;
   const parts = [];
-  if (millions) parts.push(millions === 1 ? "un millón" : `${underThousand(millions)} millones`);
-  if (thousands) parts.push(thousands === 1 ? "mil" : `${underThousand(thousands)} mil`);
+  /* Delante de «mil» y «millones», «uno» se apocopa: veintiún mil, treinta y un millones. */
+  const apocope = (words) => words.replace(/veintiuno$/, "veintiún").replace(/uno$/, "un");
+  if (millions) parts.push(millions === 1 ? "un millón" : `${apocope(underThousand(millions))} millones`);
+  if (thousands) parts.push(thousands === 1 ? "mil" : `${apocope(underThousand(thousands))} mil`);
   if (rest) parts.push(underThousand(rest));
   return parts.join(" ").replace(/\s+/g, " ").trim();
 }
@@ -199,6 +199,17 @@ export function buildActiveEmploymentLetterMainParagraph(meta) {
     meta.serviceTime && meta.serviceTime !== "—"
       ? ` Tiempo de servicio a la fecha de expedición: ${meta.serviceTime}.`
       : "";
+  if (meta.isServiceProvider) {
+    /* Un contratista no tiene vínculo laboral ni salario: certificarlo así expone a un contrato realidad. */
+    const feeClause =
+      meta.includeSalary && meta.salaryLegalText ? `, con honorarios mensuales de ${meta.salaryLegalText}` : "";
+    return (
+      `Por medio de la presente, ${employerIntro}, certifica que el/la señor(a) ${meta.nameUpper}, ` +
+      `identificado(a) con ${meta.docTypeLabel} No ${meta.idDocFormatted}, presta sus servicios de manera independiente ` +
+      `a la empresa mediante contrato de prestación de servicios desde el ${meta.hireLabelCap}, en la actividad de ` +
+      `${meta.positionUpper}${feeClause}, sin que exista relación laboral.${serviceClause}`
+    );
+  }
   return (
     `Por medio de la presente, ${employerIntro}, certifica que el/la señor(a) ${meta.nameUpper}, ` +
     `identificado(a) con ${meta.docTypeLabel} No ${meta.idDocFormatted}, se encuentra vinculado(a) laboralmente ` +
@@ -212,7 +223,8 @@ export function formatEmploymentLetterSalaryLegal(cop) {
   const num = Math.round(Number(cop) || 0);
   if (num <= 0) return "";
   const words = salaryToWordsEsFallback(num).toUpperCase().replace(/\s+/g, " ").trim();
-  return `${words} PESOS M/CTE. ($${num.toLocaleString("es-CO")})`;
+  const connector = num >= 1000000 && num % 1000000 === 0 ? "DE " : "";
+  return `${words} ${connector}PESOS M/CTE. ($${num.toLocaleString("es-CO")})`;
 }
 
 function formatEmploymentLetterContractPhrase(contractType, contractEndLabel = "") {
@@ -235,13 +247,16 @@ export function formatEmploymentServiceTimeEs(hireDateYmd, endDateYmd) {
   const hire = parseYmd(hireDateYmd);
   const end = parseYmd(endDateYmd);
   if (!hire || !end || end < hire) return "—";
-  let years = end.getFullYear() - hire.getFullYear();
-  let months = end.getMonth() - hire.getMonth();
-  let days = end.getDate() - hire.getDate();
-  if (days < 0) {
+  /* La fecha de corte es inclusiva: se mide hasta el día siguiente (15-ene-2024 → 14-ene-2025 = 1 año). */
+  const stop = new Date(end.getFullYear(), end.getMonth(), end.getDate() + 1, 12);
+  let years = stop.getFullYear() - hire.getFullYear();
+  let months = stop.getMonth() - hire.getMonth();
+  let days = stop.getDate() - hire.getDate();
+  let borrowMonthEnd = new Date(stop.getFullYear(), stop.getMonth(), 0);
+  while (days < 0) {
     months -= 1;
-    const prevMonth = new Date(end.getFullYear(), end.getMonth(), 0);
-    days += prevMonth.getDate();
+    days += borrowMonthEnd.getDate();
+    borrowMonthEnd = new Date(borrowMonthEnd.getFullYear(), borrowMonthEnd.getMonth(), 0);
   }
   if (months < 0) {
     years -= 1;
@@ -250,8 +265,8 @@ export function formatEmploymentServiceTimeEs(hireDateYmd, endDateYmd) {
   const parts = [];
   if (years > 0) parts.push(`${years} año${years === 1 ? "" : "s"}`);
   if (months > 0) parts.push(`${months} mes${months === 1 ? "" : "es"}`);
-  if (days > 0 || !parts.length) parts.push(`${Math.max(days, 0)} día${days === 1 ? "" : "s"}`);
-  const calendarDays = calcColombiaTerminationEmployedDays(hireDateYmd, endDateYmd);
+  if (days > 0 || !parts.length) parts.push(`${days} día${days === 1 ? "" : "s"}`);
+  const calendarDays = Math.round((end.getTime() - hire.getTime()) / 86400000) + 1;
   return `${parts.join(", ")} (${calendarDays.toLocaleString("es-CO")} días calendario)`;
 }
 

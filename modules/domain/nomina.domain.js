@@ -16,6 +16,7 @@ import {
   PAYROLL_ABSENCE_LEGAL_LIMITS
 } from "../core/config.js";
 import { matchCatalogOptionValue } from "./payroll-catalog-sanitize.domain.js";
+import { isColombiaHolidayLocalDate } from "./colombia-holidays.domain.js";
 import {
   listLiquidationCutsForMonth,
   resolvePayrollCutForClosingDate,
@@ -387,12 +388,7 @@ export function payrollDaysInManualCut(monthYm, payFrequency, quincenaHalf) {
   const range = monthRange(monthYm);
   if (!range) return 30;
   if (freq !== "quincenal") return 30;
-  if (String(quincenaHalf || "Q1").toUpperCase() === "Q2") {
-    const end = new Date(range.end);
-    const start = new Date(range.start);
-    start.setDate(16);
-    return Math.max(1, Math.min(30, Math.round((end - start) / 86400000) + 1));
-  }
+  /* Mes comercial de 30 días: cada quincena son 15 días, también en febrero y meses de 31. */
   return 15;
 }
 
@@ -1139,6 +1135,15 @@ export function payrollParseLocalYmd(raw) {
   return Number.isNaN(dt.getTime()) ? null : dt;
 }
 
+/**
+ * Los cortes (`payroll-cut.domain.js`) usan mediodía UTC y las ausencias mediodía local: sin
+ * normalizar, una ausencia que inicia el último día del corte queda fuera del cruce.
+ */
+export function payrollToLocalNoon(d) {
+  if (!(d instanceof Date) || Number.isNaN(d.getTime())) return null;
+  return payrollDateAtNoonLocal(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
 export function payrollInclusiveCalendarDaysLocal(a, b) {
   const msDay = 86400000;
   const n = Math.floor((b.getTime() - a.getTime()) / msDay) + 1;
@@ -1152,7 +1157,7 @@ export function payrollInclusiveBusinessDaysLocal(a, b) {
   const end = payrollDateAtNoonLocal(b.getFullYear(), b.getMonth(), b.getDate());
   while (cur <= end) {
     const day = cur.getDay();
-    if (day !== 0 && day !== 6) total += 1;
+    if (day !== 0 && day !== 6 && !isColombiaHolidayLocalDate(cur)) total += 1;
     cur = payrollDateAtNoonLocal(cur.getFullYear(), cur.getMonth(), cur.getDate() + 1);
   }
   return total;
@@ -1890,8 +1895,10 @@ export function computePayrollNoveltyEpisode({
   };
 }
 
-export function computePayrollNoveltiesForPeriod({ employee, periodStart, periodEnd, absencesAll }) {
+export function computePayrollNoveltiesForPeriod({ employee, periodStart: rawStart, periodEnd: rawEnd, absencesAll }) {
   const smmlv = CO_PAYROLL.smmlv;
+  const periodStart = payrollToLocalNoon(rawStart);
+  const periodEnd = payrollToLocalNoon(rawEnd);
   const baseSalary = Math.max(0, parseNum(employee?.baseSalary));
   const daily = baseSalary > 0 ? baseSalary / 30 : 0;
   if (!periodStart || !periodEnd || daily <= 0) {
@@ -2443,7 +2450,9 @@ export function payrollResolveRunPeriodBounds(run, employee) {
   return { start: monthBounds.start, end: monthBounds.end };
 }
 
-export function buildPayrollAbsenceSlipRowsForPeriod({ employeeId, periodStart, periodEnd, absencesAll }) {
+export function buildPayrollAbsenceSlipRowsForPeriod({ employeeId, periodStart: rawStart, periodEnd: rawEnd, absencesAll }) {
+  const periodStart = payrollToLocalNoon(rawStart);
+  const periodEnd = payrollToLocalNoon(rawEnd);
   if (!employeeId || !periodStart || !periodEnd) return [];
   const rows = [];
   (Array.isArray(absencesAll) ? absencesAll : []).forEach((ab) => {

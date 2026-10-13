@@ -141,7 +141,8 @@ type PortalLaborSystemParametersHistoryRow = {
 
 const DEFAULT_FRONTEND_MIN_MONTHLY_SALARY_COP = 1_750_905;
 const DEFAULT_FRONTEND_TRANSPORT_ALLOWANCE_COP = 249_095;
-const DEFAULT_COLOMBIA_LEGAL_WEEKLY_HOURS = 46;
+/** Ley 2101/2021: 42 h semanales desde el 15-jul-2026. */
+const DEFAULT_COLOMBIA_LEGAL_WEEKLY_HOURS = 42;
 const DEFAULT_HEALTH_EMPLOYEE_RATE = 0.04;
 const DEFAULT_PENSION_EMPLOYEE_RATE = 0.04;
 const SYSTEM_PARAMETER_ALIASES = {
@@ -617,20 +618,44 @@ const OCCUPATIONAL_EXAM_RENEWAL_YEARS = 1;
 const INTRUVIAL_EXAM_RENEWAL_YEARS = 2;
 const LICENSE_C2_RENEWAL_YEARS = 3;
 
-function resolveLicenseRenewalYears(category: unknown): number {
+function portalAgeInYearsAt(birthYmd: string | null, atYmd: string): number | null {
+  const b = birthYmd ? /^(\d{4})-(\d{2})-(\d{2})/.exec(birthYmd) : null;
+  const a = /^(\d{4})-(\d{2})-(\d{2})/.exec(atYmd);
+  if (!b || !a) return null;
+  let age = Number(a[1]) - Number(b[1]);
+  if (`${a[2]}-${a[3]}` < `${b[2]}-${b[3]}`) age -= 1;
+  return age >= 0 && age < 130 ? age : null;
+}
+
+/**
+ * Ley 769/2002 art. 22 (mod. Decreto 019/2012 art. 197). Particular (A/B): 10 años antes de 60,
+ * 5 de 60 a 80, 1 después de 80. Público (C): 3 años antes de 60 y 1 desde los 60.
+ * Espejo de `modules/domain/driver-compliance-vigencia.domain.js`.
+ */
+function resolveLicenseRenewalYears(category: unknown, birthYmd: string | null = null, issueYmd = ""): number {
   const cat = String(category ?? "C2")
     .trim()
     .toUpperCase();
-  return cat === "C2" ? LICENSE_C2_RENEWAL_YEARS : LICENSE_C2_RENEWAL_YEARS;
+  const age = portalAgeInYearsAt(birthYmd, issueYmd);
+  if (/^[AB]\d?$/.test(cat)) {
+    if (age != null && age > 80) return 1;
+    if (age != null && age >= 60) return 5;
+    return 10;
+  }
+  if (age != null && age >= 60) return 1;
+  return LICENSE_C2_RENEWAL_YEARS;
 }
 
 function resolvePortalLicenseExpiryYmd(
   issueDate: unknown,
   category: unknown,
-  storedExpiry: unknown
+  storedExpiry: unknown,
+  birthDate: unknown = null
 ): string | null {
   const issue = portalDateYmdOrNull(issueDate);
-  if (issue) return portalYmdPlusYears(issue, resolveLicenseRenewalYears(category));
+  if (issue) {
+    return portalYmdPlusYears(issue, resolveLicenseRenewalYears(category, portalDateYmdOrNull(birthDate), issue));
+  }
   return portalDateYmdOrNull(storedExpiry);
 }
 
@@ -645,7 +670,9 @@ function portalYmdPlusYears(ymd: unknown, years: number): string | null {
   const day = Number(m[3]);
   const d = new Date(y, mo, day);
   if (Number.isNaN(d.getTime())) return null;
-  d.setFullYear(d.getFullYear() + years);
+  const targetYear = d.getFullYear() + years;
+  const lastDom = new Date(targetYear, mo + 1, 0).getDate();
+  d.setFullYear(targetYear, mo, Math.min(day, lastDom));
   const yy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
@@ -10464,7 +10491,8 @@ export class PortalService implements OnModuleInit {
         resolvePortalLicenseExpiryYmd(
           p(d, "licenseIssueDate", "fecha_expedicion_licencia"),
           d.licenseCategory,
-          d.licenseExpiry ?? p(d, "licenseExpiry", "fecha_vencimiento_licencia")
+          d.licenseExpiry ?? p(d, "licenseExpiry", "fecha_vencimiento_licencia"),
+          p(d, "birthDate", "fecha_nacimiento")
         ) ?? new Date().toISOString().slice(0, 10);
 
       const idDoc = String(d.idDoc ?? "0000000").trim().slice(0, 32) || "0000000";
@@ -10638,7 +10666,8 @@ export class PortalService implements OnModuleInit {
     const licenseExpiry = resolvePortalLicenseExpiryYmd(
       p(e, "licenseIssueDate"),
       licenseCategory,
-      p(e, "licenseExpiry")
+      p(e, "licenseExpiry"),
+      p(e, "birthDate", "fecha_nacimiento")
     );
     if (!license || !licenseExpiry) return;
     const empId = String(e.id ?? "").trim();
@@ -11632,7 +11661,8 @@ export class PortalService implements OnModuleInit {
       const licenseExpiryForSync = resolvePortalLicenseExpiryYmd(
         p(e, "licenseIssueDate"),
         licenseCategoryForExpiry,
-        p(e, "licenseExpiry")
+        p(e, "licenseExpiry"),
+        p(e, "birthDate", "fecha_nacimiento")
       );
 
       const rawPositionId = portalUuidOrNull(e.positionId);

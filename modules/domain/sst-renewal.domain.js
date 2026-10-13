@@ -58,7 +58,7 @@ const CONTROL_SPECS = {
       const category = String(employee?.licenseCategory || "C2").trim() || "C2";
       return {
         licenseIssueDate: date,
-        licenseExpiry: resolveLicenseExpiryYmd(date, category)
+        licenseExpiry: resolveLicenseExpiryYmd(date, category, normalizePortalDateYmd(employee?.birthDate))
       };
     }
   },

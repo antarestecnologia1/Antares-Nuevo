@@ -94,7 +94,7 @@ const SYSTEM_PARAM_DEFAULTS = Object.freeze({
   smmlvCop: 1750905,
   minMonthlySalaryCop: 1750905,
   transportAllowanceCop: 249095,
-  legalWeeklyHours: 46,
+  legalWeeklyHours: 42,
   healthEmployeeRate: 0.04,
   pensionEmployeeRate: 0.04,
   uvtCop: null,

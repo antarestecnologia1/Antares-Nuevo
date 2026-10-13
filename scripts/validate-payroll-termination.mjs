@@ -45,8 +45,8 @@ async function main() {
       absencesAll: []
     });
     record(
-      "Despido sin justa con indemnización y aviso",
-      desp.indemnizacionDespido > 0 && desp.indemnizacionAviso > 0 && desp.gross > ren.gross
+      "Despido sin justa con indemnización art. 64 (sin indemnización por preaviso, Ley 50/1990)",
+      desp.indemnizacionDespido > 0 && !(desp.indemnizacionAviso > 0) && desp.gross > ren.gross
     );
 
     const justa = window.computeColombiaTerminationSettlement({

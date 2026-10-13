@@ -124,6 +124,7 @@
     <link rel="stylesheet" href="./styles/portal-sidebar.css?v=20260715-notif-align" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/portal-create-forms.css?v=20260622-schedule-time-input" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/portal-studios-dark.css?v=20260814-payroll-bulk-delete" media="print" onload="this.onload=null;this.media='all'" />
+    <link rel="stylesheet" href="./styles/antares-roster.css?v=20261013-roster-pass" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/portal-responsive.css?v=20260630-mobile-switch-compact" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/portal-modern.css?v=20261005b-modern-v2" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/auth-modal.css?v=20260715-registration-kind" />
@@ -154,6 +155,7 @@
       <link rel="stylesheet" href="./styles/portal-sidebar.css?v=20260715-notif-align" />
       <link rel="stylesheet" href="./styles/portal-create-forms.css?v=20260622-schedule-time-input" />
       <link rel="stylesheet" href="./styles/portal-studios-dark.css?v=20260814-payroll-bulk-delete" />
+      <link rel="stylesheet" href="./styles/antares-roster.css?v=20261013-roster-pass" />
       <link rel="stylesheet" href="./styles/portal-responsive.css?v=20260630-mobile-switch-compact" />
       <link rel="stylesheet" href="./styles/portal-modern.css?v=20261005b-modern-v2" />
       <link rel="stylesheet" href="./styles/auth-modal.css?v=20260715-registration-kind" />
@@ -1569,7 +1571,7 @@
       import * as AntaresSchedulePicker from "./modules/ui/portal-schedule-picker.js?v=20260622-time-slots";
       Object.assign(window, AntaresUIComponents, AntaresUIModals, AntaresI18n, AntaresSchedulePicker);
     </script>
-    <script type="module" src="./modules/core/portal-runtime.js?v=20260930-employee-filters-fix"></script>
+    <script type="module" src="./modules/core/portal-runtime.js?v=20261013-roster-pass"></script>
     <script defer src="./modules/app/portal-transport-modals.js"></script>
     <script defer src="./modules/app/portal-rrhh-modals.js?v=20260831-payroll-bulk-paid"></script>
     <!-- Vistas legacy (`registerLegacyPortalViews`); deben ejecutarse antes de `app.js` para que el primer `renderPortal()` resuelva HTML. `viajes.js` antes de `mis-solicitudes.js` por `RENDER_WINDOW_SIZE`. -->
@@ -1579,11 +1581,11 @@
     <script defer src="./modules/app/mis-solicitudes.js?v=20260623-sync-fix3"></script>
     <script defer src="./modules/app/camiones-html.js?v=20260622-vehicle-create-wizard"></script>
     <script defer src="./modules/app/camiones.js"></script>
-    <script defer src="./modules/app/conductores.js"></script>
+    <script defer src="./modules/app/conductores.js?v=20261013-roster-pass"></script>
     <script defer src="./modules/app/calendario.js"></script>
     <script defer src="./modules/app/historial.js"></script>
     <script defer src="./modules/app/reporteria.js"></script>
-    <script defer src="./modules/app/gestion-humana-html.js?v=20260930-employee-filters-fix"></script>
+    <script defer src="./modules/app/gestion-humana-html.js?v=20261013-roster-pass"></script>
     <script defer src="./modules/app/gestion-humana.js?v=20260930-employee-filters-fix"></script>
     <script defer src="./modules/app/rrhh-candidate-attachments.js?v=20260804-cv-r2"></script>
     <script defer src="./modules/app/contratacion-html.js?v=20260917-contract-live-name"></script>
