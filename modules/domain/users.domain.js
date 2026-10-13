@@ -18,7 +18,8 @@ export function getAdminUsersUi() {
     permUserId: String(ui?.permUserId || "").trim(),
     userStatusFilter: String(ui?.userStatusFilter || "all").trim() || "all",
     userRoleFilter: String(ui?.userRoleFilter || "all").trim() || "all",
-    companyStatusFilter: String(ui?.companyStatusFilter || "all").trim() || "all"
+    companyStatusFilter: String(ui?.companyStatusFilter || "all").trim() || "all",
+    directoryLayout: String(ui?.directoryLayout || "").trim().toLowerCase() === "list" ? "list" : "cards"
   };
 }
 

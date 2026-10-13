@@ -2149,7 +2149,8 @@ function defaultAdminUsersUi() {
     permUserId: "",
     userStatusFilter: "all",
     userRoleFilter: "all",
-    companyStatusFilter: "all"
+    companyStatusFilter: "all",
+    directoryLayout: "cards"
   };
 }
 

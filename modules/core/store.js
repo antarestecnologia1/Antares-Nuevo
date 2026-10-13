@@ -104,7 +104,8 @@ export let state = {
     permUserId: "",
     userStatusFilter: "all",
     userRoleFilter: "all",
-    companyStatusFilter: "all"
+    companyStatusFilter: "all",
+    directoryLayout: "cards"
   },
   adminUsersDrafts: {
     createUser: {},
