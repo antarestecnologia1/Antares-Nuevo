@@ -2372,7 +2372,7 @@ function bindPayrollPortalControls() {
           {
             type: "section",
             title: "Nuevo período contractual",
-            hint: "La fecha de ingreso no cambia. Se registrará un nuevo período y la fecha de renovación en la tabla."
+            hint: "La fecha de ingreso no cambia. El contrato anterior se archiva en Gestión documental y se genera el Word del nuevo período."
           },
           {
             name: "renewalDate",
@@ -2411,7 +2411,7 @@ function bindPayrollPortalControls() {
           {
             type: "custom",
             full: true,
-            html: `<label class="employee-contract-renewal-word"><input type="checkbox" name="generateWord" checked /><span>Generar contrato Word al confirmar</span></label>`
+            html: `<p class="employee-contract-renewal-word">Se archivará el contrato anterior y se descargará el Word del nuevo período. Ambos quedan en la carpeta del colaborador en Gestión documental.</p>`
           }
         ],
         afterMount: (formEl) => {
@@ -2454,14 +2454,28 @@ function bindPayrollPortalControls() {
             return false;
           }
           const result = await executeEmployeeContractRenewal(normalized, fields, {
-            contractHistory,
-            generateWord: String(payload.generateWord || "").toLowerCase() === "on" || payload.generateWord === true
+            contractHistory
           });
           if (!result.ok) {
             notify(String(result.message || "No se pudo completar la renovación."), "error");
             return false;
           }
-          notify("Contrato renovado. Fechas actualizadas sin modificar la fecha de ingreso.", "success");
+          const newWordFailed =
+            result.documents &&
+            result.documents.current &&
+            result.documents.current.ok === false &&
+            result.documents.current.skipped !== true;
+          if (newWordFailed) {
+            notify(
+              "Contrato renovado, pero no se pudo archivar el Word nuevo. Descárguelo de nuevo desde la ficha del colaborador.",
+              "warn"
+            );
+          } else {
+            notify(
+              "Contrato renovado. El Word anterior quedó archivado y se generó el del nuevo período.",
+              "success"
+            );
+          }
           renderPortalView();
           return true;
         }

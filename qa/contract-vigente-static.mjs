@@ -61,4 +61,23 @@ ok(
   "isFixedTermContractType expuesta en window"
 );
 
+ok(!gestionHumana.includes('name="generateWord"'), "renovación ya no tiene casilla opcional de Word");
+ok(
+  gestionHumana.includes("Se archivará el contrato anterior"),
+  "el modal informa archivo obligatorio del contrato anterior"
+);
+ok(renewalDomain.includes("archiveEmployeeContractRenewalPair"), "renovación archiva par anterior + nuevo");
+ok(!renewalDomain.includes("opts.generateWord"), "el Word de renovación ya no es opcional");
+ok(renewalDomain.includes("previousSnapshot"), "conserva el snapshot del contrato anterior");
+
+const gestionDocumental = read("modules/app/gestion-documental.js");
+ok(
+  gestionDocumental.includes("async function archiveEmployeeContractRenewalPair"),
+  "DMS expone archivo del par de contratos en renovación"
+);
+ok(
+  gestionDocumental.includes("window.archiveEmployeeContractRenewalPair"),
+  "DMS exporta archiveEmployeeContractRenewalPair"
+);
+
 console.log("contract-vigente-static.mjs: OK");

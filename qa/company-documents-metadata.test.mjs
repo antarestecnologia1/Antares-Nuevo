@@ -165,6 +165,7 @@ const windowExports = [
   "archivePayrollRunToEmployeeFolder",
   "archiveEmployeeHirePackageToFolder",
   "archiveEmployeeContractToFolder",
+  "archiveEmployeeContractRenewalPair",
   "archiveEmployeePhotoToFolder",
   "archiveEmployeeLaborLetterToFolder"
 ];
@@ -187,8 +188,8 @@ const importBlock = gestionJs.match(/} from "\.\.\/domain\/company-documents\.do
   : "";
 ok(importBlock.includes("normalizeCompanyDocumentRow"), "importa normalizador");
 ok(domainJs.includes("export function normalizeCompanyDocumentRow"), "dominio exporta normalizador");
-ok(indexHtml.includes("gestion-documental.js?v=20260814-dms-userfolder"), "cache-bust del JS actualizado");
-ok(indexHtml.includes('href="./styles/gestion-documental.css?v=20260814-dms-userfolder"'), "cache-bust del CSS actualizado");
+ok(indexHtml.includes("gestion-documental.js?v=20261013-renewal-archive"), "cache-bust del JS actualizado");
+ok(indexHtml.includes('href="./styles/gestion-documental.css?v=20260930f-fullname"'), "cache-bust del CSS actualizado");
 ok(
   !indexHtml.includes("gestion-documental.css?v=20260804-dms-pdfjs-preview"),
   "el CSS activo no queda en la versión anterior"

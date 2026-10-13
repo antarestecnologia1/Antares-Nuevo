@@ -1695,11 +1695,36 @@ async function discardAbsenceSupportDocument(absenceId) {
   }
 }
 
+function contractPeriodSignYmd(employee, fallback = "") {
+  return String(
+    fallback ||
+      employee?.contractVigenteStartDate ||
+      employee?.fecha_inicio_contrato_vigente ||
+      employee?.startDate ||
+      ""
+  )
+    .trim()
+    .slice(0, 10);
+}
+
+function triggerContractBlobDownload(built) {
+  if (!built?.blob || typeof document === "undefined") return false;
+  const url = URL.createObjectURL(built.blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = built.fileName || "contrato.docx";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  return true;
+}
+
 /**
  * Genera el Word oficial (misma plantilla y merge que Gestión humana / Contratación).
  * @returns {{ blob: Blob, fileName: string, kind: string, employee: object } | null}
  */
-async function buildContractBlobForEmployee(employee) {
+async function buildContractBlobForEmployee(employee, opts = {}) {
   const buildBlob = window.RecruitmentDomain?.buildEmployeeContractDocxBlob;
   if (typeof buildBlob !== "function") return null;
   try {
@@ -1721,9 +1746,10 @@ async function buildContractBlobForEmployee(employee) {
     if (Array.isArray(missing) && missing.length) {
       return { ok: false, skipped: true, message: `Faltan datos del contrato: ${missing.join(", ")}` };
     }
+    const signDate = contractPeriodSignYmd(emp, opts.signDate);
     const payload = payloadFn(emp, {
       contractTemplateKind: emp.contractTemplateKind,
-      signDate: emp.startDate || emp.contractVigenteStartDate
+      signDate
     });
     const built = await buildBlob(payload);
     if (!built?.blob) return null;
@@ -1747,7 +1773,7 @@ async function archiveEmployeeContractToFolder(employee, opts = {}) {
   if (!opts.force && hasHireDocMarker(marker)) return { ok: true, skipped: true };
 
   let built = opts.built && opts.built.blob ? opts.built : null;
-  if (!built) built = await buildContractBlobForEmployee(employee);
+  if (!built) built = await buildContractBlobForEmployee(employee, { signDate: signKey });
   if (!built?.blob) {
     return {
       ok: false,
@@ -1757,6 +1783,10 @@ async function archiveEmployeeContractToFolder(employee, opts = {}) {
   }
   const emp = built.employee || employee;
   const fileName = buildEmployeeContractCompanyFileName(emp, built.kind || emp.contractTemplateKind || "oficina", signKey);
+  const periodLabel = String(opts.periodLabel || "").trim();
+  const descBase = periodLabel
+    ? `Contrato laboral oficial · ${periodLabel} · plantilla ${built.kind || ""} · ${emp.name || ""}`
+    : `Contrato laboral oficial · plantilla ${built.kind || ""} · ${emp.name || ""}`;
   return archiveBlobToEmployeeFolder({
     employee: emp,
     blob: built.blob,
@@ -1764,8 +1794,38 @@ async function archiveEmployeeContractToFolder(employee, opts = {}) {
     mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     documentCategory: "contrato",
     marker,
-    description: `Contrato laboral oficial · plantilla ${built.kind || ""} · ${emp.name || ""}`
+    description: descBase
   });
+}
+
+/**
+ * Renovación: archiva el Word del período anterior (si aún no está) y genera +
+ * archiva el Word del nuevo período. Descarga el nuevo para firma.
+ */
+async function archiveEmployeeContractRenewalPair(previousEmployee, renewedEmployee, opts = {}) {
+  if (!renewedEmployee?.id) return { ok: false, skipped: true, message: "Colaborador sin identificador." };
+  const previousSign = contractPeriodSignYmd(previousEmployee);
+  const newSign = contractPeriodSignYmd(renewedEmployee, opts.signDate);
+  const previous = previousEmployee?.id
+    ? await archiveEmployeeContractToFolder(previousEmployee, {
+        signDate: previousSign,
+        periodLabel: previousSign ? `período anterior · ${previousSign}` : "período anterior"
+      })
+    : { ok: true, skipped: true };
+  const built = await buildContractBlobForEmployee(renewedEmployee, { signDate: newSign });
+  const current = await archiveEmployeeContractToFolder(renewedEmployee, {
+    signDate: newSign,
+    built: built?.blob ? built : undefined,
+    periodLabel: newSign ? `renovación · ${newSign}` : "renovación"
+  });
+  const downloaded = opts.download !== false && built?.blob ? triggerContractBlobDownload(built) : false;
+  return {
+    ok: Boolean(current?.ok),
+    previous,
+    current,
+    downloaded,
+    message: current?.ok ? "" : current?.message || previous?.message || ""
+  };
 }
 
 async function blobFromAvatarUrl(avatarUrl) {
@@ -2239,6 +2299,7 @@ if (typeof window !== "undefined") {
   window.discardAbsenceSupportDocument = discardAbsenceSupportDocument;
   window.archiveEmployeeHirePackageToFolder = archiveEmployeeHirePackageToFolder;
   window.archiveEmployeeContractToFolder = archiveEmployeeContractToFolder;
+  window.archiveEmployeeContractRenewalPair = archiveEmployeeContractRenewalPair;
   window.archiveEmployeePhotoToFolder = archiveEmployeePhotoToFolder;
   window.archiveEmployeeLaborLetterToFolder = archiveEmployeeLaborLetterToFolder;
   window.backfillEmployeeHireDocuments = backfillEmployeeHireDocuments;

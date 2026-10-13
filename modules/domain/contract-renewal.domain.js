@@ -30,7 +30,8 @@ export {
 };
 
 /**
- * Persiste renovación: empleado (sin tocar ingreso), nuevo registro en contratos y Word opcional.
+ * Persiste renovación: empleado (sin tocar ingreso), historial de contratos,
+ * archivo del Word anterior y generación del Word del nuevo período.
  */
 export function readEmployeeContractHistoryForRenewal(employeeId) {
   return getEmployeeContractHistory(employeeId, read(KEYS.contracts, []));
@@ -47,6 +48,7 @@ export async function executeEmployeeContractRenewal(employee, fields, opts = {}
   const idx = all.findIndex((row) => String(row.id) === String(employee.id));
   if (idx < 0) return { ok: false, message: "Colaborador no encontrado." };
 
+  const previousSnapshot = ensureEmployeeContractFields({ ...all[idx] });
   const saved = stampUpdatedRecord({ ...all[idx], ...renewed, id: all[idx].id });
   const nextList = all.map((row, i) => (i === idx ? saved : row));
   try {
@@ -63,21 +65,36 @@ export async function executeEmployeeContractRenewal(employee, fields, opts = {}
     notifyOnFailure: false
   });
 
-  if (opts.generateWord && typeof globalThis.generateOfficialWordContract === "function") {
-    try {
-      const payload =
+  let documents = null;
+  try {
+    if (typeof globalThis.archiveEmployeeContractRenewalPair === "function") {
+      documents = await globalThis.archiveEmployeeContractRenewalPair(previousSnapshot, saved, {
+        signDate: renewed.contractVigenteStartDate || renewed.renewalDate,
+        download: opts.downloadWord !== false
+      });
+    } else if (typeof globalThis.archiveEmployeeContractToFolder === "function") {
+      const previous = await globalThis.archiveEmployeeContractToFolder(previousSnapshot, {
+        signDate: previousSnapshot.contractVigenteStartDate || previousSnapshot.startDate,
+        periodLabel: "período anterior"
+      });
+      const current = await globalThis.archiveEmployeeContractToFolder(saved, {
+        signDate: renewed.contractVigenteStartDate || renewed.renewalDate,
+        periodLabel: "renovación"
+      });
+      documents = { ok: Boolean(current?.ok), previous, current };
+      if (
+        opts.downloadWord !== false &&
+        typeof globalThis.generateOfficialWordContract === "function" &&
         typeof globalThis.buildEmployeeContractDocxPayload === "function"
-          ? globalThis.buildEmployeeContractDocxPayload(saved, {
-              signDate: renewed.renewalDate
-            })
-          : null;
-      if (payload) await globalThis.generateOfficialWordContract(payload);
-      if (typeof globalThis.archiveEmployeeContractToFolder === "function") {
-        void globalThis.archiveEmployeeContractToFolder(saved);
+      ) {
+        const payload = globalThis.buildEmployeeContractDocxPayload(saved, {
+          signDate: renewed.renewalDate || renewed.contractVigenteStartDate
+        });
+        if (payload) await globalThis.generateOfficialWordContract(payload);
       }
-    } catch (_err) {
-      /* Word no bloquea la renovación */
     }
+  } catch (_err) {
+    /* El archivo Word no revierte la renovación ya persistida. */
   }
 
   if (typeof globalThis.propagateEmployeeChanges === "function") {
@@ -90,7 +107,8 @@ export async function executeEmployeeContractRenewal(employee, fields, opts = {}
   return {
     ok: true,
     employee: saved,
-    contract: contractResult.ok ? contractResult.contract : null
+    contract: contractResult.ok ? contractResult.contract : null,
+    documents
   };
 }
 
