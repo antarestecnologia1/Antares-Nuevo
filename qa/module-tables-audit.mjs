@@ -176,7 +176,7 @@ const MODULES = [
     viewId: "notifications",
     htmlFn: "notificationsHtml",
     files: ["modules/app/notificaciones.js", "modules/domain/notificaciones.domain.js"],
-    tablePatterns: ["ntf-bell-toggle", "toggleNotificationSoundMuted"],
+    tablePatterns: ["ntf-pref-toggle", "toggleNotificationSoundMuted"],
     bindPattern: "__portalModuleAfterRender.notifications",
     uiType: "settings"
   },

@@ -83,7 +83,19 @@ import {
   SARLAFT_PROFILE_EXPORT_COLUMNS,
   nextSarlaftPartyCode,
   computeSarlaftNextReviewDate,
-  addSarlaftFollowUp
+  addSarlaftFollowUp,
+  findDuplicateSarlaftParty,
+  findDuplicateSarlaftProfile,
+  evaluateSarlaftPartyCompleteness,
+  isSarlaftKycApprovable,
+  suggestSarlaftRiskLevel,
+  applySarlaftReviewClosureToParty,
+  sarlaftPartyPassesConsultFilters,
+  sarlaftAlertPassesConsultFilters,
+  sarlaftReviewPassesConsultFilters,
+  isSarlaftAlertOverdue,
+  buildSarlaftReviewExportRows,
+  SARLAFT_REVIEW_EXPORT_COLUMNS
 } from "../domain/sarlaft.domain.js?v=20260916-sarlaft-matrix";
 import {
   COMPANY_DOCUMENT_MAX_BYTES,
@@ -149,11 +161,78 @@ function getUi() {
       listSearch: "",
       listPage: 1,
       pageSize: PAGE_SIZE,
-      selectedPartyId: ""
+      selectedPartyId: "",
+      consultRisk: "",
+      consultKyc: "",
+      consultCompleteness: "",
+      consultAlertStatus: "",
+      consultSeverity: "",
+      consultOverdue: false,
+      consultReviewStatus: ""
     };
   }
   state.sarlaftUi.programFilter = normalizeSarlaftProgramFilter(state.sarlaftUi.programFilter);
+  state.sarlaftUi.consultRisk = String(state.sarlaftUi.consultRisk || "");
+  state.sarlaftUi.consultKyc = String(state.sarlaftUi.consultKyc || "");
+  state.sarlaftUi.consultCompleteness = String(state.sarlaftUi.consultCompleteness || "");
+  state.sarlaftUi.consultAlertStatus = String(state.sarlaftUi.consultAlertStatus || "");
+  state.sarlaftUi.consultSeverity = String(state.sarlaftUi.consultSeverity || "");
+  state.sarlaftUi.consultOverdue = state.sarlaftUi.consultOverdue === true || state.sarlaftUi.consultOverdue === "true";
+  state.sarlaftUi.consultReviewStatus = String(state.sarlaftUi.consultReviewStatus || "");
   return state.sarlaftUi;
+}
+
+function partyComplianceFromForm(data = {}) {
+  const asOn = (v) =>
+    v === true || v === 1 || ["true", "1", "t", "si", "sí", "on"].includes(String(v ?? "").trim().toLowerCase());
+  return {
+    listsChecked: asOn(data.listsChecked),
+    fundsDeclared: asOn(data.fundsDeclared),
+    beneficialOwner: data.beneficialOwner,
+    conflictDeclared: asOn(data.conflictDeclared),
+    ethicsAccepted: asOn(data.ethicsAccepted)
+  };
+}
+
+function assertSarlaftKycApprovable(partyLike, formEl, fieldName = "kycStatus") {
+  const check = isSarlaftKycApprovable(partyLike);
+  if (check.ok) return true;
+  const detail = (check.missing || []).map((m) => m.label).join("; ");
+  const msg = detail
+    ? `No se puede aprobar el conocimiento: falta ${detail}.`
+    : "No se puede aprobar el conocimiento: complete la debida diligencia.";
+  if (formEl) G.failPortalField?.(formEl, fieldName, msg);
+  else G.notify?.(msg, "error");
+  return false;
+}
+
+async function persistPartyAfterReviewClosure(review) {
+  if (!canMutateSarlaftParties()) return;
+  if (!review || review.status !== "cerrada" || !sarlaftReviewAdvancesSchedule(review.kind)) return;
+  const party = readParties().find((p) => String(p.id) === String(review.thirdPartyId || ""));
+  if (!party) return;
+  const profile = readProfiles().find((x) => String(x.id) === String(party.riskProfileId || ""));
+  const patched = applySarlaftReviewClosureToParty(party, review, profile, colombiaTodayIsoDate());
+  if (
+    patched.lastReviewDate === party.lastReviewDate &&
+    patched.nextReviewDate === party.nextReviewDate &&
+    patched.kycStatus === party.kycStatus
+  ) {
+    return;
+  }
+  const updated = stampUpdatedRecord(normalizeSarlaftThirdPartyRow({ ...patched, updatedBy: actorLabel() }));
+  const next = readParties().map((p) => (p.id === party.id ? updated : p));
+  await writeAwaitServerEdit(KEYS.sarlaftThirdParties, next, party.id);
+}
+
+function requireClosureDecision(status, decision, { requireForDesestimada = false } = {}) {
+  if (status === "cerrada" && !String(decision || "").trim()) {
+    return "Indique la decisión formal de cierre.";
+  }
+  if (requireForDesestimada && status === "desestimada" && !String(decision || "").trim()) {
+    return "Indique la decisión de desestimación.";
+  }
+  return "";
 }
 
 function patchUi(partial) {
@@ -782,7 +861,7 @@ function alertFormHtml(fieldLabel, IC, canMutate, program = "ambos") {
           <label>${fieldLabel(IC.alertTriangle, "Severidad", { required: true })}
             <select name="severity" required>${sarlaftCatalogOptionsHtml(SARLAFT_ALERT_SEVERITIES, "media")}</select>
           </label>
-          <label>${fieldLabel(IC.activity, "Estado")}<select name="status">${sarlaftCatalogOptionsHtml(SARLAFT_ALERT_STATUSES, "abierta")}</select></label>
+          <label>${fieldLabel(IC.activity, "Estado")}<select name="status" data-sarlaft-alert-status>${sarlaftCatalogOptionsHtml(SARLAFT_ALERT_STATUSES, "abierta")}</select></label>
           <label class="full">${fieldLabel(IC.file, "Título", { required: true })}
             <input name="title" required maxlength="255" placeholder="Resumen de la situación" />
           </label>
@@ -794,6 +873,12 @@ function alertFormHtml(fieldLabel, IC, canMutate, program = "ambos") {
             <select name="responsibleUserId"><option value="">Sin asignar</option>${userOptionsHtml()}</select>
           </label>
           <label>${fieldLabel(IC.hash, "Origen")}<input name="source" maxlength="120" placeholder="${escapeAttr(sourcePh)}" /></label>
+          <label data-sarlaft-closure-wrap hidden>${fieldLabel(IC.check, "Decisión de cierre")}
+            <select name="closureDecision"><option value="">Seleccione...</option>${sarlaftCatalogOptionsHtml(SARLAFT_CLOSURE_DECISIONS)}</select>
+          </label>
+          <label class="full" data-sarlaft-closure-wrap hidden>${fieldLabel(IC.file, "Notas de cierre")}
+            <textarea name="closureNotes" rows="2" placeholder="Conclusión formal del cierre"></textarea>
+          </label>
         </div>
       </fieldset>
       ${evidenceAttachHtml(fieldLabel, IC, {
@@ -950,26 +1035,37 @@ function sarlaftPteHtml() {
   });
   const kpis = summarizeSarlaft({ parties, alerts, reviews, todayYmd: today });
   const dueItems = collectSarlaftDueParties(parties, today);
+  const partyConsult = {
+    risk: ui.consultRisk,
+    kyc: ui.consultKyc,
+    completeness: ui.consultCompleteness
+  };
+  const alertConsult = {
+    alertStatus: ui.consultAlertStatus,
+    severity: ui.consultSeverity,
+    overdue: ui.consultOverdue ? true : undefined
+  };
+  const reviewConsult = { reviewStatus: ui.consultReviewStatus };
 
   const filteredParties = applySarlaftTextFilter(
-    parties,
+    parties.filter((p) => sarlaftPartyPassesConsultFilters(p, partyConsult)),
     listSearchNorm,
     (p) => `${p.code} ${p.name} ${p.documentNumber} ${p.nit} ${p.partyType} ${p.kycStatus} ${p.riskLevel} ${p.city} ${p.program}`
   );
   const filteredAlerts = applySarlaftTextFilter(
-    alerts,
+    alerts.filter((a) => sarlaftAlertPassesConsultFilters(a, alertConsult, today)),
     listSearchNorm,
     (a) => `${a.title} ${a.thirdPartyName} ${a.kind} ${a.status} ${a.severity} ${a.source} ${a.program}`
   );
   const filteredDue = applySarlaftTextFilter(
-    dueItems,
+    dueItems.filter((p) => sarlaftPartyPassesConsultFilters(p, partyConsult)),
     listSearchNorm,
     (p) => `${p.name} ${p.documentNumber} ${p.nextReviewDate} ${p.responsibleName}`
   );
   const filteredReviews = applySarlaftTextFilter(
-    reviews,
+    reviews.filter((r) => sarlaftReviewPassesConsultFilters(r, reviewConsult)),
     listSearchNorm,
-    (r) => `${r.thirdPartyName} ${r.kind} ${r.status} ${r.observations} ${r.responsibleName}`
+    (r) => `${r.thirdPartyName} ${r.kind} ${r.status} ${r.observations} ${r.responsibleName} ${r.closureDecision || ""}`
   );
 
   const activeSource =
@@ -996,8 +1092,9 @@ function sarlaftPteHtml() {
       ]
         .filter(Boolean)
         .join("");
+      const incomplete = !evaluateSarlaftPartyCompleteness(p).complete;
       return `<tr>
-        <td><strong>${escapeHtml(p.name)}</strong>${programFilter !== "pte" && p.pepFlag ? '<span class="sarlaft-pep-flag">PEP</span>' : ""}${programFilter !== "sarlaft" && p.conflictDeclared ? '<span class="sarlaft-pte-flag">Conflicto</span>' : ""} ${programChip(p.program)}<div class="sarlaft-party-cell"><small>${escapeHtml(p.code || "—")} · ${escapeHtml(p.documentType)} ${escapeHtml(p.documentNumber || "—")}</small></div></td>
+        <td><strong>${escapeHtml(p.name)}</strong>${programFilter !== "pte" && p.pepFlag ? '<span class="sarlaft-pep-flag">PEP</span>' : ""}${programFilter !== "sarlaft" && p.conflictDeclared ? '<span class="sarlaft-pte-flag">Conflicto</span>' : ""}${incomplete ? '<span class="sarlaft-incomplete-flag" title="Debida diligencia incompleta">Incompleto</span>' : ""} ${programChip(p.program)}<div class="sarlaft-party-cell"><small>${escapeHtml(p.code || "—")} · ${escapeHtml(p.documentType)} ${escapeHtml(p.documentNumber || "—")}</small></div></td>
         <td>${escapeHtml(sarlaftCatalogLabel(SARLAFT_PARTY_TYPES, p.partyType))}</td>
         <td>${riskChip(p.riskLevel)}</td>
         <td>${kycPill(p.kycStatus)}</td>
@@ -1010,6 +1107,7 @@ function sarlaftPteHtml() {
 
   const alertRows = (dataSection === "alerts" ? paged.items : filteredAlerts)
     .map((a) => {
+      const overdue = isSarlaftAlertOverdue(a, today);
       const more = [
         `<button type="button" class="sst-row-more__item" data-action="view-sarlaft-alert" data-id="${escapeAttr(a.id)}">${IC.eye || ""} Ver</button>`,
         canAlerts
@@ -1022,7 +1120,7 @@ function sarlaftPteHtml() {
         .filter(Boolean)
         .join("");
       return `<tr>
-        <td><strong>${escapeHtml(a.title)}</strong> ${programChip(a.program)}<div class="sarlaft-party-cell"><small>${escapeHtml(sarlaftCatalogLabel(SARLAFT_ALERT_KINDS, a.kind))} · ${escapeHtml(a.thirdPartyName || "—")}</small></div></td>
+        <td><strong>${escapeHtml(a.title)}</strong> ${programChip(a.program)}${overdue ? '<span class="sst-status-pill sst-status-pill--expired">Vencida</span>' : ""}<div class="sarlaft-party-cell"><small>${escapeHtml(sarlaftCatalogLabel(SARLAFT_ALERT_KINDS, a.kind))} · ${escapeHtml(a.thirdPartyName || "—")}</small></div></td>
         <td>${escapeHtml(sarlaftCatalogLabel(SARLAFT_ALERT_SEVERITIES, a.severity))}</td>
         <td>${alertStatusPill(a.status)}</td>
         <td>${escapeHtml(a.dueDate || "—")}</td>
@@ -1130,13 +1228,18 @@ function sarlaftPteHtml() {
     <div class="sst-due-grid">
       <article class="sst-due-card">
         <strong>${escapeHtml(copy.consultParties)} y conocimiento</strong>
-        <p class="muted">${kpis.parties} registros · ${kpis.pendingKyc} en ${escapeHtml(copy.kycLabel.toLowerCase())} · ${kpis.pepCount} PEP</p>
+        <p class="muted">${kpis.parties} registros · ${kpis.pendingKyc} en ${escapeHtml(copy.kycLabel.toLowerCase())} · ${kpis.incompleteKyc} incompletos · ${kpis.pepCount} PEP</p>
         <button type="button" class="btn btn-sm btn-primary" data-action="export-sarlaft-parties">${IC.download || ""} Exportar CSV</button>
       </article>
       <article class="sst-due-card">
         <strong>${escapeHtml(copy.consultAlerts)}</strong>
-        <p class="muted">${kpis.openAlerts} abiertas · ${kpis.criticalAlerts} de alta/crítica</p>
+        <p class="muted">${kpis.openAlerts} abiertas · ${kpis.overdueAlerts} vencidas · ${kpis.criticalAlerts} de alta/crítica</p>
         <button type="button" class="btn btn-sm btn-primary" data-action="export-sarlaft-alerts">${IC.download || ""} Exportar CSV</button>
+      </article>
+      <article class="sst-due-card">
+        <strong>${escapeHtml(copy.consultReviews)}</strong>
+        <p class="muted">${reviews.length} registros · ${kpis.openReviews} abiertas</p>
+        <button type="button" class="btn btn-sm btn-primary" data-action="export-sarlaft-reviews">${IC.download || ""} Exportar CSV</button>
       </article>
       <article class="sst-due-card">
         <strong>Perfiles parametrizados</strong>
@@ -1147,8 +1250,20 @@ function sarlaftPteHtml() {
   </div>`;
 
   const kpiCards = renderHrAlertCards([
-    { label: copy.kpiParties, value: kpis.parties, tone: "info", icon: IC.user || "", help: copy.partyHint },
-    { label: copy.kpiAlerts, value: kpis.openAlerts, tone: kpis.openAlerts ? "warn" : "ok", icon: IC.alertTriangle || "", help: "Requieren gestión" },
+    {
+      label: copy.kpiParties,
+      value: kpis.parties,
+      tone: kpis.incompleteKyc ? "warn" : "info",
+      icon: IC.user || "",
+      help: kpis.incompleteKyc ? `${kpis.incompleteKyc} con debida diligencia incompleta` : copy.partyHint
+    },
+    {
+      label: copy.kpiAlerts,
+      value: kpis.openAlerts,
+      tone: kpis.overdueAlerts || kpis.openAlerts ? "warn" : "ok",
+      icon: IC.alertTriangle || "",
+      help: kpis.overdueAlerts ? `${kpis.overdueAlerts} vencidas por fecha límite` : "Requieren gestión"
+    },
     { label: copy.kpiDue, value: kpis.dueReviews, tone: kpis.dueReviews ? "alert" : "ok", icon: IC.calendar || "", help: "Ventana 30 días" },
     { label: copy.kpiRisk, value: kpis.highRisk, tone: kpis.highRisk ? "warn" : "ok", icon: IC.shield || "", help: "Según matriz" }
   ]);
@@ -1248,13 +1363,58 @@ function sarlaftPteHtml() {
   </div>`
     : "";
 
+  const partyFiltersHtml = `<label class="sarlaft-consult-filter">Riesgo
+      <select data-action="sarlaft-consult-filter" data-filter="consultRisk">
+        <option value="">Todos</option>${sarlaftCatalogOptionsHtml(SARLAFT_RISK_LEVELS, ui.consultRisk)}
+      </select>
+    </label>
+    <label class="sarlaft-consult-filter">${escapeHtml(copy.kycLabel)}
+      <select data-action="sarlaft-consult-filter" data-filter="consultKyc">
+        <option value="">Todos</option>${sarlaftCatalogOptionsHtml(SARLAFT_KYC_STATUSES, ui.consultKyc)}
+      </select>
+    </label>
+    <label class="sarlaft-consult-filter">Completitud
+      <select data-action="sarlaft-consult-filter" data-filter="consultCompleteness">
+        <option value=""${ui.consultCompleteness ? "" : " selected"}>Todas</option>
+        <option value="incomplete"${ui.consultCompleteness === "incomplete" ? " selected" : ""}>Incompletos</option>
+        <option value="complete"${ui.consultCompleteness === "complete" ? " selected" : ""}>Completos</option>
+      </select>
+    </label>`;
+  const alertFiltersHtml = `<label class="sarlaft-consult-filter">Estado
+      <select data-action="sarlaft-consult-filter" data-filter="consultAlertStatus">
+        <option value="">Todos</option>${sarlaftCatalogOptionsHtml(SARLAFT_ALERT_STATUSES, ui.consultAlertStatus)}
+      </select>
+    </label>
+    <label class="sarlaft-consult-filter">Severidad
+      <select data-action="sarlaft-consult-filter" data-filter="consultSeverity">
+        <option value="">Todas</option>${sarlaftCatalogOptionsHtml(SARLAFT_ALERT_SEVERITIES, ui.consultSeverity)}
+      </select>
+    </label>
+    <label class="sarlaft-consult-filter sarlaft-consult-filter--check">
+      <input type="checkbox" data-action="sarlaft-consult-filter" data-filter="consultOverdue"${ui.consultOverdue ? " checked" : ""} />
+      Solo vencidas
+    </label>`;
+  const reviewFiltersHtml = `<label class="sarlaft-consult-filter">Estado
+      <select data-action="sarlaft-consult-filter" data-filter="consultReviewStatus">
+        <option value="">Todos</option>${sarlaftCatalogOptionsHtml(SARLAFT_REVIEW_STATUSES, ui.consultReviewStatus)}
+      </select>
+    </label>`;
+  const sectionFilters =
+    dataSection === "alerts"
+      ? alertFiltersHtml
+      : dataSection === "reviews"
+        ? reviewFiltersHtml
+        : dataSection === "parties" || dataSection === "due"
+          ? partyFiltersHtml
+          : "";
   const searchBar = `<div class="payroll-data-search-toolbar sst-consult-search-toolbar">
     <label class="payroll-data-search sst-consult-search">
       <span class="sst-consult-search__ico" aria-hidden="true">${IC.search || ""}</span>
       <input type="search" data-action="sarlaft-data-list-search" value="${escapeAttr(listSearchRaw)}" placeholder="${escapeAttr(copy.searchPlaceholder)}" autocomplete="off" />
     </label>
     <button type="button" class="btn btn-sm btn-outline sst-export-btn" data-action="export-sarlaft-current">${IC.download || ""} Exportar vista</button>
-  </div>`;
+  </div>
+  ${sectionFilters ? `<div class="sarlaft-consult-filters" role="group" aria-label="Filtros de consulta">${sectionFilters}</div>` : ""}`;
 
   const listPagination = dataSection === "reports" || dataSection === "matrix" ? "" : renderPagination(IC, paged);
   const dataPanel = `<div class="hr-workspace-panel payroll-workspace-panel${workspace === "data" ? "" : " hidden"}" role="tabpanel" data-sarlaft-panel="data"${workspace === "data" ? "" : " hidden"}>
@@ -1377,19 +1537,27 @@ function bindAlertKindProgram(form) {
   });
 }
 
-/** En el formulario de creación de Revisión: muestra los campos de cierre formal solo si el estado inicial ya es "cerrada". */
-function bindReviewClosureFields(form) {
-  const statusSel = form?.querySelector("[data-sarlaft-review-status]");
+/** Muestra campos de cierre formal en formularios de alta según el estado seleccionado. */
+function bindCreateClosureFields(form, statusSelector, isClosed) {
+  const statusSel = form?.querySelector(statusSelector);
   const wraps = form?.querySelectorAll("[data-sarlaft-closure-wrap]");
   if (!statusSel || !wraps?.length) return;
   const sync = () => {
-    const show = statusSel.value === "cerrada";
+    const show = isClosed(statusSel.value);
     wraps.forEach((el) => {
       el.hidden = !show;
     });
   };
   statusSel.addEventListener("change", sync);
   sync();
+}
+
+function bindReviewClosureFields(form) {
+  bindCreateClosureFields(form, "[data-sarlaft-review-status]", (status) => status === "cerrada");
+}
+
+function bindAlertClosureFields(form) {
+  bindCreateClosureFields(form, "[data-sarlaft-alert-status]", isSarlaftAlertClosedStatus);
 }
 
 function partyDetailHtml(party) {
@@ -1433,6 +1601,13 @@ function partyDetailHtml(party) {
     : "";
   const reviews = readReviews().filter((r) => r.thirdPartyId === party.id);
   const alerts = readAlerts().filter((a) => a.thirdPartyId === party.id);
+  const completeness = evaluateSarlaftPartyCompleteness(party);
+  const completenessBlock = completeness.complete
+    ? `<p class="sarlaft-completeness sarlaft-completeness--ok">Debida diligencia completa para aprobar conocimiento.</p>`
+    : `<div class="sarlaft-completeness sarlaft-completeness--warn">
+        <strong>Pendientes para aprobar conocimiento</strong>
+        <ul>${completeness.missing.map((m) => `<li>${escapeHtml(m.label)}</li>`).join("")}</ul>
+      </div>`;
   const sarlaftBlock = showSarlaft
     ? `<div class="sarlaft-detail-block sarlaft-detail-block--sarlaft">
         <h4>SARLAFT · conocimiento LA/FT</h4>
@@ -1455,10 +1630,11 @@ function partyDetailHtml(party) {
       </div>`
     : "";
   return `<div class="sarlaft-party-detail">
-    <p><strong>${escapeHtml(party.name)}</strong>${party.pepFlag ? ' <span class="sarlaft-pep-flag">PEP</span>' : ""}${party.conflictDeclared ? ' <span class="sarlaft-pte-flag">Conflicto</span>' : ""} · ${programChip(party.program)} ${riskChip(party.riskLevel)} ${kycPill(party.kycStatus)}</p>
+    <p><strong>${escapeHtml(party.name)}</strong>${party.pepFlag ? ' <span class="sarlaft-pep-flag">PEP</span>' : ""}${party.conflictDeclared ? ' <span class="sarlaft-pte-flag">Conflicto</span>' : ""}${completeness.complete ? "" : ' <span class="sarlaft-incomplete-flag">Incompleto</span>'} · ${programChip(party.program)} ${riskChip(party.riskLevel)} ${kycPill(party.kycStatus)}</p>
     <p class="muted">${escapeHtml(sarlaftCatalogLabel(SARLAFT_PARTY_TYPES, party.partyType))} · ${escapeHtml(party.documentType)} ${escapeHtml(party.documentNumber || "—")}</p>
     <p>${escapeHtml(showPte && !showSarlaft ? "Seguimiento ético" : "Debida diligencia")}: <strong>${escapeHtml(sarlaftCatalogLabel(SARLAFT_DUE_DILIGENCE_LEVELS, party.dueDiligenceLevel))}</strong> · Próxima revisión: <strong>${escapeHtml(party.nextReviewDate || "—")}</strong></p>
     <p>Responsable: ${escapeHtml(party.responsibleName || "—")}</p>
+    ${completenessBlock}
     ${sarlaftBlock}
     ${pteBlock}
     ${party.notes ? `<p>${escapeHtml(party.notes)}</p>` : ""}
@@ -1748,6 +1924,18 @@ function bindSarlaftPortalControls() {
     });
   }
 
+  nodes.viewRoot.querySelectorAll("[data-action='sarlaft-consult-filter']").forEach((el) => {
+    const key = String(el.dataset.filter || "").trim();
+    if (!key) return;
+    const apply = () => {
+      const value = el.type === "checkbox" ? Boolean(el.checked) : String(el.value || "");
+      patchUi({ [key]: value, listPage: 1, workspace: "data" });
+      persistHrWorkspace("sarlaft", "data");
+      G.renderPortalView?.();
+    };
+    el.addEventListener("change", apply);
+  });
+
   const partyForm = document.getElementById("form-sarlaft-party");
   if (partyForm) {
     bindProfileSelect(partyForm);
@@ -1760,33 +1948,42 @@ function bindSarlaftPortalControls() {
         G.failPortalField?.(partyForm, "name", "Indique nombre y documento del tercero.");
         return;
       }
+      const compliance = partyComplianceFromForm(data);
+      const dup = findDuplicateSarlaftParty(readParties(), {
+        documentType: data.documentType,
+        documentNumber: data.documentNumber,
+        nit: data.nit
+      });
+      if (dup) {
+        G.failPortalField?.(
+          partyForm,
+          "documentNumber",
+          `Ya existe un tercero con el mismo documento o NIT (${dup.name}).`
+        );
+        return;
+      }
       const profile = readProfiles().find((p) => String(p.id) === String(data.riskProfileId || ""));
-      const record = stampCreatedRecord(
-        normalizeSarlaftThirdPartyRow({
-          id: newUuidV4(),
-          code: nextSarlaftPartyCode(readParties()),
-          ...data,
-          pepFlag: String(data.pepFlag) === "true",
-          listsChecked: String(data.listsChecked) === "true",
-          fundsDeclared: String(data.fundsDeclared) === "true",
-          ethicsAccepted: String(data.ethicsAccepted) === "true",
-          conflictDeclared: String(data.conflictDeclared) === "true",
-          cumplimientoJson: serializeSarlaftCompliance({
-            listsChecked: String(data.listsChecked) === "true",
-            fundsDeclared: String(data.fundsDeclared) === "true",
-            beneficialOwner: data.beneficialOwner,
-            conflictDeclared: String(data.conflictDeclared) === "true",
-            ethicsAccepted: String(data.ethicsAccepted) === "true"
-          }),
-          responsibleName: findUserName(data.responsibleUserId),
-          riskLevel: data.riskLevel || profile?.level || "medio",
-          dueDiligenceLevel: data.dueDiligenceLevel || profile?.dueDiligenceLevel || "normal",
-          nextReviewDate:
-            data.nextReviewDate ||
-            (profile ? computeSarlaftNextReviewDate(profile, colombiaTodayIsoDate()) : colombiaTodayIsoDate()),
-          createdBy: actorLabel()
-        })
+      const suggestedRisk = suggestSarlaftRiskLevel(
+        { ...compliance, pepFlag: String(data.pepFlag) === "true", kycStatus: data.kycStatus },
+        data.riskLevel || profile?.level || "medio"
       );
+      const draft = normalizeSarlaftThirdPartyRow({
+        id: newUuidV4(),
+        code: nextSarlaftPartyCode(readParties()),
+        ...data,
+        pepFlag: String(data.pepFlag) === "true",
+        ...compliance,
+        cumplimientoJson: serializeSarlaftCompliance(compliance),
+        responsibleName: findUserName(data.responsibleUserId),
+        riskLevel: suggestedRisk,
+        dueDiligenceLevel: data.dueDiligenceLevel || profile?.dueDiligenceLevel || "normal",
+        nextReviewDate:
+          data.nextReviewDate ||
+          (profile ? computeSarlaftNextReviewDate(profile, colombiaTodayIsoDate()) : colombiaTodayIsoDate()),
+        createdBy: actorLabel()
+      });
+      if (!assertSarlaftKycApprovable(draft, partyForm)) return;
+      const record = stampCreatedRecord(draft);
       await writeAwaitServerCreate(KEYS.sarlaftThirdParties, [...readParties(), record], record);
       const attachedIds = await attachSarlaftEvidenceFiles({
         formEl: partyForm,
@@ -1816,6 +2013,7 @@ function bindSarlaftPortalControls() {
   if (alertForm) {
     bindSarlaftEvidencePicker(alertForm);
     bindAlertKindProgram(alertForm);
+    bindAlertClosureFields(alertForm);
     G.wireFormSubmitGuard?.(alertForm, async () => {
       if (!canMutateSarlaftAlerts()) return;
       const data = G.readFormEntriesNormalized?.(alertForm) || Object.fromEntries(new FormData(alertForm).entries());
@@ -1824,6 +2022,14 @@ function bindSarlaftPortalControls() {
         G.failPortalField?.(alertForm, "thirdPartyId", "Seleccione el tercero.");
         return;
       }
+      const closedOnCreate = isSarlaftAlertClosedStatus(data.status);
+      if (closedOnCreate) {
+        const closureErr = requireClosureDecision(data.status, data.closureDecision);
+        if (closureErr && data.status === "cerrada") {
+          G.notify?.(closureErr, "error");
+          return;
+        }
+      }
       const record = stampCreatedRecord(
         normalizeSarlaftAlertRow({
           id: newUuidV4(),
@@ -1831,6 +2037,15 @@ function bindSarlaftPortalControls() {
           program: data.program || inferSarlaftProgramFromKind(SARLAFT_ALERT_KINDS, data.kind, getUi().programFilter),
           thirdPartyName: party.name,
           responsibleName: findUserName(data.responsibleUserId),
+          closureDecision:
+            closedOnCreate && data.status === "desestimada" && !data.closureDecision
+              ? "desestimado"
+              : closedOnCreate
+                ? data.closureDecision
+                : "",
+          closureNotes: closedOnCreate ? data.closureNotes : "",
+          closedAt: closedOnCreate ? new Date().toISOString() : "",
+          closedBy: closedOnCreate ? actorLabel() : "",
           createdBy: actorLabel()
         })
       );
@@ -1872,6 +2087,13 @@ function bindSarlaftPortalControls() {
         return;
       }
       const closedOnCreate = data.status === "cerrada";
+      if (closedOnCreate) {
+        const closureErr = requireClosureDecision(data.status, data.closureDecision);
+        if (closureErr) {
+          G.failPortalField?.(reviewForm, "closureDecision", closureErr);
+          return;
+        }
+      }
       const record = stampCreatedRecord(
         normalizeSarlaftReviewRow({
           id: newUuidV4(),
@@ -1894,22 +2116,7 @@ function bindSarlaftPortalControls() {
       if (attachedIds.length && canMutateSarlaftParties()) {
         await mergePartyDocumentIds(party.id, attachedIds);
       }
-      if (sarlaftReviewAdvancesSchedule(record.kind) && record.status === "cerrada" && canMutateSarlaftParties()) {
-        const nextList = readParties().map((p) =>
-          p.id === party.id
-            ? stampUpdatedRecord({
-                ...p,
-                lastReviewDate: record.reviewedAt || colombiaTodayIsoDate(),
-                nextReviewDate: computeSarlaftNextReviewDate(
-                  readProfiles().find((x) => x.id === p.riskProfileId) || { reviewFrequencyDays: 180 },
-                  record.reviewedAt || colombiaTodayIsoDate()
-                )
-              })
-            : p
-        );
-        const updated = nextList.find((p) => p.id === party.id);
-        if (updated) await writeAwaitServerEdit(KEYS.sarlaftThirdParties, nextList, updated.id);
-      }
+      if (closedOnCreate) await persistPartyAfterReviewClosure(record);
       auditSarlaft(
         "create",
         record.id,
@@ -1931,6 +2138,11 @@ function bindSarlaftPortalControls() {
     G.wireFormSubmitGuard?.(profileForm, async () => {
       if (!canMutateSarlaftProfiles()) return;
       const data = G.readFormEntriesNormalized?.(profileForm) || Object.fromEntries(new FormData(profileForm).entries());
+      const dupProfile = findDuplicateSarlaftProfile(readProfiles(), { code: data.code });
+      if (dupProfile) {
+        G.failPortalField?.(profileForm, "code", `Ya existe un perfil con el código ${dupProfile.code}.`);
+        return;
+      }
       const record = stampCreatedRecord(
         normalizeSarlaftRiskProfileRow({
           id: newUuidV4(),
@@ -2064,16 +2276,32 @@ function bindSarlaftPortalControls() {
         submitText: "Guardar",
         fields,
         onSubmit: async (form) => {
+          const compliance = partyComplianceFromForm({
+            listsChecked: form.listsChecked ?? target.listsChecked,
+            fundsDeclared: form.fundsDeclared ?? target.fundsDeclared,
+            beneficialOwner: form.beneficialOwner ?? target.beneficialOwner,
+            conflictDeclared: form.conflictDeclared ?? target.conflictDeclared,
+            ethicsAccepted: form.ethicsAccepted ?? target.ethicsAccepted
+          });
+          const candidate = normalizeSarlaftThirdPartyRow({
+            ...target,
+            ...form,
+            ...compliance,
+            pepFlag: form.pepFlag != null ? String(form.pepFlag) === "true" : target.pepFlag,
+            cumplimientoJson: serializeSarlaftCompliance(compliance),
+            riskLevel: suggestSarlaftRiskLevel(
+              {
+                ...compliance,
+                pepFlag: form.pepFlag != null ? String(form.pepFlag) === "true" : target.pepFlag,
+                kycStatus: form.kycStatus || target.kycStatus
+              },
+              form.riskLevel || target.riskLevel
+            ),
+            updatedBy: actorLabel()
+          });
+          if (!assertSarlaftKycApprovable(candidate)) return false;
           const next = readParties().map((p) =>
-            p.id === target.id
-              ? stampUpdatedRecord(
-                  normalizeSarlaftThirdPartyRow({
-                    ...p,
-                    ...form,
-                    updatedBy: actorLabel()
-                  })
-                )
-              : p
+            p.id === target.id ? stampUpdatedRecord(candidate) : p
           );
           await writeAwaitServerEdit(KEYS.sarlaftThirdParties, next, target.id);
           auditSarlaft("update", target.id, target.name, `Actualización KYC ${form.kycStatus || target.kycStatus}`);
@@ -2135,13 +2363,20 @@ function bindSarlaftPortalControls() {
         },
         onSubmit: async (form) => {
           const closed = isSarlaftAlertClosedStatus(form.status);
+          let closureDecision = closed ? form.closureDecision : "";
+          if (closed && form.status === "desestimada" && !closureDecision) closureDecision = "desestimado";
+          const closureErr = requireClosureDecision(form.status, closureDecision);
+          if (closureErr) {
+            G.notify?.(closureErr, "error");
+            return false;
+          }
           const next = readAlerts().map((a) =>
             a.id === target.id
               ? stampUpdatedRecord(
                   normalizeSarlaftAlertRow({
                     ...a,
                     ...form,
-                    closureDecision: closed ? form.closureDecision : "",
+                    closureDecision,
                     closureNotes: closed ? form.closureNotes : "",
                     closedAt: closed ? a.closedAt || new Date().toISOString() : "",
                     closedBy: closed ? a.closedBy || actorLabel() : "",
@@ -2155,7 +2390,7 @@ function bindSarlaftPortalControls() {
             "update",
             target.id,
             target.title,
-            closed ? `Cerrada · ${sarlaftCatalogLabel(SARLAFT_CLOSURE_DECISIONS, form.closureDecision) || form.status}` : `Estado ${form.status}`
+            closed ? `Cerrada · ${sarlaftCatalogLabel(SARLAFT_CLOSURE_DECISIONS, closureDecision) || form.status}` : `Estado ${form.status}`
           );
           G.notify?.("Alerta actualizada.", "success");
           G.renderPortalView?.();
@@ -2240,22 +2475,25 @@ function bindSarlaftPortalControls() {
         },
         onSubmit: async (form) => {
           const closed = form.status === "cerrada";
-          const next = readReviews().map((r) =>
-            r.id === target.id
-              ? stampUpdatedRecord(
-                  normalizeSarlaftReviewRow({
-                    ...r,
-                    ...form,
-                    closureDecision: closed ? form.closureDecision : "",
-                    closureNotes: closed ? form.closureNotes : "",
-                    closedAt: closed ? r.closedAt || new Date().toISOString() : "",
-                    closedBy: closed ? r.closedBy || actorLabel() : "",
-                    updatedBy: actorLabel()
-                  })
-                )
-              : r
+          const closureErr = requireClosureDecision(form.status, form.closureDecision);
+          if (closureErr) {
+            G.notify?.(closureErr, "error");
+            return false;
+          }
+          const updatedReview = stampUpdatedRecord(
+            normalizeSarlaftReviewRow({
+              ...target,
+              ...form,
+              closureDecision: closed ? form.closureDecision : "",
+              closureNotes: closed ? form.closureNotes : "",
+              closedAt: closed ? target.closedAt || new Date().toISOString() : "",
+              closedBy: closed ? target.closedBy || actorLabel() : "",
+              updatedBy: actorLabel()
+            })
           );
+          const next = readReviews().map((r) => (r.id === target.id ? updatedReview : r));
           await writeAwaitServerEdit(KEYS.sarlaftReviews, next, target.id);
+          if (closed) await persistPartyAfterReviewClosure(updatedReview);
           auditSarlaft(
             "update",
             target.id,
@@ -2421,6 +2659,11 @@ function bindSarlaftPortalControls() {
           { name: "criteria", label: "Criterios / metodología", type: "textarea", value: target.criteria, rows: 3, required: true }
         ],
         onSubmit: async (form) => {
+          const dupProfile = findDuplicateSarlaftProfile(readProfiles(), { code: form.code }, target.id);
+          if (dupProfile) {
+            G.notify?.(`Ya existe un perfil con el código ${dupProfile.code}.`, "error");
+            return false;
+          }
           const next = readProfiles().map((p) =>
             p.id === target.id
               ? stampUpdatedRecord(normalizeSarlaftRiskProfileRow({ ...p, ...form, updatedBy: actorLabel() }))
@@ -2436,22 +2679,39 @@ function bindSarlaftPortalControls() {
     });
   });
 
-  const exportParties = () => {
+  const exportParties = (rows) => {
     const program = normalizeSarlaftProgramFilter(getUi().programFilter);
     const prefix = program === "pte" ? "pte_contrapartes" : program === "sarlaft" ? "sarlaft_terceros" : "sarlaft_pte_terceros";
     downloadCsv(
       `${prefix}_${colombiaTodayIsoDate()}.csv`,
-      buildSarlaftPartyExportRows(filterSarlaftByProgram(readParties(), program), readProfiles()),
+      buildSarlaftPartyExportRows(rows || filterSarlaftByProgram(readParties(), program), readProfiles()),
       SARLAFT_PARTY_EXPORT_COLUMNS
     );
   };
-  const exportAlerts = () => {
+  const exportAlerts = (rows) => {
     const program = normalizeSarlaftProgramFilter(getUi().programFilter);
     const prefix = program === "pte" ? "pte_incidentes" : program === "sarlaft" ? "sarlaft_alertas" : "sarlaft_pte_alertas";
     downloadCsv(
       `${prefix}_${colombiaTodayIsoDate()}.csv`,
-      buildSarlaftAlertExportRows(filterSarlaftByProgram(readAlerts(), program)),
+      buildSarlaftAlertExportRows(rows || filterSarlaftByProgram(readAlerts(), program)),
       SARLAFT_ALERT_EXPORT_COLUMNS
+    );
+  };
+  const exportReviews = (rows) => {
+    const program = normalizeSarlaftProgramFilter(getUi().programFilter);
+    const partiesById = new Map(readParties().map((p) => [String(p.id), p]));
+    const scoped =
+      rows ||
+      filterSarlaftByProgram(readReviews(), program, (r) => {
+        const party = partiesById.get(String(r.thirdPartyId || ""));
+        if (party) return party.program;
+        return inferSarlaftProgramFromKind(SARLAFT_REVIEW_KINDS, r.kind, "ambos");
+      });
+    const prefix = program === "pte" ? "pte_seguimientos" : program === "sarlaft" ? "sarlaft_revisiones" : "sarlaft_pte_revisiones";
+    downloadCsv(
+      `${prefix}_${colombiaTodayIsoDate()}.csv`,
+      buildSarlaftReviewExportRows(scoped),
+      SARLAFT_REVIEW_EXPORT_COLUMNS
     );
   };
   const exportProfiles = () => {
@@ -2464,10 +2724,13 @@ function bindSarlaftPortalControls() {
     );
   };
   nodes.viewRoot.querySelectorAll("[data-action='export-sarlaft-parties']").forEach((btn) => {
-    btn.addEventListener("click", exportParties);
+    btn.addEventListener("click", () => exportParties());
   });
   nodes.viewRoot.querySelectorAll("[data-action='export-sarlaft-alerts']").forEach((btn) => {
-    btn.addEventListener("click", exportAlerts);
+    btn.addEventListener("click", () => exportAlerts());
+  });
+  nodes.viewRoot.querySelectorAll("[data-action='export-sarlaft-reviews']").forEach((btn) => {
+    btn.addEventListener("click", () => exportReviews());
   });
   nodes.viewRoot.querySelectorAll("[data-action='export-sarlaft-profiles']").forEach((btn) => {
     btn.addEventListener("click", exportProfiles);
@@ -2475,9 +2738,52 @@ function bindSarlaftPortalControls() {
   nodes.viewRoot.querySelectorAll("[data-action='export-sarlaft-current']").forEach((btn) => {
     btn.addEventListener("click", () => {
       const section = normalizeSarlaftDataSection(getUi().dataSection);
-      if (section === "alerts") exportAlerts();
-      else if (section === "matrix") exportProfiles();
-      else exportParties();
+      const program = normalizeSarlaftProgramFilter(getUi().programFilter);
+      const today = colombiaTodayIsoDate();
+      const uiNow = getUi();
+      if (section === "alerts") {
+        exportAlerts(
+          filterSarlaftByProgram(readAlerts(), program).filter((a) =>
+            sarlaftAlertPassesConsultFilters(
+              a,
+              {
+                alertStatus: uiNow.consultAlertStatus,
+                severity: uiNow.consultSeverity,
+                overdue: uiNow.consultOverdue ? true : undefined
+              },
+              today
+            )
+          )
+        );
+      } else if (section === "reviews") {
+        exportReviews(
+          filterSarlaftByProgram(readReviews(), program, (r) => {
+            const party = readParties().find((p) => String(p.id) === String(r.thirdPartyId || ""));
+            return party?.program || inferSarlaftProgramFromKind(SARLAFT_REVIEW_KINDS, r.kind, "ambos");
+          }).filter((r) => sarlaftReviewPassesConsultFilters(r, { reviewStatus: uiNow.consultReviewStatus }))
+        );
+      } else if (section === "due") {
+        exportParties(
+          collectSarlaftDueParties(filterSarlaftByProgram(readParties(), program), today).filter((p) =>
+            sarlaftPartyPassesConsultFilters(p, {
+              risk: uiNow.consultRisk,
+              kyc: uiNow.consultKyc,
+              completeness: uiNow.consultCompleteness
+            })
+          )
+        );
+      } else if (section === "matrix") exportProfiles();
+      else {
+        exportParties(
+          filterSarlaftByProgram(readParties(), program).filter((p) =>
+            sarlaftPartyPassesConsultFilters(p, {
+              risk: uiNow.consultRisk,
+              kyc: uiNow.consultKyc,
+              completeness: uiNow.consultCompleteness
+            })
+          )
+        );
+      }
     });
   });
 

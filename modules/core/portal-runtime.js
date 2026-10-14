@@ -20,6 +20,7 @@ import {
   inferLicenseIssueDateFromExpiryYmd,
   COMPLIANCE_DUE_SOON_DAYS
 } from "../domain/driver-compliance-vigencia.domain.js";
+import { vehicleHasActiveGps } from "../domain/vehicles.logic.js";
 
 // Enlaces léxicos (módulo estricto; `IC` sigue viniendo del script `portal-icons.js`).
 const ALL_PERMISSIONS = __pr.ALL_PERMISSIONS;
@@ -1404,6 +1405,31 @@ function positionLooksLikeConductor(position) {
   return /conductor/i.test(String(position.name || ""));
 }
 
+/** Muestra el paso de conductor solo si el cargo lo es, y exige licencia real (no un campo `licenseExpiry` que el formulario no tiene). */
+function syncEmployeeFormConductorStep(form, position) {
+  const conductorBlock = form?.querySelector?.("#hr-conductor-fields");
+  const skipNote = form?.querySelector?.("#hr-conductor-skip-note");
+  const isDriver = Boolean(position) && positionLooksLikeConductor(position);
+  if (conductorBlock) {
+    conductorBlock.classList.toggle("hidden", !isDriver);
+    if (isDriver) conductorBlock.removeAttribute("hidden");
+    else conductorBlock.setAttribute("hidden", "hidden");
+    conductorBlock.querySelectorAll("input, select, textarea").forEach((inp) => {
+      const name = String(inp.getAttribute("name") || "");
+      if (!["license", "licenseCategory", "licenseIssueDate"].includes(name)) return;
+      if (isDriver) inp.setAttribute("required", "required");
+      else inp.removeAttribute("required");
+    });
+  }
+  if (skipNote) {
+    skipNote.classList.toggle("hidden", isDriver);
+    skipNote.toggleAttribute("hidden", isDriver);
+    skipNote.textContent = position
+      ? "Este cargo no es de conductor. Puede guardar el expediente sin datos de licencia."
+      : "Elija el cargo en el paso Contrato. Si es conductor, aquí se pedirán licencia, categoría y fecha de expedición.";
+  }
+}
+
 /** Etiquetas visibles para `CO_CATALOGS.driverVehicleTypes` (mismos valores de `vehiculos.tipo_vehiculo`). */
 const DRIVER_VEHICLE_TYPE_LABELS = { Camion: "Cami\u00f3n", Turbo: "Turbo", Tractomula: "Mula", Bus: "Bus" };
 /** Alias operativos → valor de catálogo (`vehiculos.tipo_vehiculo` / `conductores.tipos_vehiculo`). */
@@ -1565,11 +1591,7 @@ function applyPositionCatalogToEmployeeForm(form, position, options = {}) {
       hintEl.textContent =
         "Seleccione un cargo del catálogo para cargar salario, tipo de contrato, jornada, riesgo ARL y auxilio de transporte.";
     }
-    const conductorBlock = form.querySelector("#hr-conductor-fields");
-    if (conductorBlock) {
-      conductorBlock.classList.remove("hidden");
-      conductorBlock.removeAttribute("hidden");
-    }
+    syncEmployeeFormConductorStep(form, null);
     return false;
   }
 
@@ -1598,22 +1620,7 @@ function applyPositionCatalogToEmployeeForm(form, position, options = {}) {
     templateEl.value = window.RecruitmentDomain.inferTemplateKind(contractType, wr);
   }
 
-  const conductorBlock = form.querySelector("#hr-conductor-fields");
-  if (conductorBlock) {
-    const isDriver = wr === "conductor";
-    conductorBlock.classList.toggle("hidden", !isDriver);
-    if (isDriver) conductorBlock.removeAttribute("hidden");
-    else conductorBlock.setAttribute("hidden", "hidden");
-    conductorBlock.querySelectorAll("input, select").forEach((inp) => {
-      const name = String(inp.getAttribute("name") || "");
-      if (!name) return;
-      if (isDriver && ["license", "licenseCategory", "licenseExpiry"].includes(name)) {
-        inp.setAttribute("required", "required");
-      } else if (["license", "licenseCategory", "licenseExpiry"].includes(name)) {
-        inp.removeAttribute("required");
-      }
-    });
-  }
+  syncEmployeeFormConductorStep(form, position);
 
   if (hintEl) {
     const integral =
@@ -1979,7 +1986,7 @@ function applyCandidateToEmployeeForm(form, candidate) {
   };
   setDate("birthDate", String(candidate.birthDate || "").slice(0, 10));
   setVal("select[name='educationLevel']", candidate.educationLevel);
-  setVal("input[name='phone']", candidate.phone);
+  setVal("input[name='phone']", portalPhoneNationalDigitsForForm(candidate.phone));
   setVal("input[name='personalEmail']", candidate.email);
   setVal("input[name='address']", candidate.address);
   setDate("startDate", colombiaTodayIsoDate());
@@ -2001,6 +2008,9 @@ function applyCandidateToEmployeeForm(form, candidate) {
     hintEl.textContent = `Datos precargados desde candidato «${String(candidate.name || "").trim()}». Complete seguridad social, banco y demás campos obligatorios antes de guardar.`;
   }
   form.dataset.prefillCandidateId = String(candidate.id || "");
+  if (typeof window.AntaresContratacionDomain?.applyOfferTermsToEmployeeForm === "function") {
+    window.AntaresContratacionDomain.applyOfferTermsToEmployeeForm(form, candidate);
+  }
   return true;
 }
 
@@ -3132,31 +3142,26 @@ function buildRouteRateEntry(value, companyIds, previousEntry = null, ts = nowIs
   };
 }
 
-/** SOAT y tecnomecánica: al cambiar fecha de expedición, sugerir vencimiento un año después. */
+/** SOAT y tecnomecánica: al cambiar la expedición, proponer vencimiento a un año. No pisa un vencimiento ya escrito al salir del campo. */
 function bindVehicleDocExpiryAutoFill(formEl) {
   if (!formEl || typeof formEl.querySelector !== "function") return;
-  const soatExpEl = queryPortalDateField(formEl, "soatExpeditionDate");
-  const soatVenEl = queryPortalDateField(formEl, "soatExpiryDate");
-  if (soatExpEl && soatVenEl) {
-    const syncSoat = () => {
-      const iso = readFormDateIso(formEl, "soatExpeditionDate");
+  const wirePair = (expeditionName, expiryName) => {
+    const expeditionEl = queryPortalDateField(formEl, expeditionName);
+    const expiryEl = queryPortalDateField(formEl, expiryName);
+    if (!expeditionEl || !expiryEl) return;
+    const sync = (event) => {
+      const iso = readFormDateIso(formEl, expeditionName);
       const next = addCalendarYearsIsoDate(iso, 1);
-      if (next) window.AntaresValidation?.portalDateInputSetIso?.(soatVenEl, next);
+      if (!next) return;
+      const current = readFormDateIso(formEl, expiryName);
+      if (event?.type === "blur" && current) return;
+      window.AntaresValidation?.portalDateInputSetIso?.(expiryEl, next);
     };
-    soatExpEl.addEventListener("change", syncSoat);
-    soatExpEl.addEventListener("blur", syncSoat);
-  }
-  const techExpEl = queryPortalDateField(formEl, "techInspectionExpeditionDate");
-  const techVenEl = queryPortalDateField(formEl, "techInspectionExpiryDate");
-  if (techExpEl && techVenEl) {
-    const syncTech = () => {
-      const iso = readFormDateIso(formEl, "techInspectionExpeditionDate");
-      const next = addCalendarYearsIsoDate(iso, 1);
-      if (next) window.AntaresValidation?.portalDateInputSetIso?.(techVenEl, next);
-    };
-    techExpEl.addEventListener("change", syncTech);
-    techExpEl.addEventListener("blur", syncTech);
-  }
+    expeditionEl.addEventListener("change", sync);
+    expeditionEl.addEventListener("blur", sync);
+  };
+  wirePair("soatExpeditionDate", "soatExpiryDate");
+  wirePair("techInspectionExpeditionDate", "techInspectionExpiryDate");
 }
 
 /** Texto legible para valores guardados desde `datetime-local` (YYYY-MM-DDTHH:mm). */
@@ -6100,11 +6105,26 @@ function openTripInvoicePdf(requestId) {
 async function setVehicleAvailability(vehicleId, available) {
   const id = String(vehicleId || "").trim();
   const vehicles = read(KEYS.vehicles, []);
-  const updatedTs = nowIso();
-  const next = vehicles.map((v) =>
-    String(v.id || "").trim() === id ? { ...v, available: Boolean(available), updatedAt: updatedTs } : v
-  );
+  const current = vehicles.find((v) => String(v.id || "").trim() === id);
+  if (!current) throw new Error("No se encontró el vehículo.");
+  const nextRow = stampUpdatedRecord({
+    ...current,
+    available: Boolean(available)
+  });
+  const next = vehicles.map((v) => (String(v.id || "").trim() === id ? nextRow : v));
   await writeAwaitServerEdit(KEYS.vehicles, next, id);
+  try {
+    appendPortalEntityAuditLog(
+      "update",
+      "vehicles",
+      "Camiones",
+      nextRow,
+      `${nextRow.available ? "Disponible" : "No disponible"} · estado operativo`,
+      { entityLabel: String(nextRow.plate || "Camión").toUpperCase() }
+    );
+  } catch (_err) {
+    /* La disponibilidad ya quedó guardada. */
+  }
 }
 
 function findPortalVehicleById(vehicleId) {
@@ -6178,7 +6198,7 @@ function openVehicleTechnicalSheetModal(vehicle) {
     parseNum(v.capacityKg) > 0 ? `${parseNum(v.capacityKg).toLocaleString("es-CO")} kg` : "Sin dato";
   const mileageLbl =
     parseNum(v.mileageKm) > 0 ? `${parseNum(v.mileageKm).toLocaleString("es-CO")} km` : "Sin dato";
-  const hasGps = !(v.hasGps === false || String(v.hasGps).toLowerCase() === "false");
+  const hasGps = vehicleHasActiveGps(v);
   const termoChip = isRefrigerated
     ? '<span class="status status-viaje_asignado">Termoking</span>'
     : '<span class="status status-pendiente">Carga seca</span>';
@@ -6356,14 +6376,64 @@ function openVehicleTechnicalSheetModal(vehicle) {
         ]
       }
     ],
-    secondaryActionsHtml: isAdminActor()
+    extraHtml: `<section class="vehicles-simit-sheet" data-simit-sheet="${escapeAttr(plate)}" aria-label="Fotomultas y comparendos SIMIT">
+      <h4 class="vehicles-simit-sheet__title">${IC.shield || ""} Fotomultas y comparendos SIMIT</h4>
+      <p class="muted vehicles-simit-status">Consultando el historial SIMIT-FCM para ${escapeHtml(plate)}…</p>
+    </section>`,
+    secondaryActionsHtml: canEditVehicle()
       ? `<button type="button" class="btn btn-action" data-vehicle-sheet-action="edit">${IC.edit} Editar vehículo</button>`
       : "",
     afterMount: (contentEl) => {
       contentEl.querySelector("[data-vehicle-sheet-action='edit']")?.addEventListener("click", () => {
-        nodes.viewRoot?.querySelector(`[data-action='edit-vehicle'][data-id="${escapeAttr(String(v.id || ""))}"]`)?.click();
+        const vehicleId = String(v.id || "");
+        const escapedId = typeof CSS !== "undefined" && CSS.escape ? CSS.escape(vehicleId) : vehicleId.replace(/"/g, "");
+        nodes.viewRoot?.querySelector(`[data-action="edit-vehicle"][data-id="${escapedId}"]`)?.click();
       });
+      mountVehicleSimitSheet(contentEl, plate);
     }
+  });
+}
+
+function mountVehicleSimitSheet(contentEl, plate) {
+  const host = contentEl?.querySelector("[data-simit-sheet]");
+  if (!host) return;
+  const D = window.AntaresSimitFinesDomain;
+  const safePlate = String(plate || "").trim().toUpperCase();
+  if (!D?.fetchSimitFinesByPlates) {
+    host.innerHTML = `<h4 class="vehicles-simit-sheet__title">${IC.shield || ""} Fotomultas y comparendos SIMIT</h4><p class="muted">La consulta SIMIT no está disponible. Recargue la página.</p>`;
+    return;
+  }
+  const loadSimit = async () => {
+    const api = window.AntaresApi;
+    if (api?.isConfigured?.() && typeof api.getJson === "function") {
+      try {
+        const params = new URLSearchParams();
+        params.set("plates", safePlate);
+        params.set("pendingOnly", "0");
+        const data = await api.getJson(`/portal/simit-fines?${params.toString()}`, { timeoutMs: 25000 });
+        if (data?.ok) return data;
+      } catch (_apiErr) {
+        /* fallback al proxy/datos.gov.co */
+      }
+    }
+    return D.fetchSimitFinesByPlates([safePlate], { pendingOnly: false });
+  };
+  void loadSimit().then((result) => {
+    if (!host.isConnected) return;
+    if (!result?.ok) {
+      host.innerHTML = `<h4 class="vehicles-simit-sheet__title">${IC.shield || ""} Fotomultas y comparendos SIMIT</h4><p class="muted">${escapeHtml(result?.error || "No se pudo consultar SIMIT.")}</p>`;
+      return;
+    }
+    const rows = Array.isArray(result.rows) ? result.rows : [];
+    const pending = rows.filter((row) => row.pending);
+    const pendingValue = pending.reduce((sum, row) => sum + (Number(row.value) || 0), 0);
+    const chip = pending.length
+      ? `<span class="status status-rechazada">${pending.length} pendiente${pending.length === 1 ? "" : "s"} · ${escapeHtml(D.formatSimitMoney(pendingValue))}</span>`
+      : `<span class="status status-viaje_asignado">Sin comparendos pendientes en este corte</span>`;
+    const sourceUrl = D.SIMIT_PORTAL_URL || "https://www.datos.gov.co/Funci-n-P-blica/Historial-de-Multas-reportados-en-el-SIMIT-FCM/72nf-y4v3";
+    host.innerHTML = `<h4 class="vehicles-simit-sheet__title">${IC.shield || ""} Fotomultas y comparendos SIMIT ${chip}</h4>
+      ${D.simitFineRowsTableHtml(rows)}
+      <p class="muted vehicles-simit-disclaimer">Fuente: <a href="${escapeAttr(sourceUrl)}" target="_blank" rel="noopener noreferrer">Historial SIMIT-FCM</a> en datos.gov.co (2019-2025). El conjunto no distingue fotomultas de otras infracciones.</p>`;
   });
 }
 
@@ -8608,7 +8678,7 @@ function historyFleetFuelFormHtml(todayIsoDate, vehicleOptions, driverOptions) {
         <label>${fieldLabel(IC.activity, "Litros", { required: true })}<input type="number" step="0.01" min="0.01" name="liters" required data-fuel-liters-input="1" /></label>
         ${historyFleetMoneyField("totalCost", "Valor total (COP)", { required: true })}
         <label>${fieldLabel(IC.clock, "Odómetro (km)")}<input type="number" min="0" name="odometerKm" inputmode="numeric" /></label>
-        <label>${fieldLabel(IC.mapPin, "Estación / EDS")}<input name="station" placeholder="EDS Roscombustible…" autocomplete="off" /></label>
+        <label>${fieldLabel(IC.mapPin, "Estación / EDS")}<input name="station" placeholder="Ej.: Terpel, Primax, Biomax" autocomplete="off" /></label>
         <label>${fieldLabel(IC.briefcase, "Pagado por")}
           <select name="paidBy">
             <option value="empresa">Empresa</option>
@@ -10134,14 +10204,14 @@ function reportPreviewEscHandler(event) {
 }
 
 function openReportPreviewModal(report) {
-  const exportFilters = normalizeReportsExportFilters(state.reportsUi?.exportFilters || { period: state.reportsUi?.period || "90d" });
+  const exportFilters = normalizeReportsExportFilters(state.reportsUi?.exportFilters || { period: state.reportsUi?.period || "all" });
   const payload = {
     title: report?.title || "Reporte",
     columns: report?.columns || [],
     rows: report?.rows || [],
     fileName: report?.fileName || "reporte.pdf",
     reportId: String(report?.reportId || "").trim(),
-    period: exportFilters.period || "90d"
+    period: exportFilters.period || "all"
   };
   state.reportPreviewPayload = payload;
   const modal = ensureReportPreviewModal();
@@ -10266,8 +10336,224 @@ function requestFunnelStageDescription(status) {
   return descriptions[status] || "Estado operativo registrado en el portal.";
 }
 
-function buildReportDataset(reportId, actor = currentUser(), filters = null) {
+function reportsReadList(key) {
+  const rows = read(key, []);
+  return Array.isArray(rows) ? rows : [];
+}
+
+function reportsRequestTrip(request) {
+  if (!request || typeof request !== "object") return null;
+  if (request.trip && typeof request.trip === "object" && !Array.isArray(request.trip)) {
+    return request.trip;
+  }
+  const tripNumber = String(request.tripNumber || request.numeroViaje || "").trim();
+  const vehiclePlate = String(request.vehiclePlate || request.vehicle_plate || "").trim();
+  const driverName = String(request.driverName || request.driver_name || "").trim();
+  const operational = [
+    STATUS.VIAJE_ASIGNADO,
+    STATUS.EN_TRANSITO,
+    STATUS.ESPERA_STANDBY,
+    STATUS.COMPLETADA,
+    STATUS.CERRADA
+  ].includes(request.status);
+  if (!tripNumber && !vehiclePlate && !driverName && !operational) return null;
+  return {
+    tripNumber: tripNumber || request.requestNumber || request.id || "-",
+    vehiclePlate: vehiclePlate || "-",
+    vehicleId: request.vehicleId || request.vehicle_id || "",
+    vehicleType: request.vehicleType || "",
+    driverName: driverName || "-",
+    driverId: request.driverId || request.driver_id || "",
+    assignedAt: request.assignedAt || request.approvedAt || request.createdAt,
+    etaDelivery: request.etaDelivery || request.deliveryAt || "",
+    invoice: request.invoice || null
+  };
+}
+
+function reportsRequestHasTrip(request) {
+  return Boolean(reportsRequestTrip(request));
+}
+
+function reportsOpenContext(actor, filters) {
   const exportFilters = normalizeReportsExportFilters(filters || state.reportsUi?.exportFilters);
+  let visible = [];
+  try {
+    visible = typeof getVisibleRequestsForUser === "function" ? getVisibleRequestsForUser(actor) : [];
+  } catch (_e) {
+    visible = [];
+  }
+  const rawAll = typeof reqRead === "function" ? reqRead() : reportsReadList(KEYS.requests);
+  const source = Array.isArray(visible) && visible.length ? visible : Array.isArray(rawAll) ? rawAll : [];
+  let requests = reportsFilterByPeriod(source, exportFilters.period);
+  let expanded = false;
+  if (!requests.length && exportFilters.period !== "all" && source.length) {
+    requests = source;
+    expanded = true;
+  }
+  const period = expanded ? "all" : exportFilters.period;
+  const ctx = {
+    actor,
+    exportFilters: { ...exportFilters, period },
+    period,
+    expanded,
+    requests,
+    sourceRequests: source,
+    vehicles: reportsReadList(KEYS.vehicles),
+    drivers: reportsReadList(KEYS.drivers),
+    companies: reportsReadList(KEYS.companies),
+    employees: reportsReadList(KEYS.payrollEmployees),
+    users: reportsReadList(KEYS.users),
+    payrollRunsAll: reportsReadList(KEYS.payrollRuns),
+    candidates: reportsReadList(KEYS.candidates),
+    interviews: reportsReadList(KEYS.interviews),
+    contracts: reportsReadList(KEYS.contracts),
+    vacancies: reportsReadList(KEYS.vacancies),
+    sst: reportsReadList(KEYS.sstCompliance),
+    approvals: reportsReadList(KEYS.approvals),
+    fuel: typeof readFuelLogs === "function" ? readFuelLogs() : reportsReadList(KEYS.fuelLogs),
+    maint: typeof readVehicleTechnicalLogs === "function" ? readVehicleTechnicalLogs() : reportsReadList(KEYS.vehicleTechnicalLogs),
+    companyDocs: reportsReadList(KEYS.companyDocuments).filter((doc) => !doc?.deletedAt),
+    employeeDocs: reportsReadList(KEYS.employeeDocuments),
+    sarlaft: reportsReadList(KEYS.sarlaftThirdParties),
+    absences: reportsReadList(KEYS.hrAbsences)
+  };
+  ctx.vehicles = reportsVehiclesForReport(ctx);
+  ctx.drivers = reportsDriversForReport(ctx);
+  ctx.companies = reportsCompaniesForReport(ctx);
+  ctx.employees = reportsEmployeesForReport(ctx);
+  return ctx;
+}
+
+function reportsVehiclesForReport(ctx) {
+  if (ctx.vehicles.length) return ctx.vehicles;
+  const byPlate = {};
+  ctx.sourceRequests.forEach((request) => {
+    const trip = reportsRequestTrip(request);
+    const plate = String(trip?.vehiclePlate || "").trim();
+    if (!plate || plate === "-") return;
+    if (!byPlate[plate]) {
+      byPlate[plate] = {
+        id: trip.vehicleId || plate,
+        plate,
+        type: trip.vehicleType || request.vehicleType || "-",
+        available: true,
+        capacityKg: parseNum(request.capacityKg || 0)
+      };
+    }
+  });
+  return Object.values(byPlate);
+}
+
+function reportsDriversForReport(ctx) {
+  if (ctx.drivers.length) return ctx.drivers;
+  const byName = {};
+  ctx.sourceRequests.forEach((request) => {
+    const trip = reportsRequestTrip(request);
+    const name = String(trip?.driverName || "").trim();
+    if (!name || name === "-") return;
+    if (!byName[name]) {
+      byName[name] = {
+        id: trip.driverId || name,
+        name,
+        idDoc: "",
+        phone: trip.driverPhone || request.driverPhone || "",
+        companyId: request.clientCompanyId || ""
+      };
+    }
+  });
+  return Object.values(byName);
+}
+
+function reportsCompaniesForReport(ctx) {
+  if (ctx.companies.length) return ctx.companies;
+  const byKey = {};
+  ctx.sourceRequests.forEach((request) => {
+    const id = String(request.clientCompanyId || request.companyId || request.clientName || "").trim();
+    const name = String(request.clientName || request.companyName || "Cliente").trim();
+    if (!id && !name) return;
+    const key = id || name;
+    if (!byKey[key]) {
+      byKey[key] = {
+        id: id || key,
+        name,
+        taxId: request.clientTaxId || request.nit || "",
+        companyKind: "cliente",
+        active: true
+      };
+    }
+  });
+  return Object.values(byKey);
+}
+
+function reportsEmployeesForReport(ctx) {
+  if (ctx.employees.length) return ctx.employees;
+  const fromUsers = (ctx.users || [])
+    .filter((user) => user && String(user.role || "") !== "client")
+    .map((user) => ({
+      id: user.id || user.email || user.name,
+      name: user.name || user.email || "Colaborador",
+      idDoc: user.idDoc || user.documentNumber || "",
+      documentType: user.documentType || "CC",
+      workerRole: user.role || user.position || "-",
+      positionName: user.position || user.role || "-",
+      contractType: user.contractType || "-",
+      baseSalary: parseNum(user.baseSalary || 0),
+      city: user.city || "-",
+      startDate: user.systemJoinDate || user.registeredAt || user.createdAt || "",
+      eps: user.eps || "-",
+      arl: user.arl || "-",
+      status: user.accountStatus || "Activo"
+    }));
+  if (fromUsers.length) return fromUsers;
+  return reportsDriversForReport(ctx).map((driver) => ({
+    id: driver.id,
+    name: driver.name,
+    idDoc: driver.idDoc || "",
+    documentType: "CC",
+    workerRole: "Conductor",
+    positionName: "Conductor",
+    contractType: "-",
+    baseSalary: 0,
+    city: "-",
+    startDate: "",
+    eps: "-",
+    arl: "-",
+    status: "Activo"
+  }));
+}
+
+function reportsPeriodItems(ctx, items, pickDateValue) {
+  const filtered = reportsFilterItemsByPeriod(items, ctx.period, pickDateValue);
+  if (filtered.length || ctx.period === "all") return filtered;
+  return Array.isArray(items) ? items : [];
+}
+
+function reportsFinalizeDataset(report, ctx) {
+  if (!report || typeof report !== "object") return report;
+  const rows = Array.isArray(report.rows) ? report.rows : [];
+  if (rows.length) return report;
+  return {
+    ...report,
+    columns: [
+      { key: "category", label: "Categoría" },
+      { key: "metric", label: "Métrica" },
+      { key: "value", label: "Valor" },
+      { key: "detail", label: "Detalle" }
+    ],
+    rows: [
+      { category: "Operación", metric: "Solicitudes en el corte", value: ctx.requests.length, detail: ctx.expanded ? "Corte ampliado a histórico" : "Periodo seleccionado" },
+      { category: "Operación", metric: "Solicitudes visibles", value: ctx.sourceRequests.length, detail: "Inventario operativo de su perfil" },
+      { category: "Operación", metric: "Vehículos", value: ctx.vehicles.length, detail: "Flota registrada" },
+      { category: "Operación", metric: "Conductores", value: ctx.drivers.length, detail: "Plantilla operativa" },
+      { category: "RRHH", metric: "Colaboradores", value: ctx.employees.length, detail: "Gestión humana" },
+      { category: "Finanzas", metric: "Liquidaciones de nómina", value: ctx.payrollRunsAll.length, detail: "Histórico de nómina" },
+      { category: "Finanzas", metric: "Empresas / clientes", value: ctx.companies.length, detail: "Directorio comercial" },
+      { category: "Cumplimiento", metric: "Documentos de empresa", value: ctx.companyDocs.length, detail: "Gestión documental" }
+    ]
+  };
+}
+
+function buildReportDataset(reportId, actor = currentUser(), filters = null) {
   if (!canAccessReport(actor, reportId)) {
     return {
       title: "Reporte restringido",
@@ -10276,26 +10562,35 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
       fileName: "reporte_restringido.csv"
     };
   }
-  const requests = reportsFilterByPeriod(reqRead(), exportFilters.period);
+  const ctx = reportsOpenContext(actor, filters);
+  return reportsFinalizeDataset(reportsBuildCatalogDataset(reportId, actor, ctx), ctx);
+}
+
+function reportsBuildCatalogDataset(reportId, actor, ctx) {
+  const exportFilters = ctx.exportFilters;
+  const requests = ctx.requests;
   if (reportId === "executive_control_tower") {
-    const trips = requests.filter((request) => request.trip);
+    const trips = requests.filter((request) => reportsRequestHasTrip(request));
     const closedTrips = requests.filter((request) => [STATUS.COMPLETADA, STATUS.CERRADA].includes(request.status));
     const pendingApprovals = requests.filter((request) => request.status === STATUS.PENDIENTE).length;
-    const sstControls = reportsFilterItemsByPeriod(read(KEYS.sstCompliance, []), exportFilters.period, (item) => item.dueDate || item.createdAt);
-    const payrollRuns = reportsFilterItemsByPeriod(read(KEYS.payrollRuns, []), exportFilters.period, (run) => run.paidAt || run.createdAt || `${run.month || ""}-01`);
-    const contracts = reportsFilterItemsByPeriod(read(KEYS.contracts, []), exportFilters.period, (item) => item.createdAt || item.generatedAt || item.signedAt);
+    const sstControls = reportsPeriodItems(ctx, ctx.sst, (item) => item.dueDate || item.createdAt);
+    const payrollRuns = reportsPeriodItems(ctx, ctx.payrollRunsAll, (run) => run.paidAt || run.createdAt || `${run.month || ""}-01`);
+    const contracts = reportsPeriodItems(ctx, ctx.contracts, (item) => item.createdAt || item.generatedAt || item.signedAt);
     const totalRevenue = requests.reduce((acc, request) => acc + deriveRequestOperationalValue(request), 0);
     const paidPayroll = payrollRuns.filter((run) => run.paid).reduce((acc, run) => acc + parseNum(run.net), 0);
-    const openApprovals = reportsFilterItemsByPeriod(read(KEYS.approvals, []), exportFilters.period, (approval) => approval.requestedAt || approval.reviewedAt || approval.createdAt)
+    const openApprovals = reportsPeriodItems(ctx, ctx.approvals, (approval) => approval.requestedAt || approval.reviewedAt || approval.createdAt)
       .filter((approval) => approval.status === "pendiente").length;
     const rows = [
-      { metric: "Solicitudes totales", value: requests.length, detail: "Acumulado histórico", category: "Operación" },
+      { metric: "Solicitudes totales", value: requests.length, detail: ctx.expanded ? "Histórico (corte ampliado)" : "Acumulado del periodo", category: "Operación" },
       { metric: "Solicitudes pendientes", value: pendingApprovals, detail: "Esperando gestión operativa", category: "Operación" },
       { metric: "Viajes cerrados", value: closedTrips.length, detail: `${trips.length} viajes creados`, category: "Operación" },
+      { metric: "Flota registrada", value: ctx.vehicles.length, detail: `${ctx.drivers.length} conductores`, category: "Operación" },
       { metric: "Ingresos operativos estimados", value: totalRevenue, detail: "Incluye standby e invoice", category: "Finanzas" },
       { metric: "Nómina neta pagada", value: paidPayroll, detail: `${payrollRuns.length} liquidaciones`, category: "Finanzas" },
+      { metric: "Colaboradores en plantilla", value: ctx.employees.length, detail: `${contracts.length} contratos`, category: "RRHH" },
       { metric: "Contratos emitidos", value: contracts.length, detail: "Formalización laboral", category: "RRHH" },
       { metric: "Controles SST activos", value: sstControls.length, detail: "Seguridad social y documental", category: "Cumplimiento" },
+      { metric: "Documentos de empresa", value: ctx.companyDocs.length, detail: "Gestión documental vigente", category: "Cumplimiento" },
       { metric: "Aprobaciones abiertas", value: openApprovals, detail: "Solicitudes por decidir", category: "Gobierno" }
     ];
     return {
@@ -10311,8 +10606,8 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
     };
   }
   if (reportId === "service_levels") {
-    const rows = requests
-      .filter((request) => request.trip)
+    const scoped = requests.filter((request) => reportsRequestHasTrip(request));
+    const rows = (scoped.length ? scoped : requests)
       .map((request) => {
         const expectedDelivery = requestExpectedDeliveryDate(request);
         const actualDelivery = requestActualDeliveryDate(request);
@@ -10321,10 +10616,10 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
         const delayMinutes = slaDelayMinutesForRequest(request);
         return {
           requestNumber: request.requestNumber || request.id,
-          tripNumber: request.trip?.tripNumber || "-",
+          tripNumber: reportsRequestTrip(request)?.tripNumber || "-",
           client: request.clientName || "-",
           route: formatRoute(request),
-          assignedAt: fmtDate(request.trip?.assignedAt || request.approvedAt || request.createdAt),
+          assignedAt: fmtDate(reportsRequestTrip(request)?.assignedAt || request.approvedAt || request.createdAt),
           etaDelivery: expectedDelivery ? fmtDate(expectedDelivery) : "-",
           deliveredAt: actualDelivery ? fmtDate(actualDelivery) : "-",
           status: prettyStatus(request.status, "request").replace(/<[^>]+>/g, ""),
@@ -10355,10 +10650,16 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
     };
   }
   if (reportId === "fleet_summary") {
-    const activeTrips = getActiveTrips();
-    const busyVehicleIds = new Set(activeTrips.map((r) => String(r.trip?.vehicleId || "")).filter(Boolean));
-    const rows = read(KEYS.vehicles, []).map((vehicle) => {
-      const trips = requests.filter((r) => r.trip?.vehicleId === vehicle.id);
+    const vehicles = reportsVehiclesForReport(ctx);
+    const activeTrips = typeof getActiveTrips === "function" ? getActiveTrips() : requests.filter((r) => tripRequestStatusIsOperational(r.status));
+    const busyVehicleIds = new Set(
+      activeTrips.map((r) => String(reportsRequestTrip(r)?.vehicleId || "")).filter(Boolean)
+    );
+    const rows = vehicles.map((vehicle) => {
+      const trips = requests.filter((r) => {
+        const trip = reportsRequestTrip(r);
+        return String(trip?.vehicleId || "") === String(vehicle.id || "") || String(trip?.vehiclePlate || "").trim() === String(vehicle.plate || "").trim();
+      });
       const activeTripsForVehicle = trips.filter((r) => tripRequestStatusIsOperational(r.status)).length;
       const completed = trips.filter((r) => [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status)).length;
       const closurePct = reportPercent(completed, trips.length, 1);
@@ -10404,14 +10705,16 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
     };
   }
   if (reportId === "trips_operations") {
-    const rows = requests.filter((r) => r.trip).map((request) => {
+    const scoped = requests.filter((r) => reportsRequestHasTrip(r));
+    const rows = (scoped.length ? scoped : requests).map((request) => {
+      const trip = reportsRequestTrip(request) || {};
       const actualDelivery = requestActualDeliveryDate(request);
       return {
-        tripNumber: request.trip.tripNumber,
+        tripNumber: trip.tripNumber || request.requestNumber || request.id,
         requestNumber: request.requestNumber || request.id,
         client: request.clientName,
-        driver: request.trip.driverName,
-        vehicle: request.trip.vehiclePlate,
+        driver: trip.driverName || "-",
+        vehicle: trip.vehiclePlate || "-",
         route: formatRoute(request),
         serviceMode: normalizeRequestTransportMode(request.serviceType),
         thermoking: requestRequiresTermoking(request) ? "Sí" : "No",
@@ -10420,8 +10723,8 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
         cycleHours: actualDelivery ? hoursBetween(request.createdAt, actualDelivery) : "-",
         operationalValue: parseNum(deriveRequestOperationalValue(request)),
         standbyValue: parseNum(request.standbyChargeTotal || 0),
-        invoiceNumber: request.trip?.invoice?.number || "-",
-        assignedAt: fmtDate(request.trip.assignedAt || request.approvedAt || request.createdAt),
+        invoiceNumber: trip.invoice?.number || request.invoice?.number || "-",
+        assignedAt: fmtDate(trip.assignedAt || request.approvedAt || request.createdAt),
         deliveredAt: actualDelivery ? fmtDate(actualDelivery) : "-"
       };
     });
@@ -10460,7 +10763,7 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
       status: prettyStatus(request.status, "request").replace(/<[^>]+>/g, ""),
       approvedBy: request.approvedBy || "-",
       approvalMinutes: request.approvedAt ? minutesBetween(request.createdAt, request.approvedAt) : "-",
-      hasTrip: request.trip ? "Sí" : "No",
+      hasTrip: reportsRequestHasTrip(request) ? "Sí" : "No",
       createdAt: fmtDate(request.createdAt),
       approvedAt: request.approvedAt ? fmtDate(request.approvedAt) : "-",
       lifecycleNote: requestLifecycleSummary(request)
@@ -10487,8 +10790,11 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
     };
   }
   if (reportId === "drivers_performance") {
-    const rows = read(KEYS.drivers, []).map((driver) => {
-      const trips = requests.filter((r) => r.trip?.driverId === driver.id);
+    const rows = reportsDriversForReport(ctx).map((driver) => {
+      const trips = requests.filter((r) => {
+        const trip = reportsRequestTrip(r);
+        return String(trip?.driverId || "") === String(driver.id || "") || String(trip?.driverName || "").trim() === String(driver.name || "").trim();
+      });
       const licenseDays = daysUntil(driver.licenseExpiry);
       const activeTrips = trips.filter((r) => tripRequestStatusIsOperational(r.status)).length;
       const completedTrips = trips.filter((r) => [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status)).length;
@@ -10531,9 +10837,9 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
     };
   }
   if (reportId === "payroll_summary") {
-    const payrollRuns = reportsFilterItemsByPeriod(read(KEYS.payrollRuns, []), exportFilters.period, (run) => run.paidAt || run.createdAt || `${run.month || ""}-01`);
-    const hrAbsences = read(KEYS.hrAbsences, []);
-    const rows = payrollRuns.map((run) => {
+    const payrollRuns = reportsPeriodItems(ctx, ctx.payrollRunsAll, (run) => run.paidAt || run.createdAt || `${run.month || ""}-01`);
+    const hrAbsences = ctx.absences;
+    const mappedRuns = payrollRuns.map((run) => {
       const inc = run.noveltiesDetail?.incapacity;
       const incapacityAdjust = inc ? parseNum(inc.totalAdjustCop) : 0;
       const incapacitySummary =
@@ -10559,6 +10865,23 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
         status: run.paid ? "Pagado" : "Pendiente"
       };
     });
+    const rows = mappedRuns.length
+      ? mappedRuns
+      : reportsEmployeesForReport(ctx).map((employee) => ({
+          month: "-",
+          employee: employee.name || "-",
+          gross: parseNum(employee.baseSalary || 0),
+          incapacityAdjust: 0,
+          incapacitySummary: "",
+          absenceSummary: "",
+          travelAllowance: 0,
+          fuelReimbursement: 0,
+          deductions: 0,
+          net: parseNum(employee.baseSalary || 0),
+          paidAt: "-",
+          paidApprovedBy: "-",
+          status: "Sin liquidación en el corte"
+        }));
     return {
       title: "Consolidado de nómina",
       columns: [
@@ -10581,10 +10904,10 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
     };
   }
   if (reportId === "hiring_pipeline") {
-    const interviews = read(KEYS.interviews, []);
-    const contracts = reportsFilterItemsByPeriod(read(KEYS.contracts, []), exportFilters.period, (item) => item.createdAt || item.generatedAt || item.signedAt);
-    const candidates = reportsFilterItemsByPeriod(read(KEYS.candidates, []), exportFilters.period, (candidate) => candidate.createdAt);
-    const rows = candidates.map((candidate) => {
+    const interviews = ctx.interviews;
+    const contracts = reportsPeriodItems(ctx, ctx.contracts, (item) => item.createdAt || item.generatedAt || item.signedAt);
+    const candidates = reportsPeriodItems(ctx, ctx.candidates, (candidate) => candidate.createdAt);
+    const mappedCandidates = candidates.map((candidate) => {
       const ai = portalCandidateAgeFromBirthIso(candidate.birthDate);
       const interviewCount = interviews.filter((item) => String(item.candidateId || "") === String(candidate.id)).length;
       const contract = contracts.find((item) => String(item.candidateId || "") === String(candidate.id));
@@ -10605,6 +10928,39 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
         createdAt: fmtDate(candidate.createdAt)
       };
     });
+    const vacancyRows = (ctx.vacancies || []).map((vacancy) => ({
+      name: "-",
+      vacancy: vacancy.title || vacancy.name || "-",
+      source: vacancy.source || "Vacante abierta",
+      status: vacancy.status || "Abierta",
+      birthDate: "-",
+      ageYears: "-",
+      expCargoYears: parseNum(vacancy.experienceYears || 0),
+      expectedSalary: parseNum(vacancy.salary || vacancy.expectedSalary || 0),
+      interviewCount: 0,
+      hasInterview: "No",
+      hasContract: "No",
+      contractDate: "-",
+      stageAgeDays: 0,
+      createdAt: fmtDate(vacancy.createdAt)
+    }));
+    const hiredRows = reportsEmployeesForReport(ctx).map((employee) => ({
+      name: employee.name || "-",
+      vacancy: employee.workerRole || employee.positionName || "-",
+      source: "Plantilla vigente",
+      status: "Contratado",
+      birthDate: "-",
+      ageYears: "-",
+      expCargoYears: 0,
+      expectedSalary: parseNum(employee.baseSalary || 0),
+      interviewCount: 0,
+      hasInterview: "No",
+      hasContract: "Sí",
+      contractDate: employee.startDate || "-",
+      stageAgeDays: 0,
+      createdAt: fmtDate(employee.startDate || employee.createdAt)
+    }));
+    const rows = mappedCandidates.length ? mappedCandidates : vacancyRows.length ? vacancyRows : hiredRows;
     return {
       title: "Gestión de selección y contratación",
       columns: [
@@ -10628,9 +10984,9 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
     };
   }
   if (reportId === "labor_compliance") {
-    const employees = read(KEYS.payrollEmployees, []);
-    const records = reportsFilterItemsByPeriod(read(KEYS.sstCompliance, []), exportFilters.period, (item) => item.dueDate || item.completionDate || item.createdAt);
-    const rows = records.map((item) => {
+    const employees = reportsEmployeesForReport(ctx);
+    const records = reportsPeriodItems(ctx, ctx.sst, (item) => item.dueDate || item.completionDate || item.createdAt);
+    const mappedRecords = records.map((item) => {
       const employee = employees.find((row) => String(row.id || "") === String(item.employeeId || ""));
       const dueDays = Number.isFinite(daysUntil(item.dueDate)) ? daysUntil(item.dueDate) : null;
       return {
@@ -10647,6 +11003,21 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
         createdAt: fmtDate(item.createdAt)
       };
     });
+    const rows = mappedRecords.length
+      ? mappedRecords
+      : employees.map((employee) => ({
+          employee: employee.name || "-",
+          employeeDoc: employee.idDoc || "-",
+          control: "Afiliaciones de seguridad social",
+          provider: [employee.eps, employee.arl].filter((v) => v && v !== "-").join(" / ") || "-",
+          completionDate: employee.startDate || "-",
+          dueDate: "-",
+          daysToDue: "-",
+          riskLevel: "Sin control SST registrado",
+          status: employee.status || "Activo",
+          documentCode: "-",
+          createdAt: fmtDate(employee.startDate || employee.createdAt)
+        }));
     return {
       title: "Cumplimiento laboral y SST",
       columns: [
@@ -10667,12 +11038,8 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
     };
   }
   if (reportId === "sarlaft_pte") {
-    const parties = reportsFilterItemsByPeriod(
-      read(KEYS.sarlaftThirdParties, []),
-      exportFilters.period,
-      (item) => item.nextReviewDate || item.updatedAt || item.createdAt
-    );
-    const rows = parties.map((item) => ({
+    const parties = reportsPeriodItems(ctx, ctx.sarlaft, (item) => item.nextReviewDate || item.updatedAt || item.createdAt);
+    const mappedParties = parties.map((item) => ({
       code: item.code || "-",
       name: item.name || "-",
       partyType: item.partyType || "-",
@@ -10686,6 +11053,22 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
       responsible: item.responsibleName || "-",
       createdAt: fmtDate(item.createdAt)
     }));
+    const rows = mappedParties.length
+      ? mappedParties
+      : reportsCompaniesForReport(ctx).map((company) => ({
+          code: company.id || "-",
+          name: company.name || "-",
+          partyType: company.companyKind || "cliente",
+          document: company.taxId || company.nit || "-",
+          program: "SARLAFT / PTE",
+          riskLevel: "Pendiente de perfilar",
+          kycStatus: "En directorio comercial",
+          dueDiligence: "Por iniciar",
+          pep: "No",
+          nextReview: "-",
+          responsible: "-",
+          createdAt: fmtDate(company.createdAt)
+        }));
     return {
       title: "SARLAFT / PTE",
       columns: [
@@ -10707,16 +11090,16 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
     };
   }
   if (reportId === "users_access") {
-    const users = reportsFilterItemsByPeriod(read(KEYS.users, []), exportFilters.period, (user) => user.systemJoinDate || user.registeredAt || user.createdAt);
+    const users = ctx.users.length ? ctx.users : reportsEmployeesForReport(ctx);
     const rows = users.map((user) => ({
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      company: getCompanyById(user.companyId)?.name || user.company || "-",
-      status: user.accountStatus || "aprobado",
+      name: user.name || "-",
+      email: user.email || "-",
+      role: user.role || user.workerRole || "-",
+      company: (typeof getCompanyById === "function" ? getCompanyById(user.companyId)?.name : "") || user.company || "-",
+      status: user.accountStatus || user.status || "aprobado",
       permissions: (user.permissions || []).length,
-      source: user.source || "portal_db",
-      joinDate: fmtDate(user.systemJoinDate || user.registeredAt || user.createdAt)
+      source: user.source || (user.email ? "portal_db" : "plantilla"),
+      joinDate: fmtDate(user.systemJoinDate || user.registeredAt || user.startDate || user.createdAt)
     }));
     return {
       title: "Gobierno de usuarios y accesos",
@@ -10735,8 +11118,8 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
     };
   }
   if (reportId === "authorizations_traceability") {
-    const approvals = reportsFilterItemsByPeriod(read(KEYS.approvals, []), exportFilters.period, (approval) => approval.requestedAt || approval.reviewedAt || approval.createdAt);
-    const rows = approvals.map((approval) => ({
+    const approvals = reportsPeriodItems(ctx, ctx.approvals, (approval) => approval.requestedAt || approval.reviewedAt || approval.createdAt);
+    const mappedApprovals = approvals.map((approval) => ({
       title: approval.title,
       type: approval.type,
       status: approval.status,
@@ -10747,6 +11130,19 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
       resolutionHours: approval.reviewedAt ? hoursBetween(approval.requestedAt, approval.reviewedAt) : "-",
       rejectionReason: approval.rejectionReason || "-"
     }));
+    const rows = mappedApprovals.length
+      ? mappedApprovals
+      : requests.map((request) => ({
+          title: request.requestNumber || request.id || "Solicitud operativa",
+          type: "solicitud_transporte",
+          status: prettyStatus(request.status, "request").replace(/<[^>]+>/g, ""),
+          requestedBy: request.requestedByName || request.clientName || "-",
+          requestedAt: fmtDate(request.createdAt),
+          reviewedBy: request.approvedBy || request.rejectedBy || "-",
+          reviewedAt: fmtDate(request.approvedAt || request.rejectedAt),
+          resolutionHours: request.approvedAt || request.rejectedAt ? hoursBetween(request.createdAt, request.approvedAt || request.rejectedAt) : "-",
+          rejectionReason: request.rejectionReason || request.lifecycleNote || "-"
+        }));
     return {
       title: "Trazabilidad de autorizaciones",
       columns: [
@@ -10765,7 +11161,8 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
     };
   }
   if (reportId === "fuel_operations") {
-    const rows = reportsFilterItemsByPeriod(readFuelLogs(), exportFilters.period, (log) => log.date || log.createdAt).map((log) => ({
+    const logs = reportsPeriodItems(ctx, ctx.fuel, (log) => log.date || log.createdAt);
+    const mappedLogs = logs.map((log) => ({
       date: log.date || "-",
       driver: log.driverName || "-",
       vehicle: log.vehiclePlate || "-",
@@ -10777,6 +11174,20 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
       odometerKm: parseNum(log.odometerKm) > 0 ? parseNum(log.odometerKm) : "-",
       tripRef: log.tripNumber || log.requestNumber || "-"
     }));
+    const rows = mappedLogs.length
+      ? mappedLogs
+      : reportsVehiclesForReport(ctx).map((vehicle) => ({
+          date: "-",
+          driver: "-",
+          vehicle: vehicle.plate || "-",
+          station: "Sin cargue en el corte",
+          liters: 0,
+          totalCost: 0,
+          costPerLiter: 0,
+          paidBy: "Empresa",
+          odometerKm: "-",
+          tripRef: "-"
+        }));
     return {
       title: "Consumo y costos de combustible",
       columns: [
@@ -10796,7 +11207,8 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
     };
   }
   if (reportId === "maintenance_fleet") {
-    const rows = reportsFilterItemsByPeriod(readVehicleTechnicalLogs(), exportFilters.period, (log) => log.date || log.createdAt).map((log) => ({
+    const logs = reportsPeriodItems(ctx, ctx.maint, (log) => log.date || log.createdAt);
+    const mappedLogs = logs.map((log) => ({
       date: log.date || "-",
       vehicle: log.vehiclePlate || "-",
       kind: log.kind || log.type || "-",
@@ -10809,6 +11221,22 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
           : "-",
       status: log.status || "-"
     }));
+    const rows = mappedLogs.length
+      ? mappedLogs
+      : reportsVehiclesForReport(ctx).map((vehicle) => {
+          const soat = typeof docExpiryStatus === "function" ? docExpiryStatus(vehicle.soatExpeditionDate, vehicle.soatExpiryDate) : { label: "-" };
+          const tech = typeof docExpiryStatus === "function" ? docExpiryStatus(vehicle.techInspectionExpeditionDate, vehicle.techInspectionExpiryDate) : { label: "-" };
+          return {
+            date: "-",
+            vehicle: vehicle.plate || "-",
+            kind: "Revisión documental",
+            description: `SOAT ${soat.label || "-"} · Tecnomecánica ${tech.label || "-"}`,
+            cost: 0,
+            downtimeHours: 0,
+            costPerDowntimeHour: "-",
+            status: vehicle.available === false ? "No disponible" : "Sin intervención en el corte"
+          };
+        });
     return {
       title: "Gestión de mantenimiento de flota",
       columns: [
@@ -10828,9 +11256,7 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
   if (reportId === "revenue_by_route") {
     const byRoute = {};
     const totalRevenue = requests.reduce((acc, request) => acc + deriveRequestOperationalValue(request), 0);
-    requests
-      .filter((r) => r.trip)
-      .forEach((r) => {
+    requests.forEach((r) => {
         const route = formatRoute(r);
         if (!byRoute[route]) byRoute[route] = { trips: 0, revenue: 0, clients: new Set() };
         byRoute[route].trips += 1;
@@ -10878,7 +11304,6 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
       else counts[r.status] = 1;
     });
     const rows = Object.entries(counts)
-      .filter(([, n]) => n > 0)
       .map(([status, count]) => ({
         stage: prettyStatus(status, "request").replace(/<[^>]+>/g, ""),
         description: requestFunnelStageDescription(status),
@@ -10898,8 +11323,196 @@ function buildReportDataset(reportId, actor = currentUser(), filters = null) {
       fileName: "reporte_conversion_solicitudes.csv"
     };
   }
+  if (reportId === "clients_portfolio") {
+    const kindLabel =
+      typeof globalThis.companyKindLabel === "function"
+        ? globalThis.companyKindLabel
+        : (kind) => String(kind || "-");
+    const companies = reportsCompaniesForReport(ctx).filter((company) => company && (company.id || company.name));
+    const rows = companies.map((company) => {
+      const cid = String(company.id || "");
+      const related = requests.filter(
+        (r) => String(r.clientCompanyId || r.companyId || "") === cid || String(r.clientName || "") === String(company.name || "")
+      );
+      const trips = related.filter((r) => reportsRequestHasTrip(r));
+      const closed = related.filter((r) => [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status));
+      const revenue = related.reduce((acc, r) => acc + deriveRequestOperationalValue(r), 0);
+      const lastTs = related.reduce((acc, r) => {
+        const ts = reportsParseItemTs(r.createdAt || r.approvedAt);
+        return ts != null && ts > acc ? ts : acc;
+      }, 0);
+      return {
+        company: company.name || "-",
+        nit: company.taxId || company.nit || "-",
+        kind: kindLabel(company.companyKind || company.kind),
+        status: company.active === false ? "Inactiva" : "Activa",
+        requests: related.length,
+        trips: trips.length,
+        closed: closed.length,
+        revenue: parseNum(revenue),
+        lastOperation: lastTs ? fmtDate(new Date(lastTs).toISOString()) : "-"
+      };
+    }).sort((a, b) => b.revenue - a.revenue);
+    return {
+      title: "Cartera de clientes y operación",
+      columns: [
+        { key: "company", label: "Empresa" },
+        { key: "nit", label: "NIT" },
+        { key: "kind", label: "Tipo" },
+        { key: "status", label: "Estado" },
+        { key: "requests", label: "Solicitudes" },
+        { key: "trips", label: "Viajes" },
+        { key: "closed", label: "Cerrados" },
+        { key: "revenue", label: "Recaudo COP" },
+        { key: "lastOperation", label: "Última operación" }
+      ],
+      rows,
+      fileName: "reporte_cartera_clientes.csv"
+    };
+  }
+  if (reportId === "workforce_roster") {
+    const employees = reportsEmployeesForReport(ctx);
+    const rows = employees.map((employee) => {
+      const status = String(employee.status || employee.employmentStatus || "Activo").trim() || "Activo";
+      return {
+        name: employee.name || "-",
+        doc: `${employee.documentType || "CC"} ${employee.idDoc || "-"}`.trim(),
+        role: employee.workerRole || employee.positionName || employee.position || "-",
+        contractType: employee.contractType || "-",
+        salary: parseNum(employee.baseSalary || 0),
+        city: employee.city || "-",
+        startDate: employee.startDate || employee.hiredAt || "-",
+        eps: employee.eps || "-",
+        arl: employee.arl || "-",
+        status
+      };
+    });
+    return {
+      title: "Plantilla de colaboradores",
+      columns: [
+        { key: "name", label: "Colaborador" },
+        { key: "doc", label: "Documento" },
+        { key: "role", label: "Rol / cargo" },
+        { key: "contractType", label: "Contrato" },
+        { key: "salary", label: "Salario base" },
+        { key: "city", label: "Ciudad" },
+        { key: "startDate", label: "Ingreso" },
+        { key: "eps", label: "EPS" },
+        { key: "arl", label: "ARL" },
+        { key: "status", label: "Estado laboral" }
+      ],
+      rows,
+      fileName: "reporte_plantilla_colaboradores.csv"
+    };
+  }
+  if (reportId === "document_management") {
+    const catLabel =
+      typeof globalThis.getCompanyDocumentCategoryLabel === "function"
+        ? globalThis.getCompanyDocumentCategoryLabel
+        : (value) => String(value || "-");
+    const docs = reportsPeriodItems(ctx, ctx.companyDocs, (item) => item.updatedAt || item.createdAt || item.issuedAt);
+    const mappedDocs = docs.map((doc) => ({
+      fileName: doc.fileName || "-",
+      folder: doc.folder || "-",
+      category: catLabel(doc.documentCategory || doc.tags || ""),
+      entity: doc.entityLabel || doc.entityType || "-",
+      validity: doc.validityStatus || doc.status || "-",
+      expiresAt: doc.expiresAt || "-",
+      uploadedBy: doc.uploadedBy || "-",
+      createdAt: fmtDate(doc.createdAt)
+    }));
+    const vehicleDocs = reportsVehiclesForReport(ctx).flatMap((vehicle) => [
+      {
+        fileName: `SOAT ${vehicle.plate || ""}`.trim(),
+        folder: "Flota",
+        category: "SOAT",
+        entity: vehicle.plate || "Vehículo",
+        validity: typeof docExpiryStatus === "function" ? docExpiryStatus(vehicle.soatExpeditionDate, vehicle.soatExpiryDate).label : "-",
+        expiresAt: vehicle.soatExpiryDate || "-",
+        uploadedBy: "-",
+        createdAt: fmtDate(vehicle.soatExpeditionDate || vehicle.createdAt)
+      },
+      {
+        fileName: `Tecnomecánica ${vehicle.plate || ""}`.trim(),
+        folder: "Flota",
+        category: "Revisión técnico-mecánica",
+        entity: vehicle.plate || "Vehículo",
+        validity: typeof docExpiryStatus === "function" ? docExpiryStatus(vehicle.techInspectionExpeditionDate, vehicle.techInspectionExpiryDate).label : "-",
+        expiresAt: vehicle.techInspectionExpiryDate || "-",
+        uploadedBy: "-",
+        createdAt: fmtDate(vehicle.techInspectionExpeditionDate || vehicle.createdAt)
+      }
+    ]);
+    const rows = mappedDocs.length ? mappedDocs : vehicleDocs;
+    return {
+      title: "Inventario de gestión documental",
+      columns: [
+        { key: "fileName", label: "Documento" },
+        { key: "folder", label: "Carpeta" },
+        { key: "category", label: "Tipo documental" },
+        { key: "entity", label: "Expediente" },
+        { key: "validity", label: "Vigencia" },
+        { key: "expiresAt", label: "Vence" },
+        { key: "uploadedBy", label: "Cargado por" },
+        { key: "createdAt", label: "Registro" }
+      ],
+      rows,
+      fileName: "reporte_gestion_documental.csv"
+    };
+  }
+  if (reportId === "employee_documents") {
+    const typeLabel =
+      typeof globalThis.getEmployeeDocumentTypeLabel === "function"
+        ? globalThis.getEmployeeDocumentTypeLabel
+        : (value) => String(value || "Documento");
+    const docs = reportsPeriodItems(ctx, ctx.employeeDocs, (item) => item.dueDate || item.updatedAt || item.createdAt);
+    const employees = reportsEmployeesForReport(ctx);
+    const mappedDocs = docs.map((doc) => {
+      const employee = employees.find((row) => String(row.id || "") === String(doc.employeeId || ""));
+      return {
+        employee: doc.employeeName || employee?.name || "-",
+        employeeDoc: employee?.idDoc || "-",
+        type: typeLabel(doc.documentType),
+        folder: doc.folder || "-",
+        fileName: doc.fileName || "-",
+        status: doc.status || "-",
+        dueDate: doc.dueDate || doc.expiryDate || "-",
+        uploadedBy: doc.uploadedBy || "-",
+        createdAt: fmtDate(doc.createdAt)
+      };
+    });
+    const rows = mappedDocs.length
+      ? mappedDocs
+      : employees.map((employee) => ({
+          employee: employee.name || "-",
+          employeeDoc: employee.idDoc || "-",
+          type: "Expediente laboral",
+          folder: "Gestión humana",
+          fileName: "Sin documento cargado",
+          status: "Pendiente de expediente",
+          dueDate: "-",
+          uploadedBy: "-",
+          createdAt: fmtDate(employee.startDate || employee.createdAt)
+        }));
+    return {
+      title: "Expediente documental de colaboradores",
+      columns: [
+        { key: "employee", label: "Colaborador" },
+        { key: "employeeDoc", label: "Documento" },
+        { key: "type", label: "Tipo" },
+        { key: "folder", label: "Carpeta" },
+        { key: "fileName", label: "Archivo" },
+        { key: "status", label: "Estado" },
+        { key: "dueDate", label: "Vencimiento" },
+        { key: "uploadedBy", label: "Cargado por" },
+        { key: "createdAt", label: "Registro" }
+      ],
+      rows,
+      fileName: "reporte_expediente_colaboradores.csv"
+    };
+  }
   if (reportId === "document_compliance") {
-    const rows = read(KEYS.vehicles, []).map((vehicle) => {
+    const rows = reportsVehiclesForReport(ctx).map((vehicle) => {
       const soat = docExpiryStatus(vehicle.soatExpeditionDate, vehicle.soatExpiryDate);
       const tech = docExpiryStatus(vehicle.techInspectionExpeditionDate, vehicle.techInspectionExpiryDate);
       const worst = Math.min(soat.days, tech.days);
@@ -10954,6 +11567,13 @@ function reportsPeriodStart(period) {
   return null;
 }
 
+function reportsParseItemTs(value) {
+  const raw = String(value || "").trim();
+  if (!raw || raw === "0") return null;
+  const ts = new Date(raw).getTime();
+  return Number.isFinite(ts) && ts > 0 ? ts : null;
+}
+
 function reportsPeriodLabel(period) {
   const labels = {
     "30d": "Últimos 30 días",
@@ -10967,24 +11587,27 @@ function reportsPeriodLabel(period) {
 
 
 function reportsFilterByPeriod(requests, period) {
+  const list = Array.isArray(requests) ? requests : [];
   const start = reportsPeriodStart(period);
-  if (!start) return requests;
+  if (!start) return list;
   const t0 = start.getTime();
-  return requests.filter((r) => {
-    const ts = new Date(r.createdAt || r.pickupAt || 0).getTime();
-    return Number.isFinite(ts) && ts >= t0;
+  return list.filter((r) => {
+    const ts = reportsParseItemTs(r?.createdAt || r?.pickupAt || r?.approvedAt);
+    if (ts == null) return true;
+    return ts >= t0;
   });
 }
 
 function reportsFilterItemsByPeriod(items, period, pickDateValue) {
-  const start = reportsPeriodStart(period);
   const list = Array.isArray(items) ? items : [];
+  const start = reportsPeriodStart(period);
   if (!start) return list;
   const t0 = start.getTime();
   return list.filter((item) => {
     const raw = typeof pickDateValue === "function" ? pickDateValue(item) : item?.createdAt;
-    const ts = new Date(raw || "").getTime();
-    return Number.isFinite(ts) && ts >= t0;
+    const ts = reportsParseItemTs(raw);
+    if (ts == null) return true;
+    return ts >= t0;
   });
 }
 
@@ -11018,9 +11641,10 @@ function reportsFilterPreviousPeriod(all, period) {
   const t0 = start.getTime();
   const duration = Date.now() - t0;
   const prevStart = t0 - duration;
-  return all.filter((r) => {
-    const ts = new Date(r.createdAt || r.pickupAt || 0).getTime();
-    return Number.isFinite(ts) && ts >= prevStart && ts < t0;
+  return (Array.isArray(all) ? all : []).filter((r) => {
+    const ts = reportsParseItemTs(r?.createdAt || r?.pickupAt || r?.approvedAt);
+    if (ts == null) return false;
+    return ts >= prevStart && ts < t0;
   });
 }
 
@@ -11045,15 +11669,21 @@ function reportsBuildInsights(snapshot) {
   if (k.docRisk > 0) insights.push({ tone: "alert", title: "Flota en riesgo", text: `${k.docRisk} vehículo(s) con SOAT o tecnomecánica vencida o por vencer.` });
   if (k.assignRate < 70 && k.requests > 5) insights.push({ tone: "warn", title: "Cola de asignación", text: `Solo ${k.assignRate}% de solicitudes tiene viaje. Priorice pendientes de asignar.` });
   if (k.avgTicket > 0) insights.push({ tone: "neutral", title: "Ticket promedio", text: `${snapshot.fmtCop(k.avgTicket)} por operación en el periodo.` });
-  return insights.slice(0, 4);
+  if (k.employeesActive > 0) insights.push({ tone: "neutral", title: "Plantilla activa", text: `${k.employeesActive} colaborador(es) vigentes en Gestión humana.` });
+  if (k.payrollPaid > 0) insights.push({ tone: "ok", title: "Nómina pagada", text: `${snapshot.fmtCop(k.payrollPaid)} netos en ${k.payrollRuns} liquidación(es) del periodo.` });
+  return insights.slice(0, 5);
 }
 
-function buildReportsAnalyticsSnapshot(user, period = "90d") {
-  const all = getVisibleRequestsForUser(user);
-  const requests = reportsFilterByPeriod(all, period);
+function buildReportsAnalyticsSnapshot(user, period = "all") {
+  const all = typeof getVisibleRequestsForUser === "function" ? getVisibleRequestsForUser(user) : reportsReadList(KEYS.requests);
+  let requests = reportsFilterByPeriod(all, period);
+  if (!requests.length && period !== "all" && Array.isArray(all) && all.length) {
+    requests = all;
+    period = "all";
+  }
   const prevRequests = reportsFilterPreviousPeriod(all, period);
-  const trips = requests.filter((r) => r.trip);
-  const prevTrips = prevRequests.filter((r) => r.trip);
+  const trips = requests.filter((r) => reportsRequestHasTrip(r));
+  const prevTrips = prevRequests.filter((r) => reportsRequestHasTrip(r));
   const closed = requests.filter((r) => [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status));
   const revenue = requests.reduce((acc, r) => acc + deriveRequestOperationalValue(r), 0);
   const prevRevenue = prevRequests.reduce((acc, r) => acc + deriveRequestOperationalValue(r), 0);
@@ -11088,7 +11718,7 @@ function buildReportsAnalyticsSnapshot(user, period = "90d") {
   const monthRevenue = {};
   const monthTrips = {};
   trips.forEach((r) => {
-    const mk = reportsMonthKey(r.trip?.assignedAt || r.approvedAt || r.createdAt);
+    const mk = reportsMonthKey(reportsRequestTrip(r)?.assignedAt || r.approvedAt || r.createdAt);
     if (!mk) return;
     monthRevenue[mk] = (monthRevenue[mk] || 0) + deriveRequestOperationalValue(r);
     monthTrips[mk] = (monthTrips[mk] || 0) + 1;
@@ -11100,7 +11730,7 @@ function buildReportsAnalyticsSnapshot(user, period = "90d") {
 
   const weekTrips = {};
   trips.forEach((r) => {
-    const wk = reportsWeekKey(r.trip?.assignedAt || r.createdAt);
+    const wk = reportsWeekKey(reportsRequestTrip(r)?.assignedAt || r.createdAt);
     if (!wk) return;
     weekTrips[wk] = (weekTrips[wk] || 0) + 1;
   });
@@ -11117,7 +11747,7 @@ function buildReportsAnalyticsSnapshot(user, period = "90d") {
     .slice(0, 7);
 
   const routeTrips = {};
-  trips.forEach((r) => {
+  (trips.length ? trips : requests).forEach((r) => {
     const route = formatRoute(r);
     routeTrips[route] = (routeTrips[route] || 0) + 1;
   });
@@ -11127,7 +11757,7 @@ function buildReportsAnalyticsSnapshot(user, period = "90d") {
 
   const driverTrips = {};
   trips.forEach((r) => {
-    const d = String(r.trip?.driverName || "Sin conductor").trim();
+    const d = String(reportsRequestTrip(r)?.driverName || "Sin conductor").trim();
     driverTrips[d] = (driverTrips[d] || 0) + 1;
   });
   const topDrivers = Object.entries(driverTrips)
@@ -11156,9 +11786,10 @@ function buildReportsAnalyticsSnapshot(user, period = "90d") {
     period
   ).reduce((acc, log) => acc + parseNum(log.cost), 0);
 
-  const vehicles = read(KEYS.vehicles, []);
-  const activeTrips = getActiveTrips();
-  const busyIds = new Set(activeTrips.map((r) => String(r.trip?.vehicleId || "")).filter(Boolean));
+  const analyticsCtx = reportsOpenContext(user, { period });
+  const vehicles = analyticsCtx.vehicles;
+  const activeTrips = typeof getActiveTrips === "function" ? getActiveTrips() : requests.filter((r) => tripRequestStatusIsOperational(r.status));
+  const busyIds = new Set(activeTrips.map((r) => String(reportsRequestTrip(r)?.vehicleId || "")).filter(Boolean));
   const fleetBusy = busyIds.size;
   const fleetAvailable = vehicles.filter((v) => v.available !== false && !busyIds.has(String(v.id))).length;
   const docRisk = vehicles.filter((v) => {
@@ -11168,12 +11799,32 @@ function buildReportsAnalyticsSnapshot(user, period = "90d") {
   }).length;
   const fleetUtilPct = vehicles.length ? Math.round((fleetBusy / vehicles.length) * 100) : 0;
 
+  const payrollRuns = reportsPeriodItems(analyticsCtx, analyticsCtx.payrollRunsAll, (run) => run.paidAt || run.createdAt || `${run.month || ""}-01`);
+  const payrollPaid = payrollRuns.filter((run) => run.paid).reduce((acc, run) => acc + parseNum(run.net), 0);
+  const employees = analyticsCtx.employees;
+  const employeesActive = employees.filter((emp) => !/desvincul|retirad|inactiv/i.test(String(emp.status || emp.employmentStatus || "Activo"))).length;
+  const roleCounts = {};
+  employees.forEach((emp) => {
+    const role = String(emp.workerRole || emp.positionName || emp.position || "Sin rol").trim() || "Sin rol";
+    roleCounts[role] = (roleCounts[role] || 0) + 1;
+  });
+  const hrChart = Object.entries(roleCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([label, value]) => ({ label, value }));
+  const fleetUnavailable = Math.max(0, vehicles.length - fleetAvailable - fleetBusy);
+  const fleetChart = [
+    { label: "Disponible", value: fleetAvailable },
+    { label: "En viaje", value: fleetBusy },
+    { label: "No disponible", value: fleetUnavailable }
+  ].filter((x) => x.value > 0);
+
   const periodLabels = { "30d": "Últimos 30 días", "90d": "Últimos 90 días", month: "Mes actual", ytd: "Año en curso", all: "Histórico completo" };
   const fmtCop = (n) => `$${parseNum(n).toLocaleString("es-CO")}`;
 
   const snapshot = {
     period,
-    periodLabel: periodLabels[period] || periodLabels["90d"],
+    periodLabel: periodLabels[period] || periodLabels.all,
     generatedAt: fmtDate(nowIso()),
     fmtCop,
     kpis: {
@@ -11197,12 +11848,18 @@ function buildReportsAnalyticsSnapshot(user, period = "90d") {
       slaOk,
       slaTotal: trips.length,
       activeOps: requests.filter((r) => tripRequestStatusIsOperational(r.status)).length,
+      payrollPaid,
+      payrollRuns: payrollRuns.length,
+      employeesActive,
+      employeesTotal: employees.length,
       trends: {
         revenue: reportsPctDelta(revenue, prevRevenue),
         trips: reportsPctDelta(trips.length, prevTrips.length),
         requests: reportsPctDelta(requests.length, prevRequests.length)
       }
     },
+    fleetChart,
+    hrChart,
     statusChart,
     revenueMonths,
     revenueLabels,
@@ -11310,25 +11967,25 @@ function reportsBiLayoutPreset(preset) {
   if (preset === "min") {
     return normalizeReportsBiLayout({
       insights: false,
-      kpis: { revenue: true, trips: true, requests: true, sla: true, cycle: false, fuel: false, maint: false, fleet: false, docs: false },
+      kpis: { revenue: true, trips: true, requests: true, sla: true, cycle: false, fuel: false, maint: false, fleet: false, docs: false, payroll: false, hr: false },
       scores: { sla: true, assign: true, thermoking: false },
-      charts: { revenue: true, weekly: false, funnel: true, status: true, clients: false, routes: false, drivers: false, rankings: false }
+      charts: { revenue: true, weekly: false, funnel: true, status: true, clients: false, routes: false, drivers: false, rankings: false, fleet: false, hr: false }
     });
   }
   if (preset === "finance") {
     return normalizeReportsBiLayout({
       insights: true,
-      kpis: { revenue: true, trips: true, requests: false, sla: false, cycle: false, fuel: true, maint: true, fleet: false, docs: false },
+      kpis: { revenue: true, trips: true, requests: false, sla: false, cycle: false, fuel: true, maint: true, fleet: false, docs: false, payroll: true, hr: false },
       scores: { sla: false, assign: false, thermoking: false },
-      charts: { revenue: true, weekly: false, funnel: false, status: false, clients: true, routes: false, drivers: false, rankings: true }
+      charts: { revenue: true, weekly: false, funnel: false, status: false, clients: true, routes: false, drivers: false, rankings: true, fleet: false, hr: false }
     });
   }
   if (preset === "ops") {
     return normalizeReportsBiLayout({
       insights: true,
-      kpis: { revenue: false, trips: true, requests: true, sla: true, cycle: true, fuel: false, maint: false, fleet: true, docs: true },
+      kpis: { revenue: false, trips: true, requests: true, sla: true, cycle: true, fuel: false, maint: false, fleet: true, docs: true, payroll: false, hr: true },
       scores: { sla: true, assign: true, thermoking: true },
-      charts: { revenue: false, weekly: true, funnel: true, status: true, clients: false, routes: true, drivers: true, rankings: false }
+      charts: { revenue: false, weekly: true, funnel: true, status: true, clients: false, routes: true, drivers: true, rankings: false, fleet: true, hr: true }
     });
   }
   return all;
@@ -11354,7 +12011,9 @@ function reportsBiCustomizerHtml(layout) {
     chk("kpis", "fuel", "Combustible", L.kpis.fuel),
     chk("kpis", "maint", "Taller", L.kpis.maint),
     chk("kpis", "fleet", "Flota", L.kpis.fleet),
-    chk("kpis", "docs", "Documentos", L.kpis.docs)
+    chk("kpis", "docs", "Documentos", L.kpis.docs),
+    chk("kpis", "payroll", "Nómina", L.kpis.payroll),
+    chk("kpis", "hr", "Plantilla", L.kpis.hr)
   ].join("");
   const scoreChecks = [
     chk("scores", "sla", "Anillo SLA", L.scores.sla),
@@ -11369,13 +12028,15 @@ function reportsBiCustomizerHtml(layout) {
     chk("charts", "clients", "Top clientes", L.charts.clients),
     chk("charts", "routes", "Rutas", L.charts.routes),
     chk("charts", "drivers", "Conductores", L.charts.drivers),
-    chk("charts", "rankings", "Rankings", L.charts.rankings)
+    chk("charts", "rankings", "Rankings", L.charts.rankings),
+    chk("charts", "fleet", "Estado de flota", L.charts.fleet),
+    chk("charts", "hr", "Plantilla por rol", L.charts.hr)
   ].join("");
   return `<div class="reports-bi-customizer" aria-label="Personalizar analítica">
     <div class="reports-bi-customizer-head">
       <div class="reports-bi-customizer-copy">
         <h3 class="reports-bi-customizer-title">${IC.grid} Arme su vista</h3>
-        <p class="reports-bi-customizer-hint">Elija indicadores y gráficas. La selección se guarda en este equipo y aplica al Excel.</p>
+        <p class="reports-bi-customizer-hint">Elija métricas y gráficas de negocio. La selección se guarda en este equipo y aplica al Excel.</p>
       </div>
       <div class="reports-bi-customizer-presets">
         <button type="button" class="btn btn-sm btn-action" data-action="reports-bi-layout-preset" data-preset="all">Todo</button>
@@ -11434,9 +12095,9 @@ function reportsAnalyticsPanelHtml(snapshot, layout) {
   return `<section class="reports-bi" aria-label="Analítica operativa">
     <header class="reports-bi-toolbar">
       <div class="reports-bi-toolbar-intro">
-        <p class="reports-bi-kicker">Reportería · BI</p>
-        <h2 class="reports-bi-title">Analítica operativa</h2>
-        <p class="reports-bi-sub">${escapeHtml(snapshot.periodLabel)} · comparativa vs periodo anterior</p>
+        <p class="reports-bi-kicker">Reportería · Métricas</p>
+        <h2 class="reports-bi-title">Gráficos y métricas</h2>
+        <p class="reports-bi-sub">${escapeHtml(snapshot.periodLabel)} · operación, flota, finanzas y gestión humana</p>
         <span class="reports-bi-updated">Corte ${escapeHtml(snapshot.generatedAt)}</span>
       </div>
       <div class="reports-bi-toolbar-controls">
@@ -11480,6 +12141,8 @@ function reportsAnalyticsPanelHtml(snapshot, layout) {
       ${L.kpis.maint ? reportsBiKpiCard({ icon: IC.activity, value: fmtCop(k.maintCost), label: "Taller", meta: k.standbyTotal > 0 ? `Standby ${fmtCop(k.standbyTotal)}` : "Sin standby" }) : ""}
       ${L.kpis.fleet ? reportsBiKpiCard({ icon: IC.truck, value: `${k.fleetAvailable}/${k.fleetTotal}`, label: "Flota libre", meta: `${k.fleetUtilPct}% ocupación` }) : ""}
       ${L.kpis.docs ? reportsBiKpiCard({ mod: k.docRisk ? "warn" : "", icon: IC.shield, value: k.docRisk, label: "Alertas documentales" }) : ""}
+      ${L.kpis.payroll ? reportsBiKpiCard({ icon: IC.dollar, value: fmtCop(k.payrollPaid || 0), label: "Nómina neta pagada", meta: `${k.payrollRuns || 0} liquidaciones` }) : ""}
+      ${L.kpis.hr ? reportsBiKpiCard({ icon: IC.users || IC.user, value: `${k.employeesActive ?? 0}/${k.employeesTotal || 0}`, label: "Plantilla activa", meta: "Gestión humana" }) : ""}
     </div>
     </div>`
         : ""
@@ -11602,6 +12265,22 @@ function reportsAnalyticsPanelHtml(snapshot, layout) {
           : ""
       }
       ${
+        L.charts.fleet
+          ? `<article class="reports-bi-card">
+        <header class="reports-bi-card-head"><div><h3>${IC.truck} Estado de flota</h3><p class="reports-bi-card-sub">Disponible, en viaje y fuera de servicio</p></div></header>
+        <div class="reports-bi-chart-wrap reports-bi-chart-wrap--donut"><canvas id="reports-chart-fleet" aria-label="Estado de flota"></canvas></div>
+      </article>`
+          : ""
+      }
+      ${
+        L.charts.hr
+          ? `<article class="reports-bi-card">
+        <header class="reports-bi-card-head"><div><h3>${IC.users || IC.user} Plantilla por rol</h3><p class="reports-bi-card-sub">Colaboradores de Gestión humana</p></div></header>
+        <div class="reports-bi-chart-wrap">${snapshot.hrChart?.length ? `<canvas id="reports-chart-hr" aria-label="Plantilla"></canvas>` : `<p class="reports-bi-empty">Sin colaboradores registrados.</p>`}</div>
+      </article>`
+          : ""
+      }
+      ${
         L.charts.rankings
           ? `<article class="reports-bi-card reports-bi-card--wide reports-bi-card--rankings">
         <header class="reports-bi-card-head"><div><h3>${IC.star} Rankings del periodo</h3><p class="reports-bi-card-sub">Mayor impacto comercial y operativo</p></div></header>
@@ -11682,6 +12361,7 @@ if (typeof window.setBootstrapCallbacks === "function") {
       filterNotificationsForUser: window.filterNotificationsForUser,
       mergeNotificationsListPreserveReadAt: window.mergeNotificationsListPreserveReadAt,
       markInboxNotificationsAsToastSeen: window.markInboxNotificationsAsToastSeen,
+      collectStaleNotificationIdsForToastSuppress: window.collectStaleNotificationIdsForToastSuppress,
       sanitizePayrollEmployeeFieldsForPersist,
       normalizePayrollEmployeeRowDates,
       normalizeSstComplianceRow: window.normalizeSstComplianceRow,
@@ -12963,7 +13643,7 @@ function hiringCandidateNextAction(status, ctx = {}) {
     return { label: "Agendar entrevista", tone: "interview", action: "schedule-interview", cta: "Agendar entrevista" };
   }
   if (s === "Entrevistado") {
-    return { label: "Enviar oferta", tone: "offer", action: "send-offer", nextStatus: "Oferta enviada", cta: "Enviar oferta" };
+    return { label: "Enviar carta oferta", tone: "offer", action: "send-offer", nextStatus: "Oferta enviada", cta: "Enviar carta oferta" };
   }
   if (s === "Oferta enviada") return { label: "Contratar candidato", tone: "hire", action: "hire", cta: "Contratar" };
   if (s === "Contratado") return { label: "Proceso cerrado", tone: "done", action: "done", cta: "" };
@@ -13445,6 +14125,20 @@ function buildPayrollEmployeePayloadFromWizard(raw, docNormalized, avatarOpts = 
       field: "emergencyPhone"
     };
   }
+  if (!String(raw.emergencyRelation || "").trim()) {
+    return {
+      ok: false,
+      msg: "Indique el parentesco del contacto de emergencia.",
+      field: "emergencyRelation"
+    };
+  }
+  if (!String(raw.bankAccountType || "").trim()) {
+    return {
+      ok: false,
+      msg: "Seleccione el tipo de cuenta bancaria.",
+      field: "bankAccountType"
+    };
+  }
   return {
     ok: true,
     payload: {
@@ -13875,7 +14569,7 @@ ${employeeNationalPhoneFieldHtml("phone", "Teléfono celular", e.phone)}
 <label><span>${escapeHtml("Correo personal")}</span><input type="email" name="personalEmail" value="${escapeAttr(e.personalEmail || "")}" /></label>
 <label><span>${escapeHtml("Contacto emergencia")}</span><input name="emergencyContact" required value="${escapeAttr(e.emergencyContact || "")}" /></label>
 ${employeeNationalPhoneFieldHtml("emergencyPhone", "Tel. emergencia", e.emergencyPhone)}
-<label class="full"><span>${escapeHtml("Parentesco emergencia")}</span><input name="emergencyRelation" value="${escapeAttr(e.emergencyRelation || "")}" /></label>
+<label class="full"><span>${escapeHtml("Parentesco emergencia")}</span><input name="emergencyRelation" required value="${escapeAttr(e.emergencyRelation || "")}" /></label>
 </div>`
     },
     {
@@ -13922,7 +14616,7 @@ ${contractHistorySummaryHtml}
 <label><span>${escapeHtml("Tipo cotizante")}</span><select name="contributorType">${selectOptionsFromCatalog(CO_CATALOGS.contributorTypes, e.contributorType || "")}</select></label>
 <label><span>${escapeHtml("Nivel riesgo ARL")}</span><select name="arlRiskLevel" id="employee-modal-arl-risk">${selectOptionsFromCatalog(CO_CATALOGS.arlRiskLevels, e.arlRiskLevel || "")}</select></label>
 <label><span>${escapeHtml("Examen médico ocupacional de ingreso")}</span><input type="date" name="occupationalExamDate" value="${escapeAttr(normalizePortalDateYmd(e.occupationalExamDate))}" /></label>
-<p class="full muted modal-field-hint" style="grid-column:1/-1;font-size:0.78rem">Obligatorio para todo trabajador (Resolución 2346 de 2007). Vigencia automática +1 año desde la fecha del último examen periódico.</p>
+<p class="full muted modal-field-hint" style="grid-column:1/-1;font-size:0.78rem">Aplica a todo cargo (Resolución 2346 de 2007). Si indica la fecha, la vigencia se guarda a un año. Puede completarla después si el examen aún no se ha practicado.</p>
 <label><span>${escapeHtml("Plantilla contrato Word")}</span><select name="contractTemplateKind" id="employee-modal-contract-template" required>${tmplSel}</select></label>
 </div>`
     },
@@ -13942,7 +14636,7 @@ ${contractHistorySummaryHtml}
       label: "Datos bancarios",
       html: `<div class="form-section-grid employee-edit-grid">
 <label><span>${escapeHtml("Banco")}</span><select name="bankName" required>${selectOptionsFromCatalog(CO_CATALOGS.banks, e.bankName || "", "Seleccione...")}</select></label>
-<label><span>${escapeHtml("Tipo cuenta")}</span><select name="bankAccountType">${selectOptionsFromCatalog(CO_CATALOGS.accountTypes, e.bankAccountType || "Ahorros")}</select></label>
+<label><span>${escapeHtml("Tipo cuenta")}</span><select name="bankAccountType" required>${selectOptionsFromCatalog(CO_CATALOGS.accountTypes, e.bankAccountType || "", "Seleccione...")}</select></label>
 <label class="full"><span>${escapeHtml("Número cuenta")}</span><input name="bankAccount" required value="${escapeAttr(e.bankAccount || "")}" /></label>
 </div>`
     },
@@ -15090,6 +15784,7 @@ Object.assign(window, {
   applyLaborSystemParametersApiResponse,
   applyManualModuleLayout,
   applyPositionCatalogToEmployeeForm,
+  syncEmployeeFormConductorStep,
   approveRequest,
   attachDepartmentCitySelects,
   bindEmployeeAvatarFilePreview,

@@ -346,6 +346,15 @@ export class PortalController {
     return this.portal.clientDeletePendingTransportRequest(req.user.userId, req.user.role, dto.requestId, dto.motivo);
   }
 
+  @Get("simit-fines")
+  simitFines(
+    @Req() req: { user: ReqUser },
+    @Query("plates") plates?: string,
+    @Query("pendingOnly") pendingOnly?: string
+  ) {
+    return this.portal.querySimitFines(req.user.userId, req.user.role, plates, pendingOnly);
+  }
+
   @Post("admin-vehicle-delete")
   adminVehicleDelete(@Req() req: { user: ReqUser }, @Body() dto: AdminVehicleDeleteDto) {
     return this.portal.adminDeleteVehicle(req.user.userId, req.user.role, dto.vehicleId);

@@ -70,14 +70,38 @@ export function canAccessReport(user, reportId) {
   if (user.role === ROLES.CLIENT) return false;
   const rule = REPORT_RULES[reportId];
   if (!rule) return false;
-  if (reportId === "sarlaft_pte") {
-    if (!canAccessSarlaftView(user)) return false;
-  } else if (!hasPermission(user, rule.permission)) {
-    return false;
-  }
-  if (rule.adminOnly) return user.role === ROLES.ADMIN;
-  if (rule.rrhhAllowed) return canAccessRRHH(user.role) || user.role === ROLES.ADMIN;
-  return true;
+  if (rule.adminOnly && user.role !== ROLES.ADMIN) return false;
+  if (reportId === "sarlaft_pte") return canAccessSarlaftView(user);
+  if (hasPermission(user, rule.permission)) return true;
+  if (rule.rrhhAllowed && (canAccessRRHH(user.role) || user.role === ROLES.ADMIN)) return true;
+  return false;
+}
+
+/** Catálogo único de reportes de negocio (exportación + conteo de la vista). */
+export function reportsBusinessCatalog() {
+  return [
+    { id: "executive_control_tower", icon: "activity", title: "Resumen ejecutivo de gestión", subtitle: "Indicadores integrados de operación, finanzas, RRHH y cumplimiento.", group: "Estrategia" },
+    { id: "service_levels", icon: "clock", title: "Cumplimiento de nivel de servicio", subtitle: "Tiempos de respuesta, entrega y desviación frente al SLA.", group: "Operación" },
+    { id: "fleet_summary", icon: "truck", title: "Disponibilidad y productividad de flota", subtitle: "Estado operativo, cierres históricos y riesgo documental.", group: "Operación" },
+    { id: "trips_operations", icon: "compass", title: "Seguimiento operativo de viajes", subtitle: "Control de viajes, modalidad, SLA y facturación asociada.", group: "Operación" },
+    { id: "requests_lifecycle", icon: "file", title: "Trazabilidad de solicitudes", subtitle: "Seguimiento integral desde la radicación hasta la decisión final.", group: "Operación" },
+    { id: "drivers_performance", icon: "user", title: "Desempeño y habilitación de conductores", subtitle: "Productividad, vigencia documental y cierre de servicios.", group: "Operación" },
+    { id: "request_funnel", icon: "layers", title: "Conversión operativa de solicitudes", subtitle: "Evolución del volumen por etapa del proceso operativo.", group: "Operación" },
+    { id: "fuel_operations", icon: "fuel", title: "Consumo y costos de combustible", subtitle: "Litros, costo por litro, odómetro y responsable del pago.", group: "Costos" },
+    { id: "maintenance_fleet", icon: "activity", title: "Gestión de mantenimiento de flota", subtitle: "Intervenciones técnicas, costo e impacto por indisponibilidad.", group: "Costos" },
+    { id: "revenue_by_route", icon: "dollar", title: "Ingresos y ticket promedio por ruta", subtitle: "Recaudo, clientes atendidos y participación por trayecto.", group: "Finanzas" },
+    { id: "clients_portfolio", icon: "briefcase", title: "Cartera de clientes y operación", subtitle: "Empresas atendidas, viajes ejecutados y recaudo asociado.", group: "Finanzas" },
+    { id: "payroll_summary", icon: "dollar", title: "Consolidado de nómina", subtitle: "Devengados, deducciones, pagos y aprobaciones de gestión humana.", group: "RRHH" },
+    { id: "workforce_roster", icon: "users", title: "Plantilla de colaboradores", subtitle: "Cargos, contratos y estado laboral vigentes en Gestión humana.", group: "RRHH" },
+    { id: "hiring_pipeline", icon: "briefcase", title: "Gestión de selección y contratación", subtitle: "Seguimiento del proceso de reclutamiento, entrevistas y contratación.", group: "RRHH" },
+    { id: "labor_compliance", icon: "shield", title: "Cumplimiento laboral y SST", subtitle: "Controles regulatorios, vencimientos y trazabilidad documental.", group: "Cumplimiento" },
+    { id: "document_compliance", icon: "shield", title: "Cumplimiento documental de flota", subtitle: "Estado de SOAT, tecnomecánica y alertas por vencimiento.", group: "Cumplimiento" },
+    { id: "document_management", icon: "file", title: "Inventario de gestión documental", subtitle: "Documentos de empresa, vigencia, expediente y responsable de carga.", group: "Cumplimiento" },
+    { id: "employee_documents", icon: "file", title: "Expediente documental de colaboradores", subtitle: "Documentos por empleado, vencimientos y estado del expediente.", group: "Cumplimiento" },
+    { id: "sarlaft_pte", icon: "shield", title: "SARLAFT / PTE", subtitle: "Terceros, perfiles de riesgo, alertas y vencimientos de debida diligencia.", group: "Cumplimiento" },
+    { id: "users_access", icon: "shield", title: "Gobierno de usuarios y accesos", subtitle: "Roles, permisos, origen del usuario e ingreso al sistema.", group: "Gobierno" },
+    { id: "authorizations_traceability", icon: "check", title: "Trazabilidad de autorizaciones", subtitle: "Tiempos de resolución, aprobadores y observaciones de cierre.", group: "Gobierno" }
+  ];
 }
 
 let reportBrandLogoDataUrlPromise = null;
@@ -619,7 +643,7 @@ export function reportsPeriodLabel(period) {
 }
 
 export function reportsExportDefaultFilters() {
-  return { period: "90d" };
+  return { period: "all" };
 }
 
 export function normalizeReportsExportFilters(raw) {
@@ -650,7 +674,9 @@ export function reportsBiDefaultLayout() {
       fuel: true,
       maint: true,
       fleet: true,
-      docs: true
+      docs: true,
+      payroll: true,
+      hr: true
     },
     scores: { sla: true, assign: true, thermoking: true },
     charts: {
@@ -661,7 +687,9 @@ export function reportsBiDefaultLayout() {
       clients: true,
       routes: true,
       drivers: true,
-      rankings: true
+      rankings: true,
+      fleet: true,
+      hr: true
     }
   };
 }
@@ -819,7 +847,9 @@ export function reportsBiCaptureChartImages(root) {
     "reports-chart-thermoking",
     "reports-chart-clients",
     "reports-chart-routes",
-    "reports-chart-drivers"
+    "reports-chart-drivers",
+    "reports-chart-fleet",
+    "reports-chart-hr"
   ];
   const out = {};
   ids.forEach((id) => {
@@ -871,6 +901,8 @@ export function buildReportsBiExcelHtml(snapshot, chartImages = {}, layout) {
   if (L.kpis.maint) kpiRows.push(["Taller", fmtCop(k.maintCost), "", k.standbyTotal > 0 ? `Standby ${fmtCop(k.standbyTotal)}` : "Sin standby"]);
   if (L.kpis.fleet) kpiRows.push(["Flota libre", `${k.fleetAvailable}/${k.fleetTotal}`, "", `${k.fleetUtilPct}% ocupación`]);
   if (L.kpis.docs) kpiRows.push(["Alertas documentales", String(k.docRisk), "", ""]);
+  if (L.kpis.payroll) kpiRows.push(["Nómina neta pagada", fmtCop(k.payrollPaid || 0), "", `${k.payrollRuns || 0} liquidaciones`]);
+  if (L.kpis.hr) kpiRows.push(["Colaboradores activos", String(k.employeesActive ?? 0), "", `${k.employeesTotal || 0} en plantilla`]);
   const insightRows = L.insights ? (snapshot.insights || []).map((ins) => [ins.title, ins.text]) : [];
   const revenueRows = (snapshot.revenueLabels || snapshot.revenueMonths || []).map((label, i) => [
     label,
@@ -950,6 +982,22 @@ export function buildReportsBiExcelHtml(snapshot, chartImages = {}, layout) {
           "Viajes asignados",
           chartImages["reports-chart-drivers"],
           reportsBiExcelTable(["Conductor", "Viajes"], driverRows)
+        )
+      : "",
+    L.charts.fleet
+      ? reportsBiExcelChartBlock(
+          "Estado de flota",
+          "Disponibilidad operativa",
+          chartImages["reports-chart-fleet"],
+          reportsBiExcelTable(["Estado", "Vehículos"], (snapshot.fleetChart || []).map((x) => [x.label, String(x.value)]))
+        )
+      : "",
+    L.charts.hr
+      ? reportsBiExcelChartBlock(
+          "Plantilla por rol",
+          "Colaboradores en Gestión humana",
+          chartImages["reports-chart-hr"],
+          reportsBiExcelTable(["Rol", "Personas"], (snapshot.hrChart || []).map((x) => [x.label, String(x.value)]))
         )
       : ""
   ]
@@ -1078,7 +1126,13 @@ export function wireReportsCharts(snapshot, layout) {
     state.reportsChartInstances.push(new Chart(canvas, config));
   };
 
-  const labels = snapshot.revenueLabels || snapshot.revenueMonths;
+  const labels = snapshot.revenueLabels?.length
+    ? snapshot.revenueLabels
+    : snapshot.revenueMonths?.length
+      ? snapshot.revenueMonths
+      : ["Sin datos"];
+  const revenueSeries = snapshot.revenueSeries?.length ? snapshot.revenueSeries : [0];
+  const tripsSeries = snapshot.tripsSeries?.length ? snapshot.tripsSeries : [0];
 
   if (L.charts.revenue)
     push("#reports-chart-revenue", {
@@ -1089,7 +1143,7 @@ export function wireReportsCharts(snapshot, layout) {
           {
             type: "bar",
             label: "Recaudo COP",
-            data: snapshot.revenueSeries,
+            data: revenueSeries,
             backgroundColor: barPrimary,
             borderColor: barPrimary,
             borderRadius: 6,
@@ -1098,7 +1152,7 @@ export function wireReportsCharts(snapshot, layout) {
           {
             type: "line",
             label: "Viajes",
-            data: snapshot.tripsSeries,
+            data: tripsSeries,
             borderColor: success,
             backgroundColor: fillSuccess,
             fill: true,
@@ -1121,11 +1175,11 @@ export function wireReportsCharts(snapshot, layout) {
     push("#reports-chart-weekly", {
       type: "line",
       data: {
-        labels: snapshot.weekKeys.map((k, i) => `S${i + 1}`),
+        labels: (snapshot.weekKeys || []).length ? snapshot.weekKeys.map((k, i) => `S${i + 1}`) : ["Sin datos"],
         datasets: [
           {
             label: "Viajes / semana",
-            data: snapshot.weekSeries,
+            data: snapshot.weekSeries?.length ? snapshot.weekSeries : [0],
             borderColor: primaryDeep,
             backgroundColor: fillPrimary,
             fill: true,
@@ -1143,10 +1197,10 @@ export function wireReportsCharts(snapshot, layout) {
     push("#reports-chart-status", {
       type: "doughnut",
       data: {
-        labels: snapshot.statusChart.map((x) => x.label),
+        labels: snapshot.statusChart?.length ? snapshot.statusChart.map((x) => x.label) : ["Sin datos"],
         datasets: [
           {
-            data: snapshot.statusChart.map((x) => x.value),
+            data: snapshot.statusChart?.length ? snapshot.statusChart.map((x) => x.value) : [1],
             backgroundColor: palette,
             borderColor: c.dark ? "rgba(15, 28, 46, 0.9)" : "#ffffff",
             borderWidth: 2,
@@ -1193,16 +1247,40 @@ export function wireReportsCharts(snapshot, layout) {
     });
   };
 
-  if (L.charts.clients) hBar("#reports-chart-clients", snapshot.topClients, "COP", barPrimary);
-  if (L.charts.routes) hBar("#reports-chart-routes", snapshot.topRoutes, "Viajes", barDeep);
-  if (L.charts.drivers) hBar("#reports-chart-drivers", snapshot.topDrivers, "Viajes", barSuccess);
+  if (L.charts.clients) hBar("#reports-chart-clients", snapshot.topClients?.length ? snapshot.topClients : [["Sin datos", 0]], "COP", barPrimary);
+  if (L.charts.routes) hBar("#reports-chart-routes", snapshot.topRoutes?.length ? snapshot.topRoutes : [["Sin datos", 0]], "Viajes", barDeep);
+  if (L.charts.drivers) hBar("#reports-chart-drivers", snapshot.topDrivers?.length ? snapshot.topDrivers : [["Sin datos", 0]], "Viajes", barSuccess);
+
+  if (L.charts.fleet && snapshot.fleetChart?.length)
+    push("#reports-chart-fleet", {
+      type: "doughnut",
+      data: {
+        labels: snapshot.fleetChart.map((x) => x.label),
+        datasets: [
+          {
+            data: snapshot.fleetChart.map((x) => x.value),
+            backgroundColor: [success, primaryDeep, c.neutral],
+            borderColor: c.dark ? "rgba(15, 28, 46, 0.9)" : "#ffffff",
+            borderWidth: 2
+          }
+        ]
+      },
+      options: {
+        ...baseOpts,
+        cutout: "62%",
+        plugins: { ...baseOpts.plugins, legend: { position: "bottom", labels: { color: text, font, boxWidth: 10 } } }
+      }
+    });
+
+  if (L.charts.hr && snapshot.hrChart?.length)
+    hBar("#reports-chart-hr", snapshot.hrChart.map((x) => [x.label, x.value]), "Colaboradores", barSuccess);
 
   if (L.charts.funnel)
     push("#reports-chart-funnel", {
       type: "bar",
       data: {
-        labels: snapshot.funnel.map((x) => x.label),
-        datasets: [{ label: "Cantidad", data: snapshot.funnel.map((x) => x.value), backgroundColor: funnel, borderRadius: 8 }]
+        labels: snapshot.funnel?.length ? snapshot.funnel.map((x) => x.label) : ["Sin datos"],
+        datasets: [{ label: "Cantidad", data: snapshot.funnel?.length ? snapshot.funnel.map((x) => x.value) : [0], backgroundColor: funnel, borderRadius: 8 }]
       },
       options: {
         ...baseOpts,
@@ -1238,7 +1316,7 @@ export function reportsExportFiltersHtml() {
       <div>
         <p class="reports-export-filters-kicker">Corte exportable</p>
         <h3>Periodo de análisis</h3>
-        <p class="reports-export-filters-copy">Este corte se aplica al generar reportes con fecha operativa. Inventarios y cumplimiento documental siguen mostrando estado vigente.</p>
+        <p class="reports-export-filters-copy">Aplica a solicitudes, viajes, nómina y bitácoras con fecha. Flota, colaboradores y documentos muestran el estado vigente. Los registros sin fecha se incluyen para no perder operación real.</p>
       </div>
       <span class="reports-export-filters-badge">${escapeHtml(reportsPeriodLabel(filters.period))}</span>
     </div>
@@ -1253,29 +1331,21 @@ export function reportsExportFiltersHtml() {
 }
 
 export function reportsExportPanelHtml(user) {
-  const cards = [
-    { id: "executive_control_tower", icon: "activity", title: "Resumen ejecutivo de gestión", subtitle: "Indicadores integrados de operación, finanzas, RRHH y cumplimiento.", group: "Estrategia" },
-    { id: "service_levels", icon: "clock", title: "Cumplimiento de nivel de servicio", subtitle: "Tiempos de respuesta, entrega y desviación frente al SLA.", group: "Operación" },
-    { id: "fleet_summary", icon: "truck", title: "Disponibilidad y productividad de flota", subtitle: "Estado operativo, cierres históricos y riesgo documental.", group: "Operación" },
-    { id: "trips_operations", icon: "compass", title: "Seguimiento operativo de viajes", subtitle: "Control de viajes, modalidad, SLA y facturación asociada.", group: "Operación" },
-    { id: "requests_lifecycle", icon: "file", title: "Trazabilidad de solicitudes", subtitle: "Seguimiento integral desde la radicación hasta la decisión final.", group: "Operación" },
-    { id: "drivers_performance", icon: "user", title: "Desempeño y habilitación de conductores", subtitle: "Productividad, vigencia documental y cierre de servicios.", group: "Operación" },
-    { id: "fuel_operations", icon: "fuel", title: "Consumo y costos de combustible", subtitle: "Litros, costo por litro, odómetro y responsable del pago.", group: "Costos" },
-    { id: "maintenance_fleet", icon: "activity", title: "Gestión de mantenimiento de flota", subtitle: "Intervenciones técnicas, costo e impacto por indisponibilidad.", group: "Costos" },
-    { id: "revenue_by_route", icon: "dollar", title: "Ingresos y ticket promedio por ruta", subtitle: "Recaudo, clientes atendidos y participación por trayecto.", group: "Finanzas" },
-    { id: "request_funnel", icon: "layers", title: "Conversión operativa de solicitudes", subtitle: "Evolución del volumen por etapa del proceso operativo.", group: "Operación" },
-    { id: "document_compliance", icon: "shield", title: "Cumplimiento documental de flota", subtitle: "Estado de SOAT, tecnomecánica y alertas por vencimiento.", group: "Cumplimiento" },
-    { id: "payroll_summary", icon: "dollar", title: "Consolidado de nómina", subtitle: "Devengados, deducciones, pagos y aprobaciones de gestión humana.", group: "RRHH" },
-    { id: "hiring_pipeline", icon: "briefcase", title: "Gestión de selección y contratación", subtitle: "Seguimiento del proceso de reclutamiento, entrevistas y contratación.", group: "RRHH" },
-    { id: "labor_compliance", icon: "shield", title: "Cumplimiento laboral y SST", subtitle: "Controles regulatorios, vencimientos y trazabilidad documental.", group: "Cumplimiento" },
-    { id: "sarlaft_pte", icon: "shield", title: "SARLAFT / PTE", subtitle: "Terceros, perfiles de riesgo, alertas y vencimientos de debida diligencia.", group: "Cumplimiento" },
-    { id: "users_access", icon: "shield", title: "Gobierno de usuarios y accesos", subtitle: "Roles, permisos, origen del usuario e ingreso al sistema.", group: "Gobierno" },
-    { id: "authorizations_traceability", icon: "check", title: "Trazabilidad de autorizaciones", subtitle: "Tiempos de resolución, aprobadores y observaciones de cierre.", group: "Gobierno" }
-  ];
+  const cards = reportsBusinessCatalog();
   const visibleCards = cards.filter((card) => canAccessReport(user, card.id));
   if (!visibleCards.length) {
     return `<p class="muted">Tu perfil no tiene reportes habilitados. Solicita permisos al administrador.</p>`;
   }
+  const buildDataset = typeof globalThis.buildReportDataset === "function" ? globalThis.buildReportDataset : null;
+  const countFor = (cardId) => {
+    if (!buildDataset) return null;
+    try {
+      const rows = buildDataset(cardId, user)?.rows;
+      return Array.isArray(rows) ? rows.length : 0;
+    } catch (_e) {
+      return null;
+    }
+  };
   const groups = [...new Set(visibleCards.map((c) => c.group))];
   const sections = groups
     .map((group) => {
@@ -1284,8 +1354,13 @@ export function reportsExportPanelHtml(user) {
         <h3 class="reports-export-group-title">${escapeHtml(group)}</h3>
         <div class="dash-grid reports-export-grid">
         ${groupCards
-          .map(
-            (card) => `
+          .map((card) => {
+            const count = countFor(card.id);
+            const countBadge =
+              count == null
+                ? ""
+                : `<span class="reports-card-count${count === 0 ? " is-empty" : ""}">${count} registro${count === 1 ? "" : "s"}</span>`;
+            return `
       <article class="p-card reports-card-pro">
         <div class="p-card-header">
           <div class="p-card-header-left">
@@ -1293,6 +1368,7 @@ export function reportsExportPanelHtml(user) {
             <div>
               <h2>${escapeHtml(card.title)}</h2>
               <p class="reports-card-subtitle">${escapeHtml(card.subtitle)}</p>
+              ${countBadge}
             </div>
           </div>
         </div>
@@ -1303,8 +1379,8 @@ export function reportsExportPanelHtml(user) {
             <button class="btn btn-sm btn-action" type="button" data-action="generate-report" data-report="${escapeAttr(card.id)}" data-format="excel" title="Descarga Excel (.xls) con formato corporativo">${ic().file} Excel</button>
           </div>
         </div>
-      </article>`
-          )
+      </article>`;
+          })
           .join("")}
         </div>
       </div>`;

@@ -77,6 +77,7 @@ import {
   contractNoticeDedupeKey,
   contractNoticeRefToken
 } from "./employee-contract-renewal";
+import { querySimitFinesFromOpenData } from "./simit-fines";
 import type { PortalSyncKey } from "./dto/sync-key.dto";
 import {
   canAccessDocumentsModule,
@@ -700,6 +701,8 @@ export class PortalService implements OnModuleInit {
   private fixedTermRenewalInFlight = false;
   /** Poda de duplicados en bandeja (throttle; el poll de campana no debe borrar en cada tick). */
   private lastNotificationPruneMs = 0;
+  /** Tabla `notificaciones_estado_usuario` (lectura/ocultar por usuario en avisos compartidos). */
+  private notificacionesEstadoUsuarioReady = false;
   /**
    * Esquema `imagen_url` en vacantes verificado una vez por proceso. Evita ejecutar un
    * `ALTER TABLE` (ACCESS EXCLUSIVE lock) en cada publicación de vacante: el DDL redundante
@@ -1429,8 +1432,22 @@ export class PortalService implements OnModuleInit {
         SET leido = true
         WHERE fecha_lectura IS NOT NULL AND leido = false
       `);
+      await this.pool.query(`
+        CREATE TABLE IF NOT EXISTS public.notificaciones_estado_usuario (
+          id_notificacion UUID NOT NULL REFERENCES public.notificaciones (id) ON DELETE CASCADE,
+          id_usuario UUID NOT NULL REFERENCES public.usuarios (id) ON DELETE CASCADE,
+          fecha_lectura TIMESTAMPTZ,
+          oculto BOOLEAN NOT NULL DEFAULT false,
+          PRIMARY KEY (id_notificacion, id_usuario)
+        )
+      `);
+      await this.pool.query(`
+        CREATE INDEX IF NOT EXISTS idx_notificaciones_estado_usuario_usuario
+          ON public.notificaciones_estado_usuario (id_usuario)
+      `);
+      this.notificacionesEstadoUsuarioReady = true;
       await this.pruneDuplicateNotifications();
-      this.logger.log("notificaciones: esquema (audiencia + metadatos + leido) verificado.");
+      this.logger.log("notificaciones: esquema (audiencia + metadatos + leido + estado por usuario) verificado.");
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.warn(`ensureNotificacionesSchema fallo no fatal: ${sanitizeLogText(msg)}`);
@@ -2040,6 +2057,9 @@ export class PortalService implements OnModuleInit {
           nombre_responsable         VARCHAR(255),
           fecha_limite               DATE,
           origen                     VARCHAR(120),
+          seguimiento                TEXT,
+          decision_cierre            VARCHAR(64),
+          notas_cierre               TEXT,
           fecha_creacion             TIMESTAMPTZ NOT NULL DEFAULT now(),
           creado_por                 VARCHAR(255) NOT NULL DEFAULT 'Sistema',
           fecha_actualizacion        TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -2048,6 +2068,15 @@ export class PortalService implements OnModuleInit {
           cerrado_por                VARCHAR(255)
         )
       `);
+      await this.pool.query(
+        `ALTER TABLE alertas_sarlaft ADD COLUMN IF NOT EXISTS seguimiento TEXT`
+      );
+      await this.pool.query(
+        `ALTER TABLE alertas_sarlaft ADD COLUMN IF NOT EXISTS decision_cierre VARCHAR(64)`
+      );
+      await this.pool.query(
+        `ALTER TABLE alertas_sarlaft ADD COLUMN IF NOT EXISTS notas_cierre TEXT`
+      );
       await this.pool.query(
         `CREATE INDEX IF NOT EXISTS idx_alertas_sarlaft_tercero ON alertas_sarlaft (id_tercero)`
       );
@@ -2063,12 +2092,32 @@ export class PortalService implements OnModuleInit {
           id_responsable             UUID REFERENCES usuarios (id) ON DELETE SET NULL,
           nombre_responsable         VARCHAR(255),
           fecha_revision             DATE,
+          seguimiento                TEXT,
+          decision_cierre            VARCHAR(64),
+          notas_cierre               TEXT,
+          fecha_cierre               TIMESTAMPTZ,
+          cerrado_por                VARCHAR(255),
           fecha_creacion             TIMESTAMPTZ NOT NULL DEFAULT now(),
           creado_por                 VARCHAR(255) NOT NULL DEFAULT 'Sistema',
           fecha_actualizacion        TIMESTAMPTZ NOT NULL DEFAULT now(),
           actualizado_por            VARCHAR(255)
         )
       `);
+      await this.pool.query(
+        `ALTER TABLE revisiones_sarlaft ADD COLUMN IF NOT EXISTS seguimiento TEXT`
+      );
+      await this.pool.query(
+        `ALTER TABLE revisiones_sarlaft ADD COLUMN IF NOT EXISTS decision_cierre VARCHAR(64)`
+      );
+      await this.pool.query(
+        `ALTER TABLE revisiones_sarlaft ADD COLUMN IF NOT EXISTS notas_cierre TEXT`
+      );
+      await this.pool.query(
+        `ALTER TABLE revisiones_sarlaft ADD COLUMN IF NOT EXISTS fecha_cierre TIMESTAMPTZ`
+      );
+      await this.pool.query(
+        `ALTER TABLE revisiones_sarlaft ADD COLUMN IF NOT EXISTS cerrado_por VARCHAR(255)`
+      );
       await this.pool.query(
         `CREATE INDEX IF NOT EXISTS idx_revisiones_sarlaft_tercero ON revisiones_sarlaft (id_tercero)`
       );
@@ -7351,79 +7400,29 @@ export class PortalService implements OnModuleInit {
   }
 
   /**
-   * Persiste `fecha_lectura` sin depender de sync-key con cientos de filas (más fiable tras F5).
+   * Expande IDs pedidos a duplicados lógicos visibles para el actor
+   * (mismo título/cuerpo/audiencia o misma entidad).
    */
-  async markNotificationsRead(userId: string, role: JwtRole, ids: string[]) {
+  private async expandVisibleNotificationIds(
+    userId: string,
+    role: JwtRole,
+    ids: string[]
+  ): Promise<string[]> {
     const validIds = (Array.isArray(ids) ? ids : [])
       .map((raw) => String(raw ?? "").trim())
       .filter((id) => PG_UUID_V4_RE.test(id));
-    if (!validIds.length) {
-      return { ok: true, updated: 0, readAt: null as string | null };
-    }
+    if (!validIds.length) return [];
     const adminAudience = this.isAdmin(role);
     const hrAudience = this.roleMayRunContractRenewalNotices(role);
-    const now = new Date();
-    const r = await this.pool.query(
+    const r = await this.pool.query<{ id: string }>(
       `WITH requested AS (
          SELECT id, titulo, cuerpo, audiencia, id_usuario, tipo_entidad, id_entidad
          FROM notificaciones
          WHERE id = ANY($1::uuid[])
        )
-       UPDATE notificaciones n
-       SET fecha_lectura = COALESCE(n.fecha_lectura, $2::timestamptz),
-           leido = true
-       FROM requested src
-       WHERE (n.fecha_lectura IS NULL OR n.leido = false)
-         AND (
-           n.id = src.id
-           OR (
-             n.titulo = src.titulo
-             AND n.cuerpo = src.cuerpo
-             AND COALESCE(n.audiencia, '') = COALESCE(src.audiencia, '')
-             AND COALESCE(n.id_usuario::text, '') = COALESCE(src.id_usuario::text, '')
-           )
-           OR (
-             src.tipo_entidad IS NOT NULL
-             AND src.id_entidad IS NOT NULL
-             AND n.tipo_entidad = src.tipo_entidad
-             AND n.id_entidad = src.id_entidad
-             AND COALESCE(n.audiencia, '') = COALESCE(src.audiencia, '')
-             AND COALESCE(n.id_usuario::text, '') = COALESCE(src.id_usuario::text, '')
-           )
-         )
-         AND (
-           n.id_usuario = $3::uuid
-           OR (n.audiencia = 'admins' AND $4::boolean)
-           OR (n.audiencia = 'hr' AND $5::boolean)
-         )`,
-      [validIds, now, userId, adminAudience, hrAudience]
-    );
-    const updated = Number(r.rowCount) || 0;
-    return { ok: true, updated, readAt: now.toISOString() };
-  }
-
-  /**
-   * Borra notificaciones visibles para el actor sin depender de sync-key (evita 500 al
-   * re-procesar lecturas o filas ajenas en el payload).
-   */
-  async deleteNotifications(userId: string, role: JwtRole, ids: string[]) {
-    const validIds = (Array.isArray(ids) ? ids : [])
-      .map((raw) => String(raw ?? "").trim())
-      .filter((id) => PG_UUID_V4_RE.test(id));
-    if (!validIds.length) {
-      return { ok: true, deleted: 0 };
-    }
-    const adminAudience = this.isAdmin(role);
-    const hrAudience = this.roleMayRunContractRenewalNotices(role);
-    const r = await this.pool.query(
-      `WITH requested AS (
-         SELECT id, titulo, cuerpo, audiencia, id_usuario, tipo_entidad, id_entidad
-         FROM notificaciones
-         WHERE id = ANY($1::uuid[])
-       )
-       DELETE FROM notificaciones n
-       USING requested src
-       WHERE (
+       SELECT DISTINCT n.id::text AS id
+       FROM notificaciones n
+       JOIN requested src ON (
          n.id = src.id
          OR (
            n.titulo = src.titulo
@@ -7440,40 +7439,152 @@ export class PortalService implements OnModuleInit {
            AND COALESCE(n.id_usuario::text, '') = COALESCE(src.id_usuario::text, '')
          )
        )
-       AND (
+       WHERE (
          n.id_usuario = $2::uuid
          OR (n.audiencia = 'admins' AND $3::boolean)
          OR (n.audiencia = 'hr' AND $4::boolean)
        )`,
       [validIds, userId, adminAudience, hrAudience]
     );
-    const deleted = Number(r.rowCount) || 0;
+    return r.rows.map((row) => String(row.id || "").trim()).filter((id) => PG_UUID_V4_RE.test(id));
+  }
+
+  /**
+   * Persiste `fecha_lectura` sin depender de sync-key con cientos de filas (más fiable tras F5).
+   * En avisos de audiencia (admins/hr) la lectura es por usuario; no marca leída la fila compartida.
+   */
+  async markNotificationsRead(userId: string, role: JwtRole, ids: string[]) {
+    const targetIds = await this.expandVisibleNotificationIds(userId, role, ids);
+    if (!targetIds.length) {
+      return { ok: true, updated: 0, readAt: null as string | null };
+    }
+    const adminAudience = this.isAdmin(role);
+    const hrAudience = this.roleMayRunContractRenewalNotices(role);
+    const now = new Date();
+    const personal = await this.pool.query(
+      `UPDATE notificaciones
+       SET fecha_lectura = COALESCE(fecha_lectura, $2::timestamptz),
+           leido = true
+       WHERE id = ANY($1::uuid[])
+         AND id_usuario = $3::uuid
+         AND (fecha_lectura IS NULL OR leido = false)`,
+      [targetIds, now, userId]
+    );
+    let estadoUpdated = 0;
+    if (this.notificacionesEstadoUsuarioReady) {
+      try {
+        const estado = await this.pool.query(
+          `INSERT INTO notificaciones_estado_usuario (id_notificacion, id_usuario, fecha_lectura, oculto)
+           SELECT n.id, $2::uuid, $3::timestamptz, false
+           FROM notificaciones n
+           WHERE n.id = ANY($1::uuid[])
+             AND (
+               n.id_usuario = $2::uuid
+               OR (n.audiencia = 'admins' AND $4::boolean)
+               OR (n.audiencia = 'hr' AND $5::boolean)
+             )
+           ON CONFLICT (id_notificacion, id_usuario) DO UPDATE
+             SET fecha_lectura = COALESCE(notificaciones_estado_usuario.fecha_lectura, EXCLUDED.fecha_lectura)`,
+          [targetIds, userId, now, adminAudience, hrAudience]
+        );
+        estadoUpdated = Number(estado.rowCount) || 0;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logger.warn(`notificaciones_estado_usuario mark-read: ${sanitizeLogText(msg)}`);
+      }
+    } else {
+      const shared = await this.pool.query(
+        `UPDATE notificaciones
+         SET fecha_lectura = COALESCE(fecha_lectura, $2::timestamptz),
+             leido = true
+         WHERE id = ANY($1::uuid[])
+           AND id_usuario IS NULL
+           AND (
+             (audiencia = 'admins' AND $3::boolean)
+             OR (audiencia = 'hr' AND $4::boolean)
+           )
+           AND (fecha_lectura IS NULL OR leido = false)`,
+        [targetIds, now, adminAudience, hrAudience]
+      );
+      estadoUpdated = Number(shared.rowCount) || 0;
+    }
+    const updated = (Number(personal.rowCount) || 0) + estadoUpdated;
+    return { ok: true, updated, readAt: now.toISOString() };
+  }
+
+  /**
+   * Borra notificaciones visibles para el actor sin depender de sync-key (evita 500 al
+   * re-procesar lecturas o filas ajenas en el payload).
+   * Las personales se eliminan; las de audiencia se ocultan solo para el actor.
+   */
+  async deleteNotifications(userId: string, role: JwtRole, ids: string[]) {
+    const targetIds = await this.expandVisibleNotificationIds(userId, role, ids);
+    if (!targetIds.length) {
+      return { ok: true, deleted: 0 };
+    }
+    const adminAudience = this.isAdmin(role);
+    const hrAudience = this.roleMayRunContractRenewalNotices(role);
+    let hidden = 0;
+    if (this.notificacionesEstadoUsuarioReady) {
+      try {
+        const hide = await this.pool.query(
+          `INSERT INTO notificaciones_estado_usuario (id_notificacion, id_usuario, oculto)
+           SELECT n.id, $2::uuid, true
+           FROM notificaciones n
+           WHERE n.id = ANY($1::uuid[])
+             AND (
+               (n.audiencia = 'admins' AND $3::boolean)
+               OR (n.audiencia = 'hr' AND $4::boolean)
+             )
+           ON CONFLICT (id_notificacion, id_usuario) DO UPDATE
+             SET oculto = true`,
+          [targetIds, userId, adminAudience, hrAudience]
+        );
+        hidden = Number(hide.rowCount) || 0;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logger.warn(`notificaciones_estado_usuario delete: ${sanitizeLogText(msg)}`);
+      }
+    }
+    const personal = await this.pool.query(
+      `DELETE FROM notificaciones
+       WHERE id = ANY($1::uuid[])
+         AND id_usuario = $2::uuid`,
+      [targetIds, userId]
+    );
+    let sharedDeleted = 0;
+    if (!this.notificacionesEstadoUsuarioReady) {
+      const shared = await this.pool.query(
+        `DELETE FROM notificaciones
+         WHERE id = ANY($1::uuid[])
+           AND id_usuario IS NULL
+           AND (
+             (audiencia = 'admins' AND $2::boolean)
+             OR (audiencia = 'hr' AND $3::boolean)
+           )`,
+        [targetIds, adminAudience, hrAudience]
+      );
+      sharedDeleted = Number(shared.rowCount) || 0;
+    }
+    const deleted = (Number(personal.rowCount) || 0) + hidden + sharedDeleted;
     return { ok: true, deleted };
   }
 
-  private async loadNotifications(userId: string, role: JwtRole) {
-    const adminAudience = this.isAdmin(role);
-    const hrAudience = this.roleMayRunContractRenewalNotices(role);
-    const limit = adminAudience ? 500 : 200;
-    const r = await this.pool.query(
-      `SELECT id::text, id_usuario::text AS "userId", audiencia AS audience,
-              titulo AS title, cuerpo AS body,
-              categoria AS category, deep_link AS "deepLink",
-              tipo_entidad AS "entityType", id_entidad AS "entityId",
-              fecha_lectura AS "readAt", fecha_creacion AS "createdAt",
-              leido
-       FROM notificaciones
-       WHERE (
-         id_usuario = $1::uuid
-         OR (audiencia = 'admins' AND $2::boolean)
-         OR (audiencia = 'hr' AND $3::boolean)
-       )
-       AND COALESCE(eliminado, false) = false
-       ORDER BY fecha_creacion DESC
-       LIMIT ${limit}`,
-      [userId, adminAudience, hrAudience]
-    );
-    return r.rows.map((n) => ({
+  private mapNotificationLoadRow(n: {
+    id: string;
+    userId: string | null;
+    audience: string | null;
+    title: string;
+    body: string;
+    category: string | null;
+    deepLink: string | null;
+    entityType: string | null;
+    entityId: string | null;
+    readAt: Date | string | null;
+    leido: boolean | null;
+    createdAt: Date | string | null;
+  }) {
+    return {
       id: n.id,
       userId: n.userId,
       audience: n.audience ?? null,
@@ -7486,7 +7597,58 @@ export class PortalService implements OnModuleInit {
       readAt: n.readAt ? new Date(n.readAt).toISOString() : null,
       leido: Boolean(n.leido),
       createdAt: n.createdAt ? new Date(n.createdAt).toISOString() : new Date().toISOString()
-    }));
+    };
+  }
+
+  private async loadNotifications(userId: string, role: JwtRole) {
+    const adminAudience = this.isAdmin(role);
+    const hrAudience = this.roleMayRunContractRenewalNotices(role);
+    const limit = adminAudience ? 500 : 200;
+    const visibility = `(
+         n.id_usuario = $1::uuid
+         OR (n.audiencia = 'admins' AND $2::boolean)
+         OR (n.audiencia = 'hr' AND $3::boolean)
+       )`;
+    if (this.notificacionesEstadoUsuarioReady) {
+      const r = await this.pool.query(
+        `SELECT n.id::text, n.id_usuario::text AS "userId", n.audiencia AS audience,
+                n.titulo AS title, n.cuerpo AS body,
+                n.categoria AS category, n.deep_link AS "deepLink",
+                n.tipo_entidad AS "entityType", n.id_entidad AS "entityId",
+                CASE
+                  WHEN n.id_usuario IS NOT NULL THEN COALESCE(e.fecha_lectura, n.fecha_lectura)
+                  ELSE e.fecha_lectura
+                END AS "readAt",
+                n.fecha_creacion AS "createdAt",
+                CASE
+                  WHEN n.id_usuario IS NOT NULL THEN (n.leido OR n.fecha_lectura IS NOT NULL OR e.fecha_lectura IS NOT NULL)
+                  ELSE (e.fecha_lectura IS NOT NULL)
+                END AS leido
+         FROM notificaciones n
+         LEFT JOIN notificaciones_estado_usuario e
+           ON e.id_notificacion = n.id AND e.id_usuario = $1::uuid
+         WHERE ${visibility}
+           AND COALESCE(e.oculto, false) = false
+         ORDER BY n.fecha_creacion DESC
+         LIMIT ${limit}`,
+        [userId, adminAudience, hrAudience]
+      );
+      return r.rows.map((n) => this.mapNotificationLoadRow(n));
+    }
+    const r = await this.pool.query(
+      `SELECT n.id::text, n.id_usuario::text AS "userId", n.audiencia AS audience,
+              n.titulo AS title, n.cuerpo AS body,
+              n.categoria AS category, n.deep_link AS "deepLink",
+              n.tipo_entidad AS "entityType", n.id_entidad AS "entityId",
+              n.fecha_lectura AS "readAt", n.fecha_creacion AS "createdAt",
+              n.leido
+       FROM notificaciones n
+       WHERE ${visibility}
+       ORDER BY n.fecha_creacion DESC
+       LIMIT ${limit}`,
+      [userId, adminAudience, hrAudience]
+    );
+    return r.rows.map((n) => this.mapNotificationLoadRow(n));
   }
 
   private async loadEmails(admin: boolean) {
@@ -8699,7 +8861,10 @@ export class PortalService implements OnModuleInit {
       tags: row.etiquetas ?? null,
       uploadedBy: row.subido_por,
       createdAt: row.fecha_creacion ? new Date(row.fecha_creacion).toISOString() : new Date().toISOString(),
-      updatedAt: row.fecha_actualizacion ? new Date(row.fecha_actualizacion).toISOString() : new Date().toISOString()
+      updatedAt: row.fecha_actualizacion ? new Date(row.fecha_actualizacion).toISOString() : new Date().toISOString(),
+      deletedAt: row.fecha_eliminacion ? new Date(row.fecha_eliminacion).toISOString() : "",
+      deletedBy: row.fecha_eliminacion ? String(row.eliminado_por || "") : "",
+      deleteReason: row.fecha_eliminacion ? String(row.motivo_eliminacion || "") : ""
     }));
   }
 
@@ -8731,7 +8896,10 @@ export class PortalService implements OnModuleInit {
       usersUpload: toRoleList(row.usuarios_subir),
       usersDelete: toRoleList(row.usuarios_eliminar),
       createdBy: row.creado_por,
-      createdAt: row.fecha_creacion ? new Date(row.fecha_creacion).toISOString() : new Date().toISOString()
+      createdAt: row.fecha_creacion ? new Date(row.fecha_creacion).toISOString() : new Date().toISOString(),
+      deletedAt: row.fecha_eliminacion ? new Date(row.fecha_eliminacion).toISOString() : "",
+      deletedBy: row.fecha_eliminacion ? String(row.eliminado_por || "") : "",
+      deleteReason: row.fecha_eliminacion ? String(row.motivo_eliminacion || "") : ""
     }));
   }
 
@@ -8804,8 +8972,8 @@ export class PortalService implements OnModuleInit {
       dueDiligenceLevel: row.nivel_debida_diligencia,
       pepFlag: Boolean(row.es_pep),
       pepDetails: row.detalle_pep ?? "",
-      nextReviewDate: row.fecha_proxima_revision ?? "",
-      lastReviewDate: row.fecha_ultima_revision ?? "",
+      nextReviewDate: this.sqlEmployeeDateToPortalYmd(row.fecha_proxima_revision),
+      lastReviewDate: this.sqlEmployeeDateToPortalYmd(row.fecha_ultima_revision),
       responsibleUserId: row.id_responsable ?? "",
       responsibleName: row.nombre_responsable ?? "",
       notes: row.observaciones ?? "",
@@ -8819,6 +8987,19 @@ export class PortalService implements OnModuleInit {
       updatedAt: row.fecha_actualizacion ? new Date(row.fecha_actualizacion).toISOString() : "",
       updatedBy: row.actualizado_por ?? ""
     }));
+  }
+
+  private sarlaftFollowUpPayload(row: Record<string, unknown>): string {
+    const raw = row.seguimiento ?? row.followUps ?? "";
+    if (typeof raw === "string") return raw.trim();
+    if (Array.isArray(raw)) {
+      try {
+        return JSON.stringify(raw);
+      } catch {
+        return "";
+      }
+    }
+    return "";
   }
 
   private async loadSarlaftAlerts() {
@@ -8836,8 +9017,12 @@ export class PortalService implements OnModuleInit {
       status: row.estado,
       responsibleUserId: row.id_responsable ?? "",
       responsibleName: row.nombre_responsable ?? "",
-      dueDate: row.fecha_limite ?? "",
+      dueDate: this.sqlEmployeeDateToPortalYmd(row.fecha_limite),
       source: row.origen ?? "",
+      followUps: row.seguimiento ?? "",
+      seguimiento: row.seguimiento ?? "",
+      closureDecision: row.decision_cierre ?? "",
+      closureNotes: row.notas_cierre ?? "",
       createdAt: row.fecha_creacion ? new Date(row.fecha_creacion).toISOString() : new Date().toISOString(),
       createdBy: row.creado_por,
       updatedAt: row.fecha_actualizacion ? new Date(row.fecha_actualizacion).toISOString() : "",
@@ -8860,7 +9045,13 @@ export class PortalService implements OnModuleInit {
       observations: row.observaciones ?? "",
       responsibleUserId: row.id_responsable ?? "",
       responsibleName: row.nombre_responsable ?? "",
-      reviewedAt: row.fecha_revision ?? "",
+      reviewedAt: this.sqlEmployeeDateToPortalYmd(row.fecha_revision),
+      followUps: row.seguimiento ?? "",
+      seguimiento: row.seguimiento ?? "",
+      closureDecision: row.decision_cierre ?? "",
+      closureNotes: row.notas_cierre ?? "",
+      closedAt: row.fecha_cierre ? new Date(row.fecha_cierre).toISOString() : "",
+      closedBy: row.cerrado_por ?? "",
       createdAt: row.fecha_creacion ? new Date(row.fecha_creacion).toISOString() : new Date().toISOString(),
       createdBy: row.creado_por,
       updatedAt: row.fecha_actualizacion ? new Date(row.fecha_actualizacion).toISOString() : "",
@@ -10349,6 +10540,7 @@ export class PortalService implements OnModuleInit {
       if (this.skipUnlessPersistUuid("syncVehicles", v.id)) continue;
       const rec = v as Record<string, unknown>;
       const audit = portalAuditActorPairFromRecord(rec);
+      try {
       await c.query(
         `INSERT INTO vehiculos (
           id, placa, marca, linea_modelo, anio_modelo, color, tipo_vehiculo, capacidad_kg, refrigerado_termoking,
@@ -10435,6 +10627,23 @@ export class PortalService implements OnModuleInit {
           audit.updatedBy
         ]
       );
+      } catch (e) {
+        const pg = e as { code?: string; constraint?: string; message?: string };
+        const code = String(pg?.code || "");
+        const constraint = String(pg?.constraint || "");
+        const msg = e instanceof Error ? e.message : String(e);
+        const plateLabel = String(v.plate || "").trim().toUpperCase();
+        if (code === "23505" && /placa|uq_vehiculos_placa/i.test(`${constraint} ${msg}`)) {
+          throw new BadRequestException(`La placa ${plateLabel} ya está registrada en otro vehículo.`);
+        }
+        if (code === "23514") {
+          throw new BadRequestException(
+            "Los datos del vehículo no cumplen las reglas de la flota: año entre 1990 y 2100, capacidad mayor que cero y chasis de 11 a 17 caracteres."
+          );
+        }
+        this.logger.warn(`syncVehicles id=${String(v.id)}: ${msg}`);
+        throw e;
+      }
     }
   }
 
@@ -14633,12 +14842,15 @@ export class PortalService implements OnModuleInit {
     if (key === "sarlaftAlerts") {
       for (const row of recs) {
         if (!row?.id || this.skipUnlessPersistUuid("syncSarlaftAlerts", row.id)) continue;
+        const followUpJson = this.sarlaftFollowUpPayload(row as Record<string, unknown>);
         await c.query(
           `INSERT INTO alertas_sarlaft (
             id, id_tercero, nombre_tercero, tipo, programa, severidad, titulo, descripcion, estado,
-            id_responsable, nombre_responsable, fecha_limite, origen, creado_por, actualizado_por, fecha_cierre, cerrado_por
+            id_responsable, nombre_responsable, fecha_limite, origen, seguimiento, decision_cierre, notas_cierre,
+            creado_por, actualizado_por, fecha_cierre, cerrado_por
           ) VALUES (
-            $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10::uuid, $11, $12::date, $13, $14, $15, $16::timestamptz, $17
+            $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10::uuid, $11, $12::date, $13, $14, $15, $16,
+            $17, $18, $19::timestamptz, $20
           )
           ON CONFLICT (id) DO UPDATE SET
             id_tercero = EXCLUDED.id_tercero,
@@ -14653,6 +14865,9 @@ export class PortalService implements OnModuleInit {
             nombre_responsable = EXCLUDED.nombre_responsable,
             fecha_limite = EXCLUDED.fecha_limite,
             origen = EXCLUDED.origen,
+            seguimiento = EXCLUDED.seguimiento,
+            decision_cierre = EXCLUDED.decision_cierre,
+            notas_cierre = EXCLUDED.notas_cierre,
             actualizado_por = EXCLUDED.actualizado_por,
             fecha_cierre = EXCLUDED.fecha_cierre,
             cerrado_por = EXCLUDED.cerrado_por,
@@ -14671,6 +14886,9 @@ export class PortalService implements OnModuleInit {
             nuN(row.responsibleName),
             this.sqlDate(row.dueDate),
             nuN(row.source),
+            followUpJson || null,
+            nuN(row.closureDecision || row.decision_cierre),
+            nuN(row.closureNotes || row.notas_cierre),
             nu(row.createdBy || "Portal"),
             nuN(row.updatedBy),
             row.closedAt ? new Date(String(row.closedAt)).toISOString() : null,
@@ -14683,12 +14901,15 @@ export class PortalService implements OnModuleInit {
     if (key === "sarlaftReviews") {
       for (const row of recs) {
         if (!row?.id || this.skipUnlessPersistUuid("syncSarlaftReviews", row.id)) continue;
+        const followUpJson = this.sarlaftFollowUpPayload(row as Record<string, unknown>);
         await c.query(
           `INSERT INTO revisiones_sarlaft (
             id, id_tercero, nombre_tercero, id_alerta, tipo, estado, observaciones,
-            id_responsable, nombre_responsable, fecha_revision, creado_por, actualizado_por
+            id_responsable, nombre_responsable, fecha_revision, seguimiento, decision_cierre, notas_cierre,
+            fecha_cierre, cerrado_por, creado_por, actualizado_por
           ) VALUES (
-            $1::uuid, $2::uuid, $3, $4::uuid, $5, $6, $7, $8::uuid, $9, $10::date, $11, $12
+            $1::uuid, $2::uuid, $3, $4::uuid, $5, $6, $7, $8::uuid, $9, $10::date, $11, $12, $13,
+            $14::timestamptz, $15, $16, $17
           )
           ON CONFLICT (id) DO UPDATE SET
             id_tercero = EXCLUDED.id_tercero,
@@ -14700,6 +14921,11 @@ export class PortalService implements OnModuleInit {
             id_responsable = EXCLUDED.id_responsable,
             nombre_responsable = EXCLUDED.nombre_responsable,
             fecha_revision = EXCLUDED.fecha_revision,
+            seguimiento = EXCLUDED.seguimiento,
+            decision_cierre = EXCLUDED.decision_cierre,
+            notas_cierre = EXCLUDED.notas_cierre,
+            fecha_cierre = EXCLUDED.fecha_cierre,
+            cerrado_por = EXCLUDED.cerrado_por,
             actualizado_por = EXCLUDED.actualizado_por,
             fecha_actualizacion = now()`,
           [
@@ -14713,6 +14939,11 @@ export class PortalService implements OnModuleInit {
             this.optionalUuid(row.responsibleUserId),
             nuN(row.responsibleName),
             this.sqlDate(row.reviewedAt),
+            followUpJson || null,
+            nuN(row.closureDecision || row.decision_cierre),
+            nuN(row.closureNotes || row.notas_cierre),
+            row.closedAt ? new Date(String(row.closedAt)).toISOString() : null,
+            nuN(row.closedBy),
             nu(row.createdBy || "Portal"),
             nuN(row.updatedBy)
           ]
@@ -14965,5 +15196,17 @@ export class PortalService implements OnModuleInit {
         ]
       );
     }
+  }
+
+  async querySimitFines(actorUserId: string, role: JwtRole, platesRaw?: string, pendingOnlyRaw?: string) {
+    if (!this.isAdmin(role)) {
+      const permissionSet = await this.resolveEffectivePermissionSet(actorUserId, role);
+      if (!this.canAccessVehiclesModule(permissionSet)) {
+        throw new ForbiddenException("No autorizado para consultar comparendos SIMIT de la flota.");
+      }
+    }
+    const plates = String(platesRaw || "").split(",");
+    const pendingOnly = String(pendingOnlyRaw || "1") !== "0";
+    return querySimitFinesFromOpenData(plates, pendingOnly);
   }
 }

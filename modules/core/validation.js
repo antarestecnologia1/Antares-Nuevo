@@ -824,7 +824,8 @@
       re: /^(baseSalary|transportAllowance|tripValue|tripRateCop|totalCost|fuelReimbursement|insuredValue|distanceKm|weightKg|capacityKg|fuelles|openings|experienceYears|expectedSalary|salaryOffer|extras|aux|primaServicios|interesesCesantias|vacationDays|days360|primaProp|contractDurationAmount|amount|price|value|bonus|liters|odometerKm|salary|cop)$/i,
       attrs: { blur: "decimal", restrict: "decimal" }
     },
-    { re: /^(plate|vin)$/i, attrs: { restrict: "alnum-doc" } },
+    { re: /^plate$/i, attrs: { blur: "cargo-plate", restrict: "alnum-doc" } },
+    { re: /^vin$/i, attrs: { blur: "vehicle-vin", restrict: "alnum-doc" } },
     { re: /^(pickupDate|deliveryDate|birthDate|documentIssuedAt|dueDate|startDate|contractVigenteStartDate|endDate|deadline|when|soat|techInspection|rcPolicyExpiry)/i, attrs: { blur: "date-iso" } },
     { re: /^q$/i, attrs: { max: 200 } },
     { re: /^(notes|message|requirements|description)$/i, attrs: { field: "db-upper-multiline", blur: "db-upper-multiline" } },
@@ -1490,6 +1491,26 @@
         return false;
       }
       if (s && s !== el.value) el.value = s;
+      clearFieldError(el);
+      return true;
+    }
+    if (check === "cargo-plate") {
+      const plate = sanitizeOneLineText(raw, 8).replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+      if (raw && !/^[A-Z]{3}[0-9]{3}$/.test(plate)) {
+        setFieldError(el, "Placa no válida. Use tres letras y tres números (ej. ABC123).");
+        return false;
+      }
+      if (plate && plate !== String(el.value || "")) el.value = plate;
+      clearFieldError(el);
+      return true;
+    }
+    if (check === "vehicle-vin") {
+      const vin = sanitizeOneLineText(raw, 17).replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+      if (raw && !/^[A-Z0-9]{11,17}$/.test(vin)) {
+        setFieldError(el, "El chasis (VIN) debe tener entre 11 y 17 caracteres, sin espacios ni símbolos.");
+        return false;
+      }
+      if (vin && vin !== String(el.value || "")) el.value = vin;
       clearFieldError(el);
       return true;
     }

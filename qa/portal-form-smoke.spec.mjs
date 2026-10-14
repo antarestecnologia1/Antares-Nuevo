@@ -1014,6 +1014,7 @@ test("portal form smoke", async ({ page, context }) => {
       ["phone", "3004445566"],
       ["emergencyContact", "Nora"],
       ["emergencyPhone", "3004445567"],
+      ["emergencyRelation", "Hermana"],
       ["companyId", "co-antares"],
       ["positionId", "pos-analista"],
       ["contractType", "Termino indefinido"],
@@ -1023,6 +1024,7 @@ test("portal form smoke", async ({ page, context }) => {
       ["pensionFund", "Porvenir"],
       ["arl", "Sura"],
       ["bankName", "Bancolombia"],
+      ["bankAccountType", "Ahorros"],
       ["bankAccount", "998877665544"],
       ["startDate", ymd(plusDays(-5))]
     ]);

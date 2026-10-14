@@ -68,6 +68,8 @@ includesAll(
   "reports-bi-customizer"
 );
 ok(reporteriaJs.includes('isViewAllowedForUser(user, "reports")'), "reports-export-permission-check");
+ok(reporteriaJs.includes("Gráficos y métricas"), "metrics-tab-label");
+ok(reporteriaJs.includes("Reportes de negocio"), "export-tab-label");
 
 // 4) Mensajes de feedback (definiciones en feedback-messages.js; uso en app/reporteria)
 includesAll(
@@ -79,14 +81,16 @@ includesAll(
 // 5) Gráficas condicionadas al layout
 ok(
   reportsRuntimeBundle.includes("if (L.charts.revenue)") &&
-    reportsRuntimeBundle.includes("if (L.scores.thermoking)"),
+    reportsRuntimeBundle.includes("if (L.scores.thermoking)") &&
+    reportsRuntimeBundle.includes("if (L.charts.fleet") &&
+    reportsRuntimeBundle.includes("if (L.charts.hr"),
   "charts-respect-layout"
 );
 
 // 6) HTML balance básico en panel BI (aperturas/cierres section)
 const panelStart = portalRuntimeJs.indexOf("function reportsAnalyticsPanelHtml(snapshot, layout)");
 ok(panelStart > 0, "reportsAnalyticsPanelHtml exists");
-const panelChunk = portalRuntimeJs.slice(panelStart, panelStart + 12000);
+const panelChunk = portalRuntimeJs.slice(panelStart, panelStart + 22000);
 const opens = (panelChunk.match(/<section class="reports-bi"/g) || []).length;
 const closes = (panelChunk.match(/<\/section>/g) || []).length;
 ok(opens === 1 && closes >= 1, `reports-bi section balance (opens=${opens}, closes=${closes})`);

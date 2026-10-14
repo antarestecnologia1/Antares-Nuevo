@@ -1,8 +1,37 @@
 /**
- * Dominio de vehículos (flota): normalización de layout y filtros de búsqueda.
+ * Dominio de vehículos (flota): normalización de layout, validación y filtros.
  */
 import { KEYS } from "../core/config.js";
 import { read } from "../core/data-io.js";
+import { vehicleSearchBlob } from "./vehicles.logic.js";
+
+export {
+  canonicalVehicleType,
+  compareVehiclesByPlate,
+  isValidColombianCargoPlate,
+  isValidVehicleVin,
+  normalizeVehicleFleetComplianceFilter,
+  normalizeVehicleFleetDocFilter,
+  normalizeVehicleFleetEquipFilter,
+  normalizeVehicleFleetGpsFilter,
+  normalizeVehicleFleetStatusFilter,
+  normalizeVehicleFleetTypeFilter,
+  normalizeVehiclePlate,
+  normalizeVehicleVin,
+  resolveVehicleTypeForStorage,
+  validateVehicleFormPayload,
+  bodyTypeImpliesDryCargo,
+  bodyTypeImpliesTermoking,
+  vehicleComplianceState,
+  vehicleDocumentRiskLevel,
+  vehicleHasActiveGps,
+  vehicleHasRefrigeration,
+  vehicleTermokingBodyConflict,
+  vehicleOperationalTone,
+  vehiclePassesFleetFilters,
+  vehicleSearchBlob,
+  vehicleTypeKey
+} from "./vehicles.logic.js";
 
 export function normalizeVehicleFleetLayout(raw) {
   return String(raw || "").trim().toLowerCase() === "list" ? "list" : "cards";
@@ -16,20 +45,7 @@ export function filterVehiclesBySearch(vehicles, search) {
   const q = String(search || "").trim().toLowerCase();
   const rows = Array.isArray(vehicles) ? vehicles : [];
   if (!q) return rows;
-  return rows.filter((v) => {
-    const blob = [
-      v?.plate,
-      v?.brand,
-      v?.model,
-      v?.vin,
-      v?.type,
-      v?.status,
-      v?.companyName
-    ]
-      .map((x) => String(x || "").toLowerCase())
-      .join(" ");
-    return blob.includes(q);
-  });
+  return rows.filter((v) => vehicleSearchBlob(v).includes(q));
 }
 
 export function vehicleStatusLabel(status) {

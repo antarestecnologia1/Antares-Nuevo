@@ -16,6 +16,8 @@ import {
   parseDocumentCategory,
   computeDocumentValidityStatus,
   applyCompanyDocumentFilters,
+  companyDocumentFilterScope,
+  categoriesForDocumentFolder,
   nextDocumentVersionState,
   listDocumentVersionChain,
   isHiddenCompanyFolder,
@@ -188,8 +190,21 @@ const importBlock = gestionJs.match(/} from "\.\.\/domain\/company-documents\.do
   : "";
 ok(importBlock.includes("normalizeCompanyDocumentRow"), "importa normalizador");
 ok(domainJs.includes("export function normalizeCompanyDocumentRow"), "dominio exporta normalizador");
-ok(indexHtml.includes("gestion-documental.js?v=20261013-renewal-archive"), "cache-bust del JS actualizado");
-ok(indexHtml.includes('href="./styles/gestion-documental.css?v=20260930f-fullname"'), "cache-bust del CSS actualizado");
+const empleados = companyDocumentFilterScope("01. Empleados / Ana");
+ok(empleados.scoped, "empleados recorta filtros");
+ok(empleados.processes.every((item) => ["rrhh", "contratacion", "cumplimiento"].includes(item.value)), "procesos de empleados");
+ok(!empleados.processes.some((item) => item.value === "sarlaft"), "empleados no ofrece SARLAFT");
+ok(empleados.entities.every((item) => ["empleado", "conductor"].includes(item.value)), "entidades de empleados");
+const sarlaft = companyDocumentFilterScope("08. SARLAFT / PTE");
+ok(sarlaft.processes.every((item) => item.value === "sarlaft"), "SARLAFT solo su proceso");
+ok(!sarlaft.entities.some((item) => item.value === "vehiculo"), "SARLAFT no filtra vehículos");
+const sarlaftTypes = categoriesForDocumentFolder(COMPANY_DOCUMENT_CATEGORIES, "08. SARLAFT");
+ok(sarlaftTypes.some((item) => item.value === "consulta_listas"), "SARLAFT incluye listas restrictivas");
+ok(!sarlaftTypes.some((item) => item.value === "soat"), "SARLAFT no incluye SOAT");
+ok(sarlaftTypes.some((item) => item.value === "otro"), "el tipo Otro sigue disponible");
+ok(!companyDocumentFilterScope("*").scoped, "todo el archivo no recorta filtros");
+ok(indexHtml.includes("gestion-documental.js?v=20261013-dms-fix6"), "cache-bust del JS actualizado");
+ok(indexHtml.includes('href="./styles/gestion-documental.css?v=20261013-dms-fix6"'), "cache-bust del CSS actualizado");
 ok(
   !indexHtml.includes("gestion-documental.css?v=20260804-dms-pdfjs-preview"),
   "el CSS activo no queda en la versión anterior"

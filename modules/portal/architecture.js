@@ -93,7 +93,7 @@ window.PortalArchitecture = (() => {
       ]
     },
     reports: {
-      title: "Centro de reporteria",
+      title: "Centro de reportería",
       access: "permission-gated",
       shell: true,
       renderer: [{ module: "transporte", exportName: "reportsHtml" }],
@@ -203,7 +203,7 @@ window.PortalArchitecture = (() => {
       access: "permission-gated",
       shell: true,
       renderer: [{ module: "notificaciones", exportName: "notificationsHtml" }],
-      layoutPlan: [{ container: ".notifications-studio", order: [".ntf-studio-head", ".ntf-operate", ".ntf-data-panel", ".ntf-list", ".empty-state"] }]
+      layoutPlan: [{ container: ".notifications-studio", order: [".ntf-studio-head", ".ntf-operate"] }]
     }
   };
 

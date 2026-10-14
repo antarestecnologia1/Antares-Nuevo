@@ -37,25 +37,517 @@ function vehicleMatchesFleetSearch(v, qNorm) {
   return vehicleFleetSearchHaystack(v).includes(qNorm);
 }
 
+function vehicleDomainFn(name) {
+  const domain = typeof AntaresVehiclesDomain !== "undefined" ? AntaresVehiclesDomain : null;
+  const fn = domain && domain[name];
+  return typeof fn === "function" ? fn : null;
+}
+
+function simitFinesDomain() {
+  return typeof AntaresSimitFinesDomain !== "undefined" ? AntaresSimitFinesDomain : null;
+}
+
+function emptyVehiclesSimitState() {
+  return {
+    status: "idle",
+    platesKey: "",
+    pendingOnly: true,
+    fetchedAt: null,
+    error: null,
+    rows: [],
+    truncated: false,
+    query: "",
+    resultFilter: "all"
+  };
+}
+
+function normalizeSimitResultFilter(raw) {
+  const fn = simitFinesDomain()?.normalizeSimitResultFilter;
+  if (fn) return fn(raw);
+  const value = String(raw || "all").trim().toLowerCase();
+  return value === "pending" || value === "clean" ? value : "all";
+}
+
+function withSimitUi(source, patch = {}) {
+  const base = source && typeof source === "object" ? source : emptyVehiclesSimitState();
+  const next = { ...emptyVehiclesSimitState(), ...base, ...patch };
+  next.query = Object.prototype.hasOwnProperty.call(patch, "query") ? String(patch.query || "") : String(base.query || "");
+  next.resultFilter = normalizeSimitResultFilter(
+    Object.prototype.hasOwnProperty.call(patch, "resultFilter") ? patch.resultFilter : base.resultFilter
+  );
+  return next;
+}
+
+function vehiclesSimitPlates(vehicles) {
+  return (Array.isArray(vehicles) ? vehicles : []).map((item) => item?.plate);
+}
+
+function vehiclesSimitCacheKey(vehicles, pendingOnly) {
+  const D = simitFinesDomain();
+  if (D?.simitPlatesCacheKey) return D.simitPlatesCacheKey(vehiclesSimitPlates(vehicles), pendingOnly);
+  return `${pendingOnly === false ? "all" : "pending"}:${vehiclesSimitPlates(vehicles)
+    .map((plate) => String(plate || "").trim().toUpperCase())
+    .filter(Boolean)
+    .sort()
+    .join("|")}`;
+}
+
+function vehiclesSimitPaneHtml(vehicles, simitState) {
+  const D = simitFinesDomain();
+  const pendingOnly = simitState?.pendingOnly !== false;
+  const status = String(simitState?.status || "idle");
+  const sourceUrl = D?.SIMIT_PORTAL_URL || "https://www.datos.gov.co/Funci-n-P-blica/Historial-de-Multas-reportados-en-el-SIMIT-FCM/72nf-y4v3";
+  const disclaimer = `<p class="muted vehicles-simit-disclaimer">Fuente: <a href="${escapeAttr(sourceUrl)}" target="_blank" rel="noopener noreferrer">Historial de Multas SIMIT · FCM</a> en datos.gov.co. Cubre comparendos reportados del 1 ene 2019 al 31 dic 2025 (actualización anual). El conjunto no distingue fotomultas de otras infracciones: se muestran comparendos ${pendingOnly ? "con pago pendiente" : "del historial"}. No reemplaza la consulta oficial en el portal SIMIT.</p>`;
+  const toolbar = `<div class="vehicles-simit-toolbar">
+      <div class="transport-ops-layout driver-fleet-view-toggle" role="group" aria-label="Alcance de la consulta SIMIT">
+        <button type="button" class="btn btn-sm ${pendingOnly ? "btn-primary" : "btn-outline"}" data-action="vehicles-simit-scope" data-scope="pending">Pendientes</button>
+        <button type="button" class="btn btn-sm ${pendingOnly ? "btn-outline" : "btn-primary"}" data-action="vehicles-simit-scope" data-scope="all">Historial</button>
+      </div>
+      <button type="button" class="btn btn-sm btn-outline" data-action="vehicles-simit-refresh"${status === "loading" ? " disabled" : ""}>${IC.activity || ""} ${status === "loading" ? "Consultando…" : "Actualizar consulta"}</button>
+    </div>`;
+  if (!vehicles.length) {
+    return `${disclaimer}${emptyState("Registre vehículos en la flota para consultar comparendos SIMIT por placa.")}`;
+  }
+  if (status === "loading" || status === "idle") {
+    return `${disclaimer}${toolbar}<p class="muted vehicles-simit-status" role="status">${IC.activity || ""} Consultando el historial SIMIT por las placas de la flota…</p>`;
+  }
+  if (status === "error") {
+    return `${disclaimer}${toolbar}${emptyState(String(simitState?.error || "No se pudo consultar SIMIT."))}`;
+  }
+  const summary = D?.summarizeSimitByPlate
+    ? D.summarizeSimitByPlate(vehicles, simitState?.rows || [])
+    : { list: [], withPending: [], cleanCount: vehicles.length, pendingVehicleCount: 0, pendingCount: 0, pendingValue: 0 };
+  const money = typeof D?.formatSimitMoney === "function" ? D.formatSimitMoney : (n) => `$${Number(n || 0).toLocaleString("es-CO")}`;
+  const kpis = `<div class="vehicles-simit-kpis" aria-label="Resumen SIMIT">
+      <div class="vehicles-simit-kpi${summary.pendingVehicleCount ? " vehicles-simit-kpi--alert" : " vehicles-simit-kpi--ok"}"><strong>${escapeHtml(String(summary.pendingVehicleCount))}</strong><span>Con pendientes</span></div>
+      <div class="vehicles-simit-kpi vehicles-simit-kpi--ok"><strong>${escapeHtml(String(summary.cleanCount))}</strong><span>Al día en este corte</span></div>
+      <div class="vehicles-simit-kpi"><strong>${escapeHtml(String(summary.pendingCount))}</strong><span>Comparendos pendientes</span></div>
+      <div class="vehicles-simit-kpi"><strong>${escapeHtml(money(summary.pendingValue))}</strong><span>Valor pendiente</span></div>
+    </div>`;
+  const truncated = simitState?.truncated
+    ? `<p class="muted vehicles-simit-disclaimer">La consulta alcanzó el tope de filas de datos abiertos. Refine por pendientes o actualice más tarde.</p>`
+    : "";
+  const fetched = simitState?.fetchedAt
+    ? `<p class="muted vehicles-simit-meta">Última consulta: ${escapeHtml(typeof fmtDate === "function" ? fmtDate(simitState.fetchedAt) : simitState.fetchedAt)}</p>`
+    : "";
+  const query = String(simitState?.query || "");
+  const resultFilter = normalizeSimitResultFilter(simitState?.resultFilter);
+  const simitFiltersOn = Boolean(query.trim()) || resultFilter !== "all";
+  const visibleList = (summary.list || []).filter((item) => {
+    const fn = D?.simitItemPassesFilters;
+    if (fn) return fn(item, { search: query, result: resultFilter });
+    if (resultFilter === "pending" && !item.hasPending) return false;
+    if (resultFilter === "clean" && item.hasPending) return false;
+    return true;
+  });
+  const simitFilterBar = `<div class="vehicle-fleet-toolbar vehicles-simit-filters">
+      <label class="transport-ops-search">
+        <span class="muted">${IC.search || IC.eye} Buscar en SIMIT</span>
+        <input type="search" data-action="vehicles-simit-search" value="${escapeAttr(query)}" placeholder="Placa, marca, ciudad o departamento" autocomplete="off" />
+      </label>
+      <div class="ops-filters-bar vehicle-fleet-status" role="group" aria-label="Estado SIMIT de la flota">
+        <button type="button" class="ops-filter-pill${resultFilter === "all" ? " is-active" : ""}" data-action="vehicles-simit-result" data-result="all" aria-pressed="${resultFilter === "all" ? "true" : "false"}"><span>Todos</span><strong>${summary.list.length}</strong></button>
+        <button type="button" class="ops-filter-pill${resultFilter === "pending" ? " is-active" : ""}" data-action="vehicles-simit-result" data-result="pending" aria-pressed="${resultFilter === "pending" ? "true" : "false"}"><span>Con pendientes</span><strong>${summary.pendingVehicleCount}</strong></button>
+        <button type="button" class="ops-filter-pill${resultFilter === "clean" ? " is-active" : ""}" data-action="vehicles-simit-result" data-result="clean" aria-pressed="${resultFilter === "clean" ? "true" : "false"}"><span>Al día</span><strong>${summary.cleanCount}</strong></button>
+      </div>
+      ${simitFiltersOn ? `<div class="vehicle-fleet-toolbar-clear"><button type="button" class="btn btn-sm btn-outline" data-action="vehicles-simit-clear">${IC.x || ""} Limpiar filtros</button></div>` : ""}
+    </div>`;
+  const rows = visibleList
+    .map((item) => {
+      const plate = String(item.plate || item.vehicle?.plate || "—").toUpperCase();
+      const brand = `${String(item.vehicle?.brand || "").trim()} ${String(item.vehicle?.model || "").trim()}`.trim() || "—";
+      const chip = item.hasPending
+        ? `<span class="status status-rechazada">${item.pendingCount} pendiente${item.pendingCount === 1 ? "" : "s"}</span>`
+        : `<span class="status status-viaje_asignado">Al día</span>`;
+      const details = item.fines?.length
+        ? `<details class="vehicles-simit-details"><summary>Ver comparendos</summary>${D.simitFineRowsTableHtml?.(item.fines) || ""}</details>`
+        : `<span class="muted">Sin registros en este alcance</span>`;
+      return `<tr>
+        <td><strong>${escapeHtml(plate)}</strong></td>
+        <td>${escapeHtml(brand)}</td>
+        <td>${chip}</td>
+        <td>${escapeHtml(money(item.pendingValue))}</td>
+        <td>${escapeHtml(item.lastDateLabel || "—")}</td>
+        <td>${details}</td>
+      </tr>`;
+    })
+    .join("");
+  const table = visibleList.length
+    ? `<div class="table-wrap vehicle-fleet-list-wrap vehicles-simit-table-wrap"><table class="vehicle-fleet-table vehicles-simit-fleet-table">
+    <thead><tr><th>Placa</th><th>Vehículo</th><th>Estado SIMIT</th><th>Valor pendiente</th><th>Última multa</th><th>Detalle</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`
+    : emptyState("Ningún vehículo coincide con la búsqueda o el estado SIMIT.");
+  const matchLine = simitFiltersOn
+    ? `<p class="muted vehicles-simit-meta">${visibleList.length} de ${summary.list.length} vehículos</p>`
+    : "";
+  return `${disclaimer}${toolbar}${kpis}${fetched}${truncated}${simitFilterBar}${matchLine}${table}`;
+}
+
+async function ensureVehiclesSimitLoaded({ force = false } = {}) {
+  const D = simitFinesDomain();
+  if (!D?.fetchSimitFinesByPlates) {
+    state.vehiclesSimit = withSimitUi(state.vehiclesSimit, {
+      status: "error",
+      error: "El módulo de consulta SIMIT no está disponible. Recargue la página.",
+      rows: [],
+      truncated: false
+    });
+    renderPortalView();
+    return;
+  }
+  const vehicles = typeof read === "function" ? read(KEYS.vehicles, []) : [];
+  const pendingOnly = state.vehiclesSimit?.pendingOnly !== false;
+  const platesKey = vehiclesSimitCacheKey(vehicles, pendingOnly);
+  const current = state.vehiclesSimit || emptyVehiclesSimitState();
+  const ttl = Number(D.SIMIT_CACHE_TTL_MS) || 15 * 60 * 1000;
+  const fetchedMs = current.fetchedAt ? Date.parse(current.fetchedAt) : 0;
+  const fresh =
+    current.status === "ready" &&
+    current.platesKey === platesKey &&
+    current.pendingOnly === pendingOnly &&
+    Number.isFinite(fetchedMs) &&
+    Date.now() - fetchedMs < ttl;
+  if (!force && current.status === "loading") return;
+  if (!force && fresh) return;
+  const seq = (state.__vehiclesSimitSeq || 0) + 1;
+  state.__vehiclesSimitSeq = seq;
+  state.vehiclesSimit = withSimitUi(current, {
+    status: "loading",
+    platesKey,
+    pendingOnly,
+    error: null
+  });
+  renderPortalView();
+  let result = null;
+  const api = window.AntaresApi;
+  if (api?.isConfigured?.() && typeof api.getJson === "function") {
+    try {
+      const params = new URLSearchParams();
+      const plates = D.uniqueSimitPlates
+        ? D.uniqueSimitPlates(vehiclesSimitPlates(vehicles))
+        : vehiclesSimitPlates(vehicles);
+      params.set("plates", plates.join(","));
+      params.set("pendingOnly", pendingOnly === false ? "0" : "1");
+      result = await api.getJson(`/portal/simit-fines?${params.toString()}`, { timeoutMs: 25000 });
+    } catch (_apiErr) {
+      result = null;
+    }
+  }
+  if (!result?.ok) {
+    result = await D.fetchSimitFinesByPlates(vehiclesSimitPlates(vehicles), { pendingOnly });
+  }
+  if (state.__vehiclesSimitSeq !== seq) return;
+  if (result?.ok) {
+    state.vehiclesSimit = withSimitUi(state.vehiclesSimit, {
+      status: "ready",
+      platesKey,
+      pendingOnly,
+      fetchedAt: new Date().toISOString(),
+      error: null,
+      rows: result.rows || [],
+      truncated: Boolean(result.truncated)
+    });
+  } else {
+    state.vehiclesSimit = withSimitUi(state.vehiclesSimit, {
+      status: "error",
+      platesKey,
+      pendingOnly,
+      fetchedAt: null,
+      error: String(result?.error || "No se pudo consultar SIMIT."),
+      rows: [],
+      truncated: false
+    });
+  }
+  if (String(state.currentView || "") === "transport-vehicles") renderPortalView();
+}
+
+const VEHICLE_TONE_UI = {
+  offline: { slug: "no-disponible", label: "No disponible", listClass: "status-fleet-offline" },
+  busy: { slug: "ocupado", label: "Ocupado", listClass: "status-fleet-ocupado" },
+  scheduled: { slug: "reservado", label: "Reservado", listClass: "status-fleet-programado" },
+  available: { slug: "disponible", label: "Disponible", listClass: "status-fleet-disponible" }
+};
+
+const VEHICLE_TONE_SEARCH = {
+  offline: "no disponible offline",
+  busy: "ocupado en curso",
+  scheduled: "reservado programado",
+  available: "disponible"
+};
+
+function normalizeVehicleFleetStatusFilter(raw) {
+  return vehicleDomainFn("normalizeVehicleFleetStatusFilter")?.(raw) || "all";
+}
+
+function normalizeVehicleFleetTypeFilter(raw) {
+  return vehicleDomainFn("normalizeVehicleFleetTypeFilter")?.(raw) || "all";
+}
+
+function normalizeVehicleFleetComplianceFilter(raw) {
+  return vehicleDomainFn("normalizeVehicleFleetComplianceFilter")?.(raw) || "all";
+}
+
+function normalizeVehicleFleetEquipFilter(raw) {
+  return vehicleDomainFn("normalizeVehicleFleetEquipFilter")?.(raw) || "all";
+}
+
+function normalizeVehicleFleetGpsFilter(raw) {
+  return vehicleDomainFn("normalizeVehicleFleetGpsFilter")?.(raw) || "all";
+}
+
+function vehicleComplianceState(status) {
+  const fn = vehicleDomainFn("vehicleComplianceState");
+  if (fn) return fn(status);
+  const label = String(status?.label || "").toLowerCase();
+  if (label.startsWith("sin fecha") || Number(status?.days) === -9999) return "missing";
+  const cls = String(status?.cls || "");
+  if (cls === "status-rechazada" || cls === "status-vencida") return "expired";
+  if (cls === "status-pendiente") return "soon";
+  return "ok";
+}
+
+function vehicleOperationalTone(vehicle, occupancyTone) {
+  const fn = vehicleDomainFn("vehicleOperationalTone");
+  if (fn) return fn(vehicle, occupancyTone);
+  if (vehicle && vehicle.available === false && vehicle.autoBusy !== true) return "offline";
+  if (occupancyTone === "busy") return "busy";
+  if (occupancyTone === "scheduled") return "scheduled";
+  return "available";
+}
+
+function vehicleDocumentRiskLevel(soatClass, techClass) {
+  const fn = vehicleDomainFn("vehicleDocumentRiskLevel");
+  if (fn) return fn(soatClass, techClass);
+  const classes = [soatClass, techClass].map((item) => String(item || ""));
+  if (classes.some((item) => item === "status-rechazada" || item === "status-vencida")) return "expired";
+  if (classes.some((item) => item === "status-pendiente")) return "soon";
+  return "ok";
+}
+
+function vehicleTypeKey(raw) {
+  return vehicleDomainFn("vehicleTypeKey")?.(raw) || "other";
+}
+
+function vehicleHasActiveGps(vehicle) {
+  const fn = vehicleDomainFn("vehicleHasActiveGps");
+  if (fn) return fn(vehicle);
+  return vehicle?.hasGps === true || String(vehicle?.hasGps || "").trim().toLowerCase() === "true";
+}
+
+function compareVehiclesByPlate(a, b) {
+  const fn = vehicleDomainFn("compareVehiclesByPlate");
+  if (fn) return fn(a, b);
+  return String(a?.plate || "").localeCompare(String(b?.plate || ""), "es", { numeric: true, sensitivity: "base" });
+}
+
+function vehiclePassesFleetFilters(item, filters) {
+  const fn = vehicleDomainFn("vehiclePassesFleetFilters");
+  if (fn) return fn(item, filters);
+  return true;
+}
+
+function validateVehicleFormPayload(data, vehicles, options) {
+  const fn = vehicleDomainFn("validateVehicleFormPayload");
+  if (!fn) {
+    return { ok: false, field: "plate", message: "No se pudo validar la ficha del vehículo. Recargue la página." };
+  }
+  return fn(data, vehicles, options);
+}
+
+function vehicleFleetSearchText(vehicle) {
+  const blob = vehicleDomainFn("vehicleSearchBlob")?.(vehicle);
+  if (blob) return blob;
+  return vehicleFleetSearchHaystack(vehicle);
+}
+
+function showVehicleFormIssue(formEl, fieldName, message) {
+  if (formEl && fieldName) {
+    const field = formEl.querySelector(`[name="${fieldName}"]`);
+    const stepIndex = field?.closest?.(".hr-form-step")?.getAttribute?.("data-step-index");
+    if (stepIndex != null) formEl.querySelector(`[data-hr-wizard-dot="${stepIndex}"]`)?.click();
+    if (typeof failPortalField === "function") {
+      failPortalField(formEl, fieldName, message);
+      return;
+    }
+  }
+  if (typeof notify === "function") notify(message, "error");
+}
+
+function withVehicleDocExpiryDefaults(data) {
+  const next = { ...(data || {}) };
+  if (next.soatExpeditionDate && (!next.soatExpiryDate || !String(next.soatExpiryDate).trim())) {
+    next.soatExpiryDate = addCalendarYearsIsoDate(next.soatExpeditionDate, 1) || next.soatExpiryDate;
+  }
+  if (next.techInspectionExpeditionDate && (!next.techInspectionExpiryDate || !String(next.techInspectionExpiryDate).trim())) {
+    next.techInspectionExpiryDate = addCalendarYearsIsoDate(next.techInspectionExpeditionDate, 1) || next.techInspectionExpiryDate;
+  }
+  return next;
+}
+
+/** Alinea Termoking con la carrocería del catálogo (Termoking ↔ carga seca). */
+function bindVehicleTermokingBodySync(formEl) {
+  if (!formEl || formEl.dataset.vehicleTermokingBound === "1") return;
+  const bodyEl = formEl.querySelector("[name='bodyType']");
+  const refrEl = formEl.querySelector("[name='refrigerated']");
+  if (!bodyEl || !refrEl) return;
+  formEl.dataset.vehicleTermokingBound = "1";
+  const impliesTk = (raw) => vehicleDomainFn("bodyTypeImpliesTermoking")?.(raw) ?? /termoking|refrigerad/i.test(String(raw || ""));
+  const impliesDry = (raw) => vehicleDomainFn("bodyTypeImpliesDryCargo")?.(raw) ?? /furgon seco|carga seca/i.test(String(raw || ""));
+  const sync = () => {
+    const body = String(bodyEl.value || "");
+    if (impliesTk(body) && refrEl.value !== "true") {
+      refrEl.value = "true";
+      refrEl.dispatchEvent(new Event("change", { bubbles: true }));
+    } else if (impliesDry(body) && refrEl.value !== "false") {
+      refrEl.value = "false";
+      refrEl.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+  };
+  bodyEl.addEventListener("change", sync);
+  sync();
+}
+
+/** Proveedor y credenciales GPS solo aplican con rastreo activo. */
+function bindVehicleGpsDependentFields(formEl) {
+  if (!formEl || formEl.dataset.vehicleGpsBound === "1") return;
+  const hasGpsEl = formEl.querySelector("[name='hasGps']");
+  const providerEl = formEl.querySelector("[name='gpsProvider']");
+  if (!hasGpsEl || !providerEl) return;
+  formEl.dataset.vehicleGpsBound = "1";
+  const dependents = [...formEl.querySelectorAll("[data-vehicle-gps-dependent], [name='gpsProvider'], [name='satelliteProviderUser'], [name='satelliteProviderPassword']")];
+  const sync = () => {
+    const on = String(hasGpsEl.value || "") === "true";
+    providerEl.required = on;
+    if (on) providerEl.setAttribute("required", "required");
+    else providerEl.removeAttribute("required");
+    dependents.forEach((node) => {
+      const field = node.matches("input, select, textarea") ? node : node.querySelector("input, select, textarea");
+      if (!field) return;
+      field.disabled = !on;
+      field.setAttribute("aria-disabled", on ? "false" : "true");
+      if (!on && field.name !== "satelliteProviderPassword") {
+        /* En alta, limpia proveedor/usuario al desactivar GPS. En edición la contraseña ya viaja vacía. */
+        if (field.name === "gpsProvider" || field.name === "satelliteProviderUser") field.value = "";
+      }
+      if (!on && field.name === "satelliteProviderPassword") field.value = "";
+    });
+    formEl.querySelectorAll("[data-vehicle-gps-dependent]").forEach((label) => {
+      label.classList.toggle("is-disabled", !on);
+      label.toggleAttribute("hidden", false);
+      label.style.opacity = on ? "" : "0.55";
+    });
+  };
+  hasGpsEl.addEventListener("change", sync);
+  sync();
+}
+
+function bindVehicleCreateFormExtras(formEl) {
+  if (!formEl) return;
+  bindVehicleDocExpiryAutoFill(formEl);
+  bindVehicleTermokingBodySync(formEl);
+  bindVehicleGpsDependentFields(formEl);
+}
+
+function vehicleRecordFromVerdict(base, value) {
+  const text = (item) =>
+    typeof normalizeLatinUpperForDb === "function" ? normalizeLatinUpperForDb(item) : String(item || "").trim();
+  const next = {
+    ...base,
+    plate: value.plate,
+    brand: text(value.brand),
+    model: text(value.model),
+    year: value.year,
+    type: value.type,
+    color: text(value.color),
+    capacityKg: value.capacityKg,
+    refrigerated: value.refrigerated,
+    bodyType: text(value.bodyType),
+    fuelType: text(value.fuelType),
+    axleConfig: text(value.axleConfig),
+    engineNumber: text(value.engineNumber),
+    vin: value.vin,
+    ownershipCard: text(value.ownershipCard),
+    soatExpeditionDate: value.soatExpeditionDate,
+    soatExpiryDate: value.soatExpiryDate,
+    techInspectionExpeditionDate: value.techInspectionExpeditionDate,
+    techInspectionExpiryDate: value.techInspectionExpiryDate,
+    rcPolicyContract: text(value.rcPolicyContract),
+    rcPolicyExtra: text(value.rcPolicyExtra),
+    rcPolicyExpiry: value.rcPolicyExpiry || "",
+    hasGps: value.hasGps,
+    gpsProvider: text(value.gpsProvider),
+    satelliteProviderUser: String(value.satelliteProviderUser || "").trim()
+  };
+  if (String(value.satelliteProviderPassword || "").trim()) {
+    next.satelliteProviderPassword = String(value.satelliteProviderPassword).trim();
+    next.satelliteProviderPasswordSet = true;
+  }
+  return next;
+}
+
+const VEHICLE_TYPE_FILTER_ORDER = ["camion", "turbo", "tractomula", "bus", "other"];
+const VEHICLE_TYPE_FILTER_LABEL = {
+  camion: "Camión",
+  turbo: "Turbo",
+  tractomula: "Tractomula",
+  bus: "Bus",
+  other: "Otro"
+};
+
+function fleetFilterSelect(filter, label, value, options) {
+  const opts = options
+    .map(([id, text]) => `<option value="${escapeAttr(id)}"${id === value ? " selected" : ""}>${escapeHtml(text)}</option>`)
+    .join("");
+  return `<label class="vehicle-fleet-filter">
+    <span class="muted">${escapeHtml(label)}</span>
+    <select data-action="vehicles-fleet-filter" data-filter="${escapeAttr(filter)}" aria-label="${escapeAttr(label)}">${opts}</select>
+  </label>`;
+}
+
+function countedFilterOptions(allLabel, entries, active) {
+  const options = [["all", allLabel]];
+  entries.forEach(([id, label, count]) => {
+    if (!count && id !== active) return;
+    options.push([id, `${label} (${count})`]);
+  });
+  return options;
+}
+
+function fleetStatusPills(active, counts) {
+  const items = [
+    ["all", "Todos", counts.total],
+    ["available", "Disponibles", counts.available],
+    ["busy", "Ocupados", counts.occupied],
+    ["scheduled", "Reservados", counts.scheduled],
+    ["offline", "No disponibles", counts.offline]
+  ];
+  return `<div class="ops-filters-bar vehicle-fleet-status" role="group" aria-label="Disponibilidad de la flota">${items
+    .map(([id, label, count]) => {
+      const on = id === active;
+      return `<button type="button" class="ops-filter-pill${on ? " is-active" : ""}" data-action="vehicles-fleet-status" data-status="${escapeAttr(id)}" aria-pressed="${on ? "true" : "false"}"><span>${escapeHtml(label)}</span><strong>${count}</strong></button>`;
+    })
+    .join("")}</div>`;
+}
+
 function vehiclesHtml() {
-  const vehicles = read(KEYS.vehicles, []);
+  const vehicles = read(KEYS.vehicles, []).slice().sort(compareVehiclesByPlate);
   const drivers = read(KEYS.drivers, []);
   const vehiclesUi = state.vehiclesUi || { workspace: "data", section: "fleet" };
   const fleetSearchRaw = String(vehiclesUi.fleetSearch ?? "");
   const fleetSearchNorm = fleetSearchRaw.trim().toLowerCase();
   const fleetLayout = normalizeVehicleFleetLayout(vehiclesUi.fleetLayout);
-  const filteredVehicles = fleetSearchNorm
-    ? vehicles.filter((v) => vehicleMatchesFleetSearch(v, fleetSearchNorm))
-    : vehicles;
+  const statusFilter = normalizeVehicleFleetStatusFilter(vehiclesUi.statusFilter);
+  const typeFilter = normalizeVehicleFleetTypeFilter(vehiclesUi.typeFilter);
+  const soatFilter = normalizeVehicleFleetComplianceFilter(vehiclesUi.soatFilter);
+  const techFilter = normalizeVehicleFleetComplianceFilter(vehiclesUi.techFilter);
+  const equipFilter = normalizeVehicleFleetEquipFilter(vehiclesUi.equipFilter);
+  const gpsFilter = normalizeVehicleFleetGpsFilter(vehiclesUi.gpsFilter);
   const vehicleRenderWindowSize = Number(window.RENDER_WINDOW_SIZE) || 30;
   const vehicleRenderLimit = Number(state.vehiclesRenderLimit) || vehicleRenderWindowSize;
-  const visibleVehicles = filteredVehicles.slice(0, vehicleRenderLimit);
-  const vehiclesMoreBar =
-    typeof renderWindowMoreBar === "function"
-      ? renderWindowMoreBar(filteredVehicles.length, visibleVehicles.length, "vehicles-render-more")
-      : filteredVehicles.length > visibleVehicles.length
-        ? `<div class="render-window-more"><button type="button" class="btn btn-outline btn-sm" data-action="vehicles-render-more">Ver más · mostrando ${visibleVehicles.length} de ${filteredVehicles.length}</button></div>`
-        : "";
+  let filteredVehicles = vehicles;
+  let visibleVehicles = vehicles.slice(0, vehicleRenderLimit);
+  let vehiclesMoreBar = "";
   const canEditVeh = canEditVehicle();
   const canToggleVeh = canToggleVehicleStatus();
   const canDeleteVeh = canDeleteVehicle();
@@ -78,16 +570,26 @@ function vehiclesHtml() {
       vehicleSection = "fleet";
     }
   }
-  if (vehicleWorkspace === "data") vehicleSection = "fleet";
-  const vehiclesCreateUi = buildVehiclesCreatePanelsState(vehicleSection, state.createPanels || {}, {
-    expandActive: false
-  });
+  if (vehicleWorkspace === "data" && !isVehicleDataSection(vehicleSection)) vehicleSection = "fleet";
+  const vehiclesCreateUi = buildVehiclesCreatePanelsState(
+    vehicleWorkspace === "operate" ? vehicleSection : "create",
+    state.createPanels || {},
+    {
+      expandActive: false
+    }
+  );
   state.vehiclesUi = {
     ...vehiclesUi,
     workspace: vehicleWorkspace,
     section: vehicleSection,
     fleetSearch: fleetSearchRaw,
-    fleetLayout
+    fleetLayout,
+    statusFilter,
+    typeFilter,
+    soatFilter,
+    techFilter,
+    equipFilter,
+    gpsFilter
   };
   const activeTrips = getActiveTrips();
   const activeTripsByVehicleId = new Map();
@@ -134,38 +636,73 @@ function vehiclesHtml() {
     }
     return { tone: "available", trip: list[0] || null, detail: "Sin cruce horario activo" };
   };
-  const totalCount = vehicles.length;
-  const availableCount = vehicles.filter((v) => resolveVehicleOccupancy(v.id).tone === "available" && !isManuallyUnavailable(v)).length;
-  const occupiedCount = vehicles.filter((v) => resolveVehicleOccupancy(v.id).tone === "busy").length;
-  const scheduledCount = vehicles.filter((v) => resolveVehicleOccupancy(v.id).tone === "scheduled").length;
-  const offlineCount = vehicles.filter((v) => isManuallyUnavailable(v)).length;
-  const thermokingCount = vehicles.filter((v) => vehicleHasTermokingEquipment(v)).length;
-  const documentRiskCount = vehicles.filter((v) => {
+  const fleetViews = vehicles.map((v) => {
+    const occupancy = resolveVehicleOccupancy(v.id);
     const soat = docExpiryStatus(v.soatExpeditionDate, v.soatExpiryDate);
     const tec = docExpiryStatus(v.techInspectionExpeditionDate, v.techInspectionExpiryDate);
-    return ["status-vencida", "status-rechazada", "status-pendiente"].includes(soat.cls) ||
-      ["status-vencida", "status-rechazada", "status-pendiente"].includes(tec.cls);
-  }).length;
+    const tone = vehicleOperationalTone(v, occupancy.tone);
+    const docLevel = vehicleDocumentRiskLevel(soat.cls, tec.cls);
+    return {
+      vehicle: v,
+      occupancy,
+      soat,
+      tec,
+      tone,
+      docLevel,
+      soatState: vehicleComplianceState(soat),
+      techState: vehicleComplianceState(tec),
+      typeKey: vehicleTypeKey(v.type),
+      refrigerated: vehicleHasTermokingEquipment(v),
+      gps: vehicleHasActiveGps(v),
+      searchBlob: `${vehicleFleetSearchText(v)} ${VEHICLE_TONE_SEARCH[tone] || ""} ${soat.label} ${tec.label}`
+    };
+  });
+  const vehicleViewById = new Map(fleetViews.map((row) => [String(row.vehicle.id || ""), row]));
+  const totalCount = vehicles.length;
+  const availableCount = fleetViews.filter((row) => row.tone === "available").length;
+  const occupiedCount = fleetViews.filter((row) => row.tone === "busy").length;
+  const scheduledCount = fleetViews.filter((row) => row.tone === "scheduled").length;
+  const offlineCount = fleetViews.filter((row) => row.tone === "offline").length;
+  const thermokingCount = vehicles.filter((v) => vehicleHasTermokingEquipment(v)).length;
+  const documentRiskCount = fleetViews.filter((row) => row.docLevel !== "ok").length;
+  filteredVehicles = fleetViews
+    .filter((row) =>
+      vehiclePassesFleetFilters(row, {
+        search: fleetSearchRaw,
+        status: statusFilter,
+        type: typeFilter,
+        soat: soatFilter,
+        tech: techFilter,
+        equip: equipFilter,
+        gps: gpsFilter
+      })
+    )
+    .map((row) => row.vehicle);
+  visibleVehicles = filteredVehicles.slice(0, vehicleRenderLimit);
+  vehiclesMoreBar =
+    typeof renderWindowMoreBar === "function"
+      ? renderWindowMoreBar(filteredVehicles.length, visibleVehicles.length, "vehicles-render-more")
+      : filteredVehicles.length > visibleVehicles.length
+        ? `<div class="render-window-more"><button type="button" class="btn btn-outline btn-sm" data-action="vehicles-render-more">Ver más · mostrando ${visibleVehicles.length} de ${filteredVehicles.length}</button></div>`
+        : "";
+  const fleetFiltersActive =
+    Boolean(fleetSearchNorm) ||
+    statusFilter !== "all" ||
+    typeFilter !== "all" ||
+    soatFilter !== "all" ||
+    techFilter !== "all" ||
+    equipFilter !== "all" ||
+    gpsFilter !== "all";
   const vehicleCards = visibleVehicles
     .map((v) => {
-      const soat = docExpiryStatus(v.soatExpeditionDate, v.soatExpiryDate);
-      const tecno = docExpiryStatus(v.techInspectionExpeditionDate, v.techInspectionExpiryDate);
+      const view = vehicleViewById.get(String(v.id || "")) || {};
+      const soat = view.soat || docExpiryStatus(v.soatExpeditionDate, v.soatExpiryDate);
+      const tecno = view.tec || docExpiryStatus(v.techInspectionExpeditionDate, v.techInspectionExpiryDate);
       const isRefrigerated = vehicleHasTermokingEquipment(v);
-      const occupancy = resolveVehicleOccupancy(v.id);
-      const occupancySlug = isManuallyUnavailable(v)
-        ? "no-disponible"
-        : occupancy.tone === "busy"
-          ? "ocupado"
-          : occupancy.tone === "scheduled"
-            ? "reservado"
-            : "disponible";
-      const availabilityLabel = isManuallyUnavailable(v)
-        ? "No disponible"
-        : occupancy.tone === "busy"
-          ? "Ocupado"
-          : occupancy.tone === "scheduled"
-            ? "Reservado"
-            : "Disponible";
+      const occupancy = view.occupancy || resolveVehicleOccupancy(v.id);
+      const toneUi = VEHICLE_TONE_UI[view.tone] || VEHICLE_TONE_UI.available;
+      const occupancySlug = toneUi.slug;
+      const availabilityLabel = toneUi.label;
       const plate = String(v.plate || "—").toUpperCase();
       const typeLabel = String(v.type || "Vehículo").trim().toUpperCase() || "VEHÍCULO";
       const brandTitle =
@@ -173,12 +710,15 @@ function vehiclesHtml() {
       const yearLabel = v.year ? String(v.year) : "";
       const soatTone = directoryToneFromBucket(soat.cls);
       const tecnoTone = directoryToneFromBucket(tecno.cls);
-      const gpsEnabled = String(v.hasGps ?? "true").trim().toLowerCase() !== "false";
+      const gpsEnabled = vehicleHasActiveGps(v);
       const gpsProvider = String(v.gpsProvider || "").trim();
       const gpsSubLabel = gpsEnabled ? gpsProvider || "Trazabilidad activa" : "Sin trazabilidad";
-      const occupancyDetail = occupancy.trip
-        ? String(occupancy.trip.clientName || occupancy.trip.companyName || occupancy.trip.request?.clientName || "").trim() || occupancy.detail
-        : occupancy.detail;
+      const tripClient = occupancy.trip
+        ? String(occupancy.trip.clientName || occupancy.trip.companyName || occupancy.trip.request?.clientName || "").trim()
+        : "";
+      const occupancyDetail = view.tone === "offline"
+        ? "Marcado manualmente como no disponible"
+        : tripClient || occupancy.detail;
       const capacityLabel = parseNum(v.capacityKg) > 0 ? `${parseNum(v.capacityKg).toLocaleString("es-CO")} kg` : "Sin capacidad";
       const ownershipCardLabel = String(v.ownershipCard || "").trim() || "Sin tarjeta";
       const bodyTypeLabel = String(v.bodyType || "").trim() || "Sin carrocería";
@@ -248,7 +788,7 @@ function vehiclesHtml() {
           ${buildPortalOpsCardGridItem("SOAT", IC.shield, soat.label, { tone: soatTone })}
           ${buildPortalOpsCardGridItem("Tecnomecánica", IC.file, tecno.label, { tone: tecnoTone })}
           ${buildPortalOpsCardGridItem("GPS", IC.mapPin, gpsEnabled ? "Activo" : "Inactivo", { tone: gpsEnabled ? "ok" : "warn", subValue: gpsSubLabel, subTone: gpsEnabled ? "ok" : "warn" })}
-          ${buildPortalOpsCardGridItem("Tarjeta de Operación", IC.card, ownershipCardLabel)}
+          ${buildPortalOpsCardGridItem("Tarjeta de propiedad", IC.card, ownershipCardLabel)}
         </div>
         ${buildPortalOpsCardActions(primaryButtons, fullWidthActionsHtml)}
         ${buildPortalOpsCardFoot("Última actualización", lastUpdateLabel)}
@@ -280,17 +820,12 @@ function vehiclesHtml() {
       : "";
   const vehicleListRows = visibleVehicles
     .map((v) => {
-      const soat = docExpiryStatus(v.soatExpeditionDate, v.soatExpiryDate);
-      const tecno = docExpiryStatus(v.techInspectionExpeditionDate, v.techInspectionExpiryDate);
+      const view = vehicleViewById.get(String(v.id || "")) || {};
+      const soat = view.soat || docExpiryStatus(v.soatExpeditionDate, v.soatExpiryDate);
+      const tecno = view.tec || docExpiryStatus(v.techInspectionExpeditionDate, v.techInspectionExpiryDate);
       const isRefrigerated = vehicleHasTermokingEquipment(v);
-      const occupancy = resolveVehicleOccupancy(v.id);
-      const availabilityTag = isManuallyUnavailable(v)
-        ? '<span class="status status-fleet-offline">No disponible</span>'
-        : occupancy.tone === "busy"
-          ? '<span class="status status-fleet-ocupado">Ocupado</span>'
-          : occupancy.tone === "scheduled"
-            ? '<span class="status status-fleet-programado">Reservado</span>'
-            : '<span class="status status-fleet-disponible">Disponible</span>';
+      const toneUi = VEHICLE_TONE_UI[view.tone] || VEHICLE_TONE_UI.available;
+      const availabilityTag = `<span class="status ${toneUi.listClass}">${escapeHtml(toneUi.label)}</span>`;
       const plate = String(v.plate || "—").toUpperCase();
       const typeLabel = String(v.type || "Vehículo").trim() || "Vehículo";
       const brandModel =
@@ -314,22 +849,82 @@ function vehiclesHtml() {
       </tr>`;
     })
     .join("");
+  const typeCounts = new Map();
+  fleetViews.forEach((row) => {
+    const key = row.typeKey || "other";
+    typeCounts.set(key, (typeCounts.get(key) || 0) + 1);
+  });
+  const complianceEntries = (field) =>
+    [
+      ["ok", "Vigente"],
+      ["soon", "Por vencer"],
+      ["expired", "Vencido"],
+      ["missing", "Sin fecha"]
+    ].map(([id, label]) => [id, label, fleetViews.filter((row) => row[field] === id).length]);
   const fleetToolbar =
     totalCount > 0
-      ? `<div class="transport-ops-toolbar vehicle-fleet-toolbar">
-      <div class="driver-fleet-toolbar-top">
+      ? `<div class="vehicle-fleet-toolbar">
+      <div class="vehicle-fleet-toolbar-top">
         <label class="transport-ops-search">
           <span class="muted">${IC.search || IC.eye} Buscar en flota</span>
-          <input type="search" data-action="vehicles-fleet-search" value="${escapeAttr(fleetSearchRaw)}" placeholder="Placa, marca, modelo, VIN, motor, GPS, tarjeta…" autocomplete="off" />
+          <input type="search" data-action="vehicles-fleet-search" value="${escapeAttr(fleetSearchRaw)}" placeholder="Placa, marca, modelo, VIN, SOAT, GPS, tarjeta…" autocomplete="off" />
         </label>
-        <div class="driver-fleet-view-field">
-          <span class="driver-fleet-field-eyebrow muted">${IC.layers || IC.grid || ""} Vista</span>
-          <div class="transport-ops-layout driver-fleet-view-toggle" role="group" aria-label="Vista de flota">
+        <div class="vehicle-fleet-view-field">
+          <span class="muted">${IC.layers || IC.grid || ""} Vista</span>
+          <div class="transport-ops-layout" role="group" aria-label="Vista de flota">
             <button type="button" class="btn btn-sm ${fleetLayout === "cards" ? "btn-primary" : "btn-outline"}" data-action="vehicles-fleet-layout" data-layout="cards">Tarjetas</button>
             <button type="button" class="btn btn-sm ${fleetLayout === "list" ? "btn-primary" : "btn-outline"}" data-action="vehicles-fleet-layout" data-layout="list">Lista</button>
           </div>
         </div>
       </div>
+      ${fleetStatusPills(statusFilter, {
+        total: totalCount,
+        available: availableCount,
+        occupied: occupiedCount,
+        scheduled: scheduledCount,
+        offline: offlineCount
+      })}
+      <div class="vehicle-fleet-selects">
+        ${fleetFilterSelect(
+          "type",
+          "Tipo",
+          typeFilter,
+          countedFilterOptions(
+            "Todos los tipos",
+            VEHICLE_TYPE_FILTER_ORDER.map((key) => [key, VEHICLE_TYPE_FILTER_LABEL[key] || key, typeCounts.get(key) || 0]),
+            typeFilter
+          )
+        )}
+        ${fleetFilterSelect(
+          "equip",
+          "Equipo",
+          equipFilter,
+          countedFilterOptions(
+            "Todo el equipo",
+            [
+              ["termoking", "Termoking", thermokingCount],
+              ["dry", "Carga seca", totalCount - thermokingCount]
+            ],
+            equipFilter
+          )
+        )}
+        ${fleetFilterSelect("soat", "SOAT", soatFilter, countedFilterOptions("Todo el SOAT", complianceEntries("soatState"), soatFilter))}
+        ${fleetFilterSelect("tech", "Tecnomecánica", techFilter, countedFilterOptions("Toda la tecnomecánica", complianceEntries("techState"), techFilter))}
+        ${fleetFilterSelect(
+          "gps",
+          "GPS",
+          gpsFilter,
+          countedFilterOptions(
+            "Todo el GPS",
+            [
+              ["on", "Activo", fleetViews.filter((row) => row.gps).length],
+              ["off", "Inactivo", fleetViews.filter((row) => !row.gps).length]
+            ],
+            gpsFilter
+          )
+        )}
+      </div>
+      ${fleetFiltersActive ? `<div class="vehicle-fleet-toolbar-clear"><button type="button" class="btn btn-sm btn-outline" data-action="vehicles-fleet-clear">${IC.x || ""} Limpiar filtros</button></div>` : ""}
     </div>`
       : "";
   const fleetListTable =
@@ -346,11 +941,11 @@ function vehiclesHtml() {
   if (!totalCount) {
     fleetMainBody = emptyState("No hay vehículos registrados.");
   } else if (!filteredVehicles.length) {
-    fleetMainBody = `${fleetToolbar}${emptyState("Ningún vehículo coincide con la búsqueda. Pruebe otras palabras o borre el filtro.")}`;
+    fleetMainBody = `${fleetToolbar}${emptyState("Ningún vehículo coincide con la búsqueda o los filtros. Pruebe otras palabras o límpielos.")}`;
   } else {
     fleetMainBody = `${fleetToolbar}${fleetLayout === "list" ? fleetListTable : fleetCardsGrid}${vehiclesMoreBar}`;
   }
-  const fleetCardSubtitle = fleetSearchNorm
+  const fleetCardSubtitle = fleetFiltersActive
     ? `${filteredVehicles.length} de ${totalCount} vehículos${filteredVehicles.length > visibleVehicles.length ? ` · ${visibleVehicles.length} visibles` : ""}`
     : fleetLayout === "list"
       ? `${totalCount} vehículos · vista lista${filteredVehicles.length > visibleVehicles.length ? ` · ${visibleVehicles.length} visibles` : ""}`
@@ -360,7 +955,7 @@ function vehiclesHtml() {
     { label: "Disponibles", value: availableCount },
     { label: "Ocupados", value: occupiedCount, tone: occupiedCount ? "warn" : undefined },
     { label: "Reservados", value: scheduledCount },
-    { label: "Offline", value: offlineCount },
+    { label: "No disponibles", value: offlineCount },
     { label: "Termoking", value: thermokingCount },
     { label: "Docs riesgo", value: documentRiskCount, tone: documentRiskCount ? "alert" : undefined }
   ]);
@@ -382,21 +977,33 @@ function vehiclesHtml() {
   const vehicleOperateNav = renderVehiclesOperateSectionNav(vehicleSection, {
     enabledSections: vehiclesEnabledSections
   });
+  const simitSummary = simitFinesDomain()?.summarizeSimitByPlate?.(vehicles, state.vehiclesSimit?.rows || []);
+  const simitPendingCount =
+    state.vehiclesSimit?.status === "ready" && simitSummary ? simitSummary.pendingVehicleCount : null;
   const vehicleDataNav = renderModuleWindowTabs({
     ariaLabel: "Consultas de flota",
     activeId: vehicleSection,
     action: "vehicles-section",
     valueAttr: "section",
-    tabs: [{ id: "fleet", label: "Flota", count: vehicles.length }]
+    tabs: [
+      { id: "fleet", label: "Flota", count: vehicles.length },
+      { id: "fotomultas", label: "Fotomultas SIMIT", count: simitPendingCount }
+    ]
   });
+  const fuelFormBody = vehicles.length
+    ? historyFleetFuelFormHtml(todayIsoDate, vehicleSelectOptions, driverSelectOptions)
+    : emptyState("Registre al menos un camión en la flota para cargar combustible.");
+  const technicalFormBody = vehicles.length
+    ? historyFleetTechnicalFormHtml(todayIsoDate, vehicleSelectOptions)
+    : emptyState("Registre al menos un camión en la flota para registrar novedades de taller.");
   const createPanel = canCreateVeh
     ? `<div class="auth-tab-panel${vehicleSection === "create" ? "" : " hidden"}" data-vehicle-operate-pane="create">${createHrActionCard("create-vehicle", "truck", "Registrar vehículo", "Ficha técnica, documentación legal y trazabilidad GPS (Colombia)", formBody, "Abrir ficha", { createPanels: vehiclesCreateUi })}</div>`
     : "";
   const fuelPanel = canFuelLogs
-    ? `<div class="auth-tab-panel${vehicleSection === "fuel" ? "" : " hidden"}" data-vehicle-operate-pane="fuel">${createHrActionCard("create-fuel-log", "fuel", "Combustible", `${fuelLogsCount} carga${fuelLogsCount === 1 ? "" : "s"} registrada${fuelLogsCount === 1 ? "" : "s"} — litros, costo y estación`, historyFleetFuelFormHtml(todayIsoDate, vehicleSelectOptions, driverSelectOptions), "Abrir registro", { createPanels: vehiclesCreateUi })}</div>`
+    ? `<div class="auth-tab-panel${vehicleSection === "fuel" ? "" : " hidden"}" data-vehicle-operate-pane="fuel">${createHrActionCard("create-fuel-log", "fuel", "Combustible", `${fuelLogsCount} carga${fuelLogsCount === 1 ? "" : "s"} registrada${fuelLogsCount === 1 ? "" : "s"} — litros, costo y estación`, fuelFormBody, "Abrir registro", { createPanels: vehiclesCreateUi })}</div>`
     : "";
   const technicalPanel = canTechnicalLogs
-    ? `<div class="auth-tab-panel${vehicleSection === "technical" ? "" : " hidden"}" data-vehicle-operate-pane="technical">${createHrActionCard("create-technical-log", "activity", "Taller", `${technicalLogsCount} novedad${technicalLogsCount === 1 ? "" : "es"} de mantenimiento — preventivo o correctivo`, historyFleetTechnicalFormHtml(todayIsoDate, vehicleSelectOptions), "Abrir formulario", { createPanels: vehiclesCreateUi })}</div>`
+    ? `<div class="auth-tab-panel${vehicleSection === "technical" ? "" : " hidden"}" data-vehicle-operate-pane="technical">${createHrActionCard("create-technical-log", "activity", "Taller", `${technicalLogsCount} novedad${technicalLogsCount === 1 ? "" : "es"} de mantenimiento — preventivo o correctivo`, technicalFormBody, "Abrir formulario", { createPanels: vehiclesCreateUi })}</div>`
     : "";
   const vehicleRailCollapsed = isOperateRailCollapsed("vehicles");
   const vehicleOperatePanel =
@@ -419,10 +1026,17 @@ function vehiclesHtml() {
   const fleetDataPane = `<div class="vehicles-data-pane${vehicleSection === "fleet" ? "" : " hidden"}" data-vehicle-data-pane="fleet">
       ${pcardWrap("truck", "Flota de camiones", fleetCardSubtitle, fleetMainBody)}
     </div>`;
+  const simitCardSubtitle =
+    state.vehiclesSimit?.status === "ready"
+      ? `${simitPendingCount || 0} vehículo${simitPendingCount === 1 ? "" : "s"} con comparendos pendientes`
+      : "Consulta el historial SIMIT-FCM por las placas de la flota";
+  const simitDataPane = `<div class="vehicles-data-pane${vehicleSection === "fotomultas" ? "" : " hidden"}" data-vehicle-data-pane="fotomultas">
+      ${pcardWrap("shield", "Fotomultas y comparendos SIMIT", simitCardSubtitle, vehiclesSimitPaneHtml(vehicles, state.vehiclesSimit || emptyVehiclesSimitState()))}
+    </div>`;
   const vehicleDataPanel = `<div class="hr-workspace-panel vehicles-workspace-panel${vehicleWorkspace === "data" ? "" : " hidden"}" role="tabpanel" data-vehicle-panel="data">
       <section class="vehicles-data-panel">
         <div class="vehicles-data-toolbar payroll-data-toolbar payroll-data-toolbar--compact">${vehicleDataNav}</div>
-        <div class="vehicles-data-panes">${fleetDataPane}</div>
+        <div class="vehicles-data-panes">${fleetDataPane}${simitDataPane}</div>
       </section>
     </div>`;
   return `<section class="vehicles-studio vehicles-shell vehicles-shell--workspace hr-flow-shell" data-hr-workspace="${escapeAttr(vehicleWorkspace)}">${vehiclesWorkspaceHeader}
@@ -481,6 +1095,13 @@ function vehiclesHtml() {
             panelAttr: "data-vehicle-panel"
           })
         ) {
+          switchModuleTabPanels({
+            root: nodes.viewRoot,
+            action: "vehicles-section",
+            activeValue: "fleet",
+            panelAttr: "data-vehicle-data-pane",
+            tabActiveClass: "is-active"
+          });
           return;
         }
         renderPortalView();
@@ -491,7 +1112,7 @@ function vehiclesHtml() {
       btn.addEventListener("click", () => {
         const section = normalizeVehicleSection(btn.dataset.section);
         const panelId = vehiclesCreatePanelForSection(section);
-        const ws = section === "fleet" ? "data" : "operate";
+        const ws = isVehicleDataSection(section) ? "data" : "operate";
         state.vehiclesUi = { ...(state.vehiclesUi || {}), workspace: ws, section };
         if (ws === "operate" && panelId) {
           state.createPanels = buildVehiclesCreatePanelsState(section, state.createPanels || {}, { expandActive: false });
@@ -516,9 +1137,11 @@ function vehiclesHtml() {
           if (ws === "operate" && panelId) {
             syncVehiclesCreatePanelsInDom(nodes.viewRoot, panelId, { expandActive: false });
           }
+          if (section === "fotomultas") void ensureVehiclesSimitLoaded();
           return;
         }
         renderPortalView();
+        if (section === "fotomultas") void ensureVehiclesSimitLoaded();
       });
     });
 
@@ -563,15 +1186,60 @@ function vehiclesHtml() {
       });
     });
 
+    nodes.viewRoot.querySelectorAll("[data-action='vehicles-fleet-status']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.vehiclesUi = {
+          ...(state.vehiclesUi || {}),
+          statusFilter: normalizeVehicleFleetStatusFilter(btn.dataset.status)
+        };
+        state.vehiclesRenderLimit = Number(window.RENDER_WINDOW_SIZE) || 30;
+        renderPortalView();
+      });
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='vehicles-fleet-filter']").forEach((select) => {
+      select.addEventListener("change", () => {
+        const key = String(select.dataset.filter || "");
+        const value = String(select.value || "all");
+        const patch = {};
+        if (key === "type") patch.typeFilter = normalizeVehicleFleetTypeFilter(value);
+        else if (key === "soat") patch.soatFilter = normalizeVehicleFleetComplianceFilter(value);
+        else if (key === "tech") patch.techFilter = normalizeVehicleFleetComplianceFilter(value);
+        else if (key === "equip") patch.equipFilter = normalizeVehicleFleetEquipFilter(value);
+        else if (key === "gps") patch.gpsFilter = normalizeVehicleFleetGpsFilter(value);
+        else return;
+        state.vehiclesUi = { ...(state.vehiclesUi || {}), ...patch };
+        state.vehiclesRenderLimit = Number(window.RENDER_WINDOW_SIZE) || 30;
+        renderPortalView();
+      });
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='vehicles-fleet-clear']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.vehiclesUi = {
+          ...(state.vehiclesUi || {}),
+          fleetSearch: "",
+          statusFilter: "all",
+          typeFilter: "all",
+          soatFilter: "all",
+          techFilter: "all",
+          equipFilter: "all",
+          gpsFilter: "all"
+        };
+        state.vehiclesRenderLimit = Number(window.RENDER_WINDOW_SIZE) || 30;
+        renderPortalView();
+      });
+    });
+
     nodes.viewRoot.querySelectorAll("[data-action='delete-vehicle']").forEach((btn) => {
       btn.addEventListener("click", () => {
         if (abortUnlessCanDeleteVehicle()) return;
         const vehicleId = String(btn.dataset.id || "");
         if (!vehicleId) return;
         openConfirmModal({
-          title: "Eliminar camion",
-          message: "Se eliminara del catalogo y se limpiara su referencia en viajes historicos.",
-          confirmText: "Eliminar camion",
+          title: "Eliminar camión",
+          message: "Se eliminará del catálogo y se limpiará su referencia en los viajes históricos.",
+          confirmText: "Eliminar camión",
           onConfirm: async () => {
             try {
               await postPortalAuthorized("/portal/admin-vehicle-delete", { vehicleId });
@@ -606,7 +1274,7 @@ function vehiclesHtml() {
                 trip: {
                   ...request.trip,
                   vehicleId: null,
-                  vehiclePlate: "CAMION ELIMINADO",
+                  vehiclePlate: "CAMIÓN ELIMINADO",
                   updatedAt: nowIso()
                 }
               };
@@ -625,62 +1293,27 @@ function vehiclesHtml() {
     const vehicleForm = document.getElementById("form-vehicle");
     if (vehicleForm) {
       bindHrFormWizard(vehicleForm);
-      bindVehicleDocExpiryAutoFill(vehicleForm);
+      bindVehicleCreateFormExtras(vehicleForm);
       wireFormSubmitGuard(vehicleForm, async (event) => {
         if (abortUnlessCanCreateVehicle()) return;
-        const data = readFormEntriesNormalized(vehicleForm);
-        const plate = String(data.plate || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-        if (!/^[A-Z]{3}[0-9]{3}$/.test(plate)) {
-          failPortalField(vehicleForm, "plate", userMessage("vehiclePlateInvalid"));
-          return;
-        }
-        const modelYear = parseNum(data.year);
-        const currentYear = new Date().getFullYear();
-        if (modelYear < 1990 || modelYear > currentYear + 1) {
-          failPortalField(vehicleForm, "year", userMessage("vehicleYearInvalid"));
-          return;
-        }
-        let soatExpeditionDate = data.soatExpeditionDate;
-        let soatExpiryDate = data.soatExpiryDate;
-        if (soatExpeditionDate && (!soatExpiryDate || !String(soatExpiryDate).trim())) {
-          soatExpiryDate = addCalendarYearsIsoDate(soatExpeditionDate, 1) || soatExpiryDate;
-        }
-        let techInspectionExpeditionDate = data.techInspectionExpeditionDate;
-        let techInspectionExpiryDate = data.techInspectionExpiryDate;
-        if (techInspectionExpeditionDate && (!techInspectionExpiryDate || !String(techInspectionExpiryDate).trim())) {
-          techInspectionExpiryDate = addCalendarYearsIsoDate(techInspectionExpeditionDate, 1) || techInspectionExpiryDate;
-        }
+        const data = withVehicleDocExpiryDefaults(readFormEntriesNormalized(vehicleForm));
         const list = read(KEYS.vehicles, []);
-        const createdVehicle = stampCreatedRecord({
-          id: newUuidV4(),
-          plate,
-          brand: normalizeLatinUpperForDb(data.brand),
-          model: normalizeLatinUpperForDb(data.model),
-          year: modelYear,
-          type: normalizeLatinUpperForDb(data.type),
-          color: normalizeLatinUpperForDb(data.color),
-          capacityKg: parseNum(data.capacityKg),
-          refrigerated: data.refrigerated === "true",
-          bodyType: normalizeLatinUpperForDb(data.bodyType),
-          fuelType: normalizeLatinUpperForDb(data.fuelType),
-          axleConfig: normalizeLatinUpperForDb(data.axleConfig),
-          engineNumber: normalizeLatinUpperForDb(data.engineNumber),
-          vin: String(data.vin || "").trim().toUpperCase(),
-          ownershipCard: normalizeLatinUpperForDb(data.ownershipCard),
-          soatExpeditionDate,
-          soatExpiryDate,
-          techInspectionExpeditionDate,
-          techInspectionExpiryDate,
-          rcPolicyContract: normalizeLatinUpperForDb(data.rcPolicyContract),
-          rcPolicyExtra: normalizeLatinUpperForDb(data.rcPolicyExtra),
-          rcPolicyExpiry: data.rcPolicyExpiry || "",
-          hasGps: data.hasGps === "true",
-          gpsProvider: normalizeLatinUpperForDb(data.gpsProvider),
-          satelliteProviderUser: String(data.satelliteProviderUser || "").trim(),
-          satelliteProviderPassword: String(data.satelliteProviderPassword || ""),
-          satelliteProviderPasswordSet: Boolean(String(data.satelliteProviderPassword || "").trim()),
-          available: true
-        });
+        const verdict = validateVehicleFormPayload(data, list);
+        if (!verdict.ok) {
+          showVehicleFormIssue(vehicleForm, verdict.field, verdict.message);
+          return;
+        }
+        const createdVehicle = stampCreatedRecord(
+          vehicleRecordFromVerdict(
+            {
+              id: newUuidV4(),
+              available: true,
+              satelliteProviderPassword: "",
+              satelliteProviderPasswordSet: false
+            },
+            verdict.value
+          )
+        );
         list.push(createdVehicle);
         try {
           await writeAwaitServerCreate(KEYS.vehicles, list, createdVehicle);
@@ -768,19 +1401,19 @@ function vehiclesHtml() {
               value: String(target.type || "").trim(),
               options: vehicleTypeOpts
             },
-            { name: "color", label: "Color", type: "select", value: target.color || "", options: colorOpts },
+            { name: "color", label: "Color", type: "select", value: target.color || "", options: colorOpts, required: true },
             { name: "capacityKg", label: "Capacidad (kg)", type: "number", value: target.capacityKg, required: true },
-            { name: "bodyType", label: "Carrocería", type: "select", value: target.bodyType || "", options: bodyOpts },
-            { name: "fuelType", label: "Combustible", type: "select", value: target.fuelType || "", options: fuelOpts },
-            { name: "axleConfig", label: "Ejes", type: "select", value: target.axleConfig || "", options: axleOpts },
-            { name: "engineNumber", label: "N° motor", value: target.engineNumber || "" },
-            { name: "vin", label: "Chasis (VIN)", value: target.vin || "" },
-            { name: "ownershipCard", label: "Tarjeta propiedad N°", value: target.ownershipCard || "" },
+            { name: "bodyType", label: "Carrocería", type: "select", value: target.bodyType || "", options: bodyOpts, required: true },
+            { name: "fuelType", label: "Combustible", type: "select", value: target.fuelType || "", options: fuelOpts, required: true },
+            { name: "axleConfig", label: "Ejes", type: "select", value: target.axleConfig || "", options: axleOpts, required: true },
+            { name: "engineNumber", label: "N° motor", value: target.engineNumber || "", required: true },
+            { name: "vin", label: "Chasis (VIN)", value: target.vin || "", required: true },
+            { name: "ownershipCard", label: "Tarjeta propiedad N°", value: target.ownershipCard || "", required: true },
             {
               name: "refrigerated",
               label: "Termoking (refrigerado)",
               type: "select",
-              value: target.refrigerated ? "true" : "false",
+              value: vehicleHasTermokingEquipment(target) ? "true" : "false",
               options: [
                 { value: "true", label: "Sí, equipo Termoking" },
                 { value: "false", label: "No, carga seca" }
@@ -793,7 +1426,7 @@ function vehiclesHtml() {
               value: target.soatExpeditionDate || "",
               required: true
             },
-            { name: "soatExpiryDate", label: "Vence SOAT", type: "date", value: target.soatExpiryDate || "" },
+            { name: "soatExpiryDate", label: "Vence SOAT", type: "date", value: target.soatExpiryDate || "", required: true },
             {
               name: "techInspectionExpeditionDate",
               label: "Expedición tecnomecánica",
@@ -805,7 +1438,8 @@ function vehiclesHtml() {
               name: "techInspectionExpiryDate",
               label: "Vence tecnomecánica",
               type: "date",
-              value: target.techInspectionExpiryDate || ""
+              value: target.techInspectionExpiryDate || "",
+              required: true
             },
             { name: "rcPolicyContract", label: "Póliza RC contractual N°", value: target.rcPolicyContract || "" },
             { name: "rcPolicyExtra", label: "Póliza RC extracontractual N°", value: target.rcPolicyExtra || "" },
@@ -819,7 +1453,7 @@ function vehiclesHtml() {
               name: "hasGps",
               label: "GPS satelital",
               type: "select",
-              value: target.hasGps ? "true" : "false",
+              value: vehicleHasActiveGps(target) ? "true" : "false",
               options: [{ value: "true", label: "Sí" }, { value: "false", label: "No" }]
             },
             { name: "gpsProvider", label: "Proveedor GPS", value: target.gpsProvider || "" },
@@ -834,58 +1468,22 @@ function vehiclesHtml() {
                 : "Contraseña en el portal del GPS"
             }
           ],
-          afterMount: (formEl) => bindVehicleDocExpiryAutoFill(formEl),
-          onSubmit: async (form) => {
-            let soatExpiryDate = form.soatExpiryDate || "";
-            if (form.soatExpeditionDate && (!soatExpiryDate || !String(soatExpiryDate).trim())) {
-              soatExpiryDate = addCalendarYearsIsoDate(form.soatExpeditionDate, 1) || soatExpiryDate;
-            }
-            let techInspectionExpiryDate = form.techInspectionExpiryDate || "";
-            if (
-              form.techInspectionExpeditionDate &&
-              (!techInspectionExpiryDate || !String(techInspectionExpiryDate).trim())
-            ) {
-              techInspectionExpiryDate =
-                addCalendarYearsIsoDate(form.techInspectionExpeditionDate, 1) || techInspectionExpiryDate;
-            }
+          afterMount: (formEl) => bindVehicleCreateFormExtras(formEl),
+          onSubmit: async (form, formEl) => {
+            const draft = withVehicleDocExpiryDefaults(form);
             const freshVehicles = read(KEYS.vehicles, []);
             if (!freshVehicles.some((v) => String(v.id) === String(target.id))) {
               notify("El vehículo ya no está disponible. Actualice la página.", "error");
               return false;
             }
+            const verdict = validateVehicleFormPayload(draft, freshVehicles, { ignoreId: target.id });
+            if (!verdict.ok) {
+              showVehicleFormIssue(formEl, verdict.field, verdict.message);
+              return false;
+            }
             const nextVehicles = freshVehicles.map((v) =>
               String(v.id) === String(target.id)
-                ? stampUpdatedRecord({
-                    ...v,
-                    plate: String(form.plate || "").toUpperCase(),
-                    brand: String(form.brand || "").trim(),
-                    model: String(form.model || "").trim(),
-                    year: parseNum(form.year),
-                    color: String(form.color || "").trim(),
-                    capacityKg: parseNum(form.capacityKg),
-                    bodyType: String(form.bodyType || "").trim(),
-                    fuelType: String(form.fuelType || "").trim(),
-                    axleConfig: String(form.axleConfig || "").trim(),
-                    engineNumber: String(form.engineNumber || "").trim(),
-                    vin: String(form.vin || "").trim().toUpperCase(),
-                    ownershipCard: String(form.ownershipCard || "").trim(),
-                    type: String(form.type || target.type || "Camion").trim(),
-                    refrigerated: String(form.refrigerated || "false") === "true",
-                    soatExpeditionDate: form.soatExpeditionDate,
-                    soatExpiryDate,
-                    techInspectionExpeditionDate: form.techInspectionExpeditionDate,
-                    techInspectionExpiryDate,
-                    rcPolicyContract: String(form.rcPolicyContract || "").trim(),
-                    rcPolicyExtra: String(form.rcPolicyExtra || "").trim(),
-                    rcPolicyExpiry: form.rcPolicyExpiry || "",
-                    hasGps: String(form.hasGps || "false") === "true",
-                    gpsProvider: String(form.gpsProvider || "").trim(),
-                    satelliteProviderUser: String(form.satelliteProviderUser || "").trim(),
-                    satelliteProviderPassword: String(form.satelliteProviderPassword || "").trim(),
-                    satelliteProviderPasswordSet:
-                      Boolean(String(form.satelliteProviderPassword || "").trim()) ||
-                      Boolean(target.satelliteProviderPasswordSet)
-                  })
+                ? stampUpdatedRecord(vehicleRecordFromVerdict(v, verdict.value))
                 : v
             );
             try {
@@ -910,6 +1508,34 @@ function vehiclesHtml() {
               );
               if (updatedVehicle.updatedAt && vehicleActor) {
                 recordEntityHistoryActor("Camiones", updatedVehicle.id, updatedVehicle.updatedAt, vehicleActor);
+              }
+            }
+            const linkedPlate = String(updatedVehicle?.plate || verdict.value.plate || "").trim().toUpperCase();
+            const linkedType = String(updatedVehicle?.type || verdict.value.type || "").trim();
+            const changedRequests = [];
+            const nextRequests = reqRead().map((request) => {
+              const trip = request?.trip;
+              if (!trip || String(trip.vehicleId || "") !== String(target.id)) return request;
+              const samePlate = String(trip.vehiclePlate || "").trim().toUpperCase() === linkedPlate;
+              const sameType = String(trip.vehicleType || "").trim() === linkedType;
+              if (samePlate && sameType) return request;
+              const nextRequest = {
+                ...request,
+                trip: {
+                  ...trip,
+                  vehiclePlate: linkedPlate,
+                  vehicleType: linkedType,
+                  updatedAt: nowIso()
+                }
+              };
+              changedRequests.push(nextRequest);
+              return nextRequest;
+            });
+            if (changedRequests.length) {
+              try {
+                await reqWriteAwait(nextRequests, changedRequests);
+              } catch (_err) {
+                notify("El camión se guardó, pero no se actualizó la placa en los viajes vinculados.", "info");
               }
             }
             notify(userMessage("vehicleUpdated"), "success");
@@ -959,8 +1585,13 @@ function vehiclesHtml() {
           failPortalField(fuelLogForm, "liters", userMessage("fuelInvalidAmounts"));
           return;
         }
-        if (totalCost < 0) {
+        if (totalCost <= 0) {
           failPortalField(fuelLogForm, "totalCost", userMessage("fuelInvalidAmounts"));
+          return;
+        }
+        const odometerKm = parseNum(data.odometerKm);
+        if (odometerKm < 0) {
+          failPortalField(fuelLogForm, "odometerKm", "El odómetro no puede ser negativo.");
           return;
         }
         try {
@@ -976,7 +1607,7 @@ function vehiclesHtml() {
             liters,
             totalCost,
             costPerLiter: liters > 0 ? Math.round(totalCost / liters) : 0,
-            odometerKm: parseNum(data.odometerKm),
+            odometerKm,
             station: normalizeLatinUpperForDb(data.station || ""),
             paidBy: String(data.paidBy || "empresa"),
             createdAt: nowIso()
@@ -1013,6 +1644,15 @@ function vehiclesHtml() {
           failPortalField(technicalLogForm, "description", "Indique una descripción de la novedad de taller.");
           return;
         }
+        if (cost < 0) {
+          failPortalField(technicalLogForm, "cost", "El costo de taller no puede ser negativo.");
+          return;
+        }
+        const downtimeHours = parseNum(data.downtimeHours);
+        if (downtimeHours < 0) {
+          failPortalField(technicalLogForm, "downtimeHours", "Las horas fuera de servicio no pueden ser negativas.");
+          return;
+        }
         try {
           const savedTechLog = await appendVehicleTechnicalLogAwait({
             id: newUuidV4(),
@@ -1024,7 +1664,7 @@ function vehiclesHtml() {
             type: String(data.type || "preventivo"),
             description: normalizeLatinUpperForDb(data.description || ""),
             cost,
-            downtimeHours: parseNum(data.downtimeHours),
+            downtimeHours,
             followUpStatus: String(data.status || "Pendiente"),
             status: String(data.status || "Pendiente"),
             createdAt: nowIso()
@@ -1043,6 +1683,74 @@ function vehiclesHtml() {
         collapseCreatePanel("create-technical-log");
         state.historyUi = { ...(state.historyUi || defaultHistoryUi()), moduleFilter: "Camiones", actionFilter: "create" };
         setView("history");
+      });
+    }
+
+    nodes.viewRoot.querySelectorAll("[data-action='vehicles-simit-refresh']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        void ensureVehiclesSimitLoaded({ force: true });
+      });
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='vehicles-simit-scope']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const pendingOnly = String(btn.dataset.scope || "pending") !== "all";
+        state.vehiclesSimit = withSimitUi(state.vehiclesSimit, { pendingOnly });
+        void ensureVehiclesSimitLoaded({ force: true });
+      });
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='vehicles-simit-search']").forEach((input) => {
+      input.addEventListener("input", () => {
+        const el = /** @type {HTMLInputElement} */ (input);
+        const len = String(el.value || "").length;
+        const start = typeof el.selectionStart === "number" ? el.selectionStart : len;
+        const end = typeof el.selectionEnd === "number" ? el.selectionEnd : start;
+        state.vehiclesSimit = withSimitUi(state.vehiclesSimit, { query: String(el.value || "") });
+        state.__vehiclesSimitSearchRestore = { start, end };
+        renderPortalView();
+      });
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='vehicles-simit-result']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.vehiclesSimit = withSimitUi(state.vehiclesSimit, {
+          resultFilter: normalizeSimitResultFilter(btn.dataset.result)
+        });
+        renderPortalView();
+      });
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='vehicles-simit-clear']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.vehiclesSimit = withSimitUi(state.vehiclesSimit, { query: "", resultFilter: "all" });
+        renderPortalView();
+      });
+    });
+
+    if (String(state.vehiclesUi?.workspace) === "data" && String(state.vehiclesUi?.section) === "fotomultas") {
+      queueMicrotask(() => {
+        if (String(state.currentView || "") !== "transport-vehicles") return;
+        if (String(state.vehiclesUi?.section) !== "fotomultas") return;
+        void ensureVehiclesSimitLoaded();
+      });
+    }
+
+    const simitSearchRestore = state.__vehiclesSimitSearchRestore;
+    if (simitSearchRestore && typeof simitSearchRestore.start === "number") {
+      delete state.__vehiclesSimitSearchRestore;
+      queueMicrotask(() => {
+        const root = nodes.viewRoot;
+        if (!root || String(state.currentView || "") !== "transport-vehicles") return;
+        const inp = root.querySelector("[data-action='vehicles-simit-search']");
+        if (!inp || typeof inp.focus !== "function") return;
+        inp.focus();
+        if (typeof inp.setSelectionRange === "function") {
+          const n = String(inp.value || "").length;
+          const s = Math.max(0, Math.min(simitSearchRestore.start, n));
+          const e = Math.max(0, Math.min(simitSearchRestore.end ?? simitSearchRestore.start, n));
+          inp.setSelectionRange(s, e);
+        }
       });
     }
 

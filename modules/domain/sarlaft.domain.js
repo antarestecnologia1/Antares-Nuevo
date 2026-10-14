@@ -359,13 +359,28 @@ export function sarlaftReviewAdvancesSchedule(kind) {
     k === "revision_kyc" ||
     k === "actualizacion_listas" ||
     k === "revision_etica" ||
-    k === "seguimiento"
+    k === "seguimiento" ||
+    k === "seguimiento_conflicto"
   );
 }
 
 function asBool(value) {
   const v = String(value ?? "").trim().toLowerCase();
   return value === true || v === "true" || v === "1" || v === "t" || v === "si" || v === "sí" || v === "on";
+}
+
+function pickComplianceField(extra, ...keys) {
+  for (const key of keys) {
+    if (extra[key] != null && extra[key] !== "") return extra[key];
+  }
+  const lowerMap = Object.fromEntries(
+    Object.entries(extra || {}).map(([k, v]) => [String(k).toLowerCase(), v])
+  );
+  for (const key of keys) {
+    const found = lowerMap[String(key).toLowerCase()];
+    if (found != null && found !== "") return found;
+  }
+  return undefined;
 }
 
 function parseCompliance(row = {}) {
@@ -380,11 +395,11 @@ function parseCompliance(row = {}) {
     }
   }
   return {
-    listsChecked: asBool(row.listsChecked ?? extra.listsChecked),
-    fundsDeclared: asBool(row.fundsDeclared ?? extra.fundsDeclared),
-    beneficialOwner: cleanText(row.beneficialOwner ?? extra.beneficialOwner, 255),
-    conflictDeclared: asBool(row.conflictDeclared ?? extra.conflictDeclared),
-    ethicsAccepted: asBool(row.ethicsAccepted ?? extra.ethicsAccepted)
+    listsChecked: asBool(row.listsChecked ?? pickComplianceField(extra, "listsChecked")),
+    fundsDeclared: asBool(row.fundsDeclared ?? pickComplianceField(extra, "fundsDeclared")),
+    beneficialOwner: cleanText(row.beneficialOwner ?? pickComplianceField(extra, "beneficialOwner"), 255),
+    conflictDeclared: asBool(row.conflictDeclared ?? pickComplianceField(extra, "conflictDeclared")),
+    ethicsAccepted: asBool(row.ethicsAccepted ?? pickComplianceField(extra, "ethicsAccepted"))
   };
 }
 
@@ -413,8 +428,12 @@ function cleanMultiline(value, max = 4000) {
 }
 
 function isoDateOnly(value) {
-  const s = String(value ?? "").trim().slice(0, 10);
-  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : "";
+  if (value instanceof Date && Number.isFinite(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+  const s = String(value ?? "").trim();
+  const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+  return m ? m[1] : "";
 }
 
 /** Bitácora de seguimiento: lista de notas con autor y fecha, más reciente primero. */
@@ -611,6 +630,7 @@ export function normalizeSarlaftAlertRow(row = {}) {
     updatedAt: String(row.updatedAt || row.fecha_actualizacion || "").trim(),
     updatedBy: cleanText(row.updatedBy || row.actualizado_por, 255),
     followUps: parseFollowUps(row.followUps ?? row.seguimiento),
+    seguimiento: serializeSarlaftFollowUps(row.followUps ?? row.seguimiento),
     closureDecision: catalogValue(SARLAFT_CLOSURE_DECISIONS, row.closureDecision || row.decision_cierre, ""),
     closureNotes: cleanMultiline(row.closureNotes || row.notas_cierre, 4000),
     closedAt: String(row.closedAt || row.fecha_cierre || "").trim(),
@@ -638,6 +658,7 @@ export function normalizeSarlaftReviewRow(row = {}) {
     updatedAt: String(row.updatedAt || row.fecha_actualizacion || "").trim(),
     updatedBy: cleanText(row.updatedBy || row.actualizado_por, 255),
     followUps: parseFollowUps(row.followUps ?? row.seguimiento),
+    seguimiento: serializeSarlaftFollowUps(row.followUps ?? row.seguimiento),
     closureDecision: catalogValue(SARLAFT_CLOSURE_DECISIONS, row.closureDecision || row.decision_cierre, ""),
     closureNotes: cleanMultiline(row.closureNotes || row.notas_cierre, 4000),
     closedAt: String(row.closedAt || row.fecha_cierre || "").trim(),
@@ -675,6 +696,8 @@ export function summarizeSarlaft({ parties = [], alerts = [], reviews = [], toda
     return bucket === "expired" || bucket === "warning";
   }).length;
   const openReviews = reviews.filter((r) => r.status !== "cerrada").length;
+  const overdueAlerts = collectSarlaftOverdueAlerts(alerts, todayYmd).length;
+  const incompleteKyc = parties.filter((p) => !evaluateSarlaftPartyCompleteness(p).complete).length;
   return {
     parties: parties.length,
     pepCount,
@@ -682,6 +705,8 @@ export function summarizeSarlaft({ parties = [], alerts = [], reviews = [], toda
     highRisk,
     openAlerts: openAlerts.length,
     criticalAlerts: criticalAlerts.length,
+    overdueAlerts,
+    incompleteKyc,
     dueReviews,
     openReviews,
     approved: parties.filter((p) => p.kycStatus === "aprobado").length
@@ -828,3 +853,173 @@ export function nextSarlaftPartyCode(existing = []) {
   const next = (nums.length ? Math.max(...nums) : 0) + 1;
   return `T-${String(next).padStart(4, "0")}`;
 }
+
+export function sarlaftPartyDocumentKey(party = {}) {
+  const type = String(party.documentType || "")
+    .trim()
+    .toUpperCase();
+  const num = String(party.documentNumber || "")
+    .replace(/[\s.\-]/g, "")
+    .toUpperCase();
+  if (!num) return "";
+  return `${type}:${num}`;
+}
+
+export function findDuplicateSarlaftParty(parties, candidate, ignoreId = "") {
+  const key = sarlaftPartyDocumentKey(candidate);
+  const nit = String(candidate.nit || "").replace(/\D/g, "");
+  return (
+    (parties || []).find((row) => {
+      if (!row || String(row.id) === String(ignoreId || "")) return false;
+      if (key && sarlaftPartyDocumentKey(row) === key) return true;
+      if (nit && String(row.nit || "").replace(/\D/g, "") === nit) return true;
+      return false;
+    }) || null
+  );
+}
+
+export function findDuplicateSarlaftProfile(profiles, candidate, ignoreId = "") {
+  const code = String(candidate.code || "")
+    .trim()
+    .toUpperCase();
+  if (!code) return null;
+  return (
+    (profiles || []).find(
+      (row) =>
+        row &&
+        String(row.id) !== String(ignoreId || "") &&
+        String(row.code || "").trim().toUpperCase() === code
+    ) || null
+  );
+}
+
+export function evaluateSarlaftPartyCompleteness(party = {}) {
+  const program = normalizeSarlaftProgram(party.program, "ambos");
+  const missing = [];
+  if (program === "sarlaft" || program === "ambos") {
+    if (!party.listsChecked) missing.push({ field: "listsChecked", label: "Consulta de listas restrictivas" });
+    if (!party.fundsDeclared) missing.push({ field: "fundsDeclared", label: "Declaración de origen de fondos" });
+    if (party.pepFlag && !cleanMultiline(party.pepDetails, 2000)) {
+      missing.push({ field: "pepDetails", label: "Detalle de la condición PEP" });
+    }
+    if (party.kind === "persona_juridica" && !cleanText(party.beneficialOwner, 255)) {
+      missing.push({ field: "beneficialOwner", label: "Beneficiario final" });
+    }
+  }
+  if (program === "pte" || program === "ambos") {
+    if (!party.ethicsAccepted) missing.push({ field: "ethicsAccepted", label: "Aceptación del código de ética" });
+  }
+  if (!isoDateOnly(party.nextReviewDate)) {
+    missing.push({ field: "nextReviewDate", label: "Fecha de próxima revisión" });
+  }
+  return {
+    complete: missing.length === 0,
+    missing,
+    readyForApproval: missing.length === 0
+  };
+}
+
+export function isSarlaftKycApprovable(party = {}) {
+  if (String(party.kycStatus || "") !== "aprobado") return { ok: true, missing: [] };
+  const ev = evaluateSarlaftPartyCompleteness(party);
+  return { ok: ev.readyForApproval, missing: ev.missing };
+}
+
+const RISK_RANK = Object.freeze({ bajo: 0, medio: 1, alto: 2, critico: 3 });
+
+function raiseSarlaftRisk(current, minimum) {
+  const cur = RISK_RANK[current] ?? 1;
+  const min = RISK_RANK[minimum] ?? 0;
+  const next = Math.max(cur, min);
+  return SARLAFT_RISK_LEVELS[next]?.value || current || "medio";
+}
+
+export function suggestSarlaftRiskLevel(party = {}, current = "") {
+  let level = catalogValue(SARLAFT_RISK_LEVELS, current || party.riskLevel, "medio");
+  if (party.pepFlag) level = raiseSarlaftRisk(level, "alto");
+  if (party.conflictDeclared) level = raiseSarlaftRisk(level, "medio");
+  if (party.kycStatus === "rechazado") level = raiseSarlaftRisk(level, "alto");
+  return level;
+}
+
+export function kycStatusFromSarlaftClosure(decision) {
+  const d = String(decision || "").trim();
+  if (d === "aprobado") return "aprobado";
+  if (d === "aprobado_con_novedades" || d === "escalado") return "observado";
+  if (d === "rechazado") return "rechazado";
+  return "";
+}
+
+export function applySarlaftReviewClosureToParty(party, review, profile, todayYmd) {
+  if (!party || !review) return party;
+  if (review.status !== "cerrada" || !sarlaftReviewAdvancesSchedule(review.kind)) return party;
+  const reviewedAt = isoDateOnly(review.reviewedAt) || isoDateOnly(todayYmd);
+  const next = { ...party };
+  if (reviewedAt) {
+    next.lastReviewDate = reviewedAt;
+    next.nextReviewDate = computeSarlaftNextReviewDate(
+      profile || { reviewFrequencyDays: 180 },
+      reviewedAt
+    );
+  }
+  const kyc = kycStatusFromSarlaftClosure(review.closureDecision);
+  if (kyc) next.kycStatus = kyc;
+  return next;
+}
+
+export function isSarlaftAlertOverdue(alert, todayYmd) {
+  if (!alert || !["abierta", "en_gestion", "en_revision"].includes(alert.status)) return false;
+  const days = daysUntil(alert.dueDate, todayYmd);
+  return days != null && days < 0;
+}
+
+export function collectSarlaftOverdueAlerts(alerts, todayYmd) {
+  return (alerts || []).filter((alert) => isSarlaftAlertOverdue(alert, todayYmd));
+}
+
+export function sarlaftPartyPassesConsultFilters(party, filters = {}) {
+  if (!party) return false;
+  if (filters.risk && party.riskLevel !== filters.risk) return false;
+  if (filters.kyc && party.kycStatus !== filters.kyc) return false;
+  if (filters.completeness === "incomplete" && evaluateSarlaftPartyCompleteness(party).complete) return false;
+  if (filters.completeness === "complete" && !evaluateSarlaftPartyCompleteness(party).complete) return false;
+  return true;
+}
+
+export function sarlaftAlertPassesConsultFilters(alert, filters = {}, todayYmd = "") {
+  if (!alert) return false;
+  if (filters.alertStatus && alert.status !== filters.alertStatus) return false;
+  if (filters.severity && alert.severity !== filters.severity) return false;
+  if (filters.overdue === true && !isSarlaftAlertOverdue(alert, todayYmd)) return false;
+  return true;
+}
+
+export function sarlaftReviewPassesConsultFilters(review, filters = {}) {
+  if (!review) return false;
+  if (filters.reviewStatus && review.status !== filters.reviewStatus) return false;
+  return true;
+}
+
+export function buildSarlaftReviewExportRows(reviews = []) {
+  return reviews.map((r) => ({
+    tipo: sarlaftCatalogLabel(SARLAFT_REVIEW_KINDS, r.kind),
+    tercero: r.thirdPartyName || "",
+    estado: sarlaftCatalogLabel(SARLAFT_REVIEW_STATUSES, r.status),
+    fecha: r.reviewedAt || String(r.createdAt || "").slice(0, 10),
+    responsable: r.responsibleName || "",
+    decision: r.closureDecision ? sarlaftCatalogLabel(SARLAFT_CLOSURE_DECISIONS, r.closureDecision) : "",
+    observaciones: r.observations || "",
+    cierre: r.closedBy || ""
+  }));
+}
+
+export const SARLAFT_REVIEW_EXPORT_COLUMNS = [
+  { key: "tipo", label: "Tipo" },
+  { key: "tercero", label: "Tercero" },
+  { key: "estado", label: "Estado" },
+  { key: "fecha", label: "Fecha" },
+  { key: "responsable", label: "Responsable" },
+  { key: "decision", label: "Decisión de cierre" },
+  { key: "observaciones", label: "Observaciones" },
+  { key: "cierre", label: "Cerrado por" }
+];

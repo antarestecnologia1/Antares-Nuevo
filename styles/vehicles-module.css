@@ -1152,12 +1152,74 @@ body[data-theme="dark"] .vehicles-studio .hiring-candidate-card {
   color: var(--veh-navy);
 }
 
+.vehicles-studio .vehicle-fleet-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 0 0 0.95rem;
+}
+
+.vehicles-studio .vehicle-fleet-toolbar-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem 1rem;
+  align-items: end;
+}
+
+.vehicles-studio .vehicle-fleet-view-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+}
+
+.vehicles-studio .vehicle-fleet-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.42rem;
+}
+
+.vehicles-studio .vehicle-fleet-selects {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0.55rem 0.7rem;
+}
+
+.vehicles-studio .vehicle-fleet-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 0.22rem;
+  min-width: 0;
+}
+
+.vehicles-studio .vehicle-fleet-filter span {
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.vehicles-studio .vehicle-fleet-filter select {
+  width: 100%;
+  min-height: 2.2rem;
+}
+
+.vehicles-studio .vehicles-simit-filters .transport-ops-search {
+  max-width: 28rem;
+}
+
+.vehicles-studio .vehicle-fleet-toolbar-clear {
+  display: flex;
+  justify-content: flex-start;
+}
+
 .vehicles-studio .hr-action-card--open[data-hr-panel="create-vehicle"] .hr-action-card__head {
   padding-bottom: 0.85rem;
   border-bottom: 1px solid var(--veh-edge);
 }
 
 @media (max-width: 860px) {
+  .vehicles-studio .vehicle-fleet-toolbar-top {
+    grid-template-columns: 1fr;
+  }
+
   .vehicles-studio #form-vehicle .payroll-wizard__layout {
     grid-template-columns: 1fr;
   }
@@ -1199,6 +1261,118 @@ body[data-theme="dark"] .vehicles-studio #form-vehicle .form-section {
 body[data-theme="dark"] .vehicles-studio #form-vehicle .payroll-wizard-tip {
   background: linear-gradient(180deg, rgba(var(--primary-rgb), 0.12) 0%, rgba(10, 22, 38, 0.9) 100%);
   border-color: rgba(148, 196, 255, 0.16);
+}
+
+/* ── Fotomultas / comparendos SIMIT ── */
+.vehicles-simit-disclaimer,
+.vehicles-simit-meta,
+.vehicles-simit-status {
+  margin: 0 0 0.75rem;
+  max-width: 62rem;
+  line-height: 1.45;
+}
+
+.vehicles-simit-disclaimer a {
+  color: inherit;
+  font-weight: 650;
+  text-underline-offset: 0.12em;
+}
+
+.vehicles-simit-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 0.85rem;
+  margin: 0 0 0.9rem;
+}
+
+.vehicles-simit-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  gap: 0.65rem;
+  margin: 0 0 0.9rem;
+}
+
+.vehicles-simit-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: 12px;
+  border: 1px solid var(--veh-edge, rgba(15, 23, 42, 0.12));
+  background: var(--veh-surface, #f8fafc);
+}
+
+.vehicles-simit-kpi strong {
+  font-size: 1.05rem;
+  font-weight: 750;
+  color: #1e293b;
+}
+
+.vehicles-simit-kpi span {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.vehicles-simit-kpi--alert {
+  border-color: rgba(185, 28, 28, 0.28);
+  background: rgba(254, 226, 226, 0.55);
+}
+
+.vehicles-simit-kpi--ok {
+  border-color: rgba(15, 118, 110, 0.22);
+  background: rgba(204, 251, 241, 0.45);
+}
+
+.vehicles-simit-details summary {
+  cursor: pointer;
+  font-weight: 650;
+  color: #4338ca;
+}
+
+.vehicles-simit-table-wrap {
+  margin-top: 0.45rem;
+}
+
+.vehicles-simit-sheet {
+  margin-top: 1rem;
+  padding: 0.9rem 1rem;
+  border-radius: 14px;
+  border: 1px solid var(--veh-edge, rgba(15, 23, 42, 0.12));
+  background: var(--veh-surface, #f8fafc);
+}
+
+.vehicles-simit-sheet__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.65rem;
+  margin: 0 0 0.65rem;
+  font-size: 0.95rem;
+}
+
+.vehicles-simit-sheet .vehicles-simit-table-wrap {
+  margin-top: 0.35rem;
+}
+
+body[data-theme="dark"] .vehicles-simit-kpi,
+body[data-theme="dark"] .vehicles-simit-sheet {
+  background: rgba(14, 28, 46, 0.92);
+  border-color: rgba(148, 196, 255, 0.14);
+}
+
+body[data-theme="dark"] .vehicles-simit-kpi strong,
+body[data-theme="dark"] .vehicles-simit-sheet__title {
+  color: #e2e8f0;
+}
+
+body[data-theme="dark"] .vehicles-simit-kpi--alert {
+  background: rgba(127, 29, 29, 0.28);
+}
+
+body[data-theme="dark"] .vehicles-simit-kpi--ok {
+  background: rgba(19, 78, 74, 0.28);
 }
 
 /* ── Tarjetas operativas: rejilla flota (ver portal-ops-card.css) ── */

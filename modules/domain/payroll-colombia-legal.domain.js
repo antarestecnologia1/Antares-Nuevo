@@ -496,7 +496,7 @@ export function buildColombiaPayrollLiquidation({
     Math.max(0, parseNum(auxCop)) +
     Math.max(0, parseNum(travelAllowanceCop)) +
     Math.max(0, parseNum(fuelReimbursementCop)) +
-    Math.max(0, parseNum(incapacityAdjustCop)) +
+    parseNum(incapacityAdjustCop) +
     Math.max(0, parseNum(primaServiciosCop)) +
     Math.max(0, parseNum(interesesCesantiasCop));
   const totalDeductions = ded.total + withholding.withholdingCop;

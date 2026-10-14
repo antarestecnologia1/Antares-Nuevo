@@ -146,8 +146,12 @@ function openPayrollEmployeeFromCandidate(candidateId) {
   state.createPanels = buildPayrollCreatePanelsState("employee", state.createPanels || {}, { expandActive: true });
   persistHrWorkspace("payroll", "operate");
   persistHrWorkspace("hiring", state.hiringUi?.workspace || "data");
-  state.currentView = "payroll";
-  renderPortalView();
+  if (typeof globalThis.setView === "function") {
+    globalThis.setView("payroll");
+  } else {
+    state.currentView = "payroll";
+    renderPortalView();
+  }
   requestAnimationFrame(() => {
     requestAnimationFrame(() => scrollToCreatePanelForm("create-employee"));
   });

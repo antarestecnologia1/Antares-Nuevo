@@ -115,6 +115,23 @@
   line-height: 1.35;
 }
 
+.reports-studio .reports-card-count {
+  display: inline-flex;
+  margin-top: 0.35rem;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #0b4a7a;
+  background: color-mix(in srgb, var(--rpt-blue) 14%, #fff);
+}
+
+.reports-studio .reports-card-count.is-empty {
+  color: #64748b;
+  background: #f1f5f9;
+}
+
 @media (max-width: 900px) {
   .reports-studio .rpt-operate { grid-template-columns: 1fr; }
   .reports-studio .rpt-operate__rail { position: static; }

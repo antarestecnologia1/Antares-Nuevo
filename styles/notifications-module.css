@@ -473,6 +473,12 @@
 .ntf-card:hover {
   box-shadow: var(--ntf-shadow-sm);
 }
+.ntf-card--interactive {
+  cursor: pointer;
+}
+.ntf-card--interactive .ntf-card__actions {
+  cursor: default;
+}
 .ntf-card--unread {
   border-color: color-mix(in srgb, var(--ntf-accent) 40%, var(--ntf-edge));
   background: linear-gradient(180deg, color-mix(in srgb, var(--ntf-accent) 5%, var(--ntf-card)), var(--ntf-card));

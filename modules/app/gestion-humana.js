@@ -552,10 +552,13 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
     const dedRowsMes = isTripPrestacion
       ? `<tr><td class="slip-td slip-td--empty" colspan="2">Prestación de servicios: sin aportes de salud, pensión ni FSP en este comprobante (pago por viajes).</td></tr>` +
         `<tr><td ${cTotalL}><strong>Total deducciones</strong></td><td ${cTotalR}><strong>${fmtPay(run.deductions)}</strong></td></tr>`
-      : `<tr><td ${cL}>Salario integral de cotización — IBC (base aportes empleador/empleado)</td><td ${cR}>${fmtPay(run.ibc)}</td></tr>` +
+      : `<tr><td ${cL}>Ingreso base de cotización — IBC (base de aportes)</td><td ${cR}>${fmtPay(run.ibc)}</td></tr>` +
         `<tr><td ${cL}>Aporte obligatorio salud — empleado (${(CO_PAYROLL.healthEmployeeRate * 100).toFixed(2).replace(/\.00$/, "")}% sobre IBC)</td><td ${cR}>${fmtPay(run.health)}</td></tr>` +
         `<tr><td ${cL}>Aporte pensión obligatoria — empleado (${(CO_PAYROLL.pensionEmployeeRate * 100).toFixed(2).replace(/\.00$/, "")}% sobre IBC)</td><td ${cR}>${fmtPay(run.pension)}</td></tr>` +
         `<tr><td ${cL}>Fondo de solidaridad pensional FSP (cuando aplique rangos Ley 797/2003)</td><td ${cR}>${fmtPay(run.solidarity)}</td></tr>` +
+        (parseNum(run.withholding ?? run.noveltiesDetail?.withholdingCop) > 0
+          ? `<tr><td ${cL}>Retención en la fuente Proc. 1 (Art. 383)</td><td ${cR}>${fmtPay(run.withholding ?? run.noveltiesDetail?.withholdingCop)}</td></tr>`
+          : "") +
         `<tr><td ${cTotalL}><strong>Total deducciones al empleado</strong></td><td ${cTotalR}><strong>${fmtPay(run.deductions)}</strong></td></tr>`;
     const hasWorkedDays = workedDays > 0 || workedDaysPaymentCop > 0;
     const workedDaysBlock = hasWorkedDays
@@ -1731,6 +1734,10 @@ function bindPayrollPortalControls() {
             if (draftCityEl && draftCityValue) draftCityEl.value = draftCityValue;
           }
           syncIllnessVisibility();
+          if (typeof syncEmployeeFormConductorStep === "function") {
+            const draftPosition = getPositionById(String(employeeForm.querySelector("#emp-position-select")?.value || ""));
+            syncEmployeeFormConductorStep(employeeForm, draftPosition || null);
+          }
           employeeCompRule.sync({ force: true });
           syncPlazoVisibility();
           syncFixedTermEnd();
@@ -1755,8 +1762,12 @@ function bindPayrollPortalControls() {
         window.AntaresValidation?.setPortalFormDateByName?.(
           employeeForm,
           "startDate",
-          colombiaTodayIsoDate()
+          normalizePortalDateYmd(prefillCandidate.offerTerms?.startDate) || colombiaTodayIsoDate()
         );
+        if (typeof syncEmployeeFormConductorStep === "function") {
+          const prefillPosition = getPositionById(String(employeeForm.querySelector("#emp-position-select")?.value || ""));
+          syncEmployeeFormConductorStep(employeeForm, prefillPosition || null);
+        }
         employeeCompRule.sync({ force: true });
         syncPlazoVisibility();
         syncFixedTermEnd();
@@ -2906,33 +2917,57 @@ function bindPayrollPortalControls() {
   });
   syncPayrollEmployeeSelectionBadge();
 
-  nodes.viewRoot.querySelectorAll("[data-action='payroll-employees-page']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      if (btn.disabled) return;
-      const page = Math.max(1, Number(btn.dataset.page) || 1);
+  if (!window.__payrollEmployeesPagingBound) {
+    window.__payrollEmployeesPagingBound = true;
+    const applyPayrollEmployeesPaging = ({ page, pageSize } = {}) => {
+      const allowedSizes = new Set([5, 10, 20, 50]);
+      const prevSize = Math.max(5, Number(state.payrollUi?.employeesPageSize) || 10);
+      const nextSizeRaw = pageSize == null ? prevSize : Number(pageSize);
+      const nextSize = allowedSizes.has(nextSizeRaw) ? nextSizeRaw : prevSize;
+      const nextPage = Math.max(1, Number(page == null ? state.payrollUi?.employeesPage || 1 : page) || 1);
+      const prevPage = Math.max(1, Number(state.payrollUi?.employeesPage) || 1);
+      const sizeChanged = pageSize != null && nextSize !== prevSize;
+      const pageChanged = page != null && nextPage !== prevPage;
+      if (pageSize != null && !sizeChanged && page == null) return;
+      if (page != null && !pageChanged && pageSize == null) return;
       state.payrollUi = {
         ...(state.payrollUi || { runSort: "recent", workspace: "data", dataSection: "employees" }),
-        employeesPage: page,
+        employeesPageSize: nextSize,
+        employeesPage: pageSize != null ? 1 : nextPage,
         workspace: "data",
         dataSection: "employees"
       };
+      try {
+        localStorage.setItem("antares_hr_payroll_employees_page_size_v1", String(nextSize));
+      } catch (_err) {
+        /* preferencia opcional */
+      }
       persistHrWorkspace("payroll", "data");
       renderPortalView();
-    });
-  });
-
-  const employeesPageSizeEl = document.getElementById("payroll-employees-page-size");
-  employeesPageSizeEl?.addEventListener("change", () => {
-    state.payrollUi = {
-      ...(state.payrollUi || { runSort: "recent", workspace: "data", dataSection: "employees" }),
-      employeesPageSize: Math.max(5, Number(employeesPageSizeEl.value) || 10),
-      employeesPage: 1,
-      workspace: "data",
-      dataSection: "employees"
     };
-    persistHrWorkspace("payroll", "data");
-    renderPortalView();
-  });
+    window.__applyPayrollEmployeesPaging = applyPayrollEmployeesPaging;
+    document.addEventListener(
+      "change",
+      (ev) => {
+        const t = ev.target;
+        if (!t || t.id !== "payroll-employees-page-size") return;
+        if (String(t.getAttribute("data-action") || "") !== "payroll-employees-page-size") return;
+        applyPayrollEmployeesPaging({ pageSize: t.value });
+      },
+      true
+    );
+    document.addEventListener(
+      "click",
+      (ev) => {
+        const btn = ev.target?.closest?.("[data-action='payroll-employees-page']");
+        if (!btn || btn.disabled) return;
+        if (!nodes.viewRoot?.contains(btn)) return;
+        ev.preventDefault();
+        applyPayrollEmployeesPaging({ page: btn.dataset.page });
+      },
+      true
+    );
+  }
 
   document.getElementById("payroll-contracts-clear-filters")?.addEventListener("click", () => {
     clearTimeout(state.__payrollEmployeesSearchDebounceTimer);
@@ -3254,7 +3289,7 @@ function bindPayrollPortalControls() {
         payFreqNorm === "quincenal"
           ? Math.round((baseSalaryMonthly / 30) * diasCorte)
           : baseSalaryMonthly;
-      const extras = parseNum(data.extras);
+      const extrasManual = Math.max(0, parseNum(data.extras));
       const auxRaw = parseNum(data.aux);
       const aux =
         payFreqNorm === "quincenal" && auxRaw > 0
@@ -3270,21 +3305,61 @@ function bindPayrollPortalControls() {
         absencesAll: payrollAbsencesAll
       });
       const incapacityAdjustCop = parseNum(incapacityCalc.adjustCop);
-      const grossMonthlyBase =
-        baseSalary + extras + aux + bonus + travelAllowance + fuelReimbursement + incapacityAdjustCop;
-      const gross =
-        grossMonthlyBase +
-        (payPrima ? primaServiciosCop : 0) +
-        (payInteresesCesantias ? interesesCesantiasCop : 0);
-      const ibc = baseSalary + extras + bonus;
-      const health = ibc * CO_PAYROLL.healthEmployeeRate;
-      const pension = ibc * CO_PAYROLL.pensionEmployeeRate;
-      const solidarity = ibc > CO_PAYROLL.smmlv * CO_PAYROLL.solidarityThresholdSmmlv ? ibc * CO_PAYROLL.solidarityRate : 0;
-      const deductions = health + pension + solidarity;
-      const net = gross - deductions;
+      const payrollPosition =
+        typeof getPositionById === "function" ? getPositionById(String(employee.positionId || "")) : null;
+      const liq =
+        typeof buildColombiaPayrollLiquidation === "function"
+          ? buildColombiaPayrollLiquidation({
+              employee,
+              position: payrollPosition,
+              baseSalaryCop: baseSalary,
+              diasCorte,
+              extrasManualCop: extrasManual,
+              bonusCop: bonus,
+              overtimeInput: {
+                hed: data.hedHours,
+                hen: data.henHours,
+                hrdf: data.hrdfHours,
+                hrnf: data.hrnfHours,
+                recargoNocturnoHoras: data.recargoNocturnoHoras,
+                weeklyHours: CO_HR_RULES.legalWeeklyHours
+              },
+              auxCop: aux,
+              travelAllowanceCop: travelAllowance,
+              fuelReimbursementCop: fuelReimbursement,
+              incapacityAdjustCop,
+              primaServiciosCop: payPrima ? primaServiciosCop : 0,
+              interesesCesantiasCop: payInteresesCesantias ? interesesCesantiasCop : 0,
+              withholdingDependents: parseNum(data.withholdingDependents)
+            })
+          : null;
+      const overtimeLines = Array.isArray(liq?.overtime?.lines) ? liq.overtime.lines : [];
+      const extras = liq ? liq.extrasTotalCop : extrasManual;
+      const ibc = liq ? liq.ibc : baseSalary + extras + bonus;
+      const health = liq ? liq.employeeDeductions.health : Math.round(ibc * CO_PAYROLL.healthEmployeeRate);
+      const pension = liq ? liq.employeeDeductions.pension : Math.round(ibc * CO_PAYROLL.pensionEmployeeRate);
+      const solidarity = liq
+        ? liq.employeeDeductions.solidarity
+        : ibc > CO_PAYROLL.smmlv * CO_PAYROLL.solidarityThresholdSmmlv
+          ? Math.round(ibc * CO_PAYROLL.solidarityRate)
+          : 0;
+      const withholdingCop = liq ? parseNum(liq.withholding?.withholdingCop) : 0;
+      const gross = liq
+        ? liq.gross
+        : baseSalary +
+          extras +
+          aux +
+          bonus +
+          travelAllowance +
+          fuelReimbursement +
+          incapacityAdjustCop +
+          (payPrima ? primaServiciosCop : 0) +
+          (payInteresesCesantias ? interesesCesantiasCop : 0);
+      const deductions = liq ? liq.totalDeductions : health + pension + solidarity;
+      const net = liq ? liq.net : gross - deductions;
       const devengosLines = buildPayrollMensualDevengosLines({
         baseSalary,
-        extras,
+        extras: extrasManual,
         aux,
         bonus,
         travelAllowance,
@@ -3292,7 +3367,8 @@ function bindPayrollPortalControls() {
         primaServiciosCop: payPrima ? primaServiciosCop : 0,
         interesesCesantiasCop: payInteresesCesantias ? interesesCesantiasCop : 0,
         empleadoAuxilioTransporteMensualCop: empleadoAuxilioRef,
-        incapacityEpisodes: incapacityCalc.episodes
+        incapacityEpisodes: incapacityCalc.episodes,
+        overtimeLines
       });
       const incapacityNovelty = {
         episodes: incapacityCalc.episodes,
@@ -3327,12 +3403,21 @@ function bindPayrollPortalControls() {
         bonus,
         devengosLines,
         liquidacionOrigin: "manual",
-        noveltiesDetail: { devengosLines, incapacity: incapacityNovelty, absenceSlipDetail },
+        noveltiesDetail: {
+          devengosLines,
+          incapacity: incapacityNovelty,
+          absenceSlipDetail,
+          withholdingCop,
+          withholdingNote: liq?.withholding?.note || "",
+          overtime: liq?.overtime || null,
+          integralSalaryApplied: Boolean(liq?.integralSalaryApplied)
+        },
         tripCount: monthlyDriver?.tripCount || 0,
         interDepartmentTrips: monthlyDriver?.interDepartmentTrips || 0,
         health,
         pension,
         solidarity,
+        withholding: withholdingCop,
         deductions,
         net,
         paid: false,

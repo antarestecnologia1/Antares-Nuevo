@@ -117,7 +117,8 @@ function ntfCardHtml(n, IC) {
   const openBtn = deepLink
     ? `<button type="button" class="btn btn-sm btn-action" data-action="notif-open" data-id="${safeId}" data-href="${escapeAttr(deepLink)}">${IC.externalLink || IC.eye || ""} Abrir</button>`
     : "";
-  return `<article class="ntf-card${read ? "" : " ntf-card--unread"}" data-id="${safeId}" data-category="${escapeAttr(category)}">
+  const interactive = !read || Boolean(deepLink);
+  return `<article class="ntf-card${read ? "" : " ntf-card--unread"}${interactive ? " ntf-card--interactive" : ""}" data-id="${safeId}" data-category="${escapeAttr(category)}"${deepLink ? ` data-href="${escapeAttr(deepLink)}"` : ""}>
     <div class="ntf-card__leading">
       ${read ? "" : '<span class="ntf-card__dot" aria-hidden="true"></span>'}
       <span class="ntf-card__icon" aria-hidden="true">${IC.bell || ""}</span>
@@ -184,7 +185,7 @@ function notificationsHtml() {
       </div>`;
 
   const listBody = filtered.length
-    ? `<p class="ntf-visible-count">Mostrando ${visibleFiltered.length} de ${filtered.length} notificación${filtered.length === 1 ? "" : "es"}${activeFilter === NOTIFICATION_UI_FILTERS.ALL ? "" : " del filtro activo"}.</p>${ntfGroupedListHtml(groupNotificationsByDateBucket(visibleFiltered), IC)}${ntfRenderMoreBar(filtered.length, visibleFiltered.length)}`
+    ? `<p class="ntf-visible-count">Mostrando ${visibleFiltered.length} de ${filtered.length} ${filtered.length === 1 ? "notificación" : "notificaciones"}${activeFilter === NOTIFICATION_UI_FILTERS.ALL ? "" : " del filtro activo"}.</p>${ntfGroupedListHtml(groupNotificationsByDateBucket(visibleFiltered), IC)}${ntfRenderMoreBar(filtered.length, visibleFiltered.length)}`
     : all.length
       ? typeof emptyState === "function"
         ? emptyState("Ninguna notificación coincide con este filtro.")
@@ -272,25 +273,37 @@ function bindNotificationsPortalControls() {
     });
   });
 
+  async function activateNotificationCard(id, href) {
+    if (id && !notificationIsRead(getCurrentNotifications().find((n) => n.id === id) || {})) {
+      await persistNotificationsReadState([id]);
+    }
+    const target = String(href || "").trim();
+    if (target.startsWith("#portal/")) {
+      const view = target.slice("#portal/".length).split("?")[0].trim();
+      if (view) G.setView(view);
+    }
+    G.refreshNotificationsUiAfterReadMutation?.();
+  }
+
   root.querySelectorAll("[data-action='notif-open']").forEach((btn) => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
       void G.runWithBusyButton(btn, async () => {
-        const id = String(btn.dataset.id || "");
-        const href = String(btn.dataset.href || "").trim();
-        if (id && !notificationIsRead(getCurrentNotifications().find((n) => n.id === id) || {})) {
-          await persistNotificationsReadState([id]);
-        }
-        if (href.startsWith("#portal/")) {
-          const view = href.slice("#portal/".length).split("?")[0].trim();
-          if (view) G.setView(view);
-        }
-        G.refreshNotificationsUiAfterReadMutation?.();
+        await activateNotificationCard(String(btn.dataset.id || ""), String(btn.dataset.href || "").trim());
       });
     });
   });
 
+  root.querySelectorAll(".ntf-card--interactive").forEach((card) => {
+    card.addEventListener("click", (ev) => {
+      if (ev.target.closest(".ntf-card__actions, button, a")) return;
+      void activateNotificationCard(String(card.dataset.id || ""), String(card.dataset.href || "").trim());
+    });
+  });
+
   root.querySelectorAll("[data-action='notif-read']").forEach((btn) => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
       void G.runWithBusyButton(btn, async () => {
         const id = String(btn.dataset.id || "");
         const visibleIds = new Set(getCurrentNotifications().map((n) => n.id));

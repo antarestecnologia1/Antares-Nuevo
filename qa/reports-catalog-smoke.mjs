@@ -34,6 +34,10 @@ includesAll(
     "Gobierno de usuarios y accesos",
     "Trazabilidad de autorizaciones",
     "Consolidado de nómina",
+    "Plantilla de colaboradores",
+    "Cartera de clientes y operación",
+    "Inventario de gestión documental",
+    "Expediente documental de colaboradores",
     "Corte exportable",
     "Periodo de análisis"
   ],
@@ -57,7 +61,15 @@ includesAll(
     "function normalizeReportsExportFilters(",
     "function reportsExportFiltersHtml(",
     'data-action="reports-export-period-chip"',
-    "reportsFilterItemsByPeriod("
+    "reportsFilterItemsByPeriod(",
+    "function reportsParseItemTs(",
+    "function reportsBusinessCatalog(",
+    "workforce_roster",
+    "clients_portfolio",
+    "function reportsRequestHasTrip(",
+    "function reportsFinalizeDataset(",
+    "function reportsEmployeesForReport(",
+    "function reportsPeriodItems("
   ],
   "report-data-coverage"
 );

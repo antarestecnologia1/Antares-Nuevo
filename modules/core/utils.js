@@ -67,7 +67,8 @@ const PAYROLL_DATA_SECTIONS = new Set(["employees", "absences", "runs", "driverP
 const PAYROLL_OPERATE_SECTIONS = new Set(["employee", "payroll", "driverPay", "settlement", "absence"]);
 const HIRING_OPERATE_SECTIONS = new Set(["position", "vacancy", "candidate", "interview", "contract"]);
 const HIRING_DATA_SECTIONS = new Set(["candidates", "vacancies", "interviews", "contracts", "positions"]);
-const VEHICLE_SECTIONS = new Set(["fleet", "create", "fuel", "technical"]);
+const VEHICLE_SECTIONS = new Set(["fleet", "fotomultas", "create", "fuel", "technical"]);
+const VEHICLE_DATA_SECTIONS = new Set(["fleet", "fotomultas"]);
 const VEHICLE_WORKSPACES = new Set(["operate", "data"]);
 const TRANSPORT_TRIPS_SECTIONS = new Set(["trips", "routes"]);
 const TRANSPORT_TRIPS_WORKSPACES = new Set(["operate", "data"]);
@@ -156,7 +157,7 @@ export function hiringOperateSectionForCreatePanel(panelId) {
 
 export function vehiclesCreatePanelForSection(sectionLike) {
   const section = normalizeVehicleSection(sectionLike);
-  return VEHICLES_OPERATE_SECTION_PANEL[section] || "create-vehicle";
+  return VEHICLES_OPERATE_SECTION_PANEL[section] || "";
 }
 
 export function vehiclesOperateSectionForCreatePanel(panelId) {
@@ -184,6 +185,10 @@ export function normalizeHiringOperateSection(value) {
 export function normalizeHiringDataSection(value) {
   const v = String(value || "candidates");
   return HIRING_DATA_SECTIONS.has(v) ? v : "candidates";
+}
+
+export function isVehicleDataSection(value) {
+  return VEHICLE_DATA_SECTIONS.has(String(value || ""));
 }
 
 export function normalizeVehicleSection(value) {

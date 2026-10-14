@@ -225,8 +225,17 @@ function hiringHtml() {
   }
   const hiringCreateUi = buildHiringCreatePanelsState(hiringOperateSection, state.createPanels || {});
   const dataListSearchRaw = String(hiringUi.dataListSearch || "");
-  const dataListSearch = dataListSearchRaw.trim().toLowerCase();
-  const hiringDataMatches = (blob) => !dataListSearch || String(blob || "").toLowerCase().includes(dataListSearch);
+  const foldHiringSearchText = (value) =>
+    String(value || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+  const dataListSearch = foldHiringSearchText(dataListSearchRaw.trim());
+  const hiringDataMatches = (blob) => !dataListSearch || foldHiringSearchText(blob).includes(dataListSearch);
+  const hiringSearchEmpty = (what) =>
+    hiringEmptyState(
+      `Ningún ${what} coincide con «${String(dataListSearchRaw || "").trim().slice(0, 80)}». Pruebe con el nombre, la ciudad o el cargo.`
+    );
   const shortcutHint = /Mac|iPhone|iPad/i.test(String(navigator?.platform || navigator?.userAgent || "")) ? "⌘ K" : "Ctrl K";
   const contractsThisMonth = contracts.filter((c) => {
     const d = new Date(c.createdAt || "");
@@ -259,7 +268,7 @@ function hiringHtml() {
   const positionsView = dataListSearch
     ? positionsScoped.filter((p) =>
         hiringDataMatches(
-          `${p.name} ${p.workerRole} ${p.contractTypeDefault} ${p.legalBasis} ${parseNum(p.baseSalary)}`
+          `${p.name} ${p.workerRole} ${p.contractTypeDefault} ${p.workSchedule} ${p.legalBasis} ${parseNum(p.baseSalary)}`
         )
       )
     : positionsScoped;
@@ -267,7 +276,7 @@ function hiringHtml() {
   const filteredVacanciesView = dataListSearch
     ? filteredVacancies.filter((v) =>
         hiringDataMatches(
-          `${v.title} ${v.positionName} ${v.city} ${v.modality} ${v.status} ${v.deadline} ${parseNum(v.salaryOffer)}`
+          `${v.title} ${v.positionName} ${v.department} ${v.city} ${v.modality} ${v.workday} ${v.status} ${v.requirements} ${v.deadline} ${parseNum(v.salaryOffer)}`
         )
       )
     : filteredVacancies;
@@ -298,7 +307,7 @@ function hiringHtml() {
   const sortedCandidatesSearched = dataListSearch
     ? sortedCandidates.filter((c) =>
         hiringDataMatches(
-          `${c.name} ${c.email} ${c.phone} ${c.vacancyTitle} ${candidateStage(c)} ${c.idDoc} ${c.city} ${c.address} ${c.source}`
+          `${c.name} ${c.email} ${c.phone} ${c.vacancyTitle} ${candidateStage(c)} ${c.documentType} ${c.idDoc} ${c.department} ${c.city} ${c.address} ${c.educationLevel} ${c.source} ${c.experienceYears}`
         )
       )
     : sortedCandidates;
@@ -362,21 +371,76 @@ function hiringHtml() {
   /* Si el tablero no pudo renderizar tarjetas, forzar lista para no perder el candidato. */
   const boardHasCards = candBoard.includes("hiring-kanban-card") || candBoard.includes("hiring-candidate-card");
   const useBoardView = renderCandidateBoard && boardHasCards;
+  const interviewWhenFilter = ["upcoming", "past", "all"].includes(String(hiringUi.interviewWhenFilter || ""))
+    ? String(hiringUi.interviewWhenFilter)
+    : "all";
+  const interviewModeFilter = ["all", "presencial", "virtual", "telefonica"].includes(String(hiringUi.interviewModeFilter || ""))
+    ? String(hiringUi.interviewModeFilter)
+    : "all";
+  const contractTypeFilter = String(hiringUi.contractTypeFilter || "all").trim() || "all";
+  const contractPeriodFilter = ["all", "month", "ending_soon"].includes(String(hiringUi.contractPeriodFilter || ""))
+    ? String(hiringUi.contractPeriodFilter)
+    : "all";
+  const interviewNowMs = Date.now();
+  const normalizeInterviewModeKey = (raw) => {
+    const m = String(raw || "")
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+    if (m === "virtual") return "virtual";
+    if (m === "telefonica" || m === "telefonico") return "telefonica";
+    if (m === "presencial") return "presencial";
+    return m;
+  };
+  const normalizeContractTypeKey = (raw) =>
+    String(raw || "")
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+  const interviewsScoped = interviews.filter((i) => {
+    const whenMs = new Date(i.when || 0).getTime();
+    if (interviewWhenFilter === "upcoming" && Number.isFinite(whenMs) && whenMs < interviewNowMs) return false;
+    if (interviewWhenFilter === "past" && Number.isFinite(whenMs) && whenMs >= interviewNowMs) return false;
+    if (interviewModeFilter !== "all") {
+      const modeKey = normalizeInterviewModeKey(i.mode || i.modality);
+      if (modeKey !== interviewModeFilter) return false;
+    }
+    return true;
+  });
   const interviewsView = dataListSearch
-    ? interviews.filter((i) =>
+    ? interviewsScoped.filter((i) =>
         hiringDataMatches(
-          `${i.candidateName} ${i.when} ${i.mode || ""} ${i.modality || ""} ${i.locationOrLink || i.place || ""} ${i.interviewer}`
+          `${i.candidateName} ${i.when} ${i.mode || ""} ${i.modality || ""} ${i.locationOrLink || i.place || ""} ${i.interviewer} ${i.notes || ""}`
         )
       )
-    : interviews;
+    : interviewsScoped;
+  const contractsScoped = contracts.filter((c) => {
+    if (contractTypeFilter !== "all") {
+      if (normalizeContractTypeKey(c.contractType) !== normalizeContractTypeKey(contractTypeFilter)) return false;
+    }
+    if (contractPeriodFilter === "month") {
+      const d = new Date(c.createdAt || c.startDate || "");
+      if (!(Number.isFinite(d.getTime()) && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear())) {
+        return false;
+      }
+    }
+    if (contractPeriodFilter === "ending_soon") {
+      if (!c.endDate) return false;
+      const days = Math.ceil((new Date(`${c.endDate}T12:00:00`).getTime() - today.getTime()) / 86400000);
+      if (!(days >= 0 && days <= 30)) return false;
+    }
+    return true;
+  });
   const contractsView = dataListSearch
-    ? contracts.filter((c) => {
+    ? contractsScoped.filter((c) => {
         const liveName = c.employeeId ? employeesById.get(String(c.employeeId))?.name : "";
         return hiringDataMatches(
-          `${c.candidateName} ${liveName || c.employeeName} ${c.position} ${c.positionName} ${c.contractType} ${c.source} ${c.sourceTag}`
+          `${c.candidateName} ${liveName || c.employeeName} ${c.position} ${c.positionName} ${c.contractType} ${c.source} ${c.sourceTag} ${parseNum(c.salary)}`
         );
       })
-    : contracts;
+    : contractsScoped;
 
   const arlRiskOpts = selectOptionsFromCatalog(CO_CATALOGS.arlRiskLevels);
   const workScheduleOpts = selectOptionsFromCatalog(CO_CATALOGS.workSchedule);
@@ -384,19 +448,19 @@ function hiringHtml() {
     <fieldset class="form-section form-section-blue full">
       <legend>${IC.briefcase} Definición del cargo</legend>
       <div class="form-section-grid">
-        <label>${fieldLabel(IC.briefcase, "Nombre del cargo")}<input name="name" required placeholder="Ej: Coordinador de transporte" /></label>
-        <label>${fieldLabel(IC.users, "Rol del cargo")}<select name="workerRole" required>
+        <label>${fieldLabel(IC.briefcase, "Nombre del cargo", { required: true })}<input name="name" required placeholder="Ej: Coordinador de transporte" /></label>
+        <label>${fieldLabel(IC.users, "Rol del cargo", { required: true })}<select name="workerRole" required>
           <option value="empleado">Empleado</option>
           <option value="conductor">Conductor</option>
         </select></label>
-        <label>${fieldLabel(IC.dollar, "Referencia salarial")}<select name="salaryBasis" id="position-salary-basis" required>
+        <label>${fieldLabel(IC.dollar, "Referencia salarial", { required: true })}<select name="salaryBasis" id="position-salary-basis" required>
           <option value="smmlv">Salario mínimo legal (SMMLV)</option>
           <option value="custom">Otro valor (ajustar)</option>
         </select></label>
-        <label>${fieldLabel(IC.dollar, "Salario base mensual (COP)")}<input type="number" name="baseSalary" id="position-base-salary" min="${CO_HR_RULES.minMonthlySalary}" value="${CO_HR_RULES.minMonthlySalary}" required readonly placeholder="Mín. SMMLV ${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}" data-antares-restrict="decimal" data-antares-validate-blur="decimal" /></label>
+        <label>${fieldLabel(IC.dollar, "Salario base mensual (COP)", { required: true })}<input type="number" name="baseSalary" id="position-base-salary" min="${CO_HR_RULES.minMonthlySalary}" value="${CO_HR_RULES.minMonthlySalary}" required readonly placeholder="Mín. SMMLV ${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}" data-antares-restrict="decimal" data-antares-validate-blur="decimal" /></label>
         <label>${fieldLabel(IC.truck, "Auxilio legal transporte / conectividad (COP)")}<input type="number" name="transportAllowance" id="position-transport-allowance" value="${suggestedEmployeeTransportAllowanceCop(CO_HR_RULES.minMonthlySalary)}" min="0" data-antares-restrict="decimal" data-antares-validate-blur="decimal" /></label>
         <p class="full muted" id="position-legal-comp-hint" style="font-size:0.82rem;line-height:1.45;margin:0">${escapeHtml(employeeTransportAllowanceGuidance(CO_HR_RULES.minMonthlySalary))}</p>
-        <label>${fieldLabel(IC.activity, "Tipo de contrato sugerido")}<select name="contractTypeDefault" required>
+        <label>${fieldLabel(IC.activity, "Tipo de contrato sugerido", { required: true })}<select name="contractTypeDefault" required>
           ${CO_CATALOGS.positionContractTypes.map((c) => `<option>${c}</option>`).join("")}
         </select></label>
         <label>${fieldLabel(IC.clock, "Jornada laboral")}<select name="workSchedule">${workScheduleOpts}</select></label>
@@ -414,18 +478,18 @@ function hiringHtml() {
     <fieldset class="form-section form-section-violet full">
       <legend>${IC.send} Publicación de la vacante</legend>
       <div class="form-section-grid">
-        <label>${fieldLabel(IC.briefcase, "Cargo publicado")}<select name="positionId" required><option value="">Seleccione</option>${positionOptions}</select></label>
-        <label>${fieldLabel(IC.file, "Título visible")}<input name="title" required placeholder="Ej: Conductor C2 Bogotá Sabana" /></label>
-        <label>${fieldLabel(IC.mapPin, "Departamento")}<select name="department" id="vacancy-department" required><option value="">Seleccione...</option>${departmentOptions()}</select></label>
-        <label>${fieldLabel(IC.mapPin, "Ciudad")}<select name="city" id="vacancy-city" required><option value="">Seleccione un departamento...</option></select></label>
-        <label>${fieldLabel(IC.globe, "Modalidad")}<select name="modality" required><option value="Presencial">Presencial</option><option value="Híbrido">Híbrido</option><option value="Remoto">Remoto</option></select></label>
-        <label>${fieldLabel(IC.clock, "Jornada")}<select name="workday" required><option value="Tiempo completo">Tiempo completo</option><option value="Turnos">Turnos</option><option value="Medio tiempo">Medio tiempo</option></select></label>
-        <label>${fieldLabel(IC.users, "Cupos")}<input type="number" min="1" name="openings" value="1" required /></label>
-        <label>${fieldLabel(IC.dollar, "Salario ofrecido")}<input type="number" min="${CO_HR_RULES.minMonthlySalary}" name="salaryOffer" id="vacancy-salary-offer" required placeholder="Mín. SMMLV" data-antares-restrict="decimal" data-antares-validate-blur="decimal" /></label>
+        <label>${fieldLabel(IC.briefcase, "Cargo publicado", { required: true })}<select name="positionId" required><option value="">Seleccione</option>${positionOptions}</select></label>
+        <label>${fieldLabel(IC.file, "Título visible", { required: true })}<input name="title" required placeholder="Ej: Conductor C2 Bogotá Sabana" /></label>
+        <label>${fieldLabel(IC.mapPin, "Departamento", { required: true })}<select name="department" id="vacancy-department" required><option value="">Seleccione...</option>${departmentOptions()}</select></label>
+        <label>${fieldLabel(IC.mapPin, "Ciudad", { required: true })}<select name="city" id="vacancy-city" required><option value="">Seleccione un departamento...</option></select></label>
+        <label>${fieldLabel(IC.globe, "Modalidad", { required: true })}<select name="modality" required><option value="Presencial">Presencial</option><option value="Híbrido">Híbrido</option><option value="Remoto">Remoto</option></select></label>
+        <label>${fieldLabel(IC.clock, "Jornada", { required: true })}<select name="workday" required><option value="Tiempo completo">Tiempo completo</option><option value="Turnos">Turnos</option><option value="Medio tiempo">Medio tiempo</option></select></label>
+        <label>${fieldLabel(IC.users, "Cupos", { required: true })}<input type="number" min="1" name="openings" value="1" required /></label>
+        <label>${fieldLabel(IC.dollar, "Salario ofrecido", { required: true })}<input type="number" min="${CO_HR_RULES.minMonthlySalary}" name="salaryOffer" id="vacancy-salary-offer" required placeholder="Mín. SMMLV" data-antares-restrict="decimal" data-antares-validate-blur="decimal" /></label>
         <p class="full muted" id="vacancy-salary-hint" style="font-size:0.82rem;line-height:1.45;margin:0">Se precarga desde el cargo; no puede ser inferior al salario del catálogo ni al SMMLV.</p>
-        <label>${fieldLabel(IC.calendar, "Fecha límite")}<input type="date" name="deadline" required /></label>
+        <label>${fieldLabel(IC.calendar, "Fecha límite", { required: true })}<input type="date" name="deadline" required /></label>
         <label>${fieldLabel(IC.calendar, "Visible en web desde")}<input type="date" name="publishedFrom" /><span class="muted" style="font-size:0.78rem;display:block;margin-top:4px">Opcional. Si se deja vacío, la vacante puede mostrarse de inmediato en el portal de empleos.</span></label>
-        <label class="full">${fieldLabel(IC.file, "Requisitos")}<textarea name="requirements" rows="3" required placeholder="Ej: Licencia C2 vigente, 3 años de experiencia, curso defensivo..."></textarea></label>
+        <label class="full">${fieldLabel(IC.file, "Requisitos", { required: true })}<textarea name="requirements" rows="3" required placeholder="Ej: Licencia C2 vigente, 3 años de experiencia, curso defensivo..."></textarea></label>
         <div class="full vacancy-image-field">
           ${fieldLabel(IC.upload, "Imagen del cargo")}
           <label class="vacancy-image-dropzone" data-vacancy-image-dropzone for="vacancy-image-file" title="Clic para elegir imagen del cargo">
@@ -473,15 +537,15 @@ function hiringHtml() {
     <fieldset class="form-section form-section-cyan full">
       <legend>${IC.user} Datos personales del candidato</legend>
       <div class="form-section-grid">
-        <label>${fieldLabel(IC.user, "Nombre completo")}<input name="name" required data-antares-restrict="person-name" data-antares-field="person-name" placeholder="Ej: Julián Andrés Botero" autocomplete="name" /></label>
-        <label>${fieldLabel(IC.mail, "Correo electrónico")}<input type="email" name="email" required data-antares-validate-blur="email" data-antares-restrict="email-local" /></label>
-        <label>${fieldLabel(IC.phone, "Teléfono celular")}<input name="phone" required placeholder="3001234567" data-antares-restrict="digits" data-antares-validate-blur="phone-loose" /></label>
-        <label>${fieldLabel(IC.file, "Tipo documento")}<select name="documentType" required>${docTypeCand}</select></label>
-        <label>${fieldLabel(IC.badge, "N° documento")}<input name="idDoc" required data-antares-restrict="alnum-doc" data-antares-field="doc" /></label>
-        <label>${fieldLabel(IC.cake, "Fecha de nacimiento")}<input type="date" name="birthDate" required data-antares-validate-blur="date-iso" /></label>
-        <label>${fieldLabel(IC.mapPin, "Departamento")}<select name="department" id="candidate-department" required><option value="">Seleccione...</option>${departmentOptions()}</select></label>
-        <label>${fieldLabel(IC.mapPin, "Ciudad")}<select name="city" id="candidate-city" required><option value="">Seleccione un departamento...</option></select></label>
-        <label class="full">${fieldLabel(IC.compass, "Dirección")}<input name="address" required /></label>
+        <label>${fieldLabel(IC.user, "Nombre completo", { required: true })}<input name="name" required data-antares-restrict="person-name" data-antares-field="person-name" placeholder="Ej: Julián Andrés Botero" autocomplete="name" /></label>
+        <label>${fieldLabel(IC.mail, "Correo electrónico", { required: true })}<input type="email" name="email" required data-antares-validate-blur="email" data-antares-restrict="email-local" /></label>
+        <label>${fieldLabel(IC.phone, "Teléfono celular", { required: true })}<input name="phone" required placeholder="3001234567" data-antares-restrict="digits" data-antares-validate-blur="phone-loose" /></label>
+        <label>${fieldLabel(IC.file, "Tipo de documento", { required: true })}<select name="documentType" required>${docTypeCand}</select></label>
+        <label>${fieldLabel(IC.badge, "Número de documento", { required: true })}<input name="idDoc" required data-antares-restrict="alnum-doc" data-antares-field="doc" /></label>
+        <label>${fieldLabel(IC.cake, "Fecha de nacimiento", { required: true })}<input type="date" name="birthDate" required data-antares-validate-blur="date-iso" /></label>
+        <label>${fieldLabel(IC.mapPin, "Departamento", { required: true })}<select name="department" id="candidate-department" required><option value="">Seleccione...</option>${departmentOptions()}</select></label>
+        <label>${fieldLabel(IC.mapPin, "Ciudad", { required: true })}<select name="city" id="candidate-city" required><option value="">Seleccione un departamento...</option></select></label>
+        <label class="full">${fieldLabel(IC.compass, "Dirección", { required: true })}<input name="address" required /></label>
       </div>
     </fieldset>
       </div>
@@ -491,11 +555,11 @@ function hiringHtml() {
       <legend>${IC.briefcase} Perfil profesional</legend>
       <div class="form-section-grid">
         <label>${fieldLabel(IC.graduation, "Nivel educativo")}<select name="educationLevel">${educationOptsCand}</select></label>
-        <label>${fieldLabel(IC.star, "Años de experiencia en el cargo")}<input type="number" min="0" step="1" name="experienceYears" value="0" required /></label>
-        <label>${fieldLabel(IC.dollar, "Aspiración salarial (COP)")}<input type="number" min="${CO_HR_RULES.minMonthlySalary}" name="expectedSalary" required placeholder="Mín. SMMLV" /></label>
-        <label>${fieldLabel(IC.calendar, "Disponibilidad ingreso")}<input type="date" name="availabilityDate" required /></label>
-        <label>${fieldLabel(IC.send, "Vacante")}<select name="vacancyId" required><option value="">Seleccione</option>${vacanciesOpenForApply.map((v) => `<option value="${escapeAttr(String(v.id))}">${escapeHtml(String(v.title || ""))}</option>`).join("")}</select><span class="muted" style="font-size:0.78rem;display:block;margin-top:4px">Solo vacantes publicadas con fecha límite vigente.</span></label>
-        <label class="full">${fieldLabel(IC.upload, "Adjunto hoja de vida")}<input type="file" name="attachments" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/jpeg,image/png,image/webp" required /><span class="muted" style="font-size:0.78rem;display:block;margin-top:4px">Obligatorio. PDF, Word o imagen · máx. 6 MB.</span></label>
+        <label>${fieldLabel(IC.star, "Años de experiencia en el cargo", { required: true })}<input type="number" min="0" step="1" name="experienceYears" value="0" required /></label>
+        <label>${fieldLabel(IC.dollar, "Aspiración salarial (COP)", { required: true })}<input type="number" min="${CO_HR_RULES.minMonthlySalary}" name="expectedSalary" required placeholder="Mín. SMMLV" /></label>
+        <label>${fieldLabel(IC.calendar, "Disponibilidad de ingreso", { required: true })}<input type="date" name="availabilityDate" required /></label>
+        <label>${fieldLabel(IC.send, "Vacante", { required: true })}<select name="vacancyId" required><option value="">Seleccione</option>${vacanciesOpenForApply.map((v) => `<option value="${escapeAttr(String(v.id))}">${escapeHtml(String(v.title || ""))}</option>`).join("")}</select><span class="muted" style="font-size:0.78rem;display:block;margin-top:4px">Solo vacantes publicadas con fecha límite vigente.</span></label>
+        <label class="full">${fieldLabel(IC.upload, "Hoja de vida", { required: true })}<input type="file" name="attachments" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/jpeg,image/png,image/webp" required /><span class="muted" style="font-size:0.78rem;display:block;margin-top:4px">Obligatoria. PDF, Word o imagen · máx. 6 MB.</span></label>
       </div>
     </fieldset>
       </div>
@@ -782,9 +846,9 @@ function hiringHtml() {
           <span><small>Lugar / enlace</small><strong>${escapeHtml(String(i.locationOrLink || i.place || "-"))}</strong></span>
         </div>
         <div class="toolbar hiring-browse-row__actions">
-          <button class="btn btn-sm btn-outline" data-action="view-interview" data-id="${escapeAttr(String(i.id))}">${IC.eye} Ver</button>
-          ${hiringCanEdit ? `<button class="btn btn-sm btn-action" data-action="edit-interview" data-id="${escapeAttr(String(i.id))}">${IC.edit}</button>` : ""}
-          ${hiringCanDelete ? `<button class="btn btn-sm btn-reject" data-action="delete-interview" data-id="${escapeAttr(String(i.id))}" title="Solo administradores">${IC.trash}</button>` : ""}
+          <button type="button" class="btn btn-sm btn-outline" data-action="view-interview" data-id="${escapeAttr(String(i.id))}">${IC.eye} Ver</button>
+          ${hiringCanEdit ? `<button type="button" class="btn btn-sm btn-action" data-action="edit-interview" data-id="${escapeAttr(String(i.id))}">${IC.edit}</button>` : ""}
+          ${hiringCanDelete ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-interview" data-id="${escapeAttr(String(i.id))}" title="Solo administradores">${IC.trash}</button>` : ""}
         </div>
       </article>`
     )
@@ -793,6 +857,8 @@ function hiringHtml() {
     .map((c) => {
       const liveEmployee = c.employeeId ? employeesById.get(String(c.employeeId)) : null;
       const displayName = c.candidateName || liveEmployee?.name || c.employeeName || "-";
+      const salaryNum = parseNum(c.salary);
+      const salaryLabel = salaryNum > 0 ? `$${salaryNum.toLocaleString("es-CO")}` : "Sin salario";
       return `<article class="hiring-browse-row hiring-browse-row--contract">
         <div class="hiring-browse-row__main">
           <span class="hiring-browse-row__ico hiring-browse-row__ico--violet" aria-hidden="true">${IC.file}</span>
@@ -803,14 +869,14 @@ function hiringHtml() {
           <span class="hiring-browse-chip">${escapeHtml(String(c.source || c.sourceTag || (c.employeeId ? "Empleado" : "Candidato")))}</span>
         </div>
         <div class="hiring-browse-row__stats">
-          <span><small>Salario</small><strong>$${parseNum(c.salary).toLocaleString("es-CO")}</strong></span>
+          <span><small>Salario</small><strong>${escapeHtml(salaryLabel)}</strong></span>
           <span><small>Inicio</small><strong>${fmtDateOr(c.startDate, "—")}</strong></span>
           <span><small>Fin</small><strong>${fmtDateOr(c.endDate, "—")}</strong></span>
         </div>
         <div class="toolbar hiring-browse-row__actions">
-          <button class="btn btn-sm btn-outline" data-action="view-contract-detail" data-id="${escapeAttr(String(c.id))}">${IC.eye} Ver</button>
-          <button class="btn btn-sm btn-action" data-action="view-contract" data-id="${escapeAttr(String(c.id))}" title="Descargar Word">${IC.download} Word</button>
-          ${hiringCanDelete ? `<button class="btn btn-sm btn-reject" data-action="delete-contract" data-id="${escapeAttr(String(c.id))}" title="Solo administradores">${IC.trash}</button>` : ""}
+          <button type="button" class="btn btn-sm btn-outline" data-action="view-contract-detail" data-id="${escapeAttr(String(c.id))}">${IC.eye} Ver</button>
+          <button type="button" class="btn btn-sm btn-action" data-action="view-contract" data-id="${escapeAttr(String(c.id))}" title="Descargar Word">${IC.download} Word</button>
+          ${hiringCanDelete ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-contract" data-id="${escapeAttr(String(c.id))}" title="Solo administradores">${IC.trash}</button>` : ""}
         </div>
       </article>`;
     })
@@ -855,10 +921,30 @@ function hiringHtml() {
     .join("");
   const tPos = positionCards
     ? `<div class="hiring-position-grid">${positionCards}</div>`
-    : hiringEmptyState("Sin cargos en esta vista", { action: "hiring-open-create", section: "position", label: "Definir cargo" });
+    : dataListSearch
+      ? hiringSearchEmpty("cargo")
+      : positionFilter !== "all" || positionRoleFilter !== "all"
+        ? hiringEmptyState("No hay cargos en este filtro. Cambie el filtro o vea todos.")
+        : hiringEmptyState("Aún no hay cargos. Defina el primero para publicar vacantes.", {
+            action: "hiring-open-create",
+            section: "position",
+            label: "Definir cargo"
+          });
   const tVac = vacCards
     ? `<div class="hiring-browse-list hiring-browse-list--vacancies">${vacCards}</div>`
-    : hiringEmptyState("Sin vacantes", { action: "hiring-operate-section", section: "vacancy", label: "Publicar vacante" });
+    : dataListSearch
+      ? hiringSearchEmpty("vacante")
+      : vacancyFilter === "open"
+        ? hiringEmptyState("No hay vacantes abiertas. Vea todas o publique una nueva.", {
+            action: "hiring-operate-section",
+            section: "vacancy",
+            label: "Publicar vacante"
+          })
+        : hiringEmptyState("Aún no hay vacantes publicadas.", {
+            action: "hiring-operate-section",
+            section: "vacancy",
+            label: "Publicar vacante"
+          });
   const pipelineListItems = sortedCandidatesView
     .map((c) => {
       const displayName = hiringCandidateDisplayName(c);
@@ -1182,7 +1268,7 @@ function hiringHtml() {
           <div><dt>${IC.phone || ""} Teléfono</dt><dd>${escapeHtml(String(c.phone || "—"))}</dd></div>
           <div><dt>${IC.mail || ""} Correo</dt><dd>${escapeHtml(String(c.email || "—"))}</dd></div>
           <div><dt>${IC.globe || ""} Origen</dt><dd>${escapeHtml(String(c.source || "Portal"))}</dd></div>
-          <div><dt>${IC.dollar || ""} Aspiración</dt><dd>$${parseNum(c.expectedSalary).toLocaleString("es-CO")}</dd></div>
+          <div><dt>${IC.dollar || ""} Aspiración</dt><dd>${parseNum(c.expectedSalary) > 0 ? `$${parseNum(c.expectedSalary).toLocaleString("es-CO")}` : "Sin aspiración"}</dd></div>
           <div><dt>${IC.send || ""} Vacante</dt><dd>${escapeHtml(String(c.vacancyTitle || "—"))}</dd></div>
           <div><dt>${IC.star || ""} Experiencia</dt><dd>${expCargo} años</dd></div>
           <div><dt>${IC.graduation || ""} Educación</dt><dd>${escapeHtml(String(c.educationLevel || "—"))}</dd></div>
@@ -1294,18 +1380,20 @@ function hiringHtml() {
         </aside>
         <div class="hiring-pipeline__detail hiring-list-view__detail">${pipelineDetailHtml}</div>
       </div>`;
-  const emptyCandidatesReason =
-    candidates.length > 0 && !sortedCandidatesView.length
+  const emptyCandidatesReason = dataListSearch
+    ? `Ningún candidato coincide con «${String(dataListSearchRaw || "").trim().slice(0, 80)}». Pruebe con el nombre, el documento o la ciudad.`
+    : candidates.length > 0 && !sortedCandidatesView.length
       ? candidateFilter === "active"
-        ? "Hay candidatos, pero están en Cerrados (contratado/descartado) o fuera de los filtros actuales."
+        ? "Hay candidatos, pero están en Cerrados o fuera de los filtros actuales."
         : candidateFilter === "finalized"
           ? "No hay candidatos cerrados con los filtros actuales."
-          : "Ningún candidato coincide con la búsqueda o filtros actuales."
+          : "Ningún candidato coincide con los filtros actuales."
       : candidateFilter === "finalized"
-        ? "Sin candidatos finalizados"
-        : "Sin candidatos en esta vista";
-  const emptyCandidatesCta =
-    candidates.length > 0 && !sortedCandidatesView.length && candidateFilter === "active"
+        ? "Aún no hay candidatos finalizados."
+        : "Aún no hay candidatos en el proceso.";
+  const emptyCandidatesCta = dataListSearch
+    ? null
+    : candidates.length > 0 && !sortedCandidatesView.length && candidateFilter === "active"
       ? { action: "hiring-candidates-all", label: "Ver todos" }
       : { action: "hiring-operate-section", section: "candidate", label: "Registrar candidato" };
   const tCand = sortedCandidatesView.length
@@ -1313,12 +1401,30 @@ function hiringHtml() {
       ? `<div class="hiring-candidates-board-wrap">${candBoard}${candidateDrawerHtml}</div>`
       : listViewMarkup
     : hiringEmptyState(emptyCandidatesReason, emptyCandidatesCta);
+  const interviewFiltersActive = interviewWhenFilter !== "all" || interviewModeFilter !== "all";
+  const contractFiltersActive = contractTypeFilter !== "all" || contractPeriodFilter !== "all";
   const tInt = interviewCards
     ? `<div class="hiring-browse-list hiring-browse-list--interviews">${interviewCards}</div>`
-    : hiringEmptyState("Sin entrevistas", { action: "hiring-operate-section", section: "interview", label: "Programar entrevista" });
+    : dataListSearch
+      ? hiringSearchEmpty("entrevista")
+      : interviewFiltersActive
+        ? hiringEmptyState("Ninguna entrevista coincide con los filtros de agenda. Pruebe Próximas, Pasadas o otra modalidad.")
+        : hiringEmptyState("Aún no hay entrevistas programadas.", {
+            action: "hiring-operate-section",
+            section: "interview",
+            label: "Programar entrevista"
+          });
   const tCon = contractCards
     ? `<div class="hiring-browse-list hiring-browse-list--contracts">${contractCards}</div>`
-    : hiringEmptyState("Sin contratos", { action: "hiring-operate-section", section: "contract", label: "Generar contrato" });
+    : dataListSearch
+      ? hiringSearchEmpty("contrato")
+      : contractFiltersActive
+        ? hiringEmptyState("Ningún contrato coincide con el tipo o el periodo seleccionados.")
+        : hiringEmptyState("Aún no hay contratos generados.", {
+            action: "hiring-operate-section",
+            section: "contract",
+            label: "Generar contrato"
+          });
   const hiringModuleHead = renderHiringModuleHead({
     openVacancies: openVacancies.length,
     activeCandidates: activeCandidates.length,
@@ -1430,6 +1536,57 @@ function hiringHtml() {
         <button type="button" class="payroll-quick-pill${positionRoleFilter === "conductor" ? " is-active" : ""}" data-action="hiring-positions-role" data-role="conductor">Conductor</button>
       </div>
     </div>`;
+  const interviewsUpcomingCount = interviews.filter((i) => {
+    const whenMs = new Date(i.when || 0).getTime();
+    return Number.isFinite(whenMs) && whenMs >= interviewNowMs;
+  }).length;
+  const interviewsPastCount = interviews.length - interviewsUpcomingCount;
+  const hiringQuickBarInterviews = `<div class="hiring-selection-toolbar">
+      <div class="payroll-quick-bar hiring-selection-toolbar__scope" role="group" aria-label="Momento de la entrevista">
+        <button type="button" class="payroll-quick-pill${interviewWhenFilter === "all" ? " is-active" : ""}" data-action="hiring-interviews-when" data-when="all">Todas (${interviews.length})</button>
+        <button type="button" class="payroll-quick-pill${interviewWhenFilter === "upcoming" ? " is-active" : ""}" data-action="hiring-interviews-when" data-when="upcoming">Próximas (${interviewsUpcomingCount})</button>
+        <button type="button" class="payroll-quick-pill${interviewWhenFilter === "past" ? " is-active" : ""}" data-action="hiring-interviews-when" data-when="past">Pasadas (${interviewsPastCount})</button>
+      </div>
+      <div class="payroll-quick-bar" role="group" aria-label="Modalidad de la entrevista">
+        <button type="button" class="payroll-quick-pill${interviewModeFilter === "all" ? " is-active" : ""}" data-action="hiring-interviews-mode" data-mode="all">Todas las modalidades</button>
+        <button type="button" class="payroll-quick-pill${interviewModeFilter === "presencial" ? " is-active" : ""}" data-action="hiring-interviews-mode" data-mode="presencial">Presencial</button>
+        <button type="button" class="payroll-quick-pill${interviewModeFilter === "virtual" ? " is-active" : ""}" data-action="hiring-interviews-mode" data-mode="virtual">Virtual</button>
+        <button type="button" class="payroll-quick-pill${interviewModeFilter === "telefonica" ? " is-active" : ""}" data-action="hiring-interviews-mode" data-mode="telefonica">Telefónica</button>
+      </div>
+    </div>`;
+  const contractTypeOptions = [
+    ...(Array.isArray(CO_CATALOGS?.contractTypes) ? CO_CATALOGS.contractTypes : []),
+    ...contracts.map((c) => String(c.contractType || "").trim()).filter(Boolean)
+  ];
+  const uniqueContractTypes = [];
+  const seenContractTypeKeys = new Set();
+  for (const raw of contractTypeOptions) {
+    const label = String(raw || "").trim();
+    if (!label) continue;
+    const key = normalizeContractTypeKey(label);
+    if (seenContractTypeKeys.has(key)) continue;
+    seenContractTypeKeys.add(key);
+    uniqueContractTypes.push(label);
+  }
+  const hiringQuickBarContracts = `<div class="hiring-selection-toolbar">
+      <div class="payroll-quick-bar hiring-selection-toolbar__scope" role="group" aria-label="Periodo del contrato">
+        <button type="button" class="payroll-quick-pill${contractPeriodFilter === "all" ? " is-active" : ""}" data-action="hiring-contracts-period" data-period="all">Todos</button>
+        <button type="button" class="payroll-quick-pill${contractPeriodFilter === "month" ? " is-active" : ""}" data-action="hiring-contracts-period" data-period="month">Este mes (${contractsThisMonth.length})</button>
+        <button type="button" class="payroll-quick-pill${contractPeriodFilter === "ending_soon" ? " is-active" : ""}" data-action="hiring-contracts-period" data-period="ending_soon">Por vencer (${contractsEndingSoon.length})</button>
+      </div>
+      <label class="hiring-selection-toolbar__select">
+        <span class="sr-only">Filtrar por tipo de contrato</span>
+        <select data-action="hiring-filter-contract-type" aria-label="Filtrar por tipo de contrato">
+          <option value="">Todos los tipos</option>
+          ${uniqueContractTypes
+            .map(
+              (t) =>
+                `<option value="${escapeAttr(t)}"${normalizeContractTypeKey(contractTypeFilter) === normalizeContractTypeKey(t) ? " selected" : ""}>${escapeHtml(t)}</option>`
+            )
+            .join("")}
+        </select>
+      </label>
+    </div>`;
   const browseTabs = [
     { id: "candidates", label: "Candidatos", count: sortedCandidates.length, icon: "user", hint: "Pipeline de selección" },
     { id: "vacancies", label: "Vacantes", count: filteredVacancies.length, icon: "send", hint: "Ofertas publicadas" },
@@ -1457,10 +1614,14 @@ function hiringHtml() {
         ? hiringQuickBarVacancies
         : hiringDataSection === "positions"
           ? hiringQuickBarPositions
-          : "";
+          : hiringDataSection === "interviews"
+            ? hiringQuickBarInterviews
+            : hiringDataSection === "contracts"
+              ? hiringQuickBarContracts
+              : "";
   const hiringMetaVacancies = `<p class="hiring-browse__meta" title="Vacantes según filtros y búsqueda"><strong>${filteredVacanciesView.length}</strong>${dataListSearch ? ` <span>· ${filteredVacancies.length}</span>` : ""} <span>/ ${vacancies.length}</span> vacantes</p>`;
-  const hiringMetaInterviews = `<p class="hiring-browse__meta" title="Entrevistas registradas"><strong>${interviewsView.length}</strong>${dataListSearch ? ` <span>· ${interviews.length}</span>` : ""} entrevistas programadas</p>`;
-  const hiringMetaContracts = `<p class="hiring-browse__meta" title="Contratos en el listado y firmados este mes"><strong>${contractsView.length}</strong>${dataListSearch ? ` <span>· ${contracts.length}</span>` : ""} contratos · <strong>${contractsThisMonth.length}</strong> este mes</p>`;
+  const hiringMetaInterviews = `<p class="hiring-browse__meta" title="Entrevistas según filtros y búsqueda"><strong>${interviewsView.length}</strong>${interviewFiltersActive || dataListSearch ? ` <span>· ${interviewsScoped.length}</span>` : ""} <span>/ ${interviews.length}</span> entrevistas</p>`;
+  const hiringMetaContracts = `<p class="hiring-browse__meta" title="Contratos según filtros y búsqueda"><strong>${contractsView.length}</strong>${contractFiltersActive || dataListSearch ? ` <span>· ${contractsScoped.length}</span>` : ""} <span>/ ${contracts.length}</span> contratos · <strong>${contractsThisMonth.length}</strong> este mes</p>`;
   const inactivePositionsCount = positions.filter((p) => p.active === false).length;
   const driverPositionsCount = positions.filter((p) => String(p.workerRole || "").toLowerCase() === "conductor").length;
   const employeePositionsCount = positions.length - driverPositionsCount;
@@ -1472,7 +1633,7 @@ function hiringHtml() {
       <li class="hiring-bandeja__kpi"><span class="hiring-bandeja__kpi-ico hiring-bandeja__kpi-ico--brief" aria-hidden="true">${IC.briefcase || ""}</span><div><small>Vacantes</small><strong>${openVacancies.length}</strong></div></li>
       <li class="hiring-bandeja__kpi"><span class="hiring-bandeja__kpi-ico hiring-bandeja__kpi-ico--cal" aria-hidden="true">${IC.calendar || ""}</span><div><small>Entrevistas hoy</small><strong>${interviewsToday}</strong></div></li>
       <li class="hiring-bandeja__kpi"><span class="hiring-bandeja__kpi-ico hiring-bandeja__kpi-ico--ok" aria-hidden="true">${IC.file || ""}</span><div><small>Contrataciones</small><strong>${hiredCandidates}</strong></div></li>
-      <li class="hiring-bandeja__kpi"><span class="hiring-bandeja__kpi-ico hiring-bandeja__kpi-ico--warn" aria-hidden="true">${IC.clock || ""}</span><div><small>Pendientes</small><strong>${receivedCandidates}</strong></div></li>
+      <li class="hiring-bandeja__kpi"><span class="hiring-bandeja__kpi-ico ${receivedCandidates ? "hiring-bandeja__kpi-ico--warn" : "hiring-bandeja__kpi-ico--ok"}" aria-hidden="true">${IC.clock || ""}</span><div><small>Pendientes</small><strong>${receivedCandidates}</strong></div></li>
     </ul>`;
   const cargosKpis = `<ul class="hiring-bandeja__kpis" aria-label="Indicadores del catálogo de cargos">
       <li class="hiring-bandeja__kpi"><span class="hiring-bandeja__kpi-ico hiring-bandeja__kpi-ico--brief" aria-hidden="true">${IC.briefcase || ""}</span><div><small>Cargos</small><strong>${positions.length}</strong></div></li>
@@ -1488,7 +1649,7 @@ function hiringHtml() {
       </div>
       <label class="hiring-bandeja__search">
         <span class="hiring-bandeja__search-ico" aria-hidden="true">${IC.search || ""}</span>
-        <input type="search" data-action="hiring-data-list-search" data-hiring-search-focus value="${escapeAttr(dataListSearchRaw)}" placeholder="Buscar candidatos..." autocomplete="off" />
+        <input type="search" data-action="hiring-data-list-search" data-hiring-search-focus value="${escapeAttr(dataListSearchRaw)}" placeholder="Nombre, documento, ciudad o vacante…" autocomplete="off" />
         <kbd class="hiring-bandeja__kbd">${escapeHtml(shortcutHint)}</kbd>
       </label>
     </header>`;
@@ -1499,7 +1660,7 @@ function hiringHtml() {
       </div>
       <label class="hiring-bandeja__search">
         <span class="hiring-bandeja__search-ico" aria-hidden="true">${IC.search || ""}</span>
-        <input type="search" data-action="hiring-data-list-search" value="${escapeAttr(dataListSearchRaw)}" placeholder="Buscar cargos..." autocomplete="off" />
+        <input type="search" data-action="hiring-data-list-search" value="${escapeAttr(dataListSearchRaw)}" placeholder="Nombre del cargo o tipo de contrato…" autocomplete="off" />
         <kbd class="hiring-bandeja__kbd">${escapeHtml(shortcutHint)}</kbd>
       </label>
     </header>`;
@@ -1510,7 +1671,7 @@ function hiringHtml() {
       </div>
       <label class="hiring-bandeja__search">
         <span class="hiring-bandeja__search-ico" aria-hidden="true">${IC.search || ""}</span>
-        <input type="search" data-action="hiring-data-list-search" value="${escapeAttr(dataListSearchRaw)}" placeholder="Buscar candidatos..." autocomplete="off" />
+        <input type="search" data-action="hiring-data-list-search" value="${escapeAttr(dataListSearchRaw)}" placeholder="Nombre, documento, ciudad o vacante…" autocomplete="off" />
       </label>
     </header>`;
   const selectionCandidatesPane = `<div class="payroll-data-pane hiring-browse__pane" data-hiring-section="candidates">
@@ -1530,18 +1691,20 @@ function hiringHtml() {
       </label>
     </header>`;
   const hiringVacanciesPane = `<div class="payroll-data-pane hiring-browse__pane${hiringDataSection === "vacancies" ? "" : " hidden"}" data-hiring-section="vacancies">
-      ${consultSectionHead("Vacantes", "Ofertas publicadas y su estado.", "Buscar vacantes…")}
+      ${consultSectionHead("Vacantes", "Ofertas publicadas y su estado.", "Título, ciudad o cargo…")}
       ${hiringDataSection === "vacancies" && hiringQuickBarVacancies ? `<div class="hiring-browse__filters">${hiringQuickBarVacancies}</div>` : ""}
       ${hiringMetaVacancies}
       ${tVac}
     </div>`;
   const hiringInterviewsPane = `<div class="payroll-data-pane hiring-browse__pane${hiringDataSection === "interviews" ? "" : " hidden"}" data-hiring-section="interviews">
-      ${consultSectionHead("Agenda de entrevistas", "Entrevistas programadas y notas del proceso.", "Buscar entrevistas…")}
+      ${consultSectionHead("Agenda de entrevistas", "Entrevistas programadas y notas del proceso.", "Candidato, entrevistador o lugar…")}
+      ${hiringDataSection === "interviews" && hiringQuickBarInterviews ? `<div class="hiring-browse__filters">${hiringQuickBarInterviews}</div>` : ""}
       ${hiringMetaInterviews}
       ${tInt}
     </div>`;
   const hiringContractsPane = `<div class="payroll-data-pane hiring-browse__pane${hiringDataSection === "contracts" ? "" : " hidden"}" data-hiring-section="contracts">
-      ${consultSectionHead("Contratos", "Documentos Word generados desde contratación.", "Buscar contratos…")}
+      ${consultSectionHead("Contratos", "Documentos Word generados desde contratación.", "Persona, cargo o tipo de contrato…")}
+      ${hiringDataSection === "contracts" && hiringQuickBarContracts ? `<div class="hiring-browse__filters">${hiringQuickBarContracts}</div>` : ""}
       ${hiringMetaContracts}
       ${tCon}
     </div>`;

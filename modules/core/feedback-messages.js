@@ -224,7 +224,7 @@
     interviewScheduledOk: "Entrevista programada. Cuando se realice, confirme para avanzar a Entrevistado.",
     interviewConfirmedOk: "Entrevista confirmada. El candidato avanzó a Entrevistado.",
     candidatePreselectedOk: "Candidato preseleccionado. Siguiente paso: agendar entrevista.",
-    candidateOfferSentOk: "Oferta enviada. Siguiente paso: contratar al candidato.",
+    candidateOfferSentOk: "Carta oferta enviada. Al contratar se usarán las condiciones marcadas.",
     interviewCandidateMissing: "Seleccione un candidato válido.",
     absencePickEmployee: "Seleccione un empleado para registrar la ausencia.",
     absenceSupportFileRequired: "Adjunte el soporte documental de la ausencia. Se guardará en la carpeta del colaborador en Gestión documental.",

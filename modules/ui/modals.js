@@ -665,6 +665,23 @@ export function bindHrFormWizard(form) {
     steps.findIndex((s) => s.classList.contains("is-active"))
   );
 
+  const gateStep = (stepEl) => {
+    const stepRes = hrWizardStepValid(stepEl);
+    if (!stepRes.ok) return stepRes;
+    const extra = form.__antaresWizardStepExtra;
+    if (typeof extra !== "function") return { ok: true };
+    const extraRes = extra(stepEl);
+    if (!extraRes || extraRes.ok !== false) return { ok: true };
+    const fieldName = String(extraRes.field || "").trim();
+    const field = fieldName ? stepEl.querySelector(`[name="${fieldName}"]`) : null;
+    const message = String(extraRes.message || "Revise este paso.").trim();
+    if (field && window.AntaresValidation?.setFieldError) {
+      window.AntaresValidation.setFieldError(field, message);
+      window.AntaresValidation.focusInvalidField?.(field, { pulse: true });
+    }
+    return { ok: false, detail: message, firstInvalid: field };
+  };
+
   const sync = () => {
     steps.forEach((s, i) => {
       const on = i === idx;
@@ -719,7 +736,9 @@ export function bindHrFormWizard(form) {
               ? "Último paso: puede generar el contrato Word antes de guardar la ficha."
               : wizKind === "candidate"
                 ? "Último paso: adjunte CV y confirme; el documento ya se validó en el paso 1."
-                : "Último paso: revise y guarde.";
+                : wizKind === "vehicle"
+                  ? "Último paso: confirme el GPS y registre el vehículo."
+                  : "Último paso: revise y guarde.";
       }
     }
     const activeStep = steps[idx] || form;
@@ -740,7 +759,7 @@ export function bindHrFormWizard(form) {
     if (typeof form.__antaresDupDocCheck === "function") {
       await form.__antaresDupDocCheck({ silent: false, forceServer: true });
     }
-    const stepRes = hrWizardStepValid(steps[idx]);
+    const stepRes = gateStep(steps[idx]);
     if (!stepRes.ok) {
       surfaceWizardStepValidation(form, wizard, idx);
       return;
@@ -763,7 +782,7 @@ export function bindHrFormWizard(form) {
           await form.__antaresDupDocCheck({ silent: false, forceServer: true });
         }
         for (let i = idx; i < targetIdx; i++) {
-          const hopRes = hrWizardStepValid(steps[i]);
+          const hopRes = gateStep(steps[i]);
           if (!hopRes.ok) {
             idx = i;
             sync();
@@ -790,7 +809,7 @@ export function bindHrFormWizard(form) {
         }
       }
       for (let i = 0; i < steps.length; i++) {
-        const subRes = hrWizardStepValid(steps[i]);
+        const subRes = gateStep(steps[i]);
         if (!subRes.ok) {
           ev.preventDefault();
           ev.stopImmediatePropagation();

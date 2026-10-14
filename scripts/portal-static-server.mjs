@@ -7,6 +7,7 @@ import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { fetchSimitFinesByPlates } from "../modules/domain/simit-fines.domain.js";
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PORT = Number(process.env.PORT || 4173);
@@ -42,6 +43,15 @@ function safePath(urlPath) {
 
 const server = createServer(async (req, res) => {
   try {
+    const reqUrl = new URL(req.url || "/", `http://${HOST}:${PORT}`);
+    if (req.method === "GET" && reqUrl.pathname === "/proxy/simit-fines") {
+      const plates = String(reqUrl.searchParams.get("plates") || "").split(",");
+      const pendingOnly = reqUrl.searchParams.get("pendingOnly") !== "0";
+      const result = await fetchSimitFinesByPlates(plates, { pendingOnly, preferDirect: true });
+      res.writeHead(result.ok ? 200 : 502, { "Content-Type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify(result));
+      return;
+    }
     const abs = safePath(req.url || "/");
     if (!abs) {
       res.writeHead(403);

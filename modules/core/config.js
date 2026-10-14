@@ -980,24 +980,26 @@ export const HISTORY_FLEET_TECH_LABELS = {
 
 export const REPORT_RULES = {
   executive_control_tower: { permission: PERMISSIONS.DASHBOARD_VIEW, rrhhAllowed: true },
-  service_levels: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
-  fleet_summary: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
-  trips_operations: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
-  requests_lifecycle: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
-  drivers_performance: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
-  fuel_operations: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
-  maintenance_fleet: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
-  revenue_by_route: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
-  request_funnel: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
-  document_compliance: { permission: PERMISSIONS.TRANSPORT_HISTORY, adminOnly: true },
+  service_levels: { permission: PERMISSIONS.TRANSPORT_HISTORY },
+  fleet_summary: { permission: PERMISSIONS.TRANSPORT_HISTORY },
+  trips_operations: { permission: PERMISSIONS.TRANSPORT_HISTORY },
+  requests_lifecycle: { permission: PERMISSIONS.TRANSPORT_HISTORY },
+  drivers_performance: { permission: PERMISSIONS.TRANSPORT_HISTORY },
+  fuel_operations: { permission: PERMISSIONS.TRANSPORT_HISTORY },
+  maintenance_fleet: { permission: PERMISSIONS.TRANSPORT_HISTORY },
+  revenue_by_route: { permission: PERMISSIONS.TRANSPORT_HISTORY },
+  request_funnel: { permission: PERMISSIONS.TRANSPORT_HISTORY },
+  document_compliance: { permission: PERMISSIONS.TRANSPORT_HISTORY },
+  clients_portfolio: { permission: PERMISSIONS.TRANSPORT_HISTORY },
   payroll_summary: { permission: PERMISSIONS.PAYROLL_MANAGE, rrhhAllowed: true },
   hiring_pipeline: { permission: PERMISSIONS.HIRING_MANAGE, rrhhAllowed: true },
+  workforce_roster: { permission: PERMISSIONS.PAYROLL_MANAGE, rrhhAllowed: true },
   labor_compliance: { permission: PERMISSIONS.SST_COMPLIANCE, rrhhAllowed: true },
   sarlaft_pte: { permission: PERMISSIONS.SARLAFT_VIEW, rrhhAllowed: true },
   document_management: { permission: PERMISSIONS.DOCUMENT_VIEW, rrhhAllowed: true },
   employee_documents: { permission: PERMISSIONS.DOCUMENT_VIEW, rrhhAllowed: true },
   users_access: { permission: PERMISSIONS.USERS_MANAGE, adminOnly: true },
-  authorizations_traceability: { permission: PERMISSIONS.AUTHORIZATIONS_MANAGE, adminOnly: true }
+  authorizations_traceability: { permission: PERMISSIONS.AUTHORIZATIONS_MANAGE }
 };
 
 export const REPORT_EXPORT_BRAND = Object.freeze({

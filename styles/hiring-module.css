@@ -857,6 +857,8 @@
   font-size: 0.95rem;
   font-weight: 750;
   color: var(--hi-navy);
+  line-height: 1.3;
+  overflow-wrap: anywhere;
 }
 
 .hiring-studio .hiring-browse-row__main p {
@@ -1305,8 +1307,10 @@ body[data-theme="dark"] .hiring-studio .hiring-interview-flow-bar__copy strong {
   color: var(--hi-navy);
   line-height: 1.25;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  white-space: normal;
   min-width: 0;
 }
 
@@ -1320,8 +1324,10 @@ body[data-theme="dark"] .hiring-studio .hiring-interview-flow-bar__copy strong {
   font-size: 0.76rem;
   color: var(--hi-navy-mid);
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  white-space: normal;
 }
 
 .hiring-studio .hiring-list-row__meta {
@@ -3360,17 +3366,23 @@ body[data-theme="dark"] .hiring-studio .hiring-interview-context__note {
   font-size: 0.92rem;
   font-weight: 750;
   color: #0f172a;
-  white-space: nowrap;
+  white-space: normal;
   overflow: hidden;
-  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-height: 1.25;
 }
 
 .hiring-studio .hiring-kanban-card__role {
   font-size: 0.76rem;
   color: #64748b;
-  white-space: nowrap;
+  white-space: normal;
   overflow: hidden;
-  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-height: 1.3;
 }
 
 .hiring-studio .hiring-kanban-card__facts {
@@ -4022,5 +4034,65 @@ body[data-theme="dark"] .hiring-studio .hiring-position-card__meta strong {
 
 body[data-theme="dark"] .hiring-studio .hiring-position-card--inactive {
   background: rgba(10, 22, 38, 0.85);
+}
+
+.hiring-studio .hiring-empty-state {
+  padding: 1.35rem 1.1rem;
+  border-radius: 14px;
+  border: 1px dashed color-mix(in srgb, var(--hi-blue, #377cc0) 35%, var(--hi-edge, #e2e8f0));
+  background: color-mix(in srgb, var(--hi-blue, #377cc0) 4%, var(--hi-card, #fff));
+}
+
+.hiring-studio .hiring-empty-state p {
+  max-width: 36rem;
+  margin-inline: auto;
+  line-height: 1.45;
+}
+
+.hiring-studio .hiring-bandeja__search input[type="search"],
+.hiring-studio .hiring-browse__search input[type="search"] {
+  min-height: 2.45rem;
+}
+
+.hiring-studio .hiring-drawer__facts dd,
+.hiring-studio .hiring-position-card__titles h4 {
+  overflow-wrap: anywhere;
+}
+
+body[data-theme="dark"] .hiring-studio .hiring-kanban-card__name {
+  color: #e8f2fc;
+}
+
+body[data-theme="dark"] .hiring-studio .hiring-empty-state {
+  background: rgba(14, 28, 46, 0.72);
+  border-color: rgba(148, 196, 255, 0.22);
+}
+
+.offer-letter-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem 1rem;
+  margin: 0;
+}
+.offer-letter-form .full { grid-column: 1 / -1; }
+.offer-letter-brand-note {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 0.75rem 0.9rem;
+  border-radius: 12px;
+  background: #cce5f8;
+  border: 1px solid #b8d4eb;
+  color: #0b2138;
+  line-height: 1.45;
+}
+.modal-card--offer-letter { max-width: 760px; }
+@media (max-width: 720px) {
+  .offer-letter-form { grid-template-columns: 1fr; }
+}
+body[data-theme="dark"] .offer-letter-brand-note {
+  background: rgba(55, 124, 192, 0.18);
+  border-color: rgba(184, 212, 235, 0.35);
+  color: #e8f2fc;
 }
 

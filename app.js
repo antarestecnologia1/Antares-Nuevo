@@ -22,10 +22,10 @@ import {
   syncSessionProfileSnapshotFromCache
 } from "./modules/core/bootstrap.js?v=20260917b-login-scan-shield";
 import { devWarn } from "./modules/core/utils.js";
-import { notify } from "./modules/ui/modals.js?v=20261013-modal-back";
+import { notify } from "./modules/ui/modals.js?v=20261013-vehicle-forms";
 import { runAsSilentSystemNotifications } from "./modules/domain/notificaciones.domain.js";
 import { hasUnsavedPortalFormData } from "./modules/domain/viajes.domain.js";
-import { initGlobalEvents } from "./modules/core/events.js?v=20260930-eye-toggle-icon";
+import { initGlobalEvents } from "./modules/core/events.js?v=20261013-module-filters";
 
 /**
  * Definidas en `portal-runtime.js` (módulo ES); se exponen en `window` al final de ese archivo.

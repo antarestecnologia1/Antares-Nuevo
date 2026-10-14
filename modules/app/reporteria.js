@@ -1,59 +1,52 @@
 /**
- * Centro de reportería (`reports`): HTML y listeners del módulo (tabs export/BI, gráficas).
+ * Centro de reportería (`reports`): HTML y listeners del módulo (tabs export/métricas, gráficas).
  * Carga con `defer` después de `app.js`.
  */
 function reportsHtml() {
   const user = currentUser();
   if (!state.reportsUi || typeof state.reportsUi !== "object") {
-    state.reportsUi = { tab: "export", period: "90d", layout: null, exportFilters: reportsExportDefaultFilters() };
+    state.reportsUi = { tab: "export", period: "all", layout: null, exportFilters: reportsExportDefaultFilters() };
   }
   const biLayout = loadReportsBiLayout();
   state.reportsUi = {
     ...state.reportsUi,
     layout: biLayout,
-    exportFilters: normalizeReportsExportFilters(state.reportsUi?.exportFilters || { period: state.reportsUi?.period || "90d" })
+    exportFilters: normalizeReportsExportFilters(state.reportsUi?.exportFilters || { period: state.reportsUi?.period || "all" })
   };
   const tab = String(state.reportsUi.tab || "export");
-  const cards = [
-    { id: "executive_control_tower" },
-    { id: "service_levels" },
-    { id: "fleet_summary" },
-    { id: "trips_operations" },
-    { id: "requests_lifecycle" },
-    { id: "drivers_performance" },
-    { id: "fuel_operations" },
-    { id: "maintenance_fleet" },
-    { id: "revenue_by_route" },
-    { id: "request_funnel" },
-    { id: "document_compliance" },
-    { id: "payroll_summary" },
-    { id: "hiring_pipeline" },
-    { id: "labor_compliance" },
-    { id: "sarlaft_pte" },
-    { id: "users_access" },
-    { id: "authorizations_traceability" }
-  ];
+  const cards = reportsBusinessCatalog();
   const visibleCount = cards.filter((c) => canAccessReport(user, c.id)).length;
+  const period = state.reportsUi.period || state.reportsUi.exportFilters?.period || "all";
+  let snapshot = { kpis: {}, periodLabel: typeof reportsPeriodLabel === "function" ? reportsPeriodLabel(period) : "Histórico completo" };
+  try {
+    if (typeof buildReportsAnalyticsSnapshot === "function") {
+      snapshot = buildReportsAnalyticsSnapshot(user, period) || snapshot;
+    }
+  } catch (_e) {
+    /* La cabecera usa ceros si el snapshot no está listo. */
+  }
+  const k = snapshot.kpis || {};
+  const fmtCop = typeof snapshot.fmtCop === "function" ? snapshot.fmtCop : (n) => `$${Number(n || 0).toLocaleString("es-CO")}`;
   const reportsHero = moduleFleetHeroStrip([
-    { label: "Reportes disponibles", value: visibleCount },
-    { label: "Catálogo", value: cards.length },
-    { label: "Vista activa", value: tab === "bi" ? "Analítica" : "Exportar" },
-    { label: "Formatos", value: "PDF + Excel" }
+    { label: "Solicitudes", value: k.requests ?? visibleCount },
+    { label: "Viajes", value: k.trips ?? 0 },
+    { label: "Recaudo", value: fmtCop(k.revenue || 0) },
+    { label: "Flota libre", value: `${k.fleetAvailable ?? 0}/${k.fleetTotal ?? 0}` }
   ]);
   const exportActive = tab === "export";
   const biActive = tab === "bi";
   const analyticsPanel = biActive
-    ? reportsAnalyticsPanelHtml(buildReportsAnalyticsSnapshot(user, state.reportsUi.period || "90d"), biLayout)
+    ? reportsAnalyticsPanelHtml(snapshot, biLayout)
     : `<div class="reports-bi reports-bi--lazy" data-reports-bi-lazy>
-        ${emptyState("La analítica operativa se cargará al abrir esta pestaña para mantener rápida la vista de exportación.")}
+        ${emptyState("Los gráficos y métricas se cargarán al abrir esta pestaña para mantener rápida la vista de reportes.")}
       </div>`;
   const workspace = `<div class="reports-workspace">
     <nav class="reports-workspace-tabs" aria-label="Secciones de reportería">
-      <button type="button" class="reports-workspace-tab${exportActive ? " is-active" : ""}" data-action="reports-set-tab" data-tab="export" aria-current="${exportActive ? "page" : "false"}">${IC.download} Exportar reportes</button>
-      <button type="button" class="reports-workspace-tab${biActive ? " is-active" : ""}" data-action="reports-set-tab" data-tab="bi" aria-current="${biActive ? "page" : "false"}">${IC.activity} Analítica operativa</button>
+      <button type="button" class="reports-workspace-tab${exportActive ? " is-active" : ""}" data-action="reports-set-tab" data-tab="export" aria-current="${exportActive ? "page" : "false"}">${IC.download} Reportes de negocio</button>
+      <button type="button" class="reports-workspace-tab${biActive ? " is-active" : ""}" data-action="reports-set-tab" data-tab="bi" aria-current="${biActive ? "page" : "false"}">${IC.activity} Gráficos y métricas</button>
     </nav>
     <div class="reports-workspace-panel${exportActive ? "" : " hidden"}" data-reports-panel="export" role="tabpanel"${exportActive ? "" : " hidden"}>
-      ${pcardWrap("file", "Catálogo de reportes", "Descargue PDF o Excel (CSV) por área de negocio", reportsExportPanelHtml(user))}
+      ${pcardWrap("file", "Catálogo de reportes", "Datos vivos de operación, flota, finanzas, RRHH y cumplimiento · PDF o Excel", reportsExportPanelHtml(user))}
     </div>
     <div class="reports-workspace-panel${biActive ? "" : " hidden"}" data-reports-panel="bi" role="tabpanel"${biActive ? "" : " hidden"}>
       ${analyticsPanel}
@@ -97,7 +90,7 @@ function bindReportsWorkspaceControls() {
         if (tab === "bi") {
           const user = currentUser();
           const layout = loadReportsBiLayout();
-          const snapshot = buildReportsAnalyticsSnapshot(user, state.reportsUi?.period || "90d");
+          const snapshot = buildReportsAnalyticsSnapshot(user, state.reportsUi?.period || "all");
           loadChartJsLib()
             .then(() => wireReportsCharts(snapshot, layout))
             .catch(() => {});
@@ -111,7 +104,7 @@ function bindReportsWorkspaceControls() {
 
   const applyExportPeriod = (period) => {
     const filters = normalizeReportsExportFilters({ ...(state.reportsUi?.exportFilters || {}), period });
-    state.reportsUi = { ...state.reportsUi, exportFilters: filters };
+    state.reportsUi = { ...state.reportsUi, exportFilters: filters, period: filters.period };
     renderPortalView();
   };
 
@@ -120,9 +113,14 @@ function bindReportsWorkspaceControls() {
   });
 
   const applyBiPeriod = (period) => {
-    const p = String(period || "90d").trim();
+    const p = String(period || "all").trim();
     if (!["30d", "90d", "month", "ytd", "all"].includes(p)) return;
-    state.reportsUi = { ...state.reportsUi, period: p, tab: "bi" };
+    state.reportsUi = {
+      ...state.reportsUi,
+      period: p,
+      tab: "bi",
+      exportFilters: normalizeReportsExportFilters({ ...(state.reportsUi?.exportFilters || {}), period: p })
+    };
     destroyReportsCharts();
     renderPortalView();
   };
@@ -162,7 +160,7 @@ function bindReportsWorkspaceControls() {
     }
     const biRoot = root.querySelector(".reports-bi");
     const layout = loadReportsBiLayout();
-    const snapshot = buildReportsAnalyticsSnapshot(user, state.reportsUi?.period || "90d");
+    const snapshot = buildReportsAnalyticsSnapshot(user, state.reportsUi?.period || "all");
     try {
       await exportReportsBiToExcel(snapshot, biRoot, layout);
       notify(userMessage("reportBiExcelExported"), "success");
@@ -175,7 +173,7 @@ function bindReportsWorkspaceControls() {
 
   const user = currentUser();
   const layout = loadReportsBiLayout();
-  const snapshot = buildReportsAnalyticsSnapshot(user, state.reportsUi?.period || "90d");
+  const snapshot = buildReportsAnalyticsSnapshot(user, state.reportsUi?.period || "all");
   loadChartJsLib()
     .then(() => wireReportsCharts(snapshot, layout))
     .catch(() => {

@@ -47,24 +47,24 @@
         <div class="payroll-wizard__panels">
 
       <div class="hr-form-step is-active" data-step-index="0">
-        <div class="payroll-wizard__section">
-          <h4 class="payroll-wizard__section-title">${IC.truck} Identificación del vehículo</h4>
+        <fieldset class="form-section form-section-blue full">
+          <legend>${IC.truck} Identificación del vehículo</legend>
           <p class="muted form-section-hint">Datos de placa, marca y clasificación para el catálogo de flota.</p>
-          <div class="form-section-grid payroll-wizard__section-grid">
+          <div class="form-section-grid">
             <div class="full vehicles-wizard-tip-row">
               ${vehicleWizardTip(
                 "Formato de placa Colombia",
                 "Use el formato estándar de 3 letras y 3 números (ej.: ABC123). La placa se guardará en mayúsculas y debe ser única en la flota."
               )}
             </div>
-            <label>${fieldLabel(IC.truck, "Placa", { required: true })}<input name="plate" required placeholder="ABC123" data-antares-restrict="alnum-doc" maxlength="6" /></label>
-            <label>${fieldLabel(IC.briefcase, "Marca", { required: true })}<input name="brand" required placeholder="Ej.: Kenworth, Chevrolet, Hino" /></label>
-            <label>${fieldLabel(IC.grid, "Línea / Modelo", { required: true })}<input name="model" required placeholder="Ej.: T800, NPR" /></label>
-            <label>${fieldLabel(IC.calendar, "Año modelo", { required: true })}<input type="number" min="1990" max="2100" name="year" required placeholder="Ej.: ${currentYear}" /></label>
+            <label>${fieldLabel(IC.truck, "Placa", { required: true })}<input name="plate" required placeholder="ABC123" data-antares-restrict="alnum-doc" maxlength="6" autocomplete="off" inputmode="text" /></label>
+            <label>${fieldLabel(IC.briefcase, "Marca", { required: true })}<input name="brand" required placeholder="Ej.: Kenworth, Chevrolet, Hino" autocomplete="off" /></label>
+            <label>${fieldLabel(IC.grid, "Línea / Modelo", { required: true })}<input name="model" required placeholder="Ej.: T800, NPR" autocomplete="off" /></label>
+            <label>${fieldLabel(IC.calendar, "Año modelo", { required: true })}<input type="number" min="1990" max="${currentYear + 1}" name="year" required placeholder="Ej.: ${currentYear}" inputmode="numeric" /></label>
             <label>${fieldLabel(IC.palette, "Color", { required: true })}<select name="color" required>${colorOptions}</select></label>
-            <label>${fieldLabel(IC.truck, "Tipo", { required: true })}<select name="type" required><option value="">Seleccione...</option><option>Camion</option><option>Turbo</option><option>Tractomula</option><option>Bus</option></select></label>
+            <label>${fieldLabel(IC.truck, "Tipo", { required: true })}<select name="type" required><option value="">Seleccione...</option><option value="Camion">Camión</option><option value="Turbo">Turbo</option><option value="Tractomula">Tractomula</option><option value="Bus">Bus</option></select></label>
           </div>
-        </div>
+        </fieldset>
       </div>
 
       <div class="hr-form-step hidden" data-step-index="1">
@@ -73,7 +73,7 @@
           <p class="muted form-section-hint">Capacidad de carga, refrigeración y configuración mecánica.</p>
           <div class="form-section-grid">
             <label>${fieldLabel(IC.package, "Tipo de carrocería", { required: true })}<select name="bodyType" required>${bodyTypeOptions}</select></label>
-            <label>${fieldLabel(IC.activity, "Termoking (refrigerado)", { required: true })}<select name="refrigerated" required><option value="true">Sí, equipo Termoking</option><option value="false">No, carga seca</option></select></label>
+            <label>${fieldLabel(IC.activity, "Termoking (refrigerado)", { required: true })}<select name="refrigerated" required><option value="">Seleccione...</option><option value="true">Sí, equipo Termoking</option><option value="false">No, carga seca</option></select></label>
             <label>${fieldLabel(IC.scale, "Capacidad (kg)", { required: true })}<input type="number" min="1" name="capacityKg" required placeholder="Ej.: 18000" /></label>
             <label>${fieldLabel(IC.fuel, "Tipo de combustible", { required: true })}<select name="fuelType" required>${fuelTypeOptions}</select></label>
             <label>${fieldLabel(IC.layers, "Configuración de ejes", { required: true })}<select name="axleConfig" required>${axleOptions}</select></label>
@@ -103,12 +103,12 @@
       <div class="hr-form-step hidden" data-step-index="3">
         <fieldset class="form-section form-section-emerald full">
           <legend>${IC.satellite} Equipos y trazabilidad</legend>
-          <p class="muted form-section-hint">GPS satelital y credenciales del proveedor para seguimiento en ruta (opcional).</p>
-          <div class="form-section-grid">
-            <label>${fieldLabel(IC.satellite, "GPS satelital")}<select name="hasGps"><option value="true">Sí, GPS activo</option><option value="false">Sin GPS</option></select></label>
-            <label>${fieldLabel(IC.briefcase, "Proveedor GPS")}<input name="gpsProvider" placeholder="Ej.: Detektor, Skyangel, Geolocator" /></label>
-            <label>${fieldLabel(IC.user, "Usuario proveedor satélite")}<input type="text" name="satelliteProviderUser" placeholder="Usuario en el portal del GPS" autocomplete="off" /></label>
-            <label>${fieldLabel(IC.lock, "Contraseña proveedor satélite")}<input type="password" name="satelliteProviderPassword" placeholder="Contraseña en el portal del GPS" autocomplete="new-password" /></label>
+          <p class="muted form-section-hint">Active el GPS solo si hay rastreo satelital. El proveedor es obligatorio con GPS activo; usuario y contraseña son opcionales.</p>
+          <div class="form-section-grid" data-vehicle-gps-fields>
+            <label>${fieldLabel(IC.satellite, "GPS satelital")}<select name="hasGps"><option value="false">Sin GPS</option><option value="true">Sí, GPS activo</option></select></label>
+            <label data-vehicle-gps-dependent="1">${fieldLabel(IC.briefcase, "Proveedor GPS")}<input name="gpsProvider" placeholder="Ej.: Detektor, Skyangel, Geolocator" autocomplete="off" /></label>
+            <label data-vehicle-gps-dependent="1">${fieldLabel(IC.user, "Usuario proveedor satélite")}<input type="text" name="satelliteProviderUser" placeholder="Usuario en el portal del GPS" autocomplete="off" /></label>
+            <label data-vehicle-gps-dependent="1">${fieldLabel(IC.lock, "Contraseña proveedor satélite")}<input type="password" name="satelliteProviderPassword" placeholder="Contraseña en el portal del GPS" autocomplete="new-password" /></label>
           </div>
         </fieldset>
       </div>
@@ -118,7 +118,7 @@
       ${renderHrFormWizardFooter(
         "create-vehicle",
         `<button class="btn btn-primary hr-form-wizard-submit antares-create-form__submit" type="submit" disabled aria-disabled="true">${IC.plus} Registrar vehículo</button>`,
-        { hint: "Avance hasta el paso de trazabilidad para habilitar el registro." }
+        { hint: "Avance hasta el último paso para habilitar el registro del vehículo." }
       )}
     </div>
   </form>`;

@@ -18,7 +18,13 @@ import {
   FLEET_DRIVER_EDIT_ACTIONS,
   PORTAL_NON_ADMIN_BLOCKED_ACTIONS,
   LABOR_SYSTEM_PARAMETERS_MIN_YEAR,
-  LABOR_SYSTEM_PARAMETERS_MAX_YEAR
+  LABOR_SYSTEM_PARAMETERS_MAX_YEAR,
+  REPORT_EXPORT_BRAND,
+  REPORT_BRAND_LOGO_PATH,
+  CONTRACT_EMPLOYER_LEGAL,
+  CONTRACT_LEGAL_REP_NAME,
+  CONTRACT_LEGAL_REP_ID_DOC,
+  CONTRACT_LEGAL_REP_SIGNATURE_PATH
 } from "../core/config.js";
 import { read } from "../core/data-io.js";
 import { state, persistHrWorkspace } from "../core/store.js";
@@ -32,7 +38,7 @@ import {
   getPositionById,
   isAdminActor
 } from "../core/auth.js";
-import { buildHiringCreatePanelsState, buildPayrollCreatePanelsState, colombiaTodayIsoDate, escapeAttr, escapeHtml, normalizePortalDateYmd } from "../core/utils.js";
+import { buildHiringCreatePanelsState, buildPayrollCreatePanelsState, colombiaTodayIsoDate, escapeAttr, escapeHtml, normalizePortalDateYmd, portalPhoneNationalDigitsForForm } from "../core/utils.js";
 import { notify, userMessage, ensureEmployeeContractFields, resolveEmployeeContractPlazoStartYmd, isFixedTermContractType, contractTypeRequiresDurationPlazo } from "../ui/modals.js";
 import { matchCatalogOptionValue, normalizeContractTemplateKind } from "./payroll-catalog-sanitize.domain.js";
 import { normalizeDocumentDigits } from "./payroll-identifiers.domain.js";
@@ -318,6 +324,34 @@ export function wireEditModalFieldValues(formEl, fields) {
   });
 }
 
+/** Paso de conductor del alta: solo visible si el cargo lo es; exige licencia, categoría y expedición. */
+function syncEmployeeFormConductorStep(form, position) {
+  const isDriver =
+    Boolean(position) &&
+    (String(position.workerRole || "").trim().toLowerCase() === "conductor" ||
+      /conductor/i.test(String(position.name || "")));
+  const conductorBlock = form?.querySelector?.("#hr-conductor-fields");
+  const skipNote = form?.querySelector?.("#hr-conductor-skip-note");
+  if (conductorBlock) {
+    conductorBlock.classList.toggle("hidden", !isDriver);
+    if (isDriver) conductorBlock.removeAttribute("hidden");
+    else conductorBlock.setAttribute("hidden", "hidden");
+    conductorBlock.querySelectorAll("input, select, textarea").forEach((inp) => {
+      const name = String(inp.getAttribute("name") || "");
+      if (!["license", "licenseCategory", "licenseIssueDate"].includes(name)) return;
+      if (isDriver) inp.setAttribute("required", "required");
+      else inp.removeAttribute("required");
+    });
+  }
+  if (skipNote) {
+    skipNote.classList.toggle("hidden", isDriver);
+    skipNote.toggleAttribute("hidden", isDriver);
+    skipNote.textContent = position
+      ? "Este cargo no es de conductor. Puede guardar el expediente sin datos de licencia."
+      : "Elija el cargo en el paso Contrato. Si es conductor, aquí se pedirán licencia, categoría y fecha de expedición.";
+  }
+}
+
 /**
  * Precarga en el formulario de empleado los datos definidos en el catálogo de cargos (Contratación).
  */
@@ -329,11 +363,7 @@ export function applyPositionCatalogToEmployeeForm(form, position, options = {})
       hintEl.textContent =
         "Seleccione un cargo del catálogo para cargar salario, tipo de contrato, jornada, riesgo ARL y auxilio de transporte.";
     }
-    const conductorBlock = form.querySelector("#hr-conductor-fields");
-    if (conductorBlock) {
-      conductorBlock.classList.remove("hidden");
-      conductorBlock.removeAttribute("hidden");
-    }
+    syncEmployeeFormConductorStep(form, null);
     return false;
   }
 
@@ -345,7 +375,11 @@ export function applyPositionCatalogToEmployeeForm(form, position, options = {})
   const scheduleEl = form.querySelector(options.scheduleSelector || "#emp-work-schedule, input[name='workSchedule']");
 
   const contractType = String(position.contractTypeDefault || "Termino indefinido").trim();
-  const wr = String(position.workerRole || "empleado").toLowerCase();
+  const wr =
+    String(position.workerRole || "").trim().toLowerCase() === "conductor" ||
+    /conductor/i.test(String(position.name || ""))
+      ? "conductor"
+      : String(position.workerRole || "empleado").toLowerCase();
   const schedule = String(position.workSchedule || position.schedule || "").trim();
 
   if (salaryEl) salaryEl.value = String(parseNum(position.baseSalary));
@@ -360,22 +394,7 @@ export function applyPositionCatalogToEmployeeForm(form, position, options = {})
     templateEl.value = window.RecruitmentDomain.inferTemplateKind(contractType, wr);
   }
 
-  const conductorBlock = form.querySelector("#hr-conductor-fields");
-  if (conductorBlock) {
-    const isDriver = wr === "conductor";
-    conductorBlock.classList.toggle("hidden", !isDriver);
-    if (isDriver) conductorBlock.removeAttribute("hidden");
-    else conductorBlock.setAttribute("hidden", "hidden");
-    conductorBlock.querySelectorAll("input, select").forEach((inp) => {
-      const name = String(inp.getAttribute("name") || "");
-      if (!name) return;
-      if (isDriver && ["license", "licenseCategory", "licenseExpiry"].includes(name)) {
-        inp.setAttribute("required", "required");
-      } else if (["license", "licenseCategory", "licenseExpiry"].includes(name)) {
-        inp.removeAttribute("required");
-      }
-    });
-  }
+  syncEmployeeFormConductorStep(form, position);
 
   if (hintEl) {
     const integral =
@@ -770,7 +789,7 @@ export function applyCandidateToEmployeeForm(form, candidate) {
   };
   setDate("birthDate", String(candidate.birthDate || "").slice(0, 10));
   setVal("select[name='educationLevel']", candidate.educationLevel);
-  setVal("input[name='phone']", candidate.phone);
+  setVal("input[name='phone']", portalPhoneNationalDigitsForForm(candidate.phone));
   setVal("input[name='personalEmail']", candidate.email);
   setVal("input[name='address']", candidate.address);
   setDate("startDate", colombiaTodayIsoDate());
@@ -792,6 +811,7 @@ export function applyCandidateToEmployeeForm(form, candidate) {
     hintEl.textContent = `Datos precargados desde candidato «${String(candidate.name || "").trim()}». Complete seguridad social, banco y demás campos obligatorios antes de guardar.`;
   }
   form.dataset.prefillCandidateId = String(candidate.id || "");
+  applyOfferTermsToEmployeeForm(form, candidate);
   return true;
 }
 
@@ -803,8 +823,12 @@ export function openPayrollEmployeeFromCandidate(candidateId) {
   state.createPanels = buildPayrollCreatePanelsState("employee", state.createPanels || {}, { expandActive: true });
   persistHrWorkspace("payroll", "operate");
   persistHrWorkspace("hiring", state.hiringUi?.workspace || "data");
-  state.currentView = "payroll";
-  globalThis.renderPortalView?.();
+  if (typeof globalThis.setView === "function") {
+    globalThis.setView("payroll");
+  } else {
+    state.currentView = "payroll";
+    globalThis.renderPortalView?.();
+  }
   requestAnimationFrame(() => {
     requestAnimationFrame(() => globalThis.scrollToCreatePanelForm?.("create-employee"));
   });
@@ -870,6 +894,284 @@ export function portalCandidateAgeFromBirthIso(birthIso) {
   return { age, birthLabel: s };
 }
 
+const OFFER_MONTHS_ES = [
+  "enero",
+  "febrero",
+  "marzo",
+  "abril",
+  "mayo",
+  "junio",
+  "julio",
+  "agosto",
+  "septiembre",
+  "octubre",
+  "noviembre",
+  "diciembre"
+];
+
+function formatOfferCop(amount) {
+  const n = Math.round(parseNum(amount));
+  if (!Number.isFinite(n) || n <= 0) return "";
+  return `$${n.toLocaleString("es-CO")}`;
+}
+
+function formatOfferDateLong(ymd) {
+  const iso = normalizePortalDateYmd(ymd);
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-").map(Number);
+  const month = OFFER_MONTHS_ES[m - 1] || "";
+  if (!y || !month || !d) return iso;
+  return `${d} de ${month} de ${y}`;
+}
+
+function addCalendarDaysYmd(ymd, days) {
+  const iso = normalizePortalDateYmd(ymd);
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + Math.max(0, parseNum(days)));
+  const yy = dt.getFullYear();
+  const mm = String(dt.getMonth() + 1).padStart(2, "0");
+  const dd = String(dt.getDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
+}
+
+function offerLetterLogoSrc(company) {
+  const raw = String(company?.logoUrl || "").trim();
+  if (/^https:\/\//i.test(raw)) return raw;
+  if (/^data:image\/(?:png|jpe?g|webp|gif);base64,[A-Za-z0-9+/=]+$/i.test(raw)) return raw;
+  try {
+    return new URL(REPORT_BRAND_LOGO_PATH, globalThis.location?.href || "http://localhost/").href;
+  } catch (_e) {
+    return REPORT_BRAND_LOGO_PATH;
+  }
+}
+
+function offerLetterSignatureSrc() {
+  try {
+    return new URL(CONTRACT_LEGAL_REP_SIGNATURE_PATH, globalThis.location?.href || "http://localhost/").href;
+  } catch (_e) {
+    return CONTRACT_LEGAL_REP_SIGNATURE_PATH;
+  }
+}
+
+function activeHiringCompanies() {
+  return read(KEYS.companies, []).filter((c) => c && c.active !== false);
+}
+
+/** Condiciones iniciales de la carta: vacante, cargo y lo ya marcado por contratación. */
+export function buildDefaultHiringOfferTerms(candidate) {
+  const { vacancy, position } = getCandidateVacancyAndPosition(candidate);
+  const companies = activeHiringCompanies();
+  const propia =
+    companies.find((c) => String(c.companyKind || "").toLowerCase() === "propia") || companies[0] || null;
+  const prev = candidate?.offerTerms && typeof candidate.offerTerms === "object" ? candidate.offerTerms : {};
+  const salary = parseNum(prev.baseSalary || vacancy?.salaryOffer || position?.baseSalary || candidate?.expectedSalary || CO_HR_RULES.minMonthlySalary);
+  const start = normalizePortalDateYmd(prev.startDate || candidate?.availabilityDate) || colombiaTodayIsoDate();
+  return {
+    companyId: String(prev.companyId || propia?.id || "").trim(),
+    positionId: String(prev.positionId || vacancy?.positionId || position?.id || "").trim(),
+    contractType: String(prev.contractType || position?.contractTypeDefault || "Termino indefinido").trim(),
+    workSchedule: String(prev.workSchedule || position?.workSchedule || "Diurna").trim(),
+    baseSalary: salary,
+    transportAllowance:
+      prev.transportAllowance != null && String(prev.transportAllowance).trim() !== ""
+        ? parseNum(prev.transportAllowance)
+        : suggestedEmployeeTransportAllowanceCop(salary),
+    startDate: start,
+    workplace: String(prev.workplace || vacancy?.city || candidate?.city || "").trim(),
+    validDays: Math.min(30, Math.max(1, parseNum(prev.validDays || 5) || 5)),
+    durationMonths: Math.min(36, Math.max(1, parseNum(prev.durationMonths || 12) || 12)),
+    notes: String(prev.notes || "").trim()
+  };
+}
+
+/**
+ * Aplica en el alta de empleado las condiciones marcadas en la carta oferta.
+ * Se ejecuta después del catálogo de cargos para que prevalezca lo que definió contratación.
+ */
+export function applyOfferTermsToEmployeeForm(form, candidate) {
+  const terms = candidate?.offerTerms;
+  if (!form || !terms || typeof terms !== "object") return false;
+  const setVal = (selector, value) => {
+    const el = form.querySelector(selector);
+    if (!el || value == null || String(value).trim() === "") return;
+    if (el.tagName === "SELECT") setFormSelectValue(el, value);
+    else el.value = String(value);
+  };
+  const posSel = form.querySelector("#emp-position-select, select[name='positionId']");
+  if (posSel && terms.positionId) {
+    setFormSelectValue(posSel, terms.positionId);
+    posSel.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+  setVal("select[name='companyId']", terms.companyId);
+  const contractEl = form.querySelector("#emp-contract-type, select[name='contractType']");
+  if (contractEl && terms.contractType) {
+    setFormSelectValue(contractEl, terms.contractType);
+    contractEl.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+  const salaryEl = form.querySelector("#emp-base-salary, input[name='baseSalary']");
+  if (salaryEl && parseNum(terms.baseSalary) > 0) salaryEl.value = String(parseNum(terms.baseSalary));
+  const auxEl = form.querySelector("#emp-transport-allowance, input[name='transportAllowance']");
+  if (auxEl && terms.transportAllowance != null && String(terms.transportAllowance).trim() !== "") {
+    auxEl.value = String(Math.max(0, parseNum(terms.transportAllowance)));
+  }
+  setVal("#emp-work-schedule, input[name='workSchedule']", terms.workSchedule);
+  const startYmd = normalizePortalDateYmd(terms.startDate);
+  if (startYmd) globalThis.AntaresValidation?.setPortalFormDateByName?.(form, "startDate", startYmd);
+  if (contractTypeRequiresDurationPlazo(terms.contractType)) {
+    const unit = form.querySelector("#emp-contract-duration-unit");
+    const amount = form.querySelector("#emp-contract-duration-amount");
+    if (unit) {
+      unit.value = "meses";
+      unit.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+    if (amount && parseNum(terms.durationMonths) > 0) amount.value = String(parseNum(terms.durationMonths));
+  }
+  const hintEl = form.querySelector("#emp-position-catalog-hint");
+  if (hintEl) {
+    hintEl.textContent = `Condiciones de la carta oferta de «${String(candidate.name || "").trim()}» aplicadas: cargo, salario, tipo de contrato, jornada y fecha de ingreso. Complete seguridad social y banco antes de guardar.`;
+  }
+  return true;
+}
+
+/** HTML imprimible de la carta oferta, con logo y colores de la empresa. */
+export function buildHiringOfferLetterHtml(candidate, terms) {
+  const brand = REPORT_EXPORT_BRAND;
+  const safeTerms = terms && typeof terms === "object" ? terms : {};
+  const companies = activeHiringCompanies();
+  const company =
+    companies.find((c) => String(c.id) === String(safeTerms.companyId || "")) ||
+    companies.find((c) => String(c.companyKind || "").toLowerCase() === "propia") ||
+    null;
+  const position = getPositionById(String(safeTerms.positionId || ""));
+  const employerName = String(company?.name || CONTRACT_EMPLOYER_LEGAL.name).trim();
+  const nit = String(company?.taxId || company?.nit || CONTRACT_EMPLOYER_LEGAL.nit).trim();
+  const employerCity = String(company?.city || CONTRACT_EMPLOYER_LEGAL.city).trim();
+  const letterDate = formatOfferDateLong(colombiaTodayIsoDate());
+  const startLabel = formatOfferDateLong(safeTerms.startDate);
+  const validUntil = formatOfferDateLong(addCalendarDaysYmd(colombiaTodayIsoDate(), safeTerms.validDays || 5));
+  const salary = parseNum(safeTerms.baseSalary);
+  const salaryText = formatOfferCop(salary);
+  const salaryWords =
+    globalThis.RecruitmentDomain?.formatSalarioLetrasPesos
+      ? String(globalThis.RecruitmentDomain.formatSalarioLetrasPesos(salary) || "").trim()
+      : "";
+  const transport = parseNum(safeTerms.transportAllowance);
+  const transportText = transport > 0 ? formatOfferCop(transport) : "";
+  const contractType = String(safeTerms.contractType || "Termino indefinido").trim();
+  const needsTerm = contractTypeRequiresDurationPlazo(contractType);
+  const durationText = needsTerm ? `${parseNum(safeTerms.durationMonths) || 12} meses` : "Indefinido, conforme al Código Sustantivo del Trabajo";
+  const positionName = String(position?.name || candidate?.vacancyTitle || "el cargo ofertado").trim();
+  const schedule = String(safeTerms.workSchedule || "Diurna").trim();
+  const workplace = String(safeTerms.workplace || candidate?.city || employerCity).trim();
+  const candidateName = String(candidate?.name || "").trim();
+  const idDoc = String(candidate?.idDoc || "").trim();
+  const notes = String(safeTerms.notes || "").trim();
+  const logo = offerLetterLogoSrc(company);
+  const signature = offerLetterSignatureSrc();
+  const rows = [
+    ["Cargo", positionName],
+    ["Tipo de contrato", contractType],
+    ["Duración", durationText],
+    ["Jornada", schedule],
+    ["Salario mensual", salaryWords ? `${salaryText} (${salaryWords})` : salaryText],
+    ["Auxilio de transporte", transportText || "No aplica según el tope legal"],
+    ["Fecha de ingreso", startLabel],
+    ["Lugar de trabajo", workplace],
+    ["Vigencia de esta oferta", `${parseNum(safeTerms.validDays) || 5} días calendario, hasta el ${validUntil}`]
+  ];
+  const facts = rows
+    .filter(([, value]) => String(value || "").trim())
+    .map(
+      ([label, value]) =>
+        `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(String(value))}</td></tr>`
+    )
+    .join("");
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>Carta oferta · ${escapeHtml(candidateName)}</title>
+  <style>
+    :root {
+      --brand: ${brand.primary};
+      --brand-deep: ${brand.primaryDeep};
+      --brand-deeper: ${brand.primaryDeeper};
+      --brand-soft: ${brand.soft};
+      --ink: ${brand.text};
+      --muted: ${brand.muted};
+      --line: ${brand.line};
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #eef4fa; color: var(--ink); font-family: "Segoe UI", Calibri, sans-serif; }
+    .sheet { max-width: 820px; margin: 1.25rem auto; background: #fff; border: 1px solid var(--line); box-shadow: 0 10px 30px rgba(30, 74, 115, 0.08); }
+    .head { display: flex; align-items: center; gap: 1rem; padding: 1.15rem 1.4rem; background: linear-gradient(135deg, var(--brand-deeper), var(--brand)); color: #fff; }
+    .head img { width: 74px; height: 74px; object-fit: contain; background: #fff; border-radius: 12px; padding: 6px; }
+    .head h1 { margin: 0; font-size: 1.15rem; letter-spacing: 0.04em; text-transform: uppercase; }
+    .head p { margin: 0.2rem 0 0; font-size: 0.92rem; opacity: 0.95; }
+    .body { padding: 1.35rem 1.5rem 1.6rem; line-height: 1.55; font-size: 11.5pt; }
+    .kicker { margin: 0 0 0.85rem; color: var(--brand-deep); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.78rem; }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0 1.1rem; }
+    th, td { text-align: left; padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { width: 38%; background: var(--brand-soft); color: var(--brand-deeper); font-size: 0.92rem; }
+    .note { background: var(--brand-soft); border-left: 4px solid var(--brand); padding: 0.75rem 0.9rem; margin: 0.8rem 0 0; }
+    .sign { margin-top: 1.6rem; }
+    .sign img { max-width: 210px; max-height: 78px; object-fit: contain; display: block; }
+    .sign .line { width: 240px; border-top: 1px solid var(--brand-deep); margin: 0.35rem 0 0.45rem; }
+    .foot { padding: 0.7rem 1.4rem; background: var(--brand-deeper); color: #fff; font-size: 0.82rem; }
+    .actions { display: flex; justify-content: center; gap: 0.5rem; padding: 0.8rem; }
+    .actions button { background: var(--brand); color: #fff; border: 0; border-radius: 8px; padding: 0.55rem 1rem; cursor: pointer; font: inherit; }
+    @media print {
+      body { background: #fff; }
+      .sheet { margin: 0; border: 0; box-shadow: none; }
+      .actions { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <article class="sheet">
+    <header class="head">
+      <img src="${escapeAttr(logo)}" alt="Logo de ${escapeAttr(employerName)}" />
+      <div>
+        <h1>Carta oferta de vinculación</h1>
+        <p>${escapeHtml(employerName)}${nit ? ` · NIT ${escapeHtml(nit)}` : ""}</p>
+      </div>
+    </header>
+    <div class="body">
+      <p class="kicker">${escapeHtml(employerCity)}${letterDate ? `, ${escapeHtml(letterDate)}` : ""}</p>
+      <p>Señor(a)<br><strong>${escapeHtml(candidateName)}</strong>${idDoc ? `<br>C.C. ${escapeHtml(idDoc)}` : ""}</p>
+      <p>
+        ${escapeHtml(employerName)} le presenta esta oferta de vinculación laboral. Las condiciones que aquí se relacionan
+        son las marcadas por el área de contratación y serán las que queden registradas al formalizar el ingreso.
+      </p>
+      <table>
+        <tbody>${facts}</tbody>
+      </table>
+      ${
+        notes
+          ? `<p class="note"><strong>Condiciones adicionales.</strong> ${escapeHtml(notes)}</p>`
+          : ""
+      }
+      <p>
+        Esta comunicación es una oferta. El vínculo nace cuando las partes suscriban el contrato de trabajo y el candidato
+        acepte por escrito dentro del plazo indicado. El salario no será inferior al mínimo legal vigente y el auxilio de
+        transporte se reconocerá solo cuando la ley lo exija.
+      </p>
+      <div class="sign">
+        <p>Cordialmente,</p>
+        <img src="${escapeAttr(signature)}" alt="Firma del representante legal" />
+        <div class="line"></div>
+        <p><strong>${escapeHtml(CONTRACT_LEGAL_REP_NAME)}</strong><br>${escapeHtml(CONTRACT_LEGAL_REP_ID_DOC)}<br>Representante legal · ${escapeHtml(employerName)}</p>
+      </div>
+    </div>
+    <footer class="foot">${escapeHtml(employerName)} · Documento de contratación</footer>
+  </article>
+  <div class="actions"><button type="button" onclick="window.print()">Imprimir / guardar PDF</button></div>
+</body>
+</html>`;
+}
+
 /**
  * Siguiente acción del flujo profesional de selección.
  * @param {string} status
@@ -908,11 +1210,11 @@ export function hiringCandidateNextAction(status, ctx = {}) {
   }
   if (s === "Entrevistado") {
     return {
-      label: "Enviar oferta",
+      label: "Enviar carta oferta",
       tone: "offer",
       action: "send-offer",
       nextStatus: "Oferta enviada",
-      cta: "Enviar oferta"
+      cta: "Enviar carta oferta"
     };
   }
   if (s === "Oferta enviada") {
@@ -978,9 +1280,11 @@ export function hiringFlowPrimaryActionHtml(candidate, ctx = {}) {
   if (next.action === "hire" && canEdit) {
     return `<button type="button" class="${escapeAttr(btnClass)}" data-action="create-employee-from-candidate" data-candidate-id="${escapeAttr(id)}">${IC.userPlus} ${escapeHtml(next.cta || "Contratar")}</button>`;
   }
-  if ((next.action === "preselect" || next.action === "confirm-interview" || next.action === "send-offer") && canEdit && next.nextStatus) {
-    const ico =
-      next.action === "confirm-interview" ? IC.check : next.action === "send-offer" ? IC.send : IC.star;
+  if (next.action === "send-offer" && canEdit) {
+    return `<button type="button" class="${escapeAttr(btnClass)}" data-action="open-offer-letter" data-candidate-id="${escapeAttr(id)}">${IC.send} ${escapeHtml(next.cta || "Enviar carta oferta")}</button>`;
+  }
+  if ((next.action === "preselect" || next.action === "confirm-interview") && canEdit && next.nextStatus) {
+    const ico = next.action === "confirm-interview" ? IC.check : IC.star;
     return `<button type="button" class="${escapeAttr(btnClass)}" data-action="hiring-flow-advance" data-id="${escapeAttr(id)}" data-next-status="${escapeAttr(next.nextStatus)}" data-flow-action="${escapeAttr(next.action)}">${ico || ""} ${escapeHtml(next.cta || "Continuar")}</button>`;
   }
   return "";
@@ -1008,7 +1312,9 @@ export function hiringFlowBannerHtml(candidate, ctx = {}) {
   const secondary =
     next.action === "confirm-interview" && ctx.canScheduleInterview !== false
       ? `<button type="button" class="btn btn-outline" data-action="schedule-interview-for-candidate" data-candidate-id="${escapeAttr(id)}">${IC.calendar} Reprogramar</button>`
-      : "";
+      : next.action === "hire" && ctx.canEdit !== false
+        ? `<button type="button" class="btn btn-outline" data-action="open-offer-letter" data-candidate-id="${escapeAttr(id)}">${IC.send} Ver carta oferta</button>`
+        : "";
   return `<section class="hiring-flow-banner hiring-flow-banner--${escapeAttr(next.tone || "review")}" aria-label="Siguiente paso del proceso">
     <div class="hiring-flow-banner__copy">
       <small>Siguiente paso</small>
@@ -1112,7 +1418,10 @@ export function renderHiringCandidateCard(c, ctx = {}) {
         ? `<button type="button" role="menuitem" data-action="hiring-flow-advance" data-id="${escapeAttr(String(c.id))}" data-next-status="Preseleccionado" data-flow-action="preselect">${IC.star} Preseleccionar</button>`
         : "",
       ctx.canEdit && next.action === "send-offer"
-        ? `<button type="button" role="menuitem" data-action="hiring-flow-advance" data-id="${escapeAttr(String(c.id))}" data-next-status="Oferta enviada" data-flow-action="send-offer">${IC.send} Enviar oferta</button>`
+        ? `<button type="button" role="menuitem" data-action="open-offer-letter" data-candidate-id="${escapeAttr(String(c.id))}">${IC.send} Enviar carta oferta</button>`
+        : "",
+      ctx.canEdit && status === "Oferta enviada"
+        ? `<button type="button" role="menuitem" data-action="open-offer-letter" data-candidate-id="${escapeAttr(String(c.id))}">${IC.send} Ver carta oferta</button>`
         : "",
       ctx.canEdit && status === "Oferta enviada"
         ? `<button type="button" role="menuitem" data-action="create-employee-from-candidate" data-candidate-id="${escapeAttr(String(c.id))}">${IC.userPlus} Contratar</button>`

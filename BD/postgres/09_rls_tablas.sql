@@ -108,6 +108,7 @@ ALTER TABLE public.documentos_empleado ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.carpetas_documento_empleado ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE public.notificaciones ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notificaciones_estado_usuario ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.correos_salida ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.prospectos_contacto_b2b ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.contadores_secuencia ENABLE ROW LEVEL SECURITY;
@@ -470,6 +471,11 @@ CREATE POLICY carpetas_documento_empleado_escritura
 -- ---------------------------------------------------------------------------
 CREATE POLICY notificaciones_propias
   ON public.notificaciones FOR ALL TO authenticated
+  USING (id_usuario = auth.uid())
+  WITH CHECK (id_usuario = auth.uid());
+
+CREATE POLICY notificaciones_estado_usuario_propias
+  ON public.notificaciones_estado_usuario FOR ALL TO authenticated
   USING (id_usuario = auth.uid())
   WITH CHECK (id_usuario = auth.uid());
 

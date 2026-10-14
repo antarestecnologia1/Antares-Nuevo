@@ -299,7 +299,18 @@ function payrollHtml() {
   const employeesFilteredSummaries = hasActiveEmployeeFilters
     ? employeeSummaries.filter((item) => payrollEmployeeMatchesFilters(item, employeesFilters, colombiaTodayIsoDate()))
     : employeeSummaries;
-  const employeesPageSize = Math.max(5, Number(payrollUi.employeesPageSize) || 10);
+  const employeesPageSizeAllowed = new Set([5, 10, 20, 50]);
+  const employeesPageSizeRaw = Number(payrollUi.employeesPageSize);
+  const employeesPageSize = employeesPageSizeAllowed.has(employeesPageSizeRaw)
+    ? employeesPageSizeRaw
+    : (() => {
+        try {
+          const stored = Number(localStorage.getItem("antares_hr_payroll_employees_page_size_v1"));
+          return employeesPageSizeAllowed.has(stored) ? stored : 10;
+        } catch (_err) {
+          return 10;
+        }
+      })();
   const employeesPage = Math.max(1, Number(payrollUi.employeesPage) || 1);
   const employeesTotal = employeesFilteredSummaries.length;
   const employeesPageCount = Math.max(1, Math.ceil(employeesTotal / employeesPageSize));
@@ -399,14 +410,14 @@ function payrollHtml() {
       <h4 class="payroll-wizard__section-title">${IC.user} Datos personales</h4>
       <div class="form-section-grid payroll-wizard__section-grid">
         <div class="full payroll-wizard-photo-row">
-          <label class="payroll-wizard-upload-zone" data-emp-create-avatar-label for="emp-create-avatar-input" title="Arrastra y suelta una imagen o haz clic para seleccionar · JPG o PNG · Máx. 5 MB">
+          <label class="payroll-wizard-upload-zone" data-emp-create-avatar-label for="emp-create-avatar-input" title="Arrastra y suelta una imagen o haz clic para seleccionar · JPG, PNG o WebP · Máx. 5 MB">
             <input type="file" id="emp-create-avatar-input" name="avatarFile" accept="image/jpeg,image/png,image/webp" class="profile-avatar-file-input" aria-label="Foto del empleado" />
             <span class="payroll-wizard-upload-zone__icon" aria-hidden="true">${IC.upload}</span>
             <span class="payroll-wizard-upload-zone__preview profile-avatar-initial" data-emp-avatar-initial aria-hidden="true">E</span>
           </label>
           <div class="payroll-wizard-photo-copy">
             <span class="payroll-wizard-photo-copy__title">Foto del colaborador</span>
-            <span class="payroll-wizard-photo-copy__meta">Clic o arrastra una imagen · JPG/PNG · Máx. 5 MB</span>
+            <span class="payroll-wizard-photo-copy__meta">Clic o arrastra una imagen · JPG, PNG o WebP · Máx. 5 MB</span>
           </div>
           <button type="button" class="payroll-wizard-tip-trigger" aria-label="Consejo para la foto del colaborador">
             <span aria-hidden="true">${IC.info}</span>
@@ -417,7 +428,7 @@ function payrollHtml() {
         <label>${fieldLabel(IC.file, "Tipo de documento", { required: true })}<select name="documentType" required>${docTypeOptions}</select></label>
         <label>${fieldLabel(IC.badge, "Número de documento", { required: true })}<input name="idDoc" required placeholder="Ej.: 1036785371" data-antares-restrict="alnum-doc" data-antares-field="doc" /></label>
         <label>${fieldLabel(IC.cake, "Fecha de nacimiento", { required: true })}<input type="date" name="birthDate" required data-antares-validate-blur="date-iso" /></label>
-        <label>${fieldLabel(IC.users, "Género", { required: true })}<select name="gender" required><option value="">Seleccionar…</option>${genderOpts}</select></label>
+        <label>${fieldLabel(IC.users, "Género", { required: true })}<select name="gender" required>${genderOpts}</select></label>
         <label>${fieldLabel(IC.heart, "Estado civil")}<select name="maritalStatus">${maritalOpts}</select></label>
         <label>${fieldLabel(IC.activity, "Tipo de sangre (RH)", { required: true })}<select name="bloodType" required>${bloodTypeOptions}</select></label>
         <label>${fieldLabel(IC.graduation, "Nivel educativo")}<select name="educationLevel">${educationOpts}</select></label>
@@ -434,22 +445,22 @@ function payrollHtml() {
     <fieldset class="form-section form-section-cyan full">
       <legend>${IC.mapPin} Contacto y residencia</legend>
       <div class="form-section-grid">
-        <label>${fieldLabel(IC.mapPin, "Departamento")}<select name="department" id="employee-department" required><option value="">Seleccione...</option>${departmentOptions()}</select></label>
-        <label>${fieldLabel(IC.mapPin, "Ciudad")}<select name="city" id="employee-city" required><option value="">Seleccione un departamento...</option></select></label>
-        <label class="full">${fieldLabel(IC.compass, "Dirección de residencia")}<input name="address" required placeholder="Carrera 15 # 6-56, Apto 302, Barrio La Floresta" data-antares-validate-blur="db-upper" data-antares-field="db-upper" /></label>
-        <label>${fieldLabel(IC.phone, "Teléfono celular")}
+        <label>${fieldLabel(IC.mapPin, "Departamento", { required: true })}<select name="department" id="employee-department" required><option value="">Seleccione...</option>${departmentOptions()}</select></label>
+        <label>${fieldLabel(IC.mapPin, "Ciudad", { required: true })}<select name="city" id="employee-city" required><option value="">Seleccione un departamento...</option></select></label>
+        <label class="full">${fieldLabel(IC.compass, "Dirección de residencia", { required: true })}<input name="address" required placeholder="Carrera 15 # 6-56, Apto 302, Barrio La Floresta" data-antares-validate-blur="db-upper" data-antares-field="db-upper" /></label>
+        <label>${fieldLabel(IC.phone, "Teléfono celular", { required: true })}
         <div class="phone-input-professional" role="group" aria-label="Teléfono celular">
         <span class="phone-cc-badge" aria-hidden="true"><span class="phone-dial-code">+57</span></span>
         <input class="phone-national-input" name="phone" required placeholder="3001234567" data-antares-restrict="digits" data-antares-validate-blur="phone-loose" maxlength="10" inputmode="tel" pattern="[0-9]{10}" />
         </div></label>
         <label>${fieldLabel(IC.mail, "Correo personal")}<input type="email" name="personalEmail" placeholder="empleado@correo.com" data-antares-validate-blur="email" data-antares-restrict="email-local" /></label>
-        <label>${fieldLabel(IC.user, "Contacto de emergencia")}<input name="emergencyContact" required data-antares-restrict="person-name" data-antares-field="person-name" /></label>
-        <label>${fieldLabel(IC.phone, "Teléfono emergencia")}
+        <label>${fieldLabel(IC.user, "Contacto de emergencia", { required: true })}<input name="emergencyContact" required data-antares-restrict="person-name" data-antares-field="person-name" /></label>
+        <label>${fieldLabel(IC.phone, "Teléfono emergencia", { required: true })}
         <div class="phone-input-professional" role="group" aria-label="Teléfono emergencia">
         <span class="phone-cc-badge" aria-hidden="true"><span class="phone-dial-code">+57</span></span>
         <input class="phone-national-input" name="emergencyPhone" required placeholder="3001234567" data-antares-restrict="digits" data-antares-validate-blur="phone-loose" maxlength="10" inputmode="tel" pattern="[0-9]{10}" />
         </div></label>
-        <label>${fieldLabel(IC.heart, "Parentesco emergencia")}<input name="emergencyRelation" placeholder="Cónyuge, padre, hermano(a)..." data-antares-restrict="person-name" data-antares-field="person-name" /></label>
+        <label>${fieldLabel(IC.heart, "Parentesco emergencia", { required: true })}<input name="emergencyRelation" required placeholder="Cónyuge, padre, hermano(a)..." data-antares-restrict="person-name" data-antares-field="person-name" /></label>
       </div>
     </fieldset>
       </div>
@@ -458,15 +469,15 @@ function payrollHtml() {
     <fieldset class="form-section form-section-violet full">
       <legend>${IC.briefcase} Datos laborales</legend>
       <div class="form-section-grid">
-        <label>${fieldLabel(IC.briefcase, "Empresa")}<select name="companyId" required><option value="">Seleccione</option>${companyOptions}</select></label>
-        <label>${fieldLabel(IC.briefcase, "Cargo (catálogo)")}<select name="positionId" id="emp-position-select" required${hasActivePositions ? "" : " disabled aria-disabled=\"true\""}><option value="">${hasActivePositions ? "Seleccione un cargo creado en Contratación" : "No hay cargos creados todavía"}</option>${positionOpts}</select></label>
+        <label>${fieldLabel(IC.briefcase, "Empresa", { required: true })}<select name="companyId" required><option value="">Seleccione</option>${companyOptions}</select></label>
+        <label>${fieldLabel(IC.briefcase, "Cargo (catálogo)", { required: true })}<select name="positionId" id="emp-position-select" required${hasActivePositions ? "" : " disabled aria-disabled=\"true\""}><option value="">${hasActivePositions ? "Seleccione un cargo creado en Contratación" : "No hay cargos creados todavía"}</option>${positionOpts}</select></label>
         <p class="full ${hasActivePositions ? "muted" : "emp-position-empty-hint"}" id="emp-position-catalog-hint" style="font-size:0.82rem;line-height:1.45;margin:0">${
           hasActivePositions
             ? "Solo aparecen los cargos creados y activos en Contratación. Al elegir uno se cargan salario, tipo de contrato, jornada, riesgo ARL y auxilio de transporte."
             : "Primero cree el cargo en Contratación → Cargos. Aquí solo se listan los cargos del catálogo, no se escriben a mano."
         }</p>
         <input type="hidden" name="workSchedule" id="emp-work-schedule" value="" />
-        <label>${fieldLabel(IC.activity, "Tipo de contrato")}<select name="contractType" id="emp-contract-type" required>${contractTypeOpts}</select></label>
+        <label>${fieldLabel(IC.activity, "Tipo de contrato", { required: true })}<select name="contractType" id="emp-contract-type" required>${contractTypeOpts}</select></label>
         <div id="emp-contract-duration-block" class="emp-contract-duration-panel full hidden" style="grid-column:1/-1" hidden aria-hidden="true">
           <p class="emp-contract-duration-title">${fieldLabel(IC.calendar, "Plazo o duración del contrato")}</p>
           <p class="muted emp-contract-duration-hint">Obligatorio solo para <strong>término fijo</strong> o <strong>prestación de servicios</strong>. Elija meses, años o texto libre (otro).</p>
@@ -485,7 +496,7 @@ function payrollHtml() {
             </div>
           </div>
         </div>
-        <label>${fieldLabel(IC.calendar, "Fecha ingreso a la empresa")}<input type="date" name="startDate" id="emp-start-date" required /></label>
+        <label>${fieldLabel(IC.calendar, "Fecha ingreso a la empresa", { required: true })}<input type="date" name="startDate" id="emp-start-date" required /></label>
         <div id="emp-contract-vigente-start-wrap" class="emp-contract-vigente-start full hidden" style="grid-column:1/-1" hidden aria-hidden="true">
           <label>${fieldLabel(IC.calendar, "Fecha inicio contrato vigente")}<input type="date" name="contractVigenteStartDate" id="emp-contract-vigente-start-date" /></label>
           <p class="muted" style="margin:0.35rem 0 0;font-size:0.82rem;line-height:1.45">Inicio del contrato a término fijo o de la renovación actual. La antigüedad laboral sigue en «Fecha ingreso a la empresa».</p>
@@ -494,7 +505,7 @@ function payrollHtml() {
           <label>${fieldLabel(IC.calendar, "Fecha fin del contrato")}<input type="date" name="contractEndDate" id="emp-contract-end-date" readonly tabindex="-1" aria-readonly="true" /></label>
           <p class="muted emp-contract-renewal-hint" id="emp-contract-renewal-hint" style="margin:0.35rem 0 0;font-size:0.82rem;line-height:1.45"></p>
         </div>
-        <label>${fieldLabel(IC.dollar, "Salario base mensual (COP)")}<input type="number" name="baseSalary" id="emp-base-salary" value="${CO_HR_RULES.minMonthlySalary}" min="${CO_HR_RULES.minMonthlySalary}" required placeholder="Mín. SMMLV ${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}" data-antares-restrict="decimal" data-antares-validate-blur="decimal" /></label>
+        <label>${fieldLabel(IC.dollar, "Salario base mensual (COP)", { required: true })}<input type="number" name="baseSalary" id="emp-base-salary" value="${CO_HR_RULES.minMonthlySalary}" min="${CO_HR_RULES.minMonthlySalary}" required placeholder="Mín. SMMLV ${CO_HR_RULES.minMonthlySalary.toLocaleString("es-CO")}" data-antares-restrict="decimal" data-antares-validate-blur="decimal" /></label>
         <label>${fieldLabel(IC.dollar, "Auxilio legal transporte / conectividad (COP)")}<input type="number" name="transportAllowance" id="emp-transport-allowance" value="${CO_HR_RULES.transportAllowance}" min="0" /></label>
         <p class="full muted" id="emp-legal-comp-hint" style="font-size:0.82rem;line-height:1.45;margin:0">${escapeHtml(employeeTransportAllowanceGuidance(CO_HR_RULES.minMonthlySalary))}</p>
         <label>${fieldLabel(IC.clock, "Periodicidad de pago")}<select name="payFrequency">${payFreqOpts}</select></label>
@@ -502,8 +513,8 @@ function payrollHtml() {
         <label>${fieldLabel(IC.shield, "Tipo de cotizante")}<select name="contributorType">${contributorOpts}</select></label>
         <label>${fieldLabel(IC.alertTriangle, "Nivel de riesgo ARL")}<select name="arlRiskLevel" id="emp-arl-risk-level">${arlRiskOpts}</select></label>
         <label>${fieldLabel(IC.heart, "Examen médico ocupacional de ingreso")}<input type="date" name="occupationalExamDate" id="emp-occupational-exam-date" /></label>
-        <p class="full muted" style="grid-column:1/-1;font-size:0.82rem;line-height:1.45;margin:0">Obligatorio para todo trabajador, sin importar el cargo (evaluación médica de ingreso, Resolución 2346 de 2007). La vigencia se guarda automáticamente a un año desde la fecha indicada.</p>
-        <label>${fieldLabel(IC.file, "Plantilla de contrato Word")}<select name="contractTemplateKind" id="emp-contract-template-kind" required>
+        <p class="full muted" style="grid-column:1/-1;font-size:0.82rem;line-height:1.45;margin:0">Aplica a todo cargo (Resolución 2346 de 2007). Si indica la fecha, la vigencia se guarda a un año. Puede completarla después si el examen aún no se ha practicado.</p>
+        <label>${fieldLabel(IC.file, "Plantilla de contrato Word", { required: true })}<select name="contractTemplateKind" id="emp-contract-template-kind" required>
           ${renderContractTemplateSelectOptions("", false)}
         </select></label>
       </div>
@@ -514,9 +525,9 @@ function payrollHtml() {
     <fieldset class="form-section form-section-emerald full">
       <legend>${IC.shield} Seguridad social y parafiscales</legend>
       <div class="form-section-grid">
-        <label>${fieldLabel(IC.heart, "EPS")}<select name="eps" required>${epsOptions}</select></label>
-        <label>${fieldLabel(IC.shield, "Fondo de pensión")}<select name="pensionFund" required>${pensionFundOptions}</select></label>
-        <label>${fieldLabel(IC.shield, "ARL")}<select name="arl" required>${arlOptions}</select></label>
+        <label>${fieldLabel(IC.heart, "EPS", { required: true })}<select name="eps" required>${epsOptions}</select></label>
+        <label>${fieldLabel(IC.shield, "Fondo de pensión", { required: true })}<select name="pensionFund" required>${pensionFundOptions}</select></label>
+        <label>${fieldLabel(IC.shield, "ARL", { required: true })}<select name="arl" required>${arlOptions}</select></label>
         <label>${fieldLabel(IC.shield, "Fondo de cesantías")}<select name="severanceFund">${severanceOpts}</select></label>
         <label>${fieldLabel(IC.users, "Caja de compensación")}<select name="compensationFund">${compensationOpts}</select></label>
       </div>
@@ -527,20 +538,21 @@ function payrollHtml() {
     <fieldset class="form-section form-section-amber full">
       <legend>${IC.bank} Datos bancarios</legend>
       <div class="form-section-grid">
-        <label>${fieldLabel(IC.bank, "Banco")}<select name="bankName" required>${banksOpts}</select></label>
-        <label>${fieldLabel(IC.card, "Tipo de cuenta")}<select name="bankAccountType">${accountTypeOpts}</select></label>
-        <label>${fieldLabel(IC.hash, "Número de cuenta")}<input name="bankAccount" required placeholder="Ej: 1234567890" /></label>
+        <label>${fieldLabel(IC.bank, "Banco", { required: true })}<select name="bankName" required>${banksOpts}</select></label>
+        <label>${fieldLabel(IC.card, "Tipo de cuenta", { required: true })}<select name="bankAccountType" required>${accountTypeOpts}</select></label>
+        <label>${fieldLabel(IC.hash, "Número de cuenta", { required: true })}<input name="bankAccount" required placeholder="Ej: 1234567890" /></label>
       </div>
     </fieldset>
       </div>
 
       <div class="hr-form-step hidden" data-step-index="5">
-    <fieldset class="form-section form-section-rose full hr-conductor-fields" id="hr-conductor-fields">
-      <legend>${IC.truck} Si el cargo es CONDUCTOR (datos adicionales)</legend>
+    <p class="muted hr-conductor-skip-note" id="hr-conductor-skip-note">Elija el cargo en el paso Contrato. Si es conductor, aquí se pedirán licencia, categoría y fecha de expedición.</p>
+    <fieldset class="form-section form-section-rose full hr-conductor-fields hidden" id="hr-conductor-fields" hidden>
+      <legend>${IC.truck} Datos de conductor</legend>
       <div class="form-section-grid">
-        <label>${fieldLabel(IC.file, "N° licencia de conducción")}<input name="license" placeholder="Ej: 12C34567890" /></label>
-        <label>${fieldLabel(IC.activity, "Categoría licencia")}<select name="licenseCategory">${licenseCategoryOptions}</select></label>
-        <label>${fieldLabel(IC.calendar, "Expedición / renovación licencia")}<input type="date" name="licenseIssueDate" /></label>
+        <label>${fieldLabel(IC.file, "N° licencia de conducción", { required: true })}<input name="license" required placeholder="Ej: 12C34567890" /></label>
+        <label>${fieldLabel(IC.activity, "Categoría licencia", { required: true })}<select name="licenseCategory" required>${licenseCategoryOptions}</select></label>
+        <label>${fieldLabel(IC.calendar, "Expedición / renovación licencia", { required: true })}<input type="date" name="licenseIssueDate" required /></label>
         <label>${fieldLabel(IC.calendar, "Examen instruvial")}<input type="date" name="instruvialExamDate" /></label>
         <p class="full muted" style="grid-column:1/-1;font-size:0.82rem;margin:0">Licencia: vigencia automática desde expedición (C: 3 años, 1 año desde los 60; A/B: 10 años, 5 desde los 60 y 1 después de 80). Examen instruvial: +2 años. El examen médico ocupacional periódico (+1 año) se registra en el paso «Laboral» (aplica a todos los cargos).</p>
         <label>${fieldLabel(IC.alertTriangle, "Comparendos pendientes (SIMIT)")}<input type="number" name="comparendos" min="0" max="9999" value="0" /></label>
@@ -598,6 +610,9 @@ function payrollHtml() {
         <button type="button" class="btn btn-primary payroll-bulk-generate-btn" id="payroll-bulk-generate">${IC.dollar}<span>Generar liquidaciones</span></button>
       </div>
     </form>`;
+  const hrdfRecargoPct = Math.round(
+    (Number(typeof CO_OVERTIME_RATES !== "undefined" ? CO_OVERTIME_RATES?.hrdf : 0.9) || 0.9) * 100
+  );
   const formPay = `<form id="form-payroll" novalidate class="p-form p-form-colored hr-form-flow payroll-liquidation-create-form payroll-single-form payroll-liquidation-pane${payrollLiquidationMode === "single" ? "" : " hidden"}" data-payroll-liquidation-pane="single" role="tabpanel" aria-hidden="${payrollLiquidationMode === "single" ? "false" : "true"}">
     <div class="payroll-liq-form__body">
       <section class="payroll-liq-section payroll-liq-section--period">
@@ -718,8 +733,8 @@ function payrollHtml() {
             </label>
             <label class="payroll-overtime-field" data-payroll-nomina-only="1">
               <span class="payroll-overtime-field__badge payroll-overtime-field__badge--hrdf">HRDF</span>
-              <span class="payroll-overtime-field__meta">Dom./festivo · +100%</span>
-              <input type="number" name="hrdfHours" value="0" min="0" step="0.5" title="Hora recargo dominical o festivo (+100%)" aria-label="HRDF horas" />
+              <span class="payroll-overtime-field__meta">Dom./festivo · +${hrdfRecargoPct}%</span>
+              <input type="number" name="hrdfHours" value="0" min="0" step="0.5" title="Hora recargo dominical o festivo (+${hrdfRecargoPct}%)" aria-label="HRDF horas" />
             </label>
             <label class="payroll-overtime-field" data-payroll-nomina-only="1">
               <span class="payroll-overtime-field__badge payroll-overtime-field__badge--hrnf">HRNF</span>
@@ -746,7 +761,7 @@ function payrollHtml() {
               <label>${fieldLabel(IC.award, "Bonificaciones (COP)")}<input type="number" name="bonus" value="0" min="0" /></label>
             </div>
             <div class="payroll-liq-field" data-payroll-nomina-only="1">
-              <label>${fieldLabel(IC.user, "Dependientes retención", { help: "Procedimiento 1: 32 UVT por dependiente." })}<input type="number" name="withholdingDependents" value="0" min="0" max="10" step="1" /></label>
+              <label>${fieldLabel(IC.user, "Dependientes retención", { help: "Procedimiento 1 (Art. 383 ET): si hay dependientes, se deduce el 10% del ingreso con tope de 32 UVT (no se multiplica por cada dependiente)." })}<input type="number" name="withholdingDependents" value="0" min="0" max="10" step="1" /></label>
             </div>
           </div>
           <p class="payroll-liq-footnote muted" data-payroll-nomina-only="1">Horas extras según CST (orientativo). IBC con salario integral al 70%. Solidaridad y subsistencia por tramos SMMLV.</p>
@@ -766,8 +781,8 @@ function payrollHtml() {
         No genera salario ni aportes de nómina. Los datos se guardan en <code>liquidaciones_nomina</code> con tipo <strong>prestacion_viajes</strong>.
       </p>
       <div class="form-section-grid">
-        ${conductorEmployees.length ? `<label>${fieldLabel(IC.user, "Conductor")}<select name="employeeId" required><option value="">Seleccione conductor</option>${conductorTripPayOpts}</select></label>` : `<p class="full payroll-single-empty muted">No hay conductores en prestación de servicios en el directorio.</p><input type="hidden" name="employeeId" value="" />`}
-        <label>${fieldLabel(IC.calendar, "Mes de servicio")}<input type="month" name="month" required /></label>
+        ${conductorEmployees.length ? `<label>${fieldLabel(IC.user, "Conductor", { required: true })}<select name="employeeId" required><option value="">Seleccione conductor</option>${conductorTripPayOpts}</select></label>` : `<p class="full payroll-single-empty muted">No hay conductores en prestación de servicios en el directorio.</p><input type="hidden" name="employeeId" value="" />`}
+        <label>${fieldLabel(IC.calendar, "Mes de servicio", { required: true })}<input type="month" name="month" required /></label>
         <label>${fieldLabel(IC.dollar, "Viáticos manuales (COP)")}<input type="number" name="travelAllowanceManual" value="0" min="0" /></label>
         <label>${fieldLabel(IC.dollar, "Reembolso combustible manual (COP)")}<input type="number" name="fuelReimbursementManual" value="0" min="0" /></label>
         <p class="full muted" style="margin:0;font-size:0.82rem">Tarifa interdepartamental vigente: <strong>$${parseNum(rules.interDepartmentTripAmount).toLocaleString("es-CO")}</strong> por viaje (tabla <code>reglas_viatico_interdepartamental</code>).</p>
@@ -857,7 +872,7 @@ function payrollHtml() {
             <label>${fieldLabel(IC.dollar, "Bonificaciones pendientes (COP)")}<input type="number" name="pendingBonusCop" min="0" value="0" /></label>
           </div>
           <div class="payroll-liq-field">
-            <label>${fieldLabel(IC.user, "Dependientes para retención", { help: "Procedimiento 1: 32 UVT por dependiente (Art. 383 ET)." })}<input type="number" name="withholdingDependents" min="0" max="10" value="0" /></label>
+            <label>${fieldLabel(IC.user, "Dependientes para retención", { help: "Procedimiento 1 (Art. 383 ET): si hay dependientes, se deduce el 10% del ingreso con tope de 32 UVT (no se multiplica por cada dependiente)." })}<input type="number" name="withholdingDependents" min="0" max="10" value="0" /></label>
           </div>
           <div class="payroll-liq-field">
             <label>${fieldLabel(IC.dollar, "Indemnización pactada (COP)", { help: "Solo si la causal requiere monto manual. El sistema calcula la legal automáticamente." })}<input type="number" name="indemnization" min="0" value="0" /></label>
@@ -956,7 +971,7 @@ function payrollHtml() {
       </div>
       <label class="hr-absence-check">
         <input type="checkbox" name="periodicAbsence" value="1" />
-        <span>${fieldLabel(IC.rotateCcw, "Ausencia periódica")}</span>
+        <span>${fieldLabel(IC.rotateCcw, "Ausencia periódica", { help: "Marca la novedad como recurrente en el expediente. No genera repeticiones automáticas." })}</span>
       </label>
       <section class="hr-absence-team-panel" aria-labelledby="hr-absence-team-title">
         <h4 id="hr-absence-team-title" class="hr-absence-team-panel__title">${fieldLabel(IC.users, "Ausencias de equipo")}</h4>

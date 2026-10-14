@@ -32,6 +32,7 @@ import {
   normalizeSarlaftProgramFilter,
   normalizeTransportTripsSection,
   normalizeTransportTripsWorkspace,
+  isVehicleDataSection,
   normalizeVehicleSection,
   normalizeVehicleWorkspace,
   resolveTransportTripsSection,
@@ -65,7 +66,7 @@ export let state = {
   /** Historial: pestaña activa (explore | fleet | audit), subpestaña flota (fuel | technical) y filtro rápido. */
   historyUi: { layout: "list", actionFilter: "all", moduleFilter: "" },
   /** Reportería: exportar (PDF/CSV) o panel BI con gráficas. */
-  reportsUi: { tab: "export", period: "90d", layout: null },
+  reportsUi: { tab: "export", period: "all", layout: null },
   reportsChartInstances: [],
   reportPreviewPayload: null,
   /** PostgreSQL preferencias_notificacion_usuario (bootstrap + POST /portal/notification-preferences). */
@@ -117,7 +118,32 @@ export let state = {
     /** Búsqueda en la pestaña Flota (placa, marca, VIN, etc.). */
     fleetSearch: "",
     /** `cards` | `list` — vista de la flota en Camiones. */
-    fleetLayout: "cards"
+    fleetLayout: "cards",
+    /** `all` | `available` | `busy` | `scheduled` | `offline` */
+    statusFilter: "all",
+    /** `all` | `camion` | `turbo` | `tractomula` | `bus` | `other` */
+    typeFilter: "all",
+    /** `all` | `ok` | `soon` | `expired` | `missing` — vigencia SOAT de la ficha */
+    soatFilter: "all",
+    /** `all` | `ok` | `soon` | `expired` | `missing` — vigencia de tecnomecánica */
+    techFilter: "all",
+    /** `all` | `termoking` | `dry` */
+    equipFilter: "all",
+    /** `all` | `on` | `off` — GPS activo o inactivo en la ficha */
+    gpsFilter: "all"
+  },
+  /** Consulta SIMIT-FCM (datos.gov.co) de comparendos por placa. No se persiste. */
+  vehiclesSimit: {
+    status: "idle",
+    platesKey: "",
+    pendingOnly: true,
+    fetchedAt: null,
+    error: null,
+    rows: [],
+    truncated: false,
+    query: "",
+    /** `all` | `pending` | `clean` — filtra la tabla ya consultada */
+    resultFilter: "all"
   },
   /** Transporte · Conductores: búsqueda, vista y filtros del listado. */
   driversUi: {
@@ -179,6 +205,15 @@ export let state = {
     dataSection: "employees",
     operateSection: "employee",
     employeesView: "cards",
+    employeesPage: 1,
+    employeesPageSize: (() => {
+      try {
+        const n = Number(localStorage.getItem("antares_hr_payroll_employees_page_size_v1"));
+        return [5, 10, 20, 50].includes(n) ? n : 10;
+      } catch (_err) {
+        return 10;
+      }
+    })(),
     runsView: "cards"
   },
   payrollLegalUi: {
@@ -213,7 +248,14 @@ export let state = {
     listSearch: "",
     listPage: 1,
     pageSize: 10,
-    selectedPartyId: ""
+    selectedPartyId: "",
+    consultRisk: "",
+    consultKyc: "",
+    consultCompleteness: "",
+    consultAlertStatus: "",
+    consultSeverity: "",
+    consultOverdue: false,
+    consultReviewStatus: ""
   },
   /**
    * Gestión documental: sección del rail, vista, orden, filtros y selección.
@@ -399,7 +441,14 @@ export function hydrateHrWorkspaceFromStorage() {
           operateSection: normalizeSarlaftOperateSection(parsed.operateSection),
           dataSection: normalizeSarlaftDataSection(parsed.dataSection),
           programFilter: normalizeSarlaftProgramFilter(parsed.programFilter),
-          listSearch: String(parsed.listSearch || "")
+          listSearch: String(parsed.listSearch || ""),
+          consultRisk: String(parsed.consultRisk || ""),
+          consultKyc: String(parsed.consultKyc || ""),
+          consultCompleteness: String(parsed.consultCompleteness || ""),
+          consultAlertStatus: String(parsed.consultAlertStatus || ""),
+          consultSeverity: String(parsed.consultSeverity || ""),
+          consultOverdue: parsed.consultOverdue === true || parsed.consultOverdue === "true",
+          consultReviewStatus: String(parsed.consultReviewStatus || "")
         };
       } else {
         const ws = normalizeHrWorkspace("sarlaft", sf);
@@ -497,8 +546,8 @@ export function persistHrWorkspace(moduleId, workspace) {
       if (HR_VALID_TRANSPORT_VEHICLES_WS.has(ws)) ui.workspace = ws;
       const workspace = normalizeVehicleWorkspace(ui.workspace);
       let section = resolveVehicleSection(ui);
-      if (workspace === "data") section = "fleet";
-      else if (section === "fleet") section = "create";
+      if (workspace === "data") section = isVehicleDataSection(section) ? section : "fleet";
+      else if (isVehicleDataSection(section)) section = "create";
       ui.workspace = workspace;
       ui.section = section;
       state.vehiclesUi = ui;
@@ -550,7 +599,14 @@ export function persistHrWorkspace(moduleId, workspace) {
           operateSection: normalizeSarlaftOperateSection(ui.operateSection),
           dataSection: normalizeSarlaftDataSection(ui.dataSection),
           programFilter: normalizeSarlaftProgramFilter(ui.programFilter),
-          listSearch: String(ui.listSearch || "")
+          listSearch: String(ui.listSearch || ""),
+          consultRisk: String(ui.consultRisk || ""),
+          consultKyc: String(ui.consultKyc || ""),
+          consultCompleteness: String(ui.consultCompleteness || ""),
+          consultAlertStatus: String(ui.consultAlertStatus || ""),
+          consultSeverity: String(ui.consultSeverity || ""),
+          consultOverdue: ui.consultOverdue === true || ui.consultOverdue === "true",
+          consultReviewStatus: String(ui.consultReviewStatus || "")
         })
       );
     } else if (moduleId === "documents") {

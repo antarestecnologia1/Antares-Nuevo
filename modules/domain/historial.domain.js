@@ -649,7 +649,7 @@ export function historyFleetFuelFormHtml(todayIsoDate, vehicleOptions, driverOpt
         <label>${fieldLabel(ic().activity, "Litros", { required: true })}<input type="number" step="0.01" min="0.01" name="liters" required data-fuel-liters-input="1" /></label>
         ${historyFleetMoneyField("totalCost", "Valor total (COP)", { required: true })}
         <label>${fieldLabel(ic().clock, "Odómetro (km)")}<input type="number" min="0" name="odometerKm" inputmode="numeric" /></label>
-        <label>${fieldLabel(ic().mapPin, "Estación / EDS")}<input name="station" placeholder="EDS Roscombustible…" autocomplete="off" /></label>
+        <label>${fieldLabel(ic().mapPin, "Estación / EDS")}<input name="station" placeholder="Ej.: Terpel, Primax, Biomax" autocomplete="off" /></label>
         <label>${fieldLabel(ic().briefcase, "Pagado por")}
           <select name="paidBy">
             <option value="empresa">Empresa</option>

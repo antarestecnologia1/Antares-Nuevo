@@ -14,7 +14,7 @@ import {
 } from "../core/config.js";
 import { read, write } from "../core/data-io.js";
 import { state } from "../core/store.js";
-import { nowIso, devWarn } from "../core/utils.js";
+import { nowIso, devWarn, isUuidString } from "../core/utils.js";
 import { currentUser, getSession, isAdminActor, hasPermission } from "../core/auth.js";
 import {
   applyPortalBootstrapFromApi,
@@ -129,8 +129,24 @@ function __notificationAlreadySurfacedToUser(n) {
  * Ventana «en vivo» del poll: evita re-toastear historial.
  * Si el servidor va adelantado (age < 0), igual contamos como fresca para no silenciar timbre/toast.
  */
-function __inboxNotificationIsFreshForPoll(n, nowMs, windowMs) {
+export const INBOX_FRESH_TOAST_WINDOW_MS = 30_000;
+
+function __inboxNotificationIsFreshForPoll(n, nowMs, windowMs = INBOX_FRESH_TOAST_WINDOW_MS) {
   return __notificationPollAgeMs(n, nowMs) < windowMs;
+}
+
+/**
+ * IDs que ya no deben disparar toast/timbre al hidratar bootstrap
+ * (historial o sin fecha fiable). Las frescas siguen pudiendo avisarse en el poll.
+ */
+export function collectStaleNotificationIdsForToastSuppress(list, nowMs = Date.now()) {
+  return (Array.isArray(list) ? list : [])
+    .filter((n) => {
+      const id = String(n?.id || "").trim();
+      if (!id) return false;
+      return !__inboxNotificationIsFreshForPoll(n, nowMs, INBOX_FRESH_TOAST_WINDOW_MS);
+    })
+    .map((n) => String(n.id).trim());
 }
 
 export function ensureInboxNotificationAudioUnlocked() {
@@ -184,10 +200,14 @@ export function isInboxNotificationSoundEnabled() {
   return n.sonidoNotificacionesHabilitadas !== false;
 }
 
+function __portalNotificationsApiReady() {
+  const api = window.AntaresApi;
+  return Boolean(api?.getBase?.() && typeof api.postJson === "function" && api?.isConfigured?.());
+}
+
 export async function persistNotificationPreferencesToApi(partial) {
   const api = window.AntaresApi;
-  if (!api?.getBase?.() || typeof api.postJson !== "function") return null;
-  if (!api?.isConfigured?.()) return null;
+  if (!__portalNotificationsApiReady()) return { ok: true, skipped: true };
   const body = {};
   if (partial.notificacionesHabilitadas !== undefined) {
     body.notificacionesHabilitadas = Boolean(partial.notificacionesHabilitadas);
@@ -195,7 +215,7 @@ export async function persistNotificationPreferencesToApi(partial) {
   if (partial.sonidoNotificacionesHabilitadas !== undefined) {
     body.sonidoNotificacionesHabilitadas = Boolean(partial.sonidoNotificacionesHabilitadas);
   }
-  if (!Object.keys(body).length) return null;
+  if (!Object.keys(body).length) return { ok: true, skipped: true };
   try {
     const res = await api.postJson("/portal/notification-preferences", body);
     if (res && typeof res === "object") {
@@ -210,20 +230,29 @@ export async function persistNotificationPreferencesToApi(partial) {
   }
 }
 
-export function setNotificationsEnabled(enabled) {
-  const on = Boolean(enabled);
+function __applyNotificationPrefsOptimistic(patch) {
   state.notificationPreferences = {
     ...getNotificationPreferencesNormalized(),
-    notificacionesHabilitadas: on,
-    sonidoNotificacionesHabilitadas: on,
+    ...patch,
     updatedAt: nowIso()
   };
+}
+
+function __persistNotificationPrefsOrRevert(prev, partial) {
+  void persistNotificationPreferencesToApi(partial).then((res) => {
+    if (res != null) return;
+    state.notificationPreferences = prev;
+    syncNotificationPrefsSidebarUi();
+  });
+}
+
+export function setNotificationsEnabled(enabled) {
+  const on = Boolean(enabled);
+  const prev = getNotificationPreferencesNormalized();
+  __applyNotificationPrefsOptimistic({ notificacionesHabilitadas: on });
   syncNotificationPrefsSidebarUi();
   if (on) primeInboxNotificationAudioFromUserGesture();
-  void persistNotificationPreferencesToApi({
-    notificacionesHabilitadas: on,
-    sonidoNotificacionesHabilitadas: on
-  });
+  __persistNotificationPrefsOrRevert(prev, { notificacionesHabilitadas: on });
 }
 
 export function isNotificationsEnabled() {
@@ -235,13 +264,13 @@ export function toggleNotificationsEnabled() {
   setNotificationsEnabled(next);
   globalThis.logPortalAuditEvent?.("bell", "update", {
     entityId: String(globalThis.currentUser?.()?.id || "prefs"),
-    entityLabel: "Timbre",
-    summary: next ? "Notificaciones activadas (timbre y avisos)" : "Notificaciones desactivadas"
+    entityLabel: "Avisos",
+    summary: next ? "Avisos emergentes activados" : "Avisos emergentes desactivados"
   });
   window.notify(
     next
-      ? "Notificaciones activadas: avisos y timbre."
-      : "Notificaciones desactivadas. La bandeja sigue disponible.",
+      ? "Avisos emergentes activados. El timbre sigue la preferencia de la bandeja."
+      : "Avisos emergentes desactivados. La bandeja sigue disponible.",
     "info",
     2600
   );
@@ -249,24 +278,18 @@ export function toggleNotificationsEnabled() {
 
 export function setNotificationSoundMuted(muted) {
   const sonidoOn = !muted;
-  state.notificationPreferences = {
-    ...getNotificationPreferencesNormalized(),
-    sonidoNotificacionesHabilitadas: sonidoOn,
-    updatedAt: nowIso()
-  };
+  const prev = getNotificationPreferencesNormalized();
+  __applyNotificationPrefsOptimistic({ sonidoNotificacionesHabilitadas: sonidoOn });
   syncNotificationPrefsSidebarUi();
   if (sonidoOn) primeInboxNotificationAudioFromUserGesture();
-  void persistNotificationPreferencesToApi({ sonidoNotificacionesHabilitadas: sonidoOn });
+  __persistNotificationPrefsOrRevert(prev, { sonidoNotificacionesHabilitadas: sonidoOn });
 }
 
 export function setNotificationAlertsEnabled(enabled) {
-  state.notificationPreferences = {
-    ...getNotificationPreferencesNormalized(),
-    notificacionesHabilitadas: Boolean(enabled),
-    updatedAt: nowIso()
-  };
+  const prev = getNotificationPreferencesNormalized();
+  __applyNotificationPrefsOptimistic({ notificacionesHabilitadas: Boolean(enabled) });
   syncNotificationPrefsSidebarUi();
-  void persistNotificationPreferencesToApi({ notificacionesHabilitadas: Boolean(enabled) });
+  __persistNotificationPrefsOrRevert(prev, { notificacionesHabilitadas: Boolean(enabled) });
 }
 
 export function toggleNotificationSoundMuted() {
@@ -653,8 +676,11 @@ export async function deleteNotificationsFromServer(ids) {
   const idsToDelete = targetIds.length ? targetIds : normalized;
 
   const api = window.AntaresApi;
-  if (!api?.postJson || !portalCanRefreshFromApi()) {
-    throw new Error("Sesión sin autenticación API. Vuelva a iniciar sesión para guardar en el servidor.");
+  const persistableIds = idsToDelete.filter((id) => isUuidString(id));
+  if (!api?.postJson || !portalCanRefreshFromApi() || !persistableIds.length) {
+    __markPendingDeletion(idsToDelete);
+    __removeNotificationsFromSessionCache(idsToDelete);
+    return { ok: true, deleted: idsToDelete.length, skipped: true };
   }
 
   __markPendingDeletion(idsToDelete);
@@ -662,7 +688,7 @@ export async function deleteNotificationsFromServer(ids) {
 
   __cancelNotificationsSyncSchedule();
   try {
-    const res = await api.postJson("/portal/notifications/delete", { ids: idsToDelete });
+    const res = await api.postJson("/portal/notifications/delete", { ids: persistableIds });
     await refreshNotificationsFromServer();
     __lastNotificationsLightRefreshWallMs = Date.now();
     syncNotificationsInboxRenderSignature();
@@ -747,6 +773,7 @@ export async function persistNotificationsReadState(ids) {
   const targetIds = __expandNotificationReadTargetIds(normalized, list);
   if (!targetIds.length) return true;
 
+  const snapshot = list;
   const ts = nowIso();
   write(
     KEYS.notifications,
@@ -757,19 +784,15 @@ export async function persistNotificationsReadState(ids) {
   );
 
   const api = window.AntaresApi;
-  if (!api?.postJson || !portalCanRefreshFromApi()) {
-    if (typeof window.notify === "function") {
-      window.notify(
-        "Sesión sin autenticación API. Vuelva a iniciar sesión para guardar en el servidor.",
-        "error"
-      );
-    }
-    return false;
+  const persistableIds = targetIds.filter((id) => isUuidString(id));
+  if (!api?.postJson || !portalCanRefreshFromApi() || !persistableIds.length) {
+    refreshNotificationsUiAfterReadMutation();
+    return true;
   }
 
   try {
     __cancelNotificationsSyncSchedule();
-    const res = await api.postJson("/portal/notifications/mark-read", { ids: targetIds });
+    const res = await api.postJson("/portal/notifications/mark-read", { ids: persistableIds });
     const readAt = String(res?.readAt || ts).trim() || ts;
     const merged = read(KEYS.notifications, []);
     write(
@@ -785,6 +808,8 @@ export async function persistNotificationsReadState(ids) {
     refreshNotificationsUiAfterReadMutation();
     return true;
   } catch (err) {
+    write(KEYS.notifications, snapshot, { skipSyncSchedule: true });
+    refreshNotificationsUiAfterReadMutation();
     if (typeof window.notify === "function") {
       window.notify(
         String(err?.message || "No fue posible guardar las notificaciones leídas en el servidor."),
@@ -962,19 +987,18 @@ function __tickNotificationsPoll() {
    * el usuario nunca leyó la campana — siguen visibles en la bandeja, pero no se
    * vuelven a "tirar a la cara" cada vez que entra a un módulo.
    */
-  const FRESH_TOAST_WINDOW_MS = 30_000;
   for (const n of selfNew) {
     const ageMs = __notificationPollAgeMs(n, now);
     const skipDuplicateExplicitSuccess = suppressUntil > now && ageMs < 6500;
     if (skipDuplicateExplicitSuccess) continue;
-    if (!__inboxNotificationIsFreshForPoll(n, now, FRESH_TOAST_WINDOW_MS)) continue;
+    if (!__inboxNotificationIsFreshForPoll(n, now, INBOX_FRESH_TOAST_WINDOW_MS)) continue;
     toSound = true;
     toToast.push(n);
   }
   if (toSound) playInboxNotificationSound();
   if (toToast.length && isInAppNotificationAlertsEnabled()) {
     toToast.forEach((n) => {
-      if (typeof notify === "function") {
+      if (typeof window.notify === "function") {
         const message = `${n.title}${n.body ? " — " + sanitizeNotificationBodyForDisplay(n.body) : ""}`;
         window.notify(message, "info");
       }
@@ -1170,6 +1194,9 @@ export function bindNotificationSidebarPrefs() {
       if (which === "master") toggleNotificationsEnabled();
       syncNotificationPrefsSidebarUi();
       if (typeof window.updateNotificationBadge === "function") window.updateNotificationBadge();
+      if (state.currentView === "notifications" && typeof window.renderPortalView === "function") {
+        window.renderPortalView();
+      }
     });
   });
 }

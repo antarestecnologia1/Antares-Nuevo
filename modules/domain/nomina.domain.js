@@ -882,18 +882,23 @@ export function buildPayrollMensualDevengosLines({
     }
   ];
   const otLines = Array.isArray(overtimeLines) ? overtimeLines : [];
-  if (otLines.length) {
-    otLines.forEach((line) => {
-      const amt = Math.round(parseNum(line.amount));
-      if (amt <= 0) return;
-      lines.push({
-        code: String(line.code || "EXTRA"),
-        label: String(line.label || "Horas extras / recargos"),
-        amount: amt
-      });
+  otLines.forEach((line) => {
+    const amt = Math.round(parseNum(line.amount));
+    if (amt <= 0) return;
+    lines.push({
+      code: String(line.code || "EXTRA"),
+      label: String(line.label || "Horas extras / recargos"),
+      amount: amt
     });
-  } else if (ex > 0) {
-    lines.push({ code: "EXTRAS", label: "Horas extras, dominicales o recargos nocturnos", amount: ex });
+  });
+  if (ex > 0) {
+    lines.push({
+      code: "EXTRAS",
+      label: otLines.length
+        ? "Otros extras gravables"
+        : "Horas extras, dominicales o recargos nocturnos",
+      amount: ex
+    });
   }
   if (bo > 0) lines.push({ code: "BONIFICACIONES", label: "Bonificaciones y pagos ocasionales gravables", amount: bo });
   if (via > 0) lines.push({ code: "VIATICOS", label: "Viáticos y anticipos de viaje (reintegro)", amount: via });

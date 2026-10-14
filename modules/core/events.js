@@ -276,22 +276,217 @@ function installDriverCardActionsDelegation() {
     }
   });
 }
+function moduleUniversalFilterProfile(moduleView) {
+  const profiles = {
+    requests: {
+      label: "Solicitudes",
+      searchLabel: "Buscar solicitud",
+      searchPlaceholder: "Número, cliente, ruta o conductor…",
+      columnLabel: "Columna de la solicitud",
+      valuePlaceholder: "Valor en la columna…",
+      statusLabel: "Estado de la solicitud",
+      dateFromLabel: "Recogida desde",
+      dateToLabel: "Recogida hasta",
+      native: true
+    },
+    "transport-trips": {
+      label: "Viajes",
+      searchLabel: "Buscar viaje",
+      searchPlaceholder: "Cliente, ruta, placa o conductor…",
+      columnLabel: "Columna del viaje",
+      valuePlaceholder: "Valor en la columna…",
+      statusLabel: "Estado del viaje",
+      dateFromLabel: "Recogida desde",
+      dateToLabel: "Recogida hasta",
+      native: true
+    },
+    "transport-vehicles": {
+      label: "Flota",
+      searchLabel: "Buscar vehículo",
+      searchPlaceholder: "Placa, marca, modelo, SOAT…",
+      columnLabel: "Columna del vehículo",
+      valuePlaceholder: "Valor en la columna…",
+      statusLabel: "Disponibilidad",
+      dateFromLabel: "Vigencia desde",
+      dateToLabel: "Vigencia hasta",
+      native: true
+    },
+    "transport-drivers": {
+      label: "Conductores",
+      searchLabel: "Buscar conductor",
+      searchPlaceholder: "Nombre, documento, teléfono o empresa…",
+      columnLabel: "Columna del conductor",
+      valuePlaceholder: "Valor en la columna…",
+      statusLabel: "Disponibilidad",
+      dateFromLabel: "Vigencia desde",
+      dateToLabel: "Vigencia hasta",
+      native: true
+    },
+    "transport-calendar": {
+      label: "Calendario",
+      searchLabel: "Buscar en el día",
+      searchPlaceholder: "Conductor, placa o cliente…",
+      columnLabel: "Campo",
+      valuePlaceholder: "Valor…",
+      statusLabel: "Estado",
+      dateFromLabel: "Desde",
+      dateToLabel: "Hasta",
+      native: true
+    },
+    history: {
+      label: "Historial",
+      searchLabel: "Buscar en trazabilidad",
+      searchPlaceholder: "Módulo, entidad, resumen o usuario…",
+      columnLabel: "Columna del evento",
+      valuePlaceholder: "Valor en la columna…",
+      statusLabel: "Tipo de movimiento",
+      dateFromLabel: "Desde",
+      dateToLabel: "Hasta",
+      native: true
+    },
+    reports: {
+      label: "Reportería",
+      searchLabel: "Buscar reporte",
+      searchPlaceholder: "Nombre del reporte o grupo…",
+      columnLabel: "Campo",
+      valuePlaceholder: "Valor…",
+      statusLabel: "Grupo",
+      dateFromLabel: "Periodo desde",
+      dateToLabel: "Periodo hasta",
+      native: true
+    },
+    payroll: {
+      label: "Gestión humana",
+      searchLabel: "Buscar colaborador o liquidación",
+      searchPlaceholder: "Nombre, documento, cargo o periodo…",
+      columnLabel: "Columna",
+      valuePlaceholder: "Valor en la columna…",
+      statusLabel: "Estado de pago",
+      dateFromLabel: "Periodo desde",
+      dateToLabel: "Periodo hasta",
+      native: true
+    },
+    hiring: {
+      label: "Contratación",
+      searchLabel: "Buscar en selección",
+      searchPlaceholder: "Candidato, vacante, cargo o documento…",
+      columnLabel: "Columna",
+      valuePlaceholder: "Valor en la columna…",
+      statusLabel: "Etapa del pipeline",
+      dateFromLabel: "Desde",
+      dateToLabel: "Hasta",
+      native: true
+    },
+    "labor-compliance": {
+      label: "Cumplimiento laboral",
+      searchLabel: "Buscar control",
+      searchPlaceholder: "Empleado, control o entidad…",
+      columnLabel: "Columna",
+      valuePlaceholder: "Valor en la columna…",
+      statusLabel: "Estado del control",
+      dateFromLabel: "Vence desde",
+      dateToLabel: "Vence hasta",
+      native: true
+    },
+    "admin-users": {
+      label: "Usuarios",
+      searchLabel: "Buscar usuario",
+      searchPlaceholder: "Nombre, correo o rol…",
+      columnLabel: "Columna",
+      valuePlaceholder: "Valor en la columna…",
+      statusLabel: "Estado",
+      dateFromLabel: "Desde",
+      dateToLabel: "Hasta",
+      native: true
+    },
+    authorizations: {
+      label: "Centro de aprobaciones",
+      searchLabel: "Buscar autorización",
+      searchPlaceholder: "Solicitante, tipo o estado…",
+      columnLabel: "Columna",
+      valuePlaceholder: "Valor en la columna…",
+      statusLabel: "Estado",
+      dateFromLabel: "Desde",
+      dateToLabel: "Hasta",
+      native: true
+    },
+    notifications: {
+      label: "Notificaciones",
+      searchLabel: "Buscar notificación",
+      searchPlaceholder: "Título, módulo o mensaje…",
+      columnLabel: "Columna",
+      valuePlaceholder: "Valor en la columna…",
+      statusLabel: "Estado de lectura",
+      dateFromLabel: "Desde",
+      dateToLabel: "Hasta",
+      native: true
+    },
+    "document-management": {
+      label: "Gestión documental",
+      searchLabel: "Buscar documento",
+      searchPlaceholder: "Nombre, código o responsable…",
+      columnLabel: "Columna",
+      valuePlaceholder: "Valor en la columna…",
+      statusLabel: "Estado de vigencia",
+      dateFromLabel: "Vigencia desde",
+      dateToLabel: "Vigencia hasta",
+      native: true
+    },
+    "sarlaft-pte": {
+      label: "SARLAFT / PTE",
+      searchLabel: "Buscar tercero",
+      searchPlaceholder: "Nombre, NIT o perfil de riesgo…",
+      columnLabel: "Columna",
+      valuePlaceholder: "Valor en la columna…",
+      statusLabel: "Estado",
+      dateFromLabel: "Desde",
+      dateToLabel: "Hasta",
+      native: true
+    },
+    profile: {
+      label: "Mi perfil",
+      native: true
+    },
+    "contact-leads": {
+      label: "Leads de contacto",
+      searchLabel: "Buscar lead",
+      searchPlaceholder: "Nombre, correo o empresa…",
+      columnLabel: "Columna",
+      valuePlaceholder: "Valor en la columna…",
+      statusLabel: "Estado",
+      dateFromLabel: "Desde",
+      dateToLabel: "Hasta",
+      native: true
+    }
+  };
+  return (
+    profiles[moduleView] || {
+      label: "Módulo",
+      searchLabel: "Búsqueda general",
+      searchPlaceholder: "Buscar en este módulo…",
+      columnLabel: "Campo",
+      valuePlaceholder: "Valor del campo seleccionado…",
+      statusLabel: "Estado",
+      dateFromLabel: "Fecha desde",
+      dateToLabel: "Fecha hasta",
+      native: false
+    }
+  );
+}
+
 function mountUniversalModuleFilters() {
   if (!nodes.viewRoot) return;
   const moduleView = String(state.currentView || "");
-  const cardFirstViews = new Set([
-    "profile",
-    "payroll",
-    "hiring",
-    "labor-compliance",
-    "admin-users",
-    "authorizations",
-    "contact-leads",
-    "notifications",
-    "document-management",
-    "sarlaft-pte"
-  ]);
-  if (cardFirstViews.has(moduleView)) return;
+  const profile = moduleUniversalFilterProfile(moduleView);
+  /* Los módulos con barra propia (Solicitudes, Viajes, Contratación, etc.) ya filtran sus datos. */
+  if (profile.native) return;
+  if (
+    nodes.viewRoot.querySelector(
+      ".ops-filters-bar, .requests-data-filters, .transport-data-filters, .hist-trace-filter-form, .vehicle-fleet-toolbar, .ag-fleet__row--filters, .payroll-contracts-filterbar, .hiring-selection-toolbar, .hiring-browse__filters, .reports-export-filters, .module-filters"
+    )
+  ) {
+    return;
+  }
   const tableBodies = [...nodes.viewRoot.querySelectorAll(".table-wrap table tbody")];
   const tableRows = tableBodies.flatMap((tbody) => [...tbody.querySelectorAll("tr")]);
   const cards = [...nodes.viewRoot.querySelectorAll(".user-card, .careers-card")];
@@ -299,21 +494,7 @@ function mountUniversalModuleFilters() {
 
   const firstTable = nodes.viewRoot.querySelector(".table-wrap table");
   const headers = firstTable ? [...firstTable.querySelectorAll("thead th")].map((th) => String(th.textContent || "").trim()) : [];
-  const moduleLabels = {
-    requests: "Solicitudes",
-    "transport-trips": "Viajes",
-    "transport-vehicles": "Flota",
-    "transport-drivers": "Conductores",
-    "transport-calendar": "Calendario",
-    history: "Historial",
-    payroll: "Gestión humana",
-    hiring: "Contratacion",
-    "admin-users": "Usuarios",
-    authorizations: "Centro de aprobaciones",
-    notifications: "Notificaciones",
-    reports: "Reporteria"
-  };
-  const moduleLabel = moduleLabels[moduleView] || "Modulo";
+  const moduleLabel = profile.label || "Módulo";
 
   const toIsoDateSafe = (textValue) => {
     const text = String(textValue || "");
@@ -340,18 +521,19 @@ function mountUniversalModuleFilters() {
 
   const host = document.createElement("section");
   host.className = "module-filters";
+  host.dataset.module = moduleView;
   host.innerHTML = `
     <div class="module-filters-head">
-      <div class="module-filters-title">${IC.filter} Filtros inteligentes · ${moduleLabel}</div>
+      <div class="module-filters-title">${IC.filter} Filtros · ${moduleLabel}</div>
       <div class="module-filters-count" id="module-filter-count">0 resultados</div>
     </div>
     <div class="module-filters-grid">
       <label class="module-filter-field">
-        <span>Busqueda general</span>
-        <input id="module-filter-text" type="search" placeholder="Ej: cliente, placa, conductor, solicitud..." />
+        <span>${profile.searchLabel || "Búsqueda general"}</span>
+        <input id="module-filter-text" type="search" placeholder="${String(profile.searchPlaceholder || "Buscar…").replace(/"/g, "&quot;")}" />
       </label>
       <label class="module-filter-field">
-        <span>Campo</span>
+        <span>${profile.columnLabel || "Campo"}</span>
         <select id="module-filter-column">
           <option value="">Todos los campos</option>
           ${headers.map((header, idx) => `<option value="${idx}">${header}</option>`).join("")}
@@ -359,21 +541,21 @@ function mountUniversalModuleFilters() {
       </label>
       <label class="module-filter-field">
         <span>Valor exacto/parcial</span>
-        <input id="module-filter-value" type="search" placeholder="Valor del campo seleccionado..." />
+        <input id="module-filter-value" type="search" placeholder="${String(profile.valuePlaceholder || "Valor…").replace(/"/g, "&quot;")}" />
       </label>
       <label class="module-filter-field">
-        <span>Estado</span>
+        <span>${profile.statusLabel || "Estado"}</span>
         <select id="module-filter-status">
           <option value="">Todos</option>
           ${statusValues.map((status) => `<option value="${status.toLowerCase()}">${status}</option>`).join("")}
         </select>
       </label>
       <label class="module-filter-field">
-        <span>Fecha desde</span>
+        <span>${profile.dateFromLabel || "Fecha desde"}</span>
         <input id="module-filter-date-from" type="date" />
       </label>
       <label class="module-filter-field">
-        <span>Fecha hasta</span>
+        <span>${profile.dateToLabel || "Fecha hasta"}</span>
         <input id="module-filter-date-to" type="date" />
       </label>
     </div>
@@ -2672,13 +2854,13 @@ function bindDynamicEvents() {
       const reportId = String(btn.dataset.report || "");
       const format = String(btn.dataset.format || "preview");
       const actor = currentUser();
-      const exportFilters = normalizeReportsExportFilters(state.reportsUi?.exportFilters || { period: state.reportsUi?.period || "90d" });
+      const exportFilters = normalizeReportsExportFilters(state.reportsUi?.exportFilters || { period: state.reportsUi?.period || "all" });
       if (!canAccessReport(actor, reportId)) {
         $portal.notify($portal.userMessage("reportNoPermission"), "error");
         return;
       }
       if (reportId === "payroll_summary" && portalCanRefreshFromApi()) {
-        const pf = normalizeReportsExportFilters(state.reportsUi?.exportFilters || { period: state.reportsUi?.period || "90d" });
+        const pf = normalizeReportsExportFilters(state.reportsUi?.exportFilters || { period: state.reportsUi?.period || "all" });
         const payrollRunsPre = reportsFilterItemsByPeriod(read(KEYS.payrollRuns, []), pf.period, (run) =>
           run.paidAt || run.createdAt || `${run.month || ""}-01`
         );

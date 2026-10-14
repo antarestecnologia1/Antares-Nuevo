@@ -1194,6 +1194,52 @@ function stripAccents(s) {
     .toLowerCase();
 }
 
+/**
+ * Qué procesos y entidades tienen sentido dentro de cada carpeta del DMS.
+ * Una carpeta creada por el usuario, la papelera y “todos los documentos” no se recortan.
+ */
+const DOCUMENT_FOLDER_SCOPES = new Map([
+  [folderKey(EMPLOYEES_ROOT_FOLDER), { processes: ["rrhh", "contratacion", "cumplimiento"], entities: ["empleado", "conductor"] }],
+  [folderKey("02. Contratación"), { processes: ["contratacion", "rrhh"], entities: ["empleado", "contrato"] }],
+  [folderKey("03. SST"), { processes: ["cumplimiento"], entities: ["empleado", "sst"] }],
+  [folderKey("04. Legal"), { processes: ["legal"], entities: ["proceso", "otro"] }],
+  [folderKey("05. Finanzas"), { processes: ["finanzas"], entities: ["empleado", "tercero", "contrato"] }],
+  [folderKey("06. Terceros"), { processes: ["terceros", "sarlaft"], entities: ["tercero"] }],
+  [folderKey("07. Operación"), { processes: ["operacion"], entities: ["vehiculo", "conductor", "operacion"] }],
+  [folderKey("08. SARLAFT"), { processes: ["sarlaft"], entities: ["tercero", "proceso"] }]
+]);
+
+export function companyDocumentFilterScope(folderPath = "") {
+  const path = String(folderPath || "").trim();
+  const open = {
+    processes: [...COMPANY_DOCUMENT_PROCESSES],
+    entities: [...COMPANY_DOCUMENT_ENTITY_TYPES],
+    scoped: false
+  };
+  if (!path || path === "*") return open;
+  const spec = DOCUMENT_FOLDER_SCOPES.get(folderKey(topFolderName(path)));
+  if (!spec) return open;
+  const processValues = new Set(spec.processes);
+  const entityValues = new Set(spec.entities);
+  return {
+    processes: COMPANY_DOCUMENT_PROCESSES.filter((item) => processValues.has(item.value)),
+    entities: COMPANY_DOCUMENT_ENTITY_TYPES.filter((item) => entityValues.has(item.value)),
+    processValues,
+    scoped: true
+  };
+}
+
+/** Tipos documentales cuyo proceso pertenece a la carpeta abierta. “Otro” y los tipos sin proceso siguen visibles. */
+export function categoriesForDocumentFolder(categories = [], folderPath = "") {
+  const scope = companyDocumentFilterScope(folderPath);
+  if (!scope.scoped) return [...categories];
+  return categories.filter((item) => {
+    const process = String(item?.process || "").trim().toLowerCase();
+    if (!process || item?.value === "otro") return true;
+    return scope.processValues.has(process);
+  });
+}
+
 /** Filtra por búsqueda (nombre/carpeta/tipo), tipo de archivo, carpeta y metadatos. */
 export function applyCompanyDocumentFilters(
   docs = [],

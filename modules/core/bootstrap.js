@@ -623,9 +623,16 @@ export function __applyPortalBootstrapPayloadInner(p) {
       const prev = read(KEYS.notifications, []);
       const merged = hooks.mergeNotificationsListPreserveReadAt(prev, filtered);
       write(KEYS.notifications, merged, { skipSyncSchedule: true });
-      hooks.markInboxNotificationsAsToastSeen?.(
-        merged.map((n) => n?.id).filter(Boolean)
-      );
+      const staleToastIds =
+        typeof hooks.collectStaleNotificationIdsForToastSuppress === "function"
+          ? hooks.collectStaleNotificationIdsForToastSuppress(merged)
+          : merged
+              .filter((n) => {
+                const createdTs = new Date(n?.createdAt || 0).getTime();
+                return String(n?.id || "").trim() && (!Number.isFinite(createdTs) || Date.now() - createdTs >= 30_000);
+              })
+              .map((n) => n.id);
+      hooks.markInboxNotificationsAsToastSeen?.(staleToastIds);
       continue;
     }
     if (prop === "payrollEmployees") {

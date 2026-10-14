@@ -735,8 +735,29 @@ function wireHiringInterviewFormUi(form) {
   return syncAll;
 }
 
+let hiringDataSearchTimer = 0;
+
+function clearHiringDataSearchTimer() {
+  window.clearTimeout(hiringDataSearchTimer);
+  hiringDataSearchTimer = 0;
+}
+
 function bindHiringPortalControls() {
   if (String(state.currentView || "") !== "hiring" || !nodes.viewRoot) return;
+
+  if (nodes.viewRoot.dataset.hiringSearchGuard !== "1") {
+    nodes.viewRoot.dataset.hiringSearchGuard = "1";
+    nodes.viewRoot.addEventListener(
+      "click",
+      (event) => {
+        const target = event.target;
+        if (!(target instanceof Element)) return;
+        if (target.closest("input[data-action='hiring-data-list-search']")) return;
+        clearHiringDataSearchTimer();
+      },
+      true
+    );
+  }
 
   // Migración UI: priorizar Kanban de la bandeja (mockup) frente a lista antigua persistida.
   if (!state.hiringUi || state.hiringUi.__bandejaKanbanV2 !== true) {
@@ -1404,6 +1425,62 @@ function bindHiringPortalControls() {
     });
   });
 
+  nodes.viewRoot.querySelectorAll("[data-action='hiring-interviews-when']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const when = String(btn.dataset.when || "all");
+      state.hiringUi = {
+        ...(state.hiringUi || {}),
+        interviewWhenFilter: ["upcoming", "past", "all"].includes(when) ? when : "all",
+        workspace: "consult",
+        dataSection: "interviews"
+      };
+      persistHrWorkspace("hiring", "consult");
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='hiring-interviews-mode']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const mode = String(btn.dataset.mode || "all");
+      state.hiringUi = {
+        ...(state.hiringUi || {}),
+        interviewModeFilter: ["all", "presencial", "virtual", "telefonica"].includes(mode) ? mode : "all",
+        workspace: "consult",
+        dataSection: "interviews"
+      };
+      persistHrWorkspace("hiring", "consult");
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='hiring-contracts-period']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const period = String(btn.dataset.period || "all");
+      state.hiringUi = {
+        ...(state.hiringUi || {}),
+        contractPeriodFilter: ["all", "month", "ending_soon"].includes(period) ? period : "all",
+        workspace: "consult",
+        dataSection: "contracts"
+      };
+      persistHrWorkspace("hiring", "consult");
+      renderPortalView();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='hiring-filter-contract-type']").forEach((select) => {
+    select.addEventListener("change", () => {
+      const el = /** @type {HTMLSelectElement} */ (select);
+      state.hiringUi = {
+        ...(state.hiringUi || {}),
+        contractTypeFilter: String(el.value || "").trim() || "all",
+        workspace: "consult",
+        dataSection: "contracts"
+      };
+      persistHrWorkspace("hiring", "consult");
+      renderPortalView();
+    });
+  });
+
   nodes.viewRoot.querySelectorAll("[data-action='hiring-filter-vacancy']").forEach((select) => {
     select.addEventListener("change", () => {
       const el = /** @type {HTMLSelectElement} */ (select);
@@ -1552,7 +1629,12 @@ function bindHiringPortalControls() {
         workspace: currentWs === "operate" ? "data" : currentWs
       };
       state.__hiringDataListSearchRestore = { start, end };
-      renderPortalView();
+      clearHiringDataSearchTimer();
+      hiringDataSearchTimer = window.setTimeout(() => {
+        hiringDataSearchTimer = 0;
+        if (String(state.currentView || "") !== "hiring") return;
+        renderPortalView();
+      }, 180);
     });
   });
 
@@ -2286,39 +2368,64 @@ function bindHiringPortalControls() {
           typeof window.dedupContracts === "function" ? window.dedupContracts(all) : all;
         try {
           await writeAwaitServerCreate(KEYS.contracts, deduped, savedContract);
-          appendPortalEntityAuditLog(
-            existingIdx >= 0 ? "update" : "create",
-            "hiring",
-            "Contratación",
-            savedContract,
-            `${String(savedContract.contractType || "Contrato")} · ${String(savedContract.position || savedContract.positionName || "Sin cargo")}`,
-            {
-              entityLabel: String(
-                savedContract.candidateName || savedContract.employeeName || employee.name || "Contrato"
-              ).trim()
-            }
-          );
           if (linkedCandidate) {
-            const statusValidation = validateCandidatePipelineTransition(linkedCandidate, "Contratado");
-            if (statusValidation.ok) {
-              const nextCandidates = read(KEYS.candidates, []).map((c) =>
-                String(c.id) === String(linkedCandidate.id)
-                  ? stampUpdatedRecord({
-                      ...c,
-                      status: "Contratado",
-                      pipelineStage: "Contratado",
-                      hiredAt: c.hiredAt || nowIso(),
-                      contractRegisteredAt: c.contractRegisteredAt || nowIso(),
-                      updatedAt: nowIso()
-                    })
-                  : c
-              );
-              try {
-                await writeAwaitServerEdit(KEYS.candidates, nextCandidates, linkedCandidate.id);
-              } catch (_candErr) {
-                /* contrato ya guardado */
+            const fresh =
+              read(KEYS.candidates, []).find((c) => String(c.id) === String(linkedCandidate.id)) || linkedCandidate;
+            const current = String(fresh.status || "");
+            if (current !== "Contratado") {
+              let statusValidation = validateCandidatePipelineTransition(fresh, "Contratado");
+              const savedForCandidate = (Array.isArray(deduped) ? deduped : []).some((item) => {
+                if (String(item.candidateId || "") === String(fresh.id)) return true;
+                const doc = String(fresh.idDoc || "").trim();
+                return Boolean(doc) && String(item.idDocSnapshot || "").trim() === doc;
+              });
+              const allowedNext = (typeof PIPELINE_TRANSITIONS === "object" && PIPELINE_TRANSITIONS
+                ? PIPELINE_TRANSITIONS[current]
+                : []) || [];
+              if (!statusValidation.ok && savedForCandidate && allowedNext.includes("Contratado")) {
+                statusValidation = { ok: true };
+              }
+              if (!statusValidation.ok) {
+                notify(statusValidation.message || "No se pudo marcar al candidato como contratado.", "warn");
+              } else {
+                const nextCandidates = read(KEYS.candidates, []).map((c) =>
+                  String(c.id) === String(fresh.id)
+                    ? stampUpdatedRecord({
+                        ...c,
+                        status: "Contratado",
+                        pipelineStage: "Contratado",
+                        hiredAt: c.hiredAt || nowIso(),
+                        contractRegisteredAt: c.contractRegisteredAt || nowIso(),
+                        updatedAt: nowIso()
+                      })
+                    : c
+                );
+                try {
+                  await writeAwaitServerEdit(KEYS.candidates, nextCandidates, fresh.id);
+                } catch (candErr) {
+                  notify(
+                    String(candErr?.message || "El contrato se guardó, pero no se actualizó el estado del candidato."),
+                    "warn"
+                  );
+                }
               }
             }
+          }
+          try {
+            appendPortalEntityAuditLog(
+              existingIdx >= 0 ? "update" : "create",
+              "hiring",
+              "Contratación",
+              savedContract,
+              `${String(savedContract.contractType || "Contrato")} · ${String(savedContract.position || savedContract.positionName || "Sin cargo")}`,
+              {
+                entityLabel: String(
+                  savedContract.candidateName || savedContract.employeeName || employee.name || "Contrato"
+                ).trim()
+              }
+            );
+          } catch (_auditErr) {
+            /* el contrato y el estado del candidato ya quedaron guardados */
           }
           state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
           state.hiringUi.workspace = "consult";
@@ -2815,6 +2922,187 @@ function bindHiringPortalControls() {
   };
 
   /* ============= CANDIDATO: PROGRAMAR ENTREVISTA DESDE TABLA ============= */
+  const openOfferLetterForCandidate = (cid) => {
+    const id = String(cid || "").trim();
+    const cand = read(KEYS.candidates, []).find((c) => String(c.id) === id);
+    if (!cand) {
+      notify(userMessage("genericError"), "error");
+      return;
+    }
+    if (String(cand.status || "") === "Descartado") {
+      notify("No se envía carta oferta a un candidato descartado.", "info");
+      return;
+    }
+    const terms =
+      typeof buildDefaultHiringOfferTerms === "function" ? buildDefaultHiringOfferTerms(cand) : {};
+    const companies = read(KEYS.companies, []).filter((c) => c && c.active !== false);
+    const positions = read(KEYS.positions, []).filter((p) => p && p.active !== false);
+    const contractTypes = Array.isArray(CO_CATALOGS?.contractTypes) ? CO_CATALOGS.contractTypes : ["Termino indefinido"];
+    const schedules = Array.isArray(CO_CATALOGS?.workSchedule) ? CO_CATALOGS.workSchedule : ["Diurna"];
+    const opt = (list, selected, labelOf) =>
+      list
+        .map((item) => {
+          const value = String(item.value != null ? item.value : item.id || item);
+          const label = labelOf ? labelOf(item) : String(item);
+          return `<option value="${escapeAttr(value)}"${value === String(selected || "") ? " selected" : ""}>${escapeHtml(label)}</option>`;
+        })
+        .join("");
+    const companyOptions = companies.length
+      ? opt(companies, terms.companyId, (c) => String(c.name || "Empresa"))
+      : `<option value="">${escapeHtml(CONTRACT_EMPLOYER_LEGAL?.name || "Transportes Antares S.A.S")}</option>`;
+    const positionOptions = opt(positions, terms.positionId, (p) => String(p.name || "Cargo"));
+    const minSalary = parseNum(CO_HR_RULES?.minMonthlySalary || 0);
+    const modal = ensureCrudModalElement();
+    const card = modal.querySelector(".modal-card");
+    if (card) card.className = "modal-card modal-card-edit modal-card--offer-letter";
+    const content = modal.querySelector("#crud-modal-content");
+    content.innerHTML = `
+      ${renderModalHead("Enviar carta oferta", { subtitle: "Las condiciones que marque aquí quedan en la carta y se precargan al contratar." })}
+      <form id="form-offer-letter" class="offer-letter-form">
+        <p class="full offer-letter-brand-note">La carta usa el logo de la empresa y los colores institucionales (${escapeHtml(REPORT_EXPORT_BRAND?.primary || "#377cc0")}).</p>
+        <label>${fieldLabel(IC.briefcase, "Empresa", { required: companies.length > 0 })}<select name="companyId"${companies.length ? " required" : ""}>${companyOptions}</select></label>
+        <label>${fieldLabel(IC.briefcase, "Cargo", { required: true })}<select name="positionId" required>${positionOptions}</select></label>
+        <label>${fieldLabel(IC.file, "Tipo de contrato", { required: true })}<select name="contractType" required>${opt(contractTypes.map((v) => ({ value: v })), terms.contractType, (x) => x.value)}</select></label>
+        <label>${fieldLabel(IC.clock, "Jornada", { required: true })}<select name="workSchedule" required>${opt(schedules.map((v) => ({ value: v })), terms.workSchedule, (x) => x.value)}</select></label>
+        <label>${fieldLabel(IC.dollar, "Salario mensual (COP)", { required: true })}<input type="number" name="baseSalary" required min="${minSalary}" step="1" value="${escapeAttr(String(terms.baseSalary || minSalary))}" /></label>
+        <label>${fieldLabel(IC.dollar, "Auxilio de transporte (COP)")}<input type="number" name="transportAllowance" min="0" step="1" value="${escapeAttr(String(terms.transportAllowance || 0))}" /></label>
+        <label>${fieldLabel(IC.calendar, "Fecha de ingreso", { required: true })}<input type="date" name="startDate" required value="${escapeAttr(String(terms.startDate || ""))}" /></label>
+        <label>${fieldLabel(IC.mapPin, "Lugar de trabajo", { required: true })}<input name="workplace" required value="${escapeAttr(String(terms.workplace || ""))}" data-antares-validate-blur="db-upper" /></label>
+        <label data-offer-duration>${fieldLabel(IC.calendar, "Duración (meses)")}<input type="number" name="durationMonths" min="1" max="36" value="${escapeAttr(String(terms.durationMonths || 12))}" /></label>
+        <label>${fieldLabel(IC.clock, "Vigencia de la oferta (días)", { required: true })}<input type="number" name="validDays" required min="1" max="30" value="${escapeAttr(String(terms.validDays || 5))}" /></label>
+        <label class="full">${fieldLabel(IC.file, "Condiciones adicionales")}<textarea name="notes" rows="3" placeholder="Horario, período de prueba, bonificaciones u otras condiciones que deban quedar en la carta.">${escapeHtml(String(terms.notes || ""))}</textarea></label>
+      </form>
+      ${renderModalFooterActions({
+        primaryHtml: `<button type="submit" form="form-offer-letter" class="btn btn-primary">${IC.send} Enviar carta oferta</button>`
+      })}
+    `;
+    modal.classList.remove("hidden");
+    const close = () => modal.classList.add("hidden");
+    wireModalDismiss(content, close, { closeIds: ["crud-close", "crud-cancel"] });
+    const form = content.querySelector("#form-offer-letter");
+    const durationWrap = form.querySelector("[data-offer-duration]");
+    const syncDuration = () => {
+      const need = contractTypeRequiresDurationPlazo(form.querySelector("[name=contractType]")?.value || "");
+      durationWrap?.classList.toggle("hidden", !need);
+      const input = durationWrap?.querySelector("input");
+      if (input) {
+        if (need) input.setAttribute("required", "required");
+        else input.removeAttribute("required");
+      }
+    };
+    form.querySelector("[name=contractType]")?.addEventListener("change", syncDuration);
+    syncDuration();
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const data = readFormEntriesNormalized(form);
+      const salary = parseNum(data.baseSalary);
+      if (salary < minSalary) {
+        failPortalField(form, "baseSalary", `El salario no puede ser inferior al mínimo legal ($${minSalary.toLocaleString("es-CO")}).`);
+        return;
+      }
+      const start = vacancyNormalizeYmd(data.startDate);
+      if (!start || start < colombiaTodayIsoDate()) {
+        failPortalField(form, "startDate", "La fecha de ingreso no puede ser anterior a hoy.");
+        return;
+      }
+      if (!String(data.positionId || "").trim()) {
+        failPortalField(form, "positionId", "Seleccione el cargo de la oferta.");
+        return;
+      }
+      if (!String(data.workplace || "").trim()) {
+        failPortalField(form, "workplace", "Indique el lugar de trabajo.");
+        return;
+      }
+      const offerTerms = {
+        companyId: String(data.companyId || "").trim(),
+        positionId: String(data.positionId || "").trim(),
+        contractType: String(data.contractType || "Termino indefinido").trim(),
+        workSchedule: String(data.workSchedule || "Diurna").trim(),
+        baseSalary: salary,
+        transportAllowance: Math.max(0, parseNum(data.transportAllowance)),
+        startDate: start,
+        workplace: normalizeLatinUpperForDb(data.workplace),
+        validDays: Math.min(30, Math.max(1, parseNum(data.validDays) || 5)),
+        durationMonths: Math.min(36, Math.max(1, parseNum(data.durationMonths) || 12)),
+        notes: String(form.querySelector("[name=notes]")?.value || "").trim(),
+        markedBy: String(currentUser()?.name || "").trim(),
+        markedAt: nowIso()
+      };
+      const latest = read(KEYS.candidates, []);
+      const current = latest.find((c) => String(c.id) === id);
+      if (!current) {
+        notify(userMessage("genericError"), "error");
+        return;
+      }
+      const alreadySent = String(current.status || "") === "Oferta enviada" || String(current.status || "") === "Contratado";
+      if (!alreadySent) {
+        const check = validateCandidatePipelineTransition(current, "Oferta enviada");
+        if (!check.ok) {
+          notify(check.message || "No se puede enviar la carta en esta etapa.", "error");
+          return;
+        }
+      }
+      const nextList = latest.map((c) => {
+        if (String(c.id) !== id) return c;
+        const next = { ...c, offerTerms, offerSentAt: c.offerSentAt || nowIso(), updatedAt: nowIso() };
+        if (!alreadySent) {
+          next.status = "Oferta enviada";
+          next.pipelineStage = "Oferta enviada";
+        }
+        return next;
+      });
+      try {
+        await writeAwaitServerEdit(KEYS.candidates, nextList, id);
+      } catch (err) {
+        notify(String(err?.message || "No fue posible guardar la carta oferta."), "error");
+        return;
+      }
+      const saved = nextList.find((c) => String(c.id) === id);
+      const html = typeof buildHiringOfferLetterHtml === "function" ? buildHiringOfferLetterHtml(saved, offerTerms) : "";
+      const popup = html ? window.open("", "_blank", "width=860,height=960") : null;
+      if (popup && html) {
+        popup.document.open();
+        popup.document.write(html);
+        popup.document.close();
+        popup.focus();
+      } else if (html) {
+        notify("La carta quedó registrada. Permita ventanas emergentes para verla o imprimirla.", "warn");
+      }
+      const companyName =
+        companies.find((c) => String(c.id) === offerTerms.companyId)?.name ||
+        CONTRACT_EMPLOYER_LEGAL?.name ||
+        "Transportes Antares";
+      if (saved?.email) {
+        sendEmail({
+          to: saved.email,
+          subject: `Carta oferta laboral · ${companyName}`,
+          body: [
+            `Hola ${saved.name},`,
+            `${companyName} le envía una oferta de vinculación.`,
+            `Cargo: ${positions.find((p) => String(p.id) === offerTerms.positionId)?.name || saved.vacancyTitle || "según vacante"}.`,
+            `Contrato: ${offerTerms.contractType}. Jornada: ${offerTerms.workSchedule}.`,
+            `Salario mensual: $${offerTerms.baseSalary.toLocaleString("es-CO")}.`,
+            `Fecha de ingreso: ${offerTerms.startDate}. Lugar: ${offerTerms.workplace}.`,
+            `La oferta está vigente por ${offerTerms.validDays} días.`
+          ].join("\n")
+        });
+        try {
+          await writeAwaitServerLatestQueuedEmail();
+        } catch (_e) {}
+      }
+      close();
+      notify(userMessage("candidateOfferSentOk"), "success");
+      renderPortalView();
+    });
+  };
+
+  nodes.viewRoot.querySelectorAll("[data-action='open-offer-letter']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (abortUnlessCanManageHiring()) return;
+      openOfferLetterForCandidate(btn.dataset.candidateId || btn.dataset.id);
+    });
+  });
+
   nodes.viewRoot.querySelectorAll("[data-action='schedule-interview-for-candidate']").forEach((btn) => {
     btn.addEventListener("click", () => {
       openInterviewSchedulerForCandidate(btn.dataset.candidateId);

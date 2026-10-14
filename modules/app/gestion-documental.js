@@ -72,6 +72,8 @@ import {
   nextDocumentVersionState,
   summarizeCompanyDocuments,
   applyCompanyDocumentFilters,
+  companyDocumentFilterScope,
+  categoriesForDocumentFolder,
   sortByRecent,
   buildCompanyDocumentExportRows
 } from "../domain/company-documents.domain.js";
@@ -171,6 +173,8 @@ const IC_TRASH =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
 const IC_CHEVRON_DOWN =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+const IC_CHEVRON_LEFT =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>';
 const IC_SORT =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5h10M11 9h7M11 13h4M3 5l3 3 3-3M6 8v13"/></svg>';
 const IC_EMPTY_FOLDER =
@@ -199,7 +203,7 @@ function getUi() {
       processFilter: "all",
       dateFrom: "",
       dateTo: "",
-      dateField: "updated",
+      dateField: "expires",
       folderFilter: EMPLOYEES_ROOT_FOLDER,
       showFilters: false,
       showTrash: false,
@@ -217,7 +221,7 @@ function getUi() {
   if (!ui.statusFilter) ui.statusFilter = "all";
   if (!ui.entityTypeFilter) ui.entityTypeFilter = "all";
   if (!ui.processFilter) ui.processFilter = "all";
-  if (!ui.dateField) ui.dateField = "updated";
+  if (!ui.dateField || ui.dateField === "updated") ui.dateField = "expires";
   if (ui.dateFrom == null) ui.dateFrom = "";
   if (ui.dateTo == null) ui.dateTo = "";
   return ui;
@@ -494,9 +498,29 @@ function formatDate(iso) {
   return `${date}, ${time}`;
 }
 function formatDateShort(iso) {
-  const d = new Date(iso);
+  const raw = String(iso || "").trim();
+  const ymd = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  /* Una fecha sola (vencimiento, emisión) no es un instante UTC: parsearla con
+     `new Date("YYYY-MM-DD")` la corre un día atrás en Colombia. */
+  const d = ymd
+    ? new Date(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]))
+    : new Date(raw);
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function storagePercentText(summary) {
+  const bytes = Number(summary?.totalBytes) || 0;
+  const pct = Number(summary?.usedPercent) || 0;
+  if (bytes > 0 && pct <= 0) return "<1%";
+  return `${pct}%`;
+}
+
+function storageArcPercent(summary) {
+  const bytes = Number(summary?.totalBytes) || 0;
+  const pct = Number(summary?.usedPercent) || 0;
+  if (bytes <= 0) return 0;
+  return Math.max(pct, 1);
 }
 
 function renderHeader(ui, IC, summary) {
@@ -533,30 +557,42 @@ function renderKpis(summary, IC) {
   if (expired) docStatus = { text: `${expired} vencido${expired === 1 ? "" : "s"}${dueSoon ? ` · ${dueSoon} por vencer` : ""}`, tone: "danger" };
   else if (dueSoon) docStatus = { text: `${dueSoon} por vencer`, tone: "warn" };
 
+  const docKpiStatus = expired ? "vencido" : dueSoon ? "por_vencer" : "all";
   const cards = [
-    { icon: IC.folder || "", tone: "blue", label: "Carpetas", value: String(summary.folderCount), sub: "Total carpetas" },
-    { icon: IC.file || "", tone: "green", label: "Documentos", value: String(summary.docCount), sub: docStatus.text, subTone: docStatus.tone },
+    { icon: IC.folder || "", tone: "blue", label: "Carpetas", value: String(summary.folderCount), sub: "Carpetas principales" },
+    {
+      icon: IC.file || "",
+      tone: "green",
+      label: "Documentos",
+      value: String(summary.docCount),
+      sub: docStatus.text,
+      subTone: docStatus.tone,
+      action: "doc-kpi-docs",
+      status: docKpiStatus
+    },
     {
       icon: IC_HDD,
       tone: "violet",
       label: "Almacenamiento",
       value: formatFileSize(summary.totalBytes),
-      sub: `${summary.usedPercent}% de ${formatFileSize(summary.quotaBytes)}`
+      sub: `${storagePercentText(summary)} de ${formatFileSize(summary.quotaBytes)}`,
+      action: "doc-storage-details"
     },
     { icon: IC.users || "", tone: "amber", label: "Usuarios", value: String(summary.usersWithAccess), sub: "Con acceso" }
   ];
   return `<section class="doc-kpi-grid" aria-label="Indicadores documentales">
     ${cards
-      .map(
-        (c) => `<article class="doc-kpi">
-        <span class="doc-kpi__icon doc-kpi__icon--${c.tone}">${c.icon}</span>
-        <div class="doc-kpi__body">
+      .map((c) => {
+        const inner = `<span class="doc-kpi__icon doc-kpi__icon--${c.tone}">${c.icon}</span>
+        <span class="doc-kpi__body">
           <span class="doc-kpi__label">${escapeHtml(c.label)}</span>
           <strong class="doc-kpi__value">${escapeHtml(c.value)}</strong>
           <span class="doc-kpi__sub${c.subTone ? ` doc-kpi__sub--${c.subTone}` : ""}">${escapeHtml(c.sub)}</span>
-        </div>
-      </article>`
-      )
+        </span>`;
+        if (!c.action) return `<article class="doc-kpi">${inner}</article>`;
+        const statusAttr = c.status ? ` data-status="${escapeAttr(c.status)}"` : "";
+        return `<button type="button" class="doc-kpi doc-kpi--action" data-action="${escapeAttr(c.action)}"${statusAttr}>${inner}</button>`;
+      })
       .join("")}
   </section>`;
 }
@@ -590,18 +626,36 @@ function validityBadge(doc) {
   return `<span class="doc-validity doc-validity--${status}">${escapeHtml(label)}${escapeHtml(extra)}</span>`;
 }
 
-/** Une carpetas reales con la estructura sugerida para que el rail no quede vacío. */
+/** Carpeta de sistema: la ruta sugerida o su carpeta principal (p. ej. «08. SARLAFT»). */
+function isProtectedSystemFolder(path) {
+  const key = folderKey(path);
+  const depth = folderSegments(path).length;
+  return SUGGESTED_COMPANY_FOLDERS.some((name) => {
+    if (folderKey(name) === key) return true;
+    return depth === 1 && folderKey(topFolderName(name)) === key;
+  });
+}
+
+/** Une carpetas reales con la estructura sugerida para que el rail no quede vacío.
+ *  Una sugerencia con « / » (08. SARLAFT / PTE) es una subcarpeta: en el rail entra
+ *  solo su carpeta principal, no una píldora duplicada con la ruta completa. */
 function mergeSuggestedTopFolders(topFolders) {
   const map = new Map((topFolders || []).map((f) => [f.key, f]));
-  const suggested = SUGGESTED_COMPANY_FOLDERS.map((name) => {
-    const key = folderKey(name);
+  const suggested = [];
+  const seen = new Set();
+  for (const name of SUGGESTED_COMPANY_FOLDERS) {
+    const top = topFolderName(name);
+    const key = folderKey(top);
+    if (seen.has(key)) continue;
+    seen.add(key);
     const existing = map.get(key);
     if (existing) {
       map.delete(key);
-      return existing;
+      suggested.push(existing);
+    } else {
+      suggested.push({ name: top, key, subfolderCount: 0, docCount: 0, sizeBytes: 0 });
     }
-    return { name, key, subfolderCount: 0, docCount: 0, sizeBytes: 0 };
-  });
+  }
   const extras = [...map.values()].sort((a, b) => a.name.localeCompare(b.name, "es", { numeric: true }));
   return [...suggested, ...extras];
 }
@@ -617,7 +671,13 @@ function sortSubfolders(list, sortKey) {
   const items = [...(list || [])];
   if (sortKey === "name_desc") return items.sort((a, b) => b.name.localeCompare(a.name, "es", { numeric: true }));
   if (sortKey === "size_desc") return items.sort((a, b) => (b.sizeBytes || 0) - (a.sizeBytes || 0) || a.name.localeCompare(b.name, "es", { numeric: true }));
-  if (sortKey === "recent") return items.sort((a, b) => (b.docCount || 0) - (a.docCount || 0) || a.name.localeCompare(b.name, "es", { numeric: true }));
+  if (sortKey === "recent") {
+    return items.sort((a, b) => {
+      const tb = new Date(b.lastUpdatedAt || 0).getTime() || 0;
+      const ta = new Date(a.lastUpdatedAt || 0).getTime() || 0;
+      return tb - ta || a.name.localeCompare(b.name, "es", { numeric: true });
+    });
+  }
   return items.sort((a, b) => a.name.localeCompare(b.name, "es", { numeric: true }));
 }
 
@@ -635,10 +695,10 @@ function renderCategoryRail(topFolders, ui, IC) {
   const cards = topFolders
     .map((f, i) => {
       const active = !ui.showTrash && ui.folderFilter && ui.folderFilter !== "*" && folderKey(topFolderName(ui.folderFilter)) === f.key;
-      const count =
-        f.subfolderCount > 0
-          ? `${f.subfolderCount} carpeta${f.subfolderCount === 1 ? "" : "s"}`
-          : `${f.docCount} archivo${f.docCount === 1 ? "" : "s"}`;
+      const countBits = [];
+      if (f.subfolderCount > 0) countBits.push(`${f.subfolderCount} carpeta${f.subfolderCount === 1 ? "" : "s"}`);
+      if (f.docCount > 0) countBits.push(`${f.docCount} archivo${f.docCount === 1 ? "" : "s"}`);
+      const count = countBits.join(" · ") || "Vacía";
       const restricted =
         folderRoleAllowlist(allFolders, f.name, "view").length > 0 ||
         (allFolders || []).some(
@@ -670,73 +730,249 @@ function folderParentPath(path) {
   return segs.slice(0, -1).join(" / ");
 }
 
-function renderBackButton(targetPath) {
-  return `<button type="button" class="doc-btn doc-btn--ghost doc-btn--sm doc-back-btn" data-action="doc-back" data-path="${escapeAttr(targetPath)}" aria-label="Volver a la carpeta anterior">${IC.chevronLeft || "‹"}<span>Atrás</span></button>`;
+/** Lugares por los que pasó el usuario al abrir carpetas, papelera o vigencia. */
+const docNavStack = [];
+
+function navSnapshot(ui = getUi()) {
+  return {
+    folderFilter: ui.folderFilter || "",
+    showTrash: Boolean(ui.showTrash),
+    page: ui.page || 1,
+    folderPage: ui.folderPage || 1,
+    search: ui.search || "",
+    showFilters: Boolean(ui.showFilters),
+    statusFilter: ui.statusFilter || "all",
+    typeFilter: ui.typeFilter || "all",
+    categoryFilter: ui.categoryFilter || "all",
+    entityTypeFilter: ui.entityTypeFilter || "all",
+    processFilter: ui.processFilter || "all",
+    dateFrom: ui.dateFrom || "",
+    dateTo: ui.dateTo || ""
+  };
+}
+
+function sameDocPlace(a, b) {
+  return Boolean(a) && Boolean(b) && a.folderFilter === b.folderFilter && a.showTrash === b.showTrash;
+}
+
+function pushDocNav(from = getUi()) {
+  const snap = navSnapshot(from);
+  const last = docNavStack[docNavStack.length - 1];
+  if (sameDocPlace(last, snap)) return;
+  docNavStack.push(snap);
+  if (docNavStack.length > 40) docNavStack.shift();
+}
+
+function forgetNavInside(path) {
+  const target = String(path || "").trim();
+  if (!target) return;
+  for (let i = docNavStack.length - 1; i >= 0; i -= 1) {
+    const folder = String(docNavStack[i].folderFilter || "");
+    if (folder && folderInSubtree(folder, target)) docNavStack.splice(i, 1);
+  }
+}
+
+/** Entra a una carpeta o vista y deja el lugar anterior disponible para Atrás. */
+function enterDocs(patch) {
+  const current = navSnapshot();
+  const nextFolder = Object.prototype.hasOwnProperty.call(patch, "folderFilter") ? patch.folderFilter : current.folderFilter;
+  const nextTrash = Object.prototype.hasOwnProperty.call(patch, "showTrash") ? Boolean(patch.showTrash) : current.showTrash;
+  if (!sameDocPlace(current, { folderFilter: nextFolder || "", showTrash: nextTrash })) pushDocNav();
+  patchUi(patch);
+  G.renderPortalView?.();
+}
+
+function backDestinationName(ui = getUi()) {
+  const here = navSnapshot(ui);
+  const prev = [...docNavStack].reverse().find((snap) => !sameDocPlace(snap, here));
+  if (prev) {
+    if (prev.showTrash) return "la papelera";
+    if (prev.folderFilter === "*") return "todos los documentos";
+    const segs = folderSegments(prev.folderFilter || "");
+    return segs[segs.length - 1] || "la carpeta anterior";
+  }
+  if (ui.showTrash) return "los documentos";
+  if (ui.folderFilter === "*") return EMPLOYEES_ROOT_FOLDER;
+  const parentSegs = folderSegments(folderParentPath(ui.folderFilter || ""));
+  return parentSegs[parentSegs.length - 1] || "la carpeta anterior";
+}
+
+function canShowExplorerBack(ui = getUi()) {
+  const here = navSnapshot(ui);
+  if (docNavStack.some((snap) => !sameDocPlace(snap, here))) return true;
+  if (ui.showTrash || ui.folderFilter === "*") return true;
+  return folderSegments(String(ui.folderFilter || "")).length >= 2;
+}
+
+function goBackDocs() {
+  const here = navSnapshot();
+  while (docNavStack.length && sameDocPlace(docNavStack[docNavStack.length - 1], here)) docNavStack.pop();
+  const prev = docNavStack.pop();
+  if (prev) {
+    patchUi(prev);
+    G.renderPortalView?.();
+    return;
+  }
+  if (here.showTrash) {
+    patchUi({ showTrash: false, page: 1, folderPage: 1 });
+    G.renderPortalView?.();
+    return;
+  }
+  if (here.folderFilter === "*") {
+    patchUi({ folderFilter: EMPLOYEES_ROOT_FOLDER, showTrash: false, page: 1, folderPage: 1 });
+    G.renderPortalView?.();
+    return;
+  }
+  const parent = folderParentPath(here.folderFilter || "");
+  if (parent) {
+    patchUi({ folderFilter: parent, showTrash: false, page: 1, folderPage: 1 });
+    G.renderPortalView?.();
+  }
+}
+
+function renderBackButton(ui = getUi()) {
+  const dest = backDestinationName(ui);
+  return `<button type="button" class="doc-btn doc-btn--ghost doc-btn--sm doc-back-btn" data-action="doc-back" aria-label="Volver a ${escapeAttr(dest)}">${IC_CHEVRON_LEFT}<span>Atrás</span></button>`;
 }
 
 function renderExplorerPath(ui, IC) {
+  const trashBtn = (active) =>
+    `<button type="button" class="doc-trash-link${active ? " is-active" : ""}" data-action="doc-toggle-trash" aria-pressed="${active ? "true" : "false"}">${IC_TRASH}<span>${active ? "Papelera" : "Ver papelera"}</span></button>`;
+  const backBtn = canShowExplorerBack(ui) ? renderBackButton(ui) : "";
   if (ui.showTrash) {
     return `<div class="doc-explorer-path">
       <nav class="doc-breadcrumb" aria-label="Ruta">
-        <button type="button" class="doc-crumb" data-action="doc-crumb" data-path="${escapeAttr(EMPLOYEES_ROOT_FOLDER)}">Documentos</button>
+        ${backBtn}
+        <button type="button" class="doc-crumb" data-action="doc-toggle-trash">Documentos</button>
         <span class="doc-crumb-sep">›</span>
         <span class="doc-crumb is-current">Papelera</span>
       </nav>
-      <button type="button" class="doc-trash-link is-active" data-action="doc-toggle-trash" aria-pressed="true">${IC_TRASH}<span>Papelera</span></button>
+      ${trashBtn(true)}
     </div>`;
   }
   if (ui.folderFilter === "*") {
     return `<div class="doc-explorer-path">
       <nav class="doc-breadcrumb" aria-label="Ruta">
-        <button type="button" class="doc-crumb" data-action="doc-crumb" data-path="">Documentos</button>
-        <span class="doc-crumb-sep">›</span>
-        <span class="doc-crumb is-current">Todos (filtro de vigencia)</span>
+        ${backBtn}
+        <span class="doc-crumb is-current">Todos los documentos</span>
       </nav>
-      <button type="button" class="doc-trash-link" data-action="doc-toggle-trash" aria-pressed="false">${IC_TRASH}<span>Ver papelera</span></button>
+      ${trashBtn(false)}
     </div>`;
   }
   const segs = ui.folderFilter ? folderSegments(ui.folderFilter) : [];
-  const backBtn = segs.length >= 1 ? renderBackButton(folderParentPath(ui.folderFilter)) : "";
-  const parts = [`<button type="button" class="doc-crumb" data-action="doc-crumb" data-path="">Documentos</button>`];
+  const parts = [];
   const acc = [];
   segs.forEach((seg, i) => {
     acc.push(seg);
     const path = acc.join(" / ");
-    parts.push(`<span class="doc-crumb-sep">›</span>`);
+    if (i > 0) parts.push(`<span class="doc-crumb-sep">›</span>`);
     if (i === segs.length - 1) parts.push(`<span class="doc-crumb is-current">${escapeHtml(seg)}</span>`);
     else parts.push(`<button type="button" class="doc-crumb" data-action="doc-crumb" data-path="${escapeAttr(path)}">${escapeHtml(seg)}</button>`);
   });
-  const depth = segs.length;
-  const folderActions =
-    ui.folderFilter && canUpload()
-      ? `<div class="doc-path-actions">
-          ${
-            depth >= 1
-              ? `<button type="button" class="doc-btn doc-btn--ghost doc-btn--sm" data-action="doc-new-subfolder" data-parent="${escapeAttr(ui.folderFilter)}">${IC.plus || "+"}<span>Crear subcarpeta</span></button>`
-              : ""
-          }
-          <button type="button" class="doc-btn doc-btn--ghost doc-btn--sm" data-action="doc-edit-folder" data-path="${escapeAttr(ui.folderFilter)}">${IC.edit || ""}<span>Renombrar</span></button>
-          ${
-            canManageFolderPermissions()
-              ? `<button type="button" class="doc-btn doc-btn--ghost doc-btn--sm" data-action="doc-folder-perms" data-folder="${escapeAttr(ui.folderFilter)}">${IC_LOCK}<span>Permisos</span></button>`
-              : ""
-          }
-          ${
-            !SUGGESTED_COMPANY_FOLDERS.some((n) => folderKey(n) === folderKey(ui.folderFilter))
-              ? `<button type="button" class="doc-btn doc-btn--ghost doc-btn--sm doc-btn--danger" data-action="doc-delete-folder" data-path="${escapeAttr(ui.folderFilter)}">${IC.trash || IC_TRASH}<span>Eliminar</span></button>`
-              : ""
-          }
-          <button type="button" class="doc-trash-link" data-action="doc-toggle-trash" aria-pressed="false">${IC_TRASH}<span>Ver papelera</span></button>
-        </div>`
-      : `<button type="button" class="doc-trash-link" data-action="doc-toggle-trash" aria-pressed="false">${IC_TRASH}<span>Ver papelera</span></button>`;
+  const allFolders = readFolders();
+  const path = ui.folderFilter || "";
+  const actionBtns = [];
+  if (path && canEdit()) {
+    actionBtns.push(
+      `<button type="button" class="doc-btn doc-btn--ghost doc-btn--sm" data-action="doc-edit-folder" data-path="${escapeAttr(path)}">${IC.edit || ""}<span>Renombrar</span></button>`
+    );
+  }
+  if (path && canManageFolderPermissions()) {
+    actionBtns.push(
+      `<button type="button" class="doc-btn doc-btn--ghost doc-btn--sm" data-action="doc-folder-perms" data-folder="${escapeAttr(path)}">${IC_LOCK}<span>Permisos</span></button>`
+    );
+  }
+  if (
+    path &&
+    canDeleteFolder(allFolders, path) &&
+    !isProtectedSystemFolder(path)
+  ) {
+    actionBtns.push(
+      `<button type="button" class="doc-btn doc-btn--ghost doc-btn--sm doc-btn--danger" data-action="doc-delete-folder" data-path="${escapeAttr(path)}">${IC.trash || IC_TRASH}<span>Eliminar</span></button>`
+    );
+  }
   return `<div class="doc-explorer-path">
     <nav class="doc-breadcrumb" aria-label="Ruta de carpeta">${backBtn}${parts.join("")}</nav>
-    ${folderActions}
+    <div class="doc-path-actions">${actionBtns.join("")}${trashBtn(false)}</div>
   </div>`;
 }
 
+function activeDocFilterChips(ui) {
+  const chips = [];
+  const search = String(ui.search || "").trim();
+  if (search) chips.push({ key: "search", label: `Búsqueda: ${search}` });
+  if (ui.typeFilter && ui.typeFilter !== "all") {
+    chips.push({ key: "type", label: TYPE_FILTERS.find((t) => t.value === ui.typeFilter)?.label || ui.typeFilter });
+  }
+  if (ui.categoryFilter && ui.categoryFilter !== "all") {
+    chips.push({
+      key: "category",
+      label: documentCategories().find((t) => t.value === ui.categoryFilter)?.label || ui.categoryFilter
+    });
+  }
+  if (ui.statusFilter && ui.statusFilter !== "all") {
+    chips.push({ key: "status", label: getDocumentValidityStatusLabel(ui.statusFilter) });
+  }
+  if (ui.entityTypeFilter && ui.entityTypeFilter !== "all") {
+    chips.push({ key: "entity", label: getCompanyDocumentEntityTypeLabel(ui.entityTypeFilter) });
+  }
+  if (ui.processFilter && ui.processFilter !== "all") {
+    chips.push({ key: "process", label: getCompanyDocumentProcessLabel(ui.processFilter) });
+  }
+  if (ui.dateFrom || ui.dateTo) {
+    const from = ui.dateFrom ? formatDateShort(ui.dateFrom) : "…";
+    const to = ui.dateTo ? formatDateShort(ui.dateTo) : "…";
+    chips.push({ key: "dates", label: `Vence ${from} – ${to}` });
+  }
+  if (ui.folderFilter === "*") chips.push({ key: "scope", label: "Todos los documentos" });
+  return chips;
+}
+
+function renderActiveFilters(ui) {
+  const chips = activeDocFilterChips(ui);
+  if (!chips.length) return "";
+  return `<div class="doc-active-filters" aria-label="Filtros activos">${chips
+    .map(
+      (c) =>
+        `<button type="button" class="doc-filter-chip" data-action="doc-clear-filter" data-filter="${escapeAttr(c.key)}" aria-label="Quitar filtro ${escapeAttr(c.label)}"><span>${escapeHtml(c.label)}</span><span aria-hidden="true">×</span></button>`
+    )
+    .join("")}<button type="button" class="doc-filter-chip doc-filter-chip--clear" data-action="doc-clear-filters">Limpiar</button></div>`;
+}
+
+function folderFilterPath(ui) {
+  if (ui.showTrash || ui.folderFilter === "*") return "";
+  return String(ui.folderFilter || "").trim();
+}
+
+/** Quita vigencia, tipo, proceso o entidad que no pertenecen a la carpeta abierta. */
+function alignFiltersWithFolder(ui) {
+  const folder = folderFilterPath(ui);
+  const scope = companyDocumentFilterScope(folder);
+  ui.dateField = "expires";
+  if (!scope.scoped) return scope;
+  const categories = categoriesForDocumentFolder(documentCategories(), folder);
+  if (ui.categoryFilter && ui.categoryFilter !== "all" && !categories.some((item) => item.value === ui.categoryFilter)) {
+    ui.categoryFilter = "all";
+  }
+  if (ui.processFilter && ui.processFilter !== "all" && !scope.processes.some((item) => item.value === ui.processFilter)) {
+    ui.processFilter = "all";
+  }
+  if (
+    ui.entityTypeFilter &&
+    ui.entityTypeFilter !== "all" &&
+    !scope.entities.some((item) => item.value === ui.entityTypeFilter)
+  ) {
+    ui.entityTypeFilter = "all";
+  }
+  return scope;
+}
+
 function renderExplorerToolbar(ui, IC) {
+  const scope = alignFiltersWithFolder(ui);
+  const folder = folderFilterPath(ui);
+  const scopedCategories = categoriesForDocumentFolder(documentCategories(), folder);
   const sortLabel = SORT_OPTIONS.find((o) => o.value === ui.sortKey)?.label || "Nombre (A-Z)";
+  const filterCount = activeDocFilterChips(ui).length;
   const sortOpts = SORT_OPTIONS.map(
     (o) => `<option value="${escapeAttr(o.value)}"${ui.sortKey === o.value ? " selected" : ""}>${escapeHtml(o.label)}</option>`
   ).join("");
@@ -745,26 +981,26 @@ function renderExplorerToolbar(ui, IC) {
   ).join("");
   const categoryOptions = [
     { value: "all", label: "Todos los tipos documentales" },
-    ...documentCategories()
+    ...scopedCategories
   ]
     .map(
       (t) =>
         `<option value="${escapeAttr(t.value)}"${ui.categoryFilter === t.value ? " selected" : ""}>${escapeHtml(t.label)}</option>`
     )
     .join("");
-  const statusOptions = [{ value: "all", label: "Todos los estados" }, ...DOCUMENT_VALIDITY_STATUSES]
+  const statusOptions = [{ value: "all", label: "Cualquier vigencia" }, ...DOCUMENT_VALIDITY_STATUSES]
     .map(
       (t) =>
         `<option value="${escapeAttr(t.value)}"${ui.statusFilter === t.value ? " selected" : ""}>${escapeHtml(t.label)}</option>`
     )
     .join("");
-  const entityOptions = [{ value: "all", label: "Todas las entidades" }, ...COMPANY_DOCUMENT_ENTITY_TYPES]
+  const entityOptions = [{ value: "all", label: "Cualquier entidad" }, ...scope.entities]
     .map(
       (t) =>
         `<option value="${escapeAttr(t.value)}"${ui.entityTypeFilter === t.value ? " selected" : ""}>${escapeHtml(t.label)}</option>`
     )
     .join("");
-  const processOptions = [{ value: "all", label: "Todos los procesos" }, ...COMPANY_DOCUMENT_PROCESSES]
+  const processOptions = [{ value: "all", label: "Cualquier proceso" }, ...scope.processes]
     .map(
       (t) =>
         `<option value="${escapeAttr(t.value)}"${ui.processFilter === t.value ? " selected" : ""}>${escapeHtml(t.label)}</option>`
@@ -776,7 +1012,7 @@ function renderExplorerToolbar(ui, IC) {
       <input type="search" data-action="doc-search" placeholder="Buscar carpetas o documentos…" value="${escapeAttr(ui.search || "")}" aria-label="Buscar carpetas o documentos" />
     </label>
     <div class="doc-explorer-toolbar__actions">
-      <button type="button" class="doc-btn doc-btn--ghost${ui.showFilters ? " is-active" : ""}" data-action="doc-toggle-filters" aria-pressed="${ui.showFilters ? "true" : "false"}">${IC.filter || ""}<span>Filtros</span></button>
+      <button type="button" class="doc-btn doc-btn--ghost${ui.showFilters || filterCount ? " is-active" : ""}" data-action="doc-toggle-filters" aria-pressed="${ui.showFilters ? "true" : "false"}">${IC.filter || ""}<span>Filtros${filterCount ? ` (${filterCount})` : ""}</span></button>
       <label class="doc-sort-select" title="Ordenar">
         <span class="doc-sort-select__icon">${IC_SORT}</span>
         <span class="doc-sort-select__label">Ordenar por:</span>
@@ -790,13 +1026,14 @@ function renderExplorerToolbar(ui, IC) {
     ${
       ui.showFilters
         ? `<div class="doc-filterbar doc-filterbar--inline">
-      <label class="doc-select doc-select--labeled"><span>Archivo</span><select data-action="doc-type-filter" aria-label="Filtrar por tipo de archivo">${typeOptions}</select></label>
+      <p class="doc-filterbar__scope">${scope.scoped ? `Filtros de ${escapeHtml(topFolderName(folder))}` : "Filtros de todo el archivo"}</p>
+      <label class="doc-select doc-select--labeled"><span>Formato</span><select data-action="doc-type-filter" aria-label="Filtrar por formato del archivo">${typeOptions}</select></label>
       <label class="doc-select doc-select--labeled"><span>Tipo documental</span><select data-action="doc-category-filter" aria-label="Filtrar por tipo documental">${categoryOptions}</select></label>
-      <label class="doc-select doc-select--labeled"><span>Estado</span><select data-action="doc-status-filter" aria-label="Filtrar por vigencia">${statusOptions}</select></label>
-      <label class="doc-select doc-select--labeled"><span>Entidad</span><select data-action="doc-entity-filter" aria-label="Filtrar por entidad">${entityOptions}</select></label>
-      <label class="doc-select doc-select--labeled"><span>Proceso</span><select data-action="doc-process-filter" aria-label="Filtrar por proceso">${processOptions}</select></label>
-      <label class="doc-select doc-select--labeled"><span>Desde</span><input type="date" data-action="doc-date-from" value="${escapeAttr(ui.dateFrom || "")}" aria-label="Fecha desde" /></label>
-      <label class="doc-select doc-select--labeled"><span>Hasta</span><input type="date" data-action="doc-date-to" value="${escapeAttr(ui.dateTo || "")}" aria-label="Fecha hasta" /></label>
+      <label class="doc-select doc-select--labeled"><span>Vigencia</span><select data-action="doc-status-filter" aria-label="Filtrar por vigencia">${statusOptions}</select></label>
+      <label class="doc-select doc-select--labeled"><span>Entidad</span><select data-action="doc-entity-filter" aria-label="Filtrar por entidad del documento">${entityOptions}</select></label>
+      <label class="doc-select doc-select--labeled"><span>Proceso</span><select data-action="doc-process-filter" aria-label="Filtrar por proceso documental">${processOptions}</select></label>
+      <label class="doc-select doc-select--labeled"><span>Vence desde</span><input type="date" data-action="doc-date-from" value="${escapeAttr(ui.dateFrom || "")}" aria-label="Vence desde" /></label>
+      <label class="doc-select doc-select--labeled"><span>Vence hasta</span><input type="date" data-action="doc-date-to" value="${escapeAttr(ui.dateTo || "")}" aria-label="Vence hasta" /></label>
       <button type="button" class="doc-btn doc-btn--ghost doc-btn--sm" data-action="doc-clear-filters">Limpiar</button>
       <button type="button" class="doc-btn doc-btn--ghost doc-btn--sm" data-action="doc-export-csv">Exportar CSV</button>
       <span class="doc-filterbar__hint muted">Orden: ${escapeHtml(sortLabel)}</span>
@@ -873,8 +1110,13 @@ function renderSubfolderGrid(subfolders, ui, IC) {
   const parent = String(ui.folderFilter || "").trim();
   const depth = folderSegments(parent).length;
   const canManage = canUpload();
-  /* Dentro de un colaborador (o cualquier carpeta anidada) siempre mostrar bloque de subcarpetas. */
-  const showBlock = Boolean(parent) && (subfolders.length > 0 || depth >= 2);
+  const allFolders = readFolders();
+  /* Solo el expediente de un colaborador (01. Empleados / Nombre) ofrece crear
+     subcarpetas cuando aún no tiene. El resto de las hojas no muestra ese vacío. */
+  const isEmployeeFile =
+    depth === 2 && folderKey(topFolderName(parent)) === folderKey(EMPLOYEES_ROOT_FOLDER);
+  const showBlock =
+    Boolean(parent) && (subfolders.length > 0 || (isEmployeeFile && !String(ui.search || "").trim()));
   if (!showBlock) return "";
 
   const page = Math.max(1, Number(ui.folderPage) || 1);
@@ -910,18 +1152,26 @@ function renderSubfolderGrid(subfolders, ui, IC) {
       const initials = initialsFromName(s.name);
       const tone = folderTone(i);
       const updatedLabel = s.lastUpdatedAt ? formatDateShort(s.lastUpdatedAt) : "";
-      const menu = canManage
+      const menuItems = [];
+      if (canEdit()) {
+        menuItems.push(
+          `<button type="button" data-action="doc-edit-folder" data-path="${escapeAttr(s.path)}">${IC.edit || ""}<span>Renombrar</span></button>`
+        );
+      }
+      if (canManageFolderPermissions()) {
+        menuItems.push(
+          `<button type="button" data-action="doc-folder-perms" data-folder="${escapeAttr(s.path)}">${IC_LOCK}<span>Permisos</span></button>`
+        );
+      }
+      if (canDeleteFolder(allFolders, s.path) && !isProtectedSystemFolder(s.path)) {
+        menuItems.push(
+          `<button type="button" class="is-danger" data-action="doc-delete-folder" data-path="${escapeAttr(s.path)}">${IC.trash || IC_TRASH}<span>Eliminar</span></button>`
+        );
+      }
+      const menu = menuItems.length
         ? `<details class="doc-folder-menu">
             <summary class="doc-iconbtn" aria-label="Acciones de carpeta">${IC_DOTS}</summary>
-            <div class="doc-rowmenu__list">
-              <button type="button" data-action="doc-edit-folder" data-path="${escapeAttr(s.path)}">${IC.edit || ""}<span>Renombrar</span></button>
-              ${
-                canManageFolderPermissions()
-                  ? `<button type="button" data-action="doc-folder-perms" data-folder="${escapeAttr(s.path)}">${IC_LOCK}<span>Permisos</span></button>`
-                  : ""
-              }
-              <button type="button" class="is-danger" data-action="doc-delete-folder" data-path="${escapeAttr(s.path)}">${IC.trash || IC_TRASH}<span>Eliminar</span></button>
-            </div>
+            <div class="doc-rowmenu__list">${menuItems.join("")}</div>
           </details>`
         : "";
       return `<div class="doc-subfolder-card">
@@ -1071,7 +1321,7 @@ function renderTable(pageDocs, IC, folders = []) {
   const anySelectable = pageDocs.some((d) => canBulkDeleteDoc(d, folders));
   const rows = pageDocs
     .map(
-      (d) => `<tr>
+      (d) => `<tr data-doc-row data-id="${escapeAttr(d.id)}">
       ${anySelectable ? `<td class="doc-cell-select">${docSelectCheckboxHtml(d, folders)}</td>` : ""}
       <td class="doc-cell-name"><span class="doc-fileicon doc-fileicon--${fileTypeGroup(d.fileName, d.mimeType)}" aria-hidden="true">${docTypeIconSvg(fileTypeGroup(d.fileName, d.mimeType))}</span>${documentNameBlock(d)}</td>
       <td>${typeBadge(d)}</td>
@@ -1098,12 +1348,11 @@ function renderGrid(pageDocs, IC, folders = []) {
       const display = formatCompanyDocumentDisplayName(d);
       const validity = validityBadge(d);
       const selectCheck = docSelectCheckboxHtml(d, folders);
-      /* Solo nombre, ícono y vigencia quedan siempre visibles (lectura rápida al escanear
-         el grid); el resto de la metadata (subtítulo, carpeta, categoría, entidad, tamaño,
-         fecha) vive en `.doc-card__meta` y se revela con hover/focus vía CSS (ver
-         `.doc-card:hover .doc-card__meta` en gestion-documental.css) para no recargar
-         visualmente cada tarjeta con 6 líneas de texto a la vez. */
-      return `<article class="doc-card" tabindex="0">
+      const sub = [display.subtitle, display.ext].filter(Boolean).join(" · ");
+      const foot = [folderLeafName(d.folder) || d.folder, formatFileSize(d.sizeBytes), formatDateShort(d.updatedAt)]
+        .filter(Boolean)
+        .join(" · ");
+      return `<article class="doc-card" tabindex="0" data-id="${escapeAttr(d.id)}">
       <header class="doc-card__head">
         <span class="doc-card__identity">${selectCheck ? `<label class="doc-card__select" title="Seleccionar">${selectCheck}</label>` : ""}<span class="doc-fileicon doc-fileicon--lg doc-fileicon--${fileTypeGroup(d.fileName, d.mimeType)}" aria-hidden="true">${docTypeIconSvg(fileTypeGroup(d.fileName, d.mimeType))}</span></span>
         ${rowMenu(d, IC, folders)}
@@ -1111,11 +1360,9 @@ function renderGrid(pageDocs, IC, folders = []) {
       <p class="doc-card__name" title="${escapeAttr(display.fullName)}">${escapeHtml(display.title)}</p>
       ${validity}
       <div class="doc-card__meta">
-        <p class="doc-card__sub">${escapeHtml([display.subtitle, display.ext].filter(Boolean).join(" · "))}</p>
-        <p class="doc-card__folder" title="${escapeAttr(d.folder)}">${escapeHtml(folderLeafName(d.folder) || d.folder)}</p>
+        ${sub ? `<p class="doc-card__sub">${escapeHtml(sub)}</p>` : ""}
         ${categoryPill(d)}
-        ${d.entityLabel ? `<p class="doc-card__entity">${escapeHtml(d.entityLabel)}</p>` : ""}
-        <footer class="doc-card__foot"><span>${escapeHtml(formatFileSize(d.sizeBytes))}</span><span>${escapeHtml(formatDateShort(d.updatedAt))}</span></footer>
+        <p class="doc-card__folder" title="${escapeAttr(d.folder)}">${escapeHtml(foot)}</p>
       </div>
     </article>`;
     })
@@ -1123,8 +1370,7 @@ function renderGrid(pageDocs, IC, folders = []) {
   return `<div class="doc-grid">${cards}</div>`;
 }
 
-/** Barra de acciones masivas: siempre visible; en estado vacío (0 marcados) las
- *  acciones quedan deshabilitadas en vez de ocultar la barra (ver `syncDocSelectionBadge`). */
+/** Barra de acciones masivas. Empieza oculta (`.is-empty`) y aparece al marcar documentos. */
 function renderBulkSelectBar(IC) {
   const downloadBtn = canDownload()
     ? `<button type="button" class="doc-btn doc-btn--ghost doc-btn--sm" data-action="doc-bulk-download" disabled>${IC.download || ""}<span>Descargar seleccionados</span></button>`
@@ -1139,6 +1385,13 @@ function renderBulkSelectBar(IC) {
   </div>`;
 }
 
+function paginationWindow(current, totalPages) {
+  const pages = new Set([1, totalPages, current, current - 1, current + 1]);
+  if (current <= 3) [2, 3, 4].forEach((p) => pages.add(p));
+  if (current >= totalPages - 2) [totalPages - 1, totalPages - 2, totalPages - 3].forEach((p) => pages.add(p));
+  return [...pages].filter((p) => p >= 1 && p <= totalPages).sort((a, b) => a - b);
+}
+
 function renderPagination(totalItems, page) {
   const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
   if (totalItems === 0) return "";
@@ -1146,22 +1399,25 @@ function renderPagination(totalItems, page) {
     return `<div class="doc-listfoot"><span class="doc-count">${totalItems} documento${totalItems === 1 ? "" : "s"}</span></div>`;
   }
   const current = Math.min(Math.max(1, page), totalPages);
+  const windowPages = paginationWindow(current, totalPages);
   let pages = "";
-  for (let p = 1; p <= totalPages; p += 1) {
-    pages += `<button type="button" class="doc-page${p === current ? " is-active" : ""}" data-action="doc-page" data-page="${p}">${p}</button>`;
-  }
+  windowPages.forEach((p, i) => {
+    if (i > 0 && p - windowPages[i - 1] > 1) pages += `<span class="doc-page-gap" aria-hidden="true">…</span>`;
+    pages += `<button type="button" class="doc-page${p === current ? " is-active" : ""}" data-action="doc-page" data-page="${p}"${p === current ? ` aria-current="page"` : ""}>${p}</button>`;
+  });
   return `<div class="doc-listfoot">
     <span class="doc-count">${totalItems} documento${totalItems === 1 ? "" : "s"}</span>
     <nav class="doc-pager" aria-label="Paginación">
-      <button type="button" class="doc-page doc-page--nav" data-action="doc-page" data-page="${current - 1}"${current === 1 ? " disabled" : ""}>‹</button>
+      <button type="button" class="doc-page doc-page--nav" data-action="doc-page" data-page="${current - 1}"${current === 1 ? " disabled" : ""} aria-label="Página anterior">‹</button>
       ${pages}
-      <button type="button" class="doc-page doc-page--nav" data-action="doc-page" data-page="${current + 1}"${current === totalPages ? " disabled" : ""}>›</button>
+      <button type="button" class="doc-page doc-page--nav" data-action="doc-page" data-page="${current + 1}"${current === totalPages ? " disabled" : ""} aria-label="Página siguiente">›</button>
     </nav>
   </div>`;
 }
 
 function renderStorageCard(summary, IC, docs) {
-  const pct = summary.usedPercent;
+  const pct = storageArcPercent(summary);
+  const pctLabel = storagePercentText(summary);
   const radius = 52;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference * (1 - pct / 100);
@@ -1180,12 +1436,12 @@ function renderStorageCard(summary, IC, docs) {
   return `<article class="doc-side-card doc-storage-card">
     <h3 class="doc-side-card__title">Almacenamiento</h3>
     <div class="doc-storage">
-      <div class="doc-donut" role="img" aria-label="${pct}% de almacenamiento utilizado">
+      <div class="doc-donut" role="img" aria-label="${escapeAttr(pctLabel)} de almacenamiento utilizado">
         <svg viewBox="0 0 120 120">
           <circle class="doc-donut__track" cx="60" cy="60" r="${radius}" />
           <circle class="doc-donut__value" cx="60" cy="60" r="${radius}" stroke-dasharray="${circumference.toFixed(1)}" stroke-dashoffset="${offset.toFixed(1)}" transform="rotate(-90 60 60)" />
         </svg>
-        <span class="doc-donut__label">${pct}%</span>
+        <span class="doc-donut__label">${escapeHtml(pctLabel)}</span>
       </div>
       <div class="doc-storage__meta">
         <strong>${escapeHtml(formatFileSize(summary.totalBytes))} <span>utilizados</span></strong>
@@ -1223,7 +1479,6 @@ function renderRecentSidebar(recentDocs, IC, folders = []) {
   return `<article class="doc-side-card">
     <h3 class="doc-side-card__title">Documentos recientes</h3>
     <ul class="doc-recent-list">${items}</ul>
-    <button type="button" class="doc-link doc-link--row" data-action="doc-storage-details">Ver almacenamiento ${IC.chevronRight || "›"}</button>
   </article>`;
 }
 
@@ -1276,14 +1531,35 @@ function renderDocumentManagementShell() {
   }
 
   if (ui.showTrash) {
-    const trashDocs = sortByRecent(trashedDocs(readDocs(), allFolders));
-    const trashFolders = trashedFolders(allFolders);
+    let trashDocs = applyCompanyDocumentFilters(trashedDocs(readDocs(), allFolders), {
+      search: ui.search,
+      type: ui.typeFilter,
+      category: ui.categoryFilter,
+      status: ui.statusFilter,
+      entityType: ui.entityTypeFilter,
+      process: ui.processFilter,
+      dateField: ui.dateField,
+      dateFrom: ui.dateFrom,
+      dateTo: ui.dateTo
+    });
+    trashDocs = sortByRecent(trashDocs);
+    const qTrash = stripSearch(ui.search);
+    let trashFolders = trashedFolders(allFolders);
+    if (qTrash) {
+      trashFolders = trashFolders.filter((f) =>
+        stripSearch(`${f.folderName} ${f.deleteReason || ""} ${f.deletedBy || ""}`).includes(qTrash)
+      );
+    }
+    trashFolders.sort((a, b) => new Date(b.deletedAt || 0).getTime() - new Date(a.deletedAt || 0).getTime());
+    const trashFilteredEmpty = (qTrash || activeDocFilterChips(ui).some((c) => c.key !== "scope")) && !(trashDocs.length || trashFolders.length);
     const trashBody =
       trashDocs.length || trashFolders.length
         ? renderTrashList(trashFolders, trashDocs, IC)
         : renderDocsEmpty(IC, {
-            title: "La papelera está vacía",
-            hint: "Lo que elimine aquí queda en la papelera 30 días antes de borrarse definitivamente.",
+            title: trashFilteredEmpty ? "Nada en la papelera coincide con el filtro" : "La papelera está vacía",
+            hint: trashFilteredEmpty
+              ? "Quite un filtro o limpie la búsqueda para ver el resto de la papelera."
+              : "Lo que elimine aquí queda en la papelera 30 días antes de borrarse definitivamente.",
             showUpload: false
           });
     return `<section class="documents-studio doc-studio doc-studio--explorer">
@@ -1293,6 +1569,7 @@ function renderDocumentManagementShell() {
         <div class="doc-explorer">
           ${renderExplorerPath(ui, IC)}
           ${renderExplorerToolbar(ui, IC)}
+          ${renderActiveFilters(ui)}
           <section class="doc-docs-panel" aria-label="Papelera">${trashBody}</section>
         </div>
       </div>
@@ -1302,9 +1579,10 @@ function renderDocumentManagementShell() {
   const browseAll = ui.folderFilter === "*";
   const q = stripSearch(ui.search);
   let subfolders = browseAll || !ui.folderFilter ? [] : collectSubfolders(docs, folders, ui.folderFilter);
+  const hasChildFolders = subfolders.length > 0;
   if (q) subfolders = subfolders.filter((s) => stripSearch(s.name).includes(q) || stripSearch(s.path).includes(q));
-  subfolders = sortSubfolders(subfolders, ui.sortKey);
   subfolders = subfolders.map((s) => ({ ...s, lastUpdatedAt: folderLastUpdated(docs, s.path) }));
+  subfolders = sortSubfolders(subfolders, ui.sortKey);
 
   const filtered = sortDocuments(
     applyCompanyDocumentFilters(docs, {
@@ -1323,13 +1601,11 @@ function renderDocumentManagementShell() {
     ui.sortKey
   );
   /*
-   * Si hay subcarpetas: mostrar docs de la carpeta actual + descendientes cuando el
-   * usuario busca, o solo los de la ruta exacta si no. En hojas (sin subcarpetas)
-   * siempre mostrar elSubtree completo (incluye la carpeta actual).
+   * Con subcarpetas, la carpeta muestra solo sus archivos directos. La búsqueda sí
+   * incluye los de las carpetas hijas. Una hoja (sin hijas) muestra su propio contenido.
    */
-  const depth = browseAll ? 0 : folderSegments(ui.folderFilter || "").length;
   const listDocs =
-    !browseAll && subfolders.length && !q && depth <= 1
+    !browseAll && hasChildFolders && !q
       ? filtered.filter((d) => folderKey(d.folder) === folderKey(ui.folderFilter))
       : filtered;
 
@@ -1369,6 +1645,7 @@ function renderDocumentManagementShell() {
         <div class="doc-explorer">
           ${renderExplorerPath(ui, IC)}
           ${renderExplorerToolbar(ui, IC)}
+          ${renderActiveFilters(ui)}
           ${renderSubfolderGrid(subfolders, ui, IC)}
           ${renderBulkSelectBar(IC)}
           <section class="doc-docs-panel" aria-label="Documentos">
@@ -2897,14 +3174,13 @@ function openUploadModal() {
       if (progressFill) progressFill.style.width = "100%";
       if (ok > 0) {
         await ensureFolderRecord(folder, by);
-        patchUi({ page: 1, folderFilter: folder, folderPage: 1, showTrash: false, search: "" });
         G.notify?.(
           ok === 1
             ? `${categoryLabel} registrado en la carpeta.`
             : `${ok} documentos (${categoryLabel}) registrados.`,
           "success"
         );
-        G.renderPortalView?.();
+        enterDocs({ page: 1, folderFilter: folder, folderPage: 1, showTrash: false, search: "" });
         return true;
       }
       return false;
@@ -2930,7 +3206,7 @@ function remapFolderPath(path, fromPath, toPath) {
 }
 
 function openEditFolderModal(folderPathRaw) {
-  if (!canUpload()) return;
+  if (!canEdit()) return;
   const path = normalizeCompanyFolder(folderPathRaw);
   if (!path) return;
   const leaf = folderLeafName(path);
@@ -2994,73 +3270,85 @@ function openEditFolderModal(folderPathRaw) {
   });
 }
 
+async function persistRowEdits(storageKey, nextList, ids) {
+  for (const id of ids) {
+    await writeAwaitServerEdit(storageKey, nextList, id);
+  }
+}
+
 function openDeleteFolderFlow(folderPathRaw) {
-  if (!canUpload()) return;
+  if (!canDelete()) {
+    G.notify?.("No tiene permiso para eliminar carpetas.", "error");
+    return;
+  }
   const path = normalizeCompanyFolder(folderPathRaw);
   if (!path) return;
-  if (SUGGESTED_COMPANY_FOLDERS.some((n) => folderKey(n) === folderKey(path))) {
+  if (!canDeleteFolder(readFolders(), path)) {
+    G.notify?.("No tiene permiso para eliminar en esa carpeta.", "error");
+    return;
+  }
+  if (isProtectedSystemFolder(path)) {
     G.notify?.("Las carpetas principales del sistema no se pueden eliminar.", "error");
     return;
   }
-  const docs = readDocs().filter((d) => folderInSubtree(d.folder, path));
-  const childFolders = readFolders().filter(
-    (f) => folderKey(f.folderName) !== folderKey(path) && folderInSubtree(f.folderName, path)
+  const liveDocs = readDocs().filter((d) => !d.deletedAt && folderInSubtree(d.folder, path));
+  const liveChildren = readFolders().filter(
+    (f) => !f.deletedAt && folderKey(f.folderName) !== folderKey(path) && folderInSubtree(f.folderName, path)
   );
-  const parent = parentFolderPath(path) || DEFAULT_COMPANY_FOLDER;
   const message =
-    docs.length || childFolders.length
-      ? `Se eliminará "${folderLeafName(path)}". ${docs.length} documento${docs.length === 1 ? "" : "s"} y ${childFolders.length} subcarpeta${childFolders.length === 1 ? "" : "s"} pasarán a “${parent}”.`
-      : `Se eliminará la carpeta vacía "${folderLeafName(path)}".`;
+    liveDocs.length || liveChildren.length
+      ? `Se enviará a la papelera «${folderLeafName(path)}» con ${liveDocs.length} documento${liveDocs.length === 1 ? "" : "s"} y ${liveChildren.length} subcarpeta${liveChildren.length === 1 ? "" : "s"}. El contenido no se mezcla con la carpeta padre.`
+      : `Se enviará a la papelera la carpeta vacía «${folderLeafName(path)}».`;
   const requestDeletion = G.openConfirmReasonModal || G.openConfirmModal;
   requestDeletion?.({
     title: "Eliminar carpeta",
-    message: `${message} La carpeta (ya vacía) irá a la papelera; podrá restaurarla durante 30 días.`,
-    confirmText: "Eliminar carpeta",
+    message: `${message} Podrá restaurarla durante 30 días.`,
+    confirmText: "Mover a la papelera",
     onConfirm: async (motivo) => {
       const reason = String(motivo || "").trim();
+      const nowIso = new Date().toISOString();
+      const by = actor();
       try {
-        for (const doc of docs) {
-          const updated = normalizeCompanyDocumentRow({
-            ...doc,
-            folder: parent,
-            updatedAt: new Date().toISOString()
-          });
-          const next = readDocs().map((d) => (d.id === doc.id ? updated : d));
-          await writeAwaitServerEdit(KEYS.companyDocuments, next, doc.id);
-        }
-        const folders = readFolders().filter((f) => folderInSubtree(f.folderName, path));
-        for (const row of folders) {
-          if (folderKey(row.folderName) === folderKey(path)) {
-            /* Papelera (soft-delete): la carpeta ya quedó vacía (sus documentos y
-               subcarpetas se reasignaron al padre arriba), así que solo se marca el
-               propio registro de la carpeta como eliminado — no se borra físicamente. */
-            const nowIso = new Date().toISOString();
-            const updated = normalizeCompanyFolderRow({
-              ...row,
-              deletedAt: nowIso,
-              deletedBy: actor(),
-              deleteReason: reason
-            });
-            const next = readFolders().map((f) => (f.id === row.id ? updated : f));
-            await writeAwaitServerEdit(KEYS.companyDocumentFolders, next, row.id);
-          } else {
-            const updated = normalizeCompanyFolderRow({
-              ...row,
-              folderName: remapFolderPath(row.folderName, path, parent)
-            });
-            const next = readFolders().map((f) => (f.id === row.id ? updated : f));
-            await writeAwaitServerEdit(KEYS.companyDocumentFolders, next, row.id);
-          }
-        }
+        const docsBefore = readDocs();
+        const nextDocs = docsBefore.map((doc) =>
+          doc.deletedAt || !folderInSubtree(doc.folder, path)
+            ? doc
+            : normalizeCompanyDocumentRow({
+                ...doc,
+                deletedAt: nowIso,
+                deletedBy: by,
+                deleteReason: reason,
+                updatedAt: nowIso
+              })
+        );
+        const docIds = nextDocs.filter((doc, i) => doc !== docsBefore[i]).map((doc) => doc.id);
+        await persistRowEdits(KEYS.companyDocuments, nextDocs, docIds);
+
+        const foldersBefore = readFolders();
+        const nextFolders = foldersBefore.map((row) =>
+          row.deletedAt || !folderInSubtree(row.folderName, path)
+            ? row
+            : normalizeCompanyFolderRow({
+                ...row,
+                deletedAt: nowIso,
+                deletedBy: by,
+                deleteReason: reason
+              })
+        );
+        const folderIds = nextFolders.filter((row, i) => row !== foldersBefore[i]).map((row) => row.id);
+        await persistRowEdits(KEYS.companyDocumentFolders, nextFolders, folderIds);
+
         G.logPortalAuditEvent?.("documents", "delete", {
           entityId: path,
           entityKind: "folder",
           entityLabel: `Carpeta · ${path}`,
           summary: `Eliminación de carpeta · ${path}${motivo ? ` · ${motivo}` : ""}`,
-          usuario: actor(),
-          actor: actor()
+          usuario: by,
+          actor: by
         });
-        patchUi({ folderFilter: parent, page: 1, folderPage: 1 });
+        const parent = parentFolderPath(path) || EMPLOYEES_ROOT_FOLDER;
+        forgetNavInside(path);
+        patchUi({ folderFilter: parent, page: 1, folderPage: 1, showTrash: false });
         G.notify?.("Carpeta movida a la papelera.", "success");
         G.renderPortalView?.();
       } catch (err) {
@@ -3070,23 +3358,38 @@ function openDeleteFolderFlow(folderPathRaw) {
   });
 }
 
-/** Restaura una carpeta de la papelera. Mismo permiso que gestionar esa carpeta. */
+/** Restaura una carpeta y lo que se envió a la papelera en el mismo movimiento. */
 async function restoreFolder(row) {
   if (!row) return;
   if (!canDeleteFolder(readFolders(), row.folderName)) {
     G.notify?.("No tiene permiso para restaurar esa carpeta.", "error");
     return;
   }
+  const stamp = String(row.deletedAt || "");
+  const path = row.folderName;
   const nowIso = new Date().toISOString();
-  const updated = normalizeCompanyFolderRow({
-    ...row,
-    deletedAt: "",
-    deletedBy: "",
-    deleteReason: ""
-  });
+  const clearFolder = (item) =>
+    normalizeCompanyFolderRow({ ...item, deletedAt: "", deletedBy: "", deleteReason: "" });
+  const clearDoc = (item) =>
+    normalizeCompanyDocumentRow({
+      ...item,
+      deletedAt: "",
+      deletedBy: "",
+      deleteReason: "",
+      updatedAt: nowIso
+    });
+  const inBatch = (item) =>
+    stamp && String(item.deletedAt || "") === stamp && folderInSubtree(item.folderName || item.folder, path);
   try {
-    const next = readFolders().map((f) => (f.id === row.id ? updated : f));
-    await writeAwaitServerEdit(KEYS.companyDocumentFolders, next, row.id);
+    const foldersBefore = readFolders();
+    const nextFolders = foldersBefore.map((f) => (f.id === row.id || inBatch(f) ? clearFolder(f) : f));
+    const folderIds = nextFolders.filter((f, i) => f !== foldersBefore[i]).map((f) => f.id);
+    await persistRowEdits(KEYS.companyDocumentFolders, nextFolders, folderIds);
+
+    const docsBefore = readDocs();
+    const nextDocs = docsBefore.map((d) => (inBatch(d) ? clearDoc(d) : d));
+    const docIds = nextDocs.filter((d, i) => d !== docsBefore[i]).map((d) => d.id);
+    await persistRowEdits(KEYS.companyDocuments, nextDocs, docIds);
   } catch (err) {
     G.notify?.(String(err?.message || "No se pudo restaurar la carpeta."), "error");
     return;
@@ -3101,14 +3404,15 @@ async function restoreFolder(row) {
     at: nowIso
   });
   G.notify?.("Carpeta restaurada.", "success");
-  G.renderPortalView?.();
+  enterDocs({ showTrash: false, folderFilter: path, page: 1, folderPage: 1 });
 }
 
-function openNewFolderModal(parentPathRaw = "") {
+function openNewFolderModal(parentPathRaw = "", { topLevel = false } = {}) {
   if (!canUpload()) return;
-  const rawParent = parentPathRaw || getUi().folderFilter || "";
-  const parent = normalizeCompanyFolder(rawParent === "*" ? "" : rawParent);
-  const isSubfolder = Boolean(parent) && folderSegments(parent).length >= 1;
+  /* `normalizeCompanyFolder("")` devuelve "General". Una carpeta principal no debe caer ahí. */
+  const rawParent = topLevel ? "" : String(parentPathRaw || "").trim();
+  const parent = !topLevel && rawParent && rawParent !== "*" ? rawParent : "";
+  const isSubfolder = Boolean(parent);
   G.openEditModal?.({
     title: isSubfolder ? "Nueva subcarpeta" : "Nueva carpeta",
     subtitle: isSubfolder
@@ -3158,13 +3462,12 @@ function openNewFolderModal(parentPathRaw = "") {
       try {
         await writeAwaitServerCreate(KEYS.companyDocumentFolders, [...folders, record], record);
         G.notify?.(isSubfolder ? "Subcarpeta creada." : "Carpeta creada.", "success");
-        patchUi({
+        enterDocs({
           folderFilter: isSubfolder ? parent : folderName,
           page: 1,
           folderPage: 1,
           showTrash: false
         });
-        G.renderPortalView?.();
         return true;
       } catch (err) {
         G.notify?.(String(err?.message || "No se pudo crear la carpeta."), "error");
@@ -3922,6 +4225,7 @@ async function openPreview(doc) {
     <div class="doc-preview-backdrop" data-close></div>
     <aside class="doc-preview-drawer" role="dialog" aria-modal="true" aria-label="Vista previa">
       <header class="doc-preview__head">
+        <button type="button" class="doc-btn doc-btn--ghost doc-btn--sm doc-back-btn doc-preview__back" data-preview-back aria-label="Volver">${IC_CHEVRON_LEFT}<span>Atrás</span></button>
         <span class="doc-fileicon doc-fileicon--${group}">${docTypeIconSvg(group)}</span>
         <div class="doc-preview__titles">
           <p class="doc-preview__name" title="${escapeAttr(display.fullName)}">${escapeHtml(display.title)}</p>
@@ -3950,7 +4254,7 @@ async function openPreview(doc) {
     if (e.key === "Escape") closePreviewPanel();
   };
   document.addEventListener("keydown", previewKeyHandler);
-  overlay.querySelectorAll("[data-close]").forEach((el) => el.addEventListener("click", closePreviewPanel));
+  overlay.querySelectorAll("[data-close], [data-preview-back]").forEach((el) => el.addEventListener("click", closePreviewPanel));
   const stage = overlay.querySelector("[data-stage]");
   overlay.querySelector("[data-download]")?.addEventListener("click", async () => {
     try {
@@ -4053,7 +4357,8 @@ function openStorageDetails() {
     : `<p class="muted">Sin documentos almacenados.</p>`;
   G.openInfoModal?.({
     title: "Detalles de almacenamiento",
-    bodyHtml: `<div class="doc-storage-details"><p class="doc-storage-details__total">${escapeHtml(formatFileSize(summary.totalBytes))} de ${escapeHtml(formatFileSize(summary.quotaBytes))} · ${summary.usedPercent}%</p>${rows}</div>`
+    bodyHtml: `<div class="doc-storage-details"><p class="doc-storage-details__total">${escapeHtml(formatFileSize(summary.totalBytes))} de ${escapeHtml(formatFileSize(summary.quotaBytes))} · ${summary.usedPercent}%</p>${rows}</div>`,
+    primaryHtml: `<button type="button" id="crud-ok" class="btn btn-outline">‹ Atrás</button>`
   });
 }
 
@@ -4118,10 +4423,8 @@ function confirmDeleteDocument(doc) {
   });
 }
 
-/** Actualiza el contador y el estado (habilitado/deshabilitado) de la barra de selección
- *  múltiple sin re-renderizar toda la vista (evita perder el estado de los demás
- *  checkboxes en cada clic). La barra ahora es persistente: en vez de ocultarse con
- *  0 marcados, queda visible en estado "vacío" con las acciones deshabilitadas. */
+/** Actualiza el contador y la visibilidad de la barra de selección sin re-renderizar
+ *  la vista (así no se pierden los demás checkboxes). Sin marcas, la barra se oculta. */
 function syncDocSelectionBadge(root) {
   if (!root) return;
   const checks = [...root.querySelectorAll("[data-doc-select]")];
@@ -4296,7 +4599,7 @@ function bindDocumentManagementPortalControls() {
 
   on(root, "[data-action='doc-upload']", "click", () => openUploadModal());
   on(root, "[data-action='doc-manage-types']", "click", () => openManageTypesModal());
-  on(root, "[data-action='doc-new-folder']", "click", () => openNewFolderModal(""));
+  on(root, "[data-action='doc-new-folder']", "click", () => openNewFolderModal("", { topLevel: true }));
   on(root, "[data-action='doc-new-subfolder']", "click", (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -4307,14 +4610,11 @@ function bindDocumentManagementPortalControls() {
     G.renderPortalView?.();
   });
   on(root, "[data-action='doc-toggle-trash']", "click", () => {
-    const next = !getUi().showTrash;
-    patchUi({
-      showTrash: next,
-      page: 1,
-      folderPage: 1,
-      ...(next ? {} : { folderFilter: getUi().folderFilter || EMPLOYEES_ROOT_FOLDER })
-    });
-    G.renderPortalView?.();
+    if (!getUi().showTrash) {
+      enterDocs({ showTrash: true, page: 1, folderPage: 1 });
+      return;
+    }
+    goBackDocs();
   });
   on(root, "[data-action='doc-sort']", "change", (e) => {
     patchUi({ sortKey: e.currentTarget.value || "name_asc", page: 1, folderPage: 1 });
@@ -4353,21 +4653,19 @@ function bindDocumentManagementPortalControls() {
     G.renderPortalView?.();
   });
   on(root, "[data-action='doc-filter-status']", "click", (e) => {
-    patchUi({
+    enterDocs({
       statusFilter: e.currentTarget.dataset.status || "all",
       showFilters: true,
       page: 1,
       folderFilter: "*",
       showTrash: false
     });
-    G.renderPortalView?.();
   });
   on(root, "[data-action='doc-folder-filter']", "change", (e) => {
-    patchUi({ folderFilter: e.currentTarget.value || "", page: 1, folderPage: 1, showTrash: false });
-    G.renderPortalView?.();
+    enterDocs({ folderFilter: e.currentTarget.value || "", page: 1, folderPage: 1, showTrash: false });
   });
   on(root, "[data-action='doc-clear-filters']", "click", () => {
-    patchUi({
+    const patch = {
       search: "",
       typeFilter: "all",
       categoryFilter: "all",
@@ -4378,12 +4676,60 @@ function bindDocumentManagementPortalControls() {
       dateTo: "",
       page: 1,
       folderPage: 1
-    });
+    };
+    if (getUi().folderFilter === "*") {
+      enterDocs({ ...patch, folderFilter: EMPLOYEES_ROOT_FOLDER, showTrash: false });
+      return;
+    }
+    patchUi(patch);
     G.renderPortalView?.();
   });
-  on(root, "[data-action='doc-clear-folder']", "click", () => {
-    patchUi({ folderFilter: EMPLOYEES_ROOT_FOLDER, page: 1, folderPage: 1, showTrash: false });
+  on(root, "[data-action='doc-clear-filter']", "click", (e) => {
+    const key = String(e.currentTarget.dataset.filter || "");
+    const patch = { page: 1 };
+    if (key === "search") patch.search = "";
+    else if (key === "type") patch.typeFilter = "all";
+    else if (key === "category") patch.categoryFilter = "all";
+    else if (key === "status") patch.statusFilter = "all";
+    else if (key === "entity") patch.entityTypeFilter = "all";
+    else if (key === "process") patch.processFilter = "all";
+    else if (key === "dates") {
+      patch.dateFrom = "";
+      patch.dateTo = "";
+    } else if (key === "scope") {
+      enterDocs({ ...patch, folderFilter: EMPLOYEES_ROOT_FOLDER, showTrash: false });
+      return;
+    }
+    patchUi(patch);
     G.renderPortalView?.();
+  });
+  on(root, "[data-action='doc-kpi-docs']", "click", (e) => {
+    const status = String(e.currentTarget.dataset.status || "all");
+    if (status === "all") {
+      const ui = getUi();
+      if (ui.showTrash || ui.folderFilter === "*") {
+        enterDocs({
+          statusFilter: "all",
+          page: 1,
+          showTrash: false,
+          folderFilter: ui.showTrash ? ui.folderFilter || EMPLOYEES_ROOT_FOLDER : EMPLOYEES_ROOT_FOLDER
+        });
+        return;
+      }
+      patchUi({ statusFilter: "all", page: 1, showTrash: false });
+      G.renderPortalView?.();
+      return;
+    }
+    enterDocs({
+      statusFilter: status,
+      showFilters: true,
+      page: 1,
+      folderFilter: "*",
+      showTrash: false
+    });
+  });
+  on(root, "[data-action='doc-clear-folder']", "click", () => {
+    enterDocs({ folderFilter: EMPLOYEES_ROOT_FOLDER, page: 1, folderPage: 1, showTrash: false });
   });
   on(root, "[data-action='doc-view']", "click", (e) => {
     patchUi({ viewMode: e.currentTarget.dataset.viewMode === "grid" ? "grid" : "list" });
@@ -4396,8 +4742,7 @@ function bindDocumentManagementPortalControls() {
     G.renderPortalView?.();
   });
   on(root, "[data-action='doc-see-all']", "click", () => {
-    patchUi({ folderFilter: EMPLOYEES_ROOT_FOLDER, search: "", typeFilter: "all", categoryFilter: "all", statusFilter: "all", entityTypeFilter: "all", processFilter: "all", dateFrom: "", dateTo: "", page: 1, folderPage: 1, showTrash: false });
-    G.renderPortalView?.();
+    enterDocs({ folderFilter: EMPLOYEES_ROOT_FOLDER, search: "", typeFilter: "all", categoryFilter: "all", statusFilter: "all", entityTypeFilter: "all", processFilter: "all", dateFrom: "", dateTo: "", page: 1, folderPage: 1, showTrash: false });
   });
   on(root, "[data-action='doc-export-csv']", "click", () => {
     const folders = readFolders();
@@ -4418,16 +4763,14 @@ function bindDocumentManagementPortalControls() {
   });
   on(root, "[data-action='doc-open-folder']", "click", (e) => {
     const folder = String(e.currentTarget.dataset.folder || "");
-    patchUi({ folderFilter: folder, page: 1, folderPage: 1, showTrash: false });
-    G.renderPortalView?.();
+    enterDocs({ folderFilter: folder, page: 1, folderPage: 1, showTrash: false });
   });
   on(root, "[data-action='doc-folder-perms']", "click", (e) => {
     e.stopPropagation();
     openFolderPermissionsModal(String(e.currentTarget.dataset.folder || ""));
   });
   on(root, "[data-action='doc-open-subfolder']", "click", (e) => {
-    patchUi({ folderFilter: String(e.currentTarget.dataset.path || ""), page: 1, folderPage: 1, showTrash: false });
-    G.renderPortalView?.();
+    enterDocs({ folderFilter: String(e.currentTarget.dataset.path || ""), page: 1, folderPage: 1, showTrash: false });
   });
   on(root, "[data-action='doc-edit-folder']", "click", (e) => {
     e.preventDefault();
@@ -4440,24 +4783,18 @@ function bindDocumentManagementPortalControls() {
     openDeleteFolderFlow(String(e.currentTarget.dataset.path || ""));
   });
   on(root, "[data-action='doc-crumb']", "click", (e) => {
-    const path = String(e.currentTarget.dataset.path || "");
-    patchUi({
-      folderFilter: path || EMPLOYEES_ROOT_FOLDER,
+    const path = String(e.currentTarget.dataset.path || "").trim();
+    if (!path) return;
+    enterDocs({
+      folderFilter: path,
       page: 1,
       folderPage: 1,
       showTrash: false
     });
-    G.renderPortalView?.();
   });
   on(root, "[data-action='doc-back']", "click", (e) => {
-    const path = String(e.currentTarget.dataset.path || "");
-    patchUi({
-      folderFilter: path || EMPLOYEES_ROOT_FOLDER,
-      page: 1,
-      folderPage: 1,
-      showTrash: false
-    });
-    G.renderPortalView?.();
+    e.preventDefault();
+    goBackDocs();
   });
   on(root, "[data-action='doc-storage-details']", "click", () => openStorageDetails());
   on(root, "[data-action='doc-preview']", "click", async (e) => {
@@ -4523,6 +4860,51 @@ function bindDocumentManagementPortalControls() {
     e.preventDefault();
     e.stopPropagation();
     restoreFolder(findFolderById(e.currentTarget.dataset.id));
+  });
+
+  const openListedDocument = async (id) => {
+    const doc = findDoc(id);
+    if (!doc || doc.deletedAt) return;
+    try {
+      if (canPreviewFileType(doc.fileName, doc.mimeType)) await openPreview(doc);
+      else await triggerDownload(doc);
+    } catch (err) {
+      G.notify?.(String(err?.message || "No se pudo abrir el documento."), "error");
+    }
+  };
+  const isDocChromeTarget = (target) =>
+    Boolean(target?.closest?.("button, a, input, label, summary, details, select, textarea"));
+  on(root, ".doc-card[data-id], tr[data-doc-row]", "click", (e) => {
+    if (isDocChromeTarget(e.target)) return;
+    openListedDocument(e.currentTarget.dataset.id);
+  });
+  on(root, ".doc-card[data-id], tr[data-doc-row]", "keydown", (e) => {
+    if (e.key !== "Enter") return;
+    if (isDocChromeTarget(e.target)) return;
+    e.preventDefault();
+    openListedDocument(e.currentTarget.dataset.id);
+  });
+  on(root, "details.doc-rowmenu, details.doc-folder-menu", "toggle", (e) => {
+    const details = e.currentTarget;
+    const list = details.querySelector(".doc-rowmenu__list");
+    if (!details.open) {
+      if (list) list.removeAttribute("style");
+      return;
+    }
+    root.querySelectorAll("details.doc-rowmenu[open], details.doc-folder-menu[open]").forEach((el) => {
+      if (el !== details) el.removeAttribute("open");
+    });
+    if (!list) return;
+    const summary = details.querySelector("summary");
+    if (!summary) return;
+    const rect = summary.getBoundingClientRect();
+    const menuHeight = list.offsetHeight || 180;
+    const openUp = rect.bottom + menuHeight + 12 > window.innerHeight && rect.top > menuHeight;
+    list.style.position = "fixed";
+    list.style.right = `${Math.max(8, window.innerWidth - rect.right)}px`;
+    list.style.left = "auto";
+    list.style.top = openUp ? `${Math.max(8, rect.top - menuHeight - 4)}px` : `${rect.bottom + 4}px`;
+    list.style.zIndex = "40";
   });
 
   const searchInput = root.querySelector("[data-action='doc-search']");
