@@ -903,8 +903,8 @@ function docExpiryStatus(expeditionDate, expiryDate) {
   }
   const days = fleetDaysUntil(expiresAt);
   if (days < 0) return { label: `Vencido hace ${Math.abs(days)} dias`, cls: "status-rechazada", days, expiresAt };
-  if (days <= 30) return { label: `Por vencer (${days} dias)`, cls: "status-pendiente", days, expiresAt };
-  return { label: `Vigente (${days} dias)`, cls: "status-viaje_asignado", days, expiresAt };
+  if (days <= 30) return { label: `Por vencer (${days} días)`, cls: "status-pendiente", days, expiresAt };
+  return { label: `Vigente (${days} días)`, cls: "status-viaje_asignado", days, expiresAt };
 }
 
 function refreshSearchableSelectPortal(selectEl) {

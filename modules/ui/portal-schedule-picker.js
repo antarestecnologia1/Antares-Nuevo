@@ -253,7 +253,6 @@ function mountDatePicker(wrap) {
       closeOpenPicker();
       return;
     }
-    flow = "";
     paint();
     panel.removeAttribute("hidden");
     trigger.setAttribute("aria-expanded", "true");
@@ -406,33 +405,151 @@ function mountTimePicker(wrap) {
       const on = normalizeHhmm(hidden.value) === slot;
       return `<button type="button" class="acf-tp__preset${on ? " is-on" : ""}" data-tp-preset="${slot}">${formatTimeDisplay(slot)}</button>`;
     }).join("");
-    panel.innerHTML = `<div class="acf-tp">
-      <div class="acf-tp__top">
-        <div class="acf-tp__readout${shown ? "" : " is-empty"}" aria-live="polite"><strong>${readout}</strong></div>
-        <div class="acf-tp__ap" role="group" aria-label="Jornada">
-          <button type="button" class="${shown && c.ap === "am" ? "is-on" : ""}" data-tp-ap="am" aria-pressed="${shown && c.ap === "am" ? "true" : "false"}">a. m.</button>
-          <button type="button" class="${shown && c.ap === "pm" ? "is-on" : ""}" data-tp-ap="pm" aria-pressed="${shown && c.ap === "pm" ? "true" : "false"}">p. m.</button>
+    buildWheel();
+  };
+
+  /* Rueda de hora/minuto + AM/PM; el cambio se aplica con "Aceptar". */
+  const ROW_H = 40;
+  const buildWheel = () => {
+    const base = hhmmToClock(hidden.value) || { h12: 8, min: 0, ap: "am" };
+    const draft = { h12: base.h12, min: base.min, ap: base.ap };
+    const hasValue = !!hhmmToClock(hidden.value);
+    const hours = Array.from({ length: 12 }, (_, i) => i + 1);
+    const mins = Array.from({ length: 60 }, (_, i) => i);
+    const col = (kind, label, items, fmt) => `<div class="acf-tw__col">
+        <p class="acf-tw__label">${label}</p>
+        <button type="button" class="acf-tw__arrow" data-tw-step="${kind}:-1" aria-label="${label} anterior">▴</button>
+        <div class="acf-tw__wheel" data-tw-wheel="${kind}" tabindex="0" role="listbox" aria-label="${label}">
+          <div class="acf-tw__band" aria-hidden="true"></div>
+          <div class="acf-tw__pad"></div>
+          ${items.map((v) => `<button type="button" class="acf-tw__item" data-tw-item="${v}" role="option" tabindex="-1">${fmt(v)}</button>`).join("")}
+          <div class="acf-tw__pad"></div>
         </div>
+        <button type="button" class="acf-tw__arrow" data-tw-step="${kind}:1" aria-label="${label} siguiente">▾</button>
+      </div>`;
+    panel.innerHTML = `<div class="acf-tw">
+      <input type="text" class="acf-tw__type" data-tp-type autocomplete="off" inputmode="text" placeholder="Escriba la hora: 8:30 am, 14:45" aria-label="Escribir la hora" value="${hasValue ? formatTimeDisplay(hidden.value) : ""}" />
+      <div class="acf-tw__ap" role="group" aria-label="Jornada">
+        <button type="button" data-tw-ap="am">AM</button>
+        <button type="button" data-tw-ap="pm">PM</button>
       </div>
-      <div class="acf-tp__quick">
-        <button type="button" class="acf-tp__step" data-tp-shift="-60" aria-label="Restar una hora">−1 h</button>
-        <button type="button" class="acf-tp__step" data-tp-shift="-15" aria-label="Restar 15 minutos">−15 min</button>
-        <input type="text" class="acf-tp__type" data-tp-type inputmode="text" autocomplete="off" placeholder="Escriba: 8:30 am o 14:30" aria-label="Escribir la hora" value="" />
-        <button type="button" class="acf-tp__step" data-tp-shift="15" aria-label="Sumar 15 minutos">+15 min</button>
-        <button type="button" class="acf-tp__step" data-tp-shift="60" aria-label="Sumar una hora">+1 h</button>
+      <div class="acf-tw__cols">
+        ${col("h", "Hora", hours, (v) => String(v))}
+        ${col("m", "Minuto", mins, (v) => String(v).padStart(2, "0"))}
       </div>
-      <div class="acf-tp__presets" aria-label="Horas frecuentes">${presetsHtml}</div>
-      <p class="acf-tp__label">Hora</p>
-      <div class="acf-tp__hours">${hoursHtml}</div>
-      <p class="acf-tp__label">Minutos</p>
-      <div class="acf-tp__mins">${minsHtml}</div>
-      <footer class="acf-tp__foot">
-        <button type="button" class="acf-tp__link" data-tp-now>Ahora</button>
-        <button type="button" class="acf-tp__link" data-tp-clear>Borrar</button>
-        <button type="button" class="acf-tp__done" data-tp-done>Listo</button>
-      </footer>
-      <p class="acf-tp__hint">Horario referencial Colombia (COT)</p>
+      <div class="acf-tw__foot">
+        <button type="button" class="acf-tw__ghost" data-tw-cancel>Cancelar</button>
+        <button type="button" class="acf-tw__ok" data-tw-ok>Aceptar</button>
+      </div>
+      <button type="button" class="acf-tp__link acf-tw__clear" data-tp-clear>Borrar hora</button>
     </div>`;
+    const typed = panel.querySelector("[data-tp-type]");
+    const wheels = { h: panel.querySelector('[data-tw-wheel="h"]'), m: panel.querySelector('[data-tw-wheel="m"]') };
+    const valueOf = (kind) => (kind === "h" ? draft.h12 : draft.min);
+    const itemsOf = (kind) => [...wheels[kind].querySelectorAll("[data-tw-item]")];
+    let lock = 0;
+    const paintState = () => {
+      ["h", "m"].forEach((kind) => {
+        itemsOf(kind).forEach((el) => el.classList.toggle("is-on", Number(el.dataset.twItem) === valueOf(kind)));
+      });
+      panel.querySelectorAll("[data-tw-ap]").forEach((b) => {
+        const on = b.dataset.twAp === draft.ap;
+        b.classList.toggle("is-on", on);
+        b.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+    };
+    const scrollTo = (kind, smooth) => {
+      const idx = kind === "h" ? draft.h12 - 1 : draft.min;
+      lock++;
+      wheels[kind].scrollTo({ top: idx * ROW_H, behavior: smooth ? "smooth" : "auto" });
+      setTimeout(() => {
+        lock = Math.max(0, lock - 1);
+      }, smooth ? 380 : 60);
+    };
+    const syncTyped = () => {
+      typed.value = formatTimeDisplay(clockToHhmm(draft));
+      typed.classList.remove("is-invalid");
+    };
+    const setDraft = (patch, { smooth = true, fromWheel = false } = {}) => {
+      Object.assign(draft, patch);
+      paintState();
+      if (!fromWheel) {
+        if ("h12" in patch) scrollTo("h", smooth);
+        if ("min" in patch) scrollTo("m", smooth);
+      }
+      syncTyped();
+    };
+    ["h", "m"].forEach((kind) => {
+      let timer = null;
+      wheels[kind].addEventListener("scroll", () => {
+        if (lock) return;
+        clearTimeout(timer);
+        timer = setTimeout(() => {
+          const idx = Math.round(wheels[kind].scrollTop / ROW_H);
+          if (kind === "h") setDraft({ h12: Math.min(12, Math.max(1, idx + 1)) }, { fromWheel: true });
+          else setDraft({ min: Math.min(59, Math.max(0, idx)) }, { fromWheel: true });
+        }, 110);
+      });
+      wheels[kind].addEventListener("keydown", (ev) => {
+        if (ev.key !== "ArrowUp" && ev.key !== "ArrowDown") return;
+        ev.preventDefault();
+        stepKind(kind, ev.key === "ArrowUp" ? -1 : 1);
+      });
+    });
+    const stepKind = (kind, dir) => {
+      if (kind === "h") setDraft({ h12: ((draft.h12 - 1 + dir + 12) % 12) + 1 });
+      else setDraft({ min: (draft.min + dir + 60) % 60 });
+    };
+    const accept = () => {
+      setHiddenValue(hidden, clockToHhmm(draft));
+      syncPickerDisplay(wrap);
+      closeOpenPicker();
+    };
+    panel.querySelectorAll("[data-tw-item]").forEach((el) => {
+      el.addEventListener("click", () => {
+        const kind = el.closest("[data-tw-wheel]").dataset.twWheel;
+        setDraft(kind === "h" ? { h12: Number(el.dataset.twItem) } : { min: Number(el.dataset.twItem) });
+      });
+    });
+    panel.querySelectorAll("[data-tw-step]").forEach((el) => {
+      el.addEventListener("click", () => {
+        const [kind, dir] = el.dataset.twStep.split(":");
+        stepKind(kind, Number(dir));
+      });
+    });
+    panel.querySelectorAll("[data-tw-ap]").forEach((el) => {
+      el.addEventListener("click", () => setDraft({ ap: el.dataset.twAp }));
+    });
+    panel.querySelector("[data-tw-ok]").addEventListener("click", accept);
+    panel.querySelector("[data-tw-cancel]").addEventListener("click", () => closeOpenPicker());
+    typed.addEventListener("input", () => {
+      const v = parseTypedTime(typed.value);
+      if (!v) {
+        typed.classList.toggle("is-invalid", typed.value.trim().length > 0 && /[^\d\s:.hapmAPM]/.test(typed.value));
+        return;
+      }
+      typed.classList.remove("is-invalid");
+      const c = hhmmToClock(v);
+      Object.assign(draft, c);
+      paintState();
+      scrollTo("h", false);
+      scrollTo("m", false);
+    });
+    typed.addEventListener("keydown", (ev) => {
+      if (ev.key !== "Enter") return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      const v = parseTypedTime(typed.value);
+      if (v) {
+        Object.assign(draft, hhmmToClock(v));
+        accept();
+      } else typed.classList.add("is-invalid");
+    });
+    paintState();
+    requestAnimationFrame(() => {
+      scrollTo("h", false);
+      scrollTo("m", false);
+    });
   };
 
   const commit = (patch) => {
@@ -449,6 +566,7 @@ function mountTimePicker(wrap) {
       closeOpenPicker();
       return;
     }
+    flow = "";
     paint();
     panel.removeAttribute("hidden");
     trigger.setAttribute("aria-expanded", "true");
@@ -460,6 +578,12 @@ function mountTimePicker(wrap) {
     ev.stopPropagation();
     const btn = ev.target.closest("button");
     if (!btn) return;
+    if (btn.hasAttribute("data-tp-slot")) {
+      setHiddenValue(hidden, btn.dataset.tpSlot);
+      syncPickerDisplay(wrap);
+      closeOpenPicker();
+      return;
+    }
     if (btn.hasAttribute("data-tp-hour")) {
       const h12 = parseInt(btn.dataset.tpHour, 10);
       const wasEmpty = !hhmmToClock(hidden.value);
@@ -521,12 +645,6 @@ function mountTimePicker(wrap) {
   });
   panel.addEventListener("input", (ev) => {
     ev.target.closest?.("[data-tp-type]")?.classList.remove("is-invalid");
-  });
-  panel.addEventListener("change", (ev) => {
-    const input = ev.target.closest?.("[data-tp-type]");
-    if (input && input.value.trim()) {
-      if (applyTyped(input)) paint();
-    }
   });
 
   hidden.addEventListener("input", () => syncPickerDisplay(wrap));

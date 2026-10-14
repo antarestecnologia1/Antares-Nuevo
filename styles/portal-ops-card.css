@@ -2611,3 +2611,80 @@ body[data-theme="dark"] .simit-fine.is-pending .simit-fine__main strong { color:
 body[data-theme="dark"] .simit-fine__main span,
 body[data-theme="dark"] .simit-fine__year,
 body[data-theme="dark"] .simit-fine__date span { color: #a9b9d0; }
+
+/* ===== Tarjetas de camiones: SOAT y tecnomecánica con texto completo (2026-10-14) ===== */
+.vehicle-card-spec-grid .trip-ops-card-item:nth-child(3),
+.vehicle-card-spec-grid .trip-ops-card-item:nth-child(4) { grid-column: 1 / -1; }
+.vehicle-card-spec-grid .trip-ops-card-item-value { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; line-height: 1.25; }
+.portal-main .vehicle-card-spec-grid .trip-ops-card-item:nth-child(3),
+.portal-main .vehicle-card-spec-grid .trip-ops-card-item:nth-child(4) { grid-column: 1 / -1 !important; }
+.portal-main .vehicle-card-spec-grid .trip-ops-card-item-value { white-space: normal !important; overflow: visible !important; text-overflow: clip !important; overflow-wrap: anywhere; line-height: 1.25 !important; }
+
+/* ===== Selector de hora en lista (un solo clic) ===== */
+.acf-ts { display: flex; flex-direction: column; gap: 0.6rem; padding: 0.75rem; }
+.acf-ts__type { display: grid; gap: 0.3rem; margin: 0; }
+.acf-ts__type span { font-size: 0.72rem; font-weight: 600; color: #5b6b80; }
+.acf-ts__type input { width: 100%; box-sizing: border-box; border: 1.5px solid #cfdcec; border-radius: 10px; padding: 0.6rem 0.75rem; font: inherit; font-size: 1rem; font-weight: 600; color: #0b2138; background: #fff; }
+.acf-ts__type input:focus { outline: none; border-color: #1f5fa8; box-shadow: 0 0 0 3px rgba(31, 95, 168, 0.15); }
+.acf-ts__type input.is-invalid { border-color: #c0392b; background: #fdf3f2; }
+.acf-ts__list { max-height: 15rem; overflow-y: auto; border: 1px solid #e3e9f1; border-radius: 10px; padding: 0 0.5rem 0.5rem; background: #fafcfe; }
+.acf-ts__heading { position: sticky; top: 0; margin: 0; padding: 0.45rem 0 0.3rem; background: #fafcfe; font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 800; color: #8392a6; }
+.acf-ts__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.3rem; }
+.acf-ts__slot { border: 1px solid #dbe5f1; background: #fff; border-radius: 8px; padding: 0.5rem 0.2rem; font: inherit; font-size: 0.82rem; font-weight: 600; color: #0b2138; cursor: pointer; font-variant-numeric: tabular-nums; }
+.acf-ts__slot:hover { border-color: #1f5fa8; background: #eaf2fb; }
+.acf-ts__slot.is-on { background: #1f5fa8; border-color: #1f5fa8; color: #fff; }
+.acf-ts__foot { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; font-size: 0.68rem; color: #8392a6; }
+body[data-theme="dark"] .acf-ts__type span { color: #a9b9d0; }
+body[data-theme="dark"] .acf-ts__type input { background: #12243a; border-color: rgba(148, 196, 255, 0.28); color: #e6eefb; }
+body[data-theme="dark"] .acf-ts__list { background: #0c1a2b; border-color: rgba(148, 196, 255, 0.16); }
+body[data-theme="dark"] .acf-ts__heading { background: #0c1a2b; color: #a9b9d0; }
+body[data-theme="dark"] .acf-ts__slot { background: #12243a; border-color: rgba(148, 196, 255, 0.2); color: #e6eefb; }
+body[data-theme="dark"] .acf-ts__slot:hover { background: #1a3556; }
+body[data-theme="dark"] .acf-ts__slot.is-on { background: #3b82d6; border-color: #3b82d6; color: #fff; }
+body[data-theme="dark"] .acf-ts__foot { color: #a9b9d0; }
+
+/* ===== Selector de hora tipo rueda con escritura ===== */
+.acf-tw { display: flex; flex-direction: column; gap: 0.65rem; padding: 0.8rem; }
+.acf-tw__type { width: 100%; box-sizing: border-box; border: 1.5px solid #cfdcec; border-radius: 10px; padding: 0.55rem 0.75rem; font: inherit; font-size: 1rem; font-weight: 600; color: #0b2138; background: #fff; text-align: center; }
+.acf-tw__type:focus { outline: none; border-color: #1f6fe0; box-shadow: 0 0 0 3px rgba(31, 111, 224, 0.15); }
+.acf-tw__type.is-invalid { border-color: #c0392b; background: #fdf3f2; }
+.acf-tw__ap { display: grid; grid-template-columns: 1fr 1fr; gap: 0.3rem; padding: 0.22rem; background: #eef2f7; border-radius: 10px; }
+.acf-tw__ap button { border: 0; background: transparent; padding: 0.5rem; border-radius: 8px; font: inherit; font-size: 0.85rem; font-weight: 700; color: #5b6b80; cursor: pointer; }
+.acf-tw__ap button.is-on { background: #1f6fe0; color: #fff; box-shadow: 0 2px 6px rgba(31, 111, 224, 0.35); }
+.acf-tw__cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+.acf-tw__col { display: flex; flex-direction: column; align-items: stretch; gap: 0.15rem; }
+.acf-tw__label { margin: 0; text-align: center; font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 800; color: #7b8aa0; }
+.acf-tw__arrow { border: 0; background: transparent; color: #5b6b80; font-size: 0.85rem; line-height: 1; padding: 0.15rem; cursor: pointer; border-radius: 6px; }
+.acf-tw__arrow:hover { background: #eef2f7; color: #1f6fe0; }
+.acf-tw__wheel { position: relative; height: 200px; overflow-y: auto; scroll-snap-type: y mandatory; scrollbar-width: none; background: #f4f7fb; border-radius: 12px; outline: none; }
+.acf-tw__wheel::-webkit-scrollbar { display: none; }
+.acf-tw__wheel:focus-visible { box-shadow: 0 0 0 3px rgba(31, 111, 224, 0.25); }
+.acf-tw__pad { height: 80px; }
+.acf-tw__band { position: sticky; top: 80px; height: 0; z-index: 0; pointer-events: none; }
+.acf-tw__band::after { content: ""; position: absolute; left: 6px; right: 6px; top: 0; height: 40px; border-radius: 10px; background: #1f6fe0; }
+.acf-tw__item { position: relative; z-index: 1; display: block; width: 100%; height: 40px; border: 0; background: transparent; scroll-snap-align: center; font: inherit; font-size: 1.05rem; font-weight: 600; color: #8a98ac; font-variant-numeric: tabular-nums; cursor: pointer; }
+.acf-tw__item.is-on { color: #fff; font-weight: 800; }
+.acf-tw__foot { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.acf-tw__ghost, .acf-tw__ok { border-radius: 10px; padding: 0.6rem; font: inherit; font-size: 0.9rem; font-weight: 700; cursor: pointer; }
+.acf-tw__ghost { border: 1px solid #cfdcec; background: #fff; color: #33445c; }
+.acf-tw__ok { border: 0; background: #1f6fe0; color: #fff; box-shadow: 0 4px 10px rgba(31, 111, 224, 0.3); }
+.acf-tw__clear { align-self: center; }
+body[data-theme="dark"] .acf-tw__type { background: #12243a; border-color: rgba(148, 196, 255, 0.28); color: #e6eefb; }
+body[data-theme="dark"] .acf-tw__ap { background: #12243a; }
+body[data-theme="dark"] .acf-tw__ap button { color: #b6c8e0; }
+body[data-theme="dark"] .acf-tw__ap button.is-on { background: #3b82d6; color: #fff; }
+body[data-theme="dark"] .acf-tw__wheel { background: #0c1a2b; }
+body[data-theme="dark"] .acf-tw__item { color: #8da3c0; }
+body[data-theme="dark"] .acf-tw__item.is-on { color: #fff; }
+body[data-theme="dark"] .acf-tw__band::after { background: #3b82d6; }
+body[data-theme="dark"] .acf-tw__label { color: #a9b9d0; }
+body[data-theme="dark"] .acf-tw__arrow { color: #b6c8e0; }
+body[data-theme="dark"] .acf-tw__arrow:hover { background: #12243a; }
+body[data-theme="dark"] .acf-tw__ghost { background: #12243a; border-color: rgba(148, 196, 255, 0.28); color: #e6eefb; }
+
+/* ===== Solicitudes: atajos de entrega ===== */
+.acf-delivery-after { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin: 0.7rem 0 0; padding: 0.55rem 0.75rem; border: 1px dashed #cfdcec; border-radius: 12px; background: #f8fbff; }
+.acf-delivery-after__label { font-size: 0.78rem; font-weight: 600; color: #5b6b80; margin-right: 0.2rem; }
+.acf-delivery-after .acf-time-preset:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+body[data-theme="dark"] .acf-delivery-after { background: #0f1f33; border-color: rgba(148, 196, 255, 0.25); }
+body[data-theme="dark"] .acf-delivery-after__label { color: #a9b9d0; }

@@ -368,7 +368,7 @@
       const deliveryLabel = formatScheduleStamp(deliveryIso, deliveryTime);
       const duration = formatDuration(pickupIso, pickupTime, deliveryIso, deliveryTime);
 
-      schedule.querySelectorAll(".acf-time-preset").forEach((btn) => {
+      schedule.querySelectorAll(".acf-time-preset[data-acf-time-target]").forEach((btn) => {
         const target = String(btn.dataset.acfTimeTarget || "");
         const val = String(btn.dataset.acfTimePreset || "");
         const input = requestForm.querySelector(`#${target}`);
@@ -495,6 +495,72 @@
       });
     });
 
+    /* Atajos de entrega: se calculan a partir de la recogida (hora de Colombia, UTC-5). */
+    const grid = schedule.querySelector(".acf-schedule__grid");
+    if (grid && !schedule.querySelector("[data-delivery-after]")) {
+      const bar = document.createElement("div");
+      bar.className = "acf-delivery-after";
+      bar.setAttribute("role", "group");
+      bar.setAttribute("aria-label", "Entrega estimada desde la recogida");
+      bar.innerHTML = `<span class="acf-delivery-after__label">Entrega estimada desde la recogida:</span>
+        ${[
+          ["2", "+2 h"],
+          ["4", "+4 h"],
+          ["8", "+8 h"],
+          ["24", "+1 día"],
+          ["48", "+2 días"]
+        ]
+          .map(([h, t]) => `<button type="button" class="acf-time-preset" data-delivery-after="${h}" disabled>${t}</button>`)
+          .join("")}`;
+      grid.insertAdjacentElement("afterend", bar);
+      const refreshAfterBar = () => {
+        const ready = Boolean(readDateIso("pickup-date") && readTime("pickup-time"));
+        bar.querySelectorAll("button").forEach((b) => {
+          b.disabled = !ready;
+        });
+        bar.classList.toggle("is-ready", ready);
+      };
+      bar.addEventListener("click", (ev) => {
+        const btn = ev.target.closest("[data-delivery-after]");
+        if (!btn || btn.disabled) return;
+        const startMs = scheduleInstantMs(readDateIso("pickup-date"), readTime("pickup-time"));
+        if (!Number.isFinite(startMs)) return;
+        const cot = new Date(startMs + Number(btn.dataset.deliveryAfter) * 3600000 - 5 * 3600000);
+        const pad = (n) => String(n).padStart(2, "0");
+        const iso = `${cot.getUTCFullYear()}-${pad(cot.getUTCMonth() + 1)}-${pad(cot.getUTCDate())}`;
+        const hhmm = `${pad(cot.getUTCHours())}:${pad(cot.getUTCMinutes())}`;
+        clearScheduleFieldErrors();
+        [["delivery-date", iso], ["delivery-time", hhmm]].forEach(([id, val]) => {
+          const el = requestForm.querySelector(`#${id}`);
+          if (!el) return;
+          el.value = val;
+          el.dispatchEvent(new Event("input", { bubbles: true }));
+          el.dispatchEvent(new Event("change", { bubbles: true }));
+          refreshAntaresSchedulePickerDisplay?.(requestForm, id);
+        });
+        syncDeliveryMin();
+        syncPreview();
+      });
+      ["pickup-date", "pickup-time"].forEach((id) => {
+        const el = requestForm.querySelector(`#${id}`);
+        el?.addEventListener("input", refreshAfterBar);
+        el?.addEventListener("change", refreshAfterBar);
+      });
+      refreshAfterBar();
+    }
+    /* Al elegir la fecha de recogida, la de entrega se propone igual si aún está vacía. */
+    const pickupDateEl = requestForm.querySelector("#pickup-date");
+    pickupDateEl?.addEventListener("change", () => {
+      const deliveryEl = requestForm.querySelector("#delivery-date");
+      if (deliveryEl && !deliveryEl.value && pickupDateEl.value) {
+        deliveryEl.value = pickupDateEl.value;
+        deliveryEl.dispatchEvent(new Event("input", { bubbles: true }));
+        refreshAntaresSchedulePickerDisplay?.(requestForm, "delivery-date");
+        syncDeliveryMin();
+        syncPreview();
+      }
+    });
+
     syncDeliveryMin();
     syncPreview();
   }
@@ -591,6 +657,19 @@
           const ucid = String(user.companyId || "").trim();
           if (ucid && ucid !== requestCompanyId) {
             notify("No puede crear solicitudes para otra empresa.", "error");
+            return;
+          }
+        }
+        {
+          const sameText = (a, b) =>
+            String(a || "").trim().toLowerCase() === String(b || "").trim().toLowerCase();
+          if (
+            sameText(data.originDepartment, data.destinationDepartment) &&
+            sameText(data.originCity, data.destinationCity) &&
+            sameText(data.originAddress, data.destinationAddress) &&
+            String(data.originAddress || "").trim()
+          ) {
+            failPortalField(requestForm, "destinationAddress", "El punto de descargue no puede ser igual al de cargue. Revise la dirección de destino.");
             return;
           }
         }
