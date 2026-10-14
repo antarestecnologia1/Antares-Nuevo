@@ -6,6 +6,24 @@
  * Casillas de permisos granulares (admin). Centralizado para reutilizar en HTML y al
  * cambiar el usuario seleccionado en el formulario de permisos.
  */
+function directoryCardTitle(raw) {
+  const text = String(raw || "").replace(/\s+/g, " ").trim();
+  if (!text) return "";
+  const letters = text.replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/g, "");
+  const shouting = letters && letters === letters.toLocaleUpperCase("es-CO") && letters !== letters.toLocaleLowerCase("es-CO");
+  if (!shouting) return text;
+  const particles = new Set(["de", "del", "la", "las", "los", "y", "e", "da", "do", "dos"]);
+  return text
+    .toLocaleLowerCase("es-CO")
+    .split(" ")
+    .map((part, index) => {
+      if (!part) return part;
+      if (index > 0 && particles.has(part)) return part;
+      return part.charAt(0).toLocaleUpperCase("es-CO") + part.slice(1);
+    })
+    .join(" ");
+}
+
 function permissionCheckboxHtml(permission, sel, readOnly) {
   const meta = PERMISSION_META[permission] || { title: permission, desc: "" };
   const checked = sel.has(permission) ? "checked" : "";
@@ -155,8 +173,9 @@ function adminUsersHtml(current) {
     const isMe = String(u.id) === String(current.id);
     const isPending = mode === "pending";
     const uid = String(u.id ?? "");
-    const displayName = getPortalUserDisplayName(u);
-    const companyName = String(getCompanyById(u.companyId)?.name || u.company || "Sin empresa");
+    const rawName = getPortalUserDisplayName(u);
+    const displayName = directoryCardTitle(rawName) || rawName;
+    const companyName = directoryCardTitle(String(getCompanyById(u.companyId)?.name || u.company || "Sin empresa")) || "Sin empresa";
     const permissionCount = namedPerms.length;
     const permCap = Math.max(8, (typeof ALL_PERMISSIONS !== "undefined" && ALL_PERMISSIONS.length) || 24);
     const permPct = Math.min(100, Math.round((permissionCount / permCap) * 100));
@@ -258,16 +277,18 @@ function adminUsersHtml(current) {
         ${m.avatarBlock}
         <div class="adm-badge__head-meta">
           <span class="ag-status ag-status--${m.tone}"><span class="ag-status__dot" aria-hidden="true"></span>${escapeHtml(m.statusLabel)}</span>
-          ${m.roleBadgeHtml}
         </div>
       </header>
       <div class="adm-badge__who">
         <h4 class="adm-badge__name" title="${escapeAttr(m.displayName)}">${escapeHtml(m.displayName)}${m.isMe ? ' <span class="ag-access-card__you">Tú</span>' : ""}</h4>
-        <p class="adm-badge__org">${escapeHtml(m.companyName)}</p>
+        <p class="adm-badge__org"><span class="adm-badge__org-name">${escapeHtml(m.companyName)}</span>${m.roleBadgeHtml}</p>
         <p class="adm-badge__mail">${escapeHtml(m.email)}</p>
       </div>
       <div class="adm-badge__meter" role="img" aria-label="${m.permissionCount} permisos asignados">
-        <span class="adm-ring" style="--pct:${m.permPct}"><span><strong>${m.permissionCount}</strong><small>accesos</small></span></span>
+        <span class="adm-gauge">
+          <span class="adm-ring" style="--pct:${m.permPct}"><span><strong>${m.permissionCount}</strong></span></span>
+          <small>accesos</small>
+        </span>
         <ul class="adm-badge__facts">
           <li><span>Vínculo</span><strong>${escapeHtml(m.profileChipLabel)}</strong></li>
           <li><span>2FA</span><strong class="${m.twoFactor ? "is-ok" : "is-warn"}">${m.twoFactor ? "Activa" : "Off"}</strong></li>
@@ -282,11 +303,13 @@ function adminUsersHtml(current) {
             : `<p class="adm-badge__note">${escapeHtml(m.docLabel)}</p>`
       }
       <footer class="adm-badge__foot">
-        ${
-          m.phoneLabel
-            ? `<a class="adm-badge__tel" href="tel:${escapeAttr(m.phoneRaw)}">${IC.phone}<span>${escapeHtml(m.phoneLabel)}</span></a>`
-            : '<span class="adm-badge__tel adm-badge__tel--muted">Sin teléfono</span>'
-        }
+        <div class="adm-badge__contact">
+          ${
+            m.phoneLabel
+              ? `<a class="adm-badge__tel" href="tel:${escapeAttr(m.phoneRaw)}">${IC.phone}<span>${escapeHtml(m.phoneLabel)}</span></a>`
+              : '<span class="adm-badge__tel adm-badge__tel--muted">Sin teléfono</span>'
+          }
+        </div>
         <div class="adm-badge__actions">
           ${m.primary}
           ${m.viewIcon}
@@ -328,8 +351,9 @@ function adminUsersHtml(current) {
     const active = isCompanyRecordActive(c);
     const cid = String(c.id || "");
     const usersCount = users.filter((u) => String(u.companyId || "") === cid).length;
-    const name = String(c.name || "Empresa");
-    const initial = String((name || "?").trim().charAt(0).toUpperCase() || "?");
+    const rawName = String(c.name || "Empresa");
+    const name = directoryCardTitle(rawName) || rawName;
+    const initial = String((rawName || "?").trim().charAt(0).toUpperCase() || "?");
     const logoUrl = companyProfileLogoUrl(c);
     const hue = typeof agAvatarHue === "function" ? agAvatarHue(name) : 0;
     const avatarCompany = (size) =>
@@ -340,8 +364,10 @@ function adminUsersHtml(current) {
     const phoneRaw = String(c.phone || "").replace(/[^\d+]/g, "");
     const phoneDisp = c.phone ? formatPortalPhoneForDisplay(String(c.phone)) : "";
     const emailLabel = String(c.email || "").trim();
-    const contactLabel = String(c.contactName || "").trim();
-    const locationLabel = c.city ? `${String(c.city)}${c.department ? `, ${String(c.department)}` : ""}` : "—";
+    const contactLabel = directoryCardTitle(String(c.contactName || "").trim());
+    const locationLabel = c.city
+      ? `${directoryCardTitle(String(c.city)) || String(c.city)}${c.department ? `, ${directoryCardTitle(String(c.department)) || String(c.department)}` : ""}`
+      : "—";
     const kindForUi = patchOperatorCompanyKindIfNeeded([{ ...c }])[0]?.companyKind ?? c.companyKind;
     const tone = active ? "ok" : "alert";
     const menuItems = [
@@ -367,29 +393,33 @@ function adminUsersHtml(current) {
         ${m.avatarCompany("lg")}
         <div class="adm-badge__head-meta">
           <span class="ag-status ag-status--${m.tone}"><span class="ag-status__dot" aria-hidden="true"></span>${m.active ? "Operativa" : "Inactiva"}</span>
-          ${companyKindChipHtml(m.kindForUi)}
         </div>
       </header>
       <div class="adm-badge__who">
         <h4 class="adm-badge__name" title="${escapeAttr(m.name)}">${escapeHtml(m.name)}</h4>
-        <p class="adm-badge__org">${escapeHtml(m.nit)}</p>
+        <p class="adm-badge__org"><span class="adm-badge__org-name">${escapeHtml(m.nit)}</span>${companyKindChipHtml(m.kindForUi)}</p>
         <p class="adm-badge__mail">${escapeHtml(m.contactLabel || m.emailLabel || "Sin contacto")}</p>
       </div>
       <div class="adm-badge__meter">
-        <span class="adm-ring adm-ring--users" style="--pct:${Math.min(100, m.usersCount * 12)}"><span><strong>${m.usersCount}</strong><small>cuentas</small></span></span>
+        <span class="adm-gauge">
+          <span class="adm-ring adm-ring--users" style="--pct:${Math.min(100, m.usersCount * 12)}"><span><strong>${m.usersCount}</strong></span></span>
+          <small>cuentas</small>
+        </span>
         <ul class="adm-badge__facts">
           <li><span>Tipo</span><strong>${escapeHtml(companyKindChipShortLabel(normalizeCompanyKindForDb(m.kindForUi)))}</strong></li>
-          <li><span>Logo</span><strong class="${m.avatarCompany && companyProfileLogoUrl(c) ? "is-ok" : "is-warn"}">${companyProfileLogoUrl(c) ? "Sí" : "No"}</strong></li>
+          <li><span>Logo</span><strong class="${companyProfileLogoUrl(c) ? "is-ok" : "is-warn"}">${companyProfileLogoUrl(c) ? "Sí" : "No"}</strong></li>
           <li><span>Sede</span><strong>${escapeHtml(m.locationLabel)}</strong></li>
         </ul>
       </div>
       <p class="adm-badge__note">${escapeHtml(m.emailLabel || "Sin correo corporativo")}</p>
       <footer class="adm-badge__foot">
-        ${
-          m.phoneDisp
-            ? `<a class="adm-badge__tel" href="tel:${escapeAttr(m.phoneRaw)}">${IC.phone}<span>${escapeHtml(m.phoneDisp)}</span></a>`
-            : '<span class="adm-badge__tel adm-badge__tel--muted">Sin teléfono</span>'
-        }
+        <div class="adm-badge__contact">
+          ${
+            m.phoneDisp
+              ? `<a class="adm-badge__tel" href="tel:${escapeAttr(m.phoneRaw)}">${IC.phone}<span>${escapeHtml(m.phoneDisp)}</span></a>`
+              : '<span class="adm-badge__tel adm-badge__tel--muted">Sin teléfono</span>'
+          }
+        </div>
         <div class="adm-badge__actions">
           <button type="button" class="ag-btn ag-btn--primary" data-action="view-company" data-id="${escapeAttr(m.cid)}">${IC.eye}<span>Ver ficha</span></button>
           ${isAdmin ? `<button type="button" class="ag-icon-btn" data-action="open-edit-company" data-id="${escapeAttr(m.cid)}" title="Editar" aria-label="Editar ${escapeAttr(m.name)}">${IC.edit}</button>` : ""}

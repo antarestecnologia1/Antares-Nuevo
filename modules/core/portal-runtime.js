@@ -7798,6 +7798,24 @@ function renderPayrollEmployeeRosterCard(item, hrAdminDeletes) {
   </article>`;
 }
 
+function payrollDirectoryTitle(raw) {
+  const text = String(raw || "").replace(/\s+/g, " ").trim();
+  if (!text) return "";
+  const letters = text.replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/g, "");
+  const shouting = letters && letters === letters.toLocaleUpperCase("es-CO") && letters !== letters.toLocaleLowerCase("es-CO");
+  if (!shouting) return text;
+  const particles = new Set(["de", "del", "la", "las", "los", "y", "e", "da", "do", "dos"]);
+  return text
+    .toLocaleLowerCase("es-CO")
+    .split(" ")
+    .map((part, index) => {
+      if (!part) return part;
+      if (index > 0 && particles.has(part)) return part;
+      return part.charAt(0).toLocaleUpperCase("es-CO") + part.slice(1);
+    })
+    .join(" ");
+}
+
 function payrollConsultMoneyShort(value) {
   const amount = Math.round(Number(value) || 0);
   if (Math.abs(amount) >= 1000000) {
@@ -7815,6 +7833,7 @@ function renderPayrollEmployeeBadgeCard(item, hrAdminDeletes) {
   const id = String(e.id ?? "");
   const todayYmd = colombiaTodayIsoDate();
   const name = String(e.name || "Colaborador");
+  const displayName = payrollDirectoryTitle(name) || "Colaborador";
   const initials = name
     .split(/\s+/)
     .filter(Boolean)
@@ -7892,11 +7911,11 @@ function renderPayrollEmployeeBadgeCard(item, hrAdminDeletes) {
       const months = Math.max(1, Math.round(daysLeft / 30.44));
       ringStrong = String(months);
       ringSmall = months === 1 ? "mes" : "meses";
-      note = `Quedan ${daysLeft} días · vence ${fmtDateOr(endYmd, "—")}`;
+      note = `Quedan ${daysLeft} días`;
     } else {
       ringStrong = String(daysLeft);
       ringSmall = daysLeft === 1 ? "día" : "días";
-      note = `Quedan ${daysLeft} día${daysLeft === 1 ? "" : "s"} · vence ${fmtDateOr(endYmd, "—")}`;
+      note = `Quedan ${daysLeft} día${daysLeft === 1 ? "" : "s"}`;
       noteClass = " hr-cred__note--warn";
     }
     ringLabel = note;
@@ -7916,9 +7935,7 @@ function renderPayrollEmployeeBadgeCard(item, hrAdminDeletes) {
     }
     pct = Math.min(100, Math.max(12, years * 18 + months * 2));
     const tenure = hireYmd ? agTenureLabel(hireYmd, todayYmd) : "";
-    note = tenure
-      ? `${tenure} en la empresa${hireYmd ? ` · desde ${fmtDateOr(hireYmd)}` : ""}`
-      : note;
+    note = tenure ? `${tenure} en la empresa` : note;
     ringLabel = note;
   }
 
@@ -7926,9 +7943,11 @@ function renderPayrollEmployeeBadgeCard(item, hrAdminDeletes) {
   const vehicleLabel = driverVehicleTypesCsvToLabel(vehicleCsv, "");
   const salaryFull = `$${item.salaryCop.toLocaleString("es-CO")}`;
   const transportNote = item.transportCop > 0 ? ` + aux. $${item.transportCop.toLocaleString("es-CO")}` : "";
-  const contractLabel = String(e.contractType || (item.isDriverSvc ? "Prestación de servicios" : "Contrato"));
+  const contractLabel = payrollDirectoryTitle(e.contractType || (item.isDriverSvc ? "Prestación de servicios" : "Contrato")).replace(/\bTermino\b/g, "Término");
+  const roleLabel = payrollDirectoryTitle(e.position || item.roleLabel || "—") || "—";
   const endFact = contract.applies && endYmd ? fmtDateOr(endYmd, "—") : item.isDriverSvc ? "Por viaje" : "Sin venc.";
   const docLine = `${String(e.documentType || "").trim()} ${String(e.idDoc || "").trim()}`.trim() || "—";
+  const companyLabel = payrollDirectoryTitle(item.companyName) || "Sin empresa";
   const phoneRaw = String(e.phone || "").replace(/[^\d+]/g, "");
   const phoneLabel = String(e.phone || "").trim()
     ? formatPortalPhoneForDisplay(String(e.phone))
@@ -7956,26 +7975,30 @@ function renderPayrollEmployeeBadgeCard(item, hrAdminDeletes) {
       : null
   ]);
   const selectHtml = hrAdminDeletes
-    ? `<label class="ag-select hr-cred__pick" title="Seleccionar"><input type="checkbox" data-employee-select value="${escapeAttr(id)}" aria-label="Seleccionar ${escapeAttr(name)}" /><span aria-hidden="true"></span></label>`
+    ? `<label class="ag-select hr-cred__pick" title="Seleccionar"><input type="checkbox" data-employee-select value="${escapeAttr(id)}" aria-label="Seleccionar ${escapeAttr(displayName)}" /><span aria-hidden="true"></span></label>`
     : "";
 
   return `<article class="hr-cred hr-cred--${escapeAttr(tone)} directory-card--employee" ${payrollEmployeeDirectoryDataAttrs(e, item, contract, { contractTypeKey, endYmd, vehicleCsv })}>
-    ${selectHtml}
     <div class="hr-cred__band" aria-hidden="true"></div>
     <header class="hr-cred__head">
       <span class="ag-avatar ag-avatar--lg ag-avatar--hue-${agAvatarHue(name)}${avCss ? " ag-avatar--photo" : ""}"${avCss ? ` style="background-image:url('${avCss}')"` : ""} aria-hidden="true">${avCss ? "" : escapeHtml(initials || "C")}${isDriver ? `<span class="ag-avatar__badge" title="Conductor">${IC.truck}</span>` : ""}</span>
       <div class="hr-cred__head-meta">
         <span class="ag-status ag-status--${escapeAttr(tone)}"><span class="ag-status__dot" aria-hidden="true"></span>${escapeHtml(statusLabel)}</span>
-        ${vehicleLabel ? `<span class="ag-tag ag-tag--vehicle">${IC.truck}${escapeHtml(vehicleLabel)}</span>` : ""}
       </div>
     </header>
     <div class="hr-cred__who">
-      <h4 class="hr-cred__name" title="${escapeAttr(name)}">${escapeHtml(name)}</h4>
-      <p class="hr-cred__org">${escapeHtml(String(e.position || item.roleLabel || "—"))}</p>
-      <p class="hr-cred__mail">${escapeHtml(docLine)} · ${escapeHtml(item.companyName)}</p>
+      <h4 class="hr-cred__name" title="${escapeAttr(name)}">${escapeHtml(displayName)}</h4>
+      <p class="hr-cred__org">
+        <span title="${escapeAttr(roleLabel)}">${escapeHtml(roleLabel)}</span>
+        ${vehicleLabel ? `<span class="hr-cred__vehicle" title="Vehículo">${IC.truck}${escapeHtml(vehicleLabel)}</span>` : ""}
+      </p>
+      <p class="hr-cred__mail">${escapeHtml(docLine)} · ${escapeHtml(companyLabel)}</p>
     </div>
     <div class="hr-cred__meter${ringOpen ? " hr-cred__meter--open" : ""}" role="img" aria-label="${escapeAttr(ringLabel)}">
-      <span class="hr-cred__ring${ringOpen ? " hr-cred__ring--open" : ""}" style="--pct:${pct}"><span><strong>${escapeHtml(ringStrong)}</strong><small>${escapeHtml(ringSmall)}</small></span></span>
+      <span class="hr-cred__gauge">
+        <span class="hr-cred__ring${ringOpen ? " hr-cred__ring--open" : ""}" style="--pct:${pct}"><span><strong>${escapeHtml(ringStrong)}</strong></span></span>
+        <small>${escapeHtml(ringSmall)}</small>
+      </span>
       <ul class="hr-cred__facts">
         <li><span>Contrato</span><strong title="${escapeAttr(contractLabel)}">${escapeHtml(contractLabel)}</strong></li>
         <li><span>${item.isDriverSvc ? "Honorarios" : "Base"}</span><strong title="${escapeAttr(`${salaryFull}${transportNote}`)}">${escapeHtml(payrollConsultMoneyShort(item.salaryCop))}</strong></li>
@@ -7984,14 +8007,17 @@ function renderPayrollEmployeeBadgeCard(item, hrAdminDeletes) {
     </div>
     <p class="hr-cred__note${noteClass}">${escapeHtml(note)}</p>
     <footer class="hr-cred__foot">
-      ${
-        phoneLabel
-          ? `<a class="hr-cred__tel" href="tel:${escapeAttr(phoneRaw)}">${IC.phone}<span>${escapeHtml(phoneLabel)}</span></a>`
-          : `<span class="hr-cred__tel hr-cred__tel--muted">${IC.phone}<span>Sin teléfono</span></span>`
-      }
+      <div class="hr-cred__contact">
+        ${selectHtml}
+        ${
+          phoneLabel
+            ? `<a class="hr-cred__tel" href="tel:${escapeAttr(phoneRaw)}">${IC.phone}<span>${escapeHtml(phoneLabel)}</span></a>`
+            : `<span class="hr-cred__tel hr-cred__tel--muted">${IC.phone}<span>Sin teléfono</span></span>`
+        }
+      </div>
       <div class="hr-cred__actions">
         <button type="button" class="ag-btn ag-btn--primary" data-action="view-employee" data-id="${escapeAttr(id)}">${IC.eye}<span>Ver perfil</span></button>
-        ${item.isUnlinked ? "" : `<button type="button" class="ag-icon-btn" data-action="edit-employee" data-id="${escapeAttr(id)}" title="Editar" aria-label="Editar ${escapeAttr(name)}">${IC.edit}</button>`}
+        ${item.isUnlinked ? "" : `<button type="button" class="ag-icon-btn" data-action="edit-employee" data-id="${escapeAttr(id)}" title="Editar" aria-label="Editar ${escapeAttr(displayName)}">${IC.edit}</button>`}
         ${menu}
       </div>
     </footer>
