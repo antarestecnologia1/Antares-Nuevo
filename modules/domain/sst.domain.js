@@ -510,10 +510,15 @@ export async function refreshContactB2bProspectsFromApi() {
   const api = window.AntaresApi;
   try {
     const rows = await api.getJson("/portal/contact-b2b-prospects");
-    if (!Array.isArray(rows)) return false;
+    if (!Array.isArray(rows)) {
+      state.contactLeadsSyncError = "La bandeja no devolvió una lista válida. Si ya había datos cargados, se siguen mostrando.";
+      return false;
+    }
     state.portalContacts = rows;
+    state.contactLeadsSyncError = null;
     return true;
   } catch (err) {
+    state.contactLeadsSyncError = "No se pudo actualizar la bandeja. Si ya había datos cargados, se siguen mostrando.";
     devWarn("Portal: GET /portal/contact-b2b-prospects fallo.", err?.message || err);
     return false;
   }

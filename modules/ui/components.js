@@ -987,18 +987,31 @@ export function renderSstOperateSectionNav(activeId = "create") {
   </nav>`;
 }
 
-/** Rail lateral en Solicitudes (Registrar). */
+/** Rail lateral en Solicitudes (Registrar): salta a cada bloque del formulario. */
 export function renderRequestsOperateSectionNav() {
-  const iconSvg = ic().plus ? `<span class="requests-operate-nav-ico" aria-hidden="true">${ic().plus}</span>` : "";
-  return `<nav class="requests-operate-nav" role="tablist" aria-label="Registro de solicitudes">
-    <button type="button" role="tab" class="requests-operate-nav-tab is-active" aria-selected="true" title="Nueva solicitud de viaje — ruta, carga y ventana de servicio">
-      ${iconSvg}
-      <span class="requests-operate-nav-copy">
-        <strong class="requests-operate-nav-label">Nueva solicitud</strong>
-        <small class="requests-operate-nav-hint">Ruta, carga y ventana de servicio</small>
-        <span class="requests-operate-nav-norm">Transporte</span>
-      </span>
-    </button>
+  const tabs = [
+    { id: "route", label: "Empresa y ruta", hint: "Cliente, origen y destino", icon: "mapPin" },
+    { id: "schedule", label: "Ventanas", hint: "Recogida y entrega", icon: "calendar" },
+    { id: "cargo", label: "Carga y servicio", hint: "Modo, Termoking y camión", icon: "truck" },
+    { id: "contact", label: "Contacto", hint: "Persona en el sitio", icon: "user" }
+  ];
+  return `<nav class="requests-operate-nav" role="tablist" aria-label="Pasos del registro">
+    ${tabs
+      .map((t, index) => {
+        const isActive = index === 0;
+        const iconHtml = ic()[t.icon]
+          ? `<span class="requests-operate-nav-ico" aria-hidden="true">${ic()[t.icon]}</span>`
+          : "";
+        return `<button type="button" role="tab" class="requests-operate-nav-tab${isActive ? " is-active" : ""}" aria-selected="${isActive ? "true" : "false"}" data-action="requests-form-step" data-step="${escapeAttr(t.id)}" title="${escapeAttr(t.label)}">
+          ${iconHtml}
+          <span class="requests-operate-nav-copy">
+            <strong class="requests-operate-nav-label">${escapeHtml(t.label)}</strong>
+            <small class="requests-operate-nav-hint">${escapeHtml(t.hint)}</small>
+            <span class="requests-operate-nav-norm">Paso ${index + 1}</span>
+          </span>
+        </button>`;
+      })
+      .join("")}
   </nav>`;
 }
 

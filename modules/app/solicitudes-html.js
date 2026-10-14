@@ -11,6 +11,38 @@
     return String(raw || "").trim().toLowerCase() === "list" ? "list" : "cards";
   }
 
+  function foldRequestSearchText(value) {
+    return String(value || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+  }
+
+  function requestFarePresentation(r) {
+    const tripValue = parseNum(r?.tripValue);
+    const insured = parseNum(r?.insuredValue);
+    if (r?.trip && tripValue > 0) {
+      return { label: "Valor del viaje", text: `$${tripValue.toLocaleString("es-CO")}`, pending: false, sub: "" };
+    }
+    if (insured > 0) {
+      return { label: "Valor asegurado", text: `$${insured.toLocaleString("es-CO")}`, pending: false, sub: "" };
+    }
+    return {
+      label: "Valor",
+      text: "Pendiente",
+      pending: true,
+      sub: r?.trip ? "Sin tarifa" : "Por definir"
+    };
+  }
+
+  function requestIsClosedStatus(status) {
+    return [STATUS.COMPLETADA, STATUS.CERRADA].includes(status);
+  }
+
+  function requestIsCancelledStatus(status) {
+    return [STATUS.CANCELADA, STATUS.RECHAZADA].includes(status);
+  }
+
   function formatTimePresetLabel(hhmm) {
     if (typeof window.formatTimeDisplay === "function") {
       const label = window.formatTimeDisplay(hhmm);
@@ -141,6 +173,10 @@
 
   function buildRequestOpsMetaChips(r, requestedBy) {
     const chips = [];
+    const mode = String(r.serviceType || "").trim();
+    if (mode) chips.push({ label: /sedes/i.test(mode) ? "Entre sedes" : "Nacional", tone: "mode" });
+    if (r.refrigeracionTermoking === true) chips.push({ label: "Termoking", tone: "cold" });
+    else if (r.refrigeracionTermoking === false) chips.push({ label: "Carga seca", tone: "dry" });
     if (r.autoApproved) chips.push({ label: "Autoaprobada", tone: "ok" });
     if (requestedBy) chips.push({ label: requestedBy, tone: "user", title: requestedBy });
     if (!chips.length) return "";
@@ -185,9 +221,7 @@
       pickupRaw && prePickupStatuses.includes(r.status) && typeof portalOpsCardPickupUrgency === "function"
         ? portalOpsCardPickupUrgency(pickupRaw)
         : { label: "", tone: "" };
-    const valueDd = tripAssigned
-      ? `$${parseNum(r.tripValue || r.insuredValue || 0).toLocaleString("es-CO")}`
-      : `<span class="muted">${escapeHtml("Pendiente")}</span>`;
+    const fare = requestFarePresentation(r);
     const requestedBy = String(r.requestedByName || "").trim();
     const statusText =
       typeof prettyStatus === "function"
@@ -216,7 +250,13 @@
       distanceKm > 0
         ? `<span class="trip-ops-card-route-distance" aria-label="Distancia ${escapeAttr(`${distanceKm.toLocaleString("es-CO")} kilómetros`)}">${escapeHtml(`${distanceKm.toLocaleString("es-CO")} km`)}</span>`
         : "";
-    const tripStateClass = tripAssigned ? " request-ops-card--has-trip" : " request-ops-card--no-trip";
+    const tripStateClass = requestIsClosedStatus(r.status)
+      ? " request-ops-card--closed"
+      : requestIsCancelledStatus(r.status)
+        ? " request-ops-card--halted"
+        : tripAssigned
+          ? " request-ops-card--has-trip"
+          : " request-ops-card--no-trip";
     const actionButtons = [
       `<button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--solid" data-action="detail" data-id="${escapeAttr(String(r.id || ""))}" title="Ver detalle completo">${IC.eye} Detalle</button>`,
       allowEdit
@@ -269,7 +309,7 @@
       </div>
       <div class="trip-ops-card-grid portal-ops-card-spec-grid request-ops-card-spec-grid">
         ${buildPortalOpsCardGridItem("Recogida", IC.calendar, pickupLabel, { tone: pickupUrgency.tone || (tripAssigned ? "ok" : "warn"), subValue: pickupUrgency.label, subTone: pickupUrgency.tone })}
-        ${buildPortalOpsCardGridItem("Valor", IC.dollar, valueDd, { tone: "value", raw: true })}
+        ${buildPortalOpsCardGridItem(fare.label, IC.dollar, fare.text, { tone: fare.pending ? "warn" : "value", subValue: fare.sub, subTone: fare.pending ? "warn" : "" })}
         ${buildPortalOpsCardGridItem("Carga", IC.package || IC.file, cargoLabel)}
         ${buildPortalOpsCardGridItem("Camión / requisitos", IC.truck, truckReq, { raw: true })}
       </div>
@@ -295,9 +335,7 @@
     const pickupLabel = fmtDate(r.trip?.etaPickup || r.pickupAt || r.pickupDate || "") || "Sin fecha";
     const cargoLabel = String(r.cargoDescription || "Carga").trim() || "Carga";
     const tripAssigned = Boolean(r.trip);
-    const valueCell = tripAssigned
-      ? `$${parseNum(r.tripValue || r.insuredValue || 0).toLocaleString("es-CO")}`
-      : "Pendiente";
+    const fare = requestFarePresentation(r);
     const tripCell = r.trip
       ? `${escapeHtml(String(r.trip.tripNumber || "—"))} · ${escapeHtml(String(r.trip.vehiclePlate || "—"))}`
       : `<span class="muted">Sin viaje</span>`;
@@ -310,14 +348,14 @@
       <td data-label="Carga"><span class="vehicle-fleet-list-doc" title="${escapeAttr(cargoLabel)}">${escapeHtml(cargoShort)}</span></td>
       <td data-label="Estado"><span class="trip-ops-card-status trip-ops-card-status--${escapeAttr(statusSlug)}">${prettyStatus(r.status, "request")}</span></td>
       <td data-label="Recogida">${escapeHtml(pickupLabel)}</td>
-      <td data-label="Valor">${tripAssigned ? escapeHtml(valueCell) : `<span class="muted">${escapeHtml(valueCell)}</span>`}</td>
+      <td data-label="${escapeAttr(fare.label)}">${fare.pending ? `<span class="muted">${escapeHtml(fare.text)}</span>` : escapeHtml(fare.text)}</td>
       <td data-label="Viaje">${tripCell}</td>
       <td data-label="Acciones" class="vehicle-fleet-list-actions"><div class="toolbar">
-        <button class="btn btn-sm btn-action" data-action="detail" data-id="${escapeAttr(String(r.id || ""))}" title="Ver detalle">${IC.eye} Detalle</button>
-        ${allowEdit ? `<button class="btn btn-sm btn-outline" data-action="edit-request" data-id="${escapeAttr(String(r.id || ""))}">${IC.edit} Editar</button>` : ""}
-        ${allowEdit && !r.trip ? `<button class="btn btn-sm btn-reject" data-action="cancel-request" data-id="${escapeAttr(String(r.id || ""))}">${IC.x} Cancelar</button>` : ""}
-        ${allowClientHardDeletePending ? `<button class="btn btn-sm btn-reject" data-action="delete-client-request" data-id="${escapeAttr(String(r.id || ""))}">${IC.trash} Eliminar</button>` : ""}
-        ${isAdmin ? `<button class="btn btn-sm btn-reject" data-action="delete-admin" data-id="${escapeAttr(String(r.id || ""))}">${IC.trash} Eliminar</button>` : ""}
+        <button type="button" class="btn btn-sm btn-action" data-action="detail" data-id="${escapeAttr(String(r.id || ""))}" title="Ver detalle">${IC.eye} Detalle</button>
+        ${allowEdit ? `<button type="button" class="btn btn-sm btn-outline" data-action="edit-request" data-id="${escapeAttr(String(r.id || ""))}">${IC.edit} Editar</button>` : ""}
+        ${allowEdit && !r.trip ? `<button type="button" class="btn btn-sm btn-reject" data-action="cancel-request" data-id="${escapeAttr(String(r.id || ""))}">${IC.x} Cancelar</button>` : ""}
+        ${allowClientHardDeletePending ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-client-request" data-id="${escapeAttr(String(r.id || ""))}">${IC.trash} Eliminar</button>` : ""}
+        ${isAdmin ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-admin" data-id="${escapeAttr(String(r.id || ""))}">${IC.trash} Eliminar</button>` : ""}
       </div></td>
     </tr>`;
   }
@@ -331,7 +369,21 @@
   function requestOpsCardsHtml(requests, user, layoutRaw) {
     const layout = normalizeRequestsListLayout(layoutRaw);
     if (!requests.length) {
-      return emptyState("No hay solicitudes para el filtro seleccionado.");
+      let search = "";
+      let filterKey = "all";
+      try {
+        search = String((typeof state !== "undefined" && state?.requestsUi?.listSearch) || "").trim();
+        filterKey = String((typeof state !== "undefined" && state?.requestsFilter) || "all");
+      } catch (_) {
+        /* noop */
+      }
+      if (search) {
+        return emptyState("Ninguna solicitud coincide con la búsqueda. Pruebe con el número, la ciudad o el cliente.");
+      }
+      if (filterKey !== "all") {
+        return emptyState("No hay solicitudes en este estado. Cambie el filtro o vea todas.");
+      }
+      return emptyState("Aún no hay solicitudes. Registre la primera en la pestaña Registrar.");
     }
     const sorted = requests
       .slice()
@@ -431,14 +483,14 @@
   function requestDataConsultShell({ user, headHtml, toolbarHtml, resultMetaHtml, resultsHtml, adminHubHtml, companyCount }) {
     const isAdmin = user?.role === ROLES.ADMIN && adminHubHtml;
     if (!isAdmin) {
-      return `<section class="requests-data-panel requests-data-panel">
+      return `<section class="requests-data-panel">
         ${headHtml}
         ${toolbarHtml}
         ${resultMetaHtml}
         <div class="requests-data-results">${resultsHtml}</div>
       </section>`;
     }
-    return `<section class="requests-data-panel requests-data-panel">
+    return `<section class="requests-data-panel">
       <div class="requests-data-layout requests-data-layout--admin">
         <aside class="requests-data-sidebar" aria-label="Empresas clientes">
           <div class="requests-data-sidebar__head">
@@ -510,7 +562,7 @@
         return {
           companyId: String(companyId),
           name,
-          nameNorm: name.toLowerCase(),
+          nameNorm: foldRequestSearchText(name),
           logoUrl,
           total: list.length,
           pending,
@@ -584,7 +636,7 @@
     let companyRenderLimit = requestsCompanyRenderWindowSize();
     try {
       companySearchRaw = String((typeof state !== "undefined" && state?.requestsUi?.companySearch) || "");
-      companySearchNorm = companySearchRaw.trim().toLowerCase();
+      companySearchNorm = foldRequestSearchText(companySearchRaw.trim());
       companySort = String((typeof state !== "undefined" && state?.requestsUi?.companySort) || "pending");
       companyPendingOnly = Boolean(typeof state !== "undefined" && state?.requestsUi?.companyPendingOnly);
       companyRenderLimit =
@@ -594,6 +646,8 @@
     }
 
     const filtered = entries.filter((entry) => {
+      const isSelected = String(selectedCompanyId || "") === String(entry.companyId);
+      if (isSelected) return true;
       if (companyPendingOnly && entry.pending <= 0) return false;
       if (!companySearchNorm) return true;
       return entry.nameNorm.includes(companySearchNorm);
@@ -645,9 +699,11 @@
   function requestModuleHeadHtml() {
     const user = currentUser();
     const list = getVisibleRequestsForUser(user);
-    const pend = list.filter((r) => [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(r.status)).length;
-    const conViaje = list.filter((r) => r.trip).length;
+    const pend = list.filter(
+      (r) => [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(r.status) && !r.trip
+    ).length;
     const enOp = list.filter((r) => r.trip && activeTripStatuses().includes(r.status)).length;
+    const closed = list.filter((r) => requestIsClosedStatus(r.status)).length;
     const scopeBar =
       typeof clientDataScopeBarHtml === "function" && typeof isPortalClientUser === "function" && isPortalClientUser(user)
         ? clientDataScopeBarHtml(typeof getClientDataScope === "function" ? getClientDataScope() : "company")
@@ -656,9 +712,9 @@
       typeof clientRequestsScopePrimaryLabel === "function" ? clientRequestsScopePrimaryLabel() : "Mis solicitudes";
     const clientHero = moduleFleetHeroStrip([
       { label: heroPrimary, value: list.length },
-      { label: "Con viaje", value: conViaje },
-      { label: "En operacion", value: enOp },
-      { label: "Pendientes", value: pend, tone: pend ? "warn" : undefined }
+      { label: "Pendientes", value: pend, tone: pend ? "warn" : undefined },
+      { label: "En operación", value: enOp },
+      { label: "Cerradas", value: closed }
     ]);
     return scopeBar + clientHero;
   }
@@ -668,7 +724,7 @@
     const user = currentUser();
     const companyName = getCompanyById(user?.companyId)?.name || user?.company || "-";
     const departments = Object.keys(COLOMBIA_LOCATIONS)
-      .map((dept) => `<option value="${dept}">${dept}</option>`)
+      .map((dept) => `<option value="${escapeAttr(dept)}">${escapeHtml(dept)}</option>`)
       .join("");
     const companyField =
       typeof buildRequestCompanySelectHtml === "function"
@@ -690,42 +746,42 @@
       ]
     })}
     <div class="antares-create-form__sections">
-    <fieldset class="form-section form-section-blue full">
+    <fieldset class="form-section form-section-blue full" data-request-step="route">
       <legend>${IC.briefcase} Empresa y ruta</legend>
       <p class="muted form-section-hint">Identifique el cliente y la ruta completa del servicio de transporte.</p>
       <div class="form-section-grid">
         ${companyField}
-        <label>${fieldLabel(IC.mapPin, "Departamento origen")}<select name="originDepartment" id="origin-department" required><option value="">Seleccione...</option>${departments}</select></label>
-        <label>${fieldLabel(IC.mapPin, "Ciudad origen")}<select name="originCity" id="origin-city" required><option value="">Seleccione un departamento...</option></select></label>
-        <label class="full">${fieldLabel(IC.compass, "Origen direccion")}<input name="originAddress" required data-antares-field="db-upper" data-antares-validate-blur="db-upper" /></label>
-        <label>${fieldLabel(IC.mapPin, "Departamento destino")}<select name="destinationDepartment" id="destination-department" required><option value="">Seleccione...</option>${departments}</select></label>
-        <label>${fieldLabel(IC.mapPin, "Ciudad destino")}<select name="destinationCity" id="destination-city" required><option value="">Seleccione un departamento...</option></select></label>
-        <label class="full">${fieldLabel(IC.compass, "Destino direccion")}<input name="destinationAddress" required data-antares-field="db-upper" data-antares-validate-blur="db-upper" /></label>
+        <label>${fieldLabel(IC.mapPin, "Departamento de origen", { required: true })}<select name="originDepartment" id="origin-department" required><option value="">Seleccione...</option>${departments}</select></label>
+        <label>${fieldLabel(IC.mapPin, "Ciudad de origen", { required: true })}<select name="originCity" id="origin-city" required><option value="">Seleccione un departamento...</option></select></label>
+        <label class="full">${fieldLabel(IC.compass, "Dirección de origen", { required: true })}<input name="originAddress" required placeholder="Dirección, barrio o punto de cargue" data-antares-field="db-upper" data-antares-validate-blur="db-upper" /></label>
+        <label>${fieldLabel(IC.mapPin, "Departamento de destino", { required: true })}<select name="destinationDepartment" id="destination-department" required><option value="">Seleccione...</option>${departments}</select></label>
+        <label>${fieldLabel(IC.mapPin, "Ciudad de destino", { required: true })}<select name="destinationCity" id="destination-city" required><option value="">Seleccione un departamento...</option></select></label>
+        <label class="full">${fieldLabel(IC.compass, "Dirección de destino", { required: true })}<input name="destinationAddress" required placeholder="Dirección, barrio o punto de descargue" data-antares-field="db-upper" data-antares-validate-blur="db-upper" /></label>
       </div>
     </fieldset>
-    <fieldset class="form-section form-section-violet full acf-schedule-fieldset">
+    <fieldset class="form-section form-section-violet full acf-schedule-fieldset" data-request-step="schedule">
       <legend>${IC.calendar} Ventanas de servicio</legend>
       <p class="muted form-section-hint">Programe cuándo debe recogerse y entregarse la carga. Use el calendario o los accesos rápidos.</p>
       ${requestScheduleWindowsHtml()}
     </fieldset>
-    <fieldset class="form-section form-section-emerald full">
+    <fieldset class="form-section form-section-emerald full" data-request-step="cargo">
       <legend>${IC.truck} Carga y servicio</legend>
       <p class="muted form-section-hint">Defina el tipo de servicio, refrigeración y vehículo requerido para la operación.</p>
       <div class="form-section-grid">
         <label class="full">${fieldLabel(IC.briefcase, "Modo de transporte", { required: true })}<select name="serviceType" id="request-service-type" required><option value="">Seleccione...</option><option value="Transporte nacional">Transporte nacional</option><option value="Transporte entre sedes del cliente">Transporte entre sedes del cliente</option></select></label>
-        <label>${fieldLabel(IC.file, "Descripcion carga")}<input name="cargoDescription" required data-antares-field="db-upper" data-antares-validate-blur="db-upper" /></label>
-        <label class="full">${fieldLabel(IC.truck, "Refrigeracion Termoking", { required: true })}<select name="requiresThermoking" id="request-thermoking" required><option value="">Seleccione...</option><option value="yes">Si, requiere equipo Termoking (refrigerado)</option><option value="no">No, carga seca (sin Termoking)</option></select></label>
-        <label class="full">${fieldLabel(IC.truck, "Tipo de camion requerido", { required: true })}<select name="requiredTruckType" id="request-required-truck-type" required><option value="">Seleccione...</option><option value="Turbo">Turbo</option><option value="Camión">Camión</option><option value="Tractomula">Tractomula</option></select></label>
+        <label>${fieldLabel(IC.file, "Descripción de la carga", { required: true })}<input name="cargoDescription" required placeholder="Qué se transporta" data-antares-field="db-upper" data-antares-validate-blur="db-upper" /></label>
+        <label class="full">${fieldLabel(IC.truck, "Refrigeración Termoking", { required: true })}<select name="requiresThermoking" id="request-thermoking" required><option value="">Seleccione...</option><option value="yes">Sí, requiere equipo Termoking (refrigerado)</option><option value="no">No, carga seca (sin Termoking)</option></select></label>
+        <label class="full">${fieldLabel(IC.truck, "Tipo de camión requerido", { required: true })}<select name="requiredTruckType" id="request-required-truck-type" required><option value="">Seleccione...</option><option value="Turbo">Turbo</option><option value="Camión">Camión</option><option value="Tractomula">Tractomula</option></select></label>
         <label class="request-truck-field request-truck-field--fuelles" hidden>${fieldLabel(IC.grid, "Cantidad de fuelles", { required: true })}<input type="number" min="0" step="1" name="fuelles" id="request-fuelles-input" /></label>
         <label class="request-truck-field request-truck-field--kg" hidden>${fieldLabel(IC.scale, "Peso kg (tractomula)", { required: true })}<input type="number" min="0" step="0.01" name="weightKg" id="request-tractomula-kg" /></label>
       </div>
     </fieldset>
-    <fieldset class="form-section form-section-amber full">
+    <fieldset class="form-section form-section-amber full" data-request-step="contact">
       <legend>${IC.user} Contacto en sitio</legend>
       <p class="muted form-section-hint">Persona de referencia en el punto de recogida o entrega.</p>
       <div class="form-section-grid">
-        <label>${fieldLabel(IC.user, "Contacto en sitio")}<input name="siteContactName" required data-antares-restrict="person-name" data-antares-field="person-name" /></label>
-        <label>${fieldLabel(IC.phone, "Telefono contacto")}<input name="siteContactPhone" required data-antares-restrict="digits" data-antares-validate-blur="phone-loose" /></label>
+        <label>${fieldLabel(IC.user, "Contacto en sitio", { required: true })}<input name="siteContactName" required placeholder="Nombre y apellido" data-antares-restrict="person-name" data-antares-field="person-name" /></label>
+        <label>${fieldLabel(IC.phone, "Teléfono de contacto", { required: true })}<input name="siteContactPhone" required placeholder="3001234567" inputmode="numeric" data-antares-restrict="digits" data-antares-validate-blur="phone-loose" /></label>
       </div>
     </fieldset>
     <fieldset class="form-section form-section-slate full antares-create-form__notes">
@@ -775,7 +831,7 @@
       typeof formatRoute === "function"
         ? String(formatRoute(r) || "")
         : `${String(r.originCity || "")} ${String(r.destinationCity || "")}`;
-    return [
+    const hay = [
       r.requestNumber,
       r.id,
       r.clientName,
@@ -786,14 +842,16 @@
       r.cargoDescription,
       r.status,
       r.requestedByName,
+      r.serviceType,
+      r.vehicleType,
       trip?.tripNumber,
       trip?.vehiclePlate,
       trip?.driverName,
       route
     ]
       .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
+      .join(" ");
+    return foldRequestSearchText(hay);
   }
 
   function requestListClientHtml(user) {
@@ -809,7 +867,7 @@
     let listLayout = "cards";
     try {
       listSearchRaw = String((typeof state !== "undefined" && state?.requestsUi?.listSearch) || "");
-      listSearchNorm = listSearchRaw.trim().toLowerCase();
+      listSearchNorm = foldRequestSearchText(listSearchRaw.trim());
       listLayout = normalizeRequestsListLayout(typeof state !== "undefined" && state?.requestsUi?.listLayout);
     } catch (_) {
       /* noop */
@@ -927,7 +985,7 @@
       <section class="req-operate req-operate-panel${requestsRailCollapsed ? " is-rail-collapsed" : ""}">
         <aside class="req-operate__rail" aria-label="Tipo de registro">
           <div class="req-operate__rail-head">
-            <p class="req-operate__rail-label">Tipo de trámite</p>
+            <p class="req-operate__rail-label">Pasos del registro</p>
             <button type="button" class="req-operate__rail-toggle" data-action="requests-operate-rail-toggle" aria-expanded="${requestsRailCollapsed ? "false" : "true"}" title="${requestsRailCollapsed ? "Expandir opciones de trámite" : "Contraer opciones de trámite"}">
               <span class="req-operate__rail-toggle-ico" aria-hidden="true">${IC.chevronLeft}</span>
             </button>

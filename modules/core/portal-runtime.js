@@ -4316,12 +4316,16 @@ function buildTripRequestPickerCardHtml(request, opts = {}) {
     request.originDepartment,
     request.destinationCity,
     request.destinationDepartment,
+    request.cargoDescription,
+    request.serviceType,
     route,
     statusLabel,
     truck
   ]
     .filter(Boolean)
     .join(" ")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
   return `<button type="button" class="trip-request-card${selected ? " is-selected" : ""}" data-trip-request-pick="${escapeAttr(String(request.id || ""))}" data-trip-request-search="${escapeAttr(searchHay)}" role="option"${selected ? ' aria-selected="true"' : ""}>
     <span class="trip-request-card__head">
@@ -5184,7 +5188,7 @@ function prettyStatus(status, scope = "general") {
 
 function departmentOptions(selected = "") {
   return Object.keys(COLOMBIA_LOCATIONS)
-    .map((dept) => `<option value="${dept}" ${dept === selected ? "selected" : ""}>${dept}</option>`)
+    .map((dept) => `<option value="${escapeAttr(dept)}" ${dept === selected ? "selected" : ""}>${escapeHtml(dept)}</option>`)
     .join("");
 }
 

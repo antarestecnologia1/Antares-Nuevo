@@ -262,6 +262,7 @@ export let state = {
   },
   registrationSuccessBanner: null,
   contactLeadsLoading: false,
+  contactLeadsSyncError: null,
   authorizationsSyncError: null,
   portalSuppressSelfPollToastUntil: 0,
   portalNonAdminCaptureBound: false

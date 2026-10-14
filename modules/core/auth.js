@@ -2494,6 +2494,7 @@ export function clearSession() {
   localStorage.removeItem(KEYS.session);
   state.session = null;
   state.portalContacts = [];
+  state.contactLeadsSyncError = null;
   state.adminUserSessions = [];
   state.adminUserSessionsLoading = false;
   state.adminUserSessionsError = null;

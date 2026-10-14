@@ -104,8 +104,8 @@
     <link rel="stylesheet" href="./styles/portal-buttons.css?v=20260701-btn-guard" />
     <link rel="stylesheet" href="./styles/portal-feedback.css?v=20260701-feedback" />
     <link rel="stylesheet" href="./styles/dashboard-module.css?v=20260625-cards-all-modules-tile" media="print" onload="this.onload=null;this.media='all'" />
-    <link rel="stylesheet" href="./styles/requests-module.css?v=20260626-request-cards-fix" media="print" onload="this.onload=null;this.media='all'" />
-    <link rel="stylesheet" href="./styles/transport-module.css?v=20260626-trip-cards-fix" media="print" onload="this.onload=null;this.media='all'" />
+    <link rel="stylesheet" href="./styles/requests-module.css?v=20261013-requests-ui" media="print" onload="this.onload=null;this.media='all'" />
+    <link rel="stylesheet" href="./styles/transport-module.css?v=20261013-trips-ui" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/vehicles-module.css?v=20260625-fleet-grid-no-gap" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/drivers-module.css?v=20260625-fleet-grid-no-gap" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/calendar-module.css?v=20260626-cards-flex-fill" media="print" onload="this.onload=null;this.media='all'" />
@@ -116,7 +116,7 @@
     <link rel="stylesheet" href="./styles/sst-module.css?v=20260714-sst-operate-ui" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/gestion-documental.css?v=20260930f-fullname" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/sarlaft-module.css?v=20260916-sarlaft-matrix" media="print" onload="this.onload=null;this.media='all'" />
-    <link rel="stylesheet" href="./styles/b2b-module.css?v=20260626-cards-flex-fill" media="print" onload="this.onload=null;this.media='all'" />
+    <link rel="stylesheet" href="./styles/b2b-module.css?v=20261013-b2b-cred" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/admin-users-module.css?v=20261013-user-cred" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/authorizations-module.css?v=20260611-portal-modules" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/profile-module.css?v=20260626-cards-flex-fill" media="print" onload="this.onload=null;this.media='all'" />
@@ -135,8 +135,8 @@
     <link rel="stylesheet" href="./styles/portal-buttons.css?v=20260701-btn-guard" />
     <link rel="stylesheet" href="./styles/portal-feedback.css?v=20260701-feedback" />
       <link rel="stylesheet" href="./styles/dashboard-module.css?v=20260625-cards-all-modules-tile" />
-      <link rel="stylesheet" href="./styles/requests-module.css?v=20260626-request-cards-fix" />
-      <link rel="stylesheet" href="./styles/transport-module.css?v=20260626-trip-cards-fix" />
+      <link rel="stylesheet" href="./styles/requests-module.css?v=20261013-requests-ui" />
+      <link rel="stylesheet" href="./styles/transport-module.css?v=20261013-trips-ui" />
       <link rel="stylesheet" href="./styles/vehicles-module.css?v=20260625-fleet-grid-no-gap" />
       <link rel="stylesheet" href="./styles/drivers-module.css?v=20260625-fleet-grid-no-gap" />
       <link rel="stylesheet" href="./styles/calendar-module.css?v=20260626-cards-flex-fill" />
@@ -147,7 +147,7 @@
       <link rel="stylesheet" href="./styles/sst-module.css?v=20260714-sst-operate-ui" />
       <link rel="stylesheet" href="./styles/gestion-documental.css?v=20260930f-fullname" />
       <link rel="stylesheet" href="./styles/sarlaft-module.css?v=20260916-sarlaft-matrix" />
-      <link rel="stylesheet" href="./styles/b2b-module.css?v=20260626-cards-flex-fill" />
+      <link rel="stylesheet" href="./styles/b2b-module.css?v=20261013-b2b-cred" />
       <link rel="stylesheet" href="./styles/admin-users-module.css?v=20261013-user-cred" />
       <link rel="stylesheet" href="./styles/authorizations-module.css?v=20260611-portal-modules" />
       <link rel="stylesheet" href="./styles/profile-module.css?v=20260626-cards-flex-fill" />
@@ -1458,10 +1458,10 @@
     <script defer src="./modules/payroll/portal-employee-list-sync.js"></script>
     <script defer src="./modules/recruitment/contracts-docx.js?v=20260804-hire-dms"></script>
     <script type="module">
-      import * as AntaresConfig from "./modules/core/config.js?v=20260831-legal-accept";
+      import * as AntaresConfig from "./modules/core/config.js?v=20261013-b2b-perm";
       import * as AntaresUtils from "./modules/core/utils.js?v=20260916-sarlaft-matrix";
-      import * as AntaresStore from "./modules/core/store.js";
-      import * as AntaresAuth from "./modules/core/auth.js?v=20260930-eye-toggle-icon";
+      import * as AntaresStore from "./modules/core/store.js?v=20261013-b2b-sync";
+      import * as AntaresAuth from "./modules/core/auth.js?v=20261013-b2b-sync";
       import * as AntaresBootstrap from "./modules/core/bootstrap.js?v=20260917b-login-scan-shield";
       import { writeAwaitServer, writeAwaitServerEdit, writeAwaitServerCreate, writeAwaitServerDelete, writeAwaitServerLatestQueuedEmail, syncPayloadForEditedRow, syncPayloadForEditedObjectKeys, syncPayloadForChangedRows } from "./modules/core/data-io.js?v=20260917b-login-scan-shield";
       import * as AntaresPublicI18n from "./modules/domain/public-site.i18n.js";
@@ -1482,7 +1482,7 @@
       import * as AntaresHistorialDomain from "./modules/domain/historial.domain.js";
       import * as AntaresReporteriaDomain from "./modules/domain/reporteria.domain.js";
       import * as AntaresNominaDomain from "./modules/domain/nomina.domain.js";
-      import * as AntaresSstDomain from "./modules/domain/sst.domain.js";
+      import * as AntaresSstDomain from "./modules/domain/sst.domain.js?v=20261013-b2b-sync";
       import * as AntaresSarlaftDomain from "./modules/domain/sarlaft.domain.js?v=20260916-sarlaft-matrix";
       import * as AntaresDriverCompliance from "./modules/domain/driver-compliance-vigencia.domain.js";
       import * as AntaresContratacionDomain from "./modules/domain/contratacion.domain.js";
@@ -1565,20 +1565,20 @@
       }
     </script>
     <script type="module">
-      import * as AntaresUIComponents from "./modules/ui/components.js";
+      import * as AntaresUIComponents from "./modules/ui/components.js?v=20261013-requests-ui";
       import * as AntaresUIModals from "./modules/ui/modals.js?v=20261013-modal-back";
       import * as AntaresI18n from "./modules/core/i18n.js";
       import * as AntaresSchedulePicker from "./modules/ui/portal-schedule-picker.js?v=20260622-time-slots";
       Object.assign(window, AntaresUIComponents, AntaresUIModals, AntaresI18n, AntaresSchedulePicker);
     </script>
-    <script type="module" src="./modules/core/portal-runtime.js?v=20261013-hr-cred2"></script>
+    <script type="module" src="./modules/core/portal-runtime.js?v=20261013-trips-ui"></script>
     <script defer src="./modules/app/portal-transport-modals.js"></script>
     <script defer src="./modules/app/portal-rrhh-modals.js?v=20260831-payroll-bulk-paid"></script>
     <!-- Vistas legacy (`registerLegacyPortalViews`); deben ejecutarse antes de `app.js` para que el primer `renderPortal()` resuelva HTML. `viajes.js` antes de `mis-solicitudes.js` por `RENDER_WINDOW_SIZE`. -->
     <script defer src="./modules/app/dashboard.js"></script>
-    <script defer src="./modules/app/viajes.js?v=20260623-trip-sync-await"></script>
-    <script defer src="./modules/app/solicitudes-html.js?v=20260622-time-slots"></script>
-    <script defer src="./modules/app/mis-solicitudes.js?v=20260623-sync-fix3"></script>
+    <script defer src="./modules/app/viajes.js?v=20261013-trips-ui"></script>
+    <script defer src="./modules/app/solicitudes-html.js?v=20261013-requests-ui"></script>
+    <script defer src="./modules/app/mis-solicitudes.js?v=20261013-requests-ui"></script>
     <script defer src="./modules/app/camiones-html.js?v=20260622-vehicle-create-wizard"></script>
     <script defer src="./modules/app/camiones.js"></script>
     <script defer src="./modules/app/conductores.js?v=20261013-roster-pass"></script>
@@ -1593,7 +1593,7 @@
     <script type="module" src="./modules/app/cumplimiento-laboral.js"></script>
     <script type="module" src="./modules/app/gestion-documental.js?v=20261013-renewal-archive"></script>
     <script type="module" src="./modules/app/sarlaft.js?v=20260917b-login-scan-shield"></script>
-    <script defer src="./modules/app/contacto-b2b.js"></script>
+    <script defer src="./modules/app/contacto-b2b.js?v=20261013-b2b-cred"></script>
     <script defer src="./modules/app/usuarios-permisos.js?v=20261013-user-cred"></script>
     <script defer src="./modules/app/autorizaciones.js?v=20260831-payslip-1p"></script>
     <script defer src="./modules/app/mi-perfil.js"></script>

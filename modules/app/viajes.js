@@ -126,7 +126,12 @@ function transportTripsHtml() {
   const transportTripsWorkspace = normalizeTransportTripsWorkspace(transportTripsUi.workspace);
   const transportTripsSection = resolveTransportTripsSection(transportTripsUi);
   const transportTripsCreateUi = buildTransportTripsCreatePanelsState(transportTripsSection, state.createPanels || {});
-  const tripsSearch = String(transportTripsUi.search || "").trim().toLowerCase();
+  const foldTransportSearchText = (value) =>
+    String(value || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+  const tripsSearch = foldTransportSearchText(String(transportTripsUi.search || "").trim());
   const tripsSort = normalizeTransportTripsSort(transportTripsUi.sort);
   const tripsLayout = normalizeTransportTripsLayout(transportTripsUi.layout);
 
@@ -144,20 +149,24 @@ function transportTripsHtml() {
   })()
     .filter((r) => {
       if (!tripsSearch) return true;
-      const hay = [
-        r.requestNumber,
-        r.trip?.tripNumber,
-        r.clientName,
-        r.originCity,
-        r.originDepartment,
-        r.destinationCity,
-        r.destinationDepartment,
-        r.trip?.vehiclePlate,
-        r.trip?.driverName,
-        r.status
-      ]
-        .map((v) => String(v || "").toLowerCase())
-        .join(" ");
+      const hay = foldTransportSearchText(
+        [
+          r.requestNumber,
+          r.trip?.tripNumber,
+          r.clientName,
+          r.originCity,
+          r.originDepartment,
+          r.destinationCity,
+          r.destinationDepartment,
+          r.trip?.vehiclePlate,
+          r.trip?.driverName,
+          r.status,
+          r.cargoDescription,
+          r.serviceType,
+          r.vehicleType,
+          r.requiredTruckType
+        ].join(" ")
+      );
       return hay.includes(tripsSearch);
     });
   const sortedFilteredTrips = filteredTrips.slice().sort((a, b) => {
@@ -177,9 +186,19 @@ function transportTripsHtml() {
     return String(r?.clientCompanyLogoUrl ?? "").trim();
   };
 
-  const buildTripMetaChips = (reqNo) => {
+  const tripFarePresentation = (row) => {
+    const amount = parseNum(row?.tripValue || 0);
+    if (amount > 0) return { text: `$${amount.toLocaleString("es-CO")}`, tone: "value" };
+    return { text: "Sin tarifa", tone: "warn" };
+  };
+
+  const buildTripMetaChips = (row, reqNo) => {
     const chips = [];
     if (reqNo) chips.push({ label: `Sol. #${reqNo}`, tone: "ref" });
+    const mode = String(row?.serviceType || "").trim();
+    if (mode) chips.push({ label: /sedes/i.test(mode) ? "Entre sedes" : "Nacional", tone: "mode" });
+    if (row?.refrigeracionTermoking === true) chips.push({ label: "Termoking", tone: "cold" });
+    else if (row?.refrigeracionTermoking === false) chips.push({ label: "Carga seca", tone: "dry" });
     if (!chips.length) return "";
     return `<div class="transport-trip-card-chips">${chips
       .map(
@@ -203,10 +222,16 @@ function transportTripsHtml() {
       : `<span class="request-company-logo request-company-logo--sm request-company-logo--fallback request-ops-card-company-logo" aria-hidden="true">${escapeHtml(String(clientName || "E").charAt(0).toUpperCase())}</span>`;
     const driverName = String(r.trip?.driverName || "Sin conductor").trim() || "Sin conductor";
     const plate = String(r.trip?.vehiclePlate || "—").trim() || "—";
-    const pickupLabel = fmtDate(r.trip?.etaPickup || r.pickupAt || "") || "Sin fecha";
+    const pickupRaw = r.trip?.etaPickup || r.pickupAt || "";
+    const pickupLabel = fmtDate(pickupRaw) || "Sin fecha";
     const cargoLabel = String(r.cargoDescription || "Carga").trim() || "Carga";
     const truckReq = typeof requestTruckRequirementSummaryHtml === "function" ? requestTruckRequirementSummaryHtml(r) : "";
-    const tripValueFmt = `$${parseNum(r.tripValue || 0).toLocaleString("es-CO")}`;
+    const fare = tripFarePresentation(r);
+    const prePickupStatuses = [STATUS.VIAJE_ASIGNADO, STATUS.ESPERA_STANDBY];
+    const pickupUrgency =
+      pickupRaw && prePickupStatuses.includes(r.status) && typeof portalOpsCardPickupUrgency === "function"
+        ? portalOpsCardPickupUrgency(pickupRaw)
+        : { label: "", tone: "" };
     const isClosed = [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status);
     const transitions = [r.status, ...(STATUS_TRANSITIONS[r.status] || [])];
     const statusText =
@@ -217,7 +242,7 @@ function transportTripsHtml() {
     const reqNo = String(r.requestNumber || r.id || "-");
     const createdLabel = fmtDate(r.createdAt || "") || "—";
     const distanceKm = parseNum(r.distanceKm || 0);
-    const metaChipsHtml = buildTripMetaChips(reqNo);
+    const metaChipsHtml = buildTripMetaChips(r, reqNo);
     const statusBadgeHtml = buildPortalOpsCardStatusPill(statusText, statusSlug);
     const fleetBar = `<div class="transport-trip-card-fleet-bar portal-ops-card-highlight" role="status">
           <span class="transport-trip-card-fleet-ico" aria-hidden="true">${IC.truck}</span>
@@ -298,8 +323,12 @@ function transportTripsHtml() {
         </div>
       </div>
       <div class="trip-ops-card-grid portal-ops-card-spec-grid transport-trip-card-spec-grid">
-        ${buildPortalOpsCardGridItem("Recogida", IC.calendar, pickupLabel, { tone: "ok" })}
-        ${buildPortalOpsCardGridItem("Tarifa", IC.dollar, tripValueFmt, { tone: "value" })}
+        ${buildPortalOpsCardGridItem("Recogida", IC.calendar, pickupLabel, {
+          tone: pickupUrgency.tone || "",
+          subValue: pickupUrgency.label,
+          subTone: pickupUrgency.tone
+        })}
+        ${buildPortalOpsCardGridItem("Tarifa", IC.dollar, fare.text, { tone: fare.tone })}
         ${buildPortalOpsCardGridItem("Carga", IC.package || IC.file, cargoLabel)}
         ${buildPortalOpsCardGridItem("Camión / requisitos", IC.truck, truckReq, { raw: true })}
       </div>
@@ -320,7 +349,8 @@ function transportTripsHtml() {
     const driverName = String(r.trip?.driverName || "Sin conductor").trim() || "Sin conductor";
     const plate = String(r.trip?.vehiclePlate || "—").trim() || "—";
     const pickupLabel = fmtDate(r.trip?.etaPickup || r.pickupAt || "") || "Sin fecha";
-    const tripValueFmt = `$${parseNum(r.tripValue || 0).toLocaleString("es-CO")}`;
+    const fare = tripFarePresentation(r);
+    const tripIdAttr = escapeAttr(String(r.id || ""));
     const isClosed = [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status);
     const transitions = [r.status, ...(STATUS_TRANSITIONS[r.status] || [])];
     const statusSelectHtml =
@@ -335,21 +365,25 @@ function transportTripsHtml() {
     const routeCell = `<span class="vehicle-fleet-list-sub">${escapeHtml(originCity)}</span> <span aria-hidden="true">→</span> <span class="vehicle-fleet-list-sub">${escapeHtml(destinationCity)}</span>`;
     const standbyLine =
       standby > 0 ? `<div class="muted vehicle-fleet-list-sub">${IC.clock || ""} Standby $${standby.toLocaleString("es-CO")}</div>` : "";
-    const tripLine = `${escapeHtml(String(r.trip?.tripNumber || "—"))} · Sol. ${escapeHtml(String(r.requestNumber || r.id || "—"))}`;
-    return `<tr data-trip-id="${escapeAttr(String(r.id || ""))}">
+    const tripLine = `${String(r.trip?.tripNumber || "—")} · Sol. ${String(r.requestNumber || r.id || "—")}`;
+    const fareCell =
+      fare.tone === "warn"
+        ? `<span class="muted">${escapeHtml(fare.text)}</span>`
+        : `<span class="vehicle-fleet-list-doc">${escapeHtml(fare.text)}</span>`;
+    return `<tr data-trip-id="${tripIdAttr}">
       <td data-label="Cliente / viaje"><strong class="vehicle-fleet-list-plate">${escapeHtml(clientName)}</strong><div class="muted vehicle-fleet-list-sub">${escapeHtml(tripLine)}</div></td>
       <td data-label="Ruta">${routeCell}</td>
       <td data-label="Estado">${statusSelectHtml}</td>
       <td data-label="Recogida">${escapeHtml(pickupLabel)}</td>
       <td data-label="Camión">${escapeHtml(plate)}</td>
       <td data-label="Conductor">${escapeHtml(driverName)}</td>
-      <td data-label="Tarifa"><span class="vehicle-fleet-list-doc">${tripValueFmt}</span>${standbyLine}</td>
+      <td data-label="Tarifa">${fareCell}${standbyLine}</td>
       <td data-label="Acciones" class="vehicle-fleet-list-actions"><div class="toolbar">
-        <button class="btn btn-sm btn-outline" data-action="trip-detail" data-id="${r.id}" title="Ficha del viaje">${IC.truck} Viaje</button>
-        <button class="btn btn-sm btn-action" data-action="detail" data-id="${r.id}" title="Detalle de la solicitud">${IC.eye} Solicitud</button>
-        ${canAdminEditTrip(r) ? `<button class="btn btn-sm btn-action" data-action="edit-trip" data-id="${r.id}" title="Editar asignación">${IC.edit} Editar</button>` : ""}
-        ${isClosed ? `<button class="btn btn-sm btn-approve" data-action="trip-invoice" data-id="${r.id}" title="Factura PDF">${IC.file} Factura</button>` : ""}
-        ${isAdmin ? `<button class="btn btn-sm btn-reject" data-action="delete-trip" data-id="${r.id}" title="Eliminar viaje">${IC.trash} Eliminar</button>` : ""}
+        <button type="button" class="btn btn-sm btn-outline" data-action="trip-detail" data-id="${tripIdAttr}" title="Ficha del viaje">${IC.truck} Viaje</button>
+        <button type="button" class="btn btn-sm btn-action" data-action="detail" data-id="${tripIdAttr}" title="Detalle de la solicitud">${IC.eye} Solicitud</button>
+        ${canAdminEditTrip(r) ? `<button type="button" class="btn btn-sm btn-action" data-action="edit-trip" data-id="${tripIdAttr}" title="Editar asignación">${IC.edit} Editar</button>` : ""}
+        ${isClosed ? `<button type="button" class="btn btn-sm btn-approve" data-action="trip-invoice" data-id="${tripIdAttr}" title="Factura PDF">${IC.file} Factura</button>` : ""}
+        ${isAdmin ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-trip" data-id="${tripIdAttr}" title="Eliminar viaje">${IC.trash} Eliminar</button>` : ""}
       </div></td>
     </tr>`;
   };
@@ -401,9 +435,14 @@ function transportTripsHtml() {
     tripsLayout === "cards" && sortedFilteredTrips.length
       ? `<div class="trip-ops-cards portal-ops-cards transport-trip-cards">${tripsToRender.map(buildTripOpsCard).join("")}</div>`
       : "";
+  const tripsEmptyCopy = tripsSearch
+    ? "Ningún viaje coincide con la búsqueda. Pruebe con el cliente, la placa, la ciudad o el número."
+    : filter !== "all"
+      ? "No hay viajes en este filtro. Cambie el filtro o vea todos."
+      : "Aún no hay viajes asignados. Cree el primero en Registrar.";
   const opsCards = sortedFilteredTrips.length
     ? `${opsToolbarBlock}${tripsLayout === "list" ? tripsListTable : tripsCardsGrid}${tripsMoreBar}`
-    : `${opsToolbarBlock}${emptyState("No hay viajes para el filtro seleccionado o búsqueda aplicada.")}`;
+    : `${opsToolbarBlock}${emptyState(tripsEmptyCopy)}`;
 
   const formatRatePlaceLabel = (part) => {
     const s = String(part || "").trim();
@@ -520,8 +559,8 @@ function transportTripsHtml() {
             <div class="route-rate-route-col route-rate-route-col--origin">
               <span class="route-rate-route-col-badge" aria-hidden="true">O</span>
               <div class="route-rate-route-col-fields">
-                <label class="route-rate-field">${fieldLabel(IC.mapPin, "Departamento origen")}<select name="originDepartment" id="route-rate-origin-dept" required><option value="">Seleccione…</option>${departmentsOpts}</select></label>
-                <label class="route-rate-field">${fieldLabel(IC.mapPin, "Ciudad origen")}<select name="originCity" id="route-rate-origin-city" required><option value="">Elija departamento…</option></select></label>
+                <label class="route-rate-field">${fieldLabel(IC.mapPin, "Departamento de origen", { required: true })}<select name="originDepartment" id="route-rate-origin-dept" required><option value="">Seleccione…</option>${departmentsOpts}</select></label>
+                <label class="route-rate-field">${fieldLabel(IC.mapPin, "Ciudad de origen", { required: true })}<select name="originCity" id="route-rate-origin-city" required><option value="">Elija departamento…</option></select></label>
               </div>
             </div>
             <div class="route-rate-route-bridge" aria-hidden="true">
@@ -532,8 +571,8 @@ function transportTripsHtml() {
             <div class="route-rate-route-col route-rate-route-col--dest">
               <span class="route-rate-route-col-badge route-rate-route-col-badge--dest" aria-hidden="true">D</span>
               <div class="route-rate-route-col-fields">
-                <label class="route-rate-field">${fieldLabel(IC.mapPin, "Departamento destino")}<select name="destinationDepartment" id="route-rate-dest-dept" required><option value="">Seleccione…</option>${departmentsOpts}</select></label>
-                <label class="route-rate-field">${fieldLabel(IC.mapPin, "Ciudad destino")}<select name="destinationCity" id="route-rate-dest-city" required><option value="">Elija departamento…</option></select></label>
+                <label class="route-rate-field">${fieldLabel(IC.mapPin, "Departamento de destino", { required: true })}<select name="destinationDepartment" id="route-rate-dest-dept" required><option value="">Seleccione…</option>${departmentsOpts}</select></label>
+                <label class="route-rate-field">${fieldLabel(IC.mapPin, "Ciudad de destino", { required: true })}<select name="destinationCity" id="route-rate-dest-city" required><option value="">Elija departamento…</option></select></label>
               </div>
             </div>
           </div>
@@ -670,13 +709,13 @@ function transportTripsHtml() {
           <div class="create-trip-form-v2__progress-fill" data-create-trip-progress style="width:0%"></div>
         </div>
         <ol class="create-trip-form-v2__milestones">
-          <li class="create-trip-form-v2__milestone is-active" data-create-trip-milestone="request"><span class="create-trip-form-v2__milestone-num">1</span><span class="create-trip-form-v2__milestone-copy"><strong>Solicitud</strong><small>Elija la ruta</small></span></li>
-          <li class="create-trip-form-v2__milestone" data-create-trip-milestone="fleet"><span class="create-trip-form-v2__milestone-num">2</span><span class="create-trip-form-v2__milestone-copy"><strong>Flota</strong><small>Vehículo y conductor</small></span></li>
-          <li class="create-trip-form-v2__milestone" data-create-trip-milestone="rate"><span class="create-trip-form-v2__milestone-num">3</span><span class="create-trip-form-v2__milestone-copy"><strong>Tarifa</strong><small>Valor pactado</small></span></li>
+          <li class="create-trip-form-v2__milestone is-active" data-create-trip-milestone="request"><button type="button" class="create-trip-form-v2__milestone-btn" data-action="transport-trip-form-step" data-step="request"><span class="create-trip-form-v2__milestone-num">1</span><span class="create-trip-form-v2__milestone-copy"><strong>Solicitud</strong><small>Elija la ruta</small></span></button></li>
+          <li class="create-trip-form-v2__milestone" data-create-trip-milestone="fleet"><button type="button" class="create-trip-form-v2__milestone-btn" data-action="transport-trip-form-step" data-step="fleet"><span class="create-trip-form-v2__milestone-num">2</span><span class="create-trip-form-v2__milestone-copy"><strong>Flota</strong><small>Vehículo y conductor</small></span></button></li>
+          <li class="create-trip-form-v2__milestone" data-create-trip-milestone="rate"><button type="button" class="create-trip-form-v2__milestone-btn" data-action="transport-trip-form-step" data-step="rate"><span class="create-trip-form-v2__milestone-num">3</span><span class="create-trip-form-v2__milestone-copy"><strong>Tarifa</strong><small>Valor pactado</small></span></button></li>
         </ol>
       </div>
       <div class="transport-form__body antares-create-form__sections create-trip-form-v2__body">
-        <section class="assign-trip-block transport-trip-create-form__request create-trip-form-v2__request" aria-labelledby="create-trip-step-request">
+        <section class="assign-trip-block transport-trip-create-form__request create-trip-form-v2__request" data-create-trip-step="request" aria-labelledby="create-trip-step-request">
           <div class="assign-trip-block-head">
             <h4 class="assign-trip-block-title" id="create-trip-step-request">${IC.inbox} Elija la solicitud</h4>
           </div>
@@ -692,7 +731,7 @@ function transportTripsHtml() {
           </div>
         </section>
         <div class="create-trip-form-v2__assign-row is-locked">
-          <section class="assign-trip-block transport-trip-create-form__resources create-trip-form-v2__resources" aria-labelledby="create-trip-step-fleet">
+          <section class="assign-trip-block transport-trip-create-form__resources create-trip-form-v2__resources" data-create-trip-step="fleet" aria-labelledby="create-trip-step-fleet">
             <div class="assign-trip-block-head">
               <h4 class="assign-trip-block-title" id="create-trip-step-fleet">${IC.truck} Vehículo y conductor</h4>
               <div class="create-trip-flag-legend assign-trip-flags create-trip-form-v2__flags" role="list" aria-label="Banderas en listas">
@@ -713,7 +752,7 @@ function transportTripsHtml() {
               </div>
             </div>
           </section>
-          <fieldset class="form-section form-section-emerald full transport-trip-create-form__pricing create-trip-form-v2__pricing">
+          <fieldset class="form-section form-section-emerald full transport-trip-create-form__pricing create-trip-form-v2__pricing" data-create-trip-step="rate">
             <legend>${IC.dollar} Tarifa del viaje</legend>
             <p class="muted form-section-hint create-trip-form-v2__hint">Confirme el valor pactado en COP. Se sugerirá automáticamente si existe tarifa de catálogo.</p>
             <div id="create-trip-rate-fields" class="assign-trip-rate create-trip-rate-surface create-trip-form-v2__rate-surface">
@@ -745,7 +784,7 @@ function transportTripsHtml() {
       : "";
   const transportModuleHead = moduleFleetHeroStrip([
     { label: "Viajes", value: trips.length },
-    { label: "Activos", value: activeOps, tone: activeOps ? "warn" : undefined },
+    { label: "Activos", value: activeOps },
     { label: "Hoy", value: todaysTrips },
     { label: "Por asignar", value: pendingForTrip.length, tone: pendingForTrip.length ? "warn" : undefined },
     { label: "Trayectos", value: rateEntries.length }
@@ -849,6 +888,13 @@ function transportTripsHtml() {
 (function registerTransportTripsPortalBinds() {
   "use strict";
 
+  let transportTripsSearchTimer = 0;
+
+  function clearTransportTripsSearchTimer() {
+    window.clearTimeout(transportTripsSearchTimer);
+    transportTripsSearchTimer = 0;
+  }
+
   function bindTransportTripsPortalControls() {
     if (String(state.currentView || "") !== "transport-trips" || !nodes.viewRoot) return;
 
@@ -947,6 +993,7 @@ function transportTripsHtml() {
 
     nodes.viewRoot.querySelectorAll("[data-action='trips-render-more']").forEach((btn) => {
       btn.addEventListener("click", () => {
+        clearTransportTripsSearchTimer();
         state.tripsRenderLimit = (Number(state.tripsRenderLimit) || RENDER_WINDOW_SIZE) + RENDER_WINDOW_SIZE;
         renderPortalView();
       });
@@ -954,6 +1001,7 @@ function transportTripsHtml() {
 
     nodes.viewRoot.querySelectorAll("[data-action='trips-filter']").forEach((btn) => {
       btn.addEventListener("click", () => {
+        clearTransportTripsSearchTimer();
         const filterKey = String(btn.dataset.filter || "active");
         state.tripsFilter = filterKey;
         state.tripsRenderLimit = RENDER_WINDOW_SIZE;
@@ -974,12 +1022,18 @@ function transportTripsHtml() {
         };
         state.tripsRenderLimit = RENDER_WINDOW_SIZE;
         state.__transportTripsSearchRestore = { start, end };
-        renderPortalView();
+        clearTransportTripsSearchTimer();
+        transportTripsSearchTimer = window.setTimeout(() => {
+          transportTripsSearchTimer = 0;
+          if (String(state.currentView || "") !== "transport-trips") return;
+          renderPortalView();
+        }, 180);
       });
     });
 
     nodes.viewRoot.querySelectorAll("[data-action='transport-trips-sort']").forEach((select) => {
       select.addEventListener("change", () => {
+        clearTransportTripsSearchTimer();
         state.transportTripsUi = {
           ...(state.transportTripsUi || {}),
           sort: normalizeTransportTripsSort(select.value)
@@ -991,11 +1045,20 @@ function transportTripsHtml() {
 
     nodes.viewRoot.querySelectorAll("[data-action='transport-trips-layout']").forEach((btn) => {
       btn.addEventListener("click", () => {
+        clearTransportTripsSearchTimer();
         state.transportTripsUi = {
           ...(state.transportTripsUi || {}),
           layout: normalizeTransportTripsLayout(btn.dataset.layout)
         };
         renderPortalView();
+      });
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='transport-trip-form-step']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const step = String(btn.dataset.step || "");
+        const target = nodes.viewRoot.querySelector(`[data-create-trip-step="${step}"]`);
+        target?.scrollIntoView({ behavior: "smooth", block: "start" });
       });
     });
 
@@ -1055,7 +1118,7 @@ function transportTripsHtml() {
         if (!key) return;
         openConfirmModal({
           title: "Quitar tarifa de trayecto",
-          message: "Esta ruta dejara de sugerir precio al asignar viajes.",
+          message: "Esta ruta dejará de sugerir precio al asignar viajes.",
           confirmText: "Quitar tarifa",
           onConfirm: async () => {
             const rates = { ...getTripRouteRatesNormalized() };
@@ -1524,7 +1587,7 @@ function transportTripsHtml() {
         openConfirmReasonModal({
           title: "Eliminar viaje",
           message:
-            "Se quitara la asignacion de camion y conductor. La solicitud volvera a estado aprobada pendiente de asignacion. El motivo quedara registrado.",
+            "Se quitará la asignación de camión y conductor. La solicitud volverá a estado aprobada pendiente de asignación. El motivo quedará registrado.",
           confirmText: "Eliminar viaje",
           onConfirm: async (motivo) => {
             const reqBefore = reqRead().find((request) => request.id === requestId);

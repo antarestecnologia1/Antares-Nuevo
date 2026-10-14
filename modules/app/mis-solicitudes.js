@@ -6,6 +6,17 @@
 (function registerMisSolicitudesPortalModule() {
   "use strict";
 
+  let requestsListSearchTimer = 0;
+  let requestsCompanySearchTimer = 0;
+  let requestsStepObserver = null;
+
+  function clearRequestsSearchTimers() {
+    window.clearTimeout(requestsListSearchTimer);
+    window.clearTimeout(requestsCompanySearchTimer);
+    requestsListSearchTimer = 0;
+    requestsCompanySearchTimer = 0;
+  }
+
   function requestsRenderWindowSize() {
     return typeof RENDER_WINDOW_SIZE !== "undefined" ? RENDER_WINDOW_SIZE : 30;
   }
@@ -132,6 +143,7 @@
 
     nodes.viewRoot.querySelectorAll("[data-action='request-company-filter']").forEach((btn) => {
       const apply = () => {
+        clearRequestsSearchTimers();
         const companyId = String(btn.dataset.companyId || "");
         const isToggleOff = String(window.AppModules?.solicitudes?.adminCompanyFilterId || "") === companyId;
         const nextId = isToggleOff ? "" : companyId;
@@ -151,6 +163,7 @@
 
     nodes.viewRoot.querySelectorAll("[data-action='request-company-clear']").forEach((btn) => {
       btn.addEventListener("click", () => {
+        clearRequestsSearchTimers();
         state.requestsUi = { ...(state.requestsUi || {}), companyId: "" };
         if (window.AppModules?.solicitudes) window.AppModules.solicitudes.adminCompanyFilterId = "";
         state.requestsRenderLimit = requestsRenderWindowSize();
@@ -160,6 +173,7 @@
 
     nodes.viewRoot.querySelectorAll("[data-action='requests-render-more']").forEach((btn) => {
       btn.addEventListener("click", () => {
+        clearRequestsSearchTimers();
         state.requestsRenderLimit =
           (Number(state.requestsRenderLimit) || requestsRenderWindowSize()) + requestsRenderWindowSize();
         renderPortalView();
@@ -168,6 +182,7 @@
 
     nodes.viewRoot.querySelectorAll("[data-action='requests-filter']").forEach((btn) => {
       btn.addEventListener("click", () => {
+        clearRequestsSearchTimers();
         const filterKey = String(btn.dataset.filter || "active");
         state.requestsFilter = filterKey;
         state.requestsRenderLimit = requestsRenderWindowSize();
@@ -178,18 +193,24 @@
     nodes.viewRoot.querySelectorAll("[data-action='requests-list-search']").forEach((input) => {
       input.addEventListener("input", () => {
         const el = /** @type {HTMLInputElement} */ (input);
-        const len = String(el.value || "").length;
-        const start = typeof el.selectionStart === "number" ? el.selectionStart : len;
-        const end = typeof el.selectionEnd === "number" ? el.selectionEnd : start;
         state.requestsUi = { ...(state.requestsUi || {}), listSearch: String(el.value || "") };
-        state.requestsRenderLimit = requestsRenderWindowSize();
-        state.__requestsListSearchRestore = { start, end };
-        renderPortalView();
+        window.clearTimeout(requestsListSearchTimer);
+        requestsListSearchTimer = window.setTimeout(() => {
+          requestsListSearchTimer = 0;
+          if (String(state.currentView || "") !== "requests") return;
+          const len = String(el.value || "").length;
+          const start = typeof el.selectionStart === "number" ? el.selectionStart : len;
+          const end = typeof el.selectionEnd === "number" ? el.selectionEnd : start;
+          state.requestsRenderLimit = requestsRenderWindowSize();
+          state.__requestsListSearchRestore = { start, end };
+          renderPortalView();
+        }, 180);
       });
     });
 
     nodes.viewRoot.querySelectorAll("[data-action='requests-list-layout']").forEach((btn) => {
       btn.addEventListener("click", () => {
+        clearRequestsSearchTimers();
         const layout = String(btn.dataset.layout || "").trim().toLowerCase() === "list" ? "list" : "cards";
         state.requestsUi = { ...(state.requestsUi || {}), listLayout: layout };
         renderPortalView();
@@ -199,18 +220,24 @@
     nodes.viewRoot.querySelectorAll("[data-action='requests-company-search']").forEach((input) => {
       input.addEventListener("input", () => {
         const el = /** @type {HTMLInputElement} */ (input);
-        const len = String(el.value || "").length;
-        const start = typeof el.selectionStart === "number" ? el.selectionStart : len;
-        const end = typeof el.selectionEnd === "number" ? el.selectionEnd : start;
         state.requestsUi = { ...(state.requestsUi || {}), companySearch: String(el.value || "") };
-        state.requestsCompanyRenderLimit = 25;
-        state.__requestsCompanySearchRestore = { start, end };
-        renderPortalView();
+        window.clearTimeout(requestsCompanySearchTimer);
+        requestsCompanySearchTimer = window.setTimeout(() => {
+          requestsCompanySearchTimer = 0;
+          if (String(state.currentView || "") !== "requests") return;
+          const len = String(el.value || "").length;
+          const start = typeof el.selectionStart === "number" ? el.selectionStart : len;
+          const end = typeof el.selectionEnd === "number" ? el.selectionEnd : start;
+          state.requestsCompanyRenderLimit = 25;
+          state.__requestsCompanySearchRestore = { start, end };
+          renderPortalView();
+        }, 180);
       });
     });
 
     nodes.viewRoot.querySelectorAll("[data-action='requests-company-sort']").forEach((btn) => {
       btn.addEventListener("click", () => {
+        clearRequestsSearchTimers();
         const sort = String(btn.dataset.sort || "pending");
         state.requestsUi = { ...(state.requestsUi || {}), companySort: sort };
         state.requestsCompanyRenderLimit = 25;
@@ -220,6 +247,7 @@
 
     nodes.viewRoot.querySelectorAll("[data-action='requests-company-pending-only']").forEach((input) => {
       input.addEventListener("change", () => {
+        clearRequestsSearchTimers();
         const el = /** @type {HTMLInputElement} */ (input);
         state.requestsUi = { ...(state.requestsUi || {}), companyPendingOnly: Boolean(el.checked) };
         state.requestsCompanyRenderLimit = 25;
@@ -229,6 +257,7 @@
 
     nodes.viewRoot.querySelectorAll("[data-action='requests-company-render-more']").forEach((btn) => {
       btn.addEventListener("click", () => {
+        clearRequestsSearchTimers();
         state.requestsCompanyRenderLimit =
           (Number(state.requestsCompanyRenderLimit) || requestsRenderWindowSize()) + requestsRenderWindowSize();
         renderPortalView();
@@ -290,12 +319,12 @@
     const syncDeliveryMin = () => {
       const pickupIso = readDateIso("pickup-date");
       const today = colombiaTodayIsoDate();
-      const minIso = pickupIso && pickupIso > today ? pickupIso : today;
-      ["pickup-date", "delivery-date"].forEach((id) => {
-        const el = requestForm.querySelector(`#${id}`);
-        if (!el) return;
-        el.dataset.antaresDateMin = minIso;
-      });
+      const pickupEl = requestForm.querySelector("#pickup-date");
+      const deliveryEl = requestForm.querySelector("#delivery-date");
+      if (pickupEl) pickupEl.dataset.antaresDateMin = today;
+      if (deliveryEl) {
+        deliveryEl.dataset.antaresDateMin = pickupIso && pickupIso > today ? pickupIso : today;
+      }
     };
 
     const syncPreview = () => {
@@ -320,9 +349,11 @@
       const startMs = pickupIso && pickupTime ? scheduleInstantMs(pickupIso, pickupTime) : NaN;
       const endMs = deliveryIso && deliveryTime ? scheduleInstantMs(deliveryIso, deliveryTime) : NaN;
       const invalidOrder = Number.isFinite(startMs) && Number.isFinite(endMs) && endMs <= startMs;
-      connector?.classList.toggle("acf-schedule__connector--warn", invalidOrder);
-      preview.classList.toggle("acf-schedule__preview--ready", Boolean(pickupLabel && deliveryLabel && !invalidOrder));
-      preview.classList.toggle("acf-schedule__preview--warn", invalidOrder);
+      const pickupInPast = Number.isFinite(startMs) && startMs < Date.now();
+      const scheduleWarn = invalidOrder || pickupInPast;
+      connector?.classList.toggle("acf-schedule__connector--warn", scheduleWarn);
+      preview.classList.toggle("acf-schedule__preview--ready", Boolean(pickupLabel && deliveryLabel && !scheduleWarn));
+      preview.classList.toggle("acf-schedule__preview--warn", scheduleWarn);
 
       if (!pickupLabel && !deliveryLabel) {
         preview.innerHTML = `<span class="acf-schedule__preview-icon" aria-hidden="true">${IC.calendar}</span>
@@ -338,6 +369,15 @@
           <div class="acf-schedule__preview-copy">
             <strong class="acf-schedule__preview-title">Revise las ventanas</strong>
             <p class="acf-schedule__preview-detail muted">La entrega debe ser posterior a la recogida.</p>
+          </div>`;
+        return;
+      }
+
+      if (pickupInPast) {
+        preview.innerHTML = `<span class="acf-schedule__preview-icon acf-schedule__preview-icon--warn" aria-hidden="true">${IC.alertTriangle || IC.x}</span>
+          <div class="acf-schedule__preview-copy">
+            <strong class="acf-schedule__preview-title">La recogida ya pasó</strong>
+            <p class="acf-schedule__preview-detail muted">Elija una fecha y hora posteriores a este momento. El horario es de Colombia (COT).</p>
           </div>`;
         return;
       }
@@ -445,7 +485,7 @@
       const department = String(departmentSelect?.value || "");
       const cities = COLOMBIA_LOCATIONS[department] || [];
       citySelect.innerHTML = `<option value="">Seleccione...</option>${cities
-        .map((c) => `<option value="${c}">${c}</option>`)
+        .map((c) => `<option value="${escapeAttr(c)}">${escapeHtml(c)}</option>`)
         .join("")}`;
     };
 
@@ -754,6 +794,61 @@
     );
   }
 
+  function bindRequestsFormSteps() {
+    if (requestsStepObserver) {
+      requestsStepObserver.disconnect();
+      requestsStepObserver = null;
+    }
+    const steps = [...nodes.viewRoot.querySelectorAll("[data-request-step]")];
+    const navBtns = [...nodes.viewRoot.querySelectorAll("[data-action='requests-form-step']")];
+    const markStep = (stepId) => {
+      navBtns.forEach((btn) => {
+        const on = String(btn.dataset.step || "") === String(stepId || "");
+        btn.classList.toggle("is-active", on);
+        btn.setAttribute("aria-selected", on ? "true" : "false");
+      });
+    };
+    navBtns.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const stepId = String(btn.dataset.step || "");
+        if (!/^[a-z]+$/.test(stepId)) return;
+        const target = nodes.viewRoot.querySelector(`[data-request-step="${stepId}"]`);
+        if (!target) return;
+        const panel = nodes.viewRoot.querySelector("[data-create-panel='create-request']");
+        const collapsed = panel && (panel.hidden || panel.classList.contains("hidden"));
+        if (collapsed) {
+          state.createPanels = { ...(state.createPanels || {}), "create-request": true };
+          if (typeof setCreatePanelExpandedInDom === "function") {
+            setCreatePanelExpandedInDom(nodes.viewRoot, "create-request", true);
+          } else {
+            panel.hidden = false;
+            panel.classList.remove("hidden");
+            panel.classList.add("is-open");
+          }
+        }
+        markStep(stepId);
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+        const focusable = target.querySelector("select, input:not([type='hidden']), textarea, button");
+        if (focusable && typeof focusable.focus === "function") {
+          focusable.focus({ preventScroll: true });
+        }
+      });
+    });
+    if (steps.length && navBtns.length && typeof IntersectionObserver === "function") {
+      requestsStepObserver = new IntersectionObserver(
+        (entries) => {
+          const visible = entries
+            .filter((entry) => entry.isIntersecting)
+            .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+          if (!visible) return;
+          markStep(visible.target.getAttribute("data-request-step"));
+        },
+        { root: null, rootMargin: "-12% 0px -58% 0px", threshold: [0.15, 0.4, 0.7] }
+      );
+      steps.forEach((step) => requestsStepObserver.observe(step));
+    }
+  }
+
   function bindMisSolicitudesPortalControls() {
     if (String(state.currentView || "") !== "requests" || !nodes.viewRoot) return;
 
@@ -804,6 +899,7 @@
 
     wireMisSolicitudesListActions();
     wireRequestCreateForm();
+    bindRequestsFormSteps();
 
     const reqSearchRestore = state.__requestsListSearchRestore;
     if (reqSearchRestore && typeof reqSearchRestore.start === "number") {
