@@ -1122,12 +1122,65 @@ function resolveAbsenceSupportMeta(absence) {
   };
 }
 
+function ensurePayrollEmployeesPagingBound() {
+  if (window.__payrollEmployeesPagingBound) return;
+  window.__payrollEmployeesPagingBound = true;
+  const applyPayrollEmployeesPaging = ({ page, pageSize } = {}) => {
+    const allowedSizes = new Set([5, 10, 20, 50]);
+    const prevSize = Math.max(5, Number(state.payrollUi?.employeesPageSize) || 10);
+    const nextSizeRaw = pageSize == null ? prevSize : Number(pageSize);
+    const nextSize = allowedSizes.has(nextSizeRaw) ? nextSizeRaw : prevSize;
+    const nextPage = Math.max(1, Number(page == null ? state.payrollUi?.employeesPage || 1 : page) || 1);
+    const prevPage = Math.max(1, Number(state.payrollUi?.employeesPage) || 1);
+    const sizeChanged = pageSize != null && nextSize !== prevSize;
+    const pageChanged = page != null && nextPage !== prevPage;
+    if (pageSize != null && !sizeChanged && page == null) return;
+    if (page != null && !pageChanged && pageSize == null) return;
+    state.payrollUi = {
+      ...(state.payrollUi || { runSort: "recent", workspace: "data", dataSection: "employees" }),
+      employeesPageSize: nextSize,
+      employeesPage: pageSize != null ? 1 : nextPage,
+      workspace: "data",
+      dataSection: "employees"
+    };
+    try {
+      localStorage.setItem("antares_hr_payroll_employees_page_size_v1", String(nextSize));
+    } catch (_err) {
+      /* preferencia opcional */
+    }
+    persistHrWorkspace("payroll", "data");
+    renderPortalView();
+  };
+  window.__applyPayrollEmployeesPaging = applyPayrollEmployeesPaging;
+  document.addEventListener(
+    "change",
+    (ev) => {
+      const t = ev.target;
+      if (!t || t.id !== "payroll-employees-page-size") return;
+      if (String(t.getAttribute("data-action") || "") !== "payroll-employees-page-size") return;
+      applyPayrollEmployeesPaging({ pageSize: t.value });
+    },
+    true
+  );
+  document.addEventListener(
+    "click",
+    (ev) => {
+      const btn = ev.target?.closest?.("[data-action='payroll-employees-page']");
+      if (!btn || btn.disabled) return;
+      if (!document.getElementById("portal-view")?.contains(btn) && !nodes.viewRoot?.contains(btn)) return;
+      ev.preventDefault();
+      applyPayrollEmployeesPaging({ page: btn.dataset.page });
+    },
+    true
+  );
+}
+
 function bindPayrollPortalControls() {
   if (typeof scheduleContractRenewalNotificationCheck === "function") {
     scheduleContractRenewalNotificationCheck();
   }
   if (String(state.currentView || "") !== "payroll" || !nodes.viewRoot) return;
-
+  ensurePayrollEmployeesPagingBound();
 
   nodes.viewRoot.querySelectorAll("[data-action='hr-workspace-tab'][data-module='payroll']").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -2917,58 +2970,6 @@ function bindPayrollPortalControls() {
   });
   syncPayrollEmployeeSelectionBadge();
 
-  if (!window.__payrollEmployeesPagingBound) {
-    window.__payrollEmployeesPagingBound = true;
-    const applyPayrollEmployeesPaging = ({ page, pageSize } = {}) => {
-      const allowedSizes = new Set([5, 10, 20, 50]);
-      const prevSize = Math.max(5, Number(state.payrollUi?.employeesPageSize) || 10);
-      const nextSizeRaw = pageSize == null ? prevSize : Number(pageSize);
-      const nextSize = allowedSizes.has(nextSizeRaw) ? nextSizeRaw : prevSize;
-      const nextPage = Math.max(1, Number(page == null ? state.payrollUi?.employeesPage || 1 : page) || 1);
-      const prevPage = Math.max(1, Number(state.payrollUi?.employeesPage) || 1);
-      const sizeChanged = pageSize != null && nextSize !== prevSize;
-      const pageChanged = page != null && nextPage !== prevPage;
-      if (pageSize != null && !sizeChanged && page == null) return;
-      if (page != null && !pageChanged && pageSize == null) return;
-      state.payrollUi = {
-        ...(state.payrollUi || { runSort: "recent", workspace: "data", dataSection: "employees" }),
-        employeesPageSize: nextSize,
-        employeesPage: pageSize != null ? 1 : nextPage,
-        workspace: "data",
-        dataSection: "employees"
-      };
-      try {
-        localStorage.setItem("antares_hr_payroll_employees_page_size_v1", String(nextSize));
-      } catch (_err) {
-        /* preferencia opcional */
-      }
-      persistHrWorkspace("payroll", "data");
-      renderPortalView();
-    };
-    window.__applyPayrollEmployeesPaging = applyPayrollEmployeesPaging;
-    document.addEventListener(
-      "change",
-      (ev) => {
-        const t = ev.target;
-        if (!t || t.id !== "payroll-employees-page-size") return;
-        if (String(t.getAttribute("data-action") || "") !== "payroll-employees-page-size") return;
-        applyPayrollEmployeesPaging({ pageSize: t.value });
-      },
-      true
-    );
-    document.addEventListener(
-      "click",
-      (ev) => {
-        const btn = ev.target?.closest?.("[data-action='payroll-employees-page']");
-        if (!btn || btn.disabled) return;
-        if (!nodes.viewRoot?.contains(btn)) return;
-        ev.preventDefault();
-        applyPayrollEmployeesPaging({ page: btn.dataset.page });
-      },
-      true
-    );
-  }
-
   document.getElementById("payroll-contracts-clear-filters")?.addEventListener("click", () => {
     clearTimeout(state.__payrollEmployeesSearchDebounceTimer);
     state.__payrollEmployeesSearchFocus = null;
@@ -4488,4 +4489,5 @@ function bindPayrollPortalControls() {
   "use strict";
   window.__portalModuleAfterRender = window.__portalModuleAfterRender || {};
   window.__portalModuleAfterRender.payroll = bindPayrollPortalControls;
+  ensurePayrollEmployeesPagingBound();
 })();

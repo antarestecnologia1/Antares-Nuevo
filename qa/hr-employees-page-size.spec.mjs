@@ -159,34 +159,14 @@ test("paginación de colaboradores: registros por página", async ({ page, conte
   const initial = await countCards();
   expect(initial).toBe(10);
 
-  const debug = await page.evaluate(() => ({
-    bound: Boolean(window.__payrollEmployeesPagingBound),
-    apply: typeof window.__applyPayrollEmployeesPaging,
-    selects: [...document.querySelectorAll("#payroll-employees-page-size")].map((el) => ({
-      value: el.value,
-      action: el.getAttribute("data-action"),
-      inView: Boolean(el.closest("[data-payroll-panel], #portal-view, [data-view-root]"))
-    })),
-    pageSize: window.state?.payrollUi?.employeesPageSize
-  }));
-  expect(debug, JSON.stringify(debug)).toMatchObject({ bound: true, apply: "function" });
+  expect(await page.evaluate(() => Boolean(window.__payrollEmployeesPagingBound))).toBe(true);
 
-  await page.locator("#payroll-employees-page-size").selectOption("20", { force: true });
-  await page.evaluate(() => {
-    const sel = document.getElementById("payroll-employees-page-size");
-    if (!sel) throw new Error("select missing");
-    sel.value = "20";
-    sel.dispatchEvent(new Event("change", { bubbles: true }));
-  });
+  await page.locator("#payroll-employees-page-size").selectOption("20");
   await expect.poll(async () => page.locator(".payroll-contracts-pagination__meta").textContent()).toMatch(/1 a 20 de 24/);
   await expect(page.locator("#payroll-employees-page-size")).toHaveValue("20");
   expect(await countCards()).toBe(20);
 
-  await page.evaluate(() => {
-    const sel = document.getElementById("payroll-employees-page-size");
-    sel.value = "5";
-    sel.dispatchEvent(new Event("change", { bubbles: true }));
-  });
+  await page.locator("#payroll-employees-page-size").selectOption("5");
   await expect.poll(async () => page.locator(".payroll-contracts-pagination__meta").textContent()).toMatch(/1 a 5 de 24/);
   await expect(page.locator("#payroll-employees-page-size")).toHaveValue("5");
   expect(await countCards()).toBe(5);
