@@ -135,6 +135,18 @@ function transportTripsHtml() {
   const tripsSort = normalizeTransportTripsSort(transportTripsUi.sort);
   const tripsLayout = normalizeTransportTripsLayout(transportTripsUi.layout);
 
+  /** Filtros propios de Viajes: cliente, estado, conductor, placa, tipo de servicio y fecha de recogida. */
+  const tripsFieldFilters = {
+    client: String(transportTripsUi.fClient || ""),
+    status: String(transportTripsUi.fStatus || ""),
+    driver: String(transportTripsUi.fDriver || ""),
+    plate: String(transportTripsUi.fPlate || ""),
+    service: String(transportTripsUi.fService || ""),
+    from: String(transportTripsUi.fFrom || ""),
+    to: String(transportTripsUi.fTo || "")
+  };
+  const tripsFieldFiltersActive = Object.values(tripsFieldFilters).some(Boolean);
+
   /**
    * Filtros rápidos del módulo: el listado puede verse en tarjetas o en tabla
    * (mismo estilo que Camiones). Los filtros Activos / Hoy / etc. se mantienen.
@@ -168,6 +180,21 @@ function transportTripsHtml() {
         ].join(" ")
       );
       return hay.includes(tripsSearch);
+    })
+    .filter((r) => {
+      const f = tripsFieldFilters;
+      if (f.client && String(r.clientName || "").trim() !== f.client) return false;
+      if (f.status && String(r.status || "") !== f.status) return false;
+      if (f.driver && String(r.trip?.driverName || "").trim() !== f.driver) return false;
+      if (f.plate && String(r.trip?.vehiclePlate || "").trim() !== f.plate) return false;
+      if (f.service && String(r.serviceType || "").trim() !== f.service) return false;
+      if (f.from || f.to) {
+        const pickupDay = String(requestPickupIsoDate(r) || "");
+        if (!pickupDay) return false;
+        if (f.from && pickupDay < f.from) return false;
+        if (f.to && pickupDay > f.to) return false;
+      }
+      return true;
     });
   const sortedFilteredTrips = filteredTrips.slice().sort((a, b) => {
     if (tripsSort === "pickup_desc") return new Date(rSafePickup(b)).getTime() - new Date(rSafePickup(a)).getTime();
@@ -417,7 +444,30 @@ function transportTripsHtml() {
       <button type="button" class="btn btn-sm ${tripsLayout === "list" ? "btn-primary" : "btn-outline"}" data-action="transport-trips-layout" data-layout="list">Lista</button>
     </div>
   </div>`;
-  const opsToolbarBlock = `<div class="transport-data-toolbar">${opsFiltersBar}${opsToolbar}</div>`;
+  const tripStatusLabel = (status) => {
+    /* prettyStatus devuelve un chip HTML con icono: en un <option> solo sirve el texto. */
+    const plain =
+      typeof prettyStatus === "function"
+        ? String(prettyStatus(status, "trip") || "").replace(/<[^>]*>/g, "").trim()
+        : "";
+    return plain || String(status || "—");
+  };
+  const tripsFieldFiltersBar = renderModuleFieldFilters({
+    ariaLabel: "Filtros de viajes",
+    action: "transport-trips-field",
+    clearAction: "transport-trips-fields-clear",
+    extraClass: "transport-trips-field-filters",
+    fields: [
+      { key: "client", label: "Cliente", value: tripsFieldFilters.client, allLabel: "Todos los clientes", options: uniqueSortedFilterValues(trips.map((r) => r.clientName)).map((v) => [v, v]) },
+      { key: "status", label: "Estado", value: tripsFieldFilters.status, allLabel: "Todos los estados", options: uniqueSortedFilterValues(trips.map((r) => r.status)).map((v) => [v, tripStatusLabel(v)]) },
+      { key: "driver", label: "Conductor", value: tripsFieldFilters.driver, allLabel: "Todos los conductores", options: uniqueSortedFilterValues(trips.map((r) => r.trip?.driverName)).map((v) => [v, v]) },
+      { key: "plate", label: "Placa", value: tripsFieldFilters.plate, allLabel: "Todas las placas", options: uniqueSortedFilterValues(trips.map((r) => r.trip?.vehiclePlate)).map((v) => [v, v]) },
+      { key: "service", label: "Tipo de servicio", value: tripsFieldFilters.service, allLabel: "Todos los servicios", options: uniqueSortedFilterValues(trips.map((r) => r.serviceType)).map((v) => [v, v]) },
+      { key: "from", label: "Recogida desde", type: "date", value: tripsFieldFilters.from },
+      { key: "to", label: "Recogida hasta", type: "date", value: tripsFieldFilters.to }
+    ]
+  });
+  const opsToolbarBlock = `<div class="transport-data-toolbar">${opsFiltersBar}${opsToolbar}${tripsFieldFiltersBar}</div>`;
 
   const tripsRenderLimit = Number(state.tripsRenderLimit) || RENDER_WINDOW_SIZE;
   const tripsToRender = renderWindowSlice(sortedFilteredTrips, tripsRenderLimit);
@@ -435,7 +485,9 @@ function transportTripsHtml() {
     tripsLayout === "cards" && sortedFilteredTrips.length
       ? `<div class="trip-ops-cards portal-ops-cards transport-trip-cards">${tripsToRender.map(buildTripOpsCard).join("")}</div>`
       : "";
-  const tripsEmptyCopy = tripsSearch
+  const tripsEmptyCopy = tripsFieldFiltersActive
+    ? "Ningún viaje coincide con los filtros aplicados. Use «Limpiar filtros» para ver todos."
+    : tripsSearch
     ? "Ningún viaje coincide con la búsqueda. Pruebe con el cliente, la placa, la ciudad o el número."
     : filter !== "all"
       ? "No hay viajes en este filtro. Cambie el filtro o vea todos."
@@ -1041,6 +1093,38 @@ function transportTripsHtml() {
         state.tripsRenderLimit = RENDER_WINDOW_SIZE;
         renderPortalView();
       });
+    });
+
+    const TRIPS_FIELD_FILTER_KEYS = {
+      client: "fClient",
+      status: "fStatus",
+      driver: "fDriver",
+      plate: "fPlate",
+      service: "fService",
+      from: "fFrom",
+      to: "fTo"
+    };
+    bindModuleFieldFilters(nodes.viewRoot, {
+      action: "transport-trips-field",
+      clearAction: "transport-trips-fields-clear",
+      onChange: (field, value) => {
+        clearTransportTripsSearchTimer();
+        const key = TRIPS_FIELD_FILTER_KEYS[field];
+        if (!key) return;
+        state.transportTripsUi = { ...(state.transportTripsUi || {}), [key]: value };
+        state.tripsRenderLimit = RENDER_WINDOW_SIZE;
+        renderPortalView();
+      },
+      onClear: () => {
+        clearTransportTripsSearchTimer();
+        const cleared = {};
+        Object.values(TRIPS_FIELD_FILTER_KEYS).forEach((key) => {
+          cleared[key] = "";
+        });
+        state.transportTripsUi = { ...(state.transportTripsUi || {}), ...cleared };
+        state.tripsRenderLimit = RENDER_WINDOW_SIZE;
+        renderPortalView();
+      }
     });
 
     nodes.viewRoot.querySelectorAll("[data-action='transport-trips-layout']").forEach((btn) => {

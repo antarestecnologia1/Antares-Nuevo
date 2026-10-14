@@ -466,12 +466,26 @@ function adminUsersHtml(current) {
   const userStatusFilter = String(ui.userStatusFilter || "all").toLowerCase();
   const userRoleFilter = String(ui.userRoleFilter || "all").toLowerCase();
   const companyStatusFilter = String(ui.companyStatusFilter || "all").toLowerCase();
+  const auF = {
+    fCompany: String(ui.fCompany || ""),
+    fKind: String(ui.fKind || ""),
+    f2fa: String(ui.f2fa || ""),
+    fCompKind: String(ui.fCompKind || ""),
+    fCompCity: String(ui.fCompCity || "")
+  };
   const activeUsersView = activeUsers.filter((u) => {
     if (directorySearch && !directoryMatch(userDirectoryBlob(u))) return false;
     const statusKey = normalizeUserAccountStatus(u);
     if (userStatusFilter === "active" && statusKey === ACCOUNT_STATUS.RECHAZADO) return false;
     if (userStatusFilter === "inactive" && statusKey !== ACCOUNT_STATUS.RECHAZADO) return false;
     if (userRoleFilter !== "all" && String(u.role || "").toLowerCase() !== userRoleFilter) return false;
+    if (auF.fCompany && String(u.companyId || "") !== auF.fCompany) return false;
+    if (auF.fKind) {
+      const k = normalizeRegistrationKindForDb(u.registrationKind ?? u.profileQualityChecklist?.registrationKind);
+      if (k !== auF.fKind) return false;
+    }
+    if (auF.f2fa === "on" && !u.twoFactorEnabled) return false;
+    if (auF.f2fa === "off" && u.twoFactorEnabled) return false;
     return true;
   });
   if (state.adminUsersEntryHydrating) {
@@ -882,6 +896,8 @@ function adminUsersHtml(current) {
     const active = isCompanyRecordActive(c);
     if (companyStatusFilter === "active" && !active) return false;
     if (companyStatusFilter === "inactive" && active) return false;
+    if (auF.fCompKind && String(c.companyKind || "") !== auF.fCompKind) return false;
+    if (auF.fCompCity && String(c.city || "").trim() !== auF.fCompCity) return false;
     return true;
   });
   const companyCardsHtml = wrapDirectory(
@@ -1120,6 +1136,37 @@ function adminUsersHtml(current) {
         `<option value="${escapeAttr(r.value)}"${userRoleFilter === r.value ? " selected" : ""}>${escapeHtml(r.label)}</option>`
     )
     .join("");
+  const auPairs = (vals) => uniqueSortedFilterValues(vals).map((v) => [v, v]);
+  const adminExtraFilters =
+    adminUsersSection === "users"
+      ? renderModuleFieldFilters({
+          ariaLabel: "Filtros de usuarios",
+          action: "admin-users-field",
+          clearAction: "admin-users-fields-clear",
+          extraClass: "admin-users-field-filters",
+          fields: [
+            { key: "fCompany", label: "Empresa", value: auF.fCompany, allLabel: "Todas las empresas",
+              options: companies.filter((c) => activeUsers.some((u) => String(u.companyId || "") === String(c.id))).map((c) => [String(c.id), c.name || c.id]).sort((a, b) => a[1].localeCompare(b[1], "es")) },
+            { key: "fKind", label: "Tipo de vínculo", value: auF.fKind, allLabel: "Cliente e interno",
+              options: [["cliente", "Cliente externo"], ["empleado_interno", "Usuario interno Antares"]] },
+            { key: "f2fa", label: "Autenticación 2FA", value: auF.f2fa, allLabel: "Con o sin 2FA",
+              options: [["on", "2FA activo"], ["off", "Sin 2FA"]] }
+          ]
+        })
+      : adminUsersSection === "companies"
+        ? renderModuleFieldFilters({
+            ariaLabel: "Filtros de empresas",
+            action: "admin-users-field",
+            clearAction: "admin-users-fields-clear",
+            extraClass: "admin-users-field-filters",
+            fields: [
+              { key: "fCompKind", label: "Tipo de empresa", value: auF.fCompKind, allLabel: "Todos los tipos",
+                options: [["cliente", "Cliente"], ["tercero", "Tercero / proveedor"], ["propia", "Propia (Antares)"]] },
+              { key: "fCompCity", label: "Ciudad", value: auF.fCompCity, allLabel: "Todas las ciudades",
+                options: auPairs(companies.map((c) => String(c.city || "").trim())) }
+            ]
+          })
+        : "";
   const directoryLayoutToggle = `<div class="ag-fleet__view" role="group" aria-label="Vista del directorio">
           <button type="button" class="ag-icon-btn${directoryLayout === "cards" ? " is-active" : ""}" data-action="admin-users-layout" data-layout="cards" title="Tarjetas" aria-label="Vista en tarjetas" aria-pressed="${directoryLayout === "cards"}">${IC.grid}</button>
           <button type="button" class="ag-icon-btn${directoryLayout === "list" ? " is-active" : ""}" data-action="admin-users-layout" data-layout="list" title="Lista" aria-label="Vista en lista" aria-pressed="${directoryLayout === "list"}">${IC.list}</button>
@@ -1160,12 +1207,13 @@ function adminUsersHtml(current) {
         ${directoryLayoutToggle}
       </div>`
     : "";
+  const directoryFiltersHtml = `${directorySearchBar}${adminExtraFilters}`;
   const actionsPane = `<div class="auth-tab-panel${adminUsersSection === "actions" ? "" : " hidden"}" data-admin-users-panel="actions"${adminUsersSection === "actions" ? "" : " hidden"}>${actionsPaneHtml}</div>`;
   const pendingPane = `<div class="auth-tab-panel${adminUsersSection === "pending" ? "" : " hidden"}" data-admin-users-panel="pending"${adminUsersSection === "pending" ? "" : " hidden"}>${pendingPaneHtml}</div>`;
   const usersPane = `<div class="auth-tab-panel${adminUsersSection === "users" ? "" : " hidden"}" data-admin-users-panel="users"${adminUsersSection === "users" ? "" : " hidden"}>${usersPaneHtml}</div>`;
   const companiesPane = `<div class="auth-tab-panel${adminUsersSection === "companies" ? "" : " hidden"}" data-admin-users-panel="companies"${adminUsersSection === "companies" ? "" : " hidden"}>${companiesPaneHtml}</div>`;
   const sessionsPane = `<div class="auth-tab-panel${adminUsersSection === "sessions" ? "" : " hidden"}" data-admin-users-panel="sessions"${adminUsersSection === "sessions" ? "" : " hidden"}>${sessionsPaneHtml}</div>`;
-  return `<section class="admin-users-studio">${hero}${workspaceNav}${directorySearchBar}<div class="auth-tab-panels">${actionsPane}${pendingPane}${usersPane}${companiesPane}${sessionsPane}</div></section>`;
+  return `<section class="admin-users-studio">${hero}${workspaceNav}${directoryFiltersHtml}<div class="auth-tab-panels">${actionsPane}${pendingPane}${usersPane}${companiesPane}${sessionsPane}</div></section>`;
 }
 
 (function registerLegacyViewChunk() {
@@ -1196,6 +1244,20 @@ function adminUsersHtml(current) {
         });
         renderPortalView();
       });
+    });
+
+    bindModuleFieldFilters(nodes.viewRoot, {
+      action: "admin-users-field",
+      clearAction: "admin-users-fields-clear",
+      onChange: (key, value) => {
+        if (!["fCompany", "fKind", "f2fa", "fCompKind", "fCompCity"].includes(key)) return;
+        patchUi({ [key]: value });
+        renderPortalView();
+      },
+      onClear: () => {
+        patchUi({ fCompany: "", fKind: "", f2fa: "", fCompKind: "", fCompCity: "" });
+        renderPortalView();
+      }
     });
 
     nodes.viewRoot.querySelectorAll("[data-action='admin-users-status-filter']").forEach((btn) => {

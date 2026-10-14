@@ -36,26 +36,77 @@ function authorizationsHtml() {
     const p = a.payload && typeof a.payload === "object" ? a.payload : {};
     return `${a.type || ""} ${meta.title || ""} ${a.id || ""} ${JSON.stringify(p)}`.toLowerCase();
   };
-  const pending = authQ ? pendingAll.filter((a) => authInc(approvalSearchBlob(a))) : pendingAll;
+  const authF = {
+    fScope: String(authUi.fScope || ""),
+    fType: String(authUi.fType || ""),
+    fBy: String(authUi.fBy || ""),
+    fFrom: String(authUi.fFrom || ""),
+    fTo: String(authUi.fTo || "")
+  };
+  const authDay = (v) => String(v || "").slice(0, 10);
+  const authDateOk = (v) => {
+    if (!authF.fFrom && !authF.fTo) return true;
+    const d = authDay(v);
+    if (!d) return false;
+    return (!authF.fFrom || d >= authF.fFrom) && (!authF.fTo || d <= authF.fTo);
+  };
+  const approvalTitle = (a) => APPROVAL_TYPE_META[a.type]?.title || a.type || "";
+  const approvalBy = (a) => String(a.requestedByName || "").trim();
+  const approvalFOk = (a) =>
+    (!authF.fScope || authF.fScope === "internal") &&
+    (!authF.fType || approvalTitle(a) === authF.fType) &&
+    (!authF.fBy || approvalBy(a) === authF.fBy) &&
+    authDateOk(a.requestedAt || a.createdAt);
+  const pending = pendingAll.filter((a) => (!authQ || authInc(approvalSearchBlob(a))) && approvalFOk(a));
   const approvedCt = approvals.filter((a) => a.status === "aprobado").length;
   const rejectedCt = approvals.filter((a) => a.status === "rechazado").length;
   const pendingUsersAll = read(KEYS.users, []).filter((u) => isPortalUserPendingApproval(u));
-  const pendingUsers = authQ
-    ? pendingUsersAll.filter((u) =>
+  const pendingUsers = pendingUsersAll.filter(
+    (u) =>
+      (!authQ ||
         authInc(
           `${u.name || ""} ${u.email || ""} ${u.company || ""} ${u.companyId || ""} ${getCompanyById(u.companyId)?.name || ""} ${u.role || ""}`
-        )
-      )
-    : pendingUsersAll;
+        )) &&
+      (!authF.fScope || authF.fScope === "portal") &&
+      !authF.fType &&
+      (!authF.fBy || String(u.name || "").trim() === authF.fBy) &&
+      authDateOk(u.createdAt || u.registeredAt)
+  );
   const pendingTransportRequestsAll = sortAuthQueueByDateDesc(
     reqRead().filter((r) => r.status === STATUS.PENDIENTE),
     (r) => r.createdAt
   );
   const transportRequestSearchBlob = (r) =>
     `${r.requestNumber || ""} ${r.id || ""} ${r.clientName || ""} ${r.originCity || ""} ${r.destinationCity || ""} ${r.status || ""}`.toLowerCase();
-  const pendingTransportRequests = authQ
-    ? pendingTransportRequestsAll.filter((r) => authInc(transportRequestSearchBlob(r)))
-    : pendingTransportRequestsAll;
+  const pendingTransportRequests = pendingTransportRequestsAll.filter(
+    (r) =>
+      (!authQ || authInc(transportRequestSearchBlob(r))) &&
+      (!authF.fScope || authF.fScope === "transport") &&
+      !authF.fType &&
+      (!authF.fBy || String(r.requestedByName || r.clientName || "").trim() === authF.fBy) &&
+      authDateOk(r.createdAt)
+  );
+  const authPairs = (vals) => uniqueSortedFilterValues(vals).map((v) => [v, v]);
+  const authFieldFilters = renderModuleFieldFilters({
+    ariaLabel: "Filtros de autorizaciones",
+    action: "auth-field",
+    clearAction: "auth-fields-clear",
+    extraClass: "auth-field-filters",
+    fields: [
+      { key: "fScope", label: "Bandeja", value: authF.fScope, allLabel: "Todas las bandejas",
+        options: [["portal", "Altas de clientes (portal)"], ["transport", "Solicitudes de transporte"], ["internal", "Aprobaciones internas"]] },
+      { key: "fType", label: "Tipo de trámite", value: authF.fType, allLabel: "Todos los trámites",
+        options: authPairs(pendingAll.map(approvalTitle)) },
+      { key: "fBy", label: "Solicitado por", value: authF.fBy, allLabel: "Cualquier solicitante",
+        options: authPairs([
+          ...pendingAll.map(approvalBy),
+          ...pendingUsersAll.map((u) => u.name),
+          ...pendingTransportRequestsAll.map((r) => r.requestedByName || r.clientName)
+        ]) },
+      { key: "fFrom", label: "Solicitado desde", type: "date", value: authF.fFrom },
+      { key: "fTo", label: "Solicitado hasta", type: "date", value: authF.fTo }
+    ]
+  });
   let totalOpen = 0;
   if (canAccessAuthorizationSection(actor, "portal_registrations")) totalOpen += pendingUsers.length;
   if (canAccessAuthorizationSection(actor, "transport_requests")) totalOpen += pendingTransportRequests.length;
@@ -213,7 +264,7 @@ function authorizationsHtml() {
         <span class="muted">${IC.search || ""} Buscar en bandejas</span>
         <input type="search" data-action="auth-queue-search" value="${escapeAttr(authSearchRaw)}" placeholder="Nombre, correo, tipo, solicitud…" autocomplete="off" />
       </label>
-    </div>`;
+    </div>${authFieldFilters}`;
 
   const infoSectionsHtml = APPROVAL_UI_BLOCKS.filter((s) => s.kind === "info")
     .map(
@@ -331,6 +382,20 @@ async function payrollEmployeeDuplicateBlocksAuthApproval(documentType, idDoc, c
 function bindAuthorizationsPortalControls() {
   if (String(state.currentView || "") !== "authorizations" || !nodes.viewRoot) return;
   mountAuthorizationsTabs();
+
+  bindModuleFieldFilters(nodes.viewRoot, {
+    action: "auth-field",
+    clearAction: "auth-fields-clear",
+    onChange: (key, value) => {
+      if (!["fScope", "fType", "fBy", "fFrom", "fTo"].includes(key)) return;
+      state.authorizationsUi = { ...(state.authorizationsUi || {}), [key]: value };
+      renderPortalView();
+    },
+    onClear: () => {
+      state.authorizationsUi = { ...(state.authorizationsUi || {}), fScope: "", fType: "", fBy: "", fFrom: "", fTo: "" };
+      renderPortalView();
+    }
+  });
 
   nodes.viewRoot.querySelectorAll("[data-action='auth-queue-search']").forEach((input) => {
     input.addEventListener("input", () => {

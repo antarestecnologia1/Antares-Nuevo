@@ -3,7 +3,7 @@
  * alertas, revisiones, trazabilidad y reportes. Evidencias vía Gestión Documental.
  */
 import { state, nodes, persistHrWorkspace } from "../core/store.js";
-import { read, writeAwaitServer, writeAwaitServerCreate, writeAwaitServerEdit } from "../core/data-io.js?v=20260917b-login-scan-shield";
+import { read, writeAwaitServer, writeAwaitServerCreate, writeAwaitServerEdit } from "../core/data-io.js";
 import { KEYS, HR_VALID_SARLAFT_WS } from "../core/config.js";
 import {
   escapeHtml,
@@ -17,7 +17,7 @@ import {
   stampCreatedRecord,
   stampUpdatedRecord,
   newUuidV4
-} from "../core/utils.js?v=20260916-sarlaft-matrix";
+} from "../core/utils.js";
 import {
   canAccessSarlaftView,
   canAccessDocumentsView,
@@ -27,7 +27,7 @@ import {
   canMutateSarlaftProfiles,
   canMutateSarlaftReviews,
   currentUser
-} from "../core/auth.js?v=20260917d-login-scan-2-5s";
+} from "../core/auth.js";
 import {
   renderHrWorkspaceTabs,
   renderHrWorkspaceHeader,

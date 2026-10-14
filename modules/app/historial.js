@@ -184,7 +184,8 @@ function readHistoryTraceFilterInputs(formEl) {
     moduleFilter: String(data.module || histUi.moduleFilter || "").trim(),
     q: data.q,
     from: data.from,
-    to: data.to
+    to: data.to,
+    actor: String(data.actor || "").trim()
   };
 }
 
@@ -597,7 +598,7 @@ function historyDeleteEventsFlow(formEl) {
   const traceFilter = formEl || document.getElementById("history-trace-filter");
   const filterInputs = readHistoryTraceFilterInputs(traceFilter);
   const activeAction = String(filterInputs.actionFilter || "all");
-  const hasFilters = Boolean(filterInputs.moduleFilter || filterInputs.from || filterInputs.to || activeAction !== "all");
+  const hasFilters = Boolean(filterInputs.actor || filterInputs.moduleFilter || filterInputs.from || filterInputs.to || activeAction !== "all");
   const matching = applyHistoryTraceFilters(buildHistoryAuditEntries(), filterInputs);
   if (!matching.length) {
     notify("No hay eventos que coincidan con los filtros actuales para eliminar.", "warn");
@@ -649,6 +650,14 @@ function historyTraceStats(entries) {
   };
 }
 
+function historyEntryActorLabel(entry) {
+  return String(
+    (typeof historyAuditUsuarioFromLogRow === "function"
+      ? historyAuditUsuarioFromLogRow(entry, { fallbackToSession: false })
+      : entry?.usuario || entry?.actor) || ""
+  ).trim();
+}
+
 function applyHistoryTraceFilters(entries, opts = {}) {
   let out = Array.isArray(entries) ? [...entries] : [];
   const actionFilter = String(opts.actionFilter || "all").trim().toLowerCase();
@@ -656,6 +665,10 @@ function applyHistoryTraceFilters(entries, opts = {}) {
   const q = String(opts.q || "").trim().toLowerCase();
   const from = String(opts.from || "").trim();
   const to = String(opts.to || "").trim();
+  const actorFilter = String(opts.actor || "").trim();
+  if (actorFilter) {
+    out = out.filter((e) => historyEntryActorLabel(e) === actorFilter);
+  }
 
   if (actionFilter && actionFilter !== "all") {
     out = out.filter((e) => String(e.action || "") === actionFilter);
@@ -752,6 +765,10 @@ function renderHistoryTraceToolbar(viewLayout, moduleOptions, moduleFilter) {
     .map((m) => `<option value="${escapeAttr(m)}"${moduleFilter === m ? " selected" : ""}>${escapeHtml(m)}</option>`)
     .join("");
   const canDeleteHistory = historyCurrentUserIsAdmin();
+  const actorOpts = [...new Set(buildHistoryAuditEntries().map(historyEntryActorLabel).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }))
+    .map((a) => `<option value="${escapeAttr(a)}">${escapeHtml(a)}</option>`)
+    .join("");
   return `<form id="history-trace-filter" class="hist-trace-filter-form" novalidate>
     <div class="hist-trace-toolbar">
       <label class="hist-trace-search">
@@ -762,11 +779,12 @@ function renderHistoryTraceToolbar(viewLayout, moduleOptions, moduleFilter) {
       <div class="hist-trace-toolbar__actions">
         ${historyViewToggleHtml(viewLayout)}
         <details class="hist-trace-advanced">
-          <summary class="hist-trace-advanced-trigger">${IC.filter}<span>Periodo</span></summary>
+          <summary class="hist-trace-advanced-trigger">${IC.filter}<span>Filtros</span></summary>
           <div class="hist-trace-advanced-body">
             <label>${fieldLabel(IC.calendar, "Desde")}<input type="date" name="from" /></label>
             <label>${fieldLabel(IC.calendar, "Hasta")}<input type="date" name="to" /></label>
             <label class="hist-trace-module-select">${fieldLabel(IC.layers, "Módulo (lista)")}<select name="module"><option value="">Todos los módulos</option>${moduleOpts}</select></label>
+            <label class="hist-trace-module-select">${fieldLabel(IC.user || IC.users, "Usuario responsable")}<select name="actor"><option value="">Todos los usuarios</option>${actorOpts}</select></label>
             <button class="btn btn-sm btn-outline" type="reset">${IC.x} Limpiar filtros</button>
           </div>
         </details>

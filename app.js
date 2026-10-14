@@ -13,16 +13,16 @@ import {
   startSessionSecurityWatch,
   isSessionWithinIdleWindow,
   maybeEnforceDataPolicyAcceptance
-} from "./modules/core/auth.js?v=20260930-eye-toggle-icon";
+} from "./modules/core/auth.js";
 import { renderPortal, scheduleRenderPortalView } from "./modules/core/router.js";
 import {
   portalRefreshAfterBootstrap,
   portalSnapshotIsFresh,
   startPortalBootstrapForInteractiveSession,
   syncSessionProfileSnapshotFromCache
-} from "./modules/core/bootstrap.js?v=20260917b-login-scan-shield";
+} from "./modules/core/bootstrap.js";
 import { devWarn } from "./modules/core/utils.js";
-import { notify } from "./modules/ui/modals.js?v=20261013-vehicle-forms";
+import { notify } from "./modules/ui/modals.js";
 import { runAsSilentSystemNotifications } from "./modules/domain/notificaciones.domain.js";
 import { hasUnsavedPortalFormData } from "./modules/domain/viajes.domain.js";
 import { initGlobalEvents } from "./modules/core/events.js?v=20261013-module-filters";

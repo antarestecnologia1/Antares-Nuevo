@@ -3,8 +3,8 @@
  * Evita colisiones de nombres entre módulos: cada export debe ser único entre estos cinco.
  */
 export * from "./config.js";
-export * from "./auth.js?v=20260917d-login-scan-2-5s";
+export * from "./auth.js";
 export * from "./store.js";
 export * from "./utils.js";
 export * from "./audit-trail.js";
-export * from "../ui/modals.js?v=20261013-modal-back";
+export * from "../ui/modals.js";

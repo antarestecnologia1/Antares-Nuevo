@@ -190,6 +190,38 @@
       });
     });
 
+    const REQUESTS_FIELD_FILTER_KEYS = {
+      origin: "fOrigin",
+      destination: "fDestination",
+      service: "fService",
+      vehicle: "fVehicle",
+      requestedBy: "fRequestedBy",
+      from: "fFrom",
+      to: "fTo"
+    };
+    bindModuleFieldFilters(nodes.viewRoot, {
+      action: "requests-field-filter",
+      clearAction: "requests-field-filters-clear",
+      onChange: (field, value) => {
+        clearRequestsSearchTimers();
+        const key = REQUESTS_FIELD_FILTER_KEYS[field];
+        if (!key) return;
+        state.requestsUi = { ...(state.requestsUi || {}), [key]: value };
+        state.requestsRenderLimit = requestsRenderWindowSize();
+        renderPortalView();
+      },
+      onClear: () => {
+        clearRequestsSearchTimers();
+        const cleared = {};
+        Object.values(REQUESTS_FIELD_FILTER_KEYS).forEach((key) => {
+          cleared[key] = "";
+        });
+        state.requestsUi = { ...(state.requestsUi || {}), ...cleared };
+        state.requestsRenderLimit = requestsRenderWindowSize();
+        renderPortalView();
+      }
+    });
+
     nodes.viewRoot.querySelectorAll("[data-action='requests-list-search']").forEach((input) => {
       input.addEventListener("input", () => {
         const el = /** @type {HTMLInputElement} */ (input);

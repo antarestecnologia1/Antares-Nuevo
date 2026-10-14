@@ -377,6 +377,9 @@
       } catch (_) {
         /* noop */
       }
+      if (typeof requestFieldFilterState === "function" && requestFieldFiltersActive(requestFieldFilterState())) {
+        return emptyState("Ninguna solicitud coincide con los filtros aplicados. Use «Limpiar filtros» para ver todas.");
+      }
       if (search) {
         return emptyState("Ninguna solicitud coincide con la búsqueda. Pruebe con el número, la ciudad o el cliente.");
       }
@@ -854,8 +857,72 @@
     return foldRequestSearchText(hay);
   }
 
+  /** Filtros propios de Solicitudes (además del estado y la búsqueda): ruta, servicio, vehículo, solicitante y fecha de recogida. */
+  const REQUEST_FIELD_FILTER_KEYS = {
+    origin: "fOrigin",
+    destination: "fDestination",
+    service: "fService",
+    vehicle: "fVehicle",
+    requestedBy: "fRequestedBy",
+    from: "fFrom",
+    to: "fTo"
+  };
+
+  function requestFieldFilterState() {
+    const ui = (typeof state !== "undefined" && state?.requestsUi) || {};
+    const out = {};
+    Object.entries(REQUEST_FIELD_FILTER_KEYS).forEach(([field, key]) => {
+      out[field] = String(ui[key] || "");
+    });
+    return out;
+  }
+
+  function requestFieldFiltersActive(f) {
+    return Object.values(f || {}).some(Boolean);
+  }
+
+  function requestPickupDayForFilter(r) {
+    if (typeof requestPickupIsoDate === "function") return String(requestPickupIsoDate(r) || "");
+    return String(r?.trip?.etaPickup || r?.pickupAt || r?.pickupDate || "").slice(0, 10);
+  }
+
+  function requestMatchesFieldFilters(r, f) {
+    if (f.origin && String(r.originCity || "").trim() !== f.origin) return false;
+    if (f.destination && String(r.destinationCity || "").trim() !== f.destination) return false;
+    if (f.service && String(r.serviceType || "").trim() !== f.service) return false;
+    if (f.vehicle && String(r.vehicleType || r.requiredTruckType || "").trim() !== f.vehicle) return false;
+    if (f.requestedBy && String(r.requestedByName || "").trim() !== f.requestedBy) return false;
+    if (f.from || f.to) {
+      const day = requestPickupDayForFilter(r);
+      if (!day) return false;
+      if (f.from && day < f.from) return false;
+      if (f.to && day > f.to) return false;
+    }
+    return true;
+  }
+
+  function requestFieldFiltersBarHtml(baseRequests, f) {
+    const opts = (values) => uniqueSortedFilterValues(values).map((v) => [v, v]);
+    return renderModuleFieldFilters({
+      ariaLabel: "Filtros de solicitudes",
+      action: "requests-field-filter",
+      clearAction: "requests-field-filters-clear",
+      extraClass: "requests-field-filters",
+      fields: [
+        { key: "origin", label: "Origen", value: f.origin, allLabel: "Todos los orígenes", options: opts(baseRequests.map((r) => r.originCity)) },
+        { key: "destination", label: "Destino", value: f.destination, allLabel: "Todos los destinos", options: opts(baseRequests.map((r) => r.destinationCity)) },
+        { key: "service", label: "Tipo de servicio", value: f.service, allLabel: "Todos los servicios", options: opts(baseRequests.map((r) => r.serviceType)) },
+        { key: "vehicle", label: "Tipo de vehículo", value: f.vehicle, allLabel: "Todos los vehículos", options: opts(baseRequests.map((r) => r.vehicleType || r.requiredTruckType)) },
+        { key: "requestedBy", label: "Solicitado por", value: f.requestedBy, allLabel: "Todos los solicitantes", options: opts(baseRequests.map((r) => r.requestedByName)) },
+        { key: "from", label: "Recogida desde", type: "date", value: f.from },
+        { key: "to", label: "Recogida hasta", type: "date", value: f.to }
+      ]
+    });
+  }
+
   function requestListClientHtml(user) {
     const requests = getVisibleRequestsForUser(user);
+    const fieldFilters = requestFieldFilterState();
     let activeFilter = "all";
     try {
       activeFilter = String((typeof state !== "undefined" && state?.requestsFilter) || "all");
@@ -890,14 +957,15 @@
         ? requests.filter((r) => String(r.clientCompanyId || "") === selectedCompanyId)
         : requests;
       const statusFiltered = applyRequestFilter(byCompany, activeFilter);
-      const afterFilter = listSearchNorm
+      const afterSearch = listSearchNorm
         ? statusFiltered.filter((r) => requestListSearchHaystack(r).includes(listSearchNorm))
         : statusFiltered;
+      const afterFilter = afterSearch.filter((r) => requestMatchesFieldFilters(r, fieldFilters));
       const companyCount = Object.keys(
         requests.reduce((acc, r) => ({ ...acc, [r.clientCompanyId || ""]: true }), {})
       ).filter(Boolean).length;
       const hub = requestAdminCompanySidebarHtml(requests, selectedCompanyId);
-      const filtersBar = requestFiltersBarHtml(byCompany, activeFilter);
+      const filtersBar = requestFiltersBarHtml(byCompany, activeFilter) + requestFieldFiltersBarHtml(byCompany, fieldFilters);
       const toolbarHtml = requestDataToolbarHtml(filtersBar, listSearchRaw, listLayout);
       const resultsHtml = requestOpsCardsHtml(afterFilter, user, listLayout);
       const scopeBadge = selectedCompany
@@ -934,10 +1002,11 @@
     const panelTitle =
       typeof clientRequestsScopePrimaryLabel === "function" ? clientRequestsScopePrimaryLabel() : "Mis solicitudes";
     const statusFiltered = applyRequestFilter(requests, activeFilter);
-    const filtered = listSearchNorm
+    const filteredBySearch = listSearchNorm
       ? statusFiltered.filter((r) => requestListSearchHaystack(r).includes(listSearchNorm))
       : statusFiltered;
-    const filtersBar = requestFiltersBarHtml(requests, activeFilter);
+    const filtered = filteredBySearch.filter((r) => requestMatchesFieldFilters(r, fieldFilters));
+    const filtersBar = requestFiltersBarHtml(requests, activeFilter) + requestFieldFiltersBarHtml(requests, fieldFilters);
     const toolbarHtml = requestDataToolbarHtml(filtersBar, listSearchRaw, listLayout);
     const resultsHtml = requestOpsCardsHtml(filtered, user, listLayout);
     const headHtml = requestDataHeadHtml({

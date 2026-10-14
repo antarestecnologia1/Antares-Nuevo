@@ -106,7 +106,44 @@ function contactLeadsHtml() {
     return studio(pcardWrap("mail", "Solicitudes de contacto web (B2B)", "0 prospectos visibles", emptyState(hint)));
   }
 
-  const cards = list
+  const leadsUi = state.contactLeadsUi && typeof state.contactLeadsUi === "object" ? state.contactLeadsUi : {};
+  const lf = {
+    fService: String(leadsUi.fService || ""),
+    fOperation: String(leadsUi.fOperation || ""),
+    fFrequency: String(leadsUi.fFrequency || ""),
+    fWindow: String(leadsUi.fWindow || ""),
+    fPeriod: String(leadsUi.fPeriod || "")
+  };
+  const leadVal = (c, k) => b2bTitle(String(c[k] || "").trim());
+  const leadPairs = (k) =>
+    uniqueSortedFilterValues(list.map((c) => leadVal(c, k))).map((v) => [v, v]);
+  const periodDays = Number(lf.fPeriod) || 0;
+  const filteredList = list.filter((c) => {
+    if (lf.fService && leadVal(c, "serviceType") !== lf.fService) return false;
+    if (lf.fOperation && leadVal(c, "operationType") !== lf.fOperation) return false;
+    if (lf.fFrequency && leadVal(c, "frequency") !== lf.fFrequency) return false;
+    if (lf.fWindow && leadVal(c, "serviceWindow") !== lf.fWindow) return false;
+    if (periodDays) {
+      const t = new Date(c.createdAt || 0).getTime();
+      if (!Number.isFinite(t) || now - t > periodDays * 24 * 60 * 60 * 1000) return false;
+    }
+    return true;
+  });
+  const leadsFilters = renderModuleFieldFilters({
+    ariaLabel: "Filtros de prospectos",
+    action: "b2b-field",
+    clearAction: "b2b-fields-clear",
+    extraClass: "b2b-field-filters",
+    fields: [
+      { key: "fService", label: "Servicio de interés", value: lf.fService, allLabel: "Todos los servicios", options: leadPairs("serviceType") },
+      { key: "fOperation", label: "Tipo de operación", value: lf.fOperation, allLabel: "Todas las operaciones", options: leadPairs("operationType") },
+      { key: "fFrequency", label: "Frecuencia", value: lf.fFrequency, allLabel: "Cualquier frecuencia", options: leadPairs("frequency") },
+      { key: "fWindow", label: "Inicio estimado", value: lf.fWindow, allLabel: "Cualquier fecha de inicio", options: leadPairs("serviceWindow") },
+      { key: "fPeriod", label: "Recibido", value: lf.fPeriod, allLabel: "Todo el historial",
+        options: [["7", "Últimos 7 días"], ["30", "Últimos 30 días"], ["90", "Últimos 90 días"]] }
+    ]
+  });
+  const cards = filteredList
     .map((c, ix) => {
       const hueClass = ["b2b-accent-a", "b2b-accent-b", "b2b-accent-c"][ix % 3];
       const rawName = String(c.contactName || "").trim();
@@ -176,7 +213,7 @@ function contactLeadsHtml() {
     ? `<p class="b2b-cred-cap">Se muestran las 500 solicitudes más recientes.</p>`
     : "";
   const banner = syncError ? `<p class="b2b-sync-banner" role="alert">${escapeHtml(syncError)}</p>` : "";
-  const countLabel = `${list.length} prospecto${list.length === 1 ? "" : "s"}`;
+  const countLabel = `${filteredList.length} prospecto${filteredList.length === 1 ? "" : "s"}`;
   const toolbar = `<div class="b2b-leads-toolbar">
     <label class="b2b-cred-search">
       <span class="b2b-cred-search__label">Buscar</span>
@@ -184,7 +221,7 @@ function contactLeadsHtml() {
     </label>
     <span class="b2b-cred-count" data-b2b-count>${countLabel}</span>
   </div>`;
-  const mosaic = `${banner}${toolbar}<div class="b2b-leads-mosaic">${cards}</div><p class="b2b-cred-nomatch" hidden>Ningún prospecto coincide con la búsqueda.</p>${capNote}`;
+  const mosaic = `${banner}${toolbar}${leadsFilters}<div class="b2b-leads-mosaic">${cards}</div><p class="b2b-cred-nomatch"${filteredList.length ? " hidden" : ""}>Ningún prospecto coincide con la búsqueda o los filtros.</p>${capNote}`;
   return studio(pcardWrap("mail", "Solicitudes de contacto web (B2B)", "Solo lectura · contacto por correo o teléfono", mosaic));
 }
 
@@ -192,7 +229,22 @@ function bindContactLeadsPortalControls() {
   const root = document.getElementById("view-root");
   const input = root?.querySelector("#b2b-leads-search");
   const cards = root ? [...root.querySelectorAll(".b2b-leads-card")] : [];
-  if (!input || !cards.length) return;
+  if (root && typeof bindModuleFieldFilters === "function") {
+    bindModuleFieldFilters(root, {
+      action: "b2b-field",
+      clearAction: "b2b-fields-clear",
+      onChange: (key, value) => {
+        if (!["fService", "fOperation", "fFrequency", "fWindow", "fPeriod"].includes(key)) return;
+        state.contactLeadsUi = { ...(state.contactLeadsUi || {}), [key]: value };
+        renderPortalView();
+      },
+      onClear: () => {
+        state.contactLeadsUi = {};
+        renderPortalView();
+      }
+    });
+  }
+  if (!input) return;
   const empty = root.querySelector(".b2b-cred-nomatch");
   const count = root.querySelector("[data-b2b-count]");
   const total = cards.length;

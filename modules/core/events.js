@@ -19,7 +19,7 @@ import {
   ACCOUNT_STATUS,
   resolveUserRegistrationKind,
   registrationKindLabel
-} from "./auth.js?v=20260917d-login-scan-2-5s";
+} from "./auth.js";
 import {
   KEYS,
   PERMISSIONS,
@@ -40,7 +40,7 @@ import {
   PIPELINE,
   createPanelIdsForModule
 } from "./config.js";
-import { portalCanRefreshFromApi, applyPortalBootstrapFromApi } from "./bootstrap.js?v=20260917b-login-scan-shield";
+import { portalCanRefreshFromApi, applyPortalBootstrapFromApi } from "./bootstrap.js";
 import {
   portalNonAdminRestrictedCaptureClick,
   portalNonAdminRestrictedCaptureChange
@@ -61,7 +61,7 @@ import {
   transportTripsOperateSectionForCreatePanel,
   vehiclesOperateSectionForCreatePanel
 } from "./utils.js";
-import { read, write, writeAwaitServer, writeAwaitServerEdit, writeAwaitServerCreate, writeAwaitServerLatestQueuedEmail } from "./data-io.js?v=20260917b-login-scan-shield";
+import { read, write, writeAwaitServer, writeAwaitServerEdit, writeAwaitServerCreate, writeAwaitServerLatestQueuedEmail } from "./data-io.js";
 import {
   registerBindEventsCallback,
   scheduleRenderPortalView,
@@ -95,7 +95,7 @@ import {
   notify,
   openConfirmModalAsync,
   userMessage
-} from "../ui/modals.js?v=20261013-modal-back";
+} from "../ui/modals.js";
 import { installActionButtonGuard } from "./action-button-guard.js";
 import { hasUnsavedPortalFormData } from "../domain/viajes.domain.js";
 

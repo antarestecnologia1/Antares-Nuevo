@@ -25,8 +25,8 @@ import {
   userLegalProfileIsHydrated
 } from "./config.js";
 import { state } from "./store.js";
-import { failPortalField, wireFormSubmitGuard } from "../ui/modals.js?v=20261013-modal-back";
-import { syncPayloadForEditedRow } from "./data-io.js?v=20260917b-login-scan-shield";
+import { failPortalField, wireFormSubmitGuard } from "../ui/modals.js";
+import { syncPayloadForEditedRow } from "./data-io.js";
 import {
   showLoginSuccessOverlay,
   waitAndDismissLoginSuccessOverlay
@@ -752,7 +752,7 @@ import {
   normalizePortalBootstrapPositionRow,
   startPortalBootstrapForInteractiveSession,
   savePortalSnapshotAfterBootstrap
-} from "./bootstrap.js?v=20260917b-login-scan-shield";
+} from "./bootstrap.js";
 const IC = typeof window !== "undefined" ? window.IC || {} : {};
 
 

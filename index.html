@@ -100,7 +100,7 @@
       rel="stylesheet"
       href="./styles.css?v=20261013-modal-back"
     />
-    <link rel="stylesheet" href="./styles/portal-ops-card.css?v=20260814-payroll-bulk-delete" />
+    <link rel="stylesheet" href="./styles/portal-ops-card.css?v=20261014-field-filters2" />
     <link rel="stylesheet" href="./styles/portal-buttons.css?v=20260701-btn-guard" />
     <link rel="stylesheet" href="./styles/portal-feedback.css?v=20260701-feedback" />
     <link rel="stylesheet" href="./styles/dashboard-module.css?v=20260625-cards-all-modules-tile" media="print" onload="this.onload=null;this.media='all'" />
@@ -131,7 +131,7 @@
     <noscript>
     <link rel="stylesheet" href="./styles.css?v=20261013-modal-back" />
     <link rel="stylesheet" href="./styles/auth-modal.css?v=20260715-registration-kind" />
-    <link rel="stylesheet" href="./styles/portal-ops-card.css?v=20260814-payroll-bulk-delete" />
+    <link rel="stylesheet" href="./styles/portal-ops-card.css?v=20261014-field-filters2" />
     <link rel="stylesheet" href="./styles/portal-buttons.css?v=20260701-btn-guard" />
     <link rel="stylesheet" href="./styles/portal-feedback.css?v=20260701-feedback" />
       <link rel="stylesheet" href="./styles/dashboard-module.css?v=20260625-cards-all-modules-tile" />
@@ -1458,21 +1458,21 @@
     <script defer src="./modules/payroll/portal-employee-list-sync.js"></script>
     <script defer src="./modules/recruitment/contracts-docx.js?v=20260804-hire-dms"></script>
     <script type="module">
-      import * as AntaresConfig from "./modules/core/config.js?v=20261013-b2b-perm";
-      import * as AntaresUtils from "./modules/core/utils.js?v=20261013-simit";
-      import * as AntaresStore from "./modules/core/store.js?v=20261014-emp-page-size";
-      import { state as portalState } from "./modules/core/store.js?v=20261014-emp-page-size";
-      import * as AntaresAuth from "./modules/core/auth.js?v=20261013-b2b-sync";
-      import * as AntaresBootstrap from "./modules/core/bootstrap.js?v=20261013-notif-fix";
-      import { writeAwaitServer, writeAwaitServerEdit, writeAwaitServerCreate, writeAwaitServerDelete, writeAwaitServerLatestQueuedEmail, syncPayloadForEditedRow, syncPayloadForEditedObjectKeys, syncPayloadForChangedRows } from "./modules/core/data-io.js?v=20260917b-login-scan-shield";
+      import * as AntaresConfig from "./modules/core/config.js";
+      import * as AntaresUtils from "./modules/core/utils.js";
+      import * as AntaresStore from "./modules/core/store.js";
+      import { state as portalState } from "./modules/core/store.js";
+      import * as AntaresAuth from "./modules/core/auth.js";
+      import * as AntaresBootstrap from "./modules/core/bootstrap.js";
+      import { writeAwaitServer, writeAwaitServerEdit, writeAwaitServerCreate, writeAwaitServerDelete, writeAwaitServerLatestQueuedEmail, syncPayloadForEditedRow, syncPayloadForEditedObjectKeys, syncPayloadForChangedRows } from "./modules/core/data-io.js";
       import * as AntaresPublicI18n from "./modules/domain/public-site.i18n.js";
       import * as AntaresContractsDomain from "./modules/domain/contracts.domain.js";
       import * as AntaresContractRenewal from "./modules/domain/contract-renewal.domain.js";
       import * as AntaresEmploymentLetter from "./modules/domain/employment-letter.domain.js";
       import * as AntaresPayrollIdentifiers from "./modules/domain/payroll-identifiers.domain.js";
       import * as AntaresPayrollCatalogSanitize from "./modules/domain/payroll-catalog-sanitize.domain.js";
-      import * as AntaresSolicitudesDomain from "./modules/domain/solicitudes.domain.js?v=20260623-trip-sync-await";
-      import * as AntaresNotificacionesDomain from "./modules/domain/notificaciones.domain.js?v=20261013-notif-fix";
+      import * as AntaresSolicitudesDomain from "./modules/domain/solicitudes.domain.js";
+      import * as AntaresNotificacionesDomain from "./modules/domain/notificaciones.domain.js";
       import * as AntaresDashboardDomain from "./modules/domain/dashboard.domain.js";
       import * as AntaresVehiclesDomain from "./modules/domain/vehicles.domain.js?v=20261013-vehicle-forms";
       import * as AntaresSimitFinesDomain from "./modules/domain/simit-fines.domain.js?v=20261013-fleet-filters";
@@ -1484,10 +1484,10 @@
       import * as AntaresHistorialDomain from "./modules/domain/historial.domain.js";
       import * as AntaresReporteriaDomain from "./modules/domain/reporteria.domain.js";
       import * as AntaresNominaDomain from "./modules/domain/nomina.domain.js";
-      import * as AntaresSstDomain from "./modules/domain/sst.domain.js?v=20261013-b2b-sync";
+      import * as AntaresSstDomain from "./modules/domain/sst.domain.js";
       import * as AntaresSarlaftDomain from "./modules/domain/sarlaft.domain.js?v=20260916-sarlaft-matrix";
       import * as AntaresDriverCompliance from "./modules/domain/driver-compliance-vigencia.domain.js";
-      import * as AntaresContratacionDomain from "./modules/domain/contratacion.domain.js?v=20261013-offer-letter";
+      import * as AntaresContratacionDomain from "./modules/domain/contratacion.domain.js";
       import * as AntaresFileUploadSecurity from "./modules/core/file-upload-security.js";
       import * as AntaresAuditTrail from "./modules/core/audit-trail.js";
       import * as AntaresRouter from "./modules/core/router.js";
@@ -1569,8 +1569,8 @@
       }
     </script>
     <script type="module">
-      import * as AntaresUIComponents from "./modules/ui/components.js?v=20261013-requests-ui";
-      import * as AntaresUIModals from "./modules/ui/modals.js?v=20261013-vehicle-forms";
+      import * as AntaresUIComponents from "./modules/ui/components.js";
+      import * as AntaresUIModals from "./modules/ui/modals.js";
       import * as AntaresI18n from "./modules/core/i18n.js";
       import * as AntaresSchedulePicker from "./modules/ui/portal-schedule-picker.js?v=20260622-time-slots";
       Object.assign(window, AntaresUIComponents, AntaresUIModals, AntaresI18n, AntaresSchedulePicker);

@@ -13,7 +13,10 @@ import {
   switchHrWorkspacePanels,
   switchModuleTabPanels,
   renderSstOperateSectionNav,
-  renderHrAlertCards
+  renderHrAlertCards,
+  renderModuleFieldFilters,
+  bindModuleFieldFilters,
+  uniqueSortedFilterValues
 } from "../ui/components.js";
 import {
   resolveEmployeeComplianceExpiryYmd,
@@ -1174,19 +1177,57 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
     const dueItems = collectSstDueItems(employees, records, dueSoonDays);
     const reconcileIssues = findSstEmployeeReconciliationIssues(employees, records);
     const dueAttentionItems = dueItems.filter((item) => item.bucket === "expired" || item.bucket === "warning");
+    const sstF = {
+      fControl: String(sstUi.fControl || ""),
+      fEstado: String(sstUi.fEstado || ""),
+      fEmployee: String(sstUi.fEmployee || ""),
+      fFrom: String(sstUi.fFrom || ""),
+      fTo: String(sstUi.fTo || "")
+    };
+    const sstPairs = (vals) => uniqueSortedFilterValues(vals).map((v) => [v, v]);
+    const sstFActive = Object.values(sstF).some(Boolean);
+    const sstBucketLabel = { expired: "Vencido", warning: "Por vencer", missing: "Sin registrar" };
+    const sstEstadoOf = (item) => item.bucket ? (sstBucketLabel[item.bucket] || "") : String(item.status || "").trim();
+    const sstMatchesF = (row, { control, employee, estado, due }) => {
+      if (sstF.fControl && String(control || "") !== sstF.fControl) return false;
+      if (sstF.fEmployee && String(employee || "") !== sstF.fEmployee) return false;
+      if (sstF.fEstado && String(estado || "") !== sstF.fEstado) return false;
+      const d = String(due || "").slice(0, 10);
+      if (sstF.fFrom && (!d || d < sstF.fFrom)) return false;
+      if (sstF.fTo && (!d || d > sstF.fTo)) return false;
+      return true;
+    };
+    const sstItemF = (item) => sstMatchesF(item, { control: item.controlType, employee: item.employeeName, estado: sstEstadoOf(item), due: item.dueDate });
+    const sstRecordEmployee = (record) => record.employeeName || employees.find((e) => String(e.id) === String(record.employeeId || ""))?.name || "";
     const filteredAllDueItems = filterSstListItems(dueItems, listSearchNorm, (item) =>
       `${item.employeeName} ${item.position} ${item.controlType} ${item.dueDate || ""}`
-    );
+    ).filter(sstItemF);
     const filteredDueItems = filterSstListItems(dueAttentionItems, listSearchNorm, (item) =>
       `${item.employeeName} ${item.position} ${item.controlType} ${item.dueDate || ""}`
-    );
+    ).filter(sstItemF);
     const filteredRecords = filterSstListItems(records, listSearchNorm, (record) => {
       const employee = employees.find((item) => String(item.id) === String(record.employeeId || ""));
       return `${record.employeeName || employee?.name || ""} ${record.recordType || ""} ${record.provider || ""} ${record.documentCode || ""} ${record.status || ""} ${record.dueDate || ""}`;
-    });
+    }).filter((record) => sstMatchesF(record, { control: record.recordType, employee: sstRecordEmployee(record), estado: String(record.status || "").trim(), due: record.dueDate }));
     const filteredReconcileIssues = filterSstListItems(reconcileIssues, listSearchNorm, (issue) =>
       `${issue.employeeName} ${issue.controlType} ${issue.message} ${issue.type}`
-    );
+    ).filter((issue) => sstMatchesF(issue, { control: issue.controlType, employee: issue.employeeName, estado: sstF.fEstado, due: sstF.fFrom || sstF.fTo ? issue.dueDate : "" }));
+    const sstFieldFiltersHtml = renderModuleFieldFilters({
+      ariaLabel: "Filtros de cumplimiento laboral y SST",
+      action: "sst-field",
+      clearAction: "sst-fields-clear",
+      extraClass: "sst-field-filters",
+      fields: [
+        { key: "fControl", label: "Tipo de control", value: sstF.fControl, allLabel: "Todos los controles",
+          options: sstPairs([...dueItems.map((i) => i.controlType), ...records.map((r) => r.recordType)]) },
+        { key: "fEstado", label: "Estado", value: sstF.fEstado, allLabel: "Todos los estados",
+          options: sstPairs([...Object.values(sstBucketLabel), ...records.map((r) => String(r.status || "").trim())]) },
+        { key: "fEmployee", label: "Colaborador", value: sstF.fEmployee, allLabel: "Todos los colaboradores",
+          options: sstPairs([...dueItems.map((i) => i.employeeName), ...records.map(sstRecordEmployee)]) },
+        { key: "fFrom", label: "Vence desde", type: "date", value: sstF.fFrom },
+        { key: "fTo", label: "Vence hasta", type: "date", value: sstF.fTo }
+      ]
+    });
     const expiredCount = dueItems.filter((item) => item.bucket === "expired").length;
     const warningCount = dueItems.filter((item) => item.bucket === "warning").length;
     const okCount = records.filter((record) => String(record.status || "").trim().toLowerCase().startsWith("cumpl")).length;
@@ -1570,10 +1611,10 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
       <div class="payroll-data-toolbar payroll-data-toolbar--compact sst-consult-toolbar">
         ${sstDataNav}
         <div class="sst-consult-toolbar__aside">
-          <button type="button" class="btn btn-sm btn-outline sst-filters-btn" data-action="sst-filters-toggle" title="Filtros" aria-expanded="false">${IC.filter || ""} Filtros ${IC.chevronDown || ""}</button>
           ${sstViewToggle}
         </div>
       </div>
+      ${sstFieldFiltersHtml}
       <div class="payroll-data-panes">${allPane}${duePane}${auditPane}${reconcilePane}</div>
     </section>`;
     const sstDataPanel = `<div class="hr-workspace-panel payroll-workspace-panel${sstWorkspace === "data" ? "" : " hidden"}" role="tabpanel" data-sst-panel="data"${sstWorkspace === "data" ? "" : " hidden"}>
@@ -1704,6 +1745,22 @@ function bindLaborCompliancePortalControls() {
       state.sstUi = { ...(state.sstUi || {}), listView: view, workspace: "data" };
       G.renderPortalView?.();
     });
+  });
+
+  bindModuleFieldFilters(nodes.viewRoot, {
+    action: "sst-field",
+    clearAction: "sst-fields-clear",
+    onChange: (key, value) => {
+      if (!["fControl", "fEstado", "fEmployee", "fFrom", "fTo"].includes(key)) return;
+      state.sstUi = { ...(state.sstUi || {}), [key]: value, listPage: 1, workspace: "data" };
+      persistHrWorkspace("sst", "data");
+      G.renderPortalView?.();
+    },
+    onClear: () => {
+      state.sstUi = { ...(state.sstUi || {}), fControl: "", fEstado: "", fEmployee: "", fFrom: "", fTo: "", listPage: 1, workspace: "data" };
+      persistHrWorkspace("sst", "data");
+      G.renderPortalView?.();
+    }
   });
 
   nodes.viewRoot.querySelectorAll("[data-action='sst-filters-toggle']").forEach((btn) => {

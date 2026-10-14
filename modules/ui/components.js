@@ -1218,6 +1218,86 @@ export function syncPayrollConsultHeaderDom(root, dataSection) {
   return true;
 }
 
+/**
+ * Barra de filtros propios de un módulo: tarjeta blanca con campos, contador y chips removibles.
+ * fields: [{ key, label, type?: "select"|"date", value, options?: [id,text][], allLabel?, icon? }]
+ */
+export function renderModuleFieldFilters({ ariaLabel = "Filtros", action, clearAction, extraClass = "", fields = [], resultLabel = "" }) {
+  const list = (Array.isArray(fields) ? fields : []).filter(Boolean);
+  if (!list.length) return "";
+  const icoFunnel = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>';
+  const icoX = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+  const fmtDay = (v) => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(v);
+    return m ? `${m[3]}/${m[2]}/${m[1]}` : v;
+  };
+  const chips = [];
+  const controls = list
+    .map((f) => {
+      const value = String(f.value ?? "");
+      const on = value !== "";
+      const common = `data-action="${escapeAttr(action)}" data-field="${escapeAttr(f.key)}" aria-label="${escapeAttr(f.label)}"`;
+      if (f.type === "date") {
+        if (on) chips.push({ key: f.key, label: f.label, text: fmtDay(value) });
+        return `<label class="module-field-filter${on ? " is-active" : ""}"><span>${escapeHtml(f.label)}</span><input type="date" ${common} value="${escapeAttr(value)}" /></label>`;
+      }
+      const opts = Array.isArray(f.options) ? f.options : [];
+      const options = opts
+        .map(([id, text]) => `<option value="${escapeAttr(id)}"${String(id) === value ? " selected" : ""}>${escapeHtml(text)}</option>`)
+        .join("");
+      if (on) {
+        const hit = opts.find(([id]) => String(id) === value);
+        chips.push({ key: f.key, label: f.label, text: hit ? hit[1] : value });
+      }
+      return `<label class="module-field-filter${on ? " is-active" : ""}"><span>${escapeHtml(f.label)}</span><select ${common}><option value="">${escapeHtml(f.allLabel || "Todos")}</option>${options}</select></label>`;
+    })
+    .join("");
+  const count = chips.length;
+  const chipsHtml = count
+    ? `<div class="module-field-filters__chips" aria-label="Filtros aplicados">${chips
+        .map(
+          (c) =>
+            `<button type="button" class="module-field-chip" data-chip-field="${escapeAttr(c.key)}" data-chip-action="${escapeAttr(action)}" title="Quitar filtro"><b>${escapeHtml(c.label)}:</b> ${escapeHtml(c.text)}${icoX}</button>`
+        )
+        .join("")}</div>`
+    : "";
+  const clear = count
+    ? `<button type="button" class="module-field-filters__reset" data-action="${escapeAttr(clearAction)}">Limpiar todo</button>`
+    : "";
+  const result = resultLabel ? `<span class="module-field-filters__result">${escapeHtml(resultLabel)}</span>` : "";
+  return `<section class="module-field-filters${count ? " has-active" : ""}${extraClass ? ` ${escapeAttr(extraClass)}` : ""}" role="group" aria-label="${escapeAttr(ariaLabel)}">
+    <header class="module-field-filters__head"><span class="module-field-filters__title">${icoFunnel}<strong>Filtros</strong>${count ? `<em class="module-field-filters__count">${count}</em>` : ""}</span>${result}${clear}</header>
+    <div class="module-field-filters__grid">${controls}</div>${chipsHtml}
+  </section>`;
+}
+
+/**
+ * Conecta los filtros de `renderModuleFieldFilters` dentro de `root`.
+ * @param {ParentNode} root
+ * @param {{ action: string, clearAction: string, onChange: (field: string, value: string) => void, onClear: () => void }} cfg
+ */
+export function bindModuleFieldFilters(root, { action, clearAction, onChange, onClear }) {
+  if (!root) return;
+  root.querySelectorAll(`[data-action="${action}"]`).forEach((el) => {
+    el.addEventListener("change", () => {
+      onChange(String(el.dataset.field || ""), String(el.value || ""));
+    });
+  });
+  root.querySelectorAll(`[data-chip-action="${action}"]`).forEach((chip) => {
+    chip.addEventListener("click", () => onChange(String(chip.dataset.chipField || ""), ""));
+  });
+  root.querySelectorAll(`[data-action="${clearAction}"]`).forEach((btn) => {
+    btn.addEventListener("click", () => onClear());
+  });
+}
+
+/** Listas sin repetidos y ordenadas (para opciones de filtros). */
+export function uniqueSortedFilterValues(values) {
+  return [...new Set((Array.isArray(values) ? values : []).map((v) => String(v ?? "").trim()).filter(Boolean))].sort(
+    (a, b) => a.localeCompare(b, "es", { sensitivity: "base" })
+  );
+}
+
 export function renderModuleWindowTabs({ ariaLabel, activeId, action, valueAttr = "section", tabs = [] }) {
   const attrName = String(valueAttr || "section").replace(/[^a-z0-9_-]/gi, "");
   return `<div class="auth-tabs-layout"><nav class="auth-tabs-bar" role="tablist" aria-label="${escapeAttr(ariaLabel)}">
