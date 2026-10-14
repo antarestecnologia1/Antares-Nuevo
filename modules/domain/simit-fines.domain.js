@@ -298,21 +298,26 @@ export function simitFineRowsTableHtml(fines) {
   if (!list.length) {
     return `<p class="muted vehicles-simit-empty">Sin comparendos en el historial consultado.</p>`;
   }
-  const body = list
+  const pendingList = list.filter((fine) => fine.pending);
+  const pendingValue = pendingList.reduce((sum, fine) => sum + (Number(fine.value) || 0), 0);
+  const ordered = [...list].sort((x, y) => Number(Boolean(y.pending)) - Number(Boolean(x.pending)));
+  const items = ordered
     .map((fine) => {
-      const paidClass = fine.pending ? "status-rechazada" : "status-viaje_asignado";
-      return `<tr>
-      <td>${escapeHtml(fine.dateLabel || "—")}</td>
-      <td>${escapeHtml(formatSimitMoney(fine.value))}</td>
-      <td>${escapeHtml(fine.city || "—")}</td>
-      <td>${escapeHtml(fine.department || "—")}</td>
-      <td>${escapeHtml(fine.year || "—")}</td>
-      <td><span class="status ${paidClass}">${escapeHtml(fine.paidLabel)}</span></td>
-    </tr>`;
+      const place = [fine.city, fine.department].filter((x) => x && x !== "—").join(" · ") || "Ubicación no reportada";
+      const chip = fine.pending
+        ? `<span class="simit-chip simit-chip--bad"><i></i>Pendiente</span>`
+        : `<span class="simit-chip simit-chip--ok"><i></i>${escapeHtml(fine.paidLabel || "Pagado")}</span>`;
+      return `<li class="simit-fine${fine.pending ? " is-pending" : ""}">
+        <div class="simit-fine__date"><span>Fecha</span><strong>${escapeHtml(fine.dateLabel || "—")}</strong></div>
+        <div class="simit-fine__main"><strong>${escapeHtml(formatSimitMoney(fine.value))}</strong><span>${escapeHtml(place)}</span></div>
+        <div class="simit-fine__meta">${chip}<span class="simit-fine__year">Vigencia ${escapeHtml(fine.year || "—")}</span></div>
+      </li>`;
     })
     .join("");
-  return `<div class="table-wrap vehicles-simit-table-wrap"><table class="vehicle-fleet-table vehicles-simit-table">
-    <thead><tr><th>Fecha</th><th>Valor</th><th>Ciudad</th><th>Departamento</th><th>Vigencia</th><th>Pago</th></tr></thead>
-    <tbody>${body}</tbody>
-  </table></div>`;
+  const summary = `<div class="simit-fines__sum">
+      <span><b>${list.length}</b> comparendo${list.length === 1 ? "" : "s"}</span>
+      <span class="${pendingList.length ? "is-due" : "is-ok"}"><b>${pendingList.length}</b> pendiente${pendingList.length === 1 ? "" : "s"}${pendingList.length ? ` · ${escapeHtml(formatSimitMoney(pendingValue))}` : ""}</span>
+    </div>`;
+  return `<div class="simit-fines">${summary}<ul class="simit-fines__list">${items}</ul></div>`;
 }
+

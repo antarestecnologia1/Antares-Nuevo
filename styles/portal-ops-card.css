@@ -2572,3 +2572,42 @@ body[data-theme="dark"] .doc-kpi__label,
 body[data-theme="dark"] .doc-cat-card__meta,
 body[data-theme="dark"] .doc-storage__quota,
 body[data-theme="dark"] .doc-recent-empty { color: #a9b9d0 !important; }
+
+/* ===== SIMIT: lista de comparendos en tarjetas (2026-10-14) ===== */
+.simit-fines { margin-top: 0.7rem; }
+.simit-fines__sum { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.6rem; }
+.simit-fines__sum span { display: inline-flex; align-items: baseline; gap: 0.3rem; padding: 0.3rem 0.7rem; border-radius: 999px; background: #f3f6fa; color: #4b5b70; font-size: 0.78rem; font-weight: 600; }
+.simit-fines__sum span b { font-size: 0.95rem; color: #0b2138; }
+.simit-fines__sum .is-due { background: #fdecea; color: #a8321f; }
+.simit-fines__sum .is-due b { color: #a8321f; }
+.simit-fines__sum .is-ok { background: #e8f6ee; color: #1d7a45; }
+.simit-fines__sum .is-ok b { color: #1d7a45; }
+.simit-fines__list { list-style: none; margin: 0; padding: 0 0.15rem 0 0; display: grid; gap: 0.5rem; max-height: 24rem; overflow-y: auto; }
+.simit-fine { display: grid; grid-template-columns: minmax(6.5rem, 0.8fr) minmax(0, 1.6fr) auto; gap: 0.9rem; align-items: center; padding: 0.7rem 0.9rem; border: 1px solid #e3e9f1; border-left: 4px solid #2f9e62; border-radius: 12px; background: #fff; }
+.simit-fine.is-pending { border-left-color: #d9534a; background: #fffafa; }
+.simit-fine__date span { display: block; font-size: 0.66rem; letter-spacing: 0.06em; text-transform: uppercase; color: #8392a6; font-weight: 700; }
+.simit-fine__date strong { font-size: 0.86rem; color: #0b2138; }
+.simit-fine__main strong { display: block; font-size: 1.05rem; color: #0b2138; font-variant-numeric: tabular-nums; }
+.simit-fine.is-pending .simit-fine__main strong { color: #a8321f; }
+.simit-fine__main span { display: block; font-size: 0.78rem; color: #5b6b80; margin-top: 0.1rem; }
+.simit-fine__meta { display: flex; flex-direction: column; align-items: flex-end; gap: 0.25rem; }
+.simit-fine__year { font-size: 0.7rem; color: #8392a6; }
+@media (max-width: 640px) {
+  .simit-fine { grid-template-columns: 1fr auto; }
+  .simit-fine__date { grid-column: 1 / -1; display: flex; gap: 0.4rem; align-items: baseline; }
+  .simit-fine__meta { align-items: flex-end; }
+}
+body[data-theme="dark"] .simit-fines__sum span { background: #12243a; color: #b6c8e0; }
+body[data-theme="dark"] .simit-fines__sum span b { color: #e6eefb; }
+body[data-theme="dark"] .simit-fines__sum .is-due { background: #3a1d1d; color: #ffb4a9; }
+body[data-theme="dark"] .simit-fines__sum .is-due b { color: #ffb4a9; }
+body[data-theme="dark"] .simit-fines__sum .is-ok { background: #123324; color: #86e0ad; }
+body[data-theme="dark"] .simit-fines__sum .is-ok b { color: #86e0ad; }
+body[data-theme="dark"] .simit-fine { background: #0f1f33; border-color: rgba(148, 196, 255, 0.16); border-left-color: #2f9e62; }
+body[data-theme="dark"] .simit-fine.is-pending { background: #2a1a20; border-left-color: #e0645a; }
+body[data-theme="dark"] .simit-fine__date strong,
+body[data-theme="dark"] .simit-fine__main strong { color: #e6eefb; }
+body[data-theme="dark"] .simit-fine.is-pending .simit-fine__main strong { color: #ffb4a9; }
+body[data-theme="dark"] .simit-fine__main span,
+body[data-theme="dark"] .simit-fine__year,
+body[data-theme="dark"] .simit-fine__date span { color: #a9b9d0; }
