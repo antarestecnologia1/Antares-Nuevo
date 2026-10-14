@@ -11166,6 +11166,45 @@ body[data-theme="dark"] #crud-modal .modal-card-edit {
   overflow: visible;
 }
 
+.modal-head--with-back .modal-head__copy,
+.modal-head--sheet {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.45rem 0.75rem;
+}
+
+.modal-head--sheet {
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.35rem;
+}
+
+.modal-head--sheet .module-panel-btn--close {
+  background: #fff;
+  border: 1px solid color-mix(in srgb, var(--line) 80%, #94a3b8);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+}
+
+.modal-head__back {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+}
+
+.modal-head__copy.modal-head--sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .modal-body-lead {
   margin: 0 0 0.75rem;
   line-height: 1.45;
@@ -34132,6 +34171,49 @@ body[data-theme="dark"] .employee-profile-kv {
   margin-top: 0.2rem;
   font-size: 0.91rem;
   font-weight: 600;
+}
+
+.employee-profile-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0 0 0.85rem;
+  padding: 0.28rem;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(15, 23, 42, 0.035);
+}
+
+.employee-profile-tabs__btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 700;
+  padding: 0.48rem 0.9rem;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.employee-profile-tabs__btn.is-active {
+  background: var(--card, #fff);
+  color: var(--text);
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.06), 0 6px 16px rgba(15, 23, 42, 0.06);
+}
+
+.employee-profile-panel[hidden] {
+  display: none !important;
+}
+
+body[data-theme="dark"] .employee-profile-tabs {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+body[data-theme="dark"] .employee-profile-tabs__btn.is-active {
+  background: rgba(30, 58, 138, 0.45);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .employee-profile-section--payroll-history {

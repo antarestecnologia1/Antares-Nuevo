@@ -482,8 +482,10 @@ export function summarizeEmployeePayrollHistory(employee, allRuns = []) {
 }
 
 /** Bloque HTML: últimas liquidaciones + acceso a consulta filtrada. */
-export function buildEmployeePayrollHistorySectionHtml(employee, allRuns = [], { previewLimit = 8 } = {}) {
+export function buildEmployeePayrollHistorySectionHtml(employee, allRuns = [], opts = {}) {
   if (!employee) return "";
+  const variant = String(opts.variant || "compact").trim() === "full" ? "full" : "compact";
+  const previewLimit = variant === "full" ? 0 : opts.previewLimit != null ? Number(opts.previewLimit) : 8;
   const summary = summarizeEmployeePayrollHistory(employee, allRuns);
   const { isDriver, dataSection, all, paid, pending } = summary;
   const preview = previewLimit > 0 ? all.slice(0, previewLimit) : all;
@@ -528,10 +530,24 @@ export function buildEmployeePayrollHistorySectionHtml(employee, allRuns = [], {
 
   const moreNote =
     all.length > preview.length
-      ? `<p class="muted employee-payroll-history__more-note">Mostrando ${preview.length} de ${all.length} liquidaciones.</p>`
+      ? `<p class="muted employee-payroll-history__more-note">Mostrando ${preview.length} de ${all.length}. El resto está en la pestaña Liquidaciones.</p>`
       : "";
 
-  return `<section class="employee-profile-section employee-profile-section--payroll-history" data-employee-payroll-history="${empId}">
+  const footer =
+    variant === "full"
+      ? `<div class="employee-payroll-history__footer toolbar">
+      <button type="button" class="btn btn-sm btn-outline" data-action="payroll-focus-employee-runs" data-employee-id="${empId}" data-payroll-section="${escapeAttr(dataSection)}" data-from-profile="1">Más detalles en nómina</button>
+      ${
+        pending.length
+          ? `<button type="button" class="btn btn-sm btn-action" data-action="payroll-focus-employee-runs" data-employee-id="${empId}" data-payroll-section="${escapeAttr(dataSection)}" data-status="pending" data-from-profile="1">Solo pendientes (${pending.length})</button>`
+          : ""
+      }
+    </div>`
+      : `<div class="employee-payroll-history__footer toolbar">
+      <button type="button" class="btn btn-sm btn-outline" data-action="employee-profile-tab" data-tab="liquidaciones">Ver todas las liquidaciones</button>
+    </div>`;
+
+  return `<section class="employee-profile-section employee-profile-section--payroll-history" data-employee-payroll-history="${empId}" data-history-variant="${variant}">
     <div class="employee-payroll-history__head">
       <h4 class="employee-profile-section-title">${escapeHtml(sectionTitle)}</h4>
       <span class="employee-payroll-history__stats muted">${all.length} registro${all.length === 1 ? "" : "s"} · ${paid.length} pagado${paid.length === 1 ? "" : "s"}${pending.length ? ` · ${pending.length} pendiente${pending.length === 1 ? "" : "s"}` : ""}</span>
@@ -543,14 +559,7 @@ export function buildEmployeePayrollHistorySectionHtml(employee, allRuns = [], {
       </table>
     </div>
     ${moreNote}
-    <div class="employee-payroll-history__footer toolbar">
-      <button type="button" class="btn btn-sm btn-outline" data-action="payroll-focus-employee-runs" data-employee-id="${empId}" data-payroll-section="${escapeAttr(dataSection)}">Ver todas las liquidaciones</button>
-      ${
-        pending.length
-          ? `<button type="button" class="btn btn-sm btn-action" data-action="payroll-focus-employee-runs" data-employee-id="${empId}" data-payroll-section="${escapeAttr(dataSection)}" data-status="pending">Solo pendientes (${pending.length})</button>`
-          : ""
-      }
-    </div>
+    ${footer}
   </section>`;
 }
 

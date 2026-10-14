@@ -22,7 +22,7 @@ import {
   syncSessionProfileSnapshotFromCache
 } from "./modules/core/bootstrap.js?v=20260917b-login-scan-shield";
 import { devWarn } from "./modules/core/utils.js";
-import { notify } from "./modules/ui/modals.js?v=20260917b-login-scan-shield";
+import { notify } from "./modules/ui/modals.js?v=20261013-modal-back";
 import { runAsSilentSystemNotifications } from "./modules/domain/notificaciones.domain.js";
 import { hasUnsavedPortalFormData } from "./modules/domain/viajes.domain.js";
 import { initGlobalEvents } from "./modules/core/events.js?v=20260930-eye-toggle-icon";

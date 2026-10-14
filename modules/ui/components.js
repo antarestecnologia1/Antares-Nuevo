@@ -246,6 +246,13 @@ export function renderModalCloseBtn(id = "crud-close") {
   return `<button type="button" id="${escapeAttr(safeId)}" class="btn btn-sm btn-outline module-panel-btn module-panel-btn--close" aria-label="Cerrar">${ic().x}</button>`;
 }
 
+/** Volver al modal anterior cuando hay un flujo apilado. */
+export function renderModalBackBtn(id = "crud-back", label = "Atrás") {
+  const safeId = String(id || "crud-back").trim() || "crud-back";
+  const safeLabel = String(label || "Atrás").trim() || "Atrás";
+  return `<button type="button" id="${escapeAttr(safeId)}" class="btn btn-sm btn-outline modal-head__back" data-action="modal-back">${ic().chevronLeft || ""}${escapeHtml(safeLabel)}</button>`;
+}
+
 /** Modal de confirmación «descartar cambios» (Cancelar en formularios de alta). */
 export function renderConfirmDiscardModalBody(opts = {}) {
   const title = String(opts.title ?? "").trim();
@@ -294,8 +301,12 @@ export function renderModalHead(title, opts = {}) {
   const headClass = String(opts.headClass || "").trim();
   const titleId = String(opts.titleId || "").trim();
   const titleIdAttr = titleId ? ` id="${escapeAttr(titleId)}"` : "";
-  return `<div class="modal-head${headClass ? ` ${escapeAttr(headClass)}` : ""}">
+  const showBack = Boolean(opts.showBack);
+  const backHtml = showBack ? renderModalBackBtn(opts.backId || "crud-back", opts.backLabel || "Atrás") : "";
+  const classes = ["modal-head", showBack ? "modal-head--with-back" : "", headClass].filter(Boolean).join(" ");
+  return `<div class="${escapeAttr(classes)}">
     <div class="modal-head__copy">
+      ${backHtml}
       <h2${titleIdAttr}>${escapeHtml(safeTitle)}</h2>
       ${subtitleBlock}
     </div>

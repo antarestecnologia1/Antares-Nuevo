@@ -95,7 +95,7 @@ import {
   notify,
   openConfirmModalAsync,
   userMessage
-} from "../ui/modals.js?v=20260917b-login-scan-shield";
+} from "../ui/modals.js?v=20261013-modal-back";
 import { installActionButtonGuard } from "./action-button-guard.js";
 import { hasUnsavedPortalFormData } from "../domain/viajes.domain.js";
 

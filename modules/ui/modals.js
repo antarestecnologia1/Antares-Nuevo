@@ -17,6 +17,8 @@ import {
   pcardWrap,
   pcardWrapPro,
   renderModalHead,
+  renderModalBackBtn,
+  renderModalCloseBtn,
   renderModalFooterActions,
   renderConfirmDiscardModalBody,
   renderModulePanelToolbar,
@@ -66,6 +68,67 @@ export function parseContractDurationText(text) {
   return { unit: "otro", amount: "", other: t };
 }
 
+const MODAL_FLOW_MAX = 8;
+let modalFlowStack = [];
+let currentModalEntry = null;
+
+export function isCrudModalOpen() {
+  const modal = typeof document !== "undefined" ? document.getElementById("crud-modal") : null;
+  return Boolean(modal && !modal.classList.contains("hidden"));
+}
+
+export function clearModalFlow() {
+  modalFlowStack = [];
+  currentModalEntry = null;
+}
+
+export function closeCrudModal() {
+  if (typeof document !== "undefined") {
+    document.getElementById("crud-modal")?.classList.add("hidden");
+  }
+  clearModalFlow();
+}
+
+export function modalFlowDepth() {
+  return modalFlowStack.length;
+}
+
+function beginModalFlow(kind, opts = {}) {
+  const reset = opts.resetStack === true;
+  const stackable = opts.stack !== false && !reset;
+  if (reset) {
+    modalFlowStack = [];
+  } else if (stackable && currentModalEntry && isCrudModalOpen()) {
+    modalFlowStack.push(currentModalEntry);
+    if (modalFlowStack.length > MODAL_FLOW_MAX) modalFlowStack.shift();
+  }
+  if (stackable) currentModalEntry = { kind, opts };
+  return {
+    showBack: stackable && modalFlowStack.length > 0,
+    depth: modalFlowStack.length
+  };
+}
+
+function replayModalEntry(entry, showBack) {
+  currentModalEntry = entry;
+  if (!entry) return;
+  if (entry.kind === "edit") {
+    renderEditModal(entry.opts, { showBack });
+    return;
+  }
+  renderInfoModal(entry.opts, { showBack });
+}
+
+export function goBackModal() {
+  const prev = modalFlowStack.pop();
+  if (!prev) {
+    closeCrudModal();
+    return false;
+  }
+  replayModalEntry(prev, modalFlowStack.length > 0);
+  return true;
+}
+
 export function wireModalDismiss(content, close, opts = {}) {
   if (!content || typeof close !== "function") return;
   const escId = (id) =>
@@ -77,6 +140,14 @@ export function wireModalDismiss(content, close, opts = {}) {
   const okId = String(opts.okId || "").trim();
   if (okId) {
     content.querySelector(`#${escId(okId)}`)?.addEventListener("click", close);
+  }
+  const backId = String(opts.backId || "").trim();
+  if (backId) {
+    content.querySelector(`#${escId(backId)}`)?.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      goBackModal();
+    });
   }
   const modal = content.closest(".modal") || document.getElementById("crud-modal");
   if (opts.backdrop !== false && modal) {
@@ -1345,19 +1416,25 @@ export function buildOpenEditModalFieldsHtml(fields, fallbackSectionTitle = "Inf
   return html;
 }
 
-export function openEditModal({
-  title,
-  subtitle = "",
-  introHtml = "",
-  fields = [],
-  submitText = "Guardar",
-  cancelLabel,
-  cancelBtnClass = "",
-  primaryBtnClass = "btn btn-primary module-panel-btn module-panel-btn--save",
-  onSubmit,
-  afterMount,
-  extraModalCardClass = ""
-}) {
+export function openEditModal(opts = {}) {
+  const flow = beginModalFlow("edit", opts);
+  renderEditModal(opts, flow);
+}
+
+function renderEditModal(opts = {}, flow = {}) {
+  const {
+    title,
+    subtitle = "",
+    introHtml = "",
+    fields = [],
+    submitText = "Guardar",
+    cancelLabel,
+    cancelBtnClass = "",
+    primaryBtnClass = "btn btn-primary module-panel-btn module-panel-btn--save",
+    onSubmit,
+    afterMount,
+    extraModalCardClass = ""
+  } = opts;
   let modal = document.getElementById("crud-modal");
   if (!modal) {
     modal = document.createElement("div");
@@ -1376,7 +1453,7 @@ export function openEditModal({
   const fieldsHtml = buildOpenEditModalFieldsHtml(fields);
 
   content.innerHTML = `
-    ${renderModalHead(title, { subtitle })}
+    ${renderModalHead(title, { subtitle, showBack: Boolean(flow.showBack) })}
     ${introHtml || ""}
     <form id="crud-form" class="p-form p-form-colored modal-edit-form">
       ${fieldsHtml}
@@ -1389,9 +1466,13 @@ export function openEditModal({
     </form>
   `;
 
-  const close = () => modal.classList.add("hidden");
+  const dismiss = () => {
+    if (modalFlowStack.length) goBackModal();
+    else closeCrudModal();
+  };
+  const closeAfterSave = () => closeCrudModal();
   modal.classList.remove("hidden");
-  wireModalDismiss(content, close);
+  wireModalDismiss(content, dismiss, { backId: flow.showBack ? "crud-back" : "" });
   const formEl = content.querySelector("#crud-form");
   if (typeof afterMount === "function") {
     try {
@@ -1441,7 +1522,7 @@ export function openEditModal({
         return false;
       }
       if (result === false) return false;
-      close();
+      closeAfterSave();
     },
     { busyText: "Guardando…", wireKey: "crudSubmitGuardWired" }
   );
@@ -1628,18 +1709,24 @@ export function openConfirmReasonModal({ title, message, confirmText = "Confirma
   }, 50);
 }
 
-export function openInfoModal({
-  title,
-  subtitle = "",
-  subtitleHtml = "",
-  bodyHtml = "",
-  wide = false,
-  extraModalCardClass = "",
-  secondaryActionsHtml = "",
-  headless = false,
-  primaryHtml = "",
-  afterMount
-}) {
+export function openInfoModal(opts = {}) {
+  const flow = beginModalFlow("info", opts);
+  renderInfoModal(opts, flow);
+}
+
+function renderInfoModal(opts = {}, flow = {}) {
+  const {
+    title,
+    subtitle = "",
+    subtitleHtml = "",
+    bodyHtml = "",
+    wide = false,
+    extraModalCardClass = "",
+    secondaryActionsHtml = "",
+    headless = false,
+    primaryHtml = "",
+    afterMount
+  } = opts;
   let modal = document.getElementById("crud-modal");
   if (!modal) {
     modal = document.createElement("div");
@@ -1671,9 +1758,16 @@ export function openInfoModal({
   ]
     .filter(Boolean)
     .join(" ");
+  const showBack = Boolean(flow.showBack);
   const headBlock = headless
-    ? `<div class="modal-head modal-head--sr-only"><div class="modal-head__copy"><h2 id="crud-modal-title">${escapeHtml(String(title || "Detalle"))}</h2></div>${renderModalCloseBtn("crud-close")}</div>`
-    : renderModalHead(title, { subtitleHtml: subtitleBlock, titleId: "crud-modal-title" });
+    ? showBack
+      ? `<div class="modal-head modal-head--sheet modal-head--with-back">
+          ${renderModalBackBtn()}
+          <div class="modal-head__copy modal-head--sr-only"><h2 id="crud-modal-title">${escapeHtml(String(title || "Detalle"))}</h2></div>
+          ${renderModalCloseBtn("crud-close")}
+        </div>`
+      : `<div class="modal-head modal-head--sr-only"><div class="modal-head__copy"><h2 id="crud-modal-title">${escapeHtml(String(title || "Detalle"))}</h2></div>${renderModalCloseBtn("crud-close")}</div>`
+    : renderModalHead(title, { subtitleHtml: subtitleBlock, titleId: "crud-modal-title", showBack });
   const closeBtnHtml =
     primaryHtml ||
     (isDetailView
@@ -1693,9 +1787,13 @@ export function openInfoModal({
       })}
     </div>
   `;
-  const close = () => modal.classList.add("hidden");
+  const close = () => closeCrudModal();
   modal.classList.remove("hidden");
-  wireModalDismiss(content, close, { closeIds: ["crud-close"], okId: "crud-ok" });
+  wireModalDismiss(content, close, {
+    closeIds: ["crud-close"],
+    okId: "crud-ok",
+    backId: showBack ? "crud-back" : ""
+  });
   if (typeof afterMount === "function") {
     try {
       afterMount(content);

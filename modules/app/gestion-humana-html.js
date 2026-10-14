@@ -27,7 +27,7 @@ function renderPayrollEmployeesViewToggle(activeView) {
     const active = view === mode;
     return `<button type="button" class="payroll-runs-view-toggle__btn${active ? " is-active" : ""}" role="tab" aria-selected="${active ? "true" : "false"}" data-action="payroll-employees-view" data-view="${mode}">${icon}<span>${escapeHtml(label)}</span></button>`;
   };
-  return `<div class="payroll-runs-view-toggle payroll-contracts-view-toggle" role="tablist" aria-label="Vista de colaboradores">${mkBtn("cards", IC.grid, "Tarjetas")}${mkBtn("list", IC.list, "Tabla")}</div>`;
+  return `<div class="payroll-runs-view-toggle payroll-contracts-view-toggle" role="tablist" aria-label="Vista de colaboradores">${mkBtn("cards", IC.grid, "Tarjetas")}${mkBtn("list", IC.list, "Lista")}</div>`;
 }
 
 function computePayrollContractDashboardStats(summaries) {
@@ -306,11 +306,11 @@ function payrollHtml() {
   const employeesSafePage = Math.min(employeesPage, employeesPageCount);
   const employeesPageStart = (employeesSafePage - 1) * employeesPageSize;
   const employeeSummariesPage = employeesFilteredSummaries.slice(employeesPageStart, employeesPageStart + employeesPageSize);
-  const employeeCards = employeeSummariesPage
+  const employeeRosterCards = employeeSummariesPage
     .map((item) => renderPayrollEmployeeDirectoryCard(item, canDeletePayrollEmployees, { compact: true }))
     .join("");
-  const employeeTableRows = employeeSummariesPage
-    .map((item) => renderPayrollEmployeeDirectoryTableRow(item, canDeletePayrollEmployees))
+  const employeeBadgeCards = employeeSummariesPage
+    .map((item) => renderPayrollEmployeeDirectoryCard(item, canDeletePayrollEmployees))
     .join("");
   const runRows = runsToRender
     .map((r) => {
@@ -1026,35 +1026,20 @@ function payrollHtml() {
   const absenceTable = absenceRows
     ? `<div class="table-wrap"><table><thead><tr><th>Registro</th><th>Empleado</th><th>Tipo</th><th>Periodo</th><th>Días rec.</th><th>Soporte</th><th style="min-width:11rem">Acciones</th></tr></thead><tbody>${absenceRows}</tbody></table></div>`
     : emptyState("Sin ausencias laborales registradas.");
-  const employeeSelectHeader = canDeletePayrollEmployees
-    ? `<th class="payroll-contracts-table__check"><input type="checkbox" id="employees-select-all-header" aria-label="Seleccionar todos" /></th>`
-    : "";
   const employeeContractsDashboard = renderPayrollEmployeesConsultToolbar(canDeletePayrollEmployees, employeesFilters);
   const employeeTableToolbar = renderPayrollContractsTableToolbar(employeesView, canDeletePayrollEmployees);
   const employeePagination = renderPayrollContractsPagination(employeesTotal, employeesSafePage, employeesPageSize);
-  const employeeTable = employeeTableRows
-    ? `<div class="payroll-contracts-table-shell">
-        ${employeeTableToolbar}
-        <div class="table-wrap payroll-table-wrap payroll-employees-list-view payroll-contracts-table-wrap">
-          <table class="payroll-employees-table payroll-contracts-table">
-            <thead><tr>${employeeSelectHeader}<th>Colaborador</th><th>Cargo</th><th>Vehículo</th><th>Ingreso</th><th>Inicio vigente</th><th>Renovación</th><th>Aviso no renov.</th><th>Fin contrato</th><th>Estado</th><th class="payroll-contracts-table__actions">Acciones</th></tr></thead>
-            <tbody>${employeeTableRows}</tbody>
-          </table>
-        </div>
-        ${employeePagination}
-      </div>`
-    : "";
   const employeesEmptyMessage =
     hasActiveEmployeeFilters && employees.length > 0
       ? "Ningún colaborador coincide con los filtros aplicados. Prueba a limpiar los filtros o ajustar la búsqueda."
       : "No hay empleados registrados.";
   const empTable =
     employeesView === "list"
-      ? employeeTableRows
-        ? `${employeeContractsDashboard}${employeeTable}`
+      ? employeeRosterCards
+        ? `${employeeContractsDashboard}${employeeTableToolbar}<div class="ag-roster">${employeeRosterCards}</div>${employeePagination}`
         : `${employeeContractsDashboard}${emptyState(employeesEmptyMessage)}`
-      : employeeCards
-        ? `${employeeContractsDashboard}${employeeTableToolbar}<div class="ag-roster">${employeeCards}</div>${employeePagination}`
+      : employeeBadgeCards
+        ? `${employeeContractsDashboard}${employeeTableToolbar}<div class="hr-cred-grid">${employeeBadgeCards}</div>${employeePagination}`
         : `${employeeContractsDashboard}${emptyState(employeesEmptyMessage)}`;
   const runCardsGrid = sortedRuns.length
     ? `<div class="payroll-run-cards-grid">${runsToRender.map((r) => renderPayrollRunCard(r, { compact: true, selectable: true })).join("")}</div>${payrollRunsMoreBar}`
@@ -1074,15 +1059,21 @@ function payrollHtml() {
   const filteredEmployeeRecord = filterEmployee
     ? employees.find((e) => String(e.id) === String(filterEmployee))
     : null;
+  const returnToProfile = state.payrollUi?.returnTo?.kind === "employee-profile"
+    && String(state.payrollUi.returnTo.employeeId || "") === String(filteredEmployeeRecord?.id || "");
   const employeeFilterBanner = filteredEmployeeRecord
     ? `<div class="payroll-employee-filter-banner" role="status">
         <div class="payroll-employee-filter-banner__copy">
-          <span class="payroll-employee-filter-banner__label">Colaborador</span>
+          <span class="payroll-employee-filter-banner__label">${returnToProfile ? "Desde la ficha" : "Colaborador"}</span>
           <strong>${escapeHtml(String(filteredEmployeeRecord.name || "—"))}</strong>
           <span class="muted">${escapeHtml(String(filteredEmployeeRecord.idDoc || ""))}</span>
         </div>
         <div class="toolbar">
-          <button type="button" class="btn btn-sm btn-outline" data-action="view-employee" data-id="${escapeAttr(String(filteredEmployeeRecord.id))}">${IC.eye} Perfil</button>
+          ${
+            returnToProfile
+              ? `<button type="button" class="btn btn-sm btn-action" data-action="payroll-return-to-profile" data-id="${escapeAttr(String(filteredEmployeeRecord.id))}">${IC.chevronLeft || ""} Volver a la ficha</button>`
+              : `<button type="button" class="btn btn-sm btn-outline" data-action="view-employee" data-id="${escapeAttr(String(filteredEmployeeRecord.id))}">${IC.eye} Perfil</button>`
+          }
           <button type="button" class="btn btn-sm btn-outline" data-action="payroll-clear-employee-filter">${IC.x} Quitar filtro</button>
         </div>
       </div>`

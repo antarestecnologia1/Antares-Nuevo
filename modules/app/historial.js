@@ -486,7 +486,6 @@ function openHistoryAuditEventDetail(entryId) {
         const linkedBtn = content?.querySelector?.("#hist-audit-linked-detail");
         if (!linkedBtn || !hasLinked) return;
         linkedBtn.addEventListener("click", () => {
-          document.getElementById("crud-modal")?.classList.add("hidden");
           const action = String(entry.detailAction || "").trim();
           const detailId = String(entry.detailId || "").trim();
           if (action === "detail" && typeof openRequestDetailModal === "function") {

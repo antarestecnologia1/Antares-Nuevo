@@ -7,4 +7,4 @@ export * from "./auth.js?v=20260917d-login-scan-2-5s";
 export * from "./store.js";
 export * from "./utils.js";
 export * from "./audit-trail.js";
-export * from "../ui/modals.js?v=20260917b-login-scan-shield";
+export * from "../ui/modals.js?v=20261013-modal-back";

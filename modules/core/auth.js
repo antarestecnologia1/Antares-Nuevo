@@ -25,7 +25,7 @@ import {
   userLegalProfileIsHydrated
 } from "./config.js";
 import { state } from "./store.js";
-import { failPortalField, wireFormSubmitGuard } from "../ui/modals.js?v=20260917b-login-scan-shield";
+import { failPortalField, wireFormSubmitGuard } from "../ui/modals.js?v=20261013-modal-back";
 import { syncPayloadForEditedRow } from "./data-io.js?v=20260917b-login-scan-shield";
 import {
   showLoginSuccessOverlay,

@@ -1,5 +1,5 @@
 /** Imports ES: el runtime ya no depende del orden defer vs módulos en index.html. */
-import * as __pr from "./portal-runtime-env.mjs?v=20260917b-login-scan-shield";
+import * as __pr from "./portal-runtime-env.mjs?v=20261013-modal-back";
 import {
   findPendingCreateEmployeeApproval,
   listPendingCreateEmployeeApprovalsByDocument
@@ -6357,7 +6357,6 @@ function openVehicleTechnicalSheetModal(vehicle) {
       : "",
     afterMount: (contentEl) => {
       contentEl.querySelector("[data-vehicle-sheet-action='edit']")?.addEventListener("click", () => {
-        document.getElementById("crud-modal")?.classList.add("hidden");
         nodes.viewRoot?.querySelector(`[data-action='edit-vehicle'][data-id="${escapeAttr(String(v.id || ""))}"]`)?.click();
       });
     }
@@ -6770,7 +6769,6 @@ function openDriverDetailSheetModal(driver) {
       : "",
     afterMount: (contentEl) => {
       contentEl.querySelector("[data-driver-sheet-action='edit']")?.addEventListener("click", () => {
-        document.getElementById("crud-modal")?.classList.add("hidden");
         nodes.viewRoot?.querySelector(`[data-action='edit-driver'][data-id="${escapeAttr(String(d.id || ""))}"]`)?.click();
       });
     }
@@ -7800,86 +7798,211 @@ function renderPayrollEmployeeRosterCard(item, hrAdminDeletes) {
   </article>`;
 }
 
-function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = false } = {}) {
-  if (compact) return renderPayrollEmployeeRosterCard(item, hrAdminDeletes);
+function payrollConsultMoneyShort(value) {
+  const amount = Math.round(Number(value) || 0);
+  if (Math.abs(amount) >= 1000000) {
+    const millions = amount / 1000000;
+    const label = millions >= 10 ? String(Math.round(millions)) : millions.toFixed(1).replace(".", ",");
+    return `$${label} M`;
+  }
+  return `$${amount.toLocaleString("es-CO")}`;
+}
+
+/** Credencial de colaborador (vista Tarjetas): misma familia visual que las fichas de usuarios. */
+function renderPayrollEmployeeBadgeCard(item, hrAdminDeletes) {
   const e = item.raw;
   const contract = item.contract;
-  const avCss = employeeAvatarCssUrl(e.avatarUrl);
-  const initials = String(e.name || "E")
+  const id = String(e.id ?? "");
+  const todayYmd = colombiaTodayIsoDate();
+  const name = String(e.name || "Colaborador");
+  const initials = name
     .split(/\s+/)
+    .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase())
     .slice(0, 2)
     .join("");
-  const avatarInner = avCss ? `<img src="${escapeAttr(e.avatarUrl)}" alt="" loading="lazy" />` : initials;
-  const avatarClass = avCss
-    ? "directory-card__avatar directory-card__avatar--photo"
-    : "directory-card__avatar";
+  const avCss = employeeAvatarCssUrl(e.avatarUrl);
+  const isDriver = item.isDriverSvc || String(e.workerRole || "").toLowerCase() === "conductor";
   const statusSlug = contract.applies ? contract.statusSlug : "indefinite";
-  const opsTone = directoryOpsToneFromSlug(
-    contract.statusSlug === "notice_window" || contract.statusSlug === "expired"
+  const tone = item.isUnlinked
+    ? "unlinked"
+    : statusSlug === "expired"
       ? "alert"
-      : contract.statusSlug === "unknown"
+      : statusSlug === "notice_window" || statusSlug === "unknown"
         ? "warn"
-        : "ok"
-  );
-  const contractPillTone =
-    contract.pillTone === "alert" ? "alert" : contract.pillTone === "warn" ? "warn" : "ok";
-  const contractOps =
-    contract.applies && contract.headline
-      ? directoryOpsHtml(contract.headline, contract.detail, opsTone)
-      : directoryOpsHtml(
-          String(e.contractType || "Contrato"),
-          e.contractDuration ? `Plazo: ${e.contractDuration}` : "Sin plazo definido",
-          "neutral"
-        );
-  const selectHtml = hrAdminDeletes
-    ? `<label class="directory-card__select" title="Seleccionar para desvinculación masiva"><input type="checkbox" data-employee-select value="${escapeAttr(String(e.id))}" /><span class="muted">Sel.</span></label>`
-    : "";
+        : statusSlug === "active"
+          ? "ok"
+          : "neutral";
+  const statusLabel = item.isUnlinked
+    ? "Desvinculado"
+    : statusSlug === "expired"
+      ? "Vencido"
+      : statusSlug === "notice_window"
+        ? "Por vencer"
+        : statusSlug === "unknown"
+          ? "Sin fecha fin"
+          : statusSlug === "active"
+            ? "Vigente"
+            : item.isDriverSvc
+              ? "Prestación"
+              : "Indefinido";
+
+  const hireYmd = normalizePortalDateYmd(e.startDate);
+  const periodStartYmd = normalizePortalDateYmd(e.contractVigenteStartDate || e.startDate);
+  const endYmd = normalizePortalDateYmd(contract.endYmd || e.contractEndDate || "");
+  let pct = 100;
+  let ringOpen = !contract.applies || !endYmd;
+  let ringStrong = "∞";
+  let ringSmall = "vigente";
+  let ringLabel = statusLabel;
+  let note = hireYmd ? `Ingreso ${fmtDateOr(hireYmd)}` : "Sin fecha de ingreso";
+  let noteClass = "";
+
+  if (item.isUnlinked) {
+    ringOpen = false;
+    ringStrong = "—";
+    ringSmall = "baja";
+    ringLabel = item.unlinkCategory ? `Desvinculado, ${item.unlinkCategory}` : "Desvinculado";
+    note = item.unlinkCategory || "Colaborador desvinculado";
+    noteClass = " hr-cred__note--alert";
+  } else if (contract.applies && periodStartYmd && endYmd) {
+    ringOpen = false;
+    const total = Math.max(1, agYmdDiffDays(periodStartYmd, endYmd) || 1);
+    const elapsed = agYmdDiffDays(periodStartYmd, todayYmd) ?? 0;
+    pct = Math.min(100, Math.max(0, Math.round((elapsed / total) * 100)));
+    const daysLeft = agYmdDiffDays(todayYmd, endYmd);
+    if (daysLeft == null) {
+      ringStrong = "—";
+      ringSmall = "fin";
+      note = `Hasta ${fmtDateOr(endYmd, "—")}`;
+    } else if (daysLeft < 0) {
+      const overdue = Math.abs(daysLeft);
+      const inMonths = overdue > 60;
+      const amount = inMonths ? Math.max(1, Math.round(overdue / 30.44)) : overdue;
+      ringStrong = String(amount);
+      ringSmall = inMonths ? (amount === 1 ? "mes" : "meses") : overdue === 1 ? "día" : "días";
+      note = `Venció hace ${overdue} día${overdue === 1 ? "" : "s"}`;
+      noteClass = " hr-cred__note--alert";
+    } else if (daysLeft === 0) {
+      ringStrong = "0";
+      ringSmall = "hoy";
+      note = "El contrato vence hoy";
+      noteClass = " hr-cred__note--alert";
+    } else if (daysLeft > 60) {
+      const months = Math.max(1, Math.round(daysLeft / 30.44));
+      ringStrong = String(months);
+      ringSmall = months === 1 ? "mes" : "meses";
+      note = `Quedan ${daysLeft} días · vence ${fmtDateOr(endYmd, "—")}`;
+    } else {
+      ringStrong = String(daysLeft);
+      ringSmall = daysLeft === 1 ? "día" : "días";
+      note = `Quedan ${daysLeft} día${daysLeft === 1 ? "" : "s"} · vence ${fmtDateOr(endYmd, "—")}`;
+      noteClass = " hr-cred__note--warn";
+    }
+    ringLabel = note;
+  } else {
+    const days = hireYmd ? agYmdDiffDays(hireYmd, todayYmd) : null;
+    const years = days != null && days >= 0 ? Math.floor(days / 365.25) : 0;
+    const months = days != null && days >= 0 ? Math.floor((days - years * 365.25) / 30.44) : 0;
+    if (years > 0) {
+      ringStrong = String(years);
+      ringSmall = years === 1 ? "año" : "años";
+    } else if (months > 0) {
+      ringStrong = String(months);
+      ringSmall = months === 1 ? "mes" : "meses";
+    } else if (days != null && days >= 0) {
+      ringStrong = String(days);
+      ringSmall = days === 1 ? "día" : "días";
+    }
+    pct = Math.min(100, Math.max(12, years * 18 + months * 2));
+    const tenure = hireYmd ? agTenureLabel(hireYmd, todayYmd) : "";
+    note = tenure
+      ? `${tenure} en la empresa${hireYmd ? ` · desde ${fmtDateOr(hireYmd)}` : ""}`
+      : note;
+    ringLabel = note;
+  }
+
+  const vehicleCsv = item.vehicleCsv || payrollEmployeeCanonicalVehicleTypesCsv(e);
+  const vehicleLabel = driverVehicleTypesCsvToLabel(vehicleCsv, "");
+  const salaryFull = `$${item.salaryCop.toLocaleString("es-CO")}`;
+  const transportNote = item.transportCop > 0 ? ` + aux. $${item.transportCop.toLocaleString("es-CO")}` : "";
+  const contractLabel = String(e.contractType || (item.isDriverSvc ? "Prestación de servicios" : "Contrato"));
+  const endFact = contract.applies && endYmd ? fmtDateOr(endYmd, "—") : item.isDriverSvc ? "Por viaje" : "Sin venc.";
   const docLine = `${String(e.documentType || "").trim()} ${String(e.idDoc || "").trim()}`.trim() || "—";
-  return `<article class="directory-card portal-ops-card trip-ops-card directory-card--employee directory-card--contract-${escapeAttr(statusSlug)}${item.isUnlinked ? " directory-card--unlinked" : ""}" ${payrollEmployeeDirectoryDataAttrs(e, item, contract)}>
-    <header class="directory-card__head">
-      <div class="directory-card__identity">
-        <div class="${avatarClass}">${avatarInner}</div>
-        <div class="directory-card__heading">
-          <p class="directory-card__kicker">${escapeHtml(item.companyName)} · ${escapeHtml(item.roleLabel)}</p>
-          <h4 class="directory-card__title">${escapeHtml(String(e.name || "Colaborador"))}</h4>
-        </div>
-      </div>
-      <div class="directory-card__status-stack">
-        ${item.isDriverSvc ? directoryPillHtml("Prestación servicios", "warn") : ""}
-        ${item.isUnlinked ? directoryPillHtml("Desvinculado", "alert") : ""}
-        ${renderPayrollEmployeeUnlinkBadge(item)}
-        ${contract.applies ? directoryPillHtml(contract.pillLabel, contractPillTone) : directoryPillHtml(String(e.contractType || "Contrato").slice(0, 24), "neutral")}
-        ${selectHtml}
+  const phoneRaw = String(e.phone || "").replace(/[^\d+]/g, "");
+  const phoneLabel = String(e.phone || "").trim()
+    ? formatPortalPhoneForDisplay(String(e.phone))
+    : "";
+  const contractTypeKey = payrollEmployeeContractTypeKey(e);
+  const canContractAct =
+    !item.isUnlinked &&
+    contract.applies &&
+    isFixedTermContractType(e.contractType) &&
+    ["notice_window", "expired", "active"].includes(contract.statusSlug);
+  const menu = renderAgActionMenu([
+    { action: "payroll-employee-liquidations", id, icon: IC.dollar, label: "Historial de nóminas" },
+    { action: "employee-generate-labor-letter", id, icon: IC.badge, label: "Carta laboral", noLock: true },
+    { action: "employee-generate-contract", id, icon: IC.download, label: "Contrato (Word)", noLock: true },
+    canContractAct ? "sep" : null,
+    canContractAct ? { action: "renew-employee-contract", id, icon: IC.rotateCcw, label: "Renovar contrato" } : null,
+    canContractAct
+      ? { action: "non-renew-employee-contract", id, icon: IC.mail, label: "Aviso de no renovación", title: "CST art. 46" }
+      : null,
+    hrAdminDeletes ? "sep" : null,
+    hrAdminDeletes
+      ? item.isUnlinked
+        ? { action: "recategorize-unlinked-employee", id, icon: IC.edit, label: "Categorizar desvinculación" }
+        : { action: "unlink-employee", id, icon: IC.userMinus, label: "Desvincular", tone: "danger" }
+      : null
+  ]);
+  const selectHtml = hrAdminDeletes
+    ? `<label class="ag-select hr-cred__pick" title="Seleccionar"><input type="checkbox" data-employee-select value="${escapeAttr(id)}" aria-label="Seleccionar ${escapeAttr(name)}" /><span aria-hidden="true"></span></label>`
+    : "";
+
+  return `<article class="hr-cred hr-cred--${escapeAttr(tone)} directory-card--employee" ${payrollEmployeeDirectoryDataAttrs(e, item, contract, { contractTypeKey, endYmd, vehicleCsv })}>
+    ${selectHtml}
+    <div class="hr-cred__band" aria-hidden="true"></div>
+    <header class="hr-cred__head">
+      <span class="ag-avatar ag-avatar--lg ag-avatar--hue-${agAvatarHue(name)}${avCss ? " ag-avatar--photo" : ""}"${avCss ? ` style="background-image:url('${avCss}')"` : ""} aria-hidden="true">${avCss ? "" : escapeHtml(initials || "C")}${isDriver ? `<span class="ag-avatar__badge" title="Conductor">${IC.truck}</span>` : ""}</span>
+      <div class="hr-cred__head-meta">
+        <span class="ag-status ag-status--${escapeAttr(tone)}"><span class="ag-status__dot" aria-hidden="true"></span>${escapeHtml(statusLabel)}</span>
+        ${vehicleLabel ? `<span class="ag-tag ag-tag--vehicle">${IC.truck}${escapeHtml(vehicleLabel)}</span>` : ""}
       </div>
     </header>
-    ${contractOps}
-    <div class="directory-card__metrics">
-      ${directoryChipHtml("Salario", `$${item.salaryCop.toLocaleString("es-CO")}`)}
-      ${directoryChipHtml("Aux. legal", `$${item.transportCop.toLocaleString("es-CO")}`)}
-      ${directoryChipHtml("Ingreso", fmtDateOr(e.startDate, "—"))}
-      ${isFixedTermContractType(e.contractType) ? directoryChipHtml("Renovación", fmtDateOr(e.renewalDate, "—")) : ""}
-      ${directoryChipHtml("Fin contrato", contract.applies ? fmtDateOr(contract.endYmd, "—") : "N/A", contract.statusSlug === "notice_window" ? "warn" : "neutral")}
+    <div class="hr-cred__who">
+      <h4 class="hr-cred__name" title="${escapeAttr(name)}">${escapeHtml(name)}</h4>
+      <p class="hr-cred__org">${escapeHtml(String(e.position || item.roleLabel || "—"))}</p>
+      <p class="hr-cred__mail">${escapeHtml(docLine)} · ${escapeHtml(item.companyName)}</p>
     </div>
-    <dl class="directory-card__facts">
-      ${directoryFactHtml("Documento", docLine)}
-      ${directoryFactHtml("Cargo", String(e.position || "—"))}
-      ${directoryFactHtml("Vehículo", driverVehicleTypesCsvToLabel(item.vehicleCsv || payrollEmployeeCanonicalVehicleTypesCsv(e), "—"))}
-      ${directoryFactHtml("Centro costos", String(resolvePayrollEmployeeCostCenter(e) || "—"))}
-      ${directoryFactHtml("Tipo contrato", String(e.contractType || "—"))}
-      ${contract.applies && contract.noticeDeadlineYmd ? directoryFactHtml("Aviso no renovación", fmtDateOr(contract.noticeDeadlineYmd), { tone: contract.statusSlug === "notice_window" ? "warn" : "neutral" }) : ""}
-    </dl>
-    <footer class="directory-card__actions">
-      <button type="button" class="btn btn-sm btn-action" data-action="payroll-employee-liquidations" data-id="${escapeAttr(String(e.id || ""))}" title="Historial de liquidaciones">${IC.dollar} Nóminas</button>
-      <button type="button" class="btn btn-sm btn-outline" data-action="view-employee" data-id="${escapeAttr(String(e.id))}">${IC.eye} Perfil</button>
-      ${item.isUnlinked ? "" : `<button type="button" class="btn btn-sm btn-action" data-action="edit-employee" data-id="${escapeAttr(String(e.id))}">${IC.edit} Editar</button>`}
-      ${item.isUnlinked ? "" : renderPayrollContractActionButtons(e, contract)}
-      ${renderEmploymentLetterActionButton(e.id)}
-      <button type="button" class="btn btn-sm btn-outline" data-no-lock data-action="employee-generate-contract" data-id="${escapeAttr(String(e.id))}">${IC.download} Contrato</button>
-      ${hrAdminDeletes ? renderPayrollEmployeeUnlinkActionButton(e, { recategorize: Boolean(item.isUnlinked) }) : ""}
+    <div class="hr-cred__meter${ringOpen ? " hr-cred__meter--open" : ""}" role="img" aria-label="${escapeAttr(ringLabel)}">
+      <span class="hr-cred__ring${ringOpen ? " hr-cred__ring--open" : ""}" style="--pct:${pct}"><span><strong>${escapeHtml(ringStrong)}</strong><small>${escapeHtml(ringSmall)}</small></span></span>
+      <ul class="hr-cred__facts">
+        <li><span>Contrato</span><strong title="${escapeAttr(contractLabel)}">${escapeHtml(contractLabel)}</strong></li>
+        <li><span>${item.isDriverSvc ? "Honorarios" : "Base"}</span><strong title="${escapeAttr(`${salaryFull}${transportNote}`)}">${escapeHtml(payrollConsultMoneyShort(item.salaryCop))}</strong></li>
+        <li><span>${contract.applies ? "Vence" : "Plazo"}</span><strong>${escapeHtml(endFact)}</strong></li>
+      </ul>
+    </div>
+    <p class="hr-cred__note${noteClass}">${escapeHtml(note)}</p>
+    <footer class="hr-cred__foot">
+      ${
+        phoneLabel
+          ? `<a class="hr-cred__tel" href="tel:${escapeAttr(phoneRaw)}">${IC.phone}<span>${escapeHtml(phoneLabel)}</span></a>`
+          : `<span class="hr-cred__tel hr-cred__tel--muted">${IC.phone}<span>Sin teléfono</span></span>`
+      }
+      <div class="hr-cred__actions">
+        <button type="button" class="ag-btn ag-btn--primary" data-action="view-employee" data-id="${escapeAttr(id)}">${IC.eye}<span>Ver perfil</span></button>
+        ${item.isUnlinked ? "" : `<button type="button" class="ag-icon-btn" data-action="edit-employee" data-id="${escapeAttr(id)}" title="Editar" aria-label="Editar ${escapeAttr(name)}">${IC.edit}</button>`}
+        ${menu}
+      </div>
     </footer>
   </article>`;
 }
+
+function renderPayrollEmployeeDirectoryCard(item, hrAdminDeletes, { compact = false } = {}) {
+  if (compact) return renderPayrollEmployeeRosterCard(item, hrAdminDeletes);
+  return renderPayrollEmployeeBadgeCard(item, hrAdminDeletes);
+}
+
 
 function renderPayrollEmployeeDirectoryTableRow(item, hrAdminDeletes) {
   const e = item.raw;

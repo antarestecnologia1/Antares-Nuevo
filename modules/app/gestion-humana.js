@@ -126,6 +126,8 @@ function focusPayrollEmployeeLiquidations(employeeId, opts = {}) {
   const section =
     String(opts.dataSection || "runs").trim() === "driverPayments" ? "driverPayments" : "runs";
   const status = String(opts.status || "all").trim().toLowerCase();
+  const fromProfile = opts.fromProfile === true || String(opts.fromProfile || "") === "1";
+  const emp = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === empId);
   state.payrollFilters = {
     ...defaultPayrollFilters(),
     employee: empId,
@@ -136,16 +138,123 @@ function focusPayrollEmployeeLiquidations(employeeId, opts = {}) {
   state.payrollUi = {
     ...(state.payrollUi || { runSort: "recent" }),
     workspace: "data",
-    dataSection: normalizePayrollDataSection(section)
+    dataSection: normalizePayrollDataSection(section),
+    returnTo: fromProfile && emp
+      ? { kind: "employee-profile", employeeId: empId, employeeName: String(emp.name || "").trim() }
+      : null
   };
   state.payrollRunsRenderLimit = RENDER_WINDOW_SIZE;
   persistHrWorkspace("payroll", "data");
-  document.getElementById("crud-modal")?.classList.add("hidden");
+  if (typeof closeCrudModal === "function") closeCrudModal();
+  else {
+    document.getElementById("crud-modal")?.classList.add("hidden");
+    if (typeof clearModalFlow === "function") clearModalFlow();
+  }
   renderPortalView();
   requestAnimationFrame(() => {
     const pane = nodes.viewRoot?.querySelector(`[data-payroll-section="${section}"]`);
     pane?.scrollIntoView({ behavior: "smooth", block: "start" });
   });
+}
+
+function selectEmployeeProfileTab(root, tab) {
+  const next = String(tab || "").trim() === "liquidaciones" ? "liquidaciones" : "ficha";
+  if (!root) return;
+  root.querySelectorAll("[data-profile-panel]").forEach((panel) => {
+    const show = String(panel.getAttribute("data-profile-panel") || "") === next;
+    panel.toggleAttribute("hidden", !show);
+    panel.setAttribute("aria-hidden", show ? "false" : "true");
+  });
+  root.querySelectorAll("[data-profile-footer]").forEach((slot) => {
+    const show = String(slot.getAttribute("data-profile-footer") || "") === next;
+    slot.toggleAttribute("hidden", !show);
+  });
+  root.querySelectorAll("[data-action='employee-profile-tab']").forEach((btn) => {
+    const active = String(btn.dataset.tab || "") === next;
+    btn.classList.toggle("is-active", active);
+    btn.setAttribute("aria-selected", active ? "true" : "false");
+    btn.setAttribute("tabindex", active ? "0" : "-1");
+  });
+  if (next === "liquidaciones") {
+    const panel = root.querySelector("[data-profile-panel='liquidaciones']");
+    try {
+      panel?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    } catch (_e) {
+      /* noop */
+    }
+  }
+}
+
+function wireEmployeeProfileTabs(root) {
+  if (!root) return;
+  root.querySelectorAll("[data-action='employee-profile-tab']").forEach((btn) => {
+    if (btn.dataset.profileTabBound === "1") return;
+    btn.dataset.profileTabBound = "1";
+    btn.addEventListener("click", () => selectEmployeeProfileTab(root, btn.dataset.tab));
+  });
+}
+
+function openEmployeeProfileModal(employee, opts = {}) {
+  const target = typeof normalizePayrollEmployeeRowDates === "function"
+    ? normalizePayrollEmployeeRowDates(employee)
+    : employee;
+  if (!target?.id) return;
+  const tab = String(opts.tab || "ficha").trim() === "liquidaciones" ? "liquidaciones" : "ficha";
+  const runs = read(KEYS.payrollRuns, []);
+  const compactHistory =
+    typeof buildEmployeePayrollHistorySectionHtml === "function"
+      ? buildEmployeePayrollHistorySectionHtml(target, runs, { variant: "compact", previewLimit: 3 })
+      : "";
+  const fullHistory =
+    typeof buildEmployeePayrollHistorySectionHtml === "function"
+      ? buildEmployeePayrollHistorySectionHtml(target, runs, { variant: "full" })
+      : "";
+  const summary =
+    typeof summarizeEmployeePayrollHistory === "function"
+      ? summarizeEmployeePayrollHistory(target, runs)
+      : { total: 0, dataSection: "runs" };
+  const isDriverSvc =
+    typeof employeeIsConductorServiceProvider === "function"
+      ? employeeIsConductorServiceProvider(target)
+      : false;
+  const liquidacionesSection = isDriverSvc ? "driverPayments" : String(summary.dataSection || "runs");
+  const empId = escapeAttr(String(target.id || ""));
+  const liqCount = Number(summary.total || 0);
+  const liqLabel = liqCount ? `Liquidaciones · ${liqCount}` : "Liquidaciones";
+  const tabsHtml = `<nav class="employee-profile-tabs" role="tablist" aria-label="Secciones de la ficha">
+    <button type="button" class="employee-profile-tabs__btn${tab === "ficha" ? " is-active" : ""}" role="tab" data-action="employee-profile-tab" data-tab="ficha" aria-selected="${tab === "ficha" ? "true" : "false"}" tabindex="${tab === "ficha" ? "0" : "-1"}">Ficha</button>
+    <button type="button" class="employee-profile-tabs__btn${tab === "liquidaciones" ? " is-active" : ""}" role="tab" data-action="employee-profile-tab" data-tab="liquidaciones" aria-selected="${tab === "liquidaciones" ? "true" : "false"}" tabindex="${tab === "liquidaciones" ? "0" : "-1"}">${escapeHtml(liqLabel)}</button>
+  </nav>`;
+  const bodyHtml = `${tabsHtml}
+    <div class="employee-profile-panel" data-profile-panel="ficha" role="tabpanel"${tab === "ficha" ? "" : " hidden"} aria-hidden="${tab === "ficha" ? "false" : "true"}">
+      ${buildEmployeePayrollProfileBodyHtml(target)}${compactHistory}
+    </div>
+    <div class="employee-profile-panel" data-profile-panel="liquidaciones" role="tabpanel"${tab === "liquidaciones" ? "" : " hidden"} aria-hidden="${tab === "liquidaciones" ? "false" : "true"}">
+      ${fullHistory}
+    </div>`;
+  const contractAction = `<button type="button" class="btn btn-action" data-action="employee-generate-contract" data-id="${empId}">${IC.download} Descargar contrato</button>`;
+  const laborLetterAction = `<button type="button" class="btn btn-outline" data-no-lock data-action="employee-generate-labor-letter" data-id="${empId}">${IC.badge} Carta laboral</button>`;
+  const liquidacionesTabAction = `<button type="button" class="btn btn-outline" data-action="employee-profile-tab" data-tab="liquidaciones">${IC.dollar} Ver liquidaciones</button>`;
+  const openNominaAction = `<button type="button" class="btn btn-outline" data-action="payroll-focus-employee-runs" data-employee-id="${empId}" data-payroll-section="${escapeAttr(liquidacionesSection)}" data-from-profile="1">${IC.layers || ""} Más detalles en nómina</button>`;
+  const secondaryActionsHtml = `<span data-profile-footer="ficha"${tab === "ficha" ? "" : " hidden"}>${liquidacionesTabAction}</span><span data-profile-footer="liquidaciones"${tab === "liquidaciones" ? "" : " hidden"}>${openNominaAction}</span>${laborLetterAction}${contractAction}`;
+  openInfoModal({
+    title: "Ficha del colaborador",
+    subtitle: `${String(target.position || "Colaborador").trim()} · ${String(target.idDoc || "").trim()}`,
+    bodyHtml,
+    wide: true,
+    extraModalCardClass: "modal-card-edit--employee-profile",
+    resetStack: opts.resetStack !== false,
+    secondaryActionsHtml,
+    afterMount: (content) => {
+      bindPayrollPayslipButtons(content);
+      wirePayrollEmployeeLiquidationActions(content);
+      wireEmployeeProfileTabs(content);
+    }
+  });
+}
+
+if (typeof window !== "undefined") {
+  window.openEmployeeProfileModal = openEmployeeProfileModal;
 }
 
 function wirePayrollEmployeeLiquidationActions(root) {
@@ -157,7 +266,8 @@ function wirePayrollEmployeeLiquidationActions(root) {
     btn.addEventListener("click", () => {
       focusPayrollEmployeeLiquidations(btn.dataset.employeeId, {
         dataSection: btn.dataset.payrollSection || "runs",
-        status: btn.dataset.status || "all"
+        status: btn.dataset.status || "all",
+        fromProfile: btn.dataset.fromProfile === "1"
       });
     });
   });
@@ -167,7 +277,10 @@ function wirePayrollEmployeeLiquidationActions(root) {
     btn.addEventListener("click", () => {
       const emp = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === String(btn.dataset.id || ""));
       const section = emp && employeeIsConductorServiceProvider(emp) ? "driverPayments" : "runs";
-      focusPayrollEmployeeLiquidations(btn.dataset.id, { dataSection: section });
+      focusPayrollEmployeeLiquidations(btn.dataset.id, {
+        dataSection: section,
+        fromProfile: btn.dataset.fromProfile === "1"
+      });
     });
   });
   scope.querySelectorAll("[data-action='payroll-clear-employee-filter']").forEach((btn) => {
@@ -175,8 +288,21 @@ function wirePayrollEmployeeLiquidationActions(root) {
     btn.dataset.payrollClearBound = "1";
     btn.addEventListener("click", () => {
       state.payrollFilters = { ...(state.payrollFilters || defaultPayrollFilters()), employee: "" };
+      state.payrollUi = { ...(state.payrollUi || {}), returnTo: null };
       state.payrollRunsRenderLimit = RENDER_WINDOW_SIZE;
       renderPortalView();
+    });
+  });
+  scope.querySelectorAll("[data-action='payroll-return-to-profile']").forEach((btn) => {
+    if (btn.dataset.payrollReturnBound === "1") return;
+    btn.dataset.payrollReturnBound = "1";
+    btn.addEventListener("click", () => {
+      const emp = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === String(btn.dataset.id || ""));
+      if (!emp) {
+        notify("No se encontró la ficha del colaborador.", "warn");
+        return;
+      }
+      openEmployeeProfileModal(emp, { tab: "liquidaciones", resetStack: true });
     });
   });
 }
@@ -2042,26 +2168,7 @@ function bindPayrollPortalControls() {
         }
       }
       target = normalizePayrollEmployeeRowDates(target);
-      const payrollHistoryHtml =
-        typeof buildEmployeePayrollHistorySectionHtml === "function"
-          ? buildEmployeePayrollHistorySectionHtml(target, read(KEYS.payrollRuns, []))
-          : "";
-      const isDriverSvc = employeeIsConductorServiceProvider(target);
-      const liquidacionesSection = isDriverSvc ? "driverPayments" : "runs";
-      const contractAction = `<button type="button" class="btn btn-action" data-action="employee-generate-contract" data-id="${escapeAttr(String(target.id || ""))}">${IC.download} Descargar contrato</button>`;
-      const laborLetterAction = `<button type="button" class="btn btn-outline" data-no-lock data-action="employee-generate-labor-letter" data-id="${escapeAttr(String(target.id || ""))}">${IC.badge} Carta laboral</button>`;
-      const liquidacionesAction = `<button type="button" class="btn btn-outline" data-action="payroll-focus-employee-runs" data-employee-id="${escapeAttr(String(target.id || ""))}" data-payroll-section="${escapeAttr(liquidacionesSection)}">${IC.dollar} Ver liquidaciones</button>`;
-      openInfoModal({
-        title: "Ficha del colaborador",
-        subtitle: `${String(target.position || "Colaborador").trim()} · ${String(target.idDoc || "").trim()}`,
-        bodyHtml: `${buildEmployeePayrollProfileBodyHtml(target)}${payrollHistoryHtml}`,
-        wide: true,
-        secondaryActionsHtml: `${liquidacionesAction}${laborLetterAction}${contractAction}`,
-        afterMount: (content) => {
-          bindPayrollPayslipButtons(content);
-          wirePayrollEmployeeLiquidationActions(content);
-        }
-      });
+      openEmployeeProfileModal(target, { resetStack: true });
     });
   });
 
