@@ -261,7 +261,7 @@
   async function request(method, path, body, reqOpts) {
     reqOpts = reqOpts && typeof reqOpts === "object" ? reqOpts : {};
     const base = getBase();
-    if (!base) throw new Error("API: falta URL base (antares_api_base o __ANTARES_API_BASE__)");
+    if (!base) throw new Error("No hay conexión configurada con el servidor. Contacte al administrador del portal.");
     if (!hasPortalSession()) throw new Error("API: sesión no iniciada");
     const rel = path.startsWith("/") ? path : `/${path}`;
     const url = `${base}/api${rel}`;
@@ -330,7 +330,7 @@
   /** GET binario autenticado (plantillas DOCX, etc.). */
   async function getArrayBuffer(path) {
     const base = getBase();
-    if (!base) throw new Error("API: falta URL base (antares_api_base o __ANTARES_API_BASE__)");
+    if (!base) throw new Error("No hay conexión configurada con el servidor. Contacte al administrador del portal.");
     if (!hasPortalSession()) throw new Error("API: sesión no iniciada");
     const rel = path.startsWith("/") ? path : `/${path}`;
     const url = `${base}/api${rel}`;
@@ -356,7 +356,7 @@
   /** POST autenticado que devuelve binario (p. ej. exportación ZIP del expediente). */
   async function postForBlob(path, body) {
     const base = getBase();
-    if (!base) throw new Error("API: falta URL base (antares_api_base o __ANTARES_API_BASE__)");
+    if (!base) throw new Error("No hay conexión configurada con el servidor. Contacte al administrador del portal.");
     if (!hasPortalSession()) throw new Error("API: sesión no iniciada");
     const rel = path.startsWith("/") ? path : `/${path}`;
     const url = `${base}/api${rel}`;
@@ -395,7 +395,7 @@
   /** POST sin sesión (rutas públicas de la API). */
   async function postJsonPublic(path, body) {
     const base = getBase();
-    if (!base) throw new Error("API: falta URL base (antares_api_base o __ANTARES_API_BASE__)");
+    if (!base) throw new Error("No hay conexión configurada con el servidor. Contacte al administrador del portal.");
     const rel = path.startsWith("/") ? path : `/${path}`;
     const url = `${base}/api${rel}`;
     const headers = buildFetchHeaders("POST", {
@@ -433,7 +433,7 @@
   /** POST multipart/form-data sin sesión (no fijar Content-Type: el navegador añade boundary). */
   async function postFormDataPublic(path, formData) {
     const base = getBase();
-    if (!base) throw new Error("API: falta URL base (antares_api_base o __ANTARES_API_BASE__)");
+    if (!base) throw new Error("No hay conexión configurada con el servidor. Contacte al administrador del portal.");
     const rel = path.startsWith("/") ? path : `/${path}`;
     const url = `${base}/api${rel}`;
     const headers = buildFetchHeaders("POST", { Accept: "application/json" });
@@ -468,7 +468,7 @@
   /** POST multipart con sesión por cookie (p. ej. subida de imagen vía API). */
   async function postFormData(path, formData) {
     const base = getBase();
-    if (!base) throw new Error("API: falta URL base (antares_api_base o __ANTARES_API_BASE__)");
+    if (!base) throw new Error("No hay conexión configurada con el servidor. Contacte al administrador del portal.");
     if (!hasPortalSession()) throw new Error("API: sesión no iniciada");
     const rel = path.startsWith("/") ? path : `/${path}`;
     const url = `${base}/api${rel}`;
@@ -505,7 +505,7 @@
   async function getJsonPublic(path, reqOpts) {
     reqOpts = reqOpts && typeof reqOpts === "object" ? reqOpts : {};
     const base = getBase();
-    if (!base) throw new Error("API: falta URL base (antares_api_base o __ANTARES_API_BASE__)");
+    if (!base) throw new Error("No hay conexión configurada con el servidor. Contacte al administrador del portal.");
     const rel = path.startsWith("/") ? path : `/${path}`;
     const url = `${base}/api${rel}`;
     const headers = { Accept: "application/json" };

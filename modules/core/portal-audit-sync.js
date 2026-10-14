@@ -113,7 +113,7 @@
    */
   async function deleteEventsFromApi(payload) {
     if (!apiReady()) {
-      throw new Error("Sesión sin autenticación API. Vuelva a iniciar sesión para depurar el historial.");
+      throw new Error("Su sesión expiró. Vuelva a iniciar sesión para depurar el historial.");
     }
     var body = payload && typeof payload === "object" ? payload : {};
     var res = await window.AntaresApi.postJson("/portal/audit-events/delete", body);

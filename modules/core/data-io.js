@@ -172,7 +172,7 @@ export async function writeAwaitServer(storageKeyLike, value, opts = {}) {
   const hasApiBase = api && typeof api.getBase === "function" && Boolean(api.getBase());
   if (!hasApiBase) return;
   if (!api.isConfigured?.()) {
-    throw new Error("Sesión sin autenticación API. Vuelva a iniciar sesión para guardar en el servidor.");
+    throw new Error("Su sesión expiró. Vuelva a iniciar sesión para guardar los cambios en el servidor.");
   }
   const flushOpts = { notifyOnFailure: opts.notifyOnFailure !== false };
   if (opts.syncData !== undefined && opts.syncData !== null) {

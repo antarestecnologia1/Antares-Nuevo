@@ -224,8 +224,26 @@ function driversHtml() {
   const docFilter = normalizeDriverDocFilter(driversUi.docFilter);
   const vehicleFilter = normalizeDriverVehicleFilter(driversUi.vehicleType);
   const companyFilter = String(driversUi.companyId ?? "").trim();
+  const licenseStateFilter = String(driversUi.licenseState ?? "").trim();
+  const licenseCatFilter = String(driversUi.licenseCat ?? "").trim();
+  const socialFilter = String(driversUi.socialSecurity ?? "").trim();
+  const finesFilter = String(driversUi.fines ?? "").trim();
+  const expFilter = String(driversUi.experience ?? "").trim();
+  const getCompaniesForFilter = () =>
+    (typeof read === "function" ? read(KEYS.companies, []) : [])
+      .filter((c) => isCompanyRecordActive(c))
+      .map((c) => [String(c.id), String(c.name || "")])
+      .sort((x, y) => x[1].localeCompare(y[1], "es", { sensitivity: "base" }));
+  const expBucketOf = (y) => (y < 2 ? "0-2" : y < 5 ? "2-5" : y < 10 ? "5-10" : "10+");
 
   const filteredSummaries = summaries.filter((item) => {
+    if (licenseStateFilter && item.licenseMeta.bucket !== licenseStateFilter) return false;
+    if (licenseCatFilter && String(item.raw.licenseCategory || "").trim() !== licenseCatFilter) return false;
+    if (socialFilter === "ok" && !item.hasSocialSecurity) return false;
+    if (socialFilter === "missing" && item.hasSocialSecurity) return false;
+    if (finesFilter === "none" && item.comparendos > 0) return false;
+    if (finesFilter === "some" && item.comparendos === 0) return false;
+    if (expFilter && expBucketOf(item.experienceYears) !== expFilter) return false;
     if (statusFilter !== "all" && item.statusSlug !== statusFilter) return false;
     if (docFilter !== "all" && item.docBucket !== docFilter) return false;
     if (vehicleFilter !== "all" && !driverMatchesVehicleFilter(item.raw, vehicleFilter)) return false;
@@ -453,7 +471,35 @@ function driversHtml() {
     .join("");
 
   const filtersActive =
-    Boolean(fleetSearchNorm) || statusFilter !== "all" || docFilter !== "all" || vehicleFilter !== "all" || Boolean(companyFilter);
+    Boolean(fleetSearchNorm) ||
+    statusFilter !== "all" ||
+    docFilter !== "all" ||
+    vehicleFilter !== "all" ||
+    Boolean(companyFilter || licenseStateFilter || licenseCatFilter || socialFilter || finesFilter || expFilter);
+  const driverFieldFilters = renderModuleFieldFilters({
+    ariaLabel: "Filtros de conductores",
+    action: "drivers-field",
+    clearAction: "drivers-fields-clear",
+    extraClass: "drivers-field-filters",
+    fields: [
+      { key: "licenseState", label: "Vigencia de licencia", value: licenseStateFilter, allLabel: "Cualquiera",
+        options: [["ok", "Vigente"], ["warning", "Por vencer (≤ 60 días)"], ["expired", "Vencida"], ["missing", "Sin fecha registrada"]] },
+      { key: "licenseCat", label: "Categoría de licencia", value: licenseCatFilter, allLabel: "Todas las categorías",
+        options: uniqueSortedFilterValues(drivers.map((d) => d.licenseCategory)).map((v) => [v, v]) },
+      { key: "vehicleType", label: "Tipo de vehículo", value: vehicleFilter === "all" ? "" : vehicleFilter, allLabel: "Todos los vehículos",
+        options: [["camion", "Camión"], ["turbo", "Turbo"], ["tractomula", "Tractomula"], ["none", "Sin categoría"]] },
+      { key: "experience", label: "Experiencia", value: expFilter, allLabel: "Cualquiera",
+        options: [["0-2", "Menos de 2 años"], ["2-5", "2 a 5 años"], ["5-10", "5 a 10 años"], ["10+", "Más de 10 años"]] },
+      { key: "socialSecurity", label: "EPS y ARL", value: socialFilter, allLabel: "Todas",
+        options: [["ok", "Completas"], ["missing", "Incompletas"]] },
+      { key: "fines", label: "Comparendos", value: finesFilter, allLabel: "Todos",
+        options: [["none", "Sin comparendos"], ["some", "Con comparendos"]] },
+      { key: "docFilter", label: "Estado documental", value: docFilter === "all" ? "" : docFilter, allLabel: "Cualquiera",
+        options: [["ok", "Al día"], ["warning", "Por vencer"], ["missing", "Incompleto"], ["expired", "Crítico"]] },
+      { key: "companyId", label: "Empresa", value: companyFilter, allLabel: "Todas las empresas",
+        options: getCompaniesForFilter() }
+    ]
+  });
   const statusPills = [
     ["all", "Todos", totalDrivers],
     ["available", "Disponibles", availableDrivers],
@@ -483,29 +529,8 @@ function driversHtml() {
           <span class="visually-hidden">Buscar conductor</span>
           <input type="search" data-action="drivers-fleet-search" value="${escapeAttr(fleetSearchRaw)}" placeholder="Nombre, documento, teléfono, empresa…" autocomplete="off" />
         </label>
-        <label class="ag-select-chip${docFilter !== "all" ? " is-set" : ""}">${IC.file}
-          <select data-action="drivers-fleet-filter" data-filter="doc" aria-label="Filtrar por documentación">
-            <option value="all" ${optSel("all", docFilter)}>Documentación</option>
-            <option value="ok" ${optSel("ok", docFilter)}>Al día</option>
-            <option value="warning" ${optSel("warning", docFilter)}>Por vencer</option>
-            <option value="missing" ${optSel("missing", docFilter)}>Incompleto</option>
-            <option value="expired" ${optSel("expired", docFilter)}>Crítico</option>
-          </select>
-        </label>
-        <label class="ag-select-chip${vehicleFilter !== "all" ? " is-set" : ""}">${IC.truck}
-          <select data-action="drivers-fleet-filter" data-filter="vehicle" aria-label="Filtrar por categoría de vehículo">
-            <option value="all" ${optSel("all", vehicleFilter)}>Vehículo</option>
-            <option value="camion" ${optSel("camion", vehicleFilter)}>Camión</option>
-            <option value="turbo" ${optSel("turbo", vehicleFilter)}>Turbo</option>
-            <option value="tractomula" ${optSel("tractomula", vehicleFilter)}>Mula</option>
-            <option value="none" ${optSel("none", vehicleFilter)}>Sin categoría</option>
-          </select>
-        </label>
-        <label class="ag-select-chip${companyFilter ? " is-set" : ""}">${IC.briefcase}
-          <select data-action="drivers-fleet-filter" data-filter="company" aria-label="Filtrar por empresa">${companyOptions}</select>
-        </label>
-        ${filtersActive ? `<button type="button" class="ag-link-btn" data-action="drivers-fleet-clear">${IC.x}<span>Limpiar</span></button>` : ""}
       </div>
+      ${driverFieldFilters}
     </div>`
       : "";
 
@@ -609,11 +634,47 @@ function driversHtml() {
           statusFilter: "all",
           docFilter: "all",
           vehicleType: "all",
-          companyId: ""
+          companyId: "",
+          licenseState: "",
+          licenseCat: "",
+          socialSecurity: "",
+          fines: "",
+          experience: ""
         };
         state.driversRenderLimit = Number(window.RENDER_WINDOW_SIZE) || 30;
         renderPortalView();
       });
+    });
+
+    bindModuleFieldFilters(nodes.viewRoot, {
+      action: "drivers-field",
+      clearAction: "drivers-fields-clear",
+      onChange: (key, value) => {
+        const prev = state.driversUi || {};
+        const keys = ["licenseState", "licenseCat", "vehicleType", "experience", "socialSecurity", "fines", "docFilter", "companyId"];
+        if (!keys.includes(key)) return;
+        let v = value;
+        if (key === "vehicleType") v = value ? normalizeDriverVehicleFilter(value) : "all";
+        if (key === "docFilter") v = value ? normalizeDriverDocFilter(value) : "all";
+        state.driversUi = { ...prev, [key]: v };
+        state.driversRenderLimit = Number(window.RENDER_WINDOW_SIZE) || 30;
+        renderPortalView();
+      },
+      onClear: () => {
+        state.driversUi = {
+          ...(state.driversUi || {}),
+          docFilter: "all",
+          vehicleType: "all",
+          companyId: "",
+          licenseState: "",
+          licenseCat: "",
+          socialSecurity: "",
+          fines: "",
+          experience: ""
+        };
+        state.driversRenderLimit = Number(window.RENDER_WINDOW_SIZE) || 30;
+        renderPortalView();
+      }
     });
 
     nodes.viewRoot.querySelectorAll("[data-action='drivers-fleet-filter']").forEach((el) => {

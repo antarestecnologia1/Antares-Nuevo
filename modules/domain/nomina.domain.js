@@ -2262,7 +2262,7 @@ export function wireHrAbsenceFormBehavior(form) {
       const unit = payrollAbsenceRecognizedUnit(resolvedType, subtypeEl?.value || "");
       const subtypeLabel = payrollAbsenceSubtypeLabel(resolvedType, subtypeEl?.value || "");
       const legalHint = payrollAbsenceLegalHint(resolvedType, subtypeEl?.value || "");
-      hintEl.textContent = `Sugerido: ${payrollFormatAbsenceQuantity(suggested)} ${unit === "habil" ? "días hábiles" : unit === "jornada" ? "jornadas" : "días calendario"}${subtypeLabel ? ` · ${subtypeLabel}` : ""}.${legalHint ? ` ${legalHint}` : ""}`;
+      hintEl.textContent = `Sugerido: ${payrollFormatAbsenceQuantity(suggested)} ${Number(suggested) === 1 ? (unit === "habil" ? "día hábil" : unit === "jornada" ? "jornada" : "día calendario") : unit === "habil" ? "días hábiles" : unit === "jornada" ? "jornadas" : "días calendario"}${subtypeLabel ? ` · ${subtypeLabel}` : ""}.${legalHint ? ` ${legalHint}` : ""}`;
     }
     const supportRules = payrollGetAbsenceSupportRules(resolvedType, subtypeEl?.value || "");
     if (supportEl) supportEl.required = !!supportRules.requiresSupportNumber;

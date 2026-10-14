@@ -34,7 +34,7 @@ function authorizationsHtml() {
   const approvalSearchBlob = (a) => {
     const meta = APPROVAL_TYPE_META[a.type] || {};
     const p = a.payload && typeof a.payload === "object" ? a.payload : {};
-    return `${a.type || ""} ${meta.title || ""} ${a.id || ""} ${JSON.stringify(p)}`.toLowerCase();
+    return `${a.type || ""} ${meta.label || ""} ${a.title || ""} ${a.requestedByName || ""} ${a.id || ""} ${JSON.stringify(p)}`.toLowerCase();
   };
   const authF = {
     fScope: String(authUi.fScope || ""),
@@ -50,7 +50,7 @@ function authorizationsHtml() {
     if (!d) return false;
     return (!authF.fFrom || d >= authF.fFrom) && (!authF.fTo || d <= authF.fTo);
   };
-  const approvalTitle = (a) => APPROVAL_TYPE_META[a.type]?.title || a.type || "";
+  const approvalTitle = (a) => APPROVAL_TYPE_META[a.type]?.label || a.type || "";
   const approvalBy = (a) => String(a.requestedByName || "").trim();
   const approvalFOk = (a) =>
     (!authF.fScope || authF.fScope === "internal") &&
@@ -178,7 +178,7 @@ function authorizationsHtml() {
       <header class="auth-queue-section-head">
         <div class="auth-queue-section-title-row">
           <h3 class="auth-queue-section-title">Otras solicitudes (tipo no catalogado o histórico)</h3>
-          <span class="auth-section-count">${miscRows.length} pendiente(s)</span>
+          <span class="auth-section-count">${miscRows.length} pendiente${miscRows.length === 1 ? "" : "s"}</span>
         </div>
         <p class="muted auth-queue-section-desc">Ítems que no coinciden con una categoría definida (por ejemplo datos migrados o tipos reservados). Revise el detalle antes de aprobar.</p>
       </header>
@@ -207,7 +207,7 @@ function authorizationsHtml() {
     if (section.kind !== "queue") return;
     if (!canAccessAuthorizationSection(actor, section.key)) return;
     const rows = groups.get(section.key) || [];
-    const countBadge = `<span class="auth-section-count">${rows.length} pendiente(s)</span>`;
+    const countBadge = `<span class="auth-section-count">${rows.length} pendiente${rows.length === 1 ? "" : "s"}</span>`;
     const tableOrEmpty = rows.length
       ? buildPendingApprovalsTableHtml(rows)
       : emptyState("No hay autorizaciones pendientes en esta categoría.");
@@ -420,7 +420,15 @@ function bindAuthorizationsPortalControls() {
       const approvals = read(KEYS.approvals, []);
       const approval = approvals.find((a) => a.id === id && a.status === "pendiente");
       const actor = currentUser();
-      if (!approval || !actor || !canApproveInternalAuthorization(actor, approval.type)) return;
+      if (!approval) {
+        notify("Esta autorización ya no está pendiente. Se actualizó la lista.", "info");
+        renderPortalView();
+        return;
+      }
+      if (!actor || !canApproveInternalAuthorization(actor, approval.type)) {
+        notify("No tiene permiso para aprobar este tipo de autorización.", "error");
+        return;
+      }
 
       if (approval.type === "create_user") {
         const p = approval.payload || {};
@@ -434,7 +442,9 @@ function bindAuthorizationsPortalControls() {
           nextPasswordHash = await hashPassword(p.password || "");
         }
         const users = read(KEYS.users, []);
-        if (!users.some((u) => normalizeEmail(u.email) === normalizeEmail(p.email))) {
+        if (users.some((u) => normalizeEmail(u.email) === normalizeEmail(p.email))) {
+          notify(`Ya existe un usuario con el correo ${normalizeEmail(p.email)}; no se creó una cuenta duplicada.`, "info");
+        } else {
           const compName = p.companyName || getCompanyById(p.companyId)?.name || "";
           users.push({
             id: newUuidV4(),
@@ -573,6 +583,21 @@ function bindAuthorizationsPortalControls() {
         } catch (_e) {}
       } else if (approval.type === "create_driver") {
         const drivers = read(KEYS.drivers, []);
+        const newDriverDoc = payrollDocDedupKeyForAuth(approval.payload?.documentType, approval.payload?.idDoc);
+        if (
+          newDriverDoc &&
+          drivers.some(
+            (d) =>
+              String(d?.documentType || "CC").toUpperCase() === String(approval.payload?.documentType || "CC").toUpperCase() &&
+              payrollDocDedupKeyForAuth(d?.documentType, d?.idDoc) === newDriverDoc
+          )
+        ) {
+          notify(
+            `Ya existe un conductor con el documento ${String(approval.payload?.idDoc || "").trim()}. Rechace la solicitud o corrija el registro existente.`,
+            "error"
+          );
+          return;
+        }
         const driverRow = normalizeDriverFormPayloadForStorage({ ...approval.payload });
         const createdDriver = stampCreatedRecord({
           id: newUuidV4(),
@@ -868,7 +893,7 @@ function bindAuthorizationsPortalControls() {
       try {
         await writeAwaitServerEdit(
           KEYS.approvals,
-          approvals.map((a) =>
+          read(KEYS.approvals, []).map((a) =>
             a.id === id ? { ...a, status: "aprobado", reviewedAt: nowIso(), reviewedBy: actor.name } : a
           ),
           id
@@ -903,7 +928,15 @@ function bindAuthorizationsPortalControls() {
     btn.addEventListener("click", () => {
       const id = String(btn.dataset.id || "");
       const approval = read(KEYS.approvals, []).find((a) => String(a.id) === id && a.status === "pendiente");
-      if (!approval || !canApproveInternalAuthorization(currentUser(), approval.type)) return;
+      if (!approval) {
+        notify("Esta autorización ya no está pendiente. Se actualizó la lista.", "info");
+        renderPortalView();
+        return;
+      }
+      if (!canApproveInternalAuthorization(currentUser(), approval.type)) {
+        notify("No tiene permiso para rechazar este tipo de autorización.", "error");
+        return;
+      }
       openEditModal({
         title: "Rechazar autorización",
         subtitle: "Motivo obligatorio",
@@ -997,6 +1030,10 @@ function bindAuthorizationsPortalControls() {
         notify(userMessage("wordTemplatesRedownloaded"), "success");
       } catch (err) {
         const popup = window.open("", "_blank", "width=800,height=900");
+        if (!popup) {
+          notify(`No se pudo regenerar el Word (${String(err?.message || err)}) y el navegador bloqueó la ventana de resumen. Permita ventanas emergentes.`, "error");
+          return;
+        }
         popup.document.write(`
         <html>
           <head><title>Contrato</title></head>

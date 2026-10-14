@@ -100,7 +100,7 @@
       rel="stylesheet"
       href="./styles.css?v=20261013-modal-back"
     />
-    <link rel="stylesheet" href="./styles/portal-ops-card.css?v=20261014-field-filters2" />
+    <link rel="stylesheet" href="./styles/portal-ops-card.css?v=20261014-dark2" />
     <link rel="stylesheet" href="./styles/portal-buttons.css?v=20260701-btn-guard" />
     <link rel="stylesheet" href="./styles/portal-feedback.css?v=20260701-feedback" />
     <link rel="stylesheet" href="./styles/dashboard-module.css?v=20260625-cards-all-modules-tile" media="print" onload="this.onload=null;this.media='all'" />
@@ -131,7 +131,7 @@
     <noscript>
     <link rel="stylesheet" href="./styles.css?v=20261013-modal-back" />
     <link rel="stylesheet" href="./styles/auth-modal.css?v=20260715-registration-kind" />
-    <link rel="stylesheet" href="./styles/portal-ops-card.css?v=20261014-field-filters2" />
+    <link rel="stylesheet" href="./styles/portal-ops-card.css?v=20261014-dark2" />
     <link rel="stylesheet" href="./styles/portal-buttons.css?v=20260701-btn-guard" />
     <link rel="stylesheet" href="./styles/portal-feedback.css?v=20260701-feedback" />
       <link rel="stylesheet" href="./styles/dashboard-module.css?v=20260625-cards-all-modules-tile" />
@@ -1421,8 +1421,19 @@
     <script defer src="./modules/core/portal-bootstrap-cache.js?v=20260630-security-audit-fix"></script>
     <script defer src="./modules/core/supabase-browser.js?v=20260504-pw-recovery"></script>
     <!-- JSZip y jsPDF/autotable se cargan bajo demanda (contracts-docx.js y reporteria.domain.js) -->
-    <script defer src="./modules/core/api-client.js?v=20260630-security-audit-fix"></script>
-    <script defer src="./modules/core/portal-audit-sync.js?v=20260622-audit-pg"></script>
+    <script defer src="./modules/core/api-client.js?v=20261014-msgs-es"></script>
+    <script defer src="./modules/core/portal-audit-sync.js?v=20261014-msgs-es"></script>
+    <script defer src="./modules/ui/portal-i18n-dict-1.js?v=20261014-i18n2"></script>
+    <script defer src="./modules/ui/portal-i18n-dict-2.js?v=20261014-i18n2"></script>
+    <script defer src="./modules/ui/portal-i18n-dict-3.js?v=20261014-i18n2"></script>
+    <script defer src="./modules/ui/portal-i18n-dict-4.js?v=20261014-i18n2"></script>
+    <script defer src="./modules/ui/portal-i18n-dict-5.js?v=20261014-i18n2"></script>
+    <script defer src="./modules/ui/portal-i18n-dict-6.js?v=20261014-i18n2"></script>
+    <script defer src="./modules/ui/portal-i18n-dict-7.js?v=20261014-i18n2"></script>
+    <script defer src="./modules/ui/portal-i18n-dict-8.js?v=20261014-i18n2"></script>
+    <script defer src="./modules/ui/portal-i18n-dict-9.js?v=20261014-i18n2"></script>
+    <script defer src="./modules/ui/portal-i18n-dict-10.js?v=20261014-i18n4"></script>
+    <script defer src="./modules/ui/portal-i18n.js?v=20261014-i18n4"></script>
     <script defer src="./modules/core/portal-data-layer.js"></script>
     <script defer src="./modules/core/portal-sync.js?v=20260623-sync-fix3"></script>
     <!-- Vistas del portal estático (registran window.AppModules.*); Next.js vive en apps/web/app -->
@@ -1572,7 +1583,7 @@
       import * as AntaresUIComponents from "./modules/ui/components.js";
       import * as AntaresUIModals from "./modules/ui/modals.js";
       import * as AntaresI18n from "./modules/core/i18n.js";
-      import * as AntaresSchedulePicker from "./modules/ui/portal-schedule-picker.js?v=20260622-time-slots";
+      import * as AntaresSchedulePicker from "./modules/ui/portal-schedule-picker.js?v=20261014-time2";
       Object.assign(window, AntaresUIComponents, AntaresUIModals, AntaresI18n, AntaresSchedulePicker);
     </script>
     <script type="module" src="./modules/core/portal-runtime.js?v=20261013-offer-letter"></script>
@@ -1584,8 +1595,8 @@
     <script defer src="./modules/app/solicitudes-html.js?v=20261013-requests-ui"></script>
     <script defer src="./modules/app/mis-solicitudes.js?v=20261013-requests-ui"></script>
     <script defer src="./modules/app/camiones-html.js?v=20261013-vehicle-forms"></script>
-    <script defer src="./modules/app/camiones.js?v=20261013-vehicle-forms"></script>
-    <script defer src="./modules/app/conductores.js?v=20261013-roster-pass"></script>
+    <script defer src="./modules/app/camiones.js?v=20261014-vehicle-warn"></script>
+    <script defer src="./modules/app/conductores.js?v=20261014-driver-filters2"></script>
     <script defer src="./modules/app/calendario.js"></script>
     <script defer src="./modules/app/historial.js"></script>
     <script defer src="./modules/app/reporteria.js"></script>
@@ -1595,11 +1606,11 @@
     <script defer src="./modules/app/contratacion-html.js?v=20261013-module-filters"></script>
     <script defer src="./modules/app/contratacion.js?v=20261013-module-filters"></script>
     <script type="module" src="./modules/app/cumplimiento-laboral.js"></script>
-    <script type="module" src="./modules/app/gestion-documental.js?v=20261013-dms-fix5"></script>
+    <script type="module" src="./modules/app/gestion-documental.js?v=20261014-dms-notice"></script>
     <script type="module" src="./modules/app/sarlaft.js?v=20260917b-login-scan-shield"></script>
     <script defer src="./modules/app/contacto-b2b.js?v=20261013-b2b-cred"></script>
     <script defer src="./modules/app/usuarios-permisos.js?v=20261013-user-cred"></script>
-    <script defer src="./modules/app/autorizaciones.js?v=20260831-payslip-1p"></script>
+    <script defer src="./modules/app/autorizaciones.js?v=20261014-plural"></script>
     <script defer src="./modules/app/mi-perfil.js"></script>
     <script type="module" src="./modules/app/notificaciones.js?v=20261013-notif-fix"></script>
     <script type="module" src="./app.js?v=20261013-module-filters"></script>

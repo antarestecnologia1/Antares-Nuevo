@@ -2437,7 +2437,10 @@ function resetDmsBackfillState() {
 async function backfillEmployeeHireDocuments(opts = {}) {
   const forceAll = opts.forceAll === true;
   if (!canUpload()) return { created: 0, pending: 0 };
-  if (!dmsBackfillNotifyStarted) {
+  const employees = read(KEYS.payrollEmployees, []).filter((e) => e?.id && String(e.name || "").trim());
+  let created = 0;
+  let pending = employees.filter((e) => employeeNeedsDmsBackfill(e, { forceAll })).length;
+  if (pending > 0 && !dmsBackfillNotifyStarted) {
     dmsBackfillNotifyStarted = true;
     G.notify?.(
       forceAll
@@ -2446,10 +2449,6 @@ async function backfillEmployeeHireDocuments(opts = {}) {
       "info"
     );
   }
-
-  const employees = read(KEYS.payrollEmployees, []).filter((e) => e?.id && String(e.name || "").trim());
-  let created = 0;
-  let pending = employees.filter((e) => employeeNeedsDmsBackfill(e, { forceAll })).length;
 
   while (pending > 0) {
     const pendingEmps = employees.filter((e) => employeeNeedsDmsBackfill(e, { forceAll }));

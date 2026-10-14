@@ -97,91 +97,110 @@ function vehiclesSimitPaneHtml(vehicles, simitState) {
   const pendingOnly = simitState?.pendingOnly !== false;
   const status = String(simitState?.status || "idle");
   const sourceUrl = D?.SIMIT_PORTAL_URL || "https://www.datos.gov.co/Funci-n-P-blica/Historial-de-Multas-reportados-en-el-SIMIT-FCM/72nf-y4v3";
-  const disclaimer = `<p class="muted vehicles-simit-disclaimer">Fuente: <a href="${escapeAttr(sourceUrl)}" target="_blank" rel="noopener noreferrer">Historial de Multas SIMIT · FCM</a> en datos.gov.co. Cubre comparendos reportados del 1 ene 2019 al 31 dic 2025 (actualización anual). El conjunto no distingue fotomultas de otras infracciones: se muestran comparendos ${pendingOnly ? "con pago pendiente" : "del historial"}. No reemplaza la consulta oficial en el portal SIMIT.</p>`;
-  const toolbar = `<div class="vehicles-simit-toolbar">
-      <div class="transport-ops-layout driver-fleet-view-toggle" role="group" aria-label="Alcance de la consulta SIMIT">
-        <button type="button" class="btn btn-sm ${pendingOnly ? "btn-primary" : "btn-outline"}" data-action="vehicles-simit-scope" data-scope="pending">Pendientes</button>
-        <button type="button" class="btn btn-sm ${pendingOnly ? "btn-outline" : "btn-primary"}" data-action="vehicles-simit-scope" data-scope="all">Historial</button>
+  const svg = (d) =>
+    `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+  const ICO = {
+    alert: svg('<path d="M12 3l9.5 17h-19z"/><path d="M12 10v4M12 17.5v.01"/>'),
+    check: svg('<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.7 2.7L16 9.5"/>'),
+    doc: svg('<path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 12h5M10 16h5"/>'),
+    money: svg('<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6.5 12h.01M17.5 12h.01"/>'),
+    refresh: svg('<path d="M20 11a8 8 0 0 0-14.5-4M4 4v4h4M4 13a8 8 0 0 0 14.5 4M20 20v-4h-4"/>'),
+    search: svg('<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>'),
+    info: svg('<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v.01"/>'),
+    chevron: svg('<path d="M9 6l6 6-6 6"/>')
+  };
+  const money = typeof D?.formatSimitMoney === "function" ? D.formatSimitMoney : (n) => `$${Number(n || 0).toLocaleString("es-CO")}`;
+  const aboutBlock = `<details class="simit-about"><summary>${ICO.info}<span>Acerca de esta consulta</span></summary>
+      <p>Fuente: <a href="${escapeAttr(sourceUrl)}" target="_blank" rel="noopener noreferrer">Historial de Multas SIMIT · FCM</a> en datos.gov.co. Cubre comparendos reportados del 1 ene 2019 al 31 dic 2025 (actualización anual). El conjunto no distingue fotomultas de otras infracciones: se muestran comparendos ${pendingOnly ? "con pago pendiente" : "del historial"}. No reemplaza la consulta oficial en el portal SIMIT.</p>
+    </details>`;
+  const fetchedTxt = simitState?.fetchedAt
+    ? `Última consulta: ${typeof fmtDate === "function" ? fmtDate(simitState.fetchedAt) : simitState.fetchedAt}`
+    : "";
+  const toolbar = `<div class="simit-head">
+      <div class="simit-head__scope">
+        <div class="simit-seg" role="group" aria-label="Alcance de la consulta SIMIT">
+          <button type="button" class="${pendingOnly ? "is-on" : ""}" data-action="vehicles-simit-scope" data-scope="pending" aria-pressed="${pendingOnly ? "true" : "false"}">Pendientes</button>
+          <button type="button" class="${pendingOnly ? "" : "is-on"}" data-action="vehicles-simit-scope" data-scope="all" aria-pressed="${pendingOnly ? "false" : "true"}">Historial completo</button>
+        </div>
+        ${fetchedTxt ? `<span class="simit-head__meta">${escapeHtml(fetchedTxt)}</span>` : ""}
       </div>
-      <button type="button" class="btn btn-sm btn-outline" data-action="vehicles-simit-refresh"${status === "loading" ? " disabled" : ""}>${IC.activity || ""} ${status === "loading" ? "Consultando…" : "Actualizar consulta"}</button>
+      <button type="button" class="simit-refresh${status === "loading" ? " is-loading" : ""}" data-action="vehicles-simit-refresh"${status === "loading" ? " disabled" : ""}>${ICO.refresh}<span>${status === "loading" ? "Consultando…" : "Actualizar consulta"}</span></button>
     </div>`;
   if (!vehicles.length) {
-    return `${disclaimer}${emptyState("Registre vehículos en la flota para consultar comparendos SIMIT por placa.")}`;
+    return `<div class="simit-pane">${toolbar}${emptyState("Registre vehículos en la flota para consultar comparendos SIMIT por placa.")}${aboutBlock}</div>`;
   }
   if (status === "loading" || status === "idle") {
-    return `${disclaimer}${toolbar}<p class="muted vehicles-simit-status" role="status">${IC.activity || ""} Consultando el historial SIMIT por las placas de la flota…</p>`;
+    const sk = Array.from({ length: 4 }, () => '<div class="simit-skeleton"></div>').join("");
+    return `<div class="simit-pane" aria-busy="true">${toolbar}<p class="simit-status" role="status">Consultando el historial SIMIT por las placas de la flota…</p><div class="simit-kpis">${sk}</div><div class="simit-skeleton simit-skeleton--row"></div><div class="simit-skeleton simit-skeleton--row"></div>${aboutBlock}</div>`;
   }
   if (status === "error") {
-    return `${disclaimer}${toolbar}${emptyState(String(simitState?.error || "No se pudo consultar SIMIT."))}`;
+    return `<div class="simit-pane">${toolbar}${emptyState(String(simitState?.error || "No se pudo consultar SIMIT."))}${aboutBlock}</div>`;
   }
   const summary = D?.summarizeSimitByPlate
     ? D.summarizeSimitByPlate(vehicles, simitState?.rows || [])
     : { list: [], withPending: [], cleanCount: vehicles.length, pendingVehicleCount: 0, pendingCount: 0, pendingValue: 0 };
-  const money = typeof D?.formatSimitMoney === "function" ? D.formatSimitMoney : (n) => `$${Number(n || 0).toLocaleString("es-CO")}`;
-  const kpis = `<div class="vehicles-simit-kpis" aria-label="Resumen SIMIT">
-      <div class="vehicles-simit-kpi${summary.pendingVehicleCount ? " vehicles-simit-kpi--alert" : " vehicles-simit-kpi--ok"}"><strong>${escapeHtml(String(summary.pendingVehicleCount))}</strong><span>Con pendientes</span></div>
-      <div class="vehicles-simit-kpi vehicles-simit-kpi--ok"><strong>${escapeHtml(String(summary.cleanCount))}</strong><span>Al día en este corte</span></div>
-      <div class="vehicles-simit-kpi"><strong>${escapeHtml(String(summary.pendingCount))}</strong><span>Comparendos pendientes</span></div>
-      <div class="vehicles-simit-kpi"><strong>${escapeHtml(money(summary.pendingValue))}</strong><span>Valor pendiente</span></div>
-    </div>`;
+  const total = summary.list.length || 1;
+  const pendingPct = Math.round((summary.pendingVehicleCount / total) * 100);
+  const kpi = (tone, icon, value, label, hint = "") =>
+    `<article class="simit-kpi simit-kpi--${tone}"><span class="simit-kpi__ico">${icon}</span><div><strong>${escapeHtml(String(value))}</strong><span>${escapeHtml(label)}</span>${hint ? `<em>${escapeHtml(hint)}</em>` : ""}</div></article>`;
+  const kpis = `<div class="simit-kpis" aria-label="Resumen SIMIT">
+      ${kpi(summary.pendingVehicleCount ? "alert" : "ok", ICO.alert, summary.pendingVehicleCount, "Vehículos con pendientes", `${pendingPct}% de la flota`)}
+      ${kpi("ok", ICO.check, summary.cleanCount, "Al día en este corte")}
+      ${kpi(summary.pendingCount ? "warn" : "neutral", ICO.doc, summary.pendingCount, "Comparendos pendientes")}
+      ${kpi(summary.pendingValue ? "alert" : "neutral", ICO.money, money(summary.pendingValue), "Valor pendiente")}
+    </div>
+    <div class="simit-fleetbar" role="img" aria-label="${summary.pendingVehicleCount} de ${summary.list.length} vehículos con pendientes"><span style="width:${pendingPct}%"></span></div>`;
   const truncated = simitState?.truncated
-    ? `<p class="muted vehicles-simit-disclaimer">La consulta alcanzó el tope de filas de datos abiertos. Refine por pendientes o actualice más tarde.</p>`
-    : "";
-  const fetched = simitState?.fetchedAt
-    ? `<p class="muted vehicles-simit-meta">Última consulta: ${escapeHtml(typeof fmtDate === "function" ? fmtDate(simitState.fetchedAt) : simitState.fetchedAt)}</p>`
+    ? `<p class="simit-note">La consulta alcanzó el tope de filas de datos abiertos. Refine por pendientes o actualice más tarde.</p>`
     : "";
   const query = String(simitState?.query || "");
   const resultFilter = normalizeSimitResultFilter(simitState?.resultFilter);
   const simitFiltersOn = Boolean(query.trim()) || resultFilter !== "all";
-  const visibleList = (summary.list || []).filter((item) => {
-    const fn = D?.simitItemPassesFilters;
-    if (fn) return fn(item, { search: query, result: resultFilter });
-    if (resultFilter === "pending" && !item.hasPending) return false;
-    if (resultFilter === "clean" && item.hasPending) return false;
-    return true;
-  });
-  const simitFilterBar = `<div class="vehicle-fleet-toolbar vehicles-simit-filters">
-      <label class="transport-ops-search">
-        <span class="muted">${IC.search || IC.eye} Buscar en SIMIT</span>
-        <input type="search" data-action="vehicles-simit-search" value="${escapeAttr(query)}" placeholder="Placa, marca, ciudad o departamento" autocomplete="off" />
+  const visibleList = (summary.list || [])
+    .filter((item) => {
+      const fn = D?.simitItemPassesFilters;
+      if (fn) return fn(item, { search: query, result: resultFilter });
+      if (resultFilter === "pending" && !item.hasPending) return false;
+      if (resultFilter === "clean" && item.hasPending) return false;
+      return true;
+    })
+    .sort((x, y) => (y.pendingValue || 0) - (x.pendingValue || 0) || String(x.plate).localeCompare(String(y.plate)));
+  const pill = (key, label, count) =>
+    `<button type="button" class="simit-pill${resultFilter === key ? " is-on" : ""}" data-action="vehicles-simit-result" data-result="${key}" aria-pressed="${resultFilter === key ? "true" : "false"}"><span>${label}</span><b>${count}</b></button>`;
+  const simitFilterBar = `<div class="simit-filters">
+      <label class="simit-search">${ICO.search}<span class="visually-hidden">Buscar en SIMIT</span>
+        <input type="search" data-action="vehicles-simit-search" value="${escapeAttr(query)}" placeholder="Buscar por placa, marca, ciudad o departamento" autocomplete="off" />
       </label>
-      <div class="ops-filters-bar vehicle-fleet-status" role="group" aria-label="Estado SIMIT de la flota">
-        <button type="button" class="ops-filter-pill${resultFilter === "all" ? " is-active" : ""}" data-action="vehicles-simit-result" data-result="all" aria-pressed="${resultFilter === "all" ? "true" : "false"}"><span>Todos</span><strong>${summary.list.length}</strong></button>
-        <button type="button" class="ops-filter-pill${resultFilter === "pending" ? " is-active" : ""}" data-action="vehicles-simit-result" data-result="pending" aria-pressed="${resultFilter === "pending" ? "true" : "false"}"><span>Con pendientes</span><strong>${summary.pendingVehicleCount}</strong></button>
-        <button type="button" class="ops-filter-pill${resultFilter === "clean" ? " is-active" : ""}" data-action="vehicles-simit-result" data-result="clean" aria-pressed="${resultFilter === "clean" ? "true" : "false"}"><span>Al día</span><strong>${summary.cleanCount}</strong></button>
+      <div class="simit-pills" role="group" aria-label="Estado SIMIT de la flota">
+        ${pill("all", "Todos", summary.list.length)}${pill("pending", "Con pendientes", summary.pendingVehicleCount)}${pill("clean", "Al día", summary.cleanCount)}
       </div>
-      ${simitFiltersOn ? `<div class="vehicle-fleet-toolbar-clear"><button type="button" class="btn btn-sm btn-outline" data-action="vehicles-simit-clear">${IC.x || ""} Limpiar filtros</button></div>` : ""}
+      ${simitFiltersOn ? `<button type="button" class="simit-clear" data-action="vehicles-simit-clear">Limpiar filtros</button>` : ""}
     </div>`;
   const rows = visibleList
     .map((item) => {
       const plate = String(item.plate || item.vehicle?.plate || "—").toUpperCase();
-      const brand = `${String(item.vehicle?.brand || "").trim()} ${String(item.vehicle?.model || "").trim()}`.trim() || "—";
+      const brand = `${String(item.vehicle?.brand || "").trim()} ${String(item.vehicle?.model || "").trim()}`.trim() || "Vehículo sin marca";
       const chip = item.hasPending
-        ? `<span class="status status-rechazada">${item.pendingCount} pendiente${item.pendingCount === 1 ? "" : "s"}</span>`
-        : `<span class="status status-viaje_asignado">Al día</span>`;
-      const details = item.fines?.length
-        ? `<details class="vehicles-simit-details"><summary>Ver comparendos</summary>${D.simitFineRowsTableHtml?.(item.fines) || ""}</details>`
-        : `<span class="muted">Sin registros en este alcance</span>`;
-      return `<tr>
-        <td><strong>${escapeHtml(plate)}</strong></td>
-        <td>${escapeHtml(brand)}</td>
-        <td>${chip}</td>
-        <td>${escapeHtml(money(item.pendingValue))}</td>
-        <td>${escapeHtml(item.lastDateLabel || "—")}</td>
-        <td>${details}</td>
-      </tr>`;
+        ? `<span class="simit-chip simit-chip--bad"><i></i>${item.pendingCount} pendiente${item.pendingCount === 1 ? "" : "s"}</span>`
+        : `<span class="simit-chip simit-chip--ok"><i></i>Al día</span>`;
+      const hasFines = Boolean(item.fines?.length);
+      const detail = hasFines ? D.simitFineRowsTableHtml?.(item.fines) || "" : "";
+      const head = `<div class="simit-plate" aria-label="Placa ${escapeAttr(plate)}"><span>${escapeHtml(plate)}</span></div>
+        <div class="simit-row__who"><strong>${escapeHtml(brand)}</strong><span>${item.lastDateLabel ? `Última multa: ${escapeHtml(item.lastDateLabel)}` : "Sin registros en este alcance"}</span></div>
+        <div class="simit-row__chip">${chip}</div>
+        <div class="simit-row__value${item.pendingValue ? " is-due" : ""}"><span>Valor pendiente</span><strong>${escapeHtml(money(item.pendingValue))}</strong></div>`;
+      return hasFines
+        ? `<details class="simit-row${item.hasPending ? " is-pending" : ""}"><summary class="simit-row__head">${head}<span class="simit-row__chev" aria-hidden="true">${ICO.chevron}</span></summary><div class="simit-row__body">${detail}</div></details>`
+        : `<div class="simit-row simit-row--static"><div class="simit-row__head">${head}<span class="simit-row__chev simit-row__chev--empty" aria-hidden="true"></span></div></div>`;
     })
     .join("");
-  const table = visibleList.length
-    ? `<div class="table-wrap vehicle-fleet-list-wrap vehicles-simit-table-wrap"><table class="vehicle-fleet-table vehicles-simit-fleet-table">
-    <thead><tr><th>Placa</th><th>Vehículo</th><th>Estado SIMIT</th><th>Valor pendiente</th><th>Última multa</th><th>Detalle</th></tr></thead>
-    <tbody>${rows}</tbody>
-  </table></div>`
-    : emptyState("Ningún vehículo coincide con la búsqueda o el estado SIMIT.");
   const matchLine = simitFiltersOn
-    ? `<p class="muted vehicles-simit-meta">${visibleList.length} de ${summary.list.length} vehículos</p>`
+    ? `<p class="simit-match">${visibleList.length} de ${summary.list.length} vehículos</p>`
     : "";
-  return `${disclaimer}${toolbar}${kpis}${fetched}${truncated}${simitFilterBar}${matchLine}${table}`;
+  const list = visibleList.length
+    ? `<div class="simit-list">${rows}</div>`
+    : emptyState("Ningún vehículo coincide con la búsqueda o el estado SIMIT.");
+  return `<div class="simit-pane">${toolbar}${kpis}${truncated}${simitFilterBar}${matchLine}${list}${aboutBlock}</div>`;
 }
 
 async function ensureVehiclesSimitLoaded({ force = false } = {}) {
@@ -1341,6 +1360,19 @@ function vehiclesHtml() {
           );
         }
         notify(userMessage("vehicleRegistered"), "success");
+        {
+          const todayYmd = typeof colombiaTodayIsoDate === "function" ? colombiaTodayIsoDate() : new Date().toISOString().slice(0, 10);
+          const expiredDocs = [];
+          if (String(verdict.value.soatExpiryDate || "") < todayYmd) expiredDocs.push("SOAT");
+          if (String(verdict.value.techInspectionExpiryDate || "") < todayYmd) expiredDocs.push("tecnomecánica");
+          if (expiredDocs.length) {
+            notify(
+              `Atención: el vehículo ${String(createdVehicle.plate || "").toUpperCase()} quedó registrado con ${expiredDocs.join(" y ")} vencido. No podrá asignarse a viajes hasta renovarlo.`,
+              "warn",
+              7000
+            );
+          }
+        }
         collapseCreatePanel("create-vehicle");
         try {
           if (portalCanRefreshFromApi()) await applyPortalBootstrapFromApi();
