@@ -29,7 +29,7 @@ import {
   recalculateResourceAvailability,
   computeResourceAvailabilitySignature
 } from "./modules/domain/viajes.domain.js";
-import { initGlobalEvents } from "./modules/core/events.js?v=20261015-usr";
+import { initGlobalEvents } from "./modules/core/events.js?v=20261015-delguard";
 
 /**
  * Definidas en `portal-runtime.js` (módulo ES); se exponen en `window` al final de ese archivo.

@@ -3943,10 +3943,10 @@ async function resolvePreviewObjectUrl(doc) {
   return URL.createObjectURL(new Blob([buffer], { type: mime }));
 }
 
-const MAMMOTH_CDN = "https://cdn.jsdelivr.net/npm/mammoth@1.9.0/mammoth.browser.min.js";
+const MAMMOTH_CDN = "./vendor/mammoth-1.9.0.browser.min.js";
 let mammothLoadPromise = null;
-const PDFJS_CDN = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
-const PDFJS_WORKER_CDN = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+const PDFJS_CDN = "./vendor/pdfjs-3.11.174.min.js";
+const PDFJS_WORKER_CDN = "./vendor/pdfjs-worker-3.11.174.min.js";
 let pdfJsLoadPromise = null;
 
 function ensurePdfJs() {

@@ -997,7 +997,7 @@ async function ensureHtml2CanvasLoaded() {
       s.async = true;
       s.crossOrigin = "anonymous";
       s.referrerPolicy = "no-referrer";
-      s.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+      s.src = "./vendor/html2canvas-1.4.1.min.js";
       s.onload = () => resolve(window.html2canvas);
       s.onerror = () => reject(new Error("No se pudo cargar html2canvas"));
       document.head.appendChild(s);
@@ -2016,7 +2016,7 @@ function bindPayrollPortalControls() {
             if (!refreshed) {
               await applyPortalBootstrapFromApi({ skipSecondaryHydration: true });
             }
-          } catch (_e) {}
+          } catch (_e) { window.AntaresLogSilentError?.("gestion-humana.js:2019", _e); }
         }
         state.payrollUi = {
           ...(state.payrollUi || { runSort: "recent" }),
@@ -2486,7 +2486,7 @@ function bindPayrollPortalControls() {
             if (portalCanRefreshFromApi()) {
               try {
                 await applyPortalBootstrapFromApi();
-              } catch (_e) {}
+              } catch (_e) { window.AntaresLogSilentError?.("gestion-humana.js:2489", _e); }
             }
             notify(
               nextPayload.workerRole === "conductor"
@@ -2829,6 +2829,26 @@ function bindPayrollPortalControls() {
     const defaultCat =
       (typeof payrollEmployeeUnlinkCategory === "function" ? payrollEmployeeUnlinkCategory(first) : "") ||
       "renuncia_voluntaria";
+    if (!recategorize && typeof resolveDriverForEmployee === "function") {
+      /* Un conductor con viajes sin finalizar no debe desvincularse sin reasignar esos viajes. */
+      const finalStatuses = ["Completada", "Cerrada", "Cancelada", "Rechazada"];
+      const liveRequests = reqRead().filter(
+        (request) => request.trip && !finalStatuses.includes(String(request.status || ""))
+      );
+      for (const id of ids) {
+        const emp = read(KEYS.payrollEmployees, []).find((row) => String(row.id) === id);
+        const drv = emp ? resolveDriverForEmployee(emp) : null;
+        if (!drv) continue;
+        const busy = liveRequests.filter((request) => String(request.trip?.driverId || "") === String(drv.id));
+        if (busy.length > 0) {
+          notify(
+            `No se puede desvincular a ${String(emp.name || "el conductor")}: tiene ${busy.length} viaje(s) activo(s). Reasigna o cancela esos viajes primero.`,
+            "error"
+          );
+          return;
+        }
+      }
+    }
     const names = ids
       .map((id) => read(KEYS.payrollEmployees, []).find((row) => String(row.id) === id)?.name)
       .filter(Boolean);

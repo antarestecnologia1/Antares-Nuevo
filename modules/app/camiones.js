@@ -1256,6 +1256,25 @@ function vehiclesHtml() {
         if (abortUnlessCanDeleteVehicle()) return;
         const vehicleId = String(btn.dataset.id || "");
         if (!vehicleId) return;
+        /* Viajes aún vivos (no finalizados) con este camión: eliminarlo los dejaría sin vehículo y con estado "Viaje asignado". */
+        const finalTripStatuses = ["Completada", "Cerrada", "Cancelada", "Rechazada"];
+        const liveTrips = reqRead().filter(
+          (request) =>
+            request.trip &&
+            String(request.trip.vehicleId || "") === vehicleId &&
+            !finalTripStatuses.includes(String(request.status || ""))
+        );
+        if (liveTrips.length > 0) {
+          const labels = liveTrips
+            .slice(0, 5)
+            .map((request) => String(request.trip?.tripNumber || request.requestNumber || request.id))
+            .join(", ");
+          notify(
+            `No se puede eliminar: el camión tiene ${liveTrips.length} viaje(s) activo(s) (${labels}${liveTrips.length > 5 ? ", …" : ""}). Reasigna o cancela esos viajes primero.`,
+            "error"
+          );
+          return;
+        }
         openConfirmModal({
           title: "Eliminar camión",
           message: "Se eliminará del catálogo y se limpiará su referencia en los viajes históricos.",
@@ -1377,7 +1396,7 @@ function vehiclesHtml() {
         collapseCreatePanel("create-vehicle");
         try {
           if (portalCanRefreshFromApi()) await applyPortalBootstrapFromApi();
-        } catch (_e) {}
+        } catch (_e) { window.AntaresLogSilentError?.("camiones.js:1399", _e); }
         const refreshedVehicle = read(KEYS.vehicles, []).find((v) => String(v.id) === String(createdVehicle.id));
         const createActor = getPortalAuditActorLabel();
         if (refreshedVehicle?.updatedAt && createActor) {

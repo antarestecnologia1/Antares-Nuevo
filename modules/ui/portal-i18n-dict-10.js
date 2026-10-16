@@ -1,5 +1,10 @@
 /* Diccionario ES→EN del portal interno (parte 10: placeholders y textos de ayuda restantes). */
 (window.__PORTAL_I18N_PARTS = window.__PORTAL_I18N_PARTS || []).push({
+  "Cambiar estado": "Change status",
+  "Buscar conductor": "Search driver",
+  "Estado documental": "Document status",
+  "Ver viaje": "View trip",
+  "Vence hoy": "Expires today",
   "Entrega estimada desde la recogida:": "Estimated delivery from pickup:",
   "Entrega estimada desde la recogida": "Estimated delivery from pickup",
   "+1 día": "+1 day",

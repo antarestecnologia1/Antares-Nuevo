@@ -2240,7 +2240,7 @@ async function refreshDriverTripPaymentLinked(employeeId, periodYm, opts = {}) {
     if (opts.bootstrap !== false) {
       try {
         await applyPortalBootstrapFromApi();
-      } catch (_e) {}
+      } catch (_e) { window.AntaresLogSilentError?.("portal-runtime.js:2243", _e); }
     }
     return result;
   } catch (err) {
@@ -2267,7 +2267,7 @@ async function refreshPayrollDraftsLinked(employeeId, startDate, endDate, opts =
     if (opts.bootstrap !== false) {
       try {
         await applyPortalBootstrapFromApi();
-      } catch (_e) {}
+      } catch (_e) { window.AntaresLogSilentError?.("portal-runtime.js:2270", _e); }
     }
     return result;
   } catch (err) {
@@ -6505,7 +6505,7 @@ async function setDriverAvailability(driverId, available) {
     if (portalCanRefreshFromApi()) {
       try {
         await applyPortalBootstrapFromApi();
-      } catch (_e) {}
+      } catch (_e) { window.AntaresLogSilentError?.("portal-runtime.js:6508", _e); }
       const refreshed = read(KEYS.drivers, []).find((d) => String(d.id ?? "").trim() === key);
       if (refreshed?.updatedAt) {
         recordEntityHistoryActor(
@@ -7121,7 +7121,7 @@ async function approveRequest(
         await globalThis.refreshNotificationsFromServer();
       }
       await writeAwaitServerLatestQueuedEmail();
-    } catch (_e) {}
+    } catch (_e) { window.AntaresLogSilentError?.("portal-runtime.js:7124", _e); }
   }
   return true;
 }
@@ -7159,7 +7159,7 @@ async function rejectRequest(requestId, reason, actorName) {
         await globalThis.refreshNotificationsFromServer();
       }
       await writeAwaitServerLatestQueuedEmail();
-    } catch (_e) {}
+    } catch (_e) { window.AntaresLogSilentError?.("portal-runtime.js:7162", _e); }
   }
 }
 

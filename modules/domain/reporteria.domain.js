@@ -482,8 +482,8 @@ export async function getReportBrandLogoDataUrl() {
   return reportBrandLogoDataUrlPromise;
 }
 
-const JSPDF_CDN = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
-const JSPDF_AUTOTABLE_CDN = "https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js";
+const JSPDF_CDN = "./vendor/jspdf-2.5.1.umd.min.js";
+const JSPDF_AUTOTABLE_CDN = "./vendor/jspdf-autotable-3.8.2.min.js";
 let jsPdfLoadPromise = null;
 
 function loadVendorScriptOnce(src) {
@@ -744,7 +744,7 @@ export function loadChartJsLib() {
       return;
     }
     const s = document.createElement("script");
-    s.src = "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js";
+    s.src = "./vendor/chart-4.4.1.umd.js";
     s.crossOrigin = "anonymous";
     s.referrerPolicy = "no-referrer";
     s.dataset.antaresChartjs = "1";

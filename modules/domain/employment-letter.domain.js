@@ -650,7 +650,7 @@ function buildEmploymentLetterDocxXml(doc, { signatureRelId = "" } = {}) {
 </w:document>`;
 }
 
-const JSZIP_CDN = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+const JSZIP_CDN = "./vendor/jszip-3.10.1.min.js";
 let jsZipLetterLoadPromise = null;
 
 function loadJsZipScriptOnce() {
@@ -775,7 +775,7 @@ async function ensureHtml2CanvasLoaded() {
   if (typeof window.html2canvas === "function") return window.html2canvas;
   if (!window.__antaresHtml2CanvasPromise) {
     window.__antaresHtml2CanvasPromise = loadVendorScriptOnceLocal(
-      "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"
+      "./vendor/html2canvas-1.4.1.min.js"
     )
       .then(() => window.html2canvas)
       .catch((err) => {

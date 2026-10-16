@@ -98,7 +98,7 @@
     <link rel="stylesheet" href="./styles.landing.css?v=20260831-idle-banner" />
     <link
       rel="stylesheet"
-      href="./styles.css?v=20261013-modal-back"
+      href="./styles.css?v=20261015-cal"
     />
     <link rel="stylesheet" href="./styles/portal-ops-card.css?v=20261015-cal" />
     <link rel="stylesheet" href="./styles/portal-buttons.css?v=20260701-btn-guard" />
@@ -129,7 +129,7 @@
     <link rel="stylesheet" href="./styles/portal-modern.css?v=20261005b-modern-v2" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/auth-modal.css?v=20260715-registration-kind" />
     <noscript>
-    <link rel="stylesheet" href="./styles.css?v=20261013-modal-back" />
+    <link rel="stylesheet" href="./styles.css?v=20261015-cal" />
     <link rel="stylesheet" href="./styles/auth-modal.css?v=20260715-registration-kind" />
     <link rel="stylesheet" href="./styles/portal-ops-card.css?v=20261015-cal" />
     <link rel="stylesheet" href="./styles/portal-buttons.css?v=20260701-btn-guard" />
@@ -1432,10 +1432,10 @@
     <script defer src="./modules/ui/portal-i18n-dict-7.js?v=20261014-i18n2"></script>
     <script defer src="./modules/ui/portal-i18n-dict-8.js?v=20261014-i18n2"></script>
     <script defer src="./modules/ui/portal-i18n-dict-9.js?v=20261014-i18n2"></script>
-    <script defer src="./modules/ui/portal-i18n-dict-10.js?v=20261015-i18n8"></script>
-    <script defer src="./modules/ui/portal-i18n.js?v=20261015-i18n5"></script>
+    <script defer src="./modules/ui/portal-i18n-dict-10.js?v=20261015-i18n9"></script>
+    <script defer src="./modules/ui/portal-i18n.js?v=20261015-i18n10"></script>
     <script defer src="./modules/core/portal-data-layer.js"></script>
-    <script defer src="./modules/core/portal-sync.js?v=20260623-sync-fix3"></script>
+    <script defer src="./modules/core/portal-sync.js?v=20261015-unsaved"></script>
     <!-- Vistas del portal estático (registran window.AppModules.*); Next.js vive en apps/web/app -->
     <script defer src="./modules/portal/views/dashboard.js"></script>
     <script defer src="./modules/portal/views/solicitudes.js"></script>
@@ -1467,7 +1467,7 @@
     <script defer src="./modules/app/portal-icons.js?v=20260930-eye-toggle-icon"></script>
     <script type="module" src="./modules/portal/legacy-views-bridge.js"></script>
     <script defer src="./modules/payroll/portal-employee-list-sync.js"></script>
-    <script defer src="./modules/recruitment/contracts-docx.js?v=20260804-hire-dms"></script>
+    <script defer src="./modules/recruitment/contracts-docx.js?v=20261015-vendor"></script>
     <script type="module">
       import * as AntaresConfig from "./modules/core/config.js";
       import * as AntaresUtils from "./modules/core/utils.js";
@@ -1586,33 +1586,33 @@
       import * as AntaresSchedulePicker from "./modules/ui/portal-schedule-picker.js?v=20261014-tw2";
       Object.assign(window, AntaresUIComponents, AntaresUIModals, AntaresI18n, AntaresSchedulePicker);
     </script>
-    <script type="module" src="./modules/core/portal-runtime.js?v=20261015-avail"></script>
+    <script type="module" src="./modules/core/portal-runtime.js?v=20261015-silent"></script>
     <script defer src="./modules/app/portal-transport-modals.js?v=20261015-avail"></script>
     <script defer src="./modules/app/portal-rrhh-modals.js?v=20261013-hiring-flow"></script>
     <!-- Vistas legacy (`registerLegacyPortalViews`); deben ejecutarse antes de `app.js` para que el primer `renderPortal()` resuelva HTML. `viajes.js` antes de `mis-solicitudes.js` por `RENDER_WINDOW_SIZE`. -->
-    <script defer src="./modules/app/dashboard.js"></script>
-    <script defer src="./modules/app/viajes.js?v=20261013-trips-ui"></script>
+    <script defer src="./modules/app/dashboard.js?v=20261015-tabs"></script>
+    <script defer src="./modules/app/viajes.js?v=20261015-silent"></script>
     <script defer src="./modules/app/solicitudes-html.js?v=20261013-requests-ui"></script>
     <script defer src="./modules/app/mis-solicitudes.js?v=20261014-req2"></script>
     <script defer src="./modules/app/camiones-html.js?v=20261013-vehicle-forms"></script>
-    <script defer src="./modules/app/camiones.js?v=20261015-avail"></script>
-    <script defer src="./modules/app/conductores.js?v=20261015-avail"></script>
+    <script defer src="./modules/app/camiones.js?v=20261015-delguard"></script>
+    <script defer src="./modules/app/conductores.js?v=20261015-silent"></script>
     <script defer src="./modules/app/calendario.js?v=20261015-cal"></script>
     <script defer src="./modules/app/historial.js"></script>
     <script defer src="./modules/app/reporteria.js"></script>
     <script defer src="./modules/app/gestion-humana-html.js?v=20261014-emp-page-size3"></script>
-    <script defer src="./modules/app/gestion-humana.js?v=20261014-emp-page-size3"></script>
+    <script defer src="./modules/app/gestion-humana.js?v=20261015-drvguard"></script>
     <script defer src="./modules/app/rrhh-candidate-attachments.js?v=20260804-cv-r2"></script>
     <script defer src="./modules/app/contratacion-html.js?v=20261013-module-filters"></script>
-    <script defer src="./modules/app/contratacion.js?v=20261013-module-filters"></script>
+    <script defer src="./modules/app/contratacion.js?v=20261015-silent"></script>
     <script type="module" src="./modules/app/cumplimiento-laboral.js"></script>
-    <script type="module" src="./modules/app/gestion-documental.js?v=20261014-dms-notice"></script>
+    <script type="module" src="./modules/app/gestion-documental.js?v=20261015-vendor"></script>
     <script type="module" src="./modules/app/sarlaft.js?v=20260917b-login-scan-shield"></script>
     <script defer src="./modules/app/contacto-b2b.js?v=20261013-b2b-cred"></script>
     <script defer src="./modules/app/usuarios-permisos.js?v=20261015-nit"></script>
-    <script defer src="./modules/app/autorizaciones.js?v=20261014-plural"></script>
+    <script defer src="./modules/app/autorizaciones.js?v=20261015-silent"></script>
     <script defer src="./modules/app/mi-perfil.js?v=20261015-xss"></script>
     <script type="module" src="./modules/app/notificaciones.js?v=20261013-notif-fix"></script>
-    <script type="module" src="./app.js?v=20261015-usr"></script>
+    <script type="module" src="./app.js?v=20261015-delguard"></script>
   </body>
 </html>

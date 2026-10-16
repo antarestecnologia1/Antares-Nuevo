@@ -580,7 +580,7 @@ function bindAuthorizationsPortalControls() {
         await refreshPayrollDraftsLinked(employeeId, null, null, { notifyOnError: false });
         try {
           if (portalCanRefreshFromApi()) await applyPortalBootstrapFromApi();
-        } catch (_e) {}
+        } catch (_e) { window.AntaresLogSilentError?.("autorizaciones.js:583", _e); }
       } else if (approval.type === "create_driver") {
         const drivers = read(KEYS.drivers, []);
         const newDriverDoc = payrollDocDedupKeyForAuth(approval.payload?.documentType, approval.payload?.idDoc);
@@ -666,7 +666,7 @@ function bindAuthorizationsPortalControls() {
         }
         try {
           if (portalCanRefreshFromApi()) await applyPortalBootstrapFromApi();
-        } catch (_e) {}
+        } catch (_e) { window.AntaresLogSilentError?.("autorizaciones.js:669", _e); }
       } else if (approval.type === "register_hr_absence") {
         const absenceRow = {
           ...approval.payload,

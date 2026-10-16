@@ -1826,7 +1826,7 @@ function bindHiringPortalControls() {
       sendEmail({ to: data.email, subject: "Registro recibido", body: "Gracias por aplicar." });
       try {
         await writeAwaitServerLatestQueuedEmail();
-      } catch (_e) {}
+      } catch (_e) { window.AntaresLogSilentError?.("contratacion.js:1829", _e); }
       state.hiringUi = state.hiringUi || { candidateFilter: "active", vacancyFilter: "open", candidateSort: "recent", workspace: "operate" };
       state.hiringUi.candidateFilter = "active";
       state.hiringUi.workspace = "data";
@@ -1884,7 +1884,7 @@ function bindHiringPortalControls() {
       });
       try {
         await writeAwaitServerLatestQueuedEmail();
-      } catch (_e) {}
+      } catch (_e) { window.AntaresLogSilentError?.("contratacion.js:1887", _e); }
     }
     const successMsg =
       nextStage === "Entrevistado"
@@ -2074,7 +2074,7 @@ function bindHiringPortalControls() {
       });
       try {
         await writeAwaitServerLatestQueuedEmail();
-      } catch (_e) {}
+      } catch (_e) { window.AntaresLogSilentError?.("contratacion.js:2077", _e); }
       appendPortalEntityAuditLog(
         "create",
         "hiring",
@@ -3088,7 +3088,7 @@ function bindHiringPortalControls() {
         });
         try {
           await writeAwaitServerLatestQueuedEmail();
-        } catch (_e) {}
+        } catch (_e) { window.AntaresLogSilentError?.("contratacion.js:3091", _e); }
       }
       close();
       notify(userMessage("candidateOfferSentOk"), "success");

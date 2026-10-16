@@ -1151,9 +1151,21 @@ function bindDynamicEvents() {
         $portal.notify($portal.userMessage("companyDeleteBlockedUsers"), "error");
         return;
       }
+      const finalReqStatuses = ["Completada", "Cerrada", "Cancelada", "Rechazada"];
+      const companyReqs = reqRead().filter(
+        (r) => String(r.clientCompanyId || r.companyId || "") === companyId
+      );
+      const liveReqs = companyReqs.filter((r) => !finalReqStatuses.includes(String(r.status || "")));
+      if (liveReqs.length > 0) {
+        $portal.notify(
+          `No se puede eliminar la empresa: tiene ${liveReqs.length} solicitud(es) o viaje(s) sin finalizar. Finalízalos o cancélalos primero.`,
+          "error"
+        );
+        return;
+      }
       $portal.openConfirmModal({
         title: "Eliminar empresa",
-        message: `Eliminar permanentemente "${String(target.name || "").trim()}" del sistema.`,
+        message: `Eliminar permanentemente "${String(target.name || "").trim()}" del sistema.${companyReqs.length ? ` Tiene ${companyReqs.length} solicitud(es) histórica(s) que quedarán sin empresa asociada.` : ""}`,
         confirmText: "Eliminar",
         onConfirm: async () => {
           try {
@@ -3142,7 +3154,7 @@ function bindDynamicEvents() {
           });
           try {
             await applyPortalBootstrapFromApi();
-          } catch (_e) {}
+          } catch (_e) { window.AntaresLogSilentError?.("events.js:3157", _e); }
           $portal.notify("Solicitud eliminada.", "success");
           renderPortalView();
         }
@@ -4268,7 +4280,7 @@ function openPublicVacancyApplyModal(vacancy) {
       });
       try {
         await writeAwaitServerLatestQueuedEmail();
-      } catch (_e) {}
+      } catch (_e) { window.AntaresLogSilentError?.("events.js:4283", _e); }
       $portal.notifyHrUsers(
         "Nueva postulacion (web)",
         `${nm} aplico a "${vacLocal.title}". Revise Contratacion · Pipeline de candidatos.`

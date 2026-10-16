@@ -821,7 +821,7 @@ function driversHtml() {
         notify(userMessage("driverCreated"), "success");
         try {
           if (portalCanRefreshFromApi()) await applyPortalBootstrapFromApi();
-        } catch (_e) {}
+        } catch (_e) { window.AntaresLogSilentError?.("conductores.js:824", _e); }
         const refreshedCreate = read(KEYS.drivers, []).find((d) => String(d.id) === String(createdDriver.id));
         const createActor = getPortalAuditActorLabel();
         if (refreshedCreate?.updatedAt && createActor) {
@@ -1069,7 +1069,7 @@ function driversHtml() {
             if (portalCanRefreshFromApi()) {
               try {
                 await applyPortalBootstrapFromApi();
-              } catch (_e) {}
+              } catch (_e) { window.AntaresLogSilentError?.("conductores.js:1072", _e); }
             }
             const refreshedUpdate = read(KEYS.drivers, []).find(
               (row) => String(row.id ?? "").trim() === String(target.id ?? "").trim()

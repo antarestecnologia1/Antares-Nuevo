@@ -1707,7 +1707,7 @@ function transportTripsHtml() {
             });
             try {
               await applyPortalBootstrapFromApi();
-            } catch (_e) {}
+            } catch (_e) { window.AntaresLogSilentError?.("viajes.js:1710", _e); }
             notify(userMessage("tripRemoved"), "success");
             renderPortalView();
           }

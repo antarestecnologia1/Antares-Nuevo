@@ -31,7 +31,7 @@
   ]);
 
   const BACKEND_TEMPLATE_PATH = "/api/uploads/contract-template";
-  const JSZIP_CDN = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+  const JSZIP_CDN = "./vendor/jszip-3.10.1.min.js";
 
   /**
    * Descarga el binario de la plantilla. Si hay backend con JWT (Cloudflare R2

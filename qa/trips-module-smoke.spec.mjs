@@ -28,6 +28,8 @@ const nextWeek2 = plusDays(8);
 
 const adminUser = {
   id: "admin-1",
+  requiresDataPolicyAcceptance: false,
+  requiresTermsAcceptance: false,
   name: "Admin QA",
   email: "admin.qa@antares.test",
   role: "admin",
@@ -104,6 +106,8 @@ const seedStore = {
       license: "C2-8899",
       licenseCategory: "C2",
       licenseExpiry: ymd(plusDays(180)),
+      occupationalExamDate: ymd(plusDays(-100)),
+      instruvialExamDate: ymd(plusDays(-100)),
       eps: "Sura",
       arl: "Sura",
       city: "Bogota D.C.",
@@ -253,7 +257,8 @@ test("transport trips flow smoke", async ({ page, context }) => {
 
   await gotoView("transport-trips");
   await ensureCreatePanelOpen("create-trip");
-  await page.locator('#form-create-trip select[name="requestId"]').selectOption("req-trip-create");
+  /* El paso 1 del asistente es ahora un selector de tarjetas de solicitud. */
+  await page.locator("button.trip-request-card", { hasText: "SOL-002" }).first().click();
   await page.waitForFunction(() => {
     const vehicleOptions = [...document.querySelectorAll('#form-create-trip select[name="vehicleId"] option')];
     const driverOptions = [...document.querySelectorAll('#form-create-trip select[name="driverId"] option')];
@@ -263,7 +268,7 @@ test("transport trips flow smoke", async ({ page, context }) => {
   await page.locator('#form-create-trip select[name="vehicleId"]').selectOption("veh-1");
   await page.locator('#form-create-trip select[name="driverId"]').selectOption("drv-1");
   await page.locator('#form-create-trip input[name="tripValue"]').fill("1450000");
-  await page.locator('#form-create-trip button[type="submit"]').click();
+  await page.locator("#form-create-trip button", { hasText: "Crear viaje" }).first().click();
   await waitForStore(
     (key) => {
       const rows = window.AntaresPersistence?.read

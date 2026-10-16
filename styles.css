@@ -29524,7 +29524,8 @@ body[data-theme="dark"] .admin-users-command-card__meta span {
   margin: 0.1rem 0 0.2rem;
   color: #fff;
   font-size: 1.5rem;
-  text-transform: capitalize;
+  /* El texto ya llega con solo la inicial del mes en mayúscula ("Octubre de 2026"). */
+  text-transform: none;
 }
 
 .calendar-title-block {
@@ -38822,4 +38823,44 @@ body[data-theme="dark"] #auth-modal .module-panel-btn--close {
   #auth-modal .modal-card-auth::after {
     animation: none !important;
   }
+}
+
+
+/* Móvil: objetivos táctiles mínimos (chips, filtros y enlaces pequeños) */
+@media (max-width: 720px) {
+  .at-chip,
+  .at-stats-chip,
+  .at-stats-clear,
+  .at-activity-link,
+  .ntf-filter-btn,
+  .reports-bi-chip,
+  .hist-trace-layout-btn,
+  .acf-date-preset,
+  .acf-time-preset,
+  .doc-trash-link,
+  .ag-link-btn,
+  .ntf-operate__rail-toggle,
+  .req-operate__rail-toggle,
+  .doc-cat-card__perms {
+    min-height: 36px;
+    min-width: 36px;
+  }
+  .at-trip-link,
+  .ag-pass__phone {
+    display: inline-flex;
+    align-items: center;
+    min-height: 36px;
+  }
+}
+
+
+/* Calendario en móvil: la vista mensual muestra barras de color (el detalle está en "+N más" y en el panel del día) */
+@media (max-width: 640px) {
+  .cal-cell { overflow: hidden; }
+  .cal-days--view-month .cal-event-time { display: none; }
+  .cal-days--view-month .cal-events { gap: 3px; }
+  .cal-days--view-month .cal-event { min-height: 8px; height: 8px; padding: 0; border-radius: 3px; }
+  .cal-days--view-month .cal-more { font-size: 0.62rem; line-height: 1.1; }
+  .calendar-side-grid .hr-data-card__head { flex-wrap: wrap; gap: 0.4rem; }
+  .calendar-side-grid .hr-data-card__stat { max-width: 100%; flex-shrink: 1; }
 }

@@ -1243,9 +1243,13 @@ body[data-theme="dark"] .at-kpi__icon {
   border-radius: var(--nx-r-lg);
   background: color-mix(in srgb, var(--nx-surface-3) 70%, var(--nx-bg));
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.12);
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+.at-tabs::-webkit-scrollbar { display: none; }
 .at-tab {
-  flex: 1;
+  flex: 1 0 auto;
+  white-space: nowrap;
   padding: 10px 14px;
   font-size: 12px;
   font-weight: 600;

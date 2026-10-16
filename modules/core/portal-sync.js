@@ -31,6 +31,72 @@
   /** Evita que un `setTimeout(0)` antiguo dispare sync tras `flushStorageKeyNow`. */
   const scheduleGeneration = {};
   let bootstrapDepth = 0;
+  /** Guardados en curso y guardados en segundo plano que fallaron (clave de almacenamiento → true). */
+  let inflightCount = 0;
+  const unsavedKeys = {};
+
+  function unsavedBannerEl() {
+    let el = document.getElementById("portal-unsaved-banner");
+    if (el) return el;
+    if (!document.body) return null;
+    el = document.createElement("div");
+    el.id = "portal-unsaved-banner";
+    el.setAttribute("role", "alert");
+    el.style.cssText =
+      "position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:10000;max-width:calc(100vw - 32px);" +
+      "display:none;align-items:center;gap:12px;padding:10px 14px;background:#fff;color:#7a1f1f;" +
+      "border:1px solid #e3b4b4;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.16);font:500 14px/1.35 system-ui,sans-serif";
+    el.innerHTML =
+      '<span>Hay cambios sin guardar en el servidor.</span>' +
+      '<button type="button" data-unsaved-retry style="border:0;border-radius:8px;padding:6px 12px;background:#0b5cab;color:#fff;font:600 13px system-ui,sans-serif;cursor:pointer;min-height:32px">Reintentar</button>';
+    el.querySelector("[data-unsaved-retry]").addEventListener("click", function () {
+      void retryUnsaved();
+    });
+    document.body.appendChild(el);
+    return el;
+  }
+
+  function refreshUnsavedBanner() {
+    try {
+      const el = unsavedBannerEl();
+      if (!el) return;
+      el.style.display = Object.keys(unsavedKeys).length > 0 ? "flex" : "none";
+    } catch (_e) {
+      /* noop */
+    }
+  }
+
+  async function retryUnsaved() {
+    const keys = Object.keys(unsavedKeys);
+    for (const storageKey of keys) {
+      const entity = STORAGE_TO_ENTITY[storageKey];
+      const data = resolveSyncPayloadForStorageKey(storageKey, undefined);
+      if (!entity || data === undefined || data === null) {
+        delete unsavedKeys[storageKey];
+        continue;
+      }
+      try {
+        await flush(entity, data, { notifyOnFailure: false, __storageKey: storageKey });
+        delete unsavedKeys[storageKey];
+      } catch (_e) {
+        /* sigue pendiente: el aviso permanece visible */
+      }
+    }
+    refreshUnsavedBanner();
+    if (Object.keys(unsavedKeys).length === 0 && typeof window.notify === "function") {
+      window.notify("Cambios guardados en el servidor.", "success");
+    }
+  }
+
+  window.addEventListener("beforeunload", function (event) {
+    if (inflightCount > 0 || Object.keys(unsavedKeys).length > 0) {
+      event.preventDefault();
+      event.returnValue = "";
+    }
+  });
+  window.addEventListener("online", function () {
+    if (Object.keys(unsavedKeys).length > 0) void retryUnsaved();
+  });
 
   const EXCLUDED_STORAGE_KEYS = new Set(["antares_session_v2"]);
   /**
@@ -96,9 +162,22 @@
       delete timers[storageKey];
       const data = resolveSyncPayloadForStorageKey(storageKey, stalePending);
       if (data === undefined || data === null) return;
-      void flush(entity, data, { notifyOnFailure: true }).catch((err) => {
-        logPortalSyncFailure(entity, err);
-      });
+      void flush(entity, data, { notifyOnFailure: true })
+        .then(() => {
+          if (unsavedKeys[storageKey]) {
+            delete unsavedKeys[storageKey];
+            refreshUnsavedBanner();
+          }
+        })
+        .catch((err) => {
+          logPortalSyncFailure(entity, err);
+          const status = err && typeof err === "object" && typeof err.status === "number" ? err.status : 0;
+          /* Solo fallos transitorios (red / 5xx): un 4xx es un rechazo del servidor y reintentar no lo arregla. */
+          if (status === 0 || status >= 500) {
+            unsavedKeys[storageKey] = true;
+            refreshUnsavedBanner();
+          }
+        });
     }, DEBOUNCE_MS);
   }
 
@@ -170,6 +249,17 @@
     const notifyOnFailure = opts.notifyOnFailure !== false;
     const api = window.AntaresApi;
     if (!api?.isConfigured?.()) return;
+    var lastErr = null;
+    inflightCount += 1;
+    try {
+      return await flushAttempts(entity, data, opts, notifyOnFailure);
+    } finally {
+      inflightCount = Math.max(0, inflightCount - 1);
+    }
+  }
+
+  async function flushAttempts(entity, data, opts, notifyOnFailure) {
+    const api = window.AntaresApi;
     var lastErr = null;
     for (var attempt = 0; attempt < 3; attempt += 1) {
       if (attempt > 0) {
@@ -318,6 +408,21 @@
     }
     await flush(entity, data);
   }
+
+  /**
+   * Errores tragados a propósito (p. ej. refresco posterior a un guardado): se conservan en
+   * `window.__antaresErrorLog` (últimos 50) y se imprimen solo en modo depuración.
+   */
+  window.AntaresLogSilentError = function (where, err) {
+    try {
+      const log = (window.__antaresErrorLog = window.__antaresErrorLog || []);
+      log.push({ at: new Date().toISOString(), where: String(where || ""), message: String((err && err.message) || err || "") });
+      if (log.length > 50) log.shift();
+      if (window.__ANTARES_DEBUG_SYNC__ === true || window.__ANTARES_ALLOW_DEV_CONSOLE__ === true) console.warn("[Antares] error ignorado", where, err);
+    } catch (_e) {
+      /* noop */
+    }
+  };
 
   window.AntaresPortalSync = {
     schedule,
