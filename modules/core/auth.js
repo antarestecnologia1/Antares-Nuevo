@@ -3795,7 +3795,7 @@ export function bindAuthForms() {
       write(KEYS.users, users);
       sendEmail({
         to: data.email,
-        subject: "Registro recibido - Antares Portal",
+        subject: "Registro recibido - Transportes Antares",
         body: "Tu solicitud de registro fue recibida. Un administrador revisara tu cuenta y te notificaremos cuando sea aprobada."
       });
       window.notifyAdminUsers(

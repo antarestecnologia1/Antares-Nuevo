@@ -503,7 +503,7 @@ function docxParagraph(text, { bold = false, center = false, spacingAfter = 160 
 
 function employmentLetterDisclaimer(kind) {
   const base =
-    "Documento generado desde Antares con la firma digitalizada del representante legal registrada en el sistema.";
+    "Documento generado desde Transportes Antares con la firma digitalizada del representante legal registrada en el sistema.";
   const stamp = " Estampe sello de la empresa únicamente si la entidad receptora lo exige.";
   if (kind === "retiro") {
     return `${base}${stamp} Certificado expedido en cumplimiento del artículo 57, numeral 7, del Código Sustantivo del Trabajo (tiempo de servicio, índole de la labor y salario). Valide causal, montos y finiquito con abogado laboral antes de entregar.`;
@@ -867,7 +867,7 @@ export async function buildEmploymentLetterPdfBlob(employee, opts = {}) {
       title: "Carta laboral",
       subject: "Certificación laboral",
       author: "Transportes Antares",
-      creator: "Antares"
+      creator: "Transportes Antares"
     });
 
     return {

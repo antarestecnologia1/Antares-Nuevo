@@ -547,7 +547,7 @@ export async function exportCatalogReportPdf(report, meta = {}) {
     title: titleText,
     subject: "Reporte operativo",
     author: "Transportes Antares",
-    creator: "Antares"
+    creator: "Transportes Antares"
   });
 
   const metaParts = [`Generado: ${generatedAt}`];
@@ -1071,7 +1071,7 @@ ${
 }
 ${chartBlocks ? `<tr><td colspan="4" class="xls-section-title">Visualizaciones (gráficas + datos)</td></tr>` : ""}
 ${chartBlocks}
-<tr><td colspan="4" class="xls-meta">Exportado desde Antares · Mismos criterios que el panel BI · ${reportsBiExcelEsc(snapshot.periodLabel)}</td></tr>
+<tr><td colspan="4" class="xls-meta">Exportado desde Transportes Antares · Mismos criterios que el panel BI · ${reportsBiExcelEsc(snapshot.periodLabel)}</td></tr>
 <tr><td colspan="4" class="xls-foot">${copyrightText}</td></tr>
 </table>
 </body></html>`;

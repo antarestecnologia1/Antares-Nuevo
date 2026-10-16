@@ -303,14 +303,14 @@ export function openTripInvoicePdf(requestId) {
           <div class="muted">Generada: ${escapeHtml(fmtDate(invoice.generatedAt))}</div>
         </div>
         <div>
-          <strong>${escapeHtml(invoice.issuer)}</strong><br />
-          <span class="muted">NIT 900.000.000-0</span>
+          <strong>${escapeHtml(/^antares\b/i.test(String(invoice.issuer || "")) ? "Transportes Antares S.A.S" : String(invoice.issuer || "Transportes Antares S.A.S"))}</strong><br />
+          <span class="muted">NIT 900.830.324-7</span>
         </div>
       </div>
       <div class="grid">
         <div class="box">
           <strong>Cliente</strong><br />
-          ${escapeHtml(request.clientName || "-")}<br />
+          ${escapeHtml(/^antares$/i.test(String(request.clientName || "").trim()) ? "Transportes Antares" : request.clientName || "-")}<br />
           <span class="muted">Solicitud: ${escapeHtml(request.requestNumber || request.id)}</span>
         </div>
         <div class="box">
@@ -331,7 +331,7 @@ export function openTripInvoicePdf(requestId) {
         <div><span>IVA (${Math.round(invoice.ivaRate * 100)}%)</span><strong>$${invoice.ivaValue.toLocaleString("es-CO")}</strong></div>
         <div class="grand"><span>Total</span><span>$${invoice.total.toLocaleString("es-CO")}</span></div>
       </div>
-      <p class="muted" style="margin-top:18px">Documento generado automaticamente por Antares. Esta factura refleja el cierre operacional del viaje.</p>
+      <p class="muted" style="margin-top:18px">Documento generado automaticamente por Transportes Antares. Esta factura refleja el cierre operacional del viaje.</p>
     </div>
     <script>window.print()</script>
   </body>

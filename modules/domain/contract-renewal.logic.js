@@ -390,7 +390,7 @@ export function buildNonRenewalNoticeLetterHtml(employee, opts = {}) {
     Representante legal / Gestión humana<br />
     ${escapeContractNoticeHtml(companyName)}</p>
   </div>
-  <p class="muted">Documento generado desde Antares. Revise y firme antes de entregar al colaborador. No sustituye asesoría jurídica.</p>
+  <p class="muted">Documento generado desde Transportes Antares. Revise y firme antes de entregar al colaborador. No sustituye asesoría jurídica.</p>
 </body>
 </html>`;
 }

@@ -1335,7 +1335,7 @@ function bindHiringPortalControls() {
         dataSection: "candidates",
         /* Conservar candidato al alternar Tablero ↔ Lista. */
         ...(selectedId ? { selectedCandidateId: selectedId } : {}),
-        ...(selectedId && view === "board" ? { drawerOpen: true } : {})
+        ...(view === "board" ? { drawerOpen: false } : {})
       };
       persistHrWorkspace("hiring", "data");
       renderPortalView();
@@ -1656,7 +1656,7 @@ function bindHiringPortalControls() {
       const view = String(prev.candidateView || "board") === "list" ? "list" : "board";
       const same =
         String(prev.selectedCandidateId || "") === id &&
-        (view === "list" || prev.drawerOpen !== false);
+        (view === "list" || prev.drawerOpen === true);
       if (same) return;
       state.hiringUi = {
         ...prev,
@@ -2093,7 +2093,7 @@ function bindHiringPortalControls() {
         dataSection: "candidates",
         selectedCandidateId: returnCandidateId,
         candidateView: returnView,
-        drawerOpen: returnCtx.drawerOpen !== false,
+        drawerOpen: returnCtx.drawerOpen === true,
         scheduleInterviewOpenForCandidateId: "",
         interviewFlowReturn: null
       };
@@ -2886,7 +2886,7 @@ function bindHiringPortalControls() {
       interviewFlowReturn: {
         candidateId: id,
         candidateView: String(prev.candidateView || "list") === "board" ? "board" : "list",
-        drawerOpen: prev.drawerOpen !== false,
+        drawerOpen: prev.drawerOpen === true,
         fromWorkspace: String(prev.workspace || "data")
       },
       workspace: "operate",
@@ -2912,7 +2912,7 @@ function bindHiringPortalControls() {
       dataSection: "candidates",
       selectedCandidateId: cid || prev.selectedCandidateId,
       candidateView: returnView,
-      drawerOpen: returnCtx.drawerOpen !== false,
+      drawerOpen: returnCtx.drawerOpen === true,
       scheduleInterviewOpenForCandidateId: "",
       interviewFlowReturn: null
     };

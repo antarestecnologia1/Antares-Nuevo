@@ -246,6 +246,7 @@ test("candidate create only", async ({ page, context }) => {
   await form.locator('input[name="expectedSalary"]').fill("2500000");
   await form.locator('input[name="availabilityDate"]').fill(ymd(plusDays(30)));
   await form.locator('select[name="vacancyId"]').selectOption("vac-1");
+  await form.locator('input[name="attachments"]').setInputFiles({ name: "cv-qa.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4 QA") });
   log("step2 filled");
 
   log("submit evaluate");

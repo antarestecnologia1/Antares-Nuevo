@@ -415,7 +415,7 @@ export function buildTripInvoice(request) {
     ivaRate,
     ivaValue: iva,
     total,
-    issuer: "Antares Tecnologia SAS"
+    issuer: "Transportes Antares S.A.S"
   };
 }
 

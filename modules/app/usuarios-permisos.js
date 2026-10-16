@@ -585,7 +585,7 @@ function adminUsersHtml(current) {
         <label>${fieldLabel(IC.mapPin, "Departamento")}<select name="department" id="admin-create-department" required><option value="">Seleccione...</option>${departmentOptions()}</select></label>
         <label>${fieldLabel(IC.mapPin, "Ciudad")}<select name="city" id="admin-create-city" required><option value="">Seleccione un departamento...</option></select></label>
         <label>${fieldLabel(IC.compass, "Dirección")}<input name="address" required placeholder="Dirección principal" /></label>
-        <label>${fieldLabel(IC.building || IC.briefcase, "Nombre comercial")}<input name="company" value="Antares" /></label>
+        <label>${fieldLabel(IC.building || IC.briefcase, "Nombre comercial")}<input name="company" value="Transportes Antares" /></label>
       </div>
     </fieldset>
 
@@ -634,7 +634,7 @@ function adminUsersHtml(current) {
           <select name="companyKind" required>
             <option value="cliente">Cliente (contrata servicios)</option>
             <option value="tercero">Tercero (proveedor u otro vínculo)</option>
-            <option value="propia">Empresa propia — Antares (operador)</option>
+            <option value="propia">Empresa propia — Transportes Antares (operador)</option>
           </select>
         </label>
         <label class="full">

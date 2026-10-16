@@ -1114,7 +1114,7 @@ export class AuthService {
       );
       const approved = r.rows[0]?.s === "aprobado";
       const portalUrl = this.portalPublicBaseUrl();
-      const subject = approved ? "Cuenta aprobada - Antares Portal" : "Registro recibido - Antares Portal";
+      const subject = approved ? "Cuenta aprobada - Transportes Antares" : "Registro recibido - Transportes Antares";
       const bodySummary = approved
         ? `Cuenta aprobada para ${displayName}. Se intento enviar acceso al portal.`
         : `Registro recibido para ${displayName}. Se intento enviar correo de bienvenida.`;
@@ -1154,7 +1154,7 @@ export class AuthService {
       this.logger.error(`Correo de bienvenida no enviado (${redactEmailForLog(email)}): ${sanitizeLogText(detail)}`);
       await this.recordOutgoingEmailLog({
         to: email,
-        subject: "Registro recibido - Antares Portal",
+        subject: "Registro recibido - Transportes Antares",
         body: `No fue posible completar el correo de bienvenida para ${displayName}.`,
         sent: false,
         error: detail

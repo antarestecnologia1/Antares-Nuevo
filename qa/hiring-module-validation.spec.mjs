@@ -397,6 +397,13 @@ test("validate hiring module fields", async ({ page, context }) => {
       }).formatToParts(d);
       const pick = (type) => parts.find((p) => p.type === type)?.value || "00";
       const iso = `${pick("year")}-${pick("month")}-${pick("day")}T${pick("hour")}:${pick("minute")}`;
+      const dateEl = form.querySelector('input[name="interviewDate"]');
+      const timeEl = form.querySelector('input[name="interviewTime"]');
+      if (dateEl && timeEl) {
+        dateEl.value = iso.slice(0, 10);
+        timeEl.value = iso.slice(11, 16);
+        [dateEl, timeEl].forEach((el) => el.dispatchEvent(new Event("change", { bubbles: true })));
+      }
       if (wrap && window.AntaresValidation?.portalDatetimeInputSetIso) {
         window.AntaresValidation.portalDatetimeInputSetIso(wrap, iso);
         return;
@@ -441,8 +448,9 @@ test("validate hiring module fields", async ({ page, context }) => {
   };
 
   const ensureHiringDataSection = async (sectionId) => {
-    await ensureHrWorkspace("data");
-    await clickVisible(`[data-action='hiring-data-section'][data-section='${sectionId}']`);
+    // «Selección» (data) muestra solo el tablero de candidatos; el resto de listados vive en «Consultar» (consult).
+    await ensureHrWorkspace(sectionId === "candidates" ? "data" : "consult");
+    if (sectionId !== "candidates") await clickVisible(`[data-action='hiring-data-section'][data-section='${sectionId}']`);
     await page.waitForFunction((section) => {
       const panel = document.querySelector(`[data-hiring-section="${section}"]`);
       return panel && !panel.hidden && !panel.classList.contains("hidden");
@@ -558,22 +566,22 @@ test("validate hiring module fields", async ({ page, context }) => {
     });
     const boardStats = await page.evaluate(() => ({
       cols: document.querySelectorAll(".hiring-board__col").length,
-      cards: document.querySelectorAll(".hiring-candidate-card").length,
-      preselected: Boolean(document.querySelector('[data-pipeline-stage="Preseleccionado"] .hiring-candidate-card'))
+      cards: document.querySelectorAll(".hiring-candidate-card, .hiring-kanban-card").length,
+      preselected: Boolean(document.querySelector('[data-pipeline-stage="Preseleccionado"] .hiring-candidate-card, [data-pipeline-stage="Preseleccionado"] .hiring-kanban-card'))
     }));
     if (boardStats.cols < 3) throw new Error(`Tablero sin columnas suficientes: ${boardStats.cols}`);
     if (!boardStats.preselected) throw new Error("Candidato preseleccionado no aparece en el tablero");
 
     await clickVisible("[data-action='hiring-candidates-view'][data-view='list']");
-    await page.waitForFunction(() => document.querySelector(".hiring-cards--candidates-list, .hiring-table--candidates"));
+    await page.waitForFunction(() => document.querySelector(".hiring-list-view, .hiring-cards--candidates-list, .hiring-table--candidates"));
     await clickVisible("[data-action='hiring-candidates-view'][data-view='board']");
     await page.waitForSelector(".hiring-board", { state: "attached" });
 
     await ensureHiringDataSection("vacancies");
-    await page.waitForFunction(() => document.querySelectorAll(".hiring-vacancy-card").length >= 1);
+    await page.waitForFunction(() => document.querySelectorAll(".hiring-vacancy-card, .hiring-browse-row--vacancy").length >= 1);
     const vacOk = await page.evaluate(() => {
-      const card = document.querySelector(".hiring-vacancy-card");
-      return Boolean(card && card.textContent && /Postulantes/i.test(card.textContent));
+      const card = document.querySelector(".hiring-vacancy-card, .hiring-browse-row--vacancy");
+      return Boolean(card && card.textContent && /Postulantes|Cupos/i.test(card.textContent));
     });
     if (!vacOk) throw new Error("Tarjeta de vacante sin métrica de postulantes");
   });
@@ -729,6 +737,11 @@ test("validate hiring module fields", async ({ page, context }) => {
     await form.locator('input[name="expectedSalary"]').fill("2500000");
     await form.locator('input[name="availabilityDate"]').fill(ymd(plusDays(30)));
     await form.locator('select[name="vacancyId"]').selectOption("vac-1");
+    await form.locator('input[name="attachments"]').setInputFiles({
+      name: "cv-qa.pdf",
+      mimeType: "application/pdf",
+      buffer: Buffer.from("%PDF-1.4 QA")
+    });
     await page.evaluate(() => {
       const candidateForm = document.querySelector("#form-candidate");
       if (!candidateForm) throw new Error("form-candidate no encontrado");
@@ -784,7 +797,7 @@ test("validate hiring module fields", async ({ page, context }) => {
     await form.locator('select[name="candidateId"]').selectOption("cand-1");
     await setInterviewWhenFuture("#form-interview", 12);
     await form.locator('input[name="interviewer"]').fill("Lina QA");
-    await form.locator('select[name="mode"]').selectOption("telefonica");
+    await form.locator('label.hiring-interview-mode:has(input[value="telefonica"])').click();
     await form.locator('input[name="place"]').fill("Llamada +57 3000000000");
     await form.locator('textarea[name="notes"]').fill("Entrevista telefónica QA");
     await page.evaluate(() => {
@@ -808,7 +821,7 @@ test("validate hiring module fields", async ({ page, context }) => {
           ? window.AntaresPersistence.read(candidatesKey, [])
           : JSON.parse(localStorage.getItem(candidatesKey) || "[]");
         return interviews.some((row) => row.interviewer === "LINA QA" && row.modality === "Telefónica" && row.locationOrLink === "LLAMADA +57 3000000000" && row.notes === "ENTREVISTA TELEFONICA QA")
-          && candidates.some((row) => row.id === "cand-1" && row.status === "Entrevistado");
+          && candidates.some((row) => row.id === "cand-1" && row.status === "Preseleccionado");
       },
       { interviewsKey: KEYS.interviews, candidatesKey: KEYS.candidates },
       "create interview"

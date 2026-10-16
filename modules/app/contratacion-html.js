@@ -207,7 +207,7 @@ function hiringHtml() {
   const pipelineStageFilter = String(hiringUi.pipelineStage || "").trim();
   const vacancyIdFilter = String(hiringUi.vacancyIdFilter || "").trim();
   const boardExpand = hiringUi.boardExpand && typeof hiringUi.boardExpand === "object" ? hiringUi.boardExpand : {};
-  const drawerOpen = hiringUi.drawerOpen !== false;
+  const drawerOpen = hiringUi.drawerOpen === true;
   const drawerTab = ["resumen", "timeline", "documentos", "notas", "evaluaciones"].includes(String(hiringUi.drawerTab || ""))
     ? String(hiringUi.drawerTab)
     : "resumen";
@@ -223,7 +223,7 @@ function hiringHtml() {
   if (!String(state.hiringUi?.candidateView || "").trim() && hiringDataSection === "candidates") {
     state.hiringUi = { ...(state.hiringUi || hiringUi), candidateView: "board" };
   }
-  const hiringCreateUi = buildHiringCreatePanelsState(hiringOperateSection, state.createPanels || {});
+  const hiringCreateUi = buildHiringCreatePanelsState(hiringOperateSection, state.createPanels || {}, { expandActive: hiringWorkspace === "operate" });
   const dataListSearchRaw = String(hiringUi.dataListSearch || "");
   const foldHiringSearchText = (value) =>
     String(value || "")
@@ -1260,10 +1260,10 @@ function hiringHtml() {
     ]
       .map(
         (t) =>
-          `<button type="button" class="hiring-drawer__tab${drawerTab === t.id ? " is-active" : ""}" data-action="hiring-drawer-tab" data-tab="${escapeAttr(t.id)}" aria-selected="${drawerTab === t.id ? "true" : "false"}">${escapeHtml(t.label)}</button>`
+          `<button type="button" role="tab" class="hiring-drawer__tab${drawerTab === t.id ? " is-active" : ""}" data-action="hiring-drawer-tab" data-tab="${escapeAttr(t.id)}" aria-selected="${drawerTab === t.id ? "true" : "false"}">${escapeHtml(t.label)}</button>`
       )
       .join("");
-    const resumenPane = `<div class="hiring-drawer__pane${drawerTab === "resumen" ? "" : " hidden"}" data-drawer-pane="resumen">
+    const resumenPane = `<div role="tabpanel" class="hiring-drawer__pane${drawerTab === "resumen" ? "" : " hidden"}" data-drawer-pane="resumen">
         <dl class="hiring-drawer__facts">
           <div><dt>${IC.phone || ""} Teléfono</dt><dd>${escapeHtml(String(c.phone || "—"))}</dd></div>
           <div><dt>${IC.mail || ""} Correo</dt><dd>${escapeHtml(String(c.email || "—"))}</dd></div>
@@ -1275,7 +1275,7 @@ function hiringHtml() {
           <div><dt>${IC.badge || ""} Documento</dt><dd>${escapeHtml(String(c.documentType || "—"))} ${escapeHtml(String(c.idDoc || ""))}</dd></div>
         </dl>
       </div>`;
-    const timelinePane = `<div class="hiring-drawer__pane${drawerTab === "timeline" ? "" : " hidden"}" data-drawer-pane="timeline">
+    const timelinePane = `<div role="tabpanel" class="hiring-drawer__pane${drawerTab === "timeline" ? "" : " hidden"}" data-drawer-pane="timeline">
         <ol class="hiring-drawer__timeline">${timelineSteps}</ol>
         ${isDiscarded ? `<p class="muted">Candidato descartado del proceso.</p>` : ""}
         ${
@@ -1286,7 +1286,7 @@ function hiringHtml() {
             : ""
         }
       </div>`;
-    const docsPane = `<div class="hiring-drawer__pane${drawerTab === "documentos" ? "" : " hidden"}" data-drawer-pane="documentos">
+    const docsPane = `<div role="tabpanel" class="hiring-drawer__pane${drawerTab === "documentos" ? "" : " hidden"}" data-drawer-pane="documentos">
         <ul class="hiring-drawer__docs">
           <li>
             <span>${IC.file || ""} ${escapeHtml(cvLabel)}</span>
@@ -1306,10 +1306,10 @@ function hiringHtml() {
             : ""
         }
       </div>`;
-    const notesPane = `<div class="hiring-drawer__pane${drawerTab === "notas" ? "" : " hidden"}" data-drawer-pane="notas">
+    const notesPane = `<div role="tabpanel" class="hiring-drawer__pane${drawerTab === "notas" ? "" : " hidden"}" data-drawer-pane="notas">
         <p class="muted">${escapeHtml(String(c.experienceNotes || c.notes || "").trim() || "Sin notas registradas para este candidato.")}</p>
       </div>`;
-    const evalPane = `<div class="hiring-drawer__pane${drawerTab === "evaluaciones" ? "" : " hidden"}" data-drawer-pane="evaluaciones">
+    const evalPane = `<div role="tabpanel" class="hiring-drawer__pane${drawerTab === "evaluaciones" ? "" : " hidden"}" data-drawer-pane="evaluaciones">
         <p class="muted">Las evaluaciones formales se registrarán en una próxima iteración. Use entrevistas y notas mientras tanto.</p>
       </div>`;
     const email = String(c.email || "").trim();

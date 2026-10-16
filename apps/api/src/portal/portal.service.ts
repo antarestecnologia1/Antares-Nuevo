@@ -850,7 +850,7 @@ export class PortalService implements OnModuleInit {
       const email = String(row.correo_electronico).trim();
       const name = String(row.nombre_completo || "").trim() || "Usuario";
       const portalUrl = this.resolvePortalPublicUrl();
-      const subject = "Cuenta aprobada - Antares Portal";
+      const subject = "Cuenta aprobada - Transportes Antares";
       const bodySummary = `Cuenta aprobada para ${name}. Se intento notificar el acceso al portal.`;
       let sent = false;
       let deliveryError: string | null = null;

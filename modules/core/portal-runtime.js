@@ -3294,15 +3294,19 @@ function patchOperatorCompanyKindIfNeeded(companies) {
       .trim()
       .toLowerCase()
       .replace(/\s+/g, " ");
-  const antaresRows = companies.filter((c) => normName(c.name) === "antares");
-  if (antaresRows.length !== 1) return companies;
+  /* Nombre comercial único en documentos y pantallas: «Antares» solo → «Transportes Antares». */
+  const brandOperatorName = (c) => (normName(c.name) === "antares" ? { ...c, name: "Transportes Antares" } : c);
+  const isAntaresName = (n) => normName(n) === "antares" || normName(n) === "transportes antares";
+  const antaresRows = companies.filter((c) => isAntaresName(c.name));
+  if (antaresRows.length !== 1) return companies.map(brandOperatorName);
   const hasPropia = companies.some((c) => normalizeCompanyKindForDb(c.companyKind) === "propia");
-  if (hasPropia) return companies;
+  if (hasPropia) return companies.map(brandOperatorName);
   const targetId = String(antaresRows[0].id ?? "");
   return companies.map((c) => {
     if (String(c.id ?? "") !== targetId) return c;
-    if (normalizeCompanyKindForDb(c.companyKind) !== "cliente") return c;
-    return { ...c, companyKind: "propia" };
+    const branded = brandOperatorName(c);
+    if (normalizeCompanyKindForDb(branded.companyKind) !== "cliente") return branded;
+    return { ...branded, companyKind: "propia" };
   });
 }
 
@@ -6059,14 +6063,14 @@ function openTripInvoicePdf(requestId) {
           <div class="muted">Generada: ${escapeHtml(fmtDate(invoice.generatedAt))}</div>
         </div>
         <div>
-          <strong>${escapeHtml(invoice.issuer)}</strong><br />
-          <span class="muted">NIT 900.000.000-0</span>
+          <strong>${escapeHtml(/^antares\b/i.test(String(invoice.issuer || "")) ? "Transportes Antares S.A.S" : String(invoice.issuer || "Transportes Antares S.A.S"))}</strong><br />
+          <span class="muted">NIT 900.830.324-7</span>
         </div>
       </div>
       <div class="grid">
         <div class="box">
           <strong>Cliente</strong><br />
-          ${escapeHtml(request.clientName || "-")}<br />
+          ${escapeHtml(/^antares$/i.test(String(request.clientName || "").trim()) ? "Transportes Antares" : request.clientName || "-")}<br />
           <span class="muted">Solicitud: ${escapeHtml(request.requestNumber || request.id)}</span>
         </div>
         <div class="box">
@@ -6087,7 +6091,7 @@ function openTripInvoicePdf(requestId) {
         <div><span>IVA (${Math.round(invoice.ivaRate * 100)}%)</span><strong>$${invoice.ivaValue.toLocaleString("es-CO")}</strong></div>
         <div class="grand"><span>Total</span><span>$${invoice.total.toLocaleString("es-CO")}</span></div>
       </div>
-      <p class="muted" style="margin-top:18px">Documento generado automaticamente por Antares. Esta factura refleja el cierre operacional del viaje.</p>
+      <p class="muted" style="margin-top:18px">Documento generado automaticamente por Transportes Antares. Esta factura refleja el cierre operacional del viaje.</p>
     </div>
     <script>window.print()</script>
   </body>
@@ -7113,7 +7117,7 @@ async function approveRequest(
     });
     sendEmail({
       to: target.email,
-      subject: "Viaje asignado - Antares",
+      subject: "Viaje asignado - Transportes Antares",
       body: `Viaje ${trip.tripNumber} · Vehículo ${trip.vehiclePlate} · Conductor ${trip.driverName}`
     });
     try {
@@ -9986,7 +9990,7 @@ function buildReportExportHtml(title, columns = [], rows = [], meta = {}) {
       </table>
     </div>
     <p class="print-hint">Para guardar como PDF: abra este archivo en el navegador y use <strong>Imprimir → Guardar como PDF</strong> (Ctrl+P).</p>
-    <p class="foot">${copyrightText}<br/>Documento generado por Antares. Uso interno y operativo.</p>
+    <p class="foot">${copyrightText}<br/>Documento generado por Transportes Antares. Uso interno y operativo.</p>
   </div>
 </body>
 </html>`;

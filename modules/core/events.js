@@ -2130,7 +2130,7 @@ function bindDynamicEvents() {
           });
           $portal.sendEmail({
             to: target.email,
-            subject: "Cuenta aprobada - Antares Portal",
+            subject: "Cuenta aprobada - Transportes Antares",
             body: `Hola ${target.name}, su cuenta fue aprobada y asociada a ${selected.name}. Le hemos enviado un correo con el enlace para definir su contraseña e iniciar sesión.`
           });
           /**
@@ -2212,7 +2212,7 @@ function bindDynamicEvents() {
           });
           $portal.sendEmail({
             to: target.email,
-            subject: "Registro rechazado - Antares Portal",
+            subject: "Registro rechazado - Transportes Antares",
             body: `Hola ${target.name}, su solicitud de registro fue rechazada. Motivo: ${reason}. Contacte a soporte para más información.`
           });
           suppressSelfInboxPollToastIfRecipientIsCurrentUser(target.id);
@@ -4136,7 +4136,7 @@ function afterMountPublicVacancyAttachmentUi(formEl) {
 function openPublicVacancyApplyModal(vacancy) {
   $portal.openEditModal({
     title: "Postulacion en linea",
-    subtitle: `${vacancy.title} — ${vacancy.positionName || "Vacante Antares"}`,
+    subtitle: `${vacancy.title} — ${vacancy.positionName || "Vacante Transportes Antares"}`,
     submitText: "Enviar candidatura",
     afterMount: afterMountPublicVacancyAttachmentUi,
     fields: [
@@ -4275,7 +4275,7 @@ function openPublicVacancyApplyModal(vacancy) {
       }
       $portal.sendEmail({
         to: $portal.normalizeEmail(String(fd.get("email") || "")),
-        subject: "Postulacion recibida - Antares",
+        subject: "Postulacion recibida - Transportes Antares",
         body: `Hola ${nm}, registramos tu postulacion a "${vacLocal.title}". Nuestro equipo de seleccion revisara tu perfil.`
       });
       try {

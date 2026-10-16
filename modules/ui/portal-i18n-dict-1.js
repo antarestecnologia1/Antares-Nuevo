@@ -26,7 +26,7 @@
   "Admin": "Admin",
   "Administrador": "Administrator",
   "Cerrar sesión": "Sign out",
-  "Torre de control · Antares": "Control tower · Antares",
+  "Torre de control · Transportes Antares": "Control tower · Transportes Antares",
   "Buenas noches,": "Good evening,",
   "Buenos días,": "Good morning,",
   "Buenas tardes,": "Good afternoon,",

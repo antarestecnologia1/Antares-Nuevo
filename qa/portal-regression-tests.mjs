@@ -134,7 +134,7 @@ function run() {
       "history:",
       'title: "Historial y trazabilidad"',
       "reports:",
-      'title: "Centro de reporteria"',
+      'title: "Centro de reportería"',
       "payroll:",
       'title: "Gestión humana"',
       "hiring:",

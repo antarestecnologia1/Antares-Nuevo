@@ -2010,7 +2010,7 @@ body[data-theme="dark"] .dashboard-studio .at-tab.is-active em { background: rgb
 
     return `<header class="at-hero">
       <div class="at-hero__main">
-        <div class="at-hero__eyebrow">Torre de control · Antares</div>
+        <div class="at-hero__eyebrow">Torre de control · Transportes Antares</div>
         <h2 class="at-hero__title">${escapeHtml(greeting)}, <span class="at-hero__name">${firstName}</span></h2>
         <div class="at-hero__meta">
           <span>${escapeHtml(longDate)}</span>

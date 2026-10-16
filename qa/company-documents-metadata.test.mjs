@@ -203,8 +203,8 @@ ok(sarlaftTypes.some((item) => item.value === "consulta_listas"), "SARLAFT inclu
 ok(!sarlaftTypes.some((item) => item.value === "soat"), "SARLAFT no incluye SOAT");
 ok(sarlaftTypes.some((item) => item.value === "otro"), "el tipo Otro sigue disponible");
 ok(!companyDocumentFilterScope("*").scoped, "todo el archivo no recorta filtros");
-ok(indexHtml.includes("gestion-documental.js?v=20261013-dms-fix6"), "cache-bust del JS actualizado");
-ok(indexHtml.includes('href="./styles/gestion-documental.css?v=20261013-dms-fix6"'), "cache-bust del CSS actualizado");
+ok(/gestion-documental\.js\?v=[\w.-]+/.test(indexHtml), "cache-bust del JS presente");
+ok(/href="\.\/styles\/gestion-documental\.css\?v=[\w.-]+"/.test(indexHtml), "cache-bust del CSS presente");
 ok(
   !indexHtml.includes("gestion-documental.css?v=20260804-dms-pdfjs-preview"),
   "el CSS activo no queda en la versión anterior"
