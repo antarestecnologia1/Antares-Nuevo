@@ -1000,17 +1000,8 @@ function bindDynamicEvents() {
         });
         return;
       }
-      if (
-        switchModuleTabPanels({
-          root: nodes.viewRoot,
-          action: "admin-users-section",
-          activeValue: section,
-          panelAttr: "data-admin-users-panel",
-          tabActiveClass: "is-active"
-        })
-      ) {
-        return;
-      }
+      // El buscador, los filtros y el selector de vista dependen de la sección activa:
+      // se vuelve a renderizar (no solo se alternan paneles) para que aparezcan al cambiar de pestaña.
       renderPortalView();
     });
   });
@@ -2534,6 +2525,14 @@ function bindDynamicEvents() {
           }
           const pickupAtIso = pickupDateTime.toISOString();
           const etaDeliveryIso = deliveryDateTime.toISOString();
+          if (req.trip && typeof $portal.validateAssignedTripChange === "function") {
+            /* Reprogramar una solicitud con viaje asignado no puede cruzarse con otros viajes del conductor/camión. */
+            const tripCheck = $portal.validateAssignedTripChange(req, { pickupIso: pickupAtIso, deliveryIso: etaDeliveryIso });
+            if (!tripCheck.ok) {
+              $portal.notify(tripCheck.message, "error");
+              return false;
+            }
+          }
           const refrigeracionTermoking = form.requiresThermoking === "yes";
           const requiredTruckType = normalizeRequestRequiredTruckType(form.requiredTruckType);
           if (!requiredTruckType) {
@@ -2997,6 +2996,13 @@ function bindDynamicEvents() {
           }
           const pickupAtIso = new Date(pickupAtBuilt).toISOString();
           const etaDeliveryIso = new Date(etaDeliveryBuilt).toISOString();
+          if (req.trip && typeof $portal.validateAssignedTripChange === "function") {
+            const tripCheck = $portal.validateAssignedTripChange(req, { pickupIso: pickupAtIso, deliveryIso: etaDeliveryIso });
+            if (!tripCheck.ok) {
+              $portal.notify(tripCheck.message, "error");
+              return false;
+            }
+          }
           const scheduleUpdates = {
             pickupAt: pickupAtIso,
             etaDelivery: etaDeliveryIso,

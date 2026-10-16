@@ -2688,3 +2688,83 @@ body[data-theme="dark"] .acf-tw__ghost { background: #12243a; border-color: rgba
 .acf-delivery-after .acf-time-preset:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
 body[data-theme="dark"] .acf-delivery-after { background: #0f1f33; border-color: rgba(148, 196, 255, 0.25); }
 body[data-theme="dark"] .acf-delivery-after__label { color: #a9b9d0; }
+
+/* ===== Calendario: viajes de varios días, vista Recursos y «+N más» ===== */
+/* La capa de bloques va encima de las bandas horarias (antes quedaba debajo y los viajes no se veían). */
+.calendar-studio .cal-timeline-col > .cal-timeline-col-events {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+}
+.calendar-studio .cal-timeline-time-slot span { white-space: nowrap; }
+body[data-theme="dark"] .calendar-studio .cal-timeline-time-slot span {
+  background: linear-gradient(90deg, transparent, #122036 35%);
+}
+.calendar-studio .cal-timeline-meta { gap: 0.5rem 0.65rem; justify-content: flex-start; }
+.calendar-studio .cal-timeline-meta .cal-timeline-meta-pill { margin-left: auto; }
+.calendar-studio .cal-show-free.is-active {
+  background: var(--primary, #377cc0);
+  border-color: var(--primary, #377cc0);
+  color: #fff;
+}
+.calendar-studio .cal-timeline-resource-flag {
+  display: inline-block;
+  margin-top: 0.12rem;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #92400e;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  width: fit-content;
+}
+body[data-theme="dark"] .calendar-studio .cal-timeline-resource-flag {
+  color: #fde68a;
+  background: rgba(217, 119, 6, 0.22);
+  border-color: rgba(251, 191, 36, 0.4);
+}
+/* Viajes que continúan de otro día: borde plano + marca de continuación. */
+.calendar-studio .cal-timeline-block--cont-start {
+  border-top-left-radius: 2px;
+  border-top-right-radius: 2px;
+  border-top-style: dashed;
+}
+.calendar-studio .cal-timeline-block--cont-end {
+  border-bottom-left-radius: 2px;
+  border-bottom-right-radius: 2px;
+  border-bottom-style: dashed;
+}
+.calendar-studio .cal-timeline-block--status-completada,
+.calendar-studio .cal-timeline-block--status-cerrada { --block-accent: #64748b; }
+.calendar-studio .cal-timeline-block--status-cancelada,
+.calendar-studio .cal-timeline-block--status-rechazada { --block-accent: #dc2626; opacity: 0.7; }
+/* Celdas del mes/semana/día */
+.calendar-studio .cal-event.cal-event--cont { border-left-style: dashed; }
+.calendar-studio .cal-event.cal-event--status-completada,
+.calendar-studio .cal-event.cal-event--status-cerrada { opacity: 0.62; }
+.calendar-studio .cal-event.cal-event--status-cancelada,
+.calendar-studio .cal-event.cal-event--status-rechazada { opacity: 0.55; text-decoration: line-through; }
+.calendar-studio .cal-event-time { white-space: nowrap; flex: 0 0 auto; }
+.calendar-studio button.cal-more {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0.1rem 0.25rem;
+  margin: 0;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-style: normal;
+  color: var(--primary-dark, #1f5fa8);
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.calendar-studio button.cal-more:hover,
+.calendar-studio button.cal-more:focus-visible { background: rgba(var(--primary-rgb, 55, 124, 192), 0.12); outline: none; }
+body[data-theme="dark"] .calendar-studio button.cal-more { color: #93c5fd; }

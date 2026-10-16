@@ -6145,11 +6145,12 @@ function describePortalVehicleOccupancy(vehicle) {
   const ongoing =
     activeTrips.find((r) => describeTripTimingVsNow(r, nowTs).timing === "ongoing") || null;
   if (ongoing) {
-    const left = describeTripTimingVsNow(ongoing, nowTs).minutes;
+    const ongoingInfo = describeTripTimingVsNow(ongoing, nowTs);
     return {
       tone: "busy",
       trip: ongoing,
-      detail: `En curso · ${left != null ? `${left} min restantes` : "Horario en curso"}`
+      overdue: Boolean(ongoingInfo.overdue),
+      detail: formatTripOngoingDetail(ongoingInfo)
     };
   }
   const upcoming = activeTrips
@@ -6160,7 +6161,7 @@ function describePortalVehicleOccupancy(vehicle) {
     return {
       tone: "scheduled",
       trip: upcoming.r,
-      detail: `Reservado · inicia en ${upcoming.info.minutes} min`
+      detail: `Reservado · inicia en ${formatTripMinutes(upcoming.info.minutes)}`
     };
   }
   return { tone: "available", trip: null, detail: "Sin viaje activo en este momento" };
@@ -6671,11 +6672,12 @@ function openDriverDetailSheetModal(driver) {
     if (!driverTrips.length) return { tone: "available", detail: "Sin viaje activo", trip: null };
     const ongoing = driverTrips.find((trip) => describeTripTimingVsNow(trip, nowTs).timing === "ongoing") || null;
     if (ongoing) {
-      const left = describeTripTimingVsNow(ongoing, nowTs).minutes;
+      const ongoingInfo = describeTripTimingVsNow(ongoing, nowTs);
       return {
         tone: "busy",
         trip: ongoing,
-        detail: `En curso · ${left != null ? `${left} min restantes` : "Horario en curso"}`
+        overdue: Boolean(ongoingInfo.overdue),
+        detail: formatTripOngoingDetail(ongoingInfo)
       };
     }
     const upcoming = driverTrips
@@ -6686,7 +6688,7 @@ function openDriverDetailSheetModal(driver) {
       return {
         tone: "scheduled",
         trip: upcoming.trip,
-        detail: `Reservado · inicia en ${upcoming.info.minutes} min`
+        detail: `Reservado · inicia en ${formatTripMinutes(upcoming.info.minutes)}`
       };
     }
     return { tone: "available", detail: "Sin cruce horario activo", trip: driverTrips[0] || null };

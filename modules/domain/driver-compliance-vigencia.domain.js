@@ -101,22 +101,27 @@ export function resolveEmployeeComplianceExpiryYmd(
   return "";
 }
 
-/** Días hasta una fecha YMD (negativo = vencido). */
-export function complianceDaysUntilYmd(ymd) {
+/** Días hasta una fecha YMD (negativo = vencido). `refYmd`: fecha de referencia (por defecto, hoy). */
+export function complianceDaysUntilYmd(ymd, refYmd = "") {
   const norm = String(ymd || "").trim();
   if (!norm) return -9999;
   const target = new Date(`${norm}T12:00:00`).getTime();
   if (!Number.isFinite(target)) return -9999;
-  const todayTs = new Date().setHours(0, 0, 0, 0);
-  return Math.floor((target - todayTs) / 86400000);
+  const refParsed = refYmd ? new Date(`${String(refYmd).trim()}T00:00:00`).getTime() : NaN;
+  const refTs = Number.isFinite(refParsed) ? refParsed : new Date().setHours(0, 0, 0, 0);
+  return Math.floor((target - refTs) / 86400000);
 }
 
 /**
  * Valida licencia, examen ocupacional e instruvial para asignación a viajes.
+ * Con `options.onYmd` (fecha en que termina el viaje) también exige que sigan vigentes ese día:
+ * `futureIssues` lista lo que hoy está vigente pero vence antes del viaje.
  * @param {Record<string, unknown>|null|undefined} driver
+ * @param {{ onYmd?: string }} [options]
  */
-export function evaluateDriverTripCompliance(driver) {
+export function evaluateDriverTripCompliance(driver, options = {}) {
   const norm = (v) => String(v || "").trim();
+  const onYmd = norm(options && options.onYmd);
   const licenseYmd = resolveEmployeeComplianceExpiryYmd(driver, "licenseExpiry", "licenseIssueDate", norm);
   const occYmd = resolveEmployeeComplianceExpiryYmd(
     driver,
@@ -131,26 +136,37 @@ export function evaluateDriverTripCompliance(driver) {
     norm
   );
   const issues = [];
-  if (!licenseYmd || complianceDaysUntilYmd(licenseYmd) < 0) issues.push("licencia de conducción");
-  if (!occYmd || complianceDaysUntilYmd(occYmd) < 0) issues.push("examen médico ocupacional");
-  if (!intraYmd || complianceDaysUntilYmd(intraYmd) < 0) issues.push("examen instruvial");
+  const futureIssues = [];
+  [
+    [licenseYmd, "licencia de conducción"],
+    [occYmd, "examen médico ocupacional"],
+    [intraYmd, "examen instruvial"]
+  ].forEach(([ymd, label]) => {
+    if (!ymd || complianceDaysUntilYmd(ymd) < 0) issues.push(label);
+    else if (onYmd && complianceDaysUntilYmd(ymd, onYmd) < 0) futureIssues.push(label);
+  });
   return {
-    ok: issues.length === 0,
+    ok: issues.length === 0 && futureIssues.length === 0,
     issues,
+    futureIssues,
     licenseYmd,
     occYmd,
     intraYmd,
-    summary: issues.length ? issues.join(", ") : "Vigente"
+    tripDateYmd: onYmd,
+    summary: issues.length ? issues.join(", ") : futureIssues.length ? futureIssues.join(", ") : "Vigente"
   };
 }
 
-export function driverHasExpiredComplianceForTrips(driver) {
-  return !evaluateDriverTripCompliance(driver).ok;
+export function driverHasExpiredComplianceForTrips(driver, options = {}) {
+  return !evaluateDriverTripCompliance(driver, options).ok;
 }
 
-export function driverTripComplianceBlockMessage(driver) {
-  const check = evaluateDriverTripCompliance(driver);
+export function driverTripComplianceBlockMessage(driver, options = {}) {
+  const check = evaluateDriverTripCompliance(driver, options);
   if (check.ok) return "";
   const name = String(driver?.name || driver?.fullName || "Conductor").trim();
+  if (!check.issues.length && check.futureIssues.length) {
+    return `${name}: ${check.futureIssues.join(", ")} vence antes de la fecha del viaje. Renueve en Cumplimiento SST o elija otro conductor.`;
+  }
   return `${name}: ${check.summary} vencido o sin fecha. Renueve en Cumplimiento SST antes de asignar.`;
 }

@@ -342,6 +342,21 @@ function openDeletedTransportTripAuditModal(logRow) {
   });
 }
 
+/** Valor de `datetime-local` (hora de Colombia, igual que `toInputDate`) → ISO UTC. */
+function tripFormDateTimeToIso(value, fallbackIso) {
+  const raw = String(value || "").trim();
+  const m = raw.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
+  if (m && typeof buildColombiaOffsetDateTime === "function") {
+    const ts = new Date(buildColombiaOffsetDateTime(m[1], m[2])).getTime();
+    if (Number.isFinite(ts)) return new Date(ts).toISOString();
+  }
+  if (raw) {
+    const ts = new Date(raw).getTime();
+    if (Number.isFinite(ts)) return new Date(ts).toISOString();
+  }
+  return String(fallbackIso || "");
+}
+
 function openEditTripModal(req) {
   if (!req?.trip) return;
   if (!canAdminEditTrip(req)) {
@@ -352,13 +367,33 @@ function openEditTripModal(req) {
   const drivers = read(KEYS.drivers, []);
   const driverCandidates =
     typeof G.getDriverCandidatesForRequest === "function" ? G.getDriverCandidatesForRequest(req, req.id) : drivers;
-  const compatibleDrivers =
-    typeof G.getCompatibleDriversForRequest === "function" ? G.getCompatibleDriversForRequest(req, req.id) : drivers;
+  const vehicleCandidates =
+    typeof G.getVehicleCandidatesForRequest === "function"
+      ? G.getVehicleCandidatesForRequest(req, req.id)
+      : vehicles;
+  const needsTermoking = typeof G.requestRequiresTermoking === "function" ? G.requestRequiresTermoking(req) : false;
   const vehicleOptions = [{ value: req.trip.vehicleId || "", label: `${req.trip.vehiclePlate || "—"} · ${req.trip.vehicleType || ""}` }]
     .concat(
-      vehicles
+      vehicleCandidates
         .filter((v) => String(v.id || "") !== String(req.trip.vehicleId || ""))
-        .map((v) => ({ value: String(v.id || ""), label: `${v.plate} · ${v.type || ""}` }))
+        .map((v) => ({
+          value: String(v.id || ""),
+          disabled: Boolean(v.isBusy || v.isUnavailable || v.hasExpiredDocs || v.wrongTruckType),
+          label:
+            typeof G.tripAssignmentVehicleOptionLabel === "function"
+              ? G.tripAssignmentVehicleOptionLabel(v, {
+                  needsTermoking,
+                  isBusy: v.isBusy,
+                  isUnavailable: v.isUnavailable,
+                  hasExpiredDocs: v.hasExpiredDocs,
+                  wrongTruckType: v.wrongTruckType,
+                  requestTruckType:
+                    typeof G.normalizeRequestRequiredTruckType === "function"
+                      ? G.normalizeRequestRequiredTruckType(req?.vehicleType)
+                      : req?.vehicleType
+                })
+              : `${v.plate} · ${v.type || ""}`
+        }))
     );
   const driverOptions = [{ value: req.trip.driverId || "", label: req.trip.driverName || "—" }]
     .concat(
@@ -366,6 +401,7 @@ function openEditTripModal(req) {
         .filter((d) => String(d.id || "") !== String(req.trip.driverId || ""))
         .map((d) => ({
           value: String(d.id || ""),
+          disabled: Boolean(d.isBusy || d.isUnavailable || d.hasExpiredDocs || d.wrongVehicleType),
           label:
             typeof G.tripAssignmentDriverOptionLabel === "function"
               ? G.tripAssignmentDriverOptionLabel(d, {
@@ -393,7 +429,7 @@ function openEditTripModal(req) {
       { type: "section", id: "edit-trip-assign", title: "Asignación", hint: "Solo conductores con licencia, examen ocupacional e instruvial vigentes pueden asignarse." },
       { name: "vehicleId", label: "Vehículo", type: "select", value: req.trip.vehicleId || "", required: true, options: vehicleOptions },
       { name: "driverId", label: "Conductor", type: "select", value: req.trip.driverId || "", required: true, options: driverOptions },
-      { type: "section", id: "edit-trip-times", title: "Fechas estimadas", hint: "Permite reprogramar la recogida o la entrega del viaje." },
+      { type: "section", id: "edit-trip-times", title: "Fechas estimadas", hint: "Permite reprogramar la recogida o la entrega. Se valida que no se cruce con otro viaje del conductor o del camión." },
       { name: "etaPickup", label: "Recogida (fecha y hora)", type: "datetime-local", value: etaPickupLocal, required: true },
       { name: "etaDelivery", label: "Entrega (fecha y hora)", type: "datetime-local", value: etaDeliveryLocal, required: true },
       { type: "section", id: "edit-trip-money", title: "Tarifa y observaciones", hint: "Ajustes manuales que no exigen cambiar el estado del viaje." },
@@ -409,16 +445,43 @@ function openEditTripModal(req) {
       }
       const targetVehicle = vehicles.find((v) => String(v.id || "") === String(form.vehicleId || ""));
       const targetDriver = drivers.find((d) => String(d.id || "") === String(form.driverId || ""));
-      const driverAllowed = compatibleDrivers.some((d) => String(d.id) === String(form.driverId || ""));
-      if (!driverAllowed && targetDriver) {
-        const msg =
-          typeof G.driverTripComplianceBlockMessage === "function"
-            ? G.driverTripComplianceBlockMessage(targetDriver)
-            : "El conductor seleccionado no cumple requisitos de licencia y exámenes vigentes.";
-        notify(msg, "error");
+      const pickupIso = tripFormDateTimeToIso(form.etaPickup, req.trip.etaPickup);
+      const deliveryIso = tripFormDateTimeToIso(form.etaDelivery, req.trip.etaDelivery);
+      /* Ventana válida, sin cruces con otros viajes del conductor/camión y documentos vigentes hasta la entrega. */
+      const tripCheck =
+        typeof G.validateAssignedTripChange === "function"
+          ? G.validateAssignedTripChange(requests.find((r) => String(r.id) === targetId) || req, {
+              pickupIso,
+              deliveryIso,
+              vehicleId: String(form.vehicleId || ""),
+              driverId: String(form.driverId || ""),
+              enforceDriverCompliance: true
+            })
+          : { ok: true };
+      if (!tripCheck.ok) {
+        notify(tripCheck.message || "No se puede guardar el viaje con ese horario o esos recursos.", "error");
         return false;
       }
+      /* La solicitud conserva la misma ventana que el viaje (evita que queden dos horarios distintos). */
+      const requestScheduleSync = {};
+      const currentRow = requests.find((r) => String(r.id) === targetId) || req;
+      if (
+        new Date(currentRow.pickupAt || "").getTime() !== new Date(pickupIso).getTime() ||
+        new Date(currentRow.etaDelivery || "").getTime() !== new Date(deliveryIso).getTime()
+      ) {
+        const [pickupDate, pickupTime] = String(toInputDate(pickupIso) || "").split("T");
+        const [deliveryDate, deliveryTime] = String(toInputDate(deliveryIso) || "").split("T");
+        Object.assign(requestScheduleSync, {
+          pickupAt: pickupIso,
+          etaDelivery: deliveryIso,
+          pickupDate,
+          pickupTime,
+          deliveryDate,
+          deliveryTime
+        });
+      }
       const updates = {
+        ...requestScheduleSync,
         tripValue: parseNum(form.tripValue) || parseNum(req.tripValue || 0),
         updatedAt: nowIso(),
         updatedBy: currentUser()?.name || "Admin",
@@ -430,8 +493,8 @@ function openEditTripModal(req) {
           driverId: String(form.driverId || req.trip.driverId || ""),
           driverName: targetDriver?.fullName || targetDriver?.name || req.trip.driverName || "",
           driverPhone: targetDriver?.phone || req.trip.driverPhone || "",
-          etaPickup: form.etaPickup ? new Date(form.etaPickup).toISOString() : req.trip.etaPickup,
-          etaDelivery: form.etaDelivery ? new Date(form.etaDelivery).toISOString() : req.trip.etaDelivery,
+          etaPickup: pickupIso,
+          etaDelivery: deliveryIso,
           notes: String(form.tripNotes || "").trim(),
           updatedAt: nowIso(),
           updatedBy: currentUser()?.name || "Admin"

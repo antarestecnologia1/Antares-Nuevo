@@ -24,8 +24,12 @@ import {
 import { devWarn } from "./modules/core/utils.js";
 import { notify } from "./modules/ui/modals.js";
 import { runAsSilentSystemNotifications } from "./modules/domain/notificaciones.domain.js";
-import { hasUnsavedPortalFormData } from "./modules/domain/viajes.domain.js";
-import { initGlobalEvents } from "./modules/core/events.js?v=20261013-module-filters";
+import {
+  hasUnsavedPortalFormData,
+  recalculateResourceAvailability,
+  computeResourceAvailabilitySignature
+} from "./modules/domain/viajes.domain.js";
+import { initGlobalEvents } from "./modules/core/events.js?v=20261015-usr";
 
 /**
  * Definidas en `portal-runtime.js` (módulo ES); se exponen en `window` al final de ese archivo.
@@ -183,11 +187,31 @@ void (async function bootApplicationFromDatabaseThenUi() {
     }
   }
   window.PortalDataLayer?.enableVisibilityRefresh?.();
+  /* Vistas que muestran ocupación de conductores / camiones: se repintan si un viaje cambia de fase. */
+  const AVAILABILITY_VIEWS = new Set([
+    "transport-calendar",
+    "transport-drivers",
+    "transport-vehicles",
+    "transport-trips"
+  ]);
+  let lastAvailabilitySignature = null;
   setInterval(() => {
     if (!state.session) return;
     void (async () => {
       const changed = await runAsSilentSystemNotifications(() => updateAutoApprove());
-      if (changed && !hasUnsavedPortalFormData()) {
+      /* Un viaje que empieza, termina o se atrasa libera / ocupa recursos aunque nadie navegue: se recalcula
+         cada 30 s y se repinta solo cuando algo cambió y no hay un formulario a medias. */
+      let availabilityChanged = false;
+      try {
+        recalculateResourceAvailability();
+        const signature = computeResourceAvailabilitySignature();
+        availabilityChanged = lastAvailabilitySignature !== null && signature !== lastAvailabilitySignature;
+        lastAvailabilitySignature = signature;
+      } catch (_e) {
+        /* noop */
+      }
+      const availabilityView = availabilityChanged && AVAILABILITY_VIEWS.has(String(state.currentView || ""));
+      if ((changed || availabilityView) && !hasUnsavedPortalFormData()) {
         scheduleRenderPortalView();
       }
     })();

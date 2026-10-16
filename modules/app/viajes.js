@@ -298,7 +298,7 @@ function transportTripsHtml() {
             <p class="trip-ops-card-status-label">${IC.activity}<span>Estado del viaje</span></p>
             <div class="trip-ops-card-status-picker trip-ops-card-status-picker--static trip-ops-card-status-picker--${escapeAttr(statusSlug)}" role="status">
               <span class="trip-ops-card-status-picker-leading" aria-hidden="true">${IC.truck}</span>
-              <span class="trip-ops-card-status-picker-value">${escapeHtml(statusText)}</span>
+              <span class="trip-ops-card-status-picker-value">${escapeHtml(String(statusText).replace(/<[^>]*>/g, "").trim())}</span>
             </div>
           </div>`;
     const actionButtons = [

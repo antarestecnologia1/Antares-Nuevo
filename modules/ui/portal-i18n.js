@@ -137,7 +137,38 @@
     [/^(\d+) perfiles? en la matriz (.+)$/i, function (m, n, rest) { return n + (n === "1" ? " profile" : " profiles") + " in the " + rest + " matrix"; }],
     [/^Ej\.?:?\s+(.+)$/i, function (m, rest) { return "E.g.: " + t(rest); }],
     [/^(\d+) solicitud(?:es)? pendientes?(?:es)?$/i, function (m, n) { return n + " pending request" + (n === "1" ? "" : "s"); }],
-    [/^(\d+) liquidaci[óo]n(?:es)?(.*)$/i, function (m, n, rest) { return n + " settlement" + (n === "1" ? "" : "s") + translateSegments(rest); }]
+    [/^(\d+) liquidaci[óo]n(?:es)?(.*)$/i, function (m, n, rest) { return n + " settlement" + (n === "1" ? "" : "s") + translateSegments(rest); }],
+    [/^\+(\d+) más$/i, "+$1 more"],
+    [/^Hasta (\d{1,2}:\d{2}.*)$/i, function (m, rest) { return "Until " + translateDates(rest); }],
+    [/^Desde (\d{1,2}:\d{2}.*)$/i, function (m, rest) { return "From " + translateDates(rest); }],
+    [/^← (\d{1,2}:\d{2}.*)$/i, function (m, rest) { return "← " + translateDates(rest); }],
+    [/^(\d{1,2}) (?:de )?(ene|feb|mar|abr|may|jun|jul|ago|sept?|oct|nov|dic)\.?$/i, function (m, d, mo) { return (MONTHS_SHORT[mo.toLowerCase()] || mo) + " " + d; }],
+    [/^((?:\d+\s?(?:d|h|min)\s?)+) restantes$/i, "$1 left"],
+    [/^atrasado ((?:\d+\s?(?:d|h|min)\s?)+)$/i, "overdue $1"],
+    [/^inicia en ((?:\d+\s?(?:d|h|min)\s?)+)$/i, "starts in $1"],
+    [/^Último viaje terminó hace ((?:\d+\s?(?:d|h|min)\s?)+)$/i, "Last trip ended $1 ago"],
+    [/^Lic (.+)$/i, "Lic $1"],
+    [/^vence (\d{4}-\d{2}-\d{2}|-)$/i, "expires $1"],
+    [/^(.+) (vence|vencen) antes del viaje$/i, function (m, what, v) { return t(what) + (v.toLowerCase() === "vencen" ? " expire" : " expires") + " before the trip"; }],
+    [/^((?:licencia de conducción|examen médico ocupacional|examen instruvial)(?:, (?:licencia de conducción|examen médico ocupacional|examen instruvial))*) vencido$/i, function (m, what) { return what.split(", ").map(t).join(", ") + " expired"; }],
+    [/^Conflicto de horario: el (camión|conductor) ya tiene programado el viaje ([^ (]+)(?: \((.+)\))?\.$/i, function (m, res, trip, win) {
+      return "Schedule conflict: the " + (res.toLowerCase() === "camión" ? "truck" : "driver") + " already has trip " + trip + " scheduled" + (win ? " (" + translateDates(win) + ")" : "") + ".";
+    }],
+    [/^El camión (.+) está marcado como no disponible\.$/i, "Truck $1 is marked as unavailable."],
+    [/^(.+) está marcado como no disponible\.$/i, "$1 is marked as unavailable."],
+    [/^El camión (.+) no coincide con el tipo de camión solicitado\.$/i, "Truck $1 does not match the requested truck type."],
+    [/^El camión (.+) no cumple capacidad, equipo Termoking o tipo de flota para esta solicitud\.$/i, "Truck $1 does not meet the capacity, Thermo King or fleet-type requirements of this request."],
+    [/^(.+) no está habilitado para el tipo de camión de la solicitud\.$/i, "$1 is not qualified for the truck type of the request."],
+    [/^(.+): documentación vencida\.$/i, "$1: documents expired."],
+    [/^(.+): (.+) vence antes de la fecha del viaje\. Renueve en Cumplimiento SST o elija otro conductor\.$/i, function (m, name, what) {
+      return name + ": " + t(what) + " expires before the trip date. Renew it in SST Compliance or choose another driver.";
+    }],
+    [/^(.+): (.+) vencido o sin fecha\. Renueve en Cumplimiento SST antes de asignar\.$/i, function (m, name, what) {
+      return name + ": " + t(what) + " expired or missing a date. Renew it in SST Compliance before assigning.";
+    }],
+    [/^El camión (.+): (.+) (vence|vencen) antes de la fecha del viaje\.$/i, function (m, plate, what, v) {
+      return "Truck " + plate + ": " + t(what) + (v.toLowerCase() === "vencen" ? " expire" : " expires") + " before the trip date.";
+    }]
   ];
 
   function applyRules(s) {

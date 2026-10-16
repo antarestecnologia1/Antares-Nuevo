@@ -24,7 +24,8 @@ import {
 } from "./solicitudes.domain.js";
 import {
   evaluateDriverTripCompliance,
-  driverHasExpiredComplianceForTrips
+  driverHasExpiredComplianceForTrips,
+  driverTripComplianceBlockMessage
 } from "./driver-compliance-vigencia.domain.js";
 
 /** Misma enumeración que `STATUS` en app.js (texto persistido en solicitudes). */
@@ -220,8 +221,32 @@ export function describeTripTimingVsNow(transportRequest, nowTs = Date.now()) {
   const range = tripWindowRangeFromTransportRequest(transportRequest);
   if (!range) return { timing: "unknown", minutes: null };
   if (nowTs < range.start) return { timing: "upcoming", minutes: Math.ceil((range.start - nowTs) / 60000) };
-  if (nowTs >= range.end) return { timing: "past", minutes: Math.ceil((nowTs - range.end) / 60000) };
-  return { timing: "ongoing", minutes: Math.ceil((range.end - nowTs) / 60000) };
+  if (nowTs >= range.end) {
+    const minutes = Math.ceil((nowTs - range.end) / 60000);
+    /* En tránsito / standby que no se ha cerrado: sigue ocupando recursos aunque pasó la hora estimada. */
+    if (tripRequestStatusIsInProgress(transportRequest?.status)) return { timing: "ongoing", minutes, overdue: true };
+    return { timing: "past", minutes };
+  }
+  return { timing: "ongoing", minutes: Math.ceil((range.end - nowTs) / 60000), overdue: false };
+}
+
+/** 45 → "45 min"; 135 → "2 h 15 min"; 1500 → "1 d 1 h". */
+export function formatTripMinutes(totalMinutes) {
+  const m = Math.max(0, Math.round(Number(totalMinutes) || 0));
+  if (m < 60) return `${m} min`;
+  const d = Math.floor(m / 1440);
+  const h = Math.floor((m % 1440) / 60);
+  const mm = m % 60;
+  if (d > 0) return h ? `${d} d ${h} h` : `${d} d`;
+  return mm ? `${h} h ${mm} min` : `${h} h`;
+}
+
+/** Texto de detalle para un viaje en curso (con aviso si ya pasó la hora estimada de entrega). */
+export function formatTripOngoingDetail(info) {
+  const m = info && info.minutes != null ? info.minutes : null;
+  if (m == null) return "En curso · Horario en curso";
+  if (info.overdue) return `En curso · atrasado ${formatTripMinutes(m)}`;
+  return `En curso · ${formatTripMinutes(m)} restantes`;
 }
 
 export function activeTripStatuses() {
@@ -230,6 +255,12 @@ export function activeTripStatuses() {
 
 export function tripRequestStatusIsOperational(status) {
   return activeTripStatuses().some((s) => slugStatus(s) === slugStatus(status));
+}
+
+/** En tránsito / standby: el viaje sigue ocupando conductor y camión hasta que se marque como completado. */
+export function tripRequestStatusIsInProgress(status) {
+  const slug = slugStatus(status);
+  return slug === slugStatus(VIAJES_STATUS.EN_TRANSITO) || slug === slugStatus(VIAJES_STATUS.ESPERA_STANDBY);
 }
 
 export function requestPickupIsoDate(request) {
@@ -265,11 +296,23 @@ export function tripWindowContainsInstant(trip, instantTs = Date.now()) {
   return instantTs >= range.start && instantTs < range.end;
 }
 
+/**
+ * ¿El viaje ocupa conductor/camión en `instantTs`? Ventana programada o, si sigue en tránsito/standby,
+ * hasta que se complete (aunque ya pasó la hora estimada de entrega).
+ */
+export function tripOccupiesInstant(transportRequest, instantTs = Date.now()) {
+  const range = tripWindowRangeFromTransportRequest(transportRequest);
+  if (!range) return false;
+  if (instantTs >= range.start && instantTs < range.end) return true;
+  if (!tripRequestStatusIsInProgress(transportRequest?.status)) return false;
+  const now = Date.now();
+  return instantTs <= now && instantTs >= Math.min(range.start, now);
+}
+
 export function activeTripOccupiesVehicleAtInstant(transportRequest, vehicle, instantTs = Date.now()) {
   const trip = transportRequest?.trip;
   if (!trip || !vehicle) return false;
-  const range = tripWindowRangeFromTransportRequest(transportRequest);
-  if (!range || !(instantTs >= range.start && instantTs < range.end)) return false;
+  if (!tripOccupiesInstant(transportRequest, instantTs)) return false;
   const vid = String(vehicle.id || "").trim();
   const vplate = String(vehicle.plate || "").trim().toUpperCase();
   if (trip.vehicleId && String(trip.vehicleId).trim() === vid) return true;
@@ -280,8 +323,7 @@ export function activeTripOccupiesVehicleAtInstant(transportRequest, vehicle, in
 export function activeTripOccupiesDriverAtInstant(transportRequest, driver, instantTs = Date.now()) {
   const trip = transportRequest?.trip;
   if (!trip || !driver) return false;
-  const range = tripWindowRangeFromTransportRequest(transportRequest);
-  if (!range || !(instantTs >= range.start && instantTs < range.end)) return false;
+  if (!tripOccupiesInstant(transportRequest, instantTs)) return false;
   const did = String(driver.id || "").trim();
   const dname = String(driver.name || "").trim().toLowerCase();
   if (trip.driverId && String(trip.driverId).trim() === did) return true;
@@ -300,6 +342,8 @@ export function recalculateResourceAvailability() {
   const nextVehicles = vehicles.map((vehicle) => {
     const liveBusy = activeTrips.some((r) => activeTripOccupiesVehicleAtInstant(r, vehicle, nowTs));
     if (liveBusy) {
+      /* «No disponible» marcado a mano se respeta: no se convierte en ocupado por viaje (se perdería al terminar). */
+      if (isManuallyUnavailable(vehicle)) return vehicle;
       if (vehicle.available === false && vehicle.autoBusy === true) return vehicle;
       vehiclesChanged = true;
       const next = { ...vehicle, available: false, autoBusy: true };
@@ -320,6 +364,7 @@ export function recalculateResourceAvailability() {
   const nextDrivers = drivers.map((driver) => {
     const liveBusy = activeTrips.some((r) => activeTripOccupiesDriverAtInstant(r, driver, nowTs));
     if (liveBusy) {
+      if (isManuallyUnavailable(driver)) return driver;
       if (driver.available === false && driver.autoBusy === true) return driver;
       driversChanged = true;
       const next = { ...driver, available: false, autoBusy: true };
@@ -430,6 +475,19 @@ export function transportRequestScheduledRange(request) {
   return parseTripWindowRange({ etaPickup: pickup, etaDelivery: delivery });
 }
 
+/**
+ * Ventana que realmente ocupa el viaje: la programada o, si sigue en tránsito/standby, ampliada hasta ahora
+ * (sigue en la vía aunque ya pasó la hora estimada de entrega).
+ */
+export function transportRequestOccupancyRange(request, nowTs = Date.now()) {
+  const range = transportRequestScheduledRange(request);
+  if (!range) return null;
+  if (tripRequestStatusIsInProgress(request?.status)) {
+    return { start: Math.min(range.start, nowTs), end: Math.max(range.end, nowTs) };
+  }
+  return range;
+}
+
 export function scheduleRangeFromPickupDelivery(pickupAt, etaDelivery) {
   const del =
     etaDelivery != null && String(etaDelivery).trim() !== "" ? String(etaDelivery).trim() : String(pickupAt || "");
@@ -450,7 +508,7 @@ export function findActiveTripScheduleConflict(pickupAt, etaDelivery, currentReq
     if (currentRequestId && request.id === currentRequestId) continue;
     const t = request.trip;
     if (!t || !tripMatches(t)) continue;
-    const existing = transportRequestScheduledRange(request);
+    const existing = transportRequestOccupancyRange(request);
     if (existing && tripScheduleRangesConflict(candidate, existing)) return request;
   }
   return null;
@@ -907,21 +965,58 @@ function docExpiryStatus(expeditionDate, expiryDate) {
   return { label: `Vigente (${days} días)`, cls: "status-viaje_asignado", days, expiresAt };
 }
 
+/** Fecha (Colombia, YYYY-MM-DD) en que termina el viaje: entrega, o recogida si no hay entrega. */
+export function tripScheduleEndYmd(pickupAt, etaDelivery) {
+  const raw = String(etaDelivery || pickupAt || "").trim();
+  const ts = new Date(raw).getTime();
+  if (!Number.isFinite(ts)) return "";
+  const p = getColombiaDateParts(new Date(ts));
+  return `${p.year}-${p.month}-${p.day}`;
+}
+
+/** Días de vigencia de un documento a la fecha del viaje (el más estricto entre hoy y esa fecha). */
+function docDaysForTrip(expeditionDate, expiryDate, tripEndYmd) {
+  const st = docExpiryStatus(expeditionDate, expiryDate);
+  if (!st.expiresAt || !tripEndYmd) return st.days;
+  const refTs = new Date(`${tripEndYmd}T00:00:00`).getTime();
+  if (!Number.isFinite(refTs)) return st.days;
+  return Math.min(st.days, Math.floor((st.expiresAt.getTime() - refTs) / 86400000));
+}
+
+/** SOAT y tecnomecánica de un camión frente a la fecha de término del viaje. */
+export function vehicleDocsStatusForTrip(vehicle, tripEndYmd = "") {
+  const soatToday = docExpiryStatus(vehicle?.soatExpeditionDate, vehicle?.soatExpiryDate).days;
+  const techToday = docExpiryStatus(vehicle?.techInspectionExpeditionDate, vehicle?.techInspectionExpiryDate).days;
+  const soatTrip = docDaysForTrip(vehicle?.soatExpeditionDate, vehicle?.soatExpiryDate, tripEndYmd);
+  const techTrip = docDaysForTrip(vehicle?.techInspectionExpeditionDate, vehicle?.techInspectionExpiryDate, tripEndYmd);
+  const expiredNow = soatToday < 0 || techToday < 0;
+  const expiresBeforeTrip = !expiredNow && (soatTrip < 0 || techTrip < 0);
+  const issues = [];
+  if (soatTrip < 0) issues.push("SOAT");
+  if (techTrip < 0) issues.push("Tecnomecánica");
+  return { expiredNow, expiresBeforeTrip, blocked: expiredNow || expiresBeforeTrip, issues };
+}
+
 function refreshSearchableSelectPortal(selectEl) {
   const fn = globalThis.refreshSearchableSelect;
   if (typeof fn === "function") fn(selectEl);
 }
 
-export function notifyScheduleConflictIfAny(pickupAt, etaDelivery, currentRequestId, resourceLabel, tripMatches, inline = null) {
-  const conflict = findActiveTripScheduleConflict(pickupAt, etaDelivery, currentRequestId, tripMatches);
-  if (!conflict) return false;
-  const tripNum = String(conflict.trip?.tripNumber || conflict.requestNumber || "-").trim();
+/** Texto «Conflicto de horario: el conductor ya tiene programado el viaje X (ventana).» */
+export function buildScheduleConflictMessage(resourceLabel, conflict) {
+  const tripNum = String(conflict?.trip?.tripNumber || conflict?.requestNumber || "-").trim();
   const range = transportRequestScheduledRange(conflict);
   const windowLabel =
     range && Number.isFinite(range.start) && Number.isFinite(range.end)
       ? `${fmtDate(new Date(range.start).toISOString())} – ${fmtDate(new Date(range.end).toISOString())}`
       : "";
-  const msg = userMessage("scheduleConflict", resourceLabel, tripNum, windowLabel);
+  return userMessage("scheduleConflict", resourceLabel, tripNum, windowLabel);
+}
+
+export function notifyScheduleConflictIfAny(pickupAt, etaDelivery, currentRequestId, resourceLabel, tripMatches, inline = null) {
+  const conflict = findActiveTripScheduleConflict(pickupAt, etaDelivery, currentRequestId, tripMatches);
+  if (!conflict) return false;
+  const msg = buildScheduleConflictMessage(resourceLabel, conflict);
   if (inline?.form && inline?.field) {
     failPortalField(inline.form, inline.field, msg);
     return true;
@@ -977,26 +1072,31 @@ export function isVehicleBusyAtHour(vehicle, pickupAt, etaDelivery, currentReque
   const vid = String(vehicle?.id || "").trim();
   const vplate = String(vehicle?.plate || "").trim().toUpperCase();
   const busySnap = getTransportScheduleBusyStateSnapshot();
-  if (vid && scheduleBusyCacheMatches(pickupAt, etaDelivery, currentRequestId)) {
-    return busySnap.busyVehicleIds && busySnap.busyVehicleIds.has(vid);
-  }
-  return activeTripSchedulingConflictsWith(pickupAt, etaDelivery, currentRequestId, (t) => {
+  /* Los datos locales siempre cuentan: la caché del servidor puede estar desfasada hasta 90 s. */
+  const localBusy = activeTripSchedulingConflictsWith(pickupAt, etaDelivery, currentRequestId, (t) => {
     if (t.vehicleId) return String(t.vehicleId).trim() === vid;
     return Boolean(vplate && String(t.vehiclePlate || "").trim().toUpperCase() === vplate);
   });
+  if (localBusy) return true;
+  if (vid && scheduleBusyCacheMatches(pickupAt, etaDelivery, currentRequestId)) {
+    return Boolean(busySnap.busyVehicleIds && busySnap.busyVehicleIds.has(vid));
+  }
+  return false;
 }
 
 export function isDriverBusyAtHour(driver, pickupAt, etaDelivery, currentRequestId = null) {
   const did = String(driver?.id || "").trim();
   const dname = String(driver?.name || "").trim().toLowerCase();
   const busySnap = getTransportScheduleBusyStateSnapshot();
-  if (did && scheduleBusyCacheMatches(pickupAt, etaDelivery, currentRequestId)) {
-    return busySnap.busyDriverIds && busySnap.busyDriverIds.has(did);
-  }
-  return activeTripSchedulingConflictsWith(pickupAt, etaDelivery, currentRequestId, (t) => {
+  const localBusy = activeTripSchedulingConflictsWith(pickupAt, etaDelivery, currentRequestId, (t) => {
     if (t.driverId) return String(t.driverId).trim() === did;
     return Boolean(dname && String(t.driverName || "").trim().toLowerCase() === dname);
   });
+  if (localBusy) return true;
+  if (did && scheduleBusyCacheMatches(pickupAt, etaDelivery, currentRequestId)) {
+    return Boolean(busySnap.busyDriverIds && busySnap.busyDriverIds.has(did));
+  }
+  return false;
 }
 
 export function rebuildTripAssignmentSelectOptions(formEl, request, requestId, needsTermoking) {
@@ -1082,12 +1182,15 @@ export function selectBestVehicle(weight, pickupAt, etaDelivery, currentRequestI
   const matchesThermal = (v) =>
     requiresRefrigeration ? vehicleHasTermokingEquipment(v) : !vehicleHasTermokingEquipment(v);
   const matchesReqTruck = (v) => !reqForType || vehicleMatchesRequestTruckType(v, reqForType);
+  const tripEndYmd = tripScheduleEndYmd(pickupAt, etaDelivery);
+  const docsOk = (v) => !vehicleDocsStatusForTrip(v, tripEndYmd).blocked;
   const filtered = vehicles.filter(
     (v) =>
       !isManuallyUnavailable(v) &&
       isVehicleEligibleForTripAssignment(v) &&
       matchesThermal(v) &&
       matchesReqTruck(v) &&
+      docsOk(v) &&
       !isVehicleBusyAtHour(v, pickupAt, etaDelivery, currentRequestId)
   );
   const pick =
@@ -1099,6 +1202,7 @@ export function selectBestVehicle(weight, pickupAt, etaDelivery, currentRequestI
         isVehicleEligibleForTripAssignment(v) &&
         matchesThermal(v) &&
         matchesReqTruck(v) &&
+        docsOk(v) &&
         !isVehicleBusyAtHour(v, pickupAt, etaDelivery, currentRequestId)
     ) ||
     null;
@@ -1107,11 +1211,12 @@ export function selectBestVehicle(weight, pickupAt, etaDelivery, currentRequestI
 
 export function selectDriver(pickupAt, etaDelivery, currentRequestId = null) {
   const drivers = read(KEYS.drivers, []);
+  const complianceOpts = { onYmd: tripScheduleEndYmd(pickupAt, etaDelivery) };
   return (
     drivers.find(
       (d) =>
         !isManuallyUnavailable(d) &&
-        !driverHasExpiredComplianceForTrips(d) &&
+        !driverHasExpiredComplianceForTrips(d, complianceOpts) &&
         !isDriverBusyAtHour(d, pickupAt, etaDelivery, currentRequestId)
     ) || null
   );
@@ -1375,7 +1480,13 @@ export function tripAssignmentVehicleOptionLabel(vehicle, options = {}) {
   let tail = ` · SOAT ${soat} · Tec ${tec}`;
   if (isBusy) tail += " · Ocupado (horario)";
   if (isUnavailable) tail += " · No disponible";
-  if (hasExpiredDocs) tail += " · Documentación vencida";
+  if (hasExpiredDocs) {
+    const docsBefore = Boolean(options.docsExpireBeforeTrip ?? vehicle.docsExpireBeforeTrip);
+    const docsIssue = String(options.docsIssue ?? vehicle.docsIssue ?? "").trim();
+    tail += docsBefore && docsIssue
+      ? ` · ${docsIssue} ${/ y /.test(docsIssue) ? "vencen" : "vence"} antes del viaje`
+      : " · Documentación vencida";
+  }
   if (options.wrongTruckType) {
     const rt = String(options.requestTruckType || "").trim();
     tail += rt ? ` · Tipo no coincide (solicitud: ${rt})` : " · Tipo no coincide con la solicitud";
@@ -1387,15 +1498,19 @@ export function tripAssignmentDriverOptionLabel(driver, options = {}) {
   const isBusy = Boolean(options.isBusy);
   const isUnavailable = Boolean(options.isUnavailable);
   const hasExpiredDocs = Boolean(options.hasExpiredDocs);
-  const compliance = options.compliance || evaluateDriverTripCompliance(driver);
+  const compliance = options.compliance || driver.tripCompliance || evaluateDriverTripCompliance(driver);
   const dname = driver.name || driver.fullName || "";
   let tail = `${dname} · Lic ${driver.license || "-"} · vence ${driver.licenseExpiry || "-"} · ${driver.phone || "-"}`;
   if (isBusy) tail += " · Ocupado (horario)";
   if (isUnavailable) tail += " · No disponible";
   if (hasExpiredDocs) {
-    tail += compliance.summary && compliance.summary !== "Vigente"
-      ? ` · ${compliance.summary} vencido`
-      : " · Documentación vencida";
+    if (compliance.futureIssues?.length && !compliance.issues?.length) {
+      tail += ` · ${compliance.futureIssues.join(", ")} vence antes del viaje`;
+    } else {
+      tail += compliance.summary && compliance.summary !== "Vigente"
+        ? ` · ${compliance.summary} vencido`
+        : " · Documentación vencida";
+    }
   }
   if (options.wrongVehicleType) {
     const rt = String(options.requestTruckType || "").trim();
@@ -1407,6 +1522,7 @@ export function tripAssignmentDriverOptionLabel(driver, options = {}) {
 export function getCompatibleVehiclesForRequest(request, currentRequestId = null, compatOpts = {}) {
   const moduleCreate = !!(compatOpts && compatOpts.moduleCreateTrip);
   const requiresRefrigeration = requestRequiresTermoking(request);
+  const tripEndYmd = tripScheduleEndYmd(requestSchedulingPickupIso(request), requestSchedulingDeliveryIso(request));
   return read(KEYS.vehicles, []).filter((vehicle) => {
     if (isManuallyUnavailable(vehicle)) return false;
     if (!vehicleMatchesRequestTruckType(vehicle, request)) return false;
@@ -1419,8 +1535,7 @@ export function getCompatibleVehiclesForRequest(request, currentRequestId = null
     if (parseNum(vehicle.capacityKg) < parseNum(request?.weightKg)) return false;
     if (requiresRefrigeration && !vehicleHasTermokingEquipment(vehicle)) return false;
     if (!requiresRefrigeration && vehicleHasTermokingEquipment(vehicle)) return false;
-    if (docExpiryStatus(vehicle.soatExpeditionDate, vehicle.soatExpiryDate).days < 0) return false;
-    if (docExpiryStatus(vehicle.techInspectionExpeditionDate, vehicle.techInspectionExpiryDate).days < 0) return false;
+    if (vehicleDocsStatusForTrip(vehicle, tripEndYmd).blocked) return false;
     if (
       isVehicleBusyAtHour(
         vehicle,
@@ -1435,17 +1550,21 @@ export function getCompatibleVehiclesForRequest(request, currentRequestId = null
 }
 
 export function getCompatibleDriversForRequest(request, currentRequestId = null) {
+  const pickupIso = requestSchedulingPickupIso(request);
+  const deliveryIso = requestSchedulingDeliveryIso(request);
+  const complianceOpts = { onYmd: tripScheduleEndYmd(pickupIso, deliveryIso) };
   return read(KEYS.drivers, []).filter(
     (driver) =>
       !isManuallyUnavailable(driver) &&
-      !driverHasExpiredComplianceForTrips(driver) &&
-      !isDriverBusyAtHour(driver, requestSchedulingPickupIso(request), requestSchedulingDeliveryIso(request), currentRequestId) &&
+      !driverHasExpiredComplianceForTrips(driver, complianceOpts) &&
+      !isDriverBusyAtHour(driver, pickupIso, deliveryIso, currentRequestId) &&
       driverMatchesRequestTruckType(driver, request)
   );
 }
 
 export function getVehicleCandidatesForRequest(request, currentRequestId = null) {
   const requiresRefrigeration = requestRequiresTermoking(request);
+  const tripEndYmd = tripScheduleEndYmd(requestSchedulingPickupIso(request), requestSchedulingDeliveryIso(request));
   return read(KEYS.vehicles, [])
     .filter((vehicle) => {
       if (!isVehicleEligibleForTripAssignment(vehicle)) return false;
@@ -1455,8 +1574,7 @@ export function getVehicleCandidatesForRequest(request, currentRequestId = null)
       return true;
     })
     .map((vehicle) => {
-      const soatDays = docExpiryStatus(vehicle.soatExpeditionDate, vehicle.soatExpiryDate).days;
-      const techDays = docExpiryStatus(vehicle.techInspectionExpeditionDate, vehicle.techInspectionExpiryDate).days;
+      const docs = vehicleDocsStatusForTrip(vehicle, tripEndYmd);
       const busyBySchedule = isVehicleBusyAtHour(
         vehicle,
         requestSchedulingPickupIso(request),
@@ -1469,15 +1587,20 @@ export function getVehicleCandidatesForRequest(request, currentRequestId = null)
         ...vehicle,
         isBusy: busyBySchedule,
         isUnavailable: unavailableManual,
-        hasExpiredDocs: soatDays < 0 || techDays < 0,
+        hasExpiredDocs: docs.blocked,
+        docsExpireBeforeTrip: docs.expiresBeforeTrip,
+        docsIssue: docs.issues.join(" y "),
         wrongTruckType
       };
     });
 }
 
 export function getDriverCandidatesForRequest(request, currentRequestId = null) {
+  const complianceOpts = {
+    onYmd: tripScheduleEndYmd(requestSchedulingPickupIso(request), requestSchedulingDeliveryIso(request))
+  };
   return read(KEYS.drivers, []).map((driver) => {
-    const compliance = evaluateDriverTripCompliance(driver);
+    const compliance = evaluateDriverTripCompliance(driver, complianceOpts);
     const expiredCompliance = !compliance.ok;
     const busyBySchedule = isDriverBusyAtHour(
       driver,
@@ -1495,6 +1618,117 @@ export function getDriverCandidatesForRequest(request, currentRequestId = null) 
       tripCompliance: compliance
     };
   });
+}
+
+/**
+ * Valida un cambio de horario/recursos sobre un viaje YA asignado (editar el viaje o reprogramar la solicitud):
+ * ventana válida, sin cruces de agenda con otros viajes del conductor/camión y documentos vigentes hasta la entrega.
+ * Con `enforceDriverCompliance` exige además que el conductor siga cumpliendo licencia y exámenes aunque no cambie.
+ * Devuelve `{ ok: true }` o `{ ok: false, message }`.
+ */
+export function validateAssignedTripChange(request, opts = {}) {
+  const trip = request?.trip;
+  if (!trip) return { ok: true };
+  const pickupIso = String(opts.pickupIso || "").trim();
+  const deliveryIso = String(opts.deliveryIso || "").trim();
+  const pickupTs = new Date(pickupIso).getTime();
+  const deliveryTs = new Date(deliveryIso).getTime();
+  if (!Number.isFinite(pickupTs) || !Number.isFinite(deliveryTs)) {
+    return { ok: false, message: userMessage("requestDatetimeMissing") };
+  }
+  if (deliveryTs <= pickupTs) return { ok: false, message: userMessage("requestScheduleInvalid") };
+
+  const rid = String(request.id || "");
+  const vehicleId = String(opts.vehicleId ?? trip.vehicleId ?? "").trim();
+  const driverId = String(opts.driverId ?? trip.driverId ?? "").trim();
+  const prevPickupTs = new Date(trip.etaPickup || request.pickupAt || "").getTime();
+  const prevDeliveryTs = new Date(trip.etaDelivery || request.etaDelivery || "").getTime();
+  const scheduleChanged = prevPickupTs !== pickupTs || prevDeliveryTs !== deliveryTs;
+  const vehicleChanged = vehicleId !== String(trip.vehicleId || "").trim();
+  const driverChanged = driverId !== String(trip.driverId || "").trim();
+  const enforceDriverCompliance = Boolean(opts.enforceDriverCompliance);
+  if (!scheduleChanged && !vehicleChanged && !driverChanged && !enforceDriverCompliance) return { ok: true };
+
+  const vehicle = vehicleId ? read(KEYS.vehicles, []).find((v) => String(v.id || "").trim() === vehicleId) || null : null;
+  const driver = driverId ? read(KEYS.drivers, []).find((d) => String(d.id || "").trim() === driverId) || null : null;
+  const shadow = {
+    ...request,
+    pickupAt: pickupIso,
+    etaDelivery: deliveryIso,
+    trip: { ...trip, etaPickup: pickupIso, etaDelivery: deliveryIso }
+  };
+  const plate = String(vehicle?.plate || trip.vehiclePlate || "").trim().toUpperCase();
+  const driverName = String(driver?.name || driver?.fullName || trip.driverName || "El conductor").trim();
+
+  /* 1) Cruces de agenda (solo cuentan los demás viajes vivos del mismo camión / conductor). */
+  if (tripRequestStatusIsOperational(request.status) && (scheduleChanged || vehicleChanged || driverChanged)) {
+    if (vehicle) {
+      const conflict = findActiveTripScheduleConflict(pickupIso, deliveryIso, rid, (t) =>
+        t.vehicleId
+          ? String(t.vehicleId).trim() === vehicleId
+          : Boolean(plate && String(t.vehiclePlate || "").trim().toUpperCase() === plate)
+      );
+      if (conflict) return { ok: false, message: buildScheduleConflictMessage("camión", conflict) };
+    }
+    if (driver) {
+      const dname = String(driver.name || "").trim().toLowerCase();
+      const conflict = findActiveTripScheduleConflict(pickupIso, deliveryIso, rid, (t) =>
+        t.driverId
+          ? String(t.driverId).trim() === driverId
+          : Boolean(dname && String(t.driverName || "").trim().toLowerCase() === dname)
+      );
+      if (conflict) return { ok: false, message: buildScheduleConflictMessage("conductor", conflict) };
+    }
+  }
+
+  /* 2) Camión: si cambia, debe ser apto; si solo cambia el horario, que sus documentos duren hasta la entrega. */
+  if (vehicle && (vehicleChanged || scheduleChanged)) {
+    const cand = getVehicleCandidatesForRequest(shadow, rid).find((v) => String(v.id || "").trim() === vehicleId) || null;
+    const docsMsg = cand?.hasExpiredDocs
+      ? cand.docsExpireBeforeTrip
+        ? `El camión ${plate}: ${cand.docsIssue} ${/ y /.test(cand.docsIssue) ? "vencen" : "vence"} antes de la fecha del viaje.`
+        : `El camión ${plate} tiene SOAT o tecnomecánica vencidos.`
+      : "";
+    if (vehicleChanged) {
+      if (!cand) {
+        return { ok: false, message: `El camión ${plate} no cumple capacidad, equipo Termoking o tipo de flota para esta solicitud.` };
+      }
+      if (cand.isUnavailable) return { ok: false, message: `El camión ${plate} está marcado como no disponible.` };
+      if (docsMsg) return { ok: false, message: docsMsg };
+      if (cand.wrongTruckType) {
+        return { ok: false, message: `El camión ${plate} no coincide con el tipo de camión solicitado.` };
+      }
+    } else if (cand?.docsExpireBeforeTrip && docsMsg) {
+      return { ok: false, message: docsMsg };
+    }
+  }
+
+  /* 3) Conductor: lo mismo (licencia y exámenes vigentes hasta la entrega). */
+  if (driver && (driverChanged || scheduleChanged || enforceDriverCompliance)) {
+    const cand = getDriverCandidatesForRequest(shadow, rid).find((d) => String(d.id || "").trim() === driverId) || null;
+    if (driverChanged && cand?.isUnavailable) {
+      return { ok: false, message: `${driverName} está marcado como no disponible.` };
+    }
+    if (driverChanged && cand?.wrongVehicleType) {
+      return { ok: false, message: `${driverName} no está habilitado para el tipo de camión de la solicitud.` };
+    }
+    if (cand?.hasExpiredDocs && (driverChanged || enforceDriverCompliance || cand.tripCompliance?.futureIssues?.length)) {
+      const msg = driverTripComplianceBlockMessage(driver, { onYmd: tripScheduleEndYmd(pickupIso, deliveryIso) });
+      return { ok: false, message: msg || `${driverName}: documentación vencida.` };
+    }
+  }
+  return { ok: true };
+}
+
+/** Firma del estado de los viajes activos: cambia cuando un viaje inicia, termina o se atrasa. */
+export function computeResourceAvailabilitySignature(nowTs = Date.now()) {
+  return getActiveTrips()
+    .map((r) => {
+      const info = describeTripTimingVsNow(r, nowTs);
+      return `${r.id}:${String(r.status)}:${info.timing}:${info.overdue ? 1 : 0}`;
+    })
+    .sort()
+    .join("|");
 }
 
 /**

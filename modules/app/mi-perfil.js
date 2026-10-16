@@ -84,11 +84,11 @@ function profileHtml(user) {
       </label>
       <div class="profile-hero-info profile-hero-info-centered">
         <h3>${escapeHtml(displayName)}</h3>
-        <p>${u.email || "-"}</p>
+        <p>${escapeHtml(u.email || "-")}</p>
         <div class="profile-hero-chips">
           <span>${escapeHtml(roleLabel)}</span>
           <span>${escapeHtml(accountStatusLabel)}</span>
-          <span>${companyName}</span>
+          <span>${escapeHtml(companyName)}</span>
         </div>
       </div>
     </article>
@@ -100,7 +100,7 @@ function profileHtml(user) {
     <section class="profile-key-data">
       <article class="profile-key-item"><p>Documento / NIT</p><strong>${escapeHtml(docValue || "Sin registrar")}</strong></article>
       <article class="profile-key-item"><p>Telefono</p><strong>${escapeHtml(u.phone ? formatPortalPhoneForDisplay(String(u.phone)) : "Sin registrar")}</strong></article>
-      <article class="profile-key-item"><p>Empresa</p><strong>${companyName}</strong></article>
+      <article class="profile-key-item"><p>Empresa</p><strong>${escapeHtml(companyName)}</strong></article>
       <article class="profile-key-item"><p>Fecha de registro</p><strong>${joinedDate}</strong></article>
     </section>
     <form id="form-profile" class="p-form p-form-colored profile-form profile-form-centered">
@@ -140,7 +140,7 @@ function profileHtml(user) {
       <fieldset class="form-section form-section-emerald full">
         <legend>${IC.briefcase} Empresa asociada</legend>
         <label class="full">
-          <input value="${companyName}" disabled />
+          <input value="${escapeAttr(companyName)}" disabled />
           <input type="hidden" name="companyId" value="${escapeAttr(u.companyId || "")}" />
         </label>
       </fieldset>

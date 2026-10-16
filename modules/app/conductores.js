@@ -88,11 +88,12 @@ function driversHtml() {
     if (!list.length) return { tone: "available", trip: null, detail: "Sin viaje activo" };
     const ongoing = list.find((r) => describeTripTimingVsNow(r, nowTs).timing === "ongoing") || null;
     if (ongoing) {
-      const left = describeTripTimingVsNow(ongoing, nowTs).minutes;
+      const ongoingInfo = describeTripTimingVsNow(ongoing, nowTs);
       return {
         tone: "busy",
         trip: ongoing,
-        detail: `En curso · ${left != null ? `${left} min restantes` : "Horario en curso"}`
+        overdue: Boolean(ongoingInfo.overdue),
+        detail: formatTripOngoingDetail(ongoingInfo)
       };
     }
     const upcoming = list
@@ -103,7 +104,7 @@ function driversHtml() {
       return {
         tone: "scheduled",
         trip: upcoming.r,
-        detail: `Reservado · inicia en ${upcoming.info.minutes} min`
+        detail: `Reservado · inicia en ${formatTripMinutes(upcoming.info.minutes)}`
       };
     }
     const latestPast = list
@@ -114,7 +115,7 @@ function driversHtml() {
       return {
         tone: "available",
         trip: latestPast.r,
-        detail: `Último viaje terminó hace ${latestPast.info.minutes} min`
+        detail: `Último viaje terminó hace ${formatTripMinutes(latestPast.info.minutes)}`
       };
     }
     return { tone: "available", trip: list[0] || null, detail: "Sin cruce horario activo" };

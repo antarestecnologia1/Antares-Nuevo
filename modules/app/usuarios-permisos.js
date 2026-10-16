@@ -649,7 +649,7 @@ function adminUsersHtml(current) {
           <span class="muted" style="display:block;font-size:0.85rem;font-weight:400;margin:0.15rem 0 0.25rem">
             Obligatorio · único en el sistema
           </span>
-          <input name="taxId" required maxlength="32" inputmode="numeric" autocomplete="off" placeholder="900123456-7" />
+          <input name="taxId" data-antares-field="nit" required maxlength="32" inputmode="numeric" autocomplete="off" placeholder="900123456-7" />
         </label>
         <label>
           ${fieldLabel(IC.phone, "Teléfono")}
@@ -719,7 +719,7 @@ function adminUsersHtml(current) {
         </label>
         <label>
           ${fieldLabel(IC.badge, "NIT / RUT", { required: true })}
-          <input name="taxId" required maxlength="32" inputmode="numeric" autocomplete="off" value="${escapeAttr(String(editingCompany.taxId ?? editingCompany.nit ?? ""))}" />
+          <input name="taxId" data-antares-field="nit" required maxlength="32" inputmode="numeric" autocomplete="off" value="${escapeAttr(String(editingCompany.taxId ?? editingCompany.nit ?? ""))}" />
         </label>
         <label>
           ${fieldLabel(IC.phone, "Teléfono")}

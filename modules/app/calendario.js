@@ -22,6 +22,82 @@ function calendarTripStatusSlug(request) {
   return raw.toLowerCase().replace(/\s+/g, "_");
 }
 
+/** Cancelada / Rechazada liberan conductor y camión: no cuentan como programación. */
+function calendarIsDeadTrip(request) {
+  const slug = calendarTripStatusSlug(request);
+  return slug === "cancelada" || slug === "rechazada";
+}
+
+/** Viaje que ya no está por ejecutarse (completado, cerrado, cancelado o rechazado). */
+function calendarIsFinishedTrip(request) {
+  const slug = calendarTripStatusSlug(request);
+  return slug === "completada" || slug === "cerrada" || slug === "cancelada" || slug === "rechazada";
+}
+
+function calendarDayKeyOf(date) {
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+}
+
+function calendarClock(value) {
+  const d = value instanceof Date ? value : new Date(value);
+  return d.toLocaleTimeString("es-CO", { hour: "numeric", minute: "2-digit" });
+}
+
+/** `dd/mm hh:mm` (neutro al idioma) para tooltips de viajes que cruzan de día. */
+function calendarShortDateTime(value) {
+  const d = value instanceof Date ? value : new Date(value);
+  return `${d.toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit" })} ${calendarClock(d)}`;
+}
+
+/** Ventana [inicio, fin) de un evento en ms: viajes = recogida → entrega; entrevistas = su hora; novedades = sus días. */
+function calendarEventRange(evt) {
+  if (evt.kind === "trip" && evt.request) {
+    const r = calendarTripRangeFn(evt.request);
+    if (r) return { start: r.start, end: r.end };
+  }
+  const s = evt.start.getTime();
+  const e = evt.end instanceof Date && !Number.isNaN(evt.end.getTime()) ? evt.end.getTime() : s;
+  return { start: s, end: Math.max(e, s) };
+}
+
+/** Texto horario de un evento dentro de un día concreto (viajes de varios días, novedades de día completo). */
+function calendarItemTimeLabel(item) {
+  const { evt, range, isFirst, isLast } = item;
+  if (evt.kind === "absence") return "Todo el día";
+  if (isFirst && isLast) return calendarClock(range.start);
+  if (isFirst) return `${calendarClock(range.start)} →`;
+  if (isLast) return `← ${calendarClock(range.end)}`;
+  return "Todo el día";
+}
+
+function calendarItemTooltip(item) {
+  const { evt, range } = item;
+  if (evt.kind === "trip") {
+    return `${evt.title} · ${calendarShortDateTime(range.start)} – ${calendarShortDateTime(range.end)}`;
+  }
+  return `${evt.title}${evt.subtitle ? ` · ${evt.subtitle}` : ""}`;
+}
+
+/** «2 viajes · 1 entrevista» / «Sin eventos». */
+function calendarCountLabel(events) {
+  const rows = Array.isArray(events) ? events : [];
+  const n = (kind) => rows.filter((e) => e.kind === kind).length;
+  const trips = n("trip");
+  const interviews = n("interview");
+  const absences = n("absence");
+  const parts = [];
+  if (trips) parts.push(`${trips} viaje${trips === 1 ? "" : "s"}`);
+  if (interviews) parts.push(`${interviews} entrevista${interviews === 1 ? "" : "s"}`);
+  if (absences) parts.push(`${absences} novedad${absences === 1 ? "" : "es"}`);
+  return parts.length ? parts.join(" · ") : "Sin eventos";
+}
+
+function calendarKindBadgeHtml(evt) {
+  if (evt.kind === "trip") return prettyStatus(evt.request?.status, "trip");
+  if (evt.kind === "interview") return '<span class="status status-en_transito">Entrevista</span>';
+  return '<span class="status status-espera_standby">Novedad</span>';
+}
+
 function calendarResourceAvatarHtml(res) {
   const kind = String(res?.kind || "driver").toLowerCase();
   const photoUrl = kind === "driver" ? String(res?.photoUrl || "").trim() : "";
@@ -56,6 +132,7 @@ function buildCalendarResourceTimelineHtml({ allEvents, driversList, vehiclesLis
     : String(filters.vehicle || "").trim()
       ? "vehicle"
       : "driver";
+  const showFree = Boolean(state.calendarShowFree);
 
   const layout = Cal?.buildResourceTimelineLayout
     ? Cal.buildResourceTimelineLayout({
@@ -65,20 +142,31 @@ function buildCalendarResourceTimelineHtml({ allEvents, driversList, vehiclesLis
         focusDate: focus,
         resourceGroup,
         filters,
-        opts: { tripRangeFn: calendarTripRangeFn }
+        opts: { tripRangeFn: calendarTripRangeFn, includeAllResources: showFree }
       })
     : { resources: [], blocks: [], hourLabels: [], totalHeightPx: 0, isToday: false, nowTopPx: null, tripCount: 0 };
 
   const { resources, blocks, hourLabels, totalHeightPx, isToday, nowTopPx, tripCount } = layout;
-  const groupLabel = resourceGroup === "vehicle" ? "camión" : "conductor";
+  const groupSingular = resourceGroup === "vehicle" ? "camión" : "conductor";
+  const groupPlural = resourceGroup === "vehicle" ? "camiones" : "conductores";
   const resourceGroupUi = String(state.calendarResourceGroup || "auto");
 
+  const resourceGroupToggle = `<div class="cal-resource-group-toggle" role="group" aria-label="Agrupar programación por">
+    <button type="button" class="btn btn-sm btn-action${resourceGroupUi === "auto" ? " is-active" : ""}" data-action="cal-resource-group" data-group="auto">Auto</button>
+    <button type="button" class="btn btn-sm btn-action${resourceGroupUi === "driver" ? " is-active" : ""}" data-action="cal-resource-group" data-group="driver">${IC.user || ""} Conductor</button>
+    <button type="button" class="btn btn-sm btn-action${resourceGroupUi === "vehicle" ? " is-active" : ""}" data-action="cal-resource-group" data-group="vehicle">${IC.truck || ""} Camión</button>
+  </div>`;
+  const showFreeToggle = `<button type="button" class="btn btn-sm btn-action cal-show-free${showFree ? " is-active" : ""}" data-action="cal-show-free" aria-pressed="${showFree ? "true" : "false"}" title="Mostrar también los conductores y camiones sin viajes ese día">Mostrar libres</button>`;
+
   if (!resources.length) {
-    return `<div class="cal-timeline-empty">
-      <div class="cal-timeline-empty-icon">${IC.calendar || ""}</div>
-      <h3>Sin programación para este día</h3>
-      <p class="muted">No hay viajes asignados${filters.driver || filters.vehicle ? " con los filtros actuales" : ""} en la fecha seleccionada.</p>
-      <p class="muted cal-timeline-empty-hint">Prueba otro día o ajusta los filtros de conductor / camión.</p>
+    return `<div class="cal-timeline-wrap">
+      <div class="cal-timeline-meta">${resourceGroupToggle}${showFreeToggle}</div>
+      <div class="cal-timeline-empty">
+        <div class="cal-timeline-empty-icon">${IC.calendar || ""}</div>
+        <h3>Sin programación para este día</h3>
+        <p class="muted">No hay viajes asignados${filters.driver || filters.vehicle ? " con los filtros actuales" : ""} en la fecha seleccionada.</p>
+        <p class="muted cal-timeline-empty-hint">Prueba otro día o ajusta los filtros de conductor / camión.</p>
+      </div>
     </div>`;
   }
 
@@ -100,11 +188,15 @@ function buildCalendarResourceTimelineHtml({ allEvents, driversList, vehiclesLis
     .map((res, colIndex) => {
       const count = blocks.filter((b) => b.resourceId === res.id).length;
       const icon = res.kind === "vehicle" ? IC.truck : IC.user;
+      const flag = res.unavailable
+        ? `<span class="cal-timeline-resource-flag" title="Marcado como no disponible">No disponible</span>`
+        : "";
       return `<div class="cal-timeline-resource-head" style="--res-accent:${escapeAttr(res.accent)};grid-column:${colIndex + 2};grid-row:1">
         ${calendarResourceAvatarHtml(res)}
         <div class="cal-timeline-resource-meta">
           <strong title="${escapeAttr(res.label)}">${escapeHtml(res.label)}</strong>
           <span class="muted">${escapeHtml(res.subtitle || (res.kind === "vehicle" ? "Vehículo" : "Conductor"))}</span>
+          ${flag}
         </div>
         <span class="cal-timeline-resource-count" title="Viajes del día">${count}</span>
         <span class="cal-timeline-resource-kind" aria-hidden="true">${icon || ""}</span>
@@ -118,18 +210,24 @@ function buildCalendarResourceTimelineHtml({ allEvents, driversList, vehiclesLis
         .filter((b) => b.resourceId === res.id)
         .map((b) => {
           const evt = b.evt;
-          const range = calendarTripRangeFn(evt.request) || {
-            start: evt.start.getTime(),
-            end: evt.start.getTime() + 60 * 60 * 1000
-          };
-          const timeStart = new Date(range.start).toLocaleTimeString("es-CO", {
-            hour: "2-digit",
-            minute: "2-digit"
-          });
-          const timeEnd = new Date(range.end).toLocaleTimeString("es-CO", {
-            hour: "2-digit",
-            minute: "2-digit"
-          });
+          const rangeStart = Number.isFinite(b.rangeStartMs) ? b.rangeStartMs : evt.start.getTime();
+          const rangeEnd = Number.isFinite(b.rangeEndMs) ? b.rangeEndMs : rangeStart + 60 * 60 * 1000;
+          const timeStart = calendarClock(rangeStart);
+          const timeEnd = calendarClock(rangeEnd);
+          const crossesDays = Boolean(b.clippedStart || b.clippedEnd);
+          /* Un viaje que sigue de otro día se muestra como «Hasta…» / «Desde…» / «Todo el día». */
+          const timeText =
+            evt.kind === "absence" || (b.clippedStart && b.clippedEnd)
+              ? "Todo el día"
+              : b.clippedStart
+                ? `Hasta ${timeEnd}`
+                : b.clippedEnd
+                  ? `Desde ${timeStart}`
+                  : `${timeStart} – ${timeEnd}`;
+          const tooltip =
+            evt.kind === "trip"
+              ? `${evt.title} · ${crossesDays ? `${calendarShortDateTime(rangeStart)} – ${calendarShortDateTime(rangeEnd)}` : `${timeStart} – ${timeEnd}`}`
+              : `${evt.title}${evt.subtitle ? ` · ${evt.subtitle}` : ""}`;
           const statusSlug =
             evt.kind === "trip" ? calendarTripStatusSlug(evt.request) : String(evt.kind || "trip");
           const metaLine =
@@ -137,12 +235,13 @@ function buildCalendarResourceTimelineHtml({ allEvents, driversList, vehiclesLis
               ? `${evt.request.trip.route || formatRoute(evt.request)}`
               : String(evt.subtitle || "");
           const compact = b.heightPx < 52;
+          const compactTime = crossesDays || evt.kind === "absence" ? timeText : timeStart;
           return `<button type="button"
-            class="cal-timeline-block ${evt.dot} cal-timeline-block--${escapeAttr(evt.kind)} cal-timeline-block--status-${escapeAttr(statusSlug)}${b.clipped ? " cal-timeline-block--clipped" : ""}${compact ? " cal-timeline-block--compact" : ""}"
+            class="cal-timeline-block cal-timeline-block--${escapeAttr(evt.kind)} cal-timeline-block--status-${escapeAttr(statusSlug)}${b.clipped ? " cal-timeline-block--clipped" : ""}${b.clippedStart ? " cal-timeline-block--cont-start" : ""}${b.clippedEnd ? " cal-timeline-block--cont-end" : ""}${compact ? " cal-timeline-block--compact" : ""}"
             style="top:${b.topPx}px;height:${b.heightPx}px;left:calc(${b.leftPct}% + 4px);width:calc(${b.widthPct}% - 8px);--block-accent:${escapeAttr(res.accent)}"
             data-action="cal-event" data-kind="${escapeAttr(evt.kind)}" data-id="${escapeAttr(evt.id)}"
-            title="${escapeAttr(`${evt.title} · ${timeStart} – ${timeEnd}`)}">
-            <span class="cal-timeline-block-time">${escapeHtml(timeStart)}${compact ? "" : ` – ${escapeHtml(timeEnd)}`}</span>
+            title="${escapeAttr(tooltip)}">
+            <span class="cal-timeline-block-time">${escapeHtml(compact ? compactTime : timeText)}</span>
             <strong class="cal-timeline-block-title">${escapeHtml(String(evt.title || "-"))}</strong>
             ${compact ? "" : `<span class="cal-timeline-block-sub">${escapeHtml(metaLine)}</span>`}
           </button>`;
@@ -163,18 +262,13 @@ function buildCalendarResourceTimelineHtml({ allEvents, driversList, vehiclesLis
         </div>`
       : "";
 
-  const resourceGroupToggle = `<div class="cal-resource-group-toggle" role="group" aria-label="Agrupar programación por">
-    <button type="button" class="btn btn-sm btn-action${resourceGroupUi === "auto" ? " is-active" : ""}" data-action="cal-resource-group" data-group="auto">Auto</button>
-    <button type="button" class="btn btn-sm btn-action${resourceGroupUi === "driver" ? " is-active" : ""}" data-action="cal-resource-group" data-group="driver">${IC.user || ""} Conductor</button>
-    <button type="button" class="btn btn-sm btn-action${resourceGroupUi === "vehicle" ? " is-active" : ""}" data-action="cal-resource-group" data-group="vehicle">${IC.truck || ""} Camión</button>
-  </div>`;
-
   return `<div class="cal-timeline-wrap">
     <div class="cal-timeline-meta">
       ${resourceGroupToggle}
-      <span class="cal-timeline-meta-pill">${resources.length} ${resources.length === 1 ? groupLabel : groupLabel + "es"} · ${tripCount} viaje${tripCount === 1 ? "" : "s"}</span>
+      ${showFreeToggle}
+      <span class="cal-timeline-meta-pill">${resources.length} ${resources.length === 1 ? groupSingular : groupPlural} · ${tripCount} viaje${tripCount === 1 ? "" : "s"}</span>
     </div>
-    <div class="cal-timeline-scroll" tabindex="0" aria-label="Programación por ${groupLabel}">
+    <div class="cal-timeline-scroll" tabindex="0" aria-label="Programación por ${groupSingular}">
       <div class="cal-timeline-grid" style="--cal-slot-h:${layout.slotHeightPx}px;--cal-timeline-h:${totalHeightPx}px;--cal-cols:${resources.length}">
         <div class="cal-timeline-corner" aria-hidden="true"></div>
         <div class="cal-timeline-resources-header">${resourceHeaders}</div>
@@ -188,23 +282,28 @@ function buildCalendarResourceTimelineHtml({ allEvents, driversList, vehiclesLis
 
 function transportCalendarHtml() {
   const filters = state.calendarFilters || { driver: "", vehicle: "", status: "", kind: "" };
+  /* Cancelada / Rechazada liberan conductor y camión: solo se listan al filtrar por ese estado. */
   const allTrips = reqRead()
     .filter((r) => r.trip)
     .filter((r) => {
       if (filters.driver && String(r.trip.driverId || "") !== filters.driver) return false;
       if (filters.vehicle && String(r.trip.vehicleId || "") !== filters.vehicle) return false;
       if (filters.status && String(r.status || "") !== filters.status) return false;
+      if (!filters.status && calendarIsDeadTrip(r)) return false;
       return true;
     });
-  const interviews = read(KEYS.interviews, []);
-  const absences = read(KEYS.hrAbsences, []);
+  /* Conductor / camión / estado son filtros de viaje: entrevistas y novedades de RR. HH. quedan fuera. */
+  const tripOnlyFilter = Boolean(filters.driver || filters.vehicle || filters.status);
+  const interviews = tripOnlyFilter ? [] : read(KEYS.interviews, []);
+  const absences = tripOnlyFilter ? [] : read(KEYS.hrAbsences, []);
 
   let allEvents = [];
   if (typeof AntaresCalendarDomain !== "undefined") {
     const merged = AntaresCalendarDomain.mergeCalendarEvents({
       requests: allTrips,
       interviews,
-      absences
+      absences,
+      absenceTypeLabel: typeof payrollAbsenceTypeLabel === "function" ? payrollAbsenceTypeLabel : undefined
     });
     const filtered = AntaresCalendarDomain.filterCalendarEvents(merged, { kind: filters.kind });
     allEvents = AntaresCalendarDomain.calendarEventsToUiRows(filtered, { reqRead });
@@ -231,10 +330,12 @@ function transportCalendarHtml() {
         const ts = new Date(`${String(a.startDate || "")}T12:00:00`).getTime();
         if (!Number.isFinite(ts)) return null;
         const typeLabel = payrollAbsenceTypeLabel(a.absenceType);
+        const endTs = new Date(`${String(a.endDate || a.startDate || "")}T23:59:59`).getTime();
         return {
           kind: "absence",
           id: String(a.id || ""),
           start: new Date(ts),
+          end: new Date(Number.isFinite(endTs) && endTs >= ts ? endTs : ts),
           dot: "dot-absence",
           title: `${typeLabel} · ${String(a.employeeName || "Colaborador")}`,
           subtitle: `${String(a.startDate || "-")} → ${String(a.endDate || "-")}`
@@ -282,37 +383,57 @@ function transportCalendarHtml() {
   const year = focus.getFullYear();
   const month = focus.getMonth();
 
+  /* Un viaje de varios días (o que cruza la medianoche) aparece en cada día que ocupa. */
   const eventsByDay = new Map();
+  const CalDomain = typeof AntaresCalendarDomain !== "undefined" ? AntaresCalendarDomain : null;
   allEvents.forEach((evt) => {
-    const d = evt.start;
-    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-    if (!eventsByDay.has(key)) eventsByDay.set(key, []);
-    eventsByDay.get(key).push(evt);
+    const range = calendarEventRange(evt);
+    const spans =
+      CalDomain && typeof CalDomain.calendarRangeDayKeys === "function"
+        ? CalDomain.calendarRangeDayKeys(range.start, range.end)
+        : [];
+    const days = spans.length ? spans : [{ key: calendarDayKeyOf(evt.start), date: evt.start }];
+    days.forEach((day, idx) => {
+      if (!eventsByDay.has(day.key)) eventsByDay.set(day.key, []);
+      eventsByDay.get(day.key).push({ evt, range, isFirst: idx === 0, isLast: idx === days.length - 1 });
+    });
   });
+  const itemsOnDay = (dayDate) => {
+    const dayStartMs = new Date(dayDate.getFullYear(), dayDate.getMonth(), dayDate.getDate()).getTime();
+    return (eventsByDay.get(calendarDayKeyOf(dayDate)) || [])
+      .slice()
+      .sort(
+        (a, b) =>
+          (a.isFirst ? a.range.start : dayStartMs) - (b.isFirst ? b.range.start : dayStartMs)
+      );
+  };
 
   const monthLabel = focus.toLocaleDateString("es-CO", { month: "long", year: "numeric" });
   const monthLabelCap = monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1);
 
   const buildCellFromDate = (cellDateRaw, isOther) => {
     const cellDate = new Date(cellDateRaw.getFullYear(), cellDateRaw.getMonth(), cellDateRaw.getDate());
-    const key = `${cellDate.getFullYear()}-${cellDate.getMonth()}-${cellDate.getDate()}`;
-    const dayEvents = eventsByDay.get(key) || [];
+    const dayItems = itemsOnDay(cellDate);
     const isToday = cellDate.getTime() === today.getTime();
     const dayNum = cellDate.getDate();
-    const maxEv = view === "day" ? 24 : 3;
-    const eventList = dayEvents
+    const maxEv = view === "day" ? Infinity : 3;
+    const eventList = dayItems
       .slice(0, maxEv)
-      .map((evt) => {
-        const time = evt.start.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
-        return `<button type="button" class="cal-event ${evt.dot}" data-action="cal-event" data-kind="${escapeAttr(evt.kind)}" data-id="${escapeAttr(evt.id)}">
-          <span class="cal-event-time">${time}</span>
+      .map((item) => {
+        const { evt } = item;
+        const statusSlug = evt.kind === "trip" ? calendarTripStatusSlug(evt.request) : String(evt.kind || "");
+        return `<button type="button" class="cal-event ${evt.dot} cal-event--status-${escapeAttr(statusSlug)}${item.isFirst ? "" : " cal-event--cont"}${item.isLast ? "" : " cal-event--to-next"}" data-action="cal-event" data-kind="${escapeAttr(evt.kind)}" data-id="${escapeAttr(evt.id)}" title="${escapeAttr(calendarItemTooltip(item))}">
+          <span class="cal-event-time">${escapeHtml(calendarItemTimeLabel(item))}</span>
           <span class="cal-event-title">${escapeHtml(String(evt.title || "-"))}</span>
         </button>`;
       })
       .join("");
+    const hiddenCount = dayItems.length - maxEv;
     const more =
-      dayEvents.length > maxEv ? `<span class="cal-more">+${dayEvents.length - maxEv} más</span>` : "";
-    return `<div class="cal-cell ${isOther ? "cal-cell-other" : ""} ${isToday ? "cal-cell-today" : ""} ${dayEvents.length ? "cal-cell-has-events" : ""}">
+      hiddenCount > 0
+        ? `<button type="button" class="cal-more" data-action="cal-day" data-date="${cellDate.getFullYear()}-${cellDate.getMonth() + 1}-${cellDate.getDate()}">+${hiddenCount} más</button>`
+        : "";
+    return `<div class="cal-cell ${isOther ? "cal-cell-other" : ""} ${isToday ? "cal-cell-today" : ""} ${dayItems.length ? "cal-cell-has-events" : ""}">
       <div class="cal-day">${dayNum}${isToday ? '<span class="cal-today-pill">Hoy</span>' : ""}</div>
       <div class="cal-events">${eventList}${more}</div>
     </div>`;
@@ -391,29 +512,25 @@ function transportCalendarHtml() {
       <div class="cal-days cal-days--view-${view}">${cells.join("")}</div>
     </div>`;
 
-  const todayKey = `${today.getFullYear()}-${today.getMonth()}-${today.getDate()}`;
-  const todayEvents = eventsByDay.get(todayKey) || [];
-  const upcoming = allEvents
-    .filter((evt) => evt.start.getTime() >= today.getTime())
-    .slice(0, 8);
+  /* «Hoy»: todo lo que ocupa el día de hoy (incluye viajes que vienen de ayer). «Próximas»: lo que aún no empieza. */
+  const todayItems = itemsOnDay(today);
+  const nowMs = Date.now();
+  const upcomingAll = allEvents.filter(
+    (evt) => evt.start.getTime() > nowMs && !(evt.kind === "trip" && calendarIsFinishedTrip(evt.request))
+  );
+  const upcoming = upcomingAll.slice(0, 8);
 
-  const todayList = todayEvents.length
-    ? todayEvents
-        .map((evt) => {
-          const time = evt.start.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
-          const statusCell =
-            evt.kind === "trip"
-              ? prettyStatus(evt.request?.status, "trip")
-              : evt.kind === "interview"
-                ? '<span class="status status-en_transito">Entrevista</span>'
-                : '<span class="status status-espera_standby">Novedad</span>';
+  const todayList = todayItems.length
+    ? todayItems
+        .map((item) => {
+          const { evt } = item;
           return `<div class="cal-day-event">
-            <div class="cal-day-event-time">${time}</div>
+            <div class="cal-day-event-time">${escapeHtml(calendarItemTimeLabel(item))}</div>
             <div class="cal-day-event-info">
               <strong>${escapeHtml(String(evt.title || "-"))}</strong>
               <span class="muted">${escapeHtml(String(evt.subtitle || "-"))}</span>
             </div>
-            <div class="cal-day-event-status">${statusCell}</div>
+            <div class="cal-day-event-status">${calendarKindBadgeHtml(evt)}</div>
           </div>`;
         })
         .join("")
@@ -424,23 +541,16 @@ function transportCalendarHtml() {
         .map((evt) => {
           const date = evt.start;
           const dateLabel = date.toLocaleDateString("es-CO", { day: "2-digit", month: "short" });
-          const time = date.toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
-          const badge =
-            evt.kind === "trip"
-              ? prettyStatus(evt.request?.status, "trip")
-              : evt.kind === "interview"
-                ? '<span class="status status-en_transito">Entrevista</span>'
-                : '<span class="status status-espera_standby">Novedad</span>';
           return `<div class="cal-upcoming-item">
             <div class="cal-upcoming-date">
-              <strong>${dateLabel}</strong>
-              <span class="muted">${time}</span>
+              <strong>${escapeHtml(dateLabel)}</strong>
+              <span class="muted">${escapeHtml(calendarClock(date))}</span>
             </div>
             <div class="cal-upcoming-info">
               <strong>${escapeHtml(String(evt.title || "-"))}</strong>
               <span class="muted">${escapeHtml(String(evt.subtitle || "-"))}</span>
             </div>
-            <div>${badge}</div>
+            <div>${calendarKindBadgeHtml(evt)}</div>
           </div>`;
         })
         .join("")
@@ -480,8 +590,8 @@ function transportCalendarHtml() {
     </div>
     ${mainCalendarHtml}
     <div class="calendar-side-grid${view === "resources" ? " calendar-side-grid--compact" : ""}">
-      ${pcardWrapPro("clock", "Hoy", `${todayEvents.length} viajes programados`, `<div class="cal-day-list">${todayList}</div>`)}
-      ${pcardWrapPro("calendar", "Próximas programaciones", upcoming.length + " viajes", `<div class="cal-upcoming-list">${upcomingList}</div>`)}
+      ${pcardWrapPro("clock", "Hoy", calendarCountLabel(todayItems.map((item) => item.evt)), `<div class="cal-day-list">${todayList}</div>`)}
+      ${pcardWrapPro("calendar", "Próximas programaciones", calendarCountLabel(upcoming), `<div class="cal-upcoming-list">${upcomingList}</div>`)}
     </div>
   </section>`;
 
@@ -490,8 +600,8 @@ function transportCalendarHtml() {
     { label: "Entrevistas", value: interviewEvents.length },
     { label: "Novedades", value: absenceEvents.length },
     { label: "Tras filtros", value: allEvents.length },
-    { label: "Hoy", value: todayEvents.length },
-    { label: "Proximos", value: upcoming.length }
+    { label: "Hoy", value: todayItems.length },
+    { label: "Próximos", value: upcomingAll.length }
   ]);
 
   return `<section class="calendar-studio">${calHero}${calendarShell}</section>`;
@@ -545,7 +655,11 @@ function transportCalendarHtml() {
             ? state.calendarViewMode
             : "month";
         if (v === "month") {
+          /* Del 29–31 saltar al mes siguiente se desbordaba (31 ene + 1 mes = 3 mar): se ajusta al último día. */
+          const keepDay = base.getDate();
+          base.setDate(1);
           base.setMonth(base.getMonth() + step);
+          base.setDate(Math.min(keepDay, new Date(base.getFullYear(), base.getMonth() + 1, 0).getDate()));
         } else if (v === "week") {
           base.setDate(base.getDate() + step * 7);
         } else {
@@ -570,6 +684,26 @@ function transportCalendarHtml() {
         const group = String(btn.dataset.group || "auto");
         state.calendarResourceGroup =
           group === "driver" || group === "vehicle" ? group : "auto";
+        renderPortalView();
+      });
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='cal-show-free']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.calendarShowFree = !state.calendarShowFree;
+        renderPortalView();
+      });
+    });
+
+    /* «+N más» de una celda: abre ese día para ver todos sus eventos. */
+    nodes.viewRoot.querySelectorAll("[data-action='cal-day']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const [y, m, d] = String(btn.dataset.date || "")
+          .split("-")
+          .map((n) => parseInt(n, 10));
+        if (!y || !m || !d) return;
+        state.calendarFocus = new Date(y, m - 1, d, 12, 0, 0, 0);
+        state.calendarViewMode = "day";
         renderPortalView();
       });
     });
@@ -659,11 +793,22 @@ function transportCalendarHtml() {
       });
     });
 
+    /* Al abrir la vista de recursos: centrar en «ahora» (hoy) o en el primer viaje del día. */
     const timelineScroll = nodes.viewRoot.querySelector(".cal-timeline-scroll");
-    const nowMarker = nodes.viewRoot.querySelector(".cal-timeline-now");
-    if (timelineScroll && nowMarker) {
-      const top = parseFloat(nowMarker.style.top || "0") || 0;
-      timelineScroll.scrollTop = Math.max(0, top - timelineScroll.clientHeight * 0.35);
+    if (timelineScroll) {
+      const nowMarker = nodes.viewRoot.querySelector(".cal-timeline-now");
+      let focusTop = null;
+      if (nowMarker) {
+        focusTop = parseFloat(nowMarker.style.top || "0") || 0;
+      } else {
+        const tops = Array.from(timelineScroll.querySelectorAll(".cal-timeline-block")).map(
+          (el) => parseFloat(el.style.top || "0") || 0
+        );
+        if (tops.length) focusTop = Math.min(...tops);
+      }
+      if (focusTop != null) {
+        timelineScroll.scrollTop = Math.max(0, focusTop - timelineScroll.clientHeight * 0.35);
+      }
     }
   }
 

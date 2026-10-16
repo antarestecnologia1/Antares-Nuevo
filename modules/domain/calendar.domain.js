@@ -34,32 +34,51 @@ export function buildTripCalendarEvents(requests) {
 
 export function buildInterviewCalendarEvents(interviews) {
   const rows = Array.isArray(interviews) ? interviews : [];
-  return rows.map((i) => ({
-    id: `interview-${i.id}`,
-    kind: "interview",
-    title: String(i.candidateName || i.title || "Entrevista"),
-    subtitle: String(i.position || ""),
-    start: i.scheduledAt || i.date,
-    end: i.scheduledAt || i.date,
-    status: i.status,
-    interviewId: i.id
-  }));
+  return rows.map((i) => {
+    /* En el portal la cita se guarda en `when`; `scheduledAt` / `date` quedan por compatibilidad. */
+    const when = i.when || i.scheduledAt || i.date;
+    return {
+      id: `interview-${i.id}`,
+      kind: "interview",
+      title: `Entrevista · ${String(i.candidateName || i.title || "Candidato")}`,
+      subtitle: String(i.interviewer || i.position || ""),
+      start: when,
+      end: when,
+      status: i.status,
+      interviewId: i.id
+    };
+  });
 }
 
-export function mergeCalendarEvents({ requests, interviews, absences } = {}) {
+/** `YYYY-MM-DD` → fecha local (mediodía o fin de día); evita que `new Date("2026-10-15")` caiga en UTC y se corra un día. */
+function calendarDateOnlyToLocalIso(raw, endOfDay = false) {
+  const s = String(raw || "").trim();
+  const m = s.match(/^(\d{4}-\d{2}-\d{2})(?:$|T00:00:00(?:\.0+)?Z?$)/);
+  if (m) return `${m[1]}T${endOfDay ? "23:59:59" : "12:00:00"}`;
+  return s;
+}
+
+export function mergeCalendarEvents({ requests, interviews, absences, absenceTypeLabel } = {}) {
   const req = buildTripCalendarEvents(requests ?? readPortalRequestsFallback());
   const int = buildInterviewCalendarEvents(interviews ?? []);
   const abs = Array.isArray(absences)
-    ? absences.map((a) => ({
-        id: `absence-${a.id}`,
-        kind: "absence",
-        title: String(a.employeeName || a.reason || "Ausencia"),
-        subtitle: String(a.type || ""),
-        start: a.startDate || a.from,
-        end: a.endDate || a.to || a.startDate,
-        status: a.status,
-        absenceId: a.id
-      }))
+    ? absences.map((a) => {
+        const startRaw = a.startDate || a.from;
+        const endRaw = a.endDate || a.to || startRaw;
+        const rawType = a.absenceType || a.type || "";
+        const typeLabel =
+          typeof absenceTypeLabel === "function" ? String(absenceTypeLabel(rawType) || "Novedad") : String(rawType || "Novedad");
+        return {
+          id: `absence-${a.id}`,
+          kind: "absence",
+          title: `${typeLabel} · ${String(a.employeeName || a.reason || "Colaborador")}`,
+          subtitle: `${String(startRaw || "-")} → ${String(endRaw || "-")}`,
+          start: calendarDateOnlyToLocalIso(startRaw),
+          end: calendarDateOnlyToLocalIso(endRaw, true),
+          status: a.status,
+          absenceId: a.id
+        };
+      })
     : [];
   return [...req, ...int, ...abs].sort(
     (a, b) => new Date(a.start || 0).getTime() - new Date(b.start || 0).getTime()
@@ -99,6 +118,8 @@ export function calendarEventsToUiRows(events, { reqRead } = {}) {
         title: String(ev.title || "Evento"),
         subtitle: String(ev.subtitle || "")
       };
+      const endTs = new Date(String(ev.end || ev.start || "")).getTime();
+      row.end = new Date(Number.isFinite(endTs) && endTs >= ts ? endTs : ts);
       if (kind === "trip" && ev.requestId) {
         row.request = readReq().find((r) => String(r.id) === String(ev.requestId)) || null;
       }
@@ -172,6 +193,23 @@ export function calendarDayKey(date) {
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 }
 
+/**
+ * Días calendario que abarca un rango [startMs, endMs). El fin es exclusivo: un viaje que termina
+ * a las 00:00 no ocupa el día siguiente. Máximo `maxDays` (protege contra fechas absurdas).
+ */
+export function calendarRangeDayKeys(startMs, endMs, maxDays = 62) {
+  const out = [];
+  if (!Number.isFinite(startMs)) return out;
+  const first = new Date(startMs);
+  const lastMs = Math.max(startMs, (Number.isFinite(endMs) ? endMs : startMs) - 1);
+  for (let i = 0; i < maxDays; i++) {
+    const dayStart = new Date(first.getFullYear(), first.getMonth(), first.getDate() + i, 0, 0, 0, 0);
+    if (dayStart.getTime() > lastMs) break;
+    out.push({ key: calendarDayKey(dayStart), date: dayStart });
+  }
+  return out;
+}
+
 export function filterEventsOnCalendarDay(events, focusDate) {
   const key = calendarDayKey(focusDate);
   return (Array.isArray(events) ? events : []).filter((evt) => {
@@ -185,6 +223,15 @@ export function eventTimelineRange(evt, tripRangeFn) {
   if (kind === "trip" && evt.request && typeof tripRangeFn === "function") {
     const range = tripRangeFn(evt.request);
     if (range) return { startMs: range.start, endMs: range.end };
+  }
+  if (kind === "absence") {
+    /* Novedades de RR. HH.: días completos desde el día de inicio hasta el final del día de término. */
+    const first = new Date(evt.start);
+    first.setHours(0, 0, 0, 0);
+    const lastRaw = evt.end instanceof Date && !Number.isNaN(evt.end.getTime()) ? evt.end : evt.start;
+    const last = new Date(lastRaw);
+    last.setHours(23, 59, 59, 999);
+    return { startMs: first.getTime(), endMs: last.getTime() + 1 };
   }
   const startMs = evt.start.getTime();
   return { startMs, endMs: startMs + 60 * 60 * 1000 };
@@ -249,7 +296,17 @@ export function buildResourceTimelineLayout({
 
   const focus = focusDate instanceof Date ? new Date(focusDate) : new Date(focusDate);
   focus.setHours(12, 0, 0, 0);
-  const dayEvents = filterEventsOnCalendarDay(events, focus);
+  const focusKey = calendarDayKey(focus);
+  const dayWindowStartMs = new Date(focus.getFullYear(), focus.getMonth(), focus.getDate(), 0, 0, 0, 0).getTime();
+  const dayWindowEndMs = new Date(focus.getFullYear(), focus.getMonth(), focus.getDate() + 1, 0, 0, 0, 0).getTime();
+  /* Un viaje que cruza la medianoche o dura varios días aparece en cada día que ocupa. */
+  const dayEvents = (Array.isArray(events) ? events : []).filter((evt) => {
+    if (!(evt?.start instanceof Date) || Number.isNaN(evt.start.getTime())) return false;
+    const kindLc = String(evt.kind || "trip").toLowerCase();
+    if (kindLc !== "trip" && kindLc !== "absence") return calendarDayKey(evt.start) === focusKey;
+    const r = eventTimelineRange(evt, tripRangeFn);
+    return r.startMs < dayWindowEndMs && r.endMs > dayWindowStartMs;
+  });
 
   const dayStartMs = new Date(
     focus.getFullYear(),
@@ -333,21 +390,52 @@ export function buildResourceTimelineLayout({
     };
   };
 
+  if (opts.includeAllResources && !forcedId) {
+    /* «Mostrar libres»: una columna por conductor/camión aunque no tenga viajes ese día. */
+    if (group === "driver") {
+      (Array.isArray(drivers) ? drivers : []).forEach((d) => {
+        if (!d?.id) return;
+        registerResource({
+          id: String(d.id),
+          label: d.name || d.fullName || "Conductor",
+          subtitle: d.phone || "",
+          kind: "driver",
+          photoUrl: resolveDriverPhotoUrl(d)
+        });
+      });
+    } else {
+      (Array.isArray(vehicles) ? vehicles : []).forEach((v) => {
+        if (!v?.id) return;
+        registerResource({ id: String(v.id), label: v.plate || "Vehículo", subtitle: v.type || "", kind: "vehicle" });
+      });
+    }
+  }
+
   dayEvents.forEach((evt) => {
     const res = resolveResource(evt);
     if (res.id === "__unassigned__") return;
     registerResource(res);
     const range = eventTimelineRange(evt, tripRangeFn);
-    const topPx = Math.max(0, (range.startMs - dayStartMs) / msPerPx);
-    const heightPx = Math.max(minBlockPx, (range.endMs - range.startMs) / msPerPx);
+    /* Se recorta a la jornada visible para que el bloque nunca se salga de la columna. */
+    const visStartMs = Math.max(range.startMs, dayStartMs);
+    const visEndMs = Math.min(range.endMs, dayEndMs);
+    let topPx = Math.max(0, (visStartMs - dayStartMs) / msPerPx);
+    let heightPx = Math.max(minBlockPx, (visEndMs - visStartMs) / msPerPx);
+    if (topPx + heightPx > totalHeightPx) {
+      heightPx = Math.max(minBlockPx, totalHeightPx - topPx);
+      topPx = Math.max(0, totalHeightPx - heightPx);
+    }
     if (!blocksByResource.has(res.id)) blocksByResource.set(res.id, []);
     blocksByResource.get(res.id).push({
       evt,
-      startMs: range.startMs,
-      endMs: range.endMs,
+      startMs: visStartMs,
+      endMs: Math.max(visEndMs, visStartMs + 1),
+      rangeStartMs: range.startMs,
+      rangeEndMs: range.endMs,
       topPx,
       heightPx,
-      clipped: range.endMs > dayEndMs || range.startMs < dayStartMs
+      clippedStart: range.startMs < dayStartMs,
+      clippedEnd: range.endMs > dayEndMs
     });
   });
 
@@ -358,6 +446,9 @@ export function buildResourceTimelineLayout({
     res.index = index;
     res.accent = RESOURCE_ACCENT_COLORS[index % RESOURCE_ACCENT_COLORS.length];
     res.initials = resourceDisplayInitials(res.label);
+    const rec = res.kind === "driver" ? driverById.get(res.id) : res.kind === "vehicle" ? vehicleById.get(res.id) : null;
+    /* «No disponible» marcado a mano (no el automático por viaje). */
+    res.unavailable = Boolean(rec && rec.available === false && rec.autoBusy !== true);
   });
 
   const blocks = [];
@@ -373,7 +464,11 @@ export function buildResourceTimelineLayout({
         leftPct: (b.lane || 0) * laneW,
         widthPct: Math.max(laneW - 2, 28),
         evt: b.evt,
-        clipped: b.clipped
+        rangeStartMs: b.rangeStartMs,
+        rangeEndMs: b.rangeEndMs,
+        clippedStart: b.clippedStart,
+        clippedEnd: b.clippedEnd,
+        clipped: b.clippedStart || b.clippedEnd
       });
     });
   });
@@ -385,7 +480,6 @@ export function buildResourceTimelineLayout({
       topPx: (h - dayStartHour) * slotHeightPx,
       label: new Date(2000, 0, 1, h, 0).toLocaleTimeString("es-CO", {
         hour: "numeric",
-        minute: "2-digit",
         hour12: true
       })
     });
@@ -412,7 +506,7 @@ export function buildResourceTimelineLayout({
     isToday,
     nowTopPx,
     eventCount: dayEvents.length,
-    tripCount: dayEvents.filter((e) => e.kind === "trip").length,
+    tripCount: blocks.filter((b) => b.evt.kind === "trip").length,
     resourceGroup: group
   };
 }
