@@ -64,7 +64,7 @@ export function renderHrFormHero({ eyebrow = "", title = "", description = "", t
   return `<section class="hr-form-hero hr-form-hero--${escapeAttr(String(tone || "brand"))}">
     <div class="hr-form-hero__copy">
       ${eyebrow ? `<p class="hr-form-hero__eyebrow">${escapeHtml(String(eyebrow))}</p>` : ""}
-      ${title ? `<h3 class="hr-form-hero__title">${escapeHtml(String(title))}</h3>` : ""}
+      ${title ? `<h3 aria-level="2" class="hr-form-hero__title">${escapeHtml(String(title))}</h3>` : ""}
       ${description ? `<p class="hr-form-hero__text">${escapeHtml(String(description))}</p>` : ""}
     </div>
     ${badgeHtml ? `<div class="hr-form-hero__badges">${badgeHtml}</div>` : ""}
@@ -591,7 +591,7 @@ export function createHrActionCard(panelId, iconKey, title, subtitle, bodyHtml, 
     <header class="hr-action-card__head">
       ${hrCardIconMarkup(iconKey)}
       <div class="hr-action-card__copy">
-        <h3>${escapeHtml(title)}</h3>
+        <h3 aria-level="2">${escapeHtml(title)}</h3>
         ${desc}
       </div>
       <div class="hr-action-card__toolbar">
@@ -842,8 +842,7 @@ export function renderPayrollOperateSectionNav(activeId) {
         const active = activeId === t.id;
         const iconSvg = ic()[t.icon] ? `<span class="payroll-operate-nav-ico" aria-hidden="true">${ic()[t.icon]}</span>` : "";
         const tip = escapeAttr(`${t.title} — ${t.hint}`);
-        const ariaLbl = escapeAttr(`${t.label} — ${t.hint}`);
-        return `<button type="button" role="tab" class="payroll-operate-nav-tab${active ? " is-active" : ""}" aria-selected="${active ? "true" : "false"}" data-action="payroll-operate-section" data-section="${escapeAttr(t.id)}" title="${tip}" aria-label="${ariaLbl}">
+        return `<button type="button" role="tab" class="payroll-operate-nav-tab${active ? " is-active" : ""}" aria-selected="${active ? "true" : "false"}" data-action="payroll-operate-section" data-section="${escapeAttr(t.id)}" title="${tip}">
           ${iconSvg}
           <span class="payroll-operate-nav-copy">
             <strong class="payroll-operate-nav-label">${escapeHtml(t.label)}</strong>

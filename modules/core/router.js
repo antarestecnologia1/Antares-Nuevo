@@ -558,11 +558,13 @@ export function setPortalDrawerOpen(open) {
     if (mobileDrawer) {
       sidebar.setAttribute("aria-hidden", on ? "false" : "true");
       sidebar.setAttribute("aria-modal", on ? "true" : "false");
-      sidebar.setAttribute("role", on ? "dialog" : "navigation");
+      if (on) sidebar.setAttribute("role", "dialog");
+      else sidebar.removeAttribute("role");
     } else {
       sidebar.removeAttribute("aria-hidden");
       sidebar.removeAttribute("aria-modal");
-      sidebar.setAttribute("role", "navigation");
+      /* <aside> no admite role="navigation"; el menú ya contiene su propio <nav>. */
+      sidebar.removeAttribute("role");
     }
     if (on && mobileDrawer) {
       window.requestAnimationFrame(() => {
@@ -610,6 +612,8 @@ export function applyPortalSidebarWidth(px, { persist = true } = {}) {
     Math.max(PORTAL_SIDEBAR_WIDTH_MIN, Math.round(Number(px) || 0))
   );
   document.body.style.setProperty("--portal-sidebar-rail-width", `${w}px`);
+  const separator = document.getElementById("portal-sidebar-resize");
+  if (separator) separator.setAttribute("aria-valuenow", String(w));
   if (persist) {
     try {
       localStorage.setItem(PORTAL_SIDEBAR_WIDTH_KEY, String(w));

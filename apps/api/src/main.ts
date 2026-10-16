@@ -38,8 +38,7 @@ function buildCorsOriginHandler(config: ConfigService) {
     "https://www.transportesantares.co",
     "https://antarestecnologia1.github.io",
     "*.vercel.app",
-    "*.pages.dev",
-    "*.github.io"
+    "*.pages.dev"
   ];
   /** En producción: dominios por defecto + los de CORS_ORIGINS (no reemplazan el resto). */
   const allowed = !isProd
@@ -65,7 +64,20 @@ function buildCorsOriginHandler(config: ConfigService) {
       return;
     }
     const normalizedOrigin = String(origin || "").toLowerCase();
-    if (wildcardAllowed.some((suffix) => normalizedOrigin.endsWith(suffix))) {
+    /* Previews (Vercel / Cloudflare Pages): solo hosts HTTPS del proyecto (contienen «antares»).
+     * Antes se aceptaba CUALQUIER *.vercel.app / *.pages.dev / *.github.io con credenciales. */
+    let previewHost = "";
+    try {
+      const parsed = new URL(normalizedOrigin);
+      previewHost = parsed.protocol === "https:" ? parsed.hostname : "";
+    } catch {
+      previewHost = "";
+    }
+    if (
+      previewHost &&
+      previewHost.includes("antares") &&
+      wildcardAllowed.some((suffix) => previewHost.endsWith(suffix))
+    ) {
       callback(null, true);
       return;
     }

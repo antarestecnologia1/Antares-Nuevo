@@ -697,15 +697,15 @@ function renderHistoryTraceKpis(stats) {
     { label: "Eliminaciones", value: stats.delete, tone: stats.delete ? "danger" : "neutral", icon: IC.trash || IC.x },
     { label: "Módulos", value: stats.modules, tone: "neutral", icon: IC.layers }
   ];
-  return `<dl class="hist-trace-kpis" aria-label="Resumen de trazabilidad">${items
+  return `<div class="hist-trace-kpis" role="group" aria-label="Resumen de trazabilidad">${items
     .map(({ label, value, tone, icon }) => {
       const toneClass = tone && tone !== "neutral" ? ` hist-trace-kpi--${tone}` : "";
       return `<div class="hist-trace-kpi${toneClass}">
         <span class="hist-trace-kpi__icon" aria-hidden="true">${icon}</span>
-        <div class="hist-trace-kpi__text"><dt>${escapeHtml(label)}</dt><dd><strong>${escapeHtml(String(value))}</strong></dd></div>
+        <dl class="hist-trace-kpi__text"><dt>${escapeHtml(label)}</dt><dd><strong>${escapeHtml(String(value))}</strong></dd></dl>
       </div>`;
     })
-    .join("")}</dl>`;
+    .join("")}</div>`;
 }
 
 function renderHistoryModuleFilterChips(allEntries, filterOpts, activeModule) {

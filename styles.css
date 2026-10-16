@@ -38864,3 +38864,12 @@ body[data-theme="dark"] #auth-modal .module-panel-btn--close {
   .calendar-side-grid .hr-data-card__head { flex-wrap: wrap; gap: 0.4rem; }
   .calendar-side-grid .hr-data-card__stat { max-width: 100%; flex-shrink: 1; }
 }
+
+/* Historial: el KPI usa <dl> por elemento (accesibilidad); sin margen por defecto */
+.hist-trace-kpi__text { margin: 0; }
+
+/* Calendario móvil: el resumen «N viajes · N entrevistas…» debe ajustarse al ancho */
+@media (max-width: 720px) {
+  .calendar-side-grid .hr-data-card__head { display: grid; grid-template-columns: minmax(0, 1fr); justify-items: start; }
+  .calendar-side-grid .hr-data-card__stat { white-space: normal; overflow-wrap: anywhere; min-width: 0; max-width: 100%; text-align: left; }
+}

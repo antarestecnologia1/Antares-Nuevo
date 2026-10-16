@@ -98,7 +98,7 @@
     <link rel="stylesheet" href="./styles.landing.css?v=20260831-idle-banner" />
     <link
       rel="stylesheet"
-      href="./styles.css?v=20261015-cal"
+      href="./styles.css?v=20261016-cal2"
     />
     <link rel="stylesheet" href="./styles/portal-ops-card.css?v=20261015-cal" />
     <link rel="stylesheet" href="./styles/portal-buttons.css?v=20260701-btn-guard" />
@@ -129,7 +129,7 @@
     <link rel="stylesheet" href="./styles/portal-modern.css?v=20261005b-modern-v2" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/auth-modal.css?v=20260715-registration-kind" />
     <noscript>
-    <link rel="stylesheet" href="./styles.css?v=20261015-cal" />
+    <link rel="stylesheet" href="./styles.css?v=20261016-cal2" />
     <link rel="stylesheet" href="./styles/auth-modal.css?v=20260715-registration-kind" />
     <link rel="stylesheet" href="./styles/portal-ops-card.css?v=20261015-cal" />
     <link rel="stylesheet" href="./styles/portal-buttons.css?v=20260701-btn-guard" />
@@ -1245,6 +1245,9 @@
           class="sidebar-resize-handle"
           role="separator"
           aria-orientation="vertical"
+          aria-valuemin="200"
+          aria-valuemax="460"
+          aria-valuenow="272"
           aria-label="Redimensionar menú lateral"
           title="Arrastra para redimensionar · doble clic para restablecer"
           tabindex="0"
@@ -1590,15 +1593,15 @@
     <script defer src="./modules/app/portal-transport-modals.js?v=20261015-avail"></script>
     <script defer src="./modules/app/portal-rrhh-modals.js?v=20261013-hiring-flow"></script>
     <!-- Vistas legacy (`registerLegacyPortalViews`); deben ejecutarse antes de `app.js` para que el primer `renderPortal()` resuelva HTML. `viajes.js` antes de `mis-solicitudes.js` por `RENDER_WINDOW_SIZE`. -->
-    <script defer src="./modules/app/dashboard.js?v=20261015-tabs"></script>
-    <script defer src="./modules/app/viajes.js?v=20261015-silent"></script>
-    <script defer src="./modules/app/solicitudes-html.js?v=20261013-requests-ui"></script>
+    <script defer src="./modules/app/dashboard.js?v=20261015-a11y"></script>
+    <script defer src="./modules/app/viajes.js?v=20261016-h"></script>
+    <script defer src="./modules/app/solicitudes-html.js?v=20261016-h"></script>
     <script defer src="./modules/app/mis-solicitudes.js?v=20261014-req2"></script>
     <script defer src="./modules/app/camiones-html.js?v=20261013-vehicle-forms"></script>
-    <script defer src="./modules/app/camiones.js?v=20261015-delguard"></script>
-    <script defer src="./modules/app/conductores.js?v=20261015-silent"></script>
+    <script defer src="./modules/app/camiones.js?v=20261016-h"></script>
+    <script defer src="./modules/app/conductores.js?v=20261016-h"></script>
     <script defer src="./modules/app/calendario.js?v=20261015-cal"></script>
-    <script defer src="./modules/app/historial.js"></script>
+    <script defer src="./modules/app/historial.js?v=20261015-a11y"></script>
     <script defer src="./modules/app/reporteria.js"></script>
     <script defer src="./modules/app/gestion-humana-html.js?v=20261014-emp-page-size3"></script>
     <script defer src="./modules/app/gestion-humana.js?v=20261015-drvguard"></script>
@@ -1606,13 +1609,13 @@
     <script defer src="./modules/app/contratacion-html.js?v=20261013-module-filters"></script>
     <script defer src="./modules/app/contratacion.js?v=20261015-silent"></script>
     <script type="module" src="./modules/app/cumplimiento-laboral.js"></script>
-    <script type="module" src="./modules/app/gestion-documental.js?v=20261015-vendor"></script>
+    <script type="module" src="./modules/app/gestion-documental.js?v=20261016-h"></script>
     <script type="module" src="./modules/app/sarlaft.js?v=20260917b-login-scan-shield"></script>
     <script defer src="./modules/app/contacto-b2b.js?v=20261013-b2b-cred"></script>
-    <script defer src="./modules/app/usuarios-permisos.js?v=20261015-nit"></script>
+    <script defer src="./modules/app/usuarios-permisos.js?v=20261016-h"></script>
     <script defer src="./modules/app/autorizaciones.js?v=20261015-silent"></script>
-    <script defer src="./modules/app/mi-perfil.js?v=20261015-xss"></script>
+    <script defer src="./modules/app/mi-perfil.js?v=20261015-a11y"></script>
     <script type="module" src="./modules/app/notificaciones.js?v=20261013-notif-fix"></script>
-    <script type="module" src="./app.js?v=20261015-delguard"></script>
+    <script type="module" src="./app.js?v=20261016-fix28"></script>
   </body>
 </html>

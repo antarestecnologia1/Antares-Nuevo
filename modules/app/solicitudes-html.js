@@ -453,7 +453,7 @@
     return `<header class="requests-data-head">
       <div class="requests-data-head__copy">
         ${eyebrow ? `<span class="requests-data-head__eyebrow">${eyebrow}</span>` : ""}
-        <h3 class="requests-data-head__title">${escapeHtml(title)}</h3>
+        <h3 aria-level="2" class="requests-data-head__title">${escapeHtml(title)}</h3>
         ${meta ? `<p class="requests-data-head__meta muted">${escapeHtml(meta)}</p>` : ""}
       </div>
       ${actionsHtml || ""}

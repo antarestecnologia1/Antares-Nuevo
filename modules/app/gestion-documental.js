@@ -538,7 +538,7 @@ function renderHeader(ui, IC, summary) {
     : "";
   return `<header class="doc-topbar">
     <div class="doc-topbar__titles">
-      <h1 class="doc-topbar__title">Gestión documental</h1>
+      <h1 aria-level="2" class="doc-topbar__title">Gestión documental</h1>
       <p class="doc-topbar__subtitle">Administra y organiza todos los documentos de la empresa.</p>
       ${stats}
     </div>
@@ -1434,7 +1434,7 @@ function renderStorageCard(summary, IC, docs) {
         .join("")}</ul>`
     : "";
   return `<article class="doc-side-card doc-storage-card">
-    <h3 class="doc-side-card__title">Almacenamiento</h3>
+    <h3 aria-level="2" class="doc-side-card__title">Almacenamiento</h3>
     <div class="doc-storage">
       <div class="doc-donut" role="img" aria-label="${escapeAttr(pctLabel)} de almacenamiento utilizado">
         <svg viewBox="0 0 120 120">
@@ -1477,7 +1477,7 @@ function renderRecentSidebar(recentDocs, IC, folders = []) {
         .join("")
     : `<li class="doc-recent-empty">Sin documentos recientes.</li>`;
   return `<article class="doc-side-card">
-    <h3 class="doc-side-card__title">Documentos recientes</h3>
+    <h3 aria-level="2" class="doc-side-card__title">Documentos recientes</h3>
     <ul class="doc-recent-list">${items}</ul>
   </article>`;
 }

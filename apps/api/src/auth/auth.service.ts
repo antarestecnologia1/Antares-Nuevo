@@ -10,7 +10,7 @@ import {
 import { JwtService } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
 import * as bcrypt from "bcrypt";
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import type { Pool } from "pg";
 import { createClient } from "@supabase/supabase-js";
 import { timestamptzStringColombiaNow } from "../common/colombia-time";
@@ -636,7 +636,24 @@ export class AuthService {
       );
     }
 
-    const ok = await bcrypt.compare(refreshToken, user.refresh_token_hash);
+    /**
+     * Verificación criptográfica obligatoria: bcrypt solo compara los primeros 72 bytes, que en un JWT
+     * son la cabecera fija + el inicio del payload (sub). Sin verificar la firma, un token falsificado
+     * con el mismo `sub` pasaría la comparación.
+     */
+    let refreshPayload: { sub?: string } | null = null;
+    try {
+      refreshPayload = await this.jwt.verifyAsync<{ sub?: string }>(refreshToken, {
+        secret: this.config.get<string>("JWT_REFRESH_SECRET")
+      });
+    } catch {
+      throw new UnauthorizedException("Refresh token inválido");
+    }
+    if (!refreshPayload?.sub || String(refreshPayload.sub) !== String(userId)) {
+      throw new UnauthorizedException("Refresh token inválido");
+    }
+
+    const ok = await this.matchesStoredRefreshHash(refreshToken, user.refresh_token_hash);
     if (!ok) {
       throw new UnauthorizedException("Refresh token inválido");
     }
@@ -662,6 +679,19 @@ export class AuthService {
       role?: string;
     } | null;
     return decoded && typeof decoded === "object" ? decoded : null;
+  }
+
+  /** `sub` de un refresh token SOLO si la firma y la vigencia son válidas (null en otro caso). */
+  async verifiedRefreshSubject(token: string): Promise<string | null> {
+    try {
+      const payload = await this.jwt.verifyAsync<{ sub?: string }>(String(token || "").trim(), {
+        secret: this.config.get<string>("JWT_REFRESH_SECRET")
+      });
+      const sub = String(payload?.sub || "").trim();
+      return sub || null;
+    } catch {
+      return null;
+    }
   }
 
   /** Invalida refresh en BD (equivalente a logout del portal). */
@@ -938,8 +968,27 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
+  /**
+   * Hash del refresh token: sha256 del token COMPLETO (bcrypt solo mira 72 bytes y es lento sin necesidad:
+   * el token ya es un JWT firmado de alta entropía). Prefijo `sha256:` para distinguirlo de hashes bcrypt previos.
+   */
+  private refreshTokenDigest(refreshToken: string): string {
+    return "sha256:" + createHash("sha256").update(String(refreshToken || ""), "utf8").digest("hex");
+  }
+
+  private async matchesStoredRefreshHash(refreshToken: string, stored: string): Promise<boolean> {
+    const value = String(stored || "");
+    if (value.startsWith("sha256:")) {
+      const a = Buffer.from(this.refreshTokenDigest(refreshToken));
+      const b = Buffer.from(value);
+      return a.length === b.length && timingSafeEqual(a, b);
+    }
+    // Compatibilidad: sesiones guardadas antes con bcrypt (la firma del JWT ya fue verificada arriba).
+    return bcrypt.compare(refreshToken, value);
+  }
+
   private async storeRefreshToken(userId: string, refreshToken: string) {
-    const hash = await bcrypt.hash(refreshToken, 10);
+    const hash = this.refreshTokenDigest(refreshToken);
     await this.pool.query(`UPDATE usuarios SET refresh_token_hash = $1 WHERE id = $2::uuid`, [
       hash,
       userId

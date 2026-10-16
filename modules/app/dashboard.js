@@ -2046,7 +2046,7 @@ body[data-theme="dark"] .dashboard-studio .at-tab.is-active em { background: rgb
         : "";
       const tag = nav ? "button" : "div";
       const actionCls = nav ? " at-kpi--action" : "";
-      return `<${tag}${navAttrs} class="at-kpi at-kpi--${tone}${actionCls} at-reveal" style="--at-stagger:${idx}"${countAttr}${nav ? ` aria-label="${escapeAttr(`${label}: ${display}`)}"` : ""}>
+      return `<${tag}${navAttrs} class="at-kpi at-kpi--${tone}${actionCls} at-reveal" style="--at-stagger:${idx}"${countAttr}>
         <div class="at-kpi__icon">${icon}</div>
         <strong class="at-kpi__value">${escapeHtml(display)}</strong>
         <div class="at-kpi__label">${escapeHtml(label)}</div>

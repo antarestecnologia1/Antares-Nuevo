@@ -140,7 +140,7 @@ function profileHtml(user) {
       <fieldset class="form-section form-section-emerald full">
         <legend>${IC.briefcase} Empresa asociada</legend>
         <label class="full">
-          <input value="${escapeAttr(companyName)}" disabled />
+          <input value="${escapeAttr(companyName)}" aria-label="Empresa asociada" disabled />
           <input type="hidden" name="companyId" value="${escapeAttr(u.companyId || "")}" />
         </label>
       </fieldset>

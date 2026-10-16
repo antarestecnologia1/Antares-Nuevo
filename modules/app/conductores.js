@@ -368,7 +368,7 @@ function driversHtml() {
       <header class="ag-pass__head">
         ${avatarHtml(d, item.statusSlug, "lg")}
         <div class="ag-pass__who">
-          <h4 class="ag-pass__name" title="${escapeAttr(name)}">${escapeHtml(name)}</h4>
+          <h4 aria-level="3" class="ag-pass__name" title="${escapeAttr(name)}">${escapeHtml(name)}</h4>
           <p class="ag-pass__meta">${escapeHtml(String(d.idDoc || "—"))} · ${escapeHtml(item.companyName)}</p>
         </div>
         <span class="ag-status ag-status--${escapeAttr(item.statusSlug)}"><span class="ag-status__dot" aria-hidden="true"></span>${escapeHtml(statusLabel)}</span>

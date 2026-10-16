@@ -280,7 +280,7 @@ function adminUsersHtml(current) {
         </div>
       </header>
       <div class="adm-badge__who">
-        <h4 class="adm-badge__name" title="${escapeAttr(m.displayName)}">${escapeHtml(m.displayName)}${m.isMe ? ' <span class="ag-access-card__you">Tú</span>' : ""}</h4>
+        <h4 aria-level="3" class="adm-badge__name" title="${escapeAttr(m.displayName)}">${escapeHtml(m.displayName)}${m.isMe ? ' <span class="ag-access-card__you">Tú</span>' : ""}</h4>
         <p class="adm-badge__org"><span class="adm-badge__org-name">${escapeHtml(m.companyName)}</span>${m.roleBadgeHtml}</p>
         <p class="adm-badge__mail">${escapeHtml(m.email)}</p>
       </div>
@@ -396,7 +396,7 @@ function adminUsersHtml(current) {
         </div>
       </header>
       <div class="adm-badge__who">
-        <h4 class="adm-badge__name" title="${escapeAttr(m.name)}">${escapeHtml(m.name)}</h4>
+        <h4 aria-level="3" class="adm-badge__name" title="${escapeAttr(m.name)}">${escapeHtml(m.name)}</h4>
         <p class="adm-badge__org"><span class="adm-badge__org-name">${escapeHtml(m.nit)}</span>${companyKindChipHtml(m.kindForUi)}</p>
         <p class="adm-badge__mail">${escapeHtml(m.contactLabel || m.emailLabel || "Sin contacto")}</p>
       </div>

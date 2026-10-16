@@ -134,7 +134,8 @@ export class AuthController {
       req.cookies?.[AUTH_COOKIE_REFRESH] || body?.refreshToken || ""
     ).trim();
     if (refreshToken) {
-      const uid = this.auth.decodeTokenSubject(refreshToken);
+      /* Solo con firma válida: un token falsificado no debe poder cerrar la sesión de otro usuario. */
+      const uid = await this.auth.verifiedRefreshSubject(refreshToken);
       if (uid) await this.auth.invalidateSession(uid);
     }
     clearAuthCookies(res, this.config);

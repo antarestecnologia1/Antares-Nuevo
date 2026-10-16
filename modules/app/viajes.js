@@ -596,7 +596,7 @@ function transportTripsHtml() {
       <header class="transport-wizard__head">
         <div class="transport-wizard__head-copy">
           <span class="transport-wizard__eyebrow">Catálogo de transporte</span>
-          <h3 class="transport-wizard__title">Trayecto y tarifa</h3>
+          <h3 aria-level="2" class="transport-wizard__title">Trayecto y tarifa</h3>
           <p class="transport-wizard__desc">Defina origen, destino, valor pactado y alcance por cliente para autocompletar precios al asignar viajes.</p>
         </div>
         <div class="transport-wizard__meta">
@@ -747,7 +747,7 @@ function transportTripsHtml() {
       <header class="transport-wizard__head create-trip-form-v2__head">
         <div class="transport-wizard__head-copy">
           <span class="transport-wizard__eyebrow">Operación de transporte</span>
-          <h3 class="transport-wizard__title">Asignar viaje</h3>
+          <h3 aria-level="2" class="transport-wizard__title">Asignar viaje</h3>
           <p class="transport-wizard__desc">Seleccione la solicitud, asigne vehículo y conductor, y confirme la tarifa pactada para crear el viaje.</p>
         </div>
         <div class="transport-wizard__meta create-trip-form-v2__meta">
@@ -902,7 +902,7 @@ function transportTripsHtml() {
   const tripsDataPane = `<div class="transport-data-pane transport-data-pane--trips${transportTripsSection === "trips" ? "" : " hidden"}" data-transport-trips-data-pane="trips">
       <header class="transport-data-pane__head">
         <div class="transport-data-pane__head-copy">
-          <h3 class="transport-data-pane__title">Operación de viajes</h3>
+          <h3 aria-level="2" class="transport-data-pane__title">Operación de viajes</h3>
           <p class="transport-data-pane__lead muted">${sortedFilteredTrips.length} viaje${sortedFilteredTrips.length === 1 ? "" : "s"} en vista actual${tripsLayout === "list" ? " · vista lista" : " · vista tarjetas"}</p>
         </div>
       </header>
@@ -911,7 +911,7 @@ function transportTripsHtml() {
   const routesDataPane = `<div class="transport-data-pane transport-data-pane--routes${transportTripsSection === "routes" ? "" : " hidden"}" data-transport-trips-data-pane="routes">
       <header class="transport-data-pane__head">
         <div class="transport-data-pane__head-copy">
-          <h3 class="transport-data-pane__title">Trayectos y tarifas</h3>
+          <h3 aria-level="2" class="transport-data-pane__title">Trayectos y tarifas</h3>
           <p class="transport-data-pane__lead muted">Catálogo de rutas usado para autocompletar precios al asignar viajes.</p>
         </div>
       </header>

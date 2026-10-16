@@ -229,6 +229,18 @@ async function ensureVehiclesSimitLoaded({ force = false } = {}) {
     Date.now() - fetchedMs < ttl;
   if (!force && current.status === "loading") return;
   if (!force && fresh) return;
+  // Back-off tras error: evita el bucle render → consulta → error → render (cientos de peticiones).
+  const failedMs = Number(current.failedAt) || 0;
+  if (
+    !force &&
+    current.status === "error" &&
+    current.platesKey === platesKey &&
+    current.pendingOnly === pendingOnly &&
+    failedMs &&
+    Date.now() - failedMs < 60000
+  ) {
+    return;
+  }
   const seq = (state.__vehiclesSimitSeq || 0) + 1;
   state.__vehiclesSimitSeq = seq;
   state.vehiclesSimit = withSimitUi(current, {
@@ -253,8 +265,13 @@ async function ensureVehiclesSimitLoaded({ force = false } = {}) {
       result = null;
     }
   }
-  if (!result?.ok) {
+  const isLocalHost = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(String(window.location?.hostname || ""));
+  const apiConfigured = Boolean(api?.isConfigured?.());
+  if (!result?.ok && (!apiConfigured || isLocalHost)) {
+    // Respaldo directo a datos.gov.co solo sin API configurada o en desarrollo: en producción la CSP lo bloquea.
     result = await D.fetchSimitFinesByPlates(vehiclesSimitPlates(vehicles), { pendingOnly });
+  } else if (!result?.ok) {
+    result = { ok: false, error: "No se pudo consultar SIMIT desde el servidor. Intente de nuevo en unos minutos." };
   }
   if (state.__vehiclesSimitSeq !== seq) return;
   if (result?.ok) {
@@ -273,6 +290,7 @@ async function ensureVehiclesSimitLoaded({ force = false } = {}) {
       platesKey,
       pendingOnly,
       fetchedAt: null,
+      failedAt: Date.now(),
       error: String(result?.error || "No se pudo consultar SIMIT."),
       rows: [],
       truncated: false
@@ -780,7 +798,7 @@ function vehiclesHtml() {
             </div>
             <div class="trip-ops-card-head-info">
               <p class="trip-ops-card-kicker">${escapeHtml(typeLabel)}</p>
-              <h4 class="trip-ops-card-title vehicle-plate-title" title="${escapeAttr(brandTitle)}">${escapeHtml(brandTitle)}</h4>
+              <h4 aria-level="3" class="trip-ops-card-title vehicle-plate-title" title="${escapeAttr(brandTitle)}">${escapeHtml(brandTitle)}</h4>
               ${yearLabel ? `<p class="vehicle-card-year">${escapeHtml(yearLabel)}</p>` : ""}
             </div>
           </div>
