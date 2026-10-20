@@ -3,11 +3,14 @@
  *
  * Uso (desde la raíz del repo, con DATABASE_URL en apps/api/.env o entorno):
  *   node apps/api/scripts/apply-schema.mjs              → CREATE (01, 02, 30 tablas, 08)
- *   node apps/api/scripts/apply-schema.mjs --supabase     → + 09 RLS tablas, 10 RLS storage
+ *   node apps/api/scripts/apply-schema.mjs --supabase     → + RLS (09 / 09_enable / 41–42) + 10 storage
  *   node apps/api/scripts/apply-schema.mjs --migrations   → ejecuta *.sql en migrations/ (vacío: solo verifica tablas)
  *
  * --skip-storage  Omite 10_rls_storage_supabase.sql (ejecutar tras crear buckets).
  * --force         Ejecuta CREATE aunque ya exista empresas (solo BD vacía de prueba).
+ *
+ * Con BD ya existente, --supabase sigue aplicando scripts RLS idempotentes
+ * (alerta Supabase "Table publicly accessible" / RLS deshabilitado).
  */
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import path from "node:path";
@@ -21,7 +24,16 @@ const POSTGRES_DIR = path.join(REPO_ROOT, "BD", "postgres");
 const TABLAS_DIR = path.join(POSTGRES_DIR, "tablas");
 const MIGRATIONS_DIR = path.join(POSTGRES_DIR, "migrations");
 
-const CREATE_SUPABASE = ["09_rls_tablas.sql", "10_rls_storage_supabase.sql"];
+/** RLS en BD vacía (políticas completas). No re-ejecutar si ya existen (CREATE POLICY falla). */
+const CREATE_SUPABASE_FRESH = ["09_rls_tablas.sql", "10_rls_storage_supabase.sql"];
+/** RLS en BD existente: solo ENABLE + políticas idempotentes (DROP IF EXISTS). */
+const CREATE_SUPABASE_EXISTING = [
+  "09_rls_enable_all.sql",
+  path.join("tablas", "41_rls_documentos_empleado.sql"),
+  path.join("tablas", "41_rls_documentos_empresa.sql"),
+  path.join("tablas", "42_rls_sarlaft_pte.sql"),
+  "10_rls_storage_supabase.sql"
+];
 
 const args = new Set(process.argv.slice(2));
 const withSupabase = args.has("--supabase");
@@ -119,8 +131,9 @@ async function main() {
   });
 
   try {
+    const hasSchema = await tableExists(pool, "empresas");
+
     if (runCreate) {
-      const hasSchema = await tableExists(pool, "empresas");
       if (hasSchema && !force) {
         console.warn(
           "[apply-schema] La tabla empresas ya existe. CREATE omitido (use --migrations o autocura API al arrancar)."
@@ -131,15 +144,27 @@ async function main() {
           if (!existsSync(fp)) throw new Error(`No encontrado: ${fp}`);
           await runSqlFile(pool, fp, rel.replace(/\\/g, "/"));
         }
-        if (withSupabase) {
-          const supa = skipStorage ? CREATE_SUPABASE.slice(0, 1) : CREATE_SUPABASE;
-          for (const name of supa) {
-            await runSqlFile(pool, path.join(POSTGRES_DIR, name), name);
-          }
-          if (skipStorage) {
-            console.warn("[apply-schema] Omitido 10_rls_storage — créelo tras los buckets.");
-          }
+      }
+    }
+
+    if (withSupabase) {
+      const plan = hasSchema && !force ? CREATE_SUPABASE_EXISTING : CREATE_SUPABASE_FRESH;
+      const filtered = skipStorage
+        ? plan.filter((n) => !String(n).replace(/\\/g, "/").endsWith("10_rls_storage_supabase.sql"))
+        : plan;
+      for (const name of filtered) {
+        const rel = String(name).replace(/\\/g, "/");
+        try {
+          await runSqlFile(pool, path.join(POSTGRES_DIR, name), rel);
+        } catch (err) {
+          const msg = sanitizeCliError(err instanceof Error ? err.message : err);
+          // ENABLE es crítico; políticas 41/42 pueden fallar si falta la tabla o auth.*.
+          if (rel.includes("09_rls_enable_all") || rel.includes("09_rls_tablas")) throw err;
+          console.warn(`[apply-schema] Aviso ${rel}: ${msg}`);
         }
+      }
+      if (skipStorage) {
+        console.warn("[apply-schema] Omitido 10_rls_storage — créelo tras los buckets.");
       }
     }
 

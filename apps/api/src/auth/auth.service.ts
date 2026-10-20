@@ -1015,6 +1015,8 @@ export class AuthService {
         CONSTRAINT uq_sesiones_hash_token UNIQUE (hash_token)
       )
     `);
+    // Supabase: RLS obligatorio en public.*; el rol de la API lo ignora.
+    await this.pool.query(`ALTER TABLE IF EXISTS public.sesiones_usuario ENABLE ROW LEVEL SECURITY`);
   }
 
   /**

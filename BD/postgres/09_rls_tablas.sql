@@ -106,6 +106,13 @@ ALTER TABLE public.ausencias_laborales ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.registros_cumplimiento_sst ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.documentos_empleado ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.carpetas_documento_empleado ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.documentos_empresa ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.carpetas_documento_empresa ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE public.perfiles_riesgo_sarlaft ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.terceros_sarlaft ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.alertas_sarlaft ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.revisiones_sarlaft ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE public.notificaciones ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notificaciones_estado_usuario ENABLE ROW LEVEL SECURITY;
@@ -553,3 +560,68 @@ CREATE POLICY auditoria_eventos_portal_lectura
 CREATE POLICY auditoria_eventos_portal_insert
   ON public.auditoria_eventos_portal FOR INSERT TO authenticated
   WITH CHECK (id_usuario = auth.uid());
+
+-- ---------------------------------------------------------------------------
+-- Documentos corporativos + SARLAFT (también en tablas/41_rls_* y 42_rls_*)
+-- ---------------------------------------------------------------------------
+CREATE POLICY documentos_empresa_select
+  ON public.documentos_empresa FOR SELECT TO authenticated
+  USING (
+    public.es_equipo_rrhh()
+    OR public.es_administrador_global()
+    OR (documentos_empresa.id_empresa IS NOT NULL AND public.misma_empresa_o_admin(documentos_empresa.id_empresa))
+  );
+
+CREATE POLICY documentos_empresa_escritura
+  ON public.documentos_empresa FOR ALL TO authenticated
+  USING (public.es_equipo_rrhh() OR public.es_administrador_global())
+  WITH CHECK (public.es_equipo_rrhh() OR public.es_administrador_global());
+
+CREATE POLICY carpetas_documento_empresa_select
+  ON public.carpetas_documento_empresa FOR SELECT TO authenticated
+  USING (
+    public.es_equipo_rrhh()
+    OR public.es_administrador_global()
+    OR (carpetas_documento_empresa.id_empresa IS NOT NULL AND public.misma_empresa_o_admin(carpetas_documento_empresa.id_empresa))
+  );
+
+CREATE POLICY carpetas_documento_empresa_escritura
+  ON public.carpetas_documento_empresa FOR ALL TO authenticated
+  USING (public.es_administrador_global())
+  WITH CHECK (public.es_administrador_global());
+
+CREATE POLICY perfiles_riesgo_sarlaft_select
+  ON public.perfiles_riesgo_sarlaft FOR SELECT TO authenticated
+  USING (public.es_equipo_rrhh() OR public.es_administrador_global());
+
+CREATE POLICY perfiles_riesgo_sarlaft_escritura
+  ON public.perfiles_riesgo_sarlaft FOR ALL TO authenticated
+  USING (public.es_equipo_rrhh() OR public.es_administrador_global())
+  WITH CHECK (public.es_equipo_rrhh() OR public.es_administrador_global());
+
+CREATE POLICY terceros_sarlaft_select
+  ON public.terceros_sarlaft FOR SELECT TO authenticated
+  USING (public.es_equipo_rrhh() OR public.es_administrador_global());
+
+CREATE POLICY terceros_sarlaft_escritura
+  ON public.terceros_sarlaft FOR ALL TO authenticated
+  USING (public.es_equipo_rrhh() OR public.es_administrador_global())
+  WITH CHECK (public.es_equipo_rrhh() OR public.es_administrador_global());
+
+CREATE POLICY alertas_sarlaft_select
+  ON public.alertas_sarlaft FOR SELECT TO authenticated
+  USING (public.es_equipo_rrhh() OR public.es_administrador_global());
+
+CREATE POLICY alertas_sarlaft_escritura
+  ON public.alertas_sarlaft FOR ALL TO authenticated
+  USING (public.es_equipo_rrhh() OR public.es_administrador_global())
+  WITH CHECK (public.es_equipo_rrhh() OR public.es_administrador_global());
+
+CREATE POLICY revisiones_sarlaft_select
+  ON public.revisiones_sarlaft FOR SELECT TO authenticated
+  USING (public.es_equipo_rrhh() OR public.es_administrador_global());
+
+CREATE POLICY revisiones_sarlaft_escritura
+  ON public.revisiones_sarlaft FOR ALL TO authenticated
+  USING (public.es_equipo_rrhh() OR public.es_administrador_global())
+  WITH CHECK (public.es_equipo_rrhh() OR public.es_administrador_global());

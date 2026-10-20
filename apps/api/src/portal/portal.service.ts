@@ -938,6 +938,7 @@ export class PortalService implements OnModuleInit {
     await this.ensureDocumentosEmpresaSchema();
     await this.ensureSarlaftPteSchema();
     await this.ensureVacantesSchema();
+    await this.ensurePublicTablesRowLevelSecurity();
     await this.pruneTransportDeletionAudits().catch((err) => {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.warn(`pruneTransportDeletionAudits startup: ${sanitizeLogText(msg)}`);
@@ -946,6 +947,66 @@ export class PortalService implements OnModuleInit {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.warn(`backfillConductoresFromPayrollEmployees: ${sanitizeLogText(msg)}`);
     });
+  }
+
+  /**
+   * Supabase: cualquier tabla en `public` sin RLS dispara "Table publicly accessible".
+   * Idempotente. El rol de la API (owner / service_role) ignora RLS.
+   */
+  private async ensurePublicTablesRowLevelSecurity() {
+    const tables = [
+      "empresas",
+      "usuarios",
+      "permisos_usuario",
+      "reglas_viatico_interdepartamental",
+      "parametros_sistema",
+      "vehiculos",
+      "conductores",
+      "tarifas_trayecto",
+      "solicitudes_transporte",
+      "viajes_transporte",
+      "registros_combustible",
+      "registros_mantenimiento_vehiculo",
+      "auditoria_viajes_eliminados",
+      "auditoria_solicitudes_eliminadas",
+      "auditoria_eventos_portal",
+      "cargos",
+      "vacantes",
+      "candidatos",
+      "entrevistas",
+      "contratos",
+      "empleados_nomina",
+      "liquidaciones_nomina",
+      "ausencias_laborales",
+      "registros_cumplimiento_sst",
+      "documentos_empleado",
+      "carpetas_documento_empleado",
+      "documentos_empresa",
+      "carpetas_documento_empresa",
+      "perfiles_riesgo_sarlaft",
+      "terceros_sarlaft",
+      "alertas_sarlaft",
+      "revisiones_sarlaft",
+      "notificaciones",
+      "notificaciones_estado_usuario",
+      "correos_salida",
+      "prospectos_contacto_b2b",
+      "contadores_secuencia",
+      "solicitudes_autorizacion",
+      "sesiones_usuario",
+      "preferencias_notificacion_usuario"
+    ] as const;
+    let enabled = 0;
+    for (const table of tables) {
+      try {
+        await this.pool.query(`ALTER TABLE IF EXISTS public.${table} ENABLE ROW LEVEL SECURITY`);
+        enabled += 1;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        this.logger.warn(`RLS ${table}: ${sanitizeLogText(msg)}`);
+      }
+    }
+    this.logger.log(`RLS public: verificado en ${enabled}/${tables.length} tablas.`);
   }
 
   private async ensureSystemParametersSchema() {

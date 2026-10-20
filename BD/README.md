@@ -16,8 +16,9 @@ La carpeta `postgres/migrations/` ya **no** contiene `.sql`: el esquema canónic
 2. `postgres/02_enums.sql`
 3. `postgres/tablas/` — **un `.sql` por tabla** (orden en `tablas/orden_ejecucion.txt` y `tablas/README.md`)
 4. `postgres/08_seed_tarifas_trayecto.sql` — sin datos de prueba
-5. `postgres/09_rls_tablas.sql` — RLS (Supabase)
-6. `postgres/10_rls_storage_supabase.sql` — Storage (tras crear buckets en el panel)
+5. `postgres/09_rls_tablas.sql` — RLS políticas (Supabase, instalación vacía)
+6. `postgres/09_rls_enable_all.sql` + `tablas/41_rls_*.sql` + `tablas/42_rls_sarlaft_pte.sql` — reaplicar RLS en BD ya existente (alerta “Table publicly accessible”)
+7. `postgres/10_rls_storage_supabase.sql` — Storage (tras crear buckets en el panel)
 
 ### Comandos (raíz del monorepo)
 
@@ -26,7 +27,7 @@ La carpeta `postgres/migrations/` ya **no** contiene `.sql`: el esquema canónic
 | `npm run db:init` | Postgres vacío (Docker local, Render sin RLS) → `01`–`08` |
 | `npm run db:init:supabase` | **Producción Supabase** (BD vacía) → `01`–`10` |
 | `npm run db:migrate` | Compatibilidad: no hay `.sql` en `migrations/`; solo verifica tablas (usar autocura API o alinear a mano con `tablas/`) |
-| `node apps/api/scripts/apply-schema.mjs --supabase --skip-storage` | RLS tablas sin Storage (buckets pendientes) |
+| `node apps/api/scripts/apply-schema.mjs --supabase --skip-storage` | RLS tablas (también en BD ya existente) sin Storage |
 
 La API (`PortalService.onModuleInit`) aplica ALTER idempotentes al arrancar si faltan columnas en un deploy sobre BD vieja.
 
