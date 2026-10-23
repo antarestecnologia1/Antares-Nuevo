@@ -1,0 +1,210 @@
+/* ===================================================================
+   Portal — Pulido final del tema oscuro
+   Solo aplica con body[data-theme="dark"]. Se carga el ÚLTIMO.
+   Corrige: textos "navy" fijos de los módulos, campos nativos (selects,
+   fechas, archivos), paneles claros con letra clara y modales de
+   Gestión documental, cuyos tokens caían en valores claros.
+   =================================================================== */
+
+/* 1) Controles nativos (desplegables, calendario, archivo, scroll) en oscuro */
+body[data-theme="dark"] {
+  color-scheme: dark;
+  --dark-field-bg: #0f1c2e;
+  --dark-field-text: #e8f4fc;
+  --dark-field-border: rgba(148, 196, 255, 0.28);
+  --dark-field-placeholder: #8fa8c4;
+}
+
+body[data-theme="dark"] select option,
+body[data-theme="dark"] select optgroup,
+body[data-theme="dark"] datalist option {
+  color: var(--dark-field-text);
+  background-color: #12233a;
+}
+
+body[data-theme="dark"] :is(input, textarea)::placeholder {
+  color: var(--dark-field-placeholder);
+  opacity: 1;
+}
+
+body[data-theme="dark"] input[type="file"]::file-selector-button {
+  color: var(--dark-field-text);
+  background: #1e3550;
+  border: 1px solid var(--dark-field-border);
+  border-radius: 8px;
+  padding: 0.35rem 0.7rem;
+  margin-right: 0.6rem;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+body[data-theme="dark"] input[type="file"] {
+  color: var(--dark-field-text);
+}
+
+body[data-theme="dark"] :is(input, select, textarea):-webkit-autofill {
+  -webkit-text-fill-color: var(--dark-field-text);
+  box-shadow: 0 0 0 1000px #12233a inset;
+  caret-color: var(--dark-field-text);
+}
+
+body[data-theme="dark"] :is(input, select, textarea):disabled {
+  color: #7f97b2;
+  -webkit-text-fill-color: #7f97b2;
+  opacity: 1;
+}
+
+/* Campos de formularios dentro de modales y módulos: nunca letra blanca/transparente sobre fondo claro */
+body[data-theme="dark"] :is(.modal, .modal-card, .portal-main) :is(input, select, textarea):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="hidden"]):not([type="submit"]):not([type="button"]) {
+  color: var(--dark-field-text);
+  -webkit-text-fill-color: var(--dark-field-text);
+  caret-color: var(--dark-field-text);
+}
+
+/* 2) Tokens de texto de los módulos (en claro eran navy; en oscuro deben ser claros) */
+body[data-theme="dark"] :is(.payroll-studio, .hiring-studio, .vehicles-studio, .transport-studio, .history-studio, .requests-studio, .notifications-studio, .sst-studio) {
+  --pay-navy: #e8f4fc;
+  --pay-navy-mid: #b8d9f5;
+  --hi-navy: #e8f4fc;
+  --hi-navy-mid: #b8d9f5;
+  --veh-navy: #e8f4fc;
+  --veh-navy-mid: #b8d9f5;
+  --trn-navy: #e8f4fc;
+  --trn-navy-mid: #b8d9f5;
+  --hist-navy: #e8f4fc;
+  --hist-navy-mid: #b8d9f5;
+  --req-navy: #e8f4fc;
+  --ntf-navy: #e8f4fc;
+  --sst-navy: #e8f4fc;
+}
+
+/* Los degradados de cabecera/botones activos sí necesitan el azul profundo original */
+body[data-theme="dark"] .payroll-studio .payroll-runs-view-toggle__btn.is-active {
+  background: linear-gradient(135deg, #377cc0 0%, #123d6b 100%);
+}
+body[data-theme="dark"] .transport-studio [class*="hero"],
+body[data-theme="dark"] .transport-studio .fleet-hero-strip {
+  --trn-navy: #0b2138;
+  --trn-navy-mid: #123d6b;
+}
+body[data-theme="dark"] .vehicles-studio [class*="hero"],
+body[data-theme="dark"] .vehicles-studio .fleet-hero-strip {
+  --veh-navy-mid: #123d6b;
+}
+
+/* 3) Tokens de Gestión documental para modales montados fuera de .doc-studio */
+body[data-theme="dark"] {
+  --doc-primary: #3b82f6;
+  --doc-primary-soft: rgba(59, 130, 246, 0.14);
+  --doc-surface: #1e293b;
+  --doc-surface-2: #0f172a;
+  --doc-text: #f1f5f9;
+  --doc-text-soft: #a9b8cc;
+  --doc-text-faint: #8b9bb0;
+  --doc-border: #334155;
+  --doc-border-strong: #475569;
+  --doc-canvas: #0f172a;
+}
+
+/* 4) Paneles y textos puntuales que quedaban con colores de tema claro */
+body[data-theme="dark"] .payroll-studio .hr-absence-team-panel {
+  background: rgba(15, 28, 46, 0.7);
+  border-color: rgba(148, 196, 255, 0.22);
+}
+body[data-theme="dark"] .payroll-studio .hr-absence-team-panel__empty {
+  color: #9ec7e8;
+}
+body[data-theme="dark"] .payroll-studio .payroll-liquidation-mode__btn.is-active {
+  color: #ffffff;
+  background: rgba(55, 124, 192, 0.35);
+  border-color: rgba(148, 196, 255, 0.45);
+}
+body[data-theme="dark"] .payroll-studio .payroll-overtime-field__badge--hed { background: rgba(59, 130, 246, 0.22); color: #93c5fd; }
+body[data-theme="dark"] .payroll-studio .payroll-overtime-field__badge--hen { background: rgba(99, 102, 241, 0.24); color: #c7d2fe; }
+body[data-theme="dark"] .payroll-studio .payroll-overtime-field__badge--hrdf { background: rgba(245, 158, 11, 0.22); color: #fcd34d; }
+body[data-theme="dark"] .payroll-studio .payroll-overtime-field__badge--hrnf { background: rgba(236, 72, 153, 0.22); color: #f9a8d4; }
+body[data-theme="dark"] .payroll-studio .payroll-overtime-field__badge--rn { background: rgba(14, 116, 144, 0.28); color: #67e8f9; }
+
+/* Textos secundarios (gris de tema claro) legibles sobre fondo oscuro */
+body[data-theme="dark"] :is(.portal-main, .modal) :is(
+  .hr-action-card__desc,
+  .payroll-overtime-field__meta,
+  .field-help,
+  .sst-operate-nav-hint,
+  .sst-status-card__hint,
+  .doc-storage-row__size,
+  .doc-subfolder-card__meta,
+  .doc-perm-section-title,
+  .hiring-scope-tab,
+  .report-preview-header,
+  .vehicle-availability-bar__detail,
+  .hist-trace-module-chip__count
+) {
+  color: #a9bdd4;
+}
+body[data-theme="dark"] .portal-main .field-help {
+  color: #9ec7e8;
+}
+
+/* Indicadores/insignias con azul oscuro fijo */
+body[data-theme="dark"] :is(.auth-tab-badge, .auth-ref-pill, .perm-group-count, .requests-data-sidebar__count, .hiring-browse__tab-count, .payroll-contract-count, #payroll-runs-selected-count, .driver-edit-photo-oval--placeholder, .ag-access-card__you) {
+  color: #cfe6fb;
+}
+body[data-theme="dark"] .trip-ops-card-item-value,
+body[data-theme="dark"] .vehicle-card-year,
+body[data-theme="dark"] .ag-pass__license-num {
+  color: #dbeafe;
+}
+body[data-theme="dark"] .required-marker {
+  color: #ff8a8a;
+}
+body[data-theme="dark"] .portal-main :is(h3, h4):not([class*="hero"]) {
+  color: inherit;
+}
+
+/* 5) Gestión documental: modales (subir, permisos, almacenamiento, carpetas) */
+body[data-theme="dark"] .doc-upload-chip {
+  background: #12233a;
+  color: #dbe8f7;
+  border-color: rgba(148, 196, 255, 0.28);
+}
+body[data-theme="dark"] .doc-upload-chip:hover {
+  border-color: rgba(96, 165, 250, 0.7);
+  background: #17304d;
+}
+body[data-theme="dark"] .doc-upload-chip.is-selected {
+  background: rgba(59, 130, 246, 0.28);
+  border-color: #60a5fa;
+  color: #ffffff;
+}
+body[data-theme="dark"] .doc-upload-modal__select-wrap textarea,
+body[data-theme="dark"] .doc-upload-destination__icon {
+  background: #12233a;
+  color: #e8f4fc;
+}
+body[data-theme="dark"] .doc-upload-modal__chip-empty,
+body[data-theme="dark"] .doc-crumb-sep {
+  color: #a9bdd4;
+}
+body[data-theme="dark"] .doc-dropzone__title,
+body[data-theme="dark"] .doc-storage-details__total,
+body[data-theme="dark"] .doc-storage-row__name,
+body[data-theme="dark"] .doc-perm-user-name,
+body[data-theme="dark"] .doc-perm-grid th {
+  color: #e8f4fc;
+}
+
+/* 6) Insignias e iconos pastel de tema claro → versión translúcida legible en oscuro */
+body[data-theme="dark"] :is(.report-cat-badge, .report-detail__icon, .detail-view-card__icon, .payroll-abs-chip, .simit-refresh) {
+  background: rgba(148, 196, 255, 0.14) !important;
+  color: #cfe6fb !important;
+  border-color: rgba(148, 196, 255, 0.28) !important;
+}
+body[data-theme="dark"] .payroll-abs-chip[class*="vac"] {
+  background: rgba(16, 185, 129, 0.2) !important;
+  color: #a7f3d0 !important;
+}
+body[data-theme="dark"] .simit-refresh:hover {
+  background: rgba(148, 196, 255, 0.24) !important;
+}

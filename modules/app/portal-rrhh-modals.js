@@ -24,6 +24,21 @@
     persistHrWorkspace, scrollToCreatePanelForm, colombiaTodayIsoDate
   } = globalThis;
 
+/**
+ * Auxilio no salarial (liberalidad) que se entrega en cada quincena. Solo se muestra en la tarjeta de
+ * nómina; NO forma parte del devengado, de las deducciones ni del comprobante (colilla) de pago.
+ */
+const PAYROLL_QUINCENAL_AUXILIO_COP = 192100;
+
+function payrollRunQuincenalAuxilioCop(run) {
+  const kind = String(run?.payrollKind || "").trim().toLowerCase();
+  if (kind === "terminacion" || kind === "prestacion_viajes" || kind === "conductor_viajes") return 0;
+  const isQuincenal = kind === "quincenal" || (!kind && /-Q[12]$/i.test(String(run?.month || "")));
+  if (!isQuincenal) return 0;
+  const custom = parseNum(run?.auxilioQuincenalCop);
+  return custom > 0 ? custom : PAYROLL_QUINCENAL_AUXILIO_COP;
+}
+
 function renderPayrollRunCard(run, { compact = false, selectable = false } = {}) {
   const paid = Boolean(run.paid);
   const stateTone = paid ? "paid" : "pending";
@@ -87,6 +102,13 @@ function renderPayrollRunCard(run, { compact = false, selectable = false } = {})
       <span class="payroll-run-amount-value payroll-run-amount-value--net">$${parseNum(run.net).toLocaleString("es-CO")}</span>
     </div>
   </div>`;
+  const auxilioCop = payrollRunQuincenalAuxilioCop(run);
+  const auxilioHtml = auxilioCop > 0
+    ? `<div class="payroll-run-auxilio" title="Auxilio no salarial de la quincena. No aparece en el comprobante de pago.">
+    <span class="payroll-run-auxilio__label">Auxilio quincenal</span>
+    <span class="payroll-run-auxilio__value">$${auxilioCop.toLocaleString("es-CO")}</span>
+  </div>`
+    : "";
   const actions = `<div class="payroll-run-card-actions toolbar">
       <button class="btn btn-sm btn-action" type="button" data-action="payslip" data-id="${escapeAttr(String(run.id))}" title="Desprendible">${IC.printer}${compact ? "" : " Desprendible"}</button>
       ${!paid && isDriverRun
@@ -115,6 +137,7 @@ function renderPayrollRunCard(run, { compact = false, selectable = false } = {})
     </header>
     ${tagsHtml}
     ${amountsHtml}
+    ${auxilioHtml}
     ${actions}
   </article>`;
 }

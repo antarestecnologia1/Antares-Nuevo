@@ -2265,6 +2265,22 @@ export function wireHrAbsenceFormBehavior(form) {
       hintEl.textContent = `Sugerido: ${payrollFormatAbsenceQuantity(suggested)} ${Number(suggested) === 1 ? (unit === "habil" ? "día hábil" : unit === "jornada" ? "jornada" : "día calendario") : unit === "habil" ? "días hábiles" : unit === "jornada" ? "jornadas" : "días calendario"}${subtypeLabel ? ` · ${subtypeLabel}` : ""}.${legalHint ? ` ${legalHint}` : ""}`;
     }
     const supportRules = payrollGetAbsenceSupportRules(resolvedType, subtypeEl?.value || "");
+    /* Vacaciones: no existe certificado que adjuntar; el soporte documental es opcional. */
+    const supportFileEl = form.querySelector('[name="supportFile"]');
+    if (supportFileEl) {
+      const fileRequired = resolvedType !== "vacaciones";
+      supportFileEl.required = fileRequired;
+      const fileField = supportFileEl.closest(".hr-absence-field--support-file");
+      fileField?.querySelectorAll(".required-marker, .field-required-mark").forEach((marker) => {
+        marker.hidden = !fileRequired;
+      });
+      const fileHint = fileField?.querySelector("[data-absence-support-file-hint]");
+      if (fileHint) {
+        fileHint.textContent = fileRequired
+          ? "Obligatorio. El archivo queda en la carpeta del colaborador en Gestión documental."
+          : "Opcional en vacaciones. Si lo adjunta, queda en la carpeta del colaborador en Gestión documental.";
+      }
+    }
     if (supportEl) supportEl.required = !!supportRules.requiresSupportNumber;
     if (entityEl) entityEl.required = !!supportRules.requiresEntity;
     if (notesEl) notesEl.required = !!supportRules.requiresNotes;

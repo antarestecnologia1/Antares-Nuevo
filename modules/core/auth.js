@@ -600,6 +600,13 @@ export function canManagePayrollModule(user) {
   return isAdminActor(actor) || hasPermission(actor, PERMISSIONS.PAYROLL_MANAGE);
 }
 
+/** Eliminar en Gestión humana (liquidaciones, ausencias, desvinculación): admin o permiso payroll_delete. */
+export function canDeletePayroll(user) {
+  const actor = user || currentUser();
+  if (!actor) return false;
+  return isAdminActor(actor) || hasPermission(actor, PERMISSIONS.PAYROLL_DELETE);
+}
+
 export function canManageSstModule(user) {
   const actor = user || currentUser();
   return isAdminActor(actor) || hasPermission(actor, PERMISSIONS.SST_COMPLIANCE);
@@ -1378,12 +1385,29 @@ export async function maybeEnforceDataPolicyAcceptance() {
     hideDataPolicyGate();
     return false;
   }
+  let serverConfirmed = true;
   if (portalCanRefreshFromApi()) {
-    await __syncLegalAcceptanceStateFromServer();
+    serverConfirmed = await __syncLegalAcceptanceStateFromServer();
+    if (!serverConfirmed) {
+      // Navegador nuevo / incógnito: el token puede no estar listo en el primer intento. Reintenta una vez.
+      await new Promise((resolve) => setTimeout(resolve, 700));
+      serverConfirmed = await __syncLegalAcceptanceStateFromServer();
+    }
   }
   const session = getSession();
   const user = currentUser();
   if (!userLegalProfileIsHydrated(user)) {
+    hideDataPolicyGate();
+    return false;
+  }
+  // Sin confirmación del servidor solo se muestra el modal si el perfil trae el flag explícito de BD;
+  // un perfil parcial (stub del login) no debe pedir de nuevo documentos ya aceptados.
+  if (
+    !serverConfirmed &&
+    portalCanRefreshFromApi() &&
+    user?.requiresTermsAcceptance !== true &&
+    user?.requiresDataPolicyAcceptance !== true
+  ) {
     hideDataPolicyGate();
     return false;
   }
@@ -1803,14 +1827,20 @@ export function ensureRequestAndTripIdentifiers() {
   if (changed) reqWrite(filterPortalRequestsForServerCache(mapped));
 }
 
-/** Permisos guardados desde formulario: respeta lo marcado; si queda vacío, defaults del rol. */
+/**
+ * Permisos guardados desde formulario: respeta EXACTAMENTE lo marcado. Si el administrador
+ * desmarca todo, se conserva solo el mínimo (Mi perfil + Notificaciones) para no dejar la
+ * cuenta sin acceso; antes se restauraban los permisos completos del rol y la asignación
+ * parecía «no reconocida».
+ */
 export function normalizeSavedUserPermissions(role, checkedPermissions) {
   const assignable = new Set(assignablePermissionsForRole(role));
   const filtered = (Array.isArray(checkedPermissions) ? checkedPermissions : []).filter((p) =>
     assignable.has(p)
   );
   if (filtered.length > 0) return [...new Set(filtered)];
-  return defaultPermissionsForRole(role);
+  if (role === ROLES.CLIENT) return [...CLIENT_ROLE_PERMISSIONS];
+  return [PERMISSIONS.PROFILE_VIEW, PERMISSIONS.NOTIFICATIONS_VIEW];
 }
 
 export function repaintPermGridInForm(form, role) {

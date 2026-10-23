@@ -2106,12 +2106,13 @@ function bindPayrollPortalControls() {
         return;
       }
       const supportFile = absenceForm.querySelector("input[name='supportFile']")?.files?.[0] || null;
-      if (!supportFile) {
+      /* Vacaciones no exige soporte documental (no hay certificado); el resto de ausencias sí. */
+      if (!supportFile && absenceType !== "vacaciones") {
         failHrAbsenceField(absenceForm, "supportFile", userMessage("absenceSupportFileRequired"));
         return;
       }
       const sec = window.AntaresFileUploadSecurity;
-      if (sec?.validateUploadFile) {
+      if (supportFile && sec?.validateUploadFile) {
         const check = await sec.validateUploadFile(supportFile, "document");
         if (!check.ok) {
           failHrAbsenceField(absenceForm, "supportFile", check.message || userMessage("absenceSupportFileRequired"));
@@ -2121,14 +2122,16 @@ function bindPayrollPortalControls() {
       setHrAbsenceFormFeedback(absenceForm, "saving", "Guardando la novedad. Esto puede tardar unos segundos…");
       const list = read(KEYS.hrAbsences, []);
       const absenceId = newUuidV4();
-      let archived;
+      let archived = null;
       try {
-        archived = await archiveAbsenceSupportForEmployee(employee, supportFile, {
-          id: absenceId,
-          absenceType,
-          startDate: data.startDate,
-          endDate: data.endDate
-        });
+        if (supportFile) {
+          archived = await archiveAbsenceSupportForEmployee(employee, supportFile, {
+            id: absenceId,
+            absenceType,
+            startDate: data.startDate,
+            endDate: data.endDate
+          });
+        }
       } catch (err) {
         failHrAbsenceField(
           absenceForm,
@@ -2150,7 +2153,7 @@ function bindPayrollPortalControls() {
         recognizedUnit: payrollAbsenceRecognizedUnit(absenceType, absenceSubtype),
         supportNumber: normalizeLatinUpperForDb(data.supportNumber || ""),
         supportDocumentId: archived?.id || null,
-        supportFileName: archived?.fileName || supportFile.name,
+        supportFileName: archived?.fileName || supportFile?.name || "",
         supportFolder: archived?.path || "",
         epsEntity: normalizeLatinUpperForDb(data.epsEntity || ""),
         notes,
@@ -2902,9 +2905,11 @@ function bindPayrollPortalControls() {
         });
         if (!result.ok) {
           if (!result.count) return false;
+          state.__employeeSelectedIds?.clear?.();
           renderPortalView();
           return true;
         }
+        state.__employeeSelectedIds?.clear?.();
         notify(
           recategorize
             ? userMessage("employeeUnlinkedRecategorized")
@@ -2932,6 +2937,64 @@ function bindPayrollPortalControls() {
     });
   });
 
+  /* Reingreso de un colaborador desvinculado. */
+  nodes.viewRoot.querySelectorAll("[data-action='reinstate-employee']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (abortUnlessCanManagePayroll()) return;
+      const empId = String(btn.dataset.id || "").trim();
+      const target = read(KEYS.payrollEmployees, []).find((row) => String(row.id) === empId);
+      if (!target) {
+        notify(userMessage("employeeUnlinkNotFound"), "error");
+        return;
+      }
+      if (!(typeof isPayrollEmployeeUnlinked === "function" && isPayrollEmployeeUnlinked(target))) {
+        notify("Este colaborador ya se encuentra activo.", "info");
+        return;
+      }
+      openEditModal({
+        title: "Reingresar colaborador",
+        subtitle: String(target.name || "").trim(),
+        submitText: "Reingresar",
+        primaryBtnClass: "btn btn-primary",
+        introHtml:
+          '<p class="modal-body-lead">El colaborador volverá a estado <strong>activo</strong> con su expediente y documentos actuales. Revise su contrato, cargo y salario después del reingreso.</p>',
+        fields: [
+          { name: "reinstateDate", label: "Fecha de reingreso", type: "date", value: colombiaTodayIsoDate(), required: true },
+          { name: "reinstateNote", label: "Nota (opcional)", type: "textarea", value: "" }
+        ],
+        onSubmit: async (payload) => {
+          const reinstateDate = String(payload.reinstateDate || "").trim().slice(0, 10);
+          if (!reinstateDate) return false;
+          const note = String(payload.reinstateNote || "").trim();
+          try {
+            await postPortalAuthorized("/portal/admin-employee-reinstate", { employeeId: empId, reinstateDate, note });
+          } catch (err) {
+            notify(String(err?.message || "No fue posible reingresar al colaborador en el servidor."), "error");
+            return false;
+          }
+          const updated =
+            typeof applyPayrollEmployeeReinstateLocal === "function"
+              ? await applyPayrollEmployeeReinstateLocal(empId, { reinstateDate })
+              : null;
+          appendPayrollEmployeeAuditLog("update", updated || { ...target, active: true, status: "activo" }, {
+            previous: target,
+            changesText: `Reingreso: ${reinstateDate}${note ? ` · Nota: ${note}` : ""}`
+          });
+          if (portalCanRefreshFromApi()) {
+            try {
+              await applyPortalBootstrapFromApi();
+            } catch (_e) {
+              /* el reingreso ya quedó aplicado en local */
+            }
+          }
+          notify("Colaborador reingresado. Ya figura como activo.", "success");
+          renderPortalView();
+          return true;
+        }
+      });
+    });
+  });
+
   nodes.viewRoot.querySelectorAll("[data-action='recategorize-unlinked-employee']").forEach((btn) => {
     btn.addEventListener("click", () => {
       openPayrollEmployeeUnlinkModal([String(btn.dataset.id || "")], { recategorize: true });
@@ -2940,17 +3003,37 @@ function bindPayrollPortalControls() {
 
   wirePayrollEmployeeDirectoryFilters();
 
+  /*
+   * Selección persistente entre páginas: la tabla solo pinta la página actual (p. ej. 50 filas), así que
+   * «Seleccionar todos» trabaja sobre los ids de TODOS los colaboradores que cumplen los filtros.
+   */
+  if (!(state.__employeeSelectedIds instanceof Set)) state.__employeeSelectedIds = new Set();
+  const employeeSelectionStore = state.__employeeSelectedIds;
+
+  function filteredEmployeeIds() {
+    const raw = document.getElementById("employees-select-all")?.closest("[data-filtered-ids]")?.dataset.filteredIds || "";
+    return raw ? raw.split(",").map((s) => s.trim()).filter(Boolean) : [];
+  }
+
   function visibleEmployeeSelectChecks() {
     return [...nodes.viewRoot.querySelectorAll("[data-employee-select]")].filter(
       (el) => !el.closest(".is-filtered-out")
     );
   }
 
+  function selectedEmployeeIds() {
+    const filtered = filteredEmployeeIds();
+    if (!filtered.length) return [...employeeSelectionStore];
+    const valid = new Set(filtered);
+    return [...employeeSelectionStore].filter((id) => valid.has(id));
+  }
+
   function syncPayrollEmployeeSelectAllControls() {
-    const checks = visibleEmployeeSelectChecks();
-    const selected = checks.filter((el) => el.checked);
-    const allSelected = checks.length > 0 && selected.length === checks.length;
-    const someSelected = selected.length > 0 && !allSelected;
+    const filtered = filteredEmployeeIds();
+    const selectedCount = selectedEmployeeIds().length;
+    const total = filtered.length || visibleEmployeeSelectChecks().length;
+    const allSelected = total > 0 && selectedCount >= total;
+    const someSelected = selectedCount > 0 && !allSelected;
     [document.getElementById("employees-select-all"), document.getElementById("employees-select-all-header")].forEach(
       (el) => {
         if (!el) return;
@@ -2962,8 +3045,10 @@ function bindPayrollPortalControls() {
 
   function syncPayrollEmployeeSelectionBadge() {
     const badge = document.getElementById("employees-selected-count");
-    const selected = visibleEmployeeSelectChecks().filter((el) => el.checked);
-    const count = selected.length;
+    visibleEmployeeSelectChecks().forEach((el) => {
+      el.checked = employeeSelectionStore.has(String(el.value || ""));
+    });
+    const count = selectedEmployeeIds().length;
     if (badge) {
       badge.textContent = `${count} seleccionado${count === 1 ? "" : "s"}`;
       badge.hidden = count <= 0;
@@ -2973,12 +3058,20 @@ function bindPayrollPortalControls() {
   window.syncPayrollEmployeeSelectionBadge = syncPayrollEmployeeSelectionBadge;
 
   nodes.viewRoot.querySelectorAll("[data-employee-select]").forEach((check) => {
-    check.addEventListener("change", syncPayrollEmployeeSelectionBadge);
+    check.addEventListener("change", () => {
+      const id = String(check.value || "");
+      if (check.checked) employeeSelectionStore.add(id);
+      else employeeSelectionStore.delete(id);
+      syncPayrollEmployeeSelectionBadge();
+    });
   });
 
   const toggleEmployeeSelectAll = (checked) => {
-    visibleEmployeeSelectChecks().forEach((el) => {
-      el.checked = checked;
+    const ids = filteredEmployeeIds();
+    const targets = ids.length ? ids : visibleEmployeeSelectChecks().map((el) => String(el.value || ""));
+    targets.forEach((id) => {
+      if (checked) employeeSelectionStore.add(id);
+      else employeeSelectionStore.delete(id);
     });
     syncPayrollEmployeeSelectionBadge();
   };
@@ -3055,14 +3148,7 @@ function bindPayrollPortalControls() {
     employeesDeleteSelected.addEventListener("click", (event) => {
       event.preventDefault();
       if (abortUnlessCanManagePayroll()) return;
-      const selectedIds = [
-        ...new Set(
-          visibleEmployeeSelectChecks()
-            .filter((check) => check.checked)
-            .map((check) => String(check.value || ""))
-            .filter(Boolean)
-        )
-      ];
+      const selectedIds = [...new Set(selectedEmployeeIds().filter(Boolean))];
       if (!selectedIds.length) {
         notify(userMessage("employeesBulkSelect"), "error");
         return;
@@ -3813,7 +3899,7 @@ function bindPayrollPortalControls() {
 
   nodes.viewRoot.querySelectorAll("[data-action='delete-hr-absence']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      if (currentUser()?.role !== ROLES.ADMIN) {
+      if (!canDeletePayroll(currentUser())) {
         notify(userMessage("adminOnlyDeleteHrPayrollRecord"), "error");
         return;
       }
@@ -3856,7 +3942,7 @@ function bindPayrollPortalControls() {
 
   nodes.viewRoot.querySelectorAll("[data-action='delete-payroll-run']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      if (currentUser()?.role !== ROLES.ADMIN) {
+      if (!canDeletePayroll(currentUser())) {
         notify(userMessage("adminOnlyDeleteHrPayrollRecord"), "error");
         return;
       }
@@ -4145,7 +4231,7 @@ function bindPayrollPortalControls() {
   if (payrollRunsDeleteSelected) {
     payrollRunsDeleteSelected.addEventListener("click", (event) => {
       event.preventDefault();
-      if (currentUser()?.role !== ROLES.ADMIN) {
+      if (!canDeletePayroll(currentUser())) {
         notify(userMessage("adminOnlyDeleteHrPayrollRecord"), "error");
         return;
       }
@@ -4166,7 +4252,7 @@ function bindPayrollPortalControls() {
   if (payrollRunsDeleteAll) {
     payrollRunsDeleteAll.addEventListener("click", (event) => {
       event.preventDefault();
-      if (currentUser()?.role !== ROLES.ADMIN) {
+      if (!canDeletePayroll(currentUser())) {
         notify(userMessage("adminOnlyDeleteHrPayrollRecord"), "error");
         return;
       }
@@ -4188,73 +4274,99 @@ function bindPayrollPortalControls() {
   const exportPayroll = document.getElementById("export-payroll");
   if (exportPayroll) {
     exportPayroll.addEventListener("click", async () => {
-      let rows = sortPayrollRunsByUiState(
-        filterPayrollRunsByUiState(read(KEYS.payrollRuns, []), state.payrollFilters || defaultPayrollFilters()),
-        String(state.payrollUi?.runSort || "recent")
-      );
-      if (portalCanRefreshFromApi()) {
-        for (const r of rows) {
-          if (r.payrollRunHeavyOmitted === true) {
-            await ensurePayrollRunHeavyJsonLoaded(String(r.id || ""));
+      if (exportPayroll.disabled) return;
+      const originalHtml = exportPayroll.innerHTML;
+      exportPayroll.disabled = true;
+      try {
+        const filters = state.payrollFilters || defaultPayrollFilters();
+        const sortMode = String(state.payrollUi?.runSort || "recent");
+        const baseRows = sortPayrollRunsByUiState(filterPayrollRunsByUiState(read(KEYS.payrollRuns, []), filters), sortMode);
+        if (!baseRows.length) {
+          notify("No hay liquidaciones para exportar con los filtros actuales.", "error");
+          return;
+        }
+        /*
+         * Detalle pesado (novedades/incapacidades): se pide por lotes y SOLO en memoria. Antes se reescribía el
+         * almacén local una vez por liquidación (cientos de escrituras + resincronizaciones) y el export fallaba.
+         */
+        const detailById = new Map();
+        const api = window.AntaresApi;
+        if (portalCanRefreshFromApi() && typeof api?.getJson === "function") {
+          const pending = baseRows.filter((r) => r.payrollRunHeavyOmitted === true && r.id);
+          const BATCH = 6;
+          for (let i = 0; i < pending.length; i += BATCH) {
+            exportPayroll.textContent = `Preparando ${Math.min(i + BATCH, pending.length)}/${pending.length}…`;
+            await Promise.all(
+              pending.slice(i, i + BATCH).map(async (r) => {
+                try {
+                  const d = await api.getJson(`/portal/payroll-runs/${encodeURIComponent(String(r.id))}`);
+                  if (d && typeof d === "object") detailById.set(String(r.id), d);
+                } catch (_e) {
+                  /* sin detalle: la fila se exporta con los totales disponibles */
+                }
+              })
+            );
           }
         }
-        rows = sortPayrollRunsByUiState(
-          filterPayrollRunsByUiState(read(KEYS.payrollRuns, []), state.payrollFilters || defaultPayrollFilters()),
-          String(state.payrollUi?.runSort || "recent")
-        );
-      }
-      const hrAbsences = read(KEYS.hrAbsences, []);
-      const csv = [
-        "Mes,Tipo,Empleado,Devengado,IncapacidadAjusteCOP,IncapacidadResumen,AusentismosResumen,PrimaServicios,InteresesCesantias,BaseCesantíasIntereses,DíasInterés360,Viaticos,ReembolsoCombustible,IBC,Salud,Pension,Solidaridad,Deducciones,Neto,Estado"
-      ]
-        .concat(
-          rows.map((r) => {
-            const tipo = String(r.payrollKind || "mensual").toLowerCase();
-            const esc = (v) =>
-              `"${String(v ?? "")
-                .replace(/\\/g, "\\\\")
-                .replace(/"/g, '""')}"`;
-            const inc = r.noveltiesDetail?.incapacity;
-            const incapacityAdjust = inc ? parseNum(inc.totalAdjustCop) : 0;
-            const incapacitySummary =
-              inc && Array.isArray(inc.episodes) && inc.episodes.length
-                ? inc.episodes.map((e) => `${e.days ?? "?"}d·${parseNum(e.adjustCop)}`).join("|")
-                : "";
-            const absenceSummary = buildPayrollAbsenceSummaryText(r, hrAbsences);
-            return [
-              r.month,
-              tipo,
-              r.employeeName,
-              r.gross,
-              incapacityAdjust,
-              incapacitySummary,
-              absenceSummary,
-              r.primaServiciosCop ?? 0,
-              r.interesesCesantiasCop ?? 0,
-              r.cesantiasInterestBaseCop ?? "",
-              r.cesantiasInterestDays ?? "",
-              r.travelAllowance || 0,
-              r.fuelReimbursement || 0,
-              r.ibc || 0,
-              r.health || 0,
-              r.pension || 0,
-              r.solidarity || 0,
-              r.deductions,
-              r.net,
-              r.paid ? "Pagado" : "Pendiente"
-            ]
-              .map((cell) => (typeof cell === "number" ? cell : esc(cell)))
-              .join(",");
+        const hrAbsences = read(KEYS.hrAbsences, []);
+        const headers = [
+          "Mes", "Tipo", "Empleado", "Devengado", "Incapacidad ajuste COP", "Incapacidad resumen", "Ausentismos resumen",
+          "Prima servicios", "Intereses cesantías", "Base cesantías/intereses", "Días interés 360", "Viáticos",
+          "Reembolso combustible", "IBC", "Salud", "Pensión", "Solidaridad", "Deducciones", "Neto", "Estado"
+        ];
+        const xe = (v) =>
+          String(v ?? "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+        const body = baseRows
+          .map((r0) => {
+            const d = detailById.get(String(r0.id));
+            const r = d
+              ? { ...r0, noveltiesDetail: d.noveltiesDetail ?? r0.noveltiesDetail, settlementDetail: d.settlementDetail ?? r0.settlementDetail }
+              : r0;
+            let incapacityAdjust = 0;
+            let incapacitySummary = "";
+            let absenceSummary = "";
+            try {
+              const inc = r.noveltiesDetail?.incapacity;
+              incapacityAdjust = inc ? parseNum(inc.totalAdjustCop) : 0;
+              incapacitySummary =
+                inc && Array.isArray(inc.episodes) && inc.episodes.length
+                  ? inc.episodes.map((e) => `${e.days ?? "?"}d·${parseNum(e.adjustCop)}`).join(" | ")
+                  : "";
+              absenceSummary = buildPayrollAbsenceSummaryText(r, hrAbsences);
+            } catch (_e) {
+              /* datos de novedades incompletos en esta fila: se omiten solo esas columnas */
+            }
+            const cells = [
+              r.month, String(r.payrollKind || "mensual").toLowerCase(), r.employeeName, parseNum(r.gross), incapacityAdjust,
+              incapacitySummary, absenceSummary, parseNum(r.primaServiciosCop), parseNum(r.interesesCesantiasCop),
+              r.cesantiasInterestBaseCop ?? "", r.cesantiasInterestDays ?? "", parseNum(r.travelAllowance),
+              parseNum(r.fuelReimbursement), parseNum(r.ibc), parseNum(r.health), parseNum(r.pension), parseNum(r.solidarity),
+              parseNum(r.deductions), parseNum(r.net), r.paid ? "Pagado" : "Pendiente"
+            ];
+            return `<tr>${cells.map((c) => `<td>${xe(c)}</td>`).join("")}</tr>`;
           })
-        )
-        .join("\n");
-      const blob = new Blob([csv], { type: "text/csv" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "nomina_resumen.csv";
-      a.click();
-      URL.revokeObjectURL(url);
+          .join("");
+        const html = `<!DOCTYPE html><html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" lang="es"><head><meta charset="utf-8"/><title>Nómina</title><style>table{border-collapse:collapse;font-family:Arial,sans-serif;font-size:11pt}th{background:#1f5f99;color:#fff;font-weight:700;border:1px solid #1f5f99;padding:6px 8px;text-align:left}td{border:1px solid #cfd8e3;padding:5px 8px;vertical-align:top}</style></head><body><table><thead><tr>${headers.map((h) => `<th>${xe(h)}</th>`).join("")}</tr></thead><tbody>${body}</tbody></table></body></html>`;
+        const blob = new Blob(["﻿", html], { type: "application/vnd.ms-excel;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `nomina_resumen_${new Date().toISOString().slice(0, 10)}.xls`;
+        a.rel = "noopener";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        notify(`Excel generado con ${baseRows.length} liquidación${baseRows.length === 1 ? "" : "es"}.`, "success");
+      } catch (err) {
+        notify(String(err?.message || "No fue posible exportar las nóminas a Excel."), "error");
+      } finally {
+        exportPayroll.disabled = false;
+        exportPayroll.innerHTML = originalHtml;
+      }
     });
   }
 

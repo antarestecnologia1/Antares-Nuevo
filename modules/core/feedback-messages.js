@@ -291,7 +291,7 @@
     payrollRunsBulkDeleteAllEmpty: "No hay liquidaciones para eliminar con los filtros actuales.",
     payrollRunsBulkRemoved: (n) =>
       n === 1 ? "Liquidación eliminada del historial." : `Se eliminaron ${n} liquidaciones del historial.`,
-    adminOnlyDeleteHrPayrollRecord: "Solo los administradores pueden eliminar esta novedad o liquidación.",
+    adminOnlyDeleteHrPayrollRecord: "No tiene permiso para eliminar en Gestión humana. Solicite el permiso «Gestión humana · Eliminar» a un administrador.",
     employeeUpdatedOk: "Empleado actualizado correctamente.",
     employeeDeletedCascade: "Empleado eliminado en cascada.",
     employeeUnlinked: "Colaborador desvinculado. La documentación permanece en Gestión documental.",

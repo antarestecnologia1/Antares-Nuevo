@@ -13,6 +13,7 @@ import { AdminVehicleDeleteDto } from "./dto/admin-vehicle-delete.dto";
 import { AdminDriverDeleteDto } from "./dto/admin-driver-delete.dto";
 import { AdminClearTripDto } from "./dto/admin-clear-trip.dto";
 import { AdminEmployeeDeleteDto } from "./dto/admin-employee-delete.dto";
+import { AdminEmployeeReinstateDto } from "./dto/admin-employee-reinstate.dto";
 import { AdminClearUserSessionsDto } from "./dto/admin-clear-user-sessions.dto";
 import { AdminUserCredentialsDto } from "./dto/admin-user-credentials.dto";
 import { AdminUserStatusDto } from "./dto/admin-user-status.dto";
@@ -373,5 +374,10 @@ export class PortalController {
   @Post("admin-employee-delete")
   adminEmployeeDelete(@Req() req: { user: ReqUser }, @Body() dto: AdminEmployeeDeleteDto) {
     return this.portal.adminUnlinkPayrollEmployee(req.user.userId, req.user.role, dto);
+  }
+
+  @Post("admin-employee-reinstate")
+  adminEmployeeReinstate(@Req() req: { user: ReqUser }, @Body() dto: AdminEmployeeReinstateDto) {
+    return this.portal.adminReinstatePayrollEmployee(req.user.userId, req.user.role, dto);
   }
 }

@@ -205,6 +205,7 @@ export const PERMISSIONS = {
   TRANSPORT_CALENDAR: "transport_calendar",
   TRANSPORT_HISTORY: "transport_history",
   PAYROLL_MANAGE: "payroll_manage",
+  PAYROLL_DELETE: "payroll_delete",
   HIRING_MANAGE: "hiring_manage",
   SST_COMPLIANCE: "sst_compliance",
   DOCUMENT_MANAGE: "document_manage",
@@ -344,6 +345,10 @@ export const PERMISSION_META = {
   [PERMISSIONS.TRANSPORT_CALENDAR]: { title: "Calendario operativo", desc: "Ver programacion de viajes." },
   [PERMISSIONS.TRANSPORT_HISTORY]: { title: "Historial y reportes", desc: "Consultar historicos y filtros." },
   [PERMISSIONS.PAYROLL_MANAGE]: { title: "Gestión humana", desc: "Gestionar empleados y liquidaciones." },
+  [PERMISSIONS.PAYROLL_DELETE]: {
+    title: "Gestión humana · Eliminar",
+    desc: "Eliminar liquidaciones, ausencias y novedades, y desvincular colaboradores en Gestión humana."
+  },
   [PERMISSIONS.HIRING_MANAGE]: { title: "Contratacion", desc: "Gestionar vacantes, candidatos y contratos." },
   [PERMISSIONS.SST_COMPLIANCE]: { title: "Cumplimiento laboral y SST", desc: "Controlar seguridad social, vencimientos y auditoria documental." },
   [PERMISSIONS.DOCUMENT_MANAGE]: {
@@ -658,6 +663,7 @@ export const PERMISSION_UI_GROUPS = [
     title: "Recursos humanos y administración",
     permissions: [
       PERMISSIONS.PAYROLL_MANAGE,
+      PERMISSIONS.PAYROLL_DELETE,
       PERMISSIONS.HIRING_MANAGE,
       PERMISSIONS.SST_COMPLIANCE,
       PERMISSIONS.USERS_MANAGE,
@@ -818,6 +824,7 @@ export const PAYROLL_RRHH_EDIT_ACTIONS = new Set([
   "delete-employee",
   "unlink-employee",
   "recategorize-unlinked-employee",
+  "reinstate-employee",
   "delete-payroll-run",
   "edit-hr-absence",
   "delete-hr-absence"
@@ -938,6 +945,7 @@ export const PORTAL_NON_ADMIN_BLOCKED_ACTIONS = new Set([
   "delete-employee",
   "unlink-employee",
   "recategorize-unlinked-employee",
+  "reinstate-employee",
   "delete-vacancy",
   "close-vacancy",
   "toggle-position",

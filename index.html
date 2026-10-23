@@ -111,7 +111,7 @@
     <link rel="stylesheet" href="./styles/calendar-module.css?v=3f05e2bf6f" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/history-module.css?v=2eb56e7157" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/reports-module.css?v=8f1443677f" media="print" onload="this.onload=null;this.media='all'" />
-    <link rel="stylesheet" href="./styles/payroll-module.css?v=393de50fb2" media="print" onload="this.onload=null;this.media='all'" />
+    <link rel="stylesheet" href="./styles/payroll-module.css?v=5d48701b29" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/hiring-module.css?v=23811556d6" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/sst-module.css?v=174d8472f1" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/gestion-documental.css?v=cf6b63e526" media="print" onload="this.onload=null;this.media='all'" />
@@ -127,6 +127,7 @@
     <link rel="stylesheet" href="./styles/antares-roster.css?v=64f6ff7e23" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/portal-responsive.css?v=cabc93fe03" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/portal-modern.css?v=c2416cd8c6" media="print" onload="this.onload=null;this.media='all'" />
+    <link rel="stylesheet" href="./styles/portal-dark-polish.css?v=b990a3c89a" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/auth-modal.css?v=cc7adadd4f" />
     <noscript>
     <link rel="stylesheet" href="./styles.css?v=c0f40379fe" />
@@ -142,7 +143,7 @@
       <link rel="stylesheet" href="./styles/calendar-module.css?v=3f05e2bf6f" />
       <link rel="stylesheet" href="./styles/history-module.css?v=2eb56e7157" />
       <link rel="stylesheet" href="./styles/reports-module.css?v=8f1443677f" />
-      <link rel="stylesheet" href="./styles/payroll-module.css?v=393de50fb2" />
+      <link rel="stylesheet" href="./styles/payroll-module.css?v=5d48701b29" />
       <link rel="stylesheet" href="./styles/hiring-module.css?v=23811556d6" />
       <link rel="stylesheet" href="./styles/sst-module.css?v=174d8472f1" />
       <link rel="stylesheet" href="./styles/gestion-documental.css?v=cf6b63e526" />
@@ -158,6 +159,7 @@
       <link rel="stylesheet" href="./styles/antares-roster.css?v=64f6ff7e23" />
       <link rel="stylesheet" href="./styles/portal-responsive.css?v=cabc93fe03" />
       <link rel="stylesheet" href="./styles/portal-modern.css?v=c2416cd8c6" />
+      <link rel="stylesheet" href="./styles/portal-dark-polish.css?v=b990a3c89a" />
       <link rel="stylesheet" href="./styles/auth-modal.css?v=cc7adadd4f" />
     </noscript>
     <script>
@@ -1434,7 +1436,7 @@
     <script defer src="./modules/ui/portal-i18n-dict-6.js?v=5236f14c32"></script>
     <script defer src="./modules/ui/portal-i18n-dict-7.js?v=36bd77f4b7"></script>
     <script defer src="./modules/ui/portal-i18n-dict-8.js?v=f88b0cc00a"></script>
-    <script defer src="./modules/ui/portal-i18n-dict-9.js?v=ef06bdd5b0"></script>
+    <script defer src="./modules/ui/portal-i18n-dict-9.js?v=fa24ce6abb"></script>
     <script defer src="./modules/ui/portal-i18n-dict-10.js?v=011d2c196b"></script>
     <script defer src="./modules/ui/portal-i18n.js?v=6e41137aee"></script>
     <script defer src="./modules/core/portal-data-layer.js"></script>
@@ -1465,7 +1467,7 @@
     <script defer src="./modules/portal/core/router.js?v=bc7fc13047"></script>
     <script defer src="./modules/portal/core/renderer.js"></script>
     <script defer src="./modules/domain-bootstrap.js"></script>
-    <script defer src="./modules/core/feedback-messages.js?v=c06f5f7327"></script>
+    <script defer src="./modules/core/feedback-messages.js?v=472eac898a"></script>
     <script defer src="./modules/portal/application.js"></script>
     <script defer src="./modules/app/portal-icons.js?v=d0b0713550"></script>
     <script type="module" src="./modules/portal/legacy-views-bridge.js"></script>
@@ -1589,9 +1591,9 @@
       import * as AntaresSchedulePicker from "./modules/ui/portal-schedule-picker.js?v=6e3b22dbfb";
       Object.assign(window, AntaresUIComponents, AntaresUIModals, AntaresI18n, AntaresSchedulePicker);
     </script>
-    <script type="module" src="./modules/core/portal-runtime.js?v=6128572e60"></script>
+    <script type="module" src="./modules/core/portal-runtime.js?v=465e30b6be"></script>
     <script defer src="./modules/app/portal-transport-modals.js?v=94c389d3ac"></script>
-    <script defer src="./modules/app/portal-rrhh-modals.js?v=ed4629c193"></script>
+    <script defer src="./modules/app/portal-rrhh-modals.js?v=931b200f78"></script>
     <!-- Vistas legacy (`registerLegacyPortalViews`); deben ejecutarse antes de `app.js` para que el primer `renderPortal()` resuelva HTML. `viajes.js` antes de `mis-solicitudes.js` por `RENDER_WINDOW_SIZE`. -->
     <script defer src="./modules/app/dashboard.js?v=49982bce72"></script>
     <script defer src="./modules/app/viajes.js?v=1df70792e7"></script>
@@ -1603,13 +1605,13 @@
     <script defer src="./modules/app/calendario.js?v=48d34b263b"></script>
     <script defer src="./modules/app/historial.js?v=82034d4e67"></script>
     <script defer src="./modules/app/reporteria.js"></script>
-    <script defer src="./modules/app/gestion-humana-html.js?v=965bf7fe6d"></script>
-    <script defer src="./modules/app/gestion-humana.js?v=0b056f38e2"></script>
+    <script defer src="./modules/app/gestion-humana-html.js?v=f101927f04"></script>
+    <script defer src="./modules/app/gestion-humana.js?v=eead111531"></script>
     <script defer src="./modules/app/rrhh-candidate-attachments.js?v=db07bca183"></script>
     <script defer src="./modules/app/contratacion-html.js?v=05d561b584"></script>
     <script defer src="./modules/app/contratacion.js?v=0a0193bf6b"></script>
     <script type="module" src="./modules/app/cumplimiento-laboral.js"></script>
-    <script type="module" src="./modules/app/gestion-documental.js?v=e80dc2961c"></script>
+    <script type="module" src="./modules/app/gestion-documental.js?v=272bc2b0c9"></script>
     <script type="module" src="./modules/app/sarlaft.js?v=114d723547"></script>
     <script defer src="./modules/app/contacto-b2b.js?v=21be65c526"></script>
     <script defer src="./modules/app/usuarios-permisos.js?v=5addacf2ba"></script>

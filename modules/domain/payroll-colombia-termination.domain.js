@@ -122,8 +122,7 @@ export function terminationCauseEligibility(cause) {
       ...base,
       indemnizacionDespido: false,
       indemnizacionAvisoPrevio: false,
-      renunciaAvisoDeduction: true,
-      note: "Renuncia: prestaciones devengadas. Si no dio aviso previo (15 días contrato indefinido), puede descontarse del finiquito (CST art. 62)."
+      note: "Renuncia: se liquidan las prestaciones devengadas. No se descuenta ni se cobra multa por falta de preaviso."
     };
   }
   if (c === "vencimiento_contrato") {
@@ -409,14 +408,8 @@ export function computeColombiaTerminationSettlement({
     indemnizacionFormula = "CST art. 64 (término fijo): salarios del tiempo faltante para cumplir el plazo.";
   }
 
-  let renunciaAvisoDeduction = 0;
-  if (eligibility.renunciaAvisoDeduction) {
-    renunciaAvisoDeduction = calcColombiaRenunciaAvisoPrevioDeductionCop(
-      salary,
-      renunciaAvisoDaysWorked || avisoPrevioDaysWorked,
-      contractIndefinite
-    );
-  }
+  // Política de la empresa: no se aplica multa ni descuento por falta de preaviso (siempre 0).
+  const renunciaAvisoDeduction = 0;
 
   const salarioPendiente = eligibility.salarioPendiente ? pending.salarioCop : 0;
   const auxilioPendiente = eligibility.auxilioTransporte ? pending.auxilioCop : 0;
@@ -513,12 +506,7 @@ export function computeColombiaTerminationSettlement({
     { code: "SALUD", label: "Aporte salud empleado (4%)", amount: ded.health },
     { code: "PENSION", label: "Aporte pensión empleado (4%)", amount: ded.pension },
     { code: "FSP", label: `Fondo solidaridad pensional (${ded.solidarityTramo || "—"})`, amount: ded.solidarity },
-    { code: "RETENCION", label: "Retención fuente Proc. 1 (Art. 383)", amount: withholding.withholdingCop },
-    {
-      code: "AVISO_RENUNCIA",
-      label: "Descuento aviso previo no cumplido (renuncia)",
-      amount: renunciaAvisoDeduction
-    }
+    { code: "RETENCION", label: "Retención fuente Proc. 1 (Art. 383)", amount: withholding.withholdingCop }
   ].filter((l) => parseNum(l.amount) > 0);
 
   return {

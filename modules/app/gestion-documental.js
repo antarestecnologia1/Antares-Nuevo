@@ -1115,6 +1115,17 @@ function renderSubfolderGrid(subfolders, ui, IC) {
      subcarpetas cuando aún no tiene. El resto de las hojas no muestra ese vacío. */
   const isEmployeeFile =
     depth === 2 && folderKey(topFolderName(parent)) === folderKey(EMPLOYEES_ROOT_FOLDER);
+  /* Cualquier carpeta seleccionada permite crear subcarpetas (antes solo si ya tenía o era expediente). */
+  const showCreateOnly =
+    Boolean(parent) && canManage && !subfolders.length && !isEmployeeFile && !String(ui.search || "").trim();
+  if (showCreateOnly) {
+    return `<section class="doc-subfolder-block doc-subfolder-block--create-only">
+      <div class="doc-subfolder-block__head">
+        <h3 class="doc-subfolder-block__title">Subcarpetas</h3>
+        <button type="button" class="doc-btn doc-btn--ghost doc-btn--sm" data-action="doc-new-subfolder" data-parent="${escapeAttr(parent)}">${IC.plus || "+"}<span>Crear subcarpeta</span></button>
+      </div>
+    </section>`;
+  }
   const showBlock =
     Boolean(parent) && (subfolders.length > 0 || (isEmployeeFile && !String(ui.search || "").trim()));
   if (!showBlock) return "";
@@ -1259,7 +1270,8 @@ function rowMenu(doc, IC, folders = []) {
     items.push(`<button type="button" data-action="doc-download" data-id="${escapeAttr(doc.id)}">${IC.download || ""}<span>Descargar</span></button>`);
   }
   if (canEditFolder(folders, doc.folder)) {
-    items.push(`<button type="button" data-action="doc-edit" data-id="${escapeAttr(doc.id)}">${IC.edit || ""}<span>Editar / mover</span></button>`);
+    items.push(`<button type="button" data-action="doc-edit" data-id="${escapeAttr(doc.id)}">${IC.edit || ""}<span>Editar</span></button>`);
+    items.push(`<button type="button" data-action="doc-move" data-id="${escapeAttr(doc.id)}">${IC.folder || ""}<span>Mover a carpeta</span></button>`);
   }
   if (canDeleteFolder(folders, doc.folder)) {
     items.push(`<button type="button" class="is-danger" data-action="doc-delete" data-id="${escapeAttr(doc.id)}">${IC.trash || ""}<span>Eliminar</span></button>`);
@@ -1375,11 +1387,15 @@ function renderBulkSelectBar(IC) {
   const downloadBtn = canDownload()
     ? `<button type="button" class="doc-btn doc-btn--ghost doc-btn--sm" data-action="doc-bulk-download" disabled>${IC.download || ""}<span>Descargar seleccionados</span></button>`
     : "";
+  const moveBtn = canEdit()
+    ? `<button type="button" class="doc-btn doc-btn--ghost doc-btn--sm" data-action="doc-bulk-move" disabled>${IC.folder || ""}<span>Mover seleccionados</span></button>`
+    : "";
   return `<div class="doc-bulkbar is-empty" id="doc-bulkbar">
     <span class="doc-bulkbar__count" id="doc-bulkbar-count">0 seleccionados</span>
     <div class="doc-bulkbar__actions">
       <button type="button" class="doc-btn doc-btn--ghost doc-btn--sm" data-action="doc-bulk-clear" disabled>Cancelar selección</button>
       ${downloadBtn}
+      ${moveBtn}
       <button type="button" class="doc-btn doc-btn--ghost doc-btn--sm doc-btn--danger" data-action="doc-bulk-delete" disabled>${IC.trash || IC_TRASH}<span>Eliminar seleccionados</span></button>
     </div>
   </div>`;
@@ -4445,6 +4461,102 @@ function syncDocSelectionBadge(root) {
   }
 }
 
+/**
+ * Mueve uno o varios documentos a otra carpeta (o subcarpeta) existente. Solo cambia la ruta lógica:
+ * el archivo no se vuelve a subir y conserva su historial de versiones.
+ */
+function openMoveDocumentsModal(docs) {
+  const list = (Array.isArray(docs) ? docs : [docs]).filter(Boolean);
+  if (!list.length) return;
+  const folders = readFolders();
+  const movable = list.filter((d) => canEditFolder(folders, d.folder));
+  if (!movable.length) {
+    G.notify?.("No tiene permiso para mover estos documentos.", "error");
+    return;
+  }
+  const currentKeys = new Set(movable.map((d) => folderKey(d.folder)));
+  const options = collectAllFolderPaths(readDocs(), folders)
+    .filter((p) => canUploadFolder(folders, p))
+    .sort((a, b) => a.localeCompare(b, "es", { numeric: true }))
+    .map((p) => ({
+      value: p,
+      label: currentKeys.size === 1 && currentKeys.has(folderKey(p)) ? `${p} (carpeta actual)` : p
+    }));
+  if (!options.length) {
+    G.notify?.("No hay carpetas disponibles. Cree una carpeta primero.", "error");
+    return;
+  }
+  const only = movable.length === 1 ? movable[0] : null;
+  G.openEditModal?.({
+    title: only ? "Mover documento" : `Mover ${movable.length} documentos`,
+    subtitle: only ? only.fileName || "" : "Seleccione la carpeta de destino.",
+    submitText: "Mover",
+    fields: [
+      {
+        name: "targetFolder",
+        label: "Carpeta de destino",
+        type: "select",
+        required: true,
+        value: only ? "" : "",
+        options: [{ value: "", label: "Seleccione una carpeta…" }, ...options],
+        hint: "Incluye subcarpetas. El documento conserva su nombre, tipo y versiones."
+      }
+    ],
+    onSubmit: async (form, formEl) => {
+      const raw = String(form.targetFolder || "").trim();
+      if (!raw) {
+        G.failPortalField?.(formEl, "targetFolder", "Seleccione la carpeta de destino.");
+        return false;
+      }
+      const target = normalizeCompanyFolder(raw);
+      const freshFolders = readFolders();
+      if (!canUploadFolder(freshFolders, target)) {
+        G.notify?.("No tiene permiso para mover a esa carpeta.", "error");
+        return false;
+      }
+      const ids = new Set(movable.map((d) => String(d.id)));
+      const fresh = readDocs();
+      const toMove = fresh.filter(
+        (r) => ids.has(String(r.id)) && folderKey(r.folder) !== folderKey(target)
+      );
+      if (!toMove.length) {
+        G.notify?.("Los documentos ya están en esa carpeta.", "info");
+        return true;
+      }
+      const moveIds = new Set(toMove.map((r) => String(r.id)));
+      const stamp = new Date().toISOString();
+      const nextList = fresh.map((r) =>
+        moveIds.has(String(r.id)) ? normalizeCompanyDocumentRow({ ...r, folder: target, updatedAt: stamp }) : r
+      );
+      const by = actor();
+      try {
+        await persistRowEdits(KEYS.companyDocuments, nextList, [...moveIds]);
+        await ensureFolderRecord(target, by);
+        toMove.forEach((r) => {
+          G.logPortalAuditEvent?.("documents", "update", {
+            entityId: r.id,
+            entityKind: "document",
+            entityLabel: `${target} · ${r.fileName}`,
+            summary: `Documento movido · ${r.fileName} · ${r.folder} → ${target}`,
+            detailAction: "update",
+            usuario: by,
+            actor: by
+          });
+        });
+        G.notify?.(
+          toMove.length === 1 ? "Documento movido." : `${toMove.length} documentos movidos.`,
+          "success"
+        );
+        G.renderPortalView?.();
+        return true;
+      } catch (err) {
+        G.notify?.(String(err?.message || "No se pudo mover el documento."), "error");
+        return false;
+      }
+    }
+  });
+}
+
 /** Descarga secuencial de los documentos marcados (pequeña pausa entre cada uno para
  *  que el navegador no bloquee varias descargas simultáneas). No mueve ni elimina nada. */
 async function bulkDownloadSelectedDocuments(root) {
@@ -4832,6 +4944,18 @@ function bindDocumentManagementPortalControls() {
     e.preventDefault();
     e.stopPropagation();
     confirmDeleteDocument(findDoc(e.currentTarget.dataset.id));
+  });
+  on(root, "[data-action='doc-move']", "click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const doc = findDoc(e.currentTarget.dataset.id);
+    if (doc) openMoveDocumentsModal([doc]);
+  });
+  on(root, "[data-action='doc-bulk-move']", "click", () => {
+    const ids = [...root.querySelectorAll("[data-doc-select]")]
+      .filter((el) => el.checked)
+      .map((el) => String(el.dataset.id || ""));
+    openMoveDocumentsModal(ids.map((id) => findDoc(id)).filter(Boolean));
   });
   on(root, "[data-doc-select]", "click", (e) => e.stopPropagation());
   on(root, "[data-doc-select]", "change", () => syncDocSelectionBadge(root));

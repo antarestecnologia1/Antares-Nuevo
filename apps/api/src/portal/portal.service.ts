@@ -253,6 +253,7 @@ const ALL_PORTAL_PERMISSIONS: string[] = [
   "transport_calendar",
   "transport_history",
   "payroll_manage",
+  "payroll_delete",
   "hiring_manage",
   "sst_compliance",
   "sarlaft_manage",
@@ -5849,6 +5850,87 @@ export class PortalService implements OnModuleInit {
     }
   }
 
+  /** Reingreso de un colaborador desvinculado: vuelve a estado activo y limpia los datos de desvinculación. */
+  async adminReinstatePayrollEmployee(
+    actorUserId: string,
+    actorRole: JwtRole,
+    dto: { employeeId: string; reinstateDate?: string; note?: string }
+  ) {
+    const permissionSet = this.isAdmin(actorRole)
+      ? new Set<string>(ALL_PORTAL_PERMISSIONS)
+      : await this.resolveEffectivePermissionSet(actorUserId, actorRole);
+    if (!this.isAdmin(actorRole) && !this.hasPortalPermission(permissionSet, "payroll_manage")) {
+      throw new ForbiddenException();
+    }
+    const eid = String(dto?.employeeId || "").trim();
+    if (!eid || !PG_UUID_V4_RE.test(eid)) throw new BadRequestException("ID de empleado invalido");
+    if (!(await this.tableExists("empleados_nomina"))) {
+      throw new BadRequestException("Tabla de nomina no disponible en esta base.");
+    }
+    const reinstateDate = /^\d{4}-\d{2}-\d{2}$/.test(String(dto?.reinstateDate || "").trim())
+      ? String(dto.reinstateDate).trim().slice(0, 10)
+      : new Date().toISOString().slice(0, 10);
+    const note = String(dto?.note || "").trim().slice(0, 2000);
+
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const empRes = await client.query<{
+        numero_documento: string | null;
+        nombre_completo: string | null;
+        activo: boolean | null;
+      }>(`SELECT numero_documento, nombre_completo, activo FROM empleados_nomina WHERE id = $1::uuid`, [eid]);
+      if (!empRes.rows.length) {
+        await client.query("ROLLBACK");
+        throw new BadRequestException("Empleado no encontrado.");
+      }
+      if (empRes.rows[0]?.activo !== false) {
+        await client.query("ROLLBACK");
+        throw new BadRequestException("El colaborador ya se encuentra activo.");
+      }
+      const doc = String(empRes.rows[0]?.numero_documento ?? "").trim();
+      const empName = String(empRes.rows[0]?.nombre_completo ?? "").trim();
+      await client.query(
+        `UPDATE empleados_nomina
+            SET activo = true,
+                fecha_desvinculacion = NULL,
+                categoria_desvinculacion = NULL,
+                motivo_desvinculacion = NULL,
+                fecha_actualizacion = now()
+          WHERE id = $1::uuid`,
+        [eid]
+      );
+      let driversEnabled = 0;
+      if (doc && (await this.tableExists("conductores"))) {
+        const on = await client.query(
+          `UPDATE conductores
+              SET disponible = true,
+                  fecha_actualizacion = now()
+            WHERE regexp_replace(trim(coalesce(numero_documento, '')), '[^0-9]', '', 'g')
+                = regexp_replace(trim($1), '[^0-9]', '', 'g')`,
+          [doc]
+        );
+        driversEnabled = on.rowCount ?? 0;
+      }
+      await insertPortalAuditEventTx(client, await this.portalAuditActor(actorUserId), {
+        action: "update",
+        moduleId: "payroll",
+        moduleLabel: "Gestión humana",
+        entityId: eid,
+        entityLabel: empName || (doc ? `Doc. ${doc}` : "Colaborador"),
+        summary: `Reingreso de colaborador · ${reinstateDate}${note ? ` · ${note.slice(0, 200)}` : ""}`
+      });
+      await client.query("COMMIT");
+      return { ok: true, reinstated: true, employeeId: eid, reinstateDate, driversEnabled };
+    } catch (e) {
+      await client.query("ROLLBACK").catch(() => null);
+      if (e instanceof BadRequestException || e instanceof ForbiddenException) throw e;
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+
   /** @deprecated Use adminUnlinkPayrollEmployee — conserva documentación y ficha. */
   async adminDeletePayrollEmployee(actorUserId: string, actorRole: JwtRole, employeeId: string) {
     return this.adminUnlinkPayrollEmployee(actorUserId, actorRole, { employeeId });
@@ -5929,6 +6011,9 @@ export class PortalService implements OnModuleInit {
         return;
       case "payrollRuns":
         if (!can("payroll_manage")) throw new ForbiddenException();
+        if (Array.isArray(deletedIds) && deletedIds.length > 0 && !admin && !can("payroll_delete")) {
+          throw new ForbiddenException("No autorizado para eliminar liquidaciones (permiso Gestión humana · Eliminar).");
+        }
         await this.syncPayrollRuns(
           c,
           data,
@@ -5958,6 +6043,9 @@ export class PortalService implements OnModuleInit {
         return;
       case "hrAbsences":
         if (!can("payroll_manage")) throw new ForbiddenException();
+        if (Array.isArray(deletedIds) && deletedIds.length > 0 && !admin && !can("payroll_delete")) {
+          throw new ForbiddenException("No autorizado para eliminar ausencias (permiso Gestión humana · Eliminar).");
+        }
         await this.syncHrAbsences(
           c,
           data,
@@ -12778,9 +12866,12 @@ export class PortalService implements OnModuleInit {
       rol_trabajador: string;
       tipo_contrato: string;
       fecha_ingreso: string;
+      activo: boolean | null;
+      fecha_desvinculacion: string | null;
     }>(
       `SELECT id::text, nombre_completo, numero_documento, rol_trabajador, tipo_contrato,
-              fecha_ingreso::text AS fecha_ingreso
+              fecha_ingreso::text AS fecha_ingreso, activo,
+              fecha_desvinculacion::text AS fecha_desvinculacion
        FROM empleados_nomina WHERE id = $1::uuid LIMIT 1`,
       [employeeId]
     );
@@ -12820,8 +12911,26 @@ export class PortalService implements OnModuleInit {
       );
     }
 
-    const periodStart = this.pgDateUtc(monthBounds.monthStart);
-    const periodEnd = this.pgDateUtc(monthBounds.monthEnd);
+    /*
+     * Solo se liquidan viajes y combustible dentro de la vigencia del contrato: desde la fecha de ingreso
+     * y hasta la fecha de desvinculación (si existe). Un colaborador desvinculado sin fecha no se liquida.
+     */
+    const unlinkDate = parseSqlDate(emp.fecha_desvinculacion);
+    const empName = String(emp.nombre_completo || "Empleado").trim();
+    if (emp.activo === false && !unlinkDate) {
+      throw new BadRequestException(
+        `${empName}: está desvinculado y no tiene fecha de desvinculación; reingréselo o registre la fecha antes de liquidar.`
+      );
+    }
+    if (unlinkDate && monthBounds.monthStart > unlinkDate) {
+      throw new BadRequestException(
+        `${empName}: no se puede liquidar ${periodYm} porque es posterior a la fecha de desvinculación (${unlinkDate.toISOString().slice(0, 10)})`
+      );
+    }
+    const effectiveStart = hireDate > monthBounds.monthStart ? hireDate : monthBounds.monthStart;
+    const effectiveEnd = unlinkDate && unlinkDate < monthBounds.monthEnd ? unlinkDate : monthBounds.monthEnd;
+    const periodStart = this.pgDateUtc(effectiveStart);
+    const periodEnd = this.pgDateUtc(effectiveEnd);
 
     const tripRes = await c.query<{ trip_count: string; inter_dep: string }>(
       `WITH refs AS (

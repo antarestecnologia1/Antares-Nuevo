@@ -116,7 +116,7 @@ const MODULES = [
     viewId: "hiring",
     htmlFn: "hiringHtml",
     files: ["modules/app/contratacion.js", "modules/app/contratacion-html.js"],
-    tablePatterns: ["hiring-browse", "hiring-browse-list", "hiring-pipeline", "hiring-cards--candidates"],
+    tablePatterns: ["hiring-browse", "hiring-browse-list", "hiring-pipeline", "hiring-candidate-card"],
     bindPattern: "__portalModuleAfterRender.hiring",
     uiType: "mixed"
   },

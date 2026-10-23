@@ -106,7 +106,7 @@ window.PortalArchitecture = (() => {
     },
     payroll: {
       title: "Gestión humana",
-      access: "admin-or-rrhh",
+      access: "permission-gated",
       shell: true,
       renderer: [{ module: "rrhh", exportName: "payrollHtml" }],
       layoutPlan: [
@@ -121,7 +121,7 @@ window.PortalArchitecture = (() => {
     },
     hiring: {
       title: "Contratación",
-      access: "admin-or-rrhh",
+      access: "permission-gated",
       shell: true,
       renderer: [{ module: "rrhh", exportName: "hiringHtml" }],
       layoutPlan: [
@@ -136,7 +136,7 @@ window.PortalArchitecture = (() => {
     },
     "labor-compliance": {
       title: "Cumplimiento laboral y SST",
-      access: "admin-or-rrhh",
+      access: "permission-gated",
       shell: true,
       renderer: [{ module: "rrhh", exportName: "laborComplianceHtml" }],
       layoutPlan: [

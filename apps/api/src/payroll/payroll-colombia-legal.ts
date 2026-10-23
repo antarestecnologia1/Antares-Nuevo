@@ -236,16 +236,12 @@ export function calcColombiaIncapacityEpsDayAdjustmentCop(opts: {
   });
   /* La incapacidad nunca puede ser inferior al salario mínimo diario (Dec. 780/2016, art. 3.2.1.10). */
   const floorPct = sm > 0 ? Math.min(1, sm / 30 / daily) : 0;
-  if (monthly > 0 && monthly <= sm) {
-    const pct = Math.max(idx <= 2 ? 1 : idx <= 90 ? 0.6667 : 0.5, floorPct);
-    return withSplit(Math.round(-daily * (1 - pct)), idx <= 2 ? "Empleador 100%" : "EPS", pct);
-  }
-  if (idx <= 2) {
-    const pct = Math.max(0.6667, floorPct);
-    return withSplit(Math.round(-daily * (1 - pct)), "Empleador ~66,7%", pct);
-  }
-  if (idx <= 90) return withSplit(-Math.round(daily), "EPS 66,7%", 0);
-  return withSplit(-Math.round(daily), "EPS 50%", 0.5);
+  /* Política vigente (todos los niveles salariales): días 1-2 al 100 %; desde el día 3 al 66,67 %; desde el 91, 50 %. */
+  void monthly;
+  const legalPct = idx <= 2 ? 1 : idx <= 90 ? 0.6667 : 0.5;
+  const pct = Math.max(legalPct, floorPct);
+  const payer = idx <= 2 ? "Empleador 100%" : idx <= 90 ? "EPS 66,67%" : "EPS 50%";
+  return withSplit(Math.round(-daily * (1 - pct)), payer, pct);
 }
 
 export function calcColombiaCesantiasMonthlyProvisionCop(baseSalaryMonthly: number, daysInPeriod = 30): number {

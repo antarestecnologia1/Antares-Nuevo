@@ -121,6 +121,7 @@ const canEditFleetDriverAsAdmin = __pr.canEditFleetDriverAsAdmin;
 const canEditVehicle = __pr.canEditVehicle;
 const canManageHiringModule = __pr.canManageHiringModule;
 const canManagePayrollModule = __pr.canManagePayrollModule;
+const canDeletePayroll = __pr.canDeletePayroll;
 const canManageSstModule = __pr.canManageSstModule;
 const canManageTransportTrips = __pr.canManageTransportTrips;
 const canPerformPermissionGatedAction = __pr.canPerformPermissionGatedAction;
@@ -7572,7 +7573,7 @@ function renderPayrollEmployeeUnlinkActionButton(e, { compact = false, recategor
   const id = escapeAttr(String(e?.id || ""));
   if (recategorize) {
     const label = compact ? "" : " Categorizar";
-    return `<button type="button" class="btn btn-sm btn-outline" data-action="recategorize-unlinked-employee" data-id="${id}" title="Cambiar categoría de desvinculación">${IC.edit || IC.filter}${label}</button>`;
+    return `<button type="button" class="btn btn-sm btn-outline" data-action="recategorize-unlinked-employee" data-id="${id}" title="Cambiar categoría de desvinculación">${IC.edit || IC.filter}${label}</button><button type="button" class="btn btn-sm btn-outline" data-action="reinstate-employee" data-id="${id}" title="Reingresar colaborador">${IC.userPlus || IC.rotateCcw}${compact ? "" : " Reingresar"}</button>`;
   }
   const label = compact ? "" : " Desvincular";
   return `<button type="button" class="btn btn-sm btn-reject" data-action="unlink-employee" data-id="${id}" title="Desvincular colaborador">${IC.userMinus || IC.x}${label}</button>`;
@@ -7581,7 +7582,7 @@ function renderPayrollEmployeeUnlinkActionButton(e, { compact = false, recategor
 function renderPayrollEmployeeUnlinkIconButton(e, recategorize = false) {
   const id = escapeAttr(String(e?.id || ""));
   if (recategorize) {
-    return `<button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--edit" data-action="recategorize-unlinked-employee" data-id="${id}" title="Categorizar desvinculación">${IC.edit}<span>Categorizar</span></button>`;
+    return `<button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--edit" data-action="recategorize-unlinked-employee" data-id="${id}" title="Categorizar desvinculación">${IC.edit}<span>Categorizar</span></button><button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--renew" data-action="reinstate-employee" data-id="${id}" title="Reingresar colaborador">${IC.userPlus || IC.rotateCcw}<span>Reingresar</span></button>`;
   }
   return `<button type="button" class="payroll-contracts-icon-btn payroll-contracts-icon-btn--delete" data-action="unlink-employee" data-id="${id}" title="Desvincular">${IC.userMinus || IC.x}<span>Desvincular</span></button>`;
 }
@@ -7702,6 +7703,66 @@ function renderAgActionMenu(items, { label = "Más acciones" } = {}) {
     <summary class="ag-icon-btn" aria-label="${escapeAttr(label)}" title="${escapeAttr(label)}">${IC.moreVertical}</summary>
     <div class="ag-menu__panel" role="menu">${body}</div>
   </details>`;
+}
+
+/**
+ * Menú ⋯ (details.ag-menu): el panel se coloca con `position: fixed` calculado en pantalla para que
+ * nunca quede recortado por contenedores con overflow (tarjetas, tablas, scroll del módulo) ni se salga
+ * del viewport; si no cabe abajo se abre hacia arriba.
+ */
+function positionAgMenuPanel(menu) {
+  const panel = menu?.querySelector?.(".ag-menu__panel");
+  const trigger = menu?.querySelector?.("summary");
+  if (!panel || !trigger) return;
+  panel.style.animation = "none";
+  panel.style.position = "fixed";
+  panel.style.right = "auto";
+  panel.style.bottom = "auto";
+  panel.style.left = "0px";
+  panel.style.top = "0px";
+  panel.style.maxHeight = "";
+  panel.style.overflowY = "";
+  /* Origen real del bloque contenedor (si un ancestro tiene transform, fixed deja de ser relativo al viewport). */
+  const origin = panel.getBoundingClientRect();
+  const tr = trigger.getBoundingClientRect();
+  const margin = 8;
+  const vw = window.innerWidth || document.documentElement.clientWidth;
+  const vh = window.innerHeight || document.documentElement.clientHeight;
+  const maxH = Math.max(160, vh - margin * 2);
+  const h = Math.min(panel.offsetHeight, maxH);
+  const w = panel.offsetWidth;
+  const spaceBelow = vh - tr.bottom - margin;
+  const spaceAbove = tr.top - margin;
+  let top = tr.bottom + 6;
+  if (h > spaceBelow && spaceAbove > spaceBelow) top = Math.max(margin, tr.top - h - 6);
+  top = Math.min(Math.max(margin, top), Math.max(margin, vh - h - margin));
+  let left = tr.right - w;
+  left = Math.min(Math.max(margin, left), Math.max(margin, vw - w - margin));
+  panel.style.left = `${Math.round(left - origin.left)}px`;
+  panel.style.top = `${Math.round(top - origin.top)}px`;
+  panel.style.maxHeight = `${Math.round(maxH)}px`;
+  panel.style.overflowY = "auto";
+}
+
+if (typeof document !== "undefined" && !window.__agMenuPositionBound) {
+  window.__agMenuPositionBound = true;
+  document.addEventListener(
+    "toggle",
+    (event) => {
+      const menu = event.target;
+      if (menu instanceof HTMLDetailsElement && menu.classList.contains("ag-menu") && menu.open) {
+        positionAgMenuPanel(menu);
+      }
+    },
+    true
+  );
+  const closeOpenAgMenus = (event) => {
+    const t = event?.target;
+    if (t instanceof Element && t.closest?.(".ag-menu__panel")) return;
+    document.querySelectorAll("details.ag-menu[open]").forEach((m) => m.removeAttribute("open"));
+  };
+  window.addEventListener("scroll", closeOpenAgMenus, true);
+  window.addEventListener("resize", () => closeOpenAgMenus(null));
 }
 
 if (typeof document !== "undefined" && !window.__agMenuDismissBound) {
@@ -7836,6 +7897,9 @@ function renderPayrollEmployeeRosterCard(item, hrAdminDeletes) {
       ? item.isUnlinked
         ? { action: "recategorize-unlinked-employee", id, icon: IC.edit, label: "Categorizar desvinculación" }
         : { action: "unlink-employee", id, icon: IC.userMinus, label: "Desvincular", tone: "danger" }
+      : null,
+    hrAdminDeletes && item.isUnlinked
+      ? { action: "reinstate-employee", id, icon: IC.userPlus || IC.rotateCcw, label: "Reingresar colaborador" }
       : null
   ]);
   const selectHtml = hrAdminDeletes
@@ -8052,6 +8116,9 @@ function renderPayrollEmployeeBadgeCard(item, hrAdminDeletes) {
       ? item.isUnlinked
         ? { action: "recategorize-unlinked-employee", id, icon: IC.edit, label: "Categorizar desvinculación" }
         : { action: "unlink-employee", id, icon: IC.userMinus, label: "Desvincular", tone: "danger" }
+      : null,
+    hrAdminDeletes && item.isUnlinked
+      ? { action: "reinstate-employee", id, icon: IC.userPlus || IC.rotateCcw, label: "Reingresar colaborador" }
       : null
   ]);
   const selectHtml = hrAdminDeletes
@@ -13282,6 +13349,38 @@ async function deleteEmployeesCascade(employeeIds = []) {
   return targets.length;
 }
 
+async function applyPayrollEmployeeReinstateLocal(employeeId, meta = {}) {
+  const empId = String(employeeId || "").trim();
+  if (!empId) return null;
+  const employees = read(KEYS.payrollEmployees, []);
+  const current = employees.find((row) => String(row.id) === empId);
+  if (!current) return null;
+  const nextEmployee = stampUpdatedRecord({
+    ...current,
+    active: true,
+    status: "activo",
+    terminationDate: "",
+    unlinkDate: "",
+    unlinkCategory: "",
+    unlinkReason: "",
+    unlinkedBy: "",
+    reinstateDate: String(meta.reinstateDate || "").trim().slice(0, 10)
+  });
+  write(
+    KEYS.payrollEmployees,
+    employees.map((row) => (String(row.id) === empId ? nextEmployee : row)),
+    { skipSyncSchedule: true }
+  );
+  const docDigits = normalizeDocumentDigits(current.idDoc);
+  if (docDigits) {
+    const nextDrivers = read(KEYS.drivers, []).map((driver) =>
+      normalizeDocumentDigits(driver.idDoc) === docDigits ? { ...driver, available: true } : driver
+    );
+    write(KEYS.drivers, nextDrivers, { skipSyncSchedule: true });
+  }
+  return nextEmployee;
+}
+
 async function applyPayrollEmployeeUnlinkLocal(employeeId, meta = {}) {
   const empId = String(employeeId || "").trim();
   if (!empId) return null;
@@ -15855,6 +15954,7 @@ Object.assign(window, {
   defaultTripRateStorageKeyForRequest,
   deleteEmployeesCascade,
   applyPayrollEmployeeUnlinkLocal,
+  applyPayrollEmployeeReinstateLocal,
   deletedRequestSnapshotForTableRow,
   deletedTripSnapshotForTableRow,
   departmentOptions,

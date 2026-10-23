@@ -145,10 +145,11 @@ function renderPayrollContractsFilterBar(canDeletePayrollEmployees, filters) {
   </div>`;
 }
 
-function renderPayrollContractsTableToolbar(activeView, canDeletePayrollEmployees) {
+function renderPayrollContractsTableToolbar(activeView, canDeletePayrollEmployees, filteredEmployeeIds = []) {
+  const filteredIdsAttr = escapeAttr((filteredEmployeeIds || []).join(","));
   const bulk = canDeletePayrollEmployees
     ? `<div class="payroll-contracts-bulk toolbar">
-        <label class="payroll-runs-select-all-label" title="Seleccionar todos los colaboradores visibles (página y filtros actuales)">
+        <label class="payroll-runs-select-all-label" data-filtered-ids="${filteredIdsAttr}" title="Seleccionar todos los colaboradores que coinciden con los filtros (todas las páginas)">
           <input type="checkbox" id="employees-select-all" />
           <span>Seleccionar todos</span>
         </label>
@@ -260,7 +261,8 @@ function payrollHtml() {
     .filter((r) => payrollPeriodCalendarYm(r.month) === currentYm)
     .reduce((acc, run) => acc + parseNum(run.net), 0);
   const pendingAbsenceApprovals = readArray(KEYS.approvals).filter((a) => a.status === "pendiente" && a.type === "register_hr_absence").length;
-  const hrAdminDeletes = currentUser()?.role === ROLES.ADMIN;
+  const hrAdminDeletes = canDeletePayroll(currentUser());
+  const hrAdminEdits = currentUser()?.role === ROLES.ADMIN;
   const canDeletePayrollEmployees = canManagePayrollModule(currentUser());
   const canEditLegalParameters = currentUser()?.role === ROLES.ADMIN;
   const legalHistory = laborSystemParametersHistoryRows();
@@ -860,12 +862,6 @@ function payrollHtml() {
         <p class="payroll-liq-subgroup__title" style="margin-top:0.65rem">${IC.dollar} Conceptos pendientes y novedades</p>
         <div class="payroll-liq-grid payroll-liq-grid--3">
           <div class="payroll-liq-field">
-            <label>${fieldLabel(IC.clock, "Días aviso previo cumplidos", { help: "Despido sin justa causa: 30 días si indefinido (CST art. 64)." })}<input type="number" name="avisoPrevioDaysWorked" min="0" max="60" value="0" /></label>
-          </div>
-          <div class="payroll-liq-field">
-            <label>${fieldLabel(IC.clock, "Días aviso renuncia", { help: "Si no cumplió 15 días, puede descontarse del finiquito (CST art. 62)." })}<input type="number" name="renunciaAvisoDaysWorked" min="0" max="60" value="0" /></label>
-          </div>
-          <div class="payroll-liq-field">
             <label>${fieldLabel(IC.dollar, "Horas extras pendientes (COP)")}<input type="number" name="pendingOvertimeCop" min="0" value="0" /></label>
           </div>
           <div class="payroll-liq-field">
@@ -986,7 +982,7 @@ function payrollHtml() {
         <label>${fieldLabel(IC.upload || IC.file, "Soporte documental", { required: true, help: "PDF, Word o imagen. Se guarda en Gestión documental, carpeta del colaborador (01. Empleados)." })}
           <input type="file" name="supportFile" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp,application/pdf" required />
         </label>
-        <p class="hr-absence-hint muted">Obligatorio. El archivo queda en la carpeta del colaborador en Gestión documental.</p>
+        <p class="hr-absence-hint muted" data-absence-support-file-hint>Obligatorio. El archivo queda en la carpeta del colaborador en Gestión documental.</p>
       </div>
       <details class="hr-absence-support-details">
         <summary class="hr-absence-support-details__summary">${IC.hash} Radicado y entidad</summary>
@@ -1032,7 +1028,7 @@ function payrollHtml() {
       <td><span class="muted">${escapeHtml(a.supportNumber || a.supportFileName || "-")}</span></td>
       <td><div class="toolbar">
         <button type="button" class="btn btn-sm btn-outline" data-action="view-hr-absence" data-id="${escapeAttr(String(a.id))}">${IC.eye} Ver</button>
-        ${hrAdminDeletes ? `<button type="button" class="btn btn-sm btn-action" data-action="edit-hr-absence" data-id="${escapeAttr(String(a.id))}">${IC.edit} Editar</button>` : ""}
+        ${hrAdminEdits ? `<button type="button" class="btn btn-sm btn-action" data-action="edit-hr-absence" data-id="${escapeAttr(String(a.id))}">${IC.edit} Editar</button>` : ""}
         ${hrAdminDeletes ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-hr-absence" data-id="${escapeAttr(String(a.id))}" title="Solo administradores">${IC.trash} Eliminar</button>` : ""}
       </div></td>
     </tr>`;
@@ -1042,7 +1038,11 @@ function payrollHtml() {
     ? `<div class="table-wrap"><table><thead><tr><th>Registro</th><th>Empleado</th><th>Tipo</th><th>Periodo</th><th>Días rec.</th><th>Soporte</th><th style="min-width:11rem">Acciones</th></tr></thead><tbody>${absenceRows}</tbody></table></div>`
     : emptyState("Sin ausencias laborales registradas.");
   const employeeContractsDashboard = renderPayrollEmployeesConsultToolbar(canDeletePayrollEmployees, employeesFilters);
-  const employeeTableToolbar = renderPayrollContractsTableToolbar(employeesView, canDeletePayrollEmployees);
+  const employeeTableToolbar = renderPayrollContractsTableToolbar(
+    employeesView,
+    canDeletePayrollEmployees,
+    employeesFilteredSummaries.map((item) => String(item?.raw?.id ?? item?.id ?? "").trim()).filter(Boolean)
+  );
   const employeePagination = renderPayrollContractsPagination(employeesTotal, employeesSafePage, employeesPageSize);
   const employeesEmptyMessage =
     hasActiveEmployeeFilters && employees.length > 0

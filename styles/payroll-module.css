@@ -4693,3 +4693,34 @@ body[data-theme="dark"] .modal-card-edit--employment-letter .employee-letter-opt
 body[data-theme="dark"] .modal-card-edit--employment-letter .employment-letter-legal-check ul {
   color: #94a3b8;
 }
+
+/* Auxilio quincenal (no salarial): solo en la tarjeta, nunca en el comprobante */
+.payroll-run-card .payroll-run-auxilio {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.4rem 0.85rem;
+  border-bottom: 1px solid var(--pr-amt-border, #e5e7eb);
+  background: rgba(16, 160, 120, 0.06);
+}
+.payroll-run-card .payroll-run-auxilio__label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  font-weight: 600;
+  color: #0f766e;
+}
+.payroll-run-card .payroll-run-auxilio__value {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #0f766e;
+}
+body[data-theme="dark"] .payroll-run-card .payroll-run-auxilio {
+  background: rgba(16, 185, 129, 0.12);
+}
+body[data-theme="dark"] .payroll-run-card .payroll-run-auxilio__label,
+body[data-theme="dark"] .payroll-run-card .payroll-run-auxilio__value {
+  color: #6ee7b7;
+}
