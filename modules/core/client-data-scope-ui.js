@@ -3,7 +3,7 @@
  * Extraído desde `portal-runtime.js` para imports explícitos (sin shim `AppLegacyViews`).
  */
 import { state } from "./store.js";
-import { CLIENT_DATA_SCOPE, PERMISSIONS, ROLES, CLIENT_ROLE_PERMISSIONS } from "./config.js";
+import { CLIENT_DATA_SCOPE, PERMISSIONS, ROLES, CLIENT_ROLE_PERMISSIONS, userIsClientScoped } from "./config.js";
 import { escapeHtml, escapeAttr } from "./utils.js";
 import {
   filterVisibleTransportRequests,
@@ -143,7 +143,7 @@ export function getClientDataScope() {
 }
 
 export function isPortalClientUser(user) {
-  return user?.role === ROLES.CLIENT;
+  return userIsClientScoped(user);
 }
 
 export function clientRequestsScopePrimaryLabel() {

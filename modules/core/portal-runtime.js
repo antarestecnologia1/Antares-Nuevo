@@ -7706,26 +7706,39 @@ function renderAgActionMenu(items, { label = "Más acciones" } = {}) {
 }
 
 /**
- * Menú ⋯ (details.ag-menu): el panel se coloca con `position: fixed` calculado en pantalla para que
- * nunca quede recortado por contenedores con overflow (tarjetas, tablas, scroll del módulo) ni se salga
- * del viewport; si no cabe abajo se abre hacia arriba.
+ * Menús ⋯ y desplegables de tarjetas/filas (<details>): ag-menu, sst-row-more (Cumplimiento y SARLAFT),
+ * doc-rowmenu / doc-folder-menu (Gestión documental), hiring-card-menu (Contratación) y ag-popover (filtros).
+ * El panel se coloca con `position: fixed` calculado en pantalla para que nunca quede recortado por
+ * contenedores con overflow (tarjetas, tablas, scroll del módulo) ni se salga del viewport (barra de tareas
+ * de Windows incluida): si no cabe abajo se abre hacia arriba y, si no cabe en ningún lado, se limita su alto
+ * con scroll interno.
  */
+const AG_FLOATING_MENU_SELECTOR =
+  "details.ag-menu, details.sst-row-more, details.doc-rowmenu, details.doc-folder-menu, details.hiring-card-menu, details.ag-popover";
+
+function agFloatingMenuPanel(menu) {
+  return [...(menu?.children || [])].find((el) => el.tagName !== "SUMMARY") || null;
+}
+
 function positionAgMenuPanel(menu) {
-  const panel = menu?.querySelector?.(".ag-menu__panel");
+  const panel = agFloatingMenuPanel(menu);
   const trigger = menu?.querySelector?.("summary");
   if (!panel || !trigger) return;
+  const alignLeft = menu.classList.contains("ag-popover");
   panel.style.animation = "none";
   panel.style.position = "fixed";
   panel.style.right = "auto";
   panel.style.bottom = "auto";
   panel.style.left = "0px";
   panel.style.top = "0px";
+  panel.style.margin = "0";
+  panel.style.transform = "none";
   panel.style.maxHeight = "";
   panel.style.overflowY = "";
-  /* Origen real del bloque contenedor (si un ancestro tiene transform, fixed deja de ser relativo al viewport). */
+  /* Origen real del bloque contenedor (si un ancestro tiene transform/contain, fixed deja de ser relativo al viewport). */
   const origin = panel.getBoundingClientRect();
   const tr = trigger.getBoundingClientRect();
-  const margin = 8;
+  const margin = 12;
   const vw = window.innerWidth || document.documentElement.clientWidth;
   const vh = window.innerHeight || document.documentElement.clientHeight;
   const maxH = Math.max(160, vh - margin * 2);
@@ -7736,12 +7749,13 @@ function positionAgMenuPanel(menu) {
   let top = tr.bottom + 6;
   if (h > spaceBelow && spaceAbove > spaceBelow) top = Math.max(margin, tr.top - h - 6);
   top = Math.min(Math.max(margin, top), Math.max(margin, vh - h - margin));
-  let left = tr.right - w;
+  let left = alignLeft ? tr.left : tr.right - w;
   left = Math.min(Math.max(margin, left), Math.max(margin, vw - w - margin));
   panel.style.left = `${Math.round(left - origin.left)}px`;
   panel.style.top = `${Math.round(top - origin.top)}px`;
   panel.style.maxHeight = `${Math.round(maxH)}px`;
   panel.style.overflowY = "auto";
+  panel.style.zIndex = "1400";
 }
 
 if (typeof document !== "undefined" && !window.__agMenuPositionBound) {
@@ -7750,7 +7764,7 @@ if (typeof document !== "undefined" && !window.__agMenuPositionBound) {
     "toggle",
     (event) => {
       const menu = event.target;
-      if (menu instanceof HTMLDetailsElement && menu.classList.contains("ag-menu") && menu.open) {
+      if (menu instanceof HTMLDetailsElement && menu.matches(AG_FLOATING_MENU_SELECTOR) && menu.open) {
         positionAgMenuPanel(menu);
       }
     },
@@ -7758,8 +7772,8 @@ if (typeof document !== "undefined" && !window.__agMenuPositionBound) {
   );
   const closeOpenAgMenus = (event) => {
     const t = event?.target;
-    if (t instanceof Element && t.closest?.(".ag-menu__panel")) return;
-    document.querySelectorAll("details.ag-menu[open]").forEach((m) => m.removeAttribute("open"));
+    if (t instanceof Element && t.closest?.(AG_FLOATING_MENU_SELECTOR)) return;
+    document.querySelectorAll(AG_FLOATING_MENU_SELECTOR.split(", ").map((x) => `${x}[open]`).join(", ")).forEach((m) => m.removeAttribute("open"));
   };
   window.addEventListener("scroll", closeOpenAgMenus, true);
   window.addEventListener("resize", () => closeOpenAgMenus(null));
@@ -7767,15 +7781,23 @@ if (typeof document !== "undefined" && !window.__agMenuPositionBound) {
 
 if (typeof document !== "undefined" && !window.__agMenuDismissBound) {
   window.__agMenuDismissBound = true;
+  const openSel = AG_FLOATING_MENU_SELECTOR.split(", ").map((x) => `${x}[open]`).join(", ");
   document.addEventListener("click", (event) => {
     const target = event.target instanceof Element ? event.target : null;
-    document.querySelectorAll("details.ag-menu[open], details.ag-popover[open]").forEach((menu) => {
-      if (!target || !menu.contains(target) || target.closest(".ag-menu__item")) menu.removeAttribute("open");
+    document.querySelectorAll(openSel).forEach((menu) => {
+      if (!target || !menu.contains(target)) {
+        menu.removeAttribute("open");
+        return;
+      }
+      if (menu.classList.contains("ag-popover")) return;
+      /* Elegir una opción del menú lo cierra (el summary no). */
+      if (target.closest("summary")) return;
+      if (target.closest(".ag-menu__item, [role='menuitem'], button, a")) menu.removeAttribute("open");
     });
   }, true);
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
-    document.querySelectorAll("details.ag-menu[open], details.ag-popover[open]").forEach((menu) => {
+    document.querySelectorAll(openSel).forEach((menu) => {
       menu.removeAttribute("open");
       menu.querySelector("summary")?.focus();
     });

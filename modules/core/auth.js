@@ -7,6 +7,7 @@ import {
   APPROVAL_TYPE_META,
   assignablePermissionsForRole,
   CLIENT_ROLE_PERMISSIONS,
+  userIsClientScoped,
   DATA_POLICY_URL,
   DATA_POLICY_VERSION,
   KEYS,
@@ -424,7 +425,7 @@ export function defaultPermissionsForRole(role) {
 
 export function portalDefaultViewForUser(user) {
   if (!user) return "dashboard";
-  if (user.role === ROLES.CLIENT) {
+  if (userIsClientScoped(user)) {
     if (hasPermission(user, PERMISSIONS.CLIENT_REQUESTS)) return "requests";
     if (hasPermission(user, PERMISSIONS.PROFILE_VIEW)) return "profile";
     return "profile";
@@ -677,10 +678,12 @@ export function canPerformPermissionGatedAction(user, action, trigger) {
 }
 
 const CLIENT_PORTAL_VIEWS = new Set(["requests", "profile"]);
+/** Vistas que un cliente básico también puede abrir si el administrador le asignó el permiso. */
+const CLIENT_BASIC_EXTRA_VIEWS = new Set(["dashboard", "notifications"]);
 
 export function canAccessView(user, view) {
   const v = String(view || "");
-  if (user?.role === ROLES.CLIENT && !CLIENT_PORTAL_VIEWS.has(v)) {
+  if (userIsClientScoped(user) && !CLIENT_PORTAL_VIEWS.has(v) && !(CLIENT_BASIC_EXTRA_VIEWS.has(v) && hasPermission(user, VIEW_PERMISSIONS[v]))) {
     return false;
   }
   if (v === "authorizations") return canAccessAuthorizationsView(user);

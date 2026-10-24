@@ -242,9 +242,27 @@ export const CLIENT_ROLE_PERMISSIONS = Object.freeze([
   PERMISSIONS.CLIENT_REQUESTS
 ]);
 
-/** Permisos mostrables/asignables en la grilla según el rol seleccionado. */
-export function assignablePermissionsForRole(role) {
-  if (role === ROLES.CLIENT) return [...CLIENT_ROLE_PERMISSIONS];
+/**
+ * Permisos que NO sacan a un cliente de su alcance (solo datos de su empresa). El administrador puede asignar
+ * cualquier permiso a cualquier usuario (interno o cliente); un cliente con algún permiso fuera de este conjunto
+ * deja de ser «cliente básico» y se comporta según los permisos que tenga.
+ */
+export const CLIENT_SCOPE_PERMISSIONS = Object.freeze([
+  PERMISSIONS.PROFILE_VIEW,
+  PERMISSIONS.CLIENT_REQUESTS,
+  PERMISSIONS.NOTIFICATIONS_VIEW,
+  PERMISSIONS.DASHBOARD_VIEW
+]);
+
+/** Cliente con solo permisos básicos (alcance de empresa y vistas de cliente). */
+export function userIsClientScoped(user) {
+  if (user?.role !== ROLES.CLIENT) return false;
+  const perms = Array.isArray(user.permissions) ? user.permissions : [];
+  return perms.every((p) => CLIENT_SCOPE_PERMISSIONS.includes(p));
+}
+
+/** Permisos mostrables/asignables: el administrador puede asignar cualquiera a cualquier rol. */
+export function assignablePermissionsForRole() {
   return [...ALL_PERMISSIONS];
 }
 

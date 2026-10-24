@@ -1615,7 +1615,12 @@ function bindDynamicEvents() {
         grid.innerHTML = buildGranularPermissionsCheckboxesHtml([]);
         return;
       }
-      grid.innerHTML = buildGranularPermissionsCheckboxesHtml(effectiveUserPermissions(u), { role: u.role });
+      const roleField = adminUserPermissions.querySelector("select[name='role']");
+      if (roleField) {
+        roleField.value = String(u.role || ROLES.CLIENT);
+        roleField.disabled = state.session?.userId === uid;
+      }
+      grid.innerHTML = buildGranularPermissionsCheckboxesHtml(effectiveUserPermissions(u));
     };
     const userSel = adminUserPermissions.querySelector("select[name='userId']");
     if (userSel && !userSel.dataset.antaresPermGridWired) {
@@ -1636,14 +1641,18 @@ function bindDynamicEvents() {
       );
       const users = read(KEYS.users, []);
       const target = users.find((u) => String(u.id) === userId);
+      /* Rol elegido en el formulario (por defecto el actual). Nunca se cambia el rol de la propia sesión. */
+      const pickedRole = String(form.get("role") || "").trim();
+      const nextRole =
+        state.session?.userId === userId || !Object.values(ROLES).includes(pickedRole)
+          ? String(target?.role || ROLES.CLIENT)
+          : pickedRole;
       const nextUsers = users.map((user) =>
         String(user.id) === userId
           ? stampUpdatedRecord({
               ...user,
-              permissions: normalizeSavedUserPermissions(
-                String(user.role || target?.role || ROLES.CLIENT),
-                permissions
-              )
+              role: nextRole,
+              permissions: normalizeSavedUserPermissions(nextRole, permissions)
             })
           : user
       );

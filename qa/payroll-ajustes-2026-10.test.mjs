@@ -68,7 +68,9 @@ ok("permisos: existe payroll_delete y lo usa canDeletePayroll", () => {
 
 ok("selección masiva: la selección persiste entre páginas", () => {
   const src = read("modules/app/gestion-humana.js");
-  assert.match(src, /select-all|selectAll|payroll-select-all/i);
+  assert.match(src, /state\.__payrollRunsSelectAll/, "«Seleccionar todos» de liquidaciones debe sobrevivir al repintado");
+  assert.match(src, /selectedForExport = new Set\(selectedPayrollRunIds\(\)\)/, "exportar nómina debe respetar la selección");
+  assert.match(src, /selectedIdsForExport = new Set\(selectedEmployeeIds\(\)\)/, "exportar colaboradores debe respetar la selección");
 });
 
 ok("reingreso: endpoint y DTO existen", () => {
@@ -108,6 +110,36 @@ ok("pago a conductores: limita viajes al contrato (ingreso y desvinculación)", 
   const svc = read("apps/api/src/portal/portal.service.ts");
   assert.match(svc, /effectiveStart = hireDate > monthBounds\.monthStart/);
   assert.match(svc, /fecha_desvinculacion::text AS fecha_desvinculacion/);
+});
+
+ok("menús ⋯: un posicionador único cubre todas las familias y se abre hacia arriba si no cabe", () => {
+  const js = read("modules/core/portal-runtime.js");
+  const m = js.match(/const AG_FLOATING_MENU_SELECTOR =\s*"([^"]+)"/);
+  assert.ok(m, "falta el selector común de menús flotantes");
+  for (const cls of ["ag-menu", "sst-row-more", "doc-rowmenu", "doc-folder-menu", "hiring-card-menu", "ag-popover"]) {
+    assert.ok(m[1].includes("details." + cls), "menú sin cubrir: " + cls);
+  }
+  assert.match(js, /h > spaceBelow && spaceAbove > spaceBelow/);
+  assert.match(js, /panel\.style\.position = "fixed"/);
+});
+
+ok("permisos: el admin puede asignar cualquier permiso a cualquier rol (interno o cliente)", () => {
+  const cfg = read("modules/core/config.js");
+  assert.match(cfg, /export function assignablePermissionsForRole\(\) \{\s*return \[\.\.\.ALL_PERMISSIONS\];/);
+  assert.match(cfg, /export function userIsClientScoped/);
+  assert.ok(!/role === ROLES\.CLIENT\) return \[\.\.\.CLIENT_ROLE_PERMISSIONS\]/.test(cfg.split("assignablePermissionsForRole")[1] || ""));
+  const svc = read("apps/api/src/portal/portal.service.ts");
+  assert.match(svc, /private isClientScopedActor\(/);
+  assert.ok(!/const allowed = new Set<string>\(CLIENT_ROLE_PERMISSIONS\);\s*const filtered/.test(svc), "la API ya no filtra permisos del cliente");
+  const ui = read("modules/app/usuarios-permisos.js");
+  assert.match(ui, /form-admin-user-permissions[\s\S]{0,600}name="role"/);
+});
+
+ok("auditoría: un lote rechazado (400) no se reintenta en bucle", () => {
+  const js = read("modules/core/portal-audit-sync.js");
+  assert.match(js, /function isTransientStatus/);
+  assert.match(js, /sendOneByOne/);
+  assert.ok(!/\.catch\(function \(\) \{\s*queue = batch\.concat\(queue\)/.test(js), "no debe reinsertar siempre el lote");
 });
 
 console.log(`\n${n} comprobaciones OK`);

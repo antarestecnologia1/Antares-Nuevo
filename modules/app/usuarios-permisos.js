@@ -146,6 +146,7 @@ function adminUsersHtml(current) {
     .join("");
 
   const permissionChecks = (selected = []) => buildGranularPermissionsCheckboxesHtml(selected);
+  const permRoleValue = String(users.find((u) => String(u.id) === permUserId)?.role || "");
 
   const roleBadge = (r) => {
     const colors = {
@@ -746,15 +747,15 @@ function adminUsersHtml(current) {
         ${userOptions}
       </select>
     </label>
-    <p class="muted full adm-perm-hint">Los módulos siguen el rol. Marque o quite un grupo entero con «Todo el módulo». Lo que no aplique al rol no aparece.</p>
+    <label class="full">${fieldLabel(IC.shield, "Rol")}
+      <select name="role" required>${portalRoleSelectOptionsHtml(permRoleValue)}</select>
+    </label>
+    <p class="muted full adm-perm-hint">Marque o quite un grupo entero con «Todo el módulo». El administrador puede asignar cualquier permiso a cualquier usuario, sea interno o cliente.</p>
     <fieldset class="full perm-fieldset">
       <legend>Módulos visibles</legend>
       <div class="perm-grid">${(() => {
         const permTarget = permUserId ? users.find((u) => String(u.id) === permUserId) : null;
-        return buildGranularPermissionsCheckboxesHtml(
-          permTarget ? effectiveUserPermissions(permTarget) : [],
-          permTarget ? { role: permTarget.role } : {}
-        );
+        return buildGranularPermissionsCheckboxesHtml(permTarget ? effectiveUserPermissions(permTarget) : []);
       })()}</div>
     </fieldset>
     ${renderManagedCreateFormActions("admin-permissions", `<button class="btn btn-primary" type="submit">${IC.save} Guardar permisos</button>`, {

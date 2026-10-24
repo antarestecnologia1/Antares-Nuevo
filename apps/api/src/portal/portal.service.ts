@@ -282,8 +282,20 @@ const ALL_PORTAL_PERMISSIONS: string[] = [
   "contact_b2b_view"
 ];
 
-/** Permisos asignables al rol Cliente (segregación granular). */
+/** Permisos por defecto del rol Cliente. */
 const CLIENT_ROLE_PERMISSIONS = ["profile_view", "client_requests"] as const;
+
+/**
+ * Permisos que NO sacan a un cliente de su alcance (solo su empresa). El administrador puede asignar
+ * cualquier permiso a cualquier usuario (interno o cliente): si un cliente recibe alguno fuera de este
+ * conjunto, se comporta según sus permisos y deja de estar limitado como "cliente básico".
+ */
+const CLIENT_SCOPE_PERMISSIONS = new Set<string>([
+  "profile_view",
+  "client_requests",
+  "notifications_view",
+  "dashboard_view"
+]);
 
 function defaultPermissionsForApprovedRole(rol: string): string[] {
   const r = String(rol || "").toLowerCase();
@@ -2452,7 +2464,7 @@ export class PortalService implements OnModuleInit {
     permissionSet: ReadonlySet<string>
   ): boolean {
     if (admin) return false;
-    if (this.isPortalClientRole(role)) return true;
+    if (this.isClientScopedActor(role, permissionSet)) return true;
     const broad =
       this.hasPortalPermission(permissionSet, "users_manage") ||
       this.hasPortalPermission(permissionSet, "transport_trips") ||
@@ -3331,6 +3343,13 @@ export class PortalService implements OnModuleInit {
     return String(role || "").toLowerCase() === "client";
   }
 
+  /** Cliente cuyos permisos son todos básicos: ve solo los datos de su empresa. */
+  private isClientScopedActor(role: JwtRole, permissionSet: ReadonlySet<string>): boolean {
+    if (!this.isPortalClientRole(role)) return false;
+    for (const p of permissionSet) if (!CLIENT_SCOPE_PERMISSIONS.has(p)) return false;
+    return true;
+  }
+
   private readonly authorizationTypePermissions: Record<string, string> = {
     create_user: "authorizations_portal_users",
     create_driver: "authorizations_fleet",
@@ -3879,11 +3898,8 @@ export class PortalService implements OnModuleInit {
   private filterPermissionsForPortalRole(role: unknown, permissions: string[]): string[] {
     const r = String(role || "").toLowerCase();
     const valid = permissions.filter((p) => ALL_PORTAL_PERMISSIONS.includes(p));
-    if (r === "client") {
-      const allowed = new Set<string>(CLIENT_ROLE_PERMISSIONS);
-      const filtered = valid.filter((p) => allowed.has(p));
-      return filtered.length ? filtered : [...CLIENT_ROLE_PERMISSIONS];
-    }
+    /* El administrador puede asignar cualquier permiso a cualquier rol; sin permisos, el cliente conserva los básicos. */
+    if (r === "client" && !valid.length) return [...CLIENT_ROLE_PERMISSIONS];
     return valid;
   }
 
@@ -3899,9 +3915,7 @@ export class PortalService implements OnModuleInit {
       fromDb.size > 0
         ? fromDb
         : new Set(defaultPermissionsForApprovedRole(String(role || "").toLowerCase()));
-    if (!this.isPortalClientRole(role)) return base;
-    const allowed = new Set<string>(CLIENT_ROLE_PERMISSIONS);
-    return new Set([...base].filter((p) => allowed.has(p)));
+    return base;
   }
 
   private canViewPositionsCatalog(role: JwtRole, permissionSet: ReadonlySet<string>): boolean {
@@ -4457,11 +4471,11 @@ export class PortalService implements OnModuleInit {
    */
   private async resolveBootstrapActorContext(userId: string, role: JwtRole) {
     const admin = this.isAdmin(role);
-    const isClient = this.isPortalClientRole(role);
     const [empresaId, permissionSet] = await Promise.all([
       this.getUserCompany(userId),
       this.resolveEffectivePermissionSet(userId, role)
     ]);
+    const isClient = this.isClientScopedActor(role, permissionSet);
     const canUsersManage = admin || this.hasPortalPermission(permissionSet, "users_manage");
     const canViewContactB2b = admin || this.hasPortalPermission(permissionSet, "contact_b2b_view");
     const canTransportTrips = admin || this.hasPortalPermission(permissionSet, "transport_trips");
@@ -5974,7 +5988,12 @@ export class PortalService implements OnModuleInit {
       case "requests":
         if (this.isPortalClientRole(role)) {
           const clientPerms = await this.resolveEffectivePermissionSet(userId, role);
-          if (!this.hasPortalPermission(clientPerms, "client_requests")) throw new ForbiddenException();
+          if (
+            this.isClientScopedActor(role, clientPerms) &&
+            !this.hasPortalPermission(clientPerms, "client_requests")
+          ) {
+            throw new ForbiddenException();
+          }
         }
         await this.syncRequests(c, data, userId, role);
         return;
@@ -6884,8 +6903,11 @@ export class PortalService implements OnModuleInit {
       LEFT JOIN empresas ec ON ec.id = s.id_empresa_cliente`;
 
     let r;
-    if (this.isPortalClientRole(role)) {
-      const perms = permissionSet ?? (await this.loadPortalPermissionSet(userId));
+    const clientPermsForScope = this.isPortalClientRole(role)
+      ? (permissionSet ?? (await this.loadPortalPermissionSet(userId)))
+      : null;
+    if (clientPermsForScope && this.isClientScopedActor(role, clientPermsForScope)) {
+      const perms = clientPermsForScope;
       if (!this.hasPortalPermission(perms, "client_requests")) {
         return [];
       }
@@ -10375,7 +10397,7 @@ export class PortalService implements OnModuleInit {
     const permissionSet = admin ? new Set<string>(ALL_PORTAL_PERMISSIONS) : await this.loadPortalPermissionSet(userId);
     const transport = admin || this.isTransportOps(role) || this.hasTransportOpsPermission(permissionSet);
     const empresaId = await this.getUserCompany(userId);
-    const isClient = this.isPortalClientRole(role);
+    const isClient = this.isClientScopedActor(role, permissionSet);
     if (isClient && !this.hasPortalPermission(permissionSet, "client_requests")) {
       throw new ForbiddenException();
     }

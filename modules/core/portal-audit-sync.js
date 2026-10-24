@@ -19,22 +19,46 @@
       typeof window.buildPortalAuditActorSnapshot === "function" ? window.buildPortalAuditActorSnapshot() : {};
     var actorUserId = String(r.actorUserId || snapshot.userId || "").trim() || undefined;
     var actorEmail = String(r.actorEmail || snapshot.email || "").trim() || undefined;
-    return {
-      id: String(r.id || "").trim() || undefined,
-      action: String(r.action || "update"),
-      moduleId: String(r.moduleId || "").trim(),
-      moduleLabel: String(r.moduleLabel || r.moduleId || "Módulo").trim(),
-      entityId: String(r.entityId || "").trim() || undefined,
-      entityLabel: String(r.entityLabel || "").trim() || undefined,
-      summary: String(r.summary || "").trim() || undefined,
-      at: String(r.at || "").trim() || undefined,
-      actorUserId: actorUserId,
-      actorEmail: actorEmail,
-      detailAction: String(r.detailAction || "").trim() || undefined,
-      detailId: String(r.detailId || "").trim() || undefined,
-      changesText: String(r.changesText || "").trim() || undefined,
-      companyId: String(r.companyId || "").trim() || undefined
+    /* Se recorta a los máximos del servidor: un texto largo no debe provocar «Bad Request» en todo el lote. */
+    var cut = function (v, max) {
+      var t = String(v == null ? "" : v).trim();
+      return t ? t.slice(0, max) : undefined;
     };
+    return {
+      id: cut(r.id, 64),
+      action: String(r.action || "update"),
+      moduleId: String(r.moduleId || "").trim().slice(0, 64),
+      moduleLabel: String(r.moduleLabel || r.moduleId || "Módulo").trim().slice(0, 120),
+      entityId: cut(r.entityId, 64),
+      entityLabel: cut(r.entityLabel, 500),
+      summary: cut(r.summary, 2000),
+      at: cut(r.at, 64),
+      actorUserId: actorUserId,
+      actorEmail: actorEmail ? String(actorEmail).slice(0, 255) : undefined,
+      detailAction: cut(r.detailAction, 64),
+      detailId: cut(r.detailId, 64),
+      changesText: cut(r.changesText, 2000),
+      companyId: cut(r.companyId, 64)
+    };
+  }
+
+  /* Reintentos con espera creciente solo ante fallos transitorios (red, 5xx, 408, 429). */
+  var failStreak = 0;
+  var RETRY_DELAYS_MS = [1500, 4000, 10000, 30000, 60000];
+  var MAX_TRANSIENT_FAILS = RETRY_DELAYS_MS.length;
+
+  function isTransientStatus(status) {
+    var st = Number(status) || 0;
+    return st === 0 || st === 408 || st === 429 || st >= 500;
+  }
+
+  /**
+   * Un lote rechazado con 400/413/422 ya NO se reinserta (antes se reintentaba cada 500 ms para siempre y el
+   * servidor devolvía «Bad Request» hasta cerrar sesión): se reenvía evento por evento y solo se descarta el
+   * que el servidor rechaza. 401/403 (sin sesión o sin permiso de auditoría) descartan el lote.
+   */
+  function sendBatch(batch) {
+    return window.AntaresApi.postJson("/portal/audit-events", { events: batch });
   }
 
   function flush() {
@@ -47,10 +71,43 @@
       flushing = false;
       return Promise.resolve(false);
     }
-    return window.AntaresApi.postJson("/portal/audit-events", { events: batch })
-      .catch(function () {
-        queue = batch.concat(queue);
-        return null;
+    var requeueBatch = function (rows) {
+      failStreak += 1;
+      if (failStreak > MAX_TRANSIENT_FAILS) {
+        failStreak = 0; /* demasiados fallos seguidos: se descarta para no saturar al servidor */
+        return;
+      }
+      queue = rows.concat(queue);
+    };
+    var sendOneByOne = async function (rows) {
+      for (var i = 0; i < rows.length; i += 1) {
+        try {
+          await sendBatch([rows[i]]);
+        } catch (err) {
+          if (isTransientStatus(err && err.status)) {
+            requeueBatch(rows.slice(i));
+            return;
+          }
+          /* Rechazo definitivo de este evento: se descarta y se continúa con el resto. */
+        }
+      }
+      failStreak = 0;
+    };
+    return sendBatch(batch)
+      .then(function () {
+        failStreak = 0;
+      })
+      .catch(function (err) {
+        var status = err && err.status;
+        if (isTransientStatus(status)) {
+          requeueBatch(batch);
+          return null;
+        }
+        if (status === 401 || status === 403) {
+          queue = [];
+          return null;
+        }
+        return sendOneByOne(batch);
       })
       .finally(function () {
         flushing = false;
@@ -63,10 +120,11 @@
 
   function scheduleFlush() {
     if (timer != null) return;
+    var delay = failStreak > 0 ? RETRY_DELAYS_MS[Math.min(failStreak, RETRY_DELAYS_MS.length) - 1] : 500;
     timer = setTimeout(function () {
       timer = null;
       void flush();
-    }, 500);
+    }, delay);
   }
 
   function enqueue(row) {

@@ -3103,9 +3103,12 @@ function bindPayrollPortalControls() {
         ? state.payrollUi.employeesFilters
         : {};
     const todayYmd = colombiaTodayIsoDate();
+    /* Con selección (incluido «Seleccionar todos», todas las páginas) se exporta solo lo seleccionado. */
+    const selectedIdsForExport = new Set(selectedEmployeeIds());
     const summaries = read(KEYS.payrollEmployees, [])
       .map((e) => summarizePayrollEmployeeForDirectory(e))
-      .filter((item) => payrollEmployeeMatchesFilters(item, employeesFilters, todayYmd));
+      .filter((item) => payrollEmployeeMatchesFilters(item, employeesFilters, todayYmd))
+      .filter((item) => !selectedIdsForExport.size || selectedIdsForExport.has(String(item.raw?.id || "")));
     if (!summaries.length) {
       notify("No hay colaboradores que coincidan con los filtros para exportar.", "error");
       return;
@@ -3986,7 +3989,7 @@ function bindPayrollPortalControls() {
   }
 
   /* Solo el checkbox general extiende la selección a liquidaciones filtradas que no están pintadas. */
-  let payrollRunsExplicitSelectAll = false;
+  let payrollRunsExplicitSelectAll = Boolean(state.__payrollRunsSelectAll);
 
   function payrollRunsSelectAllIsOn() {
     const toolbar = document.getElementById("payroll-runs-select-all");
@@ -4064,6 +4067,7 @@ function bindPayrollPortalControls() {
 
   const togglePayrollRunSelectAll = (checked) => {
     payrollRunsExplicitSelectAll = checked;
+    state.__payrollRunsSelectAll = checked;
     nodes.viewRoot.querySelectorAll("[data-payroll-section='runs'] [data-payroll-run-select]").forEach((el) => {
       el.checked = checked;
     });
@@ -4073,10 +4077,17 @@ function bindPayrollPortalControls() {
   nodes.viewRoot.querySelectorAll("[data-payroll-section='runs'] [data-payroll-run-select]").forEach((check) => {
     check.addEventListener("change", () => {
       payrollRunsExplicitSelectAll = false;
+      state.__payrollRunsSelectAll = false;
       syncPayrollRunSelectionBadge();
     });
     check.addEventListener("click", (event) => event.stopPropagation());
   });
+  /* «Seleccionar todos» sobrevive a repintados (ver más, filtros, cambio de vista). */
+  if (payrollRunsExplicitSelectAll) {
+    nodes.viewRoot.querySelectorAll("[data-payroll-section='runs'] [data-payroll-run-select]").forEach((el) => {
+      el.checked = true;
+    });
+  }
   document.getElementById("payroll-runs-select-all-header")?.addEventListener("change", (event) => {
     togglePayrollRunSelectAll(Boolean(event.currentTarget.checked));
   });
@@ -4281,7 +4292,12 @@ function bindPayrollPortalControls() {
         const filters = state.payrollFilters || defaultPayrollFilters();
         const sortMode = String(state.payrollUi?.runSort || "recent");
         const baseRows = sortPayrollRunsByUiState(filterPayrollRunsByUiState(read(KEYS.payrollRuns, []), filters), sortMode);
-        if (!baseRows.length) {
+        /* Con selección (incluido «Seleccionar todos», que abarca todas las páginas) se exporta solo lo seleccionado. */
+        const selectedForExport = new Set(selectedPayrollRunIds());
+        const exportRows = selectedForExport.size
+          ? baseRows.filter((row) => selectedForExport.has(String(row.id || "")))
+          : baseRows;
+        if (!exportRows.length) {
           notify("No hay liquidaciones para exportar con los filtros actuales.", "error");
           return;
         }
@@ -4292,7 +4308,7 @@ function bindPayrollPortalControls() {
         const detailById = new Map();
         const api = window.AntaresApi;
         if (portalCanRefreshFromApi() && typeof api?.getJson === "function") {
-          const pending = baseRows.filter((r) => r.payrollRunHeavyOmitted === true && r.id);
+          const pending = exportRows.filter((r) => r.payrollRunHeavyOmitted === true && r.id);
           const BATCH = 6;
           for (let i = 0; i < pending.length; i += BATCH) {
             exportPayroll.textContent = `Preparando ${Math.min(i + BATCH, pending.length)}/${pending.length}…`;
@@ -4319,7 +4335,7 @@ function bindPayrollPortalControls() {
             .replace(/&/g, "&amp;")
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;");
-        const body = baseRows
+        const body = exportRows
           .map((r0) => {
             const d = detailById.get(String(r0.id));
             const r = d
@@ -4360,7 +4376,7 @@ function bindPayrollPortalControls() {
         a.click();
         a.remove();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
-        notify(`Excel generado con ${baseRows.length} liquidación${baseRows.length === 1 ? "" : "es"}.`, "success");
+        notify(`Excel generado con ${exportRows.length} liquidación${exportRows.length === 1 ? "" : "es"}.`, "success");
       } catch (err) {
         notify(String(err?.message || "No fue posible exportar las nóminas a Excel."), "error");
       } finally {

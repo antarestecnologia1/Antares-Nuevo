@@ -208,3 +208,91 @@ body[data-theme="dark"] .payroll-abs-chip[class*="vac"] {
 body[data-theme="dark"] .simit-refresh:hover {
   background: rgba(148, 196, 255, 0.24) !important;
 }
+
+/* 7) Contadores, etapas de contratación, paneles vacíos y textos secundarios */
+body[data-theme="dark"] .dashboard-studio {
+  --nx-green: #4ade80;
+  --nx-accent: #8ec5ff;
+}
+body[data-theme="dark"] :is(
+  .payroll-data-nav-count,
+  .reports-card-count,
+  .hiring-list-view__count,
+  .hiring-browse__tab-count,
+  .requests-data-sidebar__count,
+  .hist-trace-module-chip__count
+) {
+  background: rgba(148, 196, 255, 0.16);
+  color: #dbe9f8;
+}
+body[data-theme="dark"] :is(.is-active, [aria-selected="true"]) > :is(.payroll-data-nav-count, .hiring-browse__tab-count),
+body[data-theme="dark"] :is(.payroll-data-nav-tab.is-active, .hiring-browse__tab.is-active) :is(.payroll-data-nav-count, .hiring-browse__tab-count) {
+  background: rgba(8, 20, 38, 0.45);
+  color: #fff;
+}
+
+body[data-theme="dark"] .hiring-studio .hiring-stage-pill--recibido { background: rgba(59, 130, 246, 0.22); color: #93c5fd; }
+body[data-theme="dark"] .hiring-studio .hiring-stage-pill--preseleccionado { background: rgba(139, 92, 246, 0.24); color: #c4b5fd; }
+body[data-theme="dark"] .hiring-studio .hiring-stage-pill--entrevistado { background: rgba(249, 115, 22, 0.22); color: #fdba74; }
+body[data-theme="dark"] .hiring-studio .hiring-stage-pill--oferta-enviada { background: rgba(20, 184, 166, 0.22); color: #5eead4; }
+body[data-theme="dark"] .hiring-studio .hiring-stage-pill--contratado { background: rgba(16, 185, 129, 0.22); color: #6ee7b7; }
+body[data-theme="dark"] .hiring-studio .hiring-stage-pill--descartado { background: rgba(148, 163, 184, 0.2); color: #cbd5e1; }
+
+body[data-theme="dark"] .sst-studio .sst-employee-preview {
+  background: linear-gradient(180deg, #14263d, #0f1f33);
+  border-color: rgba(148, 196, 255, 0.2);
+  color: #e8f4fc;
+}
+body[data-theme="dark"] .sst-studio .sst-employee-preview__empty { color: #a9bdd4; }
+body[data-theme="dark"] .hiring-studio .hiring-list-detail__empty {
+  background: #12233a;
+  border-color: rgba(148, 196, 255, 0.2);
+  color: #a9bdd4;
+}
+body[data-theme="dark"] .hiring-studio .hiring-list-detail__empty :is(p, .ico, svg) { color: #a9bdd4; }
+
+body[data-theme="dark"] :is(
+  .payroll-run-amount-label,
+  .simit-head__meta,
+  .sst-create-form__milestone-copy small
+) { color: #a9bdd4; }
+body[data-theme="dark"] .payroll-legal-field .field-label span { color: #cfe0f3; }
+body[data-theme="dark"] :is(.hiring-list-row__next, .doc-link, .doc-cat-card__name) { color: #8ec5ff; }
+
+body[data-theme="dark"] .ag-ring > span {
+  background: #12233a;
+  color: #e8f4fc;
+}
+body[data-theme="dark"] .documents-studio.doc-studio .doc-btn--primary {
+  background: #2f6fe0;
+  color: #fff;
+}
+body[data-theme="dark"] .documents-studio.doc-studio .doc-btn--primary:hover { background: #3b7df0; }
+
+/* 7b) Refuerzo de especificidad para contadores y textos que seguían claros */
+body[data-theme="dark"] :is(
+  .auth-tab-badge,
+  .payroll-data-nav-count,
+  .hist-trace-module-chip__count,
+  .reports-card-count,
+  .hiring-list-view__count
+) {
+  background: rgba(148, 196, 255, 0.16) !important;
+  color: #dbe9f8 !important;
+  border-color: rgba(148, 196, 255, 0.22) !important;
+}
+body[data-theme="dark"] :is(.auth-tab-btn.is-active, .payroll-data-nav-tab.is-active, .hist-trace-module-chip.is-active) :is(.auth-tab-badge, .payroll-data-nav-count, .hist-trace-module-chip__count) {
+  background: rgba(6, 16, 30, 0.38) !important;
+  color: #fff !important;
+}
+body[data-theme="dark"] .documents-studio.doc-studio :is(.doc-upload-modal__step, .doc-perm-section-badge) { background: #2563eb; color: #fff; }
+body[data-theme="dark"] .status.status-viaje_asignado { background: #17785a; color: #fff; }
+body[data-theme="dark"] .documents-studio.doc-studio :is(.doc-link, .doc-link--row, .doc-cat-card__name) { color: #8ec5ff !important; }
+body[data-theme="dark"] .documents-studio.doc-studio .doc-kpi__sub--ok { color: #34d399; }
+body[data-theme="dark"] .documents-studio.doc-studio .doc-subfolder-card__avatar--amber { background: #b45309; }
+body[data-theme="dark"] .documents-studio.doc-studio .doc-subfolder-card__avatar--cyan { background: #0e7490; }
+body[data-theme="dark"] .documents-studio.doc-studio .doc-subfolder-card__avatar--green { background: #047857; }
+body[data-theme="dark"] .documents-studio.doc-studio .doc-subfolder-card__avatar--blue { background: #1d4ed8; }
+body[data-theme="dark"] .documents-studio.doc-studio button.is-danger,
+body[data-theme="dark"] .documents-studio.doc-studio button.is-danger span { color: #fca5a5; }
+body[data-theme="dark"] .ntf-pref-toggle__state { color: #c4d9ee; }

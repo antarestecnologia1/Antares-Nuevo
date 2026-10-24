@@ -9,7 +9,8 @@ import {
   CO_CATALOGS,
   REPORT_RULES,
   REPORT_BRAND_LOGO_PATH,
-  CONTRACT_LEGAL_REP_SIGNATURE_PATH
+  CONTRACT_LEGAL_REP_SIGNATURE_PATH,
+  userIsClientScoped
 } from "../core/config.js";
 import { read, writeAwaitServer, writeAwaitServerCreate, syncPayloadForEditedRow } from "../core/data-io.js";
 import { state, nodes } from "../core/store.js";
@@ -67,7 +68,7 @@ export function toCsv(rows = [], columns = []) {
 
 export function canAccessReport(user, reportId) {
   if (!user) return false;
-  if (user.role === ROLES.CLIENT) return false;
+  if (userIsClientScoped(user)) return false;
   const rule = REPORT_RULES[reportId];
   if (!rule) return false;
   if (rule.adminOnly && user.role !== ROLES.ADMIN) return false;

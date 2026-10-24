@@ -4,7 +4,7 @@
  * asignación (agenda ocupada, compatibilidad flota) y requisitos de camión / Termoking.
  * Parte de la UI modal sigue en `portal-runtime.js` (Fase 8 sub-zonas G–H pendientes de mover).
  */
-import { KEYS, PERMISSIONS, ROLES, STATUS, STATUS_TRANSITIONS, TRANSPORT_MODOS_SERVICIO, TRIP_ASSIGNMENT_FLEET_TYPE_KEYS } from "../core/config.js";
+import { KEYS, PERMISSIONS, ROLES, STATUS, STATUS_TRANSITIONS, TRANSPORT_MODOS_SERVICIO, TRIP_ASSIGNMENT_FLEET_TYPE_KEYS, userIsClientScoped } from "../core/config.js";
 import { read, write, writeAwaitServer } from "../core/data-io.js";
 import {
   canApproveTransportRequests,
@@ -459,7 +459,7 @@ export function closeCompletedTripsAndGenerateInvoices() {
 export function canEditTransportRequestWithAssignedTrip(request, actor) {
   const user = actor || currentUser();
   if (!request?.trip || !user) return false;
-  if (user.role === ROLES.CLIENT) return false;
+  if (userIsClientScoped(user)) return false;
   if (REQUEST_EDIT_FINAL_STATUSES.includes(request.status)) return false;
   return REQUEST_EDIT_WITH_TRIP_PERMISSIONS.some((perm) => hasPermission(user, perm));
 }

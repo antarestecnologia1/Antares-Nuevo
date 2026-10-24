@@ -455,5 +455,7 @@
  "Auxilio quincenal": "Biweekly allowance",
  "Auxilio no salarial de la quincena. No aparece en el comprobante de pago.": "Non-salary allowance for the pay period. It does not appear on the payslip.",
  "Obligatorio. El archivo queda en la carpeta del colaborador en Gestión documental.": "Required. The file is saved in the employee's folder in Document management.",
- "Opcional en vacaciones. Si lo adjunta, queda en la carpeta del colaborador en Gestión documental.": "Optional for vacations. If attached, it is saved in the employee's folder in Document management."
+ "Opcional en vacaciones. Si lo adjunta, queda en la carpeta del colaborador en Gestión documental.": "Optional for vacations. If attached, it is saved in the employee's folder in Document management.",
+  "Marque o quite un grupo entero con «Todo el módulo». El administrador puede asignar cualquier permiso a cualquier usuario, sea interno o cliente.":
+    "Check or clear a whole group with “Whole module”. The administrator can assign any permission to any user, internal or client.",
 });
