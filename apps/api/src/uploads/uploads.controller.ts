@@ -103,6 +103,24 @@ function companyFolderSlugForStorage(raw: unknown) {
   return slug || "general";
 }
 
+/**
+ * Multer/busboy entregan `originalname` decodificado como Latin-1: «Cédula.pdf» llega como «CÃ©dula.pdf».
+ * Se re-decodifica como UTF-8 (si el resultado es válido) y se normaliza a NFC para conservar las tildes.
+ */
+export function decodeUploadFileName(raw: unknown): string {
+  const s = String(raw ?? "");
+  if (!s) return s;
+  if (/[\u0080-\u00ff]/.test(s) && !/[^\u0000-\u00ff]/.test(s)) {
+    try {
+      const decoded = Buffer.from(s, "latin1").toString("utf8");
+      if (decoded && !decoded.includes("\uFFFD")) return decoded.normalize("NFC");
+    } catch {
+      /* conservar el original */
+    }
+  }
+  return s.normalize("NFC");
+}
+
 /** Nombre ASCII para `Content-Disposition` (evita cabeceras inválidas con tildes). */
 function downloadSlug(raw: string, fallback: string) {
   return (
@@ -175,7 +193,7 @@ export class UploadsController {
     }
     const meta = assertSafeUploadBuffer({
       buffer: file.buffer,
-      fileName: file.originalname || "upload.jpg",
+      fileName: decodeUploadFileName(file.originalname) || "upload.jpg",
       mimeType: file.mimetype,
       purpose: "image"
     });
@@ -249,7 +267,7 @@ export class UploadsController {
     }
     const meta = assertSafeUploadBuffer({
       buffer: file.buffer,
-      fileName: file.originalname || "vacante.jpg",
+      fileName: decodeUploadFileName(file.originalname) || "vacante.jpg",
       mimeType: file.mimetype,
       purpose: "image"
     });
@@ -288,11 +306,11 @@ export class UploadsController {
     }
     const meta = assertSafeUploadBuffer({
       buffer: file.buffer,
-      fileName: file.originalname || "hoja-de-vida",
+      fileName: decodeUploadFileName(file.originalname) || "hoja-de-vida",
       mimeType: file.mimetype,
       purpose: "cv"
     });
-    const origRaw = String(file.originalname || "hoja-de-vida").trim().slice(0, 240);
+    const origRaw = String(decodeUploadFileName(file.originalname) || "hoja-de-vida").trim().slice(0, 240);
     const safeTail = origRaw.replace(/[^\w.\-\sÁÉÍÓÚáéíóúñÑ]+/g, "_").replace(/\s+/g, "_");
     const fileLabel = safeTail.length ? safeTail : "hoja-de-vida";
 
@@ -412,7 +430,7 @@ export class UploadsController {
     }
     const employeeId = String(employeeIdRaw || "").replace(/[^a-zA-Z0-9-]+/g, "");
     if (!employeeId) throw new BadRequestException("Seleccione un colaborador.");
-    const origName = String(file.originalname || "documento").replace(/[^a-zA-Z0-9._-]+/g, "_");
+    const origName = String(decodeUploadFileName(file.originalname) || "documento").replace(/[^a-zA-Z0-9._\-\s\u00C0-\u024F]+/g, "_");
     const meta = assertSafeUploadBuffer({
       buffer: file.buffer,
       fileName: origName,
@@ -482,7 +500,7 @@ export class UploadsController {
       req.user.role
     );
     const scopeKey = String(scope || "global").replace(/[^a-zA-Z0-9-]+/g, "") || "global";
-    const origName = String(file.originalname || "documento")
+    const origName = String(decodeUploadFileName(file.originalname) || "documento")
       .replace(/[^a-zA-Z0-9._\-\s\u00C0-\u024F]+/g, "_")
       .trim();
     const meta = assertSafeUploadBuffer({

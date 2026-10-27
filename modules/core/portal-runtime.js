@@ -7725,6 +7725,16 @@ function positionAgMenuPanel(menu) {
   const trigger = menu?.querySelector?.("summary");
   if (!panel || !trigger) return;
   const alignLeft = menu.classList.contains("ag-popover");
+  /* Capa superior (popover): el panel se posiciona respecto al viewport aunque un ancestro tenga
+     transform (tarjeta en hover) o container-type (portal-main) y desplace los `fixed`. */
+  if (typeof panel.showPopover === "function") {
+    try {
+      if (!panel.hasAttribute("popover")) panel.setAttribute("popover", "manual");
+      if (!panel.matches(":popover-open")) panel.showPopover();
+    } catch (_e) {
+      /* sin popover: se usa el cálculo por origen de más abajo */
+    }
+  }
   panel.style.animation = "none";
   panel.style.position = "fixed";
   panel.style.right = "auto";
@@ -7764,8 +7774,17 @@ if (typeof document !== "undefined" && !window.__agMenuPositionBound) {
     "toggle",
     (event) => {
       const menu = event.target;
-      if (menu instanceof HTMLDetailsElement && menu.matches(AG_FLOATING_MENU_SELECTOR) && menu.open) {
-        positionAgMenuPanel(menu);
+      if (menu instanceof HTMLDetailsElement && menu.matches(AG_FLOATING_MENU_SELECTOR)) {
+        if (menu.open) {
+          positionAgMenuPanel(menu);
+        } else {
+          const panel = agFloatingMenuPanel(menu);
+          try {
+            if (panel && typeof panel.hidePopover === "function" && panel.matches(":popover-open")) panel.hidePopover();
+          } catch (_e) {
+            /* noop */
+          }
+        }
       }
     },
     true
@@ -14454,6 +14473,158 @@ function buildEmployeeContractHistorySectionHtml(emp) {
   </section>`;
 }
 
+/** Panel «Documentación» de la ficha del colaborador: vencidos / por vencer y acceso directo para renovar o generar. */
+function collectEmployeeDocumentationItems(emp) {
+  const e = emp || {};
+  const id = String(e.id || "");
+  const isDriver = String(e.workerRole || "").trim().toLowerCase() === "conductor";
+  const items = [];
+  const todayMs = new Date().setHours(0, 0, 0, 0);
+  const dayDiff = (ymd) => {
+    const t = new Date(`${ymd}T12:00:00`).getTime();
+    return Number.isFinite(t) ? Math.floor((t - todayMs) / 86400000) : null;
+  };
+  const push = (label, ymd, act, extra = {}) => {
+    const days = ymd ? dayDiff(ymd) : null;
+    let bucket = "ok";
+    if (!ymd) bucket = extra.missingBucket || "missing";
+    else if (days != null && days < 0) bucket = "expired";
+    else if (days != null && days <= COMPLIANCE_DUE_SOON_DAYS) bucket = "soon";
+    items.push({ label, ymd: ymd || "", days, bucket, act, ...extra });
+  };
+  const expiryOf = (expiryKey, dateKey, resolver) => {
+    const direct = normalizePortalDateYmd(e[expiryKey]);
+    if (direct) return direct;
+    const base = dateKey ? normalizePortalDateYmd(e[dateKey]) : "";
+    return base ? resolver(base) : "";
+  };
+
+  const contract = computeEmployeeContractRenewalMeta(e);
+  if (contract?.applies) {
+    const end = normalizePortalDateYmd(contract.endYmd || e.contractEndDate || "");
+    const slug = String(contract.statusSlug || "");
+    push("Contrato a término fijo", end, "renew-contract", {
+      forceBucket: slug === "expired" ? "expired" : slug === "notice_window" ? "soon" : null,
+      actLabel: "Renovar contrato"
+    });
+  } else {
+    push("Contrato laboral", "", "gen-contract", { missingBucket: "ok", note: "Indefinido, sin vencimiento", actLabel: "Generar contrato (Word)" });
+  }
+  push(
+    "Examen médico ocupacional",
+    expiryOf("occupationalExamExpiry", "occupationalExamDate", resolveOccupationalExamExpiryYmd),
+    "edit",
+    { actLabel: "Registrar examen" }
+  );
+  if (isDriver) {
+    push(
+      "Examen instruvial",
+      expiryOf("instruvialExamExpiry", "instruvialExamDate", resolveInstruvialExamExpiryYmd),
+      "edit",
+      { actLabel: "Registrar examen" }
+    );
+    push(
+      "Licencia de conducción",
+      normalizePortalDateYmd(e.licenseExpiry) ||
+        (e.licenseIssueDate
+          ? resolveLicenseExpiryYmd(
+              normalizePortalDateYmd(e.licenseIssueDate),
+              e.licenseCategory,
+              normalizePortalDateYmd(e.birthDate)
+            )
+          : ""),
+      "edit",
+      { actLabel: "Actualizar licencia" }
+    );
+  }
+  [
+    ["Afiliación EPS", "eps"],
+    ["Afiliación pensión", "pensionFund"],
+    ["Afiliación ARL", "arl"]
+  ].forEach(([label, field]) => {
+    if (String(e[field] || "").trim()) {
+      items.push({ label, ymd: "", days: null, bucket: "ok", act: "", note: String(e[field]).trim() });
+    } else {
+      items.push({ label, ymd: "", days: null, bucket: "missing", act: "edit", actLabel: "Completar afiliación" });
+    }
+  });
+
+  try {
+    const docs = (typeof read === "function" ? read(KEYS.companyDocuments, []) : []) || [];
+    docs
+      .filter(
+        (d) =>
+          d &&
+          !d.deletedAt &&
+          String(d.entityType || "") === "empleado" &&
+          String(d.entityId || "") === id &&
+          String(d.validityStatus || "") !== "archivado" &&
+          normalizePortalDateYmd(d.expiresAt)
+      )
+      .forEach((d) => {
+        const ymd = normalizePortalDateYmd(d.expiresAt);
+        const label = String(d.title || d.name || d.fileName || "Documento").trim();
+        push(label, ymd, "docs", { actLabel: "Renovar en Gestión documental", fromDms: true });
+      });
+  } catch (_e) {
+    /* sin documentos del expediente */
+  }
+
+  items.forEach((it) => {
+    if (it.forceBucket) it.bucket = it.forceBucket;
+  });
+  const order = { expired: 0, soon: 1, missing: 2, ok: 3 };
+  items.sort((a, b) => (order[a.bucket] ?? 9) - (order[b.bucket] ?? 9));
+  return items;
+}
+
+function buildEmployeeDocumentationPanelHtml(emp) {
+  const items = collectEmployeeDocumentationItems(emp);
+  const empId = escapeAttr(String(emp?.id || ""));
+  const expired = items.filter((i) => i.bucket === "expired").length;
+  const soon = items.filter((i) => i.bucket === "soon").length;
+  const missing = items.filter((i) => i.bucket === "missing").length;
+  const pill = { expired: ["Vencido", "danger"], soon: ["Por vencer", "warn"], missing: ["Falta", "warn"], ok: ["Al día", "ok"] };
+  const summary =
+    expired || soon || missing
+      ? [
+          expired ? `<strong class="edoc-sum edoc-sum--danger">${expired} vencido${expired === 1 ? "" : "s"}</strong>` : "",
+          soon ? `<span class="edoc-sum edoc-sum--warn">${soon} por vencer</span>` : "",
+          missing ? `<span class="edoc-sum edoc-sum--warn">${missing} sin registrar</span>` : ""
+        ]
+          .filter(Boolean)
+          .join(" ")
+      : `<span class="edoc-sum edoc-sum--ok">Toda la documentación está al día.</span>`;
+  const rows = items
+    .map((it) => {
+      const [txt, tone] = pill[it.bucket] || pill.ok;
+      let when = it.note || "";
+      if (it.ymd) {
+        const d = it.days;
+        const rel =
+          d == null ? "" : d < 0 ? `Venció hace ${-d} día${-d === 1 ? "" : "s"}` : d === 0 ? "Vence hoy" : `Vence en ${d} día${d === 1 ? "" : "s"}`;
+        when = `${fmtDateOr(it.ymd)}${rel ? ` · ${rel}` : ""}`;
+      } else if (!when) {
+        when = it.bucket === "missing" ? "Sin registrar" : "—";
+      }
+      const needsAction = it.act && (it.bucket !== "ok" || it.act === "gen-contract");
+      const btn = needsAction
+        ? `<button type="button" class="btn btn-sm ${it.bucket === "expired" ? "btn-primary" : "btn-outline"}" data-action="employee-doc-act" data-doc-act="${escapeAttr(it.act)}" data-id="${empId}" data-doc-label="${escapeAttr(it.label)}">${escapeHtml(it.actLabel || "Abrir")}</button>`
+        : "";
+      return `<li class="edoc-row edoc-row--${it.bucket}">
+        <span class="edoc-dot" aria-hidden="true"></span>
+        <div class="edoc-main"><strong>${escapeHtml(it.label)}</strong><span class="edoc-when">${escapeHtml(when)}</span></div>
+        <span class="edoc-pill edoc-pill--${tone}">${txt}</span>
+        <div class="edoc-act">${btn}</div>
+      </li>`;
+    })
+    .join("");
+  return `<section class="employee-profile-section edoc">
+    <div class="edoc-head"><div class="edoc-summary">${summary}</div></div>
+    <ul class="edoc-list">${rows}</ul>
+  </section>`;
+}
+
 function buildEmployeePayrollProfileBodyHtml(emp) {
   if (!emp) return `<p class="muted">Sin datos.</p>`;
   const e = mergeLinkedDriverConductorFields(normalizePayrollEmployeeRowDates(emp));
@@ -15923,6 +16094,8 @@ Object.assign(window, {
   buildContractDocxTestPayload,
   buildEmployeeContractDocxPayload,
   buildEmployeePayrollProfileBodyHtml,
+  buildEmployeeDocumentationPanelHtml,
+  collectEmployeeDocumentationItems,
   buildHistoryAuditEntries,
   buildPayrollEmployeeEditModalFields,
   buildPayrollEmployeePayloadFromWizard,

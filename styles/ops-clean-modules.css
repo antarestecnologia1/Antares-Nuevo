@@ -1,0 +1,390 @@
+/* ===================================================================
+   Portal · capa común de módulos (v1)
+   Un solo azul de marca y los mismos componentes en todos los módulos
+   (Camiones, Conductores, Calendario, Historial, Reportería, Gestión
+   humana, Contratación, Cumplimiento, Gestión documental, SARLAFT,
+   Prospectos, Usuarios, Autorizaciones, Notificaciones y Perfil).
+   Se carga después de ops-clean.css. Archivo generado: ver
+   scripts/gen-ops-clean-modules.py si se quiere regenerar.
+   =================================================================== */
+
+/* El acento por módulo (verde, morado, ámbar…) pasa a ser siempre el azul de marca. */
+.portal-main:has(.module-shell[data-module-view]) {
+  --mx-rgb: 55, 124, 192;
+}
+
+/* ---------- Pestañas: línea inferior en azul de marca ---------- */
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .auth-tabs-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.35rem;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--oc-line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) :is(.auth-tab-btn, .ops-filter-pill) {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 0 0.7rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--oc-ink-2);
+  font-size: 0.92rem;
+  font-weight: 600;
+  transform: none;
+}
+
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) :is(.auth-tab-btn, .ops-filter-pill)::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 -1px 0;
+  height: 2px;
+  border-radius: 2px;
+  background: transparent;
+}
+
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) :is(.auth-tab-btn, .ops-filter-pill):hover { color: var(--oc-ink); background: transparent; }
+
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) :is(.auth-tab-btn, .ops-filter-pill).is-active {
+  background: transparent;
+  color: var(--oc-brand-ink);
+  box-shadow: none;
+}
+
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) :is(.auth-tab-btn, .ops-filter-pill).is-active::after { background: var(--oc-brand); }
+
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) :is(.auth-tab-btn, .ops-filter-pill) :is(strong, .count, .auth-tab-count) {
+  min-width: 1.35rem;
+  padding: 0.02rem 0.4rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--oc-soft);
+  color: var(--oc-ink-2);
+  font-size: 0.76rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) :is(.auth-tab-btn, .ops-filter-pill).is-active :is(strong, .count, .auth-tab-count) {
+  background: var(--oc-brand-soft);
+  color: var(--oc-brand-ink);
+}
+
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .ops-filters-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.35rem;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--oc-line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* ---------- Botón principal plano ---------- */
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .btn-primary {
+  border-color: var(--oc-brand);
+  background: var(--oc-brand);
+  background-image: none;
+  color: #fff;
+  box-shadow: none;
+}
+
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .btn-primary:hover { background: var(--oc-brand-ink); border-color: var(--oc-brand-ink); }
+
+/* ---------- Etiquetas: sin mayúsculas sostenidas ---------- */
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) :is(h1, h2, h3, h4, h5, h6, span, p, small, label, legend, dt, th, div, li, a, button, strong, em) {
+  text-transform: none;
+}
+
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) :is(span, p, small, label, legend, dt, th, div, li, a, button):not(.btn) {
+  letter-spacing: 0;
+}
+
+/* ---------- Contenedores: una sola tarjeta blanca, sin anidar ---------- */
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) :is([class*="-data-panel"], [class*="data-pane"]:not(.hidden)) {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .p-card {
+  border: 1px solid var(--oc-line);
+  border-radius: var(--oc-radius);
+  background: var(--oc-bg);
+  background-image: none;
+  box-shadow: none;
+}
+
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .p-card-header {
+  border-bottom: 1px solid var(--oc-line);
+  background: transparent;
+  background-image: none;
+}
+
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) [class*="data-toolbar"] {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  background-image: none;
+  box-shadow: none;
+}
+
+/* ---------- Campos ---------- */
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) :is(select, input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"]), textarea) {
+  border: 1px solid var(--oc-line-2);
+  border-radius: 10px;
+  background-color: var(--oc-bg);
+  color: var(--oc-ink);
+  box-shadow: none;
+}
+
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) :is(select, input, textarea):focus-visible {
+  outline: none;
+  border-color: var(--oc-brand);
+  box-shadow: var(--oc-ring);
+}
+
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) :is(label, .muted) > span:first-child:not(:only-child),
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .vehicle-fleet-filter > span {
+  color: var(--oc-ink-2);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+/* ---------- Tarjetas operativas (Camiones, Conductores, etc.) ---------- */
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .portal-ops-card {
+  border: 1px solid var(--oc-line);
+  border-radius: var(--oc-radius);
+  background: var(--oc-bg);
+  background-image: none;
+  box-shadow: none;
+  transform: none;
+}
+
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .portal-ops-card:hover {
+  transform: none;
+  border-color: var(--oc-line-2);
+  box-shadow: 0 6px 18px -12px rgba(18, 35, 63, 0.35);
+}
+
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .portal-ops-card :is(.trip-ops-card-item, .portal-ops-card-spec-grid > *) {
+  border: 1px solid var(--oc-line);
+  border-radius: 10px;
+  background: var(--oc-soft);
+  background-image: none;
+  box-shadow: none;
+}
+
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .portal-ops-card :is(.trip-ops-card-item-label, .trip-ops-card-kicker) {
+  color: var(--oc-ink-3);
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .portal-ops-card-highlight {
+  border: 1px solid var(--oc-line);
+  border-radius: 10px;
+  background: var(--oc-soft);
+  background-image: none;
+  box-shadow: none;
+}
+
+/* Estado: punto + texto, un tono por significado */
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .portal-ops-card-status-pill {
+  --pill-fg: var(--oc-ink-2);
+  --pill-bg: var(--oc-soft);
+  --pill-dot: var(--oc-ink-3);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.16rem 0.65rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--pill-bg);
+  background-image: none;
+  color: var(--pill-fg);
+  font-size: 0.78rem;
+  font-weight: 600;
+  box-shadow: none;
+}
+
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .portal-ops-card-status-pill > * { color: inherit; background: transparent; }
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .portal-ops-card-status-pill::before {
+  content: "";
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--pill-dot);
+}
+
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .portal-ops-card-status-pill :is(.portal-ops-card-status-pill__dot, i) { display: none; }
+
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .portal-ops-card-status-pill:is(
+  .portal-ops-card-status-pill--pendiente, .portal-ops-card-status-pill--aprobada_pendiente_asignacion,
+  .portal-ops-card-status-pill--espera_standby, .portal-ops-card-status-pill--reservado,
+  .portal-ops-card-status-pill--scheduled
+) { --pill-fg: var(--oc-wait); --pill-bg: var(--oc-wait-soft); --pill-dot: var(--oc-wait-dot); }
+
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .portal-ops-card-status-pill:is(
+  .portal-ops-card-status-pill--ocupado, .portal-ops-card-status-pill--en_transito,
+  .portal-ops-card-status-pill--viaje_asignado, .portal-ops-card-status-pill--busy
+) { --pill-fg: var(--oc-live); --pill-bg: var(--oc-live-soft); --pill-dot: var(--oc-live-dot); }
+
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .portal-ops-card-status-pill:is(
+  .portal-ops-card-status-pill--disponible, .portal-ops-card-status-pill--available,
+  .portal-ops-card-status-pill--ok, .portal-ops-card-status-pill--completada, .portal-ops-card-status-pill--cerrada
+) { --pill-fg: var(--oc-done); --pill-bg: var(--oc-done-soft); --pill-dot: var(--oc-done-dot); }
+
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .portal-ops-card-status-pill:is(
+  .portal-ops-card-status-pill--cancelada, .portal-ops-card-status-pill--rechazada,
+  .portal-ops-card-status-pill--vencida, .portal-ops-card-status-pill--no-disponible
+) { --pill-fg: var(--oc-cancel); --pill-bg: var(--oc-cancel-soft); --pill-dot: var(--oc-cancel-dot); }
+
+/* ---------- Encabezado de módulo: una tarjeta blanca simple ---------- */
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .hr-workspace-header {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  background-image: none;
+  box-shadow: none;
+}
+
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) :is(.ag-fleet__head, .hist-trace-hero, .payroll-studio-head, .hiring-studio-head, .sarlaft-studio-head, .doc-topbar, .payroll-consult-head, .vehicles-studio-head, .adm-access-head) {
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--oc-line);
+  border-radius: var(--oc-radius);
+  background: var(--oc-bg);
+  background-image: none;
+  box-shadow: none;
+}
+
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) :is(.ag-fleet__head, .hist-trace-hero, .payroll-studio-head, .hiring-studio-head, .sarlaft-studio-head, .doc-topbar, .payroll-consult-head, .vehicles-studio-head, .adm-access-head)::before,
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) :is(.ag-fleet__head, .hist-trace-hero, .payroll-studio-head, .hiring-studio-head, .sarlaft-studio-head, .doc-topbar, .payroll-consult-head, .vehicles-studio-head, .adm-access-head)::after {
+  display: none;
+}
+
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) :is(.ag-eyebrow, .payroll-studio-head__badge, .hist-trace-hero__badge, .hiring-studio-head__badge, .sarlaft-studio-head__badge, [class$="__eyebrow"], [class*="-eyebrow"]) {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--oc-brand-ink);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+/* Indicadores del encabezado: fichas planas */
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) :is(.ag-kpi, .hist-trace-kpi, .payroll-studio-kpi, .hiring-studio-kpi, .doc-kpi, .vehicles-studio-kpi, [class*="-head__kpi"]) {
+  border: 1px solid var(--oc-line);
+  border-radius: 12px;
+  background: var(--oc-soft);
+  background-image: none;
+  box-shadow: none;
+}
+
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) :is(.hist-trace-control-panel, .hist-trace-results-panel, .doc-categories, .module-field-filters, .calendar-filters-bar) {
+  border: 1px solid var(--oc-line);
+  border-radius: var(--oc-radius);
+  background: var(--oc-bg);
+  background-image: none;
+  box-shadow: none;
+}
+
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .ag-fleet__body {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* ---------- Botones planos ---------- */
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) :is(.btn-primary, .btn-action) {
+  border-color: var(--oc-brand);
+  background: var(--oc-brand);
+  background-image: none;
+  color: #fff;
+  box-shadow: none;
+  transform: none;
+}
+
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) :is(.btn-primary, .btn-action):hover {
+  border-color: var(--oc-brand-ink);
+  background: var(--oc-brand-ink);
+  background-image: none;
+  box-shadow: none;
+  transform: none;
+}
+
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .btn-approve {
+  border-color: var(--oc-done);
+  background: var(--oc-done);
+  background-image: none;
+  color: #fff;
+  box-shadow: none;
+  transform: none;
+}
+
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) :is(.btn-reject, .btn-danger-soft) {
+  border-color: transparent;
+  background: var(--oc-cancel-soft);
+  background-image: none;
+  color: var(--oc-cancel);
+  box-shadow: none;
+}
+
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .btn-outline {
+  border: 1px solid var(--oc-line-2);
+  background: var(--oc-bg);
+  background-image: none;
+  color: var(--oc-ink);
+  box-shadow: none;
+}
+
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .btn-outline:hover { border-color: var(--oc-brand); color: var(--oc-brand-ink); background: var(--oc-brand-soft); }
+
+/* Gestión documental: el encabezado pasa de fondo azul a blanco */
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .doc-topbar .doc-topbar__title { color: var(--oc-ink); }
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .doc-topbar .doc-topbar__subtitle { color: var(--oc-ink-2); }
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .doc-topbar :is(.doc-topbar__stats, .doc-topbar__stats *) { color: var(--oc-ink-2); }
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .doc-topbar .doc-btn--ghost {
+  border: 1px solid var(--oc-line-2);
+  background: var(--oc-bg);
+  color: var(--oc-ink);
+}
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .doc-topbar .doc-btn--primary {
+  border: 1px solid var(--oc-brand);
+  background: var(--oc-brand);
+  color: #fff;
+}
+
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) :is(.vehicle-card-year, .trip-ops-card-head .muted) { color: var(--oc-ink-3); }
+
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .hist-trace-kpi dt, body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .hist-trace-control-panel__label { text-transform: none; letter-spacing: 0; font-size: 0.78rem; font-weight: 600; color: var(--oc-ink-3); }
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .hist-trace-hero { background: var(--oc-surface); box-shadow: none; border-color: var(--oc-line); }
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .hist-trace-hero::before { display: none; }
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .hist-trace-kpi { box-shadow: none; background: var(--oc-surface); }
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .hist-trace-kpi:hover { transform: none; box-shadow: none; }
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .hist-trace-action-pill.is-active { box-shadow: none; }
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .hist-trace-kpi--primary dd { color: var(--oc-brand-ink); }
+
+@media (max-width: 900px) { body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .hist-trace-hero__brand { flex: 0 0 auto; } }
+
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) :is(.payroll-studio-kpi--ok, .history-studio-kpi--ok, .hiring-studio-kpi--ok, .sst-studio-kpi--ok) :is(dd, dd strong) { color: var(--oc-ink); }
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) :is(.payroll-studio-kpi, .history-studio-kpi, .hiring-studio-kpi, .sst-studio-kpi) { box-shadow: none; background: var(--oc-surface); border-color: var(--oc-line); }
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) :is(.payroll-studio-kpi--ok, .history-studio-kpi--ok) { background: var(--oc-surface); }
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) :is(.payroll-studio-kpi, .history-studio-kpi) dt { text-transform: none; letter-spacing: 0; font-size: .78rem; font-weight: 600; color: var(--oc-ink-3); }
+
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) [class*="operate-nav-norm"] { background: transparent !important; color: var(--oc-ink-3) !important; border: 0 !important; padding: 0 !important; font-size: .74rem; font-weight: 500; text-transform: none; letter-spacing: 0; box-shadow: none; }

@@ -158,7 +158,8 @@ function focusPayrollEmployeeLiquidations(employeeId, opts = {}) {
 }
 
 function selectEmployeeProfileTab(root, tab) {
-  const next = String(tab || "").trim() === "liquidaciones" ? "liquidaciones" : "ficha";
+  const wanted = String(tab || "").trim();
+  const next = wanted === "liquidaciones" || wanted === "documentacion" ? wanted : "ficha";
   if (!root) return;
   root.querySelectorAll("[data-profile-panel]").forEach((panel) => {
     const show = String(panel.getAttribute("data-profile-panel") || "") === next;
@@ -199,8 +200,16 @@ function openEmployeeProfileModal(employee, opts = {}) {
     ? normalizePayrollEmployeeRowDates(employee)
     : employee;
   if (!target?.id) return;
-  const tab = String(opts.tab || "ficha").trim() === "liquidaciones" ? "liquidaciones" : "ficha";
+  const wantedTab = String(opts.tab || "ficha").trim();
+  const tab = wantedTab === "liquidaciones" || wantedTab === "documentacion" ? wantedTab : "ficha";
   const runs = read(KEYS.payrollRuns, []);
+  const docItems =
+    typeof collectEmployeeDocumentationItems === "function" ? collectEmployeeDocumentationItems(target) : [];
+  const docAlerts = docItems.filter((i) => i.bucket === "expired" || i.bucket === "soon").length;
+  const docExpired = docItems.filter((i) => i.bucket === "expired").length;
+  const docLabel = docAlerts ? `Documentación · ${docAlerts}` : "Documentación";
+  const docPanelHtml =
+    typeof buildEmployeeDocumentationPanelHtml === "function" ? buildEmployeeDocumentationPanelHtml(target) : "";
   const compactHistory =
     typeof buildEmployeePayrollHistorySectionHtml === "function"
       ? buildEmployeePayrollHistorySectionHtml(target, runs, { variant: "compact", previewLimit: 3 })
@@ -224,6 +233,7 @@ function openEmployeeProfileModal(employee, opts = {}) {
   const tabsHtml = `<nav class="employee-profile-tabs" role="tablist" aria-label="Secciones de la ficha">
     <button type="button" class="employee-profile-tabs__btn${tab === "ficha" ? " is-active" : ""}" role="tab" data-action="employee-profile-tab" data-tab="ficha" aria-selected="${tab === "ficha" ? "true" : "false"}" tabindex="${tab === "ficha" ? "0" : "-1"}">Ficha</button>
     <button type="button" class="employee-profile-tabs__btn${tab === "liquidaciones" ? " is-active" : ""}" role="tab" data-action="employee-profile-tab" data-tab="liquidaciones" aria-selected="${tab === "liquidaciones" ? "true" : "false"}" tabindex="${tab === "liquidaciones" ? "0" : "-1"}">${escapeHtml(liqLabel)}</button>
+    <button type="button" class="employee-profile-tabs__btn${tab === "documentacion" ? " is-active" : ""}${docExpired ? " has-alert" : ""}" role="tab" data-action="employee-profile-tab" data-tab="documentacion" aria-selected="${tab === "documentacion" ? "true" : "false"}" tabindex="${tab === "documentacion" ? "0" : "-1"}">${escapeHtml(docLabel)}</button>
   </nav>`;
   const bodyHtml = `${tabsHtml}
     <div class="employee-profile-panel" data-profile-panel="ficha" role="tabpanel"${tab === "ficha" ? "" : " hidden"} aria-hidden="${tab === "ficha" ? "false" : "true"}">
@@ -231,6 +241,9 @@ function openEmployeeProfileModal(employee, opts = {}) {
     </div>
     <div class="employee-profile-panel" data-profile-panel="liquidaciones" role="tabpanel"${tab === "liquidaciones" ? "" : " hidden"} aria-hidden="${tab === "liquidaciones" ? "false" : "true"}">
       ${fullHistory}
+    </div>
+    <div class="employee-profile-panel" data-profile-panel="documentacion" role="tabpanel"${tab === "documentacion" ? "" : " hidden"} aria-hidden="${tab === "documentacion" ? "false" : "true"}">
+      ${docPanelHtml}
     </div>`;
   const contractAction = `<button type="button" class="btn btn-action" data-action="employee-generate-contract" data-id="${empId}">${IC.download} Descargar contrato</button>`;
   const laborLetterAction = `<button type="button" class="btn btn-outline" data-no-lock data-action="employee-generate-labor-letter" data-id="${empId}">${IC.badge} Carta laboral</button>`;
@@ -249,7 +262,68 @@ function openEmployeeProfileModal(employee, opts = {}) {
       bindPayrollPayslipButtons(content);
       wirePayrollEmployeeLiquidationActions(content);
       wireEmployeeProfileTabs(content);
+      wireEmployeeDocumentationActions(content);
     }
+  });
+}
+
+function wireEmployeeDocumentationActions(root) {
+  if (!root) return;
+  root.querySelectorAll("[data-action='employee-doc-act']").forEach((btn) => {
+    if (btn.dataset.docActBound === "1") return;
+    btn.dataset.docActBound = "1";
+    btn.addEventListener("click", () => {
+      const id = String(btn.dataset.id || "").trim();
+      const act = String(btn.dataset.docAct || "").trim();
+      const label = String(btn.dataset.docLabel || "").trim();
+      const closeProfile = () => {
+        if (typeof closeCrudModal === "function") closeCrudModal();
+        else document.getElementById("crud-modal")?.classList.add("hidden");
+      };
+      if (act === "gen-contract") {
+        const gen = document.createElement("button");
+        gen.dataset.action = "employee-generate-contract";
+        gen.dataset.id = id;
+        gen.hidden = true;
+        document.body.appendChild(gen);
+        gen.click();
+        gen.remove();
+        return;
+      }
+      if (act === "docs") {
+        const emp = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === id);
+        closeProfile();
+        state.companyDocsUi = {
+          ...(state.companyDocsUi || {}),
+          folderFilter: "*",
+          search: String(emp?.name || label || ""),
+          statusFilter: "all",
+          entityTypeFilter: "all",
+          processFilter: "all",
+          showFilters: true,
+          showTrash: false,
+          page: 1
+        };
+        state.currentView = "document-management";
+        try {
+          history.replaceState(null, "", "#portal/document-management");
+        } catch (_e) {
+          /* noop */
+        }
+        renderPortalView();
+        return;
+      }
+      const selector =
+        act === "renew-contract"
+          ? `[data-action='renew-employee-contract'][data-id='${id}']`
+          : `[data-action='edit-employee'][data-id='${id}']`;
+      closeProfile();
+      requestAnimationFrame(() => {
+        const target = nodes.viewRoot?.querySelector(selector);
+        if (target) target.click();
+        else notify("Abra el módulo de Gestión humana para continuar con esta acción.", "info");
+      });
+    });
   });
 }
 

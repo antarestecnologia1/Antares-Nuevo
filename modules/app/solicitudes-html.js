@@ -346,8 +346,8 @@
       <td data-label="Cliente">${escapeHtml(clientName)}</td>
       <td data-label="Ruta"><span class="vehicle-fleet-list-sub">${escapeHtml(originCity)}</span> → <span class="vehicle-fleet-list-sub">${escapeHtml(destinationCity)}</span></td>
       <td data-label="Carga"><span class="vehicle-fleet-list-doc" title="${escapeAttr(cargoLabel)}">${escapeHtml(cargoShort)}</span></td>
-      <td data-label="Estado"><span class="trip-ops-card-status trip-ops-card-status--${escapeAttr(statusSlug)}">${prettyStatus(r.status, "request")}</span></td>
-      <td data-label="Recogida">${escapeHtml(pickupLabel)}</td>
+      <td data-label="Estado">${rqStatusPill(r)}</td>
+      <td data-label="Recogida" class="rq-nowrap">${escapeHtml(rqShortDate(r.trip?.etaPickup || r.pickupAt || r.pickupDate || ""))}</td>
       <td data-label="${escapeAttr(fare.label)}">${fare.pending ? `<span class="muted">${escapeHtml(fare.text)}</span>` : escapeHtml(fare.text)}</td>
       <td data-label="Viaje">${tripCell}</td>
       <td data-label="Acciones" class="vehicle-fleet-list-actions"><div class="toolbar">
@@ -358,6 +358,298 @@
         ${isAdmin ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-admin" data-id="${escapeAttr(String(r.id || ""))}">${IC.trash} Eliminar</button>` : ""}
       </div></td>
     </tr>`;
+  }
+
+  /* ------------------------------------------------------------------
+   * Bandeja + panel de detalle (vista «Consultar»).
+   * Lista compacta a la izquierda, detalle con pestañas a la derecha.
+   * Los botones del panel reutilizan los `data-action` existentes
+   * (detail / edit-request / cancel-request / delete-*), así que sus
+   * manejadores ya cableados en cada render siguen funcionando.
+   * ------------------------------------------------------------------ */
+  const RQ_DETAIL_TABS = [
+    { id: "general", label: "General" },
+    { id: "route", label: "Ruta" },
+    { id: "service", label: "Servicios" },
+    { id: "trace", label: "Trazabilidad" }
+  ];
+
+  function rqTone(status) {
+    if ([STATUS.COMPLETADA, STATUS.CERRADA].includes(status)) return "done";
+    if ([STATUS.CANCELADA, STATUS.RECHAZADA].includes(status)) return "cancel";
+    if ([STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(status)) return "wait";
+    return "live";
+  }
+
+  function rqStatusLabel(r) {
+    const raw = typeof prettyStatus === "function" ? prettyStatus(r.status, "request") : String(r.status || "—");
+    return String(raw).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim() || "—";
+  }
+
+  function rqStatusPill(r) {
+    return `<span class="rq-status rq-status--${rqTone(r.status)}"><span class="rq-status__dot" aria-hidden="true"></span>${escapeHtml(rqStatusLabel(r))}</span>`;
+  }
+
+  function rqShortDate(raw) {
+    if (!raw) return "Sin fecha";
+    const d = new Date(raw);
+    if (Number.isNaN(d.getTime())) return "Sin fecha";
+    const opts = { timeZone: "America/Bogota" };
+    const day = d.toLocaleDateString("es-CO", { ...opts, day: "numeric", month: "short" }).replace(".", "");
+    const time = d.toLocaleTimeString("es-CO", { ...opts, hour: "numeric", minute: "2-digit", hour12: true }).replace(/\s/g, " ");
+    return `${day} · ${time}`;
+  }
+
+  function rqPickupRaw(r) {
+    return r.trip?.etaPickup || r.pickupAt || r.pickupDate || "";
+  }
+
+  function rqDeliveryRaw(r) {
+    return r.trip?.etaDelivery || r.etaDelivery || "";
+  }
+
+  function rqMoney(n) {
+    return `$${parseNum(n).toLocaleString("es-CO")}`;
+  }
+
+  function rqSelectedId(shown) {
+    let sel = "";
+    try {
+      sel = String((typeof state !== "undefined" && state?.requestsUi?.selectedId) || "");
+    } catch (_) {
+      /* noop */
+    }
+    if (sel && shown.some((r) => String(r.id) === sel)) return sel;
+    return shown.length ? String(shown[0].id) : "";
+  }
+
+  function rqInitial(name) {
+    return escapeHtml(String(name || "E").trim().charAt(0).toUpperCase() || "E");
+  }
+
+  function buildRequestInboxItem(r, selected) {
+    const clientName = String(r.clientName || "Cliente").trim() || "Cliente";
+    const origin = String(r.originCity || r.originDepartment || "Origen").trim();
+    const dest = String(r.destinationCity || r.destinationDepartment || "Destino").trim();
+    const fare = requestFarePresentation(r);
+    const reqNo = String(r.requestNumber || r.id || "—");
+    const id = escapeAttr(String(r.id || ""));
+    return `<li class="rq-list__li">
+      <button type="button" class="rq-item rq-item--${rqTone(r.status)}${selected ? " is-selected" : ""}" data-action="request-select" data-id="${id}" data-request-id="${id}" aria-pressed="${selected ? "true" : "false"}">
+        <span class="rq-item__top">
+          <strong class="rq-item__client" title="${escapeAttr(clientName)}">${escapeHtml(clientName)}</strong>
+          <span class="rq-item__no">${escapeHtml(reqNo)}</span>
+        </span>
+        <span class="rq-item__route"><span>${escapeHtml(origin)}</span><span class="rq-item__arrow" aria-hidden="true">${IC.chevronRight}</span><span>${escapeHtml(dest)}</span></span>
+        <span class="rq-item__meta">
+          ${rqStatusPill(r)}
+          <span class="rq-item__when">${escapeHtml(rqShortDate(rqPickupRaw(r)))}</span>
+          <span class="rq-item__fare${fare.pending ? " is-pending" : ""}">${escapeHtml(fare.pending ? "Sin valor" : fare.text)}</span>
+        </span>
+      </button>
+    </li>`;
+  }
+
+  function rqField(label, valueHtml, opts = {}) {
+    const v = valueHtml == null || valueHtml === "" ? `<span class="rq-muted">—</span>` : valueHtml;
+    return `<div class="rq-field${opts.wide ? " rq-field--wide" : ""}${opts.strong ? " rq-field--strong" : ""}"><dt>${escapeHtml(label)}</dt><dd>${v}</dd></div>`;
+  }
+
+  function rqTimelineSteps(r) {
+    const cancelled = requestIsCancelledStatus(r.status);
+    const closed = requestIsClosedStatus(r.status);
+    const hasTrip = Boolean(r.trip);
+    const approved = ![STATUS.PENDIENTE].includes(r.status) && !cancelled ? true : Boolean(r.autoApproved);
+    const inTransit = [STATUS.EN_TRANSITO, STATUS.ESPERA_STANDBY].includes(r.status) || closed;
+    const steps = [
+      { label: "Solicitud registrada", detail: r.createdAt ? fmtDate(r.createdAt) : "", done: true },
+      { label: r.autoApproved ? "Aprobada automáticamente" : "Aprobada", detail: "", done: approved && !(r.status === STATUS.PENDIENTE) },
+      { label: "Viaje asignado", detail: hasTrip ? `${r.trip.tripNumber || ""} · ${r.trip.vehiclePlate || ""}`.replace(/^ · | · $/g, "") : "", done: hasTrip },
+      { label: "En ruta", detail: inTransit && rqPickupRaw(r) ? `Recogida ${rqShortDate(rqPickupRaw(r))}` : "", done: inTransit },
+      { label: "Entregada y cerrada", detail: closed && r.updatedAt ? fmtDate(r.updatedAt) : "", done: closed }
+    ];
+    if (cancelled) {
+      const idx = steps.findIndex((s) => !s.done);
+      const kept = idx === -1 ? steps : steps.slice(0, idx);
+      kept.push({
+        label: r.status === STATUS.RECHAZADA ? "Solicitud rechazada" : "Solicitud cancelada",
+        detail: r.rejectionReason ? String(r.rejectionReason) : r.updatedAt ? fmtDate(r.updatedAt) : "",
+        done: true,
+        cancel: true
+      });
+      return kept;
+    }
+    let currentSet = false;
+    return steps.map((s) => {
+      if (s.done) return { ...s, state: "done" };
+      if (!currentSet) {
+        currentSet = true;
+        return { ...s, state: "current" };
+      }
+      return { ...s, state: "todo" };
+    });
+  }
+
+  function rqTimelineHtml(r) {
+    const steps = rqTimelineSteps(r);
+    return `<ol class="rq-timeline">${steps
+      .map((s) => {
+        const st = s.cancel ? "cancel" : s.state || "done";
+        return `<li class="rq-timeline__step rq-timeline__step--${st}">
+          <span class="rq-timeline__dot" aria-hidden="true"></span>
+          <span class="rq-timeline__label">${escapeHtml(s.label)}</span>
+          ${s.detail ? `<span class="rq-timeline__detail">${escapeHtml(s.detail)}</span>` : ""}
+        </li>`;
+      })
+      .join("")}</ol>`;
+  }
+
+  function rqModLogHtml(r) {
+    const rows = Array.isArray(r?.modificationLog) ? r.modificationLog : [];
+    if (!rows.length) return "";
+    return `<section class="rq-block"><h4 class="rq-block__title">Modificaciones con viaje asignado</h4>
+      <ul class="rq-log">${rows
+        .map((row) => {
+          const who = String(row.usuario || row.actorName || row.actorEmail || "Sin registrar").trim() || "Sin registrar";
+          return `<li class="rq-log__item">
+            <span class="rq-log__meta">${escapeHtml(fmtDate(row.at))} · ${escapeHtml(who)}</span>
+            <span class="rq-log__text">${escapeHtml(String(row.justification || "—"))}</span>
+            ${row.changesSummary ? `<span class="rq-log__chg">Campos: ${escapeHtml(String(row.changesSummary))}</span>` : ""}
+          </li>`;
+        })
+        .join("")}</ul></section>`;
+  }
+
+  function buildRequestPaneActions(r, user) {
+    const id = escapeAttr(String(r.id || ""));
+    const allowEdit = typeof canPortalUserEditTransportRequest === "function" ? canPortalUserEditTransportRequest(r, user) : false;
+    const allowClientDelete =
+      user?.role === ROLES.CLIENT &&
+      typeof canClientEditOwnPendingTransportRequest === "function" &&
+      canClientEditOwnPendingTransportRequest(r, user);
+    const isAdmin = user?.role === ROLES.ADMIN;
+    const btn = (action, cls, icon, label, title) =>
+      `<button type="button" class="rq-btn ${cls}" data-action="${action}" data-id="${id}" title="${escapeAttr(title)}">${icon}<span>${label}</span></button>`;
+    const main = [
+      btn("detail", "rq-btn--primary", IC.eye, "Ver detalle completo", "Abrir la ficha completa de la solicitud"),
+      allowEdit ? btn("edit-request", "rq-btn--ghost", IC.edit, "Editar", r.trip ? "Editar (requiere justificación: viaje asignado)" : "Editar la solicitud") : ""
+    ].filter(Boolean).join("");
+    const danger = [
+      allowEdit && !r.trip ? btn("cancel-request", "rq-btn--danger", IC.x, "Cancelar solicitud", "Marcar como cancelada") : "",
+      allowClientDelete ? btn("delete-client-request", "rq-btn--danger", IC.trash, "Eliminar", "Eliminar solicitud") : "",
+      isAdmin ? btn("delete-admin", "rq-btn--danger", IC.trash, "Eliminar", "Eliminar solicitud") : ""
+    ].filter(Boolean).join("");
+    return `<footer class="rq-pane__actions"><div class="rq-pane__actions-main">${main}</div>${danger ? `<div class="rq-pane__actions-danger">${danger}</div>` : ""}</footer>`;
+  }
+
+  function buildRequestDetailPane(r, user) {
+    if (!r) {
+      return `<aside class="rq-pane rq-pane--empty" aria-label="Detalle de la solicitud"><p class="rq-empty-pane">Seleccione una solicitud para ver su detalle.</p></aside>`;
+    }
+    let activeTab = "general";
+    try {
+      activeTab = String((typeof state !== "undefined" && state?.requestsUi?.detailTab) || "general");
+    } catch (_) {
+      /* noop */
+    }
+    if (!RQ_DETAIL_TABS.some((t) => t.id === activeTab)) activeTab = "general";
+    const clientName = String(r.clientName || "Cliente").trim() || "Cliente";
+    const originCity = String(r.originCity || r.originDepartment || "Origen").trim();
+    const destCity = String(r.destinationCity || r.destinationDepartment || "Destino").trim();
+    const distanceKm = parseNum(r.distanceKm || 0);
+    const created = r.createdAt && typeof formatPortalOpsCardRelative === "function" ? formatPortalOpsCardRelative(r.createdAt) : "";
+    const reqNo = String(r.requestNumber || r.id || "—");
+    const fare = requestFarePresentation(r);
+    const modeLabel =
+      typeof requestTransportModeFromRequest === "function" ? requestTransportModeFromRequest(r) : String(r.serviceType || "—");
+    const termoking =
+      typeof requestRequiresTermoking === "function" ? requestRequiresTermoking(r) : r.refrigeracionTermoking === true;
+    const truckReq = typeof requestTruckRequirementSummaryHtml === "function" ? requestTruckRequirementSummaryHtml(r) : escapeHtml(String(r.requiredTruckType || "—"));
+    const notes = String(r.notes || r.observations || "").trim();
+    const urgency =
+      rqPickupRaw(r) && [STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION, STATUS.VIAJE_ASIGNADO].includes(r.status) && typeof portalOpsCardPickupUrgency === "function"
+        ? portalOpsCardPickupUrgency(rqPickupRaw(r))
+        : { label: "", tone: "" };
+    const tripHtml = r.trip
+      ? `<div class="rq-trip"><span class="rq-trip__ico" aria-hidden="true">${IC.truck}</span>
+          <div class="rq-trip__body"><strong>${escapeHtml(String(r.trip.tripNumber || "Viaje"))} · ${escapeHtml(String(r.trip.vehiclePlate || "—"))}</strong>
+          <span>${escapeHtml(String(r.trip.driverName || "Sin conductor"))}</span></div></div>`
+      : r.status === STATUS.APROBADA_PENDIENTE_ASIGNACION
+        ? `<div class="rq-trip rq-trip--wait"><span class="rq-trip__ico" aria-hidden="true">${IC.clock}</span><div class="rq-trip__body"><strong>Pendiente de asignar vehículo</strong><span>Operaciones debe asignar flota y conductor.</span></div></div>`
+        : "";
+
+    const panels = {
+      general: `<dl class="rq-fields">
+          ${rqField("Cliente", escapeHtml(clientName), { wide: true })}
+          ${rqField("Solicitado por", escapeHtml(String(r.requestedByName || "")))}
+          ${rqField("Contacto en sitio", escapeHtml([r.siteContactName || r.contactName, r.siteContactPhone || r.contactPhone].filter(Boolean).join(" · ")))}
+          ${rqField("Recogida", `${escapeHtml(rqShortDate(rqPickupRaw(r)))}${urgency.label ? ` <span class="rq-chip rq-chip--${escapeAttr(urgency.tone || "ok")}">${escapeHtml(urgency.label)}</span>` : ""}`)}
+          ${rqField("Entrega estimada", escapeHtml(rqDeliveryRaw(r) ? rqShortDate(rqDeliveryRaw(r)) : ""))}
+          ${rqField(fare.label, fare.pending ? `<span class="rq-muted">${escapeHtml(fare.text)} · ${escapeHtml(fare.sub || "")}</span>` : escapeHtml(fare.text), { strong: !fare.pending })}
+          ${rqField("Aprobación", r.autoApproved ? "Automática" : r.status === STATUS.PENDIENTE ? "Pendiente" : "Manual")}
+        </dl>
+        ${tripHtml}
+        ${notes ? `<section class="rq-block"><h4 class="rq-block__title">Observaciones</h4><p class="rq-notes">${escapeHtml(notes)}</p></section>` : ""}`,
+      route: `<ol class="rq-route">
+          <li class="rq-route__stop rq-route__stop--origin"><span class="rq-route__dot" aria-hidden="true"></span>
+            <div><span class="rq-route__kind">Recogida</span><strong>${escapeHtml(originCity)}</strong>
+            <span class="rq-route__addr">${escapeHtml([r.originDepartment, r.originAddress].filter(Boolean).join(" · ") || "Sin dirección")}</span>
+            <span class="rq-route__when">${escapeHtml(rqShortDate(rqPickupRaw(r)))}</span></div></li>
+          <li class="rq-route__stop rq-route__stop--dest"><span class="rq-route__dot" aria-hidden="true"></span>
+            <div><span class="rq-route__kind">Entrega</span><strong>${escapeHtml(destCity)}</strong>
+            <span class="rq-route__addr">${escapeHtml([r.destinationDepartment, r.destinationAddress].filter(Boolean).join(" · ") || "Sin dirección")}</span>
+            <span class="rq-route__when">${escapeHtml(rqDeliveryRaw(r) ? rqShortDate(rqDeliveryRaw(r)) : "Sin fecha de entrega")}</span></div></li>
+        </ol>
+        ${distanceKm > 0 ? `<p class="rq-route__km">${escapeHtml(distanceKm.toLocaleString("es-CO"))} km estimados</p>` : ""}`,
+      service: `<dl class="rq-fields">
+          ${rqField("Modo de transporte", escapeHtml(String(modeLabel)))}
+          ${rqField("Carga", escapeHtml(String(r.cargoDescription || "")))}
+          ${rqField("Vehículo requerido", truckReq)}
+          ${rqField("Termoking", termoking ? "Sí, con refrigeración" : "No, carga seca")}
+          ${parseNum(r.insuredValue) > 0 ? rqField("Valor asegurado", escapeHtml(rqMoney(r.insuredValue))) : ""}
+          ${parseNum(r.standbyChargeTotal) > 0 ? rqField("Standby", escapeHtml(rqMoney(r.standbyChargeTotal))) : ""}
+        </dl>`,
+      trace: `<section class="rq-block"><h4 class="rq-block__title">Resumen de la solicitud</h4>${rqTimelineHtml(r)}</section>
+        <p class="rq-trace-foot">${r.updatedAt ? `Última actualización: ${escapeHtml(fmtDate(r.updatedAt))}` : ""}</p>
+        ${rqModLogHtml(r)}`
+    };
+    const tabs = RQ_DETAIL_TABS.map(
+      (t) =>
+        `<button type="button" role="tab" class="rq-tab${t.id === activeTab ? " is-active" : ""}" id="rq-tab-${t.id}" aria-controls="rq-panel-${t.id}" aria-selected="${t.id === activeTab ? "true" : "false"}" data-action="request-detail-tab" data-tab="${t.id}">${escapeHtml(t.label)}</button>`
+    ).join("");
+    const panelsHtml = RQ_DETAIL_TABS.map(
+      (t) =>
+        `<div class="rq-panel" role="tabpanel" id="rq-panel-${t.id}" aria-labelledby="rq-tab-${t.id}" data-panel="${t.id}"${t.id === activeTab ? "" : " hidden"}>${panels[t.id]}</div>`
+    ).join("");
+    return `<aside class="rq-pane rq-pane--${rqTone(r.status)}" aria-label="Detalle de la solicitud ${escapeAttr(reqNo)}" data-pane-request-id="${escapeAttr(String(r.id || ""))}">
+      <header class="rq-pane__head">
+        <div class="rq-pane__id">
+          <span class="rq-pane__avatar" aria-hidden="true">${rqInitial(clientName)}</span>
+          <div class="rq-pane__title">
+            <h4>${escapeHtml(clientName)}</h4>
+            <p>${escapeHtml(reqNo)}${created ? ` · creada ${escapeHtml(created)}` : ""}</p>
+            <div class="rq-pane__status">${rqStatusPill(r)}</div>
+          </div>
+        </div>
+        <div class="rq-pane__route" aria-label="Ruta">
+          <strong>${escapeHtml(originCity)}</strong><span class="rq-pane__route-arrow" aria-hidden="true">${IC.chevronRight}</span><strong>${escapeHtml(destCity)}</strong>
+          ${distanceKm > 0 ? `<span class="rq-pane__route-km">${escapeHtml(distanceKm.toLocaleString("es-CO"))} km</span>` : ""}
+        </div>
+      </header>
+      <div class="rq-tabs" role="tablist" aria-label="Secciones de la solicitud">${tabs}</div>
+      <div class="rq-pane__body">${panelsHtml}</div>
+      ${buildRequestPaneActions(r, user)}
+    </aside>`;
+  }
+
+  function requestInboxHtml(sorted, shown, moreBar, user) {
+    const selectedId = rqSelectedId(shown);
+    const selected = shown.find((r) => String(r.id) === selectedId) || null;
+    const items = shown.map((r) => buildRequestInboxItem(r, String(r.id) === selectedId)).join("");
+    return `<div class="rq-inbox">
+      <div class="rq-inbox__list"><ol class="rq-list" aria-label="Solicitudes">${items}</ol>${moreBar}</div>
+      ${buildRequestDetailPane(selected, user)}
+    </div>`;
   }
 
   /**
@@ -423,7 +715,7 @@
         <tbody>${rows}</tbody>
       </table></div>${moreBar}`;
     }
-    return `<div class="trip-ops-cards portal-ops-cards request-ops-cards">${shown.map((r) => buildRequestOpsCard(r, user)).join("")}</div>${moreBar}`;
+    return requestInboxHtml(sorted, shown, moreBar, user);
   }
 
   /**
@@ -452,7 +744,6 @@
   function requestDataHeadHtml({ eyebrow, title, meta, actionsHtml }) {
     return `<header class="requests-data-head">
       <div class="requests-data-head__copy">
-        ${eyebrow ? `<span class="requests-data-head__eyebrow">${eyebrow}</span>` : ""}
         <h3 aria-level="2" class="requests-data-head__title">${escapeHtml(title)}</h3>
         ${meta ? `<p class="requests-data-head__meta muted">${escapeHtml(meta)}</p>` : ""}
       </div>
@@ -460,19 +751,27 @@
     </header>`;
   }
 
-  function requestDataToolbarHtml(filtersBar, listSearchRaw, listLayout) {
-    return `<div class="requests-data-toolbar">
-      <div class="requests-data-toolbar__filters">${filtersBar}</div>
-      <div class="requests-data-toolbar__tools">
-        <label class="requests-data-search transport-ops-search">
-          <span class="requests-data-search__icon" aria-hidden="true">${IC.search || ""}</span>
+  function requestDataToolbarHtml(statusBar, fieldBar, activeFieldCount, listSearchRaw, listLayout) {
+    let filtersOpen;
+    try {
+      filtersOpen = typeof state !== "undefined" ? state?.requestsUi?.filtersOpen : undefined;
+    } catch (_) {
+      /* noop */
+    }
+    const showPanel = filtersOpen === true || (filtersOpen === undefined && activeFieldCount > 0);
+    const seg = (layout, label) =>
+      `<button type="button" class="rq-seg__btn${listLayout === layout ? " is-active" : ""}" data-action="requests-list-layout" data-layout="${layout}" aria-pressed="${listLayout === layout ? "true" : "false"}">${label}</button>`;
+    return `<div class="rq-toolbar requests-data-toolbar">
+      ${statusBar}
+      <div class="rq-tools">
+        <label class="rq-search requests-data-search">
+          <span class="rq-search__icon" aria-hidden="true">${IC.search || ""}</span>
           <input type="search" data-action="requests-list-search" value="${escapeAttr(listSearchRaw)}" placeholder="Buscar cliente, ruta, número, conductor…" autocomplete="off" />
         </label>
-        <div class="requests-data-layout transport-ops-layout" role="group" aria-label="Tarjetas o lista">
-          <button type="button" class="btn btn-sm ${listLayout === "cards" ? "btn-primary" : "btn-outline"}" data-action="requests-list-layout" data-layout="cards">${IC.grid || ""} Tarjetas</button>
-          <button type="button" class="btn btn-sm ${listLayout === "list" ? "btn-primary" : "btn-outline"}" data-action="requests-list-layout" data-layout="list">${IC.layers || ""} Lista</button>
-        </div>
+        <button type="button" class="rq-filter-btn${showPanel ? " is-open" : ""}" data-action="requests-filters-toggle" aria-expanded="${showPanel ? "true" : "false"}" aria-controls="rq-filters-panel">${IC.filter || ""}<span>Filtros</span>${activeFieldCount ? `<span class="rq-filter-btn__count">${activeFieldCount}</span>` : ""}</button>
+        <div class="rq-seg" role="group" aria-label="Forma de ver las solicitudes">${seg("cards", "Bandeja")}${seg("list", "Tabla")}</div>
       </div>
+      <div class="rq-filters-panel" id="rq-filters-panel"${showPanel ? "" : " hidden"}>${fieldBar}</div>
     </div>`;
   }
 
@@ -498,7 +797,6 @@
         <aside class="requests-data-sidebar" aria-label="Empresas clientes">
           <div class="requests-data-sidebar__head">
             <div>
-              <span class="requests-data-sidebar__eyebrow">Clientes</span>
               <h4 class="requests-data-sidebar__title">Empresas</h4>
             </div>
             <span class="requests-data-sidebar__count">${companyCount}</span>
@@ -965,22 +1263,24 @@
         requests.reduce((acc, r) => ({ ...acc, [r.clientCompanyId || ""]: true }), {})
       ).filter(Boolean).length;
       const hub = requestAdminCompanySidebarHtml(requests, selectedCompanyId);
-      const filtersBar = requestFiltersBarHtml(byCompany, activeFilter) + requestFieldFiltersBarHtml(byCompany, fieldFilters);
-      const toolbarHtml = requestDataToolbarHtml(filtersBar, listSearchRaw, listLayout);
+      const toolbarHtml = requestDataToolbarHtml(
+        requestFiltersBarHtml(byCompany, activeFilter),
+        requestFieldFiltersBarHtml(byCompany, fieldFilters),
+        Object.values(fieldFilters).filter(Boolean).length,
+        listSearchRaw,
+        listLayout
+      );
       const resultsHtml = requestOpsCardsHtml(afterFilter, user, listLayout);
-      const scopeBadge = selectedCompany
-        ? `<span class="requests-data-scope-badge requests-data-scope-badge--active">${IC.briefcase} ${escapeHtml(selectedCompany.name || "Cliente")}</span>`
-        : `<span class="requests-data-scope-badge">${IC.briefcase} Vista multiempresa</span>`;
-      const headActions = `<div class="requests-data-head__actions">
-        ${scopeBadge}
-        <button type="button" class="btn btn-sm btn-outline" data-action="request-company-clear" ${selectedCompanyId ? "" : "disabled"}>${IC.x} Limpiar filtro</button>
-      </div>`;
+      const headActions = selectedCompanyId
+        ? `<div class="requests-data-head__actions">
+        <button type="button" class="rq-link-btn" data-action="request-company-clear">${IC.x}<span>Ver todas las empresas</span></button>
+      </div>`
+        : "";
       const headHtml = requestDataHeadHtml({
-        eyebrow: "Bandeja operativa",
         title: selectedCompany ? selectedCompany.name || "Cliente" : "Todas las solicitudes",
         meta: selectedCompany
           ? "Solicitudes de transporte del cliente seleccionado."
-          : "Resumen consolidado de solicitudes por empresa.",
+          : "Todas las empresas en una sola bandeja.",
         actionsHtml: headActions
       });
       const resultMetaHtml = requestDataResultMetaHtml(afterFilter.length, byCompany.length, {
@@ -1006,11 +1306,15 @@
       ? statusFiltered.filter((r) => requestListSearchHaystack(r).includes(listSearchNorm))
       : statusFiltered;
     const filtered = filteredBySearch.filter((r) => requestMatchesFieldFilters(r, fieldFilters));
-    const filtersBar = requestFiltersBarHtml(requests, activeFilter) + requestFieldFiltersBarHtml(requests, fieldFilters);
-    const toolbarHtml = requestDataToolbarHtml(filtersBar, listSearchRaw, listLayout);
+    const toolbarHtml = requestDataToolbarHtml(
+      requestFiltersBarHtml(requests, activeFilter),
+      requestFieldFiltersBarHtml(requests, fieldFilters),
+      Object.values(fieldFilters).filter(Boolean).length,
+      listSearchRaw,
+      listLayout
+    );
     const resultsHtml = requestOpsCardsHtml(filtered, user, listLayout);
     const headHtml = requestDataHeadHtml({
-      eyebrow: "Bandeja operativa",
       title: panelTitle,
       meta: "Seguimiento de solicitudes, estados y viajes asociados."
     });

@@ -126,7 +126,7 @@ const MODULES = [
     viewId: "labor-compliance",
     htmlFn: "laborComplianceHtml",
     files: ["modules/app/cumplimiento-laboral.js"],
-    tablePatterns: ["table-wrap", "<thead><tr><th>Control</th>"],
+    tablePatterns: ["table-wrap", "<th>Control</th>"],
     bindPattern: '__portalModuleAfterRender["labor-compliance"]',
     uiType: "table"
   },

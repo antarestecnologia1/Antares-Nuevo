@@ -224,6 +224,15 @@
     return undefined;
   }
 
+  /** Mensaje con la causa probable cuando el servidor no devolvió detalle. */
+  function notifySyncHint(text) {
+    try {
+      if (typeof window.notify === "function") window.notify(text, "error");
+    } catch (_e) {
+      /* noop */
+    }
+  }
+
   function notifySyncFailureDebounced() {
     try {
       var now = Date.now();
@@ -320,6 +329,16 @@
         } catch (_e3) {
           /* noop */
         }
+      } else if (errStatus === 401) {
+        notifySyncHint("Su sesión venció. Inicie sesión de nuevo y repita la operación.");
+      } else if (errStatus === 403) {
+        notifySyncHint("No tiene permiso para guardar este registro. Pida acceso a un administrador.");
+      } else if (errStatus === 409) {
+        notifySyncHint("Ya existe un registro con esos datos (documento, correo, placa o número). Revise el campo repetido.");
+      } else if (errStatus === 413) {
+        notifySyncHint("El contenido es demasiado grande (archivo o imagen). Use uno más liviano.");
+      } else if (errStatus === 400 || errStatus === 422) {
+        notifySyncHint("Hay datos inválidos o incompletos. Revise los campos obligatorios, fechas y formatos (cédula, correo, teléfono).");
       } else {
         notifySyncFailureDebounced();
       }

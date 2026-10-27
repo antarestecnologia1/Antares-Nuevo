@@ -410,7 +410,15 @@ export class B2bProspectService {
         purpose: "cv"
       });
       const mime = meta.mime;
-      const origRaw = String(attachment.originalname || "hoja-de-vida").trim().slice(0, 240);
+      const origDecoded = (() => {
+        const o = String(attachment.originalname || "");
+        if (/[\u0080-\u00ff]/.test(o) && !/[^\u0000-\u00ff]/.test(o)) {
+          const d = Buffer.from(o, "latin1").toString("utf8");
+          if (d && !d.includes("\uFFFD")) return d.normalize("NFC");
+        }
+        return o.normalize("NFC");
+      })();
+      const origRaw = String(origDecoded || "hoja-de-vida").trim().slice(0, 240);
       const safeTail = origRaw.replace(/[^\w.\-\sÁÉÍÓÚáéíóúñÑ]+/g, "_").replace(/\s+/g, "_");
       const fileLabel = safeTail.length ? safeTail : "hoja-de-vida";
 

@@ -15,7 +15,7 @@
   --adm-shadow-sm: 0 6px 20px rgba(11, 33, 56, 0.06);
   --adm-radius: 18px;
   --adm-radius-sm: 12px;
-  --adm-accent: #4f46e5;
+  --adm-accent: #377cc0;
   display: flex;
   flex-direction: column;
   gap: 1.1rem;

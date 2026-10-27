@@ -300,6 +300,13 @@ function canDeleteFolder(folders, path) {
   );
 }
 
+/** El nombre que escribió el cliente conserva las tildes; el eco del servidor puede traerlas dañadas («C_dula»). */
+function pickDocFileName(serverName, clientName) {
+  const client = String(clientName || "").normalize("NFC");
+  if (/[^\x00-\x7f]/.test(client)) return client;
+  return serverName || client;
+}
+
 function readDocs() {
   return read(KEYS.companyDocuments, [])
     .map((row) => {
@@ -1800,7 +1807,7 @@ async function archivePayrollRunToEmployeeFolderNow(run, { force = false } = {})
     if (existing?.id) {
       const updated = normalizeCompanyDocumentRow({
         ...existing,
-        fileName: uploaded.fileName || fileName,
+        fileName: pickDocFileName(uploaded.fileName, fileName),
         type: "PDF",
         documentCategory: "comprobante_pago",
         folder: uploaded.folder || existing.folder || folder,
@@ -1822,7 +1829,7 @@ async function archivePayrollRunToEmployeeFolderNow(run, { force = false } = {})
     }
     const record = normalizeCompanyDocumentRow({
       id: newUuidV4(),
-      fileName: uploaded.fileName || fileName,
+      fileName: pickDocFileName(uploaded.fileName, fileName),
       type: "PDF",
       documentCategory: "comprobante_pago",
       folder: uploaded.folder || folder,
@@ -1898,8 +1905,8 @@ async function archiveBlobToEmployeeFolder({
     const cat = String(documentCategory || "otro");
     const record = normalizeCompanyDocumentRow({
       id: newUuidV4(),
-      fileName: uploaded.fileName || fileName,
-      type: fileTypeLabel(uploaded.fileName || fileName, uploaded.mimeType || file.type),
+      fileName: pickDocFileName(uploaded.fileName, fileName),
+      type: fileTypeLabel(pickDocFileName(uploaded.fileName, fileName), uploaded.mimeType || file.type),
       documentCategory: cat,
       folder: uploaded.folder || folder,
       mimeType: uploaded.mimeType || file.type || "application/octet-stream",
@@ -3153,8 +3160,8 @@ function openUploadModal() {
           });
           const record = normalizeCompanyDocumentRow({
             id: recordId,
-            fileName: uploaded.fileName || file.name,
-            type: fileTypeLabel(uploaded.fileName || file.name, uploaded.mimeType || file.type),
+            fileName: pickDocFileName(uploaded.fileName, file.name),
+            type: fileTypeLabel(pickDocFileName(uploaded.fileName, file.name), uploaded.mimeType || file.type),
             documentCategory,
             folder: normalizeCompanyFolder(uploaded.folder || folder),
             mimeType: uploaded.mimeType || file.type || "application/octet-stream",

@@ -240,6 +240,51 @@
       });
     });
 
+    /* Bandeja: elegir solicitud (re-render conservando el scroll de la lista). */
+    nodes.viewRoot.querySelectorAll("[data-action='request-select']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        clearRequestsSearchTimers();
+        const list = nodes.viewRoot.querySelector(".rq-inbox__list");
+        state.__requestsInboxScroll = list ? list.scrollTop : 0;
+        state.requestsUi = { ...(state.requestsUi || {}), selectedId: String(btn.dataset.id || "") };
+        renderPortalView();
+        if (window.matchMedia && window.matchMedia("(max-width: 1100px)").matches) {
+          queueMicrotask(() => nodes.viewRoot.querySelector(".rq-pane")?.scrollIntoView({ block: "start", behavior: "smooth" }));
+        }
+      });
+    });
+
+    /* Panel de detalle: pestañas sin re-render. */
+    nodes.viewRoot.querySelectorAll("[data-action='request-detail-tab']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const tab = String(btn.dataset.tab || "general");
+        const pane = btn.closest(".rq-pane");
+        if (!pane) return;
+        pane.querySelectorAll("[data-action='request-detail-tab']").forEach((b) => {
+          const on = b === btn;
+          b.classList.toggle("is-active", on);
+          b.setAttribute("aria-selected", on ? "true" : "false");
+        });
+        pane.querySelectorAll(".rq-panel").forEach((panel) => {
+          panel.hidden = panel.dataset.panel !== tab;
+        });
+        state.requestsUi = { ...(state.requestsUi || {}), detailTab: tab };
+      });
+    });
+
+    /* Filtros plegables sin re-render. */
+    nodes.viewRoot.querySelectorAll("[data-action='requests-filters-toggle']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const panel = nodes.viewRoot.querySelector("#rq-filters-panel");
+        if (!panel) return;
+        const open = panel.hidden;
+        panel.hidden = !open;
+        btn.classList.toggle("is-open", open);
+        btn.setAttribute("aria-expanded", open ? "true" : "false");
+        state.requestsUi = { ...(state.requestsUi || {}), filtersOpen: open };
+      });
+    });
+
     nodes.viewRoot.querySelectorAll("[data-action='requests-list-layout']").forEach((btn) => {
       btn.addEventListener("click", () => {
         clearRequestsSearchTimers();
@@ -1011,6 +1056,13 @@
     wireMisSolicitudesListActions();
     wireRequestCreateForm();
     bindRequestsFormSteps();
+
+    if (typeof state.__requestsInboxScroll === "number") {
+      const keep = state.__requestsInboxScroll;
+      delete state.__requestsInboxScroll;
+      const list = nodes.viewRoot?.querySelector(".rq-inbox__list");
+      if (list) list.scrollTop = keep;
+    }
 
     const reqSearchRestore = state.__requestsListSearchRestore;
     if (reqSearchRestore && typeof reqSearchRestore.start === "number") {

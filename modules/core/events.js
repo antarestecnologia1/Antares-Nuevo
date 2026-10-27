@@ -1239,6 +1239,20 @@ function bindDynamicEvents() {
         return;
       }
       data.taxId = docValidation.normalized;
+      {
+        const normDoc = (v) => String(v || "").replace(/[\s.\-]/g, "").toLowerCase();
+        const newDoc = normDoc(data.taxId);
+        const dupUser = users.find((item) => newDoc && normDoc(item.taxId || item.personalDoc) === newDoc);
+        if (dupUser) {
+          const who = String(dupUser.name || dupUser.email || "").trim();
+          failPortalField(
+            adminUserCreate,
+            "taxId",
+            `El documento ${data.taxId} ya está registrado${who ? ` a nombre de ${who}` : " en otro usuario"}. Verifique el número o edite ese usuario.`
+          );
+          return;
+        }
+      }
       const company = getCompanyById(data.companyId);
       if (!company) {
         failPortalField(adminUserCreate, "companyId", $portal.userMessage("userSelectCompany"));

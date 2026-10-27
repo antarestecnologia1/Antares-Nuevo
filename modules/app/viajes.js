@@ -388,7 +388,7 @@ function transportTripsHtml() {
             ${transitions.map((s) => `<option value="${escapeAttr(s)}" ${r.status === s ? "selected" : ""}>${escapeHtml(tripStatusOptionLabel(s))}</option>`).join("")}
           </select>
         </label>`
-        : `<span class="trip-ops-card-status trip-ops-card-status--${escapeAttr(statusSlug)}">${prettyStatus(r.status, "trip")}</span>`;
+        : tpStatusPill(r);
     const routeCell = `<span class="vehicle-fleet-list-sub">${escapeHtml(originCity)}</span> <span aria-hidden="true">→</span> <span class="vehicle-fleet-list-sub">${escapeHtml(destinationCity)}</span>`;
     const standbyLine =
       standby > 0 ? `<div class="muted vehicle-fleet-list-sub">${IC.clock || ""} Standby $${standby.toLocaleString("es-CO")}</div>` : "";
@@ -401,7 +401,7 @@ function transportTripsHtml() {
       <td data-label="Cliente / viaje"><strong class="vehicle-fleet-list-plate">${escapeHtml(clientName)}</strong><div class="muted vehicle-fleet-list-sub">${escapeHtml(tripLine)}</div></td>
       <td data-label="Ruta">${routeCell}</td>
       <td data-label="Estado">${statusSelectHtml}</td>
-      <td data-label="Recogida">${escapeHtml(pickupLabel)}</td>
+      <td data-label="Recogida" class="rq-nowrap">${escapeHtml(tpShortDate(r.trip?.etaPickup || r.pickupAt || ""))}</td>
       <td data-label="Camión">${escapeHtml(plate)}</td>
       <td data-label="Conductor">${escapeHtml(driverName)}</td>
       <td data-label="Tarifa">${fareCell}${standbyLine}</td>
@@ -415,6 +415,223 @@ function transportTripsHtml() {
     </tr>`;
   };
 
+  /* ------------------------------------------------------------------
+   * Bandeja + panel de detalle (misma lógica visual que Solicitudes).
+   * Los botones del panel reutilizan los `data-action` existentes
+   * (trip-detail / detail / edit-trip / trip-invoice / delete-trip /
+   * trip-status), cableados tras cada render por `bindTransportTripsPortalControls`.
+   * ------------------------------------------------------------------ */
+  const TP_TABS = [
+    { id: "general", label: "General" },
+    { id: "route", label: "Ruta" },
+    { id: "fleet", label: "Flota" },
+    { id: "follow", label: "Seguimiento" }
+  ];
+  const tpTone = (status) => {
+    if ([STATUS.COMPLETADA, STATUS.CERRADA].includes(status)) return "done";
+    if ([STATUS.CANCELADA, STATUS.RECHAZADA].includes(status)) return "cancel";
+    if ([STATUS.ESPERA_STANDBY, STATUS.PENDIENTE, STATUS.APROBADA_PENDIENTE_ASIGNACION].includes(status)) return "wait";
+    return "live";
+  };
+  const tpStatusText = (r) =>
+    String(typeof prettyStatus === "function" ? prettyStatus(r.status, "trip") : r.status || "—")
+      .replace(/<[^>]*>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim() || "—";
+  const tpStatusPill = (r) =>
+    `<span class="rq-status rq-status--${tpTone(r.status)}"><span class="rq-status__dot" aria-hidden="true"></span>${escapeHtml(tpStatusText(r))}</span>`;
+  const tpShortDate = (raw) => {
+    if (!raw) return "Sin fecha";
+    const d = new Date(raw);
+    if (Number.isNaN(d.getTime())) return "Sin fecha";
+    const opts = { timeZone: "America/Bogota" };
+    const day = d.toLocaleDateString("es-CO", { ...opts, day: "numeric", month: "short" }).replace(".", "");
+    const time = d.toLocaleTimeString("es-CO", { ...opts, hour: "numeric", minute: "2-digit", hour12: true });
+    return `${day} · ${time}`;
+  };
+  const tpField = (label, valueHtml, opts = {}) => {
+    const v = valueHtml == null || valueHtml === "" ? `<span class="rq-muted">—</span>` : valueHtml;
+    return `<div class="rq-field${opts.wide ? " rq-field--wide" : ""}${opts.strong ? " rq-field--strong" : ""}"><dt>${escapeHtml(label)}</dt><dd>${v}</dd></div>`;
+  };
+  const tpSelectedId = (list) => {
+    const sel = String(transportTripsUi.selectedId || "");
+    if (sel && list.some((r) => String(r.id) === sel)) return sel;
+    return list.length ? String(list[0].id) : "";
+  };
+
+  const buildTripInboxItem = (r, selected) => {
+    const clientName = String(r.clientName || "Cliente").trim() || "Cliente";
+    const origin = String(r.originCity || r.originDepartment || "Origen").trim();
+    const dest = String(r.destinationCity || r.destinationDepartment || "Destino").trim();
+    const fare = tripFarePresentation(r);
+    const id = escapeAttr(String(r.id || ""));
+    const plate = String(r.trip?.vehiclePlate || "—").trim() || "—";
+    const driver = String(r.trip?.driverName || "Sin conductor").trim() || "Sin conductor";
+    return `<li class="rq-list__li">
+      <button type="button" class="rq-item rq-item--${tpTone(r.status)}${selected ? " is-selected" : ""}" data-action="trip-select" data-id="${id}" data-trip-id="${id}" aria-pressed="${selected ? "true" : "false"}">
+        <span class="rq-item__top">
+          <strong class="rq-item__client" title="${escapeAttr(clientName)}">${escapeHtml(clientName)}</strong>
+          <span class="rq-item__no">${escapeHtml(String(r.trip?.tripNumber || "—"))}</span>
+        </span>
+        <span class="rq-item__route"><span>${escapeHtml(origin)}</span><span class="rq-item__arrow" aria-hidden="true">${IC.chevronRight}</span><span>${escapeHtml(dest)}</span></span>
+        <span class="rq-item__fleet"><span class="rq-item__fleet-ico" aria-hidden="true">${IC.truck}</span><strong>${escapeHtml(plate)}</strong><span>${escapeHtml(driver)}</span></span>
+        <span class="rq-item__meta">
+          ${tpStatusPill(r)}
+          <span class="rq-item__when">${escapeHtml(tpShortDate(r.trip?.etaPickup || r.pickupAt))}</span>
+          <span class="rq-item__fare${fare.tone === "warn" ? " is-pending" : ""}">${escapeHtml(fare.text)}</span>
+        </span>
+      </button>
+    </li>`;
+  };
+
+  const tpTimeline = (r) => {
+    const cancelled = [STATUS.CANCELADA, STATUS.RECHAZADA].includes(r.status);
+    const closed = [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status);
+    const moving = [STATUS.EN_TRANSITO, STATUS.ESPERA_STANDBY].includes(r.status) || closed;
+    const steps = [
+      { label: "Viaje asignado", detail: `${String(r.trip?.vehiclePlate || "").trim()} · ${String(r.trip?.driverName || "").trim()}`.replace(/^ · | · $/g, ""), done: true },
+      { label: "En ruta", detail: moving ? `Recogida ${tpShortDate(r.trip?.etaPickup || r.pickupAt)}` : "", done: moving },
+      { label: "Entregado", detail: closed && r.updatedAt ? fmtDate(r.updatedAt) : "", done: closed }
+    ];
+    if (parseNum(r.standbyChargeTotal) > 0) {
+      steps.splice(2, 0, { label: "Espera en standby", detail: `Acumulado $${parseNum(r.standbyChargeTotal).toLocaleString("es-CO")}`, done: true, wait: true });
+    }
+    if (cancelled) {
+      return [
+        steps[0],
+        { label: r.status === STATUS.RECHAZADA ? "Solicitud rechazada" : "Viaje cancelado", detail: r.updatedAt ? fmtDate(r.updatedAt) : "", done: true, cancel: true }
+      ].map((s) => ({ ...s, state: s.cancel ? "cancel" : "done" }));
+    }
+    let currentSet = false;
+    return steps.map((s) => {
+      if (s.done) return { ...s, state: "done" };
+      if (!currentSet) {
+        currentSet = true;
+        return { ...s, state: "current" };
+      }
+      return { ...s, state: "todo" };
+    });
+  };
+
+  const buildTripDetailPane = (r) => {
+    if (!r) {
+      return `<aside class="rq-pane rq-pane--empty" aria-label="Detalle del viaje"><p class="rq-empty-pane">Seleccione un viaje para ver su detalle.</p></aside>`;
+    }
+    const tabIds = TP_TABS.map((t) => t.id);
+    let activeTab = String(transportTripsUi.detailTab || "general");
+    if (!tabIds.includes(activeTab)) activeTab = "general";
+    const idAttr = escapeAttr(String(r.id || ""));
+    const clientName = String(r.clientName || "Cliente").trim() || "Cliente";
+    const originCity = String(r.originCity || r.originDepartment || "Origen").trim();
+    const destCity = String(r.destinationCity || r.destinationDepartment || "Destino").trim();
+    const distanceKm = parseNum(r.distanceKm || 0);
+    const fare = tripFarePresentation(r);
+    const standby = parseNum(r.standbyChargeTotal);
+    const tripNo = String(r.trip?.tripNumber || "—");
+    const reqNo = String(r.requestNumber || r.id || "—");
+    const plate = String(r.trip?.vehiclePlate || "—").trim() || "—";
+    const driver = String(r.trip?.driverName || "Sin conductor").trim() || "Sin conductor";
+    const driverPhone = String(r.trip?.driverPhone || "").trim();
+    const pickupRaw = r.trip?.etaPickup || r.pickupAt || "";
+    const deliveryRaw = r.trip?.etaDelivery || r.etaDelivery || "";
+    const truckReq = typeof requestTruckRequirementSummaryHtml === "function" ? requestTruckRequirementSummaryHtml(r) : "";
+    const termoking = typeof requestRequiresTermoking === "function" ? requestRequiresTermoking(r) : r.refrigeracionTermoking === true;
+    const isClosed = [STATUS.COMPLETADA, STATUS.CERRADA].includes(r.status);
+    const transitions = [r.status, ...(STATUS_TRANSITIONS[r.status] || [])];
+    const urgency =
+      pickupRaw && [STATUS.VIAJE_ASIGNADO, STATUS.ESPERA_STANDBY].includes(r.status) && typeof portalOpsCardPickupUrgency === "function"
+        ? portalOpsCardPickupUrgency(pickupRaw)
+        : { label: "", tone: "" };
+    const statusSlug = slugStatus(r.status);
+    const statusControl =
+      transitions.length > 1
+        ? `<label class="rq-statusbox"><span class="rq-statusbox__label">Cambiar estado del viaje</span>
+            <span class="rq-select"><select class="trip-status-select trip-status-select--${escapeAttr(statusSlug)}" data-action="trip-status" data-id="${idAttr}" data-current-status="${escapeAttr(String(r.status || ""))}" aria-label="Cambiar estado del viaje">
+              ${transitions.map((s) => `<option value="${escapeAttr(s)}" ${r.status === s ? "selected" : ""}>${escapeHtml(tripStatusOptionLabel(s))}</option>`).join("")}
+            </select><span class="rq-select__chev" aria-hidden="true">${IC.chevronDown}</span></span></label>`
+        : "";
+    const panels = {
+      general: `${statusControl}
+        <dl class="rq-fields">
+          ${tpField("Cliente", escapeHtml(clientName), { wide: true })}
+          ${tpField("Recogida", `${escapeHtml(tpShortDate(pickupRaw))}${urgency.label ? ` <span class="rq-chip rq-chip--${escapeAttr(urgency.tone || "ok")}">${escapeHtml(urgency.label)}</span>` : ""}`)}
+          ${tpField("Entrega estimada", escapeHtml(deliveryRaw ? tpShortDate(deliveryRaw) : ""))}
+          ${tpField("Tarifa", fare.tone === "warn" ? `<span class="rq-muted">${escapeHtml(fare.text)}</span>` : escapeHtml(fare.text), { strong: fare.tone !== "warn" })}
+          ${tpField("Solicitud", escapeHtml(reqNo))}
+          ${tpField("Carga", escapeHtml(String(r.cargoDescription || "")))}
+          ${tpField("Camión requerido", truckReq)}
+          ${tpField("Termoking", termoking ? "Sí, con refrigeración" : "No, carga seca")}
+          ${standby > 0 ? tpField("Standby acumulado", escapeHtml(`$${standby.toLocaleString("es-CO")}`)) : ""}
+        </dl>`,
+      route: `<ol class="rq-route">
+          <li class="rq-route__stop rq-route__stop--origin"><span class="rq-route__dot" aria-hidden="true"></span>
+            <div><span class="rq-route__kind">Recogida</span><strong>${escapeHtml(originCity)}</strong>
+            <span class="rq-route__addr">${escapeHtml([r.originDepartment, r.originAddress].filter(Boolean).join(" · ") || "Sin dirección")}</span>
+            <span class="rq-route__when">${escapeHtml(tpShortDate(pickupRaw))}</span></div></li>
+          <li class="rq-route__stop rq-route__stop--dest"><span class="rq-route__dot" aria-hidden="true"></span>
+            <div><span class="rq-route__kind">Entrega</span><strong>${escapeHtml(destCity)}</strong>
+            <span class="rq-route__addr">${escapeHtml([r.destinationDepartment, r.destinationAddress].filter(Boolean).join(" · ") || "Sin dirección")}</span>
+            <span class="rq-route__when">${escapeHtml(deliveryRaw ? tpShortDate(deliveryRaw) : "Sin fecha de entrega")}</span></div></li>
+        </ol>
+        ${distanceKm > 0 ? `<p class="rq-route__km">${escapeHtml(distanceKm.toLocaleString("es-CO"))} km estimados</p>` : ""}`,
+      fleet: `<div class="rq-trip"><span class="rq-trip__ico" aria-hidden="true">${IC.truck}</span>
+          <div class="rq-trip__body"><strong>${escapeHtml(plate)}</strong><span>Vehículo asignado</span></div></div>
+        <dl class="rq-fields rq-fields--spaced">
+          ${tpField("Conductor", escapeHtml(driver))}
+          ${tpField("Teléfono", escapeHtml(driverPhone))}
+          ${tpField("Salida programada", escapeHtml(tpShortDate(pickupRaw)))}
+          ${tpField("Llegada estimada", escapeHtml(deliveryRaw ? tpShortDate(deliveryRaw) : ""))}
+        </dl>`,
+      follow: `<section class="rq-block"><h4 class="rq-block__title">Seguimiento del viaje</h4>
+        <ol class="rq-timeline">${tpTimeline(r)
+          .map(
+            (s) => `<li class="rq-timeline__step rq-timeline__step--${escapeAttr(s.state)}">
+              <span class="rq-timeline__dot" aria-hidden="true"></span>
+              <span class="rq-timeline__label">${escapeHtml(s.label)}</span>
+              ${s.detail ? `<span class="rq-timeline__detail">${escapeHtml(s.detail)}</span>` : ""}
+            </li>`
+          )
+          .join("")}</ol></section>
+        <p class="rq-trace-foot">${r.updatedAt ? `Última actualización: ${escapeHtml(fmtDate(r.updatedAt))}` : ""}</p>`
+    };
+    const tabs = TP_TABS.map(
+      (t) =>
+        `<button type="button" role="tab" class="rq-tab${t.id === activeTab ? " is-active" : ""}" id="tp-tab-${t.id}" aria-controls="tp-panel-${t.id}" aria-selected="${t.id === activeTab ? "true" : "false"}" data-action="trip-detail-tab" data-tab="${t.id}">${escapeHtml(t.label)}</button>`
+    ).join("");
+    const panelsHtml = TP_TABS.map(
+      (t) =>
+        `<div class="rq-panel" role="tabpanel" id="tp-panel-${t.id}" aria-labelledby="tp-tab-${t.id}" data-panel="${t.id}"${t.id === activeTab ? "" : " hidden"}>${panels[t.id]}</div>`
+    ).join("");
+    const btn = (action, cls, icon, label, title) =>
+      `<button type="button" class="rq-btn ${cls}" data-action="${action}" data-id="${idAttr}" title="${escapeAttr(title)}">${icon}<span>${label}</span></button>`;
+    const main = [
+      btn("trip-detail", "rq-btn--primary", IC.truck, "Ficha del viaje", "Abrir la ficha del viaje"),
+      btn("detail", "rq-btn--ghost", IC.eye, "Ver solicitud", "Detalle de la solicitud"),
+      canAdminEditTrip(r) ? btn("edit-trip", "rq-btn--ghost", IC.edit, "Editar", "Editar asignación") : "",
+      isClosed ? btn("trip-invoice", "rq-btn--ghost", IC.file, "Factura", "Generar factura PDF") : ""
+    ].filter(Boolean).join("");
+    const danger = isAdmin ? btn("delete-trip", "rq-btn--danger", IC.trash, "Eliminar viaje", "Eliminar viaje") : "";
+    return `<aside class="rq-pane rq-pane--${tpTone(r.status)}" aria-label="Detalle del viaje ${escapeAttr(tripNo)}" data-pane-trip-id="${idAttr}">
+      <header class="rq-pane__head">
+        <div class="rq-pane__id">
+          <span class="rq-pane__avatar" aria-hidden="true">${escapeHtml(clientName.charAt(0).toUpperCase() || "V")}</span>
+          <div class="rq-pane__title">
+            <h4>${escapeHtml(clientName)}</h4>
+            <p>${escapeHtml(tripNo)} · Solicitud ${escapeHtml(reqNo)}</p>
+            <div class="rq-pane__status">${tpStatusPill(r)}</div>
+          </div>
+        </div>
+        <div class="rq-pane__route" aria-label="Ruta">
+          <strong>${escapeHtml(originCity)}</strong><span class="rq-pane__route-arrow" aria-hidden="true">${IC.chevronRight}</span><strong>${escapeHtml(destCity)}</strong>
+          ${distanceKm > 0 ? `<span class="rq-pane__route-km">${escapeHtml(distanceKm.toLocaleString("es-CO"))} km</span>` : ""}
+        </div>
+      </header>
+      <div class="rq-tabs" role="tablist" aria-label="Secciones del viaje">${tabs}</div>
+      <div class="rq-pane__body">${panelsHtml}</div>
+      <footer class="rq-pane__actions"><div class="rq-pane__actions-main">${main}</div>${danger ? `<div class="rq-pane__actions-danger">${danger}</div>` : ""}</footer>
+    </aside>`;
+  };
+
   const filterPill = (key, label, count) =>
     `<button type="button" class="ops-filter-pill${filter === key ? " is-active" : ""}" data-action="trips-filter" data-filter="${escapeAttr(key)}"><span>${escapeHtml(label)}</span><strong>${count}</strong></button>`;
   const opsFiltersBar = `<div class="transport-data-filters ops-filters-bar" role="group" aria-label="Filtrar viajes">
@@ -424,25 +641,28 @@ function transportTripsHtml() {
     ${filterPill("closed", "Cerrados", completedTrips)}
     ${filterPill("all", "Todos", trips.length)}
   </div>`;
-  const opsToolbar = `<div class="transport-data-toolbar__tools transport-ops-toolbar">
-    <label class="transport-ops-search transport-data-search">
-      <span class="transport-data-search__label muted">${IC.search || IC.eye} Buscar</span>
-      <input type="search" data-action="transport-trips-search" value="${escapeAttr(String(transportTripsUi.search || ""))}" placeholder="Cliente, ruta, placa, conductor, estado..." />
+  const tripsActiveFieldCount = Object.values(tripsFieldFilters).filter(Boolean).length;
+  const tripsFiltersOpenPref = transportTripsUi.filtersOpen;
+  const tripsShowFilters = tripsFiltersOpenPref === true || (tripsFiltersOpenPref === undefined && tripsActiveFieldCount > 0);
+  const tripsSeg = (layout, label) =>
+    `<button type="button" class="rq-seg__btn${tripsLayout === layout ? " is-active" : ""}" data-action="transport-trips-layout" data-layout="${layout}" aria-pressed="${tripsLayout === layout ? "true" : "false"}">${label}</button>`;
+  const opsToolbar = `<div class="rq-tools transport-ops-toolbar">
+    <label class="rq-search transport-ops-search transport-data-search">
+      <span class="rq-search__icon" aria-hidden="true">${IC.search || ""}</span>
+      <input type="search" data-action="transport-trips-search" value="${escapeAttr(String(transportTripsUi.search || ""))}" placeholder="Buscar cliente, ruta, placa, conductor…" autocomplete="off" />
     </label>
-    <label class="transport-ops-sort transport-data-sort">
-      <span class="transport-data-sort__label muted">${IC.filter || IC.activity} Orden</span>
-      <select data-action="transport-trips-sort">
-        <option value="pickup_asc" ${tripsSort === "pickup_asc" ? "selected" : ""}>Recogida (próxima primero)</option>
-        <option value="pickup_desc" ${tripsSort === "pickup_desc" ? "selected" : ""}>Recogida (más reciente primero)</option>
-        <option value="value_desc" ${tripsSort === "value_desc" ? "selected" : ""}>Tarifa (mayor a menor)</option>
-        <option value="value_asc" ${tripsSort === "value_asc" ? "selected" : ""}>Tarifa (menor a mayor)</option>
+    <label class="rq-sortbox">
+      <span class="rq-sortbox__label">Ordenar</span>
+      <select data-action="transport-trips-sort" aria-label="Ordenar viajes">
+        <option value="pickup_asc" ${tripsSort === "pickup_asc" ? "selected" : ""}>Recogida: próxima primero</option>
+        <option value="pickup_desc" ${tripsSort === "pickup_desc" ? "selected" : ""}>Recogida: más reciente primero</option>
+        <option value="value_desc" ${tripsSort === "value_desc" ? "selected" : ""}>Tarifa: mayor a menor</option>
+        <option value="value_asc" ${tripsSort === "value_asc" ? "selected" : ""}>Tarifa: menor a mayor</option>
         <option value="status" ${tripsSort === "status" ? "selected" : ""}>Estado (A-Z)</option>
       </select>
     </label>
-    <div class="transport-ops-layout transport-data-layout" role="group" aria-label="Tarjetas o lista">
-      <button type="button" class="btn btn-sm ${tripsLayout === "cards" ? "btn-primary" : "btn-outline"}" data-action="transport-trips-layout" data-layout="cards">Tarjetas</button>
-      <button type="button" class="btn btn-sm ${tripsLayout === "list" ? "btn-primary" : "btn-outline"}" data-action="transport-trips-layout" data-layout="list">Lista</button>
-    </div>
+    <button type="button" class="rq-filter-btn${tripsShowFilters ? " is-open" : ""}" data-action="trips-filters-toggle" aria-expanded="${tripsShowFilters ? "true" : "false"}" aria-controls="rq-filters-panel">${IC.filter || ""}<span>Filtros</span>${tripsActiveFieldCount ? `<span class="rq-filter-btn__count">${tripsActiveFieldCount}</span>` : ""}</button>
+    <div class="rq-seg" role="group" aria-label="Forma de ver los viajes">${tripsSeg("cards", "Bandeja")}${tripsSeg("list", "Tabla")}</div>
   </div>`;
   const tripStatusLabel = (status) => {
     /* prettyStatus devuelve un chip HTML con icono: en un <option> solo sirve el texto. */
@@ -467,7 +687,7 @@ function transportTripsHtml() {
       { key: "to", label: "Recogida hasta", type: "date", value: tripsFieldFilters.to }
     ]
   });
-  const opsToolbarBlock = `<div class="transport-data-toolbar">${opsFiltersBar}${opsToolbar}${tripsFieldFiltersBar}</div>`;
+  const opsToolbarBlock = `<div class="rq-toolbar transport-data-toolbar">${opsFiltersBar}${opsToolbar}<div class="rq-filters-panel" id="rq-filters-panel"${tripsShowFilters ? "" : " hidden"}>${tripsFieldFiltersBar}</div></div>`;
 
   const tripsRenderLimit = Number(state.tripsRenderLimit) || RENDER_WINDOW_SIZE;
   const tripsToRender = renderWindowSlice(sortedFilteredTrips, tripsRenderLimit);
@@ -483,7 +703,14 @@ function transportTripsHtml() {
       : "";
   const tripsCardsGrid =
     tripsLayout === "cards" && sortedFilteredTrips.length
-      ? `<div class="trip-ops-cards portal-ops-cards transport-trip-cards">${tripsToRender.map(buildTripOpsCard).join("")}</div>`
+      ? (() => {
+          const selId = tpSelectedId(tripsToRender);
+          const selTrip = tripsToRender.find((r) => String(r.id) === selId) || null;
+          return `<div class="rq-inbox rq-inbox--trips">
+            <div class="rq-inbox__list"><ol class="rq-list" aria-label="Viajes">${tripsToRender.map((r) => buildTripInboxItem(r, String(r.id) === selId)).join("")}</ol>${tripsMoreBar}</div>
+            ${buildTripDetailPane(selTrip)}
+          </div>`;
+        })()
       : "";
   const tripsEmptyCopy = tripsFieldFiltersActive
     ? "Ningún viaje coincide con los filtros aplicados. Use «Limpiar filtros» para ver todos."
@@ -493,7 +720,7 @@ function transportTripsHtml() {
       ? "No hay viajes en este filtro. Cambie el filtro o vea todos."
       : "Aún no hay viajes asignados. Cree el primero en Registrar.";
   const opsCards = sortedFilteredTrips.length
-    ? `${opsToolbarBlock}${tripsLayout === "list" ? tripsListTable : tripsCardsGrid}${tripsMoreBar}`
+    ? `${opsToolbarBlock}${tripsLayout === "list" ? tripsListTable + tripsMoreBar : tripsCardsGrid}`
     : `${opsToolbarBlock}${emptyState(tripsEmptyCopy)}`;
 
   const formatRatePlaceLabel = (part) => {
@@ -903,7 +1130,7 @@ function transportTripsHtml() {
       <header class="transport-data-pane__head">
         <div class="transport-data-pane__head-copy">
           <h3 aria-level="2" class="transport-data-pane__title">Operación de viajes</h3>
-          <p class="transport-data-pane__lead muted">${sortedFilteredTrips.length} viaje${sortedFilteredTrips.length === 1 ? "" : "s"} en vista actual${tripsLayout === "list" ? " · vista lista" : " · vista tarjetas"}</p>
+          <p class="transport-data-pane__lead muted">${sortedFilteredTrips.length} viaje${sortedFilteredTrips.length === 1 ? "" : "s"} con los filtros actuales</p>
         </div>
       </header>
       <div class="transport-data-pane__body">${opsCards}</div>
@@ -1125,6 +1352,51 @@ function transportTripsHtml() {
         state.tripsRenderLimit = RENDER_WINDOW_SIZE;
         renderPortalView();
       }
+    });
+
+    /* Bandeja: elegir viaje (re-render conservando el scroll de la lista). */
+    nodes.viewRoot.querySelectorAll("[data-action='trip-select']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        clearTransportTripsSearchTimer();
+        const list = nodes.viewRoot.querySelector(".rq-inbox__list");
+        state.__tripsInboxScroll = list ? list.scrollTop : 0;
+        state.transportTripsUi = { ...(state.transportTripsUi || {}), selectedId: String(btn.dataset.id || "") };
+        renderPortalView();
+        if (window.matchMedia && window.matchMedia("(max-width: 1100px)").matches) {
+          queueMicrotask(() => nodes.viewRoot.querySelector(".rq-pane")?.scrollIntoView({ block: "start", behavior: "smooth" }));
+        }
+      });
+    });
+
+    /* Panel de detalle: pestañas sin re-render. */
+    nodes.viewRoot.querySelectorAll("[data-action='trip-detail-tab']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const tab = String(btn.dataset.tab || "general");
+        const pane = btn.closest(".rq-pane");
+        if (!pane) return;
+        pane.querySelectorAll("[data-action='trip-detail-tab']").forEach((b) => {
+          const on = b === btn;
+          b.classList.toggle("is-active", on);
+          b.setAttribute("aria-selected", on ? "true" : "false");
+        });
+        pane.querySelectorAll(".rq-panel").forEach((panel) => {
+          panel.hidden = panel.dataset.panel !== tab;
+        });
+        state.transportTripsUi = { ...(state.transportTripsUi || {}), detailTab: tab };
+      });
+    });
+
+    /* Filtros plegables sin re-render. */
+    nodes.viewRoot.querySelectorAll("[data-action='trips-filters-toggle']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const panel = nodes.viewRoot.querySelector("#rq-filters-panel");
+        if (!panel) return;
+        const open = panel.hidden;
+        panel.hidden = !open;
+        btn.classList.toggle("is-open", open);
+        btn.setAttribute("aria-expanded", open ? "true" : "false");
+        state.transportTripsUi = { ...(state.transportTripsUi || {}), filtersOpen: open };
+      });
     });
 
     nodes.viewRoot.querySelectorAll("[data-action='transport-trips-layout']").forEach((btn) => {
@@ -1714,6 +1986,13 @@ function transportTripsHtml() {
         });
       });
     });
+
+    if (typeof state.__tripsInboxScroll === "number") {
+      const keep = state.__tripsInboxScroll;
+      delete state.__tripsInboxScroll;
+      const list = nodes.viewRoot.querySelector(".rq-inbox__list");
+      if (list) list.scrollTop = keep;
+    }
 
     const tripsSearchRestore = state.__transportTripsSearchRestore;
     if (tripsSearchRestore && typeof tripsSearchRestore.start === "number") {

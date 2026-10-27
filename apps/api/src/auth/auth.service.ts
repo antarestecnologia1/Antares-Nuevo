@@ -542,7 +542,16 @@ export class AuthService {
       if (poolerMapped) throw poolerMapped;
 
       if (code === "23505" || /duplicate key/i.test(pgMsg)) {
-        throw new BadRequestException("El correo o documento ya está registrado.");
+        const dupInfo = `${String(err?.constraint ?? "")} ${detail} ${pgMsg}`;
+        if (/numero_identificacion|documento_personal|uq_usuarios_documento/i.test(dupInfo)) {
+          throw new BadRequestException(
+            "El número de documento ya está registrado en otra cuenta. Verifique la cédula o NIT; si es suya, recupere el acceso con su correo."
+          );
+        }
+        if (/correo|email/i.test(dupInfo)) {
+          throw new BadRequestException("El correo ya está registrado. Use otro correo o recupere su contraseña.");
+        }
+        throw new BadRequestException("El correo o el documento ya está registrado en otra cuenta.");
       }
       if (code === "42P01" || code === "42703") {
         throw new ServiceUnavailableException(CLIENT_DB_UNAVAILABLE_MSG);

@@ -184,6 +184,11 @@ const SPANISH_NAME_PARTICLES = new Set(["de", "del", "la", "las", "los", "y", "e
  * detectar, no texto dañado: no las "corrijas" o la función queda sin efecto.
  */
 export function repairUtf8Mojibake(text = "") {
+  const fixed = repairUtf8MojibakeCore(text);
+  return repairLostAccentWords(fixed).normalize("NFC");
+}
+
+function repairUtf8MojibakeCore(text = "") {
   let s = String(text || "");
   if (!s || !/[ÃÂâ]/.test(s)) return s;
   try {
@@ -214,6 +219,73 @@ export function repairUtf8Mojibake(text = "") {
     .replace(/Ãš/g, "Ú")
     .replace(/â€”|â€“/g, "—")
     .replace(/â€œ|â€|â€˜|â€™/g, '"');
+}
+
+/**
+ * Palabras habituales de documentos de RRHH / transporte con tilde (clave: sin tilde, minúscula).
+ * Sirven para reponer la tilde en nombres que el servidor guardó con «_» o «?» en su lugar
+ * (p. ej. «N_mina» → «Nómina», «C_dula» → «Cédula»).
+ */
+const DOCUMENT_ACCENT_WORDS = [
+  "cédula", "nómina", "certificación", "afiliación", "conducción", "médico", "médica", "médicos", "exámenes",
+  "pensión", "liquidación", "técnico", "técnica", "mecánica", "mecánico", "revisión", "póliza", "cámara", "camión",
+  "información", "renovación", "contratación", "vinculación", "desvinculación", "aprobación", "autorización",
+  "dirección", "evaluación", "capacitación", "inducción", "retención", "fotografía", "teléfono", "número", "años",
+  "año", "vehículo", "vehículos", "tránsito", "bogotá", "medellín", "ciudadanía", "extranjería", "policía",
+  "procuraduría", "contraloría", "día", "días", "período", "sanción", "prórroga", "electrónica", "electrónico",
+  "otrosí", "gestión", "sección", "versión", "declaración", "dotación", "prestación", "prestaciones", "cesantías",
+  "compensación", "bonificación", "inspección", "señalización", "operación", "razón", "representación", "matrícula",
+  "único", "tributario", "página", "teórico", "práctico", "práctica", "psicológico", "psicotécnico", "histórico",
+  "académico", "académica", "ocupacional", "bachiller", "diploma", "oficina", "término", "indefinido", "prestación",
+  "colilla", "comprobante", "soporte", "atención", "notificación", "citación", "disciplinario", "descargos",
+  "resolución", "constancia", "fotografía", "reglamento", "inducción", "apreciación", "aprendizaje", "atribución",
+  "estación", "aprobación", "ubicación", "inscripción", "operación", "cotización", "facturación", "conciliación",
+  "auditoría", "garantía", "trayectoria", "categoría", "compañía", "energía", "tecnología", "metodología",
+  /* apellidos y nombres frecuentes */
+  "pérez", "gonzález", "rodríguez", "martínez", "gómez", "hernández", "sánchez", "ramírez", "fernández", "jiménez",
+  "lópez", "díaz", "muñoz", "garcía", "maría", "josé", "andrés", "sebastián", "julián", "cristián", "álvarez",
+  "núñez", "peña", "castañeda", "ordóñez", "zúñiga", "bermúdez", "velásquez", "vásquez", "márquez", "suárez",
+  "benítez", "cárdenas", "gutiérrez", "guzmán", "domínguez", "quiñones", "montaño", "nariño", "mejía", "ríos",
+  "sofía", "lucía", "iván", "germán", "adrián", "joaquín", "martín", "agustín", "efraín", "rubén", "jesús",
+  "mónica", "verónica", "raúl", "saúl", "tomás", "matías", "nicolás", "héctor", "víctor", "césar", "óscar",
+  "ángel", "ángela", "ávila", "rincón", "calderón", "gallón", "londoño", "ocampo", "peñaloza", "cañón"
+];
+
+const DOCUMENT_ACCENT_INDEX = (() => {
+  const map = new Map();
+  for (const w of DOCUMENT_ACCENT_WORDS) {
+    const key = w.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    if (key !== w.toLowerCase() && !map.has(key)) map.set(key, w.toLowerCase());
+  }
+  return map;
+})();
+
+function matchCaseOf(source, word) {
+  const letters = source.replace(/[^\p{L}]/gu, "");
+  if (letters && letters === letters.toUpperCase() && letters.length > 1) return word.toUpperCase();
+  if (/^\p{Lu}/u.test(source)) return word.charAt(0).toUpperCase() + word.slice(1);
+  return word;
+}
+
+/** Repone tildes perdidas (marcador «_», «?» o «\uFFFD» en lugar de la letra acentuada). */
+export function repairLostAccentWords(text = "") {
+  let s = String(text || "");
+  if (!s || !/[_?\uFFFD]/.test(s)) return s;
+  /* «Ã_» / «Ã?» = resto de una tilde UTF-8 leída como Latin-1 y luego saneada */
+  s = s.replace(/[ÃÂ][_?\uFFFD]/g, "_");
+  return s.replace(/[\p{L}_?\uFFFD]+/gu, (token) => {
+    if (!/[_?\uFFFD]/.test(token)) return token;
+    if (/^[_?\uFFFD]|[_?\uFFFD]$/.test(token)) return token;
+    const stripped = token.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    const slots = (stripped.match(/[_?\uFFFD]/g) || []).length;
+    if (slots > 2) return token;
+    const re = new RegExp(`^${stripped.replace(/[_?\uFFFD]/g, "[a-zñ]")}$`);
+    const hits = [];
+    for (const [key, accented] of DOCUMENT_ACCENT_INDEX) {
+      if (key.length === stripped.length && re.test(key)) hits.push(accented);
+    }
+    return hits.length === 1 ? matchCaseOf(token, hits[0]) : token;
+  });
 }
 
 /** Convierte CAMILO_BETANCUR / camilo-betancur → “Camilo Betancur”. */
@@ -847,7 +919,9 @@ export function normalizeCompanyDocumentRow(row) {
   const expiresAt = isoDateOnly(row.expiresAt ?? row.fecha_vencimiento ?? parsedMeta.expiresAt);
   const entityType = String(row.entityType ?? row.entidad_tipo ?? parsedMeta.entityType ?? "").trim();
   const entityId = String(row.entityId ?? row.entidad_id ?? parsedMeta.entityId ?? "").trim();
-  const entityLabel = String(row.entityLabel ?? row.entidad_etiqueta ?? parsedMeta.entityLabel ?? "").trim();
+  const entityLabel = repairUtf8Mojibake(
+    String(row.entityLabel ?? row.entidad_etiqueta ?? parsedMeta.entityLabel ?? "").trim()
+  );
   const process = String(row.process ?? row.proceso ?? parsedMeta.process ?? "").trim();
   const area = String(row.area ?? parsedMeta.area ?? "").trim();
   const version = Math.max(1, Number(row.version ?? parsedMeta.version) || 1);
