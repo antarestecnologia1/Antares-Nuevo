@@ -232,7 +232,7 @@ export let state = {
     selectedCandidateId: ""
   },
   sstUi: {
-    workspace: "operate",
+    workspace: "data",
     operateSection: "create",
     dataSection: "all",
     listSearch: "",

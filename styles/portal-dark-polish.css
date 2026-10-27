@@ -296,3 +296,86 @@ body[data-theme="dark"] .documents-studio.doc-studio .doc-subfolder-card__avatar
 body[data-theme="dark"] .documents-studio.doc-studio button.is-danger,
 body[data-theme="dark"] .documents-studio.doc-studio button.is-danger span { color: #fca5a5; }
 body[data-theme="dark"] .ntf-pref-toggle__state { color: #c4d9ee; }
+
+/* 8) SST: tarjetas que filtran y filtros plegables */
+body[data-theme="dark"] .sst-studio button.sst-status-card { color: #e8f4fc; }
+body[data-theme="dark"] .sst-studio .sst-status-card.is-active { background: #14263d; }
+body[data-theme="dark"] .sst-studio .sst-filters-disclosure__summary {
+  background: #12233a;
+  border-color: rgba(148, 196, 255, 0.24);
+  color: #cfe0f3;
+}
+body[data-theme="dark"] .sst-studio .sst-filters-disclosure__summary:hover { border-color: #8ec5ff; color: #fff; }
+body[data-theme="dark"] .sst-studio .sst-filters-disclosure__on { background: rgba(148, 196, 255, 0.2); color: #dbe9f8; }
+body[data-theme="dark"] .sst-studio .sst-due-cell__rel--expired { color: #fca5a5; }
+body[data-theme="dark"] .sst-studio .sst-due-cell__rel--warning { color: #fcd34d; }
+body[data-theme="dark"] .sst-studio .sst-due-cell__rel--missing { color: #a9bdd4; }
+body[data-theme="dark"] .sst-studio .sst-due-cell__date { color: #e8f4fc; }
+body[data-theme="dark"] .sst-studio .sst-person-avatar { background: rgba(148, 196, 255, 0.2); color: #dbe9f8; }
+body[data-theme="dark"] .sst-studio .sst-person-name,
+body[data-theme="dark"] .sst-studio .sst-control-name { color: #e8f4fc; }
+body[data-theme="dark"] .sst-studio .sst-status-pill--expired { background: rgba(239, 68, 68, 0.24); color: #fecaca; }
+body[data-theme="dark"] .sst-studio .sst-status-pill--warning { background: rgba(245, 158, 11, 0.24); color: #fde68a; }
+body[data-theme="dark"] .sst-studio .sst-status-pill--ok { background: rgba(34, 197, 94, 0.22); color: #bbf7d0; }
+body[data-theme="dark"] .sst-studio .sst-status-pill--missing { background: rgba(129, 140, 248, 0.24); color: #c7d2fe; }
+body[data-theme="dark"] .sst-studio .sst-status-pill--total { background: rgba(59, 130, 246, 0.24); color: #bfdbfe; }
+body[data-theme="dark"] .sst-studio .sst-consult-toolbar,
+body[data-theme="dark"] .sst-studio .payroll-data-toolbar { background: transparent; box-shadow: none; }
+body[data-theme="dark"] .sst-studio .sst-due-card {
+  background: linear-gradient(180deg, #14263d, #0f1f33);
+  border-color: rgba(148, 196, 255, 0.2);
+  box-shadow: none;
+}
+body[data-theme="dark"] .sst-studio .sst-due-card--expired { border-color: rgba(239, 68, 68, 0.45); }
+body[data-theme="dark"] .sst-studio .sst-due-card--warning { border-color: rgba(245, 158, 11, 0.4); }
+body[data-theme="dark"] .sst-studio .hr-workspace-header--sst,
+body[data-theme="dark"] .sst-studio .sst-consult-head { background: transparent; box-shadow: none; border-color: transparent; }
+
+/* 9) Campos de formulario en modales (fuera de .portal-main): el foco/hover no debe volverse blanco */
+body[data-theme="dark"] .modal-edit-form :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea):is(:focus, :focus-visible, :hover, :active),
+body[data-theme="dark"] .modal :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]), select, textarea):is(:focus, :focus-visible) {
+  background-color: #0c1a2b;
+  color: #e8f4fc;
+}
+body[data-theme="dark"] .searchable-select-input:is(:focus, :hover, :active),
+body[data-theme="dark"] .searchable-select--open .searchable-select-input {
+  background-color: #0c1a2b;
+  color: #e8f4fc;
+}
+body[data-theme="dark"] .modal-edit-form :is(input[readonly], input[disabled], select[disabled], textarea[disabled]) {
+  background-color: rgba(148, 163, 184, 0.12);
+  color: #a9bdd4;
+  border-color: rgba(148, 196, 255, 0.16);
+}
+body[data-theme="dark"] .searchable-select-option:is(:hover, :focus) { background: rgba(148, 196, 255, 0.16); color: #fff; }
+body[data-theme="dark"] .searchable-select-option.is-active { background: rgba(148, 196, 255, 0.24); color: #fff; }
+
+/* 10) Estados hover/foco con fondo blanco fijo de tema claro → versión oscura (revisión global) */
+body[data-theme="dark"] :is(
+  .sst-studio .sst-row-more__btn:hover,
+  .sst-studio .sst-row-more[open] .sst-row-more__btn,
+  .sst-studio .sst-row-more__item:hover,
+  .hiring-studio .hiring-action-menu__panel button:hover,
+  .hiring-studio .hiring-consult-menu__panel button:hover,
+  .simit-pill:hover,
+  .detail-view-footer .detail-view-close-btn:hover:not(:disabled),
+  a.portal-detail-tile:hover,
+  .trip-ops-card-btn--outline:hover,
+  .report-preview-export-btn:hover,
+  .hr-workspace-tab--segment:hover,
+  .hr-wizard-nav-btn:hover:not(:disabled)
+) {
+  background: rgba(148, 196, 255, 0.16);
+  color: #fff;
+}
+body[data-theme="dark"] .trip-ops-card-btn--danger:hover { background: rgba(239, 68, 68, 0.22); color: #fecaca; }
+body[data-theme="dark"] .sst-studio .sst-consult-table tbody tr:hover td,
+body[data-theme="dark"] .sarlaft-evidence-list li:hover { background: rgba(148, 196, 255, 0.08); }
+body[data-theme="dark"] :is(.simit-search:focus-within, .ag-fleet__controls .ag-search:focus-within) {
+  background: #0c1a2b;
+  color: #e8f4fc;
+}
+body[data-theme="dark"] .module-field-filter :is(select, input[type="date"]):is(:hover, :focus) {
+  background-color: #0c1a2b;
+  color: #e8f4fc;
+}

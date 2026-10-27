@@ -92,7 +92,7 @@ export function findSstEmployeeReconciliationIssues(employees, sstRecords) {
         message: ymd
           ? `${label} vencido (${ymd}). No hay control SST pendiente registrado.`
           : `${label} sin fecha en la ficha del colaborador.`,
-        suggestedAction: "Use Renovar en Vencimientos o registre el control en SST."
+        suggestedAction: "Use Corregir para renovarlo, o registre el control en SST."
       });
     }
 

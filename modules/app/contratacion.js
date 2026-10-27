@@ -2457,21 +2457,32 @@ function bindHiringPortalControls() {
     return y ? escapeHtml(y) : fallback;
   };
   /* ============= VACANTE: EDITAR ============= */
-  nodes.viewRoot.querySelectorAll("[data-action='edit-vacancy']").forEach((btn) => {
+  nodes.viewRoot.querySelectorAll("[data-action='edit-vacancy'], [data-action='republish-vacancy']").forEach((btn) => {
     btn.addEventListener("click", () => {
       if (abortUnlessCanManageHiring()) return;
+      const republish = btn.dataset.action === "republish-vacancy";
       const all = read(KEYS.vacancies, []);
       const target = normalizeVacancyRowForEditor(all.find((v) => String(v.id) === String(btn.dataset.id || "")));
       if (!target) return;
+      /** Republicar: conserva todos los datos (incluida la imagen) y propone nuevas fechas a partir de hoy. */
+      const ymdOf = (d) =>
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      const todayYmd = ymdOf(new Date());
+      const in30Ymd = ymdOf(new Date(Date.now() + 30 * 86400000));
+      const suggestedDeadline =
+        republish && !vacancyDeadlineIsTodayOrFuture(target.deadline) ? in30Ymd : target.deadline || "";
       const positions = getActivePositions();
       const positionOpts = [
         { value: "", label: "Seleccione cargo..." },
         ...positions.map((p) => ({ value: p.id, label: String(p.name || "") }))
       ];
       openEditModal({
-        title: "Editar vacante",
+        title: republish ? "Republicar vacante" : "Editar vacante",
         subtitle: String(target.title || ""),
-        submitText: "Guardar cambios",
+        introHtml: republish
+          ? `<p class="muted" style="margin:0 0 10px">Se conservan todos los datos y la imagen. Elija la nueva fecha de cierre y confirme para volver a publicarla.</p>`
+          : "",
+        submitText: republish ? "Republicar vacante" : "Guardar cambios",
         fields: [
           { name: "title", label: "Título de la vacante", value: target.title || "", required: true },
           { name: "positionId", label: "Cargo base", type: "select", value: target.positionId || "", options: positionOpts, required: true },
@@ -2490,19 +2501,19 @@ function bindHiringPortalControls() {
           },
           { name: "openings", label: "Cupos", type: "number", value: parseNum(target.openings || 1), required: true },
           { name: "salaryOffer", label: "Salario ofrecido (COP)", type: "number", value: parseNum(target.salaryOffer || 0), required: true },
-          { name: "deadline", label: "Cierre postulaciones", type: "date", value: target.deadline || "", required: true },
+          { name: "deadline", label: "Cierre postulaciones", type: "date", value: suggestedDeadline, required: true },
           {
             name: "publishedFrom",
             label: "Visible en web desde",
             type: "date",
-            value: target.publishedFrom || ""
+            value: republish ? todayYmd : target.publishedFrom || ""
           },
           { name: "requirements", label: "Requisitos y perfil", type: "textarea", value: target.requirements || "", rows: 4 },
           {
             name: "status",
             label: "Estado",
             type: "select",
-            value: target.status || "Publicada",
+            value: republish ? "Publicada" : target.status || "Publicada",
             options: [
               { value: "Publicada", label: "Publicada" },
               { value: "Cerrada", label: "Cerrada" }
@@ -2541,6 +2552,23 @@ function bindHiringPortalControls() {
           const previewImg = formEl.querySelector("[data-vacancy-edit-image-preview]");
           const emptyEl = formEl.querySelector("[data-vacancy-edit-image-empty]");
           if (!fileInput || !dropzone) return;
+          /** La imagen guardada ya no existe en el almacenamiento: avisar y no conservar un enlace roto. */
+          if (previewImg) {
+            previewImg.addEventListener("error", () => {
+              if (previewBlobUrl) return;
+              previewImg.hidden = true;
+              if (emptyEl) {
+                emptyEl.hidden = false;
+                const t = emptyEl.querySelector(".vacancy-image-dropzone__title");
+                const m = emptyEl.querySelector(".vacancy-image-dropzone__meta");
+                if (t) t.textContent = "La imagen anterior ya no está disponible";
+                if (m) m.textContent = "Suba una nueva (opcional) para republicar con imagen";
+              }
+              dropzone.classList.remove("has-image");
+              const keep = formEl.querySelector("input[name='imageUrlExisting']");
+              if (keep) keep.value = "";
+            });
+          }
           let previewBlobUrl = "";
           fileInput.addEventListener("change", () => {
             const f = fileInput.files?.[0];
@@ -2595,7 +2623,11 @@ function bindHiringPortalControls() {
           const imageFile = vacancyEditForm?.querySelector?.("input[name='imageFile']")?.files?.[0] || null;
           const editDropzone = vacancyEditForm?.querySelector?.("[data-vacancy-edit-image-dropzone]");
           editDropzone?.classList.remove("is-error");
-          let imageUrl = String(form.imageUrlExisting || target.imageUrl || "").trim();
+          const imageKeepInput = vacancyEditForm?.querySelector?.("input[name='imageUrlExisting']");
+          /** El campo oculto lo vacía solo el aviso de “imagen no disponible”; si no existe, se conserva la guardada. */
+          let imageUrl = imageKeepInput
+            ? String(imageKeepInput.value ?? "").trim()
+            : String(form.imageUrlExisting || target.imageUrl || "").trim();
           if (imageFile) {
             if (!String(imageFile.type || "").startsWith("image/")) {
               editDropzone?.classList.add("is-error");
@@ -2659,7 +2691,7 @@ function bindHiringPortalControls() {
               { entityLabel: String(updatedVacancy.title || updatedVacancy.positionName || "Vacante").trim() }
             );
           }
-          notify("Vacante actualizada.", "success");
+          notify(republish ? "Vacante republicada." : "Vacante actualizada.", "success");
           renderPortalView();
           return true;
         }

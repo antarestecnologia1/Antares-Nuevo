@@ -1915,6 +1915,213 @@ body[data-theme="dark"] .dashboard-studio .at-tab.is-active em { background: rgb
   .at-scope-bar { padding-left: 20px; padding-right: 20px; }
 }
 
+
+/* ═════════ Flota en tiempo real · diseño limpio (v2) ═════════ */
+.dashboard-studio .at-fleet-panel,
+.dashboard-studio .at-activity-panel,
+.dashboard-studio .at-fleet-section .at-panel {
+  background: var(--nx-card-bg);
+  border: 1px solid var(--nx-border);
+  border-radius: 16px;
+  box-shadow: var(--nx-card-shadow);
+  overflow: hidden;
+}
+.dashboard-studio .at-fleet-head {
+  padding: 18px 22px;
+  gap: 14px;
+  background: transparent;
+  border-bottom: 1px solid var(--nx-border);
+}
+.dashboard-studio .at-fleet-head__info > span { letter-spacing: 0.12em; opacity: 0.85; }
+.dashboard-studio .at-fleet-head__info h3 { font-size: 17px; font-weight: 700; margin: 0; color: var(--nx-text); }
+.dashboard-studio .at-fleet-head__info p { margin: 2px 0 0; }
+.dashboard-studio .at-search-wrap {
+  position: relative;
+  min-width: 260px;
+  padding: 0 12px;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--nx-surface-2);
+}
+.dashboard-studio .at-search-wrap input[type="search"],
+.dashboard-studio .at-search-wrap input {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 0 !important;
+  margin: 0;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--nx-text);
+  -webkit-appearance: none;
+  appearance: none;
+}
+.dashboard-studio .at-search-wrap input::-webkit-search-cancel-button { cursor: pointer; }
+.dashboard-studio .at-fleet-count {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--nx-surface-2);
+  border: 1px solid var(--nx-border);
+  color: var(--nx-text-2);
+  font-weight: 600;
+}
+
+/* Pestañas: subrayado, sin caja interior */
+.dashboard-studio .at-tabs {
+  margin: 0;
+  padding: 0 14px;
+  gap: 2px;
+  border: 0;
+  border-bottom: 1px solid var(--nx-border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.dashboard-studio .at-tab {
+  flex: 0 0 auto;
+  padding: 13px 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  margin-bottom: -1px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--nx-text-3);
+}
+.dashboard-studio .at-tab:hover { color: var(--nx-text); background: transparent; border-bottom-color: var(--nx-border-hi); }
+.dashboard-studio .at-tab.is-active {
+  color: var(--nx-accent-deep, var(--nx-accent));
+  background: transparent;
+  border-bottom-color: var(--nx-accent);
+  box-shadow: none;
+}
+body[data-theme="dark"] .dashboard-studio .at-tab.is-active { color: #bcdcff; }
+.dashboard-studio .at-tab em { min-width: 20px; text-align: center; }
+
+/* Vehículos */
+.dashboard-studio .at-fleet-list { background: transparent; }
+.dashboard-studio .at-vehicle {
+  position: relative;
+  border-bottom: 1px solid var(--nx-border);
+  padding-bottom: 6px;
+}
+.dashboard-studio .at-vehicle:last-child { border-bottom: 0; }
+.dashboard-studio .at-vehicle::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 14px; bottom: 14px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--nx-surface-3);
+}
+.dashboard-studio .at-vehicle--en-ruta::before { background: var(--nx-live); }
+.dashboard-studio .at-vehicle--programado::before { background: var(--nx-violet); }
+.dashboard-studio .at-vehicle__status-bar { display: none; }
+.dashboard-studio .at-vehicle__head { padding: 16px 22px 8px; gap: 12px; }
+.dashboard-studio .at-vehicle__plate { font-size: 16px; font-weight: 700; color: var(--nx-text); }
+.dashboard-studio .at-vehicle__driver { font-size: 12px; color: var(--nx-text-3); }
+.dashboard-studio .at-vehicle__badge { font-size: 10.5px; letter-spacing: 0.04em; padding: 4px 11px; }
+.dashboard-studio .at-mini-bars { padding: 0 22px 12px; gap: 4px; max-width: 260px; }
+.dashboard-studio .at-mini-bar { height: 3px; border-radius: 3px; opacity: 0.9; }
+
+/* Tabla de viajes */
+.dashboard-studio .at-trip-table { table-layout: fixed; font-size: 12.5px; }
+.dashboard-studio .at-trip-table th:nth-child(1) { width: 15%; }
+.dashboard-studio .at-trip-table th:nth-child(2) { width: 43%; }
+.dashboard-studio .at-trip-table th:nth-child(3) { width: 22%; }
+.dashboard-studio .at-trip-table th:nth-child(4) { width: 20%; }
+.dashboard-studio .at-trip-table thead th {
+  padding: 8px 22px;
+  background: transparent;
+  border-top: 0;
+  border-bottom: 1px solid var(--nx-border);
+  color: var(--nx-text-3);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+}
+.dashboard-studio .at-trip-table tbody td {
+  padding: 11px 22px;
+  border-bottom: 1px solid color-mix(in srgb, var(--nx-border) 55%, transparent);
+  background: transparent;
+}
+.dashboard-studio .at-trip-table tbody tr,
+.dashboard-studio .at-trip-table tbody tr:nth-child(even),
+.dashboard-studio .at-trip-table tbody tr:nth-child(odd) { background: transparent; }
+.dashboard-studio .at-trip-table tbody tr:last-child td { border-bottom: 0; }
+.dashboard-studio .at-trip-table tbody tr:hover td { background: var(--nx-surface-2); }
+.dashboard-studio .at-trip-table tr.at-row--delayed td { background: transparent; }
+.dashboard-studio .at-trip-table tr.at-row--delayed:hover td { background: var(--nx-surface-2); }
+body[data-theme="dark"] .dashboard-studio .at-trip-table tbody tr:hover td,
+body[data-theme="dark"] .dashboard-studio .at-trip-table tbody tr.at-row--delayed:hover td { background: rgba(131, 190, 233, 0.08); }
+.dashboard-studio .at-trip-client { max-width: none; font-weight: 600; color: var(--nx-text); }
+.dashboard-studio .at-trip-route { max-width: none; font-size: 11px; color: var(--nx-text-3); margin-top: 2px; }
+.dashboard-studio .at-trip-eta { color: var(--nx-text); }
+.dashboard-studio .at-trip-eta__in { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; white-space: nowrap; }
+.dashboard-studio .at-trip-eta__in > span:first-child { font-weight: 600; }
+.dashboard-studio .at-delay-tag {
+  margin: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--nx-red-low);
+  color: var(--nx-red);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+/* Estados: una sola capa, con punto */
+.dashboard-studio .at-pill {
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  letter-spacing: 0;
+  text-shadow: none;
+  filter: none;
+  line-height: 1.3;
+}
+.dashboard-studio .at-pill::before {
+  content: "";
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: 0 0 auto;
+}
+
+/* Últimos movimientos: dos líneas legibles en una columna angosta */
+.dashboard-studio .at-activity-list { max-height: 380px; }
+.dashboard-studio .at-activity-item {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "time pill" "link link";
+  align-items: center;
+  gap: 6px 10px;
+  padding: 12px 18px 12px 20px;
+}
+.dashboard-studio .at-activity-item::before { top: 12px; bottom: 12px; }
+.dashboard-studio .at-activity-time { grid-area: time; text-align: left; white-space: nowrap; font-size: 11px; }
+.dashboard-studio .at-activity-item > .at-pill { grid-area: pill; justify-self: end; }
+.dashboard-studio .at-activity-link { grid-area: link; min-width: 0; }
+.dashboard-studio .at-activity-link strong { font-size: 13px; color: var(--nx-text); }
+.dashboard-studio .at-activity-link span {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+
+/* Cabeceras de los paneles laterales */
+.dashboard-studio .at-fleet-section .at-panel-head {
+  padding: 16px 20px;
+  background: transparent;
+  border-bottom: 1px solid var(--nx-border);
+}
+.dashboard-studio .at-pulse-item { padding: 11px 20px; }
+.dashboard-studio .at-pulse-foot { padding: 12px 20px; line-height: 1.4; }
+
 @media (prefers-reduced-motion: reduce) {
   .at-fleet-pie, .at-ring-fg, .at-hour-fill, .at-compliance-bar-fill { transition: none; }
   .nx-radar__sweep, .nx-radar__trail, .at-live-pulse, .nx-radar__disc { animation: none; }
@@ -1971,7 +2178,7 @@ body[data-theme="dark"] .dashboard-studio .at-tab.is-active em { background: rgb
 
   function dashStatusPill(status) {
     const tone = dashRequestOutcomeTone(status);
-    return `<span class="at-pill at-pill--${tone}">${prettyStatus(status, "request")}</span>`;
+    return `<span class="at-pill at-pill--${tone}">${escapeHtml(String(status || "—"))}</span>`;
   }
 
   /* ─────────────────────────────────────────────────────────────
@@ -2327,7 +2534,7 @@ body[data-theme="dark"] .dashboard-studio .at-tab.is-active em { background: rgb
     if (!trips.length) return "";
     const bars = trips.map((r) => {
       const tone = dashRequestOutcomeTone(r.status);
-      return `<i class="at-mini-bar at-mini-bar--${tone}" title="${escapeAttr(`${r.requestNumber || r.id}: ${prettyStatus(r.status, "request")}`)}" aria-hidden="true"></i>`;
+      return `<i class="at-mini-bar at-mini-bar--${tone}" title="${escapeAttr(`${r.requestNumber || r.id}: ${String(r.status || "")}`)}" aria-hidden="true"></i>`;
     }).join("");
     return `<div class="at-mini-bars" aria-hidden="true">${bars}</div>`;
   }
@@ -2354,7 +2561,7 @@ body[data-theme="dark"] .dashboard-studio .at-tab.is-active em { background: rgb
           <span class="at-trip-route" title="${escapeAttr(formatRoute(r))}">${escapeHtml(formatRoute(r))}</span>
         </td>
         <td>${dashStatusPill(r.status)}</td>
-        <td class="at-trip-eta">${delivery}${delayed ? `<span class="at-delay-tag">⚠</span>` : ""}</td>
+        <td class="at-trip-eta"><div class="at-trip-eta__in"><span>${delivery}</span>${delayed ? `<span class="at-delay-tag" title="Entrega retrasada">Retraso</span>` : ""}</div></td>
       </tr>`;
     }).join("");
 

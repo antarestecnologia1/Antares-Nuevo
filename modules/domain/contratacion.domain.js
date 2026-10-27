@@ -1617,6 +1617,7 @@ export function renderHiringVacancyCard(v, ctx = {}) {
     <div class="toolbar hiring-vacancy-card__actions">
       <button type="button" class="btn btn-sm btn-outline" data-action="view-vacancy" data-id="${escapeAttr(String(v.id))}">${IC.eye} Ver</button>
       ${ctx.canEdit ? `<button type="button" class="btn btn-sm btn-action" data-action="edit-vacancy" data-id="${escapeAttr(String(v.id))}">${IC.edit} Editar</button>` : ""}
+      ${ctx.canEdit && (!isOpen || urgency === "vencida") ? `<button type="button" class="btn btn-sm btn-primary" data-action="republish-vacancy" data-id="${escapeAttr(String(v.id))}">${IC.send} Republicar</button>` : ""}
       ${ctx.canEdit && isOpen ? `<button type="button" class="btn btn-sm btn-action" data-action="close-vacancy" data-id="${escapeAttr(String(v.id))}">${IC.x} Cerrar</button>` : ""}
       ${ctx.canDelete ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-vacancy" data-id="${escapeAttr(String(v.id))}" title="Solo administradores">${IC.trash}</button>` : ""}
     </div>

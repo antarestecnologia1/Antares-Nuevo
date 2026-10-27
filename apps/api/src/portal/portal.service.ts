@@ -6439,7 +6439,14 @@ export class PortalService implements OnModuleInit {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.warn(`getOwnProfile: backfill aceptación legal (no fatal): ${sanitizeLogText(msg)}`);
     });
-    return this.enrichPortalUserProfileFromPayrollEmployee(row);
+    try {
+      return await this.enrichPortalUserProfileFromPayrollEmployee(row);
+    } catch (err) {
+      // El enriquecimiento con nómina es cosmético: nunca debe impedir login, /portal/me ni la aceptación legal.
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`getOwnProfile: enriquecimiento de nómina omitido (no fatal): ${sanitizeLogText(msg)}`);
+      return row;
+    }
   }
 
   /**
@@ -6554,7 +6561,21 @@ export class PortalService implements OnModuleInit {
       params
     );
     if (!r.rows.length) throw new BadRequestException("Usuario no encontrado.");
-    return this.getOwnProfile(uid);
+    try {
+      return await this.getOwnProfile(uid);
+    } catch (err) {
+      // La aceptación ya quedó guardada: no responder error al usuario por una relectura fallida.
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`acceptDataPolicy: relectura de perfil falló tras guardar (no fatal): ${sanitizeLogText(msg)}`);
+      return {
+        id: uid,
+        dataPolicyAcceptedAt: acceptedAt,
+        dataPolicyVersion: DATA_POLICY_VERSION,
+        requiresDataPolicyAcceptance: false,
+        termsAcceptedAt: acceptedAt,
+        requiresTermsAcceptance: false
+      };
+    }
   }
 
   /**
@@ -13998,7 +14019,7 @@ export class PortalService implements OnModuleInit {
               rol_trabajador = EXCLUDED.rol_trabajador,
               tipo_contrato_predeterminado = EXCLUDED.tipo_contrato_predeterminado,
               requisitos = EXCLUDED.requisitos,
-              imagen_url = EXCLUDED.imagen_url,
+              imagen_url = COALESCE(EXCLUDED.imagen_url, vacantes.imagen_url),
               estado = EXCLUDED.estado`,
             [...baseParams.slice(0, 15), imageUrl, baseParams[15]]
           );

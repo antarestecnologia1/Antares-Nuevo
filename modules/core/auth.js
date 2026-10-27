@@ -1314,26 +1314,27 @@ export function showDataPolicyGate() {
             }
             const stillPending = userPendingLegalAcceptances(meRow);
             if (stillPending.dataPolicy || stillPending.terms) {
-              meRow = {
-                ...(actor || {}),
-                ...(meRow && typeof meRow === "object" ? meRow : {}),
-                ...(pendingSubmit.dataPolicy
-                  ? {
-                      dataPolicyAcceptedAt: meRow?.dataPolicyAcceptedAt || nowIso(),
-                      dataPolicyVersion: meRow?.dataPolicyVersion || DATA_POLICY_VERSION,
-                      requiresDataPolicyAcceptance: false
-                    }
-                  : {}),
-                ...(pendingSubmit.terms
-                  ? {
-                      termsAcceptedAt: meRow?.termsAcceptedAt || nowIso(),
-                      requiresTermsAcceptance: false
-                    }
-                  : {})
-              };
+              /**
+               * El servidor respondió OK pero no consta la aceptación en BD: NO se da por aceptada solo en este
+               * navegador (si no, en otro equipo o en incógnito el portal vuelve a pedirla).
+               */
+              window.notify?.(
+                "No fue posible confirmar el registro de la aceptación en el servidor. Intente de nuevo; si persiste, cierre sesión e ingrese otra vez.",
+                "error"
+              );
+              return;
             }
           } catch (err) {
-            window.notify?.(String(err?.message || window.userMessage("genericError")), "error");
+            const st = Number(err?.status || 0);
+            const raw = String(err?.message || "").trim();
+            window.notify?.(
+              st === 401
+                ? "La sesión con el servidor no está activa en este navegador. Cierre sesión, ingrese de nuevo y acepte otra vez."
+                : st === 403 && /csrf/i.test(raw)
+                  ? "No se pudo validar la sesión de seguridad. Recargue la página (Ctrl+F5) e intente de nuevo."
+                  : raw || window.userMessage("genericError"),
+              "error"
+            );
             return;
           }
         } else if (window.AntaresApi?.getBase?.()) {
@@ -2341,7 +2342,11 @@ export async function tryApiRefreshBridge() {
   }
   const base = String(api.getBase()).replace(/\/+$/, "");
   const headers = { "Content-Type": "application/json", Accept: "application/json" };
-  if (typeof api.bearerAuthFallbackEnabled === "function" && api.bearerAuthFallbackEnabled()) {
+  if (
+    typeof api.wantsBearerTokensInResponse === "function"
+      ? api.wantsBearerTokensInResponse()
+      : typeof api.bearerAuthFallbackEnabled === "function" && api.bearerAuthFallbackEnabled()
+  ) {
     headers["X-Antares-Bearer-Fallback"] = "1";
   }
   const csrf = typeof api.getCsrfToken === "function" ? String(api.getCsrfToken() || "").trim() : "";
@@ -3267,18 +3272,56 @@ export function bindAuthForms() {
             const base = String(window.AntaresApi.getBase()).replace(/\/+$/, "");
             const turnstileToken = await waitForTurnstileToken(login);
             const headers = { "Content-Type": "application/json", Accept: "application/json" };
+            /**
+             * Portal y API en sitios distintos: se piden también los tokens en el cuerpo para poder pasar a Bearer
+             * si el navegador (incógnito, Safari, Brave, otro PC con cookies de terceros bloqueadas) descarta las cookies.
+             */
             if (
-              typeof window.AntaresApi?.bearerAuthFallbackEnabled === "function" &&
-              window.AntaresApi.bearerAuthFallbackEnabled()
+              typeof window.AntaresApi?.wantsBearerTokensInResponse === "function"
+                ? window.AntaresApi.wantsBearerTokensInResponse()
+                : typeof window.AntaresApi?.bearerAuthFallbackEnabled === "function" &&
+                  window.AntaresApi.bearerAuthFallbackEnabled()
             ) {
               headers["X-Antares-Bearer-Fallback"] = "1";
             }
-            const res = await fetch(`${base}/api/auth/login`, {
-              method: "POST",
-              headers,
-              credentials: "include",
-              body: JSON.stringify({ email: data.email, password: passwordRaw, turnstileToken })
-            });
+            /**
+             * Primer ingreso del día: el servicio (Render) está dormido y tarda ~1 min en arrancar. Mientras
+             * arranca responde 502/503/504 o corta la conexión: se avisa al usuario y se reintenta solo,
+             * en vez de mostrar "sin conexión" a los pocos segundos.
+             */
+            const loginPayload = JSON.stringify({ email: data.email, password: passwordRaw, turnstileToken });
+            const slowLoginTimer = setTimeout(() => {
+              try {
+                window.notify(
+                  "El servidor se está activando (primer ingreso del día). Puede tardar hasta un minuto; no cierre esta ventana.",
+                  "info",
+                  20000
+                );
+              } catch (_n) {
+                /* aviso opcional */
+              }
+            }, 6000);
+            let res = null;
+            try {
+              const maxAttempts = 16;
+              for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+                try {
+                  res = await fetch(`${base}/api/auth/login`, {
+                    method: "POST",
+                    headers,
+                    credentials: "include",
+                    body: loginPayload
+                  });
+                } catch (_netErr) {
+                  res = null;
+                }
+                if (res && ![502, 503, 504].includes(res.status)) break;
+                if (attempt < maxAttempts) await new Promise((resolve) => setTimeout(resolve, 4000));
+              }
+            } finally {
+              clearTimeout(slowLoginTimer);
+            }
+            if (!res) throw new Error("login-network");
             const body = await res.json().catch(() => null);
             const apiUser = body?.user;
             if (res.ok && apiUser?.userId) {

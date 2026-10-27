@@ -955,8 +955,8 @@ export function renderSstOperateSectionNav(activeId = "create") {
       id: "create",
       label: "Nuevo control",
       title: "Registrar obligación legal o control SST",
-      hint: "Colaborador, vencimiento y evidencia",
-      norm: "Auditoría",
+      hint: "Colaborador, vencimiento y notas",
+      norm: "Formulario",
       icon: "shield"
     },
     {
@@ -964,7 +964,7 @@ export function renderSstOperateSectionNav(activeId = "create") {
       label: "Guía de cumplimiento",
       title: "Checklist y buenas prácticas SST",
       hint: "Qué registrar y cuándo renovar",
-      norm: "Referencia",
+      norm: "Ayuda",
       icon: "file"
     }
   ];

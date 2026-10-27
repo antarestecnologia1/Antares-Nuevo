@@ -804,10 +804,16 @@ function hiringHtml() {
 
   const vacCards = filteredVacanciesView
     .map((v) => {
+      const vacExpired =
+        v.status === "Publicada" &&
+        Boolean(v.deadline) &&
+        new Date(`${v.deadline}T23:59:59`).getTime() < Date.now();
       const statusHtml =
-        v.status === "Publicada"
-          ? '<span class="status status-viaje_asignado">Publicada</span>'
-          : '<span class="status status-rechazada">Cerrada</span>';
+        v.status !== "Publicada"
+          ? '<span class="status status-rechazada">Cerrada</span>'
+          : vacExpired
+            ? '<span class="status status-rechazada">Vencida</span>'
+            : '<span class="status status-viaje_asignado">Publicada</span>';
       return `<article class="hiring-browse-row hiring-browse-row--vacancy">
         <div class="hiring-browse-row__main">
           <span class="hiring-browse-row__ico" aria-hidden="true">${IC.send}</span>
@@ -825,7 +831,8 @@ function hiringHtml() {
         <div class="toolbar hiring-browse-row__actions">
           <button type="button" class="btn btn-sm btn-outline" data-action="view-vacancy" data-id="${escapeAttr(String(v.id))}">${IC.eye} Ver</button>
           ${vacancyCanEdit ? `<button type="button" class="btn btn-sm btn-action" data-action="edit-vacancy" data-id="${escapeAttr(String(v.id))}">${IC.edit}</button>` : ""}
-          ${vacancyCanEdit ? `<button type="button" class="btn btn-sm btn-action" data-action="close-vacancy" data-id="${escapeAttr(String(v.id))}">${IC.x} Cerrar</button>` : ""}
+          ${vacancyCanEdit && (v.status !== "Publicada" || vacExpired) ? `<button type="button" class="btn btn-sm btn-primary" data-action="republish-vacancy" data-id="${escapeAttr(String(v.id))}">${IC.send} Republicar</button>` : ""}
+          ${vacancyCanEdit && v.status === "Publicada" && !vacExpired ? `<button type="button" class="btn btn-sm btn-action" data-action="close-vacancy" data-id="${escapeAttr(String(v.id))}">${IC.x} Cerrar</button>` : ""}
           ${vacancyCanDelete ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-vacancy" data-id="${escapeAttr(String(v.id))}" title="Solo administradores">${IC.trash}</button>` : ""}
         </div>
       </article>`;

@@ -142,4 +142,15 @@ ok("auditoría: un lote rechazado (400) no se reintenta en bucle", () => {
   assert.ok(!/\.catch\(function \(\) \{\s*queue = batch\.concat\(queue\)/.test(js), "no debe reinsertar siempre el lote");
 });
 
+ok("SST: entrada con resumen, tarjetas que filtran y formulario corto", () => {
+  const js = read("modules/app/cumplimiento-laboral.js");
+  assert.match(js, /data-action="sst-quick-status"/);
+  assert.match(js, /sst-quick-status'\]"\)\.forEach/);
+  assert.match(js, /label: "Por corregir"/);
+  assert.match(js, /name="documentCode" placeholder/);
+  assert.ok(!/name="notes" rows="3" required/.test(js), "observaciones ya no es obligatoria");
+  assert.match(js, /SST-\$\{year\}-/);
+  assert.match(read("modules/core/utils.js"), /moduleId === "sst"\) return HR_VALID_SST_WS\.has\(ws\) \? ws : "data"/);
+});
+
 console.log(`\n${n} comprobaciones OK`);

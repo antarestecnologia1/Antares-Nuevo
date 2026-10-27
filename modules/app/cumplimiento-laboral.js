@@ -209,28 +209,42 @@ function sstPersonInitials(name) {
   return `${parts[0][0] || ""}${parts[parts.length - 1][0] || ""}`.toUpperCase();
 }
 
+const SST_MONTHS_SHORT = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+
+function formatSstFriendlyDate(ymd) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(ymd || ""));
+  if (!m) return String(ymd || "");
+  const month = SST_MONTHS_SHORT[Number(m[2]) - 1] || m[2];
+  return `${Number(m[3])} ${month} ${m[1]}`;
+}
+
+function sstDaysLabel(n) {
+  return `${n} ${n === 1 ? "día" : "días"}`;
+}
+
 function sstRelativeDueMeta(item) {
   if (item?.bucket === "missing" || item?.days == null) {
-    return { text: "Sin programar", tone: "missing" };
+    return { text: "Sin fecha registrada", tone: "missing" };
   }
   const days = Number(item.days);
-  if (days < 0) return { text: `Hace ${Math.abs(days)} días`, tone: "expired" };
+  if (days < 0) return { text: `Venció hace ${sstDaysLabel(Math.abs(days))}`, tone: "expired" };
   if (days === 0) return { text: "Vence hoy", tone: "warning" };
-  return { text: `En ${days} días`, tone: "warning" };
+  if (days === 1) return { text: "Vence mañana", tone: "warning" };
+  return { text: `Vence en ${sstDaysLabel(days)}`, tone: "warning" };
 }
 
 function sstDueStatusBadge(item) {
   if (item?.bucket === "missing") {
-    return `<span class="sst-status-pill sst-status-pill--missing">Sin programar</span>`;
+    return `<span class="sst-status-pill sst-status-pill--missing">Sin fecha</span>`;
   }
   const days = item?.days;
   if (days < 0) {
-    return `<span class="sst-status-pill sst-status-pill--expired">Vencido - ${Math.abs(days)} días</span>`;
+    return `<span class="sst-status-pill sst-status-pill--expired">Vencido</span>`;
   }
   if (days === 0) {
     return `<span class="sst-status-pill sst-status-pill--warning">Vence hoy</span>`;
   }
-  return `<span class="sst-status-pill sst-status-pill--warning">Por vencer - ${days} días</span>`;
+  return `<span class="sst-status-pill sst-status-pill--warning">Por vencer</span>`;
 }
 
 function sstEmployeeCellHtml(name, position) {
@@ -246,7 +260,9 @@ function sstEmployeeCellHtml(name, position) {
 
 function sstDueDateCellHtml(item) {
   const rel = sstRelativeDueMeta(item);
-  const dateLabel = item?.dueDate ? escapeHtml(item.dueDate) : '<span class="muted">Sin programar</span>';
+  const dateLabel = item?.dueDate
+    ? `<time datetime="${escapeAttr(item.dueDate)}">${escapeHtml(formatSstFriendlyDate(item.dueDate))}</time>`
+    : '<span class="muted">—</span>';
   return `<div class="sst-due-cell">
     <span class="sst-due-cell__date">${dateLabel}</span>
     <span class="sst-due-cell__rel sst-due-cell__rel--${escapeAttr(rel.tone)}">${escapeHtml(rel.text)}</span>
@@ -402,6 +418,7 @@ function resolveSstRenewalEmployeeState(employee, controlKey, records = [], reco
 
 function formatSstRenewalStateValue(value, { missing = "Sin registrar" } = {}) {
   const text = String(value || "").trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return formatSstFriendlyDate(text);
   return text || missing;
 }
 
@@ -880,8 +897,8 @@ function updateSstCreateFormProgress(form) {
   const documentCode = String(form.querySelector('[name="documentCode"]')?.value || "").trim();
   const notes = String(form.querySelector('[name="notes"]')?.value || "").trim();
   const step1 = Boolean(employeeId && recordType);
-  const step2 = Boolean(provider && dueDate && documentCode);
-  const step3 = Boolean(notes);
+  const step2 = Boolean(provider && dueDate);
+  const step3 = Boolean(notes || documentCode);
   const completed = [step1, step2, step3].filter(Boolean).length;
   const fill = form.querySelector("[data-sst-create-progress]");
   if (fill) fill.style.width = `${Math.round((completed / 3) * 100)}%`;
@@ -948,69 +965,93 @@ function renderSstModuleHead({ employeesCount, recordsCount, dueCount, missingCo
   </header>`;
 }
 
-function renderSstStatusSummaryCards(IC, stats) {
+function renderSstStatusSummaryCards(IC, stats, { activeEstado = "" } = {}) {
   const cards = [
     {
       id: "expired",
       label: "Vencidos",
-      hint: "Requieren atención",
+      hint: "Requieren acción ya",
       count: stats.expired ?? 0,
       tone: "expired",
-      icon: IC.alertTriangle || ""
+      icon: IC.alertTriangle || "",
+      estado: "Vencido",
+      section: "all"
     },
     {
       id: "warning",
       label: "Por vencer",
-      hint: "Próximos 30 días",
+      hint: "En los próximos 30 días",
       count: stats.warning ?? 0,
       tone: "warning",
-      icon: IC.clock || ""
+      icon: IC.clock || "",
+      estado: "Por vencer",
+      section: "all"
     },
     {
       id: "ok",
       label: "Al día",
-      hint: "En cumplimiento",
+      hint: "Controles cumplidos",
       count: stats.ok ?? 0,
       tone: "ok",
-      icon: IC.check || ""
+      icon: IC.check || "",
+      estado: "Cumplido",
+      section: "audit"
     },
     {
       id: "total",
-      label: "Total",
-      hint: "Registros",
+      label: "Ver todo",
+      hint: "Sin filtrar",
       count: stats.total ?? 0,
       tone: "total",
-      icon: IC.users || IC.user || ""
+      icon: IC.users || IC.user || "",
+      estado: "",
+      section: "all"
     }
   ];
-  return `<div class="sst-status-cards" role="group" aria-label="Resumen de cumplimiento SST">
+  return `<div class="sst-status-cards" role="group" aria-label="Resumen de cumplimiento SST. Toque una tarjeta para filtrar la lista.">
     ${cards
-      .map(
-        (card) => `<article class="sst-status-card sst-status-card--${escapeAttr(card.tone)}">
+      .map((card) => {
+        const active = card.estado ? activeEstado === card.estado : !activeEstado;
+        return `<button type="button" class="sst-status-card sst-status-card--${escapeAttr(card.tone)}${active ? " is-active" : ""}" data-action="sst-quick-status" data-estado="${escapeAttr(card.estado)}" data-section="${escapeAttr(card.section)}" aria-pressed="${active ? "true" : "false"}" title="${card.estado ? `Mostrar solo: ${escapeAttr(card.label)}` : "Quitar filtros y ver todo"}">
       <span class="sst-status-card__ico" aria-hidden="true">${card.icon}</span>
-      <div class="sst-status-card__body">
+      <span class="sst-status-card__body">
         <strong class="sst-status-card__count">${escapeHtml(String(card.count))}</strong>
         <span class="sst-status-card__label">${escapeHtml(card.label)}</span>
         <span class="sst-status-card__hint">${escapeHtml(card.hint)}</span>
-      </div>
-    </article>`
-      )
+      </span>
+    </button>`;
+      })
       .join("")}
   </div>`;
 }
 
-function renderSstConsultWorkspaceHeader({ workspace, stats, IC }) {
+function renderSstConsultWorkspaceHeader({ workspace, stats, IC, activeEstado = "" }) {
   const actionsHtml = renderPayrollWorkspaceActionButtons("sst", workspace);
   return `<header class="hr-workspace-header hr-workspace-header--payroll hr-workspace-header--consult hr-workspace-header--sst">
     <div class="payroll-consult-head sst-consult-head">
       <div class="payroll-consult-head__top">
         <div class="payroll-consult-head__title">
-          <h2>Cumplimiento laboral y SST</h2>
-          <p class="payroll-consult-head__subtitle">Administra y consulta los vencimientos de exámenes, certificaciones y documentos.</p>
+          <h2>¿Qué requiere atención?</h2>
+          <p class="payroll-consult-head__subtitle">Toque una tarjeta para filtrar la lista. Con <strong>Renovar</strong> actualiza un control en un solo paso.</p>
         </div>
         <div class="payroll-consult-head__actions">${actionsHtml}</div>
       </div>
-      ${renderSstStatusSummaryCards(IC, stats)}
+      ${renderSstStatusSummaryCards(IC, stats, { activeEstado })}
+    </div>
+  </header>`;
+}
+
+function renderSstOperateWorkspaceHeader({ workspace, IC }) {
+  const actionsHtml = renderPayrollWorkspaceActionButtons("sst", workspace);
+  return `<header class="hr-workspace-header hr-workspace-header--payroll hr-workspace-header--consult hr-workspace-header--sst">
+    <div class="payroll-consult-head sst-consult-head">
+      <div class="payroll-consult-head__top">
+        <div class="payroll-consult-head__title">
+          <h2>Registrar un control</h2>
+          <p class="payroll-consult-head__subtitle">Solo 4 datos obligatorios: colaborador, tipo de control, entidad y fecha de vencimiento.</p>
+        </div>
+        <div class="payroll-consult-head__actions">${actionsHtml}</div>
+      </div>
     </div>
   </header>`;
 }
@@ -1020,28 +1061,28 @@ function renderSstDataSectionNav(activeId, counts, IC) {
     {
       id: "all",
       label: "Todos",
-      title: "Todos los vencimientos y controles",
+      title: "Todo lo pendiente: vencidos, por vencer y sin fecha",
       count: null,
       icon: ""
     },
     {
       id: "due",
-      label: "Vencimientos",
-      title: "Próximos o vencidos",
+      label: "Por vencer",
+      title: "Controles vencidos o que vencen en los próximos 30 días",
       count: null,
       icon: IC.clock || ""
     },
     {
       id: "audit",
-      label: "Auditoría",
-      title: "Controles documentales registrados",
+      label: "Historial",
+      title: "Controles registrados en el portal",
       count: counts.audit ?? 0,
       icon: IC.check || IC.file || ""
     },
     {
       id: "reconcile",
-      label: "Reconciliar",
-      title: "Desincronización SST vs ficha del colaborador",
+      label: "Por corregir",
+      title: "Datos que no coinciden entre el control SST y la ficha del colaborador",
       count: counts.reconcile ?? 0,
       icon: IC.rotateCcw || IC.activity || ""
     }
@@ -1186,6 +1227,8 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
     };
     const sstPairs = (vals) => uniqueSortedFilterValues(vals).map((v) => [v, v]);
     const sstFActive = Object.values(sstF).some(Boolean);
+    /* El estado se elige con las tarjetas de arriba: el panel de filtros solo se abre por los demás. */
+    const sstFAdvancedActive = Boolean(sstF.fControl || sstF.fEmployee || sstF.fFrom || sstF.fTo);
     const sstBucketLabel = { expired: "Vencido", warning: "Por vencer", missing: "Sin registrar" };
     const sstEstadoOf = (item) => item.bucket ? (sstBucketLabel[item.bucket] || "") : String(item.status || "").trim();
     const sstMatchesF = (row, { control, employee, estado, due }) => {
@@ -1296,10 +1339,10 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
           .filter(Boolean)
           .join("");
         return `<tr class="payroll-table-row sst-consult-row" data-sst-state="${escapeAttr(stateKey)}">
-        <td><strong class="sst-control-name">${escapeHtml(String(record.recordType || "-"))}</strong><br><span class="muted">${escapeHtml(String(record.documentCode || "Sin código documental"))}</span></td>
         <td>${sstEmployeeCellHtml(employee?.name || record.employeeName || "-", employee?.position || "—")}</td>
+        <td><strong class="sst-control-name">${escapeHtml(String(record.recordType || "-"))}</strong><br><span class="muted">${escapeHtml(String(record.documentCode || "Sin código documental"))}</span></td>
         <td>${escapeHtml(String(record.provider || "-"))}</td>
-        <td>${escapeHtml(String(record.dueDate || "-"))}</td>
+        <td>${record.dueDate ? `<time datetime="${escapeAttr(String(record.dueDate))}">${escapeHtml(formatSstFriendlyDate(record.dueDate))}</time>` : "—"}</td>
         <td>${statusBadgeForCompliance(record.status, record.dueDate)}</td>
         <td class="payroll-contracts-table__actions"><div class="sst-row-actions">${renewBtn}${renderSstRowMoreMenu(IC, moreActions)}</div></td>
       </tr>`;
@@ -1315,55 +1358,55 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
           <div class="sst-create-form__progress-fill" data-sst-create-progress style="width:0%"></div>
         </div>
         <ol class="sst-create-form__milestones">
-          <li class="sst-create-form__milestone is-active" data-sst-create-milestone="employee"><span class="sst-create-form__milestone-num">1</span><span class="sst-create-form__milestone-copy"><strong>Colaborador</strong><small>Persona y tipo</small></span></li>
-          <li class="sst-create-form__milestone" data-sst-create-milestone="control"><span class="sst-create-form__milestone-num">2</span><span class="sst-create-form__milestone-copy"><strong>Control</strong><small>Entidad y vencimiento</small></span></li>
-          <li class="sst-create-form__milestone" data-sst-create-milestone="evidence"><span class="sst-create-form__milestone-num">3</span><span class="sst-create-form__milestone-copy"><strong>Evidencia</strong><small>Observaciones</small></span></li>
+          <li class="sst-create-form__milestone is-active" data-sst-create-milestone="employee"><span class="sst-create-form__milestone-num">1</span><span class="sst-create-form__milestone-copy"><strong>Quién y qué</strong><small>Colaborador y control</small></span></li>
+          <li class="sst-create-form__milestone" data-sst-create-milestone="control"><span class="sst-create-form__milestone-num">2</span><span class="sst-create-form__milestone-copy"><strong>Vigencia</strong><small>Entidad y fecha</small></span></li>
+          <li class="sst-create-form__milestone" data-sst-create-milestone="evidence"><span class="sst-create-form__milestone-num">3</span><span class="sst-create-form__milestone-copy"><strong>Notas</strong><small>Opcional</small></span></li>
         </ol>
       </div>
       <div class="sst-create-form__layout">
         <div class="antares-create-form__sections sst-create-form__sections">
           <fieldset class="form-section form-section-blue full">
             <legend>${IC.user} Colaborador y tipo de control</legend>
-            <p class="muted form-section-hint">Identifique al colaborador y el tipo de obligación legal o control SST que desea auditar.</p>
+            <p class="muted form-section-hint">¿A quién y qué control es?</p>
             <div class="form-section-grid sst-create-form__employee-grid">
               <label class="full">${fieldLabel(IC.user, "Empleado", { required: true })}<select name="employeeId" id="sst-compliance-employee" required><option value="">Seleccione...</option>${employeeOptions}</select></label>
               <label class="full">${fieldLabel(IC.file, "Tipo de control", { required: true })}
                 <select name="recordType" id="sst-compliance-record-type" required>
                   <option value="">Seleccione...</option>
-                  <option value="Afiliacion EPS">Afiliacion EPS</option>
-                  <option value="Afiliacion pension">Afiliacion pension</option>
-                  <option value="Afiliacion ARL">Afiliacion ARL</option>
-                  <option value="Examen medico ocupacional">Examen medico ocupacional</option>
+                  <option value="Afiliacion EPS">Afiliación EPS</option>
+                  <option value="Afiliacion pension">Afiliación pensión</option>
+                  <option value="Afiliacion ARL">Afiliación ARL</option>
+                  <option value="Examen medico ocupacional">Examen médico ocupacional</option>
                   <option value="Examen instruvial">Examen instruvial</option>
-                  <option value="Licencia de conduccion">Licencia de conduccion</option>
-                  <option value="Capacitacion SST">Capacitacion SST</option>
-                  <option value="Inspeccion documental">Inspeccion documental</option>
+                  <option value="Licencia de conduccion">Licencia de conducción</option>
+                  <option value="Capacitacion SST">Capacitación SST</option>
+                  <option value="Inspeccion documental">Inspección documental</option>
                 </select>
               </label>
             </div>
           </fieldset>
           <fieldset class="form-section form-section-emerald full">
-            <legend>${IC.shield} Seguimiento y vigencia</legend>
-            <p class="muted form-section-hint">Entidad responsable, fechas de control y estado del cumplimiento documental.</p>
+            <legend>${IC.shield} Entidad y vencimiento</legend>
+            <p class="muted form-section-hint">Quién lo emite y hasta cuándo es válido.</p>
             <div class="form-section-grid">
-              <label>${fieldLabel(IC.briefcase, "Entidad / proveedor", { required: true })}<input name="provider" required placeholder="EPS, fondo, ARL o entidad auditora" data-antares-field="db-upper" data-antares-validate-blur="db-upper" /></label>
-              <label>${fieldLabel(IC.calendar, "Vencimiento / control", { required: true })}<input type="date" name="dueDate" required /></label>
-              <label class="sst-completion-date-field">${fieldLabel(IC.calendar, "Fecha de realización")}<input type="date" name="completionDate" /></label>
+              <label>${fieldLabel(IC.briefcase, "Entidad que lo emite", { required: true })}<input name="provider" required placeholder="EPS, fondo, ARL o entidad auditora" data-antares-field="db-upper" data-antares-validate-blur="db-upper" /></label>
+              <label>${fieldLabel(IC.calendar, "Fecha de vencimiento", { required: true })}<input type="date" name="dueDate" required /></label>
+              <label class="sst-completion-date-field" hidden>${fieldLabel(IC.calendar, "Fecha en que se realizó", { required: true })}<input type="date" name="completionDate" /></label>
               <label>${fieldLabel(IC.activity, "Estado", { required: true })}
                 <select name="status" required>
                   <option value="Pendiente">Pendiente</option>
-                  <option value="En gestion">En gestion</option>
-                  <option value="Cumplido">Cumplido</option>
+                  <option value="En gestion">En gestión</option>
+                  <option value="Cumplido">Cumplido (ya se realizó)</option>
                 </select>
               </label>
-              <label>${fieldLabel(IC.hash, "Codigo documental", { required: true })}<input name="documentCode" required placeholder="Ej: SST-2026-001" data-antares-field="db-upper" data-antares-validate-blur="db-upper" /></label>
+              <label>${fieldLabel(IC.hash, "Código documental (opcional)")}<input name="documentCode" placeholder="Si lo deja vacío se genera solo (SST-2026-001)" data-antares-field="db-upper" data-antares-validate-blur="db-upper" /></label>
             </div>
           </fieldset>
           <fieldset class="form-section form-section-violet full">
-            <legend>${IC.file} Evidencia y trazabilidad</legend>
-            <p class="muted form-section-hint">Detalle de soporte, auditoría y responsable. Use referencia externa sin cargar archivos al portal.</p>
+            <legend>${IC.file} Notas y soporte (opcional)</legend>
+            <p class="muted form-section-hint">Agregue un comentario o el enlace donde guarda el soporte. No se suben archivos al portal.</p>
             <div class="form-section-grid">
-              <label class="full">${fieldLabel(IC.file, "Evidencia / observaciones", { required: true })}<textarea name="notes" rows="3" required placeholder="Detalle de soporte, auditoría y responsable" data-antares-field="db-upper-multiline" data-antares-validate-blur="db-upper-multiline"></textarea></label>
+              <label class="full">${fieldLabel(IC.file, "Observaciones")}<textarea name="notes" rows="3" placeholder="Opcional: detalle del soporte o responsable" data-antares-field="db-upper-multiline" data-antares-validate-blur="db-upper-multiline"></textarea></label>
               <label class="full">${fieldLabel(IC.link || IC.file, "Referencia evidencia (opcional)")}<input name="evidenceRef" placeholder="URL externa o código de carpeta física — no se almacenan archivos en el portal" /></label>
             </div>
             <p class="muted full sst-renewal-hint">Al marcar el control como <strong>Cumplido</strong>, con fecha de realización, se renovará automáticamente la ficha del colaborador en todos los módulos vinculados.</p>
@@ -1378,7 +1421,7 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
       </footer>
     </form>`;
     const recordsTable = recordRows
-      ? `<div class="table-wrap payroll-table-wrap payroll-contracts-table-wrap sst-consult-table-wrap"><table class="payroll-contracts-table sst-consult-table"><thead><tr><th>Control</th><th>Empleado</th><th>Entidad</th><th>Vencimiento</th><th>Estado</th><th class="payroll-contracts-table__actions">Acciones</th></tr></thead><tbody>${recordRows}</tbody></table></div>`
+      ? `<div class="table-wrap payroll-table-wrap payroll-contracts-table-wrap sst-consult-table-wrap"><table class="payroll-contracts-table sst-consult-table"><thead><tr><th>Colaborador</th><th>Control</th><th>Entidad</th><th>Vencimiento</th><th>Estado</th><th class="payroll-contracts-table__actions">Acciones</th></tr></thead><tbody>${recordRows}</tbody></table></div>`
       : emptyState("No hay controles de cumplimiento registrados.");
     const buildDueItemRows = (items) =>
       items
@@ -1406,8 +1449,8 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
             ? `<div class="sst-row-actions">${renewBtn}${renderSstRowMoreMenu(IC, "")}</div>`
             : '<span class="muted">—</span>';
           return `<tr class="sst-consult-row ${bucketClass}"${rowAttrs}>
-        <td><strong class="sst-control-name">${escapeHtml(item.controlType)}</strong></td>
         <td>${sstEmployeeCellHtml(item.employeeName, item.position)}</td>
+        <td><strong class="sst-control-name">${escapeHtml(item.controlType)}</strong></td>
         <td>${sstDueDateCellHtml(item)}</td>
         <td>${sstDueStatusBadge(item)}</td>
         <td class="payroll-contracts-table__actions">${actionsCell}</td>
@@ -1428,10 +1471,10 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
               : "";
           return `<article class="sst-due-card sst-due-card--${escapeAttr(item.bucket || "warning")}">
           <div class="sst-due-card__top">
-            <strong class="sst-control-name">${escapeHtml(item.controlType)}</strong>
+            ${sstEmployeeCellHtml(item.employeeName, item.position)}
             ${sstDueStatusBadge(item)}
           </div>
-          ${sstEmployeeCellHtml(item.employeeName, item.position)}
+          <strong class="sst-control-name">${escapeHtml(item.controlType)}</strong>
           ${sstDueDateCellHtml(item)}
           <div class="sst-due-card__actions">${renewBtn || '<span class="muted">—</span>'}</div>
         </article>`;
@@ -1442,7 +1485,7 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
       if (listView === "grid") {
         return `<div class="sst-due-grid">${buildDueItemsCards(items)}</div>`;
       }
-      return `<div class="table-wrap payroll-table-wrap sst-consult-table-wrap"><table class="sst-consult-table"><thead><tr><th>Control</th><th>Empleado</th><th>Vencimiento</th><th>Estado</th><th class="payroll-contracts-table__actions">Acciones</th></tr></thead><tbody>${buildDueItemRows(items)}</tbody></table></div>`;
+      return `<div class="table-wrap payroll-table-wrap sst-consult-table-wrap"><table class="sst-consult-table"><thead><tr><th>Colaborador</th><th>Control</th><th>Vencimiento</th><th>Estado</th><th class="payroll-contracts-table__actions">Acción</th></tr></thead><tbody>${buildDueItemRows(items)}</tbody></table></div>`;
     };
     const pagedDueForAll = sstDataSection === "all" ? pagedList.items : filteredAllDueItems;
     const pagedDueForDue = sstDataSection === "due" ? pagedList.items : filteredDueItems;
@@ -1450,13 +1493,13 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
       pagedDueForAll,
       listSearchNorm
         ? "No hay vencimientos que coincidan con la búsqueda."
-        : "No hay vencimientos próximos ni controles sin fecha registrada."
+        : "Todo en orden: no hay vencimientos próximos ni controles sin fecha."
     );
     const dueItemsTable = renderDueItemsView(
       pagedDueForDue,
       listSearchNorm
         ? "No hay vencimientos que coincidan con la búsqueda."
-        : "No hay vencimientos próximos en la ventana de 30 días."
+        : "Todo en orden: nada vence en los próximos 30 días."
     );
     const pagedReconcile = sstDataSection === "reconcile" ? pagedList.items : filteredReconcileIssues;
     const reconcileRows = pagedReconcile
@@ -1493,7 +1536,7 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
       : emptyState(
           listSearchNorm
             ? "No hay inconsistencias que coincidan con la búsqueda."
-            : "No hay desincronización entre SST y fichas de colaboradores."
+            : "Todo coincide: no hay datos por corregir."
         );
     const sstCreateUi = buildModuleCreatePanelsState(["create-sst-control"], "create-sst-control", state.createPanels || {}, {
       expandActive: sstWorkspace === "operate"
@@ -1518,14 +1561,14 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
     });
     const sstWorkspaceHeader =
       sstWorkspace === "data"
-        ? renderSstConsultWorkspaceHeader({ workspace: sstWorkspace, stats: sstConsultStats, IC })
-        : renderHrWorkspaceHeader(sstModuleHead, sstTabsNav, "payroll");
+        ? renderSstConsultWorkspaceHeader({ workspace: sstWorkspace, stats: sstConsultStats, IC, activeEstado: sstF.fEstado })
+        : renderSstOperateWorkspaceHeader({ workspace: sstWorkspace, IC });
     const sstCreatePaneBody = sstCanMutate
       ? createHrActionCard(
           "create-sst-control",
           "shield",
           "Nuevo control SST / legal",
-          "Colaborador, vencimiento, evidencia y renovación automática de ficha",
+          "Al marcarlo como cumplido, la ficha del colaborador se actualiza sola",
           complianceForm,
           "Abrir formulario",
           { createPanels: sstCreateUi }
@@ -1540,14 +1583,14 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
     const sstRailCollapsed = (G.isOperateRailCollapsed || (() => false))("sst");
     const sstOperateAlert =
       urgentAlertCount > 0
-        ? `<p class="sst-operate-alert hr-attention-strip hr-attention-strip--warn" role="status">${IC.alert || IC.activity || ""} <strong>${urgentAlertCount}</strong> alerta${urgentAlertCount === 1 ? "" : "s"} requiere${urgentAlertCount === 1 ? "" : "n"} atención — revise vencimientos y afiliaciones pendientes.</p>`
+        ? `<p class="sst-operate-alert hr-attention-strip hr-attention-strip--warn" role="status">${IC.alert || IC.activity || ""} <span>Hay <strong>${urgentAlertCount}</strong> pendiente${urgentAlertCount === 1 ? "" : "s"} urgente${urgentAlertCount === 1 ? "" : "s"}.</span> <button type="button" class="sst-operate-alert__link" data-action="hr-workspace-tab" data-module="sst" data-tab="data">Ver cuáles</button></p>`
         : "";
     const sstOperatePanel = `<div class="hr-workspace-panel payroll-workspace-panel${sstWorkspace === "operate" ? "" : " hidden"}" role="tabpanel" data-sst-panel="operate"${sstWorkspace === "operate" ? "" : " hidden"}>
       ${sstOperateAlert}
       <section class="sst-operate sst-operate-panel${sstRailCollapsed ? " is-rail-collapsed" : ""}">
         <aside class="sst-operate__rail" aria-label="Tipo de registro SST">
           <div class="sst-operate__rail-head">
-            <p class="sst-operate__rail-label">Tipo de trámite</p>
+            <p class="sst-operate__rail-label">¿Qué desea hacer?</p>
             <button type="button" class="sst-operate__rail-toggle" data-action="sst-operate-rail-toggle" aria-expanded="${sstRailCollapsed ? "false" : "true"}" title="${sstRailCollapsed ? "Expandir opciones de trámite" : "Contraer opciones de trámite"}">
               <span class="sst-operate__rail-toggle-ico" aria-hidden="true">${IC.chevronLeft || ""}</span>
             </button>
@@ -1581,8 +1624,8 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
       page: pagedList.page,
       pageSize: pagedList.pageSize
     });
-    const allMeta = `<p class="payroll-result-meta muted" title="Todos los ítems de vencimiento"><strong>${filteredAllDueItems.length}</strong> ítem${filteredAllDueItems.length === 1 ? "" : "s"} · Ventana 30 días</p>`;
-    const dueMeta = `<p class="payroll-result-meta muted" title="Vencimientos próximos o vencidos"><strong>${filteredDueItems.length}</strong> ítem${filteredDueItems.length === 1 ? "" : "s"} · Ventana 30 días</p>`;
+    const allMeta = `<p class="payroll-result-meta muted" title="Todos los ítems de vencimiento"><strong>${filteredAllDueItems.length}</strong> pendiente${filteredAllDueItems.length === 1 ? "" : "s"} · vencidos, por vencer (30 días) y sin fecha</p>`;
+    const dueMeta = `<p class="payroll-result-meta muted" title="Vencimientos próximos o vencidos"><strong>${filteredDueItems.length}</strong> por atender · próximos 30 días</p>`;
     const auditMeta = `<p class="payroll-result-meta muted" title="Controles registrados en auditoría documental"><strong>${filteredRecords.length}</strong> registro${filteredRecords.length === 1 ? "" : "s"}</p>`;
     const reconcileMeta = `<p class="payroll-result-meta muted" title="Controles SST cumplidos cuya ficha no coincide, o vigencias faltantes"><strong>${filteredReconcileIssues.length}</strong> inconsistencia${filteredReconcileIssues.length === 1 ? "" : "s"}</p>`;
     const allPane = `<div class="payroll-data-pane${sstDataSection === "all" ? "" : " hidden"}" data-sst-section="all"${sstDataSection === "all" ? "" : " hidden"}>
@@ -1602,7 +1645,7 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
     </div>`;
     const reconcilePane = `<div class="payroll-data-pane${sstDataSection === "reconcile" ? "" : " hidden"}" data-sst-section="reconcile"${sstDataSection === "reconcile" ? "" : " hidden"}>
       ${reconcileMeta}
-      <p class="muted payroll-result-meta">Revise registros marcados Cumplido en SST cuya ficha no se actualizó, o colaboradores con EPS/ARL/pensión o exámenes pendientes.</p>
+      <p class="muted payroll-result-meta">Aquí aparecen controles que ya se marcaron como cumplidos pero la ficha del colaborador no se actualizó, o datos que faltan (EPS, ARL, pensión, exámenes). Use <strong>Corregir</strong> en cada fila.</p>
       <div class="payroll-table-shell">${reconcileTable}</div>
       ${sstDataSection === "reconcile" ? listPagination : ""}
     </div>`;
@@ -1614,7 +1657,10 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
           ${sstViewToggle}
         </div>
       </div>
-      ${sstFieldFiltersHtml}
+      <details class="sst-filters-disclosure"${sstFAdvancedActive ? " open" : ""}>
+        <summary class="sst-filters-disclosure__summary"><span>${IC.filter || ""} Filtrar por control, estado, colaborador o fecha</span>${sstFAdvancedActive ? '<em class="sst-filters-disclosure__on">activos</em>' : ""}</summary>
+        ${sstFieldFiltersHtml}
+      </details>
       <div class="payroll-data-panes">${allPane}${duePane}${auditPane}${reconcilePane}</div>
     </section>`;
     const sstDataPanel = `<div class="hr-workspace-panel payroll-workspace-panel${sstWorkspace === "data" ? "" : " hidden"}" role="tabpanel" data-sst-panel="data"${sstWorkspace === "data" ? "" : " hidden"}>
@@ -1701,7 +1747,7 @@ function bindLaborCompliancePortalControls() {
     btn.addEventListener("click", () => {
       const section = normalizeSstDataSection(btn.dataset.section);
       if (normalizeSstDataSection(state.sstUi?.dataSection) === section) return;
-      state.sstUi = { ...(state.sstUi || {}), dataSection: section, workspace: "data", listPage: 1 };
+      state.sstUi = { ...(state.sstUi || {}), dataSection: section, fEstado: "", workspace: "data", listPage: 1 };
       persistHrWorkspace("sst", "data");
       G.renderPortalView?.();
     });
@@ -1734,6 +1780,29 @@ function bindLaborCompliancePortalControls() {
     sel.addEventListener("change", () => {
       const size = Math.max(5, Number(sel.value) || 10);
       state.sstUi = { ...(state.sstUi || {}), pageSize: size, listPage: 1, workspace: "data" };
+      G.renderPortalView?.();
+    });
+  });
+
+  nodes.viewRoot.querySelectorAll("[data-action='sst-quick-status']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const estado = String(btn.dataset.estado || "");
+      const section = normalizeSstDataSection(btn.dataset.section || "all");
+      const current = String(state.sstUi?.fEstado || "");
+      /* Un segundo clic sobre la tarjeta activa quita el filtro. */
+      const next = estado && current === estado ? "" : estado;
+      state.sstUi = {
+        ...(state.sstUi || {}),
+        fEstado: next,
+        fControl: "",
+        fEmployee: "",
+        fFrom: "",
+        fTo: "",
+        dataSection: next ? section : "all",
+        listPage: 1,
+        workspace: "data"
+      };
+      persistHrWorkspace("sst", "data");
       G.renderPortalView?.();
     });
   });
@@ -1801,6 +1870,14 @@ function bindLaborCompliancePortalControls() {
   const sstComplianceForm = document.getElementById("form-sst-compliance");
   if (sstComplianceForm) {
     const onSstFormUiChange = () => {
+      const doneField = sstComplianceForm.querySelector(".sst-completion-date-field");
+      if (doneField) {
+        const isDone = String(sstComplianceForm.querySelector('[name="status"]')?.value || "")
+          .trim()
+          .toLowerCase()
+          .startsWith("cumpl");
+        doneField.hidden = !isDone;
+      }
       updateSstCreateFormProgress(sstComplianceForm);
       refreshSstEmployeePreview(sstComplianceForm);
     };
@@ -1832,6 +1909,16 @@ function bindLaborCompliancePortalControls() {
         return;
       }
       const list = read(KEYS.sstCompliance, []);
+      let documentCode = String(data.documentCode || "").trim().toUpperCase();
+      if (!documentCode) {
+        const year = String(colombiaTodayIsoDate()).slice(0, 4);
+        const prefix = `SST-${year}-`;
+        const used = list.filter((r) => String(r.documentCode || "").toUpperCase().startsWith(prefix)).length;
+        documentCode = `${prefix}${String(used + 1).padStart(3, "0")}`;
+        while (list.some((r) => String(r.documentCode || "").toUpperCase() === documentCode)) {
+          documentCode = `${prefix}${String(Number(documentCode.slice(prefix.length)) + 1).padStart(3, "0")}`;
+        }
+      }
       const createdRecord = G.stampCreatedRecord({
         id: G.newUuidV4(),
         employeeId: employee.id,
@@ -1841,7 +1928,7 @@ function bindLaborCompliancePortalControls() {
         dueDate,
         completionDate: completionDate || "",
         status,
-        documentCode: String(data.documentCode || "").trim().toUpperCase(),
+        documentCode,
         notes: mergeSstEvidenceRef(String(data.notes || "").trim(), data.evidenceRef)
       });
       list.unshift(createdRecord);
@@ -1855,7 +1942,7 @@ function bindLaborCompliancePortalControls() {
         const renewal = await applySstRecordCompletion(createdRecord, {
           completionDate: completionDate || dueDate,
           provider: data.provider,
-          documentCode: data.documentCode,
+          documentCode,
           notes: createdRecord.notes,
           evidenceRef: data.evidenceRef
         });

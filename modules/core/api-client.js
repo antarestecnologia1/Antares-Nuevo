@@ -11,8 +11,15 @@
   const ACCESS_TOKEN_SS_KEY = "antares_api_at";
   const REFRESH_TOKEN_SS_KEY = "antares_api_rt";
 
+  /** Marca de sesión: las cookies cross-site fueron bloqueadas (incógnito, Safari, Brave…) y se usa Bearer. */
+  const AUTO_BEARER_SS_KEY = "antares_bearer_auto";
+
   let csrfTokenMemory = "";
   let accessTokenMemory = "";
+  /** Tokens devueltos por login/refresh mientras se usan cookies; solo en memoria, se activan si la cookie no llega. */
+  let stashedAccessToken = "";
+  let stashedRefreshToken = "";
+  let autoBearerMemory = false;
 
   function normalizeBase(url) {
     if (!url || typeof url !== "string") return "";
@@ -106,12 +113,74 @@
     }
   }
 
-  /** Solo iPhone/iPad (WebKit). Escritorio sigue con cookies HttpOnly sin cambios. */
+  function registrableDomainOf(hostname) {
+    const parts = String(hostname || "")
+      .toLowerCase()
+      .replace(/:\d+$/, "")
+      .split(".")
+      .filter(Boolean);
+    if (parts.length <= 2) return parts.join(".");
+    return parts.slice(-2).join(".");
+  }
+
+  /** Portal y API en dominios registrables distintos (p. ej. transportesantares.co vs onrender.com). */
+  function isCrossSiteApi() {
+    try {
+      const base = getBase();
+      if (!base || isLocalDevHost()) return false;
+      return registrableDomainOf(new URL(base).hostname) !== registrableDomainOf(location.hostname);
+    } catch (_e) {
+      return false;
+    }
+  }
+
+  function autoBearerActive() {
+    if (autoBearerMemory) return true;
+    try {
+      return sessionStorage.getItem(AUTO_BEARER_SS_KEY) === "1";
+    } catch (_e) {
+      return false;
+    }
+  }
+
+  /**
+   * iPhone/iPad (WebKit) o navegador donde las cookies cross-site se bloquearon (se detecta solo: ver
+   * `activateAutoBearerFromStash`). Escritorio con cookies operativas sigue con HttpOnly sin cambios.
+   */
   function bearerAuthFallbackEnabled() {
     if (typeof window.__ANTARES_FORCE_BEARER_AUTH__ === "boolean") {
       return window.__ANTARES_FORCE_BEARER_AUTH__;
     }
-    return isIosWebKitClient();
+    return isIosWebKitClient() || autoBearerActive();
+  }
+
+  /** Si true, login/refresh envían la cabecera para que el servidor devuelva también los tokens en el cuerpo. */
+  function wantsBearerTokensInResponse() {
+    if (typeof window.__ANTARES_FORCE_BEARER_AUTH__ === "boolean") {
+      return window.__ANTARES_FORCE_BEARER_AUTH__;
+    }
+    return bearerAuthFallbackEnabled() || isCrossSiteApi();
+  }
+
+  /**
+   * La cookie de sesión no llegó a la API (401 con tokens recién emitidos): pasa a Bearer para esta pestaña.
+   * Devuelve true si se activó y conviene reintentar la petición.
+   */
+  function activateAutoBearerFromStash() {
+    if (bearerAuthFallbackEnabled()) return false;
+    if (typeof window.__ANTARES_FORCE_BEARER_AUTH__ === "boolean") return false;
+    if (!stashedAccessToken) return false;
+    autoBearerMemory = true;
+    try {
+      sessionStorage.setItem(AUTO_BEARER_SS_KEY, "1");
+    } catch (_e) {
+      /* queda activo en memoria */
+    }
+    setAccessToken(stashedAccessToken);
+    if (stashedRefreshToken) setRefreshToken(stashedRefreshToken);
+    stashedAccessToken = "";
+    stashedRefreshToken = "";
+    return true;
   }
 
   function readStoredAccessToken() {
@@ -175,7 +244,11 @@
 
   function clearBearerTokens() {
     accessTokenMemory = "";
+    stashedAccessToken = "";
+    stashedRefreshToken = "";
+    autoBearerMemory = false;
     try {
+      sessionStorage.removeItem(AUTO_BEARER_SS_KEY);
       sessionStorage.removeItem(ACCESS_TOKEN_SS_KEY);
       sessionStorage.removeItem(REFRESH_TOKEN_SS_KEY);
       localStorage.removeItem("antares_api_access_token");
@@ -187,7 +260,11 @@
   function applyAuthTokensFromResponse(data) {
     if (!data || typeof data !== "object") return;
     if (data.csrfToken) setCsrfToken(data.csrfToken);
-    if (!bearerAuthFallbackEnabled()) return;
+    if (!bearerAuthFallbackEnabled()) {
+      if (data.accessToken) stashedAccessToken = String(data.accessToken).trim();
+      if (data.refreshToken) stashedRefreshToken = String(data.refreshToken).trim();
+      return;
+    }
     if (data.accessToken) setAccessToken(data.accessToken);
     if (data.refreshToken) setRefreshToken(data.refreshToken);
   }
@@ -258,6 +335,75 @@
     return s;
   }
 
+  let csrfResyncPromise = null;
+
+  /** Renueva sesión para re-sincronizar el token CSRF con la cookie (otra pestaña/login lo rotó). */
+  function resyncCsrfViaRefresh() {
+    if (csrfResyncPromise) return csrfResyncPromise;
+    csrfResyncPromise = (async function () {
+      try {
+        const base = getBase();
+        if (!base) return false;
+        const headers = { "Content-Type": "application/json", Accept: "application/json" };
+        if (wantsBearerTokensInResponse()) headers["X-Antares-Bearer-Fallback"] = "1";
+        let userId = "";
+        try {
+          userId = String(JSON.parse(localStorage.getItem(SESSION_KEY) || "null")?.userId || "");
+        } catch (_e) {
+          userId = "";
+        }
+        const rt = getRefreshToken();
+        const res = await fetch(`${base}/api/auth/refresh`, {
+          method: "POST",
+          headers,
+          credentials: "include",
+          body: JSON.stringify(rt && userId ? { refreshToken: rt, userId } : {})
+        });
+        if (!res.ok) return false;
+        const data = await res.json().catch(() => null);
+        if (!data || typeof data !== "object") return false;
+        applyAuthTokensFromResponse(data);
+        return Boolean(data.csrfToken);
+      } catch (_e) {
+        return false;
+      } finally {
+        setTimeout(function () {
+          csrfResyncPromise = null;
+        }, 0);
+      }
+    })();
+    return csrfResyncPromise;
+  }
+
+  async function responseIsCsrfRejection(res) {
+    try {
+      const data = await res.clone().json();
+      return /csrf/i.test(String(data?.message || ""));
+    } catch (_e) {
+      return false;
+    }
+  }
+
+  /**
+   * fetch autenticado con dos reintentos automáticos (uno cada vez):
+   * - 401 justo después de iniciar sesión → la cookie cross-site fue bloqueada: pasa a Bearer.
+   * - 403 "Token CSRF" → re-sincroniza el token con la sesión y repite.
+   */
+  async function authFetch(url, opts, method) {
+    let res = await fetch(url, opts);
+    if (res.status === 401 && activateAutoBearerFromStash()) {
+      opts.headers = Object.assign({}, opts.headers, buildFetchHeaders(method));
+      return fetch(url, opts);
+    }
+    if (res.status === 403 && isMutatingMethod(method) && (await responseIsCsrfRejection(res))) {
+      if (await resyncCsrfViaRefresh()) {
+        opts.headers = Object.assign({}, opts.headers, buildFetchHeaders(method));
+        res = await fetch(url, opts);
+      }
+    }
+    return res;
+  }
+
   async function request(method, path, body, reqOpts) {
     reqOpts = reqOpts && typeof reqOpts === "object" ? reqOpts : {};
     const base = getBase();
@@ -287,7 +433,7 @@
     }
     let res;
     try {
-      res = await fetch(url, opts);
+      res = await authFetch(url, opts, method);
     } catch (err) {
       if (controller && err && err.name === "AbortError") {
         const timeoutErr = new Error("La solicitud al servidor tardó demasiado. Intente de nuevo.");
@@ -337,7 +483,7 @@
     const headers = buildFetchHeaders("GET", { Accept: "application/octet-stream" });
     let res;
     try {
-      res = await fetch(url, { method: "GET", headers, credentials: "include" });
+      res = await authFetch(url, { method: "GET", headers, credentials: "include" }, "GET");
     } catch (err) {
       throwIfFetchNetworkError(err);
     }
@@ -366,12 +512,16 @@
     });
     let res;
     try {
-      res = await fetch(url, {
-        method: "POST",
-        headers,
-        credentials: "include",
-        body: JSON.stringify(body)
-      });
+      res = await authFetch(
+        url,
+        {
+          method: "POST",
+          headers,
+          credentials: "include",
+          body: JSON.stringify(body)
+        },
+        "POST"
+      );
     } catch (err) {
       throwIfFetchNetworkError(err);
     }
@@ -475,7 +625,7 @@
     const headers = buildFetchHeaders("POST", { Accept: "application/json" });
     let res;
     try {
-      res = await fetch(url, { method: "POST", headers, credentials: "include", body: formData });
+      res = await authFetch(url, { method: "POST", headers, credentials: "include", body: formData }, "POST");
     } catch (err) {
       throwIfFetchNetworkError(err);
     }
@@ -599,6 +749,7 @@
   window.AntaresApi = {
     getBase,
     bearerAuthFallbackEnabled,
+    wantsBearerTokensInResponse,
     getAccessToken,
     getRefreshToken,
     getCsrfToken,

@@ -383,7 +383,8 @@ export function normalizeHrWorkspace(moduleId, workspace) {
     return HR_VALID_HIRING_WS.has(ws) ? ws : "data";
   }
   if (moduleId === "requests") return HR_VALID_REQUESTS_WS.has(ws) ? ws : "operate";
-  if (moduleId === "sst") return HR_VALID_SST_WS.has(ws) ? ws : "operate";
+  /* Por defecto: resumen de vencimientos (consultar); registrar es una acción aparte. */
+  if (moduleId === "sst") return HR_VALID_SST_WS.has(ws) ? ws : "data";
   if (moduleId === "sarlaft") return HR_VALID_SARLAFT_WS.has(ws) ? ws : "operate";
   /*
    * Gestión documental ya no usa pestañas: su preferencia persistida es la sección
