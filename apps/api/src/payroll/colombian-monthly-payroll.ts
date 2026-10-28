@@ -354,6 +354,18 @@ function formatNoveltyPercentSummary(ep: Record<string, unknown>): string {
   return "";
 }
 
+function noveltyHumanRange(ep: Record<string, unknown>): string {
+  const rangeRaw = String(ep.rangeLabel || "").trim();
+  const rangeM = /^(\d{4}-\d{2}-\d{2})\s*[→\-–]\s*(\d{4}-\d{2}-\d{2})$/.exec(rangeRaw);
+  if (!rangeM) return rangeRaw;
+  const fmtYmd = (ymd: string) => {
+    const [y, mo, da] = ymd.split("-").map(Number);
+    const d = new Date(Date.UTC(y, mo - 1, da, 12, 0, 0));
+    return d.toLocaleDateString("es-CO", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+  };
+  return `${fmtYmd(rangeM[1])} al ${fmtYmd(rangeM[2])}`;
+}
+
 function formatNoveltyDevengoLabel(ep: Record<string, unknown>, kind?: "deduct" | "pay"): string {
   const typeLabel = String(ep.typeLabel || ep.label || ep.tipo || "Novedad")
     .replace(/\s*·\s*radicado\s+\S+/i, "")
@@ -403,10 +415,10 @@ function buildIncapacityStagePayLines(
       : /eps/i.test(String(r.s.payer || ""))
         ? "a cargo de la EPS"
         : "";
-    const floorTxt = r.from > 2 && Number(r.s.pct) > 0.6675 ? " (mínimo legal: salario mínimo diario)" : "";
+    const floorTxt = r.from > 2 && Number(r.s.pct) > 0.6675 ? " (mínimo legal)" : "";
     return {
       code: `INCAPACIDAD_PAGO_${index}_${k}`,
-      label: ["Pago", typeLabel, span, stagePercentLabel(r.s) + floorTxt, payerTxt].filter(Boolean).join(" · "),
+      label: [typeLabel, span, stagePercentLabel(r.s) + floorTxt, payerTxt].filter(Boolean).join(" · "),
       amount: r.amount
     };
   });
@@ -421,10 +433,13 @@ function incapacityEpisodeToDevengoLines(ep: Record<string, unknown>, index: num
   if (deduct !== 0) {
     lines.push({
       code: `INCAPACIDAD_DESC_${index}`,
-      label: formatNoveltyDevengoLabel(
-        stageLines.length ? { ...ep, stages: undefined, note: "", nota: "" } : ep,
-        "deduct"
-      ),
+      label: stageLines.length
+        ? `Menos: días de ${String(ep.typeLabel || ep.label || "incapacidad")
+            .replace(/\s*·\s*radicado\s+\S+/i, "")
+            .replace(/^incapacidad\s+(eps|arl)$/i, "incapacidad")
+            .toLowerCase()
+            .trim()} · ${noveltyHumanRange(ep)}`
+        : formatNoveltyDevengoLabel(ep, "deduct"),
       amount: deduct
     });
   }

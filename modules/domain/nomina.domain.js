@@ -1033,10 +1033,10 @@ function buildIncapacityStagePayLines(ep, index, totalPay) {
         ? "a cargo de la EPS"
         : "";
     const floorTxt =
-      r.from > 2 && Number(r.s.pct) > 0.6675 ? " (mínimo legal: salario mínimo diario)" : "";
+      r.from > 2 && Number(r.s.pct) > 0.6675 ? " (mínimo legal)" : "";
     return {
       code: `INCAPACIDAD_PAGO_${index}_${k}`,
-      label: ["Pago", typeLabel, span, stagePercentLabel(r.s) + floorTxt, payerTxt].filter(Boolean).join(" · "),
+      label: [typeLabel, span, stagePercentLabel(r.s) + floorTxt, payerTxt].filter(Boolean).join(" · "),
       amount: r.amount
     };
   });
@@ -1050,10 +1050,13 @@ export function expandIncapacityEpisodesToDevengoLines(episodes) {
     if (deduct !== 0) {
       lines.push({
         code: `INCAPACIDAD_DESC_${i}`,
-        label: formatPayrollNoveltyDevengoLabel(
-          stageLines.length ? { ...ep, stages: undefined, note: "", nota: "" } : ep,
-          { kind: "deduct" }
-        ),
+        label: stageLines.length
+          ? `Menos: días de ${String(ep.typeLabel || ep.label || "incapacidad")
+              .replace(/\s*·\s*radicado\s+\S+/i, "")
+              .replace(/^incapacidad\s+(eps|arl)$/i, "incapacidad")
+              .toLowerCase()
+              .trim()} · ${formatPayrollHumanDateRange(ep.rangeLabel)}`
+          : formatPayrollNoveltyDevengoLabel(ep, { kind: "deduct" }),
         amount: deduct
       });
     }
