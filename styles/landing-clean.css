@@ -1,0 +1,196 @@
+/* ===================================================================
+   Landing pública · capa limpia
+   Fondo blanco / gris muy claro, un solo azul de marca, tarjetas planas
+   con borde fino. Solo afecta a la página pública (fuera del portal).
+   Se carga al final para ganar a styles.landing.css sin editarlo.
+   =================================================================== */
+
+body:not(.portal-mode) {
+  --lc-bg: #ffffff;
+  --lc-soft: #f6f8fb;
+  --lc-line: #e5eaf1;
+  --lc-line-2: #d3dbe6;
+  --lc-ink: #12233f;
+  --lc-ink-2: #51627c;
+  --lc-ink-3: #8794a8;
+  --lc-brand: #377cc0;
+  --lc-brand-ink: #245f9c;
+  --lc-brand-soft: #edf4fb;
+}
+body[data-theme="dark"]:not(.portal-mode) {
+  --lc-bg: #0d1726;
+  --lc-soft: #101c2e;
+  --lc-line: #213249;
+  --lc-line-2: #2c4160;
+  --lc-ink: #e8eef8;
+  --lc-ink-2: #a5b4ca;
+  --lc-ink-3: #7385a0;
+  --lc-brand: #5b9ddc;
+  --lc-brand-ink: #8fc0ee;
+  --lc-brand-soft: rgba(91, 157, 220, 0.14);
+}
+
+/* ---------- Hero ---------- */
+body:not(.portal-mode) #hero :is(.hero-grid-pattern, .hero-aurora, .hero-floating, .hero-truck-anim) { display: none !important; }
+body:not(.portal-mode) #hero { min-height: min(86vh, 760px); display: flex; align-items: center; }
+body:not(.portal-mode) #hero .overlay {
+  background: linear-gradient(100deg, rgba(8, 24, 46, 0.9) 0%, rgba(8, 24, 46, 0.72) 48%, rgba(8, 24, 46, 0.35) 100%) !important;
+}
+body:not(.portal-mode) #hero .hero-brand-panel {
+  background: transparent !important; background-image: none !important; border: 0 !important; box-shadow: none !important; backdrop-filter: none !important;
+  padding: 0 !important;
+}
+body:not(.portal-mode) #hero .hero-brand-panel::before, body:not(.portal-mode) #hero .hero-brand-panel::after { display: none !important; }
+body:not(.portal-mode) #hero .hero-brand-logo { filter: drop-shadow(0 6px 24px rgba(0, 0, 0, 0.35)); width: 100%; height: auto; }
+body:not(.portal-mode) #hero h1 { text-shadow: none !important; letter-spacing: -0.01em; }
+body:not(.portal-mode) #hero .hero-h1-accent {
+  background: none !important; -webkit-text-fill-color: #8fc0ee !important; color: #8fc0ee !important; text-shadow: none !important; filter: none !important;
+}
+body:not(.portal-mode) #hero .hero-copy > p { color: rgba(255, 255, 255, 0.86); max-width: 58ch; }
+body:not(.portal-mode) #hero .hero-stat {
+  background: rgba(255, 255, 255, 0.08) !important; background-image: none !important; border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  box-shadow: none !important; backdrop-filter: blur(6px); border-radius: 14px !important;
+}
+body:not(.portal-mode) #hero .hero-stat-text span { text-transform: none !important; letter-spacing: 0 !important; font-size: .78rem !important; font-weight: 500; opacity: .85; }
+body:not(.portal-mode) #hero .hero-stat-text b { font-size: 1.35rem; }
+body:not(.portal-mode) #hero .btn-primary { box-shadow: none !important; background: var(--lc-brand) !important; background-image: none !important; }
+body:not(.portal-mode) #hero .btn-ghost-light { background: transparent !important; border: 1px solid rgba(255, 255, 255, 0.5) !important; box-shadow: none !important; }
+body:not(.portal-mode) #hero .btn-ghost-light:hover { background: rgba(255, 255, 255, 0.1) !important; }
+
+/* ---------- Secciones: blanco / gris suave alternados, sin ondas ---------- */
+body:not(.portal-mode) .wave-divider, body:not(.portal-mode) .wave-divider-flip { display: none !important; }
+body:not(.portal-mode) .section { padding: 4.5rem 0; background: var(--lc-bg) !important; background-image: none !important; color: var(--lc-ink); }
+body:not(.portal-mode) :is(#trusted, #services, #process, #news, #contact) { background: var(--lc-soft) !important; }
+body:not(.portal-mode) :is(#about, #testimonials, #fleet, #coverage, #careers) { background: var(--lc-bg) !important; }
+body:not(.portal-mode) .section::before, body:not(.portal-mode) .section::after { display: none !important; }
+body:not(.portal-mode) .section-dark { color: var(--lc-ink); }
+body:not(.portal-mode) .section-dark :is(h2, h3, h4) { color: var(--lc-ink) !important; }
+body:not(.portal-mode) .section-dark p { color: var(--lc-ink-2) !important; }
+
+/* Encabezados de sección */
+body:not(.portal-mode) .section-head { margin-bottom: 2rem; text-align: left; }
+body:not(.portal-mode) .section-icon-header { display: flex; align-items: center; gap: .85rem; }
+body:not(.portal-mode) .section-icon-header h2 { font-size: clamp(1.5rem, 2.4vw, 2rem); font-weight: 700; letter-spacing: -0.01em; color: var(--lc-ink) !important; margin: 0; }
+body:not(.portal-mode) .section-icon {
+  width: 2.6rem; height: 2.6rem; border-radius: 12px; display: grid; place-items: center;
+  background: var(--lc-brand-soft) !important; background-image: none !important; color: var(--lc-brand-ink) !important; box-shadow: none !important;
+}
+body:not(.portal-mode) .section-icon svg { width: 1.3rem; height: 1.3rem; }
+body:not(.portal-mode) .section-head > p, body:not(.portal-mode) .section-head .muted { color: var(--lc-ink-2) !important; max-width: 62ch; font-size: 1.02rem; line-height: 1.6; margin-top: .6rem; }
+
+/* ---------- Tarjetas: una sola familia ---------- */
+body:not(.portal-mode) :is(.about-grid .card, .trusted-grid .card, .testimonial-card, .success-case-card, .service-card, .fleet-card, .process-card, .coverage-grid .card, #coverage .card, .news-card, .careers-grid > *, #contact .card) {
+  background: var(--lc-bg) !important; background-image: none !important; border: 1px solid var(--lc-line) !important; border-radius: 16px !important;
+  box-shadow: none !important; color: var(--lc-ink);
+}
+body:not(.portal-mode) :is(#trusted, #services, #process, #news, #contact) :is(.card, .service-card, .process-card) { background: var(--lc-bg) !important; }
+body:not(.portal-mode) .lift-card { transition: border-color .2s ease; }
+body:not(.portal-mode) .lift-card:hover { transform: none !important; border-color: var(--lc-line-2) !important; box-shadow: 0 6px 20px rgba(16, 35, 63, .06) !important; }
+body:not(.portal-mode) .card h3, body:not(.portal-mode) .card h4, body:not(.portal-mode) .service-card h3 { color: var(--lc-ink) !important; }
+body:not(.portal-mode) .card p, body:not(.portal-mode) .service-card p { color: var(--lc-ink-2) !important; line-height: 1.6; }
+body:not(.portal-mode) .card-icon-top :is(.card-icon, svg:first-child), body:not(.portal-mode) .about-grid .card > svg:first-child { color: var(--lc-brand-ink); }
+body:not(.portal-mode) :is(.card-icon, .mini-metric-icon, .fleet-card-icon, .fleet-spec-icon, .contact-info-icon) {
+  background: var(--lc-brand-soft) !important; background-image: none !important; color: var(--lc-brand-ink) !important; box-shadow: none !important; border: 0 !important;
+}
+body:not(.portal-mode) .service-card { border-left-width: 1px !important; }
+body:not(.portal-mode) .service-card::before, body:not(.portal-mode) .service-card::after { display: none !important; }
+body:not(.portal-mode) .mini-metric strong, body:not(.portal-mode) .mini-metric .metric-value { color: var(--lc-ink) !important; }
+
+/* Proceso: número discreto */
+body:not(.portal-mode) .process-step { background: var(--lc-brand-soft) !important; color: var(--lc-brand-ink) !important; border: 0 !important; box-shadow: none !important; font-weight: 700; }
+
+/* Etiquetas y chips */
+body:not(.portal-mode) :is(.news-tag, .news-tag-glow, .news-lead-badge, .news-plate-chip, .contact-trust-pill, .contact-step-chip) {
+  background: var(--lc-brand-soft) !important; background-image: none !important; color: var(--lc-brand-ink) !important; border: 1px solid transparent !important; box-shadow: none !important;
+  text-transform: none !important; letter-spacing: 0 !important;
+}
+body:not(.portal-mode) .contact-step-chip.active { background: var(--lc-brand) !important; color: #fff !important; }
+body:not(.portal-mode) :is(.news-super-kicker, .news-relevance-meta) { text-transform: none !important; letter-spacing: 0 !important; color: var(--lc-ink-3) !important; }
+
+/* Actualidad: el video no domina la página */
+body:not(.portal-mode) .news-video-wrap { border-radius: 14px; overflow: hidden; background: #0b1624; }
+body:not(.portal-mode) .news-video-wrap video { display: block; width: 100%; max-height: 540px; object-fit: contain; background: #0b1624; }
+body:not(.portal-mode) .news-quote-panel { background: var(--lc-soft) !important; border: 1px solid var(--lc-line) !important; box-shadow: none !important; }
+
+/* Cobertura: listas como filas simples */
+body:not(.portal-mode) #coverage li, body:not(.portal-mode) #coverage .coverage-item { background: var(--lc-soft) !important; border: 1px solid var(--lc-line) !important; border-radius: 10px !important; box-shadow: none !important; color: var(--lc-ink); }
+
+/* Formulario de contacto */
+body:not(.portal-mode) #contact :is(input, select, textarea) {
+  background: var(--lc-bg) !important; border: 1px solid var(--lc-line-2) !important; border-radius: 10px !important; color: var(--lc-ink) !important; box-shadow: none !important; text-transform: none;
+}
+body:not(.portal-mode) #contact :is(input, select, textarea):focus { border-color: var(--lc-brand) !important; box-shadow: 0 0 0 3px var(--lc-brand-soft) !important; outline: 0; }
+body:not(.portal-mode) #contact :is(input, textarea)::placeholder { text-transform: none; color: var(--lc-ink-3); }
+body:not(.portal-mode) #contact label { text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--lc-ink-2); }
+body:not(.portal-mode) #contact .btn-primary { box-shadow: none !important; background: var(--lc-brand) !important; background-image: none !important; }
+
+/* Carreras: estado vacío sobrio */
+body:not(.portal-mode) .careers-grid > * { padding: 1.1rem 1.25rem; }
+
+@media (max-width: 720px) {
+  body:not(.portal-mode) .section { padding: 3rem 0; }
+  body:not(.portal-mode) #hero { min-height: auto; padding: 4.5rem 0 3rem; }
+  body:not(.portal-mode) #hero .hero-brand-logo { max-width: 240px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  body:not(.portal-mode) .lift-card { transition: none; }
+}
+
+/* Hero: sin franja desalineada ni degradado blanco inferior */
+body:not(.portal-mode) #hero::after, body:not(.portal-mode) #hero .hero-fleet-background::after { display: none !important; }
+body:not(.portal-mode) #hero .hero-fleet-background { background-image: url("../assets/antares-hero-truck.png") !important; background-repeat: no-repeat !important; background-size: min(70vw, 900px) auto !important; background-position: right 2vw bottom 4vh !important; opacity: .5 !important; filter: none !important; }
+body:not(.portal-mode) #hero .hero-bg-image { opacity: .12; }
+/* Íconos de las tarjetas de Nosotros / servicios */
+body:not(.portal-mode) svg.card-icon-top {
+  width: 3rem !important; height: 3rem !important; padding: .75rem; border-radius: 12px; box-sizing: border-box;
+  background: var(--lc-brand-soft) !important; background-image: none !important; color: var(--lc-brand-ink) !important; stroke: var(--lc-brand-ink) !important; box-shadow: none !important; margin-bottom: .9rem;
+}
+
+body:not(.portal-mode) #hero .overlay { position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; transform: none !important; }
+body:not(.portal-mode) #hero .hero-brand-logo { mix-blend-mode: normal !important; }
+
+/* La imagen del camión trae fondo oscuro propio: se funde con el hero */
+body:not(.portal-mode) #hero .hero-fleet-background {
+  mix-blend-mode: lighten; opacity: .8 !important;
+  -webkit-mask-image: radial-gradient(ellipse 60% 70% at 72% 62%, #000 40%, transparent 85%);
+  mask-image: radial-gradient(ellipse 60% 70% at 72% 62%, #000 40%, transparent 85%);
+}
+
+body:not(.portal-mode) #hero .hero-brand-logo { filter: brightness(0) invert(1) drop-shadow(0 4px 18px rgba(0,0,0,.3)) !important; max-width: 100%; width: 100%; height: auto; object-fit: contain; }
+body:not(.portal-mode) #hero .hero-brand-slot, body:not(.portal-mode) #hero .hero-brand-panel { overflow: visible !important; }
+
+body:not(.portal-mode) #news :is(.news-super-kicker, [class*="kicker"], [class*="badge"]) { background: var(--lc-brand-soft) !important; background-image: none !important; color: var(--lc-brand-ink) !important; border: 0 !important; box-shadow: none !important; text-transform: none !important; letter-spacing: 0 !important; }
+body:not(.portal-mode) #news .news-proof-card, body:not(.portal-mode) #news .news-relevance-card { background: var(--lc-soft) !important; background-image: none !important; border: 1px solid var(--lc-line) !important; box-shadow: none !important; border-radius: 12px !important; }
+
+/* ---------- Modal de acceso ---------- */
+body:not(.portal-mode) #auth-modal .modal-card-auth { background: var(--lc-bg) !important; background-image: none !important; border: 1px solid var(--lc-line) !important; border-radius: 18px !important; box-shadow: 0 24px 60px rgba(16, 35, 63, .22) !important; }
+body:not(.portal-mode) #auth-modal .modal-card-auth::before, body:not(.portal-mode) #auth-modal .modal-card-auth::after { display: none !important; }
+body:not(.portal-mode) #auth-modal :is(.modal-head, .auth-modal-heading-text) { color: var(--lc-ink) !important; }
+body:not(.portal-mode) #auth-modal .auth-modal-subtitle { color: var(--lc-ink-3) !important; }
+body:not(.portal-mode) #auth-modal .tabs { background: var(--lc-soft) !important; background-image: none !important; border: 1px solid var(--lc-line) !important; border-radius: 11px !important; box-shadow: none !important; padding: 3px !important; gap: 2px; }
+body:not(.portal-mode) #auth-modal .tab { background: transparent !important; background-image: none !important; box-shadow: none !important; border: 0 !important; color: var(--lc-ink-2) !important; border-radius: 8px !important; font-weight: 600; }
+body:not(.portal-mode) #auth-modal .tab.active { background: var(--lc-bg) !important; color: var(--lc-brand-ink) !important; box-shadow: 0 1px 2px rgba(16, 35, 63, .14) !important; }
+body:not(.portal-mode) #auth-modal :is(input, select, textarea) { background: var(--lc-bg) !important; color: var(--lc-ink) !important; box-shadow: none !important; }
+body:not(.portal-mode) #auth-modal :is(input, textarea)::placeholder { color: var(--lc-ink-3) !important; opacity: 1 !important; text-transform: none; }
+body:not(.portal-mode) #auth-modal :is(input, select, textarea):focus { box-shadow: 0 0 0 3px var(--lc-brand-soft) !important; outline: 0; }
+body:not(.portal-mode) #auth-modal label { color: var(--lc-ink-2); font-weight: 600; text-transform: none; letter-spacing: 0; }
+body:not(.portal-mode) #auth-modal :is(button[class*="toggle"], button[class*="show"], .password-toggle) { background: var(--lc-bg) !important; background-image: none !important; box-shadow: none !important; border: 1px solid var(--lc-line-2) !important; color: var(--lc-brand-ink) !important; }
+body:not(.portal-mode) #auth-modal .btn-primary { background: var(--lc-brand) !important; background-image: none !important; box-shadow: none !important; }
+body:not(.portal-mode) #auth-modal .btn-primary:hover { background: var(--lc-brand-ink) !important; }
+body:not(.portal-mode) #auth-modal :is([class*="remember"], [class*="captcha"], [class*="turnstile"], [class*="security"]) { background: var(--lc-soft) !important; background-image: none !important; box-shadow: none !important; border-color: var(--lc-line) !important; }
+body:not(.portal-mode) #auth-modal [class*="security"] :is(span, small, strong) { text-transform: none !important; letter-spacing: 0 !important; }
+body:not(.portal-mode) #auth-modal [class*="security"] *, body:not(.portal-mode) #auth-modal [class*="captcha"] * { text-transform: none !important; letter-spacing: 0 !important; }
+body:not(.portal-mode) #auth-modal button:not(.btn-primary):not(.tab) { box-shadow: none !important; }
+
+@media (max-width: 720px) {
+  body:not(.portal-mode) #news :is(.news-magazine, .news-card, .news-feature, .news-magazine-lead, .news-magazine-continued) { min-width: 0; max-width: 100%; }
+  body:not(.portal-mode) #news .news-proof-grid { grid-template-columns: 1fr !important; }
+  body:not(.portal-mode) #news .card { overflow-wrap: anywhere; }
+  body:not(.portal-mode) #news .news-hero-title { font-size: 1.15rem; }
+}
+
+@media (max-width: 720px) {
+  body:not(.portal-mode) :is(.grid-2, .grid-3, .grid-4, .coverage-grid) { grid-template-columns: minmax(0, 1fr) !important; }
+  body:not(.portal-mode) :is(.grid-2, .grid-3, .grid-4) > * { min-width: 0; max-width: 100%; }
+  body:not(.portal-mode) #coverage li, body:not(.portal-mode) #coverage .coverage-item { overflow-wrap: anywhere; }
+}

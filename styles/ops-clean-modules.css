@@ -708,3 +708,75 @@ body.portal-mode .reports-studio .p-card-header .p-card-icon, body.portal-mode .
 
 body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .fleet-hero-metric { flex-wrap: wrap; row-gap: 0; }
 body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .fleet-hero-metric span { white-space: normal; }
+
+/* Mini menús: ocultos hasta que el script los coloca (sin parpadeo ni salto al abrir). */
+:is(details.ag-menu, details.sst-row-more, details.doc-rowmenu, details.doc-folder-menu, details.hiring-card-menu, details.ag-popover)[open]:not([data-ag-placed]) > :not(summary) { visibility: hidden; }
+
+/* Gestión humana / nómina: barras de filtro, conmutadores y tarjetas de sección planos */
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .ag-filterbar { background: var(--oc-bg) !important; background-image: none !important; border: 1px solid var(--oc-line) !important; box-shadow: none !important; border-radius: 14px !important; }
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .payroll-contracts-search { background: var(--oc-bg); border: 1px solid var(--oc-line); border-radius: .65rem; box-shadow: none; }
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .payroll-contracts-search input { border: 0 !important; background: transparent !important; box-shadow: none !important; outline: 0; }
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .payroll-contracts-search:focus-within { border-color: var(--oc-brand); box-shadow: 0 0 0 3px var(--oc-brand-soft); }
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) :is(.payroll-runs-view-toggle, .hr-workspace-tabs--switch) { background: var(--oc-soft) !important; background-image: none !important; border: 1px solid var(--oc-line) !important; box-shadow: none !important; border-radius: 11px !important; padding: 3px !important; gap: 2px; }
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) :is(.payroll-runs-view-toggle__btn, .hr-workspace-tab--switch) { background: transparent !important; background-image: none !important; box-shadow: none !important; border: 0 !important; color: var(--oc-ink-2) !important; border-radius: 8px !important; font-weight: 600; }
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) :is(.payroll-runs-view-toggle__btn.is-active, .hr-workspace-tab--switch.is-active) { background: var(--oc-bg) !important; color: var(--oc-brand-ink) !important; box-shadow: 0 1px 2px rgba(16,35,63,.12) !important; }
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .hr-workspace-tab--switch.is-active { background: var(--oc-brand) !important; color: #fff !important; }
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .payroll-section-card { background: var(--oc-bg) !important; background-image: none !important; border: 1px solid var(--oc-line) !important; box-shadow: none !important; border-radius: 12px !important; }
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .payroll-section-card:hover { border-color: var(--oc-line-2) !important; }
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .payroll-section-card.is-active { background: var(--oc-brand-soft) !important; border-color: var(--oc-brand) !important; }
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .payroll-section-card__ico { background: var(--oc-brand-soft) !important; background-image: none !important; color: var(--oc-brand-ink) !important; box-shadow: none !important; }
+body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .payroll-section-card.is-active .payroll-section-card__ico { background: var(--oc-brand) !important; color: #fff !important; }
+
+/* =====================================================================
+   FORMULARIOS DE REGISTRO — sin banner oscuro, sin secciones de color,
+   etiquetas en minúscula; vale para todos los módulos.
+   ===================================================================== */
+body.portal-mode .antares-create-form {
+  --f-bg: #ffffff; --f-soft: #f6f8fb; --f-line: #e5eaf1; --f-line-2: #d3dbe6; --f-ink: #12233f; --f-ink-2: #51627c; --f-ink-3: #8794a8; --f-brand: #377cc0; --f-brand-ink: #245f9c; --f-brand-soft: #edf4fb;
+}
+body[data-theme="dark"].portal-mode .antares-create-form {
+  --f-bg: #101c2e; --f-soft: #15243a; --f-line: #213249; --f-line-2: #2c4160; --f-ink: #e8eef8; --f-ink-2: #a5b4ca; --f-ink-3: #7385a0; --f-brand: #5b9ddc; --f-brand-ink: #8fc0ee; --f-brand-soft: rgba(91,157,220,.14);
+}
+body.portal-mode .antares-create-form .hr-form-hero {
+  background: var(--f-soft) !important; background-image: none !important; color: var(--f-ink) !important;
+  border: 1px solid var(--f-line) !important; border-radius: 14px !important; box-shadow: none !important; padding: 1rem 1.2rem !important;
+}
+body.portal-mode .antares-create-form .hr-form-hero::before, body.portal-mode .antares-create-form .hr-form-hero::after { display: none !important; }
+body.portal-mode .antares-create-form .hr-form-hero__eyebrow { text-transform: none !important; letter-spacing: 0 !important; font-size: .8rem !important; font-weight: 500 !important; color: var(--f-ink-3) !important; }
+body.portal-mode .antares-create-form .hr-form-hero__title { color: var(--f-ink) !important; font-size: 1.2rem !important; }
+body.portal-mode .antares-create-form .hr-form-hero__text { color: var(--f-ink-2) !important; }
+body.portal-mode .antares-create-form .hr-form-hero-badge { background: var(--f-bg) !important; background-image: none !important; color: var(--f-ink-2) !important; border: 1px solid var(--f-line) !important; box-shadow: none !important; }
+body.portal-mode .antares-create-form .hr-form-hero-badge * { color: inherit !important; }
+body.portal-mode .antares-create-form fieldset.form-section {
+  background: var(--f-bg) !important; background-image: none !important; border: 1px solid var(--f-line) !important; border-left-width: 1px !important;
+  border-radius: 14px !important; box-shadow: none !important; padding: 1rem 1.15rem 1.1rem !important;
+}
+body.portal-mode .antares-create-form fieldset.form-section > legend {
+  display: inline-flex; align-items: center; gap: .45rem; padding: 0 .4rem; font-size: .95rem; font-weight: 700; color: var(--f-ink) !important;
+  text-transform: none; letter-spacing: 0; background: var(--f-bg);
+}
+body.portal-mode .antares-create-form fieldset.form-section > legend svg { color: var(--f-brand) !important; width: 1rem; height: 1rem; }
+body.portal-mode .antares-create-form .form-section-hint { color: var(--f-ink-3) !important; font-size: .82rem; margin: 0 0 .8rem; }
+body.portal-mode .antares-create-form label .field-label, body.portal-mode .antares-create-form label > span:first-child {
+  text-transform: none !important; letter-spacing: 0 !important; font-size: .82rem !important; font-weight: 600 !important; color: var(--f-ink-2) !important;
+}
+body.portal-mode .antares-create-form .field-label svg { color: var(--f-ink-3) !important; }
+body.portal-mode .antares-create-form :is(input, select, textarea) {
+  text-transform: none; border: 1px solid var(--f-line-2) !important; border-radius: 10px !important; background: var(--f-bg) !important; color: var(--f-ink) !important; box-shadow: none !important;
+}
+body.portal-mode .antares-create-form :is(input, select, textarea)::placeholder { text-transform: none; color: var(--f-ink-3); }
+body.portal-mode .antares-create-form :is(input, select, textarea):focus { border-color: var(--f-brand) !important; box-shadow: 0 0 0 3px var(--f-brand-soft) !important; outline: 0; }
+/* Banner de empresa sin seleccionar y avisos de ayuda */
+body.portal-mode .antares-create-form :is(.form-empty-hint, .acf-company-empty, .request-company-card) { background: var(--f-soft) !important; background-image: none !important; border: 1px dashed var(--f-line-2) !important; box-shadow: none !important; }
+/* Calendario: encabezado plano */
+body.portal-mode .calendar-studio .calendar-toolbar { background: var(--oc-bg) !important; background-image: none !important; color: var(--oc-ink) !important; border: 1px solid var(--oc-line) !important; border-radius: 14px !important; box-shadow: none !important; }
+body.portal-mode .calendar-studio .calendar-toolbar * { color: inherit; }
+body.portal-mode .calendar-studio .calendar-toolbar .calendar-controls .btn, body.portal-mode .calendar-studio .calendar-toolbar button { background: var(--oc-bg) !important; background-image: none !important; color: var(--oc-ink-2) !important; border: 1px solid var(--oc-line-2) !important; box-shadow: none !important; }
+body.portal-mode .calendar-studio .calendar-toolbar button.is-active, body.portal-mode .calendar-studio .calendar-toolbar button[aria-pressed="true"], body.portal-mode .calendar-studio .calendar-toolbar button[aria-selected="true"] { background: var(--oc-brand) !important; color: #fff !important; border-color: var(--oc-brand) !important; }
+
+body.portal-mode :is(.requests-studio, .transport-studio) [class*="operate-nav-norm"] { background: transparent !important; color: var(--oc-ink-3) !important; border: 0 !important; padding: 0 !important; font-size: .74rem; font-weight: 500; text-transform: none; letter-spacing: 0; box-shadow: none; }
+body.portal-mode :is(.requests-studio, .transport-studio) :is(.req-operate__rail-label, .trip-operate__rail-label, [class*="rail-label"]) { text-transform: none; letter-spacing: 0; font-size: .8rem; font-weight: 600; color: var(--oc-ink-2); }
+body.portal-mode :is(.requests-studio, .transport-studio) :is(.payroll-runs-view-toggle, .hr-workspace-tabs--switch) { background: var(--oc-soft) !important; background-image: none !important; border: 1px solid var(--oc-line) !important; box-shadow: none !important; border-radius: 11px !important; padding: 3px !important; }
+body.portal-mode :is(.requests-studio, .transport-studio) .hr-workspace-tab--switch { background: transparent !important; background-image: none !important; box-shadow: none !important; border: 0 !important; color: var(--oc-ink-2) !important; border-radius: 8px !important; }
+body.portal-mode :is(.requests-studio, .transport-studio) .hr-workspace-tab--switch.is-active { background: var(--oc-brand) !important; color: #fff !important; }
+body.portal-mode :is(.requests-studio, .transport-studio) .hr-workspace-tab--switch .hr-workspace-tab-ico { background: transparent !important; box-shadow: none !important; }

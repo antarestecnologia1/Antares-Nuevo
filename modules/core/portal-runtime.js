@@ -7766,6 +7766,8 @@ function positionAgMenuPanel(menu) {
   panel.style.maxHeight = `${Math.round(maxH)}px`;
   panel.style.overflowY = "auto";
   panel.style.zIndex = "1400";
+  /* Ya colocado: el CSS deja de ocultarlo (evita el parpadeo/salto del primer fotograma). */
+  menu.dataset.agPlaced = "1";
 }
 
 if (typeof document !== "undefined" && !window.__agMenuPositionBound) {
@@ -7776,8 +7778,10 @@ if (typeof document !== "undefined" && !window.__agMenuPositionBound) {
       const menu = event.target;
       if (menu instanceof HTMLDetailsElement && menu.matches(AG_FLOATING_MENU_SELECTOR)) {
         if (menu.open) {
+          menu.__agOpenedAt = Date.now();
           positionAgMenuPanel(menu);
         } else {
+          delete menu.dataset.agPlaced;
           const panel = agFloatingMenuPanel(menu);
           try {
             if (panel && typeof panel.hidePopover === "function" && panel.matches(":popover-open")) panel.hidePopover();
@@ -7792,6 +7796,11 @@ if (typeof document !== "undefined" && !window.__agMenuPositionBound) {
   const closeOpenAgMenus = (event) => {
     const t = event?.target;
     if (t instanceof Element && t.closest?.(AG_FLOATING_MENU_SELECTOR)) return;
+    /* Al abrir, el navegador puede desplazar el contenedor (foco / scrollIntoView): se ignora ese primer instante. */
+    if (event?.type === "scroll") {
+      const openMenu = document.querySelector(AG_FLOATING_MENU_SELECTOR.split(", ").map((x) => `${x}[open]`).join(", "));
+      if (openMenu && Date.now() - (openMenu.__agOpenedAt || 0) < 350) return;
+    }
     document.querySelectorAll(AG_FLOATING_MENU_SELECTOR.split(", ").map((x) => `${x}[open]`).join(", ")).forEach((m) => m.removeAttribute("open"));
   };
   window.addEventListener("scroll", closeOpenAgMenus, true);
