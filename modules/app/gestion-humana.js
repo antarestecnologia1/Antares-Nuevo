@@ -444,23 +444,17 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
   const cR = 'class="slip-td slip-td--num"';
   const cTotalL = 'class="slip-td slip-td--total"';
   const cTotalR = 'class="slip-td slip-td--num slip-td--total"';
-  const theadP = `<thead><tr class="slip-thead"><th>Concepto</th><th class="slip-th--num">Valor (COP)</th></tr></thead>`;
-  const slipSection = (num, title, hint, tableHtml) =>
+  const theadP = `<thead><tr class="slip-thead"><th>Concepto</th><th class="slip-th--num">Valor</th></tr></thead>`;
+  const slipSection = (_num, title, hint, tableHtml) =>
     `<section class="slip-section">
       <div class="slip-section__head">
-        <span class="slip-section__badge">${escapeHtml(String(num))}</span>
-        <div>
-          <h2 class="slip-section__title">${escapeHtml(title)}</h2>
-          ${hint ? `<p class="slip-section__hint">${escapeHtml(hint)}</p>` : ""}
-        </div>
+        <h2 class="slip-section__title">${escapeHtml(title)}</h2>
+        ${hint ? `<p class="slip-section__hint">${escapeHtml(hint)}</p>` : ""}
       </div>
       <div class="slip-table-wrap"><table class="slip-table">${tableHtml}</table></div>
     </section>`;
-  const slipNetBox = (label) =>
-    `<div class="slip-net" role="status">
-      <span class="slip-net__label">${escapeHtml(label)}</span>
-      <strong class="slip-net__value">${netStr}</strong>
-    </div>`;
+  /* El total a recibir ya va destacado arriba; no se repite al final. */
+  const slipNetBox = () => "";
 
   let payslipBodyBlocks = "";
   if (isTerm && run.settlementDetail && typeof run.settlementDetail === "object") {
@@ -499,7 +493,7 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
           ? `<tr><td ${cL}>Otros conceptos</td><td ${cR}>${fmtPay(sd.otrosSettlement)}</td></tr>`
           : "");
     }
-    devRows += `<tr><td ${cTotalL}><strong>Total devengos liquidación</strong></td><td ${cTotalR}><strong>${fmtPay(run.gross)}</strong></td></tr>`;
+    devRows += `<tr><td ${cTotalL}><strong>Total devengado</strong></td><td ${cTotalR}><strong>${fmtPay(run.gross)}</strong></td></tr>`;
 
     const ded = parseNum(run.deductions);
     const dedLines = Array.isArray(sd.deductionsLines) ? sd.deductionsLines : [];
@@ -511,7 +505,7 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
             `<tr><td ${cL}>${escapeHtml(String(L.label || L.code))}</td><td ${cR}>${fmtPay(L.amount)}</td></tr>`
         )
         .join("");
-      dedRows += `<tr><td ${cTotalL}><strong>Total deducciones</strong></td><td ${cTotalR}><strong>${fmtPay(ded)}</strong></td></tr>`;
+      dedRows += `<tr><td ${cTotalL}><strong>Total descuentos</strong></td><td ${cTotalR}><strong>${fmtPay(ded)}</strong></td></tr>`;
     } else if (ded > 0) {
       dedRows =
         `<tr><td ${cL}>Salud empleado</td><td ${cR}>${fmtPay(run.health)}</td></tr>` +
@@ -519,7 +513,7 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
         (parseNum(run.withholding) > 0
           ? `<tr><td ${cL}>Retención Proc. 1 (Art. 383)</td><td ${cR}>${fmtPay(run.withholding)}</td></tr>`
           : "") +
-        `<tr><td ${cTotalL}><strong>Total deducciones</strong></td><td ${cTotalR}><strong>${fmtPay(ded)}</strong></td></tr>`;
+        `<tr><td ${cTotalL}><strong>Total descuentos</strong></td><td ${cTotalR}><strong>${fmtPay(ded)}</strong></td></tr>`;
     } else {
       dedRows = `<tr><td class="slip-td slip-td--empty" colspan="2">Sin deducciones registradas.</td></tr>`;
     }
@@ -527,8 +521,7 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
     const checklistBlock = checklist.length
       ? `<section class="slip-section">
           <div class="slip-section__head">
-            <span class="slip-section__badge">III</span>
-            <div><h2 class="slip-section__title">Checklist legal post-liquidación</h2></div>
+            <h2 class="slip-section__title">Pasos después de la liquidación</h2>
           </div>
           <ul class="slip-checklist">${checklist
             .slice(0, 6)
@@ -540,13 +533,13 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
     payslipBodyBlocks =
       slipSection(
         "I",
-        "Devengos (finiquito / liquidación)",
+        "Lo que se te pagó (liquidación)",
         "",
         `${theadP}<tbody>${devRows}</tbody>`
       ) +
-      slipSection("II", "Deducciones", "", `${theadP}<tbody>${dedRows}</tbody>`) +
+      slipSection("II", "Lo que se descontó", "", `${theadP}<tbody>${dedRows}</tbody>`) +
       checklistBlock +
-      slipNetBox("Total neto a consignar / pagar");
+      slipNetBox("Total a recibir");
   } else {
     const linesFromRun = resolvePayrollDevengosLines(run, employee, read(KEYS.hrAbsences, []));
     const baseInt = parseNum(run.cesantiasInterestBaseCop);
@@ -558,16 +551,25 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
 
     let devRowsMes;
     if (linesFromRun && linesFromRun.length) {
+      /* El descuento de días incapacitados se absorbe en el salario; solo se listan los pagos por tramo. */
+      const incapPaysMes = linesFromRun.reduce(
+        (sum, L) => sum + (String(L.code || "").startsWith("INCAPACIDAD") ? Math.max(0, parseNum(L.amount)) : 0),
+        0
+      );
       const showLine = (L) => {
         const code = String(L.code || "");
-        if (code.startsWith("INCAPACIDAD") || code.startsWith("NOVEDAD")) return parseNum(L.amount) !== 0;
+        if (code.startsWith("INCAPACIDAD")) return parseNum(L.amount) > 0;
+        if (code.startsWith("NOVEDAD")) return parseNum(L.amount) !== 0;
         const a = parseNum(L.amount);
-        return a > 0 || code === "SALARIO_ORDINARIO" || code === "AUXILIO_TRANSPORTE";
+        return a > 0 || code === "SALARIO_ORDINARIO";
       };
       devRowsMes = linesFromRun
         .filter(showLine)
         .map((L) => {
           let labelHtml = escapeHtml(cleanSlipText(String(L.label || L.code || "Concepto")));
+          if (L.code === "SALARIO_ORDINARIO" && incapPaysMes > 0) {
+            return `<tr><td ${cL}>Salario por días trabajados</td><td ${cR}>${fmtPay(Math.max(0, parseNum(L.amount) - incapPaysMes))}</td></tr>`;
+          }
           if (L.code === "PRIMA_SERVICIOS") {
             labelHtml = escapeHtml(
               `Prima de servicios semestral (CST arts. 244–249 — ${run.primaServiciosDays ?? "—"} días semestre)`
@@ -579,7 +581,7 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
           return `<tr><td ${cL}>${labelHtml}</td><td ${cR}>${fmtPay(L.amount)}</td></tr>`;
         })
         .join("");
-      devRowsMes += `<tr><td ${cTotalL}><strong>Total devengos del período</strong></td><td ${cTotalR}><strong>${fmtPay(run.gross)}</strong></td></tr>`;
+      devRowsMes += `<tr><td ${cTotalL}><strong>Total devengado</strong></td><td ${cTotalR}><strong>${fmtPay(run.gross)}</strong></td></tr>`;
     } else {
       const ex = parseNum(run.extras);
       const au = parseNum(run.aux);
@@ -590,55 +592,60 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
       const intCe = parseNum(run.interesesCesantiasCop);
       const salarioBasicoDevengoRaw = Math.max(0, parseNum(run.gross) - ex - au - bo - via - comb - prima - intCe);
       const incapLines = resolvePayrollIncapacityDevengoLines(run, employee, read(KEYS.hrAbsences, []));
-      const incapNet = incapLines.reduce((sum, L) => sum + parseNum(L.amount), 0);
-      const salarioBasicoDevengo = Math.max(0, Math.round(salarioBasicoDevengoRaw - incapNet));
+      /* Para la colilla: el descuento de los días incapacitados se absorbe en el salario
+         (salario por días trabajados) y solo se listan los pagos por tramo. */
+      const incapPays = incapLines.reduce((sum, L) => sum + Math.max(0, parseNum(L.amount)), 0);
+      const salarioBasicoDevengo = Math.max(0, Math.round(salarioBasicoDevengoRaw - incapPays));
       const incapRows = incapLines
-        .filter((L) => parseNum(L.amount) !== 0)
+        .filter((L) => parseNum(L.amount) > 0)
         .map((L) => {
           let labelHtml = escapeHtml(cleanSlipText(String(L.label || L.code || "Incapacidad")));
           return `<tr><td ${cL}>${labelHtml}</td><td ${cR}>${fmtPay(L.amount)}</td></tr>`;
         })
         .join("");
       devRowsMes =
-        `<tr><td ${cL}>Salario básico mensual (devengo ordinario)</td><td ${cR}>${fmtPay(salarioBasicoDevengo)}</td></tr>` +
+        `<tr><td ${cL}>${incapPays > 0 ? "Salario por días trabajados" : "Salario básico"}</td><td ${cR}>${fmtPay(salarioBasicoDevengo)}</td></tr>` +
         incapRows +
         (ex > 0
-          ? `<tr><td ${cL}>Horas extras, dominicales o recargos nocturnos</td><td ${cR}>${fmtPay(ex)}</td></tr>`
+          ? `<tr><td ${cL}>Horas extras y recargos</td><td ${cR}>${fmtPay(ex)}</td></tr>`
           : "") +
-        `<tr><td ${cL}>Auxilio legal de transporte (no constitutivo de salario)</td><td ${cR}>${fmtPay(au)}</td></tr>` +
+        (au > 0
+          ? `<tr><td ${cL}>Auxilio de transporte</td><td ${cR}>${fmtPay(au)}</td></tr>`
+          : "") +
         (bo > 0
-          ? `<tr><td ${cL}>Bonificaciones y pagos ocasionales gravables (devengo)</td><td ${cR}>${fmtPay(bo)}</td></tr>`
+          ? `<tr><td ${cL}>Bonificaciones</td><td ${cR}>${fmtPay(bo)}</td></tr>`
           : "") +
         (via > 0
-          ? `<tr><td ${cL}>Viáticos y anticipos de viaje (reintegro / no salario)</td><td ${cR}>${fmtPay(via)}</td></tr>`
+          ? `<tr><td ${cL}>Viáticos y anticipos de viaje</td><td ${cR}>${fmtPay(via)}</td></tr>`
           : "") +
         (comb > 0
-          ? `<tr><td ${cL}>Reembolso combustible y gastos de ruta deducibles</td><td ${cR}>${fmtPay(comb)}</td></tr>`
+          ? `<tr><td ${cL}>Reembolso de combustible y gastos de ruta</td><td ${cR}>${fmtPay(comb)}</td></tr>`
           : "") +
         (prima > 0
-          ? `<tr><td ${cL}>Prima de servicios semestral (CST arts. 244–249 — ${run.primaServiciosDays ?? "—"} días semestre)</td><td ${cR}>${fmtPay(prima)}</td></tr>`
+          ? `<tr><td ${cL}>Prima de servicios (${run.primaServiciosDays ?? "—"} días del semestre)</td><td ${cR}>${fmtPay(prima)}</td></tr>`
           : "") +
         (intCe > 0 ? `<tr><td ${cL}>${escapeHtml(intLabel)}</td><td ${cR}>${fmtPay(intCe)}</td></tr>` : "") +
-        `<tr><td ${cTotalL}><strong>Total devengos del período</strong></td><td ${cTotalR}><strong>${fmtPay(run.gross)}</strong></td></tr>`;
+        `<tr><td ${cTotalL}><strong>Total devengado</strong></td><td ${cTotalR}><strong>${fmtPay(run.gross)}</strong></td></tr>`;
     }
 
     const isTripPrestacion = payrollRunFrequencyKind(run) === "prestacion_viajes";
     const dedRowsMes = isTripPrestacion
       ? `<tr><td class="slip-td slip-td--empty" colspan="2">Prestación de servicios: sin aportes de salud, pensión ni FSP en este comprobante (pago por viajes).</td></tr>` +
-        `<tr><td ${cTotalL}><strong>Total deducciones</strong></td><td ${cTotalR}><strong>${fmtPay(run.deductions)}</strong></td></tr>`
-      : `<tr><td ${cL}>Ingreso base de cotización — IBC (base de aportes)</td><td ${cR}>${fmtPay(run.ibc)}</td></tr>` +
-        `<tr><td ${cL}>Aporte obligatorio salud — empleado (${(CO_PAYROLL.healthEmployeeRate * 100).toFixed(2).replace(/\.00$/, "")}% sobre IBC)</td><td ${cR}>${fmtPay(run.health)}</td></tr>` +
-        `<tr><td ${cL}>Aporte pensión obligatoria — empleado (${(CO_PAYROLL.pensionEmployeeRate * 100).toFixed(2).replace(/\.00$/, "")}% sobre IBC)</td><td ${cR}>${fmtPay(run.pension)}</td></tr>` +
-        `<tr><td ${cL}>Fondo de solidaridad pensional FSP (cuando aplique rangos Ley 797/2003)</td><td ${cR}>${fmtPay(run.solidarity)}</td></tr>` +
-        (parseNum(run.withholding ?? run.noveltiesDetail?.withholdingCop) > 0
-          ? `<tr><td ${cL}>Retención en la fuente Proc. 1 (Art. 383)</td><td ${cR}>${fmtPay(run.withholding ?? run.noveltiesDetail?.withholdingCop)}</td></tr>`
+        `<tr><td ${cTotalL}><strong>Total descuentos</strong></td><td ${cTotalR}><strong>${fmtPay(run.deductions)}</strong></td></tr>`
+      : `<tr><td ${cL}>Salud (${(CO_PAYROLL.healthEmployeeRate * 100).toFixed(2).replace(/\.00$/, "")}% sobre IBC)</td><td ${cR}>${fmtPay(run.health)}</td></tr>` +
+        `<tr><td ${cL}>Pensión (${(CO_PAYROLL.pensionEmployeeRate * 100).toFixed(2).replace(/\.00$/, "")}% sobre IBC)</td><td ${cR}>${fmtPay(run.pension)}</td></tr>` +
+        (parseNum(run.solidarity) > 0
+          ? `<tr><td ${cL}>Fondo de solidaridad pensional</td><td ${cR}>${fmtPay(run.solidarity)}</td></tr>`
           : "") +
-        `<tr><td ${cTotalL}><strong>Total deducciones al empleado</strong></td><td ${cTotalR}><strong>${fmtPay(run.deductions)}</strong></td></tr>`;
+        (parseNum(run.withholding ?? run.noveltiesDetail?.withholdingCop) > 0
+          ? `<tr><td ${cL}>Retención en la fuente</td><td ${cR}>${fmtPay(run.withholding ?? run.noveltiesDetail?.withholdingCop)}</td></tr>`
+          : "") +
+        `<tr><td ${cTotalL}><strong>Total descuentos</strong></td><td ${cTotalR}><strong>${fmtPay(run.deductions)}</strong></td></tr>`;
     const hasWorkedDays = workedDays > 0 || workedDaysPaymentCop > 0;
     const workedDaysBlock = hasWorkedDays
       ? slipSection(
           "III",
-          "Resumen de días laborados",
+          "Días trabajados",
           "",
           `${theadP}<tbody><tr><td ${cL}>Pago por días laborados (${workedDays.toLocaleString("es-CO")} días)</td><td ${cR}>${fmtPay(workedDaysPaymentCop)}</td></tr></tbody>`
         )
@@ -647,19 +654,24 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
     payslipBodyBlocks =
       slipSection(
         "I",
-        "Devengos e ingresos período",
+        "Lo que se te pagó",
         isTripPrestacion ? "Prestación de servicios: viajes y reembolsos de ruta." : "",
         `${theadP}<tbody>${devRowsMes}</tbody>`
       ) +
-      slipSection("II", "Deducciones (aportes del trabajador)", "", `${theadP}<tbody>${dedRowsMes}</tbody>`) +
+      slipSection(
+        "II",
+        "Lo que se descontó",
+        isTripPrestacion ? "" : `Base de aportes (IBC): ${fmtPay(run.ibc)}`,
+        `${theadP}<tbody>${dedRowsMes}</tbody>`
+      ) +
       workedDaysBlock +
-      slipNetBox("Neto pagado / a pagar al trabajador");
+      slipNetBox("Total a recibir");
   }
   const docTitle =
     isTerm && run.settlementDetail && typeof run.settlementDetail === "object"
       ? `Liquidación contractual ${run.employeeName}`
-      : `Desprendible ${run.employeeName}`;
-  const h1Title = isTerm ? "Liquidación contractual" : "Desprendible de nómina";
+      : `Colilla de pago ${run.employeeName}`;
+  const h1Title = isTerm ? "Liquidación contractual" : "Colilla de pago";
   const slipStatusLabel = run.paid ? "Pagado" : "Pendiente de pago";
   const slipStatusClass = run.paid ? "slip-badge--paid" : "slip-badge--pending";
   const generatedBy = payrollRunGeneratedByLabel(run);
@@ -675,13 +687,10 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
   }
   const hrAbsencesForSlip = !isTerm ? read(KEYS.hrAbsences, []) : [];
   const noveltyEpisodes = !isTerm ? resolvePayrollNoveltySlipRows(run, hrAbsencesForSlip, employee) : [];
-  const noveltyThead = `<thead><tr class="slip-thead slip-thead--5"><th>Novedad</th><th>Días</th><th class="slip-th--num">Descuento</th><th class="slip-th--num">Pago empleador</th><th>A cargo de</th></tr></thead>`;
+  const noveltyThead = `<thead><tr class="slip-thead"><th>Novedad</th><th class="slip-th--num">Días</th></tr></thead>`;
   const noveltyRowsHtml = noveltyEpisodes
     .map((ep) => {
       const days = parseNum(ep.days ?? ep.dias);
-      const deduct = parseNum(ep.deductSalaryCop ?? ep.descuentoSalarioCop);
-      const pay = parseNum(ep.payEmployerCop ?? ep.pagoEmpleadorCop);
-      const payer = String(ep.payer || "Empleador");
       const title = escapeHtml(cleanSlipText(String(ep.typeLabel || ep.label || ep.tipo || "Novedad").replace(/\s*·\s*radicado\s+\S+/i, "")));
       const rangeHuman = formatPayrollHumanDateRange(ep.rangeLabel);
       const pct = formatPayrollNoveltyPercentSummary(ep);
@@ -689,28 +698,19 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
       return `<tr>
         <td ${cL}>${title}${extra ? `<span class="slip-note">${escapeHtml(extra)}</span>` : ""}</td>
         <td ${cR}>${escapeHtml(payrollFormatAbsenceQuantity(days))}</td>
-        <td ${cR}>${deduct !== 0 ? fmtPay(deduct) : "—"}</td>
-        <td ${cR}>${pay !== 0 ? fmtPay(pay) : "—"}</td>
-        <td ${cL}>${escapeHtml(payer)}</td>
       </tr>`;
     })
     .join("");
   const absenceDetailBlock = noveltyEpisodes.length
     ? slipSection(
         "IV",
-        "Novedades de nómina",
-        "",
+        "Novedades del período",
+        "El valor de cada novedad aparece en «Lo que se te pagó» y «Lo que se descontó».",
         `${noveltyThead}<tbody>${noveltyRowsHtml}</tbody>`
       )
     : "";
   const disclaimerPieces = [];
   if (!isTerm) {
-    const ori = String(run.liquidacionOrigin || run.origenLiquidacion || "manual").toLowerCase();
-    if (ori === "masiva") {
-      disclaimerPieces.push("Liquidación masiva (RRHH). Validar novedades y bases con contador antes del pago.");
-    } else if (ori === "automatica") {
-      disclaimerPieces.push("Liquidación automática (cron Bogotá). Validar novedades y bases con RRHH y contador.");
-    }
     if (parseNum(run.interesesCesantiasCop) > 0)
       disclaimerPieces.push(
         `Intereses de cesantías (Ley 52/1975, ${CO_CESANTIAS_INTERES_ANUAL_PCT}% anual): pago en enero del año siguiente al período causado.`
@@ -722,22 +722,22 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
       : disclaimerPieces.length
         ? `<aside class="slip-disclaimer">${escapeHtml(disclaimerPieces.join(" "))}</aside>`
         : "";
+  const maskedAccount = (acc) => {
+    const d = String(acc || "").replace(/\s+/g, "");
+    return d.length > 4 ? `****${d.slice(-4)}` : d;
+  };
   const employeeMetaItems = [
-    { label: "Tipo de contrato", value: String(employee?.contractType || "-") },
-    { label: "Periodicidad de pago", value: String(employee?.payFrequency || "-") },
-    { label: "Centro de costos", value: String(resolvePayrollEmployeeCostCenter(employee) || "-") },
     {
-      label: "Banco",
+      label: "Cuenta de pago",
       value:
         employee?.bankName && employee?.bankAccount
-          ? `${String(employee.bankName)} · ${String(employee.bankAccountType || "Cuenta")} ${String(employee.bankAccount)}`
+          ? `${String(employee.bankName)} · ${String(employee.bankAccountType || "Cuenta")} ${maskedAccount(employee.bankAccount)}`
           : "-"
     },
     {
       label: "Salario básico",
       value: employee?.baseSalary != null ? `$${parseNum(employee.baseSalary).toLocaleString("es-CO")}` : "-"
-    },
-    { label: "IBC (base de cotización)", value: `$${parseNum(run.ibc || 0).toLocaleString("es-CO")}` }
+    }
   ]
     .map((row) => metaItem(row.label, row.value))
     .join("");
@@ -757,196 +757,164 @@ async function buildPayrollRunPayslipHtmlDocument(runInput) {
             </div>
           </section>`;
   const slipStyles = `<style>
-    @page { size: A4; margin: 8mm 9mm; }
+    @page { size: A4; margin: 10mm 11mm; }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       font-family: "Segoe UI", system-ui, Arial, sans-serif;
-      color: #0B1D33;
-      background: #e8eef5;
-      line-height: 1.32;
+      color: #12263f;
+      background: #f3f6fa;
+      line-height: 1.4;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
-    .slip-shell { padding: 12px 12px 18px; }
+    .slip-shell { padding: 14px 12px 22px; }
     .slip-page {
-      max-width: 780px;
+      max-width: 760px;
       margin: 0 auto;
       background: #fff;
-      border: 1px solid #d7e5f3;
+      border: 1px solid #e1e8f0;
+      border-top: 4px solid #377cc0;
       border-radius: 12px;
       overflow: hidden;
-      box-shadow: 0 14px 42px rgba(11,33,51,.10);
     }
     .slip-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      padding: 10px 16px;
-      background: linear-gradient(135deg, #0B1D33 0%, #1a3a5c 58%, #377cc0 100%);
-      color: #fff;
+      display: flex; align-items: center; gap: 14px;
+      padding: 16px 22px 12px;
     }
-    .slip-header__kicker {
-      margin: 0 0 2px;
-      font-size: .68rem;
-      letter-spacing: .12em;
-      text-transform: uppercase;
-      opacity: .82;
-    }
-    .slip-header__title { margin: 0; font-size: 1.18rem; font-weight: 700; line-height: 1.15; }
-    .slip-header__company { margin: 3px 0 0; font-size: .82rem; opacity: .9; }
-    .slip-logo {
-      width: 58px; min-width: 58px; height: 58px;
-      border-radius: 10px; background: #fff; border: 1px solid rgba(255,255,255,.25);
-      padding: 5px; display: flex; align-items: center; justify-content: center;
-      box-shadow: 0 6px 16px rgba(0,0,0,.16);
-    }
+    .slip-logo { width: 54px; min-width: 54px; height: 54px; display: flex; align-items: center; justify-content: center; }
     .slip-logo img { width: 100%; height: 100%; object-fit: contain; display: block; }
-    .slip-body { padding: 12px 16px 14px; }
+    .slip-header__text { flex: 1; min-width: 0; }
+    .slip-header__title { margin: 0; font-size: 1.2rem; font-weight: 700; color: #12263f; line-height: 1.2; }
+    .slip-header__company { margin: 2px 0 0; font-size: .84rem; color: #5b6f86; }
     .slip-badge {
-      display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px;
-      font-size: .68rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase;
+      display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px;
+      font-size: .74rem; font-weight: 600; white-space: nowrap;
     }
-    .slip-badge--paid { background: #e8f7ee; color: #1f6b3f; border: 1px solid #b9e3c8; }
-    .slip-badge--pending { background: #fff6e8; color: #9a6116; border: 1px solid #f2d4a6; }
-    .slip-period-legal {
-      margin: 0 0 10px; padding: 8px 12px; border-radius: 10px;
-      background: linear-gradient(135deg, #f0f6fc 0%, #e8eef5 100%);
-      border: 1px solid #c8dcf0;
+    .slip-badge::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    .slip-badge--paid { background: #edf8f1; color: #1f7a45; }
+    .slip-badge--pending { background: #fff5e6; color: #a2640f; }
+    .slip-body { padding: 4px 22px 20px; }
+    .slip-hero {
+      display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+      margin: 6px 0 14px; padding: 16px 18px; border-radius: 12px;
+      background: #f3f8fd; border: 1px solid #dbe8f5;
     }
-    .slip-period-legal__top {
-      display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 2px;
-    }
-    .slip-period-legal__label {
-      margin: 0; font-size: .66rem; font-weight: 700; letter-spacing: .1em;
-      text-transform: uppercase; color: #377cc0;
-    }
-    .slip-period-legal__range {
-      margin: 0; font-size: .98rem; font-weight: 700; color: #0B1D33; line-height: 1.25;
-    }
-    .slip-period-legal__meta { margin: 2px 0 0; font-size: .76rem; color: #64748b; line-height: 1.3; }
+    .slip-hero__label { margin: 0; font-size: .86rem; color: #4a6482; }
+    .slip-hero__value { margin: 2px 0 0; font-size: 2.1rem; font-weight: 800; color: #1b5f9e; letter-spacing: -.01em; line-height: 1.1; font-variant-numeric: tabular-nums; }
+    .slip-hero__sub { margin: 4px 0 0; font-size: .8rem; color: #5b6f86; }
+    .slip-hero__figs { display: flex; gap: 22px; margin: 0; }
+    .slip-hero__figs div { text-align: right; }
+    .slip-hero__figs dt { margin: 0; font-size: .76rem; color: #5b6f86; }
+    .slip-hero__figs dd { margin: 1px 0 0; font-size: 1.02rem; font-weight: 700; color: #12263f; font-variant-numeric: tabular-nums; }
     .slip-meta {
-      display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 12px;
-      margin: 0 0 10px; padding: 8px 12px; background: #f7fafc; border: 1px solid #e3edf7; border-radius: 10px;
+      display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 18px;
+      margin: 0 0 14px; padding: 0 2px 14px; border-bottom: 1px solid #edf1f6;
     }
     .slip-meta__item { min-width: 0; }
-    .slip-meta__item dt {
-      margin: 0; font-size: .62rem; font-weight: 700; letter-spacing: .04em;
-      text-transform: uppercase; color: #64748b;
-    }
-    .slip-meta__item dd { margin: 0; font-size: .8rem; color: #0B1D33; word-break: break-word; }
+    .slip-meta__item dt { margin: 0; font-size: .74rem; color: #6a7d92; }
+    .slip-meta__item dd { margin: 1px 0 0; font-size: .88rem; color: #12263f; word-break: break-word; }
     .slip-meta__item--highlight dd { font-weight: 700; }
-    .slip-section { margin-bottom: 8px; }
-    .slip-section__head { display: flex; gap: 8px; align-items: center; margin-bottom: 4px; }
-    .slip-section__badge {
-      flex: 0 0 auto; width: 22px; height: 22px; border-radius: 6px;
-      background: #377cc0; color: #fff; font-size: .68rem; font-weight: 700;
-      display: inline-flex; align-items: center; justify-content: center;
-    }
-    .slip-section__title { margin: 0; font-size: .84rem; color: #0B1D33; }
-    .slip-section__hint { margin: 1px 0 0; font-size: .72rem; color: #64748b; line-height: 1.3; }
-    .slip-table-wrap { border: 1px solid #e3edf7; border-radius: 8px; overflow: hidden; }
-    .slip-table { width: 100%; border-collapse: collapse; font-size: .78rem; }
+    .slip-section { margin-bottom: 14px; }
+    .slip-section__head { margin-bottom: 6px; }
+    .slip-section__title { margin: 0; font-size: 1rem; font-weight: 700; color: #12263f; }
+    .slip-section__hint { margin: 1px 0 0; font-size: .78rem; color: #6a7d92; line-height: 1.35; }
+    .slip-table-wrap { border: 1px solid #e5ebf2; border-radius: 10px; overflow: hidden; }
+    .slip-table { width: 100%; border-collapse: collapse; font-size: .88rem; }
     .slip-thead th {
-      padding: 5px 8px; text-align: left; background: #e8eef5; color: #1a3a5c;
-      font-size: .66rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase;
+      padding: 7px 12px; text-align: left; background: #f7f9fc; color: #5b6f86;
+      font-size: .76rem; font-weight: 600;
     }
-    .slip-th--num, .slip-td--num { text-align: right; font-variant-numeric: tabular-nums; }
-    .slip-thead--5 th { font-size: .62rem; padding: 5px 6px; }
-    .slip-td {
-      padding: 4px 8px; border-top: 1px solid #edf2f7; vertical-align: top; color: #243b53;
-    }
-    .slip-td--total { background: #f7fafc; font-weight: 700; color: #0B1D33; }
-    .slip-td--empty { color: #64748b; font-size: .76rem; font-style: italic; }
-    .slip-note { display: block; margin-top: 1px; font-size: .7rem; color: #64748b; line-height: 1.25; }
+    .slip-th--num, .slip-td--num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .slip-td { padding: 8px 12px; border-top: 1px solid #eef2f7; vertical-align: top; color: #1f3550; }
+    .slip-td--total { background: #f7f9fc; font-weight: 700; color: #12263f; }
+    .slip-td--empty { color: #6a7d92; font-size: .84rem; }
+    .slip-note { display: block; margin-top: 2px; font-size: .78rem; color: #6a7d92; line-height: 1.3; }
     .slip-checklist {
-      margin: 0; padding: 6px 12px 6px 22px; background: #f7fafc; border: 1px solid #e3edf7;
-      border-radius: 8px; font-size: .74rem; color: #495057; line-height: 1.35;
+      margin: 0; padding: 10px 14px 10px 28px; background: #f7f9fc; border: 1px solid #e5ebf2;
+      border-radius: 10px; font-size: .84rem; color: #3d556f; line-height: 1.45;
     }
     .slip-net {
       display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
-      margin-top: 4px; padding: 8px 12px; border-radius: 10px;
-      background: linear-gradient(135deg, #0B1D33 0%, #1a3a5c 100%); color: #fff;
+      margin-top: 4px; padding: 12px 16px; border-radius: 10px;
+      background: #1b5f9e; color: #fff;
     }
-    .slip-net__label { font-size: .82rem; font-weight: 600; }
-    .slip-net__value { font-size: 1.12rem; font-weight: 800; letter-spacing: .01em; }
+    .slip-net__label { font-size: .92rem; font-weight: 600; }
+    .slip-net__value { font-size: 1.3rem; font-weight: 800; font-variant-numeric: tabular-nums; }
     .slip-disclaimer {
-      margin-top: 8px; padding: 6px 10px; border-left: 3px solid #f2d4a6;
-      background: #fffaf2; border-radius: 0 8px 8px 0; font-size: .7rem; color: #5c4a32; line-height: 1.3;
+      margin-top: 10px; padding: 8px 12px; border-radius: 8px;
+      background: #f7f9fc; font-size: .78rem; color: #51657d; line-height: 1.4;
     }
-    .slip-signature { margin-top: 8px; padding-top: 8px; border-top: 1px solid #e3edf7; }
-    .slip-signature__kicker {
-      margin: 0 0 4px; font-size: .62rem; font-weight: 700; letter-spacing: .08em;
-      text-transform: uppercase; color: #64748b;
-    }
+    .slip-signature { margin-top: 16px; padding-top: 12px; border-top: 1px solid #edf1f6; }
+    .slip-signature__kicker { margin: 0 0 4px; font-size: .74rem; color: #6a7d92; }
     .slip-signature__card { max-width: 240px; text-align: center; }
     .slip-signature__img { max-width: 130px; max-height: 38px; object-fit: contain; display: block; margin: 0 auto 2px; }
-    .slip-signature__line { height: 1px; background: #0B1D33; margin: 0 auto 4px; width: 88%; }
-    .slip-signature__name { margin: 0; font-size: .8rem; font-weight: 700; color: #0B1D33; }
-    .slip-signature__meta, .slip-signature__role { margin: 1px 0 0; font-size: .7rem; color: #64748b; }
-    .slip-footer {
-      margin-top: 8px; padding-top: 6px; border-top: 1px solid #edf2f7;
-      font-size: .66rem; color: #94a3b8; text-align: center;
-    }
-    .slip-actions { margin-top: 12px; text-align: center; }
+    .slip-signature__line { height: 1px; background: #12263f; margin: 0 auto 4px; width: 88%; }
+    .slip-signature__name { margin: 0; font-size: .84rem; font-weight: 700; color: #12263f; }
+    .slip-signature__meta, .slip-signature__role { margin: 1px 0 0; font-size: .76rem; color: #6a7d92; }
+    .slip-footer { margin-top: 12px; font-size: .72rem; color: #98a6b6; text-align: center; }
+    .slip-actions { margin-top: 14px; text-align: center; }
     .slip-print-btn {
-      padding: 11px 22px; border-radius: 10px; border: none; cursor: pointer;
+      padding: 10px 22px; border-radius: 10px; border: none; cursor: pointer;
       background: #377cc0; color: #fff; font-size: .92rem; font-weight: 600;
-      box-shadow: 0 8px 20px rgba(55,124,192,.28);
     }
     .slip-print-btn:hover { background: #2a6399; }
     @media print {
       body { background: #fff; }
       .slip-shell { padding: 0; }
-      .slip-page { max-width: none; border: none; border-radius: 0; box-shadow: none; }
+      .slip-page { max-width: none; border-radius: 0; border-left: none; border-right: none; border-bottom: none; }
       .slip-actions, .no-print { display: none !important; }
+      .slip-section { break-inside: avoid; }
     }
     @media (max-width: 640px) {
-      .slip-header { flex-direction: column-reverse; align-items: flex-start; }
+      .slip-header { flex-wrap: wrap; }
+      .slip-body { padding: 4px 14px 18px; }
       .slip-meta { grid-template-columns: 1fr 1fr; }
+      .slip-hero__figs { width: 100%; justify-content: space-between; }
+      .slip-hero__figs div { text-align: left; }
     }
   </style>`;
+  const paidInfoLabel = run.paid && run?.paidAt ? `Pagado el ${paidAtLabel}` : "El pago aún está pendiente";
   const html = `<!DOCTYPE html>
         <html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>${escapeHtml(docTitle)}</title>${slipStyles}</head>
         <body>
         <div class="slip-shell">
         <article class="slip-page">
           <header class="slip-header">
-            <div>
-              <p class="slip-header__kicker">Comprobante oficial de pago</p>
-              <h1 class="slip-header__title">${escapeHtml(h1Title)}</h1>
-              <p class="slip-header__company">${escapeHtml(employerName)}</p>
-            </div>
             <div class="slip-logo">
               <img src="${escapeAttr(logoSrc)}" alt="${escapeAttr(logoAlt)}" />
             </div>
+            <div class="slip-header__text">
+              <h1 class="slip-header__title">${escapeHtml(h1Title)}</h1>
+              <p class="slip-header__company">${escapeHtml(employerName)} · ${escapeHtml(String(periodDisplay.range || "-"))}</p>
+            </div>
+            <span class="slip-badge ${slipStatusClass}">${escapeHtml(slipStatusLabel)}</span>
           </header>
           <div class="slip-body">
-            <div class="slip-period-legal">
-              <div class="slip-period-legal__top">
-                <p class="slip-period-legal__label">Período de nómina liquidado</p>
-                <span class="slip-badge ${slipStatusClass}">${escapeHtml(slipStatusLabel)}</span>
+            <section class="slip-hero" aria-label="Resumen del pago">
+              <div>
+                <p class="slip-hero__label">Total a recibir</p>
+                <p class="slip-hero__value">${netStr}</p>
+                <p class="slip-hero__sub">${escapeHtml(paidInfoLabel)}</p>
               </div>
-              <p class="slip-period-legal__range">${escapeHtml(String(periodDisplay.range || "-"))}</p>
-              ${periodDisplay.meta ? `<p class="slip-period-legal__meta">${escapeHtml(String(periodDisplay.meta))}</p>` : ""}
-            </div>
-            <div class="slip-meta">
-              ${metaItem("Empleador", employerName)}
+              <dl class="slip-hero__figs">
+                <div><dt>Devengado</dt><dd>${fmtPay(run.gross)}</dd></div>
+                <div><dt>Descuentos</dt><dd>${fmtPay(-Math.abs(parseNum(run.deductions)))}</dd></div>
+              </dl>
+            </section>
+            <dl class="slip-meta">
               ${metaItem("Trabajador", run.employeeName || "", true)}
               ${metaItem("Documento", employee?.idDoc || "-")}
               ${metaItem("Cargo", employee?.position || "-")}
-              ${generatedBy ? metaItem("Generado por", generatedBy) : ""}
               ${employeeMetaItems}
               ${metaExtraItems}
-              ${metaItem("Fecha de pago", paidAtLabel)}
-              ${approvedByLabel ? metaItem("Aprobado por", approvedByLabel) : ""}
-            </div>
+              ${metaItem("Fecha de pago", run.paid && run?.paidAt ? paidAtLabel : "Pendiente")}
+            </dl>
           ${payslipBodyBlocks}
           ${absenceDetailBlock}
           ${disclaimer}
           ${signatureBlock}
-          <p class="slip-footer">Documento generado por Transportes Antares · ${escapeHtml(employerName)}</p>
+          <p class="slip-footer">${escapeHtml(employerName)}${periodDisplay.meta ? ` · ${escapeHtml(String(periodDisplay.meta))}` : ""}</p>
           <div class="slip-actions no-print"><button type="button" class="slip-print-btn" onclick="window.print()">Imprimir / guardar PDF</button></div>
           </div>
         </article>
@@ -2286,30 +2254,41 @@ function bindPayrollPortalControls() {
   }
 
   nodes.viewRoot.querySelectorAll("[data-action='view-employee']").forEach((btn) => {
-    btn.addEventListener("click", async () => {
+    btn.addEventListener("click", () => {
       const empId = String(btn.dataset.id || "");
       let target = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === empId);
       if (!target) {
         notify(userMessage("employeeDeleteNotFound"), "error");
         return;
       }
-      if (portalCanRefreshFromApi() && btn.dataset.busy !== "1") {
-        btn.dataset.busy = "1";
-        btn.disabled = true;
-        btn.setAttribute("aria-busy", "true");
+      /* Abrir al instante con los datos locales; la actualización desde la API va en segundo plano
+         (antes se esperaba el /portal/bootstrap completo y el perfil tardaba en abrir). */
+      target = normalizePayrollEmployeeRowDates(target);
+      openEmployeeProfileModal(target, { resetStack: true });
+      if (!portalCanRefreshFromApi() || btn.dataset.busy === "1") return;
+      btn.dataset.busy = "1";
+      const before = JSON.stringify(target);
+      void (async () => {
         try {
-          await applyPortalBootstrapFromApi();
-          target = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === empId) || target;
+          await applyPortalBootstrapFromApi({ skipSecondaryHydration: true });
+          const fresh = read(KEYS.payrollEmployees, []).find((e) => String(e.id) === empId);
+          if (!fresh) return;
+          const normalized = normalizePayrollEmployeeRowDates(fresh);
+          if (JSON.stringify(normalized) === before) return;
+          const modal = document.getElementById("crud-modal");
+          const stillOpen =
+            modal &&
+            !modal.classList.contains("hidden") &&
+            modal.querySelector(`[data-action='employee-generate-contract'][data-id='${CSS.escape(empId)}']`);
+          if (!stillOpen) return;
+          const activeTab = modal.querySelector(".employee-profile-tabs__btn.is-active")?.dataset.tab || "ficha";
+          openEmployeeProfileModal(normalized, { resetStack: false, tab: activeTab });
         } catch (_e) {
           /* usar caché local */
         } finally {
           btn.dataset.busy = "0";
-          btn.disabled = false;
-          btn.removeAttribute("aria-busy");
         }
-      }
-      target = normalizePayrollEmployeeRowDates(target);
-      openEmployeeProfileModal(target, { resetStack: true });
+      })();
     });
   });
 
