@@ -373,24 +373,71 @@ function formatNoveltyDevengoLabel(ep: Record<string, unknown>, kind?: "deduct" 
   return core;
 }
 
+function buildIncapacityStagePayLines(
+  ep: Record<string, unknown>,
+  index: number,
+  totalPay: number
+): PayrollDevengoLine[] {
+  const stages = Array.isArray(ep.stages)
+    ? (ep.stages as { from: number; to: number; payer?: string; pct?: number; payCop?: number }[])
+    : [];
+  if (!stages.length || !(totalPay > 0)) return [];
+  const typeLabel = String(ep.typeLabel || ep.label || ep.tipo || "Incapacidad")
+    .replace(/\s*·\s*radicado\s+\S+/i, "")
+    .trim();
+  const rows = stages
+    .map((s) => {
+      const from = Number(s.from) || 1;
+      const to = Number(s.to) || from;
+      const days = Math.max(1, to - from + 1);
+      return { s, from, to, amount: Math.round((Number(s.payCop) || 0) * days) };
+    })
+    .filter((r) => r.amount > 0);
+  if (!rows.length) return [];
+  const diff = Math.round(totalPay) - rows.reduce((a, r) => a + r.amount, 0);
+  rows[rows.length - 1].amount += diff;
+  return rows.map((r, k) => {
+    const span = r.from === r.to ? `día ${r.from}` : `días ${r.from}-${r.to}`;
+    const payerTxt = /empleador/i.test(String(r.s.payer || ""))
+      ? "a cargo del empleador"
+      : /eps/i.test(String(r.s.payer || ""))
+        ? "a cargo de la EPS"
+        : "";
+    const floorTxt = r.from > 2 && Number(r.s.pct) > 0.6675 ? " (mínimo legal: salario mínimo diario)" : "";
+    return {
+      code: `INCAPACIDAD_PAGO_${index}_${k}`,
+      label: ["Pago", typeLabel, span, stagePercentLabel(r.s) + floorTxt, payerTxt].filter(Boolean).join(" · "),
+      amount: r.amount
+    };
+  });
+}
+
 function incapacityEpisodeToDevengoLines(ep: Record<string, unknown>, index: number): PayrollDevengoLine[] {
   const days = nCop(ep.days ?? ep.dias);
   const deduct = nCop(ep.descuentoSalarioCop ?? ep.deductSalaryCop);
   const pay = nCop(ep.pagoEmpleadorCop ?? ep.payEmployerCop);
+  const stageLines = pay > 0 ? buildIncapacityStagePayLines(ep, index, pay) : [];
   const lines: PayrollDevengoLine[] = [];
   if (deduct !== 0) {
     lines.push({
       code: `INCAPACIDAD_DESC_${index}`,
-      label: formatNoveltyDevengoLabel(ep, "deduct"),
+      label: formatNoveltyDevengoLabel(
+        stageLines.length ? { ...ep, stages: undefined, note: "", nota: "" } : ep,
+        "deduct"
+      ),
       amount: deduct
     });
   }
   if (pay !== 0) {
-    lines.push({
-      code: `INCAPACIDAD_PAGO_${index}`,
-      label: formatNoveltyDevengoLabel(ep, "pay"),
-      amount: pay
-    });
+    if (stageLines.length) {
+      stageLines.forEach((l) => lines.push(l));
+    } else {
+      lines.push({
+        code: `INCAPACIDAD_PAGO_${index}`,
+        label: formatNoveltyDevengoLabel(ep, "pay"),
+        amount: pay
+      });
+    }
   }
   if (!lines.length && (days > 0 || nCop(ep.ajusteSalarioOrientativoCop ?? ep.adjustCop) !== 0)) {
     lines.push({
