@@ -780,3 +780,58 @@ body.portal-mode :is(.requests-studio, .transport-studio) :is(.payroll-runs-view
 body.portal-mode :is(.requests-studio, .transport-studio) .hr-workspace-tab--switch { background: transparent !important; background-image: none !important; box-shadow: none !important; border: 0 !important; color: var(--oc-ink-2) !important; border-radius: 8px !important; }
 body.portal-mode :is(.requests-studio, .transport-studio) .hr-workspace-tab--switch.is-active { background: var(--oc-brand) !important; color: #fff !important; }
 body.portal-mode :is(.requests-studio, .transport-studio) .hr-workspace-tab--switch .hr-workspace-tab-ico { background: transparent !important; box-shadow: none !important; }
+
+/* =====================================================================
+   CAMIONES — tarjeta sin recortes: cabecera que envuelve, placa legible,
+   datos en dos columnas que parten línea, acciones ordenadas.
+   ===================================================================== */
+body.portal-mode .vehicles-studio .vehicle-ops-cards { display: grid !important; grid-template-columns: repeat(auto-fill, minmax(min(100%, 21.5rem), 1fr)) !important; gap: 1rem !important; }
+body.portal-mode .vehicles-studio .trip-ops-card--vehicle {
+  overflow: visible !important; width: 100% !important; justify-self: stretch !important; max-width: none !important; min-width: 0; padding: 1.1rem 1.15rem 0 !important;
+  display: flex; flex-direction: column; gap: .9rem;
+  background: var(--oc-bg) !important; background-image: none !important; border: 1px solid var(--oc-line) !important; border-radius: 16px !important; box-shadow: none !important;
+}
+body.portal-mode .vehicles-studio .trip-ops-card--vehicle::before, body.portal-mode .vehicles-studio .trip-ops-card--vehicle::after { display: none !important; }
+body.portal-mode .vehicles-studio .trip-ops-card--vehicle:hover { border-color: var(--oc-line-2) !important; box-shadow: 0 4px 16px rgba(16,35,63,.07) !important; transform: none !important; }
+body.portal-mode .vehicles-studio .trip-ops-card-head--vehicle { display: flex !important; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .6rem .75rem; padding: 0 !important; margin: 0 !important; border: 0 !important; background: transparent !important; }
+body.portal-mode .vehicles-studio .trip-ops-card-head--vehicle .trip-ops-card-head-main { display: flex; align-items: center; gap: .8rem; min-width: 0; flex: 1 1 11rem; }
+body.portal-mode .vehicles-studio .vehicle-plate-badge { flex: none; display: inline-flex; align-items: center; padding: .35rem .7rem; min-width: 0; width: auto; height: auto; border: 1px solid var(--oc-line-2); border-radius: 9px; background: var(--oc-soft) !important; background-image: none !important; box-shadow: none !important; color: var(--oc-ink) !important; }
+body.portal-mode .vehicles-studio .vehicle-plate-badge__icon { display: none !important; }
+body.portal-mode .vehicles-studio .vehicle-plate-badge__text { font-size: .95rem; font-weight: 800; letter-spacing: .06em; color: var(--oc-ink) !important; white-space: nowrap; }
+body.portal-mode .vehicles-studio .trip-ops-card-head-info { min-width: 0; }
+body.portal-mode .vehicles-studio .trip-ops-card-kicker { text-transform: none !important; letter-spacing: 0 !important; font-size: .76rem; font-weight: 500; color: var(--oc-ink-3) !important; margin: 0; }
+body.portal-mode .vehicles-studio .vehicle-plate-title { margin: 0; font-size: 1rem; font-weight: 700; line-height: 1.25; color: var(--oc-ink) !important; overflow-wrap: anywhere; }
+body.portal-mode .vehicles-studio .vehicle-card-year { margin: 0; font-size: .8rem; color: var(--oc-ink-3) !important; }
+body.portal-mode .vehicles-studio .vehicle-card-badges { flex: none; margin: 0 !important; }
+body.portal-mode .vehicles-studio .vehicle-availability-bar { display: flex !important; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .35rem .75rem; padding: .65rem .8rem !important; margin: 0 !important; border-radius: 10px !important; background: var(--oc-soft) !important; background-image: none !important; border: 1px solid var(--oc-line) !important; box-shadow: none !important; }
+body.portal-mode .vehicles-studio .vehicle-availability-bar__main { display: flex; align-items: center; gap: .55rem; min-width: 0; }
+body.portal-mode .vehicles-studio .vehicle-availability-bar__copy strong { display: block; font-size: .86rem; color: var(--oc-ink) !important; }
+body.portal-mode .vehicles-studio .vehicle-availability-bar__detail { font-size: .78rem; color: var(--oc-ink-3) !important; overflow-wrap: anywhere; }
+body.portal-mode .vehicles-studio .vehicle-availability-bar__update { text-align: right; font-size: .76rem; color: var(--oc-ink-3); }
+body.portal-mode .vehicles-studio .vehicle-availability-bar__update strong { display: block; font-size: .78rem; font-weight: 600; color: var(--oc-ink-2) !important; }
+body.portal-mode .vehicles-studio .vehicle-card-spec-grid { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: .85rem 1rem !important; margin: 0 !important; padding: 0 !important; }
+body.portal-mode .vehicles-studio .vehicle-card-spec-grid .trip-ops-card-item { min-width: 0; padding: 0 !important; border: 0 !important; background: transparent !important; box-shadow: none !important; }
+body.portal-mode .vehicles-studio .trip-ops-card-item-label { text-transform: none !important; letter-spacing: 0 !important; font-size: .76rem; font-weight: 500; color: var(--oc-ink-3) !important; }
+body.portal-mode .vehicles-studio .trip-ops-card-item-body { display: flex; align-items: flex-start; gap: .4rem; min-width: 0; }
+body.portal-mode .vehicles-studio .trip-ops-card-item-value { white-space: normal !important; overflow: visible !important; text-overflow: clip !important; overflow-wrap: anywhere; font-size: .88rem; font-weight: 600; line-height: 1.3; }
+body.portal-mode .vehicles-studio .trip-ops-card-item-value-wrap { display: flex; flex-direction: column; min-width: 0; }
+body.portal-mode .vehicles-studio .trip-ops-card-actions { margin: 0 !important; padding: .8rem 0 0 !important; border-top: 1px solid var(--oc-line); }
+body.portal-mode .vehicles-studio .portal-ops-card-actions-grid { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: .5rem !important; }
+body.portal-mode .vehicles-studio .portal-ops-card-actions-grid .btn { justify-content: center; white-space: nowrap; }
+body.portal-mode .vehicles-studio .portal-ops-card-actions-stack { display: flex !important; justify-content: space-between; gap: .5rem; margin-top: .4rem; }
+body.portal-mode .vehicles-studio .portal-ops-card-actions-stack .btn { flex: 1 1 0; justify-content: center; background: transparent !important; background-image: none !important; box-shadow: none !important; border: 0 !important; font-weight: 600; font-size: .8rem; color: var(--oc-ink-2) !important; white-space: nowrap; }
+body.portal-mode .vehicles-studio .portal-ops-card-actions-stack .btn:hover { background: var(--oc-soft) !important; }
+body.portal-mode .vehicles-studio .portal-ops-card-actions-stack .trip-ops-card-btn--danger { color: var(--oc-cancel) !important; }
+body.portal-mode .vehicles-studio .trip-ops-card-foot { margin: 0 !important; padding: .6rem 0 .8rem !important; border-top: 1px solid var(--oc-line); font-size: .76rem; color: var(--oc-ink-3); }
+
+body.portal-mode .vehicles-studio .vehicle-card-badges .portal-ops-card-status-pill { display: none !important; }
+body.portal-mode .vehicles-studio .vehicle-card-spec-grid .trip-ops-card-item { grid-column: auto !important; grid-row: auto !important; }
+body.portal-mode .vehicles-studio .trip-ops-card-item-value { font-size: .86rem !important; }
+body.portal-mode .vehicles-studio .portal-ops-card-actions-grid .btn { min-width: 0; overflow: hidden; text-overflow: ellipsis; padding-left: .55rem !important; padding-right: .55rem !important; font-size: .8rem; }
+body.portal-mode .vehicles-studio .portal-ops-card-actions-grid, body.portal-mode .vehicles-studio .portal-ops-card-actions-stack { width: 100%; box-sizing: border-box; }
+
+body.portal-mode .vehicles-studio .portal-ops-card-actions-grid, body.portal-mode .vehicles-studio .portal-ops-card-actions-stack { width: 100% !important; max-width: 100% !important; margin-left: 0 !important; margin-right: 0 !important; }
+body.portal-mode .vehicles-studio .portal-ops-card-actions-grid .btn { width: 100% !important; max-width: 100% !important; margin: 0 !important; }
+
+body.portal-mode .vehicles-studio .trip-ops-card-actions { display: flex !important; flex-direction: column; gap: .4rem; }
+body.portal-mode .vehicles-studio .portal-ops-card-actions-stack { margin-top: 0 !important; }

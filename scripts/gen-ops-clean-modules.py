@@ -1,0 +1,908 @@
+#!/usr/bin/env python3
+"""Genera styles/ops-clean-modules.css (capa de diseño limpio para todos los módulos del portal).
+
+Uso:   python3 scripts/gen-ops-clean-modules.py
+Los bloques de CSS están en las cadenas EXTRA (cada uno antes de `header = """`).
+"@@P" = body.portal-mode :is(<estudios>); "D" = prefijo de modo oscuro. No edites el .css generado a mano.
+"""
+S = ".vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio"
+P = "body.portal-mode :is(" + S + ")"
+D = 'body[data-theme="dark"] :is(' + S + ")"
+
+EXTRA = r"""
+/* ---------- Contenedores: una sola tarjeta blanca, sin anidar ---------- */
+@@P :is([class*="-data-panel"], [class*="data-pane"]:not(.hidden)) {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+@@P .p-card {
+  border: 1px solid var(--oc-line);
+  border-radius: var(--oc-radius);
+  background: var(--oc-bg);
+  background-image: none;
+  box-shadow: none;
+}
+
+@@P .p-card-header {
+  border-bottom: 1px solid var(--oc-line);
+  background: transparent;
+  background-image: none;
+}
+
+@@P [class*="data-toolbar"] {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  background-image: none;
+  box-shadow: none;
+}
+
+/* ---------- Campos ---------- */
+@@P :is(select, input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"]), textarea) {
+  border: 1px solid var(--oc-line-2);
+  border-radius: 10px;
+  background-color: var(--oc-bg);
+  color: var(--oc-ink);
+  box-shadow: none;
+}
+
+@@P :is(select, input, textarea):focus-visible {
+  outline: none;
+  border-color: var(--oc-brand);
+  box-shadow: var(--oc-ring);
+}
+
+@@P :is(label, .muted) > span:first-child:not(:only-child),
+@@P .vehicle-fleet-filter > span {
+  color: var(--oc-ink-2);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+"""
+
+EXTRA += r"""
+/* ---------- Tarjetas operativas (Camiones, Conductores, etc.) ---------- */
+@@P .portal-ops-card {
+  border: 1px solid var(--oc-line);
+  border-radius: var(--oc-radius);
+  background: var(--oc-bg);
+  background-image: none;
+  box-shadow: none;
+  transform: none;
+}
+
+@@P .portal-ops-card:hover {
+  transform: none;
+  border-color: var(--oc-line-2);
+  box-shadow: 0 6px 18px -12px rgba(18, 35, 63, 0.35);
+}
+
+@@P .portal-ops-card :is(.trip-ops-card-item, .portal-ops-card-spec-grid > *) {
+  border: 1px solid var(--oc-line);
+  border-radius: 10px;
+  background: var(--oc-soft);
+  background-image: none;
+  box-shadow: none;
+}
+
+@@P .portal-ops-card :is(.trip-ops-card-item-label, .trip-ops-card-kicker) {
+  color: var(--oc-ink-3);
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+@@P .portal-ops-card-highlight {
+  border: 1px solid var(--oc-line);
+  border-radius: 10px;
+  background: var(--oc-soft);
+  background-image: none;
+  box-shadow: none;
+}
+
+/* Estado: punto + texto, un tono por significado */
+@@P .portal-ops-card-status-pill {
+  --pill-fg: var(--oc-ink-2);
+  --pill-bg: var(--oc-soft);
+  --pill-dot: var(--oc-ink-3);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.16rem 0.65rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--pill-bg);
+  background-image: none;
+  color: var(--pill-fg);
+  font-size: 0.78rem;
+  font-weight: 600;
+  box-shadow: none;
+}
+
+@@P .portal-ops-card-status-pill > * { color: inherit; background: transparent; }
+@@P .portal-ops-card-status-pill::before {
+  content: "";
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: var(--pill-dot);
+}
+
+@@P .portal-ops-card-status-pill :is(.portal-ops-card-status-pill__dot, i) { display: none; }
+
+@@P .portal-ops-card-status-pill:is(
+  .portal-ops-card-status-pill--pendiente, .portal-ops-card-status-pill--aprobada_pendiente_asignacion,
+  .portal-ops-card-status-pill--espera_standby, .portal-ops-card-status-pill--reservado,
+  .portal-ops-card-status-pill--scheduled
+) { --pill-fg: var(--oc-wait); --pill-bg: var(--oc-wait-soft); --pill-dot: var(--oc-wait-dot); }
+
+@@P .portal-ops-card-status-pill:is(
+  .portal-ops-card-status-pill--ocupado, .portal-ops-card-status-pill--en_transito,
+  .portal-ops-card-status-pill--viaje_asignado, .portal-ops-card-status-pill--busy
+) { --pill-fg: var(--oc-live); --pill-bg: var(--oc-live-soft); --pill-dot: var(--oc-live-dot); }
+
+@@P .portal-ops-card-status-pill:is(
+  .portal-ops-card-status-pill--disponible, .portal-ops-card-status-pill--available,
+  .portal-ops-card-status-pill--ok, .portal-ops-card-status-pill--completada, .portal-ops-card-status-pill--cerrada
+) { --pill-fg: var(--oc-done); --pill-bg: var(--oc-done-soft); --pill-dot: var(--oc-done-dot); }
+
+@@P .portal-ops-card-status-pill:is(
+  .portal-ops-card-status-pill--cancelada, .portal-ops-card-status-pill--rechazada,
+  .portal-ops-card-status-pill--vencida, .portal-ops-card-status-pill--no-disponible
+) { --pill-fg: var(--oc-cancel); --pill-bg: var(--oc-cancel-soft); --pill-dot: var(--oc-cancel-dot); }
+"""
+
+EXTRA += r"""
+/* ---------- Encabezado de módulo: una tarjeta blanca simple ---------- */
+@@P .hr-workspace-header {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  background-image: none;
+  box-shadow: none;
+}
+
+@@P :is(.ag-fleet__head, .hist-trace-hero, .payroll-studio-head, .hiring-studio-head, .sarlaft-studio-head, .doc-topbar, .payroll-consult-head, .vehicles-studio-head, .adm-access-head) {
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--oc-line);
+  border-radius: var(--oc-radius);
+  background: var(--oc-bg);
+  background-image: none;
+  box-shadow: none;
+}
+
+@@P :is(.ag-fleet__head, .hist-trace-hero, .payroll-studio-head, .hiring-studio-head, .sarlaft-studio-head, .doc-topbar, .payroll-consult-head, .vehicles-studio-head, .adm-access-head)::before,
+@@P :is(.ag-fleet__head, .hist-trace-hero, .payroll-studio-head, .hiring-studio-head, .sarlaft-studio-head, .doc-topbar, .payroll-consult-head, .vehicles-studio-head, .adm-access-head)::after {
+  display: none;
+}
+
+@@P :is(.ag-eyebrow, .payroll-studio-head__badge, .hist-trace-hero__badge, .hiring-studio-head__badge, .sarlaft-studio-head__badge, [class$="__eyebrow"], [class*="-eyebrow"]) {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--oc-brand-ink);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+/* Indicadores del encabezado: fichas planas */
+@@P :is(.ag-kpi, .hist-trace-kpi, .payroll-studio-kpi, .hiring-studio-kpi, .doc-kpi, .vehicles-studio-kpi, [class*="-head__kpi"]) {
+  border: 1px solid var(--oc-line);
+  border-radius: 12px;
+  background: var(--oc-soft);
+  background-image: none;
+  box-shadow: none;
+}
+
+@@P :is(.hist-trace-control-panel, .hist-trace-results-panel, .doc-categories, .module-field-filters, .calendar-filters-bar) {
+  border: 1px solid var(--oc-line);
+  border-radius: var(--oc-radius);
+  background: var(--oc-bg);
+  background-image: none;
+  box-shadow: none;
+}
+
+@@P .ag-fleet__body {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* ---------- Botones planos ---------- */
+@@P :is(.btn-primary, .btn-action) {
+  border-color: var(--oc-brand);
+  background: var(--oc-brand);
+  background-image: none;
+  color: #fff;
+  box-shadow: none;
+  transform: none;
+}
+
+@@P :is(.btn-primary, .btn-action):hover {
+  border-color: var(--oc-brand-ink);
+  background: var(--oc-brand-ink);
+  background-image: none;
+  box-shadow: none;
+  transform: none;
+}
+
+@@P .btn-approve {
+  border-color: var(--oc-done);
+  background: var(--oc-done);
+  background-image: none;
+  color: #fff;
+  box-shadow: none;
+  transform: none;
+}
+
+@@P :is(.btn-reject, .btn-danger-soft) {
+  border-color: transparent;
+  background: var(--oc-cancel-soft);
+  background-image: none;
+  color: var(--oc-cancel);
+  box-shadow: none;
+}
+
+@@P .btn-outline {
+  border: 1px solid var(--oc-line-2);
+  background: var(--oc-bg);
+  background-image: none;
+  color: var(--oc-ink);
+  box-shadow: none;
+}
+
+@@P .btn-outline:hover { border-color: var(--oc-brand); color: var(--oc-brand-ink); background: var(--oc-brand-soft); }
+"""
+
+EXTRA += r"""
+/* Gestión documental: el encabezado pasa de fondo azul a blanco */
+@@P .doc-topbar .doc-topbar__title { color: var(--oc-ink); }
+@@P .doc-topbar .doc-topbar__subtitle { color: var(--oc-ink-2); }
+@@P .doc-topbar :is(.doc-topbar__stats, .doc-topbar__stats *) { color: var(--oc-ink-2); }
+@@P .doc-topbar .doc-btn--ghost {
+  border: 1px solid var(--oc-line-2);
+  background: var(--oc-bg);
+  color: var(--oc-ink);
+}
+@@P .doc-topbar .doc-btn--primary {
+  border: 1px solid var(--oc-brand);
+  background: var(--oc-brand);
+  color: #fff;
+}
+"""
+
+EXTRA += r"""
+@@P :is(.vehicle-card-year, .trip-ops-card-head .muted) { color: var(--oc-ink-3); }
+"""
+
+EXTRA += r"""
+@@P .hist-trace-kpi dt, @@P .hist-trace-control-panel__label { text-transform: none; letter-spacing: 0; font-size: 0.78rem; font-weight: 600; color: var(--oc-ink-3); }
+@@P .hist-trace-hero { background: var(--oc-surface); box-shadow: none; border-color: var(--oc-line); }
+@@P .hist-trace-hero::before { display: none; }
+@@P .hist-trace-kpi { box-shadow: none; background: var(--oc-surface); }
+@@P .hist-trace-kpi:hover { transform: none; box-shadow: none; }
+@@P .hist-trace-action-pill.is-active { box-shadow: none; }
+@@P .hist-trace-kpi--primary dd { color: var(--oc-brand-ink); }
+"""
+
+EXTRA += r"""
+@media (max-width: 900px) { @@P .hist-trace-hero__brand { flex: 0 0 auto; } }
+"""
+
+EXTRA += r"""
+@@P :is(.payroll-studio-kpi--ok, .history-studio-kpi--ok, .hiring-studio-kpi--ok, .sst-studio-kpi--ok) :is(dd, dd strong) { color: var(--oc-ink); }
+@@P :is(.payroll-studio-kpi, .history-studio-kpi, .hiring-studio-kpi, .sst-studio-kpi) { box-shadow: none; background: var(--oc-surface); border-color: var(--oc-line); }
+@@P :is(.payroll-studio-kpi--ok, .history-studio-kpi--ok) { background: var(--oc-surface); }
+@@P :is(.payroll-studio-kpi, .history-studio-kpi) dt { text-transform: none; letter-spacing: 0; font-size: .78rem; font-weight: 600; color: var(--oc-ink-3); }
+"""
+
+EXTRA += r"""
+@@P [class*="operate-nav-norm"] { background: transparent !important; color: var(--oc-ink-3) !important; border: 0 !important; padding: 0 !important; font-size: .74rem; font-weight: 500; text-transform: none; letter-spacing: 0; box-shadow: none; }
+"""
+
+EXTRA += r"""
+/* =====================================================================
+   TARJETAS v2 — una sola familia: empleados, usuarios, conductores,
+   camiones. Superficie blanca, avatar azul suave, datos en columna,
+   estado con punto y un único botón principal.
+   ===================================================================== */
+@@P .ag-avatar:not(.ag-avatar--photo) {
+  background: var(--oc-brand-soft);
+  background-image: none;
+  color: var(--oc-brand-ink);
+  box-shadow: none;
+  border: 0;
+  letter-spacing: 0;
+}
+@@P .ag-avatar { width: 2.75rem; height: 2.75rem; border-radius: 50%; font-size: .9rem; font-weight: 700; }
+@@P .ag-avatar--lg { width: 2.75rem; height: 2.75rem; border-radius: 50%; font-size: .9rem; }
+@@P .ag-avatar--sm { width: 2rem; height: 2rem; font-size: .72rem; }
+@@P .ag-avatar[class*="ag-avatar--ring-"] { box-shadow: none; }
+@@P .ag-avatar__badge { border-color: var(--oc-bg); background: var(--oc-brand); }
+
+@@P .ag-status {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--oc-ink-2);
+  font-size: .8rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  gap: .4rem;
+}
+@@P .ag-status__dot { box-shadow: none; width: .5rem; height: .5rem; }
+@@P .ag-status--ok, @@P .ag-status--available { color: var(--oc-done); }
+@@P .ag-status--warn, @@P .ag-status--scheduled { color: var(--oc-wait); }
+@@P .ag-status--alert { color: var(--oc-cancel); }
+@@P .ag-status--busy { color: var(--oc-live); }
+@@P .ag-status--scheduled .ag-status__dot { background: var(--oc-wait-dot); }
+
+@@P .ag-btn {
+  min-height: 2.1rem;
+  padding: .4rem .85rem;
+  border-radius: 8px;
+  box-shadow: none;
+  font-size: .82rem;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+@@P .ag-btn--primary {
+  border-color: var(--oc-brand);
+  background: var(--oc-brand);
+  background-image: none;
+  color: #fff;
+}
+@@P .ag-btn--primary:hover { background: var(--oc-brand-ink); border-color: var(--oc-brand-ink); transform: none; box-shadow: none; }
+@@P .ag-icon-btn {
+  width: 2.1rem;
+  height: 2.1rem;
+  border: 1px solid var(--oc-line);
+  border-radius: 8px;
+  background: var(--oc-bg);
+  box-shadow: none;
+  color: var(--oc-ink-2);
+}
+@@P .ag-icon-btn:hover { background: var(--oc-soft); border-color: var(--oc-line-2); color: var(--oc-ink); transform: none; box-shadow: none; }
+@@P .ag-tag { border: 0; border-radius: 6px; background: var(--oc-soft); color: var(--oc-ink-2); font-size: .74rem; font-weight: 600; }
+
+/* ---- Contenedor ---- */
+@@P :is(.hr-cred, .adm-badge, .ag-pass, .ag-roster-card) {
+  border: 1px solid var(--oc-line);
+  border-radius: var(--oc-radius);
+  background: var(--oc-bg);
+  background-image: none;
+  box-shadow: none;
+  transform: none;
+  overflow: visible;
+}
+@@P :is(.hr-cred, .adm-badge, .ag-pass, .ag-roster-card):hover {
+  transform: none;
+  border-color: var(--oc-line-2);
+  box-shadow: 0 8px 22px -14px rgba(18, 35, 63, .35);
+}
+@@P :is(.ag-pass, .ag-roster-card)::before { display: none; }
+@@P :is(.hr-cred__band, .adm-badge__band) { display: none; }
+
+/* ---- Tarjeta de persona: avatar · nombre · estado ---- */
+@@P :is(.hr-cred, .adm-badge) {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-content: start;
+  column-gap: .8rem;
+  padding: 16px 16px 0;
+}
+@@P :is(.hr-cred__head, .adm-badge__head) { display: contents; }
+@@P :is(.hr-cred__head, .adm-badge__head) .ag-avatar { grid-column: 1; grid-row: 1 / span 2; margin: 0; box-shadow: none; }
+@@P :is(.hr-cred__who, .adm-badge__who) { grid-column: 2; grid-row: 1; min-width: 0; padding: 0; margin: 0; }
+@@P :is(.hr-cred__head-meta, .adm-badge__head-meta) { grid-column: 2; grid-row: 2; align-self: start; justify-content: flex-start; padding: 0; margin: 6px 0 0; }
+@@P :is(.hr-cred__head-meta, .adm-badge__head-meta) .ag-status { background: transparent; box-shadow: none; }
+@@P :is(.hr-cred, .adm-badge) > :not(.hr-cred__head, .adm-badge__head, .hr-cred__who, .adm-badge__who, .hr-cred__band, .adm-badge__band) { grid-column: 1 / -1; }
+
+@@P :is(.hr-cred__name, .adm-badge__name) { margin: 0; font-size: .98rem; font-weight: 650; color: var(--oc-ink); line-height: 1.25; }
+@@P :is(.hr-cred__org, .adm-badge__org) { margin: 2px 0 0; font-size: .84rem; font-weight: 500; color: var(--oc-ink-2); }
+@@P :is(.hr-cred__org, .adm-badge__org) > span:first-child { color: var(--oc-ink-2); font-weight: 500; }
+@@P :is(.hr-cred__mail, .adm-badge__mail) { margin: 1px 0 0; font-size: .8rem; font-weight: 500; color: var(--oc-ink-3); }
+
+/* ---- Datos: una caja suave, sin borde punteado ni muescas ---- */
+@@P :is(.hr-cred__meter, .adm-badge__meter) {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--oc-soft);
+}
+@@P :is(.hr-cred__meter, .adm-badge__meter)::before, @@P :is(.hr-cred__meter, .adm-badge__meter)::after { display: none; }
+@@P :is(.hr-cred__facts, .adm-badge__facts) { gap: .3rem; }
+@@P :is(.hr-cred__facts, .adm-badge__facts) li > span:first-child {
+  font-size: .76rem; font-weight: 500; color: var(--oc-ink-3); text-transform: none; letter-spacing: 0;
+}
+@@P :is(.hr-cred__facts, .adm-badge__facts) li > strong { font-size: .84rem; font-weight: 600; color: var(--oc-ink); }
+@@P :is(.hr-cred__gauge, .adm-badge__gauge) small { font-size: .7rem; font-weight: 500; color: var(--oc-ink-3); }
+@@P :is(.hr-cred__note, .adm-badge__note) { margin: 10px 0 0; font-size: .8rem; font-weight: 500; color: var(--oc-ink-2); }
+@@P .hr-cred__note--alert { color: var(--oc-cancel); font-weight: 600; }
+@@P .hr-cred__note--warn { color: var(--oc-wait); font-weight: 600; }
+
+/* ---- Pie: contacto a la izquierda, acciones a la derecha ---- */
+@@P :is(.hr-cred__foot, .adm-badge__foot, .ag-pass__foot) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem .75rem;
+  margin: 14px -16px 0;
+  padding: 10px 16px;
+  border-top: 1px solid var(--oc-line);
+}
+@@P :is(.hr-cred__tel, .adm-badge__tel, .ag-pass__phone) { font-size: .82rem; font-weight: 500; color: var(--oc-ink-2); }
+@@P :is(.hr-cred__actions, .adm-badge__actions, .ag-pass__actions) { gap: .35rem; margin-left: auto; }
+
+/* ---- Conductores ---- */
+@@P .ag-pass { gap: .85rem; padding: 16px 16px 0; }
+@@P .ag-pass__head { gap: .8rem; align-items: flex-start; }
+@@P .ag-pass__name { font-size: .98rem; font-weight: 650; color: var(--oc-ink); }
+@@P .ag-pass__meta { font-size: .8rem; font-weight: 500; color: var(--oc-ink-3); }
+@@P .ag-pass__license {
+  border: 0;
+  border-radius: 10px;
+  background: var(--oc-soft);
+  padding: 10px 12px;
+}
+@@P .ag-pass__license::before, @@P .ag-pass__license::after { display: none; }
+@@P .ag-pass__cat { background: var(--oc-brand-soft); color: var(--oc-brand-ink); border: 0; box-shadow: none; border-radius: 8px; }
+@@P .ag-pass__license-num { font-size: .9rem; font-weight: 650; color: var(--oc-ink); }
+@@P .ag-pass__license-foot, @@P .ag-pass__license-foot span { color: var(--oc-ink-3); font-size: .78rem; font-weight: 500; }
+@@P .ag-pass__license-foot span:first-child { color: var(--oc-ink-2); font-weight: 600; }
+@@P .ag-pass__doc { border: 0; border-radius: 6px; font-size: .74rem; }
+@@P .ag-pass__checks { gap: .3rem 1rem; }
+@@P .ag-check { font-size: .8rem; font-weight: 500; color: var(--oc-ink-2); }
+@@P .ag-pass__trip {
+  border: 0;
+  border-left: 0;
+  border-radius: 10px;
+  background: var(--oc-soft);
+  box-shadow: none;
+}
+@@P .ag-pass__trip-copy strong { font-size: .84rem; font-weight: 600; color: var(--oc-ink); }
+@@P .ag-pass__trip-copy span { font-size: .78rem; color: var(--oc-ink-3); }
+
+/* ---- Camiones / viajes ---- */
+@@P .portal-ops-card { padding-bottom: 0; }
+@@P .portal-ops-card::before, @@P .portal-ops-card::after { display: none; }
+@@P .portal-ops-card[class*="--vehicle"], @@P .portal-ops-card[class*="--driver"], @@P .portal-ops-card[class*="--trip"] {
+  border-left: 1px solid var(--oc-line);
+}
+@@P .portal-ops-card-highlight { border: 0; background: var(--oc-soft); }
+@@P .portal-ops-card .portal-ops-card-spec-grid, @@P .portal-ops-card .trip-ops-card-grid {
+  gap: 0 20px;
+  background: transparent;
+}
+@@P .portal-ops-card .trip-ops-card-item {
+  padding: 8px 0;
+  border: 0;
+  border-bottom: 1px solid var(--oc-line);
+  border-radius: 0;
+  background: transparent;
+}
+@@P .portal-ops-card .trip-ops-card-item-label { font-size: .76rem; font-weight: 500; color: var(--oc-ink-3); }
+@@P .portal-ops-card .trip-ops-card-item-body { font-size: .86rem; font-weight: 600; color: var(--oc-ink); }
+@@P .portal-ops-card .trip-ops-card-btn { border-radius: 8px; box-shadow: none; font-size: .82rem; font-weight: 600; }
+@@P .portal-ops-card .trip-ops-card-btn--solid { background: var(--oc-brand); border-color: var(--oc-brand); background-image: none; color: #fff; }
+@@P .portal-ops-card .trip-ops-card-btn--solid:hover { background: var(--oc-brand-ink); border-color: var(--oc-brand-ink); }
+@@P .portal-ops-card .trip-ops-card-btn--outline, @@P .portal-ops-card .trip-ops-card-btn--soft {
+  background: var(--oc-bg); border: 1px solid var(--oc-line); color: var(--oc-ink-2);
+}
+@@P .portal-ops-card .trip-ops-card-btn--outline:hover, @@P .portal-ops-card .trip-ops-card-btn--soft:hover { background: var(--oc-soft); border-color: var(--oc-line-2); color: var(--oc-ink); }
+@@P .portal-ops-card .trip-ops-card-btn--danger { background: transparent; border: 1px solid var(--oc-line); color: var(--oc-cancel); }
+@@P .portal-ops-card .trip-ops-card-btn--danger:hover { background: var(--oc-cancel-soft); }
+@@P .portal-ops-card-foot, @@P .trip-ops-card-foot { border-top: 1px solid var(--oc-line); background: transparent; font-size: .76rem; color: var(--oc-ink-3); }
+"""
+
+EXTRA += r"""
+@@P .portal-ops-card .trip-ops-card-btn { background-image: none !important; box-shadow: none !important; transform: none !important; }
+@@P .portal-ops-card .trip-ops-card-btn--solid { background-color: var(--oc-brand) !important; border-color: var(--oc-brand) !important; color: #fff !important; }
+@@P .portal-ops-card .trip-ops-card-btn--solid:hover { background-color: var(--oc-brand-ink) !important; }
+@@P .portal-ops-card .portal-ops-card-actions-stack { display: flex; justify-content: center; gap: 1.25rem; margin-top: 2px; }
+@@P .portal-ops-card .portal-ops-card-actions-stack .trip-ops-card-btn {
+  width: auto; min-height: 0; padding: 4px 6px; border: 0 !important; background: transparent !important; color: var(--oc-ink-2) !important;
+}
+@@P .portal-ops-card .portal-ops-card-actions-stack .trip-ops-card-btn:hover { color: var(--oc-ink) !important; text-decoration: underline; }
+@@P .portal-ops-card .portal-ops-card-actions-stack .trip-ops-card-btn--danger { color: var(--oc-cancel) !important; }
+@@P .portal-ops-card .portal-ops-card-actions-stack .trip-ops-card-btn--danger:hover { background: transparent !important; }
+"""
+
+EXTRA += r"""
+/* =====================================================================
+   PULIDO v3 — contenedores planos, buscadores sin doble borde, sin
+   títulos repetidos.
+   ===================================================================== */
+@@P .ag-search input, @@P .ag-select-chip select { border: 0 !important; background: transparent !important; box-shadow: none !important; outline: 0; }
+@@P .ag-search, @@P .ag-select-chip { background: var(--oc-bg); border: 1px solid var(--oc-line); border-radius: .65rem; }
+@@P .ag-search:focus-within, @@P .ag-select-chip:focus-within { border-color: var(--oc-brand); box-shadow: 0 0 0 3px var(--oc-brand-soft); }
+@@P .auth-tab-panels { background: transparent !important; background-image: none !important; border: 0 !important; box-shadow: none !important; padding: 0 !important; }
+@@P .hr-data-card__head, @@P .p-card > header { background: transparent !important; background-image: none !important; }
+body.portal-mode .admin-users-studio .adm-access-head .ag-fleet__title > h2,
+body.portal-mode .admin-users-studio .adm-access-head .ag-fleet__title > .ag-eyebrow { display: none; }
+"""
+
+EXTRA += r"""
+@@P .p-card-body { background: transparent !important; background-image: none !important; }
+@@P .hr-data-card__brand > :first-child:not(.hr-data-card__title) { background: var(--oc-brand-soft) !important; background-image: none !important; color: var(--oc-brand-ink) !important; box-shadow: none !important; }
+"""
+
+EXTRA += r"""
+/* =====================================================================
+   DASHBOARD — mismo lenguaje plano: superficies blancas, borde fino,
+   sin franjas de color ni sombras decorativas.
+   ===================================================================== */
+body.portal-mode .dashboard-studio {
+  --nx-card-shadow: none; --nx-card-shadow-hover: 0 2px 10px rgba(16,35,63,.07); --nx-shadow: none;
+  --nx-border: #e5eaf1; --nx-border-hi: #d3dbe6;
+  --nx-card-bg-soft: #ffffff; --nx-glass: #ffffff;
+  --nx-brand-gradient: #377cc0; --nx-hero-accent: #377cc0;
+  --nx-violet: #a8670a; --nx-violet-low: rgba(224,165,38,.14); --nx-indigo: #377cc0; --nx-indigo-low: rgba(55,124,192,.1);
+  --d-ink: #12233f; --d-ink-2: #51627c; --d-ink-3: #8794a8; --d-soft: #f6f8fb; --d-brand-soft: #edf4fb;
+}
+body[data-theme="dark"] .dashboard-studio {
+  --nx-border: #213249; --nx-border-hi: #2c4160; --nx-card-bg-soft: #101c2e; --nx-glass: #101c2e;
+  --nx-brand-gradient: #5b9ddc; --nx-hero-accent: #5b9ddc;
+  --d-ink: #e8eef8; --d-ink-2: #a5b4ca; --d-ink-3: #7385a0; --d-soft: #15243a; --d-brand-soft: rgba(91,157,220,.14);
+}
+body.portal-mode .dashboard-studio .nx-ambient { display: none !important; }
+body.portal-mode .dashboard-studio :is(.at-hero, .at-kpi, .at-exec-item, .at-stats-card, .at-panel, .at-fleet-panel, .at-alerts-panel, .at-activity-panel, .at-map, .at-stats-toolbar) {
+  background: var(--nx-surface) !important; background-image: none !important;
+  border: 1px solid var(--nx-border) !important; border-radius: 14px !important; box-shadow: none !important;
+}
+body.portal-mode .dashboard-studio :is(.at-hero, .at-kpi, .at-exec-item, .at-panel, .at-stats-card, .at-fleet-panel, .at-alerts-panel, .at-activity-panel, .at-map, .at-stats-studio)::before,
+body.portal-mode .dashboard-studio :is(.at-hero, .at-kpi, .at-exec-item, .at-panel, .at-stats-card, .at-fleet-panel, .at-alerts-panel, .at-activity-panel, .at-stats-studio)::after { display: none !important; }
+body.portal-mode .dashboard-studio { background: transparent !important; background-image: none !important; }
+body.portal-mode .dashboard-studio .at-stats-studio { padding: 0; background: transparent !important; border: 0 !important; box-shadow: none !important; }
+body.portal-mode .dashboard-studio .at-stats-toolbar { padding: .7rem .8rem; display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; }
+body.portal-mode .dashboard-studio .at-stats-select { flex: 1 1 12rem; width: auto; min-width: 10rem; }
+body.portal-mode .dashboard-studio :is(.at-exec-strip, .at-command, .at-analytics, .at-fleet-section, .at-kpi-strip) { border: 0 !important; background: transparent !important; box-shadow: none !important; }
+/* Cabecera */
+body.portal-mode .dashboard-studio .at-hero { padding: 1.2rem 1.4rem; overflow: visible; }
+body.portal-mode .dashboard-studio .at-hero__eyebrow { text-transform: none; letter-spacing: 0; font-size: .8rem; font-weight: 500; color: var(--d-ink-3); }
+body.portal-mode .dashboard-studio .at-hero__title { color: var(--d-ink); }
+body.portal-mode .dashboard-studio .at-hero__title :is(span, em, strong) { background: none !important; -webkit-text-fill-color: var(--nx-accent) !important; color: var(--nx-accent) !important; }
+/* KPIs */
+body.portal-mode .dashboard-studio .at-kpi { padding: 1rem 1.1rem; }
+body.portal-mode .dashboard-studio .at-kpi__icon { background: var(--d-brand-soft) !important; color: var(--nx-accent) !important; box-shadow: none !important; border: 0 !important; width: 2.2rem; height: 2.2rem; border-radius: 10px; }
+body.portal-mode .dashboard-studio .at-kpi__value { color: var(--d-ink) !important; -webkit-text-fill-color: var(--d-ink) !important; }
+body.portal-mode .dashboard-studio .at-kpi--alert .at-kpi__value { color: var(--nx-red) !important; -webkit-text-fill-color: var(--nx-red) !important; }
+body.portal-mode .dashboard-studio .at-kpi__label { font-size: .86rem; font-weight: 600; color: var(--d-ink); }
+body.portal-mode .dashboard-studio .at-kpi__sub { text-transform: none; letter-spacing: 0; font-size: .76rem; font-weight: 500; color: var(--d-ink-3); }
+body.portal-mode .dashboard-studio .at-exec-item { padding: .7rem 1rem; }
+body.portal-mode .dashboard-studio .at-exec-item span { text-transform: none; letter-spacing: 0; font-size: .8rem; font-weight: 500; color: var(--d-ink-3); }
+body.portal-mode .dashboard-studio .at-exec-item strong { color: var(--d-ink) !important; -webkit-text-fill-color: var(--d-ink) !important; }
+/* Paneles */
+body.portal-mode .dashboard-studio :is(.at-panel-head, .at-fleet-head, .at-map__head, .at-stats-head) { background: transparent !important; background-image: none !important; border-bottom: 0 !important; }
+body.portal-mode .dashboard-studio :is(.at-panel-head, .at-fleet-head, .at-map__head, .at-alerts-panel > header, .at-activity-panel > header) :is(small, p, .at-eyebrow) { text-transform: none !important; letter-spacing: 0 !important; font-size: .78rem; font-weight: 500; }
+body.portal-mode .dashboard-studio .at-tabs { border-bottom: 1px solid var(--nx-border); }
+"""
+
+EXTRA += r"""
+/* =====================================================================
+   REPORTERÍA — catálogo en tarjetas horizontales, acciones sobrias.
+   ===================================================================== */
+body.portal-mode .reports-studio .reports-export-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(21rem, 1fr)); gap: .85rem; }
+body.portal-mode .reports-studio .reports-card-pro {
+  display: flex; flex-direction: column; justify-content: space-between; gap: .9rem;
+  padding: 1rem 1.1rem; background: var(--oc-bg) !important; background-image: none !important;
+  border: 1px solid var(--oc-line) !important; border-radius: 14px !important; box-shadow: none !important; overflow: visible;
+}
+body.portal-mode .reports-studio .reports-card-pro::before, body.portal-mode .reports-studio .reports-card-pro::after { display: none !important; }
+body.portal-mode .reports-studio .reports-card-pro:hover { border-color: var(--oc-line-2) !important; box-shadow: 0 2px 10px rgba(16,35,63,.06) !important; }
+body.portal-mode .reports-studio .reports-card-pro .p-card-header { padding: 0 !important; border: 0 !important; background: transparent !important; }
+body.portal-mode .reports-studio .reports-card-pro .p-card-header-left { display: grid; grid-template-columns: 2.4rem minmax(0,1fr); gap: .8rem; align-items: start; }
+body.portal-mode .reports-studio .reports-card-pro .p-card-icon { width: 2.4rem; height: 2.4rem; border-radius: 10px; background: var(--oc-brand-soft) !important; background-image: none !important; color: var(--oc-brand-ink) !important; box-shadow: none !important; display: grid; place-items: center; }
+body.portal-mode .reports-studio .reports-card-pro .p-card-icon svg { width: 1.15rem; height: 1.15rem; }
+body.portal-mode .reports-studio .reports-card-pro h2 { margin: 0; font-size: .98rem; line-height: 1.3; font-weight: 700; color: var(--oc-ink); }
+body.portal-mode .reports-studio .reports-card-subtitle { margin: .25rem 0 .5rem; font-size: .82rem; line-height: 1.45; color: var(--oc-ink-2); }
+body.portal-mode .reports-studio .reports-card-count { display: inline-block; font-size: .74rem; font-weight: 600; color: var(--oc-ink-2); background: var(--oc-soft); border: 1px solid var(--oc-line); border-radius: 999px; padding: .1rem .55rem; }
+body.portal-mode .reports-studio .reports-card-pro .p-card-body { padding: .8rem 0 0 !important; border-top: 1px solid var(--oc-line); background: transparent !important; }
+body.portal-mode .reports-studio .reports-card-actions { display: flex; flex-wrap: wrap; gap: .45rem; margin: 0; padding: 0; }
+body.portal-mode .reports-studio .reports-card-actions .btn { display: inline-flex; align-items: center; gap: .35rem; background: var(--oc-bg) !important; background-image: none !important; color: var(--oc-ink-2) !important; border: 1px solid var(--oc-line-2) !important; box-shadow: none !important; border-radius: 9px; font-weight: 600; font-size: .8rem; padding: .38rem .7rem; }
+body.portal-mode .reports-studio .reports-card-actions .btn:hover { border-color: var(--oc-brand) !important; color: var(--oc-brand-ink) !important; background: var(--oc-brand-soft) !important; }
+body.portal-mode .reports-studio .reports-card-actions .btn-approve { background: var(--oc-brand) !important; border-color: var(--oc-brand) !important; color: #fff !important; }
+body.portal-mode .reports-studio .reports-card-actions .btn-approve:hover { background: var(--oc-brand-ink) !important; border-color: var(--oc-brand-ink) !important; color: #fff !important; }
+body.portal-mode .reports-studio .reports-card-actions .btn svg { width: .95rem; height: .95rem; }
+body.portal-mode .reports-studio .reports-export-group { border: 0 !important; background: transparent !important; box-shadow: none !important; padding: 0 !important; margin: 0 0 1.4rem; }
+body.portal-mode .reports-studio .reports-export-group-title { text-transform: none; letter-spacing: 0; font-size: 1rem; font-weight: 700; color: var(--oc-ink); border: 0; margin: 0 0 .7rem; padding: 0; }
+body.portal-mode .reports-studio .reports-export-filters { background: var(--oc-soft) !important; background-image: none !important; border: 1px solid var(--oc-line) !important; border-radius: 14px !important; box-shadow: none !important; }
+body.portal-mode .reports-studio .reports-export-filters-kicker { text-transform: none; letter-spacing: 0; font-size: .78rem; font-weight: 500; color: var(--oc-ink-3); }
+body.portal-mode .reports-studio .reports-workspace-tabs { background: transparent !important; border: 0 !important; border-bottom: 1px solid var(--oc-line) !important; border-radius: 0 !important; box-shadow: none !important; padding: 0 !important; gap: 1.2rem; }
+body.portal-mode .reports-studio .reports-workspace-tab { background: transparent !important; box-shadow: none !important; border: 0 !important; border-bottom: 2px solid transparent !important; border-radius: 0 !important; color: var(--oc-ink-2) !important; padding: .6rem .1rem; }
+body.portal-mode .reports-studio .reports-workspace-tab.is-active { color: var(--oc-brand-ink) !important; border-bottom-color: var(--oc-brand) !important; }
+body.portal-mode .reports-studio .reports-workspace-panel > .p-card { border: 0 !important; background: transparent !important; box-shadow: none !important; }
+body.portal-mode .reports-studio .reports-workspace-panel > .p-card > .p-card-header { padding-left: 0 !important; }
+"""
+
+EXTRA += r"""
+/* Fondo general plano (sin brillos azules) y encabezados de tarjeta sin degradado */
+body.portal-mode:not([data-theme="dark"]) .portal-main { background: #f7f9fc !important; background-image: none !important; }
+body.portal-mode .reports-studio .p-card-header .p-card-icon, body.portal-mode .reports-studio .reports-card-pro .p-card-icon { background: var(--oc-brand-soft) !important; background-image: none !important; color: var(--oc-brand-ink) !important; box-shadow: none !important; }
+"""
+
+EXTRA += r"""
+@media (max-width: 720px) {
+  body.portal-mode .reports-studio .reports-card-actions { flex-direction: row !important; justify-content: flex-start !important; }
+  body.portal-mode .reports-studio .reports-card-actions .btn { width: auto !important; flex: 0 0 auto; }
+  body.portal-mode :is(.reports-studio .reports-workspace-tabs, .admin-users-studio .auth-tabs-bar) { display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; overflow-x: auto; gap: 1rem; scrollbar-width: none; }
+  body.portal-mode :is(.reports-studio .reports-workspace-tab, .admin-users-studio .auth-tab-btn) { width: auto !important; flex: 0 0 auto; white-space: nowrap; text-align: left; padding: .6rem .1rem; }
+}
+"""
+
+EXTRA += r"""
+@@P .fleet-hero-metric { flex-wrap: wrap; row-gap: 0; }
+@@P .fleet-hero-metric span { white-space: normal; }
+"""
+
+EXTRA += r"""
+/* Mini menús: ocultos hasta que el script los coloca (sin parpadeo ni salto al abrir). */
+:is(details.ag-menu, details.sst-row-more, details.doc-rowmenu, details.doc-folder-menu, details.hiring-card-menu, details.ag-popover)[open]:not([data-ag-placed]) > :not(summary) { visibility: hidden; }
+"""
+
+EXTRA += r"""
+/* Gestión humana / nómina: barras de filtro, conmutadores y tarjetas de sección planos */
+@@P .ag-filterbar { background: var(--oc-bg) !important; background-image: none !important; border: 1px solid var(--oc-line) !important; box-shadow: none !important; border-radius: 14px !important; }
+@@P .payroll-contracts-search { background: var(--oc-bg); border: 1px solid var(--oc-line); border-radius: .65rem; box-shadow: none; }
+@@P .payroll-contracts-search input { border: 0 !important; background: transparent !important; box-shadow: none !important; outline: 0; }
+@@P .payroll-contracts-search:focus-within { border-color: var(--oc-brand); box-shadow: 0 0 0 3px var(--oc-brand-soft); }
+@@P :is(.payroll-runs-view-toggle, .hr-workspace-tabs--switch) { background: var(--oc-soft) !important; background-image: none !important; border: 1px solid var(--oc-line) !important; box-shadow: none !important; border-radius: 11px !important; padding: 3px !important; gap: 2px; }
+@@P :is(.payroll-runs-view-toggle__btn, .hr-workspace-tab--switch) { background: transparent !important; background-image: none !important; box-shadow: none !important; border: 0 !important; color: var(--oc-ink-2) !important; border-radius: 8px !important; font-weight: 600; }
+@@P :is(.payroll-runs-view-toggle__btn.is-active, .hr-workspace-tab--switch.is-active) { background: var(--oc-bg) !important; color: var(--oc-brand-ink) !important; box-shadow: 0 1px 2px rgba(16,35,63,.12) !important; }
+@@P .hr-workspace-tab--switch.is-active { background: var(--oc-brand) !important; color: #fff !important; }
+@@P .payroll-section-card { background: var(--oc-bg) !important; background-image: none !important; border: 1px solid var(--oc-line) !important; box-shadow: none !important; border-radius: 12px !important; }
+@@P .payroll-section-card:hover { border-color: var(--oc-line-2) !important; }
+@@P .payroll-section-card.is-active { background: var(--oc-brand-soft) !important; border-color: var(--oc-brand) !important; }
+@@P .payroll-section-card__ico { background: var(--oc-brand-soft) !important; background-image: none !important; color: var(--oc-brand-ink) !important; box-shadow: none !important; }
+@@P .payroll-section-card.is-active .payroll-section-card__ico { background: var(--oc-brand) !important; color: #fff !important; }
+"""
+
+EXTRA += r"""
+/* =====================================================================
+   FORMULARIOS DE REGISTRO — sin banner oscuro, sin secciones de color,
+   etiquetas en minúscula; vale para todos los módulos.
+   ===================================================================== */
+body.portal-mode .antares-create-form {
+  --f-bg: #ffffff; --f-soft: #f6f8fb; --f-line: #e5eaf1; --f-line-2: #d3dbe6; --f-ink: #12233f; --f-ink-2: #51627c; --f-ink-3: #8794a8; --f-brand: #377cc0; --f-brand-ink: #245f9c; --f-brand-soft: #edf4fb;
+}
+body[data-theme="dark"].portal-mode .antares-create-form {
+  --f-bg: #101c2e; --f-soft: #15243a; --f-line: #213249; --f-line-2: #2c4160; --f-ink: #e8eef8; --f-ink-2: #a5b4ca; --f-ink-3: #7385a0; --f-brand: #5b9ddc; --f-brand-ink: #8fc0ee; --f-brand-soft: rgba(91,157,220,.14);
+}
+body.portal-mode .antares-create-form .hr-form-hero {
+  background: var(--f-soft) !important; background-image: none !important; color: var(--f-ink) !important;
+  border: 1px solid var(--f-line) !important; border-radius: 14px !important; box-shadow: none !important; padding: 1rem 1.2rem !important;
+}
+body.portal-mode .antares-create-form .hr-form-hero::before, body.portal-mode .antares-create-form .hr-form-hero::after { display: none !important; }
+body.portal-mode .antares-create-form .hr-form-hero__eyebrow { text-transform: none !important; letter-spacing: 0 !important; font-size: .8rem !important; font-weight: 500 !important; color: var(--f-ink-3) !important; }
+body.portal-mode .antares-create-form .hr-form-hero__title { color: var(--f-ink) !important; font-size: 1.2rem !important; }
+body.portal-mode .antares-create-form .hr-form-hero__text { color: var(--f-ink-2) !important; }
+body.portal-mode .antares-create-form .hr-form-hero-badge { background: var(--f-bg) !important; background-image: none !important; color: var(--f-ink-2) !important; border: 1px solid var(--f-line) !important; box-shadow: none !important; }
+body.portal-mode .antares-create-form .hr-form-hero-badge * { color: inherit !important; }
+body.portal-mode .antares-create-form fieldset.form-section {
+  background: var(--f-bg) !important; background-image: none !important; border: 1px solid var(--f-line) !important; border-left-width: 1px !important;
+  border-radius: 14px !important; box-shadow: none !important; padding: 1rem 1.15rem 1.1rem !important;
+}
+body.portal-mode .antares-create-form fieldset.form-section > legend {
+  display: inline-flex; align-items: center; gap: .45rem; padding: 0 .4rem; font-size: .95rem; font-weight: 700; color: var(--f-ink) !important;
+  text-transform: none; letter-spacing: 0; background: var(--f-bg);
+}
+body.portal-mode .antares-create-form fieldset.form-section > legend svg { color: var(--f-brand) !important; width: 1rem; height: 1rem; }
+body.portal-mode .antares-create-form .form-section-hint { color: var(--f-ink-3) !important; font-size: .82rem; margin: 0 0 .8rem; }
+body.portal-mode .antares-create-form label .field-label, body.portal-mode .antares-create-form label > span:first-child {
+  text-transform: none !important; letter-spacing: 0 !important; font-size: .82rem !important; font-weight: 600 !important; color: var(--f-ink-2) !important;
+}
+body.portal-mode .antares-create-form .field-label svg { color: var(--f-ink-3) !important; }
+body.portal-mode .antares-create-form :is(input, select, textarea) {
+  text-transform: none; border: 1px solid var(--f-line-2) !important; border-radius: 10px !important; background: var(--f-bg) !important; color: var(--f-ink) !important; box-shadow: none !important;
+}
+body.portal-mode .antares-create-form :is(input, select, textarea)::placeholder { text-transform: none; color: var(--f-ink-3); }
+body.portal-mode .antares-create-form :is(input, select, textarea):focus { border-color: var(--f-brand) !important; box-shadow: 0 0 0 3px var(--f-brand-soft) !important; outline: 0; }
+/* Banner de empresa sin seleccionar y avisos de ayuda */
+body.portal-mode .antares-create-form :is(.form-empty-hint, .acf-company-empty, .request-company-card) { background: var(--f-soft) !important; background-image: none !important; border: 1px dashed var(--f-line-2) !important; box-shadow: none !important; }
+/* Calendario: encabezado plano */
+body.portal-mode .calendar-studio .calendar-toolbar { background: var(--oc-bg) !important; background-image: none !important; color: var(--oc-ink) !important; border: 1px solid var(--oc-line) !important; border-radius: 14px !important; box-shadow: none !important; }
+body.portal-mode .calendar-studio .calendar-toolbar * { color: inherit; }
+body.portal-mode .calendar-studio .calendar-toolbar .calendar-controls .btn, body.portal-mode .calendar-studio .calendar-toolbar button { background: var(--oc-bg) !important; background-image: none !important; color: var(--oc-ink-2) !important; border: 1px solid var(--oc-line-2) !important; box-shadow: none !important; }
+body.portal-mode .calendar-studio .calendar-toolbar button.is-active, body.portal-mode .calendar-studio .calendar-toolbar button[aria-pressed="true"], body.portal-mode .calendar-studio .calendar-toolbar button[aria-selected="true"] { background: var(--oc-brand) !important; color: #fff !important; border-color: var(--oc-brand) !important; }
+"""
+
+EXTRA += r"""
+body.portal-mode :is(.requests-studio, .transport-studio) [class*="operate-nav-norm"] { background: transparent !important; color: var(--oc-ink-3) !important; border: 0 !important; padding: 0 !important; font-size: .74rem; font-weight: 500; text-transform: none; letter-spacing: 0; box-shadow: none; }
+body.portal-mode :is(.requests-studio, .transport-studio) :is(.req-operate__rail-label, .trip-operate__rail-label, [class*="rail-label"]) { text-transform: none; letter-spacing: 0; font-size: .8rem; font-weight: 600; color: var(--oc-ink-2); }
+body.portal-mode :is(.requests-studio, .transport-studio) :is(.payroll-runs-view-toggle, .hr-workspace-tabs--switch) { background: var(--oc-soft) !important; background-image: none !important; border: 1px solid var(--oc-line) !important; box-shadow: none !important; border-radius: 11px !important; padding: 3px !important; }
+body.portal-mode :is(.requests-studio, .transport-studio) .hr-workspace-tab--switch { background: transparent !important; background-image: none !important; box-shadow: none !important; border: 0 !important; color: var(--oc-ink-2) !important; border-radius: 8px !important; }
+body.portal-mode :is(.requests-studio, .transport-studio) .hr-workspace-tab--switch.is-active { background: var(--oc-brand) !important; color: #fff !important; }
+body.portal-mode :is(.requests-studio, .transport-studio) .hr-workspace-tab--switch .hr-workspace-tab-ico { background: transparent !important; box-shadow: none !important; }
+"""
+
+EXTRA += r"""
+/* =====================================================================
+   CAMIONES — tarjeta sin recortes: cabecera que envuelve, placa legible,
+   datos en dos columnas que parten línea, acciones ordenadas.
+   ===================================================================== */
+body.portal-mode .vehicles-studio .vehicle-ops-cards { display: grid !important; grid-template-columns: repeat(auto-fill, minmax(min(100%, 21.5rem), 1fr)) !important; gap: 1rem !important; }
+body.portal-mode .vehicles-studio .trip-ops-card--vehicle {
+  overflow: visible !important; width: 100% !important; justify-self: stretch !important; max-width: none !important; min-width: 0; padding: 1.1rem 1.15rem 0 !important;
+  display: flex; flex-direction: column; gap: .9rem;
+  background: var(--oc-bg) !important; background-image: none !important; border: 1px solid var(--oc-line) !important; border-radius: 16px !important; box-shadow: none !important;
+}
+body.portal-mode .vehicles-studio .trip-ops-card--vehicle::before, body.portal-mode .vehicles-studio .trip-ops-card--vehicle::after { display: none !important; }
+body.portal-mode .vehicles-studio .trip-ops-card--vehicle:hover { border-color: var(--oc-line-2) !important; box-shadow: 0 4px 16px rgba(16,35,63,.07) !important; transform: none !important; }
+body.portal-mode .vehicles-studio .trip-ops-card-head--vehicle { display: flex !important; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .6rem .75rem; padding: 0 !important; margin: 0 !important; border: 0 !important; background: transparent !important; }
+body.portal-mode .vehicles-studio .trip-ops-card-head--vehicle .trip-ops-card-head-main { display: flex; align-items: center; gap: .8rem; min-width: 0; flex: 1 1 11rem; }
+body.portal-mode .vehicles-studio .vehicle-plate-badge { flex: none; display: inline-flex; align-items: center; padding: .35rem .7rem; min-width: 0; width: auto; height: auto; border: 1px solid var(--oc-line-2); border-radius: 9px; background: var(--oc-soft) !important; background-image: none !important; box-shadow: none !important; color: var(--oc-ink) !important; }
+body.portal-mode .vehicles-studio .vehicle-plate-badge__icon { display: none !important; }
+body.portal-mode .vehicles-studio .vehicle-plate-badge__text { font-size: .95rem; font-weight: 800; letter-spacing: .06em; color: var(--oc-ink) !important; white-space: nowrap; }
+body.portal-mode .vehicles-studio .trip-ops-card-head-info { min-width: 0; }
+body.portal-mode .vehicles-studio .trip-ops-card-kicker { text-transform: none !important; letter-spacing: 0 !important; font-size: .76rem; font-weight: 500; color: var(--oc-ink-3) !important; margin: 0; }
+body.portal-mode .vehicles-studio .vehicle-plate-title { margin: 0; font-size: 1rem; font-weight: 700; line-height: 1.25; color: var(--oc-ink) !important; overflow-wrap: anywhere; }
+body.portal-mode .vehicles-studio .vehicle-card-year { margin: 0; font-size: .8rem; color: var(--oc-ink-3) !important; }
+body.portal-mode .vehicles-studio .vehicle-card-badges { flex: none; margin: 0 !important; }
+body.portal-mode .vehicles-studio .vehicle-availability-bar { display: flex !important; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .35rem .75rem; padding: .65rem .8rem !important; margin: 0 !important; border-radius: 10px !important; background: var(--oc-soft) !important; background-image: none !important; border: 1px solid var(--oc-line) !important; box-shadow: none !important; }
+body.portal-mode .vehicles-studio .vehicle-availability-bar__main { display: flex; align-items: center; gap: .55rem; min-width: 0; }
+body.portal-mode .vehicles-studio .vehicle-availability-bar__copy strong { display: block; font-size: .86rem; color: var(--oc-ink) !important; }
+body.portal-mode .vehicles-studio .vehicle-availability-bar__detail { font-size: .78rem; color: var(--oc-ink-3) !important; overflow-wrap: anywhere; }
+body.portal-mode .vehicles-studio .vehicle-availability-bar__update { text-align: right; font-size: .76rem; color: var(--oc-ink-3); }
+body.portal-mode .vehicles-studio .vehicle-availability-bar__update strong { display: block; font-size: .78rem; font-weight: 600; color: var(--oc-ink-2) !important; }
+body.portal-mode .vehicles-studio .vehicle-card-spec-grid { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: .85rem 1rem !important; margin: 0 !important; padding: 0 !important; }
+body.portal-mode .vehicles-studio .vehicle-card-spec-grid .trip-ops-card-item { min-width: 0; padding: 0 !important; border: 0 !important; background: transparent !important; box-shadow: none !important; }
+body.portal-mode .vehicles-studio .trip-ops-card-item-label { text-transform: none !important; letter-spacing: 0 !important; font-size: .76rem; font-weight: 500; color: var(--oc-ink-3) !important; }
+body.portal-mode .vehicles-studio .trip-ops-card-item-body { display: flex; align-items: flex-start; gap: .4rem; min-width: 0; }
+body.portal-mode .vehicles-studio .trip-ops-card-item-value { white-space: normal !important; overflow: visible !important; text-overflow: clip !important; overflow-wrap: anywhere; font-size: .88rem; font-weight: 600; line-height: 1.3; }
+body.portal-mode .vehicles-studio .trip-ops-card-item-value-wrap { display: flex; flex-direction: column; min-width: 0; }
+body.portal-mode .vehicles-studio .trip-ops-card-actions { margin: 0 !important; padding: .8rem 0 0 !important; border-top: 1px solid var(--oc-line); }
+body.portal-mode .vehicles-studio .portal-ops-card-actions-grid { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: .5rem !important; }
+body.portal-mode .vehicles-studio .portal-ops-card-actions-grid .btn { justify-content: center; white-space: nowrap; }
+body.portal-mode .vehicles-studio .portal-ops-card-actions-stack { display: flex !important; justify-content: space-between; gap: .5rem; margin-top: .4rem; }
+body.portal-mode .vehicles-studio .portal-ops-card-actions-stack .btn { flex: 1 1 0; justify-content: center; background: transparent !important; background-image: none !important; box-shadow: none !important; border: 0 !important; font-weight: 600; font-size: .8rem; color: var(--oc-ink-2) !important; white-space: nowrap; }
+body.portal-mode .vehicles-studio .portal-ops-card-actions-stack .btn:hover { background: var(--oc-soft) !important; }
+body.portal-mode .vehicles-studio .portal-ops-card-actions-stack .trip-ops-card-btn--danger { color: var(--oc-cancel) !important; }
+body.portal-mode .vehicles-studio .trip-ops-card-foot { margin: 0 !important; padding: .6rem 0 .8rem !important; border-top: 1px solid var(--oc-line); font-size: .76rem; color: var(--oc-ink-3); }
+"""
+
+EXTRA += r"""
+body.portal-mode .vehicles-studio .vehicle-card-badges .portal-ops-card-status-pill { display: none !important; }
+body.portal-mode .vehicles-studio .vehicle-card-spec-grid .trip-ops-card-item { grid-column: auto !important; grid-row: auto !important; }
+body.portal-mode .vehicles-studio .trip-ops-card-item-value { font-size: .86rem !important; }
+body.portal-mode .vehicles-studio .portal-ops-card-actions-grid .btn { min-width: 0; overflow: hidden; text-overflow: ellipsis; padding-left: .55rem !important; padding-right: .55rem !important; font-size: .8rem; }
+body.portal-mode .vehicles-studio .portal-ops-card-actions-grid, body.portal-mode .vehicles-studio .portal-ops-card-actions-stack { width: 100%; box-sizing: border-box; }
+"""
+
+EXTRA += r"""
+body.portal-mode .vehicles-studio .portal-ops-card-actions-grid, body.portal-mode .vehicles-studio .portal-ops-card-actions-stack { width: 100% !important; max-width: 100% !important; margin-left: 0 !important; margin-right: 0 !important; }
+body.portal-mode .vehicles-studio .portal-ops-card-actions-grid .btn { width: 100% !important; max-width: 100% !important; margin: 0 !important; }
+"""
+
+EXTRA += r"""
+body.portal-mode .vehicles-studio .trip-ops-card-actions { display: flex !important; flex-direction: column; gap: .4rem; }
+body.portal-mode .vehicles-studio .portal-ops-card-actions-stack { margin-top: 0 !important; }
+"""
+
+header = """/* ===================================================================
+   Portal · capa común de módulos (v1)
+   Un solo azul de marca y los mismos componentes en todos los módulos
+   (Camiones, Conductores, Calendario, Historial, Reportería, Gestión
+   humana, Contratación, Cumplimiento, Gestión documental, SARLAFT,
+   Prospectos, Usuarios, Autorizaciones, Notificaciones y Perfil).
+   Se carga después de ops-clean.css. Archivo generado: ver
+   scripts/gen-ops-clean-modules.py si se quiere regenerar.
+   =================================================================== */
+
+/* El acento por módulo (verde, morado, ámbar…) pasa a ser siempre el azul de marca. */
+.portal-main:has(.module-shell[data-module-view]) {
+  --mx-rgb: 55, 124, 192;
+}
+"""
+
+body = r"""
+/* ---------- Pestañas: línea inferior en azul de marca ---------- */
+@@P .auth-tabs-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.35rem;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--oc-line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+@@P :is(.auth-tab-btn, .ops-filter-pill) {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 0 0.7rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--oc-ink-2);
+  font-size: 0.92rem;
+  font-weight: 600;
+  transform: none;
+}
+
+@@P :is(.auth-tab-btn, .ops-filter-pill)::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 -1px 0;
+  height: 2px;
+  border-radius: 2px;
+  background: transparent;
+}
+
+@@P :is(.auth-tab-btn, .ops-filter-pill):hover { color: var(--oc-ink); background: transparent; }
+
+@@P :is(.auth-tab-btn, .ops-filter-pill).is-active {
+  background: transparent;
+  color: var(--oc-brand-ink);
+  box-shadow: none;
+}
+
+@@P :is(.auth-tab-btn, .ops-filter-pill).is-active::after { background: var(--oc-brand); }
+
+@@P :is(.auth-tab-btn, .ops-filter-pill) :is(strong, .count, .auth-tab-count) {
+  min-width: 1.35rem;
+  padding: 0.02rem 0.4rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--oc-soft);
+  color: var(--oc-ink-2);
+  font-size: 0.76rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+@@P :is(.auth-tab-btn, .ops-filter-pill).is-active :is(strong, .count, .auth-tab-count) {
+  background: var(--oc-brand-soft);
+  color: var(--oc-brand-ink);
+}
+
+@@P .ops-filters-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.35rem;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--oc-line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* ---------- Botón principal plano ---------- */
+@@P .btn-primary {
+  border-color: var(--oc-brand);
+  background: var(--oc-brand);
+  background-image: none;
+  color: #fff;
+  box-shadow: none;
+}
+
+@@P .btn-primary:hover { background: var(--oc-brand-ink); border-color: var(--oc-brand-ink); }
+
+/* ---------- Etiquetas: sin mayúsculas sostenidas ---------- */
+@@P :is(h1, h2, h3, h4, h5, h6, span, p, small, label, legend, dt, th, div, li, a, button, strong, em) {
+  text-transform: none;
+}
+
+@@P :is(span, p, small, label, legend, dt, th, div, li, a, button):not(.btn) {
+  letter-spacing: 0;
+}
+"""
+body += EXTRA
+from pathlib import Path
+OUT = Path(__file__).resolve().parent.parent / "styles" / "ops-clean-modules.css"
+OUT.write_text(header + body.replace("@@P", P), encoding="utf-8")
+print("ok", OUT)
