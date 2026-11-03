@@ -203,6 +203,13 @@
       return w + ", " + (MONTHS_SHORT[mo.toLowerCase()] || mo) + " " + d;
     }],
     [/^(.+) y (\d+) más$/i, function (m, rest, n) { return t(rest) + " and " + n + " more"; }],
+    [/^(\d+) programados?$/i, "$1 scheduled"],
+    [/^(\d+) ?% de la flota en uso$/i, "$1 % of the fleet in use"],
+    [/^(\d+) por vencer en 30 días$/i, "$1 due within 30 days"],
+    [/^de (\d+) registrados$/i, "of $1 registered"],
+    [/^(\d+) de (\d+) servicios? entregados?$/i, "$1 of $2 services delivered"],
+    [/^Avance por tiempo: (\d+) ?%$/i, "Time-based progress: $1 %"],
+    [/^Avance por tiempo entre la recogida y la entrega estimada: (\d+) ?%$/i, "Time elapsed between pickup and estimated delivery: $1 %"],
     [/^Meta (\d+) ?%$/i, "Target $1 %"],
     [/^(\d+) entregas? evaluadas?$/i, function (m, n) { return n + (n === "1" ? " delivery evaluated" : " deliveries evaluated"); }],
     [/^Margen (\d+) ?%$/i, "Margin $1 %"],

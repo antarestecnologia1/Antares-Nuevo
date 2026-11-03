@@ -151,5 +151,22 @@
   "Documentos y controles vencidos o por vencer": "Expired documents and controls, or due soon",
   "Resultados del periodo": "Results for the period",
   "A tiempo y con retraso": "On time and late",
-  "el aviso de no renovación exige 30 días de antelación.": "the non-renewal notice requires 30 days' notice."
+  "el aviso de no renovación exige 30 días de antelación.": "the non-renewal notice requires 30 days' notice.",
+  "Avance del día": "Progress today",
+  "Indicadores en vivo": "Live indicators",
+  "Flota disponible": "Available fleet",
+  "Documentos vencidos": "Expired documents",
+  "Solicitudes sin camión": "Requests without a truck",
+  "Requieren acción": "Need action",
+  "Todo a tiempo": "All on time",
+  "En curso": "In progress",
+  "Con la hora estimada vencida": "Past the estimated time",
+  "Esperando respuesta": "Awaiting a reply",
+  "Servicios finalizados": "Completed services",
+  "Aún no hay servicios programados ni en curso para hoy.": "No services scheduled or in progress for today yet.",
+  "Tendencia diaria de entregas a tiempo": "Daily on-time delivery trend",
+  "Tendencia diaria de servicios completados": "Daily completed services trend",
+  "Tendencia diaria de ingresos": "Daily revenue trend",
+  "Tendencia diaria del resultado operativo": "Daily operating result trend",
+  "Entregados": "Delivered"
 });

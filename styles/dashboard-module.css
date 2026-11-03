@@ -316,8 +316,8 @@ body[data-theme="dark"] .dashboard-studio.dt-root {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.dt-root--client .dt-grid--now {
-  grid-template-columns: minmax(0, 1fr);
+.dt-grid--aside {
+  align-items: start;
 }
 
 .dt-stack {
@@ -363,6 +363,214 @@ body[data-theme="dark"] .dashboard-studio.dt-root {
   font-size: 0.76rem;
   line-height: 1.45;
   color: var(--dt-ink-3);
+}
+
+/* ───────────────────────── íconos en fichas suaves ───────────────────────── */
+
+.dt-ico {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 2.3rem;
+  height: 2.3rem;
+  border-radius: 11px;
+  background: var(--dt-brand-soft);
+  color: var(--dt-brand-ink);
+}
+
+.dt-ico svg {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.dt-ico--sm {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 10px;
+}
+
+.dt-ico--sm svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.dt-ico--lg {
+  width: 2.7rem;
+  height: 2.7rem;
+  border-radius: 12px;
+}
+
+.dt-ico--lg svg {
+  width: 1.4rem;
+  height: 1.4rem;
+}
+
+.dt-ico--alert {
+  background: var(--dt-alert-soft);
+  color: var(--dt-alert);
+}
+
+.dt-ico--warn {
+  background: var(--dt-warn-soft);
+  color: var(--dt-warn);
+}
+
+.dt-ico--info {
+  background: var(--dt-brand-soft);
+  color: var(--dt-brand-ink);
+}
+
+.dt-card__title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.dt-bignum {
+  font-size: 1.6rem;
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--dt-ink);
+}
+
+/* ───────────────────────── franja de indicadores en vivo ───────────────────────── */
+
+.dt-pulse {
+  display: grid;
+  grid-template-columns: repeat(var(--dt-n, 4), minmax(0, 1fr));
+  gap: 1.1rem;
+}
+
+.dt-pulse__tile {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  min-width: 0;
+  padding: 0.95rem 1rem;
+  border: 1px solid var(--dt-line);
+  border-radius: var(--dt-radius);
+  background: var(--dt-surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+button.dt-pulse__tile {
+  cursor: pointer;
+}
+
+button.dt-pulse__tile:hover {
+  border-color: var(--dt-line-2);
+  background: var(--dt-soft);
+}
+
+.dt-pulse__txt {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.dt-pulse__label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--dt-ink-2);
+}
+
+.dt-pulse__value {
+  font-size: 1.95rem;
+  line-height: 1.1;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: var(--dt-ink);
+}
+
+.dt-pulse__sub {
+  font-size: 0.76rem;
+  color: var(--dt-ink-3);
+}
+
+.dt-pulse__tile--alert .dt-ico {
+  background: var(--dt-alert-soft);
+  color: var(--dt-alert);
+}
+
+.dashboard-studio.dt-root .dt-pulse__tile--alert .dt-pulse__value {
+  color: var(--dt-alert);
+}
+
+.dt-pulse__tile--warn .dt-ico {
+  background: var(--dt-warn-soft);
+  color: var(--dt-warn);
+}
+
+.dt-pulse__tile--ok .dt-ico {
+  background: var(--dt-ok-soft);
+  color: var(--dt-ok);
+}
+
+/* ───────────────────────── avance del día y de cada viaje ───────────────────────── */
+
+.dt-meter {
+  height: 0.7rem;
+  border-radius: 999px;
+  background: var(--dt-soft);
+  box-shadow: inset 0 0 0 1px var(--dt-line);
+  overflow: hidden;
+}
+
+.dt-meter i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--dt-brand);
+}
+
+.dt-prog {
+  display: block;
+  width: 6.5rem;
+  height: 0.3rem;
+  margin-top: 0.4rem;
+  border-radius: 999px;
+  background: var(--dt-line);
+  overflow: hidden;
+}
+
+.dt-prog i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--dt-brand);
+}
+
+.dt-prog--late i {
+  background: var(--dt-alert-dot);
+}
+
+/* ───────────────────────── tendencia dentro de los indicadores ───────────────────────── */
+
+.dt-tile__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.dt-tile__main {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.dt-spark {
+  flex: none;
+  width: 5.25rem;
+  height: 2.3rem;
+  margin-bottom: 0.15rem;
+  overflow: visible;
 }
 
 /* ───────────────────────── requiere atención ───────────────────────── */
@@ -974,7 +1182,8 @@ body[data-theme="dark"] .dashboard-studio.dt-root {
 }
 
 .dt-tile__value {
-  font-size: 2rem;
+  white-space: nowrap;
+  font-size: 1.95rem;
   line-height: 1.1;
   font-weight: 700;
   letter-spacing: -0.025em;
@@ -1095,6 +1304,10 @@ body[data-theme="dark"] .dashboard-studio.dt-root {
   .dt-grid--aside {
     grid-template-columns: minmax(0, 1fr);
   }
+
+  .dt-pulse {
+    grid-template-columns: repeat(auto-fit, minmax(13.5rem, 1fr));
+  }
 }
 
 @media (max-width: 900px) {
@@ -1129,6 +1342,37 @@ body[data-theme="dark"] .dashboard-studio.dt-root {
     font-size: 1.7rem;
   }
 
+  .dt-spark {
+    width: 4.5rem;
+  }
+
+  .dt-pulse {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.7rem;
+  }
+
+  .dt-pulse__tile {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.6rem;
+    padding: 0.85rem;
+  }
+
+  .dt-pulse__tile:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .dt-ico--lg {
+    width: 2.4rem;
+    height: 2.4rem;
+  }
+
+  .dt-pulse__value {
+    font-size: 1.6rem;
+  }
+
   .dt-search {
     width: 100%;
     min-width: 0;
@@ -1154,7 +1398,9 @@ body[data-theme="dark"] .dashboard-studio.dt-root {
   .dt-attn__item .dt-link {
     grid-column: 2;
     justify-self: start;
-    padding-left: 0;
+    margin-top: -0.2rem;
+    padding: 0;
+    font-size: 0.8rem;
   }
 
   .dt-chart__plot {

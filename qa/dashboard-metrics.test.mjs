@@ -137,7 +137,7 @@ check("«Hoy» muestra al menos 7 días de tendencia", () => {
 check("tablero de hoy: urgencia y conteos", () => {
   const requests = [
     { id: "1", requestNumber: "S1", status: "En transito", clientName: "A", trip: { vehiclePlate: "AAA111", etaDelivery: iso(TODAY, 9) } },
-    { id: "2", requestNumber: "S2", status: "En transito", clientName: "B", trip: { vehiclePlate: "BBB222", etaDelivery: iso(TODAY, 18) } },
+    { id: "2", requestNumber: "S2", status: "En transito", clientName: "B", trip: { vehiclePlate: "BBB222", etaPickup: iso(TODAY, 6), etaDelivery: iso(TODAY, 18) } },
     { id: "3", requestNumber: "S3", status: "Viaje asignado", clientName: "C", trip: { vehiclePlate: "CCC333", etaDelivery: iso(TODAY, 20) } },
     { id: "4", requestNumber: "S4", status: "Aprobada pendiente asignacion", clientName: "D" },
     { id: "5", requestNumber: "S5", status: "Pendiente", clientName: "E" },
@@ -149,6 +149,9 @@ check("tablero de hoy: urgencia y conteos", () => {
   assert.equal(rows[0].number, "S1", "el retrasado va primero");
   assert.equal(rows[0].lateMin, 60);
   assert.ok(!rows.some((r) => r.number === "S7"), "un cierre de días anteriores no aparece");
+  assert.equal(rows.find((r) => r.number === "S2").progress, 33, "avance por tiempo: 4 h de 12 h");
+  assert.equal(rows.find((r) => r.number === "S1").progress, null, "sin hora de recogida no hay avance");
+  assert.equal(rows.find((r) => r.number === "S3").progress, null, "un viaje programado no muestra avance");
 });
 
 check("estado de la flota: cada camión cuenta una vez", () => {

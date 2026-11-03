@@ -337,6 +337,12 @@ export function computeTodayBoard({ requests = [], todayYmd, nowTs = Date.now() 
     counts[bucket] += 1;
     counts.all += 1;
     if (delayed) counts.late += 1;
+    const pickup = tsOf(r.trip?.etaPickup || r.pickupAt);
+    /* Avance por tiempo entre la recogida y la entrega estimada (no es GPS). Solo viajes en ruta. */
+    const progress =
+      bucket === "route" && Number.isFinite(pickup) && Number.isFinite(eta) && eta > pickup
+        ? Math.max(0, Math.min(100, Math.round(((nowTs - pickup) / (eta - pickup)) * 100)))
+        : null;
     rows.push({
       id: r.id,
       number: String(r.requestNumber || r.id || ""),
@@ -352,7 +358,8 @@ export function computeTodayBoard({ requests = [], todayYmd, nowTs = Date.now() 
       lateMin: delayed ? Math.max(1, Math.round((nowTs - eta) / 60000)) : 0,
       etaTs: eta,
       etaLabel: formatTsLabel(eta, todayYmd),
-      pickupTs: tsOf(r.trip?.etaPickup || r.pickupAt)
+      pickupTs: pickup,
+      progress
     });
   });
   const rank = (row) => (row.delayed ? 0 : row.bucket === "route" ? 1 : row.bucket === "assign" ? 2 : row.bucket === "assigned" ? 3 : 4);

@@ -22,7 +22,7 @@
 
   const REFRESH_MS = 60 * 1000;
   const BOARD_VISIBLE_ROWS = 12;
-  const EXPIRY_VISIBLE_ROWS = 8;
+  const EXPIRY_VISIBLE_ROWS = 6;
 
   const STATUS_LABEL = {
     en_transito: "En tránsito",
@@ -41,6 +41,17 @@
     pendiente: "plan",
     completada: "done",
     cerrada: "done"
+  };
+
+  const ATTN_ICON = {
+    late: "alertTriangle",
+    standby: "clock",
+    assign: "inbox",
+    docs: "shield",
+    auth: "badge",
+    contracts: "briefcase",
+    leads: "mail",
+    pending: "inbox"
   };
 
   const BOARD_TABS = [
@@ -145,20 +156,75 @@
     return `<span class="dt-delta dt-delta--${good ? "good" : "bad"}"><span aria-hidden="true">${arrow}</span> ${sign}${nf(Math.abs(value))}${esc(unit)}${ref}</span>`;
   }
 
-  function tile({ label, value, delta = "", hint = "", tone = "", testid = "" }) {
+  function tile({ label, value, delta = "", hint = "", tone = "", testid = "", ico = "", spark = "" }) {
+    const chip = ico && icon(ico) ? `<span class="dt-ico dt-ico--sm" aria-hidden="true">${icon(ico)}</span>` : "";
     return `<article class="dt-tile${tone ? ` dt-tile--${tone}` : ""}"${testid ? ` data-testid="${attr(testid)}"` : ""}>
-      <span class="dt-tile__label">${esc(label)}</span>
-      <strong class="dt-tile__value">${esc(value)}</strong>
+      <div class="dt-tile__top"><span class="dt-tile__label">${esc(label)}</span>${chip}</div>
+      <div class="dt-tile__main"><strong class="dt-tile__value">${esc(value)}</strong>${spark}</div>
       ${delta}
       ${hint ? `<span class="dt-tile__hint">${hint}</span>` : ""}
     </article>`;
   }
 
-  function cardHead(title, sub = "", right = "", id = "") {
+  /** Indicador en vivo de la franja superior: número grande, ícono y, si aplica, acción al hacer clic. */
+  function pulseTile({ label, value, sub, tone = "", ico, action = "", data = "" }) {
+    const body = `<span class="dt-ico dt-ico--lg" aria-hidden="true">${icon(ico)}</span>
+      <span class="dt-pulse__txt"><span class="dt-pulse__label">${esc(label)}</span><strong class="dt-pulse__value">${esc(value)}</strong><span class="dt-pulse__sub">${esc(sub)}</span></span>`;
+    return action
+      ? `<button type="button" class="dt-pulse__tile dt-pulse__tile--${attr(tone || "plain")}" data-action="${attr(action)}" ${data}>${body}</button>`
+      : `<div class="dt-pulse__tile dt-pulse__tile--${attr(tone || "plain")}">${body}</div>`;
+  }
+
+  function buildPulse(m) {
+    const c = m.board.counts;
+    const tiles = [];
+    if (m.isClient) {
+      tiles.push(pulseTile({ label: "En curso", value: nf(c.route + c.assigned), sub: `${nf(c.assigned)} programados`, ico: "truck", action: "dash-board-filter", data: 'data-filter="all"' }));
+      tiles.push(pulseTile({ label: "Retrasados", value: nf(c.late), sub: c.late ? "Con la hora estimada vencida" : "Todo a tiempo", tone: c.late ? "alert" : "ok", ico: "alertTriangle", action: "dash-board-filter", data: 'data-filter="late"' }));
+      tiles.push(pulseTile({ label: "En revisión", value: nf(m.ownPending || 0), sub: "Esperando respuesta", tone: m.ownPending ? "warn" : "", ico: "inbox", action: m.access.requests ? "dash-nav" : "", data: 'data-target-view="requests"' }));
+      tiles.push(pulseTile({ label: "Entregados hoy", value: nf(c.done), sub: "Servicios finalizados", tone: "", ico: "check", action: "dash-board-filter", data: 'data-filter="done"' }));
+    } else {
+      const f = m.fleet;
+      const ex = m.expirations;
+      tiles.push(pulseTile({ label: "En ruta", value: nf(c.route), sub: `${nf(c.assigned)} programados`, ico: "truck", action: "dash-board-filter", data: 'data-filter="route"' }));
+      tiles.push(pulseTile({ label: "Retrasados", value: nf(c.late), sub: c.late ? "Requieren acción" : "Todo a tiempo", tone: c.late ? "alert" : "ok", ico: "alertTriangle", action: "dash-board-filter", data: 'data-filter="late"' }));
+      tiles.push(pulseTile({ label: "Por asignar", value: nf(c.assign), sub: "Solicitudes sin camión", tone: c.assign ? "warn" : "", ico: "inbox", action: "dash-board-filter", data: 'data-filter="assign"' }));
+      if (f) {
+        tiles.push(pulseTile({ label: "Flota disponible", value: nf(f.available), sub: f.utilizationPct == null ? `de ${nf(f.total)} registrados` : `${f.utilizationPct} % de la flota en uso`, ico: "check", action: m.access.vehicles ? "dash-nav" : "", data: 'data-target-view="transport-vehicles"' }));
+      }
+      if (ex) {
+        tiles.push(pulseTile({ label: "Documentos vencidos", value: nf(ex.totals.expired), sub: `${nf(ex.totals.soon)} por vencer en 30 días`, tone: ex.totals.expired ? "alert" : "ok", ico: "shield", action: "dash-scroll", data: 'data-target="dt-expirations"' }));
+      }
+    }
+    return `<section class="dt-pulse" style="--dt-n:${tiles.length}" data-testid="dt-pulse" aria-label="Indicadores en vivo">${tiles.join("")}</section>`;
+  }
+
+  function cardHead(title, sub = "", right = "", id = "", ico = "") {
+    const chip = ico && icon(ico) ? `<span class="dt-ico" aria-hidden="true">${icon(ico)}</span>` : "";
     return `<header class="dt-card__head">
-      <div><h3${id ? ` id="${attr(id)}"` : ""}>${esc(title)}</h3>${sub ? `<p>${esc(sub)}</p>` : ""}</div>
+      <div class="dt-card__title">${chip}<div><h3${id ? ` id="${attr(id)}"` : ""}>${esc(title)}</h3>${sub ? `<p>${esc(sub)}</p>` : ""}</div></div>
       ${right}
     </header>`;
+  }
+
+  /** Tendencia en miniatura (sin ejes): línea de 2 px y punto final con aro del color de la tarjeta. */
+  function sparkline(values, label) {
+    const pts = values.map((v, i) => (Number.isFinite(v) ? { v, i } : null)).filter(Boolean);
+    if (pts.length < 2) return "";
+    const w = 112;
+    const h = 36;
+    const pad = 5;
+    const min = Math.min(...pts.map((p) => p.v));
+    const max = Math.max(...pts.map((p) => p.v));
+    const span = max - min || 1;
+    const x = (i) => pad + (i / Math.max(1, values.length - 1)) * (w - pad * 2);
+    const y = (v) => (max === min ? h / 2 : h - pad - ((v - min) / span) * (h - pad * 2));
+    const path = pts.map((p, k) => `${k ? "L" : "M"}${x(p.i).toFixed(1)} ${y(p.v).toFixed(1)}`).join(" ");
+    const last = pts[pts.length - 1];
+    return `<svg class="dt-spark" viewBox="0 0 ${w} ${h}" role="img" aria-label="${attr(label)}" focusable="false">
+      <path d="${path}" fill="none" stroke="var(--dt-spark, var(--dt-s1))" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity=".55"/>
+      <circle cx="${x(last.i).toFixed(1)}" cy="${y(last.v).toFixed(1)}" r="4" fill="var(--dt-spark, var(--dt-s1))" stroke="var(--dt-surface)" stroke-width="2"/>
+    </svg>`;
   }
 
   function emptyState(text, tone = "") {
@@ -207,8 +273,9 @@
             const nav = it.action
               ? `data-action="${attr(it.action)}" data-filter="${attr(it.filter || "")}"`
               : `data-action="dash-nav" data-target-view="${attr(it.view || "")}"`;
+            const ico = ATTN_ICON[it.id] || ATTN_ICON[String(it.id).split("-")[0]] || "alertTriangle";
             return `<li class="dt-attn__item dt-attn__item--${attr(it.tone)}">
-              <span class="dt-dot dt-dot--${attr(it.tone)}" aria-hidden="true"></span>
+              <span class="dt-ico dt-ico--tone dt-ico--${attr(it.tone)}" aria-hidden="true">${icon(ico)}</span>
               <div class="dt-attn__text"><strong>${esc(it.title)}</strong><span>${esc(it.detail)}</span></div>
               <button type="button" class="dt-link" ${nav}>${esc(it.cta || "Abrir")}<span aria-hidden="true"> →</span></button>
             </li>`;
@@ -223,7 +290,7 @@
       ? `<span class="dt-count${urgent ? " dt-count--alert" : ""}" aria-label="${items.length} pendientes">${items.length}</span>`
       : "";
     return `<section class="dt-card dt-attn" data-testid="dt-attention" aria-labelledby="dt-attn-title">
-      ${cardHead("Requiere atención", "De lo más urgente a lo menos urgente", badge, "dt-attn-title")}
+      ${cardHead("Requiere atención", "De lo más urgente a lo menos urgente", badge, "dt-attn-title", "bell")}
       ${body}
     </section>`;
   }
@@ -252,13 +319,32 @@
     const util = f.utilizationPct == null ? "—" : `${f.utilizationPct} %`;
     const nav = m.access.vehicles ? `<button type="button" class="dt-link" data-action="dash-nav" data-target-view="transport-vehicles">Ver camiones<span aria-hidden="true"> →</span></button>` : "";
     return `<section class="dt-card dt-fleet" data-testid="dt-fleet" aria-labelledby="dt-fleet-title">
-      ${cardHead("Estado de la flota", `${plural(total, "camión registrado", "camiones registrados")}`, nav, "dt-fleet-title")}
+      ${cardHead("Estado de la flota", `${plural(total, "camión registrado", "camiones registrados")}`, nav, "dt-fleet-title", "truck")}
       <div class="dt-fbar">${blocks}</div>
       <ul class="dt-legend">${legend}</ul>
       <dl class="dt-facts">
         <div><dt>Utilización de la flota operativa</dt><dd>${esc(util)}</dd></div>
         <div><dt>Disponibles para asignar</dt><dd>${nf(f.available)}</dd></div>
       </dl>
+    </section>`;
+  }
+
+  /** Avance del día: servicios entregados frente a los que están en curso o programados. */
+  function buildDayProgress(m) {
+    const c = m.board.counts;
+    const total = c.done + c.route + c.assigned;
+    const pct = total > 0 ? Math.round((c.done / total) * 100) : 0;
+    const body = total > 0
+      ? `<div class="dt-meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}" aria-label="Avance del día"><i style="width:${pct}%"></i></div>
+         <dl class="dt-facts">
+           <div><dt>Entregados</dt><dd>${nf(c.done)}</dd></div>
+           <div><dt>En ruta</dt><dd>${nf(c.route)}</dd></div>
+           <div><dt>Programados</dt><dd>${nf(c.assigned)}</dd></div>
+         </dl>`
+      : emptyState("Aún no hay servicios programados ni en curso para hoy.");
+    return `<section class="dt-card dt-day" data-testid="dt-day" aria-labelledby="dt-day-title">
+      ${cardHead("Avance del día", total > 0 ? `${nf(c.done)} de ${plural(total, "servicio", "servicios")} entregados` : "", total > 0 ? `<strong class="dt-bignum">${pct} %</strong>` : "", "dt-day-title", "activity")}
+      ${body}
     </section>`;
   }
 
@@ -271,9 +357,12 @@
       ? `<strong>${esc(r.plate)}</strong><span>${esc(r.driver || "Sin conductor")}</span>`
       : `<span class="dt-muted">Sin asignar</span>`;
     const search = [r.number, r.client, route, r.plate, r.driver].join(" ").toLowerCase();
+    const prog = r.progress == null
+      ? ""
+      : `<span class="dt-prog${r.delayed ? " dt-prog--late" : ""}" role="img" aria-label="Avance por tiempo: ${r.progress} %" title="Avance por tiempo entre la recogida y la entrega estimada: ${r.progress} %"><i style="width:${r.progress}%"></i></span>`;
     const eta = r.delayed
-      ? `<span class="dt-eta">${esc(r.etaLabel)}</span><span class="dt-chip dt-chip--late">Retraso ${esc(minutesLabel(r.lateMin))}</span>`
-      : `<span class="dt-eta">${esc(r.bucket === "done" ? "Entregado" : r.etaLabel)}</span>`;
+      ? `<span class="dt-eta">${esc(r.etaLabel)}</span>${prog}<span class="dt-chip dt-chip--late">Retraso ${esc(minutesLabel(r.lateMin))}</span>`
+      : `<span class="dt-eta">${esc(r.bucket === "done" ? "Entregado" : r.etaLabel)}</span>${prog}`;
     return `<tr class="dt-row${r.delayed ? " dt-row--late" : ""}" data-bucket="${attr(r.bucket)}" data-late="${r.delayed ? "1" : "0"}" data-search="${attr(search)}">
       <td><button type="button" class="dt-link dt-link--id" data-action="detail" data-id="${attr(r.id)}">${esc(r.number)}</button></td>
       <td class="dt-cell-main">${isClient
@@ -305,7 +394,7 @@
       : "";
     const search = `<label class="dt-search"><span class="dt-sr">Buscar viaje</span>${icon("search")}<input id="dt-board-search" type="search" placeholder="Placa, cliente o ruta" value="${attr(ui.boardQuery)}" autocomplete="off"></label>`;
     return `<section class="dt-card dt-board" id="dt-board" data-testid="dt-board" aria-labelledby="dt-board-title">
-      ${cardHead(m.isClient ? "Mis viajes" : "Viajes de hoy", m.isClient ? "En curso y entregados hoy" : "En curso, programados y pendientes de asignar", search, "dt-board-title")}
+      ${cardHead(m.isClient ? "Mis viajes" : "Viajes de hoy", m.isClient ? "En curso y entregados hoy" : "En curso, programados y pendientes de asignar", search, "dt-board-title", "map")}
       <div class="dt-tabs" role="tablist" aria-label="Filtrar viajes" id="dt-board-tabs">${tabs}</div>
       ${body}
       <p class="dt-empty dt-empty--filter" id="dt-board-empty" hidden>Ningún viaje coincide con el filtro o la búsqueda.</p>
@@ -372,7 +461,7 @@
       ? `<footer class="dt-card__foot"><span>${plural(hidden, "vencimiento más", "vencimientos más")}</span>${target ? `<button type="button" class="dt-link" data-action="dash-nav" data-target-view="${attr(target)}">Ver todos<span aria-hidden="true"> →</span></button>` : ""}</footer>`
       : "";
     return `<section class="dt-card dt-exp" data-testid="dt-expirations" id="dt-expirations" aria-labelledby="dt-exp-title">
-      ${cardHead("Vencimientos próximos", "SOAT, tecnomecánica, licencias y exámenes", "", "dt-exp-title")}
+      ${cardHead("Vencimientos próximos", "SOAT, tecnomecánica, licencias y exámenes", "", "dt-exp-title", "shield")}
       ${summary}
       <div class="dt-tabs" role="tablist" aria-label="Filtrar vencimientos">${tabs}</div>
       ${list}
@@ -401,7 +490,7 @@
       const nav = p.hiring
         ? `<button type="button" class="dt-link" data-action="dash-nav" data-target-view="hiring">Contratación<span aria-hidden="true"> →</span></button>`
         : `<button type="button" class="dt-link" data-action="dash-nav" data-target-view="payroll">Gestión humana<span aria-hidden="true"> →</span></button>`;
-      cards.push(`<section class="dt-card dt-mini" data-testid="dt-people" aria-labelledby="dt-people-title">${cardHead("Talento humano", "", nav, "dt-people-title")}<dl class="dt-facts">${rows.join("")}</dl></section>`);
+      cards.push(`<section class="dt-card dt-mini" data-testid="dt-people" aria-labelledby="dt-people-title">${cardHead("Talento humano", "", nav, "dt-people-title", "users")}<dl class="dt-facts">${rows.join("")}</dl></section>`);
     }
     const c = m.commercial;
     if (c) {
@@ -412,7 +501,7 @@
       const nav = c.leads != null
         ? `<button type="button" class="dt-link" data-action="dash-nav" data-target-view="contact-leads">Prospectos<span aria-hidden="true"> →</span></button>`
         : "";
-      cards.push(`<section class="dt-card dt-mini" data-testid="dt-commercial" aria-labelledby="dt-com-title">${cardHead("Comercial", "", nav, "dt-com-title")}<dl class="dt-facts">${rows.join("")}</dl></section>`);
+      cards.push(`<section class="dt-card dt-mini" data-testid="dt-commercial" aria-labelledby="dt-com-title">${cardHead("Comercial", "", nav, "dt-com-title", "briefcase")}<dl class="dt-facts">${rows.join("")}</dl></section>`);
     }
     return cards.join("");
   }
@@ -439,8 +528,15 @@
     const onTime = cur.onTimePct;
     const tone = onTime == null ? "" : onTime >= m.onTimeTarget ? "ok" : onTime >= m.onTimeTarget - 10 ? "warn" : "alert";
     const tiles = [];
+    const sr = m.perf.series;
+    const dayPct = sr.days.map((_d, i) => {
+      const n = sr.ontime[i] + sr.late[i];
+      return n > 0 ? Math.round((sr.ontime[i] / n) * 100) : null;
+    });
     tiles.push(
       tile({
+        ico: "clock",
+        spark: sparkline(dayPct, "Tendencia diaria de entregas a tiempo"),
         label: "Entregas a tiempo",
         value: onTime == null ? "—" : `${onTime} %`,
         delta: d.onTimePts == null ? `<span class="dt-delta dt-delta--flat">Sin base para comparar</span>` : deltaHtml(d.onTimePts, { unit: " pts", compareLabel: cmp }),
@@ -452,6 +548,8 @@
     );
     tiles.push(
       tile({
+        ico: "check",
+        spark: sparkline(sr.completed, "Tendencia diaria de servicios completados"),
         label: "Servicios completados",
         value: nf(cur.completed),
         delta: deltaHtml(d.completed, { compareLabel: cmp }),
@@ -462,6 +560,8 @@
     if (m.finance) {
       tiles.push(
         tile({
+          ico: "dollar",
+          spark: sparkline(sr.revenue, "Tendencia diaria de ingresos"),
           label: m.isClient ? "Valor de fletes" : "Ingresos por fletes",
           value: copCompact(cur.revenue),
           delta: deltaHtml(d.revenue, { compareLabel: cmp }),
@@ -472,6 +572,8 @@
       if (!m.isClient) {
         tiles.push(
           tile({
+            ico: "activity",
+            spark: sparkline(sr.revenue.map((v, i) => v - sr.cost[i]), "Tendencia diaria del resultado operativo"),
             label: "Resultado operativo",
             value: copCompact(cur.result),
             delta: deltaHtml(pctChangeSafe(cur.result, prev.result), { compareLabel: cmp }),
@@ -484,13 +586,13 @@
     return `<div class="dt-tiles">${tiles.join("")}</div>`;
   }
 
-  function chartCard({ id, title, sub, legend = [], tableHtml, hasData, emptyText }) {
+  function chartCard({ id, title, sub, legend = [], tableHtml, hasData, emptyText, ico = "" }) {
     const legendHtml = legend.length >= 2
       ? `<ul class="dt-legend dt-legend--inline">${legend.map((l) => `<li><i class="dt-key${l.line ? " dt-key--line" : ""}" style="--k:${attr(l.css)}" aria-hidden="true"></i>${esc(l.label)}</li>`).join("")}</ul>`
       : "";
     const toggle = hasData ? `<button type="button" class="dt-link" data-action="dash-chart-table" data-target="${attr(id)}" aria-pressed="false">Ver tabla</button>` : "";
     return `<article class="dt-card dt-chart" data-testid="${attr(id)}-card">
-      ${cardHead(title, sub, toggle)}
+      ${cardHead(title, sub, toggle, "", ico)}
       ${hasData
         ? `${legendHtml}<div class="dt-chart__plot"><canvas id="${attr(id)}" role="img" aria-label="${attr(`${title}. ${sub}`)}"></canvas></div>
            <div class="dt-chart__table" id="${attr(id)}-table" hidden>${tableHtml}</div>`
@@ -512,6 +614,7 @@
     out.push(
       chartCard({
         id: "dt-chart-ontime",
+        ico: "clock",
         title: "Entregas por día",
         sub: `A tiempo y con retraso · ${rangeLabel(s.days[0], s.days[s.days.length - 1])}`,
         legend: [{ label: "A tiempo", css: "var(--dt-s1)" }, { label: "Con retraso", css: "var(--dt-late)" }],
@@ -525,6 +628,7 @@
       out.push(
         chartCard({
           id: "dt-chart-money",
+          ico: "dollar",
           title: m.isClient ? "Fletes por día" : "Ingresos y costos por día",
           sub: m.isClient ? "Servicios completados" : "Ingresos por fletes frente a combustible y taller",
           legend: m.isClient ? [] : [{ label: "Ingresos", css: "var(--dt-s1)", line: true }, { label: "Costos", css: "var(--dt-s2)", line: true }],
@@ -560,7 +664,7 @@
         })
         .join("")}</ol>`;
     }
-    return `<article class="dt-card dt-clients" data-testid="dt-clients">${cardHead("Ingresos por cliente", sub)}${body}</article>`;
+    return `<article class="dt-card dt-clients" data-testid="dt-clients">${cardHead("Ingresos por cliente", sub, "", "", "building")}${body}</article>`;
   }
 
   function resultRow(label, current, previous, { goodUp = true, strong = false, format = copCompact } = {}) {
@@ -578,7 +682,7 @@
     const p = m.perf.previous;
     const pct = (v) => (v == null ? "—" : `${v} %`);
     return `<article class="dt-card dt-pl" data-testid="dt-result-table">
-      ${cardHead("Resultado operativo", `${rangeLabel(m.period.from, m.period.to)} frente a ${rangeLabel(m.period.prevFrom, m.period.prevTo)}`)}
+      ${cardHead("Resultado operativo", `${rangeLabel(m.period.from, m.period.to)} frente a ${rangeLabel(m.period.prevFrom, m.period.prevTo)}`, "", "", "dollar")}
       <div class="dt-table-wrap" tabindex="0" role="region" aria-label="Resultado operativo frente al periodo anterior"><table class="dt-table dt-table--compact">
         <thead><tr><th scope="col">Concepto</th><th scope="col" class="dt-num">Periodo</th><th scope="col" class="dt-num">Anterior</th><th scope="col" class="dt-num">Cambio</th></tr></thead>
         <tbody>
@@ -628,7 +732,8 @@
     if (model.isClient) {
       return `<section class="dashboard-studio dt-root dt-root--client" id="dashboard-root" data-testid="dashboard">
         ${scopeBar}${buildHeader(model, user)}
-        <div class="dt-grid dt-grid--now">${buildAttention(model)}</div>
+        ${buildPulse(model)}
+        <div class="dt-grid dt-grid--now">${buildAttention(model)}${buildDayProgress(model)}</div>
         ${buildBoard(model)}
         ${buildResults(model)}
       </section>`;
@@ -636,7 +741,8 @@
 
     return `<section class="dashboard-studio dt-root" id="dashboard-root" data-testid="dashboard">
       ${buildHeader(model, user)}
-      <div class="dt-grid dt-grid--now">${buildAttention(model)}${buildFleet(model)}</div>
+      ${buildPulse(model)}
+      <div class="dt-grid dt-grid--now">${buildAttention(model)}<div class="dt-stack">${buildFleet(model)}${buildDayProgress(model)}</div></div>
       ${buildBoard(model)}
       ${exp || side ? `<div class="dt-grid dt-grid--aside">${exp}${side ? `<div class="dt-stack">${side}</div>` : ""}</div>` : ""}
       ${buildResults(model)}
@@ -944,6 +1050,8 @@
       if (action === "dash-nav") {
         const target = String(btn.dataset.targetView || "").trim();
         if (target) setView(target);
+      } else if (action === "dash-scroll") {
+        root.querySelector(`#${btn.dataset.target || ""}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
       } else if (action === "dash-refresh") {
         refreshAll();
       } else if (action === "dash-period") {
