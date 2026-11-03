@@ -612,55 +612,6 @@ body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .histo
 body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) .hr-data-card__brand > :first-child:not(.hr-data-card__title) { background: var(--oc-brand-soft) !important; background-image: none !important; color: var(--oc-brand-ink) !important; box-shadow: none !important; }
 
 /* =====================================================================
-   DASHBOARD — mismo lenguaje plano: superficies blancas, borde fino,
-   sin franjas de color ni sombras decorativas.
-   ===================================================================== */
-body.portal-mode .dashboard-studio {
-  --nx-card-shadow: none; --nx-card-shadow-hover: 0 2px 10px rgba(16,35,63,.07); --nx-shadow: none;
-  --nx-border: #e5eaf1; --nx-border-hi: #d3dbe6;
-  --nx-card-bg-soft: #ffffff; --nx-glass: #ffffff;
-  --nx-brand-gradient: #377cc0; --nx-hero-accent: #377cc0;
-  --nx-violet: #a8670a; --nx-violet-low: rgba(224,165,38,.14); --nx-indigo: #377cc0; --nx-indigo-low: rgba(55,124,192,.1);
-  --d-ink: #12233f; --d-ink-2: #51627c; --d-ink-3: #8794a8; --d-soft: #f6f8fb; --d-brand-soft: #edf4fb;
-}
-body[data-theme="dark"] .dashboard-studio {
-  --nx-border: #213249; --nx-border-hi: #2c4160; --nx-card-bg-soft: #101c2e; --nx-glass: #101c2e;
-  --nx-brand-gradient: #5b9ddc; --nx-hero-accent: #5b9ddc;
-  --d-ink: #e8eef8; --d-ink-2: #a5b4ca; --d-ink-3: #7385a0; --d-soft: #15243a; --d-brand-soft: rgba(91,157,220,.14);
-}
-body.portal-mode .dashboard-studio .nx-ambient { display: none !important; }
-body.portal-mode .dashboard-studio :is(.at-hero, .at-kpi, .at-exec-item, .at-stats-card, .at-panel, .at-fleet-panel, .at-alerts-panel, .at-activity-panel, .at-map, .at-stats-toolbar) {
-  background: var(--nx-surface) !important; background-image: none !important;
-  border: 1px solid var(--nx-border) !important; border-radius: 14px !important; box-shadow: none !important;
-}
-body.portal-mode .dashboard-studio :is(.at-hero, .at-kpi, .at-exec-item, .at-panel, .at-stats-card, .at-fleet-panel, .at-alerts-panel, .at-activity-panel, .at-map, .at-stats-studio)::before,
-body.portal-mode .dashboard-studio :is(.at-hero, .at-kpi, .at-exec-item, .at-panel, .at-stats-card, .at-fleet-panel, .at-alerts-panel, .at-activity-panel, .at-stats-studio)::after { display: none !important; }
-body.portal-mode .dashboard-studio { background: transparent !important; background-image: none !important; }
-body.portal-mode .dashboard-studio .at-stats-studio { padding: 0; background: transparent !important; border: 0 !important; box-shadow: none !important; }
-body.portal-mode .dashboard-studio .at-stats-toolbar { padding: .7rem .8rem; display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; }
-body.portal-mode .dashboard-studio .at-stats-select { flex: 1 1 12rem; width: auto; min-width: 10rem; }
-body.portal-mode .dashboard-studio :is(.at-exec-strip, .at-command, .at-analytics, .at-fleet-section, .at-kpi-strip) { border: 0 !important; background: transparent !important; box-shadow: none !important; }
-/* Cabecera */
-body.portal-mode .dashboard-studio .at-hero { padding: 1.2rem 1.4rem; overflow: visible; }
-body.portal-mode .dashboard-studio .at-hero__eyebrow { text-transform: none; letter-spacing: 0; font-size: .8rem; font-weight: 500; color: var(--d-ink-3); }
-body.portal-mode .dashboard-studio .at-hero__title { color: var(--d-ink); }
-body.portal-mode .dashboard-studio .at-hero__title :is(span, em, strong) { background: none !important; -webkit-text-fill-color: var(--nx-accent) !important; color: var(--nx-accent) !important; }
-/* KPIs */
-body.portal-mode .dashboard-studio .at-kpi { padding: 1rem 1.1rem; }
-body.portal-mode .dashboard-studio .at-kpi__icon { background: var(--d-brand-soft) !important; color: var(--nx-accent) !important; box-shadow: none !important; border: 0 !important; width: 2.2rem; height: 2.2rem; border-radius: 10px; }
-body.portal-mode .dashboard-studio .at-kpi__value { color: var(--d-ink) !important; -webkit-text-fill-color: var(--d-ink) !important; }
-body.portal-mode .dashboard-studio .at-kpi--alert .at-kpi__value { color: var(--nx-red) !important; -webkit-text-fill-color: var(--nx-red) !important; }
-body.portal-mode .dashboard-studio .at-kpi__label { font-size: .86rem; font-weight: 600; color: var(--d-ink); }
-body.portal-mode .dashboard-studio .at-kpi__sub { text-transform: none; letter-spacing: 0; font-size: .76rem; font-weight: 500; color: var(--d-ink-3); }
-body.portal-mode .dashboard-studio .at-exec-item { padding: .7rem 1rem; }
-body.portal-mode .dashboard-studio .at-exec-item span { text-transform: none; letter-spacing: 0; font-size: .8rem; font-weight: 500; color: var(--d-ink-3); }
-body.portal-mode .dashboard-studio .at-exec-item strong { color: var(--d-ink) !important; -webkit-text-fill-color: var(--d-ink) !important; }
-/* Paneles */
-body.portal-mode .dashboard-studio :is(.at-panel-head, .at-fleet-head, .at-map__head, .at-stats-head) { background: transparent !important; background-image: none !important; border-bottom: 0 !important; }
-body.portal-mode .dashboard-studio :is(.at-panel-head, .at-fleet-head, .at-map__head, .at-alerts-panel > header, .at-activity-panel > header) :is(small, p, .at-eyebrow) { text-transform: none !important; letter-spacing: 0 !important; font-size: .78rem; font-weight: 500; }
-body.portal-mode .dashboard-studio .at-tabs { border-bottom: 1px solid var(--nx-border); }
-
-/* =====================================================================
    REPORTERÍA — catálogo en tarjetas horizontales, acciones sobrias.
    ===================================================================== */
 body.portal-mode .reports-studio .reports-export-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(21rem, 1fr)); gap: .85rem; }

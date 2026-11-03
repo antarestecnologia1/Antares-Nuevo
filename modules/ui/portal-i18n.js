@@ -173,7 +173,48 @@
     }],
     [/^El camión (.+): (.+) (vence|vencen) antes de la fecha del viaje\.$/i, function (m, plate, what, v) {
       return "Truck " + plate + ": " + t(what) + (v.toLowerCase() === "vencen" ? " expire" : " expires") + " before the trip date.";
-    }]
+    }],
+    /* Torre de control (dashboard) */
+    [/^(\d+) documentos? (de la flota|de conductores|de personal)$/i, function (m, n, kind) {
+      var k = { "de la flota": "fleet", "de conductores": "driver", "de personal": "staff" }[kind.toLowerCase()];
+      return n + " " + k + (n === "1" ? " document" : " documents");
+    }],
+    [/^(\d+) vencidos?(?: y (\d+) por vencer)?$/i, function (m, a, b) { return a + " expired" + (b ? " and " + b + " due soon" : ""); }],
+    [/^(\d+) por vencer$/i, "$1 due soon"],
+    [/^(\d+) entregas? retrasadas?$/i, function (m, n) { return n + (n === "1" ? " late delivery" : " late deliveries"); }],
+    [/^(\d+) entregas? con retraso$/i, function (m, n) { return n + (n === "1" ? " late delivery" : " late deliveries"); }],
+    [/^(\d+) viajes? en espera \(standby\)$/i, function (m, n) { return n + (n === "1" ? " trip on standby" : " trips on standby"); }],
+    [/^(\d+) solicitudes? sin viaje asignado$/i, function (m, n) { return n + (n === "1" ? " request without an assigned trip" : " requests without an assigned trip"); }],
+    [/^(\d+) solicitudes? en revisión$/i, function (m, n) { return n + (n === "1" ? " request under review" : " requests under review"); }],
+    [/^(\d+) autorizaci(?:ón|ones) pendientes?$/i, function (m, n) { return n + (n === "1" ? " pending authorization" : " pending authorizations"); }],
+    [/^(\d+) contratos? a término fijo por vencer$/i, function (m, n) { return n + (n === "1" ? " fixed-term contract expiring soon" : " fixed-term contracts expiring soon"); }],
+    [/^(\d+) prospectos? nuev[oa]s? del sitio web \(7 días\)$/i, function (m, n) { return n + (n === "1" ? " new web lead" : " new web leads") + " (7 days)"; }],
+    [/^lleva ((?:\d+\s?(?:d|h|min)\s?)+) de retraso$/i, "running $1 late"],
+    [/^Retraso ((?:\d+\s?(?:d|h|min)\s?)+)$/i, "Late $1"],
+    [/^Venció hace (\d+) d[ií]as?$/i, function (m, n) { return "Expired " + n + (n === "1" ? " day" : " days") + " ago"; }],
+    [/^(Hoy|Mañana|Ayer) (\d{1,2}:\d{2}) ([ap])\. m\.$/i, function (m, d, t, ap) { return { hoy: "Today", "mañana": "Tomorrow", ayer: "Yesterday" }[d.toLowerCase()] + " " + t + " " + ap.toUpperCase() + "M"; }],
+    [/^(\d{1,2}) (ene|feb|mar|abr|may|jun|jul|ago|sept?|oct|nov|dic) (\d{1,2}:\d{2}) ([ap])\. m\.$/i, function (m, d, mo, t, ap) { return (MONTHS_SHORT[mo.toLowerCase()] || mo) + " " + d + " " + t + " " + ap.toUpperCase() + "M"; }],
+    [/^(\d{1,2}) (ene|feb|mar|abr|may|jun|jul|ago|sept?|oct|nov|dic) – (\d{1,2}) (ene|feb|mar|abr|may|jun|jul|ago|sept?|oct|nov|dic)$/i, function (m, d1, m1, d2, m2) { return (MONTHS_SHORT[m1.toLowerCase()] || m1) + " " + d1 + " – " + (MONTHS_SHORT[m2.toLowerCase()] || m2) + " " + d2; }],
+    [/^(vs|comparado con) (\d{1,2} (?:ene|feb|mar|abr|may|jun|jul|ago|sept?|oct|nov|dic)(?: – \d{1,2} (?:ene|feb|mar|abr|may|jun|jul|ago|sept?|oct|nov|dic))?)$/i, function (m, w, range) {
+      return (w.toLowerCase() === "vs" ? "vs " : "compared with ") + t(range);
+    }],
+    [/^(lun|mar|mié|jue|vie|sáb|dom) (\d{1,2}) (ene|feb|mar|abr|may|jun|jul|ago|sept?|oct|nov|dic)$/i, function (m, wd, d, mo) {
+      var w = { lun: "Mon", mar: "Tue", "mié": "Wed", jue: "Thu", vie: "Fri", "sáb": "Sat", dom: "Sun" }[wd.toLowerCase()];
+      return w + ", " + (MONTHS_SHORT[mo.toLowerCase()] || mo) + " " + d;
+    }],
+    [/^(.+) y (\d+) más$/i, function (m, rest, n) { return t(rest) + " and " + n + " more"; }],
+    [/^Meta (\d+) ?%$/i, "Target $1 %"],
+    [/^(\d+) entregas? evaluadas?$/i, function (m, n) { return n + (n === "1" ? " delivery evaluated" : " deliveries evaluated"); }],
+    [/^Margen (\d+) ?%$/i, "Margin $1 %"],
+    [/^(\$[\d.,]+(?: mil M| M| mil)?) más en curso por completar$/i, "$1 more in progress"],
+    [/^(\d+) viajes? en curso ahora$/i, function (m, n) { return n + (n === "1" ? " trip" : " trips") + " in progress now"; }],
+    [/^(\d+) camion(?:es)? registrados?$/i, function (m, n) { return n + (n === "1" ? " registered truck" : " registered trucks"); }],
+    [/^Mostrando (\d+) de (\d+)$/i, "Showing $1 of $2"],
+    [/^(\d+) vencimientos? más$/i, function (m, n) { return n + " more " + (n === "1" ? "expiration" : "expirations"); }],
+    [/^Los (\d+) principales concentran el (\d+) ?% de los ingresos$/i, "The top $1 account for $2 % of revenue"],
+    [/^Clientes con servicios \((.+)\)$/i, function (m, p) { return "Clients with services (" + t(p) + ")"; }],
+    [/^(.+): (\d+) camion(?:es)? \((\d+) ?%\)(.*)$/i, function (m, state, n, pct, plates) { return t(state) + ": " + n + (n === "1" ? " truck" : " trucks") + " (" + pct + " %)" + plates; }],
+    [/^(.+): (\$[\d.]+) \((\d+) ?% del total\)$/i, "$1: $2 ($3 % of total)"]
   ];
 
   function applyRules(s) {
