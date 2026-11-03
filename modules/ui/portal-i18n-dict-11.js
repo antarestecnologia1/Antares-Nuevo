@@ -181,5 +181,9 @@
   "Resumen de vigencias": "Expiry summary",
   "Vehículos vencidos": "Expired vehicle documents",
   "Personas con vencidos": "People with expired items",
-  "Próximos vencimientos de contrato": "Upcoming contract expirations"
+  "Próximos vencimientos de contrato": "Upcoming contract expirations",
+  "Algunas tarjetas no se pudieron mostrar.": "Some cards could not be displayed.",
+  "No se pudieron calcular los indicadores.": "The indicators could not be calculated.",
+  "Recarga la página para cargar la versión más reciente; si sigue igual, revisa la consola.": "Reload the page to load the latest version; if nothing changes, check the console.",
+  "Recargar": "Reload"
 });

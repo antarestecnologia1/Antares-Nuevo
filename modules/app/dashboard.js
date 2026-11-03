@@ -18,6 +18,7 @@
   let charts = [];
   let refreshTimer = null;
   let lastModel = null;
+  let failedSections = [];
   let themeObserver = null;
 
   const REFRESH_MS = 60 * 1000;
@@ -416,6 +417,7 @@
   }
 
   function buildMap(m) {
+    if (!m.map || !m.map.shape) return "";
     const mp = m.map;
     const sh = mp.shape;
     const sel = mapSelected(mp);
@@ -845,39 +847,95 @@
 
   /* ───────────────────────── vista principal ───────────────────────── */
 
+  /** Ejecuta el constructor de una tarjeta; si falla lo registra y devuelve «fallback» para no tumbar todo el módulo. */
+  function guarded(name, build, fallback = "") {
+    try {
+      return build();
+    } catch (err) {
+      failedSections.push(name);
+      if (typeof console !== "undefined" && console.error) console.error(`[dashboard] no se pudo pintar «${name}»`, err);
+      return fallback;
+    }
+  }
+
+  const RELOAD_HINT = "Recarga la página para cargar la versión más reciente; si sigue igual, revisa la consola.";
+
+  function failureNotice() {
+    if (!failedSections.length) return "";
+    return `<div class="dt-notice" role="alert" data-testid="dt-notice">
+      <p><strong>Algunas tarjetas no se pudieron mostrar.</strong> <span>${esc(RELOAD_HINT)}</span></p>
+      <button type="button" class="dt-btn" data-action="dash-reload"><span>Recargar</span></button>
+    </div>`;
+  }
+
   function viewDashboard() {
     const user = currentUser();
     const DD = dashDomain();
+    failedSections = [];
     if (!DD?.computeControlTower) {
       return `<section class="dashboard-studio dt-root"><p class="dt-empty">El dashboard no está disponible: falta cargar el módulo de datos.</p></section>`;
     }
-    const model = DD.computeControlTower(user, { period: ui.period });
+    let model;
+    try {
+      model = DD.computeControlTower(user, { period: ui.period });
+    } catch (err) {
+      lastModel = null;
+      if (typeof console !== "undefined" && console.error) console.error("[dashboard] no se pudieron calcular los indicadores", err);
+      return `<section class="dashboard-studio dt-root" id="dashboard-root" data-testid="dashboard">
+        <div class="dt-notice" role="alert" data-testid="dt-notice">
+          <p><strong>No se pudieron calcular los indicadores.</strong> <span>${esc(RELOAD_HINT)}</span></p>
+          <button type="button" class="dt-btn" data-action="dash-reload"><span>Recargar</span></button>
+        </div>
+      </section>`;
+    }
     lastModel = model;
+    if (!model.map || !model.map.shape) failedSections.push("mapa de rutas");
     const scopeBar = model.isClient && typeof clientDataScopeBarHtml === "function"
       ? `<div class="dt-scope">${clientDataScopeBarHtml(getClientDataScope())}</div>`
       : "";
-    const side = buildSideCards(model);
-    const exp = buildExpirations(model);
 
     if (model.isClient) {
+      const parts = {
+        header: guarded("encabezado", () => buildHeader(model, user)),
+        pulse: guarded("indicadores", () => buildPulse(model)),
+        map: guarded("mapa de rutas", () => buildMap(model)),
+        attention: guarded("requiere atención", () => buildAttention(model)),
+        day: guarded("avance del día", () => buildDayProgress(model)),
+        board: guarded("viajes", () => buildBoard(model)),
+        results: guarded("resultados", () => buildResults(model))
+      };
       return `<section class="dashboard-studio dt-root dt-root--client" id="dashboard-root" data-testid="dashboard">
-        ${scopeBar}${buildHeader(model, user)}
-        ${buildPulse(model)}
-        <div class="dt-grid dt-grid--map">${buildMap(model)}<div class="dt-stack">${buildAttention(model)}${buildDayProgress(model)}</div></div>
-        ${buildBoard(model)}
-        ${buildResults(model)}
+        ${scopeBar}${parts.header}
+        ${failureNotice()}
+        ${parts.pulse}
+        <div class="dt-grid dt-grid--map">${parts.map}<div class="dt-stack">${parts.attention}${parts.day}</div></div>
+        ${parts.board}
+        ${parts.results}
       </section>`;
     }
 
-    const status = [buildFleet(model), buildDayProgress(model), side].filter(Boolean).join("");
+    const parts = {
+      header: guarded("encabezado", () => buildHeader(model, user)),
+      pulse: guarded("indicadores", () => buildPulse(model)),
+      map: guarded("mapa de rutas", () => buildMap(model)),
+      attention: guarded("requiere atención", () => buildAttention(model)),
+      board: guarded("viajes", () => buildBoard(model)),
+      fleet: guarded("flota", () => buildFleet(model)),
+      day: guarded("avance del día", () => buildDayProgress(model)),
+      side: guarded("talento humano y comercial", () => buildSideCards(model)),
+      exp: guarded("vencimientos", () => buildExpirations(model)),
+      results: guarded("resultados", () => buildResults(model))
+    };
+    const status = [parts.fleet, parts.day, parts.side].filter(Boolean).join("");
     return `<section class="dashboard-studio dt-root" id="dashboard-root" data-testid="dashboard">
-      ${buildHeader(model, user)}
-      ${buildPulse(model)}
-      <div class="dt-grid dt-grid--map">${buildMap(model)}${buildAttention(model)}</div>
-      ${buildBoard(model)}
+      ${parts.header}
+      ${failureNotice()}
+      ${parts.pulse}
+      <div class="dt-grid dt-grid--map">${parts.map}${parts.attention}</div>
+      ${parts.board}
       ${status ? `<div class="dt-grid dt-grid--status">${status}</div>` : ""}
-      ${exp}
-      ${buildResults(model)}
+      ${parts.exp}
+      ${parts.results}
     </section>`;
   }
 
@@ -1143,7 +1201,9 @@
   function bindDashboardControls() {
     if (String(state.currentView || "") !== "dashboard" || !nodes.viewRoot) return;
     const root = nodes.viewRoot.querySelector(".dashboard-studio");
-    if (!root || !lastModel) return;
+    if (!root) return;
+    root.querySelector('[data-action="dash-reload"]')?.addEventListener("click", () => window.location.reload());
+    if (!lastModel) return;
 
     wireCharts(root, lastModel);
     watchTheme(root);

@@ -10,8 +10,8 @@ import { isPortalClientUser } from "../core/client-data-scope-ui.js";
 import { colombiaNowIso, colombiaTodayIsoDate } from "../core/utils.js";
 import { filterPendingApprovalsForActor, readApprovalsSync, readPendingPortalRegistrationsSync } from "./authorizations.domain.js";
 import { resolveEmployeeComplianceExpiryYmd } from "./driver-compliance-vigencia.domain.js";
-import * as M from "./dashboard-metrics.domain.js";
-import { buildRouteMap, COLOMBIA_MAP } from "./dashboard-map.domain.js";
+import * as M from "./dashboard-metrics.domain.js?v=485ed87c62";
+import { buildRouteMap, COLOMBIA_MAP } from "./dashboard-map.domain.js?v=c5d1c3958a";
 
 function readRequests() {
   if (typeof globalThis.readPortalTransportRequests === "function") {

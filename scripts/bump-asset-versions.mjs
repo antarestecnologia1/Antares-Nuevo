@@ -7,6 +7,8 @@
  *   node scripts/bump-asset-versions.mjs --check    → no escribe; sale con 1 si alguna está desactualizada (CI)
  *
  * Solo toca referencias locales con «?v=» (./ruta/archivo.ext?v=…). Si el archivo no existe lo reporta y sigue.
+ * También revisa los imports de modules/domain/dashboard.domain.js: así un cambio en sus módulos (métricas, mapa)
+ * cambia su hash y, con él, el de index.html; el navegador no mezcla un archivo nuevo con otro viejo en caché.
  */
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -15,7 +17,7 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const check = process.argv.includes("--check");
-const targets = ["index.html", "app.js"].map((f) => resolve(root, f)).filter(existsSync);
+const targets = ["index.html", "app.js", "modules/domain/dashboard.domain.js"].map((f) => resolve(root, f)).filter(existsSync);
 const REF = /((?:\.\/|\/)?[\w./@-]+\.(?:js|mjs|css|svg|png|jpg|jpeg|webp|mp4|json))\?v=([\w.-]+)/g;
 
 const originals = new Map(targets.map((t) => [t, readFileSync(t, "utf8")]));
