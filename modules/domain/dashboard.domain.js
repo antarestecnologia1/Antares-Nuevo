@@ -11,6 +11,7 @@ import { colombiaNowIso, colombiaTodayIsoDate } from "../core/utils.js";
 import { filterPendingApprovalsForActor, readApprovalsSync, readPendingPortalRegistrationsSync } from "./authorizations.domain.js";
 import { resolveEmployeeComplianceExpiryYmd } from "./driver-compliance-vigencia.domain.js";
 import * as M from "./dashboard-metrics.domain.js";
+import { buildRouteMap, COLOMBIA_MAP } from "./dashboard-map.domain.js";
 
 function readRequests() {
   if (typeof globalThis.readPortalTransportRequests === "function") {
@@ -216,6 +217,7 @@ export function computeControlTower(user, opts = {}) {
     period,
     perf,
     board,
+    map: { ...buildRouteMap(board.rows), shape: COLOMBIA_MAP },
     onTimeTarget: M.DASH_ON_TIME_TARGET_PCT,
     access: {
       trips: can("transport-trips"),

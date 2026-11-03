@@ -21,6 +21,7 @@ import {
   resolveDashboardPeriod,
   ymdFromTs
 } from "../modules/domain/dashboard-metrics.domain.js";
+import { buildRouteMap, cityPoint, COLOMBIA_MAP, normalizeCity, quadPoint } from "../modules/domain/dashboard-map.domain.js";
 
 let passed = 0;
 function check(name, fn) {
@@ -221,6 +222,38 @@ check("contratos por vencer, selección y prospectos", () => {
   });
   assert.deepEqual(hiring, { openVacancies: 1, candidatesInProcess: 2, candidatesToReview: 1 });
   assert.equal(countRecentLeads([{ createdAt: iso("2026-11-01", 9) }, { createdAt: iso("2026-10-01", 9) }, {}], NOW, 7), 1);
+});
+
+check("mapa de rutas: ciudades, curvas y posición estimada", () => {
+  assert.equal(normalizeCity("Bogotá D.C."), "bogota");
+  assert.equal(normalizeCity("MEDELLÍN (Antioquia)"), "medellin");
+  assert.equal(cityPoint("Bogota D.C.").label, "Bogotá");
+  assert.equal(cityPoint("Cartagena de Indias").label, "Cartagena");
+  assert.equal(cityPoint("Ciudad Inventada"), null);
+  const bog = cityPoint("Bogotá");
+  assert.ok(bog.x > 0 && bog.x < COLOMBIA_MAP.width && bog.y > 0 && bog.y < COLOMBIA_MAP.height, "Bogotá cae dentro del mapa");
+  const a = { x: 0, y: 0 };
+  const b = { x: 100, y: 0 };
+  assert.deepEqual(quadPoint(a, { x: 50, y: 30 }, b, 0), a);
+  assert.deepEqual(quadPoint(a, { x: 50, y: 30 }, b, 1), b);
+  assert.equal(quadPoint(a, { x: 50, y: 30 }, b, 0.5).x, 50);
+  const map = buildRouteMap([
+    { id: "1", number: "S1", origin: "Medellín", destination: "Bogotá D.C.", bucket: "route", progress: 100, delayed: true, client: "A" },
+    { id: "2", number: "S2", origin: "Cali", destination: "Pasto", bucket: "route", progress: 40, client: "B" },
+    { id: "3", number: "S3", origin: "Cali", destination: "Pasto", bucket: "assigned", client: "C" },
+    { id: "4", number: "S4", origin: "Cali", destination: "Atlantis", bucket: "route", client: "D" },
+    { id: "5", number: "S5", origin: "Cali", destination: "Pasto", bucket: "assign", client: "E" }
+  ]);
+  assert.deepEqual(map.counts, { route: 1, late: 1, plan: 1 });
+  assert.equal(map.missing, 1, "una ciudad desconocida no se dibuja pero se cuenta");
+  assert.equal(map.routes.length, 3);
+  assert.equal(map.routes[0].state, "late", "los retrasados van primero");
+  const late = map.routes[0];
+  assert.deepEqual(late.pos, late.destination, "avance 100 %: el punto está en el destino");
+  const plan = map.routes.find((r) => r.state === "plan");
+  assert.deepEqual(plan.pos, plan.origin, "un viaje programado está en el origen");
+  assert.ok(map.cities.some((c) => c.label === "Bogotá" && c.endpoint));
+  assert.ok(COLOMBIA_MAP.outline.startsWith("M") && COLOMBIA_MAP.outline.length > 1000);
 });
 
 console.log(process.exitCode ? "dashboard-metrics: hay fallas" : `dashboard-metrics: ${passed} comprobaciones OK`);

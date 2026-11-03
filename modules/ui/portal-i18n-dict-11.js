@@ -168,5 +168,18 @@
   "Tendencia diaria de servicios completados": "Daily completed services trend",
   "Tendencia diaria de ingresos": "Daily revenue trend",
   "Tendencia diaria del resultado operativo": "Daily operating result trend",
-  "Entregados": "Delivered"
+  "Entregados": "Delivered",
+  "Mapa de rutas": "Route map",
+  "Viajes en ruta y programados de hoy": "Today's trips on route and scheduled",
+  "Sin placa": "No plate",
+  "Ver detalle": "View details",
+  "Posición estimada por tiempo entre la recogida y la entrega, no por GPS.": "Estimated position based on time between pickup and delivery, not GPS.",
+  "Los viajes de hoy no tienen ciudades reconocidas para dibujar la ruta.": "Today's trips have no recognized cities to draw the route.",
+  "No hay viajes en ruta ni programados para dibujar en el mapa.": "No trips on route or scheduled to draw on the map.",
+  "Mapa de Colombia con las rutas de los viajes de hoy": "Map of Colombia with today's trip routes",
+  "Documentos al día": "Documents up to date",
+  "Resumen de vigencias": "Expiry summary",
+  "Vehículos vencidos": "Expired vehicle documents",
+  "Personas con vencidos": "People with expired items",
+  "Próximos vencimientos de contrato": "Upcoming contract expirations"
 });

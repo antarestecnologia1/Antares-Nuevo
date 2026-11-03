@@ -14,7 +14,7 @@
 
   /* ───────────────────────── estado de la pantalla ───────────────────────── */
 
-  const ui = { period: "7d", boardFilter: "all", boardQuery: "", expiryTab: "all" };
+  const ui = { period: "7d", boardFilter: "all", boardQuery: "", expiryTab: "all", mapSel: "" };
   let charts = [];
   let refreshTimer = null;
   let lastModel = null;
@@ -22,7 +22,7 @@
 
   const REFRESH_MS = 60 * 1000;
   const BOARD_VISIBLE_ROWS = 12;
-  const EXPIRY_VISIBLE_ROWS = 6;
+  const EXPIRY_VISIBLE_ROWS = 7;
 
   const STATUS_LABEL = {
     en_transito: "En tránsito",
@@ -257,7 +257,7 @@
     return `<header class="dt-head">
       <div class="dt-head__title">
         <h2>${m.isClient ? "Mi operación" : "Torre de control"}</h2>
-        <p>${first ? `<span>${esc(greeting)}, ${esc(first)}</span> · ` : ""}<span>${esc(longDate)}</span> · <span>actualizado ${esc(time || "ahora")}</span></p>
+        <p>${first ? `<span>${esc(greeting)}, ${esc(first)}</span> · ` : ""}<span>${esc(longDate)}</span> · <span class="dt-live"><i aria-hidden="true"></i>actualizado ${esc(time || "ahora")}</span></p>
       </div>
       <div class="dt-head__actions">${actions.join("")}</div>
     </header>`;
@@ -350,11 +350,16 @@
 
   /* ───────────────────────── viajes de hoy ───────────────────────── */
 
+  function initials(name) {
+    const parts = String(name || "").trim().split(/\s+/).filter((w) => /[A-Za-zÁÉÍÓÚÑáéíóúñ]/.test(w));
+    return ((parts[0] || "?").charAt(0) + (parts[1] || "").charAt(0)).toUpperCase();
+  }
+
   function boardRowHtml(r, isClient) {
     const tone = r.delayed ? "late" : STATUS_TONE[r.slug] || "plan";
     const route = [r.origin, r.destination].filter(Boolean).join(" → ") || "Ruta sin definir";
     const vehicle = r.plate
-      ? `<strong>${esc(r.plate)}</strong><span>${esc(r.driver || "Sin conductor")}</span>`
+      ? `<strong class="dt-plate">${esc(r.plate)}</strong><span>${esc(r.driver || "Sin conductor")}</span>`
       : `<span class="dt-muted">Sin asignar</span>`;
     const search = [r.number, r.client, route, r.plate, r.driver].join(" ").toLowerCase();
     const prog = r.progress == null
@@ -367,7 +372,7 @@
       <td><button type="button" class="dt-link dt-link--id" data-action="detail" data-id="${attr(r.id)}">${esc(r.number)}</button></td>
       <td class="dt-cell-main">${isClient
         ? `<strong title="${attr(route)}">${esc(route)}</strong>`
-        : `<strong title="${attr(r.client)}">${esc(r.client)}</strong><span title="${attr(route)}">${esc(route)}</span>`}</td>
+        : `<div class="dt-who"><span class="dt-avatar" aria-hidden="true">${esc(initials(r.client))}</span><div><strong title="${attr(r.client)}">${esc(r.client)}</strong><span title="${attr(route)}">${esc(route)}</span></div></div>`}</td>
       <td class="dt-cell-stack">${vehicle}</td>
       <td><span class="dt-state dt-state--${attr(tone)}"><i aria-hidden="true"></i>${esc(r.delayed ? "Retrasado" : statusLabel(r.slug, r.status))}</span></td>
       <td class="dt-cell-eta">${eta}</td>
@@ -402,6 +407,104 @@
     </section>`;
   }
 
+  /* ───────────────────────── mapa de rutas ───────────────────────── */
+
+  const MAP_STATE_LABEL = { late: "Retrasado", route: "En ruta", plan: "Programado" };
+
+  function mapSelected(mp) {
+    return mp.routes.find((r) => String(r.id) === String(ui.mapSel)) || mp.routes[0] || null;
+  }
+
+  function buildMap(m) {
+    const mp = m.map;
+    const sh = mp.shape;
+    const sel = mapSelected(mp);
+    const selId = sel ? String(sel.id) : "";
+
+    const cities = mp.cities
+      .map(
+        (c) => {
+          const west = c.x < 125;
+          return `<g class="dt-city${c.endpoint ? " dt-city--on" : ""}"><circle cx="${c.x}" cy="${c.y}" r="${c.endpoint ? 3 : 2.2}"/><text x="${west ? c.x - 6 : c.x + 6}" y="${c.y + 3.5}" text-anchor="${west ? "end" : "start"}">${esc(c.label)}</text></g>`;
+        }
+      )
+      .join("");
+    const lines = mp.routes
+      .filter((r) => r.path)
+      .map((r) => `<path class="dt-route dt-route--${r.state}${String(r.id) === selId ? " is-sel" : ""}" d="${r.path}"/>`)
+      .join("");
+    const dots = mp.routes
+      .map((r) => {
+        const on = String(r.id) === selId;
+        const label = `${r.number} · ${r.client} · Ruta ${r.originLabel} a ${r.destinationLabel} · ${MAP_STATE_LABEL[r.state]}${r.plate ? ` · ${r.plate}` : ""}`;
+        return `<g class="dt-mk dt-mk--${r.state}${on ? " is-sel" : ""}" data-action="dash-map-pick" data-id="${attr(r.id)}" tabindex="0" role="button" aria-pressed="${on}" aria-label="${attr(label)}" transform="translate(${r.pos.x} ${r.pos.y})">
+          <title>${esc(label)}</title>
+          <circle class="dt-mk__hit" r="14"/>
+          ${on ? `<circle class="dt-mk__halo" r="11"/>` : ""}
+          <circle class="dt-mk__dot" r="${r.state === "plan" ? 5 : 6.5}"/>
+        </g>`;
+      })
+      .join("");
+
+    const legend = [
+      { id: "late", label: "Retrasados" },
+      { id: "route", label: "En ruta" },
+      { id: "plan", label: "Programados" }
+    ]
+      .map((l) => `<li><i class="dt-mapkey dt-mapkey--${l.id}" aria-hidden="true"></i>${esc(l.label)} <strong>${nf(mp.counts[l.id])}</strong></li>`)
+      .join("");
+
+    const list = mp.routes.length
+      ? `<ol class="dt-map__list">${mp.routes
+          .slice(0, 6)
+          .map((r) => {
+            const on = String(r.id) === selId;
+            const prog = r.state === "plan" || r.progress == null
+              ? ""
+              : `<span class="dt-prog${r.state === "late" ? " dt-prog--late" : ""}" role="img" aria-label="Avance por tiempo: ${r.progress} %"><i style="width:${r.progress}%"></i></span>`;
+            return `<li><button type="button" class="dt-map__row${on ? " is-sel" : ""}" data-action="dash-map-pick" data-id="${attr(r.id)}" aria-pressed="${on}">
+              <span class="dt-mapkey dt-mapkey--${r.state}" aria-hidden="true"></span>
+              <span class="dt-map__rowtxt">
+                <strong>${esc(r.originLabel)} → ${esc(r.destinationLabel)}</strong>
+                <span>${esc(r.plate || "Sin placa")} · ${esc(r.client)}</span>
+                ${prog}
+              </span>
+              <span class="dt-map__eta">${esc(r.state === "late" ? `+${minutesLabel(r.lateMin)}` : r.etaLabel)}</span>
+            </button></li>`;
+          })
+          .join("")}</ol>`
+      : emptyState(
+          mp.missing
+            ? "Los viajes de hoy no tienen ciudades reconocidas para dibujar la ruta."
+            : "No hay viajes en ruta ni programados para dibujar en el mapa."
+        );
+
+    const detail = sel
+      ? `<div class="dt-map__sel"><span class="dt-map__sellabel">${esc(sel.number)} · ${esc(MAP_STATE_LABEL[sel.state])}</span>
+          <button type="button" class="dt-link" data-action="detail" data-id="${attr(sel.id)}">Ver detalle<span aria-hidden="true"> →</span></button></div>`
+      : "";
+
+    return `<section class="dt-card dt-map" id="dt-map" data-testid="dt-map" aria-labelledby="dt-map-title">
+      ${cardHead("Mapa de rutas", "Viajes en ruta y programados de hoy", "", "dt-map-title", "map")}
+      <div class="dt-map__body">
+        <div class="dt-map__stage">
+          <svg class="dt-map__svg" viewBox="0 0 ${sh.width} ${sh.height}" role="group" aria-label="Mapa de Colombia con las rutas de los viajes de hoy" focusable="false">
+            <path class="dt-map__land" d="${sh.outline}"/>
+            ${lines}
+            ${cities}
+            ${dots}
+          </svg>
+        </div>
+        <div class="dt-map__panel">
+          <ul class="dt-legend dt-legend--inline">${legend}</ul>
+          ${list}
+          ${detail}
+          <p class="dt-note">Posición estimada por tiempo entre la recogida y la entrega, no por GPS.${mp.missing ? ` ${plural(mp.missing, "viaje", "viajes")} sin ciudad reconocida no se dibuja.` : ""}</p>
+        </div>
+      </div>
+    </section>`;
+  }
+
   /* ───────────────────────── vencimientos ───────────────────────── */
 
   const EXPIRY_TABS = [
@@ -433,12 +536,20 @@
       .join("");
     const rows = items.slice(0, EXPIRY_VISIBLE_ROWS);
     const t = ex.totals;
-    const summary = `<dl class="dt-summary">
-      <div><dt>Al día</dt><dd>${t.okPct == null ? "—" : `${t.okPct} %`}</dd></div>
-      <div class="${t.expired ? "is-alert" : ""}"><dt>Vencidos</dt><dd>${nf(t.expired)}</dd></div>
-      <div class="${t.soon ? "is-warn" : ""}"><dt>Por vencer (30 días)</dt><dd>${nf(t.soon)}</dd></div>
-      ${t.unknown ? `<div><dt>Sin fecha registrada</dt><dd>${nf(t.unknown)}</dd></div>` : ""}
-    </dl>`;
+    const byKind = (k) => ex.items.filter((i) => i.kind === k && i.days < 0).length;
+    const meterPct = t.okPct == null ? 0 : t.okPct;
+    const summary = `<aside class="dt-exp__sum" aria-label="Resumen de vigencias">
+      <span class="dt-exp__label">Documentos al día</span>
+      <strong class="dt-exp__big">${t.okPct == null ? "—" : `${t.okPct} %`}</strong>
+      <div class="dt-meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${meterPct}" aria-label="Documentos al día"><i style="width:${meterPct}%"></i></div>
+      <dl class="dt-facts">
+        <div class="${t.expired ? "is-alert" : ""}"><dt>Vencidos</dt><dd>${nf(t.expired)}</dd></div>
+        <div class="${t.soon ? "is-warn" : ""}"><dt>Por vencer (30 días)</dt><dd>${nf(t.soon)}</dd></div>
+        ${t.unknown ? `<div><dt>Sin fecha registrada</dt><dd>${nf(t.unknown)}</dd></div>` : ""}
+        ${byKind("vehicle") ? `<div><dt>Vehículos vencidos</dt><dd>${nf(byKind("vehicle"))}</dd></div>` : ""}
+        ${byKind("driver") + byKind("staff") ? `<div><dt>Personas con vencidos</dt><dd>${nf(byKind("driver") + byKind("staff"))}</dd></div>` : ""}
+      </dl>
+    </aside>`;
     const list = rows.length
       ? `<div class="dt-table-wrap"><table class="dt-table dt-table--compact">
           <caption class="dt-sr">Documentos y controles vencidos o por vencer</caption>
@@ -462,10 +573,14 @@
       : "";
     return `<section class="dt-card dt-exp" data-testid="dt-expirations" id="dt-expirations" aria-labelledby="dt-exp-title">
       ${cardHead("Vencimientos próximos", "SOAT, tecnomecánica, licencias y exámenes", "", "dt-exp-title", "shield")}
-      ${summary}
-      <div class="dt-tabs" role="tablist" aria-label="Filtrar vencimientos">${tabs}</div>
-      ${list}
-      ${foot}
+      <div class="dt-exp__body">
+        ${summary}
+        <div class="dt-exp__main">
+          <div class="dt-tabs" role="tablist" aria-label="Filtrar vencimientos">${tabs}</div>
+          ${list}
+          ${foot}
+        </div>
+      </div>
     </section>`;
   }
 
@@ -490,7 +605,13 @@
       const nav = p.hiring
         ? `<button type="button" class="dt-link" data-action="dash-nav" data-target-view="hiring">Contratación<span aria-hidden="true"> →</span></button>`
         : `<button type="button" class="dt-link" data-action="dash-nav" data-target-view="payroll">Gestión humana<span aria-hidden="true"> →</span></button>`;
-      cards.push(`<section class="dt-card dt-mini" data-testid="dt-people" aria-labelledby="dt-people-title">${cardHead("Talento humano", "", nav, "dt-people-title", "users")}<dl class="dt-facts">${rows.join("")}</dl></section>`);
+      const upcoming = p.contracts.length
+        ? `<div class="dt-mini__sec"><h4>Próximos vencimientos de contrato</h4><ul class="dt-mini__list">${p.contracts
+            .slice(0, 3)
+            .map((c) => `<li><span>${esc(c.subject)}</span><em>${esc(dayShort(c.ymd))} · ${c.days === 0 ? "hoy" : `${nf(c.days)} d`}</em></li>`)
+            .join("")}</ul></div>`
+        : "";
+      cards.push(`<section class="dt-card dt-mini" data-testid="dt-people" aria-labelledby="dt-people-title">${cardHead("Talento humano", "", nav, "dt-people-title", "users")}<dl class="dt-facts">${rows.join("")}</dl>${upcoming}</section>`);
     }
     const c = m.commercial;
     if (c) {
@@ -501,7 +622,16 @@
       const nav = c.leads != null
         ? `<button type="button" class="dt-link" data-action="dash-nav" data-target-view="contact-leads">Prospectos<span aria-hidden="true"> →</span></button>`
         : "";
-      cards.push(`<section class="dt-card dt-mini" data-testid="dt-commercial" aria-labelledby="dt-com-title">${cardHead("Comercial", "", nav, "dt-com-title", "briefcase")}<dl class="dt-facts">${rows.join("")}</dl></section>`);
+      const top = m.finance ? m.perf.clients.rows.filter((r) => !r.other).slice(0, 3) : [];
+      const topHtml = top.length && m.perf.clients.total > 0
+        ? `<div class="dt-mini__sec"><h4>Principales clientes (${esc(m.period.label.toLowerCase())})</h4><ol class="dt-mini__bars">${top
+            .map((r) => {
+              const share = Math.round((r.value / m.perf.clients.total) * 100);
+              return `<li title="${attr(`${r.label}: ${cop(r.value)} (${share} % del total)`)}"><span>${esc(r.label)}</span><em>${share} %</em><i style="--w:${Math.max(3, share)}%"></i></li>`;
+            })
+            .join("")}</ol></div>`
+        : "";
+      cards.push(`<section class="dt-card dt-mini" data-testid="dt-commercial" aria-labelledby="dt-com-title">${cardHead("Comercial", "", nav, "dt-com-title", "briefcase")}<dl class="dt-facts">${rows.join("")}</dl>${topHtml}</section>`);
     }
     return cards.join("");
   }
@@ -733,18 +863,20 @@
       return `<section class="dashboard-studio dt-root dt-root--client" id="dashboard-root" data-testid="dashboard">
         ${scopeBar}${buildHeader(model, user)}
         ${buildPulse(model)}
-        <div class="dt-grid dt-grid--now">${buildAttention(model)}${buildDayProgress(model)}</div>
+        <div class="dt-grid dt-grid--map">${buildMap(model)}<div class="dt-stack">${buildAttention(model)}${buildDayProgress(model)}</div></div>
         ${buildBoard(model)}
         ${buildResults(model)}
       </section>`;
     }
 
+    const status = [buildFleet(model), buildDayProgress(model), side].filter(Boolean).join("");
     return `<section class="dashboard-studio dt-root" id="dashboard-root" data-testid="dashboard">
       ${buildHeader(model, user)}
       ${buildPulse(model)}
-      <div class="dt-grid dt-grid--now">${buildAttention(model)}<div class="dt-stack">${buildFleet(model)}${buildDayProgress(model)}</div></div>
+      <div class="dt-grid dt-grid--map">${buildMap(model)}${buildAttention(model)}</div>
       ${buildBoard(model)}
-      ${exp || side ? `<div class="dt-grid dt-grid--aside">${exp}${side ? `<div class="dt-stack">${side}</div>` : ""}</div>` : ""}
+      ${status ? `<div class="dt-grid dt-grid--status">${status}</div>` : ""}
+      ${exp}
       ${buildResults(model)}
     </section>`;
   }
@@ -1026,6 +1158,12 @@
     });
 
     root.addEventListener("keydown", (event) => {
+      const mk = event.target.closest?.(".dt-mk");
+      if (mk && (event.key === "Enter" || event.key === " ")) {
+        event.preventDefault();
+        mk.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        return;
+      }
       const tab = event.target.closest?.("#dt-board-tabs .dt-tab");
       if (!tab) return;
       const tabs = [...root.querySelectorAll("#dt-board-tabs .dt-tab")];
@@ -1050,6 +1188,10 @@
       if (action === "dash-nav") {
         const target = String(btn.dataset.targetView || "").trim();
         if (target) setView(target);
+      } else if (action === "dash-map-pick") {
+        ui.mapSel = String(btn.dataset.id || "");
+        const next = replaceSection(root, "#dt-map", buildMap(lastModel));
+        next?.querySelector(`.dt-mk[data-id="${CSS.escape(ui.mapSel)}"]`)?.focus({ preventScroll: true });
       } else if (action === "dash-scroll") {
         root.querySelector(`#${btn.dataset.target || ""}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
       } else if (action === "dash-refresh") {
