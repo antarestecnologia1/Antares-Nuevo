@@ -4316,8 +4316,11 @@ function buildTripRequestPickerCardHtml(request, opts = {}) {
   const statusLabel = pending ? "Pendiente" : "Aprobada";
   const statusClass = pending ? "trip-request-card__status--pending" : "trip-request-card__status--approved";
   const route = formatRoute(request);
-  const pickup = fmtDate(request.pickupAt) || "Sin fecha";
-  const truck = String(request.vehicleType || request.requiredTruckType || "—").trim() || "—";
+  const pickupDate = new Date(request.pickupAt || "");
+  const pickup = Number.isNaN(pickupDate.getTime())
+    ? "Sin fecha"
+    : `${pickupDate.toLocaleDateString("es-CO", { timeZone: "America/Bogota", day: "numeric", month: "short" }).replace(".", "")} · ${pickupDate.toLocaleTimeString("es-CO", { timeZone: "America/Bogota", hour: "numeric", minute: "2-digit", hour12: true })}`;
+  const truck = String(request.vehicleType || request.requiredTruckType || "").trim();
   const searchHay = [
     request.requestNumber,
     request.id,
@@ -4344,7 +4347,7 @@ function buildTripRequestPickerCardHtml(request, opts = {}) {
     </span>
     <span class="trip-request-card__client">${escapeHtml(String(request.clientName || "Cliente"))}</span>
     <span class="trip-request-card__route">${escapeHtml(route)}</span>
-    <span class="trip-request-card__meta">${escapeHtml(pickup)} · ${escapeHtml(truck)}</span>
+    <span class="trip-request-card__meta">${escapeHtml(pickup)}${truck ? ` · ${escapeHtml(truck)}` : ""}</span>
   </button>`;
 }
 

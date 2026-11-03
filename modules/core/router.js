@@ -839,8 +839,9 @@ export function renderPortalViewImpl() {
       section: "trips"
     };
     const nextCreatePanels = { ...(state.createPanels || {}) };
+    /* Al entrar a Viajes, «Asignar viaje» llega abierto: es la tarea más frecuente y se evita un clic. */
     TRANSPORT_TRIPS_OPERATE_CREATE_PANEL_IDS.forEach((panelId) => {
-      nextCreatePanels[panelId] = false;
+      nextCreatePanels[panelId] = panelId === "create-trip";
     });
     state.createPanels = nextCreatePanels;
     persistHrWorkspace("transport-trips", "operate");

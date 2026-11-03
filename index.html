@@ -128,7 +128,7 @@
     <link rel="stylesheet" href="./styles/portal-responsive.css?v=cabc93fe03" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/portal-modern.css?v=c2416cd8c6" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/portal-dark-polish.css?v=4aa5a0f16a" media="print" onload="this.onload=null;this.media='all'" />
-    <link rel="stylesheet" href="./styles/ops-clean.css?v=39dad4fd32" media="print" onload="this.onload=null;this.media='all'" />
+    <link rel="stylesheet" href="./styles/ops-clean.css?v=20fc0d567c" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/ops-clean-modules.css?v=689178de17" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/landing-clean.css?v=843f9ffc5f" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/auth-modal.css?v=cc7adadd4f" />
@@ -163,7 +163,7 @@
       <link rel="stylesheet" href="./styles/portal-responsive.css?v=cabc93fe03" />
       <link rel="stylesheet" href="./styles/portal-modern.css?v=c2416cd8c6" />
       <link rel="stylesheet" href="./styles/portal-dark-polish.css?v=4aa5a0f16a" />
-      <link rel="stylesheet" href="./styles/ops-clean.css?v=39dad4fd32" />
+      <link rel="stylesheet" href="./styles/ops-clean.css?v=20fc0d567c" />
       <link rel="stylesheet" href="./styles/ops-clean-modules.css?v=689178de17" />
       <link rel="stylesheet" href="./styles/landing-clean.css?v=843f9ffc5f" />
       <link rel="stylesheet" href="./styles/auth-modal.css?v=cc7adadd4f" />
@@ -1445,7 +1445,8 @@
     <script defer src="./modules/ui/portal-i18n-dict-9.js?v=dd691ce9d1"></script>
     <script defer src="./modules/ui/portal-i18n-dict-10.js?v=011d2c196b"></script>
     <script defer src="./modules/ui/portal-i18n-dict-11.js?v=e9451f3a59"></script>
-    <script defer src="./modules/ui/portal-i18n.js?v=6ce4f7c661"></script>
+    <script defer src="./modules/ui/portal-i18n-dict-12.js?v=d0ed0e52ed"></script>
+    <script defer src="./modules/ui/portal-i18n.js?v=54939f1aa5"></script>
     <script defer src="./modules/core/portal-data-layer.js"></script>
     <script defer src="./modules/core/portal-sync.js?v=a2d9415041"></script>
     <!-- Vistas del portal estático (registran window.AppModules.*); Next.js vive en apps/web/app -->
@@ -1598,12 +1599,12 @@
       import * as AntaresSchedulePicker from "./modules/ui/portal-schedule-picker.js?v=6e3b22dbfb";
       Object.assign(window, AntaresUIComponents, AntaresUIModals, AntaresI18n, AntaresSchedulePicker);
     </script>
-    <script type="module" src="./modules/core/portal-runtime.js?v=2d5cd7d4e6"></script>
+    <script type="module" src="./modules/core/portal-runtime.js?v=4c02fd5c5a"></script>
     <script defer src="./modules/app/portal-transport-modals.js?v=94c389d3ac"></script>
     <script defer src="./modules/app/portal-rrhh-modals.js?v=931b200f78"></script>
     <!-- Vistas legacy (`registerLegacyPortalViews`); deben ejecutarse antes de `app.js` para que el primer `renderPortal()` resuelva HTML. `viajes.js` antes de `mis-solicitudes.js` por `RENDER_WINDOW_SIZE`. -->
     <script defer src="./modules/app/dashboard.js?v=65b96e093a"></script>
-    <script defer src="./modules/app/viajes.js?v=415f9f56f0"></script>
+    <script defer src="./modules/app/viajes.js?v=3ffda14231"></script>
     <script defer src="./modules/app/solicitudes-html.js?v=268e3fb6e2"></script>
     <script defer src="./modules/app/mis-solicitudes.js?v=e00c3f69a9"></script>
     <script defer src="./modules/app/camiones-html.js?v=3f8c8f733e"></script>

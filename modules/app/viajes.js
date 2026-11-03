@@ -134,6 +134,15 @@ function transportTripsHtml() {
   const tripsSearch = foldTransportSearchText(String(transportTripsUi.search || "").trim());
   const tripsSort = normalizeTransportTripsSort(transportTripsUi.sort);
   const tripsLayout = normalizeTransportTripsLayout(transportTripsUi.layout);
+  /** Si un viaje trae datos corruptos, se omite ese viaje (y se registra el error) en vez de tumbar todo el módulo. */
+  const safeBuild = (build, ...args) => {
+    try {
+      return build(...args);
+    } catch (err) {
+      if (typeof console !== "undefined" && console.error) console.error("[viajes] no se pudo pintar un viaje", err);
+      return "";
+    }
+  };
 
   /** Filtros propios de Viajes: cliente, estado, conductor, placa, tipo de servicio y fecha de recogida. */
   const tripsFieldFilters = {
@@ -384,7 +393,7 @@ function transportTripsHtml() {
       transitions.length > 1
         ? `<label class="trip-status-control trip-ops-card-status-control trip-ops-list-status">
           <span class="muted">${IC.activity} Estado</span>
-          <select class="trip-status-select trip-status-select--${escapeAttr(statusSlug)}" data-action="trip-status" data-id="${escapeAttr(String(r.id || ""))}" data-current-status="${escapeAttr(String(r.status || ""))}">
+          <select class="trip-status-select trip-status-select--${escapeAttr(statusSlug)}" data-action="trip-status" data-id="${escapeAttr(String(r.id || ""))}" data-current-status="${escapeAttr(String(r.status || ""))}" aria-label="${escapeAttr(`Cambiar estado del viaje ${String(r.trip?.tripNumber || r.requestNumber || "")}`.trim())}">
             ${transitions.map((s) => `<option value="${escapeAttr(s)}" ${r.status === s ? "selected" : ""}>${escapeHtml(tripStatusOptionLabel(s))}</option>`).join("")}
           </select>
         </label>`
@@ -400,10 +409,9 @@ function transportTripsHtml() {
     return `<tr data-trip-id="${tripIdAttr}">
       <td data-label="Cliente / viaje"><strong class="vehicle-fleet-list-plate">${escapeHtml(clientName)}</strong><div class="muted vehicle-fleet-list-sub">${escapeHtml(tripLine)}</div></td>
       <td data-label="Ruta">${routeCell}</td>
-      <td data-label="Estado">${statusSelectHtml}</td>
+      <td data-label="Estado">${statusSelectHtml}${tpLateChip(r)}</td>
       <td data-label="Recogida" class="rq-nowrap">${escapeHtml(tpShortDate(r.trip?.etaPickup || r.pickupAt || ""))}</td>
-      <td data-label="Camión">${escapeHtml(plate)}</td>
-      <td data-label="Conductor">${escapeHtml(driverName)}</td>
+      <td data-label="Camión y conductor"><strong class="vehicle-fleet-list-plate">${escapeHtml(plate)}</strong><div class="muted vehicle-fleet-list-sub">${escapeHtml(driverName)}</div></td>
       <td data-label="Tarifa">${fareCell}${standbyLine}</td>
       <td data-label="Acciones" class="vehicle-fleet-list-actions"><div class="toolbar">
         <button type="button" class="btn btn-sm btn-outline" data-action="trip-detail" data-id="${tripIdAttr}" title="Ficha del viaje">${IC.truck} Viaje</button>
@@ -449,6 +457,20 @@ function transportTripsHtml() {
     const time = d.toLocaleTimeString("es-CO", { ...opts, hour: "numeric", minute: "2-digit", hour12: true });
     return `${day} · ${time}`;
   };
+  /** Minutos que lleva vencida la entrega estimada de un viaje en curso (tolerancia de 15 min, igual que el Dashboard). */
+  const tpLateMinutes = (r) => {
+    if (![STATUS.VIAJE_ASIGNADO, STATUS.EN_TRANSITO, STATUS.ESPERA_STANDBY].includes(r.status)) return 0;
+    const eta = Date.parse(r.trip?.etaDelivery || r.etaDelivery || "");
+    if (!Number.isFinite(eta)) return 0;
+    const over = Math.round((Date.now() - eta) / 60000);
+    return over > 15 ? over : 0;
+  };
+  const tpLateChip = (r) => {
+    const min = tpLateMinutes(r);
+    if (!min) return "";
+    const label = min >= 60 ? `${Math.floor(min / 60)} h ${min % 60 ? `${min % 60} min` : ""}`.trim() : `${min} min`;
+    return `<span class="rq-late" role="status">Retraso ${escapeHtml(label)}</span>`;
+  };
   const tpField = (label, valueHtml, opts = {}) => {
     const v = valueHtml == null || valueHtml === "" ? `<span class="rq-muted">—</span>` : valueHtml;
     return `<div class="rq-field${opts.wide ? " rq-field--wide" : ""}${opts.strong ? " rq-field--strong" : ""}"><dt>${escapeHtml(label)}</dt><dd>${v}</dd></div>`;
@@ -476,7 +498,7 @@ function transportTripsHtml() {
         <span class="rq-item__route"><span>${escapeHtml(origin)}</span><span class="rq-item__arrow" aria-hidden="true">${IC.chevronRight}</span><span>${escapeHtml(dest)}</span></span>
         <span class="rq-item__fleet"><span class="rq-item__fleet-ico" aria-hidden="true">${IC.truck}</span><strong>${escapeHtml(plate)}</strong><span>${escapeHtml(driver)}</span></span>
         <span class="rq-item__meta">
-          ${tpStatusPill(r)}
+          ${tpStatusPill(r)}${tpLateChip(r)}
           <span class="rq-item__when">${escapeHtml(tpShortDate(r.trip?.etaPickup || r.pickupAt))}</span>
           <span class="rq-item__fare${fare.tone === "warn" ? " is-pending" : ""}">${escapeHtml(fare.text)}</span>
         </span>
@@ -555,7 +577,7 @@ function transportTripsHtml() {
         <dl class="rq-fields">
           ${tpField("Cliente", escapeHtml(clientName), { wide: true })}
           ${tpField("Recogida", `${escapeHtml(tpShortDate(pickupRaw))}${urgency.label ? ` <span class="rq-chip rq-chip--${escapeAttr(urgency.tone || "ok")}">${escapeHtml(urgency.label)}</span>` : ""}`)}
-          ${tpField("Entrega estimada", escapeHtml(deliveryRaw ? tpShortDate(deliveryRaw) : ""))}
+          ${tpField("Entrega estimada", `${escapeHtml(deliveryRaw ? tpShortDate(deliveryRaw) : "")}${tpLateChip(r)}`)}
           ${tpField("Tarifa", fare.tone === "warn" ? `<span class="rq-muted">${escapeHtml(fare.text)}</span>` : escapeHtml(fare.text), { strong: fare.tone !== "warn" })}
           ${tpField("Solicitud", escapeHtml(reqNo))}
           ${tpField("Carga", escapeHtml(String(r.cargoDescription || "")))}
@@ -582,7 +604,7 @@ function transportTripsHtml() {
           ${tpField("Salida programada", escapeHtml(tpShortDate(pickupRaw)))}
           ${tpField("Llegada estimada", escapeHtml(deliveryRaw ? tpShortDate(deliveryRaw) : ""))}
         </dl>`,
-      follow: `<section class="rq-block"><h4 class="rq-block__title">Seguimiento del viaje</h4>
+      follow: `<section class="rq-block"><h4 class="rq-block__title" aria-level="3">Seguimiento del viaje</h4>
         <ol class="rq-timeline">${tpTimeline(r)
           .map(
             (s) => `<li class="rq-timeline__step rq-timeline__step--${escapeAttr(s.state)}">
@@ -616,7 +638,7 @@ function transportTripsHtml() {
         <div class="rq-pane__id">
           <span class="rq-pane__avatar" aria-hidden="true">${escapeHtml(clientName.charAt(0).toUpperCase() || "V")}</span>
           <div class="rq-pane__title">
-            <h4>${escapeHtml(clientName)}</h4>
+            <h4 aria-level="3">${escapeHtml(clientName)}</h4>
             <p>${escapeHtml(tripNo)} · Solicitud ${escapeHtml(reqNo)}</p>
             <div class="rq-pane__status">${tpStatusPill(r)}</div>
           </div>
@@ -696,9 +718,9 @@ function transportTripsHtml() {
     tripsLayout === "list" && sortedFilteredTrips.length
       ? `<div class="table-wrap vehicle-fleet-list-wrap"><table class="vehicle-fleet-table trip-ops-fleet-table">
     <thead><tr>
-      <th>Cliente / viaje</th><th>Ruta</th><th>Estado</th><th>Recogida</th><th>Camión</th><th>Conductor</th><th>Tarifa</th><th>Acciones</th>
+      <th>Cliente / viaje</th><th>Ruta</th><th>Estado</th><th>Recogida</th><th>Camión y conductor</th><th>Tarifa</th><th>Acciones</th>
     </tr></thead>
-    <tbody>${tripsToRender.map(buildTripOpsListRow).join("")}</tbody>
+    <tbody>${tripsToRender.map((r) => safeBuild(buildTripOpsListRow, r)).join("")}</tbody>
   </table></div>`
       : "";
   const tripsCardsGrid =
@@ -707,8 +729,8 @@ function transportTripsHtml() {
           const selId = tpSelectedId(tripsToRender);
           const selTrip = tripsToRender.find((r) => String(r.id) === selId) || null;
           return `<div class="rq-inbox rq-inbox--trips">
-            <div class="rq-inbox__list"><ol class="rq-list" aria-label="Viajes">${tripsToRender.map((r) => buildTripInboxItem(r, String(r.id) === selId)).join("")}</ol>${tripsMoreBar}</div>
-            ${buildTripDetailPane(selTrip)}
+            <div class="rq-inbox__list"><ol class="rq-list" aria-label="Viajes">${tripsToRender.map((r) => safeBuild(buildTripInboxItem, r, String(r.id) === selId)).join("")}</ol>${tripsMoreBar}</div>
+            ${safeBuild(buildTripDetailPane, selTrip) || `<aside class="rq-pane rq-pane--empty" aria-label="Detalle del viaje"><p class="rq-empty-pane">No se pudo mostrar el detalle de este viaje.</p></aside>`}
           </div>`;
         })()
       : "";
@@ -811,12 +833,12 @@ function transportTripsHtml() {
           <tbody>${ratesRows}</tbody>
         </table>
       </div>`
-    : emptyState("Aún no has configurado tarifas por trayecto. Crea la primera para que el sistema sugiera el precio cuando asignes un viaje a esa ruta.");
+    : `<div class="transport-empty-cta">${emptyState("Aún no hay tarifas por trayecto. Cree la primera para que el sistema sugiera el precio al asignar un viaje en esa ruta.")}${
+        isAdmin
+          ? `<button type="button" class="btn btn-primary" data-action="transport-focus-create-route">${IC.plus} Configurar trayecto y tarifa</button>`
+          : ""
+      }</div>`;
 
-  const routesCatalogBadge =
-    rateEntries.length > 0
-      ? `<span class="create-trip-hero-badge create-trip-hero-badge--ok">${rateEntries.length} en catálogo</span>`
-      : `<span class="create-trip-hero-badge create-trip-hero-badge--muted">Catálogo vacío</span>`;
   const routeRateForm = `<form id="form-route-rate" class="p-form p-form-colored hr-form-flow transport-trip-create-form transport-route-form transport-route-form--revamp" autocomplete="off">
     <input type="hidden" name="editingRateKey" id="route-rate-editing-key" value="" />
     <div class="transport-form transport-form--single" data-transport-form="route-rate" aria-label="Configurar trayecto y tarifa">
@@ -825,9 +847,6 @@ function transportTripsHtml() {
           <span class="transport-wizard__eyebrow">Catálogo de transporte</span>
           <h3 aria-level="2" class="transport-wizard__title">Trayecto y tarifa</h3>
           <p class="transport-wizard__desc">Defina origen, destino, valor pactado y alcance por cliente para autocompletar precios al asignar viajes.</p>
-        </div>
-        <div class="transport-wizard__meta">
-          ${routesCatalogBadge}
         </div>
       </header>
       <div class="transport-form__body">
@@ -930,10 +949,6 @@ function transportTripsHtml() {
       return `<option value="${escapeAttr(r.id)}" disabled>${escapeHtml(String(r.requestNumber || r.id))} · ${escapeHtml(r.clientName || "")} · ${pickup} · 🔴 fecha vencida</option>`;
     })
     .join("");
-  const pendingBadge =
-    pendingForTrip.length > 0
-      ? `<span class="create-trip-hero-badge create-trip-hero-badge--ok">${pendingForTrip.length} disponible${pendingForTrip.length === 1 ? "" : "s"}</span>`
-      : `<span class="create-trip-hero-badge create-trip-hero-badge--muted">${canApproveInViajes ? "Sin solicitudes por asignar" : "Sin aprobadas por asignar"}</span>`;
   const tripRequestPickerGroup = (label, list) =>
     list.length
       ? `<div class="trip-request-picker__group"><p class="trip-request-picker__group-label">${escapeHtml(label)}<span class="trip-request-picker__group-count">${list.length}</span></p><div class="trip-request-picker__group-cards">${list.map((r) => buildTripRequestPickerCardHtml(r)).join("")}</div></div>`
@@ -977,13 +992,8 @@ function transportTripsHtml() {
           <h3 aria-level="2" class="transport-wizard__title">Asignar viaje</h3>
           <p class="transport-wizard__desc">Seleccione la solicitud, asigne vehículo y conductor, y confirme la tarifa pactada para crear el viaje.</p>
         </div>
-        <div class="transport-wizard__meta create-trip-form-v2__meta">
-          ${pendingBadge}
-          ${renderHrFormHeroBadge("3 pasos", "asignación")}
-          ${renderHrFormHeroBadge("Tarifa", "COP pactada")}
-        </div>
       </header>
-      <div class="create-trip-form-v2__progress" aria-hidden="true">
+      <div class="create-trip-form-v2__progress">
         <div class="create-trip-form-v2__progress-track">
           <div class="create-trip-form-v2__progress-fill" data-create-trip-progress style="width:0%"></div>
         </div>
@@ -996,7 +1006,7 @@ function transportTripsHtml() {
       <div class="transport-form__body antares-create-form__sections create-trip-form-v2__body">
         <section class="assign-trip-block transport-trip-create-form__request create-trip-form-v2__request" data-create-trip-step="request" aria-labelledby="create-trip-step-request">
           <div class="assign-trip-block-head">
-            <h4 class="assign-trip-block-title" id="create-trip-step-request">${IC.inbox} Elija la solicitud</h4>
+            <h4 class="assign-trip-block-title" id="create-trip-step-request" aria-level="3">${IC.inbox} Elija la solicitud</h4>
           </div>
           <p class="muted form-section-hint create-trip-form-v2__hint">Busque y seleccione una solicitud aprobada o pendiente de asignación.</p>
           <div class="assign-trip-block-body create-trip-form-v2__request-grid">
@@ -1012,7 +1022,7 @@ function transportTripsHtml() {
         <div class="create-trip-form-v2__assign-row is-locked">
           <section class="assign-trip-block transport-trip-create-form__resources create-trip-form-v2__resources" data-create-trip-step="fleet" aria-labelledby="create-trip-step-fleet">
             <div class="assign-trip-block-head">
-              <h4 class="assign-trip-block-title" id="create-trip-step-fleet">${IC.truck} Vehículo y conductor</h4>
+              <h4 class="assign-trip-block-title" id="create-trip-step-fleet" aria-level="3">${IC.truck} Vehículo y conductor</h4>
               <div class="create-trip-flag-legend assign-trip-flags create-trip-form-v2__flags" role="list" aria-label="Banderas en listas">
                 <span class="create-trip-flag create-trip-flag--busy" role="listitem"><span class="create-trip-flag-dot"></span>Ocupado</span>
                 <span class="create-trip-flag create-trip-flag--offline" role="listitem"><span class="create-trip-flag-dot"></span>No disponible</span>
@@ -1051,7 +1061,7 @@ function transportTripsHtml() {
   </form>`;
 
   const pendingAssignAlert =
-    pendingForTrip.length > 0 && transportTripsWorkspace === "operate"
+    pendingForTrip.length > 0 && transportTripsWorkspace === "operate" && transportTripsCreateUi["create-trip"] !== true
       ? `<div class="transport-pending-alert" role="status">
           <span class="transport-pending-alert__icon" aria-hidden="true">${IC.inbox}</span>
           <div class="transport-pending-alert__copy">
@@ -1234,6 +1244,33 @@ function transportTripsHtml() {
         });
         syncTransportTripsCreatePanelsInDom(nodes.viewRoot, "create-trip");
         requestAnimationFrame(() => scrollToCreatePanelForm("create-trip"));
+      });
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='transport-focus-create-route']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.transportTripsUi = {
+          ...(state.transportTripsUi || {}),
+          workspace: "operate",
+          section: "routes"
+        };
+        state.createPanels = buildTransportTripsCreatePanelsState("routes", state.createPanels || {}, { expandActive: true });
+        persistHrWorkspace("transport-trips", "operate");
+        switchHrWorkspacePanels({
+          root: nodes.viewRoot,
+          moduleId: "transport-trips",
+          workspace: "operate",
+          panelAttr: "data-transport-trips-panel"
+        });
+        switchModuleTabPanels({
+          root: nodes.viewRoot,
+          action: "transport-trips-section",
+          activeValue: "routes",
+          panelAttrs: ["data-transport-trips-operate-pane", "data-transport-trips-data-pane"],
+          tabActiveClass: "is-active"
+        });
+        syncTransportTripsCreatePanelsInDom(nodes.viewRoot, "create-route-rate");
+        requestAnimationFrame(() => scrollToCreatePanelForm("create-route-rate"));
       });
     });
 

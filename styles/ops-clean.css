@@ -1297,3 +1297,267 @@ body[data-theme="dark"] .edoc-row--expired { background: #2a1819; border-color: 
 body[data-theme="dark"] .edoc-row--soon, body[data-theme="dark"] .edoc-row--missing { background: #272112; border-color: #55451d; }
 body[data-theme="dark"] .edoc-main strong { color: #e7edf5; }
 body[data-theme="dark"] .edoc-when { color: #9fb0c4; }
+
+/* ===================================================================
+   Viajes · v3 (3 nov 2026)
+   Formulario sin banner oscuro ni relleno, pie plano, tabla contenida,
+   aviso de retraso y estado vacío con acción. Solo .transport-studio.
+   =================================================================== */
+
+/* ---------- Formulario: cabecera plana, una sola línea de ayuda ---------- */
+body.portal-mode .transport-studio :is(#form-create-trip, #form-route-rate) .transport-wizard__head {
+  display: flex !important;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.4rem 1rem;
+  padding: 0.8rem 1.1rem !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--oc-line) !important;
+  border-radius: 0 !important;
+  background: var(--oc-soft) !important;
+  background-image: none !important;
+  color: var(--oc-ink) !important;
+  box-shadow: none !important;
+}
+
+body.portal-mode .transport-studio :is(#form-create-trip, #form-route-rate) .transport-wizard__head-copy {
+  min-width: 0;
+}
+
+body.portal-mode .transport-studio :is(#form-create-trip, #form-route-rate) :is(.transport-wizard__eyebrow, .transport-wizard__title) {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  margin: -1px !important;
+  padding: 0 !important;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0 !important;
+}
+
+body.portal-mode .transport-studio :is(#form-create-trip, #form-route-rate) .transport-wizard__desc {
+  margin: 0 !important;
+  max-width: 70ch;
+  color: var(--oc-ink-2) !important;
+  font-size: 0.9rem !important;
+  font-weight: 500 !important;
+  line-height: 1.45;
+}
+
+/* ---------- Pasos: sin sombras ni fondos decorativos ---------- */
+body.portal-mode .transport-studio #form-create-trip .create-trip-form-v2__progress {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+body.portal-mode .transport-studio #form-create-trip .create-trip-form-v2__milestone {
+  box-shadow: none !important;
+}
+
+body.portal-mode .transport-studio #form-create-trip .create-trip-form-v2__milestone.is-active {
+  border-color: var(--oc-brand) !important;
+  background: var(--oc-brand-soft) !important;
+}
+
+body.portal-mode .transport-studio #form-create-trip .create-trip-form-v2__shell,
+body.portal-mode .transport-studio #form-create-trip .assign-trip-block {
+  box-shadow: none !important;
+}
+
+/* ---------- Pie: lista de requisitos y botones planos ---------- */
+body.portal-mode .transport-studio :is(#form-create-trip, #form-route-rate) .transport-form__footer {
+  background: var(--oc-bg) !important;
+  border-top: 1px solid var(--oc-line) !important;
+  box-shadow: none !important;
+}
+
+body.portal-mode .transport-studio :is(#form-create-trip, #form-route-rate) .create-trip-readiness-item {
+  background: var(--oc-soft) !important;
+  border: 1px solid var(--oc-line) !important;
+  color: var(--oc-ink-3) !important;
+  box-shadow: none !important;
+}
+
+body.portal-mode .transport-studio :is(#form-create-trip, #form-route-rate) .create-trip-readiness-item.is-ok,
+body.portal-mode .transport-studio :is(#form-create-trip, #form-route-rate) .create-trip-readiness-item.is-done,
+body.portal-mode .transport-studio :is(#form-create-trip, #form-route-rate) .create-trip-readiness-item.is-complete {
+  background: var(--oc-done-soft) !important;
+  border-color: transparent !important;
+  color: var(--oc-done) !important;
+}
+
+body.portal-mode .transport-studio :is(#form-create-trip, #form-route-rate) .module-panel-actions__bar {
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+body.portal-mode .transport-studio :is(#form-create-trip, #form-route-rate) .module-panel-actions__group--secondary {
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+body.portal-mode .transport-studio :is(#form-create-trip, #form-route-rate) :is(.module-panel-btn--minimize, .module-panel-btn--cancel) {
+  background: var(--oc-bg) !important;
+  background-image: none !important;
+  border: 1px solid var(--oc-line) !important;
+  color: var(--oc-ink-2) !important;
+  box-shadow: none !important;
+}
+
+body.portal-mode .transport-studio :is(#form-create-trip, #form-route-rate) :is(.module-panel-btn--minimize, .module-panel-btn--cancel):hover {
+  background: var(--oc-soft) !important;
+  color: var(--oc-ink) !important;
+}
+
+body.portal-mode .transport-studio :is(#form-create-trip, #form-route-rate, .transport-pending-alert, .transport-empty-cta) .btn-primary {
+  background: var(--oc-brand) !important;
+  background-image: none !important;
+  border: 1px solid var(--oc-brand) !important;
+  color: #fff !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+body.portal-mode .transport-studio :is(#form-create-trip, #form-route-rate, .transport-pending-alert, .transport-empty-cta) .btn-primary:hover:not(:disabled) {
+  background: var(--oc-brand-ink) !important;
+  border-color: var(--oc-brand-ink) !important;
+}
+
+body.portal-mode .transport-studio :is(#form-create-trip, #form-route-rate) .btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ---------- Aviso de solicitudes pendientes: plano ---------- */
+body.portal-mode .transport-studio .transport-pending-alert {
+  background: var(--oc-wait-soft) !important;
+  background-image: none !important;
+  border: 1px solid var(--oc-wait-dot) !important;
+  box-shadow: none !important;
+}
+
+/* ---------- Tarjetas de solicitud al asignar ---------- */
+body.portal-mode .transport-studio .trip-request-card {
+  box-shadow: none !important;
+}
+
+body.portal-mode .transport-studio .trip-request-card__meta {
+  color: var(--oc-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Consulta: sin título repetido, la cuenta queda como ayuda ---------- */
+body.portal-mode .transport-studio .transport-data-pane__title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+body.portal-mode .transport-studio .transport-data-pane__head {
+  margin: 0 0 0.35rem;
+  padding: 0;
+}
+
+body.portal-mode .transport-studio .transport-data-pane__lead {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--oc-ink-3);
+}
+
+/* ---------- Tabla: la tabla ya no ensancha la página ---------- */
+body.portal-mode .transport-studio :is(.transport-data-panel, .transport-data-panes, .transport-data-pane, .transport-data-pane__body, .hr-workspace-panels, .hr-workspace-panel) {
+  min-width: 0;
+  max-width: 100%;
+}
+
+body.portal-mode .transport-studio .trip-ops-fleet-table {
+  min-width: 0;
+}
+
+body.portal-mode .transport-studio .trip-ops-fleet-table :is(thead th, tbody td) {
+  padding-left: 0.6rem;
+  padding-right: 0.6rem;
+}
+
+body.portal-mode .transport-studio .trip-ops-fleet-table td[data-label="Ruta"] {
+  min-width: 9.5rem;
+}
+
+body.portal-mode .transport-studio .trip-ops-fleet-table .trip-ops-list-status select {
+  min-width: 8.5rem;
+}
+
+body.portal-mode .transport-studio .trip-ops-fleet-table .vehicle-fleet-list-actions .toolbar {
+  gap: 0.2rem;
+}
+
+body.portal-mode .transport-studio .trip-ops-fleet-table .vehicle-fleet-list-actions .btn {
+  width: 1.95rem;
+  height: 1.95rem;
+}
+
+/* ---------- Aviso de retraso (entrega estimada vencida) ---------- */
+.rq-late {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 0.05rem 0.55rem;
+  border-radius: 999px;
+  background: var(--oc-cancel-soft);
+  color: var(--oc-cancel);
+  font-size: 0.74rem;
+  font-weight: 650;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.transport-studio .trip-ops-fleet-table .rq-late {
+  display: flex;
+  margin-top: 0.3rem;
+}
+
+.transport-studio .rq-fields .rq-late {
+  margin-left: 0.4rem;
+}
+
+/* ---------- Trayectos vacío: mensaje + acción ---------- */
+body.portal-mode .transport-studio .transport-empty-cta {
+  display: grid;
+  justify-items: center;
+  gap: 0.9rem;
+}
+
+/* ---------- Móvil: indicadores en una fila compacta ---------- */
+@media (max-width: 560px) {
+  body.portal-mode .transport-studio .fleet-hero-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  body.portal-mode .transport-studio .fleet-hero-metric {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.1rem;
+    min-width: 0;
+    padding: 0.5rem 0.65rem;
+  }
+
+  body.portal-mode .transport-studio .fleet-hero-metric strong {
+    font-size: 1.2rem;
+    line-height: 1.1;
+  }
+
+  body.portal-mode .transport-studio .fleet-hero-metric span {
+    font-size: 0.74rem;
+  }
+}
