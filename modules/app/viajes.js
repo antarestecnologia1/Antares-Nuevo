@@ -417,6 +417,7 @@ function transportTripsHtml() {
         <button type="button" class="btn btn-sm btn-outline" data-action="trip-detail" data-id="${tripIdAttr}" title="Ficha del viaje">${IC.truck} Viaje</button>
         <button type="button" class="btn btn-sm btn-action" data-action="detail" data-id="${tripIdAttr}" title="Detalle de la solicitud">${IC.eye} Solicitud</button>
         ${canAdminEditTrip(r) ? `<button type="button" class="btn btn-sm btn-action" data-action="edit-trip" data-id="${tripIdAttr}" title="Editar asignación">${IC.edit} Editar</button>` : ""}
+        ${canAdminEditTrip(r) ? `<button type="button" class="btn btn-sm btn-action" data-action="reassign-trip" data-id="${tripIdAttr}" title="Reasignar camión o conductor" aria-label="Reasignar camión o conductor del viaje ${escapeAttr(String(r.trip?.tripNumber || ""))}">${IC.repeat || IC.truck} Reasignar</button>` : ""}
         ${isClosed ? `<button type="button" class="btn btn-sm btn-approve" data-action="trip-invoice" data-id="${tripIdAttr}" title="Factura PDF">${IC.file} Factura</button>` : ""}
         ${isAdmin ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-trip" data-id="${tripIdAttr}" title="Eliminar viaje">${IC.trash} Eliminar</button>` : ""}
       </div></td>
@@ -470,6 +471,31 @@ function transportTripsHtml() {
     if (!min) return "";
     const label = min >= 60 ? `${Math.floor(min / 60)} h ${min % 60 ? `${min % 60} min` : ""}`.trim() : `${min} min`;
     return `<span class="rq-late" role="status">Retraso ${escapeHtml(label)}</span>`;
+  };
+  /** Reasignaciones del viaje (la más reciente primero): qué cambió, cuándo, quién y por qué. */
+  const tpReassignHistory = (r) => {
+    const list = Array.isArray(r.trip?.reassignments) ? r.trip.reassignments.filter((x) => x && typeof x === "object") : [];
+    if (!list.length) return "";
+    const rows = list
+      .slice()
+      .reverse()
+      .map((x) => {
+        const changes = [];
+        if (String(x.fromVehiclePlate || "") !== String(x.toVehiclePlate || "")) {
+          changes.push(`Camión: <strong>${escapeHtml(String(x.fromVehiclePlate || "—"))}</strong> → <strong>${escapeHtml(String(x.toVehiclePlate || "—"))}</strong>`);
+        }
+        if (String(x.fromDriverName || "") !== String(x.toDriverName || "")) {
+          changes.push(`Conductor: <strong>${escapeHtml(String(x.fromDriverName || "—"))}</strong> → <strong>${escapeHtml(String(x.toDriverName || "—"))}</strong>`);
+        }
+        const why = [String(x.reasonLabel || "").trim(), String(x.note || "").trim()].filter(Boolean).join(" — ");
+        return `<li class="rq-reassign__item">
+          <span class="rq-reassign__when">${escapeHtml(tpShortDate(x.at))} · ${escapeHtml(String(x.by || "—"))}</span>
+          <span class="rq-reassign__what">${changes.join(" · ")}</span>
+          ${why ? `<span class="rq-reassign__why">${escapeHtml(why)}</span>` : ""}
+        </li>`;
+      })
+      .join("");
+    return `<section class="rq-block rq-reassign"><h4 class="rq-block__title" aria-level="3">Reasignaciones</h4><ol class="rq-reassign__list">${rows}</ol></section>`;
   };
   const tpField = (label, valueHtml, opts = {}) => {
     const v = valueHtml == null || valueHtml === "" ? `<span class="rq-muted">—</span>` : valueHtml;
@@ -614,6 +640,7 @@ function transportTripsHtml() {
             </li>`
           )
           .join("")}</ol></section>
+        ${tpReassignHistory(r)}
         <p class="rq-trace-foot">${r.updatedAt ? `Última actualización: ${escapeHtml(fmtDate(r.updatedAt))}` : ""}</p>`
     };
     const tabs = TP_TABS.map(
@@ -630,6 +657,7 @@ function transportTripsHtml() {
       btn("trip-detail", "rq-btn--primary", IC.truck, "Ficha del viaje", "Abrir la ficha del viaje"),
       btn("detail", "rq-btn--ghost", IC.eye, "Ver solicitud", "Detalle de la solicitud"),
       canAdminEditTrip(r) ? btn("edit-trip", "rq-btn--ghost", IC.edit, "Editar", "Editar asignación") : "",
+      canAdminEditTrip(r) ? btn("reassign-trip", "rq-btn--ghost", IC.repeat || IC.truck, "Reasignar", "Cambiar el camión o el conductor de este viaje") : "",
       isClosed ? btn("trip-invoice", "rq-btn--ghost", IC.file, "Factura", "Generar factura PDF") : ""
     ].filter(Boolean).join("");
     const danger = isAdmin ? btn("delete-trip", "rq-btn--danger", IC.trash, "Eliminar viaje", "Eliminar viaje") : "";
@@ -745,94 +773,121 @@ function transportTripsHtml() {
     ? `${opsToolbarBlock}${tripsLayout === "list" ? tripsListTable + tripsMoreBar : tripsCardsGrid}`
     : `${opsToolbarBlock}${emptyState(tripsEmptyCopy)}`;
 
+  const RATE_LOWER_WORDS = new Set(["de", "del", "la", "las", "los", "y", "e"]);
   const formatRatePlaceLabel = (part) => {
     const s = String(part || "").trim();
     if (!s) return "—";
     return s
       .split(/\s+/)
       .filter(Boolean)
-      .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+      .map((w, i) => {
+        const lower = w.toLowerCase();
+        if (lower === "d.c." || lower === "dc") return "D.C.";
+        if (i > 0 && RATE_LOWER_WORDS.has(lower)) return lower;
+        return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+      })
       .join(" ");
   };
-  const formatRateRouteCell = (storageKey) => {
+  /** Llave de almacenamiento «dpto|ciudad->dpto|ciudad@@alcance» → origen y destino legibles. */
+  const parseRateRoute = (storageKey) => {
     const sepIdx = String(storageKey).lastIndexOf(TRIP_RATE_SCOPE_SEP);
     const routeOnly = sepIdx === -1 ? String(storageKey) : String(storageKey).slice(0, sepIdx);
     const [orig, dest] = String(routeOnly).split("->");
     const [od, oc] = String(orig || "").split("|");
     const [dd, dc] = String(dest || "").split("|");
-    const originCity = formatRatePlaceLabel(oc);
-    const originDept = formatRatePlaceLabel(od);
-    const destCity = formatRatePlaceLabel(dc);
-    const destDept = formatRatePlaceLabel(dd);
-    return `<div class="route-rate-route-cell">
-      <div class="route-rate-route-leg">
-        <span class="route-rate-route-label">Origen</span>
-        <span class="route-rate-route-city">${escapeHtml(originCity)}</span>
-        <span class="route-rate-route-dept">${escapeHtml(originDept)}</span>
-      </div>
-      <span class="route-rate-route-arrow" aria-hidden="true">${IC.mapPin}</span>
-      <div class="route-rate-route-leg">
-        <span class="route-rate-route-label">Destino</span>
-        <span class="route-rate-route-city">${escapeHtml(destCity)}</span>
-        <span class="route-rate-route-dept">${escapeHtml(destDept)}</span>
-      </div>
-    </div>`;
-  };
-  const formatRateClientsCell = (companyIds) => {
-    const ids = Array.isArray(companyIds) ? companyIds : [];
-    if (!ids.length) {
-      return {
-        scope: '<span class="route-rate-scope-badge route-rate-scope-badge--all" title="Esta tarifa es estándar y aplica a todos los clientes">General</span>',
-        clients: '<span class="route-rate-clients-all">Todos los clientes</span>'
-      };
-    }
-    const chips = ids
-      .map((id) => `<span class="route-rate-client-chip">${escapeHtml(getCompanyById(id)?.name || String(id))}</span>`)
-      .join("");
     return {
-      scope: '<span class="route-rate-scope-badge route-rate-scope-badge--specific" title="Esta tarifa solo aplica a las empresas listadas">Por empresa</span>',
-      clients: `<div class="route-rate-client-chips">${chips}</div>`
+      originCity: formatRatePlaceLabel(oc),
+      originDept: formatRatePlaceLabel(od),
+      destCity: formatRatePlaceLabel(dc),
+      destDept: formatRatePlaceLabel(dd)
     };
   };
-  const formatRateAuditCell = (entry) => formatRouteRateAuditCellHtml(entry);
-  const ratesRows = rateEntries.length
-    ? rateEntries
-        .map((entry) => {
-          const { storageKey, value: val, companyIds } = entry;
-          const safeKey = encodeURIComponent(storageKey);
-          const clientCell = formatRateClientsCell(companyIds);
-          return `<tr>
-          <td>${formatRateRouteCell(storageKey)}</td>
-          <td>${clientCell.scope}</td>
-          <td>${clientCell.clients}</td>
-          <td><div class="route-rate-money-cell"><span class="route-rate-value">$${parseNum(val).toLocaleString("es-CO")}</span><span class="route-rate-value-unit">COP · por viaje</span></div></td>
-          <td>${formatRateAuditCell(entry)}</td>
-          <td>${isAdmin ? `<div class="toolbar route-rate-actions"><button type="button" class="btn btn-sm btn-action" data-action="edit-route-rate" data-rate-key="${safeKey}" title="Editar el valor o el alcance de esta tarifa">${IC.edit} Editar</button><button type="button" class="btn btn-sm btn-reject" data-action="delete-route-rate" data-rate-key="${safeKey}" title="Quitar esta tarifa del catálogo (solo administradores)">${IC.trash} Quitar</button></div>` : '<span class="muted">—</span>'}</td>
-        </tr>`;
-        })
-        .join("")
-    : "";
-  const ratesTable = ratesRows
-    ? `<div class="route-rates-intro">
-        <p class="route-rates-intro-title">${IC.dollar} Catálogo de tarifas pactadas</p>
-        <p class="route-rates-intro-body">Estos precios se autocompletan al crear un viaje en la misma ruta.</p>
-        <p class="route-rates-intro-note"><span class="route-rate-scope-badge route-rate-scope-badge--all">General</span> aplica a cualquier cliente · <span class="route-rate-scope-badge route-rate-scope-badge--specific">Por empresa</span> solo a los clientes indicados.</p>
-      </div>
-      <div class="table-wrap route-rates-table-wrap">
+  const rateCompanyName = (id) => String(getCompanyById(id)?.name || id);
+  const rateDateLabel = (value) =>
+    (typeof fmtDateOr === "function" ? fmtDateOr(value, "—") : fmtDate(value) || "—") || "—";
+  const rateScopeOf = (entry) => (Array.isArray(entry.companyIds) && entry.companyIds.length ? "company" : "general");
+  const rateScope = ["general", "company"].includes(transportTripsUi.rateScope) ? transportTripsUi.rateScope : "all";
+  const rateSearch = foldTransportSearchText(String(transportTripsUi.rateSearch || "").trim());
+  const rateCounts = {
+    all: rateEntries.length,
+    general: rateEntries.filter((e) => rateScopeOf(e) === "general").length,
+    company: rateEntries.filter((e) => rateScopeOf(e) === "company").length
+  };
+  const visibleRates = rateEntries.filter((entry) => {
+    if (rateScope !== "all" && rateScopeOf(entry) !== rateScope) return false;
+    if (!rateSearch) return true;
+    const p = parseRateRoute(entry.storageKey);
+    const hay = foldTransportSearchText(
+      [p.originCity, p.originDept, p.destCity, p.destDept, ...(entry.companyIds || []).map(rateCompanyName)].join(" ")
+    );
+    return hay.includes(rateSearch);
+  });
+  const rateRowHtml = (entry) => {
+    const { storageKey, value: val, companyIds } = entry;
+    const safeKey = encodeURIComponent(storageKey);
+    const p = parseRateRoute(storageKey);
+    const deptLine = p.originDept === p.destDept ? p.originDept : `${p.originDept} → ${p.destDept}`;
+    const ids = Array.isArray(companyIds) ? companyIds : [];
+    const names = ids.map(rateCompanyName);
+    const scopeBadge = ids.length
+      ? '<span class="route-rate-scope-badge route-rate-scope-badge--specific" title="Solo aplica a las empresas indicadas">Por empresa</span>'
+      : '<span class="route-rate-scope-badge route-rate-scope-badge--all" title="Tarifa estándar: aplica a todos los clientes">General</span>';
+    const clientsCell = ids.length
+      ? `<div class="route-rate-client-chips">${names
+          .slice(0, 2)
+          .map((n) => `<span class="route-rate-client-chip">${escapeHtml(n)}</span>`)
+          .join("")}${
+          names.length > 2
+            ? `<span class="route-rate-client-chip route-rate-client-chip--more" title="${escapeAttr(names.slice(2).join(", "))}">+${names.length - 2}</span>`
+            : ""
+        }</div>`
+      : '<span class="route-rate-clients-all">Todos los clientes</span>';
+    const updated = rateDateLabel(entry.updatedAt || entry.createdAt);
+    const created = rateDateLabel(entry.createdAt);
+    const routeName = `${p.originCity} a ${p.destCity}`;
+    const actions = isAdmin
+      ? `<div class="toolbar route-rate-actions"><button type="button" class="btn btn-sm btn-action" data-action="edit-route-rate" data-rate-key="${safeKey}" title="Editar el valor o el alcance de esta tarifa" aria-label="${escapeAttr(`Editar la tarifa ${routeName}`)}">${IC.edit} Editar</button><button type="button" class="btn btn-sm btn-reject" data-action="delete-route-rate" data-rate-key="${safeKey}" title="Quitar esta tarifa del catálogo" aria-label="${escapeAttr(`Quitar la tarifa ${routeName}`)}">${IC.trash} Quitar</button></div>`
+      : '<span class="muted">—</span>';
+    return `<tr>
+      <td data-label="Trayecto"><div class="route-rate-route"><strong class="route-rate-route__cities">${escapeHtml(p.originCity)}<span class="route-rate-route__arrow" aria-hidden="true">→</span>${escapeHtml(p.destCity)}</strong><span class="route-rate-route__depts">${escapeHtml(deptLine)}</span></div></td>
+      <td data-label="Alcance">${scopeBadge}</td>
+      <td data-label="Clientes">${clientsCell}</td>
+      <td data-label="Tarifa" class="route-rate-col-money"><span class="route-rate-value">$${parseNum(val).toLocaleString("es-CO")}</span><span class="route-rate-value-unit">por viaje</span></td>
+      <td data-label="Actualizada"><span class="route-rate-when">${escapeHtml(updated)}</span>${created !== "—" && created !== updated ? `<span class="route-rate-when route-rate-when--sub">Creada ${escapeHtml(created)}</span>` : ""}</td>
+      <td data-label="Acciones" class="route-rate-col-actions">${actions}</td>
+    </tr>`;
+  };
+  const rateScopePill = (key, label) =>
+    `<button type="button" class="ops-filter-pill${rateScope === key ? " is-active" : ""}" data-action="rates-scope" data-scope="${key}" aria-pressed="${rateScope === key ? "true" : "false"}"><span>${label}</span><strong>${rateCounts[key]}</strong></button>`;
+  const ratesToolbar = `<div class="route-rates-toolbar">
+      <label class="rq-search route-rates-search">
+        <span class="rq-search__icon" aria-hidden="true">${IC.search || ""}</span>
+        <input type="search" data-action="transport-rates-search" value="${escapeAttr(String(transportTripsUi.rateSearch || ""))}" placeholder="Buscar origen, destino o cliente…" autocomplete="off" aria-label="Buscar trayecto" />
+      </label>
+      <div class="transport-data-filters ops-filters-bar" role="group" aria-label="Filtrar por alcance">${rateScopePill("all", "Todas")}${rateScopePill("general", "General")}${rateScopePill("company", "Por empresa")}</div>
+      ${isAdmin ? `<button type="button" class="btn btn-primary route-rates-new" data-action="transport-focus-create-route">${IC.plus} Nuevo trayecto</button>` : ""}
+    </div>`;
+  const ratesTable = rateEntries.length
+    ? `${ratesToolbar}${
+        visibleRates.length
+          ? `<div class="table-wrap route-rates-table-wrap">
         <table class="route-rates-table">
+          <caption class="visually-hidden">Trayectos y tarifas pactadas</caption>
           <thead>
             <tr>
               <th scope="col">Trayecto</th>
               <th scope="col">Alcance</th>
               <th scope="col">Clientes</th>
-              <th scope="col">Tarifa</th>
-              <th scope="col">Trazabilidad</th>
-              <th scope="col">Acciones</th>
+              <th scope="col" class="route-rate-col-money">Tarifa</th>
+              <th scope="col">Actualizada</th>
+              <th scope="col"><span class="visually-hidden">Acciones</span></th>
             </tr>
           </thead>
-          <tbody>${ratesRows}</tbody>
+          <tbody>${visibleRates.map(rateRowHtml).join("")}</tbody>
         </table>
       </div>`
+          : emptyState("Ningún trayecto coincide con la búsqueda o el filtro.")
+      }<p class="route-rates-legend muted">Estas tarifas se sugieren al asignar un viaje en la misma ruta. «General» aplica a cualquier cliente; «Por empresa», solo a los clientes indicados.</p>`
     : `<div class="transport-empty-cta">${emptyState("Aún no hay tarifas por trayecto. Cree la primera para que el sistema sugiera el precio al asignar un viaje en esa ruta.")}${
         isAdmin
           ? `<button type="button" class="btn btn-primary" data-action="transport-focus-create-route">${IC.plus} Configurar trayecto y tarifa</button>`
@@ -1338,6 +1393,31 @@ function transportTripsHtml() {
         };
         state.tripsRenderLimit = RENDER_WINDOW_SIZE;
         state.__transportTripsSearchRestore = { start, end };
+        clearTransportTripsSearchTimer();
+        transportTripsSearchTimer = window.setTimeout(() => {
+          transportTripsSearchTimer = 0;
+          if (String(state.currentView || "") !== "transport-trips") return;
+          renderPortalView();
+        }, 180);
+      });
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='rates-scope']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const scope = ["general", "company"].includes(btn.dataset.scope) ? btn.dataset.scope : "all";
+        state.transportTripsUi = { ...(state.transportTripsUi || {}), rateScope: scope };
+        renderPortalView();
+      });
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='transport-rates-search']").forEach((input) => {
+      input.addEventListener("input", () => {
+        const el = /** @type {HTMLInputElement} */ (input);
+        const len = String(el.value || "").length;
+        const start = typeof el.selectionStart === "number" ? el.selectionStart : len;
+        const end = typeof el.selectionEnd === "number" ? el.selectionEnd : start;
+        state.transportTripsUi = { ...(state.transportTripsUi || {}), rateSearch: String(el.value || "") };
+        state.__transportRatesSearchRestore = { start, end };
         clearTransportTripsSearchTimer();
         transportTripsSearchTimer = window.setTimeout(() => {
           transportTripsSearchTimer = 0;
@@ -1938,6 +2018,14 @@ function transportTripsHtml() {
       });
     });
 
+    nodes.viewRoot.querySelectorAll("[data-action='reassign-trip']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const req = reqRead().find((r) => r.id === btn.dataset.id);
+        if (!req || !req.trip) return;
+        openReassignTripModal(req);
+      });
+    });
+
     nodes.viewRoot.querySelectorAll("[data-action='trip-invoice']").forEach((btn) => {
       btn.addEventListener("click", () => {
         openTripInvoicePdf(String(btn.dataset.id || ""));
@@ -2029,6 +2117,22 @@ function transportTripsHtml() {
       delete state.__tripsInboxScroll;
       const list = nodes.viewRoot.querySelector(".rq-inbox__list");
       if (list) list.scrollTop = keep;
+    }
+
+    const ratesSearchRestore = state.__transportRatesSearchRestore;
+    if (ratesSearchRestore && typeof ratesSearchRestore.start === "number") {
+      delete state.__transportRatesSearchRestore;
+      queueMicrotask(() => {
+        const root = nodes.viewRoot;
+        if (!root || String(state.currentView || "") !== "transport-trips") return;
+        const inp = root.querySelector("[data-action='transport-rates-search']");
+        if (!inp || typeof inp.focus !== "function") return;
+        inp.focus();
+        if (typeof inp.setSelectionRange === "function") {
+          const n = String(inp.value || "").length;
+          inp.setSelectionRange(Math.min(ratesSearchRestore.start, n), Math.min(ratesSearchRestore.end ?? ratesSearchRestore.start, n));
+        }
+      });
     }
 
     const tripsSearchRestore = state.__transportTripsSearchRestore;

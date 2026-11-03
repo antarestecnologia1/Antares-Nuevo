@@ -357,12 +357,8 @@ function tripFormDateTimeToIso(value, fallbackIso) {
   return String(fallbackIso || "");
 }
 
-function openEditTripModal(req) {
-  if (!req?.trip) return;
-  if (!canAdminEditTrip(req)) {
-    notify("Solo un administrador puede editar este viaje.", "error");
-    return;
-  }
+/** Opciones de camión y conductor de un viaje ya asignado: primero el actual; los no aptos quedan deshabilitados con el motivo. */
+function buildTripResourceOptions(req) {
   const vehicles = read(KEYS.vehicles, []);
   const drivers = read(KEYS.drivers, []);
   const driverCandidates =
@@ -418,6 +414,18 @@ function openEditTripModal(req) {
               : `${d.fullName || d.name || ""}${d.taxId ? ` · ${d.taxId}` : ""}`
         }))
     );
+  return { vehicleOptions, driverOptions };
+}
+
+function openEditTripModal(req) {
+  if (!req?.trip) return;
+  if (!canAdminEditTrip(req)) {
+    notify("Solo un administrador puede editar este viaje.", "error");
+    return;
+  }
+  const vehicles = read(KEYS.vehicles, []);
+  const drivers = read(KEYS.drivers, []);
+  const { vehicleOptions, driverOptions } = buildTripResourceOptions(req);
   const etaPickupLocal = String(toInputDate(req.trip.etaPickup || "") || "").slice(0, 16);
   const etaDeliveryLocal = String(toInputDate(req.trip.etaDelivery || "") || "").slice(0, 16);
   openEditModal({
@@ -510,6 +518,163 @@ function openEditTripModal(req) {
       }
       recalculateResourceAvailability();
       notify("Viaje actualizado correctamente.", "success");
+      renderPortalView();
+      return true;
+    }
+  });
+}
+
+const TRIP_REASSIGN_REASONS = [
+  { value: "breakdown", label: "Avería o falla del camión" },
+  { value: "driver-unavailable", label: "Conductor no disponible" },
+  { value: "expired-docs", label: "Documentos vencidos" },
+  { value: "client-request", label: "Solicitud del cliente" },
+  { value: "optimization", label: "Optimizar la operación" },
+  { value: "other", label: "Otro motivo" }
+];
+
+/**
+ * Reasignar un viaje ya creado: cambia el camión y/o el conductor conservando fechas, tarifa y estado.
+ * Valida disponibilidad, cruces de horario y documentos vigentes; exige el motivo y lo deja en el
+ * seguimiento del viaje (trip.reassignments), en el registro de modificaciones de la solicitud y en el Historial.
+ */
+function openReassignTripModal(req) {
+  if (!req?.trip) return;
+  if (!canAdminEditTrip(req)) {
+    notify("Solo un administrador puede reasignar este viaje, y no si ya está cerrado o cancelado.", "error");
+    return;
+  }
+  const vehicles = read(KEYS.vehicles, []);
+  const drivers = read(KEYS.drivers, []);
+  const { vehicleOptions, driverOptions } = buildTripResourceOptions(req);
+  const currentPlate = String(req.trip.vehiclePlate || "—").trim() || "—";
+  const currentDriver = String(req.trip.driverName || "Sin conductor").trim() || "Sin conductor";
+  openEditModal({
+    title: `Reasignar viaje ${req.trip.tripNumber || ""}`.trim(),
+    subtitle: `Solicitud ${req.requestNumber || req.id} · ${req.clientName || ""}`,
+    submitText: "Reasignar viaje",
+    extraModalCardClass: "modal-card-edit--trip",
+    introHtml: `<p class="reassign-current"><span>Hoy lo cubre</span> <strong>${escapeHtml(currentPlate)}</strong> <span aria-hidden="true">·</span> <strong>${escapeHtml(currentDriver)}</strong></p>`,
+    fields: [
+      { type: "section", id: "reassign-resources", title: "Nuevo camión y conductor", hint: "Cambie solo lo que haga falta. Se valida disponibilidad, cruces de horario y documentos vigentes." },
+      { name: "vehicleId", label: "Camión", type: "select", value: req.trip.vehicleId || "", required: true, options: vehicleOptions },
+      { name: "driverId", label: "Conductor", type: "select", value: req.trip.driverId || "", required: true, options: driverOptions },
+      { type: "section", id: "reassign-reason", title: "Motivo del cambio", hint: "Queda registrado en el seguimiento del viaje y en el Historial." },
+      {
+        name: "reason",
+        label: "Motivo",
+        type: "select",
+        value: "",
+        required: true,
+        options: [{ value: "", label: "Seleccione…" }].concat(TRIP_REASSIGN_REASONS)
+      },
+      { name: "reasonNote", label: "Detalle (obligatorio si elige «Otro motivo»)", type: "textarea", value: "", rows: 3 }
+    ],
+    onSubmit: async (form) => {
+      const requests = reqRead();
+      const targetId = String(req.id);
+      const row = requests.find((r) => String(r.id) === targetId);
+      if (!row?.trip) {
+        notify("La solicitud del viaje ya no está disponible. Actualice la página.", "error");
+        return false;
+      }
+      if (!canAdminEditTrip(row)) {
+        notify("El viaje ya no se puede reasignar porque cambió de estado.", "error");
+        return false;
+      }
+      const nextVehicleId = String(form.vehicleId || "").trim();
+      const nextDriverId = String(form.driverId || "").trim();
+      const vehicleChanged = nextVehicleId !== String(row.trip.vehicleId || "").trim();
+      const driverChanged = nextDriverId !== String(row.trip.driverId || "").trim();
+      if (!vehicleChanged && !driverChanged) {
+        notify("Elija otro camión u otro conductor para reasignar el viaje.", "error");
+        return false;
+      }
+      const reason = TRIP_REASSIGN_REASONS.find((r) => r.value === String(form.reason || "").trim());
+      if (!reason) {
+        notify("Indique el motivo de la reasignación.", "error");
+        return false;
+      }
+      const note = String(form.reasonNote || "").trim();
+      if (reason.value === "other" && !note) {
+        notify("Describa el motivo en el detalle.", "error");
+        return false;
+      }
+      const pickupIso = String(row.trip.etaPickup || row.pickupAt || "").trim();
+      const deliveryIso = String(row.trip.etaDelivery || row.etaDelivery || "").trim();
+      const check =
+        typeof G.validateAssignedTripChange === "function"
+          ? G.validateAssignedTripChange(row, {
+              pickupIso,
+              deliveryIso,
+              vehicleId: nextVehicleId,
+              driverId: nextDriverId,
+              enforceDriverCompliance: true
+            })
+          : { ok: true };
+      if (!check.ok) {
+        notify(check.message || "No se puede reasignar el viaje con esos recursos.", "error");
+        return false;
+      }
+      const targetVehicle = vehicles.find((v) => String(v.id || "") === nextVehicleId);
+      const targetDriver = drivers.find((d) => String(d.id || "") === nextDriverId);
+      const actor = currentUser();
+      const actorName = String(actor?.name || actor?.email || "Administrador").trim();
+      const at = nowIso();
+      const toPlate = String(targetVehicle?.plate || row.trip.vehiclePlate || "").trim();
+      const toDriverName = String(targetDriver?.fullName || targetDriver?.name || row.trip.driverName || "").trim();
+      const entry = {
+        id: `rea-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+        at,
+        by: actorName,
+        reason: reason.value,
+        reasonLabel: reason.label,
+        note,
+        statusAtChange: String(row.status || ""),
+        fromVehiclePlate: String(row.trip.vehiclePlate || "").trim(),
+        toVehiclePlate: toPlate,
+        fromDriverName: String(row.trip.driverName || "").trim(),
+        toDriverName
+      };
+      const changes = [];
+      if (vehicleChanged) changes.push(`camión ${entry.fromVehiclePlate || "—"} → ${toPlate || "—"}`);
+      if (driverChanged) changes.push(`conductor ${entry.fromDriverName || "—"} → ${toDriverName || "—"}`);
+      const changesSummary = `Reasignación: ${changes.join(", ")}`;
+      const modificationLog =
+        typeof G.recordTransportRequestModification === "function"
+          ? G.recordTransportRequestModification(row, {
+              justification: `${reason.label}${note ? ` — ${note}` : ""}`,
+              actor,
+              changesSummary
+            })
+          : row.modificationLog;
+      const updatedRow = {
+        ...row,
+        updatedAt: at,
+        updatedBy: actorName,
+        ...(modificationLog ? { modificationLog } : {}),
+        trip: {
+          ...row.trip,
+          vehicleId: nextVehicleId,
+          vehiclePlate: toPlate,
+          vehicleType: String(targetVehicle?.type || row.trip.vehicleType || ""),
+          driverId: nextDriverId,
+          driverName: toDriverName,
+          driverPhone: String(targetDriver?.phone || row.trip.driverPhone || ""),
+          reassignments: [...(Array.isArray(row.trip.reassignments) ? row.trip.reassignments : []), entry].slice(-30),
+          updatedAt: at,
+          updatedBy: actorName
+        }
+      };
+      const updated = requests.map((r) => (String(r.id) === targetId ? updatedRow : r));
+      try {
+        await reqWriteAwait(updated, updatedRow);
+      } catch (err) {
+        notify(String(err?.message || "No fue posible reasignar el viaje."), "error");
+        return false;
+      }
+      recalculateResourceAvailability();
+      notify(`Viaje ${row.trip.tripNumber || ""} reasignado: ${changes.join(", ")}.`.replace("  ", " "), "success");
       renderPortalView();
       return true;
     }
@@ -660,6 +825,7 @@ function openEditRouteRateModal(storageKey) {
     formatDeletedTripSnapshotTableSummary,
     openDeletedTransportTripAuditModal,
     openEditTripModal,
+    openReassignTripModal,
     openEditRouteRateModal
   };
   Object.assign(G, G.__antaresPortalTransportModals);

@@ -670,7 +670,7 @@ export function canPerformPermissionGatedAction(user, action, trigger) {
     const approval = read(KEYS.approvals, []).find((a) => String(a.id) === id && a.status === "pendiente");
     return approval ? canApproveInternalAuthorization(user, approval.type) : false;
   }
-  if (action === "trip-status" || action === "edit-trip") return canManageTransportTrips(user);
+  if (action === "trip-status" || action === "edit-trip" || action === "reassign-trip") return canManageTransportTrips(user);
   if (action === "edit-vehicle") return canEditVehicle(user);
   if (action === "toggle-vehicle") return canToggleVehicleStatus(user);
   if (action === "delete-vehicle") return canDeleteVehicle(user);

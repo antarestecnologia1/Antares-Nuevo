@@ -1468,6 +1468,7 @@ function renderEditModal(opts = {}, flow = {}) {
   if (card) {
     card.className = `modal-card modal-card-edit${extraModalCardClass ? ` ${extraModalCardClass}` : ""}`;
   }
+  modal.setAttribute("aria-label", String(title || "Formulario"));
   const content = modal.querySelector("#crud-modal-content");
   const fieldsHtml = buildOpenEditModalFieldsHtml(fields);
 

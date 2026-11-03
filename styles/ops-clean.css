@@ -1561,3 +1561,531 @@ body.portal-mode .transport-studio .transport-empty-cta {
     font-size: 0.74rem;
   }
 }
+
+/* ===================================================================
+   Selector con búsqueda · formularios y modales (3 nov 2026)
+   La lista no se recorta dentro de las secciones, el campo es opaco,
+   la opción elegida se marca y el detalle va en una segunda línea.
+   =================================================================== */
+#crud-modal :is(.form-section, fieldset.form-section) {
+  overflow: visible !important;
+}
+
+body.portal-mode :is(.modal, .modal-edit-form, .transport-studio) .searchable-select {
+  position: relative;
+}
+
+body.portal-mode :is(.modal, .modal-edit-form, .transport-studio) .searchable-select-input {
+  background-color: #fff;
+  background-image: none;
+}
+
+body[data-theme="dark"] :is(.modal, .modal-edit-form, .transport-studio) .searchable-select-input {
+  background-color: #12233a;
+}
+
+body.portal-mode .searchable-select-dropdown {
+  max-height: min(18rem, 52vh);
+  padding: 0.3rem;
+  border: 1px solid var(--line, #d7e2ee);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 14px 34px rgba(15, 35, 63, 0.18);
+}
+
+body[data-theme="dark"] .searchable-select-dropdown {
+  background: #0f1d30;
+  border-color: #2c4160;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.5);
+}
+
+body.portal-mode .searchable-select-option {
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 8px;
+}
+
+body.portal-mode .searchable-select-option .ss-title {
+  font-weight: 600;
+}
+
+body.portal-mode .searchable-select-option .ss-sub {
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: #5d6f86;
+}
+
+body[data-theme="dark"] .searchable-select-option .ss-sub {
+  color: #a5b4ca;
+}
+
+body.portal-mode .searchable-select-option.is-active {
+  background: rgba(55, 124, 192, 0.14);
+}
+
+body.portal-mode .searchable-select-option.is-active .ss-title::after {
+  content: " ✓";
+  color: #377cc0;
+}
+
+body.portal-mode .searchable-select-option.is-disabled {
+  opacity: 1;
+  cursor: not-allowed;
+}
+
+body.portal-mode .searchable-select-option.is-disabled .ss-title {
+  color: #7d8da3;
+}
+
+body.portal-mode .searchable-select-option.is-disabled .ss-sub {
+  color: #b3362b;
+}
+
+body[data-theme="dark"] .searchable-select-option.is-disabled .ss-title {
+  color: #7385a0;
+}
+
+body[data-theme="dark"] .searchable-select-option.is-disabled .ss-sub {
+  color: #f08a82;
+}
+
+/* ---------- Reasignar viaje ---------- */
+.reassign-current {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem;
+  margin: 0 0 0.9rem;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid #d7e2ee;
+  border-radius: 10px;
+  background: #f6f8fb;
+  color: #51627c;
+  font-size: 0.9rem;
+}
+
+.reassign-current strong {
+  color: #12233f;
+}
+
+body[data-theme="dark"] .reassign-current {
+  border-color: #2c4160;
+  background: #15243a;
+  color: #a5b4ca;
+}
+
+body[data-theme="dark"] .reassign-current strong {
+  color: #e8eef8;
+}
+
+.rq-reassign {
+  margin-top: 1.1rem;
+}
+
+.rq-reassign__list {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rq-reassign__item {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--oc-line);
+  border-left: 3px solid var(--oc-brand);
+  border-radius: 10px;
+  background: var(--oc-soft);
+  font-size: 0.86rem;
+}
+
+.rq-reassign__when {
+  color: var(--oc-ink-3);
+  font-size: 0.78rem;
+}
+
+.rq-reassign__what {
+  color: var(--oc-ink);
+}
+
+.rq-reassign__why {
+  color: var(--oc-ink-2);
+}
+
+/* ===================================================================
+   Trayectos y tarifas (3 nov 2026)
+   Tabla plana de 6 columnas, alcance y clientes como etiquetas suaves,
+   acciones solo con icono, barra de búsqueda y filtro, móvil por tarjetas.
+   =================================================================== */
+body.portal-mode .transport-studio .route-rates-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 0.9rem;
+  margin: 0 0 0.8rem;
+}
+
+body.portal-mode .transport-studio .route-rates-search {
+  flex: 1 1 16rem;
+  max-width: 26rem;
+  margin: 0;
+}
+
+body.portal-mode .transport-studio .route-rates-toolbar .ops-filters-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+body.portal-mode .transport-studio .route-rates-new {
+  margin-left: auto;
+}
+
+body.portal-mode .transport-studio .route-rates-table-wrap {
+  margin: 0;
+  padding: 0;
+  overflow-x: auto;
+  border: 1px solid var(--oc-line);
+  border-radius: var(--oc-radius);
+  background: var(--oc-bg);
+  box-shadow: none;
+}
+
+body.portal-mode .transport-studio .route-rates-table {
+  width: 100%;
+  min-width: 0;
+  border-collapse: collapse;
+  background: transparent;
+}
+
+body.portal-mode .transport-studio .route-rates-table thead th {
+  padding: 0.65rem 0.9rem;
+  border: 0;
+  border-bottom: 1px solid var(--oc-line);
+  background: var(--oc-soft);
+  color: var(--oc-ink-3);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-align: left;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+body.portal-mode .transport-studio .route-rates-table tbody td {
+  padding: 0.8rem 0.9rem;
+  border: 0;
+  border-bottom: 1px solid var(--oc-line);
+  background: transparent;
+  color: var(--oc-ink);
+  font-size: 0.88rem;
+  vertical-align: middle;
+}
+
+body.portal-mode .transport-studio .route-rates-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+body.portal-mode .transport-studio .route-rates-table tbody tr:hover td {
+  background: var(--oc-soft);
+}
+
+body.portal-mode .transport-studio .route-rates-table .route-rate-col-money {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.route-rate-route {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 11rem;
+}
+
+.route-rate-route__cities {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--oc-ink);
+  font-size: 0.95rem;
+  font-weight: 650;
+}
+
+.route-rate-route__arrow {
+  color: var(--oc-ink-3);
+  font-weight: 500;
+}
+
+.route-rate-route__depts {
+  color: var(--oc-ink-3);
+  font-size: 0.8rem;
+}
+
+body.portal-mode .transport-studio .route-rate-scope-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.6rem;
+  border: 0;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 650;
+  line-height: 1.5;
+  box-shadow: none;
+}
+
+body.portal-mode .transport-studio .route-rate-scope-badge--all {
+  background: var(--oc-brand-soft);
+  color: var(--oc-brand-ink);
+}
+
+body.portal-mode .transport-studio .route-rate-scope-badge--specific {
+  background: var(--oc-wait-soft);
+  color: var(--oc-wait);
+}
+
+body.portal-mode .transport-studio .route-rate-client-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+body.portal-mode .transport-studio .route-rate-client-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 14rem;
+  padding: 0.1rem 0.6rem;
+  overflow: hidden;
+  border: 1px solid var(--oc-line);
+  border-radius: 999px;
+  background: var(--oc-soft);
+  color: var(--oc-ink-2);
+  font-size: 0.78rem;
+  font-weight: 550;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-shadow: none;
+}
+
+body.portal-mode .transport-studio .route-rate-client-chip--more {
+  border-color: transparent;
+  background: var(--oc-brand-soft);
+  color: var(--oc-brand-ink);
+  cursor: help;
+}
+
+body.portal-mode .transport-studio .route-rate-clients-all {
+  color: var(--oc-ink-3);
+  font-size: 0.86rem;
+}
+
+body.portal-mode .transport-studio .route-rate-value {
+  display: block;
+  color: var(--oc-ink);
+  font-size: 1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+body.portal-mode .transport-studio .route-rate-value-unit {
+  display: block;
+  color: var(--oc-ink-3);
+  font-size: 0.76rem;
+}
+
+.route-rate-when {
+  display: block;
+  color: var(--oc-ink-2);
+  font-size: 0.86rem;
+  white-space: nowrap;
+}
+
+.route-rate-when--sub {
+  color: var(--oc-ink-3);
+  font-size: 0.76rem;
+}
+
+body.portal-mode .transport-studio .route-rate-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  gap: 0.3rem;
+}
+
+body.portal-mode .transport-studio .route-rate-actions .btn {
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  min-height: 0;
+  padding: 0;
+  border: 1px solid var(--oc-line);
+  border-radius: 9px;
+  background: var(--oc-bg);
+  background-image: none;
+  color: var(--oc-ink-2);
+  font-size: 0;
+  box-shadow: none;
+}
+
+body.portal-mode .transport-studio .route-rate-actions .btn svg {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+}
+
+body.portal-mode .transport-studio .route-rate-actions .btn:hover {
+  border-color: var(--oc-brand);
+  background: var(--oc-brand-soft);
+  color: var(--oc-brand-ink);
+}
+
+body.portal-mode .transport-studio .route-rate-actions .btn-reject {
+  color: var(--oc-cancel);
+}
+
+body.portal-mode .transport-studio .route-rate-actions .btn-reject:hover {
+  border-color: var(--oc-cancel);
+  background: var(--oc-cancel-soft);
+  color: var(--oc-cancel);
+}
+
+.route-rates-legend {
+  margin: 0.7rem 0 0;
+  font-size: 0.82rem;
+  color: var(--oc-ink-3);
+}
+
+.route-rates-legend strong {
+  color: var(--oc-ink-2);
+}
+
+/* Móvil: cada trayecto es una tarjeta */
+@media (max-width: 720px) {
+  body.portal-mode .transport-studio .route-rates-new {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  body.portal-mode .transport-studio .route-rates-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+
+  body.portal-mode .transport-studio .route-rates-table,
+  body.portal-mode .transport-studio .route-rates-table tbody {
+    display: block;
+  }
+
+  body.portal-mode .transport-studio .route-rates-table tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.5rem 0.8rem;
+    padding: 0.85rem 0.9rem;
+    border-bottom: 1px solid var(--oc-line);
+  }
+
+  body.portal-mode .transport-studio .route-rates-table tbody tr:last-child {
+    border-bottom: 0;
+  }
+
+  body.portal-mode .transport-studio .route-rates-table tbody td {
+    display: block;
+    padding: 0;
+    border: 0;
+  }
+
+  body.portal-mode .transport-studio .route-rates-table tbody tr:hover td {
+    background: transparent;
+  }
+
+  body.portal-mode .transport-studio .route-rates-table td[data-label="Trayecto"] {
+    grid-column: 1;
+  }
+
+  body.portal-mode .transport-studio .route-rates-table td[data-label="Tarifa"] {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  body.portal-mode .transport-studio .route-rates-table td[data-label="Alcance"],
+  body.portal-mode .transport-studio .route-rates-table td[data-label="Clientes"] {
+    grid-column: 1 / -1;
+  }
+
+  body.portal-mode .transport-studio .route-rates-table td[data-label="Actualizada"] {
+    grid-column: 1;
+  }
+
+  body.portal-mode .transport-studio .route-rates-table td[data-label="Acciones"] {
+    grid-column: 2;
+  }
+
+  body.portal-mode .transport-studio .route-rates-table td[data-label="Actualizada"]::before {
+    content: "Actualizada ";
+    color: var(--oc-ink-3);
+    font-size: 0.76rem;
+  }
+}
+
+body.portal-mode .transport-studio .route-rates-toolbar .btn.btn-primary.route-rates-new,
+body.portal-mode .transport-studio .transport-empty-cta .btn.btn-primary {
+  background: var(--oc-brand) !important;
+  background-image: none !important;
+  border: 1px solid var(--oc-brand) !important;
+  color: #fff !important;
+  box-shadow: none !important;
+}
+
+body.portal-mode .transport-studio .route-rates-toolbar .btn.btn-primary.route-rates-new:hover,
+body.portal-mode .transport-studio .transport-empty-cta .btn.btn-primary:hover {
+  background: var(--oc-brand-ink) !important;
+  border-color: var(--oc-brand-ink) !important;
+}
+
+body.portal-mode .transport-studio .route-rates-toolbar .ops-filter-pill {
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+body.portal-mode .transport-studio .route-rates-toolbar .ops-filter-pill.is-active {
+  border-color: var(--oc-brand) !important;
+  background: var(--oc-brand-soft) !important;
+  color: var(--oc-brand-ink) !important;
+}
+
+body.portal-mode .transport-studio .route-rates-toolbar .ops-filter-pill.is-active strong {
+  background: rgba(55, 124, 192, 0.16) !important;
+  color: var(--oc-brand-ink) !important;
+}
+
+@media (max-width: 720px) {
+  body.portal-mode .transport-studio .route-rates-table td[data-label="Acciones"] .route-rate-actions {
+    flex-direction: row !important;
+    justify-content: flex-end;
+  }
+}
+
+/* Viajes · tabla: la fecha de recogida puede partirse en dos líneas para que quepan los 5 iconos de acciones */
+body.portal-mode .transport-studio .trip-ops-fleet-table td.rq-nowrap {
+  min-width: 6.5rem;
+  white-space: normal;
+}
+
+body.portal-mode .transport-studio .trip-ops-fleet-table thead th {
+  white-space: normal;
+}
+
+body.portal-mode .transport-studio .trip-ops-fleet-table tbody td:first-child .vehicle-fleet-list-plate {
+  white-space: normal;
+}

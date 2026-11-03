@@ -535,6 +535,12 @@ function openEditTripModal(...args) {
   if (impl && typeof impl.openEditTripModal === "function") return impl.openEditTripModal(...args);
 }
 
+/** Reasignar camión y/o conductor de un viaje ya creado (con motivo y registro en el historial). */
+function openReassignTripModal(...args) {
+  const impl = globalThis.__antaresPortalTransportModals;
+  if (impl && typeof impl.openReassignTripModal === "function") return impl.openReassignTripModal(...args);
+}
+
 
 /**
  * Edición de tarifa por trayecto (admin): mismo patrón visual que {@link openEditTripModal}
@@ -4582,13 +4588,18 @@ function renderSearchableSelectDropdown(selectEl, filterText = "") {
     parts.list.classList.remove("hidden");
     return rows;
   }
+  const currentValue = String(selectEl.value || "");
   parts.list.innerHTML = rows
-    .map(
-      (row) =>
-        `<li role="option" data-value="${escapeAttr(row.value)}" class="searchable-select-option${row.disabled ? " is-disabled" : ""}"${row.disabled ? ' aria-disabled="true"' : ""} tabindex="-1">${escapeHtml(row.text)}</li>`
-    )
+    .map((row) => {
+      /* «Nombre · Lic … · vence … · Ocupado»: el nombre va como título y el resto como detalle. */
+      const [title, ...rest] = row.text.split(" · ");
+      const detail = rest.join(" · ");
+      const isCurrent = Boolean(row.value) && row.value === currentValue;
+      return `<li role="option" data-value="${escapeAttr(row.value)}" class="searchable-select-option${row.disabled ? " is-disabled" : ""}${isCurrent ? " is-active" : ""}"${row.disabled ? ' aria-disabled="true"' : ""} aria-selected="${isCurrent ? "true" : "false"}" tabindex="-1"><span class="ss-title">${escapeHtml(title)}</span>${detail ? `<span class="ss-sub">${escapeHtml(detail)}</span>` : ""}</li>`;
+    })
     .join("");
   parts.list.classList.remove("hidden");
+  parts.list.querySelector(".searchable-select-option.is-active")?.scrollIntoView?.({ block: "nearest" });
   return rows;
 }
 
@@ -4660,6 +4671,24 @@ function mountSearchableSelect(selectEl, opts = {}) {
   list.setAttribute("role", "listbox");
   wrap.appendChild(list);
 
+  /* Accesibilidad: el campo es un «combobox» con una lista con nombre. */
+  const labelHost = wrap.closest("label, .assign-trip-resource, .create-trip-fleet-field");
+  let fieldName = String(selectEl.getAttribute("aria-label") || "").trim();
+  if (!fieldName && labelHost) {
+    const clone = labelHost.cloneNode(true);
+    clone.querySelectorAll(".searchable-select, select, input, ul, small, .searchable-select-hint").forEach((n) => n.remove());
+    fieldName = String(clone.textContent || "").replace(/\s+/g, " ").replace(/[*:]/g, "").trim();
+  }
+  fieldName = fieldName || placeholder;
+  const listId = `ss-list-${Math.random().toString(36).slice(2, 9)}`;
+  list.id = listId;
+  list.setAttribute("aria-label", fieldName);
+  input.setAttribute("role", "combobox");
+  input.setAttribute("aria-haspopup", "listbox");
+  input.setAttribute("aria-expanded", "false");
+  input.setAttribute("aria-controls", listId);
+  if (!labelHost || !labelHost.contains(input) || labelHost.tagName !== "LABEL") input.setAttribute("aria-label", fieldName);
+
   selectEl.classList.add("searchable-select-native");
   selectEl.dataset.searchableMounted = "1";
 
@@ -4672,8 +4701,13 @@ function mountSearchableSelect(selectEl, opts = {}) {
     list.classList.add("hidden");
     selectEl.dispatchEvent(new Event("change", { bubbles: true }));
   };
+  /* Al abrir sin escribir se muestran TODAS las opciones; el texto del campo (la opción elegida) no filtra la lista. */
   input.addEventListener("focus", () => {
-    openSearchableSelectDropdown(selectEl, input.value);
+    openSearchableSelectDropdown(selectEl, "");
+    input.select?.();
+  });
+  input.addEventListener("click", () => {
+    if (list.classList.contains("hidden")) openSearchableSelectDropdown(selectEl, "");
   });
   input.addEventListener("input", () => {
     openSearchableSelectDropdown(selectEl, input.value);
@@ -4684,10 +4718,24 @@ function mountSearchableSelect(selectEl, opts = {}) {
       syncSearchableSelectInputFromValue(selectEl);
       return;
     }
+    if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
+      ev.preventDefault();
+      if (list.classList.contains("hidden")) openSearchableSelectDropdown(selectEl, "");
+      const items = [...list.querySelectorAll(".searchable-select-option:not(.is-disabled)")];
+      if (!items.length) return;
+      const at = items.findIndex((li) => li.classList.contains("is-active"));
+      const next = ev.key === "ArrowDown" ? (at + 1) % items.length : (at - 1 + items.length) % items.length;
+      list.querySelectorAll(".searchable-select-option.is-active").forEach((li) => li.classList.remove("is-active"));
+      items[next].classList.add("is-active");
+      items[next].scrollIntoView?.({ block: "nearest" });
+      return;
+    }
     if (ev.key === "Enter") {
       ev.preventDefault();
-      const first = list.querySelector(".searchable-select-option:not(.is-disabled)");
-      if (first) pickValue(first.getAttribute("data-value"));
+      const target =
+        list.querySelector(".searchable-select-option.is-active:not(.is-disabled)") ||
+        list.querySelector(".searchable-select-option:not(.is-disabled)");
+      if (target) pickValue(target.getAttribute("data-value"));
     }
   });
   list.addEventListener("mousedown", (ev) => {
@@ -16296,6 +16344,7 @@ Object.assign(window, {
   openDriverDetailSheetModal,
   openEditRouteRateModal,
   openEditTripModal,
+  openReassignTripModal,
   openHiringContractFromCandidate,
   openPayrollBulkResultModal,
   openPayrollEmployeeFromCandidate,
