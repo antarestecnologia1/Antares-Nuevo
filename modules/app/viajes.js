@@ -967,7 +967,8 @@ function transportTripsHtml() {
         <ul class="create-trip-readiness create-trip-readiness--bar transport-readiness" data-route-rate-readiness aria-label="Requisitos para guardar"></ul>
         ${renderManagedCreateFormActions(
           "create-route-rate",
-          `<button class="btn btn-primary" id="route-rate-submit-btn" type="submit" disabled aria-disabled="true">${IC.plus} Guardar tarifa de trayecto</button>`
+          `<button class="btn btn-primary" id="route-rate-submit-btn" type="submit" disabled aria-disabled="true">${IC.plus} Guardar tarifa de trayecto</button>`,
+          { hideToggle: true }
         )}
       </div>
     </div>
@@ -1078,6 +1079,7 @@ function transportTripsHtml() {
           <section class="assign-trip-block transport-trip-create-form__resources create-trip-form-v2__resources" data-create-trip-step="fleet" aria-labelledby="create-trip-step-fleet">
             <div class="assign-trip-block-head">
               <h4 class="assign-trip-block-title" id="create-trip-step-fleet" aria-level="3">${IC.truck} Vehículo y conductor</h4>
+              <span class="create-trip-lock-note">Se habilita al elegir la solicitud</span>
               <div class="create-trip-flag-legend assign-trip-flags create-trip-form-v2__flags" role="list" aria-label="Banderas en listas">
                 <span class="create-trip-flag create-trip-flag--busy" role="listitem"><span class="create-trip-flag-dot"></span>Ocupado</span>
                 <span class="create-trip-flag create-trip-flag--offline" role="listitem"><span class="create-trip-flag-dot"></span>No disponible</span>
@@ -1096,36 +1098,44 @@ function transportTripsHtml() {
               </div>
             </div>
           </section>
-          <fieldset class="form-section form-section-emerald full transport-trip-create-form__pricing create-trip-form-v2__pricing" data-create-trip-step="rate">
-            <legend>${IC.dollar} Tarifa del viaje</legend>
+          <section class="assign-trip-block transport-trip-create-form__pricing create-trip-form-v2__pricing" data-create-trip-step="rate" aria-labelledby="create-trip-step-rate">
+            <div class="assign-trip-block-head">
+              <h4 class="assign-trip-block-title" id="create-trip-step-rate" aria-level="3">${IC.dollar} Tarifa del viaje</h4>
+              <span class="create-trip-lock-note">Se habilita al elegir la solicitud</span>
+            </div>
             <p class="muted form-section-hint create-trip-form-v2__hint">Confirme el valor pactado en COP. Se sugerirá automáticamente si existe tarifa de catálogo.</p>
             <div id="create-trip-rate-fields" class="assign-trip-rate create-trip-rate-surface create-trip-form-v2__rate-surface">
               ${createTripEmptyHint("dollar", "Tarifa pendiente", "Complete los pasos anteriores para habilitar el precio.")}
             </div>
-          </fieldset>
+          </section>
         </div>
       </div>
       <div class="transport-form__footer create-trip-form-v2__footer">
         <ul class="create-trip-readiness create-trip-readiness--bar transport-readiness create-trip-form-v2__readiness" data-create-trip-readiness aria-label="Requisitos para asignar"></ul>
         ${renderManagedCreateFormActions(
           "create-trip",
-          `<button class="btn btn-primary create-trip-submit-btn create-trip-form-v2__submit" type="submit" disabled aria-disabled="true">${IC.check} Crear viaje</button>`
+          `<button class="btn btn-primary create-trip-submit-btn create-trip-form-v2__submit" type="submit" disabled aria-disabled="true">${IC.check} Crear viaje</button>`,
+          { hideToggle: true, cancelLabel: "Limpiar formulario" }
         )}
       </div>
     </div>
   </form>`;
 
-  const pendingAssignAlert =
-    pendingForTrip.length > 0 && transportTripsWorkspace === "operate" && transportTripsCreateUi["create-trip"] !== true
-      ? `<div class="transport-pending-alert" role="status">
-          <span class="transport-pending-alert__icon" aria-hidden="true">${IC.inbox}</span>
-          <div class="transport-pending-alert__copy">
-            <strong>${pendingForTrip.length} solicitud${pendingForTrip.length === 1 ? "" : "es"} pendiente${pendingForTrip.length === 1 ? "" : "s"} de asignación</strong>
-            <span class="muted">Seleccione una solicitud, asigne flota y confirme la tarifa para crear el viaje operativo.</span>
-          </div>
-          <button type="button" class="btn btn-sm btn-primary transport-pending-alert__cta" data-action="transport-focus-create-trip">${IC.truck} Asignar ahora</button>
-        </div>`
-      : "";
+  const pendingAssignAlert = "";
+  const tripCreatedNotice = state.tripCreatedNotice && typeof state.tripCreatedNotice === "object" ? state.tripCreatedNotice : null;
+  const tripCreatedNoticeHtml = tripCreatedNotice
+    ? `<div class="create-trip-done" role="status">
+        <span class="create-trip-done__ico" aria-hidden="true">${IC.check}</span>
+        <div class="create-trip-done__copy">
+          <strong>Viaje creado</strong>
+          <span>${escapeHtml(String(tripCreatedNotice.summary || ""))}</span>
+        </div>
+        <div class="create-trip-done__actions">
+          <button type="button" class="btn btn-sm btn-outline" data-action="transport-created-view">Ver en Consultar</button>
+          <button type="button" class="btn btn-sm btn-ghost" data-action="transport-created-dismiss" aria-label="Cerrar aviso">${IC.x || "×"}</button>
+        </div>
+      </div>`
+    : "";
   const transportModuleHead = moduleFleetHeroStrip([
     { label: "Viajes", value: trips.length },
     { label: "Activos", value: activeOps },
@@ -1160,9 +1170,9 @@ function transportTripsHtml() {
     "truck",
     "Asignar viaje",
     `${pendingForTrip.length} disponible${pendingForTrip.length === 1 ? "" : "s"}`,
-    createTripForm,
+    `${tripCreatedNoticeHtml}${createTripForm}`,
     "Abrir formulario",
-    { createPanels: transportTripsCreateUi }
+    { createPanels: transportTripsCreateUi, alwaysOpen: true }
   );
   const routesCreateCard = createHrActionCard(
     "create-route-rate",
@@ -1171,7 +1181,7 @@ function transportTripsHtml() {
     `${rateEntries.length} catalogada${rateEntries.length === 1 ? "" : "s"}`,
     routeRateForm,
     "Abrir formulario",
-    { createPanels: transportTripsCreateUi }
+    { createPanels: transportTripsCreateUi, alwaysOpen: true }
   );
   const tripsOperatePane = `<div class="auth-tab-panel${transportTripsSection === "trips" ? "" : " hidden"}" data-transport-trips-operate-pane="trips">${tripsCreateCard}</div>`;
   const routesOperatePane = `<div class="auth-tab-panel${transportTripsSection === "routes" ? "" : " hidden"}" data-transport-trips-operate-pane="routes">${routesCreateCard}</div>`;
@@ -1299,6 +1309,22 @@ function transportTripsHtml() {
         });
         syncTransportTripsCreatePanelsInDom(nodes.viewRoot, "create-trip");
         requestAnimationFrame(() => scrollToCreatePanelForm("create-trip"));
+      });
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='transport-created-dismiss']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.tripCreatedNotice = null;
+        btn.closest(".create-trip-done")?.remove();
+      });
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='transport-created-view']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.tripCreatedNotice = null;
+        state.transportTripsUi = { ...(state.transportTripsUi || {}), workspace: "data", section: "trips" };
+        persistHrWorkspace("transport-trips", "data");
+        renderPortalView();
       });
     });
 
@@ -1780,8 +1806,22 @@ function transportTripsHtml() {
         if (!ok) return;
         suppressSelfInboxPollToastIfRecipientIsCurrentUser(request.clientUserId);
         notify(userMessage("tripCreatedAssigned"), "success");
-        collapseCreatePanel("create-trip");
+        const optLabel = (name) => String(createTripForm.querySelector(`select[name='${name}'] option:checked`)?.textContent || "").split(" · ")[0].trim();
+        const doneReq = reqRead().find((r) => r.id === requestId) || request;
+        state.tripCreatedNotice = {
+          requestId,
+          summary: [
+            doneReq?.requestNumber || requestId,
+            String(doneReq?.clientName || "").trim(),
+            [doneReq?.originCity, doneReq?.destinationCity].filter(Boolean).join(" → "),
+            [optLabel("vehicleId"), optLabel("driverId")].filter(Boolean).join(" · ")
+          ]
+            .filter(Boolean)
+            .join(" · ")
+        };
+        state.createPanels = { ...(state.createPanels || {}), "create-trip": true };
         renderPortalView();
+        requestAnimationFrame(() => requestAnimationFrame(() => document.querySelector(".create-trip-done")?.scrollIntoView({ block: "center", behavior: "smooth" })));
       }, { busyText: "Asignando viaje…" });
     }
 
@@ -1997,7 +2037,7 @@ function transportTripsHtml() {
         }
         notify(editingKey ? "Tarifa por trayecto actualizada." : userMessage("routeRateSaved"), "success");
         resetRateEditMode();
-        collapseCreatePanel("create-route-rate");
+        state.createPanels = { ...(state.createPanels || {}), "create-route-rate": true };
         renderPortalView();
       }, { busyText: "Guardando tarifa…" });
     }

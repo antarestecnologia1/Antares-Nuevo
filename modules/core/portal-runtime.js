@@ -4445,6 +4445,13 @@ function renderAssignTripRequestPreview(request) {
     : `<span class="create-trip-status-pill create-trip-status-pill--bad" title="Fecha de recogida vencida">Vencida</span>`;
   const cargo = String(request.cargoDescription || "—").trim();
   const cargoShort = cargo.length > 88 ? `${escapeHtml(cargo.slice(0, 88))}…` : escapeHtml(cargo);
+  const pickupD = new Date(request.pickupAt || "");
+  const pickupHtml = Number.isNaN(pickupD.getTime())
+    ? "Sin fecha"
+    : `${escapeHtml(`${pickupD.toLocaleDateString("es-CO", { timeZone: "America/Bogota", day: "numeric", month: "short" }).replace(".", "")} ${pickupD.toLocaleDateString("es-CO", { timeZone: "America/Bogota", year: "numeric" })}`)}<small class="assign-trip-preview-time">${escapeHtml(pickupD.toLocaleTimeString("es-CO", { timeZone: "America/Bogota", hour: "numeric", minute: "2-digit", hour12: true }))}</small>`;
+  const requesterName = String(request.requestedByName || "").trim();
+  const truckHtml = String(requestTruckRequirementSummaryHtml(request) || "").trim();
+  const truckShown = truckHtml && truckHtml !== "—";
   return `<div class="assign-trip-preview-active create-trip-summary-panel--active">
       <div class="assign-trip-preview-head">
         <p class="assign-trip-preview-route">${IC.mapPin}<span>${escapeHtml(formatRoute(request))}</span></p>
@@ -4452,9 +4459,9 @@ function renderAssignTripRequestPreview(request) {
       </div>
       <dl class="assign-trip-preview-facts">
         <div><dt>Cliente</dt><dd>${escapeHtml(String(request.clientName || "—"))}</dd></div>
-        <div><dt>Solicita</dt><dd>${escapeHtml(String(request.requestedByName || "—"))}</dd></div>
-        <div><dt>Camión</dt><dd>${requestTruckRequirementSummaryHtml(request)}</dd></div>
-        <div><dt>Recogida</dt><dd>${escapeHtml(fmtDate(request.pickupAt))}</dd></div>
+        ${requesterName ? `<div><dt>Solicita</dt><dd>${escapeHtml(requesterName)}</dd></div>` : ""}
+        ${truckShown ? `<div><dt>Camión</dt><dd>${truckHtml}</dd></div>` : ""}
+        <div><dt>Recogida</dt><dd>${pickupHtml}</dd></div>
         <div class="assign-trip-preview-facts--wide"><dt>Carga</dt><dd>${cargoShort}</dd></div>
       </dl>
     </div>`;
@@ -5222,6 +5229,17 @@ function refreshCreateTripModuleForm(formEl) {
   updateCreateTripStepper(formEl);
 }
 
+/** Los estados se guardan sin tildes (valor de datos); en pantalla se muestran con su ortografía correcta. */
+const STATUS_DISPLAY_LABELS = {
+  "Aprobada pendiente asignacion": "Aprobada pendiente asignación",
+  "En transito": "En tránsito"
+};
+
+function statusDisplayLabel(status) {
+  const raw = String(status ?? "");
+  return STATUS_DISPLAY_LABELS[raw] || raw;
+}
+
 function prettyStatus(status, scope = "general") {
   const key = slugStatus(status);
   const iconMap = {
@@ -5244,7 +5262,7 @@ function prettyStatus(status, scope = "general") {
    */
   const movingScopes = scope === "request" || scope === "trip";
   const road = movingScopes && (key === "viaje_asignado" || key === "en_transito");
-  return `<span class="status-pretty status-${key} ${road ? "status-road" : ""}">${icon}<span>${escapeHtml(status)}</span></span>`;
+  return `<span class="status-pretty status-${key} ${road ? "status-road" : ""}">${icon}<span>${escapeHtml(statusDisplayLabel(status))}</span></span>`;
 }
 
 function departmentOptions(selected = "") {

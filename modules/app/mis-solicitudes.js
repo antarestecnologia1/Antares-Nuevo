@@ -964,8 +964,11 @@
         btn.setAttribute("aria-selected", on ? "true" : "false");
       });
     };
+    /* Tras un clic explícito el observador no debe cambiar el paso marcado (los últimos pasos no llegan al borde superior). */
+    let stepClickLockUntil = 0;
     navBtns.forEach((btn) => {
       btn.addEventListener("click", () => {
+        stepClickLockUntil = Date.now() + 1400;
         const stepId = String(btn.dataset.step || "");
         if (!/^[a-z]+$/.test(stepId)) return;
         const target = nodes.viewRoot.querySelector(`[data-request-step="${stepId}"]`);
@@ -993,6 +996,7 @@
     if (steps.length && navBtns.length && typeof IntersectionObserver === "function") {
       requestsStepObserver = new IntersectionObserver(
         (entries) => {
+          if (Date.now() < stepClickLockUntil) return;
           const visible = entries
             .filter((entry) => entry.isIntersecting)
             .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];

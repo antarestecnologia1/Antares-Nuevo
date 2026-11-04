@@ -71,6 +71,126 @@ function driverFleetSearchHaystack(item) {
   return parts.map((x) => String(x ?? "").toLowerCase()).join(" ");
 }
 
+/* ---------- Exportar conductores (CSV para Excel) ---------- */
+/* Lista que se está viendo (con búsqueda y filtros); la fija driversHtml() en cada render. */
+let driversExportSnapshot = [];
+
+const DRIVER_STATUS_EXPORT_LABEL = {
+  available: "Disponible",
+  busy: "Ocupado",
+  scheduled: "Reservado",
+  offline: "No disponible"
+};
+const DRIVER_LICENSE_EXPORT_LABEL = { ok: "Vigente", warning: "Por vencer", expired: "Vencida", missing: "Sin fecha" };
+const DRIVER_DOCS_EXPORT_LABEL = { ok: "Al día", warning: "Por vencer", expired: "Crítico", missing: "Incompleto" };
+
+/** Una celda del CSV: entre comillas y sin que Excel la tome como fórmula. */
+function driverCsvCell(value) {
+  let text = String(value ?? "").replace(/\r?\n/g, " ").trim();
+  if (/^[=@]/.test(text) || /^[+-][^\d\s().-]/.test(text)) text = `'${text}`;
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function driverExportRows(summaries) {
+  const ymd = (raw) => {
+    const v = typeof normalizePortalDateYmd === "function" ? normalizePortalDateYmd(raw) : String(raw || "");
+    return v || "";
+  };
+  return (summaries || []).map((item) => {
+    const d = item.raw || {};
+    const vehicleTypes =
+      typeof driverVehicleTypesCsvToLabel === "function"
+        ? driverVehicleTypesCsvToLabel(d.vehicleTypes, "")
+        : String(d.vehicleTypes || "");
+    return [
+      String(d.name || d.fullName || "").trim(),
+      d.documentType || "",
+      d.idDoc || "",
+      d.phone || "",
+      d.email || "",
+      d.city || "",
+      item.companyName === "Sin empresa" ? "" : item.companyName,
+      d.license || "",
+      d.licenseCategory || "",
+      ymd(d.licenseExpiry),
+      DRIVER_LICENSE_EXPORT_LABEL[item.licenseMeta?.bucket] || "",
+      ymd(d.occupationalExamExpiry),
+      ymd(d.instruvialExamExpiry),
+      d.eps || "",
+      d.arl || "",
+      item.comparendos > 0 ? item.comparendos : 0,
+      item.experienceYears || 0,
+      vehicleTypes,
+      DRIVER_STATUS_EXPORT_LABEL[item.statusSlug] || "",
+      DRIVER_DOCS_EXPORT_LABEL[item.docBucket] || ""
+    ];
+  });
+}
+
+const DRIVER_EXPORT_HEADERS = [
+  "Nombre",
+  "Tipo de documento",
+  "Documento",
+  "Teléfono",
+  "Correo",
+  "Ciudad",
+  "Empresa",
+  "Licencia",
+  "Categoría de licencia",
+  "Vence licencia",
+  "Estado de la licencia",
+  "Vence examen ocupacional",
+  "Vence examen Instruvial",
+  "EPS",
+  "ARL",
+  "Comparendos registrados",
+  "Experiencia (años)",
+  "Tipos de vehículo",
+  "Estado operativo",
+  "Documentación"
+];
+
+/** CSV con separador «;» y BOM UTF-8: Excel en español lo abre en columnas y con tildes. */
+function buildDriversCsv(summaries) {
+  const lines = [DRIVER_EXPORT_HEADERS.map(driverCsvCell).join(";")];
+  driverExportRows(summaries).forEach((row) => lines.push(row.map(driverCsvCell).join(";")));
+  return `\uFEFF${lines.join("\r\n")}\r\n`;
+}
+
+function exportDriversCsv() {
+  if (typeof canEditFleetDriverAsAdmin === "function" && !canEditFleetDriverAsAdmin()) {
+    notify("Solo el administrador puede exportar conductores.", "error");
+    return;
+  }
+  const list = Array.isArray(driversExportSnapshot) ? driversExportSnapshot : [];
+  if (!list.length) {
+    notify("No hay conductores para exportar con los filtros actuales.", "error");
+    return;
+  }
+  const stamp = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota" }).format(new Date());
+  const blob = new Blob([buildDriversCsv(list)], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `conductores_${stamp}.csv`;
+  a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 400);
+  notify(
+    `Exportados ${list.length} conductor${list.length === 1 ? "" : "es"} a CSV. El archivo incluye documentos de identidad: guárdelo y compártalo con cuidado.`,
+    "success",
+    6500
+  );
+  /* La bitácora registra la exportación, no los datos exportados. */
+  globalThis.logPortalAuditEvent?.("drivers", "update", {
+    entityId: `csv-${stamp}`,
+    entityLabel: "Conductores",
+    summary: `Exportación CSV · ${list.length} conductor${list.length === 1 ? "" : "es"}`
+  });
+}
+
 function driversHtml() {
   const drivers = read(KEYS.drivers, []);
   const canEditDriver = canEditFleetDriverAsAdmin();
@@ -252,6 +372,7 @@ function driversHtml() {
     if (fleetSearchNorm && !driverFleetSearchHaystack(item).includes(fleetSearchNorm)) return false;
     return true;
   });
+  driversExportSnapshot = filteredSummaries;
   const driversRenderWindowSize = Number(window.RENDER_WINDOW_SIZE) || 30;
   const driversRenderLimit = Number(state.driversRenderLimit) || driversRenderWindowSize;
   const visibleDriverSummaries = filteredSummaries.slice(0, driversRenderLimit);
@@ -514,14 +635,21 @@ function driversHtml() {
     )
     .join("");
 
+  const exportCount = filteredSummaries.length;
+  const exportButton = canEditDriver
+    ? `<button type="button" class="ag-btn ag-btn--export" data-action="drivers-export"${exportCount ? "" : " disabled"} title="Descargar ${exportCount} conductor${exportCount === 1 ? "" : "es"} en un archivo CSV (se abre en Excel)">${IC.download}<span>Exportar</span> <span class="ag-btn__count">${exportCount}</span></button>`
+    : "";
   const fleetToolbar =
     totalDrivers > 0
       ? `<div class="ag-fleet__controls">
       <div class="ag-fleet__row">
         <div class="ag-seg" role="group" aria-label="Filtrar por estado operativo">${statusPills}</div>
+        <div class="ag-fleet__tools">
+        ${exportButton}
         <div class="ag-fleet__view" role="group" aria-label="Vista de conductores">
           <button type="button" class="ag-icon-btn${fleetLayout === "cards" ? " is-active" : ""}" data-action="drivers-fleet-layout" data-layout="cards" title="Tarjetas" aria-label="Vista en tarjetas" aria-pressed="${fleetLayout === "cards"}">${IC.grid}</button>
           <button type="button" class="ag-icon-btn${fleetLayout === "list" ? " is-active" : ""}" data-action="drivers-fleet-layout" data-layout="list" title="Lista" aria-label="Vista en lista" aria-pressed="${fleetLayout === "list"}">${IC.list}</button>
+        </div>
         </div>
       </div>
       <div class="ag-fleet__row ag-fleet__row--filters">
@@ -587,6 +715,10 @@ function driversHtml() {
       btn.addEventListener("click", () => {
         notify(userMessage("driverDeleteUseHr"), "error");
       });
+    });
+
+    nodes.viewRoot.querySelectorAll("[data-action='drivers-export']").forEach((btn) => {
+      btn.addEventListener("click", () => exportDriversCsv());
     });
 
     nodes.viewRoot.querySelectorAll("[data-action='drivers-fleet-search']").forEach((input) => {

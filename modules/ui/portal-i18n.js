@@ -238,7 +238,18 @@
     [/^Los (\d+) principales concentran el (\d+) ?% de los ingresos$/i, "The top $1 account for $2 % of revenue"],
     [/^Clientes con servicios \((.+)\)$/i, function (m, p) { return "Clients with services (" + t(p) + ")"; }],
     [/^(.+): (\d+) camion(?:es)? \((\d+) ?%\)(.*)$/i, function (m, state, n, pct, plates) { return t(state) + ": " + n + (n === "1" ? " truck" : " trucks") + " (" + pct + " %)" + plates; }],
-    [/^(.+): (\$[\d.]+) \((\d+) ?% del total\)$/i, "$1: $2 ($3 % of total)"]
+    [/^(.+): (\$[\d.]+) \((\d+) ?% del total\)$/i, "$1: $2 ($3 % of total)"],
+    /* Solicitudes · bandeja y detalle */
+    [/^(\d+) sol\. · (\d+) en op\.(?: · (\d+) cerr\.)?$/i, function (m, a, b, c) { return a + " req. · " + b + " active" + (c ? " · " + c + " closed" : ""); }],
+    [/^(.+) · creada (.+)$/i, function (m, no, when) { return no + " · created " + t(when); }],
+    [/^Recoge en (\d+) d[ií]as?$/i, function (m, n) { return "Pickup in " + n + (n === "1" ? " day" : " days"); }],
+    [/^Buscar entre (\d+) empresas…$/i, "Search among $1 companies…"],
+    [/^Ver solicitudes de (.+)$/i, "View requests from $1"],
+    [/^Detalle de la solicitud (.+)$/i, "Request details $1"],
+    /* Conductores · exportar */
+    [/^Descargar (\d+) conductor(?:es)? en un archivo CSV \(se abre en Excel\)$/i, function (m, n) { return "Download " + n + (n === "1" ? " driver" : " drivers") + " as a CSV file (opens in Excel)"; }],
+    [/^Exportar (\d+) conductor(?:es)? a CSV$/i, function (m, n) { return "Export " + n + (n === "1" ? " driver" : " drivers") + " to CSV"; }],
+    [/^Exportados (\d+) conductor(?:es)? a CSV\. El archivo incluye documentos de identidad: guárdelo y compártalo con cuidado\.$/i, function (m, n) { return "Exported " + n + (n === "1" ? " driver" : " drivers") + " to CSV. The file contains ID numbers: store and share it carefully."; }]
   ];
 
   function applyRules(s) {

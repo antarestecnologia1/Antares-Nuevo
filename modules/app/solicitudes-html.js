@@ -342,14 +342,13 @@
     const reqNo = String(r.requestNumber || r.id || "—");
     const cargoShort = cargoLabel.length > 56 ? `${cargoLabel.slice(0, 53)}…` : cargoLabel;
     return `<tr data-request-id="${escapeAttr(String(r.id || ""))}">
-      <td data-label="Solicitud"><strong class="vehicle-fleet-list-plate">${escapeHtml(reqNo)}</strong></td>
+      <td data-label="Solicitud / viaje"><strong class="vehicle-fleet-list-plate">${escapeHtml(reqNo)}</strong><div class="vehicle-fleet-list-sub rq-table-trip">${tripCell}</div></td>
       <td data-label="Cliente">${escapeHtml(clientName)}</td>
       <td data-label="Ruta"><span class="vehicle-fleet-list-sub">${escapeHtml(originCity)}</span> → <span class="vehicle-fleet-list-sub">${escapeHtml(destinationCity)}</span></td>
       <td data-label="Carga"><span class="vehicle-fleet-list-doc" title="${escapeAttr(cargoLabel)}">${escapeHtml(cargoShort)}</span></td>
-      <td data-label="Estado">${rqStatusPill(r)}</td>
-      <td data-label="Recogida" class="rq-nowrap">${escapeHtml(rqShortDate(r.trip?.etaPickup || r.pickupAt || r.pickupDate || ""))}</td>
+      <td data-label="Estado">${rqStatusPill(r, { short: true })}</td>
+      <td data-label="Recogida" class="rq-when">${rqWhenCell(r.trip?.etaPickup || r.pickupAt || r.pickupDate || "")}</td>
       <td data-label="${escapeAttr(fare.label)}">${fare.pending ? `<span class="muted">${escapeHtml(fare.text)}</span>` : escapeHtml(fare.text)}</td>
-      <td data-label="Viaje">${tripCell}</td>
       <td data-label="Acciones" class="vehicle-fleet-list-actions"><div class="toolbar">
         <button type="button" class="btn btn-sm btn-action" data-action="detail" data-id="${escapeAttr(String(r.id || ""))}" title="Ver detalle">${IC.eye} Detalle</button>
         ${allowEdit ? `<button type="button" class="btn btn-sm btn-outline" data-action="edit-request" data-id="${escapeAttr(String(r.id || ""))}">${IC.edit} Editar</button>` : ""}
@@ -386,8 +385,14 @@
     return String(raw).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim() || "—";
   }
 
-  function rqStatusPill(r) {
-    return `<span class="rq-status rq-status--${rqTone(r.status)}"><span class="rq-status__dot" aria-hidden="true"></span>${escapeHtml(rqStatusLabel(r))}</span>`;
+  /* En la tabla el estado largo se abrevia para no ocupar tres líneas; el texto completo queda en el title. */
+  const RQ_STATUS_SHORT = { "Aprobada pendiente asignación": "Por asignar" };
+
+  function rqStatusPill(r, opts = {}) {
+    const full = rqStatusLabel(r);
+    const label = opts.short ? RQ_STATUS_SHORT[full] || full : full;
+    const title = label !== full ? ` title="${escapeAttr(full)}"` : "";
+    return `<span class="rq-status rq-status--${rqTone(r.status)}"${title}><span class="rq-status__dot" aria-hidden="true"></span>${escapeHtml(label)}</span>`;
   }
 
   function rqShortDate(raw) {
@@ -398,6 +403,17 @@
     const day = d.toLocaleDateString("es-CO", { ...opts, day: "numeric", month: "short" }).replace(".", "");
     const time = d.toLocaleTimeString("es-CO", { ...opts, hour: "numeric", minute: "2-digit", hour12: true }).replace(/\s/g, " ");
     return `${day} · ${time}`;
+  }
+
+  /* Fecha en dos líneas para la tabla: día arriba, hora debajo (cabe en columnas angostas). */
+  function rqWhenCell(raw) {
+    if (!raw) return `<span class="muted">Sin fecha</span>`;
+    const d = new Date(raw);
+    if (Number.isNaN(d.getTime())) return `<span class="muted">Sin fecha</span>`;
+    const opts = { timeZone: "America/Bogota" };
+    const day = d.toLocaleDateString("es-CO", { ...opts, day: "numeric", month: "short" }).replace(".", "");
+    const time = d.toLocaleTimeString("es-CO", { ...opts, hour: "numeric", minute: "2-digit", hour12: true }).replace(/\s/g, " ");
+    return `<span class="rq-when__day">${escapeHtml(day)}</span><span class="rq-when__time">${escapeHtml(time)}</span>`;
   }
 
   function rqPickupRaw(r) {
@@ -626,7 +642,7 @@
         <div class="rq-pane__id">
           <span class="rq-pane__avatar" aria-hidden="true">${rqInitial(clientName)}</span>
           <div class="rq-pane__title">
-            <h4>${escapeHtml(clientName)}</h4>
+            <h4 aria-level="3">${escapeHtml(clientName)}</h4>
             <p>${escapeHtml(reqNo)}${created ? ` · creada ${escapeHtml(created)}` : ""}</p>
             <div class="rq-pane__status">${rqStatusPill(r)}</div>
           </div>
@@ -710,7 +726,7 @@
       const rows = shown.map((r) => buildRequestOpsListRow(r, user)).join("");
       return `<div class="table-wrap vehicle-fleet-list-wrap"><table class="vehicle-fleet-table request-ops-fleet-table">
         <thead><tr>
-          <th>Solicitud</th><th>Cliente</th><th>Ruta</th><th>Carga</th><th>Estado</th><th>Recogida</th><th>Valor</th><th>Viaje</th><th>Acciones</th>
+          <th>Solicitud / viaje</th><th>Cliente</th><th>Ruta</th><th>Carga</th><th>Estado</th><th>Recogida</th><th>Valor</th><th>Acciones</th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table></div>${moreBar}`;
@@ -797,7 +813,7 @@
         <aside class="requests-data-sidebar" aria-label="Empresas clientes">
           <div class="requests-data-sidebar__head">
             <div>
-              <h4 class="requests-data-sidebar__title">Empresas</h4>
+              <h4 class="requests-data-sidebar__title" aria-level="2">Empresas</h4>
             </div>
             <span class="requests-data-sidebar__count">${companyCount}</span>
           </div>
@@ -983,14 +999,14 @@
       </div>
       <p class="requests-company-directory__meta muted">Mostrando <strong>${shown.length}</strong> de <strong>${total}</strong> empresa${total === 1 ? "" : "s"}${companySearchNorm ? " · búsqueda activa" : ""}</p>
       <div class="requests-company-directory__list" role="listbox" aria-label="Empresas clientes">
-        <button type="button" class="requests-company-row requests-company-row--all${allActive ? " is-active" : ""}" data-action="request-company-clear"${allActive ? ' aria-current="true"' : ""}>
+        <button type="button" class="requests-company-row requests-company-row--all${allActive ? " is-active" : ""}" data-action="request-company-clear" role="option" aria-selected="${allActive ? "true" : "false"}">
           <span class="requests-company-row__logo requests-company-row__logo--all" aria-hidden="true">${IC.briefcase || ""}</span>
           <span class="requests-company-row__body">
             <span class="requests-company-row__name">Todas las empresas</span>
             <span class="requests-company-row__meta">${entries.length} cliente${entries.length === 1 ? "" : "s"} · vista consolidada</span>
           </span>
         </button>
-        ${rows || `<p class="requests-company-directory__empty muted">Ninguna empresa coincide con el filtro.</p>`}
+        ${rows || `<p class="requests-company-directory__empty muted" role="option" aria-disabled="true" aria-selected="false">Ninguna empresa coincide con el filtro.</p>`}
       </div>
       ${moreBar}
     </div>`;
@@ -1035,26 +1051,17 @@
           <input type="hidden" name="companyId" value="${escapeAttr(user?.companyId || "")}" />
         </label>`;
     return `<form id="form-request" class="p-form p-form-colored hr-form-flow antares-create-form requests-create-form" autocomplete="off" novalidate lang="es">
-    ${renderHrFormHero({
-      eyebrow: "Solicitudes de transporte",
-      title: "Nueva solicitud de viaje",
-      description: "Registre la ruta, ventanas de servicio y especificaciones de carga. La solicitud quedará pendiente de aprobación operativa.",
-      tone: "brand",
-      badges: [
-        renderHrFormHeroBadge("4 pasos", "guiados"),
-        renderHrFormHeroBadge("Ruta", "origen y destino"),
-        renderHrFormHeroBadge("Carga", "especificaciones")
-      ]
-    })}
     <div class="antares-create-form__sections">
     <fieldset class="form-section form-section-blue full" data-request-step="route">
       <legend>${IC.briefcase} Empresa y ruta</legend>
       <p class="muted form-section-hint">Identifique el cliente y la ruta completa del servicio de transporte.</p>
       <div class="form-section-grid">
         ${companyField}
+        <p class="form-subhead full">Origen</p>
         <label>${fieldLabel(IC.mapPin, "Departamento de origen", { required: true })}<select name="originDepartment" id="origin-department" required><option value="">Seleccione...</option>${departments}</select></label>
         <label>${fieldLabel(IC.mapPin, "Ciudad de origen", { required: true })}<select name="originCity" id="origin-city" required><option value="">Seleccione un departamento...</option></select></label>
         <label class="full">${fieldLabel(IC.compass, "Dirección de origen", { required: true })}<input name="originAddress" required placeholder="Dirección, barrio o punto de cargue" data-antares-field="db-upper" data-antares-validate-blur="db-upper" /></label>
+        <p class="form-subhead full">Destino</p>
         <label>${fieldLabel(IC.mapPin, "Departamento de destino", { required: true })}<select name="destinationDepartment" id="destination-department" required><option value="">Seleccione...</option>${departments}</select></label>
         <label>${fieldLabel(IC.mapPin, "Ciudad de destino", { required: true })}<select name="destinationCity" id="destination-city" required><option value="">Seleccione un departamento...</option></select></label>
         <label class="full">${fieldLabel(IC.compass, "Dirección de destino", { required: true })}<input name="destinationAddress" required placeholder="Dirección, barrio o punto de descargue" data-antares-field="db-upper" data-antares-validate-blur="db-upper" /></label>
@@ -1069,12 +1076,12 @@
       <legend>${IC.truck} Carga y servicio</legend>
       <p class="muted form-section-hint">Defina el tipo de servicio, refrigeración y vehículo requerido para la operación.</p>
       <div class="form-section-grid">
-        <label class="full">${fieldLabel(IC.briefcase, "Modo de transporte", { required: true })}<select name="serviceType" id="request-service-type" required><option value="">Seleccione...</option><option value="Transporte nacional">Transporte nacional</option><option value="Transporte entre sedes del cliente">Transporte entre sedes del cliente</option></select></label>
-        <label>${fieldLabel(IC.file, "Descripción de la carga", { required: true })}<input name="cargoDescription" required placeholder="Qué se transporta" data-antares-field="db-upper" data-antares-validate-blur="db-upper" /></label>
-        <label class="full">${fieldLabel(IC.truck, "Refrigeración Termoking", { required: true })}<select name="requiresThermoking" id="request-thermoking" required><option value="">Seleccione...</option><option value="yes">Sí, requiere equipo Termoking (refrigerado)</option><option value="no">No, carga seca (sin Termoking)</option></select></label>
-        <label class="full">${fieldLabel(IC.truck, "Tipo de camión requerido", { required: true })}<select name="requiredTruckType" id="request-required-truck-type" required><option value="">Seleccione...</option><option value="Turbo">Turbo</option><option value="Camión">Camión</option><option value="Tractomula">Tractomula</option></select></label>
+        <label>${fieldLabel(IC.briefcase, "Modo de transporte", { required: true })}<select name="serviceType" id="request-service-type" required><option value="">Seleccione...</option><option value="Transporte nacional">Transporte nacional</option><option value="Transporte entre sedes del cliente">Transporte entre sedes del cliente</option></select></label>
+        <label>${fieldLabel(IC.truck, "Refrigeración Termoking", { required: true })}<select name="requiresThermoking" id="request-thermoking" required><option value="">Seleccione...</option><option value="yes">Sí, requiere equipo Termoking (refrigerado)</option><option value="no">No, carga seca (sin Termoking)</option></select></label>
+        <label>${fieldLabel(IC.truck, "Tipo de camión requerido", { required: true })}<select name="requiredTruckType" id="request-required-truck-type" required><option value="">Seleccione...</option><option value="Turbo">Turbo</option><option value="Camión">Camión</option><option value="Tractomula">Tractomula</option></select></label>
         <label class="request-truck-field request-truck-field--fuelles" hidden>${fieldLabel(IC.grid, "Cantidad de fuelles", { required: true })}<input type="number" min="0" step="1" name="fuelles" id="request-fuelles-input" /></label>
         <label class="request-truck-field request-truck-field--kg" hidden>${fieldLabel(IC.scale, "Peso kg (tractomula)", { required: true })}<input type="number" min="0" step="0.01" name="weightKg" id="request-tractomula-kg" /></label>
+        <label class="full">${fieldLabel(IC.file, "Descripción de la carga", { required: true })}<input name="cargoDescription" required placeholder="Qué se transporta" data-antares-field="db-upper" data-antares-validate-blur="db-upper" /></label>
       </div>
     </fieldset>
     <fieldset class="form-section form-section-amber full" data-request-step="contact">
@@ -1092,7 +1099,7 @@
     </fieldset>
     </div>
     <footer class="antares-create-form__footer">
-      ${renderManagedCreateFormActions("create-request", `<button class="btn btn-primary antares-create-form__submit" type="submit">${IC.send} Crear solicitud</button>`)}
+      ${renderManagedCreateFormActions("create-request", `<button class="btn btn-primary antares-create-form__submit" type="submit">${IC.send} Crear solicitud</button>`, { hideToggle: true, cancelLabel: "Limpiar formulario" })}
     </footer>
   </form>`;
   }
@@ -1108,10 +1115,10 @@
       "create-request",
       "plus",
       "Nueva solicitud de viaje",
-      "Selecciona origen, destino, fecha y hora de forma guiada",
+      "Registre ruta, ventanas y carga. La solicitud queda pendiente de aprobación operativa.",
       requestCreateFormBodyHtml(),
       "Abrir formulario",
-      { createPanels: requestsCreateUi }
+      { createPanels: requestsCreateUi, alwaysOpen: true }
     );
   }
 

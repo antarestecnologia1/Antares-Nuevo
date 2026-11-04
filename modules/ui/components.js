@@ -172,13 +172,14 @@ export function renderManagedCreateFormActions(panelId, submitHtml, opts = {}) {
   const extraActionsHtml = String(opts.extraActionsHtml || "").trim();
   const submitMarkup = String(submitHtml || "").trim();
   const showCancel = opts.showCancel !== false;
+  const hideToggle = opts.hideToggle === true;
   const toolsHtml = extraActionsHtml
     ? `<div class="module-panel-actions__group module-panel-actions__group--tools">${extraActionsHtml}</div>`
     : "";
   return `<div class="${escapeAttr(className)}">
     <div class="module-panel-actions__bar">
       <div class="module-panel-actions__group module-panel-actions__group--secondary">
-        ${renderModulePanelToggleBtn({ expanded: true, toggleAction, panelId: id, expandLabel })}
+        ${hideToggle ? "" : renderModulePanelToggleBtn({ expanded: true, toggleAction, panelId: id, expandLabel })}
         ${showCancel ? renderModulePanelCancelBtn({ cancelAction, panelId: id, cancelLabel: opts.cancelLabel }) : ""}
       </div>
       ${toolsHtml}
@@ -577,9 +578,11 @@ export function createHrActionCard(panelId, iconKey, title, subtitle, bodyHtml, 
     opts && typeof opts === "object" && Object.prototype.hasOwnProperty.call(opts, "createPanels")
       ? opts.createPanels
       : {};
-  const expanded = isCreatePanelExpanded(panelId, false, createPanels);
+  /* «alwaysOpen»: el formulario es la tarea principal de la pantalla; no se minimiza ni se cierra al guardar. */
+  const alwaysOpen = opts && typeof opts === "object" && opts.alwaysOpen === true;
+  const expanded = alwaysOpen || isCreatePanelExpanded(panelId, false, createPanels);
   const tone = String(iconKey || "plus").replace(/[^a-z0-9_-]/gi, "");
-  const extraClass = expanded ? "p-card--expanded hr-action-card--open" : "p-card--collapsed";
+  const extraClass = `${expanded ? "p-card--expanded hr-action-card--open" : "p-card--collapsed"}${alwaysOpen ? " hr-action-card--static" : ""}`;
   const desc = subtitle
     ? `<p class="hr-action-card__desc">${escapeHtml(String(subtitle))}</p>`
     : "";
@@ -596,7 +599,7 @@ export function createHrActionCard(panelId, iconKey, title, subtitle, bodyHtml, 
       </div>
       <div class="hr-action-card__toolbar">
         ${toolbarExtras}
-        ${renderModulePanelToolbar({ expanded, toggleAction: "toggle-create-panel", panelId, expandLabel, showWhen: "always" })}
+        ${alwaysOpen ? "" : renderModulePanelToolbar({ expanded, toggleAction: "toggle-create-panel", panelId, expandLabel, showWhen: "always" })}
       </div>
     </header>
     ${cardBody}

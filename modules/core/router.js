@@ -833,6 +833,7 @@ export function renderPortalViewImpl() {
   }
   if (view === "transport-trips" && prevPortalView !== "transport-trips") {
     state.deletedTransportTripsLogMinimized = true;
+    state.tripCreatedNotice = null;
     state.transportTripsUi = {
       ...(state.transportTripsUi || {}),
       workspace: "operate",

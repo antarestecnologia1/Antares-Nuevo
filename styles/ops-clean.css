@@ -2089,3 +2089,998 @@ body.portal-mode .transport-studio .trip-ops-fleet-table thead th {
 body.portal-mode .transport-studio .trip-ops-fleet-table tbody td:first-child .vehicle-fleet-list-plate {
   white-space: normal;
 }
+
+/* =====================================================================
+   Registrar viaje v4 — el formulario está siempre abierto, ocupa todo el
+   ancho y se ordena en tres pasos (solicitud → flota → tarifa).
+   ===================================================================== */
+
+/* El riel lateral pasa a pestañas arriba para devolverle ~270 px al formulario */
+body.portal-mode .transport-studio .transport-operate,
+body.portal-mode .transport-studio .transport-operate.is-rail-collapsed {
+  display: block !important;
+}
+
+body.portal-mode .transport-studio .transport-operate__rail,
+body.portal-mode .transport-studio .transport-operate.is-rail-collapsed .transport-operate__rail {
+  position: static !important;
+  width: auto !important;
+  max-width: none !important;
+  margin: 0 0 0.9rem !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+body.portal-mode .transport-studio .transport-operate__rail-head {
+  display: none !important;
+}
+
+body.portal-mode .transport-studio .transport-operate-nav {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+body.portal-mode .transport-studio .transport-operate-nav-tab,
+body.portal-mode .transport-studio .transport-operate.is-rail-collapsed .transport-operate-nav-tab {
+  width: auto !important;
+  flex: 0 1 auto;
+  align-items: center !important;
+  gap: 0.55rem;
+  padding: 0.5rem 0.95rem !important;
+  border: 1px solid var(--oc-line) !important;
+  border-radius: 999px !important;
+  background: var(--oc-bg) !important;
+  box-shadow: none !important;
+}
+
+body.portal-mode .transport-studio .transport-operate-nav-tab.is-active {
+  border-color: var(--oc-brand) !important;
+  background: var(--oc-brand-soft) !important;
+}
+
+body.portal-mode .transport-studio .transport-operate-nav-tab .transport-operate-nav-copy {
+  display: flex !important;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+body.portal-mode .transport-studio .transport-operate-nav-tab .transport-operate-nav-hint,
+body.portal-mode .transport-studio .transport-operate-nav-tab .transport-operate-nav-norm {
+  display: none !important;
+}
+
+body.portal-mode .transport-studio .transport-operate-nav-tab .transport-operate-nav-label {
+  font-size: 0.92rem !important;
+  color: var(--oc-ink) !important;
+}
+
+body.portal-mode .transport-studio .transport-operate-nav-tab .transport-operate-nav-ico {
+  width: 1.5rem !important;
+  height: 1.5rem !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--oc-brand-ink) !important;
+}
+
+/* Tarjeta fija: sin botón de minimizar, cabecera compacta y plana */
+body.portal-mode .transport-studio .transport-operate__main .hr-action-card--static {
+  border: 1px solid var(--oc-line) !important;
+  border-radius: var(--oc-radius) !important;
+  background: var(--oc-bg) !important;
+  box-shadow: none !important;
+}
+
+body.portal-mode .transport-studio .transport-operate__main .hr-action-card--static .hr-action-card__head {
+  padding: 0.95rem 1.25rem !important;
+  border-bottom: 1px solid var(--oc-line) !important;
+  background: var(--oc-bg) !important;
+}
+
+body.portal-mode .transport-studio .transport-operate__main .hr-action-card--static .hr-action-card__head .hr-card-icon {
+  width: 2.25rem !important;
+  height: 2.25rem !important;
+  background: var(--oc-brand) !important;
+  box-shadow: none !important;
+}
+
+body.portal-mode .transport-studio .transport-operate__main .hr-action-card--static .hr-action-card__panel {
+  padding: 0 !important;
+}
+
+/* Pasos: tres bloques apilados a todo el ancho */
+body.portal-mode .transport-studio #form-create-trip .create-trip-form-v2__body {
+  gap: 1rem !important;
+  padding: 1.1rem 1.25rem 0.5rem !important;
+}
+
+body.portal-mode .transport-studio #form-create-trip .create-trip-form-v2__assign-row {
+  display: flex !important;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+body.portal-mode .transport-studio #form-create-trip .assign-trip-block {
+  margin: 0 !important;
+  padding: 1rem 1.15rem 1.1rem !important;
+  border: 1px solid var(--oc-line) !important;
+  border-radius: var(--oc-radius) !important;
+  background: var(--oc-bg) !important;
+}
+
+body.portal-mode .transport-studio #form-create-trip .assign-trip-block-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.9rem;
+  margin: 0 0 0.6rem !important;
+  padding: 0 0 0.6rem !important;
+  border-bottom: 1px solid var(--oc-line) !important;
+}
+
+body.portal-mode .transport-studio #form-create-trip .assign-trip-block-title::before {
+  background: var(--oc-brand) !important;
+  box-shadow: none !important;
+}
+
+body.portal-mode .transport-studio #form-create-trip .create-trip-form-v2__hint {
+  margin: 0 0 0.75rem !important;
+  color: var(--oc-ink-2) !important;
+}
+
+/* Paso 1: lista de solicitudes + resumen lado a lado */
+body.portal-mode .transport-studio #form-create-trip .create-trip-form-v2__request-grid.has-request-selected {
+  grid-template-columns: minmax(0, 1.5fr) minmax(16rem, 1fr);
+  gap: 1.1rem;
+}
+
+body.portal-mode .transport-studio #form-create-trip .create-trip-form-v2__preview {
+  min-height: 0;
+  padding: 0.85rem 1rem !important;
+  border: 1px solid var(--oc-line) !important;
+  border-radius: 12px !important;
+  background: var(--oc-soft) !important;
+  box-shadow: none !important;
+}
+
+body.portal-mode .transport-studio #form-create-trip .create-trip-form-v2__request-grid.has-request-selected .create-trip-form-v2__preview {
+  border-color: var(--oc-brand) !important;
+  background: var(--oc-brand-soft) !important;
+}
+
+body.portal-mode .transport-studio #form-create-trip .assign-trip-preview-facts {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem 1rem;
+  margin: 0.7rem 0 0 !important;
+}
+
+body.portal-mode .transport-studio #form-create-trip .assign-trip-preview-facts > div {
+  min-width: 0;
+}
+
+body.portal-mode .transport-studio #form-create-trip .assign-trip-preview-facts > .assign-trip-preview-facts--wide {
+  grid-column: 1 / -1;
+}
+
+body.portal-mode .transport-studio #form-create-trip .assign-trip-preview-facts dt {
+  margin: 0 0 0.15rem;
+  color: var(--oc-ink-3);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+body.portal-mode .transport-studio #form-create-trip .assign-trip-preview-facts dd {
+  margin: 0;
+  color: var(--oc-ink);
+  font-size: 0.9rem;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+/* Pasos 2 y 3 bloqueados: legibles, con nota en vez de una pantalla apagada */
+body.portal-mode .transport-studio #form-create-trip .create-trip-lock-note {
+  display: none;
+  margin-left: auto;
+  padding: 0.18rem 0.6rem;
+  border-radius: 999px;
+  background: var(--oc-wait-soft);
+  color: var(--oc-wait);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+body.portal-mode .transport-studio #form-create-trip .create-trip-form-v2__assign-row.is-locked .create-trip-lock-note {
+  display: inline-flex;
+}
+
+body.portal-mode .transport-studio #form-create-trip .create-trip-form-v2__assign-row.is-locked {
+  opacity: 0.72 !important;
+  filter: none !important;
+}
+
+body.portal-mode .transport-studio #form-create-trip .create-trip-form-v2__assign-row.is-locked .assign-trip-block {
+  border-style: dashed !important;
+  background: var(--oc-soft) !important;
+}
+
+/* Paso 2: vehículo y conductor, un campo por mitad (ya no truncan el texto) */
+body.portal-mode .transport-studio #form-create-trip .create-trip-fleet-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem !important;
+}
+
+body.portal-mode .transport-studio #form-create-trip .create-trip-fleet-field {
+  min-width: 0;
+  margin: 0 !important;
+}
+
+/* Paso 3: tarifa de catálogo y precio en una fila */
+body.portal-mode .transport-studio #form-create-trip .create-trip-rate-inner {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 0.85rem 1rem;
+  align-items: start;
+}
+
+body.portal-mode .transport-studio #form-create-trip .create-trip-rate-inner > .trip-rate-meta {
+  grid-column: 1 / -1;
+  order: 3;
+  margin: 0;
+}
+
+body.portal-mode .transport-studio #form-create-trip .create-trip-rate-inner > label {
+  margin: 0 !important;
+}
+
+/* Pie fijo: el botón «Crear viaje» siempre está a la vista */
+body.portal-mode .transport-studio #form-create-trip .create-trip-form-v2__footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  padding: 0.75rem 1.25rem 0.9rem !important;
+  border-top: 1px solid var(--oc-line) !important;
+  background: var(--oc-bg) !important;
+}
+
+/* Aviso de viaje creado */
+body.portal-mode .transport-studio .create-trip-done {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  margin: 1rem 1.25rem 0;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--oc-done-dot);
+  border-radius: 12px;
+  background: var(--oc-done-soft);
+  color: var(--oc-done);
+}
+
+body.portal-mode .transport-studio .create-trip-done__ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 50%;
+  background: var(--oc-done);
+  color: #fff;
+  flex-shrink: 0;
+}
+
+body.portal-mode .transport-studio .create-trip-done__copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+body.portal-mode .transport-studio .create-trip-done__copy span {
+  color: var(--oc-ink-2);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+body.portal-mode .transport-studio .create-trip-done__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+@media (max-width: 900px) {
+  body.portal-mode .transport-studio #form-create-trip .create-trip-form-v2__request-grid.has-request-selected,
+  body.portal-mode .transport-studio #form-create-trip .create-trip-fleet-grid,
+  body.portal-mode .transport-studio #form-create-trip .create-trip-rate-inner {
+    grid-template-columns: 1fr;
+  }
+
+  body.portal-mode .transport-studio #form-create-trip .create-trip-form-v2__body {
+    padding: 0.85rem 0.75rem 0.4rem !important;
+  }
+
+  body.portal-mode .transport-studio .create-trip-done {
+    margin: 0.75rem 0.75rem 0;
+    flex-wrap: wrap;
+  }
+
+  body.portal-mode .transport-studio #form-create-trip .create-trip-form-v2__footer {
+    padding: 0.65rem 0.75rem 0.75rem !important;
+  }
+}
+
+/* Registrar viaje v4 · ajustes de compactación */
+body.portal-mode .transport-studio .transport-operate-nav-tab::before,
+body.portal-mode .transport-studio .transport-operate-nav-tab::after {
+  display: none !important;
+}
+
+body.portal-mode .transport-studio #form-create-trip .create-trip-form-v2__head {
+  display: none !important;
+}
+
+body.portal-mode .transport-studio #form-create-trip .create-trip-form-v2__progress {
+  padding: 0.9rem 1.25rem 0 !important;
+}
+
+body.portal-mode .transport-studio #form-create-trip .create-trip-form-v2__footer {
+  display: flex !important;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem 1rem;
+}
+
+body.portal-mode .transport-studio #form-create-trip .create-trip-form-v2__readiness {
+  flex: 1 1 22rem;
+  min-width: 0;
+  margin: 0 !important;
+}
+
+body.portal-mode .transport-studio #form-create-trip .create-trip-form-v2__footer .module-panel-actions {
+  flex: 0 1 auto;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Registrar viaje v4 · tarifa plana, pie en una fila, pestañas sin acento lateral */
+body.portal-mode .transport-studio .transport-operate-nav-tab,
+body.portal-mode .transport-studio .transport-operate-nav-tab.is-active {
+  border-width: 1px !important;
+}
+
+body.portal-mode .transport-studio #form-create-trip .assign-trip-preview-time {
+  display: block;
+  margin-top: 0.1rem;
+  color: var(--oc-ink-2);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+body.portal-mode .transport-studio #form-create-trip .create-trip-rate-surface,
+body.portal-mode .transport-studio #form-create-trip .create-trip-rate-inner,
+body.portal-mode .transport-studio #form-create-trip .create-trip-rate-inner > label,
+body.portal-mode .transport-studio #form-create-trip .create-trip-price-field,
+body.portal-mode .transport-studio #form-create-trip .create-trip-rate-catalog {
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+body.portal-mode .transport-studio #form-create-trip .create-trip-rate-inner > label.full {
+  grid-column: auto !important;
+}
+
+body.portal-mode .transport-studio #form-create-trip .create-trip-rate-inner > .trip-rate-meta {
+  grid-column: 1 / -1 !important;
+}
+
+body.portal-mode .transport-studio #form-create-trip .create-trip-readiness--bar {
+  display: flex !important;
+  flex-wrap: wrap;
+  gap: 0.4rem !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+body.portal-mode .transport-studio #form-create-trip .create-trip-readiness--bar .create-trip-readiness-item {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  min-width: 0;
+  padding: 0.3rem 0.8rem !important;
+}
+
+body.portal-mode .transport-studio #form-create-trip .create-trip-form-v2__footer .module-panel-actions {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  max-width: 100%;
+}
+
+body.portal-mode .transport-studio #form-create-trip .create-trip-form-v2__footer .module-panel-actions__bar {
+  gap: 0.6rem;
+  justify-content: flex-end;
+}
+
+body.portal-mode .transport-studio #form-create-trip .create-trip-form-v2__footer .module-panel-actions__group {
+  flex: 0 0 auto;
+}
+
+/* Registrar viaje v4 · formulario «Trayecto y tarifa» con la misma lógica plana que «Asignar viaje» */
+body.portal-mode .transport-studio #form-route-rate fieldset.form-section {
+  margin: 0 0 1rem !important;
+  padding: 1rem 1.15rem 1.1rem !important;
+  border: 1px solid var(--oc-line) !important;
+  border-top-width: 1px !important;
+  border-radius: var(--oc-radius) !important;
+  background: var(--oc-bg) !important;
+  box-shadow: none !important;
+}
+
+body.portal-mode .transport-studio #form-route-rate fieldset.form-section > legend {
+  float: left;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  margin: 0 0 0.65rem !important;
+  padding: 0 0 0.6rem !important;
+  border-bottom: 1px solid var(--oc-line);
+  background: transparent !important;
+  color: var(--oc-ink) !important;
+  font-size: 0.95rem;
+  font-weight: 750;
+}
+
+body.portal-mode .transport-studio #form-route-rate fieldset.form-section > legend + * {
+  clear: both;
+}
+
+body.portal-mode .transport-studio #form-route-rate .transport-form__body {
+  padding: 1.1rem 1.25rem 0.5rem !important;
+}
+
+body.portal-mode .transport-studio #form-route-rate .transport-form__footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex !important;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem 1rem;
+  padding: 0.75rem 1.25rem 0.9rem !important;
+}
+
+body.portal-mode .transport-studio #form-route-rate .create-trip-readiness--bar {
+  display: flex !important;
+  flex-wrap: wrap;
+  flex: 1 1 18rem;
+  gap: 0.4rem !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+body.portal-mode .transport-studio #form-route-rate .create-trip-readiness--bar .create-trip-readiness-item {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  padding: 0.3rem 0.8rem !important;
+}
+
+body.portal-mode .transport-studio #form-route-rate .transport-form__footer .module-panel-actions {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+body.portal-mode .transport-studio #form-route-rate .transport-form__footer .module-panel-actions__bar {
+  gap: 0.6rem;
+  justify-content: flex-end;
+}
+
+body.portal-mode .transport-studio :is(#form-route-rate, #form-create-trip) ul.create-trip-readiness--bar {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Registrar viaje v4 · móvil: el pie apila sus bloques sin estirar los chips */
+@media (max-width: 900px) {
+  body.portal-mode .transport-studio :is(#form-create-trip, #form-route-rate) .create-trip-readiness--bar {
+    flex: 0 0 auto !important;
+    width: 100%;
+  }
+
+  body.portal-mode .transport-studio :is(#form-create-trip, #form-route-rate) .create-trip-readiness--bar .create-trip-readiness-item {
+    flex: 0 0 auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+  }
+
+  body.portal-mode .transport-studio :is(#form-create-trip, #form-route-rate) :is(.transport-form__footer, .create-trip-form-v2__footer) {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+
+  body.portal-mode .transport-studio :is(#form-create-trip, #form-route-rate) :is(.transport-form__footer, .create-trip-form-v2__footer) .module-panel-actions {
+    width: 100% !important;
+  }
+
+  body.portal-mode .transport-studio :is(#form-create-trip, #form-route-rate) :is(.transport-form__footer, .create-trip-form-v2__footer) .module-panel-actions__bar {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: space-between;
+  }
+}
+
+/* Modo oscuro · banderas y contadores de flota legibles */
+body[data-theme="dark"].portal-mode .transport-studio #form-create-trip .create-trip-flag {
+  color: var(--oc-ink-2) !important;
+}
+
+body[data-theme="dark"].portal-mode .transport-studio #form-create-trip .create-trip-flag--busy { color: #9cc7f0 !important; }
+body[data-theme="dark"].portal-mode .transport-studio #form-create-trip .create-trip-flag--offline { color: #f0bd5c !important; }
+body[data-theme="dark"].portal-mode .transport-studio #form-create-trip .create-trip-flag--expired { color: #ff9f97 !important; }
+
+body[data-theme="dark"].portal-mode .transport-studio #form-create-trip .create-trip-fleet-stats > * {
+  color: var(--oc-ink-2) !important;
+}
+
+body[data-theme="dark"].portal-mode .transport-studio #form-create-trip .create-trip-fleet-stats > .is-ok,
+body[data-theme="dark"].portal-mode .transport-studio #form-create-trip .create-trip-fleet-stats > [class*="ok"] {
+  color: var(--oc-done) !important;
+}
+
+@media (max-width: 900px) {
+  body.portal-mode .transport-studio :is(#form-create-trip .create-trip-form-v2__footer, #form-route-rate .transport-form__footer) {
+    position: static;
+  }
+}
+
+/* =====================================================================
+   Solicitudes · Registrar v4 — formulario siempre abierto, a todo el ancho,
+   pasos como pestañas arriba y campos planos.
+   ===================================================================== */
+body.portal-mode .requests-studio .req-operate,
+body.portal-mode .requests-studio .req-operate.is-rail-collapsed {
+  display: block !important;
+}
+
+body.portal-mode .requests-studio .req-operate__rail,
+body.portal-mode .requests-studio .req-operate.is-rail-collapsed .req-operate__rail {
+  position: sticky !important;
+  top: 0;
+  z-index: 6;
+  width: auto !important;
+  max-width: none !important;
+  margin: 0 0 0.9rem !important;
+  padding: 0.5rem 0 !important;
+  border: 0 !important;
+  background: var(--oc-bg) !important;
+  box-shadow: none !important;
+}
+
+body.portal-mode .requests-studio .req-operate__rail-head {
+  display: none !important;
+}
+
+body.portal-mode .requests-studio .requests-operate-nav {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  counter-reset: req-step;
+}
+
+body.portal-mode .requests-studio .requests-operate-nav-tab,
+body.portal-mode .requests-studio .req-operate.is-rail-collapsed .requests-operate-nav-tab {
+  width: auto !important;
+  flex: 0 1 auto;
+  align-items: center !important;
+  gap: 0.5rem;
+  padding: 0.45rem 0.9rem 0.45rem 0.55rem !important;
+  border: 1px solid var(--oc-line) !important;
+  border-width: 1px !important;
+  border-radius: 999px !important;
+  background: var(--oc-bg) !important;
+  box-shadow: none !important;
+  counter-increment: req-step;
+}
+
+body.portal-mode .requests-studio .requests-operate-nav-tab::before {
+  content: counter(req-step);
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  position: static !important;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin: 0;
+  border-radius: 50%;
+  background: var(--oc-soft);
+  color: var(--oc-ink-2);
+  font-size: 0.75rem;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+body.portal-mode .requests-studio .requests-operate-nav-tab::after {
+  display: none !important;
+}
+
+body.portal-mode .requests-studio .requests-operate-nav-tab.is-active {
+  border-color: var(--oc-brand) !important;
+  background: var(--oc-brand-soft) !important;
+}
+
+body.portal-mode .requests-studio .requests-operate-nav-tab.is-active::before {
+  background: var(--oc-brand);
+  color: #fff;
+}
+
+body.portal-mode .requests-studio .requests-operate-nav-ico,
+body.portal-mode .requests-studio .requests-operate-nav-hint,
+body.portal-mode .requests-studio .requests-operate-nav-norm {
+  display: none !important;
+}
+
+body.portal-mode .requests-studio .requests-operate-nav-copy {
+  display: flex !important;
+}
+
+body.portal-mode .requests-studio .requests-operate-nav-label {
+  font-size: 0.9rem !important;
+  color: var(--oc-ink) !important;
+}
+
+/* Tarjeta fija y plana */
+body.portal-mode .requests-studio .req-operate__main .hr-action-card--static {
+  border: 1px solid var(--oc-line) !important;
+  border-radius: var(--oc-radius) !important;
+  background: var(--oc-bg) !important;
+  box-shadow: none !important;
+}
+
+body.portal-mode .requests-studio .req-operate__main .hr-action-card--static .hr-action-card__head {
+  padding: 0.95rem 1.25rem !important;
+  border-bottom: 1px solid var(--oc-line) !important;
+  background: var(--oc-bg) !important;
+}
+
+body.portal-mode .requests-studio .req-operate__main .hr-action-card--static .hr-action-card__head .hr-card-icon {
+  width: 2.25rem !important;
+  height: 2.25rem !important;
+  background: var(--oc-brand) !important;
+  box-shadow: none !important;
+}
+
+body.portal-mode .requests-studio .req-operate__main .hr-action-card--static .hr-action-card__panel {
+  padding: 0 !important;
+}
+
+/* Secciones: una sola numeración (en el título), sin línea de tiempo ni colores por paso */
+body.portal-mode .requests-studio #form-request .antares-create-form__sections {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.1rem 1.25rem 0.5rem !important;
+}
+
+body.portal-mode .requests-studio #form-request fieldset.form-section {
+  margin: 0 !important;
+  padding: 1rem 1.15rem 1.1rem !important;
+  border: 1px solid var(--oc-line) !important;
+  border-radius: var(--oc-radius) !important;
+  background: var(--oc-bg) !important;
+  box-shadow: none !important;
+}
+
+body.portal-mode .requests-studio #form-request fieldset.form-section::before,
+body.portal-mode .requests-studio #form-request fieldset.form-section::after {
+  display: none !important;
+}
+
+body.portal-mode .requests-studio #form-request fieldset.form-section > legend {
+  float: left;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  margin: 0 0 0.6rem !important;
+  padding: 0 0 0.6rem !important;
+  border-bottom: 1px solid var(--oc-line);
+  background: transparent !important;
+  color: var(--oc-ink) !important;
+  font-size: 0.95rem;
+  font-weight: 750;
+}
+
+body.portal-mode .requests-studio #form-request fieldset.form-section > legend + * {
+  clear: both;
+}
+
+body.portal-mode .requests-studio #form-request fieldset.form-section > legend::before,
+body.portal-mode .requests-studio #form-request .acf-schedule-fieldset > legend::before {
+  background: var(--oc-brand) !important;
+  box-shadow: none !important;
+}
+
+body.portal-mode .requests-studio #form-request .form-section-hint {
+  margin: 0 0 0.8rem !important;
+  color: var(--oc-ink-2) !important;
+}
+
+/* Campos planos: sin caja dentro de la caja de la sección */
+body.portal-mode .requests-studio #form-request .form-section-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem 1rem;
+}
+
+body.portal-mode .requests-studio #form-request .form-section-grid > label,
+body.portal-mode .requests-studio #form-request fieldset > label.full {
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  min-width: 0;
+}
+
+body.portal-mode .requests-studio #form-request .form-section-grid > .full,
+body.portal-mode .requests-studio #form-request .form-section-grid > label.full {
+  grid-column: 1 / -1;
+}
+
+body.portal-mode .requests-studio #form-request .form-subhead {
+  margin: 0.25rem 0 -0.25rem;
+  color: var(--oc-ink-3);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+/* Ventanas: dos columnas simples, sin acentos de color ni conector decorativo */
+body.portal-mode .requests-studio #form-request .acf-schedule-fieldset :is(.acf-schedule-card, [class*="schedule-card"], [class*="schedule-col"]) {
+  border-top-color: var(--oc-line) !important;
+  box-shadow: none !important;
+}
+
+/* Pie fijo */
+body.portal-mode .requests-studio #form-request .antares-create-form__footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.75rem 1.25rem 0.9rem !important;
+  border: 0 !important;
+  border-top: 1px solid var(--oc-line) !important;
+  border-radius: 0 !important;
+  background: var(--oc-bg) !important;
+  box-shadow: none !important;
+}
+
+body.portal-mode .requests-studio #form-request .antares-create-form__footer :is(.module-panel-actions, .module-panel-actions__bar) {
+  width: 100%;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+body.portal-mode .requests-studio #form-request .antares-create-form__footer .module-panel-actions__group--secondary {
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+body.portal-mode .requests-studio #form-request .antares-create-form__submit {
+  background-image: none !important;
+  background: var(--oc-brand) !important;
+  border-color: var(--oc-brand) !important;
+  box-shadow: none !important;
+}
+
+body.portal-mode .requests-studio #form-request .antares-create-form__submit:hover {
+  background: var(--oc-brand-ink) !important;
+}
+
+@media (max-width: 900px) {
+  body.portal-mode .requests-studio #form-request .form-section-grid {
+    grid-template-columns: 1fr;
+  }
+
+  body.portal-mode .requests-studio #form-request .antares-create-form__sections {
+    padding: 0.85rem 0.75rem 0.4rem !important;
+  }
+
+  body.portal-mode .requests-studio #form-request .antares-create-form__footer {
+    position: static;
+    padding: 0.65rem 0.75rem 0.75rem !important;
+  }
+
+  body.portal-mode .requests-studio .req-operate__rail {
+    position: static !important;
+  }
+}
+
+/* Solicitudes · Registrar v4 · ventanas sin decoración */
+body.portal-mode .requests-studio #form-request .acf-schedule__connector-line {
+  background: var(--oc-line-2) !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+body.portal-mode .requests-studio #form-request .acf-schedule-card {
+  border: 1px solid var(--oc-line) !important;
+  border-top: 1px solid var(--oc-line) !important;
+  border-radius: 12px !important;
+  background: var(--oc-bg) !important;
+  box-shadow: none !important;
+}
+
+body.portal-mode .requests-studio #form-request .acf-schedule__preview {
+  border: 1px solid var(--oc-line) !important;
+  border-style: solid !important;
+  background: var(--oc-soft) !important;
+  box-shadow: none !important;
+}
+
+/* Solicitudes · el paso al que se salta no queda tapado por la barra de pasos fija */
+body.portal-mode .requests-studio #form-request [data-request-step] {
+  scroll-margin-top: 4.75rem;
+}
+
+/* =====================================================================
+   Solicitudes · tabla de consulta compacta
+   Acciones solo con icono (el texto queda como ayuda y para lectores de
+   pantalla), el estado y la recogida pueden partirse en dos líneas y la
+   tabla cabe sin desplazamiento horizontal.
+   ===================================================================== */
+body.portal-mode .requests-studio .request-ops-fleet-table {
+  min-width: 0;
+  table-layout: auto;
+}
+
+body.portal-mode .requests-studio .request-ops-fleet-table :is(thead th, tbody td) {
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+
+body.portal-mode .requests-studio .request-ops-fleet-table thead th {
+  white-space: normal;
+}
+
+body.portal-mode .requests-studio .request-ops-fleet-table .vehicle-fleet-list-actions .toolbar {
+  gap: 0.2rem;
+  justify-content: flex-start;
+}
+
+body.portal-mode .requests-studio .request-ops-fleet-table .vehicle-fleet-list-actions .btn {
+  box-sizing: border-box;
+  width: 1.95rem;
+  min-width: 0;
+  height: 1.95rem;
+  padding: 0;
+  flex: 0 0 auto;
+}
+
+body.portal-mode .requests-studio .request-ops-fleet-table td .rq-status {
+  display: inline-flex;
+  align-items: flex-start;
+  white-space: normal;
+  max-width: 9.5rem;
+  line-height: 1.25;
+}
+
+body.portal-mode .requests-studio .request-ops-fleet-table td .rq-status .rq-status__dot {
+  margin-top: 0.38rem;
+  flex: none;
+}
+
+body.portal-mode .requests-studio .request-ops-fleet-table tbody td.rq-when {
+  white-space: normal;
+  min-width: 4.6rem;
+}
+
+body.portal-mode .requests-studio .request-ops-fleet-table td.rq-when :is(.rq-when__day, .rq-when__time) {
+  display: block;
+  line-height: 1.3;
+}
+
+body.portal-mode .requests-studio .request-ops-fleet-table td.rq-when .rq-when__time {
+  color: var(--oc-ink-3);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+body.portal-mode .requests-studio .request-ops-fleet-table td.rq-when .rq-when__day {
+  white-space: nowrap;
+  font-weight: 550;
+}
+
+body.portal-mode .requests-studio .request-ops-fleet-table tbody td:first-child {
+  white-space: normal;
+}
+
+body.portal-mode .requests-studio .vehicle-fleet-list-wrap {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+body.portal-mode .requests-studio .request-ops-fleet-table .rq-table-trip {
+  margin-top: 0.1rem;
+  font-size: 0.78rem;
+  color: var(--oc-ink-3);
+  white-space: normal;
+  max-width: 8.5rem;
+}
+
+/* Tablas de Solicitudes y Viajes · en móvil las acciones siguen en una fila (la regla global las apila) */
+body.portal-mode :is(.requests-studio, .transport-studio) :is(.request-ops-fleet-table, .trip-ops-fleet-table) .vehicle-fleet-list-actions .toolbar {
+  flex-direction: row;
+  align-items: center;
+}
+
+/* =====================================================================
+   Conductores · botón «Exportar» (archivo CSV con los conductores listados)
+   ===================================================================== */
+body.portal-mode .drivers-studio .ag-fleet__tools {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+body.portal-mode .drivers-studio .ag-btn--export {
+  min-height: 2.1rem;
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--oc-line-2);
+  border-radius: 8px;
+  background: var(--oc-bg);
+  background-image: none;
+  box-shadow: none;
+  color: var(--oc-ink-2);
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+body.portal-mode .drivers-studio .ag-btn--export:hover:not(:disabled) {
+  border-color: var(--oc-brand);
+  background: var(--oc-brand-soft);
+  color: var(--oc-brand-ink);
+  transform: none;
+  filter: none;
+}
+
+body.portal-mode .drivers-studio .ag-btn--export:focus-visible {
+  outline: 2px solid var(--oc-brand);
+  outline-offset: 2px;
+}
+
+body.portal-mode .drivers-studio .ag-btn--export:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+body.portal-mode .drivers-studio .ag-btn--export .ag-btn__count {
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: var(--oc-soft);
+  color: var(--oc-ink-3);
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+}
