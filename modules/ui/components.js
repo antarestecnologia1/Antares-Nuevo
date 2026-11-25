@@ -13,6 +13,7 @@ import {
   VEHICLES_OPERATE_CREATE_PANEL_IDS
 } from "../core/config.js";
 import { escapeHtml, escapeAttr, fmtDate } from "../core/utils.js";
+import { actionButton } from "./action-buttons.js";
 
 function ic() {
   return typeof window !== "undefined" && window.IC ? window.IC : {};
@@ -244,14 +245,30 @@ export function renderModulePanelEditActions(submitHtml, opts = {}) {
 /** Cerrar modal (esquina superior derecha). */
 export function renderModalCloseBtn(id = "crud-close") {
   const safeId = String(id || "crud-close").trim() || "crud-close";
-  return `<button type="button" id="${escapeAttr(safeId)}" class="btn btn-sm btn-outline module-panel-btn module-panel-btn--close" aria-label="Cerrar">${ic().x}</button>`;
+  return actionButton({
+    action: "cerrar",
+    variant: "ghost",
+    size: "sm",
+    iconOnly: true,
+    id: safeId,
+    ariaLabel: "Cerrar",
+    className: "module-panel-btn module-panel-btn--close"
+  });
 }
 
 /** Volver al modal anterior cuando hay un flujo apilado. */
 export function renderModalBackBtn(id = "crud-back", label = "Atrás") {
   const safeId = String(id || "crud-back").trim() || "crud-back";
   const safeLabel = String(label || "Atrás").trim() || "Atrás";
-  return `<button type="button" id="${escapeAttr(safeId)}" class="btn btn-sm btn-outline modal-head__back" data-action="modal-back">${ic().chevronLeft || ""}${escapeHtml(safeLabel)}</button>`;
+  return actionButton({
+    action: "regresar",
+    variant: "outline",
+    size: "sm",
+    id: safeId,
+    label: safeLabel,
+    dataAction: "modal-back",
+    className: "modal-head__back"
+  });
 }
 
 /** Modal de confirmación «descartar cambios» (Cancelar en formularios de alta). */
@@ -260,9 +277,23 @@ export function renderConfirmDiscardModalBody(opts = {}) {
   const message = String(opts.message ?? "").trim();
   const cancelLabel = String(opts.cancelLabel || "Seguir editando").trim();
   const confirmText = String(opts.confirmText || "Sí, descartar").trim();
-  const confirmIconKey = String(opts.confirmIcon || "x").trim();
-  const confirmIconHtml = ic()[confirmIconKey] || ic().x || "";
-  const keepIconHtml = ic().edit || ic().rotateCcw || "";
+  const discardBtn = actionButton({
+    action: "eliminar",
+    variant: "outline",
+    id: "crud-confirm",
+    label: confirmText,
+    icon: "x",
+    confirm: false,
+    className: "modal-discard__btn modal-discard__btn--discard"
+  });
+  const keepBtn = actionButton({
+    action: "guardar",
+    variant: "primary",
+    id: "crud-cancel",
+    label: cancelLabel,
+    icon: "pencil",
+    className: "modal-discard__btn modal-discard__btn--keep"
+  });
   return `<div class="modal-discard">
     <div class="modal-discard__top">
       ${renderModalCloseBtn("crud-close")}
@@ -273,8 +304,8 @@ export function renderConfirmDiscardModalBody(opts = {}) {
       <p class="modal-discard__message">${escapeHtml(message)}</p>
     </div>
     <div class="modal-discard__actions">
-      <button type="button" id="crud-confirm" class="btn modal-discard__btn modal-discard__btn--discard">${confirmIconHtml}<span>${escapeHtml(confirmText)}</span></button>
-      <button type="button" id="crud-cancel" class="btn modal-discard__btn modal-discard__btn--keep btn-primary">${keepIconHtml}<span>${escapeHtml(cancelLabel)}</span></button>
+      ${discardBtn}
+      ${keepBtn}
     </div>
   </div>`;
 }
@@ -283,10 +314,15 @@ export function renderConfirmDiscardModalBody(opts = {}) {
 export function renderModalCancelBtn(id = "crud-cancel", label = MODULE_PANEL_LABELS.cancel, btnClass = "") {
   const safeId = String(id || "crud-cancel").trim() || "crud-cancel";
   const safeLabel = String(label || MODULE_PANEL_LABELS.cancel).trim();
-  const classes =
-    String(btnClass || "").trim() ||
-    "btn btn-sm btn-action btn-danger-soft module-panel-btn module-panel-btn--cancel";
-  return `<button type="button" id="${escapeAttr(safeId)}" class="${escapeAttr(classes)}" title="${escapeAttr(MODULE_PANEL_BTN_TITLES.cancel)}">${renderModulePanelBtnInner(ic().rotateCcw, safeLabel)}</button>`;
+  return actionButton({
+    action: "cancelar",
+    variant: "outline",
+    size: "sm",
+    id: safeId,
+    label: safeLabel,
+    title: MODULE_PANEL_BTN_TITLES.cancel,
+    className: ["module-panel-btn", "module-panel-btn--cancel", String(btnClass || "").trim()].filter(Boolean).join(" ")
+  });
 }
 
 export function renderModalHead(title, opts = {}) {

@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Botones de acción · Portal Antares</title>
+    <link rel="stylesheet" href="../styles.css" />
+    <link rel="stylesheet" href="../styles/action-buttons.css" />
+    <style>
+      body { background: #fff; margin: 0; padding: 2rem 1.25rem 4rem; font-family: var(--font-secondary, system-ui); color: #0f172a; }
+      main { max-width: 1100px; margin: 0 auto; }
+      h1 { font-size: 1.5rem; margin: 0 0 .25rem; }
+      h2 { font-size: 1rem; margin: 2rem 0 .75rem; color: #334155; }
+      p.lead { margin: 0 0 1rem; color: #475569; font-size: .9rem; }
+      table { border-collapse: collapse; width: 100%; }
+      th, td { text-align: left; padding: .5rem .6rem; border-bottom: 1px solid #eef1f5; vertical-align: middle; font-size: .8rem; color: #475569; }
+      th { font-weight: 600; color: #0f172a; }
+      .row { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; }
+      .dark { background: #0d1c30; padding: 1rem; border-radius: 12px; margin-top: .5rem; }
+      .sw { display: inline-block; width: .9rem; height: .9rem; border-radius: 4px; vertical-align: -2px; margin-right: .4rem; }
+    </style>
+  </head>
+  <body>
+    <main id="demo">
+      <h1>Botones de acción</h1>
+      <p class="lead">Una familia para todo el portal: 12 acciones × 3 variantes (primary · outline · ghost) con estados normal, hover, active, disabled y loading.</p>
+      <div id="matrix"></div>
+      <h2>Tamaños, solo ícono y bloque</h2>
+      <div class="row" id="sizes"></div>
+      <h2>Agrupación de acciones (se apila en móvil)</h2>
+      <div id="group"></div>
+      <h2>Confirmaciones</h2>
+      <div class="row" id="confirm"></div>
+      <h2>Tema oscuro</h2>
+      <div class="dark" id="dark"></div>
+    </main>
+    <script type="module">
+      import { actionButton, actionGroup, ACTION_BUTTONS, setButtonLoading, installActionButtons } from "../modules/ui/action-buttons.js";
+      const keys = Object.keys(ACTION_BUTTONS);
+      const states = [["normal", {}], ["hover", { className: "is-hover" }], ["active", { className: "is-pressed" }], ["disabled", { disabled: true }], ["loading", { loading: true }]];
+      let html = "";
+      for (const variant of ["primary", "outline", "ghost"]) {
+        html += `<h2>${variant}</h2><table><thead><tr><th>Acción</th>${states.map(([n]) => `<th>${n}</th>`).join("")}</tr></thead><tbody>`;
+        for (const k of keys) {
+          html += `<tr><td>${k}</td>${states.map(([, o]) => `<td>${actionButton({ action: k, variant, confirm: false, ...o })}</td>`).join("")}</tr>`;
+        }
+        html += "</tbody></table>";
+      }
+      document.getElementById("matrix").innerHTML = html;
+      document.getElementById("sizes").innerHTML = [
+        actionButton({ action: "guardar" }),
+        actionButton({ action: "guardar", size: "sm" }),
+        actionButton({ action: "editar", variant: "outline", iconOnly: true }),
+        actionButton({ action: "eliminar", variant: "outline", iconOnly: true, size: "sm", confirm: false }),
+        actionButton({ action: "consultar", variant: "ghost", iconOnly: true }),
+        actionButton({ action: "descargar", variant: "outline", block: true })
+      ].join("");
+      document.getElementById("group").innerHTML = actionGroup([
+        actionButton({ action: "cancelar", variant: "outline" }),
+        actionButton({ action: "guardar", variant: "primary", type: "submit" })
+      ]);
+      document.getElementById("confirm").innerHTML = [
+        actionButton({ action: "eliminar", variant: "outline", id: "demo-del", confirm: { title: "Eliminar viaje", message: "Se eliminará el viaje VIA-002 y su tarifa. Esta acción no se puede deshacer.", confirmText: "Sí, eliminar" } })
+      ].join("");
+      document.getElementById("dark").innerHTML = '<div class="row">' + keys.map((k) => actionButton({ action: k, variant: "outline", confirm: false })).join("") + "</div><div class='row' style='margin-top:.6rem'>" + keys.map((k) => actionButton({ action: k, variant: "primary", confirm: false })).join("") + "</div>";
+      document.body.dataset.theme = "light";
+      document.querySelector(".dark").setAttribute("data-theme-demo", "dark");
+      installActionButtons();
+    </script>
+  </body>
+</html>
