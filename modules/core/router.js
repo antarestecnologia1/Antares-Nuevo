@@ -5,6 +5,7 @@
 import { PERMISSIONS, KEYS, ROLES, TRANSPORT_TRIPS_OPERATE_CREATE_PANEL_IDS } from "./config.js";
 import { readArray } from "./data-io.js";
 import {
+  canDo,
   currentUser,
   hasPermission,
   isViewAllowedForUser,
@@ -795,7 +796,7 @@ export function renderPortalViewImpl() {
   if ((view === "hiring" || view === "payroll") && prevPortalView !== view && callApp("portalCanRefreshFromApi")) {
     void callApp("refreshPositionsCatalogFromApi");
   }
-  if (view === "payroll" && hasPermission(user, PERMISSIONS.PAYROLL_MANAGE) && callApp("portalCanRefreshFromApi")) {
+  if (view === "payroll" && canDo(user, "payroll", "view") && callApp("portalCanRefreshFromApi")) {
     const enteringPayroll = prevPortalView !== "payroll";
     const noEmployeesCached = readArray(KEYS.payrollEmployees).length === 0;
     if ((enteringPayroll || noEmployeesCached) && !state.__payrollEmployeesListHydrating) {
@@ -883,6 +884,7 @@ export function renderPortalViewImpl() {
   callApp("mountUniversalModuleFilters");
   _bindEventsCallback();
   invokePortalViewAfterRenderHook(view);
+  callApp("mountPermissionGate", view);
   callApp("mountDataControls", view);
   if (String(view || "") !== "reports") callApp("destroyReportsCharts");
   callApp("bindExtendedViewEditHandlers");

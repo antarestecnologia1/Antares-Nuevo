@@ -1184,7 +1184,7 @@ function filterSstListItems(items, searchNorm, fieldsFn) {
       pageSize: 10,
       listView: "list"
     };
-    const sstWorkspace = normalizeHrWorkspace("sst", sstUi.workspace);
+    const sstWorkspace = hrWorkspaceForUser("sst", normalizeHrWorkspace("sst", sstUi.workspace));
     const sstOperateSection = normalizeSstOperateSection(sstUi.operateSection);
     const sstDataSection = normalizeSstDataSection(sstUi.dataSection);
     const listSearchRaw = String(sstUi.listSearch || "");

@@ -1132,10 +1132,12 @@ export function renderPayrollDataSectionNav(activeId, counts = {}, { minimal = f
 /** Botones Registrar / Consultar al estilo de la cabecera de empleados. */
 export function renderPayrollWorkspaceActionButtons(module, activeId) {
   const safeModule = escapeAttr(module);
+  const canOperate = typeof window.canOperateHrWorkspace === "function" ? window.canOperateHrWorkspace(module) : true;
   const tabs = [
     { id: "operate", label: "Registrar", icon: "plus", primary: false },
     { id: "data", label: "Consultar", icon: "eye", primary: true }
-  ];
+  ].filter((t) => canOperate || t.id !== "operate");
+  if (!canOperate) return "";
   return `<div class="payroll-workspace-actions" role="tablist" aria-label="Modo del módulo">
     ${tabs
       .map((t) => {
@@ -1320,7 +1322,11 @@ export function hrWorkspaceTabIcon(iconKey) {
   return `<span class="hr-workspace-tab-ico" aria-hidden="true">${svg}</span>`;
 }
 
-export function renderHrWorkspaceTabs({ module, ariaLabel, activeId, tabs, variant = "pro" }) {
+export function renderHrWorkspaceTabs({ module, ariaLabel, activeId, tabs: allTabs, variant = "pro" }) {
+  /* Sin permiso para registrar, la pestaña «Registrar» no se ofrece (y si solo queda una pestaña, no hay conmutador). */
+  const canOperate = typeof window.canOperateHrWorkspace === "function" ? window.canOperateHrWorkspace(module) : true;
+  const tabs = canOperate ? allTabs : allTabs.filter((t) => t.id !== "operate");
+  if (!canOperate && tabs.length <= 1) return "";
   const safeModule = escapeAttr(module);
   const safeAria = escapeAttr(ariaLabel);
   const navClass =

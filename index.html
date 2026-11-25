@@ -129,7 +129,7 @@
     <link rel="stylesheet" href="./styles/portal-modern.css?v=c2416cd8c6" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/portal-dark-polish.css?v=4aa5a0f16a" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/ops-clean.css?v=f4991839f3" media="print" onload="this.onload=null;this.media='all'" />
-    <link rel="stylesheet" href="./styles/ops-clean-modules.css?v=581a5f2576" media="print" onload="this.onload=null;this.media='all'" />
+    <link rel="stylesheet" href="./styles/ops-clean-modules.css?v=d742573422" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/landing-clean.css?v=843f9ffc5f" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/auth-modal.css?v=cc7adadd4f" />
     <noscript>
@@ -164,7 +164,7 @@
       <link rel="stylesheet" href="./styles/portal-modern.css?v=c2416cd8c6" />
       <link rel="stylesheet" href="./styles/portal-dark-polish.css?v=4aa5a0f16a" />
       <link rel="stylesheet" href="./styles/ops-clean.css?v=f4991839f3" />
-      <link rel="stylesheet" href="./styles/ops-clean-modules.css?v=581a5f2576" />
+      <link rel="stylesheet" href="./styles/ops-clean-modules.css?v=d742573422" />
       <link rel="stylesheet" href="./styles/landing-clean.css?v=843f9ffc5f" />
       <link rel="stylesheet" href="./styles/auth-modal.css?v=cc7adadd4f" />
     </noscript>
@@ -1598,37 +1598,42 @@
       import * as AntaresI18n from "./modules/core/i18n.js";
       import * as AntaresSchedulePicker from "./modules/ui/portal-schedule-picker.js?v=6e3b22dbfb";
       import * as AntaresDataControls from "./modules/ui/data-controls.js?v=6c302f1787";
+      import * as AntaresPermissionGate from "./modules/core/permission-gate.js?v=58b10be022";
       Object.assign(window, AntaresUIComponents, AntaresUIModals, AntaresI18n, AntaresSchedulePicker, {
-        mountDataControls: AntaresDataControls.mountDataControls
+        mountDataControls: AntaresDataControls.mountDataControls,
+        mountPermissionGate: AntaresPermissionGate.mountPermissionGate,
+        canPerformGatedAction: AntaresPermissionGate.canPerformGatedAction,
+        canSubmitGatedForm: AntaresPermissionGate.canSubmitGatedForm
       });
+      AntaresPermissionGate.installPermissionGate();
     </script>
-    <script type="module" src="./modules/core/portal-runtime.js?v=d113988f95"></script>
+    <script type="module" src="./modules/core/portal-runtime.js?v=e8cf9e602d"></script>
     <script defer src="./modules/app/portal-transport-modals.js?v=6847495bcb"></script>
     <script defer src="./modules/app/portal-rrhh-modals.js?v=931b200f78"></script>
     <!-- Vistas legacy (`registerLegacyPortalViews`); deben ejecutarse antes de `app.js` para que el primer `renderPortal()` resuelva HTML. `viajes.js` antes de `mis-solicitudes.js` por `RENDER_WINDOW_SIZE`. -->
     <script defer src="./modules/app/dashboard.js?v=65b96e093a"></script>
-    <script defer src="./modules/app/viajes.js?v=fba40f190e"></script>
-    <script defer src="./modules/app/solicitudes-html.js?v=d2fc27d433"></script>
+    <script defer src="./modules/app/viajes.js?v=f42d5e9446"></script>
+    <script defer src="./modules/app/solicitudes-html.js?v=87704e1a9a"></script>
     <script defer src="./modules/app/mis-solicitudes.js?v=f3b7a36cee"></script>
     <script defer src="./modules/app/camiones-html.js?v=3f8c8f733e"></script>
-    <script defer src="./modules/app/camiones.js?v=c8037f78ef"></script>
-    <script defer src="./modules/app/conductores.js?v=35e27726f1"></script>
-    <script defer src="./modules/app/calendario.js?v=15b13fc221"></script>
+    <script defer src="./modules/app/camiones.js?v=0055591e4f"></script>
+    <script defer src="./modules/app/conductores.js?v=56750c5583"></script>
+    <script defer src="./modules/app/calendario.js?v=343cc1d898"></script>
     <script defer src="./modules/app/historial.js?v=82034d4e67"></script>
     <script defer src="./modules/app/reporteria.js"></script>
-    <script defer src="./modules/app/gestion-humana-html.js?v=f101927f04"></script>
+    <script defer src="./modules/app/gestion-humana-html.js?v=abe94f02b6"></script>
     <script defer src="./modules/app/gestion-humana.js?v=fa5ee6e2d1"></script>
     <script defer src="./modules/app/rrhh-candidate-attachments.js?v=db07bca183"></script>
-    <script defer src="./modules/app/contratacion-html.js?v=f2b327d4ac"></script>
-    <script defer src="./modules/app/contratacion.js?v=32ec3b49d4"></script>
+    <script defer src="./modules/app/contratacion-html.js?v=e5719ccbe3"></script>
+    <script defer src="./modules/app/contratacion.js?v=a53830cfcf"></script>
     <script type="module" src="./modules/app/cumplimiento-laboral.js"></script>
     <script type="module" src="./modules/app/gestion-documental.js?v=60ca35c88e"></script>
     <script type="module" src="./modules/app/sarlaft.js?v=114d723547"></script>
-    <script defer src="./modules/app/contacto-b2b.js?v=f4b8d54e81"></script>
+    <script defer src="./modules/app/contacto-b2b.js?v=e526db372d"></script>
     <script defer src="./modules/app/usuarios-permisos.js?v=c66d2e5dc7"></script>
     <script defer src="./modules/app/autorizaciones.js?v=b71677d0fa"></script>
     <script defer src="./modules/app/mi-perfil.js?v=d50c59181c"></script>
     <script type="module" src="./modules/app/notificaciones.js?v=27cae18a79"></script>
-    <script type="module" src="./app.js?v=9b3c546c19"></script>
+    <script type="module" src="./app.js?v=b28c9bb444"></script>
   </body>
 </html>

@@ -97,6 +97,13 @@ import {
   SARLAFT_GRANULAR_PERMISSIONS
 } from "./sarlaft-permissions";
 import {
+  PORTAL_MODULE_PERMISSION_KEYS,
+  portalCan,
+  portalCanView,
+  portalCanWrite,
+  portalModuleKeys
+} from "./portal-permissions";
+import {
   flushPortalSyncUpsertAudits,
   insertPortalAuditEventTx,
   preparePortalSyncUpsertAudits,
@@ -238,7 +245,7 @@ const PORTAL_AUDIT_EVENTS_BOOTSTRAP_LIMIT = 800;
 const PORTAL_AUDIT_EVENTS_QUERY_MAX = 10000;
 
 /** Igual que `defaultPermissionsForRole` / ALL_PERMISSIONS en app.js */
-const ALL_PORTAL_PERMISSIONS: string[] = [
+const BASE_PORTAL_PERMISSIONS: string[] = [
   "dashboard_view",
   "client_requests",
   "transport_requests",
@@ -281,6 +288,11 @@ const ALL_PORTAL_PERMISSIONS: string[] = [
   "notifications_view",
   "contact_b2b_view"
 ];
+
+/** Catálogo completo: permisos históricos + permisos por acción de cada módulo (portal-permissions.ts). */
+const ALL_PORTAL_PERMISSIONS: string[] = Array.from(
+  new Set<string>([...BASE_PORTAL_PERMISSIONS, ...PORTAL_MODULE_PERMISSION_KEYS])
+);
 
 /** Permisos por defecto del rol Cliente. */
 const CLIENT_ROLE_PERMISSIONS = ["profile_view", "client_requests"] as const;
@@ -2336,6 +2348,8 @@ export class PortalService implements OnModuleInit {
     return (
       admin ||
       this.hasPortalPermission(permissionSet, "transport_history") ||
+      portalCanView(permissionSet, "history") ||
+      portalCanView(permissionSet, "reports") ||
       this.hasPortalPermission(permissionSet, "users_manage")
     );
   }
@@ -2343,46 +2357,32 @@ export class PortalService implements OnModuleInit {
   /** Permisos del portal requeridos por módulo de auditoría (alineado a VIEW_PERMISSIONS del frontend). */
   private static readonly PORTAL_AUDIT_MODULE_PERMISSIONS: Record<string, readonly string[]> = {
     dashboard: ["dashboard_view"],
-    requests: ["client_requests", "transport_requests"],
-    transport_requests: ["client_requests", "transport_requests"],
-    mis_solicitudes: ["client_requests", "transport_requests"],
-    solicitudes: ["client_requests", "transport_requests"],
-    trips: ["transport_trips"],
-    transport_trips: ["transport_trips"],
-    viajes: ["transport_trips"],
-    vehicles: [
-      "transport_vehicles",
-      "transport_vehicles_view",
-      "transport_vehicles_create",
-      "transport_vehicles_edit",
-      "transport_vehicles_status",
-      "transport_vehicles_delete"
-    ],
-    camiones: [
-      "transport_vehicles",
-      "transport_vehicles_view",
-      "transport_vehicles_create",
-      "transport_vehicles_edit",
-      "transport_vehicles_status",
-      "transport_vehicles_delete"
-    ],
-    drivers: ["transport_drivers"],
-    conductores: ["transport_drivers"],
-    calendar: ["transport_calendar"],
-    calendario: ["transport_calendar"],
-    history: ["transport_history"],
-    historial: ["transport_history"],
-    reports: ["transport_history"],
-    reporteria: ["transport_history"],
-    payroll: ["payroll_manage"],
-    nomina: ["payroll_manage"],
-    hr_absences: ["payroll_manage"],
-    hr_payroll: ["payroll_manage"],
-    hiring: ["hiring_manage"],
-    contratacion: ["hiring_manage"],
-    sst: ["sst_compliance"],
-    sst_compliance: ["sst_compliance"],
-    cumplimiento_laboral: ["sst_compliance"],
+    requests: ["client_requests", ...portalModuleKeys("requests")],
+    transport_requests: ["client_requests", ...portalModuleKeys("requests")],
+    mis_solicitudes: ["client_requests", ...portalModuleKeys("requests")],
+    solicitudes: ["client_requests", ...portalModuleKeys("requests")],
+    trips: portalModuleKeys("trips"),
+    transport_trips: portalModuleKeys("trips"),
+    viajes: portalModuleKeys("trips"),
+    vehicles: portalModuleKeys("vehicles"),
+    camiones: portalModuleKeys("vehicles"),
+    drivers: portalModuleKeys("drivers"),
+    conductores: portalModuleKeys("drivers"),
+    calendar: portalModuleKeys("calendar"),
+    calendario: portalModuleKeys("calendar"),
+    history: portalModuleKeys("history"),
+    historial: portalModuleKeys("history"),
+    reports: portalModuleKeys("reports"),
+    reporteria: portalModuleKeys("reports"),
+    payroll: portalModuleKeys("payroll"),
+    nomina: portalModuleKeys("payroll"),
+    hr_absences: portalModuleKeys("payroll"),
+    hr_payroll: portalModuleKeys("payroll"),
+    hiring: portalModuleKeys("hiring"),
+    contratacion: portalModuleKeys("hiring"),
+    sst: portalModuleKeys("sst"),
+    sst_compliance: portalModuleKeys("sst"),
+    cumplimiento_laboral: portalModuleKeys("sst"),
     sarlaft: ["sarlaft_manage", ...SARLAFT_GRANULAR_PERMISSIONS],
     sarlaft_pte: ["sarlaft_manage", ...SARLAFT_GRANULAR_PERMISSIONS],
     pte: ["sarlaft_manage", ...SARLAFT_GRANULAR_PERMISSIONS],
@@ -2398,9 +2398,9 @@ export class PortalService implements OnModuleInit {
       "document_manage",
       ...DOCUMENT_GRANULAR_PERMISSIONS
     ],
-    contact_b2b: ["contact_b2b_view"],
-    contacts: ["contact_b2b_view"],
-    b2b: ["contact_b2b_view"],
+    contact_b2b: portalModuleKeys("contact"),
+    contacts: portalModuleKeys("contact"),
+    b2b: portalModuleKeys("contact"),
     users: ["users_manage"],
     admin_users: ["users_manage"],
     companies: ["users_manage"],
@@ -2467,18 +2467,11 @@ export class PortalService implements OnModuleInit {
     if (this.isClientScopedActor(role, permissionSet)) return true;
     const broad =
       this.hasPortalPermission(permissionSet, "users_manage") ||
-      this.hasPortalPermission(permissionSet, "transport_trips") ||
-      this.hasPortalPermission(permissionSet, "transport_requests") ||
-      this.hasPortalPermission(permissionSet, "transport_vehicles") ||
-      this.hasPortalPermission(permissionSet, "transport_drivers") ||
-      this.hasPortalPermission(permissionSet, "transport_calendar") ||
-      this.hasPortalPermission(permissionSet, "transport_history") ||
-      this.hasPortalPermission(permissionSet, "payroll_manage") ||
-      this.hasPortalPermission(permissionSet, "hiring_manage") ||
-      this.hasPortalPermission(permissionSet, "sst_compliance") ||
+      ["requests", "trips", "vehicles", "drivers", "calendar", "history", "reports", "payroll", "hiring", "sst", "contact"].some(
+        (moduleId) => portalCanView(permissionSet, moduleId)
+      ) ||
       canAccessSarlaftModule(permissionSet) ||
-      canAccessDocumentsModule(permissionSet) ||
-      this.hasPortalPermission(permissionSet, "contact_b2b_view");
+      canAccessDocumentsModule(permissionSet);
     return !broad;
   }
 
@@ -3400,7 +3393,7 @@ export class PortalService implements OnModuleInit {
 
   private canAccessVehiclesModule(permissionSet: ReadonlySet<string>): boolean {
     if (this.hasVehicleManageAll(permissionSet)) return true;
-    return this.vehicleGranularPermissions.some((p) => permissionSet.has(p));
+    return portalCanView(permissionSet, "vehicles") || this.vehicleGranularPermissions.some((p) => permissionSet.has(p));
   }
 
   private canSyncVehicles(permissionSet: ReadonlySet<string>): boolean {
@@ -3427,7 +3420,7 @@ export class PortalService implements OnModuleInit {
   async assertCanUploadCandidateCv(userId: string, role: JwtRole): Promise<void> {
     if (this.isAdmin(role)) return;
     const permissionSet = await this.resolveEffectivePermissionSet(userId, role);
-    if (this.hasPortalPermission(permissionSet, "hiring_manage")) return;
+    if (portalCanWrite(permissionSet, "hiring", ["candidates"])) return;
     throw new ForbiddenException("No autorizado para subir hojas de vida de candidatos.");
   }
 
@@ -3632,7 +3625,7 @@ export class PortalService implements OnModuleInit {
     const permissionSet = await this.resolveEffectivePermissionSet(userId, role);
     if (isSarlaftEvidenceFolder(folderPath) && canUploadSarlaftEvidence(permissionSet)) return;
     const payrollEmployeeFolder =
-      this.hasPortalPermission(permissionSet, "payroll_manage") && this.isEmployeeExpedienteFolder(folderPath);
+      portalCanWrite(permissionSet, "payroll", ["employees", "documents"]) && this.isEmployeeExpedienteFolder(folderPath);
     if (!payrollEmployeeFolder) {
       await this.assertCanUploadCompanyDocument(userId, role);
     }
@@ -3757,7 +3750,13 @@ export class PortalService implements OnModuleInit {
       "transport_calendar",
       "transport_history"
     ];
-    return keys.some((k) => permissionSet.has(k));
+    if (keys.some((k) => permissionSet.has(k))) return true;
+    /* Permisos por acción: solo los que modifican (un permiso de consulta no escribe solicitudes ni viajes). */
+    return (
+      portalCanWrite(permissionSet, "requests", ["create", "edit", "cancel", "delete"]) ||
+      portalCanWrite(permissionSet, "trips", ["assign", "status", "edit", "delete", "rates"]) ||
+      portalCanWrite(permissionSet, "drivers", ["edit", "status"])
+    );
   }
 
   /**
@@ -3922,8 +3921,8 @@ export class PortalService implements OnModuleInit {
     return (
       this.isAdmin(role) ||
       this.isRrhh(role) ||
-      this.hasPortalPermission(permissionSet, "payroll_manage") ||
-      this.hasPortalPermission(permissionSet, "hiring_manage")
+      portalCanView(permissionSet, "payroll") ||
+      portalCanView(permissionSet, "hiring")
     );
   }
 
@@ -4477,25 +4476,26 @@ export class PortalService implements OnModuleInit {
     ]);
     const isClient = this.isClientScopedActor(role, permissionSet);
     const canUsersManage = admin || this.hasPortalPermission(permissionSet, "users_manage");
-    const canViewContactB2b = admin || this.hasPortalPermission(permissionSet, "contact_b2b_view");
-    const canTransportTrips = admin || this.hasPortalPermission(permissionSet, "transport_trips");
+    const canViewContactB2b = admin || portalCanView(permissionSet, "contact");
+    const canTransportTrips = admin || portalCanView(permissionSet, "trips");
     const canTransportVehicles = admin || this.canAccessVehiclesModule(permissionSet);
-    const canTransportDrivers = admin || this.hasPortalPermission(permissionSet, "transport_drivers");
-    const canTransportCalendar = admin || this.hasPortalPermission(permissionSet, "transport_calendar");
-    const canTransportHistory = admin || this.hasPortalPermission(permissionSet, "transport_history");
+    const canTransportDrivers = admin || portalCanView(permissionSet, "drivers");
+    const canTransportCalendar = admin || portalCanView(permissionSet, "calendar");
+    const canTransportHistory =
+      admin || portalCanView(permissionSet, "history") || portalCanView(permissionSet, "reports");
     const canTransportData =
       canTransportTrips ||
       canTransportVehicles ||
       canTransportDrivers ||
       canTransportCalendar ||
       canTransportHistory ||
-      this.hasPortalPermission(permissionSet, "transport_requests") ||
+      portalCanView(permissionSet, "requests") ||
       this.hasPortalPermission(permissionSet, "authorizations_transport") ||
       this.hasPortalPermission(permissionSet, "authorizations_manage");
-    const canPayroll = admin || this.hasPortalPermission(permissionSet, "payroll_manage");
-    const canHiring = admin || this.hasPortalPermission(permissionSet, "hiring_manage");
+    const canPayroll = admin || portalCanView(permissionSet, "payroll");
+    const canHiring = admin || portalCanView(permissionSet, "hiring");
     const canLoadPositionsCatalog = this.canViewPositionsCatalog(role, permissionSet);
-    const canSst = admin || this.hasPortalPermission(permissionSet, "sst_compliance");
+    const canSst = admin || portalCanView(permissionSet, "sst");
     const canSarlaft = admin || canAccessSarlaftModule(permissionSet);
     const canDocuments = admin || canAccessDocumentsModule(permissionSet);
     const canClientRequests = this.hasPortalPermission(permissionSet, "client_requests");
@@ -4570,7 +4570,7 @@ export class PortalService implements OnModuleInit {
       ctx.empresaId,
       ctx.admin,
       ctx.canSeeAllCompanies,
-      this.hasPortalPermission(ctx.permissionSet, "payroll_manage")
+      portalCanView(ctx.permissionSet, "payroll")
     );
   }
 
@@ -4650,7 +4650,7 @@ export class PortalService implements OnModuleInit {
             empresaId,
             admin,
             canSeeAllCompanies,
-            this.hasPortalPermission(permissionSet, "payroll_manage")
+            portalCanView(permissionSet, "payroll")
           )
         : Promise.resolve([]),
       this.loadApprovals(admin, userId, empresaId),
@@ -5690,7 +5690,7 @@ export class PortalService implements OnModuleInit {
     const permissionSet = this.isAdmin(actorRole)
       ? new Set<string>(ALL_PORTAL_PERMISSIONS)
       : await this.resolveEffectivePermissionSet(actorUserId, actorRole);
-    if (!this.isAdmin(actorRole) && !this.hasPortalPermission(permissionSet, "payroll_manage")) {
+    if (!this.isAdmin(actorRole) && !portalCanWrite(permissionSet, "payroll", ["employees"])) {
       throw new ForbiddenException();
     }
     const eid = String(dto?.employeeId || "").trim();
@@ -5873,7 +5873,7 @@ export class PortalService implements OnModuleInit {
     const permissionSet = this.isAdmin(actorRole)
       ? new Set<string>(ALL_PORTAL_PERMISSIONS)
       : await this.resolveEffectivePermissionSet(actorUserId, actorRole);
-    if (!this.isAdmin(actorRole) && !this.hasPortalPermission(permissionSet, "payroll_manage")) {
+    if (!this.isAdmin(actorRole) && !portalCanWrite(permissionSet, "payroll", ["employees"])) {
       throw new ForbiddenException();
     }
     const eid = String(dto?.employeeId || "").trim();
@@ -6002,7 +6002,7 @@ export class PortalService implements OnModuleInit {
         await this.syncVehicles(c, data);
         return;
       case "drivers":
-        if (!can("transport_drivers")) throw new ForbiddenException();
+        if (!admin && !portalCanWrite(permissionSet, "drivers", ["edit", "status"])) throw new ForbiddenException();
         await this.syncDrivers(c, data);
         return;
       case "notifications":
@@ -6013,7 +6013,9 @@ export class PortalService implements OnModuleInit {
         await this.syncEmails(c, data);
         return;
       case "payrollEmployees":
-        if (!can("payroll_manage")) throw new ForbiddenException();
+        if (!admin && !portalCanWrite(permissionSet, "payroll", ["employees", "documents"])) {
+          throw new ForbiddenException();
+        }
         await this.syncPayrollEmployees(
           c,
           data,
@@ -6029,7 +6031,7 @@ export class PortalService implements OnModuleInit {
         }
         return;
       case "payrollRuns":
-        if (!can("payroll_manage")) throw new ForbiddenException();
+        if (!admin && !portalCanWrite(permissionSet, "payroll", ["runs", "pay"])) throw new ForbiddenException();
         if (Array.isArray(deletedIds) && deletedIds.length > 0 && !admin && !can("payroll_delete")) {
           throw new ForbiddenException("No autorizado para eliminar liquidaciones (permiso Gestión humana · Eliminar).");
         }
@@ -6056,12 +6058,19 @@ export class PortalService implements OnModuleInit {
       case "candidates":
       case "interviews":
       case "contracts":
-      case "positions":
-        if (!can("hiring_manage")) throw new ForbiddenException();
+      case "positions": {
+        const hiringAction = key === "candidates" || key === "interviews" ? "candidates" : key === "contracts" ? "contracts" : "vacancies";
+        if (!admin && !portalCanWrite(permissionSet, "hiring", [hiringAction, "delete"])) {
+          throw new ForbiddenException();
+        }
+        if (Array.isArray(deletedIds) && deletedIds.length > 0 && !admin && !portalCanWrite(permissionSet, "hiring", ["delete"])) {
+          throw new ForbiddenException("No autorizado para eliminar registros de Contratación (permiso Contratación · Eliminar).");
+        }
         await this.syncHrKeys(c, key, data, deletedIds);
         return;
+      }
       case "hrAbsences":
-        if (!can("payroll_manage")) throw new ForbiddenException();
+        if (!admin && !portalCanWrite(permissionSet, "payroll", ["absences"])) throw new ForbiddenException();
         if (Array.isArray(deletedIds) && deletedIds.length > 0 && !admin && !can("payroll_delete")) {
           throw new ForbiddenException("No autorizado para eliminar ausencias (permiso Gestión humana · Eliminar).");
         }
@@ -6076,7 +6085,10 @@ export class PortalService implements OnModuleInit {
          * El portal ya llama POST /payroll/refresh-drafts tras guardar. */
         return;
       case "sstCompliance":
-        if (!can("sst_compliance")) throw new ForbiddenException();
+        if (!admin && !portalCanWrite(permissionSet, "sst", ["edit", "renew", "delete"])) throw new ForbiddenException();
+        if (Array.isArray(deletedIds) && deletedIds.length > 0 && !admin && !portalCanWrite(permissionSet, "sst", ["delete"])) {
+          throw new ForbiddenException("No autorizado para eliminar controles SST (permiso Cumplimiento laboral · Eliminar).");
+        }
         await this.syncSst(
           c,
           data,
@@ -6142,7 +6154,7 @@ export class PortalService implements OnModuleInit {
               canUploadSarlaftEvidence(permissionSet);
             const payrollEmployeeDocsOk =
               rows.length > 0 &&
-              this.hasPortalPermission(permissionSet, "payroll_manage") &&
+              portalCanWrite(permissionSet, "payroll", ["employees", "documents"]) &&
               rows.every((row) =>
                 this.isEmployeeExpedienteFolder(
                   (row as { folder?: unknown; carpeta?: unknown }).folder ??
@@ -6187,7 +6199,7 @@ export class PortalService implements OnModuleInit {
               canUploadSarlaftEvidence(permissionSet);
             const payrollEmployeeFoldersOk =
               rows.length > 0 &&
-              this.hasPortalPermission(permissionSet, "payroll_manage") &&
+              portalCanWrite(permissionSet, "payroll", ["employees", "documents"]) &&
               rows.every((row) =>
                 this.isEmployeeExpedienteFolder(
                   (row as { folderName?: unknown; nombre_carpeta?: unknown }).folderName ??
@@ -6229,7 +6241,7 @@ export class PortalService implements OnModuleInit {
         return;
       }
       case "tripRouteRates":
-        if (!can("transport_trips")) throw new ForbiddenException();
+        if (!admin && !portalCanWrite(permissionSet, "trips", ["rates"])) throw new ForbiddenException();
         await this.syncTripRouteRates(c, data, deletedIds);
         return;
       case "approvals":
@@ -8118,7 +8130,7 @@ export class PortalService implements OnModuleInit {
     const permissionSet = this.isAdmin(role)
       ? new Set<string>(ALL_PORTAL_PERMISSIONS)
       : await this.resolveEffectivePermissionSet(userId, role);
-    if (!this.isAdmin(role) && !this.hasPortalPermission(permissionSet, "hiring_manage")) {
+    if (!this.isAdmin(role) && !portalCanView(permissionSet, "hiring")) {
       throw new ForbiddenException();
     }
     const id = String(candidateId || "").trim();
@@ -8186,7 +8198,7 @@ export class PortalService implements OnModuleInit {
     const permissionSet = this.isAdmin(role)
       ? new Set<string>(ALL_PORTAL_PERMISSIONS)
       : await this.resolveEffectivePermissionSet(userId, role);
-    if (!this.isAdmin(role) && !this.hasPortalPermission(permissionSet, "hiring_manage")) {
+    if (!this.isAdmin(role) && !portalCanView(permissionSet, "hiring")) {
       throw new ForbiddenException();
     }
     const id = String(candidateId || "").trim();
@@ -8451,7 +8463,7 @@ export class PortalService implements OnModuleInit {
     companyId?: string;
   }> {
     const permissionSet = await this.resolveEffectivePermissionSet(userId, role);
-    if (!this.isAdmin(role) && !this.hasPortalPermission(permissionSet, "payroll_manage")) {
+    if (!this.isAdmin(role) && !portalCanWrite(permissionSet, "payroll", ["employees"])) {
       throw new ForbiddenException();
     }
     if (!(await this.tableExists("empleados_nomina"))) {
@@ -8475,9 +8487,9 @@ export class PortalService implements OnModuleInit {
         : null;
     const broadCompanyDirectory =
       admin ||
-      this.hasPortalPermission(permissionSet, "payroll_manage") ||
+      portalCanView(permissionSet, "payroll") ||
       this.hasPortalPermission(permissionSet, "users_manage") ||
-      this.hasPortalPermission(permissionSet, "hiring_manage");
+      portalCanView(permissionSet, "hiring");
 
     const docMatchSql =
       docType === "PAS" || docType === "PEP"
@@ -8778,7 +8790,7 @@ export class PortalService implements OnModuleInit {
       this.getUserCompany(actorUserId),
       this.resolveEffectivePermissionSet(actorUserId, role)
     ]);
-    const canPayroll = admin || this.hasPortalPermission(permissionSet, "payroll_manage");
+    const canPayroll = admin || portalCanView(permissionSet, "payroll");
     if (!canPayroll) throw new ForbiddenException("Sin permiso para consultar liquidaciones.");
     const id = String(runId || "").trim();
     if (!PG_UUID_V4_RE.test(id)) throw new BadRequestException("Identificador de liquidación inválido.");
@@ -9962,8 +9974,8 @@ export class PortalService implements OnModuleInit {
       : await this.loadPortalPermissionSet(userId);
     if (
       !this.isAdmin(role) &&
-      !this.hasPortalPermission(permissionSet, "transport_trips") &&
-      !this.hasPortalPermission(permissionSet, "transport_calendar")
+      !portalCanView(permissionSet, "trips") &&
+      !portalCanView(permissionSet, "calendar")
     ) {
       throw new ForbiddenException();
     }

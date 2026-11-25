@@ -606,6 +606,8 @@ const VEHICLE_EXPORT_COLUMNS = [
     id: "fleet",
     label: ["camión", "camiones"],
     filename: "camiones",
+    allowed: () => typeof canDo !== "function" || canDo(undefined, "vehicles", "export"),
+    deniedMessage: "No tiene permiso para exportar camiones.",
     audit: { module: "vehicles", label: "Camiones" },
     anchor: (root) =>
       root.querySelector(".vehicle-ops-cards") || root.querySelector(".vehicle-fleet-list-wrap") || null,

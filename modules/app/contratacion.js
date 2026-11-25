@@ -1216,10 +1216,7 @@ function bindHiringPortalControls() {
 
   nodes.viewRoot.querySelectorAll("[data-action='delete-vacancy']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      if (currentUser()?.role !== ROLES.ADMIN) {
-        notify(userMessage("adminOnlyModule"), "error");
-        return;
-      }
+      if (abortUnlessCan("hiring", "delete")) return;
       const id = String(btn.dataset.id || "").trim();
       if (!id) return;
       const target = read(KEYS.vacancies, []).find((v) => String(v.id) === id);
@@ -2862,7 +2859,7 @@ function bindHiringPortalControls() {
 
   nodes.viewRoot.querySelectorAll("[data-action='delete-position']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      if (abortIfNotAdmin()) return;
+      if (abortUnlessCan("hiring", "delete")) return;
       const id = String(btn.dataset.id || "");
       const target = read(KEYS.positions, []).find((p) => String(p.id) === id);
       if (!target) return;
@@ -3485,7 +3482,7 @@ function bindHiringPortalControls() {
 
   nodes.viewRoot.querySelectorAll("[data-action='delete-candidate']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      if (abortIfNotAdmin()) return;
+      if (abortUnlessCan("hiring", "delete")) return;
       const id = String(btn.dataset.id || "");
       const target = read(KEYS.candidates, []).find((c) => String(c.id) === id);
       if (!target) return;
@@ -3664,7 +3661,7 @@ function bindHiringPortalControls() {
 
   nodes.viewRoot.querySelectorAll("[data-action='delete-interview']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      if (abortIfNotAdmin()) return;
+      if (abortUnlessCan("hiring", "delete")) return;
       const id = String(btn.dataset.id || "");
       const target = read(KEYS.interviews, []).find((i) => String(i.id) === id);
       if (!target) return;
@@ -3756,7 +3753,7 @@ function bindHiringPortalControls() {
 
   nodes.viewRoot.querySelectorAll("[data-action='delete-contract']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      if (abortIfNotAdmin()) return;
+      if (abortUnlessCan("hiring", "delete")) return;
       const id = String(btn.dataset.id || "");
       const target = read(KEYS.contracts, []).find((c) => String(c.id) === id);
       if (!target) return;

@@ -74,6 +74,8 @@ function leadsVisible() {
     id: "leads",
     label: ["prospecto", "prospectos"],
     filename: "prospectos-contacto-web",
+    allowed: () => typeof canDo !== "function" || canDo(undefined, "contact", "export"),
+    deniedMessage: "No tiene permiso para exportar los prospectos.",
     audit: { module: "contact-leads", label: "Contacto web" },
     note: "El archivo contiene datos de contacto de prospectos: guárdelo y compártalo con cuidado.",
     anchor: (root) => root.querySelector(".b2b-leads-mosaic"),

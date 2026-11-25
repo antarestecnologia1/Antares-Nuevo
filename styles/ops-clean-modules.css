@@ -332,6 +332,9 @@ body.portal-mode #view-root .dc-selectable.is-selected {
   outline-offset: -2px;
 }
 
+/* Permisos por acción: lo que el perfil no puede hacer se oculta (la compuerta también lo bloquea). */
+[data-perm-denied] { display: none !important; }
+
 /* ---------- Contenedores: una sola tarjeta blanca, sin anidar ---------- */
 body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) :is([class*="-data-panel"], [class*="data-pane"]:not(.hidden)) {
   padding: 0;

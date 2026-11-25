@@ -1071,6 +1071,9 @@ body.portal-mode #view-root .dc-selectable.is-selected {
   outline: 2px solid var(--oc-brand);
   outline-offset: -2px;
 }
+
+/* Permisos por acción: lo que el perfil no puede hacer se oculta (la compuerta también lo bloquea). */
+[data-perm-denied] { display: none !important; }
 """
 body += EXTRA
 from pathlib import Path

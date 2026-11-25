@@ -8,13 +8,14 @@ import {
   ROLES,
   CO_CATALOGS,
   REPORT_RULES,
+  PERMISSION_MODULES,
   REPORT_BRAND_LOGO_PATH,
   CONTRACT_LEGAL_REP_SIGNATURE_PATH,
   userIsClientScoped
 } from "../core/config.js";
 import { read, writeAwaitServer, writeAwaitServerCreate, syncPayloadForEditedRow } from "../core/data-io.js";
 import { state, nodes } from "../core/store.js";
-import { currentUser, hasPermission, canAccessRRHH, canAccessSarlaftView } from "../core/auth.js";
+import { canDo, currentUser, hasPermission, canAccessRRHH, canAccessSarlaftView } from "../core/auth.js";
 import {
   escapeHtml,
   escapeAttr,
@@ -66,6 +67,17 @@ export function toCsv(rows = [], columns = []) {
   return `${header}\n${body}`;
 }
 
+/**
+ * ¿Tiene el permiso que habilita el reporte? Acepta la llave completa del módulo o cualquiera de sus permisos
+ * de consulta/acción (p. ej. «payroll_view» abre los reportes de nómina).
+ */
+function userHoldsReportPermission(user, permission) {
+  if (hasPermission(user, permission)) return true;
+  return Object.entries(PERMISSION_MODULES).some(
+    ([moduleId, mod]) => mod.full === permission && canDo(user, moduleId, "view")
+  );
+}
+
 export function canAccessReport(user, reportId) {
   if (!user) return false;
   if (userIsClientScoped(user)) return false;
@@ -73,7 +85,7 @@ export function canAccessReport(user, reportId) {
   if (!rule) return false;
   if (rule.adminOnly && user.role !== ROLES.ADMIN) return false;
   if (reportId === "sarlaft_pte") return canAccessSarlaftView(user);
-  if (hasPermission(user, rule.permission)) return true;
+  if (userHoldsReportPermission(user, rule.permission)) return true;
   if (rule.rrhhAllowed && (canAccessRRHH(user.role) || user.role === ROLES.ADMIN)) return true;
   return false;
 }
@@ -1376,8 +1388,8 @@ export function reportsExportPanelHtml(user) {
         <div class="p-card-body">
           <div class="toolbar reports-card-actions">
             <button class="btn btn-sm btn-approve" type="button" data-action="generate-report" data-report="${escapeAttr(card.id)}" data-format="preview" title="Ver en pantalla, sin ventanas emergentes">${ic().eye} Vista previa</button>
-            <button class="btn btn-sm btn-action" type="button" data-action="generate-report" data-report="${escapeAttr(card.id)}" data-format="pdf" title="Descarga el reporte en PDF">${ic().download} PDF</button>
-            <button class="btn btn-sm btn-action" type="button" data-action="generate-report" data-report="${escapeAttr(card.id)}" data-format="excel" title="Descarga Excel (.xls) con formato corporativo">${ic().file} Excel</button>
+            ${canDo(currentUser(), "reports", "export") ? `<button class="btn btn-sm btn-action" type="button" data-action="generate-report" data-report="${escapeAttr(card.id)}" data-format="pdf" title="Descarga el reporte en PDF">${ic().download} PDF</button>
+            <button class="btn btn-sm btn-action" type="button" data-action="generate-report" data-report="${escapeAttr(card.id)}" data-format="excel" title="Descarga Excel (.xls) con formato corporativo">${ic().file} Excel</button>` : ""}
           </div>
         </div>
       </article>`;

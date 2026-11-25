@@ -14,7 +14,7 @@ let hiringExport = { candidates: [], vacancies: [], interviews: [], contracts: [
     view: "hiring",
     note: "El archivo puede incluir datos personales y salarios: guárdelo y compártalo con cuidado.",
     deniedMessage: "No tiene permiso para exportar información de contratación.",
-    allowed: () => typeof canManageHiringModule !== "function" || canManageHiringModule(),
+    allowed: () => typeof canDo !== "function" || canDo(undefined, "hiring", "export"),
     ...extra
   });
   dc()?.register(
@@ -348,7 +348,7 @@ function hiringHtml() {
   const drawerTab = ["resumen", "timeline", "documentos", "notas", "evaluaciones"].includes(String(hiringUi.drawerTab || ""))
     ? String(hiringUi.drawerTab)
     : "resumen";
-  const hiringWorkspace = normalizeHrWorkspace("hiring", hiringUi.workspace);
+  const hiringWorkspace = hrWorkspaceForUser("hiring", normalizeHrWorkspace("hiring", hiringUi.workspace));
   const isSelectionWs = hiringWorkspace === "data";
   const isConsultWs = hiringWorkspace === "consult";
   const hiringOperateSection = normalizeHiringOperateSection(hiringUi.operateSection);
@@ -390,7 +390,7 @@ function hiringHtml() {
   });
 
   const positionCanEdit = canManageHiringModule();
-  const positionCanDelete = isAdminActor();
+  const positionCanDelete = canDo(undefined, "hiring", "delete");
   const positionFilter = String(hiringUi.positionFilter || "active");
   const positionRoleFilter = String(hiringUi.positionRoleFilter || "all");
   const positionsScoped = positions.filter((p) => {
@@ -418,7 +418,7 @@ function hiringHtml() {
       )
     : filteredVacancies;
   const vacancyCanEdit = canManageHiringModule();
-  const vacancyCanDelete = isAdminActor();
+  const vacancyCanDelete = canDo(undefined, "hiring", "delete");
   const normalizeStage =
     typeof normalizeHiringPipelineStatus === "function"
       ? normalizeHiringPipelineStatus
@@ -469,7 +469,7 @@ function hiringHtml() {
     return acc;
   }, {});
   const hiringCanEdit = canManageHiringModule();
-  const hiringCanDelete = isAdminActor();
+  const hiringCanDelete = canDo(undefined, "hiring", "delete");
   const selectedCandidateIdRaw = String(hiringUi.selectedCandidateId || "").trim();
   const selectedCandidate =
     sortedCandidatesView.find((c) => String(c.id) === selectedCandidateIdRaw) ||

@@ -232,7 +232,7 @@ function payrollHtml() {
   const runSort = String(payrollUi.runSort || "recent");
   const runsView = String(payrollUi.runsView || "cards").toLowerCase() === "list" ? "list" : "cards";
   const employeesView = String(payrollUi.employeesView || "cards").toLowerCase() === "list" ? "list" : "cards";
-  const payrollWorkspace = normalizeHrWorkspace("payroll", payrollUi.workspace);
+  const payrollWorkspace = hrWorkspaceForUser("payroll", normalizeHrWorkspace("payroll", payrollUi.workspace));
   const payrollDataSection = normalizePayrollDataSection(payrollUi.dataSection);
   const payrollOperateSection = normalizePayrollOperateSection(payrollUi.operateSection);
   const payrollCreateUi = buildPayrollCreatePanelsState(payrollOperateSection, state.createPanels || {});
@@ -263,7 +263,7 @@ function payrollHtml() {
   const pendingAbsenceApprovals = readArray(KEYS.approvals).filter((a) => a.status === "pendiente" && a.type === "register_hr_absence").length;
   const hrAdminDeletes = canDeletePayroll(currentUser());
   const hrAdminEdits = currentUser()?.role === ROLES.ADMIN;
-  const canDeletePayrollEmployees = canManagePayrollModule(currentUser());
+  const canDeletePayrollEmployees = canDo(currentUser(), "payroll", "employees");
   const canEditLegalParameters = currentUser()?.role === ROLES.ADMIN;
   const legalHistory = laborSystemParametersHistoryRows();
   const legalSelectedYear = Number(state.payrollLegalUi?.year || legalHistory[0]?.year || now.getFullYear());

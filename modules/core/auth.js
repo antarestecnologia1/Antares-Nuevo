@@ -13,6 +13,7 @@ import {
   KEYS,
   LOGIN_REMEMBER_STORAGE_KEY,
   PERMISSIONS,
+  PERMISSION_MODULES,
   REGISTER_PRIVACY_URL,
   REGISTER_TERMS_URL,
   ROLES,
@@ -26,7 +27,9 @@ import {
   userLegalProfileIsHydrated
 } from "./config.js";
 import { state } from "./store.js";
-import { failPortalField, wireFormSubmitGuard } from "../ui/modals.js";
+import { PERMISSION_ACTION_RULES } from "./permission-rules.js";
+import { permissionAllows } from "./permission-model.js";
+import { failPortalField, notify, userMessage, wireFormSubmitGuard } from "../ui/modals.js";
 import { syncPayloadForEditedRow } from "./data-io.js";
 import {
   showLoginSuccessOverlay,
@@ -122,6 +125,19 @@ export const VIEW_PERMISSIONS = Object.freeze({
   profile: PERMISSIONS.PROFILE_VIEW,
   notifications: PERMISSIONS.NOTIFICATIONS_VIEW,
   "contact-leads": PERMISSIONS.CONTACT_B2B_VIEW
+});
+
+/** Vistas cuyo acceso depende de los permisos por acción del módulo (`PERMISSION_MODULES`). */
+const VIEW_PERMISSION_MODULES = Object.freeze({
+  "transport-trips": "trips",
+  "transport-drivers": "drivers",
+  "transport-calendar": "calendar",
+  history: "history",
+  reports: "reports",
+  payroll: "payroll",
+  hiring: "hiring",
+  "labor-compliance": "sst",
+  "contact-leads": "contact"
 });
 
 const AUTHORIZATION_SECTION_PERMISSIONS = Object.freeze({
@@ -453,6 +469,65 @@ export function isAdminActor(user) {
   return actor?.role === ROLES.ADMIN;
 }
 
+/**
+ * Permiso por acción de un módulo (`PERMISSION_MODULES`).
+ * - «view»: poder abrir el módulo.
+ * - Otra acción: administrador; llave propia; permiso completo del módulo (salvo `fullExcludes`); o permisos de
+ *   otros módulos que ya la permitían (`alsoFrom`).
+ */
+export function canDo(user, moduleId, action = "view") {
+  const u = user || currentUser();
+  if (!u) return false;
+  if (isAdminActor(u)) return true;
+  return permissionAllows((key) => hasPermission(u, key), moduleId, action);
+}
+
+/**
+ * Guarda dura para manejadores: avisa y devuelve true si el usuario NO puede la acción del módulo.
+ * @returns {boolean} true si se debe abortar.
+ */
+export function abortUnlessCan(moduleId, action, reason = "adminOnlyModule") {
+  if (canDo(currentUser(), moduleId, action)) return false;
+  notify(userMessage(reason), "error");
+  return true;
+}
+
+/** Verdadero si puede al menos una de las acciones indicadas. */
+export function canDoAny(user, moduleId, actions) {
+  return (Array.isArray(actions) ? actions : []).some((action) => canDo(user, moduleId, action));
+}
+
+/** Acciones que habilitan la pestaña «Registrar» (formularios de alta) de cada módulo con espacio de trabajo. */
+const HR_OPERATE_WORKSPACE_ACTIONS = Object.freeze({
+  payroll: ["payroll", ["employees", "runs", "absences"]],
+  hiring: ["hiring", ["vacancies", "candidates", "contracts"]],
+  sst: ["sst", ["edit"]],
+  "transport-trips": ["trips", ["assign", "rates"]],
+  requests: ["requests", ["create"]]
+});
+
+/** ¿Puede usar la pestaña «Registrar» del módulo? Sin permisos de alta solo se muestra «Consultar». */
+export function canOperateHrWorkspace(moduleId, user) {
+  const rule = HR_OPERATE_WORKSPACE_ACTIONS[String(moduleId || "")];
+  if (!rule) return true;
+  return canDoAny(user || currentUser(), rule[0], rule[1]);
+}
+
+/** Espacio de trabajo efectivo: quien no puede registrar nunca queda en «Registrar» (aunque lo tuviera guardado). */
+export function hrWorkspaceForUser(moduleId, workspace, user) {
+  return String(workspace || "") === "operate" && !canOperateHrWorkspace(moduleId, user) ? "data" : workspace;
+}
+
+/** Acciones del módulo que modifican datos (todas menos «export»). */
+export function permissionModuleWriteActions(moduleId) {
+  return Object.keys(PERMISSION_MODULES[moduleId]?.actions || {}).filter((action) => action !== "export");
+}
+
+/** ¿Puede modificar algo en el módulo? (consulta + exportación no cuentan). */
+export function canWriteModule(user, moduleId) {
+  return canDoAny(user, moduleId, permissionModuleWriteActions(moduleId));
+}
+
 export function hasAuthorizationManageAll(user) {
   return hasPermission(user, PERMISSIONS.AUTHORIZATIONS_MANAGE);
 }
@@ -581,36 +656,41 @@ export function canApproveInternalAuthorization(user, approvalType) {
   return canAccessAuthorizationSection(u, sectionKey);
 }
 
+/** Puede operar viajes (asignar, cambiar estado o editar). Cada acción se afina con `canDo(user, "trips", …)`. */
 export function canManageTransportTrips(user) {
   const u = user || currentUser();
   if (!u) return false;
-  return isAdminActor(u) || hasPermission(u, PERMISSIONS.TRANSPORT_TRIPS);
+  return canDoAny(u, "trips", ["assign", "status", "edit"]);
 }
 
+/** Puede editar o activar/desactivar conductores (antes: solo administrador). */
 export function canEditFleetDriverAsAdmin(user) {
-  return isAdminActor(user);
+  return canDoAny(user, "drivers", ["edit", "status"]);
 }
 
+/** Puede modificar algo en Contratación. Cada acción se afina con `canDo(user, "hiring", …)`. */
 export function canManageHiringModule(user) {
   const actor = user || currentUser();
-  return isAdminActor(actor) || hasPermission(actor, PERMISSIONS.HIRING_MANAGE);
+  return canDoAny(actor, "hiring", ["vacancies", "candidates", "contracts"]);
 }
 
+/** Puede modificar algo en Gestión humana. Cada acción se afina con `canDo(user, "payroll", …)`. */
 export function canManagePayrollModule(user) {
   const actor = user || currentUser();
-  return isAdminActor(actor) || hasPermission(actor, PERMISSIONS.PAYROLL_MANAGE);
+  return canDoAny(actor, "payroll", ["employees", "runs", "pay", "absences", "documents"]);
 }
 
 /** Eliminar en Gestión humana (liquidaciones, ausencias, desvinculación): admin o permiso payroll_delete. */
 export function canDeletePayroll(user) {
   const actor = user || currentUser();
   if (!actor) return false;
-  return isAdminActor(actor) || hasPermission(actor, PERMISSIONS.PAYROLL_DELETE);
+  return canDo(actor, "payroll", "delete");
 }
 
+/** Puede modificar algo en Cumplimiento laboral y SST. */
 export function canManageSstModule(user) {
   const actor = user || currentUser();
-  return isAdminActor(actor) || hasPermission(actor, PERMISSIONS.SST_COMPLIANCE);
+  return canDoAny(actor, "sst", ["edit", "renew", "delete"]);
 }
 
 export function canAccessSarlaftView(user) {
@@ -661,6 +741,9 @@ export function canDeleteSarlaftRecords(user) {
 
 export function canPerformPermissionGatedAction(user, action, trigger) {
   if (!user || isAdminActor(user)) return true;
+  /* Acciones con permiso por acción (ver `permission-rules.js`): decide el catálogo de permisos. */
+  const actionRule = PERMISSION_ACTION_RULES[String(action || "")];
+  if (actionRule) return actionRule.some(([moduleId, moduleAction]) => canDo(user, moduleId, moduleAction));
   if (action === "approve" || action === "reject") return canApproveTransportRequests(user);
   if (action === "approve-registration" || action === "reject-registration") {
     return canApprovePortalRegistration(user);
@@ -691,10 +774,10 @@ export function canAccessView(user, view) {
   if (v === "document-management") return canAccessDocumentsView(user);
   if (v === "sarlaft-pte") return canAccessSarlaftView(user);
   if (v === "requests") {
-    return (
-      hasPermission(user, PERMISSIONS.CLIENT_REQUESTS) || hasPermission(user, PERMISSIONS.TRANSPORT_REQUESTS)
-    );
+    return hasPermission(user, PERMISSIONS.CLIENT_REQUESTS) || canDo(user, "requests", "view");
   }
+  const permissionModule = VIEW_PERMISSION_MODULES[v];
+  if (permissionModule) return canDo(user, permissionModule, "view");
   const perm = VIEW_PERMISSIONS[v];
   return perm ? hasPermission(user, perm) : false;
 }

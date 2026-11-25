@@ -6,13 +6,7 @@
  */
 import { KEYS, PERMISSIONS, ROLES, STATUS, STATUS_TRANSITIONS, TRANSPORT_MODOS_SERVICIO, TRIP_ASSIGNMENT_FLEET_TYPE_KEYS, userIsClientScoped } from "../core/config.js";
 import { read, write, writeAwaitServer } from "../core/data-io.js";
-import {
-  canApproveTransportRequests,
-  canManageTransportTrips,
-  currentUser,
-  hasPermission,
-  isAdminActor
-} from "../core/auth.js";
+import { canDo, currentUser, isAdminActor } from "../core/auth.js";
 import { nodes } from "../core/store.js";
 import { escapeAttr, escapeHtml, fieldLabel, fmtDate, newUuidV4, normalizePortalDateYmd, nowIso, nowLocalIso } from "../core/utils.js";
 import { notify, openEditModal, userMessage, failPortalField } from "../ui/modals.js";
@@ -51,12 +45,19 @@ export const REQUEST_EDIT_FINAL_STATUSES = [
   VIAJES_STATUS.RECHAZADA
 ];
 
-/** Permisos que habilitan editar una solicitud que ya tiene viaje asignado. */
+/** Permisos que habilitan editar una solicitud que ya tiene viaje asignado (referencia; la decisión usa `canDo`). */
 export const REQUEST_EDIT_WITH_TRIP_PERMISSIONS = [
   PERMISSIONS.TRANSPORT_TRIPS,
+  PERMISSIONS.TRANSPORT_TRIPS_EDIT,
+  PERMISSIONS.TRANSPORT_REQUESTS_EDIT,
   PERMISSIONS.AUTHORIZATIONS_MANAGE,
   PERMISSIONS.AUTHORIZATIONS_TRANSPORT
 ];
+
+/** Operación de solicitudes por parte de personal del portal: editar solicitud o viaje, o cancelar solicitud. */
+function canOperateTransportRequests(user) {
+  return canDo(user, "requests", "edit") || canDo(user, "requests", "cancel") || canDo(user, "trips", "edit");
+}
 
 export const TRANSPORT_SCHEDULE_BUSY_TTL_MS = 90_000;
 
@@ -461,7 +462,7 @@ export function canEditTransportRequestWithAssignedTrip(request, actor) {
   if (!request?.trip || !user) return false;
   if (userIsClientScoped(user)) return false;
   if (REQUEST_EDIT_FINAL_STATUSES.includes(request.status)) return false;
-  return REQUEST_EDIT_WITH_TRIP_PERMISSIONS.some((perm) => hasPermission(user, perm));
+  return canDo(user, "requests", "edit") || canDo(user, "trips", "edit");
 }
 
 export function transportRequestScheduledRange(request) {
@@ -590,9 +591,7 @@ export function canAdminEditTransportRequestFields(request, actor) {
   if (!request) return false;
   const user = actor || currentUser();
   if (!user) return false;
-  const canOps =
-    user.role === ROLES.ADMIN || canApproveTransportRequests(user) || canManageTransportTrips(user);
-  if (!canOps) return false;
+  if (!(user.role === ROLES.ADMIN || canOperateTransportRequests(user))) return false;
   if (request.trip) return false;
   return !REQUEST_EDIT_FINAL_STATUSES.includes(request.status);
 }
@@ -632,7 +631,7 @@ export function canClientManageRequest(request) {
 export function canAdminEditTrip(request, actor) {
   if (!request?.trip) return false;
   const user = actor || currentUser();
-  if (!canManageTransportTrips(user) && !isAdminActor(user)) return false;
+  if (!canDo(user, "trips", "edit") && !isAdminActor(user)) return false;
   return !REQUEST_EDIT_FINAL_STATUSES.includes(request.status);
 }
 

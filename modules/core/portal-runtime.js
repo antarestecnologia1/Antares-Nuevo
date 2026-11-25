@@ -7481,16 +7481,16 @@ function canViewAllTransportRequests(user) {
   if (isPortalClientUser(user)) return false;
   if (isAdminActor(user)) return true;
   const ops = [
-    PERMISSIONS.TRANSPORT_TRIPS,
-    PERMISSIONS.TRANSPORT_REQUESTS,
     PERMISSIONS.AUTHORIZATIONS_TRANSPORT,
     PERMISSIONS.AUTHORIZATIONS_MANAGE,
-    PERMISSIONS.TRANSPORT_HISTORY,
     PERMISSIONS.TRANSPORT_CALENDAR,
-    PERMISSIONS.TRANSPORT_DRIVERS,
     ...VEHICLE_GRANULAR_PERMISSIONS
   ];
-  return ops.some((p) => hasPermission(user, p)) || canAccessVehiclesView(user);
+  if (ops.some((p) => hasPermission(user, p)) || canAccessVehiclesView(user)) return true;
+  /* Cualquier permiso (completo, de consulta o por acción) de los módulos de transporte. */
+  return ["requests", "trips", "history", "reports", "drivers", "vehicles", "calendar"].some((moduleId) =>
+    canDo(user, moduleId, "view")
+  );
 }
 
 function findPayrollEmployeeByIdDoc(idDoc) {

@@ -291,6 +291,8 @@ let calendarExportRows = [];
     id: "events",
     label: ["evento", "eventos"],
     filename: "calendario",
+    allowed: () => typeof canDo !== "function" || canDo(undefined, "calendar", "export"),
+    deniedMessage: "No tiene permiso para exportar el calendario.",
     scopeLabel: "en el periodo visible",
     audit: { module: "transport-calendar", label: "Calendario" },
     selectable: () => false,

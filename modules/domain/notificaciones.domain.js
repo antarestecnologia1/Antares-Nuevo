@@ -15,7 +15,7 @@ import {
 import { read, write } from "../core/data-io.js";
 import { state } from "../core/store.js";
 import { nowIso, devWarn, isUuidString } from "../core/utils.js";
-import { currentUser, getSession, isAdminActor, hasPermission } from "../core/auth.js";
+import { canDo, currentUser, getSession, isAdminActor, hasPermission } from "../core/auth.js";
 import {
   applyPortalBootstrapFromApi,
   portalCanRefreshFromApi,
@@ -620,7 +620,7 @@ export async function refreshContractRenewalNotificationsFromServer() {
   const api = window.AntaresApi;
   if (!api?.postJson || !portalCanRefreshFromApi()) return false;
   const actor = currentUser();
-  if (!actor || !hasPermission(actor, PERMISSIONS.PAYROLL_MANAGE)) return false;
+  if (!actor || !canDo(actor, "payroll", "view")) return false;
   const now = Date.now();
   if (now - __contractRenewalNoticeCheckWallMs < 45000) return false;
   __contractRenewalNoticeCheckWallMs = now;

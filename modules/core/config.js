@@ -231,7 +231,50 @@ export const PERMISSIONS = {
   AUTHORIZATIONS_PAYROLL_PAY: "authorizations_payroll_pay",
   PROFILE_VIEW: "profile_view",
   NOTIFICATIONS_VIEW: "notifications_view",
-  CONTACT_B2B_VIEW: "contact_b2b_view"
+  CONTACT_B2B_VIEW: "contact_b2b_view",
+  CONTACT_B2B_EXPORT: "contact_b2b_export",
+  /* ── Permisos por acción (el permiso «completo» de cada módulo sigue vigente y los incluye todos) ── */
+  TRANSPORT_REQUESTS_VIEW: "transport_requests_view",
+  TRANSPORT_REQUESTS_CREATE: "transport_requests_create",
+  TRANSPORT_REQUESTS_EDIT: "transport_requests_edit",
+  TRANSPORT_REQUESTS_CANCEL: "transport_requests_cancel",
+  TRANSPORT_REQUESTS_DELETE: "transport_requests_delete",
+  TRANSPORT_REQUESTS_EXPORT: "transport_requests_export",
+  TRANSPORT_TRIPS_VIEW: "transport_trips_view",
+  TRANSPORT_TRIPS_ASSIGN: "transport_trips_assign",
+  TRANSPORT_TRIPS_STATUS: "transport_trips_status",
+  TRANSPORT_TRIPS_EDIT: "transport_trips_edit",
+  TRANSPORT_TRIPS_DELETE: "transport_trips_delete",
+  TRANSPORT_TRIPS_RATES: "transport_trips_rates",
+  TRANSPORT_TRIPS_EXPORT: "transport_trips_export",
+  TRANSPORT_DRIVERS_VIEW: "transport_drivers_view",
+  TRANSPORT_DRIVERS_EDIT: "transport_drivers_edit",
+  TRANSPORT_DRIVERS_STATUS: "transport_drivers_status",
+  TRANSPORT_DRIVERS_EXPORT: "transport_drivers_export",
+  TRANSPORT_VEHICLES_EXPORT: "transport_vehicles_export",
+  TRANSPORT_CALENDAR_EXPORT: "transport_calendar_export",
+  TRANSPORT_HISTORY_VIEW: "transport_history_view",
+  TRANSPORT_HISTORY_EXPORT: "transport_history_export",
+  TRANSPORT_REPORTS_VIEW: "transport_reports_view",
+  TRANSPORT_REPORTS_EXPORT: "transport_reports_export",
+  PAYROLL_VIEW: "payroll_view",
+  PAYROLL_EMPLOYEES: "payroll_employees",
+  PAYROLL_RUNS: "payroll_runs",
+  PAYROLL_PAY: "payroll_pay",
+  PAYROLL_ABSENCES: "payroll_absences",
+  PAYROLL_DOCUMENTS: "payroll_documents",
+  PAYROLL_EXPORT: "payroll_export",
+  HIRING_VIEW: "hiring_view",
+  HIRING_VACANCIES: "hiring_vacancies",
+  HIRING_CANDIDATES: "hiring_candidates",
+  HIRING_CONTRACTS: "hiring_contracts",
+  HIRING_DELETE: "hiring_delete",
+  HIRING_EXPORT: "hiring_export",
+  SST_VIEW: "sst_view",
+  SST_EDIT: "sst_edit",
+  SST_RENEW: "sst_renew",
+  SST_DELETE: "sst_delete",
+  SST_EXPORT: "sst_export"
 };
 
 export const ALL_PERMISSIONS = Object.values(PERMISSIONS);
@@ -241,6 +284,139 @@ export const CLIENT_ROLE_PERMISSIONS = Object.freeze([
   PERMISSIONS.PROFILE_VIEW,
   PERMISSIONS.CLIENT_REQUESTS
 ]);
+
+/**
+ * Módulos con permisos por acción.
+ * - `full`: permiso que ya existía antes de la granularidad. Conserva EXACTAMENTE lo que ya permitía (nadie gana ni
+ *   pierde acceso por este cambio).
+ * - `view`: solo consultar. Abrir el módulo exige `full`, `view` o cualquier permiso de acción.
+ * - `actions`: llave de cada acción. Las acciones «export» no cuentan como escritura.
+ * - `fullExcludes`: acciones que el permiso `full` NO incluye (antes eran solo del administrador o de otro permiso)
+ *   y ahora se pueden otorgar por separado.
+ * - `alsoFrom`: permisos de OTROS módulos que ya permitían esa acción (compatibilidad).
+ * Debe coincidir con `PORTAL_MODULE_PERMISSIONS` de `apps/api/src/portal/portal-permissions.ts`.
+ */
+export const PERMISSION_MODULES = Object.freeze({
+  requests: {
+    label: "Solicitudes",
+    full: PERMISSIONS.TRANSPORT_REQUESTS,
+    view: PERMISSIONS.TRANSPORT_REQUESTS_VIEW,
+    fullExcludes: ["edit", "cancel", "delete"],
+    alsoFrom: {
+      create: [PERMISSIONS.CLIENT_REQUESTS],
+      edit: [PERMISSIONS.AUTHORIZATIONS_TRANSPORT, PERMISSIONS.AUTHORIZATIONS_MANAGE, PERMISSIONS.TRANSPORT_TRIPS],
+      cancel: [PERMISSIONS.AUTHORIZATIONS_TRANSPORT, PERMISSIONS.AUTHORIZATIONS_MANAGE, PERMISSIONS.TRANSPORT_TRIPS],
+      export: [PERMISSIONS.CLIENT_REQUESTS, PERMISSIONS.AUTHORIZATIONS_TRANSPORT, PERMISSIONS.AUTHORIZATIONS_MANAGE, PERMISSIONS.TRANSPORT_TRIPS]
+    },
+    actions: {
+      create: PERMISSIONS.TRANSPORT_REQUESTS_CREATE,
+      edit: PERMISSIONS.TRANSPORT_REQUESTS_EDIT,
+      cancel: PERMISSIONS.TRANSPORT_REQUESTS_CANCEL,
+      delete: PERMISSIONS.TRANSPORT_REQUESTS_DELETE,
+      export: PERMISSIONS.TRANSPORT_REQUESTS_EXPORT
+    }
+  },
+  trips: {
+    label: "Viajes",
+    full: PERMISSIONS.TRANSPORT_TRIPS,
+    view: PERMISSIONS.TRANSPORT_TRIPS_VIEW,
+    fullExcludes: ["delete", "rates"],
+    actions: {
+      assign: PERMISSIONS.TRANSPORT_TRIPS_ASSIGN,
+      status: PERMISSIONS.TRANSPORT_TRIPS_STATUS,
+      edit: PERMISSIONS.TRANSPORT_TRIPS_EDIT,
+      delete: PERMISSIONS.TRANSPORT_TRIPS_DELETE,
+      rates: PERMISSIONS.TRANSPORT_TRIPS_RATES,
+      export: PERMISSIONS.TRANSPORT_TRIPS_EXPORT
+    }
+  },
+  drivers: {
+    label: "Conductores",
+    full: PERMISSIONS.TRANSPORT_DRIVERS,
+    view: PERMISSIONS.TRANSPORT_DRIVERS_VIEW,
+    fullExcludes: ["edit", "status", "export"],
+    actions: {
+      edit: PERMISSIONS.TRANSPORT_DRIVERS_EDIT,
+      status: PERMISSIONS.TRANSPORT_DRIVERS_STATUS,
+      export: PERMISSIONS.TRANSPORT_DRIVERS_EXPORT
+    }
+  },
+  vehicles: {
+    label: "Camiones",
+    full: PERMISSIONS.TRANSPORT_VEHICLES,
+    view: PERMISSIONS.TRANSPORT_VEHICLES_VIEW,
+    actions: {
+      create: PERMISSIONS.TRANSPORT_VEHICLES_CREATE,
+      edit: PERMISSIONS.TRANSPORT_VEHICLES_EDIT,
+      status: PERMISSIONS.TRANSPORT_VEHICLES_STATUS,
+      delete: PERMISSIONS.TRANSPORT_VEHICLES_DELETE,
+      export: PERMISSIONS.TRANSPORT_VEHICLES_EXPORT
+    }
+  },
+  calendar: {
+    label: "Calendario",
+    full: null,
+    view: PERMISSIONS.TRANSPORT_CALENDAR,
+    actions: { export: PERMISSIONS.TRANSPORT_CALENDAR_EXPORT }
+  },
+  history: {
+    label: "Historial",
+    full: PERMISSIONS.TRANSPORT_HISTORY,
+    view: PERMISSIONS.TRANSPORT_HISTORY_VIEW,
+    actions: { export: PERMISSIONS.TRANSPORT_HISTORY_EXPORT }
+  },
+  reports: {
+    label: "Reportería",
+    full: PERMISSIONS.TRANSPORT_HISTORY,
+    view: PERMISSIONS.TRANSPORT_REPORTS_VIEW,
+    actions: { export: PERMISSIONS.TRANSPORT_REPORTS_EXPORT }
+  },
+  payroll: {
+    label: "Gestión humana",
+    full: PERMISSIONS.PAYROLL_MANAGE,
+    view: PERMISSIONS.PAYROLL_VIEW,
+    fullExcludes: ["delete"],
+    actions: {
+      employees: PERMISSIONS.PAYROLL_EMPLOYEES,
+      runs: PERMISSIONS.PAYROLL_RUNS,
+      pay: PERMISSIONS.PAYROLL_PAY,
+      absences: PERMISSIONS.PAYROLL_ABSENCES,
+      documents: PERMISSIONS.PAYROLL_DOCUMENTS,
+      delete: PERMISSIONS.PAYROLL_DELETE,
+      export: PERMISSIONS.PAYROLL_EXPORT
+    }
+  },
+  hiring: {
+    label: "Contratación",
+    full: PERMISSIONS.HIRING_MANAGE,
+    view: PERMISSIONS.HIRING_VIEW,
+    fullExcludes: ["delete"],
+    actions: {
+      vacancies: PERMISSIONS.HIRING_VACANCIES,
+      candidates: PERMISSIONS.HIRING_CANDIDATES,
+      contracts: PERMISSIONS.HIRING_CONTRACTS,
+      delete: PERMISSIONS.HIRING_DELETE,
+      export: PERMISSIONS.HIRING_EXPORT
+    }
+  },
+  sst: {
+    label: "Cumplimiento laboral y SST",
+    full: PERMISSIONS.SST_COMPLIANCE,
+    view: PERMISSIONS.SST_VIEW,
+    actions: {
+      edit: PERMISSIONS.SST_EDIT,
+      renew: PERMISSIONS.SST_RENEW,
+      delete: PERMISSIONS.SST_DELETE,
+      export: PERMISSIONS.SST_EXPORT
+    }
+  },
+  contact: {
+    label: "Contacto web",
+    full: null,
+    view: PERMISSIONS.CONTACT_B2B_VIEW,
+    actions: { export: PERMISSIONS.CONTACT_B2B_EXPORT }
+  }
+});
 
 /**
  * Permisos que NO sacan a un cliente de su alcance (solo datos de su empresa). El administrador puede asignar
@@ -328,12 +504,12 @@ export const PERMISSION_META = {
     desc: "Crear solicitudes, consultar las propias y ver el viaje asignado."
   },
   [PERMISSIONS.TRANSPORT_REQUESTS]: {
-    title: "Operación de solicitudes",
-    desc: "Crear solicitudes para cualquier empresa y ver el listado operativo completo (perfil logística)."
+    title: "Solicitudes de transporte (acceso completo)",
+    desc: "Crear solicitudes para cualquier empresa y ver el listado operativo completo, y exportarlo (perfil logística). Editar, cancelar y eliminar se otorgan aparte."
   },
   [PERMISSIONS.TRANSPORT_TRIPS]: {
-    title: "Gestion de viajes",
-    desc: "Asignar viajes, actualizar estados y modificar solicitudes que ya tienen viaje asignado (con justificación)."
+    title: "Viajes (acceso completo)",
+    desc: "Asignar viajes, cambiar estados, editar y reasignar (con justificación) y exportar. Eliminar viajes y administrar tarifas se otorgan aparte."
   },
   [PERMISSIONS.TRANSPORT_VEHICLES]: {
     title: "Camiones (acceso completo)",
@@ -359,16 +535,31 @@ export const PERMISSION_META = {
     title: "Eliminar camiones",
     desc: "Quitar vehículos del catálogo (si no tienen viajes vinculados en base de datos)."
   },
-  [PERMISSIONS.TRANSPORT_DRIVERS]: { title: "Gestion de conductores", desc: "Registrar y administrar conductores." },
-  [PERMISSIONS.TRANSPORT_CALENDAR]: { title: "Calendario operativo", desc: "Ver programacion de viajes." },
-  [PERMISSIONS.TRANSPORT_HISTORY]: { title: "Historial y reportes", desc: "Consultar historicos y filtros." },
-  [PERMISSIONS.PAYROLL_MANAGE]: { title: "Gestión humana", desc: "Gestionar empleados y liquidaciones." },
+  [PERMISSIONS.TRANSPORT_DRIVERS]: {
+    title: "Conductores (consulta)",
+    desc: "Consultar fichas, documentos y vigencias de conductores. Editar, activar o desactivar y exportar se otorgan aparte (el alta se hace desde Gestión humana)."
+  },
+  [PERMISSIONS.TRANSPORT_CALENDAR]: { title: "Consultar calendario", desc: "Ver la programación de viajes y recursos." },
+  [PERMISSIONS.TRANSPORT_HISTORY]: {
+    title: "Historial y reportes (acceso completo)",
+    desc: "Consultar el historial y la reportería, descargar reportes, y usar combustible y taller de la flota."
+  },
+  [PERMISSIONS.PAYROLL_MANAGE]: {
+    title: "Gestión humana (acceso completo)",
+    desc: "Empleados, liquidaciones, pagos, ausencias, cartas, contratos de personal y exportación. Eliminar se otorga aparte."
+  },
   [PERMISSIONS.PAYROLL_DELETE]: {
     title: "Gestión humana · Eliminar",
     desc: "Eliminar liquidaciones, ausencias y novedades, y desvincular colaboradores en Gestión humana."
   },
-  [PERMISSIONS.HIRING_MANAGE]: { title: "Contratacion", desc: "Gestionar vacantes, candidatos y contratos." },
-  [PERMISSIONS.SST_COMPLIANCE]: { title: "Cumplimiento laboral y SST", desc: "Controlar seguridad social, vencimientos y auditoria documental." },
+  [PERMISSIONS.HIRING_MANAGE]: {
+    title: "Contratación (acceso completo)",
+    desc: "Vacantes, cargos, candidatos, entrevistas, contratos y exportación. Eliminar se otorga aparte."
+  },
+  [PERMISSIONS.SST_COMPLIANCE]: {
+    title: "Cumplimiento laboral y SST (acceso completo)",
+    desc: "Registrar, renovar, eliminar y exportar controles de seguridad social, vencimientos y auditoría documental."
+  },
   [PERMISSIONS.DOCUMENT_MANAGE]: {
     title: "Gestión documental (acceso completo)",
     desc: "Consultar, subir, editar metadatos, eliminar registros y administrar carpetas sin restricción."
@@ -417,7 +608,10 @@ export const PERMISSION_META = {
     title: "Eliminar registros SARLAFT / PTE",
     desc: "Quitar terceros, alertas o revisiones del módulo (queda trazabilidad en el historial)."
   },
-  [PERMISSIONS.USERS_MANAGE]: { title: "Usuarios y permisos", desc: "Crear usuarios y administrar accesos." },
+  [PERMISSIONS.USERS_MANAGE]: {
+    title: "Usuarios y permisos",
+    desc: "Crear usuarios y administrar accesos. El módulo de administración sigue siendo exclusivo del administrador."
+  },
   [PERMISSIONS.AUTHORIZATIONS_MANAGE]: {
     title: "Autorizaciones (todas las bandejas)",
     desc: "Acceso completo al centro de aprobaciones: transporte, cuentas, RRHH y colas internas."
@@ -452,7 +646,179 @@ export const PERMISSION_META = {
   },
   [PERMISSIONS.PROFILE_VIEW]: { title: "Mi perfil", desc: "Ver y editar informacion personal." },
   [PERMISSIONS.NOTIFICATIONS_VIEW]: { title: "Notificaciones", desc: "Ver novedades del sistema." },
-  [PERMISSIONS.CONTACT_B2B_VIEW]: { title: "Solicitudes contacto web", desc: "Ver prospectos del formulario de contacto B2B." }
+  [PERMISSIONS.CONTACT_B2B_VIEW]: { title: "Consultar contacto web", desc: "Ver prospectos del formulario de contacto B2B." },
+  [PERMISSIONS.CONTACT_B2B_EXPORT]: { title: "Exportar contacto web", desc: "Descargar el listado de prospectos en CSV." },
+
+  [PERMISSIONS.TRANSPORT_REQUESTS_VIEW]: {
+    title: "Consultar solicitudes",
+    desc: "Ver el listado operativo de solicitudes de todas las empresas, solo lectura."
+  },
+  [PERMISSIONS.TRANSPORT_REQUESTS_CREATE]: {
+    title: "Crear solicitudes",
+    desc: "Registrar solicitudes de transporte para cualquier empresa."
+  },
+  [PERMISSIONS.TRANSPORT_REQUESTS_EDIT]: {
+    title: "Editar solicitudes",
+    desc: "Modificar solicitudes existentes (con justificación si ya tienen viaje asignado)."
+  },
+  [PERMISSIONS.TRANSPORT_REQUESTS_CANCEL]: {
+    title: "Cancelar solicitudes",
+    desc: "Cancelar solicitudes que aún no se han cumplido."
+  },
+  [PERMISSIONS.TRANSPORT_REQUESTS_DELETE]: {
+    title: "Eliminar solicitudes",
+    desc: "Quitar solicitudes del portal (queda registro en el historial)."
+  },
+  [PERMISSIONS.TRANSPORT_REQUESTS_EXPORT]: {
+    title: "Exportar solicitudes",
+    desc: "Descargar en CSV las solicitudes que se ven con los filtros."
+  },
+
+  [PERMISSIONS.TRANSPORT_TRIPS_VIEW]: {
+    title: "Consultar viajes",
+    desc: "Ver viajes, seguimiento, tarifas y detalle sin poder modificarlos."
+  },
+  [PERMISSIONS.TRANSPORT_TRIPS_ASSIGN]: {
+    title: "Asignar viajes",
+    desc: "Crear el viaje de una solicitud eligiendo camión y conductor."
+  },
+  [PERMISSIONS.TRANSPORT_TRIPS_STATUS]: {
+    title: "Cambiar estado del viaje",
+    desc: "Marcar en tránsito, en espera, completado, cerrado o cancelado."
+  },
+  [PERMISSIONS.TRANSPORT_TRIPS_EDIT]: {
+    title: "Editar y reasignar viajes",
+    desc: "Modificar un viaje asignado o cambiar camión y conductor, con justificación."
+  },
+  [PERMISSIONS.TRANSPORT_TRIPS_DELETE]: {
+    title: "Eliminar viajes",
+    desc: "Quitar viajes del portal (queda registro en el historial)."
+  },
+  [PERMISSIONS.TRANSPORT_TRIPS_RATES]: {
+    title: "Trayectos y tarifas",
+    desc: "Crear, editar y quitar trayectos y tarifas generales o por empresa."
+  },
+  [PERMISSIONS.TRANSPORT_TRIPS_EXPORT]: {
+    title: "Exportar viajes",
+    desc: "Descargar en CSV los viajes que se ven con los filtros."
+  },
+
+  [PERMISSIONS.TRANSPORT_DRIVERS_VIEW]: {
+    title: "Consultar conductores",
+    desc: "Ver fichas, documentos y vigencias de conductores sin poder modificarlas."
+  },
+  [PERMISSIONS.TRANSPORT_DRIVERS_EDIT]: {
+    title: "Editar conductores",
+    desc: "Modificar datos, documentos y vigencias de conductores existentes."
+  },
+  [PERMISSIONS.TRANSPORT_DRIVERS_STATUS]: {
+    title: "Activar o desactivar conductores",
+    desc: "Cambiar la disponibilidad de un conductor para asignarlo a viajes."
+  },
+  [PERMISSIONS.TRANSPORT_DRIVERS_EXPORT]: {
+    title: "Exportar conductores",
+    desc: "Descargar en CSV los conductores que se ven con los filtros (contiene datos personales)."
+  },
+  [PERMISSIONS.TRANSPORT_VEHICLES_EXPORT]: {
+    title: "Exportar camiones",
+    desc: "Descargar en CSV los camiones que se ven con los filtros."
+  },
+  [PERMISSIONS.TRANSPORT_CALENDAR_EXPORT]: {
+    title: "Exportar calendario",
+    desc: "Descargar en CSV los eventos del periodo visible."
+  },
+
+  [PERMISSIONS.TRANSPORT_HISTORY_VIEW]: {
+    title: "Consultar historial",
+    desc: "Ver la bitácora de actividad del portal con sus filtros."
+  },
+  [PERMISSIONS.TRANSPORT_HISTORY_EXPORT]: {
+    title: "Exportar historial",
+    desc: "Descargar la bitácora de actividad en CSV."
+  },
+  [PERMISSIONS.TRANSPORT_REPORTS_VIEW]: {
+    title: "Consultar reportería",
+    desc: "Ver el catálogo de reportes y sus vistas previas."
+  },
+  [PERMISSIONS.TRANSPORT_REPORTS_EXPORT]: {
+    title: "Descargar reportes",
+    desc: "Exportar reportes a Excel, PDF o impresión."
+  },
+
+  [PERMISSIONS.PAYROLL_VIEW]: {
+    title: "Consultar gestión humana",
+    desc: "Ver empleados, liquidaciones y ausencias en solo lectura."
+  },
+  [PERMISSIONS.PAYROLL_EMPLOYEES]: {
+    title: "Registrar y editar empleados",
+    desc: "Crear y modificar fichas de empleados, y desvincular o reintegrar colaboradores (si no es administrador, pasa por aprobación)."
+  },
+  [PERMISSIONS.PAYROLL_RUNS]: {
+    title: "Liquidar nómina",
+    desc: "Generar, recalcular y editar liquidaciones, parámetros legales y pagos variables."
+  },
+  [PERMISSIONS.PAYROLL_PAY]: {
+    title: "Marcar liquidaciones como pagadas",
+    desc: "Confirmar el pago de liquidaciones (si no es administrador, pasa por aprobación)."
+  },
+  [PERMISSIONS.PAYROLL_ABSENCES]: {
+    title: "Ausencias e incapacidades",
+    desc: "Registrar ausencias, vacaciones e incapacidades (si no es administrador, pasa por aprobación)."
+  },
+  [PERMISSIONS.PAYROLL_DOCUMENTS]: {
+    title: "Cartas laborales y contratos de personal",
+    desc: "Generar cartas laborales y contratos de personal, y registrar renovaciones o no renovaciones."
+  },
+  [PERMISSIONS.PAYROLL_EXPORT]: {
+    title: "Exportar gestión humana",
+    desc: "Descargar nóminas, empleados y novedades (contiene datos personales y salariales)."
+  },
+
+  [PERMISSIONS.HIRING_VIEW]: {
+    title: "Consultar contratación",
+    desc: "Ver vacantes, candidatos, entrevistas y contratos en solo lectura."
+  },
+  [PERMISSIONS.HIRING_VACANCIES]: {
+    title: "Vacantes y cargos",
+    desc: "Crear, editar, cerrar y republicar vacantes, y administrar el catálogo de cargos."
+  },
+  [PERMISSIONS.HIRING_CANDIDATES]: {
+    title: "Candidatos y entrevistas",
+    desc: "Registrar candidatos, moverlos en el proceso, programar entrevistas y adjuntar documentos."
+  },
+  [PERMISSIONS.HIRING_CONTRACTS]: {
+    title: "Contratos y alta de empleados",
+    desc: "Generar contratos, cartas de oferta y convertir candidatos en empleados."
+  },
+  [PERMISSIONS.HIRING_DELETE]: {
+    title: "Eliminar en contratación",
+    desc: "Quitar vacantes, cargos, candidatos, entrevistas y contratos."
+  },
+  [PERMISSIONS.HIRING_EXPORT]: {
+    title: "Exportar contratación",
+    desc: "Descargar en CSV vacantes, candidatos, entrevistas, contratos y cargos."
+  },
+
+  [PERMISSIONS.SST_VIEW]: {
+    title: "Consultar cumplimiento SST",
+    desc: "Ver exámenes, capacitaciones y vencimientos en solo lectura."
+  },
+  [PERMISSIONS.SST_EDIT]: {
+    title: "Registrar y editar controles SST",
+    desc: "Crear y modificar registros de cumplimiento laboral."
+  },
+  [PERMISSIONS.SST_RENEW]: {
+    title: "Renovar controles SST",
+    desc: "Registrar la renovación de exámenes, capacitaciones y documentos."
+  },
+  [PERMISSIONS.SST_DELETE]: {
+    title: "Eliminar registros SST",
+    desc: "Quitar registros de cumplimiento laboral."
+  },
+  [PERMISSIONS.SST_EXPORT]: {
+    title: "Exportar cumplimiento SST",
+    desc: "Descargar vencimientos y registros en CSV."
+  }
 };
 
 export const UI_PREFS = {
@@ -636,21 +1002,46 @@ export function mergeLegalAcceptanceFields(incoming, prev, snapshot) {
   };
 }
 
-/** Orden en la grilla de permisos (Usuarios y permisos). */
+/** Orden en la grilla de permisos (Usuarios y permisos): un bloque por módulo; el permiso completo va primero. */
 export const PERMISSION_UI_GROUPS = [
   {
     title: "General",
     permissions: [PERMISSIONS.DASHBOARD_VIEW, PERMISSIONS.PROFILE_VIEW, PERMISSIONS.NOTIFICATIONS_VIEW]
   },
   {
-    title: "Solicitudes y operación de transporte",
+    title: "Solicitudes de transporte",
     permissions: [
       PERMISSIONS.CLIENT_REQUESTS,
       PERMISSIONS.TRANSPORT_REQUESTS,
+      PERMISSIONS.TRANSPORT_REQUESTS_VIEW,
+      PERMISSIONS.TRANSPORT_REQUESTS_CREATE,
+      PERMISSIONS.TRANSPORT_REQUESTS_EDIT,
+      PERMISSIONS.TRANSPORT_REQUESTS_CANCEL,
+      PERMISSIONS.TRANSPORT_REQUESTS_DELETE,
+      PERMISSIONS.TRANSPORT_REQUESTS_EXPORT
+    ]
+  },
+  {
+    title: "Viajes (por acción)",
+    permissions: [
       PERMISSIONS.TRANSPORT_TRIPS,
+      PERMISSIONS.TRANSPORT_TRIPS_VIEW,
+      PERMISSIONS.TRANSPORT_TRIPS_ASSIGN,
+      PERMISSIONS.TRANSPORT_TRIPS_STATUS,
+      PERMISSIONS.TRANSPORT_TRIPS_EDIT,
+      PERMISSIONS.TRANSPORT_TRIPS_DELETE,
+      PERMISSIONS.TRANSPORT_TRIPS_RATES,
+      PERMISSIONS.TRANSPORT_TRIPS_EXPORT
+    ]
+  },
+  {
+    title: "Conductores (por acción)",
+    permissions: [
       PERMISSIONS.TRANSPORT_DRIVERS,
-      PERMISSIONS.TRANSPORT_CALENDAR,
-      PERMISSIONS.TRANSPORT_HISTORY
+      PERMISSIONS.TRANSPORT_DRIVERS_VIEW,
+      PERMISSIONS.TRANSPORT_DRIVERS_EDIT,
+      PERMISSIONS.TRANSPORT_DRIVERS_STATUS,
+      PERMISSIONS.TRANSPORT_DRIVERS_EXPORT
     ]
   },
   {
@@ -661,7 +1052,22 @@ export const PERMISSION_UI_GROUPS = [
       PERMISSIONS.TRANSPORT_VEHICLES_CREATE,
       PERMISSIONS.TRANSPORT_VEHICLES_EDIT,
       PERMISSIONS.TRANSPORT_VEHICLES_STATUS,
-      PERMISSIONS.TRANSPORT_VEHICLES_DELETE
+      PERMISSIONS.TRANSPORT_VEHICLES_DELETE,
+      PERMISSIONS.TRANSPORT_VEHICLES_EXPORT
+    ]
+  },
+  {
+    title: "Calendario",
+    permissions: [PERMISSIONS.TRANSPORT_CALENDAR, PERMISSIONS.TRANSPORT_CALENDAR_EXPORT]
+  },
+  {
+    title: "Historial y reportería (por acción)",
+    permissions: [
+      PERMISSIONS.TRANSPORT_HISTORY,
+      PERMISSIONS.TRANSPORT_HISTORY_VIEW,
+      PERMISSIONS.TRANSPORT_HISTORY_EXPORT,
+      PERMISSIONS.TRANSPORT_REPORTS_VIEW,
+      PERMISSIONS.TRANSPORT_REPORTS_EXPORT
     ]
   },
   {
@@ -678,15 +1084,45 @@ export const PERMISSION_UI_GROUPS = [
     ]
   },
   {
-    title: "Recursos humanos y administración",
+    title: "Gestión humana (por acción)",
     permissions: [
       PERMISSIONS.PAYROLL_MANAGE,
+      PERMISSIONS.PAYROLL_VIEW,
+      PERMISSIONS.PAYROLL_EMPLOYEES,
+      PERMISSIONS.PAYROLL_RUNS,
+      PERMISSIONS.PAYROLL_PAY,
+      PERMISSIONS.PAYROLL_ABSENCES,
+      PERMISSIONS.PAYROLL_DOCUMENTS,
       PERMISSIONS.PAYROLL_DELETE,
-      PERMISSIONS.HIRING_MANAGE,
-      PERMISSIONS.SST_COMPLIANCE,
-      PERMISSIONS.USERS_MANAGE,
-      PERMISSIONS.CONTACT_B2B_VIEW
+      PERMISSIONS.PAYROLL_EXPORT
     ]
+  },
+  {
+    title: "Contratación (por acción)",
+    permissions: [
+      PERMISSIONS.HIRING_MANAGE,
+      PERMISSIONS.HIRING_VIEW,
+      PERMISSIONS.HIRING_VACANCIES,
+      PERMISSIONS.HIRING_CANDIDATES,
+      PERMISSIONS.HIRING_CONTRACTS,
+      PERMISSIONS.HIRING_DELETE,
+      PERMISSIONS.HIRING_EXPORT
+    ]
+  },
+  {
+    title: "Cumplimiento laboral y SST (por acción)",
+    permissions: [
+      PERMISSIONS.SST_COMPLIANCE,
+      PERMISSIONS.SST_VIEW,
+      PERMISSIONS.SST_EDIT,
+      PERMISSIONS.SST_RENEW,
+      PERMISSIONS.SST_DELETE,
+      PERMISSIONS.SST_EXPORT
+    ]
+  },
+  {
+    title: "Contacto web y administración",
+    permissions: [PERMISSIONS.CONTACT_B2B_VIEW, PERMISSIONS.CONTACT_B2B_EXPORT, PERMISSIONS.USERS_MANAGE]
   },
   {
     title: "SARLAFT / PTE (por acción)",

@@ -116,6 +116,8 @@ let tripsExportSnapshot = [];
     id: "trips",
     label: ["viaje", "viajes"],
     filename: "viajes",
+    allowed: () => typeof canDo !== "function" || canDo(undefined, "trips", "export"),
+    deniedMessage: "No tiene permiso para exportar viajes.",
     audit: { module: "transport-trips", label: "Viajes" },
     selectHint: "cambie a Tabla para elegir filas",
     selectable: (root) => Boolean(root.querySelector(".trip-ops-fleet-table")),
@@ -146,6 +148,8 @@ let tripsExportSnapshot = [];
 
 function transportTripsHtml() {
   const isAdmin = isAdminActor();
+  const canDeleteTrips = canDo(undefined, "trips", "delete");
+  const canManageRates = canDo(undefined, "trips", "rates");
   const tripUser = currentUser();
   const visibleRequests = getVisibleRequestsForUser(tripUser);
   const rates = getTripRouteRatesNormalized();
@@ -164,7 +168,7 @@ function transportTripsHtml() {
   const todaysTrips = trips.filter((r) => requestPickupIsoDate(r) === todayIso).length;
   const departmentsOpts = departmentOptions();
   const transportTripsUi = state.transportTripsUi || {};
-  const transportTripsWorkspace = normalizeTransportTripsWorkspace(transportTripsUi.workspace);
+  const transportTripsWorkspace = hrWorkspaceForUser("transport-trips", normalizeTransportTripsWorkspace(transportTripsUi.workspace));
   const transportTripsSection = resolveTransportTripsSection(transportTripsUi);
   const transportTripsCreateUi = buildTransportTripsCreatePanelsState(transportTripsSection, state.createPanels || {});
   const foldTransportSearchText = (value) =>
@@ -362,7 +366,7 @@ function transportTripsHtml() {
       isClosed
         ? `<button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--soft" data-action="trip-invoice" data-id="${escapeAttr(String(r.id || ""))}" title="Generar factura">${IC.file} Factura</button>`
         : "",
-      isAdmin
+      canDeleteTrips
         ? `<button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--danger" data-action="delete-trip" data-id="${escapeAttr(String(r.id || ""))}" title="Eliminar viaje">${IC.trash} Eliminar</button>`
         : ""
     ]
@@ -462,7 +466,7 @@ function transportTripsHtml() {
         ${canAdminEditTrip(r) ? `<button type="button" class="btn btn-sm btn-action" data-action="edit-trip" data-id="${tripIdAttr}" title="Editar asignación">${IC.edit} Editar</button>` : ""}
         ${canAdminEditTrip(r) ? `<button type="button" class="btn btn-sm btn-action" data-action="reassign-trip" data-id="${tripIdAttr}" title="Reasignar camión o conductor" aria-label="Reasignar camión o conductor del viaje ${escapeAttr(String(r.trip?.tripNumber || ""))}">${IC.repeat || IC.truck} Reasignar</button>` : ""}
         ${isClosed ? `<button type="button" class="btn btn-sm btn-approve" data-action="trip-invoice" data-id="${tripIdAttr}" title="Factura PDF">${IC.file} Factura</button>` : ""}
-        ${isAdmin ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-trip" data-id="${tripIdAttr}" title="Eliminar viaje">${IC.trash} Eliminar</button>` : ""}
+        ${canDeleteTrips ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-trip" data-id="${tripIdAttr}" title="Eliminar viaje">${IC.trash} Eliminar</button>` : ""}
       </div></td>
     </tr>`;
   };
@@ -703,7 +707,7 @@ function transportTripsHtml() {
       canAdminEditTrip(r) ? btn("reassign-trip", "rq-btn--ghost", IC.repeat || IC.truck, "Reasignar", "Cambiar el camión o el conductor de este viaje") : "",
       isClosed ? btn("trip-invoice", "rq-btn--ghost", IC.file, "Factura", "Generar factura PDF") : ""
     ].filter(Boolean).join("");
-    const danger = isAdmin ? btn("delete-trip", "rq-btn--danger", IC.trash, "Eliminar viaje", "Eliminar viaje") : "";
+    const danger = canDeleteTrips ? btn("delete-trip", "rq-btn--danger", IC.trash, "Eliminar viaje", "Eliminar viaje") : "";
     return `<aside class="rq-pane rq-pane--${tpTone(r.status)}" aria-label="Detalle del viaje ${escapeAttr(tripNo)}" data-pane-trip-id="${idAttr}">
       <header class="rq-pane__head">
         <div class="rq-pane__id">
@@ -888,7 +892,7 @@ function transportTripsHtml() {
     const updated = rateDateLabel(entry.updatedAt || entry.createdAt);
     const created = rateDateLabel(entry.createdAt);
     const routeName = `${p.originCity} a ${p.destCity}`;
-    const actions = isAdmin
+    const actions = canManageRates
       ? `<div class="toolbar route-rate-actions"><button type="button" class="btn btn-sm btn-action" data-action="edit-route-rate" data-rate-key="${safeKey}" title="Editar el valor o el alcance de esta tarifa" aria-label="${escapeAttr(`Editar la tarifa ${routeName}`)}">${IC.edit} Editar</button><button type="button" class="btn btn-sm btn-reject" data-action="delete-route-rate" data-rate-key="${safeKey}" title="Quitar esta tarifa del catálogo" aria-label="${escapeAttr(`Quitar la tarifa ${routeName}`)}">${IC.trash} Quitar</button></div>`
       : '<span class="muted">—</span>';
     return `<tr>
@@ -908,7 +912,7 @@ function transportTripsHtml() {
         <input type="search" data-action="transport-rates-search" value="${escapeAttr(String(transportTripsUi.rateSearch || ""))}" placeholder="Buscar origen, destino o cliente…" autocomplete="off" aria-label="Buscar trayecto" />
       </label>
       <div class="transport-data-filters ops-filters-bar" role="group" aria-label="Filtrar por alcance">${rateScopePill("all", "Todas")}${rateScopePill("general", "General")}${rateScopePill("company", "Por empresa")}</div>
-      ${isAdmin ? `<button type="button" class="btn btn-primary route-rates-new" data-action="transport-focus-create-route">${IC.plus} Nuevo trayecto</button>` : ""}
+      ${canManageRates ? `<button type="button" class="btn btn-primary route-rates-new" data-action="transport-focus-create-route">${IC.plus} Nuevo trayecto</button>` : ""}
     </div>`;
   const ratesTable = rateEntries.length
     ? `${ratesToolbar}${
@@ -932,7 +936,7 @@ function transportTripsHtml() {
           : emptyState("Ningún trayecto coincide con la búsqueda o el filtro.")
       }<p class="route-rates-legend muted">Estas tarifas se sugieren al asignar un viaje en la misma ruta. «General» aplica a cualquier cliente; «Por empresa», solo a los clientes indicados.</p>`
     : `<div class="transport-empty-cta">${emptyState("Aún no hay tarifas por trayecto. Cree la primera para que el sistema sugiera el precio al asignar un viaje en esa ruta.")}${
-        isAdmin
+        canManageRates
           ? `<button type="button" class="btn btn-primary" data-action="transport-focus-create-route">${IC.plus} Configurar trayecto y tarifa</button>`
           : ""
       }</div>`;
@@ -1654,7 +1658,7 @@ function transportTripsHtml() {
 
     nodes.viewRoot.querySelectorAll("[data-action='delete-route-rate']").forEach((btn) => {
       btn.addEventListener("click", () => {
-        if (abortIfNotAdmin()) return;
+        if (abortUnlessCan("trips", "rates")) return;
         const encoded = String(btn.dataset.rateKey || "");
         const key = decodeURIComponent(encoded);
         if (!key) return;
@@ -2145,7 +2149,7 @@ function transportTripsHtml() {
 
     nodes.viewRoot.querySelectorAll("[data-action='delete-trip']").forEach((btn) => {
       btn.addEventListener("click", () => {
-        if (abortIfNotAdmin()) return;
+        if (abortUnlessCan("trips", "delete")) return;
         const requestId = String(btn.dataset.id || "");
         if (!requestId) return;
         openConfirmReasonModal({

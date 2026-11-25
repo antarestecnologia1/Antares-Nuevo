@@ -6,6 +6,8 @@ import { state, nodes, persistClientDataScope, persistHrWorkspace } from "./stor
 import { isPortalClientUser } from "./client-data-scope-ui.js";
 import { SAFE_CV_ACCEPT, validateUploadFile } from "./file-upload-security.js";
 import {
+  abortUnlessCan,
+  canDo,
   currentUser,
   hasPermission,
   isViewAllowedForUser,
@@ -2893,6 +2895,10 @@ function bindDynamicEvents() {
         $portal.notify($portal.userMessage("reportNoPermission"), "error");
         return;
       }
+      if (format !== "preview" && !canDo(actor, "reports", "export")) {
+        $portal.notify("No tiene permiso para exportar reportes.", "error");
+        return;
+      }
       if (reportId === "payroll_summary" && portalCanRefreshFromApi()) {
         const pf = normalizeReportsExportFilters(state.reportsUi?.exportFilters || { period: state.reportsUi?.period || "all" });
         const payrollRunsPre = reportsFilterItemsByPeriod(read(KEYS.payrollRuns, []), pf.period, (run) =>
@@ -3088,7 +3094,7 @@ function bindDynamicEvents() {
 
   nodes.viewRoot.querySelectorAll("[data-action='delete-admin']").forEach((btn) => {
     btn.addEventListener("click", () => {
-      if (abortIfNotAdmin()) return;
+      if (abortUnlessCan("requests", "delete")) return;
       const requestId = String(btn.dataset.id || "");
       if (!requestId) return;
       const reqSnapshot = reqRead().find((r) => String(r.id) === requestId);

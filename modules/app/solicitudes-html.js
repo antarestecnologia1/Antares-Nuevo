@@ -17,6 +17,8 @@
       id: "requests",
       label: ["solicitud", "solicitudes", "f"],
       filename: "solicitudes",
+      allowed: () => typeof canDo !== "function" || canDo(undefined, "requests", "export"),
+      deniedMessage: "No tiene permiso para exportar solicitudes.",
       audit: { module: "requests", label: "Solicitudes" },
       selectHint: "cambie a Tabla para elegir filas",
       selectable: (root) => Boolean(root.querySelector(".request-ops-fleet-table")),
@@ -238,7 +240,7 @@
       user?.role === ROLES.CLIENT &&
       typeof canClientEditOwnPendingTransportRequest === "function" &&
       canClientEditOwnPendingTransportRequest(r, user);
-    const isAdmin = user?.role === ROLES.ADMIN;
+    const canDeleteRequest = typeof canDo === "function" ? canDo(user, "requests", "delete") : user?.role === ROLES.ADMIN;
     const companies = read(KEYS.companies, []);
     const company = companies.find((c) => String(c.id) === String(r.clientCompanyId || "")) || null;
     const clientName = String(r.clientName || company?.name || "Cliente").trim() || "Cliente";
@@ -307,7 +309,7 @@
       allowClientHardDeletePending
         ? `<button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--danger" data-action="delete-client-request" data-id="${escapeAttr(String(r.id || ""))}" title="Eliminar solicitud">${IC.trash} Eliminar</button>`
         : "",
-      isAdmin
+      canDeleteRequest
         ? `<button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--danger" data-action="delete-admin" data-id="${escapeAttr(String(r.id || ""))}" title="Eliminar solicitud">${IC.trash} Eliminar</button>`
         : ""
     ]
@@ -364,7 +366,7 @@
       user?.role === ROLES.CLIENT &&
       typeof canClientEditOwnPendingTransportRequest === "function" &&
       canClientEditOwnPendingTransportRequest(r, user);
-    const isAdmin = user?.role === ROLES.ADMIN;
+    const canDeleteRequest = typeof canDo === "function" ? canDo(user, "requests", "delete") : user?.role === ROLES.ADMIN;
     const companies = read(KEYS.companies, []);
     const company = companies.find((c) => String(c.id) === String(r.clientCompanyId || "")) || null;
     const clientName = String(r.clientName || company?.name || "Cliente").trim() || "Cliente";
@@ -393,7 +395,7 @@
         ${allowEdit ? `<button type="button" class="btn btn-sm btn-outline" data-action="edit-request" data-id="${escapeAttr(String(r.id || ""))}">${IC.edit} Editar</button>` : ""}
         ${allowEdit && !r.trip ? `<button type="button" class="btn btn-sm btn-reject" data-action="cancel-request" data-id="${escapeAttr(String(r.id || ""))}">${IC.x} Cancelar</button>` : ""}
         ${allowClientHardDeletePending ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-client-request" data-id="${escapeAttr(String(r.id || ""))}">${IC.trash} Eliminar</button>` : ""}
-        ${isAdmin ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-admin" data-id="${escapeAttr(String(r.id || ""))}">${IC.trash} Eliminar</button>` : ""}
+        ${canDeleteRequest ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-admin" data-id="${escapeAttr(String(r.id || ""))}">${IC.trash} Eliminar</button>` : ""}
       </div></td>
     </tr>`;
   }
@@ -582,7 +584,7 @@
       user?.role === ROLES.CLIENT &&
       typeof canClientEditOwnPendingTransportRequest === "function" &&
       canClientEditOwnPendingTransportRequest(r, user);
-    const isAdmin = user?.role === ROLES.ADMIN;
+    const canDeleteRequest = typeof canDo === "function" ? canDo(user, "requests", "delete") : user?.role === ROLES.ADMIN;
     const btn = (action, cls, icon, label, title) =>
       `<button type="button" class="rq-btn ${cls}" data-action="${action}" data-id="${id}" title="${escapeAttr(title)}">${icon}<span>${label}</span></button>`;
     const main = [
@@ -592,7 +594,7 @@
     const danger = [
       allowEdit && !r.trip ? btn("cancel-request", "rq-btn--danger", IC.x, "Cancelar solicitud", "Marcar como cancelada") : "",
       allowClientDelete ? btn("delete-client-request", "rq-btn--danger", IC.trash, "Eliminar", "Eliminar solicitud") : "",
-      isAdmin ? btn("delete-admin", "rq-btn--danger", IC.trash, "Eliminar", "Eliminar solicitud") : ""
+      canDeleteRequest ? btn("delete-admin", "rq-btn--danger", IC.trash, "Eliminar", "Eliminar solicitud") : ""
     ].filter(Boolean).join("");
     return `<footer class="rq-pane__actions"><div class="rq-pane__actions-main">${main}</div>${danger ? `<div class="rq-pane__actions-danger">${danger}</div>` : ""}</footer>`;
   }
@@ -1382,12 +1384,15 @@
   /** Vista principal: Registrar | Consultar (mismo patrón que Gestión humana). */
   function requestsHtml(user) {
     const requestsUi = state.requestsUi || { workspace: "operate" };
-    const requestsWorkspace =
+    const requestsWorkspaceRaw =
       typeof normalizeHrWorkspace === "function"
         ? normalizeHrWorkspace("requests", requestsUi.workspace)
         : String(requestsUi.workspace || "operate") === "data"
           ? "data"
           : "operate";
+    /* Quien no puede crear solicitudes (p. ej. solo consulta) entra directo a «Consultar». */
+    const requestsWorkspace =
+      typeof hrWorkspaceForUser === "function" ? hrWorkspaceForUser("requests", requestsWorkspaceRaw, user) : requestsWorkspaceRaw;
     const moduleHead = requestModuleHeadHtml();
     const requestsTabsNav = renderHrWorkspaceTabs({
       module: "requests",
