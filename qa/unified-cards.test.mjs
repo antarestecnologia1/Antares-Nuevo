@@ -32,6 +32,10 @@ const families = [".ag-pass", ".hr-cred", ".adm-badge", ".ag-roster-card", ".por
 for (const f of families) ok(css.includes(f), `cubre la familia ${f}`);
 
 ok(/@media \(max-width: 720px\)/.test(css), "reglas móviles para filas apiladas");
+ok(css.includes("--uc-band:"), "define la banda azul marino de cabecera (--uc-band)");
+ok(/\.ag-pass__head\s*\{[^}]*background:\s*var\(--uc-band\)/.test(css), "cabecera de conductor con banda azul");
+ok(/\.hr-cred__band[^{]*\{[^}]*background:\s*var\(--uc-band\)/.test(css), "cabecera de empleado/usuario con banda azul");
+ok(/\.portal-ops-card > header\s*\{[^}]*background:\s*var\(--uc-band\)/.test(css), "cabecera de tarjeta operativa con banda azul");
 ok(/linear-gradient\(135deg, var\(--uc-navy-a\), var\(--uc-navy-c\)\)/.test(css), "cabecera azul marino en vistas Lista");
 ok(/td\.dc-col \+ td/.test(css), "la celda de identidad de las tablas lleva la cabecera azul");
 
