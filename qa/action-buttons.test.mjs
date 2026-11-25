@@ -161,6 +161,76 @@ const untouched = [
 ];
 for (const spec of untouched) ok(classifyActionButton(el(spec)) === null, `debía quedar intacto: ${JSON.stringify(spec)}`);
 
+/* 5b) Opciones de los menús ⋮ de las tarjetas: siempre llevan color (nunca quedan "sin color") */
+const menuEl = (spec) => Object.assign(el(spec), { matches: (s) => String(s).includes("menuitem") });
+const menuCases = [
+  [{ da: "open-user-permissions", text: "Asignar permisos" }, "guardar"],
+  [{ da: "toggle-user-active", text: "Desactivar cuenta" }, "aviso"],
+  [{ da: "toggle-user-active", text: "Activar cuenta" }, "aceptar"],
+  [{ da: "toggle-company-active", text: "Desactivar" }, "aviso"],
+  [{ da: "delete-user", cls: "ag-menu__item ag-menu__item--danger", text: "Eliminar usuario" }, "eliminar"],
+  [{ da: "reject-registration", text: "Rechazar alta" }, "eliminar"],
+  [{ da: "edit-candidate", text: "Editar" }, "editar"],
+  [{ da: "schedule-interview-for-candidate", text: "Reprogramar entrevista" }, "editar"],
+  [{ da: "schedule-interview-for-candidate", text: "Agendar entrevista" }, "nuevo"],
+  [{ da: "hiring-flow-advance", text: "Confirmar entrevista" }, "aceptar"],
+  [{ da: "hiring-flow-advance", text: "Preseleccionar" }, "aceptar"],
+  [{ da: "open-offer-letter", text: "Enviar carta oferta" }, "enviar"],
+  [{ da: "open-offer-letter", text: "Ver carta oferta" }, "buscar"],
+  [{ da: "create-employee-from-candidate", text: "Contratar" }, "aceptar"],
+  [{ da: "delete-candidate", text: "Eliminar" }, "eliminar"],
+  [{ da: "payroll-employee-liquidations", text: "Historial de nóminas" }, "info"],
+  [{ da: "employee-generate-labor-letter", text: "Carta laboral" }, "descargar"],
+  [{ da: "employee-generate-contract", text: "Contrato (Word)" }, "descargar"],
+  [{ da: "renew-employee-contract", text: "Renovar contrato" }, "editar"],
+  [{ da: "non-renew-employee-contract", text: "Aviso de no renovación" }, "enviar"],
+  [{ da: "recategorize-unlinked-employee", text: "Categorizar desvinculación" }, "editar"],
+  [{ da: "unlink-employee", text: "Desvincular" }, "eliminar"],
+  [{ da: "reinstate-employee", text: "Reingresar colaborador" }, "aceptar"],
+  [{ da: "doc-preview", text: "Vista previa" }, "buscar"],
+  [{ da: "doc-download", text: "Descargar" }, "descargar"],
+  [{ da: "doc-move", text: "Mover a carpeta" }, "regresar"],
+  [{ da: "doc-edit-folder", text: "Renombrar" }, "editar"],
+  [{ da: "doc-folder-perms", text: "Permisos" }, "guardar"],
+  [{ da: "doc-delete", cls: "is-danger", text: "Eliminar" }, "eliminar"],
+  [{ da: "view-sst-record", text: "Ver" }, "buscar"],
+  [{ da: "edit-sarlaft-alert", text: "Gestionar" }, "editar"],
+  [{ da: "sarlaft-open-dms", text: "Evidencias" }, "buscar"],
+  [{ da: "toggle-sarlaft-profile", text: "Desactivar" }, "aviso"],
+  [{ da: "toggle-sarlaft-profile", text: "Activar" }, "aceptar"],
+  [{ da: "algo-nuevo", text: "Opción sin regla" }, "neutral"]
+];
+for (const [spec, tone] of menuCases) {
+  const r = classifyActionButton(menuEl({ cls: "x", ...spec }));
+  ok(r && r.item === true && r.variant === "ghost" && !r.iconOnly, `la opción «${spec.text}» debe adoptarse como opción de menú`);
+  ok(r.tone === tone, `opción «${spec.text}» → ${r.tone}, se esperaba ${tone}`);
+}
+const triggerEl = (compact) => Object.assign(el({ cls: "ag-icon-btn", svg: true, label: "Más acciones" }), { matches: (s) => (String(s).startsWith("details.doc-rowmenu") ? compact : String(s).startsWith("details.ag-menu")) });
+const trig = classifyActionButton(triggerEl(false));
+ok(trig && trig.tone === "neutral" && trig.variant === "outline" && trig.iconOnly && trig.small, "el botón ⋮ de las tarjetas es un botón de ícono neutro");
+ok(classifyActionButton(triggerEl(true)).variant === "ghost", "el ⋮ de filas compactas es fantasma");
+// CSS de las opciones: capsula de ícono tintada, hover, tema oscuro y panel con ancho mínimo
+ok(/\.ab\.ab\.ab--item\s*\{/.test(css) && /\.ab\.ab--item > svg,\s*\n\s*\.ab\.ab--item > \.ag-menu__ico/.test(css), "CSS de opciones de menú (ab--item) con cápsula de ícono");
+ok(/body\[data-theme="dark"\] \.ab\.ab--item/.test(css), "opciones de menú con tema oscuro");
+ok(/\.hiring-card-menu__panel[\s\S]{0,200}min-width:\s*13rem/.test(css), "los paneles de menú tienen ancho mínimo para el ícono + texto");
+// Contraste AA del texto de cada opción (tinta o color base) sobre blanco y sobre el tinte de hover
+for (const tone of ACTION_TONES) {
+  const t = toneBlock(tone);
+  const fg = t.ink || t.cd;
+  ok(contrast(fg, "#ffffff") >= 4.5, `texto de opción «${tone}» sobre blanco: ${contrast(fg, "#ffffff").toFixed(2)} < 4.5`);
+  ok(contrast(fg, t.soft) >= 4.5, `texto de opción «${tone}» sobre su tinte: ${contrast(fg, t.soft).toFixed(2)} < 4.5`);
+}
+
+/* 5c) Nombres principales de tarjeta: una sola escala, sin mayúsculas ni recorte con «…» */
+ok(/--card-name-size:\s*0\.94rem/.test(css), "escala única del nombre de tarjeta");
+for (const sel of [".ag-pass__name", ".adm-badge__name", ".hr-cred__name", ".hiring-kanban-card__name", ".trip-ops-card-title"]) {
+  ok(css.includes(sel), `el nombre ${sel} usa la escala común`);
+}
+ok(/text-transform:\s*none\s*!important/.test(css) && /-webkit-line-clamp:\s*2\s*!important/.test(css), "nombres sin mayúsculas forzadas y con hasta 2 líneas");
+ok(/\.ag-pass__who > \.ag-status/.test(css), "el estado del conductor va bajo el nombre");
+const drv = read("modules/app/conductores.js");
+ok(/ag-pass__meta[\s\S]{0,200}<span class="ag-status[\s\S]{0,300}<\/div>\s*<\/header>/.test(drv), "conductores: el estado está dentro del bloque del nombre (no le quita ancho)");
+
 /* 6) Cambios pendientes */
 const field = (o) => ({ disabled: false, tagName: "INPUT", type: "text", value: "", defaultValue: "", checked: false, defaultChecked: false, ...o });
 const form = (fields, touched = true) => ({ __abTouched: touched, querySelectorAll: () => fields });
@@ -205,6 +275,7 @@ ok(/action-buttons\.css\?v=[0-9a-f]{10}/.test(indexHtml), "index.html enlaza act
 const cssLinks = [...indexHtml.matchAll(/<link rel="stylesheet" href="\.\/styles\/([a-z-]+)\.css/g)].map((m) => m[1]);
 ok(cssLinks.lastIndexOf("action-buttons") > cssLinks.lastIndexOf("ops-clean-modules"), "action-buttons.css se carga después de las hojas del portal");
 ok(/import \* as AntaresActionButtons from "\.\/modules\/ui\/action-buttons\.js"/.test(indexHtml) && /installActionButtons\(\)/.test(indexHtml), "index.html instala el sistema");
+ok(/import \* as AntaresCardNames from "\.\/modules\/ui\/card-names\.js"/.test(indexHtml) && /installCardNames\(\)/.test(indexHtml), "index.html instala la normalización de nombres");
 const comp = read("modules/ui/components.js");
 ok(/from "\.\/action-buttons\.js"/.test(comp) && (comp.match(/actionButton\(\{/g) || []).length >= 5, "los constructores compartidos de modales usan actionButton");
 

@@ -245,6 +245,47 @@ const NOT_ACTION_CONTAINER =
 
 const GUARDED_DISMISS_ACTIONS = /^(cancel-create-panel|cancel-admin-create-panel|close-edit-user|close-edit-company)$/;
 
+/* ───────────── Opciones de los menús ⋮ de las tarjetas ─────────────
+   Cada opción toma el color de su acción (mismos tonos que los botones) y conserva su ícono. */
+const MENU_ITEM_SELECTOR =
+  "[role='menuitem'], .ag-menu__item, .doc-rowmenu__list button, .sst-row-more__item, .hiring-card-menu__panel button";
+
+/** Reglas ordenadas [tono, prueba]: gana la primera que coincide. s = { da, cls, text } */
+const MENU_RULES = [
+  ["eliminar", (s) => /(^|-)(delete|remove|reject|unlink|purge)(-|$)/.test(s.da) || /--danger\b|is-danger/.test(s.cls) || /^(eliminar|borrar|desvincular|rechazar|retirar|quitar)\b/.test(s.text)],
+  ["aviso", (s) => /^(desactivar|suspender|pausar|archivar|bloquear)\b/.test(s.text)],
+  ["aceptar", (s) => /(^|-)(approve|accept|reinstate)(-|$)/.test(s.da) || /^(activar|reactivar|reingresar|aprobar|aceptar|autorizar|confirmar|contratar|preseleccionar)\b/.test(s.text)],
+  ["enviar", (s) => /(^|-)(send|resend)(-|$)/.test(s.da) || /^(enviar|reenviar|aviso)\b/.test(s.text)],
+  ["editar", (s) => /(^|-)(edit|rename|recategorize|renew)(-|$)/.test(s.da) || /^(editar|modificar|renombrar|gestionar|categorizar|recategorizar|renovar|reprogramar|cambiar)\b/.test(s.text)],
+  ["descargar", (s) => /(^|-)(download|export|generate)(-|$)/.test(s.da) || /^(descargar|exportar|carta|contrato)\b/.test(s.text)],
+  ["imprimir", (s) => /(^|-)print(-|$)/.test(s.da) || /^imprimir\b/.test(s.text)],
+  ["nuevo", (s) => /(^|-)(new|add|create|schedule)(-|$)/.test(s.da) || /^(nuevo|nueva|crear|agregar|anadir|agendar|programar|registrar)\b/.test(s.text)],
+  ["regresar", (s) => /^(mover|trasladar)\b/.test(s.text)],
+  ["guardar", (s) => /perms|permission/.test(s.da) || /^(asignar )?permisos\b/.test(s.text)],
+  ["info", (s) => /liquidation|history/.test(s.da) || /^historial\b/.test(s.text)],
+  ["buscar", (s) => /(^|-)(view|preview|detail|open-dms)(-|$)/.test(s.da) || /^(ver|consultar|abrir|detalle|vista previa|evidencias)\b/.test(s.text)]
+];
+
+/** Botón «⋮» que abre el menú de una tarjeta o fila: mismo botón de ícono que el resto de acciones. */
+const MENU_TRIGGER_SELECTOR =
+  "details.ag-menu > summary, details.hiring-card-menu > summary, details.doc-rowmenu > summary, details.doc-folder-menu > summary, details.sst-row-more > summary";
+
+function classifyMenuTrigger(el) {
+  const compact = el.matches("details.doc-rowmenu > summary, details.doc-folder-menu > summary, details.sst-row-more > summary");
+  return { action: "", tone: "neutral", variant: compact ? "ghost" : "outline", small: true, iconOnly: true };
+}
+
+/** Clasificación de una opción de menú ⋮: siempre se adopta (nunca queda sin color). */
+function classifyMenuItem(el) {
+  const s = {
+    da: norm(el.getAttribute("data-action")),
+    cls: norm(el.getAttribute("class")),
+    text: norm(visibleText(el))
+  };
+  const hit = MENU_RULES.find(([, test]) => test(s));
+  return { action: "", tone: hit ? hit[0] : "neutral", variant: "ghost", small: false, iconOnly: false, item: true };
+}
+
 /** Reglas ordenadas: gana la primera que coincide. s = { da, id, cls, text, label, type } */
 const RULES = [
   ["cerrar", (s) => /(^|-)close(-|$)/.test(s.da) || /(^|-)close(-|$)/.test(s.id) || /--close\b|modal-close|drawer-close|-close-btn/.test(s.cls) || /^cerrar\b/.test(s.text) || /^cerrar\b/.test(s.label)],
@@ -327,6 +368,8 @@ export function classifyActionButton(el) {
   if (!el || el.nodeType !== 1) return null;
   const cls = String(el.getAttribute("class") || "");
   if (el.hasAttribute("data-ab") && el.getAttribute("data-ab") === "off") return null;
+  if (el.matches?.(MENU_ITEM_SELECTOR) && !el.closest?.(".ab-off, [data-ab='off']")) return classifyMenuItem(el);
+  if (el.matches?.(MENU_TRIGGER_SELECTOR) && !el.closest?.(".ab-off, [data-ab='off']")) return classifyMenuTrigger(el);
   if (el.closest?.(NOT_ACTION_CONTAINER)) return null;
   if (isNotActionClass(norm(cls))) return null;
   if (el.hasAttribute("aria-pressed") || el.hasAttribute("aria-selected") || el.hasAttribute("aria-current")) return null;
@@ -377,6 +420,7 @@ export function applyActionButton(el) {
   el.classList.add("ab", `ab--${spec.tone}`, `ab--${spec.variant}`);
   if (spec.small) el.classList.add("ab--sm");
   if (spec.iconOnly) el.classList.add("ab--icon");
+  if (spec.item) el.classList.add("ab--item");
   if (spec.action) el.setAttribute("data-ab-action", spec.action);
   el.setAttribute("data-ab-done", "1");
   if (spec.action) ensureIcon(el, ACTION_BUTTONS[spec.action].icon, spec.iconOnly);
@@ -405,7 +449,10 @@ function ensureIcon(el, iconKey, iconOnly) {
 }
 
 const CANDIDATE_SELECTOR =
-  "button.btn, a.btn, button[class*='-btn'], button[class*='btn-'], a[class*='-btn'], a[class*='btn-'], [role='button'][class*='btn'], button[data-action]";
+  "button.btn, a.btn, button[class*='-btn'], button[class*='btn-'], a[class*='-btn'], a[class*='btn-'], [role='button'][class*='btn'], button[data-action], " +
+  MENU_ITEM_SELECTOR +
+  ", " +
+  MENU_TRIGGER_SELECTOR;
 
 /** Adopta todos los botones heredados dentro de `root`. */
 export function enhanceActionButtons(root) {

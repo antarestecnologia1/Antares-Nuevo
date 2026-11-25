@@ -131,7 +131,7 @@
     <link rel="stylesheet" href="./styles/ops-clean.css?v=f4991839f3" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/ops-clean-modules.css?v=d742573422" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/landing-clean.css?v=843f9ffc5f" media="print" onload="this.onload=null;this.media='all'" />
-    <link rel="stylesheet" href="./styles/action-buttons.css?v=b407d8126f" media="print" onload="this.onload=null;this.media='all'" />
+    <link rel="stylesheet" href="./styles/action-buttons.css?v=bbf4890982" media="print" onload="this.onload=null;this.media='all'" />
     <link rel="stylesheet" href="./styles/auth-modal.css?v=cc7adadd4f" />
     <noscript>
     <link rel="stylesheet" href="./styles.css?v=c0f40379fe" />
@@ -167,7 +167,7 @@
       <link rel="stylesheet" href="./styles/ops-clean.css?v=f4991839f3" />
       <link rel="stylesheet" href="./styles/ops-clean-modules.css?v=d742573422" />
       <link rel="stylesheet" href="./styles/landing-clean.css?v=843f9ffc5f" />
-      <link rel="stylesheet" href="./styles/action-buttons.css?v=b407d8126f" />
+      <link rel="stylesheet" href="./styles/action-buttons.css?v=bbf4890982" />
       <link rel="stylesheet" href="./styles/auth-modal.css?v=cc7adadd4f" />
     </noscript>
     <script>
@@ -1602,6 +1602,7 @@
       import * as AntaresDataControls from "./modules/ui/data-controls.js?v=6c302f1787";
       import * as AntaresPermissionGate from "./modules/core/permission-gate.js?v=58b10be022";
       import * as AntaresActionButtons from "./modules/ui/action-buttons.js";
+      import * as AntaresCardNames from "./modules/ui/card-names.js";
       Object.assign(window, AntaresUIComponents, AntaresUIModals, AntaresI18n, AntaresSchedulePicker, {
         actionButton: AntaresActionButtons.actionButton,
         actionGroup: AntaresActionButtons.actionGroup,
@@ -1614,6 +1615,7 @@
       });
       AntaresPermissionGate.installPermissionGate();
       AntaresActionButtons.installActionButtons();
+      AntaresCardNames.installCardNames();
     </script>
     <script type="module" src="./modules/core/portal-runtime.js?v=e8cf9e602d"></script>
     <script defer src="./modules/app/portal-transport-modals.js?v=6847495bcb"></script>
@@ -1625,7 +1627,7 @@
     <script defer src="./modules/app/mis-solicitudes.js?v=f3b7a36cee"></script>
     <script defer src="./modules/app/camiones-html.js?v=3f8c8f733e"></script>
     <script defer src="./modules/app/camiones.js?v=0055591e4f"></script>
-    <script defer src="./modules/app/conductores.js?v=56750c5583"></script>
+    <script defer src="./modules/app/conductores.js?v=1315691aa2"></script>
     <script defer src="./modules/app/calendario.js?v=343cc1d898"></script>
     <script defer src="./modules/app/historial.js?v=82034d4e67"></script>
     <script defer src="./modules/app/reporteria.js"></script>

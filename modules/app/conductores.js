@@ -467,8 +467,8 @@ function driversHtml() {
         <div class="ag-pass__who">
           <h4 aria-level="3" class="ag-pass__name" title="${escapeAttr(name)}">${escapeHtml(name)}</h4>
           <p class="ag-pass__meta">${escapeHtml(String(d.idDoc || "—"))} · ${escapeHtml(item.companyName)}</p>
+          <span class="ag-status ag-status--${escapeAttr(item.statusSlug)}"><span class="ag-status__dot" aria-hidden="true"></span>${escapeHtml(statusLabel)}</span>
         </div>
-        <span class="ag-status ag-status--${escapeAttr(item.statusSlug)}"><span class="ag-status__dot" aria-hidden="true"></span>${escapeHtml(statusLabel)}</span>
       </header>
       <div class="ag-pass__license ag-pass__license--${licenseTone}">
         <span class="ag-pass__cat" title="Categoría de licencia">${escapeHtml(licenseCategory)}</span>

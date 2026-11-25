@@ -292,12 +292,13 @@
     gap: 0.4rem !important;
   }
   .ab.ab--icon {
-    width: var(--ab-h);
+    width: var(--ab-h) !important;
+    flex-shrink: 0;
     padding: 0 !important;
     gap: 0 !important;
   }
   .ab.ab--icon.ab--sm {
-    width: var(--ab-h-sm);
+    width: var(--ab-h-sm) !important;
   }
   .ab.ab--block {
     display: flex !important;
@@ -339,10 +340,10 @@
       min-height: 2.5rem !important;
     }
     .ab.ab--icon {
-      width: 2.75rem;
+      width: 2.75rem !important;
     }
     .ab.ab--icon.ab--sm {
-      width: 2.5rem;
+      width: 2.5rem !important;
     }
     .ab-group--stack {
       flex-direction: column-reverse;
@@ -526,5 +527,116 @@
     .ab-confirm__actions .ab {
       width: 100%;
     }
+  }
+
+  /* ===================================================================
+     Tarjetas · opciones de los menús ⋮
+     Cada opción lleva el color de su acción (mismos tonos que los botones) y un
+     ícono en cápsula tintada. Reutiliza la variante «ghost»: hover, presionado,
+     enfoque, deshabilitado y tema oscuro salen del sistema, no de reglas aparte.
+     =================================================================== */
+  .ab.ab.ab--item {
+    --ab-fg: var(--ab-ink, var(--ab-cd));
+    display: flex !important;
+    justify-content: flex-start !important;
+    width: 100%;
+    min-height: 2.3rem !important;
+    padding: 0.28rem 0.65rem 0.28rem 0.4rem !important;
+    gap: 0.65rem !important;
+    border-radius: 0.65rem !important;
+    font-size: 0.84rem !important;
+    font-weight: 600 !important;
+    text-align: left;
+    white-space: normal;
+  }
+  .ab.ab--item > svg,
+  .ab.ab--item > .ag-menu__ico {
+    box-sizing: content-box !important;
+    flex: 0 0 auto;
+    display: inline-grid !important;
+    place-items: center;
+    width: 1.05rem !important;
+    height: 1.05rem !important;
+    padding: 0.3rem !important;
+    border-radius: 0.55rem;
+    background: var(--ab-soft) !important;
+    color: var(--ab-ink, var(--ab-c)) !important;
+    transition: background-color 0.16s ease, box-shadow 0.16s ease;
+  }
+  .ab.ab--item > .ag-menu__ico svg {
+    width: 1.05rem !important;
+    height: 1.05rem !important;
+  }
+  .ab.ab--item:is(:hover, :focus-visible):not(:disabled):not([aria-disabled="true"]) > :is(svg, .ag-menu__ico) {
+    background: #fff !important;
+    box-shadow: 0 0 0 1px var(--ab-line);
+  }
+  details[open] > summary.ab.ab--icon {
+    --ab-bg: var(--ab-soft);
+  }
+  body[data-theme="dark"] details[open] > summary.ab.ab--icon {
+    --ab-bg: rgba(var(--ab-rgb), 0.28);
+  }
+  details > summary.ab {
+    list-style: none;
+  }
+  /* Tarjeta de candidato (columna estrecha del tablero): cuatro botones de ícono caben en una fila */
+  .hiring-kanban-card__footer .ab.ab--icon {
+    width: var(--ab-h-sm) !important;
+    min-height: var(--ab-h-sm) !important;
+  }
+  details > summary.ab::-webkit-details-marker {
+    display: none;
+  }
+  :is(.ag-menu__panel, .doc-rowmenu__list, .sst-row-more__menu, .hiring-card-menu__panel) {
+    min-width: 13rem !important;
+    gap: 0.15rem;
+  }
+  .doc-rowmenu__list {
+    display: grid;
+  }
+  body[data-theme="dark"] .ab.ab--item > :is(svg, .ag-menu__ico) {
+    background: rgba(var(--ab-rgb), 0.22) !important;
+    color: var(--ab-fg-dark) !important;
+  }
+  body[data-theme="dark"] .ab.ab--item:is(:hover, :focus-visible):not(:disabled) > :is(svg, .ag-menu__ico) {
+    background: rgba(var(--ab-rgb), 0.45) !important;
+    box-shadow: none;
+    color: #fff !important;
+  }
+  @media (max-width: 640px) {
+    .ab.ab.ab--item {
+      min-height: 2.7rem !important;
+    }
+  }
+
+  /* ===================================================================
+     Tarjetas · nombre principal
+     Una sola escala para todas las tarjetas; nada de mayúsculas sostenidas ni de
+     nombres cortados con «…»: conductores, candidatos y vehículos muestran hasta 2 líneas.
+     =================================================================== */
+  :root {
+    --card-name-size: 0.94rem;
+  }
+  :is(.ag-pass__name, .adm-badge__name, .hr-cred__name, .hiring-kanban-card__name, .hiring-candidate-card__titles > h4, .trip-ops-card-title) {
+    min-width: 0;
+    font-size: var(--card-name-size) !important;
+    font-weight: 650 !important;
+    line-height: 1.28 !important;
+    letter-spacing: 0 !important;
+    text-transform: none !important;
+    white-space: normal !important;
+    overflow-wrap: break-word;
+  }
+  :is(.ag-pass__name, .hiring-kanban-card__name, .hiring-candidate-card__titles > h4, .trip-ops-card-title) {
+    display: -webkit-box !important;
+    -webkit-box-orient: vertical !important;
+    -webkit-line-clamp: 2 !important;
+    line-clamp: 2 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+  .ag-pass__who > .ag-status {
+    margin-top: 0.4rem !important;
   }
 }
