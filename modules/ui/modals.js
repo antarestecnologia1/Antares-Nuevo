@@ -1539,6 +1539,7 @@ function renderEditModal(opts = {}, flow = {}) {
         }
       } catch (err) {
         devWarn("openEditModal onSubmit", err);
+        notify(String(err?.message || "No se pudo completar la operación. Intente de nuevo."), "error");
         return false;
       }
       if (result === false) return false;

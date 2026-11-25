@@ -7,6 +7,7 @@ import { read, write } from "../core/data-io.js";
 import { KEYS } from "../core/config.js";
 import { escapeAttr, escapeHtml, fmtDate } from "../core/utils.js";
 import { currentUser } from "../core/auth.js";
+import { renderModuleFieldFilters, bindModuleFieldFilters } from "../ui/components.js";
 import {
   NOTIFICATION_UI_FILTERS,
   bindNotificationSidebarPrefs,
@@ -27,6 +28,30 @@ import {
 } from "../domain/notificaciones.domain.js";
 
 const G = globalThis;
+
+/** Notificaciones que cumplen el filtro activo (todas, no solo la ventana dibujada). Lo usa la exportación. */
+let notificationsExportRows = [];
+
+G.AntaresDataControls?.register({
+  view: "notifications",
+  id: "inbox",
+  label: ["notificación", "notificaciones", "f"],
+  filename: "notificaciones",
+  audit: { module: "notifications", label: "Notificaciones" },
+  anchor: (root) => root.querySelector(".ntf-visible-count"),
+  itemSelector: ".ntf-card[data-id]",
+  idOf: (el) => String(el.dataset.id || ""),
+  pickHost: (el) => el.querySelector(".ntf-card__leading") || el,
+  records: () => notificationsExportRows,
+  recordId: (n) => String(n.id || ""),
+  columns: [
+    { label: "Fecha", get: (n) => G.AntaresDataControls?.fmt.dateTime(n.createdAt) || "" },
+    { label: "Categoría", get: (n) => notificationCategoryLabel(resolveNotificationCategory(n)) },
+    { label: "Título", get: (n) => String(n.title || "Notificación") },
+    { label: "Mensaje", get: (n) => sanitizeNotificationBodyForDisplay(n.body || "") },
+    { label: "Estado", get: (n) => (notificationIsRead(n) ? "Leída" : "Sin leer") }
+  ]
+});
 
 const FILTER_TABS = [
   { id: NOTIFICATION_UI_FILTERS.ALL, label: "Todas", icon: "inbox" },
@@ -164,9 +189,33 @@ function notificationsHtml() {
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
   const activeFilter = String(state.notificationsUi?.filter || NOTIFICATION_UI_FILTERS.ALL).trim().toLowerCase();
-  const filtered = filterNotificationsByUiFilter(all, activeFilter, notificationIsRead);
+  /* Periodo (días hacia atrás): se suma al filtro de la columna izquierda. */
+  const periodDays = Number(state.notificationsUi?.period) || 0;
+  const periodFiltered = periodDays
+    ? all.filter((n) => {
+        const ts = new Date(n.createdAt).getTime();
+        return Number.isFinite(ts) && Date.now() - ts <= periodDays * 24 * 60 * 60 * 1000;
+      })
+    : all;
+  const filtered = filterNotificationsByUiFilter(periodFiltered, activeFilter, notificationIsRead);
+  const periodFilterBar = renderModuleFieldFilters({
+    ariaLabel: "Filtros de notificaciones",
+    action: "notif-field",
+    clearAction: "notif-fields-clear",
+    extraClass: "ntf-field-filters",
+    fields: [
+      {
+        key: "period",
+        label: "Recibidas",
+        value: periodDays ? String(periodDays) : "",
+        allLabel: "Todo el historial",
+        options: [["1", "Últimas 24 horas"], ["7", "Últimos 7 días"], ["30", "Últimos 30 días"], ["90", "Últimos 90 días"]]
+      }
+    ]
+  });
   const renderLimit = Number(state.notificationsUi?.renderLimit) || NOTIFICATIONS_RENDER_WINDOW_SIZE;
   const visibleFiltered = filtered.slice(0, renderLimit);
+  notificationsExportRows = filtered;
   const alertsOn = isInAppNotificationAlertsEnabled();
   const soundOn = isSonidoNotificacionesHabilitado();
   const unread = all.filter((n) => !notificationIsRead(n)).length;
@@ -224,6 +273,7 @@ function notificationsHtml() {
       <div class="ntf-data-panel">
         ${prefHint}
         ${toolbar}
+        ${all.length ? periodFilterBar : ""}
         ${listBody}
       </div>
     </div>
@@ -261,6 +311,20 @@ function bindNotificationsPortalControls() {
       };
       G.renderPortalView();
     });
+  });
+
+  bindModuleFieldFilters(root, {
+    action: "notif-field",
+    clearAction: "notif-fields-clear",
+    onChange: (key, value) => {
+      if (key !== "period") return;
+      state.notificationsUi = { ...(state.notificationsUi || {}), period: String(value || ""), renderLimit: NOTIFICATIONS_RENDER_WINDOW_SIZE };
+      G.renderPortalView();
+    },
+    onClear: () => {
+      state.notificationsUi = { ...(state.notificationsUi || {}), period: "", renderLimit: NOTIFICATIONS_RENDER_WINDOW_SIZE };
+      G.renderPortalView();
+    }
   });
 
   root.querySelectorAll("[data-action='notif-render-more']").forEach((btn) => {

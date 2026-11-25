@@ -567,6 +567,57 @@ function fleetStatusPills(active, counts) {
     .join("")}</div>`;
 }
 
+/** Camiones que cumplen los filtros actuales (todos, no solo la ventana dibujada). Lo usa la exportación. */
+let vehiclesExportSnapshot = [];
+
+const VEHICLE_EXPORT_YMD = (raw) => {
+  const v = typeof normalizePortalDateYmd === "function" ? normalizePortalDateYmd(raw) : String(raw || "");
+  return v || "";
+};
+const VEHICLE_EXPORT_DOC_LABEL = { ok: "Vigente", soon: "Por vencer", expired: "Vencido", missing: "Sin fecha" };
+const VEHICLE_EXPORT_COLUMNS = [
+  { label: "Placa", get: (r) => String(r.vehicle.plate || "").toUpperCase() },
+  { label: "Tipo", get: (r) => r.vehicle.type || "" },
+  { label: "Marca", get: (r) => r.vehicle.brand || "" },
+  { label: "Modelo", get: (r) => r.vehicle.model || "" },
+  { label: "Año", get: (r) => r.vehicle.year || "" },
+  { label: "Color", get: (r) => r.vehicle.color || "" },
+  { label: "Capacidad (kg)", get: (r) => parseNum(r.vehicle.capacityKg) || "" },
+  { label: "Carrocería", get: (r) => r.vehicle.bodyType || "" },
+  { label: "Combustible", get: (r) => r.vehicle.fuelType || "" },
+  { label: "Configuración de ejes", get: (r) => r.vehicle.axleConfig || "" },
+  { label: "Termoking", get: (r) => (r.refrigerated ? "Sí" : "No") },
+  { label: "GPS", get: (r) => (r.gps ? "Activo" : "Sin GPS") },
+  { label: "Proveedor GPS", get: (r) => r.vehicle.gpsProvider || "" },
+  { label: "VIN", get: (r) => r.vehicle.vin || "" },
+  { label: "Número de motor", get: (r) => r.vehicle.engineNumber || "" },
+  { label: "Tarjeta de propiedad", get: (r) => r.vehicle.ownershipCard || "" },
+  { label: "Vence SOAT", get: (r) => VEHICLE_EXPORT_YMD(r.soat?.expiresAt || r.vehicle.soatExpiryDate) },
+  { label: "Estado SOAT", get: (r) => VEHICLE_EXPORT_DOC_LABEL[r.soatState] || "" },
+  { label: "Vence tecnomecánica", get: (r) => VEHICLE_EXPORT_YMD(r.tec?.expiresAt || r.vehicle.techInspectionExpiryDate) },
+  { label: "Estado tecnomecánica", get: (r) => VEHICLE_EXPORT_DOC_LABEL[r.techState] || "" },
+  { label: "Disponibilidad", get: (r) => VEHICLE_TONE_UI[r.tone]?.label || "" },
+  { label: "Detalle de ocupación", get: (r) => r.occupancy?.detail || "" }
+];
+
+(function registerVehiclesDataControls() {
+  window.AntaresDataControls?.register({
+    view: "transport-vehicles",
+    id: "fleet",
+    label: ["camión", "camiones"],
+    filename: "camiones",
+    audit: { module: "vehicles", label: "Camiones" },
+    anchor: (root) =>
+      root.querySelector(".vehicle-ops-cards") || root.querySelector(".vehicle-fleet-list-wrap") || null,
+    itemSelector: ".vehicle-ops-cards [data-vehicle-id], .vehicle-fleet-table tr[data-vehicle-id]",
+    idOf: (el) => String(el.dataset.vehicleId || ""),
+    pickHost: (el) => el.querySelector(".portal-ops-card-head, .portal-ops-card-top") || el,
+    records: () => vehiclesExportSnapshot,
+    recordId: (r) => String(r.vehicle?.id || ""),
+    columns: VEHICLE_EXPORT_COLUMNS
+  });
+})();
+
 function vehiclesHtml() {
   const vehicles = read(KEYS.vehicles, []).slice().sort(compareVehiclesByPlate);
   const drivers = read(KEYS.drivers, []);
@@ -716,6 +767,7 @@ function vehiclesHtml() {
       })
     )
     .map((row) => row.vehicle);
+  vehiclesExportSnapshot = filteredVehicles.map((v) => vehicleViewById.get(String(v.id || "")) || { vehicle: v });
   visibleVehicles = filteredVehicles.slice(0, vehicleRenderLimit);
   vehiclesMoreBar =
     typeof renderWindowMoreBar === "function"

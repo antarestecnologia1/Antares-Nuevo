@@ -54,6 +54,51 @@ function b2bWhen(raw) {
   return { short, full, iso: t.toISOString() };
 }
 
+/** Prospectos que cumplen los filtros actuales; la búsqueda por texto se aplica al exportar (ver leadsVisible). */
+let leadsExportRows = [];
+
+function leadKey(c) {
+  return String(c.id || `${c.createdAt || ""}|${c.email || ""}`);
+}
+
+/** Lo que se ve en pantalla: filtros de lista + texto escrito en el buscador. */
+function leadsVisible() {
+  const q = String(document.getElementById("b2b-leads-search")?.value || "").trim().toLocaleLowerCase("es-CO");
+  return q ? leadsExportRows.filter((row) => row.blob.includes(q)) : leadsExportRows;
+}
+
+(function registerContactLeadsDataControls() {
+  const dt = (v) => window.AntaresDataControls?.fmt.dateTime(v) || "";
+  window.AntaresDataControls?.register({
+    view: "contact-leads",
+    id: "leads",
+    label: ["prospecto", "prospectos"],
+    filename: "prospectos-contacto-web",
+    audit: { module: "contact-leads", label: "Contacto web" },
+    note: "El archivo contiene datos de contacto de prospectos: guárdelo y compártalo con cuidado.",
+    anchor: (root) => root.querySelector(".b2b-leads-mosaic"),
+    itemSelector: ".b2b-leads-card[data-lead-id]",
+    idOf: (el) => String(el.dataset.leadId || ""),
+    pickHost: (el) => el.querySelector(".b2b-cred__head") || el,
+    records: () => leadsVisible(),
+    recordId: (row) => leadKey(row.c),
+    columns: [
+      { label: "Recibido", get: (row) => dt(row.c.createdAt) },
+      { label: "Contacto", get: (row) => b2bTitle(String(row.c.contactName || "").trim()) },
+      { label: "Cargo", get: (row) => b2bTitle(String(row.c.role || "").trim()) },
+      { label: "Empresa", get: (row) => b2bTitle(String(row.c.companyName || "").trim()) },
+      { label: "NIT", get: (row) => String(row.c.nit || "").trim() },
+      { label: "Correo", get: (row) => String(row.c.email || "").trim() },
+      { label: "Teléfono", get: (row) => String(row.c.phone || "").trim() },
+      { label: "Servicio de interés", get: (row) => b2bTitle(String(row.c.serviceType || "").trim()) },
+      { label: "Tipo de operación", get: (row) => b2bTitle(String(row.c.operationType || "").trim()) },
+      { label: "Frecuencia", get: (row) => b2bTitle(String(row.c.frequency || "").trim()) },
+      { label: "Inicio estimado", get: (row) => b2bTitle(String(row.c.serviceWindow || "").trim()) },
+      { label: "Mensaje", get: (row) => b2bBrief(String(row.c.message || "").trim()) }
+    ]
+  });
+})();
+
 function contactLeadsHtml() {
   const user = currentUser();
   if (!hasPermission(user, PERMISSIONS.CONTACT_B2B_VIEW)) {
@@ -129,6 +174,12 @@ function contactLeadsHtml() {
     }
     return true;
   });
+  leadsExportRows = filteredList.map((c) => ({
+    c,
+    blob: [c.contactName, c.companyName, c.email, c.phone, c.nit, c.role, c.serviceType, c.operationType, c.frequency, c.serviceWindow, b2bBrief(String(c.message || "").trim())]
+      .join(" ")
+      .toLocaleLowerCase("es-CO")
+  }));
   const leadsFilters = renderModuleFieldFilters({
     ariaLabel: "Filtros de prospectos",
     action: "b2b-field",
@@ -180,7 +231,7 @@ function contactLeadsHtml() {
           ? `<details class="b2b-cred__brief"><summary>Brief de la solicitud</summary><div class="b2b-leads-brief-body">${briefHtml}</div></details>`
           : `<p class="b2b-cred__note">${briefHtml}</p>`;
 
-      return `<article class="b2b-leads-card b2b-cred ${hueClass}" data-search="${searchBlob}">
+      return `<article class="b2b-leads-card b2b-cred ${hueClass}" data-search="${searchBlob}" data-lead-id="${escapeAttr(leadKey(c))}">
         <div class="b2b-cred__band" aria-hidden="true"></div>
         <header class="b2b-cred__head">
           <span class="b2b-leads-avatar" aria-hidden="true">${av}</span>
@@ -258,6 +309,7 @@ function bindContactLeadsPortalControls() {
       if (show) n += 1;
     });
     if (empty) empty.hidden = n !== 0;
+    window.AntaresDataControls?.refresh("contact-leads");
     if (count) {
       count.textContent = q ? `${n} de ${total}` : `${total} prospecto${total === 1 ? "" : "s"}`;
     }

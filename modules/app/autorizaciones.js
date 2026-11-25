@@ -2,6 +2,32 @@
  * Centro de aprobaciones (uthorizations): vista HTML y listeners del portal.
  */
 
+/** Pendientes que ve el usuario en la bandeja (ya filtrados): altas del portal, solicitudes de transporte y aprobaciones internas. */
+let authorizationsExportRows = [];
+
+(function registerAuthorizationsDataControls() {
+  window.AntaresDataControls?.register({
+    view: "authorizations",
+    id: "queue",
+    label: ["autorización pendiente", "autorizaciones pendientes", "f"],
+    filename: "autorizaciones-pendientes",
+    audit: { module: "authorizations", label: "Autorizaciones" },
+    selectable: () => false,
+    anchor: (root) => root.querySelector(".auth-tabs-layout"),
+    records: () => authorizationsExportRows,
+    recordId: (r) => r.code,
+    columns: [
+      { label: "Bandeja", get: (r) => r.queue },
+      { label: "Código", get: (r) => r.code },
+      { label: "Trámite", get: (r) => r.type },
+      { label: "Resumen", get: (r) => r.summary },
+      { label: "Detalle", get: (r) => r.detail },
+      { label: "Solicitado por", get: (r) => r.by },
+      { label: "Fecha de solicitud", get: (r) => window.AntaresDataControls?.fmt.dateTime(r.at) || "" }
+    ]
+  });
+})();
+
 function buildAuthorizationsPortalRegistrationsSection(pendingUsers) {
   const list = Array.isArray(pendingUsers) ? pendingUsers : [];
   const n = list.length;
@@ -170,6 +196,50 @@ function authorizationsHtml() {
 
   const transportSection = buildAuthorizationsTransportRequestsSection(pendingTransportRequests);
   const portalRegHtml = buildAuthorizationsPortalRegistrationsSection(pendingUsers);
+
+  authorizationsExportRows = (() => {
+    const rows = [];
+    if (canAccessAuthorizationSection(actor, "portal_registrations")) {
+      pendingUsers.forEach((u) =>
+        rows.push({
+          queue: "Altas de clientes (portal)",
+          code: String(u.id || ""),
+          type: "Alta de cuenta",
+          summary: String(u.name || "").trim(),
+          detail: [u.email, getCompanyById(u.companyId)?.name || u.company].filter(Boolean).join(" · "),
+          by: String(u.name || "").trim(),
+          at: u.createdAt || u.registeredAt || ""
+        })
+      );
+    }
+    if (canAccessAuthorizationSection(actor, "transport_requests")) {
+      pendingTransportRequests.forEach((r) =>
+        rows.push({
+          queue: "Solicitudes de transporte",
+          code: String(r.requestNumber || r.id || ""),
+          type: "Solicitud de transporte",
+          summary: typeof window.formatRoute === "function" ? window.formatRoute(r) : "",
+          detail: String(r.clientName || "").trim(),
+          by: String(r.requestedByName || r.clientName || "").trim(),
+          at: r.createdAt || ""
+        })
+      );
+    }
+    groups.forEach((arr) =>
+      arr.forEach((a) =>
+        rows.push({
+          queue: "Aprobaciones internas",
+          code: typeof authRefColaInterna === "function" ? authRefColaInterna(a.id) : String(a.id || ""),
+          type: APPROVAL_TYPE_META[a.type]?.label || a.type || "",
+          summary: String(a.title || "").trim(),
+          detail: typeof approvalDetailLine === "function" ? approvalDetailLine(a) : "",
+          by: approvalBy(a),
+          at: a.requestedAt || a.createdAt || ""
+        })
+      )
+    );
+    return rows;
+  })();
 
   const miscRows = groups.get("misc") || [];
   const miscSectionHtml =

@@ -95,6 +95,90 @@ function buildGranularPermissionsCheckboxesHtml(selected = [], opts = {}) {
   return sections + restHtml;
 }
 
+/** Listas que se ven en pantalla (ya filtradas), para exportarlas: usuarios, altas pendientes y empresas. */
+let adminUsersExport = { users: () => [], pending: () => [], companies: () => [] };
+
+(function registerAdminUsersDataControls() {
+  const dc = () => window.AntaresDataControls;
+  const yesNo = (v) => (v ? "Sí" : "No");
+  const userColumns = [
+    { label: "Nombre", get: (r) => r.m.displayName },
+    { label: "Correo", get: (r) => r.u.email || "" },
+    { label: "Rol", get: (r) => (r.u.role ? formatPortalRoleLabel(r.u.role) : "Sin rol") },
+    { label: "Estado", get: (r) => r.m.statusLabel },
+    { label: "Empresa", get: (r) => r.m.companyName },
+    { label: "Documento", get: (r) => (r.m.docLabel === "Sin documento" ? "" : r.m.docLabel) },
+    { label: "Teléfono", get: (r) => r.m.phoneLabel || "" },
+    { label: "Tipo de perfil", get: (r) => (r.m.profileChipLabel === "—" ? "" : r.m.profileChipLabel) },
+    { label: "Permisos asignados", get: (r) => r.m.permissionCount },
+    { label: "Verificación en dos pasos", get: (r) => yesNo(r.m.twoFactor) },
+    { label: "Fecha de alta", get: (r) => (r.m.joinedLabel === "—" ? "" : r.m.joinedLabel) }
+  ];
+  const base = (extra) => ({
+    view: "admin-users",
+    selectHint: "cambie a Tabla para elegir filas",
+    note: "El archivo contiene datos personales: guárdelo y compártalo con cuidado.",
+    deniedMessage: "Solo el administrador puede exportar usuarios y empresas.",
+    allowed: () => typeof isAdminActor !== "function" || isAdminActor(typeof currentUser === "function" ? currentUser() : null),
+    ...extra
+  });
+  dc()?.register(
+    base({
+      id: "users",
+      label: ["usuario", "usuarios"],
+      filename: "usuarios",
+      audit: { module: "admin-users", label: "Usuarios" },
+      anchor: (root) => root.querySelector('[data-dir-kind="user"]'),
+      itemSelector: '[data-dir-kind="user"] [data-user-id]',
+      idOf: (el) => String(el.dataset.userId || ""),
+      pickHost: (el) => (el.tagName === "TR" ? el : el.querySelector(".adm-badge__head-meta") || el),
+      records: () => adminUsersExport.users(),
+      recordId: (r) => r.id,
+      columns: userColumns
+    })
+  );
+  dc()?.register(
+    base({
+      id: "pending",
+      label: ["alta pendiente", "altas pendientes", "f"],
+      filename: "altas-pendientes",
+      audit: { module: "admin-users", label: "Usuarios · altas pendientes" },
+      anchor: (root) => root.querySelector('[data-dir-kind="pending"]'),
+      itemSelector: '[data-dir-kind="pending"] [data-user-id]',
+      idOf: (el) => String(el.dataset.userId || ""),
+      pickHost: (el) => (el.tagName === "TR" ? el : el.querySelector(".adm-badge__head-meta") || el),
+      records: () => adminUsersExport.pending(),
+      recordId: (r) => r.id,
+      columns: userColumns
+    })
+  );
+  dc()?.register(
+    base({
+      id: "companies",
+      label: ["empresa", "empresas", "f"],
+      filename: "empresas",
+      audit: { module: "admin-users", label: "Empresas" },
+      anchor: (root) => root.querySelector('[data-dir-kind="company"]'),
+      itemSelector: '[data-dir-kind="company"] [data-company-id]',
+      idOf: (el) => String(el.dataset.companyId || ""),
+      pickHost: (el) => (el.tagName === "TR" ? el : el.querySelector(".adm-badge__head-meta") || el),
+      records: () => adminUsersExport.companies(),
+      recordId: (r) => r.id,
+      columns: [
+        { label: "Empresa", get: (r) => r.m.name },
+        { label: "NIT", get: (r) => (r.m.nit === "Sin NIT" ? "" : r.m.nit) },
+        { label: "Tipo", get: (r) => companyKindLabel(r.m.kindForUi) },
+        { label: "Estado", get: (r) => (r.m.active ? "Operativa" : "Inactiva") },
+        { label: "Usuarios", get: (r) => r.m.usersCount },
+        { label: "Contacto", get: (r) => r.m.contactLabel || "" },
+        { label: "Correo", get: (r) => r.m.emailLabel || "" },
+        { label: "Teléfono", get: (r) => r.m.phoneDisp || "" },
+        { label: "Ubicación", get: (r) => (r.m.locationLabel === "—" ? "" : r.m.locationLabel) }
+      ]
+    })
+  );
+})();
+
 function adminUsersHtml(current) {
   const isAdmin = isAdminActor(current);
   const users = read(KEYS.users, []);
@@ -500,9 +584,9 @@ function adminUsersHtml(current) {
         kind === "company"
           ? `<th>Empresa</th><th>Tipo</th><th>Estado</th><th>Usuarios</th><th>Contacto</th><th>Teléfono</th><th>Acciones</th>`
           : `<th>Usuario</th><th>Rol</th><th>Estado</th><th>Permisos</th><th>2FA</th><th>Empresa</th><th>Teléfono</th><th>Acciones</th>`;
-      return `<div class="admin-users-list-shell adm-list-shell"><div class="ag-table-wrap"><table class="ag-table adm-table"><thead><tr>${heads}</tr></thead><tbody>${rows.join("")}</tbody></table></div></div>`;
+      return `<div class="admin-users-list-shell adm-list-shell" data-dir-kind="${kind}"><div class="ag-table-wrap"><table class="ag-table adm-table"><thead><tr>${heads}</tr></thead><tbody>${rows.join("")}</tbody></table></div></div>`;
     }
-    return `<div class="admin-users-list-shell"><div class="adm-badge-grid adm-badge-grid--${kind}">${rows.join("")}</div></div>`;
+    return `<div class="admin-users-list-shell" data-dir-kind="${kind}"><div class="adm-badge-grid adm-badge-grid--${kind}">${rows.join("")}</div></div>`;
   };
   const pendingCardsHtml = wrapDirectory(
     "pending",
@@ -906,6 +990,11 @@ function adminUsersHtml(current) {
     companiesForView.map((c) => (directoryLayout === "list" ? renderCompanyListRow(c) : renderCompanyCard(c))),
     "",
   );
+  adminUsersExport = {
+    users: () => activeUsersView.map((u) => ({ id: String(u.id ?? ""), u, m: userAccessMeta(u, "active") })),
+    pending: () => pendingUsersView.map((u) => ({ id: String(u.id ?? ""), u, m: userAccessMeta(u, "pending") })),
+    companies: () => companiesForView.map((c) => ({ id: String(c.id ?? ""), c, m: companyAccessMeta(c) }))
+  };
   const approvedUsers = users.filter((u) => u.accountStatus === ACCOUNT_STATUS.APROBADO);
   const activeCompaniesCount = companies.filter((c) => isCompanyRecordActive(c)).length;
   const inactiveCompaniesCount = Math.max(0, companies.length - activeCompaniesCount);

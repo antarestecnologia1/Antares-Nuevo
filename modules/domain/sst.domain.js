@@ -40,6 +40,7 @@ import { buildEmployeeBasicPatchFromDriver, syncDriverFromEmployee } from "./rep
 import { reqRead, reqWriteAwait } from "./solicitudes.domain.js";
 import { upsertContractRecordForEmployee } from "./contracts.domain.js";
 import { writeFuelLogsAwait } from "./historial.domain.js";
+import { employeeLinkedFieldsChanged } from "./employee-linked-fields.domain.js";
 import { recalculateResourceAvailability } from "./viajes.domain.js";
 import { userMessage } from "../ui/modals.js";
 
@@ -196,13 +197,26 @@ export function patchApprovalRowForEmployee(approval, employee, empId, empName) 
  * Tras guardar en Gestión humana: actualiza conductor (si aplica) y copias desnormalizadas
  * (contratos, liquidaciones, ausencias, SST, autorizaciones, viajes, combustible).
  */
-export async function propagateEmployeeChanges(employee, extraDriverData = {}) {
+export async function propagateEmployeeChanges(employee, extraDriverDataIn = {}) {
+  /* `previousEmployee` solo sirve para decidir si hay algo que propagar: no se pasa al sync del conductor. */
+  const { previousEmployee, ...extraDriverData } = extraDriverDataIn || {};
   if (!employee?.id) return { ok: true, skipped: true };
   const empId = String(employee.id);
   const empName = String(employee.name || "").trim();
   const empDoc = String(employee.idDoc || "").trim();
   const company = read(KEYS.companies, []).find((row) => String(row.id) === String(employee.companyId || ""));
   const companyName = String(company?.name || "").trim();
+
+  /* Edición sin cambios en campos copiados a otros módulos: nada que reenviar al servidor. */
+  if (
+    previousEmployee &&
+    !extraDriverData.isNewHire &&
+    String(employee.workerRole || "") !== "conductor" &&
+    String(previousEmployee.workerRole || "") !== "conductor" &&
+    !employeeLinkedFieldsChanged(previousEmployee, employee, globalThis.readEmployeeTransportAllowanceCop)
+  ) {
+    return { ok: true, skipped: true, unchanged: true };
+  }
 
   let driverResult = { ok: true, skipped: true };
   if (String(employee.workerRole || "") === "conductor") {
@@ -396,36 +410,48 @@ export async function propagateEmployeeChanges(employee, extraDriverData = {}) {
     return next;
   });
 
-  try {
-    if (contractsChanged) {
-      await writeAwaitServer(KEYS.contracts, nextContracts, {
-        notifyOnFailure: false,
-        syncData: changedContracts
-      });
-    }
-    if (runsChanged) {
-      await writeAwaitServer(KEYS.payrollRuns, nextRuns, { notifyOnFailure: false, syncData: changedRuns });
-    }
-    if (absencesChanged) {
-      await writeAwaitServer(KEYS.hrAbsences, nextAbsences, { notifyOnFailure: false, syncData: changedAbsences });
-    }
-    if (sstChanged) {
-      await writeAwaitServer(KEYS.sstCompliance, nextSst, { notifyOnFailure: false, syncData: changedSst });
-    }
-    if (approvalsChanged) {
-      await writeAwaitServer(KEYS.approvals, nextApprovals, { notifyOnFailure: false, syncData: changedApprovals });
-    }
-    if (tripsChanged) {
-      await reqWriteAwait(nextRequests, changedTrips, undefined, { notifyOnFailure: false });
-    }
-    if (fuelChanged) await writeFuelLogsAwait(nextFuel, changedFuel);
-    if (tripsChanged) recalculateResourceAvailability();
-  } catch (err) {
+  /* Cada módulo tiene su propia tabla: los envíos son independientes y van en paralelo (antes, uno tras otro). */
+  const pendingWrites = [];
+  if (contractsChanged) {
+    pendingWrites.push(
+      writeAwaitServer(KEYS.contracts, nextContracts, { notifyOnFailure: false, syncData: changedContracts })
+    );
+  }
+  if (runsChanged) {
+    pendingWrites.push(
+      writeAwaitServer(KEYS.payrollRuns, nextRuns, { notifyOnFailure: false, syncData: changedRuns })
+    );
+  }
+  if (absencesChanged) {
+    pendingWrites.push(
+      writeAwaitServer(KEYS.hrAbsences, nextAbsences, { notifyOnFailure: false, syncData: changedAbsences })
+    );
+  }
+  if (sstChanged) {
+    pendingWrites.push(
+      writeAwaitServer(KEYS.sstCompliance, nextSst, { notifyOnFailure: false, syncData: changedSst })
+    );
+  }
+  if (approvalsChanged) {
+    pendingWrites.push(
+      writeAwaitServer(KEYS.approvals, nextApprovals, { notifyOnFailure: false, syncData: changedApprovals })
+    );
+  }
+  if (tripsChanged) {
+    pendingWrites.push(reqWriteAwait(nextRequests, changedTrips, undefined, { notifyOnFailure: false }));
+  }
+  if (fuelChanged) pendingWrites.push(writeFuelLogsAwait(nextFuel, changedFuel));
+  const settled = await Promise.allSettled(pendingWrites);
+  const failedWrite = settled.find((r) => r.status === "rejected");
+  if (failedWrite) {
     return {
       ok: false,
-      message: String(err?.message || "Empleado guardado, pero falló la actualización en módulos vinculados.")
+      message: String(
+        failedWrite.reason?.message || "Empleado guardado, pero falló la actualización en módulos vinculados."
+      )
     };
   }
+  if (tripsChanged) recalculateResourceAvailability();
   return { ok: true, driver: driverResult };
 }
 

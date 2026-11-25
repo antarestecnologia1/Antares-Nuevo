@@ -883,6 +883,7 @@ export function renderPortalViewImpl() {
   callApp("mountUniversalModuleFilters");
   _bindEventsCallback();
   invokePortalViewAfterRenderHook(view);
+  callApp("mountDataControls", view);
   if (String(view || "") !== "reports") callApp("destroyReportsCharts");
   callApp("bindExtendedViewEditHandlers");
   callApp("installVehicleCardActionsDelegation");

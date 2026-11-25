@@ -6,6 +6,45 @@
   if (!window.AppModules) window.AppModules = {};
   if (!window.AppModules.solicitudes) window.AppModules.solicitudes = {};
 
+  /** Solicitudes que cumplen los filtros actuales (todas, no solo la ventana dibujada). Lo usa la exportación. */
+  let requestsExportSnapshot = [];
+
+  (function registerRequestsDataControls() {
+    const dc = () => window.AntaresDataControls;
+    const placeOf = (city, dept) => [String(dept || "").trim(), String(city || "").trim()].filter(Boolean).join(", ");
+    dc()?.register({
+      view: "requests",
+      id: "requests",
+      label: ["solicitud", "solicitudes", "f"],
+      filename: "solicitudes",
+      audit: { module: "requests", label: "Solicitudes" },
+      selectHint: "cambie a Tabla para elegir filas",
+      selectable: (root) => Boolean(root.querySelector(".request-ops-fleet-table")),
+      anchor: (root) => root.querySelector(".rq-inbox") || root.querySelector(".vehicle-fleet-list-wrap"),
+      itemSelector: ".request-ops-fleet-table tr[data-request-id]",
+      idOf: (el) => String(el.dataset.requestId || ""),
+      records: () => requestsExportSnapshot,
+      recordId: (r) => String(r.id || ""),
+      columns: [
+        { label: "Solicitud", get: (r) => r.requestNumber || r.id || "" },
+        { label: "Cliente", get: (r) => r.clientName || "" },
+        { label: "Estado", get: (r) => rqStatusLabel(r) },
+        { label: "Origen", get: (r) => placeOf(r.originCity, r.originDepartment) },
+        { label: "Destino", get: (r) => placeOf(r.destinationCity, r.destinationDepartment) },
+        { label: "Recogida", get: (r) => dc()?.fmt.dateTime(r.trip?.etaPickup || r.pickupAt || r.pickupDate) || "" },
+        { label: "Carga", get: (r) => r.cargoDescription || "" },
+        { label: "Tipo de servicio", get: (r) => r.serviceType || "" },
+        { label: "Tipo de vehículo", get: (r) => r.requiredTruckType || r.vehicleType || "" },
+        { label: "Viaje", get: (r) => r.trip?.tripNumber || "" },
+        { label: "Placa", get: (r) => r.trip?.vehiclePlate || "" },
+        { label: "Conductor", get: (r) => r.trip?.driverName || "" },
+        { label: "Valor del viaje (COP)", get: (r) => (parseNum(r.tripValue) > 0 ? parseNum(r.tripValue) : "") },
+        { label: "Valor asegurado (COP)", get: (r) => (parseNum(r.insuredValue) > 0 ? parseNum(r.insuredValue) : "") },
+        { label: "Creada", get: (r) => dc()?.fmt.dateTime(r.createdAt) || "" }
+      ]
+    });
+  })();
+
   /** Misma convención que Camiones / Viajes: `cards` | `list`. */
   function normalizeRequestsListLayout(raw) {
     return String(raw || "").trim().toLowerCase() === "list" ? "list" : "cards";
@@ -676,6 +715,7 @@
    */
   function requestOpsCardsHtml(requests, user, layoutRaw) {
     const layout = normalizeRequestsListLayout(layoutRaw);
+    requestsExportSnapshot = Array.isArray(requests) ? requests : [];
     if (!requests.length) {
       let search = "";
       let filterKey = "all";

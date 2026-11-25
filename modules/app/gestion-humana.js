@@ -2531,30 +2531,62 @@ function bindPayrollPortalControls() {
           }
           scheduleContractRenewalNotificationCheck();
           const refreshed = read(KEYS.payrollEmployees, []).find((empRow) => String(empRow.id) === String(target.id));
-          if (refreshed) {
-            appendPayrollEmployeeAuditLog("update", refreshed, { previous: target });
-            const propagate = await propagateEmployeeChanges(refreshed);
-            if (!propagate.ok) {
-              notify(propagate.message || userMessage("employeeCreatedDriverSyncFail"), "error");
-              return false;
-            }
-            await refreshPayrollDraftsLinked(refreshed.id, null, null, { notifyOnError: false });
-            if (portalCanRefreshFromApi()) {
-              try {
-                await applyPortalBootstrapFromApi();
-              } catch (_e) { window.AntaresLogSilentError?.("gestion-humana.js:2489", _e); }
-            }
-            notify(
-              nextPayload.workerRole === "conductor"
-                ? userMessage("employeeUpdatedDriverSynced")
-                : userMessage("employeeUpdatedOk"),
-              "success"
-            );
+          if (!refreshed) {
+            notify(userMessage("employeeUpdatedOk"), "success");
             renderPortalView();
             return true;
           }
+          appendPayrollEmployeeAuditLog("update", refreshed, { previous: target });
+          const involvesConductor =
+            String(refreshed.workerRole || "") === "conductor" || String(target.workerRole || "") === "conductor";
+          /* Campos que cambian liquidaciones: solo entonces hay que traer de nuevo las nóminas del servidor. */
+          const payrollAffectingKeys = [
+            "baseSalary",
+            "transportAllowance",
+            "contractType",
+            "contractTemplateKind",
+            "payFrequency",
+            "startDate",
+            "workerRole",
+            "arlRiskLevel",
+            "contributorType",
+            "companyId",
+            "contractEndDate",
+            "contractVigenteStartDate"
+          ];
+          const payrollAffected = payrollAffectingKeys.some(
+            (key) => String(refreshed[key] ?? "").trim() !== String(target[key] ?? "").trim()
+          );
+          /* El colaborador ya quedó guardado en el servidor: se confirma YA y lo vinculado (conductor, contratos,
+           * liquidaciones, ausencias…) se completa en segundo plano, sin hacer esperar al usuario. */
           notify(userMessage("employeeUpdatedOk"), "success");
           renderPortalView();
+          void (async () => {
+            try {
+              const propagate = await propagateEmployeeChanges(refreshed, { previousEmployee: target });
+              if (!propagate.ok) {
+                notify(propagate.message || userMessage("employeeCreatedDriverSyncFail"), "error");
+              } else if (involvesConductor && !propagate.skipped) {
+                notify(userMessage("employeeUpdatedDriverSynced"), "success");
+              }
+              if (payrollAffected) {
+                /* Incluye una sola descarga del portal al terminar. */
+                await refreshPayrollDraftsLinked(refreshed.id, null, null, { notifyOnError: false });
+              } else if (window.PayrollEmployeeListSync?.refreshFromApi) {
+                await window.PayrollEmployeeListSync.refreshFromApi();
+              }
+            } catch (err) {
+              window.AntaresLogSilentError?.("gestion-humana.js:employee-update-background", err);
+              notify(
+                String(err?.message || userMessage("employeeCreatedDriverSyncFail")),
+                "error"
+              );
+            } finally {
+              const unsaved =
+                typeof window.hasUnsavedPortalFormData === "function" ? Boolean(window.hasUnsavedPortalFormData()) : false;
+              if (!unsaved) renderPortalView();
+            }
+          })();
           return true;
         }
       });

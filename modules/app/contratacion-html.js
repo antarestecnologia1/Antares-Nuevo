@@ -2,6 +2,143 @@
  * Contratación — HTML de la vista (hiringHtml).
  */
 
+/** Listas visibles de Contratación (ya filtradas y con la búsqueda aplicada), para exportarlas. */
+let hiringExport = { candidates: [], vacancies: [], interviews: [], contracts: [], positions: [] };
+
+(function registerHiringDataControls() {
+  const dc = () => window.AntaresDataControls;
+  const fmtD = (v) => dc()?.fmt.date(v) || "";
+  const money = (v) => (parseNum(v) > 0 ? parseNum(v) : "");
+  const visibleFirst = (nodes) => nodes.find((el) => el.offsetParent !== null) || nodes[0] || null;
+  const base = (extra) => ({
+    view: "hiring",
+    note: "El archivo puede incluir datos personales y salarios: guárdelo y compártalo con cuidado.",
+    deniedMessage: "No tiene permiso para exportar información de contratación.",
+    allowed: () => typeof canManageHiringModule !== "function" || canManageHiringModule(),
+    ...extra
+  });
+  dc()?.register(
+    base({
+      id: "candidates",
+      label: ["candidato", "candidatos"],
+      filename: "candidatos",
+      audit: { module: "hiring", label: "Contratación · candidatos" },
+      selectable: () => false,
+      anchor: (root) => visibleFirst([...root.querySelectorAll(".hiring-candidates-board-wrap, .hiring-list-view")]),
+      records: () => hiringExport.candidates,
+      recordId: (r) => String(r.c.id || ""),
+      columns: [
+        { label: "Nombre", get: (r) => r.c.name || "" },
+        { label: "Tipo de documento", get: (r) => r.c.documentType || "" },
+        { label: "Documento", get: (r) => r.c.idDoc || "" },
+        { label: "Teléfono", get: (r) => r.c.phone || "" },
+        { label: "Correo", get: (r) => r.c.email || "" },
+        { label: "Departamento", get: (r) => r.c.department || "" },
+        { label: "Ciudad", get: (r) => r.c.city || "" },
+        { label: "Vacante", get: (r) => r.c.vacancyTitle || "" },
+        { label: "Etapa del proceso", get: (r) => r.stage },
+        { label: "Fuente", get: (r) => r.c.source || "" },
+        { label: "Nivel educativo", get: (r) => r.c.educationLevel || "" },
+        { label: "Experiencia (años)", get: (r) => (r.c.experienceYears === 0 || r.c.experienceYears ? r.c.experienceYears : "") },
+        { label: "Registrado", get: (r) => fmtD(r.c.createdAt) }
+      ]
+    })
+  );
+  dc()?.register(
+    base({
+      id: "vacancies",
+      label: ["vacante", "vacantes", "f"],
+      filename: "vacantes",
+      audit: { module: "hiring", label: "Contratación · vacantes" },
+      anchor: (root) => visibleFirst([...root.querySelectorAll(".hiring-browse-list--vacancies")]),
+      itemSelector: ".hiring-browse-row--vacancy[data-hiring-id]",
+      idOf: (el) => String(el.dataset.hiringId || ""),
+      pickHost: (el) => el.querySelector(".hiring-browse-row__main") || el,
+      records: () => hiringExport.vacancies,
+      recordId: (r) => String(r.v.id || ""),
+      columns: [
+        { label: "Vacante", get: (r) => r.v.title || "" },
+        { label: "Cargo", get: (r) => r.v.positionName || "" },
+        { label: "Ciudad", get: (r) => r.v.city || "" },
+        { label: "Modalidad", get: (r) => r.v.modality || "" },
+        { label: "Estado", get: (r) => r.status },
+        { label: "Cupos", get: (r) => r.v.openings ?? 1 },
+        { label: "Salario ofrecido (COP)", get: (r) => money(r.v.salaryOffer) },
+        { label: "Fecha límite", get: (r) => fmtD(r.v.deadline) }
+      ]
+    })
+  );
+  dc()?.register(
+    base({
+      id: "interviews",
+      label: ["entrevista", "entrevistas", "f"],
+      filename: "entrevistas",
+      audit: { module: "hiring", label: "Contratación · entrevistas" },
+      anchor: (root) => visibleFirst([...root.querySelectorAll(".hiring-browse-list--interviews")]),
+      itemSelector: ".hiring-browse-row--interview[data-hiring-id]",
+      idOf: (el) => String(el.dataset.hiringId || ""),
+      pickHost: (el) => el.querySelector(".hiring-browse-row__main") || el,
+      records: () => hiringExport.interviews,
+      recordId: (r) => String(r.id || ""),
+      columns: [
+        { label: "Candidato", get: (r) => r.candidateName || "" },
+        { label: "Fecha y hora", get: (r) => dc()?.fmt.dateTime(r.when) || "" },
+        { label: "Modalidad", get: (r) => (typeof formatInterviewModeLabel === "function" ? formatInterviewModeLabel(r.mode || r.modality) : r.mode || r.modality || "") },
+        { label: "Entrevistador", get: (r) => r.interviewer || "" },
+        { label: "Lugar o enlace", get: (r) => r.locationOrLink || r.place || "" }
+      ]
+    })
+  );
+  dc()?.register(
+    base({
+      id: "contracts",
+      label: ["contrato", "contratos"],
+      filename: "contratos",
+      audit: { module: "hiring", label: "Contratación · contratos" },
+      anchor: (root) => visibleFirst([...root.querySelectorAll(".hiring-browse-list--contracts")]),
+      itemSelector: ".hiring-browse-row--contract[data-hiring-id]",
+      idOf: (el) => String(el.dataset.hiringId || ""),
+      pickHost: (el) => el.querySelector(".hiring-browse-row__main") || el,
+      records: () => hiringExport.contracts,
+      recordId: (r) => String(r.c.id || ""),
+      columns: [
+        { label: "Trabajador", get: (r) => r.name },
+        { label: "Cargo", get: (r) => r.c.position || r.c.positionName || "" },
+        { label: "Tipo de contrato", get: (r) => r.c.contractType || "" },
+        { label: "Origen", get: (r) => r.c.source || r.c.sourceTag || (r.c.employeeId ? "Empleado" : "Candidato") },
+        { label: "Salario (COP)", get: (r) => money(r.c.salary) },
+        { label: "Inicio", get: (r) => fmtD(r.c.startDate) },
+        { label: "Fin", get: (r) => fmtD(r.c.endDate) }
+      ]
+    })
+  );
+  dc()?.register(
+    base({
+      id: "positions",
+      label: ["cargo", "cargos"],
+      filename: "cargos",
+      audit: { module: "hiring", label: "Contratación · cargos" },
+      anchor: (root) => visibleFirst([...root.querySelectorAll(".hiring-position-grid")]),
+      itemSelector: ".hiring-position-card[data-hiring-id]",
+      idOf: (el) => String(el.dataset.hiringId || ""),
+      pickHost: (el) => el.querySelector(".hiring-position-card__head") || el,
+      records: () => hiringExport.positions,
+      recordId: (r) => String(r.p.id || ""),
+      columns: [
+        { label: "Cargo", get: (r) => r.p.name || "" },
+        { label: "Tipo de trabajador", get: (r) => (String(r.p.workerRole || "").toLowerCase() === "conductor" ? "Conductor" : "Empleado") },
+        { label: "Tipo de contrato por defecto", get: (r) => r.p.contractTypeDefault || "" },
+        { label: "Estado", get: (r) => (r.p.active === false ? "Inactivo" : "Activo") },
+        { label: "Salario base (COP)", get: (r) => money(r.p.baseSalary) },
+        { label: "Auxilio de transporte (COP)", get: (r) => (typeof readPositionTransportAllowanceCop === "function" ? money(readPositionTransportAllowanceCop(r.p)) : "") },
+        { label: "Salario integral", get: (r) => (r.integral ? "Sí" : "No") },
+        { label: "Vacantes vinculadas", get: (r) => r.linked },
+        { label: "Vacantes abiertas", get: (r) => r.open }
+      ]
+    })
+  );
+})();
+
 /** Nombre legible: conserva el texto completo; si viene en MAYÚSCULAS, lo muestra en formato título. */
 function hiringDisplayPersonName(raw) {
   const s = String(raw || "")
@@ -814,7 +951,7 @@ function hiringHtml() {
           : vacExpired
             ? '<span class="status status-rechazada">Vencida</span>'
             : '<span class="status status-viaje_asignado">Publicada</span>';
-      return `<article class="hiring-browse-row hiring-browse-row--vacancy">
+      return `<article class="hiring-browse-row hiring-browse-row--vacancy" data-hiring-id="${escapeAttr(String(v.id))}">
         <div class="hiring-browse-row__main">
           <span class="hiring-browse-row__ico" aria-hidden="true">${IC.send}</span>
           <div>
@@ -840,7 +977,7 @@ function hiringHtml() {
     .join("");
   const interviewCards = interviewsView
     .map(
-      (i) => `<article class="hiring-browse-row hiring-browse-row--interview">
+      (i) => `<article class="hiring-browse-row hiring-browse-row--interview" data-hiring-id="${escapeAttr(String(i.id))}">
         <div class="hiring-browse-row__main">
           <span class="hiring-browse-row__ico hiring-browse-row__ico--amber" aria-hidden="true">${IC.calendar}</span>
           <div>
@@ -866,7 +1003,7 @@ function hiringHtml() {
       const displayName = c.candidateName || liveEmployee?.name || c.employeeName || "-";
       const salaryNum = parseNum(c.salary);
       const salaryLabel = salaryNum > 0 ? `$${salaryNum.toLocaleString("es-CO")}` : "Sin salario";
-      return `<article class="hiring-browse-row hiring-browse-row--contract">
+      return `<article class="hiring-browse-row hiring-browse-row--contract" data-hiring-id="${escapeAttr(String(c.id))}">
         <div class="hiring-browse-row__main">
           <span class="hiring-browse-row__ico hiring-browse-row__ico--violet" aria-hidden="true">${IC.file}</span>
           <div>
@@ -897,7 +1034,7 @@ function hiringHtml() {
         (v) => String(v.positionId || "") === String(p.id) && String(v.status || "") === "Publicada"
       ).length;
       const integral = String(p.integralSalary) === "true" || p.integralSalary === true;
-      return `<article class="hiring-position-card${isActive ? " hiring-position-card--active" : " hiring-position-card--inactive"}${isDriver ? " hiring-position-card--driver" : ""}">
+      return `<article class="hiring-position-card${isActive ? " hiring-position-card--active" : " hiring-position-card--inactive"}${isDriver ? " hiring-position-card--driver" : ""}" data-hiring-id="${escapeAttr(String(p.id))}">
         <header class="hiring-position-card__head">
           <span class="hiring-position-card__ico" aria-hidden="true">${IC.briefcase || ""}</span>
           <div class="hiring-position-card__titles">
@@ -926,6 +1063,25 @@ function hiringHtml() {
       </article>`;
     })
     .join("");
+  hiringExport = {
+    candidates: sortedCandidatesView.map((c) => ({ c, stage: candidateStage(c) })),
+    vacancies: filteredVacanciesView.map((v) => {
+      const expired =
+        v.status === "Publicada" && Boolean(v.deadline) && new Date(`${v.deadline}T23:59:59`).getTime() < Date.now();
+      return { v, status: v.status !== "Publicada" ? "Cerrada" : expired ? "Vencida" : "Publicada" };
+    }),
+    interviews: interviewsView,
+    contracts: contractsView.map((c) => {
+      const liveEmployee = c.employeeId ? employeesById.get(String(c.employeeId)) : null;
+      return { c, name: c.candidateName || liveEmployee?.name || c.employeeName || "" };
+    }),
+    positions: positionsView.map((p) => ({
+      p,
+      integral: String(p.integralSalary) === "true" || p.integralSalary === true,
+      linked: vacancies.filter((v) => String(v.positionId || "") === String(p.id)).length,
+      open: vacancies.filter((v) => String(v.positionId || "") === String(p.id) && String(v.status || "") === "Publicada").length
+    }))
+  };
   const tPos = positionCards
     ? `<div class="hiring-position-grid">${positionCards}</div>`
     : dataListSearch

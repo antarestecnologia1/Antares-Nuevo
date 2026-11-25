@@ -280,6 +280,38 @@ function buildCalendarResourceTimelineHtml({ allEvents, driversList, vehiclesLis
   </div>`;
 }
 
+/** Eventos del periodo que se ve en el calendario (con los filtros aplicados). Lo usa la exportación. */
+let calendarExportRows = [];
+
+(function registerCalendarDataControls() {
+  const dc = () => window.AntaresDataControls;
+  const kindLabel = (k) => (k === "trip" ? "Viaje" : k === "interview" ? "Entrevista" : "Novedad de RR. HH.");
+  dc()?.register({
+    view: "transport-calendar",
+    id: "events",
+    label: ["evento", "eventos"],
+    filename: "calendario",
+    scopeLabel: "en el periodo visible",
+    audit: { module: "transport-calendar", label: "Calendario" },
+    selectable: () => false,
+    anchor: (root) => root.querySelector(".calendar-shell"),
+    records: () => calendarExportRows,
+    recordId: (r) => `${r.evt.kind}:${r.evt.id}`,
+    columns: [
+      { label: "Tipo", get: (r) => kindLabel(r.evt.kind) },
+      { label: "Evento", get: (r) => r.evt.title || "" },
+      { label: "Detalle", get: (r) => r.evt.subtitle || "" },
+      { label: "Inicio", get: (r) => dc()?.fmt.dateTime(r.range.start) || "" },
+      { label: "Fin", get: (r) => dc()?.fmt.dateTime(r.range.end) || "" },
+      { label: "Estado del viaje", get: (r) => (r.evt.kind === "trip" ? dc()?.fmt.plain(prettyStatus(r.evt.request?.status, "trip")) || "" : "") },
+      { label: "Viaje", get: (r) => r.evt.request?.trip?.tripNumber || "" },
+      { label: "Cliente", get: (r) => r.evt.request?.clientName || "" },
+      { label: "Conductor", get: (r) => r.evt.request?.trip?.driverName || "" },
+      { label: "Placa", get: (r) => r.evt.request?.trip?.vehiclePlate || "" }
+    ]
+  });
+})();
+
 function transportCalendarHtml() {
   const filters = state.calendarFilters || { driver: "", vehicle: "", status: "", kind: "" };
   /* Cancelada / Rechazada liberan conductor y camión: solo se listan al filtrar por ese estado. */
@@ -491,6 +523,25 @@ function transportCalendarHtml() {
     });
     periodTitle = dayLong.charAt(0).toUpperCase() + dayLong.slice(1);
   }
+
+  calendarExportRows = (() => {
+    const day = new Date(focus.getFullYear(), focus.getMonth(), focus.getDate());
+    let from = day;
+    let to = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1);
+    if (view === "month") {
+      from = new Date(year, month, 1);
+      to = new Date(year, month + 1, 1);
+    } else if (view === "week") {
+      from = new Date(day.getFullYear(), day.getMonth(), day.getDate() - day.getDay());
+      to = new Date(from.getFullYear(), from.getMonth(), from.getDate() + 7);
+    }
+    const fromMs = from.getTime();
+    const toMs = to.getTime();
+    return allEvents
+      .map((evt) => ({ evt, range: calendarEventRange(evt) }))
+      .filter((r) => r.range.start < toMs && r.range.end >= fromMs)
+      .sort((a, b) => a.range.start - b.range.start);
+  })();
 
   const resourceTimelineHtml =
     view === "resources"

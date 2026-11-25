@@ -103,6 +103,47 @@ function renderWindowMoreBar(total, shown, action) {
   )}">${IC.chevronDown || ""} Ver más · mostrando ${shown} de ${total}</button></div>`;
 }
 
+/** Viajes que cumplen los filtros actuales, ya ordenados (todos, no solo la ventana dibujada). Lo usa la exportación. */
+let tripsExportSnapshot = [];
+
+(function registerTripsDataControls() {
+  const dc = () => window.AntaresDataControls;
+  const place = (city, dept) => [String(dept || "").trim(), String(city || "").trim()].filter(Boolean).join(", ");
+  const statusText = (status) =>
+    typeof prettyStatus === "function" ? dc()?.fmt.plain(prettyStatus(status, "trip")) || String(status || "") : String(status || "");
+  dc()?.register({
+    view: "transport-trips",
+    id: "trips",
+    label: ["viaje", "viajes"],
+    filename: "viajes",
+    audit: { module: "transport-trips", label: "Viajes" },
+    selectHint: "cambie a Tabla para elegir filas",
+    selectable: (root) => Boolean(root.querySelector(".trip-ops-fleet-table")),
+    anchor: (root) => root.querySelector(".rq-inbox--trips") || root.querySelector(".vehicle-fleet-list-wrap"),
+    itemSelector: ".trip-ops-fleet-table tr[data-trip-id]",
+    idOf: (el) => String(el.dataset.tripId || ""),
+    records: () => tripsExportSnapshot,
+    recordId: (r) => String(r.id || ""),
+    columns: [
+      { label: "Viaje", get: (r) => r.trip?.tripNumber || "" },
+      { label: "Solicitud", get: (r) => r.requestNumber || "" },
+      { label: "Cliente", get: (r) => r.clientName || "" },
+      { label: "Estado", get: (r) => statusText(r.status) },
+      { label: "Origen", get: (r) => place(r.originCity, r.originDepartment) },
+      { label: "Destino", get: (r) => place(r.destinationCity, r.destinationDepartment) },
+      { label: "Recogida", get: (r) => dc()?.fmt.dateTime(r.trip?.etaPickup || r.pickupAt) || "" },
+      { label: "Entrega estimada", get: (r) => dc()?.fmt.dateTime(r.trip?.etaDelivery || r.etaDelivery) || "" },
+      { label: "Placa", get: (r) => r.trip?.vehiclePlate || "" },
+      { label: "Tipo de vehículo", get: (r) => r.trip?.vehicleType || r.vehicleType || "" },
+      { label: "Conductor", get: (r) => r.trip?.driverName || "" },
+      { label: "Tipo de servicio", get: (r) => r.serviceType || "" },
+      { label: "Carga", get: (r) => r.cargoDescription || "" },
+      { label: "Tarifa del viaje (COP)", get: (r) => (parseNum(r.tripValue) > 0 ? parseNum(r.tripValue) : "") },
+      { label: "Cobro por standby (COP)", get: (r) => (parseNum(r.standbyChargeTotal) > 0 ? parseNum(r.standbyChargeTotal) : "") }
+    ]
+  });
+})();
+
 function transportTripsHtml() {
   const isAdmin = isAdminActor();
   const tripUser = currentUser();
@@ -212,6 +253,8 @@ function transportTripsHtml() {
     if (tripsSort === "status") return String(a.status || "").localeCompare(String(b.status || ""), "es", { sensitivity: "base" });
     return new Date(rSafePickup(a)).getTime() - new Date(rSafePickup(b)).getTime();
   });
+
+  tripsExportSnapshot = sortedFilteredTrips;
 
   const resolveTripCompanyLogoUrl = (r, company) => {
     const fromCompany =

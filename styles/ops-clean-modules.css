@@ -110,6 +110,228 @@ body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .histo
   letter-spacing: 0;
 }
 
+/* ---------- Filtros: un solo tamaño en todos los módulos ----------
+   Altura 40 px, letra 13 px, esquinas de 10 px y 200 px de ancho para listas y fechas.
+   Los buscadores comparten altura y letra; su ancho sigue siendo flexible. */
+body.portal-mode #view-root {
+  --oc-filter-h: 2.5rem;
+  --oc-filter-w: 12.5rem;
+  --oc-filter-fs: 0.8125rem;
+}
+
+/* Celdas de filtro (rótulo + lista o fecha): todas del mismo ancho */
+body.portal-mode #view-root :is(.module-field-filter, .vehicle-fleet-filter, .payroll-contracts-filter, .sarlaft-consult-filter) {
+  display: flex;
+  flex: 0 0 var(--oc-filter-w);
+  flex-direction: column;
+  gap: 0.3rem;
+  width: var(--oc-filter-w);
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--oc-ink-2);
+}
+
+body.portal-mode #view-root :is(.module-field-filter, .vehicle-fleet-filter, .payroll-contracts-filter) > span {
+  display: block;
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--oc-ink-2);
+}
+
+body.portal-mode #view-root .module-field-filters__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, var(--oc-filter-w));
+  gap: 0.75rem 1rem;
+  align-items: end;
+}
+
+/* Controles: misma altura, letra y esquinas */
+body.portal-mode #view-root :is(
+    .module-field-filter,
+    .vehicle-fleet-filter,
+    .payroll-contracts-filter,
+    .sarlaft-consult-filter,
+    .hiring-selection-toolbar__select,
+    .doc-sort-select,
+    .ag-fleet__row--filters > label:not(.ag-search)
+  ) :is(select, input:not([type="checkbox"], [type="radio"], [type="hidden"], [type="file"], [type="range"])) {
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--oc-filter-h);
+  min-height: var(--oc-filter-h);
+  padding-block: 0;
+  font-size: var(--oc-filter-fs);
+  font-weight: 500;
+  line-height: 1.2;
+  border-radius: 10px;
+}
+
+body.portal-mode #view-root :is(
+    .module-field-filter,
+    .vehicle-fleet-filter,
+    .payroll-contracts-filter,
+    .sarlaft-consult-filter,
+    .hiring-selection-toolbar__select,
+    .doc-sort-select,
+    .ag-fleet__row--filters > label:not(.ag-search)
+  ) select {
+  padding-inline: 0.75rem 2rem;
+  text-overflow: ellipsis;
+}
+
+body.portal-mode #view-root :is(.module-field-filter, .vehicle-fleet-filter, .payroll-contracts-filter, .sarlaft-consult-filter) input:not([type="checkbox"], [type="radio"]) {
+  padding-inline: 0.75rem;
+}
+
+/* Listas de orden y de «filtrar por» que van en una barra, sin rótulo arriba: mismo ancho que el resto */
+body.portal-mode #view-root :is(.hiring-selection-toolbar__select, .ag-fleet__row--filters > label:not(.ag-search)) {
+  flex: 0 0 var(--oc-filter-w);
+  width: var(--oc-filter-w);
+  max-width: 100%;
+}
+
+/* «Ordenar» de Viajes y Solicitudes: mismo tamaño que el resto de listas */
+body.portal-mode #view-root .rq-sortbox select {
+  box-sizing: border-box;
+  width: var(--oc-filter-w);
+  min-width: 0;
+  height: var(--oc-filter-h);
+  min-height: var(--oc-filter-h);
+  padding-block: 0;
+  padding-inline: 0.75rem 2rem;
+  font-size: var(--oc-filter-fs);
+  line-height: 1.2;
+  border-radius: 10px;
+  text-overflow: ellipsis;
+}
+
+body.portal-mode #view-root .doc-sort-select {
+  align-items: center;
+  min-height: var(--oc-filter-h);
+}
+
+/* Buscadores: misma altura y letra */
+body.portal-mode #view-root :is(
+    .transport-ops-search,
+    .ag-search,
+    .rq-search,
+    .payroll-data-search,
+    .payroll-contracts-search,
+    .hiring-bandeja__search,
+    .doc-explorer-search,
+    .dt-search,
+    .b2b-leads-search
+  ) input:not([type="checkbox"], [type="radio"]) {
+  box-sizing: border-box;
+  height: var(--oc-filter-h);
+  min-height: var(--oc-filter-h);
+  padding-block: 0;
+  font-size: var(--oc-filter-fs);
+  line-height: 1.2;
+  border-radius: 10px;
+}
+
+/* ---------- Selección y exportación (barra común de todos los módulos) ---------- */
+body.portal-mode #view-root .dc-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin: 0 0 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--oc-line);
+  border-radius: 12px;
+  background: var(--oc-soft);
+  font-size: 0.8125rem;
+  color: var(--oc-ink-2);
+}
+
+body.portal-mode #view-root .dc-bar [hidden] { display: none !important; }
+
+body.portal-mode #view-root .dc-bar__all {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--oc-ink);
+  cursor: pointer;
+}
+
+body.portal-mode #view-root .dc-bar__all > span { font-size: 0.8125rem; }
+
+body.portal-mode #view-root .dc-bar__count { color: var(--oc-ink-2); }
+body.portal-mode #view-root .dc-bar__spacer { flex: 1 1 auto; }
+
+body.portal-mode #view-root .dc-bar .btn {
+  min-height: 2rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-transform: none;
+}
+
+body.portal-mode #view-root .dc-bar .btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+
+body.portal-mode #view-root :is(.dc-pick, .dc-col) input[type="checkbox"],
+body.portal-mode #view-root .dc-bar input[type="checkbox"],
+body.portal-mode #view-root th.dc-col input[type="checkbox"] {
+  width: 1.05rem;
+  height: 1.05rem;
+  margin: 0;
+  accent-color: var(--oc-brand);
+  cursor: pointer;
+}
+
+body.portal-mode #view-root :is(td, th).dc-col {
+  width: 2.5rem;
+  min-width: 2.5rem;
+  padding-inline: 0.75rem 0;
+  text-align: center;
+  vertical-align: middle;
+}
+
+body.portal-mode #view-root .dc-selectable { position: relative; }
+
+body.portal-mode #view-root .dc-pick {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  margin: 0;
+  border: 1px solid var(--oc-line-2);
+  border-radius: 8px;
+  background: var(--oc-bg);
+  cursor: pointer;
+}
+
+body.portal-mode #view-root .dc-pick--inline { margin-right: 0.5rem; }
+
+body.portal-mode #view-root .dc-selectable > .dc-pick {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 2;
+}
+
+body.portal-mode #view-root .dc-selectable.is-selected,
+body.portal-mode #view-root tr.is-selected > td {
+  background-color: var(--oc-brand-soft);
+}
+
+body.portal-mode #view-root .dc-selectable.is-selected {
+  outline: 2px solid var(--oc-brand);
+  outline-offset: -2px;
+}
+
 /* ---------- Contenedores: una sola tarjeta blanca, sin anidar ---------- */
 body.portal-mode :is(.vehicles-studio, .drivers-studio, .calendar-studio, .history-studio, .reports-studio, .payroll-studio, .hiring-studio, .sst-studio, .documents-studio, .sarlaft-studio, .b2b-studio, .admin-users-studio, .authorizations-studio, .notifications-studio, .profile-studio) :is([class*="-data-panel"], [class*="data-pane"]:not(.hidden)) {
   padding: 0;
