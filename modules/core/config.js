@@ -923,7 +923,7 @@ export const AUTH_QUEUE_SHORT_TAB_LABELS = {
 
 export const REQUEST_EDIT_JUSTIFICATION_MIN_LEN = 10;
 
-export const SESSION_API_REFRESH_MS = 12 * 60 * 1000;
+export const SESSION_API_REFRESH_MS = 8 * 60 * 1000;
 export const SESSION_CLIENT_TOKEN_ROTATE_MS = 15 * 60 * 1000;
 export const SESSION_IDLE_PUBLIC_NOTICE_KEY = "antares_session_idle_notice_v1";
 

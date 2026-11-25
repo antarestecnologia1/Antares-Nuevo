@@ -20,6 +20,8 @@
   let stashedAccessToken = "";
   let stashedRefreshToken = "";
   let autoBearerMemory = false;
+  /** Marca de tiempo del último login/refresh correcto (evita refrescos repetidos y duplicados). */
+  let lastRefreshOkAt = 0;
 
   function normalizeBase(url) {
     if (!url || typeof url !== "string") return "";
@@ -260,6 +262,7 @@
   function applyAuthTokensFromResponse(data) {
     if (!data || typeof data !== "object") return;
     if (data.csrfToken) setCsrfToken(data.csrfToken);
+    if (data.csrfToken || data.accessToken) lastRefreshOkAt = Date.now();
     if (!bearerAuthFallbackEnabled()) {
       if (data.accessToken) stashedAccessToken = String(data.accessToken).trim();
       if (data.refreshToken) stashedRefreshToken = String(data.refreshToken).trim();
@@ -313,6 +316,9 @@
   /** Evita mostrar errores de infraestructura o "Internal Server Error" crudo al usuario. */
   function sanitizeApiErrorMessage(msg, status) {
     const s = String(msg || "").trim();
+    if (Number(status) === 401 && (!s || /^unauthori[sz]ed$/i.test(s))) {
+      return "Su sesión venció. Inicie sesión de nuevo y repita la operación.";
+    }
     const fallback500 =
       "El servidor no pudo procesar la solicitud. Revise los datos del formulario, la sesión y la conexión e intente de nuevo.";
     if (Number(status) === 503 || /^service unavailable$/i.test(s)) {
@@ -335,6 +341,104 @@
     return s;
   }
 
+  const REFRESH_REUSE_MS = 4000;
+  const REFRESH_LOCK_NAME = "antares-auth-refresh";
+  /** Único refresh en vuelo: el servidor rota el refresh token en cada uso y dos refresh simultáneos se anulan. */
+  let refreshInFlight = null;
+
+  function readSessionUserId() {
+    try {
+      return String(JSON.parse(localStorage.getItem(SESSION_KEY) || "null")?.userId || "");
+    } catch (_e) {
+      return "";
+    }
+  }
+
+  /** POST /auth/refresh. Estados: ok | invalid (401: refresh vencido o rotado) | network | skipped. */
+  async function performRefreshRequest() {
+    try {
+      const base = getBase();
+      if (!base) return { status: "skipped" };
+      const headers = { "Content-Type": "application/json", Accept: "application/json" };
+      if (wantsBearerTokensInResponse()) headers["X-Antares-Bearer-Fallback"] = "1";
+      const csrf = getCsrfToken();
+      if (csrf) headers[CSRF_HEADER] = csrf;
+      const rt = getRefreshToken();
+      const userId = readSessionUserId();
+      let res;
+      try {
+        res = await fetch(`${base}/api/auth/refresh`, {
+          method: "POST",
+          headers,
+          credentials: "include",
+          body: JSON.stringify(rt && userId ? { refreshToken: rt, userId } : {})
+        });
+      } catch (_netErr) {
+        return { status: "network" };
+      }
+      if (res.status === 401) return { status: "invalid", httpStatus: 401 };
+      if (!res.ok) return { status: "network", httpStatus: res.status };
+      const data = await res.json().catch(function () {
+        return null;
+      });
+      if (!data || typeof data !== "object" || !(data.ok || data.user || data.csrfToken)) {
+        return { status: "network" };
+      }
+      applyAuthTokensFromResponse(data);
+      return { status: "ok", data };
+    } catch (_e) {
+      return { status: "network" };
+    }
+  }
+
+  /**
+   * Renueva la sesión con un único refresh a la vez (dentro de la pestaña y entre pestañas con Web Locks).
+   * Sin `force`, si hubo un refresh correcto hace menos de unos segundos se reutiliza ese resultado.
+   * @returns {Promise<{status: "ok"|"invalid"|"network"|"skipped", data?: object, reused?: boolean}>}
+   */
+  function refreshSession(opts) {
+    const force = Boolean(opts && opts.force);
+    if (refreshInFlight) return refreshInFlight;
+    if (!force && lastRefreshOkAt && Date.now() - lastRefreshOkAt < REFRESH_REUSE_MS) {
+      return Promise.resolve({ status: "ok", reused: true });
+    }
+    const run = async function () {
+      const locks = typeof navigator !== "undefined" ? navigator.locks : null;
+      let result;
+      if (locks && typeof locks.request === "function") {
+        try {
+          result = await locks.request(REFRESH_LOCK_NAME, performRefreshRequest);
+        } catch (_lockErr) {
+          result = await performRefreshRequest();
+        }
+      } else {
+        result = await performRefreshRequest();
+      }
+      if (result && result.status === "ok") lastRefreshOkAt = Date.now();
+      return result;
+    };
+    refreshInFlight = run().finally(function () {
+      refreshInFlight = null;
+    });
+    return refreshInFlight;
+  }
+
+  let sessionExpiredNotifiedAt = 0;
+
+  /** Avisa al portal de que la sesión ya no es recuperable (auth.js cierra sesión y muestra el aviso). */
+  function notifySessionExpired(reason) {
+    const now = Date.now();
+    if (now - sessionExpiredNotifiedAt < 5000) return;
+    sessionExpiredNotifiedAt = now;
+    try {
+      window.dispatchEvent(
+        new CustomEvent("antares-session-expired", { detail: { reason: String(reason || "unauthorized") } })
+      );
+    } catch (_e) {
+      /* noop */
+    }
+  }
+
   let csrfResyncPromise = null;
 
   /** Renueva sesión para re-sincronizar el token CSRF con la cookie (otra pestaña/login lo rotó). */
@@ -342,28 +446,9 @@
     if (csrfResyncPromise) return csrfResyncPromise;
     csrfResyncPromise = (async function () {
       try {
-        const base = getBase();
-        if (!base) return false;
-        const headers = { "Content-Type": "application/json", Accept: "application/json" };
-        if (wantsBearerTokensInResponse()) headers["X-Antares-Bearer-Fallback"] = "1";
-        let userId = "";
-        try {
-          userId = String(JSON.parse(localStorage.getItem(SESSION_KEY) || "null")?.userId || "");
-        } catch (_e) {
-          userId = "";
-        }
-        const rt = getRefreshToken();
-        const res = await fetch(`${base}/api/auth/refresh`, {
-          method: "POST",
-          headers,
-          credentials: "include",
-          body: JSON.stringify(rt && userId ? { refreshToken: rt, userId } : {})
-        });
-        if (!res.ok) return false;
-        const data = await res.json().catch(() => null);
-        if (!data || typeof data !== "object") return false;
-        applyAuthTokensFromResponse(data);
-        return Boolean(data.csrfToken);
+        const r = await refreshSession({ force: true });
+        if (r.status === "invalid") notifySessionExpired("refresh-invalid");
+        return r.status === "ok" && Boolean(r.data && r.data.csrfToken);
       } catch (_e) {
         return false;
       } finally {
@@ -385,15 +470,27 @@
   }
 
   /**
-   * fetch autenticado con dos reintentos automáticos (uno cada vez):
+   * fetch autenticado con reintentos automáticos (uno cada vez):
    * - 401 justo después de iniciar sesión → la cookie cross-site fue bloqueada: pasa a Bearer.
+   * - 401 por token de acceso vencido → renueva la sesión (un solo refresh a la vez) y repite la petición.
+   *   Si la sesión ya no se puede renovar, avisa al portal para cerrarla en lugar de dejar la vista vacía.
    * - 403 "Token CSRF" → re-sincroniza el token con la sesión y repite.
    */
   async function authFetch(url, opts, method) {
     let res = await fetch(url, opts);
     if (res.status === 401 && activateAutoBearerFromStash()) {
       opts.headers = Object.assign({}, opts.headers, buildFetchHeaders(method));
-      return fetch(url, opts);
+      res = await fetch(url, opts);
+    }
+    if (res.status === 401) {
+      const refreshed = await refreshSession();
+      if (refreshed.status === "ok") {
+        opts.headers = Object.assign({}, opts.headers, buildFetchHeaders(method));
+        res = await fetch(url, opts);
+        if (res.status === 401) notifySessionExpired("unauthorized-after-refresh");
+      } else if (refreshed.status === "invalid") {
+        notifySessionExpired("refresh-invalid");
+      }
     }
     if (res.status === 403 && isMutatingMethod(method) && (await responseIsCsrfRejection(res))) {
       if (await resyncCsrfViaRefresh()) {
@@ -761,6 +858,11 @@
     clearBearerTokens,
     applyAuthTokensFromResponse,
     purgeLegacyAuthTokens,
+    refreshSession,
+    notifySessionExpired,
+    getLastRefreshOkAt: function () {
+      return lastRefreshOkAt;
+    },
     request,
     getJson,
     getArrayBuffer,

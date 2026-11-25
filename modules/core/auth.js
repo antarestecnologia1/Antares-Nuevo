@@ -2334,61 +2334,20 @@ export function checkSessionIdleAndLogout() {
  *     se conserva para reintentar luego sin expulsar al usuario.
  *   - { status: "skipped" } cuando no hay sesión/URL/refresh para usar.
  */
-export async function tryApiRefreshBridge() {
+export async function tryApiRefreshBridge(opts = {}) {
   const api = window.AntaresApi;
   const session = getSession();
-  if (!api?.getBase?.() || !session?.userId) {
+  if (!api?.getBase?.() || !session?.userId || typeof api.refreshSession !== "function") {
     return { status: "skipped" };
   }
-  const base = String(api.getBase()).replace(/\/+$/, "");
-  const headers = { "Content-Type": "application/json", Accept: "application/json" };
-  if (
-    typeof api.wantsBearerTokensInResponse === "function"
-      ? api.wantsBearerTokensInResponse()
-      : typeof api.bearerAuthFallbackEnabled === "function" && api.bearerAuthFallbackEnabled()
-  ) {
-    headers["X-Antares-Bearer-Fallback"] = "1";
-  }
-  const csrf = typeof api.getCsrfToken === "function" ? String(api.getCsrfToken() || "").trim() : "";
-  if (csrf) headers["X-CSRF-Token"] = csrf;
-  const refreshToken =
-    typeof api.getRefreshToken === "function" ? String(api.getRefreshToken() || "").trim() : "";
-  const refreshBody = refreshToken
-    ? { refreshToken, userId: session.userId }
-    : {};
-  let res;
-  try {
-    res = await fetch(`${base}/api/auth/refresh`, {
-      method: "POST",
-      headers,
-      credentials: "include",
-      body: JSON.stringify(refreshBody)
-    });
-  } catch (_netErr) {
-    return { status: "network" };
-  }
-  if (res.status === 403) {
-    return { status: "network", httpStatus: res.status };
-  }
-  if (res.status === 401) {
-    return { status: "invalid", httpStatus: res.status };
-  }
-  if (!res.ok) return { status: "network", httpStatus: res.status };
-  let body = null;
-  try {
-    body = await res.json();
-  } catch (_jsonErr) {
-    return { status: "network" };
-  }
-  if (!body?.ok && !body?.user?.userId) return { status: "network" };
-  if (typeof api.applyAuthTokensFromResponse === "function") {
-    api.applyAuthTokensFromResponse(body);
-  } else if (body?.csrfToken && typeof api.setCsrfToken === "function") {
-    api.setCsrfToken(body.csrfToken);
+  /* Un solo refresh en vuelo (también entre pestañas): el servidor rota el refresh token en cada uso. */
+  const result = await api.refreshSession({ force: opts?.force !== false });
+  if (!result || result.status !== "ok") {
+    return result || { status: "network" };
   }
   const now = Date.now();
   setSession({
-    ...session,
+    ...(getSession() || session),
     lastActivityAt: now
   });
   syncSessionProfileSnapshotFromCache();
@@ -2413,13 +2372,58 @@ export async function scheduledSessionTokenMaintenance() {
   if (!s || !currentUser()) return;
   const lastAct = getEffectiveLastActivityAt() || Date.now();
   if (Date.now() - lastAct > SESSION_IDLE_MS) return;
-  await tryApiRefreshBridge();
+  const refreshed = await tryApiRefreshBridge();
+  if (refreshed?.status === "invalid") {
+    handleSessionExpiredFromApi("refresh-invalid");
+    return;
+  }
   refreshClientSessionTokenIfDue();
 }
 
-export function queueSessionIdlePublicNotice() {
+const SESSION_RETURN_REFRESH_MIN_MS = 4 * 60 * 1000;
+
+/**
+ * Al volver a la pestaña, tras reposo o al recuperar la red: los temporizadores se frenan en segundo plano
+ * y el token de acceso pudo vencer. Revisa inactividad y renueva sin esperar al siguiente ciclo.
+ */
+export async function refreshSessionOnReturn() {
+  if (!getSession()) return;
+  checkSessionIdleAndLogout();
+  if (!getSession()) return;
+  const last = Number(window.AntaresApi?.getLastRefreshOkAt?.() || 0);
+  if (last && Date.now() - last < SESSION_RETURN_REFRESH_MIN_MS) return;
+  await scheduledSessionTokenMaintenance();
+}
+
+/**
+ * La API ya no acepta la sesión (refresh vencido, rotado por otro inicio de sesión o cuenta inactiva):
+ * se cierra de forma ordenada y se muestra el aviso, en lugar de dejar el portal vacío y sin datos.
+ */
+export function handleSessionExpiredFromApi(_reason) {
+  if (!getSession()) return;
+  stopSessionSecurityWatch();
+  clearSession();
+  state.currentView = "dashboard";
   try {
-    sessionStorage.setItem(SESSION_IDLE_PUBLIC_NOTICE_KEY, "1");
+    history.replaceState(null, "", window.location.pathname + window.location.search);
+  } catch (_e) {
+    /* noop */
+  }
+  queueSessionIdlePublicNotice("expired");
+  mountSessionIdlePublicNoticeIfNeeded();
+  invokeAuthSuccessCallback();
+}
+
+if (typeof window !== "undefined" && !window.__antaresSessionExpiredBound) {
+  window.__antaresSessionExpiredBound = true;
+  window.addEventListener("antares-session-expired", (ev) => {
+    handleSessionExpiredFromApi(ev?.detail?.reason);
+  });
+}
+
+export function queueSessionIdlePublicNotice(kind) {
+  try {
+    sessionStorage.setItem(SESSION_IDLE_PUBLIC_NOTICE_KEY, kind === "expired" ? "expired" : "1");
   } catch (_e) {
     /* noop */
   }
@@ -2437,8 +2441,10 @@ export function dismissSessionIdlePublicNotice() {
 export function mountSessionIdlePublicNoticeIfNeeded() {
   if (typeof document === "undefined") return;
   let pending = false;
+  let noticeKind = "1";
   try {
-    pending = sessionStorage.getItem(SESSION_IDLE_PUBLIC_NOTICE_KEY) === "1";
+    noticeKind = String(sessionStorage.getItem(SESSION_IDLE_PUBLIC_NOTICE_KEY) || "");
+    pending = noticeKind === "1" || noticeKind === "expired";
   } catch (_e) {
     return;
   }
@@ -2457,7 +2463,7 @@ export function mountSessionIdlePublicNoticeIfNeeded() {
 
   const title = document.createElement("p");
   title.className = "session-idle-banner-title";
-  title.textContent = window.userMessage("sessionIdle");
+  title.textContent = window.userMessage(noticeKind === "expired" ? "sessionExpired" : "sessionIdle");
 
   const hint = document.createElement("p");
   hint.className = "session-idle-banner-hint";
@@ -2510,7 +2516,9 @@ export function ensureSessionLifecycleHooks() {
   window.addEventListener("pagehide", () => flushSessionActivityToStorage(), { capture: true });
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") flushSessionActivityToStorage();
+    else if (document.visibilityState === "visible") void refreshSessionOnReturn();
   });
+  window.addEventListener("online", () => void refreshSessionOnReturn());
 }
 
 export function startSessionSecurityWatch() {
@@ -2540,6 +2548,7 @@ export function clearSession() {
   state.adminUsersEntryHydrating = false;
   state.portalDataHydrating = false;
   state.portalDataHydrated = false;
+  state.portalDataLoadFailed = false;
   state.portalSnapshotRestored = false;
   try {
     window.PortalBootstrapCache?.clear?.(snapUid);

@@ -2342,8 +2342,11 @@ function updatePortalDataHydratingBanner() {
   if (!root) return;
   const id = "portal-data-hydrating-banner";
   let el = document.getElementById(id);
-  const show = Boolean(state.portalDataHydrating && getSession());
-  if (!show) {
+  const loading = Boolean(state.portalDataHydrating && getSession());
+  const failed = Boolean(
+    !loading && state.portalDataLoadFailed && !state.portalDataHydrated && !state.portalSnapshotRestored && getSession()
+  );
+  if (!loading && !failed) {
     if (el) el.remove();
     return;
   }
@@ -2355,11 +2358,34 @@ function updatePortalDataHydratingBanner() {
     el.setAttribute("aria-live", "polite");
     root.prepend(el);
   }
-  el.textContent =
-    state.portalDataHydrated || state.portalSnapshotRestored
-      ? "Actualizando datos del servidor…"
-      : "Cargando datos del servidor…";
+  if (loading) {
+    el.textContent =
+      state.portalDataHydrated || state.portalSnapshotRestored
+        ? "Actualizando datos del servidor…"
+        : "Cargando datos del servidor…";
+    return;
+  }
+  el.textContent = "No se pudieron cargar los datos del servidor. ";
+  const retry = document.createElement("button");
+  retry.type = "button";
+  retry.className = "btn btn-primary btn-sm";
+  retry.textContent = "Reintentar";
+  retry.addEventListener("click", () => {
+    state.portalDataLoadFailed = false;
+    updatePortalDataHydratingBanner();
+    void Promise.resolve(applyPortalBootstrapFromApi())
+      .catch(() => false)
+      .finally(() => {
+        scheduleRenderPortalView();
+        updatePortalDataHydratingBanner();
+      });
+  });
+  el.appendChild(retry);
 }
+
+window.addEventListener("antares-portal-data-load-failed", () => {
+  updatePortalDataHydratingBanner();
+});
 
 window.setPortalDataHydrating = setPortalDataHydrating;
 window.isPortalDataHydrating = function isPortalDataHydrating() {

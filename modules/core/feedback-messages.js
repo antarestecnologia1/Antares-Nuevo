@@ -62,6 +62,7 @@
     recoverLinkInvalidOrExpiredEn:
       "This password reset link is invalid or has expired. Open Recover, enter your corporate email, and request a new link.",
     sessionIdle: "Sesión cerrada por 30 minutos de inactividad.",
+    sessionExpired: "Su sesión venció o se abrió en otro equipo. Ingrese de nuevo para continuar.",
     sessionIdleBannerHint: "Vuelva a iniciar sesión para continuar.",
     invoiceNoTrip: "No hay un viaje disponible para facturar.",
     invoicePopupBlocked: "No se abrió la ventana. Permita ventanas emergentes para este sitio.",

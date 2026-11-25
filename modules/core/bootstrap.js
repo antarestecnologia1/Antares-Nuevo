@@ -878,6 +878,21 @@ export function portalSnapshotIsFresh() {
   return age > 0 && age < PORTAL_SNAPSHOT_FRESH_MS;
 }
 
+/**
+ * Falla de carga sin datos locales que mostrar: marca el estado para que el aviso global ofrezca «Reintentar»
+ * en lugar de dejar la vista vacía y sin explicación.
+ */
+function markPortalDataLoadFailed() {
+  if (state.portalDataHydrated || state.portalSnapshotRestored) return;
+  if (!getSession()) return;
+  state.portalDataLoadFailed = true;
+  try {
+    window.dispatchEvent(new CustomEvent("antares-portal-data-load-failed"));
+  } catch (_e) {
+    /* noop */
+  }
+}
+
 export async function applyPortalBootstrapFromApi(opts = {}) {
   if (!portalCanRefreshFromApi()) return false;
 
@@ -950,20 +965,32 @@ export async function applyPortalBootstrapFromApi(opts = {}) {
       await runBootstrap();
       await runSecondaryHydration();
       state.portalDataHydrated = true;
+      state.portalDataLoadFailed = false;
       return true;
     } catch (err) {
       const st = err && typeof err.status === "number" ? err.status : 0;
       if (st === 401 && typeof tryApiRefreshBridge === "function") {
-        await tryApiRefreshBridge();
+        /* api-client ya intentó renovar y repetir; aquí solo se confirma si la sesión sigue siendo recuperable. */
+        const refreshed = await tryApiRefreshBridge({ force: false });
+        if (refreshed && refreshed.status === "invalid") {
+          window.AntaresApi?.notifySessionExpired?.("bootstrap-refresh-invalid");
+          return false;
+        }
         portalEnsureApiTokensAligned();
         if (!portalCanRefreshFromApi()) return false;
         try {
           await runBootstrap();
           await runSecondaryHydration();
           state.portalDataHydrated = true;
+          state.portalDataLoadFailed = false;
           return true;
         } catch (e2) {
           devWarn("Portal: /portal/bootstrap fallo tras renovar token.", e2?.message || e2);
+          if (Number(e2?.status) === 401) {
+            window.AntaresApi?.notifySessionExpired?.("bootstrap-unauthorized");
+            return false;
+          }
+          markPortalDataLoadFailed();
           if (typeof refreshPositionsCatalogFromApi === "function") {
             await refreshPositionsCatalogFromApi({ rerender: false });
           }
@@ -972,6 +999,7 @@ export async function applyPortalBootstrapFromApi(opts = {}) {
         }
       }
       devWarn("Portal: no se pudo cargar /portal/bootstrap (se usan datos en memoria de sesión).", err?.message || err);
+      markPortalDataLoadFailed();
       if (typeof refreshPositionsCatalogFromApi === "function") {
         await refreshPositionsCatalogFromApi({ rerender: false });
       }
