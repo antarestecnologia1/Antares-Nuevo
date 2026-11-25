@@ -231,6 +231,11 @@
     opacity: 1 !important;
     cursor: not-allowed !important;
   }
+  /* Primary deshabilitado: conserva el color de su acción (más suave) para que se siga leyendo como «Guardar» azul, «Eliminar» rojo… */
+  .ab.ab--primary:not(.ab--aviso):is(:disabled, [aria-disabled="true"]):not([aria-busy="true"]):not(.is-busy):not(.is-loading) {
+    --ab-bg: linear-gradient(180deg, color-mix(in srgb, var(--ab-cl) 62%, #fff) 0%, color-mix(in srgb, var(--ab-c) 62%, #fff) 100%);
+    --ab-fg: #fff;
+  }
   .ab.ab--outline:is(:disabled, [aria-disabled="true"]):not([aria-busy="true"]):not(.is-busy):not(.is-loading) {
     --ab-bg: transparent;
     --ab-bd: color-mix(in srgb, var(--ab-c) 32%, #fff);
@@ -400,9 +405,56 @@
     --ab-fg: rgba(203, 213, 225, 0.45);
     --ab-bd: rgba(148, 163, 184, 0.2);
   }
+  body[data-theme="dark"] .ab.ab--primary:not(.ab--aviso):is(:disabled, [aria-disabled="true"]):not([aria-busy="true"]):not(.is-busy):not(.is-loading) {
+    --ab-bg: linear-gradient(180deg, color-mix(in srgb, var(--ab-cl) 48%, #101827) 0%, color-mix(in srgb, var(--ab-c) 48%, #101827) 100%);
+    --ab-fg: rgba(255, 255, 255, 0.72);
+    --ab-bd: transparent;
+  }
   body[data-theme="dark"] .ab.ab--outline:is(:disabled, [aria-disabled="true"]),
   body[data-theme="dark"] .ab.ab--ghost:is(:disabled, [aria-disabled="true"]) {
     --ab-bg: transparent;
+  }
+
+  /* ===================================================================
+     Selector de archivos nativo: su botón «Seleccionar archivo» usa el mismo
+     lenguaje (píldora azul suave) en todos los formularios.
+     =================================================================== */
+  input[type="file"]:not([data-ab="off"])::file-selector-button {
+    appearance: none;
+    margin: 0 0.75rem 0 0;
+    min-height: 2.1rem;
+    padding: 0 1rem !important;
+    border: 1px solid rgba(25, 102, 225, 0.22) !important;
+    border-radius: 999px !important;
+    background: #ebf0fa !important;
+    color: #165bca !important;
+    font-family: inherit;
+    font-size: 0.82rem !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+    transition: background-color 0.16s var(--ab-ease), border-color 0.16s var(--ab-ease), transform 0.16s var(--ab-ease);
+  }
+  input[type="file"]:not([data-ab="off"]):not(:disabled):hover::file-selector-button {
+    background: #dce8fb !important;
+    border-color: rgba(25, 102, 225, 0.4) !important;
+  }
+  input[type="file"]:not([data-ab="off"]):not(:disabled):active::file-selector-button {
+    background: #cbdcf8 !important;
+  }
+  input[type="file"]:not([data-ab="off"]):disabled::file-selector-button {
+    background: #f3f4f6 !important;
+    border-color: #e5e7eb !important;
+    color: #a0a7b3 !important;
+    cursor: not-allowed;
+  }
+  body[data-theme="dark"] input[type="file"]:not([data-ab="off"]):not(:disabled)::file-selector-button {
+    background: rgba(53, 124, 237, 0.2) !important;
+    border-color: rgba(120, 169, 247, 0.38) !important;
+    color: #bcd4fb !important;
+  }
+  body[data-theme="dark"] input[type="file"]:not([data-ab="off"]):not(:disabled):hover::file-selector-button {
+    background: rgba(53, 124, 237, 0.32) !important;
   }
 
   /* ===================================================================

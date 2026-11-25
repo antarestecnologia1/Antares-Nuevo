@@ -41,6 +41,7 @@ const LUCIDE = {
   plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
   search: '<path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/>',
   arrowLeft: '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
+  arrowRight: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
   download: '<path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/>',
   printer: '<path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect x="6" y="14" width="12" height="8" rx="1"/>',
   send: '<path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/>',
@@ -106,6 +107,7 @@ export const ACTION_BUTTONS = Object.freeze({
   buscar: { label: "Buscar", icon: "search", tone: "buscar" },
   consultar: { label: "Consultar", icon: "eye", tone: "buscar" },
   regresar: { label: "Regresar", icon: "arrowLeft", tone: "regresar" },
+  siguiente: { label: "Siguiente", icon: "arrowRight", tone: "guardar", iconAfter: true },
   descargar: { label: "Descargar", icon: "download", tone: "descargar" },
   imprimir: { label: "Imprimir", icon: "printer", tone: "imprimir" },
   enviar: { label: "Enviar", icon: "send", tone: "enviar" },
@@ -202,7 +204,8 @@ export function actionButton(o = {}) {
     push("data-ab-confirm-text", c.confirmText);
     push("data-ab-confirm-cancel", c.cancelText);
   }
-  const inner = `${iconHtml}${label ? `<span class="ab__label">${esc(label)}</span>` : ""}`;
+  const labelHtml = label ? `<span class="ab__label">${esc(label)}</span>` : "";
+  const inner = def.iconAfter && !iconOnly ? `${labelHtml}${iconHtml}` : `${iconHtml}${labelHtml}`;
   if (o.href) {
     push("href", o.href);
     return `<a ${a.join(" ")}>${inner}</a>`;
@@ -234,6 +237,10 @@ const norm = (s) =>
 const NOT_ACTION_TOKEN =
   /(^|[-_])(tab|tabs|toggle|seg|chip|pill|pager|page|swatch|day|cell|avatar|lang|theme|sidebar|hamburger|nav|menu|more|layout|milestone|crumb|sort|link)([-_]|$)/;
 const NOT_ACTION_CARD = /(^|[-_])card([-_]|$)/;
+/** Botones de acción con nombre de clase «de navegación»: se adoptan siempre (enlaces de formulario, Anterior/Siguiente del asistente…). */
+const FORCE_ACTION_CLASS = /(^|\s)(ag-link-btn|hr-wizard-nav-btn|doc-trash-link)(\s|$)/;
+/** Botón con `data-action` de pestaña que en realidad abre otra sección con una acción («Ver liquidaciones»). */
+const TAB_DATA_ACTION_BUT_BUTTON = /^employee-profile-tab$/;
 const NOT_ACTION_DATA_ACTION = /(^|-)(layout|tab|tabs|mode|preset|quick-status)(-|$)|-view$|^view-toggle|^cal-view|^doc-view$/;
 const isNotActionClass = (cls) =>
   String(cls || "")
@@ -289,7 +296,8 @@ function classifyMenuItem(el) {
 /** Reglas ordenadas: gana la primera que coincide. s = { da, id, cls, text, label, type } */
 const RULES = [
   ["cerrar", (s) => /(^|-)close(-|$)/.test(s.da) || /(^|-)close(-|$)/.test(s.id) || /--close\b|modal-close|drawer-close|-close-btn/.test(s.cls) || /^cerrar\b/.test(s.text) || /^cerrar\b/.test(s.label)],
-  ["regresar", (s) => /(^|-)back(-|$)/.test(s.da) || /(^|-)back(-|$)/.test(s.id) || /^(regresar|volver|atras)\b/.test(s.text) || /^(regresar|volver|atras)\b/.test(s.label)],
+  ["regresar", (s) => /(^|-)back(-|$)/.test(s.da) || /(^|-)back(-|$)/.test(s.id) || /^(regresar|volver|atras|anterior)\b/.test(s.text) || /^(regresar|volver|atras|anterior)\b/.test(s.label)],
+  ["siguiente", (s) => /(^|-)next(-|$)/.test(s.da) || /^siguiente\b/.test(s.text) || /^siguiente\b/.test(s.label)],
   [
     "cancelar",
     (s) =>
@@ -297,7 +305,7 @@ const RULES = [
       /--cancel\b|btn-cancel\b/.test(s.cls) ||
       /^(cancel-create|cancel-admin|cancel-edit|cancel-form|cancel-panel|cancel-modal|reset-|payroll-legal-reset|clear-form)/.test(s.da) ||
       /^(cancelar|descartar|limpiar formulario|restablecer|seguir editando)( cambios| edicion| creacion| registro| formulario| accion| operacion)?$/.test(s.text) ||
-      /^(quitar seleccion|limpiar( filtros?| seleccion| busqueda)?|borrar filtros?|quitar filtros?)\b/.test(s.text)
+      /^(quitar seleccion|quitar modulo|limpiar( filtros?| seleccion| busqueda)?|borrar filtros?|quitar filtros?)\b/.test(s.text)
   ],
   [
     "eliminar",
@@ -311,7 +319,7 @@ const RULES = [
   ["anular", (s) => /^cancel-/.test(s.da) || /^(cancelar|anular)\s+\S+/.test(s.text) || /^(cancelar|anular)\b/.test(s.label)],
   ["consultar", (s) => /^(vista previa|previsualizar)\b/.test(s.text)],
   ["descargar", (s) => /^(pdf|excel|csv|xlsx|word)( \(\d+\))?$/.test(s.text)],
-  ["aceptar", (s) => /(^|-)(approve|accept)(-|$)/.test(s.da) || /btn-approve\b/.test(s.cls) || /^(aprobar|aceptar|autorizar)\b/.test(s.text) || /^(aprobar|aceptar|autorizar)\b/.test(s.label)],
+  ["aceptar", (s) => /(^|-)(approve|accept)(-|$)/.test(s.da) || /btn-approve\b/.test(s.cls) || /^(aprobar|aceptar|autorizar|todo el modulo|seleccionar todo|marcar todo)\b/.test(s.text) || /^(aprobar|aceptar|autorizar)\b/.test(s.label)],
   ["confirmar", (s) => /^crud-confirm$/.test(s.id) || /(^|-)confirm(-|$)/.test(s.da) || /^(si, )?confirmar\b/.test(s.text)],
   ["enviar", (s) => /(^|-)(send|resend)(-|$)/.test(s.da) || /^(enviar|reenviar)\b/.test(s.text) || /^(enviar|reenviar)\b/.test(s.label)],
   ["imprimir", (s) => /(^|-)print(-|$)/.test(s.da) || /(^|-)print(-|$)/.test(s.cls) || /^imprimir\b/.test(s.text) || /^imprimir\b/.test(s.label)],
@@ -371,9 +379,12 @@ export function classifyActionButton(el) {
   if (el.matches?.(MENU_ITEM_SELECTOR) && !el.closest?.(".ab-off, [data-ab='off']")) return classifyMenuItem(el);
   if (el.matches?.(MENU_TRIGGER_SELECTOR) && !el.closest?.(".ab-off, [data-ab='off']")) return classifyMenuTrigger(el);
   if (el.closest?.(NOT_ACTION_CONTAINER)) return null;
-  if (isNotActionClass(norm(cls))) return null;
-  if (el.hasAttribute("aria-pressed") || el.hasAttribute("aria-selected") || el.hasAttribute("aria-current")) return null;
-  if (NOT_ACTION_DATA_ACTION.test(norm(el.getAttribute("data-action")))) return null;
+  const forced = FORCE_ACTION_CLASS.test(cls);
+  const plainBtn = /(^|\s)btn(\s|$)/.test(cls);
+  const tabAsAction = plainBtn && TAB_DATA_ACTION_BUT_BUTTON.test(norm(el.getAttribute("data-action"))) && /^ver\b/.test(norm(visibleText(el)));
+  if (!forced && isNotActionClass(norm(cls))) return null;
+  if (!forced && (el.hasAttribute("aria-pressed") || el.hasAttribute("aria-selected") || el.hasAttribute("aria-current"))) return null;
+  if (!forced && !tabAsAction && NOT_ACTION_DATA_ACTION.test(norm(el.getAttribute("data-action")))) return null;
   if (el.querySelector?.("img, input, select, textarea")) return null;
   const rawText = norm(visibleText(el)).replace(/^si,\s*/, "");
   const s = {
@@ -396,12 +407,14 @@ export function classifyActionButton(el) {
   }
   const primaryLike = /btn-primary|btn-approve|(^|[-_])primary\b|--solid\b|btn-solid/.test(s.cls);
   const ghostLike = /ghost|btn-text|btn-link|--soft\b|--text\b|doc-iconbtn/.test(s.cls);
-  if (!action && !/(^|[\s_-])btn([\s_-]|$|__)|-btn\b|btn-/.test(s.cls)) return null;
+  if (!action && !forced && !/(^|[\s_-])btn([\s_-]|$|__)|-btn\b|btn-/.test(s.cls)) return null;
   const iconOnly = !rawText && Boolean(el.querySelector("svg"));
-  let variant = primaryLike ? "primary" : ghostLike ? "ghost" : "outline";
+  const linkLike = /(^|\s)(ag-link-btn|doc-trash-link)(\s|$)/.test(s.cls);
+  let variant = primaryLike ? "primary" : ghostLike || linkLike ? "ghost" : "outline";
   if (action === "cerrar" && iconOnly) variant = "ghost";
-  const tone = action ? ACTION_BUTTONS[action].tone : primaryLike ? "guardar" : "neutral";
-  const small = /(^|[\s_-])sm\b|btn-sm|--sm\b|trip-ops-card-btn|rq-btn|iconbtn|icon-btn|-icon-btn|ag-icon/.test(s.cls) || iconOnly;
+  if (action === "siguiente") variant = "primary";
+  const tone = action ? ACTION_BUTTONS[action].tone : primaryLike || linkLike ? "guardar" : "neutral";
+  const small = /(^|[\s_-])sm\b|btn-sm|--sm\b|trip-ops-card-btn|rq-btn|iconbtn|icon-btn|-icon-btn|ag-icon/.test(s.cls) || iconOnly || linkLike;
   return { action: action || "", tone, variant, small, iconOnly };
 }
 
@@ -423,7 +436,7 @@ export function applyActionButton(el) {
   if (spec.item) el.classList.add("ab--item");
   if (spec.action) el.setAttribute("data-ab-action", spec.action);
   el.setAttribute("data-ab-done", "1");
-  if (spec.action) ensureIcon(el, ACTION_BUTTONS[spec.action].icon, spec.iconOnly);
+  if (spec.action) ensureIcon(el, ACTION_BUTTONS[spec.action].icon, spec.iconOnly, ACTION_BUTTONS[spec.action].iconAfter);
   if (spec.iconOnly && !el.getAttribute("aria-label")) {
     const t = el.getAttribute("title") || (spec.action ? ACTION_BUTTONS[spec.action].label : "");
     if (t) el.setAttribute("aria-label", t);
@@ -432,7 +445,7 @@ export function applyActionButton(el) {
 }
 
 /** Cambia el ícono principal por el de Lucide de la acción (o lo agrega si falta). */
-function ensureIcon(el, iconKey, iconOnly) {
+function ensureIcon(el, iconKey, iconOnly, iconAfter = false) {
   if (!iconKey || !LUCIDE[iconKey]) return;
   const html = lucideIcon(iconKey);
   const existing = el.querySelector(":scope > svg, :scope > span:first-child > svg, :scope > .btn-icon");
@@ -440,16 +453,18 @@ function ensureIcon(el, iconKey, iconOnly) {
     if (existing.getAttribute("data-ab-icon") === iconKey) return;
     const tpl = document.createElement("template");
     tpl.innerHTML = html;
-    existing.replaceWith(tpl.content.firstElementChild);
+    const fresh = tpl.content.firstElementChild;
+    existing.replaceWith(fresh);
+    if (iconAfter && el.lastElementChild !== fresh) el.append(fresh);
     return;
   }
   if (el.querySelector("svg")) return; // ícono propio en estructura compleja: se respeta
   if (!iconOnly && !visibleText(el).trim()) return;
-  el.insertAdjacentHTML("afterbegin", html);
+  el.insertAdjacentHTML(iconAfter ? "beforeend" : "afterbegin", html);
 }
 
 const CANDIDATE_SELECTOR =
-  "button.btn, a.btn, button[class*='-btn'], button[class*='btn-'], a[class*='-btn'], a[class*='btn-'], [role='button'][class*='btn'], button[data-action], " +
+  "button, a.btn, button[class*='-btn'], button[class*='btn-'], a[class*='-btn'], a[class*='btn-'], [role='button'][class*='btn'], button[data-action], " +
   MENU_ITEM_SELECTOR +
   ", " +
   MENU_TRIGGER_SELECTOR;

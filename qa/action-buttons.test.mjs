@@ -36,7 +36,7 @@ for (const k of ["exito", "info", "aviso", "error"]) ok(ACTION_TONES.includes(k)
 ok(ACTION_BUTTONS.compartir.tone === "neutral" && ACTION_BUTTONS.copiar.icon === "link" && ACTION_BUTTONS.marcador.icon === "bookmark", "acciones neutras: compartir, copiar enlace, marcador");
 
 /* Todo en español: etiquetas por defecto del catálogo */
-const ETIQUETAS = { aceptar: "Aceptar", confirmar: "Confirmar", cancelar: "Cancelar", eliminar: "Eliminar", anular: "Anular", rechazar: "Rechazar", guardar: "Guardar", editar: "Editar", nuevo: "Nuevo", buscar: "Buscar", consultar: "Consultar", regresar: "Regresar", descargar: "Descargar", imprimir: "Imprimir", enviar: "Enviar", cerrar: "Cerrar", compartir: "Compartir", copiar: "Copiar enlace", marcador: "Guardar", exito: "Éxito", info: "Información", aviso: "Advertencia", error: "Error" };
+const ETIQUETAS = { aceptar: "Aceptar", confirmar: "Confirmar", cancelar: "Cancelar", eliminar: "Eliminar", anular: "Anular", rechazar: "Rechazar", guardar: "Guardar", editar: "Editar", nuevo: "Nuevo", buscar: "Buscar", consultar: "Consultar", regresar: "Regresar", siguiente: "Siguiente", descargar: "Descargar", imprimir: "Imprimir", enviar: "Enviar", cerrar: "Cerrar", compartir: "Compartir", copiar: "Copiar enlace", marcador: "Guardar", exito: "Éxito", info: "Información", aviso: "Advertencia", error: "Error" };
 for (const [k, def] of Object.entries(ACTION_BUTTONS)) ok(ETIQUETAS[k] === def.label, `la etiqueta de «${k}» debe estar en español: «${ETIQUETAS[k]}» (hay «${def.label}»)`);
 ok(Object.keys(ETIQUETAS).length === Object.keys(ACTION_BUTTONS).length, "el catálogo y las etiquetas esperadas coinciden");
 
@@ -148,6 +148,34 @@ for (const [spec, expected] of cases) {
   ok(r, `no se clasificó: ${JSON.stringify(spec)}`);
   ok(r.action === expected, `«${spec.text || spec.da || spec.id}» → ${r.action || "(genérico)"}, se esperaba ${expected || "(genérico)"}`);
 }
+/* 5a) Formularios de editar: enlaces, asistente y botones con nombre «de navegación» también llevan el color de su acción */
+const formCases = [
+  [{ cls: "ag-link-btn", da: "perm-group-toggle", text: "Quitar módulo", attrs: { "aria-pressed": "true" } }, { action: "cancelar", variant: "ghost", small: true }],
+  [{ cls: "ag-link-btn", da: "perm-group-toggle", text: "Todo el módulo", attrs: { "aria-pressed": "false" } }, { action: "aceptar", variant: "ghost", small: true }],
+  [{ cls: "ag-link-btn", da: "trip-detail", text: "Ver viaje" }, { action: "consultar", variant: "ghost", small: true }],
+  [{ cls: "ag-link-btn", da: "algo-nuevo", text: "Hacer otra cosa" }, { action: "", tone: "guardar", variant: "ghost", small: true }],
+  [{ cls: "btn btn-outline btn-sm hr-wizard-nav-btn hr-wizard-nav-btn--prev", svg: true, text: "Anterior" }, { action: "regresar", tone: "regresar", variant: "outline", small: true }],
+  [{ cls: "btn btn-outline btn-sm hr-wizard-nav-btn hr-wizard-nav-btn--next", svg: true, text: "Siguiente" }, { action: "siguiente", tone: "guardar", variant: "primary", small: true }],
+  [{ cls: "btn btn-outline", da: "employee-profile-tab", text: "Ver liquidaciones" }, { action: "consultar", variant: "outline" }],
+  [{ cls: "doc-trash-link", da: "doc-open-trash", text: "Ver papelera" }, { variant: "ghost", small: true }]
+];
+for (const [spec, want] of formCases) {
+  const r = classifyActionButton(el(spec));
+  ok(r, `formulario: no se adoptó ${JSON.stringify(spec)}`);
+  for (const [k, v] of Object.entries(want)) ok(r[k] === v, `formulario «${spec.text}»: ${k} = ${r[k]} (se esperaba ${v})`);
+}
+// Lo que SÍ es navegación sigue intacto aunque se llame «Anterior» / «Siguiente» o lleve data-action de pestaña
+for (const spec of [
+  { cls: "payroll-contracts-page-btn", da: "payroll-employees-page", text: "Anterior" },
+  { cls: "employee-profile-tabs__btn", da: "employee-profile-tab", text: "Liquidaciones" },
+  { cls: "hiring-drawer__tab", da: "hiring-drawer-tab", text: "Notas" },
+  { cls: "btn btn-outline", da: "employee-profile-tab", text: "Liquidaciones" }
+]) ok(classifyActionButton(el(spec)) === null, `debía seguir siendo navegación: ${JSON.stringify(spec)}`);
+ok(/<span class="ab__label">Siguiente<\/span><svg/.test(actionButton({ action: "siguiente" })), "«Siguiente» lleva la flecha a la derecha del texto");
+ok(/^<button[^>]*>(<svg[^>]*>.*?<\/svg>)<span class="ab__label">Regresar/.test(actionButton({ action: "regresar" })), "«Regresar» lleva la flecha a la izquierda");
+ok(/input\[type="file"\]:not\(\[data-ab="off"\]\)::file-selector-button/.test(css), "el botón nativo «Seleccionar archivo» usa el estilo del sistema");
+ok(/\.ab\.ab--primary:not\(\.ab--aviso\):is\(:disabled/.test(css), "un primary deshabilitado conserva el color de su acción");
+
 const untouched = [
   { cls: "hr-workspace-tab is-active", da: "hr-workspace-tab", text: "Registrar" },
   { cls: "payroll-contracts-page-btn", text: "2" },
