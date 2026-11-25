@@ -9,13 +9,14 @@
 import fs from "node:fs";
 import path from "node:path";
 import assert from "node:assert/strict";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
 const css = read("styles/unified-cards.css");
 const html = read("index.html");
 const camiones = read("modules/app/camiones.js");
+const kpi = await import(pathToFileURL(path.join(root, "modules/ui/kpi-banners.js")).href);
 
 let n = 0;
 const ok = (cond, msg) => { assert.ok(cond, msg); n += 1; };
@@ -33,9 +34,6 @@ for (const f of families) ok(css.includes(f), `cubre la familia ${f}`);
 
 ok(/@media \(max-width: 720px\)/.test(css), "reglas móviles para filas apiladas");
 ok(css.includes("--uc-band:"), "define la banda azul marino de cabecera (--uc-band)");
-ok(/\.ag-pass__head\s*\{[^}]*background:\s*var\(--uc-band\)/.test(css), "cabecera de conductor con banda azul");
-ok(/\.hr-cred__band[^{]*\{[^}]*background:\s*var\(--uc-band\)/.test(css), "cabecera de empleado/usuario con banda azul");
-ok(/\.portal-ops-card > header\s*\{[^}]*background:\s*var\(--uc-band\)/.test(css), "cabecera de tarjeta operativa con banda azul");
 ok(/linear-gradient\(135deg, var\(--uc-navy-a\), var\(--uc-navy-c\)\)/.test(css), "cabecera azul marino en vistas Lista");
 ok(/td\.dc-col \+ td/.test(css), "la celda de identidad de las tablas lleva la cabecera azul");
 
@@ -50,5 +48,28 @@ ok((html.match(/unified-cards\.css/g) || []).length === 2, "enlace normal y <nos
 
 ok(/data-action="view-vehicle"[^>]*trip-ops-card-btn--solid|trip-ops-card-btn--solid[^>]*data-action="view-vehicle"/.test(camiones), "Ver detalles de camión es el botón principal");
 ok(/data-action="delete-vehicle"[^>]*aria-label="Eliminar"/.test(camiones), "acciones de la lista de camiones con aria-label");
+
+// Tarjetas claras (referencia 1): avatar pastel, pie Llamar · lápiz · CTA, ⋮ arriba
+ok(/\.ag-avatar\s*\{[^}]*color-mix\(in srgb, var\(--ag-av-a/.test(css), "avatar pastel con iniciales");
+ok(css.includes('content: "Llamar"'), "el teléfono se muestra como botón Llamar");
+ok(/\.ag-menu\s*\{[^}]*position:\s*absolute/.test(css), "menú ⋮ en la esquina superior derecha");
+
+// Banners de resumen (KPI)
+ok(css.includes(".kpi-banner"), "estilos del banner de resumen");
+ok(/\.kpi-banner > \.kpi-tile:is\(\[data-kpi-lead\], \.is-active\)\s*\{[^}]*background:\s*var\(--uc-band\)/.test(css), "primer cuadro (o pestaña activa) del banner en azul marino");
+ok(/\.kpi-tile > \.kpi-ico\s*\{[^}]*border-radius:\s*50%/.test(css), "icono circular de color");
+ok(/body\[data-theme="dark"\] \.kpi-banner/.test(css), "banner con variante oscura");
+const k = (label, i = 0, state = "") => kpi.kpiFor(label, i, state);
+ok(k("Disponibles").icon === "check" && k("Disponibles").tone === "green", "Disponibles → check verde");
+ok(k("No disponibles").icon === "ban", "No disponibles → ban (no confundir con Disponibles)");
+ok(k("Docs riesgo").icon === "alert" && k("Docs riesgo").tone === "red", "Docs riesgo → alerta roja");
+ok(k("Por vencer").tone === "amber", "Por vencer → ámbar");
+ok(k("Nómina neta").icon === "dollar", "Nómina neta → dólar");
+ok(k("Termoking").icon === "snow", "Termoking → copo");
+ok(k("Algo raro", 1).icon === "chart" && k("Algo raro", 1).tone === "green", "sin coincidencia: icono genérico y tono por posición");
+ok(k("Eventos", 0, "red").tone === "red", "el estado del cuadro manda sobre el tono del diccionario");
+for (const name of Object.values(kpi.KPI_RULES).map((r) => r[1])) ok(kpi.KPI_ICONS[name], `existe el icono ${name}`);
+for (const sel of [".fleet-hero-metrics", ".ag-fleet__kpis", ".hist-trace-kpis", ".payroll-studio-kpis", ".hiring-studio-kpis", ".doc-kpi-grid", ".sst-status-cards", ".payroll-section-cards", ".ntf-studio-head__metrics"]) ok(kpi.KPI_STRIP_SELECTOR.includes(sel), `cubre la franja ${sel}`);
+ok(html.includes("modules/ui/kpi-banners.js") && html.includes("installKpiBanners()"), "index.html instala los banners");
 
 console.log(`unified-cards: ${n} verificaciones OK`);

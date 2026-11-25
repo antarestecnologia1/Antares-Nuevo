@@ -983,291 +983,120 @@
     background: color-mix(in srgb, var(--uc-panel) 70%, var(--ag-surface, #fff)) !important;
   }
 
-  /* ───────── Referencia única: cabecera azul marino (avatar · nombre · estado) ─────────
-     Se aplica a conductores, empleados, usuarios/empresas y tarjetas operativas. */
+  /* ───────── Referencia: tarjeta clara con avatar grande, ⋮ arriba, estado bajo el nombre ─────────
+     Pie: Llamar · lápiz · botón azul marino. La banda azul solo se usa en las filas de las listas. */
   :root {
     --uc-band: linear-gradient(105deg, #0e3478 0%, #0b2a5b 62%, #123e80 100%);
     --uc-band-line: rgba(255, 255, 255, 0.28);
     --uc-pad: 1.1rem;
   }
 
-  /* Estado dentro de la banda: píldora pastel legible sobre azul */
-  :is(.ag-pass__head, .hr-cred__head-meta, .adm-badge__head-meta, .trip-ops-card-head) .ag-status {
-    padding: 0.34rem 0.8rem 0.34rem 0.65rem !important;
-    border: 0 !important;
-    border-radius: 999px !important;
-    background: color-mix(in srgb, var(--ag-tone, #8696a8) 24%, #fff) !important;
-    color: color-mix(in srgb, var(--ag-tone, #5d7186) 70%, #0a1a30) !important;
-    font-size: 0.76rem !important;
-    font-weight: 750 !important;
-    box-shadow: none !important;
-  }
-  :is(.ag-pass__head, .hr-cred__head-meta, .adm-badge__head-meta) .ag-status::after {
-    content: "" !important;
-    width: 0.38rem !important;
-    height: 0.38rem !important;
-    margin: -0.12rem 0 0 0.15rem !important;
-    border-right: 2px solid currentColor !important;
-    border-bottom: 2px solid currentColor !important;
-    transform: rotate(45deg) !important;
-    opacity: 0.7 !important;
-  }
+  /* Avatar pastel con iniciales (o foto) */
   :is(.ag-pass__head, .hr-cred__head, .adm-badge__head) .ag-avatar {
-    background: #fff !important;
-    color: var(--uc-navy-a) !important;
-    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.22) !important;
+    width: 3.5rem !important;
+    height: 3.5rem !important;
+    background: color-mix(in srgb, var(--ag-av-a, #5b9bd5) 20%, var(--ag-surface, #fff)) !important;
+    color: color-mix(in srgb, var(--ag-av-b, #1d52a0) 90%, #000) !important;
     font-weight: 800 !important;
   }
-
-  /* Divisor vertical junto al avatar (como la referencia) */
-  :is(.ag-pass__head, .hr-cred__head, .adm-badge__head) .ag-avatar {
-    position: relative !important;
-  }
-  :is(.ag-pass__head, .hr-cred__head, .adm-badge__head) .ag-avatar::after {
-    content: "" !important;
-    position: absolute !important;
-    top: -0.1rem !important;
-    bottom: -0.1rem !important;
-    right: -0.58rem !important;
-    width: 1px !important;
-    background: var(--uc-band-line) !important;
+  body[data-theme="dark"] :is(.ag-pass__head, .hr-cred__head, .adm-badge__head) .ag-avatar {
+    color: color-mix(in srgb, var(--ag-av-a, #5b9bd5) 70%, #fff) !important;
   }
 
-  /* ── Conductores ── */
-  .ag-pass {
-    gap: 0.85rem !important;
-    padding: 0 0 1rem !important;
-  }
-  .ag-pass::before {
-    display: none !important;
-  }
-  .ag-pass > :not(.ag-pass__head) {
-    margin-inline: var(--uc-pad) !important;
-  }
-  .ag-pass__head {
-    display: grid !important;
-    grid-template-columns: auto auto minmax(0, 1fr) !important;
-    grid-auto-rows: auto !important;
-    align-items: center !important;
-    column-gap: 1.15rem !important;
-    row-gap: 0 !important;
-    margin: 0 !important;
-    padding: 1rem var(--uc-pad) !important;
-    border-radius: var(--uc-radius) var(--uc-radius) 0 0 !important;
-    background: var(--uc-band) !important;
-  }
+  /* Selector (checkbox) y menú ⋮ en la esquina superior derecha */
   .ag-pass__head .dc-pick {
-    grid-column: 1 !important;
-    grid-row: 1 / span 3 !important;
+    position: absolute !important;
+    top: 0.95rem !important;
+    right: 0.95rem !important;
     margin: 0 !important;
-  }
-  .ag-pass__head .ag-avatar {
-    grid-column: 2 !important;
-    grid-row: 1 / span 3 !important;
-    width: 3.3rem !important;
-    height: 3.3rem !important;
-  }
-  .ag-pass__who {
-    display: contents !important;
   }
   .ag-pass__name {
-    grid-column: 3 !important;
-    grid-row: 1 !important;
-    align-self: end !important;
-    margin: 0 !important;
-    color: #fff !important;
-    font-size: var(--card-name-size, 0.98rem) !important;
+    padding-right: 1.8rem !important;
   }
-  .ag-pass__meta {
-    grid-column: 3 !important;
-    grid-row: 2 !important;
-    align-self: start !important;
-    margin: 0.15rem 0 0 !important;
-    color: rgba(226, 238, 255, 0.86) !important;
-  }
-  .ag-pass__head .ag-status {
-    grid-column: 3 !important;
-    grid-row: 3 !important;
-    justify-self: start !important;
-    align-self: start !important;
-    margin: 0.5rem 0 0 !important;
-  }
-
-  /* ── Empleados y usuarios/empresas ── */
-  :is(.hr-cred, .adm-badge) {
-    grid-template-columns: auto minmax(0, 1fr) !important;
-    column-gap: 1.15rem !important;
-    padding: 0 !important;
-  }
-  :is(.hr-cred, .adm-badge)::before {
-    display: none !important;
-  }
-  :is(.hr-cred__band, .adm-badge__band) {
-    display: block !important;
-    grid-column: 1 / -1 !important;
-    grid-row: 1 / span 2 !important;
-    align-self: stretch !important;
-    width: auto !important;
-    height: auto !important;
-    min-height: 0 !important;
-    margin: 0 !important;
-    border-radius: var(--uc-radius) var(--uc-radius) 0 0 !important;
-    background: var(--uc-band) !important;
-  }
-  :is(.hr-cred__head, .adm-badge__head) .ag-avatar {
-    grid-column: 1 !important;
-    grid-row: 1 / span 2 !important;
-    align-self: center !important;
-    width: 3.3rem !important;
-    height: 3.3rem !important;
-    margin: 1rem 0 1rem var(--uc-pad) !important;
-  }
-  :is(.hr-cred__who, .adm-badge__who) {
-    grid-column: 2 !important;
-    grid-row: 1 !important;
-    align-self: end !important;
-    min-width: 0 !important;
-    padding: 1rem var(--uc-pad) 0 0 !important;
-  }
-  :is(.hr-cred__name, .adm-badge__name) {
-    padding-right: 0 !important;
-    color: #fff !important;
-    font-size: var(--card-name-size, 0.98rem) !important;
-  }
-  :is(.hr-cred__org, .adm-badge__org) {
-    color: #cfe2ff !important;
-  }
-  :is(.hr-cred__mail, .adm-badge__mail) {
-    color: rgba(226, 238, 255, 0.82) !important;
-  }
-  :is(.hr-cred__head-meta, .adm-badge__head-meta) .ag-status {
-    grid-column: 2 !important;
-    grid-row: 2 !important;
-    align-self: start !important;
-    justify-self: start !important;
-    margin: 0.5rem 0 1rem !important;
-  }
-  .adm-badge__head-meta .dc-pick {
-    top: 2.35rem !important;
-    right: auto !important;
-    left: 0.75rem !important;
-  }
-  .adm-badge:has(.dc-pick) .ag-avatar {
-    margin-left: 2.35rem !important;
-  }
-  .adm-badge__org {
-    flex-wrap: wrap !important;
-    gap: 0.25rem 0.4rem !important;
-  }
-  .adm-badge__org-name {
-    min-width: 0 !important;
-    color: #cfe2ff !important;
-  }
-  .adm-badge__mail {
-    overflow-wrap: anywhere !important;
-  }
-  :is(.hr-cred__meter, .adm-badge__meter) {
-    margin: 0.95rem var(--uc-pad) 0 !important;
-  }
-  :is(.hr-cred__note, .adm-badge__note) {
-    margin: 0.7rem var(--uc-pad) 0 !important;
-  }
-  :is(.hr-cred__foot, .adm-badge__foot) {
-    margin: 0.95rem 0 0 !important;
-  }
-  .hr-cred__vehicle {
-    max-width: 100% !important;
-  }
-
-  /* ── Tarjetas operativas (camiones, viajes, solicitudes) ── */
-  .portal-ops-card {
-    display: grid !important;
-    grid-template-columns: minmax(0, 1fr) !important;
-    align-content: start !important;
-    gap: 0.85rem !important;
-    padding: 0 0 1rem !important;
-  }
-  .portal-ops-card::before {
-    display: none !important;
-  }
-  .portal-ops-card > :not(header):not(.dc-pick) {
-    box-sizing: border-box !important;
-    width: auto !important;
-    max-width: none !important;
-    margin-inline: var(--uc-pad) !important;
-  }
-  .portal-ops-card > header {
-    display: grid !important;
-    justify-items: start !important;
-    gap: 0.6rem !important;
-    margin: 0 !important;
-    padding: 1rem var(--uc-pad) 1rem 2.6rem !important;
-    border-radius: var(--uc-radius) var(--uc-radius) 0 0 !important;
-    background: var(--uc-band) !important;
-  }
-  .portal-ops-card > .dc-pick {
+  :is(.hr-cred, .adm-badge) .ag-menu {
     position: absolute !important;
-    top: 1.45rem !important;
-    left: 0.8rem !important;
-    z-index: 3 !important;
+    top: 0.75rem !important;
+    right: 0.8rem !important;
+    z-index: 4 !important;
   }
-  .portal-ops-card > header :is(h3, h4, p, .trip-ops-card-kicker, .vehicle-card-year) {
-    color: #fff !important;
-  }
-  .portal-ops-card > header .trip-ops-card-kicker {
-    color: #9fc4f5 !important;
-  }
-  .portal-ops-card > header .vehicle-card-year {
-    color: rgba(226, 238, 255, 0.82) !important;
-  }
-  .portal-ops-card > header .trip-ops-card-head-main {
-    align-items: center !important;
-    gap: 0.85rem !important;
-  }
-  .portal-ops-card > header .trip-ops-card-head-info {
-    padding-left: 0.85rem !important;
-    border-left: 1px solid var(--uc-band-line) !important;
-  }
-  .portal-ops-card > header .vehicle-card-badges {
-    margin: 0 !important;
-  }
-  .portal-ops-card .vehicle-plate-badge {
-    background: #fff !important;
-    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.22) !important;
-  }
-  .portal-ops-card .vehicle-plate-badge__text {
-    color: var(--uc-navy-b) !important;
-  }
-  .portal-ops-card .vehicle-plate-badge__icon {
-    color: var(--uc-navy-a) !important;
-  }
-  .portal-ops-card > header .portal-ops-card-status-pill {
-    background: color-mix(in srgb, var(--uc-tone) 24%, #fff) !important;
-    color: color-mix(in srgb, var(--uc-tone) 70%, #0a1a30) !important;
+  :is(.hr-cred, .adm-badge) .ag-menu > summary {
+    border-color: transparent !important;
+    background: transparent !important;
     box-shadow: none !important;
   }
-  .portal-ops-card > header .portal-ops-card-status-pill__text {
-    color: inherit !important;
-  }
-
-
-  /* Textos y chips sobre la banda azul */
-  :is(.hr-cred__org, .adm-badge__org) :is(span, strong, a) {
-    color: #cfe2ff !important;
-  }
-  :is(.hr-cred__org, .adm-badge__org) .role-chip,
-  .adm-badge__name .ag-access-card__you {
-    border: 1px solid rgba(255, 255, 255, 0.28) !important;
-    background: rgba(255, 255, 255, 0.14) !important;
-    color: #fff !important;
+  :is(.hr-cred, .adm-badge) .ag-menu > summary:hover {
+    background: var(--uc-chip) !important;
   }
   .adm-badge__head-meta .dc-pick {
-    top: 0.8rem !important;
-    right: 0.85rem !important;
-    left: auto !important;
+    top: 1rem !important;
+    right: 3.3rem !important;
   }
-  .adm-badge:has(.dc-pick) .ag-avatar {
-    margin-left: var(--uc-pad) !important;
+  :is(.hr-cred__name, .adm-badge__name) {
+    padding-right: 2.2rem !important;
+  }
+
+  /* Pie: [Llamar] [lápiz] [Ver ficha →] en una sola fila */
+  :is(.ag-pass__foot, .hr-cred__foot, .adm-badge__foot) {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 0.5rem !important;
+  }
+  :is(.hr-cred__contact, .adm-badge__contact, .hr-cred__actions, .adm-badge__actions) {
+    display: contents !important;
+  }
+  .ag-pass__foot {
+    flex-wrap: nowrap !important;
+  }
+  .ag-pass__actions {
+    display: flex !important;
+    flex: 1 1 0 !important;
+    order: 2 !important;
+    align-items: center !important;
+    gap: 0.45rem !important;
+    min-width: 0 !important;
+  }
+  :is(.ag-pass, .hr-cred, .adm-badge, .portal-ops-card)::before {
+    display: none !important;
+  }
+  .hr-cred__pick {
+    order: 0 !important;
+  }
+  :is(.ag-pass__foot a.ag-pass__phone, .hr-cred__foot a.hr-cred__tel, .adm-badge__foot a.adm-badge__tel) {
+    order: 1 !important;
+    flex: none !important;
+    display: inline-flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    gap: 0.4rem !important;
+    min-height: 2.5rem !important;
+    padding: 0 0.8rem !important;
+    border: 1px solid var(--ag-edge-strong, #c9d9ee) !important;
+    border-radius: 999px !important;
+    background: var(--ag-surface, #fff) !important;
+    color: var(--uc-link) !important;
+    font-size: 0.82rem !important;
+    font-weight: 700 !important;
+  }
+  :is(.ag-pass__foot a.ag-pass__phone, .hr-cred__foot a.hr-cred__tel, .adm-badge__foot a.adm-badge__tel) > span {
+    display: none !important;
+  }
+  :is(.ag-pass__foot a.ag-pass__phone, .hr-cred__foot a.hr-cred__tel, .adm-badge__foot a.adm-badge__tel)::after {
+    content: "Llamar" !important;
+  }
+  :is(.ag-pass__foot a.ag-pass__phone, .hr-cred__foot a.hr-cred__tel, .adm-badge__foot a.adm-badge__tel):hover {
+    background: var(--uc-chip) !important;
+  }
+  :is(.ag-pass__phone--muted, .hr-cred__tel--muted, .adm-badge__tel--muted) {
+    order: -1 !important;
+    flex: 1 1 100% !important;
+  }
+  :is(.hr-cred__actions, .adm-badge__actions) .ag-icon-btn:not(summary) {
+    order: 2 !important;
+  }
+  :is(.hr-cred__actions, .adm-badge__actions) .ag-btn--primary.ab {
+    order: 3 !important;
+    flex: 1 1 6.5rem !important;
   }
 
   /* Botones de la tarjeta operativa: dos columnas y sin desbordes */
@@ -1290,11 +1119,290 @@
     gap: 0.3rem !important;
     font-size: 0.8rem !important;
   }
-  @container (max-width: 335px) {
+  @container (max-width: 290px) {
     .portal-ops-card .portal-ops-card-actions-grid,
     .portal-ops-card .portal-ops-card-actions-stack {
       grid-template-columns: minmax(0, 1fr) !important;
     }
+  }
+
+  :is(.hr-cred__foot a.hr-cred__tel, .adm-badge__foot a.adm-badge__tel) {
+    flex: 1 1 auto !important;
+  }
+
+  .ag-pass__actions .ag-btn--primary.ab {
+    min-width: 0 !important;
+    padding-inline: 0.75rem !important;
+    gap: 0.35rem !important;
+  }
+
+  /* ───────── Banners de resumen (KPI): primer cuadro azul marino, el resto suave con icono de color ───────── */
+  .kpi-banner {
+    display: grid !important;
+    grid-auto-columns: auto !important;
+    grid-auto-flow: row !important;
+    max-width: 100% !important;
+    grid-template-columns: repeat(auto-fit, minmax(11.5rem, 1fr)) !important;
+    gap: 0.75rem !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+  .kpi-banner > .kpi-tile {
+    --kt: #2f74c0;
+    position: relative !important;
+    display: grid !important;
+    grid-template-columns: auto minmax(0, 1fr) !important;
+    grid-auto-rows: auto !important;
+    align-content: center !important;
+    align-items: center !important;
+    column-gap: 0.8rem !important;
+    row-gap: 0.05rem !important;
+    min-width: 0 !important;
+    min-height: 4.5rem !important;
+    margin: 0 !important;
+    padding: 0.8rem 1rem !important;
+    overflow: hidden !important;
+    border: 1px solid var(--uc-panel-edge) !important;
+    border-radius: 18px !important;
+    background: linear-gradient(180deg, var(--ag-surface, #fff), var(--uc-panel)) !important;
+    box-shadow: var(--uc-card-shadow) !important;
+    color: var(--ag-ink, #0b2138) !important;
+    font: inherit !important;
+    text-align: left !important;
+    transition: transform 0.18s ease, box-shadow 0.18s ease !important;
+  }
+  .kpi-banner > .kpi-tile::before,
+  .kpi-banner > .kpi-tile::after {
+    display: none !important;
+  }
+  .kpi-banner > .kpi-tile[data-kpi-tone="green"] { --kt: #12a172; }
+  .kpi-banner > .kpi-tile[data-kpi-tone="violet"] { --kt: #7357e8; }
+  .kpi-banner > .kpi-tile[data-kpi-tone="amber"] { --kt: #e08a00; }
+  .kpi-banner > .kpi-tile[data-kpi-tone="red"] { --kt: #e04a4a; }
+  .kpi-banner > .kpi-tile[data-kpi-tone="blue"] { --kt: #2f74c0; }
+  button.kpi-tile,
+  a.kpi-tile {
+    cursor: pointer !important;
+  }
+  button.kpi-tile:hover,
+  a.kpi-tile:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: var(--uc-card-shadow-hover) !important;
+  }
+  button.kpi-tile:focus-visible {
+    outline: 2px solid var(--kt) !important;
+    outline-offset: 2px !important;
+  }
+  .kpi-tile[aria-pressed="true"] {
+    border-color: var(--kt) !important;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--kt) 22%, transparent) !important;
+  }
+
+  /* Icono circular */
+  .kpi-tile > .kpi-ico {
+    display: grid !important;
+    grid-column: 1 !important;
+    grid-row: 1 / span 4 !important;
+    place-items: center !important;
+    width: 2.7rem !important;
+    height: 2.7rem !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 50% !important;
+    background: var(--kt) !important;
+    color: #fff !important;
+    box-shadow: 0 8px 16px -10px var(--kt) !important;
+  }
+  .kpi-tile > .kpi-ico svg {
+    width: 1.35rem !important;
+    height: 1.35rem !important;
+  }
+  .kpi-tile > :not(.kpi-ico):not(.kpi-ghost) {
+    grid-column: 2 !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+  }
+  .kpi-tile .ag-ring {
+    display: none !important;
+  }
+  .kpi-tile > div:not(.kpi-ico):not(.kpi-ghost),
+  .kpi-tile > .doc-kpi__body,
+  .kpi-tile > .sst-status-card__body,
+  .kpi-tile > .payroll-section-card__body,
+  .kpi-tile > dl {
+    grid-row: 1 / span 4 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.1rem !important;
+  }
+
+  /* Etiqueta y valor */
+  .kpi-tile :is(dt, .ag-kpi__label, .doc-kpi__label, .sst-status-card__label, .payroll-section-card__label),
+  .kpi-tile > span:not(.kpi-ico):not(.kpi-ghost):not(.doc-kpi__body):not(.sst-status-card__body):not(.payroll-section-card__body) {
+    order: 1 !important;
+    color: var(--ag-ink-soft, #3d5671) !important;
+    font-size: 0.78rem !important;
+    font-weight: 650 !important;
+    letter-spacing: 0 !important;
+    line-height: 1.25 !important;
+    text-transform: none !important;
+  }
+  .kpi-tile :is(dd, strong, .ag-kpi__value, .doc-kpi__value, .sst-status-card__count, .payroll-section-card__count),
+  .kpi-tile > dd {
+    order: 2 !important;
+    margin: 0 !important;
+    color: var(--ag-ink, #0b2138) !important;
+    font-size: 1.5rem !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.01em !important;
+    line-height: 1.08 !important;
+  }
+  .kpi-tile dd strong {
+    font-size: inherit !important;
+  }
+  .kpi-tile :is(.doc-kpi__sub, .sst-status-card__hint) {
+    order: 3 !important;
+    color: var(--ag-ink-faint, #7b93ab) !important;
+    font-size: 0.7rem !important;
+    font-weight: 600 !important;
+    line-height: 1.25 !important;
+  }
+  .kpi-tile .doc-kpi__sub--ok {
+    color: #12a172 !important;
+  }
+  .kpi-tile small {
+    font-size: 0.8rem !important;
+    font-weight: 650 !important;
+    color: var(--ag-ink-faint, #7b93ab) !important;
+  }
+
+  /* Silueta decorativa a la derecha */
+  .kpi-tile > .kpi-ghost {
+    position: absolute !important;
+    top: 50% !important;
+    right: 0.75rem !important;
+    display: grid !important;
+    place-items: center !important;
+    width: 3.6rem !important;
+    height: 3.6rem !important;
+    color: color-mix(in srgb, var(--kt) 15%, transparent) !important;
+    pointer-events: none !important;
+    transform: translateY(-50%) !important;
+  }
+  .kpi-tile > .kpi-ghost svg {
+    width: 100% !important;
+    height: 100% !important;
+    stroke-width: 1.4 !important;
+  }
+
+  /* Primer cuadro: azul marino */
+  .kpi-banner > .kpi-tile:is([data-kpi-lead], .is-active) {
+    border-color: transparent !important;
+    background: var(--uc-band) !important;
+    box-shadow: 0 14px 26px -16px rgba(11, 42, 91, 0.75) !important;
+    color: #fff !important;
+  }
+  .kpi-tile:is([data-kpi-lead], .is-active) > .kpi-ico {
+    background: rgba(255, 255, 255, 0.16) !important;
+    box-shadow: none !important;
+  }
+  .kpi-tile:is([data-kpi-lead], .is-active) :is(dt, dd, strong, small, .ag-kpi__label, .ag-kpi__value, .doc-kpi__label, .doc-kpi__value, .doc-kpi__sub, .sst-status-card__label, .sst-status-card__count, .sst-status-card__hint),
+  .kpi-tile:is([data-kpi-lead], .is-active) > span:not(.kpi-ico):not(.kpi-ghost) {
+    color: #fff !important;
+  }
+  .kpi-tile:is([data-kpi-lead], .is-active) :is(dt, .ag-kpi__label, .doc-kpi__label, .sst-status-card__label, .payroll-section-card__label),
+  .kpi-tile:is([data-kpi-lead], .is-active) > span:not(.kpi-ico):not(.kpi-ghost):not(.doc-kpi__body):not(.sst-status-card__body):not(.payroll-section-card__body) {
+    color: rgba(226, 238, 255, 0.9) !important;
+  }
+  .kpi-tile:is([data-kpi-lead], .is-active) > .kpi-ghost {
+    color: rgba(255, 255, 255, 0.12) !important;
+  }
+
+  /* Móvil */
+  @media (max-width: 640px) {
+    .kpi-banner {
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+      gap: 0.6rem !important;
+    }
+    .kpi-banner > .kpi-tile {
+      column-gap: 0.6rem !important;
+      padding: 0.7rem 0.75rem !important;
+    }
+    .kpi-tile > .kpi-ico {
+      width: 2.3rem !important;
+      height: 2.3rem !important;
+    }
+    .kpi-tile > .kpi-ghost {
+      display: none !important;
+    }
+    .kpi-tile :is(dd, strong, .ag-kpi__value, .doc-kpi__value, .sst-status-card__count, .payroll-section-card__count) {
+      font-size: 1.25rem !important;
+    }
+  }
+
+  /* Banners dentro de la cabecera de un módulo: versión compacta */
+  :is(.hiring-studio-kpis, .payroll-studio-kpis).kpi-banner {
+    grid-template-columns: repeat(auto-fit, minmax(8.8rem, 15rem)) !important;
+    justify-content: start !important;
+    width: 100% !important;
+  }
+  :is(.hiring-studio-kpis, .payroll-studio-kpis).kpi-banner > .kpi-tile {
+    min-height: 3.8rem !important;
+    padding: 0.55rem 0.8rem !important;
+    column-gap: 0.6rem !important;
+    border-radius: 16px !important;
+  }
+  :is(.hiring-studio-kpis, .payroll-studio-kpis) .kpi-tile > .kpi-ico {
+    width: 2.2rem !important;
+    height: 2.2rem !important;
+  }
+  :is(.hiring-studio-kpis, .payroll-studio-kpis) .kpi-tile > .kpi-ico svg {
+    width: 1.15rem !important;
+    height: 1.15rem !important;
+  }
+  :is(.hiring-studio-kpis, .payroll-studio-kpis) .kpi-tile > .kpi-ghost {
+    display: none !important;
+  }
+  :is(.hiring-studio-kpis, .payroll-studio-kpis) .kpi-tile :is(dd, strong) {
+    font-size: 1.3rem !important;
+  }
+
+  /* Tema oscuro */
+  body[data-theme="dark"] .kpi-banner > .kpi-tile:not([data-kpi-lead]):not(.is-active) {
+    border-color: rgba(148, 196, 255, 0.16) !important;
+    background: linear-gradient(180deg, rgba(148, 196, 255, 0.1), rgba(148, 196, 255, 0.04)) !important;
+    box-shadow: 0 10px 22px -14px rgba(0, 0, 0, 0.7) !important;
+    color: #e6f0ff !important;
+  }
+  body[data-theme="dark"] .kpi-tile:not([data-kpi-lead]):not(.is-active) :is(dd, strong, .ag-kpi__value, .doc-kpi__value, .sst-status-card__count, .payroll-section-card__count) {
+    color: #f2f7ff !important;
+  }
+  body[data-theme="dark"] .kpi-tile:not([data-kpi-lead]):not(.is-active) :is(dt, .ag-kpi__label, .doc-kpi__label, .sst-status-card__label, .payroll-section-card__label),
+  body[data-theme="dark"] .kpi-tile:not([data-kpi-lead]):not(.is-active) > span:not(.kpi-ico):not(.kpi-ghost):not(.doc-kpi__body):not(.sst-status-card__body):not(.payroll-section-card__body) {
+    color: #b6cae6 !important;
+  }
+  body[data-theme="dark"] .kpi-tile:not([data-kpi-lead]):not(.is-active) :is(.doc-kpi__sub, .sst-status-card__hint, small) {
+    color: #8fa8c8 !important;
+  }
+  body[data-theme="dark"] .kpi-tile:not([data-kpi-lead]):not(.is-active) > .kpi-ghost {
+    color: color-mix(in srgb, var(--kt) 26%, transparent) !important;
+  }
+
+  /* Franjas al costado del título (conductores, historial, notificaciones): dos columnas */
+  :is(.ag-fleet__kpis, .hist-trace-kpis, .ntf-studio-head__metrics).kpi-banner {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    width: min(100%, 27rem) !important;
+  }
+  /* Navegación de Gestión humana (Empleados · Ausencias · Nómina…) */
+  .payroll-section-cards.kpi-banner {
+    grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr)) !important;
+  }
+  .payroll-section-cards.kpi-banner > .kpi-tile {
+    cursor: pointer !important;
   }
 
 }
