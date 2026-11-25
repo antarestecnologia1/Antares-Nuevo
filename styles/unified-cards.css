@@ -1,0 +1,986 @@
+/* ===================================================================
+   Portal Antares · Tarjetas unificadas
+   -------------------------------------------------------------------
+   Una sola UI para las tarjetas de todos los módulos (conductores, camiones,
+   empleados, usuarios, candidatos, carpetas…) y para sus listas.
+   Base: las referencias de diseño (avatar con marco y estado, bloques suaves por
+   estado, chips, pie con acciones y botón principal azul marino) y, para la
+   vista «Lista», filas con cabecera azul marino.
+
+   Se carga DESPUÉS de las hojas de cada módulo. Va en la capa `antares-cards` y sus
+   declaraciones llevan !important porque los estilos heredados de tarjetas están
+   repartidos en ~40 hojas (una capa con !important gana a todos sin pelear por
+   especificidad). Para cambiar la apariencia basta editar los tokens --uc-*.
+   =================================================================== */
+@layer antares-buttons, antares-cards;
+
+@layer antares-cards {
+  /* ───────── Tokens ───────── */
+  :root {
+    --uc-navy-a: #1d52a0;
+    --uc-navy-b: #123e80;
+    --uc-navy-c: #0b2a5b;
+    --uc-radius: 20px;
+    --uc-radius-sm: 14px;
+    --uc-panel: #f3f7fd;
+    --uc-panel-edge: #e0eaf7;
+    --uc-chip: #eef4fc;
+    --uc-chip-ink: #27508a;
+    --uc-link: #1a4f99;
+    --uc-card-shadow: 0 1px 2px rgba(16, 42, 80, 0.05), 0 12px 26px -16px rgba(25, 70, 140, 0.32);
+    --uc-card-shadow-hover: 0 2px 4px rgba(16, 42, 80, 0.07), 0 20px 36px -18px rgba(25, 70, 140, 0.42);
+  }
+  body[data-theme="dark"] {
+    --uc-navy-a: #1f5aa8;
+    --uc-navy-b: #153f7a;
+    --uc-navy-c: #0d2a58;
+    --uc-panel: rgba(148, 196, 255, 0.07);
+    --uc-panel-edge: rgba(148, 196, 255, 0.16);
+    --uc-chip: rgba(148, 196, 255, 0.1);
+    --uc-chip-ink: #bcd4fb;
+    --uc-link: #8dbbf5;
+    --uc-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 12px 26px -14px rgba(0, 0, 0, 0.7);
+    --uc-card-shadow-hover: 0 2px 6px rgba(0, 0, 0, 0.4), 0 22px 40px -16px rgba(0, 0, 0, 0.8);
+  }
+
+  /* Tema oscuro: las tarjetas toman una superficie oscura propia */
+  body[data-theme="dark"] :is(.ag-pass, .hr-cred, .adm-badge, .ag-roster-card, .portal-ops-card, .hiring-kanban-card, .hiring-candidate-card, .doc-subfolder-card, .ag-table, .vehicle-fleet-table, .sst-consult-table) {
+    --ag-surface: #0f1c2e;
+    --ag-edge: rgba(148, 196, 255, 0.16);
+    --ag-edge-strong: rgba(148, 196, 255, 0.3);
+  }
+
+  /* ───────── Botón principal de tarjeta: azul marino con flecha → ───────── */
+  :is(.ag-pass, .hr-cred, .adm-badge, .ag-roster-card, .trip-ops-card--vehicle, .ag-table) :is(.ag-btn--primary, .trip-ops-card-btn--solid, .ag-icon-btn--primary).ab {
+    --ab-cl: #2a62b3;
+    --ab-c: #1b4f98;
+    --ab-cd: #123e80;
+    --ab-ch: #2f6cc4;
+    --ab-ca: #0d3069;
+    --ab-rgb: 27, 79, 152;
+  }
+  .ag-btn--primary.ab:not(.ab--icon)::after {
+    content: "" !important;
+    flex: none !important;
+    width: 1em !important;
+    height: 1em !important;
+    margin-left: 0.15rem !important;
+    background: currentColor !important;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12h14'/%3E%3Cpath d='m12 5 7 7-7 7'/%3E%3C/svg%3E") center / contain no-repeat !important;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12h14'/%3E%3Cpath d='m12 5 7 7-7 7'/%3E%3C/svg%3E") center / contain no-repeat !important;
+  }
+
+  /* ───────── Estado: píldora con punto ───────── */
+  .ag-status {
+    gap: 0.45rem !important;
+    padding: 0.32rem 0.75rem 0.32rem 0.6rem !important;
+    border: 1px solid color-mix(in srgb, var(--ag-tone, #8696a8) 24%, transparent) !important;
+    border-radius: 999px !important;
+    background: color-mix(in srgb, var(--ag-tone, #8696a8) 13%, var(--ag-surface, #fff)) !important;
+    color: color-mix(in srgb, var(--ag-tone, #8696a8) 78%, var(--ag-ink, #0b2138)) !important;
+    font-size: 0.74rem !important;
+    font-weight: 700 !important;
+  }
+  .ag-status__dot {
+    width: 0.55rem !important;
+    height: 0.55rem !important;
+  }
+
+  /* ───────── Avatar con marco ───────── */
+  .ag-avatar {
+    background: linear-gradient(140deg, var(--ag-av-a), var(--ag-av-b)) !important;
+    color: #fff !important;
+  }
+  .ag-avatar--lg {
+    width: 3.6rem !important;
+    height: 3.6rem !important;
+    border-radius: 50% !important;
+    font-size: 1.15rem !important;
+  }
+  .ag-avatar--sm {
+    border-radius: 50% !important;
+  }
+  .ag-avatar:not([class*="ag-avatar--ring-"]) {
+    box-shadow: 0 0 0 2px var(--ag-surface, #fff), 0 0 0 3.5px color-mix(in srgb, var(--ag-av-a, #3f7fc4) 45%, transparent) !important;
+  }
+  .ag-avatar__badge {
+    right: -4px !important;
+    bottom: -4px !important;
+    width: 1.45rem !important;
+    height: 1.45rem !important;
+    background: linear-gradient(160deg, var(--uc-navy-a), var(--uc-navy-c)) !important;
+  }
+
+  /* ───────── Chips (EPS y ARL, comparendos, tipo de vehículo) ───────── */
+  .ag-check,
+  .ag-tag {
+    gap: 0.35rem !important;
+    padding: 0.34rem 0.7rem !important;
+    border: 1px solid var(--uc-panel-edge) !important;
+    border-radius: 999px !important;
+    background: var(--uc-chip) !important;
+    color: var(--uc-chip-ink) !important;
+    font-size: 0.74rem !important;
+    font-weight: 650 !important;
+  }
+  .ag-check svg,
+  .ag-tag svg {
+    width: 0.95rem !important;
+    height: 0.95rem !important;
+    opacity: 1 !important;
+  }
+  .ag-check--ok {
+    border-color: color-mix(in srgb, var(--ag-ok) 28%, transparent) !important;
+    background: color-mix(in srgb, var(--ag-ok) 11%, var(--ag-surface, #fff)) !important;
+    color: color-mix(in srgb, var(--ag-ok) 70%, var(--ag-ink)) !important;
+  }
+  .ag-check--warn {
+    border-color: color-mix(in srgb, var(--ag-warn) 30%, transparent) !important;
+    background: color-mix(in srgb, var(--ag-warn) 12%, var(--ag-surface, #fff)) !important;
+    color: color-mix(in srgb, var(--ag-warn) 72%, var(--ag-ink)) !important;
+  }
+  .ag-pass__checks {
+    gap: 0.4rem !important;
+  }
+  .ag-pass__vehicles {
+    gap: 0.4rem !important;
+  }
+
+  /* ───────── Tarjeta de conductor ───────── */
+  .ag-pass {
+    gap: 0.9rem !important;
+    padding: 1.15rem 1.1rem 1rem !important;
+    border: 1px solid var(--ag-edge) !important;
+    border-radius: var(--uc-radius) !important;
+    background: var(--ag-surface, #fff) !important;
+    box-shadow: var(--uc-card-shadow) !important;
+  }
+  .ag-pass:hover {
+    box-shadow: var(--uc-card-shadow-hover) !important;
+  }
+  .ag-pass::before {
+    left: 22px !important;
+    right: 22px !important;
+    height: 4px !important;
+  }
+  .ag-pass__head {
+    align-items: flex-start !important;
+    gap: 0.9rem !important;
+  }
+  .ag-pass__who {
+    display: grid !important;
+    gap: 0.28rem !important;
+    justify-items: start !important;
+  }
+  .ag-pass__name {
+    font-size: 1rem !important;
+    font-weight: 750 !important;
+    line-height: 1.22 !important;
+  }
+  .ag-pass__meta {
+    margin: 0 !important;
+    font-size: 0.78rem !important;
+    font-weight: 550 !important;
+    color: var(--ag-ink-soft) !important;
+  }
+  .ag-pass__head .ag-status {
+    margin-top: 0.2rem !important;
+  }
+
+  /* Licencia: bloque suave con ícono-categoría (sin muescas) */
+  .ag-pass__license {
+    gap: 0.85rem !important;
+    padding: 0.85rem 0.9rem !important;
+    border: 1px solid var(--uc-panel-edge) !important;
+    border-radius: var(--uc-radius-sm) !important;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--ag-lic) 5%, var(--uc-panel)), var(--uc-panel)) !important;
+  }
+  .ag-pass__license::before,
+  .ag-pass__license::after {
+    display: none !important;
+  }
+  .ag-pass__license--warn {
+    border-color: color-mix(in srgb, var(--ag-warn) 30%, transparent) !important;
+    background: color-mix(in srgb, var(--ag-warn) 9%, var(--ag-surface, #fff)) !important;
+  }
+  .ag-pass__license--alert {
+    border-color: color-mix(in srgb, var(--ag-alert) 32%, transparent) !important;
+    background: color-mix(in srgb, var(--ag-alert) 8%, var(--ag-surface, #fff)) !important;
+  }
+  .ag-pass__cat {
+    min-width: 2.9rem !important;
+    border: 1px solid color-mix(in srgb, var(--ag-lic) 30%, transparent) !important;
+    border-radius: 12px !important;
+    background: color-mix(in srgb, var(--ag-lic) 12%, var(--ag-surface, #fff)) !important;
+    color: color-mix(in srgb, var(--ag-lic) 70%, var(--ag-ink)) !important;
+    font-family: inherit !important;
+    font-size: 1rem !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.02em !important;
+    box-shadow: none !important;
+  }
+  .ag-pass__license-num {
+    font-family: inherit !important;
+    font-size: 0.86rem !important;
+    font-weight: 750 !important;
+    letter-spacing: 0.04em !important;
+  }
+  .ag-pass__doc {
+    padding: 0.28rem 0.6rem !important;
+    border-radius: 999px !important;
+    font-size: 0.64rem !important;
+    letter-spacing: 0.06em !important;
+  }
+  .ag-meter {
+    height: 6px !important;
+  }
+
+  /* Franja de viaje activo / sin viaje */
+  .ag-pass__trip {
+    gap: 0.65rem !important;
+    padding: 0.7rem 0.85rem !important;
+    border: 1px solid color-mix(in srgb, var(--ag-tone) 24%, transparent) !important;
+    border-radius: var(--uc-radius-sm) !important;
+    background: color-mix(in srgb, var(--ag-tone) 9%, var(--ag-surface, #fff)) !important;
+    box-shadow: none !important;
+  }
+  .ag-pass__trip-copy {
+    font-size: 0.82rem !important;
+    font-weight: 650 !important;
+    color: color-mix(in srgb, var(--ag-tone) 72%, var(--ag-ink)) !important;
+  }
+
+  /* Pie: teléfono · acciones */
+  .ag-pass__foot {
+    gap: 0.6rem !important;
+    padding-top: 0.9rem !important;
+    border-top: 1px solid var(--ag-edge) !important;
+  }
+  .ag-pass__phone {
+    color: var(--uc-link) !important;
+    font-size: 0.82rem !important;
+    font-weight: 650 !important;
+  }
+  .ag-pass__foot {
+    flex-wrap: wrap !important;
+  }
+  .ag-pass__phone {
+    flex: 1 1 100% !important;
+  }
+  .ag-pass__actions {
+    flex: 1 1 100% !important;
+    gap: 0.45rem !important;
+  }
+  .ag-pass__actions .ag-btn--primary.ab {
+    flex: 1 1 auto !important;
+    justify-content: center !important;
+  }
+  .ag-pass__actions .ag-btn.ab:not(.ab--icon) {
+    min-height: 2.5rem !important;
+    padding: 0 1.1rem !important;
+  }
+
+  /* ───────── Listas: cada fila es una tarjeta con cabecera azul marino ───────── */
+  .ag-table-wrap,
+  .ag-fleet-table-wrap {
+    overflow: visible !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+  table.ag-table,
+  table.vehicle-fleet-table {
+    width: 100% !important;
+    border-collapse: separate !important;
+    border-spacing: 0 0.8rem !important;
+    background: transparent !important;
+  }
+  table.ag-table thead th,
+  table.vehicle-fleet-table thead th {
+    padding: 0 1rem 0.2rem !important;
+    border: 0 !important;
+    background: transparent !important;
+    color: var(--ag-ink-faint, #7b93ab) !important;
+    font-size: 0.68rem !important;
+    font-weight: 750 !important;
+    letter-spacing: 0.08em !important;
+    text-transform: uppercase !important;
+  }
+  table.ag-table tbody tr,
+  table.vehicle-fleet-table tbody tr {
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+  table.ag-table tbody td,
+  table.vehicle-fleet-table tbody td {
+    padding: 0.95rem 1rem !important;
+    border: 0 !important;
+    border-top: 1px solid var(--ag-edge, #dfe8f4) !important;
+    border-bottom: 1px solid var(--ag-edge, #dfe8f4) !important;
+    background: var(--ag-surface, #fff) !important;
+    vertical-align: middle !important;
+    transition: box-shadow 0.2s ease, background-color 0.2s ease !important;
+  }
+  table.ag-table tbody td:last-child,
+  table.vehicle-fleet-table tbody td:last-child {
+    border-right: 1px solid var(--ag-edge, #dfe8f4) !important;
+    border-radius: 0 var(--uc-radius-sm) var(--uc-radius-sm) 0 !important;
+  }
+  /* checkbox + identidad = cabecera azul marino */
+  table.ag-table tbody td.dc-col,
+  table.vehicle-fleet-table tbody td.dc-col {
+    width: 2.8rem !important;
+    padding-right: 0.2rem !important;
+    border-left: 1px solid var(--uc-navy-b) !important;
+    border-top-color: var(--uc-navy-b) !important;
+    border-bottom-color: var(--uc-navy-b) !important;
+    border-radius: var(--uc-radius-sm) 0 0 var(--uc-radius-sm) !important;
+    background: var(--uc-navy-a) !important;
+  }
+  table.ag-table tbody td.dc-col + td,
+  table.vehicle-fleet-table tbody td.dc-col + td {
+    min-width: 15rem !important;
+    padding-left: 0.4rem !important;
+    border-top-color: var(--uc-navy-b) !important;
+    border-bottom-color: var(--uc-navy-b) !important;
+    background: linear-gradient(90deg, var(--uc-navy-a), var(--uc-navy-c)) !important;
+    color: #fff !important;
+  }
+  table.ag-table tbody td.dc-col + td :is(strong, .vehicle-fleet-list-plate),
+  table.vehicle-fleet-table tbody td.dc-col + td :is(strong, .vehicle-fleet-list-plate) {
+    color: #fff !important;
+    font-weight: 750 !important;
+  }
+  table.ag-table tbody td.dc-col + td :is(span, .vehicle-fleet-list-sub, .muted),
+  table.vehicle-fleet-table tbody td.dc-col + td :is(span, .vehicle-fleet-list-sub, .muted) {
+    color: rgba(226, 238, 255, 0.82) !important;
+  }
+  table.ag-table tbody td.dc-col + td .ag-avatar,
+  table.vehicle-fleet-table tbody td.dc-col + td .ag-avatar {
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9) !important;
+  }
+  table.ag-table tbody td.dc-col .dc-pick input,
+  table.ag-table tbody td.dc-col input[type="checkbox"],
+  table.vehicle-fleet-table tbody td.dc-col input[type="checkbox"] {
+    accent-color: #fff !important;
+  }
+  table.ag-table tbody tr:hover td,
+  table.vehicle-fleet-table tbody tr:hover td {
+    box-shadow: 0 12px 22px -18px rgba(25, 70, 140, 0.55) !important;
+  }
+  table.ag-table tbody tr:hover td:not(.dc-col):not(.dc-col + td),
+  table.vehicle-fleet-table tbody tr:hover td:not(.dc-col):not(.dc-col + td) {
+    background: color-mix(in srgb, var(--uc-panel) 70%, var(--ag-surface, #fff)) !important;
+  }
+  table.vehicle-fleet-table tbody td.dc-col + td {
+    min-width: 9rem !important;
+  }
+  table.vehicle-fleet-table .vehicle-fleet-list-plate {
+    letter-spacing: 0.06em !important;
+  }
+  table.vehicle-fleet-table .vehicle-fleet-list-actions .toolbar {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    justify-content: flex-end !important;
+    gap: 0.4rem !important;
+  }
+
+  /* Móvil: cada fila pasa a tarjeta apilada con la cabecera azul marino arriba */
+  @media (max-width: 720px) {
+    table.ag-table,
+    table.vehicle-fleet-table,
+    table.sst-consult-table {
+      display: block !important;
+      border-spacing: 0 !important;
+    }
+    table.ag-table thead,
+    table.vehicle-fleet-table thead,
+    table.sst-consult-table thead {
+      display: none !important;
+    }
+    table.ag-table tbody,
+    table.vehicle-fleet-table tbody,
+    table.sst-consult-table tbody {
+      display: block !important;
+    }
+    table.ag-table tbody tr,
+    table.vehicle-fleet-table tbody tr,
+    table.sst-consult-table tbody tr {
+      position: relative !important;
+      display: block !important;
+      margin: 0 0 0.8rem !important;
+      padding: 0 0 0.45rem !important;
+      overflow: hidden !important;
+      border: 1px solid var(--ag-edge, #dfe8f4) !important;
+      border-radius: var(--uc-radius) !important;
+      background: var(--ag-surface, #fff) !important;
+      box-shadow: var(--uc-card-shadow) !important;
+    }
+    table.ag-table tbody td,
+    table.vehicle-fleet-table tbody td,
+    table.sst-consult-table tbody td {
+      display: flex !important;
+      align-items: center !important;
+      justify-content: space-between !important;
+      gap: 0.8rem !important;
+      width: 100% !important;
+      min-width: 0 !important;
+      padding: 0.4rem 1rem !important;
+      border: 0 !important;
+      border-radius: 0 !important;
+      background: transparent !important;
+      box-shadow: none !important;
+    }
+    table.ag-table tbody td[data-label]::before,
+    table.vehicle-fleet-table tbody td[data-label]::before,
+    table.sst-consult-table tbody td[data-label]::before {
+      content: attr(data-label) !important;
+      flex: none !important;
+      color: var(--ag-ink-faint, #7b93ab) !important;
+      font-size: 0.68rem !important;
+      font-weight: 750 !important;
+      letter-spacing: 0.06em !important;
+      text-transform: uppercase !important;
+    }
+    table.ag-table tbody td.dc-col,
+    table.vehicle-fleet-table tbody td.dc-col {
+      position: absolute !important;
+      top: 0.85rem !important;
+      left: 0.85rem !important;
+      z-index: 2 !important;
+      width: auto !important;
+      padding: 0 !important;
+    }
+    table.ag-table tbody td.dc-col::before,
+    table.vehicle-fleet-table tbody td.dc-col::before {
+      content: none !important;
+    }
+    table.ag-table tbody td.dc-col + td,
+    table.vehicle-fleet-table tbody td.dc-col + td,
+    table.sst-consult-table tbody td:first-child {
+      justify-content: flex-start !important;
+      margin: 0 0 0.35rem !important;
+      padding: 0.9rem 1rem 0.9rem 3rem !important;
+      background: linear-gradient(135deg, var(--uc-navy-a), var(--uc-navy-c)) !important;
+    }
+    table.sst-consult-table tbody td:first-child {
+      padding-left: 1rem !important;
+    }
+    table.ag-table tbody td.dc-col + td::before,
+    table.vehicle-fleet-table tbody td.dc-col + td::before,
+    table.sst-consult-table tbody td:first-child::before {
+      content: none !important;
+    }
+    table.ag-table tbody td:last-child,
+    table.vehicle-fleet-table tbody td:last-child,
+    table.sst-consult-table tbody td:last-child {
+      justify-content: flex-end !important;
+      margin-top: 0.25rem !important;
+      padding-top: 0.65rem !important;
+      border-top: 1px dashed var(--ag-edge, #dfe8f4) !important;
+    }
+    table.ag-table tbody td:last-child::before,
+    table.vehicle-fleet-table tbody td:last-child::before,
+    table.sst-consult-table tbody td:last-child::before {
+      content: none !important;
+    }
+    table.vehicle-fleet-table .vehicle-fleet-list-actions .toolbar,
+    table.ag-table td:last-child .toolbar {
+      display: flex !important;
+      flex-direction: row !important;
+      flex-wrap: wrap !important;
+      align-items: center !important;
+      justify-content: flex-end !important;
+      width: 100% !important;
+    }
+  }
+
+  /* ───────── Tarjetas de empleado y de usuario/empresa (misma estructura) ───────── */
+  :is(.hr-cred, .adm-badge) {
+    position: relative !important;
+    display: grid !important;
+    grid-template-columns: auto minmax(0, 1fr) !important;
+    grid-auto-rows: auto !important;
+    align-content: start !important;
+    column-gap: 0.95rem !important;
+    padding: 1.15rem 1.1rem 0 !important;
+    overflow: visible !important;
+    border: 1px solid var(--ag-edge) !important;
+    border-radius: var(--uc-radius) !important;
+    background: var(--ag-surface, #fff) !important;
+    box-shadow: var(--uc-card-shadow) !important;
+  }
+  :is(.hr-cred, .adm-badge):hover {
+    box-shadow: var(--uc-card-shadow-hover) !important;
+  }
+  :is(.hr-cred, .adm-badge)::before {
+    content: "" !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 22px !important;
+    right: 22px !important;
+    height: 4px !important;
+    border-radius: 0 0 4px 4px !important;
+    background: var(--hr-tone, var(--adm-role, var(--ag-tone, #377cc0))) !important;
+  }
+  :is(.hr-cred__band, .adm-badge__band) {
+    display: none !important;
+  }
+  :is(.hr-cred__head, .adm-badge__head) {
+    display: contents !important;
+  }
+  :is(.hr-cred__head, .adm-badge__head) .ag-avatar {
+    grid-column: 1 !important;
+    grid-row: 1 / span 3 !important;
+    align-self: start !important;
+    width: 3.6rem !important;
+    height: 3.6rem !important;
+    margin: 0 !important;
+    border-radius: 50% !important;
+  }
+  :is(.hr-cred__who, .adm-badge__who) {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    gap: 0.2rem !important;
+    padding: 0 !important;
+  }
+  :is(.hr-cred__name, .adm-badge__name) {
+    padding-right: 1.6rem !important;
+    font-size: 1rem !important;
+    font-weight: 750 !important;
+    line-height: 1.22 !important;
+    letter-spacing: -0.01em !important;
+  }
+  :is(.hr-cred__head-meta, .adm-badge__head-meta) {
+    display: contents !important;
+  }
+  :is(.hr-cred__head-meta, .adm-badge__head-meta) .ag-status {
+    grid-column: 2 !important;
+    grid-row: 2 !important;
+    justify-self: start !important;
+    align-self: start !important;
+    margin-top: 0.4rem !important;
+    box-shadow: none !important;
+    background: color-mix(in srgb, var(--ag-tone, #8696a8) 13%, var(--ag-surface, #fff)) !important;
+  }
+  .adm-badge__head-meta .dc-pick {
+    position: absolute !important;
+    top: 0.9rem !important;
+    right: 0.9rem !important;
+  }
+  :is(.hr-cred__org, .adm-badge__org) {
+    color: var(--uc-link) !important;
+    font-size: 0.8rem !important;
+    font-weight: 650 !important;
+  }
+  :is(.hr-cred__mail, .adm-badge__mail) {
+    color: var(--ag-ink-soft) !important;
+    font-size: 0.78rem !important;
+    font-weight: 550 !important;
+  }
+  :is(.hr-cred__vehicle) {
+    padding: 0.22rem 0.6rem !important;
+    border: 1px solid var(--uc-panel-edge) !important;
+    background: var(--uc-chip) !important;
+    color: var(--uc-chip-ink) !important;
+  }
+
+  /* Medidor (aros + datos) = bloque suave, sin muescas */
+  :is(.hr-cred__meter, .adm-badge__meter) {
+    grid-column: 1 / -1 !important;
+    margin: 0.95rem 0 0 !important;
+    padding: 0.85rem 0.95rem !important;
+    border: 1px solid var(--uc-panel-edge) !important;
+    border-radius: var(--uc-radius-sm) !important;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--hr-tone, var(--adm-role, #377cc0)) 4%, var(--uc-panel)), var(--uc-panel)) !important;
+  }
+  :is(.hr-cred__meter, .adm-badge__meter)::before,
+  :is(.hr-cred__meter, .adm-badge__meter)::after {
+    display: none !important;
+  }
+  :is(.hr-cred__facts, .adm-badge__facts) li span {
+    color: var(--ag-ink-soft) !important;
+    font-weight: 600 !important;
+  }
+  :is(.hr-cred__facts, .adm-badge__facts) li strong {
+    font-weight: 750 !important;
+  }
+  :is(.hr-cred__note, .adm-badge__note) {
+    grid-column: 1 / -1 !important;
+    margin: 0.7rem 0 0 !important;
+    padding: 0 !important;
+    color: var(--ag-ink-soft) !important;
+    font-size: 0.78rem !important;
+    font-weight: 600 !important;
+  }
+  :is(.hr-cred__foot, .adm-badge__foot) {
+    grid-column: 1 / -1 !important;
+    display: grid !important;
+    gap: 0.65rem !important;
+    margin: 0.95rem -1.1rem 0 !important;
+    padding: 0.85rem 1.1rem 1rem !important;
+    border-top: 1px solid var(--ag-edge) !important;
+  }
+  :is(.hr-cred__tel, .adm-badge__tel) {
+    color: var(--uc-link) !important;
+    font-size: 0.82rem !important;
+    font-weight: 650 !important;
+  }
+  :is(.hr-cred__tel--muted, .adm-badge__tel--muted) {
+    color: var(--ag-ink-faint) !important;
+  }
+  :is(.hr-cred__actions, .adm-badge__actions) {
+    display: flex !important;
+    gap: 0.45rem !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+  }
+  :is(.hr-cred__actions, .adm-badge__actions) .ag-btn--primary.ab {
+    flex: 1 1 auto !important;
+    order: 3 !important;
+    justify-content: center !important;
+    min-height: 2.5rem !important;
+    padding: 0 1.1rem !important;
+  }
+  :is(.hr-cred__actions, .adm-badge__actions) :is(.ag-icon-btn, .ag-menu) {
+    flex: none !important;
+    order: 1 !important;
+  }
+  :is(.hr-cred__actions, .adm-badge__actions) .ag-menu {
+    order: 2 !important;
+  }
+
+  /* ───────── Tarjetas operativas (camiones, viajes, solicitudes) ───────── */
+  .portal-ops-card,
+  .trip-ops-card {
+    --uc-tone: #377cc0;
+    position: relative !important;
+    border: 1px solid var(--ag-edge, #dfe8f4) !important;
+    border-radius: var(--uc-radius) !important;
+    background: var(--ag-surface, #fff) !important;
+    box-shadow: var(--uc-card-shadow) !important;
+  }
+  .portal-ops-card.trip-ops-card--vehicle-disponible { --uc-tone: #12a172; }
+  .portal-ops-card.trip-ops-card--vehicle-reservado { --uc-tone: #7357e8; }
+  .portal-ops-card.trip-ops-card--vehicle-ocupado { --uc-tone: #2f74c0; }
+  .portal-ops-card.trip-ops-card--vehicle-no-disponible { --uc-tone: #d98a00; }
+  .portal-ops-card:hover,
+  .trip-ops-card:hover {
+    box-shadow: var(--uc-card-shadow-hover) !important;
+  }
+  .portal-ops-card::before,
+  .trip-ops-card::before {
+    content: "" !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 22px !important;
+    right: 22px !important;
+    height: 4px !important;
+    border-radius: 0 0 4px 4px !important;
+    background: var(--uc-tone) !important;
+    pointer-events: none !important;
+  }
+  .portal-ops-card .trip-ops-card-kicker {
+    color: var(--uc-tone) !important;
+    font-size: 0.68rem !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.1em !important;
+  }
+  .portal-ops-card .trip-ops-card-title {
+    font-size: var(--card-name-size, 0.94rem) !important;
+    font-weight: 750 !important;
+  }
+  .vehicle-plate-badge {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 0.35rem !important;
+    padding: 0.5rem 0.75rem !important;
+    border: 0 !important;
+    border-radius: 12px !important;
+    background: linear-gradient(135deg, var(--uc-navy-a), var(--uc-navy-c)) !important;
+    color: #fff !important;
+    box-shadow: 0 8px 16px -10px rgba(18, 62, 128, 0.7) !important;
+  }
+  .vehicle-plate-badge__text {
+    color: #fff !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.06em !important;
+  }
+  .vehicle-plate-badge__icon {
+    color: rgba(226, 238, 255, 0.9) !important;
+  }
+  .portal-ops-card-status-pill {
+    padding: 0.32rem 0.75rem 0.32rem 0.6rem !important;
+    border-radius: 999px !important;
+    font-size: 0.74rem !important;
+    font-weight: 700 !important;
+  }
+
+  /* Barra de disponibilidad / viaje: bloque suave con el color del estado */
+  .portal-ops-card .vehicle-availability-bar {
+    padding: 0.8rem 0.95rem !important;
+    border: 1px solid color-mix(in srgb, var(--uc-tone) 26%, transparent) !important;
+    border-radius: var(--uc-radius-sm) !important;
+    background: color-mix(in srgb, var(--uc-tone) 9%, var(--ag-surface, #fff)) !important;
+    box-shadow: none !important;
+  }
+  .portal-ops-card .vehicle-availability-bar__copy strong {
+    color: color-mix(in srgb, var(--uc-tone) 72%, var(--ag-ink, #0b2138)) !important;
+    font-size: 0.9rem !important;
+    font-weight: 750 !important;
+  }
+  .portal-ops-card .vehicle-availability-bar__dot {
+    background: var(--uc-tone) !important;
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--uc-tone) 22%, transparent) !important;
+  }
+
+  /* Datos técnicos: panel suave de dos columnas */
+  .portal-ops-card .trip-ops-card-grid {
+    gap: 0.75rem 1rem !important;
+    padding: 0.9rem 0.95rem !important;
+    border: 1px solid var(--uc-panel-edge) !important;
+    border-radius: var(--uc-radius-sm) !important;
+    background: var(--uc-panel) !important;
+  }
+  .portal-ops-card .trip-ops-card-item-label {
+    color: var(--ag-ink-faint, #7b93ab) !important;
+    font-size: 0.66rem !important;
+    font-weight: 750 !important;
+    letter-spacing: 0.08em !important;
+    text-transform: uppercase !important;
+  }
+  .portal-ops-card .trip-ops-card-item-icon {
+    display: inline-grid !important;
+    place-items: center !important;
+    width: 1.7rem !important;
+    height: 1.7rem !important;
+    border-radius: 9px !important;
+    background: color-mix(in srgb, var(--uc-navy-a) 12%, var(--ag-surface, #fff)) !important;
+    color: var(--uc-navy-a) !important;
+  }
+  .portal-ops-card .trip-ops-card-item-value {
+    font-size: 0.86rem !important;
+    font-weight: 700 !important;
+  }
+
+  /* Acciones del pie */
+  .portal-ops-card .trip-ops-card-btn {
+    min-height: 2.5rem !important;
+    border-radius: 999px !important;
+  }
+  .portal-ops-card .trip-ops-card-foot {
+    padding-top: 0.7rem !important;
+    border-top: 1px solid var(--ag-edge, #dfe8f4) !important;
+    color: var(--ag-ink-faint, #7b93ab) !important;
+    font-size: 0.74rem !important;
+  }
+
+  /* ───────── Contratación (tablero) y Documentos ───────── */
+  .hiring-studio .hiring-kanban-card {
+    border: 1px solid var(--ag-edge, #dfe8f4) !important;
+    border-radius: 16px !important;
+    background: var(--ag-surface, #fff) !important;
+    box-shadow: var(--uc-card-shadow) !important;
+  }
+  .hiring-studio .hiring-kanban-card:hover {
+    border-color: var(--ag-edge-strong, #b7cdea) !important;
+    box-shadow: var(--uc-card-shadow-hover) !important;
+  }
+  .hiring-studio .hiring-kanban-card.is-selected {
+    border-color: var(--uc-navy-a) !important;
+    box-shadow: 0 0 0 3px rgba(29, 82, 160, 0.16) !important;
+  }
+  .hiring-studio .hiring-kanban-card__avatar {
+    width: 2.7rem !important;
+    height: 2.7rem !important;
+    background: linear-gradient(140deg, var(--uc-navy-a), var(--uc-navy-c)) !important;
+    box-shadow: 0 0 0 2px var(--ag-surface, #fff), 0 0 0 3.5px rgba(29, 82, 160, 0.28) !important;
+    font-size: 0.78rem !important;
+  }
+  .hiring-studio .hiring-kanban-card__name {
+    font-size: var(--card-name-size, 0.94rem) !important;
+    font-weight: 750 !important;
+  }
+  .hiring-studio .hiring-kanban-card__facts {
+    gap: 0.35rem !important;
+  }
+  .hiring-studio .hiring-kanban-card__facts > span {
+    padding: 0.28rem 0.6rem !important;
+    border: 1px solid var(--uc-panel-edge) !important;
+    border-radius: 999px !important;
+    background: var(--uc-chip) !important;
+    color: var(--uc-chip-ink) !important;
+    font-weight: 650 !important;
+  }
+  .hiring-studio .hiring-kanban-card__facts svg {
+    color: var(--uc-navy-a) !important;
+  }
+  .hiring-studio .hiring-kanban-card__footer {
+    border-top: 1px solid var(--ag-edge, #dfe8f4) !important;
+  }
+  .hiring-studio .hiring-candidate-card {
+    border-radius: 16px !important;
+  }
+
+  /* Carpetas de Gestión documental */
+  .doc-subfolder-card {
+    border: 1px solid var(--ag-edge, #dfe8f4) !important;
+    border-radius: 16px !important;
+    background: var(--ag-surface, #fff) !important;
+    box-shadow: var(--uc-card-shadow) !important;
+  }
+  .doc-subfolder-card:hover {
+    border-color: var(--ag-edge-strong, #b7cdea) !important;
+    box-shadow: var(--uc-card-shadow-hover) !important;
+  }
+
+  /* ───────── Empleados · vista Lista: cada fila lleva cabecera azul marino ───────── */
+  .ag-roster {
+    gap: 0.8rem !important;
+  }
+  .ag-roster-card {
+    --uc-id-pad: 1rem;
+    grid-template-columns: minmax(300px, 1.25fr) minmax(280px, 1.5fr) minmax(150px, 0.6fr) auto !important;
+    gap: 0 1.6rem !important;
+    padding: 0 1.1rem 0 0 !important;
+    border-radius: var(--uc-radius) !important;
+    box-shadow: var(--uc-card-shadow) !important;
+  }
+  .ag-roster-card:hover {
+    box-shadow: var(--uc-card-shadow-hover) !important;
+  }
+  .ag-roster-card::before {
+    display: none !important;
+  }
+  .ag-roster-card:has(.ag-select) {
+    padding-left: 0 !important;
+  }
+  .ag-roster-card__id {
+    align-self: stretch !important;
+    gap: 0.85rem !important;
+    padding: var(--uc-id-pad) 1.1rem var(--uc-id-pad) 3.1rem !important;
+    border-radius: var(--uc-radius) 0 0 var(--uc-radius) !important;
+    background: linear-gradient(135deg, var(--uc-navy-a), var(--uc-navy-c)) !important;
+  }
+  .ag-roster-card__id .ag-avatar {
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.92) !important;
+  }
+  .ag-roster-card__name {
+    display: -webkit-box !important;
+    white-space: normal !important;
+    -webkit-box-orient: vertical !important;
+    -webkit-line-clamp: 2 !important;
+    color: #fff !important;
+    font-size: var(--card-name-size, 0.94rem) !important;
+    font-weight: 750 !important;
+  }
+  .ag-roster-card__role {
+    color: #cfe2ff !important;
+  }
+  .ag-roster-card__doc {
+    color: rgba(226, 238, 255, 0.82) !important;
+  }
+  .ag-roster-card--unlinked .ag-roster-card__name {
+    color: rgba(255, 255, 255, 0.8) !important;
+  }
+  .ag-roster-card > .ag-select span {
+    border-color: rgba(255, 255, 255, 0.75) !important;
+    background: rgba(255, 255, 255, 0.12) !important;
+  }
+  .ag-roster-card > .ag-select input:checked + span {
+    border-color: #fff !important;
+    background-color: rgba(255, 255, 255, 0.32) !important;
+  }
+  :is(.ag-roster-card__contract, .ag-roster-card__pay, .ag-roster-card__actions) {
+    padding-block: 1rem !important;
+  }
+  @media (max-width: 1180px) {
+    .ag-roster-card {
+      grid-template-columns: 1fr auto !important;
+      grid-template-areas: "id id" "contract pay" "actions actions" !important;
+      gap: 0.9rem 1rem !important;
+      padding: 0 1.1rem 1rem !important;
+    }
+    .ag-roster-card:has(.ag-select) {
+      padding: 0 1.1rem 1rem !important;
+    }
+    .ag-roster-card__id {
+      margin: 0 -1.1rem !important;
+      padding: 0.95rem 1.1rem 0.95rem 3.1rem !important;
+      border-radius: var(--uc-radius) var(--uc-radius) 0 0 !important;
+    }
+    .ag-select {
+      top: 1.35rem !important;
+      left: 1.1rem !important;
+      transform: none !important;
+    }
+    :is(.ag-roster-card__contract, .ag-roster-card__pay, .ag-roster-card__actions) {
+      padding-block: 0 !important;
+    }
+  }
+  @media (max-width: 520px) {
+    .ag-roster-card {
+      grid-template-columns: 1fr !important;
+      grid-template-areas: "id" "contract" "pay" "actions" !important;
+    }
+  }
+
+  /* ───────── SST · Lista de controles: misma fila con cabecera azul marino ───────── */
+  table.sst-consult-table {
+    width: 100% !important;
+    border-collapse: separate !important;
+    border-spacing: 0 0.7rem !important;
+    background: transparent !important;
+  }
+  table.sst-consult-table thead th {
+    padding: 0 1rem 0.2rem !important;
+    border: 0 !important;
+    background: transparent !important;
+    color: var(--ag-ink-faint, #7b93ab) !important;
+    font-size: 0.68rem !important;
+    font-weight: 750 !important;
+    letter-spacing: 0.08em !important;
+    text-transform: uppercase !important;
+  }
+  table.sst-consult-table tbody tr {
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+  table.sst-consult-table tbody td {
+    padding: 0.85rem 1rem !important;
+    border: 0 !important;
+    border-top: 1px solid var(--ag-edge, #dfe8f4) !important;
+    border-bottom: 1px solid var(--ag-edge, #dfe8f4) !important;
+    background: var(--ag-surface, #fff) !important;
+    vertical-align: middle !important;
+  }
+  table.sst-consult-table tbody td:first-child {
+    min-width: 15rem !important;
+    border-color: var(--uc-navy-b) !important;
+    border-left: 1px solid var(--uc-navy-b) !important;
+    border-radius: var(--uc-radius-sm) 0 0 var(--uc-radius-sm) !important;
+    background: linear-gradient(90deg, var(--uc-navy-a), var(--uc-navy-c)) !important;
+    color: #fff !important;
+  }
+  table.sst-consult-table tbody td:last-child {
+    border-right: 1px solid var(--ag-edge, #dfe8f4) !important;
+    border-radius: 0 var(--uc-radius-sm) var(--uc-radius-sm) 0 !important;
+  }
+  table.sst-consult-table .sst-person-name {
+    color: #fff !important;
+    font-weight: 750 !important;
+  }
+  table.sst-consult-table .sst-person-role {
+    color: rgba(226, 238, 255, 0.82) !important;
+  }
+  table.sst-consult-table .sst-person-avatar {
+    border-radius: 50% !important;
+    background: rgba(255, 255, 255, 0.16) !important;
+    color: #fff !important;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85) !important;
+  }
+  table.sst-consult-table tbody tr:hover td:not(:first-child) {
+    background: color-mix(in srgb, var(--uc-panel) 70%, var(--ag-surface, #fff)) !important;
+  }
+
+}

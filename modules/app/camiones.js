@@ -823,9 +823,9 @@ function vehiclesHtml() {
           </span>`
         : "";
       const primaryButtons = [
-        `<button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--outline" data-action="view-vehicle" data-id="${escapeAttr(String(v.id || ""))}" title="Ver ficha técnica del vehículo">${IC.eye} Ver detalles</button>`,
+        `<button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--solid" data-action="view-vehicle" data-id="${escapeAttr(String(v.id || ""))}" title="Ver ficha técnica del vehículo">${IC.eye} Ver detalles</button>`,
         canEditVeh
-          ? `<button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--solid" data-action="edit-vehicle" data-id="${escapeAttr(String(v.id || ""))}" title="Editar datos del vehículo">${IC.edit} Editar información</button>`
+          ? `<button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--outline" data-action="edit-vehicle" data-id="${escapeAttr(String(v.id || ""))}" title="Editar datos del vehículo">${IC.edit} Editar información</button>`
           : ""
       ]
         .filter(Boolean)
@@ -933,10 +933,10 @@ function vehiclesHtml() {
         <td data-label="Tecno"><span class="vehicle-fleet-list-doc">${escapeHtml(tecno.label)}</span></td>
         <td data-label="Cap.">${escapeHtml(capacityLabel)}</td>
         <td data-label="Acciones" class="vehicle-fleet-list-actions"><div class="toolbar">
-          <button type="button" class="btn btn-sm btn-outline" data-action="view-vehicle" data-id="${escapeAttr(String(v.id || ""))}" title="Ver ficha">${IC.eye} Ver</button>
-          ${canEditVeh ? `<button type="button" class="btn btn-sm btn-action" data-action="edit-vehicle" data-id="${escapeAttr(String(v.id || ""))}">${IC.edit} Editar</button>` : ""}
-          ${canToggleVeh ? `<button type="button" class="btn btn-sm btn-action" data-action="toggle-vehicle" data-id="${escapeAttr(String(v.id || ""))}">${IC.toggle} Estado</button>` : ""}
-          ${canDeleteVeh ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-vehicle" data-id="${escapeAttr(String(v.id))}">${IC.trash} Eliminar</button>` : ""}
+          <button type="button" class="btn btn-sm btn-outline" data-action="view-vehicle" data-id="${escapeAttr(String(v.id || ""))}" title="Ver ficha" aria-label="Ver ficha">${IC.eye}</button>
+          ${canEditVeh ? `<button type="button" class="btn btn-sm btn-action" data-action="edit-vehicle" data-id="${escapeAttr(String(v.id || ""))}" title="Editar" aria-label="Editar">${IC.edit}</button>` : ""}
+          ${canToggleVeh ? `<button type="button" class="btn btn-sm btn-action" data-action="toggle-vehicle" data-id="${escapeAttr(String(v.id || ""))}" title="Cambiar estado" aria-label="Cambiar estado">${IC.toggle}</button>` : ""}
+          ${canDeleteVeh ? `<button type="button" class="btn btn-sm btn-reject" data-action="delete-vehicle" data-id="${escapeAttr(String(v.id))}" title="Eliminar" aria-label="Eliminar">${IC.trash}</button>` : ""}
         </div></td>
       </tr>`;
     })
