@@ -10,61 +10,124 @@
       body { background: #fff; margin: 0; padding: 2rem 1.25rem 4rem; font-family: var(--font-secondary, system-ui); color: #0f172a; }
       main { max-width: 1100px; margin: 0 auto; }
       h1 { font-size: 1.5rem; margin: 0 0 .25rem; }
-      h2 { font-size: 1rem; margin: 2rem 0 .75rem; color: #334155; }
-      p.lead { margin: 0 0 1rem; color: #475569; font-size: .9rem; }
-      table { border-collapse: collapse; width: 100%; }
-      th, td { text-align: left; padding: .5rem .6rem; border-bottom: 1px solid #eef1f5; vertical-align: middle; font-size: .8rem; color: #475569; }
+      .lead { margin: 0 0 1.25rem; color: #475569; font-size: .9rem; }
+      .panel { border: 1px solid #e8ecf2; border-radius: 16px; padding: 1rem 1.15rem 1.15rem; margin: 0 0 1rem; background: #fff; }
+      .panel h2 { display: flex; align-items: center; gap: .55rem; font-size: .98rem; margin: 0 0 .85rem; color: #1e293b; }
+      .panel h2::before { content: ""; width: 4px; height: 1.05rem; border-radius: 4px; background: #377cc0; }
+      .row { display: flex; flex-wrap: wrap; gap: .75rem 1rem; align-items: center; }
+      .row + .row { margin-top: .85rem; }
+      .states { display: grid; grid-template-columns: repeat(auto-fit, minmax(5.2rem, 1fr)); gap: .6rem 1rem; text-align: center; font-size: .75rem; color: #475569; }
+      .states .ab { width: 100%; }
+      .split { display: grid; grid-template-columns: 1.4fr 1fr; gap: 1rem; }
+      @media (max-width: 760px) { .split { grid-template-columns: 1fr; } }
+      .preview-card { position: relative; margin: 0 auto; }
+      .legend { display: flex; flex-wrap: wrap; gap: .5rem 1.2rem; font-size: .8rem; color: #475569; }
+      .legend .dot { display: inline-block; width: .8rem; height: .8rem; border-radius: 50%; background: var(--ab-c); margin-right: .4rem; vertical-align: -1px; }
+      details { margin-top: 1.25rem; }
+      summary { cursor: pointer; font-weight: 600; color: #334155; }
+      table { border-collapse: collapse; width: 100%; margin-top: .75rem; }
+      th, td { text-align: left; padding: .45rem .6rem; border-bottom: 1px solid #eef1f5; vertical-align: middle; font-size: .8rem; color: #475569; }
       th { font-weight: 600; color: #0f172a; }
-      .row { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; }
-      .dark { background: #0d1c30; padding: 1rem; border-radius: 12px; margin-top: .5rem; }
-      .sw { display: inline-block; width: .9rem; height: .9rem; border-radius: 4px; vertical-align: -2px; margin-right: .4rem; }
+      body[data-theme="dark"] { background: #0d1c30; color: #e2e8f0; }
+      body[data-theme="dark"] .panel { background: #12233a; border-color: rgba(148, 196, 255, 0.2); }
+      body[data-theme="dark"] .panel h2, body[data-theme="dark"] summary { color: #e2e8f0; }
+      body[data-theme="dark"] .lead, body[data-theme="dark"] .states, body[data-theme="dark"] .legend, body[data-theme="dark"] th, body[data-theme="dark"] td { color: #aeb9c9; }
+      body[data-theme="dark"] .legend .dot { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25); }
     </style>
   </head>
   <body>
     <main id="demo">
       <h1>Botones de acción</h1>
-      <p class="lead">Una familia para todo el portal: 12 acciones × 3 variantes (primary · outline · ghost) con estados normal, hover, active, disabled y loading.</p>
-      <div id="matrix"></div>
-      <h2>Tamaños, solo ícono y bloque</h2>
-      <div class="row" id="sizes"></div>
-      <h2>Agrupación de acciones (se apila en móvil)</h2>
-      <div id="group"></div>
-      <h2>Confirmaciones</h2>
-      <div class="row" id="confirm"></div>
-      <h2>Tema oscuro</h2>
-      <div class="dark" id="dark"></div>
+      <p class="lead">Una sola familia para todo el portal: 12 acciones con color propio en cuatro variantes (relleno, borde, sin fondo y suave), con estados normal, hover, clic, deshabilitado y cargando.</p>
+
+      <section class="panel"><h2>Botones primarios (relleno sólido)</h2><div class="row" id="primary-1"></div><div class="row" id="primary-2"></div></section>
+      <section class="panel"><h2>Botones outline (borde)</h2><div class="row" id="outline-1"></div><div class="row" id="outline-2"></div></section>
+      <section class="panel"><h2>Botones ghost (sin fondo)</h2><div class="row" id="ghost-1"></div><div class="row" id="ghost-2"></div></section>
+      <section class="panel"><h2>Botones suaves (fondo tenue)</h2><div class="row" id="soft"></div></section>
+      <section class="panel"><h2>Botones de aviso</h2><div class="row" id="status"></div></section>
+
+      <div class="split">
+        <section class="panel"><h2>Estados de los botones</h2><div class="states" id="states"></div></section>
+        <section class="panel">
+          <h2>Ejemplo de confirmación (Eliminar)</h2>
+          <div class="preview-card" id="confirm-preview"></div>
+          <div class="row" style="margin-top:.9rem" id="confirm-live"></div>
+        </section>
+      </div>
+
+      <section class="panel"><h2>Colores por acción</h2><div class="legend" id="legend"></div></section>
+      <section class="panel"><h2>Tamaños, solo ícono y ancho completo</h2><div class="row" id="sizes"></div></section>
+      <section class="panel"><h2>Agrupación de acciones (se apila en móvil)</h2><div id="group"></div></section>
+      <section class="panel"><h2>Tema oscuro</h2><div class="row" id="theme"></div></section>
+
+      <details><summary>Matriz completa de estados (todas las acciones y variantes)</summary><div id="matrix"></div></details>
     </main>
     <script type="module">
-      import { actionButton, actionGroup, ACTION_BUTTONS, setButtonLoading, installActionButtons } from "../modules/ui/action-buttons.js";
-      const keys = Object.keys(ACTION_BUTTONS);
-      const states = [["normal", {}], ["hover", { className: "is-hover" }], ["active", { className: "is-pressed" }], ["disabled", { disabled: true }], ["loading", { loading: true }]];
-      let html = "";
-      for (const variant of ["primary", "outline", "ghost"]) {
-        html += `<h2>${variant}</h2><table><thead><tr><th>Acción</th>${states.map(([n]) => `<th>${n}</th>`).join("")}</tr></thead><tbody>`;
-        for (const k of keys) {
-          html += `<tr><td>${k}</td>${states.map(([, o]) => `<td>${actionButton({ action: k, variant, confirm: false, ...o })}</td>`).join("")}</tr>`;
-        }
-        html += "</tbody></table>";
+      import { actionButton, actionGroup, lucideIcon, ACTION_BUTTONS, installActionButtons } from "../modules/ui/action-buttons.js";
+      const $ = (id) => document.getElementById(id);
+      const nc = { confirm: false };
+      const rowA = ["aceptar", "cancelar", "eliminar", "guardar", "editar"];
+      const rowB = ["nuevo", "buscar", "regresar", "descargar", "imprimir", "enviar", "cerrar"];
+      for (const v of ["primary", "outline", "ghost"]) {
+        $(`${v}-1`).innerHTML = rowA.map((a) => actionButton({ action: a, variant: v, ...nc })).join("");
+        $(`${v}-2`).innerHTML = rowB.map((a) => actionButton({ action: a, variant: v, ...nc })).join("");
       }
-      document.getElementById("matrix").innerHTML = html;
-      document.getElementById("sizes").innerHTML = [
+      $("soft").innerHTML = [
+        actionButton({ action: "compartir", variant: "soft" }),
+        actionButton({ action: "marcador", variant: "soft" }),
+        actionButton({ action: "imprimir", tone: "neutral", variant: "soft" }),
+        actionButton({ action: "copiar", variant: "soft" }),
+        actionButton({ action: "eliminar", variant: "soft", ...nc })
+      ].join("");
+      $("status").innerHTML = [
+        actionButton({ action: "exito" }),
+        actionButton({ action: "info" }),
+        actionButton({ action: "aviso" }),
+        actionButton({ action: "error" }),
+        actionButton({ action: "", tone: "neutral", variant: "soft", label: "Deshabilitado", icon: false, disabled: true })
+      ].join("");
+      const icon = { action: "aceptar", iconOnly: true, ...nc };
+      $("states").innerHTML = [
+        ["Normal", {}],
+        ["Hover", { className: "is-hover" }],
+        ["Activo (clic)", { className: "is-pressed" }],
+        ["Deshabilitado", { disabled: true }],
+        ["Cargando", { loading: true }]
+      ].map(([n, o]) => `<div>${actionButton({ ...icon, ...o, attrs: { style: "width:100%" }, title: n })}<div style="margin-top:.4rem">${n}</div></div>`).join("");
+      $("confirm-preview").innerHTML = `<div class="ab-confirm__card ab-confirm__card--eliminar">
+        <div class="ab-confirm__icon" aria-hidden="true">${lucideIcon("circleAlert")}</div>
+        <div class="ab-confirm__body"><h3 class="ab-confirm__title">¿Eliminar registro?</h3><p class="ab-confirm__message">Esta acción no se puede deshacer.</p></div>
+        <div class="ab-confirm__actions">${actionButton({ action: "cancelar", variant: "soft", icon: false })}${actionButton({ action: "eliminar", variant: "primary", confirm: false })}</div>
+      </div>`;
+      $("confirm-live").innerHTML = actionButton({ action: "eliminar", variant: "outline", id: "demo-del", label: "Probar confirmación real", confirm: { title: "Eliminar viaje", message: "Se eliminará el viaje VIA-002 y su tarifa. Esta acción no se puede deshacer.", confirmText: "Sí, eliminar" } });
+      const legendKeys = ["aceptar", "cancelar", "eliminar", "guardar", "editar", "nuevo", "buscar", "regresar", "descargar", "imprimir", "enviar", "cerrar"];
+      $("legend").innerHTML = legendKeys.map((k) => `<span class="ab--${ACTION_BUTTONS[k].tone}"><i class="dot"></i>${ACTION_BUTTONS[k].label}</span>`).join("");
+      $("sizes").innerHTML = [
         actionButton({ action: "guardar" }),
         actionButton({ action: "guardar", size: "sm" }),
         actionButton({ action: "editar", variant: "outline", iconOnly: true }),
-        actionButton({ action: "eliminar", variant: "outline", iconOnly: true, size: "sm", confirm: false }),
+        actionButton({ action: "eliminar", variant: "outline", iconOnly: true, size: "sm", ...nc }),
         actionButton({ action: "consultar", variant: "ghost", iconOnly: true }),
         actionButton({ action: "descargar", variant: "outline", block: true })
       ].join("");
-      document.getElementById("group").innerHTML = actionGroup([
-        actionButton({ action: "cancelar", variant: "outline" }),
+      $("group").innerHTML = actionGroup([
+        actionButton({ action: "cancelar", variant: "soft", icon: false }),
         actionButton({ action: "guardar", variant: "primary", type: "submit" })
       ]);
-      document.getElementById("confirm").innerHTML = [
-        actionButton({ action: "eliminar", variant: "outline", id: "demo-del", confirm: { title: "Eliminar viaje", message: "Se eliminará el viaje VIA-002 y su tarifa. Esta acción no se puede deshacer.", confirmText: "Sí, eliminar" } })
-      ].join("");
-      document.getElementById("dark").innerHTML = '<div class="row">' + keys.map((k) => actionButton({ action: k, variant: "outline", confirm: false })).join("") + "</div><div class='row' style='margin-top:.6rem'>" + keys.map((k) => actionButton({ action: k, variant: "primary", confirm: false })).join("") + "</div>";
+      const keys = Object.keys(ACTION_BUTTONS);
+      const states = [["Normal", {}], ["Hover", { className: "is-hover" }], ["Clic", { className: "is-pressed" }], ["Deshabilitado", { disabled: true }], ["Cargando", { loading: true }]];
+      let html = "";
+      for (const variant of ["primary", "outline", "ghost", "soft"]) {
+        html += `<h3>${variant}</h3><table><thead><tr><th>Acción</th>${states.map(([n]) => `<th>${n}</th>`).join("")}</tr></thead><tbody>`;
+        for (const k of keys) html += `<tr><td>${k}</td>${states.map(([, o]) => `<td>${actionButton({ action: k, variant, ...nc, ...o })}</td>`).join("")}</tr>`;
+        html += "</tbody></table>";
+      }
+      $("matrix").innerHTML = html;
+      $("theme").innerHTML = actionButton({ action: "", tone: "neutral", variant: "soft", label: "Alternar tema oscuro", icon: false, id: "demo-theme" });
       document.body.dataset.theme = "light";
-      document.querySelector(".dark").setAttribute("data-theme-demo", "dark");
+      $("demo-theme").addEventListener("click", () => {
+        document.body.dataset.theme = document.body.dataset.theme === "dark" ? "light" : "dark";
+      });
       installActionButtons();
     </script>
   </body>

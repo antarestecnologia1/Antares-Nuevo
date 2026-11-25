@@ -31,7 +31,14 @@ for (const k of REQUESTED) {
 }
 ok(ACTION_BUTTONS.confirmar.tone === "aceptar" && ACTION_BUTTONS.consultar.tone === "buscar", "confirmar→verde, consultar→gris azulado");
 ok(["anular", "rechazar"].every((k) => ACTION_BUTTONS[k].tone === "eliminar"), "anular/rechazar comparten el rojo");
-ok(JSON.stringify([...ACTION_BUTTON_VARIANTS]) === JSON.stringify(["primary", "outline", "ghost"]), "variantes primary/outline/ghost");
+ok(JSON.stringify([...ACTION_BUTTON_VARIANTS]) === JSON.stringify(["primary", "outline", "ghost", "soft"]), "variantes primary/outline/ghost/soft");
+for (const k of ["exito", "info", "aviso", "error"]) ok(ACTION_TONES.includes(k) && ACTION_BUTTONS[k].tone === k, `falta el tono de aviso «${k}»`);
+ok(ACTION_BUTTONS.compartir.tone === "neutral" && ACTION_BUTTONS.copiar.icon === "link" && ACTION_BUTTONS.marcador.icon === "bookmark", "acciones neutras: compartir, copiar enlace, marcador");
+
+/* Todo en español: etiquetas por defecto del catálogo */
+const ETIQUETAS = { aceptar: "Aceptar", confirmar: "Confirmar", cancelar: "Cancelar", eliminar: "Eliminar", anular: "Anular", rechazar: "Rechazar", guardar: "Guardar", editar: "Editar", nuevo: "Nuevo", buscar: "Buscar", consultar: "Consultar", regresar: "Regresar", descargar: "Descargar", imprimir: "Imprimir", enviar: "Enviar", cerrar: "Cerrar", compartir: "Compartir", copiar: "Copiar enlace", marcador: "Guardar", exito: "Éxito", info: "Información", aviso: "Advertencia", error: "Error" };
+for (const [k, def] of Object.entries(ACTION_BUTTONS)) ok(ETIQUETAS[k] === def.label, `la etiqueta de «${k}» debe estar en español: «${ETIQUETAS[k]}» (hay «${def.label}»)`);
+ok(Object.keys(ETIQUETAS).length === Object.keys(ACTION_BUTTONS).length, "el catálogo y las etiquetas esperadas coinciden");
 
 /* 2) CSS: tonos, variantes, estados, capa y contraste */
 ok(/@layer\s+antares-buttons\s*\{/.test(css), "el CSS debe ir en @layer antares-buttons (gana a los !important antiguos)");
@@ -43,11 +50,21 @@ const contrast = (a, b) => {
   const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p);
   return (x + 0.05) / (y + 0.05);
 };
+const toneBlock = (tone) => {
+  const m = css.match(new RegExp(`\\.ab--${tone}\\s*\\{([^}]*)\\}`));
+  if (!m) return null;
+  return Object.fromEntries([...m[1].matchAll(/--ab-([a-z-]+):\s*([^;]+);/g)].map((x) => [x[1], x[2].trim()]));
+};
 for (const tone of ACTION_TONES) {
-  const m = css.match(new RegExp(`\\.ab--${tone}\\s*\\{[^}]*--ab-c:\\s*(#[0-9a-f]{6})[^}]*--ab-ch:[^}]*--ab-ca:[^}]*--ab-soft:[^}]*--ab-line:[^}]*--ab-rgb:[^}]*--ab-fg-dark:`, "i"));
-  ok(m, `tono «${tone}» incompleto en el CSS (--ab-c/ch/ca/soft/line/rgb/fg-dark)`);
-  ok(contrast(m[1], "#ffffff") >= 4.5, `contraste AA: texto blanco sobre ${tone} ${m[1]} = ${contrast(m[1], "#ffffff").toFixed(2)} (< 4.5)`);
+  const t = toneBlock(tone);
+  ok(t, `tono «${tone}» sin definir en el CSS`);
+  for (const k of ["cl", "c", "cd", "ch", "ca", "soft", "line", "rgb", "fg-dark"]) ok(t[k], `tono «${tone}» sin --ab-${k}`);
+  const fg = t.on || "#ffffff";
+  for (const stop of ["cl", "c"]) ok(contrast(t[stop], fg) >= 4.5, `contraste AA: texto ${fg} sobre ${tone} (${stop}) ${t[stop]} = ${contrast(t[stop], fg).toFixed(2)} (< 4.5)`);
 }
+ok(/--ab-radius:\s*999px/.test(css), "forma de píldora por defecto");
+ok(/linear-gradient\(180deg,\s*var\(--ab-cl\)/.test(css), "«primary» usa degradado vertical suave");
+ok(/color-mix\(/.test(css), "estado deshabilitado con tinte del propio color");
 for (const v of ACTION_BUTTON_VARIANTS) ok(new RegExp(`\\.ab\\.ab--${v}\\s*\\{`).test(css), `variante ${v} sin definir`);
 const mustHave = [
   [":is(:hover, .is-hover)", "hover"],
@@ -62,7 +79,7 @@ const mustHave = [
   [".ab-confirm", "diálogo de confirmación"]
 ];
 for (const [needle, name] of mustHave) ok(css.includes(needle), `CSS sin estilo de ${name}`);
-ok(!/text-transform:\s*uppercase/.test(css) && !/linear-gradient|radial-gradient/.test(css), "sin mayúsculas sostenidas ni degradados");
+ok(!/text-transform:\s*uppercase/.test(css), "sin mayúsculas sostenidas");
 
 /* 3) Íconos Lucide embebidos */
 for (const [k, def] of Object.entries(ACTION_BUTTONS)) {
@@ -75,6 +92,9 @@ const del = actionButton({ action: "eliminar", variant: "outline", dataAction: "
 ok(/data-ab-confirm="1"/.test(del) && /data-action="delete-x"/.test(del) && /data-id="7"/.test(del), "«eliminar» debe pedir confirmación por defecto");
 ok(!/data-ab-confirm/.test(actionButton({ action: "eliminar", confirm: false })), "confirm:false omite la confirmación");
 ok(/ab--eliminar ab--outline/.test(del) && /class="btn ab /.test(del), "clases de familia");
+const soft = actionButton({ action: "imprimir", tone: "neutral", variant: "soft" });
+ok(/ab--neutral ab--soft/.test(soft) && /data-ab-action="imprimir"/.test(soft) && />Imprimir</.test(soft), "variante soft y tono alternativo (tone)");
+ok(/ab--exito ab--primary/.test(actionButton({ action: "exito" })) && />Éxito</.test(actionButton({ action: "exito" })), "botón de aviso «Éxito»");
 const icon = actionButton({ action: "editar", iconOnly: true, size: "sm" });
 ok(/aria-label="Editar"/.test(icon) && /ab--icon/.test(icon) && !/ab__label/.test(icon), "solo ícono con aria-label");
 const loading = actionButton({ action: "guardar", loading: true });

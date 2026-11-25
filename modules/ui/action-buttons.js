@@ -1,11 +1,15 @@
 /**
  * Sistema de botones de acción · Portal Antares
  * ---------------------------------------------------------------------------
- * Una sola familia de botones para todo el portal:
+ * Una sola familia de botones para todo el portal (estilo «píldora»: degradado suave,
+ * brillo superior y sombra del mismo color):
  *   · 12 acciones con color propio (aceptar, cancelar, eliminar, guardar, editar,
- *     nuevo, buscar/consultar, regresar, descargar, imprimir, enviar, cerrar).
- *   · 3 variantes por acción: primary (fondo de color), outline y ghost.
- *   · Estados: normal, hover, active, disabled y loading (aria-busy).
+ *     nuevo, buscar/consultar, regresar, descargar, imprimir, enviar, cerrar),
+ *     más acciones neutras (compartir, copiar enlace, marcador) y de aviso
+ *     (éxito, información, advertencia, error).
+ *   · 4 variantes por acción: primary (relleno), outline (borde), ghost (sin fondo)
+ *     y soft (fondo tenue).
+ *   · Estados: normal, hover, clic (active), deshabilitado y cargando (aria-busy).
  *   · Íconos Lucide (https://lucide.dev, licencia ISC) incrustados: sin CDN.
  *
  * Uso en plantillas nuevas:
@@ -41,6 +45,11 @@ const LUCIDE = {
   printer: '<path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 9V3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v6"/><rect x="6" y="14" width="12" height="8" rx="1"/>',
   send: '<path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/>',
   loader: '<path d="M21 12a9 9 0 1 1-6.219-8.56"/>',
+  share: '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/>',
+  link: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+  bookmark: '<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/>',
+  info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+  circleAlert: '<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>',
   alert: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
   eye: '<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>',
   undo: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>'};
@@ -70,19 +79,24 @@ export const ACTION_TONES = Object.freeze([
   "imprimir",
   "enviar",
   "cerrar",
-  "neutral"
+  "neutral",
+  "exito",
+  "info",
+  "aviso",
+  "error"
 ]);
 
-export const ACTION_BUTTON_VARIANTS = Object.freeze(["primary", "outline", "ghost"]);
+/** primary = relleno · outline = borde · ghost = sin fondo · soft = fondo tenue. */
+export const ACTION_BUTTON_VARIANTS = Object.freeze(["primary", "outline", "ghost", "soft"]);
 
 /**
  * Catálogo de acciones. `anular` y `rechazar` comparten el rojo de «eliminar»
  * pero no piden la confirmación de borrado (su flujo ya pide motivo/confirmación).
  */
 export const ACTION_BUTTONS = Object.freeze({
-  aceptar: { label: "Aceptar", icon: "check", tone: "aceptar" },
+  aceptar: { label: "Aceptar", icon: "circleCheck", tone: "aceptar" },
   confirmar: { label: "Confirmar", icon: "circleCheck", tone: "aceptar" },
-  cancelar: { label: "Cancelar", icon: "undo", tone: "cancelar" },
+  cancelar: { label: "Cancelar", icon: "x", tone: "cancelar" },
   eliminar: { label: "Eliminar", icon: "trash", tone: "eliminar" },
   anular: { label: "Anular", icon: "ban", tone: "eliminar" },
   rechazar: { label: "Rechazar", icon: "circleX", tone: "eliminar" },
@@ -95,7 +109,14 @@ export const ACTION_BUTTONS = Object.freeze({
   descargar: { label: "Descargar", icon: "download", tone: "descargar" },
   imprimir: { label: "Imprimir", icon: "printer", tone: "imprimir" },
   enviar: { label: "Enviar", icon: "send", tone: "enviar" },
-  cerrar: { label: "Cerrar", icon: "x", tone: "cerrar" }
+  cerrar: { label: "Cerrar", icon: "x", tone: "cerrar" },
+  compartir: { label: "Compartir", icon: "share", tone: "neutral" },
+  copiar: { label: "Copiar enlace", icon: "link", tone: "neutral" },
+  marcador: { label: "Guardar", icon: "bookmark", tone: "neutral" },
+  exito: { label: "Éxito", icon: "circleCheck", tone: "exito" },
+  info: { label: "Información", icon: "info", tone: "info" },
+  aviso: { label: "Advertencia", icon: "alert", tone: "aviso" },
+  error: { label: "Error", icon: "circleX", tone: "error" }
 });
 
 const esc = (v) =>
@@ -116,8 +137,9 @@ const DEFAULT_DELETE_CONFIRM = Object.freeze({
  * Genera el HTML de un botón de la familia.
  * @param {object} o
  * @param {string} o.action        clave de ACTION_BUTTONS
- * @param {"primary"|"outline"|"ghost"} [o.variant="primary"]
+ * @param {"primary"|"outline"|"ghost"|"soft"} [o.variant="primary"]
  * @param {"md"|"sm"} [o.size="md"]
+ * @param {string} [o.tone]        color distinto al de la acción (ej. «neutral» para un «Imprimir» gris)
  * @param {string} [o.label]       texto (por defecto el de la acción)
  * @param {string|false} [o.icon]  clave Lucide, SVG propio o false para ocultar
  * @param {boolean} [o.iconOnly]   solo ícono (usa aria-label)
@@ -131,6 +153,7 @@ const DEFAULT_DELETE_CONFIRM = Object.freeze({
 export function actionButton(o = {}) {
   const def = ACTION_BUTTONS[o.action] || { label: "", icon: "", tone: "neutral" };
   const variant = ACTION_BUTTON_VARIANTS.includes(o.variant) ? o.variant : "primary";
+  const tone = ACTION_TONES.includes(o.tone) ? o.tone : def.tone;
   const small = o.size === "sm";
   const iconOnly = Boolean(o.iconOnly);
   const label = iconOnly ? "" : String(o.label ?? def.label);
@@ -142,7 +165,7 @@ export function actionButton(o = {}) {
   const classes = [
     "btn",
     "ab",
-    `ab--${def.tone}`,
+    `ab--${tone}`,
     `ab--${variant}`,
     small ? "ab--sm" : "",
     iconOnly ? "ab--icon" : "",
@@ -467,11 +490,14 @@ export function openActionConfirm(opts = {}) {
     layer.setAttribute("aria-labelledby", `${uid}-t`);
     layer.setAttribute("aria-describedby", `${uid}-m`);
     layer.innerHTML = `<div class="ab-confirm__card ab-confirm__card--${esc(tone)}">
-      <div class="ab-confirm__icon" aria-hidden="true">${lucideIcon("alert")}</div>
-      <h2 class="ab-confirm__title" id="${uid}-t">${esc(title)}</h2>
-      ${message ? `<p class="ab-confirm__message" id="${uid}-m">${esc(message)}</p>` : ""}
+      ${actionButton({ action: "cerrar", variant: "ghost", size: "sm", iconOnly: true, className: "ab-confirm__x", attrs: { "data-ab-role": "cancel", tabindex: "-1" } })}
+      <div class="ab-confirm__icon" aria-hidden="true">${lucideIcon(destructive ? "circleAlert" : "info")}</div>
+      <div class="ab-confirm__body">
+        <h2 class="ab-confirm__title" id="${uid}-t">${esc(title)}</h2>
+        ${message ? `<p class="ab-confirm__message" id="${uid}-m">${esc(message)}</p>` : ""}
+      </div>
       <div class="ab-confirm__actions">
-        ${actionButton({ action: "cancelar", variant: "outline", label: cancelText, icon: false, attrs: { "data-ab-role": "cancel" } })}
+        ${actionButton({ action: "cancelar", variant: "soft", label: cancelText, icon: false, attrs: { "data-ab-role": "cancel" } })}
         ${actionButton({ action: destructive ? "eliminar" : tone, variant: "primary", label: confirmText, icon: icon || (destructive ? "trash" : undefined), confirm: false, attrs: { "data-ab-role": "confirm" } })}
       </div>
     </div>`;
@@ -487,7 +513,7 @@ export function openActionConfirm(opts = {}) {
       } catch (_e) {}
       resolve(Boolean(value));
     };
-    const cancelBtn = () => layer.querySelector("[data-ab-role='cancel']");
+    const cancelBtn = () => layer.querySelector(".ab-confirm__actions [data-ab-role='cancel']");
     const okBtn = () => layer.querySelector("[data-ab-role='confirm']");
     function onKey(e) {
       if (e.key === "Escape") {
