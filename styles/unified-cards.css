@@ -2734,4 +2734,61 @@
     }
   }
 
+  /* ───────── Banner de Contratación: etiqueta + conmutador arriba, indicadores en una sola fila ───────── */
+  .hiring-studio > .hr-workspace-header--hiring {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    grid-template-areas: "brand switch" !important;
+    align-items: center !important;
+    gap: 0.75rem 1.5rem !important;
+    padding-right: 0 !important;
+    padding-left: 0 !important;
+  }
+  .hiring-studio > .hr-workspace-header--hiring:has(.hiring-studio-kpis) {
+    grid-template-areas: "brand switch" "kpis kpis" !important;
+  }
+  .hiring-studio > .hr-workspace-header--hiring > .hiring-studio-head {
+    display: contents !important;
+  }
+  .hiring-studio > .hr-workspace-header--hiring .hiring-studio-head__brand {
+    grid-area: brand !important;
+    display: flex !important;
+    align-items: center !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+  }
+  .hiring-studio > .hr-workspace-header--hiring .hiring-studio-kpis.kpi-banner {
+    grid-area: kpis !important;
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(max(10.5rem, 18.5%), 1fr)) !important;
+    justify-content: stretch !important;
+    gap: 0.7rem !important;
+    width: 100% !important;
+    margin: 0 !important;
+  }
+  .hiring-studio > .hr-workspace-header--hiring .hiring-studio-kpis.kpi-banner > .kpi-tile {
+    min-height: 4rem !important;
+  }
+  .hiring-studio > .hr-workspace-header--hiring > .hr-workspace-header__switch {
+    grid-area: switch !important;
+    justify-self: end !important;
+    align-self: center !important;
+    margin: 0 !important;
+  }
+  @media (max-width: 900px) {
+    .hiring-studio > .hr-workspace-header--hiring:has(.hiring-studio-kpis) {
+      grid-template-columns: minmax(0, 1fr) !important;
+      grid-template-areas: "brand" "switch" "kpis" !important;
+    }
+    .hiring-studio > .hr-workspace-header--hiring > .hr-workspace-header__switch {
+      justify-self: stretch !important;
+      width: 100% !important;
+    }
+  }
+  body[data-theme="dark"] .hiring-studio > .hr-workspace-header--hiring {
+    border-color: transparent !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
 }

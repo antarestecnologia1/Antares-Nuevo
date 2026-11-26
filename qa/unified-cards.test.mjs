@@ -110,4 +110,10 @@ ok(conductores.includes('class="ag-fleet__kpis-wrap"'), "indicadores dentro de s
 ok(/\.ag-fleet__kpis-wrap\s*\{[^}]*container-type:\s*inline-size/.test(css) && /@container \(max-width: 55\.99rem\)/.test(css), "los indicadores pasan de 4 en fila a 2×2 según el ancho del contenedor");
 ok(/\.ag-fleet__head--drivers\s*\{[^}]*padding:\s*0\.8rem 1\.1rem/.test(css), "cabecera delgada");
 
+// Banner de Contratación: etiqueta + conmutador arriba, indicadores en una fila
+ok(/\.hiring-studio > \.hr-workspace-header--hiring\s*\{[^}]*grid-template-areas:\s*"brand switch"/.test(css), "Contratación: etiqueta y conmutador en la misma fila");
+ok(/\.hiring-studio-head\s*\{[^}]*display:\s*contents/.test(css), "Contratación: la cabecera interna reparte sus piezas en la rejilla");
+ok(/\.hiring-studio-kpis\.kpi-banner\s*\{[^}]*grid-template-columns:\s*repeat\(auto-fit, minmax\(max\(10\.5rem, 18\.5%\), 1fr\)\)/.test(css), "Contratación: indicadores repartidos a todo el ancho");
+ok(/@media \(max-width: 900px\)\s*\{[^}]*hiring-studio-kpis/.test(css) || /grid-template-areas:\s*"brand" "switch" "kpis"/.test(css), "Contratación: en pantallas angostas se apila");
+
 console.log(`unified-cards: ${n} verificaciones OK`);
