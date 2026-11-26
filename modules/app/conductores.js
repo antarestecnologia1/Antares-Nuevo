@@ -154,10 +154,10 @@ const DRIVER_EXPORT_HEADERS = [
     note: "El archivo incluye documentos de identidad: guárdelo y compártalo con cuidado.",
     deniedMessage: "No tiene permiso para exportar conductores.",
     allowed: () => typeof canDo !== "function" || canDo(undefined, "drivers", "export"),
-    anchor: (root) => root.querySelector(".ag-pass-grid") || root.querySelector(".ag-fleet-table-wrap"),
-    itemSelector: ".ag-pass[data-driver-id], .driver-fleet-table tr[data-driver-id]",
+    anchor: (root) => root.querySelector(".ag-pass-grid") || root.querySelector(".ag-lrow-list") || root.querySelector(".ag-fleet-table-wrap"),
+    itemSelector: ".ag-pass[data-driver-id], .ag-lrow[data-driver-id], .driver-fleet-table tr[data-driver-id]",
     idOf: (el) => String(el.dataset.driverId || ""),
-    pickHost: (el) => el.querySelector(".ag-pass__head") || el,
+    pickHost: (el) => el.querySelector(".ag-pass__head, .ag-lrow__head") || el,
     records: () => (Array.isArray(driversExportSnapshot) ? driversExportSnapshot : []),
     recordId: (item) => String(item.raw?.id || ""),
     columns: DRIVER_EXPORT_HEADERS.map((label, index) => ({
@@ -385,15 +385,6 @@ function driversHtml() {
       photo ? `<img src="${escapeAttr(photo)}" alt="" loading="lazy" />` : escapeHtml(initialsOf(name))
     }</span>`;
   };
-  const vehicleChipsHtml = (csv) => {
-    const label = driverVehicleTypesCsvToLabel(csv, "");
-    if (!label) return '<span class="ag-tag ag-tag--muted">Sin categoría</span>';
-    return label
-      .split(/\s*,\s*/)
-      .filter(Boolean)
-      .map((v) => `<span class="ag-tag ag-tag--vehicle">${IC.truck}${escapeHtml(v)}</span>`)
-      .join("");
-  };
 
   const renderDriverCard = (item) => {
     const d = item.raw;
@@ -537,51 +528,93 @@ function driversHtml() {
 
   const cardsHtml = visibleDriverSummaries.map(renderDriverCard).join("");
 
+  const listStatusIcon = (slug) =>
+    slug === "offline" ? IC.x : slug === "busy" ? IC.activity : slug === "scheduled" ? IC.clock : IC.checkCircle;
   const driverListRows = visibleDriverSummaries
     .map((item) => {
       const d = item.raw;
       const id = String(d.id ?? "");
+      const name = String(d.name || "Conductor");
       const days = item.licenseMeta.days;
-      const licenseText =
-        item.licenseMeta.bucket === "missing"
-          ? "Sin fecha"
-          : item.licenseMeta.bucket === "expired"
-            ? `Vencida · ${Math.abs(days)}d`
-            : `${days}d restantes`;
-      return `<tr data-driver-id="${escapeAttr(id)}" class="ag-row ag-row--${escapeAttr(item.statusSlug)}">
-        <td data-label="Conductor">
-          <div class="ag-row__who">
-            ${avatarHtml(d, item.statusSlug, "sm")}
-            <div><strong>${escapeHtml(String(d.name || "—"))}</strong><span>${escapeHtml(String(d.idDoc || "—"))} · ${escapeHtml(item.companyName)}</span></div>
+      const bucket = item.licenseMeta.bucket;
+      const licenseTone = bucket === "expired" ? "alert" : bucket === "ok" ? "ok" : "warn";
+      const licenseCategory = String(d.licenseCategory || "").trim() || "—";
+      const licenseNumber = String(d.license || "").trim() || "Sin número";
+      const expiryYmd = normalizePortalDateYmd(d.licenseExpiry);
+      const licenseCaption =
+        bucket === "missing"
+          ? "Sin fecha de vencimiento"
+          : bucket === "expired"
+            ? `${Math.abs(days)} día${Math.abs(days) === 1 ? "" : "s"} vencido${Math.abs(days) === 1 ? "" : "s"}`
+            : days === 0
+              ? "Vence hoy"
+              : `Quedan ${days} día${days === 1 ? "" : "s"}`;
+      const phoneRaw = String(d.phone || "").replace(/[^\d+]/g, "");
+      const phoneLabel = d.phone ? formatPortalPhoneForDisplay(String(d.phone)) : "";
+      const vehicleList = String(driverVehicleTypesCsvToLabel(d.vehicleTypes, "") || "")
+        .split(/\s*,\s*/)
+        .filter(Boolean);
+      const vehicleChip = vehicleList.length
+        ? `${vehicleList[0]}${vehicleList.length > 1 ? ` +${vehicleList.length - 1}` : ""}`
+        : "Sin categoría";
+      const trip = item.occupancy.trip;
+      const tripLine = trip
+        ? `Viaje ${String(trip.trip?.tripNumber || "—")} · ${
+            String(trip.clientName || trip.companyName || trip.request?.clientName || "").trim() || item.occupancy.detail
+          }`
+        : "";
+      const rowMenu = renderAgActionMenu([
+        { action: "view-driver", id, icon: IC.eye, label: "Ver ficha" },
+        canEditDriver ? { action: "edit-driver", id, icon: IC.edit, label: "Editar datos operativos" } : null,
+        canEditDriver
+          ? {
+              action: "toggle-driver",
+              id,
+              icon: IC.toggle,
+              label: item.statusSlug === "offline" ? "Marcar disponible" : "Marcar no disponible"
+            }
+          : null
+      ]);
+      return `<article class="ag-lrow ag-lrow--${escapeAttr(item.statusSlug)} ag-lrow--doc-${escapeAttr(item.docBucket)}" data-driver-id="${escapeAttr(id)}">
+        <header class="ag-lrow__head">
+          <span class="ag-lrow__ico" aria-hidden="true">${IC.truck}</span>
+          <div class="ag-lrow__who">
+            <h4 aria-level="3" class="ag-lrow__name" title="${escapeAttr(name)}">${escapeHtml(name)}</h4>
+            ${tripLine ? `<span class="ag-lrow__trip" title="${escapeAttr(tripLine)}">${escapeHtml(tripLine)}</span>` : ""}
           </div>
-        </td>
-        <td data-label="Estado"><span class="ag-status ag-status--${escapeAttr(item.statusSlug)}"><span class="ag-status__dot" aria-hidden="true"></span>${escapeHtml(statusLabelOf(item.statusSlug))}</span></td>
-        <td data-label="Licencia"><strong class="ag-row__mono">${escapeHtml(String(d.licenseCategory || "—"))}</strong> <span class="ag-row__sub">${escapeHtml(licenseText)}</span></td>
-        <td data-label="Documentación"><span class="ag-pass__doc ag-pass__doc--${docToneOf(item.docBucket)}">${escapeHtml(docLabelOf(item.docBucket))}</span></td>
-        <td data-label="Vehículos"><div class="ag-row__tags">${vehicleChipsHtml(d.vehicleTypes)}</div></td>
-        <td data-label="Disponibilidad"><span class="ag-row__strong">${escapeHtml(item.tripHeadline)}</span><span class="ag-row__sub">${escapeHtml(item.tripDetail)}</span></td>
-        <td data-label="Acciones" class="ag-row__actions">
+          <span class="ag-status ag-status--${escapeAttr(item.statusSlug)} ag-lrow__status">${listStatusIcon(item.statusSlug)}<span>${escapeHtml(statusLabelOf(item.statusSlug))}</span></span>
+          ${rowMenu}
+        </header>
+        <div class="ag-lrow__body">
+          <div class="ag-lrow__lic ag-lrow__lic--${licenseTone}">
+            <span class="ag-lrow__lab">Licencia ${escapeHtml(licenseCategory)}</span>
+            <strong class="ag-lrow__val">${escapeHtml(licenseNumber)}</strong>
+            <span class="ag-lrow__cap">${licenseTone === "ok" ? "" : IC.alertTriangle}<span>${escapeHtml(licenseCaption)}</span></span>
+          </div>
+          <div class="ag-lrow__due">
+            <span class="ag-lrow__lab">Vence</span>
+            <strong class="ag-lrow__date">${expiryYmd ? escapeHtml(fmtDateOr(expiryYmd)) : "Sin fecha"}</strong>
+          </div>
+          <div class="ag-lrow__chips">
+            <span class="ag-lrow__chip ag-lrow__chip--${item.hasSocialSecurity ? "ok" : "warn"}">${IC.shield}<span>${item.hasSocialSecurity ? "EPS/ARL" : "Falta EPS/ARL"}</span></span>
+            <span class="ag-lrow__chip ag-lrow__chip--soft ag-lrow__chip--${item.comparendos > 0 ? "warn" : "ok"}">${IC.scale}<span>${item.comparendos > 0 ? `${item.comparendos} comparendo${item.comparendos === 1 ? "" : "s"}` : "Sin comparendos"}</span></span>
+            <span class="ag-lrow__chip" title="${escapeAttr(vehicleList.join(", ") || "Sin categoría")}">${IC.truck}<span>${escapeHtml(vehicleChip)}</span></span>
+          </div>
+        </div>
+        <footer class="ag-lrow__foot">
           ${
-            canEditDriver
-              ? `<button type="button" class="ag-icon-btn" data-action="toggle-driver" data-id="${escapeAttr(id)}" title="Cambiar disponibilidad" aria-label="Cambiar disponibilidad">${IC.toggle}</button>
-          <button type="button" class="ag-icon-btn" data-action="edit-driver" data-id="${escapeAttr(id)}" title="Editar" aria-label="Editar">${IC.edit}</button>`
-              : ""
+            phoneLabel
+              ? `<a class="ag-lrow__phone" href="tel:${escapeAttr(phoneRaw)}" aria-label="Llamar a ${escapeAttr(phoneLabel)}">${IC.phone}<span>${escapeHtml(phoneLabel)}</span></a>`
+              : `<span class="ag-lrow__phone ag-lrow__phone--muted">${IC.phone}<span>Sin teléfono</span></span>`
           }
-          <button type="button" class="ag-icon-btn ag-icon-btn--primary" data-action="view-driver" data-id="${escapeAttr(id)}" title="Ver ficha" aria-label="Ver ficha">${IC.eye}</button>
-        </td>
-      </tr>`;
+          <button type="button" class="ag-btn ag-btn--primary" data-action="view-driver" data-id="${escapeAttr(id)}"><span>Ver ficha</span></button>
+        </footer>
+      </article>`;
     })
     .join("");
 
   const fleetListTable =
-    fleetLayout === "list" && filteredSummaries.length > 0
-      ? `<div class="ag-fleet-table-wrap"><table class="ag-table driver-fleet-table">
-    <thead><tr>
-      <th>Conductor</th><th>Estado</th><th>Licencia</th><th>Documentación</th><th>Vehículos</th><th>Disponibilidad</th><th><span class="visually-hidden">Acciones</span></th>
-    </tr></thead>
-    <tbody>${driverListRows}</tbody>
-  </table></div>`
-      : "";
+    fleetLayout === "list" && filteredSummaries.length > 0 ? `<div class="ag-lrow-list">${driverListRows}</div>` : "";
 
   const fleetCardsGrid = fleetLayout === "cards" && cardsHtml ? `<div class="ag-pass-grid">${cardsHtml}</div>` : "";
 
@@ -681,20 +714,18 @@ function driversHtml() {
     : `${totalDrivers} conductor${totalDrivers === 1 ? "" : "es"} registrados`;
   const kpi = (label, value, sub, tone = "") =>
     `<div class="ag-kpi${tone ? ` ag-kpi--${tone}` : ""}"><span class="ag-kpi__label">${escapeHtml(label)}</span><strong class="ag-kpi__value">${value}</strong><span class="ag-kpi__sub">${escapeHtml(sub)}</span></div>`;
-  const header = `<header class="ag-fleet__head">
+  const header = `<header class="ag-fleet__head ag-fleet__head--drivers">
     <div class="ag-fleet__title">
       <p class="ag-eyebrow">Transporte · Flota humana</p>
       <h2>Conductores</h2>
-      <p class="ag-fleet__hint">${escapeHtml(resultLine)} · ${escapeHtml(moduleHint)}</p>
+      <p class="ag-fleet__count">${escapeHtml(resultLine)}</p>
+      <p class="ag-fleet__hint">${escapeHtml(moduleHint)}</p>
     </div>
     <div class="ag-fleet__kpis">
-      <div class="ag-kpi ag-kpi--ring">
-        <span class="ag-ring" style="--pct:${availablePct}" role="img" aria-label="${availablePct}% disponibles"><span>${availablePct}%</span></span>
-        <div><span class="ag-kpi__label">Disponibles</span><strong class="ag-kpi__value">${availableDrivers}<small>/${totalDrivers}</small></strong></div>
-      </div>
+      ${kpi("Disponibles", `${availableDrivers}<small>/${totalDrivers}</small>`, `${availablePct}% de la flota`, availableDrivers ? "ok" : "")}
       ${kpi("En ruta", occupiedDrivers + scheduledDrivers, `${occupiedDrivers} en curso · ${scheduledDrivers} reservados`)}
-      ${kpi("Riesgo documental", docRiskCount, expiredDocsCount ? `${expiredDocsCount} crítico${expiredDocsCount === 1 ? "" : "s"}` : "Sin críticos", expiredDocsCount ? "alert" : docRiskCount ? "warn" : "ok")}
-      ${kpi("Por categoría", camionDrivers, `camión · ${mulaDrivers} mula`)}
+      ${kpi("Riesgo documental", docRiskCount, expiredDocsCount ? `${expiredDocsCount} crítico${expiredDocsCount === 1 ? "" : "s"}` : docRiskCount ? "Por vencer" : "Sin críticos", expiredDocsCount ? "alert" : docRiskCount ? "warn" : "ok")}
+      ${kpi("Por categoría", camionDrivers, `en camión · ${mulaDrivers} en mula`)}
     </div>
   </header>`;
   return `<section class="drivers-studio ag-fleet">${header}<div class="ag-fleet__body">${fleetMainBody}</div></section>`;

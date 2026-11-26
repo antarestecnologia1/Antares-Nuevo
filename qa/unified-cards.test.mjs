@@ -69,6 +69,15 @@ ok(usuarios.includes('class="uc-tiles"') && (usuarios.match(/ucTile\(/g) || []).
 ok(camiones.includes("ucTile(") && camiones.includes("ucStrip(") && camiones.includes('class="ag-btn uc-pill-btn"'), "tarjeta de camión con paneles, franja y botón Editar");
 ok(/--ag-photo:url/.test(runtime) && /\.ag-avatar--photo\s*\{[^}]*background-image:\s*var\(--ag-photo\)/.test(css), "la foto de perfil de los empleados se ve dentro del círculo");
 
+// Lista de conductores: tarjeta ancha con cabecera azul marino y datos reales
+ok(conductores.includes('class="ag-lrow-list"') && conductores.includes("ag-lrow ag-lrow--"), "la vista Lista de conductores usa tarjetas anchas");
+ok(!conductores.includes('class="ag-table driver-fleet-table"'), "la tabla antigua de conductores ya no se genera");
+for (const piece of ["ag-lrow__head", "ag-lrow__name", "ag-lrow__status", "ag-lrow__lic", "ag-lrow__due", "ag-lrow__chips", "ag-lrow__phone", "Licencia ${escapeHtml(licenseCategory)}", "Sin comparendos", "EPS/ARL"]) ok(conductores.includes(piece), `lista de conductores: ${piece}`);
+ok(/data-action="view-driver" data-id="\$\{escapeAttr\(id\)\}"><span>Ver ficha<\/span>/.test(conductores), "lista: botón Ver ficha");
+ok(/\.ag-lrow-list\s*\{/.test(css) && /\.ag-lrow__head\s*\{/.test(css) && /@container \(max-width: 470px\)/.test(css), "estilos de la lista de conductores (rejilla, cabecera y contenedor angosto)");
+ok(/body\[data-theme="dark"\] \.ag-lrow\s*\{/.test(css), "lista de conductores con variante oscura");
+ok(conductores.includes('.ag-lrow[data-driver-id]') && conductores.includes('.ag-pass__head, .ag-lrow__head'), "selección y exportación enganchadas a la lista de conductores");
+
 // Banners de resumen (KPI)
 ok(css.includes(".kpi-banner"), "estilos del banner de resumen");
 ok(/\.kpi-banner > \.kpi-tile:is\(\[data-kpi-lead\], \.is-active\)\s*\{[^}]*background:\s*var\(--uc-band\)/.test(css), "primer cuadro (o pestaña activa) del banner en azul marino");
@@ -86,5 +95,13 @@ ok(k("Eventos", 0, "red").tone === "red", "el estado del cuadro manda sobre el t
 for (const name of Object.values(kpi.KPI_RULES).map((r) => r[1])) ok(kpi.KPI_ICONS[name], `existe el icono ${name}`);
 for (const sel of [".fleet-hero-metrics", ".ag-fleet__kpis", ".hist-trace-kpis", ".payroll-studio-kpis", ".hiring-studio-kpis", ".doc-kpi-grid", ".sst-status-cards", ".payroll-section-cards", ".ntf-studio-head__metrics"]) ok(kpi.KPI_STRIP_SELECTOR.includes(sel), `cubre la franja ${sel}`);
 ok(html.includes("modules/ui/kpi-banners.js") && html.includes("installKpiBanners()"), "index.html instala los banners");
+
+// Banner de Conductores: título + conteo y cuatro indicadores con etiqueta, valor y detalle en ese orden
+ok(conductores.includes('class="ag-fleet__count"') && conductores.includes("ag-fleet__head--drivers"), "banner de conductores con conteo propio");
+ok(!conductores.includes("ag-kpi--ring") && conductores.includes('kpi("Disponibles"') && conductores.includes("% de la flota"), "Disponibles como indicador estándar con porcentaje en el detalle");
+ok(/\.ag-fleet__kpis\.kpi-banner > \.kpi-tile > span\.ag-kpi__sub[^{]*\{[^}]*order:\s*3/.test(css), "el detalle del indicador va después del valor");
+ok(/\.ag-fleet__kpis\.kpi-banner > \.kpi-tile\s*\{[^}]*padding:\s*0\.9rem 4\.6rem/.test(css), "el indicador reserva espacio para la silueta (sin texto encima)");
+ok(/\.ag-fleet__head\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) minmax\(0, 41rem\)/.test(css) && /@media \(max-width: 1280px\)/.test(css), "banner: indicadores a la derecha y apilados en pantallas medianas");
+ok(kpi.kpiFor("Riesgo documental", 2, "green").tone === "green", "el estado correcto manda sobre el tono del diccionario");
 
 console.log(`unified-cards: ${n} verificaciones OK`);

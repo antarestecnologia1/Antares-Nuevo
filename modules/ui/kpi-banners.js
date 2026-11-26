@@ -101,6 +101,7 @@ function toneFromClasses(el) {
   const cls = String(el.className || "");
   if (/--(?:alert|expired|danger|late)\b/.test(cls)) return "red";
   if (/--(?:warn|warning)\b/.test(cls)) return "amber";
+  if (/\bag-kpi--ok\b/.test(cls)) return "green";
   return "";
 }
 
