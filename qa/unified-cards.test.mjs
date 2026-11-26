@@ -16,6 +16,9 @@ const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
 const css = read("styles/unified-cards.css");
 const html = read("index.html");
 const camiones = read("modules/app/camiones.js");
+const conductores = read("modules/app/conductores.js");
+const runtime = read("modules/core/portal-runtime.js");
+const usuarios = read("modules/app/usuarios-permisos.js");
 const kpi = await import(pathToFileURL(path.join(root, "modules/ui/kpi-banners.js")).href);
 
 let n = 0;
@@ -46,13 +49,25 @@ const buttons = html.indexOf('href="./styles/action-buttons.css');
 ok(normal > buttons && buttons > 0, "unified-cards.css se enlaza después de action-buttons.css");
 ok((html.match(/unified-cards\.css/g) || []).length === 2, "enlace normal y <noscript>");
 
-ok(/data-action="view-vehicle"[^>]*trip-ops-card-btn--solid|trip-ops-card-btn--solid[^>]*data-action="view-vehicle"/.test(camiones), "Ver detalles de camión es el botón principal");
+ok(/data-action="view-vehicle"[^>]*trip-ops-card-btn--solid|trip-ops-card-btn--solid[^>]*data-action="view-vehicle"/.test(camiones) || /ag-btn--primary" data-action="view-vehicle"/.test(camiones), "Ver ficha de camión es el botón principal");
 ok(/data-action="delete-vehicle"[^>]*aria-label="Eliminar"/.test(camiones), "acciones de la lista de camiones con aria-label");
 
 // Tarjetas claras (referencia 1): avatar pastel, pie Llamar · lápiz · CTA, ⋮ arriba
-ok(/\.ag-avatar\s*\{[^}]*color-mix\(in srgb, var\(--ag-av-a/.test(css), "avatar pastel con iniciales");
+ok(css.includes("--uc-avatar-bg:") && /\.ag-avatar\s*\{[^}]*background-color:\s*var\(--uc-avatar-bg\)/.test(css), "avatar pastel con iniciales");
 ok(css.includes('content: "Llamar"'), "el teléfono se muestra como botón Llamar");
 ok(/\.ag-menu\s*\{[^}]*position:\s*absolute/.test(css), "menú ⋮ en la esquina superior derecha");
+
+// Copia exacta del modelo: paneles con icono, panel de licencia, franja y pie
+for (const sel of [".uc-tiles", ".uc-tile", ".uc-tile__ico", ".uc-alert", ".uc-alert--alert", ".uc-alert__pill", ".uc-strip--ok", ".uc-strip--warn", ".uc-strip--alert"]) ok(css.includes(sel), `estilos de ${sel}`);
+ok(/body\[data-theme="dark"\]\s*\{[^}]*--uc-ink:/.test(css), "variante oscura de los tokens del modelo");
+ok(/function ucTile\(/.test(runtime) && /function ucAlert\(/.test(runtime) && /function ucStrip\(/.test(runtime), "helpers ucTile/ucAlert/ucStrip en el runtime");
+ok(/ucTile,\s*ucAlert,\s*ucStrip,/.test(runtime), "los helpers se exponen en window");
+ok(conductores.includes("Conductor • ") && conductores.includes("ucTile(") && conductores.includes("ucAlert(") && conductores.includes("renderAgActionMenu("), "tarjeta de conductor: subtítulo, paneles, licencia y menú ⋮");
+ok(/class="ag-btn ag-btn--primary" data-action="view-driver"[^>]*><span>Ver ficha<\/span>/.test(conductores), "conductor: botón Ver ficha como acción principal");
+ok(runtime.includes('class="uc-tiles"') && runtime.includes("ucStrip({ tone: stripToneUc"), "tarjeta de empleado con paneles y franja de vigencia");
+ok(usuarios.includes('class="uc-tiles"') && (usuarios.match(/ucTile\(/g) || []).length >= 6, "tarjetas de usuario y empresa con paneles");
+ok(camiones.includes("ucTile(") && camiones.includes("ucStrip(") && camiones.includes('class="ag-btn uc-pill-btn"'), "tarjeta de camión con paneles, franja y botón Editar");
+ok(/--ag-photo:url/.test(runtime) && /\.ag-avatar--photo\s*\{[^}]*background-image:\s*var\(--ag-photo\)/.test(css), "la foto de perfil de los empleados se ve dentro del círculo");
 
 // Banners de resumen (KPI)
 ok(css.includes(".kpi-banner"), "estilos del banner de resumen");

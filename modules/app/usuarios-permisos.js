@@ -292,7 +292,10 @@ function adminUsersHtml(current) {
     const roleKey = String(u.role || "none");
     const rejectionReason = String(u.rejectionReason || "").trim();
     const menuItems = isPending
-      ? [isAdmin ? { action: "reject-registration", id: uid, icon: IC.x, label: "Rechazar alta", tone: "danger" } : null]
+      ? [
+          { action: "view-user", id: uid, icon: IC.eye, label: "Ver ficha" },
+          isAdmin ? { action: "reject-registration", id: uid, icon: IC.x, label: "Rechazar alta", tone: "danger" } : null
+        ]
       : [
           isAdmin ? { action: "open-user-permissions", id: uid, icon: IC.shield, label: "Asignar permisos" } : null,
           isAdmin && !isMe
@@ -311,7 +314,7 @@ function adminUsersHtml(current) {
     const primary =
       isPending && isAdmin
         ? `<button type="button" class="ag-btn ag-btn--primary" data-action="approve-registration" data-id="${escapeAttr(uid)}">${IC.check}<span>Aprobar</span></button>`
-        : `<button type="button" class="ag-btn ag-btn--primary" data-action="view-user" data-id="${escapeAttr(uid)}">${IC.eye}<span>Ver ficha</span></button>`;
+        : `<button type="button" class="ag-btn ag-btn--primary" data-action="view-user" data-id="${escapeAttr(uid)}"><span>Ver ficha</span></button>`;
     const editBtn =
       isPending || !isAdmin
         ? ""
@@ -356,50 +359,46 @@ function adminUsersHtml(current) {
 
   const renderUserCard = (u, mode = "active") => {
     const m = userAccessMeta(u, mode);
+    const roleText = u.role ? formatPortalRoleLabel(u.role) : "Sin rol";
+    const noteUc = m.rejectionReason
+      ? { tone: "alert", text: m.rejectionReason }
+      : m.isPending
+        ? { tone: "warn", text: "Revise empresa, rol y permisos antes de aprobar." }
+        : m.docLabel === "Sin documento"
+          ? { tone: "warn", text: "Sin documento registrado" }
+          : { tone: "ok", text: `Documento ${m.docLabel}` };
     return `<article class="adm-badge adm-badge--${escapeAttr(m.tone)} adm-badge--role-${escapeAttr(m.roleKey)} directory-card--user" data-user-id="${escapeAttr(m.uid)}">
-      <div class="adm-badge__band" aria-hidden="true"></div>
       <header class="adm-badge__head">
         ${m.avatarBlock}
-        <div class="adm-badge__head-meta">
+        <div class="adm-badge__who">
+          <h4 aria-level="3" class="adm-badge__name" title="${escapeAttr(m.displayName)}">${escapeHtml(m.displayName)}${m.isMe ? ' <span class="ag-access-card__you">Tú</span>' : ""}</h4>
+          <p class="adm-badge__org" title="${escapeAttr(m.email)}">${escapeHtml(roleText)} • ${escapeHtml(m.email)}</p>
           <span class="ag-status ag-status--${m.tone}"><span class="ag-status__dot" aria-hidden="true"></span>${escapeHtml(m.statusLabel)}</span>
         </div>
+        ${accessMenu(m.menuItems)}
       </header>
-      <div class="adm-badge__who">
-        <h4 aria-level="3" class="adm-badge__name" title="${escapeAttr(m.displayName)}">${escapeHtml(m.displayName)}${m.isMe ? ' <span class="ag-access-card__you">Tú</span>' : ""}</h4>
-        <p class="adm-badge__org"><span class="adm-badge__org-name">${escapeHtml(m.companyName)}</span>${m.roleBadgeHtml}</p>
-        <p class="adm-badge__mail">${escapeHtml(m.email)}</p>
+      <div class="uc-tiles">
+        ${ucTile({ icon: IC.building, label: "Empresa", value: m.companyName })}
+        ${ucTile({ icon: IC.shield, label: "Accesos", value: `${m.permissionCount} permiso${m.permissionCount === 1 ? "" : "s"}` })}
+        ${ucTile({ icon: IC.lock, label: "Seguridad", value: m.twoFactor ? "2FA activa" : "2FA desactivada", tone: m.twoFactor ? "" : "warn" })}
+        ${ucTile({ icon: IC.calendar, label: "Ingreso", value: m.joinedLabel })}
       </div>
-      <div class="adm-badge__meter" role="img" aria-label="${m.permissionCount} permisos asignados">
-        <span class="adm-gauge">
-          <span class="adm-ring" style="--pct:${m.permPct}"><span><strong>${m.permissionCount}</strong></span></span>
-          <small>accesos</small>
-        </span>
-        <ul class="adm-badge__facts">
-          <li><span>Vínculo</span><strong>${escapeHtml(m.profileChipLabel)}</strong></li>
-          <li><span>2FA</span><strong class="${m.twoFactor ? "is-ok" : "is-warn"}">${m.twoFactor ? "Activa" : "Off"}</strong></li>
-          <li><span>Ingreso</span><strong>${escapeHtml(m.joinedLabel)}</strong></li>
-        </ul>
+      ${ucStrip(noteUc)}
+      <div class="ag-pass__checks adm-badge__chips">
+        ${m.roleBadgeHtml}
+        <span class="ag-check ag-check--neutral">${IC.badge}<span>${escapeHtml(m.profileChipLabel)}</span></span>
       </div>
-      ${
-        m.rejectionReason
-          ? `<p class="adm-badge__note adm-badge__note--alert">${escapeHtml(m.rejectionReason)}</p>`
-          : m.isPending
-            ? '<p class="adm-badge__note">Revise empresa, rol y permisos antes de aprobar.</p>'
-            : `<p class="adm-badge__note">${escapeHtml(m.docLabel)}</p>`
-      }
       <footer class="adm-badge__foot">
         <div class="adm-badge__contact">
           ${
             m.phoneLabel
-              ? `<a class="adm-badge__tel" href="tel:${escapeAttr(m.phoneRaw)}">${IC.phone}<span>${escapeHtml(m.phoneLabel)}</span></a>`
+              ? `<a class="adm-badge__tel" href="tel:${escapeAttr(m.phoneRaw)}" title="Llamar a ${escapeAttr(m.phoneLabel)}" aria-label="Llamar a ${escapeAttr(m.phoneLabel)}">${IC.phone}<span>${escapeHtml(m.phoneLabel)}</span></a>`
               : '<span class="adm-badge__tel adm-badge__tel--muted">Sin teléfono</span>'
           }
         </div>
         <div class="adm-badge__actions">
-          ${m.primary}
-          ${m.viewIcon}
           ${m.editBtn}
-          ${accessMenu(m.menuItems)}
+          ${m.primary}
         </div>
       </footer>
     </article>`;
@@ -473,42 +472,36 @@ function adminUsersHtml(current) {
   const renderCompanyCard = (c) => {
     const m = companyAccessMeta(c);
     return `<article class="adm-badge adm-badge--${escapeAttr(m.tone)} adm-badge--company directory-card--company" data-company-id="${escapeAttr(m.cid)}">
-      <div class="adm-badge__band" aria-hidden="true"></div>
       <header class="adm-badge__head">
         ${m.avatarCompany("lg")}
-        <div class="adm-badge__head-meta">
+        <div class="adm-badge__who">
+          <h4 aria-level="3" class="adm-badge__name" title="${escapeAttr(m.name)}">${escapeHtml(m.name)}</h4>
+          <p class="adm-badge__org" title="${escapeAttr(m.nit)}">Empresa • ${escapeHtml(m.nit)}</p>
           <span class="ag-status ag-status--${m.tone}"><span class="ag-status__dot" aria-hidden="true"></span>${m.active ? "Operativa" : "Inactiva"}</span>
         </div>
+        ${accessMenu(m.menuItems)}
       </header>
-      <div class="adm-badge__who">
-        <h4 aria-level="3" class="adm-badge__name" title="${escapeAttr(m.name)}">${escapeHtml(m.name)}</h4>
-        <p class="adm-badge__org"><span class="adm-badge__org-name">${escapeHtml(m.nit)}</span>${companyKindChipHtml(m.kindForUi)}</p>
-        <p class="adm-badge__mail">${escapeHtml(m.contactLabel || m.emailLabel || "Sin contacto")}</p>
+      <div class="uc-tiles">
+        ${ucTile({ icon: IC.building, label: "Tipo", value: companyKindChipShortLabel(normalizeCompanyKindForDb(m.kindForUi)) })}
+        ${ucTile({ icon: IC.users, label: "Cuentas", value: `${m.usersCount} ${m.usersCount === 1 ? "cuenta" : "cuentas"}` })}
+        ${ucTile({ icon: IC.mapPin, label: "Sede", value: m.locationLabel, wide: true })}
       </div>
-      <div class="adm-badge__meter">
-        <span class="adm-gauge">
-          <span class="adm-ring adm-ring--users" style="--pct:${Math.min(100, m.usersCount * 12)}"><span><strong>${m.usersCount}</strong></span></span>
-          <small>cuentas</small>
-        </span>
-        <ul class="adm-badge__facts">
-          <li><span>Tipo</span><strong>${escapeHtml(companyKindChipShortLabel(normalizeCompanyKindForDb(m.kindForUi)))}</strong></li>
-          <li><span>Logo</span><strong class="${companyProfileLogoUrl(c) ? "is-ok" : "is-warn"}">${companyProfileLogoUrl(c) ? "Sí" : "No"}</strong></li>
-          <li><span>Sede</span><strong>${escapeHtml(m.locationLabel)}</strong></li>
-        </ul>
+      ${ucStrip(m.emailLabel ? { tone: "ok", text: m.emailLabel, icon: IC.mail } : { tone: "warn", text: "Sin correo corporativo" })}
+      <div class="ag-pass__checks adm-badge__chips">
+        <span class="ag-check ${companyProfileLogoUrl(c) ? "ag-check--neutral" : "ag-check--warn"}">${IC.badge}<span>${companyProfileLogoUrl(c) ? "Logo cargado" : "Sin logo"}</span></span>
+        ${m.contactLabel ? `<span class="ag-check ag-check--neutral">${IC.user}<span>${escapeHtml(m.contactLabel)}</span></span>` : ""}
       </div>
-      <p class="adm-badge__note">${escapeHtml(m.emailLabel || "Sin correo corporativo")}</p>
       <footer class="adm-badge__foot">
         <div class="adm-badge__contact">
           ${
             m.phoneDisp
-              ? `<a class="adm-badge__tel" href="tel:${escapeAttr(m.phoneRaw)}">${IC.phone}<span>${escapeHtml(m.phoneDisp)}</span></a>`
+              ? `<a class="adm-badge__tel" href="tel:${escapeAttr(m.phoneRaw)}" title="Llamar a ${escapeAttr(m.phoneDisp)}" aria-label="Llamar a ${escapeAttr(m.phoneDisp)}">${IC.phone}<span>${escapeHtml(m.phoneDisp)}</span></a>`
               : '<span class="adm-badge__tel adm-badge__tel--muted">Sin teléfono</span>'
           }
         </div>
         <div class="adm-badge__actions">
-          <button type="button" class="ag-btn ag-btn--primary" data-action="view-company" data-id="${escapeAttr(m.cid)}">${IC.eye}<span>Ver ficha</span></button>
           ${isAdmin ? `<button type="button" class="ag-icon-btn" data-action="open-edit-company" data-id="${escapeAttr(m.cid)}" title="Editar" aria-label="Editar ${escapeAttr(m.name)}">${IC.edit}</button>` : ""}
-          ${accessMenu(m.menuItems)}
+          <button type="button" class="ag-btn ag-btn--primary" data-action="view-company" data-id="${escapeAttr(m.cid)}"><span>Ver ficha</span></button>
         </div>
       </footer>
     </article>`;

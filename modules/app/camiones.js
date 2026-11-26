@@ -814,76 +814,46 @@ function vehiclesHtml() {
       const capacityLabel = parseNum(v.capacityKg) > 0 ? `${parseNum(v.capacityKg).toLocaleString("es-CO")} kg` : "Sin capacidad";
       const ownershipCardLabel = String(v.ownershipCard || "").trim() || "Sin tarjeta";
       const bodyTypeLabel = String(v.bodyType || "").trim() || "Sin carrocería";
-      const lastUpdateLabel = formatPortalOpsCardTimestamp(v.updatedAt || v.createdAt || "");
-      const statusBadgeHtml = buildPortalOpsCardStatusPill(availabilityLabel, occupancySlug);
-      const termokingBadgeHtml = isRefrigerated
-        ? `<span class="portal-ops-card-doc-pill portal-ops-card-doc-pill--ok vehicle-card-equip-pill vehicle-card-equip-pill--tk" title="Equipo Termoking">
-            <span class="vehicle-card-equip-pill__icon" aria-hidden="true">❄</span>
-            <span>TERMOKING</span>
-          </span>`
-        : "";
-      const primaryButtons = [
-        `<button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--solid" data-action="view-vehicle" data-id="${escapeAttr(String(v.id || ""))}" title="Ver ficha técnica del vehículo">${IC.eye} Ver detalles</button>`,
-        canEditVeh
-          ? `<button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--outline" data-action="edit-vehicle" data-id="${escapeAttr(String(v.id || ""))}" title="Editar datos del vehículo">${IC.edit} Editar información</button>`
-          : ""
-      ]
-        .filter(Boolean)
-        .join("");
-      const fullWidthButtons = [
-        canToggleVeh
-          ? `<button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--soft" data-action="toggle-vehicle" data-id="${escapeAttr(String(v.id || ""))}" title="Alternar disponibilidad manual">${IC.toggle} Cambiar estado</button>`
-          : "",
-        canDeleteVeh
-          ? `<button type="button" class="btn btn-sm trip-ops-card-btn trip-ops-card-btn--danger" data-action="delete-vehicle" data-id="${escapeAttr(String(v.id || ""))}" title="Eliminar del catálogo">${IC.trash} Eliminar camión</button>`
-          : ""
-      ]
-        .filter(Boolean)
-        .join("");
-      const fullWidthActionsHtml = fullWidthButtons
-        ? `<div class="portal-ops-card-actions-stack">${fullWidthButtons}</div>`
-        : "";
-      return `<article class="trip-ops-card portal-ops-card trip-ops-card--vehicle trip-ops-card--vehicle-${escapeAttr(occupancySlug)}" data-vehicle-id="${escapeAttr(String(v.id || ""))}">
-        <header class="trip-ops-card-head trip-ops-card-head--vehicle">
-          <div class="trip-ops-card-head-main">
-            <div class="vehicle-plate-badge" title="Placa ${escapeAttr(plate)}" aria-label="Placa ${escapeAttr(plate)}">
-              <span class="vehicle-plate-badge__icon" aria-hidden="true">${IC.truck}</span>
-              <span class="vehicle-plate-badge__text">${escapeHtml(plate)}</span>
-            </div>
-            <div class="trip-ops-card-head-info">
-              <p class="trip-ops-card-kicker">${escapeHtml(typeLabel)}</p>
-              <h4 aria-level="3" class="trip-ops-card-title vehicle-plate-title" title="${escapeAttr(brandTitle)}">${escapeHtml(brandTitle)}</h4>
-              ${yearLabel ? `<p class="vehicle-card-year">${escapeHtml(yearLabel)}</p>` : ""}
-            </div>
+      const vid = String(v.id || "");
+      const toneKey = view.tone || "available";
+      const stripTone = toneKey === "available" ? "ok" : toneKey === "offline" ? "alert" : "warn";
+      const tileTone = (tone) => (tone === "alert" ? "alert" : tone === "warn" ? "warn" : "");
+      const subtitle = [String(v.type || "Vehículo").trim(), brandTitle, yearLabel].filter(Boolean).join(" • ");
+      const menuHtml = renderAgActionMenu([
+        { action: "view-vehicle", id: vid, icon: IC.eye, label: "Ver detalles", title: "Ver ficha técnica del vehículo" },
+        canToggleVeh ? { action: "toggle-vehicle", id: vid, icon: IC.toggle, label: "Cambiar estado", title: "Alternar disponibilidad manual" } : null,
+        canDeleteVeh ? "sep" : null,
+        canDeleteVeh ? { action: "delete-vehicle", id: vid, icon: IC.trash, label: "Eliminar camión", tone: "danger", title: "Eliminar del catálogo" } : null
+      ]);
+      const chips = [
+        `<span class="ag-check ag-check--${gpsEnabled ? "neutral" : "warn"}" title="${escapeAttr(gpsSubLabel)}">${IC.mapPin}<span>${gpsEnabled ? "GPS activo" : "Sin GPS"}</span></span>`,
+        `<span class="ag-check ag-check--neutral" title="Tarjeta de propiedad">${IC.card}<span>${escapeHtml(ownershipCardLabel)}</span></span>`,
+        isRefrigerated ? `<span class="ag-check ag-check--neutral" title="Equipo Termoking">${IC.package || IC.file}<span>Termoking</span></span>` : ""
+      ].join("");
+      return `<article class="trip-ops-card portal-ops-card trip-ops-card--vehicle trip-ops-card--vehicle-${escapeAttr(occupancySlug)}" data-vehicle-id="${escapeAttr(vid)}">
+        <header class="ag-pass__head">
+          <span class="ag-avatar ag-avatar--lg uc-vehicle-ico" aria-hidden="true" title="Placa ${escapeAttr(plate)}">${IC.truck}</span>
+          <div class="ag-pass__who">
+            <h4 aria-level="3" class="ag-pass__name trip-ops-card-title vehicle-plate-title" title="${escapeAttr(brandTitle)}">${escapeHtml(plate)}</h4>
+            <p class="ag-pass__meta" title="${escapeAttr(subtitle)}">${escapeHtml(subtitle)}</p>
+            <span class="ag-status ag-status--${escapeAttr(toneKey)}"><span class="ag-status__dot" aria-hidden="true"></span>${escapeHtml(availabilityLabel)}</span>
           </div>
-          <div class="portal-ops-card-badges vehicle-card-badges">
-            ${statusBadgeHtml}
-            ${termokingBadgeHtml}
-          </div>
+          ${menuHtml}
         </header>
-        <div class="vehicle-availability-bar portal-ops-card-highlight vehicle-availability-bar--${escapeAttr(occupancySlug)}" role="status">
-          <div class="vehicle-availability-bar__main">
-            <span class="vehicle-availability-bar__dot portal-ops-card-highlight__dot" aria-hidden="true"></span>
-            <div class="vehicle-availability-bar__copy portal-ops-card-highlight__copy">
-              <strong>${escapeHtml(availabilityLabel)}</strong>
-              <span class="vehicle-availability-bar__detail">${escapeHtml(occupancyDetail)}</span>
-            </div>
-          </div>
-          <div class="vehicle-availability-bar__update" title="Última actualización: ${escapeAttr(lastUpdateLabel)}">
-            <span class="vehicle-availability-bar__update-label">${IC.calendar}<span>Actualización</span></span>
-            <strong>${escapeHtml(lastUpdateLabel)}</strong>
-          </div>
+        <div class="uc-tiles">
+          ${ucTile({ icon: IC.scale, label: "Capacidad", value: capacityLabel })}
+          ${ucTile({ icon: IC.package || IC.file, label: "Carrocería", value: bodyTypeLabel })}
+          ${ucTile({ icon: IC.shield, label: "SOAT", value: soat.label, tone: tileTone(soatTone) })}
+          ${ucTile({ icon: IC.file, label: "Tecnomecánica", value: tecno.label, tone: tileTone(tecnoTone) })}
         </div>
-        <div class="trip-ops-card-grid portal-ops-card-spec-grid vehicle-card-spec-grid">
-          ${buildPortalOpsCardGridItem("Capacidad", IC.scale, capacityLabel)}
-          ${buildPortalOpsCardGridItem("Carrocería", IC.package || IC.file, bodyTypeLabel)}
-          ${buildPortalOpsCardGridItem("SOAT", IC.shield, soat.label, { tone: soatTone })}
-          ${buildPortalOpsCardGridItem("Tecnomecánica", IC.file, tecno.label, { tone: tecnoTone })}
-          ${buildPortalOpsCardGridItem("GPS", IC.mapPin, gpsEnabled ? "Activo" : "Inactivo", { tone: gpsEnabled ? "ok" : "warn", subValue: gpsSubLabel, subTone: gpsEnabled ? "ok" : "warn" })}
-          ${buildPortalOpsCardGridItem("Tarjeta de propiedad", IC.card, ownershipCardLabel)}
-        </div>
-        ${buildPortalOpsCardActions(primaryButtons, fullWidthActionsHtml)}
-        ${buildPortalOpsCardFoot("Última actualización", lastUpdateLabel)}
+        ${ucStrip({ tone: stripTone, text: `${availabilityLabel} · ${occupancyDetail}`.slice(0, 140), icon: IC.activity })}
+        <div class="ag-pass__checks">${chips}</div>
+        <footer class="ag-pass__foot">
+          ${canEditVeh ? `<button type="button" class="ag-btn uc-pill-btn" data-action="edit-vehicle" data-id="${escapeAttr(vid)}" title="Editar datos del vehículo">${IC.edit}<span>Editar</span></button>` : ""}
+          <div class="ag-pass__actions">
+            <button type="button" class="ag-btn ag-btn--primary" data-action="view-vehicle" data-id="${escapeAttr(vid)}" title="Ver ficha técnica del vehículo"><span>Ver ficha</span></button>
+          </div>
+        </footer>
       </article>`;
     })
     .join("");

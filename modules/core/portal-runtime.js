@@ -7780,6 +7780,45 @@ function agAvatarHue(name) {
 }
 
 /**
+ * Tarjetas unificadas (copia del modelo visual): piezas reutilizables.
+ * `ucTile` = panel suave con icono; `ucAlert` = panel de licencia/vencimiento con tono; `ucStrip` = franja inferior.
+ */
+function ucTile({ icon = "", label = "", value = "", sub = "", lineLabel = "", lineValue = "", tone = "", wide = false, title = "", extra = "" } = {}) {
+  return `<div class="uc-tile${tone ? ` uc-tile--${escapeAttr(tone)}` : ""}${wide ? " uc-tile--wide" : ""}"${title ? ` title="${escapeAttr(title)}"` : ""}>
+    ${icon ? `<span class="uc-tile__ico" aria-hidden="true">${icon}</span>` : ""}
+    <span class="uc-tile__body">
+      ${label ? `<span class="uc-tile__label">${escapeHtml(label)}</span>` : ""}
+      ${value ? `<strong class="uc-tile__value">${escapeHtml(value)}</strong>` : ""}
+      ${sub ? `<span class="uc-tile__sub">${escapeHtml(sub)}</span>` : ""}
+      ${lineValue ? `<span class="uc-tile__line">${escapeHtml(lineLabel)} <strong>${escapeHtml(lineValue)}</strong></span>` : ""}
+      ${extra}
+    </span>
+  </div>`;
+}
+
+function ucAlert({ tone = "ok", icon = "", label = "", value = "", caption = "", pill = "", pillTone = "", dateLabel = "", date = "", cls = "" } = {}) {
+  const pillKind = pillTone || tone;
+  const pillIcon = pillKind === "ok" ? IC.checkCircle : IC.alertTriangle;
+  return `<div class="uc-alert uc-alert--${escapeAttr(tone)}${cls ? ` ${cls}` : ""}">
+    <span class="uc-alert__ico" aria-hidden="true">${icon}</span>
+    <span class="uc-alert__main">
+      <span class="uc-alert__label">${escapeHtml(label)}</span>
+      ${value ? `<strong class="uc-alert__value">${escapeHtml(value)}</strong>` : ""}
+      ${caption ? `<span class="uc-alert__caption">${escapeHtml(caption)}</span>` : ""}
+    </span>
+    <span class="uc-alert__side">
+      ${pill ? `<span class="uc-alert__pill uc-alert__pill--${escapeAttr(pillKind)}">${pillIcon}<span>${escapeHtml(pill)}</span></span>` : ""}
+      ${date ? `<span class="uc-alert__date">${IC.calendar}<span><small>${escapeHtml(dateLabel)}</small><strong>${escapeHtml(date)}</strong></span></span>` : ""}
+    </span>
+  </div>`;
+}
+
+function ucStrip({ tone = "ok", text = "", icon = "" } = {}) {
+  const ico = icon || (tone === "ok" ? IC.checkCircle : IC.alertTriangle);
+  return `<p class="uc-strip uc-strip--${escapeAttr(tone)}"><span class="uc-strip__ico" aria-hidden="true">${ico}</span><span>${escapeHtml(text)}</span></p>`;
+}
+
+/**
  * Menú de acciones secundarias (⋯). Los botones conservan su `data-action`, así que los
  * listeners existentes de Gestión humana / Conductores siguen funcionando sin cambios.
  */
@@ -8056,7 +8095,7 @@ function renderPayrollEmployeeRosterCard(item, hrAdminDeletes) {
   return `<article class="ag-roster-card ag-roster-card--${escapeAttr(tone)} directory-card--employee" ${payrollEmployeeDirectoryDataAttrs(e, item, contract, { contractTypeKey, endYmd, vehicleCsv })}>
     ${selectHtml}
     <div class="ag-roster-card__id">
-      <div class="ag-avatar ag-avatar--hue-${agAvatarHue(name)}${avCss ? " ag-avatar--photo" : ""}"${avCss ? ` style="background-image:url('${avCss}')"` : ""} aria-hidden="true">
+      <div class="ag-avatar ag-avatar--hue-${agAvatarHue(name)}${avCss ? " ag-avatar--photo" : ""}"${avCss ? ` style="--ag-photo:url('${avCss}');background-image:url('${avCss}')"` : ""} aria-hidden="true">
         ${avCss ? "" : escapeHtml(initials || "C")}
         ${isDriver ? `<span class="ag-avatar__badge" title="Conductor">${IC.truck}</span>` : ""}
       </div>
@@ -8270,47 +8309,64 @@ function renderPayrollEmployeeBadgeCard(item, hrAdminDeletes) {
     ? `<label class="ag-select hr-cred__pick" title="Seleccionar"><input type="checkbox" data-employee-select value="${escapeAttr(id)}" aria-label="Seleccionar ${escapeAttr(displayName)}" /><span aria-hidden="true"></span></label>`
     : "";
 
+  const docLineUc = docLine === "—" ? "" : docLine;
+  const subtitleUc = [roleLabel !== "—" ? roleLabel : "", docLineUc].filter(Boolean).join(" • ") || "Colaborador";
+  const licenseCat = String(e.licenseCategory || "").trim();
+  const licenseYmd = normalizePortalDateYmd(e.licenseExpiry || "");
+  const licenseDays = licenseYmd ? agYmdDiffDays(todayYmd, licenseYmd) : null;
+  const licenseToneUc = licenseDays == null ? "" : licenseDays < 0 ? "alert" : licenseDays <= 60 ? "warn" : "";
+  const startUc = hireYmd ? fmtDateOr(hireYmd, "—") : "—";
+  const dueLabelUc = contract.applies ? "Vence:" : item.isDriverSvc ? "Plazo:" : "Ingreso:";
+  const dueValueUc = contract.applies ? endFact : item.isDriverSvc ? "Por viaje" : startUc;
+  const stripToneUc = /--alert/.test(noteClass) ? "alert" : /--warn/.test(noteClass) ? "warn" : "ok";
+  const stripTextUc =
+    stripToneUc === "ok" && /^Quedan /.test(note) ? `Contrato vigente · ${note.charAt(0).toLowerCase()}${note.slice(1)}` : note;
+  const licenseTileUc =
+    (isDriver || licenseCat || licenseYmd) && (licenseCat || licenseYmd)
+      ? ucTile({
+          icon: IC.idCard,
+          label: licenseCat ? `Licencia ${licenseCat}` : "Licencia",
+          lineLabel: "Vence:",
+          lineValue: licenseYmd ? fmtDateOr(licenseYmd, "—") : "Sin fecha",
+          tone: licenseToneUc,
+          wide: true
+        })
+      : "";
+  const chipsUc = [
+    vehicleLabel ? `<span class="ag-check ag-check--neutral">${IC.truck}<span>${escapeHtml(vehicleLabel)}</span></span>` : "",
+    `<span class="ag-check ag-check--neutral">${IC.building}<span>${escapeHtml(companyLabel)}</span></span>`
+  ].join("");
+
   return `<article class="hr-cred hr-cred--${escapeAttr(tone)} directory-card--employee" ${payrollEmployeeDirectoryDataAttrs(e, item, contract, { contractTypeKey, endYmd, vehicleCsv })}>
-    <div class="hr-cred__band" aria-hidden="true"></div>
     <header class="hr-cred__head">
-      <span class="ag-avatar ag-avatar--lg ag-avatar--hue-${agAvatarHue(name)}${avCss ? " ag-avatar--photo" : ""}"${avCss ? ` style="background-image:url('${avCss}')"` : ""} aria-hidden="true">${avCss ? "" : escapeHtml(initials || "C")}${isDriver ? `<span class="ag-avatar__badge" title="Conductor">${IC.truck}</span>` : ""}</span>
-      <div class="hr-cred__head-meta">
+      ${selectHtml}
+      <span class="ag-avatar ag-avatar--lg ag-avatar--hue-${agAvatarHue(name)}${avCss ? " ag-avatar--photo" : ""}"${avCss ? ` style="--ag-photo:url('${avCss}');background-image:url('${avCss}')"` : ""} aria-hidden="true">${avCss ? "" : escapeHtml(initials || "C")}${isDriver ? `<span class="ag-avatar__badge" title="Conductor">${IC.truck}</span>` : ""}</span>
+      <div class="hr-cred__who">
+        <h4 class="hr-cred__name" title="${escapeAttr(name)}">${escapeHtml(displayName)}</h4>
+        <p class="hr-cred__org" title="${escapeAttr(subtitleUc)}">${escapeHtml(subtitleUc)}</p>
         <span class="ag-status ag-status--${escapeAttr(tone)}"><span class="ag-status__dot" aria-hidden="true"></span>${escapeHtml(statusLabel)}</span>
       </div>
+      ${menu}
     </header>
-    <div class="hr-cred__who">
-      <h4 class="hr-cred__name" title="${escapeAttr(name)}">${escapeHtml(displayName)}</h4>
-      <p class="hr-cred__org">
-        <span title="${escapeAttr(roleLabel)}">${escapeHtml(roleLabel)}</span>
-        ${vehicleLabel ? `<span class="hr-cred__vehicle" title="Vehículo">${IC.truck}${escapeHtml(vehicleLabel)}</span>` : ""}
-      </p>
-      <p class="hr-cred__mail">${escapeHtml(docLine)} · ${escapeHtml(companyLabel)}</p>
+    <div class="uc-tiles">
+      ${ucTile({ icon: IC.briefcase, label: "Contrato", value: contractLabel })}
+      ${ucTile({ icon: IC.dollar, label: item.isDriverSvc ? "Honorarios" : "Sueldo", value: salaryFull, title: transportNote ? `${salaryFull}${transportNote}` : "" })}
+      ${ucTile({ lineLabel: dueLabelUc, lineValue: dueValueUc, wide: true })}
     </div>
-    <div class="hr-cred__meter${ringOpen ? " hr-cred__meter--open" : ""}" role="img" aria-label="${escapeAttr(ringLabel)}">
-      <span class="hr-cred__gauge">
-        <span class="hr-cred__ring${ringOpen ? " hr-cred__ring--open" : ""}" style="--pct:${pct}"><span><strong>${escapeHtml(ringStrong)}</strong></span></span>
-        <small>${escapeHtml(ringSmall)}</small>
-      </span>
-      <ul class="hr-cred__facts">
-        <li><span>Contrato</span><strong title="${escapeAttr(contractLabel)}">${escapeHtml(contractLabel)}</strong></li>
-        <li><span>${item.isDriverSvc ? "Honorarios" : "Base"}</span><strong title="${escapeAttr(`${salaryFull}${transportNote}`)}">${escapeHtml(payrollConsultMoneyShort(item.salaryCop))}</strong></li>
-        <li><span>${contract.applies ? "Vence" : "Plazo"}</span><strong>${escapeHtml(endFact)}</strong></li>
-      </ul>
-    </div>
-    <p class="hr-cred__note${noteClass}">${escapeHtml(note)}</p>
+    ${licenseTileUc}
+    ${ucStrip({ tone: stripToneUc, text: stripTextUc })}
+    <div class="ag-pass__checks hr-cred__chips">${chipsUc}</div>
     <footer class="hr-cred__foot">
       <div class="hr-cred__contact">
-        ${selectHtml}
         ${
           phoneLabel
-            ? `<a class="hr-cred__tel" href="tel:${escapeAttr(phoneRaw)}">${IC.phone}<span>${escapeHtml(phoneLabel)}</span></a>`
+            ? `<a class="hr-cred__tel" href="tel:${escapeAttr(phoneRaw)}" title="Llamar a ${escapeAttr(phoneLabel)}" aria-label="Llamar a ${escapeAttr(phoneLabel)}">${IC.phone}<span>${escapeHtml(phoneLabel)}</span></a>`
             : `<span class="hr-cred__tel hr-cred__tel--muted">${IC.phone}<span>Sin teléfono</span></span>`
         }
       </div>
       <div class="hr-cred__actions">
-        <button type="button" class="ag-btn ag-btn--primary" data-action="view-employee" data-id="${escapeAttr(id)}">${IC.eye}<span>Ver perfil</span></button>
         ${item.isUnlinked ? "" : `<button type="button" class="ag-icon-btn" data-action="edit-employee" data-id="${escapeAttr(id)}" title="Editar" aria-label="Editar ${escapeAttr(displayName)}">${IC.edit}</button>`}
-        ${menu}
+        <button type="button" class="ag-btn ag-btn--primary" data-action="view-employee" data-id="${escapeAttr(id)}"><span>Ver ficha</span></button>
       </div>
     </footer>
   </article>`;
@@ -16482,6 +16538,9 @@ Object.assign(window, {
   renderHistoryTechnicalLogsList,
   renderPayrollEmployeeDirectoryCard,
   renderAgActionMenu,
+  ucTile,
+  ucAlert,
+  ucStrip,
   agAvatarHue,
   renderPayrollEmployeeDirectoryTableRow,
   renderPayrollLegalHistoryCard,

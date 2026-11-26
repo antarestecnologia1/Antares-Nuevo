@@ -424,23 +424,51 @@ function driversHtml() {
     const tripClient = trip
       ? String(trip.clientName || trip.companyName || trip.request?.clientName || "").trim() || item.tripDetail
       : "";
-    const tripStrip = trip
-      ? `<div class="ag-pass__trip ag-pass__trip--${escapeAttr(item.statusSlug)}">
-          <span class="ag-pass__trip-ico" aria-hidden="true">${IC.mapPin}</span>
-          <div class="ag-pass__trip-copy">
-            <strong>Viaje ${escapeHtml(tripNumber)}</strong>
-            <span>${escapeHtml(tripClient)} · ${escapeHtml(item.occupancy.detail)}</span>
-          </div>
-          ${
-            tripRequestId
-              ? `<button type="button" class="ag-link-btn" data-action="trip-detail" data-id="${escapeAttr(tripRequestId)}">Ver viaje</button>`
-              : ""
-          }
-        </div>`
-      : `<div class="ag-pass__trip ag-pass__trip--${escapeAttr(item.statusSlug)} ag-pass__trip--idle">
-          <span class="ag-status__dot" aria-hidden="true"></span>
-          <div class="ag-pass__trip-copy"><span>${escapeHtml(item.tripDetail)}</span></div>
-        </div>`;
+    const tripVehicleId = trip ? String(trip.trip?.vehicleId || "").trim() : "";
+    const assignedVehicle = tripVehicleId
+      ? (read(KEYS.vehicles, []) || []).find((v) => String(v.id) === tripVehicleId) || null
+      : null;
+    const assignedPlate = String(
+      (trip && (trip.trip?.vehiclePlate || trip.vehiclePlate)) || assignedVehicle?.plate || ""
+    )
+      .trim()
+      .toUpperCase();
+    const vehicleLabel = driverVehicleTypesCsvToLabel(d.vehicleTypes, "") || "Sin categoría";
+    const docLine = `${String(d.documentType || "CC").trim() || "CC"} ${String(d.idDoc || "—").trim() || "—"}`;
+    const opsTile = trip
+      ? ucTile({
+          icon: IC.activity,
+          label: "Estado operación",
+          value: `Viaje ${tripNumber}`,
+          sub: [tripClient, item.occupancy.detail].filter(Boolean).join(" · "),
+          extra: tripRequestId
+            ? `<button type="button" class="ag-link-btn" data-action="trip-detail" data-id="${escapeAttr(tripRequestId)}">Ver viaje</button>`
+            : ""
+        })
+      : ucTile({ icon: IC.activity, label: "Estado operación", value: item.tripDetail });
+    const licenseAlertTone = licenseTone;
+    const licenseDocPill =
+      licenseTone === "alert"
+        ? "Crítico"
+        : licenseTone === "warn"
+          ? item.licenseMeta.bucket === "missing"
+            ? "Incompleto"
+            : "Por vencer"
+          : docToneOf(item.docBucket) === "ok"
+            ? ""
+            : docLabelOf(item.docBucket);
+    const licenseCard = ucAlert({
+      tone: licenseAlertTone,
+      icon: IC.idCard,
+      label: `Licencia ${licenseCategory}`,
+      value: licenseNumber,
+      caption: licenseCaption,
+      pill: licenseDocPill,
+      pillTone: licenseTone === "ok" ? docToneOf(item.docBucket) : licenseTone,
+      dateLabel: "Vence",
+      date: expiryYmd ? fmtDateOr(expiryYmd) : "",
+      cls: `ag-pass__license ag-pass__license--${licenseTone}`
+    });
     const checks = [
       {
         icon: IC.shield,
@@ -460,47 +488,48 @@ function driversHtml() {
     ]
       .map((c) => `<span class="ag-check ag-check--${c.tone}">${c.icon}<span>${escapeHtml(c.label)}</span></span>`)
       .join("");
+    const cardMenu = renderAgActionMenu([
+      { action: "view-driver", id, icon: IC.eye, label: "Ver ficha" },
+      canEditDriver ? { action: "edit-driver", id, icon: IC.edit, label: "Editar datos operativos" } : null,
+      canEditDriver
+        ? {
+            action: "toggle-driver",
+            id,
+            icon: IC.toggle,
+            label: item.statusSlug === "offline" ? "Marcar disponible" : "Marcar no disponible"
+          }
+        : null
+    ]);
 
     return `<article class="ag-pass ag-pass--${escapeAttr(item.statusSlug)} ag-pass--doc-${escapeAttr(item.docBucket)}" data-driver-id="${escapeAttr(id)}">
       <header class="ag-pass__head">
         ${avatarHtml(d, item.statusSlug, "lg")}
         <div class="ag-pass__who">
           <h4 aria-level="3" class="ag-pass__name" title="${escapeAttr(name)}">${escapeHtml(name)}</h4>
-          <p class="ag-pass__meta">${escapeHtml(String(d.idDoc || "—"))} · ${escapeHtml(item.companyName)}</p>
+          <p class="ag-pass__meta">Conductor • ${escapeHtml(docLine)}</p>
           <span class="ag-status ag-status--${escapeAttr(item.statusSlug)}"><span class="ag-status__dot" aria-hidden="true"></span>${escapeHtml(statusLabel)}</span>
         </div>
+        ${cardMenu}
       </header>
-      <div class="ag-pass__license ag-pass__license--${licenseTone}">
-        <span class="ag-pass__cat" title="Categoría de licencia">${escapeHtml(licenseCategory)}</span>
-        <div class="ag-pass__license-body">
-          <div class="ag-pass__license-top">
-            <span class="ag-pass__license-num">${escapeHtml(licenseNumber)}</span>
-            <span class="ag-pass__doc ag-pass__doc--${docToneOf(item.docBucket)}" title="Estado documental">${escapeHtml(docLabelOf(item.docBucket))}</span>
-          </div>
-          <div class="ag-meter" role="img" aria-label="Licencia: ${escapeAttr(licenseCaption)}"><span style="width:${licensePct}%"></span></div>
-          <div class="ag-pass__license-foot">
-            <span>${escapeHtml(licenseCaption)}</span>
-            ${expiryYmd ? `<span>${escapeHtml(fmtDateOr(expiryYmd))}</span>` : ""}
-          </div>
-        </div>
+      <div class="uc-tiles">
+        ${ucTile({ icon: IC.truck, label: "Vehículo", value: vehicleLabel, sub: assignedPlate ? `Placa: ${assignedPlate}` : "Sin placa asignada" })}
+        ${opsTile}
       </div>
+      ${licenseCard}
       <div class="ag-pass__checks">${checks}</div>
-      <div class="ag-pass__vehicles">${vehicleChipsHtml(d.vehicleTypes)}</div>
-      ${tripStrip}
       <footer class="ag-pass__foot">
         ${
           phoneLabel
-            ? `<a class="ag-pass__phone" href="tel:${escapeAttr(phoneRaw)}" title="Llamar">${IC.phone}<span>${escapeHtml(phoneLabel)}</span></a>`
+            ? `<a class="ag-pass__phone" href="tel:${escapeAttr(phoneRaw)}" title="Llamar a ${escapeAttr(phoneLabel)}" aria-label="Llamar a ${escapeAttr(phoneLabel)}">${IC.phone}<span>${escapeHtml(phoneLabel)}</span></a>`
             : '<span class="ag-pass__phone ag-pass__phone--muted">Sin teléfono</span>'
         }
         <div class="ag-pass__actions">
           ${
             canEditDriver
-              ? `<button type="button" class="ag-icon-btn" data-action="toggle-driver" data-id="${escapeAttr(id)}" title="${item.statusSlug === "offline" ? "Marcar disponible" : "Marcar no disponible"}" aria-label="Cambiar disponibilidad">${IC.toggle}</button>
-          <button type="button" class="ag-icon-btn" data-action="edit-driver" data-id="${escapeAttr(id)}" title="Editar datos operativos" aria-label="Editar ${escapeAttr(name)}">${IC.edit}</button>`
+              ? `<button type="button" class="ag-icon-btn" data-action="edit-driver" data-id="${escapeAttr(id)}" title="Editar datos operativos" aria-label="Editar ${escapeAttr(name)}">${IC.edit}</button>`
               : ""
           }
-          <button type="button" class="ag-btn ag-btn--primary" data-action="view-driver" data-id="${escapeAttr(id)}">${IC.eye}<span>Ver ficha</span></button>
+          <button type="button" class="ag-btn ag-btn--primary" data-action="view-driver" data-id="${escapeAttr(id)}"><span>Ver ficha</span></button>
         </div>
       </footer>
     </article>`;

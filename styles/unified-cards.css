@@ -1405,4 +1405,744 @@
     cursor: pointer !important;
   }
 
+  /* ───────── Tarjeta modelo: copia de la referencia (avatar grande, ⋮, estado, paneles con icono, franja, pie) ───────── */
+  :root {
+    --uc-ink: #0f2c5c;
+    --uc-ink-soft: #5b6f94;
+    --uc-tile: #f1f5fb;
+    --uc-tile-edge: rgba(176, 198, 230, 0.35);
+    --uc-ico-bg: #ffffff;
+    --uc-ico: #1d55b0;
+    --uc-card-bg: linear-gradient(180deg, #ffffff 0%, #f6f9fe 100%);
+    --uc-card-edge: rgba(205, 220, 242, 0.85);
+    --uc-ok: #12853f;
+    --uc-ok-bg: #dbf3e3;
+    --uc-warn: #cf6a0a;
+    --uc-warn-bg: #fdebd6;
+    --uc-alert: #c3182c;
+    --uc-alert-bg: #fde5e8;
+    --uc-alert-pill: #f8c4cb;
+    --uc-warn-pill: #fbd9b0;
+    --uc-btn-edge: #cfdcf0;
+    --uc-avatar-bg: #d9e7fa;
+    --uc-avatar-ink: #1b4fb3;
+  }
+  body[data-theme="dark"] {
+    --uc-ink: #e6efff;
+    --uc-ink-soft: #9db3d6;
+    --uc-tile: rgba(148, 196, 255, 0.08);
+    --uc-tile-edge: rgba(148, 196, 255, 0.14);
+    --uc-ico-bg: rgba(148, 196, 255, 0.12);
+    --uc-ico: #8dbbf5;
+    --uc-card-bg: linear-gradient(180deg, #14263d 0%, #0f1c2e 100%);
+    --uc-card-edge: rgba(148, 196, 255, 0.18);
+    --uc-ok: #7fe0a6;
+    --uc-ok-bg: rgba(60, 190, 120, 0.16);
+    --uc-warn: #ffbd73;
+    --uc-warn-bg: rgba(255, 160, 60, 0.14);
+    --uc-alert: #ff8d9a;
+    --uc-alert-bg: rgba(255, 90, 110, 0.14);
+    --uc-alert-pill: rgba(255, 90, 110, 0.26);
+    --uc-warn-pill: rgba(255, 160, 60, 0.26);
+    --uc-btn-edge: rgba(148, 196, 255, 0.3);
+    --uc-avatar-bg: rgba(110, 160, 235, 0.22);
+    --uc-avatar-ink: #b9d2fb;
+  }
+
+  /* Superficie de la tarjeta */
+  :is(.ag-pass, .hr-cred, .adm-badge, .trip-ops-card--vehicle) {
+    position: relative !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.7rem !important;
+    padding: 1.05rem 1rem 1rem !important;
+    border: 1px solid var(--uc-card-edge) !important;
+    border-radius: 22px !important;
+    background: var(--uc-card-bg) !important;
+    box-shadow: 0 1px 3px rgba(30, 80, 160, 0.06), 0 16px 34px -20px rgba(30, 80, 160, 0.38) !important;
+  }
+  :is(.ag-pass, .hr-cred, .adm-badge, .trip-ops-card--vehicle):hover {
+    box-shadow: 0 2px 4px rgba(30, 80, 160, 0.08), 0 22px 40px -20px rgba(30, 80, 160, 0.46) !important;
+  }
+
+  /* Cabecera: avatar · nombre / subtítulo / estado · ⋮ */
+  :is(.ag-pass__head, .hr-cred__head, .adm-badge__head) {
+    position: relative !important;
+    display: grid !important;
+    grid-template-columns: auto minmax(0, 1fr) !important;
+    align-items: start !important;
+    gap: 0.85rem !important;
+    padding-right: 2.7rem !important;
+  }
+  :is(.ag-pass__head, .hr-cred__head, .adm-badge__head) .ag-avatar {
+    width: 4.4rem !important;
+    height: 4.4rem !important;
+    border-radius: 50% !important;
+    background-color: var(--uc-avatar-bg) !important;
+    background-image: none !important;
+    color: var(--uc-avatar-ink) !important;
+    font-size: 1.4rem !important;
+    font-weight: 800 !important;
+    box-shadow: 0 0 0 3px #fff, 0 6px 16px -6px rgba(25, 70, 140, 0.35) !important;
+    overflow: hidden !important;
+  }
+  body[data-theme="dark"] :is(.ag-pass__head, .hr-cred__head, .adm-badge__head) .ag-avatar {
+    box-shadow: 0 0 0 3px #0f1c2e, 0 6px 16px -6px rgba(0, 0, 0, 0.6) !important;
+  }
+  :is(.ag-pass__head, .hr-cred__head, .adm-badge__head) .ag-avatar img {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+  }
+  :is(.ag-pass__head, .hr-cred__head, .adm-badge__head) .ag-avatar__badge {
+    display: none !important;
+  }
+  :is(.ag-pass__who, .hr-cred__who, .adm-badge__who) {
+    display: grid !important;
+    gap: 0.3rem !important;
+    justify-items: start !important;
+    min-width: 0 !important;
+    padding-top: 0.1rem !important;
+  }
+  :is(.ag-pass__name, .hr-cred__name, .adm-badge__name) {
+    display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere !important;
+    color: var(--uc-ink) !important;
+    font-size: 1.08rem !important;
+    font-weight: 800 !important;
+    line-height: 1.18 !important;
+    letter-spacing: -0.01em !important;
+    text-overflow: clip !important;
+    -webkit-line-clamp: unset !important;
+  }
+  :is(.ag-pass__meta, .hr-cred__org, .adm-badge__org) {
+    margin: 0 !important;
+    color: var(--uc-ink-soft) !important;
+    font-size: 0.8rem !important;
+    font-weight: 500 !important;
+    line-height: 1.25 !important;
+  }
+  :is(.ag-pass__head, .hr-cred__head, .adm-badge__head) .ag-status {
+    margin-top: 0.15rem !important;
+  }
+
+  /* Estado: píldora pastel con punto */
+  :is(.ag-pass, .hr-cred, .adm-badge, .trip-ops-card--vehicle) .ag-status {
+    gap: 0.45rem !important;
+    padding: 0.3rem 0.85rem 0.3rem 0.65rem !important;
+    border: 0 !important;
+    border-radius: 999px !important;
+    background: color-mix(in srgb, var(--ag-tone, #8696a8) 17%, var(--ag-surface, #fff)) !important;
+    color: color-mix(in srgb, var(--ag-tone, #8696a8) 70%, #05210f) !important;
+    font-size: 0.8rem !important;
+    font-weight: 800 !important;
+    line-height: 1.2 !important;
+  }
+  :is(.ag-pass, .hr-cred, .adm-badge, .trip-ops-card--vehicle) .ag-status__dot {
+    width: 0.7rem !important;
+    height: 0.7rem !important;
+    background: var(--ag-tone, #8696a8) !important;
+  }
+  body[data-theme="dark"] :is(.ag-pass, .hr-cred, .adm-badge, .trip-ops-card--vehicle) .ag-status {
+    color: color-mix(in srgb, var(--ag-tone, #8696a8) 55%, #fff) !important;
+  }
+
+  /* Selector (casilla) discreto en la esquina superior izquierda; el ⋮ ocupa la derecha */
+  :is(.ag-pass__head, .hr-cred__head, .adm-badge__head) .dc-pick {
+    position: absolute !important;
+    top: -0.85rem !important;
+    left: -0.85rem !important;
+    z-index: 3 !important;
+    width: 1.3rem !important;
+    height: 1.3rem !important;
+    margin: 0 !important;
+    border-radius: 7px !important;
+    box-shadow: 0 2px 6px -2px rgba(30, 80, 160, 0.35) !important;
+  }
+  :is(.ag-pass__head, .hr-cred__head, .adm-badge__head) .dc-pick input {
+    width: 0.9rem !important;
+    height: 0.9rem !important;
+  }
+  :is(.ag-pass, .hr-cred, .adm-badge, .trip-ops-card--vehicle).dc-selectable.is-selected {
+    background: var(--uc-card-bg) !important;
+    box-shadow: 0 0 0 2px var(--uc-ico), 0 16px 34px -20px rgba(30, 80, 160, 0.38) !important;
+  }
+  :is(.ag-pass, .hr-cred, .adm-badge, .trip-ops-card--vehicle) .ag-menu {
+    position: absolute !important;
+    top: 0 !important;
+    right: 0 !important;
+    z-index: 4 !important;
+  }
+  :is(.ag-pass, .hr-cred, .adm-badge, .trip-ops-card--vehicle) .ag-menu > summary {
+    --ab-h-sm: 2.4rem;
+    --ab-c: var(--uc-ico);
+    --ab-bg: var(--uc-tile);
+    --ab-bd: transparent;
+    --ab-bw: 0px;
+    --ab-fg: var(--uc-ink);
+    --ab-sh: 0 3px 10px -4px rgba(30, 80, 160, 0.3);
+    border-radius: 50% !important;
+  }
+  :is(.ag-pass, .hr-cred, .adm-badge, .trip-ops-card--vehicle) .ag-menu > summary svg {
+    width: 1.15rem !important;
+    height: 1.15rem !important;
+    stroke-width: 3 !important;
+  }
+
+  /* Paneles con icono (Vehículo, Estado operación, Contrato, Sueldo…) */
+  .uc-tiles {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.5rem !important;
+  }
+  .uc-tile {
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.5rem !important;
+    min-width: 0 !important;
+    padding: 0.55rem 0.6rem !important;
+    border-radius: 16px !important;
+    background: var(--uc-tile) !important;
+    color: var(--uc-ink) !important;
+  }
+  .uc-tile--wide {
+    grid-column: 1 / -1 !important;
+  }
+  .uc-tile__ico,
+  .uc-alert__ico {
+    display: grid !important;
+    flex: none !important;
+    place-items: center !important;
+    width: 2.15rem !important;
+    height: 2.15rem !important;
+    border-radius: 12px !important;
+    background: var(--uc-ico-bg) !important;
+    color: var(--uc-ico) !important;
+    box-shadow: 0 3px 8px -4px rgba(30, 80, 160, 0.3) !important;
+  }
+  .uc-tile__ico svg,
+  .uc-alert__ico svg {
+    width: 1.2rem !important;
+    height: 1.2rem !important;
+    stroke-width: 2.2 !important;
+  }
+  .uc-tile__body,
+  .uc-alert__main {
+    display: grid !important;
+    gap: 0.05rem !important;
+    min-width: 0 !important;
+  }
+  .uc-tile__label,
+  .uc-alert__label {
+    color: var(--uc-ink-soft) !important;
+    font-size: 0.75rem !important;
+    font-weight: 500 !important;
+    line-height: 1.2 !important;
+  }
+  .uc-tile__value {
+    color: var(--uc-ink) !important;
+    font-size: 0.9rem !important;
+    font-weight: 800 !important;
+    line-height: 1.18 !important;
+    overflow-wrap: break-word !important;
+  }
+  .uc-tile__sub {
+    color: var(--uc-ink-soft) !important;
+    font-size: 0.72rem !important;
+    font-weight: 500 !important;
+    line-height: 1.25 !important;
+    overflow-wrap: anywhere !important;
+  }
+  .uc-tile .ag-link-btn {
+    justify-self: start !important;
+    padding: 0 !important;
+    color: var(--uc-ico) !important;
+    font-size: 0.74rem !important;
+    font-weight: 700 !important;
+  }
+
+  /* Panel de licencia / vencimiento con tono (ok · atención · crítico) */
+  .uc-alert {
+    display: grid !important;
+    grid-template-columns: auto minmax(0, 1fr) auto !important;
+    align-items: center !important;
+    gap: 0.6rem !important;
+    padding: 0.7rem 0.7rem !important;
+    border-radius: 16px !important;
+    background: var(--uc-tile) !important;
+    color: var(--uc-ink) !important;
+  }
+  .uc-alert__value {
+    color: var(--uc-ink) !important;
+    font-size: 0.95rem !important;
+    font-weight: 800 !important;
+    line-height: 1.15 !important;
+    overflow-wrap: anywhere !important;
+  }
+  .uc-alert__caption {
+    color: var(--uc-ink-soft) !important;
+    font-size: 0.76rem !important;
+    font-weight: 500 !important;
+  }
+  .uc-alert__side {
+    display: grid !important;
+    gap: 0.4rem !important;
+    justify-items: end !important;
+    align-self: stretch !important;
+    align-content: space-between !important;
+  }
+  .uc-alert__pill {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 0.3rem !important;
+    padding: 0.25rem 0.65rem 0.25rem 0.5rem !important;
+    border-radius: 999px !important;
+    font-size: 0.78rem !important;
+    font-weight: 800 !important;
+    line-height: 1.2 !important;
+    white-space: nowrap !important;
+  }
+  .uc-alert__pill svg {
+    width: 1.05rem !important;
+    height: 1.05rem !important;
+  }
+  .uc-alert__pill--ok {
+    background: var(--uc-ok-bg) !important;
+    color: var(--uc-ok) !important;
+  }
+  .uc-alert__date {
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.35rem !important;
+    color: var(--uc-ink) !important;
+  }
+  .uc-alert__date > svg {
+    width: 1.15rem !important;
+    height: 1.15rem !important;
+    color: var(--uc-ico) !important;
+  }
+  .uc-alert__date span {
+    display: grid !important;
+    line-height: 1.15 !important;
+  }
+  .uc-alert__date small {
+    color: var(--uc-ink-soft) !important;
+    font-size: 0.72rem !important;
+    font-weight: 500 !important;
+  }
+  .uc-alert__date strong {
+    font-size: 0.82rem !important;
+    font-weight: 800 !important;
+  }
+  .uc-alert--warn {
+    background: var(--uc-warn-bg) !important;
+  }
+  .uc-alert--warn .uc-alert__value,
+  .uc-alert--warn .uc-alert__caption {
+    color: var(--uc-warn) !important;
+  }
+  .uc-alert__pill--warn {
+    background: var(--uc-warn-pill) !important;
+    color: var(--uc-warn) !important;
+  }
+  .uc-alert__pill--alert {
+    background: var(--uc-alert-pill) !important;
+    color: var(--uc-alert) !important;
+  }
+  .uc-alert--warn .uc-alert__ico {
+    color: var(--uc-warn) !important;
+  }
+  .uc-alert--alert {
+    background: var(--uc-alert-bg) !important;
+  }
+  .uc-alert--alert .uc-alert__value {
+    font-size: 1.15rem !important;
+    color: var(--uc-alert) !important;
+  }
+  .uc-alert--alert .uc-alert__caption {
+    color: var(--uc-alert) !important;
+    font-weight: 600 !important;
+  }
+  .uc-alert--alert .uc-alert__ico {
+    background: color-mix(in srgb, var(--uc-alert) 13%, var(--uc-ico-bg)) !important;
+    color: var(--uc-alert) !important;
+  }
+  /* Iconos rellenos (círculo con visto, triángulo con signo) en píldoras y franjas */
+  .uc-alert__pill svg circle,
+  .uc-strip--ok .uc-strip__ico svg circle {
+    fill: currentColor !important;
+  }
+  .uc-alert__pill svg path,
+  .uc-strip--ok .uc-strip__ico svg path {
+    stroke: #fff !important;
+  }
+  .uc-alert__pill svg:has(line) path,
+  .uc-strip:not(.uc-strip--ok) .uc-strip__ico svg path {
+    fill: currentColor !important;
+    stroke: currentColor !important;
+  }
+  .uc-alert__pill svg line,
+  .uc-strip:not(.uc-strip--ok) .uc-strip__ico svg line {
+    stroke: #fff !important;
+  }
+
+  /* Franja inferior: vigente · quedan N días · vencido */
+  .uc-strip {
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.55rem !important;
+    margin: 0 !important;
+    padding: 0.6rem 0.85rem !important;
+    border-radius: 14px !important;
+    font-size: 0.88rem !important;
+    font-weight: 800 !important;
+    line-height: 1.2 !important;
+  }
+  .uc-strip__ico {
+    display: grid !important;
+    flex: none !important;
+    place-items: center !important;
+  }
+  .uc-strip__ico svg {
+    width: 1.35rem !important;
+    height: 1.35rem !important;
+  }
+  .uc-strip--ok {
+    background: var(--uc-ok-bg) !important;
+    color: var(--uc-ok) !important;
+  }
+  .uc-strip--warn {
+    background: var(--uc-warn-bg) !important;
+    color: var(--uc-warn) !important;
+  }
+  .uc-strip--alert {
+    background: var(--uc-alert-bg) !important;
+    color: var(--uc-alert) !important;
+  }
+
+  /* Chips (EPS y ARL, comparendos, experiencia) */
+  :is(.ag-pass__checks, .hr-cred__chips, .adm-badge__chips) {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 0.4rem !important;
+  }
+  :is(.ag-pass__checks, .hr-cred__chips, .adm-badge__chips) .ag-check {
+    gap: 0.35rem !important;
+    padding: 0.34rem 0.7rem !important;
+    border: 0 !important;
+    border-radius: 999px !important;
+    background: var(--uc-tile) !important;
+    color: var(--uc-ink) !important;
+    font-size: 0.76rem !important;
+    font-weight: 700 !important;
+  }
+  :is(.ag-pass__checks, .hr-cred__chips, .adm-badge__chips) .ag-check svg {
+    width: 1rem !important;
+    height: 1rem !important;
+    color: var(--uc-ico) !important;
+  }
+  :is(.ag-pass__checks, .hr-cred__chips, .adm-badge__chips) .ag-check--warn {
+    background: var(--uc-warn-bg) !important;
+    color: var(--uc-warn) !important;
+  }
+  :is(.ag-pass__checks, .hr-cred__chips, .adm-badge__chips) .ag-check--warn svg {
+    color: var(--uc-warn) !important;
+  }
+
+  /* Pie: [Llamar] [lápiz] [Ver ficha →] */
+  :is(.ag-pass__foot, .hr-cred__foot, .adm-badge__foot) {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    gap: 0.5rem !important;
+    margin: auto 0 0 !important;
+    padding: 0.1rem 0 0 !important;
+    border-top: 0 !important;
+    --ab-h: 2.6rem;
+    --ab-h-sm: 2.6rem;
+  }
+  :is(.ag-pass__actions, .hr-cred__actions, .adm-badge__actions) {
+    display: contents !important;
+  }
+  :is(.ag-pass__foot, .hr-cred__foot, .adm-badge__foot) a:is(.ag-pass__phone, .hr-cred__tel, .adm-badge__tel),
+  :is(.ag-pass__foot, .hr-cred__foot, .adm-badge__foot) span:is(.ag-pass__phone, .hr-cred__tel, .adm-badge__tel) {
+    order: 1 !important;
+    display: inline-flex !important;
+    flex: 1 1 0 !important;
+    justify-content: center !important;
+    align-items: center !important;
+    gap: 0.4rem !important;
+    min-width: 0 !important;
+    min-height: 2.6rem !important;
+    padding: 0 0.6rem !important;
+    border: 1px solid var(--uc-btn-edge) !important;
+    border-radius: 999px !important;
+    background: var(--ag-surface, #fff) !important;
+    box-shadow: 0 5px 12px -8px rgba(30, 80, 160, 0.35) !important;
+    color: var(--uc-ink) !important;
+    font-size: 0.86rem !important;
+    font-weight: 800 !important;
+  }
+  :is(.ag-pass__foot, .hr-cred__foot, .adm-badge__foot) a:is(.ag-pass__phone, .hr-cred__tel, .adm-badge__tel) svg {
+    width: 1.15rem !important;
+    height: 1.15rem !important;
+    color: var(--uc-ico) !important;
+  }
+  :is(.ag-pass__foot, .hr-cred__foot, .adm-badge__foot) span:is(.ag-pass__phone--muted, .hr-cred__tel--muted, .adm-badge__tel--muted) {
+    flex: 1 1 0 !important;
+    color: var(--uc-ink-soft) !important;
+    font-weight: 600 !important;
+  }
+  :is(.ag-pass__actions, .hr-cred__actions, .adm-badge__actions) .ag-icon-btn:not(summary) {
+    order: 2 !important;
+    min-width: 3.4rem !important;
+    --ab-c: var(--uc-ico);
+    --ab-bg: var(--ag-surface, #fff);
+    --ab-bd: var(--uc-btn-edge);
+    --ab-bw: 1px;
+    --ab-fg: var(--uc-ico);
+    --ab-sh: 0 5px 12px -8px rgba(30, 80, 160, 0.35);
+  }
+  :is(.ag-pass, .hr-cred, .adm-badge, .trip-ops-card--vehicle) :is(.ag-pass__foot, .hr-cred__foot, .adm-badge__foot) :is(.ag-pass__actions, .hr-cred__actions, .adm-badge__actions) .ag-btn--primary.ab {
+    order: 3 !important;
+    flex: 1.2 1 0 !important;
+    min-width: 0 !important;
+    min-height: 2.6rem !important;
+    padding: 0 0.8rem !important;
+    gap: 0.4rem !important;
+    font-size: 0.88rem !important;
+    font-weight: 800 !important;
+  }
+  :is(.ag-pass__actions, .hr-cred__actions, .adm-badge__actions) .ag-btn--primary.ab {
+    --ab-cl: #164a96;
+    --ab-c: #0f3b80;
+    --ab-cd: #082a5e;
+    --ab-ch: #1d56a8;
+    --ab-ca: #061f47;
+    --ab-rgb: 8, 42, 94;
+  }
+  :is(.ag-pass__actions, .hr-cred__actions, .adm-badge__actions) .ag-btn--primary > svg {
+    display: none !important;
+  }
+
+  /* Foto de perfil en círculo (empleados: imagen de fondo en línea; conductores/usuarios: <img>) */
+  :is(.ag-pass__head, .hr-cred__head, .adm-badge__head) .ag-avatar.ag-avatar--photo {
+    background-image: var(--ag-photo) !important;
+    background-size: cover !important;
+    background-position: center !important;
+  }
+
+  /* Empleados / usuarios: bloques adicionales de la misma tarjeta */
+  :is(.hr-cred, .adm-badge) > :is(.uc-tiles, .uc-tile, .uc-strip, .hr-cred__chips, .adm-badge__chips, .hr-cred__foot, .adm-badge__foot) {
+    margin: 0 !important;
+  }
+  .hr-cred__head > .hr-cred__pick {
+    position: absolute !important;
+    top: -0.85rem !important;
+    left: -0.85rem !important;
+    z-index: 3 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 1.3rem !important;
+    height: 1.3rem !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 1px solid var(--ag-edge-strong, #c9d9ee) !important;
+    border-radius: 7px !important;
+    background: var(--ag-surface, #fff) !important;
+    box-shadow: 0 2px 6px -2px rgba(30, 80, 160, 0.35) !important;
+  }
+  .hr-cred__head > .hr-cred__pick input {
+    width: 0.9rem !important;
+    height: 0.9rem !important;
+    margin: 0 !important;
+  }
+  .hr-cred__org {
+    overflow-wrap: anywhere !important;
+  }
+  .uc-tile--warn {
+    background: var(--uc-warn-bg) !important;
+  }
+  .uc-tile--alert {
+    background: var(--uc-alert-bg) !important;
+  }
+  .uc-tile--alert .uc-tile__label,
+  .uc-tile--alert .uc-tile__line,
+  .uc-tile--alert .uc-tile__line strong {
+    color: var(--uc-alert) !important;
+  }
+  .uc-tile--warn .uc-tile__label,
+  .uc-tile--warn .uc-tile__line,
+  .uc-tile--warn .uc-tile__line strong {
+    color: var(--uc-warn) !important;
+  }
+  .uc-tile__line {
+    color: var(--uc-ink) !important;
+    font-size: 0.86rem !important;
+    font-weight: 600 !important;
+    line-height: 1.25 !important;
+  }
+  .uc-tile__line strong {
+    font-weight: 800 !important;
+  }
+  .uc-tile:not(:has(.uc-tile__ico)) {
+    padding-block: 0.65rem !important;
+    padding-inline: 0.85rem !important;
+  }
+
+  /* Rejillas: tarjetas con ancho suficiente para los paneles de dos columnas */
+  :is(.hr-cred-grid, .ag-pass-grid, .user-grid.directory-grid) {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)) !important;
+    gap: 1rem !important;
+  }
+  :is(.ag-pass, .hr-cred, .adm-badge, .trip-ops-card--vehicle) {
+    container-type: inline-size !important;
+  }
+  @container (max-width: 250px) {
+    .uc-tiles {
+      grid-template-columns: minmax(0, 1fr) !important;
+    }
+  }
+
+  :is(.hr-cred__head, .adm-badge__head) {
+    margin: 0 !important;
+  }
+  :is(.hr-cred__who, .adm-badge__who) {
+    margin: 0 !important;
+    padding-block: 0.1rem 0 !important;
+    padding-inline: 0 !important;
+  }
+  :is(.hr-cred__head, .adm-badge__head) > .ag-avatar {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    margin: 0 !important;
+  }
+
+  :is(.ag-pass__head, .hr-cred__head, .adm-badge__head) {
+    padding-left: 0 !important;
+  }
+  :is(.ag-pass, .hr-cred, .adm-badge, .trip-ops-card--vehicle) {
+    overflow: visible !important;
+  }
+
+  :is(.adm-badge-grid) {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)) !important;
+    gap: 1rem !important;
+  }
+  /* «Aprobar» conserva su ícono de visto en lugar de la flecha */
+  .ag-btn--primary[data-action="approve-registration"] > svg {
+    display: inline-block !important;
+  }
+  .ag-btn--primary[data-action="approve-registration"].ab::after {
+    display: none !important;
+  }
+  .adm-badge__chips .role-chip {
+    align-self: center !important;
+  }
+
+  :is(.adm-badge__name, .hr-cred__name, .ag-pass__name) {
+    min-height: 0 !important;
+  }
+  :is(.adm-badge__org, .hr-cred__org) {
+    display: block !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+  }
+  :is(.hr-cred__head, .adm-badge__head, .ag-pass__head) {
+    min-height: 0 !important;
+  }
+  :is(.ag-pass, .hr-cred, .adm-badge, .trip-ops-card--vehicle) {
+    min-height: 0 !important;
+  }
+  .adm-badge > .dc-pick,
+  .trip-ops-card--vehicle > .dc-pick {
+    position: absolute !important;
+    top: 0.2rem !important;
+    left: 0.15rem !important;
+    z-index: 3 !important;
+    width: 1.3rem !important;
+    height: 1.3rem !important;
+    margin: 0 !important;
+    border-radius: 7px !important;
+    box-shadow: 0 2px 6px -2px rgba(30, 80, 160, 0.35) !important;
+  }
+  .adm-badge > .dc-pick input,
+  .trip-ops-card--vehicle > .dc-pick input {
+    width: 0.9rem !important;
+    height: 0.9rem !important;
+  }
+
+  /* Camiones: ícono de vehículo en el círculo y botón «Editar» con la misma forma que «Llamar» */
+  .uc-vehicle-ico svg {
+    width: 2rem !important;
+    height: 2rem !important;
+    stroke-width: 1.8 !important;
+  }
+  :is(.ag-pass__foot, .hr-cred__foot, .adm-badge__foot) .uc-pill-btn {
+    order: 1 !important;
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    --ab-c: var(--uc-ico);
+    --ab-bg: var(--ag-surface, #fff);
+    --ab-bd: var(--uc-btn-edge);
+    --ab-bw: 1px;
+    --ab-fg: var(--uc-ink);
+    --ab-sh: 0 5px 12px -8px rgba(30, 80, 160, 0.35);
+  }
+  :is(.ag-pass__foot, .hr-cred__foot, .adm-badge__foot) .uc-pill-btn svg {
+    color: var(--uc-ico) !important;
+  }
+  .trip-ops-card--vehicle .ag-pass__foot {
+    --ab-h: 2.6rem;
+    --ab-h-sm: 2.6rem;
+  }
+  .trip-ops-card--vehicle.portal-ops-card {
+    min-height: 0 !important;
+  }
+
+  :is(.ag-pass__foot, .hr-cred__foot, .adm-badge__foot) button.uc-pill-btn {
+    display: inline-flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    gap: 0.4rem !important;
+    min-height: 2.6rem !important;
+    padding: 0 0.6rem !important;
+    border: 1px solid var(--uc-btn-edge) !important;
+    border-radius: 999px !important;
+    background: var(--ag-surface, #fff) !important;
+    box-shadow: 0 5px 12px -8px rgba(30, 80, 160, 0.35) !important;
+    color: var(--uc-ink) !important;
+    font-size: 0.86rem !important;
+    font-weight: 800 !important;
+    cursor: pointer !important;
+  }
+  :is(.ag-pass__foot, .hr-cred__foot, .adm-badge__foot) button.uc-pill-btn:hover {
+    background: var(--uc-tile) !important;
+  }
+  :is(.ag-pass__foot, .hr-cred__foot, .adm-badge__foot) button.uc-pill-btn svg {
+    width: 1.1rem !important;
+    height: 1.1rem !important;
+  }
+
+  /* Usuarios: las rejillas del módulo no deben crecer más que la pantalla (móvil) */
+  .admin-users-studio,
+  .admin-users-studio .auth-tab-panels {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .admin-users-studio .auth-tab-panels > * {
+    min-width: 0 !important;
+  }
+
+  :is(.ag-pass__meta, .hr-cred__org, .adm-badge__org) {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    overflow-wrap: anywhere !important;
+  }
+
 }

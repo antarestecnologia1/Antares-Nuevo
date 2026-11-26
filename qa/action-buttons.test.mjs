@@ -257,7 +257,7 @@ for (const sel of [".ag-pass__name", ".adm-badge__name", ".hr-cred__name", ".hir
 ok(/text-transform:\s*none\s*!important/.test(css) && /-webkit-line-clamp:\s*2\s*!important/.test(css), "nombres sin mayúsculas forzadas y con hasta 2 líneas");
 ok(/\.ag-pass__who > \.ag-status/.test(css), "el estado del conductor va bajo el nombre");
 const drv = read("modules/app/conductores.js");
-ok(/ag-pass__meta[\s\S]{0,200}<span class="ag-status[\s\S]{0,300}<\/div>\s*<\/header>/.test(drv), "conductores: el estado está dentro del bloque del nombre (no le quita ancho)");
+ok(/ag-pass__meta[\s\S]{0,200}<span class="ag-status[\s\S]{0,300}<\/div>\s*(\$\{cardMenu\}\s*)?<\/header>/.test(drv), "conductores: el estado está dentro del bloque del nombre (no le quita ancho)");
 
 /* 6) Cambios pendientes */
 const field = (o) => ({ disabled: false, tagName: "INPUT", type: "text", value: "", defaultValue: "", checked: false, defaultChecked: false, ...o });
