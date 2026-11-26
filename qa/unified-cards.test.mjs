@@ -104,4 +104,10 @@ ok(/\.ag-fleet__kpis\.kpi-banner > \.kpi-tile\s*\{[^}]*padding:\s*0\.9rem 4\.6re
 ok(/\.ag-fleet__head\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) minmax\(0, 41rem\)/.test(css) && /@media \(max-width: 1280px\)/.test(css), "banner: indicadores a la derecha y apilados en pantallas medianas");
 ok(kpi.kpiFor("Riesgo documental", 2, "green").tone === "green", "el estado correcto manda sobre el tono del diccionario");
 
+// Banner de Conductores delgado (sin nota de ayuda; indicadores 4 en fila o 2×2 según su ancho)
+ok(!conductores.includes("Alta, baja y ficha completa en Gestión humana") && !conductores.includes("moduleHint"), "el banner de conductores ya no lleva la nota de ayuda");
+ok(conductores.includes('class="ag-fleet__kpis-wrap"'), "indicadores dentro de su contenedor");
+ok(/\.ag-fleet__kpis-wrap\s*\{[^}]*container-type:\s*inline-size/.test(css) && /@container \(max-width: 55\.99rem\)/.test(css), "los indicadores pasan de 4 en fila a 2×2 según el ancho del contenedor");
+ok(/\.ag-fleet__head--drivers\s*\{[^}]*padding:\s*0\.8rem 1\.1rem/.test(css), "cabecera delgada");
+
 console.log(`unified-cards: ${n} verificaciones OK`);

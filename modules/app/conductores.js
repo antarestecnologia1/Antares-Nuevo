@@ -705,9 +705,6 @@ function driversHtml() {
     fleetMainBody = `${fleetToolbar}${fleetLayout === "list" ? fleetListTable : fleetCardsGrid}${driversMoreBar}`;
   }
 
-  const moduleHint = canEditDriver
-    ? "Alta, baja y ficha completa en Gestión humana. Aquí puede ajustar datos operativos (se copian a GH)."
-    : "Solo consulta. La ficha completa se edita en Gestión humana.";
   const availablePct = totalDrivers ? Math.round((availableDrivers / totalDrivers) * 100) : 0;
   const resultLine = filtersActive
     ? `${filteredSummaries.length} de ${totalDrivers} conductores`
@@ -719,14 +716,13 @@ function driversHtml() {
       <p class="ag-eyebrow">Transporte · Flota humana</p>
       <h2>Conductores</h2>
       <p class="ag-fleet__count">${escapeHtml(resultLine)}</p>
-      <p class="ag-fleet__hint">${escapeHtml(moduleHint)}</p>
     </div>
-    <div class="ag-fleet__kpis">
+    <div class="ag-fleet__kpis-wrap"><div class="ag-fleet__kpis">
       ${kpi("Disponibles", `${availableDrivers}<small>/${totalDrivers}</small>`, `${availablePct}% de la flota`, availableDrivers ? "ok" : "")}
       ${kpi("En ruta", occupiedDrivers + scheduledDrivers, `${occupiedDrivers} en curso · ${scheduledDrivers} reservados`)}
       ${kpi("Riesgo documental", docRiskCount, expiredDocsCount ? `${expiredDocsCount} crítico${expiredDocsCount === 1 ? "" : "s"}` : docRiskCount ? "Por vencer" : "Sin críticos", expiredDocsCount ? "alert" : docRiskCount ? "warn" : "ok")}
       ${kpi("Por categoría", camionDrivers, `en camión · ${mulaDrivers} en mula`)}
-    </div>
+    </div></div>
   </header>`;
   return `<section class="drivers-studio ag-fleet">${header}<div class="ag-fleet__body">${fleetMainBody}</div></section>`;
 }

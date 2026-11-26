@@ -2642,4 +2642,96 @@
     }
   }
 
+  /* ───────── Banner de Conductores delgado: título + conteo en una línea, indicadores compactos en fila ───────── */
+  .ag-fleet__head.ag-fleet__head--drivers {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 0.75rem 2rem !important;
+    padding: 0.8rem 1.1rem !important;
+    border-radius: 18px !important;
+  }
+  .ag-fleet__head.ag-fleet__head--drivers::after {
+    display: none !important;
+  }
+  .ag-fleet__head.ag-fleet__head--drivers > .ag-fleet__title {
+    display: flex !important;
+    flex: 0 1 auto !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 0.15rem 0.8rem !important;
+    min-width: 0 !important;
+  }
+  .ag-fleet__head.ag-fleet__head--drivers .ag-eyebrow {
+    flex: 0 0 100% !important;
+    margin: 0 !important;
+  }
+  .ag-fleet__head.ag-fleet__head--drivers .ag-fleet__title h2 {
+    margin: 0 !important;
+    font-size: 1.55rem !important;
+    line-height: 1.15 !important;
+  }
+  .ag-fleet__head.ag-fleet__head--drivers .ag-fleet__title .ag-fleet__count {
+    margin: 0 !important;
+    padding: 0.22rem 0.7rem !important;
+    font-size: 0.76rem !important;
+  }
+
+  /* Indicadores: 4 en fila cuando caben, 2×2 cuando no (según el ancho de su propio contenedor) */
+  .ag-fleet__head.ag-fleet__head--drivers > .ag-fleet__kpis-wrap {
+    flex: 1 1 52rem !important;
+    min-width: 0 !important;
+    container-type: inline-size !important;
+  }
+  .ag-fleet__head.ag-fleet__head--drivers .ag-fleet__kpis-wrap > .ag-fleet__kpis.kpi-banner {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 0.6rem !important;
+    width: 100% !important;
+  }
+  .ag-fleet__head.ag-fleet__head--drivers .ag-fleet__kpis.kpi-banner > .kpi-tile {
+    min-height: 0 !important;
+    padding: 0.55rem 0.9rem !important;
+    column-gap: 0.7rem !important;
+    border-radius: 14px !important;
+  }
+  .ag-fleet__head.ag-fleet__head--drivers .ag-fleet__kpis.kpi-banner > .kpi-tile > .kpi-ico {
+    width: 2.3rem !important;
+    height: 2.3rem !important;
+  }
+  .ag-fleet__head.ag-fleet__head--drivers .ag-fleet__kpis.kpi-banner > .kpi-tile > .kpi-ico svg {
+    width: 1.2rem !important;
+    height: 1.2rem !important;
+  }
+  .ag-fleet__head.ag-fleet__head--drivers .ag-fleet__kpis.kpi-banner > .kpi-tile > .kpi-ghost {
+    display: none !important;
+  }
+  .ag-fleet__head.ag-fleet__head--drivers .ag-fleet__kpis.kpi-banner > .kpi-tile :is(.ag-kpi__label) {
+    font-size: 0.74rem !important;
+  }
+  .ag-fleet__head.ag-fleet__head--drivers .ag-fleet__kpis.kpi-banner > .kpi-tile :is(.ag-kpi__value) {
+    font-size: 1.35rem !important;
+  }
+  .ag-fleet__head.ag-fleet__head--drivers .ag-fleet__kpis.kpi-banner > .kpi-tile > span.ag-kpi__sub:not(.kpi-ico):not(.kpi-ghost):not(.doc-kpi__body):not(.sst-status-card__body):not(.payroll-section-card__body) {
+    font-size: 0.7rem !important;
+  }
+  @container (max-width: 55.99rem) {
+    .ag-fleet__head.ag-fleet__head--drivers .ag-fleet__kpis-wrap > .ag-fleet__kpis.kpi-banner {
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+  }
+  @media (max-width: 640px) {
+    .ag-fleet__head.ag-fleet__head--drivers {
+      padding: 0.7rem 0.8rem !important;
+    }
+    .ag-fleet__head.ag-fleet__head--drivers .ag-fleet__kpis.kpi-banner > .kpi-tile {
+      padding: 0.55rem 0.65rem !important;
+      column-gap: 0.55rem !important;
+    }
+    .ag-fleet__head.ag-fleet__head--drivers .ag-fleet__title h2 {
+      font-size: 1.35rem !important;
+    }
+  }
+
 }
