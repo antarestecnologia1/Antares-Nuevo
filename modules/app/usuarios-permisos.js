@@ -999,11 +999,10 @@ function adminUsersHtml(current) {
   const approvedCount = approvedUsers.length;
 
   const inactiveUsersCount = users.filter((u) => normalizeUserAccountStatus(u) === ACCOUNT_STATUS.RECHAZADO).length;
-  const hero = `<header class="ag-fleet__head adm-access-head">
+  const hero = `<header class="ag-fleet__head ag-fleet__head--users adm-access-head">
     <div class="ag-fleet__title">
       <p class="ag-eyebrow">Sistema · Gobierno de acceso</p>
       <h2>Usuarios y permisos</h2>
-      <p class="ag-fleet__hint">Altas, roles y módulos visibles. La ficha guarda el perfil; los permisos se ajustan por módulo sin saturar la tarjeta.</p>
       <div class="users-hero-actions adm-access-head__actions">
         <button type="button" class="ag-btn ag-btn--primary" data-action="toggle-admin-panel" data-panel="create-user">${IC.userPlus}<span>Nuevo usuario</span></button>
         <button type="button" class="ag-icon-btn" data-action="toggle-admin-panel" data-panel="create-company" title="Nueva empresa" aria-label="Nueva empresa">${IC.building || IC.briefcase}</button>
@@ -1011,12 +1010,12 @@ function adminUsersHtml(current) {
         <button type="button" class="ag-icon-btn" data-action="refresh-user-sessions" title="Actualizar sesiones" aria-label="Actualizar sesiones">${IC.activity}</button>
       </div>
     </div>
-    <div class="ag-fleet__kpis">
+    <div class="ag-fleet__kpis-wrap"><div class="ag-fleet__kpis">
       <div class="ag-kpi${pendingUsers.length ? " ag-kpi--warn" : ""}"><span class="ag-kpi__label">Pendientes</span><strong class="ag-kpi__value">${pendingUsers.length}</strong><span class="ag-kpi__sub">altas por aprobar</span></div>
       <div class="ag-kpi ag-kpi--ok"><span class="ag-kpi__label">Activos</span><strong class="ag-kpi__value">${approvedCount}</strong><span class="ag-kpi__sub">${inactiveUsersCount ? `${inactiveUsersCount} inactiv${inactiveUsersCount === 1 ? "a" : "as"}` : "sin inactivos"}</span></div>
       <div class="ag-kpi"><span class="ag-kpi__label">Empresas</span><strong class="ag-kpi__value">${activeCompaniesCount}</strong><span class="ag-kpi__sub">${inactiveCompaniesCount ? `${inactiveCompaniesCount} inactiva${inactiveCompaniesCount === 1 ? "" : "s"}` : "todas operativas"}</span></div>
       <div class="ag-kpi"><span class="ag-kpi__label">Sesiones</span><strong class="ag-kpi__value">${activeSessions}</strong><span class="ag-kpi__sub">activas ahora</span></div>
-    </div>
+    </div></div>
   </header>`;
 
   let actionsPaneHtml = pcardWrapPro(

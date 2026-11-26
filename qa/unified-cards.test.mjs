@@ -108,12 +108,17 @@ ok(kpi.kpiFor("Riesgo documental", 2, "green").tone === "green", "el estado corr
 ok(!conductores.includes("Alta, baja y ficha completa en Gestión humana") && !conductores.includes("moduleHint"), "el banner de conductores ya no lleva la nota de ayuda");
 ok(conductores.includes('class="ag-fleet__kpis-wrap"'), "indicadores dentro de su contenedor");
 ok(/\.ag-fleet__kpis-wrap\s*\{[^}]*container-type:\s*inline-size/.test(css) && /@container \(max-width: 55\.99rem\)/.test(css), "los indicadores pasan de 4 en fila a 2×2 según el ancho del contenedor");
-ok(/\.ag-fleet__head--drivers\s*\{[^}]*padding:\s*0\.8rem 1\.1rem/.test(css), "cabecera delgada");
+ok(/\.ag-fleet__head:is\(\.ag-fleet__head--drivers, \.ag-fleet__head--users\)\s*\{[^}]*padding:\s*0\.8rem 1\.1rem/.test(css), "cabecera delgada (conductores y usuarios)");
 
 // Banner de Contratación: etiqueta + conmutador arriba, indicadores en una fila
 ok(/\.hiring-studio > \.hr-workspace-header--hiring\s*\{[^}]*grid-template-areas:\s*"brand switch"/.test(css), "Contratación: etiqueta y conmutador en la misma fila");
 ok(/\.hiring-studio-head\s*\{[^}]*display:\s*contents/.test(css), "Contratación: la cabecera interna reparte sus piezas en la rejilla");
 ok(/\.hiring-studio-kpis\.kpi-banner\s*\{[^}]*grid-template-columns:\s*repeat\(auto-fit, minmax\(max\(10\.5rem, 18\.5%\), 1fr\)\)/.test(css), "Contratación: indicadores repartidos a todo el ancho");
 ok(/@media \(max-width: 900px\)\s*\{[^}]*hiring-studio-kpis/.test(css) || /grid-template-areas:\s*"brand" "switch" "kpis"/.test(css), "Contratación: en pantallas angostas se apila");
+
+// Banner de Usuarios y permisos: sin nota de ayuda, mismo diseño delgado que Conductores
+ok(usuarios.includes("ag-fleet__head--users") && usuarios.includes('class="ag-fleet__kpis-wrap"'), "banner de usuarios con cabecera delgada e indicadores en su contenedor");
+ok(!usuarios.includes("Altas, roles y módulos visibles. La ficha guarda el perfil"), "el banner de usuarios ya no lleva la nota de ayuda");
+ok(/\.ag-fleet__head--users \.users-hero-actions\s*\{[^}]*display:\s*flex/.test(css) && /min-width:\s*min\(100%, 56rem\)/.test(css), "usuarios: botones de acción a la izquierda e indicadores a todo el ancho disponible");
 
 console.log(`unified-cards: ${n} verificaciones OK`);
